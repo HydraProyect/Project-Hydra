@@ -69,7 +69,8 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
         var razonesSocialesExistentes = new HashSet<string>(
             await empresasContext.Empresas.Select(e => e.RazonSocial).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
         var dnisExistentes = new HashSet<string>(
-            await trabajadoresContext.Trabajadores.Select(t => t.Dni).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
+            await trabajadoresContext.Trabajadores.Where(t => t.Dni != null).Select(t => t.Dni!).ToListAsync(cancellationToken),
+            StringComparer.OrdinalIgnoreCase);
         var nombresTiposDocumentoValidos = new HashSet<string>(
             await tiposDocumentoContext.TiposDocumento.Select(t => t.Nombre).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
 

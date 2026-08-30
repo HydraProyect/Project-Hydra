@@ -27,7 +27,9 @@ namespace CaeManager.Application.Clientes.Commands.RestaurarCliente;
 /// </summary>
 public record RestaurarClienteCommand(Guid Id) : ICommand;
 
-public class RestaurarClienteCommandHandler(IEmpresasQueryContext empresasContext, ITenantActual tenantActual, IUnitOfWork unitOfWork)
+public class RestaurarClienteCommandHandler(
+    IEmpresasQueryContext empresasContext, ITenantActual tenantActual,
+    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<RestaurarClienteCommand, Result>
 {
     public async Task<Result> Handle(RestaurarClienteCommand request, CancellationToken cancellationToken)
@@ -37,6 +39,11 @@ public class RestaurarClienteCommandHandler(IEmpresasQueryContext empresasContex
             .FirstOrDefaultAsync(e => e.Id == request.Id && e.TenantId == tenantActual.TenantId, cancellationToken);
 
         if (empresa is null || !empresa.EstaEliminado)
+            return Result.Fallo(Error.Crear("Cliente.NoEncontrado", "No encontramos este cliente eliminado."));
+
+        // Autoridad de cartera, no solo tenant (auditoría Módulo 5, hallazgo
+        // crítico 8/9, mismo patrón que RestaurarCentro/RestaurarTrabajador).
+        if (!await alcanceDatos.ClienteVisibleAsync(empresa.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Cliente.NoEncontrado", "No encontramos este cliente eliminado."));
 
         empresa.Restaurar();

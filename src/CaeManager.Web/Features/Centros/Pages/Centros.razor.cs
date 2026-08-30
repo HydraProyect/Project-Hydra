@@ -537,8 +537,7 @@ public partial class Centros : ComponentBase
 
         try
         {
-            var usuarioId = await CurrentUserService.ObtenerUsuarioActualIdAsync();
-            var resultado = await Mediator.Send(new EliminarCentrosCommand(_seleccionados.ToList(), usuarioId ?? Guid.Empty));
+            var resultado = await Mediator.Send(new EliminarCentrosCommand(_seleccionados.ToList()));
             var dto = resultado.Valor;
 
             ToastService.Mostrar(

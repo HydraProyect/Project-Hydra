@@ -8,6 +8,9 @@ public class FileStorageServiceFalso : IFileStorageService
     private readonly Dictionary<string, byte[]> _archivos = [];
     private int _contador;
 
+    /// <summary>Cuántos archivos se guardaron — para probar que un fallo posterior no deja un blob huérfano.</summary>
+    public int ArchivosGuardados => _archivos.Count;
+
     public Task<string> GuardarAsync(Stream contenido, string nombreArchivoOriginal, CancellationToken cancellationToken = default)
     {
         using var memoria = new MemoryStream();

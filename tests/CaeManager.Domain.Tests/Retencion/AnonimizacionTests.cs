@@ -32,7 +32,7 @@ public class AnonimizacionTests
         trabajador.Anonimizar(Ahora);
 
         trabajador.Apellidos.Should().BeEmpty();
-        trabajador.Dni.Should().BeEmpty();
+        trabajador.Dni.Should().BeNull();
         trabajador.Email.Should().BeNull();
         trabajador.FechaNacimiento.Should().BeNull();
         trabajador.Alias.Should().BeNull();

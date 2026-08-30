@@ -111,4 +111,18 @@ public class TrabajadorTests
 
         trabajador.Puesto.Should().BeNull();
     }
+
+    [Fact]
+    public void Anonimizar_deja_el_dni_null_no_cadena_vacia()
+    {
+        // Auditoría Módulo 5, hallazgo crítico 9/9: con Dni='' el índice
+        // único (TenantId, Dni) bloqueaba anonimizar un segundo trabajador
+        // del mismo tenant. Con null y el índice filtrado a "IS NOT NULL",
+        // ninguno de los dos choca.
+        var trabajador = Trabajador.DeEmpresa(Guid.NewGuid(), "Alvaro", "Sanchez Martin", "77189989B");
+
+        trabajador.Anonimizar(DateTime.UtcNow);
+
+        trabajador.Dni.Should().BeNull();
+    }
 }

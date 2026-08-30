@@ -363,8 +363,7 @@ public partial class Vehiculos : ComponentBase
 
         try
         {
-            var usuarioId = await CurrentUserService.ObtenerUsuarioActualIdAsync();
-            var resultado = await Mediator.Send(new EliminarVehiculoCommand(_idAEliminar, usuarioId ?? Guid.Empty));
+            var resultado = await Mediator.Send(new EliminarVehiculoCommand(_idAEliminar));
 
             if (resultado.EsFallido)
             {
@@ -410,8 +409,7 @@ public partial class Vehiculos : ComponentBase
 
         try
         {
-            var usuarioId = await CurrentUserService.ObtenerUsuarioActualIdAsync();
-            var resultado = await Mediator.Send(new EliminarVehiculosCommand(_seleccionados.ToList(), usuarioId ?? Guid.Empty));
+            var resultado = await Mediator.Send(new EliminarVehiculosCommand(_seleccionados.ToList()));
             var dto = resultado.Valor;
 
             ToastService.Mostrar(

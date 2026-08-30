@@ -12,12 +12,13 @@ namespace CaeManager.Application.Subcontratas.Commands.EliminarVerificacionExter
 /// historial real nunca se pierde. La evidencia adjunta no se borra del
 /// almacenamiento: soft delete significa que la fila puede restaurarse.
 /// </summary>
-public record EliminarVerificacionExternaSubcontrataCommand(Guid Id, Guid UsuarioId) : ICommand;
+public record EliminarVerificacionExternaSubcontrataCommand(Guid Id) : ICommand;
 
 public class EliminarVerificacionExternaSubcontrataCommandHandler(
     IVerificacionExternaSubcontrataRepository repositorio,
     IAlcanceDatosService alcanceDatos,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    ICurrentUserService currentUserService)
     : IRequestHandler<EliminarVerificacionExternaSubcontrataCommand, Result>
 {
     public async Task<Result> Handle(
@@ -27,7 +28,11 @@ public class EliminarVerificacionExternaSubcontrataCommandHandler(
         if (verificacion is null || !await alcanceDatos.SubcontrataVisibleAsync(verificacion.SubcontrataId, cancellationToken))
             return Result.Fallo(Error.Crear("VerificacionExterna.NoEncontrada", "No encontramos esta verificación."));
 
-        verificacion.MarcarComoEliminado(request.UsuarioId);
+        var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
+        if (usuarioId is null)
+            return Result.Fallo(Error.Crear("VerificacionExterna.SinIdentidad", "No se pudo confirmar tu identidad. Vuelve a iniciar sesión e inténtalo de nuevo."));
+
+        verificacion.MarcarComoEliminado(usuarioId.Value);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito();

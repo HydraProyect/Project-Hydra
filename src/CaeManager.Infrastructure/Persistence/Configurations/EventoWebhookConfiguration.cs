@@ -14,6 +14,16 @@ public class EventoWebhookConfiguration : IEntityTypeConfiguration<EventoWebhook
         builder.Property(e => e.PayloadCrudo).IsRequired();
         builder.Property(e => e.Estado).IsRequired().HasConversion<string>();
         builder.Property(e => e.ErrorProcesado).HasMaxLength(EventoWebhook.LongitudMaximaError);
+        builder.Property(e => e.PayloadRedactado).IsRequired().HasDefaultValue(false);
+
+        // Parcial sobre los NO redactados: como PoliticasRlsCubrenModeloTests
+        // recuerda para el resto de índices de esta tabla, "sin redactar" es
+        // transitorio (todo evento se acaba redactando pasada la retención),
+        // así que un índice sobre el subconjunto vivo no crece con el
+        // histórico completo — auditoría módulo 6, retención de PayloadCrudo.
+        builder.HasIndex(e => new { e.Estado, e.FechaRecepcionUtc })
+            .HasFilter($"\"{nameof(EventoWebhook.PayloadRedactado)}\" = false")
+            .HasDatabaseName("IX_EventosWebhook_Estado_FechaRecepcionUtc_SinRedactar");
 
         // Parcial y con FechaRecepcionUtc: el consumidor filtra por pendiente
         // Y ordena por fecha de recepción (ver IngestaWebhookService). Un

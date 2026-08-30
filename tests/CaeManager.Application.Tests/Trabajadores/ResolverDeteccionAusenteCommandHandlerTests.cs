@@ -22,7 +22,7 @@ public class ResolverDeteccionAusenteCommandHandlerTests
     {
         var empresaId = Guid.NewGuid();
         var trabajador = Trabajador.DeEmpresa(empresaId, "Pedro", "Gomez Ruiz", "77189989B");
-        var deteccion = DeteccionTrabajador.Ausente(Guid.NewGuid(), empresaId, trabajador.Id, trabajador.Nombre, trabajador.Apellidos, trabajador.Dni);
+        var deteccion = DeteccionTrabajador.Ausente(Guid.NewGuid(), empresaId, trabajador.Id, trabajador.Nombre, trabajador.Apellidos, trabajador.Dni!);
 
         var deteccionRepositorio = new DeteccionTrabajadorRepositorioFalso();
         deteccionRepositorio.Agregar(deteccion);
@@ -43,7 +43,7 @@ public class ResolverDeteccionAusenteCommandHandlerTests
     {
         var empresaId = Guid.NewGuid();
         var trabajador = Trabajador.DeEmpresa(empresaId, "Pedro", "Gomez Ruiz", "77189989B");
-        var deteccion = DeteccionTrabajador.Ausente(Guid.NewGuid(), empresaId, trabajador.Id, trabajador.Nombre, trabajador.Apellidos, trabajador.Dni);
+        var deteccion = DeteccionTrabajador.Ausente(Guid.NewGuid(), empresaId, trabajador.Id, trabajador.Nombre, trabajador.Apellidos, trabajador.Dni!);
 
         var deteccionRepositorio = new DeteccionTrabajadorRepositorioFalso();
         deteccionRepositorio.Agregar(deteccion);
@@ -64,7 +64,7 @@ public class ResolverDeteccionAusenteCommandHandlerTests
     {
         var empresaId = Guid.NewGuid();
         var trabajador = Trabajador.DeEmpresa(empresaId, "Pedro", "Gomez Ruiz", "77189989B");
-        var deteccion = DeteccionTrabajador.Ausente(Guid.NewGuid(), empresaId, trabajador.Id, trabajador.Nombre, trabajador.Apellidos, trabajador.Dni);
+        var deteccion = DeteccionTrabajador.Ausente(Guid.NewGuid(), empresaId, trabajador.Id, trabajador.Nombre, trabajador.Apellidos, trabajador.Dni!);
         deteccion.Resolver("Mantenido");
 
         var deteccionRepositorio = new DeteccionTrabajadorRepositorioFalso();

@@ -8,11 +8,10 @@ namespace CaeManager.Infrastructure.DataProtection;
 /// réplica genera/lee su propio juego de claves, así que una cookie o
 /// credencial cifrada por una réplica no la puede descifrar otra).
 ///
-/// Apagado por defecto, mismo patrón que <c>AlmacenamientoS3</c>/
-/// <c>DataProtection:Kms</c>: sin cuenta de AWS provisionada, las claves
+/// Apagado por defecto, mismo patrón que <c>DataProtection:Kms</c>: sin cuenta de AWS provisionada, las claves
 /// siguen en <c>PersistKeysToFileSystem</c> (ruta local), que es lo correcto
 /// para un despliegue de una sola réplica. Credenciales propias, separadas de
-/// las de Backups/KMS/AlmacenamientoS3 (ver DEPLOY.md).
+/// las de Backups y KMS (ver DEPLOY.md).
 /// </summary>
 public class DataProtectionS3Options
 {
@@ -28,7 +27,7 @@ public class DataProtectionS3Options
 
     public string? Region { get; set; }
 
-    /// <summary>Prefijo de objeto dentro del bucket — permite compartir bucket con AlmacenamientoS3 sin mezclar claves y Documentos.</summary>
+    /// <summary>Prefijo de objeto dentro del bucket — permite compartir bucket con otros usos sin mezclar las claves con ellos.</summary>
     public string Prefijo { get; set; } = "dataprotection-keys/";
 
     public bool EstaConfigurado =>

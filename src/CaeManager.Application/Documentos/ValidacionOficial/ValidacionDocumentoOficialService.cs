@@ -40,12 +40,15 @@ public class ValidacionDocumentoOficialService(
     ILogger<ValidacionDocumentoOficialService> logger) : IValidacionDocumentoOficialService
 {
     /// <summary>
-    /// Umbral de auto-validación (decisión § 6.1/§ 4.4 del plan): también con
-    /// revocación no comprobable — el emisor sigue siendo una CA fijada de la
-    /// Administración, y un OCSP caído una mañana no debe generar revisiones
-    /// espurias justo en la mensualidad. El nivel queda visible en el sello.
+    /// Umbral de auto-validación. Revisado tras auditoría de seguridad del
+    /// módulo (2026-08-30): la degradación original (§ 6.1/§ 4.4 del plan) a
+    /// <see cref="NivelConfianzaDocumental.FirmaValidaSinRevocacion"/>
+    /// permitía que un certificado robado o revocado siguiera auto-validando
+    /// documentos durante una caída de OCSP/CRL — se prioriza integridad
+    /// sobre disponibilidad: sin revocación comprobada en línea, a revisión
+    /// humana, nunca auto-validación.
     /// </summary>
-    private const NivelConfianzaDocumental NivelMinimoParaAutoValidar = NivelConfianzaDocumental.FirmaValidaSinRevocacion;
+    private const NivelConfianzaDocumental NivelMinimoParaAutoValidar = NivelConfianzaDocumental.FirmaValida;
 
     public async Task ProcesarDocumentoAsync(Guid documentoId, CancellationToken cancellationToken = default)
     {
@@ -69,8 +72,8 @@ public class ValidacionDocumentoOficialService(
         catch (FileNotFoundException)
         {
             // Se relanza SIN envolver, a propósito: ver el mismo catch en
-            // VerificacionIaDocumentoService (D3) — Disk/S3FileStorageService
-            // ya normalizan a FileNotFoundException el único caso realmente
+            // VerificacionIaDocumentoService (D3) — DiskFileStorageService
+            // ya normaliza a FileNotFoundException el único caso realmente
             // determinista (el archivo no existe o no resuelve a este
             // tenant), y no va a aparecer en un segundo intento.
             throw;
@@ -148,6 +151,23 @@ public class ValidacionDocumentoOficialService(
     {
         var documentoId = documento.Id;
         var nivel = firmas.Nivel;
+
+        // Auditoría de seguridad del módulo (2026-08-30): una cadena
+        // confiable solo demuestra integridad y posesión de una clave, no
+        // que el firmante sea el organismo del perfil (TGSS/AEAT). Sin este
+        // filtro, el certificado personal de cualquier ciudadano con FNMT
+        // basta para auto-validar un RNT/RLC/ITA falso — el almacén de
+        // confianza ancla en la raíz FNMT-RCM completa, no solo en las
+        // intermedias de sello de órgano (AlmacenConfianzaFirmas). Exigir
+        // EsSelloDeOrgano cierra ese caso concreto pero es una cota parcial,
+        // no una política de firmantes por perfil: cualquier sello de
+        // órgano de CUALQUIER entidad —no solo TGSS/AEAT— sigue pasando.
+        // Restringir a los sellos reales de TGSS/AEAT exige su CIF/subject
+        // conocido, que PLAN-FIRMA-DIGITAL-PDF.md § 7 deja fuera de alcance
+        // (pendiente de REASS/TGSS) — hueco conocido, no una omisión.
+        if (nivel >= NivelMinimoParaAutoValidar
+            && !firmas.Firmas.Any(f => f.Estado == EstadoFirmaPdf.Valida && f.CubreDocumentoCompleto && f.EsSelloDeOrgano))
+            nivel = NivelConfianzaDocumental.FirmaIntegraEmisorNoConfiable;
 
         // La extracción corre SIEMPRE que haya capa de texto, también sin
         // firma suficiente: el CEA/huella/periodo extraídos son el insumo de

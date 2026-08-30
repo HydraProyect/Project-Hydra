@@ -5,9 +5,11 @@ using MediatR;
 
 namespace CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata;
 
-public record EliminarSubcontrataCommand(Guid Id, Guid UsuarioId) : ICommand;
+public record EliminarSubcontrataCommand(Guid Id) : ICommand;
 
-public class EliminarSubcontrataCommandHandler(IEmpresaRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+public class EliminarSubcontrataCommandHandler(
+    IEmpresaRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork,
+    ICurrentUserService currentUserService)
     : IRequestHandler<EliminarSubcontrataCommand, Result>
 {
     public async Task<Result> Handle(EliminarSubcontrataCommand request, CancellationToken cancellationToken)
@@ -21,7 +23,11 @@ public class EliminarSubcontrataCommandHandler(IEmpresaRepository repositorio, I
                 "Subcontrata.TieneTrabajadores",
                 "No puedes eliminar una subcontrata con trabajadores. Da de baja a sus trabajadores primero."));
 
-        subcontrata.MarcarComoEliminado(request.UsuarioId);
+        var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
+        if (usuarioId is null)
+            return Result.Fallo(Error.Crear("Subcontrata.SinIdentidad", "No se pudo confirmar tu identidad. Vuelve a iniciar sesión e inténtalo de nuevo."));
+
+        subcontrata.MarcarComoEliminado(usuarioId.Value);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito();

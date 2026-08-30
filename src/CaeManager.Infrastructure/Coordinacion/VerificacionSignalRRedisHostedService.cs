@@ -7,8 +7,7 @@ namespace CaeManager.Infrastructure.Coordinacion;
 
 /// <summary>
 /// Comprueba al arrancar que el Redis de <c>SignalR:Redis</c> configurado
-/// responde — mismo criterio que <c>VerificacionAlmacenamientoS3HostedService</c>/
-/// <c>VerificacionDataProtectionS3HostedService</c>: una cadena de conexión
+/// responde — mismo criterio que <c>VerificacionDataProtectionS3HostedService</c>: una cadena de conexión
 /// mal copiada no se nota hasta que dos réplicas reciben tráfico real y un
 /// usuario pierde su circuito al cambiar de réplica a mitad de sesión.
 /// </summary>

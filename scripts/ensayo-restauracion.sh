@@ -6,7 +6,15 @@
 # último backup real de S3, restaura el dump con pg_restore, comprueba que
 # las tablas núcleo tienen filas y que el zip de claves de Data Protection
 # es íntegro y contiene claves. El resultado se anota en
-# docs/ENSAYO-RESTAURACION.md (fecha + resultado, como exige el P0-6).
+# ENSAYO-RESTAURACION.md, en el repositorio de negocio (fecha + resultado,
+# como exige el P0-6).
+#
+# DEUDA: este guion ensaya la restauración vía S3/aws-cli del antiguo
+# BackupHostedService, apagado desde el paso a Hetzner (Backups__Activo=false
+# en docker-compose.produccion.yml — ver ese archivo). El mecanismo de
+# backup real hoy es Borg (scripts/backup-borg.sh +
+# scripts/ensayo-restauracion-borg.sh); este script queda como referencia
+# para si S3 se reactivase, no como parte del ensayo periódico actual.
 #
 # Requisitos: aws cli con credenciales del bucket de backups, docker (para el
 # Postgres desechable) y pg_restore >= versión del servidor.
@@ -81,4 +89,4 @@ echo "  1. Arranca la app contra este Postgres (ConnectionStrings__CaeManagerDb=
 echo "     con DataProtection__RutaClaves apuntando al contenido descomprimido del zip."
 echo "  2. Inicia sesión como Administrador y abre una Empresa con credenciales guardadas:"
 echo "     deben verse legibles (RUNBOOK-CLAVES.md § Recuperación, paso 3)."
-echo "  3. Anota fecha, backup usado y resultado en docs/ENSAYO-RESTAURACION.md."
+echo "  3. Anota fecha, backup usado y resultado en ENSAYO-RESTAURACION.md (repositorio de negocio)."

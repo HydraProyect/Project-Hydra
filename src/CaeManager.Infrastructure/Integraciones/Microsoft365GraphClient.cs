@@ -97,7 +97,11 @@ public class Microsoft365GraphClient(
             if (cuerpo?.AccessToken is null || cuerpo.RefreshToken is null)
                 return Result.Fallo<TokensGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorAutenticacion", "No pudimos autenticar con Microsoft."));
 
-            return Result.Exito(new TokensGraphDto(cuerpo.AccessToken, cuerpo.RefreshToken));
+            // expires_in casi siempre viaja (Entra ID lo manda de serie), pero
+            // ante su ausencia se asume el mínimo típico de Graph (1 h) en vez
+            // de fallar el canje por un campo que no es indispensable.
+            var expiraUtc = DateTime.UtcNow.AddSeconds(cuerpo.ExpiresIn ?? 3600);
+            return Result.Exito(new TokensGraphDto(cuerpo.AccessToken, cuerpo.RefreshToken, expiraUtc));
         }
         catch (HttpRequestException ex)
         {
@@ -584,7 +588,8 @@ public class Microsoft365GraphClient(
 
     private sealed record RespuestaTokenGraph(
         [property: JsonPropertyName("access_token")] string? AccessToken,
-        [property: JsonPropertyName("refresh_token")] string? RefreshToken);
+        [property: JsonPropertyName("refresh_token")] string? RefreshToken,
+        [property: JsonPropertyName("expires_in")] int? ExpiresIn);
 
     private sealed record PerfilGraph(
         [property: JsonPropertyName("mail")] string? Mail,

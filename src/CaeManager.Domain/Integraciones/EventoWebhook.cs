@@ -19,6 +19,9 @@ public class EventoWebhook : EntidadConTenant
     private const int BackoffBaseSegundos = 10;
     private const int BackoffMaximoSegundos = 300;
 
+    /// <summary>Marcador que reemplaza el contenido tras <see cref="RedactarPayload"/> — nunca vacío, para no romper la restricción NOT NULL ni el invariante "el evento no puede tener un payload vacío" del constructor.</summary>
+    public const string MarcadorPayloadRedactado = "[redactado por retención]";
+
     public Guid ConexionIntegracionId { get; private set; }
     public string PayloadCrudo { get; private set; } = string.Empty;
     public EstadoEventoWebhook Estado { get; private set; } = EstadoEventoWebhook.Pendiente;
@@ -26,6 +29,19 @@ public class EventoWebhook : EntidadConTenant
     public string? ErrorProcesado { get; private set; }
     public DateTime FechaRecepcionUtc { get; private set; }
     public DateTime? IniciadoEnUtc { get; private set; }
+
+    /// <summary>
+    /// True una vez que <see cref="RedactarPayload"/> ha reemplazado el
+    /// contenido real (auditoría módulo 6): el payload crudo de WhatsApp/
+    /// Graph contiene PHI/PII (cuerpos, teléfonos, nombres) que no hace
+    /// falta conservar una vez el evento terminó — ni para reintentar (ya no
+    /// se va a reintentar, ver <see cref="Estado"/>) ni para depurar pasada
+    /// la ventana de retención. Bandera explícita en vez de comparar contra
+    /// <see cref="MarcadorPayloadRedactado"/>: barata de indexar y no
+    /// depende de que el marcador nunca coincida por casualidad con un
+    /// payload real.
+    /// </summary>
+    public bool PayloadRedactado { get; private set; }
 
     /// <summary>No antes de esta hora vuelve a ser candidato a reclamo tras un fallo transitorio. Ver <see cref="TrabajoAnalisisDocumento"/> para el mismo razonamiento.</summary>
     public DateTime? SiguienteIntentoEnUtc { get; private set; }
@@ -122,5 +138,29 @@ public class EventoWebhook : EntidadConTenant
         if (IniciadoEnUtc is null || ahoraUtc - IniciadoEnUtc.Value < umbral) return;
 
         RegistrarFallo("Recuperado tras quedar en \"Procesando\" sin terminar (proceso reiniciado o caído).");
+    }
+
+    /// <summary>
+    /// Reemplaza <see cref="PayloadCrudo"/> por <see cref="MarcadorPayloadRedactado"/>
+    /// — solo permitido sobre un evento en un estado terminal
+    /// (<see cref="EstadoEventoWebhook.Completado"/> o
+    /// <see cref="EstadoEventoWebhook.DescartadoDefinitivo"/>): uno
+    /// <see cref="EstadoEventoWebhook.Pendiente"/> o
+    /// <see cref="EstadoEventoWebhook.Procesando"/> todavía puede necesitar
+    /// el contenido real para reintentar (auditoría módulo 6, hallazgo de
+    /// retención de PayloadCrudo).
+    /// </summary>
+    public void RedactarPayload()
+    {
+        if (Estado != EstadoEventoWebhook.Completado && Estado != EstadoEventoWebhook.DescartadoDefinitivo)
+        {
+            throw new InvalidOperationException(
+                "Solo se puede redactar el payload de un evento en un estado terminal (Completado o DescartadoDefinitivo).");
+        }
+
+        if (PayloadRedactado) return;
+
+        PayloadCrudo = MarcadorPayloadRedactado;
+        PayloadRedactado = true;
     }
 }

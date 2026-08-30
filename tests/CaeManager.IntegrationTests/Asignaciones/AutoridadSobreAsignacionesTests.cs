@@ -41,6 +41,7 @@ public class AutoridadSobreAsignacionesTests : IAsyncLifetime
     private readonly Guid _tenant = Guid.NewGuid();
 
     private Guid _trabajadorId;
+    private Guid _trabajadorAjenoId;
     private Guid _centroEnAmbitoId;
     private Guid _centroAjenoId;
     private Guid _asignacionAjenaId;
@@ -60,7 +61,8 @@ public class AutoridadSobreAsignacionesTests : IAsyncLifetime
         contexto.Centros.AddRange(centroEnAmbito, centroAjeno);
 
         var trabajador = Trabajador.DeEmpresa(empresa.Id, "Ana", "Garcia", "77189989B");
-        contexto.Trabajadores.Add(trabajador);
+        var trabajadorAjeno = Trabajador.DeEmpresa(empresa.Id, "Luis", "Perez", "12345678Z");
+        contexto.Trabajadores.AddRange(trabajador, trabajadorAjeno);
         await contexto.SaveChangesAsync();
 
         // Una asignación ya existente en el centro ajeno: es la que los tests
@@ -70,6 +72,7 @@ public class AutoridadSobreAsignacionesTests : IAsyncLifetime
         await contexto.SaveChangesAsync();
 
         _trabajadorId = trabajador.Id;
+        _trabajadorAjenoId = trabajadorAjeno.Id;
         _centroEnAmbitoId = centroEnAmbito.Id;
         _centroAjenoId = centroAjeno.Id;
         _asignacionAjenaId = asignacionAjena.Id;
@@ -82,7 +85,7 @@ public class AutoridadSobreAsignacionesTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
         var handler = new CrearAsignacionCommandHandler(
-            new AsignacionRepository(contexto), contexto, AutoridadSoloSobre(contexto, _centroEnAmbitoId), contexto);
+            new AsignacionRepository(contexto), AutoridadSoloSobre(contexto, _centroEnAmbitoId), contexto);
 
         var resultado = await handler.Handle(
             new CrearAsignacionCommand(_trabajadorId, _centroAjenoId, DateOnly.FromDateTime(DateTime.UtcNow)),
@@ -105,7 +108,7 @@ public class AutoridadSobreAsignacionesTests : IAsyncLifetime
         // «no» a todo pasaría los otros tests sin proteger nada.
         await using var contexto = CrearContexto();
         var handler = new CrearAsignacionCommandHandler(
-            new AsignacionRepository(contexto), contexto, AutoridadSoloSobre(contexto, _centroEnAmbitoId), contexto);
+            new AsignacionRepository(contexto), AutoridadSoloSobre(contexto, _centroEnAmbitoId), contexto);
 
         var resultado = await handler.Handle(
             new CrearAsignacionCommand(_trabajadorId, _centroEnAmbitoId, DateOnly.FromDateTime(DateTime.UtcNow)),
@@ -119,7 +122,7 @@ public class AutoridadSobreAsignacionesTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
         var handler = new CrearAsignacionesCommandHandler(
-            new AsignacionRepository(contexto), contexto, contexto,
+            new AsignacionRepository(contexto), contexto,
             AutoridadSoloSobre(contexto, _centroEnAmbitoId), contexto);
 
         var resultado = await handler.Handle(
@@ -132,6 +135,51 @@ public class AutoridadSobreAsignacionesTests : IAsyncLifetime
         await using var comprobacion = CrearContexto();
         (await comprobacion.Asignaciones.CountAsync(a => a.CentroId == _centroAjenoId))
             .Should().Be(1, "la asignación preexistente sigue ahí, pero el lote no añadió ninguna");
+    }
+
+    [Fact]
+    public async Task No_se_puede_dar_de_alta_a_un_trabajador_fuera_del_ambito()
+    {
+        // Auditoría Módulo 5, hallazgo crítico 6/9: antes solo se comprobaba
+        // que el trabajador existiera en el tenant, no que estuviera bajo la
+        // autoridad de quien asigna — "secuestro" de trabajador entre
+        // carteras.
+        await using var contexto = CrearContexto();
+        var handler = new CrearAsignacionCommandHandler(
+            new AsignacionRepository(contexto),
+            AutoridadSoloSobre(contexto, [_centroEnAmbitoId], [_trabajadorId]), contexto);
+
+        var resultado = await handler.Handle(
+            new CrearAsignacionCommand(_trabajadorAjenoId, _centroEnAmbitoId, DateOnly.FromDateTime(DateTime.UtcNow)),
+            CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue("el trabajador no está en la cartera de quien asigna");
+        resultado.Error.Codigo.Should().Be("Asignacion.TrabajadorNoEncontrado");
+
+        await using var comprobacion = CrearContexto();
+        (await comprobacion.Asignaciones.CountAsync(a => a.TrabajadorId == _trabajadorAjenoId))
+            .Should().Be(0, "no debe haberse creado ninguna asignación para el trabajador ajeno");
+    }
+
+    [Fact]
+    public async Task El_lote_de_alta_descarta_los_trabajadores_fuera_del_ambito()
+    {
+        await using var contexto = CrearContexto();
+        var handler = new CrearAsignacionesCommandHandler(
+            new AsignacionRepository(contexto), contexto,
+            AutoridadSoloSobre(contexto, [_centroEnAmbitoId], [_trabajadorId]), contexto);
+
+        var resultado = await handler.Handle(
+            new CrearAsignacionesCommand(
+                [_trabajadorId, _trabajadorAjenoId], [_centroEnAmbitoId], DateOnly.FromDateTime(DateTime.UtcNow)),
+            CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.Creadas.Should().Be(1, "solo el trabajador de la propia cartera entra en el lote");
+
+        await using var comprobacion = CrearContexto();
+        (await comprobacion.Asignaciones.CountAsync(a => a.TrabajadorId == _trabajadorAjenoId))
+            .Should().Be(0);
     }
 
     [Fact]
@@ -174,6 +222,10 @@ public class AutoridadSobreAsignacionesTests : IAsyncLifetime
 
     private static AutoridadAsignacionesServiceFalso AutoridadSoloSobre(
         CaeManagerDbContext contexto, params Guid[] centroIds) => new(contexto, centroIds);
+
+    private static AutoridadAsignacionesServiceFalso AutoridadSoloSobre(
+        CaeManagerDbContext contexto, IReadOnlyList<Guid> centroIds, IReadOnlyList<Guid> trabajadorIds) =>
+        new(contexto, centroIds, trabajadorIds);
 
     private CaeManagerDbContext CrearContexto()
     {

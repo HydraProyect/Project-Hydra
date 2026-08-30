@@ -1,0 +1,19 @@
+<Project>
+
+  <!-- Cadena de suministro (auditoría Módulo 10, 2026-08-30): los
+       PackageReference con comodín ("10.*", "12.*"...) dejaban que un mismo
+       commit restaurase paquetes distintos según el día, sin garantía de que
+       la imagen que escanea Trivy en CI fuera la que compila el VPS al
+       reconstruir desde el mismo SHA. Con RestorePackagesWithLockFile, cada
+       proyecto fija sus versiones resueltas en su propio packages.lock.json
+       (generado, no escrito a mano) y todo restore posterior, sea local, de
+       CI o del Dockerfile, usa esas versiones exactas mientras el csproj no
+       cambie. Actualizar una dependencia sigue siendo `dotnet restore` con
+       el flag de reevaluación forzada, ahora con el lock file como diff
+       explícito en el PR en vez de un cambio invisible en el árbol de
+       paquetes. -->
+  <PropertyGroup>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+
+</Project>

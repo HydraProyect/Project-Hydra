@@ -9,7 +9,9 @@ using CaeManager.Infrastructure.Persistence.Interceptors;
 using CaeManager.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
+using CaeManager.Application.Common;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace CaeManager.IntegrationTests.Documentos;
@@ -129,11 +131,80 @@ public class RenovarDocumentoConcurrenciaTests : IAsyncLifetime
     private static ObtenerDocumentoPorIdQueryHandler ConstruirHandlerConsulta(CaeManagerDbContext contexto) =>
         new(contexto, contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso());
 
-    private static RenovarDocumentoCommandHandler ConstruirHandlerRenovar(CaeManagerDbContext contexto) =>
+    private static RenovarDocumentoCommandHandler ConstruirHandlerRenovar(
+        CaeManagerDbContext contexto, IFileStorageService? almacenamiento = null) =>
         new(
             new DocumentoRepository(contexto), contexto, new AlcanceDatosServiceFalso(), contexto,
             new ColaAnalisisDocumentoFalsa(), new CurrentUserServiceFalso(),
-            new AcreditacionDocumentoPlataformaRepository(contexto), new PublisherFalso(), contexto);
+            new AcreditacionDocumentoPlataformaRepository(contexto), new PublisherFalso(), contexto,
+            almacenamiento ?? new AlmacenamientoFalso(),
+            NullLogger<RenovarDocumentoCommandHandler>.Instance);
+
+    /// <summary>Documento con archivo adjunto ya guardado en el almacén falso.</summary>
+    private async Task<(Guid DocumentoId, string ArchivoUrl)> SembrarDocumentoConArchivoAsync(AlmacenamientoFalso almacen)
+    {
+        await using var contexto = CrearContexto();
+
+        var empresaId = await contexto.Empresas.Select(e => e.Id).FirstAsync();
+        var tipoId = await contexto.TiposDocumento.Select(t => t.Id).FirstAsync();
+
+        using var contenido = new MemoryStream("pdf original"u8.ToArray());
+        var archivoUrl = await almacen.GuardarAsync(contenido, "original.pdf");
+
+        var documento = Documento.DeEmpresa(empresaId, tipoId, new DateOnly(2026, 1, 1), null, archivoUrl);
+        contexto.Documentos.Add(documento);
+        await contexto.SaveChangesAsync();
+
+        return (documento.Id, archivoUrl);
+    }
+
+    [Fact]
+    public async Task Renovar_con_un_archivo_nuevo_borra_el_anterior()
+    {
+        // AdjuntarArchivo sobreescribe ArchivoUrl, así que sin capturar la
+        // clave anterior antes se perdía para siempre: el PDF de la versión
+        // vieja —datos médicos— se quedaba en almacenamiento sin ninguna fila
+        // que lo nombrara, fuera del alcance de la retención y de cualquier
+        // purga. Cada renovación dejaba una copia irrecuperable.
+        var almacen = new AlmacenamientoFalso();
+        var (documentoId, archivoAnterior) = await SembrarDocumentoConArchivoAsync(almacen);
+
+        using var nuevo = new MemoryStream("pdf renovado"u8.ToArray());
+        var archivoNuevo = await almacen.GuardarAsync(nuevo, "renovado.pdf");
+
+        await using (var contexto = CrearContexto())
+        {
+            var resultado = await ConstruirHandlerRenovar(contexto, almacen).Handle(
+                new RenovarDocumentoCommand(documentoId, new DateOnly(2026, 2, 1), null, archivoNuevo, null),
+                CancellationToken.None);
+
+            resultado.EsExitoso.Should().BeTrue();
+        }
+
+        almacen.Existe(archivoAnterior).Should().BeFalse("el archivo de la versión anterior ya no lo referencia nadie");
+        almacen.Existe(archivoNuevo).Should().BeTrue("el archivo vigente no se puede tocar");
+    }
+
+    [Fact]
+    public async Task Renovar_sin_archivo_nuevo_no_borra_el_que_ya_tenia()
+    {
+        // Control negativo, y el que de verdad importa: renovar solo las
+        // fechas deja el mismo archivo adjunto. Borrarlo aquí no sería una
+        // limpieza, sería destruir el documento vigente.
+        var almacen = new AlmacenamientoFalso();
+        var (documentoId, archivoUrl) = await SembrarDocumentoConArchivoAsync(almacen);
+
+        await using (var contexto = CrearContexto())
+        {
+            var resultado = await ConstruirHandlerRenovar(contexto, almacen).Handle(
+                new RenovarDocumentoCommand(documentoId, new DateOnly(2026, 2, 1), null, null, "Solo fechas"),
+                CancellationToken.None);
+
+            resultado.EsExitoso.Should().BeTrue();
+        }
+
+        almacen.Existe(archivoUrl).Should().BeTrue();
+    }
 
     private CaeManagerDbContext CrearContexto()
     {
@@ -148,6 +219,34 @@ public class RenovarDocumentoConcurrenciaTests : IAsyncLifetime
             .Options;
 
         return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), _tenantActual);
+    }
+
+    private sealed class AlmacenamientoFalso : IFileStorageService
+    {
+        private readonly Dictionary<string, byte[]> _archivos = [];
+        private int _contador;
+
+        public bool Existe(string identificador) => _archivos.ContainsKey(identificador);
+
+        public Task<string> GuardarAsync(Stream contenido, string nombreArchivoOriginal, CancellationToken cancellationToken = default)
+        {
+            using var memoria = new MemoryStream();
+            contenido.CopyTo(memoria);
+            var identificador = $"falso-{++_contador}-{nombreArchivoOriginal}";
+            _archivos[identificador] = memoria.ToArray();
+            return Task.FromResult(identificador);
+        }
+
+        public Task<Stream> AbrirAsync(string identificador, CancellationToken cancellationToken = default) =>
+            _archivos.TryGetValue(identificador, out var contenido)
+                ? Task.FromResult<Stream>(new MemoryStream(contenido))
+                : throw new FileNotFoundException("No encontramos el archivo solicitado.", identificador);
+
+        public Task EliminarAsync(string identificador, CancellationToken cancellationToken = default)
+        {
+            _archivos.Remove(identificador);
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class ColaAnalisisDocumentoFalsa : ITrabajoAnalisisDocumentoRepository

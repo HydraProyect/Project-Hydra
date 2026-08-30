@@ -153,8 +153,7 @@ public partial class Gestiones : ComponentBase
 
         try
         {
-            var usuarioId = await CurrentUserService.ObtenerUsuarioActualIdAsync();
-            var resultado = await Mediator.Send(new EliminarGestionCommand(_idAEliminar, usuarioId ?? Guid.Empty));
+            var resultado = await Mediator.Send(new EliminarGestionCommand(_idAEliminar));
 
             if (resultado.EsFallido)
             {

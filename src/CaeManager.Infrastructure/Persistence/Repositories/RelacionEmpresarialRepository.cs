@@ -96,27 +96,42 @@ public class RelacionEmpresarialRepository(CaeManagerDbContext dbContext) : IRel
         return candidatos.Count == 1 ? candidatos[0] : null;
     }
 
+    /// <summary>
+    /// Auditoría Módulo 5, hueco arquitectónico: recorría la cadena con hasta
+    /// <see cref="LimiteProfundidadCadena"/> consultas secuenciales, una por
+    /// nivel — un viaje a la base por paso, sin ninguna protección
+    /// transaccional frente a un reencuadre concurrente que cambiara la
+    /// cadena a mitad de recorrido. Una única consulta recursiva resuelve
+    /// toda la cadena de una vez, con el mismo tope defensivo y el mismo
+    /// criterio de fallo cerrado (agotar el límite sin resolver se trata como
+    /// ciclo, no como falso negativo).
+    /// </summary>
     public async Task<bool> CreariaUnCicloAsync(
         Guid relacionId, Guid propuestaEnmarcadaEnId, CancellationToken cancellationToken = default)
     {
-        var actual = propuestaEnmarcadaEnId;
+        var cadena = await dbContext.Database.SqlQueryRaw<Guid>(
+            """
+            WITH RECURSIVE cadena AS (
+                SELECT "Id", "EnmarcadaEnId", 1 AS profundidad
+                FROM "RelacionesEmpresariales"
+                WHERE "Id" = {0}
+                UNION ALL
+                SELECT r."Id", r."EnmarcadaEnId", c.profundidad + 1
+                FROM "RelacionesEmpresariales" r
+                JOIN cadena c ON r."Id" = c."EnmarcadaEnId"
+                WHERE c.profundidad < {1}
+            )
+            SELECT "Id" FROM cadena
+            """,
+            propuestaEnmarcadaEnId, LimiteProfundidadCadena)
+            .ToListAsync(cancellationToken);
 
-        for (var pasos = 0; pasos < LimiteProfundidadCadena; pasos++)
-        {
-            if (actual == relacionId)
-                return true;
+        // La cadena agotó el tope sin llegar a un nodo raíz (EnmarcadaEnId
+        // null): anómala, se trata como ciclo — mismo criterio que el bucle
+        // original al salir sin match ni null.
+        if (cadena.Count >= LimiteProfundidadCadena)
+            return true;
 
-            var siguiente = await dbContext.RelacionesEmpresariales
-                .Where(r => r.Id == actual)
-                .Select(r => r.EnmarcadaEnId)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            if (siguiente is null)
-                return false;
-
-            actual = siguiente.Value;
-        }
-
-        return true;
+        return cadena.Contains(relacionId);
     }
 }

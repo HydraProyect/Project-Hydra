@@ -8,18 +8,25 @@ using MediatR;
 namespace CaeManager.Application.Empresas.Commands.EliminarEmpresas;
 
 /// <summary>Borrado en lote — ver EliminarClientesCommand para el criterio de éxito parcial.</summary>
-public record EliminarEmpresasCommand(IReadOnlyList<Guid> Ids, Guid UsuarioId) : ICommand<ResultadoEliminacionLoteDto>;
+public record EliminarEmpresasCommand(IReadOnlyList<Guid> Ids) : ICommand<ResultadoEliminacionLoteDto>;
 
 public class EliminarEmpresasCommandValidator : AbstractValidator<EliminarEmpresasCommand>
 {
     public EliminarEmpresasCommandValidator() => RuleFor(c => c.Ids).NotEmpty();
 }
 
-public class EliminarEmpresasCommandHandler(IEmpresaRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+public class EliminarEmpresasCommandHandler(
+    IEmpresaRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork,
+    ICurrentUserService currentUserService)
     : IRequestHandler<EliminarEmpresasCommand, Result<ResultadoEliminacionLoteDto>>
 {
     public async Task<Result<ResultadoEliminacionLoteDto>> Handle(EliminarEmpresasCommand request, CancellationToken cancellationToken)
     {
+        // Auditoría Módulo 5, hallazgo crítico 7/9 — ver EliminarCentroCommand.
+        var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
+        if (usuarioId is null)
+            return Result.Fallo<ResultadoEliminacionLoteDto>(Error.Crear("Empresa.SinIdentidad", "No se pudo confirmar tu identidad. Vuelve a iniciar sesión e inténtalo de nuevo."));
+
         var eliminados = 0;
         var errores = new List<string>();
 
@@ -38,7 +45,7 @@ public class EliminarEmpresasCommandHandler(IEmpresaRepository repositorio, IAlc
                 continue;
             }
 
-            empresa.MarcarComoEliminado(request.UsuarioId);
+            empresa.MarcarComoEliminado(usuarioId.Value);
             eliminados++;
         }
 

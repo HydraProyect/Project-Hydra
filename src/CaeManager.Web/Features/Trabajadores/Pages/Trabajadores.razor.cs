@@ -504,8 +504,7 @@ public partial class Trabajadores : ComponentBase
 
         try
         {
-            var usuarioId = await CurrentUserService.ObtenerUsuarioActualIdAsync();
-            var resultado = await Mediator.Send(new EliminarTrabajadorCommand(_idAEliminar, usuarioId ?? Guid.Empty));
+            var resultado = await Mediator.Send(new EliminarTrabajadorCommand(_idAEliminar));
 
             if (resultado.EsFallido)
             {
@@ -567,8 +566,7 @@ public partial class Trabajadores : ComponentBase
 
         try
         {
-            var usuarioId = await CurrentUserService.ObtenerUsuarioActualIdAsync();
-            var resultado = await Mediator.Send(new EliminarTrabajadoresCommand(_seleccionados.ToList(), usuarioId ?? Guid.Empty));
+            var resultado = await Mediator.Send(new EliminarTrabajadoresCommand(_seleccionados.ToList()));
             var dto = resultado.Valor;
 
             ToastService.Mostrar(

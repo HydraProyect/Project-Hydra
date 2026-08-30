@@ -103,8 +103,8 @@ public class DeteccionTrabajadoresService(
         catch (FileNotFoundException)
         {
             // Se relanza SIN envolver, a propósito: ver el mismo catch en
-            // VerificacionIaDocumentoService (D3) — Disk/S3FileStorageService
-            // ya normalizan a FileNotFoundException el único caso realmente
+            // VerificacionIaDocumentoService (D3) — DiskFileStorageService
+            // ya normaliza a FileNotFoundException el único caso realmente
             // determinista (el archivo no existe o no resuelve a este
             // tenant), y no va a aparecer en un segundo intento.
             throw;
@@ -196,7 +196,7 @@ public class DeteccionTrabajadoresService(
             deteccionRepositorio.Agregar(DeteccionTrabajador.Nuevo(documentoId, empresaId, nuevo.Nombre, nuevo.Apellidos, nuevo.Dni));
 
         foreach (var ausente in ausentes)
-            deteccionRepositorio.Agregar(DeteccionTrabajador.Ausente(documentoId, empresaId, ausente.Id, ausente.Nombre, ausente.Apellidos, ausente.Dni));
+            deteccionRepositorio.Agregar(DeteccionTrabajador.Ausente(documentoId, empresaId, ausente.Id, ausente.Nombre, ausente.Apellidos, ausente.Dni ?? string.Empty));
 
         await NotificarGestoresAsync(empresaId, tipoDocumento, clientesVinculados, nuevos.Count, ausentes.Count, cancellationToken);
 
@@ -256,8 +256,12 @@ public class DeteccionTrabajadoresService(
     /// depender de esto. Un identificador que no sea DNI/NIE (pasaporte,
     /// documento extranjero) devuelve <c>false</c> aquí: es correcto para el
     /// uso que se le da, y por eso ese uso está acotado.
+    ///
+    /// Acepta <c>null</c> desde que un Trabajador anonimizado puede no tener
+    /// Dni: <see cref="NormalizarDni"/> lo lleva a cadena vacía y la
+    /// comprobación de longitud lo rechaza, sin caso especial.
     /// </summary>
-    private static bool EsDocumentoIdentidadValido(string documentoIdentidad)
+    private static bool EsDocumentoIdentidadValido(string? documentoIdentidad)
     {
         var valor = NormalizarDni(documentoIdentidad).Replace("-", string.Empty).Replace(" ", string.Empty);
 
@@ -275,6 +279,9 @@ public class DeteccionTrabajadoresService(
             && letra == LetrasControlDni[numero % 23];
     }
 
-    private static string NormalizarDni(string dni) => dni.Trim().ToUpperInvariant();
+    // string? — un trabajador anonimizado (Dni null) nunca debe casar con un
+    // Dni extraído de un documento: normaliza a "", que ninguna extracción
+    // real produce tras el Trim().
+    private static string NormalizarDni(string? dni) => dni?.Trim().ToUpperInvariant() ?? string.Empty;
     private static string NormalizarDni(TrabajadorExtraidoDto trabajador) => NormalizarDni(trabajador.Dni);
 }

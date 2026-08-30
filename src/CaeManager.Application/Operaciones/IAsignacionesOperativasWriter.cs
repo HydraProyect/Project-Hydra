@@ -35,6 +35,11 @@ public interface IAsignacionesOperativasWriter
     /// Si no puede escribirse la cartera del nuevo ejecutivo: sin tenant
     /// resuelto, usuario inexistente, o sin operación vigente donde colgarla.
     /// </exception>
+    /// <exception cref="UnauthorizedAccessException">
+    /// Si el nuevo ejecutivo pertenece al tenant operador pero no tiene una
+    /// asignación de Operador Delegado única y vigente sobre este tenant
+    /// propietario — fallo cerrado, nunca se le concede un rol por omisión.
+    /// </exception>
     Task ReasignarCarteraClienteAsync(
         Guid clienteId, Guid? nuevoEjecutivoUsuarioId, CancellationToken cancellationToken = default);
 

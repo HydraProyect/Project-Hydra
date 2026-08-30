@@ -245,6 +245,15 @@ public static class InfrastructureServiceCollectionExtensions
             services.AddHostedService<RenovacionSuscripcionWebhookHostedService>();
         }
 
+        // Retención del payload crudo de EventoWebhook (auditoría módulo 6):
+        // registrado siempre, no solo si Microsoft365 está configurado —
+        // redacta eventos de cualquier proveedor (WhatsApp incluido). Apagada
+        // por defecto (ver RetencionEventosWebhookOptions), mismo criterio
+        // que RetencionDatosOptions/BackupsOptions.
+        services.Configure<RetencionEventosWebhookOptions>(
+            configuration.GetSection(RetencionEventosWebhookOptions.SeccionConfiguracion));
+        services.AddHostedService<RedaccionPayloadWebhookHostedService>();
+
         // Segundo conector de mensajería: WhatsApp Cloud API (Meta). Mismo
         // patrón "inerte por defecto": sin AppSecret/VerifyToken no se
         // registra el consumidor y el webhook rechaza todo. El cliente HTTP
@@ -456,33 +465,38 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.Configure<DiskFileStorageServiceOptions>(configuration.GetSection(DiskFileStorageServiceOptions.SeccionConfiguracion));
 
-        var opcionesS3 = new AlmacenamientoS3Options();
-        configuration.GetSection(AlmacenamientoS3Options.SeccionConfiguracion).Bind(opcionesS3);
-        services.Configure<AlmacenamientoS3Options>(configuration.GetSection(AlmacenamientoS3Options.SeccionConfiguracion));
+        // Único backend de almacenamiento de Documentos: disco local.
+        //
+        // El backend de S3 se retiró (auditoría del Módulo 2). Existía para
+        // desbloquear multi-réplica, y eso no está en juego: producción corre un
+        // solo contenedor caemanager-app sin réplicas, y la durabilidad ya la
+        // cubre el respaldo Borg de /data/documentos contra el Storage Box.
+        //
+        // A cambio traía riesgo real: no cifraba el contenido —quedó fuera del
+        // cifrado en reposo y del formato versionado por tenant que sí tiene el
+        // disco—, no tenía ni una prueba frente a las once del backend de disco
+        // (aislamiento entre tenants y manipulación incluidos), y usaba
+        // credenciales estáticas compartidas por todos los tenants. Bastaba una
+        // variable de entorno para cambiar el almacén a esas condiciones sin que
+        // nada avisara.
+        //
+        // Si algún día hace falta almacenamiento compartido, el sustituto debe
+        // nacer con el formato v2 de DiskFileStorageService, no retrofitado.
+        //
+        // Scoped, no Singleton: depende de ITenantActual, que es scoped — ver
+        // docs/MULTITENANCY.md § 4.6.
+        services.AddScoped<IFileStorageService, DiskFileStorageService>();
 
-        // Scoped en los dos casos (no Singleton): dependen de ITenantActual,
-        // que es scoped — ver docs/MULTITENANCY.md § 4.6. AlmacenamientoS3:Activo
-        // apagado por defecto (mismo patrón que Backups/DataProtection:Kms):
-        // sin cuenta de AWS provisionada, sigue en disco local — ver DEPLOY.md.
-        if (opcionesS3.EstaConfigurado)
+        // El despliegue real vive en un .env que no está en el repositorio, así
+        // que desde aquí no se puede descartar que alguno siga declarando la
+        // opción retirada. Un despliegue que crea estar guardando en S3 y en
+        // realidad guarde en disco es peor que uno que lo sepa: mismo criterio
+        // ruidoso que tenía el aviso anterior.
+        if (configuration.GetValue<bool>("AlmacenamientoS3:Activo"))
         {
-            services.AddScoped<IFileStorageService, S3FileStorageService>();
-            services.AddHostedService<VerificacionAlmacenamientoS3HostedService>();
-        }
-        else
-        {
-            if (opcionesS3.Activo)
-            {
-                // Ruidoso a propósito, mismo criterio que DataProtection:Kms:
-                // un despliegue que cree estar guardando en S3 y en realidad
-                // siga en disco local (por una variable mal copiada) es peor
-                // que uno que sepa que sigue en disco.
-                Console.WriteLine(
-                    "[AVISO] AlmacenamientoS3:Activo está en true pero faltan variables de AWS " +
-                    "(AccessKeyId/SecretAccessKey/BucketName/Region) — los archivos siguen guardándose en disco local.");
-            }
-
-            services.AddScoped<IFileStorageService, DiskFileStorageService>();
+            Console.WriteLine(
+                "[AVISO] AlmacenamientoS3:Activo sigue definido en la configuración, pero ese backend " +
+                "se retiró: los documentos se guardan en disco local. Retira la variable del despliegue.");
         }
 
         services.Configure<LibreOfficeConversorWordPdfServiceOptions>(configuration.GetSection(LibreOfficeConversorWordPdfServiceOptions.SeccionConfiguracion));

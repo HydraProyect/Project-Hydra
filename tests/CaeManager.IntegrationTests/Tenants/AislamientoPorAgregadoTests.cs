@@ -177,11 +177,7 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
         Guid clienteId = default, centroId = default;
         return VerificarAislamientoAsync(
             () => Proyecto.Crear(clienteId, centroId, "Parada técnica 2026", new DateOnly(2026, 1, 1), null, null),
-            async contexto =>
-            {
-                clienteId = await SembrarClienteAsync(contexto);
-                centroId = await SembrarCentroAsync(contexto);
-            });
+            async contexto => (centroId, clienteId) = await SembrarCentroConClienteAsync(contexto));
     }
 
     [Fact]
@@ -549,12 +545,18 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
 
     private static async Task<Guid> SembrarCentroAsync(CaeManagerDbContext contexto)
     {
+        var (centroId, _) = await SembrarCentroConClienteAsync(contexto);
+        return centroId;
+    }
+
+    private static async Task<(Guid CentroId, Guid ClienteId)> SembrarCentroConClienteAsync(CaeManagerDbContext contexto)
+    {
         var clienteId = await SembrarClienteAsync(contexto);
         var empresaId = await SembrarEmpresaAsync(contexto);
         var centro = new Centro(clienteId, empresaId, "Centro de prueba");
         contexto.Centros.Add(centro);
         await contexto.SaveChangesAsync();
-        return centro.Id;
+        return (centro.Id, clienteId);
     }
 
     private static async Task<Guid> SembrarTrabajadorAsync(CaeManagerDbContext contexto)
@@ -619,8 +621,7 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
 
     private static async Task<Guid> SembrarProyectoAsync(CaeManagerDbContext contexto)
     {
-        var clienteId = await SembrarClienteAsync(contexto);
-        var centroId = await SembrarCentroAsync(contexto);
+        var (centroId, clienteId) = await SembrarCentroConClienteAsync(contexto);
         var proyecto = Proyecto.Crear(clienteId, centroId, $"Proyecto {Guid.NewGuid():N}", new DateOnly(2026, 1, 1), null, null);
         contexto.Proyectos.Add(proyecto);
         await contexto.SaveChangesAsync();

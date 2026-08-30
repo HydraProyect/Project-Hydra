@@ -77,10 +77,10 @@ public class CierreDeAsignacionesAlEliminarTests : IAsyncLifetime
         {
             var handler = new EliminarCentroCommandHandler(
                 new CentroRepository(contexto), new AsignacionRepository(contexto),
-                new AlcanceDatosServiceFalso(), contexto);
+                new AlcanceDatosServiceFalso(), contexto, new CurrentUserServiceFalso(Guid.NewGuid()));
 
             var resultado = await handler.Handle(
-                new EliminarCentroCommand(_centroId, Guid.NewGuid()), CancellationToken.None);
+                new EliminarCentroCommand(_centroId), CancellationToken.None);
 
             resultado.EsExitoso.Should().BeTrue();
         }
@@ -106,10 +106,10 @@ public class CierreDeAsignacionesAlEliminarTests : IAsyncLifetime
         {
             var handler = new EliminarTrabajadorCommandHandler(
                 new TrabajadorRepository(contexto), new AsignacionRepository(contexto),
-                new AlcanceDatosServiceFalso(), contexto);
+                new AlcanceDatosServiceFalso(), contexto, new CurrentUserServiceFalso(Guid.NewGuid()));
 
             var resultado = await handler.Handle(
-                new EliminarTrabajadorCommand(_trabajadorId, Guid.NewGuid()), CancellationToken.None);
+                new EliminarTrabajadorCommand(_trabajadorId), CancellationToken.None);
 
             resultado.EsExitoso.Should().BeTrue();
         }
@@ -134,9 +134,9 @@ public class CierreDeAsignacionesAlEliminarTests : IAsyncLifetime
         {
             var handler = new EliminarCentroCommandHandler(
                 new CentroRepository(contexto), new AsignacionRepository(contexto),
-                new AlcanceDatosServiceFalso(), contexto);
+                new AlcanceDatosServiceFalso(), contexto, new CurrentUserServiceFalso(Guid.NewGuid()));
 
-            await handler.Handle(new EliminarCentroCommand(_centroId, Guid.NewGuid()), CancellationToken.None);
+            await handler.Handle(new EliminarCentroCommand(_centroId), CancellationToken.None);
         }
 
         await using var verificacion = CrearContexto();

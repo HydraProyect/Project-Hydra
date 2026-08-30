@@ -143,6 +143,102 @@ public class EjecucionPurgaTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// Auditoría Módulo 5, hallazgo crítico 9/9: Trabajador.Anonimizar vaciaba
+    /// el Dni a '' en vez de a null, y el índice único (TenantId, Dni) no
+    /// tenía filtro. Con dos trabajadores del mismo tenant purgables en la
+    /// MISMA ejecución, el SaveChangesAsync único de EjecucionPurgaService
+    /// (todo el lote en una transacción) chocaba con un 23505 al llegar al
+    /// segundo — la purga entera fallaba, no solo el segundo trabajador.
+    /// </summary>
+    [Fact]
+    public async Task Ejecutar_anonimiza_dos_trabajadores_purgables_del_mismo_tenant_en_la_misma_ejecucion()
+    {
+        var fechaBaja = _hoy.AddYears(-6);
+        Guid primeroId, segundoId;
+
+        await using (var contextoSiembra = CrearContexto())
+        {
+            var empresaId = await contextoSiembra.Empresas.Select(e => e.Id).FirstAsync();
+
+            var primero = Trabajador.DeEmpresa(
+                empresaId, "Manuel", "Moreno", "12345678Z", new DateOnly(1985, 1, 1), null, null, null);
+            var segundo = Trabajador.DeEmpresa(
+                empresaId, "Pedro", "Gómez", "87654321X", new DateOnly(1988, 3, 20), null, null, null);
+            contextoSiembra.Trabajadores.AddRange(primero, segundo);
+            await contextoSiembra.SaveChangesAsync();
+
+            var asignacionPrimero = new Asignacion(primero.Id, _centroId, fechaBaja.AddYears(-1));
+            asignacionPrimero.DarDeBaja(fechaBaja);
+            var asignacionSegundo = new Asignacion(segundo.Id, _centroId, fechaBaja.AddYears(-1));
+            asignacionSegundo.DarDeBaja(fechaBaja);
+            contextoSiembra.Asignaciones.AddRange(asignacionPrimero, asignacionSegundo);
+            await contextoSiembra.SaveChangesAsync();
+
+            primeroId = primero.Id;
+            segundoId = segundo.Id;
+        }
+
+        Guid solicitudId;
+        await using (var contextoDeteccion = CrearContexto())
+        {
+            var servicioDeteccion = new DeteccionPurgaService(
+                contextoDeteccion,
+                contextoDeteccion,
+                contextoDeteccion,
+                new SolicitudPurgaRepository(contextoDeteccion),
+                Microsoft.Extensions.Options.Options.Create(new RetencionDatosOptions
+                {
+                    AniosRetencionDocumentos = 5,
+                    AniosRetencionTrabajadores = 5
+                }),
+                new TenantActualAmbiental { TenantId = _tenant },
+                contextoDeteccion);
+
+            await servicioDeteccion.DetectarAsync(_hoy);
+
+            var solicitud = await contextoDeteccion.SolicitudesPurga
+                .SingleAsync(s => s.TipoDato == TipoDatoPurgable.TrabajadoresDadosDeBaja);
+            solicitud.RegistrosAfectados.Should().Be(2, "los dos trabajadores cumplen el mismo plazo");
+            solicitudId = solicitud.Id;
+        }
+
+        await using (var contextoAutorizacion = CrearContexto())
+        {
+            var solicitud = await contextoAutorizacion.SolicitudesPurga.FirstAsync(s => s.Id == solicitudId);
+            solicitud.Programar(_hoy, _usuarioAutorizador, _hoy);
+            await contextoAutorizacion.SaveChangesAsync();
+        }
+
+        await using (var contextoEjecucion = CrearContexto())
+        {
+            var servicioEjecucion = new EjecucionPurgaService(
+                contextoEjecucion,
+                contextoEjecucion,
+                contextoEjecucion,
+                new SolicitudPurgaRepository(contextoEjecucion),
+                new AlmacenamientoArchivosFalso(),
+                new TenantActualAmbiental { TenantId = _tenant },
+                contextoEjecucion,
+                new AlertaOperativaFalsa(),
+                NullLogger<EjecucionPurgaService>.Instance);
+
+            // Antes de la corrección, esto lanzaba DbUpdateException (23505)
+            // al llegar al segundo trabajador y tumbaba la purga entera.
+            var afectados = await servicioEjecucion.EjecutarAsync(solicitudId, _hoy);
+            afectados.Should().Be(2);
+        }
+
+        await using var contextoVerificacion = CrearContexto();
+        var primero_ = await contextoVerificacion.Trabajadores.IgnoreQueryFilters().SingleAsync(t => t.Id == primeroId);
+        var segundo_ = await contextoVerificacion.Trabajadores.IgnoreQueryFilters().SingleAsync(t => t.Id == segundoId);
+
+        primero_.EstaAnonimizado.Should().BeTrue();
+        primero_.Dni.Should().BeNull();
+        segundo_.EstaAnonimizado.Should().BeTrue();
+        segundo_.Dni.Should().BeNull();
+    }
+
+    /// <summary>
     /// Siembra un Documento de Cliente ya vencido y con archivo adjunto, más
     /// la solicitud de purga que lo alcanza, ya autorizada. Devuelve los dos
     /// identificadores que los casos necesitan comprobar.

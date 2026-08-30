@@ -21,7 +21,7 @@ public record ObtenerTrabajadoresQuery(
     : IRequest<ResultadoPaginado<TrabajadorListaDto>>;
 
 public record TrabajadorListaDto(
-    Guid Id, string Nombre, string Apellidos, string Dni, string EmpleadorNombre,
+    Guid Id, string Nombre, string Apellidos, string? Dni, string EmpleadorNombre,
     EstadoDocumento? EstadoDocumental = null);
 
 public class ObtenerTrabajadoresQueryHandler(IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext, IAlcanceDatosService alcanceDatos, ICalculoEstadoDocumentalService calculoEstadoDocumental)
@@ -51,7 +51,7 @@ public class ObtenerTrabajadoresQueryHandler(IEmpresasQueryContext empresasConte
             consulta = consulta.Where(x =>
                 x.trabajador.Nombre.ToUpper().Contains(busqueda) ||
                 x.trabajador.Apellidos.ToUpper().Contains(busqueda) ||
-                x.trabajador.Dni.ToUpper().Contains(busqueda) ||
+                (x.trabajador.Dni ?? "").ToUpper().Contains(busqueda) ||
                 (x.trabajador.Alias != null && x.trabajador.Alias.ToUpper().Contains(busqueda)));
         }
 

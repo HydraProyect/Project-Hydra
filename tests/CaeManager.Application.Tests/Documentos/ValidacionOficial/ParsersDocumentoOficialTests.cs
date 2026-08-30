@@ -253,4 +253,33 @@ public class ParsersDocumentoOficialTests
         extraido.ResultadoPositivo.Should().BeNull();
         extraido.Cif.Should().BeNull();
     }
+
+    /// <summary>
+    /// Auditoría de seguridad del módulo (2026-08-30): una fecha imposible
+    /// (31 de febrero) se rechaza en vez de corregirse en silencio al último
+    /// día del mes — corregirla inventaría una fecha que el documento no dice.
+    /// </summary>
+    [Theory]
+    [InlineData("31 de febrero de 2026")]
+    [InlineData("30 de febrero de 2026")]
+    [InlineData("32 de enero de 2026")]
+    public void Una_fecha_imposible_no_se_corrige_en_silencio(string bruto) =>
+        ParserDocumentoOficialBase.NormalizarFecha(bruto).Should().BeNull();
+
+    /// <summary>
+    /// Un documento con fecha imposible en el ancla obligatoria cae a
+    /// revisión (campo obligatorio sin reconocer), nunca a auto-validación
+    /// con una fecha inventada.
+    /// </summary>
+    [Fact]
+    public void Tgss_con_fecha_imposible_cae_a_revision()
+    {
+        var texto = PlantillaTgssPositiva.Replace(
+            "Información obtenida a 4 de agosto de 2026", "Información obtenida a 31 de febrero de 2026");
+
+        var extraido = new ParserCorrienteTgss().Extraer(texto);
+
+        extraido.CamposObligatoriosFaltantes.Should().Contain(f => f.Contains("fecha"));
+        extraido.FechaEmision.Should().BeNull();
+    }
 }

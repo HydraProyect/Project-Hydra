@@ -5,6 +5,7 @@ using CaeManager.Application.Contactos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
+using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Contactos;
@@ -39,6 +40,8 @@ public class GenerarDocumentoIndividualCommandHandler(
     IRellenadorPlantillaPdfService rellenador,
     IFileStorageService almacenamientoArchivos,
     ICurrentUserService usuarioActual,
+    IAlcanceDatosService alcanceDatos,
+    IAsignacionRepository asignacionRepositorio,
     IUnitOfWork unitOfWork)
     : IRequestHandler<GenerarDocumentoIndividualCommand, Result<GenerarDocumentoIndividualResultadoDto>>
 {
@@ -64,13 +67,22 @@ public class GenerarDocumentoIndividualCommandHandler(
         if (plantilla.AmbitoAplicacion is not (AmbitoAplicacion.Trabajador or AmbitoAplicacion.Cliente or AmbitoAplicacion.Empresa))
             return Fallo("Plantilla.AmbitoNoSoportado", "La generación de documentos solo soporta plantillas de Trabajador, Cliente o Empresa.");
 
-        var propietarioEncontrado = plantilla.AmbitoAplicacion switch
+        // Cierre de IDOR (auditoría de seguridad del módulo, 2026-08-30): la
+        // existencia por tenant no basta — un operador podía generar
+        // documentos para un propietario fuera de su cartera con solo
+        // conocer/adivinar el Guid (mismo hallazgo que motivó
+        // AlcanceDatosServiceExtensions en las consultas *PorId*, ADR-010
+        // § 1.2 ya señalaba IAlcanceDatosService como reutilizable aquí).
+        var propietarioVisible = plantilla.AmbitoAplicacion switch
         {
-            AmbitoAplicacion.Trabajador => await trabajadoresContext.Trabajadores.AnyAsync(t => t.Id == request.OwnerId, cancellationToken),
-            AmbitoAplicacion.Cliente => await empresasContext.Empresas.AnyAsync(c => c.Id == request.OwnerId, cancellationToken),
+            AmbitoAplicacion.Trabajador => await trabajadoresContext.Trabajadores.AnyAsync(t => t.Id == request.OwnerId, cancellationToken)
+                && await alcanceDatos.TrabajadorVisibleAsync(request.OwnerId, cancellationToken),
+            AmbitoAplicacion.Cliente => await empresasContext.Empresas.AnyAsync(c => c.Id == request.OwnerId, cancellationToken)
+                && await alcanceDatos.ClienteVisibleAsync(request.OwnerId, cancellationToken),
             _ => await empresasContext.Empresas.AnyAsync(e => e.Id == request.OwnerId, cancellationToken)
+                && await alcanceDatos.EmpresaVisibleAsync(request.OwnerId, cancellationToken)
         };
-        if (!propietarioEncontrado)
+        if (!propietarioVisible)
             return Fallo("Plantilla.PropietarioNoEncontrado", "No encontramos a quién pertenece este documento.");
 
         var tipoDocumento = await tiposDocumentoContext.TiposDocumento
@@ -78,17 +90,44 @@ public class GenerarDocumentoIndividualCommandHandler(
         if (tipoDocumento is null)
             return Fallo("Plantilla.TipoDocumentoNoEncontrado", "No encontramos el tipo de documento de esta plantilla.");
 
+        // Resuelto ANTES de generar/guardar el blob (auditoría de seguridad
+        // del módulo, 2026-08-30): un fallo aquí después de GuardarAsync
+        // dejaba un PDF huérfano en el almacenamiento — nunca referenciado
+        // por ningún Documento porque el fallo aborta el SaveChangesAsync
+        // que lo habría anclado.
+        var usuarioId = await usuarioActual.ObtenerUsuarioActualIdAsync();
+        if (usuarioId is not { } idUsuario)
+            return Fallo("Plantilla.SinUsuarioActual", "No pudimos identificar quién genera este documento.");
+
         var trabajadorId = plantilla.AmbitoAplicacion == AmbitoAplicacion.Trabajador ? request.OwnerId : (Guid?)null;
         var empresaIdDirecta = plantilla.AmbitoAplicacion == AmbitoAplicacion.Empresa ? request.OwnerId : (Guid?)null;
         var clienteIdDirecto = plantilla.AmbitoAplicacion == AmbitoAplicacion.Cliente ? request.OwnerId : (Guid?)null;
+
+        // La plantilla puede estar acotada a un Centro/Cliente concreto
+        // (ADR-010 § 2.9) — generar a través de ella con un CentroId distinto
+        // mezclaría datos de un ámbito BPO con el formulario de otro.
+        if (plantilla.CentroId is { } centroIdDePlantilla && request.CentroId != centroIdDePlantilla)
+            return Fallo("Plantilla.CentroNoEncontrado", "No encontramos este centro.");
 
         Centro? centro = null;
         if (request.CentroId is { } centroId)
         {
             centro = await centrosContext.Centros.FirstOrDefaultAsync(c => c.Id == centroId, cancellationToken);
-            if (centro is null)
+            if (centro is null || !await alcanceDatos.CentroVisibleAsync(centroId, cancellationToken))
                 return Fallo("Plantilla.CentroNoEncontrado", "No encontramos este centro.");
+
+            // Defensa en profundidad para el ámbito Trabajador: el propietario
+            // ya se comprobó visible por cartera, pero sin esto un Trabajador
+            // visible de OTRO centro podía combinarse con este CentroId — la
+            // plantilla acabaría rellenando datos del centro equivocado.
+            if (trabajadorId is { } idTrabajadorParaCentro
+                && !await asignacionRepositorio.ExisteActivaAsync(idTrabajadorParaCentro, centroId, cancellationToken))
+                return Fallo("Plantilla.TrabajadorSinAsignacionEnCentro", "Este trabajador no tiene una asignación activa en este centro.");
         }
+
+        if (plantilla.ClienteId is { } clienteIdDePlantilla
+            && clienteIdDePlantilla != (clienteIdDirecto ?? centro?.ClienteId))
+            return Fallo("Plantilla.PropietarioNoEncontrado", "No encontramos a quién pertenece este documento.");
 
         var empresaId = empresaIdDirecta ?? centro?.EmpresaId;
         var clienteId = clienteIdDirecto ?? centro?.ClienteId;
@@ -139,10 +178,6 @@ public class GenerarDocumentoIndividualCommandHandler(
             _ => Documento.DeEmpresa(request.OwnerId, plantilla.TipoDocumentoId, fechaEmision, fechaVencimiento, archivoUrl)
         };
         documentoRepositorio.Agregar(documento);
-
-        var usuarioId = await usuarioActual.ObtenerUsuarioActualIdAsync();
-        if (usuarioId is not { } idUsuario)
-            return Fallo("Plantilla.SinUsuarioActual", "No pudimos identificar quién genera este documento.");
 
         var datosUtilizadosJson = JsonSerializer.Serialize(
             valoresPorElemento.ToDictionary(par => par.Key.EtiquetaVisible, par => par.Value));

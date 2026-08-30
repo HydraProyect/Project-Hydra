@@ -82,7 +82,7 @@ public class DeteccionTrabajadoresServiceTests : IAsyncLifetime
 
         var extraidos = new List<TrabajadorExtraidoDto>
         {
-            new("Alvaro", "Sanchez Martin", trabajadorQueSigue.Dni),
+            new("Alvaro", "Sanchez Martin", trabajadorQueSigue.Dni!), // Recién creado, nunca anonimizado: Dni no es null.
             new("Nuevo", "Trabajador Detectado", "99999999R")
         };
         var servicio = CrearServicio(new ExtraccionIaFalsa(Result.Exito<IReadOnlyList<TrabajadorExtraidoDto>>(extraidos)));
@@ -374,7 +374,7 @@ public class DeteccionTrabajadoresServiceTests : IAsyncLifetime
             Task.FromResult<Stream>(new MemoryStream([1, 2, 3]));
     }
 
-    /// <summary>Mismo comportamiento que Disk/S3FileStorageService.AbrirAsync cuando el archivo no existe.</summary>
+    /// <summary>Mismo comportamiento que DiskFileStorageService.AbrirAsync cuando el archivo no existe.</summary>
     private sealed class AlmacenamientoQueFalla : IFileStorageService
     {
         public Task EliminarAsync(string identificador, CancellationToken cancellationToken = default) => Task.CompletedTask;

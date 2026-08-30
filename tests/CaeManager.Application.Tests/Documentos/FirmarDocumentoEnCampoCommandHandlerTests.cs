@@ -32,8 +32,9 @@ public class FirmarDocumentoEnCampoCommandHandlerTests
         public PublisherFalso Publisher { get; } = new();
         public UnitOfWorkFalso UnitOfWork { get; } = new();
 
-        public FirmarDocumentoEnCampoCommandHandler CrearHandler(bool sinUsuario = false, string? rol = "GestorCae") =>
-            new(Documentos, TiposDocumento, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(),
+        public FirmarDocumentoEnCampoCommandHandler CrearHandler(
+            bool sinUsuario = false, string? rol = "GestorCae", AlcanceDatosServiceFalso? alcanceDatos = null) =>
+            new(Documentos, TiposDocumento, alcanceDatos ?? new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(),
                 FirmasDigitales, FirmasEnCampo, FirmaGuardada, SelloEmpresa, Almacenamiento, Estampador,
                 new CurrentUserServiceFalso(sinUsuario ? null : UsuarioActualId, rol), new DirectorioUsuariosServiceFalso(),
                 Mediator, Publisher, UnitOfWork, NullLogger<FirmarDocumentoEnCampoCommandHandler>.Instance);
@@ -244,6 +245,32 @@ public class FirmarDocumentoEnCampoCommandHandlerTests
 
         resultado.EsExitoso.Should().BeTrue();
         contexto.Estampador.UltimoSelloPng.Should().BeNull();
+    }
+
+    /// <summary>
+    /// Cierre de IDOR (auditoría de seguridad del módulo, 2026-08-30): antes
+    /// de este fix, SelloEmpresaId no se comprobaba contra la cartera del
+    /// usuario — un operador podía estampar el sello de cualquier Empresa
+    /// del tenant sobre un documento visible.
+    /// </summary>
+    [Fact]
+    public async Task SelloEmpresaId_fuera_de_la_cartera_del_usuario_falla_explicitamente()
+    {
+        var contexto = new Contexto();
+        var tipo = CrearTipoDocumento();
+        var documento = await contexto.CrearDocumentoConArchivoAsync(tipo);
+        var empresaId = Guid.NewGuid();
+        var urlSello = await contexto.Almacenamiento.GuardarAsync(
+            new MemoryStream(Encoding.UTF8.GetBytes("imagen-sello")), "sello.png");
+        contexto.SelloEmpresa.Agregar(new SelloEmpresa(empresaId, urlSello, DateTime.UtcNow));
+        var handler = contexto.CrearHandler(alcanceDatos: new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: []));
+
+        var resultado = await handler.Handle(
+            new FirmarDocumentoEnCampoCommand(documento.Id, TrazoPngBase64, null, SelloEmpresaId: empresaId), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("FirmaEnCampo.SelloNoAutorizado");
+        contexto.UnitOfWork.VecesGuardado.Should().Be(0);
     }
 
     [Fact]

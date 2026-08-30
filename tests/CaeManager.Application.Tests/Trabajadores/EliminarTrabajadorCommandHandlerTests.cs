@@ -19,9 +19,10 @@ public class EliminarTrabajadorCommandHandlerTests
         var repositorio = new TrabajadorRepositorioFalso();
         repositorio.Agregar(trabajador);
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new EliminarTrabajadorCommandHandler(repositorio, new AsignacionRepositorioFalso(), new AlcanceDatosServiceFalso(), unitOfWork);
+        var handler = new EliminarTrabajadorCommandHandler(
+            repositorio, new AsignacionRepositorioFalso(), new AlcanceDatosServiceFalso(), unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()));
 
-        var resultado = await handler.Handle(new EliminarTrabajadorCommand(trabajador.Id, Guid.NewGuid()), CancellationToken.None);
+        var resultado = await handler.Handle(new EliminarTrabajadorCommand(trabajador.Id), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         trabajador.EstaEliminado.Should().BeTrue();
@@ -32,9 +33,10 @@ public class EliminarTrabajadorCommandHandlerTests
     {
         var repositorio = new TrabajadorRepositorioFalso();
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new EliminarTrabajadorCommandHandler(repositorio, new AsignacionRepositorioFalso(), new AlcanceDatosServiceFalso(), unitOfWork);
+        var handler = new EliminarTrabajadorCommandHandler(
+            repositorio, new AsignacionRepositorioFalso(), new AlcanceDatosServiceFalso(), unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()));
 
-        var resultado = await handler.Handle(new EliminarTrabajadorCommand(Guid.NewGuid(), Guid.NewGuid()), CancellationToken.None);
+        var resultado = await handler.Handle(new EliminarTrabajadorCommand(Guid.NewGuid()), CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Trabajador.NoEncontrado");
@@ -48,12 +50,34 @@ public class EliminarTrabajadorCommandHandlerTests
         repositorio.Agregar(trabajador);
         var unitOfWork = new UnitOfWorkFalso();
         var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: []);
-        var handler = new EliminarTrabajadorCommandHandler(repositorio, new AsignacionRepositorioFalso(), alcance, unitOfWork);
+        var handler = new EliminarTrabajadorCommandHandler(
+            repositorio, new AsignacionRepositorioFalso(), alcance, unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()));
 
-        var resultado = await handler.Handle(new EliminarTrabajadorCommand(trabajador.Id, Guid.NewGuid()), CancellationToken.None);
+        var resultado = await handler.Handle(new EliminarTrabajadorCommand(trabajador.Id), CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Trabajador.NoEncontrado");
+        trabajador.EstaEliminado.Should().BeFalse();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Falla_sin_borrar_cuando_no_hay_identidad_resuelta()
+    {
+        // Auditoría Módulo 5, hallazgo crítico 7/9: sin ICurrentUserService
+        // resuelto, el borrado se aborta — nunca se atribuye a Guid.Empty.
+        var trabajador = CrearTrabajador("12345678Z");
+        var repositorio = new TrabajadorRepositorioFalso();
+        repositorio.Agregar(trabajador);
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = new EliminarTrabajadorCommandHandler(
+            repositorio, new AsignacionRepositorioFalso(), new AlcanceDatosServiceFalso(), unitOfWork,
+            new CurrentUserServiceFalso(usuarioId: null));
+
+        var resultado = await handler.Handle(new EliminarTrabajadorCommand(trabajador.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Trabajador.SinIdentidad");
         trabajador.EstaEliminado.Should().BeFalse();
         unitOfWork.VecesGuardado.Should().Be(0);
     }

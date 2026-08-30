@@ -44,8 +44,19 @@ public class AsignacionCarteraConfiguration : IEntityTypeConfiguration<Asignacio
         // ejecutivo"?), y la leen el enrutado de WhatsApp, las detecciones de
         // plantilla y el KPI de cartera sin asignar. Hay que redefinir o retirar
         // esa proyección y sus lectores ANTES de quitar este índice.
+        //
+        // GLOBAL por propietario-cliente, no por operación (auditoría Módulo 5,
+        // hallazgo crítico 3/9): antes incluía AsignacionOperacionId, así que una
+        // cartera interna y una externa vigentes sobre el mismo cliente convivían
+        // sin chocar. Dos reasignaciones concurrentes hacia operaciones distintas
+        // podían dejar así dos operadores con acceso simultáneo al mismo cliente,
+        // creyendo cada una haber reemplazado al responsable. La migración previa
+        // (AcotarResponsableClienteAGlobalVigente) cierra cualquier duplicado
+        // heredado antes de crear este índice. ReasignarCarteraClienteAsync
+        // traduce el 23505 resultante a un conflicto de concurrencia legible,
+        // igual que ExpiracionAsignacionesHostedService.GuardarODejarComoEstabaAsync.
         builder.HasIndex(
-                a => new { a.AsignacionOperacionId, a.AmbitoRelacionClienteId },
+                a => new { a.PropietarioTenantId, a.AmbitoRelacionClienteId },
                 "IX_AsignacionesCartera_ResponsableRelacionVigente")
             .IsUnique()
             .HasFilter(

@@ -15,10 +15,11 @@ namespace CaeManager.Application.Centros.Commands.EliminarCanalGestion;
 /// cuál de los N pasaría a ser el acceso por defecto del Centro es una
 /// decisión del gestor, no algo que adivinar por orden de inserción.
 /// </summary>
-public record EliminarCanalGestionCommand(Guid Id, Guid UsuarioId) : ICommand;
+public record EliminarCanalGestionCommand(Guid Id) : ICommand;
 
 public class EliminarCanalGestionCommandHandler(
-    ICanalGestionDocumentalRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+    ICanalGestionDocumentalRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork,
+    ICurrentUserService currentUserService)
     : IRequestHandler<EliminarCanalGestionCommand, Result>
 {
     public async Task<Result> Handle(EliminarCanalGestionCommand request, CancellationToken cancellationToken)
@@ -36,7 +37,12 @@ public class EliminarCanalGestionCommandHandler(
                     "Este es el acceso principal del centro. Marca antes otro como principal y vuelve a intentarlo."));
         }
 
-        canal.MarcarComoEliminado(request.UsuarioId);
+        // Auditoría Módulo 5, hallazgo crítico 7/9 — ver EliminarCentroCommand.
+        var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
+        if (usuarioId is null)
+            return Result.Fallo(Error.Crear("CanalGestion.SinIdentidad", "No se pudo confirmar tu identidad. Vuelve a iniciar sesión e inténtalo de nuevo."));
+
+        canal.MarcarComoEliminado(usuarioId.Value);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito();

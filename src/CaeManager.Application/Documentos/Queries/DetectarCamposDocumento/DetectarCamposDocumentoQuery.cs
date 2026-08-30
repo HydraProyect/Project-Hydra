@@ -123,6 +123,8 @@ public class DetectarCamposDocumentoQueryHandler(
         return (trabajador.Id, aliasSugerido);
     }
 
-    private static string NormalizarDni(string dni) =>
-        new(dni.Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
+    // string? — un trabajador anonimizado (Dni null) nunca debe casar con un
+    // Dni detectado por IA: normaliza a "", que ninguna detección real produce.
+    private static string NormalizarDni(string? dni) =>
+        dni is null ? string.Empty : new string(dni.Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
 }

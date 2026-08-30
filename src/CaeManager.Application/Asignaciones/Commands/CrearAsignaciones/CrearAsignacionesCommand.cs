@@ -1,6 +1,4 @@
-﻿using CaeManager.Application.Centros;
-using CaeManager.Application.Common;
-using CaeManager.Application.Trabajadores;
+﻿using CaeManager.Application.Common;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -30,28 +28,49 @@ public record ResultadoAsignacionLoteDto(int Creadas, int YaActivas, IReadOnlyLi
 
 public class CrearAsignacionesCommandValidator : AbstractValidator<CrearAsignacionesCommand>
 {
+    // Auditoría Módulo 5, hallazgo crítico 10/9: sin tope, una petición con
+    // decenas de miles de combinaciones puede agotar RAM rastreando entidades
+    // en EF, saturar PostgreSQL o forzar un rollback completo por duplicados
+    // internos. Los topes son generosos para el uso real (alta por Excel/
+    // matriz) y acotan el peor caso, no el caso típico.
+    public const int MaximoTrabajadoresPorLote = 200;
+    public const int MaximoCentrosPorLote = 200;
+    public const int MaximoCombinacionesPorLote = 2000;
+
     public CrearAsignacionesCommandValidator()
     {
         RuleFor(c => c.TrabajadorIds).NotEmpty().WithMessage("Selecciona al menos un trabajador.");
         RuleFor(c => c.CentroIds).NotEmpty().WithMessage("Selecciona al menos un centro.");
+
+        RuleFor(c => c.TrabajadorIds.Distinct().Count())
+            .LessThanOrEqualTo(MaximoTrabajadoresPorLote)
+            .WithMessage($"Selecciona como máximo {MaximoTrabajadoresPorLote} trabajadores por alta.");
+        RuleFor(c => c.CentroIds.Distinct().Count())
+            .LessThanOrEqualTo(MaximoCentrosPorLote)
+            .WithMessage($"Selecciona como máximo {MaximoCentrosPorLote} centros por alta.");
+        RuleFor(c => c)
+            .Must(c => (long)c.TrabajadorIds.Distinct().Count() * c.CentroIds.Distinct().Count() <= MaximoCombinacionesPorLote)
+            .WithMessage($"La combinación de trabajadores y centros supera el máximo de {MaximoCombinacionesPorLote} altas por lote.");
     }
 }
 
 public class CrearAsignacionesCommandHandler(
     IAsignacionRepository repositorio, IAsignacionesQueryContext asignacionesContext,
-    ITrabajadoresQueryContext trabajadoresContext, IAutoridadAsignacionesService autoridad, IUnitOfWork unitOfWork)
+    IAutoridadAsignacionesService autoridad, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearAsignacionesCommand, Result<ResultadoAsignacionLoteDto>>
 {
     public async Task<Result<ResultadoAsignacionLoteDto>> Handle(CrearAsignacionesCommand request, CancellationToken cancellationToken)
     {
-        // Mismo motivo que CrearAsignacionCommand (P0-1 de docs/business/MATURITY_REVIEW.md):
-        // el filtro de tenant ya deja "no encontrado" un Id ajeno — se
-        // descarta en silencio del lote en vez de fallar el lote entero por
-        // un Id que otro usuario borró mientras el formulario estaba abierto.
-        var trabajadorIdsValidos = await trabajadoresContext.Trabajadores
-            .Where(t => request.TrabajadorIds.Contains(t.Id))
-            .Select(t => t.Id)
-            .ToListAsync(cancellationToken);
+        // Deduplicado antes de tocar la base: la matriz de alta puede enviar
+        // el mismo Id repetido (varias columnas marcando el mismo trabajador),
+        // y sin esto el producto cartesiano se calcula sobre listas infladas.
+        var trabajadorIdsSolicitados = request.TrabajadorIds.Distinct().ToList();
+        var centroIdsSolicitados = request.CentroIds.Distinct().ToList();
+
+        // Autoridad sobre cada trabajador, no solo existencia (auditoría
+        // Módulo 5, hallazgo crítico 6/9) — ver CrearAsignacionCommand.
+        var trabajadorIdsValidos = await autoridad.FiltrarTrabajadoresConAutoridadAsync(
+            trabajadorIdsSolicitados, cancellationToken);
 
         // Autoridad sobre cada centro, no solo existencia (decision del
         // propietario, 2026-08-29). Filtra igual que antes filtraba la
@@ -59,14 +78,14 @@ public class CrearAsignacionesCommandHandler(
         // sigue ya cuenta cuantos quedaron fuera: un centro ajeno se comporta
         // como uno que ya no existe, y no se confirma cual de las dos cosas es.
         var centroIdsValidos = await autoridad.FiltrarCentrosConAutoridadAsync(
-            request.CentroIds, cancellationToken);
+            centroIdsSolicitados, cancellationToken);
 
         var errores = new List<string>();
-        var trabajadoresFaltantes = request.TrabajadorIds.Count - trabajadorIdsValidos.Count;
+        var trabajadoresFaltantes = trabajadorIdsSolicitados.Count - trabajadorIdsValidos.Count;
         if (trabajadoresFaltantes > 0)
             errores.Add($"{trabajadoresFaltantes} trabajador(es) ya no existían.");
 
-        var centrosFaltantes = request.CentroIds.Count - centroIdsValidos.Count;
+        var centrosFaltantes = centroIdsSolicitados.Count - centroIdsValidos.Count;
         if (centrosFaltantes > 0)
             errores.Add($"{centrosFaltantes} centro(s) ya no existían.");
 

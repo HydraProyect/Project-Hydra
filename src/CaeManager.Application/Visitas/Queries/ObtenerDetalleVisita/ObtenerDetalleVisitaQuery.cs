@@ -18,7 +18,7 @@ namespace CaeManager.Application.Visitas.Queries.ObtenerDetalleVisita;
 /// </summary>
 public record ObtenerDetalleVisitaQuery(Guid Id) : IRequest<DetalleVisitaDto?>;
 
-public record TrabajadorVisitaDto(Guid Id, string NombreCompleto, string Dni);
+public record TrabajadorVisitaDto(Guid Id, string NombreCompleto, string? Dni);
 
 public record DetalleVisitaDto(
     Guid Id,

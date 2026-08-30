@@ -88,8 +88,8 @@ public class VerificacionIaDocumentoService(
         }
         catch (FileNotFoundException)
         {
-            // Se relanza SIN envolver, a propósito: DiskFileStorageService y
-            // S3FileStorageService ya normalizan a FileNotFoundException el
+            // Se relanza SIN envolver, a propósito: DiskFileStorageService
+            // ya normaliza a FileNotFoundException el
             // único caso realmente determinista de este catch (el archivo no
             // existe o no resuelve a este tenant) — no va a aparecer en un
             // segundo intento. Dejar pasar el tipo intacto es lo que permite

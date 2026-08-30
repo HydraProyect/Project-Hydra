@@ -56,9 +56,10 @@ public class CierreDeAsignacionesEnBorradoTests
         var asignaciones = new AsignacionRepositorioFalso();
         var asignacion = Asignar(asignaciones, Guid.NewGuid(), centro.Id);
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new EliminarCentroCommandHandler(centros, asignaciones, new AlcanceDatosServiceFalso(), unitOfWork);
+        var handler = new EliminarCentroCommandHandler(
+            centros, asignaciones, new AlcanceDatosServiceFalso(), unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()));
 
-        var resultado = await handler.Handle(new EliminarCentroCommand(centro.Id, Guid.NewGuid()), CancellationToken.None);
+        var resultado = await handler.Handle(new EliminarCentroCommand(centro.Id), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         centro.EstaEliminado.Should().BeTrue();
@@ -76,9 +77,10 @@ public class CierreDeAsignacionesEnBorradoTests
         var asignaciones = new AsignacionRepositorioFalso();
         var ajena = Asignar(asignaciones, Guid.NewGuid(), otroCentro.Id);
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new EliminarCentroCommandHandler(centros, asignaciones, new AlcanceDatosServiceFalso(), unitOfWork);
+        var handler = new EliminarCentroCommandHandler(
+            centros, asignaciones, new AlcanceDatosServiceFalso(), unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()));
 
-        await handler.Handle(new EliminarCentroCommand(centro.Id, Guid.NewGuid()), CancellationToken.None);
+        await handler.Handle(new EliminarCentroCommand(centro.Id), CancellationToken.None);
 
         ajena.EstaActiva.Should().BeTrue();
     }
@@ -95,9 +97,10 @@ public class CierreDeAsignacionesEnBorradoTests
         var asignacion = Asignar(asignaciones, Guid.NewGuid(), centro.Id);
         var unitOfWork = new UnitOfWorkFalso();
         var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, centroIdsVisibles: []);
-        var handler = new EliminarCentroCommandHandler(centros, asignaciones, alcance, unitOfWork);
+        var handler = new EliminarCentroCommandHandler(
+            centros, asignaciones, alcance, unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()));
 
-        var resultado = await handler.Handle(new EliminarCentroCommand(centro.Id, Guid.NewGuid()), CancellationToken.None);
+        var resultado = await handler.Handle(new EliminarCentroCommand(centro.Id), CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
         asignacion.EstaActiva.Should().BeTrue();
@@ -116,10 +119,11 @@ public class CierreDeAsignacionesEnBorradoTests
         var unaDelPrimero = Asignar(asignaciones, Guid.NewGuid(), primero.Id);
         var unaDelSegundo = Asignar(asignaciones, Guid.NewGuid(), segundo.Id);
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new EliminarCentrosCommandHandler(centros, asignaciones, new AlcanceDatosServiceFalso(), unitOfWork);
+        var handler = new EliminarCentrosCommandHandler(
+            centros, asignaciones, new AlcanceDatosServiceFalso(), unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()));
 
         var resultado = await handler.Handle(
-            new EliminarCentrosCommand([primero.Id, segundo.Id], Guid.NewGuid()), CancellationToken.None);
+            new EliminarCentrosCommand([primero.Id, segundo.Id]), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         resultado.Valor.Eliminados.Should().Be(2);
@@ -139,10 +143,10 @@ public class CierreDeAsignacionesEnBorradoTests
         var asignacion = Asignar(asignaciones, trabajador.Id, Guid.NewGuid());
         var unitOfWork = new UnitOfWorkFalso();
         var handler = new EliminarTrabajadorCommandHandler(
-            trabajadores, asignaciones, new AlcanceDatosServiceFalso(), unitOfWork);
+            trabajadores, asignaciones, new AlcanceDatosServiceFalso(), unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()));
 
         var resultado = await handler.Handle(
-            new EliminarTrabajadorCommand(trabajador.Id, Guid.NewGuid()), CancellationToken.None);
+            new EliminarTrabajadorCommand(trabajador.Id), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         asignacion.EstaActiva.Should().BeFalse();
@@ -161,10 +165,10 @@ public class CierreDeAsignacionesEnBorradoTests
         var unaDelSegundo = Asignar(asignaciones, segundo.Id, Guid.NewGuid());
         var unitOfWork = new UnitOfWorkFalso();
         var handler = new EliminarTrabajadoresCommandHandler(
-            trabajadores, asignaciones, new AlcanceDatosServiceFalso(), unitOfWork);
+            trabajadores, asignaciones, new AlcanceDatosServiceFalso(), unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()));
 
         var resultado = await handler.Handle(
-            new EliminarTrabajadoresCommand([primero.Id, segundo.Id], Guid.NewGuid()), CancellationToken.None);
+            new EliminarTrabajadoresCommand([primero.Id, segundo.Id]), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         unaDelPrimero.EstaActiva.Should().BeFalse();
@@ -179,7 +183,7 @@ public class CierreDeAsignacionesEnBorradoTests
         var empresaId = Guid.NewGuid();
         var trabajador = Trabajador.DeEmpresa(empresaId, "Pedro", "Gómez Ruiz", "77189989B");
         var deteccion = DeteccionTrabajador.Ausente(
-            Guid.NewGuid(), empresaId, trabajador.Id, trabajador.Nombre, trabajador.Apellidos, trabajador.Dni);
+            Guid.NewGuid(), empresaId, trabajador.Id, trabajador.Nombre, trabajador.Apellidos, trabajador.Dni!);
 
         var detecciones = new DeteccionTrabajadorRepositorioFalso();
         detecciones.Agregar(deteccion);
@@ -209,7 +213,7 @@ public class CierreDeAsignacionesEnBorradoTests
         var empresaId = Guid.NewGuid();
         var trabajador = Trabajador.DeEmpresa(empresaId, "Pedro", "Gómez Ruiz", "77189989B");
         var deteccion = DeteccionTrabajador.Ausente(
-            Guid.NewGuid(), empresaId, trabajador.Id, trabajador.Nombre, trabajador.Apellidos, trabajador.Dni);
+            Guid.NewGuid(), empresaId, trabajador.Id, trabajador.Nombre, trabajador.Apellidos, trabajador.Dni!);
 
         var detecciones = new DeteccionTrabajadorRepositorioFalso();
         detecciones.Agregar(deteccion);
