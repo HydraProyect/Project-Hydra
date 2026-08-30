@@ -69,5 +69,15 @@ public class EventoWebhookRepository(CaeManagerDbContext dbContext) : IEventoWeb
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<EventoWebhook>> ObtenerParaRedactarAsync(
+        DateTime limiteUtc, int maximo, CancellationToken cancellationToken = default) =>
+        await dbContext.EventosWebhook
+            .Where(e => !e.PayloadRedactado
+                        && (e.Estado == EstadoEventoWebhook.Completado || e.Estado == EstadoEventoWebhook.DescartadoDefinitivo)
+                        && e.FechaRecepcionUtc < limiteUtc)
+            .OrderBy(e => e.FechaRecepcionUtc)
+            .Take(maximo)
+            .ToListAsync(cancellationToken);
+
     public void Agregar(EventoWebhook evento) => dbContext.EventosWebhook.Add(evento);
 }

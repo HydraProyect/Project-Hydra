@@ -96,4 +96,60 @@ public class EventoWebhookTests
         evento.Estado.Should().Be(EstadoEventoWebhook.Pendiente);
         evento.Intentos.Should().Be(1, "recuperarse cuenta como un intento fallido más");
     }
+
+    /// <summary>Auditoría módulo 6: el payload crudo de un webhook contiene PHI/PII de conversación — se redacta pasada la retención, pero nunca mientras el evento aún podría necesitar reintentarse.</summary>
+    public class RedactarPayloadTests
+    {
+        [Fact]
+        public void Redacta_un_evento_completado()
+        {
+            var evento = new EventoWebhook(Guid.NewGuid(), "{\"mensaje\":\"contenido sensible\"}");
+            evento.MarcarProcesado();
+
+            evento.RedactarPayload();
+
+            evento.PayloadCrudo.Should().Be(EventoWebhook.MarcadorPayloadRedactado);
+            evento.PayloadCrudo.Should().NotContain("contenido sensible");
+            evento.PayloadRedactado.Should().BeTrue();
+        }
+
+        [Fact]
+        public void Redacta_un_evento_descartado_definitivamente()
+        {
+            var evento = new EventoWebhook(Guid.NewGuid(), "{}");
+            for (var i = 0; i < EventoWebhook.MaximoIntentos; i++)
+                evento.RegistrarFallo("fallo persistente");
+
+            evento.RedactarPayload();
+
+            evento.PayloadRedactado.Should().BeTrue();
+        }
+
+        [Theory]
+        [InlineData(false)] // Pendiente
+        [InlineData(true)]  // Procesando
+        public void Rechaza_redactar_un_evento_que_todavia_puede_reintentarse(bool marcarEnProceso)
+        {
+            var evento = new EventoWebhook(Guid.NewGuid(), "{}");
+            if (marcarEnProceso) evento.MarcarEnProceso();
+
+            var accion = () => evento.RedactarPayload();
+
+            accion.Should().Throw<InvalidOperationException>();
+            evento.PayloadRedactado.Should().BeFalse();
+        }
+
+        [Fact]
+        public void Redactar_dos_veces_no_falla_ni_cambia_nada()
+        {
+            var evento = new EventoWebhook(Guid.NewGuid(), "{}");
+            evento.MarcarProcesado();
+            evento.RedactarPayload();
+
+            var accion = () => evento.RedactarPayload();
+
+            accion.Should().NotThrow();
+            evento.PayloadCrudo.Should().Be(EventoWebhook.MarcadorPayloadRedactado);
+        }
+    }
 }

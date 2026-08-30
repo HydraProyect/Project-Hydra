@@ -122,4 +122,63 @@ public class EventoWebhookRepositoryReclamoTests : IAsyncLifetime
 
         estancados.Should().ContainSingle().Which.Id.Should().Be(estancado.Id);
     }
+
+    /// <summary>Auditoría módulo 6: candidatos a redacción — terminados, sin redactar todavía y recibidos antes del límite de retención.</summary>
+    [Fact]
+    public async Task ObtenerParaRedactarAsync_solo_devuelve_terminados_sin_redactar_y_fuera_de_retencion()
+    {
+        await using var contexto = CrearContexto(_tenantA);
+        var conexion = new ConexionIntegracion("buzon@ejemplo.com", "Buzón M365");
+        contexto.ConexionesIntegracion.Add(conexion);
+        await contexto.SaveChangesAsync();
+
+        var repositorio = new EventoWebhookRepository(contexto);
+
+        var completadoViejo = new EventoWebhook(conexion.Id, "{\"caso\":\"completado-viejo\"}");
+        completadoViejo.MarcarProcesado();
+        repositorio.Agregar(completadoViejo);
+
+        var descartadoViejo = new EventoWebhook(conexion.Id, "{}");
+        for (var i = 0; i < EventoWebhook.MaximoIntentos; i++) descartadoViejo.RegistrarFallo("fallo persistente");
+        repositorio.Agregar(descartadoViejo);
+
+        var pendienteViejo = new EventoWebhook(conexion.Id, "{}"); // nunca se toca: no está en estado terminal
+        repositorio.Agregar(pendienteViejo);
+
+        var yaRedactado = new EventoWebhook(conexion.Id, "{}");
+        yaRedactado.MarcarProcesado();
+        yaRedactado.RedactarPayload();
+        repositorio.Agregar(yaRedactado);
+
+        await contexto.SaveChangesAsync();
+
+        // FechaRecepcionUtc la fija el constructor a DateTime.UtcNow — se
+        // retrocede a mano por SQL para simular "recibido hace tiempo" sin
+        // depender de un reloj inyectable que la entidad no tiene.
+        await contexto.Database.ExecuteSqlInterpolatedAsync(
+            $"""UPDATE "EventosWebhook" SET "FechaRecepcionUtc" = {DateTime.UtcNow.AddDays(-30)} WHERE "Id" IN ({completadoViejo.Id}, {descartadoViejo.Id}, {pendienteViejo.Id}, {yaRedactado.Id})""");
+
+        var candidatos = await repositorio.ObtenerParaRedactarAsync(DateTime.UtcNow.AddDays(-7), maximo: 100);
+
+        candidatos.Select(e => e.Id).Should().BeEquivalentTo([completadoViejo.Id, descartadoViejo.Id]);
+    }
+
+    [Fact]
+    public async Task ObtenerParaRedactarAsync_no_devuelve_uno_terminado_pero_dentro_del_plazo_de_retencion()
+    {
+        await using var contexto = CrearContexto(_tenantA);
+        var conexion = new ConexionIntegracion("buzon@ejemplo.com", "Buzón M365");
+        contexto.ConexionesIntegracion.Add(conexion);
+        await contexto.SaveChangesAsync();
+
+        var repositorio = new EventoWebhookRepository(contexto);
+        var completadoReciente = new EventoWebhook(conexion.Id, "{}");
+        completadoReciente.MarcarProcesado();
+        repositorio.Agregar(completadoReciente);
+        await contexto.SaveChangesAsync();
+
+        var candidatos = await repositorio.ObtenerParaRedactarAsync(DateTime.UtcNow.AddDays(-7), maximo: 100);
+
+        candidatos.Should().BeEmpty("FechaRecepcionUtc es de ahora mismo, todavía dentro del plazo de retención");
+    }
 }

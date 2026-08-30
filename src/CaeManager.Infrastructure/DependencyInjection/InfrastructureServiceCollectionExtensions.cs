@@ -241,6 +241,15 @@ public static class InfrastructureServiceCollectionExtensions
             services.AddHostedService<RenovacionSuscripcionWebhookHostedService>();
         }
 
+        // Retención del payload crudo de EventoWebhook (auditoría módulo 6):
+        // registrado siempre, no solo si Microsoft365 está configurado —
+        // redacta eventos de cualquier proveedor (WhatsApp incluido). Apagada
+        // por defecto (ver RetencionEventosWebhookOptions), mismo criterio
+        // que RetencionDatosOptions/BackupsOptions.
+        services.Configure<RetencionEventosWebhookOptions>(
+            configuration.GetSection(RetencionEventosWebhookOptions.SeccionConfiguracion));
+        services.AddHostedService<RedaccionPayloadWebhookHostedService>();
+
         // Segundo conector de mensajería: WhatsApp Cloud API (Meta). Mismo
         // patrón "inerte por defecto": sin AppSecret/VerifyToken no se
         // registra el consumidor y el webhook rechaza todo. El cliente HTTP

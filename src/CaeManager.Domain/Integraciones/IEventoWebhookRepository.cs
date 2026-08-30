@@ -25,5 +25,16 @@ public interface IEventoWebhookRepository
     Task<IReadOnlyList<EventoWebhook>> ObtenerEstancadosAsync(
         ProveedorIntegracion proveedor, TimeSpan umbral, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Eventos en un estado terminal (Completado/DescartadoDefinitivo), sin
+    /// redactar todavía, recibidos antes de <paramref name="limiteUtc"/> —
+    /// candidatos a <see cref="EventoWebhook.RedactarPayload"/> (auditoría
+    /// módulo 6: retención de PayloadCrudo). Acotado a
+    /// <paramref name="maximo"/> filas por lote para que un backlog grande
+    /// no cargue todo en memoria de una vez.
+    /// </summary>
+    Task<IReadOnlyList<EventoWebhook>> ObtenerParaRedactarAsync(
+        DateTime limiteUtc, int maximo, CancellationToken cancellationToken = default);
+
     void Agregar(EventoWebhook evento);
 }
