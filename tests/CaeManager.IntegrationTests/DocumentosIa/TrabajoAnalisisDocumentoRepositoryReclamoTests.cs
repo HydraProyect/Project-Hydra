@@ -40,7 +40,18 @@ public class TrabajoAnalisisDocumentoRepositoryReclamoTests : IAsyncLifetime
     {
         var tenantActual = new TenantActualAmbiental { TenantId = tenantId };
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
-            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            // EnableRetryOnFailure como en ConfiguracionDeContexto (producción)
+            // a propósito: sin esto, este test no habría detectado que
+            // BeginTransactionAsync sin pasar por CreateExecutionStrategy()
+            // revienta bajo NpgsqlRetryingExecutionStrategy — auditoría de
+            // colas, 2026-08-30, hallazgo E2E (el reclamo fallaba en cada
+            // sondeo de la app real mientras este mismo test, sin reintentos
+            // activados, pasaba en verde).
+            .UseNpgsql(_cadenaConexion, npgsql =>
+            {
+                npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL");
+                npgsql.EnableRetryOnFailure();
+            })
             .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
             .Options;
 
@@ -105,7 +116,19 @@ public class TrabajoAnalisisDocumentoRepositoryReclamoTests : IAsyncLifetime
         // abre una transacción, bloquea la fila con FOR UPDATE, y NO confirma
         // todavía. Esto reproduce el estado en el que quedaría la fila si
         // ReclamarSiguientePendienteAsync estuviera a mitad de ejecutarse.
-        await using var contexto1 = CrearContexto(_tenantA);
+        // Sin EnableRetryOnFailure a propósito, a diferencia de CrearContexto:
+        // esta conexión solo sostiene el lock desde fuera para la simulación,
+        // no ejercita el código de producción bajo prueba (ese es contexto2,
+        // más abajo) — abrir la transacción aquí a mano con reintentos
+        // activos tropezaría con la misma restricción de
+        // NpgsqlRetryingExecutionStrategy que el fix de abajo existe para evitar.
+        var tenantActual1 = new TenantActualAmbiental { TenantId = _tenantA };
+        await using var contexto1 = new CaeManagerDbContext(
+            new DbContextOptionsBuilder<CaeManagerDbContext>()
+                .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+                .AddInterceptors(new TenantSelladoInterceptor(tenantActual1))
+                .Options,
+            new EphemeralDataProtectionProvider(), tenantActual1);
         await using var tx1 = await contexto1.Database.BeginTransactionAsync();
         await contexto1.Database.ExecuteSqlInterpolatedAsync(
             $"""SELECT * FROM "TrabajosAnalisisDocumento" WHERE "Id" = {trabajoId} FOR UPDATE""");

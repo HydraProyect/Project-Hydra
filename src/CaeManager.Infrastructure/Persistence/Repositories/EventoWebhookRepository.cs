@@ -5,45 +5,55 @@ namespace CaeManager.Infrastructure.Persistence.Repositories;
 
 public class EventoWebhookRepository(CaeManagerDbContext dbContext) : IEventoWebhookRepository
 {
-    public async Task<EventoWebhook?> ReclamarSiguientePendienteAsync(
+    public Task<EventoWebhook?> ReclamarSiguientePendienteAsync(
         ProveedorIntegracion proveedor, CancellationToken cancellationToken = default)
     {
         var ahoraUtc = DateTime.UtcNow;
         var proveedorValor = (int)proveedor;
 
-        // Transacción corta propia — el lock de fila de FOR UPDATE SKIP
-        // LOCKED solo protege mientras esta transacción sigue abierta, y se
-        // libera al hacer commit más abajo, justo tras confirmar el cambio a
-        // "Procesando". "FOR UPDATE OF eventos" (no de toda la consulta):
-        // ConexionesIntegracion solo participa como filtro, bloquear esa fila
-        // también no aportaría nada y competiría innecesariamente con quien
-        // esté editando la conexión.
-        await using var transaccion = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        // Ver TrabajoAnalisisDocumentoRepository.ReclamarSiguientePendienteAsync:
+        // la transacción explícita tiene que ir envuelta en la estrategia de
+        // ejecución del contexto — NpgsqlRetryingExecutionStrategy (activa vía
+        // EnableRetryOnFailure) no admite una transacción que el propio
+        // código abrió sin pasar por CreateExecutionStrategy().
+        var estrategia = dbContext.Database.CreateExecutionStrategy();
 
-        var evento = await dbContext.EventosWebhook
-            .FromSqlInterpolated($"""
-                SELECT eventos.* FROM "EventosWebhook" eventos
-                JOIN "ConexionesIntegracion" conexion ON eventos."ConexionIntegracionId" = conexion."Id"
-                WHERE eventos."Estado" = 'Pendiente'
-                  AND conexion."Proveedor" = {proveedorValor}
-                  AND (eventos."SiguienteIntentoEnUtc" IS NULL OR eventos."SiguienteIntentoEnUtc" <= {ahoraUtc})
-                ORDER BY eventos."FechaRecepcionUtc"
-                LIMIT 1
-                FOR UPDATE OF eventos SKIP LOCKED
-                """)
-            .SingleOrDefaultAsync(cancellationToken);
-
-        if (evento is null)
+        return estrategia.ExecuteAsync(async () =>
         {
+            // Transacción corta — el lock de fila de FOR UPDATE SKIP LOCKED
+            // solo protege mientras esta transacción sigue abierta, y se
+            // libera al hacer commit más abajo, justo tras confirmar el
+            // cambio a "Procesando". "FOR UPDATE OF eventos" (no de toda la
+            // consulta): ConexionesIntegracion solo participa como filtro,
+            // bloquear esa fila también no aportaría nada y competiría
+            // innecesariamente con quien esté editando la conexión.
+            await using var transaccion = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+            var evento = await dbContext.EventosWebhook
+                .FromSqlInterpolated($"""
+                    SELECT eventos.* FROM "EventosWebhook" eventos
+                    JOIN "ConexionesIntegracion" conexion ON eventos."ConexionIntegracionId" = conexion."Id"
+                    WHERE eventos."Estado" = 'Pendiente'
+                      AND conexion."Proveedor" = {proveedorValor}
+                      AND (eventos."SiguienteIntentoEnUtc" IS NULL OR eventos."SiguienteIntentoEnUtc" <= {ahoraUtc})
+                    ORDER BY eventos."FechaRecepcionUtc"
+                    LIMIT 1
+                    FOR UPDATE OF eventos SKIP LOCKED
+                    """)
+                .SingleOrDefaultAsync(cancellationToken);
+
+            if (evento is null)
+            {
+                await transaccion.CommitAsync(cancellationToken);
+                return null;
+            }
+
+            evento.MarcarEnProceso();
+            await dbContext.SaveChangesAsync(cancellationToken);
             await transaccion.CommitAsync(cancellationToken);
-            return null;
-        }
 
-        evento.MarcarEnProceso();
-        await dbContext.SaveChangesAsync(cancellationToken);
-        await transaccion.CommitAsync(cancellationToken);
-
-        return evento;
+            return evento;
+        });
     }
 
     public async Task<IReadOnlyList<EventoWebhook>> ObtenerEstancadosAsync(

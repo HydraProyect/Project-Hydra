@@ -34,7 +34,15 @@ public class EventoWebhookRepositoryReclamoTests : IAsyncLifetime
     {
         var tenantActual = new TenantActualAmbiental { TenantId = tenantId };
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
-            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            // EnableRetryOnFailure como en ConfiguracionDeContexto (producción)
+            // — ver TrabajoAnalisisDocumentoRepositoryReclamoTests para el
+            // porqué: sin esto el test no detecta que una transacción abierta
+            // a mano revienta bajo NpgsqlRetryingExecutionStrategy.
+            .UseNpgsql(_cadenaConexion, npgsql =>
+            {
+                npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL");
+                npgsql.EnableRetryOnFailure();
+            })
             .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
             .Options;
 
