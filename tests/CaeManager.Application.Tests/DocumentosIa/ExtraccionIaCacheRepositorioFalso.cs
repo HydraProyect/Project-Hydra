@@ -19,4 +19,20 @@ public class ExtraccionIaCacheRepositorioFalso : IExtraccionIaCacheRepository
 
     public void Agregar(ExtraccionIaCache cache) =>
         _porClave[(cache.HashSha256, cache.TipoEsperado, cache.VersionPipeline)] = cache;
+
+    public int VecesDescartada { get; private set; }
+
+    /// <summary>
+    /// Un falso en memoria no puede reproducir el choque real contra un
+    /// índice único (eso lo cubre el test de integración con Postgres real)
+    /// — pero sí tiene que ofrecer el método para que
+    /// <see cref="DocumentAIRouterServiceTests"/> pueda simular el conflicto
+    /// (con un <c>IUnitOfWork</c> falso que lanza <c>DbUpdateException</c> la
+    /// primera vez) y comprobar que el router la retira antes de reintentar.
+    /// </summary>
+    public void DescartarTrasConflicto(ExtraccionIaCache cache)
+    {
+        _porClave.Remove((cache.HashSha256, cache.TipoEsperado, cache.VersionPipeline));
+        VecesDescartada++;
+    }
 }

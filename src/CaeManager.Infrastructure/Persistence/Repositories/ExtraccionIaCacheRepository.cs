@@ -23,4 +23,6 @@ public class ExtraccionIaCacheRepository(CaeManagerDbContext dbContext) : IExtra
     }
 
     public void Agregar(ExtraccionIaCache cache) => dbContext.ExtraccionesIaCache.Add(cache);
+
+    public void DescartarTrasConflicto(ExtraccionIaCache cache) => dbContext.Entry(cache).State = EntityState.Detached;
 }

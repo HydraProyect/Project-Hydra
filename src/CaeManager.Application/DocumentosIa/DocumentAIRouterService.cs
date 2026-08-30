@@ -5,6 +5,7 @@ using System.Text.Json;
 using CaeManager.Application.DocumentosIa.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.DocumentosIa;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Application.DocumentosIa;
@@ -62,8 +63,14 @@ public class DocumentAIRouterService(
 
     private static readonly JsonSerializerOptions JsonOpciones = new(JsonSerializerDefaults.Web);
 
-    /// <summary>Texto ya listo para estructurar, con nota de localización (si se descartaron páginas) y coste OCR (si se usó un proveedor de OCR).</summary>
-    private sealed record TextoExtraidoDto(string Texto, string? NotaLocalizacion, decimal? CosteEstimadoOcr = null);
+    /// <summary>
+    /// Texto ya listo para estructurar, con nota de localización (si se
+    /// descartaron páginas), coste OCR (si se usó un proveedor de OCR) y el
+    /// código de ese proveedor de OCR (para <see cref="AuditoriaExtraccionIa.ProveedoresInvocados"/>
+    /// — solo se intenta uno por documento, nunca hay fallback en el paso de
+    /// OCR, así que basta con un único código, no una lista).
+    /// </summary>
+    private sealed record TextoExtraidoDto(string Texto, string? NotaLocalizacion, decimal? CosteEstimadoOcr = null, string? ProveedorOcrCodigo = null);
 
     public async Task<Result<ExtraccionEstructuradaDto>> ProcesarAsync(
         byte[] contenido, string nombreArchivo, string tipoEsperado, Guid? documentoId = null, CancellationToken cancellationToken = default)
@@ -109,7 +116,8 @@ public class DocumentAIRouterService(
             const string mensaje = "No hay ningún proveedor de IA disponible para procesar este documento.";
             await RegistrarAuditoriaAsync(
                 hash, tipoEsperado, "ninguno", cronometro.ElapsedMilliseconds,
-                texto.Valor.CosteEstimadoOcr, costeEstimado: null, clasificacion.Valor.TotalPaginas, 0, mensaje, documentoId, cancellationToken);
+                texto.Valor.CosteEstimadoOcr, costeEstimado: null, clasificacion.Valor.TotalPaginas, 0, mensaje, documentoId, cancellationToken,
+                proveedoresInvocados: CombinarProveedoresInvocados(texto.Valor.ProveedorOcrCodigo));
             return Result.Fallo<ExtraccionEstructuradaDto>(Error.Crear("DocumentAIRouter.SinProveedor", mensaje));
         }
 
@@ -122,17 +130,20 @@ public class DocumentAIRouterService(
             await RegistrarAuditoriaAsync(
                 hash, tipoEsperado, "ninguno", cronometro.ElapsedMilliseconds,
                 texto.Valor.CosteEstimadoOcr, estructuracion.CosteAcumulado, clasificacion.Valor.TotalPaginas, 0,
-                CombinarIncidencias(resultado.Error.Mensaje, estructuracion.NotaIntentos), documentoId, cancellationToken);
+                CombinarIncidencias(resultado.Error.Mensaje, estructuracion.NotaIntentos), documentoId, cancellationToken,
+                proveedoresInvocados: CombinarProveedoresInvocados(texto.Valor.ProveedorOcrCodigo, estructuracion.ProveedoresInvocados));
             return resultado;
         }
 
-        await GuardarEnCacheAsync(hash, tipoEsperado, resultado.Valor, cancellationToken);
+        var entradaCachePendiente = await GuardarEnCacheAsync(hash, tipoEsperado, resultado.Valor, cancellationToken);
         var incidencias = CombinarIncidencias(
             texto.Valor.NotaLocalizacion, resultado.Valor.NotasValidacion, estructuracion.NotaIntentos);
         await RegistrarAuditoriaAsync(
             hash, tipoEsperado, estructuracion.ProveedorCodigo, cronometro.ElapsedMilliseconds,
             texto.Valor.CosteEstimadoOcr, estructuracion.CosteAcumulado,
-            clasificacion.Valor.TotalPaginas, resultado.Valor.ConfianzaGeneral, incidencias, documentoId, cancellationToken);
+            clasificacion.Valor.TotalPaginas, resultado.Valor.ConfianzaGeneral, incidencias, documentoId, cancellationToken,
+            entradaCachePendiente, estructuracion.ModeloExacto, estructuracion.RequestId,
+            CombinarProveedoresInvocados(texto.Valor.ProveedorOcrCodigo, estructuracion.ProveedoresInvocados));
 
         return resultado;
     }
@@ -143,9 +154,37 @@ public class DocumentAIRouterService(
         return utiles.Count == 0 ? null : string.Join(" ", utiles);
     }
 
-    /// <summary>Lo que dejó una vuelta completa por los candidatos de estructuración: quién ganó, cuánto costó TODO (no solo el ganador) y qué se intentó.</summary>
+    /// <summary>
+    /// Une el código del proveedor de OCR (si el texto vino de OCR) con los
+    /// códigos de los candidatos de estructuración probados, sin duplicados
+    /// — un mismo proveedor puede cubrir OCR y estructuración a la vez (p.
+    /// ej. Anthropic) y aparecer en las dos partes.
+    /// </summary>
+    private static string? CombinarProveedoresInvocados(params string?[] partes)
+    {
+        var codigos = partes
+            .Where(parte => !string.IsNullOrWhiteSpace(parte))
+            .SelectMany(parte => parte!.Split(',', StringSplitOptions.RemoveEmptyEntries))
+            .Distinct()
+            .ToList();
+
+        return codigos.Count == 0 ? null : string.Join(",", codigos);
+    }
+
+    /// <summary>
+    /// Lo que dejó una vuelta completa por los candidatos de estructuración:
+    /// quién ganó, cuánto costó TODO (no solo el ganador) y qué se intentó.
+    /// <see cref="ModeloExacto"/>/<see cref="RequestId"/> son de la llamada
+    /// GANADORA (la que produjo <see cref="Resultado"/>) — null si ninguna
+    /// ganó. <see cref="ProveedoresInvocados"/> es la lista de códigos de
+    /// TODOS los candidatos probados, ganaran o no — distinto de
+    /// <see cref="NotaIntentos"/>, que es el mismo recorrido pero en texto
+    /// legible con confianza/error de cada uno, pensado para
+    /// <c>Incidencias</c>, no para consultar.
+    /// </summary>
     private sealed record ResultadoEstructuracion(
-        Result<ExtraccionEstructuradaDto> Resultado, string ProveedorCodigo, decimal? CosteAcumulado, string? NotaIntentos);
+        Result<ExtraccionEstructuradaDto> Resultado, string ProveedorCodigo, decimal? CosteAcumulado, string? NotaIntentos,
+        string? ModeloExacto, string? RequestId, string? ProveedoresInvocados);
 
     /// <summary>
     /// Recorre los candidatos en el orden declarado por
@@ -184,6 +223,7 @@ public class DocumentAIRouterService(
     {
         decimal? costeAcumulado = null;
         var intentos = new List<string>(candidatos.Count);
+        var codigosIntentados = new List<string>(candidatos.Count);
 
         Result<ExtraccionEstructuradaDto>? mejor = null;
         var proveedorMejor = "ninguno";
@@ -191,6 +231,7 @@ public class DocumentAIRouterService(
 
         foreach (var candidato in candidatos)
         {
+            codigosIntentados.Add(candidato.Codigo);
             var actual = await candidato.ExtraerEstructuradoAsync(texto, tipoEsperado, cancellationToken);
 
             if (actual.EsFallido)
@@ -224,14 +265,18 @@ public class DocumentAIRouterService(
         }
 
         var nota = intentos.Count > 1 ? $"Proveedores invocados: {string.Join(", ", intentos)}." : null;
+        var proveedoresInvocados = codigosIntentados.Count > 0 ? string.Join(",", codigosIntentados) : null;
 
         if (mejor is { } ganador)
-            return new ResultadoEstructuracion(ganador, proveedorMejor, costeAcumulado, nota);
+        {
+            return new ResultadoEstructuracion(
+                ganador, proveedorMejor, costeAcumulado, nota, ganador.Valor.ModeloExacto, ganador.Valor.RequestId, proveedoresInvocados);
+        }
 
         var error = ultimoFallo ?? Result.Fallo<ExtraccionEstructuradaDto>(Error.Crear(
             "DocumentAIRouter.SinProveedor", "No hay ningún proveedor de IA disponible para procesar este documento."));
 
-        return new ResultadoEstructuracion(error, "ninguno", costeAcumulado, nota);
+        return new ResultadoEstructuracion(error, "ninguno", costeAcumulado, nota, null, null, proveedoresInvocados);
     }
 
     private async Task<Result<TextoExtraidoDto>> ObtenerTextoAsync(
@@ -257,11 +302,12 @@ public class DocumentAIRouterService(
                 "DocumentAIRouter.SinProveedorOcr", "No hay ningún proveedor de OCR disponible para procesar este documento."));
         }
 
-        var textoOcr = await proveedoresOcr[0].ExtraerTextoAsync(contenido, nombreArchivo, cancellationToken);
+        var proveedorOcr = proveedoresOcr[0];
+        var textoOcr = await proveedorOcr.ExtraerTextoAsync(contenido, nombreArchivo, cancellationToken);
         if (textoOcr.EsFallido)
             return Result.Fallo<TextoExtraidoDto>(textoOcr.Error);
 
-        return Result.Exito(new TextoExtraidoDto(textoOcr.Valor.Texto, null, textoOcr.Valor.CosteEstimado));
+        return Result.Exito(new TextoExtraidoDto(textoOcr.Valor.Texto, null, textoOcr.Valor.CosteEstimado, proveedorOcr.Codigo));
     }
 
     /// <summary>
@@ -341,7 +387,7 @@ public class DocumentAIRouterService(
                 ? textoPorPagina.Valor[i]
                 : textosPorIndicePagina[i]);
 
-        return Result.Exito(new TextoExtraidoDto(string.Join("\n\n", partes), null, costeOcr));
+        return Result.Exito(new TextoExtraidoDto(string.Join("\n\n", partes), null, costeOcr, proveedorOcr.Codigo));
     }
 
     /// <summary>Por debajo del umbral, se manda el documento completo — localizar páginas solo compensa en documentos grandes (§ 4.3).</summary>
@@ -357,23 +403,73 @@ public class DocumentAIRouterService(
         return new TextoExtraidoDto(texto, nota);
     }
 
-    private async Task GuardarEnCacheAsync(
+    /// <summary>
+    /// Añade la entrada de caché al seguimiento del contexto sin guardarla
+    /// todavía — se persiste junto con la auditoría en el mismo
+    /// <c>SaveChangesAsync</c> de <see cref="RegistrarAuditoriaAsync"/>, no
+    /// aquí. Devuelve la entidad recién añadida (o null si ya había una,
+    /// p. ej. porque otra llamada concurrente terminó primero) para que el
+    /// llamador pueda retirarla del tracker si el guardado conjunto choca
+    /// contra el índice único — ver el comentario de
+    /// <see cref="RegistrarAuditoriaAsync"/> sobre la carrera de caché.
+    /// </summary>
+    private async Task<ExtraccionIaCache?> GuardarEnCacheAsync(
         string hash, string tipoEsperado, ExtraccionEstructuradaDto extraccion, CancellationToken cancellationToken)
     {
         if (await cacheRepositorio.ObtenerAsync(hash, tipoEsperado, cancellationToken) is not null)
-            return; // ya cacheado (p. ej. por una llamada concurrente) — no duplicar.
+            return null; // ya cacheado (p. ej. por una llamada concurrente que ya guardó) — no duplicar.
 
         var json = JsonSerializer.Serialize(extraccion, JsonOpciones);
-        cacheRepositorio.Agregar(ExtraccionIaCache.Crear(hash, tipoEsperado, json));
+        var entrada = ExtraccionIaCache.Crear(hash, tipoEsperado, json);
+        cacheRepositorio.Agregar(entrada);
+        return entrada;
     }
 
+    /// <summary>
+    /// La comprobación de <see cref="GuardarEnCacheAsync"/> antes de
+    /// <c>Agregar</c> reduce la carrera de caché documental (dos
+    /// ejecuciones concurrentes procesando el mismo archivo bajo el mismo
+    /// tipo esperado) pero no la cierra: entre ese SELECT y el
+    /// <c>SaveChangesAsync</c> de aquí abajo, la otra ejecución puede
+    /// colar su propio guardado, y entonces este choca contra el índice
+    /// único de <see cref="ExtraccionIaCache"/>.
+    ///
+    /// Antes eso propagaba el <c>DbUpdateException</c> entero y con él se
+    /// perdía la fila de <see cref="AuditoriaExtraccionIa"/> — una
+    /// extracción que sí tuvo éxito (pagó al proveedor, obtuvo un
+    /// resultado válido) quedaba sin rastro en la auditoría solo por
+    /// haber perdido la carrera de escritura de caché, que es un detalle
+    /// de optimización, no del resultado.
+    ///
+    /// La solución no es tragarse el error sin más: un <c>SaveChangesAsync</c>
+    /// fallido no revierte el estado "Added" que <see cref="GuardarEnCacheAsync"/>
+    /// dejó en el tracker, así que un reintento con la entidad todavía
+    /// enganchada repetiría el mismo choque indefinidamente. Por eso se
+    /// retira explícitamente con <see cref="IExtraccionIaCacheRepository.DescartarTrasConflicto"/>
+    /// antes de reintentar — la auditoría se guarda igual, y el caché
+    /// queda con la fila que escribió quien ganó la carrera, que es
+    /// exactamente el mismo resultado que se hubiera devuelto desde este
+    /// lado.
+    /// </summary>
     private async Task RegistrarAuditoriaAsync(
         string hash, string tipoEsperado, string proveedorCodigo, long tiempoMs, decimal? costeEstimadoOcr,
-        decimal? costeEstimado, int numeroPaginas, int confianzaGeneral, string? incidencias, Guid? documentoId, CancellationToken cancellationToken)
+        decimal? costeEstimado, int numeroPaginas, int confianzaGeneral, string? incidencias, Guid? documentoId,
+        CancellationToken cancellationToken, ExtraccionIaCache? entradaCachePendiente = null,
+        string? modeloExacto = null, string? requestId = null, string? proveedoresInvocados = null)
     {
         auditoriaRepositorio.Agregar(AuditoriaExtraccionIa.Crear(
-            hash, tipoEsperado, proveedorCodigo, tiempoMs, costeEstimadoOcr, costeEstimado, numeroPaginas, confianzaGeneral, incidencias, documentoId));
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+            hash, tipoEsperado, proveedorCodigo, tiempoMs, costeEstimadoOcr, costeEstimado, numeroPaginas, confianzaGeneral, incidencias, documentoId,
+            modeloExacto, requestId, proveedoresInvocados));
+
+        try
+        {
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException) when (entradaCachePendiente is not null)
+        {
+            cacheRepositorio.DescartarTrasConflicto(entradaCachePendiente);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
     }
 
     private ExtraccionEstructuradaDto? DeserializarDesdeCache(string json)

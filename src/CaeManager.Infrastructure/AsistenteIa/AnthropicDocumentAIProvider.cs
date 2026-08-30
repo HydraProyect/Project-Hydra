@@ -133,7 +133,7 @@ public class AnthropicDocumentAIProvider(
             return Result.Fallo<TextoExtraccionDto>(respuesta.Error);
 
         var coste = CalcularCoste(respuesta.Valor.TokensEntrada, respuesta.Valor.TokensSalida);
-        return Result.Exito(new TextoExtraccionDto(respuesta.Valor.Texto.Trim(), coste));
+        return Result.Exito(new TextoExtraccionDto(respuesta.Valor.Texto.Trim(), coste, respuesta.Valor.ModeloExacto, respuesta.Valor.RequestId));
     }
 
     private static bool EsPdf(string nombreArchivo) => nombreArchivo.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
@@ -165,7 +165,7 @@ public class AnthropicDocumentAIProvider(
             return Result.Fallo<ExtraccionEstructuradaDto>(respuesta.Error);
 
         var costeEstimado = CalcularCoste(respuesta.Valor.TokensEntrada, respuesta.Valor.TokensSalida);
-        return ParsearEstructurado(respuesta.Valor.Texto, costeEstimado);
+        return ParsearEstructurado(respuesta.Valor.Texto, costeEstimado, respuesta.Valor.ModeloExacto, respuesta.Valor.RequestId);
     }
 
     /// <summary>Coste orientativo, solo para auditoría (ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.2) — nunca se usa para decidir enrutado.</summary>
@@ -204,7 +204,13 @@ public class AnthropicDocumentAIProvider(
                 return Result.Fallo<RespuestaConUso>(Error.Crear($"{prefijoError}.RespuestaVacia", "No pudimos procesar el documento automáticamente."));
             }
 
-            return Result.Exito(new RespuestaConUso(texto, cuerpo?.Usage?.TokensEntrada ?? 0, cuerpo?.Usage?.TokensSalida ?? 0));
+            // El modelo exacto sale de la respuesta, no de config.Modelo: es lo
+            // único que dice qué versión atendió esta llamada en concreto (ver
+            // AuditoriaExtraccionIa.ModeloExacto). request-id/x-request-id
+            // identifica la petición en el lado de Anthropic para diagnóstico,
+            // sin copiar el cuerpo (ver CorrelacionRespuestaIa).
+            return Result.Exito(new RespuestaConUso(
+                texto, cuerpo?.Usage?.TokensEntrada ?? 0, cuerpo?.Usage?.TokensSalida ?? 0, cuerpo?.Model, CorrelacionRespuestaIa.Describir(respuesta)));
         }
         catch (HttpRequestException ex)
         {
@@ -214,7 +220,7 @@ public class AnthropicDocumentAIProvider(
     }
 
     /// <summary>Igual red de seguridad que el resto de servicios de Anthropic: el modelo a veces envuelve el JSON en un bloque de código markdown pese a la instrucción.</summary>
-    private Result<ExtraccionEstructuradaDto> ParsearEstructurado(string texto, decimal costeEstimado)
+    private Result<ExtraccionEstructuradaDto> ParsearEstructurado(string texto, decimal costeEstimado, string? modeloExacto, string? requestId)
     {
         var inicio = texto.IndexOf('{');
         var fin = texto.LastIndexOf('}');
@@ -240,7 +246,8 @@ public class AnthropicDocumentAIProvider(
             var confianza = Math.Clamp(extraido.ConfianzaGeneral, 0, 100);
             var campos = (extraido.Campos ?? new Dictionary<string, string?>()) as IReadOnlyDictionary<string, string?>;
 
-            return Result.Exito(new ExtraccionEstructuradaDto(extraido.TipoDetectado, campos, confianza, extraido.NotasValidacion, costeEstimado));
+            return Result.Exito(new ExtraccionEstructuradaDto(
+                extraido.TipoDetectado, campos, confianza, extraido.NotasValidacion, costeEstimado, modeloExacto, requestId));
         }
         catch (JsonException ex)
         {
@@ -286,7 +293,10 @@ public class AnthropicDocumentAIProvider(
 
     private sealed record RespuestaAnthropic(
         [property: JsonPropertyName("content")] IReadOnlyList<BloqueContenidoAnthropic> Content,
-        [property: JsonPropertyName("usage")] UsoAnthropic? Usage);
+        [property: JsonPropertyName("usage")] UsoAnthropic? Usage,
+        // El modelo resuelto que atendió la llamada — puede diferir del alias
+        // pedido en la solicitud. Ver AuditoriaExtraccionIa.ModeloExacto.
+        [property: JsonPropertyName("model")] string? Model);
 
     private sealed record BloqueContenidoAnthropic(
         [property: JsonPropertyName("type")] string Type,
@@ -296,5 +306,5 @@ public class AnthropicDocumentAIProvider(
         [property: JsonPropertyName("input_tokens")] int TokensEntrada,
         [property: JsonPropertyName("output_tokens")] int TokensSalida);
 
-    private sealed record RespuestaConUso(string Texto, int TokensEntrada, int TokensSalida);
+    private sealed record RespuestaConUso(string Texto, int TokensEntrada, int TokensSalida, string? ModeloExacto = null, string? RequestId = null);
 }
