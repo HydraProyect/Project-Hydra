@@ -102,13 +102,22 @@ public class ObtenerAlertasQueryHandler(
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
 
+        // Un documento con vencimiento más allá del umbral ámbar es SIEMPRE
+        // Vigente (ver CalculadoraEstadoDocumento) y el filtro de más abajo lo
+        // descarta igual — pero antes se traía de PostgreSQL primero y se
+        // descartaba en memoria. Este límite superior acota la consulta al
+        // universo que puede alertar (Vencido no tiene límite inferior: un
+        // documento caducado hace años debe seguir alertando, por eso el
+        // filtro es solo por arriba).
+        var fechaLimiteAlerta = hoy.AddDays(parametros.UmbralAmbarDias);
+
         var vigenciaFilas = await (
             from documento in documentosContext.Documentos
             where documento.TrabajadorId != null
             where trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(documento.TrabajadorId!.Value)
             join trabajador in trabajadoresContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id
             join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
-            where documento.FechaVencimiento != null
+            where documento.FechaVencimiento != null && documento.FechaVencimiento <= fechaLimiteAlerta
             select new
             {
                 DocumentoId = documento.Id,

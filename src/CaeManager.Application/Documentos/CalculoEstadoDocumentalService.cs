@@ -67,16 +67,24 @@ public class CalculoEstadoDocumentalService(
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
 
-        var filas = await consulta.ToListAsync(cancellationToken);
-
-        // El peor estado es el mayor del enum: el orden de EstadoDocumento va
-        // de menos a más urgente (SinCaducidad … Vencido), así que Max es
-        // literalmente "lo que más urge de este propietario".
-        return filas
+        // Agregado en SQL (MIN por propietario), no traer una fila por
+        // Documento para agrupar en memoria (hallazgo crítico, auditoría
+        // Módulo 8: esto se llamaba con todos los propietarios visibles de la
+        // página cuando se ordena/filtra por estado, así que antes eran
+        // potencialmente miles de filas de Documento por una sola pantalla).
+        // MIN(FechaVencimiento) es equivalente a Max(EstadoDocumento): el
+        // estado es una función monótona de la fecha —cuanto antes vence, más
+        // urgente— y CalculadoraEstadoDocumento.Calcular(null, ...) ya
+        // devuelve el mínimo del enum (SinCaducidad), que es exactamente lo
+        // que corresponde cuando ningún Documento del propietario tiene
+        // vencimiento. MIN ignora los NULL en SQL, igual que aquí.
+        var peorFechaPorPropietario = await consulta
             .GroupBy(f => f.PropietarioId)
-            .ToDictionary(
-                grupo => grupo.Key,
-                grupo => grupo.Max(f => CalculadoraEstadoDocumento.Calcular(
-                    f.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)));
+            .Select(g => new { PropietarioId = g.Key, PeorFecha = g.Min(f => f.FechaVencimiento) })
+            .ToDictionaryAsync(x => x.PropietarioId, x => x.PeorFecha, cancellationToken);
+
+        return peorFechaPorPropietario.ToDictionary(
+            kv => kv.Key,
+            kv => CalculadoraEstadoDocumento.Calcular(kv.Value, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias));
     }
 }

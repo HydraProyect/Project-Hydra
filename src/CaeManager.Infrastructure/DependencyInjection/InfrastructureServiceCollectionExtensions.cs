@@ -93,6 +93,11 @@ public static class InfrastructureServiceCollectionExtensions
             Persistence.ConfiguracionDeContexto.Aplicar(options, serviceProvider, cadena);
         });
 
+        // Ruidoso a propósito (mismo criterio que VerificacionKmsHostedService):
+        // deja dicho en cada arranque si CaeManagerDbRuntime está aprovisionado
+        // y si el rol que usa de verdad está restringido (auditoría Módulo 8).
+        services.AddHostedService<Persistence.VerificacionRolRuntimeHostedService>();
+
         services
             .AddIdentityCore<ApplicationUser>(opciones =>
             {

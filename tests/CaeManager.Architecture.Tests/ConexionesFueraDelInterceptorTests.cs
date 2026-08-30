@@ -61,6 +61,15 @@ public class ConexionesFueraDelInterceptorTests
         // así que no hay filas que aislar ni escritura que impedir. Corre en un
         // servicio de fondo, sin petición ni usuario en juego.
         "src/CaeManager.Infrastructure/Coordinacion/EleccionLiderPostgresService.cs",
+
+        // Verificación de arranque (auditoría Módulo 8): lee pg_roles para
+        // confirmar si el rol de CaeManagerDbRuntime está restringido de
+        // verdad (rolsuper/rolbypassrls). Es un catálogo de sistema de
+        // PostgreSQL, no una tabla de dominio con TenantId — no hay ninguna
+        // fila de tenant que aislar ni escritura de aplicación que impedir.
+        // Corre una sola vez al arrancar, sin petición ni usuario en juego,
+        // igual que EleccionLiderPostgresService.
+        "src/CaeManager.Infrastructure/Persistence/VerificacionRolRuntimeHostedService.cs",
     ];
 
     [Fact]

@@ -31,6 +31,24 @@ public class ConversacionConfiguration : IEntityTypeConfiguration<Conversacion>
         // que lea/escriba directamente el campo, sin pasar por la propiedad
         // pública (que no expone Add). Mismo patrón estándar de EF Core para
         // agregados DDD con colecciones encapsuladas.
+        //
+        // FK de una sola columna, NO compuesta con TenantId, y no por
+        // descuido (auditoría Módulo 8, hallazgo crítico — intentado y
+        // revertido 2026-08-30): al ser una navegación de colección real
+        // (HasMany, a diferencia del HasOne<T>().WithMany() sin navegación
+        // que usa AsignacionConfiguration/DocumentoConfiguration), EF Core
+        // fija la relación en cuanto el Mensaje/Participante entra al
+        // ChangeTracker por el grafo de Conversacion — antes de que
+        // TenantSelladoInterceptor selle el TenantId real. Componer la FK
+        // con TenantId hace que ese sellado choque con
+        // "The property 'Mensaje.TenantId' is part of a key and so cannot
+        // be modified" (reproducido rompiendo 14 tests de Comunicaciones:
+        // ingesta de WhatsApp/correo, clasificación de ruido, reclamaciones).
+        // Cerrar el hueco de verdad exige que TenantSelladoInterceptor sepa
+        // sellar el tenant ANTES del fixup de EF sobre navegaciones vivas
+        // (o construir estas entidades sin pasar por la colección), que es
+        // un cambio al propio interceptor — componente compartido por toda
+        // la app — y no cabe en este incremento.
         builder.HasMany(c => c.Mensajes)
             .WithOne()
             .HasForeignKey(m => m.ConversacionId)
