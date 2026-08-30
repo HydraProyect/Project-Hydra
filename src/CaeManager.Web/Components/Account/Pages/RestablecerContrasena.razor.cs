@@ -40,8 +40,16 @@ public partial class RestablecerContrasena : ComponentBase
     private bool _mostrarDesajuste => Entrada is not null && Entrada.ConfirmarContrasenaNueva.Length > 0
         && Entrada.ContrasenaNueva != Entrada.ConfirmarContrasenaNueva;
 
-    private bool PuedeGuardar => Entrada is not null && _requisitos.Count > 0 && _requisitos.All(r => r.Cumplido)
-        && Entrada.ConfirmarContrasenaNueva.Length > 0 && Entrada.ContrasenaNueva == Entrada.ConfirmarContrasenaNueva;
+    // Aquí vivía PuedeGuardar, que gobernaba el disabled del botón. Retirado
+    // en vez de dejarlo sin uso: era una barrera que NUNCA llegaba a
+    // evaluarse con datos —esta página es SSR estática y solo se renderiza una
+    // vez, con la contraseña vacía—, así que el botón nacía deshabilitado y
+    // nada podía habilitarlo. Dejar la propiedad ahí invitaría a volver a
+    // cablearla al botón y reintroducir el mismo bloqueo.
+    //
+    // Lo que sí comprobaba —que las dos contraseñas coincidan— está ahora en
+    // GuardarAsync, que es donde corre de verdad. Y la política la sigue
+    // aplicando ResetPasswordAsync, que devuelve sus errores al usuario.
 
     protected override void OnInitialized() => Entrada ??= new DatosEntrada();
 
@@ -97,6 +105,25 @@ public partial class RestablecerContrasena : ComponentBase
     private async Task GuardarAsync()
     {
         if (_usuario is null || _token is null || Entrada is null) return;
+
+        // La coincidencia se comprueba AQUÍ, no en el disabled del botón.
+        //
+        // Antes la única barrera era `PuedeGuardar`, y no funcionaba: esta
+        // página es SSR estática, así que ese disabled se evaluaba una sola vez
+        // en servidor con la contraseña vacía y el botón nacía deshabilitado
+        // para siempre. Al quitarlo hay que poner la comprobación donde sí
+        // corre, o `ResetPasswordAsync` establecería `ContrasenaNueva`
+        // ignorando en silencio el campo de confirmación — y el usuario se
+        // quedaría con una contraseña distinta de la que creyó escribir dos
+        // veces, sin ningún aviso. `DatosEntrada` no lleva `[Compare]`, así que
+        // el validador de anotaciones tampoco lo cubre.
+        //
+        // Mismo sitio y mismo patrón que CambiarContrasena.razor.
+        if (Entrada.ContrasenaNueva != Entrada.ConfirmarContrasenaNueva)
+        {
+            _mensajeError = "La confirmación no coincide con la contraseña nueva.";
+            return;
+        }
 
         _guardando = true;
         _mensajeError = null;

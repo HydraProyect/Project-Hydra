@@ -87,10 +87,10 @@
 
         <CampoTexto Etiqueta="Correo" Type="email" Valor="@_email" ValorChanged="v => _email = v" Deshabilitado="@(_editandoId is not null)" />
         <CampoTexto Etiqueta="Nombre completo" Valor="@_nombreCompleto" ValorChanged="v => _nombreCompleto = v" />
-        @if (_editandoId is null)
-        {
-            <CampoTexto Etiqueta="Contraseña temporal" Type="password" Valor="@_password" ValorChanged="v => _password = v" />
-        }
+        @* Sin campo de contraseña: la cuenta nace sin ninguna y el propio
+           usuario la establece desde su enlace de activación. Nadie más llega
+           a conocerla — antes la escribía aquí el Administrador y viajaba en
+           claro dentro del correo de bienvenida. *@
         <CampoSelect Etiqueta="Rol" Valor="@_rol" ValorChanged="CambiarRolAsync">
             @foreach (var rol in Roles.Todos)
             {
@@ -135,3 +135,26 @@
         <Boton OnClick="GuardarAsync" Cargando="_guardando">Guardar</Boton>
     </Pie>
 </Drawer>
+
+@* El mismo enlace que se acaba de enviar por correo, para poder entregarlo por
+   otra vía si no llega. No es una credencial equivalente a la contraseña que
+   antes se enviaba: caduca, solo sirve una vez, y quien acaba de crear la
+   cuenta no gana con él ningún acceso que no tuviera ya —hasta ahora era él
+   quien elegía la contraseña inicial—. Lo que sí evita es que un correo
+   perdido obligue a dar de alta a la persona otra vez. *@
+<Modal Visible="@(_enlaceActivacion is not null)"
+       VisibleChanged="@(v => { if (!v) _enlaceActivacion = null; })"
+       Titulo="Usuario creado">
+    <ChildContent>
+        <p>
+            Le hemos enviado por correo un enlace para que establezca su contraseña.
+            Caduca en @MinutosCaducidadActivacion minutos y solo puede usarse una vez.
+        </p>
+        <p>Si el correo no le llega, puedes hacerle llegar tú este enlace:</p>
+        <p class="enlace-activacion">@_enlaceActivacion</p>
+    </ChildContent>
+    <Pie>
+        <BotonCopiar Valor="@(_enlaceActivacion ?? string.Empty)" />
+        <Boton OnClick="() => _enlaceActivacion = null">Hecho</Boton>
+    </Pie>
+</Modal>

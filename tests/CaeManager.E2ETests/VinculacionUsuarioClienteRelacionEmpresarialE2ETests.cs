@@ -31,7 +31,8 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
         var razonSocialOtroCliente = $"F4.2a Timonel {sufijo}";
         var razonSocialEmpresaAjena = $"F4.2a Contrapiso {sufijo}";
         var emailPortal = $"portal.f4.2a.{sufijo}@iberojet.test";
-        const string contrasenaTemporal = "TemporalF4.2a#1";
+        // La contrasena la elige el propio usuario al activar su cuenta: el
+        // alta ya no fija ninguna ni la envia por correo.
         const string contrasenaNueva = "NuevaF4.2a#2026";
 
         await using var contexto = await fixture.Browser.NewContextAsync();
@@ -90,7 +91,6 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
         await page.GetByText("+ Nuevo usuario").First.ClickAsync();
         await drawer.GetByLabel("Correo").FillAsync(emailPortal);
         await drawer.GetByLabel("Nombre completo").FillAsync($"Portal {razonSocialCliente}");
-        await drawer.GetByLabel("Contraseña temporal").FillAsync(contrasenaTemporal);
         await drawer.GetByLabel("Rol").SelectOptionAsync(new SelectOptionValue { Value = "Cliente" });
 
         var campoCif = drawer.GetByLabel("CIF del cliente a vincular");
@@ -113,37 +113,62 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
         await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
-        // --- Sesión nueva: iniciar sesión como el portal-user recién creado ---
-        // No se reutiliza Ayudas.IniciarSesionAsync: ese helper espera
-        // ".nav-principal" al final, pero DebeCambiarContrasena=true (todo
-        // alta desde Usuarios.razor) hace que el login aterrice primero en
-        // /cuenta/cambiar-contrasena, sin ese elemento.
+        // --- Activación: el usuario establece SU contraseña desde el enlace ---
+        // El alta ya no fija ninguna contraseña ni la envía por correo: la
+        // cuenta nace sin contraseña y quien la usa la establece desde un
+        // enlace de un solo uso. El mismo enlace queda en pantalla para quien
+        // hizo el alta, y de ahí lo toma este test — leerlo aquí es además la
+        // única forma de ejercitar el flujo completo sin un buzón que leer.
+        var enlaceActivacion = await page.Locator(".enlace-activacion").InnerTextAsync();
+        Assert.Contains("/cuenta/restablecer-contrasena", enlaceActivacion);
+
         await using var contextoPortal = await fixture.Browser.NewContextAsync();
         var paginaPortal = await contextoPortal.NewPageAsync();
-        await paginaPortal.GotoAsync($"{fixture.BaseUrl}/cuenta/iniciar-sesion");
-        await paginaPortal.FillAsync("#email", emailPortal);
-        await paginaPortal.FillAsync("#password", contrasenaTemporal);
-        await paginaPortal.ClickAsync("button[type=\"submit\"]");
+        await paginaPortal.GotoAsync(enlaceActivacion.Trim());
 
-        // ESTE es el punto que la traza del fallo intermitente señalaba
-        // (línea 128 de la versión anterior): WaitForURLAsync llama por dentro
-        // a WaitForLoadStateAsync, que es el marco de Playwright que aparecía
-        // en el TimeoutException. Esperar la URL exige que la navegación
-        // COMPLETA se asiente; bajo carga de CI, el login —hash de contraseña,
-        // cookie, redirección con forceLoad— se pasaba de los 15 s y el test
-        // moría antes de tocar nada de lo que venía a comprobar.
-        //
-        // Se espera el campo del formulario en lugar de la URL: es una señal
-        // concreta que implica las dos cosas —haber llegado Y haber
-        // renderizado—, y no depende de que el estado de carga se asiente.
-        await paginaPortal.Locator("#password-actual")
+        // Señal concreta de que la página de activación renderizó, en vez de
+        // esperar un estado de carga: bajo carga de CI la navegación se
+        // pasaba de los 15 s y el test moría antes de tocar nada de lo que
+        // venía a comprobar (el TimeoutException de Frame.WaitForLoadStateAsync
+        // que bloqueaba la cola de merge).
+        await paginaPortal.Locator("#password-nueva")
             .WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
 
-        await paginaPortal.FillAsync("#password-actual", contrasenaTemporal);
         await paginaPortal.FillAsync("#password-nueva", contrasenaNueva);
         await paginaPortal.FillAsync("#password-confirmar", contrasenaNueva);
+
+        // El boton nace DESHABILITADO —su disabled depende de que la politica
+        // de contrasena se cumpla y las dos coincidan— y solo se habilita
+        // cuando el circuito ha procesado lo que acabamos de escribir. Se
+        // afirma explicitamente en vez de dejar que ClickAsync espere por
+        // accionabilidad: asi un fallo dice "el boton sigue deshabilitado",
+        // que nombra la causa, en vez de un timeout mudo de 30 s.
+        //
+        // Esta espera destapo un defecto real de producto: la pagina no
+        // declaraba @rendermode, asi que ese disabled se evaluaba en servidor
+        // con la contraseña vacia y NADA podia habilitarlo. Restablecer la
+        // contrasena era imposible para cualquier usuario.
+        await Assertions.Expect(paginaPortal.Locator("button[type=\"submit\"]"))
+            .ToBeEnabledAsync(new LocatorAssertionsToBeEnabledOptions { Timeout = 30_000 });
+
         await paginaPortal.ClickAsync("button[type=\"submit\"]");
-        await paginaPortal.Locator(".nav-principal").WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+
+        // Esperar la confirmación ANTES de navegar. ClickAsync vuelve en cuanto
+        // despacha el clic, no cuando el manejador de Blazor ha terminado: sin
+        // esta espera, el GotoAsync del login siguiente se llevaba por delante
+        // el envío a medio hacer, la contraseña no llegaba a establecerse y el
+        // login fallaba después — con el error en el sitio equivocado.
+        //
+        // "Contraseña actualizada" solo se renderiza tras ResetPasswordAsync
+        // correcto y el SignOutAsync que le sigue, así que es la señal de que
+        // la cuenta YA tiene contraseña y la sesión está limpia para entrar.
+        await Assertions.Expect(paginaPortal.GetByText("Contraseña actualizada"))
+            .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 30_000 });
+
+        // Y ahora sí, el login normal. Que este paso funcione prueba lo que
+        // importa del cambio: la cuenta no tenía contraseña hasta que su dueño
+        // le puso una.
+        await Ayudas.IniciarSesionAsync(paginaPortal, fixture.BaseUrl, emailPortal, contrasenaNueva);
 
         // --- El alcance real, derivado de RelacionEmpresarial vía AlcanceDatosService ---
         //

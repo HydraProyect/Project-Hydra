@@ -128,6 +128,25 @@ public static class InfrastructureServiceCollectionExtensions
             .AddClaimsPrincipalFactory<TenantClaimsPrincipalFactory>()
             .AddDefaultTokenProviders();
 
+        // Vigencia de los tokens de restablecimiento y de activación. NO es
+        // cosmética: el correo de "olvidé mi contraseña" lleva desde siempre
+        // escrito que el enlace "caduca en 60 minutos", y su constante decía
+        // ser "el valor por defecto de DataProtectorTokenProvider". No lo es —
+        // el de Identity es UN DÍA, y esto no se configuraba en ninguna parte.
+        // Es decir, la aplicación prometía una hora y daba veinticuatro: un
+        // enlace reenviado o filtrado seguía abriendo la cuenta al día
+        // siguiente, cuando el usuario creía que había caducado hacía mucho.
+        //
+        // Se alinea la configuración con lo prometido, y no al revés: entre
+        // cambiar el texto y cambiar la vigencia, lo correcto es que el sistema
+        // haga lo que dice, no que diga lo que hace.
+        //
+        // Si se cambia aquí, hay que cambiarlo también en las dos constantes
+        // que lo anuncian al usuario: OlvideContrasena.MinutosCaducidad y
+        // Usuarios.MinutosCaducidadActivacion.
+        services.Configure<DataProtectionTokenProviderOptions>(
+            opciones => opciones.TokenLifespan = TimeSpan.FromMinutes(60));
+
         services.Configure<AzureAdOptions>(configuration.GetSection(AzureAdOptions.SeccionConfiguracion));
         services.AddTransient<IClaimsTransformation, RestriccionLoginLocalClaimsTransformation>();
 
