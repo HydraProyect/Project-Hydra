@@ -138,9 +138,21 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
         await paginaPortal.FillAsync("#password-confirmar", contrasenaNueva);
         await paginaPortal.ClickAsync("button[type=\"submit\"]");
 
-        // Establecida la contraseña, ya se entra por el login normal. Que este
-        // paso funcione prueba de paso lo que importa del cambio: la cuenta no
-        // tenía contraseña hasta que su dueño le puso una.
+        // Esperar la confirmación ANTES de navegar. ClickAsync vuelve en cuanto
+        // despacha el clic, no cuando el manejador de Blazor ha terminado: sin
+        // esta espera, el GotoAsync del login siguiente se llevaba por delante
+        // el envío a medio hacer, la contraseña no llegaba a establecerse y el
+        // login fallaba después — con el error en el sitio equivocado.
+        //
+        // "Contraseña actualizada" solo se renderiza tras ResetPasswordAsync
+        // correcto y el SignOutAsync que le sigue, así que es la señal de que
+        // la cuenta YA tiene contraseña y la sesión está limpia para entrar.
+        await Assertions.Expect(paginaPortal.GetByText("Contraseña actualizada"))
+            .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 30_000 });
+
+        // Y ahora sí, el login normal. Que este paso funcione prueba lo que
+        // importa del cambio: la cuenta no tenía contraseña hasta que su dueño
+        // le puso una.
         await Ayudas.IniciarSesionAsync(paginaPortal, fixture.BaseUrl, emailPortal, contrasenaNueva);
 
         // --- El alcance real, derivado de RelacionEmpresarial vía AlcanceDatosService ---
