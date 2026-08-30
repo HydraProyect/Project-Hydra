@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Text;
 using CaeManager.Infrastructure.Conversion;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Xunit;
 
@@ -13,18 +14,41 @@ namespace CaeManager.IntegrationTests.Conversion;
 /// — no se mockea el proceso porque la garantía que importa es que la
 /// invocación real produce un PDF válido. Si la máquina de desarrollo no
 /// tiene LibreOffice instalado, la prueba no hace nada en vez de fallar el
-/// build de quien no lo tenga instalado localmente (Railway sí lo tiene,
-/// ver Dockerfile).
+/// build de quien no lo tenga instalado localmente (CI sí lo instala, ver
+/// el paso "Instalar LibreOffice" de ci.yml, y la imagen de despliegue
+/// también, ver Dockerfile).
+///
+/// <b>En Windows estos casos NO se ejecutan, y es deliberado.</b> Se intentó
+/// habilitarlos localizando el soffice.exe que el instalador deja fuera del
+/// PATH, y lo medido fue que el servicio no funciona en Windows en absoluto:
+/// la conversión agota los 60 segundos de timeout. La causa está en la propia
+/// invocación — <c>-env:UserInstallation=file://{ruta}</c> produce una URL
+/// válida a partir de una ruta POSIX (<c>file:///tmp/...</c>) pero inválida a
+/// partir de una ruta Windows (<c>file://C:\...</c>, donde "C:" queda como
+/// host) — así que el servicio es de Linux por construcción, que es donde se
+/// despliega. Habilitarlos aquí solo produciría dos rojos permanentes que no
+/// señalan ningún defecto del producto.
+///
+/// Queda dicho porque el intento no fue gratis: el sondeo original ejecutaba
+/// <c>soffice --version</c>, que en Windows se cuelga (medido: 30 s sin
+/// salir), de modo que el salto parecía "no está instalado" cuando sí lo
+/// estaba. Verde sin haber ejecutado nada es la peor forma de no tener
+/// cobertura, porque parece que la hay: aquí el salto es explícito y su
+/// motivo, verificable.
 /// </summary>
 public class LibreOfficeConversorWordPdfServiceTests
 {
+    private static LibreOfficeConversorWordPdfService CrearServicio(string ejecutable) =>
+        new(
+            Options.Create(new LibreOfficeConversorWordPdfServiceOptions { RutaEjecutable = ejecutable }),
+            NullLogger<LibreOfficeConversorWordPdfService>.Instance);
+
     [Fact]
     public async Task Convierte_un_docx_valido_en_un_pdf_valido()
     {
-        if (!HayLibreOfficeInstalado()) return;
+        if (LocalizarLibreOffice() is not { } ejecutable) return;
 
-        var servicio = new LibreOfficeConversorWordPdfService(
-            Options.Create(new LibreOfficeConversorWordPdfServiceOptions()));
+        var servicio = CrearServicio(ejecutable);
 
         var pdf = await servicio.ConvertirAPdfAsync(CrearDocxMinimoValido("Prueba de conversión Word a PDF."));
 
@@ -35,10 +59,9 @@ public class LibreOfficeConversorWordPdfServiceTests
     [Fact]
     public async Task Dos_conversiones_concurrentes_no_interfieren_entre_si()
     {
-        if (!HayLibreOfficeInstalado()) return;
+        if (LocalizarLibreOffice() is not { } ejecutable) return;
 
-        var servicio = new LibreOfficeConversorWordPdfService(
-            Options.Create(new LibreOfficeConversorWordPdfServiceOptions()));
+        var servicio = CrearServicio(ejecutable);
 
         var docxUno = CrearDocxMinimoValido("Documento uno.");
         var docxDos = CrearDocxMinimoValido("Documento dos.");
@@ -50,18 +73,38 @@ public class LibreOfficeConversorWordPdfServiceTests
         resultados.Should().OnlyContain(pdf => pdf.Length > 0);
     }
 
-    private static bool HayLibreOfficeInstalado()
+    /// <summary>
+    /// Devuelve el ejecutable de LibreOffice utilizable, o null si no lo hay.
+    /// Prueba el PATH (como en Linux/CI/despliegue) y, si falla, las rutas
+    /// donde el instalador de Windows lo deja sin registrarlo en el PATH.
+    /// </summary>
+    private static string? LocalizarLibreOffice()
+    {
+        // Solo el nombre del PATH: Linux, CI y la imagen de despliegue. Ver
+        // el comentario de clase sobre por qué NO se busca el soffice.exe de
+        // Windows aunque esté instalado.
+        return RespondeEnElPath("soffice") ? "soffice" : null;
+    }
+
+    private static bool RespondeEnElPath(string ejecutable)
     {
         try
         {
             using var proceso = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
             {
-                FileName = "soffice",
+                FileName = ejecutable,
                 ArgumentList = { "--version" },
                 RedirectStandardOutput = true,
                 UseShellExecute = false,
             });
-            proceso!.WaitForExit(5000);
+
+            if (proceso is null) return false;
+            if (!proceso.WaitForExit(15000))
+            {
+                proceso.Kill(entireProcessTree: true);
+                return false;
+            }
+
             return proceso.ExitCode == 0;
         }
         catch
