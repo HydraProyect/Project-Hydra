@@ -3,6 +3,7 @@ using System.Text.Json;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Subcontratas;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
@@ -13,9 +14,14 @@ namespace CaeManager.Infrastructure.Auditing;
 /// <summary>
 /// Registra en RegistroAuditoria cada alta/modificación/baja de una entidad
 /// de dominio (ver ARCHITECTURE.md, "Auditoría y soft delete"). Excluye
-/// explícitamente los campos cifrados de CanalGestionDocumental,
-/// CredencialAccesoEmpresa y CredencialAccesoSubcontrata: nunca deben quedar
-/// en texto plano en el historial (ver DATABASE.md).
+/// explícitamente los campos cifrados por ValueConverter en
+/// CaeManagerDbContext (CanalGestionDocumental, CredencialAccesoEmpresa,
+/// CredencialAccesoSubcontrata, CredencialIntegracion, SuscripcionWebhook,
+/// LineaWhatsApp): nunca deben quedar en texto plano en el historial (ver
+/// DATABASE.md). Esta lista debe crecer junto con cualquier propiedad nueva
+/// que se cifre en reposo — el cifrado en la BD no protege el historial de
+/// auditoría, que lee el valor plano directamente del ChangeTracker antes
+/// de que el ValueConverter lo cifre.
 /// </summary>
 public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesInterceptor
 {
@@ -23,7 +29,10 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
     {
         [typeof(CanalGestionDocumental)] = [nameof(CanalGestionDocumental.Usuario), nameof(CanalGestionDocumental.Contrasena)],
         [typeof(CredencialAccesoEmpresa)] = [nameof(CredencialAccesoEmpresa.Usuario), nameof(CredencialAccesoEmpresa.Contrasena)],
-        [typeof(CredencialAccesoSubcontrata)] = [nameof(CredencialAccesoSubcontrata.Usuario), nameof(CredencialAccesoSubcontrata.Contrasena)]
+        [typeof(CredencialAccesoSubcontrata)] = [nameof(CredencialAccesoSubcontrata.Usuario), nameof(CredencialAccesoSubcontrata.Contrasena)],
+        [typeof(CredencialIntegracion)] = [nameof(CredencialIntegracion.RefreshToken)],
+        [typeof(SuscripcionWebhook)] = [nameof(SuscripcionWebhook.ClientState)],
+        [typeof(LineaWhatsApp)] = [nameof(LineaWhatsApp.TokenAcceso)]
     };
 
     public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
@@ -100,11 +109,21 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
             var entidadId = entrada.Property("Id").CurrentValue as Guid? ?? Guid.Empty;
             var sensibles = PropiedadesSensiblesPorTipo.GetValueOrDefault(entrada.Entity.GetType());
 
+            // En Added/Deleted no hay "propiedad modificada" que distinguir —
+            // se registra la fila entera. En Modified sí: filtrar a
+            // p.IsModified evita duplicar en Antes/Después el resto de la
+            // entidad (comentarios, PII, payloads) cuando solo cambió un
+            // campo, y reduce a la mitad el tamaño de cada fila de auditoría
+            // en el caso común de una edición puntual.
+            var propiedades = entrada.State == EntityState.Modified
+                ? entrada.Properties.Where(p => p.IsModified)
+                : entrada.Properties;
+
             string? datosAntes = entrada.State != EntityState.Added
-                ? SerializarValores(entrada.Properties, sensibles, usarValorOriginal: true)
+                ? SerializarValores(propiedades, sensibles, usarValorOriginal: true)
                 : null;
             string? datosDespues = entrada.State != EntityState.Deleted
-                ? SerializarValores(entrada.Properties, sensibles, usarValorOriginal: false)
+                ? SerializarValores(propiedades, sensibles, usarValorOriginal: false)
                 : null;
 
             registros.Add(new RegistroAuditoria(

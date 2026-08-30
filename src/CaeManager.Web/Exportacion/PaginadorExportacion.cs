@@ -20,16 +20,35 @@ public static class PaginadorExportacion
     /// </summary>
     public const int TamanoLotePorDefecto = 500;
 
+    /// <summary>
+    /// Techo agregado por exportación (hallazgo del Módulo 9, auditoría
+    /// 2026-08-30): paginar por lotes acota cuánto materializa EF de golpe,
+    /// pero sin un techo total un tenant con cientos de miles de filas sigue
+    /// pudiendo forzar un <c>XLWorkbook</c> de ClosedXML del mismo tamaño en
+    /// memoria — ClosedXML no tiene modo forward-only, así que el libro
+    /// entero vive en RAM hasta el <c>SaveAs</c>. Un valor muy por encima de
+    /// cualquier tenant real de hoy, pero finito.
+    /// </summary>
+    public const int MaximoElementosPorDefecto = 50_000;
+
     public static async IAsyncEnumerable<T> PaginarAsync<T>(
         Func<int, int, Task<ResultadoPaginado<T>>> obtenerPagina,
-        int tamanoLote = TamanoLotePorDefecto)
+        int tamanoLote = TamanoLotePorDefecto,
+        int maximoElementos = MaximoElementosPorDefecto)
     {
         var pagina = 1;
+        var total = 0;
         while (true)
         {
             var resultado = await obtenerPagina(pagina, tamanoLote);
             foreach (var item in resultado.Elementos)
+            {
+                if (++total > maximoElementos)
+                    throw new InvalidOperationException(
+                        $"La exportación supera el máximo de {maximoElementos} filas — acota el filtro antes de exportar.");
+
                 yield return item;
+            }
 
             if (resultado.Elementos.Count < tamanoLote)
                 yield break;

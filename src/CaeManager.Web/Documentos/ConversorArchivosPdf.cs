@@ -62,6 +62,16 @@ public static class ConversorArchivosPdf
     /// <summary>Página A4 con la imagen centrada y ajustada al área imprimible, sin recortarla ni deformarla.</summary>
     private static byte[] ConvertirImagenAPdf(byte[] imagen)
     {
+        // ANTES de decodificar: el coste de abrir una imagen lo fijan sus
+        // dimensiones, no su tamaño en disco. Medido aquí, un PNG de 136 KB de
+        // 12000 x 12000 hacía reservar 789 MB — factor 5800 — y pasaba sin que
+        // nada lo mirase. El tope de 10 MB de la subida no acota esto, y el
+        // presupuesto del lote tampoco: cuenta bytes de fichero, y el daño
+        // está en los píxeles declarados.
+        if (!DimensionesImagen.EstaDentroDelLimite(imagen))
+            throw new InvalidDataException(
+                "La imagen declara más píxeles de los admitidos y no se puede procesar.");
+
         using var documento = new PdfDocument();
         var pagina = documento.AddPage();
         using var graficos = XGraphics.FromPdfPage(pagina);

@@ -22,7 +22,7 @@ public static class FirmasGuardadasEndpoints
                 return Results.NotFound();
 
             var flujo = await almacenamiento.AbrirAsync(firma.ImagenUrl, cancellationToken);
-            return Results.File(flujo, "image/png");
+            return Results.File(flujo, "image/png", enableRangeProcessing: true);
         });
 
         endpoints.MapGet("/empresas/{id:guid}/sello/archivo", async (
@@ -33,7 +33,7 @@ public static class FirmasGuardadasEndpoints
                 return Results.NotFound();
 
             var flujo = await almacenamiento.AbrirAsync(sello.ImagenUrl, cancellationToken);
-            return Results.File(flujo, "image/png");
+            return Results.File(flujo, "image/png", enableRangeProcessing: true);
         });
 
         return endpoints;

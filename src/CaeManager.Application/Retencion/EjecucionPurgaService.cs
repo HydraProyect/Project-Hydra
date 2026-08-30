@@ -30,6 +30,7 @@ public class EjecucionPurgaService(
     IFileStorageService almacenamiento,
     ITenantActual tenantActual,
     IUnitOfWork unitOfWork,
+    IAlertaOperativa alertaOperativa,
     ILogger<EjecucionPurgaService> logger)
 {
     /// <summary>Devuelve cuántos registros se anonimizaron.</summary>
@@ -52,7 +53,7 @@ public class EjecucionPurgaService(
 
         var afectados = solicitud.TipoDato switch
         {
-            TipoDatoPurgable.Documentos => await AnonimizarDocumentosAsync(tenantId, solicitud.FechaCorte, ahora, cancellationToken),
+            TipoDatoPurgable.Documentos => await AnonimizarDocumentosAsync(tenantId, solicitud.Id, solicitud.FechaCorte, ahora, cancellationToken),
             TipoDatoPurgable.TrabajadoresDadosDeBaja => await AnonimizarTrabajadoresAsync(tenantId, solicitud.FechaCorte, ahora, cancellationToken),
             _ => 0
         };
@@ -67,7 +68,7 @@ public class EjecucionPurgaService(
     }
 
     private async Task<int> AnonimizarDocumentosAsync(
-        Guid tenantId, DateOnly fechaCorte, DateTime ahora, CancellationToken cancellationToken)
+        Guid tenantId, Guid solicitudId, DateOnly fechaCorte, DateTime ahora, CancellationToken cancellationToken)
     {
         // IgnoreQueryFilters() + Where(TenantId) explícito — ver el comentario
         // equivalente en DeteccionPurgaService (P0-1/P0-3 de
@@ -84,31 +85,63 @@ public class EjecucionPurgaService(
                 : d.FechaEmision <= fechaCorte)
             .ToListAsync(cancellationToken);
 
+        // El orden importa y antes estaba al revés. Anonimizar primero borra
+        // ArchivoUrl de la fila; si el borrado del fichero fallaba después, la
+        // purga seguía adelante y confirmaba: el documento quedaba marcado como
+        // anonimizado, el PDF seguía en almacenamiento y la única referencia
+        // que permitía encontrarlo ya no existía. Es decir, un reconocimiento
+        // médico conservado para siempre y declarado suprimido — conformidad
+        // falsa, y además irreparable, porque ningún reintento sabría ya qué
+        // borrar.
+        //
+        // Ahora se borra el fichero ANTES de soltar su referencia y solo se
+        // anonimiza si el borrado salió bien. Un fallo deja el documento
+        // intacto, con su ArchivoUrl, de modo que sigue siendo localizable y
+        // una purga posterior puede volver a intentarlo.
+        var anonimizados = 0;
+        var noSuprimidos = new List<Guid>();
+
         foreach (var documento in documentos)
         {
-            var archivo = documento.Anonimizar(ahora);
-            if (archivo is null) continue;
+            if (documento.ArchivoUrl is { } archivo)
+            {
+                try
+                {
+                    await almacenamiento.EliminarAsync(archivo, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    // No se aborta la purga entera por un archivo: el resto de
+                    // la supresión sigue siendo válida y necesaria. Este
+                    // documento se queda como estaba.
+                    logger.LogError(ex,
+                        "No se pudo borrar el archivo del documento {DocumentoId} durante la purga: se deja sin anonimizar para que un reintento posterior pueda encontrarlo.",
+                        documento.Id);
+                    noSuprimidos.Add(documento.Id);
+                    continue;
+                }
+            }
 
-            // El fichero se borra aparte porque el dato personal está dentro
-            // del PDF: sin esto la fila quedaría limpia y el documento
-            // seguiría en disco.
-            try
-            {
-                await almacenamiento.EliminarAsync(archivo, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                // No se aborta la purga entera por un archivo: el resto de la
-                // supresión sigue siendo válida y necesaria. Pero queda
-                // constancia, porque un archivo superviviente es exactamente
-                // lo que esta operación existe para evitar.
-                logger.LogError(ex,
-                    "No se pudo borrar el archivo {Archivo} del documento {DocumentoId} durante la purga.",
-                    archivo, documento.Id);
-            }
+            documento.Anonimizar(ahora);
+            anonimizados++;
         }
 
-        return documentos.Count;
+        if (noSuprimidos.Count > 0)
+        {
+            // La solicitud ya se marcó ejecutada arriba (SolicitudPurga.Ejecutar),
+            // así que nada va a reintentar esto por su cuenta: sin aviso, el
+            // residuo quedaría sin que nadie lo supiera. Cerrar el ciclo de
+            // verdad —no dar la solicitud por completada hasta confirmar todos
+            // los borrados— exige un registro durable de supresiones con
+            // reintentos, que hoy no existe: decisión de arquitectura pendiente
+            // (ver el informe del Módulo 2).
+            alertaOperativa.Emitir(
+                $"Purga {solicitudId}: {noSuprimidos.Count} documento(s) no se pudieron suprimir y quedan sin anonimizar. " +
+                $"Ids: {string.Join(", ", noSuprimidos)}.",
+                NivelAlertaOperativa.Critica);
+        }
+
+        return anonimizados;
     }
 
     private async Task<int> AnonimizarTrabajadoresAsync(

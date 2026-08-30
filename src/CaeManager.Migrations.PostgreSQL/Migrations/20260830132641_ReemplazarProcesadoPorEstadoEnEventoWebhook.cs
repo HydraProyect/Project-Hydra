@@ -63,19 +63,17 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 type: "timestamp with time zone",
                 nullable: true);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_EventosWebhook_TenantId_Estado",
-                table: "EventosWebhook",
-                columns: new[] { "TenantId", "Estado" });
+            // Sin CreateIndex(TenantId, Estado) aquí a propósito: la
+            // migración IndicesParametroSistemaYEventoWebhookPendientes
+            // (Módulo 8, mergeada primero, timestamp posterior) ya cubre el
+            // caso de uso real — pendientes de un tenant ordenados por
+            // FechaRecepcionUtc — con un índice parcial más específico.
+            // Crear los dos sería un índice redundante sin ningún consumidor.
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropIndex(
-                name: "IX_EventosWebhook_TenantId_Estado",
-                table: "EventosWebhook");
-
             migrationBuilder.DropColumn(
                 name: "Estado",
                 table: "EventosWebhook");
