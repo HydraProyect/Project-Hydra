@@ -147,13 +147,19 @@ public class FlujoRetencionTests(WebAppFixtureConRetencionActiva fixture)
         await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, Ayudas.NombreClienteDelegadoDemo);
 
         await page.GotoAsync($"{fixture.BaseUrl}/retencion");
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
-        // No se afirma un código ni una URL concretos: el fallo cerrado puede
-        // materializarse como 403, como redirección o como página de acceso
-        // denegado, y fijar la forma exacta haría frágil un test cuyo objeto es
-        // que NO se llegue al contenido. Lo que no puede aparecer es el control
-        // que dispara la purga.
+        // Se afirma la señal POSITIVA de la denegación —el destino al que
+        // Routes.razor manda a un usuario autenticado sin el rol requerido— y
+        // no solo la ausencia del botón. Un test que únicamente comprueba que
+        // algo no se ve pasa igual de verde cuando la página no ha renderizado
+        // todavía, que es exactamente el modo de fallo que no distinguiría un
+        // control efectivo de una carrera ganada por accidente.
+        await Assertions.Expect(page).ToHaveURLAsync(
+            new System.Text.RegularExpressions.Regex("/acceso-denegado"),
+            new PageAssertionsToHaveURLOptions { Timeout = 15_000 });
+
+        // Y encima de esa ancla, lo que no puede aparecer: el control que
+        // dispara la purga.
         await Assertions.Expect(page.GetByText("Buscar datos que hayan cumplido plazo"))
             .Not.ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 10_000 });
     }
