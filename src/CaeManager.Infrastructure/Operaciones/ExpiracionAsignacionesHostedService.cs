@@ -188,11 +188,21 @@ public class ExpiracionAsignacionesHostedService(
     }
 
     /// <summary>
-    /// Guarda una activación y, si choca contra el índice único de
-    /// responsabilidad (23505 de Postgres), deshace el cambio en memoria y deja
-    /// la asignación Programada. Es la traducción del error de base de datos a
-    /// una decisión de negocio legible: "esta no puede activarse todavía porque
-    /// hay otra respondiendo del mismo ámbito".
+    /// Guarda una activación y, si choca contra alguno de los índices únicos
+    /// parciales de "un responsable vigente por ámbito" — todos terminan en
+    /// "Vigente" por convención en este esquema (ver la migración
+    /// AgregarAsignacionesOperativas: IX_AsignacionesOperacion_RaizVigente,
+    /// _ResponsableRelacionVigente, _DelegacionTotalVigente y sus equivalentes
+    /// en AsignacionesCartera) — deshace el cambio en memoria y deja la
+    /// asignación Programada. Es la traducción del error de base de datos a
+    /// una decisión de negocio legible: "esta no puede activarse todavía
+    /// porque hay otra respondiendo del mismo ámbito".
+    ///
+    /// Comprobar el nombre de la restricción (auditoría de colas,
+    /// 2026-08-30) y no cualquier 23505: sin esto, una violación de unicidad
+    /// distinta (que no sea "hay otra vigente") se malinterpretaría igual
+    /// como un solape esperado y se ocultaría como advertencia en vez de
+    /// propagarse como el error real que sería.
     /// </summary>
     private static async Task<bool> GuardarODejarComoEstabaAsync(
         CaeManagerDbContext dbContext, AsignacionResponsabilidad asignacion, ILogger logger,
@@ -203,7 +213,10 @@ public class ExpiracionAsignacionesHostedService(
             await dbContext.SaveChangesAsync(stoppingToken);
             return true;
         }
-        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" })
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException
+        {
+            SqlState: "23505"
+        } pg && (pg.ConstraintName?.EndsWith("Vigente", StringComparison.Ordinal) ?? false))
         {
             dbContext.Entry(asignacion).State = EntityState.Detached;
 

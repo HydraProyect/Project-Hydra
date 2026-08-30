@@ -10,21 +10,25 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropIndex(
-                name: "IX_EventosWebhook_TenantId_Procesado",
-                table: "EventosWebhook");
-
+            // Sin DropIndex(IX_EventosWebhook_TenantId_Procesado) aquí: la
+            // migración ReemplazarProcesadoPorEstadoEnEventoWebhook (auditoría
+            // de colas, timestamp anterior, mergeada después por orden de PR)
+            // ya la eliminó al retirar la columna "Procesado" — repetirla
+            // fallaría contra un índice que ya no existe.
             migrationBuilder.CreateIndex(
                 name: "IX_ParametrosSistema_TenantId",
                 table: "ParametrosSistema",
                 column: "TenantId",
                 unique: true);
 
+            // Filtro sobre "Estado" (no "Procesado"): para cuando esta
+            // migración corre, ReemplazarProcesadoPorEstadoEnEventoWebhook ya
+            // renombró la columna — ver EventoWebhookConfiguration.
             migrationBuilder.CreateIndex(
                 name: "IX_EventosWebhook_TenantId_FechaRecepcionUtc_Pendientes",
                 table: "EventosWebhook",
                 columns: new[] { "TenantId", "FechaRecepcionUtc" },
-                filter: "NOT \"Procesado\"");
+                filter: "\"Estado\" = 'Pendiente'");
         }
 
         /// <inheritdoc />
@@ -38,10 +42,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 name: "IX_EventosWebhook_TenantId_FechaRecepcionUtc_Pendientes",
                 table: "EventosWebhook");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_EventosWebhook_TenantId_Procesado",
-                table: "EventosWebhook",
-                columns: new[] { "TenantId", "Procesado" });
+            // Sin recrear IX_EventosWebhook_TenantId_Procesado aquí: en un
+            // rollback, esta Down corre ANTES que la de
+            // ReemplazarProcesadoPorEstadoEnEventoWebhook (orden inverso), así
+            // que la columna "Procesado" todavía no existe en este punto —
+            // esa migración es quien la recrea al deshacerse ella misma.
         }
     }
 }

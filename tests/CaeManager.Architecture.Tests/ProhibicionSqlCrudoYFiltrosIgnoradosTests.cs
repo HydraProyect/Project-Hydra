@@ -133,6 +133,17 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // antes de llegar aquí — nunca se resuelve del ambiente.
         [("src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs", "await dbContext.Set<TEntidad>().IgnoreQueryFilters().Where(e => e.TenantId == tenantId).ToListAsync(cancellationToken);")] = 1,
         [("src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs", "var tenant = await dbContext.Tenants.IgnoreQueryFilters()")] = 1,
+
+        // Reclamo atómico de la cola de análisis IA y de la cola de webhooks
+        // (auditoría de colas, 2026-08-30, hallazgo crítico #1): FOR UPDATE
+        // SKIP LOCKED no tiene equivalente en LINQ/EF Core, así que el SELECT
+        // que reclama el siguiente trabajo/evento pendiente va por SQL
+        // interpolado (parametrizado por EF, no concatenado a mano) dentro de
+        // una transacción corta que el propio método abre y confirma. Sin
+        // esto, dos réplicas podían reclamar la misma fila si el advisory
+        // lock de elección de líder se perdía a mitad de un lote.
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/TrabajoAnalisisDocumentoRepository.cs", ".FromSqlInterpolated($\"\"\"")] = 1,
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/EventoWebhookRepository.cs", ".FromSqlInterpolated($\"\"\"")] = 1,
     };
 
     /// <summary>

@@ -130,7 +130,7 @@ public class IngestaWebhookWhatsAppServiceTests
         var evento = new EventoWebhook(conexion.Id, "{}");
         await CrearServicio().ProcesarAsync(evento, CancellationToken.None);
 
-        evento.Procesado.Should().BeTrue();
+        evento.Estado.Should().Be(EstadoEventoWebhook.Completado);
         _conversaciones.Conversaciones.Should().ContainSingle()
             .Which.Mensajes.Should().ContainSingle(m => m.Direccion == DireccionMensaje.Entrante);
     }
@@ -215,7 +215,7 @@ public class IngestaWebhookWhatsAppServiceTests
         var evento = new EventoWebhook(conexion.Id, "{}");
         await CrearServicio().ProcesarAsync(evento, CancellationToken.None);
 
-        evento.Procesado.Should().BeTrue();
+        evento.Estado.Should().Be(EstadoEventoWebhook.Completado);
         _conversaciones.Conversaciones.Should().BeEmpty();
     }
 }

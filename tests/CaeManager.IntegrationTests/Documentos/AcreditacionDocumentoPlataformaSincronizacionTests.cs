@@ -243,6 +243,9 @@ public class AcreditacionDocumentoPlataformaSincronizacionTests : IAsyncLifetime
         public Task<TrabajoAnalisisDocumento?> ObtenerSiguientePendienteAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<TrabajoAnalisisDocumento?>(null);
 
+        public Task<TrabajoAnalisisDocumento?> ReclamarSiguientePendienteAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<TrabajoAnalisisDocumento?>(null);
+
         public Task<IReadOnlyList<TrabajoAnalisisDocumento>> ObtenerEstancadosAsync(
             TimeSpan umbral, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<TrabajoAnalisisDocumento>>([]);

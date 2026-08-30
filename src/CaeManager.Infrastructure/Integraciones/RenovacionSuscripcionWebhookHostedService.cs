@@ -23,7 +23,18 @@ public class RenovacionSuscripcionWebhookHostedService(
     : BackgroundService
 {
     private static readonly TimeSpan IntervaloSondeo = TimeSpan.FromHours(24);
-    private static readonly TimeSpan VentanaRenovacion = TimeSpan.FromHours(24);
+
+    /// <summary>
+    /// El doble del sondeo (auditoría de colas, 2026-08-30): con ventana =
+    /// intervalo de sondeo, un solo ciclo fallido (excepción, redeploy a
+    /// mitad de ciclo) dejaba la siguiente ejecución, 24 h después, mirando
+    /// una suscripción que para entonces ya había expirado de verdad —
+    /// margen operativo prácticamente nulo ante cualquier fallo puntual.
+    /// 48 h sigue cómodo bajo el máximo de Graph (~70.5 h): un ciclo se
+    /// puede perder entero y el siguiente todavía la encuentra dentro de la
+    /// ventana.
+    /// </summary>
+    private static readonly TimeSpan VentanaRenovacion = TimeSpan.FromHours(48);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -64,7 +75,28 @@ public class RenovacionSuscripcionWebhookHostedService(
         foreach (var tenantId in tenantsActivos)
         {
             stoppingToken.ThrowIfCancellationRequested();
-            await RenovarPendientesDelTenantAsync(tenantId, stoppingToken);
+
+            // Aislado igual que ProcesadorAnalisisDocumentoHostedService: sin
+            // este try/catch, un tenant con una conexión rota (token de
+            // refresco inválido, Graph devolviendo un error persistente)
+            // abortaba este foreach entero y dejaba sin renovar a los
+            // siguientes — con una ventana de renovación de 24 h y un sondeo
+            // diario, eso podía costarle a un tenant sano toda su ventana de
+            // margen antes de Graph expirar la suscripción de verdad.
+            try
+            {
+                await RenovarPendientesDelTenantAsync(tenantId, stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex,
+                    "Falló la renovación de suscripciones de webhook del tenant {TenantId}; se continúa con el resto de tenants en este ciclo.",
+                    tenantId);
+            }
         }
     }
 

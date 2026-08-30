@@ -34,6 +34,12 @@ public class IngestaWebhookWhatsAppHostedService(
 {
     private static readonly TimeSpan IntervaloSondeo = TimeSpan.FromSeconds(10);
 
+    /// <summary>Mismo umbral que <c>IngestaWebhookHostedService.UmbralEstancado</c>.</summary>
+    private static readonly TimeSpan UmbralEstancado = TimeSpan.FromMinutes(15);
+
+    /// <summary>Ver el comentario del mismo nombre en <c>IngestaWebhookHostedService</c>.</summary>
+    private const int LoteMaximoPorTenant = 50;
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)
@@ -77,23 +83,58 @@ public class IngestaWebhookWhatsAppHostedService(
         foreach (var tenantId in tenantsActivos)
         {
             stoppingToken.ThrowIfCancellationRequested();
-            await ProcesarPendientesDelTenantAsync(tenantId, stoppingToken);
+
+            // Aislado igual que en IngestaWebhookHostedService — sin esto,
+            // un tenant con un problema persistente (p. ej. token de
+            // WhatsApp caducado) bloqueaba a los siguientes en cada tick.
+            try
+            {
+                await ProcesarPendientesDelTenantAsync(tenantId, stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex,
+                    "Falló el sondeo de la cola de ingesta de webhooks de WhatsApp del tenant {TenantId}; se continúa con el resto de tenants en este tick.",
+                    tenantId);
+            }
         }
     }
 
     private async Task ProcesarPendientesDelTenantAsync(Guid tenantId, CancellationToken stoppingToken)
     {
-        while (!stoppingToken.IsCancellationRequested)
+        await RecuperarEstancadosAsync(tenantId, stoppingToken);
+
+        var procesadosEnEsteTick = 0;
+
+        while (!stoppingToken.IsCancellationRequested && procesadosEnEsteTick < LoteMaximoPorTenant)
         {
             using var ambito = ambitoFactory.CreateScope();
             using var _ = AmbitoTenantExplicito.Establecer(tenantId);
 
             var eventoRepositorio = ambito.ServiceProvider.GetRequiredService<IEventoWebhookRepository>();
-            var evento = await eventoRepositorio.ObtenerSiguientePendienteAsync(ProveedorIntegracion.WhatsApp, stoppingToken);
+            var evento = await eventoRepositorio.ReclamarSiguientePendienteAsync(ProveedorIntegracion.WhatsApp, stoppingToken);
             if (evento is null) return;
 
+            procesadosEnEsteTick++;
+
             var ingesta = ambito.ServiceProvider.GetRequiredService<IngestaWebhookWhatsAppService>();
-            var avisos = await ingesta.ProcesarAsync(evento, stoppingToken);
+            IReadOnlyList<MensajeWhatsAppRecibidoEvent> avisos;
+            try
+            {
+                avisos = await ingesta.ProcesarAsync(evento, stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                // Apagado normal — ver IngestaWebhookHostedService para el
+                // mismo razonamiento. CancellationToken.None a propósito.
+                evento.DevolverAPendienteTrasCancelacion();
+                await ambito.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync(CancellationToken.None);
+                throw;
+            }
 
             await ambito.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync(stoppingToken);
 
@@ -114,5 +155,26 @@ public class IngestaWebhookWhatsAppHostedService(
                 }
             }
         }
+    }
+
+    private async Task RecuperarEstancadosAsync(Guid tenantId, CancellationToken stoppingToken)
+    {
+        using var ambito = ambitoFactory.CreateScope();
+        using var _ = AmbitoTenantExplicito.Establecer(tenantId);
+
+        var repositorio = ambito.ServiceProvider.GetRequiredService<IEventoWebhookRepository>();
+        var estancados = await repositorio.ObtenerEstancadosAsync(ProveedorIntegracion.WhatsApp, UmbralEstancado, stoppingToken);
+        if (estancados.Count == 0) return;
+
+        var ahora = DateTime.UtcNow;
+        foreach (var evento in estancados)
+        {
+            logger.LogWarning(
+                "Evento de webhook de WhatsApp {EventoId} (tenant {TenantId}) llevaba más de {Umbral} en \"Procesando\" — se recupera.",
+                evento.Id, tenantId, UmbralEstancado);
+            evento.RecuperarSiEstancado(UmbralEstancado, ahora);
+        }
+
+        await ambito.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync(stoppingToken);
     }
 }

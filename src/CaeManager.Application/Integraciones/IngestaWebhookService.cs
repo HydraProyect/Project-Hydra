@@ -40,6 +40,14 @@ public class IngestaWebhookService(
             await IngerirNotificacionAsync(evento, cancellationToken);
             evento.MarcarProcesado();
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Apagado cooperativo de la aplicación, no un fallo de ingesta:
+            // debe propagarse tal cual para que el hosted service devuelva
+            // el evento a Pendiente sin gastar un intento — ver
+            // IngestaWebhookHostedService.ProcesarPendientesDelTenantAsync.
+            throw;
+        }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Fallo procesando el evento de webhook {EventoId} (intento {Intento}).", evento.Id, evento.Intentos + 1);

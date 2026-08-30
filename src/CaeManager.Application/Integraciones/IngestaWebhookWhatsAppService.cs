@@ -47,6 +47,12 @@ public class IngestaWebhookWhatsAppService(
             evento.MarcarProcesado();
             return avisos;
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Apagado cooperativo, no un fallo de ingesta — ver
+            // IngestaWebhookService.ProcesarAsync para el mismo razonamiento.
+            throw;
+        }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Fallo procesando el evento de webhook de WhatsApp {EventoId} (intento {Intento}).",
