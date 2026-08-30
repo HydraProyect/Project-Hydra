@@ -4,6 +4,8 @@ using CaeManager.Application.Tests.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Plantillas;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace CaeManager.Application.Tests.Plantillas;
@@ -33,7 +35,8 @@ public class AgregarVersionPlantillaCommandHandlerTests
     public async Task Crea_una_nueva_version_con_el_siguiente_numero()
     {
         var (plantillas, versiones, plantilla) = ConstruirPlantillaConVersionConfirmada([1, 2, 3]);
-        var handler = new AgregarVersionPlantillaCommandHandler(plantillas, versiones, new FileStorageServiceFalso(), new UnitOfWorkFalso());
+        var handler = new AgregarVersionPlantillaCommandHandler(
+            plantillas, versiones, new FileStorageServiceFalso(), new UnitOfWorkFalso(), NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
 
         var resultado = await handler.Handle(
             new AgregarVersionPlantillaCommand(plantilla.Id, [4, 5, 6], "nueva.pdf"), CancellationToken.None);
@@ -49,7 +52,8 @@ public class AgregarVersionPlantillaCommandHandlerTests
     public async Task Copia_los_elementos_de_la_version_actual()
     {
         var (plantillas, versiones, plantilla) = ConstruirPlantillaConVersionConfirmada([1, 2, 3]);
-        var handler = new AgregarVersionPlantillaCommandHandler(plantillas, versiones, new FileStorageServiceFalso(), new UnitOfWorkFalso());
+        var handler = new AgregarVersionPlantillaCommandHandler(
+            plantillas, versiones, new FileStorageServiceFalso(), new UnitOfWorkFalso(), NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
 
         var resultado = await handler.Handle(
             new AgregarVersionPlantillaCommand(plantilla.Id, [4, 5, 6], "nueva.pdf"), CancellationToken.None);
@@ -63,7 +67,8 @@ public class AgregarVersionPlantillaCommandHandlerTests
     {
         var contenido = new byte[] { 1, 2, 3 };
         var (plantillas, versiones, plantilla) = ConstruirPlantillaConVersionConfirmada(contenido);
-        var handler = new AgregarVersionPlantillaCommandHandler(plantillas, versiones, new FileStorageServiceFalso(), new UnitOfWorkFalso());
+        var handler = new AgregarVersionPlantillaCommandHandler(
+            plantillas, versiones, new FileStorageServiceFalso(), new UnitOfWorkFalso(), NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
 
         var resultado = await handler.Handle(
             new AgregarVersionPlantillaCommand(plantilla.Id, contenido, "identico.pdf"), CancellationToken.None);
@@ -76,7 +81,8 @@ public class AgregarVersionPlantillaCommandHandlerTests
     public async Task No_marca_identico_cuando_el_archivo_cambio()
     {
         var (plantillas, versiones, plantilla) = ConstruirPlantillaConVersionConfirmada([1, 2, 3]);
-        var handler = new AgregarVersionPlantillaCommandHandler(plantillas, versiones, new FileStorageServiceFalso(), new UnitOfWorkFalso());
+        var handler = new AgregarVersionPlantillaCommandHandler(
+            plantillas, versiones, new FileStorageServiceFalso(), new UnitOfWorkFalso(), NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
 
         var resultado = await handler.Handle(
             new AgregarVersionPlantillaCommand(plantilla.Id, [9, 9, 9], "distinto.pdf"), CancellationToken.None);
@@ -88,12 +94,64 @@ public class AgregarVersionPlantillaCommandHandlerTests
     public async Task Devuelve_fallo_si_la_plantilla_no_existe()
     {
         var handler = new AgregarVersionPlantillaCommandHandler(
-            new PlantillaDocumentoRepositorioFalso(), new PlantillaDocumentoVersionRepositorioFalso(), new FileStorageServiceFalso(), new UnitOfWorkFalso());
+            new PlantillaDocumentoRepositorioFalso(), new PlantillaDocumentoVersionRepositorioFalso(),
+            new FileStorageServiceFalso(), new UnitOfWorkFalso(), NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
 
         var resultado = await handler.Handle(
             new AgregarVersionPlantillaCommand(Guid.NewGuid(), [1], "nueva.pdf"), CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Plantilla.NoEncontrada");
+    }
+
+    /// <summary>
+    /// Auditoría de seguridad del módulo (2026-08-30), pendiente 3.5: dos
+    /// altas de versión concurrentes sobre la misma plantilla pueden calcular
+    /// el mismo siguienteNumeroVersion — la restricción única de BD lo
+    /// traduce en un DbUpdateException (no de concurrencia optimista, dos
+    /// inserts nuevos) que antes llegaba sin traducir al llamador.
+    /// </summary>
+    [Fact]
+    public async Task Conflicto_de_numero_de_version_devuelve_fallo_legible_en_vez_de_reventar()
+    {
+        var (plantillas, versiones, plantilla) = ConstruirPlantillaConVersionConfirmada([1, 2, 3]);
+        var unitOfWork = new UnitOfWorkFalso { ExcepcionAlGuardar = new DbUpdateException("índice único violado") };
+        var handler = new AgregarVersionPlantillaCommandHandler(
+            plantillas, versiones, new FileStorageServiceFalso(), unitOfWork, NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
+
+        var resultado = await handler.Handle(
+            new AgregarVersionPlantillaCommand(plantilla.Id, [4, 5, 6], "nueva.pdf"), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Plantilla.VersionEnConflicto");
+    }
+
+    /// <summary>El blob ya se había subido a almacenamiento antes de que fallara SaveChangesAsync — sin la limpieza, quedaría huérfano para siempre.</summary>
+    [Fact]
+    public async Task Conflicto_de_numero_de_version_limpia_el_blob_ya_subido()
+    {
+        var (plantillas, versiones, plantilla) = ConstruirPlantillaConVersionConfirmada([1, 2, 3]);
+        var unitOfWork = new UnitOfWorkFalso { ExcepcionAlGuardar = new DbUpdateException("índice único violado") };
+        var almacenamiento = new FileStorageServiceFalso();
+        var handler = new AgregarVersionPlantillaCommandHandler(
+            plantillas, versiones, almacenamiento, unitOfWork, NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
+
+        await handler.Handle(
+            new AgregarVersionPlantillaCommand(plantilla.Id, [4, 5, 6], "nueva.pdf"), CancellationToken.None);
+
+        almacenamiento.ArchivosGuardados.Should().Be(0);
+    }
+
+    /// <summary>Un choque de concurrencia optimista (DbUpdateConcurrencyException) no es el caso de esta pieza — debe seguir propagando para que ConcurrenciaBehavior lo traduzca, no confundirse con el conflicto de número de versión.</summary>
+    [Fact]
+    public async Task Concurrencia_optimista_no_la_captura_el_handler()
+    {
+        var (plantillas, versiones, plantilla) = ConstruirPlantillaConVersionConfirmada([1, 2, 3]);
+        var unitOfWork = new UnitOfWorkFalso { ExcepcionAlGuardar = new DbUpdateConcurrencyException("token de versión distinto") };
+        var handler = new AgregarVersionPlantillaCommandHandler(
+            plantillas, versiones, new FileStorageServiceFalso(), unitOfWork, NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
+
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => handler.Handle(
+            new AgregarVersionPlantillaCommand(plantilla.Id, [4, 5, 6], "nueva.pdf"), CancellationToken.None));
     }
 }
