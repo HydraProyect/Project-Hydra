@@ -1,5 +1,4 @@
 @page "/cuenta/restablecer-contrasena"
-@rendermode InteractiveServer
 @layout CaeManager.Web.Components.Layout.AuthLayout
 @attribute [AllowAnonymous]
 @using System.ComponentModel.DataAnnotations
@@ -48,27 +47,41 @@
                 <label for="password-nueva">Nueva contraseña</label>
                 <InputText id="password-nueva" type="password" @bind-Value="Entrada.ContrasenaNueva" @bind-Value:after="ActualizarRequisitos" autocomplete="new-password" />
 
-                @if (Entrada.ContrasenaNueva.Length > 0)
-                {
-                    <div class="requisitos-contrasena">
-                        @foreach (var requisito in _requisitos)
-                        {
-                            <span class="@("requisito-contrasena " + (requisito.Cumplido ? "requisito-contrasena-ok" : ""))">
-                                <span class="marca-requisito-contrasena" aria-hidden="true">@(requisito.Cumplido ? "✓" : "·")</span>
-                                @requisito.Etiqueta
-                            </span>
-                        }
-                    </div>
-                }
+                <ValidationMessage For="() => Entrada.ContrasenaNueva" />
+
+                @* Sin @@if: esta pagina es SSR estatica (ver el boton, mas
+                   abajo), asi que solo se renderiza una vez y con la contrasena
+                   vacia — la condicion anterior la hacia invisible SIEMPRE.
+                   Mostrada de entrada, al menos anuncia la politica antes de
+                   escribir, que es para lo que sirve. Los checkmarks en vivo
+                   exigirian circuito, y esta pagina no puede tenerlo. *@
+                <div class="requisitos-contrasena">
+                    @foreach (var requisito in _requisitos)
+                    {
+                        <span class="@("requisito-contrasena " + (requisito.Cumplido ? "requisito-contrasena-ok" : ""))">
+                            <span class="marca-requisito-contrasena" aria-hidden="true">@(requisito.Cumplido ? "✓" : "·")</span>
+                            @requisito.Etiqueta
+                        </span>
+                    }
+                </div>
 
                 <label for="password-confirmar">Repite la contraseña</label>
                 <InputText id="password-confirmar" type="password" @bind-Value="Entrada.ConfirmarContrasenaNueva" autocomplete="new-password" />
+                <ValidationMessage For="() => Entrada.ConfirmarContrasenaNueva" />
                 @if (_mostrarDesajuste)
                 {
                     <span class="mensaje-error-campo-login">Las dos contraseñas no coinciden.</span>
                 }
 
-                <button type="submit" class="boton-primario" disabled="@(!PuedeGuardar || _guardando)">
+                @* disabled SOLO por _guardando, que nace en false — igual que el
+                   _enviando de OlvideContrasena. Con !PuedeGuardar el boton
+                   nacia deshabilitado y NADA podia habilitarlo: esta pagina es
+                   SSR estatica, ese disabled se evaluaba una sola vez en
+                   servidor con la contrasena vacia, y sin circuito escribir no
+                   reevalua nada. Restablecer la contrasena era imposible.
+                   La coincidencia de las dos contrasenas la comprueba ahora
+                   GuardarAsync, que es donde puede comprobarse de verdad. *@
+                <button type="submit" class="boton-primario" disabled="@_guardando">
                     @(_guardando ? "Guardando…" : "Guardar y entrar")
                 </button>
             </EditForm>
