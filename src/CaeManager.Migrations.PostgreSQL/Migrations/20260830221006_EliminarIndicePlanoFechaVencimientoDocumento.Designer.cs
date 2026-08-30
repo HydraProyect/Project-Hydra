@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    partial class CaeManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260830221006_EliminarIndicePlanoFechaVencimientoDocumento")]
+    partial class EliminarIndicePlanoFechaVencimientoDocumento
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -3559,19 +3562,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("TipoEsperado")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.Property<string>("VersionPipeline")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)");
-
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId", "HashSha256", "TipoEsperado", "VersionPipeline")
+                    b.HasIndex("TenantId", "HashSha256")
                         .IsUnique();
 
                     b.ToTable("ExtraccionesIaCache", (string)null);
@@ -4762,11 +4755,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("PropietarioTenantId", "AmbitoProyectoId");
 
+                    b.HasIndex("PropietarioTenantId", "AmbitoRelacionClienteId");
+
                     b.HasIndex("PropietarioTenantId", "AmbitoTrabajadorId");
 
                     b.HasIndex("UsuarioId", "Estado");
 
-                    b.HasIndex(new[] { "PropietarioTenantId", "AmbitoRelacionClienteId" }, "IX_AsignacionesCartera_ResponsableRelacionVigente")
+                    b.HasIndex(new[] { "AsignacionOperacionId", "AmbitoRelacionClienteId" }, "IX_AsignacionesCartera_ResponsableRelacionVigente")
                         .IsUnique()
                         .HasFilter("\"Estado\" = 'Vigente' AND \"AmbitoRelacionClienteId\" IS NOT NULL AND \"AmbitoCentroId\" IS NULL AND \"AmbitoTrabajadorId\" IS NULL AND \"AmbitoProyectoId\" IS NULL");
 
@@ -5625,10 +5620,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("CentroId");
 
+                    b.HasIndex("TenantId", "CentroId");
+
                     b.HasIndex("TenantId", "Id")
                         .IsUnique();
-
-                    b.HasIndex("TenantId", "CentroId", "ClienteId");
 
                     b.HasIndex("TenantId", "ClienteId", "Nombre")
                         .IsUnique()
@@ -5658,20 +5653,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid>("TrabajadorId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("Version")
-                        .IsConcurrencyToken()
-                        .HasColumnType("uuid");
-
                     b.HasKey("Id");
 
                     b.HasIndex("TrabajadorId");
 
                     b.HasIndex("TenantId", "TrabajadorId");
 
-                    b.HasIndex("TenantId", "ProyectoId", "TrabajadorId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_ProyectosTecnicos_TenantId_ProyectoId_TrabajadorId_Activo")
-                        .HasFilter("\"FechaBaja\" IS NULL");
+                    b.HasIndex("TenantId", "ProyectoId", "TrabajadorId", "FechaAlta")
+                        .IsUnique();
 
                     b.ToTable("ProyectosTecnicos", (string)null);
                 });
@@ -6290,6 +6279,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Dni")
+                        .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
@@ -6346,8 +6336,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("SubcontrataId");
 
                     b.HasIndex("TenantId", "Dni")
-                        .IsUnique()
-                        .HasFilter("\"Dni\" IS NOT NULL");
+                        .IsUnique();
 
                     b.HasIndex("TenantId", "EmpresaId");
 
@@ -6358,10 +6347,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("TenantId", "Telefono");
 
-                    b.ToTable("Trabajadores", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_Trabajadores_EmpresaXorSubcontrata", "(\"EmpresaId\" IS NULL) <> (\"SubcontrataId\" IS NULL)");
-                        });
+                    b.ToTable("Trabajadores", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Vehiculos.Vehiculo", b =>
@@ -7370,17 +7356,17 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
             modelBuilder.Entity("CaeManager.Domain.Proyectos.Proyecto", b =>
                 {
-                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
+                    b.HasOne("CaeManager.Domain.Centros.Centro", null)
                         .WithMany()
-                        .HasForeignKey("TenantId", "ClienteId")
+                        .HasForeignKey("TenantId", "CentroId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("CaeManager.Domain.Centros.Centro", null)
+                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
                         .WithMany()
-                        .HasForeignKey("TenantId", "CentroId", "ClienteId")
-                        .HasPrincipalKey("TenantId", "Id", "ClienteId")
+                        .HasForeignKey("TenantId", "ClienteId")
+                        .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

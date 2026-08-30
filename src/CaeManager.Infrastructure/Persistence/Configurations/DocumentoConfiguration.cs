@@ -18,12 +18,29 @@ public class DocumentoConfiguration : IEntityTypeConfiguration<Documento>
         builder.Property(d => d.ArchivoUrl).HasMaxLength(Documento.LongitudMaximaArchivoUrl);
         builder.Property(d => d.Comentarios).HasMaxLength(Documento.LongitudMaximaComentarios);
 
+        // Perfilado con datos sintéticos a escala (20 tenants, ~24k Documentos,
+        // EXPLAIN (ANALYZE, BUFFERS) real — auditoría Módulo 8, 2026-08-31):
+        // estos cinco SÍ se usan, y solo para el punto de escritura "¿ya existe
+        // un Documento de este tipo para este propietario?" (ver
+        // ActualizarDocumentoDesdeAdjuntoCommand) — sin el índice, esa consulta
+        // cae a (TenantId, OwnerId) y filtra TipoDocumentoId como residual:
+        // ~7x más buffers y ~7x más lenta, medido. El listado paginado
+        // (ObtenerDocumentosQuery) NUNCA los usa — solo filtra por el
+        // propietario, nunca por TipoDocumentoId, así que ese índice no le
+        // aporta nada.
+        //
+        // Deliberadamente SIN TenantId de prefijo, y no por descuido: el
+        // propietario (Guid aleatorio, ya casi único por sí solo) no gana
+        // selectividad real al anteponerle el tenant, y el EXPLAIN con y sin
+        // TenantId da el mismo plan y coste — anteponerlo aquí solo aumentaría
+        // el tamaño del índice sin beneficio medido. La recomendación genérica
+        // "todo índice debe empezar por TenantId" no es universal; aquí la
+        // evidencia real la contradice.
         builder.HasIndex(d => new { d.TrabajadorId, d.TipoDocumentoId });
         builder.HasIndex(d => new { d.ClienteId, d.TipoDocumentoId });
         builder.HasIndex(d => new { d.EmpresaId, d.TipoDocumentoId });
         builder.HasIndex(d => new { d.VehiculoId, d.TipoDocumentoId });
         builder.HasIndex(d => new { d.ProyectoId, d.TipoDocumentoId });
-        builder.HasIndex(d => d.FechaVencimiento);
 
         // FKs reales del propietario polimórfico — ver P0-1 de
         // docs/business/MATURITY_REVIEW.md. Documento tiene exactamente un
