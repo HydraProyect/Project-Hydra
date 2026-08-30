@@ -23,6 +23,16 @@ public class WhatsAppCloudApiClient(
 {
     private const string BaseGraphMeta = "https://graph.facebook.com";
 
+    /// <summary>
+    /// Hosts propios de Meta bajo los que puede llegar la URL de lookaside
+    /// del salto 2 de <see cref="DescargarMediaAsync"/> (auditoría módulo 6):
+    /// esa URL sale de un campo JSON de la respuesta de metadatos, no de una
+    /// constante — sin esta comprobación, un metadato inesperado convertiría
+    /// el cliente en un SSRF que además manda el Bearer token a quien sea.
+    /// </summary>
+    private static readonly string[] HostsPermitidosMedia =
+        [".fbsbx.com", ".facebook.com", ".fbcdn.net", ".cdninstagram.com", ".whatsapp.net"];
+
     public IReadOnlyList<string> ExtraerPhoneNumberIds(string payloadJson)
     {
         var resultado = new List<string>();
@@ -259,18 +269,44 @@ public class WhatsAppCloudApiClient(
                 return Result.Fallo<MediaDescargadoWhatsAppDto>(Error.Crear(
                     "Integraciones.WhatsApp.ErrorMedia", "Meta no devolvió la URL del adjunto."));
 
+            if (!EsHostDeMediaPermitido(urlEfimera))
+            {
+                logger.LogError("Meta devolvió una URL de media con un host no permitido para {MediaId}.", mediaId);
+                return Result.Fallo<MediaDescargadoWhatsAppDto>(Error.Crear(
+                    "Integraciones.WhatsApp.ErrorMedia", "No pudimos descargar el archivo adjunto de Meta."));
+            }
+
             // Salto 2: la URL de lookaside exige el mismo Bearer.
             using var peticionBinario = new HttpRequestMessage(HttpMethod.Get, urlEfimera);
             peticionBinario.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenAcceso);
 
-            using var respuestaBinario = await httpClient.SendAsync(peticionBinario, cancellationToken);
+            using var respuestaBinario = await httpClient.SendAsync(
+                peticionBinario, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             if (!respuestaBinario.IsSuccessStatusCode)
                 return Result.Fallo<MediaDescargadoWhatsAppDto>(Error.Crear(
                     "Integraciones.WhatsApp.ErrorMedia", "No pudimos descargar el archivo adjunto de Meta."));
 
-            var contenido = await respuestaBinario.Content.ReadAsByteArrayAsync(cancellationToken);
+            // El file_size de los metadatos ya se comprobó arriba, pero es un
+            // dato declarado por Meta, no una garantía sobre los bytes reales
+            // — se vuelve a acotar mientras se copia, en vez de confiar solo
+            // en el metadato (auditoría módulo 6).
+            await using var flujoBinario = await respuestaBinario.Content.ReadAsStreamAsync(cancellationToken);
+            using var destino = new MemoryStream();
+            var lote = new byte[81920];
+            int leidos;
+            while ((leidos = await flujoBinario.ReadAsync(lote, cancellationToken)) > 0)
+            {
+                if (destino.Length + leidos > LimitesMediaWhatsApp.TamanoMaximoBytes)
+                {
+                    return Result.Fallo<MediaDescargadoWhatsAppDto>(Error.Crear(
+                        "Integraciones.WhatsApp.MediaDemasiadoGrande", "El adjunto supera el tamaño máximo admitido."));
+                }
+
+                destino.Write(lote, 0, leidos);
+            }
+
             return Result.Exito(new MediaDescargadoWhatsAppDto(
-                contenido, tipoContenido ?? "application/octet-stream"));
+                destino.ToArray(), tipoContenido ?? "application/octet-stream"));
         }
         catch (HttpRequestException ex)
         {
@@ -279,6 +315,12 @@ public class WhatsAppCloudApiClient(
                 "Integraciones.WhatsApp.ErrorRed", "No pudimos conectar con Meta."));
         }
     }
+
+    /// <summary>HTTPS y host propio de Meta (por sufijo, ver <see cref="HostsPermitidosMedia"/>) — nunca se sigue una URL de otro origen con el Bearer token de la línea.</summary>
+    private static bool EsHostDeMediaPermitido(string url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+        uri.Scheme == Uri.UriSchemeHttps &&
+        HostsPermitidosMedia.Any(sufijo => uri.Host.EndsWith(sufijo, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>entry[].changes[].value de una notificación — el sobre común de todos los webhooks de Meta.</summary>
     private static IEnumerable<JsonElement> EnumerarValues(JsonDocument documento)

@@ -314,32 +314,43 @@ public class Microsoft365GraphClient(
     public async Task<Result<byte[]>> ObtenerContenidoAdjuntoAsync(
         string accessToken, string mensajeId, string adjuntoExternoId, CancellationToken cancellationToken)
     {
+        // $value devuelve el binario crudo — a diferencia de $select=contentBytes
+        // (que envolvía el contenido en JSON como base64, con ~33% de
+        // amplificación más el propio JSON completo en memoria antes de poder
+        // empezar a decodificar nada), esto permite copiar con límite real
+        // mientras se descarga en vez de confiar solo en el tamaño declarado
+        // por el llamador (auditoría módulo 6).
         var url = "https://graph.microsoft.com/v1.0/me/messages/" +
-            $"{Uri.EscapeDataString(mensajeId)}/attachments/{Uri.EscapeDataString(adjuntoExternoId)}" +
-            "?$select=contentBytes";
+            $"{Uri.EscapeDataString(mensajeId)}/attachments/{Uri.EscapeDataString(adjuntoExternoId)}/$value";
         using var peticion = NuevaPeticionGraph(HttpMethod.Get, url, accessToken);
 
         try
         {
-            using var respuesta = await httpClient.SendAsync(peticion, cancellationToken);
+            using var respuesta = await httpClient.SendAsync(peticion, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             if (!respuesta.IsSuccessStatusCode)
                 return Result.Fallo<byte[]>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos descargar este adjunto."));
 
-            var adjunto = await respuesta.Content.ReadFromJsonAsync<AdjuntoContenidoGraph>(cancellationToken);
-            if (adjunto?.ContentBytes is null)
-                return Result.Fallo<byte[]>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos descargar este adjunto."));
+            await using var flujo = await respuesta.Content.ReadAsStreamAsync(cancellationToken);
+            using var destino = new MemoryStream();
+            var lote = new byte[81920];
+            int leidos;
+            while ((leidos = await flujo.ReadAsync(lote, cancellationToken)) > 0)
+            {
+                if (destino.Length + leidos > LimitesAdjuntosCorreo.TamanoMaximoDescargaBytes)
+                {
+                    return Result.Fallo<byte[]>(Error.Crear(
+                        "Integraciones.Microsoft365.AdjuntoDemasiadoGrande", "El adjunto supera el tamaño máximo admitido."));
+                }
 
-            return Result.Exito(Convert.FromBase64String(adjunto.ContentBytes));
+                destino.Write(lote, 0, leidos);
+            }
+
+            return Result.Exito(destino.ToArray());
         }
         catch (HttpRequestException ex)
         {
             logger.LogError(ex, "Fallo de red al descargar el adjunto {AdjuntoId} del mensaje {MensajeId} vía Microsoft Graph.", adjuntoExternoId, mensajeId);
             return Result.Fallo<byte[]>(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
-        }
-        catch (FormatException ex)
-        {
-            logger.LogError(ex, "Contenido de adjunto {AdjuntoId} no es base64 válido.", adjuntoExternoId);
-            return Result.Fallo<byte[]>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el contenido de este adjunto."));
         }
     }
 
@@ -621,8 +632,6 @@ public class Microsoft365GraphClient(
         [property: JsonPropertyName("name")] string? Name,
         [property: JsonPropertyName("contentType")] string? ContentType,
         [property: JsonPropertyName("size")] long? Size);
-
-    private sealed record AdjuntoContenidoGraph([property: JsonPropertyName("contentBytes")] string? ContentBytes);
 
     private sealed record CarpetaDetalleGraph(
         [property: JsonPropertyName("id")] string? Id,

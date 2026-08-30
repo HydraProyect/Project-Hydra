@@ -40,6 +40,15 @@ public static class LimitesAdjuntosCorreo
     /// <see cref="IMicrosoft365GraphClient.EnviarRespuestaAsync"/>/<see cref="IMicrosoft365GraphClient.EnviarNuevoMensajeAsync"/>.
     /// </summary>
     public const long TamanoMaximoTotalAdjuntosBytes = 3 * 1024 * 1024;
+
+    /// <summary>
+    /// Tope defensivo para un adjunto ENTRANTE (mismo valor que
+    /// <c>LimitesMediaWhatsApp.TamanoMaximoBytes</c>): el tamaño declarado por
+    /// Graph antes de descargar es solo un pre-filtro — <see cref="IMicrosoft365GraphClient.ObtenerContenidoAdjuntoAsync"/>
+    /// vuelve a acotar mientras copia los bytes reales, en vez de confiar
+    /// solo en el metadato (auditoría módulo 6).
+    /// </summary>
+    public const long TamanoMaximoDescargaBytes = 25 * 1024 * 1024;
 }
 
 /// <summary>
