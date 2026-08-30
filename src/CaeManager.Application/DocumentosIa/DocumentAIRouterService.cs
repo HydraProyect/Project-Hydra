@@ -42,6 +42,24 @@ public class DocumentAIRouterService(
     /// <summary>Por debajo de esto no vale la pena el coste de localizar páginas — se manda el documento completo tal cual (ver § 4.3).</summary>
     private const int UmbralPaginasParaLocalizar = 15;
 
+    /// <summary>
+    /// Máximo de páginas escaneadas que se envían a OCR de un mismo documento.
+    ///
+    /// El bucle de OCR del Caso Mixto es el único punto del pipeline donde el
+    /// gasto crece linealmente con el tamaño del archivo: el proveedor factura
+    /// por página, así que un PDF escaneado grande se traduce directamente en
+    /// factura, y además en tantas rasterizaciones nativas como páginas. Sin
+    /// tope, un solo documento podía consumir cuota de todos los tenants.
+    ///
+    /// Es una guarda de seguridad, no una política de producto: está puesto
+    /// alto para que no moleste a los documentos reales (una póliza larga ronda
+    /// las 280 páginas, pero llega como digital y pasa por el localizador, no
+    /// por aquí) y solo dispare ante lo que no tiene sentido procesar sin que
+    /// una persona lo mire antes. Cuando exista presupuesto por tenant, este
+    /// número debería salir de ahí.
+    /// </summary>
+    private const int MaximoPaginasEscaneadasPorDocumento = 100;
+
     private static readonly JsonSerializerOptions JsonOpciones = new(JsonSerializerDefaults.Web);
 
     /// <summary>Texto ya listo para estructurar, con nota de localización (si se descartaron páginas) y coste OCR (si se usó un proveedor de OCR).</summary>
@@ -275,22 +293,45 @@ public class DocumentAIRouterService(
                 "DocumentAIRouter.SinProveedorOcr", "No hay ningún proveedor de OCR disponible para procesar este documento."));
         }
 
-        var imagenes = rasterizador.RasterizarPaginas(contenido, indicesEscaneadas);
-        if (imagenes.EsFallido)
-            return Result.Fallo<TextoExtraidoDto>(imagenes.Error);
+        // Tope de páginas escaneadas por documento. Es a la vez una guarda de
+        // coste (el proveedor de OCR factura por página, así que este bucle es
+        // el único sitio del pipeline donde el gasto crece sin límite con el
+        // tamaño del archivo) y de memoria. Se falla en vez de truncar a
+        // propósito: recortar en silencio devolvería una extracción incompleta
+        // presentada como completa, y las decisiones que cuelgan de ella —
+        // aprobar un documento, dar de baja a un trabajador que "no aparece" —
+        // se tomarían sobre un texto al que le faltan páginas sin que nadie lo
+        // sepa.
+        if (indicesEscaneadas.Count > MaximoPaginasEscaneadasPorDocumento)
+        {
+            return Result.Fallo<TextoExtraidoDto>(Error.Crear(
+                "DocumentAIRouter.DemasiadasPaginasEscaneadas",
+                $"El documento tiene {indicesEscaneadas.Count} páginas escaneadas, por encima del máximo de {MaximoPaginasEscaneadasPorDocumento} que se procesan automáticamente."));
+        }
 
         var proveedorOcr = proveedoresOcr[0];
         var textosPorIndicePagina = new Dictionary<int, string>(indicesEscaneadas.Count);
         decimal? costeOcr = null;
 
-        for (var i = 0; i < indicesEscaneadas.Count; i++)
+        // Se rasteriza y se envía una página cada vez. Antes se rasterizaban
+        // TODAS antes del primer OCR y la lista entera de PNG vivía en memoria
+        // hasta terminar el documento; aquí cada imagen queda sin referencias en
+        // cuanto se ha enviado, así que el pico deja de crecer con el número de
+        // páginas.
+        foreach (var indicePagina in indicesEscaneadas)
         {
-            var nombrePagina = $"pagina-{indicesEscaneadas[i] + 1}.png";
-            var ocr = await proveedorOcr.ExtraerTextoAsync(imagenes.Valor[i], nombrePagina, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var imagen = rasterizador.RasterizarPagina(contenido, indicePagina, cancellationToken);
+            if (imagen.EsFallido)
+                return Result.Fallo<TextoExtraidoDto>(imagen.Error);
+
+            var nombrePagina = $"pagina-{indicePagina + 1}.png";
+            var ocr = await proveedorOcr.ExtraerTextoAsync(imagen.Valor, nombrePagina, cancellationToken);
             if (ocr.EsFallido)
                 return Result.Fallo<TextoExtraidoDto>(ocr.Error);
 
-            textosPorIndicePagina[indicesEscaneadas[i]] = ocr.Valor.Texto;
+            textosPorIndicePagina[indicePagina] = ocr.Valor.Texto;
             if (ocr.Valor.CosteEstimado.HasValue)
                 costeOcr = (costeOcr ?? 0m) + ocr.Valor.CosteEstimado.Value;
         }

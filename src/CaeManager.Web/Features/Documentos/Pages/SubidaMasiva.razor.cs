@@ -290,17 +290,22 @@ public partial class SubidaMasiva : ComponentBase
     /// <summary>Mejor esfuerzo — sin miniatura, el item sigue funcionando igual, solo sin imagen en la lista.</summary>
     private string? GenerarMiniatura(byte[] contenidoPdf, string nombreArchivo)
     {
-        var resultado = Rasterizador.RasterizarPaginas(contenidoPdf, [0]);
-        if (resultado.EsFallido || resultado.Valor.Count == 0)
+        var resultado = Rasterizador.RasterizarPagina(contenidoPdf, 0);
+        if (resultado.EsFallido)
         {
             Logger.LogInformation(
+                // ReferenciaArchivoTraza y no el nombre: los nombres reales
+                // llegan con nombre, DNI y naturaleza médica dentro (#360). El
+                // caso "sin páginas" desaparece porque RasterizarPagina
+                // devuelve una imagen o un fallo, no una lista que pueda venir
+                // vacía.
                 "No se pudo generar miniatura para {ReferenciaArchivo} en la subida múltiple: {Error}",
                 ReferenciaArchivoTraza.De(nombreArchivo),
-                resultado.EsFallido ? resultado.Error.Mensaje : "sin páginas");
+                resultado.Error.Mensaje);
             return null;
         }
 
-        return Convert.ToBase64String(resultado.Valor[0]);
+        return Convert.ToBase64String(resultado.Valor);
     }
 
     /// <summary>Mejor esfuerzo, mismo criterio que el alta individual (Fase 54): si falla, el item sigue pendiente de confirmar a mano.</summary>

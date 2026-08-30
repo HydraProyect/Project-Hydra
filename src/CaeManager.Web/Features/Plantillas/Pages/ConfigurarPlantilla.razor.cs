@@ -416,16 +416,19 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
     private async Task<List<PaginaEditor>> RasterizarPaginasAsync(byte[] contenidoPdf)
     {
         using var documento = PdfReader.Open(new MemoryStream(contenidoPdf), PdfDocumentOpenMode.Import);
-        var indices = Enumerable.Range(0, documento.PageCount).ToList();
-
-        var resultado = Rasterizador.RasterizarPaginas(contenidoPdf, indices);
-        if (resultado.EsFallido)
-            return [];
 
         var paginas = new List<PaginaEditor>();
-        for (var i = 0; i < resultado.Valor.Count; i++)
+        for (var i = 0; i < documento.PageCount; i++)
         {
-            var png = resultado.Valor[i];
+            // El editor sí necesita todas las páginas a la vez —es su razón de
+            // ser— pero se piden de una en una: así el pico de memoria es el
+            // PNG actual más lo ya convertido a base64, no el doble por tener
+            // además la lista completa de byte[] en vuelo.
+            var resultado = Rasterizador.RasterizarPagina(contenidoPdf, i);
+            if (resultado.EsFallido)
+                return [];
+
+            var png = resultado.Valor;
             var paginaPdf = documento.Pages[i];
 
             paginas.Add(new PaginaEditor

@@ -454,6 +454,76 @@ public class DocumentAIRouterServiceTests
         auditoria.Auditorias[0].CosteEstimadoOcr.Should().Be(0.008m, "0.004 × 2 páginas escaneadas");
     }
 
+    /// <summary>
+    /// Antes se rasterizaban TODAS las páginas escaneadas antes del primer OCR,
+    /// así que la lista entera de PNG vivía en memoria hasta terminar el
+    /// documento — cientos de megas para un escaneado grande, en el mismo
+    /// proceso que sirve Blazor.
+    ///
+    /// La comprobación mira el estado del rasterizador DESDE DENTRO de cada
+    /// llamada de OCR: si el router siguiera rasterizando todo por adelantado,
+    /// en el primer OCR ya constarían las tres páginas. Contar llamadas al
+    /// final no distinguiría las dos implementaciones.
+    /// </summary>
+    [Fact]
+    public async Task Caso_4_mixto_rasteriza_y_envia_pagina_a_pagina_sin_retenerlas_todas()
+    {
+        RasterizadorPaginasFalso? rasterizadorObservado = null;
+        var paginasRasterizadasEnCadaOcr = new List<int>();
+
+        var proveedor = new ProveedorIaFalso(
+            "mistral-ocr+anthropic",
+            CapacidadesProveedorIa.OcrImagenAEscaneado | CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoTexto: Result.Exito(new TextoExtraccionDto("texto ocr")),
+            resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Contrato", new Dictionary<string, string?>(), 90, null)),
+            alExtraerTexto: () => paginasRasterizadasEnCadaOcr.Add(rasterizadorObservado!.VecesLlamado));
+
+        // 4 páginas: 0 digital, 1-3 escaneadas.
+        var textoPorPagina = Result.Exito<IReadOnlyList<string>>(["p0", "ignorado", "ignorado", "ignorado"]);
+        var clasificacion = Clasificacion(TipoContenidoDocumento.Mixto, true, false, false, false);
+        var (router, _, _, rasterizador) = CrearRouterConDependencias(clasificacion, textoPorPagina, proveedor);
+        rasterizadorObservado = rasterizador;
+
+        await router.ProcesarAsync([1, 2, 3], "contrato.pdf", "Contrato");
+
+        // En el OCR de la página k solo se ha rasterizado hasta la k: 1, 2, 3.
+        paginasRasterizadasEnCadaOcr.Should().Equal(new[] { 1, 2, 3 },
+            "cada página se rasteriza justo antes de enviarla, no todas por adelantado");
+        rasterizador.UltimosIndicesRasterizados.Should().Equal(new[] { 1, 2, 3 });
+    }
+
+    /// <summary>
+    /// El bucle de OCR es el único punto del pipeline donde el gasto crece
+    /// linealmente con el tamaño del archivo (el proveedor factura por página).
+    /// Se falla en vez de truncar: recortar en silencio devolvería una
+    /// extracción incompleta presentada como completa, y las decisiones que
+    /// cuelgan de ella se tomarían sobre un texto al que le faltan páginas.
+    /// </summary>
+    [Fact]
+    public async Task Rechaza_un_documento_con_mas_paginas_escaneadas_de_las_que_se_procesan_automaticamente()
+    {
+        const int paginas = 101;
+        var proveedor = new ProveedorIaFalso(
+            "mistral-ocr+anthropic",
+            CapacidadesProveedorIa.OcrImagenAEscaneado | CapacidadesProveedorIa.ExtraccionEstructurada);
+
+        // Página 0 digital y el resto escaneadas: 101 escaneadas en total.
+        var digitales = new bool[paginas + 1];
+        digitales[0] = true;
+        var textoPorPagina = Result.Exito<IReadOnlyList<string>>(
+            Enumerable.Range(0, paginas + 1).Select(i => $"p{i}").ToList());
+
+        var (router, _, _, rasterizador) = CrearRouterConDependencias(
+            Clasificacion(TipoContenidoDocumento.Mixto, digitales), textoPorPagina, proveedor);
+
+        var resultado = await router.ProcesarAsync([1, 2, 3], "escaneado-enorme.pdf", "Contrato");
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("DocumentAIRouter.DemasiadasPaginasEscaneadas");
+        rasterizador.VecesLlamado.Should().Be(0, "el tope se comprueba antes de rasterizar y pagar nada");
+        proveedor.VecesLlamadoParaTexto.Should().Be(0);
+    }
+
     [Fact]
     public async Task Caso_4_mixto_falla_de_forma_controlada_si_el_rasterizador_no_puede_procesar_el_archivo()
     {

@@ -1,3 +1,4 @@
+using System.Net;
 using CaeManager.Application.Comercial.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Deteccion;
@@ -567,22 +568,24 @@ public static class InfrastructureServiceCollectionExtensions
         // minutos de colgado — justo lo que el Timeout de P0-9 quería
         // evitar. TotalRequestTimeout al doble del intento acota el peor
         // caso a ~2x en vez de dejar que reintentos + backoff se disparen.
+        // Transitorio: AddHttpMessageHandler<T> resuelve una instancia por cliente HTTP.
+        services.AddTransient<ContadorLlamadasProveedorIaHandler>();
         services.Configure<AnthropicOptions>(configuration.GetSection(AnthropicOptions.SeccionConfiguracion));
         services.AddHttpClient<IAsistenteIaService, AnthropicAsistenteIaService>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
-            .AplicarResilienciaHttp(TimeSpan.FromSeconds(60));
+            .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(60));
         services.AddHttpClient<IExtraccionTrabajadoresIaService, AnthropicExtraccionTrabajadoresIaService>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
-            .AplicarResilienciaHttp(TimeSpan.FromSeconds(120));
+            .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(120));
         services.AddHttpClient<IDeteccionVisitaCorreoService, AnthropicDeteccionVisitaCorreoService>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
-            .AplicarResilienciaHttp(TimeSpan.FromSeconds(60));
+            .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(60));
         services.AddHttpClient<CaeManager.Application.Comunicaciones.Deteccion.IDeteccionGestionCorreoService, AnthropicDeteccionGestionCorreoService>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
-            .AplicarResilienciaHttp(TimeSpan.FromSeconds(60));
+            .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(60));
         services.AddHttpClient<CaeManager.Application.Comunicaciones.Deteccion.IDeteccionRelevanciaCaeService, AnthropicDeteccionRelevanciaCaeService>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
-            .AplicarResilienciaHttp(TimeSpan.FromSeconds(60));
+            .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(60));
         // IExtraccionMetadatosDocumentoIaService (Fase 38) ya no tiene una
         // implementación directa de Anthropic aquí — RouterExtraccionMetadatosDocumentoIaService
         // (Application) la satisface delegando en IDocumentAIRouterService,
@@ -619,18 +622,18 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<MistralOcrOptions>(configuration.GetSection(MistralOcrOptions.SeccionConfiguracion));
         services.AddHttpClient<MistralOcrDocumentAIProvider>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
-            .AplicarResilienciaHttp(TimeSpan.FromSeconds(120));
+            .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(120));
         services.AddScoped<IDocumentAIProvider>(sp => sp.GetRequiredService<MistralOcrDocumentAIProvider>());
 
         services.AddHttpClient<AnthropicDocumentAIProvider>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
-            .AplicarResilienciaHttp(TimeSpan.FromSeconds(120));
+            .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(120));
         services.AddScoped<IDocumentAIProvider>(sp => sp.GetRequiredService<AnthropicDocumentAIProvider>());
 
         services.Configure<GeminiOptions>(configuration.GetSection(GeminiOptions.SeccionConfiguracion));
         services.AddHttpClient<GeminiDocumentAIProvider>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
-            .AplicarResilienciaHttp(TimeSpan.FromSeconds(120));
+            .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(120));
         services.AddScoped<IDocumentAIProvider>(sp => sp.GetRequiredService<GeminiDocumentAIProvider>());
 
         // Horizonte 1.7 ("Billing mínimo viable") — StripePaymentProvider es
@@ -706,6 +709,54 @@ public static class InfrastructureServiceCollectionExtensions
             opciones.CircuitBreaker.SamplingDuration = timeoutPorIntento * 3;
             opciones.Retry.MaxRetryAttempts = 2;
         });
+
+    /// <summary>
+    /// Resiliencia para un cliente que llama a un proveedor de IA de pago.
+    /// Igual que <see cref="AplicarResilienciaHttp"/> salvo en cuándo se
+    /// reintenta, y esa diferencia es el punto.
+    ///
+    /// El reintento estándar trata igual un 429 que un 500 que un timeout,
+    /// porque para un servicio idempotente da lo mismo. Aquí no da lo mismo:
+    /// ninguno de los tres proveedores garantiza idempotencia en estos
+    /// endpoints, así que un POST que se reintenta tras un timeout o un 5xx
+    /// puede haberse procesado ya del otro lado — y entonces el reintento no
+    /// recupera nada, duplica el cobro y vuelve a transmitir el documento. Con
+    /// hasta tres intentos HTTP multiplicados por los tres del trabajo durable,
+    /// un solo encargo podía llegar a nueve ejecuciones facturables.
+    ///
+    /// Solo se reintenta el <b>429</b> (ver <see cref="ReintentoProveedorIa"/>,
+    /// donde vive el predicado para que sea comprobable): es la única respuesta
+    /// que dice de forma explícita que la petición NO se procesó, y trae
+    /// <c>Retry-After</c>, que el manejador estándar respeta. Un intento
+    /// adicional basta — si el segundo también choca contra el límite, insistir
+    /// en el mismo instante solo empeora la congestión.
+    ///
+    /// Lo demás no se pierde: sigue habiendo reintento, pero en las capas donde
+    /// es visible y queda contabilizado — el fallback al siguiente proveedor
+    /// del router (que además cambia de destinatario, así que no repite una
+    /// petición que quizá ya se cobró) y los intentos de
+    /// <c>TrabajoAnalisisDocumento</c>, que se registran en la cola. Mover el
+    /// reintento de un nivel invisible a otro auditable es justamente lo que
+    /// permite ver el gasto en vez de descubrirlo en la factura.
+    ///
+    /// <see cref="ContadorLlamadasProveedorIaHandler"/> se añade DESPUÉS del
+    /// manejador de resiliencia para quedar por dentro de él, y así contar
+    /// también los reintentos.
+    /// </summary>
+    private static IHttpClientBuilder AplicarResilienciaHttpIa(this IHttpClientBuilder constructor, TimeSpan timeoutPorIntento)
+    {
+        constructor.AddStandardResilienceHandler(opciones =>
+        {
+            opciones.AttemptTimeout.Timeout = timeoutPorIntento;
+            opciones.TotalRequestTimeout.Timeout = timeoutPorIntento * 2;
+            opciones.CircuitBreaker.SamplingDuration = timeoutPorIntento * 3;
+            opciones.Retry.MaxRetryAttempts = 1;
+            opciones.Retry.ShouldHandle = argumentos => ValueTask.FromResult(
+                ReintentoProveedorIa.EsSeguroReintentar(argumentos.Outcome.Result));
+        });
+
+        return constructor.AddHttpMessageHandler<ContadorLlamadasProveedorIaHandler>();
+    }
 
     /// <summary>
     /// Clave de configuración que permite arrancar el tráfico con la identidad
