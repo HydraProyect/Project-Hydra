@@ -311,8 +311,7 @@ public partial class Documentos : ComponentBase
 
         try
         {
-            var usuarioId = await CurrentUserService.ObtenerUsuarioActualIdAsync();
-            var resultado = await Mediator.Send(new EliminarDocumentoCommand(_idAEliminar, usuarioId ?? Guid.Empty));
+            var resultado = await Mediator.Send(new EliminarDocumentoCommand(_idAEliminar));
 
             if (resultado.EsFallido)
             {
@@ -374,8 +373,7 @@ public partial class Documentos : ComponentBase
 
         try
         {
-            var usuarioId = await CurrentUserService.ObtenerUsuarioActualIdAsync();
-            var resultado = await Mediator.Send(new EliminarDocumentosCommand(_seleccionados.ToList(), usuarioId ?? Guid.Empty));
+            var resultado = await Mediator.Send(new EliminarDocumentosCommand(_seleccionados.ToList()));
             var dto = resultado.Valor;
 
             ToastService.Mostrar(
