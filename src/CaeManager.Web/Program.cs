@@ -562,6 +562,16 @@ using (var scope = app.Services.CreateScope())
 
     var dbContext = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
 
+    // Si alguien declaró la conexión de runtime, que la demuestre. La cadena
+    // configurada solo prueba que existe una cadena: apuntarla al rol
+    // propietario deja RLS igual de decorativa que no configurarla, y en
+    // silencio. Se comprueba después de migrar, porque la propiedad se observa
+    // sobre las tablas con RLS ya creadas, y sobre la conexión del contexto
+    // inyectado, que es la que usará el tráfico.
+    if (!string.IsNullOrWhiteSpace(app.Configuration.GetConnectionString("CaeManagerDbRuntime")))
+        await CaeManager.Infrastructure.Persistence.VerificacionIdentidadDeRuntime
+            .ExigirIdentidadSometidaARlsAsync(dbContext);
+
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
     var userStore = scope.ServiceProvider.GetRequiredService<IUserStore<ApplicationUser>>();
