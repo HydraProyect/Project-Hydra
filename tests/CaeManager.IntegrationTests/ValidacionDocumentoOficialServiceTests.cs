@@ -350,6 +350,39 @@ public class ValidacionDocumentoOficialServiceTests : IAsyncLifetime
         (await _dbContext.AprobacionesDocumento.AnyAsync(a => a.DocumentoId == documento.Id)).Should().BeFalse();
     }
 
+    /// <summary>
+    /// Auditoría de seguridad del módulo (2026-08-30): a diferencia de
+    /// TGSS/RLC/RNT/ITA, ParserCorrienteAeat nunca se calibró con un PDF real
+    /// de la AEAT (<c>Calibrado = false</c>) — aunque firma, CIF, fecha y
+    /// resultado positivo cotejen perfectamente, el documento debe caer a
+    /// revisión humana en vez de auto-validarse, porque ese cotejo puede
+    /// coincidir con anclas mal ajustadas por pura casualidad.
+    /// </summary>
+    [Fact]
+    public async Task Certificado_aeat_no_calibrado_nunca_auto_valida_aunque_todo_coteje()
+    {
+        var tipoAeat = await _dbContext.TiposDocumento
+            .FirstAsync(t => t.PerfilDocumentoOficial == PerfilDocumentoOficial.CorrienteAeat);
+        var documento = Documento.DeEmpresa(_empresa.Id, tipoAeat.Id, new DateOnly(2026, 8, 4), null, "archivo.pdf");
+        _dbContext.Documentos.Add(documento);
+        await _dbContext.SaveChangesAsync();
+
+        var textoAeatValido =
+            "AGENCIA ESTATAL DE ADMINISTRACIÓN TRIBUTARIA CIF: B12345674 " +
+            "El obligado tributario se encuentra al corriente de sus obligaciones tributarias " +
+            "a 4 de agosto de 2026 CSV: ABC123DEF456GHI7";
+        var servicio = CrearServicio(
+            Result.Exito(FirmaSelloDeOrgano()), Result.Exito<IReadOnlyList<string>>([textoAeatValido]));
+
+        await servicio.ProcesarDocumentoAsync(documento.Id);
+
+        var verificacion = await _dbContext.VerificacionesDocumentoOficial.SingleAsync(v => v.DocumentoId == documento.Id);
+        verificacion.Decision.Should().Be(DecisionValidacionOficial.RevisionRequerida);
+        verificacion.ResultadoCotejo.Should().Be(ResultadoCotejoDocumentoOficial.Coincide);
+        verificacion.Motivos.Should().Contain("no está calibrado");
+        (await _dbContext.AprobacionesDocumento.AnyAsync(a => a.DocumentoId == documento.Id)).Should().BeFalse();
+    }
+
     /// <summary>Mismo criterio que VerificacionIaDocumentoServiceTests (D3): un archivo que ya no existe es un fallo real y determinista — debe lanzar SIN envolver.</summary>
     [Fact]
     public async Task Lanza_FileNotFoundException_sin_envolver_si_el_archivo_no_existe()

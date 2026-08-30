@@ -12,6 +12,17 @@ public interface IParserDocumentoOficial
 {
     PerfilDocumentoOficial Perfil { get; }
 
+    /// <summary>
+    /// Falso mientras las anclas del perfil sigan pendientes de calibración
+    /// con muestras reales (PLAN-FIRMA-DIGITAL-PDF.md, PR-6): un desajuste de
+    /// regex en un perfil no calibrado puede no ser "campos faltantes" (que
+    /// ya cae a revisión) sino un cotejo que coincide por casualidad con
+    /// anclas mal ajustadas — <see cref="ValidacionOficial.ValidacionDocumentoOficialService"/>
+    /// nunca auto-valida un perfil con <c>Calibrado = false</c>, aunque el
+    /// cotejo dé <see cref="ResultadoCotejoDocumentoOficial.Coincide"/>.
+    /// </summary>
+    bool Calibrado { get; }
+
     /// <param name="textoNormalizado">Texto completo del PDF con los espacios colapsados (ver <see cref="ParserDocumentoOficialBase.NormalizarTexto"/>).</param>
     DatosDocumentoOficialExtraidos Extraer(string textoNormalizado);
 }

@@ -284,6 +284,17 @@ public class ValidacionDocumentoOficialService(
 
         var decision = motivos.Count == 0 ? DecisionValidacionOficial.AutoValidado : DecisionValidacionOficial.RevisionRequerida;
 
+        // Auditoría de seguridad del módulo (2026-08-30): el cotejo puede
+        // coincidir con anclas todavía no calibradas con muestras reales
+        // (ParserCorrienteAeat) por pura casualidad — nunca es evidencia de
+        // que el parser realmente reconoce el documento. Perfiles no
+        // calibrados nunca auto-validan, aunque motivos quede vacío.
+        if (decision == DecisionValidacionOficial.AutoValidado && !parserDelPerfil.Calibrado)
+        {
+            decision = DecisionValidacionOficial.RevisionRequerida;
+            motivos.Add("El parser de este perfil de documento oficial aún no está calibrado con muestras reales — se revisa manualmente.");
+        }
+
         return new VerificacionDocumentoOficial(
             documentoId, perfil, nivel, extraido.CodigoVerificacion, extraido.Cif,
             extraido.RazonSocial, extraido.FechaEmision, extraido.Periodo,

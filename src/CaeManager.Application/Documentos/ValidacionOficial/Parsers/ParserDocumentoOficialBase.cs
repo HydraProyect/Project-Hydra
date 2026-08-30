@@ -18,6 +18,9 @@ public abstract class ParserDocumentoOficialBase : IParserDocumentoOficial
 {
     public abstract PerfilDocumentoOficial Perfil { get; }
 
+    /// <summary>Calibrado con muestras reales por defecto; los perfiles pendientes de calibración lo sobrescriben a <c>false</c>.</summary>
+    public virtual bool Calibrado => true;
+
     /// <summary>Regex con un grupo nombrado <c>valor</c>; si el campo es obligatorio y no matchea, el documento cae a revisión.</summary>
     protected sealed record CampoAncla(Regex Patron, bool Obligatorio);
 
