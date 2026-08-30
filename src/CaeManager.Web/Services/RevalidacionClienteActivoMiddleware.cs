@@ -24,16 +24,21 @@ namespace CaeManager.Web.Services;
 /// para quien trae cookie de selección, es decir solo para Operadores
 /// Delegados. Para todos los demás el middleware no hace nada.
 ///
-/// Limitación conocida: un circuito de Blazor Server ya establecido puede
-/// seguir interactuando por SignalR sin generar peticiones HTTP nuevas, así
-/// que la revocación se nota en la siguiente navegación, no necesariamente al
-/// instante. Lo que sí es inmediato es la escritura: el rol efectivo pasa a
-/// null en cuanto la delegación deja de estar activa y
+/// Limitación que tenía esta pieza en solitario: un circuito de Blazor
+/// Server ya establecido puede seguir interactuando por SignalR sin generar
+/// peticiones HTTP nuevas, así que la revocación no se notaba hasta la
+/// siguiente navegación (hallazgo del Módulo 9, auditoría 2026-08-30). Lo
+/// que ya era inmediato es la escritura: el rol efectivo pasa a null en
+/// cuanto la delegación deja de estar activa y
 /// <c>AutorizacionEscrituraBehavior</c> bloquea por lista blanca (ver
-/// <c>CurrentUserService.ObtenerRolActualAsync</c>). Lo mismo vale para el
-/// tercer camino: una sesión privilegiada cerrada o cuya concesión se revocó
-/// deja de permitir escribir en el acto, porque ese behavior la revalida contra
-/// la base en cada Command.
+/// <c>CurrentUserService.ObtenerRolActualAsync</c>) — lo mismo vale para el
+/// tercer camino, una sesión privilegiada cerrada o cuya concesión se
+/// revocó, porque ese behavior la revalida contra la base en cada Command.
+/// La ventana que quedaba abierta era solo de <b>lectura</b> dentro de un
+/// circuito ya vivo, y la cierra <see cref="RevalidacionCircuitoActivoHandler"/>
+/// repitiendo <see cref="SigueAutorizadoAsync"/> —la misma comprobación,
+/// nunca una copia que pueda divergir— desde un temporizador de fondo del
+/// propio circuito.
 /// </summary>
 public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
 {
@@ -57,31 +62,9 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
         // manipulado, caducado o de otro usuario ya resuelve a null ahí.
         if (clienteActivoSeleccionado.TenantIdSeleccionado is { } tenantSeleccionado)
         {
-            var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
-
-            // Tres caminos, uno por vía de acceso, y excluyentes entre sí
-            // (ADR-011 § 4bis.5 — las capacidades no se acumulan entre planos):
-            // la sesión privilegiada de plataforma; la operación de plano 2; y
-            // la heredada por delegación, que es la del acceso de soporte
-            // actual hasta que se retire. Conmutar el middleware entero a una
-            // sola habría dejado sin acceso a las otras durante la transición.
-            //
-            // El plano 3 se comprueba primero porque es el más restrictivo y el
-            // que no debe caer nunca al camino de negocio: si el token nombra
-            // una sesión y esa sesión no revalida, la respuesta es cortar, no
-            // probar suerte con la delegación heredada del mismo usuario.
-            var sigueAutorizado = usuarioId is not null && (
-                clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is not null
-                    // ObtenerAsync ya comprueba las cuatro condiciones: sesión
-                    // abierta y en ventana, ligada a este usuario, concesión
-                    // vigente, y tenant todavía en su alcance y coherente con el
-                    // que el token declara.
-                    ? await sesionPrivilegiadaActual.ObtenerAsync(contexto.RequestAborted) is not null
-                    : clienteActivoSeleccionado.AsignacionOperacionIdSeleccionada is { } asignacionOperacionId
-                        ? await SigueAutorizadoPorAsignacionAsync(
-                            operacionesContext, usuarioId.Value, tenantSeleccionado, asignacionOperacionId, contexto.RequestAborted)
-                        : await SigueAutorizadoPorDelegacionAsync(
-                            dbContext, usuarioId.Value, tenantSeleccionado, contexto.RequestAborted));
+            var sigueAutorizado = await SigueAutorizadoAsync(
+                clienteActivoSeleccionado, currentUserService, dbContext, operacionesContext, sesionPrivilegiadaActual,
+                tenantSeleccionado, contexto.RequestAborted);
 
             if (!sigueAutorizado)
             {
@@ -100,6 +83,49 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
         }
 
         await siguiente(contexto);
+    }
+
+    /// <summary>
+    /// La comprobación completa, factorizada para que
+    /// <see cref="RevalidacionCircuitoActivoHandler"/> pueda repetirla desde
+    /// dentro del circuito sin duplicar la lógica de autorización — dos
+    /// sitios que decidieran esto por separado son dos sitios que pueden
+    /// dejar de coincidir.
+    /// </summary>
+    internal static async Task<bool> SigueAutorizadoAsync(
+        IClienteActivoSeleccionado clienteActivoSeleccionado,
+        ICurrentUserService currentUserService,
+        ITenantsQueryContext dbContext,
+        IOperacionesQueryContext operacionesContext,
+        ISesionPrivilegiadaActual sesionPrivilegiadaActual,
+        Guid tenantSeleccionado,
+        CancellationToken cancellationToken)
+    {
+        var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
+
+        // Tres caminos, uno por vía de acceso, y excluyentes entre sí
+        // (ADR-011 § 4bis.5 — las capacidades no se acumulan entre planos):
+        // la sesión privilegiada de plataforma; la operación de plano 2; y
+        // la heredada por delegación, que es la del acceso de soporte
+        // actual hasta que se retire. Conmutar el middleware entero a una
+        // sola habría dejado sin acceso a las otras durante la transición.
+        //
+        // El plano 3 se comprueba primero porque es el más restrictivo y el
+        // que no debe caer nunca al camino de negocio: si el token nombra
+        // una sesión y esa sesión no revalida, la respuesta es cortar, no
+        // probar suerte con la delegación heredada del mismo usuario.
+        return usuarioId is not null && (
+            clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is not null
+                // ObtenerAsync ya comprueba las cuatro condiciones: sesión
+                // abierta y en ventana, ligada a este usuario, concesión
+                // vigente, y tenant todavía en su alcance y coherente con el
+                // que el token declara.
+                ? await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is not null
+                : clienteActivoSeleccionado.AsignacionOperacionIdSeleccionada is { } asignacionOperacionId
+                    ? await SigueAutorizadoPorAsignacionAsync(
+                        operacionesContext, usuarioId.Value, tenantSeleccionado, asignacionOperacionId, cancellationToken)
+                    : await SigueAutorizadoPorDelegacionAsync(
+                        dbContext, usuarioId.Value, tenantSeleccionado, cancellationToken));
     }
 
     /// <summary>
