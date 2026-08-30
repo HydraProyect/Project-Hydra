@@ -58,4 +58,27 @@ public class SkiaConversorImagenSelloServiceTests
         bitmap.GetPixel(1, 1).Alpha.Should().Be(0, "el píxel blanco de fondo debe volverse transparente");
         bitmap.GetPixel(8, 8).Alpha.Should().Be(255, "el píxel negro del sello debe seguir opaco");
     }
+
+    /// <summary>
+    /// Protección contra decompression bomb (auditoría de seguridad del
+    /// módulo, 2026-08-30): una imagen cuyo ancho declarado supera el límite
+    /// se rechaza ANTES de decodificar los píxeles. Se usa una imagen muy
+    /// alargada (ancho por encima del límite, un solo píxel de alto) para
+    /// que el propio test no tenga que alojar los cientos de MB que una
+    /// imagen cuadrada igual de ancha supondría — lo que se comprueba es que
+    /// SKCodec.Create (solo cabecera) basta para rechazarla sin decodificar.
+    /// </summary>
+    [Fact]
+    public void NormalizarAPng_rechaza_una_imagen_con_ancho_excesivo()
+    {
+        var servicio = new SkiaConversorImagenSelloService();
+        var info = new SKImageInfo(9_000, 1, SKColorType.Rgb888x, SKAlphaType.Opaque);
+        using var bitmap = new SKBitmap(info);
+        using var imagen = SKImage.FromBitmap(bitmap);
+        using var datos = imagen.Encode(SKEncodedImageFormat.Png, 100);
+
+        var accion = () => servicio.NormalizarAPng(datos.ToArray(), recortarFondoClaro: false);
+
+        accion.Should().Throw<ArgumentException>();
+    }
 }
