@@ -1,8 +1,10 @@
+using CaeManager.Application.Common;
 using CaeManager.Infrastructure.FileStorage;
 using CaeManager.Infrastructure.MultiTenancy;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Xunit;
 
@@ -38,12 +40,37 @@ public class DiskFileStorageServiceTests : IDisposable
         if (Directory.Exists(_rutaTemporal)) Directory.Delete(_rutaTemporal, recursive: true);
     }
 
+    private readonly AlertaOperativaFalsa _alertas = new();
+
     private DiskFileStorageService CrearServicio(Guid? tenantId) =>
         new(
             Options.Create(new DiskFileStorageServiceOptions { Ruta = _rutaTemporal }),
             new EntornoDePruebaFalso(),
             new TenantActualAmbiental { TenantId = tenantId },
-            _dataProtectionProvider);
+            _dataProtectionProvider,
+            _alertas,
+            NullLogger<DiskFileStorageService>.Instance);
+
+    private string RutaDe(Guid tenantId, string identificador) =>
+        Path.Combine(_rutaTemporal, tenantId.ToString("N"), Path.GetFileName(identificador));
+
+    /// <summary>
+    /// Escribe un archivo con el formato ANTERIOR al versionado: payload de
+    /// Data Protection del protector global, sin marca delante. Es lo que hay
+    /// hoy en produccion, y tiene que seguir leyendose.
+    /// </summary>
+    private async Task<string> EscribirArchivoDeFormatoAnteriorAsync(Guid tenantId, string contenido)
+    {
+        var carpeta = tenantId.ToString("N");
+        Directory.CreateDirectory(Path.Combine(_rutaTemporal, carpeta));
+        var nombreArchivo = $"{Guid.NewGuid():N}.pdf";
+
+        var protectorAnterior = _dataProtectionProvider.CreateProtector("CaeManager.Archivos.v1");
+        var cifrado = protectorAnterior.Protect(System.Text.Encoding.UTF8.GetBytes(contenido));
+        await File.WriteAllBytesAsync(Path.Combine(_rutaTemporal, carpeta, nombreArchivo), cifrado);
+
+        return $"{carpeta}/{nombreArchivo}";
+    }
 
     [Fact]
     public async Task Guarda_el_archivo_bajo_una_carpeta_propia_del_tenant()
@@ -153,6 +180,87 @@ public class DiskFileStorageServiceTests : IDisposable
         var accion = async () => await servicio.AbrirAsync($"{_tenantA:N}/../../../etc/passwd");
 
         await accion.Should().ThrowAsync<FileNotFoundException>();
+    }
+
+    [Fact]
+    public async Task Un_archivo_del_formato_anterior_cifrado_y_sin_marca_se_sigue_leyendo()
+    {
+        // EL caso que no se puede romper: es lo que hay escrito en produccion
+        // ahora mismo. Si el formato versionado dejara de entenderlo, cada PDF
+        // ya subido se volveria ilegible.
+        var identificador = await EscribirArchivoDeFormatoAnteriorAsync(_tenantA, "informe medico anterior");
+
+        var servicio = CrearServicio(_tenantA);
+        await using var flujo = await servicio.AbrirAsync(identificador);
+        using var lector = new StreamReader(flujo);
+
+        (await lector.ReadToEndAsync()).Should().Be("informe medico anterior");
+    }
+
+    [Fact]
+    public async Task Un_archivo_cifrado_manipulado_no_se_sirve()
+    {
+        // Antes del formato versionado, alterar el ciphertext hacia fallar a
+        // Unprotect, ese fallo se interpretaba como "archivo legado en claro"
+        // y los bytes manipulados se entregaban como contenido legitimo. La
+        // marca deshace la ambiguedad: si dice que esta cifrado, un descifrado
+        // fallido es integridad rota y no se sirve nada.
+        var servicio = CrearServicio(_tenantA);
+        using var contenido = new MemoryStream("un dato de salud confidencial"u8.ToArray());
+        var identificador = await servicio.GuardarAsync(contenido, "documento.pdf");
+
+        var ruta = RutaDe(_tenantA, identificador);
+        var bytes = await File.ReadAllBytesAsync(ruta);
+        bytes[^1] ^= 0xFF;
+        await File.WriteAllBytesAsync(ruta, bytes);
+
+        var accion = async () => await servicio.AbrirAsync(identificador);
+
+        await accion.Should().ThrowAsync<InvalidDataException>();
+        _alertas.Alertas.Should().ContainSingle()
+            .Which.Nivel.Should().Be(NivelAlertaOperativa.Critica,
+                "manipulacion o perdida de claves es un incidente, no un error de usuario");
+    }
+
+    [Fact]
+    public async Task El_archivo_de_un_tenant_no_se_descifra_con_la_clave_de_otro()
+    {
+        // Aislamiento criptografico, no solo de ruta: se copia el fichero de A
+        // dentro de la carpeta de B, de modo que la comprobacion de ruta pasa
+        // y lo unico que puede impedir la lectura es que la clave se derive
+        // del tenant.
+        var servicioA = CrearServicio(_tenantA);
+        using var contenido = new MemoryStream("un dato de salud confidencial"u8.ToArray());
+        var identificadorA = await servicioA.GuardarAsync(contenido, "documento.pdf");
+
+        var carpetaB = _tenantB.ToString("N");
+        Directory.CreateDirectory(Path.Combine(_rutaTemporal, carpetaB));
+        var nombreArchivo = Path.GetFileName(identificadorA);
+        File.Copy(RutaDe(_tenantA, identificadorA), Path.Combine(_rutaTemporal, carpetaB, nombreArchivo));
+
+        var servicioB = CrearServicio(_tenantB);
+        var accion = async () => await servicioB.AbrirAsync($"{carpetaB}/{nombreArchivo}");
+
+        await accion.Should().ThrowAsync<InvalidDataException>(
+            "la ruta cuadra, asi que si se leyera seria porque la clave no depende del tenant");
+    }
+
+    private sealed class AlertaOperativaFalsa : IAlertaOperativa
+    {
+        public List<(string Mensaje, NivelAlertaOperativa Nivel)> Alertas { get; } = [];
+
+        public void Emitir(string mensaje, NivelAlertaOperativa nivel) => Alertas.Add((mensaje, nivel));
+
+        public void CapturarExcepcion(Exception excepcion) { }
+
+        public void DejarMigaDePan(string mensaje) { }
+
+        public IDisposable IniciarAmbitoDeCaptura() => new AmbitoVacio();
+
+        private sealed class AmbitoVacio : IDisposable
+        {
+            public void Dispose() { }
+        }
     }
 
     private sealed class EntornoDePruebaFalso : IHostEnvironment
