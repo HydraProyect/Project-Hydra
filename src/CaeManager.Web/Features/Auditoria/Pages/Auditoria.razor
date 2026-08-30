@@ -65,11 +65,11 @@
                         </td>
                         <td>@NombreUsuario(registro.UsuarioId)</td>
                         <td>
-                            @if (TieneArchivoAnterior(registro))
+                            @if (registro.TieneArchivoAnterior)
                             {
                                 <a href="/auditoria/@registro.Id/archivo-anterior" target="_blank">Ver archivo anterior</a>
                             }
-                            else if (PuedeRestaurar(registro))
+                            else if (registro.PuedeRestaurar)
                             {
                                 <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
                                        Cargando="EstaRestaurando(registro)" OnClick="() => RestaurarAsync(registro)">

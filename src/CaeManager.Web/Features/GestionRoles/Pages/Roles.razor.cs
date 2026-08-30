@@ -35,6 +35,7 @@ public partial class Roles : ComponentBase
 
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
+    [Inject] private CaeManager.Infrastructure.Autorizacion.DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
     [Inject] private IEmailService EmailService { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private ILogger<Roles> Logger { get; set; } = default!;
@@ -62,22 +63,22 @@ public partial class Roles : ComponentBase
 
         try
         {
-            // Por la puerta: UserManager no pasa por MediatR y esta carga
-            // corre en paralelo con los componentes del layout sobre el mismo
-            // DbContext scoped (ver PuertaAccesoDatos).
-            await PuertaAccesoDatos.EjecutarAsync(async () =>
-            {
-                var roles = new List<RolInfoDto>();
-                foreach (var nombreRol in CaeManager.Infrastructure.Identity.Roles.Todos)
-                {
-                    var usuariosEnRol = await UserManager.GetUsersInRoleAsync(nombreRol);
-                    roles.Add(new RolInfoDto(
-                        CaeManager.Infrastructure.Identity.Roles.NombreVisible(nombreRol), DescripcionesPorRol[nombreRol], usuariosEnRol.Count));
-                }
+            // Acotado al tenant activo. Antes se recorrían los seis roles con
+            // GetUsersInRoleAsync —que no filtra por tenant— y luego se
+            // materializaba UserManager.Users entero para preguntar rol por
+            // rol: los recuentos incluían usuarios de otras organizaciones y la
+            // lista de pendientes mostraba su nombre y su correo. Ver
+            // DirectorioUsuariosTenant, que ya existía para esto y que
+            // /usuarios sí usaba.
+            var cantidadesPorRol = await DirectorioUsuarios.ContarCuentasPropiasPorRolAsync();
 
-                _roles = roles;
-                await CargarPendientesAsync();
-            });
+            _roles = [.. CaeManager.Infrastructure.Identity.Roles.Todos.Select(nombreRol =>
+                new RolInfoDto(
+                    CaeManager.Infrastructure.Identity.Roles.NombreVisible(nombreRol),
+                    DescripcionesPorRol[nombreRol],
+                    cantidadesPorRol.GetValueOrDefault(nombreRol)))];
+
+            await CargarPendientesAsync();
         }
         catch (Exception)
         {
@@ -91,13 +92,9 @@ public partial class Roles : ComponentBase
 
     private async Task CargarPendientesAsync()
     {
-        var pendientes = new List<UsuarioPendienteDto>();
-        foreach (var usuario in UserManager.Users.OrderBy(u => u.FechaCreacion).ToList())
-        {
-            var roles = await UserManager.GetRolesAsync(usuario);
-            if (roles.Count == 0)
-                pendientes.Add(new UsuarioPendienteDto(usuario.Id, usuario.Email ?? string.Empty, usuario.NombreCompleto, usuario.FechaCreacion));
-        }
+        var pendientes = (await DirectorioUsuarios.ObtenerCuentasPropiasSinRolAsync())
+            .Select(u => new UsuarioPendienteDto(u.Id, u.Email ?? string.Empty, u.NombreCompleto, u.FechaCreacion))
+            .ToList();
 
         _usuariosPendientes = pendientes;
         foreach (var pendiente in pendientes)
@@ -116,6 +113,33 @@ public partial class Roles : ComponentBase
 
         try
         {
+            var rol = RolElegido(pendiente.Id);
+
+            // El rol llega de un <select> de la propia página, pero que la
+            // interfaz solo ofrezca opciones válidas no impide enviar otra
+            // cosa: sin esta comprobación, AddToRoleAsync aceptaría cualquier
+            // nombre que exista en AspNetRoles.
+            if (!CaeManager.Infrastructure.Identity.Roles.Todos.Contains(rol, StringComparer.Ordinal))
+            {
+                ToastService.Mostrar("Ese rol no existe.", TonoToast.Error);
+                await CargarAsync();
+                return;
+            }
+
+            // La autoridad se comprueba sobre la PROPIEDAD de la cuenta, no
+            // sobre su visibilidad: un Operador Delegado se ve desde este
+            // tenant, pero su cuenta pertenece a otra organización y su rol se
+            // gobierna allí (ver DirectorioUsuariosTenant). Antes se recuperaba
+            // por Guid con FindByIdAsync sin mirar el TenantId, así que el Id
+            // de un usuario de otro tenant —que la propia lista de pendientes
+            // llegaba a mostrar— bastaba para cambiarle el rol.
+            if (!await DirectorioUsuarios.EsCuentaPropiaDelTenantActualAsync(pendiente.Id))
+            {
+                ToastService.Mostrar("No encontramos este usuario.", TonoToast.Error);
+                await CargarAsync();
+                return;
+            }
+
             var usuario = await PuertaAccesoDatos.EjecutarAsync(
                 () => UserManager.FindByIdAsync(pendiente.Id.ToString()));
             if (usuario is null)
@@ -125,7 +149,6 @@ public partial class Roles : ComponentBase
                 return;
             }
 
-            var rol = RolElegido(pendiente.Id);
             var resultado = await PuertaAccesoDatos.EjecutarAsync(
                 () => UserManager.AddToRoleAsync(usuario, rol));
             if (!resultado.Succeeded)
@@ -138,7 +161,7 @@ public partial class Roles : ComponentBase
                 $"Rol \"{CaeManager.Infrastructure.Identity.Roles.NombreVisible(rol)}\" asignado a {usuario.NombreCompleto}.", TonoToast.Exito);
 
             if (!string.IsNullOrWhiteSpace(usuario.Email))
-                await NotificarUsuarioRolAsignadoAsync(usuario.Email, usuario.NombreCompleto, rol);
+                await NotificarUsuarioRolAsignadoAsync(usuario.Id, usuario.Email, usuario.NombreCompleto, rol);
 
             _rolElegidoPorUsuario.Remove(pendiente.Id);
             await CargarAsync();
@@ -149,7 +172,7 @@ public partial class Roles : ComponentBase
         }
     }
 
-    private async Task NotificarUsuarioRolAsignadoAsync(string email, string nombreCompleto, string rol)
+    private async Task NotificarUsuarioRolAsignadoAsync(Guid usuarioId, string email, string nombreCompleto, string rol)
     {
         // Plantilla mínima a propósito — contenido/diseño final pendiente de
         // definir con el usuario (ver ROADMAP.md). Best-effort: un fallo de
@@ -162,6 +185,6 @@ public partial class Roles : ComponentBase
 
         var resultado = await EmailService.EnviarAsync(email, $"Tu acceso a {Marca.Nombre} ya está activo", cuerpo);
         if (resultado.EsFallido)
-            Logger.LogWarning("No se pudo enviar el correo de confirmación de rol a {Email}.", email);
+            Logger.LogWarning("No se pudo enviar el correo de confirmación de rol a {UsuarioId}.", usuarioId);
     }
 }

@@ -62,14 +62,27 @@ public class ConexionesFueraDelInterceptorTests
         // servicio de fondo, sin petición ni usuario en juego.
         "src/CaeManager.Infrastructure/Coordinacion/EleccionLiderPostgresService.cs",
 
-        // Verificación de arranque (auditoría Módulo 8): lee pg_roles para
-        // confirmar si el rol de CaeManagerDbRuntime está restringido de
-        // verdad (rolsuper/rolbypassrls). Es un catálogo de sistema de
-        // PostgreSQL, no una tabla de dominio con TenantId — no hay ninguna
-        // fila de tenant que aislar ni escritura de aplicación que impedir.
-        // Corre una sola vez al arrancar, sin petición ni usuario en juego,
-        // igual que EleccionLiderPostgresService.
-        "src/CaeManager.Infrastructure/Persistence/VerificacionRolRuntimeHostedService.cs",
+        // Comprobación de arranque de que la identidad de conexión del tráfico
+        // está sometida a RLS. No lee ninguna tabla de negocio: solo
+        // current_user, sus atributos en pg_roles y si es propietaria de alguna
+        // tabla con RLS — metadatos de la sesión, no filas que aislar, así que
+        // no hay nada que app.tenant_id pudiera filtrar.
+        //
+        // Y el SET ROLE de soporte sería justamente lo que la invalidaría:
+        // adoptar otro rol cambia current_user, de modo que la comprobación
+        // mediría la identidad adoptada en vez de aquella con la que la
+        // aplicación autentica, que es la única que decide si PostgreSQL aplica
+        // las políticas. Pasar por el interceptor no la haría más segura: la
+        // dejaría ciega a lo que existe para observar.
+        "src/CaeManager.Infrastructure/Persistence/VerificacionIdentidadDeRuntime.cs",
+
+        // (Aquí vivía VerificacionRolRuntimeHostedService, del Módulo 8, que
+        // comprobaba lo mismo que la entrada de arriba. Retirado de acuerdo con
+        // esa sesión: con las dos montadas, la de arriba aborta el arranque en
+        // el scope de Program.cs antes de que el host levante los hosted
+        // services, así que el aviso de aquella no llegaba a emitirse nunca.
+        // Lo que sí se conservó de su diseño es el aviso ruidoso al degradar,
+        // ahora en Program.cs.)
     ];
 
     [Fact]

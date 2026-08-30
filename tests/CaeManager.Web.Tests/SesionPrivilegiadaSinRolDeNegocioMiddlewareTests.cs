@@ -8,14 +8,14 @@ using Microsoft.AspNetCore.Http;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// Las 28 puertas <c>[Authorize(Roles = …)]</c> del portal preguntan al
+/// Las 30 puertas <c>[Authorize(Roles = …)]</c> del portal preguntan al
 /// <c>ClaimsPrincipal</c>, no a <c>CurrentUserService</c>. Mientras el técnico
 /// de plataforma conserve ahí el rol de <b>su</b> tenant, esas puertas le
 /// contestan que sí dentro del tenant del cliente que visita — con una
 /// autoridad que nadie le concedió sobre ese tenant.
 ///
 /// Estos tests fijan la regla: bajo sesión privilegiada, el principal se queda
-/// sin ningún claim de rol, y sin él las 28 puertas fallan cerradas. Lo que la
+/// sin ningún claim de rol, y sin él las 30 puertas fallan cerradas. Lo que la
 /// sesión sí concede (lectura del tenant objetivo) se concede por capacidad en
 /// <c>AlcanceDatosService</c>, nunca por rol.
 /// </summary>
@@ -60,9 +60,18 @@ public class SesionPrivilegiadaSinRolDeNegocioMiddlewareTests
     [Fact]
     public async Task Con_un_workspace_delegado_normal_el_rol_se_conserva()
     {
-        // Plano 2, no plano 3: aquí el rol efectivo lo resuelve
-        // CurrentUserService contra la cartera, y el claim sigue haciendo su
-        // trabajo en las puertas de página. Quitarlo habría roto la delegación.
+        // Plano 2, no plano 3: ESTE middleware no lo toca, porque quitarle el
+        // rol entero a un operador delegado —que sí es miembro del workspace—
+        // habría roto la delegación.
+        //
+        // Lo que decía este comentario antes era que el claim "sigue haciendo
+        // su trabajo en las puertas de página". Era falso, y era el agujero: en
+        // plano 2 el claim es el del tenant de ORIGEN, así que un Administrador
+        // en A delegado como Consulta en B superaba las puertas de
+        // Administrador de B. Quien pone el rol correcto aquí es
+        // RolEfectivoDelWorkspaceMiddleware, registrado justo después de este;
+        // lo que este test fija es únicamente que la responsabilidad no es de
+        // este middleware, no que el claim de origen sea legítimo.
         var protector = ProtectorDePruebas();
         var token = ClienteActivoSeleccionado.Proteger(
             protector, Usuario, TenantVisitado, asignacionOperacionId: Guid.NewGuid());

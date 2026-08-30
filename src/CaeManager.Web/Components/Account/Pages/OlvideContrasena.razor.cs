@@ -61,7 +61,7 @@ public partial class OlvideContrasena : ComponentBase
 
                 if (resultado.EsFallido)
                     LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
-                        .LogWarning("No se pudo enviar el correo de restablecimiento de contraseña a {Email}.", usuario.Email);
+                        .LogWarning("No se pudo enviar el correo de restablecimiento de contraseña a {UsuarioId}.", usuario.Id);
             }
 
             _enviado = true;

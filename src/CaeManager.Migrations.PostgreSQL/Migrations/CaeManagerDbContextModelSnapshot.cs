@@ -4033,6 +4033,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("AccessToken")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("AccessTokenExpiraUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<Guid>("ConexionIntegracionId")
                         .HasColumnType("uuid");
 

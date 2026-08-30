@@ -45,6 +45,9 @@ services:
       dockerfile: Dockerfile
     container_name: caemanager-staging-app
     restart: unless-stopped
+    # Ver el comentario de docker-compose.produccion.yml sobre
+    # ConnectionStrings__CaeManagerDbRuntime: se inyecta entero vía
+    # `.env.staging` (env_file), nunca compuesto en este YAML.
     env_file: .env.staging
     environment:
       ConnectionStrings__CaeManagerDb: "Host=db;Port=5432;Database=caemanager;Username=postgres;Password=${POSTGRES_PASSWORD}"
@@ -73,7 +76,10 @@ services:
       start_period: 60s
 
   db:
-    image: postgres:18
+    # Misma versión exacta + digest que docker-compose.produccion.yml (cadena
+    # de suministro, auditoría Módulo 10, 2026-08-30) — ver el comentario de
+    # ese archivo.
+    image: postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
     container_name: caemanager-staging-db
     restart: unless-stopped
     environment:
@@ -94,7 +100,8 @@ services:
       retries: 10
 
   seq:
-    image: datalust/seq:latest
+    # Misma versión exacta + digest que docker-compose.produccion.yml.
+    image: datalust/seq:2026.1.17114@sha256:fa405502a3c57884c88477b78b55ca76c5a3fb1a4d20c6a185c24e750db34056
     container_name: caemanager-staging-seq
     restart: unless-stopped
     environment:

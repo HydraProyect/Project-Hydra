@@ -7,7 +7,8 @@
 # restaura de extremo a extremo contra un PostgreSQL desechable en Docker, SIN
 # tocar el stack real: pg_restore del dump, filas en las tablas núcleo, al
 # menos una clave XML de Data Protection y recuento de PDFs restaurados. El
-# resultado se anota en docs/ENSAYO-RESTAURACION.md (fecha + resultado).
+# resultado (fecha + resultado) se anota en ENSAYO-RESTAURACION.md, en el
+# repositorio de negocio.
 #
 # Requisitos: borg y docker en el host. pg_restore corre DENTRO del contenedor
 # desechable (postgres:18), así que no hace falta cliente 18 en el host.
@@ -75,6 +76,35 @@ comprobar_tabla "Documentos"
 comprobar_tabla "AspNetUsers"
 comprobar_tabla "Tenants"
 
+# RLS sobrevivió a la restauración, no solo los datos. pg_restore incluye
+# ENABLE ROW LEVEL SECURITY y CREATE POLICY (son DDL de esquema, no
+# privilegios — --no-privileges de arriba no los toca), pero eso nunca se
+# había comprobado aquí: un ensayo en verde probaba recuperar FILAS, no que
+# el aislamiento por tenant volviera a estar activo. Los roles y su
+# membresía (cae_app_runtime / cae_app_soporte) ya los verifica, con
+# RAISE EXCEPTION propio, el bootstrap de roles-de-cluster.sql del paso 4/5.
+comprobar_rls() {
+    local tabla="$1"
+    local activa
+    activa=$(docker exec ensayo-restauracion-pg psql -U postgres -d caemanager \
+        -tAc "SELECT relrowsecurity FROM pg_class WHERE relname = '$tabla' AND relnamespace = 'public'::regnamespace;")
+    if [ "$activa" != "t" ]; then
+        echo "ERROR: \"$tabla\" no tiene Row Level Security activo tras la restauración (relrowsecurity=$activa)."
+        exit 1
+    fi
+    local politicas
+    politicas=$(docker exec ensayo-restauracion-pg psql -U postgres -d caemanager \
+        -tAc "SELECT COUNT(*) FROM pg_policies WHERE schemaname = 'public' AND tablename = '$tabla';")
+    if [ "${politicas:-0}" -eq 0 ]; then
+        echo "ERROR: \"$tabla\" tiene RLS activo pero cero políticas — bloquearía TODO acceso, no solo el cross-tenant."
+        exit 1
+    fi
+    echo "    $tabla: RLS activo, $politicas política(s)"
+}
+comprobar_rls "Empresas"
+comprobar_rls "Documentos"
+comprobar_rls "Trabajadores"
+
 CLAVES=$(ls "$DIR_TRABAJO/dataprotection-keys"/*.xml 2>/dev/null | wc -l)
 echo "    dataprotection-keys/: $CLAVES archivo(s) de clave"
 [ "$CLAVES" -ge 1 ] || { echo "ERROR: el backup no contiene ninguna clave XML — ver RUNBOOK-CLAVES.md (restaurar solo la BD deja las credenciales cifradas irrecuperables)"; exit 1; }
@@ -87,4 +117,4 @@ echo "ENSAYO COMPLETADO. Pasos manuales restantes (no automatizables desde aquí
 echo "  1. Arranca la app contra este Postgres con DataProtection__RutaClaves apuntando a"
 echo "     $DIR_TRABAJO/dataprotection-keys (o una copia) y comprueba que una Empresa con"
 echo "     credenciales guardadas las muestra legibles (RUNBOOK-CLAVES.md § Recuperación, paso 3)."
-echo "  2. Anota fecha, archivo usado y resultado en docs/ENSAYO-RESTAURACION.md."
+echo "  2. Anota fecha, archivo usado y resultado en ENSAYO-RESTAURACION.md (repositorio de negocio)."

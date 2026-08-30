@@ -383,6 +383,15 @@ public class CaeManagerDbContext(
 
         builder.Entity<EventoWebhook>().Property(e => e.PayloadCrudo).HasConversion(conversorPayloadWebhook);
 
+        // Caché del access token (auditoría módulo 6) — mismo protector,
+        // pero nullable (null hasta el primer refresco, a diferencia de
+        // RefreshToken que siempre existe desde el alta).
+        var conversorCredencialesIntegracionNullable = new ValueConverter<string?, string?>(
+            valorPlano => valorPlano == null ? null : _protectorCredencialesIntegracion.Protect(valorPlano),
+            valorCifrado => valorCifrado == null ? null : _protectorCredencialesIntegracion.Unprotect(valorCifrado));
+
+        builder.Entity<CredencialIntegracion>().Property(c => c.AccessToken).HasConversion(conversorCredencialesIntegracionNullable);
+
         builder.Entity<IdentityRole<Guid>>().HasData(IdentityRoleSeedData.Filas());
 
         // Filtro global de aislamiento por tenant, aplicado por reflexión

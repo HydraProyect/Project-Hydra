@@ -55,6 +55,17 @@ services:
       dockerfile: Dockerfile
     container_name: caemanager-app
     restart: unless-stopped
+    # ConnectionStrings__CaeManagerDbRuntime (RUNBOOK-RLS.md, repositorio de
+    # negocio) NO aparece en el bloque `environment:` de abajo a propósito:
+    # es la cadena completa con la contraseña del rol restringido
+    # cae_app_runtime, y vive SOLO en el `.env` real de este directorio (que
+    # `env_file` inyecta entero al contenedor) para que nunca quede compuesta
+    # en este YAML ni visible en `docker compose config`/`docker inspect` —
+    # al contrario que CaeManagerDb, cuya contraseña sí se interpola aquí
+    # abajo. Auditar si está configurada es auditar el `.env` real de este
+    # directorio, no este archivo: `docker compose exec app printenv
+    # ConnectionStrings__CaeManagerDbRuntime` en el VPS lo confirma sin
+    # exponer el valor en ningún log.
     env_file: .env
     environment:
       ConnectionStrings__CaeManagerDb: "Host=db;Port=5432;Database=caemanager;Username=postgres;Password=${POSTGRES_PASSWORD}"
@@ -87,7 +98,12 @@ services:
   db:
     # Misma versión mayor que llevaba producción en Railway (18.4) y que el
     # pg_dump de la imagen de la app (postgresql-client-18 del Dockerfile).
-    image: postgres:18
+    # Versión exacta + digest (cadena de suministro, auditoría Módulo 10,
+    # 2026-08-30): el tag flotante "18" apunta al último parche de la serie
+    # sin dejar rastro en el repositorio de CUÁNDO cambió ni con qué CI lo
+    # validó — Dependabot (.github/dependabot.yml, ecosistema "docker") es
+    # ahora quien propone el siguiente parche, en un PR normal.
+    image: postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
     container_name: caemanager-db
     restart: unless-stopped
     environment:
@@ -112,7 +128,8 @@ services:
       retries: 10
 
   caddy:
-    image: caddy:2-alpine
+    # Versión exacta + digest, mismo motivo que "db" de arriba.
+    image: caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
     container_name: caemanager-caddy
     restart: unless-stopped
     env_file: .env
@@ -135,7 +152,9 @@ services:
     # Logs centralizados (P0-3 de RUNBOOK-HORIZONTE-0.md) — licencia
     # Individual gratuita, autoalojado, sin coste por asiento (Datalust
     # solo cobra por usuarios adicionales, no aplica con un único operador).
-    image: datalust/seq:latest
+    # Versión exacta + digest, mismo motivo que "db" de arriba — el tag
+    # "latest" es el peor caso de los tres: ni siquiera fija la serie mayor.
+    image: datalust/seq:2026.1.17114@sha256:fa405502a3c57884c88477b78b55ca76c5a3fb1a4d20c6a185c24e750db34056
     container_name: caemanager-seq
     restart: unless-stopped
     environment:

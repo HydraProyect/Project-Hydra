@@ -40,6 +40,32 @@ bash /opt/talveg/deploy/resolve-deploy-sha.sh /opt/talveg "${SHA:-}"
 bash /opt/talveg/deploy/liberar-disco.sh
 
 cd /opt/talveg/deploy/local
+
+# Volcar logs y estado del contenedor app si el despliegue no llega a sano —
+# auditoria de colas, 2026-08-30: un fallo de "is unhealthy" solo dejaba esa
+# frase en el log de CI, sin la excepcion real que la causo. El job de
+# despliegue no tiene forma de leerlos despues (el contenedor puede haberse
+# reiniciado o el proceso ya no existir), asi que hay que capturarlos AQUI,
+# en el momento del fallo, para que salgan por el mismo canal que ya llega al
+# log de GitHub Actions — mismo criterio que el PR #372 aplico a los logs de
+# E2E. compose ps primero: dice que contenedor exacto fallo (podria no ser
+# "app") antes de intentar volcar el suyo.
+volcar_diagnostico_si_falla() {
+    local fichero_compose="$1" env_file="${2:-}"
+    local args=(-f "$fichero_compose")
+    [ -n "$env_file" ] && args+=(--env-file "$env_file")
+
+    if ! docker compose "${args[@]}" up -d --build --wait --wait-timeout 180; then
+        echo "=== Despliegue no llego a sano — estado de los contenedores ===" >&2
+        docker compose "${args[@]}" ps >&2 || true
+        for contenedor in $(docker compose "${args[@]}" ps --format '{{.Name}}' 2>/dev/null || true); do
+            echo "=== docker logs --tail 300 ${contenedor} ===" >&2
+            docker logs --tail 300 "$contenedor" >&2 || true
+        done
+        exit 1
+    fi
+}
+
 case "$ENTORNO" in
   staging)
 # --wait: `up -d` a secas devuelve en cuanto los contenedores ARRANCAN, no
@@ -52,9 +78,9 @@ case "$ENTORNO" in
 #
 # 180 s con holgura: el arranque de la aplicacion incluye aplicar migraciones
 # pendientes, que tras varias semanas pueden ser muchas.
-    docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --build --wait --wait-timeout 180
+    volcar_diagnostico_si_falla docker-compose.staging.yml .env.staging
     ;;
   produccion)
-    docker compose -f docker-compose.produccion.yml up -d --build --wait --wait-timeout 180
+    volcar_diagnostico_si_falla docker-compose.produccion.yml
     ;;
 esac

@@ -1,5 +1,4 @@
 using CaeManager.Application.Common;
-using System.Text.Json;
 using CaeManager.Application.Auditoria.Queries;
 using CaeManager.Application.Centros.Commands.RestaurarCentro;
 using CaeManager.Application.Clientes.Commands.RestaurarCliente;
@@ -23,12 +22,6 @@ public partial class Auditoria : ComponentBase
     private static readonly string[] TiposEntidad =
         ["Cliente", "Empresa", "Centro", "Trabajador", "TipoDocumento", "Documento", "Asignacion", "ParametroSistema"];
 
-    // Solo estas 5 tienen Restaurar*Command (patrón "Deshacer", ver
-    // UX_PATTERNS.md § Eliminar) — son las únicas para las que la Auditoría
-    // puede ofrecer una restauración real (H1, docs/ux-audit/14-administracion.md).
-    private static readonly HashSet<string> EntidadesRestaurables =
-        ["Cliente", "Empresa", "Centro", "Trabajador", "Documento"];
-
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
@@ -38,7 +31,7 @@ public partial class Auditoria : ComponentBase
     [SupplyParameterFromQuery(Name = "entidad")]
     public string? EntidadTipoInicial { get; set; }
 
-    private ResultadoPaginado<RegistroAuditoriaDto>? _resultado;
+    private ResultadoPaginado<RegistroAuditoriaListaDto>? _resultado;
     private Dictionary<Guid, string> _usuariosPorId = new();
     private bool _cargando = true;
     private bool _error;
@@ -128,35 +121,9 @@ public partial class Auditoria : ComponentBase
     private string NombreUsuario(Guid? usuarioId) =>
         usuarioId is null ? "Sistema" : _usuariosPorId.GetValueOrDefault(usuarioId.Value, "—");
 
-    /// <summary>
-    /// H1 (docs/ux-audit/14-administracion.md): esto es lo que hace real la
-    /// promesa "Podrás recuperarlas desde Auditoría" del borrado en lote de
-    /// Cliente/Empresa/Centro/Trabajador/Documento. El borrado es lógico
-    /// (<c>MarcarComoEliminado()</c> solo cambia un flag), así que
-    /// <c>AuditoriaInterceptor</c> lo registra como "Modificado" — "Eliminado"
-    /// en <c>Accion</c> solo existe para un borrado físico que este dominio no
-    /// hace — por eso hay que mirar el JSON de <c>DatosDespues</c>, igual que
-    /// ya hace <see cref="TieneArchivoAnterior"/> con <c>DatosAntes</c>.
-    /// </summary>
-    private bool PuedeRestaurar(RegistroAuditoriaDto registro)
-    {
-        if (!EntidadesRestaurables.Contains(registro.EntidadTipo) || registro.Accion != "Modificado" || registro.DatosDespues is null)
-            return false;
+    private bool EstaRestaurando(RegistroAuditoriaListaDto registro) => _restaurando.Contains(registro.Id);
 
-        try
-        {
-            using var datosDespues = JsonDocument.Parse(registro.DatosDespues);
-            return datosDespues.RootElement.TryGetProperty("EstaEliminado", out var valor) && valor.ValueKind == JsonValueKind.True;
-        }
-        catch (JsonException)
-        {
-            return false;
-        }
-    }
-
-    private bool EstaRestaurando(RegistroAuditoriaDto registro) => _restaurando.Contains(registro.Id);
-
-    private async Task RestaurarAsync(RegistroAuditoriaDto registro)
+    private async Task RestaurarAsync(RegistroAuditoriaListaDto registro)
     {
         _restaurando.Add(registro.Id);
         StateHasChanged();
@@ -180,26 +147,5 @@ public partial class Auditoria : ComponentBase
             await CargarAsync();
         else
             StateHasChanged();
-    }
-
-    /// <summary>
-    /// El interceptor de auditoría ya guarda el ArchivoUrl anterior en el
-    /// JSON de DatosAntes de cada Modificado de Documento — esto solo
-    /// comprueba si hay uno para decidir si mostrar el enlace.
-    /// </summary>
-    private static bool TieneArchivoAnterior(RegistroAuditoriaDto registro)
-    {
-        if (registro.EntidadTipo != "Documento" || registro.Accion != "Modificado" || registro.DatosAntes is null)
-            return false;
-
-        try
-        {
-            using var datosAntes = JsonDocument.Parse(registro.DatosAntes);
-            return datosAntes.RootElement.TryGetProperty("ArchivoUrl", out var valor) && valor.ValueKind == JsonValueKind.String;
-        }
-        catch (JsonException)
-        {
-            return false;
-        }
     }
 }

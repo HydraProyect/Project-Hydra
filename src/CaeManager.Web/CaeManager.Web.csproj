@@ -54,6 +54,13 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
     <UserSecretsId>ba522848-01f2-4970-b23c-b2767f153435</UserSecretsId>
+    <!-- El Dockerfile restaura con -r linux-x64 (ver su comentario sobre por
+         qué hace falta el RID para que el SDK resuelva los assets estáticos
+         de Blazor). Declararlo aquí es lo que hace que ese target exista en
+         packages.lock.json junto al grafo sin RID que usan CI y el resto de
+         restores locales — sin esto, el restore del Dockerfile fallaría con
+         NU1004 (target ausente del lock) en cuanto el lock existiera. -->
+    <RuntimeIdentifiers>linux-x64</RuntimeIdentifiers>
   </PropertyGroup>
 
 </Project>
