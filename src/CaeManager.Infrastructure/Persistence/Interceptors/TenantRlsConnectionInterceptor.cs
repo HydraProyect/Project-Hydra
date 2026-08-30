@@ -107,40 +107,77 @@ public class TenantRlsConnectionInterceptor(
     /// </summary>
     private async Task PrepararSesionAsync(NpgsqlConnection connection, CancellationToken cancellationToken)
     {
-        await FijarTenantDeSesionAsync(connection, cancellationToken);
-        await FijarTenantOrigenDeSesionAsync(connection, cancellationToken);
-        await FijarUsuarioDeSesionAsync(connection, cancellationToken);
+        await FijarVariablesDeSesionAsync(connection, cancellationToken);
 
         if (clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is not null)
             await AdoptarRolDeSoporteAsync(connection, cancellationToken);
     }
 
     /// <summary>
-    /// Segunda variable de sesión, para los catálogos globales de asignación.
+    /// Las tres coordenadas de sesión (mejora 🟠 #1 de la auditoría del Módulo 1,
+    /// 2026-08-30: rendimiento en el camino más crítico de seguridad) en un único
+    /// <c>set_config</c> por variable pero un único viaje de ida y vuelta a
+    /// Postgres, en vez de tres comandos separados. Antes eran tres
+    /// <c>ExecuteNonQueryAsync</c> independientes — uno por variable— en cada
+    /// apertura de conexión; ahora es uno solo con tres parámetros. El único
+    /// comando que queda fuera es <c>SET ROLE</c> (<see cref="AdoptarRolDeSoporteAsync"/>):
+    /// no admite parámetro y tiene que ir después de estas tres por el orden que
+    /// documenta <see cref="PrepararSesionAsync"/>, así que combinarlo aquí no
+    /// ahorraría un viaje — seguiría siendo un segundo comando — y sí complicaría
+    /// esta consulta con una rama condicional dentro de una sola cadena SQL.
     ///
-    /// <c>app.tenant_id</c> no sirve para ellos: refleja el workspace <b>activo</b>,
-    /// que dentro de un workspace delegado es el del propietario. Un operador que
-    /// quisiera ver "mis workspaces" —las asignaciones donde él es el operador—
-    /// no encontraría ninguna, porque su propio tenant no es el que está fijado.
-    /// Por eso hacen falta las dos: una dice desde dónde se opera, la otra qué se
-    /// está operando.
+    /// <para>
+    /// <b><c>app.tenant_id</c></b>: el tenant activo. Sin tenant resuelto (login,
+    /// operaciones sobre tablas de Identity sin filtro) se fija una cadena vacía
+    /// a propósito — <c>NULLIF(current_setting(...), '')::uuid</c> da <c>NULL</c>,
+    /// y <c>NULL</c> nunca iguala ningún <c>TenantId</c> real en la política:
+    /// fallo cerrado, el mismo principio que <see cref="ITenantActual.TenantId"/>
+    /// devolviendo <c>null</c>.
+    /// </para>
     ///
-    /// Sale del claim de sesión (<c>ObtenerTenantOrigenIdAsync</c>), que es el
-    /// tenant al que el usuario pertenece y lo único que la selección de
-    /// workspace no puede cambiar. Leer el claim no toca la base de datos, así
-    /// que no hay reentrancia con la conexión que se está abriendo.
+    /// <para>
+    /// <b><c>app.tenant_origen_id</c></b>: segunda variable de sesión, para los
+    /// catálogos globales de asignación. <c>app.tenant_id</c> no sirve para
+    /// ellos: refleja el workspace <b>activo</b>, que dentro de un workspace
+    /// delegado es el del propietario. Un operador que quisiera ver "mis
+    /// workspaces" —las asignaciones donde él es el operador— no encontraría
+    /// ninguna, porque su propio tenant no es el que está fijado. Por eso hacen
+    /// falta las dos: una dice desde dónde se opera, la otra qué se está
+    /// operando. Sale del claim de sesión (<c>ObtenerTenantOrigenIdAsync</c>),
+    /// que es el tenant al que el usuario pertenece y lo único que la selección
+    /// de workspace no puede cambiar. Leer el claim no toca la base de datos, así
+    /// que no hay reentrancia con la conexión que se está abriendo. Cadena vacía
+    /// cuando no hay usuario, igual que la anterior — fallo cerrado.
+    /// </para>
     ///
-    /// Cadena vacía cuando no hay usuario, igual que la otra:
-    /// <c>NULLIF(..., '')::uuid</c> da <c>NULL</c> y <c>NULL</c> no iguala a
-    /// ningún tenant real. Fallo cerrado.
+    /// <para>
+    /// <b><c>app.usuario_id</c></b>: tercera coordenada de sesión, quién. La usan
+    /// las políticas del plano de privilegio de plataforma para acotar cada fila
+    /// a quien la nombra. Es una coordenada, no una capacidad: la identidad
+    /// autenticada, igual que <c>app.tenant_id</c> es el tenant activo. Cadena
+    /// vacía sin usuario (jobs de fondo, siembra al arrancar): las políticas del
+    /// plano 3 no encuentran ninguna fila, que es lo correcto.
+    /// </para>
+    ///
+    /// <c>set_config</c> se invoca como función parametrizada (no
+    /// <c>SET app.x = '...'</c> interpolado) para no construir SQL a partir de un
+    /// valor variable, aunque hoy ese valor sea siempre un <see cref="Guid"/>
+    /// generado por el propio sistema.
     /// </summary>
-    private async Task FijarTenantOrigenDeSesionAsync(NpgsqlConnection connection, CancellationToken cancellationToken)
+    private async Task FijarVariablesDeSesionAsync(NpgsqlConnection connection, CancellationToken cancellationToken)
     {
+        var tenantId = tenantActual.TenantId;
         var tenantOrigenId = await currentUserService.ObtenerTenantOrigenIdAsync();
+        var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
 
         await using var comando = connection.CreateCommand();
-        comando.CommandText = "SELECT set_config('app.tenant_origen_id', @valor, false);";
-        comando.Parameters.AddWithValue("valor", tenantOrigenId?.ToString() ?? string.Empty);
+        comando.CommandText =
+            "SELECT set_config('app.tenant_id', @tenantId, false), " +
+            "set_config('app.tenant_origen_id', @tenantOrigenId, false), " +
+            "set_config('app.usuario_id', @usuarioId, false);";
+        comando.Parameters.AddWithValue("tenantId", tenantId?.ToString() ?? string.Empty);
+        comando.Parameters.AddWithValue("tenantOrigenId", tenantOrigenId?.ToString() ?? string.Empty);
+        comando.Parameters.AddWithValue("usuarioId", usuarioId?.ToString() ?? string.Empty);
         await comando.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -179,47 +216,6 @@ public class TenantRlsConnectionInterceptor(
 
         await using var comando = connection.CreateCommand();
         comando.CommandText = "RESET ROLE;";
-        await comando.ExecuteNonQueryAsync(cancellationToken);
-    }
-
-    private async Task FijarTenantDeSesionAsync(NpgsqlConnection connection, CancellationToken cancellationToken)
-    {
-        await using var comando = connection.CreateCommand();
-        comando.CommandText = "SELECT set_config('app.tenant_id', @valor, false);";
-        comando.Parameters.AddWithValue("valor", tenantActual.TenantId?.ToString() ?? string.Empty);
-        await comando.ExecuteNonQueryAsync(cancellationToken);
-    }
-
-    /// <summary>
-    /// Tercera coordenada de sesión: <b>quién</b>. La usan las políticas del
-    /// plano de privilegio de plataforma para acotar cada fila a quien la
-    /// nombra.
-    ///
-    /// <b>Es una coordenada, no una capacidad</b>, y el nombre lo dice: es la
-    /// identidad autenticada, igual que <c>app.tenant_id</c> es el tenant activo.
-    /// No existe —ni debe existir— una variable <c>app.usuario_plataforma_id</c>:
-    /// eso incrustaría en la sesión una afirmación de privilegio que la sesión no
-    /// está en posición de hacer. Ser usuario de plataforma no se declara al
-    /// abrir la conexión; se deriva de que existan filas de concesión que te
-    /// nombren. Si no las hay, las políticas no devuelven nada, sin que nadie
-    /// haya tenido que comprobar nada.
-    ///
-    /// Esa asimetría es la que evita una dependencia circular: para saber si el
-    /// usuario es de plataforma habría que consultar <c>Tenants</c> — sobre la
-    /// conexión que se está abriendo en este preciso instante. El claim
-    /// <c>NameIdentifier</c>, en cambio, ya está en memoria.
-    ///
-    /// Cadena vacía sin usuario (jobs de fondo, siembra al arrancar): las
-    /// políticas del plano 3 no encuentran ninguna fila, que es lo correcto —
-    /// ninguno de esos procesos necesita nada de ahí.
-    /// </summary>
-    private async Task FijarUsuarioDeSesionAsync(NpgsqlConnection connection, CancellationToken cancellationToken)
-    {
-        var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
-
-        await using var comando = connection.CreateCommand();
-        comando.CommandText = "SELECT set_config('app.usuario_id', @valor, false);";
-        comando.Parameters.AddWithValue("valor", usuarioId?.ToString() ?? string.Empty);
         await comando.ExecuteNonQueryAsync(cancellationToken);
     }
 

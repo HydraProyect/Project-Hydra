@@ -110,13 +110,27 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // las asignaciones que opera. Mismo carácter que las otras tres:
         // sentencia fija, parametrizada, sin tocar datos.
         //
-        // Sube de 4 a 5 con las políticas RLS del plano de privilegio: la quinta
-        // fija app.usuario_id, la identidad autenticada. Es una COORDENADA, no
-        // una capacidad — deliberadamente no se llama app.usuario_plataforma_id,
-        // porque ese nombre incrustaría en la sesión una afirmación de
-        // privilegio. Ser de plataforma se deriva de que existan filas de
-        // concesión que te nombren, no de lo que la conexión declare al abrirse.
-        [("src/CaeManager.Infrastructure/Persistence/Interceptors/TenantRlsConnectionInterceptor.cs", "await using var comando = connection.CreateCommand();")] = 5,
+        // Subió de 4 a 5 con las políticas RLS del plano de privilegio: la
+        // quinta fijaba app.usuario_id, la identidad autenticada. Es una
+        // COORDENADA, no una capacidad — deliberadamente no se llama
+        // app.usuario_plataforma_id, porque ese nombre incrustaría en la
+        // sesión una afirmación de privilegio. Ser de plataforma se deriva de
+        // que existan filas de concesión que te nombren, no de lo que la
+        // conexión declare al abrirse.
+        //
+        // Baja de 5 a 3 (mejora 🟠 #1 de la auditoría del Módulo 1,
+        // 2026-08-31): las tres coordenadas de sesión (app.tenant_id,
+        // app.tenant_origen_id, app.usuario_id) se combinaron en un único
+        // comando parametrizado con tres parámetros — un solo viaje a
+        // Postgres en vez de tres, en el camino más crítico de seguridad.
+        // Los 3 que quedan son: el comando combinado de las tres variables,
+        // el SET ROLE al rol cae_app_soporte, y su RESET ROLE al cerrar —
+        // este último no se pudo combinar con el anterior porque SET ROLE no
+        // admite parámetro y tiene que ir después por el orden que documenta
+        // PrepararSesionAsync. Verificado con la suite de RLS y aislamiento
+        // completa contra PostgreSQL real (109/109 antes y después) y una
+        // mutación revertida que confirmó sensibilidad.
+        [("src/CaeManager.Infrastructure/Persistence/Interceptors/TenantRlsConnectionInterceptor.cs", "await using var comando = connection.CreateCommand();")] = 3,
 
         // Elección de líder entre réplicas con pg_try_advisory_lock/
         // pg_advisory_unlock: no existe equivalente en EF Core, así que va
