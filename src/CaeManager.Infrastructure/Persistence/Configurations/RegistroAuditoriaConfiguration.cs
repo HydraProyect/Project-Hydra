@@ -22,18 +22,29 @@ public class RegistroAuditoriaConfiguration : IEntityTypeConfiguration<RegistroA
         // normal en uno privilegiado.
         builder.Property(r => r.ViaAcceso).HasConversion<string>().HasMaxLength(20);
 
-        builder.HasIndex(r => new { r.EntidadTipo, r.EntidadId });
-        builder.HasIndex(r => r.FechaUtc);
+        // Con TenantId primero en los cuatro: el filtro global de EF Core
+        // (RegistroAuditoria es EntidadConTenant) añade WHERE TenantId = ...
+        // a TODA consulta real contra esta tabla, aunque ningún .Where() lo
+        // escriba explícitamente — un índice que no empiece por esa columna
+        // no puede servir de prefijo para ese filtro (auditoría Módulo 8).
+        builder.HasIndex(r => new { r.TenantId, r.FechaUtc })
+            .HasDatabaseName("IX_RegistrosAuditoria_TenantId_FechaUtc");
+        builder.HasIndex(r => new { r.TenantId, r.EntidadTipo, r.EntidadId, r.FechaUtc })
+            .HasDatabaseName("IX_RegistrosAuditoria_TenantId_EntidadTipo_EntidadId_FechaUtc");
+        builder.HasIndex(r => new { r.TenantId, r.UsuarioId, r.FechaUtc })
+            .HasDatabaseName("IX_RegistrosAuditoria_TenantId_UsuarioId_FechaUtc");
 
         // "¿Qué hizo realmente este administrador?" es la pregunta que una
         // impersonación obliga a poder responder, y no se contesta filtrando
         // por UsuarioId: ahí figurará el usuario simulado.
-        builder.HasIndex(r => r.ActorRealUsuarioId)
-            .HasFilter($"\"{nameof(RegistroAuditoria.ActorRealUsuarioId)}\" IS NOT NULL");
+        builder.HasIndex(r => new { r.TenantId, r.ActorRealUsuarioId, r.FechaUtc })
+            .HasFilter($"\"{nameof(RegistroAuditoria.ActorRealUsuarioId)}\" IS NOT NULL")
+            .HasDatabaseName("IX_RegistrosAuditoria_TenantId_ActorRealUsuarioId_FechaUtc");
 
         // "¿Qué se tocó bajo esta delegación?" — hoy exigiría cruzar la
         // auditoría con la tabla de asignaciones a mano.
-        builder.HasIndex(r => r.ViaAccesoId)
-            .HasFilter($"\"{nameof(RegistroAuditoria.ViaAccesoId)}\" IS NOT NULL");
+        builder.HasIndex(r => new { r.TenantId, r.ViaAccesoId })
+            .HasFilter($"\"{nameof(RegistroAuditoria.ViaAccesoId)}\" IS NOT NULL")
+            .HasDatabaseName("IX_RegistrosAuditoria_TenantId_ViaAccesoId");
     }
 }
