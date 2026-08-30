@@ -1,7 +1,9 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Integraciones.Commands.ConectarBuzonMicrosoft365;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Domain.Empresas;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace CaeManager.Application.Tests.Integraciones;
@@ -15,10 +17,11 @@ public class ConectarBuzonMicrosoft365CommandHandlerTests
         EmpresaRepositorioFalso clienteRepositorio,
         AlcanceDatosServiceFalso alcanceDatos,
         Microsoft365GraphClientFalso graphClient,
-        UnitOfWorkFalso unitOfWork,
+        IUnitOfWork unitOfWork,
         DirectorioUsuariosServiceFalso? directorioUsuarios = null) =>
         new(conexionRepositorio, credencialRepositorio, suscripcionRepositorio, clienteRepositorio, alcanceDatos,
-            directorioUsuarios ?? new DirectorioUsuariosServiceFalso(), graphClient, unitOfWork);
+            directorioUsuarios ?? new DirectorioUsuariosServiceFalso(), graphClient, unitOfWork,
+            NullLogger<ConectarBuzonMicrosoft365CommandHandler>.Instance);
 
     [Fact]
     public async Task Conecta_un_buzon_del_propio_tenant_y_persiste_conexion_credencial_y_suscripcion()
@@ -126,5 +129,36 @@ public class ConectarBuzonMicrosoft365CommandHandlerTests
 
         resultado.EsFallido.Should().BeTrue();
         unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Auditoría módulo 6: la suscripción en Graph se crea ANTES del commit
+    /// local. Si el guardado falla, no debe quedar una suscripción huérfana
+    /// en Graph de la que Hydra nunca sabrá — el handler debe compensar
+    /// (best-effort) eliminándola antes de propagar el fallo.
+    /// </summary>
+    [Fact]
+    public async Task Si_el_guardado_local_falla_elimina_la_suscripcion_ya_creada_en_Graph()
+    {
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        var graphClient = new Microsoft365GraphClientFalso();
+        var unitOfWork = new UnitOfWorkQueFallaFalso();
+        var handler = CrearHandler(
+            conexionRepositorio, new CredencialIntegracionRepositorioFalso(), new SuscripcionWebhookRepositorioFalso(),
+            new EmpresaRepositorioFalso(), new AlcanceDatosServiceFalso(), graphClient, unitOfWork);
+
+        var accion = () => handler.Handle(
+            new ConectarBuzonMicrosoft365Command(
+                "cae@tenant.com", "Buzón CAE", ClienteId: null, "access-token", "refresh-token", "https://hydra.local"),
+            CancellationToken.None);
+
+        await accion.Should().ThrowAsync<InvalidOperationException>("el fallo original de guardado no debe quedar enmascarado");
+        graphClient.SuscripcionesEliminadas.Should().ContainSingle("la suscripción creada en Graph no debe quedar huérfana");
+    }
+
+    private sealed class UnitOfWorkQueFallaFalso : IUnitOfWork
+    {
+        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Fallo simulado de guardado.");
     }
 }
