@@ -37,9 +37,25 @@ public record GenerarDocumentoIndividualResultadoDto(Guid DocumentoGeneradoId, G
 
 public class GenerarDocumentoIndividualCommandValidator : AbstractValidator<GenerarDocumentoIndividualCommand>
 {
+    // Anti-abuso (auditoría de seguridad del módulo, 2026-08-30): sin límite,
+    // el valor manual (texto libre del gestor) se serializa sin cota en
+    // DocumentoGenerado.DatosUtilizadosJson — un valor no acotado o un número
+    // arbitrario de ellos infla ese JSON sin ningún control. No hay tantos
+    // PlantillaElemento con FuenteDato Manual en una plantilla real como para
+    // acercarse a este límite.
+    public const int LongitudMaximaValorManual = 2000;
+    public const int MaximoValoresManuales = 200;
+
     public GenerarDocumentoIndividualCommandValidator()
     {
         RuleFor(c => c.PlantillaDocumentoVersionId).NotEmpty();
         RuleFor(c => c.OwnerId).NotEmpty();
+        RuleFor(c => c.ValoresManuales)
+            .Must(v => v is null || v.Count <= MaximoValoresManuales)
+            .WithMessage($"No se pueden enviar más de {MaximoValoresManuales} valores manuales.");
+        RuleForEach(c => c.ValoresManuales)
+            .Must(kv => kv.Value is null || kv.Value.Length <= LongitudMaximaValorManual)
+            .WithMessage($"Cada valor manual no puede superar {LongitudMaximaValorManual} caracteres.")
+            .When(c => c.ValoresManuales is not null);
     }
 }
