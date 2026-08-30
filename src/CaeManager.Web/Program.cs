@@ -679,6 +679,12 @@ app.UseAuthentication();
 // SesionPrivilegiadaSinRolDeNegocioMiddleware).
 app.UseSesionPrivilegiadaSinRolDeNegocio();
 
+// Inmediatamente después del anterior y ANTES de UseAuthorization: bajo un
+// workspace delegado (plano 2) el claim de rol es el del tenant de ORIGEN, y
+// las puertas [Authorize(Roles = …)] lo creerían. Aquí se sustituye por el rol
+// efectivo de la cartera de ese workspace (ver RolEfectivoDelWorkspaceMiddleware).
+app.UseRolEfectivoDelWorkspace();
+
 // Tras UseAuthentication (el límite distingue anónimo/autenticado) y antes
 // de que ningún endpoint procese la petición.
 app.UseRateLimiter();

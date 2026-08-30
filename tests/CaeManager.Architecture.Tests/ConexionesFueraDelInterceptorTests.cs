@@ -61,6 +61,20 @@ public class ConexionesFueraDelInterceptorTests
         // así que no hay filas que aislar ni escritura que impedir. Corre en un
         // servicio de fondo, sin petición ni usuario en juego.
         "src/CaeManager.Infrastructure/Coordinacion/EleccionLiderPostgresService.cs",
+
+        // Comprobación de arranque de que la identidad de conexión del tráfico
+        // está sometida a RLS. No lee ninguna tabla de negocio: solo
+        // current_user, sus atributos en pg_roles y si es propietaria de alguna
+        // tabla con RLS — metadatos de la sesión, no filas que aislar, así que
+        // no hay nada que app.tenant_id pudiera filtrar.
+        //
+        // Y el SET ROLE de soporte sería justamente lo que la invalidaría:
+        // adoptar otro rol cambia current_user, de modo que la comprobación
+        // mediría la identidad adoptada en vez de aquella con la que la
+        // aplicación autentica, que es la única que decide si PostgreSQL aplica
+        // las políticas. Pasar por el interceptor no la haría más segura: la
+        // dejaría ciega a lo que existe para observar.
+        "src/CaeManager.Infrastructure/Persistence/VerificacionIdentidadDeRuntime.cs",
     ];
 
     [Fact]
