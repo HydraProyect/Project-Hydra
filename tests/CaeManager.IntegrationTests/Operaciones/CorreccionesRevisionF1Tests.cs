@@ -350,6 +350,80 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
         }
     }
 
+    // ---------- Auditoría Módulo 5: rol delegado falla cerrado ----------
+
+    [Fact]
+    public async Task Reasignar_a_un_usuario_del_operador_sin_asignacion_delegada_falla_en_vez_de_heredar_GestorCae()
+    {
+        // Antes de la corrección, ObtenerRolDelegadoAsync devolvía
+        // Roles.GestorCae cuando no encontraba fila: cualquier usuario del
+        // tenant operador con una operación externa vigente entraba al tenant
+        // propietario, aunque nadie lo hubiera dado de alta como operador
+        // delegado. El backfill deja la operación externa vigente.
+        await EjecutarBackfillAsync();
+
+        var otroUsuarioConsultora = Guid.NewGuid();
+        await using (var contexto = CrearContexto(_propietario))
+        {
+            contexto.Users.Add(new ApplicationUser
+            {
+                Id = otroUsuarioConsultora,
+                TenantId = _consultora,
+                UserName = "otro@consultora",
+                Email = "otro@consultora"
+            });
+            await contexto.SaveChangesAsync();
+        }
+
+        await using (var contexto = CrearContexto(_propietario))
+        {
+            var writer = new AsignacionesOperativasWriter(
+                contexto, new TenantActualAmbiental { TenantId = _propietario },
+                new CurrentUserServiceFalso(_gestorPropietario, Roles.Administrador));
+
+            await writer.Invoking(w => w.ReasignarCarteraClienteAsync(_clienteId, otroUsuarioConsultora))
+                .Should().ThrowAsync<UnauthorizedAccessException>();
+        }
+
+        await using var verificacion = CrearContexto(_propietario);
+        (await verificacion.AsignacionesCartera.AnyAsync(c => c.UsuarioId == otroUsuarioConsultora))
+            .Should().BeFalse("el fallo cerrado no puede dejar escrita una cartera para un usuario sin autorizar");
+    }
+
+    [Fact]
+    public async Task Reasignar_a_un_operador_de_una_delegacion_desactivada_falla_aunque_la_operacion_siga_vigente()
+    {
+        // ObtenerRolDelegadoAsync comprueba Activa por sí mismo, sin depender
+        // de que la operación externa ya se haya cerrado en cascada — las dos
+        // comprobaciones son capas independientes, no una la garantía de la
+        // otra (ver AbrirCarteraOperadorAsync/CerrarOperacionDelegadaAsync).
+        //
+        // La operación externa se crea a mano, sin pasar por el backfill: el
+        // backfill dejaría a _gestorConsultora como dueño YA vigente de la
+        // cartera del cliente, y el "ya es suya" de ReasignarCarteraClienteAsync
+        // haría un return temprano antes de llegar a ObtenerRolDelegadoAsync.
+        var ahora = DateTime.UtcNow;
+        await using (var contexto = CrearContexto(_propietario))
+        {
+            contexto.AsignacionesOperacion.Add(AsignacionOperacion.Externa(
+                _propietario, _consultora, ServicioCae.Outbound, AmbitoAsignacion.Universal,
+                ahora.AddMinutes(-5), null, ahora.AddMinutes(-5)));
+
+            var delegacion = await contexto.DelegacionesTenant.SingleAsync(d => d.Id == _delegacionId);
+            delegacion.Desactivar();
+
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var verificacionContexto = CrearContexto(_propietario);
+        var writer = new AsignacionesOperativasWriter(
+            verificacionContexto, new TenantActualAmbiental { TenantId = _propietario },
+            new CurrentUserServiceFalso(_gestorPropietario, Roles.Administrador));
+
+        await writer.Invoking(w => w.ReasignarCarteraClienteAsync(_clienteId, _gestorConsultora))
+            .Should().ThrowAsync<UnauthorizedAccessException>();
+    }
+
     // ---------- utilidades ----------
 
     private async Task<IReadOnlyList<Guid>?> ClientesVisiblesParaElGestorDelegadoAsync()
