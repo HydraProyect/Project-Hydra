@@ -94,6 +94,35 @@ public class AutoridadAsignacionesService(
         return centrosDelTenant.Where(enAmbito.Contains).ToList();
     }
 
+    public async Task<bool> PuedeModificarAsignacionesDelTrabajadorAsync(
+        Guid trabajadorId, CancellationToken cancellationToken = default)
+    {
+        var trabajadoresPermitidos = await FiltrarTrabajadoresConAutoridadAsync([trabajadorId], cancellationToken);
+        return trabajadoresPermitidos.Count == 1;
+    }
+
+    public async Task<IReadOnlyList<Guid>> FiltrarTrabajadoresConAutoridadAsync(
+        IReadOnlyList<Guid> trabajadorIds, CancellationToken cancellationToken = default)
+    {
+        if (trabajadorIds.Count == 0) return [];
+
+        if (!await TieneCapacidadAdministrativaAsync(cancellationToken)) return [];
+
+        var trabajadoresDelTenant = await dbContext.Trabajadores
+            .Where(t => trabajadorIds.Contains(t.Id))
+            .Select(t => t.Id)
+            .ToListAsync(cancellationToken);
+
+        if (trabajadoresDelTenant.Count == 0) return [];
+
+        var trabajadoresEnAmbito = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
+
+        if (trabajadoresEnAmbito is null) return trabajadoresDelTenant;
+
+        var enAmbito = trabajadoresEnAmbito.ToHashSet();
+        return trabajadoresDelTenant.Where(enAmbito.Contains).ToList();
+    }
+
     private async Task<bool> TieneCapacidadAdministrativaAsync(CancellationToken cancellationToken)
     {
         if (await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is not null) return false;

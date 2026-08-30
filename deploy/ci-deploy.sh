@@ -13,7 +13,40 @@
 # dispararse, aunque la aprobación manual de producción tarde horas y main
 # haya avanzado mientras tanto (incidente 2026-08-26 con
 # `git merge --ff-only origin/main`, ver deploy/resolve-deploy-sha.sh).
+#
+# LIMITACIÓN CONOCIDA, no un defecto: un cambio a ESTE fichero tarda un
+# despliegue en surtir efecto. SSH ejecuta la copia que ya hay en disco en
+# /opt/talveg antes de que el checkout de más abajo la actualice — el
+# guion que orquesta el checkout tiene que existir ya, coherente, antes de
+# poder correr el checkout que lo trae al día. Así que el primer despliegue
+# tras tocar ci-deploy.sh sigue ejecutando la versión ANTERIOR (completa y
+# sin corromper, gracias al main() de más abajo — eso es lo que este
+# fichero sí garantiza) y es el SEGUNDO despliegue el que ya corre con el
+# cambio. Visto de verdad: el diagnóstico que #376 añadió aquí no apareció
+# en el primer run tras mergearse, pese a estar ya en main. Cerrarlo del
+# todo exigiría que el comando forzado de authorized_keys hiciera un
+# bootstrap mínimo (fetch + checkout) y luego un exec de la copia ya
+# actualizada — eso es configuración del VPS, no código versionado en este
+# repositorio, así que queda pendiente de decisión.
 set -euo pipefail
+
+# Todo el cuerpo va dentro de una función, llamada al final, para que bash lo
+# parsee entero ANTES de ejecutar la primera línea. Sin esto, este script se
+# auto-modifica en pleno vuelo: resolve-deploy-sha.sh (más abajo) hace un
+# `git checkout --detach` sobre /opt/talveg, que es el propio checkout donde
+# vive este fichero — y es LA COPIA EN DISCO del VPS la que se ejecuta (ver
+# el comentario del "comando forzado" de arriba), no la del runner. bash lee
+# el script por bloques con un offset de bytes, no lo bufferiza entero de
+# entrada: si el fichero cambia de tamaño a mitad de ejecución, el offset
+# sigue avanzando sobre el contenido NUEVO y puede ejecutar un híbrido sin
+# sentido o cortar una sentencia por la mitad, sin que nada lo señale. Hoy
+# solo se detectó un diagnóstico que tardó un despliegue entero en surtir
+# efecto (el volcado de logs de más abajo, auditoría de colas 2026-08-30);
+# con otro cambio podría ejecutar basura sobre el VPS. Definir una función
+# fuerza a bash a leer hasta la llave de cierre antes de poder llamarla, así
+# que en el momento en que `main` empieza a correr el fichero ya está
+# parseado entero y da igual que cambie en disco a partir de ahí.
+main() {
 
 read -r ENTORNO SHA <<< "${SSH_ORIGINAL_COMMAND:-}"
 
@@ -84,3 +117,7 @@ case "$ENTORNO" in
     volcar_diagnostico_si_falla docker-compose.produccion.yml
     ;;
 esac
+
+}
+
+main "$@"

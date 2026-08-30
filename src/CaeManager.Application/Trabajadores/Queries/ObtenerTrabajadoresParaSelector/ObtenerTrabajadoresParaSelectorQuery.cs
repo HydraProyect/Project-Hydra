@@ -7,7 +7,7 @@ namespace CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSel
 
 public record ObtenerTrabajadoresParaSelectorQuery : IRequest<IReadOnlyList<TrabajadorSelectorDto>>;
 
-public record TrabajadorSelectorDto(Guid Id, string NombreCompleto, string Dni, string? Alias);
+public record TrabajadorSelectorDto(Guid Id, string NombreCompleto, string? Dni, string? Alias);
 
 public class ObtenerTrabajadoresParaSelectorQueryHandler(ITrabajadoresQueryContext dbContext)
     : IRequestHandler<ObtenerTrabajadoresParaSelectorQuery, IReadOnlyList<TrabajadorSelectorDto>>

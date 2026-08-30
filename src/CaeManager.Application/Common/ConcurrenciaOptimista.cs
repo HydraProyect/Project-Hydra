@@ -30,7 +30,7 @@ public static class ConcurrenciaOptimista
     /// todavía no propagan la versión, y lo que permite migrar agregado a
     /// agregado sin dejar ninguna edición rota por el camino.
     /// </summary>
-    public static Error? Verificar(EntidadBase entidad, Guid versionEsperada, string nombreParaElUsuario)
+    public static Error? Verificar(IVersionable entidad, Guid versionEsperada, string nombreParaElUsuario)
     {
         if (versionEsperada == Guid.Empty || entidad.Version == versionEsperada)
             return null;

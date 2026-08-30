@@ -44,6 +44,32 @@ services:
       context: ../..
       dockerfile: Dockerfile
     container_name: caemanager-staging-app
+    # Techo de memoria del contenedor. Sin el, un desbordamiento dentro de la
+    # app no se queda en la app: el contenedor comparte maquina con Postgres,
+    # Caddy y Seq, asi que el OOM killer del kernel elige victima por su propio
+    # criterio y puede llevarse la BASE DE DATOS en vez del proceso culpable.
+    # Con el techo, el peor caso pasa a ser "se reinicia el contenedor de la
+    # app" —hay restart: unless-stopped— en lugar de "cae el stack entero".
+    #
+    # Importa aqui mas que en otros servicios porque es donde corren los
+    # parsers sobre contenido que sube el usuario: PDFsharp, los
+    # decodificadores de imagen y LibreOffice. Los limites de entrada que ya
+    # existen (tope por archivo, presupuesto por lote, maximo de pixeles antes
+    # de decodificar) acotan lo previsible; este techo acota lo que no se
+    # previo, que es justo lo que hace falta frente a un fallo de parser.
+    #
+    # .NET lee el limite del cgroup y dimensiona su GC con el, asi que en muchos
+    # casos la peticion culpable falla con OutOfMemoryException y el proceso
+    # sigue sirviendo, en vez de morir el contenedor entero.
+    #
+    # EL VALOR ES LA UNICA PARTE NO MEDIDA de este cambio: no se ha comprobado
+    # ni la RAM de la maquina ni el consumo real en operacion. 3g deja holgura
+    # sobre el peor lote legitimo (60 archivos de 10 MB mas las copias de la
+    # conversion) y sigue muy por debajo de los varios GB que costaba un
+    # archivo hostil antes de los limites de entrada. Ajustalo con
+    # LIMITE_MEMORIA_APP en el .env tras mirar `free -g` y
+    # `docker stats caemanager-app` en el servidor.
+    mem_limit: ${LIMITE_MEMORIA_APP:-3g}
     restart: unless-stopped
     # Ver el comentario de docker-compose.produccion.yml sobre
     # ConnectionStrings__CaeManagerDbRuntime: se inyecta entero vía

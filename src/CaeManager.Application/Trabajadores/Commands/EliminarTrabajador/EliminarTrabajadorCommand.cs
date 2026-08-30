@@ -7,13 +7,14 @@ using MediatR;
 
 namespace CaeManager.Application.Trabajadores.Commands.EliminarTrabajador;
 
-public record EliminarTrabajadorCommand(Guid Id, Guid UsuarioId) : ICommand;
+public record EliminarTrabajadorCommand(Guid Id) : ICommand;
 
 public class EliminarTrabajadorCommandHandler(
     ITrabajadorRepository repositorio,
     IAsignacionRepository asignaciones,
     IAlcanceDatosService alcanceDatos,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    ICurrentUserService currentUserService)
     : IRequestHandler<EliminarTrabajadorCommand, Result>
 {
     public async Task<Result> Handle(EliminarTrabajadorCommand request, CancellationToken cancellationToken)
@@ -22,7 +23,12 @@ public class EliminarTrabajadorCommandHandler(
         if (trabajador is null || !await alcanceDatos.TrabajadorVisibleAsync(trabajador.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Trabajador.NoEncontrado", "No encontramos este trabajador."));
 
-        trabajador.MarcarComoEliminado(request.UsuarioId);
+        // Auditoría Módulo 5, hallazgo crítico 7/9 — ver EliminarCentroCommand.
+        var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
+        if (usuarioId is null)
+            return Result.Fallo(Error.Crear("Trabajador.SinIdentidad", "No se pudo confirmar tu identidad. Vuelve a iniciar sesión e inténtalo de nuevo."));
+
+        trabajador.MarcarComoEliminado(usuarioId.Value);
         await CierreDeAsignaciones.PorTrabajadorEliminadoAsync(asignaciones, trabajador.Id, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

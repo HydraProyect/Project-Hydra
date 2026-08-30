@@ -24,7 +24,8 @@ public class CrearProyectoCommandValidator : AbstractValidator<CrearProyectoComm
 }
 
 public class CrearProyectoCommandHandler(
-    IProyectoRepository repositorio, ICentrosQueryContext dbContext, IUnitOfWork unitOfWork)
+    IProyectoRepository repositorio, ICentrosQueryContext dbContext,
+    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearProyectoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearProyectoCommand request, CancellationToken cancellationToken)
@@ -39,6 +40,12 @@ public class CrearProyectoCommandHandler(
 
         if (centro.ClienteId != request.ClienteId)
             return Result.Fallo<Guid>(Error.Crear("Proyecto.CentroNoPerteneceACliente", "Este centro no pertenece al cliente seleccionado."));
+
+        // Autoridad sobre el cliente, no solo existencia (auditoría Módulo 5,
+        // hallazgo crítico 5/9) — mismo criterio que usan ya las escrituras
+        // de Proyecto existentes (ver ProyectoAutorizacion).
+        if (!await ProyectoAutorizacion.VisibleAsync(request.ClienteId, alcanceDatos, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear("Proyecto.CentroNoEncontrado", "No encontramos este centro."));
 
         if (await repositorio.ExisteNombreParaClienteAsync(request.ClienteId, request.Nombre, cancellationToken: cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Proyecto.NombreDuplicado", "Ya existe un proyecto con este nombre para el cliente seleccionado."));

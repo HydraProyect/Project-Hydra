@@ -10,8 +10,8 @@ namespace CaeManager.Infrastructure.DataProtection;
 /// <summary>
 /// Comprueba al arrancar que el bucket de <c>DataProtection:S3</c> configurado
 /// existe, es accesible y hace el viaje completo de ida y vuelta (put/get/
-/// delete) — mismo criterio que <c>VerificacionKmsHostedService</c>/
-/// <c>VerificacionAlmacenamientoS3HostedService</c>: una credencial IAM mal
+/// delete) — mismo criterio que <c>VerificacionKmsHostedService</c>:
+/// una credencial IAM mal
 /// copiada no se nota hasta que una réplica necesita descifrar algo que
 /// cifró otra, y ahí ya es tarde.
 /// </summary>

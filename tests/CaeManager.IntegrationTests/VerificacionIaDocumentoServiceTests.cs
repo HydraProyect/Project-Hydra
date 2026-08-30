@@ -197,7 +197,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
 
     /// <summary>
     /// D3: un archivo que ya no existe (IFileStorageService.AbrirAsync lo
-    /// normaliza siempre a FileNotFoundException, ver Disk/S3FileStorageService)
+    /// normaliza siempre a FileNotFoundException, ver DiskFileStorageService)
     /// es un fallo real y determinista — debe lanzar SIN envolver, para que
     /// ProcesadorAnalisisDocumentoHostedService lo reconozca como "no
     /// reintentable" (RegistrarFalloDefinitivo) en vez de gastar 3 intentos
@@ -287,7 +287,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
             Task.FromResult<Stream>(new MemoryStream([1, 2, 3]));
     }
 
-    /// <summary>Mismo comportamiento que Disk/S3FileStorageService.AbrirAsync cuando el archivo no existe — ver ARQUITECTURA-IA-DOCUMENTAL, contrato de IFileStorageService.</summary>
+    /// <summary>Mismo comportamiento que DiskFileStorageService.AbrirAsync cuando el archivo no existe — ver ARQUITECTURA-IA-DOCUMENTAL, contrato de IFileStorageService.</summary>
     private sealed class AlmacenamientoQueFalla : IFileStorageService
     {
         public Task EliminarAsync(string identificador, CancellationToken cancellationToken = default) => Task.CompletedTask;

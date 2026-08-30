@@ -156,8 +156,11 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler(
         return empresa is null ? (null, null) : (empresa.Id, empresa.RazonSocial);
     }
 
-    private static string NormalizarIdentificador(string valor) =>
-        new(valor.Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
+    // string? — un trabajador anonimizado (Dni null) nunca debe casar con un
+    // identificador detectado por IA: normaliza a "", que ninguna detección
+    // real produce.
+    private static string NormalizarIdentificador(string? valor) =>
+        valor is null ? string.Empty : new string(valor.Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
 
     private static DateOnly? ParsearFecha(string? valor) =>
         !string.IsNullOrWhiteSpace(valor) && DateOnly.TryParse(valor, out var fecha) ? fecha : null;

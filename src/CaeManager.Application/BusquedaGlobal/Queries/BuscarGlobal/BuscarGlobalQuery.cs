@@ -115,7 +115,7 @@ public class BuscarGlobalQueryHandler(
             .Where(t =>
                 t.Nombre.ToUpper().Contains(terminoMayus) ||
                 t.Apellidos.ToUpper().Contains(terminoMayus) ||
-                t.Dni.ToUpper().Contains(terminoMayus))
+                (t.Dni ?? "").ToUpper().Contains(terminoMayus))
             .OrderBy(t => t.Apellidos).ThenBy(t => t.Nombre)
             .Take(LimitePorCategoria)
             .Select(t => new ItemBusquedaDto(t.Id, t.Nombre + " " + t.Apellidos, t.Dni, $"/trabajadores/{t.Id}"))

@@ -54,4 +54,20 @@ public interface IAutoridadAsignacionesService
     /// </summary>
     Task<IReadOnlyList<Guid>> FiltrarCentrosConAutoridadAsync(
         IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// True si el actor puede dar de alta o baja asignaciones de
+    /// <paramref name="trabajadorId"/> — auditoría Módulo 5, hallazgo crítico
+    /// 6/9. Antes solo se comprobaba que el trabajador existiera en el
+    /// tenant: un trabajador fuera de la cartera del actor, pero visible por
+    /// GUID, quedaba "secuestrado" hacia esa cartera en cuanto se le asignaba,
+    /// exponiendo DNI, contacto y documentación médica. Mismo criterio de "no
+    /// existe" vs. "no es tuyo" que <see cref="PuedeModificarAsignacionesDelCentroAsync"/>.
+    /// </summary>
+    Task<bool> PuedeModificarAsignacionesDelTrabajadorAsync(
+        Guid trabajadorId, CancellationToken cancellationToken = default);
+
+    /// <summary>El subconjunto de <paramref name="trabajadorIds"/> sobre el que el actor tiene autoridad — para los lotes.</summary>
+    Task<IReadOnlyList<Guid>> FiltrarTrabajadoresConAutoridadAsync(
+        IReadOnlyList<Guid> trabajadorIds, CancellationToken cancellationToken = default);
 }

@@ -8,13 +8,13 @@ namespace CaeManager.Application.Proyectos.Commands.EliminarProyecto;
 public record EliminarProyectoCommand(Guid Id) : ICommand;
 
 public class EliminarProyectoCommandHandler(
-    IProyectoRepository repositorio, IUnitOfWork unitOfWork, ICurrentUserService currentUserService)
+    IProyectoRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork, ICurrentUserService currentUserService)
     : IRequestHandler<EliminarProyectoCommand, Result>
 {
     public async Task<Result> Handle(EliminarProyectoCommand request, CancellationToken cancellationToken)
     {
         var proyecto = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
-        if (proyecto is null)
+        if (proyecto is null || !await ProyectoAutorizacion.VisibleAsync(proyecto.ClienteId, alcanceDatos, cancellationToken))
             return Result.Fallo(Error.Crear("Proyecto.NoEncontrado", "El proyecto no existe o no tienes acceso."));
 
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();

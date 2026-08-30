@@ -127,6 +127,61 @@ public class RevalidacionCircuitoActivoHandlerTests : IAsyncLifetime
             _clienteDelegante, "el temporizador ya debería estar detenido y no debe seguir leyendo tras cerrarse el circuito");
     }
 
+    [Fact]
+    public async Task Sembrar_en_OnCircuitOpenedAsync_memoiza_la_seleccion_antes_de_que_el_HttpContext_deje_de_estar_disponible()
+    {
+        // Hallazgo de Módulo 1 (CI, 1 de 3 en SeleccionSobreviveAlCircuitoTests):
+        // el HttpContext de la negociación del circuito no sigue ambiental de
+        // forma fiable para cuando el primer componente lee la selección. La
+        // ventana se cierra por TIEMPO (la negociación termina), no porque
+        // alguien la lea — de ahí que el doble de abajo separe "cerrar la
+        // ventana" de "leerla", en vez de un accesor de un solo uso que
+        // confundiría las dos cosas.
+        var token = ClienteActivoSeleccionado.Proteger(_protector, _usuario, _clienteDelegante, null);
+        var httpContext = new DefaultHttpContext { User = UsuarioAutenticado(_usuario) };
+        httpContext.Request.Headers.Cookie = $"{ClienteActivoSeleccionado.NombreCookie}={token}";
+
+        var accesor = new HttpContextAccessorConVentana(httpContext);
+        var seleccion = new ClienteActivoSeleccionado(accesor, _protector);
+
+        await using var contexto = CrearContexto();
+        var handler = CrearHandler(seleccion, contexto, intervaloSegundos: 60);
+        var circuito = CircuitFalso();
+
+        await handler.OnCircuitOpenedAsync(circuito, CancellationToken.None);
+        accesor.CerrarVentana(); // la negociación del circuito termina — a partir de aquí, HttpContext ya no existe.
+
+        try
+        {
+            seleccion.TenantIdSeleccionado.Should().Be(
+                _clienteDelegante, "OnCircuitOpenedAsync ya memoizó el valor correcto mientras el HttpContext seguía disponible");
+        }
+        finally
+        {
+            await handler.OnCircuitClosedAsync(circuito, CancellationToken.None);
+        }
+    }
+
+    [Fact]
+    public void Sin_sembrar_una_lectura_que_llega_tarde_memoiza_nulo_aunque_la_seleccion_fuera_valida()
+    {
+        // El mecanismo del hallazgo, aislado de OnCircuitOpenedAsync: si nadie
+        // fuerza la lectura mientras el HttpContext de la negociación sigue
+        // disponible, la primera lectura real —la de un componente durante el
+        // render— puede llegar después de que la ventana ya se cerró. No es
+        // que la selección no existiera: es que se preguntó tarde.
+        var token = ClienteActivoSeleccionado.Proteger(_protector, _usuario, _clienteDelegante, null);
+        var httpContext = new DefaultHttpContext { User = UsuarioAutenticado(_usuario) };
+        httpContext.Request.Headers.Cookie = $"{ClienteActivoSeleccionado.NombreCookie}={token}";
+
+        var accesor = new HttpContextAccessorConVentana(httpContext);
+        accesor.CerrarVentana(); // nadie leyó nada todavía, y la ventana ya se cerró — la carrera perdida.
+        var seleccion = new ClienteActivoSeleccionado(accesor, _protector);
+
+        seleccion.TenantIdSeleccionado.Should().BeNull(
+            "sin OnCircuitOpenedAsync forzando la lectura antes, esta llega con el HttpContext ya perdido y memoiza nulo");
+    }
+
     private RevalidacionCircuitoActivoHandler CrearHandler(
         IClienteActivoSeleccionado seleccion, CaeManagerDbContext contexto, int intervaloSegundos)
     {
@@ -221,6 +276,29 @@ public class RevalidacionCircuitoActivoHandlerTests : IAsyncLifetime
         public HttpContext? HttpContext
         {
             get => contexto;
+            set => throw new NotSupportedException();
+        }
+    }
+
+    /// <summary>
+    /// Simula la ventana real de <c>HttpContext</c> durante la negociación de
+    /// un circuito de Blazor Server: disponible hasta que <see cref="CerrarVentana"/>
+    /// se llama, nulo después — deliberadamente independiente de cuántas veces
+    /// se haya leído antes. La ventana real se cierra porque la negociación
+    /// termina (una cuestión de tiempo/scheduling), no porque algo la haya
+    /// leído; un doble que se "gastara" con la primera lectura mediría otra
+    /// cosa y dejaría pasar como éxito un caso que en producción sería un
+    /// fallo (visto una vez: ver el commit que introdujo este comentario).
+    /// </summary>
+    private sealed class HttpContextAccessorConVentana(HttpContext contexto) : IHttpContextAccessor
+    {
+        private bool _ventanaCerrada;
+
+        public void CerrarVentana() => _ventanaCerrada = true;
+
+        public HttpContext? HttpContext
+        {
+            get => _ventanaCerrada ? null : contexto;
             set => throw new NotSupportedException();
         }
     }

@@ -39,7 +39,7 @@ public class CrearCentroCommandValidator : AbstractValidator<CrearCentroCommand>
 public class CrearCentroCommandHandler(
     ICentroRepository repositorio, IEmpresasQueryContext empresasContext,
     ITiposDocumentoQueryContext tiposDocumentoContext, ITipoDocumentoCentroRepository tipoDocumentoCentroRepositorio,
-    IUnitOfWork unitOfWork)
+    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearCentroCommand, Result<Guid>>
 {
     /// <summary>
@@ -48,11 +48,22 @@ public class CrearCentroCommandHandler(
     /// <c>TipoDocumentoSeedData</c> son del catálogo semilla del tenant #1
     /// únicamente (cada tenant recibe su propia copia editable al
     /// aprovisionarse, ver docs/MULTITENANCY.md § 7), así que referenciarlos
-    /// por Id aquí crearía una fila cruzando tenants. Si el tenant no tiene
-    /// (o renombró) alguno de estos tipos, simplemente no se añade esa fila —
-    /// degradación silenciosa, no un error de alta de Centro.
+    /// por Id aquí crearía una fila cruzando tenants. Si un TENANT concreto
+    /// no tiene (o renombró) alguno de estos tipos para su propio catálogo,
+    /// simplemente no se añade esa fila — degradación silenciosa deliberada,
+    /// no un error de alta de Centro: personalizar el catálogo es legítimo.
+    ///
+    /// Lo que esto NO cubre (auditoría Módulo 5, hueco arquitectónico): si el
+    /// CATÁLOGO SEMILLA (<see cref="TipoDocumentoSeedData"/>) renombra uno de
+    /// estos cuatro nombres en una futura limpieza (como ya pasó con la T3,
+    /// ver su doc-comment), todo tenant aprovisionado DESPUÉS de ese cambio
+    /// nacería con el catálogo mínimo incompleto para siempre, en silencio —
+    /// nadie personalizó nada, es la propia semilla la que dejó de casar.
+    /// CatalogoMinimoCentroCasaConSemillaTests (CaeManager.Architecture.Tests)
+    /// es el ratchet que falla en CI si eso ocurre — este campo es público a
+    /// propósito para que ese test pueda referenciarlo.
     /// </summary>
-    private static readonly string[] NombresCatalogoMinimo =
+    public static readonly string[] NombresCatalogoMinimo =
     [
         "Certificado de aptitud médica",
         "Entrega de EPI",
@@ -70,6 +81,15 @@ public class CrearCentroCommandHandler(
             return Result.Fallo<Guid>(Error.Crear("Centro.ClienteNoEncontrado", "No encontramos este cliente."));
 
         if (!await empresasContext.Empresas.AnyAsync(e => e.Id == request.EmpresaId, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear("Centro.EmpresaNoEncontrada", "No encontramos esta empresa."));
+
+        // Autoridad sobre ambas puntas, no solo existencia (auditoría Módulo
+        // 5, hallazgo crítico 5/9): un gestor podía crear un centro dentro de
+        // la cartera de OTRO gestor con solo conocer el Id de su cliente.
+        if (!await alcanceDatos.ClienteVisibleAsync(request.ClienteId, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear("Centro.ClienteNoEncontrado", "No encontramos este cliente."));
+
+        if (!await alcanceDatos.EmpresaVisibleAsync(request.EmpresaId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Centro.EmpresaNoEncontrada", "No encontramos esta empresa."));
 
         if (await repositorio.ExisteConNombreEnClienteAsync(request.ClienteId, request.Nombre, cancellationToken: cancellationToken))

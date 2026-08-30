@@ -95,8 +95,8 @@ public class DeteccionTrabajadoresService(
         catch (FileNotFoundException)
         {
             // Se relanza SIN envolver, a propósito: ver el mismo catch en
-            // VerificacionIaDocumentoService (D3) — Disk/S3FileStorageService
-            // ya normalizan a FileNotFoundException el único caso realmente
+            // VerificacionIaDocumentoService (D3) — DiskFileStorageService
+            // ya normaliza a FileNotFoundException el único caso realmente
             // determinista (el archivo no existe o no resuelve a este
             // tenant), y no va a aparecer en un segundo intento.
             throw;
@@ -139,7 +139,7 @@ public class DeteccionTrabajadoresService(
             deteccionRepositorio.Agregar(DeteccionTrabajador.Nuevo(documentoId, empresaId, nuevo.Nombre, nuevo.Apellidos, nuevo.Dni));
 
         foreach (var ausente in ausentes)
-            deteccionRepositorio.Agregar(DeteccionTrabajador.Ausente(documentoId, empresaId, ausente.Id, ausente.Nombre, ausente.Apellidos, ausente.Dni));
+            deteccionRepositorio.Agregar(DeteccionTrabajador.Ausente(documentoId, empresaId, ausente.Id, ausente.Nombre, ausente.Apellidos, ausente.Dni ?? string.Empty));
 
         await NotificarGestoresAsync(empresaId, tipoDocumento, clientesVinculados, nuevos.Count, ausentes.Count, cancellationToken);
 
@@ -180,6 +180,9 @@ public class DeteccionTrabajadoresService(
                 urlAccion: $"/empresas/{empresaId}/deteccion-trabajadores", textoAccion: "Revisar"));
     }
 
-    private static string NormalizarDni(string dni) => dni.Trim().ToUpperInvariant();
+    // string? — un trabajador anonimizado (Dni null) nunca debe casar con un
+    // Dni extraído de un documento: normaliza a "", que ninguna extracción
+    // real produce tras el Trim().
+    private static string NormalizarDni(string? dni) => dni?.Trim().ToUpperInvariant() ?? string.Empty;
     private static string NormalizarDni(TrabajadorExtraidoDto trabajador) => NormalizarDni(trabajador.Dni);
 }
