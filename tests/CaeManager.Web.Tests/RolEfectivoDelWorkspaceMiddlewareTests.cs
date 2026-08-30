@@ -178,6 +178,49 @@ public class RolEfectivoDelWorkspaceMiddlewareTests
         contexto.User.IsInRole(Roles.Consulta).Should().BeTrue();
     }
 
+    [Theory]
+    [InlineData("/_framework/blazor.web.js")]
+    [InlineData("/_content/paquete/estilo.css")]
+    public async Task Los_ficheros_de_infraestructura_no_cuestan_una_consulta(string ruta)
+    {
+        // Este middleware corre ANTES del enrutado, porque después las puertas
+        // de rol ya habrían contestado. La consecuencia es que también ve los
+        // ficheros estáticos: sin este corte, cada JS y cada CSS de un Operador
+        // Delegado pagaría una consulta a base de datos. Nada de lo que cuelga
+        // de estos prefijos puede llevar [Authorize(Roles = ...)].
+        var protector = ProtectorDePruebas();
+        var token = ClienteActivoSeleccionado.Proteger(
+            protector, Usuario, TenantVisitado, asignacionOperacionId: Guid.NewGuid());
+
+        var contexto = ContextoCon(token, rolDeSesion: Roles.Administrador);
+        contexto.Request.Path = ruta;
+
+        var servicio = new CurrentUserServiceFalso(rolEfectivo: Roles.Consulta);
+        await EjecutarAsync(contexto, protector, servicio);
+
+        servicio.VecesConsultado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task La_negociacion_del_circuito_si_ajusta_el_rol()
+    {
+        // /_blazor queda FUERA del recorte a propósito: por ahí se negocia el
+        // circuito, que es justo la petición en la que el principal corregido
+        // tiene que llegar. Recortarlo devolvería la escalada dentro del
+        // circuito, que es donde vive la aplicación.
+        var protector = ProtectorDePruebas();
+        var token = ClienteActivoSeleccionado.Proteger(
+            protector, Usuario, TenantVisitado, asignacionOperacionId: Guid.NewGuid());
+
+        var contexto = ContextoCon(token, rolDeSesion: Roles.Administrador);
+        contexto.Request.Path = "/_blazor/negotiate";
+
+        await EjecutarAsync(contexto, protector, rolEfectivo: Roles.Consulta);
+
+        contexto.User.IsInRole(Roles.Administrador).Should().BeFalse();
+        contexto.User.IsInRole(Roles.Consulta).Should().BeTrue();
+    }
+
     private static Task EjecutarAsync(HttpContext contexto, IDataProtectionProvider protector, string? rolEfectivo) =>
         EjecutarAsync(contexto, protector, new CurrentUserServiceFalso(rolEfectivo));
 

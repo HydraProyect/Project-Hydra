@@ -78,11 +78,35 @@ public class RolEfectivoDelWorkspaceMiddleware(RequestDelegate siguiente)
         await siguiente(contexto);
     }
 
+    /// <summary>
+    /// Servido por el middleware de ficheros estáticos y por el propio Blazor,
+    /// nunca por una página o endpoint con <c>[Authorize(Roles = …)]</c>. No es
+    /// una lista de conveniencia: este middleware corre <b>antes</b> del
+    /// enrutado —tiene que hacerlo, o las puertas ya habrían contestado—, así
+    /// que sin este corte cada JS y cada CSS de un Operador Delegado costaría
+    /// una consulta a base de datos.
+    ///
+    /// <para>
+    /// <c>/_blazor</c> queda fuera de la lista a propósito: por ahí se negocia
+    /// el circuito, y es justo la petición en la que el principal corregido
+    /// tiene que llegar. Los assets de <c>wwwroot</c> (<c>/css</c>, <c>/js</c>)
+    /// tampoco se recortan, porque su prefijo no es distinguible del de una
+    /// ruta de negocio sin adivinar — siguen costando lo mismo que ya cuestan
+    /// en <see cref="RevalidacionClienteActivoMiddleware"/>, que hace una
+    /// consulta equivalente y tampoco los filtra.
+    /// </para>
+    /// </summary>
+    private static readonly string[] PrefijosSinAutorizacionDeRol = ["/_framework", "/_content"];
+
     private static bool DebeAjustarse(HttpContext contexto, IClienteActivoSeleccionado seleccion)
     {
         // Sin cookie no hay selección que valga, y no se descifra nada: el caso
         // de la inmensa mayoría de las peticiones.
         if (string.IsNullOrEmpty(contexto.Request.Cookies[ClienteActivoSeleccionado.NombreCookie]))
+            return false;
+
+        if (PrefijosSinAutorizacionDeRol.Any(
+                p => contexto.Request.Path.StartsWithSegments(p, StringComparison.OrdinalIgnoreCase)))
             return false;
 
         // Un usuario sin autenticar no tiene rol que ajustar, y consultar la
