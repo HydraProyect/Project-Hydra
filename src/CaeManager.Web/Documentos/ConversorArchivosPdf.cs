@@ -18,6 +18,23 @@ namespace CaeManager.Web.Documentos;
 public static class ConversorArchivosPdf
 {
     private const double MargenPuntos = 20;
+
+    /// <summary>
+    /// Tope de páginas del PDF combinado. Mismo vector que la bomba de
+    /// píxeles de <see cref="DimensionesImagen"/>: el coste de combinar un
+    /// PDF lo fija su número de páginas declarado, no el tamaño del
+    /// fichero en disco — un árbol de páginas compacto puede declarar
+    /// decenas de miles de páginas casi vacías muy por debajo del tope de
+    /// 10 MB de la subida, y ni ese tope ni el presupuesto del lote (que
+    /// cuentan bytes) lo detectan.
+    ///
+    /// 2000 es generoso para lo que sube gente de verdad —ni el escaneo más
+    /// largo de un historial de reconocimientos médicos se acerca— y acota
+    /// el daño de un PDF fabricado a propósito, igual que el tope de 50 MP
+    /// acota el de una imagen fabricada.
+    /// </summary>
+    private const int MaximoPaginasCombinadas = 2000;
+
     private static readonly string[] ExtensionesImagen = [".jpg", ".jpeg", ".png"];
 
     public static bool EsImagen(string nombreArchivo) =>
@@ -50,6 +67,15 @@ public static class ConversorArchivosPdf
 
             using var flujo = new MemoryStream(contenidoPdf);
             using var documentoOrigen = PdfReader.Open(flujo, PdfDocumentOpenMode.Import);
+
+            // ANTES de copiar ninguna página: ver el comentario de
+            // MaximoPaginasCombinadas. La cuenta es sobre el combinado
+            // completo, no por archivo — varios PDFs moderados también
+            // pueden sumar la bomba entre todos.
+            if (documentoFinal.PageCount + documentoOrigen.PageCount > MaximoPaginasCombinadas)
+                throw new InvalidDataException(
+                    $"El documento combinado supera el máximo de {MaximoPaginasCombinadas} páginas admitidas y no se puede procesar.");
+
             foreach (var pagina in documentoOrigen.Pages)
                 documentoFinal.AddPage(pagina);
         }
