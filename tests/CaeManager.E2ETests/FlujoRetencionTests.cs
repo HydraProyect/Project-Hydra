@@ -32,16 +32,34 @@ public class FlujoRetencionTests(WebAppFixtureConRetencionActiva fixture)
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
 
-        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministradorConsultora, Ayudas.ContrasenaUsuariosPrueba);
+        // Quien administra la retención de un tenant es un Administrador DE
+        // ESE tenant, y aquí lo es sin cambiar de workspace: los "veteranos"
+        // viven en el Cliente Delegante de demo, y DatosPruebaSeeder siembra
+        // ahí mismo un juego completo de usuarios por rol.
+        //
+        // Antes esto se hacía como el Administrador de ArcoSPA cambiando al
+        // workspace del cliente, con un comentario que afirmaba que "el rol
+        // Administrador es global a la cuenta, no por tenant". Era falso, y
+        // era el agujero: la cartera de ese usuario sobre este cliente le da
+        // GestorCae (DelegacionDemoSeeder.RolOperadorDelegadoDemo), no
+        // Administrador. AutorizacionEscrituraBehavior ya comprobaba el rol
+        // EFECTIVO para las escrituras; lo que no lo comprobaba eran las
+        // puertas [Authorize(Roles = ...)] de las páginas, y por eso aquel
+        // usuario entraba en /retencion con una autoridad que nadie le había
+        // dado sobre este tenant. Lo cierra RolEfectivoDelWorkspaceMiddleware,
+        // y el segundo test de esta clase lo fija como regresión.
+        //
+        // Que un operador de la consultora pueda administrar al cliente sigue
+        // siendo posible — decisión del propietario del 2026-08-30 — pero la
+        // autoridad tiene que venir de una Asignación de Cartera con rol
+        // Administrador, nunca del rol que tenga en su propio tenant.
+        await Ayudas.IniciarSesionAsync(
+            page, fixture.BaseUrl, Ayudas.EmailPrueba("administrador", 1), Ayudas.ContrasenaUsuariosPrueba);
 
-        // Los "veteranos" viven en el Delegated Workspace de demo, no en el
-        // tenant de origen del Administrador (la Consultora no tiene datos
-        // operativos propios) — el rol Administrador es global a la cuenta,
-        // no por tenant, así que sigue teniendo acceso a /retencion tras
-        // cambiar de workspace (ver ADR-004). El Administrador que opera el
-        // Delegated Workspace es el de ArcoSPA, no admin@caemanager.local
-        // (ver DelegacionDemoSeeder, 2026-08-14).
-        await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, Ayudas.NombreClienteDelegadoDemo);
+        // Los usuarios prueba.<rol> arrancan con una notificación sin leer que
+        // bloquea toda interacción hasta descartarla (ver Ayudas).
+        await Ayudas.DescartarNotificacionesPendientesAsync(page);
+
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/retencion");
 
         // --- Detectar ---
@@ -96,6 +114,48 @@ public class FlujoRetencionTests(WebAppFixtureConRetencionActiva fixture)
         await modalDescartar.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 10_000 });
 
         await AsegurarTextoEnFilaAsync(filaTrabajadores, "Descartada");
+    }
+
+    /// <summary>
+    /// La regresión de la escalada de privilegios entre tenants, extremo a
+    /// extremo y con navegador real.
+    ///
+    /// <para>
+    /// El Administrador de ArcoSPA opera el workspace del Cliente Delegante,
+    /// donde su cartera le concede <b>GestorCae</b>. Antes conservaba en el
+    /// <c>ClaimsPrincipal</c> el rol de su propio tenant, así que las 30
+    /// puertas <c>[Authorize(Roles = …)]</c> le contestaban que sí: entraba en
+    /// Retención, Configuración, Roles, Claves de API, Auditoría e
+    /// Integraciones de un cliente sobre el que no tenía esa autoridad.
+    /// </para>
+    ///
+    /// <para>
+    /// Se comprueba sobre <c>/retencion</c> porque es la puerta que este mismo
+    /// fichero ya sabe abrir cuando el rol SÍ corresponde: si algún día el
+    /// contenido de la página cambiara, el otro test de esta clase fallaría
+    /// primero y no quedaría un verde por mirar a un sitio vacío.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task Un_operador_delegado_no_administra_la_retencion_del_cliente_que_opera()
+    {
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await contexto.NewPageAsync();
+
+        await Ayudas.IniciarSesionAsync(
+            page, fixture.BaseUrl, Ayudas.EmailAdministradorConsultora, Ayudas.ContrasenaUsuariosPrueba);
+        await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, Ayudas.NombreClienteDelegadoDemo);
+
+        await page.GotoAsync($"{fixture.BaseUrl}/retencion");
+        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+        // No se afirma un código ni una URL concretos: el fallo cerrado puede
+        // materializarse como 403, como redirección o como página de acceso
+        // denegado, y fijar la forma exacta haría frágil un test cuyo objeto es
+        // que NO se llegue al contenido. Lo que no puede aparecer es el control
+        // que dispara la purga.
+        await Assertions.Expect(page.GetByText("Buscar datos que hayan cumplido plazo"))
+            .Not.ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 10_000 });
     }
 
     /// <summary>
