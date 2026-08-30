@@ -100,20 +100,34 @@
             Entrada.Email, Entrada.Password, isPersistent: true, lockoutOnFailure: true);
         var logger = LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog);
 
+        // El correo NO entra en el registro de autenticación. Serilog lo
+        // persiste en fichero y en Seq, dos superficies con permisos y
+        // retención propios: cada línea replicaba un dato personal fuera de la
+        // base de datos y ampliaba el alcance RGPD de logs, copias e
+        // incidentes. Se registra el UsuarioId, que es opaco, estable y ya
+        // existía — así no se pierde nada de la correlación forense: seguir la
+        // pista de los intentos contra una misma cuenta sigue siendo posible.
+        // Para una cuenta que no existe no hay nada que correlacionar ni nadie
+        // a quien proteger, y se dice justamente eso.
+        var cuenta = await UserManager.FindByEmailAsync(Entrada.Email);
+        var idCuenta = cuenta?.Id.ToString() ?? "desconocida";
+
         if (resultado.IsLockedOut)
         {
             // Literalmente el mismo mensaje que credenciales inválidas (más
             // abajo) — no un texto parecido: una diferencia de wording, por
             // mínima que sea, deja enumerar qué cuentas existen y están
-            // bloqueadas tras varios intentos, justo lo que esto evita.
-            logger.LogWarning("Login rechazado, cuenta bloqueada: {Email}", Entrada.Email);
+            // bloqueadas tras varios intentos, justo lo que esto evita. Esa
+            // simetría es del mensaje al USUARIO; el log sí distingue, porque
+            // no lo ve quien ataca.
+            logger.LogWarning("Login rechazado, cuenta bloqueada: {UsuarioId}", idCuenta);
             mensajeError = MensajeErrorLogin;
             return;
         }
 
         if (resultado.RequiresTwoFactor)
         {
-            logger.LogInformation("Login con contraseña correcto, pendiente de 2FA: {Email}", Entrada.Email);
+            logger.LogInformation("Login con contraseña correcto, pendiente de 2FA: {UsuarioId}", idCuenta);
 
             var destino = "/cuenta/verificar-2fa";
             if (!string.IsNullOrWhiteSpace(ReturnUrl))
@@ -129,8 +143,8 @@
             // siguiente navegación aunque no se comprobara aquí, pero
             // resolverlo ya en el login evita un salto visible de "/" (o
             // ReturnUrl) a la pantalla de cambio de contraseña.
-            var usuario = await UserManager.FindByEmailAsync(Entrada.Email);
-            logger.LogInformation("Login correcto: {Email} ({UsuarioId})", Entrada.Email, usuario?.Id);
+            var usuario = cuenta;
+            logger.LogInformation("Login correcto: {UsuarioId}", idCuenta);
 
             if (usuario is { DebeCambiarContrasena: true })
             {
@@ -142,7 +156,7 @@
             return;
         }
 
-        logger.LogWarning("Login fallido (credenciales inválidas): {Email}", Entrada.Email);
+        logger.LogWarning("Login fallido (credenciales inválidas): {UsuarioId}", idCuenta);
         mensajeError = MensajeErrorLogin;
     }
 

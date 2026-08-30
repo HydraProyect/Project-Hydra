@@ -295,7 +295,7 @@ public partial class Usuarios : ComponentBase
         await PuertaAccesoDatos.EjecutarAsync(() => UserManager.AddToRoleAsync(usuario, _rol));
 
         ToastService.Mostrar("Usuario creado correctamente.", TonoToast.Exito);
-        await EnviarCorreoBienvenidaAsync(_email, _nombreCompleto, _password);
+        await EnviarCorreoBienvenidaAsync(usuario.Id, _email, _nombreCompleto, _password);
         _drawerVisible = false;
         await CargarAsync();
     }
@@ -306,7 +306,7 @@ public partial class Usuarios : ComponentBase
     /// acaba de escribir el Administrador — <see cref="ApplicationUser.DebeCambiarContrasena"/>
     /// ya obliga a cambiarla en el primer inicio de sesión real.
     /// </summary>
-    private async Task EnviarCorreoBienvenidaAsync(string email, string nombreCompleto, string contrasenaTemporal)
+    private async Task EnviarCorreoBienvenidaAsync(Guid usuarioId, string email, string nombreCompleto, string contrasenaTemporal)
     {
         var urlAcceso = NavigationManager.BaseUri.TrimEnd('/');
 
@@ -323,7 +323,7 @@ public partial class Usuarios : ComponentBase
 
         var resultado = await EmailService.EnviarAsync(email, $"Tu acceso a {Marca.Nombre}", cuerpo);
         if (resultado.EsFallido)
-            Logger.LogWarning("No se pudo enviar el correo de bienvenida a {Email}.", email);
+            Logger.LogWarning("No se pudo enviar el correo de bienvenida a {UsuarioId}.", usuarioId);
     }
 
     private async Task EditarUsuarioAsync(Guid id)

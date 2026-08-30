@@ -120,7 +120,7 @@ public static class IdentityEndpointsExtensions
                 additionalClaims: [new Claim(RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin, RestriccionLoginLocalClaimsTransformation.MetodoLoginSso)]);
 
             loggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
-                .LogInformation("Login SSO correcto: {Email} ({UsuarioId})", email, usuario.Id);
+                .LogInformation("Login SSO correcto: {UsuarioId}", usuario.Id);
 
             var roles = await userManager.GetRolesAsync(usuario);
             if (roles.Count == 0)
@@ -160,7 +160,7 @@ public static class IdentityEndpointsExtensions
             var resultado = await emailService.EnviarAsync(
                 administrador.Email, $"Nuevo usuario pendiente de asignar rol — {Marca.Nombre}", cuerpo);
             if (resultado.EsFallido)
-                logger.LogWarning("No se pudo notificar a {Email} sobre un usuario pendiente de rol.", administrador.Email);
+                logger.LogWarning("No se pudo notificar a {UsuarioId} sobre un usuario pendiente de rol.", administrador.Id);
         }
     }
 }
