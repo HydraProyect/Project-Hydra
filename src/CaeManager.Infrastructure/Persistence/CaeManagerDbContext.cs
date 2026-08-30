@@ -96,6 +96,12 @@ public class CaeManagerDbContext(
         dataProtectionProvider.CreateProtector("CaeManager.CredencialAccesoSubcontrata.Credenciales.v1");
     private readonly IDataProtector _protectorCredencialesIntegracion =
         dataProtectionProvider.CreateProtector("CaeManager.CredencialIntegracion.Credenciales.v1");
+    // Protector propio, separado del de credenciales (auditoría módulo 6):
+    // el payload crudo de un webhook es PHI/PII de conversación (cuerpos,
+    // teléfonos, nombres), no un secreto de autenticación — un compromiso de
+    // uno de los dos protectores no debe exponer automáticamente el otro.
+    private readonly IDataProtector _protectorPayloadWebhook =
+        dataProtectionProvider.CreateProtector("CaeManager.EventoWebhook.PayloadCrudo.v1");
 
     // Cacheados una vez por tipo: MakeGenericMethod en cada entidad del
     // bucle de OnModelCreating es barato, pero GetMethod (búsqueda por
@@ -114,6 +120,19 @@ public class CaeManagerDbContext(
 
     private void AplicarFiltroTenantConSoftDelete<TEntidad>(ModelBuilder builder) where TEntidad : EntidadBase =>
         builder.Entity<TEntidad>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
+
+    /// <summary>Mismo criterio de compatibilidad legada que DiskFileStorageService.AbrirAsync: un valor que no descifra con el protector actual es un payload guardado en claro antes de que existiera este cifrado.</summary>
+    private string DescifrarPayloadWebhookConCompatibilidadLegado(string valorCifrado)
+    {
+        try
+        {
+            return _protectorPayloadWebhook.Unprotect(valorCifrado);
+        }
+        catch (System.Security.Cryptography.CryptographicException)
+        {
+            return valorCifrado;
+        }
+    }
 
     public DbSet<Centro> Centros => Set<Centro>();
     IQueryable<Centro> ICentrosQueryContext.Centros => Centros;
@@ -352,6 +371,17 @@ public class CaeManagerDbContext(
         // (LineaWhatsApp es satélite de ConexionIntegracion) — mismo
         // protector, mismo criterio que RefreshToken/ClientState.
         builder.Entity<LineaWhatsApp>().Property(l => l.TokenAcceso).HasConversion(conversorCredencialesIntegracion);
+
+        // Payload crudo de webhook cifrado en reposo (auditoría módulo 6):
+        // compatibilidad con lo ya escrito antes de este cambio, mismo
+        // criterio que DiskFileStorageService.AbrirAsync — un valor que no
+        // descifra con este protector es un payload legado guardado en
+        // claro, se sirve tal cual en vez de romper la lectura.
+        var conversorPayloadWebhook = new ValueConverter<string, string>(
+            valorPlano => _protectorPayloadWebhook.Protect(valorPlano),
+            valorCifrado => DescifrarPayloadWebhookConCompatibilidadLegado(valorCifrado));
+
+        builder.Entity<EventoWebhook>().Property(e => e.PayloadCrudo).HasConversion(conversorPayloadWebhook);
 
         // Caché del access token (auditoría módulo 6) — mismo protector,
         // pero nullable (null hasta el primer refresco, a diferencia de

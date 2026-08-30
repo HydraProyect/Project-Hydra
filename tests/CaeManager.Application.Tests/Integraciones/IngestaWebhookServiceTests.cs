@@ -201,6 +201,34 @@ public class IngestaWebhookServiceTests
     }
 
     [Fact]
+    public async Task Registra_en_ArchivosGuardados_el_adjunto_descargado_para_poder_compensarlo_si_falla_el_guardado()
+    {
+        var conexion = ConexionHabilitada();
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexion);
+        var conversacionRepositorio = new ConversacionRepositorioFalso();
+        var graphClient = new Microsoft365GraphClientFalso
+        {
+            MensajeIdsADevolver = ["graph-msg-1"],
+            MensajeADevolver = new MensajeGraphDto(
+                "graph-msg-1", "graph-thread-1", "Duda sobre CAE", "cliente@ejemplo.com", "<p>hola</p>", DateTime.UtcNow,
+                [], [new AdjuntoGraphDto("adjunto-1", "informe.pdf", "application/pdf", 1024)]),
+            ContenidoAdjuntoADevolver = [1, 2, 3],
+        };
+        var credencialRepositorio = new CredencialIntegracionRepositorioFalso();
+        credencialRepositorio.Agregar(new CredencialIntegracion(conexion.Id, "refresh-token"));
+        var servicio = CrearServicio(conexionRepositorio, conversacionRepositorio, graphClient, credencialRepositorio);
+        var evento = new EventoWebhook(conexion.Id, "{\"value\":[{}]}");
+
+        await servicio.ProcesarAsync(evento, CancellationToken.None);
+
+        servicio.ArchivosGuardados.Should().ContainSingle().Which.Should().EndWith("informe.pdf");
+        var conversacion = conversacionRepositorio.Conversaciones.Should().ContainSingle().Subject;
+        var mensaje = conversacion.Mensajes.Should().ContainSingle().Subject;
+        mensaje.Adjuntos.Should().ContainSingle(a => a.ArchivoUrl == servicio.ArchivosGuardados[0]);
+    }
+
+    [Fact]
     public async Task Registra_el_fallo_sin_marcar_procesado_si_falla_el_refresco_del_token()
     {
         var conexion = ConexionHabilitada();
