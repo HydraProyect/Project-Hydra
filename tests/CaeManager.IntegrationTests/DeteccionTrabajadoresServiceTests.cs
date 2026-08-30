@@ -98,6 +98,156 @@ public class DeteccionTrabajadoresServiceTests : IAsyncLifetime
         notificaciones.Should().ContainSingle(n => n.UrlAccion == $"/empresas/{empresa.Id}/deteccion-trabajadores");
     }
 
+    /// <summary>
+    /// Prepara una Empresa sin Clientes vinculados (no hace falta el Nivel 2
+    /// para lo que se prueba aquí) con los trabajadores indicados y un ITA.
+    /// </summary>
+    private async Task<(Empresa Empresa, Documento Documento, List<Trabajador> Activos)> PrepararEmpresaConPlantillaAsync(
+        params (string Nombre, string Apellidos, string Dni)[] plantilla)
+    {
+        var empresa = new Empresa("Ibertec S.A.");
+        _dbContext.Empresas.Add(empresa);
+
+        var activos = plantilla
+            .Select(t => Trabajador.DeEmpresa(empresa.Id, t.Nombre, t.Apellidos, t.Dni))
+            .ToList();
+        _dbContext.Trabajadores.AddRange(activos);
+
+        var documento = Documento.DeEmpresa(empresa.Id, IdTipoDocumentoIta, DateOnly.FromDateTime(DateTime.UtcNow), null, "archivo.pdf");
+        _dbContext.Documentos.Add(documento);
+        await _dbContext.SaveChangesAsync();
+
+        return (empresa, documento, activos);
+    }
+
+    private DeteccionTrabajadoresService CrearServicioQueExtrae(params TrabajadorExtraidoDto[] extraidos) =>
+        CrearServicio(new ExtraccionIaFalsa(Result.Exito<IReadOnlyList<TrabajadorExtraidoDto>>(extraidos.ToList())));
+
+    /// <summary>
+    /// El defecto más caro de este servicio: una extracción vacía —el
+    /// desenlace normal de un OCR que falla sobre un escaneado malo— dejaba el
+    /// conjunto de DNIs vacío y marcaba como Ausente a TODA la plantilla, con
+    /// su aviso al gestor. Ahora es un fallo de detección, que es lo que es.
+    /// </summary>
+    [Fact]
+    public async Task No_propone_la_baja_de_toda_la_plantilla_cuando_la_extraccion_viene_vacia()
+    {
+        var (_, documento, _) = await PrepararEmpresaConPlantillaAsync(
+            ("Alvaro", "Sanchez Martin", "77189989B"),
+            ("Pedro", "Gomez Ruiz", "12345678Z"));
+
+        var servicio = CrearServicioQueExtrae();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => servicio.ProcesarDocumentoAsync(documento.Id));
+
+        (await _dbContext.DeteccionesTrabajador.AnyAsync(d => d.DocumentoId == documento.Id))
+            .Should().BeFalse("ninguna baja puede salir de un documento que no se leyó");
+    }
+
+    /// <summary>
+    /// Misma guarda para el caso en que sí se leyó algo, pero nada de esta
+    /// plantilla: el documento equivocado, o un OCR que inventó DNIs. Que
+    /// ninguno de los que están de alta aparezca no es una plantilla que se ha
+    /// ido entera.
+    /// </summary>
+    [Fact]
+    public async Task No_propone_bajas_cuando_el_documento_no_reconoce_a_ningun_trabajador_de_alta()
+    {
+        var (_, documento, _) = await PrepararEmpresaConPlantillaAsync(
+            ("Alvaro", "Sanchez Martin", "77189989B"),
+            ("Pedro", "Gomez Ruiz", "12345678Z"));
+
+        var servicio = CrearServicioQueExtrae(
+            new TrabajadorExtraidoDto("Otra", "Persona", "99999999R"),
+            new TrabajadorExtraidoDto("Otra Mas", "Persona", "00000000T"));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => servicio.ProcesarDocumentoAsync(documento.Id));
+
+        (await _dbContext.DeteccionesTrabajador.AnyAsync(d => d.DocumentoId == documento.Id)).Should().BeFalse();
+    }
+
+    /// <summary>
+    /// El dígito de control es la prueba más barata de que una fila salió del
+    /// documento y no de una alucinación. Se exige para proponer un alta.
+    /// </summary>
+    [Fact]
+    public async Task No_propone_altas_con_un_documento_de_identidad_que_no_valida()
+    {
+        var (_, documento, _) = await PrepararEmpresaConPlantillaAsync(("Alvaro", "Sanchez Martin", "77189989B"));
+
+        var servicio = CrearServicioQueExtrae(
+            new TrabajadorExtraidoDto("Alvaro", "Sanchez Martin", "77189989B"),
+            new TrabajadorExtraidoDto("Inventado", "Por El Modelo", "12345678X"),
+            new TrabajadorExtraidoDto("Alta", "Legitima", "99999999R"));
+
+        await servicio.ProcesarDocumentoAsync(documento.Id);
+
+        var detecciones = await _dbContext.DeteccionesTrabajador.Where(d => d.DocumentoId == documento.Id).ToListAsync();
+        detecciones.Should().ContainSingle(d => d.Tipo == TipoDeteccion.Nuevo);
+        detecciones.Should().Contain(d => d.Dni == "99999999R");
+        detecciones.Should().NotContain(d => d.Dni == "12345678X", "la letra de control no corresponde al número");
+    }
+
+    /// <summary>
+    /// La contrapartida del test anterior: las bajas NO pueden depender del
+    /// validador. Un trabajador dado de alta con pasaporte u otro documento
+    /// extranjero aparece en el ITA, el validador no lo reconoce, y aun así
+    /// tiene que contar como presente — si no, el propio control contra altas
+    /// falsas se convertiría en una fábrica de bajas falsas.
+    /// </summary>
+    [Fact]
+    public async Task Un_identificador_no_espanol_confirma_presencia_aunque_no_pase_el_validador()
+    {
+        var (_, documento, _) = await PrepararEmpresaConPlantillaAsync(
+            ("Alvaro", "Sanchez Martin", "77189989B"),
+            ("John", "Smith", "AB123456"));
+
+        var servicio = CrearServicioQueExtrae(
+            new TrabajadorExtraidoDto("Alvaro", "Sanchez Martin", "77189989B"),
+            new TrabajadorExtraidoDto("John", "Smith", "AB123456"));
+
+        await servicio.ProcesarDocumentoAsync(documento.Id);
+
+        var detecciones = await _dbContext.DeteccionesTrabajador.Where(d => d.DocumentoId == documento.Id).ToListAsync();
+        detecciones.Should().BeEmpty("ambos están en el documento, no hay ni altas ni bajas");
+    }
+
+    [Fact]
+    public async Task Deduplica_el_listado_extraido_antes_de_proponer_altas()
+    {
+        var (_, documento, _) = await PrepararEmpresaConPlantillaAsync(("Alvaro", "Sanchez Martin", "77189989B"));
+
+        var servicio = CrearServicioQueExtrae(
+            new TrabajadorExtraidoDto("Alvaro", "Sanchez Martin", "77189989B"),
+            new TrabajadorExtraidoDto("Repetido", "En El Pdf", "99999999R"),
+            new TrabajadorExtraidoDto("Repetido", "En El Pdf", "99999999r"),
+            new TrabajadorExtraidoDto("Repetido", "En El Pdf", " 99999999R "));
+
+        await servicio.ProcesarDocumentoAsync(documento.Id);
+
+        var detecciones = await _dbContext.DeteccionesTrabajador.Where(d => d.DocumentoId == documento.Id).ToListAsync();
+        detecciones.Should().ContainSingle("las tres filas son la misma persona");
+        detecciones[0].Dni.Should().Be("99999999R");
+    }
+
+    [Fact]
+    public async Task Rechaza_un_listado_extraido_de_tamano_absurdo()
+    {
+        var (_, documento, _) = await PrepararEmpresaConPlantillaAsync(("Alvaro", "Sanchez Martin", "77189989B"));
+
+        // 2001 filas distintas: por encima del máximo razonable para un
+        // documento de Seguridad Social de una sola Empresa.
+        var extraidos = Enumerable.Range(1, 2001)
+            .Select(i => new TrabajadorExtraidoDto("Masivo", $"Numero {i}", $"P{i:D8}"))
+            .ToArray();
+
+        var servicio = CrearServicioQueExtrae(extraidos);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => servicio.ProcesarDocumentoAsync(documento.Id));
+
+        (await _dbContext.DeteccionesTrabajador.AnyAsync(d => d.DocumentoId == documento.Id)).Should().BeFalse();
+    }
+
     [Fact]
     public async Task No_hace_nada_si_el_tipo_de_documento_no_tiene_deteccion_activa()
     {
