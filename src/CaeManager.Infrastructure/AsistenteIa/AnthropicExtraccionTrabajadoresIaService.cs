@@ -84,9 +84,8 @@ public class AnthropicExtraccionTrabajadoresIaService(
 
             if (!respuesta.IsSuccessStatusCode)
             {
-                var cuerpoError = await respuesta.Content.ReadAsStringAsync(cancellationToken);
                 logger.LogError(
-                    "La API de Anthropic devolvió {StatusCode} al extraer trabajadores: {Cuerpo}", (int)respuesta.StatusCode, cuerpoError);
+                    "La API de Anthropic devolvió {StatusCode} al extraer trabajadores ({Correlacion}).", (int)respuesta.StatusCode, CorrelacionRespuestaIa.Describir(respuesta));
 
                 return Result.Fallo<IReadOnlyList<TrabajadorExtraidoDto>>(Error.Crear(
                     "ExtraccionTrabajadores.ErrorApi", "No pudimos leer el documento automáticamente."));

@@ -147,9 +147,8 @@ public class AnthropicDeteccionGestionCorreoService(
 
             if (!respuesta.IsSuccessStatusCode)
             {
-                var cuerpoError = await respuesta.Content.ReadAsStringAsync(cancellationToken);
                 logger.LogError(
-                    "La API de Anthropic devolvió {StatusCode} al detectar gestión en correo: {Cuerpo}", (int)respuesta.StatusCode, cuerpoError);
+                    "La API de Anthropic devolvió {StatusCode} al detectar gestión en correo ({Correlacion}).", (int)respuesta.StatusCode, CorrelacionRespuestaIa.Describir(respuesta));
 
                 return Result.Fallo<DeteccionGestionCorreoDto>(Error.Crear(
                     "DeteccionGestionCorreo.ErrorApi", "No pudimos analizar el correo automáticamente."));

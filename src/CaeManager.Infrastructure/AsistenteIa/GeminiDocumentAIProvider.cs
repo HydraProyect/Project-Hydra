@@ -30,6 +30,9 @@ public class GeminiDocumentAIProvider(
 
     public CapacidadesProveedorIa Capacidades => CapacidadesProveedorIa.ExtraccionEstructurada;
 
+    /// <summary>Inerte sin credencial: sin ApiKey configurada cada método ya devolvía un Result fallido, pero el router no lo sabía hasta después de haberlo elegido. Ahora no se elige.</summary>
+    public bool EstaDisponible => !string.IsNullOrWhiteSpace(opciones.Value.ApiKey);
+
     private const string SystemPromptOcr =
         """
         Eres un sistema de OCR, no un asistente conversacional. Transcribe
@@ -139,8 +142,8 @@ public class GeminiDocumentAIProvider(
         }
 
         var solicitud = new SolicitudGemini(
-            [new ContenidoGemini("user", [new ParteGemini($"Tipo de documento esperado: \"{tipoEsperado}\".\n\nTexto del documento:\n{texto}", null)])],
-            new InstruccionSistemaGemini([new ParteGemini(SystemPromptEstructurado, null)]),
+            [new ContenidoGemini("user", [new ParteGemini(PromptDocumental.ConstruirMensajeUsuario(tipoEsperado, texto), null)])],
+            new InstruccionSistemaGemini([new ParteGemini(SystemPromptEstructurado + PromptDocumental.ReglasDeAislamiento, null)]),
             new ConfiguracionGeneracionGemini(config.MaxTokensRespuesta));
 
         var respuesta = await EnviarAsync(solicitud, config.Modelo, "DocumentAIProvider", cancellationToken);
@@ -175,8 +178,8 @@ public class GeminiDocumentAIProvider(
 
             if (!respuesta.IsSuccessStatusCode)
             {
-                var cuerpoError = await respuesta.Content.ReadAsStringAsync(cancellationToken);
-                logger.LogError("La API de Gemini devolvió {StatusCode}: {Cuerpo}", (int)respuesta.StatusCode, cuerpoError);
+                logger.LogError(
+                    "La API de Gemini devolvió {StatusCode} ({Correlacion}).", (int)respuesta.StatusCode, CorrelacionRespuestaIa.Describir(respuesta));
                 return Result.Fallo<RespuestaConUso>(Error.Crear($"{prefijoError}.ErrorApi", "No pudimos procesar el documento automáticamente."));
             }
 

@@ -9,9 +9,11 @@ namespace CaeManager.Application.Documentos.Verificacion;
 
 /// <summary>
 /// Lee por IA el archivo real de un Documento de Trabajador recién creado y
-/// compara tipo/fecha de emisión/firma detectados contra lo introducido por
+/// contrasta fecha de emisión y firma detectadas contra lo introducido por
 /// el usuario, generando una <see cref="RevisionIaDocumento"/> pendiente
-/// cuando la confianza general es baja o hay una discrepancia — nunca
+/// cuando la confianza general es baja, cuando hay una discrepancia o
+/// cuando falta la evidencia que haría falta para aprobar (ver
+/// <see cref="ComputarMotivos"/>) — nunca
 /// corrige nada automáticamente (ver Issue #19, "corrección automática" es
 /// una pieza con componente legal, pendiente de confirmación explícita del
 /// usuario). Solo corre si el TipoDocumento tiene la lectura IA activa a
@@ -28,7 +30,7 @@ namespace CaeManager.Application.Documentos.Verificacion;
 /// criterios de aceptación copiado de la plataforma documental del cliente —
 /// el campo que dice qué hace válido un documento de este tipo, en las
 /// palabras del portal que lo va a aceptar o rechazar. Hoy esta comparación
-/// solo mira tipo/fecha/firma; cuando se automatice la lectura contra los
+/// solo mira fecha y firma; cuando se automatice la lectura contra los
 /// criterios reales, ese campo es el insumo, no uno nuevo que haya que
 /// modelar. Anotado aquí para que la sesión que lo implemente no tenga que
 /// redescubrirlo.
@@ -159,6 +161,38 @@ public class VerificacionIaDocumentoService(
         auditoria?.RegistrarDecisionHumana(decision, usuarioId);
     }
 
+    /// <summary>
+    /// La aprobación automática exige <b>evidencia positiva</b>, no la mera
+    /// ausencia de discrepancias. La salida de un LLM es una propuesta, no una
+    /// prueba: el texto del documento entra en el prompt sin separación de
+    /// canal, así que un PDF preparado puede pedir "devuelve confianza 100" y
+    /// obtenerlo. Por eso ningún campo autorreportado puede, por sí solo,
+    /// cerrar un documento sin que lo mire nadie.
+    ///
+    /// Antes esta comparación solo tenía tres reglas y todas exigían que el
+    /// dato <em>existiera</em> para poder discrepar: una extracción con
+    /// confianza ≥70, <c>FechaEmisionDetectada = null</c> y
+    /// <c>TieneFirma = null</c> devolvía cero motivos y el documento quedaba
+    /// aprobado automáticamente. Es decir: cuanto menos entendía la IA el
+    /// archivo, más fácil lo aprobaba — un archivo ilegible, un documento que
+    /// no es el que dice ser, o una respuesta truncada del proveedor pasaban
+    /// como éxito. Ahora cada dato ausente es un motivo de revisión, no un
+    /// silencio a favor.
+    ///
+    /// <b>Lo que sigue sin comprobarse, y por qué</b>: <c>TipoDetectado</c> se
+    /// exige presente, pero NO se coteja contra
+    /// <see cref="TipoDocumento.Nombre"/>. No es un olvido. El modelo devuelve
+    /// el título tal como aparece impreso en el documento ("Apto médico",
+    /// "Reconocimiento médico favorable") mientras el catálogo usa nombres
+    /// administrativos ("Certificado de aptitud médica"): compararlos por
+    /// texto marcaría como discrepancia la inmensa mayoría de los documentos
+    /// correctos y convertiría la revisión humana en ruido, que es otra forma
+    /// de no revisar nada. Hacerlo bien exige lo que hoy no existe en el
+    /// modelo — un código estable o una lista de denominaciones equivalentes
+    /// por <see cref="TipoDocumento"/> — y calibrarlo contra documentos
+    /// reales. Es un incremento propio, con decisión de producto detrás; hasta
+    /// entonces queda escrito aquí para que nadie lo dé por cubierto.
+    /// </summary>
     private static List<string> ComputarMotivos(Documento documento, MetadatosDocumentoExtraidosDto extraido)
     {
         var motivos = new List<string>();
@@ -166,11 +200,19 @@ public class VerificacionIaDocumentoService(
         if (extraido.ConfianzaGeneral < UmbralConfianzaBaja)
             motivos.Add($"Confianza baja ({extraido.ConfianzaGeneral}%)");
 
-        if (extraido.FechaEmisionDetectada is { } fechaDetectada && fechaDetectada != documento.FechaEmision)
+        if (string.IsNullOrWhiteSpace(extraido.TipoDetectado))
+            motivos.Add("No se pudo determinar el tipo real del documento");
+
+        if (extraido.FechaEmisionDetectada is not { } fechaDetectada)
+            motivos.Add("No se pudo verificar la fecha de emisión en el documento");
+        else if (fechaDetectada != documento.FechaEmision)
             motivos.Add("La fecha de emisión introducida no coincide con la detectada en el documento");
 
-        if (extraido.TieneFirma == false)
-            motivos.Add("No se detectó firma en el documento");
+        // null y false se tratan igual a propósito: "no hay firma" y "no se
+        // sabe si hay firma" son ambos ausencia de prueba de firma, y ninguno
+        // de los dos puede sostener una aprobación sin revisión.
+        if (extraido.TieneFirma is not true)
+            motivos.Add("No hay evidencia de firma en el documento");
 
         return motivos;
     }

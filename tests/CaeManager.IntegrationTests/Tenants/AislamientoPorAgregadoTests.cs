@@ -354,7 +354,7 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
 
     [Fact]
     public Task Aislamiento_ExtraccionIaCache() => VerificarAislamientoAsync(
-        () => ExtraccionIaCache.Crear(new string('a', 64), "{}"));
+        () => ExtraccionIaCache.Crear(new string('a', 64), "Póliza", "{}"));
 
     [Fact]
     public Task Aislamiento_AuditoriaExtraccionIa() => VerificarAislamientoAsync(

@@ -33,6 +33,9 @@ public class ProveedorFalsoDocumentAI : IDocumentAIProvider
     public CapacidadesProveedorIa Capacidades =>
         CapacidadesProveedorIa.OcrImagenAEscaneado | CapacidadesProveedorIa.ExtraccionEstructurada;
 
+    /// <summary>Siempre: no tiene credencial que comprobar, y su registro ya está gateado por "DocumentosIa:ProveedorFalsoActivo".</summary>
+    public bool EstaDisponible => true;
+
     public Task<Result<TextoExtraccionDto>> ExtraerTextoAsync(
         byte[] contenidoArchivo, string nombreArchivo, CancellationToken cancellationToken = default) =>
         Task.FromResult(Result.Exito(new TextoExtraccionDto(

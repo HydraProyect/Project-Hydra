@@ -361,6 +361,23 @@ public class ProcesadorAnalisisDocumentoHostedService(
                 await servicios.GetRequiredService<IValidacionDocumentoOficialService>()
                     .ProcesarDocumentoAsync(trabajo.DocumentoId, cancellationToken);
                 break;
+
+            // Sin esta rama, un valor de Tipo que no case con ninguno de los
+            // anteriores —un enum nuevo cuyo case se olvidó al añadirlo, o un
+            // valor corrupto en base de datos— salía del switch en silencio y
+            // el llamador ejecutaba MarcarCompletado() acto seguido: el
+            // trabajo quedaba "Completado" sin que se hubiera analizado nada,
+            // y el usuario recibía la campana de "ya está revisado". El mismo
+            // engaño que D3 cerró para los fallos de proveedor, por otra
+            // puerta.
+            //
+            // Definitivo, no reintentable: añadir un case es un cambio de
+            // código, así que tres intentos más darían exactamente el mismo
+            // resultado — ver el trato de NotSupportedException en
+            // SeguimientoReintentosAnalisisIa.
+            default:
+                throw new NotSupportedException(
+                    $"El tipo de análisis {trabajo.Tipo} no tiene ejecución asociada en {nameof(EjecutarAnalisisAsync)}.");
         }
     }
 

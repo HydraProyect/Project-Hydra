@@ -15,9 +15,12 @@ namespace CaeManager.Application.DocumentosIa;
 /// archivo completo (Casos 2-3); Mixto → texto digital de las páginas con
 /// texto + OCR de las páginas escaneadas (Caso 4, con rasterización).
 ///
-/// Antes de llamar a ningún proveedor comprueba la caché documental por
-/// SHA256 (§ 3) — si ya se procesó exactamente este archivo, reutiliza el
-/// resultado sin pagar de nuevo. Registra una <see cref="AuditoriaExtraccionIa"/>
+/// Antes de llamar a ningún proveedor comprueba la caché documental (§ 3) —
+/// si ya se procesó este mismo archivo bajo el mismo tipo esperado y con la
+/// misma versión del pipeline, reutiliza el resultado sin pagar de nuevo. La
+/// clave incluye el tipo a propósito: lo que se guarda es una interpretación
+/// del archivo, no una transcripción, y el tipo esperado entra en el prompt
+/// (ver ExtraccionIaCache). Registra una <see cref="AuditoriaExtraccionIa"/>
 /// en todos los casos (éxito, fallo o caché), nunca usada para decidir
 /// enrutado — solo para poder ver qué se procesó, con qué proveedor,
 /// cuánto tardó, cuánto costó y con qué confianza (§ 4.2).
@@ -39,6 +42,24 @@ public class DocumentAIRouterService(
     /// <summary>Por debajo de esto no vale la pena el coste de localizar páginas — se manda el documento completo tal cual (ver § 4.3).</summary>
     private const int UmbralPaginasParaLocalizar = 15;
 
+    /// <summary>
+    /// Máximo de páginas escaneadas que se envían a OCR de un mismo documento.
+    ///
+    /// El bucle de OCR del Caso Mixto es el único punto del pipeline donde el
+    /// gasto crece linealmente con el tamaño del archivo: el proveedor factura
+    /// por página, así que un PDF escaneado grande se traduce directamente en
+    /// factura, y además en tantas rasterizaciones nativas como páginas. Sin
+    /// tope, un solo documento podía consumir cuota de todos los tenants.
+    ///
+    /// Es una guarda de seguridad, no una política de producto: está puesto
+    /// alto para que no moleste a los documentos reales (una póliza larga ronda
+    /// las 280 páginas, pero llega como digital y pasa por el localizador, no
+    /// por aquí) y solo dispare ante lo que no tiene sentido procesar sin que
+    /// una persona lo mire antes. Cuando exista presupuesto por tenant, este
+    /// número debería salir de ahí.
+    /// </summary>
+    private const int MaximoPaginasEscaneadasPorDocumento = 100;
+
     private static readonly JsonSerializerOptions JsonOpciones = new(JsonSerializerDefaults.Web);
 
     /// <summary>Texto ya listo para estructurar, con nota de localización (si se descartaron páginas) y coste OCR (si se usó un proveedor de OCR).</summary>
@@ -50,7 +71,7 @@ public class DocumentAIRouterService(
         var cronometro = Stopwatch.StartNew();
         var hash = CalcularHash(contenido);
 
-        var cacheado = await cacheRepositorio.ObtenerPorHashAsync(hash, cancellationToken);
+        var cacheado = await cacheRepositorio.ObtenerAsync(hash, tipoEsperado, cancellationToken);
         if (cacheado is not null)
         {
             var resultadoCache = DeserializarDesdeCache(cacheado.ExtraccionJson);
@@ -92,53 +113,125 @@ public class DocumentAIRouterService(
             return Result.Fallo<ExtraccionEstructuradaDto>(Error.Crear("DocumentAIRouter.SinProveedor", mensaje));
         }
 
-        var proveedorUsado = proveedoresEstructuracion[0];
-        var resultado = await proveedorUsado.ExtraerEstructuradoAsync(texto.Valor.Texto, tipoEsperado, cancellationToken);
-
-        (resultado, proveedorUsado) = await ReintentarSiHaceFaltaAsync(resultado, proveedorUsado, proveedoresEstructuracion, texto.Valor.Texto, tipoEsperado, cancellationToken);
+        var estructuracion = await EstructurarAsync(
+            proveedoresEstructuracion, texto.Valor.Texto, tipoEsperado, cancellationToken);
+        var resultado = estructuracion.Resultado;
 
         if (resultado.EsFallido)
         {
             await RegistrarAuditoriaAsync(
                 hash, tipoEsperado, "ninguno", cronometro.ElapsedMilliseconds,
-                texto.Valor.CosteEstimadoOcr, costeEstimado: null, clasificacion.Valor.TotalPaginas, 0, resultado.Error.Mensaje, documentoId, cancellationToken);
+                texto.Valor.CosteEstimadoOcr, estructuracion.CosteAcumulado, clasificacion.Valor.TotalPaginas, 0,
+                CombinarIncidencias(resultado.Error.Mensaje, estructuracion.NotaIntentos), documentoId, cancellationToken);
             return resultado;
         }
 
-        await GuardarEnCacheAsync(hash, resultado.Valor, cancellationToken);
-        var incidencias = CombinarIncidencias(texto.Valor.NotaLocalizacion, resultado.Valor.NotasValidacion);
+        await GuardarEnCacheAsync(hash, tipoEsperado, resultado.Valor, cancellationToken);
+        var incidencias = CombinarIncidencias(
+            texto.Valor.NotaLocalizacion, resultado.Valor.NotasValidacion, estructuracion.NotaIntentos);
         await RegistrarAuditoriaAsync(
-            hash, tipoEsperado, proveedorUsado.Codigo, cronometro.ElapsedMilliseconds,
-            texto.Valor.CosteEstimadoOcr, resultado.Valor.CosteEstimado,
+            hash, tipoEsperado, estructuracion.ProveedorCodigo, cronometro.ElapsedMilliseconds,
+            texto.Valor.CosteEstimadoOcr, estructuracion.CosteAcumulado,
             clasificacion.Valor.TotalPaginas, resultado.Valor.ConfianzaGeneral, incidencias, documentoId, cancellationToken);
 
         return resultado;
     }
 
-    private static string? CombinarIncidencias(string? notaLocalizacion, string? notasValidacion)
+    private static string? CombinarIncidencias(params string?[] partes)
     {
-        var partes = new[] { notaLocalizacion, notasValidacion }.Where(parte => !string.IsNullOrWhiteSpace(parte)).ToList();
-        return partes.Count == 0 ? null : string.Join(" ", partes);
+        var utiles = partes.Where(parte => !string.IsNullOrWhiteSpace(parte)).ToList();
+        return utiles.Count == 0 ? null : string.Join(" ", utiles);
     }
 
-    private async Task<(Result<ExtraccionEstructuradaDto> Resultado, IDocumentAIProvider Proveedor)> ReintentarSiHaceFaltaAsync(
-        Result<ExtraccionEstructuradaDto> resultado, IDocumentAIProvider proveedorUsado, IReadOnlyList<IDocumentAIProvider> proveedoresEstructuracion,
-        string texto, string tipoEsperado, CancellationToken cancellationToken)
+    /// <summary>Lo que dejó una vuelta completa por los candidatos de estructuración: quién ganó, cuánto costó TODO (no solo el ganador) y qué se intentó.</summary>
+    private sealed record ResultadoEstructuracion(
+        Result<ExtraccionEstructuradaDto> Resultado, string ProveedorCodigo, decimal? CosteAcumulado, string? NotaIntentos);
+
+    /// <summary>
+    /// Recorre los candidatos en el orden declarado por
+    /// <see cref="IDocumentAIProviderFactory.ObtenerPorCapacidad"/> y se queda
+    /// con el mejor resultado, con dos diferencias frente a lo que hacía antes.
+    ///
+    /// <b>Fallback ante fallo</b>: antes el segundo proveedor solo entraba si
+    /// el primero devolvía <em>éxito</em> con confianza baja. Un timeout, un
+    /// 429, una credencial ausente o un JSON inválido en el primero abortaban
+    /// el análisis entero aunque hubiera alternativas configuradas y sanas —
+    /// un solo proveedor mal configurado tumbaba la lectura IA de todos los
+    /// tenants. Ahora un fallo pasa al siguiente candidato; solo se devuelve
+    /// error cuando se agotan todos, y el que se devuelve es el del último
+    /// intento.
+    ///
+    /// <b>El coste no se pierde</b>: antes, si el segundo modelo mejoraba al
+    /// primero, la auditoría registraba solo el coste del ganador y el del
+    /// descartado desaparecía — el gasto real quedaba infravalorado justo en
+    /// los documentos que más llamadas consumen.
+    /// <see cref="ResultadoEstructuracion.CosteAcumulado"/> suma todos los
+    /// intentos que devolvieron coste.
+    ///
+    /// Lo que <b>no</b> cambia es cuándo se paga un segundo modelo: si el
+    /// primero responde con confianza suficiente
+    /// (<see cref="UmbralReintento"/>), se corta ahí y no se llama a nadie más.
+    ///
+    /// Sigue sin haber ninguna comprobación de si a este tenant se le pueden
+    /// enviar estos datos a este proveedor: el fallback recorre la lista
+    /// entera sin preguntar por región ni base jurídica. No amplía el conjunto
+    /// de destinatarios respecto a lo que ya hacía el reintento por confianza
+    /// baja — pero sí hace más probable llegar al segundo. Es deuda conocida,
+    /// no un descuido.
+    /// </summary>
+    private async Task<ResultadoEstructuracion> EstructurarAsync(
+        IReadOnlyList<IDocumentAIProvider> candidatos, string texto, string tipoEsperado, CancellationToken cancellationToken)
     {
-        if (resultado.EsFallido || resultado.Valor.ConfianzaGeneral >= UmbralReintento || proveedoresEstructuracion.Count < 2)
-            return (resultado, proveedorUsado);
+        decimal? costeAcumulado = null;
+        var intentos = new List<string>(candidatos.Count);
 
-        var segundoProveedor = proveedoresEstructuracion[1];
-        var segundoResultado = await segundoProveedor.ExtraerEstructuradoAsync(texto, tipoEsperado, cancellationToken);
+        Result<ExtraccionEstructuradaDto>? mejor = null;
+        var proveedorMejor = "ninguno";
+        Result<ExtraccionEstructuradaDto>? ultimoFallo = null;
 
-        if (segundoResultado.EsFallido || segundoResultado.Valor.ConfianzaGeneral <= resultado.Valor.ConfianzaGeneral)
-            return (resultado, proveedorUsado);
+        foreach (var candidato in candidatos)
+        {
+            var actual = await candidato.ExtraerEstructuradoAsync(texto, tipoEsperado, cancellationToken);
 
-        logger.LogInformation(
-            "Reintento con {Proveedor} mejoró la confianza de {ConfianzaAnterior}% a {ConfianzaNueva}%.",
-            segundoProveedor.Codigo, resultado.Valor.ConfianzaGeneral, segundoResultado.Valor.ConfianzaGeneral);
+            if (actual.EsFallido)
+            {
+                intentos.Add($"{candidato.Codigo}: {actual.Error.Codigo}");
+                ultimoFallo = actual;
+                continue;
+            }
 
-        return (segundoResultado, segundoProveedor);
+            if (actual.Valor.CosteEstimado is { } coste)
+                costeAcumulado = (costeAcumulado ?? 0m) + coste;
+
+            intentos.Add($"{candidato.Codigo}: {actual.Valor.ConfianzaGeneral}%");
+
+            if (mejor is null || actual.Valor.ConfianzaGeneral > mejor.Valor.ConfianzaGeneral)
+            {
+                if (mejor is not null)
+                {
+                    logger.LogInformation(
+                        "Reintento con {Proveedor} mejoró la confianza de {ConfianzaAnterior}% a {ConfianzaNueva}%.",
+                        candidato.Codigo, mejor.Valor.ConfianzaGeneral, actual.Valor.ConfianzaGeneral);
+                }
+
+                mejor = actual;
+                proveedorMejor = candidato.Codigo;
+            }
+
+            // Confianza suficiente: no se paga un modelo más solo por tenerlo.
+            if (mejor.Valor.ConfianzaGeneral >= UmbralReintento)
+                break;
+        }
+
+        var nota = intentos.Count > 1 ? $"Proveedores invocados: {string.Join(", ", intentos)}." : null;
+
+        if (mejor is { } ganador)
+            return new ResultadoEstructuracion(ganador, proveedorMejor, costeAcumulado, nota);
+
+        var error = ultimoFallo ?? Result.Fallo<ExtraccionEstructuradaDto>(Error.Crear(
+            "DocumentAIRouter.SinProveedor", "No hay ningún proveedor de IA disponible para procesar este documento."));
+
+        return new ResultadoEstructuracion(error, "ninguno", costeAcumulado, nota);
     }
 
     private async Task<Result<TextoExtraidoDto>> ObtenerTextoAsync(
@@ -200,22 +293,45 @@ public class DocumentAIRouterService(
                 "DocumentAIRouter.SinProveedorOcr", "No hay ningún proveedor de OCR disponible para procesar este documento."));
         }
 
-        var imagenes = rasterizador.RasterizarPaginas(contenido, indicesEscaneadas);
-        if (imagenes.EsFallido)
-            return Result.Fallo<TextoExtraidoDto>(imagenes.Error);
+        // Tope de páginas escaneadas por documento. Es a la vez una guarda de
+        // coste (el proveedor de OCR factura por página, así que este bucle es
+        // el único sitio del pipeline donde el gasto crece sin límite con el
+        // tamaño del archivo) y de memoria. Se falla en vez de truncar a
+        // propósito: recortar en silencio devolvería una extracción incompleta
+        // presentada como completa, y las decisiones que cuelgan de ella —
+        // aprobar un documento, dar de baja a un trabajador que "no aparece" —
+        // se tomarían sobre un texto al que le faltan páginas sin que nadie lo
+        // sepa.
+        if (indicesEscaneadas.Count > MaximoPaginasEscaneadasPorDocumento)
+        {
+            return Result.Fallo<TextoExtraidoDto>(Error.Crear(
+                "DocumentAIRouter.DemasiadasPaginasEscaneadas",
+                $"El documento tiene {indicesEscaneadas.Count} páginas escaneadas, por encima del máximo de {MaximoPaginasEscaneadasPorDocumento} que se procesan automáticamente."));
+        }
 
         var proveedorOcr = proveedoresOcr[0];
         var textosPorIndicePagina = new Dictionary<int, string>(indicesEscaneadas.Count);
         decimal? costeOcr = null;
 
-        for (var i = 0; i < indicesEscaneadas.Count; i++)
+        // Se rasteriza y se envía una página cada vez. Antes se rasterizaban
+        // TODAS antes del primer OCR y la lista entera de PNG vivía en memoria
+        // hasta terminar el documento; aquí cada imagen queda sin referencias en
+        // cuanto se ha enviado, así que el pico deja de crecer con el número de
+        // páginas.
+        foreach (var indicePagina in indicesEscaneadas)
         {
-            var nombrePagina = $"pagina-{indicesEscaneadas[i] + 1}.png";
-            var ocr = await proveedorOcr.ExtraerTextoAsync(imagenes.Valor[i], nombrePagina, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var imagen = rasterizador.RasterizarPagina(contenido, indicePagina, cancellationToken);
+            if (imagen.EsFallido)
+                return Result.Fallo<TextoExtraidoDto>(imagen.Error);
+
+            var nombrePagina = $"pagina-{indicePagina + 1}.png";
+            var ocr = await proveedorOcr.ExtraerTextoAsync(imagen.Valor, nombrePagina, cancellationToken);
             if (ocr.EsFallido)
                 return Result.Fallo<TextoExtraidoDto>(ocr.Error);
 
-            textosPorIndicePagina[indicesEscaneadas[i]] = ocr.Valor.Texto;
+            textosPorIndicePagina[indicePagina] = ocr.Valor.Texto;
             if (ocr.Valor.CosteEstimado.HasValue)
                 costeOcr = (costeOcr ?? 0m) + ocr.Valor.CosteEstimado.Value;
         }
@@ -241,13 +357,14 @@ public class DocumentAIRouterService(
         return new TextoExtraidoDto(texto, nota);
     }
 
-    private async Task GuardarEnCacheAsync(string hash, ExtraccionEstructuradaDto extraccion, CancellationToken cancellationToken)
+    private async Task GuardarEnCacheAsync(
+        string hash, string tipoEsperado, ExtraccionEstructuradaDto extraccion, CancellationToken cancellationToken)
     {
-        if (await cacheRepositorio.ObtenerPorHashAsync(hash, cancellationToken) is not null)
+        if (await cacheRepositorio.ObtenerAsync(hash, tipoEsperado, cancellationToken) is not null)
             return; // ya cacheado (p. ej. por una llamada concurrente) — no duplicar.
 
         var json = JsonSerializer.Serialize(extraccion, JsonOpciones);
-        cacheRepositorio.Agregar(ExtraccionIaCache.Crear(hash, json));
+        cacheRepositorio.Agregar(ExtraccionIaCache.Crear(hash, tipoEsperado, json));
     }
 
     private async Task RegistrarAuditoriaAsync(
