@@ -120,7 +120,7 @@ public class DocumentAIRouterServiceTests
     public async Task Reintenta_con_un_segundo_proveedor_cuando_la_confianza_del_primero_es_baja_y_mejora()
     {
         var primero = new ProveedorIaFalso(
-            "mistral", CapacidadesProveedorIa.ExtraccionEstructurada,
+            "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
             resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Póliza", new Dictionary<string, string?>(), 55, "baja calidad")));
         var segundo = new ProveedorIaFalso(
             "gemini", CapacidadesProveedorIa.ExtraccionEstructurada,
@@ -139,7 +139,7 @@ public class DocumentAIRouterServiceTests
     public async Task No_reintenta_cuando_la_confianza_del_primero_ya_es_alta()
     {
         var primero = new ProveedorIaFalso(
-            "mistral", CapacidadesProveedorIa.ExtraccionEstructurada,
+            "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
             resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Póliza", new Dictionary<string, string?>(), 98, null)));
         var segundo = new ProveedorIaFalso("gemini", CapacidadesProveedorIa.ExtraccionEstructurada);
         var router = CrearRouter(Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"), primero, segundo);
@@ -165,11 +165,83 @@ public class DocumentAIRouterServiceTests
         unico.VecesLlamadoParaEstructurado.Should().Be(1);
     }
 
+    /// <summary>
+    /// El fallback que no existía: antes, el segundo proveedor solo entraba si
+    /// el primero devolvía ÉXITO con confianza baja, así que un timeout, un 429
+    /// o una credencial ausente en el primario tumbaban el análisis aunque
+    /// hubiera alternativas sanas configuradas.
+    /// </summary>
+    [Fact]
+    public async Task Cae_al_siguiente_proveedor_cuando_el_primero_falla()
+    {
+        var primero = new ProveedorIaFalso(
+            "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Fallo<ExtraccionEstructuradaDto>(
+                Error.Crear("DocumentAIProvider.ErrorApi", "No pudimos procesar el documento automáticamente.")));
+        var segundo = new ProveedorIaFalso(
+            "gemini", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Póliza", new Dictionary<string, string?>(), 88, null)));
+        var (router, _, auditoria, _) = CrearRouterConDependencias(
+            Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"), primero, segundo);
+
+        var resultado = await router.ProcesarAsync([1, 2, 3], "documento.pdf", "Póliza de seguro");
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.ConfianzaGeneral.Should().Be(88);
+        primero.VecesLlamadoParaEstructurado.Should().Be(1);
+        segundo.VecesLlamadoParaEstructurado.Should().Be(1);
+        auditoria.Auditorias[0].ProveedorCodigo.Should().Be("gemini", "el ganador es quien respondió, no quien se intentó primero");
+    }
+
+    [Fact]
+    public async Task Devuelve_el_ultimo_error_cuando_fallan_todos_los_proveedores()
+    {
+        var primero = new ProveedorIaFalso(
+            "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Fallo<ExtraccionEstructuradaDto>(Error.Crear("DocumentAIProvider.ErrorApi", "caído")));
+        var segundo = new ProveedorIaFalso(
+            "gemini", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Fallo<ExtraccionEstructuradaDto>(Error.Crear("DocumentAIProvider.ErrorRed", "sin red")));
+        var (router, _, auditoria, _) = CrearRouterConDependencias(
+            Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"), primero, segundo);
+
+        var resultado = await router.ProcesarAsync([1, 2, 3], "documento.pdf", "Póliza de seguro");
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("DocumentAIProvider.ErrorRed", "el error devuelto es el del último intento");
+        primero.VecesLlamadoParaEstructurado.Should().Be(1);
+        segundo.VecesLlamadoParaEstructurado.Should().Be(1);
+        auditoria.Auditorias[0].ProveedorCodigo.Should().Be("ninguno");
+    }
+
+    /// <summary>
+    /// Antes, si el segundo modelo mejoraba al primero se auditaba solo el
+    /// coste del ganador: el gasto real quedaba infravalorado justo en los
+    /// documentos que consumen más llamadas.
+    /// </summary>
+    [Fact]
+    public async Task Suma_en_la_auditoria_el_coste_del_intento_descartado()
+    {
+        var primero = new ProveedorIaFalso(
+            "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Póliza", new Dictionary<string, string?>(), 55, null, CosteEstimado: 0.02m)));
+        var segundo = new ProveedorIaFalso(
+            "gemini", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Póliza", new Dictionary<string, string?>(), 92, null, CosteEstimado: 0.03m)));
+        var (router, _, auditoria, _) = CrearRouterConDependencias(
+            Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"), primero, segundo);
+
+        await router.ProcesarAsync([1, 2, 3], "documento.pdf", "Póliza de seguro");
+
+        auditoria.Auditorias[0].CosteEstimado.Should().Be(0.05m, "0.02 del descartado + 0.03 del ganador");
+        auditoria.Auditorias[0].Incidencias.Should().Contain("anthropic").And.Contain("gemini");
+    }
+
     [Fact]
     public async Task No_se_queda_con_el_segundo_resultado_si_no_mejora_la_confianza()
     {
         var primero = new ProveedorIaFalso(
-            "mistral", CapacidadesProveedorIa.ExtraccionEstructurada,
+            "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
             resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Póliza", new Dictionary<string, string?>(), 60, null)));
         var segundo = new ProveedorIaFalso(
             "gemini", CapacidadesProveedorIa.ExtraccionEstructurada,
@@ -278,6 +350,50 @@ public class DocumentAIRouterServiceTests
         auditoria.Auditorias[1].CosteEstimado.Should().Be(0m);
     }
 
+    /// <summary>
+    /// Lo que guarda la caché no es una transcripción del archivo: es una
+    /// interpretación hecha bajo un tipo esperado concreto, que entra en el
+    /// prompt y condiciona qué campos busca el modelo. Con la clave anterior
+    /// (solo hash) el mismo PDF pedido primero como un tipo y después como otro
+    /// devolvía la primera lectura, sin volver a mirar el documento y sin dejar
+    /// constancia de que la pregunta era distinta.
+    /// </summary>
+    [Fact]
+    public async Task El_mismo_archivo_pedido_como_otro_tipo_no_reutiliza_la_lectura_anterior()
+    {
+        var proveedor = new ProveedorIaFalso(
+            "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Póliza", new Dictionary<string, string?>(), 95, null)));
+        var (router, _, auditoria, _) = CrearRouterConDependencias(
+            Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"), proveedor);
+
+        byte[] mismoArchivo = [1, 2, 3];
+        await router.ProcesarAsync(mismoArchivo, "documento.pdf", "Póliza de seguro");
+        await router.ProcesarAsync(mismoArchivo, "documento.pdf", "Apto médico");
+
+        proveedor.VecesLlamadoParaEstructurado.Should().Be(2, "son dos preguntas distintas sobre el mismo archivo");
+        auditoria.Auditorias.Should().NotContain(a => a.ProveedorCodigo == "cache");
+    }
+
+    [Fact]
+    public async Task El_mismo_archivo_pedido_como_el_mismo_tipo_si_reutiliza_la_cache()
+    {
+        var proveedor = new ProveedorIaFalso(
+            "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Póliza", new Dictionary<string, string?>(), 95, null)));
+        var (router, _, auditoria, _) = CrearRouterConDependencias(
+            Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"), proveedor);
+
+        byte[] mismoArchivo = [1, 2, 3];
+        await router.ProcesarAsync(mismoArchivo, "documento.pdf", "Póliza de seguro");
+        // Mayúsculas y espacios distintos: la normalización del tipo tiene que
+        // hacer que siga siendo la misma clave, o la caché no acertaría nunca.
+        await router.ProcesarAsync(mismoArchivo, "documento.pdf", "  PÓLIZA   DE SEGURO ");
+
+        proveedor.VecesLlamadoParaEstructurado.Should().Be(1);
+        auditoria.Auditorias[1].ProveedorCodigo.Should().Be("cache");
+    }
+
     [Fact]
     public async Task Contenidos_distintos_no_comparten_cache()
     {
@@ -336,6 +452,76 @@ public class DocumentAIRouterServiceTests
         proveedor.VecesLlamadoParaTexto.Should().Be(2, "dos páginas escaneadas");
         rasterizador.UltimosIndicesRasterizados.Should().BeEquivalentTo([1, 2]);
         auditoria.Auditorias[0].CosteEstimadoOcr.Should().Be(0.008m, "0.004 × 2 páginas escaneadas");
+    }
+
+    /// <summary>
+    /// Antes se rasterizaban TODAS las páginas escaneadas antes del primer OCR,
+    /// así que la lista entera de PNG vivía en memoria hasta terminar el
+    /// documento — cientos de megas para un escaneado grande, en el mismo
+    /// proceso que sirve Blazor.
+    ///
+    /// La comprobación mira el estado del rasterizador DESDE DENTRO de cada
+    /// llamada de OCR: si el router siguiera rasterizando todo por adelantado,
+    /// en el primer OCR ya constarían las tres páginas. Contar llamadas al
+    /// final no distinguiría las dos implementaciones.
+    /// </summary>
+    [Fact]
+    public async Task Caso_4_mixto_rasteriza_y_envia_pagina_a_pagina_sin_retenerlas_todas()
+    {
+        RasterizadorPaginasFalso? rasterizadorObservado = null;
+        var paginasRasterizadasEnCadaOcr = new List<int>();
+
+        var proveedor = new ProveedorIaFalso(
+            "mistral-ocr+anthropic",
+            CapacidadesProveedorIa.OcrImagenAEscaneado | CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoTexto: Result.Exito(new TextoExtraccionDto("texto ocr")),
+            resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Contrato", new Dictionary<string, string?>(), 90, null)),
+            alExtraerTexto: () => paginasRasterizadasEnCadaOcr.Add(rasterizadorObservado!.VecesLlamado));
+
+        // 4 páginas: 0 digital, 1-3 escaneadas.
+        var textoPorPagina = Result.Exito<IReadOnlyList<string>>(["p0", "ignorado", "ignorado", "ignorado"]);
+        var clasificacion = Clasificacion(TipoContenidoDocumento.Mixto, true, false, false, false);
+        var (router, _, _, rasterizador) = CrearRouterConDependencias(clasificacion, textoPorPagina, proveedor);
+        rasterizadorObservado = rasterizador;
+
+        await router.ProcesarAsync([1, 2, 3], "contrato.pdf", "Contrato");
+
+        // En el OCR de la página k solo se ha rasterizado hasta la k: 1, 2, 3.
+        paginasRasterizadasEnCadaOcr.Should().Equal(new[] { 1, 2, 3 },
+            "cada página se rasteriza justo antes de enviarla, no todas por adelantado");
+        rasterizador.UltimosIndicesRasterizados.Should().Equal(new[] { 1, 2, 3 });
+    }
+
+    /// <summary>
+    /// El bucle de OCR es el único punto del pipeline donde el gasto crece
+    /// linealmente con el tamaño del archivo (el proveedor factura por página).
+    /// Se falla en vez de truncar: recortar en silencio devolvería una
+    /// extracción incompleta presentada como completa, y las decisiones que
+    /// cuelgan de ella se tomarían sobre un texto al que le faltan páginas.
+    /// </summary>
+    [Fact]
+    public async Task Rechaza_un_documento_con_mas_paginas_escaneadas_de_las_que_se_procesan_automaticamente()
+    {
+        const int paginas = 101;
+        var proveedor = new ProveedorIaFalso(
+            "mistral-ocr+anthropic",
+            CapacidadesProveedorIa.OcrImagenAEscaneado | CapacidadesProveedorIa.ExtraccionEstructurada);
+
+        // Página 0 digital y el resto escaneadas: 101 escaneadas en total.
+        var digitales = new bool[paginas + 1];
+        digitales[0] = true;
+        var textoPorPagina = Result.Exito<IReadOnlyList<string>>(
+            Enumerable.Range(0, paginas + 1).Select(i => $"p{i}").ToList());
+
+        var (router, _, _, rasterizador) = CrearRouterConDependencias(
+            Clasificacion(TipoContenidoDocumento.Mixto, digitales), textoPorPagina, proveedor);
+
+        var resultado = await router.ProcesarAsync([1, 2, 3], "escaneado-enorme.pdf", "Contrato");
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("DocumentAIRouter.DemasiadasPaginasEscaneadas");
+        rasterizador.VecesLlamado.Should().Be(0, "el tope se comprueba antes de rasterizar y pagar nada");
+        proveedor.VecesLlamadoParaTexto.Should().Be(0);
     }
 
     [Fact]

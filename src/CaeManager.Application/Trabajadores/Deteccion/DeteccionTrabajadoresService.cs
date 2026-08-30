@@ -38,6 +38,14 @@ namespace CaeManager.Application.Trabajadores.Deteccion;
 /// que es, en vez de que <c>MarcarCompletado()</c> + la campana "Detección
 /// de personal terminada" mientan sobre un documento que nunca llegó a
 /// leerse.
+///
+/// <b>El listado extraído no se trata como un hecho</b>: sale de un PDF que
+/// un tercero pudo preparar y de una lectura que pudo fallar, así que antes
+/// de decidir un alta o una baja se deduplica, se acota su tamaño (ver
+/// <c>MaximoTrabajadoresPorDocumento</c>), se exige dígito de control válido
+/// para proponer altas y —sobre todo— se descarta como fallo de lectura el
+/// caso en que ninguno de los trabajadores de alta aparece en el documento,
+/// que antes producía la baja simultánea de la plantilla entera.
 /// </summary>
 public class DeteccionTrabajadoresService(
     IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext,
@@ -122,14 +130,63 @@ public class DeteccionTrabajadoresService(
                 $"Lectura IA del Documento {documentoId} no disponible: {resultadoExtraccion.Error.Codigo} — {resultadoExtraccion.Error.Mensaje}");
         }
 
-        var extraidos = resultadoExtraccion.Valor;
+        // El listado que devuelve el modelo es una propuesta hostil, no un
+        // hecho: sale de un PDF que un tercero pudo preparar y de un OCR que
+        // pudo leer mal. Se deduplica y se acota antes de dejarle decidir
+        // nada.
+        var extraidos = resultadoExtraccion.Valor
+            .Where(e => !string.IsNullOrWhiteSpace(e.Dni))
+            .GroupBy(NormalizarDni)
+            .Select(grupo => grupo.First())
+            .ToList();
+
+        if (extraidos.Count > MaximoTrabajadoresPorDocumento)
+        {
+            throw new InvalidOperationException(
+                $"La lectura IA del Documento {documentoId} devolvió {extraidos.Count} trabajadores, " +
+                $"por encima del máximo razonable de {MaximoTrabajadoresPorDocumento} para un documento de Seguridad Social.");
+        }
+
         var dnisExtraidos = extraidos.Select(NormalizarDni).ToHashSet();
 
         var trabajadoresActivos = await trabajadoresContext.Trabajadores
             .Where(t => t.EmpresaId == empresaId && !t.EstaEliminado)
             .ToListAsync(cancellationToken);
 
-        var nuevos = extraidos.Where(e => trabajadoresActivos.All(t => NormalizarDni(t.Dni) != NormalizarDni(e.Dni))).ToList();
+        // Guarda contra la baja masiva. Antes, una extracción vacía —el
+        // desenlace más común de un OCR que falla sobre un escaneado malo, y
+        // también el que produciría un PDF preparado para que el modelo no
+        // devuelva nada— dejaba dnisExtraidos vacío y marcaba como Ausente a
+        // TODOS los trabajadores activos de la Empresa, con su notificación al
+        // gestor. Que ninguno de los trabajadores de alta aparezca en un ITA o
+        // un RNT de esa misma Empresa no es una plantilla que se ha ido
+        // entera: es un documento que no se ha leído, o que no habla de esta
+        // plantilla. Se trata como el fallo de detección que es, y así el
+        // usuario recibe "Detección de personal no disponible — revísalo tú
+        // manualmente" en vez de una cola de bajas inventadas.
+        //
+        // El criterio es la intersección vacía, no un porcentaje: no hace
+        // falta elegir un umbral arbitrario para separar la rotación real
+        // (donde los que siguen de alta sí aparecen) del fallo de lectura.
+        if (trabajadoresActivos.Count > 0 && !trabajadoresActivos.Any(t => dnisExtraidos.Contains(NormalizarDni(t.Dni))))
+        {
+            throw new InvalidOperationException(
+                $"La lectura IA del Documento {documentoId} no reconoció a ninguno de los {trabajadoresActivos.Count} " +
+                "trabajadores de alta de la Empresa: se descarta como fallo de lectura en vez de proponer su baja.");
+        }
+
+        // Altas solo con identificador verificable: un DNI/NIE con dígito de
+        // control correcto es la prueba más barata de que la fila salió del
+        // documento y no de una alucinación o de una instrucción incrustada.
+        // Las bajas, en cambio, se calculan contra TODOS los DNI extraídos,
+        // válidos o no — un pasaporte u otro identificador que este validador
+        // no reconoce sigue sirviendo para confirmar que ese trabajador está
+        // en el documento, y descartarlo lo convertiría en una baja falsa.
+        var nuevos = extraidos
+            .Where(e => EsDocumentoIdentidadValido(e.Dni))
+            .Where(e => trabajadoresActivos.All(t => NormalizarDni(t.Dni) != NormalizarDni(e.Dni)))
+            .ToList();
+
         var ausentes = trabajadoresActivos.Where(t => !dnisExtraidos.Contains(NormalizarDni(t.Dni))).ToList();
 
         if (nuevos.Count == 0 && ausentes.Count == 0)
@@ -178,6 +235,48 @@ public class DeteccionTrabajadoresService(
             notificacionRepositorio.Agregar(new NotificacionUsuario(
                 gestorId, "Cambios de personal detectados", mensaje,
                 urlAccion: $"/empresas/{empresaId}/deteccion-trabajadores", textoAccion: "Revisar"));
+    }
+
+    /// <summary>
+    /// Tope de cardinalidad del listado extraído. Un ITA o un RNT de una sola
+    /// Empresa no lista decenas de miles de personas; una respuesta así es una
+    /// alucinación o una respuesta envenenada, y procesarla significaría
+    /// insertar esas filas en la cola de revisión del gestor.
+    /// </summary>
+    private const int MaximoTrabajadoresPorDocumento = 2000;
+
+    private const string LetrasControlDni = "TRWAGMYFPDXBNJZSQVHLCKE";
+
+    /// <summary>
+    /// Dígito de control de DNI y NIE españoles (módulo 23). En el NIE la
+    /// letra inicial vale como dígito: X→0, Y→1, Z→2.
+    ///
+    /// Solo se usa para decidir si se propone un ALTA — ver el comentario en
+    /// <see cref="ProcesarDocumentoAsync"/> sobre por qué las bajas no pueden
+    /// depender de esto. Un identificador que no sea DNI/NIE (pasaporte,
+    /// documento extranjero) devuelve <c>false</c> aquí: es correcto para el
+    /// uso que se le da, y por eso ese uso está acotado.
+    ///
+    /// Acepta <c>null</c> desde que un Trabajador anonimizado puede no tener
+    /// Dni: <see cref="NormalizarDni"/> lo lleva a cadena vacía y la
+    /// comprobación de longitud lo rechaza, sin caso especial.
+    /// </summary>
+    private static bool EsDocumentoIdentidadValido(string? documentoIdentidad)
+    {
+        var valor = NormalizarDni(documentoIdentidad).Replace("-", string.Empty).Replace(" ", string.Empty);
+
+        if (valor.Length != 9)
+            return false;
+
+        var cuerpo = valor[..8];
+        var letra = valor[8];
+
+        if (cuerpo[0] is 'X' or 'Y' or 'Z')
+            cuerpo = (char)('0' + (cuerpo[0] - 'X')) + cuerpo[1..];
+
+        return int.TryParse(cuerpo, out var numero)
+            && numero >= 0
+            && letra == LetrasControlDni[numero % 23];
     }
 
     // string? — un trabajador anonimizado (Dni null) nunca debe casar con un

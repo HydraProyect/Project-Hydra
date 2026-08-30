@@ -58,6 +58,27 @@ public static class Observabilidad
         "caemanager.documentos.procesados",
         description: "Documentos con un TrabajoAnalisisDocumento completado con éxito, por tipo de análisis.");
 
+    /// <summary>
+    /// Peticiones HTTP salientes a un proveedor de IA, etiquetadas por host.
+    /// Cuenta <b>intentos</b>, no operaciones: un reintento suma otra, porque el
+    /// proveedor puede haber procesado (y cobrado) la petición cuya respuesta se
+    /// perdió — que es justo lo que hay que poder ver.
+    ///
+    /// Sin esto, el gasto real solo se conocía a posteriori por la factura. La
+    /// <c>AuditoriaExtraccionIa</c> registra el coste estimado del
+    /// procesamiento, pero no ve los intentos que el pipeline de resiliencia
+    /// hace por debajo, así que un documento que se reintentaba varias veces
+    /// aparecía como una sola extracción.
+    ///
+    /// Etiquetada por host y no por tenant a propósito: el host tiene
+    /// cardinalidad acotada (tres proveedores), mientras que el tenant la haría
+    /// crecer con cada cliente nuevo. Para atribuir gasto por tenant hace falta
+    /// el presupuesto que todavía no existe, no una etiqueta más.
+    /// </summary>
+    public static readonly Counter<long> LlamadasProveedorIa = Meter.CreateCounter<long>(
+        "caemanager.ia.llamadas",
+        description: "Peticiones HTTP enviadas a un proveedor de IA, reintentos incluidos, por host.");
+
     private static long _colaIaProfundidad;
 
     /// <summary>

@@ -83,9 +83,8 @@ public class AnthropicDeteccionRelevanciaCaeService(
 
             if (!respuesta.IsSuccessStatusCode)
             {
-                var cuerpoError = await respuesta.Content.ReadAsStringAsync(cancellationToken);
                 logger.LogError(
-                    "La API de Anthropic devolvió {StatusCode} al detectar relevancia CAE: {Cuerpo}", (int)respuesta.StatusCode, cuerpoError);
+                    "La API de Anthropic devolvió {StatusCode} al detectar relevancia CAE ({Correlacion}).", (int)respuesta.StatusCode, CorrelacionRespuestaIa.Describir(respuesta));
 
                 return Result.Fallo<DeteccionRelevanciaCaeDto>(Error.Crear(
                     "DeteccionRelevanciaCae.ErrorApi", "No pudimos analizar la conversación automáticamente."));

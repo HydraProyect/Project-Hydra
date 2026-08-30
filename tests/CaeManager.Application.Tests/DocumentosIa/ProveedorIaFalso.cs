@@ -8,10 +8,15 @@ public class ProveedorIaFalso(
     string codigo,
     CapacidadesProveedorIa capacidades,
     Result<TextoExtraccionDto>? resultadoTexto = null,
-    Result<ExtraccionEstructuradaDto>? resultadoEstructurado = null) : IDocumentAIProvider
+    Result<ExtraccionEstructuradaDto>? resultadoEstructurado = null,
+    bool estaDisponible = true,
+    Action? alExtraerTexto = null) : IDocumentAIProvider
 {
     public string Codigo => codigo;
     public CapacidadesProveedorIa Capacidades => capacidades;
+
+    /// <summary>Disponible salvo que el test quiera justo lo contrario: un proveedor sin credencial al que el router no debe elegir.</summary>
+    public bool EstaDisponible => estaDisponible;
 
     public int VecesLlamadoParaTexto { get; private set; }
     public int VecesLlamadoParaEstructurado { get; private set; }
@@ -20,6 +25,10 @@ public class ProveedorIaFalso(
     public Task<Result<TextoExtraccionDto>> ExtraerTextoAsync(byte[] contenidoArchivo, string nombreArchivo, CancellationToken cancellationToken = default)
     {
         VecesLlamadoParaTexto++;
+        // Gancho para observar el ESTADO del pipeline en mitad del bucle de
+        // OCR — es lo que permite comprobar que el router rasteriza y envía
+        // página a página en vez de rasterizarlas todas primero.
+        alExtraerTexto?.Invoke();
         return Task.FromResult(resultadoTexto ?? Result.Exito(new TextoExtraccionDto("texto falso")));
     }
 

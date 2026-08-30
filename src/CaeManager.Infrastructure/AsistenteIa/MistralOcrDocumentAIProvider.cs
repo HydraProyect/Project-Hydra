@@ -33,6 +33,9 @@ public class MistralOcrDocumentAIProvider(
     public CapacidadesProveedorIa Capacidades =>
         CapacidadesProveedorIa.OcrImagenAEscaneado | CapacidadesProveedorIa.ExtraccionEstructurada;
 
+    /// <summary>Inerte sin credencial: sin ApiKey configurada cada método ya devolvía un Result fallido, pero el router no lo sabía hasta después de haberlo elegido. Ahora no se elige.</summary>
+    public bool EstaDisponible => !string.IsNullOrWhiteSpace(opciones.Value.ApiKey);
+
     private const string SystemPromptEstructurado =
         """
         Eres un especialista en Coordinación de Actividades Empresariales
@@ -131,8 +134,8 @@ public class MistralOcrDocumentAIProvider(
 
             if (!respuesta.IsSuccessStatusCode)
             {
-                var cuerpoError = await respuesta.Content.ReadAsStringAsync(cancellationToken);
-                logger.LogError("La API de Mistral OCR devolvió {StatusCode}: {Cuerpo}", (int)respuesta.StatusCode, cuerpoError);
+                logger.LogError(
+                    "La API de Mistral OCR devolvió {StatusCode} ({Correlacion}).", (int)respuesta.StatusCode, CorrelacionRespuestaIa.Describir(respuesta));
                 return Result.Fallo<TextoExtraccionDto>(Error.Crear("DocumentAIProvider.ErrorApi", "No pudimos procesar el documento automáticamente."));
             }
 
@@ -170,8 +173,8 @@ public class MistralOcrDocumentAIProvider(
         var solicitud = new SolicitudChatMistral(
             config.ModeloChat,
             [
-                new MensajeMistral("system", SystemPromptEstructurado),
-                new MensajeMistral("user", $"Tipo de documento esperado: \"{tipoEsperado}\".\n\nTexto del documento:\n{texto}")
+                new MensajeMistral("system", SystemPromptEstructurado + PromptDocumental.ReglasDeAislamiento),
+                new MensajeMistral("user", PromptDocumental.ConstruirMensajeUsuario(tipoEsperado, texto))
             ],
             config.MaxTokensRespuestaChat);
 
@@ -187,8 +190,8 @@ public class MistralOcrDocumentAIProvider(
 
             if (!respuesta.IsSuccessStatusCode)
             {
-                var cuerpoError = await respuesta.Content.ReadAsStringAsync(cancellationToken);
-                logger.LogError("La API de Mistral chat devolvió {StatusCode}: {Cuerpo}", (int)respuesta.StatusCode, cuerpoError);
+                logger.LogError(
+                    "La API de Mistral chat devolvió {StatusCode} ({Correlacion}).", (int)respuesta.StatusCode, CorrelacionRespuestaIa.Describir(respuesta));
                 return Result.Fallo<ExtraccionEstructuradaDto>(Error.Crear("DocumentAIProvider.ErrorApi", "No pudimos procesar el documento automáticamente."));
             }
 
