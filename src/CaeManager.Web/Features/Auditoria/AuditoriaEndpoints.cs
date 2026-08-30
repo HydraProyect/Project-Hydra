@@ -109,7 +109,7 @@ public static class AuditoriaEndpoints
             try
             {
                 var flujo = await almacenamiento.AbrirAsync(archivoUrl, cancellationToken);
-                return Results.File(flujo, "application/pdf", "documento-anterior.pdf");
+                return Results.File(flujo, "application/pdf", "documento-anterior.pdf", enableRangeProcessing: true);
             }
             catch (FileNotFoundException)
             {
