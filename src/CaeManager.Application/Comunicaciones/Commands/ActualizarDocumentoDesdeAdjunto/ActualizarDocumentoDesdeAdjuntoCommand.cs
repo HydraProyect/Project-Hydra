@@ -20,8 +20,16 @@ namespace CaeManager.Application.Comunicaciones.Commands.ActualizarDocumentoDesd
 /// vencimiento, encolado de análisis IA) — delega en <see cref="CrearDocumentoCommand"/>/
 /// <see cref="RenovarDocumentoCommand"/> vía <see cref="IMediator"/>, mismo
 /// patrón de "un Command orquesta otro" que <c>PedirPrioridadValidacionCommand</c>.
-/// El archivo no se vuelve a subir: <see cref="Domain.Comunicaciones.AdjuntoMensaje.ArchivoUrl"/>
-/// ya apunta al mismo <see cref="IFileStorageService"/> que usan los Documentos.
+///
+/// El contenido no se vuelve a subir desde el cliente, pero SÍ se copia a una
+/// clave propia del Documento antes de delegar (auditoría módulo 6, hallazgo
+/// coordinado con el módulo 2 de ingesta/almacenamiento): compartir
+/// literalmente <see cref="Domain.Comunicaciones.AdjuntoMensaje.ArchivoUrl"/>
+/// hacía que renovar/firmar/purgar el Documento borrara el blob del que
+/// <see cref="Domain.Comunicaciones.AdjuntoMensaje"/> seguía dependiendo —
+/// <c>ObtenerAdjuntoParaDescargaQuery</c> quedaba apuntando a un archivo ya
+/// eliminado, sin aviso y sin vuelta atrás. Cada clave debe tener exactamente
+/// una fila propietaria con autoridad para borrarla.
 /// </summary>
 public record ActualizarDocumentoDesdeAdjuntoCommand(
     Guid AdjuntoId, Guid TipoDocumentoId, Guid? TrabajadorId, Guid? EmpresaId,
@@ -61,6 +69,7 @@ public class ActualizarDocumentoDesdeAdjuntoCommandValidator : AbstractValidator
 public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
     IComunicacionesQueryContext comunicacionesContext, IAlcanceDatosService alcanceDatos,
     IDocumentosQueryContext documentosContext, IMediator mediator, IPublisher publisher,
+    IFileStorageService almacenamiento,
     ILogger<ActualizarDocumentoDesdeAdjuntoCommandHandler> logger)
     : IRequestHandler<ActualizarDocumentoDesdeAdjuntoCommand, Result<Guid>>
 {
@@ -71,11 +80,22 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
             join m in comunicacionesContext.Mensajes on a.MensajeId equals m.Id
             join c in comunicacionesContext.Conversaciones on m.ConversacionId equals c.Id
             where a.Id == request.AdjuntoId
-            select new { a.ArchivoUrl, c.ClienteId, ConversacionId = c.Id })
+            select new { a.ArchivoUrl, a.NombreArchivo, c.ClienteId, c.ConexionIntegracionId, ConversacionId = c.Id })
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (adjunto is null || !await alcanceDatos.ClienteOpcionalVisibleAsync(adjunto.ClienteId, cancellationToken))
+        if (adjunto is null || !await alcanceDatos.ConversacionVisibleAsync(adjunto.ClienteId, adjunto.ConexionIntegracionId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Adjunto.NoEncontrado", "No encontramos este adjunto."));
+
+        // Copia a una clave propia del Documento — nunca comparte
+        // ArchivoUrl con el AdjuntoMensaje de origen (ver comentario de
+        // clase): renovar, firmar en campo o purgar el Documento no debe
+        // poder borrar el archivo que el adjunto de la conversación sigue
+        // necesitando, ni al revés.
+        string archivoUrlDocumento;
+        await using (var flujo = await almacenamiento.AbrirAsync(adjunto.ArchivoUrl, cancellationToken))
+        {
+            archivoUrlDocumento = await almacenamiento.GuardarAsync(flujo, adjunto.NombreArchivo, cancellationToken);
+        }
 
         // "Unicidad por tipo y entidad" (§ 12.7): a diferencia del alta manual
         // (donde "editar" ya significa ir a la fila correcta y renovarla),
@@ -93,7 +113,7 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
         if (documentoExistenteId is { } idExistente)
         {
             var renovado = await mediator.Send(new RenovarDocumentoCommand(
-                idExistente, request.FechaEmision, request.FechaVencimientoManual, adjunto.ArchivoUrl, request.Comentarios),
+                idExistente, request.FechaEmision, request.FechaVencimientoManual, archivoUrlDocumento, request.Comentarios),
                 cancellationToken);
             if (renovado.EsFallido)
                 return Result.Fallo<Guid>(renovado.Error);
@@ -104,7 +124,7 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
         {
             var creado = await mediator.Send(new CrearDocumentoCommand(
                 request.TrabajadorId, null, request.EmpresaId, null, null,
-                request.TipoDocumentoId, request.FechaEmision, request.FechaVencimientoManual, adjunto.ArchivoUrl, request.Comentarios),
+                request.TipoDocumentoId, request.FechaEmision, request.FechaVencimientoManual, archivoUrlDocumento, request.Comentarios),
                 cancellationToken);
             if (creado.EsFallido)
                 return Result.Fallo<Guid>(creado.Error);

@@ -8,6 +8,7 @@ using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Tests.Integraciones;
 using CaeManager.Domain.Comunicaciones;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Xunit;
 
@@ -40,7 +41,7 @@ public class AlcanceEscrituraConversacionTests
         var opciones = Options.Create(new ComunicacionesRemitenteOptions { PermitirRemitenteSimulado = permitirRemitenteSimulado });
         return new ResponderConversacionCommandHandler(
             repositorio, new ConexionIntegracionRepositorioFalso(), alcance, graphClient, accesoGraph,
-            new FileStorageServiceFalso(), opciones, unitOfWork);
+            new FileStorageServiceFalso(), opciones, unitOfWork, NullLogger<ResponderConversacionCommandHandler>.Instance);
     }
 
     [Fact]

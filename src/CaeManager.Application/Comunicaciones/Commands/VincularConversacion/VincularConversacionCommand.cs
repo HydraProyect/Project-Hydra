@@ -47,7 +47,7 @@ public class VincularConversacionCommandHandler(
     public async Task<Result> Handle(VincularConversacionCommand request, CancellationToken cancellationToken)
     {
         var origen = await repositorio.ObtenerPorIdAsync(request.ConversacionOrigenId, cancellationToken);
-        if (origen is null || !await alcanceDatos.ClienteOpcionalVisibleAsync(origen.ClienteId, cancellationToken))
+        if (origen is null || !await alcanceDatos.ConversacionVisibleAsync(origen.ClienteId, origen.ConexionIntegracionId, cancellationToken))
             return Result.Fallo(Error.Crear("Conversacion.NoEncontrada", "No encontramos la conversación de origen."));
 
         // Solo WhatsApp origina esta vinculación en la práctica (§ 13.2): un
@@ -62,9 +62,14 @@ public class VincularConversacionCommandHandler(
         var destino = await repositorio.ObtenerPorIdAsync(request.ConversacionDestinoId, cancellationToken);
         // Mismo Cliente exigido en el servidor, no solo confiado del motor de
         // coincidencia: el candidato que propuso la UI pudo quedar desfasado
-        // entre la lectura y la confirmación.
-        if (destino is null || destino.ClienteId != clienteId)
+        // entre la lectura y la confirmación. Y alcance propio del destino
+        // (auditoría módulo 6): compartir Cliente no basta si el destino
+        // cuelga de un buzón personal de otro gestor.
+        if (destino is null || destino.ClienteId != clienteId ||
+            !await alcanceDatos.ConversacionVisibleAsync(destino.ClienteId, destino.ConexionIntegracionId, cancellationToken))
+        {
             return Result.Fallo(Error.Crear("Conversacion.DestinoNoEncontrado", "No encontramos la conversación de destino."));
+        }
 
         if (destino.Estado != EstadoConversacion.Abierta && destino.Estado != EstadoConversacion.Pendiente)
             return Result.Fallo(Error.Crear("Conversacion.DestinoNoDisponible", "La conversación de destino ya no está abierta."));

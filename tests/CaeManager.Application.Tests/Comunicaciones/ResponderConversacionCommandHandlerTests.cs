@@ -7,6 +7,7 @@ using CaeManager.Application.Tests.Integraciones;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Integraciones;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Xunit;
 
@@ -15,18 +16,18 @@ namespace CaeManager.Application.Tests.Comunicaciones;
 public class ResponderConversacionCommandHandlerTests
 {
     private static ResponderConversacionCommandHandler CrearHandler(
-        ConversacionRepositorioFalso repositorio, UnitOfWorkFalso unitOfWork, bool permitirRemitenteSimulado = false)
+        ConversacionRepositorioFalso repositorio, IUnitOfWork unitOfWork, bool permitirRemitenteSimulado = false)
     {
         var graphClient = new Microsoft365GraphClientFalso();
         var accesoGraph = new AccesoGraphService(new CredencialIntegracionRepositorioFalso(), graphClient);
         var opciones = Options.Create(new ComunicacionesRemitenteOptions { PermitirRemitenteSimulado = permitirRemitenteSimulado });
         return new ResponderConversacionCommandHandler(
             repositorio, new ConexionIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(), graphClient, accesoGraph,
-            new FileStorageServiceFalso(), opciones, unitOfWork);
+            new FileStorageServiceFalso(), opciones, unitOfWork, NullLogger<ResponderConversacionCommandHandler>.Instance);
     }
 
     private static ResponderConversacionCommandHandler CrearHandlerConConexion(
-        ConversacionRepositorioFalso repositorio, ConexionIntegracion conexion, UnitOfWorkFalso unitOfWork,
+        ConversacionRepositorioFalso repositorio, ConexionIntegracion conexion, IUnitOfWork unitOfWork,
         Microsoft365GraphClientFalso? graphClient = null)
     {
         graphClient ??= new Microsoft365GraphClientFalso();
@@ -38,7 +39,7 @@ public class ResponderConversacionCommandHandlerTests
         var opciones = Options.Create(new ComunicacionesRemitenteOptions());
         return new ResponderConversacionCommandHandler(
             repositorio, conexionRepositorio, new AlcanceDatosServiceFalso(), graphClient, accesoGraph,
-            new FileStorageServiceFalso(), opciones, unitOfWork);
+            new FileStorageServiceFalso(), opciones, unitOfWork, NullLogger<ResponderConversacionCommandHandler>.Instance);
     }
 
     [Fact]
@@ -193,5 +194,34 @@ public class ResponderConversacionCommandHandlerTests
         resultado.EsFallido.Should().BeTrue();
         conversacion.Mensajes.Should().HaveCount(1);
         unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Auditoría módulo 6: si Graph ya aceptó el envío y el guardado local
+    /// falla después, devolver un fallo invitaría a reintentar — y un
+    /// reintento volvería a enviar el mensaje de verdad, esta vez duplicado.
+    /// El handler debe admitirlo como éxito (con el fallo solo en el log).
+    /// </summary>
+    [Fact]
+    public async Task Si_el_envio_por_Graph_tuvo_exito_pero_el_guardado_local_falla_no_devuelve_fallo()
+    {
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        var conversacion = new Conversacion("Duda sobre vigencia documental");
+        conversacion.AsociarConexion(conexion.Id, "graph-thread-1");
+        conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "<p>hola</p>", mensajeExternoId: "graph-msg-1");
+        var repositorio = new ConversacionRepositorioFalso();
+        repositorio.Agregar(conversacion);
+        var handler = CrearHandlerConConexion(repositorio, conexion, new UnitOfWorkQueFallaFalso());
+
+        var resultado = await handler.Handle(
+            new ResponderConversacionCommand(conversacion.Id, "<p>Respuesta real</p>"), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue("el mensaje ya salió de verdad por Graph — un fallo aquí llevaría a reenviarlo duplicado");
+    }
+
+    private sealed class UnitOfWorkQueFallaFalso : IUnitOfWork
+    {
+        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Fallo simulado de guardado.");
     }
 }

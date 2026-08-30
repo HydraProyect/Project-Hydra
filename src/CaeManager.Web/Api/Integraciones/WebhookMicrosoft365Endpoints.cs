@@ -1,3 +1,4 @@
+using System.Text;
 using CaeManager.Application.Common;
 using CaeManager.Application.Integraciones;
 using CaeManager.Domain.Integraciones;
@@ -38,18 +39,28 @@ public static class WebhookMicrosoft365Endpoints
             IEventoWebhookRepository eventoRepositorio, IUnitOfWork unitOfWork,
             ILogger<Program> logger, CancellationToken cancellationToken) =>
         {
-            using var lector = new StreamReader(request.Body);
-            var payload = await lector.ReadToEndAsync(cancellationToken);
+            var cuerpo = await LimiteCuerpoWebhook.LeerAsync(request, cancellationToken);
+            if (cuerpo is null)
+            {
+                logger.LogWarning(
+                    "Notificación de webhook de Microsoft 365 rechazada para la conexión {ConexionId}: cuerpo mayor de {Maximo} bytes.",
+                    conexionId, LimiteCuerpoWebhook.MaximoBytes);
+                return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
+            }
+
+            var payload = Encoding.UTF8.GetString(cuerpo);
 
             var clientStateRecibido = graphClient.ExtraerClientStateDeNotificacion(payload);
             if (string.IsNullOrWhiteSpace(clientStateRecibido))
                 return Results.BadRequest();
 
-            var verificacion = await tenantResolver.VerificarAsync(conexionId, clientStateRecibido, cancellationToken);
+            var subscriptionIdRecibido = graphClient.ExtraerSubscriptionIdDeNotificacion(payload);
+
+            var verificacion = await tenantResolver.VerificarAsync(conexionId, clientStateRecibido, subscriptionIdRecibido, cancellationToken);
             if (!verificacion.Verificado)
             {
                 logger.LogWarning(
-                    "Notificación de webhook de Microsoft 365 rechazada para la conexión {ConexionId}: clientState no coincide.", conexionId);
+                    "Notificación de webhook de Microsoft 365 rechazada para la conexión {ConexionId}: clientState o subscriptionId no coinciden.", conexionId);
                 return Results.Unauthorized();
             }
 

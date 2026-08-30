@@ -16,6 +16,7 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     public MensajeGraphDto? MensajeADevolver { get; set; }
     public IReadOnlyList<string> MensajeIdsADevolver { get; set; } = [];
     public string? ClientStateADevolver { get; set; }
+    public string? SubscriptionIdADevolver { get; set; }
     public IReadOnlyList<CarpetaGraphDto> CarpetasADevolver { get; set; } = [];
     public IReadOnlyList<MensajeResumenGraphDto> MensajesADevolver { get; set; } = [];
     public byte[] ContenidoAdjuntoADevolver { get; set; } = [];
@@ -76,10 +77,17 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     public Task<Result<SuscripcionGraphDto>> RenovarSuscripcionAsync(string accessToken, string graphSubscriptionId, CancellationToken cancellationToken) =>
         Task.FromResult(Result.Exito(new SuscripcionGraphDto(graphSubscriptionId, DateTime.UtcNow.AddDays(3))));
 
-    public Task<Result> EliminarSuscripcionAsync(string accessToken, string graphSubscriptionId, CancellationToken cancellationToken) =>
-        Task.FromResult(Result.Exito());
+    public List<string> SuscripcionesEliminadas { get; } = [];
+
+    public Task<Result> EliminarSuscripcionAsync(string accessToken, string graphSubscriptionId, CancellationToken cancellationToken)
+    {
+        SuscripcionesEliminadas.Add(graphSubscriptionId);
+        return Task.FromResult(Result.Exito());
+    }
 
     public IReadOnlyList<string> ExtraerMensajeIdsDeNotificacion(string payloadJson) => MensajeIdsADevolver;
 
     public string? ExtraerClientStateDeNotificacion(string payloadJson) => ClientStateADevolver;
+
+    public string? ExtraerSubscriptionIdDeNotificacion(string payloadJson) => SubscriptionIdADevolver;
 }
