@@ -82,7 +82,7 @@ public class DeteccionTrabajadoresServiceTests : IAsyncLifetime
 
         var extraidos = new List<TrabajadorExtraidoDto>
         {
-            new("Alvaro", "Sanchez Martin", trabajadorQueSigue.Dni),
+            new("Alvaro", "Sanchez Martin", trabajadorQueSigue.Dni!), // Recién creado, nunca anonimizado: Dni no es null.
             new("Nuevo", "Trabajador Detectado", "99999999R")
         };
         var servicio = CrearServicio(new ExtraccionIaFalsa(Result.Exito<IReadOnlyList<TrabajadorExtraidoDto>>(extraidos)));

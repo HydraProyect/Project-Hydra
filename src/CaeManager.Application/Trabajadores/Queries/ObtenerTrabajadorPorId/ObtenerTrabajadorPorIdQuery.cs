@@ -15,7 +15,7 @@ public record TrabajadorDetalleDto(
     string EmpleadorNombre,
     string Nombre,
     string Apellidos,
-    string Dni,
+    string? Dni,
     DateOnly? FechaNacimiento,
     string? Email,
     string? Observaciones,

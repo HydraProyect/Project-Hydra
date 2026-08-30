@@ -183,7 +183,7 @@ public class CierreDeAsignacionesEnBorradoTests
         var empresaId = Guid.NewGuid();
         var trabajador = Trabajador.DeEmpresa(empresaId, "Pedro", "Gómez Ruiz", "77189989B");
         var deteccion = DeteccionTrabajador.Ausente(
-            Guid.NewGuid(), empresaId, trabajador.Id, trabajador.Nombre, trabajador.Apellidos, trabajador.Dni);
+            Guid.NewGuid(), empresaId, trabajador.Id, trabajador.Nombre, trabajador.Apellidos, trabajador.Dni!);
 
         var detecciones = new DeteccionTrabajadorRepositorioFalso();
         detecciones.Agregar(deteccion);
@@ -213,7 +213,7 @@ public class CierreDeAsignacionesEnBorradoTests
         var empresaId = Guid.NewGuid();
         var trabajador = Trabajador.DeEmpresa(empresaId, "Pedro", "Gómez Ruiz", "77189989B");
         var deteccion = DeteccionTrabajador.Ausente(
-            Guid.NewGuid(), empresaId, trabajador.Id, trabajador.Nombre, trabajador.Apellidos, trabajador.Dni);
+            Guid.NewGuid(), empresaId, trabajador.Id, trabajador.Nombre, trabajador.Apellidos, trabajador.Dni!);
 
         var detecciones = new DeteccionTrabajadorRepositorioFalso();
         detecciones.Agregar(deteccion);

@@ -139,7 +139,7 @@ public class DeteccionTrabajadoresService(
             deteccionRepositorio.Agregar(DeteccionTrabajador.Nuevo(documentoId, empresaId, nuevo.Nombre, nuevo.Apellidos, nuevo.Dni));
 
         foreach (var ausente in ausentes)
-            deteccionRepositorio.Agregar(DeteccionTrabajador.Ausente(documentoId, empresaId, ausente.Id, ausente.Nombre, ausente.Apellidos, ausente.Dni));
+            deteccionRepositorio.Agregar(DeteccionTrabajador.Ausente(documentoId, empresaId, ausente.Id, ausente.Nombre, ausente.Apellidos, ausente.Dni ?? string.Empty));
 
         await NotificarGestoresAsync(empresaId, tipoDocumento, clientesVinculados, nuevos.Count, ausentes.Count, cancellationToken);
 
@@ -180,6 +180,9 @@ public class DeteccionTrabajadoresService(
                 urlAccion: $"/empresas/{empresaId}/deteccion-trabajadores", textoAccion: "Revisar"));
     }
 
-    private static string NormalizarDni(string dni) => dni.Trim().ToUpperInvariant();
+    // string? — un trabajador anonimizado (Dni null) nunca debe casar con un
+    // Dni extraído de un documento: normaliza a "", que ninguna extracción
+    // real produce tras el Trim().
+    private static string NormalizarDni(string? dni) => dni?.Trim().ToUpperInvariant() ?? string.Empty;
     private static string NormalizarDni(TrabajadorExtraidoDto trabajador) => NormalizarDni(trabajador.Dni);
 }

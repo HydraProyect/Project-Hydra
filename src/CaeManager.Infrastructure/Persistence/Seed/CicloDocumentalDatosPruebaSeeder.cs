@@ -256,10 +256,10 @@ public static class CicloDocumentalDatosPruebaSeeder
 
         dbContext.DeteccionesTrabajador.Add(DeteccionTrabajador.Ausente(
             documentoRnt.Id, documentoRnt.EmpresaId!.Value, trabajadoresEmpresa[0].Id,
-            trabajadoresEmpresa[0].Nombre, trabajadoresEmpresa[0].Apellidos, trabajadoresEmpresa[0].Dni));
+            trabajadoresEmpresa[0].Nombre, trabajadoresEmpresa[0].Apellidos, trabajadoresEmpresa[0].Dni!));
         var ausenteResuelto = DeteccionTrabajador.Ausente(
             documentoRnt.Id, documentoRnt.EmpresaId!.Value, trabajadoresEmpresa[1].Id,
-            trabajadoresEmpresa[1].Nombre, trabajadoresEmpresa[1].Apellidos, trabajadoresEmpresa[1].Dni);
+            trabajadoresEmpresa[1].Nombre, trabajadoresEmpresa[1].Apellidos, trabajadoresEmpresa[1].Dni!);
         ausenteResuelto.Resolver("Mantenido");
         dbContext.DeteccionesTrabajador.Add(ausenteResuelto);
     }
