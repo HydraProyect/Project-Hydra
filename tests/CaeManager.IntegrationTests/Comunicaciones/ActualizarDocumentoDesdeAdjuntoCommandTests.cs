@@ -115,6 +115,51 @@ public class ActualizarDocumentoDesdeAdjuntoCommandTests : IAsyncLifetime
         mediatorFalso.Publicados.Should().BeEmpty();
     }
 
+    /// <summary>Auditoría módulo 6: un adjunto de un buzón personal ajeno no debe poder convertirse en Documento por otro gestor.</summary>
+    [Fact]
+    public async Task Un_adjunto_de_un_buzon_personal_ajeno_no_se_puede_usar()
+    {
+        var contexto = CrearContexto();
+
+        var empresa = new Empresa("Empresa Buzón Ajeno S.L.", "B10380186");
+        contexto.Empresas.Add(empresa);
+        await contexto.SaveChangesAsync();
+
+        var trabajador = Trabajador.DeEmpresa(empresa.Id, "Marta", "Ruiz", "11223344B");
+        var tipoDocumento = new TipoDocumento("Certificado de formación", 12, true, 1, AmbitoAplicacion.Trabajador);
+        contexto.Trabajadores.Add(trabajador);
+        contexto.TiposDocumento.Add(tipoDocumento);
+        await contexto.SaveChangesAsync();
+
+        var conversacion = new Conversacion("Documentación recibida en buzón personal");
+        var conexionAjenaId = Guid.NewGuid();
+        conversacion.AsociarConexion(conexionAjenaId, "hilo-externo-ajeno");
+        contexto.Conversaciones.Add(conversacion);
+        await contexto.SaveChangesAsync();
+
+        var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "Adjunto el certificado");
+        await contexto.SaveChangesAsync();
+
+        var adjunto = new AdjuntoMensaje(mensaje.Id, "certificado.pdf", "application/pdf", 1024, "adjuntos/certificado.pdf");
+        contexto.AdjuntosMensaje.Add(adjunto);
+        await contexto.SaveChangesAsync();
+
+        var mediatorFalso = new MediatorDocumentoFalso();
+        var handler = new ActualizarDocumentoDesdeAdjuntoCommandHandler(
+            contexto, new AlcanceDatosServiceFalso(conexionesIntegracionAjenas: [conexionAjenaId]), contexto, mediatorFalso, mediatorFalso,
+            NullLogger<ActualizarDocumentoDesdeAdjuntoCommandHandler>.Instance);
+
+        var comando = new ActualizarDocumentoDesdeAdjuntoCommand(
+            adjunto.Id, tipoDocumento.Id, trabajador.Id, null, new DateOnly(2026, 8, 1), null, null);
+
+        var resultado = await handler.Handle(comando, CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Adjunto.NoEncontrado");
+        mediatorFalso.ComandoCrearRecibido.Should().BeNull();
+        mediatorFalso.ComandoRenovarRecibido.Should().BeNull();
+    }
+
     [Fact]
     public async Task Sin_propietario_falla_la_validacion()
     {
