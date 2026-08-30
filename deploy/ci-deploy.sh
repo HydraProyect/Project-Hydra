@@ -15,6 +15,24 @@
 # `git merge --ff-only origin/main`, ver deploy/resolve-deploy-sha.sh).
 set -euo pipefail
 
+# Todo el cuerpo va dentro de una función, llamada al final, para que bash lo
+# parsee entero ANTES de ejecutar la primera línea. Sin esto, este script se
+# auto-modifica en pleno vuelo: resolve-deploy-sha.sh (más abajo) hace un
+# `git checkout --detach` sobre /opt/talveg, que es el propio checkout donde
+# vive este fichero — y es LA COPIA EN DISCO del VPS la que se ejecuta (ver
+# el comentario del "comando forzado" de arriba), no la del runner. bash lee
+# el script por bloques con un offset de bytes, no lo bufferiza entero de
+# entrada: si el fichero cambia de tamaño a mitad de ejecución, el offset
+# sigue avanzando sobre el contenido NUEVO y puede ejecutar un híbrido sin
+# sentido o cortar una sentencia por la mitad, sin que nada lo señale. Hoy
+# solo se detectó un diagnóstico que tardó un despliegue entero en surtir
+# efecto (el volcado de logs de más abajo, auditoría de colas 2026-08-30);
+# con otro cambio podría ejecutar basura sobre el VPS. Definir una función
+# fuerza a bash a leer hasta la llave de cierre antes de poder llamarla, así
+# que en el momento en que `main` empieza a correr el fichero ya está
+# parseado entero y da igual que cambie en disco a partir de ahí.
+main() {
+
 read -r ENTORNO SHA <<< "${SSH_ORIGINAL_COMMAND:-}"
 
 case "$ENTORNO" in
@@ -84,3 +102,7 @@ case "$ENTORNO" in
     volcar_diagnostico_si_falla docker-compose.produccion.yml
     ;;
 esac
+
+}
+
+main "$@"

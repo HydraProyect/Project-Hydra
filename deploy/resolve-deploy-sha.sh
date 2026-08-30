@@ -13,6 +13,17 @@
 # Uso: resolve-deploy-sha.sh <ruta-repo> <sha>
 set -euo pipefail
 
+# Todo el cuerpo va dentro de una función, llamada al final — mismo motivo
+# que ci-deploy.sh (ver su comentario): el `git checkout --detach` de más
+# abajo puede cambiar el contenido de ESTE MISMO fichero en pleno vuelo,
+# porque REPO_DIR es el propio checkout donde vive. bash no bufferiza el
+# script entero de entrada, así que sin esta función una línea posterior al
+# checkout (aunque hoy solo quede el `echo` final) se lee sobre un fichero
+# que ya cambió de contenido, y potencialmente de tamaño, sin que nada lo
+# señale. Definir la función fuerza a bash a parsear hasta la llave de
+# cierre antes de poder llamarla.
+main() {
+
 REPO_DIR="${1:?uso: resolve-deploy-sha.sh <ruta-repo> <sha>}"
 SHA="${2:?uso: resolve-deploy-sha.sh <ruta-repo> <sha>}"
 
@@ -42,3 +53,7 @@ fi
 
 git checkout --detach "$SHA" --quiet
 echo "Commit fijado para el despliegue: $SHA"
+
+}
+
+main "$@"
