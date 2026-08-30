@@ -397,6 +397,7 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // Generación individual: resuelve TipoDocumento/Empresa/Trabajador/Centro/
         // Cliente/ContactoAgenda para rellenar la plantilla y crea el Documento real
         // (Domain.Documentos.IDocumentoRepository, otra feature de Domain).
+        ("Plantillas.GenerarDocumentoIndividualCommandHandler", "IAsignacionRepository"),
         ("Plantillas.GenerarDocumentoIndividualCommandHandler", "ICentrosQueryContext"),
         ("Plantillas.GenerarDocumentoIndividualCommandHandler", "IClientesQueryContext"),
         ("Plantillas.GenerarDocumentoIndividualCommandHandler", "IContactosAgendaQueryContext"),
