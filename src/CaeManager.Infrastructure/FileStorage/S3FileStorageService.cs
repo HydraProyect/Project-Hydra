@@ -76,7 +76,15 @@ public class S3FileStorageService : IFileStorageService, IDisposable
         try
         {
             var respuesta = await _cliente.GetObjectAsync(_bucket, clave, cancellationToken);
-            return respuesta.ResponseStream;
+
+            // Devolver respuesta.ResponseStream a secas pierde la propiedad de
+            // GetObjectResponse: quien recibe el stream lo desecha a él, no a
+            // la respuesta, que es la que retiene la respuesta HTTP y su
+            // conexión. Con suficientes descargas eso agota el pool del cliente
+            // de S3. El envoltorio hace que desechar el stream —que es lo único
+            // que el contrato de IFileStorageService le da al llamador— deseche
+            // los dos.
+            return new FlujoObjetoS3(respuesta);
         }
         catch (AmazonS3Exception ex) when (ex.StatusCode == HttpStatusCode.NotFound)
         {
@@ -116,4 +124,64 @@ public class S3FileStorageService : IFileStorageService, IDisposable
     private static string CarpetaDeTenant(Guid tenantId) => tenantId.ToString("N");
 
     public void Dispose() => _cliente.Dispose();
+
+    /// <summary>
+    /// Stream de lectura que, al desecharse, desecha también la
+    /// <see cref="GetObjectResponse"/> de la que salió. Existe solo para que
+    /// la propiedad de los dos recursos viaje junta: <c>IFileStorageService</c>
+    /// entrega un <see cref="Stream"/> y nada más, así que es el stream el que
+    /// tiene que cargar con la respuesta.
+    /// </summary>
+    private sealed class FlujoObjetoS3(GetObjectResponse respuesta) : Stream
+    {
+        private readonly Stream _interno = respuesta.ResponseStream;
+
+        public override bool CanRead => _interno.CanRead;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => respuesta.ContentLength;
+
+        public override long Position
+        {
+            get => _interno.Position;
+            set => throw new NotSupportedException();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) =>
+            _interno.Read(buffer, offset, count);
+
+        public override int Read(Span<byte> buffer) => _interno.Read(buffer);
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+            _interno.ReadAsync(buffer, cancellationToken);
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            _interno.ReadAsync(buffer, offset, count, cancellationToken);
+
+        public override Task CopyToAsync(Stream destination, int bufferSize, CancellationToken cancellationToken) =>
+            _interno.CopyToAsync(destination, bufferSize, cancellationToken);
+
+        public override void Flush() => _interno.Flush();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                // La respuesta desecha su propio ResponseStream; desechar los
+                // dos por separado seria desechar el stream dos veces.
+                respuesta.Dispose();
+            }
+
+            base.Dispose(disposing);
+        }
+
+        public override async ValueTask DisposeAsync()
+        {
+            respuesta.Dispose();
+            await base.DisposeAsync();
+        }
+    }
 }

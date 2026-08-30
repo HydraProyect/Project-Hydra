@@ -48,6 +48,25 @@ public partial class SubidaMasiva : ComponentBase
     private const int MaximoArchivosPorLote = 60;
     private const int UmbralConfianzaAutoCreacion = 95;
 
+    /// <summary>
+    /// Bytes descomprimidos que puede llegar a retener el circuito por lote,
+    /// contando lo que sale de los .zip y los archivos sueltos juntos.
+    ///
+    /// Es exactamente lo que este mismo lote ya podía ocupar sin comprimir
+    /// (<see cref="MaximoArchivosPorLote"/> archivos al máximo por archivo),
+    /// a propósito: así un .zip nunca da acceso a más memoria que subir los
+    /// mismos archivos sueltos, que es lo único que la compresión estaba
+    /// permitiendo saltarse. No baja ningún límite que hoy funcione, así que
+    /// no rechaza ninguna subida que hoy se acepte.
+    ///
+    /// Acota el daño; no lo elimina. Sostener cientos de MB de PDFs en el
+    /// estado de un circuito Blazor sigue siendo mucho, y la salida real es
+    /// pasar el contenido a disco/objeto temporal y procesarlo fuera del
+    /// proceso web en vez de en <c>byte[]</c> — pendiente de decisión, ver el
+    /// informe del Módulo 2.
+    /// </summary>
+    private const long PresupuestoLoteBytes = MaximoArchivosPorLote * TamanoMaximoArchivoBytes;
+
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private IFileStorageService AlmacenamientoArchivos { get; set; } = default!;
@@ -107,6 +126,13 @@ public partial class SubidaMasiva : ComponentBase
         {
             var entradas = new List<(byte[] Contenido, string NombreArchivo)>();
 
+            // Presupuesto compartido por todo el lote: cada archivo que entra
+            // —suelto o salido de un .zip— descuenta de aquí. Sin esto, el
+            // tope de 10 MB acotaba el .zip comprimido pero no lo que salía
+            // de él (factor 1027 medido sobre ceros: 10 MB de entrada podían
+            // volverse más de 10 GB en memoria del proceso web).
+            var presupuestoRestante = PresupuestoLoteBytes;
+
             foreach (var archivo in archivosSeleccionados)
             {
                 await using var flujo = archivo.OpenReadStream(TamanoMaximoArchivoBytes);
@@ -125,28 +151,56 @@ public partial class SubidaMasiva : ComponentBase
                     IReadOnlyList<(byte[] Contenido, string NombreArchivo)> entradasZip;
                     try
                     {
-                        entradasZip = ExtractorZip.Extraer(contenido);
+                        entradasZip = ExtractorZip.Extraer(
+                            contenido,
+                            // Lo que quepa aún en el lote: un .zip no puede
+                            // traer más archivos de los que faltan para el
+                            // tope, y ese recuento ya no se hace después de
+                            // haberlos expandido en memoria.
+                            MaximoArchivosPorLote - entradas.Count,
+                            TamanoMaximoArchivoBytes,
+                            presupuestoRestante);
+                    }
+                    catch (InvalidDataException ex)
+                    {
+                        // Límite superado: es el caso previsto, no un fallo.
+                        // El .zip se descarta entero y el lote continúa con
+                        // el resto de archivos.
+                        Logger.LogWarning(
+                            "Se descartó un .zip que supera los límites de descompresión en la subida múltiple: {Motivo}",
+                            ex.Message);
+                        _items.Add(NuevoItemError(archivo.Name, ex.Message));
+                        continue;
                     }
                     catch (Exception ex)
                     {
-                        Logger.LogWarning(ex, "No se pudo leer el .zip {NombreArchivo} en la subida múltiple.", archivo.Name);
+                        Logger.LogWarning(ex, "No se pudo leer un .zip en la subida múltiple.");
                         _items.Add(NuevoItemError(archivo.Name, "No pudimos abrir este archivo .zip."));
                         continue;
                     }
 
+                    presupuestoRestante -= entradasZip.Sum(e => (long)e.Contenido.Length);
                     entradas.AddRange(entradasZip);
                 }
                 else
                 {
+                    presupuestoRestante -= contenido.Length;
                     entradas.Add((contenido, archivo.Name));
                 }
-            }
 
-            if (entradas.Count > MaximoArchivosPorLote)
-            {
-                ToastService.Mostrar(
-                    $"El lote tiene {entradas.Count} archivos — el máximo por subida es {MaximoArchivosPorLote}.", TonoToast.Error);
-                return;
+                if (entradas.Count > MaximoArchivosPorLote)
+                {
+                    ToastService.Mostrar(
+                        $"El lote supera el máximo de {MaximoArchivosPorLote} archivos por subida.", TonoToast.Error);
+                    return;
+                }
+
+                if (presupuestoRestante < 0)
+                {
+                    ToastService.Mostrar(
+                        "El lote supera el tamaño máximo admitido para una subida.", TonoToast.Error);
+                    return;
+                }
             }
 
             foreach (var (contenido, nombreArchivo) in entradas)
@@ -193,7 +247,8 @@ public partial class SubidaMasiva : ComponentBase
         }
         catch (Exception ex)
         {
-            Logger.LogWarning(ex, "No se pudo convertir {NombreArchivo} a PDF en la subida múltiple.", nombreArchivo);
+            Logger.LogWarning(ex, "No se pudo convertir {ReferenciaArchivo} a PDF en la subida múltiple.",
+                ReferenciaArchivoTraza.De(nombreArchivo));
             item.Estado = EstadoItem.Error;
             item.MensajeError = "No pudimos convertir este archivo a PDF.";
             StateHasChanged();
@@ -239,8 +294,9 @@ public partial class SubidaMasiva : ComponentBase
         if (resultado.EsFallido || resultado.Valor.Count == 0)
         {
             Logger.LogInformation(
-                "No se pudo generar miniatura para {NombreArchivo} en la subida múltiple: {Error}",
-                nombreArchivo, resultado.EsFallido ? resultado.Error.Mensaje : "sin páginas");
+                "No se pudo generar miniatura para {ReferenciaArchivo} en la subida múltiple: {Error}",
+                ReferenciaArchivoTraza.De(nombreArchivo),
+                resultado.EsFallido ? resultado.Error.Mensaje : "sin páginas");
             return null;
         }
 
@@ -257,7 +313,8 @@ public partial class SubidaMasiva : ComponentBase
         }
         catch (Exception ex)
         {
-            Logger.LogWarning(ex, "No se pudo completar la detección automática para {NombreArchivo} en la subida múltiple.", nombreArchivo);
+            Logger.LogWarning(ex, "No se pudo completar la detección automática para {ReferenciaArchivo} en la subida múltiple.",
+                ReferenciaArchivoTraza.De(nombreArchivo));
             return null;
         }
     }
@@ -319,10 +376,21 @@ public partial class SubidaMasiva : ComponentBase
                 ? fv
                 : null;
 
+        // El blob se escribe antes que la fila, así que entre las dos
+        // operaciones hay una ventana en la que el archivo existe sin
+        // Documento que lo posea: sin fila, nada lo referencia, la retención
+        // no lo alcanza y no hay forma fiable de purgarlo después. Se compensa
+        // borrándolo en cuanto se sabe que el alta no salió adelante.
+        //
+        // La compensación cubre el fallo del comando, no la caída del proceso
+        // entre ambos pasos: para eso hace falta staging durable con TTL y un
+        // recolector, que es una decisión de arquitectura pendiente (ver el
+        // informe del Módulo 2).
+        string? archivoUrl = null;
         try
         {
             using var flujoPdf = new MemoryStream(item.ContenidoPdf);
-            var archivoUrl = await AlmacenamientoArchivos.GuardarAsync(flujoPdf, "documento.pdf");
+            archivoUrl = await AlmacenamientoArchivos.GuardarAsync(flujoPdf, "documento.pdf");
 
             var resultado = await Mediator.Send(new CrearDocumentoCommand(
                 TrabajadorId: trabajadorId,
@@ -338,6 +406,7 @@ public partial class SubidaMasiva : ComponentBase
 
             if (resultado.EsFallido)
             {
+                await DescartarArchivoHuerfanoAsync(archivoUrl);
                 item.Estado = EstadoItem.Error;
                 item.MensajeError = resultado.Error.Mensaje;
                 return;
@@ -348,9 +417,34 @@ public partial class SubidaMasiva : ComponentBase
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Fallo al crear el Documento de {NombreArchivo} desde la subida múltiple.", item.NombreArchivo);
+            await DescartarArchivoHuerfanoAsync(archivoUrl);
+            Logger.LogError(ex, "Fallo al crear el Documento de {ReferenciaArchivo} desde la subida múltiple.",
+                ReferenciaArchivoTraza.De(item.NombreArchivo));
             item.Estado = EstadoItem.Error;
             item.MensajeError = "No pudimos guardar este documento. Intenta nuevamente.";
+        }
+    }
+
+    /// <summary>
+    /// Borra un archivo ya guardado cuyo Documento no llegó a crearse. Es
+    /// best-effort a propósito: si el borrado falla, el alta ya ha fallado y
+    /// lo que procede es dejar constancia del huérfano, no enmascarar el
+    /// error original con el de la compensación.
+    /// </summary>
+    private async Task DescartarArchivoHuerfanoAsync(string? archivoUrl)
+    {
+        if (archivoUrl is null) return;
+
+        try
+        {
+            await AlmacenamientoArchivos.EliminarAsync(archivoUrl);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex,
+                "Quedó un archivo huérfano en almacenamiento tras un alta fallida: {ArchivoUrl}. " +
+                "No tiene Documento propietario, así que la retención no lo alcanza.",
+                archivoUrl);
         }
     }
 

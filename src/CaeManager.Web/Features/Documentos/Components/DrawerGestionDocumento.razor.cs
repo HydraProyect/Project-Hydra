@@ -56,6 +56,23 @@ public partial class DrawerGestionDocumento : ComponentBase
     private string? _glosarioSeSolicitaA;
     private string? _glosarioObservaciones;
     private string? _archivoUrl;
+
+    /// <summary>
+    /// Clave de un archivo ya escrito en almacenamiento que todavía no tiene
+    /// Documento que lo posea. El drawer guarda el blob al seleccionar el
+    /// archivo, no al enviar el formulario, así que entre ambos momentos
+    /// existe un archivo sin fila propietaria: cerrar el drawer, elegir otro
+    /// archivo o abandonar el circuito lo dejaba en disco para siempre, sin
+    /// nada que lo referenciara y por tanto fuera del alcance de la
+    /// retención y de cualquier purga RGPD.
+    ///
+    /// Se distingue de <see cref="_archivoUrl"/> a propósito: al editar, ese
+    /// campo lleva el archivo que el Documento YA tiene, y borrar ese sí
+    /// sería destruir datos vivos. Solo se descarta lo que subió esta sesión
+    /// del drawer y ningún comando llegó a adoptar.
+    /// </summary>
+    private string? _archivoUrlSubidoSinAdoptar;
+
     private bool _subiendoArchivo;
     private bool _detectandoCampos;
     private string? _aliasSugerido;
@@ -104,6 +121,11 @@ public partial class DrawerGestionDocumento : ComponentBase
 
     public async Task AbrirCrearAsync()
     {
+        // Reabrir el drawer sin haber pasado por el cierre (lo hacen las
+        // pantallas que lo abren directamente) no debe heredar el archivo de
+        // la sesión anterior: se descarta antes de reiniciar el formulario.
+        await DescartarArchivoSinAdoptarAsync();
+
         _ambitoAplicacion = nameof(AmbitoAplicacion.Trabajador);
         _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
         _tiposDisponibles = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: AmbitoAplicacion.Trabajador));
@@ -161,6 +183,11 @@ public partial class DrawerGestionDocumento : ComponentBase
 
     public async Task AbrirEditarAsync(Guid id)
     {
+        // Mismo motivo que en AbrirCrearAsync — y aquí importa más, porque a
+        // continuación _archivoUrl pasa a ser el archivo que el Documento ya
+        // tiene, que no se debe descartar nunca.
+        await DescartarArchivoSinAdoptarAsync();
+
         var documento = await Mediator.Send(new ObtenerDocumentoPorIdQuery(id));
         if (documento is null)
         {
@@ -226,10 +253,42 @@ public partial class DrawerGestionDocumento : ComponentBase
         _glosarioObservaciones = tipo?.Observaciones;
     }
 
-    private Task CerrarDrawerAsync(bool visible)
+    private async Task CerrarDrawerAsync(bool visible)
     {
+        // Cerrar sin guardar abandona el archivo que se hubiera subido ya.
+        if (!visible)
+            await DescartarArchivoSinAdoptarAsync();
+
         _drawerVisible = visible;
-        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Borra el archivo subido que ningún comando llegó a adoptar. Es
+    /// best-effort: si el borrado falla queda constancia del huérfano, pero
+    /// no se interrumpe lo que el usuario estaba haciendo por ello.
+    ///
+    /// Compensa el fallo y el abandono, no la caída del proceso entre la
+    /// escritura del blob y el commit: para eso hace falta staging durable
+    /// con TTL y un recolector — decisión de arquitectura pendiente, ver el
+    /// informe del Módulo 2.
+    /// </summary>
+    private async Task DescartarArchivoSinAdoptarAsync()
+    {
+        if (_archivoUrlSubidoSinAdoptar is not { } huerfano) return;
+
+        _archivoUrlSubidoSinAdoptar = null;
+
+        try
+        {
+            await AlmacenamientoArchivos.EliminarAsync(huerfano);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex,
+                "Quedó un archivo huérfano en almacenamiento al descartar una subida: {ArchivoUrl}. " +
+                "No tiene Documento propietario, así que la retención no lo alcanza.",
+                huerfano);
+        }
     }
 
     private void CopiarFechaEmisionAVencimiento() => _fechaVencimientoManual = _fechaEmision;
@@ -326,8 +385,14 @@ public partial class DrawerGestionDocumento : ComponentBase
 
             var pdfUnificado = await ConversorArchivosPdf.UnificarAsync(contenidos, ConversorWordPdf);
 
+            // Elegir un segundo archivo sustituye la clave del primero: si no
+            // se descarta aquí, el primero se queda en almacenamiento sin que
+            // nada vuelva a nombrarlo.
+            await DescartarArchivoSinAdoptarAsync();
+
             using var flujoPdf = new MemoryStream(pdfUnificado);
             _archivoUrl = await AlmacenamientoArchivos.GuardarAsync(flujoPdf, "documento.pdf");
+            _archivoUrlSubidoSinAdoptar = _archivoUrl;
 
             if (_editandoId is null && _ambitoAplicacion == nameof(AmbitoAplicacion.Trabajador))
                 await DetectarCamposAsync(pdfUnificado);
@@ -523,6 +588,10 @@ public partial class DrawerGestionDocumento : ComponentBase
                 _mensajeErrorFormulario = mensajeError;
                 return;
             }
+
+            // El comando confirmó: el archivo ya tiene Documento propietario y
+            // deja de ser candidato a descarte.
+            _archivoUrlSubidoSinAdoptar = null;
 
             ToastService.Mostrar(
                 _editandoId is null ? "Documento creado correctamente." : "Documento renovado correctamente.",
