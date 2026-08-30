@@ -4,7 +4,7 @@ using CaeManager.Infrastructure.MultiTenancy;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Xunit;
 
@@ -41,6 +41,7 @@ public class DiskFileStorageServiceTests : IDisposable
     }
 
     private readonly AlertaOperativaFalsa _alertas = new();
+    private readonly LoggerEspia _logger = new();
 
     private DiskFileStorageService CrearServicio(Guid? tenantId) =>
         new(
@@ -49,7 +50,7 @@ public class DiskFileStorageServiceTests : IDisposable
             new TenantActualAmbiental { TenantId = tenantId },
             _dataProtectionProvider,
             _alertas,
-            NullLogger<DiskFileStorageService>.Instance);
+            _logger);
 
     private string RutaDe(Guid tenantId, string identificador) =>
         Path.Combine(_rutaTemporal, tenantId.ToString("N"), Path.GetFileName(identificador));
@@ -277,6 +278,74 @@ public class DiskFileStorageServiceTests : IDisposable
 
         await accion.Should().ThrowAsync<InvalidDataException>(
             "la ruta cuadra, asi que si se leyera seria porque la clave no depende del tenant");
+    }
+
+    [Fact]
+    public async Task Leer_un_archivo_legado_cifrado_sin_marca_deja_constancia_de_que_queda_formato_anterior()
+    {
+        // La razón de ser de este test: sin él, la única población legada que
+        // de verdad puede haber en producción se servía SIN dejar rastro. El
+        // primer despliegue real fue el 2026-08-24 y el cifrado v1 entró el
+        // 2026-08-01, así que lo que hay allí está cifrado-sin-marca, no en
+        // claro. Un registro sin avisos se leería entonces como "ya no queda
+        // nada legado" justo cuando queda todo, y retirar la rama legada por
+        // esa lectura dejaría ilegible cada PDF subido antes del formato v2.
+        var identificador = await EscribirArchivoDeFormatoAnteriorAsync(_tenantA, "informe medico anterior");
+
+        var servicio = CrearServicio(_tenantA);
+        await using var flujo = await servicio.AbrirAsync(identificador);
+
+        _logger.Avisos.Should().ContainSingle(aviso => aviso.Contains("protector v1"),
+            "es el único instrumento que puede responder si queda formato anterior en producción");
+    }
+
+    [Fact]
+    public async Task Leer_un_archivo_legado_en_claro_deja_constancia_de_que_queda_formato_anterior()
+    {
+        var carpetaTenant = _tenantA.ToString("N");
+        Directory.CreateDirectory(Path.Combine(_rutaTemporal, carpetaTenant));
+        var nombreArchivo = $"{Guid.NewGuid():N}.pdf";
+        await File.WriteAllTextAsync(
+            Path.Combine(_rutaTemporal, carpetaTenant, nombreArchivo), "documento legado sin cifrar");
+
+        var servicio = CrearServicio(_tenantA);
+        await using var flujo = await servicio.AbrirAsync($"{carpetaTenant}/{nombreArchivo}");
+
+        _logger.Avisos.Should().ContainSingle(aviso => aviso.Contains("sin cifrar"));
+    }
+
+    [Fact]
+    public async Task Leer_un_archivo_del_formato_actual_no_deja_ningun_aviso_de_formato_anterior()
+    {
+        // La otra mitad de la medición: si el aviso saltara también con v2, el
+        // recuento en producción no distinguiría lo legado de lo corriente y
+        // dejaría de poder responder la pregunta.
+        var servicio = CrearServicio(_tenantA);
+        using var contenido = new MemoryStream("un dato de salud confidencial"u8.ToArray());
+        var identificador = await servicio.GuardarAsync(contenido, "documento.pdf");
+
+        await using var flujo = await servicio.AbrirAsync(identificador);
+
+        _logger.Avisos.Should().BeEmpty();
+    }
+
+    private sealed class LoggerEspia : ILogger<DiskFileStorageService>
+    {
+        public List<string> Avisos { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel >= LogLevel.Warning) Avisos.Add(formatter(state, exception));
+        }
     }
 
     private sealed class AlertaOperativaFalsa : IAlertaOperativa

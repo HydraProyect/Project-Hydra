@@ -241,16 +241,35 @@ public class DiskFileStorageService : IFileStorageService
         // Sin marca: escrito antes del formato v2. Comportamiento anterior
         // intacto, incluida la ambigüedad — es la única forma de no romper lo
         // que ya está en disco. Ver el comentario de clase.
+        //
+        // AMBAS salidas de aquí dejan constancia, y son dos poblaciones
+        // distintas de archivo, no una:
+        //
+        //   · cifrado con el protector v1, sin marca — escrito entre el
+        //     2a2c76dd (2026-08-01, cuando entró el cifrado en reposo) y el
+        //     formato v2;
+        //   · en claro, anterior al cifrado en reposo.
+        //
+        // El aviso original solo cubría la segunda, que es la que NO existe en
+        // producción: el primer despliegue real fue el 2026-08-24, o sea
+        // posterior al cifrado v1. La población que sí puede haber allí se
+        // servía en silencio, de modo que un registro sin avisos se leía como
+        // "ya no queda nada legado" justo cuando quedaba todo. Retirar la rama
+        // con esa lectura dejaría ilegible cada documento subido antes del
+        // despliegue del formato v2. De ahí que se registren las dos.
         try
         {
-            return _protectorLegado.Unprotect(bytesDisco);
+            var descifrado = _protectorLegado.Unprotect(bytesDisco);
+
+            _logger.LogWarning(
+                "Se sirvió un archivo legado cifrado con el protector v1 y sin marca de formato ({Identificador}). " +
+                "Mientras existan, la rama legada no se puede retirar: hacerlo dejaría este archivo ilegible.",
+                identificador);
+
+            return descifrado;
         }
         catch (CryptographicException)
         {
-            // Cada lectura por aquí deja constancia: es lo que convierte
-            // "¿queda algo legado en producción?" en una pregunta medible, y
-            // sin esa medición no se puede retirar esta rama sin arriesgarse
-            // a dejar documentos ilegibles.
             _logger.LogWarning(
                 "Se sirvió un archivo legado sin cifrar ni marca de formato ({Identificador}). " +
                 "Mientras existan, la rama legada no se puede retirar y un contenido manipulado no se distingue de uno antiguo.",
