@@ -1,9 +1,11 @@
 using CaeManager.Application.Comunicaciones.Commands.ResponderConversacionWhatsApp;
+using CaeManager.Application.Common;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Integraciones;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Integraciones;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace CaeManager.Application.Tests.Comunicaciones;
@@ -18,8 +20,9 @@ public class ResponderConversacionWhatsAppCommandHandlerTests
     private readonly WhatsAppCloudApiClientFalso _whatsApp = new();
     private readonly UnitOfWorkFalso _unitOfWork = new();
 
-    private ResponderConversacionWhatsAppCommandHandler CrearHandler() =>
-        new(_conversaciones, _conexiones, _lineas, new AlcanceDatosServiceFalso(), _whatsApp, _unitOfWork);
+    private ResponderConversacionWhatsAppCommandHandler CrearHandler(IUnitOfWork? unitOfWork = null) =>
+        new(_conversaciones, _conexiones, _lineas, new AlcanceDatosServiceFalso(), _whatsApp, unitOfWork ?? _unitOfWork,
+            NullLogger<ResponderConversacionWhatsAppCommandHandler>.Instance);
 
     private Conversacion CrearConversacionConLinea(DateTime? ultimoEntranteUtc)
     {
@@ -105,5 +108,28 @@ public class ResponderConversacionWhatsAppCommandHandlerTests
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("ConversacionWhatsApp.LineaNoDisponible");
         _whatsApp.EnviosRealizados.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Auditoría módulo 6: si Meta ya aceptó el envío y el guardado local
+    /// falla después, devolver un fallo invitaría a reintentar — y un
+    /// reintento reenviaría el texto de verdad, esta vez duplicado.
+    /// </summary>
+    [Fact]
+    public async Task Si_meta_acepto_el_envio_pero_el_guardado_local_falla_no_devuelve_fallo()
+    {
+        var conversacion = CrearConversacionConLinea(DateTime.UtcNow.AddHours(-1));
+
+        var resultado = await CrearHandler(new UnitOfWorkQueFallaFalso()).Handle(
+            new ResponderConversacionWhatsAppCommand(conversacion.Id, "Te lo miro ahora"), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue("el mensaje ya salió de verdad por WhatsApp — un fallo aquí llevaría a reenviarlo duplicado");
+        _whatsApp.EnviosRealizados.Should().ContainSingle();
+    }
+
+    private sealed class UnitOfWorkQueFallaFalso : IUnitOfWork
+    {
+        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Fallo simulado de guardado.");
     }
 }

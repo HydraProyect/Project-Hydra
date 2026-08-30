@@ -5,6 +5,7 @@ using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Integraciones;
 using FluentValidation;
 using MediatR;
+using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Application.Comunicaciones.Commands.ResponderConversacionWhatsApp;
 
@@ -33,6 +34,12 @@ public class ResponderConversacionWhatsAppCommandValidator : AbstractValidator<R
 /// el mensaje si Meta lo aceptó (sin mensajes fantasma, mismo criterio que
 /// el handler de correo). El wamid devuelto se guarda como MensajeExternoId
 /// para casar los statuses (delivered/read/failed) posteriores.
+///
+/// Envío real y registro local no comparten transacción (auditoría módulo
+/// 6): si Meta acepta el envío y el SaveChangesAsync posterior falla,
+/// devolver un fallo invitaría a reintentar — y un reintento reenviaría el
+/// texto de verdad, duplicado. Ese caso concreto se admite como éxito (con
+/// el fallo de registro solo en el log) en vez de arriesgarlo.
 /// </summary>
 public class ResponderConversacionWhatsAppCommandHandler(
     IConversacionRepository conversacionRepositorio,
@@ -40,7 +47,8 @@ public class ResponderConversacionWhatsAppCommandHandler(
     ILineaWhatsAppRepository lineaRepositorio,
     IAlcanceDatosService alcanceDatos,
     IWhatsAppCloudApiClient whatsAppClient,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    ILogger<ResponderConversacionWhatsAppCommandHandler> logger)
     : IRequestHandler<ResponderConversacionWhatsAppCommand, Result>
 {
     public async Task<Result> Handle(ResponderConversacionWhatsAppCommand request, CancellationToken cancellationToken)
@@ -82,7 +90,17 @@ public class ResponderConversacionWhatsAppCommandHandler(
             DireccionMensaje.Saliente, conversacion.Canal, linea.NumeroTelefono, request.Texto, mensajeExternoId: envio.Valor);
         mensaje.ActualizarEstadoEntrega(EstadoEntregaMensaje.Enviado);
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex,
+                "El mensaje se envió por WhatsApp (wamid {Wamid}) pero no se pudo registrar localmente en la conversación {ConversacionId}. Requiere reconciliación manual.",
+                envio.Valor, request.ConversacionId);
+        }
+
         return Result.Exito();
     }
 }
