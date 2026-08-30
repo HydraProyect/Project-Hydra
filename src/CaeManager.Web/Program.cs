@@ -26,6 +26,7 @@ using CaeManager.Web.Features.Facturacion;
 using CaeManager.Web.Features.Incidencias;
 using CaeManager.Web.Features.Integraciones.Endpoints;
 using CaeManager.Web.Features.Subcontratas;
+using CaeManager.Web.Features.Plataforma;
 using CaeManager.Web.Features.Tenants;
 using CaeManager.Web.Features.Trabajadores;
 using CaeManager.Web.Reportes;
@@ -709,6 +710,10 @@ app.MapSubcontratasEndpoints();
 app.MapReportesEndpoints();
 app.MapAuditoriaEndpoints();
 app.MapClienteActivoEndpoints();
+// Entrada por sesión privilegiada (plano 3, B1). Aparte del anterior a
+// propósito: aquél acumula ramas de autorización en un OR y éste no debe
+// añadirse a ese OR — ver SesionSoporteEndpoints.
+app.MapSesionSoporteEndpoints();
 app.MapVistaVocabularioPreviewEndpoints();
 app.MapConectarMicrosoft365Endpoints();
 app.MapWebhookMicrosoft365Endpoints();
