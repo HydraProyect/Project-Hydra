@@ -1,13 +1,17 @@
 @page "/usuarios"
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae}")]
+@inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 @using CaeManager.Infrastructure.Identity
 
-<PageTitle>Usuarios — @Marca.Nombre</PageTitle>
+@if (!IntegradaEnConfiguracion)
+{
+    <PageTitle>Usuarios — @Marca.Nombre</PageTitle>
+}
 
-<div class="contenedor-pagina">
+<div class="@ClaseContenedorPagina">
     <div class="cabecera-pagina">
-        <h1 class="titulo-pagina">Usuarios</h1>
+        @TituloPaginaIntegrable("Usuarios")
         <Boton OnClick="AbrirCrear">+ Nuevo usuario</Boton>
     </div>
 

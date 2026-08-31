@@ -1,11 +1,15 @@
 @page "/roles"
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
+@inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 
-<PageTitle>Roles — @Marca.Nombre</PageTitle>
+@if (!IntegradaEnConfiguracion)
+{
+    <PageTitle>Roles — @Marca.Nombre</PageTitle>
+}
 
-<div class="contenedor-pagina">
-    <h1 class="titulo-pagina">Roles</h1>
+<div class="@ClaseContenedorPagina">
+    @TituloPaginaIntegrable("Roles")
 
     <div class="pestanas-roles">
         <button type="button" class="@ClasePestana("roles")" @onclick='() => CambiarPestana("roles")'>Roles</button>
@@ -35,7 +39,7 @@
         <p class="descripcion-roles">
             Los 6 roles del sistema están fijos: cada uno corresponde a un nivel de visibilidad ya
             integrado en Dashboard y en los módulos de administración. No es un catálogo editable —
-            para dar de alta usuarios y asignarles un rol, ve a <a href="/usuarios">Usuarios</a>.
+            para dar de alta usuarios y asignarles un rol, ve a <a href="/configuracion/usuarios">Usuarios</a>.
         </p>
 
         <div class="rejilla-roles">
@@ -54,7 +58,7 @@
             Usuarios que iniciaron sesión con su cuenta de Microsoft pero todavía no tienen rol
             asignado — ven una pantalla de espera hasta que les asignes uno aquí. Para Gestor CAE o
             Cliente con sus vínculos completos (coordinador, cliente asociado), asígnales primero un
-            rol simple aquí y termina de configurarlo después en <a href="/usuarios">Usuarios</a>.
+            rol simple aquí y termina de configurarlo después en <a href="/configuracion/usuarios">Usuarios</a>.
         </p>
 
         @if (_usuariosPendientes.Count == 0)

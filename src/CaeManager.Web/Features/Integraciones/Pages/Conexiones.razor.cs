@@ -14,7 +14,7 @@ using Microsoft.AspNetCore.Components;
 namespace CaeManager.Web.Features.Integraciones.Pages;
 
 /// <summary>Administración de conexiones de Microsoft 365 (P3-33) y líneas WhatsApp — solo Administrador.</summary>
-public partial class Conexiones : ComponentBase
+public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 {
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;

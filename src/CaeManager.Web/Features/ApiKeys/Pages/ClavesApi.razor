@@ -1,11 +1,15 @@
 @page "/configuracion/claves-api"
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
+@inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 
-<PageTitle>Claves API — @Marca.Nombre</PageTitle>
+@if (!IntegradaEnConfiguracion)
+{
+    <PageTitle>Claves API — @Marca.Nombre</PageTitle>
+}
 
-<div class="contenedor-pagina">
-    <h1 class="titulo-pagina">Claves de la API pública</h1>
+<div class="@ClaseContenedorPagina">
+    @TituloPaginaIntegrable("Claves de la API pública")
 
     <p class="descripcion-delegaciones">
         La API pública (<code>/api/v1</code>, solo lectura por ahora) se autentica con estas claves,

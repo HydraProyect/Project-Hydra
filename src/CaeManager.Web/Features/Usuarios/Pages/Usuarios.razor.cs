@@ -19,7 +19,7 @@ public record UsuarioListaDto(Guid Id, string Email, string NombreCompleto, stri
 
 public record CoordinadorDto(Guid Id, string NombreCompleto, string Email);
 
-public partial class Usuarios : ComponentBase
+public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 {
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;

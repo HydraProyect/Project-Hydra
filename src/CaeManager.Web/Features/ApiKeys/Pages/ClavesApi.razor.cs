@@ -14,7 +14,7 @@ namespace CaeManager.Web.Features.ApiKeys.Pages;
 /// sobre delegaciones de soporte ya existentes — ningún tenant se
 /// autogestiona esto en v1 (ver GenerarClaveApiCommand).
 /// </summary>
-public partial class ClavesApi : ComponentBase
+public partial class ClavesApi : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 {
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;

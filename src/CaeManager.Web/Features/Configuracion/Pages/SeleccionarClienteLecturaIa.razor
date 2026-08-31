@@ -1,17 +1,24 @@
 @page "/configuracion/lectura-ia"
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
+@inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 @using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector
 @using MediatR
 @inject IMediator Mediator
 @inject NavigationManager NavigationManager
 
-<PageTitle>Lectura IA por cliente — @Marca.Nombre</PageTitle>
+@if (!IntegradaEnConfiguracion)
+{
+    <PageTitle>Lectura IA por cliente — @Marca.Nombre</PageTitle>
+}
 
-<div class="contenedor-pagina">
-    <a href="/configuracion?entry=ia" class="enlace-volver-configuracion">← Configuración</a>
+<div class="@ClaseContenedorPagina">
+    @if (!IntegradaEnConfiguracion)
+    {
+        <a href="/configuracion/ia" class="enlace-volver-configuracion">← Configuración</a>
+    }
 
-    <h1 class="titulo-pagina">Lectura IA por cliente</h1>
+    @TituloPaginaIntegrable("Lectura IA por cliente")
     <p class="descripcion-seleccion-cliente">
         Qué se extrae y con qué umbral de confianza, por cliente. Elige un cliente para configurar su lectura IA.
     </p>

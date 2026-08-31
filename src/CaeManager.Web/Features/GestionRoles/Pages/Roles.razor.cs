@@ -11,7 +11,7 @@ public record RolInfoDto(string Nombre, string Descripcion, int CantidadUsuarios
 
 public record UsuarioPendienteDto(Guid Id, string Email, string NombreCompleto, DateTime FechaCreacion);
 
-public partial class Roles : ComponentBase
+public partial class Roles : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 {
     // Jerarquía de alcance de datos (ver Roles.cs y IAlcanceDatosService) —
     // no es un catálogo editable, cada uno corresponde a un nivel fijo de

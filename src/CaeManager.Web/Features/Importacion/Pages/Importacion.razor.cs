@@ -14,7 +14,7 @@ using Microsoft.AspNetCore.Identity;
 
 namespace CaeManager.Web.Features.Importacion.Pages;
 
-public partial class Importacion : ComponentBase
+public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 {
     private const long TamanoMaximoCaeCompletaBytes = 20 * 1024 * 1024;
     private const long TamanoMaximoPlantillaBytes = 5 * 1024 * 1024;

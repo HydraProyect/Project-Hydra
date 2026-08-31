@@ -15,7 +15,7 @@ namespace CaeManager.Web.Features.Retencion.Pages;
 /// con fecha → ejecutar. Cada paso es una acción explícita, y hasta el último
 /// se puede descartar. Nada ocurre por el mero paso del tiempo.
 /// </summary>
-public partial class Retencion : ComponentBase
+public partial class Retencion : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 {
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;

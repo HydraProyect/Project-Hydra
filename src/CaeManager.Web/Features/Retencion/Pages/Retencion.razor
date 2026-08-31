@@ -1,13 +1,17 @@
 @page "/retencion"
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
+@inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 @using CaeManager.Domain.Retencion
 
-<PageTitle>Retención de datos — @Marca.Nombre</PageTitle>
+@if (!IntegradaEnConfiguracion)
+{
+    <PageTitle>Retención de datos — @Marca.Nombre</PageTitle>
+}
 
-<div class="contenedor-pagina">
+<div class="@ClaseContenedorPagina">
     <div class="retencion-cabecera">
-        <h1 class="titulo-pagina">Retención de datos</h1>
+        @TituloPaginaIntegrable("Retención de datos")
         <Boton OnClick="BuscarAsync" Cargando="_buscando">Buscar datos que hayan cumplido plazo</Boton>
     </div>
 
