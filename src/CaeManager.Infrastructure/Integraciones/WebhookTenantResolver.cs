@@ -21,11 +21,17 @@ public class WebhookTenantResolver(CaeManagerDbContext dbContext) : IWebhookTena
         var fila = await dbContext.SuscripcionesWebhook
             .IgnoreQueryFilters()
             .Where(s => s.ConexionIntegracionId == conexionIntegracionId)
-            .Select(s => new { s.TenantId, s.ClientState, s.GraphSubscriptionId })
+            .Select(s => new { s.TenantId, s.ClientState, s.GraphSubscriptionId, s.FechaExpiracionUtc })
             .FirstOrDefaultAsync(cancellationToken);
 
+        // Caducidad (auditoría módulo 6): una notificación puede llegar tras
+        // vencer la suscripción local por desfase de reloj o por un fallo de
+        // renovación — Graph todavía la considerara viva unos minutos más.
+        // Sin esto, clientState + subscriptionId de una suscripción ya
+        // caducada localmente se seguían aceptando indefinidamente.
         if (fila is null || fila.ClientState != clientStateRecibido ||
-            string.IsNullOrWhiteSpace(subscriptionIdRecibido) || fila.GraphSubscriptionId != subscriptionIdRecibido)
+            string.IsNullOrWhiteSpace(subscriptionIdRecibido) || fila.GraphSubscriptionId != subscriptionIdRecibido ||
+            fila.FechaExpiracionUtc <= DateTime.UtcNow)
         {
             return new VerificacionWebhookDto(Verificado: false, TenantId: null);
         }

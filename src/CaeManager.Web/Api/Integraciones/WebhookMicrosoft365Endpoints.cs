@@ -21,6 +21,19 @@ namespace CaeManager.Web.Api.Integraciones;
 /// entrante (ARQUITECTURA-INTEGRACIONES.md § 6.4) —
 /// <c>IngestaWebhookHostedService</c> (Infrastructure) hace el trabajo real
 /// fuera de este ciclo de petición/respuesta.
+///
+/// Deduplicación de notificaciones (auditoría módulo 6, decisión explícita):
+/// Graph no expone en el payload ningún identificador de entrega único y
+/// estable — solo <c>resourceData.id</c> (el Id del propio mensaje),
+/// <c>clientState</c> y <c>subscriptionId</c> (ver
+/// <c>Microsoft365GraphClient.NotificacionGraph</c>), los tres reutilizables
+/// entre reintentos legítimos de la misma notificación, así que no hay nada
+/// propio del "envío" que deduplicar aquí. No hace falta: cada notificación
+/// vuelve a pedir el mensaje a Graph por su Id y
+/// <c>IngestaWebhookService.IngerirMensajeAsync</c> ya descarta sin efecto
+/// cualquier mensaje cuyo <c>MensajeExternoId</c> (el Id inmutable de Graph)
+/// ya esté persistido — una notificación repetida para el mismo mensaje es
+/// un no-op, con o sin tabla de deduplicación de notificaciones crudas.
 /// </summary>
 public static class WebhookMicrosoft365Endpoints
 {

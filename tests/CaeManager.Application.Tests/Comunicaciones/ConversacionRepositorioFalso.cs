@@ -15,8 +15,11 @@ public class ConversacionRepositorioFalso : IConversacionRepository
         Task.FromResult(Conversaciones.FirstOrDefault(
             c => c.ConexionIntegracionId == conexionIntegracionId && c.HiloExternoId == hiloExternoId));
 
-    public Task<bool> ExisteMensajeExternoAsync(string mensajeExternoId, CancellationToken cancellationToken = default) =>
-        Task.FromResult(Conversaciones.SelectMany(c => c.Mensajes).Any(m => m.MensajeExternoId == mensajeExternoId));
+    public Task<bool> ExisteMensajeExternoAsync(Guid conexionIntegracionId, string mensajeExternoId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Conversaciones
+            .Where(c => c.ConexionIntegracionId == conexionIntegracionId)
+            .SelectMany(c => c.Mensajes)
+            .Any(m => m.MensajeExternoId == mensajeExternoId));
 
     public Task<Conversacion?> ObtenerAbiertaPorTelefonoAsync(
         Guid conexionIntegracionId, string telefonoContacto, CancellationToken cancellationToken = default) =>
@@ -28,8 +31,11 @@ public class ConversacionRepositorioFalso : IConversacionRepository
             .OrderByDescending(c => c.FechaUltimoMensajeUtc)
             .FirstOrDefault());
 
-    public Task<Mensaje?> ObtenerMensajePorExternoIdAsync(string mensajeExternoId, CancellationToken cancellationToken = default) =>
-        Task.FromResult(Conversaciones.SelectMany(c => c.Mensajes).FirstOrDefault(m => m.MensajeExternoId == mensajeExternoId));
+    public Task<Mensaje?> ObtenerMensajePorExternoIdAsync(Guid conexionIntegracionId, string mensajeExternoId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Conversaciones
+            .Where(c => c.ConexionIntegracionId == conexionIntegracionId)
+            .SelectMany(c => c.Mensajes)
+            .FirstOrDefault(m => m.MensajeExternoId == mensajeExternoId));
 
     public Task<IReadOnlyDictionary<Guid, int>> ContarWhatsAppVivasPorEjecutivoAsync(
         IReadOnlyCollection<Guid> ejecutivoIds, CancellationToken cancellationToken = default) =>
