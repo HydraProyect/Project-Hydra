@@ -150,7 +150,10 @@ public class MistralOcrDocumentAIProvider(
             var texto = string.Join("\n\n", paginas.Select(p => p.Markdown ?? string.Empty)).Trim();
             var paginasProcesadas = cuerpo?.UsageInfo?.PaginasProcesadas ?? paginas.Count;
             var coste = paginasProcesadas / 1000m * config.CostoPorMilPaginasOcr;
-            return Result.Exito(new TextoExtraccionDto(texto, coste));
+            // El modelo resuelto (p. ej. "mistral-ocr-2405" en vez del alias
+            // "mistral-ocr-latest" pedido) es lo que hace reproducible la
+            // auditoría — ver AuditoriaExtraccionIa.ModeloExacto.
+            return Result.Exito(new TextoExtraccionDto(texto, coste, cuerpo?.Model, CorrelacionRespuestaIa.Describir(respuesta)));
         }
         catch (HttpRequestException ex)
         {
@@ -206,7 +209,10 @@ public class MistralOcrDocumentAIProvider(
             var coste = (cuerpo?.Usage?.TokensEntrada ?? 0) / 1_000_000m * config.CostoPorMillonTokensEntradaChat
                       + (cuerpo?.Usage?.TokensSalida ?? 0) / 1_000_000m * config.CostoPorMillonTokensSalidaChat;
 
-            return ParsearEstructurado(textoRespuesta, coste);
+            // El modelo resuelto (p. ej. la versión numerada detrás del alias
+            // "mistral-small-latest" pedido) es lo que hace reproducible la
+            // auditoría — ver AuditoriaExtraccionIa.ModeloExacto.
+            return ParsearEstructurado(textoRespuesta, coste, cuerpo?.Model, CorrelacionRespuestaIa.Describir(respuesta));
         }
         catch (HttpRequestException ex)
         {
@@ -215,7 +221,7 @@ public class MistralOcrDocumentAIProvider(
         }
     }
 
-    private Result<ExtraccionEstructuradaDto> ParsearEstructurado(string texto, decimal costeEstimado)
+    private Result<ExtraccionEstructuradaDto> ParsearEstructurado(string texto, decimal costeEstimado, string? modeloExacto, string? requestId)
     {
         var inicio = texto.IndexOf('{');
         var fin = texto.LastIndexOf('}');
@@ -240,7 +246,8 @@ public class MistralOcrDocumentAIProvider(
 
             var confianza = Math.Clamp(extraido.ConfianzaGeneral, 0, 100);
             var campos = (extraido.Campos ?? new Dictionary<string, string?>()) as IReadOnlyDictionary<string, string?>;
-            return Result.Exito(new ExtraccionEstructuradaDto(extraido.TipoDetectado, campos, confianza, extraido.NotasValidacion, costeEstimado));
+            return Result.Exito(new ExtraccionEstructuradaDto(
+                extraido.TipoDetectado, campos, confianza, extraido.NotasValidacion, costeEstimado, modeloExacto, requestId));
         }
         catch (JsonException ex)
         {
@@ -275,7 +282,10 @@ public class MistralOcrDocumentAIProvider(
 
     private sealed record RespuestaChatMistral(
         [property: JsonPropertyName("choices")] IReadOnlyList<OpcionChatMistral>? Choices,
-        [property: JsonPropertyName("usage")] UsoChatMistral? Usage);
+        [property: JsonPropertyName("usage")] UsoChatMistral? Usage,
+        // El modelo resuelto que atendió la llamada — puede diferir del alias
+        // pedido ("mistral-small-latest"). Ver AuditoriaExtraccionIa.ModeloExacto.
+        [property: JsonPropertyName("model")] string? Model);
 
     private sealed record OpcionChatMistral(
         [property: JsonPropertyName("message")] MensajeMistral? Message);
@@ -304,7 +314,10 @@ public class MistralOcrDocumentAIProvider(
 
     private sealed record RespuestaOcrMistral(
         [property: JsonPropertyName("pages")] IReadOnlyList<PaginaMistral>? Pages,
-        [property: JsonPropertyName("usage_info")] UsoMistral? UsageInfo);
+        [property: JsonPropertyName("usage_info")] UsoMistral? UsageInfo,
+        // El modelo resuelto que atendió la llamada — puede diferir del alias
+        // pedido ("mistral-ocr-latest"). Ver AuditoriaExtraccionIa.ModeloExacto.
+        [property: JsonPropertyName("model")] string? Model);
 
     private sealed record PaginaMistral([property: JsonPropertyName("markdown")] string? Markdown);
 

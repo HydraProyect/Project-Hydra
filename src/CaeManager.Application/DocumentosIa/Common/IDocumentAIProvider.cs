@@ -63,14 +63,24 @@ public interface IDocumentAIProvider
 /// calcula) es solo un dato de auditoría — nunca un criterio de enrutado
 /// (ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.2). Cada proveedor lo
 /// calcula con su propia unidad de precio.
+///
+/// <paramref name="ModeloExacto"/> y <paramref name="RequestId"/> vienen de
+/// la respuesta del proveedor, no de lo que se pidió: cuando la
+/// configuración usa un alias móvil (p. ej. "mistral-small-latest"), lo que
+/// hace reproducible una decisión auditada es qué versión concreta atendió
+/// ESTA llamada, y eso solo lo sabe la respuesta. Null si el proveedor no
+/// lo devuelve.
 /// </summary>
 public record ExtraccionEstructuradaDto(
     string? TipoDetectado, IReadOnlyDictionary<string, string?> Campos, int ConfianzaGeneral, string? NotasValidacion,
-    decimal? CosteEstimado = null);
+    decimal? CosteEstimado = null, string? ModeloExacto = null, string? RequestId = null);
 
 /// <summary>
 /// Resultado del paso de OCR/lectura nativa de <see cref="IDocumentAIProvider.ExtraerTextoAsync"/>:
 /// el texto plano extraído y el coste estimado del paso (null si el proveedor
 /// no lo calcula). Coste solo para auditoría — ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.2.
+/// <see cref="ModeloExacto"/> y <see cref="RequestId"/>: mismo criterio que en
+/// <see cref="ExtraccionEstructuradaDto"/> — de la respuesta, nunca de la
+/// configuración solicitada.
 /// </summary>
-public record TextoExtraccionDto(string Texto, decimal? CosteEstimado = null);
+public record TextoExtraccionDto(string Texto, decimal? CosteEstimado = null, string? ModeloExacto = null, string? RequestId = null);

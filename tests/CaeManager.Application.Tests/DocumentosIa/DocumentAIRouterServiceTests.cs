@@ -5,6 +5,7 @@ using CaeManager.Application.Tests.Clientes;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.DocumentosIa;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -286,6 +287,63 @@ public class DocumentAIRouterServiceTests
         auditoria.Auditorias.Should().ContainSingle();
         auditoria.Auditorias[0].CosteEstimadoOcr.Should().Be(0.008m, "el proveedor devolvió coste OCR");
         auditoria.Auditorias[0].CosteEstimado.Should().Be(0.03m, "el proveedor devolvió coste de estructuración");
+    }
+
+    /// <summary>
+    /// Reproducibilidad: sin esto, "por qué esta extracción dio este
+    /// resultado" no se puede reconstruir después de que el proveedor
+    /// cambie de versión bajo el mismo alias — ver el comentario de
+    /// AuditoriaExtraccionIa.
+    /// </summary>
+    [Fact]
+    public async Task Registra_el_modelo_exacto_el_request_id_y_la_version_de_pipeline_de_la_llamada_ganadora()
+    {
+        var proveedor = new ProveedorIaFalso(
+            "gemini", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto(
+                "Póliza", new Dictionary<string, string?>(), 95, null, ModeloExacto: "gemini-3.5-flash-002", RequestId: "x-goog-request-id=abc123")));
+        var (router, _, auditoria, _) = CrearRouterConDependencias(Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"), proveedor);
+
+        await router.ProcesarAsync([1, 2, 3], "documento.pdf", "Póliza de seguro");
+
+        auditoria.Auditorias[0].ModeloExacto.Should().Be("gemini-3.5-flash-002");
+        auditoria.Auditorias[0].RequestId.Should().Be("x-goog-request-id=abc123");
+        auditoria.Auditorias[0].VersionPipeline.Should().Be(ExtraccionIaCache.VersionPipelineActual);
+    }
+
+    [Fact]
+    public async Task Registra_todos_los_proveedores_invocados_para_la_estructuracion_no_solo_el_ganador()
+    {
+        var primero = new ProveedorIaFalso(
+            "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Fallo<ExtraccionEstructuradaDto>(Error.Crear("DocumentAIProvider.ErrorApi", "caído")));
+        var segundo = new ProveedorIaFalso(
+            "gemini", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Póliza", new Dictionary<string, string?>(), 88, null)));
+        var (router, _, auditoria, _) = CrearRouterConDependencias(
+            Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"), primero, segundo);
+
+        await router.ProcesarAsync([1, 2, 3], "documento.pdf", "Póliza de seguro");
+
+        auditoria.Auditorias[0].ProveedoresInvocados.Should().Be("anthropic,gemini",
+            "el que falló también se intentó, y eso tiene que quedar visible");
+    }
+
+    [Fact]
+    public async Task Registra_el_proveedor_de_ocr_junto_a_los_de_estructuracion_en_un_documento_escaneado()
+    {
+        var ocr = new ProveedorIaFalso(
+            "mistral-ocr", CapacidadesProveedorIa.OcrImagenAEscaneado,
+            resultadoTexto: Result.Exito(new TextoExtraccionDto("texto ocr")));
+        var estructuracion = new ProveedorIaFalso(
+            "gemini", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Nómina", new Dictionary<string, string?>(), 90, null)));
+        var (router, _, auditoria, _) = CrearRouterConDependencias(
+            Clasificacion(TipoContenidoDocumento.Escaneado, false), Result.Exito("no se usa"), ocr, estructuracion);
+
+        await router.ProcesarAsync([1, 2, 3], "nomina.pdf", "Nómina");
+
+        auditoria.Auditorias[0].ProveedoresInvocados.Should().Be("mistral-ocr,gemini");
     }
 
     [Fact]
@@ -574,5 +632,63 @@ public class DocumentAIRouterServiceTests
         auditoria.Auditorias.Should().ContainSingle();
         auditoria.Auditorias[0].Incidencias.Should().Contain("Documento grande");
         auditoria.Auditorias[0].NumeroPaginas.Should().Be(20);
+    }
+
+    /// <summary>
+    /// Simula la carrera de caché documental (ObtenerAsync + Agregar
+    /// separados): otra ejecución concurrente escribió la misma clave de
+    /// caché justo antes de que este SaveChangesAsync se ejecutara, así que
+    /// el guardado conjunto (caché nueva + auditoría) choca contra el índice
+    /// único. El router tiene que descartar la entrada perdedora del
+    /// tracker y reintentar — nunca perder la auditoría de una extracción
+    /// que sí tuvo éxito, y nunca repetir el mismo choque indefinidamente.
+    /// </summary>
+    [Fact]
+    public async Task La_extraccion_no_se_pierde_cuando_otra_ejecucion_gana_la_carrera_de_cache()
+    {
+        var proveedor = new ProveedorIaFalso(
+            "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Póliza", new Dictionary<string, string?>(), 95, null)));
+
+        var cache = new ExtraccionIaCacheRepositorioFalso();
+        var auditoria = new AuditoriaExtraccionIaRepositorioFalso();
+        var unitOfWork = new UnitOfWorkQueFallaLaPrimeraVezFalso();
+        var router = new DocumentAIRouterService(
+            new ClasificadorDocumentoServiceFalso(Clasificacion(TipoContenidoDocumento.Digital, true)),
+            new ExtractorTextoDigitalServiceFalso(Result.Exito<IReadOnlyList<string>>(["texto"])),
+            new LocalizadorPaginasRelevantesService(),
+            new RasterizadorPaginasFalso(),
+            new DocumentAIProviderFactory([proveedor]),
+            cache,
+            auditoria,
+            unitOfWork,
+            NullLogger<DocumentAIRouterService>.Instance);
+
+        var resultado = await router.ProcesarAsync([1, 2, 3], "documento.pdf", "Póliza de seguro");
+
+        resultado.EsExitoso.Should().BeTrue("perder la carrera de caché no invalida una extracción que sí tuvo éxito");
+        auditoria.Auditorias.Should().ContainSingle("la auditoría no puede perderse solo porque perdió la carrera de caché");
+        auditoria.Auditorias[0].ProveedorCodigo.Should().Be("anthropic");
+        cache.VecesDescartada.Should().Be(1, "la entrada perdedora se retira del tracker, o el siguiente guardado repetiría el mismo choque");
+        unitOfWork.VecesGuardado.Should().Be(2, "un intento fallido y un reintento que sí guarda la auditoría");
+    }
+
+    private sealed class UnitOfWorkQueFallaLaPrimeraVezFalso : IUnitOfWork
+    {
+        private bool _yaFallo;
+
+        public int VecesGuardado { get; private set; }
+
+        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            VecesGuardado++;
+            if (!_yaFallo)
+            {
+                _yaFallo = true;
+                throw new DbUpdateException("Simula el choque contra el índice único de ExtraccionIaCache.");
+            }
+
+            return Task.FromResult(1);
+        }
     }
 }
