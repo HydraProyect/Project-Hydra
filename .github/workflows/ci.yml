@@ -79,10 +79,10 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Instalar .NET SDK
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: "10.0.x"
 
@@ -200,7 +200,7 @@ jobs:
       # caería muy por debajo del umbral, que es justo lo que un gate no debe
       # hacer — cambiar de significado sin que nadie lo decida.
       - name: Publicar la cobertura del bloque
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: cobertura-integracion-${{ matrix.bloque }}
           path: coverage/integration
@@ -212,7 +212,7 @@ jobs:
       # los cuatro en verde y nadie mirando. Es una perdida parcial y muda,
       # peor que un bloque entero vacio porque no se nota.
       - name: Publicar el reparto del bloque
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: reparto-bloque-${{ matrix.bloque }}
           path: reparto
@@ -225,10 +225,10 @@ jobs:
     # que este corre en paralelo con ellos en vez de detras. No necesita
     # PostgreSQL ni LibreOffice.
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Instalar .NET SDK
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: "10.0.x"
 
@@ -260,7 +260,7 @@ jobs:
 
 
       - name: Publicar la cobertura de Domain y Application
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: cobertura-unitarios
           path: coverage
@@ -294,10 +294,10 @@ jobs:
     name: Verificar formato
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Instalar .NET SDK
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: "10.0.x"
 
@@ -336,10 +336,10 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Instalar .NET SDK
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: "10.0.x"
 
@@ -348,13 +348,13 @@ jobs:
         run: dotnet tool restore
 
       - name: Recoger la cobertura de Domain y Application
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: cobertura-unitarios
           path: coverage
 
       - name: Recoger el reparto de los bloques
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: reparto-bloque-*
           path: reparto
@@ -428,7 +428,7 @@ jobs:
       # una perdida de cobertura del producto. Un gate que cambia de
       # significado sin que nadie lo decida es peor que no tenerlo.
       - name: Recoger la cobertura de los bloques de integración
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: cobertura-integracion-*
           path: coverage/integration
@@ -519,10 +519,10 @@ jobs:
     name: Detectar migraciones EF olvidadas
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Instalar .NET SDK
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: "10.0.x"
 
@@ -544,7 +544,7 @@ jobs:
     name: Build de la imagen de despliegue
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       # Reconstruye exactamente la imagen que despliega Railway (mismo
       # Dockerfile, mismo -r linux-x64 --self-contained false de la Fase 22)
@@ -555,7 +555,7 @@ jobs:
       # de este runner — sin esto, Trivy no tendría qué escanear en el paso
       # siguiente.
       - name: Construir imagen Docker
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: .
           file: Dockerfile
@@ -573,7 +573,7 @@ jobs:
       # (falso positivo, sin parche disponible todavía), se documenta con
       # un .trivyignore en vez de volver a exit-code 0 para todo el escaneo.
       - name: Escanear vulnerabilidades de la imagen (Trivy)
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: caemanager:ci
           format: table
@@ -584,10 +584,10 @@ jobs:
     name: Tests de componentes (bUnit)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Instalar .NET SDK
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: "10.0.x"
 
@@ -644,10 +644,10 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Instalar .NET SDK
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: "10.0.x"
 
@@ -729,7 +729,7 @@ jobs:
 
       - name: Publicar logs de CaeManager.Web si el E2E falla
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: logs-caemanager-web-e2e
           path: |
@@ -766,10 +766,10 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Instalar .NET SDK
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: "10.0.x"
 
@@ -780,7 +780,7 @@ jobs:
         run: dotnet build CaeManager.slnx --no-restore
 
       - name: Instalar k6
-        uses: grafana/setup-k6-action@v1
+        uses: grafana/setup-k6-action@db07bd9765aac508ef18982e52ab937fe633a065 # v1
 
       # Arranca el mismo binario que despliega Railway, en segundo plano,
       # contra el Postgres del job — mismo patrón que WebAppFixture en los
@@ -857,7 +857,7 @@ jobs:
     # reporta "skipped", que la proteccion de rama da por aprobado. El binario
     # no tiene esa limitacion, asi que la cola tambien se escanea.
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -996,7 +996,7 @@ jobs:
     name: Prueba de mutación — SHA determinista en el despliegue
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: deploy/resolve-deploy-sha.tests.sh
         run: bash deploy/resolve-deploy-sha.tests.sh
@@ -1008,7 +1008,7 @@ jobs:
     name: Licencias de dependencias
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       # El guion se prueba a sí mismo primero, sin red: si el verificador no
       # sabe distinguir MediatR 12.5.0 de 13.0.0, su veredicto sobre el árbol
@@ -1017,7 +1017,7 @@ jobs:
         run: bash scripts/verificar-licencias-nuget.tests.sh
 
       - name: Instalar .NET SDK
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: "10.0.x"
 
@@ -1046,10 +1046,10 @@ jobs:
     name: Paquetes NuGet vulnerables
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Instalar .NET SDK
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: "10.0.x"
 
