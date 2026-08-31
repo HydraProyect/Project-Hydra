@@ -116,9 +116,26 @@ public class DeepLinksTests(WebAppFixture fixture)
         await Ayudas.DescartarNotificacionesPendientesAsync(page);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
 
-        await page.Locator(".enlace-nombre-fila").First.ClickAsync();
-        await page.Locator(".workspace-titulo-entidad").WaitForAsync();
+        var disparador = page.Locator(".enlace-nombre-fila").First;
+        await disparador.ClickAsync();
+        var panel = page.Locator(".workspace-panel");
+        await panel.Locator(".workspace-titulo-entidad").WaitForAsync();
         var tituloOriginal = (await page.Locator(".workspace-titulo-entidad").TextContentAsync())!.Trim();
+
+        // El Context Panel no bloquea el puntero, pero el teclado no puede
+        // escapar de la capa. La trampa empieza en el primer control del
+        // panel; Shift+Tab desde ahí debe seguir dentro del panel (el último
+        // depende de las pestañas y controles que haya cargado la entidad),
+        // y Tab debe volver al primero.
+        // Escape libera la trampa y devuelve el foco al disparador original
+        // que sigue visible en la lista (04_UX_PATTERNS.md § 11).
+        var copiarEnlace = panel.Locator(".workspace-copiar-enlace");
+        await Expect(copiarEnlace).ToBeFocusedAsync();
+        await page.Keyboard.PressAsync("Shift+Tab");
+        var focoSigueEnElPanel = await panel.EvaluateAsync<bool>("panel => panel.contains(document.activeElement)");
+        Assert.True(focoSigueEnElPanel, "Shift+Tab desde el primer control del panel no debe escapar a la página de debajo.");
+        await page.Keyboard.PressAsync("Tab");
+        await Expect(copiarEnlace).ToBeFocusedAsync();
 
         var urlConCtx = page.Url;
         Assert.Contains("ctx=Centro", urlConCtx);
@@ -127,6 +144,10 @@ public class DeepLinksTests(WebAppFixture fixture)
         await Ayudas.NavegarYEsperarAsync(paginaFria, urlConCtx);
 
         await Expect(paginaFria.Locator(".workspace-titulo-entidad")).ToHaveTextAsync(tituloOriginal);
+
+        await page.Keyboard.PressAsync("Escape");
+        await panel.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden });
+        await Expect(disparador).ToBeFocusedAsync();
     }
 
     [Fact]
