@@ -82,7 +82,8 @@ public partial class Documentos : ComponentBase
         new("listado", "Listado"),
         new("plataforma", "Plataforma"),
         new("reclamaciones", "Reclamaciones"),
-        new("sugerencias", "Preventivo")
+        new("sugerencias", "Preventivo"),
+        new("revision-ia", "Revisión IA")
     ];
 
     private string _pestanaActiva = "listado";

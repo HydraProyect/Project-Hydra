@@ -76,17 +76,19 @@
                 <NavLink class="nav-item" href="centros">
                     <Icono Nombre="centros" /> Centros
                 </NavLink>
+                @* Revisión IA y Documentos generados ya no tienen botón propio:
+                   viven como pestaña de Documentos y de Plantillas
+                   respectivamente (Pestanas, mismo mecanismo de DDL-078 para
+                   Configuración) — sus rutas standalone siguen funcionando
+                   para enlaces guardados y las notificaciones que las usan
+                   (AccionesBandeja, ProcesadorAnalisisDocumentoHostedService),
+                   pero un botón que lleva al mismo sitio que ya ofrece la
+                   pestaña es ruido. *@
                 <NavLink class="nav-item" href="documentos">
                     <Icono Nombre="documentos" /> Documentos
                 </NavLink>
-                <NavLink class="nav-item" href="documentos/revision-ia">
-                    <Icono Nombre="documentos" /> Revisión IA
-                </NavLink>
                 <NavLink class="nav-item" href="plantillas">
                     <Icono Nombre="documentos" /> Plantillas
-                </NavLink>
-                <NavLink class="nav-item" href="plantillas/documentos-generados">
-                    <Icono Nombre="documentos" /> Documentos generados
                 </NavLink>
             </div>
         </details>
