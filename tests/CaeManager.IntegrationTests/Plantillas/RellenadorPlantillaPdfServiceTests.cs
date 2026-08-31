@@ -81,6 +81,57 @@ public class RellenadorPlantillaPdfServiceTests
         return Encoding.ASCII.GetBytes(sb.ToString());
     }
 
+    /// <summary>
+    /// PDF hostil: dos nodos /Kids que se referencian mutuamente (4 → 5 → 4 →
+    /// ...), sin ningún campo hoja real. Antes de la guarda de
+    /// <see cref="RecorridoCamposAcroFormSeguro"/>, seguir /Kids con
+    /// recursión directa agota la pila (StackOverflowException, no
+    /// capturable) y tumba el proceso completo.
+    /// </summary>
+    private static byte[] ConstruirPdfConCicloEnKids()
+    {
+        var offsets = new List<int>();
+        var sb = new StringBuilder();
+
+        void AppendObj(int numero, string cuerpo)
+        {
+            offsets.Add(sb.Length);
+            sb.Append(numero).Append(" 0 obj\n").Append(cuerpo).Append("\nendobj\n");
+        }
+
+        sb.Append("%PDF-1.4\n");
+        offsets.Add(0);
+
+        AppendObj(1, "<< /Type /Catalog /Pages 2 0 R /AcroForm 6 0 R >>");
+        AppendObj(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
+        AppendObj(3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> >>");
+        AppendObj(4, "<< /Kids [5 0 R] /Parent 5 0 R >>");
+        AppendObj(5, "<< /Kids [4 0 R] /Parent 4 0 R >>");
+        AppendObj(6, "<< /Fields [4 0 R] >>");
+
+        var inicioXref = sb.Length;
+        const int totalObjetos = 7;
+        sb.Append($"xref\n0 {totalObjetos}\n");
+        sb.Append("0000000000 65535 f \n");
+        for (var i = 1; i < totalObjetos; i++)
+            sb.Append(offsets[i].ToString("D10")).Append(" 00000 n \n");
+        sb.Append("trailer\n").Append($"<< /Size {totalObjetos} /Root 1 0 R >>\n")
+          .Append("startxref\n").Append(inicioXref).Append("\n%%EOF");
+
+        return Encoding.ASCII.GetBytes(sb.ToString());
+    }
+
+    [Fact]
+    public void RellenarAcroForm_con_ciclo_en_Kids_no_cuelga_ni_lanza_stack_overflow()
+    {
+        var servicio = new RellenadorPlantillaPdfService();
+        var original = ConstruirPdfConCicloEnKids();
+
+        var accion = () => servicio.Rellenar(original, FormatoOrigenPlantilla.PdfConCampos, []);
+
+        accion.Should().NotThrow();
+    }
+
     [Fact]
     public void RellenarAcroForm_escribe_el_valor_en_el_campo_por_nombre()
     {

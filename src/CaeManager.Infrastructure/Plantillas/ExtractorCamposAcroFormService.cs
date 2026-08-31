@@ -51,31 +51,15 @@ public class ExtractorCamposAcroFormService : IExtractorCamposAcroFormService
         }
 
         var candidatos = new List<CampoAcroFormDetectado>();
-        RecorrerCampos(acroForm.Fields, paginaPorObjectId, candidatos);
-        return candidatos;
-    }
-
-    private static void RecorrerCampos(
-        PdfAcroField.PdfAcroFieldCollection campos,
-        Dictionary<string, (int Indice, double AlturaPagina)> paginaPorObjectId,
-        List<CampoAcroFormDetectado> candidatos)
-    {
-        for (var i = 0; i < campos.Count; i++)
+        RecorridoCamposAcroFormSeguro.Recorrer(acroForm.Fields, campo =>
         {
-            var campo = campos[i];
-            if (campo is null) continue;
+            if (campo.HasKids) return; // solo los campos hoja son candidatos reales
 
-            if (campo.HasKids)
-            {
-                RecorrerCampos(campo.Fields, paginaPorObjectId, candidatos);
-                continue;
-            }
-
-            if (string.IsNullOrEmpty(campo.Name)) continue;
-            if (!paginaPorObjectId.TryGetValue(campo.Internals.ObjectID.ToString(), out var pagina)) continue;
+            if (string.IsNullOrEmpty(campo.Name)) return;
+            if (!paginaPorObjectId.TryGetValue(campo.Internals.ObjectID.ToString(), out var pagina)) return;
 
             var rect = campo.Elements.GetRectangle("/Rect");
-            if (rect.Width <= 0 || rect.Height <= 0) continue;
+            if (rect.Width <= 0 || rect.Height <= 0) return;
 
             candidatos.Add(new CampoAcroFormDetectado(
                 NombreCampo: campo.Name,
@@ -84,6 +68,7 @@ public class ExtractorCamposAcroFormService : IExtractorCamposAcroFormService
                 Y: pagina.AlturaPagina - rect.Y2,
                 Ancho: rect.Width,
                 Alto: rect.Height));
-        }
+        });
+        return candidatos;
     }
 }

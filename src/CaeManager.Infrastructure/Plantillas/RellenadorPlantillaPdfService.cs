@@ -84,26 +84,12 @@ public class RellenadorPlantillaPdfService : IRellenadorPlantillaPdfService
 
     private static Dictionary<string, PdfAcroField> IndexarCampos(PdfAcroField.PdfAcroFieldCollection campos)
     {
-        // PdfAcroFieldCollection.GetEnumerator() recorre los PdfReference sin
-        // resolver del array /Fields — solo el indizador (campos[i]) los
-        // resuelve a PdfAcroField, así que hay que recorrer por índice.
         var indice = new Dictionary<string, PdfAcroField>(StringComparer.Ordinal);
-
-        void Recorrer(PdfAcroField.PdfAcroFieldCollection nivel)
+        RecorridoCamposAcroFormSeguro.Recorrer(campos, campo =>
         {
-            for (var i = 0; i < nivel.Count; i++)
-            {
-                var campo = nivel[i];
-                if (campo is null) continue;
-
-                if (!string.IsNullOrEmpty(campo.Name))
-                    indice[campo.Name] = campo;
-                if (campo.HasKids)
-                    Recorrer(campo.Fields);
-            }
-        }
-
-        Recorrer(campos);
+            if (!string.IsNullOrEmpty(campo.Name))
+                indice[campo.Name] = campo;
+        });
         return indice;
     }
 
