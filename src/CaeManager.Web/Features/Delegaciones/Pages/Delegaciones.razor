@@ -1,6 +1,7 @@
 @page "/delegaciones"
 @rendermode InteractiveServer
 @attribute [Authorize]
+@inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 @* El alta de Cliente Delegante la autoriza AdminPlataforma (A3), no el rol Administrador de Identity.
    Mantener el rol crearía un AND que no forma parte del contrato de la
    capacidad — y desde F2b-2 el claim de rol se retira bajo sesión
@@ -10,11 +11,14 @@
    La página no es el enforcement: ese vive en el comando. Que alguien vea
    la ruta y el comando la rechace no es una vulnerabilidad. *@
 
-<PageTitle>Delegaciones — @Marca.Nombre</PageTitle>
+@if (!IntegradaEnConfiguracion)
+{
+    <PageTitle>Delegaciones — @Marca.Nombre</PageTitle>
+}
 
-<div class="contenedor-pagina">
+<div class="@ClaseContenedorPagina">
     <div class="cabecera-delegaciones">
-        <h1 class="titulo-pagina">Delegaciones</h1>
+        @TituloPaginaIntegrable("Delegaciones")
 
         @if (_esAdministradorPlataforma && !OperandoWorkspaceAjeno)
         {

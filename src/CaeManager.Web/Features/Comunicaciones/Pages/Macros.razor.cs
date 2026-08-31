@@ -11,7 +11,7 @@ using Microsoft.Extensions.Options;
 
 namespace CaeManager.Web.Features.Comunicaciones.Pages;
 
-public partial class Macros : ComponentBase
+public partial class Macros : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 {
     [Inject] private ILogger<Macros> Logger { get; set; } = default!;
     [Inject] private IOptions<ComunicacionesOptions> OpcionesComunicaciones { get; set; } = default!;

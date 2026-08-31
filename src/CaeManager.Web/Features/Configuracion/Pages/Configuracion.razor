@@ -1,14 +1,14 @@
-@page "/configuracion"
+@page "/configuracion/{EntradaRuta?}"
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
 @using CaeManager.Web.Features.Configuracion.Components
 
-<PageTitle>Configuración — @Marca.Nombre</PageTitle>
+<PageTitle>@TituloDocumento — @Marca.Nombre</PageTitle>
 
-<div class="contenedor-pagina">
+<div class="contenedor-pagina configuracion-pagina">
     <div>
         <div class="eyebrow-configuracion">Sistema</div>
-        <h1 class="titulo-pagina">Configuración</h1>
+        <h1 class="titulo-configuracion">Configuración</h1>
     </div>
 
     <div class="hub-configuracion">
@@ -20,7 +20,7 @@
                     @foreach (var entrada in grupo.Entradas)
                     {
                         var activa = entrada.Id == EntradaEfectiva;
-                        <a href="@(entrada.Ruta ?? $"/configuracion?entry={entrada.Id}")"
+                        <a href="@RutaDe(entrada.Id)"
                            class="@($"entrada-subnav {(activa ? "entrada-subnav-activa" : "")}")"
                            aria-current="@(activa ? "page" : null)">
                             <span class="icono-entrada-subnav">@entrada.Icono</span>
@@ -42,13 +42,11 @@
                 Configuración <span class="separador-migas">→</span> @(actual is null ? "" : GrupoDe(actual.Id)) <span class="separador-migas">→</span> <span class="miga-actual">@(actual?.Nombre)</span>
             </div>
 
-            @if (EntradaEfectiva == "params")
+            @if (actual?.TipoPanel is not null)
             {
-                <ParametrosSistemaPanel />
-            }
-            else if (EntradaEfectiva == "automatizaciones")
-            {
-                <AutomatizacionesPanel />
+                <div class="panel-configuracion-host" @key="actual.Id">
+                    <DynamicComponent Type="actual.TipoPanel" Parameters="@ParametrosDelPanel(actual)" />
+                </div>
             }
             else
             {

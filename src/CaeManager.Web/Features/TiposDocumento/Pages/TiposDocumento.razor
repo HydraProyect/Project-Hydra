@@ -1,6 +1,7 @@
 @page "/tipos-documento"
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
+@inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 @using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector
 @using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector
 @using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector
@@ -17,11 +18,14 @@
 @inject IMediator Mediator
 @inject ToastService ToastService
 
-<PageTitle>Tipos de Documento — @Marca.Nombre</PageTitle>
+@if (!IntegradaEnConfiguracion)
+{
+    <PageTitle>Tipos de Documento — @Marca.Nombre</PageTitle>
+}
 
-<div class="contenedor-pagina">
+<div class="@ClaseContenedorPagina">
     <div class="cabecera-pagina">
-        <h1 class="titulo-pagina">Tipos de Documento</h1>
+        @TituloPaginaIntegrable("Tipos de Documento")
         <Boton OnClick="AbrirCrear">+ Nuevo tipo</Boton>
     </div>
 

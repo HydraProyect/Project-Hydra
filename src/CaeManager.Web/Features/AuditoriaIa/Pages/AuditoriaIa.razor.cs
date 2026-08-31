@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace CaeManager.Web.Features.AuditoriaIa.Pages;
 
-public partial class AuditoriaIa : ComponentBase
+public partial class AuditoriaIa : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 {
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;

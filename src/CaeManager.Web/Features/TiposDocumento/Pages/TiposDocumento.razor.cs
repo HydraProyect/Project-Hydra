@@ -17,7 +17,7 @@ using Microsoft.AspNetCore.Components.Web;
 
 namespace CaeManager.Web.Features.TiposDocumento.Pages;
 
-public partial class TiposDocumento : ComponentBase
+public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 {
     private int _tamanoPagina = 20;
 

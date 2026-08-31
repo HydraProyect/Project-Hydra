@@ -14,7 +14,7 @@ namespace CaeManager.Web.Features.Comercial.Pages;
 /// Id. Mismo criterio de alcance que ClavesApi.razor (P3-29): panel interno,
 /// nunca gestionado por el propio tenant cliente.
 /// </summary>
-public partial class EstadoComercial : ComponentBase
+public partial class EstadoComercial : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 {
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;

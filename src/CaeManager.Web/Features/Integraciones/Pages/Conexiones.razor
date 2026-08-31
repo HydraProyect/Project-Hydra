@@ -1,12 +1,16 @@
 @page "/integraciones"
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
+@inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 @using CaeManager.Domain.Integraciones
 
-<PageTitle>Conexiones de integración — @Marca.Nombre</PageTitle>
+@if (!IntegradaEnConfiguracion)
+{
+    <PageTitle>Conexiones de integración — @Marca.Nombre</PageTitle>
+}
 
-<div class="contenedor-pagina">
-    <h1 class="titulo-pagina">Conexiones de integración</h1>
+<div class="@ClaseContenedorPagina">
+    @TituloPaginaIntegrable("Conexiones de integración")
 
     <p class="descripcion-delegaciones">
         Buzones de Microsoft 365 conectados para la bandeja de correo compartida (Comunicaciones).

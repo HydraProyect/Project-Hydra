@@ -29,7 +29,7 @@ namespace CaeManager.Web.Features.Delegaciones.Pages;
 /// v1 mínima aceptable ya decidida ahí — "solo Administrador de plataforma".
 /// Por eso el botón "Nueva delegación" solo aparece si <see cref="_esAdministradorPlataforma"/>.
 /// </summary>
-public partial class Delegaciones : ComponentBase
+public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 {
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;

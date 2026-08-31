@@ -1,0 +1,19 @@
+/*
+  Contrato compartido entre el shell de Configuración y las páginas que también
+  se consumen como paneles. Vive fuera del CSS aislado porque la clase se emite
+  desde componentes hijos y, por diseño, el aislamiento de Blazor no cruza esa
+  frontera.
+*/
+.contenido-panel-configuracion {
+  min-width: 0;
+}
+
+.titulo-panel-configuracion {
+  margin: 0 0 var(--space-4);
+  font: var(--font-heading-md);
+  color: var(--color-text);
+}
+
+.contenido-panel-configuracion .tabla-datos {
+  width: 100%;
+}

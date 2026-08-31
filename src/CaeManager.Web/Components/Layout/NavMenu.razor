@@ -182,7 +182,19 @@
     @* Repartido en dos AuthorizeView (DireccionCae solo ve Usuarios; solo
        Administrador ve el resto) pero es un único grupo visual con un único
        header — por eso el <details> envuelve a ambos en vez de duplicar
-       "Administración" dos veces para quien tiene el rol más amplio. *@
+       "Administración" dos veces para quien tiene el rol más amplio.
+
+       Roles, Delegaciones, Claves API, Estado comercial, Conexiones de
+       integración, Retención, Tipos de documento, Auditoría e Importación
+       ya no tienen botón propio aquí: viven como paneles de Configuración
+       (DDL-078) y un botón fuera que lleva al mismo sitio que ya ofrece la
+       subnavegación del hub es puro ruido — Configuración es ahora su único
+       punto de entrada desde este menú. Usuarios se queda porque Dirección
+       CAE lo ve y Configuración es Administrador-only (Usuarios.razor
+       autoriza a los dos roles); Verificación en dos pasos también, porque
+       apunta al alta personal de 2FA del propio usuario
+       (/cuenta/configurar-2fa), no a la política administrativa que
+       representa el placeholder "2fa" del hub — no son la misma pantalla. *@
     <AuthorizeView Roles="@RolesDeAdministracionAmpliada">
         <details class="nav-grupo-detalle" data-grupo="administracion" open>
             <summary class="nav-grupo-titulo">
@@ -194,38 +206,8 @@
                     <Icono Nombre="usuarios" /> Usuarios
                 </NavLink>
                 <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador" Context="authAdminSolo">
-                    <NavLink class="nav-item" href="roles">
-                        <Icono Nombre="roles" /> Roles
-                    </NavLink>
-                    <NavLink class="nav-item" href="delegaciones">
-                        <Icono Nombre="cartera" /> Delegaciones
-                    </NavLink>
-                    <NavLink class="nav-item" href="configuracion/claves-api">
-                        <Icono Nombre="seguridad" /> Claves API
-                    </NavLink>
-                    <NavLink class="nav-item" href="configuracion/comercial">
-                        <Icono Nombre="cartera" /> Estado comercial
-                    </NavLink>
-                    <NavLink class="nav-item" href="integraciones">
-                        <Icono Nombre="configuracion" /> Conexiones de integración
-                    </NavLink>
-                    <NavLink class="nav-item" href="retencion">
-                        <Icono Nombre="seguridad" /> Retención de datos
-                    </NavLink>
-                    <NavLink class="nav-item" href="tipos-documento">
-                        <Icono Nombre="tipos-documento" /> Tipos de Documento
-                    </NavLink>
                     <NavLink class="nav-item" href="configuracion">
                         <Icono Nombre="configuracion" /> Configuración
-                    </NavLink>
-                    <NavLink class="nav-item" href="auditoria">
-                        <Icono Nombre="auditoria" /> Auditoría
-                    </NavLink>
-                    <NavLink class="nav-item" href="auditoria-ia">
-                        <Icono Nombre="auditoria" /> Auditoría IA
-                    </NavLink>
-                    <NavLink class="nav-item" href="importacion">
-                        <Icono Nombre="importar" /> Importar desde Excel
                     </NavLink>
                     <NavLink class="nav-item" href="cuenta/configurar-2fa">
                         <Icono Nombre="seguridad" /> Verificación en dos pasos

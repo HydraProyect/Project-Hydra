@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @* Ver Bandeja.razor: mismo criterio de rol para todo el módulo. *@
 @attribute [Authorize(Roles = RolesComunicaciones.Gestion)]
+@inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 @using CaeManager.Application.Common
 @using CaeManager.Application.Comunicaciones.Commands.CrearMacro
 @using CaeManager.Application.Comunicaciones.Queries.ObtenerMacros
@@ -10,11 +11,14 @@
 @inject ToastService ToastService
 @inject ICurrentUserService CurrentUserService
 
-<PageTitle>Macros — Comunicaciones — @Marca.Nombre</PageTitle>
+@if (!IntegradaEnConfiguracion)
+{
+    <PageTitle>Macros — Comunicaciones — @Marca.Nombre</PageTitle>
+}
 
-<div class="contenedor-pagina">
+<div class="@ClaseContenedorPagina">
     <div class="cabecera-pagina">
-        <h1 class="titulo-pagina">Macros de respuesta</h1>
+        @TituloPaginaIntegrable("Macros de respuesta")
         <div class="acciones-cabecera">
             <a class="enlace-exportar" href="/comunicaciones">Volver a la bandeja</a>
             <Boton OnClick="AbrirCrear">+ Nueva macro</Boton>

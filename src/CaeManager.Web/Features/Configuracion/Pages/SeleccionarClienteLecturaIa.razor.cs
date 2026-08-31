@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace CaeManager.Web.Features.Configuracion.Pages;
 
-public partial class SeleccionarClienteLecturaIa : ComponentBase
+public partial class SeleccionarClienteLecturaIa : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 {
     private bool _cargando = true;
     private IReadOnlyList<ClienteSelectorDto> _clientes = [];

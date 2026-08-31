@@ -1,12 +1,16 @@
 @page "/auditoria"
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
+@inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 
-<PageTitle>Auditoría — @Marca.Nombre</PageTitle>
+@if (!IntegradaEnConfiguracion)
+{
+    <PageTitle>Auditoría — @Marca.Nombre</PageTitle>
+}
 
-<div class="contenedor-pagina">
+<div class="@ClaseContenedorPagina">
     <div class="cabecera-pagina">
-        <h1 class="titulo-pagina">Auditoría</h1>
+        @TituloPaginaIntegrable("Auditoría")
         <div class="acciones-cabecera">
             <a class="enlace-exportar" href="@EnlaceExportar">Exportar a Excel</a>
         </div>

@@ -1,14 +1,21 @@
 @page "/importacion"
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
+@inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 @using CaeManager.Web.Features.Importacion
 
-<PageTitle>Importar datos — @Marca.Nombre</PageTitle>
+@if (!IntegradaEnConfiguracion)
+{
+    <PageTitle>Importar datos — @Marca.Nombre</PageTitle>
+}
 
-<div class="contenedor-pagina">
+<div class="@ClaseContenedorPagina">
     <div>
-        <div class="eyebrow-importacion">Configuración</div>
-        <h1 class="titulo-pagina">Importar datos</h1>
+        @if (!IntegradaEnConfiguracion)
+        {
+            <div class="eyebrow-importacion">Configuración</div>
+        }
+        @TituloPaginaIntegrable("Importar datos")
     </div>
 
     <nav class="pasos-importacion" aria-label="Progreso de la importación">

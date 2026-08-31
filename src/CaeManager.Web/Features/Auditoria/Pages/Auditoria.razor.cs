@@ -15,7 +15,7 @@ using Microsoft.AspNetCore.Identity;
 
 namespace CaeManager.Web.Features.Auditoria.Pages;
 
-public partial class Auditoria : ComponentBase
+public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 {
     // Catálogo fijo de agregados de dominio auditables (ver
     // AuditoriaInterceptor: EntidadTipo es el nombre simple de la clase).
