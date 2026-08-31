@@ -52,7 +52,7 @@ public partial class Configuracion : ComponentBase
         [
             new("delegaciones", "DL", "Delegaciones", "Sedes de la consultora", typeof(Features.Delegaciones.Pages.Delegaciones)),
             new("api", "AP", "Claves API", "Acceso programático", typeof(Features.ApiKeys.Pages.ClavesApi)),
-            new("comercial", "CM", "Estado comercial", "Plan y consumo", typeof(Features.Comercial.Pages.EstadoComercial)),
+            new("estado-comercial", "CM", "Estado comercial", "Plan y consumo", typeof(Features.Comercial.Pages.EstadoComercial)),
             new("integraciones", "IN", "Conexiones de integración", "M365, portales, webhooks", typeof(Features.Integraciones.Pages.Conexiones)),
             new("importar", "IM", "Importar datos", "Cuadro de Control CAE (Excel)", typeof(Features.Importacion.Pages.Importacion))
         ]),

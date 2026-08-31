@@ -19,7 +19,7 @@ public class ConfiguracionTests : BunitContext
 
         enlaces.Should().HaveCount(16);
         enlaces.Select(enlace => enlace.GetAttribute("href"))
-            .Should().OnlyContain(ruta => ruta is not null && ruta.StartsWith("/configuracion/", StringComparison.Ordinal));
+            .Should().OnlyContain(ruta => ruta != null && ruta.StartsWith("/configuracion/", StringComparison.Ordinal));
         enlaces.Select(enlace => enlace.GetAttribute("href"))
             .Should().NotContain(new[]
             {
