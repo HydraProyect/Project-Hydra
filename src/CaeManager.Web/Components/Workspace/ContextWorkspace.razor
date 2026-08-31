@@ -81,6 +81,8 @@
 @code {
     private ElementReference _referenciaPanel;
     private int _profundidadAnterior;
+    private IJSObjectReference? _trampaFoco;
+    private bool _panelEstabaAbierto;
     private IReadOnlyList<BreadcrumbElemento> _elementosBreadcrumb = [];
 
     /// <summary>
@@ -194,14 +196,22 @@
     }
 
     /// <summary>
-    /// Mueve el foco al panel solo cuando se abre desde cerrado (profundidad
-    /// 0 → 1) — navegar entre niveles o pestañas ya con el panel abierto no
-    /// debe robarle el foco al usuario si lo tiene en otro sitio del panel.
+    /// Activa la trampa de foco solo cuando el panel se abre desde cerrado
+    /// (profundidad 0 → 1). Navegar entre niveles o pestañas ya con el panel
+    /// abierto no debe robarle el foco al usuario si lo tiene en otro sitio
+    /// del panel.
+    ///
+    /// El Context Panel no es modal y no bloquea el puntero sobre la página,
+    /// pero sí es una capa de interacción: el teclado no puede escapar a la
+    /// página de debajo ni perder el origen al cerrarlo (04_UX_PATTERNS.md
+    /// § 11). dialogo-foco.js conserva el elemento previo, recorre los
+    /// enfocables reales y lo restaura solo si aún existe en el documento.
     /// </summary>
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         var profundidadActual = WorkspaceService.Pila.Count;
         var seAbreDesdeCerrado = profundidadActual > 0 && _profundidadAnterior == 0;
+        var seCierra = !WorkspaceService.EstaAbierto && _panelEstabaAbierto;
 
         // Se actualiza ANTES del await, no después: OnAfterRenderAsync no es
         // reentrant-safe por diseño (Blazor puede invocarlo de nuevo para un
@@ -221,9 +231,61 @@
         // Marcar la transición ya consumida antes de ceder el control cierra
         // esa ventana: solo la primera invocación entra aquí.
         _profundidadAnterior = profundidadActual;
+        _panelEstabaAbierto = WorkspaceService.EstaAbierto;
 
         if (seAbreDesdeCerrado)
-            await _referenciaPanel.FocusAsync();
+        {
+            var trampaActivada = await ActivarTrampaFocoAsync();
+            if (!trampaActivada)
+                await _referenciaPanel.FocusAsync();
+        }
+        else if (seCierra)
+        {
+            await LiberarTrampaFocoAsync();
+        }
+    }
+
+    /// <summary>
+    /// Mejor esfuerzo: Escape sigue siendo puro Blazor y conserva su cierre
+    /// aunque el módulo no esté disponible durante el arranque o el cierre de
+    /// un circuito. La trampa y el retorno preciso del foco requieren inspeccionar
+    /// document.activeElement y por eso viven en JavaScript.
+    /// </summary>
+    private async Task<bool> ActivarTrampaFocoAsync()
+    {
+        try
+        {
+            var modulo = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/dialogo-foco.js");
+            if (modulo is null) return false;
+
+            await using (modulo)
+            {
+                _trampaFoco = await modulo.InvokeAsync<IJSObjectReference>("atraparFoco", _referenciaPanel);
+            }
+
+            return _trampaFoco is not null;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    private async Task LiberarTrampaFocoAsync()
+    {
+        if (_trampaFoco is null) return;
+
+        var trampa = _trampaFoco;
+        _trampaFoco = null;
+
+        try
+        {
+            await trampa.InvokeVoidAsync("dispose");
+            await trampa.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
     }
 
     private Task IrABreadcrumbAsync(int indice) => WorkspaceService.IrABreadcrumbAsync(indice);
@@ -265,6 +327,8 @@
     {
         WorkspaceService.OnCambio -= ManejarCambio;
         Navigation.LocationChanged -= ManejarNavegacion;
+
+        await LiberarTrampaFocoAsync();
 
         if (_moduloClipboard is not null)
             await _moduloClipboard.DisposeAsync();
