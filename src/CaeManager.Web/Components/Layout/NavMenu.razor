@@ -15,16 +15,20 @@
     (apagado por defecto, P2 #26 de docs/business/MATURITY_REVIEW.md) porque
     no hay ingesta real detrás — ver ComunicacionesOptions.
 
-    Cada grupo (Negocio/Operación/Control/Administración) es un
+    Cada grupo (Dashboards/Negocio/Operación/Control/Administración) es un
     <details>/<summary> nativo, no un componente interactivo: NavMenu no
     tiene @rendermode propio (ver el comentario de MainLayout.razor sobre
     "todo lo que vive fuera de @Body necesita su propio @rendermode
     explícito o nunca recibe eventos interactivos") y no hace falta pagar el
     coste de un circuito solo para colapsar un grupo — el navegador ya lo
-    resuelve gratis. wwwroot/js/menu-lateral.js solo persiste qué grupos
-    quedaron colapsados (localStorage, por navegador — no viaja con la
-    cuenta como el tema, es puramente cosmético) y lo reaplica tras cada
-    navegación "enhanced" de Blazor, mismo mecanismo que tema.js.
+    resuelve gratis. wwwroot/js/menu-lateral.js solo persiste, por grupo que
+    el usuario haya tocado alguna vez, si quedó abierto o cerrado
+    (localStorage, por navegador — no viaja con la cuenta como el tema, es
+    puramente cosmético) y lo reaplica tras cada navegación "enhanced" de
+    Blazor, mismo mecanismo que tema.js. Un grupo que el usuario nunca tocó
+    conserva el "open" (o su ausencia) que trae este marcado — así el
+    colapso por defecto de Control (informe de consolidación de menú,
+    2026-09-01 § 6) no se pisa con un "abierto" forzado en el primer render.
 *@
 @using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual
 @using CaeManager.Domain.Tenants
@@ -35,19 +39,37 @@
 @inject IMediator Mediator
 <nav class="nav-principal">
     <AuthorizeView Roles="@RolesConMenuCompleto">
-        <NavLink class="nav-item" href="" Match="NavLinkMatch.All">
-            <Icono Nombre="dashboard" /> Dashboard
-        </NavLink>
-        <AuthorizeView Roles="@RolesDeCartera" Context="authCartera">
-            <NavLink class="nav-item" href="vision-cartera">
-                <Icono Nombre="cartera" /> Visión de cartera
-            </NavLink>
-        </AuthorizeView>
-        <AuthorizeView Roles="@RolesDeDashboardEjecutivo" Context="authDashboardEjecutivo">
-            <NavLink class="nav-item" href="dashboard-ejecutivo">
-                <Icono Nombre="dashboard" /> Dashboard Ejecutivo
-            </NavLink>
-        </AuthorizeView>
+        @* Dashboard / Visión de cartera / Dashboard Ejecutivo son tres
+           Operational Home distintos (DDL-004 § 1.1), con conjuntos de roles
+           no anidados (Consulta ve Dashboard+Ejecutivo pero no Cartera;
+           CoordinadorCae ve Dashboard+Cartera pero no Ejecutivo) — no se
+           pliegan en pestañas de una sola pantalla porque Pestanas no
+           autoriza por pestaña hoy y sus layouts son incompatibles (cola vs.
+           tabla vs. gráficos configurables). Agruparlos aquí solo bajo un
+           mismo encabezado visual "Dashboards" (informe de consolidación de
+           menú, 2026-09-01 § 6) deja esa pregunta de producto abierta sin
+           tocarla. *@
+        <details class="nav-grupo-detalle" data-grupo="dashboards" open>
+            <summary class="nav-grupo-titulo">
+                <span>Dashboards</span>
+                <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+            </summary>
+            <div class="nav-grupo-items">
+                <NavLink class="nav-item" href="" Match="NavLinkMatch.All">
+                    <Icono Nombre="dashboard" /> Dashboard
+                </NavLink>
+                <AuthorizeView Roles="@RolesDeCartera" Context="authCartera">
+                    <NavLink class="nav-item" href="vision-cartera">
+                        <Icono Nombre="cartera" /> Visión de cartera
+                    </NavLink>
+                </AuthorizeView>
+                <AuthorizeView Roles="@RolesDeDashboardEjecutivo" Context="authDashboardEjecutivo">
+                    <NavLink class="nav-item" href="dashboard-ejecutivo">
+                        <Icono Nombre="dashboard" /> Dashboard Ejecutivo
+                    </NavLink>
+                </AuthorizeView>
+            </div>
+        </details>
 
         @* Orden por DDL-073 (03_INFORMATION_ARCHITECTURE.md § 3.2): Negocio
            sigue la cadena de titularidad, de lo mío a lo ajeno — Empresas
@@ -87,8 +109,12 @@
                 <NavLink class="nav-item" href="documentos">
                     <Icono Nombre="documentos" /> Documentos
                 </NavLink>
+                @* Icono distinto de Documentos (antes compartían "documentos")
+                   — "tipos-documento" (documento con marca) encaja con
+                   "plantilla"; informe de consolidación de menú, 2026-09-01
+                   § 6. *@
                 <NavLink class="nav-item" href="plantillas">
-                    <Icono Nombre="documentos" /> Plantillas
+                    <Icono Nombre="tipos-documento" /> Plantillas
                 </NavLink>
             </div>
         </details>
@@ -109,8 +135,12 @@
                         <Icono Nombre="chat" /> Comunicaciones
                     </NavLink>
                 }
+                @* Icono distinto de Incidencias (mismo grupo, antes compartían
+                   "incidencias") — "evaluaciones" (checklist) encaja mejor con
+                   "gestión" que un triángulo de advertencia; informe de
+                   consolidación de menú, 2026-09-01 § 6. *@
                 <NavLink class="nav-item" href="gestiones">
-                    <Icono Nombre="incidencias" /> Gestiones
+                    <Icono Nombre="evaluaciones" /> Gestiones
                 </NavLink>
                 <NavLink class="nav-item" href="incidencias">
                     <Icono Nombre="incidencias" /> Incidencias
@@ -127,7 +157,13 @@
             </div>
         </details>
 
-        <details class="nav-grupo-detalle" data-grupo="control" open>
+        @* Colapsado por defecto (informe de consolidación de menú,
+           2026-09-01 § 6): Control es, por el propio orden de DDL-073, el
+           grupo de uso más esporádico frente a Negocio/Operación — colapsarlo
+           en el primer render deja expandidos solo los dos grupos de trabajo
+           diario sin tocar ninguna ruta ni ninguna DDL. Un usuario que lo
+           abre queda con esa preferencia guardada (menu-lateral.js). *@
+        <details class="nav-grupo-detalle" data-grupo="control">
             <summary class="nav-grupo-titulo">
                 <span>Control</span>
                 <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
