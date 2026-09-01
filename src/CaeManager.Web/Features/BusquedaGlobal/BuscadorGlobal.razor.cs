@@ -207,7 +207,7 @@ public partial class BuscadorGlobal : ComponentBase
     private static ItemBusquedaDto RecienteComoItem(ItemRecienteDto r) =>
         new(r.EntidadId ?? Guid.Empty, r.Titulo, r.Subtitulo, r.UrlDestino);
 
-    /// <summary>Icono por tipo de "reciente" — mismo Nombre que ya usan las categorías de Entidades; "Accion" reutiliza el icono del grupo Acciones.</summary>
+    /// <summary>Icono por tipo de "reciente" — mismo Nombre que ya usan las categorías de Entidades; "Accion" reutiliza el icono del grupo Acciones. Cualquier tipo sin icono propio cae en "resultado" (registro genérico), nunca en "editar", que significa acción.</summary>
     private static string IconoParaTipo(string tipo) => tipo switch
     {
         "Cliente" => "clientes",
@@ -216,7 +216,8 @@ public partial class BuscadorGlobal : ComponentBase
         "Centro" => "centros",
         "Trabajador" => "trabajadores",
         "Documento" => "documentos",
-        _ => "editar"
+        "Accion" => "editar",
+        _ => "resultado"
     };
 
     /// <summary>
