@@ -1,5 +1,6 @@
 using CaeManager.Application.Plantillas.Commands.AgregarVersionPlantilla;
 using CaeManager.Application.Plantillas.Queries.ObtenerPlantillasDocumento;
+using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
@@ -17,8 +18,23 @@ public partial class Plantillas : ComponentBase
     private string _pestanaActiva = "catalogo";
     private int _totalGenerados;
 
+    /// <summary>Deep-link de pestaña — mismo mecanismo que Documentos.razor.cs (P1-18, hallazgo de revisión adversarial de Codex): "Documentos generados" perdió su ruta propia al plegarse en pestaña, así que necesita reflejarse en la URL para no perder recarga/enlace compartido/atrás-adelante.</summary>
+    [SupplyParameterFromQuery] public string? Pestana { get; set; }
+
     private IReadOnlyList<PestanaDefinicion> PestanasConContador =>
         [new("catalogo", $"Catálogo ({_plantillas.Count})"), new("generados", $"Generados ({_totalGenerados})")];
+
+    protected override void OnParametersSet()
+    {
+        if (Pestana is "catalogo" or "generados")
+            _pestanaActiva = Pestana;
+    }
+
+    private void CambiarPestana(string pestana)
+    {
+        _pestanaActiva = pestana;
+        Navigation.ActualizarFiltroEnUrl(nameof(Pestana), pestana == "catalogo" ? null : pestana);
+    }
 
     // Subir nueva versión (PR10) — el gestor decide manualmente que este PDF
     // sustituye al de una plantilla ya existente (ADR-010 § 4, § 6).
