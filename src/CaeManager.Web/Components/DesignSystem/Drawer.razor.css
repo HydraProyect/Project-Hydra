@@ -55,8 +55,9 @@
 .drawer-cerrar {
     background: none;
     border: none;
-    font-size: 1.25rem;
-    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     color: var(--color-text-muted);
     cursor: pointer;
     padding: var(--space-1);

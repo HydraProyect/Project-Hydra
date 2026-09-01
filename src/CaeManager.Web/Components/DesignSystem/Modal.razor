@@ -9,7 +9,7 @@
                 <h2 id="@_tituloId">@Titulo</h2>
                 @if (!Bloqueante)
                 {
-                    <button type="button" class="modal-cerrar" aria-label="Cerrar" @onclick="CerrarAsync">×</button>
+                    <button type="button" class="modal-cerrar" aria-label="Cerrar" @onclick="CerrarAsync"><Icono Nombre="cerrar" /></button>
                 }
             </div>
             <div class="modal-cuerpo">
@@ -37,9 +37,9 @@
     [Parameter] public bool CerrarAlHacerClicFuera { get; set; } = true;
 
     /// <summary>
-    /// Sin ×, sin clic fuera, sin Escape — a diferencia de
+    /// Sin botón Cerrar, sin clic fuera, sin Escape — a diferencia de
     /// <see cref="CerrarAlHacerClicFuera"/> (que protege trabajo sin guardar
-    /// pero deja el × como vía de escape explícita), este modal no tiene
+    /// pero deja el botón Cerrar como vía de escape explícita), este modal no tiene
     /// ninguna forma de cerrarse hasta que el propio contenido invoque
     /// <see cref="VisibleChanged"/> (p. ej. tras completar una acción
     /// obligatoria). Pensado para condiciones de bloqueo reales — aceptación
@@ -102,7 +102,7 @@
     /// Misma condición que cerrar al clicar fuera: si hay trabajo sin
     /// guardar, Escape tampoco debe descartarlo de golpe. Un modal
     /// <see cref="Bloqueante"/> tampoco cierra con Escape, por la misma razón
-    /// que no tiene ×.
+    /// que no tiene botón Cerrar.
     /// </summary>
     private Task ManejarTeclaAsync(KeyboardEventArgs e) =>
         e.Key == "Escape" && !Bloqueante && CerrarAlHacerClicFuera ? CerrarAsync() : Task.CompletedTask;
