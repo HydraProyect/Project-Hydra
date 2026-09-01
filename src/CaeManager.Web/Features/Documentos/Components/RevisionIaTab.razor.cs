@@ -4,9 +4,9 @@ using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes;
 using CaeManager.Web.Components.DesignSystem;
 using Microsoft.AspNetCore.Components;
 
-namespace CaeManager.Web.Features.Documentos.Pages;
+namespace CaeManager.Web.Features.Documentos.Components;
 
-public partial class RevisionIa : ComponentBase
+public partial class RevisionIaTab : ComponentBase
 {
     /// <summary>
     /// Umbral de confirmación masiva (04 § 8.2, DDL-065): 95 — la misma frontera que el sistema

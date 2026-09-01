@@ -1,0 +1,93 @@
+@using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes
+@using MediatR
+@inject IMediator Mediator
+@inject ToastService ToastService
+
+<div class="cabecera-pagina">
+    <p class="descripcion-roles">
+        Documentos de trabajador donde la verificación automática por IA detectó confianza baja o una
+        discrepancia con lo introducido al subirlos. Revisa cada caso — nada se corrige automáticamente.
+    </p>
+    @if (RevisionesConfirmablesEnLote.Count > 0)
+    {
+        <Boton Variante="VarianteBoton.Secundario" Cargando="_confirmandoLote" OnClick="ConfirmarLoteAsync">
+            Confirmar todos los ≥95% (@RevisionesConfirmablesEnLote.Count)
+        </Boton>
+    }
+</div>
+
+@if (_errorCarga)
+{
+    <EstadoVacio Titulo="No pudimos cargar las revisiones" Descripcion="Intenta nuevamente en unos segundos.">
+        <Accion>
+            <Boton OnClick="CargarAsync">Reintentar</Boton>
+        </Accion>
+    </EstadoVacio>
+}
+else if (_cargando)
+{
+    <EstadoCargando Filas="4" />
+}
+else if (_revisiones.Count == 0)
+{
+    <EstadoVacio Titulo="Sin revisiones pendientes" Descripcion="No hay documentos de trabajador pendientes de revisión IA." />
+}
+else
+{
+    <table class="tabla-datos">
+        <thead>
+            <tr>
+                <th>Trabajador / Empresa</th>
+                <th>Tipo de documento</th>
+                <th>Confianza</th>
+                <th>Tipo detectado</th>
+                <th>Fecha emisión detectada</th>
+                <th>Motivo</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var revision in _revisiones)
+            {
+                <tr>
+                    <td>@revision.PropietarioNombre</td>
+                    <td>@revision.TipoDocumentoNombre</td>
+                    <td>
+                        <span class="revision-ia-confianza">
+                            <span class="revision-ia-confianza-texto">Confianza @revision.ConfianzaGeneral%</span>
+                            <span class="revision-ia-confianza-barra">
+                                <span class="@("revision-ia-confianza-relleno revision-ia-confianza-relleno-" + TonoConfianza(revision.ConfianzaGeneral).ToString().ToLowerInvariant())"
+                                      style="width:@(revision.ConfianzaGeneral)%"></span>
+                            </span>
+                        </span>
+                    </td>
+                    <td>@(revision.TipoDetectado ?? "—")</td>
+                    <td>@(revision.FechaEmisionDetectada?.ToString("dd/MM/yyyy") ?? "—")</td>
+                    <td>@revision.Motivo</td>
+                    <td class="celda-acciones-revision">
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => AlternarPrevisualizacion(revision.DocumentoId)">
+                            @(_documentoIdExpandido == revision.DocumentoId ? "Ocultar documento" : "Ver documento")
+                        </Boton>
+                        @if (revision.FechaEmisionDetectada is not null)
+                        {
+                            <Boton Tamano="TamanoBoton.Pequeno" Cargando="@(_procesandoId == revision.Id)" OnClick="() => AceptarDeteccionAsync(revision.Id)">
+                                Aceptar detección
+                            </Boton>
+                        }
+                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" Cargando="@(_procesandoId == revision.Id)" OnClick="() => ResolverAsync(revision.Id)">
+                            Marcar como revisado
+                        </Boton>
+                    </td>
+                </tr>
+                @if (_documentoIdExpandido == revision.DocumentoId)
+                {
+                    <tr class="fila-previsualizacion">
+                        <td colspan="7">
+                            <iframe class="previsualizacion-documento" src="@($"/documentos/{revision.DocumentoId}/archivo")" title="Vista previa del documento"></iframe>
+                        </td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+}
