@@ -88,6 +88,20 @@ public partial class Documentos : ComponentBase
 
     private string _pestanaActiva = "listado";
 
+    /// <summary>
+    /// La pestaña se refleja en la URL (mismo mecanismo que los filtros de la
+    /// rejilla, P1-18) para que recargar, compartir el enlace o navegar
+    /// atrás/adelante no pierda la sección elegida — hallazgo de revisión
+    /// adversarial de Codex tras plegar Revisión IA en pestaña: antes tenía
+    /// ruta propia y por tanto URL durable por definición. "listado" no se
+    /// escribe en la URL por ser el valor por defecto.
+    /// </summary>
+    private void CambiarPestana(string pestana)
+    {
+        _pestanaActiva = pestana;
+        NavigationManager.ActualizarFiltroEnUrl(nameof(Pestana), pestana == "listado" ? null : pestana);
+    }
+
     // --- P3-31: selección múltiple, atajos j/k, filtros guardados ---
     private readonly HashSet<Guid> _seleccionados = [];
 
