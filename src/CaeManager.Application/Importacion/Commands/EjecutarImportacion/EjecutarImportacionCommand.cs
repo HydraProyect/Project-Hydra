@@ -37,6 +37,29 @@ public record ResultadoImportacionDto(
     IReadOnlyList<ItemImportacionDto> Advertencias,
     IReadOnlyList<ItemImportacionDto> Omitidos);
 
+/// <summary>
+/// Invariante «nada se descarta en silencio» (IMPORTACION.md § 3 bis,
+/// ratificada por DCR-12 decisión B, propietario 2026-08-24): la importación
+/// admite éxito parcial con errores reportados, pero ninguna fila de un flujo
+/// soportado —Centros_Plataformas incluido— puede desaparecer sin quedar
+/// registrada en <see cref="ResultadoImportacionDto.Omitidos"/> con hoja,
+/// fila, descripción y motivo.
+///
+/// La misma decisión instruye explícitamente NO uniformizar las ramas de
+/// descarte: el contrato es uniforme, la implementación no. Cada rama nombra
+/// su causal concreta —qué dependencia faltó y por qué— en vez de un motivo
+/// genérico, y la de Asignación→Centro distingue el Centro que el archivo ni
+/// siquiera declaraba del que venía en Centros_Plataformas pero no pudo
+/// crearse en esta misma importación.
+///
+/// La deduplicación es la excepción razonada, no un olvido: reutilizar una
+/// entidad que ya existe no es descartar una fila. El paso de análisis ya lo
+/// anuncia marcando la fila <c>YaExiste</c>, y la vista previa no la cuenta
+/// como «Crear …» (Importacion.razor.cs cuenta solo <c>!YaExiste</c>). Solo
+/// se registra el caso en que el plan SÍ prometió crearla y el estado cambió
+/// entre analizar y confirmar — si no, la pantalla final prometería «1 nueva»
+/// y confirmaría «0» sin explicación.
+/// </summary>
 public class EjecutarImportacionCommandHandler(
     IEmpresaRepository empresaRepositorio,
     ITrabajadorRepository trabajadorRepositorio,
@@ -84,6 +107,15 @@ public class EjecutarImportacionCommandHandler(
         // al analizar.
         var omitidosEnEscritura = new List<ItemImportacionDto>();
 
+        // Centros que este archivo declaraba en Centros_Plataformas, con lo que el
+        // análisis sabía de cada uno. Sirve para que una Asignación huérfana
+        // distinga sus tres causales: el centro que el archivo ni menciona, el que
+        // venía en el archivo y no pudo crearse, y el que sí existía al analizar y
+        // ha dejado de existir antes de confirmar.
+        var centrosDeclaradosEnElArchivo = plan.ClientesCentros
+            .GroupBy(c => c.Nombre, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().YaExisteCentro, StringComparer.OrdinalIgnoreCase);
+
         foreach (var fila in plan.ClientesCentros)
         {
             // Cliente ahora exige CIF y Centro exige Empresa (Fase 10) — ninguno de
@@ -112,7 +144,17 @@ public class EjecutarImportacionCommandHandler(
 
         foreach (var fila in plan.Empresas)
         {
-            if (empresasPorRazonSocial.ContainsKey(fila.RazonSocial)) continue;
+            if (empresasPorRazonSocial.ContainsKey(fila.RazonSocial))
+            {
+                // Reutilización, no descarte: el análisis ya la marcó YaExiste y la
+                // vista previa no prometió crearla. Solo se registra si el plan sí
+                // la prometía y apareció entre analizar y confirmar.
+                if (!fila.YaExiste)
+                    omitidosEnEscritura.Add(new ItemImportacionDto(
+                        "Empleados", 0, fila.RazonSocial,
+                        $"La empresa «{fila.RazonSocial}» ya existía al confirmar la importación, aunque no existía al analizar el archivo; se reutiliza la que ya había en vez de duplicarla."));
+                continue;
+            }
 
             try
             {
@@ -129,8 +171,25 @@ public class EjecutarImportacionCommandHandler(
 
         foreach (var fila in plan.Trabajadores)
         {
-            if (trabajadoresPorDni.ContainsKey(fila.Dni)) continue;
-            if (!empresasPorRazonSocial.TryGetValue(fila.RazonSocialEmpresa, out var empresaId)) continue;
+            if (trabajadoresPorDni.ContainsKey(fila.Dni))
+            {
+                // Reutilización anunciada por el análisis (ver nota de la clase).
+                if (!fila.YaExiste)
+                    omitidosEnEscritura.Add(new ItemImportacionDto(
+                        "Empleados", 0, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})",
+                        $"Ya existía un trabajador con el DNI {fila.Dni} al confirmar la importación, aunque no existía al analizar el archivo; se reutiliza el que ya había en vez de duplicarlo."));
+                continue;
+            }
+
+            if (!empresasPorRazonSocial.TryGetValue(fila.RazonSocialEmpresa, out var empresaId))
+            {
+                // Dependencia dentro del propio archivo: la Empresa del trabajador
+                // ni existía antes ni pudo crearse en esta importación.
+                omitidosEnEscritura.Add(new ItemImportacionDto(
+                    "Empleados", 0, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})",
+                    $"La empresa «{fila.RazonSocialEmpresa}» no existe y no pudo crearse al importar este archivo; un trabajador no puede darse de alta sin la empresa a la que pertenece."));
+                continue;
+            }
 
             try
             {
@@ -154,9 +213,36 @@ public class EjecutarImportacionCommandHandler(
 
         foreach (var fila in plan.Documentos)
         {
-            if (!trabajadoresPorDni.TryGetValue(fila.Dni, out var trabajadorId)) continue;
-            if (!tiposDocumentoPorNombre.TryGetValue(fila.NombreTipoDocumento, out var tipoDocumento)) continue;
-            if (!clavesDocumentosExistentes.Add((trabajadorId, tipoDocumento.Id))) continue;
+            if (!trabajadoresPorDni.TryGetValue(fila.Dni, out var trabajadorId))
+            {
+                // El documento se queda sin titular: su trabajador no existía ni
+                // pudo crearse (su propia fila se omitió más arriba, con su motivo).
+                omitidosEnEscritura.Add(new ItemImportacionDto(
+                    "Empleados", 0, $"{fila.Dni} — {fila.NombreTipoDocumento}",
+                    $"El trabajador con DNI {fila.Dni} no existe y no pudo crearse al importar este archivo; su documento no tiene a quién asociarse."));
+                continue;
+            }
+
+            if (!tiposDocumentoPorNombre.TryGetValue(fila.NombreTipoDocumento, out var tipoDocumento))
+            {
+                // Referencia a una entidad del catálogo que no existe: a diferencia
+                // del caso anterior, este archivo nunca pudo crearla — el catálogo
+                // de tipos de documento no se alimenta desde la importación.
+                omitidosEnEscritura.Add(new ItemImportacionDto(
+                    "Empleados", 0, $"{fila.Dni} — {fila.NombreTipoDocumento}",
+                    $"El tipo de documento «{fila.NombreTipoDocumento}» no existe en el catálogo del sistema y la importación no lo crea; da de alta el tipo en Tipos de documento y vuelve a importar."));
+                continue;
+            }
+
+            if (!clavesDocumentosExistentes.Add((trabajadorId, tipoDocumento.Id)))
+            {
+                // Reutilización anunciada por el análisis (ver nota de la clase).
+                if (!fila.YaExiste)
+                    omitidosEnEscritura.Add(new ItemImportacionDto(
+                        "Empleados", 0, $"{fila.Dni} — {fila.NombreTipoDocumento}",
+                        $"El trabajador {fila.Dni} ya tenía un documento de tipo «{fila.NombreTipoDocumento}» al confirmar la importación, aunque no lo tenía al analizar el archivo; se conserva el que ya había en vez de duplicarlo."));
+                continue;
+            }
 
             try
             {
@@ -179,11 +265,62 @@ public class EjecutarImportacionCommandHandler(
             .Select(a => (a.TrabajadorId, a.CentroId))
             .ToHashSet();
 
+        // A diferencia de las demás hojas, el análisis NO deduplica pares
+        // (trabajador, centro) repetidos dentro del propio archivo: la hoja
+        // Asignaciones se recorre por filas y dos filas con el mismo nombre
+        // completo producen el mismo par. Sin esta pista, la segunda se
+        // confundiría con una asignación aparecida entre analizar y confirmar y
+        // se le daría un motivo falso — dos causales distintas, un solo mensaje.
+        var clavesAsignacionesDelPlan = new HashSet<(Guid, Guid)>();
+
         foreach (var fila in plan.Asignaciones)
         {
-            if (!trabajadoresPorDni.TryGetValue(fila.Dni, out var trabajadorId)) continue;
-            if (!centrosPorNombre.TryGetValue(fila.NombreCentro, out var centroId)) continue;
-            if (!clavesAsignacionesActivas.Add((trabajadorId, centroId))) continue;
+            if (!trabajadoresPorDni.TryGetValue(fila.Dni, out var trabajadorId))
+            {
+                omitidosEnEscritura.Add(new ItemImportacionDto(
+                    "Asignaciones", 0, $"{fila.Dni} — {fila.NombreCentro}",
+                    $"El trabajador con DNI {fila.Dni} no existe y no pudo crearse al importar este archivo; sin él la asignación al centro «{fila.NombreCentro}» no puede crearse."));
+                continue;
+            }
+
+            if (!centrosPorNombre.TryGetValue(fila.NombreCentro, out var centroId))
+            {
+                // DCR-12 B exige distinguir aquí la causal, no dar un motivo común.
+                // Son tres situaciones distintas y el usuario actúa distinto en cada
+                // una: el Centro que este archivo declaraba y no pudo crearse (Fase 10
+                // le exige una Empresa que la plantilla no recoge), el que el archivo
+                // ni siquiera menciona, y el que sí existía al analizar y ha dejado de
+                // existir antes de confirmar — a ese último no se le puede decir que
+                // "no pudo crearse", porque nunca se prometió crearlo.
+                var motivoCentro = centrosDeclaradosEnElArchivo.TryGetValue(fila.NombreCentro, out var existiaAlAnalizar)
+                    ? existiaAlAnalizar
+                        ? $"El centro «{fila.NombreCentro}» existía al analizar el archivo pero ya no existe al confirmar la importación; sin él la asignación no puede crearse."
+                        : $"El centro «{fila.NombreCentro}» venía en la hoja Centros_Plataformas de este archivo pero no pudo crearse al importarlo (ahora requiere una Empresa asociada que esta plantilla no recoge); créalo manualmente en Centros y vuelve a importar para que esta asignación se registre."
+                    : $"El centro «{fila.NombreCentro}» no existe en el sistema y este archivo no lo declara en la hoja Centros_Plataformas; sin él la asignación no puede crearse.";
+
+                omitidosEnEscritura.Add(new ItemImportacionDto(
+                    "Asignaciones", 0, $"{fila.Dni} — {fila.NombreCentro}", motivoCentro));
+                continue;
+            }
+
+            var repetidaEnElArchivo = !clavesAsignacionesDelPlan.Add((trabajadorId, centroId));
+
+            if (!clavesAsignacionesActivas.Add((trabajadorId, centroId)))
+            {
+                if (repetidaEnElArchivo)
+                    // El propio archivo la trae dos veces (el plan prometió dos altas
+                    // y solo cabe una): se registra para que los contadores cuadren,
+                    // con su causal, no con la de la reaparición entre pasos.
+                    omitidosEnEscritura.Add(new ItemImportacionDto(
+                        "Asignaciones", 0, $"{fila.Dni} — {fila.NombreCentro}",
+                        $"Esta asignación del trabajador {fila.Dni} al centro «{fila.NombreCentro}» ya venía antes en este mismo archivo; se registra una sola vez."));
+                else if (!fila.YaExiste)
+                    // Reutilización que el análisis NO llegó a anunciar (ver nota de la clase).
+                    omitidosEnEscritura.Add(new ItemImportacionDto(
+                        "Asignaciones", 0, $"{fila.Dni} — {fila.NombreCentro}",
+                        $"El trabajador {fila.Dni} ya estaba asignado al centro «{fila.NombreCentro}» al confirmar la importación, aunque no lo estaba al analizar el archivo; se conserva la asignación activa que ya había en vez de duplicarla."));
+                continue;
+            }
 
             try
             {
