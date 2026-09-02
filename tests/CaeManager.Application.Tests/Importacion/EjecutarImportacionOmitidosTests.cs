@@ -161,6 +161,112 @@ public class EjecutarImportacionOmitidosTests
     }
 
     /// <summary>
+    /// Tercera causal de la misma rama: el Centro sí existía cuando se analizó el
+    /// archivo y ha dejado de existir antes de confirmar. A ese no se le puede decir
+    /// que «no pudo crearse», porque nunca se prometió crearlo.
+    /// </summary>
+    [Fact]
+    public async Task Asignacion_cuyo_centro_existia_al_analizar_y_ya_no_lo_dice_asi()
+    {
+        var escenario = new EscenarioImportacion().ConTrabajadorExistente();
+        var plan = EscenarioImportacion.Plan(
+            clientesCentros: [EscenarioImportacion.CentroDeclaradoEnElArchivo(yaExisteCentro: true)],
+            asignaciones:
+            [
+                new AsignacionImportadaDto(
+                    EscenarioImportacion.DniConocido, EscenarioImportacion.CentroDeclaradoNoCreado, YaExiste: false)
+            ]);
+
+        var resultado = await escenario.EjecutarAsync(plan);
+
+        var omitido = resultado.Omitidos.Should().ContainSingle(o => o.Hoja == "Asignaciones").Subject;
+        omitido.Motivo.Should().Contain("existía al analizar el archivo pero ya no existe al confirmar");
+        omitido.Motivo.Should().NotContain("no pudo crearse");
+
+        escenario.AsignacionRepositorio.Asignaciones.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// El análisis no deduplica pares (trabajador, centro) repetidos dentro de la
+    /// propia hoja Asignaciones —se recorre por filas y dos filas del mismo
+    /// trabajador dan el mismo par—, así que el plan promete dos altas y solo cabe
+    /// una. La segunda se registra con SU causal, no con la de la reaparición entre
+    /// analizar y confirmar, que sería un motivo falso.
+    /// </summary>
+    [Fact]
+    public async Task Asignacion_repetida_dentro_del_mismo_archivo_se_registra_con_su_propia_causal()
+    {
+        var escenario = new EscenarioImportacion().ConTrabajadorExistente().ConCentroExistente();
+        var filaRepetida = new AsignacionImportadaDto(
+            EscenarioImportacion.DniConocido, EscenarioImportacion.CentroConocido, YaExiste: false);
+        var plan = EscenarioImportacion.Plan(asignaciones: [filaRepetida, filaRepetida]);
+
+        var resultado = await escenario.EjecutarAsync(plan);
+
+        // La primera sí se crea; solo la segunda se omite.
+        resultado.AsignacionesCreadas.Should().Be(1);
+        escenario.AsignacionRepositorio.Asignaciones.Should().ContainSingle();
+
+        var omitido = resultado.Omitidos.Should().ContainSingle().Subject;
+        omitido.Motivo.Should().Contain("ya venía antes en este mismo archivo");
+        omitido.Motivo.Should().NotContain("al analizar");
+    }
+
+    [Fact]
+    public async Task Empresa_que_el_plan_prometia_crear_y_ya_existe_al_confirmar_queda_registrada()
+    {
+        var escenario = new EscenarioImportacion().ConEmpresaExistente();
+        var plan = EscenarioImportacion.Plan(
+            empresas: [new EmpresaImportadaDto(EscenarioImportacion.EmpresaConocida, YaExiste: false)]);
+
+        var resultado = await escenario.EjecutarAsync(plan);
+
+        var omitido = resultado.Omitidos.Should().ContainSingle().Subject;
+        omitido.Motivo.Should().Contain("ya existía al confirmar");
+        escenario.EmpresaRepositorio.Empresas.Should().BeEmpty();
+        resultado.EmpresasCreadas.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Trabajador_que_el_plan_prometia_crear_y_ya_existe_al_confirmar_queda_registrado()
+    {
+        var escenario = new EscenarioImportacion().ConEmpresaExistente().ConTrabajadorExistente();
+        var plan = EscenarioImportacion.Plan(trabajadores:
+        [
+            new TrabajadorImportadoDto(
+                EscenarioImportacion.EmpresaConocida, "Marta", "Ruiz",
+                EscenarioImportacion.DniConocido, null, null, YaExiste: false)
+        ]);
+
+        var resultado = await escenario.EjecutarAsync(plan);
+
+        var omitido = resultado.Omitidos.Should().ContainSingle().Subject;
+        omitido.Motivo.Should().Contain("Ya existía un trabajador con el DNI");
+        escenario.TrabajadorRepositorio.Trabajadores.Should().BeEmpty();
+        resultado.TrabajadoresCreados.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Documento_que_el_plan_prometia_crear_y_ya_existe_al_confirmar_queda_registrado()
+    {
+        var escenario = new EscenarioImportacion()
+            .ConTrabajadorExistente().ConTipoDocumentoExistente().ConDocumentoExistente();
+        var plan = EscenarioImportacion.Plan(documentos:
+        [
+            new DocumentoImportadoDto(
+                EscenarioImportacion.DniConocido, EscenarioImportacion.TipoDocumentoConocido,
+                new DateOnly(2026, 2, 1), YaExiste: false)
+        ]);
+
+        var resultado = await escenario.EjecutarAsync(plan);
+
+        var omitido = resultado.Omitidos.Should().ContainSingle().Subject;
+        omitido.Motivo.Should().Contain("ya tenía un documento de tipo");
+        escenario.DocumentoRepositorio.Documentos.Should().BeEmpty();
+        resultado.DocumentosCreados.Should().Be(0);
+    }
+
+    /// <summary>
     /// Las cuatro ramas de deduplicación NO son omisiones: el análisis ya anunció
     /// la reutilización marcando la fila <c>YaExiste</c>, y la vista previa no la
     /// contó como "Crear …". Reimportar el mismo archivo debe seguir dando cero
@@ -168,7 +274,7 @@ public class EjecutarImportacionOmitidosTests
     /// avisos que el usuario no puede accionar.
     /// </summary>
     [Fact]
-    public async Task Reimportar_lo_que_el_analisis_ya_anuncio_como_existente_no_genera_omitidos()
+    public async Task Lo_que_el_analisis_anuncio_como_ya_existente_no_genera_ningun_omitido()
     {
         var escenario = new EscenarioImportacion()
             .ConEmpresaExistente()

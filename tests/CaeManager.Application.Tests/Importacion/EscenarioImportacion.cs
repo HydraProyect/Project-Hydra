@@ -119,7 +119,13 @@ internal sealed class EscenarioImportacion
         IReadOnlyList<AsignacionImportadaDto>? asignaciones = null) =>
         new(clientesCentros ?? [], empresas ?? [], trabajadores ?? [], documentos ?? [], asignaciones ?? [], [], []);
 
-    /// <summary>La fila de Centros_Plataformas que el archivo declara pero la importación no puede crear (Fase 10 exige Empresa).</summary>
-    public static ClienteCentroImportadoDto CentroDeclaradoEnElArchivo(string nombre = CentroDeclaradoNoCreado) =>
-        new(nombre, EsCritico: false, Direccion: null, Contacto: null, YaExisteCliente: false, YaExisteCentro: false);
+    /// <summary>
+    /// La fila de Centros_Plataformas que el archivo declara. Con
+    /// <paramref name="yaExisteCentro"/> en <c>false</c> es el Centro que la
+    /// importación no puede crear (Fase 10 exige Empresa); en <c>true</c>, el que
+    /// el análisis vio existir y puede haber desaparecido antes de confirmar.
+    /// </summary>
+    public static ClienteCentroImportadoDto CentroDeclaradoEnElArchivo(
+        string nombre = CentroDeclaradoNoCreado, bool yaExisteCentro = false) =>
+        new(nombre, EsCritico: false, Direccion: null, Contacto: null, YaExisteCliente: false, YaExisteCentro: yaExisteCentro);
 }

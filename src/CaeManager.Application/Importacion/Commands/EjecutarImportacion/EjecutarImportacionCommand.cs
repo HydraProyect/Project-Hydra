@@ -107,12 +107,14 @@ public class EjecutarImportacionCommandHandler(
         // al analizar.
         var omitidosEnEscritura = new List<ItemImportacionDto>();
 
-        // Nombres que este archivo declaraba en Centros_Plataformas: sirve para
-        // que una Asignación huérfana distinga "el centro no existe en ninguna
-        // parte" de "el centro venía en este archivo pero no pudo crearse".
+        // Centros que este archivo declaraba en Centros_Plataformas, con lo que el
+        // análisis sabía de cada uno. Sirve para que una Asignación huérfana
+        // distinga sus tres causales: el centro que el archivo ni menciona, el que
+        // venía en el archivo y no pudo crearse, y el que sí existía al analizar y
+        // ha dejado de existir antes de confirmar.
         var centrosDeclaradosEnElArchivo = plan.ClientesCentros
-            .Select(c => c.Nombre)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            .GroupBy(c => c.Nombre, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().YaExisteCentro, StringComparer.OrdinalIgnoreCase);
 
         foreach (var fila in plan.ClientesCentros)
         {
@@ -263,6 +265,14 @@ public class EjecutarImportacionCommandHandler(
             .Select(a => (a.TrabajadorId, a.CentroId))
             .ToHashSet();
 
+        // A diferencia de las demás hojas, el análisis NO deduplica pares
+        // (trabajador, centro) repetidos dentro del propio archivo: la hoja
+        // Asignaciones se recorre por filas y dos filas con el mismo nombre
+        // completo producen el mismo par. Sin esta pista, la segunda se
+        // confundiría con una asignación aparecida entre analizar y confirmar y
+        // se le daría un motivo falso — dos causales distintas, un solo mensaje.
+        var clavesAsignacionesDelPlan = new HashSet<(Guid, Guid)>();
+
         foreach (var fila in plan.Asignaciones)
         {
             if (!trabajadoresPorDni.TryGetValue(fila.Dni, out var trabajadorId))
@@ -275,22 +285,37 @@ public class EjecutarImportacionCommandHandler(
 
             if (!centrosPorNombre.TryGetValue(fila.NombreCentro, out var centroId))
             {
-                // DCR-12 B exige distinguir aquí las dos causales: el Centro que este
-                // archivo declaraba en Centros_Plataformas y no pudo crearse (Fase 10
-                // le exige una Empresa que la plantilla no recoge), y el Centro que el
-                // archivo ni siquiera menciona. El usuario actúa distinto en cada caso.
+                // DCR-12 B exige distinguir aquí la causal, no dar un motivo común.
+                // Son tres situaciones distintas y el usuario actúa distinto en cada
+                // una: el Centro que este archivo declaraba y no pudo crearse (Fase 10
+                // le exige una Empresa que la plantilla no recoge), el que el archivo
+                // ni siquiera menciona, y el que sí existía al analizar y ha dejado de
+                // existir antes de confirmar — a ese último no se le puede decir que
+                // "no pudo crearse", porque nunca se prometió crearlo.
+                var motivoCentro = centrosDeclaradosEnElArchivo.TryGetValue(fila.NombreCentro, out var existiaAlAnalizar)
+                    ? existiaAlAnalizar
+                        ? $"El centro «{fila.NombreCentro}» existía al analizar el archivo pero ya no existe al confirmar la importación; sin él la asignación no puede crearse."
+                        : $"El centro «{fila.NombreCentro}» venía en la hoja Centros_Plataformas de este archivo pero no pudo crearse al importarlo (ahora requiere una Empresa asociada que esta plantilla no recoge); créalo manualmente en Centros y vuelve a importar para que esta asignación se registre."
+                    : $"El centro «{fila.NombreCentro}» no existe en el sistema y este archivo no lo declara en la hoja Centros_Plataformas; sin él la asignación no puede crearse.";
+
                 omitidosEnEscritura.Add(new ItemImportacionDto(
-                    "Asignaciones", 0, $"{fila.Dni} — {fila.NombreCentro}",
-                    centrosDeclaradosEnElArchivo.Contains(fila.NombreCentro)
-                        ? $"El centro «{fila.NombreCentro}» venía en la hoja Centros_Plataformas de este archivo pero no pudo crearse al importarlo (ahora requiere una Empresa asociada que esta plantilla no recoge); créalo manualmente en Centros y vuelve a importar para que esta asignación se registre."
-                        : $"El centro «{fila.NombreCentro}» no existe en el sistema y este archivo no lo declara en la hoja Centros_Plataformas; sin él la asignación no puede crearse."));
+                    "Asignaciones", 0, $"{fila.Dni} — {fila.NombreCentro}", motivoCentro));
                 continue;
             }
 
+            var repetidaEnElArchivo = !clavesAsignacionesDelPlan.Add((trabajadorId, centroId));
+
             if (!clavesAsignacionesActivas.Add((trabajadorId, centroId)))
             {
-                // Reutilización anunciada por el análisis (ver nota de la clase).
-                if (!fila.YaExiste)
+                if (repetidaEnElArchivo)
+                    // El propio archivo la trae dos veces (el plan prometió dos altas
+                    // y solo cabe una): se registra para que los contadores cuadren,
+                    // con su causal, no con la de la reaparición entre pasos.
+                    omitidosEnEscritura.Add(new ItemImportacionDto(
+                        "Asignaciones", 0, $"{fila.Dni} — {fila.NombreCentro}",
+                        $"Esta asignación del trabajador {fila.Dni} al centro «{fila.NombreCentro}» ya venía antes en este mismo archivo; se registra una sola vez."));
+                else if (!fila.YaExiste)
+                    // Reutilización que el análisis NO llegó a anunciar (ver nota de la clase).
                     omitidosEnEscritura.Add(new ItemImportacionDto(
                         "Asignaciones", 0, $"{fila.Dni} — {fila.NombreCentro}",
                         $"El trabajador {fila.Dni} ya estaba asignado al centro «{fila.NombreCentro}» al confirmar la importación, aunque no lo estaba al analizar el archivo; se conserva la asignación activa que ya había en vez de duplicarla."));
