@@ -40,6 +40,26 @@ public class ClosedXmlImportacionParserTests
         plan.Trabajadores.Should().BeEmpty();
     }
 
+    [Theory]
+    [InlineData(5, null)] // Fecha de nacimiento.
+    [InlineData(6, "ana@ejemplo.com")] // Email.
+    [InlineData(7, null)] // Fecha del primer documento (Certificado de aptitud médica).
+    public async Task Fila_de_Empleados_sin_nombre_ni_apellidos_ni_DNI_pero_con_otro_dato_queda_omitida(int columna, string? valorTexto)
+    {
+        var libro = NuevoLibroBase();
+        var hoja = libro.Worksheets.Worksheet("Empleados");
+        hoja.Cell(4, 1).Value = 1;
+        if (valorTexto is not null) hoja.Cell(4, columna).Value = valorTexto;
+        else hoja.Cell(4, columna).Value = DateTime.UtcNow.Date.AddDays(-30);
+
+        var plan = await AnalizarAsync(libro);
+
+        var omitido = plan.Omitidos.Should().ContainSingle(o => o.Hoja == "Empleados").Subject;
+        omitido.Fila.Should().Be(4);
+        omitido.Motivo.Should().Contain("Faltan datos obligatorios");
+        plan.Trabajadores.Should().BeEmpty();
+    }
+
     [Fact]
     public async Task Fila_de_Empleados_totalmente_vacia_no_genera_ninguna_entrada()
     {
@@ -117,6 +137,7 @@ public class ClosedXmlImportacionParserTests
         var omitido = plan.Omitidos.Should().ContainSingle(o => o.Hoja == "Asignaciones").Subject;
         omitido.Fila.Should().Be(5);
         omitido.Motivo.Should().Contain("Faltan nombre o apellidos");
+        plan.Advertencias.Should().BeEmpty();
         plan.Asignaciones.Should().BeEmpty();
     }
 
@@ -131,6 +152,7 @@ public class ClosedXmlImportacionParserTests
         var plan = await AnalizarAsync(libro);
 
         plan.Omitidos.Should().NotContain(o => o.Hoja == "Asignaciones" && o.Fila == 5);
+        plan.Advertencias.Should().BeEmpty();
         plan.Asignaciones.Should().BeEmpty();
     }
 
