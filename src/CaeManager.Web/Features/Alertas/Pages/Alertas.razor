@@ -88,7 +88,15 @@
                                 @(lote.UltimaReclamacionFechaUtc is null
                                     ? "Nunca reclamado."
                                     : $"Última reclamación: {FormatearHaceTiempo(lote.UltimaReclamacionFechaUtc.Value)}.")
-                                @if (lote.UltimaReclamacionConversacionId is not null)
+                                @* El filtro de /comunicaciones es por Cliente
+                                   (ObtenerConversacionesQuery.ClienteId), así que solo
+                                   se ofrece para un titular Cliente. El hilo de una
+                                   reclamación a una Empresa existe y está anclado a
+                                   ella (Conversacion.EmpresaId), pero llevar hasta él
+                                   exige un filtro por Empresa que esa pantalla todavía
+                                   no tiene — enlazar con ?cliente= abriría una bandeja
+                                   vacía, que se leería como "no hay hilo". *@
+                                @if (lote.UltimaReclamacionConversacionId is not null && lote.Ambito != AmbitoAplicacion.Empresa)
                                 {
                                     <a href="@($"/comunicaciones?cliente={lote.TitularId}")">Ver en Comunicaciones</a>
                                 }
@@ -125,11 +133,18 @@
                                 </fieldset>
                             }
 
+                            @* Sin columna "Trabajador" en un lote de ámbito Empresa: el
+                               propietario de cada documento es la propia titular de la
+                               tarjeta (DocumentoReclamableDto.TrabajadorNombre es null ahí). *@
+                            @{ var muestraTrabajador = lote.Ambito != AmbitoAplicacion.Empresa; }
                             <table class="tabla-datos">
                                 <thead>
                                     <tr>
                                         <th></th>
-                                        <th>Trabajador</th>
+                                        @if (muestraTrabajador)
+                                        {
+                                            <th>Trabajador</th>
+                                        }
                                         <th>Documento</th>
                                         <th>Vencimiento</th>
                                         <th>Estado</th>
@@ -143,7 +158,10 @@
                                                 <input type="checkbox" checked="@seleccionados.Contains(documento.DocumentoId)"
                                                        @onchange="e => AlternarSeleccion(lote.TitularId, documento.DocumentoId, (bool)e.Value!)" />
                                             </td>
-                                            <td>@documento.TrabajadorNombre</td>
+                                            @if (muestraTrabajador)
+                                            {
+                                                <td>@documento.TrabajadorNombre</td>
+                                            }
                                             <td>@documento.TipoDocumentoNombre</td>
                                             <td>@documento.FechaVencimiento.ToString("dd/MM/yyyy")</td>
                                             <td><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)">@EstadoDocumentoUi.Texto(documento.Estado)</Badge></td>

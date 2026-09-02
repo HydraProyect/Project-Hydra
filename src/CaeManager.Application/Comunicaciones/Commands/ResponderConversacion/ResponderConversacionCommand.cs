@@ -63,7 +63,7 @@ public class ResponderConversacionCommandHandler(
         var conversacion = await repositorio.ObtenerPorIdAsync(request.ConversacionId, cancellationToken);
         // Ver AsignarEjecutivoConversacionCommandHandler (hallazgo N-3): sin
         // esto se podía responder en el hilo de otro gestor.
-        if (conversacion is null || !await alcanceDatos.ConversacionVisibleAsync(conversacion.ClienteId, conversacion.ConexionIntegracionId, cancellationToken))
+        if (conversacion is null || !await alcanceDatos.ConversacionVisibleAsync(conversacion.ClienteId, conversacion.EmpresaId, conversacion.ConexionIntegracionId, cancellationToken))
             return Result.Fallo(Error.Crear("Conversacion.NoEncontrada", "No encontramos esta conversación."));
 
         Mensaje mensajeCreado;

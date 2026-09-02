@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Empresas;
 using CaeManager.Domain.Comunicaciones;
+using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,8 +14,15 @@ namespace CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionesEnvia
 /// componer/enviar que ya cubre <c>ObtenerLoteReclamacionQuery</c>). A
 /// diferencia de <c>ObtenerUltimaReclamacionClienteQuery</c> (solo la más
 /// reciente de un Cliente) y <c>ObtenerReclamacionesSinRespuestaQuery</c>
-/// (solo las que llevan esperando, una por Cliente), esta lista TODOS los
-/// lotes, de cualquier Cliente, paginados.
+/// (solo las que llevan esperando, una por titular), esta lista TODOS los
+/// lotes, de cualquier titular, paginados.
+///
+/// Incluye las de titular Empresa (documentos de empresa, DEC-7) además de
+/// las de titular Cliente — es el historial completo, y ocultar la mitad
+/// haría creer que nunca se reclamó. Cada rama se acota por SU cartera:
+/// Clientes por ObtenerClienteIdsVisiblesAsync, Empresas por
+/// ObtenerEmpresaIdsVisiblesAsync. Las dos anclas repuntan contra Empresas,
+/// así que la razón social sale del mismo join en los dos casos.
 /// </summary>
 public record ObtenerReclamacionesEnviadasQuery(int Pagina = 1, int TamanoPagina = 20)
     : IRequest<ResultadoPaginado<ReclamacionEnviadaDto>>;
@@ -25,8 +33,16 @@ public record ObtenerReclamacionesEnviadasQuery(int Pagina = 1, int TamanoPagina
 /// (salió sin buzón conectado, o es anterior al vínculo con Comunicaciones)
 /// y por tanto no hay forma de saber si alguien contestó.
 /// </param>
+/// <param name="AmbitoTitular">
+/// <c>Cliente</c> o <c>Empresa</c> — decide a qué comando corresponde
+/// "reclamar de nuevo" (EnviarReclamacionCommand o
+/// EnviarReclamacionEmpresaCommand). Va en el DTO justamente porque
+/// <paramref name="TitularId"/> alimenta después una escritura: sin él, el
+/// reenvío trataría un titular Empresa como si fuera un Cliente y no
+/// encontraría ni un documento reclamable.
+/// </param>
 public record ReclamacionEnviadaDto(
-    Guid Id, Guid ClienteId, string ClienteRazonSocial, string DestinatarioEmail,
+    Guid Id, Guid TitularId, string TitularRazonSocial, AmbitoAplicacion AmbitoTitular, string DestinatarioEmail,
     DateTime FechaEnvioUtc, int TotalDocumentos, Guid? ConversacionId, bool? SinRespuesta,
     IReadOnlyList<Guid> DocumentoIds);
 
@@ -41,12 +57,20 @@ public class ObtenerReclamacionesEnviadasQueryHandler(
         ObtenerReclamacionesEnviadasQuery request, CancellationToken cancellationToken)
     {
         var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
+        var empresaIdsVisibles = await alcanceDatos.ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
 
         var consulta =
             from reclamacion in reclamacionesContext.ReclamacionesDocumentales
-            where clienteIdsVisibles == null || clienteIdsVisibles.Contains(reclamacion.ClienteId)
-            join cliente in empresasContext.Empresas on reclamacion.ClienteId equals cliente.Id
-            select new { reclamacion, cliente.RazonSocial };
+            where (reclamacion.ClienteId != null &&
+                   (clienteIdsVisibles == null || clienteIdsVisibles.Contains(reclamacion.ClienteId!.Value)))
+               || (reclamacion.EmpresaId != null &&
+                   (empresaIdsVisibles == null || empresaIdsVisibles.Contains(reclamacion.EmpresaId!.Value)))
+            // Las dos anclas repuntan contra Empresas (ADR-011), así que el
+            // titular se une por la que esté informada: el modelo garantiza
+            // que es exactamente una (CK_ReclamacionesDocumentales_TitularUnico).
+            join titular in empresasContext.Empresas
+                on (reclamacion.ClienteId ?? reclamacion.EmpresaId) equals titular.Id
+            select new { reclamacion, titular.RazonSocial };
 
         var total = await consulta.CountAsync(cancellationToken);
 
@@ -59,6 +83,7 @@ public class ObtenerReclamacionesEnviadasQueryHandler(
             {
                 x.reclamacion.Id,
                 x.reclamacion.ClienteId,
+                x.reclamacion.EmpresaId,
                 RazonSocial = x.RazonSocial,
                 x.reclamacion.DestinatarioEmail,
                 x.reclamacion.FechaEnvioUtc,
@@ -102,7 +127,9 @@ public class ObtenerReclamacionesEnviadasQueryHandler(
                         .Any(fecha => fecha > r.FechaEnvioUtc);
 
                 return new ReclamacionEnviadaDto(
-                    r.Id, r.ClienteId, r.RazonSocial, r.DestinatarioEmail, r.FechaEnvioUtc,
+                    r.Id, r.ClienteId ?? r.EmpresaId!.Value, r.RazonSocial,
+                    r.ClienteId is not null ? AmbitoAplicacion.Cliente : AmbitoAplicacion.Empresa,
+                    r.DestinatarioEmail, r.FechaEnvioUtc,
                     documentoIds.Count, r.ConversacionId, sinRespuesta, documentoIds);
             })
             .ToList();

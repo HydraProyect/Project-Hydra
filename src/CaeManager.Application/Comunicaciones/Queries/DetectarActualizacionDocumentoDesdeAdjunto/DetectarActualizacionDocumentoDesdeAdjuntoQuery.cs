@@ -54,10 +54,10 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler(
             join m in comunicacionesContext.Mensajes on a.MensajeId equals m.Id
             join c in comunicacionesContext.Conversaciones on m.ConversacionId equals c.Id
             where a.Id == request.AdjuntoId
-            select new { a.Id, a.NombreArchivo, a.ArchivoUrl, c.ClienteId, c.ConexionIntegracionId })
+            select new { a.Id, a.NombreArchivo, a.ArchivoUrl, c.ClienteId, c.EmpresaId, c.ConexionIntegracionId })
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (adjunto is null || !await alcanceDatos.ConversacionVisibleAsync(adjunto.ClienteId, adjunto.ConexionIntegracionId, cancellationToken))
+        if (adjunto is null || !await alcanceDatos.ConversacionVisibleAsync(adjunto.ClienteId, adjunto.EmpresaId, adjunto.ConexionIntegracionId, cancellationToken))
             return Result.Fallo<DeteccionActualizacionDocumentoDto>(Error.Crear("Adjunto.NoEncontrado", "No encontramos este adjunto."));
 
         // Apagado por defecto (ver ExtraccionDocumentoAdjuntoOptions): sin DPA

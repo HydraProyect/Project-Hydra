@@ -679,9 +679,23 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
 
     private static EnviarReclamacionCommandHandler CrearCommandHandler(
         CaeManagerDbContext contexto, IEmailService emailService, IMediator mediator) =>
-        new(contexto, contexto, contexto, contexto, contexto, contexto, contexto,
-            new AlcanceDatosServiceFalso(), new ResolucionDestinatariosAgendaService(contexto, contexto), emailService,
-            new ReclamacionDocumentalRepository(contexto), new CurrentUserServiceFalso(Guid.NewGuid()), mediator, contexto);
+        CrearCommandHandler(contexto, emailService, mediator, new AlcanceDatosServiceFalso());
+
+    private static EnviarReclamacionCommandHandler CrearCommandHandler(
+        CaeManagerDbContext contexto, IEmailService emailService, IMediator mediator, IAlcanceDatosService alcanceDatos) =>
+        new(contexto, contexto, contexto, contexto, contexto, contexto,
+            alcanceDatos, new ResolucionDestinatariosAgendaService(contexto, contexto),
+            CrearRegistroEnvio(contexto, emailService, mediator));
+
+    /// <summary>
+    /// Cola común de envío (buzón → correo → registro → evento), compartida
+    /// por los dos comandos de reclamación — servicio REAL, no un doble: es
+    /// justo la parte cuyo comportamiento estos tests comprueban.
+    /// </summary>
+    private static RegistroEnvioReclamacionService CrearRegistroEnvio(
+        CaeManagerDbContext contexto, IEmailService emailService, IMediator mediator) =>
+        new(contexto, emailService, new ReclamacionDocumentalRepository(contexto),
+            new CurrentUserServiceFalso(Guid.NewGuid()), mediator, contexto);
 
     /// <summary>Contacto predeterminado de la agenda del Cliente — el que recibe lo que no tiene dueño explícito.</summary>
     private async Task SembrarContactoPredeterminadoAsync(params string[] emails)

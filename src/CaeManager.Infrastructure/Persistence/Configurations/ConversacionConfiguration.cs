@@ -8,7 +8,13 @@ public class ConversacionConfiguration : IEntityTypeConfiguration<Conversacion>
 {
     public void Configure(EntityTypeBuilder<Conversacion> builder)
     {
-        builder.ToTable("Conversaciones");
+        // Como mucho un ancla, y aquí sí "como mucho": una conversación sin
+        // ninguna es la cola de triage, que es un estado legítimo y frecuente
+        // (§ 12.4) — a diferencia de una reclamación, que siempre tiene a
+        // quién se le mandó.
+        builder.ToTable("Conversaciones", t => t.HasCheckConstraint(
+            "CK_Conversaciones_AnclaUnica",
+            "num_nonnulls(\"ClienteId\", \"EmpresaId\") <= 1"));
         builder.HasKey(c => c.Id);
 
         builder.Property(c => c.Asunto).IsRequired().HasMaxLength(Conversacion.LongitudMaximaAsunto);
@@ -19,6 +25,11 @@ public class ConversacionConfiguration : IEntityTypeConfiguration<Conversacion>
 
         builder.HasIndex(c => new { c.TenantId, c.Estado });
         builder.HasIndex(c => new { c.TenantId, c.ClienteId });
+
+        // Ancla de Empresa contraparte (hoy solo la reclamación de ámbito
+        // Empresa): mismo índice que el de Cliente, porque lo recorre el mismo
+        // filtro de cartera en ObtenerConversacionesQuery.
+        builder.HasIndex(c => new { c.TenantId, c.EmpresaId });
         builder.HasIndex(c => c.FechaUltimoMensajeUtc);
         // Único por tenant Y por conexión (auditoría módulo 6, no solo por
         // tenant P3-33): Graph puede asignar el mismo conversationId a un

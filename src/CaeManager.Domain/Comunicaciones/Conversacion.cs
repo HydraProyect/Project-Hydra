@@ -38,6 +38,22 @@ public class Conversacion : EntidadBase
     private readonly List<ParticipanteConversacion> _participantes = [];
 
     public Guid? ClienteId { get; private set; }
+
+    /// <summary>
+    /// Empresa contraparte a la que pertenece el hilo cuando el
+    /// interlocutor no es un Cliente sino la Empresa titular de su propia
+    /// documentación — hoy solo lo pone la reclamación de ámbito Empresa
+    /// (DEC-7). Es un ancla de ALCANCE, no un segundo "cliente": existe
+    /// para que el hilo se acote a quien tiene esa Empresa en cartera en vez
+    /// de caer en la cola de triage, que por definición es compartida
+    /// (ver § 12.4 y AlcanceDatosServiceExtensions.ConversacionVisibleAsync).
+    ///
+    /// Excluyente con <see cref="ClienteId"/>: un hilo tiene como mucho un
+    /// ancla. Con las dos en null sigue significando lo de siempre —
+    /// remitente todavía sin resolver, cola de triage.
+    /// </summary>
+    public Guid? EmpresaId { get; private set; }
+
     public string Asunto { get; private set; } = string.Empty;
     public EstadoConversacion Estado { get; private set; }
     public Guid? EjecutivoAsignadoId { get; private set; }
@@ -60,11 +76,20 @@ public class Conversacion : EntidadBase
     {
     }
 
-    public Conversacion(string asunto, Guid? clienteId = null, string? etiquetas = null)
+    /// <param name="empresaId">
+    /// Ancla de Empresa contraparte, excluyente con <paramref name="clienteId"/>
+    /// — ver <see cref="EmpresaId"/>. Solo la reclamación de ámbito Empresa
+    /// la usa hoy.
+    /// </param>
+    public Conversacion(string asunto, Guid? clienteId = null, string? etiquetas = null, Guid? empresaId = null)
     {
+        if (clienteId is not null && empresaId is not null)
+            throw new ArgumentException("Una conversación se ancla a un Cliente o a una Empresa, nunca a los dos.", nameof(empresaId));
+
         EstablecerAsunto(asunto);
         EstablecerEtiquetas(etiquetas);
         ClienteId = clienteId;
+        EmpresaId = empresaId;
         Estado = EstadoConversacion.Abierta;
         Canal = CanalConversacion.Correo;
         FechaUltimoMensajeUtc = DateTime.UtcNow;
@@ -172,7 +197,11 @@ public class Conversacion : EntidadBase
         if (clienteId == Guid.Empty)
             throw new ArgumentException("El cliente asignado no puede estar vacío.", nameof(clienteId));
 
+        // Resolver el remitente como Cliente retira el ancla de Empresa si la
+        // había: el hilo pasa a acotarse por cartera de Cliente, y dejar las
+        // dos puestas rompería la exclusión que el constructor impone.
         ClienteId = clienteId;
+        EmpresaId = null;
     }
 
     /// <summary>

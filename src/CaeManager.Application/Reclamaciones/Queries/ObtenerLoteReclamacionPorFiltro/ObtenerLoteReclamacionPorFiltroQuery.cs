@@ -1,5 +1,6 @@
 using CaeManager.Application.Contactos;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
+using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionEmpresa;
 using CaeManager.Domain.Documentos;
 using MediatR;
 
@@ -13,13 +14,13 @@ namespace CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPor
 /// de resolución con el join correcto, esta solo homogeneiza la forma de
 /// salida para que el llamador no necesite saber qué ámbito está mirando.
 ///
-/// Ambito=Empresa lanza <see cref="NotSupportedException"/> a propósito
-/// mientras no exista camino de reclamación para AmbitoAplicacion.Empresa
-/// (ver ObtenerLoteReclamacionQuery — "solo Documentos de Trabajador, no de
-/// Cliente/Empresa"): SelectorLoteDocumental.AmbitosDisponibles es quien
-/// decide qué ámbitos ofrece cada pantalla, así que este caso solo se
-/// alcanza si un llamador ofrece un ámbito que no debería — fallar alto y
-/// claro es preferible a devolver una lista vacía que se confunda con "sin
+/// Trabajador y Empresa son los dos ámbitos con camino de reclamación
+/// construido (DEC-11: primero el camino, después la superficie). Cliente,
+/// Vehículo y Proyecto siguen lanzando <see cref="NotSupportedException"/> a
+/// propósito: SelectorLoteDocumental.AmbitosDisponibles es quien decide qué
+/// ámbitos ofrece cada pantalla, así que ese caso solo se alcanza si un
+/// llamador ofrece un ámbito que no debería — fallar alto y claro es
+/// preferible a devolver una lista vacía que se confunda con "sin
 /// pendientes".
 /// </summary>
 public record ObtenerLoteReclamacionPorFiltroQuery(FiltroLoteDocumental Filtro)
@@ -34,6 +35,13 @@ public record ObtenerLoteReclamacionPorFiltroQuery(FiltroLoteDocumental Filtro)
 /// TrabajadorId elegido en el selector (filtra QUÉ documentos entran, no A
 /// QUIÉN se le envían) — puede seguir resolviendo a varios Clientes distintos
 /// si ese Trabajador tiene Asignaciones activas en Centros de más de uno.
+///
+/// Para Ambito=Empresa el titular ES la entidad del filtro: los documentos de
+/// empresa cuelgan directamente de su Empresa, sin Centro por medio, así que
+/// EntidadId y TitularId coinciden. Por eso el llamador NO puede tratar
+/// TitularId como un ClienteId: es el Ambito de este mismo DTO el que dice a
+/// qué comando de envío corresponde (EnviarReclamacionCommand para Cliente,
+/// EnviarReclamacionEmpresaCommand para Empresa).
 /// </param>
 public record LoteReclamacionAgrupadoDto(
     Guid TitularId,
@@ -55,6 +63,7 @@ public class ObtenerLoteReclamacionPorFiltroQueryHandler(IMediator mediator)
         return filtro.Ambito switch
         {
             AmbitoAplicacion.Trabajador => await ResolverTrabajadorAsync(mediator, filtro, cancellationToken),
+            AmbitoAplicacion.Empresa => await ResolverEmpresaAsync(mediator, filtro, cancellationToken),
             _ => throw new NotSupportedException(
                 $"Todavía no hay camino de reclamación para el ámbito {filtro.Ambito} — no lo ofrezcas en SelectorLoteDocumental.AmbitosDisponibles.")
         };
@@ -72,6 +81,22 @@ public class ObtenerLoteReclamacionPorFiltroQueryHandler(IMediator mediator)
         return lotes
             .Select(l => new LoteReclamacionAgrupadoDto(
                 l.ClienteId, l.RazonSocialCliente, AmbitoAplicacion.Trabajador,
+                l.UltimaReclamacionFechaUtc, l.Documentos, l.UltimaReclamacionConversacionId, l.Destinatarios))
+            .ToList();
+    }
+
+    private static async Task<IReadOnlyList<LoteReclamacionAgrupadoDto>> ResolverEmpresaAsync(
+        IMediator mediator, FiltroLoteDocumental filtro, CancellationToken cancellationToken)
+    {
+        var lotes = await mediator.Send(
+            new ObtenerLoteReclamacionEmpresaQuery(
+                EmpresaId: filtro.EntidadId,
+                TipoDocumentoIds: filtro.TipoDocumentoIds.Count > 0 ? filtro.TipoDocumentoIds : null),
+            cancellationToken);
+
+        return lotes
+            .Select(l => new LoteReclamacionAgrupadoDto(
+                l.EmpresaId, l.RazonSocialEmpresa, AmbitoAplicacion.Empresa,
                 l.UltimaReclamacionFechaUtc, l.Documentos, l.UltimaReclamacionConversacionId, l.Destinatarios))
             .ToList();
     }

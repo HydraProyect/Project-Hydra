@@ -18,9 +18,11 @@ namespace CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
 /// activa a un Centro de ese Cliente — mismo join que
 /// ObtenerAlertasQueryHandler.ObtenerFaltantesAsync) que vencen dentro de los
 /// próximos 3 meses o ya vencieron, para poder reclamarlos en un único correo
-/// por Cliente en vez de uno por Documento. Mismo alcance limitado que
-/// Alertas: solo Documentos de Trabajador, no de Cliente/Empresa (ver ese
-/// comentario). Un mismo Trabajador con Asignaciones activas en Centros de
+/// por Cliente en vez de uno por Documento. Cubre SOLO los Documentos de
+/// Trabajador: los de ámbito Empresa tienen su propia hermana
+/// (ObtenerLoteReclamacionEmpresaQuery), porque su titular es el propietario
+/// del documento y no hay Asignación ni Centro que recorrer; los de Cliente,
+/// Vehículo y Proyecto siguen sin camino de reclamación. Un mismo Trabajador con Asignaciones activas en Centros de
 /// varios Clientes (relación Empresa-Cliente N:N, ver DOMAIN.md) puede
 /// aparecer reclamado desde más de un Cliente — es el comportamiento
 /// correcto: cada titular necesita saberlo para su propio Centro.
@@ -61,10 +63,17 @@ public record LoteReclamacionClienteDto(
     Guid? UltimaReclamacionConversacionId = null,
     IReadOnlyList<DestinatarioAgendaDto>? Destinatarios = null);
 
+/// <param name="TrabajadorId">
+/// Null en un lote de ámbito Empresa (ObtenerLoteReclamacionEmpresaQuery): un
+/// documento de empresa no cuelga de ningún Trabajador, su propietario es la
+/// Empresa titular del propio lote. Nunca null en el lote de Trabajador, donde
+/// es justamente lo que distingue una fila de otra.
+/// </param>
+/// <param name="TrabajadorNombre">Null por el mismo motivo — las dos superficies ocultan la columna "Trabajador" cuando el lote es de ámbito Empresa.</param>
 public record DocumentoReclamableDto(
     Guid DocumentoId,
-    Guid TrabajadorId,
-    string TrabajadorNombre,
+    Guid? TrabajadorId,
+    string? TrabajadorNombre,
     Guid TipoDocumentoId,
     string TipoDocumentoNombre,
     DateOnly FechaVencimiento,

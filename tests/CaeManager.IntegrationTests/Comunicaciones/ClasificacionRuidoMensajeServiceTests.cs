@@ -54,7 +54,7 @@ public class ClasificacionRuidoMensajeServiceTests : IAsyncLifetime
         contexto.Documentos.Add(documentoReclamado);
         await contexto.SaveChangesAsync();
 
-        var reclamacion = new ReclamacionDocumental(cliente.Id, Guid.NewGuid(), "cliente@ejemplo.com", DateTime.UtcNow, [documentoReclamado.Id]);
+        var reclamacion = ReclamacionDocumental.ParaCliente(cliente.Id, Guid.NewGuid(), "cliente@ejemplo.com", DateTime.UtcNow, [documentoReclamado.Id]);
         contexto.ReclamacionesDocumentales.Add(reclamacion);
         await contexto.SaveChangesAsync();
 

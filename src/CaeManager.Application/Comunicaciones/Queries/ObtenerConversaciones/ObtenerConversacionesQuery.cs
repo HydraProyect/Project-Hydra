@@ -103,9 +103,22 @@ public class ObtenerConversacionesQueryHandler(
             // el dato para cualquier otra UI o API que llegue después.
             var rol = await currentUserService.ObtenerRolActualAsync();
 
+            // Un hilo anclado a una Empresa contraparte (Conversacion.EmpresaId,
+            // hoy solo la reclamación de ámbito Empresa) NO es triage: tiene
+            // dueño, solo que en el otro plano. Se acota por la cartera de
+            // Empresas, no por la de Clientes — sin esta rama caería en el
+            // "ClienteId == null" de abajo y quedaría visible para toda la
+            // gestión CAE, que es justo el alcance que la reclamación por
+            // Empresa no puede regalar. Triage sigue siendo, y solo es, un
+            // hilo sin ninguna de las dos anclas.
+            var empresaIdsVisibles = await alcanceDatos.ObtenerEmpresaIdsVisiblesAsync(cancellationToken) ?? [];
+
             consulta = rol == RolCliente
                 ? consulta.Where(c => c.ClienteId != null && clienteIdsVisibles.Contains(c.ClienteId!.Value))
-                : consulta.Where(c => c.ClienteId == null || clienteIdsVisibles.Contains(c.ClienteId!.Value));
+                : consulta.Where(c =>
+                    (c.ClienteId == null && c.EmpresaId == null) ||
+                    (c.ClienteId != null && clienteIdsVisibles.Contains(c.ClienteId!.Value)) ||
+                    (c.EmpresaId != null && empresaIdsVisibles.Contains(c.EmpresaId!.Value)));
         }
 
         // El buzón personal de OTRO gestor (ConexionIntegracion.GestorPropietarioId)
