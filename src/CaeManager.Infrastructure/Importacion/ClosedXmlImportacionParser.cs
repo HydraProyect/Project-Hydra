@@ -23,6 +23,16 @@ namespace CaeManager.Infrastructure.Importacion;
 /// <see cref="PlanImportacionDto.Advertencias"/>/<see cref="PlanImportacionDto.Omitidos"/>.
 /// Nunca lanza una excepción por una fila individual mal formada — solo por
 /// un archivo que no tiene ninguna de las hojas esperadas.
+///
+/// Invariante «nada se descarta en silencio» (IMPORTACION.md § 3 bis,
+/// ratificada por DCR-12 decisión B, propietario 2026-08-24): toda fila o
+/// celda con datos que este análisis decida no importar debe quedar en
+/// <see cref="PlanImportacionDto.Omitidos"/> con hoja, fila, descripción y
+/// motivo concreto de su causal. La misma decisión instruye no uniformizar
+/// las ramas de descarte con un motivo genérico, y distingue explícitamente
+/// el caso legítimo y silencioso (fila de plantilla totalmente vacía, celda
+/// de fecha vacía, columna de centro sin marca) del que sí pierde un dato: en
+/// esos tres el `continue` sigue mudo a propósito, verificado por test.
 /// </summary>
 public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext) : IExcelImportacionParser
 {
@@ -203,11 +213,16 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
 
             var nombre = TextoCelda(hoja.Cell(fila, 2));
             var apellidos = TextoCelda(hoja.Cell(fila, 3));
-
-            if (string.IsNullOrWhiteSpace(nombre) && string.IsNullOrWhiteSpace(apellidos))
-                continue; // Fila de plantilla sin datos todavía (p. ej. Extranjeros, hoy vacía).
-
             var dni = TextoCelda(hoja.Cell(fila, 4))?.Trim().ToUpperInvariant();
+
+            // DCR-12 B: sin nombre ni apellidos es plantilla vacía SOLO si la fila
+            // no trae ningún otro dato (DNI, fecha de nacimiento, email, fecha de
+            // algún documento) — si trae algo, es una fila incompleta y debe
+            // quedar en Omitidos, no callarse (antes el `continue` mudo de aquí
+            // hacía inalcanzable ese caso para la rama de abajo).
+            if (string.IsNullOrWhiteSpace(nombre) && string.IsNullOrWhiteSpace(apellidos)
+                && FilaTrabajadorSinNingunOtroDato(hoja, fila, dni))
+                continue; // Fila de plantilla sin datos todavía (p. ej. Extranjeros, hoy vacía).
 
             if (string.IsNullOrWhiteSpace(nombre) || string.IsNullOrWhiteSpace(apellidos) || string.IsNullOrWhiteSpace(dni))
             {
@@ -233,7 +248,7 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
                 huboAlMenosUnTrabajador = true;
             }
 
-            var fechaNacimiento = FechaCelda(hoja.Cell(fila, 5));
+            var fechaNacimiento = FechaCelda(hoja.Cell(fila, 5)).Fecha;
             var email = TextoCelda(hoja.Cell(fila, 6));
 
             trabajadores.Add(new TrabajadorImportadoDto(
@@ -243,17 +258,27 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
 
             foreach (var (columna, tipoDocumento) in ColumnasDocumentos)
             {
-                var fechaEmision = FechaCelda(hoja.Cell(fila, columna));
-                if (fechaEmision is null) continue;
+                var resultadoFecha = FechaCelda(hoja.Cell(fila, columna));
+                if (resultadoFecha.Estado == EstadoCeldaFecha.Vacia)
+                    continue; // Legítimo: no hay documento de este tipo para este trabajador.
 
-                if (!nombresTiposDocumentoValidos.Contains(tipoDocumento))
+                if (resultadoFecha.Estado == EstadoCeldaFecha.Ilegible)
                 {
-                    advertencias.Add(new ItemImportacionDto(
+                    omitidos.Add(new ItemImportacionDto(
                         nombreHoja, fila, $"{nombre} {apellidos} — {tipoDocumento}",
-                        "No existe este tipo de documento en el catálogo del sistema; se omitió este documento."));
+                        $"La fecha «{resultadoFecha.ValorBruto}» no se pudo interpretar como una fecha válida; no se importó este documento."));
                     continue;
                 }
 
+                if (!nombresTiposDocumentoValidos.Contains(tipoDocumento))
+                {
+                    omitidos.Add(new ItemImportacionDto(
+                        nombreHoja, fila, $"{nombre} {apellidos} — {tipoDocumento}",
+                        "No existe este tipo de documento en el catálogo del sistema."));
+                    continue;
+                }
+
+                var fechaEmision = resultadoFecha.Fecha!.Value;
                 if (fechaEmision > hoy)
                 {
                     omitidos.Add(new ItemImportacionDto(
@@ -263,7 +288,7 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
                 }
 
                 documentos.Add(new DocumentoImportadoDto(
-                    dni, tipoDocumento, fechaEmision.Value, documentosExistentes.Contains((dni, tipoDocumento))));
+                    dni, tipoDocumento, fechaEmision, documentosExistentes.Contains((dni, tipoDocumento))));
             }
         }
     }
@@ -322,7 +347,22 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
 
             var nombre = TextoCelda(hoja.Cell(fila, 2))?.Trim();
             var apellidos = TextoCelda(hoja.Cell(fila, 3))?.Trim();
-            if (string.IsNullOrWhiteSpace(nombre) || string.IsNullOrWhiteSpace(apellidos)) continue;
+
+            if (string.IsNullOrWhiteSpace(nombre) || string.IsNullOrWhiteSpace(apellidos))
+            {
+                // DCR-12 B: sin nombre/apellidos y sin ninguna marca de centro es
+                // plantilla vacía, legítimo y silencioso. Si trae marcas, el archivo
+                // sí pretendía una asignación en esta fila y no se puede identificar
+                // al trabajador para ella — eso es una asignación perdida.
+                var tieneMarcasDeCentro = columnasCentro.Any(c => !string.IsNullOrWhiteSpace(TextoCelda(hoja.Cell(fila, c))));
+                if (tieneMarcasDeCentro)
+                {
+                    omitidos.Add(new ItemImportacionDto(
+                        HojaAsignaciones, fila, $"{nombre} {apellidos}".Trim(),
+                        "Faltan nombre o apellidos; no se pudo identificar al trabajador para las asignaciones marcadas en esta fila."));
+                }
+                continue;
+            }
 
             var nombreCompleto = $"{nombre} {apellidos}";
             if (!nombreCompletoADni.TryGetValue(nombreCompleto, out var dni))
@@ -362,9 +402,32 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
         return string.IsNullOrWhiteSpace(texto) ? null : texto;
     }
 
-    private static DateOnly? FechaCelda(IXLCell celda)
+    private enum EstadoCeldaFecha { Vacia, Ilegible, Valida }
+
+    /// <summary>
+    /// DCR-12 B exige distinguir la celda vacía (legítimo: no hay documento de
+    /// ese tipo) de la celda con un valor que no se pudo interpretar como fecha
+    /// (dato perdido: hay que registrarlo con el valor bruto que traía).
+    /// </summary>
+    private readonly record struct ResultadoFechaCelda(EstadoCeldaFecha Estado, DateOnly? Fecha, string? ValorBruto);
+
+    private static ResultadoFechaCelda FechaCelda(IXLCell celda)
     {
-        if (celda.IsEmpty()) return null;
-        return celda.TryGetValue<DateTime>(out var fecha) ? DateOnly.FromDateTime(fecha) : null;
+        if (celda.IsEmpty()) return new ResultadoFechaCelda(EstadoCeldaFecha.Vacia, null, null);
+        if (celda.TryGetValue<DateTime>(out var fecha)) return new ResultadoFechaCelda(EstadoCeldaFecha.Valida, DateOnly.FromDateTime(fecha), null);
+        return new ResultadoFechaCelda(EstadoCeldaFecha.Ilegible, null, celda.GetString().Trim());
+    }
+
+    /// <summary>
+    /// DCR-12 B: una fila de Empleados/Extranjeros sin nombre ni apellidos es
+    /// plantilla vacía solo si tampoco trae DNI, fecha de nacimiento, email ni
+    /// ninguna fecha de documento — si trae algo, es una fila con datos
+    /// incompletos y debe registrarse en Omitidos, no callarse.
+    /// </summary>
+    private static bool FilaTrabajadorSinNingunOtroDato(IXLWorksheet hoja, int fila, string? dni)
+    {
+        if (!string.IsNullOrWhiteSpace(dni)) return false;
+        if (!hoja.Cell(fila, 5).IsEmpty() || !hoja.Cell(fila, 6).IsEmpty()) return false;
+        return ColumnasDocumentos.All(c => hoja.Cell(fila, c.Columna).IsEmpty());
     }
 }
