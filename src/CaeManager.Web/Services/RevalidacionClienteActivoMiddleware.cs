@@ -48,7 +48,8 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
         ICurrentUserService currentUserService,
         ITenantsQueryContext dbContext,
         IOperacionesQueryContext operacionesContext,
-        ISesionPrivilegiadaActual sesionPrivilegiadaActual)
+        ISesionPrivilegiadaActual sesionPrivilegiadaActual,
+        ILogger<RevalidacionClienteActivoMiddleware> logger)
     {
         // Sin cookie no hay nada que revalidar: cero coste para el usuario
         // normal, que es la inmensa mayoría.
@@ -68,6 +69,28 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
 
             if (!sigueAutorizado)
             {
+                // Se registra porque hasta REC-110 esto ocurría sin dejar rastro
+                // alguno: retirar el Workspace operativo derivado en mitad de una
+                // sesión legítima es indistinguible, desde fuera, de un tenant
+                // que de verdad no tiene datos — las dos cosas se ven como una
+                // lista vacía. Diagnosticar el intermitente de
+                // SeleccionSobreviveAlCircuitoTests obligó a deducir por el
+                // tiempo de respuesta de la petición cuál de las dos había
+                // pasado, porque el sistema no lo decía en ninguna parte. Aviso,
+                // no error: invalidar es el comportamiento correcto cuando la
+                // autorización ya no está viva; lo que faltaba era poder
+                // distinguir ese caso del que no lo es.
+                logger.LogWarning(
+                    "Selección de Workspace operativo derivado invalidada en {Ruta}: la revalidación no la autorizó. "
+                    + "Tenant seleccionado {TenantSeleccionado}, vía {Via}.",
+                    contexto.Request.Path,
+                    tenantSeleccionado,
+                    clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is not null
+                        ? "sesión privilegiada"
+                        : clienteActivoSeleccionado.AsignacionOperacionIdSeleccionada is not null
+                            ? "asignación de operación"
+                            : "delegación heredada");
+
                 if (clienteActivoSeleccionado is ClienteActivoSeleccionado seleccion)
                     seleccion.Invalidar();
 

@@ -11,6 +11,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace CaeManager.IntegrationTests.Tenants;
@@ -143,7 +144,8 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
 
         await middleware.InvokeAsync(
             httpContext, seleccion, new CurrentUserServiceParaMiddlewareFalso(_usuario),
-            dbContext: null!, operacionesContext: null!, SinSesionPrivilegiada);
+            dbContext: null!, operacionesContext: null!, SinSesionPrivilegiada,
+            NullLogger<RevalidacionClienteActivoMiddleware>.Instance);
 
         siguienteFueLlamado.Should().BeTrue();
     }
@@ -189,7 +191,8 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
         // mismo DbContext, que implementa las dos interfaces.
         await middleware.InvokeAsync(
             httpContext, seleccion, new CurrentUserServiceParaMiddlewareFalso(_usuario),
-            contexto, (IOperacionesQueryContext)contexto, SinSesionPrivilegiada);
+            contexto, (IOperacionesQueryContext)contexto, SinSesionPrivilegiada,
+            NullLogger<RevalidacionClienteActivoMiddleware>.Instance);
     }
 
     private static string? CabeceraDeBorradoDeCookie(DefaultHttpContext httpContext) =>

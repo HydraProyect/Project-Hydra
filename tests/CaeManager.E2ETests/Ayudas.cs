@@ -200,6 +200,92 @@ public static class Ayudas
 
     private const int IntentosAbrirMenuAcciones = 4;
 
+    private const int IntentosSeleccionarPestana = 4;
+
+    /// <summary>
+    /// Selecciona una pestaña de <c>Pestanas.razor</c> confirmando que el clic
+    /// llegó de verdad al circuito, y devuelve su locator ya activo.
+    ///
+    /// Mismo modo de fallo que <see cref="AbrirMenuAccionesAsync"/>, y por la
+    /// misma razón: el botón <c>role="tab"</c> lleva un <c>@onclick</c>
+    /// server-side (<c>ActivarAsync</c>), y las páginas que montan este
+    /// componente son <c>@rendermode InteractiveServer</c>, o sea que se
+    /// prerenderizan estáticas primero. Desde ese prerenderizado el botón está
+    /// en el DOM —visible, habilitado y clicable— pero su controlador no existe
+    /// hasta que el componente se vuelve interactivo por el circuito. Un clic
+    /// que cae en esa ventana se pierde EN SILENCIO: Playwright lo da por
+    /// entregado, la pestaña nunca se activa, y el fallo aparece 30 s después
+    /// en la espera siguiente.
+    ///
+    /// Medido en CI (run 33649091982, intento 1, sobre 01aa56ba):
+    /// <c>PestanaUrlDurableTests…carga_en_frio</c> falló con
+    /// "Timeout 30000ms exceeded" y el registro de Playwright
+    /// "waiting for navigation to …/documentos?Pestana=revision-ia until Load"
+    /// en el <c>WaitForURLAsync</c> posterior al clic — es decir, el clic no
+    /// llegó tarde: no llegó. El mismo test pasó en 2 s en el intento 2. Por
+    /// eso el arreglo no es subir el timeout ni esperar más tiempo: es esperar
+    /// una <b>señal</b> de que el clic sí llegó, y repetirlo si no llegó.
+    ///
+    /// La señal es <c>aria-selected</c>, que <c>Pestanas.razor</c> renderiza
+    /// desde <c>PestanaActiva</c> — estado del servidor, no del navegador. Y al
+    /// contrario que el menú "⋯", aquí reintentar a ciegas es seguro:
+    /// <c>ActivarAsync</c> es idempotente (<c>id == PestanaActiva</c> no hace
+    /// nada), no un interruptor, así que un segundo clic sobre una pestaña ya
+    /// activa no la desactiva. De ahí que este helper no necesite la
+    /// comprobación previa de "sigue cerrado" que sí necesita aquel.
+    ///
+    /// <b>Cómo reproducir el fallo a voluntad</b> (la carrera no se manifiesta
+    /// en una máquina de desarrollo, que arranca el circuito antes de que dé
+    /// tiempo a clicar — "pasa en local" no refuta un rojo de CI): retrasar el
+    /// script que arranca el circuito y navegar sin esperarlo,
+    /// <c>page.RouteAsync("**/blazor.web*.js", …Task.Delay(6000)…)</c> más
+    /// <c>GotoAsync(url, new PageGotoOptions { WaitUntil = WaitUntilState.Commit })</c>.
+    /// Con este helper el test pasa (reintenta hasta que el circuito responde);
+    /// sustituyéndolo por un solo <c>ClickAsync</c> falla con exactamente el
+    /// mismo texto que en CI — "waiting for navigation to … until Load" en
+    /// <c>TaskHelper.WithTimeout</c>.
+    /// </summary>
+    public static async Task<ILocator> SeleccionarPestanaAsync(IPage page, ILocator pestana, string nombreParaElError)
+    {
+        await pestana.WaitForAsync(
+            new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 30_000 });
+
+        for (var intento = 1; intento <= IntentosSeleccionarPestana; intento++)
+        {
+            if (await pestana.GetAttributeAsync("aria-selected") == "true")
+                return pestana;
+
+            await pestana.ClickAsync(new LocatorClickOptions { Timeout = 15_000 });
+
+            // 5 s es enorme para una ida y vuelta de SignalR contra la app en el
+            // mismo runner — si aria-selected no ha cambiado en ese tiempo, el
+            // clic no llegó al circuito y hay que repetirlo.
+            if (await EsperarPestanaActivaAsync(pestana, TimeSpan.FromSeconds(5)))
+                return pestana;
+        }
+
+        throw new TimeoutException(
+            $"La pestaña \"{nombreParaElError}\" (Pestanas.razor) no llegó a activarse tras " +
+            $"{IntentosSeleccionarPestana} clics: aria-selected se quedó en \"false\" cada vez, así que ningún " +
+            "clic llegó al circuito de Blazor (componente aún no interactivo tras el prerenderizado). " +
+            $"URL en ese momento: {page.Url}");
+    }
+
+    private static async Task<bool> EsperarPestanaActivaAsync(ILocator pestana, TimeSpan limite)
+    {
+        var vencimiento = DateTime.UtcNow + limite;
+        while (DateTime.UtcNow < vencimiento)
+        {
+            if (await pestana.GetAttributeAsync("aria-selected") == "true")
+                return true;
+
+            await Task.Delay(100);
+        }
+
+        return false;
+    }
+
+
     /// <summary>
     /// Confirma que el menú sigue cerrado antes de (re)clicar. Lee
     /// <c>aria-expanded</c> dos veces separadas por un margen holgado frente a
