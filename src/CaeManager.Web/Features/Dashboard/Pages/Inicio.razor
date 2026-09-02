@@ -177,26 +177,38 @@
                 @if (_pulso.ResueltosEstaSemana == 0 && _pulso.MejorSemanaInicio is null)
                 {
                     <div class="dashboard-pulso-eyebrow">
-                        <span class="dashboard-pulso-etiqueta">Pulso del equipo</span>
+                        <span class="dashboard-pulso-etiqueta"><Icono Nombre="pulso" Tamano="TamanoIcono.Pequeno" /> Pulso del equipo</span>
                         <span class="dashboard-pulso-cifra">Todavía no hay documentos resueltos esta semana.</span>
                     </div>
                 }
                 else
                 {
                     <div class="dashboard-pulso-eyebrow">
-                        <span class="dashboard-pulso-etiqueta">Pulso del equipo</span>
+                        <span class="dashboard-pulso-etiqueta"><Icono Nombre="pulso" Tamano="TamanoIcono.Pequeno" /> Pulso del equipo</span>
                         <span class="dashboard-pulso-cifra">@_pulso.ResueltosEstaSemana @(_pulso.ResueltosEstaSemana == 1 ? "documento resuelto" : "documentos resueltos") esta semana.</span>
                     </div>
                     <div class="dashboard-pulso-comparativa">
                         <div class="dashboard-pulso-metrica">
                             <span class="dashboard-pulso-metrica-etiqueta">Semana anterior</span>
-                            <span class="dashboard-pulso-metrica-valor">@_pulso.ResueltosSemanaAnterior</span>
+                            <span class="dashboard-pulso-metrica-valor">
+                                @_pulso.ResueltosSemanaAnterior
+                                @if (_pulso.ResueltosEstaSemana > _pulso.ResueltosSemanaAnterior)
+                                {
+                                    <span class="dashboard-pulso-tendencia" title="Esta semana vais por encima de la anterior"><Icono Nombre="tendencia" Tamano="TamanoIcono.Pequeno" /></span>
+                                }
+                            </span>
                         </div>
                         @if (_pulso.MejorSemanaInicio is not null)
                         {
                             <div class="dashboard-pulso-metrica">
                                 <span class="dashboard-pulso-metrica-etiqueta">Mejor semana</span>
-                                <span class="dashboard-pulso-metrica-valor">@_pulso.MejorSemanaHistorica</span>
+                                <span class="dashboard-pulso-metrica-valor">
+                                    @_pulso.MejorSemanaHistorica
+                                    @if (_pulso.ResueltosEstaSemana >= _pulso.MejorSemanaHistorica)
+                                    {
+                                        <span class="dashboard-pulso-tendencia" title="Esta semana iguala o supera vuestra mejor semana"><Icono Nombre="tendencia" Tamano="TamanoIcono.Pequeno" /></span>
+                                    }
+                                </span>
                             </div>
                         }
                     </div>

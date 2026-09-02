@@ -27,7 +27,16 @@
             var alcanzable = numero <= _pasoMaximoAlcanzado;
             <button type="button" class="@($"paso-importacion {(actual ? "paso-importacion-actual" : "")} {(completado ? "paso-importacion-completado" : "")}")"
                     disabled="@(!alcanzable)" @onclick="() => IrAPaso(numero)" aria-current="@(actual ? "step" : null)">
-                <span class="paso-importacion-marca">@(completado ? "✓" : numero.ToString())</span>
+                <span class="paso-importacion-marca">
+                    @if (completado)
+                    {
+                        <Icono Nombre="check" Tamano="TamanoIcono.Pequeno" />
+                    }
+                    else
+                    {
+                        @numero
+                    }
+                </span>
                 @NombresPasos[i]
             </button>
             @if (numero < NombresPasos.Count)
@@ -55,7 +64,7 @@
                             <span class="descripcion-tarjeta-plantilla">@plantilla.Descripcion</span>
                             @if (plantilla.RutaPlantillaBlanco is not null)
                             {
-                                <a href="@plantilla.RutaPlantillaBlanco" class="enlace-plantilla-blanco" @onclick:stopPropagation="true">Descargar plantilla en blanco</a>
+                                <a href="@plantilla.RutaPlantillaBlanco" class="enlace-plantilla-blanco" @onclick:stopPropagation="true"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Descargar plantilla en blanco</a>
                             }
                         </div>
                     }
@@ -216,7 +225,7 @@
 
             <div class="tarjeta-reporte-importacion">
                 <div class="cabecera-reporte-importacion">
-                    <span class="icono-exito-reporte">✓</span>
+                    <span class="icono-exito-reporte"><Icono Nombre="check" Tamano="TamanoIcono.Medio" /></span>
                     <span class="titulo-reporte-importacion">Importación completada</span>
                 </div>
 

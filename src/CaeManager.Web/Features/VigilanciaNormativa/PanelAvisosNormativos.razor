@@ -1,0 +1,87 @@
+@rendermode InteractiveServer
+@using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma
+@using CaeManager.Application.VigilanciaNormativa.Commands.MarcarAvisoRevisionNormativaRevisado
+@using CaeManager.Application.VigilanciaNormativa.Queries.ObtenerAvisosRevisionNormativa
+@using MediatR
+@inject IMediator Mediator
+
+@* H-3 / DEC-8: superficie de lectura difundida, no un ítem de cola — visible
+   para toda la jerarquía de un tenant y, con la misma lectura, para el
+   Actor de Plataforma TALVEG (que además ve "Marcar revisado"). Sin
+   avisos, el widget no se muestra — mismo criterio que
+   CaeManager.Web.Features.Notificaciones.NotificacionesPopup. *@
+@if (_avisos.Count > 0)
+{
+    <button type="button" class="boton-avisos-normativos" @onclick="() => _abierto = true" title="Vigilancia normativa del BOE">
+        <Icono Nombre="alertas" Tamano="TamanoIcono.Medio" />
+        @if (_pendientes > 0)
+        {
+            <span class="badge-avisos-normativos">@_pendientes</span>
+        }
+    </button>
+
+    <Modal Visible="_abierto" VisibleChanged="v => _abierto = v" Titulo="Vigilancia normativa del BOE" Ancho="AnchoModal.Grande">
+        <ChildContent>
+            <p class="descripcion-avisos-normativos">
+                Publicaciones del BOE que tocan una norma vigilada del catálogo de formatos. Informativo:
+                no requiere ninguna acción salvo que mantengas el catálogo.
+            </p>
+            <ul class="lista-avisos-normativos">
+                @foreach (var aviso in _avisos)
+                {
+                    <li class="item-aviso-normativo">
+                        <div class="item-aviso-normativo-cabecera">
+                            <span class="etiqueta-norma-vigilada">@aviso.NormaVigilada</span>
+                            <span class="fecha-aviso-normativo">@aviso.FechaPublicacion.ToString("dd/MM/yyyy")</span>
+                        </div>
+                        <a href="@aviso.UrlHtml" target="_blank" rel="noopener noreferrer" class="titulo-aviso-normativo">
+                            @aviso.Titulo
+                        </a>
+                        <div class="item-aviso-normativo-pie">
+                            @if (aviso.Revisado)
+                            {
+                                <span class="estado-aviso-revisado">
+                                    <Icono Nombre="check" Tamano="TamanoIcono.Pequeno" /> Revisado
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="estado-aviso-pendiente">Pendiente de revisión</span>
+                                @if (_esAdministradorPlataforma)
+                                {
+                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => MarcarRevisadoAsync(aviso.Id)">
+                                        Marcar revisado
+                                    </Boton>
+                                }
+                            }
+                        </div>
+                    </li>
+                }
+            </ul>
+        </ChildContent>
+    </Modal>
+}
+
+@code {
+    private IReadOnlyList<AvisoRevisionNormativaDto> _avisos = [];
+    private bool _esAdministradorPlataforma;
+    private bool _abierto;
+
+    private int _pendientes => _avisos.Count(a => !a.Revisado);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _avisos = await Mediator.Send(new ObtenerAvisosRevisionNormativaQuery());
+        _esAdministradorPlataforma = await Mediator.Send(new EsAdministradorPlataformaQuery());
+    }
+
+    private async Task MarcarRevisadoAsync(Guid id)
+    {
+        var resultado = await Mediator.Send(new MarcarAvisoRevisionNormativaRevisadoCommand(id, Notas: null));
+        if (resultado.EsFallido) return;
+
+        // La autoridad final es el comando (ver su comentario); aquí solo se
+        // refleja localmente para no forzar una recarga completa de página.
+        _avisos = await Mediator.Send(new ObtenerAvisosRevisionNormativaQuery());
+    }
+}

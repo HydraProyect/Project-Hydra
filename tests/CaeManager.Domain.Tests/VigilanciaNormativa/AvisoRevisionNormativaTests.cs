@@ -45,6 +45,24 @@ public class AvisoRevisionNormativaTests
         accion.Should().Throw<ArgumentException>();
     }
 
+    /// <summary>
+    /// H-3/DEC-8: la URL se renderiza tal cual en el panel difundido a todos
+    /// los tenants. Un esquema distinto de https (incluido "javascript:") no
+    /// puede colarse desde un sumario del BOE mal parseado o comprometido.
+    /// </summary>
+    [Theory]
+    [InlineData("javascript:alert(1)")]
+    [InlineData("http://boe.es/x")]
+    [InlineData("no-es-una-url")]
+    [InlineData("//boe.es/x")]
+    public void No_permite_crear_un_aviso_con_url_que_no_sea_https_absoluta(string urlInvalida)
+    {
+        var accion = () => new AvisoRevisionNormativa(
+            "BOE-A-2026-1", new DateOnly(2026, 8, 13), "Título", urlInvalida, "LPRL", DateTime.UtcNow);
+
+        accion.Should().Throw<ArgumentException>();
+    }
+
     [Fact]
     public void MarcarRevisado_registra_quien_y_cuando()
     {

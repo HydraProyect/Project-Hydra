@@ -14,9 +14,24 @@ namespace CaeManager.Domain.VigilanciaNormativa;
 /// texto entre el título de una publicación y el nombre/patrón de una norma
 /// vigilada. La revisión —si la publicación afecta de verdad al contenido
 /// de algún formato— la hace una persona (<see cref="MarcarRevisado"/>).
+///
+/// <para>
+/// Implementa <see cref="IVersionable"/> directamente y no vía
+/// <see cref="EntidadBase"/> — mismo motivo que
+/// <see cref="Operaciones.AsignacionResponsabilidad"/>: el token de
+/// concurrencia optimista no depende de pertenecer a un tenant. Sin él, dos
+/// Actores de Plataforma revisando el mismo aviso a la vez se pisarían en
+/// silencio (último <c>SaveChanges</c> gana, <see cref="RevisadoPorUsuarioId"/>
+/// y <see cref="NotasRevision"/> del primero desaparecen sin aviso). Con él,
+/// <c>ConcurrenciaOptimistaInterceptor</c> lo renueva en cada
+/// <c>SaveChanges</c> y <c>ConcurrenciaBehavior</c> traduce el choque en un
+/// <c>Result</c> de fallo legible en vez de una excepción sin controlar.
+/// </para>
 /// </summary>
-public class AvisoRevisionNormativa : Entity
+public class AvisoRevisionNormativa : Entity, IVersionable
 {
+    public Guid Version { get; private set; } = Guid.NewGuid();
+
     public const int LongitudMaximaTitulo = 500;
     public const int LongitudMaximaNormaVigilada = 100;
     public const int LongitudMaximaNotasRevision = 1000;
@@ -56,6 +71,13 @@ public class AvisoRevisionNormativa : Entity
 
         if (string.IsNullOrWhiteSpace(urlHtml))
             throw new ArgumentException("La URL de la publicación es obligatoria.", nameof(urlHtml));
+        // Frontera con el BOE (Infrastructure.BoeSumarioClient): el sumario
+        // es un feed externo, y esta URL se renderiza tal cual en un <a href>
+        // del panel difundido a todos los tenants (H-3/DEC-8). Sin esta
+        // comprobación, un sumario comprometido o mal parseado podría colar
+        // un esquema "javascript:" en la fila. https, no solo "no vacío".
+        if (!Uri.TryCreate(urlHtml, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
+            throw new ArgumentException("La URL de la publicación debe ser una dirección https absoluta.", nameof(urlHtml));
 
         if (string.IsNullOrWhiteSpace(normaVigilada))
             throw new ArgumentException("La norma vigilada con la que coincidió es obligatoria.", nameof(normaVigilada));

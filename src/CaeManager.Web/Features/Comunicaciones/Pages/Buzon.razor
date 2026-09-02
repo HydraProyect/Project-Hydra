@@ -176,14 +176,14 @@
                     <span class="bandeja-adjunto-chip bandeja-adjunto-chip-pendiente">
                         <Icono Nombre="documentos" Tamano="TamanoIcono.Pequeno" />
                         <span class="bandeja-adjunto-nombre">@adjunto.NombreArchivo</span>
-                        <button type="button" class="bandeja-adjunto-quitar" aria-label="Quitar @adjunto.NombreArchivo" @onclick="() => QuitarAdjuntoRedactar(adjunto)">×</button>
+                        <button type="button" class="bandeja-adjunto-quitar" aria-label="Quitar @adjunto.NombreArchivo" @onclick="() => QuitarAdjuntoRedactar(adjunto)"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
                     </span>
                 }
             </div>
         }
 
         <label class="bandeja-boton-adjuntar">
-            <Icono Nombre="importar" Tamano="TamanoIcono.Pequeno" /> Adjuntar
+            <Icono Nombre="adjunto" Tamano="TamanoIcono.Pequeno" /> Adjuntar
             <InputFile OnChange="ManejarArchivosRedactarAsync" multiple />
         </label>
     </ChildContent>

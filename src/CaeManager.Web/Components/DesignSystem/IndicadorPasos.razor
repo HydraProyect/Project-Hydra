@@ -49,11 +49,14 @@
         builder.AddAttribute(2, "aria-hidden", "true");
         if (completado)
         {
-            builder.AddContent(3, "✓");
+            builder.OpenComponent<Icono>(3);
+            builder.AddComponentParameter(4, nameof(Icono.Nombre), "check");
+            builder.AddComponentParameter(5, nameof(Icono.Tamano), TamanoIcono.Pequeno);
+            builder.CloseComponent();
         }
         else
         {
-            builder.AddContent(4, (indice + 1).ToString());
+            builder.AddContent(6, (indice + 1).ToString());
         }
         builder.CloseElement();
     };

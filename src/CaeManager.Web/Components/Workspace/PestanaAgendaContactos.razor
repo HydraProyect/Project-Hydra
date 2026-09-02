@@ -30,10 +30,10 @@ else if (_error)
 }
 else if (_contactos.Count == 0)
 {
-    <EstadoVacio Titulo="Sin contactos en la agenda"
+    <EstadoVacio NombreIcono="agenda" Titulo="Sin contactos en la agenda"
                  Descripcion="@($"No hay a quién pedirle documentación {TextoDeEsta}. Añade al menos un contacto para poder reclamar.")">
         <Accion>
-            <Boton OnClick="() => AbrirFormulario(null)">Añadir contacto</Boton>
+            <Boton OnClick="() => AbrirFormulario(null)"><Icono Nombre="contacto" Tamano="TamanoIcono.Pequeno" /> Añadir contacto</Boton>
         </Accion>
     </EstadoVacio>
 }
@@ -41,7 +41,7 @@ else
 {
     <div class="agenda-encabezado">
         <p class="agenda-resumen">@_contactos.Count contacto(s) en la agenda</p>
-        <Boton Variante="VarianteBoton.Secundario" OnClick="() => AbrirFormulario(null)">Añadir contacto</Boton>
+        <Boton Variante="VarianteBoton.Secundario" OnClick="() => AbrirFormulario(null)"><Icono Nombre="contacto" Tamano="TamanoIcono.Pequeno" /> Añadir contacto</Boton>
     </div>
 
     <ul class="agenda-lista">

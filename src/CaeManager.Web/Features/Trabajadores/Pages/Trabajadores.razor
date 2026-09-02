@@ -29,7 +29,7 @@
     <div class="cabecera-pagina">
         <h1 class="titulo-pagina">@_tituloPagina</h1>
         <div class="acciones-cabecera">
-            <a class="enlace-exportar" href="/trabajadores/exportar.xlsx">Exportar a Excel</a>
+            <a class="enlace-exportar" href="/trabajadores/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel</a>
             <Boton OnClick="AbrirCrearAsync">+ Nuevo trabajador</Boton>
         </div>
     </div>
@@ -134,7 +134,7 @@
 
         @if (_totalElementos == 0 && !_cargando)
         {
-            <EstadoVacio Titulo="Aún no hay trabajadores" Descripcion="Crea el primero para empezar a gestionar su documentación.">
+            <EstadoVacio NombreIcono="trabajadores" Titulo="Aún no hay trabajadores" Descripcion="Crea el primero para empezar a gestionar su documentación.">
                 <Accion>
                     <Boton OnClick="AbrirCrearAsync">+ Nuevo trabajador</Boton>
                 </Accion>

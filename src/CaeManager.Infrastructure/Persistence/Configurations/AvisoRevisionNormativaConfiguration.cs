@@ -16,6 +16,7 @@ public class AvisoRevisionNormativaConfiguration : IEntityTypeConfiguration<Avis
         builder.Property(a => a.UrlHtml).IsRequired().HasMaxLength(500);
         builder.Property(a => a.NormaVigilada).IsRequired().HasMaxLength(AvisoRevisionNormativa.LongitudMaximaNormaVigilada);
         builder.Property(a => a.NotasRevision).HasMaxLength(AvisoRevisionNormativa.LongitudMaximaNotasRevision);
+        builder.Property(a => a.Version).IsConcurrencyToken();
 
         // Idempotencia del sondeo: una publicación del BOE no genera dos avisos aunque el ciclo se repita.
         builder.HasIndex(a => a.IdentificadorBoe).IsUnique();

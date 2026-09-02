@@ -18,12 +18,19 @@
                     <path d="M3 8.5 6.5 12 13 4.5" />
                 </svg>
             }
+            else if (IconoDelTono(toast.Tono) is { } nombreIcono)
+            {
+                @* Los demás tonos no llevan trazado (es un patrón de motion
+                   reservado al Éxito) pero sí icono: el tono del toast no
+                   puede quedar solo en el color de fondo (WCAG 1.4.1). *@
+                <Icono Nombre="@nombreIcono" Tamano="TamanoIcono.Pequeno" />
+            }
             <span>@toast.Mensaje</span>
             @if (toast.TextoAccion is not null)
             {
                 <button type="button" class="toast-accion" @onclick="() => ToastService.EjecutarAccionAsync(toast.Id)">@toast.TextoAccion</button>
             }
-            <button type="button" aria-label="Cerrar" @onclick="() => ToastService.Descartar(toast.Id)">×</button>
+            <button type="button" class="toast-cerrar" aria-label="Cerrar" @onclick="() => ToastService.Descartar(toast.Id)"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
             @if (toast.Tono != TonoToast.Error)
             {
                 var duracionMs = toast.TextoAccion is not null
@@ -36,6 +43,19 @@
 </div>
 
 @code {
+    /// <summary>
+    /// Icono del catálogo por tono. Éxito no aparece aquí: su marca es el
+    /// trazado de confirmación animado (07 § 6.1, DDL-071), que ya cumple la
+    /// misma función y no debe duplicarse con un segundo icono.
+    /// </summary>
+    private static string? IconoDelTono(TonoToast tono) => tono switch
+    {
+        TonoToast.Error => "error-circulo",
+        TonoToast.Advertencia => "advertencia",
+        TonoToast.Info => "info",
+        _ => null
+    };
+
     protected override void OnInitialized() => ToastService.OnCambio += ManejarCambio;
 
     private void ManejarCambio() => InvokeAsync(StateHasChanged);

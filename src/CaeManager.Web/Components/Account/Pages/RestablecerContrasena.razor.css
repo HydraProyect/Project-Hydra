@@ -98,6 +98,19 @@
     text-align: center;
 }
 
+/* La marca ocupa 14px de ancho: el check se pinta a 12 para no desbordarla.
+   ::deep por el mismo motivo que los <input> de esta misma hoja. */
+.marca-requisito-contrasena {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.marca-requisito-contrasena ::deep .icono {
+    width: 12px;
+    height: 12px;
+}
+
 .boton-primario {
     display: block;
     width: 100%;
