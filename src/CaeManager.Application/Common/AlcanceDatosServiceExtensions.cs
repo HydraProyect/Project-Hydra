@@ -58,6 +58,14 @@ public static class AlcanceDatosServiceExtensions
         return ids is null || ids.Contains(empresaId);
     }
 
+    /// <summary>Alcance de gestión sobre una Empresa concreta — ver <see cref="IAlcanceDatosService.ObtenerEmpresaIdsParaGestionAsync"/>.</summary>
+    public static async Task<bool> EmpresaParaGestionVisibleAsync(
+        this IAlcanceDatosService alcance, Guid empresaId, CancellationToken cancellationToken = default)
+    {
+        var ids = await alcance.ObtenerEmpresaIdsParaGestionAsync(cancellationToken);
+        return ids is null || ids.Contains(empresaId);
+    }
+
     public static async Task<bool> SubcontrataVisibleAsync(
         this IAlcanceDatosService alcance, Guid subcontrataId, CancellationToken cancellationToken = default)
     {
@@ -103,8 +111,13 @@ public static class AlcanceDatosServiceExtensions
         if (conexionIntegracionId is { } conexionId && !await alcance.ConexionIntegracionVisibleAsync(conexionId, cancellationToken))
             return false;
 
+        // Alcance de GESTIÓN, no de lectura: un hilo con una contratista es un
+        // artefacto interno, y la cartera de Empresas de un usuario de portal
+        // sale de su propio Cliente (ver ObtenerEmpresaIdsParaGestionAsync).
+        // Con EmpresaVisibleAsync aquí, un contacto de una empresa cliente
+        // descargaba los adjuntos de esos hilos conociendo el Guid.
         if (empresaId is { } id)
-            return await alcance.EmpresaVisibleAsync(id, cancellationToken);
+            return await alcance.EmpresaParaGestionVisibleAsync(id, cancellationToken);
 
         return await alcance.ClienteOpcionalVisibleAsync(clienteId, cancellationToken);
     }

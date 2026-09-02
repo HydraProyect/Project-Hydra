@@ -1,9 +1,11 @@
 using CaeManager.Application.Plataforma;
+using CaeManager.Domain.Centros;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.RelacionesEmpresariales;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Infrastructure.Autorizacion;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using FluentAssertions;
@@ -178,6 +180,65 @@ public class AlcanceDatosServiceSobreRelacionEmpresarialTests : IAsyncLifetime
 
         (await servicio.ObtenerEmpresaIdsVisiblesAsync()).Should().NotBeNull().And.BeEmpty();
         (await servicio.ObtenerSubcontrataIdsVisiblesAsync()).Should().NotBeNull().And.BeEmpty();
+    }
+
+    /// <summary>
+    /// El rol Cliente (usuario de portal) SÍ ve Empresas para leer su
+    /// documentación —es lo que un portal CAE existe para enseñar— pero NO
+    /// para operar sobre ellas. Sin esta separación, un contacto de una
+    /// empresa cliente externa alcanzaba el historial de reclamaciones a las
+    /// contratistas y los adjuntos de sus hilos de correo, porque la cartera
+    /// de Empresas se DERIVA de la de Clientes (hallazgo de la revisión
+    /// adversaria de REC-003).
+    ///
+    /// Va contra el servicio REAL a propósito: la regla vive en Infrastructure
+    /// (necesita el rol), así que un test con AlcanceDatosServiceFalso no
+    /// puede observarla — comprobado por mutación, el doble la deja pasar.
+    /// </summary>
+    [Fact]
+    public async Task El_rol_Cliente_ve_Empresas_para_leer_pero_ninguna_para_gestionar()
+    {
+        Guid clienteId;
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            var cliente = Empresa.CrearComoCliente("Cliente Portal S.L.", "B10380186", false, null, null);
+            var proveedora = new Empresa("Contratista del Portal S.L.", "B87654323");
+            contexto.Empresas.AddRange(cliente, proveedora);
+            await contexto.SaveChangesAsync();
+
+            contexto.Centros.Add(new Centro(cliente.Id, proveedora.Id, "Centro del portal"));
+            await contexto.SaveChangesAsync();
+            clienteId = cliente.Id;
+        }
+
+        var usuarioPortal = Guid.NewGuid();
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            var usuario = await contexto.Users.FindAsync(usuarioPortal);
+            if (usuario is null)
+            {
+                contexto.Users.Add(new ApplicationUser
+                {
+                    Id = usuarioPortal,
+                    UserName = $"portal-{usuarioPortal:N}@ejemplo.test",
+                    Email = $"portal-{usuarioPortal:N}@ejemplo.test",
+                    ClienteId = clienteId,
+                    TenantId = _tenant
+                });
+                await contexto.SaveChangesAsync();
+            }
+        }
+
+        await using var lectura = CrearContexto(_tenant);
+        var servicio = new AlcanceDatosService(
+            lectura, new CurrentUserServiceFalso(usuarioPortal, "Cliente", tenantOrigenId: _tenant),
+            new TenantActualAmbiental { TenantId = _tenant }, new SesionPrivilegiadaAusente());
+
+        (await servicio.ObtenerEmpresaIdsVisiblesAsync()).Should().NotBeNull().And.NotBeEmpty(
+            "el portal enseña la documentación de las contratistas de su propio Cliente");
+
+        (await servicio.ObtenerEmpresaIdsParaGestionAsync()).Should().NotBeNull().And.BeEmpty(
+            "pero operar sobre ellas —reclamar, leer el hilo de correo— es del lado de la gestión CAE, no del portal");
     }
 
     /// <summary>

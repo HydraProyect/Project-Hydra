@@ -1,4 +1,5 @@
 using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
+using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
 using CaeManager.Application.Reclamaciones;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa;
@@ -56,6 +57,7 @@ public partial class Alertas : ComponentBase
     private Guid? _enviandoTitularId;
     private bool _altaContactoVisible;
     private Guid _titularAltaContacto;
+    private TipoPropietarioAgenda _tipoAgendaAltaContacto = TipoPropietarioAgenda.Cliente;
 
     private IReadOnlyList<AlertaDto> AlertasFiltradas =>
         Enum.TryParse<EstadoDocumento>(_estadoFiltro, out var estado)
@@ -195,9 +197,12 @@ public partial class Alertas : ComponentBase
         else marcados.Remove(contactoId);
     }
 
-    private void AbrirAltaContacto(Guid titularId)
+    private void AbrirAltaContacto(LoteReclamacionAgrupadoDto lote)
     {
-        _titularAltaContacto = titularId;
+        _titularAltaContacto = lote.TitularId;
+        _tipoAgendaAltaContacto = lote.Ambito == AmbitoAplicacion.Empresa
+            ? TipoPropietarioAgenda.Empresa
+            : TipoPropietarioAgenda.Cliente;
         _altaContactoVisible = true;
     }
 

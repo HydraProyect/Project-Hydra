@@ -1,4 +1,5 @@
 using CaeManager.Domain.Comunicaciones;
+using CaeManager.Domain.Empresas;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -30,6 +31,18 @@ public class ConversacionConfiguration : IEntityTypeConfiguration<Conversacion>
         // Empresa): mismo índice que el de Cliente, porque lo recorre el mismo
         // filtro de cartera en ObtenerConversacionesQuery.
         builder.HasIndex(c => new { c.TenantId, c.EmpresaId });
+
+        // FK compuesta con TenantId, como en DocumentoConfiguration: el ancla
+        // debe apuntar a una Empresa DEL MISMO tenant, no solo a una Empresa
+        // que exista. Con la columna en null Postgres no la comprueba
+        // (MATCH SIMPLE), así que un hilo de triage sigue siendo válido.
+        // ClienteId no la tiene y se queda como estaba: añadírsela ahora sería
+        // una corrección de integridad sobre datos históricos, ajena a este
+        // incremento.
+        builder.HasOne<Empresa>().WithMany()
+            .HasForeignKey(c => new { c.TenantId, c.EmpresaId })
+            .HasPrincipalKey(e => new { e.TenantId, e.Id })
+            .OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(c => c.FechaUltimoMensajeUtc);
         // Único por tenant Y por conexión (auditoría módulo 6, no solo por
         // tenant P3-33): Graph puede asignar el mismo conversationId a un

@@ -59,7 +59,7 @@ public class EnviarReclamacionEmpresaCommandHandler(
         // mandar un correo en nombre del tenant, así que la puerta va antes de
         // leer nada (CLAUDE.md § 14 — una coordenada de contexto no es
         // autoridad).
-        if (!await alcanceDatos.EmpresaVisibleAsync(request.EmpresaId, cancellationToken))
+        if (!await alcanceDatos.EmpresaParaGestionVisibleAsync(request.EmpresaId, cancellationToken))
             return Result.Fallo(Error.Crear("Reclamacion.SinAcceso", "No tienes acceso a esta empresa."));
 
         var empresa = await empresasContext.Empresas

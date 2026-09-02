@@ -60,7 +60,10 @@ public class ObtenerReclamacionesSinRespuestaQueryHandler(
         var ahora = DateTime.UtcNow;
         var limite = ahora.AddDays(-request.DiasSinRespuesta);
         var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
-        var empresaIdsVisibles = await alcanceDatos.ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
+        // De gestión, no de lectura: el historial de lo que se le ha reclamado
+        // a una contratista no es contenido de portal, y la cartera de
+        // Empresas del rol Cliente sale de su propio Cliente.
+        var empresaIdsVisibles = await alcanceDatos.ObtenerEmpresaIdsParaGestionAsync(cancellationToken);
 
         var candidatas = await (
             from reclamacion in reclamacionesContext.ReclamacionesDocumentales

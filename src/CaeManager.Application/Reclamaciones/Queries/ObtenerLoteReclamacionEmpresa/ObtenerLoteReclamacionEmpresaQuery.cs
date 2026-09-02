@@ -63,7 +63,11 @@ public class ObtenerLoteReclamacionEmpresaQueryHandler(
         // tenant no basta (CLAUDE.md § 14). null = rol sin restricción; lista
         // vacía = cartera todavía sin asignar, y entonces el Contains no deja
         // pasar nada, que es el fallo cerrado correcto.
-        var empresaIdsVisibles = await alcanceDatos.ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
+        //
+        // Y de GESTIÓN: reclamar es operar sobre la Empresa, no leer su
+        // documentación, así que el rol Cliente (portal) no entra aunque la
+        // contratista esté relacionada con su propio Cliente.
+        var empresaIdsVisibles = await alcanceDatos.ObtenerEmpresaIdsParaGestionAsync(cancellationToken);
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);

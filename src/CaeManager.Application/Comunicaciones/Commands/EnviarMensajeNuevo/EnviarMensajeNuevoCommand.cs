@@ -95,7 +95,7 @@ public class EnviarMensajeNuevoCommandHandler(
 
         // Mismo criterio que el Cliente: quien redacta no puede abrir un hilo
         // anclado a una Empresa que no tiene en cartera.
-        if (request.EmpresaId is { } empresaId && !await alcanceDatos.EmpresaVisibleAsync(empresaId, cancellationToken))
+        if (request.EmpresaId is { } empresaId && !await alcanceDatos.EmpresaParaGestionVisibleAsync(empresaId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Empresa.NoEncontrada", "No encontramos esta empresa."));
 
         var tokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion.Id, cancellationToken);
@@ -108,6 +108,22 @@ public class EnviarMensajeNuevoCommandHandler(
             return Result.Fallo<Guid>(envioResultado.Error);
 
         var conversacion = await conversacionRepositorio.ObtenerPorHiloExternoAsync(conexion.Id, envioResultado.Valor.HiloExternoId, cancellationToken);
+
+        // El hilo que devuelve Graph puede existir ya y estar anclado a OTRO
+        // titular (mismo asunto y destinatario agrupan en Outlook). Sumar el
+        // mensaje ahí lo metería en la bandeja de quien tenga ese titular en
+        // cartera y lo escondería de quien tiene el nuestro — el alcance
+        // comprobado arriba se perdería justo en el último paso. Un hilo sin
+        // ancla (triage) sí puede recibirlo: no es de nadie todavía.
+        if (conversacion is not null &&
+            ((conversacion.ClienteId is not null && conversacion.ClienteId != clienteId) ||
+             (conversacion.EmpresaId is not null && conversacion.EmpresaId != request.EmpresaId)))
+        {
+            return Result.Fallo<Guid>(Error.Crear(
+                "Conversacion.HiloDeOtroTitular",
+                "El proveedor agrupó este mensaje en una conversación que pertenece a otro titular. Respóndele desde esa conversación."));
+        }
+
         if (conversacion is null)
         {
             conversacion = new Conversacion(request.Asunto, clienteId, empresaId: request.EmpresaId);

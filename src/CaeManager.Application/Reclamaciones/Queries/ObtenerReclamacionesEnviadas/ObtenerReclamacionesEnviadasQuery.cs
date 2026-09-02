@@ -57,7 +57,10 @@ public class ObtenerReclamacionesEnviadasQueryHandler(
         ObtenerReclamacionesEnviadasQuery request, CancellationToken cancellationToken)
     {
         var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
-        var empresaIdsVisibles = await alcanceDatos.ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
+        // De gestión, no de lectura: el historial de lo que se le ha reclamado
+        // a una contratista no es contenido de portal, y la cartera de
+        // Empresas del rol Cliente sale de su propio Cliente.
+        var empresaIdsVisibles = await alcanceDatos.ObtenerEmpresaIdsParaGestionAsync(cancellationToken);
 
         var consulta =
             from reclamacion in reclamacionesContext.ReclamacionesDocumentales

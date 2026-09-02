@@ -330,6 +330,52 @@ public class ReclamacionEmpresaTests : IAsyncLifetime
         pagina.Elementos.Should().ContainSingle().Which.TitularId.Should().Be(_empresaId);
     }
 
+    [Fact]
+    public async Task Un_usuario_de_portal_no_ve_el_historial_de_lo_reclamado_a_las_contratistas_de_su_Cliente()
+    {
+        // Hallazgo de la revisión adversaria de Codex. La cartera de Empresas
+        // se DERIVA de la de Clientes, así que a un contacto de una empresa
+        // cliente le salen ahí las contratistas relacionadas con su propio
+        // Cliente. Para leer documentación eso es correcto; para el historial
+        // de lo que se les ha reclamado no lo es — es un artefacto interno de
+        // la gestión CAE. De ahí ObtenerEmpresaIdsParaGestionAsync.
+        var documentoId = await SembrarDocumentoDeEmpresaAsync(_empresaId, _tipoEmpresaId, mesesHastaVencer: 1);
+        await SembrarReclamacionDeEmpresaAsync(_empresaId, documentoId);
+
+        await using var contexto = CrearContexto();
+        var portal = new AlcanceDatosServiceFalso(
+            clienteIds: [_clienteId],
+            empresaIds: [_empresaId],
+            empresaIdsParaGestion: []);
+
+        var pagina = await new ObtenerReclamacionesEnviadasQueryHandler(contexto, contexto, contexto, portal)
+            .Handle(new ObtenerReclamacionesEnviadasQuery(), CancellationToken.None);
+
+        pagina.Elementos.Should().BeEmpty(
+            "ver la documentación de una contratista no es lo mismo que ver lo que se le ha reclamado");
+    }
+
+    [Fact]
+    public async Task Un_usuario_de_portal_no_puede_reclamar_a_una_contratista_de_su_Cliente()
+    {
+        var documentoId = await SembrarDocumentoDeEmpresaAsync(_empresaId, _tipoEmpresaId, mesesHastaVencer: 1);
+        await SembrarContactoDeEmpresaAsync(_empresaId, "agenda@contratista.test");
+
+        await using var contexto = CrearContexto();
+        var portal = new AlcanceDatosServiceFalso(
+            clienteIds: [_clienteId], empresaIds: [_empresaId], empresaIdsParaGestion: []);
+
+        var lotes = await CrearLoteHandler(contexto, portal).Handle(
+            new ObtenerLoteReclamacionEmpresaQuery(), CancellationToken.None);
+        lotes.Should().BeEmpty("reclamar es operar sobre la Empresa, no leer su documentación");
+
+        var resultado = await CrearCommandHandler(contexto, new MediatorSoloEnviarMensajeNuevo(Guid.NewGuid()), portal)
+            .Handle(new EnviarReclamacionEmpresaCommand(_empresaId, [documentoId]), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Reclamacion.SinAcceso");
+    }
+
     // ---- siembra ----
 
     private async Task<Guid> SembrarDocumentoDeEmpresaAsync(Guid empresaId, Guid tipoDocumentoId, int mesesHastaVencer)

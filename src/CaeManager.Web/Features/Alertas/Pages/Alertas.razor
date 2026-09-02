@@ -107,7 +107,7 @@
                                 <div class="alerta-formulario" role="alert">
                                     No hay ningún contacto en la agenda al que reclamar esta documentación.
                                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
-                                           OnClick="() => AbrirAltaContacto(lote.TitularId)">
+                                           OnClick="() => AbrirAltaContacto(lote)">
                                         Añadir contacto
                                     </Boton>
                                 </div>
@@ -127,7 +127,7 @@
                                         </label>
                                     }
                                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
-                                           OnClick="() => AbrirAltaContacto(lote.TitularId)">
+                                           OnClick="() => AbrirAltaContacto(lote)">
                                         Añadir contacto
                                     </Boton>
                                 </fieldset>
@@ -176,8 +176,13 @@
         }
     </SeccionColapsable>
 
+    @* El tipo de agenda sigue al ámbito del lote: con Empresa, el contacto
+       tiene que nacer en la agenda de la Empresa (ContactoAgenda.EmpresaId),
+       que es la única que ResolverParaEmpresaAsync consulta. Fijarlo a
+       Cliente dejaba el camino de recuperación roto justo cuando hace falta
+       —lote sin destinatarios— porque el contacto recién creado no aparecía. *@
     <ModalContactoAgenda Visible="_altaContactoVisible" VisibleChanged="v => _altaContactoVisible = v"
-                         Tipo="TipoPropietarioAgenda.Cliente" PropietarioId="_titularAltaContacto"
+                         Tipo="_tipoAgendaAltaContacto" PropietarioId="_titularAltaContacto"
                          PredeterminadoPorDefecto="true" OnGuardado="_ => CargarLoteAsync()" />
 
     <div class="barra-filtros">

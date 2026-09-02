@@ -181,11 +181,12 @@ public class ObtenerConversacionPorIdQueryHandler(
         // no tiene por qué ver lo que se le reclama a una contratista.
         else if (conversacion.EmpresaId is not null)
         {
-            if (await currentUserService.ObtenerRolActualAsync() == RolCliente ||
-                !await alcanceDatos.EmpresaVisibleAsync(conversacion.EmpresaId.Value, cancellationToken))
-            {
+            // EmpresaParaGestionVisibleAsync, no EmpresaVisibleAsync: ya
+            // devuelve lista vacía para el rol Cliente, así que la regla vive
+            // en un solo sitio y no puede desalinearse de la que aplica el
+            // endpoint de adjuntos (que llega por ConversacionVisibleAsync).
+            if (!await alcanceDatos.EmpresaParaGestionVisibleAsync(conversacion.EmpresaId.Value, cancellationToken))
                 return null;
-            }
         }
         // Un hilo sin ninguna de las dos anclas es de la cola de triage: mismo
         // criterio que la lista (ObtenerConversacionesQueryHandler), porque si

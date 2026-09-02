@@ -229,6 +229,18 @@ public class AlcanceDatosService(
         return _centroIds;
     }
 
+    public async Task<IReadOnlyList<Guid>?> ObtenerEmpresaIdsParaGestionAsync(CancellationToken cancellationToken = default)
+    {
+        // El rol Cliente es un usuario de portal: ve la documentación de las
+        // contratistas relacionadas con su Cliente, pero no opera sobre ellas.
+        // Lista vacía y no null — null significa "sin restricción", que aquí
+        // sería exactamente lo contrario de lo que toca (fallo cerrado).
+        if (await currentUserService.ObtenerRolActualAsync() == Roles.Cliente)
+            return [];
+
+        return await ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
+    }
+
     /// <summary>
     /// F4 — reescrito sobre <c>RelacionEmpresarial</c> en vez de
     /// <c>EmpresaCliente</c> (contrato verificado con paridad exacta OLD/NEW,

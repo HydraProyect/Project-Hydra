@@ -111,7 +111,7 @@ public class ObtenerConversacionesQueryHandler(
             // gestión CAE, que es justo el alcance que la reclamación por
             // Empresa no puede regalar. Triage sigue siendo, y solo es, un
             // hilo sin ninguna de las dos anclas.
-            var empresaIdsVisibles = await alcanceDatos.ObtenerEmpresaIdsVisiblesAsync(cancellationToken) ?? [];
+            var empresaIdsVisibles = await alcanceDatos.ObtenerEmpresaIdsParaGestionAsync(cancellationToken) ?? [];
 
             consulta = rol == RolCliente
                 ? consulta.Where(c => c.ClienteId != null && clienteIdsVisibles.Contains(c.ClienteId!.Value))
