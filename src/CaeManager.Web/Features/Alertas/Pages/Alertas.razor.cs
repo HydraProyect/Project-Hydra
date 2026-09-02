@@ -29,7 +29,8 @@ public partial class Alertas : ComponentBase
     /// (A-08). <c>AlertasTests</c> protege que esta lista no se amplíe a
     /// ninguno de los tres antes de que exista ese camino.
     /// </summary>
-    public static readonly IReadOnlyList<AmbitoAplicacion> AmbitosSoportados = [AmbitoAplicacion.Trabajador];
+    public static readonly IReadOnlyList<AmbitoAplicacion> AmbitosSoportados =
+        [AmbitoAplicacion.Trabajador, AmbitoAplicacion.Empresa];
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 

@@ -5,24 +5,30 @@ using FluentAssertions;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// Guarda el hueco declarado de DEC-4/DEC-7 (PLAN-SESIONES-NOCTURNAS-2026-09-02.md):
-/// la reclamación agregada de /alertas solo puede ofrecer Trabajador hasta
-/// que exista un camino de envío real para Empresa. Rompe si alguien amplía
-/// <see cref="Alertas.AmbitosSoportados"/> antes de que ese camino exista —
-/// justo el defecto A-08 (promesa navegable sin capacidad detrás) que este
-/// turno está retirando en otras pantallas.
+/// Mecaniza qué ámbitos puede ofrecer la reclamación agregada de /alertas
+/// (DEC-4: por entidad, trabajador o empresa; DEC-11: primero el camino,
+/// después la superficie). Trabajador y Empresa ya lo tienen completo
+/// —dominio, agenda, lote y envío—; Cliente, Vehículo y Proyecto no, y
+/// ObtenerLoteReclamacionPorFiltroQueryHandler sigue lanzando para ellos.
+/// Este test rompe si alguien amplía <see cref="Alertas.AmbitosSoportados"/>
+/// a uno de esos tres antes de construir su camino — justo el defecto A-08
+/// (promesa navegable sin capacidad detrás).
 /// </summary>
 public class AlertasTests
 {
     [Fact]
-    public void Alertas_solo_ofrece_el_ambito_Trabajador()
+    public void Alertas_ofrece_Trabajador_y_Empresa()
     {
-        Alertas.AmbitosSoportados.Should().ContainSingle().Which.Should().Be(AmbitoAplicacion.Trabajador);
+        Alertas.AmbitosSoportados.Should().BeEquivalentTo(
+            [AmbitoAplicacion.Trabajador, AmbitoAplicacion.Empresa]);
     }
 
-    [Fact]
-    public void Alertas_no_ofrece_el_ambito_Empresa()
+    [Theory]
+    [InlineData(AmbitoAplicacion.Cliente)]
+    [InlineData(AmbitoAplicacion.Vehiculo)]
+    [InlineData(AmbitoAplicacion.Proyecto)]
+    public void Alertas_no_ofrece_los_ambitos_sin_camino_de_reclamacion(AmbitoAplicacion ambito)
     {
-        Alertas.AmbitosSoportados.Should().NotContain(AmbitoAplicacion.Empresa);
+        Alertas.AmbitosSoportados.Should().NotContain(ambito);
     }
 }

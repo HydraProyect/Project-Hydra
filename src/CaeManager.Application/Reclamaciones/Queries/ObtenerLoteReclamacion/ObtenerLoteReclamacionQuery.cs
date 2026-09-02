@@ -142,7 +142,12 @@ public class ObtenerLoteReclamacionQueryHandler(
         // pestaña muestra ("Última reclamación: hace X"): null si esa salió sin
         // buzón conectado, o si es anterior a que existiera el vínculo.
         var ultimasReclamaciones = await reclamacionesContext.ReclamacionesDocumentales
-            .GroupBy(r => r.ClienteId)
+            // Solo las de titular Cliente: desde que el titular es polimórfico,
+            // las de titular Empresa traen ClienteId NULL y sin este filtro
+            // caerían todas en un mismo grupo de clave nula, que después se
+            // leería como "última reclamación" de un Cliente cualquiera.
+            .Where(r => r.ClienteId != null)
+            .GroupBy(r => r.ClienteId!.Value)
             .Select(g => new
             {
                 ClienteId = g.Key,
