@@ -17,6 +17,7 @@
 *@
 @using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
 @using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion
+@using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa
 @using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion
 @using CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionesEnviadas
 @using CaeManager.Domain.Documentos
@@ -68,7 +69,7 @@
             {
                 <div class="fila-documento-requerido" role="row" @key="reclamacion.Id">
                     <span class="celda-documento-nombre" role="cell">
-                        @reclamacion.ClienteRazonSocial
+                        @reclamacion.TitularRazonSocial
                         <span class="fila-trabajador-fraccion">@reclamacion.DestinatarioEmail</span>
                     </span>
                     <span role="cell">@reclamacion.FechaEnvioUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span>
@@ -305,14 +306,21 @@ else
         _reenviandoId = reclamacion.Id;
         try
         {
-            var resultado = await Mediator.Send(new EnviarReclamacionCommand(reclamacion.ClienteId, reclamacion.DocumentoIds));
+            // El historial mezcla los dos titulares (Cliente y Empresa), así que
+            // el reenvío se despacha por el ámbito que trae la propia fila: usar
+            // EnviarReclamacionCommand para una reclamación de titular Empresa
+            // buscaría documentos de Trabajador de un Cliente que no existe y
+            // fallaría con "ninguno sigue siendo reclamable".
+            var resultado = reclamacion.AmbitoTitular == AmbitoAplicacion.Empresa
+                ? await Mediator.Send(new EnviarReclamacionEmpresaCommand(reclamacion.TitularId, reclamacion.DocumentoIds))
+                : await Mediator.Send(new EnviarReclamacionCommand(reclamacion.TitularId, reclamacion.DocumentoIds));
             if (resultado.EsFallido)
             {
                 ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
                 return;
             }
 
-            ToastService.Mostrar($"Reclamación reenviada a {reclamacion.ClienteRazonSocial}.", TonoToast.Exito);
+            ToastService.Mostrar($"Reclamación reenviada a {reclamacion.TitularRazonSocial}.", TonoToast.Exito);
             await CargarHistorialAsync();
         }
         finally

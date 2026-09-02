@@ -26,9 +26,16 @@ namespace CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 /// mensaje se suma a él y se devuelve su Id. Es además lo correcto de negocio:
 /// para Graph es la misma conversación, y para el gestor también.
 /// </summary>
+/// <param name="EmpresaId">
+/// Ancla de Empresa contraparte para el hilo que se abre, excluyente con
+/// <paramref name="ClienteId"/> (ver <see cref="Conversacion.EmpresaId"/>).
+/// Hoy solo la usa la reclamación de documentos de empresa
+/// (<c>EnviarReclamacionEmpresaCommand</c>), que no tiene Cliente al que
+/// anclar el hilo y no puede dejarlo caer en la cola de triage compartida.
+/// </param>
 public record EnviarMensajeNuevoCommand(
     Guid ConexionIntegracionId, IReadOnlyList<string> Destinatarios, string Asunto, string CuerpoHtml,
-    Guid? ClienteId = null, IReadOnlyList<AdjuntoParaEnviarDto>? Adjuntos = null) : ICommand<Guid>;
+    Guid? ClienteId = null, IReadOnlyList<AdjuntoParaEnviarDto>? Adjuntos = null, Guid? EmpresaId = null) : ICommand<Guid>;
 
 public class EnviarMensajeNuevoCommandValidator : AbstractValidator<EnviarMensajeNuevoCommand>
 {
@@ -42,6 +49,9 @@ public class EnviarMensajeNuevoCommandValidator : AbstractValidator<EnviarMensaj
         RuleFor(c => c.Adjuntos)
             .Must(a => a is null || a.Sum(x => x.Contenido.LongLength) <= LimitesAdjuntosCorreo.TamanoMaximoTotalAdjuntosBytes)
             .WithMessage("Los adjuntos no pueden superar 3 MB en total.");
+        RuleFor(c => c)
+            .Must(c => c.ClienteId is null || c.EmpresaId is null)
+            .WithMessage("Un hilo se ancla a un Cliente o a una Empresa, nunca a los dos.");
     }
 }
 
@@ -75,9 +85,18 @@ public class EnviarMensajeNuevoCommandHandler(
         // El Cliente del mensaje es el que pida quien redacta si se indica
         // (p. ej. desde una pantalla de Cliente concreta); si no, el que ya
         // tenga la propia conexión (buzón dedicado a un Cliente Delegante).
-        var clienteId = request.ClienteId ?? conexion.ClienteId;
+        //
+        // Con ancla de Empresa NO se hereda el Cliente de la conexión: sería
+        // anclar el hilo a los dos planos a la vez, que es justo lo que
+        // Conversacion prohíbe.
+        var clienteId = request.EmpresaId is null ? request.ClienteId ?? conexion.ClienteId : null;
         if (clienteId is not null && !await alcanceDatos.ClienteVisibleAsync(clienteId.Value, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Cliente.NoEncontrado", "No encontramos este cliente."));
+
+        // Mismo criterio que el Cliente: quien redacta no puede abrir un hilo
+        // anclado a una Empresa que no tiene en cartera.
+        if (request.EmpresaId is { } empresaId && !await alcanceDatos.EmpresaParaGestionVisibleAsync(empresaId, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear("Empresa.NoEncontrada", "No encontramos esta empresa."));
 
         var tokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion.Id, cancellationToken);
         if (tokenResultado.EsFallido)
@@ -89,9 +108,25 @@ public class EnviarMensajeNuevoCommandHandler(
             return Result.Fallo<Guid>(envioResultado.Error);
 
         var conversacion = await conversacionRepositorio.ObtenerPorHiloExternoAsync(conexion.Id, envioResultado.Valor.HiloExternoId, cancellationToken);
+
+        // El hilo que devuelve Graph puede existir ya y estar anclado a OTRO
+        // titular (mismo asunto y destinatario agrupan en Outlook). Sumar el
+        // mensaje ahí lo metería en la bandeja de quien tenga ese titular en
+        // cartera y lo escondería de quien tiene el nuestro — el alcance
+        // comprobado arriba se perdería justo en el último paso. Un hilo sin
+        // ancla (triage) sí puede recibirlo: no es de nadie todavía.
+        if (conversacion is not null &&
+            ((conversacion.ClienteId is not null && conversacion.ClienteId != clienteId) ||
+             (conversacion.EmpresaId is not null && conversacion.EmpresaId != request.EmpresaId)))
+        {
+            return Result.Fallo<Guid>(Error.Crear(
+                "Conversacion.HiloDeOtroTitular",
+                "El proveedor agrupó este mensaje en una conversación que pertenece a otro titular. Respóndele desde esa conversación."));
+        }
+
         if (conversacion is null)
         {
-            conversacion = new Conversacion(request.Asunto, clienteId);
+            conversacion = new Conversacion(request.Asunto, clienteId, empresaId: request.EmpresaId);
             conversacion.AsociarConexion(conexion.Id, envioResultado.Valor.HiloExternoId);
             conversacionRepositorio.Agregar(conversacion);
         }

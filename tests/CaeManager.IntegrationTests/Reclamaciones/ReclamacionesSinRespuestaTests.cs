@@ -38,7 +38,7 @@ public class ReclamacionesSinRespuestaTests : IAsyncLifetime
         var resultado = await EjecutarAsync();
 
         var fila = resultado.Should().ContainSingle().Which;
-        fila.ClienteId.Should().Be(clienteId);
+        fila.TitularId.Should().Be(clienteId);
         fila.TotalDocumentos.Should().Be(2);
         fila.DiasTranscurridos.Should().BeGreaterThanOrEqualTo(10);
     }
@@ -76,7 +76,7 @@ public class ReclamacionesSinRespuestaTests : IAsyncLifetime
             contexto.Empresas.Add(cliente);
             await contexto.SaveChangesAsync();
 
-            contexto.ReclamacionesDocumentales.Add(new ReclamacionDocumental(
+            contexto.ReclamacionesDocumentales.Add(ReclamacionDocumental.ParaCliente(
                 cliente.Id, Guid.NewGuid(), "portal@cliente.local", DateTime.UtcNow.AddDays(-30), [Guid.NewGuid()]));
             await contexto.SaveChangesAsync();
         }
@@ -112,7 +112,7 @@ public class ReclamacionesSinRespuestaTests : IAsyncLifetime
         await contexto.SaveChangesAsync();
 
         var documentoIds = Enumerable.Range(0, totalDocumentos).Select(_ => Guid.NewGuid()).ToList();
-        contexto.ReclamacionesDocumentales.Add(new ReclamacionDocumental(
+        contexto.ReclamacionesDocumentales.Add(ReclamacionDocumental.ParaCliente(
             cliente.Id, Guid.NewGuid(), "portal@cliente.local", fechaEnvio, documentoIds, conversacion.Id));
         await contexto.SaveChangesAsync();
 

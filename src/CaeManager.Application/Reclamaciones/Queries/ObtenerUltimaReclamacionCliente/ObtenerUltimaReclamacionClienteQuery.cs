@@ -9,6 +9,13 @@ namespace CaeManager.Application.Reclamaciones.Queries.ObtenerUltimaReclamacionC
 /// rastro sin cargar la vista previa completa de
 /// <c>ObtenerLoteReclamacionQuery</c> (que recorre todos los clientes del
 /// tenant). Null si a ese Cliente nunca se le reclamó nada.
+///
+/// Solo mira el ancla de Cliente, y a propósito: una reclamación de documentos
+/// de empresa a esa misma Empresa contraparte (ReclamacionDocumental.EmpresaId)
+/// es otro pendiente, con otros documentos y otros destinatarios, y no es lo
+/// que Centro 360 está enseñando. El filtro por <c>ClienteId</c> las excluye
+/// solo porque en ellas esa columna es NULL — si algún día este rastro debe
+/// cubrir las dos, hay que decirlo aquí, no confiar en el descarte.
 /// </summary>
 public record ObtenerUltimaReclamacionClienteQuery(Guid ClienteId) : IRequest<UltimaReclamacionClienteDto?>;
 

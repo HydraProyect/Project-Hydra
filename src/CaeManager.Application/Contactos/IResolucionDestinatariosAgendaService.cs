@@ -45,6 +45,25 @@ public interface IResolucionDestinatariosAgendaService
     /// </summary>
     Task<IReadOnlyDictionary<Guid, IReadOnlyList<DestinatarioAgendaDto>>> ResolverParaClientesAsync(
         Guid? centroId, IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> tipoDocumentoIdsPorCliente, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Igual que <see cref="ResolverAsync"/> pero sobre la agenda de una
+    /// Empresa contraparte (<c>ContactoAgenda.EmpresaId</c>) — la que se usa
+    /// al reclamar documentos de empresa (DEC-7), cuyo titular es la propia
+    /// Empresa y no un Cliente.
+    ///
+    /// Sin escalón de Centro, y no por olvido: un Centro pertenece a un
+    /// Cliente (<c>Centro.ClienteId</c>), así que no hay agenda de Centro
+    /// "más específica" que la de la Empresa titular. El resto del orden es
+    /// idéntico: quien tenga el tipo de documento asignado y, para los tipos
+    /// sin dueño, el contacto predeterminado de esa Empresa.
+    /// </summary>
+    Task<IReadOnlyList<DestinatarioAgendaDto>> ResolverParaEmpresaAsync(
+        Guid empresaId, IReadOnlyList<Guid> tipoDocumentoIds, CancellationToken cancellationToken = default);
+
+    /// <summary>Versión por lote de <see cref="ResolverParaEmpresaAsync"/> — mismo motivo que <see cref="ResolverParaClientesAsync"/>: una consulta sobre la unión, no dos por Empresa.</summary>
+    Task<IReadOnlyDictionary<Guid, IReadOnlyList<DestinatarioAgendaDto>>> ResolverParaEmpresasAsync(
+        IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> tipoDocumentoIdsPorEmpresa, CancellationToken cancellationToken = default);
 }
 
 public class ResolucionDestinatariosAgendaService(
@@ -52,7 +71,8 @@ public class ResolucionDestinatariosAgendaService(
     TiposDocumento.ITiposDocumentoQueryContext tiposDocumentoContext)
     : IResolucionDestinatariosAgendaService
 {
-    private sealed record Contacto(Guid Id, Guid? ClienteId, string Nombre, string Email, bool EsPredeterminado, bool EsDelCentro);
+    /// <param name="PropietarioId">Cliente o Empresa contraparte dueña de la agenda, según por qué rama se haya resuelto.</param>
+    private sealed record Contacto(Guid Id, Guid? PropietarioId, string Nombre, string Email, bool EsPredeterminado, bool EsDelCentro);
     private sealed record Vinculo(Guid ContactoAgendaId, Guid TipoDocumentoId);
 
     public async Task<IReadOnlyList<DestinatarioAgendaDto>> ResolverAsync(
@@ -104,9 +124,62 @@ public class ResolucionDestinatariosAgendaService(
         {
             // Los del propio Cliente, más los del Centro compartido de la
             // llamada si lo hay (a lo sumo un Cliente en ese caso, ver docstring).
-            var contactosDelCliente = contactos.Where(c => c.ClienteId == clienteId || (centroId != null && c.EsDelCentro)).ToList();
+            var contactosDelCliente = contactos.Where(c => c.PropietarioId == clienteId || (centroId != null && c.EsDelCentro)).ToList();
 
             resultado[clienteId] = Resolver(contactosDelCliente, vinculos, nombresTipo, tipoDocumentoIds.Distinct().ToList());
+        }
+
+        return resultado;
+    }
+
+    public async Task<IReadOnlyList<DestinatarioAgendaDto>> ResolverParaEmpresaAsync(
+        Guid empresaId, IReadOnlyList<Guid> tipoDocumentoIds, CancellationToken cancellationToken = default)
+    {
+        var resultado = await ResolverParaEmpresasAsync(
+            new Dictionary<Guid, IReadOnlyList<Guid>> { [empresaId] = tipoDocumentoIds },
+            cancellationToken);
+
+        return resultado.GetValueOrDefault(empresaId, []);
+    }
+
+    public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<DestinatarioAgendaDto>>> ResolverParaEmpresasAsync(
+        IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> tipoDocumentoIdsPorEmpresa, CancellationToken cancellationToken = default)
+    {
+        if (tipoDocumentoIdsPorEmpresa.Count == 0) return new Dictionary<Guid, IReadOnlyList<DestinatarioAgendaDto>>();
+
+        var empresaIds = tipoDocumentoIdsPorEmpresa.Keys.ToList();
+
+        var contactos = await contactosContext.ContactosAgenda
+            .Where(c => c.EmpresaId != null && empresaIds.Contains(c.EmpresaId.Value))
+            .Select(c => new Contacto(c.Id, c.EmpresaId, c.Nombre, c.Email, c.EsPredeterminado, false))
+            .ToListAsync(cancellationToken);
+
+        var resultado = new Dictionary<Guid, IReadOnlyList<DestinatarioAgendaDto>>();
+
+        if (contactos.Count == 0)
+        {
+            foreach (var empresaId in empresaIds)
+                resultado[empresaId] = [];
+
+            return resultado;
+        }
+
+        var contactoIds = contactos.Select(c => c.Id).ToList();
+        var tiposUnicos = tipoDocumentoIdsPorEmpresa.Values.SelectMany(t => t).Distinct().ToList();
+
+        var vinculos = await contactosContext.ContactosAgendaTiposDocumento
+            .Where(v => contactoIds.Contains(v.ContactoAgendaId) && tiposUnicos.Contains(v.TipoDocumentoId))
+            .Select(v => new Vinculo(v.ContactoAgendaId, v.TipoDocumentoId))
+            .ToListAsync(cancellationToken);
+
+        var nombresTipo = await tiposDocumentoContext.TiposDocumento
+            .Where(t => tiposUnicos.Contains(t.Id))
+            .ToDictionaryAsync(t => t.Id, t => t.Nombre, cancellationToken);
+
+        foreach (var (empresaId, tipoDocumentoIds) in tipoDocumentoIdsPorEmpresa)
+        {
+            var contactosDeLaEmpresa = contactos.Where(c => c.PropietarioId == empresaId).ToList();
+            resultado[empresaId] = Resolver(contactosDeLaEmpresa, vinculos, nombresTipo, tipoDocumentoIds.Distinct().ToList());
         }
 
         return resultado;

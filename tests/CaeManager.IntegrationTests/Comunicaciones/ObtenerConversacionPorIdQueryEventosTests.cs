@@ -154,7 +154,7 @@ public class ObtenerConversacionPorIdQueryEventosTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
             conversacionId = conversacion.Id;
 
-            var reclamacion = new ReclamacionDocumental(
+            var reclamacion = ReclamacionDocumental.ParaCliente(
                 cliente.Id, Guid.NewGuid(), "portal@cliente.local", DateTime.UtcNow, [primero.Id, segundo.Id], conversacionId);
             contexto.ReclamacionesDocumentales.Add(reclamacion);
             await contexto.SaveChangesAsync();

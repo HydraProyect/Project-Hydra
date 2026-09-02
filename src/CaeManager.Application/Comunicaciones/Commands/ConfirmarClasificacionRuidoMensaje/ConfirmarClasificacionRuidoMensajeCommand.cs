@@ -46,10 +46,10 @@ public class ConfirmarClasificacionRuidoMensajeCommandHandler(
 
         var conversacion = await comunicacionesContext.Conversaciones
             .Where(c => c.Id == conversacionDelMensaje.ConversacionId)
-            .Select(c => new { c.ClienteId, c.ConexionIntegracionId })
+            .Select(c => new { c.ClienteId, c.EmpresaId, c.ConexionIntegracionId })
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (conversacion is null || !await alcanceDatos.ConversacionVisibleAsync(conversacion.ClienteId, conversacion.ConexionIntegracionId, cancellationToken))
+        if (conversacion is null || !await alcanceDatos.ConversacionVisibleAsync(conversacion.ClienteId, conversacion.EmpresaId, conversacion.ConexionIntegracionId, cancellationToken))
             return Result.Fallo(Error.Crear(
                 "ClasificacionRuidoMensaje.NoEncontrada", "No encontramos ninguna clasificación de ruido para este mensaje."));
 

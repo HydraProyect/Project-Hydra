@@ -177,6 +177,57 @@ public class EnviarMensajeNuevoCommandHandlerTests
     }
 
     [Fact]
+    public async Task Ancla_el_hilo_nuevo_a_la_Empresa_cuando_se_pide_asi()
+    {
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        var (handler, conversaciones, _) = CrearHandler(conexion);
+        var empresaId = Guid.NewGuid();
+
+        var resultado = await handler.Handle(
+            new EnviarMensajeNuevoCommand(
+                conexion.Id, ["agenda@contratista.com"], "Documentación pendiente", "<p>…</p>", EmpresaId: empresaId),
+            CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        var conversacion = conversaciones.Conversaciones.Should().ContainSingle().Subject;
+        conversacion.EmpresaId.Should().Be(empresaId);
+        conversacion.ClienteId.Should().BeNull(
+            "sin ancla el hilo caería en la cola de triage, que ve toda la gestión CAE");
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task No_escribe_en_un_hilo_existente_que_pertenece_a_otro_titular(bool ancladoACliente)
+    {
+        // Outlook agrupa por asunto y destinatario, así que Graph puede
+        // devolver el HiloExternoId de una conversación que ya tiene dueño.
+        // Sumarle el mensaje lo metería en la bandeja de quien tenga ESE
+        // titular en cartera y lo escondería de quien tiene el nuestro: el
+        // alcance comprobado al entrar se perdería en el último paso.
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        var (handler, conversaciones, graphClient) = CrearHandler(conexion);
+        graphClient.MensajeEnviadoADevolver = new MensajeEnviadoGraphDto("msg-3", "hilo-ajeno-789");
+
+        var otroTitular = Guid.NewGuid();
+        var ajena = ancladoACliente
+            ? new Conversacion("Hilo de otro cliente", clienteId: otroTitular)
+            : new Conversacion("Hilo de otra empresa", clienteId: null, empresaId: otroTitular);
+        ajena.AsociarConexion(conexion.Id, "hilo-ajeno-789");
+        conversaciones.Agregar(ajena);
+
+        var mando = ancladoACliente
+            ? new EnviarMensajeNuevoCommand(conexion.Id, ["c@x.com"], "Asunto", "<p>…</p>", ClienteId: Guid.NewGuid())
+            : new EnviarMensajeNuevoCommand(conexion.Id, ["c@x.com"], "Asunto", "<p>…</p>", EmpresaId: Guid.NewGuid());
+
+        var resultado = await handler.Handle(mando, CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Conversacion.HiloDeOtroTitular");
+        ajena.Mensajes.Should().BeEmpty("el mensaje no puede acabar en el hilo de otro titular");
+    }
+
+    [Fact]
     public async Task No_envia_desde_el_buzon_personal_de_otro_gestor_aunque_se_le_pase_su_Id()
     {
         // Regresión: sin este check, cualquiera con acceso a Comunicaciones

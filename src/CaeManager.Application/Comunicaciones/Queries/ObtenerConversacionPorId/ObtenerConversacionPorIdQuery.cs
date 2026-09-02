@@ -142,6 +142,7 @@ public class ObtenerConversacionPorIdQueryHandler(
             {
                 c.Id,
                 c.ClienteId,
+                c.EmpresaId,
                 ClienteRazonSocial = cliente != null ? cliente.RazonSocial : null,
                 c.Asunto,
                 c.Estado,
@@ -173,10 +174,24 @@ public class ObtenerConversacionPorIdQueryHandler(
             if (!await alcanceDatos.ClienteVisibleAsync(conversacion.ClienteId.Value, cancellationToken))
                 return null;
         }
-        // Un hilo sin cliente resuelto es de la cola de triage: mismo criterio
-        // que la lista (ObtenerConversacionesQueryHandler), porque si no,
-        // acotar solo el listado dejaba el hilo accesible a quien tuviera el
-        // Guid.
+        // Anclado a una Empresa contraparte (reclamación de ámbito Empresa):
+        // tiene dueño, y se acota por cartera de Empresas — no es triage. El
+        // rol Cliente tampoco llega aquí: su cartera de Empresas es la que le
+        // resuelva IAlcanceDatosService, y un contacto de una empresa cliente
+        // no tiene por qué ver lo que se le reclama a una contratista.
+        else if (conversacion.EmpresaId is not null)
+        {
+            // EmpresaParaGestionVisibleAsync, no EmpresaVisibleAsync: ya
+            // devuelve lista vacía para el rol Cliente, así que la regla vive
+            // en un solo sitio y no puede desalinearse de la que aplica el
+            // endpoint de adjuntos (que llega por ConversacionVisibleAsync).
+            if (!await alcanceDatos.EmpresaParaGestionVisibleAsync(conversacion.EmpresaId.Value, cancellationToken))
+                return null;
+        }
+        // Un hilo sin ninguna de las dos anclas es de la cola de triage: mismo
+        // criterio que la lista (ObtenerConversacionesQueryHandler), porque si
+        // no, acotar solo el listado dejaba el hilo accesible a quien tuviera
+        // el Guid.
         else if (await currentUserService.ObtenerRolActualAsync() == RolCliente)
         {
             return null;

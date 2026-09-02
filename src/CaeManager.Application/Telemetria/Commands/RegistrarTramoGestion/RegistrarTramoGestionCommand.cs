@@ -68,10 +68,10 @@ public class RegistrarTramoGestionCommandHandler(
         // Y, si el hilo está atado a un buzón personal, que sea el propio dueño.
         var conversacion = await comunicacionesContext.Conversaciones
             .Where(c => c.Id == request.ConversacionId)
-            .Select(c => new { c.Id, c.ClienteId, c.ConexionIntegracionId })
+            .Select(c => new { c.Id, c.ClienteId, c.EmpresaId, c.ConexionIntegracionId })
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (conversacion is null || !await alcanceDatos.ConversacionVisibleAsync(conversacion.ClienteId, conversacion.ConexionIntegracionId, cancellationToken))
+        if (conversacion is null || !await alcanceDatos.ConversacionVisibleAsync(conversacion.ClienteId, conversacion.EmpresaId, conversacion.ConexionIntegracionId, cancellationToken))
             return Result.Fallo(Error.Crear("TiempoGestion.ConversacionNoEncontrada", "No encontramos esta conversación."));
 
         var segundos = Math.Min(request.SegundosActivos, SegundosMaximosPorTramo);

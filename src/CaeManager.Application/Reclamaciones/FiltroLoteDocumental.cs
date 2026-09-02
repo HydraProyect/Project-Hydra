@@ -22,7 +22,10 @@ namespace CaeManager.Application.Reclamaciones;
 /// AmbitoAplicacion tienen ya un camino de reclamación construido: cada
 /// consumidor de este filtro decide qué ámbitos ofrece
 /// (SelectorLoteDocumental.AmbitosDisponibles) según lo que de verdad sepa
-/// resolver, para no ofrecer un ámbito que luego no se puede reclamar.
+/// resolver, para no ofrecer un ámbito que luego no se puede reclamar. Hoy
+/// tienen camino <b>Trabajador</b> y <b>Empresa</b>; Cliente, Vehículo y
+/// Proyecto siguen sin tenerlo y ObtenerLoteReclamacionPorFiltroQuery lanza
+/// para ellos.
 /// </summary>
 /// <param name="TipoDocumentoIds">Vacío = todos los tipos de documento de ese ámbito.</param>
 /// <param name="EntidadId">Null = todas las entidades visibles de ese ámbito (respetando IAlcanceDatosService); con valor = una entidad concreta.</param>

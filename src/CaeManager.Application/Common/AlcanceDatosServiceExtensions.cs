@@ -58,6 +58,14 @@ public static class AlcanceDatosServiceExtensions
         return ids is null || ids.Contains(empresaId);
     }
 
+    /// <summary>Alcance de gestión sobre una Empresa concreta — ver <see cref="IAlcanceDatosService.ObtenerEmpresaIdsParaGestionAsync"/>.</summary>
+    public static async Task<bool> EmpresaParaGestionVisibleAsync(
+        this IAlcanceDatosService alcance, Guid empresaId, CancellationToken cancellationToken = default)
+    {
+        var ids = await alcance.ObtenerEmpresaIdsParaGestionAsync(cancellationToken);
+        return ids is null || ids.Contains(empresaId);
+    }
+
     public static async Task<bool> SubcontrataVisibleAsync(
         this IAlcanceDatosService alcance, Guid subcontrataId, CancellationToken cancellationToken = default)
     {
@@ -81,18 +89,35 @@ public static class AlcanceDatosServiceExtensions
 
     /// <summary>
     /// Alcance completo de una <c>Conversacion</c> existente: la cartera de
-    /// su Cliente (o triage compartido si <paramref name="clienteId"/> es
-    /// null, vía <see cref="ClienteOpcionalVisibleAsync"/>) Y, si el hilo está
-    /// atado a un buzón personal de un gestor (<c>ConexionIntegracion.
-    /// GestorPropietarioId</c>), que sea el propio dueño. Sin esto, un hilo de
-    /// un buzón personal ajeno —que también tiene ClienteId null— se colaba
-    /// en la cola de triage compartida como si fuera de cualquiera.
+    /// su ancla —Cliente (<paramref name="clienteId"/>) o Empresa contraparte
+    /// (<paramref name="empresaId"/>), excluyentes entre sí; sin ninguna de
+    /// las dos es triage compartido, vía <see cref="ClienteOpcionalVisibleAsync"/>—
+    /// Y, si el hilo está atado a un buzón personal de un gestor
+    /// (<c>ConexionIntegracion.GestorPropietarioId</c>), que sea el propio
+    /// dueño. Sin esto, un hilo de un buzón personal ajeno —que también tiene
+    /// ClienteId null— se colaba en la cola de triage compartida como si
+    /// fuera de cualquiera.
+    ///
+    /// <paramref name="empresaId"/> es obligatorio en la firma, y no un
+    /// parámetro opcional, a propósito: un llamador que se olvidara de
+    /// pasarlo trataría un hilo anclado a una Empresa como triage compartido
+    /// —visible para toda la gestión CAE— sin que nada lo delatara. Que el
+    /// compilador lo exija es lo que impide esa migración a medias.
     /// </summary>
     public static async Task<bool> ConversacionVisibleAsync(
-        this IAlcanceDatosService alcance, Guid? clienteId, Guid? conexionIntegracionId, CancellationToken cancellationToken = default)
+        this IAlcanceDatosService alcance, Guid? clienteId, Guid? empresaId, Guid? conexionIntegracionId,
+        CancellationToken cancellationToken = default)
     {
         if (conexionIntegracionId is { } conexionId && !await alcance.ConexionIntegracionVisibleAsync(conexionId, cancellationToken))
             return false;
+
+        // Alcance de GESTIÓN, no de lectura: un hilo con una contratista es un
+        // artefacto interno, y la cartera de Empresas de un usuario de portal
+        // sale de su propio Cliente (ver ObtenerEmpresaIdsParaGestionAsync).
+        // Con EmpresaVisibleAsync aquí, un contacto de una empresa cliente
+        // descargaba los adjuntos de esos hilos conociendo el Guid.
+        if (empresaId is { } id)
+            return await alcance.EmpresaParaGestionVisibleAsync(id, cancellationToken);
 
         return await alcance.ClienteOpcionalVisibleAsync(clienteId, cancellationToken);
     }

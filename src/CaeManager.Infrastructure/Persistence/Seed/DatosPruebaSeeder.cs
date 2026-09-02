@@ -1629,7 +1629,7 @@ public static class DatosPruebaSeeder
                 conversacionId = conversacion.Id;
             }
 
-            var reclamacion = new ReclamacionDocumental(
+            var reclamacion = ReclamacionDocumental.ParaCliente(
                 cliente.Id,
                 cliente.EjecutivoUsuarioId.Value,
                 destinatario,

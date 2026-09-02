@@ -47,7 +47,7 @@ public class VincularConversacionCommandHandler(
     public async Task<Result> Handle(VincularConversacionCommand request, CancellationToken cancellationToken)
     {
         var origen = await repositorio.ObtenerPorIdAsync(request.ConversacionOrigenId, cancellationToken);
-        if (origen is null || !await alcanceDatos.ConversacionVisibleAsync(origen.ClienteId, origen.ConexionIntegracionId, cancellationToken))
+        if (origen is null || !await alcanceDatos.ConversacionVisibleAsync(origen.ClienteId, origen.EmpresaId, origen.ConexionIntegracionId, cancellationToken))
             return Result.Fallo(Error.Crear("Conversacion.NoEncontrada", "No encontramos la conversación de origen."));
 
         // Solo WhatsApp origina esta vinculación en la práctica (§ 13.2): un
@@ -66,7 +66,7 @@ public class VincularConversacionCommandHandler(
         // (auditoría módulo 6): compartir Cliente no basta si el destino
         // cuelga de un buzón personal de otro gestor.
         if (destino is null || destino.ClienteId != clienteId ||
-            !await alcanceDatos.ConversacionVisibleAsync(destino.ClienteId, destino.ConexionIntegracionId, cancellationToken))
+            !await alcanceDatos.ConversacionVisibleAsync(destino.ClienteId, destino.EmpresaId, destino.ConexionIntegracionId, cancellationToken))
         {
             return Result.Fallo(Error.Crear("Conversacion.DestinoNoEncontrado", "No encontramos la conversación de destino."));
         }

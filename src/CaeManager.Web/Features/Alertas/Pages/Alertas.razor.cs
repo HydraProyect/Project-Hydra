@@ -1,6 +1,8 @@
 using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
+using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
 using CaeManager.Application.Reclamaciones;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
+using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPorFiltro;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components;
@@ -15,16 +17,21 @@ public partial class Alertas : ComponentBase
 
     /// <summary>
     /// Ámbitos que la reclamación agregada de esta página ofrece en
-    /// <c>SelectorLoteDocumental.AmbitosDisponibles</c> (DEC-4 + DEC-7,
-    /// PLAN-SESIONES-NOCTURNAS-2026-09-02.md). Solo Trabajador: Empresa no
-    /// tiene camino de envío construido —
+    /// <c>SelectorLoteDocumental.AmbitosDisponibles</c> (DEC-4: reclamación
+    /// agregada por entidad, trabajador <b>o empresa</b>). Trabajador y
+    /// Empresa, que son los dos con camino de reclamación completo detrás
+    /// (dominio, agenda, lote y envío — DEC-11: primero el camino, después la
+    /// superficie).
+    ///
+    /// Cliente, Vehículo y Proyecto siguen fuera:
     /// <see cref="ObtenerLoteReclamacionPorFiltroQueryHandler"/> lanza
-    /// <see cref="NotSupportedException"/> para ese ámbito a propósito, y
-    /// ofrecerlo aquí sería una promesa navegable sin capacidad detrás
-    /// (A-08). <c>AlertasTests</c> protege que esta lista no se amplíe
-    /// antes de que exista ese camino.
+    /// <see cref="NotSupportedException"/> para ellos a propósito, y
+    /// ofrecerlos aquí sería una promesa navegable sin capacidad detrás
+    /// (A-08). <c>AlertasTests</c> protege que esta lista no se amplíe a
+    /// ninguno de los tres antes de que exista ese camino.
     /// </summary>
-    public static readonly IReadOnlyList<AmbitoAplicacion> AmbitosSoportados = [AmbitoAplicacion.Trabajador];
+    public static readonly IReadOnlyList<AmbitoAplicacion> AmbitosSoportados =
+        [AmbitoAplicacion.Trabajador, AmbitoAplicacion.Empresa];
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
@@ -50,6 +57,7 @@ public partial class Alertas : ComponentBase
     private Guid? _enviandoTitularId;
     private bool _altaContactoVisible;
     private Guid _titularAltaContacto;
+    private TipoPropietarioAgenda _tipoAgendaAltaContacto = TipoPropietarioAgenda.Cliente;
 
     private IReadOnlyList<AlertaDto> AlertasFiltradas =>
         Enum.TryParse<EstadoDocumento>(_estadoFiltro, out var estado)
@@ -189,9 +197,12 @@ public partial class Alertas : ComponentBase
         else marcados.Remove(contactoId);
     }
 
-    private void AbrirAltaContacto(Guid titularId)
+    private void AbrirAltaContacto(LoteReclamacionAgrupadoDto lote)
     {
-        _titularAltaContacto = titularId;
+        _titularAltaContacto = lote.TitularId;
+        _tipoAgendaAltaContacto = lote.Ambito == AmbitoAplicacion.Empresa
+            ? TipoPropietarioAgenda.Empresa
+            : TipoPropietarioAgenda.Cliente;
         _altaContactoVisible = true;
     }
 
@@ -206,8 +217,14 @@ public partial class Alertas : ComponentBase
         _enviandoTitularId = lote.TitularId;
         try
         {
-            var resultado = await Mediator.Send(new EnviarReclamacionCommand(
-                lote.TitularId, documentoIds, CentroId: null, ContactoIdsSeleccionados: contactoIds));
+            // Un comando por ámbito: el titular de un lote de Empresa no es un
+            // Cliente y su camino de documentos reclamables es otro (ver
+            // ObtenerLoteReclamacionPorFiltroQuery.LoteReclamacionAgrupadoDto).
+            var resultado = lote.Ambito == AmbitoAplicacion.Empresa
+                ? await Mediator.Send(new EnviarReclamacionEmpresaCommand(
+                    lote.TitularId, documentoIds, ContactoIdsSeleccionados: contactoIds))
+                : await Mediator.Send(new EnviarReclamacionCommand(
+                    lote.TitularId, documentoIds, CentroId: null, ContactoIdsSeleccionados: contactoIds));
             if (resultado.EsFallido)
             {
                 ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);

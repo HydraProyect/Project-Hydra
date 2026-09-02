@@ -95,6 +95,6 @@
    Ampliar esta lista cuando Empresa quede construido, no antes: ofrecerlo ya
    fallaría al enviar. *@
 <DrawerReclamacionLote Visible="_reclamacionLoteVisible" VisibleChanged="v => _reclamacionLoteVisible = v"
-                       AmbitosDisponibles="@(new[] { AmbitoAplicacion.Trabajador })"
+                       AmbitosDisponibles="@(new[] { AmbitoAplicacion.Trabajador, AmbitoAplicacion.Empresa })"
                        AmbitoInicial="_ambitoPreseed" EntidadIdInicial="_entidadIdPreseed"
                        OnReclamacionEnviada="CargarAsync" />

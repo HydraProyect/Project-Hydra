@@ -1,16 +1,34 @@
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Documentos;
 
 namespace CaeManager.Domain.Reclamaciones;
 
 /// <summary>
-/// Registro de un lote de reclamación documental enviado a un Cliente —
-/// agrupa varios Documentos que vencen en la misma ventana (1 a 3 meses) en
-/// un único correo, en vez de uno por Documento (ver el hilo de trabajo que
-/// originó esta feature: no se pueden mandar 30 correos por cada vencimiento
-/// suelto). Append-only: una vez enviado no se edita ni se borra, es el
-/// historial de qué se reclamó y cuándo — también evita reclamar dos veces
-/// el mismo lote en poco tiempo (ver UltimaReclamacionFechaUtc en
-/// ObtenerLoteReclamacionQuery).
+/// Registro de un lote de reclamación documental enviado al titular de la
+/// documentación — agrupa varios Documentos que vencen en la misma ventana
+/// (1 a 3 meses) en un único correo, en vez de uno por Documento (ver el
+/// hilo de trabajo que originó esta feature: no se pueden mandar 30 correos
+/// por cada vencimiento suelto). Append-only: una vez enviado no se edita ni
+/// se borra, es el historial de qué se reclamó y cuándo — también evita
+/// reclamar dos veces el mismo lote en poco tiempo (ver
+/// UltimaReclamacionFechaUtc en ObtenerLoteReclamacionQuery).
+///
+/// El titular es polimórfico y excluyente, mismo patrón que
+/// <see cref="Documento"/> (una y solo una ancla informada):
+/// <list type="bullet">
+/// <item><see cref="ClienteId"/> — reclamación de documentos de Trabajador,
+/// cuyo titular es la Empresa contraparte dueña del Centro donde están
+/// asignados (ver ObtenerLoteReclamacionQuery);</item>
+/// <item><see cref="EmpresaId"/> — reclamación de documentos de empresa,
+/// cuyo titular es la propia Empresa contraparte a la que pertenecen (DEC-7,
+/// caso literal "todos los documentos de empresa de una empresa").</item>
+/// </list>
+/// Las dos anclas repuntan contra <c>Empresas</c> (ADR-011: Empresa es una
+/// entidad única sin rol; "Cliente" y "proveedora" son posiciones en una
+/// RelacionEmpresarial, no tipos distintos) — se guardan por separado, y no
+/// como un par (TitularId, Ambito), porque una misma Empresa puede ocupar
+/// las dos posiciones a la vez y colapsarlas haría indistinguibles dos
+/// reclamaciones con significado y alcance distintos.
 ///
 /// MVP1 es solo vista previa + envío manual por el Gestor CAE — no hay
 /// todavía un job en segundo plano que envíe solo (decisión explícita del
@@ -22,7 +40,12 @@ public class ReclamacionDocumental : EntidadBase
 
     private readonly List<ReclamacionDocumentalDocumento> _documentos = [];
 
-    public Guid ClienteId { get; private set; }
+    /// <summary>Empresa contraparte en posición de cliente, cuando la reclamación agrupa documentos de Trabajador. Null en una reclamación de ámbito Empresa.</summary>
+    public Guid? ClienteId { get; private set; }
+
+    /// <summary>Empresa contraparte titular de los documentos de empresa reclamados. Null en una reclamación de ámbito Trabajador.</summary>
+    public Guid? EmpresaId { get; private set; }
+
     public Guid EnviadoPorUsuarioId { get; private set; }
 
     /// <summary>
@@ -42,16 +65,25 @@ public class ReclamacionDocumental : EntidadBase
 
     public IReadOnlyList<ReclamacionDocumentalDocumento> Documentos => _documentos.AsReadOnly();
 
+    /// <summary>
+    /// Qué ancla está informada — derivado, nunca persistido: el ámbito ES
+    /// cuál de las dos columnas tiene valor, y guardarlo aparte permitiría
+    /// que se contradijeran.
+    /// </summary>
+    public AmbitoAplicacion AmbitoTitular =>
+        ClienteId is not null ? AmbitoAplicacion.Cliente : AmbitoAplicacion.Empresa;
+
+    /// <summary>La Empresa a la que se le reclamó, sea cual sea la posición que ocupa — para los lectores que solo necesitan "a quién".</summary>
+    public Guid TitularId => ClienteId ?? EmpresaId!.Value;
+
     private ReclamacionDocumental()
     {
     }
 
-    public ReclamacionDocumental(
-        Guid clienteId, Guid enviadoPorUsuarioId, string destinatarioEmail, DateTime fechaEnvioUtc,
-        IEnumerable<Guid> documentoIds, Guid? conversacionId = null)
+    private ReclamacionDocumental(
+        Guid? clienteId, Guid? empresaId, Guid enviadoPorUsuarioId, string destinatarioEmail, DateTime fechaEnvioUtc,
+        IEnumerable<Guid> documentoIds, Guid? conversacionId)
     {
-        if (clienteId == Guid.Empty)
-            throw new ArgumentException("La reclamación debe pertenecer a un cliente.", nameof(clienteId));
         if (enviadoPorUsuarioId == Guid.Empty)
             throw new ArgumentException("La reclamación debe registrar quién la envió.", nameof(enviadoPorUsuarioId));
         if (string.IsNullOrWhiteSpace(destinatarioEmail))
@@ -67,6 +99,7 @@ public class ReclamacionDocumental : EntidadBase
             throw new ArgumentException("La reclamación debe incluir al menos un documento.", nameof(documentoIds));
 
         ClienteId = clienteId;
+        EmpresaId = empresaId;
         EnviadoPorUsuarioId = enviadoPorUsuarioId;
         DestinatarioEmail = destinatarioNormalizado;
         FechaEnvioUtc = fechaEnvioUtc;
@@ -74,5 +107,29 @@ public class ReclamacionDocumental : EntidadBase
 
         foreach (var documentoId in idsUnicos)
             _documentos.Add(new ReclamacionDocumentalDocumento(Id, documentoId));
+    }
+
+    /// <summary>Reclamación de documentos de Trabajador, dirigida a la Empresa contraparte en posición de cliente.</summary>
+    public static ReclamacionDocumental ParaCliente(
+        Guid clienteId, Guid enviadoPorUsuarioId, string destinatarioEmail, DateTime fechaEnvioUtc,
+        IEnumerable<Guid> documentoIds, Guid? conversacionId = null)
+    {
+        if (clienteId == Guid.Empty)
+            throw new ArgumentException("La reclamación debe pertenecer a un cliente.", nameof(clienteId));
+
+        return new ReclamacionDocumental(
+            clienteId, null, enviadoPorUsuarioId, destinatarioEmail, fechaEnvioUtc, documentoIds, conversacionId);
+    }
+
+    /// <summary>Reclamación de documentos de empresa, dirigida a la Empresa contraparte titular de esos documentos (DEC-7).</summary>
+    public static ReclamacionDocumental ParaEmpresa(
+        Guid empresaId, Guid enviadoPorUsuarioId, string destinatarioEmail, DateTime fechaEnvioUtc,
+        IEnumerable<Guid> documentoIds, Guid? conversacionId = null)
+    {
+        if (empresaId == Guid.Empty)
+            throw new ArgumentException("La reclamación debe pertenecer a una empresa.", nameof(empresaId));
+
+        return new ReclamacionDocumental(
+            null, empresaId, enviadoPorUsuarioId, destinatarioEmail, fechaEnvioUtc, documentoIds, conversacionId);
     }
 }

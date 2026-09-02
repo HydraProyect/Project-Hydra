@@ -29,6 +29,26 @@ public interface IAlcanceDatosService
     Task<IReadOnlyList<Guid>?> ObtenerClienteIdsVisiblesAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Guid>?> ObtenerCentroIdsVisiblesAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Guid>?> ObtenerEmpresaIdsVisiblesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Las Empresas visibles <b>desde el lado de gestión CAE</b>: igual que
+    /// <see cref="ObtenerEmpresaIdsVisiblesAsync"/> salvo para el rol Cliente
+    /// (usuario de portal), que obtiene lista vacía.
+    ///
+    /// Existe porque la cartera de Empresas se DERIVA de la de Clientes (ver
+    /// la implementación): a un contacto de una empresa cliente externa le
+    /// salen ahí las contratistas relacionadas con su propio Cliente. Para
+    /// LEER documentación eso es correcto —es justo lo que un portal CAE
+    /// existe para enseñar—, pero no lo es para los artefactos internos de la
+    /// gestión: el hilo de correo con la contratista y el historial de lo que
+    /// se le ha reclamado no son contenido de portal.
+    ///
+    /// Dicho de otra forma: <c>ObtenerEmpresaIdsVisiblesAsync</c> responde
+    /// "¿de qué Empresas puede ver datos?", y este responde "¿sobre qué
+    /// Empresas opera?". Usar el primero como puerta de autorización de lo
+    /// segundo es el error que este método evita.
+    /// </summary>
+    Task<IReadOnlyList<Guid>?> ObtenerEmpresaIdsParaGestionAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Guid>?> ObtenerSubcontrataIdsVisiblesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Trabajadores con al menos una Asignación activa a un Centro visible — usar solo en listados, no en selectores.</summary>
