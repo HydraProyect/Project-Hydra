@@ -11,6 +11,20 @@ public partial class Alertas : ComponentBase
     private int _tamanoPagina = 20;
     private const int MaximoItemsBandejaEnAlertas = 5;
 
+    /// <summary>
+    /// Ámbitos que la reclamación agregada de esta página puede ofrecer
+    /// (DEC-4 + DEC-7, PLAN-SESIONES-NOCTURNAS-2026-09-02.md). Solo
+    /// Trabajador: el ámbito Empresa no tiene camino de envío construido —
+    /// N3 confirma que el dispatcher del selector lanza
+    /// <see cref="NotSupportedException"/> para Empresa a propósito, y
+    /// <c>AmbitosDisponibles</c> es justo el parámetro que decide qué se
+    /// ofrece en pantalla. Ofrecerlo aquí sería una promesa navegable sin
+    /// capacidad detrás (A-08) — se pasa tal cual a
+    /// <c>SelectorLoteDocumental.AmbitosDisponibles</c> en cuanto el
+    /// contrato de N3 (PR #408) aterrice en main.
+    /// </summary>
+    public static readonly IReadOnlyList<AmbitoAplicacion> AmbitosSoportados = [AmbitoAplicacion.Trabajador];
+
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
     /// <summary>
