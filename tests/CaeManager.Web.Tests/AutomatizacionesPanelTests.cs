@@ -44,7 +44,7 @@ public class AutomatizacionesPanelTests : BunitContext
     }
 
     [Fact]
-    public void Muestra_No_configurado_para_un_trabajo_sin_integracion_configurada()
+    public void Muestra_No_configurado_para_M365_sin_integracion_configurada_y_deja_WhatsApp_intacto()
     {
         ConfigurarServiciosComunes(m365Configurado: false, whatsAppConfigurado: true);
 
@@ -54,19 +54,46 @@ public class AutomatizacionesPanelTests : BunitContext
         filas[0].TextContent.Should().Contain("No configurado");
         filas[0].TextContent.Should().Contain("Sin configurar");
         filas[0].QuerySelector("button.interruptor").Should().BeNull("un trabajo sin configurar no tiene ningún interruptor que conmutar");
+
+        // WhatsApp SÍ está configurado en este test — si ambas filas leyeran
+        // la misma opción por error, esta aserción lo detectaría.
+        filas[1].TextContent.Should().NotContain("No configurado");
+        filas[1].QuerySelector("button.interruptor").Should().NotBeNull();
     }
 
     [Fact]
-    public void Muestra_el_interruptor_normal_para_un_trabajo_configurado()
+    public void Muestra_No_configurado_para_WhatsApp_sin_integracion_configurada_y_deja_M365_intacto()
+    {
+        ConfigurarServiciosComunes(m365Configurado: true, whatsAppConfigurado: false);
+
+        var cut = Render<AutomatizacionesPanel>();
+
+        var filas = cut.FindAll(".fila-automatizaciones:not(.fila-cabecera)");
+        filas[1].TextContent.Should().Contain("No configurado");
+        filas[1].TextContent.Should().Contain("Sin configurar");
+        filas[1].QuerySelector("button.interruptor").Should().BeNull("un trabajo sin configurar no tiene ningún interruptor que conmutar");
+
+        // M365 SÍ está configurado en este test — prueba dirigida a que la
+        // rama de WhatsApp no esté leyendo por accidente OpcionesMicrosoft365
+        // (o simplemente devolviendo true sin mirar ninguna opción).
+        filas[0].TextContent.Should().NotContain("No configurado");
+        filas[0].QuerySelector("button.interruptor").Should().NotBeNull();
+    }
+
+    [Fact]
+    public void Muestra_el_interruptor_normal_para_ambos_trabajos_configurados()
     {
         ConfigurarServiciosComunes(m365Configurado: true, whatsAppConfigurado: true);
 
         var cut = Render<AutomatizacionesPanel>();
 
         var filas = cut.FindAll(".fila-automatizaciones:not(.fila-cabecera)");
-        filas[0].TextContent.Should().Contain("Sin datos");
-        filas[0].TextContent.Should().NotContain("No configurado");
-        filas[0].QuerySelector("button.interruptor").Should().NotBeNull();
+        foreach (var fila in filas)
+        {
+            fila.TextContent.Should().Contain("Sin datos");
+            fila.TextContent.Should().NotContain("No configurado");
+            fila.QuerySelector("button.interruptor").Should().NotBeNull();
+        }
     }
 
     private sealed class MediatorFalso : IMediator
