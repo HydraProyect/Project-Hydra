@@ -1,22 +1,94 @@
 name: Desplegar
 
-# Staging se despliega solo en cuanto algo llega a main — para cuando eso
-# pasa, el commit ya superó CI (required_status_checks.strict exige que la
-# rama esté al día Y en verde antes de poder mergear), así que no hace falta
-# volver a esperar aquí. Esto recupera el "cada push queda visible en un
-# entorno real" que antes daba Railway automáticamente.
+# --- Qué dispara este workflow, y por qué así -------------------------------
 #
-# Producción SÍ se dispara en cuanto algo llega a main (2026-08-24, antes era
-# workflow_dispatch puro) — pero el job usa `environment: produccion`, que en
-# la configuración del repo exige aprobación manual de un revisor antes de
-# ejecutar un solo paso (ver Settings → Environments → produccion). Es el
-# mismo principio que antes ("decidir el momento después de probar en
-# staging"), con menos fricción: un click de aprobar en vez de recordar el
-# comando workflow_dispatch y la cadena de confirmación. El job queda en
-# pausa ("Waiting") hasta que se aprueba o se rechaza — nunca corre solo.
+# Staging se despliega cuando el workflow `CI` TERMINA EN VERDE sobre un
+# commit de `main` — no en cuanto el commit llega a `main`. La diferencia
+# importa: son dos momentos distintos, y entre ellos cabe un CI en rojo.
+#
+# Hasta el 2026-09-02 este workflow disparaba en `push: branches: [main]` y su
+# cabecera lo justificaba diciendo que el commit "ya superó CI" porque la
+# protección de rama exigía estar al día Y en verde para poder mergear. Esa
+# regla se retiró el 2026-08-29 al adoptar la cola de merge (CLAUDE.md § 22):
+# la cola prueba el RESULTADO YA FUSIONADO, que es lo correcto para decidir el
+# merge, pero nadie volvía a mirar el CI que corre sobre `main` DESPUÉS del
+# merge. Caso real (`bced727a`): la cola dejó pasar el merge, staging se
+# desplegó, y el CI de `main` salió en rojo a continuación. El gate que
+# faltaba no es "antes de mergear" — es "antes de desplegar lo ya mergeado".
+#
+# Por eso el disparador es `workflow_run` sobre el workflow `CI`:
+#
+#   - `types: [completed]` recibe TODA terminación de CI, verde o no. El job
+#     `staging` es el que filtra por la conclusión. Un CI en rojo crea
+#     igualmente un run de `Desplegar`, pero con todos sus jobs omitidos — y
+#     como `aprobacion-produccion` depende de `staging`, tampoco deja una
+#     aprobación de producción pendiente que alguien pueda aprobar por error.
+#   - `branches: [main]` filtra por el NOMBRE de la rama en la que corrió CI.
+#     Deja fuera los runs de `pull_request` de este repositorio (rama
+#     `claude/**`) y los de la cola de merge (rama
+#     `gh-readonly-queue/main/...`) — comprobado sobre los runs reales, no
+#     supuesto. Lo que NO deja fuera es una PR desde la rama `main` de un
+#     fork, que también lleva `head_branch` = `main`: de eso se encarga la
+#     condición `workflow_run.event == 'push'` del job `staging`. Ver allí.
+#   - Un CI de `main` CANCELADO no despliega. Ocurre de forma rutinaria: CI
+#     cancela su propio run en curso sobre `main` cuando llega un merge más
+#     nuevo. No se pierde nada — el commit nuevo contiene al viejo, y es ese
+#     el que se despliega cuando su CI termina en verde.
+#
+# CONSECUENCIA NUEVA, que el disparador anterior no tenía: REEJECUTAR un run
+# de CI antiguo de `main` vuelve a emitir `completed`, y si sale verde
+# despliega SU commit. Es decir, reejecutar el CI de un commit ya superado
+# devuelve staging a ese commit. No hay forma de distinguir esa reejecución de
+# la de la punta actual —que sí queremos que despliegue, por ejemplo tras un
+# rojo de infraestructura—, así que no se filtra por número de intento. Si
+# ocurre, la salida es reejecutar el CI del commit más nuevo de `main`, o
+# lanzar este workflow a mano. Y ojo con la concurrencia: el grupo
+# `deploy-staging` solo guarda UN despliegue en espera, así que un despliegue
+# que llegue a la cola desplaza al que estuviera esperando (nunca al que ya
+# está corriendo, que es lo que protege `cancel-in-progress: false`).
+#
+# CUIDADO al cambiar este disparador: `workflow_run` solo funciona si el
+# fichero está en la rama por defecto. Un cambio aquí no surte efecto hasta
+# que la PR se mergea, y no se puede probar desde la rama.
+#
+# --- Qué SHA se despliega ---------------------------------------------------
+#
+# `SHA_DESPLEGADO` (más abajo), NUNCA `github.sha` a secas. Bajo
+# `workflow_run`, `github.sha` es "el último commit de la rama por defecto" en
+# el momento del evento, no el commit que superó CI: si `main` avanzó entre
+# medias, son commits distintos. Usarlo reintroduciría por otra vía el
+# incidente del 2026-08-26 (un job aprobado para el commit X terminando por
+# desplegar el commit Y). Por la vía manual (`workflow_dispatch`) no hay run
+# de CI del que leer nada, así que ahí sí se usa `github.sha`: el SHA de la
+# referencia que se eligió al lanzarlo.
+#
+# El idiom `condición && valor || alternativa` devuelve `valor` solo si
+# `valor` es truthy; una cadena vacía no lo es. Un `head_sha` vacío daría
+# entonces `github.sha`, o sea la punta de `main`: el comportamiento anterior
+# a este cambio, degradado pero no peligroso. Y si aun así llegara vacío al
+# VPS, resolve-deploy-sha.sh exige 40 hexadecimales y rechaza cualquier otra
+# cosa — el fallo es cerrado y ruidoso, nunca un despliegue silencioso de algo
+# equivocado.
+#
+# CONSECUENCIA AL LEER LA LISTA DE RUNS: la interfaz atribuye cada run de
+# `Desplegar` a la punta de `main`, porque eso es lo que vale `github.sha`
+# bajo `workflow_run`. El SHA realmente desplegado está en el log del job
+# ("Desplegar SHA exacto a ..."). No deduzcas qué se desplegó del encabezado
+# del run.
+#
+# --- Producción -------------------------------------------------------------
+#
+# Producción entra en el mismo run que staging, pero su job usa
+# `environment: produccion`, que en la configuración del repo exige aprobación
+# manual de un revisor antes de ejecutar un solo paso (ver Settings →
+# Environments → produccion). El job queda en pausa ("Waiting") hasta que se
+# aprueba o se rechaza — nunca corre solo. Con el gate de CI de arriba, ahora
+# además esa aprobación solo llega a existir si CI está verde.
 #
 # workflow_dispatch se conserva como vía alternativa (por ejemplo para forzar
 # un redeploy sin un push nuevo) — pasa por el mismo gate del entorno.
+#
+# --- La clave SSH -----------------------------------------------------------
 #
 # La clave SSH (secrets.VPS_SSH_KEY) es de un par dedicado, restringido en el
 # propio VPS (ver /root/.ssh/authorized_keys, entrada con "command=") a solo
@@ -27,49 +99,46 @@ name: Desplegar
 # filtrara, no da una shell libre en el VPS: como mucho, permite forzar el
 # redeploy de un commit que ya sea ancestro real de main en GitHub.
 #
-# El SHA que se pasa es `github.sha`: el commit exacto que disparó ESTE job,
-# no "lo que haya en main cuando el comando llegue a ejecutarse". Esto
-# importa especialmente para producción, cuya aprobación manual puede tardar
-# horas — sin fijar el SHA, un job aprobado para el commit X podía terminar
-# desplegando el commit Y si main avanzó mientras se esperaba la aprobación
-# (incidente real, 2026-08-26).
+# --- Por qué producción depende de staging, y por qué son dos jobs ----------
 #
 # `aprobacion-produccion` depende de `staging` (needs:) por una razón que no
 # es de orden de despliegue sino de disco: los dos `docker-compose.*.yml`
 # compilan con `build: context: ../..`, es decir, ambos entornos comparten EL
-# MISMO checkout git en /opt/talveg. Sin este `needs:`, GitHub podría
-# arrancar ambos jobs a la vez (si la aprobación de producción llegara
-# rápido) y sus dos `git checkout --detach <sha>` + `docker compose build`
-# competirían por el mismo árbol de ficheros en disco — pisándose entre sí y
-# pudiendo acabar construyendo cualquiera de los dos con el SHA equivocado,
-# precisamente lo que el SHA determinista de arriba quiere evitar. `needs:
-# staging` fuerza a que el build de staging termine (éxito o fallo) antes de
-# que producción empiece siquiera a esperar aprobación.
+# MISMO checkout git en /opt/talveg. Sin este `needs:`, GitHub podría arrancar
+# ambos jobs a la vez (si la aprobación de producción llegara rápido) y sus
+# dos `git checkout --detach <sha>` + `docker compose build` competirían por
+# el mismo árbol de ficheros en disco — pisándose entre sí y pudiendo acabar
+# construyendo cualquiera de los dos con el SHA equivocado, precisamente lo
+# que el SHA determinista de arriba quiere evitar. `needs: staging` fuerza a
+# que el build de staging termine (éxito o fallo) antes de que producción
+# empiece siquiera a esperar aprobación.
 #
 # La aprobación (`environment: produccion`) vive en un job propio,
 # `aprobacion-produccion`, separado del job que ejecuta el despliegue real
 # (`produccion`, más abajo). Son dos grupos de concurrencia distintos, y esa
 # separación es la que evita la cola interminable de aprobaciones obsoletas
 # (incidente real, 2026-08-30: cada push a main dejaba su propia aprobación
-# pendiente sin que nadie la revisara, y solo se vaciaban rechazándolas una
-# a una a mano — 6 commits obsoletos acumulados antes de vaciar la cola):
+# pendiente sin que nadie la revisara, y solo se vaciaban rechazándolas una a
+# una a mano — 6 commits obsoletos acumulados antes de vaciar la cola):
 #
 #   - `aprobacion-produccion` usa cancel-in-progress: true. En cuanto llega
-#     un push más nuevo, GitHub cancela solo la aprobación pendiente del
-#     anterior si nadie llegó a revisarla — ya no hace falta rechazarla a
-#     mano para que la cola no crezca sin límite.
+#     un despliegue más nuevo, GitHub cancela solo la aprobación pendiente
+#     del anterior si nadie llegó a revisarla — ya no hace falta rechazarla
+#     a mano para que la cola no crezca sin límite.
 #   - `deploy-produccion` (el job `produccion`) sigue con
 #     cancel-in-progress: false, exactamente como antes. Vive en un grupo
 #     distinto a propósito: la cancelación automática de arriba nunca debe
 #     alcanzar a un despliegue que YA fue aprobado y está corriendo el `ssh`
-#     contra el VPS — interrumpirlo a medias sigue siendo tan peligroso
-#     como siempre (build o `docker compose up` a medio terminar), así que
-#     ese job sigue serializándose, nunca cancelándose solo.
+#     contra el VPS — interrumpirlo a medias sigue siendo tan peligroso como
+#     siempre (build o `docker compose up` a medio terminar), así que ese job
+#     sigue serializándose, nunca cancelándose solo.
 #
-# En resumen: solo se cancela sola una aprobación que TODAVÍA no se dio.
-# Una vez aprobado, un despliegue corre siempre hasta el final.
+# En resumen: solo se cancela sola una aprobación que TODAVÍA no se dio. Una
+# vez aprobado, un despliegue corre siempre hasta el final.
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -78,13 +147,42 @@ env:
   # Clave publica del host. No es un secreto: identifica al servidor, no da
   # acceso. Vive versionada a proposito, para que cambiarla deje rastro.
   VPS_HOST_KEY: "2.29.9.79 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJdktXchT+yIjLV+Z7181+W+Sv7cnTuzk3hC8QwU7DsW"
+  # El commit que se despliega. Ver "Qué SHA se despliega" en la cabecera:
+  # bajo `workflow_run` es el commit que superó CI, no la punta de `main`.
+  SHA_DESPLEGADO: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
 jobs:
   staging:
-    # workflow_dispatch también dispara staging (antes solo push) — hace
-    # falta una vía manual para probar el mecanismo de despliegue (SHA
-    # determinista, etc.) sin esperar a un push real ni tocar producción.
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    # EL GATE. Solo despliega si el CI que acaba de terminar terminó en verde
+    # Y corrió sobre un `push` a `main`. `failure`, `cancelled`, `timed_out`,
+    # `skipped` y `action_required` omiten el job — y con él, toda la cadena
+    # hacia producción, que cuelga de este `needs:`.
+    #
+    # Las DOS condiciones hacen falta. `branches: [main]` de arriba compara el
+    # NOMBRE de la rama en la que corrió CI, no el evento: este repositorio es
+    # público, así que cualquiera puede abrir una PR desde la rama `main` de
+    # su fork, y el run de CI de esa PR lleva `head_branch` = `main`. Sin
+    # `workflow_run.event == 'push'`, ese run verde activaría este workflow,
+    # que sí tiene acceso a `secrets.VPS_SSH_KEY` aunque el de la PR no lo
+    # tuviera — el riesgo clásico de `workflow_run`. No llegaría a desplegar
+    # nada (resolve-deploy-sha.sh rechaza un SHA que no sea ancestro real de
+    # `origin/main`), pero bastaría para hacer que el workflow contacte con el
+    # VPS y compita por el grupo `deploy-staging`. Exigir `push` cierra ese
+    # camino entero: un run de CI por `push` a `main` solo puede venir de un
+    # push a la `main` de ESTE repositorio.
+    #
+    # La vía manual se conserva aparte: en `workflow_dispatch` no hay run de
+    # CI del que leer una conclusión, y bloquearla dejaría sin forma de forzar
+    # un redeploy ni de probar el mecanismo de despliegue. Es, a propósito, un
+    # rodeo del gate operado por una persona: quien lanza el workflow a mano
+    # despliega la punta de la referencia que elija, tenga esa punta el CI en
+    # verde, en rojo o todavía corriendo. Comprobar CI también ahí es una
+    # decisión de producto pendiente, no un olvido — hoy la vía manual existe
+    # justamente para los casos en que el camino automático no sirve.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || (github.event.workflow_run.event == 'push'
+      && github.event.workflow_run.conclusion == 'success')
     name: Desplegar a staging
     runs-on: ubuntu-latest
     # Concurrencia por entorno, no por workflow entero: dos deploys de
@@ -108,7 +206,9 @@ jobs:
           echo "$VPS_HOST_KEY" >> ~/.ssh/known_hosts
 
       - name: Desplegar SHA exacto a staging
-        run: ssh -i ~/.ssh/id_ed25519 "root@$VPS_HOST" "staging ${{ github.sha }}"
+        run: |
+          echo "Desplegando a staging el commit $SHA_DESPLEGADO"
+          ssh -i ~/.ssh/id_ed25519 "root@$VPS_HOST" "staging $SHA_DESPLEGADO"
 
   aprobacion-produccion:
     name: Aprobar despliegue a producción
@@ -123,7 +223,7 @@ jobs:
       cancel-in-progress: true
     steps:
       - name: Aprobado
-        run: echo "Despliegue a produccion aprobado para ${{ github.sha }}"
+        run: echo "Despliegue a produccion aprobado para $SHA_DESPLEGADO"
 
   produccion:
     name: Desplegar a producción
@@ -149,4 +249,6 @@ jobs:
           echo "$VPS_HOST_KEY" >> ~/.ssh/known_hosts
 
       - name: Desplegar SHA exacto a producción
-        run: ssh -i ~/.ssh/id_ed25519 "root@$VPS_HOST" "produccion ${{ github.sha }}"
+        run: |
+          echo "Desplegando a produccion el commit $SHA_DESPLEGADO"
+          ssh -i ~/.ssh/id_ed25519 "root@$VPS_HOST" "produccion $SHA_DESPLEGADO"
