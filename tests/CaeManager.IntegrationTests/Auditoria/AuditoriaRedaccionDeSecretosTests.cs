@@ -22,6 +22,14 @@ namespace CaeManager.IntegrationTests.Auditoria;
 /// quedaban en texto plano dentro de RegistroAuditoria.DatosDespues. Este
 /// test es la prueba de sensibilidad que habría detectado el hueco original
 /// y que debe seguir en rojo si alguien quita una entrada de la denylist.
+///
+/// Sesión nocturna 2026-09-02, ítem G-1: la denylist enmascaraba
+/// <see cref="CredencialIntegracion.RefreshToken"/> pero no
+/// <see cref="CredencialIntegracion.AccessToken"/>. Desde el PR #374,
+/// <c>AccesoGraphService.ObtenerAccessTokenVigenteAsync</c> llama a
+/// <c>CredencialIntegracion.ActualizarAccessTokenCacheado</c> en cada
+/// refresco, así que un token de Graph válido (~1h) quedaba en claro en
+/// <c>RegistroAuditoria.DatosDespues</c> cada vez que se cacheaba.
 /// </summary>
 public class AuditoriaRedaccionDeSecretosTests : IAsyncLifetime
 {
@@ -30,6 +38,7 @@ public class AuditoriaRedaccionDeSecretosTests : IAsyncLifetime
     private const string RefreshTokenSecreto = "SECRETO-REFRESH-TOKEN-M365-no-debe-aparecer-en-claro";
     private const string ClientStateSecreto = "SECRETO-CLIENT-STATE-WEBHOOK-no-debe-aparecer-en-claro";
     private const string TokenAccesoSecreto = "SECRETO-TOKEN-WHATSAPP-no-debe-aparecer-en-claro";
+    private const string AccessTokenSecreto = "SECRETO-ACCESS-TOKEN-GRAPH-no-debe-aparecer-en-claro";
 
     public async Task InitializeAsync()
     {
@@ -53,6 +62,31 @@ public class AuditoriaRedaccionDeSecretosTests : IAsyncLifetime
 
         registro.DatosDespues.Should().NotContain(RefreshTokenSecreto);
         registro.DatosDespues.Should().Contain("\"RefreshToken\":\"***\"");
+    }
+
+    [Fact]
+    public async Task El_access_token_cacheado_de_una_conexion_de_correo_no_aparece_en_claro_en_la_auditoria()
+    {
+        Guid credencialId;
+        await using (var contexto = CrearContexto())
+        {
+            var credencial = new CredencialIntegracion(Guid.NewGuid(), RefreshTokenSecreto);
+            credencialId = credencial.Id;
+            contexto.CredencialesIntegracion.Add(credencial);
+            await contexto.SaveChangesAsync();
+        }
+
+        await using (var contexto = CrearContexto())
+        {
+            var credencial = await contexto.CredencialesIntegracion.SingleAsync(c => c.Id == credencialId);
+            credencial.ActualizarAccessTokenCacheado(AccessTokenSecreto, DateTime.UtcNow.AddHours(1));
+            await contexto.SaveChangesAsync();
+        }
+
+        var registro = await ObtenerRegistroDeModificacionAsync(nameof(CredencialIntegracion));
+
+        registro.DatosDespues.Should().NotContain(AccessTokenSecreto);
+        registro.DatosDespues.Should().Contain("\"AccessToken\":\"***\"");
     }
 
     [Fact]

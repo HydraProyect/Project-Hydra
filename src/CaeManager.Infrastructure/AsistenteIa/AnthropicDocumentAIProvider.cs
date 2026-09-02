@@ -219,7 +219,29 @@ public class AnthropicDocumentAIProvider(
         }
     }
 
-    /// <summary>Igual red de seguridad que el resto de servicios de Anthropic: el modelo a veces envuelve el JSON en un bloque de código markdown pese a la instrucción.</summary>
+    /// <summary>
+    /// Igual red de seguridad que el resto de servicios de Anthropic: el
+    /// modelo a veces envuelve el JSON en un bloque de código markdown pese
+    /// a la instrucción.
+    ///
+    /// DEUDA CONOCIDA, no descuido: <paramref name="costeEstimado"/> ya se ha
+    /// incurrido cuando se llega aquí — la llamada HTTP respondió y se
+    /// factura por tokens de entrada y salida, se pueda parsear la respuesta
+    /// o no — pero los tres <c>Result.Fallo</c> de este método lo descartan.
+    /// <c>Error</c> (Domain/Common, ~130 sitios de uso) no lleva un campo
+    /// para esto a propósito: es un primitivo de "fallo de negocio
+    /// esperable" compartido por todo el sistema, y colarle una propiedad de
+    /// coste de un proveedor de IA es una fuga de contexto acotado hacia un
+    /// tipo universal — precio desproporcionado para este hallazgo (P3).
+    /// Mismo defecto en <c>GeminiDocumentAIProvider</c> y
+    /// <c>MistralOcrDocumentAIProvider</c>: no es un descuido de Anthropic,
+    /// es del contrato compartido <c>IDocumentAIProvider.ExtraerEstructuradoAsync</c>,
+    /// que solo puede devolver <c>Result&lt;ExtraccionEstructuradaDto&gt;</c>
+    /// — sin cambiar esa forma no hay dónde llevar el coste en el camino de
+    /// fallo. Arreglarlo de verdad exige extender ese contrato compartido
+    /// (o el DTO de fallo), tocando los tres proveedores a la vez; fuera de
+    /// alcance de este incremento.
+    /// </summary>
     private Result<ExtraccionEstructuradaDto> ParsearEstructurado(string texto, decimal costeEstimado, string? modeloExacto, string? requestId)
     {
         var inicio = texto.IndexOf('{');

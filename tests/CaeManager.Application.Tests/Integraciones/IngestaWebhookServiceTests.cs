@@ -141,6 +141,35 @@ public class IngestaWebhookServiceTests
         conversacionRepositorio.Conversaciones.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Sesión nocturna 2026-09-02: hasta que N4 cablea <c>MarcarConError</c>
+    /// desde la renovación de suscripción de Graph, este estado era
+    /// inalcanzable en producción (solo lo ponía el seeder de demo) y el
+    /// mismo descarte silencioso de <see cref="No_ingiere_nada_si_la_conexion_esta_deshabilitada"/>
+    /// bastaba. Con esa llamada real, la notificación descartada aquí puede
+    /// ser una de verdad — el comportamiento no cambia (sigue sin ingerir
+    /// nada ni reintentar), pero queda registrado con un log en vez de
+    /// desaparecer sin rastro.
+    /// </summary>
+    [Fact]
+    public async Task No_ingiere_nada_si_la_conexion_esta_en_error()
+    {
+        var conexion = ConexionHabilitada();
+        conexion.MarcarConError("fallo simulado de renovación");
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexion);
+        var conversacionRepositorio = new ConversacionRepositorioFalso();
+        var graphClient = new Microsoft365GraphClientFalso { MensajeIdsADevolver = ["graph-msg-1"] };
+        var servicio = CrearServicio(conexionRepositorio, conversacionRepositorio, graphClient);
+        var evento = new EventoWebhook(conexion.Id, "{\"value\":[{}]}");
+
+        await servicio.ProcesarAsync(evento, CancellationToken.None);
+
+        evento.Estado.Should().Be(EstadoEventoWebhook.Completado);
+        evento.ErrorProcesado.Should().BeNull("es un descarte de negocio, no un fallo transitorio que deba reintentarse");
+        conversacionRepositorio.Conversaciones.Should().BeEmpty();
+    }
+
     [Fact]
     public async Task Un_correo_de_una_plataforma_conocida_queda_marcado_como_notificacion_automatica()
     {
