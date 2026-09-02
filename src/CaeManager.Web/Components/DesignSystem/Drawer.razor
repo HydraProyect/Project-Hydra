@@ -13,7 +13,7 @@
         <div class="drawer-panel" @onmousedown="() => _mouseDownEnSuperposicion = false" @onmousedown:stopPropagation="true" @onclick:stopPropagation="true" role="dialog" aria-modal="true" aria-labelledby="@_tituloId" tabindex="-1" @ref="_referenciaContenedor" @onkeydown="ManejarTeclaAsync">
             <div class="drawer-header">
                 <h2 id="@_tituloId">@Titulo</h2>
-                <button type="button" class="drawer-cerrar" aria-label="Cerrar" @onclick="CerrarAsync">×</button>
+                <button type="button" class="drawer-cerrar" aria-label="Cerrar" @onclick="CerrarAsync"><Icono Nombre="cerrar" /></button>
             </div>
             <div class="drawer-cuerpo">
                 @ChildContent
