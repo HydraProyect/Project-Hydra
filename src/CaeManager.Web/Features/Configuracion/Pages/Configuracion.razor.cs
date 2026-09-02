@@ -37,16 +37,20 @@ public partial class Configuracion : ComponentBase
     /// Estructura y copy del array GROUPS del mockup. Las pantallas funcionales
     /// existentes se renderizan dentro del hub mediante su modo integrado; sus
     /// rutas históricas continúan disponibles como puntos de entrada directos.
-    /// 2FA conserva el estado no disponible porque no existe un contrato ni una
-    /// pantalla administrativa equivalente que se pueda reutilizar con seguridad.
+    /// La entrada "2fa" del mockup se retira (H-4, DEC-3 opción a): no hay
+    /// contrato de obligatoriedad ni pantalla administrativa que la respalde,
+    /// y dejarla apuntando a null solo rendería una promesa navegable sin
+    /// capacidad detrás ("Pantalla pendiente de especificación") en zona
+    /// sensible. Se repone cuando exista esa política — no antes. El enlace
+    /// del menú lateral a /cuenta/configurar-2fa es otra cosa (alta personal
+    /// del propio usuario) y no se ve afectado por esta retirada.
     /// </summary>
     private static readonly IReadOnlyList<GrupoConfiguracion> Grupos =
     [
         new("Acceso e identidad",
         [
             new("usuarios", "US", "Usuarios", "Cuentas y carteras asignadas", typeof(Features.Usuarios.Pages.Usuarios)),
-            new("roles", "RL", "Roles", "Permisos por perfil", typeof(Features.GestionRoles.Pages.Roles)),
-            new("2fa", "2F", "Verificación en dos pasos", "Obligatoriedad y métodos", null)
+            new("roles", "RL", "Roles", "Permisos por perfil", typeof(Features.GestionRoles.Pages.Roles))
         ]),
         // Delegaciones y Estado comercial NO viven aquí (ver NavMenu.razor,
         // grupo "Plataforma"): su autoridad real es de CAPACIDAD
@@ -61,7 +65,20 @@ public partial class Configuracion : ComponentBase
         [
             new("api", "AP", "Claves API", "Acceso programático", typeof(Features.ApiKeys.Pages.ClavesApi)),
             new("integraciones", "IN", "Conexiones de integración", "M365, portales, webhooks", typeof(Features.Integraciones.Pages.Conexiones)),
-            new("importar", "IM", "Importar datos", "Cuadro de Control CAE (Excel)", typeof(Features.Importacion.Pages.Importacion))
+            new("importar", "IM", "Importar datos", "Cuadro de Control CAE (Excel)", typeof(Features.Importacion.Pages.Importacion)),
+            // "plataforma" es deliberadamente distinta a sus vecinas: NO se
+            // embebe (EsPaginaIntegrable = false) porque Plataforma.razor
+            // lleva [Authorize] sin rol —su autoridad es la IDENTIDAD RAÍZ del
+            // despliegue, no el rol Administrador que gatea este hub entero
+            // (mismo motivo por el que Delegaciones y Estado comercial ya NO
+            // viven aquí, ver arriba). Embeberla habría colapsado platform
+            // privilege con el rol de negocio Administrador. TipoPanel queda
+            // null a propósito: la entrada es solo un atajo de descubrimiento
+            // (H-2/DEC-2) — la ruta literal "/configuracion/plataforma" (más
+            // específica que "/configuracion/{EntradaRuta?}") sigue resolviendo
+            // su propio gate cuando se navega directamente. No convertir esto
+            // en un panel embebido sin volver a resolver esa tensión primero.
+            new("plataforma", "PL", "Administración de plataforma", "Inicialización e identidad raíz", null, false)
         ]),
         new("Catálogos y datos",
         [

@@ -12,15 +12,19 @@ public class ConfiguracionTests : BunitContext
     [Fact]
     public void Subnavegacion_solo_apunta_a_rutas_internas_del_hub()
     {
+        // "plataforma" es la única entrada con TipoPanel null (enlace de salida
+        // puro): evita que bUnit intente montar un panel real (Usuarios, Roles...)
+        // que exigiría registrar sus dependencias de DI en este test.
         var cut = Render<Configuracion>(parametros => parametros
-            .Add(p => p.EntradaRuta, "2fa"));
+            .Add(p => p.EntradaRuta, "plataforma"));
 
         var enlaces = cut.FindAll(".entrada-subnav");
 
         // Delegaciones y Estado comercial ya no son panel del hub (ver
         // NavMenu.razor, grupo "Plataforma"): su autoridad es de capacidad
         // AdminPlataforma, no del rol Administrador que gatea este hub —
-        // 16 bajó a 14.
+        // 16 bajó a 14. H-4 retira "2fa" (sin política de obligatoriedad) y
+        // H-2/DEC-2 añade "plataforma" (enlace de salida puro): 14 se mantiene.
         enlaces.Should().HaveCount(14);
         enlaces.Select(enlace => enlace.GetAttribute("href"))
             .Should().OnlyContain(ruta => ruta != null && ruta.StartsWith("/configuracion/", StringComparison.Ordinal));
@@ -36,12 +40,14 @@ public class ConfiguracionTests : BunitContext
     [Fact]
     public void Deep_link_selecciona_la_entrada_y_mantiene_el_shell()
     {
+        // "plataforma" es hoy la única entrada con TipoPanel null (enlace de
+        // salida puro, ver Configuracion.razor.cs) — "2fa" se retiró en H-4.
         var cut = Render<Configuracion>(parametros => parametros
-            .Add(p => p.EntradaRuta, "2fa"));
+            .Add(p => p.EntradaRuta, "plataforma"));
 
         cut.Find("h1").TextContent.Should().Be("Configuración");
         cut.Find(".entrada-subnav[aria-current='page'] .nombre-entrada-subnav")
-            .TextContent.Should().Be("Verificación en dos pasos");
+            .TextContent.Should().Be("Administración de plataforma");
         cut.Find(".placeholder-configuracion").TextContent
             .Should().Contain("Pantalla pendiente de especificación");
     }

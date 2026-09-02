@@ -2,8 +2,10 @@
   Estilos compartidos por las páginas de importación masiva (el asistente
   Analizar → revisar plan → confirmar → reporte). Ver CODING_STANDARDS.md:
   una vez un patrón se repite en un segundo módulo, se extrae en vez de
-  duplicarse por página. Usado por /importacion (Fase 5) y
-  /clientes/importar.
+  duplicarse por página. Usado por /importacion (Fase 5) y por
+  /clientes/alta-guiada (AltaGuiada.razor). Las plantillas de Clientes,
+  Combinada y Documentos redirigen a /importacion desde 2026-09-02 (H-1) y
+  ya no renderizan estas clases.
 */
 
 .descripcion-importacion {

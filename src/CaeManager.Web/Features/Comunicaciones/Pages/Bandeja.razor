@@ -26,14 +26,16 @@
             <span class="bandeja-toolbar-icono" aria-hidden="true"><Icono Nombre="chat" /></span>
             Comunicaciones
         </h1>
+        @* "Buzón completo" (explorador técnico de carpetas M365, /comunicaciones/buzon)
+           y "Macros" (CRUD de plantillas, /comunicaciones/macros) se retiran de esta
+           barra de trabajo diaria (H-5): el modelo aprobado es conversation-first, no
+           M365-folder-first. El Buzón sigue existiendo como diagnóstico técnico — su
+           punto de entrada pasa a Integraciones (propiedad de esa sesión, no de esta
+           página). La administración de macros vive en Configuración (el hub ya la
+           registra como entrada "macros" → /configuracion/macros); usarlas al redactar
+           sigue siendo contextual, ver el enlace "Administrar macros" en ComposerBar. *@
         <div class="bandeja-toolbar-acciones">
             <Boton Tamano="TamanoBoton.Pequeno" OnClick="AbrirRedactarAsync">Redactar</Boton>
-            <a class="bandeja-toolbar-enlace" href="/comunicaciones/buzon">
-                <Icono Nombre="documentos" Tamano="TamanoIcono.Pequeno" /> Buzón completo
-            </a>
-            <a class="bandeja-toolbar-enlace" href="/comunicaciones/macros">
-                <Icono Nombre="editar" Tamano="TamanoIcono.Pequeno" /> Macros
-            </a>
         </div>
     </div>
 

@@ -1,14 +1,19 @@
+using System.Text.RegularExpressions;
 using ClosedXML.Excel;
 using Microsoft.Playwright;
 
 namespace CaeManager.E2ETests;
 
 /// <summary>
-/// Cubre /clientes/importar-combinado (ImportarCombinado.razor) — sin
-/// ningún E2E hasta ahora. A diferencia de la plantilla simple de Clientes
-/// (ver ImportarClientesTests), esta sí recoge CIF y Empresa, así que es la
-/// única de las plantillas de un solo Excel que puede dar de alta Cliente y
-/// Centro nuevos de verdad (ver ClosedXmlPlantillaCombinadaService y
+/// Cubre la plantilla Combinada del asistente unificado (/importacion,
+/// Importacion.razor — Plantillas["combinada"]), alcanzada desde
+/// /clientes/importar-combinado, que desde H-1 (2026-09-02) redirige ahí en
+/// vez de renderizar su propia página (ImportarCombinado.razor pasó a ser un
+/// stub de redirección — el hub absorbe las migraciones tabulares, 0 enlaces
+/// entrantes propios). A diferencia de la plantilla simple de Clientes (ver
+/// ImportarClientesTests), esta sí recoge CIF y Empresa, así que es la única
+/// de las plantillas de un solo Excel que puede dar de alta Cliente y Centro
+/// nuevos de verdad (ver ClosedXmlPlantillaCombinadaService y
 /// EjecutarImportacionCombinadaCommandHandler) — un único libro de 4 hojas
 /// (Clientes, Empresas, Centros, Trabajadores) encadena las cuatro altas.
 ///
@@ -17,9 +22,9 @@ namespace CaeManager.E2ETests;
 /// control corrupto vía Ayudas.InvalidarCif) — es el caso "malformed CIF"
 /// que este bloque de tests debe demostrar que la app detecta y omite en
 /// vez de importar en silencio: la fila con CIF roto nunca llega a
-/// PlanImportacionCombinadaDto.Clientes, así que ni siquiera cuenta como
-/// "nueva" en el paso 2 — aparece solo en Omitidos, con el motivo exacto, y
-/// se confirma que jamás se creó el Cliente.
+/// PlanImportacionCombinadaDto.Clientes, así que ya aparece en Omitidos
+/// desde el paso 2 (a diferencia de ImportarClientesTests, donde la omisión
+/// solo se descubre al confirmar) y se confirma que jamás se creó el Cliente.
 /// </summary>
 [Collection("AppCollection")]
 public class ImportarCombinadoTests(WebAppFixture fixture)
@@ -83,31 +88,41 @@ public class ImportarCombinadoTests(WebAppFixture fixture)
         try
         {
             await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
+            // /clientes/importar-combinado redirige aquí con la plantilla ya preseleccionada (H-1).
             await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes/importar-combinado");
+            await Expect(page).ToHaveURLAsync(new Regex(@"/importacion\?plantilla=combinada$"));
 
+            await page.GetByText("Continuar con Combinada: Cliente + Empresas + Centros + Trabajadores").ClickAsync();
             await page.Locator("input[type=\"file\"]").SetInputFilesAsync(rutaExcel);
 
-            // --- Paso 2: el plan cuenta las 4 altas nuevas y aísla la fila inválida ---
-            await page.GetByText("2. Revisa el plan de importación").WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Clientes nuevos"));
-            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Empresas nuevas"));
-            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Centros nuevos"));
-            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Trabajadores nuevos"));
+            // --- Paso 2 "Revisar plan": las 4 altas nuevas y la fila inválida ya aislada ---
+            var botonVerPlan = page.GetByText("Ver plan de importación");
+            await Expect(botonVerPlan).ToBeEnabledAsync(new LocatorAssertionsToBeEnabledOptions { Timeout = 15_000 });
+            await botonVerPlan.ClickAsync();
 
-            var filaOmitida = page.Locator(".tabla-datos tbody tr", new PageLocatorOptions { HasText = razonSocialClienteInvalido });
-            await filaOmitida.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
-            await Expect(filaOmitida).ToContainTextAsync("no es válido");
+            // GetByText("Revisar plan") a secas es ambigua: el nombre del paso
+            // 3 aparece tanto en el botón del stepper del wizard como en el <h2>
+            // de esta sección — el rol Heading es inequívoco.
+            await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "Revisar plan" })
+                .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+            await Expect(page.GetByText("4 se crearán")).ToBeVisibleAsync();
+            await Expect(page.GetByText("1 se omitirán")).ToBeVisibleAsync();
 
-            await page.GetByText("Confirmar importación").ClickAsync();
+            var filaOmitidaEnPlan = page.Locator(".tabla-plan-importacion-envoltorio .tabla-datos tbody tr", new PageLocatorOptions { HasText = razonSocialClienteInvalido });
+            await filaOmitidaEnPlan.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
+            await Expect(filaOmitidaEnPlan).ToContainTextAsync("no es válido");
+
+            await page.GetByText("Continuar a confirmar").ClickAsync();
+            await page.GetByText("He revisado el plan y quiero escribir estos datos").ClickAsync();
+            await page.GetByText("Importar ahora").ClickAsync();
 
             // --- Resultado: las 4 altas reales, la fila inválida sigue fuera ---
-            // GetByText a secas ambigua con el toast "Importación completada." (con punto).
-            await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "Importación completada" })
+            await page.Locator(".titulo-reporte-importacion")
                 .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Clientes creados"));
-            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Empresas creadas"));
-            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Centros creados"));
-            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Trabajadores creados"));
+            Assert.Equal("4", await Ayudas.LeerMetricaAsync(page, "Creados"));
+            Assert.Equal("0", await Ayudas.LeerMetricaAsync(page, "Actualizados"));
+            Assert.Equal("0", await Ayudas.LeerMetricaAsync(page, "Avisos"));
+            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Omitidos"));
 
             // --- Verificación real: las 4 entidades existen, la inválida no ---
             // F3b (2026-08-26): el Cliente importado (y el CIF inválido que
@@ -149,4 +164,5 @@ public class ImportarCombinadoTests(WebAppFixture fixture)
     }
 
     private static ILocatorAssertions Expect(ILocator locator) => Assertions.Expect(locator);
+    private static IPageAssertions Expect(IPage page) => Assertions.Expect(page);
 }
