@@ -16,7 +16,7 @@
         <span class="dashboard-kicker">Reclamación</span>
         <h1 class="titulo-pagina">Alertas</h1>
         <p class="descripcion-alertas">
-            Toda la documentación pendiente de reclamar a tus trabajadores — incluida la que
+            La documentación de tus trabajadores que hay que reclamar o subir — incluida la que
             todavía no es urgente — para que puedas anticiparte antes del vencimiento en vez de
             esperar a que se vuelva crítica.
         </p>
@@ -47,15 +47,18 @@
        (DEC-4 + DEC-7, PLAN-SESIONES-NOCTURNAS-2026-09-02.md — contrato en
        PR #408: FiltroLoteDocumental, SelectorLoteDocumental,
        ObtenerLoteReclamacionPorFiltroQuery). En cuanto esa PR esté en main,
-       aquí entra <SelectorLoteDocumental AmbitosDisponibles="[AmbitoAplicacion.Trabajador]" .../>
+       aquí entra <SelectorLoteDocumental AmbitosDisponibles="Alertas.AmbitosSoportados" .../>
        seguido del resultado agrupado por titular con acción de envío — mismo
-       patrón que ReclamacionesTab.razor. Ámbito Empresa queda fuera hasta
-       que exista camino de envío para ese ámbito (hoy EnviarReclamacionCommand
-       y ObtenerLoteReclamacionQuery solo cubren Trabajador). No se construye
-       un selector paralelo mientras esa pieza no aterrice. *@
+       patrón que ReclamacionesTab.razor. Pasar la constante (no un literal
+       repetido) para que AlertasTests.cs siga siendo la única fuente de
+       verdad de qué ámbitos se ofrecen aquí. Ámbito Empresa queda fuera
+       hasta que exista camino de envío para ese ámbito (hoy
+       EnviarReclamacionCommand y ObtenerLoteReclamacionQuery solo cubren
+       Trabajador). No se construye un selector paralelo mientras esa pieza
+       no aterrice. *@
     <SeccionColapsable Titulo="Reclamar por tipo de documento y ámbito" ExpandidaPorDefecto="false">
         <EstadoVacio Titulo="Próximamente"
-                     Descripcion="Selecciona un tipo de documento y decide si reclamas a uno o varios trabajadores para enviar un lote agregado desde aquí. Mientras tanto, reclama desde la ficha de cada trabajador o desde Documentos." />
+                     Descripcion="Aquí podrás elegir un tipo de documento y reclamar a uno o varios trabajadores en un solo lote. Mientras tanto, reclama desde la ficha de cada trabajador o desde Documentos." />
     </SeccionColapsable>
 
     <div class="barra-filtros">
