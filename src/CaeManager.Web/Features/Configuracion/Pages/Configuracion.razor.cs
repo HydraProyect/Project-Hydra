@@ -10,6 +10,8 @@ public partial class Configuracion : ComponentBase
     [SupplyParameterFromQuery(Name = "entry")]
     private string? EntradaActual { get; set; }
 
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
+
     private string EntradaEfectiva
     {
         get
@@ -17,6 +19,24 @@ public partial class Configuracion : ComponentBase
             var candidata = EntradaRuta ?? EntradaActual ?? "params";
             return Buscar(candidata) is null ? "params" : candidata;
         }
+    }
+
+    /// <summary>
+    /// Un enlace de salida puro (TipoPanel null, EsPaginaIntegrable false —
+    /// hoy solo "plataforma") solo llega a este hub por "/configuracion?entry=…"
+    /// o por deep-link forzado; el clic normal en la subnav ya va directo a su
+    /// ruta literal (más específica que "/configuracion/{EntradaRuta?}") y
+    /// nunca instancia este componente. Sin este redirect, el hub mostraría
+    /// "Pantalla pendiente de especificación" sobre una pantalla que sí
+    /// existe — un mensaje falso, y el mismo defecto que motivó retirar "2fa"
+    /// (A-08), pero invertido: aquí la pantalla existe y el hub miente al
+    /// decir que no. Corregido tras revisión de la coordinadora del turno.
+    /// </summary>
+    protected override void OnParametersSet()
+    {
+        var actual = Buscar(EntradaEfectiva);
+        if (actual is { TipoPanel: null, EsPaginaIntegrable: false })
+            Navigation.NavigateTo(RutaDe(actual.Id));
     }
 
     private string TituloDocumento => Buscar(EntradaEfectiva) is { } entrada

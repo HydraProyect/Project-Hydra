@@ -4,6 +4,7 @@ using CaeManager.Web.Features.Configuracion.Pages;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Rendering;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Web.Tests;
 
@@ -38,18 +39,22 @@ public class ConfiguracionTests : BunitContext
     }
 
     [Fact]
-    public void Deep_link_selecciona_la_entrada_y_mantiene_el_shell()
+    public void Deep_link_a_un_enlace_de_salida_puro_redirige_a_su_ruta_literal()
     {
-        // "plataforma" es hoy la única entrada con TipoPanel null (enlace de
-        // salida puro, ver Configuracion.razor.cs) — "2fa" se retiró en H-4.
-        var cut = Render<Configuracion>(parametros => parametros
+        // "plataforma" es un enlace de salida puro (TipoPanel null,
+        // EsPaginaIntegrable false — ver Configuracion.razor.cs). Si el hub
+        // se lo queda y muestra el placeholder "Pantalla pendiente de
+        // especificación", miente: /configuracion/plataforma sí existe. Este
+        // caso solo se alcanza vía "?entry=plataforma" o un EntradaRuta
+        // forzado (el clic normal de la subnav ya usa la ruta literal, que
+        // gana en el router y ni siquiera instancia este componente) —
+        // hallazgo de la coordinadora del turno tras revisar la primera
+        // versión de esta PR, que sí dejaba pasar el mensaje falso.
+        Render<Configuracion>(parametros => parametros
             .Add(p => p.EntradaRuta, "plataforma"));
 
-        cut.Find("h1").TextContent.Should().Be("Configuración");
-        cut.Find(".entrada-subnav[aria-current='page'] .nombre-entrada-subnav")
-            .TextContent.Should().Be("Administración de plataforma");
-        cut.Find(".placeholder-configuracion").TextContent
-            .Should().Contain("Pantalla pendiente de especificación");
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        navegacion.Uri.Should().EndWith("/configuracion/plataforma");
     }
 
     [Fact]
