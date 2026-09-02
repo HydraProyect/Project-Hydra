@@ -1,6 +1,7 @@
-using CaeManager.Application.Common;
+﻿using CaeManager.Application.Common;
 using CaeManager.Domain.Plantillas;
 using PdfSharp.Drawing;
+using PdfSharp.Pdf;
 using PdfSharp.Pdf.AcroForms;
 using PdfSharp.Pdf.IO;
 
@@ -24,6 +25,11 @@ namespace CaeManager.Infrastructure.Plantillas;
 public class RellenadorPlantillaPdfService : IRellenadorPlantillaPdfService
 {
     private const string NombreFuente = "DejaVu Sans";
+    private const string ClaveNecesitaApariencias = "/NeedAppearances";
+    private const string ClaveEstadoApariencia = "/AS";
+    private const string ClaveValor = "/V";
+    private const string EstadoApagado = "/Off";
+    private const string ClaveOpciones = "/Opt";
 
     public byte[] Rellenar(byte[] pdfOriginal, FormatoOrigenPlantilla formato, IReadOnlyList<ElementoRellenoPlantilla> elementos) =>
         formato switch
@@ -63,10 +69,7 @@ public class RellenadorPlantillaPdfService : IRellenadorPlantillaPdfService
                 continue;
             }
 
-            if (campo is PdfTextField campoTexto)
-                campoTexto.Text = elemento.Valor ?? string.Empty;
-            else
-                campo.Value = new PdfSharp.Pdf.PdfString(elemento.Valor ?? string.Empty);
+            EscribirValor(campo, elemento.Valor);
         }
 
         // La confirmación de la plantilla ya cotejó estos nombres contra el
@@ -77,10 +80,122 @@ public class RellenadorPlantillaPdfService : IRellenadorPlantillaPdfService
         if (camposFaltantes.Count > 0)
             throw new CamposAcroFormFaltantesException(camposFaltantes);
 
+        // Red de seguridad, no el mecanismo principal (M4 § 3.2): /NeedAppearances
+        // pide al visor que regenere las apariencias, pero hay visores que lo
+        // ignoran — por eso EscribirValor ya deja /V y /AS coherentes por su cuenta.
+        acroForm.Elements[ClaveNecesitaApariencias] = new PdfBoolean(true);
+
         using var salida = new MemoryStream();
         documento.Save(salida);
         return salida.ToArray();
     }
+
+    /// <summary>
+    /// Auditoría de seguridad del módulo, M4 § 3.2 (2026-08-31): antes, cualquier
+    /// campo no textual recibía un <c>PdfString</c> genérico. Eso deja el valor
+    /// escrito pero <c>/AS</c> intacto, así que un visor que no regenera
+    /// apariencias dibuja la casilla sin marcar aunque el dato ya esté puesto.
+    ///
+    /// <c>PdfCheckBoxField.Checked</c> sí escribe <c>/V</c> y <c>/AS</c> con el
+    /// nombre de estado real del PDF (el de <c>/AP /N</c>, p. ej. <c>/Yes</c>),
+    /// que no tiene por qué ser el texto del valor resuelto.
+    ///
+    /// <c>PdfRadioButtonField.SelectedIndex</c> NO sirve: medido sobre PdfSharp
+    /// 6.2.4, escribe <c>/V</c> como un nombre cuyo texto es la referencia
+    /// indirecta del hijo (<c>/6 0 R</c>) y no toca el <c>/AS</c> de ninguno —
+    /// el grupo queda sin marcar en cualquier visor. Por eso el grupo se
+    /// resuelve aquí contra los estados declarados en <c>/AP /N</c>.
+    /// </summary>
+    private static void EscribirValor(PdfAcroField campo, string? valor)
+    {
+        switch (campo)
+        {
+            case PdfTextField campoTexto:
+                campoTexto.Text = valor ?? string.Empty;
+                break;
+
+            case PdfCheckBoxField casilla:
+                casilla.Checked = EsValorAfirmativo(valor);
+                break;
+
+            case PdfRadioButtonField grupo:
+                SeleccionarOpcion(grupo, valor);
+                break;
+
+            default:
+                campo.Value = new PdfString(valor ?? string.Empty);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Marca un solo hijo y apaga el resto, escribiendo <c>/AS</c> por widget y
+    /// <c>/V</c> en el campo padre. Qué hijo se marca sale de <c>/Opt</c> si el
+    /// grupo lo trae (ver <see cref="IndiceEnOpciones"/>), y si no del propio
+    /// nombre de estado de <c>/AP /N</c>.
+    ///
+    /// Un valor que no nombra ninguna opción del grupo lo deja sin marcar —
+    /// igual que un valor vacío: aquí no se puede distinguir "no contestado" de
+    /// "contestado con una opción que este PDF no tiene", y DEC-5 solo decide
+    /// sobre el obligatorio vacío, que se comprueba en Application.
+    /// </summary>
+    private static void SeleccionarOpcion(PdfRadioButtonField grupo, string? valor)
+    {
+        List<PdfDictionary> widgets = grupo.HasKids && grupo.Fields.Count > 0
+            ? [.. Enumerable.Range(0, grupo.Fields.Count).Select(i => (PdfDictionary)grupo.Fields[i])]
+            : [grupo];
+
+        var indicePorOpciones = IndiceEnOpciones(grupo, valor);
+
+        var estadoElegido = EstadoApagado;
+        for (var i = 0; i < widgets.Count; i++)
+        {
+            var encendidos = EstadosDeApariencia(widgets[i])
+                .Where(e => !string.Equals(e, EstadoApagado, StringComparison.Ordinal))
+                .ToList();
+
+            // Con /Opt manda la posición: el nombre de estado del hijo elegido
+            // puede ser un índice (/0, /1…) que no se parece al valor. Sin
+            // /Opt, el propio nombre de estado ES el valor exportado.
+            var estado = indicePorOpciones is { } indice
+                ? (i == indice ? encendidos.FirstOrDefault() : null)
+                : encendidos.FirstOrDefault(e => string.Equals(e[1..], valor, StringComparison.Ordinal));
+
+            if (estado is not null) estadoElegido = estado;
+            widgets[i].Elements[ClaveEstadoApariencia] = new PdfName(estado ?? EstadoApagado);
+        }
+
+        grupo.Elements[ClaveValor] = new PdfName(estadoElegido);
+    }
+
+    /// <summary>
+    /// Posición del valor en <c>/Opt</c> (PDF 32000-1, tabla 231): el array de
+    /// valores exportados de un grupo de radio, en el orden de <c>/Kids</c>.
+    /// Existe justo para los PDF cuyos nombres de estado de <c>/AP /N</c> son
+    /// índices (<c>/0</c>, <c>/1</c>…) o se repiten entre hijos; sin leerlo,
+    /// ninguno de esos grupos casaría nunca y todos quedarían en <c>/Off</c>.
+    ///
+    /// Solo entradas directas: un <c>/Opt</c> con referencias indirectas a
+    /// cadenas no se resuelve aquí, y ese grupo cae al cotejo por nombre de
+    /// estado como si no tuviera <c>/Opt</c>.
+    /// </summary>
+    private static int? IndiceEnOpciones(PdfDictionary grupo, string? valor)
+    {
+        if (string.IsNullOrEmpty(valor)) return null;
+
+        var opciones = grupo.Elements.GetArray(ClaveOpciones);
+        if (opciones is null) return null;
+
+        for (var i = 0; i < opciones.Elements.Count; i++)
+            if (opciones.Elements[i] is PdfString texto && string.Equals(texto.Value, valor, StringComparison.Ordinal))
+                return i;
+
+        return null;
+    }
+
+    /// <summary>Nombres de estado (<c>/Off</c>, <c>/Yes</c>, <c>/Op1</c>…) que el widget declara en <c>/AP /N</c>.</summary>
+    private static IEnumerable<string> EstadosDeApariencia(PdfDictionary widget) =>
+        widget.Elements.GetDictionary("/AP")?.Elements.GetDictionary("/N")?.Elements.Keys ?? [];
 
     private static Dictionary<string, PdfAcroField> IndexarCampos(PdfAcroField.PdfAcroFieldCollection campos)
     {
@@ -147,8 +262,19 @@ public class RellenadorPlantillaPdfService : IRellenadorPlantillaPdfService
         }
     }
 
-    private static bool EsValorAfirmativo(string? valor) =>
-        !string.IsNullOrWhiteSpace(valor)
-        && !valor.Equals("false", StringComparison.OrdinalIgnoreCase)
-        && !valor.Equals("no", StringComparison.OrdinalIgnoreCase);
+    /// <summary>
+    /// Única definición de "marcado" de los dos motores de relleno. El
+    /// <c>Trim()</c> no es cosmético: sin él, " false " no casaba con "false"
+    /// y un negativo rodeado de espacios marcaba la casilla. Concuerda con la
+    /// definición de "vacío" de Application (que también ignora los espacios),
+    /// para que un mismo valor no signifique cosas distintas según la capa.
+    /// </summary>
+    private static bool EsValorAfirmativo(string? valor)
+    {
+        if (string.IsNullOrWhiteSpace(valor)) return false;
+
+        var normalizado = valor.Trim();
+        return !normalizado.Equals("false", StringComparison.OrdinalIgnoreCase)
+            && !normalizado.Equals("no", StringComparison.OrdinalIgnoreCase);
+    }
 }

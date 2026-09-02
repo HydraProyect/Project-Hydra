@@ -1,4 +1,4 @@
-using CaeManager.Application.Plantillas.Commands.GenerarDocumentoIndividual;
+﻿using CaeManager.Application.Plantillas.Commands.GenerarDocumentoIndividual;
 using CaeManager.Application.Plantillas.Commands.ProcesarItemLoteGeneracion;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -113,7 +113,7 @@ public class ProcesarItemLoteGeneracionConcurrenciaTests : IAsyncLifetime
             new MediatorFalso
             {
                 Respuesta = exito
-                    ? Result.Exito(new GenerarDocumentoIndividualResultadoDto(Guid.NewGuid(), Guid.NewGuid()))
+                    ? Result.Exito(new GenerarDocumentoIndividualResultadoDto(Guid.NewGuid(), Guid.NewGuid(), []))
                     : Result.Fallo<GenerarDocumentoIndividualResultadoDto>(Error.Crear("x", "x")),
             },
             contexto);

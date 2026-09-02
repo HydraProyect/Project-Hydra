@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Contactos;
@@ -182,14 +182,34 @@ public class GenerarDocumentoIndividualCommandHandler(
         var datosUtilizadosJson = JsonSerializer.Serialize(
             valoresPorElemento.ToDictionary(par => par.Key.EtiquetaVisible, par => par.Value));
 
+        // DEC-5 (propietario, 2026-09-02): "generar con aviso visible; bloquear
+        // rompe lotes enteros por un campo". Se recorre version.Elementos y no
+        // el diccionario para que el aviso salga en el orden de la plantilla
+        // ante los mismos datos, en vez de en el que decida un Dictionary.
+        //
+        // Las firmas quedan fuera A PROPÓSITO, no por descuido: la firma no es
+        // un valor que esta generación resuelva — se estampa después, con
+        // IEstampadoFirmaEnCampoPdfService (ADR-010 § 2.7). Un elemento Firma
+        // marcado Obligatorio está SIEMPRE sin firmar en este punto, así que
+        // incluirlo aquí daría un aviso en CADA documento generado y
+        // convertiría "falta un dato" en "falta una firma", que es otra cosa.
+        var camposObligatoriosVacios = version.Elementos
+            .Where(e => e.Tipo != TipoElementoPlantilla.Firma
+                && e.Obligatorio
+                && EsValorVacio(valoresPorElemento[e]))
+            .Select(e => e.EtiquetaVisible)
+            .ToList();
+
         var documentoGenerado = new DocumentoGenerado(
             version.Id, documento.Id, datosUtilizadosJson, idUsuario, ahoraUtc,
-            trabajadorId: trabajadorId, empresaId: empresaId, centroId: request.CentroId);
+            trabajadorId: trabajadorId, empresaId: empresaId, centroId: request.CentroId,
+            conAvisos: camposObligatoriosVacios.Count > 0);
         documentoGeneradoRepositorio.Agregar(documentoGenerado);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return Result.Exito(new GenerarDocumentoIndividualResultadoDto(documentoGenerado.Id, documento.Id));
+        return Result.Exito(new GenerarDocumentoIndividualResultadoDto(
+            documentoGenerado.Id, documento.Id, camposObligatoriosVacios));
     }
 
     /// <summary>Si varios contactos comparten el mismo rol, se queda con el primero — comportamiento razonable para MVP, sin criterio de desempate.</summary>
@@ -238,6 +258,14 @@ public class GenerarDocumentoIndividualCommandHandler(
             FuenteDatoPlantilla.EmpresaContactoCae => contactosPorRol.GetValueOrDefault(RolContacto.ContactoCae),
             _ => null
         };
+
+    /// <summary>
+    /// La única definición de "vacío" de este camino (DEC-5): null, cadena vacía
+    /// y solo espacios. Vale igual para un Checkbox — "no marcado" se resuelve
+    /// como "false"/"no", que SÍ es un dato: quien contestó que no, contestó.
+    /// Lo que falta es el elemento que nadie resolvió.
+    /// </summary>
+    private static bool EsValorVacio(string? valor) => string.IsNullOrWhiteSpace(valor);
 
     private static Result<GenerarDocumentoIndividualResultadoDto> Fallo(string codigo, string mensaje) =>
         Result.Fallo<GenerarDocumentoIndividualResultadoDto>(Error.Crear(codigo, mensaje));

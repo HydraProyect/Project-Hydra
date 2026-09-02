@@ -1,4 +1,4 @@
-@*
+﻿@*
     Contenido de "Documentos generados" — extraído de la antigua página
     dedicada (Plantillas TALVEG.dc.html pide una pestaña "Generados" dentro
     de la propia pantalla de Plantillas, no una página aparte). La página
@@ -79,6 +79,11 @@ else
                         @if (generado.Estado == EstadoDocumentoGenerado.Generado)
                         {
                             <Badge Tono="TonoBadge.Exito">Generado</Badge>
+                        }
+                        else if (generado.Estado == EstadoDocumentoGenerado.GeneradoConAvisos)
+                        {
+                            @* DEC-5 (2026-09-02): el documento existe; algún obligatorio de la plantilla quedó vacío. *@
+                            <Badge Tono="TonoBadge.Advertencia" title="Se generó con campos obligatorios sin dato">Generado con avisos</Badge>
                         }
                         else
                         {

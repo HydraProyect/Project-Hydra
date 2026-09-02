@@ -1,4 +1,4 @@
-using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
+﻿using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
@@ -106,6 +106,9 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
     private bool _generando;
     private Guid? _documentoGeneradoId;
 
+    /// <summary>DEC-5 (2026-09-02): los obligatorios que resolvieron vacíos en la última generación individual. El toast se va solo; esto se queda junto al enlace al PDF.</summary>
+    private IReadOnlyList<string> _camposObligatoriosVacios = [];
+
     // Generación en lote (PR8) — solo AmbitoAplicacion.Trabajador (ADR-010 § 3).
     private sealed class ItemLoteEstado
     {
@@ -121,7 +124,11 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
     private List<ItemLoteEstado> _itemsLote = [];
     private bool _procesandoLote;
     private int TotalCompletadosLote => _itemsLote.Count(i => i.Estado == EstadoItemGeneracion.Completado);
+    private int TotalConAvisosLote => _itemsLote.Count(i => i.Estado == EstadoItemGeneracion.CompletadoConAvisos);
     private int TotalFallidosLote => _itemsLote.Count(i => i.Estado == EstadoItemGeneracion.Fallido);
+
+    /// <summary>Cuenta los tres estados terminales: contar solo completados y fallidos dejaba el progreso corto en cuanto un ítem salía con avisos.</summary>
+    private int TotalProcesadosLote => _itemsLote.Count(i => i.Estado != EstadoItemGeneracion.Pendiente);
 
     private ElementoEditor? ElementoSeleccionado =>
         _idLocalSeleccionado is { } id ? _elementos.FirstOrDefault(e => e.IdLocal == id) : null;
@@ -307,6 +314,7 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
 
         _generando = true;
         _documentoGeneradoId = null;
+        _camposObligatoriosVacios = [];
         StateHasChanged();
 
         try
@@ -325,7 +333,16 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
             }
 
             _documentoGeneradoId = resultado.Valor.DocumentoId;
-            Toasts.Mostrar("Documento generado.", TonoToast.Exito);
+            _camposObligatoriosVacios = resultado.Valor.CamposObligatoriosVacios;
+
+            // DEC-5 (propietario, 2026-09-02): se genera igual, pero con aviso
+            // visible — bloquear rompería lotes enteros por un campo.
+            if (_camposObligatoriosVacios.Count > 0)
+                Toasts.Mostrar(
+                    $"Documento generado, pero sin dato en: {string.Join(", ", _camposObligatoriosVacios)}.",
+                    TonoToast.Advertencia);
+            else
+                Toasts.Mostrar("Documento generado.", TonoToast.Exito);
         }
         finally
         {
@@ -404,8 +421,9 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
                 StateHasChanged();
             }
 
-            Toasts.Mostrar($"Lote terminado: {TotalCompletadosLote} generado(s), {TotalFallidosLote} con error.",
-                TotalFallidosLote == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+            Toasts.Mostrar(
+                $"Lote terminado: {TotalCompletadosLote} generado(s), {TotalConAvisosLote} con avisos, {TotalFallidosLote} con error.",
+                TotalFallidosLote == 0 && TotalConAvisosLote == 0 ? TonoToast.Exito : TonoToast.Advertencia);
         }
         finally
         {
