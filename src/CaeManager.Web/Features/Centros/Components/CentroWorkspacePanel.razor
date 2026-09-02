@@ -155,7 +155,7 @@ else
                                 }
                                 else if (causa.Estado is { } estadoDocumento)
                                 {
-                                    <Badge Tono="EstadoDocumentoUi.Tono(estadoDocumento)">@EstadoDocumentoUi.Texto(estadoDocumento)</Badge>
+                                    <Badge Tono="EstadoDocumentoUi.Tono(estadoDocumento)" ConIcono>@EstadoDocumentoUi.Texto(estadoDocumento)</Badge>
                                 }
                             </li>
                         }
@@ -629,7 +629,7 @@ else
                                 <td>@documento.TrabajadorNombre</td>
                                 <td>@documento.TipoDocumentoNombre</td>
                                 <td>@documento.FechaVencimiento.ToString("dd/MM/yyyy")</td>
-                                <td><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)">@EstadoDocumentoUi.Texto(documento.Estado)</Badge></td>
+                                <td><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" ConIcono>@EstadoDocumentoUi.Texto(documento.Estado)</Badge></td>
                             </tr>
                         }
                     </tbody>

@@ -58,7 +58,11 @@ public class IndicadorPasosTests : BunitContext
         var items = cut.FindAll(".indicador-pasos-item");
 
         items[0].ClassList.Should().Contain("indicador-pasos-completado");
-        items[0].QuerySelector(".indicador-pasos-circulo")!.TextContent.Should().Be("✓");
+        // El paso completado pinta el icono "check" del catálogo, no el glifo "✓":
+        // se comprueba el svg, porque el texto del círculo ya está vacío.
+        var circuloCompletado = items[0].QuerySelector(".indicador-pasos-circulo")!;
+        circuloCompletado.QuerySelector("svg.icono").Should().NotBeNull();
+        circuloCompletado.TextContent.Trim().Should().BeEmpty();
         // El paso 3 (índice 2), ni completado ni activo, sigue mostrando su número.
         items[2].QuerySelector(".indicador-pasos-circulo")!.TextContent.Should().Be("3");
     }

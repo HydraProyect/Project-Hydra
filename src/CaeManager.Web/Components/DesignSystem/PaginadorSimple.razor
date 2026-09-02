@@ -11,7 +11,7 @@
 <div class="paginador paginador-simple">
     <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
            Deshabilitado="@(PaginaActual <= 1)" OnClick="() => CambiarPaginaAsync(PaginaActual - 1)">
-        ← Anterior
+        <Icono Nombre="volver" Tamano="TamanoIcono.Pequeno" /> Anterior
     </Boton>
     <span class="paginador-texto">Página @PaginaActual de @Math.Max(TotalPaginas, 1) — @TotalElementos @Etiqueta</span>
     @if (TamanoPaginaChanged.HasDelegate)
@@ -28,7 +28,7 @@
     }
     <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
            Deshabilitado="@(PaginaActual >= TotalPaginas)" OnClick="() => CambiarPaginaAsync(PaginaActual + 1)">
-        Siguiente →
+        Siguiente <Icono Nombre="siguiente" Tamano="TamanoIcono.Pequeno" />
     </Boton>
 </div>
 

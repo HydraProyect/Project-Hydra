@@ -63,8 +63,8 @@
                     <Boton OnClick="GenerarVistaPreviaAsync" Cargando="_generando">Generar vista previa</Boton>
 
                     <div class="acciones-exportar-informe">
-                        <a class="@("boton-exportar-informe " + (!TienePlan ? "boton-exportar-informe-deshabilitado" : ""))" href="@EnlaceExportar("pdf")">Descargar PDF</a>
-                        <a class="@("boton-exportar-informe " + (!TienePlan ? "boton-exportar-informe-deshabilitado" : ""))" href="@EnlaceExportar("xlsx")">Descargar Excel</a>
+                        <a class="@("boton-exportar-informe " + (!TienePlan ? "boton-exportar-informe-deshabilitado" : ""))" href="@EnlaceExportar("pdf")"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Descargar PDF</a>
+                        <a class="@("boton-exportar-informe " + (!TienePlan ? "boton-exportar-informe-deshabilitado" : ""))" href="@EnlaceExportar("xlsx")"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Descargar Excel</a>
                     </div>
 
                     <button type="button" class="enlace-secundario-informe" disabled="@(!TienePlan)" @onclick="AbrirEnviarPorComunicaciones">

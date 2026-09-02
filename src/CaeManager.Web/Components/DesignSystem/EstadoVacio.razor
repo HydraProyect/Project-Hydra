@@ -1,8 +1,14 @@
 <div class="estado-vacio">
-    @if (Icono is not null)
-    {
-        <div class="estado-vacio-icono" aria-hidden="true">@Icono</div>
-    }
+    <div class="estado-vacio-icono" aria-hidden="true">
+        @if (Icono is not null)
+        {
+            @Icono
+        }
+        else
+        {
+            <Icono Nombre="@(NombreIcono ?? "vacio")" Tamano="TamanoIcono.Grande" />
+        }
+    </div>
     <h3>@Titulo</h3>
     @if (!string.IsNullOrWhiteSpace(Descripcion))
     {
@@ -18,5 +24,18 @@
     [Parameter] public string Titulo { get; set; } = string.Empty;
     [Parameter] public string? Descripcion { get; set; }
     [Parameter] public RenderFragment? Accion { get; set; }
+    /// <summary>
+    /// Contenido libre para el hueco del icono. Sigue existiendo para casos
+    /// que no sean un icono del catálogo; para el caso normal usa
+    /// <see cref="NombreIcono"/>, que evita anidar un componente por página.
+    /// </summary>
     [Parameter] public RenderFragment? Icono { get; set; }
+
+    /// <summary>
+    /// Nombre del icono del catálogo que representa a la entidad ausente
+    /// ("clientes", "documentos"...). Sin valor, el estado vacío pinta
+    /// <c>vacio</c>, el icono genérico: antes no pintaba nada, porque
+    /// ninguna de las páginas consumidoras llegó a rellenar el slot.
+    /// </summary>
+    [Parameter] public string? NombreIcono { get; set; }
 }

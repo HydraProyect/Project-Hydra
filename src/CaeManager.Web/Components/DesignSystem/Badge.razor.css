@@ -16,6 +16,20 @@
     line-height: 1.125rem;
 }
 
+/* El badge mide 12px de texto sobre 20px de línea: el icono de 16 del
+   catálogo lo desequilibra, así que se pinta a 14 (12 en el badge pequeño,
+   que es el de densidad de fila). ::deep porque el svg lo renderiza <Icono>,
+   un componente hijo sin el scope de esta hoja. */
+.badge ::deep .icono {
+    width: 14px;
+    height: 14px;
+}
+
+.badge-pequeno ::deep .icono {
+    width: 12px;
+    height: 12px;
+}
+
 .badge-neutro {
     background-color: var(--color-surface-subtle);
     color: var(--color-neutral-700);

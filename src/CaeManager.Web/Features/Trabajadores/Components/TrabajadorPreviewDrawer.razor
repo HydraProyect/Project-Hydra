@@ -18,7 +18,7 @@
                 <span class="etiqueta-cabecera-preview-trabajador">Consulta · Trabajador</span>
                 <span class="nombre-cabecera-preview-trabajador">@(_detalle is null ? "Cargando…" : $"{_detalle.Nombre} {_detalle.Apellidos}")</span>
             </div>
-            <button type="button" class="boton-cerrar-preview-trabajador" aria-label="Cerrar" @onclick="Cerrar">✕</button>
+            <button type="button" class="boton-cerrar-preview-trabajador" aria-label="Cerrar" @onclick="Cerrar"><Icono Nombre="cerrar" /></button>
         </div>
 
         <div class="cuerpo-preview-trabajador">

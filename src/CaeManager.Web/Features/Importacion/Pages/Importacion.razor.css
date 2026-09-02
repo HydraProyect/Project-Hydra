@@ -52,6 +52,14 @@
     font-weight: 600;
 }
 
+/* El circulo del paso mide 18px: el icono de 16 lo llenaria de borde a borde,
+   asi que dentro de esta marca se pinta a 12. ::deep porque el svg lo
+   renderiza <Icono>, un componente hijo sin el scope de esta pagina. */
+.paso-importacion-marca ::deep .icono {
+    width: 12px;
+    height: 12px;
+}
+
 .paso-importacion-actual {
     border-color: var(--color-primary-500);
     background-color: var(--color-primary-500);
@@ -160,6 +168,9 @@
 }
 
 .enlace-plantilla-blanco {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
     font-size: 13px;
     font-weight: 600;
     margin-top: auto;

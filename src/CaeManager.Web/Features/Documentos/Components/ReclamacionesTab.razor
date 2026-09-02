@@ -167,7 +167,7 @@ else
                         No hay ningún contacto en la agenda al que reclamar esta documentación.
                         <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
                                OnClick="() => AbrirAltaContacto(lote.ClienteId)">
-                            Añadir contacto
+                            <Icono Nombre="contacto" Tamano="TamanoIcono.Pequeno" /> Añadir contacto
                         </Boton>
                     </div>
                 }
@@ -187,7 +187,7 @@ else
                         }
                         <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
                                OnClick="() => AbrirAltaContacto(lote.ClienteId)">
-                            Añadir contacto
+                            <Icono Nombre="contacto" Tamano="TamanoIcono.Pequeno" /> Añadir contacto
                         </Boton>
                     </fieldset>
                 }
@@ -213,7 +213,7 @@ else
                                 <td>@documento.TrabajadorNombre</td>
                                 <td>@documento.TipoDocumentoNombre</td>
                                 <td>@documento.FechaVencimiento.ToString("dd/MM/yyyy")</td>
-                                <td><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)">@EstadoDocumentoUi.Texto(documento.Estado)</Badge></td>
+                                <td><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" ConIcono>@EstadoDocumentoUi.Texto(documento.Estado)</Badge></td>
                             </tr>
                         }
                     </tbody>

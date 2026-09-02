@@ -83,7 +83,7 @@
                         <span class="composer-adjunto-chip">
                             <Icono Nombre="documentos" Tamano="TamanoIcono.Pequeno" />
                             <span class="composer-adjunto-nombre">@adjunto.NombreArchivo</span>
-                            <button type="button" class="composer-adjunto-quitar" aria-label="Quitar @adjunto.NombreArchivo" @onclick="() => OnQuitarAdjunto.InvokeAsync(adjunto)">×</button>
+                            <button type="button" class="composer-adjunto-quitar" aria-label="Quitar @adjunto.NombreArchivo" @onclick="() => OnQuitarAdjunto.InvokeAsync(adjunto)"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
                         </span>
                     }
                 </div>
@@ -95,7 +95,7 @@
 
             <div class="composer-acciones">
                 <label class="composer-boton-adjuntar" title="Adjuntar archivo">
-                    <Icono Nombre="importar" Tamano="TamanoIcono.Pequeno" /> Adjuntar
+                    <Icono Nombre="adjunto" Tamano="TamanoIcono.Pequeno" /> Adjuntar
                     <InputFile OnChange="e => OnArchivosSeleccionados.InvokeAsync(e)" multiple />
                 </label>
                 <Boton Cargando="Enviando" Deshabilitado="@(string.IsNullOrWhiteSpace(Texto) || ErrorAdjuntos is not null)" OnClick="() => OnEnviar.InvokeAsync()">

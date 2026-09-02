@@ -1,7 +1,7 @@
 @*
     H2 (docs/ux-audit/05-trabajadores-vehiculos.md, ver DESIGN_SYSTEM.md §
     Dropdown): agrupa las acciones de fila (hoy apiladas verticalmente, 2-3
-    botones por fila) tras un disparador "⋯" — densidad de una línea por
+    botones por fila) tras un disparador de "más acciones" — densidad de una línea por
     fila. El cierre al clicar fuera reutiliza el mismo truco que Modal.razor
     (superposición a pantalla completa detrás del panel, sin JS interop);
     cada ItemMenuAccion se cierra a sí mismo tras ejecutar su acción vía
@@ -10,7 +10,7 @@
 <div class="menu-acciones">
     <button type="button" class="menu-acciones-disparador" aria-haspopup="menu" aria-expanded="@(_abierto ? "true" : "false")"
             aria-label="Más acciones" @onclick="Alternar">
-        ⋯
+        <Icono Nombre="mas-opciones" />
     </button>
     @if (_abierto)
     {

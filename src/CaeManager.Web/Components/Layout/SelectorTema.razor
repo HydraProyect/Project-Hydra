@@ -6,9 +6,15 @@
 
 @if (_temaActual is not null)
 {
-    <select class="selector-tema" value="@_temaActual" @onchange="CambiarTemaAsync" aria-label="Tema">
-        <option value="sistema">Tema del sistema</option>
-        <option value="claro">Claro</option>
-        <option value="oscuro">Oscuro</option>
-    </select>
+    @* Un <select> no admite hijos que no sean <option>, así que el icono va
+       fuera, en una envoltura. El aria-label sigue en el propio select: el
+       icono es decorativo (aria-hidden lo pone <Icono>) y no debe leerse. *@
+    <span class="selector-tema-envoltura">
+        <Icono Nombre="tema" Tamano="TamanoIcono.Pequeno" />
+        <select class="selector-tema" value="@_temaActual" @onchange="CambiarTemaAsync" aria-label="Tema">
+            <option value="sistema">Tema del sistema</option>
+            <option value="claro">Claro</option>
+            <option value="oscuro">Oscuro</option>
+        </select>
+    </span>
 }
