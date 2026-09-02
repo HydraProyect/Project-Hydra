@@ -45,6 +45,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using PdfSharp.Fonts;
+using Sentry;
 using Serilog;
 using System.Globalization;
 using System.Text.Json.Serialization;
@@ -127,6 +128,24 @@ builder.WebHost.UseSentry(options =>
     options.Dsn = builder.Configuration["Sentry:Dsn"] ?? string.Empty;
     options.Environment = builder.Environment.EnvironmentName;
     options.SendDefaultPii = false;
+
+    // D-2: CaptureFailedRequests viene a true por defecto en Sentry.AspNetCore
+    // (FailedRequestTargets = [".*"], FailedRequestStatusCodes = 500-599),
+    // así que captura TODA petición HTTP saliente que responda 5xx — incluida
+    // la que hace el propio exportador OTLP contra Seq (más abajo) cuando Seq
+    // está caído. El exportador no tiene backoff propio, así que un Seq caído
+    // sostenido generaba un evento de Sentry por cada POST fallido a
+    // /ingest/otlp/v1/* — 6.362 en 6 días fue el issue DOTNET-7: el propio
+    // recolector de errores queda instrumentado por su compañero de
+    // instrumentación. Recuperar Seq no es competencia de este filtro (exige
+    // el VPS); lo que sí es responsabilidad de este código es que esa caída
+    // no ahogue el resto de Sentry. Ver CortacircuitoEventosSeqCaido para el
+    // porqué de "acotado a Seq" y "throttle, no silencio total".
+    if (!string.IsNullOrWhiteSpace(urlSeq))
+    {
+        var cortacircuitoSeq = new CortacircuitoEventosSeqCaido(urlSeq);
+        options.SetBeforeSend((sentryEvent, _) => cortacircuitoSeq.DebeDescartar(sentryEvent) ? null : sentryEvent);
+    }
 });
 
 // OpenTelemetry (Horizonte 2.3 del plan macro): trazas de MediatR (un span
@@ -251,6 +270,19 @@ builder.Services.ConfigureApplicationCookie(options =>
 {
     options.LoginPath = "/cuenta/iniciar-sesion";
     options.AccessDeniedPath = "/acceso-denegado";
+
+    // D-3 (Sentry DOTNET-8, confirmado contra el evento real, no solo el
+    // informe): el crash no nace en MainLayout/Blazor — Error.razor ya no
+    // depende de ese layout (ver Error.razor) — sino AQUÍ, en
+    // AuthenticationMiddleware, antes de que Blazor decida nada.
+    // SecurityStampValidator revalida el security stamp del usuario contra
+    // la base periódicamente en cada petición autenticada; si la base está
+    // caída, agota los 6 reintentos de ConfiguracionDeContexto y lanza
+    // RetryLimitExceededException justo en la petición a /Error — la propia
+    // pantalla que debería informar del fallo. /Error no muestra nada que
+    // dependa del rol ni de si el stamp sigue siendo válido, así que saltarse
+    // la revalidación ahí no cede ninguna autorización real.
+    OmitirRevalidacionDeStampEnRuta.Configurar(options, "/Error");
 });
 
 builder.Services.AddAuthorization(options =>
@@ -807,4 +839,131 @@ static async Task MigrarBaseDeDatosAsync(IConfiguration configuration, IServiceP
         servicios.GetRequiredService<IDataProtectionProvider>(),
         new TenantActualAmbiental());
     await dbContextMigraciones.Database.MigrateAsync();
+}
+
+namespace CaeManager.Web.Services
+{
+    /// <summary>
+    /// D-2: filtro de <c>SentryOptions.SetBeforeSend</c> que acota la captura
+    /// automática de peticiones HTTP fallidas de Sentry.AspNetCore (ver
+    /// Program.cs, junto a <c>UseSentry</c>) para que un Seq caído no ahogue
+    /// el resto de Sentry con un evento por cada exportación OTLP fallida.
+    ///
+    /// Acotado a propósito: solo mira la URL de destino, y solo actúa si
+    /// coincide con la de ingesta de Seq — un 5xx real contra cualquier otro
+    /// destino (Anthropic, Gemini, Microsoft Graph, Stripe, WhatsApp...)
+    /// sigue generando su evento normal, sin pasar por este filtro.
+    ///
+    /// No es un descarte total: dentro de la ventana de enfriamiento se deja
+    /// pasar el primer fallo (visibilidad inmediata de que Seq cayó) y luego,
+    /// como mucho uno cada <see cref="VentanaEnfriamiento"/> mientras se
+    /// mantenga caído — una serie de eventos espaciados en Sentry, no un
+    /// flood ni un silencio total. Estado en memoria de proceso (no
+    /// persistido): un reinicio del proceso reinicia la ventana, lo cual es
+    /// aceptable porque el propio reinicio ya es una señal visible en Sentry
+    /// por otras vías (arranque, releases).
+    ///
+    /// Estado de instancia, no estático a propósito: un único
+    /// <c>Program.cs</c> crea una sola instancia (cerrada en el lambda de
+    /// <c>SetBeforeSend</c>) para toda la vida del proceso, pero cada test
+    /// puede construir la suya sin pisar el reloj de los demás.
+    /// </summary>
+    public sealed class CortacircuitoEventosSeqCaido(string urlSeq)
+    {
+        internal static readonly TimeSpan VentanaEnfriamiento = TimeSpan.FromMinutes(30);
+
+        private long _ultimoPermitidoTicks = DateTime.MinValue.Ticks;
+
+        public bool DebeDescartar(SentryEvent evento) => DebeDescartarEn(evento, DateTime.UtcNow);
+
+        /// <summary>
+        /// Pública solo para poder testear la ventana de enfriamiento con
+        /// tiempos explícitos, sin esperas reales ni <c>InternalsVisibleTo</c>
+        /// en <c>CaeManager.Web</c> (mismo patrón que otros métodos puros del
+        /// proyecto, ver <c>WebhookWhatsAppEndpoints.EsFirmaValida</c>).
+        /// </summary>
+        public bool DebeDescartarEn(SentryEvent evento, DateTime ahora)
+        {
+            if (!EsDestinoSeq(evento.Request?.Url))
+                return false; // No es Seq: nunca se toca — control positivo del resto de integraciones.
+
+            var ahoraTicks = ahora.Ticks;
+            var ultimo = Interlocked.Read(ref _ultimoPermitidoTicks);
+            if (ahoraTicks - ultimo < VentanaEnfriamiento.Ticks)
+                return true; // Dentro de la ventana: ya se avisó recientemente, descarta.
+
+            // Fuera de ventana (o primera vez): esta llamada "gana" el turno de
+            // avisar si consigue mover el reloj; si otra llamada concurrente ya
+            // lo movió primero, esta se descarta en vez de duplicar el aviso.
+            return Interlocked.CompareExchange(ref _ultimoPermitidoTicks, ahoraTicks, ultimo) != ultimo;
+        }
+
+        /// <summary>
+        /// Comparación ESTRUCTURADA (esquema + host + puerto), no un
+        /// <c>string.Contains</c> sobre la URL cruda — revisión adversaria:
+        /// un <c>Contains</c> da falsos positivos (<c>https://seq.talveg.es.ejemplo.com/…</c>
+        /// contendría la URL de Seq como substring) y falsos negativos por
+        /// normalización (puerto explícito, escapes). <c>Uri.Compare</c> con
+        /// <c>UriComponents.SchemeAndServer</c> evita ambos: compara "es el
+        /// mismo servidor", no "el texto se parece".
+        /// </summary>
+        private bool EsDestinoSeq(string? url)
+        {
+            if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(urlSeq))
+                return false;
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uriEvento))
+                return false;
+            if (!Uri.TryCreate(urlSeq, UriKind.Absolute, out var uriSeq))
+                return false;
+
+            return Uri.Compare(
+                uriEvento, uriSeq, UriComponents.SchemeAndServer, UriFormat.SafeUnescaped,
+                StringComparison.OrdinalIgnoreCase) == 0;
+        }
+    }
+
+    /// <summary>
+    /// D-3 (Sentry DOTNET-8): envuelve <c>CookieAuthenticationOptions.Events.OnValidatePrincipal</c>
+    /// para que una ruta concreta (pensada para <c>/Error</c>) no dispare la
+    /// revalidación del security stamp contra la base — sin ella,
+    /// <c>SecurityStampValidator</c> (cableado por <c>AddIdentityCookies()</c>,
+    /// ver Program.cs) puede agotar los 6 reintentos de
+    /// <c>ConfiguracionDeContexto</c> con la base caída justo en la petición
+    /// que debería informar del fallo.
+    ///
+    /// Comprobado en aislamiento contra el framework compartido real (no de
+    /// memoria): en el momento en que <c>ConfigureApplicationCookie</c>
+    /// ejecuta su delegado, <c>options.Events.OnValidatePrincipal</c> YA es
+    /// <c>SecurityStampValidator.ValidatePrincipalAsync</c> — <c>Configure</c>
+    /// aplica los delegados en el orden en que se registraron, y
+    /// <c>AddIdentityCookies()</c> se registra antes. Este método conserva esa
+    /// referencia y solo la salta para la ruta indicada; cualquier otra ruta
+    /// sigue revalidando exactamente igual que hoy.
+    ///
+    /// Por qué es seguro saltárselo en <c>/Error</c>: cuando SÍ revalida con
+    /// éxito, <c>SecurityStampValidator</c> puede volver a firmar al usuario
+    /// con un <c>ClaimsPrincipal</c> fresco (roles y demás claims
+    /// actualizados desde su última emisión) — es la garantía de que un
+    /// cambio de rol o una contraseña cambiada se reflejan sin esperar a que
+    /// expire la cookie. <c>Error.razor</c> no usa <c>HttpContext.User</c>
+    /// para nada (ni roles, ni tenant, ni ninguna acción — solo el
+    /// <c>TraceIdentifier</c> de la petición) y no tiene <c>[Authorize]</c>
+    /// propio (lleva <c>[AllowAnonymous]</c>, la excepción explícita al
+    /// <c>FallbackPolicy</c> que exige sesión en el resto del sitio), así que
+    /// no hay ninguna decisión de autorización en esa página que dependa de
+    /// una revalidación fresca. Comparación de ruta EXACTA (no por prefijo)
+    /// para que el salto no se cuele a ninguna otra ruta que empiece igual.
+    /// </summary>
+    public static class OmitirRevalidacionDeStampEnRuta
+    {
+        public static void Configurar(Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationOptions options, string ruta)
+        {
+            var revalidarOriginal = options.Events.OnValidatePrincipal;
+            var rutaExacta = new Microsoft.AspNetCore.Http.PathString(ruta);
+            options.Events.OnValidatePrincipal = contexto =>
+                contexto.Request.Path.Equals(rutaExacta, StringComparison.OrdinalIgnoreCase)
+                    ? Task.CompletedTask
+                    : revalidarOriginal(contexto);
+        }
+    }
 }

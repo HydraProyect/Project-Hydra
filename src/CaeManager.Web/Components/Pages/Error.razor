@@ -1,5 +1,13 @@
 @page "/Error"
-@layout MainLayout
+@* MainLayout abre acceso a datos en OnParametersSetAsync (UserManager,
+   ActividadUsuarioService) para el guard de cambio de contraseña / 2FA. Si el
+   error que trajo al usuario aquí fue precisamente la base de datos caída
+   (EnableRetryOnFailure agotado, ver ConfiguracionDeContexto), heredar ese
+   layout vuelve a golpear la misma base y agota otros 6 reintentos antes de
+   poder mostrar el mensaje (Sentry DOTNET-8). AuthLayout no toca datos — es
+   el mismo layout que ya usan las páginas [AllowAnonymous] sin sesión
+   (Login, TerminosCondiciones). *@
+@layout CaeManager.Web.Components.Layout.AuthLayout
 @attribute [AllowAnonymous]
 @using System.Diagnostics
 

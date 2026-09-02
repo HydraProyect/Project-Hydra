@@ -25,8 +25,40 @@ namespace CaeManager.Application.Common;
 ///
 /// Scoped: serializa dentro de una petición HTTP o de un circuito de Blazor,
 /// nunca entre usuarios distintos.
+///
+/// <para>
+/// <b>Deliberadamente NO implementa <see cref="IDisposable"/>.</b> Versiones
+/// anteriores sí llamaban <c>_puerta.Dispose()</c> cuando el scope de DI
+/// terminaba, y eso fue la causa raíz de tres incidentes reales en producción
+/// (Sentry DOTNET-2, DOTNET-5, DOTNET-6): el circuito de Blazor puede
+/// desconectarse —y con él, el scope— mientras otro componente todavía tiene
+/// una operación en vuelo esperando esta puerta o a punto de liberarla.
+/// <c>SemaphoreSlim.Dispose()</c> concurrente con <c>WaitAsync</c>/<c>Release</c>
+/// no es un uso soportado (la documentación de la BCL exige que Dispose solo
+/// se llame cuando el resto de operaciones ya terminaron) y, comprobado en
+/// aislamiento, el resultado no es un simple <see cref="ObjectDisposedException"/>
+/// predecible: según el orden exacto de la carrera, una espera pendiente
+/// puede quedarse colgada para siempre, y ni siquiera cancelarla con un
+/// <see cref="CancellationToken"/> la rescata de forma fiable una vez que
+/// Dispose ya corrió (probado con un timeout compuesto por fuera del
+/// semáforo Y con cancelación nativa vía <c>WaitAsync(CancellationToken)</c>
+/// — ambas variantes se colgaron igual bajo esa carrera concreta).
+/// </para>
+/// <para>
+/// La salida correcta no es coordinar mejor la carrera: es no tenerla.
+/// <see cref="SemaphoreSlim"/> no retiene ningún recurso no administrado
+/// salvo que se acceda a <c>AvailableWaitHandle</c> (un
+/// <c>ManualResetEvent</c> nativo creado de forma perezosa) — algo que esta
+/// clase nunca hace. Sin esa propiedad, no disponer el semáforo no filtra
+/// nada: cuando el scope termina y nadie más referencia esta instancia, el
+/// recolector de basura se encarga, igual que con cualquier otro servicio
+/// scoped que no implementa <see cref="IDisposable"/>. Una operación todavía
+/// en vuelo cuando el circuito se va simplemente termina con normalidad
+/// —adquiere, ejecuta, libera— aunque ya no quede nadie esperando el
+/// resultado.
+/// </para>
 /// </summary>
-public sealed class PuertaAccesoDatos : IDisposable
+public sealed class PuertaAccesoDatos
 {
     private readonly SemaphoreSlim _puerta = new(1, 1);
     private readonly AsyncLocal<bool> _flujoDentro = new();
@@ -45,7 +77,7 @@ public sealed class PuertaAccesoDatos : IDisposable
         finally
         {
             _flujoDentro.Value = false;
-            LiberarSiSigueViva();
+            _puerta.Release();
         }
     }
 
@@ -66,31 +98,7 @@ public sealed class PuertaAccesoDatos : IDisposable
         finally
         {
             _flujoDentro.Value = false;
-            LiberarSiSigueViva();
-        }
-    }
-
-    /// <summary>
-    /// El circuito de Blazor puede desconectarse (y con él, este scope y su
-    /// puerta) mientras <c>operacion</c> todavía está en vuelo — reproducido
-    /// en vivo con un deep-link en frío a Trabajador: la reconexión tira el
-    /// scope antes de que la consulta en curso termine, y el <c>Release()</c>
-    /// de este <c>finally</c> caía sobre un semáforo ya liberado por
-    /// <see cref="Dispose"/>, lanzando <see cref="ObjectDisposedException"/>
-    /// sin capturar — eso rompía el pipeline de MediatR y dejaba la página
-    /// sin terminar de cargar nunca. No hay nada que liberar si el circuito
-    /// ya se fue.
-    /// </summary>
-    private void LiberarSiSigueViva()
-    {
-        try
-        {
             _puerta.Release();
         }
-        catch (ObjectDisposedException)
-        {
-        }
     }
-
-    public void Dispose() => _puerta.Dispose();
 }
