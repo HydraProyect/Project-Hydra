@@ -17,14 +17,19 @@ public class ConfiguracionTests : BunitContext
 
         var enlaces = cut.FindAll(".entrada-subnav");
 
-        enlaces.Should().HaveCount(16);
+        // Delegaciones y Estado comercial ya no son panel del hub (ver
+        // NavMenu.razor, grupo "Plataforma"): su autoridad es de capacidad
+        // AdminPlataforma, no del rol Administrador que gatea este hub —
+        // 16 bajó a 14.
+        enlaces.Should().HaveCount(14);
         enlaces.Select(enlace => enlace.GetAttribute("href"))
             .Should().OnlyContain(ruta => ruta != null && ruta.StartsWith("/configuracion/", StringComparison.Ordinal));
         enlaces.Select(enlace => enlace.GetAttribute("href"))
             .Should().NotContain(new[]
             {
                 "/usuarios", "/roles", "/delegaciones", "/integraciones", "/importacion",
-                "/tipos-documento", "/retencion", "/auditoria", "/auditoria-ia", "/comunicaciones/macros"
+                "/tipos-documento", "/retencion", "/auditoria", "/auditoria-ia", "/comunicaciones/macros",
+                "/configuracion/delegaciones", "/configuracion/estado-comercial"
             });
     }
 

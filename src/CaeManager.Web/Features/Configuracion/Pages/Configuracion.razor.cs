@@ -48,11 +48,18 @@ public partial class Configuracion : ComponentBase
             new("roles", "RL", "Roles", "Permisos por perfil", typeof(Features.GestionRoles.Pages.Roles)),
             new("2fa", "2F", "Verificación en dos pasos", "Obligatoriedad y métodos", null)
         ]),
+        // Delegaciones y Estado comercial NO viven aquí (ver NavMenu.razor,
+        // grupo "Plataforma"): su autoridad real es de CAPACIDAD
+        // (AdminPlataforma, F2b-6), no del rol Administrador que gatea todo
+        // este hub (Configuracion.razor, [Authorize(Roles=Administrador)]) —
+        // meterlas en el hub las habría dejado invisibles para cualquier
+        // sesión de capacidad AdminPlataforma que no lleve ese rol, por
+        // diseño (Program.cs: "sesión privilegiada de plataforma no lleva
+        // rol de negocio"). Sus rutas propias (/delegaciones,
+        // /configuracion/comercial) siguen funcionando en modo standalone.
         new("Plataforma y conexiones",
         [
-            new("delegaciones", "DL", "Delegaciones", "Sedes de la consultora", typeof(Features.Delegaciones.Pages.Delegaciones)),
             new("api", "AP", "Claves API", "Acceso programático", typeof(Features.ApiKeys.Pages.ClavesApi)),
-            new("estado-comercial", "CM", "Estado comercial", "Plan y consumo", typeof(Features.Comercial.Pages.EstadoComercial)),
             new("integraciones", "IN", "Conexiones de integración", "M365, portales, webhooks", typeof(Features.Integraciones.Pages.Conexiones)),
             new("importar", "IM", "Importar datos", "Cuadro de Control CAE (Excel)", typeof(Features.Importacion.Pages.Importacion))
         ]),

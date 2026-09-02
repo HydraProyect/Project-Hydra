@@ -30,6 +30,7 @@
     colapso por defecto de Control (informe de consolidación de menú,
     2026-09-01 § 6) no se pisa con un "abierto" forzado en el primer render.
 *@
+@using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma
 @using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual
 @using CaeManager.Domain.Tenants
 @using CaeManager.Infrastructure.Comunicaciones
@@ -222,17 +223,20 @@
        header — por eso el <details> envuelve a ambos en vez de duplicar
        "Administración" dos veces para quien tiene el rol más amplio.
 
-       Roles, Delegaciones, Claves API, Estado comercial, Conexiones de
-       integración, Retención, Tipos de documento, Auditoría e Importación
-       ya no tienen botón propio aquí: viven como paneles de Configuración
-       (DDL-078) y un botón fuera que lleva al mismo sitio que ya ofrece la
-       subnavegación del hub es puro ruido — Configuración es ahora su único
-       punto de entrada desde este menú. Usuarios se queda porque Dirección
-       CAE lo ve y Configuración es Administrador-only (Usuarios.razor
-       autoriza a los dos roles); Verificación en dos pasos también, porque
-       apunta al alta personal de 2FA del propio usuario
-       (/cuenta/configurar-2fa), no a la política administrativa que
-       representa el placeholder "2fa" del hub — no son la misma pantalla. *@
+       Roles, Claves API, Conexiones de integración, Retención, Tipos de
+       documento, Auditoría e Importación ya no tienen botón propio aquí:
+       viven como paneles de Configuración (DDL-078) y un botón fuera que
+       lleva al mismo sitio que ya ofrece la subnavegación del hub es puro
+       ruido — Configuración es ahora su único punto de entrada desde este
+       menú. Usuarios se queda porque Dirección CAE lo ve y Configuración es
+       Administrador-only (Usuarios.razor autoriza a los dos roles);
+       Verificación en dos pasos también, porque apunta al alta personal de
+       2FA del propio usuario (/cuenta/configurar-2fa), no a la política
+       administrativa que representa el placeholder "2fa" del hub — no son
+       la misma pantalla. Delegaciones y Estado comercial NUNCA vivieron
+       aquí como botón propio de Administración (ver grupo "Plataforma" más
+       abajo, fuera de este AuthorizeView): su autoridad es de capacidad
+       (AdminPlataforma), no del rol Administrador que gatea este bloque. *@
     <AuthorizeView Roles="@RolesDeAdministracionAmpliada">
         <details class="nav-grupo-detalle" data-grupo="administracion" open>
             <summary class="nav-grupo-titulo">
@@ -253,6 +257,48 @@
                 </AuthorizeView>
             </div>
         </details>
+    </AuthorizeView>
+
+    @* Delegaciones y Estado comercial: FUERA de "administracion" y de su
+       AuthorizeView por Roles a propósito (resuelve la tensión detectada en
+       #401/#403 — Codex, adversarial review — y confirmada tras auditar
+       Delegaciones.razor/EstadoComercial.razor: ambas páginas ya se
+       autorizan por CAPACIDAD, `@attribute [Authorize]` sin Roles, con un
+       comentario propio explícito de por qué — "el claim de rol se retira
+       bajo sesión privilegiada... la UI dependería de una autoridad que el
+       plano 3 deliberadamente no conserva". Antes de #401 estaban dentro de
+       Administración con el resto (ver ede2ce19), así que una sesión
+       AdminPlataforma sin el rol Administrador NUNCA las vio en el menú, ni
+       antes ni después del hub — no es una regresión de esta sesión, es un
+       defecto preexistente que se corrige aquí de raíz. Delegaciones es
+       doble audiencia (el propio Administrador del tenant gestiona sus
+       delegaciones — revocar, cerrar soporte — y solo "Nueva delegación"
+       exige la capacidad, ver el propio Delegaciones.razor.cs) y Estado
+       comercial es exclusivamente de plataforma (`ObtenerEstadoComercialTenantsQuery`
+       falla cerrado a lista vacía para quien no tenga la capacidad) — ambas
+       comparten aquí el mismo gate para no duplicar lógica, aceptando que un
+       Administrador normal vea "Estado comercial" vacío, igual que ya
+       ocurría cuando vivía dentro del hub. *@
+    <AuthorizeView Context="authPlataforma">
+        <Authorized>
+            @if (authPlataforma.User.IsInRole(CaeManager.Infrastructure.Identity.Roles.Administrador) || _esAdministradorPlataforma)
+            {
+                <details class="nav-grupo-detalle" data-grupo="plataforma" open>
+                    <summary class="nav-grupo-titulo">
+                        <span>Plataforma</span>
+                        <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+                    </summary>
+                    <div class="nav-grupo-items">
+                        <NavLink class="nav-item" href="delegaciones">
+                            <Icono Nombre="cartera" /> Delegaciones
+                        </NavLink>
+                        <NavLink class="nav-item" href="configuracion/comercial">
+                            <Icono Nombre="cartera" /> Estado comercial
+                        </NavLink>
+                    </div>
+                </details>
+            }
+        </Authorized>
     </AuthorizeView>
 </nav>
 
@@ -290,10 +336,18 @@
     // Cliente Directo, "Trabajadores" en perfil Consultora.
     private string EtiquetaTrabajadores = "Trabajadores";
 
+    // Mismo criterio de autorización que CrearClienteDeleganteCommand y que
+    // el botón "Nueva delegación" de Delegaciones.razor — ver el comentario
+    // de EsAdministradorPlataformaQueryHandler: "si divergieran, el botón
+    // diría una cosa y el comando otra". Aquí decide si el grupo "Plataforma"
+    // aparece para alguien sin el rol Administrador.
+    private bool _esAdministradorPlataforma;
+
     protected override async Task OnInitializedAsync()
     {
         var perfil = await Mediator.Send(new ObtenerPerfilVocabularioActualQuery());
         EtiquetaEmpresas = perfil == PerfilVocabularioTenant.ClienteDirecto ? "Mi empresa" : "Empresas";
         EtiquetaTrabajadores = perfil == PerfilVocabularioTenant.ClienteDirecto ? "Mis trabajadores" : "Trabajadores";
+        _esAdministradorPlataforma = await Mediator.Send(new EsAdministradorPlataformaQuery());
     }
 }
