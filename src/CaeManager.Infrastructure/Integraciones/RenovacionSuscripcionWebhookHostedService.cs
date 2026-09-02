@@ -109,17 +109,30 @@ public class RenovacionSuscripcionWebhookHostedService(
         var proximasAExpirar = await suscripcionRepositorio.ObtenerProximasAExpirarAsync(VentanaRenovacion, stoppingToken);
         if (proximasAExpirar.Count == 0) return;
 
+        var conexionRepositorio = ambito.ServiceProvider.GetRequiredService<IConexionIntegracionRepository>();
         var accesoGraph = ambito.ServiceProvider.GetRequiredService<AccesoGraphService>();
         var graphClient = ambito.ServiceProvider.GetRequiredService<IMicrosoft365GraphClient>();
 
         foreach (var suscripcion in proximasAExpirar)
         {
+            var conexion = await conexionRepositorio.ObtenerPorIdAsync(suscripcion.ConexionIntegracionId, stoppingToken);
+
+            // Deshabilitada por el usuario (Desconectar) o borrada: no hay
+            // nada que renovar ni ninguna razón para marcarla con error —
+            // antes de este fichero cablear salud de plataforma (A-07),
+            // este bucle ignoraba el estado de la conexión y lo intentaba
+            // igual, contradiciendo el comentario de DesconectarBuzonCommand
+            // que ya prometía este comportamiento.
+            if (conexion is null || conexion.Estado == EstadoConexionIntegracion.Deshabilitada)
+                continue;
+
             var accessTokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(suscripcion.ConexionIntegracionId, stoppingToken);
             if (accessTokenResultado.EsFallido)
             {
                 logger.LogWarning(
                     "No se pudo renovar la suscripción {SubscriptionId} (conexión {ConexionId}): {Error}",
                     suscripcion.GraphSubscriptionId, suscripcion.ConexionIntegracionId, accessTokenResultado.Error.Mensaje);
+                conexion.MarcarConError(accessTokenResultado.Error.Mensaje);
                 continue;
             }
 
@@ -130,10 +143,17 @@ public class RenovacionSuscripcionWebhookHostedService(
                 logger.LogWarning(
                     "No se pudo renovar la suscripción {SubscriptionId} (conexión {ConexionId}): {Error}",
                     suscripcion.GraphSubscriptionId, suscripcion.ConexionIntegracionId, renovacionResultado.Error.Mensaje);
+                conexion.MarcarConError(renovacionResultado.Error.Mensaje);
                 continue;
             }
 
             suscripcion.ActualizarTrasRenovacion(renovacionResultado.Valor.GraphSubscriptionId, renovacionResultado.Valor.FechaExpiracionUtc);
+
+            // Recuperación automática: si la conexión había quedado ConError
+            // por un ciclo anterior y esta renovación funcionó, no hace
+            // falta que un administrador pulse "Reactivar" a mano.
+            if (conexion.Estado == EstadoConexionIntegracion.ConError)
+                conexion.Rehabilitar();
         }
 
         await ambito.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync(stoppingToken);

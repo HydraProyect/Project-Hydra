@@ -8,6 +8,19 @@
     font-size: 0.85rem;
 }
 
+.texto-error {
+    display: block;
+    color: var(--color-danger-700);
+    font-size: 0.8rem;
+    margin-top: 0.25rem;
+    max-width: 22rem;
+}
+
+.acciones-conexion {
+    display: flex;
+    gap: 0.5rem;
+}
+
 .opcion-pool-linea {
     display: flex;
     align-items: center;
