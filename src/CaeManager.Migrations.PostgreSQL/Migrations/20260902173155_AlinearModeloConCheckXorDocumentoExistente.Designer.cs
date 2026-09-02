@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    partial class CaeManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260902173155_AlinearModeloConCheckXorDocumentoExistente")]
+    partial class AlinearModeloConCheckXorDocumentoExistente
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -662,9 +665,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid?>("EliminadoPorUsuarioId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("EmpresaId")
-                        .HasColumnType("uuid");
-
                     b.Property<bool>("EstaEliminado")
                         .HasColumnType("boolean");
 
@@ -702,8 +702,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("TenantId", "ClienteId");
 
-                    b.HasIndex("TenantId", "EmpresaId");
-
                     b.HasIndex("TenantId", "Estado");
 
                     b.HasIndex("TenantId", "Canal", "Estado");
@@ -713,10 +711,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("TenantId", "ConexionIntegracionId", "TelefonoContacto");
 
-                    b.ToTable("Conversaciones", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_Conversaciones_AnclaUnica", "num_nonnulls(\"ClienteId\", \"EmpresaId\") <= 1");
-                        });
+                    b.ToTable("Conversaciones", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Comunicaciones.DetalleSugerenciaGestionCorreo", b =>
@@ -5710,7 +5705,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("ClienteId")
+                    b.Property<Guid>("ClienteId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid?>("ConversacionId")
@@ -5728,9 +5723,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid?>("EliminadoPorUsuarioId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("EmpresaId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("EnviadoPorUsuarioId")
@@ -5755,12 +5747,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("TenantId", "ClienteId");
 
-                    b.HasIndex("TenantId", "EmpresaId");
-
-                    b.ToTable("ReclamacionesDocumentales", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_ReclamacionesDocumentales_TitularUnico", "num_nonnulls(\"ClienteId\", \"EmpresaId\") = 1");
-                        });
+                    b.ToTable("ReclamacionesDocumentales", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Reclamaciones.ReclamacionDocumentalDocumento", b =>
@@ -6991,15 +6978,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.Conversacion", b =>
-                {
-                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId", "EmpresaId")
-                        .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict);
-                });
-
             modelBuilder.Entity("CaeManager.Domain.Comunicaciones.DetalleSugerenciaGestionCorreo", b =>
                 {
                     b.HasOne("CaeManager.Domain.Comunicaciones.SugerenciaGestionCorreo", null)
@@ -7456,12 +7434,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasOne("CaeManager.Domain.Comunicaciones.Conversacion", null)
                         .WithMany()
                         .HasForeignKey("ConversacionId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId", "EmpresaId")
-                        .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
