@@ -9,3 +9,19 @@
     font-weight: 600;
     text-align: center;
 }
+
+.form-salir-sesion-soporte {
+    display: inline;
+    margin-inline-start: var(--space-2);
+}
+
+.enlace-salir-sesion-soporte {
+    background: none;
+    border: none;
+    padding: 0;
+    color: inherit;
+    font: inherit;
+    font-weight: 700;
+    text-decoration: underline;
+    cursor: pointer;
+}

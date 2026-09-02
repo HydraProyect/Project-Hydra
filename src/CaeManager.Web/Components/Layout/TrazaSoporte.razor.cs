@@ -22,12 +22,26 @@ namespace CaeManager.Web.Components.Layout;
 public partial class TrazaSoporte : ComponentBase, IAsyncDisposable
 {
     private bool _esSesionDeSoporte;
+
+    /// <summary>
+    /// El plano 3 (ADR-011 § 8), independiente de <see cref="_esSesionDeSoporte"/>
+    /// —la vía heredada de <c>DelegacionTenant</c>— y leído directamente de
+    /// <see cref="ClienteActivoSeleccionado"/> en vez de por
+    /// <c>TrazaSoporteService</c>: ese servicio traza actividad contra una
+    /// <c>DelegacionTenant</c> que una sesión privilegiada no tiene, y no hace
+    /// falta duplicar esa lógica solo para mostrar un aviso — la auditoría del
+    /// plano 3 ya la cubre <c>AuditoriaInterceptor</c> sobre los cambios de la
+    /// propia entidad.
+    /// </summary>
+    private Guid? _sesionPrivilegiadaId;
+
     private DotNetObjectReference<TrazaSoporte>? _referencia;
     private IJSObjectReference? _modulo;
 
     protected override async Task OnInitializedAsync()
     {
         _esSesionDeSoporte = await Traza.EsSesionDeSoporteAsync();
+        _sesionPrivilegiadaId = ClienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada;
 
         if (!_esSesionDeSoporte) return;
 

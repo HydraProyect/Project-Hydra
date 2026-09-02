@@ -7,6 +7,7 @@
    La página no reproduce ninguna regla: pregunta a la consulta de
    descubrimiento y despacha el comando, que es la autoridad final. *@
 @using CaeManager.Application.Plataforma.Queries.PuedeInicializarPlataforma
+@using CaeManager.Application.Plataforma.Queries.ObtenerSesionPrivilegiadaPorId
 @using CaeManager.Application.Plataforma.Commands.AutoConcederPrivilegio
 @using CaeManager.Domain.Plataforma
 @using MediatR
@@ -47,6 +48,25 @@
             estará hasta que venza su ventana. Ciérrala ahora para que conste cuándo
             terminó la visita.
         </p>
+
+        @* Observación con TTL (DEC-2): qué se va a cerrar, exactamente, antes de
+           cerrarlo. Búsqueda puntual por el Id que ya trae la URL — no un listado,
+           ver el comentario normativo de ObtenerSesionPrivilegiadaPorIdQuery. *@
+        @if (_detalleSesion is { } detalle)
+        {
+            <dl class="detalle-sesion-soporte">
+                <dt>Tenant</dt>
+                <dd>@detalle.TenantObjetivoId</dd>
+                <dt>Capacidad</dt>
+                <dd>@detalle.Capacidad</dd>
+                <dt>Motivo</dt>
+                <dd>@detalle.Motivo</dd>
+                <dt>Abierta</dt>
+                <dd>@detalle.InicioEnUtc.ToLocalTime()</dd>
+                <dt>Expira</dt>
+                <dd>@detalle.ExpiraEnUtc.ToLocalTime()</dd>
+            </dl>
+        }
 
         <form method="post" action="/cuenta/soporte/cerrar">
             @if (_token is not null)
@@ -112,12 +132,16 @@
     public string? Cerrada { get; set; }
 
     private bool SesionCerrada => Cerrada == "1";
+    private SesionPrivilegiadaDetalleDto? _detalleSesion;
 
     protected override async Task OnInitializedAsync()
     {
         _token = AntiforgeryStateProvider.GetAntiforgeryToken();
         _puedeInicializar = await Mediator.Send(new PuedeInicializarPlataformaQuery());
         _cargando = false;
+
+        if (SesionParaCerrar is { } sesion)
+            _detalleSesion = await Mediator.Send(new ObtenerSesionPrivilegiadaPorIdQuery(sesion));
     }
 
     /// <summary>
