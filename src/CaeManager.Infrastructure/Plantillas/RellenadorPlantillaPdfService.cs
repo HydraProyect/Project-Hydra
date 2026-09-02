@@ -1,6 +1,7 @@
-using CaeManager.Application.Common;
+﻿using CaeManager.Application.Common;
 using CaeManager.Domain.Plantillas;
 using PdfSharp.Drawing;
+using PdfSharp.Pdf;
 using PdfSharp.Pdf.AcroForms;
 using PdfSharp.Pdf.IO;
 
@@ -24,6 +25,10 @@ namespace CaeManager.Infrastructure.Plantillas;
 public class RellenadorPlantillaPdfService : IRellenadorPlantillaPdfService
 {
     private const string NombreFuente = "DejaVu Sans";
+    private const string ClaveNecesitaApariencias = "/NeedAppearances";
+    private const string ClaveEstadoApariencia = "/AS";
+    private const string ClaveValor = "/V";
+    private const string EstadoApagado = "/Off";
 
     public byte[] Rellenar(byte[] pdfOriginal, FormatoOrigenPlantilla formato, IReadOnlyList<ElementoRellenoPlantilla> elementos) =>
         formato switch
@@ -63,10 +68,7 @@ public class RellenadorPlantillaPdfService : IRellenadorPlantillaPdfService
                 continue;
             }
 
-            if (campo is PdfTextField campoTexto)
-                campoTexto.Text = elemento.Valor ?? string.Empty;
-            else
-                campo.Value = new PdfSharp.Pdf.PdfString(elemento.Valor ?? string.Empty);
+            EscribirValor(campo, elemento.Valor);
         }
 
         // La confirmación de la plantilla ya cotejó estos nombres contra el
@@ -77,10 +79,85 @@ public class RellenadorPlantillaPdfService : IRellenadorPlantillaPdfService
         if (camposFaltantes.Count > 0)
             throw new CamposAcroFormFaltantesException(camposFaltantes);
 
+        // Red de seguridad, no el mecanismo principal (M4 § 3.2): /NeedAppearances
+        // pide al visor que regenere las apariencias, pero hay visores que lo
+        // ignoran — por eso EscribirValor ya deja /V y /AS coherentes por su cuenta.
+        acroForm.Elements[ClaveNecesitaApariencias] = new PdfBoolean(true);
+
         using var salida = new MemoryStream();
         documento.Save(salida);
         return salida.ToArray();
     }
+
+    /// <summary>
+    /// Auditoría de seguridad del módulo, M4 § 3.2 (2026-08-31): antes, cualquier
+    /// campo no textual recibía un <c>PdfString</c> genérico. Eso deja el valor
+    /// escrito pero <c>/AS</c> intacto, así que un visor que no regenera
+    /// apariencias dibuja la casilla sin marcar aunque el dato ya esté puesto.
+    ///
+    /// <c>PdfCheckBoxField.Checked</c> sí escribe <c>/V</c> y <c>/AS</c> con el
+    /// nombre de estado real del PDF (el de <c>/AP /N</c>, p. ej. <c>/Yes</c>),
+    /// que no tiene por qué ser el texto del valor resuelto.
+    ///
+    /// <c>PdfRadioButtonField.SelectedIndex</c> NO sirve: medido sobre PdfSharp
+    /// 6.2.4, escribe <c>/V</c> como un nombre cuyo texto es la referencia
+    /// indirecta del hijo (<c>/6 0 R</c>) y no toca el <c>/AS</c> de ninguno —
+    /// el grupo queda sin marcar en cualquier visor. Por eso el grupo se
+    /// resuelve aquí contra los estados declarados en <c>/AP /N</c>.
+    /// </summary>
+    private static void EscribirValor(PdfAcroField campo, string? valor)
+    {
+        switch (campo)
+        {
+            case PdfTextField campoTexto:
+                campoTexto.Text = valor ?? string.Empty;
+                break;
+
+            case PdfCheckBoxField casilla:
+                casilla.Checked = EsValorAfirmativo(valor);
+                break;
+
+            case PdfRadioButtonField grupo:
+                SeleccionarOpcion(grupo, valor);
+                break;
+
+            default:
+                campo.Value = new PdfString(valor ?? string.Empty);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Marca el hijo cuyo <c>/AP /N</c> declara un estado con el nombre del
+    /// valor resuelto, y apaga el resto. Un valor que no nombra ninguna opción
+    /// del grupo deja el grupo sin marcar — igual que un valor vacío: aquí no
+    /// se puede distinguir "no contestado" de "contestado con una opción que
+    /// este PDF no tiene", y DEC-5 solo decide sobre el obligatorio vacío, que
+    /// se comprueba en Application.
+    /// </summary>
+    private static void SeleccionarOpcion(PdfRadioButtonField grupo, string? valor)
+    {
+        var widgets = grupo.HasKids && grupo.Fields.Count > 0
+            ? Enumerable.Range(0, grupo.Fields.Count).Select(i => (PdfDictionary)grupo.Fields[i]).ToList()
+            : [grupo];
+
+        var estadoElegido = EstadoApagado;
+        foreach (var widget in widgets)
+        {
+            var estado = EstadosDeApariencia(widget)
+                .FirstOrDefault(e => !string.Equals(e, EstadoApagado, StringComparison.Ordinal)
+                    && string.Equals(e[1..], valor, StringComparison.Ordinal));
+
+            if (estado is not null) estadoElegido = estado;
+            widget.Elements[ClaveEstadoApariencia] = new PdfName(estado ?? EstadoApagado);
+        }
+
+        grupo.Elements[ClaveValor] = new PdfName(estadoElegido);
+    }
+
+    /// <summary>Nombres de estado (<c>/Off</c>, <c>/Yes</c>, <c>/Op1</c>…) que el widget declara en <c>/AP /N</c>.</summary>
+    private static IEnumerable<string> EstadosDeApariencia(PdfDictionary widget) =>
+        widget.Elements.GetDictionary("/AP")?.Elements.GetDictionary("/N")?.Elements.Keys ?? [];
 
     private static Dictionary<string, PdfAcroField> IndexarCampos(PdfAcroField.PdfAcroFieldCollection campos)
     {
