@@ -24,7 +24,7 @@
     <div class="cabecera-pagina">
         <h1 class="titulo-pagina">Clientes</h1>
         <div class="acciones-cabecera">
-            <a class="enlace-exportar" href="/clientes/exportar.xlsx">Exportar a Excel</a>
+            <a class="enlace-exportar" href="/clientes/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel</a>
             <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador">
                 <a class="enlace-exportar" href="/importacion?plantilla=clientes">Importar clientes</a>
                 <a class="enlace-exportar" href="/importacion?plantilla=combinada">Importación combinada</a>
@@ -70,32 +70,33 @@
     @if (HayFiltrosActivos)
     {
         <div class="chips-filtros">
+            <span class="chips-filtros-indicador" aria-hidden="true"><Icono Nombre="filtro" Tamano="TamanoIcono.Pequeno" /></span>
             @if (!string.IsNullOrWhiteSpace(_busqueda))
             {
                 <span class="chip-filtro">
                     Búsqueda: "@_busqueda"
-                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroBusquedaAsync" aria-label="Quitar filtro de búsqueda">×</button>
+                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroBusquedaAsync" aria-label="Quitar filtro de búsqueda"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
                 </span>
             }
             @if (_soloCriticos)
             {
                 <span class="chip-filtro">
                     Solo críticos
-                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroCriticosAsync" aria-label="Quitar filtro de críticos">×</button>
+                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroCriticosAsync" aria-label="Quitar filtro de críticos"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
                 </span>
             }
             @if (!string.IsNullOrWhiteSpace(_ejecutivoFiltro))
             {
                 <span class="chip-filtro">
                     @EtiquetaFiltroEjecutivo
-                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroEjecutivoAsync" aria-label="Quitar filtro de ejecutivo">×</button>
+                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroEjecutivoAsync" aria-label="Quitar filtro de ejecutivo"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
                 </span>
             }
             @if (!string.IsNullOrWhiteSpace(_estadoDocumentalFiltro))
             {
                 <span class="chip-filtro">
                     @EtiquetaFiltroEstadoDocumental
-                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroEstadoDocumentalAsync" aria-label="Quitar filtro de estado documental">×</button>
+                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroEstadoDocumentalAsync" aria-label="Quitar filtro de estado documental"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
                 </span>
             }
         </div>
@@ -108,7 +109,7 @@
             {
                 <span class="chip-filtro" title="Filtro guardado">
                     @filtro.Nombre
-                    <button type="button" class="chip-filtro-quitar" @onclick="() => EliminarFiltroGuardadoAsync(filtro.Id)" aria-label="@($"Borrar filtro guardado {filtro.Nombre}")">×</button>
+                    <button type="button" class="chip-filtro-quitar" @onclick="() => EliminarFiltroGuardadoAsync(filtro.Id)" aria-label="@($"Borrar filtro guardado {filtro.Nombre}")"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
                 </span>
             }
         </div>
@@ -209,7 +210,7 @@
 
         @if (_totalElementos == 0 && !_cargando)
         {
-            <EstadoVacio Titulo="Aún no hay clientes" Descripcion="Crea el primero para empezar a organizar tus centros de trabajo.">
+            <EstadoVacio NombreIcono="clientes" Titulo="Aún no hay clientes" Descripcion="Crea el primero para empezar a organizar tus centros de trabajo.">
                 <Accion>
                     <Boton OnClick="AbrirCrear">+ Nuevo cliente</Boton>
                     <Boton Variante="VarianteBoton.Secundario" OnClick='() => NavigationManager.NavigateTo("/clientes/alta-guiada")'>

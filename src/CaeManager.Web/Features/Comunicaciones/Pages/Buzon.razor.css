@@ -105,3 +105,22 @@
         max-height: 60vh;
     }
 }
+
+/* Mismo botón que .composer-adjunto-quitar del ComposerBar: quita un adjunto
+   pendiente de la redacción. Lleva el icono "cerrar", así que necesita
+   inline-flex para centrar el svg. */
+.bandeja-adjunto-quitar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: none;
+    padding: 0;
+    margin-left: var(--space-1);
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+
+.bandeja-adjunto-quitar:hover {
+    color: var(--color-danger-700);
+}

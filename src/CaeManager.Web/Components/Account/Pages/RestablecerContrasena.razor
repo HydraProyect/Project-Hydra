@@ -20,7 +20,7 @@
     else if (_completado)
     {
         <div class="confirmacion-envio-login">
-            <span class="icono-exito-login" aria-hidden="true">✓</span>
+            <span class="icono-exito-login" aria-hidden="true"><Icono Nombre="check" Tamano="TamanoIcono.Grande" /></span>
             <p class="subtitulo-login">Contraseña actualizada</p>
             <p class="texto-explicativo-login">Ya puedes iniciar sesión con tu nueva contraseña.</p>
         </div>
@@ -59,7 +59,16 @@
                     @foreach (var requisito in _requisitos)
                     {
                         <span class="@("requisito-contrasena " + (requisito.Cumplido ? "requisito-contrasena-ok" : ""))">
-                            <span class="marca-requisito-contrasena" aria-hidden="true">@(requisito.Cumplido ? "✓" : "·")</span>
+                            <span class="marca-requisito-contrasena" aria-hidden="true">
+                                @if (requisito.Cumplido)
+                                {
+                                    <Icono Nombre="check" Tamano="TamanoIcono.Pequeno" />
+                                }
+                                else
+                                {
+                                    @("·")
+                                }
+                            </span>
                             @requisito.Etiqueta
                         </span>
                     }

@@ -30,7 +30,7 @@ namespace CaeManager.Web.Features.Trabajadores.Pages;
 /// (a diferencia de la pestaña "Documentación" del panel, que es plana) y
 /// las gestiones pendientes.
 ///
-/// "Reclamar faltantes" del menú ⋯ del mockup: <c>EnviarReclamacionCommand</c>
+/// "Reclamar faltantes" del menú de acciones del mockup: <c>EnviarReclamacionCommand</c>
 /// opera a grano Cliente (reclama todo lo pendiente de ese Cliente, no hace
 /// falta acotar por Centro), así que el único caso ambiguo es un trabajador
 /// con asignaciones activas en Centros de Clientes distintos a la vez —

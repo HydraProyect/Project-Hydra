@@ -1,4 +1,8 @@
 <span class="@ClaseCompleta" @attributes="AtributosSinClase">
+    @if (ConIcono && NombreIconoDelTono is { } nombreIcono)
+    {
+        <Icono Nombre="@nombreIcono" Tamano="TamanoIcono.Pequeno" />
+    }
     @ChildContent
 </span>
 
@@ -6,6 +10,29 @@
     [Parameter] public RenderFragment? ChildContent { get; set; }
     [Parameter] public TonoBadge Tono { get; set; } = TonoBadge.Neutro;
     [Parameter] public TamanoBadge Tamano { get; set; } = TamanoBadge.Medio;
+
+    /// <summary>
+    /// Antepone al texto el icono del tono, para que el estado no dependa
+    /// solo del color (WCAG 1.4.1 "Uso del color"): quien no distingue el
+    /// verde del ámbar sigue leyendo la forma. Se activa donde el color ES
+    /// la información — el semáforo de vigencia documental —, no en todos
+    /// los badges: un badge que solo rotula una categoría no gana nada con
+    /// un icono y sí pierde densidad de fila.
+    /// </summary>
+    [Parameter] public bool ConIcono { get; set; }
+
+    /// <summary>
+    /// Icono del catálogo por tono. Neutro no lleva: no afirma nada sobre el
+    /// estado, así que no hay forma que comunicar.
+    /// </summary>
+    private string? NombreIconoDelTono => Tono switch
+    {
+        TonoBadge.Exito => "exito-circulo",
+        TonoBadge.Advertencia => "advertencia",
+        TonoBadge.Peligro => "error-circulo",
+        TonoBadge.Info => "info",
+        _ => null
+    };
 
     /// <summary>Attribute splatting — ver el comentario de Boton.razor, mismo criterio (P2 #28 de docs/business/MATURITY_REVIEW.md), incluido el merge manual de "class".</summary>
     [Parameter(CaptureUnmatchedValues = true)]

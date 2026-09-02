@@ -277,6 +277,9 @@
 }
 
 .dashboard-pulso-etiqueta {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
     font: var(--font-label-md);
     text-transform: uppercase;
     letter-spacing: 0.08em;
@@ -304,6 +307,15 @@
 .dashboard-pulso-metrica-etiqueta {
     font: var(--font-body-md);
     color: var(--color-text-muted);
+}
+
+/* La flecha de tendencia solo aparece cuando la cifra mejora, así que su
+   color verde no es decorativo: refuerza lo que ya dicen los números. */
+.dashboard-pulso-tendencia {
+    display: inline-flex;
+    align-items: center;
+    margin-left: var(--space-2);
+    color: var(--color-success-700);
 }
 
 .dashboard-pulso-metrica-valor {

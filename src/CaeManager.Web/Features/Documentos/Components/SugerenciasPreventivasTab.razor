@@ -55,7 +55,7 @@ else
                 <div class="fila-trabajador-acordeon-cuerpo">
                     <div class="fila-trabajador-rejilla">
                         <span class="fila-trabajador-nombre">@ventana.Etiqueta</span>
-                        <Badge Tono="EstadoDocumentoUi.Tono(ventana.PeorEstado)" Tamano="TamanoBadge.Pequeno">
+                        <Badge Tono="EstadoDocumentoUi.Tono(ventana.PeorEstado)" ConIcono Tamano="TamanoBadge.Pequeno">
                             @EstadoDocumentoUi.Texto(ventana.PeorEstado)
                         </Badge>
                         <span class="fila-trabajador-fraccion">
@@ -75,7 +75,7 @@ else
                                 <span class="celda-documento-nombre" role="cell">@documento.PropietarioNombre</span>
                                 <span role="cell">@documento.TipoDocumentoNombre</span>
                                 <span role="cell">
-                                    <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">
+                                    <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" ConIcono Tamano="TamanoBadge.Pequeno">
                                         @(documento.FechaVencimiento?.ToString("dd/MM/yyyy")) — @EstadoDocumentoUi.Texto(documento.Estado)
                                     </Badge>
                                 </span>

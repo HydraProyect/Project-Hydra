@@ -117,10 +117,11 @@
 }
 
 .workspace-cerrar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     background: none;
     border: none;
-    font-size: 1.25rem;
-    line-height: 1;
     color: var(--color-text-muted);
     cursor: pointer;
     padding: var(--space-1);

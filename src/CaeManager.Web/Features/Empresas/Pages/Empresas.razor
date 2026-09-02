@@ -29,7 +29,7 @@
     <div class="cabecera-pagina">
         <h1 class="titulo-pagina">@_tituloPagina</h1>
         <div class="acciones-cabecera">
-            <a class="enlace-exportar" href="/empresas/exportar.xlsx">Exportar a Excel</a>
+            <a class="enlace-exportar" href="/empresas/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel</a>
             <Boton OnClick="AbrirCrear">+ Nueva empresa</Boton>
         </div>
     </div>
@@ -56,7 +56,7 @@
     }
     else if (_elementosPagina.Count == 0)
     {
-        <EstadoVacio Titulo="Aún no hay empresas" Descripcion="Crea la primera para poder dar de alta trabajadores.">
+        <EstadoVacio NombreIcono="empresas" Titulo="Aún no hay empresas" Descripcion="Crea la primera para poder dar de alta trabajadores.">
             <Accion>
                 <Boton OnClick="AbrirCrear">+ Nueva empresa</Boton>
             </Accion>

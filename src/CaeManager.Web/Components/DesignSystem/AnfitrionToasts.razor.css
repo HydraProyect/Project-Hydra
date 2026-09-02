@@ -63,6 +63,16 @@
     background-color: var(--color-danger-500);
 }
 
+/* El botón de cerrar lleva icono, no glifo: inline-flex centra el svg dentro
+   del botón. Va en su propia clase y no en ".toast button" porque ese
+   selector también alcanza a .toast-accion, que es texto y no debe centrarse
+   como una caja de icono. */
+.toast-cerrar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
 /* La acción ("Deshacer") tiene que distinguirse del botón de cerrar — es la interacción esperable, no un descarte. */
 .toast-accion {
     font-weight: 600;
