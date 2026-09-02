@@ -185,7 +185,27 @@ public class DocumentoTests
         var accion = () => documento.Ambito;
 
         accion.Should().Throw<InvalidOperationException>()
-            .WithMessage("*sin propietario*");
+            .WithMessage("*exactamente un propietario*");
+    }
+
+    // DCR-19: Ambito no puede limitarse a mirar "cuál es el primero no nulo"
+    // — eso "resolvería" una fila con dos propietarios devolviendo el
+    // primero en vez de fallar, el mismo defecto que existe para eliminar
+    // pero con dos en vez de con cero (hallazgo de la revisión adversarial).
+    // Mismo camino de materialización que el test anterior: constructor sin
+    // parámetros + asignación directa a las propiedades por reflexión,
+    // porque ninguna vía pública deja un Documento con dos propietarios.
+    [Fact]
+    public void Ambito_lanza_si_el_documento_tiene_dos_propietarios()
+    {
+        var documento = InvocarConstructorSinParametros();
+        typeof(Documento).GetProperty(nameof(Documento.TrabajadorId))!.SetValue(documento, Guid.NewGuid());
+        typeof(Documento).GetProperty(nameof(Documento.ClienteId))!.SetValue(documento, Guid.NewGuid());
+
+        var accion = () => documento.Ambito;
+
+        accion.Should().Throw<InvalidOperationException>()
+            .WithMessage("*exactamente un propietario*");
     }
 
     private static object InvocarConstructorConParametros(

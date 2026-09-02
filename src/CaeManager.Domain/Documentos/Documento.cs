@@ -44,17 +44,32 @@ public class Documento : EntidadBase
     /// (<c>DocumentoConfiguration</c>, migración
     /// <c>RendimientoBusquedasYCheckXorDocumento</c> del 2026-08-01) es la que
     /// impide que esa fila llegue a existir.
+    ///
+    /// Cuenta los cinco, no se limita a mirar cuál es el primero no-nulo: una
+    /// cadena de <c>is not null ? ... : ...</c> que se detiene en el primer
+    /// match "resolvería" una fila con dos propietarios devolviendo el
+    /// primero en vez de fallar — el mismo defecto que esta propiedad existe
+    /// para eliminar, solo que con dos en vez de con cero.
     /// </summary>
-    public AmbitoAplicacion Ambito =>
-        TrabajadorId is not null ? AmbitoAplicacion.Trabajador
-        : ClienteId is not null ? AmbitoAplicacion.Cliente
-        : VehiculoId is not null ? AmbitoAplicacion.Vehiculo
-        : ProyectoId is not null ? AmbitoAplicacion.Proyecto
-        : EmpresaId is not null ? AmbitoAplicacion.Empresa
-        : throw new InvalidOperationException(
-            "Documento sin propietario (ni Trabajador, ni Cliente, ni Empresa, ni Vehículo, ni Proyecto): " +
-            "viola CK_Documentos_PropietarioXor. Esto no puede ocurrir para un documento creado por las " +
-            "factorías de este agregado — indica una fila inválida materializada desde base de datos.");
+    public AmbitoAplicacion Ambito
+    {
+        get
+        {
+            var propietarios = new[] { TrabajadorId, ClienteId, EmpresaId, VehiculoId, ProyectoId };
+            if (propietarios.Count(id => id is not null) != 1)
+                throw new InvalidOperationException(
+                    "Documento sin exactamente un propietario entre Trabajador, Cliente, Empresa, Vehículo y " +
+                    "Proyecto: viola CK_Documentos_PropietarioXor. Esto no puede ocurrir para un documento " +
+                    "creado por las factorías de este agregado — indica una fila inválida materializada desde " +
+                    "base de datos.");
+
+            return TrabajadorId is not null ? AmbitoAplicacion.Trabajador
+                : ClienteId is not null ? AmbitoAplicacion.Cliente
+                : VehiculoId is not null ? AmbitoAplicacion.Vehiculo
+                : ProyectoId is not null ? AmbitoAplicacion.Proyecto
+                : AmbitoAplicacion.Empresa;
+        }
+    }
 
     private Documento()
     {

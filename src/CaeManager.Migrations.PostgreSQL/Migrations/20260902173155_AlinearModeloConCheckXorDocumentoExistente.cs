@@ -16,11 +16,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// haya aplicado la migración de agosto (producción, staging, y la base
     /// de pruebas de integración, que aplica todas las migraciones en orden)
     /// la constraint ya existe, así que un <c>AddCheckConstraint</c> generado
-    /// a ciegas fallaría con "ya existe". El <c>Up</c> es idempotente por eso
-    /// —DROP CONSTRAINT IF EXISTS seguido de ADD CONSTRAINT con la misma
-    /// expresión— y funciona igual sobre una base que ya la tiene que sobre
-    /// una recién creada (en una base nueva, la migración de agosto la crea
-    /// primero; esta migración se limita a recrearla de forma idéntica).
+    /// a ciegas fallaría con "ya existe". El <c>Up</c> es idempotente
+    /// condicionando la creación a <c>pg_constraint</c> —no un DROP+ADD
+    /// incondicional— a propósito: <c>ALTER TABLE ... ADD CONSTRAINT</c>
+    /// sobre una CHECK exige un lock fuerte y revalida todas las filas de la
+    /// tabla; en toda base real (producción, staging) la constraint ya
+    /// existe, así que un DROP+ADD pagaría ese coste de bloqueo/revalidación
+    /// en cada despliegue sin necesidad — comprobar primero lo evita salvo en
+    /// el caso excepcional (constraint ausente) donde sí hace falta crearla.
     ///
     /// El <c>Down</c> es deliberadamente un no-op: la propietaria de crear y
     /// destruir esta constraint en la base de datos sigue siendo
@@ -37,9 +40,17 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
         {
             migrationBuilder.Sql(
                 """
-                ALTER TABLE "Documentos" DROP CONSTRAINT IF EXISTS "CK_Documentos_PropietarioXor";
-                ALTER TABLE "Documentos" ADD CONSTRAINT "CK_Documentos_PropietarioXor"
-                CHECK (num_nonnulls("TrabajadorId", "ClienteId", "EmpresaId", "VehiculoId", "ProyectoId") = 1);
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_constraint
+                        WHERE conname = 'CK_Documentos_PropietarioXor'
+                          AND conrelid = '"Documentos"'::regclass
+                    ) THEN
+                        ALTER TABLE "Documentos" ADD CONSTRAINT "CK_Documentos_PropietarioXor"
+                        CHECK (num_nonnulls("TrabajadorId", "ClienteId", "EmpresaId", "VehiculoId", "ProyectoId") = 1);
+                    END IF;
+                END $$;
                 """);
         }
 
