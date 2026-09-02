@@ -2,9 +2,7 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
 @using CaeManager.Application.Alertas.Queries.ObtenerAlertas
-@using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor
 @using CaeManager.Domain.Documentos
-@using CaeManager.Web.Features.Bandeja.Components
 @using CaeManager.Web.Features.Documentos
 @using MediatR
 @inject IMediator Mediator
@@ -22,26 +20,14 @@
         </p>
     </div>
 
-    <SeccionColapsable Titulo="Bandeja priorizada" ExpandidaPorDefecto="true">
-        @if (_cargandoBandeja)
-        {
-            <EstadoCargando Filas="3" />
-        }
-        else if (_itemsBandeja.Count == 0)
-        {
-            <p class="texto-vacio-seccion">Nada pendiente ahora mismo.</p>
-        }
-        else
-        {
-            <div class="lista-bandeja">
-                @foreach (var item in _itemsBandeja)
-                {
-                    <PanelResolverItem Item="item" />
-                }
-            </div>
-            <a href="/bandeja" class="enlace-nombre-fila">Ver todo en Mi trabajo →</a>
-        }
-    </SeccionColapsable>
+    @* DEC-4: /alertas no es una segunda cola de "qué hacer ahora" (A-02) —
+       esa es /bandeja. Hasta esta noche, "Bandeja priorizada" mostraba aquí
+       una miniatura de la propia ObtenerBandejaGestorQuery de /bandeja
+       (Fase C, truncada a 5 filas): un duplicado estricto, no una función
+       distinta — no enseñaba nada que /bandeja no enseñara, y enseñaba
+       menos. Retirada; el enlace de abajo es el único camino que hacía
+       falta conservar. *@
+    <a href="/bandeja" class="enlace-nombre-fila">Ver tu cola de trabajo en Mi trabajo →</a>
 
     @* Costura para el selector de tipo de documento × ámbito que construye N3
        (DEC-4 + DEC-7, PLAN-SESIONES-NOCTURNAS-2026-09-02.md — contrato en
