@@ -55,7 +55,21 @@ public static class ClientesEndpoints
                 stream,
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 "clientes.xlsx");
-        });
+        })
+        // DEC-1 (plan de sesiones nocturnas 2026-09-02): mismos roles que
+        // /clientes (RolesComunicaciones.Gestion, no RolesDeCartera de
+        // NavMenu — esa gatea "Visión de cartera", un dashboard distinto).
+        // Sin esto, restringir la página dejaba este endpoint como vía de
+        // bypass para descargar la misma lista completa de clientes con
+        // cualquier rol autenticado. Mismo patrón que /auditoria/exportar.xlsx.
+        // ObtenerClientesQuery ya aplica IAlcanceDatosService, así que un
+        // GestorCae exporta su propia cartera, no la de todos.
+        .RequireAuthorization(policy => policy.RequireRole(
+            CaeManager.Infrastructure.Identity.Roles.Administrador,
+            CaeManager.Infrastructure.Identity.Roles.DireccionCae,
+            CaeManager.Infrastructure.Identity.Roles.CoordinadorCae,
+            CaeManager.Infrastructure.Identity.Roles.GestorCae,
+            CaeManager.Infrastructure.Identity.Roles.Consulta));
 
         endpoints.MapGet("/clientes/plantilla.xlsx", (IPlantillaClientesService servicio) =>
             Results.File(

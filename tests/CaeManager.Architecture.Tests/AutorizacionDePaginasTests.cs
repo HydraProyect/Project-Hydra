@@ -1,4 +1,5 @@
 using CaeManager.Architecture.Tests.Soporte;
+using CaeManager.Web.Features.Comunicaciones;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
@@ -64,19 +65,31 @@ public class AutorizacionDePaginasTests
     }
 
     /// <summary>
-    /// DEC-1 (plan de sesiones nocturnas 2026-09-02, aprobada opción b): solo
-    /// los roles con cartera —Administrador, Dirección CAE, Coordinador
-    /// CAE, la misma constante <c>RolesDeCartera</c> de
-    /// <c>Components/Layout/NavMenu.razor</c>— pueden leer <c>/clientes</c> y
-    /// <c>/clientes/alta-guiada</c>. Comprueba el conjunto exacto de roles, no
-    /// solo que <c>[Authorize]</c> exista: ese caso ya lo cubre el test
-    /// anterior, y un ratchet que solo mira "¿hay atributo?" no detecta que
-    /// alguien amplíe el rol a Consulta o GestorCae mañana.
+    /// DEC-1 (plan de sesiones nocturnas 2026-09-02): los cinco roles de
+    /// gestión CAE —nunca el rol <c>Cliente</c> externo— pueden leer
+    /// <c>/clientes</c> y <c>/clientes/alta-guiada</c>. Es el mismo conjunto
+    /// que <see cref="RolesComunicaciones.Gestion"/> y que
+    /// <c>RolesConMenuCompleto</c> de <c>NavMenu.razor</c>.
+    ///
+    /// <b>No es <c>RolesDeCartera</c> de <c>NavMenu.razor</c></b> —Administrador,
+    /// DireccionCae, CoordinadorCae, sin GestorCae ni Consulta— aunque el
+    /// nombre invite a confundirlos: esa constante gatea la entrada de menú
+    /// "Visión de cartera" (un dashboard agregado), no el acceso a la lista de
+    /// Clientes. La primera versión de este test usaba esa constante por
+    /// error y habría dado 403 a GestorCae sobre su propia cartera —su trabajo
+    /// diario, ver <c>AlcanceDatosService.ObtenerClienteIdsDeCarteraAsync</c>—
+    /// y a Consulta sobre su supervisión de solo lectura, rompiendo
+    /// silenciosamente <see cref="CaeManager.E2ETests.AlcanceRolesTests"/>.
+    ///
+    /// Comprueba el conjunto exacto de roles, no solo que <c>[Authorize]</c>
+    /// exista: ese caso ya lo cubre el test anterior, y un ratchet que solo
+    /// mira "¿hay atributo?" no detecta que alguien reduzca el rol y deje
+    /// fuera a GestorCae, o lo amplíe a Cliente, mañana.
     /// </summary>
     [Theory]
     [InlineData("CaeManager.Web.Features.Clientes.Pages.Clientes")]
     [InlineData("CaeManager.Web.Features.Clientes.Pages.AltaGuiada")]
-    public void Clientes_y_AltaGuiada_solo_permiten_roles_con_cartera(string nombreCompletoDeLaPagina)
+    public void Clientes_y_AltaGuiada_solo_permiten_roles_de_gestion_cae(string nombreCompletoDeLaPagina)
     {
         var web = ReflexionArquitecturaHelper.CargarAssembly("CaeManager.Web");
         var pagina = ReflexionArquitecturaHelper.TiposDe(web).Single(t => t.FullName == nombreCompletoDeLaPagina);
@@ -90,16 +103,14 @@ public class AutorizacionDePaginasTests
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .ToHashSet(StringComparer.Ordinal);
 
-        var rolesConCartera = new HashSet<string>(StringComparer.Ordinal)
-        {
-            CaeManager.Infrastructure.Identity.Roles.Administrador,
-            CaeManager.Infrastructure.Identity.Roles.DireccionCae,
-            CaeManager.Infrastructure.Identity.Roles.CoordinadorCae,
-        };
+        var rolesDeGestionCae = RolesComunicaciones.Gestion
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToHashSet(StringComparer.Ordinal);
 
-        rolesDeclarados.Should().BeEquivalentTo(rolesConCartera,
-            "DEC-1 fija los roles con cartera (Administrador, Dirección CAE, Coordinador CAE) como los únicos " +
-            "con lectura de Clientes/AltaGuiada — ni más amplio (fuga de visibilidad) ni más estrecho (regresión " +
-            "funcional para un rol que sí debía verla)");
+        rolesDeclarados.Should().BeEquivalentTo(rolesDeGestionCae,
+            "DEC-1 fija los cinco roles de gestión CAE (Administrador, DireccionCae, CoordinadorCae, GestorCae, " +
+            "Consulta) como los únicos con lectura de Clientes/AltaGuiada — ni más amplio (Cliente vería datos de " +
+            "otras organizaciones) ni más estrecho (GestorCae o Consulta perderían un acceso que ya tenían y que " +
+            "AlcanceDatosService ya acota correctamente por su lado)");
     }
 }
