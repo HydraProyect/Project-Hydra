@@ -9,31 +9,34 @@ namespace CaeManager.E2ETests;
 /// pantallas de este bloque (4 hojas heterogéneas: Centros_Plataformas,
 /// Empleados, Extranjeros, Asignaciones — ver ClosedXmlImportacionParser).
 ///
-/// Este test no es solo un camino feliz: reproduce, con datos reales, un
-/// hallazgo confirmado leyendo EjecutarImportacionCommandHandler. Como
+/// Este test guarda la invariante «nada se descarta en silencio»
+/// (IMPORTACION.md § 3 bis, ratificada por DCR-12 decisión B, propietario
+/// 2026-08-24) sobre el caso que más cuesta cumplirla. Como
 /// Centros_Plataformas ya no puede crear Cliente/Centro nuevos (mismo motivo
 /// que ImportarClientesTests — Fase 10 exige CIF/Empresa que este formato no
 /// recoge), cualquier Asignación de la hoja Asignaciones que dependa de un
-/// Centro nuevo de ese mismo archivo pierde su Centro: la primera búsqueda
-/// de EjecutarImportacionCommandHandler indexa <c>centrosPorNombre</c> UNA
-/// vez contra la base de datos, antes de procesar nada, y el bucle de
-/// Asignaciones que no encuentra el Centro hace <c>continue</c> sin más — a
-/// diferencia del resto del handler, esta rama nunca añade nada a
+/// Centro nuevo de ese mismo archivo se queda sin su Centro: la búsqueda de
+/// EjecutarImportacionCommandHandler indexa <c>centrosPorNombre</c> UNA vez
+/// contra la base de datos, antes de procesar nada, así que el Centro que el
+/// archivo declaraba pero no pudo crearse nunca aparece ahí.
+///
+/// Hasta el 2026-09-02 este test exigía exactamente lo contrario: se llamaba
+/// "…pierde_la_Asignacion_en_silencio" y afirmaba, como resultado correcto,
+/// que esa pérdida no dejaba rastro en
 /// <see cref="CaeManager.Application.Importacion.ItemImportacionDto"/>
-/// Omitidos. El resultado: el paso 2 promete "Asignaciones nuevas: 1", la
-/// pantalla final confirma "Asignaciones creadas: 0" y en ningún sitio se
-/// explica por qué — a diferencia de la fila de Cliente/Centro, que sí
-/// aparece en Omitidos con motivo explícito. Es justo la clase de pérdida
-/// silenciosa de datos que esta ronda de tests E2E se propuso encontrar
-/// (ver el hallazgo en el informe de la tarea) — Asignaciones es la
-/// relación Trabajador↔Centro que decide qué acceso CAE tiene cada
-/// trabajador, así que perderla en silencio no es un detalle menor.
+/// Omitidos. Se había escrito deliberadamente para congelar un defecto ya
+/// conocido, y DCR-12 le retiró la autoridad: el contrato manda sobre el
+/// test. Ahora exige lo que el contrato promete — la Asignación puede
+/// omitirse, pero aparece en Omitidos nombrando el Centro que faltó y
+/// distinguiendo que venía en este mismo archivo y no pudo crearse.
+/// Asignaciones es la relación Trabajador↔Centro que decide qué acceso CAE
+/// tiene cada trabajador: perderla sin traza no es un detalle menor.
 /// </summary>
 [Collection("AppCollection")]
 public class ImportacionTests(WebAppFixture fixture)
 {
     [Fact]
-    public async Task Importacion_CAE_crea_Empresa_Trabajador_y_Documento_pero_pierde_la_Asignacion_en_silencio()
+    public async Task Importacion_CAE_crea_Empresa_Trabajador_y_Documento_y_registra_la_Asignacion_omitida_con_su_motivo()
     {
         var sufijo = Guid.NewGuid().ToString("N")[..8];
         var nombreCentro = $"CAE Centro {sufijo}";
@@ -108,28 +111,39 @@ public class ImportacionTests(WebAppFixture fixture)
             await page.GetByText("He revisado el plan y quiero escribir estos datos").ClickAsync();
             await page.GetByText("Importar ahora").ClickAsync();
 
-            // --- Resultado: Empresa/Trabajador/Documento sí se crean; Cliente/Centro se omiten con motivo;
-            // Asignaciones queda en 0 SIN ningún Omitido que lo explique — la pérdida silenciosa.
+            // --- Resultado: Empresa/Trabajador/Documento sí se crean, y las dos filas que
+            // no pudieron importarse aparecen AMBAS en Omitidos con su motivo — la de
+            // Cliente/Centro (le falta el CIF, que esta plantilla no recoge) y la
+            // Asignación que se quedó sin su Centro. Antes de DCR-12 B esta última
+            // desaparecía sin dejar rastro, y este test lo exigía así.
             // El reporte del wizard unificado agrega "Creados" en un único
             // número (Importacion.razor, paso 5) en vez de una tarjeta por
-            // entidad — 3 (empresa + trabajador + documento), no 6: Cliente y
-            // Centro se omiten y Asignación se pierde sin generar alta ni
-            // omitido. ".titulo-reporte-importacion" en vez de un rol Heading:
+            // entidad — 3 (empresa + trabajador + documento).
+            // ".titulo-reporte-importacion" en vez de un rol Heading:
             // es un <span>, no un <h#> — y a secas es ambiguo con el toast
             // "Importación completada." (con punto). ---
             await page.Locator(".titulo-reporte-importacion")
                 .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
             Assert.Equal("3", await Ayudas.LeerMetricaAsync(page, "Creados"));
             Assert.Equal("0", await Ayudas.LeerMetricaAsync(page, "Avisos"));
-            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Omitidos"));
+            Assert.Equal("2", await Ayudas.LeerMetricaAsync(page, "Omitidos"));
 
             var filasOmitidas = page.Locator(".tabla-datos tbody tr");
             await filasOmitidas.First.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
-            // Un único Omitido — el de Cliente/Centro. La Asignación perdida no deja rastro aquí.
-            await Expect(filasOmitidas).ToHaveCountAsync(1);
-            await Expect(filasOmitidas.First).ToContainTextAsync(nombreCentro);
-            await Expect(filasOmitidas.First).ToContainTextAsync("CIF");
-            await Expect(page.Locator(".tabla-datos")).Not.ToContainTextAsync("Asignaciones");
+            await Expect(filasOmitidas).ToHaveCountAsync(2);
+
+            // La fila de Cliente/Centro, que ya se registraba antes de DCR-12 B.
+            var filaClienteCentro = page.Locator(".tabla-datos tbody tr", new PageLocatorOptions { HasText = "CIF" });
+            await Expect(filaClienteCentro).ToContainTextAsync(nombreCentro);
+
+            // La Asignación: el contrato exige que quede registrada nombrando el
+            // Centro que faltó, y que distinga que venía en este mismo archivo y no
+            // pudo crearse (frente al Centro que el archivo ni siquiera declara).
+            var filaAsignacion = page.Locator(".tabla-datos tbody tr", new PageLocatorOptions { HasText = "Asignaciones" });
+            await Expect(filaAsignacion).ToHaveCountAsync(1);
+            await Expect(filaAsignacion).ToContainTextAsync(nombreCentro);
+            await Expect(filaAsignacion).ToContainTextAsync(dniTrabajador);
+            await Expect(filaAsignacion).ToContainTextAsync("Centros_Plataformas");
         }
         finally
         {
