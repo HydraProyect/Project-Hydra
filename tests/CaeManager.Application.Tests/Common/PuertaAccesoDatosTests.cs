@@ -83,4 +83,48 @@ public class PuertaAccesoDatosTests
         huboSolape.Should().BeTrue(
             "es la limitación conocida documentada en ROADMAP.md — si empieza a dar false, el diseño cambió");
     }
+
+    [Fact]
+    public void No_implementa_IDisposable_a_proposito()
+    {
+        // Ver el comentario de clase: versiones anteriores SÍ implementaban
+        // IDisposable y disponían el semáforo al terminar el scope — eso fue
+        // la causa raíz de tres incidentes reales en producción (Sentry
+        // DOTNET-2, DOTNET-5, DOTNET-6). SemaphoreSlim.Dispose() concurrente
+        // con WaitAsync/Release no es un uso soportado por la BCL y, bajo esa
+        // carrera concreta, ni un timeout compuesto por fuera ni la
+        // cancelación nativa de WaitAsync(CancellationToken) rescatan de
+        // forma fiable una espera ya colgada (comprobado en aislamiento con
+        // ambas variantes). La puerta no retiene ningún recurso no
+        // administrado (nunca toca AvailableWaitHandle), así que no disponer
+        // nada es la solución, no un descuido — no reintroducir IDisposable
+        // aquí sin releer este comentario.
+        typeof(PuertaAccesoDatos).Should().NotBeAssignableTo<IDisposable>();
+    }
+
+    [Fact]
+    public async Task Una_espera_en_cola_se_sirve_con_normalidad_sin_ninguna_carrera_de_disposicion()
+    {
+        // Sin Dispose no hay nada que envenenar: cuando A libera, B
+        // simplemente entra — sin cuelgues, sin ObjectDisposedException,
+        // exista o no todavía alguien esperando el resultado de B.
+        var puerta = new PuertaAccesoDatos();
+        var entroA = new TaskCompletionSource();
+        var liberarA = new TaskCompletionSource();
+        var tareaA = puerta.EjecutarAsync(async () =>
+        {
+            entroA.SetResult();
+            await liberarA.Task;
+        });
+
+        await entroA.Task; // A ya tiene la puerta.
+        var tareaB = puerta.EjecutarAsync(() => Task.CompletedTask); // B queda en cola, de verdad esperando.
+
+        liberarA.SetResult();
+        await tareaA;
+
+        var ganadora = await Task.WhenAny(tareaB, Task.Delay(TimeSpan.FromSeconds(5)));
+        ganadora.Should().Be(tareaB, "sin Dispose no hay ninguna carrera que pueda colgar la espera de B");
+        await tareaB; // no debe lanzar nada
+    }
 }
