@@ -1,6 +1,10 @@
 using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
+using CaeManager.Application.Reclamaciones;
+using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
+using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPorFiltro;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components;
+using CaeManager.Web.Components.DesignSystem;
 using Microsoft.AspNetCore.Components;
 
 namespace CaeManager.Web.Features.Alertas.Pages;
@@ -10,16 +14,15 @@ public partial class Alertas : ComponentBase
     private int _tamanoPagina = 20;
 
     /// <summary>
-    /// Ámbitos que la reclamación agregada de esta página puede ofrecer
-    /// (DEC-4 + DEC-7, PLAN-SESIONES-NOCTURNAS-2026-09-02.md). Solo
-    /// Trabajador: el ámbito Empresa no tiene camino de envío construido —
-    /// N3 confirma que el dispatcher del selector lanza
-    /// <see cref="NotSupportedException"/> para Empresa a propósito, y
-    /// <c>AmbitosDisponibles</c> es justo el parámetro que decide qué se
-    /// ofrece en pantalla. Ofrecerlo aquí sería una promesa navegable sin
-    /// capacidad detrás (A-08) — se pasa tal cual a
-    /// <c>SelectorLoteDocumental.AmbitosDisponibles</c> en cuanto el
-    /// contrato de N3 (PR #408) aterrice en main.
+    /// Ámbitos que la reclamación agregada de esta página ofrece en
+    /// <c>SelectorLoteDocumental.AmbitosDisponibles</c> (DEC-4 + DEC-7,
+    /// PLAN-SESIONES-NOCTURNAS-2026-09-02.md). Solo Trabajador: Empresa no
+    /// tiene camino de envío construido —
+    /// <see cref="ObtenerLoteReclamacionPorFiltroQueryHandler"/> lanza
+    /// <see cref="NotSupportedException"/> para ese ámbito a propósito, y
+    /// ofrecerlo aquí sería una promesa navegable sin capacidad detrás
+    /// (A-08). <c>AlertasTests</c> protege que esta lista no se amplíe
+    /// antes de que exista ese camino.
     /// </summary>
     public static readonly IReadOnlyList<AmbitoAplicacion> AmbitosSoportados = [AmbitoAplicacion.Trabajador];
 
@@ -37,6 +40,16 @@ public partial class Alertas : ComponentBase
     private bool _cargando = true;
     private bool _errorCarga;
     private int _pagina = 1;
+
+    private FiltroLoteDocumental? _filtroLote;
+    private bool _cargandoLote;
+    private bool _errorLote;
+    private IReadOnlyList<LoteReclamacionAgrupadoDto> _lotes = [];
+    private readonly Dictionary<Guid, HashSet<Guid>> _seleccionPorTitular = [];
+    private readonly Dictionary<Guid, HashSet<Guid>> _contactosPorTitular = [];
+    private Guid? _enviandoTitularId;
+    private bool _altaContactoVisible;
+    private Guid _titularAltaContacto;
 
     private IReadOnlyList<AlertaDto> AlertasFiltradas =>
         Enum.TryParse<EstadoDocumento>(_estadoFiltro, out var estado)
@@ -111,5 +124,113 @@ public partial class Alertas : ComponentBase
         {
             _cargando = false;
         }
+    }
+
+    private Task ConfirmarFiltroLoteAsync(FiltroLoteDocumental filtro)
+    {
+        _filtroLote = filtro;
+        return CargarLoteAsync();
+    }
+
+    private void CambiarFiltroLote()
+    {
+        _filtroLote = null;
+        _lotes = [];
+        _seleccionPorTitular.Clear();
+        _contactosPorTitular.Clear();
+    }
+
+    private async Task CargarLoteAsync()
+    {
+        if (_filtroLote is not { } filtro) return;
+
+        _cargandoLote = true;
+        _errorLote = false;
+        StateHasChanged();
+
+        try
+        {
+            _lotes = await Mediator.Send(new ObtenerLoteReclamacionPorFiltroQuery(filtro));
+            _seleccionPorTitular.Clear();
+            _contactosPorTitular.Clear();
+            foreach (var lote in _lotes)
+            {
+                _seleccionPorTitular[lote.TitularId] = lote.Documentos.Select(d => d.DocumentoId).ToHashSet();
+                _contactosPorTitular[lote.TitularId] =
+                    (lote.Destinatarios ?? []).Select(d => d.ContactoId).ToHashSet();
+            }
+        }
+        catch (Exception)
+        {
+            _errorLote = true;
+        }
+        finally
+        {
+            _cargandoLote = false;
+        }
+    }
+
+    private void AlternarSeleccion(Guid titularId, Guid documentoId, bool seleccionado)
+    {
+        var seleccionados = _seleccionPorTitular[titularId];
+        if (seleccionado) seleccionados.Add(documentoId);
+        else seleccionados.Remove(documentoId);
+    }
+
+    private HashSet<Guid> ContactosMarcados(Guid titularId) =>
+        _contactosPorTitular.TryGetValue(titularId, out var marcados) ? marcados : [];
+
+    private void AlternarContacto(Guid titularId, Guid contactoId, bool marcado)
+    {
+        if (!_contactosPorTitular.TryGetValue(titularId, out var marcados))
+            _contactosPorTitular[titularId] = marcados = [];
+
+        if (marcado) marcados.Add(contactoId);
+        else marcados.Remove(contactoId);
+    }
+
+    private void AbrirAltaContacto(Guid titularId)
+    {
+        _titularAltaContacto = titularId;
+        _altaContactoVisible = true;
+    }
+
+    private async Task EnviarLoteAsync(LoteReclamacionAgrupadoDto lote)
+    {
+        var documentoIds = _seleccionPorTitular[lote.TitularId].ToList();
+        if (documentoIds.Count == 0) return;
+
+        var contactoIds = ContactosMarcados(lote.TitularId).ToList();
+        if (contactoIds.Count == 0) return;
+
+        _enviandoTitularId = lote.TitularId;
+        try
+        {
+            var resultado = await Mediator.Send(new EnviarReclamacionCommand(
+                lote.TitularId, documentoIds, CentroId: null, ContactoIdsSeleccionados: contactoIds));
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            ToastService.Mostrar($"Reclamación enviada a {lote.TitularNombre}.", TonoToast.Exito);
+            await CargarLoteAsync();
+        }
+        finally
+        {
+            _enviandoTitularId = null;
+        }
+    }
+
+    private static string FormatearHaceTiempo(DateTime fechaUtc)
+    {
+        var dias = (int)(DateTime.UtcNow - fechaUtc).TotalDays;
+        return dias switch
+        {
+            <= 0 => "hoy",
+            1 => "hace 1 día",
+            _ => $"hace {dias} días"
+        };
     }
 }
