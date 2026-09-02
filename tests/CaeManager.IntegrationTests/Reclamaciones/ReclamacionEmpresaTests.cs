@@ -100,13 +100,12 @@ public class ReclamacionEmpresaTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task El_lote_de_Empresa_no_arrastra_documentos_de_otro_ambito_de_la_misma_Empresa()
+    public async Task El_lote_de_Empresa_no_arrastra_los_documentos_que_esa_misma_Empresa_tiene_como_Cliente()
     {
         // La misma fila de Empresas puede ser a la vez contraparte con
         // documentación propia y Cliente con la suya (ADR-011: Empresa es una
-        // entidad única, "Cliente" es una posición). Sin el filtro de ámbito,
-        // un RLC —documento de Cliente— entraría en el lote de empresa y se
-        // reclamaría a los contactos equivocados.
+        // entidad única, "Cliente" es una posición). Este caso lo separa el
+        // ancla del Documento: un RLC cuelga de ClienteId, no de EmpresaId.
         await SembrarDocumentoDeEmpresaAsync(_empresaId, _tipoEmpresaId, mesesHastaVencer: 1);
         await SembrarDocumentoDeClienteAsync(_empresaId, _tipoClienteId, mesesHastaVencer: 1);
         await SembrarContactoDeEmpresaAsync(_empresaId, "agenda@contratista.test");
@@ -116,8 +115,32 @@ public class ReclamacionEmpresaTests : IAsyncLifetime
             new ObtenerLoteReclamacionEmpresaQuery(), CancellationToken.None);
 
         var lote = lotes.Should().ContainSingle().Which;
-        lote.Documentos.Should().ContainSingle("solo el de ámbito Empresa es reclamable por este camino");
+        lote.Documentos.Should().ContainSingle("solo el que cuelga de EmpresaId es reclamable por este camino");
         lote.Documentos[0].TipoDocumentoNombre.Should().Be("Plan de prevención");
+    }
+
+    [Fact]
+    public async Task Un_documento_colgado_de_la_Empresa_pero_de_un_TipoDocumento_de_otro_ambito_no_entra_en_el_lote()
+    {
+        // El caso que de verdad ejercita el filtro de ámbito, y que el ancla
+        // NO puede atrapar: Documento.DeEmpresa no comprueba que el
+        // TipoDocumento sea de ámbito Empresa, así que una fila con EmpresaId
+        // informado y un tipo de ámbito Cliente es representable —y entraría
+        // en el lote, reclamándose a los contactos de la agenda de Empresa, si
+        // la consulta se fiara solo del ancla.
+        //
+        // Escrito después de que la mutación "quitar el filtro de ámbito"
+        // saliera VERDE: el test anterior sembraba el desajuste en el eje
+        // equivocado (un documento de Cliente, que el ancla ya descarta) y por
+        // tanto no observaba la propiedad que decía observar.
+        await SembrarDocumentoDeEmpresaAsync(_empresaId, _tipoClienteId, mesesHastaVencer: 1);
+        await SembrarContactoDeEmpresaAsync(_empresaId, "agenda@contratista.test");
+
+        await using var contexto = CrearContexto();
+        var lotes = await CrearLoteHandler(contexto).Handle(
+            new ObtenerLoteReclamacionEmpresaQuery(), CancellationToken.None);
+
+        lotes.Should().BeEmpty("un RLC no es documentación de empresa por colgar de una Empresa");
     }
 
     [Fact]
@@ -242,17 +265,26 @@ public class ReclamacionEmpresaTests : IAsyncLifetime
         resultado.Error.Codigo.Should().Be("Reclamacion.SinDestinatario");
     }
 
-    [Fact]
-    public async Task Un_documento_de_otro_ambito_colado_a_mano_en_el_envio_no_se_reclama()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Un_documento_que_no_es_de_empresa_colado_a_mano_en_el_envio_no_se_reclama(bool colgadoDeLaEmpresa)
     {
         // La vista previa solo ofrece documentos de empresa, pero el comando no
-        // se fía de la UI: revalida el ámbito contra la base.
-        var documentoDeCliente = await SembrarDocumentoDeClienteAsync(_empresaId, _tipoClienteId, mesesHastaVencer: 1);
+        // se fía de la UI: revalida contra la base las DOS condiciones, porque
+        // fallan por separado. colgadoDeLaEmpresa=false prueba el ancla (un
+        // documento de Cliente); =true prueba el filtro de ámbito con un
+        // documento que SÍ cuelga de la Empresa pero cuyo TipoDocumento es de
+        // otro ámbito — ese el ancla no lo ve, y sin el segundo filtro se
+        // reclamaría.
+        var documentoId = colgadoDeLaEmpresa
+            ? await SembrarDocumentoDeEmpresaAsync(_empresaId, _tipoClienteId, mesesHastaVencer: 1)
+            : await SembrarDocumentoDeClienteAsync(_empresaId, _tipoClienteId, mesesHastaVencer: 1);
         await SembrarContactoDeEmpresaAsync(_empresaId, "agenda@contratista.test");
 
         await using var contexto = CrearContexto();
         var resultado = await CrearCommandHandler(contexto, new MediatorSoloEnviarMensajeNuevo(Guid.NewGuid()))
-            .Handle(new EnviarReclamacionEmpresaCommand(_empresaId, [documentoDeCliente]), CancellationToken.None);
+            .Handle(new EnviarReclamacionEmpresaCommand(_empresaId, [documentoId]), CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Reclamacion.SinDocumentosValidos");
