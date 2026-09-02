@@ -1,0 +1,119 @@
+.boton-avisos-normativos {
+    position: fixed;
+    left: var(--space-6);
+    bottom: var(--space-6);
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border-radius: var(--radius-full);
+    border: none;
+    background-color: var(--color-neutral-0);
+    color: var(--color-primary-500);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+    transition: transform var(--motion-fast) var(--ease-standard),
+        box-shadow var(--motion-fast) var(--ease-standard);
+}
+
+.boton-avisos-normativos:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+.badge-avisos-normativos {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 var(--space-1);
+    border-radius: var(--radius-full);
+    background-color: var(--color-danger-500);
+    color: var(--color-neutral-0);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+}
+
+.descripcion-avisos-normativos {
+    color: var(--color-neutral-600);
+    margin-bottom: var(--space-4);
+}
+
+.lista-avisos-normativos {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.item-aviso-normativo {
+    padding: var(--space-3);
+    border: 1px solid var(--color-neutral-200);
+    border-radius: var(--radius-md);
+}
+
+.item-aviso-normativo-cabecera {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-2);
+}
+
+.etiqueta-norma-vigilada {
+    font-weight: var(--font-weight-bold);
+    color: var(--color-primary-600);
+}
+
+.fecha-aviso-normativo {
+    color: var(--color-neutral-500);
+    font-size: var(--font-size-sm);
+}
+
+.titulo-aviso-normativo {
+    display: block;
+    color: var(--color-neutral-800);
+    text-decoration: none;
+    margin-bottom: var(--space-2);
+}
+
+.titulo-aviso-normativo:hover {
+    text-decoration: underline;
+}
+
+.item-aviso-normativo-pie {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
+.estado-aviso-revisado {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    color: var(--color-success-600);
+    font-size: var(--font-size-sm);
+}
+
+.estado-aviso-pendiente {
+    color: var(--color-neutral-500);
+    font-size: var(--font-size-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .boton-avisos-normativos {
+        transition: none;
+    }
+
+    .boton-avisos-normativos:hover {
+        transform: none;
+    }
+}

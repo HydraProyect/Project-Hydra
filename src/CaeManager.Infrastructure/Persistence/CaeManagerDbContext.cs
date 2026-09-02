@@ -86,7 +86,8 @@ public class CaeManagerDbContext(
         CaeManager.Application.Plantillas.IPlantillasQueryContext, IImportacionQueryContext, IReportesQueryContext,
         IOperacionesQueryContext, CaeManager.Application.Plataforma.IPlataformaQueryContext,
         IBlindaje42QueryContext,
-        IBusquedaGlobalQueryContext
+        IBusquedaGlobalQueryContext,
+        CaeManager.Application.VigilanciaNormativa.IVigilanciaNormativaQueryContext
 {
     private readonly IDataProtector _protectorCredenciales =
         dataProtectionProvider.CreateProtector("CaeManager.PlataformaAcceso.Credenciales.v1"); // nombre de protector sin cambiar: renombrar rompería el descifrado de filas ya cifradas.
@@ -216,6 +217,7 @@ public class CaeManagerDbContext(
     IQueryable<CaeManager.Domain.Soporte.RegistroActividadSoporte> ITenantsQueryContext.RegistrosActividadSoporte => RegistrosActividadSoporte;
     public DbSet<AceptacionTerminos> AceptacionesTerminos => Set<AceptacionTerminos>();
     public DbSet<CaeManager.Domain.VigilanciaNormativa.AvisoRevisionNormativa> AvisosRevisionNormativa => Set<CaeManager.Domain.VigilanciaNormativa.AvisoRevisionNormativa>();
+    IQueryable<CaeManager.Domain.VigilanciaNormativa.AvisoRevisionNormativa> CaeManager.Application.VigilanciaNormativa.IVigilanciaNormativaQueryContext.AvisosRevisionNormativa => AvisosRevisionNormativa;
     public DbSet<ReclamacionDocumental> ReclamacionesDocumentales => Set<ReclamacionDocumental>();
     IQueryable<ReclamacionDocumental> IReclamacionesQueryContext.ReclamacionesDocumentales => ReclamacionesDocumentales;
     public DbSet<ReclamacionDocumentalDocumento> ReclamacionesDocumentalesDocumento => Set<ReclamacionDocumentalDocumento>();
