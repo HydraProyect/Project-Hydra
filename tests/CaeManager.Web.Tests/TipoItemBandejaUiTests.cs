@@ -44,4 +44,47 @@ public class TipoItemBandejaUiTests
         TipoItemBandejaUi.TextoAccion(Requisito(esAltaNueva: true)).Should().Be("Adjuntar");
         TipoItemBandejaUi.TextoAccion(Requisito(esAltaNueva: false)).Should().Be("Ver requisito");
     }
+
+    private static ItemBandejaDto Item(TipoItemBandeja tipo, Guid? trabajadorId, Guid? tipoDocumentoId) => new(
+        Id: "item-1", Tipo: tipo, Titulo: "t", Subtitulo: "s", Fecha: null,
+        TrabajadorId: trabajadorId, CentroId: null, DocumentoId: null, TipoDocumentoId: tipoDocumentoId, RequisitoId: null);
+
+    /// <summary>
+    /// U-2 (plan nocturno 2026-09-02): EsReclamable es el gate que decide si
+    /// Bandeja ofrece el botón "Reclamar" en un ítem. Solo Faltante/Vencido/
+    /// Urgente son documentos de Trabajador reclamables por email hoy — el
+    /// resto de tipos son otra clase de trabajo (revisión IA, requisito de
+    /// centro, visita, detección de personal, plataforma del cliente).
+    /// </summary>
+    [Theory]
+    [InlineData(TipoItemBandeja.Faltante, true)]
+    [InlineData(TipoItemBandeja.Vencido, true)]
+    [InlineData(TipoItemBandeja.Urgente, true)]
+    [InlineData(TipoItemBandeja.RequisitoPendiente, false)]
+    [InlineData(TipoItemBandeja.RevisionIa, false)]
+    [InlineData(TipoItemBandeja.VisitaUrgente, false)]
+    [InlineData(TipoItemBandeja.SugerenciaVisitaUrgente, false)]
+    [InlineData(TipoItemBandeja.DeteccionPendiente, false)]
+    [InlineData(TipoItemBandeja.PlataformaPendiente, false)]
+    public void EsReclamable_solo_es_true_para_Faltante_Vencido_o_Urgente_con_trabajador_y_tipo_de_documento(
+        TipoItemBandeja tipo, bool esperado)
+    {
+        TipoItemBandejaUi.EsReclamable(Item(tipo, Guid.NewGuid(), Guid.NewGuid())).Should().Be(esperado);
+    }
+
+    [Fact]
+    public void EsReclamable_es_false_sin_TrabajadorId_aunque_el_tipo_sea_reclamable()
+    {
+        // VisitaUrgente/SugerenciaVisitaUrgente son justo los tipos Faltante-
+        // adyacentes sin Trabajador — sin este guard, EsReclamable ofrecería
+        // "Reclamar" sobre un ítem que EnviarReclamacionCommand no sabría a
+        // quién pedir.
+        TipoItemBandejaUi.EsReclamable(Item(TipoItemBandeja.Faltante, trabajadorId: null, Guid.NewGuid())).Should().BeFalse();
+    }
+
+    [Fact]
+    public void EsReclamable_es_false_sin_TipoDocumentoId()
+    {
+        TipoItemBandejaUi.EsReclamable(Item(TipoItemBandeja.Vencido, Guid.NewGuid(), tipoDocumentoId: null)).Should().BeFalse();
+    }
 }

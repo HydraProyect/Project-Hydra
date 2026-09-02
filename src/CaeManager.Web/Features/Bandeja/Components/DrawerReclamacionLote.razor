@@ -1,0 +1,227 @@
+@*
+    "Reclamar en lote" (U-1/U-2, DEC-7) — dos pasos: elegir QUÉ reclamar con
+    SelectorLoteDocumental, luego revisar y enviar los lotes resueltos. Mismo
+    patrón de revisión (checkboxes de documentos + destinatarios marcables)
+    que ReclamacionesTab.razor y CentroWorkspacePanel — no se reutiliza el
+    marcado porque cada uno vive en su propia página, pero es el mismo
+    contrato de UX: nunca se envía sin que el gestor vea antes qué y a quién.
+
+    El envío es un EnviarReclamacionCommand por titular, secuencial (no
+    Task.WhenAll) — mismo motivo que TrabajadorDetalle.razor.cs.
+    EnviarReclamacionAClientesAsync: el DbContext de la petición Blazor
+    Server es scoped y no admite uso concurrente.
+*@
+@using CaeManager.Application.Reclamaciones
+@using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion
+@using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPorFiltro
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Documentos
+@using MediatR
+@inject IMediator Mediator
+@inject ToastService ToastService
+
+<Drawer Visible="Visible" VisibleChanged="CerrarAsync" Titulo="Reclamar en lote" CerrarAlHacerClicFuera="@(!_enviando)">
+    <ChildContent>
+        @if (_paso == Paso.Seleccion)
+        {
+            <SelectorLoteDocumental AmbitosDisponibles="AmbitosDisponibles" AmbitoInicial="AmbitoInicial" EntidadIdInicial="EntidadIdInicial"
+                                    OnConfirmar="ResolverAsync" OnCancelar="() => CerrarAsync(false)" />
+        }
+        else if (_paso == Paso.Cargando)
+        {
+            <EstadoCargando Filas="3" />
+        }
+        else if (_paso == Paso.SinResultados)
+        {
+            <EstadoVacio Titulo="Nada pendiente con este filtro" Descripcion="Prueba con otro tipo de documento o ámbito.">
+                <Accion>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="() => _paso = Paso.Seleccion">Volver a elegir</Boton>
+                </Accion>
+            </EstadoVacio>
+        }
+        else
+        {
+            <p class="texto-vacio-seccion">
+                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _paso = Paso.Seleccion" Deshabilitado="_enviando">
+                    ← Cambiar filtro
+                </Boton>
+            </p>
+
+            @foreach (var lote in _lotes)
+            {
+                var seleccionados = _seleccionPorTitular[lote.TitularId];
+                var contactos = _contactosPorTitular.GetValueOrDefault(lote.TitularId, []);
+                var enviandoEste = _enviandoTitularId == lote.TitularId;
+
+                <Tarjeta @key="lote.TitularId" Titulo="@lote.TitularNombre" Class="tarjeta-reclamacion">
+                    <AccionesHeader>
+                        <Boton Tamano="TamanoBoton.Pequeno" Deshabilitado="@(seleccionados.Count == 0 || contactos.Count == 0 || _enviando)"
+                               Cargando="enviandoEste" OnClick="() => EnviarAsync(lote)">
+                            Enviar (@seleccionados.Count)
+                        </Boton>
+                    </AccionesHeader>
+                    <ChildContent>
+                        @if (lote.Destinatarios is not { Count: > 0 })
+                        {
+                            <div class="alerta-formulario" role="alert">No hay ningún contacto en la agenda al que reclamar esta documentación.</div>
+                        }
+                        else
+                        {
+                            <fieldset class="reclamacion-destinatarios">
+                                <legend>Se solicita a</legend>
+                                @foreach (var destinatario in lote.Destinatarios)
+                                {
+                                    <label class="campo-checkbox" @key="destinatario.ContactoId">
+                                        <input type="checkbox" checked="@contactos.Contains(destinatario.ContactoId)"
+                                               @onchange="e => AlternarContacto(lote.TitularId, destinatario.ContactoId, (bool)e.Value!)" />
+                                        <span>@destinatario.Nombre — @destinatario.Email</span>
+                                        <span class="reclamacion-motivo">@string.Join(", ", destinatario.MotivoTipos)</span>
+                                    </label>
+                                }
+                            </fieldset>
+                        }
+
+                        <table class="tabla-datos">
+                            <thead>
+                                <tr><th></th><th>Trabajador</th><th>Documento</th><th>Vencimiento</th><th>Estado</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var documento in lote.Documentos)
+                                {
+                                    <tr @key="documento.DocumentoId">
+                                        <td>
+                                            <input type="checkbox" checked="@seleccionados.Contains(documento.DocumentoId)"
+                                                   @onchange="e => AlternarSeleccion(lote.TitularId, documento.DocumentoId, (bool)e.Value!)" />
+                                        </td>
+                                        <td>@documento.TrabajadorNombre</td>
+                                        <td>@documento.TipoDocumentoNombre</td>
+                                        <td>@documento.FechaVencimiento.ToString("dd/MM/yyyy")</td>
+                                        <td><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)">@EstadoDocumentoUi.Texto(documento.Estado)</Badge></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </ChildContent>
+                </Tarjeta>
+            }
+        }
+    </ChildContent>
+</Drawer>
+
+@code {
+    private enum Paso { Seleccion, Cargando, SinResultados, Revision }
+
+    private Paso _paso = Paso.Seleccion;
+    private IReadOnlyList<LoteReclamacionAgrupadoDto> _lotes = [];
+    private readonly Dictionary<Guid, HashSet<Guid>> _seleccionPorTitular = [];
+    private readonly Dictionary<Guid, HashSet<Guid>> _contactosPorTitular = [];
+    private bool _enviando;
+    private Guid? _enviandoTitularId;
+
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+
+    /// <summary>Qué ámbitos ofrece esta pantalla — ver SelectorLoteDocumental.AmbitosDisponibles.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<AmbitoAplicacion> AmbitosDisponibles { get; set; } = [];
+
+    /// <summary>Preseed al abrir desde un ítem concreto de la cola (p. ej. "Reclamar" sobre un Faltante ya sabe su Trabajador) — ver SelectorLoteDocumental.</summary>
+    [Parameter] public AmbitoAplicacion? AmbitoInicial { get; set; }
+    [Parameter] public Guid? EntidadIdInicial { get; set; }
+
+    /// <summary>Se dispara tras cada envío exitoso, para que el llamador refresque su propia lista (p. ej. la cola).</summary>
+    [Parameter] public EventCallback OnReclamacionEnviada { get; set; }
+
+    private async Task ResolverAsync(FiltroLoteDocumental filtro)
+    {
+        if (!Visible || _paso != Paso.Seleccion) return;
+
+        _paso = Paso.Cargando;
+        StateHasChanged();
+
+        _lotes = await Mediator.Send(new ObtenerLoteReclamacionPorFiltroQuery(filtro));
+
+        if (_lotes.Count == 0)
+        {
+            _paso = Paso.SinResultados;
+            return;
+        }
+
+        _seleccionPorTitular.Clear();
+        _contactosPorTitular.Clear();
+        foreach (var lote in _lotes)
+        {
+            _seleccionPorTitular[lote.TitularId] = lote.Documentos.Select(d => d.DocumentoId).ToHashSet();
+            _contactosPorTitular[lote.TitularId] = (lote.Destinatarios ?? []).Select(d => d.ContactoId).ToHashSet();
+        }
+
+        _paso = Paso.Revision;
+    }
+
+    private void AlternarSeleccion(Guid titularId, Guid documentoId, bool seleccionado)
+    {
+        var seleccionados = _seleccionPorTitular[titularId];
+        if (seleccionado) seleccionados.Add(documentoId);
+        else seleccionados.Remove(documentoId);
+    }
+
+    private void AlternarContacto(Guid titularId, Guid contactoId, bool marcado)
+    {
+        if (!_contactosPorTitular.TryGetValue(titularId, out var marcados))
+            _contactosPorTitular[titularId] = marcados = [];
+
+        if (marcado) marcados.Add(contactoId);
+        else marcados.Remove(contactoId);
+    }
+
+    private async Task EnviarAsync(LoteReclamacionAgrupadoDto lote)
+    {
+        if (_enviando || !Visible || !_lotes.Any(l => l.TitularId == lote.TitularId)) return;
+
+        var documentoIds = _seleccionPorTitular[lote.TitularId].ToList();
+        if (documentoIds.Count == 0) return;
+
+        var contactoIds = _contactosPorTitular.GetValueOrDefault(lote.TitularId, []).ToList();
+        if (contactoIds.Count == 0) return;
+
+        _enviando = true;
+        _enviandoTitularId = lote.TitularId;
+        try
+        {
+            // Solo Ambito=Trabajador tiene camino de envío hoy (ver
+            // ObtenerLoteReclamacionPorFiltroQuery) — el titular ya es el
+            // Cliente en ese caso, así que EnviarReclamacionCommand aplica
+            // directo, sin CentroId (el selector no acota por Centro).
+            var resultado = await Mediator.Send(new EnviarReclamacionCommand(
+                lote.TitularId, documentoIds, CentroId: null, ContactoIdsSeleccionados: contactoIds));
+
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            ToastService.Mostrar($"Reclamación enviada a {lote.TitularNombre}.", TonoToast.Exito);
+            _lotes = [.. _lotes.Where(l => l.TitularId != lote.TitularId)];
+            await OnReclamacionEnviada.InvokeAsync();
+
+            if (_lotes.Count == 0)
+                await CerrarAsync(false);
+        }
+        finally
+        {
+            _enviando = false;
+            _enviandoTitularId = null;
+        }
+    }
+
+    private Task CerrarAsync(bool visible)
+    {
+        if (!visible)
+        {
+            _paso = Paso.Seleccion;
+            _lotes = [];
+        }
+
+        return VisibleChanged.InvokeAsync(visible);
+    }
+}

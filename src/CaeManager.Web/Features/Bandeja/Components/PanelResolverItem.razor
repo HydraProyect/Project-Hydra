@@ -19,6 +19,12 @@
     <div class="panel-resolver-item-fecha">
         <TextoFechaCopiable Fecha="Item.Fecha">@(Item.Fecha?.ToString("dd/MM/yyyy") ?? "—")</TextoFechaCopiable>
     </div>
+    @if (TipoItemBandejaUi.EsReclamable(Item) && OnReclamar.HasDelegate)
+    {
+        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => OnReclamar.InvokeAsync(Item)">
+            Reclamar
+        </Boton>
+    }
     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirAsync">
         @TipoItemBandejaUi.TextoAccion(Item)
     </Boton>
@@ -27,6 +33,9 @@
 @code {
     [Parameter, EditorRequired] public ItemBandejaDto Item { get; set; } = default!;
     [Parameter] public bool Enfocado { get; set; }
+
+    /// <summary>U-2: puerta terminal de reclamación uniforme — el llamador decide qué hacer al pulsar (abrir el Drawer de lote preseed a este ítem). Sin binding, no se ofrece el botón.</summary>
+    [Parameter] public EventCallback<ItemBandejaDto> OnReclamar { get; set; }
 
     private Task AbrirAsync() => AccionesBandeja.AbrirAsync(Item, NavigationManager, WorkspaceService);
 }

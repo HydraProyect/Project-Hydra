@@ -10,6 +10,7 @@ using CaeManager.Application.Reclamaciones;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Application.Reclamaciones.Eventos;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
+using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPorFiltro;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Asignaciones;
@@ -153,6 +154,142 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
         var lote = lotes.Should().ContainSingle().Which;
         lote.ClienteId.Should().Be(_clienteId);
         lote.Documentos.Should().ContainSingle().Which.TrabajadorId.Should().Be(_trabajadorId);
+    }
+
+    /// <summary>
+    /// Eje del selector de lote (FiltroLoteDocumental, DEC-7): "todos los
+    /// documentos de un trabajador en concreto" pasa TrabajadorId, no
+    /// ClienteId — un mismo Cliente con dos trabajadores pendientes solo debe
+    /// devolver el documento del elegido.
+    /// </summary>
+    [Fact]
+    public async Task Filtrar_por_TrabajadorId_acota_el_lote_a_ese_trabajador_aunque_el_cliente_tenga_otros_pendientes()
+    {
+        Guid otroTrabajadorId;
+        await using (var contexto = CrearContexto())
+        {
+            var centro = await contexto.Centros.SingleAsync();
+            var empresa = await contexto.Empresas.SingleAsync(e => e.Id != _clienteId);
+            var otroTrabajador = Trabajador.DeEmpresa(empresa.Id, "Otro", "Trabajador", "11223344B");
+            contexto.Trabajadores.Add(otroTrabajador);
+            await contexto.SaveChangesAsync();
+            otroTrabajadorId = otroTrabajador.Id;
+
+            contexto.Asignaciones.Add(new Asignacion(otroTrabajadorId, centro.Id, DateOnly.FromDateTime(DateTime.UtcNow)));
+            contexto.Documentos.Add(Documento.DeTrabajador(
+                _trabajadorId, _tipoDocumentoId,
+                DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10), DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(1)));
+            contexto.Documentos.Add(Documento.DeTrabajador(
+                otroTrabajadorId, _tipoDocumentoId,
+                DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10), DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(1)));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var lectura = CrearContexto();
+        var handler = CrearQueryHandler(lectura);
+
+        var lotes = await handler.Handle(new ObtenerLoteReclamacionQuery(TrabajadorId: _trabajadorId), CancellationToken.None);
+
+        var lote = lotes.Should().ContainSingle().Which;
+        lote.Documentos.Should().ContainSingle().Which.TrabajadorId.Should().Be(_trabajadorId);
+    }
+
+    /// <summary>"Todos los EPIs de todos los trabajadores" (DEC-7): TipoDocumentoIds acota por tipo sin acotar por titular ni trabajador.</summary>
+    [Fact]
+    public async Task Filtrar_por_TipoDocumentoIds_excluye_documentos_de_otros_tipos_del_mismo_trabajador()
+    {
+        Guid otroTipoId;
+        await using (var contexto = CrearContexto())
+        {
+            var otroTipo = new TipoDocumento("EPI", 12, aplicaVencimientoAutomatico: true, 2, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
+            contexto.TiposDocumento.Add(otroTipo);
+            await contexto.SaveChangesAsync();
+            otroTipoId = otroTipo.Id;
+
+            contexto.Documentos.Add(Documento.DeTrabajador(
+                _trabajadorId, _tipoDocumentoId,
+                DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10), DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(1)));
+            contexto.Documentos.Add(Documento.DeTrabajador(
+                _trabajadorId, otroTipoId,
+                DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10), DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(1)));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var lectura = CrearContexto();
+        var handler = CrearQueryHandler(lectura);
+
+        var lotes = await handler.Handle(new ObtenerLoteReclamacionQuery(TipoDocumentoIds: [otroTipoId]), CancellationToken.None);
+
+        var lote = lotes.Should().ContainSingle().Which;
+        lote.Documentos.Should().ContainSingle().Which.TipoDocumentoId.Should().Be(otroTipoId);
+    }
+
+    /// <summary>
+    /// El lote de la cola (DrawerReclamacionLote, selector tipo × ámbito) no
+    /// puede actuar sobre lo que un Gestor CAE acotado a su cartera no podía
+    /// ver — misma propiedad que protege el resto de la aplicación
+    /// (IAlcanceDatosService). Ejercita ObtenerLoteReclamacionPorFiltroQueryHandler
+    /// completo (dispatcher → ObtenerLoteReclamacionQuery → EF → Postgres),
+    /// no solo la query interna, porque el dispatcher es el camino nuevo que
+    /// introduce el selector — "hereda el acotado por delegación" es una
+    /// suposición hasta que algo lo demuestra.
+    /// </summary>
+    [Fact]
+    public async Task El_lote_por_filtro_no_incluye_clientes_fuera_de_la_cartera_del_gestor()
+    {
+        Guid clienteFueraDeCarteraId, trabajadorFueraDeCarteraId;
+        await using (var contexto = CrearContexto())
+        {
+            var clienteFuera = Empresa.CrearComoCliente("Fuera de Cartera S.L.", GenerarCifValido(900), false, null, null);
+            var empresaFuera = new Empresa("Contratista Fuera S.L.", GenerarCifValido(901));
+            contexto.Empresas.AddRange(clienteFuera, empresaFuera);
+            await contexto.SaveChangesAsync();
+            clienteFueraDeCarteraId = clienteFuera.Id;
+
+            var centroFuera = new Centro(clienteFuera.Id, empresaFuera.Id, "Centro fuera de cartera");
+            contexto.Centros.Add(centroFuera);
+
+            var trabajadorFuera = Trabajador.DeEmpresa(empresaFuera.Id, "Fuera", "De Cartera", GenerarDniValido(900));
+            contexto.Trabajadores.Add(trabajadorFuera);
+            await contexto.SaveChangesAsync();
+            trabajadorFueraDeCarteraId = trabajadorFuera.Id;
+
+            contexto.Asignaciones.Add(new Asignacion(trabajadorFuera.Id, centroFuera.Id, DateOnly.FromDateTime(DateTime.UtcNow)));
+            contexto.Documentos.Add(Documento.DeTrabajador(
+                trabajadorFuera.Id, _tipoDocumentoId,
+                DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10), DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(1)));
+            contexto.Documentos.Add(Documento.DeTrabajador(
+                _trabajadorId, _tipoDocumentoId,
+                DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10), DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(1)));
+            contexto.ContactosAgenda.Add(ContactoAgenda.DeCliente(
+                clienteFuera.Id, "Agenda fuera", "fuera@cliente.test", esPredeterminado: true));
+            await contexto.SaveChangesAsync();
+        }
+
+        // Gestor CAE acotado a _clienteId — clienteFueraDeCarteraId nunca aparece en su lista visible.
+        var alcanceAcotado = new AlcanceDatosServiceFalso(clienteIds: [_clienteId]);
+
+        await using var lectura = CrearContexto();
+        var queryHandler = CrearQueryHandler(lectura, alcanceAcotado);
+        var dispatcher = new ObtenerLoteReclamacionPorFiltroQueryHandler(new MediatorReenviaAObtenerLoteReclamacion(queryHandler));
+
+        // "Todos los trabajadores visibles" (EntidadId null, DEC-7): con
+        // cartera acotada debe traer solo _clienteId, nunca el de fuera.
+        var lotesTodos = await dispatcher.Handle(
+            new ObtenerLoteReclamacionPorFiltroQuery(new FiltroLoteDocumental(AmbitoAplicacion.Trabajador, [], null)),
+            CancellationToken.None);
+
+        lotesTodos.Should().ContainSingle().Which.TitularId.Should().Be(_clienteId);
+        lotesTodos.Should().NotContain(l => l.TitularId == clienteFueraDeCarteraId);
+
+        // Pedir explícitamente un Trabajador fuera de cartera por EntidadId
+        // (el caso "un trabajador en concreto" de DEC-7) tampoco debe colar
+        // nada — el alcance no se puede sortear pasando el Id a mano.
+        var lotesTrabajadorFuera = await dispatcher.Handle(
+            new ObtenerLoteReclamacionPorFiltroQuery(new FiltroLoteDocumental(AmbitoAplicacion.Trabajador, [], trabajadorFueraDeCarteraId)),
+            CancellationToken.None);
+
+        lotesTrabajadorFuera.Should().BeEmpty("pedir un Trabajador fuera de la cartera del gestor por Id no debe devolver nada");
     }
 
     [Fact]
@@ -498,8 +635,47 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     // de la agenda de contactos, y lo que estos tests tienen que comprobar es
     // justamente esa resolución contra datos reales.
     private static ObtenerLoteReclamacionQueryHandler CrearQueryHandler(CaeManagerDbContext contexto) =>
+        CrearQueryHandler(contexto, new AlcanceDatosServiceFalso());
+
+    private static ObtenerLoteReclamacionQueryHandler CrearQueryHandler(CaeManagerDbContext contexto, IAlcanceDatosService alcanceDatos) =>
         new(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto,
-            new AlcanceDatosServiceFalso(), new ResolucionDestinatariosAgendaService(contexto, contexto));
+            alcanceDatos, new ResolucionDestinatariosAgendaService(contexto, contexto));
+
+    /// <summary>
+    /// Reenvía el único tipo de Request que ObtenerLoteReclamacionPorFiltroQueryHandler
+    /// despacha por Ambito=Trabajador al handler REAL (no un doble que
+    /// devuelve una respuesta enlatada) — así el test ejercita la cadena
+    /// completa dispatcher → query → EF → Postgres, no solo la traducción
+    /// del filtro (eso ya lo cubre ObtenerLoteReclamacionPorFiltroQueryHandlerTests
+    /// en Application.Tests, con MediatorFalso).
+    /// </summary>
+    private sealed class MediatorReenviaAObtenerLoteReclamacion(ObtenerLoteReclamacionQueryHandler handler) : IMediator
+    {
+        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        {
+            if (request is ObtenerLoteReclamacionQuery query)
+                return (Task<TResponse>)(object)handler.Handle(query, cancellationToken);
+
+            throw new NotSupportedException($"El doble no cubre {request.GetType().Name}.");
+        }
+
+        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
+            throw new NotSupportedException();
+
+        public Task<object?> Send(object request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task Publish(object notification, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
+            where TNotification : INotification => Task.CompletedTask;
+    }
 
     private static EnviarReclamacionCommandHandler CrearCommandHandler(
         CaeManagerDbContext contexto, IEmailService emailService, IMediator mediator) =>

@@ -1,6 +1,7 @@
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaAgrupada;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
+using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Tenants;
 using CaeManager.Web.Components;
 using Microsoft.AspNetCore.Components;
@@ -23,6 +24,9 @@ public partial class Bandeja : ComponentBase
     private bool _cargando = true;
     private bool _errorCarga;
     private string? _idEnfocado;
+    private bool _reclamacionLoteVisible;
+    private AmbitoAplicacion? _ambitoPreseed;
+    private Guid? _entidadIdPreseed;
 
     /// <summary>Todos los items sueltos, sin filtrar ni agrupar — base para las cuentas de cada chip (siempre sobre el total, nunca sobre lo ya filtrado) y para j/k/Enter.</summary>
     private IReadOnlyList<ItemBandejaDto> Items =>
@@ -115,6 +119,24 @@ public partial class Bandeja : ComponentBase
         {
             _cargando = false;
         }
+    }
+
+    /// <summary>"Reclamar en lote" desde la cabecera — sin ítem de partida, el gestor elige todo desde cero en el selector.</summary>
+    private Task AbrirReclamacionLoteAsync()
+    {
+        _ambitoPreseed = null;
+        _entidadIdPreseed = null;
+        _reclamacionLoteVisible = true;
+        return Task.CompletedTask;
+    }
+
+    /// <summary>U-2: puerta terminal de reclamación desde un ítem concreto (TipoItemBandejaUi.EsReclamable) — abre el mismo Drawer que "Reclamar en lote", preseed a ese Trabajador para no obligar a repetir la búsqueda.</summary>
+    private Task AbrirReclamacionDeItemAsync(ItemBandejaDto item)
+    {
+        _ambitoPreseed = AmbitoAplicacion.Trabajador;
+        _entidadIdPreseed = item.TrabajadorId;
+        _reclamacionLoteVisible = true;
+        return Task.CompletedTask;
     }
 
     private static bool CoincideFiltro(ItemBandejaDto item, string tipoFiltro) =>
