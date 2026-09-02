@@ -23,15 +23,29 @@ name: Desplegar
 #     igualmente un run de `Desplegar`, pero con todos sus jobs omitidos — y
 #     como `aprobacion-produccion` depende de `staging`, tampoco deja una
 #     aprobación de producción pendiente que alguien pueda aprobar por error.
-#   - `branches: [main]` filtra por la rama en la que corrió CI. Los runs de
-#     CI de `pull_request` (rama `claude/**`) y los de la cola de merge (rama
-#     `gh-readonly-queue/main/...`) NO disparan este workflow: solo los de
-#     `push` a `main`. Comprobado sobre los runs reales del repositorio, no
-#     supuesto.
+#   - `branches: [main]` filtra por el NOMBRE de la rama en la que corrió CI.
+#     Deja fuera los runs de `pull_request` de este repositorio (rama
+#     `claude/**`) y los de la cola de merge (rama
+#     `gh-readonly-queue/main/...`) — comprobado sobre los runs reales, no
+#     supuesto. Lo que NO deja fuera es una PR desde la rama `main` de un
+#     fork, que también lleva `head_branch` = `main`: de eso se encarga la
+#     condición `workflow_run.event == 'push'` del job `staging`. Ver allí.
 #   - Un CI de `main` CANCELADO no despliega. Ocurre de forma rutinaria: CI
 #     cancela su propio run en curso sobre `main` cuando llega un merge más
 #     nuevo. No se pierde nada — el commit nuevo contiene al viejo, y es ese
 #     el que se despliega cuando su CI termina en verde.
+#
+# CONSECUENCIA NUEVA, que el disparador anterior no tenía: REEJECUTAR un run
+# de CI antiguo de `main` vuelve a emitir `completed`, y si sale verde
+# despliega SU commit. Es decir, reejecutar el CI de un commit ya superado
+# devuelve staging a ese commit. No hay forma de distinguir esa reejecución de
+# la de la punta actual —que sí queremos que despliegue, por ejemplo tras un
+# rojo de infraestructura—, así que no se filtra por número de intento. Si
+# ocurre, la salida es reejecutar el CI del commit más nuevo de `main`, o
+# lanzar este workflow a mano. Y ojo con la concurrencia: el grupo
+# `deploy-staging` solo guarda UN despliegue en espera, así que un despliegue
+# que llegue a la cola desplaza al que estuviera esperando (nunca al que ya
+# está corriendo, que es lo que protege `cancel-in-progress: false`).
 #
 # CUIDADO al cambiar este disparador: `workflow_run` solo funciona si el
 # fichero está en la rama por defecto. Un cambio aquí no surte efecto hasta
@@ -47,6 +61,14 @@ name: Desplegar
 # desplegar el commit Y). Por la vía manual (`workflow_dispatch`) no hay run
 # de CI del que leer nada, así que ahí sí se usa `github.sha`: el SHA de la
 # referencia que se eligió al lanzarlo.
+#
+# El idiom `condición && valor || alternativa` devuelve `valor` solo si
+# `valor` es truthy; una cadena vacía no lo es. Un `head_sha` vacío daría
+# entonces `github.sha`, o sea la punta de `main`: el comportamiento anterior
+# a este cambio, degradado pero no peligroso. Y si aun así llegara vacío al
+# VPS, resolve-deploy-sha.sh exige 40 hexadecimales y rechaza cualquier otra
+# cosa — el fallo es cerrado y ruidoso, nunca un despliegue silencioso de algo
+# equivocado.
 #
 # CONSECUENCIA AL LEER LA LISTA DE RUNS: la interfaz atribuye cada run de
 # `Desplegar` a la punta de `main`, porque eso es lo que vale `github.sha`
@@ -131,17 +153,36 @@ env:
 
 jobs:
   staging:
-    # EL GATE. Solo despliega si el CI que acaba de terminar sobre este commit
-    # de `main` terminó en verde. `failure`, `cancelled`, `timed_out`,
+    # EL GATE. Solo despliega si el CI que acaba de terminar terminó en verde
+    # Y corrió sobre un `push` a `main`. `failure`, `cancelled`, `timed_out`,
     # `skipped` y `action_required` omiten el job — y con él, toda la cadena
     # hacia producción, que cuelga de este `needs:`.
     #
+    # Las DOS condiciones hacen falta. `branches: [main]` de arriba compara el
+    # NOMBRE de la rama en la que corrió CI, no el evento: este repositorio es
+    # público, así que cualquiera puede abrir una PR desde la rama `main` de
+    # su fork, y el run de CI de esa PR lleva `head_branch` = `main`. Sin
+    # `workflow_run.event == 'push'`, ese run verde activaría este workflow,
+    # que sí tiene acceso a `secrets.VPS_SSH_KEY` aunque el de la PR no lo
+    # tuviera — el riesgo clásico de `workflow_run`. No llegaría a desplegar
+    # nada (resolve-deploy-sha.sh rechaza un SHA que no sea ancestro real de
+    # `origin/main`), pero bastaría para hacer que el workflow contacte con el
+    # VPS y compita por el grupo `deploy-staging`. Exigir `push` cierra ese
+    # camino entero: un run de CI por `push` a `main` solo puede venir de un
+    # push a la `main` de ESTE repositorio.
+    #
     # La vía manual se conserva aparte: en `workflow_dispatch` no hay run de
     # CI del que leer una conclusión, y bloquearla dejaría sin forma de forzar
-    # un redeploy ni de probar el mecanismo de despliegue.
+    # un redeploy ni de probar el mecanismo de despliegue. Es, a propósito, un
+    # rodeo del gate operado por una persona: quien lanza el workflow a mano
+    # despliega la punta de la referencia que elija, tenga esa punta el CI en
+    # verde, en rojo o todavía corriendo. Comprobar CI también ahí es una
+    # decisión de producto pendiente, no un olvido — hoy la vía manual existe
+    # justamente para los casos en que el camino automático no sirve.
     if: >-
       github.event_name == 'workflow_dispatch'
-      || github.event.workflow_run.conclusion == 'success'
+      || (github.event.workflow_run.event == 'push'
+      && github.event.workflow_run.conclusion == 'success')
     name: Desplegar a staging
     runs-on: ubuntu-latest
     # Concurrencia por entorno, no por workflow entero: dos deploys de
