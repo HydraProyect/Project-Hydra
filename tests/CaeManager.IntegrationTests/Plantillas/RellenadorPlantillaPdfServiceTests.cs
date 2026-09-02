@@ -165,9 +165,17 @@ public class RellenadorPlantillaPdfServiceTests
         return Encoding.ASCII.GetBytes(sb.ToString());
     }
 
-    /// <summary>Lee el diccionario crudo del campo tras releer el PDF — no la propiedad tipada: lo que un visor mira es <c>/V</c> y <c>/AS</c>, no lo que PdfSharp deduzca.</summary>
+    /// <summary>
+    /// Lee el diccionario crudo del campo tras releer el PDF — no la propiedad
+    /// tipada: lo que un visor mira es <c>/V</c> y <c>/AS</c>, no lo que PdfSharp
+    /// deduzca. Devuelve la forma textual del elemento en vez de exigir un
+    /// nombre (<c>GetName</c> lanza si no lo es): así un valor escrito como
+    /// cadena —el defecto que estos tests vigilan— sale en el mensaje del fallo
+    /// como <c>(Yes)</c> frente a <c>/Yes</c>, en lugar de reventar la lectura
+    /// antes de llegar a comprobar <c>/AS</c>.
+    /// </summary>
     private static string? LeerClave(PdfSharp.Pdf.PdfDictionary? diccionario, string clave) =>
-        diccionario?.Elements.GetName(clave) is { Length: > 0 } nombre ? nombre : null;
+        diccionario?.Elements.GetValue(clave)?.ToString();
 
     [Fact]
     public void RellenarAcroForm_marca_la_casilla_con_V_y_AS_coherentes()
