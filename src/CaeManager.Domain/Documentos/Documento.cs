@@ -29,12 +29,32 @@ public class Documento : EntidadBase
     public string? ArchivoUrl { get; private set; }
     public string? Comentarios { get; private set; }
 
+    /// <summary>
+    /// DCR-19: hasta ahora un documento sin propietario "mentía" devolviendo
+    /// <see cref="AmbitoAplicacion.Empresa"/> por defecto. El constructor
+    /// impide que eso ocurra para un agregado recién creado (ver
+    /// <see cref="Documento(Guid?, Guid?, Guid?, Guid?, Guid?, Guid, DateOnly, DateOnly?, string?, string?)"/>),
+    /// pero EF Core materializa las filas existentes por el constructor SIN
+    /// parámetros (confirmado por inspección del <c>ConstructorBinding</c> del
+    /// modelo: usa <c>Documento()</c>, no el privado con parámetros), así que
+    /// esa guarda no protege una fila que ya hubiera quedado inválida en base.
+    /// La única defensa real para una fila materializada es que este
+    /// <c>throw</c> haga fallar ruidosamente en vez de inventar un propietario
+    /// — la constraint <c>CK_Documentos_PropietarioXor</c>
+    /// (<c>DocumentoConfiguration</c>, migración
+    /// <c>RendimientoBusquedasYCheckXorDocumento</c> del 2026-08-01) es la que
+    /// impide que esa fila llegue a existir.
+    /// </summary>
     public AmbitoAplicacion Ambito =>
         TrabajadorId is not null ? AmbitoAplicacion.Trabajador
         : ClienteId is not null ? AmbitoAplicacion.Cliente
         : VehiculoId is not null ? AmbitoAplicacion.Vehiculo
         : ProyectoId is not null ? AmbitoAplicacion.Proyecto
-        : AmbitoAplicacion.Empresa;
+        : EmpresaId is not null ? AmbitoAplicacion.Empresa
+        : throw new InvalidOperationException(
+            "Documento sin propietario (ni Trabajador, ni Cliente, ni Empresa, ni Vehículo, ni Proyecto): " +
+            "viola CK_Documentos_PropietarioXor. Esto no puede ocurrir para un documento creado por las " +
+            "factorías de este agregado — indica una fila inválida materializada desde base de datos.");
 
     private Documento()
     {
@@ -54,6 +74,19 @@ public class Documento : EntidadBase
     {
         if (tipoDocumentoId == Guid.Empty)
             throw new ArgumentException("El documento debe tener un tipo de documento.", nameof(tipoDocumentoId));
+
+        // DCR-19: un Documento tiene exactamente un propietario entre las
+        // cinco anclas — mismo backstop que CK_Documentos_PropietarioXor
+        // (DocumentoConfiguration), pero esta guarda solo alcanza a un
+        // agregado construido por este constructor, no a una fila
+        // materializada por EF (ver comentario de Ambito).
+        var numeroDePropietarios = new[] { trabajadorId, clienteId, empresaId, vehiculoId, proyectoId }
+            .Count(id => id is not null);
+        if (numeroDePropietarios != 1)
+            throw new ArgumentException(
+                "El documento debe tener exactamente un propietario entre Trabajador, Cliente, Empresa, " +
+                $"Vehículo y Proyecto (CK_Documentos_PropietarioXor); tiene {numeroDePropietarios}.",
+                nameof(trabajadorId));
 
         TrabajadorId = trabajadorId;
         ClienteId = clienteId;

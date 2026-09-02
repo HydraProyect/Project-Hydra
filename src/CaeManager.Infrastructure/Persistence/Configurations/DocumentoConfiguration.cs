@@ -12,7 +12,20 @@ public class DocumentoConfiguration : IEntityTypeConfiguration<Documento>
 {
     public void Configure(EntityTypeBuilder<Documento> builder)
     {
-        builder.ToTable("Documentos");
+        // DCR-19: CK_Documentos_PropietarioXor existe en PostgreSQL desde la
+        // migración RendimientoBusquedasYCheckXorDocumento (2026-08-01), pero
+        // solo en SQL crudo — el modelo EF no la conocía, así que el
+        // ModelSnapshot no la incluía. Declararla aquí, con el mismo nombre y
+        // la misma expresión que la constraint viva, es lo que hace que
+        // "dotnet ef migrations has-pending-model-changes" y una futura
+        // reconfiguración accidental de esta tabla no puedan perderla en
+        // silencio. La migración que alinea el modelo con la base
+        // (AlinearModeloConCheckXorDocumentoExistente) no vuelve a crearla
+        // desde cero: la recrea de forma idempotente porque ya existe en toda
+        // base que haya aplicado la migración de agosto.
+        builder.ToTable("Documentos", t => t.HasCheckConstraint(
+            "CK_Documentos_PropietarioXor",
+            "num_nonnulls(\"TrabajadorId\", \"ClienteId\", \"EmpresaId\", \"VehiculoId\", \"ProyectoId\") = 1"));
         builder.HasKey(d => d.Id);
 
         builder.Property(d => d.ArchivoUrl).HasMaxLength(Documento.LongitudMaximaArchivoUrl);

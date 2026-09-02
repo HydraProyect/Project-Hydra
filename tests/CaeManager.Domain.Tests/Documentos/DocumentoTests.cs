@@ -1,3 +1,4 @@
+using System.Reflection;
 using CaeManager.Domain.Documentos;
 using FluentAssertions;
 using Xunit;
@@ -143,5 +144,70 @@ public class DocumentoTests
         documento.ClienteId.Should().Be(clienteId);
         documento.Ambito.Should().Be(AmbitoAplicacion.Cliente);
         documento.FechaVencimiento.Should().Be(Hoy.AddYears(1));
+    }
+
+    // DCR-19: las cinco factorías (DeTrabajador/DeCliente/DeEmpresa/DeVehiculo/
+    // DeProyecto) siempre pasan exactamente un propietario — ningún camino
+    // público llega nunca al constructor con cero o dos, así que estos dos
+    // tests invocan el constructor privado con parámetros por reflexión, el
+    // único camino honesto para ejercer su guarda directamente.
+    [Fact]
+    public void El_constructor_privado_rechaza_un_documento_sin_ningun_propietario()
+    {
+        var accion = () => InvocarConstructorConParametros(null, null, null, null, null);
+
+        accion.Should().Throw<TargetInvocationException>()
+            .WithInnerException<ArgumentException>()
+            .WithMessage("*exactamente un propietario*");
+    }
+
+    [Fact]
+    public void El_constructor_privado_rechaza_un_documento_con_dos_propietarios()
+    {
+        var accion = () => InvocarConstructorConParametros(Guid.NewGuid(), Guid.NewGuid(), null, null, null);
+
+        accion.Should().Throw<TargetInvocationException>()
+            .WithInnerException<ArgumentException>()
+            .WithMessage("*exactamente un propietario*");
+    }
+
+    // DCR-19 / riesgo 3 del handoff: confirmado por inspección del
+    // ConstructorBinding del modelo EF que la materialización usa
+    // Documento() sin parámetros, no el privado con parámetros — así que
+    // este es el mismo camino que reproduce una fila inválida ya
+    // materializada, y es lo que Ambito (no el constructor) tiene que
+    // rechazar.
+    [Fact]
+    public void Ambito_lanza_si_el_documento_no_tiene_ningun_propietario()
+    {
+        var documento = InvocarConstructorSinParametros();
+
+        var accion = () => documento.Ambito;
+
+        accion.Should().Throw<InvalidOperationException>()
+            .WithMessage("*sin propietario*");
+    }
+
+    private static object InvocarConstructorConParametros(
+        Guid? trabajadorId, Guid? clienteId, Guid? empresaId, Guid? vehiculoId, Guid? proyectoId)
+    {
+        var constructor = typeof(Documento)
+            .GetConstructors(BindingFlags.NonPublic | BindingFlags.Instance)
+            .Single(c => c.GetParameters().Length == 10);
+
+        return constructor.Invoke(
+        [
+            trabajadorId, clienteId, empresaId, vehiculoId, proyectoId,
+            Guid.NewGuid(), Hoy, null, null, null
+        ]);
+    }
+
+    private static Documento InvocarConstructorSinParametros()
+    {
+        var constructor = typeof(Documento)
+            .GetConstructors(BindingFlags.NonPublic | BindingFlags.Instance)
+            .Single(c => c.GetParameters().Length == 0);
+
+        return (Documento)constructor.Invoke(null);
     }
 }
