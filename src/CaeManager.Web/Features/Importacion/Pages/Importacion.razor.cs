@@ -20,7 +20,8 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
     private const long TamanoMaximoPlantillaBytes = 5 * 1024 * 1024;
 
     private sealed record DefinicionPlantilla(
-        string Id, string Icono, string Titulo, string Descripcion, string? RutaPlantillaBlanco, long TamanoMaximoBytes);
+        string Id, string Icono, string Titulo, string Descripcion, string? RutaPlantillaBlanco, long TamanoMaximoBytes,
+        string NombreHistorial);
 
     /// <summary>
     /// Copy y orden fieles al array TEMPLATES del mockup real (Importar
@@ -28,21 +29,25 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
     /// decisión ya tomada en la Importacion.razor anterior a este wizard
     /// ("procesa un archivo ya existente", no una plantilla propia) y que
     /// este wizard no cambia, solo hereda.
+    /// NombreHistorial es el label corto que exige HistorialImportacion.Plantilla
+    /// (varchar(50), ver HistorialImportacionConfiguration) — Titulo es copy de UI
+    /// fiel al mockup y no tiene ese límite; "Combinada: Cliente + Empresas +
+    /// Centros + Trabajadores" por sí solo ya son 54 caracteres.
     /// </summary>
     private static readonly IReadOnlyList<DefinicionPlantilla> Plantillas =
     [
         new("cae", "CAE", "Importación CAE completa (multi-hoja)",
             "Clientes, empresas, centros, trabajadores y sus documentos en un solo libro (Cuadro de Control CAE). Para arrancar una cartera entera.",
-            null, TamanoMaximoCaeCompletaBytes),
+            null, TamanoMaximoCaeCompletaBytes, "CAE completa"),
         new("clientes", "CLI", "Plantilla de Clientes",
             "Solo clientes con sus datos fiscales y de contacto. No toca centros ni trabajadores existentes.",
-            "/clientes/plantilla.xlsx", TamanoMaximoPlantillaBytes),
+            "/clientes/plantilla.xlsx", TamanoMaximoPlantillaBytes, "Clientes"),
         new("combinada", "CMB", "Combinada: Cliente + Empresas + Centros + Trabajadores",
             "Estructura organizativa completa sin documentos. Útil al incorporar un cliente nuevo con su plantilla.",
-            "/clientes/plantilla-combinada.xlsx", TamanoMaximoPlantillaBytes),
+            "/clientes/plantilla-combinada.xlsx", TamanoMaximoPlantillaBytes, "Combinada"),
         new("documentos", "DOC", "Documentos",
             "Lote de documentos con propietario y tipo por fila. Los PDF se aportan después con subida múltiple.",
-            "/documentos/plantilla.xlsx", TamanoMaximoPlantillaBytes)
+            "/documentos/plantilla.xlsx", TamanoMaximoPlantillaBytes, "Documentos")
     ];
 
     private static readonly IReadOnlyList<string> NombresPasos =
@@ -319,11 +324,11 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
 
     private Task RegistrarExitoAsync(int totalCreados, int totalAdvertencias, int totalOmitidos) =>
         Mediator.Send(new RegistrarHistorialImportacionCommand(
-            PlantillaActual.Titulo, _nombreArchivo ?? "(desconocido)", true, totalCreados, totalAdvertencias, totalOmitidos, null));
+            PlantillaActual.NombreHistorial, _nombreArchivo ?? "(desconocido)", true, totalCreados, totalAdvertencias, totalOmitidos, null));
 
     private Task RegistrarFalloAsync(string mensaje) =>
         Mediator.Send(new RegistrarHistorialImportacionCommand(
-            PlantillaActual.Titulo, _nombreArchivo ?? "(desconocido)", false, 0, 0, 0, mensaje));
+            PlantillaActual.NombreHistorial, _nombreArchivo ?? "(desconocido)", false, 0, 0, 0, mensaje));
 
     private void EmpezarDeNuevo()
     {

@@ -42,6 +42,26 @@
     min-width: 200px;
 }
 
+.composer-macro-campo {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    flex: 1;
+    min-width: 200px;
+}
+
+.composer-macro-administrar {
+    align-self: flex-start;
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+    text-decoration: none;
+}
+
+.composer-macro-administrar:hover {
+    color: var(--color-primary-600);
+    text-decoration: underline;
+}
+
 .composer-adjuntos-pendientes {
     display: flex;
     flex-wrap: wrap;

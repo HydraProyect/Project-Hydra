@@ -53,13 +53,27 @@
     {
         <div class="composer-correo">
             <div class="composer-correo-prellenados">
-                <CampoSelect Etiqueta="Macro / plantilla" Valor="@MacroSeleccionadaId" ValorChanged="v => OnAplicarMacro.InvokeAsync(v)">
-                    <option value="">Sin macro</option>
-                    @foreach (var macro in Macros)
-                    {
-                        <option value="@macro.Id">@macro.Titulo</option>
-                    }
-                </CampoSelect>
+                <div class="composer-macro-campo">
+                    <CampoSelect Etiqueta="Macro / plantilla" Valor="@MacroSeleccionadaId" ValorChanged="v => OnAplicarMacro.InvokeAsync(v)">
+                        <option value="">Sin macro</option>
+                        @foreach (var macro in Macros)
+                        {
+                            <option value="@macro.Id">@macro.Titulo</option>
+                        }
+                    </CampoSelect>
+                    @* Administrar (crear/editar) macros vive en Configuración (H-5) —
+                       este es el único punto de acceso contextual desde el redactor;
+                       la barra diaria de Comunicaciones ya no lleva un enlace propio.
+                       OJO: el destino es la ruta literal /comunicaciones/macros
+                       (Macros.razor, [Authorize(Roles=RolesComunicaciones.Gestion)]),
+                       NO /configuracion/macros — esa segunda URL pasa por el hub de
+                       Configuración, gateado solo a Administrador, y dejaría fuera a
+                       DireccionCae/CoordinadorCae/GestorCae/Consulta, que sí pueden
+                       ver este composer (hallazgo de revisión adversaria de Codex). *@
+                    <a class="composer-macro-administrar" href="/comunicaciones/macros" target="_blank" rel="noopener">
+                        Administrar macros
+                    </a>
+                </div>
 
                 @if (Centros.Count > 0)
                 {

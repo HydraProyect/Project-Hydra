@@ -1,113 +1,12 @@
 @page "/clientes/importar-combinado"
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
-@using CaeManager.Web.Features.Importacion
+@inject NavigationManager Navigation
 
-<PageTitle>Importación combinada — @Marca.Nombre</PageTitle>
-
-<div class="contenedor-pagina">
-    <div class="cabecera-pagina">
-        <h1 class="titulo-pagina">Importación combinada</h1>
-        <a class="enlace-exportar" href="/clientes/plantilla-combinada.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Descargar plantilla</a>
-    </div>
-    <p class="descripcion-importacion">
-        Da de alta de una vez Clientes (con CIF), Empresas, Centros y Trabajadores desde un único Excel de
-        4 hojas. A diferencia de la plantilla simple de Clientes, esta sí puede crear Clientes y Centros
-        nuevos. Se analiza primero sin escribir nada — revisa el plan antes de confirmar.
-    </p>
-
-    @if (_resultado is null)
-    {
-        <Tarjeta Titulo="1. Selecciona el archivo" Class="tarjeta-importacion">
-            <InputFile OnChange="ManejarArchivoSeleccionadoAsync" accept=".xlsx" />
-            @if (_nombreArchivo is not null)
-            {
-                <p class="nombre-archivo">@_nombreArchivo</p>
-            }
-        </Tarjeta>
-
-        @if (_mensajeError is not null)
-        {
-            <div class="alerta-formulario" role="alert">@_mensajeError</div>
-        }
-
-        @if (_analizando)
-        {
-            <ProgresoConMensajes Visible="true" Mensajes="MensajesAnalizando" />
-        }
-        else if (_plan is not null)
-        {
-            <Tarjeta Titulo="2. Revisa el plan de importación" Class="tarjeta-importacion">
-                <div class="rejilla-resumen-importacion">
-                    <TarjetaMetrica Etiqueta="Clientes nuevos" Valor="@_plan.Clientes.Count(c => !c.YaExiste).ToString()" />
-                    <TarjetaMetrica Etiqueta="Empresas nuevas" Valor="@_plan.Empresas.Count(e => !e.YaExiste).ToString()" />
-                    <TarjetaMetrica Etiqueta="Centros nuevos" Valor="@_plan.Centros.Count(c => !c.YaExiste).ToString()" />
-                    <TarjetaMetrica Etiqueta="Trabajadores nuevos" Valor="@_plan.Trabajadores.Count(t => !t.YaExiste).ToString()" />
-                    <TarjetaMetrica Etiqueta="Ya existían" Valor="@TotalYaExistian.ToString()" />
-                </div>
-
-                @if (_plan.Advertencias.Count > 0)
-                {
-                    <h3 class="titulo-seccion-importacion">Advertencias (@_plan.Advertencias.Count) — se importan, pero revisa</h3>
-                    <TablaItemsImportacion Items="_plan.Advertencias" Tono="TonoBadge.Advertencia" />
-                }
-
-                @if (_plan.Omitidos.Count > 0)
-                {
-                    <h3 class="titulo-seccion-importacion">Omitidos (@_plan.Omitidos.Count) — no se importan</h3>
-                    <TablaItemsImportacion Items="_plan.Omitidos" Tono="TonoBadge.Peligro" />
-                }
-
-                <div class="campo">
-                    <label>Filas que ya existían en el sistema</label>
-                    <label class="campo-checkbox">
-                        <input type="radio" name="modoFusion" checked="@(!_reemplazarExistentes)" @onchange="() => _reemplazarExistentes = false" />
-                        Solo rellenar lo que falta (nunca sobrescribe un dato ya presente)
-                    </label>
-                    <label class="campo-checkbox">
-                        <input type="radio" name="modoFusion" checked="@_reemplazarExistentes" @onchange="() => _reemplazarExistentes = true" />
-                        Reemplazar con los datos del archivo
-                    </label>
-                </div>
-
-                <div class="acciones-formulario">
-                    <Boton OnClick="ConfirmarImportacionAsync" Cargando="_importando">Confirmar importación</Boton>
-                </div>
-
-                <ProgresoConMensajes Visible="_importando" Mensajes="MensajesImportando" />
-            </Tarjeta>
-        }
-    }
-    else
-    {
-        <Tarjeta Titulo="Importación completada" Class="tarjeta-importacion">
-            <div class="rejilla-resumen-importacion">
-                <TarjetaMetrica Etiqueta="Clientes creados" Valor="@_resultado.ClientesCreados.ToString()" Tono="TonoBadge.Exito" />
-                <TarjetaMetrica Etiqueta="Clientes actualizados" Valor="@_resultado.ClientesActualizados.ToString()" />
-                <TarjetaMetrica Etiqueta="Empresas creadas" Valor="@_resultado.EmpresasCreadas.ToString()" Tono="TonoBadge.Exito" />
-                <TarjetaMetrica Etiqueta="Empresas actualizadas" Valor="@_resultado.EmpresasActualizadas.ToString()" />
-                <TarjetaMetrica Etiqueta="Centros creados" Valor="@_resultado.CentrosCreados.ToString()" Tono="TonoBadge.Exito" />
-                <TarjetaMetrica Etiqueta="Centros actualizados" Valor="@_resultado.CentrosActualizados.ToString()" />
-                <TarjetaMetrica Etiqueta="Trabajadores creados" Valor="@_resultado.TrabajadoresCreados.ToString()" Tono="TonoBadge.Exito" />
-                <TarjetaMetrica Etiqueta="Trabajadores actualizados" Valor="@_resultado.TrabajadoresActualizados.ToString()" />
-            </div>
-
-            @if (_resultado.Advertencias.Count > 0)
-            {
-                <h3 class="titulo-seccion-importacion">Advertencias (@_resultado.Advertencias.Count)</h3>
-                <TablaItemsImportacion Items="_resultado.Advertencias" Tono="TonoBadge.Advertencia" />
-            }
-
-            @if (_resultado.Omitidos.Count > 0)
-            {
-                <h3 class="titulo-seccion-importacion">Omitidos (@_resultado.Omitidos.Count)</h3>
-                <TablaItemsImportacion Items="_resultado.Omitidos" Tono="TonoBadge.Peligro" />
-            }
-
-            <div class="acciones-formulario">
-                <Boton Variante="VarianteBoton.Secundario" OnClick="EmpezarDeNuevo">Nueva importación</Boton>
-                <a class="enlace-volver" href="/clientes">Volver a Clientes</a>
-            </div>
-        </Tarjeta>
-    }
-</div>
+@code {
+    // La plantilla Combinada es hoy el paso 1 del asistente unificado
+    // (/importacion, Features/Importacion/Pages/Importacion.razor — Plantillas["combinada"]).
+    // Se redirige en vez de eliminar la ruta para no romper un marcador guardado (H-1).
+    protected override void OnInitialized() =>
+        Navigation.NavigateTo("/importacion?plantilla=combinada", forceLoad: true, replace: true);
+}

@@ -10,6 +10,8 @@ public partial class Configuracion : ComponentBase
     [SupplyParameterFromQuery(Name = "entry")]
     private string? EntradaActual { get; set; }
 
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
+
     private string EntradaEfectiva
     {
         get
@@ -17,6 +19,24 @@ public partial class Configuracion : ComponentBase
             var candidata = EntradaRuta ?? EntradaActual ?? "params";
             return Buscar(candidata) is null ? "params" : candidata;
         }
+    }
+
+    /// <summary>
+    /// Un enlace de salida puro (TipoPanel null, EsPaginaIntegrable false —
+    /// hoy solo "plataforma") solo llega a este hub por "/configuracion?entry=…"
+    /// o por deep-link forzado; el clic normal en la subnav ya va directo a su
+    /// ruta literal (más específica que "/configuracion/{EntradaRuta?}") y
+    /// nunca instancia este componente. Sin este redirect, el hub mostraría
+    /// "Pantalla pendiente de especificación" sobre una pantalla que sí
+    /// existe — un mensaje falso, y el mismo defecto que motivó retirar "2fa"
+    /// (A-08), pero invertido: aquí la pantalla existe y el hub miente al
+    /// decir que no. Corregido tras revisión de la coordinadora del turno.
+    /// </summary>
+    protected override void OnParametersSet()
+    {
+        var actual = Buscar(EntradaEfectiva);
+        if (actual is { TipoPanel: null, EsPaginaIntegrable: false })
+            Navigation.NavigateTo(RutaDe(actual.Id));
     }
 
     private string TituloDocumento => Buscar(EntradaEfectiva) is { } entrada
@@ -37,16 +57,20 @@ public partial class Configuracion : ComponentBase
     /// Estructura y copy del array GROUPS del mockup. Las pantallas funcionales
     /// existentes se renderizan dentro del hub mediante su modo integrado; sus
     /// rutas históricas continúan disponibles como puntos de entrada directos.
-    /// 2FA conserva el estado no disponible porque no existe un contrato ni una
-    /// pantalla administrativa equivalente que se pueda reutilizar con seguridad.
+    /// La entrada "2fa" del mockup se retira (H-4, DEC-3 opción a): no hay
+    /// contrato de obligatoriedad ni pantalla administrativa que la respalde,
+    /// y dejarla apuntando a null solo rendería una promesa navegable sin
+    /// capacidad detrás ("Pantalla pendiente de especificación") en zona
+    /// sensible. Se repone cuando exista esa política — no antes. El enlace
+    /// del menú lateral a /cuenta/configurar-2fa es otra cosa (alta personal
+    /// del propio usuario) y no se ve afectado por esta retirada.
     /// </summary>
     private static readonly IReadOnlyList<GrupoConfiguracion> Grupos =
     [
         new("Acceso e identidad",
         [
             new("usuarios", "US", "Usuarios", "Cuentas y carteras asignadas", typeof(Features.Usuarios.Pages.Usuarios)),
-            new("roles", "RL", "Roles", "Permisos por perfil", typeof(Features.GestionRoles.Pages.Roles)),
-            new("2fa", "2F", "Verificación en dos pasos", "Obligatoriedad y métodos", null)
+            new("roles", "RL", "Roles", "Permisos por perfil", typeof(Features.GestionRoles.Pages.Roles))
         ]),
         // Delegaciones y Estado comercial NO viven aquí (ver NavMenu.razor,
         // grupo "Plataforma"): su autoridad real es de CAPACIDAD
@@ -61,7 +85,33 @@ public partial class Configuracion : ComponentBase
         [
             new("api", "AP", "Claves API", "Acceso programático", typeof(Features.ApiKeys.Pages.ClavesApi)),
             new("integraciones", "IN", "Conexiones de integración", "M365, portales, webhooks", typeof(Features.Integraciones.Pages.Conexiones)),
-            new("importar", "IM", "Importar datos", "Cuadro de Control CAE (Excel)", typeof(Features.Importacion.Pages.Importacion))
+            new("importar", "IM", "Importar datos", "Cuadro de Control CAE (Excel)", typeof(Features.Importacion.Pages.Importacion)),
+            // "plataforma" es deliberadamente distinta a sus vecinas: TipoPanel
+            // queda null a propósito — es lo único que evita el embedding (el
+            // <DynamicComponent> de Configuracion.razor solo se renderiza si
+            // TipoPanel no es null; EsPaginaIntegrable es ortogonal a esa
+            // decisión, solo controla si se pasa IntegradaEnConfiguracion a un
+            // panel que YA se va a embeber, así que aquí no hace nada por sí
+            // sola — se deja en false solo para dejar constancia de la
+            // intención). Motivo: Plataforma.razor lleva [Authorize] sin rol
+            // —su autoridad es la IDENTIDAD RAÍZ del despliegue, no el rol
+            // Administrador que gatea este hub entero (mismo motivo por el que
+            // Delegaciones y Estado comercial ya NO viven aquí, ver arriba).
+            // Embeberla habría colapsado platform privilege con el rol de
+            // negocio Administrador. La entrada es solo un atajo de
+            // descubrimiento (H-2/DEC-2): al pulsarla, la ruta literal
+            // "/configuracion/plataforma" (más específica que
+            // "/configuracion/{EntradaRuta?}") gana en el router de Blazor y
+            // resuelve su propio gate. LÍMITE CONOCIDO (hallado en revisión
+            // adversaria de Codex, no bloqueante): navegar a
+            // "/configuracion?entry=plataforma" SÍ hace que este hub resuelva
+            // la entrada por el parámetro de query (ver EntradaEfectiva) y
+            // muestre el placeholder de abajo en vez de redirigir — ese acceso
+            // sigue exigiendo el rol Administrador del propio hub, así que no
+            // es una fuga de autorización, solo un callejón sin salida para
+            // quien construya esa URL a mano; el mismo límite ya existía para
+            // cualquier entrada con TipoPanel null (antes "2fa").
+            new("plataforma", "PL", "Administración de plataforma", "Inicialización e identidad raíz", null, false)
         ]),
         new("Catálogos y datos",
         [

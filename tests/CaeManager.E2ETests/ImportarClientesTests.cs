@@ -1,15 +1,19 @@
+using System.Text.RegularExpressions;
 using ClosedXML.Excel;
 using Microsoft.Playwright;
 
 namespace CaeManager.E2ETests;
 
 /// <summary>
-/// Cubre /clientes/importar (ImportarClientes.razor) — sin ningún E2E hasta
-/// ahora, dentro del bloque de importación masiva más prioritario de la
-/// auditoría de cobertura (importar datos mal a granel es mucho peor que un
-/// alta manual mala). Analiza primero sin escribir nada
-/// (AnalizarPlantillaClientesQuery) y solo confirma al pulsar "Confirmar
-/// importación" (EjecutarImportacionCommand).
+/// Cubre la plantilla de Clientes del asistente unificado (/importacion,
+/// Importacion.razor — Plantillas["clientes"]), alcanzada desde
+/// /clientes/importar, que desde H-1 (2026-09-02) redirige ahí en vez de
+/// renderizar su propia página (ImportarClientes.razor pasó a ser un stub de
+/// redirección — el hub absorbe las migraciones tabulares, 0 enlaces
+/// entrantes propios). Analiza primero sin escribir nada
+/// (AnalizarPlantillaClientesQuery) y solo confirma al pulsar "Importar
+/// ahora" (EjecutarImportacionCommand) — misma query/comando que usaba la
+/// página retirada, así que el comportamiento de dominio no cambia.
 ///
 /// Este test documenta, con una fila real, un comportamiento verificado
 /// leyendo EjecutarImportacionCommandHandler: desde que Cliente exige CIF y
@@ -17,12 +21,12 @@ namespace CaeManager.E2ETests;
 /// (Cliente/Centro, sin CIF ni Empresa) ya NO puede dar de alta un Cliente o
 /// Centro nuevo — el comentario del propio handler lo dice ("ninguno de los
 /// dos formatos de Excel soportados hoy recoge esos datos todavía"). El
-/// paso 2 (el plan) sigue contando la fila como "Cliente nuevo"/"Centro
-/// nuevo" porque el análisis solo compara nombres contra la base de datos;
-/// al confirmar, esa misma fila termina siempre en Omitidos con 0 altas
-/// reales. Es el propio "que no importe basura en silencio" que motiva este
-/// bloque de tests: la fila nunca se crea a medias ni se crea con datos
-/// inventados, se declara omitida con el motivo exacto.
+/// paso 2 (el plan) sigue contando la fila como dos altas potenciales
+/// (Cliente + Centro) porque el análisis solo compara nombres contra la base
+/// de datos; al confirmar, la fila nunca se crea a medias ni con datos
+/// inventados: se omite con el motivo exacto, y el bucle del handler corta
+/// (`continue`) en cuanto falta el Cliente, así que es un único Omitido, no
+/// dos.
 /// </summary>
 [Collection("AppCollection")]
 public class ImportarClientesTests(WebAppFixture fixture)
@@ -51,25 +55,36 @@ public class ImportarClientesTests(WebAppFixture fixture)
         try
         {
             await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
+            // /clientes/importar redirige aquí con la plantilla ya preseleccionada (H-1).
             await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes/importar");
+            await Expect(page).ToHaveURLAsync(new Regex(@"/importacion\?plantilla=clientes$"));
 
+            await page.GetByText("Continuar con Plantilla de Clientes").ClickAsync();
             await page.Locator("input[type=\"file\"]").SetInputFilesAsync(rutaExcel);
 
-            // --- Paso 2: el plan cuenta la fila como Cliente/Centro nuevo ---
-            await page.GetByText("2. Revisa el plan de importación").WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Clientes nuevos"));
-            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Centros nuevos"));
-            Assert.Equal("0", await Ayudas.LeerMetricaAsync(page, "Ya existían"));
+            // --- Paso 2 "Revisar plan": cuenta la fila como dos altas potenciales (Cliente + Centro) ---
+            var botonVerPlan = page.GetByText("Ver plan de importación");
+            await Expect(botonVerPlan).ToBeEnabledAsync(new LocatorAssertionsToBeEnabledOptions { Timeout = 15_000 });
+            await botonVerPlan.ClickAsync();
 
-            await page.GetByText("Confirmar importación").ClickAsync();
+            // GetByText("Revisar plan") a secas es ambigua: el nombre del paso
+            // 3 aparece tanto en el botón del stepper del wizard como en el <h2>
+            // de esta sección — el rol Heading es inequívoco.
+            await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "Revisar plan" })
+                .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+            await Expect(page.GetByText("2 se crearán")).ToBeVisibleAsync();
+            await Expect(page.GetByText("0 se omitirán")).ToBeVisibleAsync();
+
+            await page.GetByText("Continuar a confirmar").ClickAsync();
+            await page.GetByText("He revisado el plan y quiero escribir estos datos").ClickAsync();
+            await page.GetByText("Importar ahora").ClickAsync();
 
             // --- Resultado: la fila "nueva" no crea nada, termina omitida con motivo explícito ---
-            // GetByText a secas ambigua con el toast "Importación completada." (con punto) que
-            // se dispara en el mismo instante — el encabezado h2 es inequívoco.
-            await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "Importación completada" })
+            await page.Locator(".titulo-reporte-importacion")
                 .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-            Assert.Equal("0", await Ayudas.LeerMetricaAsync(page, "Clientes creados"));
-            Assert.Equal("0", await Ayudas.LeerMetricaAsync(page, "Centros creados"));
+            Assert.Equal("0", await Ayudas.LeerMetricaAsync(page, "Creados"));
+            Assert.Equal("0", await Ayudas.LeerMetricaAsync(page, "Avisos"));
+            Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Omitidos"));
 
             var filaOmitida = page.Locator(".tabla-datos tbody tr", new PageLocatorOptions { HasText = nombreClienteCentro });
             await filaOmitida.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
@@ -88,4 +103,5 @@ public class ImportarClientesTests(WebAppFixture fixture)
     }
 
     private static ILocatorAssertions Expect(ILocator locator) => Assertions.Expect(locator);
+    private static IPageAssertions Expect(IPage page) => Assertions.Expect(page);
 }
