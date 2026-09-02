@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using Microsoft.Extensions.Logging;
@@ -53,12 +54,23 @@ public class PdfSharpClasificadorDocumentoService(
             // propósito no dice nada técnico. Sin registrar la excepción aquí
             // se pierde el único rastro de por qué un PDF concreto no se pudo
             // clasificar (PDF cifrado, corrupto, formato no soportado...).
-            logger.LogError(ex, "No se pudo clasificar el archivo {NombreArchivo}.", nombreArchivo);
+            //
+            // No se interpola nombreArchivo: el nombre de archivo que sube un
+            // tenant puede llevar dato de categoría especial (art. 9 RGPD) —
+            // nombre de trabajador, DNI, tipo de aptitud médica. En su lugar
+            // se registra el mismo hash SHA-256 del contenido que
+            // DocumentAIRouterService ya guarda en AuditoriaExtraccionIa para
+            // este mismo fallo (mismo criterio que cerró el hueco equivalente
+            // en el Módulo 3, PR #383), así que el hash sigue permitiendo
+            // correlacionar el registro con la fila de auditoría.
+            logger.LogError(ex, "No se pudo clasificar el archivo (hash {HashContenido}).", CalcularHash(contenido));
 
             return Task.FromResult(Result.Fallo<ClasificacionDocumentoDto>(Error.Crear(
                 "ClasificacionDocumento.ArchivoInvalido", "No pudimos leer este archivo para clasificarlo.")));
         }
     }
+
+    private static string CalcularHash(byte[] contenido) => Convert.ToHexStringLower(SHA256.HashData(contenido));
 
     private static bool EsImagen(string nombreArchivo) =>
         ExtensionesImagen.Any(ext => nombreArchivo.EndsWith(ext, StringComparison.OrdinalIgnoreCase));

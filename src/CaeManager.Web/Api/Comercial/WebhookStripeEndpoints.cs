@@ -1,6 +1,8 @@
+using System.Text;
 using CaeManager.Application.Comercial.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
+using CaeManager.Web.Api.Integraciones;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Web.Api.Comercial;
@@ -12,7 +14,9 @@ namespace CaeManager.Web.Api.Comercial;
 /// <c>Stripe-Signature</c> (HMAC contra el payload crudo, ver
 /// <c>StripePaymentProvider.VerificarYLeerWebhook</c>), verificada ANTES de
 /// confiar en nada del contenido — mismo orden innegociable que los demás
-/// webhooks de este proyecto (docs/MULTITENANCY.md § 8).
+/// webhooks de este proyecto (docs/MULTITENANCY.md § 8). El cuerpo se lee
+/// con <see cref="LimiteCuerpoWebhook"/> (mismo mecanismo que M365 y
+/// WhatsApp) para no vaciar un stream sin cota antes de esa verificación.
 ///
 /// A diferencia de los webhooks de Microsoft 365/WhatsApp, aquí SÍ se
 /// procesa de forma síncrona dentro del propio request en vez de encolar
@@ -42,8 +46,15 @@ public static class WebhookStripeEndpoints
             ILogger<Program> logger,
             CancellationToken cancellationToken) =>
         {
-            using var lector = new StreamReader(request.Body);
-            var payload = await lector.ReadToEndAsync(cancellationToken);
+            var cuerpo = await LimiteCuerpoWebhook.LeerAsync(request, cancellationToken);
+            if (cuerpo is null)
+            {
+                logger.LogWarning(
+                    "Webhook de Stripe rechazado: cuerpo mayor de {Maximo} bytes.", LimiteCuerpoWebhook.MaximoBytes);
+                return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
+            }
+
+            var payload = Encoding.UTF8.GetString(cuerpo);
             var firma = request.Headers["Stripe-Signature"].FirstOrDefault();
 
             var evento = paymentProvider.VerificarYLeerWebhook(payload, firma);

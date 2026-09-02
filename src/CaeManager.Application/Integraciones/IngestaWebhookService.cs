@@ -73,8 +73,26 @@ public class IngestaWebhookService(
     private async Task IngerirNotificacionAsync(EventoWebhook evento, CancellationToken cancellationToken)
     {
         var conexion = await conexionRepositorio.ObtenerPorIdAsync(evento.ConexionIntegracionId, cancellationToken);
-        if (conexion is null || conexion.Estado != EstadoConexionIntegracion.Habilitada)
-            return; // la conexión se borró/deshabilitó entre medias — se descarta sin reintentar, no es un fallo transitorio.
+        if (conexion is null)
+            return; // se borró entre medias — se descarta sin reintentar, no es un fallo transitorio.
+
+        if (conexion.Estado != EstadoConexionIntegracion.Habilitada)
+        {
+            // Hasta que N4 cablee MarcarConError desde la renovación de
+            // suscripción de Graph, ConError era inalcanzable en producción
+            // (solo lo ponía el seeder de demo) y este descarte silencioso
+            // no importaba. Con esa llamada real, una notificación de Graph
+            // sí puede llegar mientras la conexión está ConError o
+            // Deshabilitada — sin este log, el síntoma es "no llegan
+            // mensajes" descubierto semanas después, sin ningún rastro de
+            // por qué. RegistrarFallo no encaja aquí: no es un fallo
+            // transitorio que deba reintentarse, es un descarte de negocio
+            // deliberado que se resuelve reactivando la conexión.
+            logger.LogWarning(
+                "Notificación de webhook {EventoId} descartada: la conexión {ConexionId} está en estado {Estado}.",
+                evento.Id, conexion.Id, conexion.Estado);
+            return;
+        }
 
         var mensajeIds = graphClient.ExtraerMensajeIdsDeNotificacion(evento.PayloadCrudo);
 
@@ -201,8 +219,8 @@ public class IngestaWebhookService(
         if (adjunto.TamanoBytes > LimitesAdjuntosCorreo.TamanoMaximoDescargaBytes)
         {
             logger.LogWarning(
-                "Adjunto {NombreArchivo} del mensaje {MensajeId} omitido: {TamanoBytes} bytes supera el máximo de {Maximo}.",
-                adjunto.NombreArchivo, mensajeExternoId, adjunto.TamanoBytes, LimitesAdjuntosCorreo.TamanoMaximoDescargaBytes);
+                "Adjunto {AdjuntoId} del mensaje {MensajeId} omitido: {TamanoBytes} bytes supera el máximo de {Maximo}.",
+                adjunto.AdjuntoExternoId, mensajeExternoId, adjunto.TamanoBytes, LimitesAdjuntosCorreo.TamanoMaximoDescargaBytes);
             return;
         }
 
@@ -210,8 +228,8 @@ public class IngestaWebhookService(
         if (contenidoResultado.EsFallido)
         {
             logger.LogWarning(
-                "No se pudo descargar el adjunto {AdjuntoId} ({NombreArchivo}) del mensaje {MensajeId}: {Error}",
-                adjunto.AdjuntoExternoId, adjunto.NombreArchivo, mensajeExternoId, contenidoResultado.Error.Mensaje);
+                "No se pudo descargar el adjunto {AdjuntoId} del mensaje {MensajeId}: {Error}",
+                adjunto.AdjuntoExternoId, mensajeExternoId, contenidoResultado.Error.Mensaje);
             return;
         }
 

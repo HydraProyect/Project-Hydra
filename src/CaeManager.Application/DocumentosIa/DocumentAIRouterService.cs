@@ -236,6 +236,15 @@ public class DocumentAIRouterService(
 
             if (actual.EsFallido)
             {
+                // DEUDA CONOCIDA, no descuido: si el proveedor ya facturó la
+                // llamada antes de fallar (p. ej. Anthropic respondió y
+                // cobró, pero el JSON no deserializó — ver el comentario de
+                // AnthropicDocumentAIProvider.ParsearEstructurado), ese coste
+                // no llega hasta aquí. Result<ExtraccionEstructuradaDto> no
+                // tiene forma de llevarlo en el camino de fallo sin ampliar
+                // el contrato compartido IDocumentAIProvider (o el Error de
+                // Domain/Common, ~130 sitios de uso) — desproporcionado para
+                // este hallazgo (P3). Mismo hueco en los tres proveedores.
                 intentos.Add($"{candidato.Codigo}: {actual.Error.Codigo}");
                 ultimoFallo = actual;
                 continue;
