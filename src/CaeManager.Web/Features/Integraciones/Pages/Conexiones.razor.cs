@@ -2,6 +2,7 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Integraciones.Commands.ActualizarLineaWhatsApp;
 using CaeManager.Application.Integraciones.Commands.CrearLineaWhatsApp;
 using CaeManager.Application.Integraciones.Commands.DesconectarBuzon;
+using CaeManager.Application.Integraciones.Commands.ReactivarConexion;
 using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
 using CaeManager.Application.Integraciones.Queries.ObtenerLineasWhatsApp;
 using CaeManager.Domain.Integraciones;
@@ -228,6 +229,29 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
         finally
         {
             _desconectando = false;
+            _procesandoId = null;
+        }
+    }
+
+    private async Task ReactivarAsync(ConexionIntegracionListaDto conexion)
+    {
+        _procesandoId = conexion.Id;
+        StateHasChanged();
+
+        try
+        {
+            var resultado = await Mediator.Send(new ReactivarConexionCommand(conexion.Id));
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            ToastService.Mostrar("Conexión reactivada.", TonoToast.Exito);
+            await CargarConexionesAsync();
+        }
+        finally
+        {
             _procesandoId = null;
         }
     }

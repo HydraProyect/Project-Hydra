@@ -21,7 +21,7 @@ public record ObtenerConexionesIntegracionQuery(bool SoloPropiasYGenerales = fal
 
 public record ConexionIntegracionListaDto(
     Guid Id, string BuzonEmail, string Nombre, Guid? ClienteId, string? ClienteNombre, EstadoConexionIntegracion Estado,
-    DateTime FechaConectadaUtc, Guid? GestorPropietarioId);
+    DateTime FechaConectadaUtc, Guid? GestorPropietarioId, string? UltimoError);
 
 public class ObtenerConexionesIntegracionQueryHandler(
     IIntegracionesQueryContext integracionesContext, IEmpresasQueryContext empresasContext,
@@ -50,7 +50,7 @@ public class ObtenerConexionesIntegracionQueryHandler(
             orderby conexion.FechaConectadaUtc descending
             select new ConexionIntegracionListaDto(
                 conexion.Id, conexion.BuzonEmail, conexion.Nombre, conexion.ClienteId, cliente!.RazonSocial, conexion.Estado,
-                conexion.FechaConectadaUtc, conexion.GestorPropietarioId);
+                conexion.FechaConectadaUtc, conexion.GestorPropietarioId, conexion.UltimoError);
 
         return await query.ToListAsync(cancellationToken);
     }

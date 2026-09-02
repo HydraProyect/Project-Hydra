@@ -82,9 +82,14 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
     private sealed record EntradaBlanca(Categoria Categoria, string Motivo);
 
     /// <summary>
-    /// Medido el 2026-08-31 sobre <c>origin/main</c>: <b>26 ficheros, 45 llamadas</b>.
+    /// Medido el 2026-08-31 sobre <c>origin/main</c>: 26 ficheros, 45 llamadas.
     /// Cada entrada se leyó en su sitio — el <c>Guid</c> pasado a <c>Establecer</c> y
     /// de dónde sale — antes de asignarle categoría, no al revés.
+    /// Actualizado 2026-09-02 (salud de plataforma, A-06/A-07): <b>26 ficheros, 47
+    /// llamadas</b> — <c>IngestaWebhookWhatsAppHostedService.cs</c> pasa de 2 a 4 al
+    /// cablear el mismo interruptor de <c>CatalogoAutomatizaciones</c> y el mismo
+    /// registro de última ejecución que ya tenía su mellizo M365, siempre sobre el
+    /// <c>tenantId</c> de la enumeración propia del job.
     /// </summary>
     private static readonly Dictionary<string, EntradaBlanca> Autorizados = new()
     {
@@ -116,7 +121,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookHostedService.cs"] =
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "4 llamadas — tenantId del EventoWebhook ya persistido con su tenant resuelto por el paso de verificación previo"),
         ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookWhatsAppHostedService.cs"] =
-            new(Categoria.JobDeFondoSobreEnumeracionPropia, "2 llamadas — mismo patrón que IngestaWebhookHostedService"),
+            new(Categoria.JobDeFondoSobreEnumeracionPropia, "4 llamadas — mismo patrón que IngestaWebhookHostedService (gate del interruptor, bucle principal, recuperación de estancados y registro de ejecución), completado en salud de plataforma (A-06, 2026-09-02)"),
         ["src/CaeManager.Infrastructure/Integraciones/RedaccionPayloadWebhookHostedService.cs"] =
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del EventoWebhook que procesa"),
         ["src/CaeManager.Infrastructure/Integraciones/RenovacionSuscripcionWebhookHostedService.cs"] =
@@ -214,7 +219,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         {
             ["src/CaeManager.Infrastructure/DocumentosIa/ProcesadorAnalisisDocumentoHostedService.cs"] = 3,
             ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookHostedService.cs"] = 4,
-            ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookWhatsAppHostedService.cs"] = 2,
+            ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookWhatsAppHostedService.cs"] = 4,
             ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs"] = 9,
             ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionesSoporteSeeder.cs"] = 3,
             ["src/CaeManager.Infrastructure/Persistence/Seed/SegundoTenantSeeder.cs"] = 2,

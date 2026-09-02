@@ -1,9 +1,11 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Eventos;
+using CaeManager.Application.Configuracion;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Tenants;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Tenants;
+using CaeManager.Infrastructure.Configuracion;
 using CaeManager.Infrastructure.Coordinacion;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -106,66 +108,106 @@ public class IngestaWebhookWhatsAppHostedService(
 
     private async Task ProcesarPendientesDelTenantAsync(Guid tenantId, CancellationToken stoppingToken)
     {
+        // Mismo interruptor de Automatizaciones que su mellizo M365 (salud de
+        // plataforma, A-06) — hasta este cambio, WhatsApp ingería sin que el
+        // catálogo lo supiera ni el Administrador pudiera apagarlo. Se
+        // comprueba una vez por tick, no por evento — ver IngestaWebhookHostedService.
+        using (var ambitoComprobacion = ambitoFactory.CreateScope())
+        {
+            using var _ = AmbitoTenantExplicito.Establecer(tenantId);
+            var registroComprobacion = ambitoComprobacion.ServiceProvider.GetRequiredService<IRegistroAutomatizacionesService>();
+            if (!await registroComprobacion.EstaActivoAsync(CatalogoAutomatizaciones.IngestaWhatsApp, stoppingToken))
+                return;
+        }
+
         await RecuperarEstancadosAsync(tenantId, stoppingToken);
 
+        var huboActividad = false;
         var procesadosEnEsteTick = 0;
 
-        while (!stoppingToken.IsCancellationRequested && procesadosEnEsteTick < LoteMaximoPorTenant)
+        try
         {
-            using var ambito = ambitoFactory.CreateScope();
-            using var _ = AmbitoTenantExplicito.Establecer(tenantId);
-
-            var eventoRepositorio = ambito.ServiceProvider.GetRequiredService<IEventoWebhookRepository>();
-            var evento = await eventoRepositorio.ReclamarSiguientePendienteAsync(ProveedorIntegracion.WhatsApp, stoppingToken);
-            if (evento is null) return;
-
-            procesadosEnEsteTick++;
-
-            var ingesta = ambito.ServiceProvider.GetRequiredService<IngestaWebhookWhatsAppService>();
-            IReadOnlyList<MensajeWhatsAppRecibidoEvent> avisos;
-            try
+            while (!stoppingToken.IsCancellationRequested && procesadosEnEsteTick < LoteMaximoPorTenant)
             {
-                avisos = await ingesta.ProcesarAsync(evento, stoppingToken);
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                // Apagado normal — ver IngestaWebhookHostedService para el
-                // mismo razonamiento. CancellationToken.None a propósito.
-                evento.DevolverAPendienteTrasCancelacion();
-                await ambito.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync(CancellationToken.None);
-                throw;
-            }
+                using var ambito = ambitoFactory.CreateScope();
+                using var _ = AmbitoTenantExplicito.Establecer(tenantId);
 
-            try
-            {
-                await ambito.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync(stoppingToken);
-            }
-            catch
-            {
-                // Compensación best-effort (auditoría módulo 6) — ver
-                // CompensacionBlobsHuerfanosIngesta e IngestaWebhookHostedService.
-                await CompensacionBlobsHuerfanosIngesta.EliminarSiOrfanosAsync(
-                    ingesta.ArchivosGuardados, ambito.ServiceProvider.GetRequiredService<IFileStorageService>(), logger);
-                throw;
-            }
+                var eventoRepositorio = ambito.ServiceProvider.GetRequiredService<IEventoWebhookRepository>();
+                var evento = await eventoRepositorio.ReclamarSiguientePendienteAsync(ProveedorIntegracion.WhatsApp, stoppingToken);
+                if (evento is null) break;
 
-            // Tras el commit: los suscriptores (tiempo real de la UI) ya
-            // pueden leer el mensaje. Un suscriptor que falle no debe frenar
-            // la cola — cada publicación va en su propio try/catch.
-            var publicador = ambito.ServiceProvider.GetRequiredService<IPublisher>();
-            foreach (var aviso in avisos)
-            {
+                procesadosEnEsteTick++;
+                huboActividad = true;
+
+                var ingesta = ambito.ServiceProvider.GetRequiredService<IngestaWebhookWhatsAppService>();
+                IReadOnlyList<MensajeWhatsAppRecibidoEvent> avisos;
                 try
                 {
-                    await publicador.Publish(aviso, stoppingToken);
+                    avisos = await ingesta.ProcesarAsync(evento, stoppingToken);
                 }
-                catch (Exception ex)
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {
-                    logger.LogWarning(ex, "Falló la publicación del aviso de mensaje WhatsApp de la conversación {ConversacionId}.",
-                        aviso.ConversacionId);
+                    // Apagado normal — ver IngestaWebhookHostedService para el
+                    // mismo razonamiento. CancellationToken.None a propósito.
+                    evento.DevolverAPendienteTrasCancelacion();
+                    await ambito.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync(CancellationToken.None);
+                    throw;
+                }
+
+                try
+                {
+                    await ambito.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync(stoppingToken);
+                }
+                catch
+                {
+                    // Compensación best-effort (auditoría módulo 6) — ver
+                    // CompensacionBlobsHuerfanosIngesta e IngestaWebhookHostedService.
+                    await CompensacionBlobsHuerfanosIngesta.EliminarSiOrfanosAsync(
+                        ingesta.ArchivosGuardados, ambito.ServiceProvider.GetRequiredService<IFileStorageService>(), logger);
+                    throw;
+                }
+
+                // Tras el commit: los suscriptores (tiempo real de la UI) ya
+                // pueden leer el mensaje. Un suscriptor que falle no debe frenar
+                // la cola — cada publicación va en su propio try/catch.
+                var publicador = ambito.ServiceProvider.GetRequiredService<IPublisher>();
+                foreach (var aviso in avisos)
+                {
+                    try
+                    {
+                        await publicador.Publish(aviso, stoppingToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(ex, "Falló la publicación del aviso de mensaje WhatsApp de la conversación {ConversacionId}.",
+                            aviso.ConversacionId);
+                    }
                 }
             }
         }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            await RegistrarEjecucionAsync(tenantId, exitosa: false, stoppingToken);
+            throw;
+        }
+
+        // Igual que IngestaWebhookHostedService: solo se registra "última
+        // ejecución" cuando hubo algo que procesar, para no ensuciar la
+        // pantalla de Automatizaciones con un tick vacío cada 10 s.
+        if (huboActividad)
+            await RegistrarEjecucionAsync(tenantId, exitosa: true, stoppingToken);
+    }
+
+    private async Task RegistrarEjecucionAsync(Guid tenantId, bool exitosa, CancellationToken stoppingToken)
+    {
+        using var ambito = ambitoFactory.CreateScope();
+        using var _ = AmbitoTenantExplicito.Establecer(tenantId);
+        var registro = ambito.ServiceProvider.GetRequiredService<IRegistroAutomatizacionesService>();
+        await registro.RegistrarEjecucionAsync(CatalogoAutomatizaciones.IngestaWhatsApp, exitosa, stoppingToken);
     }
 
     private async Task RecuperarEstancadosAsync(Guid tenantId, CancellationToken stoppingToken)

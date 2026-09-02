@@ -66,9 +66,22 @@
                     <tr>
                         <td>@conexion.BuzonEmail</td>
                         <td>@DescribirPropietario(conexion)</td>
-                        <td><Badge Tono="@ObtenerTonoEstado(conexion.Estado)">@ObtenerEtiquetaEstado(conexion.Estado)</Badge></td>
-                        <td>@conexion.FechaConectadaUtc.ToLocalTime().ToString("dd/MM/yyyy")</td>
                         <td>
+                            <Badge Tono="@ObtenerTonoEstado(conexion.Estado)">@ObtenerEtiquetaEstado(conexion.Estado)</Badge>
+                            @if (conexion.Estado == EstadoConexionIntegracion.ConError && !string.IsNullOrWhiteSpace(conexion.UltimoError))
+                            {
+                                <span class="texto-error">@conexion.UltimoError</span>
+                            }
+                        </td>
+                        <td>@conexion.FechaConectadaUtc.ToLocalTime().ToString("dd/MM/yyyy")</td>
+                        <td class="acciones-conexion">
+                            @if (conexion.Estado == EstadoConexionIntegracion.ConError)
+                            {
+                                <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario"
+                                       OnClick="() => ReactivarAsync(conexion)" Cargando="@(_procesandoId == conexion.Id)">
+                                    Reactivar
+                                </Boton>
+                            }
                             @if (conexion.Estado != EstadoConexionIntegracion.Deshabilitada)
                             {
                                 <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Destructivo"
@@ -123,7 +136,13 @@
                         <td>@linea.PhoneNumberId</td>
                         <td>@(linea.ClienteNombre ?? "Tenant propio")</td>
                         <td>@DescribirAsignacion(linea)</td>
-                        <td><Badge Tono="@ObtenerTonoEstado(linea.Estado)">@ObtenerEtiquetaEstado(linea.Estado)</Badge></td>
+                        <td>
+                            <Badge Tono="@ObtenerTonoEstado(linea.Estado)">@ObtenerEtiquetaEstado(linea.Estado)</Badge>
+                            @if (linea.Estado == EstadoConexionIntegracion.ConError && !string.IsNullOrWhiteSpace(linea.UltimoError))
+                            {
+                                <span class="texto-error">@linea.UltimoError</span>
+                            }
+                        </td>
                         <td>
                             <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" OnClick="() => AbrirEdicionLinea(linea)">
                                 Editar

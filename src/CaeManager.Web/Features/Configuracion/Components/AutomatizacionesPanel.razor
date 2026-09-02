@@ -50,7 +50,11 @@ else
                 </span>
                 <span role="cell">@FormatearUltimaEjecucion(trabajo.UltimaEjecucionUtc)</span>
                 <span role="cell">
-                    @if (trabajo.UltimaEjecucionUtc is null)
+                    @if (!EstaConfigurado(trabajo.Id))
+                    {
+                        <Badge Tono="TonoBadge.Neutro">No configurado</Badge>
+                    }
+                    else if (trabajo.UltimaEjecucionUtc is null)
                     {
                         <Badge Tono="TonoBadge.Neutro">Sin datos</Badge>
                     }
@@ -64,7 +68,11 @@ else
                     }
                 </span>
                 <span role="cell">
-                    @if (trabajo.Conmutable)
+                    @if (!EstaConfigurado(trabajo.Id))
+                    {
+                        <span class="siempre-activo">Sin configurar</span>
+                    }
+                    else if (trabajo.Conmutable)
                     {
                         <button type="button" role="switch" aria-checked="@trabajo.Activo.ToString().ToLowerInvariant()"
                                 aria-label="Activar o desactivar @trabajo.Nombre" class="@($"interruptor {(trabajo.Activo ? "interruptor-activo" : "")}")"
