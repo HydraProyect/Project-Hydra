@@ -1,5 +1,6 @@
 @page "/clientes"
 @rendermode InteractiveServer
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae}")]
 @using CaeManager.Application.Clientes.Commands.CrearCliente
 @using CaeManager.Application.Clientes.Commands.EditarCliente
 @using CaeManager.Application.Clientes.Commands.EliminarCliente
