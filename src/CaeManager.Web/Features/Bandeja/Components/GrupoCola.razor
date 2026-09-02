@@ -61,7 +61,7 @@
                 {
                     <div class="grupo-cola-subcabecera grupo-cola-subcabecera-empresa">@empresa.EmpresaNombre</div>
                 }
-                @foreach (var trabajador in empresa.Trabajadores.Take(MaximoTrabajadoresVisibles))
+                @foreach (var trabajador in TrabajadoresVisiblesDe(empresa))
                 {
                     @if (trabajador.TrabajadorNombre is not null)
                     {
@@ -80,11 +80,20 @@
                         }
                         else
                         {
-                            <PanelResolverItem @key="item.Id" Item="@(item with { Titulo = TituloBajoTrabajador(item) })" Enfocado="@(item.Id == IdEnfocado)" />
+                            <PanelResolverItem @key="item.Id" Item="@(item with { Titulo = TituloBajoTrabajador(item) })" Enfocado="@(item.Id == IdEnfocado)" OnReclamar="OnReclamar" />
                         }
                     }
                 }
-                @if (empresa.Trabajadores.Count > MaximoTrabajadoresVisibles)
+                @if (PaginarPorGrupo)
+                {
+                    @if (TotalPaginasDe(empresa) > 1)
+                    {
+                        <PaginadorSimple PaginaActual="PaginaActualDe(empresa)" TotalPaginas="TotalPaginasDe(empresa)"
+                                          TotalElementos="empresa.Trabajadores.Count" Etiqueta="trabajador(es)"
+                                          PaginaActualChanged="v => CambiarPagina(empresa, v)" />
+                    }
+                }
+                else if (empresa.Trabajadores.Count > MaximoTrabajadoresVisibles)
                 {
                     <div class="grupo-cola-truncado">
                         @if (CentroUnicoDe(OcultosDe(empresa)) is { } centroId)
@@ -144,6 +153,36 @@
     /// <summary>Id del item con foco de teclado (j/k, ver Bandeja.razor.cs) — solo relevante fuera de Compacto, donde cada item es un PanelResolverItem completo.</summary>
     [Parameter] public string? IdEnfocado { get; set; }
 
+    /// <summary>U-2: se reenvía tal cual a cada PanelResolverItem completo (no aplica en modo Compacto). Ver PanelResolverItem.OnReclamar.</summary>
+    [Parameter] public EventCallback<ItemBandejaDto> OnReclamar { get; set; }
+
+    /// <summary>
+    /// U-1: en vez de truncar a MaximoTrabajadoresVisibles con un enlace "ver
+    /// más" que saca al gestor del grupo, pagina la lista de trabajadores in
+    /// situ — para eso existe /bandeja como cola de trabajo completa
+    /// (Inicio, en cambio, es un resumen: sigue con el truncado + enlace de
+    /// siempre, comportamiento sin cambios porque no pasa este parámetro).
+    /// </summary>
+    [Parameter] public bool PaginarPorGrupo { get; set; }
+
+    private readonly Dictionary<string, int> _paginaPorEmpresa = [];
+
+    private const int TrabajadoresPorPagina = MaximoTrabajadoresVisibles;
+
+    private static string ClaveEmpresa(GrupoEmpresaItems empresa) => empresa.EmpresaId?.ToString() ?? string.Empty;
+
+    private int PaginaActualDe(GrupoEmpresaItems empresa) =>
+        Math.Clamp(_paginaPorEmpresa.GetValueOrDefault(ClaveEmpresa(empresa), 1), 1, TotalPaginasDe(empresa));
+
+    private int TotalPaginasDe(GrupoEmpresaItems empresa) =>
+        Math.Max(1, (int)Math.Ceiling(empresa.Trabajadores.Count / (double)TrabajadoresPorPagina));
+
+    private void CambiarPagina(GrupoEmpresaItems empresa, int pagina) => _paginaPorEmpresa[ClaveEmpresa(empresa)] = pagina;
+
+    private IReadOnlyList<GrupoTrabajadorItems> TrabajadoresVisiblesDe(GrupoEmpresaItems empresa) => PaginarPorGrupo
+        ? [.. empresa.Trabajadores.Skip((PaginaActualDe(empresa) - 1) * TrabajadoresPorPagina).Take(TrabajadoresPorPagina)]
+        : [.. empresa.Trabajadores.Take(MaximoTrabajadoresVisibles)];
+
     protected override void OnInitialized() => _expandida = ExpandidaPorDefecto;
 
     private void Alternar() => _expandida = !_expandida;
@@ -168,7 +207,7 @@
     }
 
     private sealed record GrupoTrabajadorItems(string? TrabajadorNombre, IReadOnlyList<ItemBandejaDto> Items);
-    private sealed record GrupoEmpresaItems(string? EmpresaNombre, IReadOnlyList<GrupoTrabajadorItems> Trabajadores);
+    private sealed record GrupoEmpresaItems(Guid? EmpresaId, string? EmpresaNombre, IReadOnlyList<GrupoTrabajadorItems> Trabajadores);
 
     /// <summary>
     /// Un GrupoColaDto agrupa por Cliente o Empresa, NUNCA por Centro (ver
@@ -212,11 +251,11 @@
         get
         {
             if (!AgruparPorEmpresa)
-                return [new GrupoEmpresaItems(null, AgruparPorTrabajador(Grupo.Items))];
+                return [new GrupoEmpresaItems(null, null, AgruparPorTrabajador(Grupo.Items))];
 
             return Grupo.Items
                 .GroupBy(i => i.EmpresaId)
-                .Select(g => new GrupoEmpresaItems(g.First().EmpresaNombre, AgruparPorTrabajador(g)))
+                .Select(g => new GrupoEmpresaItems(g.Key, g.First().EmpresaNombre, AgruparPorTrabajador(g)))
                 .OrderBy(g => g.EmpresaNombre is null ? 1 : 0)
                 .ThenBy(g => g.EmpresaNombre)
                 .ToList();

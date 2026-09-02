@@ -75,4 +75,19 @@ public static class TipoItemBandejaUi
         TipoItemBandeja.PlataformaPendiente => $"Subir a {item.ProveedorNombre}",
         _ => "Gestionar"
     };
+
+    /// <summary>
+    /// U-2 (plan de sesiones nocturnas 2026-09-02): Bandeja hoy "solo navega"
+    /// (AccionesBandeja), a diferencia de Centro 360/Trabajador 360/Documentos,
+    /// que sí ofrecen reclamar — este es el gate que decide cuándo tiene
+    /// sentido el botón "Reclamar" en un ítem. Solo Faltante/Vencido/Urgente
+    /// son documentos de Trabajador reclamables por email hoy (ver
+    /// ObtenerLoteReclamacionQuery); el resto de tipos (RevisionIa,
+    /// RequisitoPendiente, visitas, detecciones, PlataformaPendiente) no son
+    /// "algo que se le pide a alguien por correo", son otra clase de trabajo.
+    /// </summary>
+    public static bool EsReclamable(ItemBandejaDto item) =>
+        item.Tipo is TipoItemBandeja.Faltante or TipoItemBandeja.Vencido or TipoItemBandeja.Urgente
+        && item.TrabajadorId is not null
+        && item.TipoDocumentoId is not null;
 }

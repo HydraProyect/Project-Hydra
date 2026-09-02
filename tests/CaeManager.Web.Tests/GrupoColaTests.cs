@@ -76,4 +76,31 @@ public class GrupoColaTests : BunitContext
         cut.FindAll(".grupo-cola-subcabecera-trabajador").Should().HaveCount(5);
         cut.FindAll(".grupo-cola-truncado").Should().BeEmpty();
     }
+
+    /// <summary>
+    /// U-1 (plan nocturno 2026-09-02): PaginarPorGrupo (opt-in, /bandeja lo
+    /// activa) sustituye el truncado + "ver más" por un PaginadorSimple in
+    /// situ — sin este parámetro (el caso de Inicio, no probado aquí de
+    /// nuevo) el comportamiento de arriba no cambia.
+    /// </summary>
+    [Fact]
+    public void PaginarPorGrupo_sustituye_el_truncado_por_un_paginador_y_avanza_la_pagina()
+    {
+        var items = Enumerable.Range(1, 7).Select(n => Item(n, Guid.NewGuid())).ToList();
+        var grupo = new GrupoColaDto("cliente-1", "Cliente X", true, items);
+
+        var cut = Render<GrupoCola>(p => p
+            .Add(c => c.Grupo, grupo)
+            .Add(c => c.ExpandidaPorDefecto, true)
+            .Add(c => c.PaginarPorGrupo, true));
+
+        cut.FindAll(".grupo-cola-truncado").Should().BeEmpty("con PaginarPorGrupo no se usa el enlace \"ver más\"");
+        cut.FindAll(".grupo-cola-subcabecera-trabajador").Should().HaveCount(5, "MaximoTrabajadoresVisibles sigue siendo el tamaño de página");
+        cut.Find(".paginador-simple").TextContent.Should().Contain("Página 1 de 2");
+
+        var siguiente = cut.FindAll("button").Single(b => b.TextContent.Contains("Siguiente"));
+        siguiente.Click();
+
+        cut.FindAll(".grupo-cola-subcabecera-trabajador").Should().HaveCount(2, "la segunda página solo tiene los 2 trabajadores restantes");
+    }
 }

@@ -3,6 +3,7 @@
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
 @using CaeManager.Application.Bandeja.Queries.ObtenerBandejaAgrupada
 @using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor
+@using CaeManager.Domain.Documentos
 @using CaeManager.Web.Components.Workspace
 @using CaeManager.Web.Features.Bandeja.Components
 @using MediatR
@@ -31,6 +32,7 @@
             <span class="dashboard-kicker">Cola priorizada</span>
             <h1 class="titulo-pagina">Mi trabajo</h1>
         </div>
+        <Boton Variante="VarianteBoton.Secundario" OnClick="AbrirReclamacionLoteAsync">Reclamar en lote</Boton>
     </div>
 
     <div class="bandeja-barra">
@@ -78,12 +80,21 @@
         <div class="lista-bandeja">
             @foreach (var grupo in GruposOrdenados)
             {
-                <GrupoCola @key="grupo.GrupoId" Grupo="grupo" ExpandidaPorDefecto="true" AgruparPorEmpresa="_agruparPorEmpresa" IdEnfocado="@_idEnfocado" />
+                <GrupoCola @key="grupo.GrupoId" Grupo="grupo" ExpandidaPorDefecto="true" AgruparPorEmpresa="_agruparPorEmpresa" IdEnfocado="@_idEnfocado" OnReclamar="AbrirReclamacionDeItemAsync" PaginarPorGrupo="true" />
             }
             @foreach (var item in _bandeja!.SinGrupo.Where(i => CoincideFiltro(i, _tipoFiltro)))
             {
-                <PanelResolverItem @key="item.Id" Item="item" Enfocado="@(item.Id == _idEnfocado)" />
+                <PanelResolverItem @key="item.Id" Item="item" Enfocado="@(item.Id == _idEnfocado)" OnReclamar="AbrirReclamacionDeItemAsync" />
             }
         </div>
     }
 </div>
+
+@* Ambitos disponibles hoy: solo Trabajador tiene camino de reclamación
+   completo (agenda + comando de envío) — ver ObtenerLoteReclamacionPorFiltroQuery.
+   Ampliar esta lista cuando Empresa quede construido, no antes: ofrecerlo ya
+   fallaría al enviar. *@
+<DrawerReclamacionLote Visible="_reclamacionLoteVisible" VisibleChanged="v => _reclamacionLoteVisible = v"
+                       AmbitosDisponibles="@(new[] { AmbitoAplicacion.Trabajador })"
+                       AmbitoInicial="_ambitoPreseed" EntidadIdInicial="_entidadIdPreseed"
+                       OnReclamacionEnviada="CargarAsync" />

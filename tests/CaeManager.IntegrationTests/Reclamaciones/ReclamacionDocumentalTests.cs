@@ -155,6 +155,74 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
         lote.Documentos.Should().ContainSingle().Which.TrabajadorId.Should().Be(_trabajadorId);
     }
 
+    /// <summary>
+    /// Eje del selector de lote (FiltroLoteDocumental, DEC-7): "todos los
+    /// documentos de un trabajador en concreto" pasa TrabajadorId, no
+    /// ClienteId — un mismo Cliente con dos trabajadores pendientes solo debe
+    /// devolver el documento del elegido.
+    /// </summary>
+    [Fact]
+    public async Task Filtrar_por_TrabajadorId_acota_el_lote_a_ese_trabajador_aunque_el_cliente_tenga_otros_pendientes()
+    {
+        Guid otroTrabajadorId;
+        await using (var contexto = CrearContexto())
+        {
+            var centro = await contexto.Centros.SingleAsync();
+            var empresa = await contexto.Empresas.SingleAsync(e => e.Id != _clienteId);
+            var otroTrabajador = Trabajador.DeEmpresa(empresa.Id, "Otro", "Trabajador", "11223344B");
+            contexto.Trabajadores.Add(otroTrabajador);
+            await contexto.SaveChangesAsync();
+            otroTrabajadorId = otroTrabajador.Id;
+
+            contexto.Asignaciones.Add(new Asignacion(otroTrabajadorId, centro.Id, DateOnly.FromDateTime(DateTime.UtcNow)));
+            contexto.Documentos.Add(Documento.DeTrabajador(
+                _trabajadorId, _tipoDocumentoId,
+                DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10), DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(1)));
+            contexto.Documentos.Add(Documento.DeTrabajador(
+                otroTrabajadorId, _tipoDocumentoId,
+                DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10), DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(1)));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var lectura = CrearContexto();
+        var handler = CrearQueryHandler(lectura);
+
+        var lotes = await handler.Handle(new ObtenerLoteReclamacionQuery(TrabajadorId: _trabajadorId), CancellationToken.None);
+
+        var lote = lotes.Should().ContainSingle().Which;
+        lote.Documentos.Should().ContainSingle().Which.TrabajadorId.Should().Be(_trabajadorId);
+    }
+
+    /// <summary>"Todos los EPIs de todos los trabajadores" (DEC-7): TipoDocumentoIds acota por tipo sin acotar por titular ni trabajador.</summary>
+    [Fact]
+    public async Task Filtrar_por_TipoDocumentoIds_excluye_documentos_de_otros_tipos_del_mismo_trabajador()
+    {
+        Guid otroTipoId;
+        await using (var contexto = CrearContexto())
+        {
+            var otroTipo = new TipoDocumento("EPI", 12, aplicaVencimientoAutomatico: true, 2, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
+            contexto.TiposDocumento.Add(otroTipo);
+            await contexto.SaveChangesAsync();
+            otroTipoId = otroTipo.Id;
+
+            contexto.Documentos.Add(Documento.DeTrabajador(
+                _trabajadorId, _tipoDocumentoId,
+                DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10), DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(1)));
+            contexto.Documentos.Add(Documento.DeTrabajador(
+                _trabajadorId, otroTipoId,
+                DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10), DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(1)));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var lectura = CrearContexto();
+        var handler = CrearQueryHandler(lectura);
+
+        var lotes = await handler.Handle(new ObtenerLoteReclamacionQuery(TipoDocumentoIds: [otroTipoId]), CancellationToken.None);
+
+        var lote = lotes.Should().ContainSingle().Which;
+        lote.Documentos.Should().ContainSingle().Which.TipoDocumentoId.Should().Be(otroTipoId);
+    }
+
     [Fact]
     public async Task Un_documento_vigente_que_vence_dentro_de_6_meses_no_aparece()
     {
