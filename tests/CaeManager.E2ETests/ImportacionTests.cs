@@ -94,7 +94,8 @@ public class ImportacionTests(WebAppFixture fixture)
             // #41, ya no usa el título "N. Revisa el plan de importación" de
             // aquellos ni tarjetas TarjetaMetrica por entidad: aquí el plan es
             // una única tabla ProyectarFilas con una fila "Crear X" por alta). ---
-            await page.GetByText("Revisar plan").WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+            await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "Revisar plan" })
+                .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
             var tablaPlan = page.Locator(".tabla-plan-importacion-envoltorio .tabla-datos");
             await Expect(page.GetByText("6 se crearán")).ToBeVisibleAsync();
             await Expect(tablaPlan).ToContainTextAsync("Crear cliente");
