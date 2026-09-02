@@ -31,8 +31,21 @@ namespace CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
 /// a un único Cliente, así que con el filtro puesto el resultado tiene como
 /// mucho un elemento. Null (el caso de /documentos) mantiene el
 /// comportamiento de siempre: todos los clientes visibles.
+///
+/// <paramref name="ClienteId"/>, <paramref name="TrabajadorId"/> y
+/// <paramref name="TipoDocumentoIds"/> son el eje del selector de lote
+/// (FiltroLoteDocumental, DEC-7) para Ambito=Trabajador —
+/// ObtenerLoteReclamacionPorFiltroQuery los traduce aquí en vez de duplicar
+/// el join: <paramref name="TrabajadorId"/> es la entidad concreta que elige
+/// el selector ("todos los documentos de un trabajador en concreto"),
+/// <paramref name="ClienteId"/> sigue acotando por titular de la
+/// reclamación (uso de Centro 360, no del selector). Los tres opcionales y
+/// sin efecto sobre los dos llamadores existentes (ReclamacionesTab, Centro
+/// 360) que nunca los pasan.
 /// </summary>
-public record ObtenerLoteReclamacionQuery(Guid? CentroId = null) : IRequest<IReadOnlyList<LoteReclamacionClienteDto>>;
+public record ObtenerLoteReclamacionQuery(
+    Guid? CentroId = null, Guid? ClienteId = null, Guid? TrabajadorId = null, IReadOnlyList<Guid>? TipoDocumentoIds = null)
+    : IRequest<IReadOnlyList<LoteReclamacionClienteDto>>;
 
 /// <param name="Destinatarios">
 /// A quién le toca cada cosa según la agenda, con nombre, email y el motivo por
@@ -84,6 +97,7 @@ public class ObtenerLoteReclamacionQueryHandler(
         var filas = await (
             from documento in documentosContext.Documentos
             where documento.TrabajadorId != null
+            where request.TrabajadorId == null || documento.TrabajadorId == request.TrabajadorId
             where trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(documento.TrabajadorId!.Value)
             where documento.FechaVencimiento != null && documento.FechaVencimiento <= limiteVentana
             join trabajador in trabajadoresContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id
@@ -93,6 +107,8 @@ public class ObtenerLoteReclamacionQueryHandler(
             where centroIdsVisibles == null || centroIdsVisibles.Contains(asignacion.CentroId)
             join centro in centrosContext.Centros on asignacion.CentroId equals centro.Id
             where request.CentroId == null || centro.Id == request.CentroId
+            where request.ClienteId == null || centro.ClienteId == request.ClienteId
+            where request.TipoDocumentoIds == null || request.TipoDocumentoIds.Contains(tipoDocumento.Id)
             where clienteIdsVisibles == null || clienteIdsVisibles.Contains(centro.ClienteId)
             join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
             select new
