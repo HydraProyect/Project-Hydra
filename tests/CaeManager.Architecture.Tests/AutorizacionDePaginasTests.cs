@@ -1,4 +1,5 @@
 using CaeManager.Architecture.Tests.Soporte;
+using CaeManager.Web.Features.Comunicaciones;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
@@ -28,34 +29,17 @@ namespace CaeManager.Architecture.Tests;
 /// ensamblado ya compilado, sin parsear el .razor como texto ni sufrir los
 /// falsos positivos/negativos de un grep.
 ///
-/// Deliberadamente no verifica QUÉ roles debe llevar cada página (eso sigue
-/// siendo juicio semántico del revisor — dos páginas con el mismo patrón de
-/// menú pueden merecer roles distintos, ver Clientes/AltaGuiada más abajo,
-/// dejadas pendientes a propósito): solo que la declaración exista, para que
-/// una página nueva nunca dependa en silencio del FallbackPolicy global.
+/// Deliberadamente no verifica QUÉ roles debe llevar cada página en general
+/// (eso sigue siendo juicio semántico del revisor): solo que la declaración
+/// exista, para que una página nueva nunca dependa en silencio del
+/// FallbackPolicy global. La excepción es Clientes/AltaGuiada (ver más abajo):
+/// ahí sí se fija el conjunto exacto de roles, porque quedaron pendientes de
+/// decisión de producto (DEC-1, plan de sesiones nocturnas 2026-09-02) y una
+/// vez decidido el ratchet debe poder detectar que alguien lo amplíe o lo
+/// reduzca sin querer.
 /// </summary>
 public class AutorizacionDePaginasTests
 {
-    /// <summary>
-    /// Excepción explícita y temporal, no un escape genérico: la sesión de
-    /// 2026-08-15 que añadió este test (ver CODING_STANDARDS.md § "Checklist
-    /// de seguridad para módulos nuevos", ítem "Autorización a nivel de
-    /// página") decidió deliberadamente NO tocar estas dos páginas porque su
-    /// rol correcto depende de qué operaciones exponen y de un criterio de
-    /// producto (¿ve Consulta la lista de Clientes? ¿quién puede completar el
-    /// alta guiada?) que no se debía asumir sin más contexto. Siguen
-    /// protegidas por el FallbackPolicy global (autenticación) y por
-    /// AutorizacionEscrituraBehavior (ningún rol de solo lectura puede
-    /// escribir a través de ellas) — el hueco pendiente es de lectura/alcance
-    /// de rol, no de escritura. Si esta lista crece más allá de estas dos,
-    /// algo se está colando por descuido, no por decisión.
-    /// </summary>
-    private static readonly string[] PaginasPendientesDeDecisionDeRol =
-    [
-        "CaeManager.Web.Features.Clientes.Pages.Clientes",
-        "CaeManager.Web.Features.Clientes.Pages.AltaGuiada",
-    ];
-
     [Fact]
     public void Toda_pagina_Blazor_declara_Authorize_o_AllowAnonymous_explicito()
     {
@@ -63,7 +47,6 @@ public class AutorizacionDePaginasTests
 
         var paginas = ReflexionArquitecturaHelper.TiposDe(web)
             .Where(t => !t.IsAbstract && t.GetCustomAttributes(typeof(RouteAttribute), inherit: false).Length > 0)
-            .Where(t => !PaginasPendientesDeDecisionDeRol.Contains(t.FullName))
             .ToList();
 
         var infractores = paginas
@@ -79,5 +62,55 @@ public class AutorizacionDePaginasTests
             "NavMenu.razor) o, si es deliberadamente pública, @attribute [AllowAnonymous] — sin esto, la página " +
             "queda accesible solo por escribir la URL con el único filtro del FallbackPolicy global (autenticación, " +
             "no rol), el mismo patrón del hallazgo de Comunicaciones (Fase 60, CODING_STANDARDS.md)");
+    }
+
+    /// <summary>
+    /// DEC-1 (plan de sesiones nocturnas 2026-09-02): los cinco roles de
+    /// gestión CAE —nunca el rol <c>Cliente</c> externo— pueden leer
+    /// <c>/clientes</c> y <c>/clientes/alta-guiada</c>. Es el mismo conjunto
+    /// que <see cref="RolesComunicaciones.Gestion"/> y que
+    /// <c>RolesConMenuCompleto</c> de <c>NavMenu.razor</c>.
+    ///
+    /// <b>No es <c>RolesDeCartera</c> de <c>NavMenu.razor</c></b> —Administrador,
+    /// DireccionCae, CoordinadorCae, sin GestorCae ni Consulta— aunque el
+    /// nombre invite a confundirlos: esa constante gatea la entrada de menú
+    /// "Visión de cartera" (un dashboard agregado), no el acceso a la lista de
+    /// Clientes. La primera versión de este test usaba esa constante por
+    /// error y habría dado 403 a GestorCae sobre su propia cartera —su trabajo
+    /// diario, ver <c>AlcanceDatosService.ObtenerClienteIdsDeCarteraAsync</c>—
+    /// y a Consulta sobre su supervisión de solo lectura, rompiendo
+    /// silenciosamente <see cref="CaeManager.E2ETests.AlcanceRolesTests"/>.
+    ///
+    /// Comprueba el conjunto exacto de roles, no solo que <c>[Authorize]</c>
+    /// exista: ese caso ya lo cubre el test anterior, y un ratchet que solo
+    /// mira "¿hay atributo?" no detecta que alguien reduzca el rol y deje
+    /// fuera a GestorCae, o lo amplíe a Cliente, mañana.
+    /// </summary>
+    [Theory]
+    [InlineData("CaeManager.Web.Features.Clientes.Pages.Clientes")]
+    [InlineData("CaeManager.Web.Features.Clientes.Pages.AltaGuiada")]
+    public void Clientes_y_AltaGuiada_solo_permiten_roles_de_gestion_cae(string nombreCompletoDeLaPagina)
+    {
+        var web = ReflexionArquitecturaHelper.CargarAssembly("CaeManager.Web");
+        var pagina = ReflexionArquitecturaHelper.TiposDe(web).Single(t => t.FullName == nombreCompletoDeLaPagina);
+
+        var autorizacion = pagina.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: false)
+            .Cast<AuthorizeAttribute>()
+            .Should().ContainSingle("la página debe declarar exactamente un [Authorize] con Roles=")
+            .Subject;
+
+        var rolesDeclarados = (autorizacion.Roles ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var rolesDeGestionCae = RolesComunicaciones.Gestion
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToHashSet(StringComparer.Ordinal);
+
+        rolesDeclarados.Should().BeEquivalentTo(rolesDeGestionCae,
+            "DEC-1 fija los cinco roles de gestión CAE (Administrador, DireccionCae, CoordinadorCae, GestorCae, " +
+            "Consulta) como los únicos con lectura de Clientes/AltaGuiada — ni más amplio (Cliente vería datos de " +
+            "otras organizaciones) ni más estrecho (GestorCae o Consulta perderían un acceso que ya tenían y que " +
+            "AlcanceDatosService ya acota correctamente por su lado)");
     }
 }
