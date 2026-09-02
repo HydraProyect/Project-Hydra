@@ -1,0 +1,244 @@
+@*
+    Selector tipo de documento × ámbito de la entidad (DEC-4 + DEC-7, plan de
+    sesiones nocturnas 2026-09-02) — la pieza que sustituye a la selección
+    libre de ítems heterogéneos de la cola: TipoItemBandeja mezcla nueve
+    tipos con destinos y semánticas distintas, así que una selección mixta no
+    define qué operación ejecutar. Aquí el usuario elige primero QUÉ (tipo de
+    documento, dentro de un ámbito) y A QUIÉN (una entidad concreta o todas
+    las visibles), y el llamador resuelve ese filtro a documentos reclamables
+    con ObtenerLoteReclamacionPorFiltroQuery.
+
+    Compartido entre /bandeja (lote de la cola) y /alertas (reclamación
+    agregada, DEC-4) — mismo componente, dos superficies. AmbitosDisponibles
+    lo decide cada llamador a propósito: solo debe incluir un ámbito si ya
+    sabe resolverlo de verdad (ver FiltroLoteDocumental).
+*@
+@using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector
+@using CaeManager.Application.Reclamaciones
+@using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento
+@using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Components.DesignSystem
+@using MediatR
+@inject IMediator Mediator
+
+<div class="selector-lote-documental">
+    <CampoSelect Etiqueta="¿Qué tipo de entidad?" Valor="@(_ambito?.ToString() ?? string.Empty)" ValorChanged="CambiarAmbitoAsync">
+        @foreach (var ambito in AmbitosDisponibles)
+        {
+            <option value="@ambito">@EtiquetaAmbito(ambito)</option>
+        }
+    </CampoSelect>
+
+    @if (_cargandoTipos)
+    {
+        <EstadoCargando Filas="2" />
+    }
+    else
+    {
+        <label class="campo-checkbox">
+            <input type="checkbox" checked="@_todosLosTipos" @onchange="e => CambiarTodosLosTiposAsync(e.Value is bool m && m)" />
+            Todos los tipos de documento de este ámbito
+        </label>
+
+        @if (!_todosLosTipos)
+        {
+            <SelectorMultiple Etiqueta="Tipos de documento"
+                              Elementos="_opcionesTipo"
+                              Seleccionados="_tiposSeleccionados"
+                              OnAlternar="AlternarTipo"
+                              TextoVacio="No hay tipos de documento configurados para este ámbito." />
+        }
+    }
+
+    <fieldset class="selector-lote-alcance">
+        <legend>¿A quién?</legend>
+        <label class="campo-checkbox">
+            <input type="radio" name="@_nombreGrupoAlcance" checked="@_alcanceTodas" @onchange="() => CambiarAlcanceAsync(true)" />
+            Todas las @EtiquetaAmbitoPlural(_ambito) visibles
+        </label>
+        <label class="campo-checkbox">
+            <input type="radio" name="@_nombreGrupoAlcance" checked="@(!_alcanceTodas)" @onchange="() => CambiarAlcanceAsync(false)" />
+            Una @EtiquetaAmbitoSingular(_ambito) en concreto
+        </label>
+
+        @if (!_alcanceTodas)
+        {
+            @if (_ambito == AmbitoAplicacion.Trabajador)
+            {
+                <CampoBuscarSelect Etiqueta="Trabajador" Marcador="Escribe un nombre o DNI para buscar…"
+                                   Valor="@_entidadId" ValorChanged="v => _entidadId = v" Opciones="@OpcionesTrabajadores" />
+            }
+            else if (_ambito == AmbitoAplicacion.Empresa)
+            {
+                <CampoSelect Etiqueta="Empresa" Valor="@_entidadId" ValorChanged="v => _entidadId = v">
+                    <option value="">Selecciona una empresa…</option>
+                    @foreach (var empresa in _empresasDisponibles)
+                    {
+                        <option value="@empresa.Id">@empresa.RazonSocial</option>
+                    }
+                </CampoSelect>
+            }
+        }
+    </fieldset>
+
+    @if (_errorValidacion is not null)
+    {
+        <div class="alerta-formulario" role="alert">@_errorValidacion</div>
+    }
+
+    <div class="selector-lote-acciones">
+        <Boton Variante="VarianteBoton.Secundario" OnClick="() => OnCancelar.InvokeAsync()">Cancelar</Boton>
+        <Boton OnClick="ConfirmarAsync">Continuar</Boton>
+    </div>
+</div>
+
+@code {
+    private readonly string _nombreGrupoAlcance = $"selector-lote-alcance-{Guid.NewGuid():N}";
+
+    private AmbitoAplicacion? _ambito;
+    private bool _cargandoTipos;
+    private IReadOnlyList<TipoDocumentoListaDto> _tiposDelAmbito = [];
+    private bool _todosLosTipos = true;
+    private HashSet<Guid> _tiposSeleccionados = [];
+    private bool _alcanceTodas = true;
+    private string _entidadId = string.Empty;
+    private IReadOnlyList<TrabajadorSelectorDto> _trabajadoresDisponibles = [];
+    private IReadOnlyList<EmpresaSelectorDto> _empresasDisponibles = [];
+    private string? _errorValidacion;
+
+    /// <summary>Qué ámbitos puede elegir el usuario — lo decide el llamador, para no ofrecer uno sin camino de reclamación real detrás (ver ObtenerLoteReclamacionPorFiltroQuery).</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<AmbitoAplicacion> AmbitosDisponibles { get; set; } = [];
+
+    [Parameter] public AmbitoAplicacion? AmbitoInicial { get; set; }
+    [Parameter] public Guid? EntidadIdInicial { get; set; }
+    [Parameter, EditorRequired] public EventCallback<FiltroLoteDocumental> OnConfirmar { get; set; }
+    [Parameter] public EventCallback OnCancelar { get; set; }
+
+    private IReadOnlyList<ElementoSeleccionable> _opcionesTipo =>
+        _tiposDelAmbito.Select(t => new ElementoSeleccionable(t.Id, t.Nombre)).ToList();
+
+    private IReadOnlyList<OpcionBuscable> OpcionesTrabajadores => _trabajadoresDisponibles
+        .Select(t => new OpcionBuscable(t.Id.ToString(), string.IsNullOrWhiteSpace(t.Dni) ? t.NombreCompleto : $"{t.NombreCompleto} ({t.Dni})"))
+        .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var ambitoInicial = AmbitoInicial is { } ai && AmbitosDisponibles.Contains(ai) ? ai : AmbitosDisponibles.FirstOrDefault();
+        if (EntidadIdInicial is { } entidadId)
+        {
+            _alcanceTodas = false;
+            _entidadId = entidadId.ToString();
+        }
+
+        await CambiarAmbitoAsync(ambitoInicial.ToString());
+    }
+
+    private string EtiquetaAmbito(AmbitoAplicacion ambito) => ambito switch
+    {
+        AmbitoAplicacion.Trabajador => "Trabajador",
+        AmbitoAplicacion.Cliente => "Cliente",
+        AmbitoAplicacion.Empresa => "Empresa",
+        AmbitoAplicacion.Vehiculo => "Vehículo",
+        AmbitoAplicacion.Proyecto => "Proyecto",
+        _ => ambito.ToString()
+    };
+
+    private string EtiquetaAmbitoSingular(AmbitoAplicacion? ambito) => ambito switch
+    {
+        AmbitoAplicacion.Trabajador => "trabajadora o trabajador",
+        AmbitoAplicacion.Cliente => "cliente",
+        AmbitoAplicacion.Empresa => "empresa",
+        AmbitoAplicacion.Vehiculo => "vehículo",
+        AmbitoAplicacion.Proyecto => "proyecto",
+        _ => "entidad"
+    };
+
+    private string EtiquetaAmbitoPlural(AmbitoAplicacion? ambito) => ambito switch
+    {
+        AmbitoAplicacion.Trabajador => "trabajadoras y trabajadores",
+        AmbitoAplicacion.Cliente => "clientes",
+        AmbitoAplicacion.Empresa => "empresas",
+        AmbitoAplicacion.Vehiculo => "vehículos",
+        AmbitoAplicacion.Proyecto => "proyectos",
+        _ => "entidades"
+    };
+
+    private async Task CambiarAmbitoAsync(string valor)
+    {
+        if (!Enum.TryParse<AmbitoAplicacion>(valor, out var ambito)) return;
+
+        _ambito = ambito;
+        _todosLosTipos = true;
+        _tiposSeleccionados = [];
+        _errorValidacion = null;
+
+        _cargandoTipos = true;
+        StateHasChanged();
+        try
+        {
+            _tiposDelAmbito = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: ambito));
+
+            if (ambito == AmbitoAplicacion.Trabajador && _trabajadoresDisponibles.Count == 0)
+                _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
+            else if (ambito == AmbitoAplicacion.Empresa && _empresasDisponibles.Count == 0)
+                _empresasDisponibles = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
+        }
+        finally
+        {
+            _cargandoTipos = false;
+        }
+    }
+
+    private Task CambiarTodosLosTiposAsync(bool marcado)
+    {
+        _todosLosTipos = marcado;
+        if (marcado) _tiposSeleccionados = [];
+        return Task.CompletedTask;
+    }
+
+    private void AlternarTipo((Guid Id, bool Marcado) cambio)
+    {
+        if (cambio.Marcado) _tiposSeleccionados.Add(cambio.Id);
+        else _tiposSeleccionados.Remove(cambio.Id);
+    }
+
+    private Task CambiarAlcanceAsync(bool todas)
+    {
+        _alcanceTodas = todas;
+        if (todas) _entidadId = string.Empty;
+        return Task.CompletedTask;
+    }
+
+    private Task ConfirmarAsync()
+    {
+        if (_ambito is not { } ambito)
+        {
+            _errorValidacion = "Selecciona un tipo de entidad.";
+            return Task.CompletedTask;
+        }
+
+        if (!_todosLosTipos && _tiposSeleccionados.Count == 0)
+        {
+            _errorValidacion = "Marca \"Todos los tipos\" o selecciona al menos uno.";
+            return Task.CompletedTask;
+        }
+
+        Guid? entidadId = null;
+        if (!_alcanceTodas)
+        {
+            if (!Guid.TryParse(_entidadId, out var id))
+            {
+                _errorValidacion = $"Selecciona {EtiquetaAmbitoSingular(ambito)}.";
+                return Task.CompletedTask;
+            }
+            entidadId = id;
+        }
+
+        _errorValidacion = null;
+        var filtro = new FiltroLoteDocumental(
+            ambito, _todosLosTipos ? [] : [.. _tiposSeleccionados], entidadId);
+
+        return OnConfirmar.InvokeAsync(filtro);
+    }
+}
