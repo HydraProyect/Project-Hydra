@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using System.Text.Json;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Centros;
+using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Subcontratas;
@@ -13,15 +14,20 @@ namespace CaeManager.Infrastructure.Auditing;
 
 /// <summary>
 /// Registra en RegistroAuditoria cada alta/modificación/baja de una entidad
-/// de dominio (ver ARCHITECTURE.md, "Auditoría y soft delete"). Excluye
-/// explícitamente los campos cifrados por ValueConverter en
-/// CaeManagerDbContext (CanalGestionDocumental, CredencialAccesoEmpresa,
-/// CredencialAccesoSubcontrata, CredencialIntegracion, SuscripcionWebhook,
-/// LineaWhatsApp): nunca deben quedar en texto plano en el historial (ver
-/// DATABASE.md). Esta lista debe crecer junto con cualquier propiedad nueva
-/// que se cifre en reposo — el cifrado en la BD no protege el historial de
-/// auditoría, que lee el valor plano directamente del ChangeTracker antes
-/// de que el ValueConverter lo cifre.
+/// de dominio (ver ARCHITECTURE.md, "Auditoría y soft delete"). Enmascara
+/// antes de serializar las propiedades de PropiedadesSensiblesPorTipo, que
+/// hoy cubre dos familias distintas:
+///
+/// 1. Secretos cifrados por ValueConverter en CaeManagerDbContext
+///    (CanalGestionDocumental, CredencialAccesoEmpresa,
+///    CredencialAccesoSubcontrata, CredencialIntegracion, SuscripcionWebhook,
+///    LineaWhatsApp): nunca deben quedar en texto plano en el historial (ver
+///    DATABASE.md). Esta lista debe crecer junto con cualquier propiedad
+///    nueva que se cifre en reposo — el cifrado en la BD no protege el
+///    historial de auditoría, que lee el valor plano directamente del
+///    ChangeTracker antes de que el ValueConverter lo cifre.
+/// 2. Contenido de Comunicaciones que la auditoría no necesita copiar
+///    (Mensaje, AdjuntoMensaje) — ver el comentario de esas dos entradas.
 /// </summary>
 public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesInterceptor
 {
@@ -32,7 +38,20 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
         [typeof(CredencialAccesoSubcontrata)] = [nameof(CredencialAccesoSubcontrata.Usuario), nameof(CredencialAccesoSubcontrata.Contrasena)],
         [typeof(CredencialIntegracion)] = [nameof(CredencialIntegracion.RefreshToken), nameof(CredencialIntegracion.AccessToken)],
         [typeof(SuscripcionWebhook)] = [nameof(SuscripcionWebhook.ClientState)],
-        [typeof(LineaWhatsApp)] = [nameof(LineaWhatsApp.TokenAcceso)]
+        [typeof(LineaWhatsApp)] = [nameof(LineaWhatsApp.TokenAcceso)],
+
+        // DEC-9 (propietario, 2026-09-02): a diferencia de las entradas de
+        // arriba, estas tres propiedades no son secretos cifrados en reposo —
+        // son CONTENIDO. El rastro de auditoría existe para decir quién cambió
+        // qué y cuándo, no para copiar el correo: cuerpo, remitente y nombre
+        // del adjunto siguen viviendo en las filas Mensajes/AdjuntosMensaje,
+        // así que enmascararlos aquí no quita ninguna capacidad forense. Lo
+        // que sí quita es una segunda vía de lectura del buzón sin las puertas
+        // de Comunicaciones: /auditoria la lee el rol Administrador, que no es
+        // el rol con acceso a la bandeja, y CuerpoHtml puede llegar a 1 MiB
+        // (Mensaje.LongitudMaximaCuerpoHtml) en cada alta de mensaje.
+        [typeof(Mensaje)] = [nameof(Mensaje.CuerpoHtml), nameof(Mensaje.Remitente)],
+        [typeof(AdjuntoMensaje)] = [nameof(AdjuntoMensaje.NombreArchivo)]
     };
 
     public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(

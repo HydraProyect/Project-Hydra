@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.Auditoria;
+using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -30,6 +31,14 @@ namespace CaeManager.IntegrationTests.Auditoria;
 /// <c>CredencialIntegracion.ActualizarAccessTokenCacheado</c> en cada
 /// refresco, así que un token de Graph válido (~1h) quedaba en claro en
 /// <c>RegistroAuditoria.DatosDespues</c> cada vez que se cacheaba.
+///
+/// Hallazgo G-16 y decisión DEC-9 del propietario (2026-09-02): la denylist
+/// tampoco cubría <see cref="Mensaje"/> ni <see cref="AdjuntoMensaje"/>, así
+/// que cada alta de correo copiaba al rastro el cuerpo completo (hasta 1 MiB),
+/// el remitente y el nombre del adjunto. A diferencia de los tokens, aquí no
+/// se trata de un secreto cifrado en reposo sino de CONTENIDO: la auditoría
+/// dice quién cambió qué y cuándo, y /auditoria la lee el rol Administrador,
+/// que no es el rol con acceso a la bandeja de Comunicaciones.
 /// </summary>
 public class AuditoriaRedaccionDeSecretosTests : IAsyncLifetime
 {
@@ -39,6 +48,19 @@ public class AuditoriaRedaccionDeSecretosTests : IAsyncLifetime
     private const string ClientStateSecreto = "SECRETO-CLIENT-STATE-WEBHOOK-no-debe-aparecer-en-claro";
     private const string TokenAccesoSecreto = "SECRETO-TOKEN-WHATSAPP-no-debe-aparecer-en-claro";
     private const string AccessTokenSecreto = "SECRETO-ACCESS-TOKEN-GRAPH-no-debe-aparecer-en-claro";
+
+    // Los tres marcadores de G-16/DEC-9 se escriben SIN caracteres que
+    // System.Text.Json escape (menor que, mayor que, ampersand, apóstrofo,
+    // más, no ASCII): si el marcador viajara escapado en el JSON, un
+    // NotContain sobre el valor literal daría verde aunque el dato estuviera
+    // en claro — el instrumento no podría observar lo que dice observar. Por
+    // eso el cuerpo HTML se compone del marcador plano dentro de las
+    // etiquetas, y las aserciones miran el marcador, no el HTML entero.
+    private const string TextoSecretoDelCuerpo = "SECRETO-CUERPO-DEL-CORREO-no-debe-aparecer-en-claro";
+    private const string CuerpoHtmlSecreto = $"<p>{TextoSecretoDelCuerpo}</p>";
+    private const string RemitenteSecretoLocal = "secreto-remitente-no-debe-aparecer-en-claro";
+    private const string RemitenteSecreto = $"{RemitenteSecretoLocal}@ejemplo.com";
+    private const string NombreAdjuntoSecreto = "SECRETO-RECONOCIMIENTO-MEDICO-no-debe-aparecer-en-claro";
 
     public async Task InitializeAsync()
     {
@@ -186,6 +208,105 @@ public class AuditoriaRedaccionDeSecretosTests : IAsyncLifetime
         registro.DatosDespues.Should().Contain("RefreshToken");
         registro.DatosDespues.Should().NotContain("ConexionIntegracionId");
         registro.DatosAntes.Should().NotContain("ConexionIntegracionId");
+    }
+
+    /// <summary>
+    /// G-16/DEC-9: el cuerpo del correo. Es el campo de mayor volumen de los
+    /// tres — <see cref="Mensaje.LongitudMaximaCuerpoHtml"/> permite 1 MiB por
+    /// mensaje, y el alta serializa la fila entera.
+    /// </summary>
+    [Fact]
+    public async Task El_cuerpo_de_un_mensaje_no_aparece_en_claro_en_la_auditoria()
+    {
+        await SembrarMensajeConAdjuntoAsync();
+
+        var registro = await ObtenerRegistroAsync(nameof(Mensaje));
+
+        registro.DatosDespues.Should().NotContain(TextoSecretoDelCuerpo);
+        registro.DatosDespues.Should().Contain("\"CuerpoHtml\":\"***\"");
+    }
+
+    /// <summary>
+    /// G-16/DEC-9: el remitente. El propietario extendió aquí la
+    /// recomendación —el argumento forense era débil en ambas direcciones—
+    /// con el criterio de que también vive ya en la fila <c>Mensajes</c>.
+    /// </summary>
+    [Fact]
+    public async Task El_remitente_de_un_mensaje_no_aparece_en_claro_en_la_auditoria()
+    {
+        await SembrarMensajeConAdjuntoAsync();
+
+        var registro = await ObtenerRegistroAsync(nameof(Mensaje));
+
+        registro.DatosDespues.Should().NotContain(RemitenteSecretoLocal);
+        registro.DatosDespues.Should().Contain("\"Remitente\":\"***\"");
+    }
+
+    /// <summary>
+    /// G-16/DEC-9: el nombre del adjunto — el mismo dato de categoría especial
+    /// que G-3 acababa de retirar de los logs de ingesta. Limpiarlo del
+    /// <c>ILogger</c> y dejarlo entrar por el rastro de auditoría sería una
+    /// asimetría sin defensa.
+    /// </summary>
+    [Fact]
+    public async Task El_nombre_del_adjunto_de_un_mensaje_no_aparece_en_claro_en_la_auditoria()
+    {
+        await SembrarMensajeConAdjuntoAsync();
+
+        var registro = await ObtenerRegistroAsync(nameof(AdjuntoMensaje));
+
+        registro.DatosDespues.Should().NotContain(NombreAdjuntoSecreto);
+        registro.DatosDespues.Should().Contain("\"NombreArchivo\":\"***\"");
+    }
+
+    /// <summary>
+    /// Mismo motivo que el test hermano de <c>DatosAntes</c> al rotar el
+    /// refresh token: el alta solo ejercita <c>DatosDespues</c>, y la simetría
+    /// del código no se da por sentada.
+    ///
+    /// La edición se fuerza por el ChangeTracker y no por un método de
+    /// dominio porque <see cref="Mensaje"/> no expone hoy ningún mutador de
+    /// <see cref="Mensaje.CuerpoHtml"/> — cambiar el modelo para poder
+    /// probarlo queda fuera de DEC-9. El ChangeTracker es además exactamente
+    /// la fuente que lee el interceptor, así que la prueba entra por el mismo
+    /// camino que el dato real.
+    /// </summary>
+    [Fact]
+    public async Task El_cuerpo_anterior_de_un_mensaje_tampoco_aparece_en_claro_en_DatosAntes_al_editarlo()
+    {
+        var mensajeId = await SembrarMensajeConAdjuntoAsync();
+
+        await using (var contexto = CrearContexto())
+        {
+            var mensaje = await contexto.Mensajes.SingleAsync(m => m.Id == mensajeId);
+            contexto.Entry(mensaje).Property(m => m.CuerpoHtml).CurrentValue = "<p>cuerpo corregido</p>";
+            await contexto.SaveChangesAsync();
+        }
+
+        var registro = await ObtenerRegistroDeModificacionAsync(nameof(Mensaje));
+
+        registro.DatosAntes.Should().NotContain(TextoSecretoDelCuerpo);
+        registro.DatosAntes.Should().Contain("\"CuerpoHtml\":\"***\"");
+    }
+
+    /// <summary>
+    /// Un alta de correo real: la conversación arrastra el mensaje y el
+    /// mensaje su adjunto en un único <c>SaveChanges</c>, que es como los
+    /// escribe la ingesta de webhook. Devuelve el Id del mensaje.
+    /// </summary>
+    private async Task<Guid> SembrarMensajeConAdjuntoAsync()
+    {
+        await using var contexto = CrearContexto();
+
+        var conversacion = new Conversacion("Documentación recibida en el buzón");
+        var mensaje = conversacion.AgregarMensaje(
+            DireccionMensaje.Entrante, CanalConversacion.Correo, RemitenteSecreto, CuerpoHtmlSecreto);
+        mensaje.AgregarAdjunto(NombreAdjuntoSecreto, "application/pdf", 2048, "blob/adjunto-de-prueba");
+
+        contexto.Conversaciones.Add(conversacion);
+        await contexto.SaveChangesAsync();
+
+        return mensaje.Id;
     }
 
     private async Task<RegistroAuditoria> ObtenerRegistroAsync(string entidadTipo)
