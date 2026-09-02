@@ -186,6 +186,13 @@ public class GenerarDocumentoIndividualCommandHandler(
         // rompe lotes enteros por un campo". Se recorre version.Elementos y no
         // el diccionario para que el aviso salga en el orden de la plantilla
         // ante los mismos datos, en vez de en el que decida un Dictionary.
+        //
+        // Las firmas quedan fuera A PROPÓSITO, no por descuido: la firma no es
+        // un valor que esta generación resuelva — se estampa después, con
+        // IEstampadoFirmaEnCampoPdfService (ADR-010 § 2.7). Un elemento Firma
+        // marcado Obligatorio está SIEMPRE sin firmar en este punto, así que
+        // incluirlo aquí daría un aviso en CADA documento generado y
+        // convertiría "falta un dato" en "falta una firma", que es otra cosa.
         var camposObligatoriosVacios = version.Elementos
             .Where(e => e.Tipo != TipoElementoPlantilla.Firma
                 && e.Obligatorio

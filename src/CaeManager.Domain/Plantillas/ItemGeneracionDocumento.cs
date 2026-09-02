@@ -75,7 +75,7 @@ public class ItemGeneracionDocumento : EntidadConTenant, IVersionable
             throw new ArgumentException("Un ítem con avisos debe nombrar al menos un campo.", nameof(camposObligatoriosVacios));
 
         DocumentoGeneradoId = documentoGeneradoId;
-        Error = Acotar($"Campos obligatorios sin dato: {string.Join(", ", camposObligatoriosVacios)}.");
+        Error = TextoDeAvisos(camposObligatoriosVacios);
         Estado = EstadoItemGeneracion.CompletadoConAvisos;
     }
 
@@ -84,6 +84,27 @@ public class ItemGeneracionDocumento : EntidadConTenant, IVersionable
         RequerirPendiente();
         Error = string.IsNullOrWhiteSpace(error) ? "Fallo desconocido." : Acotar(error);
         Estado = EstadoItemGeneracion.Fallido;
+    }
+
+    /// <summary>
+    /// Nombra tantos campos como quepan en <see cref="LongitudMaximaError"/> y
+    /// cuenta el resto. Acotar por caracteres a secas parte la última etiqueta
+    /// por la mitad: el aviso deja de nombrar un campo y pasa a nombrar medio,
+    /// que es peor que decir cuántos faltan por listar.
+    /// </summary>
+    private static string TextoDeAvisos(IReadOnlyList<string> campos)
+    {
+        const string prefijo = "Campos obligatorios sin dato: ";
+
+        for (var listados = campos.Count; listados > 0; listados--)
+        {
+            var restantes = campos.Count - listados;
+            var texto = prefijo + string.Join(", ", campos.Take(listados))
+                + (restantes == 0 ? "." : $" y {restantes} más.");
+            if (texto.Length <= LongitudMaximaError) return texto;
+        }
+
+        return Acotar($"{prefijo}{campos.Count} campos.");
     }
 
     private static string Acotar(string texto) =>

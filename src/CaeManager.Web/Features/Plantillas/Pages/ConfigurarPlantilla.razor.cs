@@ -127,6 +127,9 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
     private int TotalConAvisosLote => _itemsLote.Count(i => i.Estado == EstadoItemGeneracion.CompletadoConAvisos);
     private int TotalFallidosLote => _itemsLote.Count(i => i.Estado == EstadoItemGeneracion.Fallido);
 
+    /// <summary>Cuenta los tres estados terminales: contar solo completados y fallidos dejaba el progreso corto en cuanto un ítem salía con avisos.</summary>
+    private int TotalProcesadosLote => _itemsLote.Count(i => i.Estado != EstadoItemGeneracion.Pendiente);
+
     private ElementoEditor? ElementoSeleccionado =>
         _idLocalSeleccionado is { } id ? _elementos.FirstOrDefault(e => e.IdLocal == id) : null;
 

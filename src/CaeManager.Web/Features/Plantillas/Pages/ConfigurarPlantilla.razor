@@ -299,7 +299,7 @@
                     {
                         <div class="editor-plantilla-acciones">
                             <Boton OnClick="GenerarLoteAsync" Deshabilitado="@(!PuedeGenerarLote)">
-                                @(_procesandoLote ? $"Generando… ({TotalCompletadosLote + TotalFallidosLote}/{_itemsLote.Count})" : "Generar lote")
+                                @(_procesandoLote ? $"Generando… ({TotalProcesadosLote}/{_itemsLote.Count})" : "Generar lote")
                             </Boton>
                         </div>
 
