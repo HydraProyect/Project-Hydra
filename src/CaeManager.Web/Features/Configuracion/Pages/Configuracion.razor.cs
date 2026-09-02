@@ -66,18 +66,31 @@ public partial class Configuracion : ComponentBase
             new("api", "AP", "Claves API", "Acceso programático", typeof(Features.ApiKeys.Pages.ClavesApi)),
             new("integraciones", "IN", "Conexiones de integración", "M365, portales, webhooks", typeof(Features.Integraciones.Pages.Conexiones)),
             new("importar", "IM", "Importar datos", "Cuadro de Control CAE (Excel)", typeof(Features.Importacion.Pages.Importacion)),
-            // "plataforma" es deliberadamente distinta a sus vecinas: NO se
-            // embebe (EsPaginaIntegrable = false) porque Plataforma.razor
-            // lleva [Authorize] sin rol —su autoridad es la IDENTIDAD RAÍZ del
-            // despliegue, no el rol Administrador que gatea este hub entero
-            // (mismo motivo por el que Delegaciones y Estado comercial ya NO
-            // viven aquí, ver arriba). Embeberla habría colapsado platform
-            // privilege con el rol de negocio Administrador. TipoPanel queda
-            // null a propósito: la entrada es solo un atajo de descubrimiento
-            // (H-2/DEC-2) — la ruta literal "/configuracion/plataforma" (más
-            // específica que "/configuracion/{EntradaRuta?}") sigue resolviendo
-            // su propio gate cuando se navega directamente. No convertir esto
-            // en un panel embebido sin volver a resolver esa tensión primero.
+            // "plataforma" es deliberadamente distinta a sus vecinas: TipoPanel
+            // queda null a propósito — es lo único que evita el embedding (el
+            // <DynamicComponent> de Configuracion.razor solo se renderiza si
+            // TipoPanel no es null; EsPaginaIntegrable es ortogonal a esa
+            // decisión, solo controla si se pasa IntegradaEnConfiguracion a un
+            // panel que YA se va a embeber, así que aquí no hace nada por sí
+            // sola — se deja en false solo para dejar constancia de la
+            // intención). Motivo: Plataforma.razor lleva [Authorize] sin rol
+            // —su autoridad es la IDENTIDAD RAÍZ del despliegue, no el rol
+            // Administrador que gatea este hub entero (mismo motivo por el que
+            // Delegaciones y Estado comercial ya NO viven aquí, ver arriba).
+            // Embeberla habría colapsado platform privilege con el rol de
+            // negocio Administrador. La entrada es solo un atajo de
+            // descubrimiento (H-2/DEC-2): al pulsarla, la ruta literal
+            // "/configuracion/plataforma" (más específica que
+            // "/configuracion/{EntradaRuta?}") gana en el router de Blazor y
+            // resuelve su propio gate. LÍMITE CONOCIDO (hallado en revisión
+            // adversaria de Codex, no bloqueante): navegar a
+            // "/configuracion?entry=plataforma" SÍ hace que este hub resuelva
+            // la entrada por el parámetro de query (ver EntradaEfectiva) y
+            // muestre el placeholder de abajo en vez de redirigir — ese acceso
+            // sigue exigiendo el rol Administrador del propio hub, así que no
+            // es una fuga de autorización, solo un callejón sin salida para
+            // quien construya esa URL a mano; el mismo límite ya existía para
+            // cualquier entrada con TipoPanel null (antes "2fa").
             new("plataforma", "PL", "Administración de plataforma", "Inicialización e identidad raíz", null, false)
         ]),
         new("Catálogos y datos",

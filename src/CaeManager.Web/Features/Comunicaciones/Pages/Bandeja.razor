@@ -31,9 +31,14 @@
            barra de trabajo diaria (H-5): el modelo aprobado es conversation-first, no
            M365-folder-first. El Buzón sigue existiendo como diagnóstico técnico — su
            punto de entrada pasa a Integraciones (propiedad de esa sesión, no de esta
-           página). La administración de macros vive en Configuración (el hub ya la
-           registra como entrada "macros" → /configuracion/macros); usarlas al redactar
-           sigue siendo contextual, ver el enlace "Administrar macros" en ComposerBar. *@
+           página). Usar macros al redactar sigue siendo contextual — ver el enlace
+           "Administrar macros" en ComposerBar, que apunta a /comunicaciones/macros
+           (su ruta propia, [Authorize(Roles=RolesComunicaciones.Gestion)]) y NO a
+           /configuracion/macros: esa segunda URL pasa por el hub de Configuración,
+           gateado solo a Administrador, y dejaría fuera a los otros cuatro roles de
+           Comunicaciones que sí pueden ver esta página. El hub sigue listando
+           "macros" como entrada para quien navega desde Configuración — ambas rutas
+           llegan a la misma pantalla, cada una con su propio contrato de acceso. *@
         <div class="bandeja-toolbar-acciones">
             <Boton Tamano="TamanoBoton.Pequeno" OnClick="AbrirRedactarAsync">Redactar</Boton>
         </div>

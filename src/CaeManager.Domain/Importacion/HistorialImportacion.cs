@@ -54,8 +54,21 @@ public class HistorialImportacion : EntidadConTenant
             MensajeError = mensajeError
         };
 
+    /// <summary>
+    /// El límite de 50 se corresponde con <c>HasMaxLength(50)</c> en
+    /// HistorialImportacionConfiguration — se valida aquí, en el dominio, para
+    /// fallar rápido con un mensaje claro en vez de dejar que un futuro
+    /// escritor descubra el límite vía un 22001 de Postgres que además tumba
+    /// el circuito de Blazor si no se captura (ver Importacion.razor.cs).
+    /// </summary>
+    private const int LongitudMaximaPlantilla = 50;
+
     private static string RequerirPlantilla(string plantilla) =>
         string.IsNullOrWhiteSpace(plantilla)
             ? throw new ArgumentException("La plantilla no puede estar vacía.", nameof(plantilla))
-            : plantilla;
+            : plantilla.Length > LongitudMaximaPlantilla
+                ? throw new ArgumentException(
+                    $"La plantilla no puede superar los {LongitudMaximaPlantilla} caracteres (tiene {plantilla.Length}): \"{plantilla}\".",
+                    nameof(plantilla))
+                : plantilla;
 }
