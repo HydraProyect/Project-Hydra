@@ -116,17 +116,18 @@ public class FlujoSoporteTests(WebAppFixtureParaSoporte fixture)
         // OperandoWorkspaceAjeno). ---
         await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, Ayudas.NombreTenantOrigenPorDefecto);
 
-        // Clic en enlaces de navegación, no un GotoAsync directo: el
+        // Clic en el enlace de navegación, no un GotoAsync directo: el
         // redirect que hace CambiarClienteActivoAsync puede seguir
         // asentándose justo cuando se pediría una navegación nueva de golpe
         // — visto en CI como "net::ERR_ABORTED" al navegar a /delegaciones.
         // Un clic dentro de la propia página ya cargada no compite con esa
-        // navegación en curso. Delegaciones ya no tiene botón propio en el
-        // menú (DDL-078, ampliación 2026-09-01: vive como panel del hub de
-        // Configuración) — se entra por Configuración y su subnavegación.
-        await page.Locator(".nav-item", new PageLocatorOptions { HasText = "Configuración" }).ClickAsync();
-        await page.Locator(".entrada-subnav", new PageLocatorOptions { HasText = "Delegaciones" }).ClickAsync();
-        await page.WaitForURLAsync($"{fixture.BaseUrl}/configuracion/delegaciones");
+        // navegación en curso. Delegaciones vuelve a tener botón propio en
+        // el menú (grupo "Plataforma", NavMenu.razor — resuelve la tensión
+        // AdminPlataforma de #401/#403: su autoridad es de capacidad, no del
+        // rol Administrador que gateaba el hub de Configuración donde vivía
+        // antes), así que se entra directamente, sin pasar por el hub.
+        await page.Locator(".nav-item", new PageLocatorOptions { HasText = "Delegaciones" }).ClickAsync();
+        await page.WaitForURLAsync($"{fixture.BaseUrl}/delegaciones");
 
         tarjeta = TarjetaSoporte(page, Ayudas.NombreClienteDelegadoDemo);
         await tarjeta.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
