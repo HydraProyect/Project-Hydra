@@ -1,4 +1,4 @@
-@page "/plantillas/nueva"
+﻿@page "/plantillas/nueva"
 @page "/plantillas/{PlantillaDocumentoVersionId:guid}/editar"
 @rendermode InteractiveServer
 @attribute [Authorize]
@@ -306,7 +306,7 @@
                         @if (_itemsLote.Count > 0)
                         {
                             <div class="editor-plantilla-progreso-lote">
-                                <p>@TotalCompletadosLote generado(s), @TotalFallidosLote con error, de @_itemsLote.Count.</p>
+                                <p>@TotalCompletadosLote generado(s), @TotalConAvisosLote con avisos, @TotalFallidosLote con error, de @_itemsLote.Count.</p>
                                 @foreach (var item in _itemsLote)
                                 {
                                     <div class="editor-plantilla-progreso-item">
@@ -314,6 +314,11 @@
                                         @if (item.Estado == EstadoItemGeneracion.Completado)
                                         {
                                             <Badge Tono="TonoBadge.Exito">Generado</Badge>
+                                        }
+                                        else if (item.Estado == EstadoItemGeneracion.CompletadoConAvisos)
+                                        {
+                                            @* DEC-5: hay documento, pero con campos obligatorios sin dato. *@
+                                            <Badge Tono="TonoBadge.Advertencia">@(item.Error ?? "Generado con avisos")</Badge>
                                         }
                                         else if (item.Estado == EstadoItemGeneracion.Fallido)
                                         {
@@ -339,6 +344,14 @@
                         @if (_documentoGeneradoId is { } documentoGeneradoId)
                         {
                             <a class="enlace-exportar" href="@($"/documentos/{documentoGeneradoId}/archivo")" target="_blank">Ver PDF con los datos rellenados</a>
+
+                            @if (_camposObligatoriosVacios.Count > 0)
+                            {
+                                @* DEC-5 (2026-09-02): se genera igual, con aviso visible. *@
+                                <p class="editor-plantilla-aviso-obligatorios" data-testid="aviso-obligatorios-vacios">
+                                    Se generó con campos obligatorios sin dato: @string.Join(", ", _camposObligatoriosVacios).
+                                </p>
+                            }
                         }
                     }
                 </div>

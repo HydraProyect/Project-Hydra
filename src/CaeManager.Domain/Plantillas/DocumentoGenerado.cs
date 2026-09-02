@@ -1,4 +1,4 @@
-using CaeManager.Domain.Common;
+﻿using CaeManager.Domain.Common;
 
 namespace CaeManager.Domain.Plantillas;
 
@@ -53,7 +53,8 @@ public class DocumentoGenerado : EntidadBase
         DateTime generadoEnUtc,
         Guid? trabajadorId = null,
         Guid? empresaId = null,
-        Guid? centroId = null)
+        Guid? centroId = null,
+        bool conAvisos = false)
     {
         if (plantillaDocumentoVersionId == Guid.Empty)
             throw new ArgumentException("El documento generado debe referenciar una versión de plantilla.", nameof(plantillaDocumentoVersionId));
@@ -70,6 +71,6 @@ public class DocumentoGenerado : EntidadBase
         TrabajadorId = trabajadorId;
         EmpresaId = empresaId;
         CentroId = centroId;
-        Estado = EstadoDocumentoGenerado.Generado;
+        Estado = conAvisos ? EstadoDocumentoGenerado.GeneradoConAvisos : EstadoDocumentoGenerado.Generado;
     }
 }

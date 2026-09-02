@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using CaeManager.Application.Common;
 using CaeManager.Application.Plantillas.Commands.GenerarDocumentoIndividual;
 using CaeManager.Domain.Common;
@@ -34,10 +34,18 @@ public class ProcesarItemLoteGeneracionCommandHandler(
             lote.PlantillaDocumentoVersionId, item.TrabajadorId, contexto.CentroId,
             contexto.ValoresManuales.Count == 0 ? null : contexto.ValoresManuales), cancellationToken);
 
+        // DEC-5 (propietario, 2026-09-02): un obligatorio vacío no falla el ítem
+        // — el documento existe— pero tampoco lo deja como limpio. Sin este
+        // tercer estado el aviso solo viviría en la respuesta síncrona y un lote
+        // procesado de noche llegaría a la mañana sin rastro de él.
         var ahoraUtc = DateTime.UtcNow;
         if (resultado.EsExitoso)
         {
-            item.MarcarCompletado(resultado.Valor.DocumentoGeneradoId);
+            if (resultado.Valor.CamposObligatoriosVacios.Count > 0)
+                item.MarcarCompletadoConAvisos(resultado.Valor.DocumentoGeneradoId, resultado.Valor.CamposObligatoriosVacios);
+            else
+                item.MarcarCompletado(resultado.Valor.DocumentoGeneradoId);
+
             lote.RegistrarItemCompletado(ahoraUtc);
         }
         else

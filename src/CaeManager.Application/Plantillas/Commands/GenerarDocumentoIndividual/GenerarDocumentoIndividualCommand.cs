@@ -1,4 +1,4 @@
-using CaeManager.Application.Common;
+﻿using CaeManager.Application.Common;
 using FluentValidation;
 
 namespace CaeManager.Application.Plantillas.Commands.GenerarDocumentoIndividual;
@@ -33,7 +33,19 @@ public record GenerarDocumentoIndividualCommand(
     IReadOnlyDictionary<Guid, string>? ValoresManuales = null)
     : ICommand<GenerarDocumentoIndividualResultadoDto>;
 
-public record GenerarDocumentoIndividualResultadoDto(Guid DocumentoGeneradoId, Guid DocumentoId);
+/// <summary>
+/// <paramref name="CamposObligatoriosVacios"/> son las etiquetas visibles de
+/// los <c>PlantillaElemento</c> marcados <c>Obligatorio</c> cuyo valor
+/// resuelto quedó vacío. El <c>Result</c> sigue siendo <b>éxito</b>: DEC-5
+/// (propietario, 2026-09-02) decidió "generar con aviso visible" frente a
+/// fallar, porque bloquear rompe lotes enteros por un campo. Vacía cuando no
+/// hay nada que avisar — nunca null, para que quien la consuma no tenga que
+/// distinguir dos formas de "sin avisos".
+/// </summary>
+public record GenerarDocumentoIndividualResultadoDto(
+    Guid DocumentoGeneradoId,
+    Guid DocumentoId,
+    IReadOnlyList<string> CamposObligatoriosVacios);
 
 public class GenerarDocumentoIndividualCommandValidator : AbstractValidator<GenerarDocumentoIndividualCommand>
 {

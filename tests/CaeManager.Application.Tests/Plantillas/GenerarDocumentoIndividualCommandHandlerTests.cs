@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using CaeManager.Application.Common;
 using CaeManager.Application.Plantillas.Commands.GenerarDocumentoIndividual;
 using CaeManager.Application.Tests.Asignaciones;
@@ -397,5 +397,186 @@ public class GenerarDocumentoIndividualCommandHandlerTests
         var documentoGenerado = documentosGenerados.Lista.Should().ContainSingle().Subject;
         var datos = JsonSerializer.Deserialize<Dictionary<string, string?>>(documentoGenerado.DatosUtilizadosJson);
         datos.Should().ContainKey("Nombre completo").WhoseValue.Should().Be("Juan Pérez");
+    }
+    /// <summary>
+    /// DEC-5 (propietario, 2026-09-02): "generar con aviso visible; bloquear
+    /// rompe lotes enteros por un campo". El Result sigue siendo exito y el
+    /// documento existe - lo que cambia es que el aviso nombra el campo.
+    /// </summary>
+    [Fact]
+    public async Task Un_obligatorio_sin_dato_genera_el_documento_y_lo_avisa_por_su_etiqueta()
+    {
+        var entorno = await ConstruirEntornoAsync();
+        var trabajador = Trabajador.DeEmpresa(Guid.NewGuid(), "Juan", "Perez", Dni);
+        entorno.Trabajadores.ListaTrabajadores.Add(trabajador);
+        Confirmar(entorno.Version,
+        [
+            new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Numero de poliza", FuenteDatoPlantilla.Manual, obligatorio: true),
+        ], Guid.NewGuid());
+        var handler = entorno.CrearHandler();
+
+        var resultado = await handler.Handle(
+            new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue("DEC-5 descarto bloquear la generacion");
+        entorno.Documentos.Documentos.Should().ContainSingle();
+        resultado.Valor.CamposObligatoriosVacios.Should().ContainSingle().Which.Should().Be("Numero de poliza");
+    }
+
+    [Fact]
+    public async Task Un_obligatorio_informado_no_produce_ningun_aviso()
+    {
+        var entorno = await ConstruirEntornoAsync();
+        var trabajador = Trabajador.DeEmpresa(Guid.NewGuid(), "Juan", "Perez", Dni);
+        entorno.Trabajadores.ListaTrabajadores.Add(trabajador);
+        Confirmar(entorno.Version,
+        [
+            new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Nombre completo", FuenteDatoPlantilla.TrabajadorNombreCompleto, obligatorio: true),
+        ], Guid.NewGuid());
+        var handler = entorno.CrearHandler();
+
+        var resultado = await handler.Handle(
+            new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.CamposObligatoriosVacios.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Dos_obligatorios_vacios_se_nombran_los_dos_en_el_orden_de_la_plantilla()
+    {
+        var entorno = await ConstruirEntornoAsync();
+        var trabajador = Trabajador.DeEmpresa(Guid.NewGuid(), "Juan", "Perez", Dni);
+        entorno.Trabajadores.ListaTrabajadores.Add(trabajador);
+        Confirmar(entorno.Version,
+        [
+            new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Numero de poliza", FuenteDatoPlantilla.Manual, obligatorio: true),
+            new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 20, 10, 10, "Nombre completo", FuenteDatoPlantilla.TrabajadorNombreCompleto, obligatorio: true),
+            new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 40, 10, 10, "Mutua", FuenteDatoPlantilla.Manual, obligatorio: true),
+        ], Guid.NewGuid());
+        var handler = entorno.CrearHandler();
+
+        var resultado = await handler.Handle(
+            new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.CamposObligatoriosVacios.Should().Equal("Numero de poliza", "Mutua");
+    }
+
+    [Fact]
+    public async Task Un_elemento_no_obligatorio_sin_dato_no_produce_aviso()
+    {
+        var entorno = await ConstruirEntornoAsync();
+        var trabajador = Trabajador.DeEmpresa(Guid.NewGuid(), "Juan", "Perez", Dni);
+        entorno.Trabajadores.ListaTrabajadores.Add(trabajador);
+        Confirmar(entorno.Version,
+        [
+            new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Observaciones", FuenteDatoPlantilla.Manual),
+        ], Guid.NewGuid());
+        var handler = entorno.CrearHandler();
+
+        var resultado = await handler.Handle(
+            new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
+
+        resultado.Valor.CamposObligatoriosVacios.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Semantica unica de "vacio" (DEC-5): null, cadena vacia y solo espacios.
+    /// Un valor de solo espacios no es un dato - si lo fuera, bastaria pulsar la
+    /// barra espaciadora para silenciar el aviso.
+    /// </summary>
+    [Fact]
+    public async Task Un_obligatorio_con_solo_espacios_cuenta_como_vacio()
+    {
+        var entorno = await ConstruirEntornoAsync();
+        var trabajador = Trabajador.DeEmpresa(Guid.NewGuid(), "Juan", "Perez", Dni);
+        entorno.Trabajadores.ListaTrabajadores.Add(trabajador);
+        var elemento = new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Mutua", FuenteDatoPlantilla.Manual, obligatorio: true);
+        Confirmar(entorno.Version, [elemento], Guid.NewGuid());
+        var handler = entorno.CrearHandler();
+
+        var resultado = await handler.Handle(
+            new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id,
+                ValoresManuales: new Dictionary<Guid, string> { [elemento.Id] = "   " }),
+            CancellationToken.None);
+
+        resultado.Valor.CamposObligatoriosVacios.Should().ContainSingle().Which.Should().Be("Mutua");
+    }
+
+    /// <summary>
+    /// La otra cara de la misma regla: en un Checkbox obligatorio, "no marcado"
+    /// NO es "vacio" - quien contesto que no, contesto. Lo que falta es el
+    /// elemento que nadie resolvio.
+    /// </summary>
+    [Fact]
+    public async Task Un_checkbox_obligatorio_contestado_que_no_no_produce_aviso()
+    {
+        var entorno = await ConstruirEntornoAsync();
+        var trabajador = Trabajador.DeEmpresa(Guid.NewGuid(), "Juan", "Perez", Dni);
+        entorno.Trabajadores.ListaTrabajadores.Add(trabajador);
+        var elemento = new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Checkbox, 1, 0, 0, 10, 10, "Recibio los EPI", FuenteDatoPlantilla.Manual, obligatorio: true);
+        Confirmar(entorno.Version, [elemento], Guid.NewGuid());
+        var handler = entorno.CrearHandler();
+
+        var resultado = await handler.Handle(
+            new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id,
+                ValoresManuales: new Dictionary<Guid, string> { [elemento.Id] = "false" }),
+            CancellationToken.None);
+
+        resultado.Valor.CamposObligatoriosVacios.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Trazabilidad de DEC-5 sin migracion: el aviso queda en el propio
+    /// <see cref="DocumentoGenerado"/>, para que un lote procesado de noche se
+    /// pueda revisar por la manana aunque nadie viera el toast.
+    /// </summary>
+    [Fact]
+    public async Task Marca_el_documento_generado_con_avisos_cuando_falta_un_obligatorio()
+    {
+        var entorno = await ConstruirEntornoAsync();
+        var trabajador = Trabajador.DeEmpresa(Guid.NewGuid(), "Juan", "Perez", Dni);
+        entorno.Trabajadores.ListaTrabajadores.Add(trabajador);
+        var usuarioId = Guid.NewGuid();
+        Confirmar(entorno.Version,
+        [
+            new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Mutua", FuenteDatoPlantilla.Manual, obligatorio: true),
+        ], usuarioId);
+        var documentosGenerados = new DocumentoGeneradoRepositorioFalso();
+        var handler = new GenerarDocumentoIndividualCommandHandler(
+            entorno.Versiones, entorno.Plantillas, entorno.Documentos, documentosGenerados, entorno.TiposDocumento,
+            entorno.Empresas, entorno.Trabajadores, entorno.Centros, entorno.Contactos,
+            entorno.Rellenador, entorno.Almacenamiento, new CurrentUserServiceFalso(usuarioId),
+            new AlcanceDatosServiceFalso(), entorno.Asignaciones, new UnitOfWorkFalso());
+
+        await handler.Handle(new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
+
+        documentosGenerados.Lista.Should().ContainSingle().Which.Estado
+            .Should().Be(EstadoDocumentoGenerado.GeneradoConAvisos);
+    }
+
+    [Fact]
+    public async Task Marca_el_documento_generado_como_Generado_cuando_no_falta_ningun_obligatorio()
+    {
+        var entorno = await ConstruirEntornoAsync();
+        var trabajador = Trabajador.DeEmpresa(Guid.NewGuid(), "Juan", "Perez", Dni);
+        entorno.Trabajadores.ListaTrabajadores.Add(trabajador);
+        var usuarioId = Guid.NewGuid();
+        Confirmar(entorno.Version,
+        [
+            new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Nombre completo", FuenteDatoPlantilla.TrabajadorNombreCompleto, obligatorio: true),
+        ], usuarioId);
+        var documentosGenerados = new DocumentoGeneradoRepositorioFalso();
+        var handler = new GenerarDocumentoIndividualCommandHandler(
+            entorno.Versiones, entorno.Plantillas, entorno.Documentos, documentosGenerados, entorno.TiposDocumento,
+            entorno.Empresas, entorno.Trabajadores, entorno.Centros, entorno.Contactos,
+            entorno.Rellenador, entorno.Almacenamiento, new CurrentUserServiceFalso(usuarioId),
+            new AlcanceDatosServiceFalso(), entorno.Asignaciones, new UnitOfWorkFalso());
+
+        await handler.Handle(new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
+
+        documentosGenerados.Lista.Should().ContainSingle().Which.Estado
+            .Should().Be(EstadoDocumentoGenerado.Generado);
     }
 }

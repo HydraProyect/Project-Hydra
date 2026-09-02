@@ -1,4 +1,4 @@
-.editor-plantilla-alta {
+﻿.editor-plantilla-alta {
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
@@ -121,6 +121,17 @@
     padding: var(--space-2);
     border: 1px solid var(--color-border-control);
     border-radius: var(--radius-md);
+}
+
+/* DEC-5 (2026-09-02): el aviso de obligatorios vacíos se queda en pantalla
+   junto al enlace al PDF — el toast se va solo y el aviso tiene que poder
+   leerse después de generar. */
+.editor-plantilla-aviso-obligatorios {
+    margin: var(--space-2) 0 0;
+    padding: var(--space-2);
+    border-radius: var(--radius-md);
+    background-color: var(--color-warning-50);
+    color: var(--color-warning-700);
 }
 
 .editor-plantilla-progreso-lote {
