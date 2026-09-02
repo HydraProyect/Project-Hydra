@@ -77,7 +77,14 @@
            ("Mi empresa" bajo el perfil de vocabulario de DDL-072, tramo 3.2,
            todavía no implementado aquí) → Subcontratas → Trabajadores →
            Clientes → Centros → Documentos, al final por ser la vista
-           transversal (cada Entity Workspace ya lleva los suyos). *@
+           transversal (cada Entity Workspace ya lleva los suyos). Plantillas
+           cierra el grupo detrás de Documentos, no dentro de la cadena de
+           titularidad: es configuración de qué documentos se generan, no una
+           entidad propia (A-01/A-18, auditoria-producto-2026-08-29) — sigue
+           aquí como entrada propia porque plegarla como pestaña de Documentos
+           exige tocar `Documentos.razor`, fuera de la propiedad de esta
+           sesión esta noche (colisiona con la reconstrucción del selector de
+           lote de N3, PLAN-SESIONES-NOCTURNAS-2026-09-02.md). *@
         <details class="nav-grupo-detalle" data-grupo="negocio" open>
             <summary class="nav-grupo-titulo">
                 <span>Negocio</span>
@@ -179,6 +186,18 @@
                 <NavLink class="nav-item" href="bandeja">
                     <Icono Nombre="alertas" /> Mi trabajo
                 </NavLink>
+                @* Alertas NO es una segunda cola de "qué hacer ahora" — esa es
+                   Mi trabajo. Desde DEC-4 (PLAN-SESIONES-NOCTURNAS-2026-09-02.md)
+                   es la vista agregada de documentación a reclamar, por
+                   entidad (trabajador o empresa gestora): conserva a
+                   propósito EstadoDocumento.Proximo, que
+                   ObtenerBandejaGestorQuery excluye de la cola porque aún no
+                   es urgente — para reclamar por adelantado hace falta verlo.
+                   Mi trabajo es más ancha que solo vigencia documental (suma
+                   revisiones IA, visitas y requisitos que bloquean un Centro,
+                   ver ObtenerBandejaGestorQuery) — el icono compartido es
+                   herencia visual, no una afirmación de que sean la misma
+                   superficie. *@
                 <NavLink class="nav-item" href="alertas">
                     <Icono Nombre="alertas" /> Alertas
                 </NavLink>

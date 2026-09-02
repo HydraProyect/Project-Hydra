@@ -1,7 +1,10 @@
 using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
-using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
+using CaeManager.Application.Reclamaciones;
+using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
+using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPorFiltro;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components;
+using CaeManager.Web.Components.DesignSystem;
 using Microsoft.AspNetCore.Components;
 
 namespace CaeManager.Web.Features.Alertas.Pages;
@@ -9,7 +12,19 @@ namespace CaeManager.Web.Features.Alertas.Pages;
 public partial class Alertas : ComponentBase
 {
     private int _tamanoPagina = 20;
-    private const int MaximoItemsBandejaEnAlertas = 5;
+
+    /// <summary>
+    /// Ámbitos que la reclamación agregada de esta página ofrece en
+    /// <c>SelectorLoteDocumental.AmbitosDisponibles</c> (DEC-4 + DEC-7,
+    /// PLAN-SESIONES-NOCTURNAS-2026-09-02.md). Solo Trabajador: Empresa no
+    /// tiene camino de envío construido —
+    /// <see cref="ObtenerLoteReclamacionPorFiltroQueryHandler"/> lanza
+    /// <see cref="NotSupportedException"/> para ese ámbito a propósito, y
+    /// ofrecerlo aquí sería una promesa navegable sin capacidad detrás
+    /// (A-08). <c>AlertasTests</c> protege que esta lista no se amplíe
+    /// antes de que exista ese camino.
+    /// </summary>
+    public static readonly IReadOnlyList<AmbitoAplicacion> AmbitosSoportados = [AmbitoAplicacion.Trabajador];
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
@@ -26,8 +41,15 @@ public partial class Alertas : ComponentBase
     private bool _errorCarga;
     private int _pagina = 1;
 
-    private IReadOnlyList<ItemBandejaDto> _itemsBandeja = [];
-    private bool _cargandoBandeja = true;
+    private FiltroLoteDocumental? _filtroLote;
+    private bool _cargandoLote;
+    private bool _errorLote;
+    private IReadOnlyList<LoteReclamacionAgrupadoDto> _lotes = [];
+    private readonly Dictionary<Guid, HashSet<Guid>> _seleccionPorTitular = [];
+    private readonly Dictionary<Guid, HashSet<Guid>> _contactosPorTitular = [];
+    private Guid? _enviandoTitularId;
+    private bool _altaContactoVisible;
+    private Guid _titularAltaContacto;
 
     private IReadOnlyList<AlertaDto> AlertasFiltradas =>
         Enum.TryParse<EstadoDocumento>(_estadoFiltro, out var estado)
@@ -37,14 +59,7 @@ public partial class Alertas : ComponentBase
     private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(AlertasFiltradas.Count / (double)_tamanoPagina));
     private IReadOnlyList<AlertaDto> AlertasDePagina => AlertasFiltradas.Skip((_pagina - 1) * _tamanoPagina).Take(_tamanoPagina).ToList();
 
-    // Secuencial a propósito, no Task.WhenAll: el DbContext scoped al
-    // circuito no admite dos llamadas EF concurrentes sobre la misma
-    // instancia (mismo motivo que ObtenerDashboardEjecutivoQueryHandler).
-    protected override async Task OnInitializedAsync()
-    {
-        await CargarAsync();
-        await CargarBandejaAsync();
-    }
+    protected override Task OnInitializedAsync() => CargarAsync();
 
     /// <summary>
     /// Se re-ejecuta en cada navegación dentro de la propia página, no solo
@@ -111,29 +126,111 @@ public partial class Alertas : ComponentBase
         }
     }
 
-    /// <summary>
-    /// Fase C: la misma cola priorizada de <c>/bandeja</c>, en miniatura —
-    /// solo los primeros <see cref="MaximoItemsBandejaEnAlertas"/>, con
-    /// enlace a la bandeja completa. Un fallo aquí no debe tumbar la tabla
-    /// de Alertas de siempre, por eso corre en su propio try/catch.
-    /// </summary>
-    private async Task CargarBandejaAsync()
+    private Task ConfirmarFiltroLoteAsync(FiltroLoteDocumental filtro)
     {
-        _cargandoBandeja = true;
+        _filtroLote = filtro;
+        return CargarLoteAsync();
+    }
+
+    private void CambiarFiltroLote()
+    {
+        _filtroLote = null;
+        _lotes = [];
+        _seleccionPorTitular.Clear();
+        _contactosPorTitular.Clear();
+    }
+
+    private async Task CargarLoteAsync()
+    {
+        if (_filtroLote is not { } filtro) return;
+
+        _cargandoLote = true;
+        _errorLote = false;
         StateHasChanged();
 
         try
         {
-            var items = await Mediator.Send(new ObtenerBandejaGestorQuery());
-            _itemsBandeja = items.Take(MaximoItemsBandejaEnAlertas).ToList();
+            _lotes = await Mediator.Send(new ObtenerLoteReclamacionPorFiltroQuery(filtro));
+            _seleccionPorTitular.Clear();
+            _contactosPorTitular.Clear();
+            foreach (var lote in _lotes)
+            {
+                _seleccionPorTitular[lote.TitularId] = lote.Documentos.Select(d => d.DocumentoId).ToHashSet();
+                _contactosPorTitular[lote.TitularId] =
+                    (lote.Destinatarios ?? []).Select(d => d.ContactoId).ToHashSet();
+            }
         }
         catch (Exception)
         {
-            _itemsBandeja = [];
+            _errorLote = true;
         }
         finally
         {
-            _cargandoBandeja = false;
+            _cargandoLote = false;
         }
+    }
+
+    private void AlternarSeleccion(Guid titularId, Guid documentoId, bool seleccionado)
+    {
+        var seleccionados = _seleccionPorTitular[titularId];
+        if (seleccionado) seleccionados.Add(documentoId);
+        else seleccionados.Remove(documentoId);
+    }
+
+    private HashSet<Guid> ContactosMarcados(Guid titularId) =>
+        _contactosPorTitular.TryGetValue(titularId, out var marcados) ? marcados : [];
+
+    private void AlternarContacto(Guid titularId, Guid contactoId, bool marcado)
+    {
+        if (!_contactosPorTitular.TryGetValue(titularId, out var marcados))
+            _contactosPorTitular[titularId] = marcados = [];
+
+        if (marcado) marcados.Add(contactoId);
+        else marcados.Remove(contactoId);
+    }
+
+    private void AbrirAltaContacto(Guid titularId)
+    {
+        _titularAltaContacto = titularId;
+        _altaContactoVisible = true;
+    }
+
+    private async Task EnviarLoteAsync(LoteReclamacionAgrupadoDto lote)
+    {
+        var documentoIds = _seleccionPorTitular[lote.TitularId].ToList();
+        if (documentoIds.Count == 0) return;
+
+        var contactoIds = ContactosMarcados(lote.TitularId).ToList();
+        if (contactoIds.Count == 0) return;
+
+        _enviandoTitularId = lote.TitularId;
+        try
+        {
+            var resultado = await Mediator.Send(new EnviarReclamacionCommand(
+                lote.TitularId, documentoIds, CentroId: null, ContactoIdsSeleccionados: contactoIds));
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            ToastService.Mostrar($"Reclamación enviada a {lote.TitularNombre}.", TonoToast.Exito);
+            await CargarLoteAsync();
+        }
+        finally
+        {
+            _enviandoTitularId = null;
+        }
+    }
+
+    private static string FormatearHaceTiempo(DateTime fechaUtc)
+    {
+        var dias = (int)(DateTime.UtcNow - fechaUtc).TotalDays;
+        return dias switch
+        {
+            <= 0 => "hoy",
+            1 => "hace 1 día",
+            _ => $"hace {dias} días"
+        };
     }
 }

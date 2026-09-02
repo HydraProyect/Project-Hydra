@@ -2,38 +2,165 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
 @using CaeManager.Application.Alertas.Queries.ObtenerAlertas
-@using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor
+@using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
+@using CaeManager.Application.Reclamaciones
+@using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion
+@using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPorFiltro
 @using CaeManager.Domain.Documentos
 @using CaeManager.Web.Features.Bandeja.Components
 @using CaeManager.Web.Features.Documentos
 @using MediatR
 @inject IMediator Mediator
+@inject ToastService ToastService
 
 <PageTitle>Alertas — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <h1 class="titulo-pagina">Alertas</h1>
+    <div>
+        <span class="dashboard-kicker">Reclamación</span>
+        <h1 class="titulo-pagina">Alertas</h1>
+        <p class="descripcion-alertas">
+            La documentación de tus trabajadores que hay que reclamar o subir — incluida la que
+            todavía no es urgente — para que puedas anticiparte antes del vencimiento en vez de
+            esperar a que se vuelva crítica.
+        </p>
+    </div>
 
-    <SeccionColapsable Titulo="Bandeja priorizada" ExpandidaPorDefecto="true">
-        @if (_cargandoBandeja)
+    @* DEC-4: /alertas no es una segunda cola de "qué hacer ahora" (A-02) —
+       esa es /bandeja. Hasta esta noche, "Bandeja priorizada" mostraba aquí
+       una miniatura de la propia ObtenerBandejaGestorQuery de /bandeja
+       (Fase C, truncada a 5 filas): un duplicado estricto, no una función
+       distinta — no enseñaba nada que /bandeja no enseñara, y enseñaba
+       menos. Retirada; el enlace de abajo es el único camino que hacía
+       falta conservar. *@
+    <a href="/bandeja" class="enlace-nombre-fila">Ver tu cola de trabajo en Mi trabajo →</a>
+
+    @* Reclamación agregada (DEC-4 + DEC-7, PLAN-SESIONES-NOCTURNAS-2026-09-02.md):
+       SelectorLoteDocumental (PR #408) es el mismo componente que usará el
+       lote de /bandeja — aquí solo se le pasa Alertas.AmbitosSoportados
+       (Trabajador únicamente; AlertasTests.cs protege que no se amplíe a
+       Empresa hasta que exista camino de envío real para ese ámbito).
+       OnCancelar queda sin enlazar a propósito: a diferencia de un uso
+       dentro de un modal/drawer, aquí el selector es el contenido inicial
+       de la sección — no hay una pantalla previa a la que "cancelar" vuelva. *@
+    <SeccionColapsable Titulo="Reclamar por tipo de documento y ámbito" ExpandidaPorDefecto="false">
+        @if (_filtroLote is null)
         {
-            <EstadoCargando Filas="3" />
-        }
-        else if (_itemsBandeja.Count == 0)
-        {
-            <p class="texto-vacio-seccion">Nada pendiente ahora mismo.</p>
+            <SelectorLoteDocumental AmbitosDisponibles="Alertas.AmbitosSoportados" OnConfirmar="ConfirmarFiltroLoteAsync" />
         }
         else
         {
-            <div class="lista-bandeja">
-                @foreach (var item in _itemsBandeja)
+            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="CambiarFiltroLote">← Elegir otro filtro</Boton>
+
+            @if (_cargandoLote)
+            {
+                <EstadoCargando Filas="3" />
+            }
+            else if (_errorLote)
+            {
+                <EstadoVacio Titulo="No pudimos cargar el lote" Descripcion="Intenta nuevamente en unos segundos.">
+                    <Accion>
+                        <Boton OnClick="CargarLoteAsync">Reintentar</Boton>
+                    </Accion>
+                </EstadoVacio>
+            }
+            else if (_lotes.Count == 0)
+            {
+                <EstadoVacio Titulo="Nada que reclamar con ese filtro" Descripcion="Prueba con otro tipo de documento o alcance." />
+            }
+            else
+            {
+                @foreach (var lote in _lotes)
                 {
-                    <PanelResolverItem Item="item" />
+                    var seleccionados = _seleccionPorTitular[lote.TitularId];
+                    var enviando = _enviandoTitularId == lote.TitularId;
+
+                    <Tarjeta @key="lote.TitularId" Titulo="@lote.TitularNombre" Class="tarjeta-reclamacion">
+                        <AccionesHeader>
+                            <Boton Tamano="TamanoBoton.Pequeno" Deshabilitado="@(seleccionados.Count == 0 || ContactosMarcados(lote.TitularId).Count == 0)"
+                                   Cargando="enviando" OnClick="() => EnviarLoteAsync(lote)">
+                                Enviar reclamación (@seleccionados.Count)
+                            </Boton>
+                        </AccionesHeader>
+
+                        <ChildContent>
+                            <p class="texto-vacio-seccion">
+                                @(lote.UltimaReclamacionFechaUtc is null
+                                    ? "Nunca reclamado."
+                                    : $"Última reclamación: {FormatearHaceTiempo(lote.UltimaReclamacionFechaUtc.Value)}.")
+                                @if (lote.UltimaReclamacionConversacionId is not null)
+                                {
+                                    <a href="@($"/comunicaciones?cliente={lote.TitularId}")">Ver en Comunicaciones</a>
+                                }
+                            </p>
+
+                            @if (lote.Destinatarios is not { Count: > 0 })
+                            {
+                                <div class="alerta-formulario" role="alert">
+                                    No hay ningún contacto en la agenda al que reclamar esta documentación.
+                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                           OnClick="() => AbrirAltaContacto(lote.TitularId)">
+                                        Añadir contacto
+                                    </Boton>
+                                </div>
+                            }
+                            else
+                            {
+                                <fieldset class="reclamacion-destinatarios">
+                                    <legend>Se solicita a</legend>
+                                    @foreach (var destinatario in lote.Destinatarios)
+                                    {
+                                        <label class="campo-checkbox" @key="destinatario.ContactoId">
+                                            <input type="checkbox"
+                                                   checked="@ContactosMarcados(lote.TitularId).Contains(destinatario.ContactoId)"
+                                                   @onchange="e => AlternarContacto(lote.TitularId, destinatario.ContactoId, (bool)e.Value!)" />
+                                            <span>@destinatario.Nombre — @destinatario.Email</span>
+                                            <span class="reclamacion-motivo">@string.Join(", ", destinatario.MotivoTipos)</span>
+                                        </label>
+                                    }
+                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                           OnClick="() => AbrirAltaContacto(lote.TitularId)">
+                                        Añadir contacto
+                                    </Boton>
+                                </fieldset>
+                            }
+
+                            <table class="tabla-datos">
+                                <thead>
+                                    <tr>
+                                        <th></th>
+                                        <th>Trabajador</th>
+                                        <th>Documento</th>
+                                        <th>Vencimiento</th>
+                                        <th>Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var documento in lote.Documentos)
+                                    {
+                                        <tr @key="documento.DocumentoId">
+                                            <td>
+                                                <input type="checkbox" checked="@seleccionados.Contains(documento.DocumentoId)"
+                                                       @onchange="e => AlternarSeleccion(lote.TitularId, documento.DocumentoId, (bool)e.Value!)" />
+                                            </td>
+                                            <td>@documento.TrabajadorNombre</td>
+                                            <td>@documento.TipoDocumentoNombre</td>
+                                            <td>@documento.FechaVencimiento.ToString("dd/MM/yyyy")</td>
+                                            <td><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)">@EstadoDocumentoUi.Texto(documento.Estado)</Badge></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </ChildContent>
+                    </Tarjeta>
                 }
-            </div>
-            <a href="/bandeja" class="enlace-nombre-fila">Ver todo en Mi trabajo →</a>
+            }
         }
     </SeccionColapsable>
+
+    <ModalContactoAgenda Visible="_altaContactoVisible" VisibleChanged="v => _altaContactoVisible = v"
+                         Tipo="TipoPropietarioAgenda.Cliente" PropietarioId="_titularAltaContacto"
+                         PredeterminadoPorDefecto="true" OnGuardado="_ => CargarLoteAsync()" />
 
     <div class="barra-filtros">
         <CampoSelect Etiqueta="Estado" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoFiltroAsync">
@@ -59,7 +186,7 @@
     }
     else if (AlertasFiltradas.Count == 0)
     {
-        <EstadoVacio Titulo="No hay alertas activas" Descripcion="Todos los documentos están vigentes o fuera del umbral de aviso." />
+        <EstadoVacio Titulo="Nada que reclamar" Descripcion="Todos los documentos están vigentes o fuera del umbral de aviso." />
     }
     else
     {
