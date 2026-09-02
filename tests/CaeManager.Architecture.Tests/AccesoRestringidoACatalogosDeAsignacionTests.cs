@@ -137,12 +137,21 @@ public class AccesoRestringidoACatalogosDeAsignacionTests
         // exige cartera vigente del usuario.
         "src/CaeManager.Web/Services/RevalidacionClienteActivoMiddleware.cs",
 
-        // Contrato de lectura del plano 3 y su único consumidor: la resolución
-        // de la sesión privilegiada de esta petición, acotada por construcción
-        // a la sesión que el token nombra Y al usuario de plataforma que la
-        // abrió. No existe ni debe existir un "listar sesiones".
+        // Contrato de lectura del plano 3. "No existe ni debe existir un
+        // listar sesiones" habla de un catálogo navegable —una pantalla que
+        // enumere "todas las mías"—, y eso sigue sin existir. Los dos
+        // consumidores de abajo son búsquedas puntuales por un Id que YA se
+        // conoce de antemano, nunca una enumeración: la resolución de la
+        // sesión que el token de la petición en curso nombra
+        // (SesionPrivilegiadaActual), y desde H-2 (plan de sesiones nocturnas
+        // 2026-09-02, DEC-2) el detalle de la sesión que
+        // /cuenta/soporte/salir trae en su propia redirección de salida, para
+        // mostrar tenant/motivo/TTL en la pantalla de cierre. Ninguno de los
+        // dos añade una forma de descubrir un Id que no se tuviera ya: el
+        // segundo lo recibe del primero, nunca lo busca.
         "src/CaeManager.Application/Plataforma/IPlataformaQueryContext.cs",
         "src/CaeManager.Infrastructure/Plataforma/SesionPrivilegiadaActual.cs",
+        "src/CaeManager.Application/Plataforma/Queries/ObtenerSesionPrivilegiadaPorId/ObtenerSesionPrivilegiadaPorIdQuery.cs",
 
         // NOTA: aqui vivia InfrastructureServiceCollectionExtensions.cs, justificado
         // como "registro del contrato en el contenedor". Nunca caso con el patron:

@@ -2,6 +2,7 @@
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JSRuntime
 @inject CaeManager.Web.Services.TrazaSoporteService Traza
+@inject CaeManager.Application.Common.IClienteActivoSeleccionado ClienteActivoSeleccionado
 
 @*
     Sin marcado propio salvo el aviso: este componente existe para registrar,
@@ -15,5 +16,22 @@
 {
     <div class="aviso-sesion-soporte" role="status">
         Sesión de soporte — estás operando datos de otra organización y tu actividad queda registrada.
+    </div>
+}
+else if (_sesionPrivilegiadaId is not null)
+{
+    @* Plano 3 (ADR-011 § 8): mismo sitio que el aviso de la vía heredada de
+       arriba, y por el mismo motivo — es donde se le dice al técnico que está
+       dentro de datos ajenos, así que es donde se le ofrece salir. Un <form>
+       normal a /cuenta/soporte/salir, nunca un @onclick: esa ruta borra una
+       cookie de servidor y necesita token antiforgery, igual que el selector
+       de workspace y el cierre de sesión de MainLayout. *@
+    <div class="aviso-sesion-soporte" role="status">
+        Sesión de soporte de plataforma — estás operando datos de otra organización y tu actividad queda
+        registrada.
+        <form method="post" action="/cuenta/soporte/salir" class="form-salir-sesion-soporte">
+            <AntiforgeryToken />
+            <button type="submit" class="enlace-salir-sesion-soporte">Salir de la sesión</button>
+        </form>
     </div>
 }
