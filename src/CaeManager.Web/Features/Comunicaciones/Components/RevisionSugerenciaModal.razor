@@ -25,7 +25,7 @@
 
             <ol class="revision-stepper">
                 <li class="revision-stepper-paso @ClaseStepper(1)">
-                    <span class="revision-stepper-circulo">@(_paso > 1 ? "✓" : "1")</span>
+                    <span class="revision-stepper-circulo">@if (_paso > 1) { <Icono Nombre="check" Tamano="TamanoIcono.Pequeno" /> } else { @("1") }</span>
                     <span class="revision-stepper-texto">
                         <b>Revisar datos</b>
                         <span>Campos que requieren tu atención</span>
@@ -33,7 +33,7 @@
                 </li>
                 <li class="revision-stepper-linea @(_paso > 1 ? "revision-stepper-linea-completa" : null)"></li>
                 <li class="revision-stepper-paso @ClaseStepper(2)">
-                    <span class="revision-stepper-circulo">@(_paso > 2 ? "✓" : "2")</span>
+                    <span class="revision-stepper-circulo">@if (_paso > 2) { <Icono Nombre="check" Tamano="TamanoIcono.Pequeno" /> } else { @("2") }</span>
                     <span class="revision-stepper-texto">
                         <b>Vista previa</b>
                         <span>Resumen de todos los datos</span>
@@ -121,7 +121,7 @@
                 </div>
 
                 <div class="revision-leyenda">
-                    <span><Badge Tono="TonoBadge.Exito" Tamano="TamanoBadge.Pequeno">✓ Confirmado por IA</Badge></span>
+                    <span><Badge Tono="TonoBadge.Exito" Tamano="TamanoBadge.Pequeno" ConIcono>Confirmado por IA</Badge></span>
                     <span><Badge Tono="TonoBadge.Info" Tamano="TamanoBadge.Pequeno">✎ Editado por ti</Badge></span>
                 </div>
 

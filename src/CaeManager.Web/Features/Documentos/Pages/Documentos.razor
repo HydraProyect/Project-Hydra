@@ -32,7 +32,7 @@
     <div class="cabecera-pagina">
         <h1 class="titulo-pagina">Documentos</h1>
         <div class="acciones-cabecera">
-            <a class="enlace-exportar" href="/documentos/exportar.xlsx">Exportar a Excel</a>
+            <a class="enlace-exportar" href="/documentos/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel</a>
             <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador">
                 <a class="enlace-exportar" href="/importacion?plantilla=documentos">Importar documentos</a>
             </AuthorizeView>
@@ -130,7 +130,7 @@
                             @(context.FechaVencimiento is null ? "—" : context.FechaVencimiento.Value.ToString("dd/MM/yyyy"))
                         </TemplateColumn>
                         <TemplateColumn Title="Estado" Sortable="true" SortBy="@(GridSort<DocumentoListaDto>.ByAscending(d => d.Estado))">
-                            <Badge Tono="EstadoDocumentoUi.Tono(context.Estado)">@EstadoDocumentoUi.Texto(context.Estado)</Badge>
+                            <Badge Tono="EstadoDocumentoUi.Tono(context.Estado)" ConIcono>@EstadoDocumentoUi.Texto(context.Estado)</Badge>
                         </TemplateColumn>
                         <TemplateColumn Title="Plataformas">
                             @if (context.Acreditaciones.Count == 0)
@@ -174,7 +174,7 @@
 
                 @if (_totalElementos == 0 && !_cargando)
                 {
-                    <EstadoVacio Titulo="Aún no hay documentos" Descripcion="Sube el primero para empezar a controlar vigencias.">
+                    <EstadoVacio NombreIcono="documentos" Titulo="Aún no hay documentos" Descripcion="Sube el primero para empezar a controlar vigencias.">
                         <Accion>
                             <Boton OnClick="() => _drawerGestion.AbrirCrearAsync()">+ Nuevo documento</Boton>
                         </Accion>

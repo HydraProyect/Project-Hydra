@@ -22,6 +22,9 @@
 }
 
 .enlace-exportar {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
     font: var(--font-label-md);
     color: var(--color-text-muted);
     text-decoration: none;
@@ -82,13 +85,21 @@
   Chips de filtros activos y de filtros guardados (H4, docs/ux-audit/02-clientes.md;
   UX_PATTERNS.md § Filtrar: "filtros activos se muestran como chips
   removibles"). Mismos tokens que .badge-neutro (Badge.razor.css), pero con
-  el botón "×" propio — un Badge no lleva acción.
+  su propio botón de quitar (icono "cerrar") — un Badge no lleva acción.
 */
 .chips-filtros {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-2);
     margin-bottom: var(--space-4);
+}
+
+/* Marca de "esto es un filtro" al frente de la fila de chips activos: sin
+   ella la fila son etiquetas sueltas y no se lee como el estado del filtrado. */
+.chips-filtros-indicador {
+    display: inline-flex;
+    align-items: center;
+    color: var(--color-text-muted);
 }
 
 .chip-filtro {
@@ -104,12 +115,13 @@
 }
 
 .chip-filtro-quitar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     background: none;
     border: none;
     color: var(--color-text-muted);
     cursor: pointer;
-    font-size: 1rem;
-    line-height: 1;
     padding: 0;
 }
 

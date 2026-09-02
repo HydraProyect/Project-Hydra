@@ -39,7 +39,7 @@ else
         {
             <div class="plataforma-proveedor" @key="proveedor.ProveedorPlataformaCaeId">
                 <div class="plataforma-proveedor-cabecera">
-                    <span class="plataforma-proveedor-nombre">@proveedor.ProveedorNombre</span>
+                    <span class="plataforma-proveedor-nombre"><Icono Nombre="plataforma" Tamano="TamanoIcono.Pequeno" /> @proveedor.ProveedorNombre</span>
                     <span class="plataforma-proveedor-resumen">
                         @ContarPendientes(proveedor) pendiente@(ContarPendientes(proveedor) == 1 ? "" : "s") de subir
                         <span class="plataforma-separador">·</span>

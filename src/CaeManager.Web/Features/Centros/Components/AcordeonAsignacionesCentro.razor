@@ -112,7 +112,7 @@ else
                     </span>
                     @* Estado siempre presente: IncidenciasEmpresa solo contiene causas ya calculadas con un valor real. *@
                     <span role="cell">
-                        <Badge Tono="EstadoDocumentoUi.Tono(incidencia.Estado!.Value)" Tamano="TamanoBadge.Pequeno">
+                        <Badge Tono="EstadoDocumentoUi.Tono(incidencia.Estado!.Value)" ConIcono Tamano="TamanoBadge.Pequeno">
                             @EstadoDocumentoUi.Texto(incidencia.Estado!.Value)
                         </Badge>
                     </span>
@@ -344,7 +344,7 @@ else
                                                     <VentanaContexto Etiqueta="Riesgo en visita: vigente hoy, caduca antes de que termine la próxima visita"
                                                                      Titulo="Vigente hoy, caduca en la visita">
                                                         <Disparador>
-                                                            <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)"
+                                                            <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" ConIcono
                                                                    Tamano="TamanoBadge.Pequeno"
                                                                    class="badge-riesgo-ventana-visita">
                                                                 @EstadoDocumentoUi.Texto(documento.Estado)
@@ -364,7 +364,7 @@ else
                                                 }
                                                 else
                                                 {
-                                                    <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">
+                                                    <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" ConIcono Tamano="TamanoBadge.Pequeno">
                                                         @EstadoDocumentoUi.Texto(documento.Estado)
                                                     </Badge>
                                                 }

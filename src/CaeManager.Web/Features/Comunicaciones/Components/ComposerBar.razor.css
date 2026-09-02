@@ -68,12 +68,13 @@
 }
 
 .composer-adjunto-quitar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     border: none;
     background: none;
     padding: 0;
     margin-left: var(--space-1);
-    line-height: 1;
-    font-size: 1rem;
     color: var(--color-text-muted);
     cursor: pointer;
 }

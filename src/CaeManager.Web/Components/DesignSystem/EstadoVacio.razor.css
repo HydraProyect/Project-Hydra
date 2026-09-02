@@ -14,6 +14,14 @@
     color: var(--color-neutral-300);
 }
 
+/* El hueco se dimensionaba con font-size porque su contenido era texto. Ahora
+   lleva un svg, que no escala con la tipografía: se le da tamaño explícito.
+   ::deep porque lo renderiza <Icono>, un componente hijo sin este scope. */
+.estado-vacio-icono ::deep .icono {
+    width: 40px;
+    height: 40px;
+}
+
 .estado-vacio h3 {
     font: var(--font-heading-md);
     color: var(--color-text);
