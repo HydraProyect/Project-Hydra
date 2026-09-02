@@ -1,0 +1,6 @@
+.descripcion-alertas {
+    color: var(--color-text-muted);
+    font: var(--font-body-md);
+    margin-bottom: var(--space-5);
+    max-width: 640px;
+}
