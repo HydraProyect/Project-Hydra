@@ -9,10 +9,12 @@
     Clientes describía datos ajenos a la Empresa, no propios.
 *@
 @using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector
+@using CaeManager.Application.Empresas.Commands.BorrarCredencialAccesoEmpresaContrasena
 @using CaeManager.Application.Empresas.Commands.EditarEmpresa
 @using CaeManager.Application.Empresas.Commands.GuardarCredencialAccesoEmpresa
 @using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa
 @using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresa
+@using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresaSinContrasena
 @using CaeManager.Application.Empresas.Queries.ObtenerCumplimientoEmpresa
 @using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId
 @using CaeManager.Domain.Documentos
@@ -96,9 +98,17 @@ else
                         <BotonCopiar Valor="@_credencialUsuario" Etiqueta="el usuario" />
                     </div>
                     <div class="campo-con-boton">
-                        <CampoTexto Etiqueta="Contraseña" Type="password" Valor="@_credencialContrasena" ValorChanged="v => _credencialContrasena = v" />
-                        <BotonCopiar Valor="@_credencialContrasena" Etiqueta="la contraseña" />
+                        <CampoTexto Etiqueta="Contraseña" Type="password" Placeholder="Déjalo en blanco para conservar la actual" Valor="@_credencialContrasena" ValorChanged="v => _credencialContrasena = v" />
+                        <BotonCopiar ValorAsync="ObtenerContrasenaParaCopiarAsync" Etiqueta="la contraseña" />
                     </div>
+                    @if (_hayCredencialGuardada)
+                    {
+                        <div class="workspace-acciones-edicion">
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirBorrarContrasena">
+                                Borrar contraseña
+                            </Boton>
+                        </div>
+                    }
                     <CampoTextarea Etiqueta="Notas" Valor="@_credencialNotas" ValorChanged="v => _credencialNotas = v" Filas="3" />
                     <div class="workspace-acciones-edicion">
                         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_guardandoCredenciales" OnClick="GuardarCredencialesAsync">
@@ -169,6 +179,14 @@ else
                 break;
         }
     </Pestanas>
+
+    <DialogoConfirmacion
+        Visible="_confirmarBorrarContrasenaVisible"
+        VisibleChanged="v => _confirmarBorrarContrasenaVisible = v"
+        Titulo="¿Borrar la contraseña guardada?"
+        Mensaje="La URL, el usuario y las notas de la credencial no se tocan — solo se borra la contraseña."
+        EnProgreso="_borrandoContrasena"
+        OnConfirmar="ConfirmarBorrarContrasenaAsync" />
 }
 
 @code {
@@ -220,10 +238,22 @@ else
     private string _credencialUrl = string.Empty;
     private string _credencialCampoEmpresa = string.Empty;
     private string _credencialUsuario = string.Empty;
+
+    /// <summary>
+    /// Nunca se precarga desde el servidor (DEC-53/DEC-62) — solo lo que el
+    /// usuario escriba en esta sesión de edición. Vacío al guardar significa
+    /// "conserva la almacenada", no "bórrala": ver
+    /// <c>GuardarCredencialAccesoEmpresaCommand</c>.
+    /// </summary>
     private string _credencialContrasena = string.Empty;
     private string _credencialNotas = string.Empty;
+
+    /// <summary>Si ya existe una fila de credencial — controla si "Borrar contraseña" tiene sentido mostrarse.</summary>
+    private bool _hayCredencialGuardada;
     private bool _guardandoCredenciales;
     private string? _mensajeErrorCredenciales;
+    private bool _confirmarBorrarContrasenaVisible;
+    private bool _borrandoContrasena;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -303,12 +333,15 @@ else
         _mensajeErrorInformacion = null;
         _erroresInformacion = new Dictionary<string, string>();
 
-        var credencial = await Mediator.Send(new ObtenerCredencialAccesoEmpresaQuery(_detalle.Id));
+        // DEC-53/DEC-62: la contraseña no se carga aquí — solo los campos no
+        // sensibles, vía una consulta que ni siquiera lee la columna cifrada.
+        var credencial = await Mediator.Send(new ObtenerCredencialAccesoEmpresaSinContrasenaQuery(_detalle.Id));
         _credencialUrl = credencial?.UrlAcceso ?? string.Empty;
         _credencialCampoEmpresa = credencial?.CampoEmpresa ?? string.Empty;
         _credencialUsuario = credencial?.Usuario ?? string.Empty;
-        _credencialContrasena = credencial?.Contrasena ?? string.Empty;
+        _credencialContrasena = string.Empty;
         _credencialNotas = credencial?.Notas ?? string.Empty;
+        _hayCredencialGuardada = credencial is not null;
         _mensajeErrorCredenciales = null;
 
         _editandoInformacion = true;
@@ -395,6 +428,8 @@ else
             }
 
             ToastService.Mostrar("Credenciales guardadas correctamente.", TonoToast.Exito);
+            _hayCredencialGuardada = true;
+            _credencialContrasena = string.Empty;
         }
         catch (Exception)
         {
@@ -403,6 +438,59 @@ else
         finally
         {
             _guardandoCredenciales = false;
+        }
+    }
+
+    /// <summary>
+    /// Petición explícita y separada (DEC-53/DEC-62): solo se pide al
+    /// servidor en el momento de copiar, nunca como efecto de abrir el
+    /// panel. <see cref="ObtenerCredencialAccesoEmpresaQuery"/> sigue siendo
+    /// la única vía que decodifica la contraseña, y sigue marcada como
+    /// <c>IConsultaDeSecretosDeTenant</c>.
+    /// </summary>
+    private async Task<string?> ObtenerContrasenaParaCopiarAsync()
+    {
+        if (_detalle is null) return null;
+
+        var credencial = await Mediator.Send(new ObtenerCredencialAccesoEmpresaQuery(_detalle.Id));
+        if (string.IsNullOrEmpty(credencial?.Contrasena))
+        {
+            ToastService.Mostrar("No hay ninguna contraseña guardada.", TonoToast.Info);
+            return null;
+        }
+
+        return credencial.Contrasena;
+    }
+
+    private void AbrirBorrarContrasena() => _confirmarBorrarContrasenaVisible = true;
+
+    private async Task ConfirmarBorrarContrasenaAsync()
+    {
+        if (_detalle is null) return;
+
+        _borrandoContrasena = true;
+
+        try
+        {
+            var resultado = await Mediator.Send(new BorrarCredencialAccesoEmpresaContrasenaCommand(_detalle.Id));
+
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            ToastService.Mostrar("Contraseña borrada.", TonoToast.Exito);
+            _credencialContrasena = string.Empty;
+            _confirmarBorrarContrasenaVisible = false;
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar("No pudimos borrar la contraseña. Intenta nuevamente en unos segundos.", TonoToast.Error);
+        }
+        finally
+        {
+            _borrandoContrasena = false;
         }
     }
 }
