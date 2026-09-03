@@ -52,19 +52,27 @@ namespace CaeManager.Application.Common;
 /// efectivo de un contexto privilegiado es <c>null</c> y se deniega por lista
 /// blanca. Las dos ramas acaban en no.
 ///
-/// Lo que este behavior <b>no</b> puede prometer es inmediatez en la
-/// <i>lectura</i>: la resolución de la sesión se memoiza por ámbito de DI
-/// —petición en HTTP, circuito entero en Blazor Server— igual que el resto de
-/// la resolución de alcance, así que revocar una concesión a mitad de circuito
-/// no vacía lo que ese circuito ya está viendo. Es la misma limitación que
-/// documenta el middleware, y quien la cierra de verdad es el enforcement en la
-/// capa de datos (rol de BD de solo lectura + RLS, ADR-011 § 4bis.7.4), que es
-/// la fase siguiente.
+/// <b>La escritura sí exige inmediatez (REC-067, DEC-44).</b> La resolución de
+/// sesión se memoiza por ámbito de DI —petición en HTTP, circuito entero en
+/// Blazor Server— igual que el resto de la resolución de alcance, así que un
+/// simple <c>ObtenerAsync</c> podría no ver una concesión revocada a mitad de
+/// circuito. Por eso este behavior consulta
+/// <see cref="ISesionPrivilegiadaActual.RevalidarAsync"/>, que ignora esa memo
+/// y vuelve a preguntar a la base en cada comando: la garantía crítica de
+/// mutación se impone en el punto de mutación, sin depender de que el
+/// circuito se cierre ni de que llegue la próxima petición HTTP. Esa
+/// limitación de <c>ObtenerAsync</c> sigue viva y sigue siendo aceptable —para
+/// <i>lectura</i>—, y quien la cierra de verdad es el enforcement en la capa
+/// de datos (rol de BD de solo lectura + RLS, ADR-011 § 4bis.7.4).
 ///
-/// Coste para el resto del mundo: cero consultas.
-/// <c>ISesionPrivilegiadaActual</c> devuelve <c>null</c> sin tocar la base
-/// cuando la sesión no trae ninguna, que es el caso de absolutamente todos los
-/// usuarios hoy.
+/// Coste para el resto del mundo: cero consultas. La sesión privilegiada, la
+/// concesión que la ampara y su alcance se leen juntos en una sola consulta
+/// (más una segunda si la concesión no es de alcance global) — y
+/// <c>RevalidarAsync</c> descarta esa consulta sin tocar la base en cuanto el
+/// token no trae ninguna sesión, que es el caso de absolutamente todos los
+/// usuarios hoy. Solo una sesión de plano 3 —soporte o administración de
+/// plataforma, por definición minoritarias y deliberadas— paga una consulta
+/// extra por comando de escritura.
 /// </summary>
 public class AutorizacionEscrituraBehavior<TRequest, TResponse>(
     ICurrentUserService currentUserService,
@@ -83,7 +91,7 @@ public class AutorizacionEscrituraBehavior<TRequest, TResponse>(
         if (request is not ICommandBase)
             return await next(cancellationToken);
 
-        if (await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is { } sesion)
+        if (await sesionPrivilegiadaActual.RevalidarAsync(cancellationToken) is { } sesion)
             return CrearRespuestaFallo<TResponse>(ErrorDeSesionPrivilegiada(sesion));
 
         var rol = await currentUserService.ObtenerRolActualAsync();

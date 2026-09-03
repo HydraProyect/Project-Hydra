@@ -22,15 +22,27 @@ public class SesionPrivilegiadaActual(
         // repetir el viaje a la base en cada uno multiplicaría el coste de todo
         // lo que haga una sesión de soporte.
         //
-        // Limitación heredada y conocida: ese ámbito es la petición en HTTP
-        // pero el circuito entero en Blazor Server, así que revocar una
-        // concesión a mitad de circuito no vacía lo que ese circuito ya está
-        // viendo — igual que hoy no se invalida el alcance memoizado cuando
-        // cambia una cartera. Para la escritura da igual (se deniega por las dos
-        // ramas, ver AutorizacionEscrituraBehavior); para la lectura, quien lo
-        // cierra es el enforcement en la capa de datos, ADR-011 § 4bis.7.4.
+        // Limitación conocida y aceptada para LECTURA (REC-067): ese ámbito es
+        // la petición en HTTP pero el circuito entero en Blazor Server, así
+        // que revocar una concesión a mitad de circuito no vacía lo que ese
+        // circuito ya está viendo — igual que hoy no se invalida el alcance
+        // memoizado cuando cambia una cartera. Quien lo cierra es el
+        // enforcement en la capa de datos, ADR-011 § 4bis.7.4. Para
+        // ESCRITURA no vale: <see cref="RevalidarAsync"/> es el método que
+        // tiene que consultar cualquier punto de mutación.
         if (_yaResuelto) return _resuelta;
 
+        return await RevalidarAsync(cancellationToken);
+    }
+
+    public async Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default)
+    {
+        // Ignora la memo existente y vuelve a preguntar a la base — el punto
+        // de mutación (AutorizacionEscrituraBehavior) no puede confiar en un
+        // resultado que pudo resolverse antes de que la concesión se
+        // revocara. El resultado fresco SÍ se deja como memo: una escritura
+        // que revalida no puede dejar el ámbito de DI en un estado más viejo
+        // que el que ella misma acaba de comprobar.
         _resuelta = await ResolverAsync(cancellationToken);
         _yaResuelto = true;
         return _resuelta;
