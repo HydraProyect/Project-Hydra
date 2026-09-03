@@ -20,7 +20,7 @@ public record AbrirSesionPrivilegiadaCommand(
     Guid ConcesionPrivilegioId,
     Guid TenantObjetivoId,
     string Motivo,
-    int DiasDeVentana,
+    int HorasDeVentana,
     string? Ticket = null) : ICommand<Guid>;
 
 public class AbrirSesionPrivilegiadaCommandValidator : AbstractValidator<AbrirSesionPrivilegiadaCommand>
@@ -38,9 +38,9 @@ public class AbrirSesionPrivilegiadaCommandValidator : AbstractValidator<AbrirSe
             .NotEmpty().WithMessage("Indica por qué necesitas entrar en los datos de este cliente.")
             .MaximumLength(SesionPrivilegiada.LongitudMaximaMotivo);
 
-        RuleFor(c => c.DiasDeVentana)
-            .InclusiveBetween(1, (int)SesionPrivilegiada.VentanaMaxima.TotalDays)
-            .WithMessage($"La ventana de acceso debe estar entre 1 y {SesionPrivilegiada.VentanaMaxima.TotalDays:0} días.");
+        RuleFor(c => c.HorasDeVentana)
+            .InclusiveBetween(1, (int)SesionPrivilegiada.VentanaMaxima.TotalHours)
+            .WithMessage($"La ventana de acceso debe estar entre 1 y {SesionPrivilegiada.VentanaMaxima.TotalHours:0} horas.");
 
         RuleFor(c => c.Ticket)
             .MaximumLength(SesionPrivilegiada.LongitudMaximaTicket);
@@ -163,7 +163,7 @@ public class AbrirSesionPrivilegiadaCommandHandler(
                 request.TenantObjetivoId,
                 request.Motivo,
                 DateTime.UtcNow,
-                TimeSpan.FromDays(request.DiasDeVentana),
+                TimeSpan.FromHours(request.HorasDeVentana),
                 usuarioSimuladoId: null,
                 request.Ticket);
         }

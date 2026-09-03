@@ -55,7 +55,7 @@ public class CerrarSesionPrivilegiadaTests : IAsyncLifetime
         await contexto.SaveChangesAsync();
 
         var sesion = SesionPrivilegiada.Abrir(
-            concesion, _tenantVisitado, "Reproducir la incidencia", ahora, TimeSpan.FromDays(1));
+            concesion, _tenantVisitado, "Reproducir la incidencia", ahora, TimeSpan.FromHours(1));
 
         contexto.SesionesPrivilegiadas.Add(sesion);
         await contexto.SaveChangesAsync();

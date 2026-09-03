@@ -115,7 +115,7 @@ public class AutoConcederPrivilegioTests : IAsyncLifetime
             .SingleAsync(c => c.Id == concesionId);
 
         var abrir = () => SesionPrivilegiada.Abrir(
-            concesion, _tenantVisitado, "Reproducir la incidencia", DateTime.UtcNow, TimeSpan.FromDays(1));
+            concesion, _tenantVisitado, "Reproducir la incidencia", DateTime.UtcNow, TimeSpan.FromHours(1));
 
         abrir.Should().NotThrow("auto-concederse y abrir tienen que encadenar");
     }
