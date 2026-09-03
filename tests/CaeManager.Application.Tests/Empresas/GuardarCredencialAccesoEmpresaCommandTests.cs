@@ -14,8 +14,11 @@ namespace CaeManager.Application.Tests.Empresas;
 /// </summary>
 public class GuardarCredencialAccesoEmpresaCommandTests
 {
-    [Fact]
-    public async Task Editar_con_contrasena_vacia_conserva_la_almacenada()
+    /// <summary>Cubre null Y cadena vacía por separado: el handler decide con IsNullOrEmpty, no con "is null".</summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public async Task Editar_con_contrasena_vacia_conserva_la_almacenada(string? contrasenaEnviada)
     {
         var empresa = new Empresa("Empresa propia S.L.");
         var empresas = new EmpresaRepositorioFalso();
@@ -30,7 +33,7 @@ public class GuardarCredencialAccesoEmpresaCommandTests
 
         var resultado = await handler.Handle(
             new GuardarCredencialAccesoEmpresaCommand(
-                empresa.Id, "https://portal.nuevo.example", "campo", "usuario-nuevo", Contrasena: null, Notas: "notas-nuevas"),
+                empresa.Id, "https://portal.nuevo.example", "campo", "usuario-nuevo", Contrasena: contrasenaEnviada, Notas: "notas-nuevas"),
             CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
