@@ -28,6 +28,12 @@ namespace CaeManager.Infrastructure.Auditing;
 ///    ChangeTracker antes de que el ValueConverter lo cifre.
 /// 2. Contenido de Comunicaciones que la auditoría no necesita copiar
 ///    (Mensaje, AdjuntoMensaje) — ver el comentario de esas dos entradas.
+/// 3. Datos personales de entidades hermanas del mensaje y contenido
+///    derivado por IA a partir de él (ParticipanteConversacion,
+///    ContactoWhatsApp, ClasificacionRelevanciaCae, SugerenciaGestionCorreo,
+///    SugerenciaVisitaCorreo) — DEC-37/38 extienden el criterio del punto 2:
+///    ni el remitente en una fila distinta ni un resumen generado a partir
+///    del correo quedan exentos por ello. Ver el comentario de esas entradas.
 /// </summary>
 public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesInterceptor
 {
@@ -51,7 +57,24 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
         // el rol con acceso a la bandeja, y CuerpoHtml puede llegar a 1 MiB
         // (Mensaje.LongitudMaximaCuerpoHtml) en cada alta de mensaje.
         [typeof(Mensaje)] = [nameof(Mensaje.CuerpoHtml), nameof(Mensaje.Remitente)],
-        [typeof(AdjuntoMensaje)] = [nameof(AdjuntoMensaje.NombreArchivo)]
+        [typeof(AdjuntoMensaje)] = [nameof(AdjuntoMensaje.NombreArchivo)],
+
+        // DEC-37/DEC-38 (propietario, 2026-09-02): extienden DEC-9 a las
+        // entidades hermanas del mensaje y a su contenido derivado por IA.
+        // DEC-37 — "No crear una excepción simplemente porque el PII esté en
+        // una entidad hermana del mensaje": el email de un participante y el
+        // teléfono/nombre de un contacto de WhatsApp identifican a una
+        // persona igual que Mensaje.Remitente, aunque vivan en su propia
+        // fila. DEC-38 — un resumen generado por IA a partir del correo
+        // tampoco es "menos sensible que el contenido fuente" por el mero
+        // hecho de ser derivado: sería una vía indirecta para reconstruirlo.
+        // La auditoría conserva que cambió, quién y cuándo — nunca el texto
+        // del resumen ni el valor de estos campos.
+        [typeof(ParticipanteConversacion)] = [nameof(ParticipanteConversacion.Email)],
+        [typeof(ContactoWhatsApp)] = [nameof(ContactoWhatsApp.Telefono), nameof(ContactoWhatsApp.Nombre)],
+        [typeof(ClasificacionRelevanciaCae)] = [nameof(ClasificacionRelevanciaCae.Resumen)],
+        [typeof(SugerenciaGestionCorreo)] = [nameof(SugerenciaGestionCorreo.Resumen)],
+        [typeof(SugerenciaVisitaCorreo)] = [nameof(SugerenciaVisitaCorreo.Resumen)]
     };
 
     public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
