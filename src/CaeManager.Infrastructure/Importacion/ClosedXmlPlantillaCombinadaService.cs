@@ -17,6 +17,19 @@ namespace CaeManager.Infrastructure.Importacion;
 /// referencias entre hojas son por nombre (Cliente/Empresa en texto), no
 /// por Id — más cómodo de rellenar a mano en Excel — y se resuelven contra
 /// la base de datos y contra las propias hojas anteriores del archivo.
+///
+/// Invariante «nada se descarta en silencio» (IMPORTACION.md § 3 bis, DCR-12
+/// B; auditada en REC-129): las cuatro hojas saltan sin registrar nada solo
+/// la fila de ejemplo que <see cref="GenerarPlantilla"/> escribe con el
+/// marcador <c>EJEMPLO</c> — legítimo y silencioso a propósito, verificado
+/// por test en cada hoja. "Contrato vigente hasta" (Centros) y "Fecha de
+/// nacimiento" (Trabajadores) son datos opcionales de una fila que sí se
+/// importa: si la celda está vacía, la fila se crea sin ese dato, legítimo y
+/// silencioso; si trae un valor que no se pudo interpretar, la fila se crea
+/// igual (éxito parcial, DCR-12 B) pero la pérdida del dato concreto queda
+/// en <see cref="PlanImportacionDto.Omitidos"/> nombrando el valor bruto
+/// (antes ambas colapsaban el estado ilegible en <c>null</c> igual que el
+/// vacío, sin ningún registro).
 /// </summary>
 public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext) : IPlantillaCombinadaService
 {
@@ -293,10 +306,17 @@ public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosCont
             var codigoCentro = TextoCelda(hoja.Cell(fila, 4));
             var direccion = TextoCelda(hoja.Cell(fila, 5));
             var contacto = TextoCelda(hoja.Cell(fila, 6));
-            var contratoVigenteHasta = FechaCelda(hoja.Cell(fila, 7));
+
+            var resultadoContrato = FechaCeldaAyudante.Leer(hoja.Cell(fila, 7));
+            if (resultadoContrato.Estado == EstadoCeldaFecha.Ilegible)
+            {
+                omitidos.Add(new ItemImportacionDto(
+                    HojaCentros, fila, nombre,
+                    $"La fecha «{resultadoContrato.ValorBruto}» en \"Contrato vigente hasta\" no se pudo interpretar; el centro se importó sin ese dato."));
+            }
 
             resultado.Add(new CentroImportadoDto(
-                nombre, cliente, empresa, codigoCentro, direccion, contacto, contratoVigenteHasta, centrosExistentes.Contains(clave)));
+                nombre, cliente, empresa, codigoCentro, direccion, contacto, resultadoContrato.Fecha, centrosExistentes.Contains(clave)));
         }
 
         return resultado;
@@ -355,10 +375,16 @@ public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosCont
                 continue;
             }
 
-            var fechaNacimiento = FechaCelda(hoja.Cell(fila, 5));
+            var resultadoNacimiento = FechaCeldaAyudante.Leer(hoja.Cell(fila, 5));
+            if (resultadoNacimiento.Estado == EstadoCeldaFecha.Ilegible)
+            {
+                omitidos.Add(new ItemImportacionDto(
+                    HojaTrabajadores, fila, $"{nombre} {apellidos} ({dni})",
+                    $"La fecha de nacimiento «{resultadoNacimiento.ValorBruto}» no se pudo interpretar; el trabajador se importó sin ese dato."));
+            }
             var email = TextoCelda(hoja.Cell(fila, 6));
 
-            resultado.Add(new TrabajadorImportadoDto(empresa, nombre, apellidos, dni, fechaNacimiento, email, dnisExistentes.Contains(dni)));
+            resultado.Add(new TrabajadorImportadoDto(empresa, nombre, apellidos, dni, resultadoNacimiento.Fecha, email, dnisExistentes.Contains(dni)));
         }
 
         return resultado;
@@ -377,9 +403,4 @@ public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosCont
         return string.IsNullOrWhiteSpace(texto) ? null : texto;
     }
 
-    private static DateOnly? FechaCelda(IXLCell celda)
-    {
-        if (celda.IsEmpty()) return null;
-        return celda.TryGetValue<DateTime>(out var fecha) ? DateOnly.FromDateTime(fecha) : null;
-    }
 }
