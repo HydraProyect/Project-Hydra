@@ -84,10 +84,20 @@ public class DocumentAIRouterService(
             var resultadoCache = DeserializarDesdeCache(cacheado.ExtraccionJson);
             if (resultadoCache is not null)
             {
+                // Vínculo REC-036/DEC-34: un acierto de caché sobre un
+                // Documento ya existente (VerificacionIaDocumentoService) es
+                // precisamente el caso que dejaba la entrada sin vínculo si
+                // se creó antes por un triage sin documentoId — ver el
+                // comentario de ExtraccionIaCacheDocumento.
+                var vinculoPendiente = documentoId is { } docIdCache
+                    ? await cacheRepositorio.VincularDocumentoAsync(cacheado.Id, docIdCache, cancellationToken)
+                    : null;
+
                 await RegistrarAuditoriaAsync(
                     hash, tipoEsperado, "cache", cronometro.ElapsedMilliseconds,
                     costeEstimadoOcr: null, costeEstimado: 0m,
-                    numeroPaginas: 0, resultadoCache.ConfianzaGeneral, "Resultado servido desde caché documental.", documentoId, cancellationToken);
+                    numeroPaginas: 0, resultadoCache.ConfianzaGeneral, "Resultado servido desde caché documental.", documentoId, cancellationToken,
+                    vinculoPendiente: vinculoPendiente);
                 return Result.Exito(resultadoCache);
             }
         }
@@ -135,7 +145,7 @@ public class DocumentAIRouterService(
             return resultado;
         }
 
-        var entradaCachePendiente = await GuardarEnCacheAsync(hash, tipoEsperado, resultado.Valor, cancellationToken);
+        var (entradaCachePendiente, vinculoCreado) = await GuardarEnCacheAsync(hash, tipoEsperado, resultado.Valor, documentoId, cancellationToken);
         var incidencias = CombinarIncidencias(
             texto.Valor.NotaLocalizacion, resultado.Valor.NotasValidacion, estructuracion.NotaIntentos);
         await RegistrarAuditoriaAsync(
@@ -143,7 +153,8 @@ public class DocumentAIRouterService(
             texto.Valor.CosteEstimadoOcr, estructuracion.CosteAcumulado,
             clasificacion.Valor.TotalPaginas, resultado.Valor.ConfianzaGeneral, incidencias, documentoId, cancellationToken,
             entradaCachePendiente, estructuracion.ModeloExacto, estructuracion.RequestId,
-            CombinarProveedoresInvocados(texto.Valor.ProveedorOcrCodigo, estructuracion.ProveedoresInvocados));
+            CombinarProveedoresInvocados(texto.Valor.ProveedorOcrCodigo, estructuracion.ProveedoresInvocados),
+            vinculoCreado);
 
         return resultado;
     }
@@ -416,22 +427,44 @@ public class DocumentAIRouterService(
     /// Añade la entrada de caché al seguimiento del contexto sin guardarla
     /// todavía — se persiste junto con la auditoría en el mismo
     /// <c>SaveChangesAsync</c> de <see cref="RegistrarAuditoriaAsync"/>, no
-    /// aquí. Devuelve la entidad recién añadida (o null si ya había una,
+    /// aquí. Devuelve la entrada recién añadida (o null si ya había una,
     /// p. ej. porque otra llamada concurrente terminó primero) para que el
     /// llamador pueda retirarla del tracker si el guardado conjunto choca
     /// contra el índice único — ver el comentario de
     /// <see cref="RegistrarAuditoriaAsync"/> sobre la carrera de caché.
+    ///
+    /// Cuando <paramref name="documentoId"/> no es null (REC-036/DEC-34,
+    /// ver <see cref="ExtraccionIaCacheDocumento"/>), asegura también el
+    /// vínculo con ese Documento — tanto si la entrada es nueva como si ya
+    /// existía (el caso que dejaba huérfano un acierto de caché sobre un
+    /// Documento distinto del que la creó). El vínculo pendiente se
+    /// devuelve aparte para que <see cref="RegistrarAuditoriaAsync"/> pueda
+    /// retirarlo igual que la entrada si el guardado conjunto choca.
     /// </summary>
-    private async Task<ExtraccionIaCache?> GuardarEnCacheAsync(
-        string hash, string tipoEsperado, ExtraccionEstructuradaDto extraccion, CancellationToken cancellationToken)
+    private async Task<(ExtraccionIaCache? Cache, ExtraccionIaCacheDocumento? Vinculo)> GuardarEnCacheAsync(
+        string hash, string tipoEsperado, ExtraccionEstructuradaDto extraccion, Guid? documentoId, CancellationToken cancellationToken)
     {
-        if (await cacheRepositorio.ObtenerAsync(hash, tipoEsperado, cancellationToken) is not null)
-            return null; // ya cacheado (p. ej. por una llamada concurrente que ya guardó) — no duplicar.
+        var existente = await cacheRepositorio.ObtenerAsync(hash, tipoEsperado, cancellationToken);
+        if (existente is not null)
+        {
+            // Ya cacheado (p. ej. por una llamada concurrente que ya guardó)
+            // — no duplicar el JSON, pero sí asegurar el vínculo de este
+            // Documento con la entrada que ganó la carrera.
+            var vinculoSobreExistente = documentoId is { } docIdExistente
+                ? await cacheRepositorio.VincularDocumentoAsync(existente.Id, docIdExistente, cancellationToken)
+                : null;
+            return (null, vinculoSobreExistente);
+        }
 
         var json = JsonSerializer.Serialize(extraccion, JsonOpciones);
         var entrada = ExtraccionIaCache.Crear(hash, tipoEsperado, json);
         cacheRepositorio.Agregar(entrada);
-        return entrada;
+
+        var vinculo = documentoId is { } docId
+            ? await cacheRepositorio.VincularDocumentoAsync(entrada.Id, docId, cancellationToken)
+            : null;
+
+        return (entrada, vinculo);
     }
 
     /// <summary>
@@ -459,12 +492,19 @@ public class DocumentAIRouterService(
     /// queda con la fila que escribió quien ganó la carrera, que es
     /// exactamente el mismo resultado que se hubiera devuelto desde este
     /// lado.
+    ///
+    /// <paramref name="vinculoPendiente"/> (REC-036/DEC-34) es la misma
+    /// historia sobre el índice único de <see cref="ExtraccionIaCacheDocumento"/>:
+    /// si el SaveChangesAsync conjunto choca, también hay que retirarlo con
+    /// <see cref="IExtraccionIaCacheRepository.DescartarVinculoTrasConflicto"/>
+    /// antes de reintentar, o el mismo choque se repetiría.
     /// </summary>
     private async Task RegistrarAuditoriaAsync(
         string hash, string tipoEsperado, string proveedorCodigo, long tiempoMs, decimal? costeEstimadoOcr,
         decimal? costeEstimado, int numeroPaginas, int confianzaGeneral, string? incidencias, Guid? documentoId,
         CancellationToken cancellationToken, ExtraccionIaCache? entradaCachePendiente = null,
-        string? modeloExacto = null, string? requestId = null, string? proveedoresInvocados = null)
+        string? modeloExacto = null, string? requestId = null, string? proveedoresInvocados = null,
+        ExtraccionIaCacheDocumento? vinculoPendiente = null)
     {
         auditoriaRepositorio.Agregar(AuditoriaExtraccionIa.Crear(
             hash, tipoEsperado, proveedorCodigo, tiempoMs, costeEstimadoOcr, costeEstimado, numeroPaginas, confianzaGeneral, incidencias, documentoId,
@@ -474,9 +514,13 @@ public class DocumentAIRouterService(
         {
             await unitOfWork.SaveChangesAsync(cancellationToken);
         }
-        catch (DbUpdateException) when (entradaCachePendiente is not null)
+        catch (DbUpdateException) when (entradaCachePendiente is not null || vinculoPendiente is not null)
         {
-            cacheRepositorio.DescartarTrasConflicto(entradaCachePendiente);
+            if (entradaCachePendiente is not null)
+                cacheRepositorio.DescartarTrasConflicto(entradaCachePendiente);
+            if (vinculoPendiente is not null)
+                cacheRepositorio.DescartarVinculoTrasConflicto(vinculoPendiente);
+
             await unitOfWork.SaveChangesAsync(cancellationToken);
         }
     }
