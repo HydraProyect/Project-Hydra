@@ -135,9 +135,12 @@ public class DiskFileStorageService : IFileStorageService
         // final un fichero truncado que ya sería servible en cuanto el
         // identificador se devolviera — salvo que la interrupción sea
         // anterior a ese punto, en cuyo caso el fichero queda huérfano y sin
-        // fila propietaria (compensado ya por el mecanismo existente para
-        // ese caso). Con el temporal, lo peor que deja una interrupción es
-        // el `.tmp` huérfano; la ruta final nunca existe a medias.
+        // fila propietaria. Eso NO está compensado en general: solo existe
+        // limpieza de huérfanos para los dos llamadores de la ingesta de
+        // webhooks (ver CompensacionBlobsHuerfanosIngesta) — el resto de los
+        // llamadores de GuardarAsync no tiene ese mecanismo. Con el
+        // temporal, lo peor que deja una interrupción es el `.tmp` huérfano;
+        // la ruta final nunca existe a medias.
         var rutaTemporal = $"{rutaCompleta}.tmp-{Guid.NewGuid():N}";
         try
         {
@@ -146,7 +149,12 @@ public class DiskFileStorageService : IFileStorageService
         }
         catch
         {
-            if (File.Exists(rutaTemporal)) File.Delete(rutaTemporal);
+            // El borrado del temporal es limpieza best-effort: si él mismo
+            // falla (bloqueo transitorio, antivirus) no puede sustituir a la
+            // excepción original — eso ocultaría la causa real del fallo de
+            // guardado detrás de un fallo de borrado que no es la noticia.
+            try { if (File.Exists(rutaTemporal)) File.Delete(rutaTemporal); }
+            catch { /* best-effort: el temporal queda huérfano, no se enmascara el error original */ }
             throw;
         }
 
