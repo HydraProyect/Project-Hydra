@@ -129,7 +129,7 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
         var asignaciones = AnalizarAsignaciones(
             libro, nombreCompletoADni, nombresCentrosOrdenados, asignacionesActivasExistentes, advertencias, omitidos);
 
-        return new PlanImportacionDto(clientesCentros, empresas, trabajadores, documentos, asignaciones, advertencias, omitidos);
+        return new PlanImportacionDto(Guid.NewGuid(), clientesCentros, empresas, trabajadores, documentos, asignaciones, advertencias, omitidos);
     }
 
     private static List<ClienteCentroImportadoDto> AnalizarCentros(

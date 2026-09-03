@@ -8,7 +8,15 @@ namespace CaeManager.Application.Importacion;
 /// exactamente qué se dejó fuera y por qué, para el reporte final — nunca
 /// se descarta una fila en silencio.
 /// </summary>
+/// <param name="OperacionId">
+/// Identidad estable de ESTA operación de análisis, generada una sola vez aquí y
+/// transportada sin tocar hasta confirmar (REC-108, DEC-20) — ver
+/// EjecutarImportacionCommand y OperacionImportacion. Analizar el mismo archivo
+/// dos veces genera dos identidades distintas a propósito: cada análisis es su
+/// propia operación, aunque el contenido leído sea idéntico.
+/// </param>
 public record PlanImportacionDto(
+    Guid OperacionId,
     IReadOnlyList<ClienteCentroImportadoDto> ClientesCentros,
     IReadOnlyList<EmpresaImportadaDto> Empresas,
     IReadOnlyList<TrabajadorImportadoDto> Trabajadores,

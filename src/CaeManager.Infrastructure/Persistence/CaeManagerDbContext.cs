@@ -310,6 +310,7 @@ public class CaeManagerDbContext(
     IQueryable<EstadoAutomatizacion> IConfiguracionQueryContext.EstadosAutomatizacion => EstadosAutomatizacion;
     public DbSet<HistorialImportacion> HistorialImportaciones => Set<HistorialImportacion>();
     IQueryable<HistorialImportacion> IImportacionQueryContext.HistorialImportaciones => HistorialImportaciones;
+    public DbSet<OperacionImportacion> OperacionesImportacion => Set<OperacionImportacion>();
     public DbSet<HistorialInforme> HistorialInformes => Set<HistorialInforme>();
     IQueryable<HistorialInforme> IReportesQueryContext.HistorialInformes => HistorialInformes;
     public DbSet<EventoRecienteUsuario> EventosRecientesUsuario => Set<EventoRecienteUsuario>();

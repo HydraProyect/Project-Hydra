@@ -60,7 +60,7 @@ public class ClosedXmlPlantillaClientesService(ICentrosQueryContext centrosConte
         if (!libro.Worksheets.TryGetWorksheet(NombreHoja, out var hoja))
         {
             omitidos.Add(new ItemImportacionDto(NombreHoja, 0, "Hoja completa", "No se encontró la hoja \"Clientes\" en el archivo."));
-            return new PlanImportacionDto([], [], [], [], [], [], omitidos);
+            return new PlanImportacionDto(Guid.NewGuid(), [], [], [], [], [], [], omitidos);
         }
 
         var nombresVistos = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -88,7 +88,7 @@ public class ClosedXmlPlantillaClientesService(ICentrosQueryContext centrosConte
                 nombresClientesExistentes.Contains(nombre), nombresCentrosExistentes.Contains(nombre)));
         }
 
-        return new PlanImportacionDto(clientesCentros, [], [], [], [], [], omitidos);
+        return new PlanImportacionDto(Guid.NewGuid(), clientesCentros, [], [], [], [], [], omitidos);
     }
 
     private static string? TextoCelda(IXLCell celda)
