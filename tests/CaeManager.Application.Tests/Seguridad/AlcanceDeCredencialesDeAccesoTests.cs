@@ -163,6 +163,29 @@ public class AlcanceDeCredencialesDeAccesoTests
         resultado.Should().BeNull();
     }
 
+    /// <summary>
+    /// REC-153: un usuario de portal (rol Cliente) tiene a la contratista de su
+    /// propio Cliente en su cartera de LECTURA — <c>empresaIdsVisibles</c> — que
+    /// es justo lo que hace que el portal le enseñe su documentación. Antes del
+    /// arreglo esa misma cartera de lectura era la puerta de esta consulta, así
+    /// que ese mismo usuario recibía la contraseña en claro de la contratista.
+    /// La cartera de GESTIÓN (<c>empresaIdsParaGestion</c>) es la que debe
+    /// decidir, y para el rol Cliente es vacía.
+    /// </summary>
+    [Fact]
+    public async Task Usuario_de_portal_no_lee_las_credenciales_de_una_empresa_de_su_cartera_de_lectura()
+    {
+        var empresaId = Guid.NewGuid();
+        var handler = new ObtenerCredencialAccesoEmpresaQueryHandler(
+            new EmpresasQueryContextQueExplota(),
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [empresaId], empresaIdsParaGestion: []));
+
+        var resultado = await handler.Handle(
+            new ObtenerCredencialAccesoEmpresaQuery(empresaId), CancellationToken.None);
+
+        resultado.Should().BeNull();
+    }
+
     private sealed class EmpresaRepositorioFalso(Empresa empresa) : IEmpresaRepository
     {
         public Task<Empresa?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>

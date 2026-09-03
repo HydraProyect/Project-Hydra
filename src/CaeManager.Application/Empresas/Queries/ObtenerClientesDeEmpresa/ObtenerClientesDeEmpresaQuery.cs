@@ -18,10 +18,10 @@ public record ClienteDeEmpresaDto(Guid Id, string RazonSocial, string? Cif);
 /// Aquí el lado fijado es la proveedora y el ambiguo la contraparte:
 /// <c>RelacionEmpresarial.ClienteId</c> contiene un Cliente real en las
 /// shapes Empresa→Cliente y Subcontrata→Cliente, pero una <b>Empresa
-/// propia</b> en la shape Subcontrata→Empresa. Como
-/// <c>EmpresaVisibleAsync</c> no comprueba tipo bajo acceso total, sin
-/// filtrar por <c>EsCritico != null</c> una Empresa propia podría acabar
-/// listada como "Cliente de la Empresa".
+/// propia</b> en la shape Subcontrata→Empresa. Como el alcance de Empresa
+/// (lectura o gestión, ver <c>ObtenerEmpresaIdsVisiblesAsync</c>) no comprueba
+/// tipo bajo acceso total, sin filtrar por <c>EsCritico != null</c> una
+/// Empresa propia podría acabar listada como "Cliente de la Empresa".
 /// </summary>
 public class ObtenerClientesDeEmpresaQueryHandler(IEmpresasQueryContext empresasContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerClientesDeEmpresaQuery, IReadOnlyList<ClienteDeEmpresaDto>>
@@ -29,7 +29,13 @@ public class ObtenerClientesDeEmpresaQueryHandler(IEmpresasQueryContext empresas
     public async Task<IReadOnlyList<ClienteDeEmpresaDto>> Handle(
         ObtenerClientesDeEmpresaQuery request, CancellationToken cancellationToken)
     {
-        if (!await alcanceDatos.EmpresaVisibleAsync(request.EmpresaId, cancellationToken))
+        // Alcance de GESTIÓN, no de lectura (REC-153): esto expone la cartera
+        // COMERCIAL de la contratista —qué otros Clientes tiene—, que no es
+        // documentación del propio Cliente. Con el alcance de lectura
+        // (ObtenerEmpresaIdsVisiblesAsync) como puerta, un usuario de portal
+        // (rol Cliente) veía qué otros clientes tiene su contratista solo por
+        // tenerla en su propia cartera de lectura.
+        if (!await alcanceDatos.EmpresaParaGestionVisibleAsync(request.EmpresaId, cancellationToken))
             return [];
 
         return await (
