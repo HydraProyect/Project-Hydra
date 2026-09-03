@@ -58,8 +58,12 @@ public interface IAlcanceDatosService
     /// Clientes (ver <c>ObtenerSubcontrataIdsVisiblesAsync</c>), así que a un
     /// contacto de una empresa cliente externa le salen ahí las subcontratas
     /// de su propio Cliente. Para LEER su documentación eso es correcto; para
-    /// artefactos internos de gestión — la credencial de acceso a su portal,
-    /// la supervisión operativa — no lo es (REC-159, gemelo de REC-153).
+    /// un artefacto interno de gestión —la credencial de acceso a su
+    /// portal, que es la única consulta que hoy usa este método— no lo es
+    /// (REC-159, gemelo de REC-153). No confundir con la vista de
+    /// supervisión (checklist de cumplimiento documental): esa se midió al
+    /// cerrar REC-159 y se queda en el alcance de LECTURA a propósito, por
+    /// ser justo la documentación que el portal existe para enseñar.
     /// </summary>
     Task<IReadOnlyList<Guid>?> ObtenerSubcontrataIdsParaGestionAsync(CancellationToken cancellationToken = default);
 
