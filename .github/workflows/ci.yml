@@ -1091,7 +1091,7 @@ jobs:
       # `pull-requests: read` para esto. Un milestone ausente serializa como
       # cadena vacía; un array de labels vacío hace que `any(...)` sea falso
       # sin que jq necesite tratarlo como caso especial.
-      - name: Exigir milestone y etiquetas Type:/Priority:
+      - name: "Exigir milestone y etiquetas Type:/Priority:"
         env:
           MILESTONE: ${{ github.event.pull_request.milestone.title }}
           LABELS_JSON: ${{ toJson(github.event.pull_request.labels.*.name) }}
