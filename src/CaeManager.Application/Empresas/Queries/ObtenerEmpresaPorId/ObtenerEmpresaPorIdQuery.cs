@@ -36,6 +36,26 @@ public class ObtenerEmpresaPorIdQueryHandler(IEmpresasQueryContext dbContext, IA
 {
     public async Task<EmpresaDetalleDto?> Handle(ObtenerEmpresaPorIdQuery request, CancellationToken cancellationToken)
     {
+        // Alcance de LECTURA es correcto aquí (REC-149, se queda): esta
+        // consulta respalda la pestaña "Información" del Context Workspace
+        // de Empresa, reutilizada por el rol Cliente (portal) desde /empresas
+        // — la ficha básica de una contratista (razón social, CIF, CNAE,
+        // convenio) es exactamente lo que ese portal existe para mostrar, y
+        // ClienteId != Version también alimenta EditarEmpresaCommand
+        // (read-modify-write), que ya exige alcance de gestión en su propio
+        // punto de escritura. Moverla a gestión cerraría esa pantalla para
+        // el usuario al que sirve.
+        //
+        // HALLAZGO SECUNDARIO, elevado y no corregido aquí: EmpresaDetalleDto
+        // incluye ClienteIds — la cartera COMERCIAL de la contratista (qué
+        // otros Clientes tiene), la misma categoría de dato que REC-153 ya
+        // decidió sacar de la cartera de lectura en ObtenerClientesDeEmpresaQuery.
+        // Hoy el panel solo muestra un recuento (EmpresaWorkspacePanel.razor,
+        // "Clientes con los que trabaja"), pero el DTO viaja completo. No lo
+        // toco porque decidir qué debe ver el portal en esta pantalla
+        // concreta no es una decisión mía (§14 del handoff) y el DTO
+        // alimenta un comando de escritura con una invariante propia — ver
+        // RETURN PACKAGE de HO-149-01.
         if (!await alcanceDatos.EmpresaVisibleAsync(request.Id, cancellationToken)) return null;
 
         var empresa = await dbContext.Empresas

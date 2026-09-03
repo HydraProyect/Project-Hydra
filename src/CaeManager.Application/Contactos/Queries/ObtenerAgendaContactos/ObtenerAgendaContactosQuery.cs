@@ -47,6 +47,12 @@ public class ObtenerAgendaContactosQueryHandler(
         // Alcance por el propietario: la agenda de un Cliente fuera de cartera
         // no se lee ni conociendo su Guid, igual que el resto de consultas
         // *PorId* (ver AlcanceDatosServiceExtensions).
+        //
+        // Rama Empresa en alcance de LECTURA es correcta (REC-149, se
+        // queda): la agenda es el interlocutor de la contratista (nombre,
+        // email, teléfono, cargo) — coordinación básica, análoga a la ficha
+        // de la Empresa, no la cartera comercial ni ningún artefacto interno
+        // de esa contratista.
         var visible = request.Tipo switch
         {
             TipoPropietarioAgenda.Cliente => await alcanceDatos.ClienteVisibleAsync(request.PropietarioId, cancellationToken),

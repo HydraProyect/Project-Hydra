@@ -27,6 +27,10 @@ public class ObtenerCumplimientoEmpresaQueryHandler(
 {
     public async Task<int?> Handle(ObtenerCumplimientoEmpresaQuery request, CancellationToken cancellationToken)
     {
+        // Alcance de LECTURA es correcto aquí (REC-149, se queda): devuelve
+        // un porcentaje agregado de cumplimiento, ni identidades ni datos
+        // internos de la contratista — es la métrica central que el propio
+        // portal CAE existe para mostrar a un Cliente sobre sus contratistas.
         if (!await alcanceDatos.EmpresaVisibleAsync(request.EmpresaId, cancellationToken))
             return null;
 
