@@ -138,7 +138,7 @@ public class PrivilegioDePlataformaTests
     [Fact]
     public void Una_sesion_no_puede_superar_la_ventana_maxima()
     {
-        // El techo de 30 días ya existía en producción, pero en un validador de
+        // El techo ya existía en producción, pero en un validador de
         // FluentValidation del comando heredado: cualquier camino que no pasara
         // por ese comando podía construir la ventana que quisiera. Sube al
         // dominio para que una sesión más larga sea IRREPRESENTABLE, no solo
@@ -151,7 +151,7 @@ public class PrivilegioDePlataformaTests
             SesionPrivilegiada.VentanaMaxima + TimeSpan.FromSeconds(1));
 
         abrir.Should().Throw<ArgumentException>(
-            "una ventana de treinta días y un segundo no debería poder existir, la cree quien la cree");
+            "una ventana que exceda el techo por un solo segundo no debería poder existir, la cree quien la cree");
     }
 
     [Fact]
@@ -167,6 +167,30 @@ public class PrivilegioDePlataformaTests
             concesion, TenantCliente, "INC-1234", Ahora, SesionPrivilegiada.VentanaMaxima);
 
         sesion.ExpiraEnUtc.Should().Be(Ahora + SesionPrivilegiada.VentanaMaxima);
+    }
+
+    /// <summary>
+    /// DEC-43 fija el techo, literalmente, en 4 horas — no "lo que
+    /// <c>VentanaMaxima</c> valga hoy". Los dos tests de arriba pinchan contra
+    /// la constante y seguirían en verde si alguien la cambiara a otro valor
+    /// por error; este pincha contra el literal que DEC-43 decidió, así que una
+    /// regresión que mueva <c>VentanaMaxima</c> de 4 horas revienta aquí aunque
+    /// los tests simbólicos no lo noten.
+    /// </summary>
+    [Fact]
+    public void El_techo_de_DEC_43_son_cuatro_horas_absolutas_ni_una_mas()
+    {
+        var concesion = ConcesionPrivilegio.SobreTenants(
+            Tecnico, CapacidadPrivilegio.SoporteLectura, [TenantCliente], Ahora, null);
+
+        var exactas = SesionPrivilegiada.Abrir(
+            concesion, TenantCliente, "INC-1234", Ahora, TimeSpan.FromHours(4));
+        exactas.ExpiraEnUtc.Should().Be(Ahora.AddHours(4));
+
+        var masUnSegundo = () => SesionPrivilegiada.Abrir(
+            concesion, TenantCliente, "INC-1234", Ahora, TimeSpan.FromHours(4) + TimeSpan.FromSeconds(1));
+        masUnSegundo.Should().Throw<ArgumentException>(
+            "cuatro horas y un segundo es exactamente la trampa que DEC-43 quiere cerrada");
     }
 
     // ---------- impersonación ----------

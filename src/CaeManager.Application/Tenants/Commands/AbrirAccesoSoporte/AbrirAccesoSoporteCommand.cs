@@ -25,7 +25,7 @@ namespace CaeManager.Application.Tenants.Commands.AbrirAccesoSoporte;
 /// cliente para diagnosticar es delicado.
 /// </summary>
 public record AbrirAccesoSoporteCommand(
-    Guid DelegacionTenantId, string Motivo, int DiasDeVentana, string Rol = RolesSoporte.SoloLectura) : ICommand;
+    Guid DelegacionTenantId, string Motivo, int HorasDeVentana, string Rol = RolesSoporte.SoloLectura) : ICommand;
 
 /// <summary>
 /// Roles con los que puede entrar soporte. Coinciden con los que admite
@@ -44,10 +44,24 @@ public static class RolesSoporte
 public class AbrirAccesoSoporteCommandValidator : AbstractValidator<AbrirAccesoSoporteCommand>
 {
     /// <summary>
-    /// Un mes es mucho para reproducir una incidencia; más que eso deja de
-    /// ser una ventana y pasa a ser acceso permanente por la puerta de atrás.
+    /// DEC-43 (2026-09-02): el mismo techo de cuatro horas absolutas que rige
+    /// <c>SesionPrivilegiada.VentanaMaxima</c> (plano 3) aplica aquí también.
+    ///
+    /// Esta vía es anterior a ese agregado — abre el acceso activando una
+    /// <see cref="CaeManager.Domain.Tenants.DelegacionTenant"/> con
+    /// <c>ActivarParaSoporte</c>, no una <c>SesionPrivilegiada</c> — pero sigue
+    /// siendo un camino de producción en uso (<c>Delegaciones.razor</c>) para
+    /// que un Actor de Plataforma entre en el tenant de un cliente. Por eso la
+    /// regla de DEC-43 —ninguna activación privilegiada puntual de más de 4
+    /// horas, sin excepción por vía— tiene que cumplirse también aquí.
+    ///
+    /// No se referencia la constante del otro agregado para no acoplar la
+    /// feature <c>Tenants</c> al dominio de <c>Plataforma</c>: se fija el mismo
+    /// valor por separado, y un test cruzado
+    /// (<c>VentanaDePrivilegioCuatroHorasTests</c> en
+    /// <c>CaeManager.Application.Tests</c>) falla si alguna vez divergen.
     /// </summary>
-    public const int MaximoDiasDeVentana = 30;
+    public const int MaximoHorasDeVentana = 4;
 
     public AbrirAccesoSoporteCommandValidator()
     {
@@ -57,9 +71,9 @@ public class AbrirAccesoSoporteCommandValidator : AbstractValidator<AbrirAccesoS
             .NotEmpty().WithMessage("Indica por qué necesitas entrar en los datos de este cliente.")
             .MaximumLength(500);
 
-        RuleFor(c => c.DiasDeVentana)
-            .InclusiveBetween(1, MaximoDiasDeVentana)
-            .WithMessage($"La ventana de acceso debe estar entre 1 y {MaximoDiasDeVentana} días.");
+        RuleFor(c => c.HorasDeVentana)
+            .InclusiveBetween(1, MaximoHorasDeVentana)
+            .WithMessage($"La ventana de acceso debe estar entre 1 y {MaximoHorasDeVentana} horas.");
 
         RuleFor(c => c.Rol)
             .Must(rol => RolesSoporte.Admitidos.Contains(rol))
@@ -107,7 +121,18 @@ public class AbrirAccesoSoporteCommandHandler(
                 "Soporte.SinDobleFactor", "Activa la autenticación en dos pasos en tu cuenta antes de abrir un acceso de soporte."));
 
         var ahora = DateTime.UtcNow;
-        delegacion.ActivarParaSoporte(request.Motivo, ahora.AddDays(request.DiasDeVentana), ahora);
+        try
+        {
+            delegacion.ActivarParaSoporte(request.Motivo, ahora.AddHours(request.HorasDeVentana), ahora);
+        }
+        catch (InvalidOperationException excepcion)
+        {
+            // La única InvalidOperationException alcanzable aquí es "ya está
+            // vigente": la de Proposito ya la descarta la comprobación de
+            // arriba. Se traduce a un Result legible en vez de reventar la
+            // petición — mismo criterio que AbrirSesionPrivilegiadaCommandHandler.
+            return Result.Fallo(Error.Crear("DelegacionTenant.YaVigente", excepcion.Message));
+        }
 
         // Quien abre la ventana es quien va a entrar, así que se asigna aquí
         // mismo: abrir el acceso sin operador asignado dejaría la delegación
@@ -133,7 +158,7 @@ public class AbrirAccesoSoporteCommandHandler(
         {
             registroRepositorio.Agregar(new RegistroActividadSoporte(
                 usuarioId.Value, delegacion.Id, TipoActividadSoporte.AccesoConcedido,
-                $"Ventana de {request.DiasDeVentana} día(s). Motivo: {request.Motivo}"));
+                $"Ventana de {request.HorasDeVentana} hora(s). Motivo: {request.Motivo}"));
 
             await unitOfWork.SaveChangesAsync(cancellationToken);
         }

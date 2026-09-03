@@ -9,9 +9,14 @@ namespace CaeManager.Domain.Reclamaciones;
 /// (1 a 3 meses) en un único correo, en vez de uno por Documento (ver el
 /// hilo de trabajo que originó esta feature: no se pueden mandar 30 correos
 /// por cada vencimiento suelto). Append-only: una vez enviado no se edita ni
-/// se borra, es el historial de qué se reclamó y cuándo — también evita
-/// reclamar dos veces el mismo lote en poco tiempo (ver
-/// UltimaReclamacionFechaUtc en ObtenerLoteReclamacionQuery).
+/// se borra, es el historial de qué se reclamó y cuándo.
+///
+/// UltimaReclamacionFechaUtc (ver ObtenerLoteReclamacionQuery) se calcula
+/// para que el Gestor CAE decida informado, no para bloquear: no existe ni
+/// debe existir una guarda temporal que impida reclamar de nuevo el mismo
+/// lote — reclamar otra vez puede ser una acción operativa legítima (DEC-17,
+/// 2026-09-02). Un control técnico contra doble envío accidental o
+/// concurrencia, si algún día se añade, no es esta regla ni la sustituye.
 ///
 /// El titular es polimórfico y excluyente, mismo patrón que
 /// <see cref="Documento"/> (una y solo una ancla informada):

@@ -106,23 +106,18 @@
                 <NavLink class="nav-item" href="centros">
                     <Icono Nombre="centros" /> Centros
                 </NavLink>
-                @* Revisión IA y Documentos generados ya no tienen botón propio:
-                   viven como pestaña de Documentos y de Plantillas
-                   respectivamente (Pestanas, mismo mecanismo de DDL-078 para
-                   Configuración) — sus rutas standalone siguen funcionando
+                @* Revisión IA, Documentos generados y ahora Plantillas entera
+                   ya no tienen botón propio: viven como pestaña de Documentos
+                   —Revisión IA y Plantillas directamente, Documentos generados
+                   anidada dos niveles como sub-pestaña de Plantillas (REC-062,
+                   DEC-28, DDL-080)— mismo mecanismo de Pestanas que DDL-078
+                   para Configuración. Sus rutas standalone siguen funcionando
                    para enlaces guardados y las notificaciones que las usan
                    (AccionesBandeja, ProcesadorAnalisisDocumentoHostedService),
                    pero un botón que lleva al mismo sitio que ya ofrece la
                    pestaña es ruido. *@
                 <NavLink class="nav-item" href="documentos">
                     <Icono Nombre="documentos" /> Documentos
-                </NavLink>
-                @* Icono distinto de Documentos (antes compartían "documentos")
-                   — "tipos-documento" (documento con marca) encaja con
-                   "plantilla"; informe de consolidación de menú, 2026-09-01
-                   § 6. *@
-                <NavLink class="nav-item" href="plantillas">
-                    <Icono Nombre="plantilla" /> Plantillas
                 </NavLink>
             </div>
         </details>

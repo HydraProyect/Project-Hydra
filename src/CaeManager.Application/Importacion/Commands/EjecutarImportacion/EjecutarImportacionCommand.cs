@@ -257,11 +257,23 @@ public class EjecutarImportacionCommandHandler(
             }
         }
 
-        var asignacionesActivasExistentes = await asignacionesContext.Asignaciones
-            .Where(a => a.FechaBaja == null)
-            .Select(a => new { a.TrabajadorId, a.CentroId })
+        // Trae TODAS las asignaciones existentes, activas o cerradas: DEC-19
+        // exige comprobar solape de rango también contra las ya cerradas, no
+        // solo si el par sigue activo — el hueco que
+        // IX_Asignaciones_TenantId_TrabajadorId_CentroId_Activa nunca cubrió.
+        var asignacionesExistentes = await asignacionesContext.Asignaciones
+            .Select(a => new { a.TrabajadorId, a.CentroId, a.FechaAlta, a.FechaBaja })
             .ToListAsync(cancellationToken);
-        var clavesAsignacionesActivas = asignacionesActivasExistentes
+        var clavesAsignacionesActivas = asignacionesExistentes
+            .Where(a => a.FechaBaja is null)
+            .Select(a => (a.TrabajadorId, a.CentroId))
+            .ToHashSet();
+        // Mismo límite exclusivo que Asignacion.SeSolapaCon: la asignación
+        // nueva es un rango abierto [hoy, ∞), así que solapa con una fila ya
+        // cerrada exactamente cuando esa fila se cerró después de hoy. Un
+        // rango vacío (FechaAlta == FechaBaja) no cuenta: no ocupó ni un día.
+        var clavesAsignacionesSolapanConCerrada = asignacionesExistentes
+            .Where(a => a.FechaBaja is not null && a.FechaBaja.Value != a.FechaAlta && hoy < a.FechaBaja.Value)
             .Select(a => (a.TrabajadorId, a.CentroId))
             .ToHashSet();
 
@@ -304,8 +316,9 @@ public class EjecutarImportacionCommandHandler(
             }
 
             var repetidaEnElArchivo = !clavesAsignacionesDelPlan.Add((trabajadorId, centroId));
+            var clave = (trabajadorId, centroId);
 
-            if (!clavesAsignacionesActivas.Add((trabajadorId, centroId)))
+            if (clavesAsignacionesActivas.Contains(clave))
             {
                 if (repetidaEnElArchivo)
                     // El propio archivo la trae dos veces (el plan prometió dos altas
@@ -322,10 +335,30 @@ public class EjecutarImportacionCommandHandler(
                 continue;
             }
 
+            // DEC-19: la nueva alta no puede pisar el rango de una asignación
+            // YA CERRADA del mismo trío — a diferencia del caso de arriba,
+            // aquí no hay nada que "reutilizar"; es una contradicción de
+            // datos y se omite con su propia causal, nunca en silencio
+            // (DCR-12 B). Comprobado antes de intentar crear, no dentro del
+            // catch de ArgumentException: el dominio no conoce el histórico,
+            // solo el repositorio puede detectarlo.
+            if (clavesAsignacionesSolapanConCerrada.Contains(clave))
+            {
+                omitidosEnEscritura.Add(new ItemImportacionDto(
+                    "Asignaciones", 0, $"{fila.Dni} — {fila.NombreCentro}",
+                    $"El trabajador {fila.Dni} tuvo antes una asignación al centro «{fila.NombreCentro}» cuyo periodo de vigencia se solapa con la fecha de alta de hoy; revisa las fechas del historial antes de reintentar."));
+                continue;
+            }
+
             try
             {
                 var asignacion = new Asignacion(trabajadorId, centroId, hoy);
                 asignacionRepositorio.Agregar(asignacion);
+                // Marca el par como ocupado para que una fila repetida más
+                // adelante en este mismo archivo caiga en la rama de arriba
+                // ("ya venía antes en este mismo archivo") en vez de crear una
+                // segunda asignación activa para el mismo trío.
+                clavesAsignacionesActivas.Add(clave);
                 asignacionesCreadas++;
             }
             catch (ArgumentException ex)

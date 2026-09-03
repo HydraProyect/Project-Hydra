@@ -1,0 +1,131 @@
+@*
+    Pestaña "Plantillas" de /documentos (REC-062, DEC-28, DDL-080): extraída
+    de la antigua página dedicada, sin cambiar su contenido funcional.
+    Plantillas sigue teniendo rutas propias (/plantillas, /plantillas/nueva,
+    /plantillas/{id}/editar, /plantillas/documentos-generados), que se
+    conservan como deep links — Plantillas.razor es ahora una página fina
+    que renderiza este mismo componente.
+
+    Sub-pestañas Catálogo/Generados: aquí se mantienen como selector interno
+    (PestanaInicial solo se lee en el primer render; el cambio posterior
+    queda en memoria del propio componente), no como segundo parámetro de
+    consulta — la única superficie que refleja la sub-pestaña en la URL es
+    la página standalone /plantillas (deep link ?Pestana=generados ya
+    existente, cubierto por PestanaUrlDurableTests). Recargar
+    /documentos?Pestana=plantillas siempre abre en Catálogo: decisión
+    registrada en DDL-080, no un hueco.
+*@
+@using CaeManager.Application.Plantillas.Commands.AgregarVersionPlantilla
+@using CaeManager.Application.Plantillas.Queries.ObtenerPlantillasDocumento
+@using CaeManager.Domain.Plantillas
+@using CaeManager.Web.Features.Plantillas.Components
+@using MediatR
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+@inject ToastService Toasts
+
+<div class="cabecera-pagina">
+    <p class="descripcion-subida-masiva">
+        Formularios que entrega un centro (acceso, autorización, ficha de riesgos…) configurados una vez para
+        rellenarse automáticamente con los datos ya conocidos de cada Trabajador o Empresa.
+    </p>
+    <Boton OnClick='() => Navigation.NavigateTo("/plantillas/nueva")'>+ Nueva plantilla</Boton>
+</div>
+
+<Pestanas Definiciones="PestanasConContador" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestanaAsync" EtiquetaGrupo="Plantillas">
+    @if (_pestanaActiva == "catalogo")
+    {
+        @if (_errorCarga)
+        {
+            <EstadoVacio Titulo="No pudimos cargar las plantillas" Descripcion="Intenta nuevamente en unos segundos.">
+                <Accion>
+                    <Boton OnClick="CargarAsync">Reintentar</Boton>
+                </Accion>
+            </EstadoVacio>
+        }
+        else if (_cargando)
+        {
+            <EstadoCargando Filas="4" />
+        }
+        else if (_plantillas.Count == 0)
+        {
+            <EstadoVacio Titulo="Todavía no hay plantillas" Descripcion="Crea la primera a partir de un PDF que te entregue un centro.">
+                <Accion>
+                    <Boton OnClick='() => Navigation.NavigateTo("/plantillas/nueva")'>+ Nueva plantilla</Boton>
+                </Accion>
+            </EstadoVacio>
+        }
+        else
+        {
+            <table class="tabla-datos">
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Ámbito</th>
+                        <th>Formato</th>
+                        <th>Estado</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var plantilla in _plantillas)
+                    {
+                        <tr>
+                            <td>@plantilla.Nombre</td>
+                            <td>@plantilla.AmbitoAplicacion</td>
+                            <td>@(plantilla.FormatoOrigen == FormatoOrigenPlantilla.PdfConCampos ? "Campos AcroForm" : "Posición manual")</td>
+                            <td>
+                                @if (plantilla.UltimaVersionEstado == EstadoConfiguracionPlantilla.Confirmada)
+                                {
+                                    <Badge Tono="TonoBadge.Exito">Confirmada</Badge>
+                                }
+                                else
+                                {
+                                    <Badge Tono="TonoBadge.Advertencia">@plantilla.UltimaVersionEstado</Badge>
+                                }
+                            </td>
+                            <td>
+                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                       OnClick="() => IrAConfigurar(plantilla.UltimaVersionId)">
+                                    @(plantilla.UltimaVersionEstado == EstadoConfiguracionPlantilla.Confirmada ? "Ver" : "Configurar")
+                                </Boton>
+                                @if (plantilla.UltimaVersionEstado == EstadoConfiguracionPlantilla.Confirmada)
+                                {
+                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                           OnClick="() => AbrirModalNuevaVersion(plantilla.Id, plantilla.Nombre)">
+                                        Subir nueva versión
+                                    </Boton>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+    else
+    {
+        <DocumentosGeneradosPanel TotalCambiado="CambiarTotalGenerados" />
+    }
+</Pestanas>
+
+<Modal Titulo="@($"Subir nueva versión — {_plantillaParaNuevaVersionNombre}")" Visible="ModalNuevaVersionVisible" VisibleChanged="CerrarModalNuevaVersion">
+    <ChildContent>
+        <p class="texto-vacio-seccion">
+            El PDF nuevo sustituye al actual. Los campos ya configurados se copian como punto de partida — revísalos y ajústalos antes de confirmar.
+        </p>
+        <div class="campo">
+            <label>PDF de la nueva versión</label>
+            <InputFile OnChange="ManejarArchivoNuevaVersionAsync" accept=".pdf" />
+            @if (!string.IsNullOrWhiteSpace(_nombreArchivoNuevaVersion))
+            {
+                <span class="detalle-tecnico">@_nombreArchivoNuevaVersion</span>
+            }
+        </div>
+    </ChildContent>
+    <Pie>
+        <Boton OnClick="SubirNuevaVersionAsync" Deshabilitado="@(!PuedeSubirNuevaVersion)">
+            @(_subiendoNuevaVersion ? "Subiendo…" : "Subir y configurar")
+        </Boton>
+    </Pie>
+</Modal>
