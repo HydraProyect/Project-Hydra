@@ -63,7 +63,7 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
 
     private DelegacionDto? _delegacionSoporteAAbrir;
     private string _motivoSoporte = string.Empty;
-    private string _diasSoporte = "7";
+    private string _horasSoporte = "4";
     private string _rolSoporte = RolesSoporte.SoloLectura;
     private bool _abriendoSoporte;
     private string? _errorSoporte;
@@ -187,7 +187,7 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
     {
         _delegacionSoporteAAbrir = delegacion;
         _motivoSoporte = string.Empty;
-        _diasSoporte = "7";
+        _horasSoporte = "4";
         _rolSoporte = RolesSoporte.SoloLectura;
         _errorSoporte = null;
     }
@@ -202,14 +202,14 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
 
         try
         {
-            if (!int.TryParse(_diasSoporte, out var dias))
+            if (!int.TryParse(_horasSoporte, out var horas))
             {
-                _errorSoporte = "Indica los días de acceso como un número.";
+                _errorSoporte = "Indica las horas de acceso como un número.";
                 return;
             }
 
             var resultado = await Mediator.Send(
-                new AbrirAccesoSoporteCommand(_delegacionSoporteAAbrir.Id, _motivoSoporte, dias, _rolSoporte));
+                new AbrirAccesoSoporteCommand(_delegacionSoporteAAbrir.Id, _motivoSoporte, horas, _rolSoporte));
 
             if (resultado.EsFallido)
             {

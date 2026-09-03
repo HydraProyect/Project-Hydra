@@ -84,7 +84,7 @@ public class FlujoSoporteTests(WebAppFixtureParaSoporte fixture)
         var modalAbrir = page.Locator(".modal-contenido").Filter(new LocatorFilterOptions { HasText = "Abrir acceso de soporte" });
         await modalAbrir.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
         await modalAbrir.GetByLabel("Motivo").FillAsync("E2E: verificación del flujo de soporte (P1-19)");
-        // Días de acceso y Permisos se dejan con su valor por defecto (7 días, Solo lectura).
+        // Horas de acceso y Permisos se dejan con su valor por defecto (4 horas, Solo lectura).
         await modalAbrir.Locator(".modal-pie").GetByText("Abrir acceso").ClickAsync();
 
         await modalAbrir.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 10_000 });
