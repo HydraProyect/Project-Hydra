@@ -106,6 +106,40 @@ public class ClosedXmlImportacionParserTests
         plan.Documentos.Should().BeEmpty();
     }
 
+    /// <summary>REC-128, absorbido y cerrado en REC-129 con el mismo ayudante que usan los otros tres analizadores.</summary>
+    [Fact]
+    public async Task Fecha_de_nacimiento_ilegible_no_bloquea_al_trabajador_pero_queda_omitida_nombrando_el_valor_bruto()
+    {
+        var libro = NuevoLibroBase();
+        var hoja = libro.Worksheets.Worksheet("Empleados");
+        EscribirTrabajadorValido(hoja, fila: 4);
+        hoja.Cell(4, 5).Value = "hace treinta años"; // Columna E: texto, no una fecha.
+
+        var plan = await AnalizarAsync(libro);
+
+        var trabajador = plan.Trabajadores.Should().ContainSingle().Subject;
+        trabajador.FechaNacimiento.Should().BeNull();
+
+        var omitido = plan.Omitidos.Should().ContainSingle(o => o.Hoja == "Empleados").Subject;
+        omitido.Fila.Should().Be(4);
+        omitido.Motivo.Should().Be("La fecha de nacimiento «hace treinta años» no se pudo interpretar; el trabajador se importó sin ese dato.");
+    }
+
+    /// <summary>Caso legítimo gemelo del anterior: celda vacía, ningún registro, y el trabajador se importa igual.</summary>
+    [Fact]
+    public async Task Fecha_de_nacimiento_vacia_no_genera_ninguna_entrada_y_el_trabajador_se_importa()
+    {
+        var libro = NuevoLibroBase();
+        var hoja = libro.Worksheets.Worksheet("Empleados");
+        EscribirTrabajadorValido(hoja, fila: 4); // Columna 5 (fecha de nacimiento) queda sin valor.
+
+        var plan = await AnalizarAsync(libro);
+
+        plan.Omitidos.Should().BeEmpty();
+        var trabajador = plan.Trabajadores.Should().ContainSingle().Subject;
+        trabajador.FechaNacimiento.Should().BeNull();
+    }
+
     [Fact]
     public async Task Tipo_de_documento_fuera_del_catalogo_queda_omitido_y_no_en_Advertencias()
     {

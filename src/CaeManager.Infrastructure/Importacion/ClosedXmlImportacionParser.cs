@@ -33,6 +33,16 @@ namespace CaeManager.Infrastructure.Importacion;
 /// el caso legítimo y silencioso (fila de plantilla totalmente vacía, celda
 /// de fecha vacía, columna de centro sin marca) del que sí pierde un dato: en
 /// esos tres el `continue` sigue mudo a propósito, verificado por test.
+///
+/// La fecha de nacimiento (columna 5 de Empleados/Extranjeros) es dato
+/// opcional de una fila que sí se importa: si la celda está vacía, el
+/// trabajador se crea sin fecha de nacimiento, legítimo y silencioso; si la
+/// celda trae un valor que no se pudo interpretar, el trabajador se crea
+/// igual (éxito parcial, DCR-12 B) pero la pérdida del dato concreto queda
+/// en <see cref="PlanImportacionDto.Omitidos"/> nombrando el valor bruto
+/// (REC-128, cerrado dentro de REC-129 con el mismo ayudante que también
+/// usan <see cref="ClosedXmlPlantillaDocumentosService"/> y
+/// <see cref="ClosedXmlPlantillaCombinadaService"/>).
 /// </summary>
 public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext) : IExcelImportacionParser
 {
@@ -248,17 +258,23 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
                 huboAlMenosUnTrabajador = true;
             }
 
-            var fechaNacimiento = FechaCelda(hoja.Cell(fila, 5)).Fecha;
+            var resultadoNacimiento = FechaCeldaAyudante.Leer(hoja.Cell(fila, 5));
+            if (resultadoNacimiento.Estado == EstadoCeldaFecha.Ilegible)
+            {
+                omitidos.Add(new ItemImportacionDto(
+                    nombreHoja, fila, $"{nombre} {apellidos} ({dni})",
+                    $"La fecha de nacimiento «{resultadoNacimiento.ValorBruto}» no se pudo interpretar; el trabajador se importó sin ese dato."));
+            }
             var email = TextoCelda(hoja.Cell(fila, 6));
 
             trabajadores.Add(new TrabajadorImportadoDto(
-                nombreEmpresa, nombre.Trim(), apellidos.Trim(), dni, fechaNacimiento, email, dnisExistentes.Contains(dni)));
+                nombreEmpresa, nombre.Trim(), apellidos.Trim(), dni, resultadoNacimiento.Fecha, email, dnisExistentes.Contains(dni)));
 
             nombreCompletoADni[$"{nombre.Trim()} {apellidos.Trim()}"] = dni;
 
             foreach (var (columna, tipoDocumento) in ColumnasDocumentos)
             {
-                var resultadoFecha = FechaCelda(hoja.Cell(fila, columna));
+                var resultadoFecha = FechaCeldaAyudante.Leer(hoja.Cell(fila, columna));
                 if (resultadoFecha.Estado == EstadoCeldaFecha.Vacia)
                     continue; // Legítimo: no hay documento de este tipo para este trabajador.
 
@@ -400,22 +416,6 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
         if (celda.IsEmpty()) return null;
         var texto = celda.GetString().Trim();
         return string.IsNullOrWhiteSpace(texto) ? null : texto;
-    }
-
-    private enum EstadoCeldaFecha { Vacia, Ilegible, Valida }
-
-    /// <summary>
-    /// DCR-12 B exige distinguir la celda vacía (legítimo: no hay documento de
-    /// ese tipo) de la celda con un valor que no se pudo interpretar como fecha
-    /// (dato perdido: hay que registrarlo con el valor bruto que traía).
-    /// </summary>
-    private readonly record struct ResultadoFechaCelda(EstadoCeldaFecha Estado, DateOnly? Fecha, string? ValorBruto);
-
-    private static ResultadoFechaCelda FechaCelda(IXLCell celda)
-    {
-        if (celda.IsEmpty()) return new ResultadoFechaCelda(EstadoCeldaFecha.Vacia, null, null);
-        if (celda.TryGetValue<DateTime>(out var fecha)) return new ResultadoFechaCelda(EstadoCeldaFecha.Valida, DateOnly.FromDateTime(fecha), null);
-        return new ResultadoFechaCelda(EstadoCeldaFecha.Ilegible, null, celda.GetString().Trim());
     }
 
     /// <summary>
