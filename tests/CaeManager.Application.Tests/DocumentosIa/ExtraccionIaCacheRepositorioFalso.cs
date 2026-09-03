@@ -11,6 +11,7 @@ namespace CaeManager.Application.Tests.DocumentosIa;
 public class ExtraccionIaCacheRepositorioFalso : IExtraccionIaCacheRepository
 {
     private readonly Dictionary<(string Hash, string Tipo, string Version), ExtraccionIaCache> _porClave = [];
+    private readonly List<ExtraccionIaCacheDocumento> _vinculos = [];
 
     public Task<ExtraccionIaCache?> ObtenerAsync(
         string hashSha256, string tipoEsperado, CancellationToken cancellationToken = default) =>
@@ -34,5 +35,48 @@ public class ExtraccionIaCacheRepositorioFalso : IExtraccionIaCacheRepository
     {
         _porClave.Remove((cache.HashSha256, cache.TipoEsperado, cache.VersionPipeline));
         VecesDescartada++;
+    }
+
+    /// <summary>REC-036/DEC-34 — vínculos creados hasta ahora, para que los tests los inspeccionen directamente.</summary>
+    public IReadOnlyList<ExtraccionIaCacheDocumento> Vinculos => _vinculos;
+
+    public Task<ExtraccionIaCacheDocumento?> VincularDocumentoAsync(
+        Guid extraccionIaCacheId, Guid documentoId, CancellationToken cancellationToken = default)
+    {
+        if (_vinculos.Any(v => v.ExtraccionIaCacheId == extraccionIaCacheId && v.DocumentoId == documentoId))
+            return Task.FromResult<ExtraccionIaCacheDocumento?>(null);
+
+        var vinculo = ExtraccionIaCacheDocumento.Crear(extraccionIaCacheId, documentoId);
+        _vinculos.Add(vinculo);
+        return Task.FromResult<ExtraccionIaCacheDocumento?>(vinculo);
+    }
+
+    public int VecesVinculoDescartado { get; private set; }
+
+    public void DescartarVinculoTrasConflicto(ExtraccionIaCacheDocumento vinculo)
+    {
+        _vinculos.Remove(vinculo);
+        VecesVinculoDescartado++;
+    }
+
+    public Task PurgarVinculadosADocumentosAsync(IReadOnlyCollection<Guid> documentoIds, CancellationToken cancellationToken = default)
+    {
+        var vinculosDelLote = _vinculos.Where(v => documentoIds.Contains(v.DocumentoId)).ToList();
+        var cacheIdsAfectados = vinculosDelLote.Select(v => v.ExtraccionIaCacheId).Distinct().ToList();
+
+        foreach (var vinculo in vinculosDelLote)
+            _vinculos.Remove(vinculo);
+
+        foreach (var cacheId in cacheIdsAfectados)
+        {
+            if (_vinculos.Any(v => v.ExtraccionIaCacheId == cacheId))
+                continue; // otro Documento fuera del lote sigue usando esta entrada.
+
+            var entrada = _porClave.Values.FirstOrDefault(c => c.Id == cacheId);
+            if (entrada is not null)
+                _porClave.Remove((entrada.HashSha256, entrada.TipoEsperado, entrada.VersionPipeline));
+        }
+
+        return Task.CompletedTask;
     }
 }

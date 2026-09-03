@@ -375,6 +375,78 @@ public class DocumentAIRouterServiceTests
         auditoria.Auditorias[0].DocumentoId.Should().BeNull("triage previo a la creación del Documento — todavía no existe qué enlazar");
     }
 
+    /// <summary>REC-036/DEC-34: la entrada nueva de caché queda vinculada al Documento que la produjo — ver ExtraccionIaCacheDocumento.</summary>
+    [Fact]
+    public async Task Vincula_la_entrada_de_cache_recien_creada_al_documento_indicado()
+    {
+        var proveedor = new ProveedorIaFalso(
+            "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Apto médico", new Dictionary<string, string?>(), 97, null)));
+        var (router, cache, _, _) = CrearRouterConDependencias(Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"), proveedor);
+        var documentoId = Guid.NewGuid();
+
+        await router.ProcesarAsync([1, 2, 3], "documento.pdf", "Apto médico", documentoId);
+
+        cache.Vinculos.Should().ContainSingle().Which.DocumentoId.Should().Be(documentoId);
+    }
+
+    /// <summary>Triage previo a la creación del Documento (sin documentoId): la entrada de caché no debe llevar ningún vínculo.</summary>
+    [Fact]
+    public async Task No_vincula_la_entrada_de_cache_a_ningun_documento_cuando_no_se_indica()
+    {
+        var proveedor = new ProveedorIaFalso(
+            "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Apto médico", new Dictionary<string, string?>(), 97, null)));
+        var (router, cache, _, _) = CrearRouterConDependencias(Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"), proveedor);
+
+        await router.ProcesarAsync([1, 2, 3], "documento.pdf", "Apto médico");
+
+        cache.Vinculos.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// El caso central de riesgo #2 del handoff: una entrada creada por
+    /// triage sin documentoId (p. ej. detección al subir) que luego un
+    /// acierto de caché sobre un Documento ya existente (verificación IA)
+    /// reutiliza — el vínculo tiene que crearse en ESE segundo momento, o la
+    /// entrada quedaría huérfana para siempre.
+    /// </summary>
+    [Fact]
+    public async Task Un_acierto_de_cache_sobre_un_documento_existente_vincula_una_entrada_creada_antes_sin_documento()
+    {
+        var proveedor = new ProveedorIaFalso(
+            "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Apto médico", new Dictionary<string, string?>(), 97, null)));
+        var (router, cache, _, _) = CrearRouterConDependencias(Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"), proveedor);
+        byte[] archivo = [1, 2, 3];
+        var documentoId = Guid.NewGuid();
+
+        await router.ProcesarAsync(archivo, "documento.pdf", "Apto médico"); // triage: sin documentoId
+        cache.Vinculos.Should().BeEmpty("todavía no hay Documento al que enlazar");
+
+        await router.ProcesarAsync(archivo, "documento.pdf", "Apto médico", documentoId); // verificación: acierto de caché, con documentoId
+
+        proveedor.VecesLlamadoParaEstructurado.Should().Be(1, "la segunda llamada se sirvió desde caché, no volvió a pagar al proveedor");
+        cache.Vinculos.Should().ContainSingle().Which.DocumentoId.Should().Be(documentoId);
+    }
+
+    /// <summary>Reprocesar el mismo Documento (misma clave de caché) no debe duplicar el vínculo — es la misma idempotencia que Agregar ya da para el JSON.</summary>
+    [Fact]
+    public async Task Reprocesar_el_mismo_documento_no_duplica_el_vinculo()
+    {
+        var proveedor = new ProveedorIaFalso(
+            "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Apto médico", new Dictionary<string, string?>(), 97, null)));
+        var (router, cache, _, _) = CrearRouterConDependencias(Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"), proveedor);
+        byte[] archivo = [1, 2, 3];
+        var documentoId = Guid.NewGuid();
+
+        await router.ProcesarAsync(archivo, "documento.pdf", "Apto médico", documentoId);
+        await router.ProcesarAsync(archivo, "documento.pdf", "Apto médico", documentoId);
+
+        cache.Vinculos.Should().ContainSingle();
+    }
+
     [Fact]
     public async Task Registra_una_auditoria_con_proveedor_ninguno_cuando_falla()
     {
