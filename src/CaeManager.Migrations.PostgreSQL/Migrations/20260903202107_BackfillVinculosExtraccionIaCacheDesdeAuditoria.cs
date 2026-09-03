@@ -35,8 +35,15 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// aproximación suficiente para un backfill de una sola vez (no la
     /// lógica de negocio en curso, que sigue siendo la de
     /// <c>NormalizarTipoEsperado</c> en C#): no reproduce con exactitud
-    /// unicode cada caso límite de <c>ToLowerInvariant</c>, pero coincide
-    /// para el vocabulario real de tipos documentales de este catálogo.
+    /// unicode cada caso límite de <c>ToLowerInvariant</c>/<c>char.IsWhiteSpace</c>
+    /// (p. ej. un espacio de no separación u otro espacio Unicode "raro" que
+    /// <c>\s</c> de PostgreSQL no reconoce igual que .NET), pero coincide
+    /// para el vocabulario real de tipos documentales de este catálogo —
+    /// texto en español, tecleado a mano o copiado de los literales del
+    /// código, no de un PDF con espacios exóticos. Un fallo de coincidencia
+    /// aquí es <b>seguro</b>, no silenciosamente incorrecto: la fila
+    /// simplemente no se backfillea y queda exactamente como estaba antes de
+    /// este cambio (sin vínculo), no se vincula a una entrada equivocada.
     ///
     /// Aditiva y solo INSERT (CLAUDE.md § 9 de HO-036-01: nada de borrar
     /// filas existentes sin elevarlo). <c>ON CONFLICT DO NOTHING</c> la hace
