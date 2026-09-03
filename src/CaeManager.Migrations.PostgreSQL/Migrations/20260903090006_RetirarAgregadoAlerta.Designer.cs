@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    partial class CaeManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260903090006_RetirarAgregadoAlerta")]
+    partial class RetirarAgregadoAlerta
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -3897,30 +3900,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("TenantId", "EjecutadaEnUtc");
 
                     b.ToTable("HistorialImportaciones", (string)null);
-                });
-
-            modelBuilder.Entity("CaeManager.Domain.Importacion.OperacionImportacion", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("ConfirmadaEnUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("OperacionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TenantId", "OperacionId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_OperacionesImportacion_TenantId_OperacionId");
-
-                    b.ToTable("OperacionesImportacion", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Incidencias.Incidencia", b =>

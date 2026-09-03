@@ -14,10 +14,11 @@ namespace CaeManager.Application.Alertas.Queries.ObtenerAlertas;
 
 /// <summary>
 /// Se calcula en vivo sobre Documentos en cada petición, en vez de leer de
-/// una tabla Alerta sincronizada por un job en segundo plano — una vista
+/// una tabla propia sincronizada por un job en segundo plano — una vista
 /// calculada nunca puede desincronizarse del estado real (ver ROADMAP.md).
-/// La entidad Alerta del dominio queda preparada para cuando se necesite
-/// marcar alertas como leídas por usuario. <c>EnvioAlertasVencimientoHostedService</c>
+/// El agregado de dominio y la tabla Alertas que existieron para esto se
+/// retiraron (REC-069/DEC-23): nadie los producía ni los consumía, y la
+/// notificación real ya va por <c>NotificacionUsuario</c> y correo. <c>EnvioAlertasVencimientoHostedService</c>
 /// (Infrastructure, Issue #2) sí llama a esto periódicamente para el resumen
 /// por correo, pero sigue siendo cálculo en vivo en cada ejecución — no una
 /// tabla propia. Solo cubre Documentos de Trabajador — los de Cliente/Empresa

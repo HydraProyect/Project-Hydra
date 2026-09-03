@@ -92,7 +92,7 @@ public class DocumentoConfiguration : IEntityTypeConfiguration<Documento>
             .HasPrincipalKey(t => new { t.TenantId, t.Id })
             .OnDelete(DeleteBehavior.Restrict);
 
-        // Prerequisito de la FK que Alerta declara hacia Documento.
+        // Prerequisito de la FK que AcreditacionDocumentoPlataforma declara hacia Documento.
         builder.HasIndex(d => new { d.TenantId, d.Id }).IsUnique();
 
         // Filtro global (soft delete + tenant) centralizado en CaeManagerDbContext.OnModelCreating.
