@@ -102,10 +102,11 @@
             }
         </CampoSelect>
 
-        @if (_rol == Roles.Administrador)
+        @if (_rol == Roles.Administrador && _usuarioActualEsAdministrador)
         {
             @* DEC-36 (REC-099): permiso específico, aparte del rol — nadie lo
-               hereda solo por ser Administrador. *@
+               hereda solo por ser Administrador, y solo otro Administrador
+               (no DireccionCae) puede concederlo o revocarlo. *@
             <label class="campo-checkbox" title="Permite consultar quién ha abierto o descargado documentos sensibles (reconocimientos médicos y similares)">
                 <input type="checkbox" checked="@_permisoConsultarAccesoDocumentosSensibles" @onchange="e => _permisoConsultarAccesoDocumentosSensibles = e.Value is bool activo && activo" />
                 Puede consultar el rastro de acceso a documentos sensibles

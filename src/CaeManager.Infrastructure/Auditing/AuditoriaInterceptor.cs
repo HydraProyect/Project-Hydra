@@ -137,6 +137,18 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
         foreach (var entrada in context.ChangeTracker.Entries())
         {
             if (entrada.Entity is RegistroAuditoria) continue;
+
+            // DEC-36 (REC-099): sin esta exclusión, insertar un
+            // RegistroAccesoDocumentoSensible generaba TAMBIÉN una fila en
+            // RegistroAuditoria ("Creado", con el mismo UsuarioId) — visible
+            // en /auditoria por cualquier Administrador, sin pasar por
+            // Policies.ConsultarAccesoDocumentosSensibles. No revela
+            // DocumentoId/Sensibilidad (DatosDespues no se muestra en el
+            // listado general), pero sí quién accedió a un documento
+            // sensible y cuándo — justo lo que el permiso específico existe
+            // para acotar. Codex lo detectó antes de abrir la PR.
+            if (entrada.Entity is RegistroAccesoDocumentoSensible) continue;
+
             if (entrada.Entity.GetType().Namespace?.StartsWith("CaeManager.Domain", StringComparison.Ordinal) != true) continue;
             if (entrada.State is not (EntityState.Added or EntityState.Modified or EntityState.Deleted)) continue;
 

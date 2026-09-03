@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Subcontratas.Queries.ObtenerEvidenciaVerificacionParaDescarga;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
+using CaeManager.Domain.Auditoria;
 using CaeManager.Web.Exportacion;
 using ClosedXML.Excel;
 using MediatR;
@@ -17,18 +18,19 @@ public static class SubcontratasEndpoints
     public static IEndpointRouteBuilder MapSubcontratasEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet("/subcontratas/verificaciones/{id:guid}/evidencia", async (
-            Guid id, IMediator mediator, IFileStorageService almacenamiento, CancellationToken cancellationToken) =>
+            Guid id, IMediator mediator, IFileStorageService almacenamiento,
+            IRegistroAccesoDocumentoSensibleService registroAcceso, CancellationToken cancellationToken) =>
         {
             var evidencia = await mediator.Send(new ObtenerEvidenciaVerificacionParaDescargaQuery(id), cancellationToken);
             if (evidencia is null)
                 return Results.NotFound();
 
-            // No pasa por IRegistroAccesoDocumentoSensibleService (DEC-36,
-            // HO-099-01 § 6-7): la evidencia de VerificacionExternaSubcontrata
-            // no es un Documento del catálogo de TipoDocumento — sin
-            // TipoDocumentoId no hay categoría que consultar en el punto
-            // único de REC-132.
+            // DEC-36 (REC-099): a diferencia de un adjunto de correo o una
+            // plantilla en blanco, la evidencia de VerificacionExternaSubcontrata
+            // SÍ tiene un TipoDocumentoId real (Codex lo detectó antes de
+            // abrir la PR — la exclusión original asumía lo contrario).
             var flujo = await almacenamiento.AbrirAsync(evidencia.ArchivoRuta, cancellationToken);
+            await registroAcceso.RegistrarSiSensibleAsync(id, evidencia.TipoDocumentoId, TipoAccesoDocumentoSensible.Apertura, cancellationToken);
             return Results.File(flujo, TipoContenidoDe(evidencia.NombreArchivo), evidencia.NombreArchivo, enableRangeProcessing: true);
         });
 

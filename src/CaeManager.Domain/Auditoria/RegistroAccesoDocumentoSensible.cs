@@ -34,18 +34,20 @@ namespace CaeManager.Domain.Auditoria;
 /// ahí no hay una persona mirando, y DEC-36 habla de acceso efectivo por un
 /// actor — el veredicto completo sobre esos once va en el RETURN PACKAGE de
 /// HO-099-01, no en este comentario. Y tampoco los puntos que sirven
-/// <c>IFileStorageService.AbrirAsync</c> sin que exista debajo un
-/// <see cref="Documentos.Documento"/> clasificable por
-/// <see cref="Documentos.TipoDocumento.Sensibilidad"/> — adjuntos de correo
-/// (<c>AdjuntoMensaje</c>), evidencia de verificación de subcontratas
-/// (<c>VerificacionExternaSubcontrata</c>), firma/sello de imagen
+/// <c>IFileStorageService.AbrirAsync</c> sin ninguna clasificación real —
+/// adjuntos de correo (<c>AdjuntoMensaje</c>), firma/sello de imagen
 /// (<c>FirmaGuardadaUsuario</c>/<c>SelloEmpresa</c>) y las dos plantillas en
 /// blanco (<c>TipoDocumentoCentro.ArchivoUrl</c>,
-/// <c>PlantillaDocumentoVersion.ArchivoOriginalUrl</c>): ninguno es una
-/// instancia de <see cref="Documentos.Documento"/> con datos de una persona
-/// concreta, así que la categoría de DEC-36 no tiene de dónde salir sin
-/// inventar una fuente distinta al punto único de REC-132 — justo lo que esa
-/// decisión prohíbe.
+/// <c>PlantillaDocumentoVersion.ArchivoOriginalUrl</c>): ninguno tiene un
+/// <c>TipoDocumentoId</c> real (o, en el caso de las plantillas, el contenido
+/// está deliberadamente vacío), así que la categoría de DEC-36 no tiene de
+/// dónde salir sin inventar una fuente distinta al punto único de REC-132 —
+/// justo lo que esa decisión prohíbe. La evidencia de
+/// <c>VerificacionExternaSubcontrata</c> SÍ se registra (tiene su propio
+/// <c>TipoDocumentoId</c>, y el archivo adjunto no es una plantilla en
+/// blanco) pese a no ser una instancia de <see cref="Documentos.Documento"/>
+/// — ver la sobrecarga de <c>IRegistroAccesoDocumentoSensibleService</c> que
+/// acepta el <c>TipoDocumentoId</c> directamente.
 /// </para>
 /// </summary>
 public class RegistroAccesoDocumentoSensible : EntidadConTenant

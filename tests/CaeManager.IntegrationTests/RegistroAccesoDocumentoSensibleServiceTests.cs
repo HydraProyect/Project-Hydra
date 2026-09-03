@@ -10,6 +10,8 @@ using CaeManager.Infrastructure.Persistence.Seed;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+using Npgsql;
 using Xunit;
 
 namespace CaeManager.IntegrationTests;
@@ -51,7 +53,7 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
 
     private RegistroAccesoDocumentoSensibleService CrearServicio(ActorAuditoria actor) =>
         new(_dbContext, _dbContext, new ActorAuditoriaFalso(actor),
-            new RegistroAccesoDocumentoSensibleRepository(_dbContext), _dbContext);
+            new RegistroAccesoDocumentoSensibleRepository(_dbContext, NullLogger<RegistroAccesoDocumentoSensibleRepository>.Instance));
 
     private async Task<TipoDocumento> TipoConSensibilidadAsync(SensibilidadDocumental sensibilidad) =>
         await _dbContext.TiposDocumento.FirstAsync(t => t.Sensibilidad == sensibilidad);
@@ -180,6 +182,122 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
         {
             _tenantActual.TenantId = TenantSeedData.IdPorDefecto;
         }
+    }
+
+    /// <summary>
+    /// Append-only a nivel de base, no solo de código C# (Codex, HO-099-01):
+    /// conecta como <c>cae_app_runtime</c> real (login, no SET ROLE desde el
+    /// propietario) y comprueba que ni siquiera un UPDATE/DELETE por SQL
+    /// crudo puede tocar una fila ya escrita — la migración
+    /// HabilitarRlsRegistrosAccesoDocumentoSensible revoca esos dos
+    /// privilegios específicamente sobre esta tabla.
+    /// </summary>
+    [Fact]
+    public async Task Cae_app_runtime_no_puede_actualizar_ni_borrar_filas_por_sql_directo()
+    {
+        var tipo = await TipoConSensibilidadAsync(SensibilidadDocumental.CategoriaEspecialSalud);
+        var documento = CrearDocumentoDeEmpresa(tipo.Id);
+        _dbContext.Documentos.Add(documento);
+        await _dbContext.SaveChangesAsync();
+
+        var servicio = CrearServicio(ActorAuditoria.Normal(Guid.NewGuid()));
+        await servicio.RegistrarSiSensibleAsync(documento.Id, TipoAccesoDocumentoSensible.Apertura);
+
+        await using var conexionRuntime = new NpgsqlConnection(BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaConexion));
+        await conexionRuntime.OpenAsync();
+        await using var comandoSetTenant = conexionRuntime.CreateCommand();
+        comandoSetTenant.CommandText = "SELECT set_config('app.tenant_id', $1, false);";
+        comandoSetTenant.Parameters.AddWithValue(TenantSeedData.IdPorDefecto.ToString());
+        await comandoSetTenant.ExecuteNonQueryAsync();
+
+        await using var comandoUpdate = conexionRuntime.CreateCommand();
+        comandoUpdate.CommandText = """UPDATE "RegistrosAccesoDocumentoSensible" SET "TipoAcceso" = 'VersionAnterior';""";
+        var intentoUpdate = () => comandoUpdate.ExecuteNonQueryAsync();
+        (await intentoUpdate.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be("42501");
+
+        await using var comandoDelete = conexionRuntime.CreateCommand();
+        comandoDelete.CommandText = """DELETE FROM "RegistrosAccesoDocumentoSensible";""";
+        var intentoDelete = () => comandoDelete.ExecuteNonQueryAsync();
+        (await intentoDelete.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be("42501");
+
+        // Control positivo del propio instrumento: SELECT sigue funcionando
+        // con el mismo rol — si esto fallara, los dos rechazos de arriba no
+        // demostrarían el REVOKE, demostrarían una conexión rota.
+        await using var comandoSelect = conexionRuntime.CreateCommand();
+        comandoSelect.CommandText = """SELECT COUNT(*) FROM "RegistrosAccesoDocumentoSensible" WHERE "DocumentoId" = $1;""";
+        comandoSelect.Parameters.AddWithValue(documento.Id);
+        var total = (long)(await comandoSelect.ExecuteScalarAsync())!;
+        total.Should().BeGreaterThan(0);
+    }
+
+    /// <summary>
+    /// La conexión real de una sesión privilegiada de plataforma (ADR-011 §
+    /// 4bis) adopta <c>cae_app_soporte</c> con <c>SET ROLE</c>, sin
+    /// privilegio de escritura sobre ninguna tabla — deliberado (ver
+    /// RolSoporteSoloLectura). El repositorio debe tolerar ese fallo, no
+    /// romper la descarga que lo desencadenó (Codex, HO-099-01).
+    /// </summary>
+    [Fact]
+    public async Task El_repositorio_no_revienta_cuando_la_sesion_no_tiene_privilegio_de_escritura()
+    {
+        await using var conexionSoporte = new NpgsqlConnection(_cadenaConexion);
+        await conexionSoporte.OpenAsync();
+        await using (var comandoRol = conexionSoporte.CreateCommand())
+        {
+            comandoRol.CommandText = "SET ROLE cae_app_soporte;";
+            await comandoRol.ExecuteNonQueryAsync();
+        }
+
+        var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
+            .UseNpgsql(conexionSoporte, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            .Options;
+
+        await using var dbContextSoporte = new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), _tenantActual);
+        var repositorio = new RegistroAccesoDocumentoSensibleRepository(dbContextSoporte, NullLogger<RegistroAccesoDocumentoSensibleRepository>.Instance);
+
+        var registro = new RegistroAccesoDocumentoSensible(
+            Guid.NewGuid(), SensibilidadDocumental.CategoriaEspecialSalud, TipoAccesoDocumentoSensible.Apertura,
+            Guid.NewGuid(), Guid.NewGuid(), TipoViaAccesoAuditoria.SesionPrivilegiada, Guid.NewGuid());
+
+        var guardar = () => repositorio.GuardarAsync(registro);
+
+        (await guardar.Should().NotThrowAsync()).Which.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// DEC-36 (REC-099): el registro no debe filtrarse a la auditoría
+    /// general, visible por cualquier Administrador sin el permiso
+    /// específico — AuditoriaInterceptor debe excluir esta entidad igual que
+    /// ya excluye RegistroAuditoria (Codex, HO-099-01).
+    /// </summary>
+    [Fact]
+    public async Task No_genera_una_fila_duplicada_en_la_auditoria_general()
+    {
+        var tipo = await TipoConSensibilidadAsync(SensibilidadDocumental.CategoriaEspecialSalud);
+        var documento = CrearDocumentoDeEmpresa(tipo.Id);
+        _dbContext.Documentos.Add(documento);
+        await _dbContext.SaveChangesAsync();
+
+        var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
+            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            .AddInterceptors(
+                new TenantSelladoInterceptor(_tenantActual),
+                new CaeManager.Infrastructure.Auditing.AuditoriaInterceptor(new ActorAuditoriaFalso(ActorAuditoria.Normal(Guid.NewGuid()))))
+            .Options;
+
+        await using var dbContextConAuditoria = new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), _tenantActual);
+        var repositorio = new RegistroAccesoDocumentoSensibleRepository(dbContextConAuditoria, NullLogger<RegistroAccesoDocumentoSensibleRepository>.Instance);
+
+        var registro = new RegistroAccesoDocumentoSensible(
+            documento.Id, SensibilidadDocumental.CategoriaEspecialSalud, TipoAccesoDocumentoSensible.Apertura,
+            Guid.NewGuid(), Guid.NewGuid(), TipoViaAccesoAuditoria.Normal, null);
+
+        (await repositorio.GuardarAsync(registro)).Should().BeTrue();
+
+        var filasEnAuditoriaGeneral = await _dbContext.RegistrosAuditoria
+            .CountAsync(r => r.EntidadTipo == nameof(RegistroAccesoDocumentoSensible));
+
+        filasEnAuditoriaGeneral.Should().Be(0);
     }
 }
 

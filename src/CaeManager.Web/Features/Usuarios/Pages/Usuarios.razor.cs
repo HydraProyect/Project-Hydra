@@ -38,6 +38,17 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     private bool _cargando = true;
     private bool _errorCarga;
     private Guid? _usuarioActualId;
+
+    /// <summary>
+    /// El actor que edita, no el rol que se le asigna al usuario editado —
+    /// esta página también la abre DireccionCae (mismo nivel de "ve todo el
+    /// negocio"), pero DEC-36 (REC-099) dice específicamente "concedido
+    /// explícitamente por otro Administrador". Sin esta distinción, un
+    /// DireccionCae podría convertirse en Administrador con el permiso ya
+    /// concedido en el mismo guardado.
+    /// </summary>
+    private bool _usuarioActualEsAdministrador;
+
     private int _pagina = 1;
 
     private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_usuarios.Count / (double)_tamanoPagina));
@@ -108,6 +119,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             var estadoAutenticacion = await AuthenticationStateProvider.GetAuthenticationStateAsync();
             var idClaim = estadoAutenticacion.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             _usuarioActualId = Guid.TryParse(idClaim, out var id) ? id : null;
+            _usuarioActualEsAdministrador = estadoAutenticacion.User.IsInRole(Roles.Administrador);
 
             var usuarios = new List<UsuarioListaDto>();
             // Acotado al tenant activo: UserManager.Users no filtra nada
@@ -303,7 +315,11 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             TenantId = tenantId,
             CoordinadorUsuarioId = _rol == Roles.GestorCae && Guid.TryParse(_coordinadorUsuarioId, out var coordId) ? coordId : null,
             ClienteId = _rol == Roles.Cliente ? _clienteEncontrado?.Id : null,
-            PermisoConsultarAccesoDocumentosSensibles = _rol == Roles.Administrador && _permisoConsultarAccesoDocumentosSensibles,
+            // Servidor, no solo UI (Codex, HO-099-01): DireccionCae también
+            // abre esta página, y sin esta comprobación podría crear un
+            // Administrador con el permiso ya concedido en el mismo alta.
+            PermisoConsultarAccesoDocumentosSensibles =
+                _usuarioActualEsAdministrador && _rol == Roles.Administrador && _permisoConsultarAccesoDocumentosSensibles,
             // Nadie más que el propio usuario llega a conocer su contraseña:
             // la cuenta nace SIN ninguna y él la establece desde el enlace de
             // activación. Por eso DebeCambiarContrasena queda en false — ya no
@@ -405,7 +421,15 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             usuario.NombreCompleto = _nombreCompleto;
             usuario.CoordinadorUsuarioId = _rol == Roles.GestorCae && Guid.TryParse(_coordinadorUsuarioId, out var coordId) ? coordId : null;
             usuario.ClienteId = _rol == Roles.Cliente ? _clienteEncontrado?.Id : null;
-            usuario.PermisoConsultarAccesoDocumentosSensibles = _rol == Roles.Administrador && _permisoConsultarAccesoDocumentosSensibles;
+
+            // Solo un Administrador puede tocar este permiso (Codex,
+            // HO-099-01): un DireccionCae editando otros campos de la misma
+            // cuenta no debe poder cambiarlo en ninguna dirección, ni
+            // concederlo ni revocarlo — el valor existente en base se
+            // conserva tal cual si quien edita no es Administrador.
+            if (_usuarioActualEsAdministrador)
+                usuario.PermisoConsultarAccesoDocumentosSensibles = _rol == Roles.Administrador && _permisoConsultarAccesoDocumentosSensibles;
+
             await UserManager.UpdateAsync(usuario);
 
             var rolesActuales = await UserManager.GetRolesAsync(usuario);

@@ -85,9 +85,11 @@ public static class AuditoriaEndpoints
         }).RequireAuthorization(policy => policy.RequireRole(Roles.Administrador));
 
         endpoints.MapGet("/auditoria/{id:guid}/archivo-anterior", async (
-            Guid id, IMediator mediator, IFileStorageService almacenamiento,
+            Guid id, HttpContext contexto, IMediator mediator, IFileStorageService almacenamiento,
             IRegistroAccesoDocumentoSensibleService registroAcceso, CancellationToken cancellationToken) =>
         {
+            CabecerasArchivoSensible.ProhibirCache(contexto);
+
             var registro = await mediator.Send(new ObtenerRegistroAuditoriaPorIdQuery(id), cancellationToken);
             if (registro is null || registro.EntidadTipo != "Documento" || registro.DatosAntes is null)
                 return Results.NotFound();
@@ -110,14 +112,14 @@ public static class AuditoriaEndpoints
 
             try
             {
-                // DEC-36 (REC-099): registro.EntidadId es el DocumentoId (el
-                // tipo ya se comprobó arriba) — sigue siendo el mismo
+                // DEC-36 (REC-099): se abre primero y se registra después de
+                // confirmar que el archivo existe (mismo criterio que
+                // DocumentosEndpoints) — registro.EntidadId es el DocumentoId
+                // (el tipo ya se comprobó arriba): sigue siendo el mismo
                 // Documento aunque el archivo servido sea una versión
-                // anterior, así que categoría se resuelve igual que en
-                // DocumentosEndpoints.
-                await registroAcceso.RegistrarSiSensibleAsync(registro.EntidadId, TipoAccesoDocumentoSensible.VersionAnterior, cancellationToken);
-
+                // anterior.
                 var flujo = await almacenamiento.AbrirAsync(archivoUrl, cancellationToken);
+                await registroAcceso.RegistrarSiSensibleAsync(registro.EntidadId, TipoAccesoDocumentoSensible.VersionAnterior, cancellationToken);
                 return Results.File(flujo, "application/pdf", "documento-anterior.pdf", enableRangeProcessing: true);
             }
             catch (FileNotFoundException)

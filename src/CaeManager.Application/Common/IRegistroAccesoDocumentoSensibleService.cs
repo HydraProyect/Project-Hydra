@@ -7,15 +7,16 @@ namespace CaeManager.Application.Common;
 /// <see cref="Domain.Documentos.Documento"/> clasificado como sensible.
 ///
 /// <para>
-/// <b>Solo llamar desde los puntos de servicio que sirven el contenido de un
-/// <see cref="Domain.Documentos.Documento"/> real a un actor humano</b> — los
-/// ocho medidos en HO-099-01 § 6, de los cuales solo dos (el archivo vigente
-/// y la versión anterior desde Auditoría) tienen debajo una instancia de
-/// <c>Documento</c> clasificable por
-/// <see cref="Domain.Documentos.TipoDocumento.Sensibilidad"/>; los otros seis
-/// sirven contenido sin esa clasificación (adjunto de correo, evidencia de
-/// verificación de subcontrata, imagen de firma/sello, plantilla en blanco) y
-/// no deben llamar a este servicio — ver el comentario de cada punto de
+/// <b>Solo llamar desde los puntos de servicio que sirven contenido
+/// clasificable a un actor humano</b> — los ocho medidos en HO-099-01 § 6,
+/// de los cuales tres tienen clasificación
+/// real: el archivo vigente y la versión anterior desde Auditoría (instancia
+/// de <c>Documento</c>, clasificable por
+/// <see cref="Domain.Documentos.TipoDocumento.Sensibilidad"/>), y la
+/// evidencia de verificación de subcontrata (<c>TipoDocumentoId</c> propio,
+/// sin ser un <c>Documento</c> — ver la segunda sobrecarga). Los otros cinco
+/// sirven contenido sin ninguna clasificación (adjunto de correo, imagen de
+/// firma/sello, plantilla en blanco) y no deben llamar a este servicio — ver el comentario de cada punto de
 /// servicio y el veredicto completo en el RETURN PACKAGE de HO-099-01.
 /// </para>
 ///
@@ -41,4 +42,18 @@ public interface IRegistroAccesoDocumentoSensibleService
     /// </summary>
     Task RegistrarSiSensibleAsync(
         Guid documentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Variante para contenido clasificado que <b>no</b> es una instancia de
+    /// <see cref="Domain.Documentos.Documento"/> — hoy solo
+    /// <c>VerificacionExternaSubcontrata</c> (ADR-005 § 2.3): tiene su propio
+    /// <c>TipoDocumentoId</c> real (la evidencia adjunta no es una plantilla en
+    /// blanco), así que la categoría se resuelve directamente sin el primer
+    /// roundtrip de <see cref="RegistrarSiSensibleAsync(Guid, TipoAccesoDocumentoSensible, CancellationToken)"/>.
+    /// <paramref name="recursoId"/> viaja en el campo <c>DocumentoId</c> del
+    /// registro (sin FK, ver el comentario de la entidad) — referencia al
+    /// recurso accedido, no necesariamente a un <c>Documento</c>.
+    /// </summary>
+    Task RegistrarSiSensibleAsync(
+        Guid recursoId, Guid tipoDocumentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken = default);
 }
