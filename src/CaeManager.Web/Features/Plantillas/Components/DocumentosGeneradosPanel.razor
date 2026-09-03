@@ -82,8 +82,8 @@ else
                         }
                         else if (generado.Estado == EstadoDocumentoGenerado.GeneradoConAvisos)
                         {
-                            @* DEC-5 (2026-09-02): el documento existe; algún obligatorio de la plantilla quedó vacío. *@
-                            <Badge Tono="TonoBadge.Advertencia" title="Se generó con campos obligatorios sin dato">Generado con avisos</Badge>
+                            @* El documento existe; algún obligatorio quedó vacío (DEC-5) y/o algún valor no fue reconocido por su campo (DEC-32, REC-115). *@
+                            <Badge Tono="TonoBadge.Advertencia" title="Revisa este documento: algún dato quedó sin rellenar o con un valor que su campo no reconoció">Generado con avisos</Badge>
                         }
                         else
                         {

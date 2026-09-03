@@ -37,12 +37,18 @@ public class ProcesarItemLoteGeneracionCommandHandler(
         // DEC-5 (propietario, 2026-09-02): un obligatorio vacío no falla el ítem
         // — el documento existe— pero tampoco lo deja como limpio. Sin este
         // tercer estado el aviso solo viviría en la respuesta síncrona y un lote
-        // procesado de noche llegaría a la mañana sin rastro de él.
+        // procesado de noche llegaría a la mañana sin rastro de él. DEC-32
+        // (REC-115) añade la segunda categoría de aviso — un valor no reconocido
+        // por el campo— con el mismo tratamiento.
         var ahoraUtc = DateTime.UtcNow;
         if (resultado.EsExitoso)
         {
-            if (resultado.Valor.CamposObligatoriosVacios.Count > 0)
-                item.MarcarCompletadoConAvisos(resultado.Valor.DocumentoGeneradoId, resultado.Valor.CamposObligatoriosVacios);
+            var valoresNoReconocidos = resultado.Valor.ValoresNoReconocidos
+                .Select(a => $"{a.EtiquetaCampo} (recibido «{a.ValorRecibido}»)")
+                .ToList();
+
+            if (resultado.Valor.CamposObligatoriosVacios.Count > 0 || valoresNoReconocidos.Count > 0)
+                item.MarcarCompletadoConAvisos(resultado.Valor.DocumentoGeneradoId, resultado.Valor.CamposObligatoriosVacios, valoresNoReconocidos);
             else
                 item.MarcarCompletado(resultado.Valor.DocumentoGeneradoId);
 
