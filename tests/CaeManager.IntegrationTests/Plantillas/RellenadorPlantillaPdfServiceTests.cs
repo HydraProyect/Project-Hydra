@@ -189,11 +189,12 @@ public class RellenadorPlantillaPdfServiceTests
 
         var resultado = servicio.Rellenar(original, FormatoOrigenPlantilla.PdfConCampos, elementos);
 
-        using var flujo = new MemoryStream(resultado);
+        using var flujo = new MemoryStream(resultado.Pdf);
         using var documento = PdfReader.Open(flujo, PdfDocumentOpenMode.Modify);
         var casilla = documento.AcroForm!.Fields["Casilla1"];
         LeerClave(casilla, "/V").Should().Be("/Yes", "el valor debe ser el nombre de estado que declara el propio PDF");
         LeerClave(casilla, "/AS").Should().Be("/Yes", "sin /AS el visor sigue dibujando la casilla sin marcar");
+        resultado.ValoresNoReconocidos.Should().BeEmpty("\"true\" esta en el contrato documentado de checkbox");
     }
 
     [Fact]
@@ -208,11 +209,173 @@ public class RellenadorPlantillaPdfServiceTests
 
         var resultado = servicio.Rellenar(original, FormatoOrigenPlantilla.PdfConCampos, elementos);
 
-        using var flujo = new MemoryStream(resultado);
+        using var flujo = new MemoryStream(resultado.Pdf);
         using var documento = PdfReader.Open(flujo, PdfDocumentOpenMode.Modify);
         var casilla = documento.AcroForm!.Fields["Casilla1"];
         LeerClave(casilla, "/V").Should().Be("/Off");
         LeerClave(casilla, "/AS").Should().Be("/Off");
+        resultado.ValoresNoReconocidos.Should().BeEmpty("\"no\" esta en el contrato documentado de checkbox");
+    }
+
+    /// <summary>DEC-32 (REC-115), criterio de aceptación 2: "0" y "Off" no marcan un checkbox, aunque no coincidan literalmente con la lista de negativos en mayúsculas — la comparación ignora mayúsculas.</summary>
+    [Theory]
+    [InlineData("0")]
+    [InlineData("Off")]
+    public void RellenarAcroForm_no_marca_la_casilla_con_0_ni_Off(string valorNegativo)
+    {
+        var servicio = new RellenadorPlantillaPdfService();
+        var original = CrearPdfConCasillaYRadio();
+        var elementos = new[]
+        {
+            new ElementoRellenoPlantilla(TipoElementoPlantilla.Checkbox, "Casilla1", 1, 0, 0, 0, 0, valorNegativo)
+        };
+
+        var resultado = servicio.Rellenar(original, FormatoOrigenPlantilla.PdfConCampos, elementos);
+
+        using var flujo = new MemoryStream(resultado.Pdf);
+        using var documento = PdfReader.Open(flujo, PdfDocumentOpenMode.Modify);
+        var casilla = documento.AcroForm!.Fields["Casilla1"];
+        LeerClave(casilla, "/V").Should().Be("/Off");
+        LeerClave(casilla, "/AS").Should().Be("/Off");
+        resultado.ValoresNoReconocidos.Should().BeEmpty();
+    }
+
+    /// <summary>El otro lado del mismo criterio: "1" y "Yes" SÍ marcan, sin aviso.</summary>
+    [Theory]
+    [InlineData("1")]
+    [InlineData("Yes")]
+    public void RellenarAcroForm_marca_la_casilla_con_1_y_Yes(string valorAfirmativo)
+    {
+        var servicio = new RellenadorPlantillaPdfService();
+        var original = CrearPdfConCasillaYRadio();
+        var elementos = new[]
+        {
+            new ElementoRellenoPlantilla(TipoElementoPlantilla.Checkbox, "Casilla1", 1, 0, 0, 0, 0, valorAfirmativo)
+        };
+
+        var resultado = servicio.Rellenar(original, FormatoOrigenPlantilla.PdfConCampos, elementos);
+
+        using var flujo = new MemoryStream(resultado.Pdf);
+        using var documento = PdfReader.Open(flujo, PdfDocumentOpenMode.Modify);
+        var casilla = documento.AcroForm!.Fields["Casilla1"];
+        LeerClave(casilla, "/V").Should().Be("/Yes");
+        LeerClave(casilla, "/AS").Should().Be("/Yes");
+        resultado.ValoresNoReconocidos.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// PDF con un checkbox cuyo estado "on" es el nombre <paramref name="nombreEstadoOn"/>
+    /// en vez del habitual <c>/Yes</c> — sirve tanto para probar que el estado
+    /// real del widget manda cuando ese nombre no está en
+    /// <see cref="ValoresAfirmativosCheckbox"/>/<see cref="ValoresNegativosCheckbox"/>
+    /// (p. ej. <c>Marcado</c>) como para probar el caso adversarial en que el
+    /// nombre coincide con un negativo reservado (<c>0</c>).
+    /// </summary>
+    private static byte[] CrearPdfConCasillaEstadoOnPersonalizado(string nombreEstadoOn)
+    {
+        var offsets = new List<int>();
+        var sb = new StringBuilder();
+
+        void AppendObj(int numero, string cuerpo)
+        {
+            offsets.Add(sb.Length);
+            sb.Append(numero).Append(" 0 obj\n").Append(cuerpo).Append("\nendobj\n");
+        }
+
+        sb.Append("%PDF-1.4\n");
+        offsets.Add(0);
+
+        AppendObj(1, "<< /Type /Catalog /Pages 2 0 R /AcroForm 6 0 R >>");
+        AppendObj(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
+        AppendObj(3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> /Annots [5 0 R] >>");
+        AppendObj(4, "<< /Length 0 >>\nstream\n\nendstream");
+        AppendObj(5, $"<< /Type /Annot /Subtype /Widget /FT /Btn /T (CasillaPersonalizada) /Rect [100 700 120 720] /F 4 /V /Off /AS /Off /AP << /N << /Off 7 0 R /{nombreEstadoOn} 8 0 R >> >> >>");
+        AppendObj(6, "<< /Fields [5 0 R] >>");
+        AppendObj(7, "<< /Type /XObject /Subtype /Form /BBox [0 0 20 20] /Length 0 >>\nstream\n\nendstream");
+        AppendObj(8, "<< /Type /XObject /Subtype /Form /BBox [0 0 20 20] /Length 22 >>\nstream\n0 0 1 rg 0 0 20 20 re f\nendstream");
+
+        var inicioXref = sb.Length;
+        const int totalObjetos = 9;
+        sb.Append($"xref\n0 {totalObjetos}\n");
+        sb.Append("0000000000 65535 f \n");
+        for (var i = 1; i < totalObjetos; i++)
+            sb.Append(offsets[i].ToString("D10")).Append(" 00000 n \n");
+        sb.Append("trailer\n").Append($"<< /Size {totalObjetos} /Root 1 0 R >>\n")
+          .Append("startxref\n").Append(inicioXref).Append("\n%%EOF");
+
+        return Encoding.ASCII.GetBytes(sb.ToString());
+    }
+
+    /// <summary>DEC-32: el estado «on» que el propio widget declara manda sobre la lista documentada, aunque ese nombre no esté en la lista.</summary>
+    [Fact]
+    public void RellenarAcroForm_marca_la_casilla_cuando_el_valor_coincide_con_el_estado_on_propio_del_widget()
+    {
+        var servicio = new RellenadorPlantillaPdfService();
+        var original = CrearPdfConCasillaEstadoOnPersonalizado("Marcado");
+        var elementos = new[]
+        {
+            new ElementoRellenoPlantilla(TipoElementoPlantilla.Checkbox, "CasillaPersonalizada", 1, 0, 0, 0, 0, "marcado")
+        };
+
+        var resultado = servicio.Rellenar(original, FormatoOrigenPlantilla.PdfConCampos, elementos);
+
+        using var flujo = new MemoryStream(resultado.Pdf);
+        using var documento = PdfReader.Open(flujo, PdfDocumentOpenMode.Modify);
+        var casilla = documento.AcroForm!.Fields["CasillaPersonalizada"];
+        LeerClave(casilla, "/V").Should().Be("/Marcado", "\"marcado\" no está en la lista documentada, pero SÍ es el estado on real del widget");
+        LeerClave(casilla, "/AS").Should().Be("/Marcado");
+        resultado.ValoresNoReconocidos.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Regresión de revisión adversarial (Codex, 2026-09-03): un PDF puede
+    /// declarar legítimamente su estado «on» con el nombre <c>/0</c> (nombre de
+    /// estado arbitrario, válido en la especificación). Sin el veto de
+    /// negativos reservados por delante, la entrada <c>"0"</c> coincidiría con
+    /// ese estado y marcaría la casilla — justo lo que el criterio de
+    /// aceptación 2 de DEC-32 prohíbe sin excepción: "0" nunca marca un
+    /// checkbox, ni siquiera cuando el propio formulario lo llama así.
+    /// </summary>
+    [Fact]
+    public void RellenarAcroForm_el_veto_de_0_gana_incluso_si_el_widget_llama_0_a_su_estado_on()
+    {
+        var servicio = new RellenadorPlantillaPdfService();
+        var original = CrearPdfConCasillaEstadoOnPersonalizado("0");
+        var elementos = new[]
+        {
+            new ElementoRellenoPlantilla(TipoElementoPlantilla.Checkbox, "CasillaPersonalizada", 1, 0, 0, 0, 0, "0")
+        };
+
+        var resultado = servicio.Rellenar(original, FormatoOrigenPlantilla.PdfConCampos, elementos);
+
+        using var flujo = new MemoryStream(resultado.Pdf);
+        using var documento = PdfReader.Open(flujo, PdfDocumentOpenMode.Modify);
+        var casilla = documento.AcroForm!.Fields["CasillaPersonalizada"];
+        LeerClave(casilla, "/V").Should().Be("/Off", "\"0\" nunca marca un checkbox (DEC-32, criterio 2), sin excepción por nombre del widget");
+        LeerClave(casilla, "/AS").Should().Be("/Off");
+        resultado.ValoresNoReconocidos.Should().BeEmpty("\"0\" está en el contrato documentado como negativo, no es un valor no reconocido");
+    }
+
+    /// <summary>DEC-32, criterio de aceptación 1: un valor de checkbox que no cae ni en el estado del widget ni en el contrato documentado no marca nada Y avisa — antes lo marcaba a ciegas.</summary>
+    [Fact]
+    public void RellenarAcroForm_checkbox_con_valor_desconocido_no_marca_y_avisa()
+    {
+        var servicio = new RellenadorPlantillaPdfService();
+        var original = CrearPdfConCasillaYRadio();
+        var elementos = new[]
+        {
+            new ElementoRellenoPlantilla(TipoElementoPlantilla.Checkbox, "Casilla1", 1, 0, 0, 0, 0, "tal vez")
+        };
+
+        var resultado = servicio.Rellenar(original, FormatoOrigenPlantilla.PdfConCampos, elementos);
+
+        using var flujo = new MemoryStream(resultado.Pdf);
+        using var documento = PdfReader.Open(flujo, PdfDocumentOpenMode.Modify);
+        var casilla = documento.AcroForm!.Fields["Casilla1"];
+        LeerClave(casilla, "/V").Should().Be("/Off", "un valor no reconocido nunca marca a ciegas");
+        LeerClave(casilla, "/AS").Should().Be("/Off");
+        resultado.ValoresNoReconocidos.Should().ContainSingle()
+            .Which.ValorRecibido.Should().Be("tal vez");
     }
 
     [Fact]
@@ -227,12 +390,37 @@ public class RellenadorPlantillaPdfServiceTests
 
         var resultado = servicio.Rellenar(original, FormatoOrigenPlantilla.PdfConCampos, elementos);
 
-        using var flujo = new MemoryStream(resultado);
+        using var flujo = new MemoryStream(resultado.Pdf);
         using var documento = PdfReader.Open(flujo, PdfDocumentOpenMode.Modify);
         var grupo = documento.AcroForm!.Fields["Radio1"]!;
         LeerClave(grupo, "/V").Should().Be("/Op2");
         LeerClave(grupo.Fields[0], "/AS").Should().Be("/Off");
         LeerClave(grupo.Fields[1], "/AS").Should().Be("/Op2");
+        resultado.ValoresNoReconocidos.Should().BeEmpty();
+    }
+
+    /// <summary>DEC-32, criterio de aceptación 1: un radio sin /Opt cuyo valor no nombra ningún estado no selecciona nada Y avisa — antes quedaba en silencio (REC-115).</summary>
+    [Fact]
+    public void RellenarAcroForm_radio_sin_Opt_con_valor_no_reconocido_no_selecciona_nada_y_avisa()
+    {
+        var servicio = new RellenadorPlantillaPdfService();
+        var original = CrearPdfConCasillaYRadio();
+        var elementos = new[]
+        {
+            new ElementoRellenoPlantilla(TipoElementoPlantilla.Texto, "Radio1", 1, 0, 0, 0, 0, "Op3")
+        };
+
+        var resultado = servicio.Rellenar(original, FormatoOrigenPlantilla.PdfConCampos, elementos);
+
+        using var flujo = new MemoryStream(resultado.Pdf);
+        using var documento = PdfReader.Open(flujo, PdfDocumentOpenMode.Modify);
+        var grupo = documento.AcroForm!.Fields["Radio1"]!;
+        LeerClave(grupo, "/V").Should().Be("/Off");
+        LeerClave(grupo.Fields[0], "/AS").Should().Be("/Off");
+        LeerClave(grupo.Fields[1], "/AS").Should().Be("/Off");
+        var aviso = resultado.ValoresNoReconocidos.Should().ContainSingle().Subject;
+        aviso.ValorRecibido.Should().Be("Op3");
+        aviso.OpcionesDisponibles.Should().Equal("Op1", "Op2");
     }
 
     [Fact]
@@ -247,7 +435,7 @@ public class RellenadorPlantillaPdfServiceTests
 
         var resultado = servicio.Rellenar(original, FormatoOrigenPlantilla.PdfConCampos, elementos);
 
-        using var flujo = new MemoryStream(resultado);
+        using var flujo = new MemoryStream(resultado.Pdf);
         using var documento = PdfReader.Open(flujo, PdfDocumentOpenMode.Modify);
         documento.AcroForm!.Elements.GetBoolean("/NeedAppearances").Should().BeTrue();
     }
@@ -307,12 +495,68 @@ public class RellenadorPlantillaPdfServiceTests
 
         var resultado = servicio.Rellenar(original, FormatoOrigenPlantilla.PdfConCampos, elementos);
 
-        using var flujo = new MemoryStream(resultado);
+        using var flujo = new MemoryStream(resultado.Pdf);
         using var documento = PdfReader.Open(flujo, PdfDocumentOpenMode.Modify);
         var grupo = documento.AcroForm!.Fields["Apto"]!;
         LeerClave(grupo, "/V").Should().Be("/1", "el valor exportado (Opt[1]) selecciona el hijo 1, cuyo estado se llama /1");
         LeerClave(grupo.Fields[0], "/AS").Should().Be("/Off");
         LeerClave(grupo.Fields[1], "/AS").Should().Be("/1");
+        resultado.ValoresNoReconocidos.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Regresión de revisión adversarial (Codex, 2026-09-03): con /Opt
+    /// declarado, un valor que coincide con el NOMBRE DE ESTADO de un hijo
+    /// (aquí "1", que es justo el estado /1 del segundo hijo) pero NO es
+    /// ninguno de los valores exportados ("Apto"/"No apto") no debe
+    /// seleccionar nada. Antes de la corrección, el código caía al cotejo por
+    /// nombre de estado cuando /Opt no encontraba coincidencia, seleccionando
+    /// esta opción en silencio — justo el caso que /Opt existe para prevenir.
+    /// </summary>
+    [Fact]
+    public void RellenarAcroForm_radio_con_Opt_no_cae_al_cotejo_por_nombre_de_estado_cuando_el_valor_coincide_con_un_indice()
+    {
+        var servicio = new RellenadorPlantillaPdfService();
+        var original = CrearPdfConRadioConOpt();
+        var elementos = new[]
+        {
+            new ElementoRellenoPlantilla(TipoElementoPlantilla.Texto, "Apto", 1, 0, 0, 0, 0, "1")
+        };
+
+        var resultado = servicio.Rellenar(original, FormatoOrigenPlantilla.PdfConCampos, elementos);
+
+        using var flujo = new MemoryStream(resultado.Pdf);
+        using var documento = PdfReader.Open(flujo, PdfDocumentOpenMode.Modify);
+        var grupo = documento.AcroForm!.Fields["Apto"]!;
+        LeerClave(grupo, "/V").Should().Be("/Off", "\"1\" no es un valor exportado de /Opt, aunque coincida con el nombre de estado /1");
+        LeerClave(grupo.Fields[1], "/AS").Should().Be("/Off");
+        var aviso = resultado.ValoresNoReconocidos.Should().ContainSingle().Subject;
+        aviso.ValorRecibido.Should().Be("1");
+        aviso.OpcionesDisponibles.Should().Equal("Apto", "No apto");
+    }
+
+    /// <summary>DEC-32, criterio de aceptación 1: un valor de radio con /Opt que no nombra ninguno de los valores exportados no selecciona nada Y avisa, con las opciones reales del /Opt.</summary>
+    [Fact]
+    public void RellenarAcroForm_radio_con_Opt_con_valor_no_reconocido_no_selecciona_nada_y_avisa()
+    {
+        var servicio = new RellenadorPlantillaPdfService();
+        var original = CrearPdfConRadioConOpt();
+        var elementos = new[]
+        {
+            new ElementoRellenoPlantilla(TipoElementoPlantilla.Texto, "Apto", 1, 0, 0, 0, 0, "Regular")
+        };
+
+        var resultado = servicio.Rellenar(original, FormatoOrigenPlantilla.PdfConCampos, elementos);
+
+        using var flujo = new MemoryStream(resultado.Pdf);
+        using var documento = PdfReader.Open(flujo, PdfDocumentOpenMode.Modify);
+        var grupo = documento.AcroForm!.Fields["Apto"]!;
+        LeerClave(grupo, "/V").Should().Be("/Off");
+        LeerClave(grupo.Fields[0], "/AS").Should().Be("/Off");
+        LeerClave(grupo.Fields[1], "/AS").Should().Be("/Off");
+        var aviso = resultado.ValoresNoReconocidos.Should().ContainSingle().Subject;
+        aviso.ValorRecibido.Should().Be("Regular");
+        aviso.OpcionesDisponibles.Should().Equal("Apto", "No apto");
     }
 
     /// <summary>
@@ -332,11 +576,12 @@ public class RellenadorPlantillaPdfServiceTests
 
         var resultado = servicio.Rellenar(original, FormatoOrigenPlantilla.PdfConCampos, elementos);
 
-        using var flujo = new MemoryStream(resultado);
+        using var flujo = new MemoryStream(resultado.Pdf);
         using var documento = PdfReader.Open(flujo, PdfDocumentOpenMode.Modify);
         var casilla = documento.AcroForm!.Fields["Casilla1"];
         LeerClave(casilla, "/V").Should().Be("/Off");
         LeerClave(casilla, "/AS").Should().Be("/Off");
+        resultado.ValoresNoReconocidos.Should().BeEmpty();
     }
 
     [Fact]
@@ -362,7 +607,7 @@ public class RellenadorPlantillaPdfServiceTests
 
         var resultado = servicio.Rellenar(original, FormatoOrigenPlantilla.PdfConCampos, elementos);
 
-        using var flujo = new MemoryStream(resultado);
+        using var flujo = new MemoryStream(resultado.Pdf);
         using var documento = PdfReader.Open(flujo, PdfDocumentOpenMode.Modify);
         var campo = documento.AcroForm!.Fields["Campo1"] as PdfSharp.Pdf.AcroForms.PdfTextField;
         campo!.Text.Should().Be("Juan Pérez");
@@ -417,7 +662,7 @@ public class RellenadorPlantillaPdfServiceTests
 
         var resultado = servicio.Rellenar(original, FormatoOrigenPlantilla.PdfConCampos, elementos);
 
-        using var flujo = new MemoryStream(resultado);
+        using var flujo = new MemoryStream(resultado.Pdf);
         using var documento = PdfReader.Open(flujo, PdfDocumentOpenMode.Modify);
         var campo = documento.AcroForm!.Fields["Campo1"] as PdfSharp.Pdf.AcroForms.PdfTextField;
         campo!.Text.Should().BeEmpty();
@@ -435,7 +680,7 @@ public class RellenadorPlantillaPdfServiceTests
 
         var resultado = servicio.Rellenar(original, FormatoOrigenPlantilla.PdfVisual, elementos);
 
-        ContarPaginas(resultado).Should().Be(ContarPaginas(original));
+        ContarPaginas(resultado.Pdf).Should().Be(ContarPaginas(original));
     }
 
     [Fact]
@@ -450,7 +695,42 @@ public class RellenadorPlantillaPdfServiceTests
 
         var resultado = servicio.Rellenar(original, FormatoOrigenPlantilla.PdfVisual, elementos);
 
-        resultado.Should().NotBeEquivalentTo(original);
+        resultado.Pdf.Should().NotBeEquivalentTo(original);
+    }
+
+    /// <summary>DEC-32 (REC-115): el motor por posición aplica el mismo contrato de checkbox que AcroForm — "0" no es un valor no reconocido (está en el contrato como negativo), aunque no haya widget que consultar.</summary>
+    [Fact]
+    public void RellenarPorPosicion_no_avisa_por_el_checkbox_con_0()
+    {
+        var servicio = new RellenadorPlantillaPdfService();
+        var original = CrearPdfVisualDeUnaPagina();
+        var elementos = new[]
+        {
+            new ElementoRellenoPlantilla(TipoElementoPlantilla.Checkbox, null, 1, 50, 700, 20, 20, "0")
+        };
+
+        var resultado = servicio.Rellenar(original, FormatoOrigenPlantilla.PdfVisual, elementos);
+
+        resultado.ValoresNoReconocidos.Should().BeEmpty("\"0\" está en el contrato documentado como negativo, no es un valor no reconocido");
+    }
+
+    /// <summary>DEC-32 (REC-115): un valor de checkbox no reconocido tampoco marca en el motor por posición, y también avisa.</summary>
+    [Fact]
+    public void RellenarPorPosicion_checkbox_con_valor_desconocido_avisa()
+    {
+        var servicio = new RellenadorPlantillaPdfService();
+        var original = CrearPdfVisualDeUnaPagina();
+        var elementoId = Guid.NewGuid();
+        var elementos = new[]
+        {
+            new ElementoRellenoPlantilla(TipoElementoPlantilla.Checkbox, null, 1, 50, 700, 20, 20, "tal vez", ElementoId: elementoId)
+        };
+
+        var resultado = servicio.Rellenar(original, FormatoOrigenPlantilla.PdfVisual, elementos);
+
+        var aviso = resultado.ValoresNoReconocidos.Should().ContainSingle().Subject;
+        aviso.ElementoId.Should().Be(elementoId);
+        aviso.ValorRecibido.Should().Be("tal vez");
     }
 
     [Fact]

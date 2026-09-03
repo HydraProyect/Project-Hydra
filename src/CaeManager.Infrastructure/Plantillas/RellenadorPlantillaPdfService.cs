@@ -21,6 +21,17 @@ namespace CaeManager.Infrastructure.Plantillas;
 /// "DejaVu Sans" resuelve por el mismo motivo que en
 /// <c>EstampadoFirmaEnCampoPdfService</c>: <c>GlobalFontSettings.FontResolver</c>
 /// se fija una vez en CaeManager.Web/Program.cs.
+///
+/// Resolución de opciones (DEC-32, REC-115): radio y checkbox NO comparten una
+/// única lista de valores afirmativos — cada uno tiene su propio contrato
+/// (<see cref="ResolverCheckbox"/>/<see cref="SeleccionarOpcion"/>). En
+/// checkbox, el estado «on» que el propio PDF declara manda sobre el contrato
+/// documentado — salvo los negativos reservados (<see cref="ValoresNegativosCheckbox"/>),
+/// que son un veto que ni el propio formulario puede anular. En radio, si el
+/// grupo declara <c>/Opt</c> manda EN EXCLUSIVA (sin caer al cotejo por nombre
+/// de estado si no hay coincidencia); si no lo declara, el nombre de estado
+/// decide. Un valor que no encaja en ningún sitio no marca nada ni calla:
+/// vuelve en <see cref="ResultadoRellenoPlantilla.ValoresNoReconocidos"/>.
 /// </summary>
 public class RellenadorPlantillaPdfService : IRellenadorPlantillaPdfService
 {
@@ -31,7 +42,21 @@ public class RellenadorPlantillaPdfService : IRellenadorPlantillaPdfService
     private const string EstadoApagado = "/Off";
     private const string ClaveOpciones = "/Opt";
 
-    public byte[] Rellenar(byte[] pdfOriginal, FormatoOrigenPlantilla formato, IReadOnlyList<ElementoRellenoPlantilla> elementos) =>
+    /// <summary>
+    /// Contrato documentado de checkbox (DEC-32, REC-115): el estado «on» que
+    /// el propio widget declara en <c>/AP /N</c> manda sobre este conjunto (solo
+    /// existe para el motor AcroForm — el motor por posición no tiene widget).
+    /// Comparación sin distinguir mayúsculas: un gestor escribe "Sí" o "sí" con
+    /// el mismo significado.
+    /// </summary>
+    private static readonly HashSet<string> ValoresAfirmativosCheckbox =
+        new(StringComparer.OrdinalIgnoreCase) { "true", "1", "si", "sí", "yes", "on" };
+
+    /// <summary>Ver <see cref="ValoresAfirmativosCheckbox"/>. "0" y "Off" viven aquí — DEC-32 los rechaza explícitamente como afirmativos.</summary>
+    private static readonly HashSet<string> ValoresNegativosCheckbox =
+        new(StringComparer.OrdinalIgnoreCase) { "false", "0", "no", "off" };
+
+    public ResultadoRellenoPlantilla Rellenar(byte[] pdfOriginal, FormatoOrigenPlantilla formato, IReadOnlyList<ElementoRellenoPlantilla> elementos) =>
         formato switch
         {
             FormatoOrigenPlantilla.PdfConCampos => RellenarAcroForm(pdfOriginal, elementos),
@@ -39,7 +64,7 @@ public class RellenadorPlantillaPdfService : IRellenadorPlantillaPdfService
             _ => throw new NotSupportedException($"IRellenadorPlantillaPdfService no soporta el formato {formato}.")
         };
 
-    private static byte[] RellenarAcroForm(byte[] pdfOriginal, IReadOnlyList<ElementoRellenoPlantilla> elementos)
+    private static ResultadoRellenoPlantilla RellenarAcroForm(byte[] pdfOriginal, IReadOnlyList<ElementoRellenoPlantilla> elementos)
     {
         using var flujo = new MemoryStream(pdfOriginal);
         using var documento = PdfReader.Open(flujo, PdfDocumentOpenMode.Modify);
@@ -56,6 +81,7 @@ public class RellenadorPlantillaPdfService : IRellenadorPlantillaPdfService
 
         var camposPorNombre = IndexarCampos(acroForm.Fields);
         var camposFaltantes = new List<string>();
+        var avisos = new List<AvisoValorNoReconocido>();
 
         foreach (var elemento in elementos)
         {
@@ -69,7 +95,7 @@ public class RellenadorPlantillaPdfService : IRellenadorPlantillaPdfService
                 continue;
             }
 
-            EscribirValor(campo, elemento.Valor);
+            EscribirValor(campo, elemento, avisos);
         }
 
         // La confirmación de la plantilla ya cotejó estos nombres contra el
@@ -87,7 +113,7 @@ public class RellenadorPlantillaPdfService : IRellenadorPlantillaPdfService
 
         using var salida = new MemoryStream();
         documento.Save(salida);
-        return salida.ToArray();
+        return new ResultadoRellenoPlantilla(salida.ToArray(), avisos);
     }
 
     /// <summary>
@@ -106,24 +132,24 @@ public class RellenadorPlantillaPdfService : IRellenadorPlantillaPdfService
     /// el grupo queda sin marcar en cualquier visor. Por eso el grupo se
     /// resuelve aquí contra los estados declarados en <c>/AP /N</c>.
     /// </summary>
-    private static void EscribirValor(PdfAcroField campo, string? valor)
+    private static void EscribirValor(PdfAcroField campo, ElementoRellenoPlantilla elemento, List<AvisoValorNoReconocido> avisos)
     {
         switch (campo)
         {
             case PdfTextField campoTexto:
-                campoTexto.Text = valor ?? string.Empty;
+                campoTexto.Text = elemento.Valor ?? string.Empty;
                 break;
 
             case PdfCheckBoxField casilla:
-                casilla.Checked = EsValorAfirmativo(valor);
+                MarcarCheckbox(casilla, elemento, avisos);
                 break;
 
             case PdfRadioButtonField grupo:
-                SeleccionarOpcion(grupo, valor);
+                SeleccionarOpcion(grupo, elemento, avisos);
                 break;
 
             default:
-                campo.Value = new PdfString(valor ?? string.Empty);
+                campo.Value = new PdfString(elemento.Valor ?? string.Empty);
                 break;
         }
     }
@@ -134,39 +160,142 @@ public class RellenadorPlantillaPdfService : IRellenadorPlantillaPdfService
     /// grupo lo trae (ver <see cref="IndiceEnOpciones"/>), y si no del propio
     /// nombre de estado de <c>/AP /N</c>.
     ///
-    /// Un valor que no nombra ninguna opción del grupo lo deja sin marcar —
-    /// igual que un valor vacío: aquí no se puede distinguir "no contestado" de
-    /// "contestado con una opción que este PDF no tiene", y DEC-5 solo decide
-    /// sobre el obligatorio vacío, que se comprueba en Application.
+    /// DEC-32 (REC-115): un valor no vacío que no nombra ninguna opción del
+    /// grupo no selecciona nada Y genera un <see cref="AvisoValorNoReconocido"/>
+    /// — antes quedaba en silencio. Un valor vacío/solo-espacios sigue sin
+    /// avisar: "no contestado" no es "contestado con una opción que este PDF
+    /// no tiene", y DEC-5 (obligatorio vacío) ya cubre el primero en Application.
     /// </summary>
-    private static void SeleccionarOpcion(PdfRadioButtonField grupo, string? valor)
+    private static void SeleccionarOpcion(PdfRadioButtonField grupo, ElementoRellenoPlantilla elemento, List<AvisoValorNoReconocido> avisos)
     {
+        var valor = elemento.Valor;
         List<PdfDictionary> widgets = grupo.HasKids && grupo.Fields.Count > 0
             ? [.. Enumerable.Range(0, grupo.Fields.Count).Select(i => (PdfDictionary)grupo.Fields[i])]
             : [grupo];
 
-        var indicePorOpciones = IndiceEnOpciones(grupo, valor);
+        var (tieneOpt, indicePorOpciones) = IndiceEnOpciones(grupo, valor);
 
         var estadoElegido = EstadoApagado;
+        var huboCoincidencia = false;
         for (var i = 0; i < widgets.Count; i++)
         {
             var encendidos = EstadosDeApariencia(widgets[i])
                 .Where(e => !string.Equals(e, EstadoApagado, StringComparison.Ordinal))
                 .ToList();
 
-            // Con /Opt manda la posición: el nombre de estado del hijo elegido
-            // puede ser un índice (/0, /1…) que no se parece al valor. Sin
-            // /Opt, el propio nombre de estado ES el valor exportado.
-            var estado = indicePorOpciones is { } indice
-                ? (i == indice ? encendidos.FirstOrDefault() : null)
+            // Con /Opt manda la posición EN EXCLUSIVA — hallazgo de revisión
+            // adversarial (Codex, 2026-09-03): antes, un valor con /Opt que no
+            // coincidía con ningún exportado caía al cotejo por nombre de
+            // estado, y en un grupo cuyos estados se llaman literalmente /0,
+            // /1… (el caso que /Opt existe justo para resolver) un valor como
+            // "1" seleccionaba una opción arbitraria en silencio — justo lo que
+            // DEC-32 prohíbe. Con /Opt declarado, "no coincide con ningún
+            // exportado" ya no cae a nada: no selecciona, y avisa.
+            var estado = tieneOpt
+                ? (indicePorOpciones is { } indice && i == indice ? encendidos.FirstOrDefault() : null)
                 : encendidos.FirstOrDefault(e => string.Equals(e[1..], valor, StringComparison.Ordinal));
 
-            if (estado is not null) estadoElegido = estado;
+            if (estado is not null)
+            {
+                estadoElegido = estado;
+                huboCoincidencia = true;
+            }
             widgets[i].Elements[ClaveEstadoApariencia] = new PdfName(estado ?? EstadoApagado);
         }
 
         grupo.Elements[ClaveValor] = new PdfName(estadoElegido);
+
+        if (!huboCoincidencia && !string.IsNullOrWhiteSpace(valor))
+            avisos.Add(new AvisoValorNoReconocido(elemento.ElementoId, valor, OpcionesDeRadio(grupo, widgets)));
     }
+
+    /// <summary>
+    /// Las opciones reales de un grupo de radio para el mensaje del aviso:
+    /// los valores exportados de <c>/Opt</c> si el grupo los declara, y si no
+    /// los propios nombres de estado de <c>/AP /N</c> (sin <c>/Off</c> ni la
+    /// barra inicial) — el mismo criterio de prioridad que usa la resolución.
+    /// </summary>
+    private static IReadOnlyList<string> OpcionesDeRadio(PdfDictionary grupo, IReadOnlyList<PdfDictionary> widgets)
+    {
+        var opciones = grupo.Elements.GetArray(ClaveOpciones);
+        if (opciones is not null)
+        {
+            var valoresExportados = new List<string>();
+            for (var i = 0; i < opciones.Elements.Count; i++)
+                if (opciones.Elements[i] is PdfString texto)
+                    valoresExportados.Add(texto.Value);
+            return valoresExportados;
+        }
+
+        return [.. widgets
+            .SelectMany(EstadosDeApariencia)
+            .Where(e => !string.Equals(e, EstadoApagado, StringComparison.Ordinal))
+            .Select(e => e[1..])
+            .Distinct(StringComparer.Ordinal)];
+    }
+
+    /// <summary>
+    /// Contrato de checkbox (DEC-32, REC-115): los negativos reservados
+    /// (<see cref="ValoresNegativosCheckbox"/>) son un veto que nada puede
+    /// anular — ni el estado «on» del propio widget. Sin este veto por delante,
+    /// un PDF cuyo estado «on» se llamase literalmente <c>/0</c> (nombre
+    /// arbitrario, válido en la especificación) haría que la entrada
+    /// <c>"0"</c> marcase la casilla — justo el criterio de aceptación 2 de
+    /// DEC-32 ("0" y "Off" nunca marcan un checkbox), sin excepción. Hallazgo
+    /// de revisión adversarial (Codex, 2026-09-03). Después del veto: el
+    /// estado «on» real del widget manda sobre
+    /// <see cref="ValoresAfirmativosCheckbox"/> — un valor vacío/solo-espacios
+    /// se resuelve "no marcado" sin aviso (ver <see cref="SeleccionarOpcion"/>,
+    /// mismo criterio para radio); cualquier otra cosa que no case con nada
+    /// genera <see cref="AvisoValorNoReconocido"/> y se deja SIN marcar —
+    /// nunca se interpreta a ciegas como afirmativo (el bug que cerró REC-115).
+    /// </summary>
+    private static void MarcarCheckbox(PdfCheckBoxField casilla, ElementoRellenoPlantilla elemento, List<AvisoValorNoReconocido> avisos)
+    {
+        var estadoOn = NombreEstadoOn(casilla);
+        var marcado = ResolverCheckbox(elemento.Valor, estadoOn?[1..]);
+
+        if (marcado is null)
+        {
+            avisos.Add(new AvisoValorNoReconocido(elemento.ElementoId, elemento.Valor, OpcionesDeCheckbox(estadoOn?[1..])));
+            marcado = false;
+        }
+
+        casilla.Checked = marcado.Value;
+    }
+
+    /// <summary>
+    /// <c>true</c>/<c>false</c> si el valor cae en el contrato (veto de
+    /// negativos reservados, o estado «on» del widget si se conoce, o las
+    /// listas documentadas); <c>null</c> si no cae en ninguno — "no
+    /// reconocido", nunca "afirmativo por descarte" como hacía la heurística
+    /// anterior.
+    /// </summary>
+    private static bool? ResolverCheckbox(string? valor, string? estadoOnSinBarra)
+    {
+        if (string.IsNullOrWhiteSpace(valor)) return false;
+
+        var normalizado = valor.Trim();
+
+        if (ValoresNegativosCheckbox.Contains(normalizado)) return false;
+
+        if (estadoOnSinBarra is not null && string.Equals(normalizado, estadoOnSinBarra, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (ValoresAfirmativosCheckbox.Contains(normalizado)) return true;
+
+        return null;
+    }
+
+    /// <summary>Opciones documentadas para el mensaje del aviso de checkbox — el estado propio del widget (si lo hay) más el contrato general.</summary>
+    private static IReadOnlyList<string> OpcionesDeCheckbox(string? estadoOnSinBarra) =>
+        estadoOnSinBarra is null
+            ? [.. ValoresAfirmativosCheckbox, .. ValoresNegativosCheckbox]
+            : [estadoOnSinBarra, .. ValoresAfirmativosCheckbox, .. ValoresNegativosCheckbox];
+
+    /// <summary>El único nombre de estado de <c>/AP /N</c> distinto de <c>/Off</c> — lo que el widget considera "marcado". <c>FirstOrDefault</c>: un checkbox real solo declara un estado on; si declarase varios (malformado), se toma el primero.</summary>
+    private static string? NombreEstadoOn(PdfDictionary widget) =>
+        EstadosDeApariencia(widget).FirstOrDefault(e => !string.Equals(e, EstadoApagado, StringComparison.Ordinal));
 
     /// <summary>
     /// Posición del valor en <c>/Opt</c> (PDF 32000-1, tabla 231): el array de
@@ -175,22 +304,31 @@ public class RellenadorPlantillaPdfService : IRellenadorPlantillaPdfService
     /// índices (<c>/0</c>, <c>/1</c>…) o se repiten entre hijos; sin leerlo,
     /// ninguno de esos grupos casaría nunca y todos quedarían en <c>/Off</c>.
     ///
+    /// Devuelve <c>(tieneOpt, índice)</c> — no basta un <c>int?</c>: "/Opt no
+    /// existe" y "/Opt existe pero el valor no está en él" tenían el mismo
+    /// <c>null</c>, y <see cref="SeleccionarOpcion"/> los trataba igual,
+    /// cayendo al cotejo por nombre de estado en el segundo caso — el hallazgo
+    /// de revisión adversarial que este tipo corrige.
+    ///
     /// Solo entradas directas: un <c>/Opt</c> con referencias indirectas a
-    /// cadenas no se resuelve aquí, y ese grupo cae al cotejo por nombre de
-    /// estado como si no tuviera <c>/Opt</c>.
+    /// cadenas no se resuelve aquí (limitación conocida, sin cambios en este
+    /// incremento) — ese grupo declara <c>tieneOpt = true</c> pero ningún
+    /// valor casará nunca por posición, así que con la separación de arriba
+    /// termina avisando siempre en vez de acertar por casualidad vía el
+    /// cotejo de nombres — más acorde con DEC-32 (nunca silencioso) que el
+    /// comportamiento anterior, aunque más estricto para ese caso concreto.
     /// </summary>
-    private static int? IndiceEnOpciones(PdfDictionary grupo, string? valor)
+    private static (bool TieneOpt, int? Indice) IndiceEnOpciones(PdfDictionary grupo, string? valor)
     {
-        if (string.IsNullOrEmpty(valor)) return null;
-
         var opciones = grupo.Elements.GetArray(ClaveOpciones);
-        if (opciones is null) return null;
+        if (opciones is null) return (false, null);
+        if (string.IsNullOrEmpty(valor)) return (true, null);
 
         for (var i = 0; i < opciones.Elements.Count; i++)
             if (opciones.Elements[i] is PdfString texto && string.Equals(texto.Value, valor, StringComparison.Ordinal))
-                return i;
+                return (true, i);
 
-        return null;
+        return (true, null);
     }
 
     /// <summary>Nombres de estado (<c>/Off</c>, <c>/Yes</c>, <c>/Op1</c>…) que el widget declara en <c>/AP /N</c>.</summary>
@@ -208,12 +346,13 @@ public class RellenadorPlantillaPdfService : IRellenadorPlantillaPdfService
         return indice;
     }
 
-    private static byte[] RellenarPorPosicion(byte[] pdfOriginal, IReadOnlyList<ElementoRellenoPlantilla> elementos)
+    private static ResultadoRellenoPlantilla RellenarPorPosicion(byte[] pdfOriginal, IReadOnlyList<ElementoRellenoPlantilla> elementos)
     {
         using var flujo = new MemoryStream(pdfOriginal);
         using var documento = PdfReader.Open(flujo, PdfDocumentOpenMode.Modify);
 
         var fuente = new XFont(NombreFuente, 10, XFontStyleEx.Regular);
+        var avisos = new List<AvisoValorNoReconocido>();
 
         foreach (var grupo in elementos.Where(e => e.Tipo != TipoElementoPlantilla.Firma).GroupBy(e => e.Pagina))
         {
@@ -224,15 +363,15 @@ public class RellenadorPlantillaPdfService : IRellenadorPlantillaPdfService
             using var graficos = XGraphics.FromPdfPage(pagina, XGraphicsPdfPageOptions.Append);
 
             foreach (var elemento in grupo)
-                DibujarElemento(graficos, fuente, elemento);
+                DibujarElemento(graficos, fuente, elemento, avisos);
         }
 
         using var salida = new MemoryStream();
         documento.Save(salida);
-        return salida.ToArray();
+        return new ResultadoRellenoPlantilla(salida.ToArray(), avisos);
     }
 
-    private static void DibujarElemento(XGraphics graficos, XFont fuente, ElementoRellenoPlantilla elemento)
+    private static void DibujarElemento(XGraphics graficos, XFont fuente, ElementoRellenoPlantilla elemento, List<AvisoValorNoReconocido> avisos)
     {
         // La caja del editor visual (elemento.X/Y/Ancho/Alto) tiene su origen en la
         // esquina superior izquierda, igual que el div CSS que el usuario arrastra.
@@ -251,7 +390,16 @@ public class RellenadorPlantillaPdfService : IRellenadorPlantillaPdfService
                 break;
 
             case TipoElementoPlantilla.Checkbox:
-                if (EsValorAfirmativo(elemento.Valor))
+                // Sin widget AcroForm aquí — no hay estado «on» que consultar,
+                // solo el contrato documentado (mismo criterio que el motor
+                // AcroForm, ver ResolverCheckbox).
+                var marcado = ResolverCheckbox(elemento.Valor, estadoOnSinBarra: null);
+                if (marcado is null)
+                {
+                    avisos.Add(new AvisoValorNoReconocido(elemento.ElementoId, elemento.Valor, OpcionesDeCheckbox(null)));
+                    marcado = false;
+                }
+                if (marcado.Value)
                     graficos.DrawString("X", fuente, XBrushes.Black, caja, XStringFormats.TopLeft);
                 break;
 
@@ -260,21 +408,5 @@ public class RellenadorPlantillaPdfService : IRellenadorPlantillaPdfService
                     graficos.DrawString(elemento.Valor, fuente, XBrushes.Black, caja, XStringFormats.TopLeft);
                 break;
         }
-    }
-
-    /// <summary>
-    /// Única definición de "marcado" de los dos motores de relleno. El
-    /// <c>Trim()</c> no es cosmético: sin él, " false " no casaba con "false"
-    /// y un negativo rodeado de espacios marcaba la casilla. Concuerda con la
-    /// definición de "vacío" de Application (que también ignora los espacios),
-    /// para que un mismo valor no signifique cosas distintas según la capa.
-    /// </summary>
-    private static bool EsValorAfirmativo(string? valor)
-    {
-        if (string.IsNullOrWhiteSpace(valor)) return false;
-
-        var normalizado = valor.Trim();
-        return !normalizado.Equals("false", StringComparison.OrdinalIgnoreCase)
-            && !normalizado.Equals("no", StringComparison.OrdinalIgnoreCase);
     }
 }
