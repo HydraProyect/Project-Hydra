@@ -99,6 +99,36 @@ internal sealed class EscenarioImportacion
         return this;
     }
 
+    /// <summary>
+    /// Siembra una Asignación YA CERRADA cuyo rango sigue solapando "hoy" —
+    /// DEC-19: distinta de <see cref="ConAsignacionActivaExistente"/>, que la
+    /// importación reutiliza en vez de rechazar; esta debe rechazarse, porque
+    /// no hay nada que reutilizar en una fila que ya no está vigente.
+    /// </summary>
+    public EscenarioImportacion ConAsignacionCerradaSolapadaExistente()
+    {
+        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var cerrada = new Domain.Asignaciones.Asignacion(TrabajadorExistente!.Id, CentroExistente!.Id, hoy.AddDays(-30));
+        cerrada.DarDeBaja(hoy.AddDays(30));
+        AsignacionesContexto.ListaAsignaciones.Add(cerrada);
+        return this;
+    }
+
+    /// <summary>
+    /// Siembra una Asignación con rango VACÍO (FechaAlta == FechaBaja, la que
+    /// deja CerrarPorAmbitoEliminado al anclar la baja a una alta futura) —
+    /// no ocupó ni un día y no debe contar como solape (revisión adversarial
+    /// de Codex, REC-064).
+    /// </summary>
+    public EscenarioImportacion ConAsignacionVaciaExistente()
+    {
+        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var vacia = new Domain.Asignaciones.Asignacion(TrabajadorExistente!.Id, CentroExistente!.Id, hoy);
+        vacia.CerrarPorAmbitoEliminado(hoy);
+        AsignacionesContexto.ListaAsignaciones.Add(vacia);
+        return this;
+    }
+
     public EjecutarImportacionCommandHandler Handler() => new(
         EmpresaRepositorio, TrabajadorRepositorio, DocumentoRepositorio, AsignacionRepositorio,
         AsignacionesContexto, CentrosContexto, DocumentosContexto, EmpresasContexto,

@@ -283,7 +283,7 @@ public class AbrirSesionPrivilegiadaTests : IAsyncLifetime
 
         return await handler.Handle(
             new AbrirSesionPrivilegiadaCommand(
-                concesionId ?? _concesionSobreVisitado, tenantObjetivo, "Reproducir la incidencia", DiasDeVentana: 1),
+                concesionId ?? _concesionSobreVisitado, tenantObjetivo, "Reproducir la incidencia", HorasDeVentana: 1),
             CancellationToken.None);
     }
 

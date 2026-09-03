@@ -15,29 +15,24 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Asignaciones;
 
 /// <summary>
-/// Caracterización, no regresión: fija el comportamiento ACTUAL y DELIBERADO
-/// de "Asignacion" ante rangos de fecha solapados, para que un cambio futuro
-/// que lo altere sea una decisión explícita y no un efecto colateral.
+/// Invariante, no caracterización: DEC-19 (auditoría del Módulo 5, hallazgo
+/// #5) decidió que dos vigencias solapadas del mismo trío (Tenant,
+/// Trabajador, Centro) son una contradicción de datos, contra otra fila
+/// activa o contra una ya cerrada. Este fichero fijaba antes el
+/// comportamiento contrario —"hoy no existe ninguna restricción de solape de
+/// rangos"— con un único test; ahora fija la invariante en las DOS capas que
+/// la garantizan (CLAUDE.md § 4: ninguna presta evidencia a la otra):
+/// <list type="bullet">
+/// <item>Aplicación: <see cref="CrearAsignacionCommandHandler"/> rechaza el
+/// alta antes de tocar la base (<see cref="Solape_de_rango_contra_una_fila_ya_cerrada_se_rechaza_en_el_comando"/>).</item>
+/// <item>PostgreSQL: la restricción <c>EX_Asignaciones_SinSolapeVigencia</c>
+/// (<c>EXCLUDE USING gist</c>) rechaza el mismo intento aunque se escriba
+/// directo al <see cref="CaeManagerDbContext"/>, esquivando el comando —el
+/// backstop contra la carrera concurrente que ninguna comprobación de
+/// aplicación cierra por sí sola
+/// (<see cref="PostgreSQL_rechaza_el_solape_aunque_se_escriba_sin_pasar_por_el_comando"/>).</item>
+/// </list>
 /// </summary>
-/// <remarks>
-/// Auditoría del Módulo 5, hallazgo #5 (único de los 15 sin cerrar tras el
-/// PR #373): el índice único filtrado <c>WHERE "FechaBaja" IS NULL</c> de
-/// <see cref="CaeManager.Infrastructure.Persistence.Configurations.AsignacionConfiguration"/>
-/// y <c>ExisteActivaAsync</c>/<see cref="CrearAsignacionCommandHandler"/> solo
-/// impiden que el mismo trío (Tenant, Trabajador, Centro) tenga DOS filas
-/// simultáneamente abiertas (<c>FechaBaja IS NULL</c>). Ninguno de los dos
-/// comprueba si el RANGO de fechas de una asignación nueva se solapa con el
-/// de una ya cerrada del mismo trío — el caso que este test fija.
-///
-/// No se cierra con un <c>EXCLUDE USING gist</c> sobre <c>daterange</c> (la
-/// propuesta original de la auditoría) porque bloquear el solape es una
-/// regla de negocio, no una decisión técnica: exige saber si un Trabajador
-/// puede tener presencia legítima y solapada en el mismo Centro por motivos
-/// distintos (turnos, proyectos técnicos paralelos) o si el solape es
-/// siempre un error de datos. Esa pregunta sigue abierta — inventar la
-/// respuesta en modo autónomo violaría CLAUDE.md §9 (Stop Conditions).
-/// Si la respuesta llega, sustituir este test por uno que espere el rechazo.
-/// </remarks>
 public class SolapamientoDeAsignacionesTests : IAsyncLifetime
 {
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
@@ -71,11 +66,11 @@ public class SolapamientoDeAsignacionesTests : IAsyncLifetime
     public Task DisposeAsync() => BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
 
     [Fact]
-    public async Task Una_asignacion_activa_puede_solapar_el_rango_de_una_ya_cerrada_del_mismo_trio()
+    public async Task Solape_de_rango_contra_una_fila_ya_cerrada_se_rechaza_en_el_comando()
     {
         var altaA = new DateOnly(2026, 1, 1);
         var bajaA = new DateOnly(2026, 6, 1);
-        var altaB = new DateOnly(2026, 3, 1); // dentro del rango [altaA, bajaA] de A
+        var altaB = new DateOnly(2026, 3, 1); // dentro del rango [altaA, bajaA) de A
 
         Guid asignacionAId;
         await using (var contextoAlta = CrearContexto())
@@ -95,29 +90,108 @@ public class SolapamientoDeAsignacionesTests : IAsyncLifetime
             resultado.EsExitoso.Should().BeTrue();
         }
 
-        // B se solapa con A ([2026-03-01, ∞) contra [2026-01-01, 2026-06-01]) y
-        // hoy no hay ninguna comprobación —ni de índice, ni de aplicación— que
-        // lo detecte: A ya no es "activa" (FechaBaja IS NULL), así que
-        // ExisteActivaAsync no la ve.
+        // B se solapa con A ([2026-03-01, ∞) contra [2026-01-01, 2026-06-01)):
+        // A ya no está "activa" (FechaBaja no es null), así que solo
+        // ExisteSolapeAsync —que sí mira las cerradas— puede atraparlo.
         await using (var contextoAltaB = CrearContexto())
         {
             var creacion = new CrearAsignacionCommandHandler(
                 new AsignacionRepository(contextoAltaB), new AutoridadAsignacionesServiceFalso(contextoAltaB), contextoAltaB);
             var resultado = await creacion.Handle(new CrearAsignacionCommand(_trabajadorId, _centroId, altaB), CancellationToken.None);
 
-            resultado.EsExitoso.Should().BeTrue(
-                "hoy no existe ninguna restricción de solape de rangos — ver comentario de la clase");
+            resultado.EsFallido.Should().BeTrue("DEC-19 prohíbe el solape también contra una fila ya cerrada");
+            resultado.Error.Codigo.Should().Be("Asignacion.SolapaConOtra");
         }
 
         await using var verificacion = CrearContexto();
         var filas = await verificacion.Asignaciones
             .Where(a => a.TrabajadorId == _trabajadorId && a.CentroId == _centroId)
-            .OrderBy(a => a.FechaAlta)
+            .ToListAsync();
+
+        // El rechazo fue antes de escribir: sigue habiendo una sola fila (A,
+        // cerrada), no dos.
+        filas.Should().ContainSingle();
+        filas[0].FechaBaja.Should().Be(bajaA);
+    }
+
+    [Fact]
+    public async Task PostgreSQL_rechaza_el_solape_aunque_se_escriba_sin_pasar_por_el_comando()
+    {
+        // Backstop de carrera: dos requests concurrentes podrían pasar cada
+        // uno ExisteSolapeAsync antes de que el otro confirme. Aquí se
+        // fuerza exactamente esa escritura, esquivando el comando, para
+        // demostrar que la base —no la aplicación— es quien cierra el hueco.
+        var altaA = new DateOnly(2026, 1, 1);
+        var bajaA = new DateOnly(2026, 6, 1);
+        var altaB = new DateOnly(2026, 3, 1);
+
+        await using (var contexto = CrearContexto())
+        {
+            contexto.Asignaciones.Add(new Asignacion(_trabajadorId, _centroId, altaA));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using (var contextoBaja = CrearContexto())
+        {
+            var asignacionA = await contextoBaja.Asignaciones.SingleAsync(a => a.TrabajadorId == _trabajadorId);
+            asignacionA.DarDeBaja(bajaA);
+            await contextoBaja.SaveChangesAsync();
+        }
+
+        await using var contextoB = CrearContexto();
+        contextoB.Asignaciones.Add(new Asignacion(_trabajadorId, _centroId, altaB));
+
+        var guardar = () => contextoB.SaveChangesAsync();
+
+        // EF envuelve el fallo del proveedor en DbUpdateException; la causa
+        // real es el Npgsql.PostgresException 23P01 (exclusion_violation) de
+        // la restricción — se comprueba también su nombre para no confundirlo
+        // con cualquier otra restricción que falle por casualidad.
+        var excepcion = (await guardar.Should().ThrowAsync<DbUpdateException>()).Which;
+        excepcion.InnerException.Should().BeOfType<Npgsql.PostgresException>()
+            .Which.ConstraintName.Should().Be("EX_Asignaciones_SinSolapeVigencia");
+    }
+
+    [Fact]
+    public async Task Un_rango_vacio_por_cierre_de_ambito_no_bloquea_una_alta_real_posterior()
+    {
+        // Regresión de una revisión adversarial (Codex, REC-064): una fila
+        // vacía [d, d) —CerrarPorAmbitoEliminado anclando la baja al alta de
+        // una asignación futura cuyo centro se borró antes de esa fecha— no
+        // ocupó ni un día. Sin el guard de rango vacío en
+        // Asignacion.SeSolapaCon/ExisteSolapeAsync, esto habría bloqueado
+        // cualquier alta real posterior para el mismo trío, aunque
+        // PostgreSQL (que normaliza daterange(d,d,'[)') como vacío) nunca lo
+        // habría rechazado — una divergencia entre aplicación y base.
+        var fechaAmbitoEliminado = new DateOnly(2026, 12, 1);
+
+        Guid asignacionVaciaId;
+        await using (var contexto = CrearContexto())
+        {
+            var vacia = new Asignacion(_trabajadorId, _centroId, fechaAmbitoEliminado);
+            vacia.CerrarPorAmbitoEliminado(fechaAmbitoEliminado);
+            contexto.Asignaciones.Add(vacia);
+            await contexto.SaveChangesAsync();
+            asignacionVaciaId = vacia.Id;
+        }
+
+        await using (var contextoAlta = CrearContexto())
+        {
+            var creacion = new CrearAsignacionCommandHandler(
+                new AsignacionRepository(contextoAlta), new AutoridadAsignacionesServiceFalso(contextoAlta), contextoAlta);
+            var resultado = await creacion.Handle(
+                new CrearAsignacionCommand(_trabajadorId, _centroId, fechaAmbitoEliminado), CancellationToken.None);
+
+            resultado.EsExitoso.Should().BeTrue("el rango vacío no ocupó ningún día: no hay nada con lo que solapar");
+        }
+
+        await using var verificacion = CrearContexto();
+        var filas = await verificacion.Asignaciones
+            .Where(a => a.TrabajadorId == _trabajadorId && a.CentroId == _centroId)
             .ToListAsync();
 
         filas.Should().HaveCount(2);
-        filas[0].FechaBaja.Should().Be(bajaA);
-        filas[1].FechaBaja.Should().BeNull();
+        filas.Should().ContainSingle(a => a.Id == asignacionVaciaId);
     }
 
     private CaeManagerDbContext CrearContexto()

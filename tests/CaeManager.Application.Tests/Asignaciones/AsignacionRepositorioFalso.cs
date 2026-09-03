@@ -12,6 +12,11 @@ public class AsignacionRepositorioFalso : IAsignacionRepository
     public Task<bool> ExisteActivaAsync(Guid trabajadorId, Guid centroId, CancellationToken cancellationToken = default) =>
         Task.FromResult(Asignaciones.Any(a => a.TrabajadorId == trabajadorId && a.CentroId == centroId && a.FechaBaja is null));
 
+    public Task<bool> ExisteSolapeAsync(
+        Guid trabajadorId, Guid centroId, DateOnly fechaAlta, DateOnly? fechaBaja, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Asignaciones.Any(a =>
+            a.TrabajadorId == trabajadorId && a.CentroId == centroId && a.SeSolapaCon(fechaAlta, fechaBaja)));
+
     public Task<IReadOnlyList<Asignacion>> ObtenerActivasPorCentroAsync(Guid centroId, CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<Asignacion>>(
             Asignaciones.Where(a => a.CentroId == centroId && a.FechaBaja is null).ToList());

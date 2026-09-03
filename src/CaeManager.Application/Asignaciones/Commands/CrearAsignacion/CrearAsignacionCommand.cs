@@ -47,6 +47,15 @@ public class CrearAsignacionCommandHandler(
             return Result.Fallo<Guid>(Error.Crear(
                 "Asignacion.YaActiva", "Este trabajador ya está dado de alta en este centro."));
 
+        // DEC-19: dos vigencias solapadas del mismo trío son una
+        // contradicción de datos, no solo dos filas simultáneamente
+        // abiertas. Distinto de "YaActiva" (arriba): esto también atrapa un
+        // alta nueva cuyo rango pisa el de una asignación YA CERRADA.
+        if (await repositorio.ExisteSolapeAsync(request.TrabajadorId, request.CentroId, request.FechaAlta, null, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear(
+                "Asignacion.SolapaConOtra",
+                "Este trabajador ya tuvo una asignación a este centro cuyo periodo se solapa con esta fecha de alta."));
+
         var asignacion = new Asignacion(request.TrabajadorId, request.CentroId, request.FechaAlta);
         repositorio.Agregar(asignacion);
         await unitOfWork.SaveChangesAsync(cancellationToken);

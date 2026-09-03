@@ -258,8 +258,8 @@
             <CampoTexto Etiqueta="Motivo" Valor="@_motivoSoporte" ValorChanged="v => _motivoSoporte = v"
                         Placeholder="Incidencia #442: no carga el listado de documentos" />
 
-            <CampoTexto Etiqueta="Días de acceso" Type="number" Valor="@_diasSoporte"
-                        ValorChanged="v => _diasSoporte = v" />
+            <CampoTexto Etiqueta="Horas de acceso (máximo 4)" Type="number" Valor="@_horasSoporte"
+                        ValorChanged="v => _horasSoporte = v" />
 
             @* Solo lectura por defecto: basta para reproducir casi cualquier
                incidencia y es lo que menos expone. Escribir en datos reales de
