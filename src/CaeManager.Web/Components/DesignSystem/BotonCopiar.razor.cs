@@ -38,11 +38,15 @@ public partial class BotonCopiar : ComponentBase, IAsyncDisposable
     {
         if (_modulo is null) return;
 
-        var valor = ValorAsync is not null ? await ValorAsync() : Valor;
-        if (string.IsNullOrEmpty(valor)) return;
-
         try
         {
+            // ValorAsync dentro del mismo try que la copia: si es una petición al
+            // servidor (el caso de ValorAsync), su fallo se trata igual que un
+            // fallo de portapapeles — un Toast, no una excepción escapando del
+            // manejador de evento hacia el circuito de Blazor.
+            var valor = ValorAsync is not null ? await ValorAsync() : Valor;
+            if (string.IsNullOrEmpty(valor)) return;
+
             await _modulo.InvokeVoidAsync("copiarAlPortapapeles", valor);
             ToastService.Mostrar($"Se copió {Etiqueta} al portapapeles.", TonoToast.Exito);
         }
