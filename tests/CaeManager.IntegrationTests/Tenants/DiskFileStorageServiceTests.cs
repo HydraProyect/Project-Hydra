@@ -114,6 +114,19 @@ public class DiskFileStorageServiceTests : IDisposable
 
         await accion.Should().ThrowAsync<OperationCanceledException>();
 
+        // NOTA DE ALCANCE (medida, no supuesta): este test cancela ANTES de
+        // que GuardarAsync arranque, así que no ejercita "escritura
+        // interrumpida a mitad de camino" — un probe aparte midió que
+        // File.WriteAllBytesAsync con un CancellationToken cancelado a los
+        // 5 ms de una escritura de 300 MB TERMINA la escritura igual, sin
+        // lanzar, en 316 ms: el token no aborta una escritura ya en marcha en
+        // esta plataforma, solo impide que arranque si ya estaba cancelado
+        // al llamar. Eso hace que el escenario real que motiva esta defensa
+        // —un proceso interrumpido a mitad de escribir (OOM, kill -9, caída
+        // del host)— no sea reproducible con CancellationToken en el mismo
+        // proceso: hace falta matar un proceso de verdad mientras escribe,
+        // que es una carga de arnés desproporcionada para esta rama. Queda
+        // como hueco medido, no como propiedad demostrada.
         var carpeta = Path.Combine(_rutaTemporal, _tenantA.ToString("N"));
         if (Directory.Exists(carpeta))
             Directory.GetFiles(carpeta).Should().BeEmpty("una escritura cancelada no debe dejar rastro, ni temporal ni definitivo");
