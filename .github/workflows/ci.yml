@@ -1073,3 +1073,49 @@ jobs:
           fi
           echo "Sin vulnerabilidades conocidas en las fuentes actuales."
 
+  gobernanza-pr:
+    name: "Gobernanza — metadatos de PR"
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions: {}
+    # Solo aplica a `pull_request`: en `push` el commit ya está fusionado y no
+    # hay nada que exigir, y en `merge_group` la referencia temporal
+    # (`gh-readonly-queue/main/...`) no lleva una PR en el payload del evento
+    # — no hay milestone ni labels que leer sin una llamada a la API. Este
+    # check NO es obligatorio en la protección de rama (DEC-42): saltarse
+    # aquí no bloquea la cola de fusión (`grouping_strategy: ALLGREEN`), solo
+    # deja de mostrar el aviso en esos dos eventos.
+    if: github.event_name == 'pull_request'
+    steps:
+      # Se lee del payload del evento, no de la API: no hace falta el permiso
+      # `pull-requests: read` para esto. Un milestone ausente serializa como
+      # cadena vacía; un array de labels vacío hace que `any(...)` sea falso
+      # sin que jq necesite tratarlo como caso especial.
+      - name: Exigir milestone y etiquetas Type:/Priority:
+        env:
+          MILESTONE: ${{ github.event.pull_request.milestone.title }}
+          LABELS_JSON: ${{ toJson(github.event.pull_request.labels.*.name) }}
+        run: |
+          set -euo pipefail
+          fallos=0
+
+          if [ -z "$MILESTONE" ]; then
+            echo "::error::Esta PR no tiene milestone. Convención: tecnico/CONVENCION-METADATOS-PR.md en el repositorio de negocio — toda PR entra en un milestone de 'Hydra — Roadmap'."
+            fallos=1
+          fi
+
+          if ! echo "$LABELS_JSON" | jq -e 'any(startswith("Type: "))' >/dev/null; then
+            echo "::error::Esta PR no lleva ninguna etiqueta 'Type: *'. Convención: tecnico/CONVENCION-METADATOS-PR.md en el repositorio de negocio."
+            fallos=1
+          fi
+
+          if ! echo "$LABELS_JSON" | jq -e 'any(startswith("Priority: "))' >/dev/null; then
+            echo "::error::Esta PR no lleva ninguna etiqueta 'Priority: *'. Convención: tecnico/CONVENCION-METADATOS-PR.md en el repositorio de negocio."
+            fallos=1
+          fi
+
+          if [ "$fallos" -ne 0 ]; then
+            exit 1
+          fi
+          echo "OK — milestone: '$MILESTONE'; etiquetas Type:/Priority: presentes."
+
