@@ -317,8 +317,9 @@ public class SesionPrivilegiadaActualTests : IAsyncLifetime
     [Fact]
     public async Task Revocada_la_concesion_entre_dos_llamadas_RevalidarAsync_lo_ve_y_ObtenerAsync_memoizado_no()
     {
+        await using var contexto = CrearContexto();
         var resolutor = new SesionPrivilegiadaActual(
-            CrearContexto(),
+            contexto,
             new ClienteActivoSeleccionadoFalso(_tenantVisitado, _sesionId),
             new CurrentUserServiceFalso(_usuarioPlataforma));
 
@@ -344,15 +345,31 @@ public class SesionPrivilegiadaActualTests : IAsyncLifetime
     /// <c>RevalidarAsync</c> no solo lee fresco: deja ese resultado fresco
     /// como la nueva memo, así que un <c>ObtenerAsync</c> posterior en el
     /// mismo ámbito de DI —una lectura que ocurra después de la escritura que
-    /// revalidó— nunca ve algo más viejo que lo que la escritura ya comprobó.
+    /// revalidó— la reutiliza sin volver a la base, en vez de resolver otra
+    /// vez por su cuenta.
+    ///
+    /// <b>Por qué no ceba la memo con <c>ObtenerAsync</c>:</b> con la memo
+    /// virgen, <c>ObtenerAsync</c> delega en <c>RevalidarAsync</c> — así que
+    /// si <c>RevalidarAsync</c> no escribiera la memo, un <c>ObtenerAsync</c>
+    /// posterior volvería a delegar en él otra vez, re-resolvería fresco y
+    /// coincidiría con el resultado esperado <b>por la razón equivocada</b>,
+    /// sin que el test lo notara. Se ceba llamando a <c>RevalidarAsync</c>
+    /// directamente y se cuentan los comandos SQL reales: si la memo quedó
+    /// escrita, la lectura posterior no genera ningún comando nuevo.
     /// </summary>
     [Fact]
     public async Task RevalidarAsync_deja_su_resultado_fresco_como_la_nueva_memo_para_ObtenerAsync()
     {
+        var contador = new ContadorComandosInterceptor();
+        await using var contexto = CrearContexto(contador);
         var resolutor = new SesionPrivilegiadaActual(
-            CrearContexto(),
+            contexto,
             new ClienteActivoSeleccionadoFalso(_tenantVisitado, _sesionId),
             new CurrentUserServiceFalso(_usuarioPlataforma));
+
+        (await resolutor.RevalidarAsync()).Should().NotBeNull();
+        var comandosTrasRevalidar = contador.NumeroDeComandos;
+        comandosTrasRevalidar.Should().BePositive();
 
         await ModificarAsync(async contexto =>
         {
@@ -360,10 +377,17 @@ public class SesionPrivilegiadaActualTests : IAsyncLifetime
             concesion.Revocar(DateTime.UtcNow);
         });
 
-        (await resolutor.RevalidarAsync()).Should().BeNull();
-        (await resolutor.ObtenerAsync()).Should().BeNull(
-            "tras revalidar, la memo queda al día — una lectura posterior en el mismo ámbito no puede " +
-            "resucitar la sesión que la revalidación ya vio revocada");
+        // Si RevalidarAsync no hubiera escrito la memo, ObtenerAsync
+        // delegaría en él otra vez, generaría comandos SQL nuevos y vería la
+        // revocación (devolvería null) — las dos señales cambiarían.
+        var resultado = await resolutor.ObtenerAsync();
+
+        resultado.Should().NotBeNull(
+            "la memo quedó escrita por RevalidarAsync con la sesión todavía vigente en ese instante; " +
+            "una lectura posterior en el mismo ámbito la reutiliza en vez de resolver otra vez y ver la " +
+            "revocación que ocurrió después");
+        contador.NumeroDeComandos.Should().Be(comandosTrasRevalidar,
+            "ObtenerAsync no debe generar ningún comando SQL nuevo cuando la memo ya está escrita");
     }
 
     /// <summary>
@@ -377,8 +401,9 @@ public class SesionPrivilegiadaActualTests : IAsyncLifetime
     public async Task RevalidarAsync_cuesta_dos_comandos_sql_para_una_concesion_no_global()
     {
         var contador = new ContadorComandosInterceptor();
+        await using var contexto = CrearContexto(contador);
         var resolutor = new SesionPrivilegiadaActual(
-            CrearContexto(contador),
+            contexto,
             new ClienteActivoSeleccionadoFalso(_tenantVisitado, _sesionId),
             new CurrentUserServiceFalso(_usuarioPlataforma));
 
@@ -398,8 +423,9 @@ public class SesionPrivilegiadaActualTests : IAsyncLifetime
     public async Task RevalidarAsync_sigue_costando_cero_consultas_sin_sesion_en_el_token()
     {
         var contador = new ContadorComandosInterceptor();
+        await using var contexto = CrearContexto(contador);
         var resolutor = new SesionPrivilegiadaActual(
-            CrearContexto(contador),
+            contexto,
             new ClienteActivoSeleccionadoFalso(_tenantVisitado, sesionPrivilegiadaId: null),
             new CurrentUserServiceFalso(_usuarioPlataforma));
 
