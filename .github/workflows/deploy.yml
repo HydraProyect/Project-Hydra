@@ -292,6 +292,14 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
+          # Motivo de una sola línea antes de escribirlo en el log o el
+          # resumen: un salto de línea dentro del input permitiría falsificar
+          # una línea de log de Actions (p. ej. un `::error::` o `::warning::`
+          # posterior no emitido de verdad por este paso). Quien dispara
+          # workflow_dispatch ya necesita acceso de escritura al repositorio,
+          # así que esto no es una escalada de privilegio — es higiene del
+          # registro de auditoría que DEC-40 exige (actor, SHA, motivo).
+          MOTIVO="$(printf '%s' "$MOTIVO" | tr '\n\r' '  ')"
           echo "::warning::BREAK-GLASS — actor=$GITHUB_ACTOR sha=$SHA_DESPLEGADO motivo=$MOTIVO"
           {
             echo "### ⚠️ BREAK-GLASS: despliegue manual sin gate de CI"
