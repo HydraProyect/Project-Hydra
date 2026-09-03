@@ -15,7 +15,10 @@ public class EliminarEmpresaCommandHandler(
     public async Task<Result> Handle(EliminarEmpresaCommand request, CancellationToken cancellationToken)
     {
         var empresa = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
-        if (empresa is null || !await alcanceDatos.EmpresaVisibleAsync(empresa.Id, cancellationToken))
+        // Defensa en profundidad (REC-149): inalcanzable para el rol Cliente
+        // vía AutorizacionEscrituraBehavior; alcance de gestión como segunda
+        // barrera independiente.
+        if (empresa is null || !await alcanceDatos.EmpresaParaGestionVisibleAsync(empresa.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Empresa.NoEncontrada", "No encontramos esta empresa."));
 
         if (await repositorio.TieneTrabajadoresAsync(request.Id, cancellationToken))

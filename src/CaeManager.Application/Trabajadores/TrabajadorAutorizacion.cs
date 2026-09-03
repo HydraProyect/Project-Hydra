@@ -16,7 +16,11 @@ public static class TrabajadorAutorizacion
     public static async Task<bool> EmpleadorVisibleAsync(
         Guid? empresaId, Guid? subcontrataId, IAlcanceDatosService alcanceDatos, CancellationToken cancellationToken)
     {
-        if (empresaId is { } id) return await alcanceDatos.EmpresaVisibleAsync(id, cancellationToken);
+        // Defensa en profundidad (REC-149): el único llamante de este
+        // ayudante es RestaurarTrabajadorCommand, ya inalcanzable para el rol
+        // Cliente vía AutorizacionEscrituraBehavior; alcance de gestión como
+        // segunda barrera independiente.
+        if (empresaId is { } id) return await alcanceDatos.EmpresaParaGestionVisibleAsync(id, cancellationToken);
         if (subcontrataId is { } sid) return await alcanceDatos.SubcontrataVisibleAsync(sid, cancellationToken);
         return false;
     }

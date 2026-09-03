@@ -30,7 +30,10 @@ public class ResolverDeteccionNuevoCommandHandler(
         if (deteccion.Resuelta)
             return Result.Fallo(Error.Crear("Deteccion.YaResuelta", "Esta detección ya fue gestionada."));
 
-        if (!await alcanceDatos.EmpresaVisibleAsync(deteccion.EmpresaId, cancellationToken))
+        // Defensa en profundidad (REC-149): inalcanzable para el rol Cliente
+        // vía AutorizacionEscrituraBehavior; alcance de gestión como segunda
+        // barrera independiente.
+        if (!await alcanceDatos.EmpresaParaGestionVisibleAsync(deteccion.EmpresaId, cancellationToken))
             return Result.Fallo(Error.Crear("Deteccion.NoEncontrada", "No encontramos esta detección."));
 
         if (!request.Crear)

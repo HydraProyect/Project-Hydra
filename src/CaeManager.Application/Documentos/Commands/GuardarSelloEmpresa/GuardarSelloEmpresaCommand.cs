@@ -41,7 +41,10 @@ public class GuardarSelloEmpresaCommandHandler(
     public async Task<Result> Handle(GuardarSelloEmpresaCommand request, CancellationToken cancellationToken)
     {
         var empresa = await empresaRepositorio.ObtenerPorIdAsync(request.EmpresaId, cancellationToken);
-        if (empresa is null || !await alcanceDatos.EmpresaVisibleAsync(empresa.Id, cancellationToken))
+        // Defensa en profundidad (REC-149): inalcanzable para el rol Cliente
+        // vía AutorizacionEscrituraBehavior; alcance de gestión como segunda
+        // barrera independiente.
+        if (empresa is null || !await alcanceDatos.EmpresaParaGestionVisibleAsync(empresa.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Empresa.NoEncontrada", "No encontramos esta empresa."));
 
         var pngNormalizado = conversor.NormalizarAPng(request.ImagenOriginal, recortarFondoClaro: true);

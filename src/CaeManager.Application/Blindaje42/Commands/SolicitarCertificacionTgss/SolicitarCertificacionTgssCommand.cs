@@ -52,7 +52,12 @@ public class SolicitarCertificacionTgssCommandHandler(
         if (!await alcanceDatos.ClienteVisibleAsync(request.ClienteId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("CertificacionTgss.ClienteNoEncontrado", "No encontramos este cliente."));
 
-        if (!await alcanceDatos.EmpresaVisibleAsync(request.EmpresaId, cancellationToken))
+        // Defensa en profundidad (REC-149): este Command ya es inalcanzable
+        // para el rol Cliente vía AutorizacionEscrituraBehavior (lista blanca
+        // de roles de escritura), pero el alcance de gestión es la puerta
+        // correcta igualmente — falla por dos motivos independientes en vez
+        // de uno.
+        if (!await alcanceDatos.EmpresaParaGestionVisibleAsync(request.EmpresaId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("CertificacionTgss.EmpresaNoEncontrada", "No encontramos esta empresa."));
 
         // No exigimos VigenciaHasta == null a propósito: la responsabilidad
