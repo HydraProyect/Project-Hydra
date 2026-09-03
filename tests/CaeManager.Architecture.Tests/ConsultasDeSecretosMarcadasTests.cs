@@ -7,14 +7,29 @@ namespace CaeManager.Architecture.Tests;
 
 /// <summary>
 /// <c>IConsultaDeSecretosDeTenant</c> es una lista, y las listas se quedan
-/// obsoletas solas. Estos dos tests son su ratchet: uno por reflexión sobre lo
-/// que las Queries devuelven, otro por texto sobre lo que leen.
+/// obsoletas solas. Los dos primeros tests son su ratchet: uno por reflexión
+/// sobre lo que las Queries devuelven, otro por texto sobre lo que leen.
 ///
 /// Lo que protegen: una sesión de <c>SoporteLectura</c> ve el tenant entero, y
 /// la única razón por la que no ve sus contraseñas de plataformas externas es
 /// que esas dos Queries están marcadas. Una Query nueva de credenciales sin
 /// marcar no rompería nada visible — simplemente entregaría las llaves, en
 /// silencio, el día que exista el camino que abre sesiones.
+///
+/// <para>
+/// <b>Contrato efectivo de <see cref="Toda_consulta_de_secretos_acota_por_cartera"/>,
+/// más estrecho que su nombre (REC-153):</b> solo comprueba que el handler
+/// reciba <c>IAlcanceDatosService</c> por constructor — nunca qué método del
+/// alcance invoca. No distingue el alcance de LECTURA del de GESTIÓN, así que
+/// una consulta marcada y con el servicio inyectado puede seguir usando
+/// <c>EmpresaVisibleAsync</c>/<c>SubcontrataVisibleAsync</c> (lectura) como
+/// puerta, y este ratchet no lo detecta: eso fue exactamente lo que le pasó a
+/// <c>ObtenerCredencialAccesoEmpresaQuery</c> — un usuario de portal (rol
+/// Cliente) leía en claro la contraseña de una contratista de su propio
+/// Cliente porque esa cartera de lectura la incluye. El ratchet protege de
+/// una sesión privilegiada de plataforma y de un Id fuera de cualquier
+/// cartera; no protege de que la cartera elegida sea la equivocada.
+/// </para>
 /// </summary>
 public class ConsultasDeSecretosMarcadasTests
 {
