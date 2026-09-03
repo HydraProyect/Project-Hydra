@@ -96,6 +96,59 @@ public class AutomatizacionesPanelTests : BunitContext
         }
     }
 
+    /// <summary>REC-126: el mensaje de error de la última ejecución fallida debe llegar al panel, no solo el badge "Fallida".</summary>
+    [Fact]
+    public void Muestra_el_mensaje_de_error_de_una_ejecucion_fallida()
+    {
+        Services.AddScoped<IMediator>(_ => new MediatorFalso
+        {
+            Respuesta = (IReadOnlyList<AutomatizacionDto>)
+            [
+                new(CatalogoAutomatizaciones.IngestaCorreoM365, "Ingesta de correo M365", "desc", Conmutable: true, Activo: true,
+                    UltimaEjecucionUtc: DateTime.UtcNow, UltimoResultadoExitoso: false,
+                    UltimoMensajeError: "El token de Microsoft 365 caducó."),
+            ]
+        });
+        Services.AddScoped<ToastService>();
+        Services.AddSingleton<IOptions<Microsoft365GraphOptions>>(
+            Options.Create(new Microsoft365GraphOptions { ClientId = "id", ClientSecret = "secret", UrlPublicaBase = "https://hydra.local" }));
+        Services.AddSingleton<IOptions<WhatsAppCloudApiOptions>>(Options.Create(new WhatsAppCloudApiOptions()));
+        Services.AddSingleton<IOptions<AlertasPorCorreoOptions>>(Options.Create(new AlertasPorCorreoOptions()));
+        Services.AddSingleton<IOptions<VigilanciaNormativaBoeOptions>>(Options.Create(new VigilanciaNormativaBoeOptions()));
+
+        var cut = Render<AutomatizacionesPanel>();
+
+        var fila = cut.Find(".fila-automatizaciones:not(.fila-cabecera)");
+        fila.TextContent.Should().Contain("Fallida");
+        fila.TextContent.Should().Contain("El token de Microsoft 365 caducó.");
+    }
+
+    /// <summary>Éxito con datos evaluados/afectados (REC-126) — sin mensaje de error que mostrar.</summary>
+    [Fact]
+    public void Muestra_evaluados_y_afectados_de_una_ejecucion_exitosa()
+    {
+        Services.AddScoped<IMediator>(_ => new MediatorFalso
+        {
+            Respuesta = (IReadOnlyList<AutomatizacionDto>)
+            [
+                new(CatalogoAutomatizaciones.IngestaCorreoM365, "Ingesta de correo M365", "desc", Conmutable: true, Activo: true,
+                    UltimaEjecucionUtc: DateTime.UtcNow, UltimoResultadoExitoso: true,
+                    UltimosElementosEvaluados: 12, UltimosElementosAfectados: 3),
+            ]
+        });
+        Services.AddScoped<ToastService>();
+        Services.AddSingleton<IOptions<Microsoft365GraphOptions>>(
+            Options.Create(new Microsoft365GraphOptions { ClientId = "id", ClientSecret = "secret", UrlPublicaBase = "https://hydra.local" }));
+        Services.AddSingleton<IOptions<WhatsAppCloudApiOptions>>(Options.Create(new WhatsAppCloudApiOptions()));
+        Services.AddSingleton<IOptions<AlertasPorCorreoOptions>>(Options.Create(new AlertasPorCorreoOptions()));
+        Services.AddSingleton<IOptions<VigilanciaNormativaBoeOptions>>(Options.Create(new VigilanciaNormativaBoeOptions()));
+
+        var cut = Render<AutomatizacionesPanel>();
+
+        var fila = cut.Find(".fila-automatizaciones:not(.fila-cabecera)");
+        fila.TextContent.Should().Contain("12 evaluados, 3 afectados");
+    }
+
     private sealed class MediatorFalso : IMediator
     {
         public object? Respuesta { get; set; }

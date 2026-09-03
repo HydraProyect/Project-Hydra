@@ -226,6 +226,58 @@ public class DeteccionPurgaTests : IAsyncLifetime
             .Should().Be(0);
     }
 
+    /// <summary>
+    /// HO-084-01 (REC-084, DEC-35): el modo diagnóstico es lo que permite
+    /// evaluar qué habría sin política de retención aprobada. Lo esencial —
+    /// y lo que distingue este método de <see cref="DeteccionPurgaService.DetectarAsync"/>—
+    /// es que cuenta sin dejar ningún rastro ejecutable: repetir el
+    /// diagnóstico no debe acumular filas, porque no crea ninguna.
+    /// </summary>
+    [Fact]
+    public async Task Diagnosticar_cuenta_lo_purgable_sin_crear_ninguna_solicitud()
+    {
+        await SembrarDocumentoAsync(vencimiento: _hoy.AddYears(-CincoAnios).AddDays(-1));
+        await SembrarTrabajadorAsync(fechaBaja: _hoy.AddYears(-CincoAnios).AddDays(-1));
+
+        await using var contexto = CrearContexto();
+        var resultado = await CrearServicio(contexto).DiagnosticarAsync(_hoy);
+
+        resultado.DocumentosPurgables.Should().Be(1);
+        resultado.TrabajadoresPurgables.Should().Be(1);
+        resultado.Total.Should().Be(2);
+
+        // El recuento antes/después es el mismo: cero solicitudes, antes y
+        // después de diagnosticar dos veces seguidas.
+        (await contexto.SolicitudesPurga.CountAsync()).Should().Be(0);
+        await CrearServicio(contexto).DiagnosticarAsync(_hoy);
+        (await contexto.SolicitudesPurga.CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Diagnosticar_sin_nada_purgable_devuelve_cero()
+    {
+        await SembrarDocumentoAsync(vencimiento: _hoy.AddYears(-CincoAnios).AddDays(1));
+
+        await using var contexto = CrearContexto();
+        var resultado = await CrearServicio(contexto).DiagnosticarAsync(_hoy);
+
+        resultado.Total.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Diagnosticar_respeta_el_plazo_de_trabajadores_desactivado()
+    {
+        // Mismo criterio que Sin_plazo_configurado_no_se_purga_ningun_trabajador,
+        // aplicado al diagnóstico: null sigue significando "esta categoría no
+        // se evalúa", no "todo es purgable".
+        await SembrarTrabajadorAsync(fechaBaja: _hoy.AddYears(-20));
+
+        await using var contexto = CrearContexto();
+        var resultado = await CrearServicio(contexto, aniosTrabajadores: null).DiagnosticarAsync(_hoy);
+
+        resultado.TrabajadoresPurgables.Should().Be(0);
+    }
+
     private async Task<Guid> SembrarDocumentoAsync(DateOnly? vencimiento, DateOnly? emision = null)
     {
         await using var contexto = CrearContexto();

@@ -90,6 +90,10 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
     /// cablear el mismo interruptor de <c>CatalogoAutomatizaciones</c> y el mismo
     /// registro de última ejecución que ya tenía su mellizo M365, siempre sobre el
     /// <c>tenantId</c> de la enumeración propia del job.
+    /// Actualizado 2026-09-03 (HO-084-01, REC-084): <b>27 ficheros, 50 llamadas</b> —
+    /// nuevo <c>RetencionHostedService.cs</c> (3 llamadas), mismo patrón que
+    /// <c>VigilanciaVisitasUrgentesHostedService.cs</c>: barrido diario sobre la
+    /// enumeración propia de tenants activos.
     /// </summary>
     private static readonly Dictionary<string, EntradaBlanca> Autorizados = new()
     {
@@ -126,6 +130,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del EventoWebhook que procesa"),
         ["src/CaeManager.Infrastructure/Integraciones/RenovacionSuscripcionWebhookHostedService.cs"] =
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del EventoWebhook que procesa"),
+        ["src/CaeManager.Infrastructure/Retencion/RetencionHostedService.cs"] =
+            new(Categoria.JobDeFondoSobreEnumeracionPropia, "3 llamadas — tenantId del bucle que recorre todos los tenants activos desde el propio servicio (HO-084-01, REC-084)"),
         ["src/CaeManager.Infrastructure/VigilanciaNormativa/VigilanciaNormativaBoeHostedService.cs"] =
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del bucle que recorre todos los tenants desde el propio servicio"),
         ["src/CaeManager.Infrastructure/Visitas/VigilanciaVisitasUrgentesHostedService.cs"] =
@@ -220,6 +226,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/DocumentosIa/ProcesadorAnalisisDocumentoHostedService.cs"] = 3,
             ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookHostedService.cs"] = 4,
             ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookWhatsAppHostedService.cs"] = 4,
+            ["src/CaeManager.Infrastructure/Retencion/RetencionHostedService.cs"] = 3,
             ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs"] = 9,
             ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionesSoporteSeeder.cs"] = 3,
             ["src/CaeManager.Infrastructure/Persistence/Seed/SegundoTenantSeeder.cs"] = 2,

@@ -189,9 +189,9 @@ public class IngestaWebhookWhatsAppHostedService(
         {
             throw;
         }
-        catch
+        catch (Exception ex)
         {
-            await RegistrarEjecucionAsync(tenantId, exitosa: false, stoppingToken);
+            await RegistrarEjecucionAsync(tenantId, exitosa: false, stoppingToken, mensajeError: ex.Message);
             throw;
         }
 
@@ -199,15 +199,19 @@ public class IngestaWebhookWhatsAppHostedService(
         // ejecución" cuando hubo algo que procesar, para no ensuciar la
         // pantalla de Automatizaciones con un tick vacío cada 10 s.
         if (huboActividad)
-            await RegistrarEjecucionAsync(tenantId, exitosa: true, stoppingToken);
+            await RegistrarEjecucionAsync(tenantId, exitosa: true, stoppingToken, elementosAfectados: procesadosEnEsteTick);
     }
 
-    private async Task RegistrarEjecucionAsync(Guid tenantId, bool exitosa, CancellationToken stoppingToken)
+    private async Task RegistrarEjecucionAsync(
+        Guid tenantId, bool exitosa, CancellationToken stoppingToken,
+        string? mensajeError = null, int? elementosAfectados = null)
     {
         using var ambito = ambitoFactory.CreateScope();
         using var _ = AmbitoTenantExplicito.Establecer(tenantId);
         var registro = ambito.ServiceProvider.GetRequiredService<IRegistroAutomatizacionesService>();
-        await registro.RegistrarEjecucionAsync(CatalogoAutomatizaciones.IngestaWhatsApp, exitosa, stoppingToken);
+        await registro.RegistrarEjecucionAsync(
+            CatalogoAutomatizaciones.IngestaWhatsApp, exitosa, stoppingToken,
+            mensajeError: mensajeError, elementosAfectados: elementosAfectados);
     }
 
     private async Task RecuperarEstancadosAsync(Guid tenantId, CancellationToken stoppingToken)

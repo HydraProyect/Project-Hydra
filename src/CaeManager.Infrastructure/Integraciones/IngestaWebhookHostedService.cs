@@ -166,9 +166,9 @@ public class IngestaWebhookHostedService(
         {
             throw;
         }
-        catch
+        catch (Exception ex)
         {
-            await RegistrarEjecucionAsync(tenantId, exitosa: false, stoppingToken);
+            await RegistrarEjecucionAsync(tenantId, exitosa: false, stoppingToken, mensajeError: ex.Message);
             throw;
         }
 
@@ -177,7 +177,7 @@ public class IngestaWebhookHostedService(
         // "ejecutado" en cada tick vacío no aportaría nada a la pantalla
         // de Automatizaciones, solo ruido en la fecha.
         if (huboActividad)
-            await RegistrarEjecucionAsync(tenantId, exitosa: true, stoppingToken);
+            await RegistrarEjecucionAsync(tenantId, exitosa: true, stoppingToken, elementosAfectados: procesadosEnEsteTick);
     }
 
     private async Task RecuperarEstancadosAsync(Guid tenantId, CancellationToken stoppingToken)
@@ -201,11 +201,15 @@ public class IngestaWebhookHostedService(
         await ambito.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync(stoppingToken);
     }
 
-    private async Task RegistrarEjecucionAsync(Guid tenantId, bool exitosa, CancellationToken stoppingToken)
+    private async Task RegistrarEjecucionAsync(
+        Guid tenantId, bool exitosa, CancellationToken stoppingToken,
+        string? mensajeError = null, int? elementosAfectados = null)
     {
         using var ambito = ambitoFactory.CreateScope();
         using var _ = AmbitoTenantExplicito.Establecer(tenantId);
         var registro = ambito.ServiceProvider.GetRequiredService<IRegistroAutomatizacionesService>();
-        await registro.RegistrarEjecucionAsync(CatalogoAutomatizaciones.IngestaCorreoM365, exitosa, stoppingToken);
+        await registro.RegistrarEjecucionAsync(
+            CatalogoAutomatizaciones.IngestaCorreoM365, exitosa, stoppingToken,
+            mensajeError: mensajeError, elementosAfectados: elementosAfectados);
     }
 }

@@ -131,19 +131,21 @@ public class EnvioAlertasVencimientoHostedService(
             // antes, un fallo de envío individual solo dejaba un warning en
             // el log y el ciclo se registraba "exitosa" igual, ocultando el
             // fallo en la pantalla de Automatizaciones.
-            var huboFallosDeEnvio = await EjecutarEnvioAsync(ambito, tenantId, stoppingToken);
+            var (mensajeError, alertasEvaluadas) = await EjecutarEnvioAsync(ambito, tenantId, stoppingToken);
             await registroAutomatizaciones.RegistrarEjecucionAsync(
-                CatalogoAutomatizaciones.AlertasVencimientoDiarias, exitosa: !huboFallosDeEnvio, stoppingToken);
+                CatalogoAutomatizaciones.AlertasVencimientoDiarias, exitosa: mensajeError is null, stoppingToken,
+                mensajeError: mensajeError, elementosEvaluados: alertasEvaluadas);
         }
-        catch
+        catch (Exception ex)
         {
-            await registroAutomatizaciones.RegistrarEjecucionAsync(CatalogoAutomatizaciones.AlertasVencimientoDiarias, exitosa: false, stoppingToken);
+            await registroAutomatizaciones.RegistrarEjecucionAsync(
+                CatalogoAutomatizaciones.AlertasVencimientoDiarias, exitosa: false, stoppingToken, mensajeError: ex.Message);
             throw;
         }
     }
 
-    /// <returns><c>true</c> si al menos un destinatario no recibió el correo.</returns>
-    private async Task<bool> EjecutarEnvioAsync(IServiceScope ambito, Guid tenantId, CancellationToken stoppingToken)
+    /// <returns>El mensaje de error si al menos un destinatario no recibió el correo (null si todos lo recibieron), y cuántas alertas se evaluaron.</returns>
+    private async Task<(string? MensajeError, int AlertasEvaluadas)> EjecutarEnvioAsync(IServiceScope ambito, Guid tenantId, CancellationToken stoppingToken)
     {
         var dbContext = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
         var alcanceDatos = ambito.ServiceProvider.GetRequiredService<IAlcanceDatosService>();
@@ -157,7 +159,7 @@ public class EnvioAlertasVencimientoHostedService(
             dbContext, dbContext, dbContext, dbContext, dbContext, dbContext, dbContext, resolverClientePrincipal, alcanceDatos, documentosFaltantesService);
 
         var alertas = await handler.CalcularAsync(trabajadorIdsVisibles: null, centroIdsVisibles: null, stoppingToken);
-        if (alertas.Count == 0) return false;
+        if (alertas.Count == 0) return (null, 0);
 
         var directorio = ambito.ServiceProvider.GetRequiredService<DirectorioUsuariosTenant>();
         var administradores = await directorio.ObtenerVisiblesEnRolAsync(Roles.Administrador, stoppingToken);
@@ -168,25 +170,31 @@ public class EnvioAlertasVencimientoHostedService(
             .DistinctBy(u => u.Id)
             .ToList();
 
-        if (destinatarios.Count == 0) return false;
+        if (destinatarios.Count == 0) return (null, alertas.Count);
 
         var emailService = ambito.ServiceProvider.GetRequiredService<IEmailService>();
         var (asunto, cuerpo) = ConstruirCorreo(alertas, opciones.Value.UrlBase);
 
-        var huboFallos = false;
+        // REC-126: un fallo de envío individual (Result fallido, sin lanzar
+        // excepción) marcaba la ejecución como no exitosa pero sin ningún
+        // mensaje que explicara por qué — el panel mostraba "Fallida" a
+        // secas. Se acumulan los errores de los destinatarios fallidos para
+        // que RegistrarEjecucionAsync tenga algo que mostrar.
+        var errores = new List<string>();
         foreach (var destinatario in destinatarios)
         {
             var resultado = await emailService.EnviarAsync(destinatario.Email!, asunto, cuerpo, stoppingToken);
             if (resultado.EsFallido)
             {
-                huboFallos = true;
+                errores.Add($"{destinatario.Email}: {resultado.Error.Mensaje}");
                 logger.LogWarning(
                     "No se pudo enviar el resumen de alertas de vencimiento a {Email} (tenant {TenantId}): {Error}",
                     destinatario.Email, tenantId, resultado.Error.Mensaje);
             }
         }
 
-        return huboFallos;
+        var mensajeError = errores.Count == 0 ? null : string.Join("; ", errores);
+        return (mensajeError, alertas.Count);
     }
 
     private static (string Asunto, string CuerpoHtml) ConstruirCorreo(IReadOnlyList<AlertaDto> alertas, string? urlBase)
