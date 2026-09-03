@@ -375,6 +375,78 @@ public class DocumentAIRouterServiceTests
         auditoria.Auditorias[0].DocumentoId.Should().BeNull("triage previo a la creación del Documento — todavía no existe qué enlazar");
     }
 
+    /// <summary>REC-036/DEC-34: la entrada nueva de caché queda vinculada al Documento que la produjo — ver ExtraccionIaCacheDocumento.</summary>
+    [Fact]
+    public async Task Vincula_la_entrada_de_cache_recien_creada_al_documento_indicado()
+    {
+        var proveedor = new ProveedorIaFalso(
+            "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Apto médico", new Dictionary<string, string?>(), 97, null)));
+        var (router, cache, _, _) = CrearRouterConDependencias(Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"), proveedor);
+        var documentoId = Guid.NewGuid();
+
+        await router.ProcesarAsync([1, 2, 3], "documento.pdf", "Apto médico", documentoId);
+
+        cache.Vinculos.Should().ContainSingle().Which.DocumentoId.Should().Be(documentoId);
+    }
+
+    /// <summary>Triage previo a la creación del Documento (sin documentoId): la entrada de caché no debe llevar ningún vínculo.</summary>
+    [Fact]
+    public async Task No_vincula_la_entrada_de_cache_a_ningun_documento_cuando_no_se_indica()
+    {
+        var proveedor = new ProveedorIaFalso(
+            "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Apto médico", new Dictionary<string, string?>(), 97, null)));
+        var (router, cache, _, _) = CrearRouterConDependencias(Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"), proveedor);
+
+        await router.ProcesarAsync([1, 2, 3], "documento.pdf", "Apto médico");
+
+        cache.Vinculos.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// El caso central de riesgo #2 del handoff: una entrada creada por
+    /// triage sin documentoId (p. ej. detección al subir) que luego un
+    /// acierto de caché sobre un Documento ya existente (verificación IA)
+    /// reutiliza — el vínculo tiene que crearse en ESE segundo momento, o la
+    /// entrada quedaría huérfana para siempre.
+    /// </summary>
+    [Fact]
+    public async Task Un_acierto_de_cache_sobre_un_documento_existente_vincula_una_entrada_creada_antes_sin_documento()
+    {
+        var proveedor = new ProveedorIaFalso(
+            "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Apto médico", new Dictionary<string, string?>(), 97, null)));
+        var (router, cache, _, _) = CrearRouterConDependencias(Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"), proveedor);
+        byte[] archivo = [1, 2, 3];
+        var documentoId = Guid.NewGuid();
+
+        await router.ProcesarAsync(archivo, "documento.pdf", "Apto médico"); // triage: sin documentoId
+        cache.Vinculos.Should().BeEmpty("todavía no hay Documento al que enlazar");
+
+        await router.ProcesarAsync(archivo, "documento.pdf", "Apto médico", documentoId); // verificación: acierto de caché, con documentoId
+
+        proveedor.VecesLlamadoParaEstructurado.Should().Be(1, "la segunda llamada se sirvió desde caché, no volvió a pagar al proveedor");
+        cache.Vinculos.Should().ContainSingle().Which.DocumentoId.Should().Be(documentoId);
+    }
+
+    /// <summary>Reprocesar el mismo Documento (misma clave de caché) no debe duplicar el vínculo — es la misma idempotencia que Agregar ya da para el JSON.</summary>
+    [Fact]
+    public async Task Reprocesar_el_mismo_documento_no_duplica_el_vinculo()
+    {
+        var proveedor = new ProveedorIaFalso(
+            "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Apto médico", new Dictionary<string, string?>(), 97, null)));
+        var (router, cache, _, _) = CrearRouterConDependencias(Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"), proveedor);
+        byte[] archivo = [1, 2, 3];
+        var documentoId = Guid.NewGuid();
+
+        await router.ProcesarAsync(archivo, "documento.pdf", "Apto médico", documentoId);
+        await router.ProcesarAsync(archivo, "documento.pdf", "Apto médico", documentoId);
+
+        cache.Vinculos.Should().ContainSingle();
+    }
+
     [Fact]
     public async Task Registra_una_auditoria_con_proveedor_ninguno_cuando_falla()
     {
@@ -685,6 +757,79 @@ public class DocumentAIRouterServiceTests
             if (!_yaFallo)
             {
                 _yaFallo = true;
+                throw new DbUpdateException("Simula el choque contra el índice único de ExtraccionIaCache.");
+            }
+
+            return Task.FromResult(1);
+        }
+    }
+
+    /// <summary>
+    /// Hallazgo de revisión Codex sobre este mismo cambio (REC-036/DEC-36):
+    /// dos Documentos DISTINTOS procesan a la vez el mismo archivo bajo el
+    /// mismo tipo esperado — el escenario central del § 6 del handoff, no un
+    /// caso remoto. El primero en llegar aquí pierde la carrera de la propia
+    /// ENTRADA de caché (no solo del vínculo): al fallar su SaveChangesAsync,
+    /// la fila ganadora de "otro proceso" ya existe. Sin re-vincular contra
+    /// esa fila ganadora, este segundo documentoId se habría quedado sin
+    /// vínculo para siempre — su Id de entrada descartado nunca llegó a
+    /// existir en base de datos.
+    /// </summary>
+    [Fact]
+    public async Task Vincula_al_documento_con_la_entrada_ganadora_cuando_pierde_la_carrera_de_creacion_de_cache()
+    {
+        var proveedor = new ProveedorIaFalso(
+            "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Apto médico", new Dictionary<string, string?>(), 97, null)));
+
+        var cache = new ExtraccionIaCacheRepositorioFalso();
+        var auditoria = new AuditoriaExtraccionIaRepositorioFalso();
+        byte[] archivo = [1, 2, 3];
+        var hash = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(archivo));
+        var unitOfWork = new UnitOfWorkQueFallaSimulandoOtroDocumentoGanadorFalso(cache, hash, "Apto médico");
+        var router = new DocumentAIRouterService(
+            new ClasificadorDocumentoServiceFalso(Clasificacion(TipoContenidoDocumento.Digital, true)),
+            new ExtractorTextoDigitalServiceFalso(Result.Exito<IReadOnlyList<string>>(["texto"])),
+            new LocalizadorPaginasRelevantesService(),
+            new RasterizadorPaginasFalso(),
+            new DocumentAIProviderFactory([proveedor]),
+            cache,
+            auditoria,
+            unitOfWork,
+            NullLogger<DocumentAIRouterService>.Instance);
+        var documentoId = Guid.NewGuid();
+
+        var resultado = await router.ProcesarAsync(archivo, "documento.pdf", "Apto médico", documentoId);
+
+        resultado.EsExitoso.Should().BeTrue();
+        cache.Vinculos.Should().ContainSingle(
+            "el documentoId no puede quedarse sin vínculo solo porque perdió la carrera de creación de la entrada");
+        cache.Vinculos[0].DocumentoId.Should().Be(documentoId);
+        cache.Vinculos[0].ExtraccionIaCacheId.Should().Be(unitOfWork.IdDeLaEntradaGanadora,
+            "el vínculo tiene que apuntar a la entrada que SÍ existe en base de datos, no a la que perdió la carrera");
+    }
+
+    private sealed class UnitOfWorkQueFallaSimulandoOtroDocumentoGanadorFalso(
+        ExtraccionIaCacheRepositorioFalso cache, string hash, string tipoEsperado) : IUnitOfWork
+    {
+        private bool _yaFallo;
+
+        public Guid IdDeLaEntradaGanadora { get; private set; }
+
+        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            if (!_yaFallo)
+            {
+                _yaFallo = true;
+
+                // Simula que otro documento, procesado concurrentemente,
+                // ganó la carrera de escritura de la ENTRADA de caché: su
+                // fila ya está en la "base de datos" cuando este
+                // SaveChangesAsync choca.
+                var ganadora = ExtraccionIaCache.Crear(hash, tipoEsperado, """{"gano":"otro-documento"}""");
+                cache.Agregar(ganadora);
+                IdDeLaEntradaGanadora = ganadora.Id;
+
                 throw new DbUpdateException("Simula el choque contra el índice único de ExtraccionIaCache.");
             }
 

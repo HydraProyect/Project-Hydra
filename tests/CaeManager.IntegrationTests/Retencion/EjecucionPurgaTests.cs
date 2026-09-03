@@ -123,6 +123,7 @@ public class EjecucionPurgaTests : IAsyncLifetime
                 contextoEjecucion,
                 contextoEjecucion,
                 new SolicitudPurgaRepository(contextoEjecucion),
+                new ExtraccionIaCacheRepository(contextoEjecucion),
                 new AlmacenamientoArchivosFalso(),
                 new TenantActualAmbiental { TenantId = _tenant },
                 contextoEjecucion,
@@ -216,6 +217,7 @@ public class EjecucionPurgaTests : IAsyncLifetime
                 contextoEjecucion,
                 contextoEjecucion,
                 new SolicitudPurgaRepository(contextoEjecucion),
+                new ExtraccionIaCacheRepository(contextoEjecucion),
                 new AlmacenamientoArchivosFalso(),
                 new TenantActualAmbiental { TenantId = _tenant },
                 contextoEjecucion,
@@ -281,6 +283,7 @@ public class EjecucionPurgaTests : IAsyncLifetime
             var servicioEjecucion = new EjecucionPurgaService(
                 contextoEjecucion, contextoEjecucion, contextoEjecucion,
                 new SolicitudPurgaRepository(contextoEjecucion),
+                new ExtraccionIaCacheRepository(contextoEjecucion),
                 new AlmacenamientoArchivosFalso(fallaAlEliminar: true),
                 new TenantActualAmbiental { TenantId = _tenant },
                 contextoEjecucion,
@@ -319,6 +322,7 @@ public class EjecucionPurgaTests : IAsyncLifetime
             var servicioEjecucion = new EjecucionPurgaService(
                 contextoEjecucion, contextoEjecucion, contextoEjecucion,
                 new SolicitudPurgaRepository(contextoEjecucion),
+                new ExtraccionIaCacheRepository(contextoEjecucion),
                 new AlmacenamientoArchivosFalso(),
                 new TenantActualAmbiental { TenantId = _tenant },
                 contextoEjecucion,

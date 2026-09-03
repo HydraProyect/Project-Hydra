@@ -24,5 +24,8 @@ public class ExtraccionIaCacheConfiguration : IEntityTypeConfiguration<Extraccio
         // que una lectura falle y a continuación su escritura choque contra el
         // índice.
         builder.HasIndex(c => new { c.TenantId, c.HashSha256, c.TipoEsperado, c.VersionPipeline }).IsUnique();
+
+        // Prerequisito de la FK que ExtraccionIaCacheDocumentoConfiguration declara hacia esta tabla.
+        builder.HasIndex(c => new { c.TenantId, c.Id }).IsUnique();
     }
 }
