@@ -52,6 +52,21 @@ public static class ClienteActivoEndpoints
             // Se excluye la raíz: es el fallback del propietario sobre sí
             // mismo, no un workspace que se seleccione. La entrada del tenant
             // propio sale del claim de sesión, como siempre.
+            //
+            // REC-136: si el usuario tiene cartera vigente sobre más de una
+            // Asignación de Operación hacia el mismo tenantId (dos relaciones
+            // de operación distintas y solapadas, o una operación cerrada y
+            // otra reabierta), el `where` de arriba no las distingue y
+            // `FirstOrDefaultAsync` sin criterio de orden elegía una de forma
+            // no determinista — mismo defecto de forma que
+            // `CurrentUserService.ObtenerRolActualAsync` ya corrigió en su
+            // sitio. Se ordena por la operación vigente más reciente
+            // (`VigenciaDesde` descendente) y, a igualdad, por `Id` como
+            // desempate estable — el token embebe una operación concreta y
+            // reproducible, no la que el planificador de PostgreSQL devuelva
+            // primero. No se ha demostrado que esta no-determinación causara
+            // el fallo intermitente de REC-136; se corrige de todos modos
+            // porque es un defecto real por derecho propio.
             var asignacionOperacionId = await (
                 from cartera in operacionesContext.AsignacionesCartera
                 join operacion in operacionesContext.AsignacionesOperacion
@@ -66,6 +81,7 @@ public static class ClienteActivoEndpoints
                       && operacion.Estado == EstadoAsignacion.Vigente
                       && operacion.VigenciaDesde <= ahora
                       && (operacion.VigenciaHasta == null || ahora < operacion.VigenciaHasta)
+                orderby operacion.VigenciaDesde descending, operacion.Id
                 select (Guid?)operacion.Id)
                 .FirstOrDefaultAsync(cancellationToken);
 
