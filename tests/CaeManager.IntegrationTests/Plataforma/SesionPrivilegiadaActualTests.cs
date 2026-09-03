@@ -302,6 +302,162 @@ public class SesionPrivilegiadaActualTests : IAsyncLifetime
             "impersonar no es break-glass: sin el camino que evalúa los planos del simulado, escribir queda fuera");
     }
 
+    // ── REC-067: RevalidarAsync no puede confiar en la memo de circuito ──────
+
+    /// <summary>
+    /// Reproduce contra Postgres real, con la clase de producción y UNA sola
+    /// instancia reutilizada —el mismo objeto que un circuito de Blazor Server
+    /// comparte entre dos comandos consecutivos—, el ataque central de
+    /// REC-067: la concesión se revoca <b>entre</b> dos llamadas del mismo
+    /// ámbito de DI. <c>ObtenerAsync</c> conserva la memo de la primera
+    /// llamada a propósito —esa es la limitación aceptada para lectura, ver
+    /// <c>AutorizacionEscrituraBehavior</c>—; <c>RevalidarAsync</c>, que es lo
+    /// que consulta el punto de mutación, tiene que ver el cambio en el acto.
+    /// </summary>
+    [Fact]
+    public async Task Revocada_la_concesion_entre_dos_llamadas_RevalidarAsync_lo_ve_y_ObtenerAsync_memoizado_no()
+    {
+        await using var contexto = CrearContexto();
+        var resolutor = new SesionPrivilegiadaActual(
+            contexto,
+            new ClienteActivoSeleccionadoFalso(_tenantVisitado, _sesionId),
+            new CurrentUserServiceFalso(_usuarioPlataforma));
+
+        // Primera resolución: legítima, y deja memoizado el resultado — igual
+        // que la primera escritura de un circuito recién abierto.
+        (await resolutor.ObtenerAsync()).Should().NotBeNull();
+
+        await ModificarAsync(async contexto =>
+        {
+            var concesion = await contexto.ConcesionesPrivilegio.FirstAsync(c => c.Id == _concesionId);
+            concesion.Revocar(DateTime.UtcNow);
+        });
+
+        (await resolutor.ObtenerAsync()).Should().NotBeNull(
+            "ObtenerAsync es la vía de lectura, memoizada a propósito por circuito — la cierra el " +
+            "enforcement de datos (ADR-011 § 4bis.7.4), no este método");
+
+        (await resolutor.RevalidarAsync()).Should().BeNull(
+            "el punto de mutación no puede confiar en la memo: tiene que revalidar contra la base cada vez");
+    }
+
+    /// <summary>
+    /// <c>RevalidarAsync</c> no solo lee fresco: deja ese resultado fresco
+    /// como la nueva memo, así que un <c>ObtenerAsync</c> posterior en el
+    /// mismo ámbito de DI —una lectura que ocurra después de la escritura que
+    /// revalidó— la reutiliza sin volver a la base, en vez de resolver otra
+    /// vez por su cuenta.
+    ///
+    /// <b>Por qué no ceba la memo con <c>ObtenerAsync</c>:</b> con la memo
+    /// virgen, <c>ObtenerAsync</c> delega en <c>RevalidarAsync</c> — así que
+    /// si <c>RevalidarAsync</c> no escribiera la memo, un <c>ObtenerAsync</c>
+    /// posterior volvería a delegar en él otra vez, re-resolvería fresco y
+    /// coincidiría con el resultado esperado <b>por la razón equivocada</b>,
+    /// sin que el test lo notara. Se ceba llamando a <c>RevalidarAsync</c>
+    /// directamente y se cuentan los comandos SQL reales: si la memo quedó
+    /// escrita, la lectura posterior no genera ningún comando nuevo.
+    /// </summary>
+    [Fact]
+    public async Task RevalidarAsync_deja_su_resultado_fresco_como_la_nueva_memo_para_ObtenerAsync()
+    {
+        var contador = new ContadorComandosInterceptor();
+        await using var contexto = CrearContexto(contador);
+        var resolutor = new SesionPrivilegiadaActual(
+            contexto,
+            new ClienteActivoSeleccionadoFalso(_tenantVisitado, _sesionId),
+            new CurrentUserServiceFalso(_usuarioPlataforma));
+
+        (await resolutor.RevalidarAsync()).Should().NotBeNull();
+        var comandosTrasRevalidar = contador.NumeroDeComandos;
+        comandosTrasRevalidar.Should().BePositive();
+
+        await ModificarAsync(async contexto =>
+        {
+            var concesion = await contexto.ConcesionesPrivilegio.FirstAsync(c => c.Id == _concesionId);
+            concesion.Revocar(DateTime.UtcNow);
+        });
+
+        // Si RevalidarAsync no hubiera escrito la memo, ObtenerAsync
+        // delegaría en él otra vez, generaría comandos SQL nuevos y vería la
+        // revocación (devolvería null) — las dos señales cambiarían.
+        var resultado = await resolutor.ObtenerAsync();
+
+        resultado.Should().NotBeNull(
+            "la memo quedó escrita por RevalidarAsync con la sesión todavía vigente en ese instante; " +
+            "una lectura posterior en el mismo ámbito la reutiliza en vez de resolver otra vez y ver la " +
+            "revocación que ocurrió después");
+        contador.NumeroDeComandos.Should().Be(comandosTrasRevalidar,
+            "ObtenerAsync no debe generar ningún comando SQL nuevo cuando la memo ya está escrita");
+    }
+
+    /// <summary>
+    /// Coste declarado (§ 8/§ 9 del handoff): una sesión de plano 3 no global
+    /// paga la consulta conjunta de sesión+concesión más la comprobación de
+    /// alcance por tenant — dos comandos SQL por llamada a
+    /// <c>RevalidarAsync</c>, ni uno más. Si esto creciera, algo estaría
+    /// repitiendo trabajo que ya hace la propia consulta.
+    /// </summary>
+    [Fact]
+    public async Task RevalidarAsync_cuesta_dos_comandos_sql_para_una_concesion_no_global()
+    {
+        var contador = new ContadorComandosInterceptor();
+        await using var contexto = CrearContexto(contador);
+        var resolutor = new SesionPrivilegiadaActual(
+            contexto,
+            new ClienteActivoSeleccionadoFalso(_tenantVisitado, _sesionId),
+            new CurrentUserServiceFalso(_usuarioPlataforma));
+
+        (await resolutor.RevalidarAsync()).Should().NotBeNull();
+
+        contador.NumeroDeComandos.Should().Be(2,
+            "consulta conjunta de sesión+concesión (1) más la comprobación de alcance por tenant (1) — " +
+            "una concesión global se ahorraría la segunda, ver Una_concesion_global_resuelve_sin_filas_de_alcance");
+    }
+
+    /// <summary>
+    /// Y para el resto del mundo —sin sesión privilegiada en el token, que es
+    /// el 100 % de los usuarios hoy— sigue costando cero: <c>RevalidarAsync</c>
+    /// no reintroduce ninguna consulta que <c>ObtenerAsync</c> no pagara ya.
+    /// </summary>
+    [Fact]
+    public async Task RevalidarAsync_sigue_costando_cero_consultas_sin_sesion_en_el_token()
+    {
+        var contador = new ContadorComandosInterceptor();
+        await using var contexto = CrearContexto(contador);
+        var resolutor = new SesionPrivilegiadaActual(
+            contexto,
+            new ClienteActivoSeleccionadoFalso(_tenantVisitado, sesionPrivilegiadaId: null),
+            new CurrentUserServiceFalso(_usuarioPlataforma));
+
+        (await resolutor.RevalidarAsync()).Should().BeNull();
+
+        contador.NumeroDeComandos.Should().Be(0);
+    }
+
+    private sealed class ContadorComandosInterceptor : Microsoft.EntityFrameworkCore.Diagnostics.DbCommandInterceptor
+    {
+        public int NumeroDeComandos { get; private set; }
+
+        public override Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<System.Data.Common.DbDataReader> ReaderExecuting(
+            System.Data.Common.DbCommand command,
+            Microsoft.EntityFrameworkCore.Diagnostics.CommandEventData eventData,
+            Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<System.Data.Common.DbDataReader> result)
+        {
+            NumeroDeComandos++;
+            return base.ReaderExecuting(command, eventData, result);
+        }
+
+        public override ValueTask<Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<System.Data.Common.DbDataReader>> ReaderExecutingAsync(
+            System.Data.Common.DbCommand command,
+            Microsoft.EntityFrameworkCore.Diagnostics.CommandEventData eventData,
+            Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<System.Data.Common.DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            NumeroDeComandos++;
+            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+        }
+    }
+
     [Fact]
     public async Task Sin_sesion_en_el_token_no_se_consulta_la_base()
     {
@@ -370,19 +526,23 @@ public class SesionPrivilegiadaActualTests : IAsyncLifetime
         await contexto.SaveChangesAsync();
     }
 
-    private CaeManagerDbContext CrearContexto()
+    private CaeManagerDbContext CrearContexto() => CrearContexto(interceptorAdicional: null);
+
+    private CaeManagerDbContext CrearContexto(Microsoft.EntityFrameworkCore.Diagnostics.IInterceptor? interceptorAdicional)
     {
         // El tenant ambiental es el visitado, que es lo que hace una sesión de
         // soporte: abrir el contexto del cliente por la vía normal. Las tablas
         // del plano 3 son catálogos globales y quedan fuera del filtro, pero el
         // interceptor de sellado sigue montado — como en producción.
         var tenantActual = new TenantActualAmbiental { TenantId = _tenantVisitado };
-        var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
+        var builder = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
-            .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
-            .Options;
+            .AddInterceptors(new TenantSelladoInterceptor(tenantActual));
 
-        return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
+        if (interceptorAdicional is not null)
+            builder = builder.AddInterceptors(interceptorAdicional);
+
+        return new CaeManagerDbContext(builder.Options, new EphemeralDataProtectionProvider(), tenantActual);
     }
 
     private sealed class ClienteActivoSeleccionadoFalso(Guid? tenantId, Guid? sesionPrivilegiadaId)

@@ -29,4 +29,7 @@ public sealed class SesionPrivilegiadaAusente : ISesionPrivilegiadaActual
 {
     public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult<SesionPrivilegiadaActiva?>(null);
+
+    public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<SesionPrivilegiadaActiva?>(null);
 }

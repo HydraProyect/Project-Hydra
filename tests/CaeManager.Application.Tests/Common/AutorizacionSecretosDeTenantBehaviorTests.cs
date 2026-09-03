@@ -111,5 +111,8 @@ public class AutorizacionSecretosDeTenantBehaviorTests
     {
         public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(sesion);
+
+        public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(sesion);
     }
 }
