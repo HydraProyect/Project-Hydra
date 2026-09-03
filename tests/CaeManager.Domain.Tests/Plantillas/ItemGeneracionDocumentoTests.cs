@@ -103,6 +103,52 @@ public class ItemGeneracionDocumentoTests
         accion.Should().Throw<ArgumentException>();
     }
 
+    /// <summary>DEC-32 (REC-115): las dos listas vacías siguen siendo un error de programación, aunque ahora haya dos formas de nombrar avisos.</summary>
+    [Fact]
+    public void MarcarCompletadoConAvisos_con_las_dos_listas_vacias_es_un_error_de_programacion()
+    {
+        var item = new ItemGeneracionDocumento(Guid.NewGuid(), Guid.NewGuid());
+
+        var accion = () => item.MarcarCompletadoConAvisos(Guid.NewGuid(), [], []);
+
+        accion.Should().Throw<ArgumentException>();
+    }
+
+    /// <summary>DEC-32 (REC-115): un valor no reconocido, sin ningún obligatorio vacío, también deja el ítem con avisos — la categoría nueva no depende de la vieja.</summary>
+    [Fact]
+    public void MarcarCompletadoConAvisos_solo_con_valores_no_reconocidos_nombra_esa_categoria()
+    {
+        var item = new ItemGeneracionDocumento(Guid.NewGuid(), Guid.NewGuid());
+        var documentoGeneradoId = Guid.NewGuid();
+
+        item.MarcarCompletadoConAvisos(documentoGeneradoId, [], ["Resultado (recibido «Regular»)"]);
+
+        item.Estado.Should().Be(EstadoItemGeneracion.CompletadoConAvisos);
+        item.Error.Should().Be("Valores no reconocidos: Resultado (recibido «Regular»).");
+    }
+
+    /// <summary>DEC-32 (REC-115): con las dos categorías presentes, el texto las nombra a ambas, cada una con su propio prefijo.</summary>
+    [Fact]
+    public void MarcarCompletadoConAvisos_con_las_dos_categorias_las_nombra_por_separado()
+    {
+        var item = new ItemGeneracionDocumento(Guid.NewGuid(), Guid.NewGuid());
+
+        item.MarcarCompletadoConAvisos(Guid.NewGuid(), ["Mutua"], ["Resultado (recibido «Regular»)"]);
+
+        item.Error.Should().Be("Campos obligatorios sin dato: Mutua. Valores no reconocidos: Resultado (recibido «Regular»).");
+    }
+
+    /// <summary>El contrato de REC-004 no cambia: sin la segunda categoría, el texto es exactamente el de antes de REC-115.</summary>
+    [Fact]
+    public void MarcarCompletadoConAvisos_sin_valores_no_reconocidos_produce_el_mismo_texto_que_antes_de_REC_115()
+    {
+        var item = new ItemGeneracionDocumento(Guid.NewGuid(), Guid.NewGuid());
+
+        item.MarcarCompletadoConAvisos(Guid.NewGuid(), ["Mutua", "Número de póliza"], []);
+
+        item.Error.Should().Be("Campos obligatorios sin dato: Mutua, Número de póliza.");
+    }
+
     /// <summary>
     /// Con muchas etiquetas largas el texto no cabe en LongitudMaximaError.
     /// Cortar por caracteres partiría la última etiqueta por la mitad: el aviso

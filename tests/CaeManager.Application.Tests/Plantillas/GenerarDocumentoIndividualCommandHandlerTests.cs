@@ -26,10 +26,13 @@ public class GenerarDocumentoIndividualCommandHandlerTests
     {
         public IReadOnlyList<ElementoRellenoPlantilla>? UltimosElementos { get; private set; }
 
-        public byte[] Rellenar(byte[] pdfOriginal, FormatoOrigenPlantilla formato, IReadOnlyList<ElementoRellenoPlantilla> elementos)
+        /// <summary>DEC-32 (REC-115): permite a un test simular que el filler encontró un valor que su campo no reconoce.</summary>
+        public IReadOnlyList<AvisoValorNoReconocido> ValoresNoReconocidosARetornar { get; set; } = [];
+
+        public ResultadoRellenoPlantilla Rellenar(byte[] pdfOriginal, FormatoOrigenPlantilla formato, IReadOnlyList<ElementoRellenoPlantilla> elementos)
         {
             UltimosElementos = elementos;
-            return [9, 9, 9];
+            return new ResultadoRellenoPlantilla([9, 9, 9], ValoresNoReconocidosARetornar);
         }
     }
 
@@ -525,6 +528,64 @@ public class GenerarDocumentoIndividualCommandHandlerTests
             CancellationToken.None);
 
         resultado.Valor.CamposObligatoriosVacios.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// DEC-32 (REC-115): el filler (Infrastructure) solo conoce el
+    /// PlantillaElemento.Id del elemento — el handler traduce eso a la
+    /// EtiquetaVisible cruzando contra version.Elementos, en el mismo orden de
+    /// la plantilla, igual que ya hace con CamposObligatoriosVacios.
+    /// </summary>
+    [Fact]
+    public async Task Un_valor_no_reconocido_del_filler_se_traduce_a_la_etiqueta_visible_del_elemento()
+    {
+        var entorno = await ConstruirEntornoAsync();
+        var trabajador = Trabajador.DeEmpresa(Guid.NewGuid(), "Juan", "Perez", Dni);
+        entorno.Trabajadores.ListaTrabajadores.Add(trabajador);
+        var elementoRadio = new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Resultado del reconocimiento", FuenteDatoPlantilla.Manual, nombreCampoAcroForm: "Resultado");
+        Confirmar(entorno.Version, [elementoRadio], Guid.NewGuid());
+        entorno.Rellenador.ValoresNoReconocidosARetornar =
+        [
+            new AvisoValorNoReconocido(elementoRadio.Id, "Regular", ["Apto", "No apto"]),
+        ];
+        var handler = entorno.CrearHandler();
+
+        var resultado = await handler.Handle(
+            new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id,
+                ValoresManuales: new Dictionary<Guid, string> { [elementoRadio.Id] = "Regular" }),
+            CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue("DEC-32 tampoco bloquea la generacion");
+        // BeEquivalentTo, no Be: los records comparan OpcionesDisponibles (una
+        // IReadOnlyList<string>) por referencia, no por contenido - dos listas
+        // iguales pero distintas instancias fallarían con Be aunque impriman lo mismo.
+        resultado.Valor.ValoresNoReconocidos.Should().ContainSingle()
+            .Which.Should().BeEquivalentTo(new AvisoValorNoReconocidoDto("Resultado del reconocimiento", "Regular", ["Apto", "No apto"]));
+        resultado.Valor.CamposObligatoriosVacios.Should().BeEmpty("el valor no reconocido no es un obligatorio vacio - son categorias distintas");
+    }
+
+    /// <summary>Un valor no reconocido marca el documento igual que un obligatorio vacio, aunque no haya ningun obligatorio vacio.</summary>
+    [Fact]
+    public async Task Marca_el_documento_generado_con_avisos_cuando_hay_un_valor_no_reconocido_sin_ningun_obligatorio_vacio()
+    {
+        var entorno = await ConstruirEntornoAsync();
+        var trabajador = Trabajador.DeEmpresa(Guid.NewGuid(), "Juan", "Perez", Dni);
+        entorno.Trabajadores.ListaTrabajadores.Add(trabajador);
+        var usuarioId = Guid.NewGuid();
+        var elemento = new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Resultado", FuenteDatoPlantilla.Manual);
+        Confirmar(entorno.Version, [elemento], usuarioId);
+        entorno.Rellenador.ValoresNoReconocidosARetornar = [new AvisoValorNoReconocido(elemento.Id, "Regular", ["Apto", "No apto"])];
+        var documentosGenerados = new DocumentoGeneradoRepositorioFalso();
+        var handler = new GenerarDocumentoIndividualCommandHandler(
+            entorno.Versiones, entorno.Plantillas, entorno.Documentos, documentosGenerados, entorno.TiposDocumento,
+            entorno.Empresas, entorno.Trabajadores, entorno.Centros, entorno.Contactos,
+            entorno.Rellenador, entorno.Almacenamiento, new CurrentUserServiceFalso(usuarioId),
+            new AlcanceDatosServiceFalso(), entorno.Asignaciones, new UnitOfWorkFalso());
+
+        await handler.Handle(new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
+
+        documentosGenerados.Lista.Should().ContainSingle().Which.Estado
+            .Should().Be(EstadoDocumentoGenerado.GeneradoConAvisos);
     }
 
     /// <summary>

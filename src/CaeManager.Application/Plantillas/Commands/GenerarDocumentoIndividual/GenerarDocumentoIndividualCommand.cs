@@ -41,11 +41,33 @@ public record GenerarDocumentoIndividualCommand(
 /// fallar, porque bloquear rompe lotes enteros por un campo. Vacía cuando no
 /// hay nada que avisar — nunca null, para que quien la consuma no tenga que
 /// distinguir dos formas de "sin avisos".
+///
+/// <paramref name="ValoresNoReconocidos"/> es un aviso distinto (DEC-32,
+/// REC-115): un valor SÍ presente que no corresponde a ninguna opción que el
+/// campo reconoce (radio sin esa opción, checkbox fuera del contrato) — no se
+/// fusiona con <paramref name="CamposObligatoriosVacios"/> a propósito, para
+/// no tocar su contrato ya cerrado (REC-004): mismo tipo de lista paralela,
+/// segunda categoría, vacía cuando no hay nada que avisar.
 /// </summary>
 public record GenerarDocumentoIndividualResultadoDto(
     Guid DocumentoGeneradoId,
     Guid DocumentoId,
-    IReadOnlyList<string> CamposObligatoriosVacios);
+    IReadOnlyList<string> CamposObligatoriosVacios,
+    IReadOnlyList<AvisoValorNoReconocidoDto> ValoresNoReconocidos)
+{
+    /// <summary>Compatibilidad con las llamadas existentes de REC-004 que no conocían esta segunda categoría de aviso — nunca null.</summary>
+    public GenerarDocumentoIndividualResultadoDto(Guid documentoGeneradoId, Guid documentoId, IReadOnlyList<string> camposObligatoriosVacios)
+        : this(documentoGeneradoId, documentoId, camposObligatoriosVacios, [])
+    {
+    }
+}
+
+/// <summary>
+/// La forma ya traducida de <c>AvisoValorNoReconocido</c> (Infrastructure, que
+/// solo conoce el <c>PlantillaElemento.Id</c>) a algo que un humano puede leer
+/// — <paramref name="EtiquetaCampo"/> es <c>PlantillaElemento.EtiquetaVisible</c>.
+/// </summary>
+public record AvisoValorNoReconocidoDto(string EtiquetaCampo, string? ValorRecibido, IReadOnlyList<string> OpcionesDisponibles);
 
 public class GenerarDocumentoIndividualCommandValidator : AbstractValidator<GenerarDocumentoIndividualCommand>
 {

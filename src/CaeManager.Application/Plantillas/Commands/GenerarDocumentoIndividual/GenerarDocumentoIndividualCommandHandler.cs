@@ -158,10 +158,12 @@ public class GenerarDocumentoIndividualCommandHandler(
 
         var elementosRelleno = valoresPorElemento
             .Select(par => new ElementoRellenoPlantilla(
-                par.Key.Tipo, par.Key.NombreCampoAcroForm, par.Key.Pagina, par.Key.X, par.Key.Y, par.Key.Ancho, par.Key.Alto, par.Value))
+                par.Key.Tipo, par.Key.NombreCampoAcroForm, par.Key.Pagina, par.Key.X, par.Key.Y, par.Key.Ancho, par.Key.Alto, par.Value,
+                ElementoId: par.Key.Id))
             .ToList();
 
-        var contenidoRelleno = rellenador.Rellenar(contenidoOriginal, plantilla.FormatoOrigen, elementosRelleno);
+        var resultadoRelleno = rellenador.Rellenar(contenidoOriginal, plantilla.FormatoOrigen, elementosRelleno);
+        var contenidoRelleno = resultadoRelleno.Pdf;
 
         using var flujoRelleno = new MemoryStream(contenidoRelleno);
         var archivoUrl = await almacenamientoArchivos.GuardarAsync(flujoRelleno, "documento-generado.pdf", cancellationToken);
@@ -200,16 +202,32 @@ public class GenerarDocumentoIndividualCommandHandler(
             .Select(e => e.EtiquetaVisible)
             .ToList();
 
+        // DEC-32 (REC-115): aviso distinto de un obligatorio vacío — un valor
+        // SÍ presente que el campo no reconoce (radio sin esa opción, checkbox
+        // fuera de contrato). El filler solo conoce PlantillaElemento.Id (no
+        // conoce EtiquetaVisible); se recorre version.Elementos, no el
+        // diccionario de avisos, por el mismo motivo que camposObligatoriosVacios:
+        // orden estable de plantilla, no el que decida un Dictionary interno.
+        var avisoPorElementoId = resultadoRelleno.ValoresNoReconocidos.ToDictionary(a => a.ElementoId);
+        var valoresNoReconocidos = version.Elementos
+            .Where(e => avisoPorElementoId.ContainsKey(e.Id))
+            .Select(e =>
+            {
+                var aviso = avisoPorElementoId[e.Id];
+                return new AvisoValorNoReconocidoDto(e.EtiquetaVisible, aviso.ValorRecibido, aviso.OpcionesDisponibles);
+            })
+            .ToList();
+
         var documentoGenerado = new DocumentoGenerado(
             version.Id, documento.Id, datosUtilizadosJson, idUsuario, ahoraUtc,
             trabajadorId: trabajadorId, empresaId: empresaId, centroId: request.CentroId,
-            conAvisos: camposObligatoriosVacios.Count > 0);
+            conAvisos: camposObligatoriosVacios.Count > 0 || valoresNoReconocidos.Count > 0);
         documentoGeneradoRepositorio.Agregar(documentoGenerado);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito(new GenerarDocumentoIndividualResultadoDto(
-            documentoGenerado.Id, documento.Id, camposObligatoriosVacios));
+            documentoGenerado.Id, documento.Id, camposObligatoriosVacios, valoresNoReconocidos));
     }
 
     /// <summary>Si varios contactos comparten el mismo rol, se queda con el primero — comportamiento razonable para MVP, sin criterio de desempate.</summary>

@@ -146,6 +146,39 @@ public class ProcesarItemLoteGeneracionCommandHandlerTests
     }
 
     /// <summary>
+    /// DEC-32 (REC-115): un valor no reconocido por el campo tambien deja el
+    /// item con avisos, aunque no falte ningun obligatorio - misma tercera
+    /// categoria de estado que un obligatorio vacio, motivo distinto.
+    /// </summary>
+    [Fact]
+    public async Task Marca_el_item_completado_con_avisos_cuando_la_generacion_deja_un_valor_no_reconocido()
+    {
+        var lote = CrearLote();
+        var lotes = new LoteGeneracionDocumentoRepositorioFalso();
+        lotes.Agregar(lote);
+        var item = new ItemGeneracionDocumento(lote.Id, Guid.NewGuid());
+        var items = new ItemGeneracionDocumentoRepositorioFalso();
+        items.Agregar(item);
+        var documentoGeneradoId = Guid.NewGuid();
+        var mediator = new MediatorFalso
+        {
+            Respuesta = Result.Exito(new GenerarDocumentoIndividualResultadoDto(
+                documentoGeneradoId, Guid.NewGuid(), [],
+                [new AvisoValorNoReconocidoDto("Resultado", "Regular", ["Apto", "No apto"])])),
+        };
+        var handler = new ProcesarItemLoteGeneracionCommandHandler(items, lotes, mediator, new UnitOfWorkFalso());
+
+        var resultado = await handler.Handle(new ProcesarItemLoteGeneracionCommand(item.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        item.Estado.Should().Be(EstadoItemGeneracion.CompletadoConAvisos);
+        item.DocumentoGeneradoId.Should().Be(documentoGeneradoId, "con avisos SI hay documento");
+        item.Error.Should().Be("Valores no reconocidos: Resultado (recibido «Regular»).");
+        lote.ItemsCompletados.Should().Be(1, "un aviso no es un fallo del lote");
+        lote.ItemsFallidos.Should().Be(0);
+    }
+
+    /// <summary>
     /// Criterio 2 de HO-004-01: un lote con un item limpio, uno con aviso y uno
     /// fallido deja los tres estados distinguibles al consultarlo, y el lote
     /// termina igual - que es justo lo que DEC-5 (b) protege frente a (a).

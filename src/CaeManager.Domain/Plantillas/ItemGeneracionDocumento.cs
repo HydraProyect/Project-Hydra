@@ -15,10 +15,11 @@ public class ItemGeneracionDocumento : EntidadConTenant, IVersionable
     /// <summary>
     /// El texto que explica por qué este ítem no quedó limpio: el mensaje del
     /// fallo cuando <see cref="Estado"/> es <see cref="EstadoItemGeneracion.Fallido"/>,
-    /// o los campos obligatorios sin dato cuando es
-    /// <see cref="EstadoItemGeneracion.CompletadoConAvisos"/> (DEC-5). Es
-    /// <see cref="Estado"/> — no que esto esté informado— lo que distingue un
-    /// aviso de un fallo: un ítem con aviso SÍ tiene documento generado.
+    /// o los avisos cuando es <see cref="EstadoItemGeneracion.CompletadoConAvisos"/>
+    /// — campos obligatorios sin dato (DEC-5) y/o valores no reconocidos
+    /// (DEC-32, REC-115). Es <see cref="Estado"/> — no que esto esté informado—
+    /// lo que distingue un aviso de un fallo: un ítem con aviso SÍ tiene
+    /// documento generado.
     /// </summary>
     public string? Error { get; private set; }
 
@@ -65,17 +66,28 @@ public class ItemGeneracionDocumento : EntidadConTenant, IVersionable
     /// rompe lotes enteros por un campo". El ítem tiene documento igual que uno
     /// completado — lo que cambia es que queda señalado, con los nombres de los
     /// campos obligatorios que resolvieron vacíos, para poder revisarlo después.
+    ///
+    /// <paramref name="valoresNoReconocidos"/> es la segunda categoría de aviso
+    /// de DEC-32 (REC-115): un valor SÍ presente que el campo no reconoce. Es
+    /// opcional y por defecto vacío a propósito — ninguna llamada existente de
+    /// REC-004 lo conocía, y con la lista vacía el texto que produce
+    /// <see cref="TextoDeAvisos"/> es idéntico al de antes de REC-115.
     /// </summary>
-    public void MarcarCompletadoConAvisos(Guid documentoGeneradoId, IReadOnlyList<string> camposObligatoriosVacios)
+    public void MarcarCompletadoConAvisos(
+        Guid documentoGeneradoId,
+        IReadOnlyList<string> camposObligatoriosVacios,
+        IReadOnlyList<string>? valoresNoReconocidos = null)
     {
         RequerirPendiente();
         if (documentoGeneradoId == Guid.Empty)
             throw new ArgumentException("El documento generado no puede estar vacío.", nameof(documentoGeneradoId));
-        if (camposObligatoriosVacios.Count == 0)
+
+        var noReconocidos = valoresNoReconocidos ?? [];
+        if (camposObligatoriosVacios.Count == 0 && noReconocidos.Count == 0)
             throw new ArgumentException("Un ítem con avisos debe nombrar al menos un campo.", nameof(camposObligatoriosVacios));
 
         DocumentoGeneradoId = documentoGeneradoId;
-        Error = TextoDeAvisos(camposObligatoriosVacios);
+        Error = TextoDeAvisos(camposObligatoriosVacios, noReconocidos);
         Estado = EstadoItemGeneracion.CompletadoConAvisos;
     }
 
@@ -87,24 +99,48 @@ public class ItemGeneracionDocumento : EntidadConTenant, IVersionable
     }
 
     /// <summary>
-    /// Nombra tantos campos como quepan en <see cref="LongitudMaximaError"/> y
+    /// Une las dos categorías de aviso de DEC-32 (REC-115) en el único texto de
+    /// <see cref="Error"/>, sin superar <see cref="LongitudMaximaError"/> (columna
+    /// <c>text</c> con <c>HasMaxLength</c>, no un adorno). Con una sola categoría
+    /// presente, el texto es EXACTAMENTE el de antes de REC-115 — mismo prefijo,
+    /// mismo presupuesto completo, para no romper el contrato ya cerrado de
+    /// REC-004. Con las dos presentes, cada una se reparte la mitad del
+    /// presupuesto; el <see cref="Acotar"/> final es la red de seguridad, no el
+    /// mecanismo principal.
+    /// </summary>
+    private static string TextoDeAvisos(IReadOnlyList<string> camposObligatoriosVacios, IReadOnlyList<string> valoresNoReconocidos)
+    {
+        if (valoresNoReconocidos.Count == 0)
+            return ConstruirSeccion(PrefijoCamposObligatorios, camposObligatoriosVacios, LongitudMaximaError);
+        if (camposObligatoriosVacios.Count == 0)
+            return ConstruirSeccion(PrefijoValoresNoReconocidos, valoresNoReconocidos, LongitudMaximaError);
+
+        var presupuestoPorSeccion = (LongitudMaximaError - 1) / 2;
+        var textoCampos = ConstruirSeccion(PrefijoCamposObligatorios, camposObligatoriosVacios, presupuestoPorSeccion);
+        var textoValores = ConstruirSeccion(PrefijoValoresNoReconocidos, valoresNoReconocidos, presupuestoPorSeccion);
+        return Acotar($"{textoCampos} {textoValores}");
+    }
+
+    private const string PrefijoCamposObligatorios = "Campos obligatorios sin dato: ";
+    private const string PrefijoValoresNoReconocidos = "Valores no reconocidos: ";
+
+    /// <summary>
+    /// Nombra tantos elementos como quepan en <paramref name="longitudMaxima"/> y
     /// cuenta el resto. Acotar por caracteres a secas parte la última etiqueta
-    /// por la mitad: el aviso deja de nombrar un campo y pasa a nombrar medio,
+    /// por la mitad: el aviso deja de nombrar un elemento y pasa a nombrar medio,
     /// que es peor que decir cuántos faltan por listar.
     /// </summary>
-    private static string TextoDeAvisos(IReadOnlyList<string> campos)
+    private static string ConstruirSeccion(string prefijo, IReadOnlyList<string> elementos, int longitudMaxima)
     {
-        const string prefijo = "Campos obligatorios sin dato: ";
-
-        for (var listados = campos.Count; listados > 0; listados--)
+        for (var listados = elementos.Count; listados > 0; listados--)
         {
-            var restantes = campos.Count - listados;
-            var texto = prefijo + string.Join(", ", campos.Take(listados))
+            var restantes = elementos.Count - listados;
+            var texto = prefijo + string.Join(", ", elementos.Take(listados))
                 + (restantes == 0 ? "." : $" y {restantes} más.");
-            if (texto.Length <= LongitudMaximaError) return texto;
+            if (texto.Length <= longitudMaxima) return texto;
         }
 
-        return Acotar($"{prefijo}{campos.Count} campos.");
+        return Acotar($"{prefijo}{elementos.Count} campos.");
     }
 
     private static string Acotar(string texto) =>
