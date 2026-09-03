@@ -73,6 +73,14 @@ public static class AlcanceDatosServiceExtensions
         return ids is null || ids.Contains(subcontrataId);
     }
 
+    /// <summary>Alcance de gestión sobre una Subcontrata concreta — ver <see cref="IAlcanceDatosService.ObtenerSubcontrataIdsParaGestionAsync"/>.</summary>
+    public static async Task<bool> SubcontrataParaGestionVisibleAsync(
+        this IAlcanceDatosService alcance, Guid subcontrataId, CancellationToken cancellationToken = default)
+    {
+        var ids = await alcance.ObtenerSubcontrataIdsParaGestionAsync(cancellationToken);
+        return ids is null || ids.Contains(subcontrataId);
+    }
+
     public static async Task<bool> TrabajadorVisibleAsync(
         this IAlcanceDatosService alcance, Guid trabajadorId, CancellationToken cancellationToken = default)
     {

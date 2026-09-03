@@ -34,6 +34,21 @@ namespace CaeManager.Application.Tests.Seguridad;
 /// convención que documenta <c>AlcanceDatosServiceExtensions</c>: un error
 /// explícito confirmaría a quien no debe verla que la fila existe.
 /// </para>
+///
+/// <para>
+/// <b>Qué cubre esta clase hoy, y qué no (REC-159).</b> Los cuatro primeros
+/// casos prueban la cartera "está o no está" — el agregado FUERA de la
+/// cartera del usuario. Eso NO prueba el defecto de REC-153/REC-159: ahí el
+/// agregado SÍ estaba en la cartera del usuario, solo que en la cartera de
+/// LECTURA (derivada de su propio Cliente) y no en la de GESTIÓN, y la
+/// consulta usaba la primera como puerta. Los dos últimos casos —uno por
+/// Empresa (REC-153), uno por Subcontrata (REC-159)— simulan exactamente eso:
+/// un usuario de portal (rol Cliente) con el agregado en
+/// <c>empresaIdsVisibles</c>/<c>subcontrataIdsVisibles</c> pero fuera de
+/// <c>empresaIdsParaGestion</c>/<c>subcontrataIdsParaGestion</c>. Si algún día
+/// se añade una cuarta consulta de credenciales, necesita su propio caso de
+/// este segundo tipo — el primero no la habría protegido nunca.
+/// </para>
 /// </summary>
 public class AlcanceDeCredencialesDeAccesoTests
 {
@@ -182,6 +197,31 @@ public class AlcanceDeCredencialesDeAccesoTests
 
         var resultado = await handler.Handle(
             new ObtenerCredencialAccesoEmpresaQuery(empresaId), CancellationToken.None);
+
+        resultado.Should().BeNull();
+    }
+
+    /// <summary>
+    /// REC-159: gemelo exacto del caso anterior, pero en Subcontrata. Un
+    /// usuario de portal (rol Cliente) tiene a la subcontrata de su propio
+    /// Cliente en su cartera de LECTURA — <c>subcontrataIdsVisibles</c> — que
+    /// es justo lo que hace que el portal le enseñe su documentación. Antes
+    /// del arreglo esa misma cartera de lectura era la puerta de esta
+    /// consulta, así que ese mismo usuario recibía la contraseña en claro de
+    /// la subcontrata. La cartera de GESTIÓN (<c>subcontrataIdsParaGestion</c>)
+    /// es la que debe decidir, y para el rol Cliente es vacía.
+    /// </summary>
+    [Fact]
+    public async Task Usuario_de_portal_no_lee_las_credenciales_de_una_subcontrata_de_su_cartera_de_lectura()
+    {
+        var subcontrataId = Guid.NewGuid();
+        var handler = new ObtenerCredencialAccesoSubcontrataQueryHandler(
+            new SubcontratasQueryContextQueExplota(),
+            new AlcanceDatosServiceFalso(
+                tieneAccesoTotal: false, subcontrataIdsVisibles: [subcontrataId], subcontrataIdsParaGestion: []));
+
+        var resultado = await handler.Handle(
+            new ObtenerCredencialAccesoSubcontrataQuery(subcontrataId), CancellationToken.None);
 
         resultado.Should().BeNull();
     }
