@@ -1,8 +1,15 @@
 @*
     Panel de Documento para el Context Workspace. Pestañas: Información,
-    Versiones, Validación, Historial.
+    Validación, Firma, Historial.
 
-    Versiones sigue siendo funcionalidad futura (versionado de archivos).
+    La pestaña "Versiones" (versionado de archivos v1/v2/v3…) se retiró
+    (REC-097, DEC-21): no existe capacidad real detrás, y anunciarla como
+    "Próximamente" es peor que no tenerla — mismo criterio que #411 con
+    "2fa". Se repone cuando exista un REC propio con modelo, UX,
+    cardinalidad y prioridad, no antes. Un deep-link guardado con
+    "?ctx=Documento:…:versiones" cae a la pestaña por defecto (ver
+    PestanaEfectiva) en vez de mostrar contenido vacío.
+
     Validación muestra el resultado de la validación oficial automática
     (firma digital + cotejo — ver ValidacionDocumentoOficialService) cuando
     el tipo tiene perfil oficial; el flujo de aprobación manual con
@@ -33,8 +40,8 @@ else
         <Badge>@_detalle.Ambito</Badge>
     </div>
 
-    <Pestanas Definiciones="_pestanas" PestanaActiva="PestanaActiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="Secciones del documento">
-        @switch (PestanaActiva)
+    <Pestanas Definiciones="_pestanas" PestanaActiva="@PestanaEfectiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="Secciones del documento">
+        @switch (PestanaEfectiva)
         {
             case "informacion":
                 <div class="workspace-grupo-campos">
@@ -54,10 +61,6 @@ else
                         }
                     </CampoInfo>
                 </div>
-                break;
-
-            case "versiones":
-                <EstadoVacio Titulo="Próximamente" Descripcion="@($"El versionado de archivos de un documento (v1, v2, v3…) todavía no está disponible en {Marca.Nombre}.")" />
                 break;
 
             case "validacion":
@@ -138,7 +141,6 @@ else
     private static readonly IReadOnlyList<PestanaDefinicion> _pestanas =
     [
         new("informacion", "Información"),
-        new("versiones", "Versiones"),
         new("validacion", "Validación"),
         new("firma", "Firma"),
         new("historial", "Historial")
@@ -147,6 +149,15 @@ else
     [Parameter, EditorRequired] public Guid EntidadId { get; set; }
     [Parameter, EditorRequired] public string PestanaActiva { get; set; } = string.Empty;
     [Parameter] public EventCallback<string> PestanaActivaChanged { get; set; }
+
+    /// <summary>
+    /// <see cref="Pestanas"/> no valida que <see cref="PestanaActiva"/> exista
+    /// en <see cref="_pestanas"/> — un deep-link guardado antes de retirar
+    /// "versiones" (REC-097) llegaría aquí sin pasar por ningún filtro. Cae a
+    /// la primera pestaña en vez de dejar el panel sin pestaña activa ni
+    /// contenido.
+    /// </summary>
+    private string PestanaEfectiva => _pestanas.Any(p => p.Id == PestanaActiva) ? PestanaActiva : _pestanas[0].Id;
 
     private DocumentoDetalleDto? _detalle;
     private ValidacionOficialDocumentoDto? _validacion;
