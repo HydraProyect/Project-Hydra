@@ -61,11 +61,7 @@ public static class CicloDocumentalDatosPruebaSeeder
         await SembrarValidacionOficialAsync(dbContext, cancellationToken);
         await SembrarDeteccionesTrabajadorAsync(dbContext, cancellationToken);
         await SembrarAcreditacionesAsync(dbContext, cancellationToken);
-        // DIAGNOSTICO-TEMPORAL-REC061: desactivado para bisecar un fallo de
-        // DeepLinksTests.Deep_link_de_Centro_reconstruye_el_panel_en_frio en
-        // CI que no parece relacionado por código — se revierte este commit
-        // en cuanto se confirme la causa.
-        // await SembrarPlantillasAsync(dbContext, userManager, documentosTrabajador, cancellationToken);
+        await SembrarPlantillasAsync(dbContext, userManager, documentosTrabajador, cancellationToken);
 
         await dbContext.SaveChangesAsync(cancellationToken);
         logger.LogInformation("Ciclo documental de prueba sembrado: revisiones IA, aprobaciones, trabajos de análisis, auditoría, validación oficial, detecciones y plantillas.");
@@ -81,21 +77,44 @@ public static class CicloDocumentalDatosPruebaSeeder
     /// Siembra mínima y determinista: una plantilla confirmada (con la que
     /// se genera) y una en Borrador (para que el catálogo no muestre solo el
     /// estado feliz), más dos <see cref="DocumentoGenerado"/> reales sobre la
-    /// confirmada — uno sin avisos y uno con, reutilizando dos Trabajador de
-    /// <paramref name="documentosTrabajador"/> (índices 9 y 10, fuera de los
-    /// que ya usan los demás métodos de este fichero) para no depender de un
-    /// nuevo sorteo.
+    /// confirmada — uno sin avisos y uno con.
+    ///
+    /// <para>
+    /// El tipo de documento de la plantilla es <c>"Riesgo Eléctrico"</c> —
+    /// NINGÚN otro punto de esta siembra crea documentos de ese tipo (los 7
+    /// estándar y los 2 obligatorios sin vencimiento son otros, ver
+    /// <see cref="DocumentacionEstandarTrabajador"/> en <c>DatosPruebaSeeder</c>).
+    /// La primera versión de este cambio reutilizaba "Entrega de EPI"
+    /// —uno de los 7 estándar— sobre dos Trabajador tomados de
+    /// <paramref name="documentosTrabajador"/> por posición: como todos los
+    /// <c>Documento</c> de esa tanda se guardan en un único <c>SaveChanges</c>,
+    /// comparten (o casi) el mismo <c>CreadoEnUtc</c>, así que el
+    /// <c>.ThenBy(Id)</c> que desempata ese <c>OrderBy</c> no ordena por
+    /// Trabajador — dos posiciones cercanas podían caer en el MISMO
+    /// Trabajador, que terminaba con tres "Entrega de EPI" en vez de una.
+    /// Reproducido en CI (E2E, <c>DeepLinksTests.Deep_link_de_Centro_reconstruye_el_panel_en_frio</c>):
+    /// no hacía falta entender el mecanismo exacto para eliminar el riesgo —
+    /// un tipo que nadie más siembra no puede duplicar nada.
+    /// </para>
     /// </summary>
     /// <summary>internal (no private) a propósito: PlantillasDatosPruebaSeederTests la ejercita sin depender de la cartera GestorCae completa.</summary>
     internal static async Task SembrarPlantillasAsync(
         CaeManagerDbContext dbContext, UserManager<ApplicationUser> userManager,
         List<Documento> documentosTrabajador, CancellationToken cancellationToken)
     {
-        var tipoEpi = await dbContext.TiposDocumento
-            .FirstOrDefaultAsync(t => t.Nombre == "Entrega de EPI", cancellationToken);
+        var tipoPlantilla = await dbContext.TiposDocumento
+            .FirstOrDefaultAsync(t => t.Nombre == "Riesgo Eléctrico", cancellationToken);
         var gestor = (await userManager.GetUsersInRoleAsync(Roles.GestorCae))
             .OrderBy(u => u.Email).FirstOrDefault();
-        if (tipoEpi is null || gestor is null)
+
+        // Dos Trabajador REALMENTE distintos — .Distinct() sobre los ids, no
+        // por posición en la lista (ver el porqué en el comentario de arriba).
+        var trabajadorIds = documentosTrabajador
+            .Select(d => d.TrabajadorId!.Value)
+            .Distinct()
+            .Take(2)
+            .ToList();
+        if (tipoPlantilla is null || gestor is null || trabajadorIds.Count < 2)
             return;
 
         var ahoraUtc = DateTime.UtcNow;
@@ -107,20 +126,20 @@ public static class CicloDocumentalDatosPruebaSeeder
         // Plantillas.razor también sabe pintar.
         var plantillaBorrador = new PlantillaDocumento(
             OrigenPlantilla.Externa, "Autorización de acceso de visita (demo)", AmbitoAplicacion.Trabajador,
-            FormatoOrigenPlantilla.PdfVisual, tipoEpi.Id,
+            FormatoOrigenPlantilla.PdfVisual, tipoPlantilla.Id,
             descripcion: "PDF de acceso pendiente de configurar sus campos — subido, sin elementos ni confirmar todavía.");
         dbContext.PlantillasDocumento.Add(plantillaBorrador);
         dbContext.PlantillasDocumentoVersion.Add(new PlantillaDocumentoVersion(
             plantillaBorrador.Id, 1, "plantillas-demo/autorizacion-acceso-v1.pdf", new string('7', PlantillaDocumentoVersion.LongitudHashSha256)));
 
         var plantilla = new PlantillaDocumento(
-            OrigenPlantilla.Externa, "Formulario de entrega de EPI (demo)", AmbitoAplicacion.Trabajador,
-            FormatoOrigenPlantilla.PdfVisual, tipoEpi.Id,
-            descripcion: "Formulario que el centro exige firmar al entregar los EPI — se rellena solo con datos del trabajador.");
+            OrigenPlantilla.Externa, "Formulario de riesgo eléctrico (demo)", AmbitoAplicacion.Trabajador,
+            FormatoOrigenPlantilla.PdfVisual, tipoPlantilla.Id,
+            descripcion: "Formulario que el centro exige firmar para el riesgo eléctrico — se rellena solo con datos del trabajador.");
         dbContext.PlantillasDocumento.Add(plantilla);
 
         var version = new PlantillaDocumentoVersion(
-            plantilla.Id, 1, "plantillas-demo/formulario-epi-v1.pdf", new string('8', PlantillaDocumentoVersion.LongitudHashSha256));
+            plantilla.Id, 1, "plantillas-demo/formulario-riesgo-electrico-v1.pdf", new string('8', PlantillaDocumentoVersion.LongitudHashSha256));
         version.EstablecerElementos([
             new PlantillaElemento(version.Id, TipoElementoPlantilla.Texto, 1, 60, 700, 220, 20, "Nombre del trabajador",
                 FuenteDatoPlantilla.TrabajadorNombreCompleto, obligatorio: true),
@@ -147,13 +166,13 @@ public static class CicloDocumentalDatosPruebaSeeder
         await dbContext.SaveChangesAsync(cancellationToken);
         plantilla.EstablecerVersionActual(version.Id);
 
-        var trabajadorSinAvisosId = documentosTrabajador[9].TrabajadorId!.Value;
-        var trabajadorConAvisosId = documentosTrabajador[10].TrabajadorId!.Value;
-        var vencimiento = tipoEpi.AplicaVencimientoAutomatico ? hoy.AddMonths(tipoEpi.VigenciaMeses ?? 12) : (DateOnly?)null;
+        var trabajadorSinAvisosId = trabajadorIds[0];
+        var trabajadorConAvisosId = trabajadorIds[1];
+        var vencimiento = tipoPlantilla.AplicaVencimientoAutomatico ? hoy.AddMonths(tipoPlantilla.VigenciaMeses ?? 12) : (DateOnly?)null;
 
         // Sin avisos: los tres campos obligatorios se resolvieron con dato real.
         var documentoSinAvisos = Documento.DeTrabajador(
-            trabajadorSinAvisosId, tipoEpi.Id, hoy, vencimiento, "plantillas-demo/generado-epi-sin-avisos.pdf");
+            trabajadorSinAvisosId, tipoPlantilla.Id, hoy, vencimiento, "plantillas-demo/generado-riesgo-electrico-sin-avisos.pdf");
         dbContext.Documentos.Add(documentoSinAvisos);
         dbContext.DocumentosGenerados.Add(new DocumentoGenerado(
             version.Id, documentoSinAvisos.Id, """{"Nombre del trabajador":"dato real","DNI":"dato real","Puesto":"dato real"}""",
@@ -163,7 +182,7 @@ public static class CicloDocumentalDatosPruebaSeeder
         // blanco en Hydra, así que ese campo obligatorio queda sin resolver
         // — el documento se genera igual, con el badge de aviso.
         var documentoConAvisos = Documento.DeTrabajador(
-            trabajadorConAvisosId, tipoEpi.Id, hoy, vencimiento, "plantillas-demo/generado-epi-con-avisos.pdf");
+            trabajadorConAvisosId, tipoPlantilla.Id, hoy, vencimiento, "plantillas-demo/generado-riesgo-electrico-con-avisos.pdf");
         dbContext.Documentos.Add(documentoConAvisos);
         dbContext.DocumentosGenerados.Add(new DocumentoGenerado(
             version.Id, documentoConAvisos.Id, """{"Nombre del trabajador":"dato real","DNI":"dato real","Puesto":""}""",
