@@ -120,7 +120,7 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         await page.Keyboard.PressAsync("x");
         var barraLote = page.Locator(".barra-acciones-lote");
         await barraLote.WaitForAsync(new LocatorWaitForOptions { Timeout = 5_000 });
-        await Expect(barraLote.Locator(".barra-acciones-lote-cantidad")).ToHaveTextAsync("1 seleccionado");
+        await Expect(barraLote.Locator(".barra-acciones-lote-cantidad")).ToHaveTextAsync("1 seleccionado en esta página");
         await page.WaitForTimeoutAsync(300);
 
         // --- Enter abre el drawer ligero de vista previa del Cliente enfocado;
@@ -149,7 +149,7 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         // --- Selección múltiple visible + segunda fila por checkbox, y borrado en lote ---
         await page.GetByText("Selección múltiple").ClickAsync();
         await filaB.Locator("input[type=\"checkbox\"]").CheckAsync();
-        await Expect(barraLote.Locator(".barra-acciones-lote-cantidad")).ToHaveTextAsync("2 seleccionados");
+        await Expect(barraLote.Locator(".barra-acciones-lote-cantidad")).ToHaveTextAsync("2 seleccionados en esta página");
 
         await barraLote.GetByText("Eliminar seleccionados").ClickAsync();
         await page.GetByRole(AriaRole.Dialog).GetByText("Eliminar", new LocatorGetByTextOptions { Exact = true }).ClickAsync();
