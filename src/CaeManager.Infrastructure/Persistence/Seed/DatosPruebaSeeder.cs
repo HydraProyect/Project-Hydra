@@ -922,7 +922,22 @@ public static class DatosPruebaSeeder
         for (var i = 0; i < Math.Min(24, centrosConGente.Count * 2); i++)
         {
             var centroId = ElementoAleatorio(aleatorio, centrosConGente);
-            var inicio = hoy.AddDays(aleatorio.Next(-45, 46));
+            var sorteoInicio = aleatorio.Next(-45, 46);
+            // Los dos primeros índices fijan la fecha en vez de usar el
+            // sorteo (que se sigue consumiendo, para no desplazar la
+            // secuencia del resto de la siembra — mismo criterio que
+            // "origen" un poco más abajo): sin esto, NivelUrgenciaVisita
+            // Crítica/Urgente son posibles pero no están garantizados —
+            // dependían de que el sorteo de 91 días cayera justo en la
+            // ventana de 24-48h que CalculadoraUrgenciaVisita evalúa, y ese
+            // es justo el estado que /visitas y el Inicio (dashboard)
+            // resaltan.
+            var inicio = i switch
+            {
+                0 => hoy.AddDays(1),  // horasHastaInicio = 24h ≤ HorasCriticasVisita → Crítica
+                1 => hoy.AddDays(2),  // horasHastaInicio = 48h ≤ HorasAvisoVisita → Urgente
+                _ => hoy.AddDays(sorteoInicio)
+            };
             // Índice, no Random: cubre los tres orígenes sin desplazar la
             // secuencia aleatoria del resto de la siembra.
             var origen = (i % 8) switch

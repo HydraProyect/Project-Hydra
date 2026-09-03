@@ -1,6 +1,7 @@
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.DocumentosIa;
+using CaeManager.Domain.Plantillas;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
@@ -60,9 +61,97 @@ public static class CicloDocumentalDatosPruebaSeeder
         await SembrarValidacionOficialAsync(dbContext, cancellationToken);
         await SembrarDeteccionesTrabajadorAsync(dbContext, cancellationToken);
         await SembrarAcreditacionesAsync(dbContext, cancellationToken);
+        await SembrarPlantillasAsync(dbContext, userManager, documentosTrabajador, cancellationToken);
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        logger.LogInformation("Ciclo documental de prueba sembrado: revisiones IA, aprobaciones, trabajos de análisis, auditoría, validación oficial y detecciones.");
+        logger.LogInformation("Ciclo documental de prueba sembrado: revisiones IA, aprobaciones, trabajos de análisis, auditoría, validación oficial, detecciones y plantillas.");
+    }
+
+    /// <summary>
+    /// REC-061: hasta este cambio, todo el dominio de Plantillas (ADR-010)
+    /// tenía cero filas en la siembra de demo — <c>/plantillas</c> y
+    /// "Documentos generados" arrancaban siempre vacíos, así que ninguno de
+    /// sus estados (catálogo con/sin confirmar, documento generado con y sin
+    /// avisos — DEC-5, 2026-09-02) se podía revisar sin generarlos a mano.
+    ///
+    /// Siembra mínima y determinista: una plantilla confirmada (con la que
+    /// se genera) y una en Borrador (para que el catálogo no muestre solo el
+    /// estado feliz), más dos <see cref="DocumentoGenerado"/> reales sobre la
+    /// confirmada — uno sin avisos y uno con, reutilizando dos Trabajador de
+    /// <paramref name="documentosTrabajador"/> (índices 9 y 10, fuera de los
+    /// que ya usan los demás métodos de este fichero) para no depender de un
+    /// nuevo sorteo.
+    /// </summary>
+    /// <summary>internal (no private) a propósito: PlantillasDatosPruebaSeederTests la ejercita sin depender de la cartera GestorCae completa.</summary>
+    internal static async Task SembrarPlantillasAsync(
+        CaeManagerDbContext dbContext, UserManager<ApplicationUser> userManager,
+        List<Documento> documentosTrabajador, CancellationToken cancellationToken)
+    {
+        var tipoEpi = await dbContext.TiposDocumento
+            .FirstOrDefaultAsync(t => t.Nombre == "Entrega de EPI", cancellationToken);
+        var gestor = (await userManager.GetUsersInRoleAsync(Roles.GestorCae))
+            .OrderBy(u => u.Email).FirstOrDefault();
+        if (tipoEpi is null || gestor is null)
+            return;
+
+        var ahoraUtc = DateTime.UtcNow;
+        var hoy = DateOnly.FromDateTime(ahoraUtc);
+
+        // Segunda plantilla, deliberadamente SIN confirmar: si solo hubiera
+        // una y estuviera confirmada, el catálogo de /plantillas no
+        // enseñaría el badge "Borrador"/"Pendiente de revisión" que
+        // Plantillas.razor también sabe pintar.
+        var plantillaBorrador = new PlantillaDocumento(
+            OrigenPlantilla.Externa, "Autorización de acceso de visita (demo)", AmbitoAplicacion.Trabajador,
+            FormatoOrigenPlantilla.PdfVisual, tipoEpi.Id,
+            descripcion: "PDF de acceso pendiente de configurar sus campos — subido, sin elementos ni confirmar todavía.");
+        dbContext.PlantillasDocumento.Add(plantillaBorrador);
+        dbContext.PlantillasDocumentoVersion.Add(new PlantillaDocumentoVersion(
+            plantillaBorrador.Id, 1, "plantillas-demo/autorizacion-acceso-v1.pdf", new string('7', PlantillaDocumentoVersion.LongitudHashSha256)));
+
+        var plantilla = new PlantillaDocumento(
+            OrigenPlantilla.Externa, "Formulario de entrega de EPI (demo)", AmbitoAplicacion.Trabajador,
+            FormatoOrigenPlantilla.PdfVisual, tipoEpi.Id,
+            descripcion: "Formulario que el centro exige firmar al entregar los EPI — se rellena solo con datos del trabajador.");
+        dbContext.PlantillasDocumento.Add(plantilla);
+
+        var version = new PlantillaDocumentoVersion(
+            plantilla.Id, 1, "plantillas-demo/formulario-epi-v1.pdf", new string('8', PlantillaDocumentoVersion.LongitudHashSha256));
+        version.EstablecerElementos([
+            new PlantillaElemento(version.Id, TipoElementoPlantilla.Texto, 1, 60, 700, 220, 20, "Nombre del trabajador",
+                FuenteDatoPlantilla.TrabajadorNombreCompleto, obligatorio: true),
+            new PlantillaElemento(version.Id, TipoElementoPlantilla.Texto, 1, 60, 670, 220, 20, "DNI",
+                FuenteDatoPlantilla.TrabajadorDni, obligatorio: true),
+            new PlantillaElemento(version.Id, TipoElementoPlantilla.Texto, 1, 60, 640, 220, 20, "Puesto",
+                FuenteDatoPlantilla.TrabajadorPuesto, obligatorio: true),
+            new PlantillaElemento(version.Id, TipoElementoPlantilla.Firma, 1, 60, 600, 150, 40, "Firma del trabajador",
+                rolFirmante: RolFirmantePlantilla.Trabajador)
+        ]);
+        version.Confirmar(gestor.Id, ahoraUtc);
+        dbContext.PlantillasDocumentoVersion.Add(version);
+        plantilla.EstablecerVersionActual(version.Id);
+
+        var trabajadorSinAvisosId = documentosTrabajador[9].TrabajadorId!.Value;
+        var trabajadorConAvisosId = documentosTrabajador[10].TrabajadorId!.Value;
+        var vencimiento = tipoEpi.AplicaVencimientoAutomatico ? hoy.AddMonths(tipoEpi.VigenciaMeses ?? 12) : (DateOnly?)null;
+
+        // Sin avisos: los tres campos obligatorios se resolvieron con dato real.
+        var documentoSinAvisos = Documento.DeTrabajador(
+            trabajadorSinAvisosId, tipoEpi.Id, hoy, vencimiento, "plantillas-demo/generado-epi-sin-avisos.pdf");
+        dbContext.Documentos.Add(documentoSinAvisos);
+        dbContext.DocumentosGenerados.Add(new DocumentoGenerado(
+            version.Id, documentoSinAvisos.Id, """{"Nombre del trabajador":"dato real","DNI":"dato real","Puesto":"dato real"}""",
+            gestor.Id, ahoraUtc, trabajadorId: trabajadorSinAvisosId, conAvisos: false));
+
+        // Con avisos (DEC-5, 2026-09-02): el Puesto del trabajador está en
+        // blanco en Hydra, así que ese campo obligatorio queda sin resolver
+        // — el documento se genera igual, con el badge de aviso.
+        var documentoConAvisos = Documento.DeTrabajador(
+            trabajadorConAvisosId, tipoEpi.Id, hoy, vencimiento, "plantillas-demo/generado-epi-con-avisos.pdf");
+        dbContext.Documentos.Add(documentoConAvisos);
+        dbContext.DocumentosGenerados.Add(new DocumentoGenerado(
+            version.Id, documentoConAvisos.Id, """{"Nombre del trabajador":"dato real","DNI":"dato real","Puesto":""}""",
+            gestor.Id, ahoraUtc, trabajadorId: trabajadorConAvisosId, conAvisos: true));
     }
 
     private static void SembrarRevisionesIa(CaeManagerDbContext dbContext, List<Documento> documentos)
