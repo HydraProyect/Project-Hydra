@@ -21,6 +21,11 @@ public static class ComunicacionesEndpoints
             if (adjunto is null)
                 return Results.NotFound();
 
+            // No pasa por IRegistroAccesoDocumentoSensibleService (DEC-36,
+            // HO-099-01 § 6-7): un AdjuntoMensaje es contenido de correo, sin
+            // TipoDocumentoId — no hay de dónde sacar la categoría del punto
+            // único de REC-132 sin inventar una fuente distinta, que es
+            // justo lo que esa decisión prohíbe.
             var flujo = await almacenamiento.AbrirAsync(adjunto.ArchivoUrl, cancellationToken);
             return Results.File(flujo, adjunto.TipoContenido, adjunto.NombreArchivo, enableRangeProcessing: true);
         });

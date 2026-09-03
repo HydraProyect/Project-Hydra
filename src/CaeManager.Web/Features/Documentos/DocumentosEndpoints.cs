@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Application.Importacion;
+using CaeManager.Domain.Auditoria;
 using CaeManager.Web.Exportacion;
 using ClosedXML.Excel;
 using MediatR;
@@ -39,13 +40,20 @@ public static class DocumentosEndpoints
     public static IEndpointRouteBuilder MapDocumentosEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet("/documentos/{id:guid}/archivo", async (
-            Guid id, HttpContext contexto, IMediator mediator, IFileStorageService almacenamiento, CancellationToken cancellationToken) =>
+            Guid id, HttpContext contexto, IMediator mediator, IFileStorageService almacenamiento,
+            IRegistroAccesoDocumentoSensibleService registroAcceso, CancellationToken cancellationToken) =>
         {
             var documento = await mediator.Send(new ObtenerDocumentoPorIdQuery(id), cancellationToken);
             if (documento?.ArchivoUrl is null)
                 return Results.NotFound();
 
             ProhibirCache(contexto);
+
+            // DEC-36 (REC-099): registra el acceso antes de abrir el archivo
+            // — la autorización ya pasó (ObtenerDocumentoPorIdQuery resolvió
+            // alcance), así que a partir de aquí el acceso es efectivo. Solo
+            // deja fila si el Documento resulta sensible.
+            await registroAcceso.RegistrarSiSensibleAsync(documento.Id, TipoAccesoDocumentoSensible.Apertura, cancellationToken);
 
             var flujo = await almacenamiento.AbrirAsync(documento.ArchivoUrl, cancellationToken);
             // enableRangeProcessing: el visor de PDF del navegador pide por

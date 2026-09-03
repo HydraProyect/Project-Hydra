@@ -23,6 +23,11 @@ public static class SubcontratasEndpoints
             if (evidencia is null)
                 return Results.NotFound();
 
+            // No pasa por IRegistroAccesoDocumentoSensibleService (DEC-36,
+            // HO-099-01 § 6-7): la evidencia de VerificacionExternaSubcontrata
+            // no es un Documento del catálogo de TipoDocumento — sin
+            // TipoDocumentoId no hay categoría que consultar en el punto
+            // único de REC-132.
             var flujo = await almacenamiento.AbrirAsync(evidencia.ArchivoRuta, cancellationToken);
             return Results.File(flujo, TipoContenidoDe(evidencia.NombreArchivo), evidencia.NombreArchivo, enableRangeProcessing: true);
         });

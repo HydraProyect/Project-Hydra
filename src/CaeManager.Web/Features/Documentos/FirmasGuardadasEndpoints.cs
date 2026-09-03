@@ -21,6 +21,9 @@ public static class FirmasGuardadasEndpoints
             if (firma is null)
                 return Results.NotFound();
 
+            // No pasa por IRegistroAccesoDocumentoSensibleService (DEC-36,
+            // HO-099-01 § 6-7): FirmaGuardadaUsuario es una imagen de firma,
+            // sin TipoDocumentoId — no es un Documento del catálogo.
             var flujo = await almacenamiento.AbrirAsync(firma.ImagenUrl, cancellationToken);
             return Results.File(flujo, "image/png", enableRangeProcessing: true);
         });
@@ -32,6 +35,8 @@ public static class FirmasGuardadasEndpoints
             if (sello is null)
                 return Results.NotFound();
 
+            // Mismo motivo que /mi-firma/archivo arriba: SelloEmpresa es una
+            // imagen de sello, no un Documento clasificable por TipoDocumento.
             var flujo = await almacenamiento.AbrirAsync(sello.ImagenUrl, cancellationToken);
             return Results.File(flujo, "image/png", enableRangeProcessing: true);
         });
