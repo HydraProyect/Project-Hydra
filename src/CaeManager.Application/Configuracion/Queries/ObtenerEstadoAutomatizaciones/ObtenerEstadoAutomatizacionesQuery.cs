@@ -14,7 +14,9 @@ public record ObtenerEstadoAutomatizacionesQuery : IRequest<IReadOnlyList<Automa
 
 public record AutomatizacionDto(
     string Id, string Nombre, string Descripcion, bool Conmutable, bool Activo,
-    DateTime? UltimaEjecucionUtc, bool? UltimoResultadoExitoso);
+    DateTime? UltimaEjecucionUtc, bool? UltimoResultadoExitoso,
+    string? UltimoMensajeError = null, int? UltimosElementosEvaluados = null, int? UltimosElementosAfectados = null,
+    DateTime? ProximoCicloUtc = null);
 
 public class ObtenerEstadoAutomatizacionesQueryHandler(IConfiguracionQueryContext configuracionContext)
     : IRequestHandler<ObtenerEstadoAutomatizacionesQuery, IReadOnlyList<AutomatizacionDto>>
@@ -29,9 +31,19 @@ public class ObtenerEstadoAutomatizacionesQueryHandler(IConfiguracionQueryContex
             .Select(trabajo =>
             {
                 var estado = estados.GetValueOrDefault(trabajo.Id);
+
+                // Sin Cadencia (sondeo en segundos) o sin ejecución previa
+                // todavía, no hay nada que calcular: el panel lo trata como
+                // "Continuo" o "—" respectivamente.
+                var proximoCiclo = trabajo.Cadencia is { } cadencia && estado?.UltimaEjecucionUtc is { } ultima
+                    ? ultima + cadencia
+                    : (DateTime?)null;
+
                 return new AutomatizacionDto(
                     trabajo.Id, trabajo.Nombre, trabajo.Descripcion, trabajo.Conmutable,
-                    estado?.Activo ?? true, estado?.UltimaEjecucionUtc, estado?.UltimoResultadoExitoso);
+                    estado?.Activo ?? true, estado?.UltimaEjecucionUtc, estado?.UltimoResultadoExitoso,
+                    estado?.UltimoMensajeError, estado?.UltimosElementosEvaluados, estado?.UltimosElementosAfectados,
+                    proximoCiclo);
             })
             .ToList();
     }

@@ -131,19 +131,21 @@ public class EnvioAlertasVencimientoHostedService(
             // antes, un fallo de envío individual solo dejaba un warning en
             // el log y el ciclo se registraba "exitosa" igual, ocultando el
             // fallo en la pantalla de Automatizaciones.
-            var huboFallosDeEnvio = await EjecutarEnvioAsync(ambito, tenantId, stoppingToken);
+            var (huboFallosDeEnvio, alertasEvaluadas) = await EjecutarEnvioAsync(ambito, tenantId, stoppingToken);
             await registroAutomatizaciones.RegistrarEjecucionAsync(
-                CatalogoAutomatizaciones.AlertasVencimientoDiarias, exitosa: !huboFallosDeEnvio, stoppingToken);
+                CatalogoAutomatizaciones.AlertasVencimientoDiarias, exitosa: !huboFallosDeEnvio, stoppingToken,
+                elementosEvaluados: alertasEvaluadas);
         }
-        catch
+        catch (Exception ex)
         {
-            await registroAutomatizaciones.RegistrarEjecucionAsync(CatalogoAutomatizaciones.AlertasVencimientoDiarias, exitosa: false, stoppingToken);
+            await registroAutomatizaciones.RegistrarEjecucionAsync(
+                CatalogoAutomatizaciones.AlertasVencimientoDiarias, exitosa: false, stoppingToken, mensajeError: ex.Message);
             throw;
         }
     }
 
-    /// <returns><c>true</c> si al menos un destinatario no recibió el correo.</returns>
-    private async Task<bool> EjecutarEnvioAsync(IServiceScope ambito, Guid tenantId, CancellationToken stoppingToken)
+    /// <returns>Si al menos un destinatario no recibió el correo, y cuántas alertas se evaluaron.</returns>
+    private async Task<(bool HuboFallos, int AlertasEvaluadas)> EjecutarEnvioAsync(IServiceScope ambito, Guid tenantId, CancellationToken stoppingToken)
     {
         var dbContext = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
         var alcanceDatos = ambito.ServiceProvider.GetRequiredService<IAlcanceDatosService>();
@@ -157,7 +159,7 @@ public class EnvioAlertasVencimientoHostedService(
             dbContext, dbContext, dbContext, dbContext, dbContext, dbContext, dbContext, resolverClientePrincipal, alcanceDatos, documentosFaltantesService);
 
         var alertas = await handler.CalcularAsync(trabajadorIdsVisibles: null, centroIdsVisibles: null, stoppingToken);
-        if (alertas.Count == 0) return false;
+        if (alertas.Count == 0) return (false, 0);
 
         var directorio = ambito.ServiceProvider.GetRequiredService<DirectorioUsuariosTenant>();
         var administradores = await directorio.ObtenerVisiblesEnRolAsync(Roles.Administrador, stoppingToken);
@@ -168,7 +170,7 @@ public class EnvioAlertasVencimientoHostedService(
             .DistinctBy(u => u.Id)
             .ToList();
 
-        if (destinatarios.Count == 0) return false;
+        if (destinatarios.Count == 0) return (false, alertas.Count);
 
         var emailService = ambito.ServiceProvider.GetRequiredService<IEmailService>();
         var (asunto, cuerpo) = ConstruirCorreo(alertas, opciones.Value.UrlBase);
@@ -186,7 +188,7 @@ public class EnvioAlertasVencimientoHostedService(
             }
         }
 
-        return huboFallos;
+        return (huboFallos, alertas.Count);
     }
 
     private static (string Asunto, string CuerpoHtml) ConstruirCorreo(IReadOnlyList<AlertaDto> alertas, string? urlBase)

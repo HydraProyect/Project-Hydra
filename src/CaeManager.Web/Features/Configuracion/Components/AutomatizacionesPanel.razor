@@ -37,6 +37,7 @@ else
         <div class="fila-automatizaciones fila-cabecera" role="row">
             <span role="columnheader">Nombre</span>
             <span role="columnheader">Última ejecución</span>
+            <span role="columnheader">Próximo ciclo</span>
             <span role="columnheader">Resultado</span>
             <span role="columnheader">Estado</span>
         </div>
@@ -49,7 +50,8 @@ else
                     <span class="descripcion-trabajo">@trabajo.Descripcion</span>
                 </span>
                 <span role="cell">@FormatearUltimaEjecucion(trabajo.UltimaEjecucionUtc)</span>
-                <span role="cell">
+                <span role="cell">@FormatearProximoCiclo(trabajo)</span>
+                <span class="celda-resultado" role="cell">
                     @if (!EstaConfigurado(trabajo.Id))
                     {
                         <Badge Tono="TonoBadge.Neutro">No configurado</Badge>
@@ -65,6 +67,10 @@ else
                     else
                     {
                         <Badge Tono="TonoBadge.Peligro">Fallida</Badge>
+                    }
+                    @if (FormatearDetalleResultado(trabajo) is { } detalle)
+                    {
+                        <span class="detalle-resultado">@detalle</span>
                     }
                 </span>
                 <span role="cell">

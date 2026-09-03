@@ -92,4 +92,30 @@ public partial class AutomatizacionesPanel : ComponentBase
 
     private static string FormatearUltimaEjecucion(DateTime? ultimaEjecucionUtc) =>
         ultimaEjecucionUtc is null ? "—" : ultimaEjecucionUtc.Value.ToLocalTime().ToString("dd/MM HH:mm");
+
+    /// <summary>"Continuo" para los trabajos sin Cadencia (sondean en segundos); "—" para los que aún no han ejecutado nunca.</summary>
+    private static string FormatearProximoCiclo(AutomatizacionDto trabajo) => trabajo switch
+    {
+        { UltimaEjecucionUtc: null } => "—",
+        { ProximoCicloUtc: null } => "Continuo",
+        _ => trabajo.ProximoCicloUtc!.Value.ToLocalTime().ToString("dd/MM HH:mm")
+    };
+
+    /// <summary>REC-126: detalle bajo el badge de resultado — el mensaje de error si falló, o el recuento de evaluados/afectados si tuvo éxito.</summary>
+    private static string? FormatearDetalleResultado(AutomatizacionDto trabajo)
+    {
+        if (trabajo.UltimoResultadoExitoso == false)
+            return trabajo.UltimoMensajeError;
+
+        if (trabajo.UltimoResultadoExitoso != true)
+            return null;
+
+        return (trabajo.UltimosElementosEvaluados, trabajo.UltimosElementosAfectados) switch
+        {
+            (not null, not null) => $"{trabajo.UltimosElementosEvaluados} evaluados, {trabajo.UltimosElementosAfectados} afectados",
+            (not null, null) => $"{trabajo.UltimosElementosEvaluados} evaluados",
+            (null, not null) => $"{trabajo.UltimosElementosAfectados} afectados",
+            (null, null) => null
+        };
+    }
 }

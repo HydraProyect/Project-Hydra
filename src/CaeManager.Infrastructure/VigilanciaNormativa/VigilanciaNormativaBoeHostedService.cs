@@ -51,8 +51,10 @@ public class VigilanciaNormativaBoeHostedService(
     {
         try
         {
-            await eleccionLider.IntentarEjecutarComoLiderAsync("vigilancia-normativa-boe", ProcesarAsync, stoppingToken);
-            await RegistrarEjecucionEnTodosLosTenantsAsync(exitosa: true, stoppingToken);
+            var publicacionesEvaluadas = 0;
+            await eleccionLider.IntentarEjecutarComoLiderAsync(
+                "vigilancia-normativa-boe", async ct => publicacionesEvaluadas = await ProcesarAsync(ct), stoppingToken);
+            await RegistrarEjecucionEnTodosLosTenantsAsync(exitosa: true, stoppingToken, elementosEvaluados: publicacionesEvaluadas);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
@@ -60,7 +62,7 @@ public class VigilanciaNormativaBoeHostedService(
         catch (Exception ex)
         {
             logger.LogError(ex, "Falló un ciclo de vigilancia normativa del BOE.");
-            await RegistrarEjecucionEnTodosLosTenantsAsync(exitosa: false, stoppingToken);
+            await RegistrarEjecucionEnTodosLosTenantsAsync(exitosa: false, stoppingToken, mensajeError: ex.Message);
         }
     }
 
@@ -71,7 +73,8 @@ public class VigilanciaNormativaBoeHostedService(
     /// deja una marca de "última ejecución" en cada tenant activo para que
     /// cada uno vea un dato real en vez de "—" permanente.
     /// </summary>
-    private async Task RegistrarEjecucionEnTodosLosTenantsAsync(bool exitosa, CancellationToken stoppingToken)
+    private async Task RegistrarEjecucionEnTodosLosTenantsAsync(
+        bool exitosa, CancellationToken stoppingToken, int? elementosEvaluados = null, string? mensajeError = null)
     {
         List<Guid> tenantsActivos;
         using (var ambito = ambitoFactory.CreateScope())
@@ -87,11 +90,14 @@ public class VigilanciaNormativaBoeHostedService(
             using var ambito = ambitoFactory.CreateScope();
             using var _ = AmbitoTenantExplicito.Establecer(tenantId);
             var registro = ambito.ServiceProvider.GetRequiredService<IRegistroAutomatizacionesService>();
-            await registro.RegistrarEjecucionAsync(CatalogoAutomatizaciones.VigilanciaNormativaBoe, exitosa, stoppingToken);
+            await registro.RegistrarEjecucionAsync(
+                CatalogoAutomatizaciones.VigilanciaNormativaBoe, exitosa, stoppingToken,
+                mensajeError: mensajeError, elementosEvaluados: elementosEvaluados);
         }
     }
 
-    private async Task ProcesarAsync(CancellationToken stoppingToken)
+    /// <returns>Cuántas publicaciones traía el sumario del día.</returns>
+    private async Task<int> ProcesarAsync(CancellationToken stoppingToken)
     {
         using var ambito = ambitoFactory.CreateScope();
 
@@ -101,7 +107,7 @@ public class VigilanciaNormativaBoeHostedService(
 
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
         var publicaciones = await cliente.ObtenerSumarioAsync(hoy, stoppingToken);
-        if (publicaciones.Count == 0) return;
+        if (publicaciones.Count == 0) return 0;
 
         var huboNuevos = false;
 
@@ -120,5 +126,7 @@ public class VigilanciaNormativaBoeHostedService(
 
         if (huboNuevos)
             await unitOfWork.SaveChangesAsync(stoppingToken);
+
+        return publicaciones.Count;
     }
 }

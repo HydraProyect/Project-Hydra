@@ -96,30 +96,34 @@ public class VigilanciaVisitasUrgentesHostedService(
 
         try
         {
-            await AvisarTenantAsync(ambito, stoppingToken);
-            await registroAutomatizaciones.RegistrarEjecucionAsync(CatalogoAutomatizaciones.VigilanciaVisitasUrgentes, exitosa: true, stoppingToken);
+            var gestionesUrgentes = await AvisarTenantAsync(ambito, stoppingToken);
+            await registroAutomatizaciones.RegistrarEjecucionAsync(
+                CatalogoAutomatizaciones.VigilanciaVisitasUrgentes, exitosa: true, stoppingToken,
+                elementosEvaluados: gestionesUrgentes);
         }
-        catch
+        catch (Exception ex)
         {
-            await registroAutomatizaciones.RegistrarEjecucionAsync(CatalogoAutomatizaciones.VigilanciaVisitasUrgentes, exitosa: false, stoppingToken);
+            await registroAutomatizaciones.RegistrarEjecucionAsync(
+                CatalogoAutomatizaciones.VigilanciaVisitasUrgentes, exitosa: false, stoppingToken, mensajeError: ex.Message);
             throw;
         }
     }
 
-    private async Task AvisarTenantAsync(IServiceScope ambito, CancellationToken stoppingToken)
+    /// <returns>Cuántas gestiones urgentes había, avisadas o no.</returns>
+    private async Task<int> AvisarTenantAsync(IServiceScope ambito, CancellationToken stoppingToken)
     {
         var mediator = ambito.ServiceProvider.GetRequiredService<IMediator>();
         var items = await mediator.Send(new ObtenerBandejaGestorQuery(), stoppingToken);
 
         var gestionesUrgentes = items.Count(i => i.Tipo is TipoItemBandeja.VisitaUrgente or TipoItemBandeja.SugerenciaVisitaUrgente);
-        if (gestionesUrgentes == 0) return;
+        if (gestionesUrgentes == 0) return 0;
 
         var directorio = ambito.ServiceProvider.GetRequiredService<DirectorioUsuariosTenant>();
         var administradores = await directorio.ObtenerVisiblesEnRolAsync(Roles.Administrador, stoppingToken);
         var direccionCae = await directorio.ObtenerVisiblesEnRolAsync(Roles.DireccionCae, stoppingToken);
 
         var destinatarios = administradores.Concat(direccionCae).DistinctBy(u => u.Id).ToList();
-        if (destinatarios.Count == 0) return;
+        if (destinatarios.Count == 0) return gestionesUrgentes;
 
         var repositorio = ambito.ServiceProvider.GetRequiredService<INotificacionUsuarioRepository>();
         var mensaje = gestionesUrgentes == 1
@@ -130,5 +134,7 @@ public class VigilanciaVisitasUrgentesHostedService(
             repositorio.Agregar(new NotificacionUsuario(destinatario.Id, "Gestiones urgentes de visita", mensaje, "/bandeja", "Ver bandeja"));
 
         await ambito.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync(stoppingToken);
+
+        return gestionesUrgentes;
     }
 }

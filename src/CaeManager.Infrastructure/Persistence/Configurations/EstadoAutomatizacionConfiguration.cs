@@ -12,6 +12,7 @@ public class EstadoAutomatizacionConfiguration : IEntityTypeConfiguration<Estado
         builder.HasKey(e => e.Id);
 
         builder.Property(e => e.TrabajoId).IsRequired().HasMaxLength(100);
+        builder.Property(e => e.UltimoMensajeError).HasMaxLength(EstadoAutomatizacion.LongitudMaximaUltimoMensajeError);
 
         // Una fila por trabajo y tenant — se crea perezosamente, no hay
         // HasData: un tenant sin fila para un TrabajoId se trata como

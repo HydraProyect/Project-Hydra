@@ -17,7 +17,17 @@ public interface IRegistroAutomatizacionesService
 {
     Task<bool> EstaActivoAsync(string trabajoId, CancellationToken cancellationToken);
 
-    Task RegistrarEjecucionAsync(string trabajoId, bool exitosa, CancellationToken cancellationToken);
+    /// <summary>
+    /// REC-126: <paramref name="mensajeError"/> es lo que permite al panel de
+    /// Automatizaciones mostrar POR QUÉ falló, no solo que falló.
+    /// <paramref name="elementosEvaluados"/>/<paramref name="elementosAfectados"/>
+    /// son de uso libre por cada trabajo (p. ej. el barrido de retención
+    /// reporta documentos+trabajadores evaluados, o solicitudes creadas) —
+    /// null cuando el trabajo no tiene un dato que reportar ahí.
+    /// </summary>
+    Task RegistrarEjecucionAsync(
+        string trabajoId, bool exitosa, CancellationToken cancellationToken,
+        string? mensajeError = null, int? elementosEvaluados = null, int? elementosAfectados = null);
 }
 
 public class RegistroAutomatizacionesService(IEstadoAutomatizacionRepository repositorio, IUnitOfWork unitOfWork)
@@ -29,7 +39,9 @@ public class RegistroAutomatizacionesService(IEstadoAutomatizacionRepository rep
         return estado?.Activo ?? true;
     }
 
-    public async Task RegistrarEjecucionAsync(string trabajoId, bool exitosa, CancellationToken cancellationToken)
+    public async Task RegistrarEjecucionAsync(
+        string trabajoId, bool exitosa, CancellationToken cancellationToken,
+        string? mensajeError = null, int? elementosEvaluados = null, int? elementosAfectados = null)
     {
         var estado = await repositorio.ObtenerPorTrabajoAsync(trabajoId, cancellationToken);
         if (estado is null)
@@ -38,7 +50,7 @@ public class RegistroAutomatizacionesService(IEstadoAutomatizacionRepository rep
             repositorio.Agregar(estado);
         }
 
-        estado.RegistrarEjecucion(DateTime.UtcNow, exitosa);
+        estado.RegistrarEjecucion(DateTime.UtcNow, exitosa, mensajeError, elementosEvaluados, elementosAfectados);
         await unitOfWork.SaveChangesAsync(cancellationToken);
     }
 }
