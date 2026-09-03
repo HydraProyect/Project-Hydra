@@ -129,6 +129,18 @@ public static class CicloDocumentalDatosPruebaSeeder
         ]);
         version.Confirmar(gestor.Id, ahoraUtc);
         dbContext.PlantillasDocumentoVersion.Add(version);
+
+        // SaveChanges intermedio, a propósito: PlantillaDocumento.VersionActualId
+        // es una FK real hacia PlantillaDocumentoVersion, y esta versión lleva a
+        // su vez una FK hacia la plantilla (PlantillaDocumentoId) — insertar las
+        // dos filas NUEVAS en el mismo SaveChanges con VersionActualId ya
+        // apuntado forma un ciclo que EF Core no puede ordenar (mismo motivo por
+        // el que CrearPlantillaDocumentoCommandHandler nunca establece
+        // VersionActualId en el alta: lo hace ConfirmarPlantillaDocumentoVersionCommandHandler,
+        // aparte, sobre filas que ya existen). Aquí no hay un IUnitOfWork por
+        // comando que separe las dos operaciones, así que el guardado intermedio
+        // hace ese mismo papel.
+        await dbContext.SaveChangesAsync(cancellationToken);
         plantilla.EstablecerVersionActual(version.Id);
 
         var trabajadorSinAvisosId = documentosTrabajador[9].TrabajadorId!.Value;
