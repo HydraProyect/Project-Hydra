@@ -61,7 +61,11 @@ public static class CicloDocumentalDatosPruebaSeeder
         await SembrarValidacionOficialAsync(dbContext, cancellationToken);
         await SembrarDeteccionesTrabajadorAsync(dbContext, cancellationToken);
         await SembrarAcreditacionesAsync(dbContext, cancellationToken);
-        await SembrarPlantillasAsync(dbContext, userManager, documentosTrabajador, cancellationToken);
+        // DIAGNOSTICO-TEMPORAL-REC061: desactivado para bisecar un fallo de
+        // DeepLinksTests.Deep_link_de_Centro_reconstruye_el_panel_en_frio en
+        // CI que no parece relacionado por código — se revierte este commit
+        // en cuanto se confirme la causa.
+        // await SembrarPlantillasAsync(dbContext, userManager, documentosTrabajador, cancellationToken);
 
         await dbContext.SaveChangesAsync(cancellationToken);
         logger.LogInformation("Ciclo documental de prueba sembrado: revisiones IA, aprobaciones, trabajos de análisis, auditoría, validación oficial, detecciones y plantillas.");
