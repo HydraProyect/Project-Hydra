@@ -13,25 +13,24 @@ public class AsignacionConfiguration : IEntityTypeConfiguration<Asignacion>
         builder.ToTable("Asignaciones");
         builder.HasKey(a => a.Id);
 
-        // Único por (tenant, trabajador, centro) ENTRE LAS ACTIVAS — la invariante real
-        // (ExisteActivaAsync ya la comprueba a nivel de aplicación: FechaBaja == null) es
-        // "a lo sumo una asignación activa", no "a lo sumo una por fecha de alta". Incluir
-        // FechaAlta en la clave bloqueaba dar de baja y reasignar el mismo trabajador al
-        // mismo centro el mismo día: la fila inactiva con esa fecha seguía colisionando
-        // contra el índice aunque ExisteActivaAsync ya la descartara (bug real, reproducido
-        // con datos: Shin Nohara, Terminal Ciudad Gotica 016 — 23505 de Postgres).
-        // Este índice impide DOS filas simultáneamente abiertas del mismo trío,
-        // no que sus RANGOS de fecha (FechaAlta..FechaBaja) se solapen contra
-        // una fila ya cerrada del mismo trío — ver
-        // SolapamientoDeAsignacionesTests (IntegrationTests) para el caso
-        // reproducido. Auditoría Módulo 5, hallazgo #5: no se cierra con
-        // EXCLUDE USING gist(daterange) porque bloquear el solape es una
-        // regla de negocio pendiente de decisión (¿el mismo Trabajador puede
-        // tener presencia legítima y solapada en el mismo Centro por turnos o
-        // proyectos distintos, o es siempre un error de datos?), no algo que
-        // se pueda inventar en modo autónomo.
+        // Auditoría Módulo 5, hallazgo #5 / DEC-19: la invariante real —que
+        // dos vigencias del mismo trío (tenant, trabajador, centro) nunca se
+        // solapen, ni siquiera contra una fila ya cerrada— la impone ahora la
+        // restricción EXCLUDE USING gist(daterange) de la migración
+        // SolapeDeVigenciasEnAsignaciones (ver también
+        // IAsignacionRepository.ExisteSolapeAsync y Asignacion.SeSolapaCon).
+        // Antes de esa migración, este índice ÚNICO era toda la protección
+        // que existía, y solo cubría DOS filas simultáneamente abiertas —
+        // ver SolapamientoDeAsignacionesTests (IntegrationTests) para el
+        // caso que se le escapaba. Sigue existiendo, pero SIN unicidad: la
+        // invariante ya no depende de él, y se retira el HasFilter con
+        // FechaAlta que en su día bloqueaba dar de baja y reasignar el mismo
+        // trabajador al mismo centro el mismo día (bug real, reproducido con
+        // datos: Shin Nohara, Terminal Ciudad Gotica 016 — 23505 de
+        // Postgres); se conserva solo por rendimiento, porque
+        // ExisteActivaAsync/ObtenerActivasPor* filtran exactamente por esta
+        // combinación con FechaBaja IS NULL.
         builder.HasIndex(a => new { a.TenantId, a.TrabajadorId, a.CentroId })
-               .IsUnique()
                .HasFilter($"\"{nameof(Asignacion.FechaBaja)}\" IS NULL")
                .HasDatabaseName("IX_Asignaciones_TenantId_TrabajadorId_CentroId_Activa");
         builder.HasIndex(a => a.CentroId);

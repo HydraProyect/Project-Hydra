@@ -343,4 +343,60 @@ public class EjecutarImportacionOmitidosTests
         escenario.AsignacionRepositorio.Asignaciones.Should().BeEmpty();
         resultado.AsignacionesCreadas.Should().Be(0);
     }
+
+    /// <summary>
+    /// DEC-19 (REC-064): a diferencia de una asignación ACTIVA (arriba, que se
+    /// reutiliza), una asignación ya CERRADA cuyo rango solapa la fecha de
+    /// alta de hoy no tiene nada que reutilizar — es la contradicción de
+    /// datos que la auditoría del Módulo 5 (hallazgo #5) dejó sin cerrar.
+    /// </summary>
+    [Fact]
+    public async Task Una_asignacion_ya_cerrada_cuyo_rango_solapa_hoy_se_omite_con_causal_propia()
+    {
+        var escenario = new EscenarioImportacion()
+            .ConTrabajadorExistente()
+            .ConCentroExistente()
+            .ConAsignacionCerradaSolapadaExistente();
+
+        var plan = EscenarioImportacion.Plan(asignaciones:
+        [
+            new AsignacionImportadaDto(
+                EscenarioImportacion.DniConocido, EscenarioImportacion.CentroConocido, YaExiste: false)
+        ]);
+
+        var resultado = await escenario.EjecutarAsync(plan);
+
+        var omitido = resultado.Omitidos.Should().ContainSingle().Subject;
+        omitido.Hoja.Should().Be("Asignaciones");
+        omitido.Motivo.Should().Contain("solapa");
+
+        escenario.AsignacionRepositorio.Asignaciones.Should().BeEmpty();
+        resultado.AsignacionesCreadas.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Regresión de una revisión adversarial (Codex, REC-064): una Asignación
+    /// de rango vacío no ocupó ningún día y no debe bloquear el alta real que
+    /// la importación intenta crear para el mismo par.
+    /// </summary>
+    [Fact]
+    public async Task Una_asignacion_de_rango_vacio_no_bloquea_el_alta_de_la_importacion()
+    {
+        var escenario = new EscenarioImportacion()
+            .ConTrabajadorExistente()
+            .ConCentroExistente()
+            .ConAsignacionVaciaExistente();
+
+        var plan = EscenarioImportacion.Plan(asignaciones:
+        [
+            new AsignacionImportadaDto(
+                EscenarioImportacion.DniConocido, EscenarioImportacion.CentroConocido, YaExiste: false)
+        ]);
+
+        var resultado = await escenario.EjecutarAsync(plan);
+
+        resultado.Omitidos.Should().BeEmpty();
+        escenario.AsignacionRepositorio.Asignaciones.Should().ContainSingle();
+        resultado.AsignacionesCreadas.Should().Be(1);
+    }
 }
