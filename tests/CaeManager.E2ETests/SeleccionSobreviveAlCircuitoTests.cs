@@ -88,19 +88,19 @@ public class SeleccionSobreviveAlCircuitoTests(WebAppFixture fixture)
         // ── Cambio de workspace (HTTP, forma parte del contrato: la propia
         // ClienteActivoSeleccionado documenta que cambiar de cliente exige un reload
         // completo del navegador) ──────────────────────────────────────────────
-        await Ayudas.NavegarYEsperarAsync(page, fixture.BaseUrl);
+        // Se cambia estando YA en /empresas, no desde "/": SelectorClienteActivo
+        // envía returnUrl con la página actual (SelectorClienteActivo.razor.cs:64),
+        // así que el reload aterriza directamente de vuelta en /empresas —un solo
+        // circuito nuevo, no dos. La versión anterior de este test volvía a "/"
+        // primero porque necesitaba una navegación de página real que medir; esta
+        // versión mide la interacción de circuito puro de más abajo, así que ese
+        // segundo salto ya no hace falta y solo añadía una apertura de circuito
+        // extra sin motivo.
         await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, Ayudas.NombreClienteDelegadoDemo);
 
         await Assertions.Expect(page.Locator(".selector-cliente-activo option:checked"))
             .ToHaveTextAsync(Ayudas.NombreClienteDelegadoDemo,
                 new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
-
-        // El reload de arriba abrió un circuito nuevo (OnCircuitOpenedAsync sembró
-        // TenantIdSeleccionado con la cookie ya correcta — ver
-        // RevalidacionCircuitoActivoHandler). Una única petición HTTP hasta
-        // /empresas dentro de ESE circuito, para tener la lista cargada antes de la
-        // interacción de circuito puro de abajo.
-        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
         await Assertions.Expect(page.GetByText("Aún no hay empresas")).Not.ToBeVisibleAsync(
             new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
 
