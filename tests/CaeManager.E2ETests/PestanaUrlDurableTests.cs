@@ -23,8 +23,33 @@ public class PestanaUrlDurableTests(WebAppFixture fixture)
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");
 
-        await page.GetByRole(AriaRole.Tab, new PageGetByRoleOptions { Name = "Revisión IA" }).ClickAsync();
-        await page.WaitForURLAsync($"{fixture.BaseUrl}/documentos?Pestana=revision-ia");
+        // El clic va por Ayudas.SeleccionarPestanaAsync y no a pelo: el botón
+        // role="tab" lleva un @onclick server-side, así que un clic sobre el
+        // prerenderizado estático se pierde en silencio y el fallo aparece 30 s
+        // después aquí, en el WaitForURLAsync — medido en CI (REC-110, run
+        // 33649091982 intento 1). El helper confirma por aria-selected que el
+        // clic llegó al circuito antes de seguir.
+        await Ayudas.SeleccionarPestanaAsync(
+            page,
+            page.GetByRole(AriaRole.Tab, new PageGetByRoleOptions { Name = "Revisión IA" }),
+            "Revisión IA");
+
+        // Con el clic ya confirmado, un timeout aquí significa lo que este test
+        // investiga —la pestaña activa no se reflejó en la URL— y no "el clic
+        // se perdió", que es otra cosa y ya no puede confundirse con esto.
+        //
+        // Se mantienen los 30 s del default de Playwright, explícitos. Una
+        // primera versión los bajó a 15 s aprovechando que el clic ya está
+        // confirmado, y la revisión de Codex lo refutó con razón: confirmar
+        // aria-selected NO confirma todavía la URL, porque el callback de la
+        // página actualiza su estado primero y pide NavigateTo después (ver
+        // Documentos.razor.cs). Una actualización de URL que bajo carga tardara
+        // entre 15 y 30 s pasaba antes y habría empezado a fallar — cambiar un
+        // intermitente por otro. El arreglo del clic perdido no necesita
+        // estrechar este margen.
+        await page.WaitForURLAsync(
+            $"{fixture.BaseUrl}/documentos?Pestana=revision-ia",
+            new PageWaitForURLOptions { Timeout = 30_000 });
 
         // Carga en frío con esa URL exacta (no un clic dentro de la página ya
         // cargada): reproduce compartir el enlace o pulsar F5, no una
@@ -45,8 +70,19 @@ public class PestanaUrlDurableTests(WebAppFixture fixture)
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/plantillas");
 
-        await page.GetByRole(AriaRole.Tab, new PageGetByRoleOptions { NameRegex = new System.Text.RegularExpressions.Regex("^Generados") }).ClickAsync();
-        await page.WaitForURLAsync($"{fixture.BaseUrl}/plantillas?Pestana=generados");
+        // Mismo motivo que en el test de arriba.
+        await Ayudas.SeleccionarPestanaAsync(
+            page,
+            page.GetByRole(AriaRole.Tab, new PageGetByRoleOptions
+            {
+                NameRegex = new System.Text.RegularExpressions.Regex("^Generados")
+            }),
+            "Generados");
+
+        // 30 s explícitos, por el mismo motivo que en el test de arriba.
+        await page.WaitForURLAsync(
+            $"{fixture.BaseUrl}/plantillas?Pestana=generados",
+            new PageWaitForURLOptions { Timeout = 30_000 });
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/plantillas?Pestana=generados");
 
