@@ -29,7 +29,6 @@ using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Vehiculos;
 using CaeManager.Application.Visitas;
-using CaeManager.Domain.Alertas;
 using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Common;
@@ -198,7 +197,6 @@ public class CaeManagerDbContext(
     IQueryable<VisitaTrabajador> IVisitasQueryContext.VisitasTrabajadores => VisitasTrabajadores;
     public DbSet<Vehiculo> Vehiculos => Set<Vehiculo>();
     IQueryable<Vehiculo> IVehiculosQueryContext.Vehiculos => Vehiculos;
-    public DbSet<Alerta> Alertas => Set<Alerta>();
     public DbSet<ParametroSistema> ParametrosSistema => Set<ParametroSistema>();
     IQueryable<ParametroSistema> IConfiguracionQueryContext.ParametrosSistema => ParametrosSistema;
     public DbSet<RegistroAuditoria> RegistrosAuditoria => Set<RegistroAuditoria>();

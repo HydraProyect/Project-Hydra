@@ -1,5 +1,4 @@
-﻿using CaeManager.Domain.Alertas;
-using CaeManager.Domain.ApiKeys;
+﻿using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.BusquedaGlobal;
@@ -32,7 +31,7 @@ namespace CaeManager.IntegrationTests.Tenants;
 
 /// <summary>
 /// Cierre de la Etapa 5 de PLAN-MIGRACION-MULTITENANT.md: test de
-/// aislamiento por cada uno de los <b>44</b> tipos que heredan de
+/// aislamiento por cada uno de los <b>43</b> tipos que heredan de
 /// <c>EntidadConTenant</c>/<c>EntidadBase</c> — uno por cada línea de
 /// <c>HasQueryFilter</c> de <c>CaeManagerDbContext</c>, sin excepciones
 /// (regla de docs/MULTITENANCY.md § 9 — "los tests de aislamiento se
@@ -47,8 +46,8 @@ namespace CaeManager.IntegrationTests.Tenants;
 ///
 /// <see cref="AislamientoMultiTenantTests"/> ya
 /// prueba con más profundidad de escenario (fallo cerrado, rechazo de
-/// modificación cruzada, índice único) sobre dos entidades representativas
-/// (Cliente/Alerta); este archivo cierra la cobertura completa de las 39,
+/// modificación cruzada, índice único) sobre una entidad representativa
+/// (Cliente); este archivo cierra la cobertura completa de las 38,
 /// con la misma verificación de visibilidad en cada una.
 /// </summary>
 public class AislamientoPorAgregadoTests : IAsyncLifetime
@@ -227,15 +226,6 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
     private static readonly Guid _usuarioCompartido = Guid.NewGuid();
 
     // --- tablas de unión/satélite (EntidadConTenant directa, sin soft delete) ---
-
-    [Fact]
-    public Task Aislamiento_Alerta()
-    {
-        Guid documentoId = default;
-        return VerificarAislamientoAsync(
-            () => new Alerta(documentoId, NivelAlerta.Urgente),
-            async contexto => documentoId = await SembrarDocumentoAsync(contexto));
-    }
 
     [Fact]
     public Task Aislamiento_Asignacion()
