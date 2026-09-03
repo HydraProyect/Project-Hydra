@@ -15,6 +15,17 @@ namespace CaeManager.Infrastructure.Importacion;
 /// Trabajadores ni Tipos de Documento: ambos deben existir ya, se rechaza
 /// con motivo explícito si el DNI o el nombre del tipo no coinciden con el
 /// catálogo actual.
+///
+/// Invariante «nada se descarta en silencio» (IMPORTACION.md § 3 bis, DCR-12
+/// B; auditada en REC-129): la única fila que este analizador salta sin
+/// registrar nada es la fila de ejemplo que <see cref="GenerarPlantilla"/>
+/// escribe con el marcador <c>EJEMPLO</c> en el DNI — legítimo y silencioso
+/// a propósito, verificado por test. La celda de fecha de emisión vacía y la
+/// ilegible tienen motivo propio en <see cref="PlanImportacionDto.Omitidos"/>,
+/// distinto entre sí y del de "falta el tipo de documento" — antes las tres
+/// causales compartían un único motivo genérico ("Faltan datos
+/// obligatorios"), que llegó a acusar de ausente una fecha que en realidad
+/// estaba presente pero ilegible (REC-129).
 /// </summary>
 public class ClosedXmlPlantillaDocumentosService(IDocumentosQueryContext documentosContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext) : IPlantillaDocumentosService
 {
@@ -87,13 +98,29 @@ public class ClosedXmlPlantillaDocumentosService(IDocumentosQueryContext documen
                 continue;
 
             var tipoDocumento = TextoCelda(hoja.Cell(fila, 2));
-            var fechaEmision = FechaCelda(hoja.Cell(fila, 3));
 
-            if (string.IsNullOrWhiteSpace(tipoDocumento) || fechaEmision is null)
+            if (string.IsNullOrWhiteSpace(tipoDocumento))
             {
-                omitidos.Add(new ItemImportacionDto(NombreHoja, fila, dni, "Faltan datos obligatorios (tipo de documento o fecha de emisión)."));
+                omitidos.Add(new ItemImportacionDto(NombreHoja, fila, dni, "Falta el tipo de documento."));
                 continue;
             }
+
+            var resultadoFecha = FechaCeldaAyudante.Leer(hoja.Cell(fila, 3));
+            if (resultadoFecha.Estado == EstadoCeldaFecha.Vacia)
+            {
+                omitidos.Add(new ItemImportacionDto(NombreHoja, fila, $"{dni} — {tipoDocumento}", "Falta la fecha de emisión."));
+                continue;
+            }
+
+            if (resultadoFecha.Estado == EstadoCeldaFecha.Ilegible)
+            {
+                omitidos.Add(new ItemImportacionDto(
+                    NombreHoja, fila, $"{dni} — {tipoDocumento}",
+                    $"La fecha «{resultadoFecha.ValorBruto}» no se pudo interpretar como una fecha válida; no se importó este documento."));
+                continue;
+            }
+
+            var fechaEmision = resultadoFecha.Fecha!.Value;
 
             if (!dnisExistentes.Contains(dni))
             {
@@ -123,7 +150,7 @@ public class ClosedXmlPlantillaDocumentosService(IDocumentosQueryContext documen
             }
 
             documentos.Add(new DocumentoImportadoDto(
-                dni, tipoDocumento, fechaEmision.Value, documentosExistentes.Contains((dni, tipoDocumento))));
+                dni, tipoDocumento, fechaEmision, documentosExistentes.Contains((dni, tipoDocumento))));
         }
 
         return new PlanImportacionDto(Guid.NewGuid(), [], [], [], documentos, [], [], omitidos);
@@ -134,12 +161,6 @@ public class ClosedXmlPlantillaDocumentosService(IDocumentosQueryContext documen
         if (celda.IsEmpty()) return null;
         var texto = celda.GetString().Trim();
         return string.IsNullOrWhiteSpace(texto) ? null : texto;
-    }
-
-    private static DateOnly? FechaCelda(IXLCell celda)
-    {
-        if (celda.IsEmpty()) return null;
-        return celda.TryGetValue<DateTime>(out var fecha) ? DateOnly.FromDateTime(fecha) : null;
     }
 
     private sealed class DocumentoExistenteComparer : IEqualityComparer<(string Dni, string Nombre)>
