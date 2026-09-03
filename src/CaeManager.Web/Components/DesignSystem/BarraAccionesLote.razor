@@ -5,7 +5,7 @@
 @if (Cantidad > 0)
 {
     <div class="barra-acciones-lote" role="toolbar">
-        <span class="barra-acciones-lote-cantidad">@Cantidad seleccionado@(Cantidad == 1 ? "" : "s")</span>
+        <span class="barra-acciones-lote-cantidad">@Cantidad seleccionado@(Cantidad == 1 ? "" : "s") en esta página</span>
         @if (AccionesExtra is not null)
         {
             @AccionesExtra
