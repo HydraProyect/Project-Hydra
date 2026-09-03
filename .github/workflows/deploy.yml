@@ -135,12 +135,83 @@ name: Desplegar
 #
 # En resumen: solo se cancela sola una aprobación que TODAVÍA no se dio. Una
 # vez aprobado, un despliegue corre siempre hasta el final.
+#
+# --- Permisos del GITHUB_TOKEN (2026-09-03, DEC-39 / REC-120) ---------------
+#
+# `permissions: {}` a nivel de workflow: el `GITHUB_TOKEN` sale sin ningún
+# permiso. Medido línea a línea antes de fijarlo (evidencia en el handoff
+# HO-120-01): este workflow no usa `actions/checkout`, no llama a la API de
+# GitHub con `gh` ni con `actions/github-script`, y su único secreto es
+# `secrets.VPS_SSH_KEY` — que no es el `GITHUB_TOKEN` y no depende de
+# `permissions:`. La comprobación de la punta de `main` (más abajo) tampoco
+# lo necesita: usa `git ls-remote` anónimo por HTTPS, válido porque el
+# repositorio es público — mide estrictamente menos privilegio que pedir
+# `contents: read` por la API de GitHub, que sí habría exigido conceder ese
+# scope a un job (fuente: docs.github.com, "Using jobs" → "Assigning
+# permissions to jobs", consultado 2026-09-03: "As a good security practice,
+# you should grant the GITHUB_TOKEN the least required access"). Por eso
+# ningún job de este fichero declara `permissions:` propio: no hace falta
+# ninguno.
+#
+# --- Vía manual como break-glass explícito (2026-09-03, DEC-40 / REC-121) ---
+#
+# `workflow_dispatch` ya no dispara el despliegue con solo pulsar "Run
+# workflow": exige dos `inputs` (docs.github.com, "Events that trigger
+# workflows" → `workflow_dispatch`, consultado 2026-09-03), `confirmar` (debe
+# coincidir EXACTAMENTE con "DESPLIEGO SIN GATE DE CI") y `motivo`
+# (obligatorio). El primer paso del job `staging` los valida antes de tocar
+# la clave SSH; si la confirmación no coincide o el motivo llega vacío
+# (`required: true` obliga a que la API reciba el input, pero la
+# documentación no garantiza que rechace una cadena vacía), el job falla sin
+# desplegar nada — y como `aprobacion-produccion` depende de `staging`
+# (`needs:`), tampoco queda ninguna aprobación de producción pendiente. Si la
+# validación pasa, el paso escribe "BREAK-GLASS: actor, SHA, motivo" en el
+# log (`::warning::`) y en `GITHUB_STEP_SUMMARY`, para que quede visible que
+# este despliegue se hizo sin pasar por el gate de CI — nunca de forma
+# silenciosa. Esto NO convierte la vía manual en el flujo normal (DEC-40,
+# punto 7): sigue siendo un rodeo deliberado, operado por una persona que
+# confirma explícitamente que lo es. `confirmar` y `motivo` se leen a través
+# de `env:` en el paso, no interpolados directamente dentro de `${{ }}` en
+# medio de `run:` — evita que un input con metacaracteres de shell (backticks,
+# `$()`, etc.) se ejecute en el runner.
+#
+# --- Rechazo de runs obsoletos (2026-09-03, DEC-41 / REC-122) ---------------
+#
+# Antes de desplegar por la vía automática (`workflow_run`), un paso
+# comprueba que `SHA_DESPLEGADO` sigue siendo la punta vigente de `main`
+# (`git ls-remote` sobre el repositorio, sin autenticar). Si `main` avanzó
+# desde que ese CI corrió — el caso típico es reejecutar ("rerun") un run de
+# CI antiguo, ver "CONSECUENCIA NUEVA" arriba — el paso falla con "run
+# obsoleto para despliegue" en el log y en el resumen, y no llega a tocar la
+# clave SSH. Por el mismo mecanismo de `needs:` de arriba, tampoco queda
+# aprobación de producción pendiente.
+#
+# Esta comprobación vive en el WORKFLOW, no en `resolve-deploy-sha.sh`: al
+# guion lo invocan tanto la vía automática como el break-glass manual, y no
+# distingue entre ambas — meterla ahí bloquearía también un rollback
+# intencional hecho a propósito por la vía manual (DEC-41: "debe hacerse
+# mediante la vía manual explícita... no como efecto secundario de pulsar
+# rerun"). Por eso el paso solo corre `if: github.event_name == 'workflow_run'`
+# y nunca se aplica a `workflow_dispatch`.
 on:
   workflow_run:
     workflows: [CI]
     types: [completed]
     branches: [main]
   workflow_dispatch:
+    inputs:
+      confirmar:
+        description: 'Escribe exactamente: DESPLIEGO SIN GATE DE CI'
+        required: true
+        type: string
+      motivo:
+        description: 'Motivo del despliegue manual (obligatorio, break-glass)'
+        required: true
+        type: string
+
+# Sin ningún permiso para el GITHUB_TOKEN: ver "Permisos del GITHUB_TOKEN" en
+# la cabecera. Ningún job de este workflow necesita ninguno.
+permissions: {}
 
 env:
   VPS_HOST: 2.29.9.79
@@ -194,6 +265,68 @@ jobs:
       group: deploy-staging
       cancel-in-progress: false
     steps:
+      - name: Break-glass — validar confirmación manual
+        # Ver "Vía manual como break-glass explícito" en la cabecera.
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          CONFIRMAR: ${{ inputs.confirmar }}
+          MOTIVO: ${{ inputs.motivo }}
+        run: |
+          set -euo pipefail
+          ESPERADO="DESPLIEGO SIN GATE DE CI"
+          if [ "$CONFIRMAR" != "$ESPERADO" ]; then
+            echo "::error::confirmación incorrecta — debes escribir exactamente: $ESPERADO"
+            {
+              echo "### 🛑 Despliegue manual rechazado"
+              echo ""
+              echo "La confirmación no coincide con el texto exigido."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          if [ -z "$MOTIVO" ]; then
+            echo "::error::el motivo es obligatorio para el despliegue manual"
+            {
+              echo "### 🛑 Despliegue manual rechazado"
+              echo ""
+              echo "Falta el motivo."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "::warning::BREAK-GLASS — actor=$GITHUB_ACTOR sha=$SHA_DESPLEGADO motivo=$MOTIVO"
+          {
+            echo "### ⚠️ BREAK-GLASS: despliegue manual sin gate de CI"
+            echo ""
+            echo "| Campo | Valor |"
+            echo "|---|---|"
+            echo "| Actor | $GITHUB_ACTOR |"
+            echo "| SHA | \`$SHA_DESPLEGADO\` |"
+            echo "| Motivo | $MOTIVO |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comprobar que el SHA sigue siendo la punta de main
+        # Ver "Rechazo de runs obsoletos" en la cabecera. Solo aplica a la vía
+        # automática: el break-glass manual puede desplegar deliberadamente un
+        # SHA que ya no sea la punta (rollback intencional, DEC-41).
+        if: github.event_name == 'workflow_run'
+        run: |
+          set -euo pipefail
+          PUNTA_ACTUAL="$(git ls-remote "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | cut -f1)"
+          if [ "$PUNTA_ACTUAL" != "$SHA_DESPLEGADO" ]; then
+            echo "::error::run obsoleto para despliegue — $SHA_DESPLEGADO ya no es la punta de main ($PUNTA_ACTUAL)"
+            {
+              echo "### 🛑 Despliegue omitido: run obsoleto"
+              echo ""
+              echo "El commit de este run (\`$SHA_DESPLEGADO\`) ya no es la punta de \`main\`"
+              echo "(\`$PUNTA_ACTUAL\`). Esto ocurre al reejecutar (rerun) un CI antiguo:"
+              echo "main avanzó mientras tanto. No se despliega."
+              echo ""
+              echo "Para desplegar este commit de todas formas, usa la vía manual"
+              echo "(workflow_dispatch) — break-glass explícito, con motivo."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "Punta de main confirmada: $SHA_DESPLEGADO"
+
       - name: Preparar clave SSH
         run: |
           install -m 600 -D /dev/null ~/.ssh/id_ed25519
