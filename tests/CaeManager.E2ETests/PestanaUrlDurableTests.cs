@@ -90,4 +90,36 @@ public class PestanaUrlDurableTests(WebAppFixture fixture)
         await pestanaActiva.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
         Assert.Equal("true", await pestanaActiva.GetAttributeAsync("aria-selected"));
     }
+
+    /// <summary>
+    /// REC-062 (DEC-28, DDL-080): Plantillas se pliega en pestaña de
+    /// Documentos conservando el mismo mecanismo de URL durable que las
+    /// pestañas de arriba — mismo motivo, mismo helper.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_a_la_pestana_Plantillas_de_Documentos_actualiza_la_URL_y_sobrevive_a_una_carga_en_frio()
+    {
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await contexto.NewPageAsync();
+
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");
+
+        // Mismo motivo que en los dos tests de arriba.
+        await Ayudas.SeleccionarPestanaAsync(
+            page,
+            page.GetByRole(AriaRole.Tab, new PageGetByRoleOptions { Name = "Plantillas" }),
+            "Plantillas");
+
+        // 30 s explícitos, por el mismo motivo que en los tests de arriba.
+        await page.WaitForURLAsync(
+            $"{fixture.BaseUrl}/documentos?Pestana=plantillas",
+            new PageWaitForURLOptions { Timeout = 30_000 });
+
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos?Pestana=plantillas");
+
+        var pestanaActiva = page.GetByRole(AriaRole.Tab, new PageGetByRoleOptions { Name = "Plantillas" });
+        await pestanaActiva.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
+        Assert.Equal("true", await pestanaActiva.GetAttributeAsync("aria-selected"));
+    }
 }
