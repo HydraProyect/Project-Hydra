@@ -109,6 +109,9 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
     /// <summary>DEC-5 (2026-09-02): los obligatorios que resolvieron vacíos en la última generación individual. El toast se va solo; esto se queda junto al enlace al PDF.</summary>
     private IReadOnlyList<string> _camposObligatoriosVacios = [];
 
+    /// <summary>DEC-32 (REC-115): valores presentes que el campo (radio o checkbox) no reconoció en la última generación individual — misma idea que <see cref="_camposObligatoriosVacios"/>, categoría distinta.</summary>
+    private IReadOnlyList<AvisoValorNoReconocidoDto> _valoresNoReconocidos = [];
+
     // Generación en lote (PR8) — solo AmbitoAplicacion.Trabajador (ADR-010 § 3).
     private sealed class ItemLoteEstado
     {
@@ -315,6 +318,7 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
         _generando = true;
         _documentoGeneradoId = null;
         _camposObligatoriosVacios = [];
+        _valoresNoReconocidos = [];
         StateHasChanged();
 
         try
@@ -334,13 +338,22 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
 
             _documentoGeneradoId = resultado.Valor.DocumentoId;
             _camposObligatoriosVacios = resultado.Valor.CamposObligatoriosVacios;
+            _valoresNoReconocidos = resultado.Valor.ValoresNoReconocidos;
 
             // DEC-5 (propietario, 2026-09-02): se genera igual, pero con aviso
-            // visible — bloquear rompería lotes enteros por un campo.
-            if (_camposObligatoriosVacios.Count > 0)
-                Toasts.Mostrar(
-                    $"Documento generado, pero sin dato en: {string.Join(", ", _camposObligatoriosVacios)}.",
-                    TonoToast.Advertencia);
+            // visible — bloquear rompería lotes enteros por un campo. DEC-32
+            // (REC-115) añade la segunda categoría: un valor que el campo no
+            // reconoció, distinta de un obligatorio vacío.
+            if (_camposObligatoriosVacios.Count > 0 || _valoresNoReconocidos.Count > 0)
+            {
+                var avisos = new List<string>();
+                if (_camposObligatoriosVacios.Count > 0)
+                    avisos.Add($"sin dato en: {string.Join(", ", _camposObligatoriosVacios)}");
+                if (_valoresNoReconocidos.Count > 0)
+                    avisos.Add($"valores no reconocidos en: {string.Join(", ", _valoresNoReconocidos.Select(a => a.EtiquetaCampo))}");
+
+                Toasts.Mostrar($"Documento generado, pero {string.Join("; ", avisos)}.", TonoToast.Advertencia);
+            }
             else
                 Toasts.Mostrar("Documento generado.", TonoToast.Exito);
         }

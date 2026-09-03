@@ -352,6 +352,15 @@
                                     Se generó con campos obligatorios sin dato: @string.Join(", ", _camposObligatoriosVacios).
                                 </p>
                             }
+
+                            @if (_valoresNoReconocidos.Count > 0)
+                            {
+                                @* DEC-32 (REC-115): valor presente pero no reconocido por el campo — se genera igual, con aviso visible. *@
+                                <p class="editor-plantilla-aviso-obligatorios" data-testid="aviso-valores-no-reconocidos">
+                                    Se generó con valores no reconocidos:
+                                    @string.Join("; ", _valoresNoReconocidos.Select(a => $"{a.EtiquetaCampo} («{a.ValorRecibido}»)")).
+                                </p>
+                            }
                         }
                     }
                 </div>
