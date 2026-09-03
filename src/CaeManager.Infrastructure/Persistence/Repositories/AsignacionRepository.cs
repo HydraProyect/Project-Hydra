@@ -13,6 +13,23 @@ public class AsignacionRepository(CaeManagerDbContext dbContext) : IAsignacionRe
             a => a.TrabajadorId == trabajadorId && a.CentroId == centroId && a.FechaBaja == null,
             cancellationToken);
 
+    public Task<bool> ExisteSolapeAsync(
+        Guid trabajadorId, Guid centroId, DateOnly fechaAlta, DateOnly? fechaBaja, CancellationToken cancellationToken = default)
+    {
+        // Misma semántica que Asignacion.SeSolapaCon, en forma traducible a
+        // SQL: no se puede invocar el método de dominio dentro del árbol de
+        // expresión de EF, así que la condición se repite aquí — igual que
+        // ExisteActivaAsync repite "FechaBaja == null" en vez de llamar a
+        // EstaActiva.
+        var bajaEfectiva = fechaBaja ?? DateOnly.MaxValue;
+
+        return dbContext.Asignaciones.AnyAsync(
+            a => a.TrabajadorId == trabajadorId && a.CentroId == centroId
+                && a.FechaAlta < bajaEfectiva
+                && fechaAlta < (a.FechaBaja ?? DateOnly.MaxValue),
+            cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Asignacion>> ObtenerActivasPorCentroAsync(
         Guid centroId, CancellationToken cancellationToken = default) =>
         await dbContext.Asignaciones

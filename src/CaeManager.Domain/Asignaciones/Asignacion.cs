@@ -46,6 +46,29 @@ public class Asignacion : EntidadConTenant
     }
 
     /// <summary>
+    /// Si el rango [FechaAlta, FechaBaja) de esta asignación se solapa con el
+    /// de otra del mismo trío (Tenant, Trabajador, Centro) — DEC-19: dos
+    /// vigencias solapadas para la misma coordenada semántica son una
+    /// contradicción de datos, no una posibilidad legítima (turnos o
+    /// proyectos se representan como ejes propios del dominio, no como
+    /// duplicados temporales).
+    /// </summary>
+    /// <remarks>
+    /// El límite superior es EXCLUSIVO a propósito: dar de baja hoy y
+    /// reasignar hoy mismo (mismo trío) no es un solape — ver
+    /// ReasignarMismoDiaTests, cuyo bug real (23505 de Postgres) esta
+    /// invariante no puede reintroducir. Una baja abierta (<c>null</c>) se
+    /// trata como horizonte infinito.
+    /// </remarks>
+    public bool SeSolapaCon(DateOnly otraFechaAlta, DateOnly? otraFechaBaja)
+    {
+        var estaBajaEfectiva = FechaBaja ?? DateOnly.MaxValue;
+        var otraBajaEfectiva = otraFechaBaja ?? DateOnly.MaxValue;
+
+        return FechaAlta < otraBajaEfectiva && otraFechaAlta < estaBajaEfectiva;
+    }
+
+    /// <summary>
     /// Cierre derivado de que desaparezca uno de los dos extremos de la
     /// asignación: el centro o el trabajador pasan a <c>EstaEliminado</c>.
     /// </summary>
