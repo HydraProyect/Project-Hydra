@@ -52,9 +52,16 @@ public class VigilanciaNormativaBoeHostedService(
         try
         {
             var publicacionesEvaluadas = 0;
-            await eleccionLider.IntentarEjecutarComoLiderAsync(
+            var fueLider = await eleccionLider.IntentarEjecutarComoLiderAsync(
                 "vigilancia-normativa-boe", async ct => publicacionesEvaluadas = await ProcesarAsync(ct), stoppingToken);
-            await RegistrarEjecucionEnTodosLosTenantsAsync(exitosa: true, stoppingToken, elementosEvaluados: publicacionesEvaluadas);
+
+            // Hallazgo de revisión Codex (REC-084/REC-126): si otra réplica ya
+            // tiene el liderazgo, el callback no corre y publicacionesEvaluadas
+            // se queda en 0 — registrar "exitosa" aquí escribiría una ejecución
+            // que no ocurrió, con un recuento falso, en la pantalla de todos
+            // los tenants. Sin liderazgo, no hay nada que registrar.
+            if (fueLider)
+                await RegistrarEjecucionEnTodosLosTenantsAsync(exitosa: true, stoppingToken, elementosEvaluados: publicacionesEvaluadas);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {

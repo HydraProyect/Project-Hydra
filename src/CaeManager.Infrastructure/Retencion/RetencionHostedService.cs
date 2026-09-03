@@ -113,40 +113,60 @@ public class RetencionHostedService(
 
     private async Task ProcesarTenantAsync(Guid tenantId, CancellationToken stoppingToken)
     {
-        using var ambito = ambitoFactory.CreateScope();
-        using var _ = AmbitoTenantExplicito.Establecer(tenantId);
+        using (var ambitoComprobacion = ambitoFactory.CreateScope())
+        {
+            using var _ = AmbitoTenantExplicito.Establecer(tenantId);
+            var registroComprobacion = ambitoComprobacion.ServiceProvider.GetRequiredService<IRegistroAutomatizacionesService>();
+            if (!await registroComprobacion.EstaActivoAsync(CatalogoAutomatizaciones.BarridoRetencionDatos, stoppingToken))
+                return;
+        }
 
-        var registro = ambito.ServiceProvider.GetRequiredService<IRegistroAutomatizacionesService>();
-        if (!await registro.EstaActivoAsync(CatalogoAutomatizaciones.BarridoRetencionDatos, stoppingToken))
-            return;
-
-        var opciones = ambito.ServiceProvider.GetRequiredService<IOptions<RetencionDatosOptions>>().Value;
-        var deteccion = ambito.ServiceProvider.GetRequiredService<DeteccionPurgaService>();
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
 
         try
         {
+            // Ámbito propio para la detección/diagnóstico, sin compartirlo con
+            // el registro de la ejecución (hallazgo de revisión Codex,
+            // REC-084/REC-126): si DetectarAsync crea la solicitud de
+            // Documentos y después falla al detectar Trabajadores, esa
+            // solicitud queda en el ChangeTracker de ESTE DbContext sin
+            // guardar. Si RegistrarEjecucionAsync hiciera su SaveChangesAsync
+            // sobre el mismo contexto, la persistiría de rebote junto al
+            // registro de la ejecución fallida — una propuesta a medio crear
+            // colándose bajo una ejecución marcada como "Fallida".
+            using var ambito = ambitoFactory.CreateScope();
+            using var _ = AmbitoTenantExplicito.Establecer(tenantId);
+
+            var opciones = ambito.ServiceProvider.GetRequiredService<IOptions<RetencionDatosOptions>>().Value;
+            var deteccion = ambito.ServiceProvider.GetRequiredService<DeteccionPurgaService>();
+
             if (opciones.PoliticaAprobadaYEfectiva)
             {
                 var creadas = await deteccion.DetectarAsync(hoy, stoppingToken);
-                await registro.RegistrarEjecucionAsync(
-                    CatalogoAutomatizaciones.BarridoRetencionDatos, exitosa: true, stoppingToken,
-                    elementosAfectados: creadas);
+                await RegistrarEjecucionAsync(tenantId, exitosa: true, stoppingToken, elementosAfectados: creadas);
             }
             else
             {
                 var diagnostico = await deteccion.DiagnosticarAsync(hoy, stoppingToken);
-                await registro.RegistrarEjecucionAsync(
-                    CatalogoAutomatizaciones.BarridoRetencionDatos, exitosa: true, stoppingToken,
-                    elementosEvaluados: diagnostico.Total);
+                await RegistrarEjecucionAsync(tenantId, exitosa: true, stoppingToken, elementosEvaluados: diagnostico.Total);
             }
         }
         catch (Exception ex)
         {
-            await registro.RegistrarEjecucionAsync(
-                CatalogoAutomatizaciones.BarridoRetencionDatos, exitosa: false, stoppingToken,
-                mensajeError: ex.Message);
+            await RegistrarEjecucionAsync(tenantId, exitosa: false, stoppingToken, mensajeError: ex.Message);
             throw;
         }
+    }
+
+    private async Task RegistrarEjecucionAsync(
+        Guid tenantId, bool exitosa, CancellationToken stoppingToken,
+        string? mensajeError = null, int? elementosEvaluados = null, int? elementosAfectados = null)
+    {
+        using var ambito = ambitoFactory.CreateScope();
+        using var _ = AmbitoTenantExplicito.Establecer(tenantId);
+        var registro = ambito.ServiceProvider.GetRequiredService<IRegistroAutomatizacionesService>();
+        await registro.RegistrarEjecucionAsync(
+            CatalogoAutomatizaciones.BarridoRetencionDatos, exitosa, stoppingToken,
+            mensajeError: mensajeError, elementosEvaluados: elementosEvaluados, elementosAfectados: elementosAfectados);
     }
 }
