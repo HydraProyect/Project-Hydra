@@ -299,6 +299,17 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("ApiPublica", policy => policy
         .AddAuthenticationSchemes(ApiKeyAuthenticationSchemeOptions.NombreEsquema)
         .RequireAuthenticatedUser());
+
+    // DEC-36 (REC-099): "Administrador del Tenant propietario, mediante
+    // permiso específico" — el rol Administrador es necesario pero no
+    // suficiente para consultar RegistroAccesoDocumentoSensible. El permiso
+    // viaja como claim de sesión (ver TenantClaimsPrincipalFactory), no como
+    // consulta a base en cada petición.
+    options.AddPolicy(
+        CaeManager.Infrastructure.Identity.Policies.ConsultarAccesoDocumentosSensibles,
+        policy => policy
+            .RequireRole(CaeManager.Infrastructure.Identity.Roles.Administrador)
+            .RequireClaim(CaeManager.Infrastructure.Identity.TenantClaimsPrincipalFactory.TipoClaimPermisoConsultarAccesoDocumentosSensibles));
 });
 
 // Rate limiting de la API pública, por tenant (no por IP — varias

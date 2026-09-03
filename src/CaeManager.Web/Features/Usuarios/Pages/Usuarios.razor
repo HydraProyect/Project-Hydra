@@ -102,6 +102,16 @@
             }
         </CampoSelect>
 
+        @if (_rol == Roles.Administrador)
+        {
+            @* DEC-36 (REC-099): permiso específico, aparte del rol — nadie lo
+               hereda solo por ser Administrador. *@
+            <label class="campo-checkbox" title="Permite consultar quién ha abierto o descargado documentos sensibles (reconocimientos médicos y similares)">
+                <input type="checkbox" checked="@_permisoConsultarAccesoDocumentosSensibles" @onchange="e => _permisoConsultarAccesoDocumentosSensibles = e.Value is bool activo && activo" />
+                Puede consultar el rastro de acceso a documentos sensibles
+            </label>
+        }
+
         @if (_rol == Roles.GestorCae)
         {
             <CampoSelect Etiqueta="Coordinador CAE asignado" Valor="@_coordinadorUsuarioId" ValorChanged="v => _coordinadorUsuarioId = v">

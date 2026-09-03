@@ -76,6 +76,15 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     /// </summary>
     private string? _enlaceActivacion;
     private string _rol = Roles.Consulta;
+
+    /// <summary>
+    /// DEC-36 (REC-099): «permiso específico», no el rol Administrador a
+    /// secas — solo se conserva al guardar si <see cref="_rol"/> sigue siendo
+    /// Administrador (ver EditarUsuarioAsync/CrearUsuarioAsync), así que
+    /// cambiar el rol de alguien lo retira automáticamente.
+    /// </summary>
+    private bool _permisoConsultarAccesoDocumentosSensibles;
+
     private bool _guardando;
     private string? _mensajeErrorFormulario;
 
@@ -190,6 +199,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         _coordinadorUsuarioId = string.Empty;
         _clienteCif = string.Empty;
         _clienteEncontrado = null;
+        _permisoConsultarAccesoDocumentosSensibles = false;
         _mensajeErrorFormulario = null;
         _drawerVisible = true;
     }
@@ -214,6 +224,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         _coordinadorUsuarioId = usuario.CoordinadorUsuarioId?.ToString() ?? string.Empty;
         _clienteCif = string.Empty;
         _clienteEncontrado = null;
+        _permisoConsultarAccesoDocumentosSensibles = usuario.PermisoConsultarAccesoDocumentosSensibles;
 
         if (_rol == Roles.GestorCae)
             await CargarCoordinadoresAsync();
@@ -292,6 +303,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             TenantId = tenantId,
             CoordinadorUsuarioId = _rol == Roles.GestorCae && Guid.TryParse(_coordinadorUsuarioId, out var coordId) ? coordId : null,
             ClienteId = _rol == Roles.Cliente ? _clienteEncontrado?.Id : null,
+            PermisoConsultarAccesoDocumentosSensibles = _rol == Roles.Administrador && _permisoConsultarAccesoDocumentosSensibles,
             // Nadie más que el propio usuario llega a conocer su contraseña:
             // la cuenta nace SIN ninguna y él la establece desde el enlace de
             // activación. Por eso DebeCambiarContrasena queda en false — ya no
@@ -393,6 +405,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             usuario.NombreCompleto = _nombreCompleto;
             usuario.CoordinadorUsuarioId = _rol == Roles.GestorCae && Guid.TryParse(_coordinadorUsuarioId, out var coordId) ? coordId : null;
             usuario.ClienteId = _rol == Roles.Cliente ? _clienteEncontrado?.Id : null;
+            usuario.PermisoConsultarAccesoDocumentosSensibles = _rol == Roles.Administrador && _permisoConsultarAccesoDocumentosSensibles;
             await UserManager.UpdateAsync(usuario);
 
             var rolesActuales = await UserManager.GetRolesAsync(usuario);
