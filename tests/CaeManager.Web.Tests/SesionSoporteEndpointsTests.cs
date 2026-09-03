@@ -298,7 +298,7 @@ public class SesionSoporteEndpointsTests
         // motivo equivocado con otro doble.
         bool sinUsuario = false) =>
         SesionSoporteEndpoints.AbrirAsync(
-            Concesion, TenantObjetivo, "Incidencia 4021", 7, ticket: null, returnUrl: null,
+            Concesion, TenantObjetivo, "Incidencia 4021", 4, ticket: null, returnUrl: null,
             contexto, mediator,
             new CurrentUserServiceFalso(sinUsuario ? null : Usuario),
             seleccion ?? new ClienteActivoSeleccionadoFalso(),

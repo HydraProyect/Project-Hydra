@@ -46,13 +46,13 @@ public static class SesionSoporteEndpoints
         // UseAntiforgery valida el token sin que haya que acordarse de hacerlo.
         endpoints.MapPost("/cuenta/soporte/abrir", (
             [FromForm] Guid concesionPrivilegioId, [FromForm] Guid tenantObjetivoId,
-            [FromForm] string motivo, [FromForm] int diasDeVentana, [FromForm] string? ticket,
+            [FromForm] string motivo, [FromForm] int horasDeVentana, [FromForm] string? ticket,
             [FromForm] string? returnUrl,
             HttpContext httpContext, IMediator mediator, ICurrentUserService currentUserService,
             IClienteActivoSeleccionado clienteActivoSeleccionado,
             IDataProtectionProvider dataProtectionProvider) =>
             AbrirAsync(
-                concesionPrivilegioId, tenantObjetivoId, motivo, diasDeVentana, ticket, returnUrl,
+                concesionPrivilegioId, tenantObjetivoId, motivo, horasDeVentana, ticket, returnUrl,
                 httpContext, mediator, currentUserService, clienteActivoSeleccionado, dataProtectionProvider));
 
         // La salida. POST por el mismo motivo que la apertura: borra la cookie de
@@ -91,7 +91,7 @@ public static class SesionSoporteEndpoints
     /// </para>
     /// </summary>
     public static async Task<IResult> AbrirAsync(
-        Guid concesionPrivilegioId, Guid tenantObjetivoId, string motivo, int diasDeVentana,
+        Guid concesionPrivilegioId, Guid tenantObjetivoId, string motivo, int horasDeVentana,
         string? ticket, string? returnUrl,
         HttpContext httpContext, IMediator mediator, ICurrentUserService currentUserService,
         IClienteActivoSeleccionado clienteActivoSeleccionado,
@@ -110,7 +110,7 @@ public static class SesionSoporteEndpoints
             return Results.Forbid();
 
         var resultado = await mediator.Send(new AbrirSesionPrivilegiadaCommand(
-            concesionPrivilegioId, tenantObjetivoId, motivo, diasDeVentana, ticket));
+            concesionPrivilegioId, tenantObjetivoId, motivo, horasDeVentana, ticket));
 
         if (resultado.EsFallido)
         {

@@ -24,23 +24,31 @@ public class SesionPrivilegiada : Entity, IVersionable
     /// <summary>
     /// Techo de la ventana de acceso. Viene de la ceremonia que la vía heredada
     /// ya aplicaba en producción (<c>AbrirAccesoSoporteCommand</c>, 1–30 días), y
-    /// sube aquí a propósito: allí vivía en un validador de FluentValidation, así
+    /// subió aquí a propósito: allí vivía en un validador de FluentValidation, así
     /// que cualquier camino que no pasara por ese comando podía construir una
     /// sesión de la duración que quisiera.
     ///
-    /// <b>La regla se enuncia sobre la operación, no sobre la sesión.</b> No es
-    /// "una sesión no puede durar más de 30 días" sino:
-    /// <code>
-    /// ninguna apertura ni extensión individual puede fijar una expiración
-    /// posterior a 30 días desde el instante de esa operación
-    /// </code>
-    /// La diferencia importa para lo que todavía no existe: el día que haya un
-    /// <c>Extender</c> o <c>Renovar</c> queda sometido al mismo techo por
-    /// construcción, y no habrá forma de fabricar noventa días encadenando
-    /// extensiones. Un tope sobre la duración total sí habría dejado esa puerta
-    /// abierta.
+    /// <b>DEC-43 (2026-09-02) lo recorta de 30 días a 4 horas absolutas.</b> Una
+    /// activación privilegiada puntual permite una intervención de soporte
+    /// razonable sin convertirse en una credencial persistente; treinta días era
+    /// justo eso — una credencial persistente con otro nombre.
+    ///
+    /// <b>Sin prórroga, hoy de forma literal.</b> <see cref="ExpiraEnUtc"/> se
+    /// fija una única vez, en el constructor, a partir de <c>ahora + ventana</c>
+    /// (<see cref="Abrir"/>); no existe <c>Extender</c> ni <c>Renovar</c>, así
+    /// que no hay ninguna operación que pueda moverla hacia delante. Cerrar el
+    /// navegador tampoco la mueve: <see cref="EstaVigenteEn"/> compara contra la
+    /// hora real, no contra ningún estado de sesión HTTP.
+    ///
+    /// Si algún día se añade una operación de extensión, capar solo <i>esa
+    /// llamada individual</i> a <c>VentanaMaxima</c> —"no más de 4 horas desde
+    /// que se invoca"— no basta: encadenar llamadas cada pocas horas fabricaría
+    /// una sesión indefinida sin que ninguna llamada individual superase el
+    /// techo. DEC-43 exige que el techo se mida desde <see cref="InicioEnUtc"/>
+    /// original, no desde cada operación — una decisión de diseño para ese
+    /// incremento, que hoy no existe.
     /// </summary>
-    public static readonly TimeSpan VentanaMaxima = TimeSpan.FromDays(30);
+    public static readonly TimeSpan VentanaMaxima = TimeSpan.FromHours(4);
 
     public Guid ConcesionPrivilegioId { get; private set; }
 
@@ -144,7 +152,7 @@ public class SesionPrivilegiada : Entity, IVersionable
 
         if (ventana > VentanaMaxima)
             throw new ArgumentException(
-                $"La ventana no puede superar {VentanaMaxima.TotalDays:0} días.", nameof(ventana));
+                $"La ventana no puede superar {VentanaMaxima.TotalHours:0} horas.", nameof(ventana));
 
         return new SesionPrivilegiada(
             concesion.Id, tenantObjetivoId, usuarioSimuladoId, motivo, ticket, ahora, ahora + ventana);
