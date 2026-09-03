@@ -17,11 +17,11 @@ public partial class PlantillasTab : ComponentBase
     private int _totalGenerados;
 
     /// <summary>
-    /// Sub-pestaña inicial (Catálogo/Generados) — solo se lee al inicializar
-    /// el componente (ver <see cref="_pestanaActiva"/>). La página standalone
-    /// /plantillas (Plantillas.razor.cs) la calcula desde su propio query
-    /// string ?Pestana= antes del primer render; embebida dentro de
-    /// /documentos no se pasa, así que arranca siempre en "catalogo".
+    /// Sub-pestaña que pide el padre (Catálogo/Generados) — ver
+    /// <see cref="OnParametersSet"/> para cuándo se aplica. La página
+    /// standalone /plantillas (Plantillas.razor.cs) la recalcula en cada
+    /// render desde su propio query string ?Pestana=; embebida dentro de
+    /// /documentos no se pasa nunca, así que se queda fija en "catalogo".
     /// </summary>
     [Parameter] public string PestanaInicial { get; set; } = "catalogo";
 
@@ -33,9 +33,27 @@ public partial class PlantillasTab : ComponentBase
     [Parameter] public EventCallback<string> PestanaActivaChanged { get; set; }
 
     private string _pestanaActiva = "catalogo";
+    private string? _pestanaInicialAplicada;
 
-    protected override void OnInitialized()
+    /// <summary>
+    /// Hallazgo de revisión adversarial de Codex: aplicar PestanaInicial solo
+    /// en OnInitialized (como una primera versión de este componente hacía)
+    /// deja de resincronizarse si el query string de una instancia YA viva de
+    /// /plantillas cambia por una vía distinta al propio clic de este
+    /// componente (atrás/adelante del navegador, otro enlace a
+    /// ?Pestana=generados sobre la página ya abierta) — la página original
+    /// sí lo hacía, con [SupplyParameterFromQuery] resuelto en cada
+    /// OnParametersSet. Reaplicar solo cuando el valor CAMBIA (no en cada
+    /// render) reproduce ese comportamiento sin romper el caso embebido en
+    /// /documentos, donde PestanaInicial nunca varía y el selector debe
+    /// quedarse en memoria aunque la página padre se re-renderice por otro
+    /// motivo (cambiar de pestaña exterior, refiltrar la rejilla...).
+    /// </summary>
+    protected override void OnParametersSet()
     {
+        if (PestanaInicial == _pestanaInicialAplicada) return;
+
+        _pestanaInicialAplicada = PestanaInicial;
         _pestanaActiva = PestanaInicial;
     }
 
