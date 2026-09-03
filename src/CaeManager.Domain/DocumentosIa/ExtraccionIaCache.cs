@@ -28,12 +28,25 @@ namespace CaeManager.Domain.DocumentosIa;
 /// <see cref="VersionPipeline"/> lo cierra: subirla invalida de forma
 /// determinista todo lo anterior, sin borrar nada y sin migración de datos.
 ///
-/// Lo que sigue faltando aquí es el ciclo de vida: no hay TTL, y
 /// <see cref="ExtraccionJson"/> guarda en claro los campos extraídos (nombres,
-/// DNI, y lo que traiga un documento médico). Una purga de retención elimina el
-/// Documento y su archivo pero no toca esta tabla, entre otras cosas porque no
-/// hay ningún vínculo durable entre una entrada y el Documento del que salió.
-/// Eso es una decisión de retención pendiente, no un descuido de este cambio.
+/// DNI, y lo que traiga un documento médico), así que dejarla fuera del ciclo
+/// de vida del Documento era el hueco: una purga de retención eliminaba el
+/// Documento y su archivo pero no tocaba esta tabla, porque no existía ningún
+/// vínculo durable entre una entrada y el Documento del que salió.
+///
+/// <b>Cerrado por REC-036/DEC-34.</b> <see cref="ExtraccionIaCacheDocumento"/>
+/// es ese vínculo — en tabla aparte y no como <c>DocumentoId</c> aquí, porque
+/// una misma entrada (indexada por hash) puede corresponder a varios
+/// Documentos (el mismo certificado subido para dos trabajadores) y un
+/// <c>DocumentoId</c> único obligaría a elegir uno. <c>EjecucionPurgaService</c>
+/// borra los vínculos de un Documento al anonimizarlo por retención, y borra
+/// con ellos la entrada de esta tabla en cuanto se queda sin ningún vínculo —
+/// "sin cachés huérfanas" es literal de DEC-34. Sigue habiendo entradas sin
+/// vínculo por diseño (las de mero triage, antes de que exista un Documento:
+/// ver el comentario de <see cref="ExtraccionIaCacheDocumento"/>) — esas
+/// dependen de una TTL que DEC-34 deja como posibilidad pero sin duración
+/// decidida; hallazgo devuelto a la Oficina de Reconciliación en HO-036-01,
+/// no implementado aquí.
 /// </summary>
 public class ExtraccionIaCache : EntidadConTenant
 {

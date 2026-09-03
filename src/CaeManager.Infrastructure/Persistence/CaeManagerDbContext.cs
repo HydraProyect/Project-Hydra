@@ -170,6 +170,7 @@ public class CaeManagerDbContext(
     IQueryable<ExtraccionIaCache> IDocumentosIaQueryContext.ExtraccionesIaCache => ExtraccionesIaCache;
     public DbSet<AuditoriaExtraccionIa> AuditoriasExtraccionIa => Set<AuditoriaExtraccionIa>();
     IQueryable<AuditoriaExtraccionIa> IDocumentosIaQueryContext.AuditoriasExtraccionIa => AuditoriasExtraccionIa;
+    public DbSet<ExtraccionIaCacheDocumento> ExtraccionesIaCacheDocumentos => Set<ExtraccionIaCacheDocumento>();
     public DbSet<TrabajoAnalisisDocumento> TrabajosAnalisisDocumento => Set<TrabajoAnalisisDocumento>();
     public DbSet<FirmaDigitalDocumento> FirmasDigitalesDocumento => Set<FirmaDigitalDocumento>();
     IQueryable<FirmaDigitalDocumento> IDocumentosQueryContext.FirmasDigitalesDocumento => FirmasDigitalesDocumento;
