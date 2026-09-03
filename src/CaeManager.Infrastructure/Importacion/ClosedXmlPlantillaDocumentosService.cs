@@ -72,7 +72,7 @@ public class ClosedXmlPlantillaDocumentosService(IDocumentosQueryContext documen
         if (!libro.Worksheets.TryGetWorksheet(NombreHoja, out var hoja))
         {
             omitidos.Add(new ItemImportacionDto(NombreHoja, 0, "Hoja completa", "No se encontró la hoja \"Documentos\" en el archivo."));
-            return new PlanImportacionDto([], [], [], [], [], [], omitidos);
+            return new PlanImportacionDto(Guid.NewGuid(), [], [], [], [], [], [], omitidos);
         }
 
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -126,7 +126,7 @@ public class ClosedXmlPlantillaDocumentosService(IDocumentosQueryContext documen
                 dni, tipoDocumento, fechaEmision.Value, documentosExistentes.Contains((dni, tipoDocumento))));
         }
 
-        return new PlanImportacionDto([], [], [], documentos, [], [], omitidos);
+        return new PlanImportacionDto(Guid.NewGuid(), [], [], [], documentos, [], [], omitidos);
     }
 
     private static string? TextoCelda(IXLCell celda)

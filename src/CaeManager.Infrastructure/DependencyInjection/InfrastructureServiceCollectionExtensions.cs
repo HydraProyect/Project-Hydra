@@ -342,6 +342,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IEstadoAutomatizacionRepository, EstadoAutomatizacionRepository>();
         services.AddScoped<CaeManager.Infrastructure.Configuracion.IRegistroAutomatizacionesService, CaeManager.Infrastructure.Configuracion.RegistroAutomatizacionesService>();
         services.AddScoped<CaeManager.Domain.Importacion.IHistorialImportacionRepository, HistorialImportacionRepository>();
+        services.AddScoped<CaeManager.Domain.Importacion.IOperacionImportacionRepository, OperacionImportacionRepository>();
         services.AddScoped<CaeManager.Domain.Reportes.IHistorialInformeRepository, HistorialInformeRepository>();
         services.AddScoped<CaeManager.Domain.BusquedaGlobal.IEventoRecienteUsuarioRepository, CaeManager.Infrastructure.Persistence.Repositories.EventoRecienteUsuarioRepository>();
         services.AddScoped<ITarifaClienteRepository, TarifaClienteRepository>();

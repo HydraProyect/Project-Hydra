@@ -47,7 +47,7 @@ internal sealed class EscenarioImportacion
     public TrabajadoresFalsos.TrabajadorRepositorioFalso TrabajadorRepositorio { get; } = new();
     public DocumentosFalsos.DocumentoRepositorioFalso DocumentoRepositorio { get; } = new();
     public Tests.Asignaciones.AsignacionRepositorioFalso AsignacionRepositorio { get; } = new();
-    public ClientesFalsos.UnitOfWorkFalso UnitOfWork { get; } = new();
+    public OperacionImportacionRepositorioFalso OperacionImportacionRepositorio { get; } = new();
 
     public Trabajador? TrabajadorExistente { get; private set; }
     public Centro? CentroExistente { get; private set; }
@@ -101,8 +101,9 @@ internal sealed class EscenarioImportacion
 
     public EjecutarImportacionCommandHandler Handler() => new(
         EmpresaRepositorio, TrabajadorRepositorio, DocumentoRepositorio, AsignacionRepositorio,
+        OperacionImportacionRepositorio,
         AsignacionesContexto, CentrosContexto, DocumentosContexto, EmpresasContexto,
-        TiposDocumentoContexto, TrabajadoresContexto, UnitOfWork);
+        TiposDocumentoContexto, TrabajadoresContexto);
 
     public async Task<ResultadoImportacionDto> EjecutarAsync(PlanImportacionDto plan)
     {
@@ -112,12 +113,13 @@ internal sealed class EscenarioImportacion
 
     /// <summary>Plan vacío al que cada escenario añade solo la fila de su causal.</summary>
     public static PlanImportacionDto Plan(
+        Guid? operacionId = null,
         IReadOnlyList<ClienteCentroImportadoDto>? clientesCentros = null,
         IReadOnlyList<EmpresaImportadaDto>? empresas = null,
         IReadOnlyList<TrabajadorImportadoDto>? trabajadores = null,
         IReadOnlyList<DocumentoImportadoDto>? documentos = null,
         IReadOnlyList<AsignacionImportadaDto>? asignaciones = null) =>
-        new(clientesCentros ?? [], empresas ?? [], trabajadores ?? [], documentos ?? [], asignaciones ?? [], [], []);
+        new(operacionId ?? Guid.NewGuid(), clientesCentros ?? [], empresas ?? [], trabajadores ?? [], documentos ?? [], asignaciones ?? [], [], []);
 
     /// <summary>
     /// La fila de Centros_Plataformas que el archivo declara. Con

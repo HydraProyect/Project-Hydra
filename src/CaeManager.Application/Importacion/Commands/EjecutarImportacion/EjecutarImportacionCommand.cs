@@ -10,6 +10,7 @@ using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Importacion;
 using CaeManager.Domain.Trabajadores;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -24,6 +25,22 @@ namespace CaeManager.Application.Importacion.Commands.EjecutarImportacion;
 /// veces sería trabajo duplicado. Reutiliza entidades ya existentes por
 /// nombre/DNI en vez de duplicarlas — importar el mismo archivo dos veces
 /// no crea filas repetidas.
+///
+/// Idempotencia bajo concurrencia (REC-108, DEC-20): <c>Plan.OperacionId</c>
+/// es la identidad estable de ESTA operación, generada una sola vez al
+/// analizar (ver PlanImportacionDto) y transportada sin tocar hasta aquí —
+/// el flag <c>_confirmado</c>/<c>_importando</c> del circuito Blazor
+/// (Importacion.razor.cs) es cortesía de UI, no defensa. La defensa real es
+/// <see cref="OperacionImportacion"/>: su índice único de
+/// <c>(TenantId, OperacionId)</c> hace que, si dos confirmaciones de la
+/// MISMA operación compiten, la perdedora choque en ese índice dentro del
+/// mismo <c>SaveChangesAsync</c> que sus propias inserciones — su
+/// transacción entera se descarta, así que ninguna de sus filas llega a
+/// escribirse. Por diseño (DEC-20) esto NO usa <c>(Trabajador,
+/// TipoDocumento)</c> como clave — esa cardinalidad de Documento sigue sin
+/// tocarse — y no persiste una clave por entrada del plan: al fallar la
+/// operación completa antes de comprometer nada, "cada entrada como máximo
+/// una vez" se cumple sin necesidad de perseguir cada fila por separado.
 /// </summary>
 public record EjecutarImportacionCommand(PlanImportacionDto Plan) : ICommand<ResultadoImportacionDto>;
 
@@ -35,7 +52,18 @@ public record ResultadoImportacionDto(
     int DocumentosCreados,
     int AsignacionesCreadas,
     IReadOnlyList<ItemImportacionDto> Advertencias,
-    IReadOnlyList<ItemImportacionDto> Omitidos);
+    IReadOnlyList<ItemImportacionDto> Omitidos)
+{
+    /// <summary>
+    /// Resultado de una confirmación que perdió la carrera de idempotencia
+    /// (REC-108): la operación ya se había confirmado, antes o en paralelo, así
+    /// que esta ejecución no creó ni omitió nada — no es un fallo que reportar
+    /// al usuario, es el mismo archivo ya importado.
+    /// </summary>
+    public static ResultadoImportacionDto YaEjecutada() => new(0, 0, 0, 0, 0, 0, [],
+        [new ItemImportacionDto("Importación", 0, "Archivo completo",
+            "Esta importación ya se había confirmado antes (reintento o doble confirmación); no se ha vuelto a crear nada.")]);
+}
 
 /// <summary>
 /// Invariante «nada se descarta en silencio» (IMPORTACION.md § 3 bis,
@@ -65,13 +93,46 @@ public class EjecutarImportacionCommandHandler(
     ITrabajadorRepository trabajadorRepositorio,
     IDocumentoRepository documentoRepositorio,
     IAsignacionRepository asignacionRepositorio,
-    IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext,
-    IUnitOfWork unitOfWork)
+    IOperacionImportacionRepository operacionImportacionRepositorio,
+    IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext)
     : IRequestHandler<EjecutarImportacionCommand, Result<ResultadoImportacionDto>>
 {
     public async Task<Result<ResultadoImportacionDto>> Handle(EjecutarImportacionCommand request, CancellationToken cancellationToken)
     {
         var plan = request.Plan;
+
+        // Reintento secuencial (doble clic, reintento tras un timeout de red) de
+        // la MISMA operación ya confirmada: se corta aquí, antes de reconstruir
+        // el plan entero, con el mismo resultado limpio que la carrera real
+        // produce más abajo. No es la defensa — es solo evitar trabajo; la
+        // defensa es el índice único que protege el SaveChangesAsync final.
+        if (await operacionImportacionRepositorio.ExisteAsync(plan.OperacionId, cancellationToken))
+            return ResultadoImportacionDto.YaEjecutada();
+
+        try
+        {
+            return await ConstruirYConfirmarAsync(plan, cancellationToken);
+        }
+        catch
+        {
+            // Blazor Server comparte un único DbContext por circuito (el mismo que
+            // usa RegistrarHistorialImportacionCommand, disparado justo después de
+            // esta llamada — ver Importacion.razor.cs): sin este descarte, una
+            // excepción a mitad de construir el plan dejaría entidades en estado
+            // Added (incluida la propia marca de OperacionImportacion) que ese
+            // guardado NO relacionado intentaría persistir también, filtrando
+            // escritura parcial o repitiendo el mismo choque de unicidad sin que
+            // nadie lo capture. Ver el comentario de IOperacionImportacionRepository.DescartarPendientes.
+            operacionImportacionRepositorio.DescartarPendientes();
+            throw;
+        }
+    }
+
+    private async Task<Result<ResultadoImportacionDto>> ConstruirYConfirmarAsync(
+        PlanImportacionDto plan, CancellationToken cancellationToken)
+    {
+        operacionImportacionRepositorio.Agregar(OperacionImportacion.Registrar(plan.OperacionId));
+
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
 
         // F3c (2026-08-28): leía la tabla legacy Clientes, congelada desde
@@ -334,7 +395,15 @@ public class EjecutarImportacionCommandHandler(
             }
         }
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        // Guarda TODO lo pendiente (Empresa/Trabajador/Documento/Asignación de
+        // los bucles de arriba, junto con la fila de OperacionImportacion
+        // agregada al principio) en un único SaveChangesAsync — así, si dos
+        // confirmaciones de la MISMA operación compiten, la perdedora choca en
+        // el índice único de OperacionImportacion y su transacción entera se
+        // descarta: ninguna de sus filas llega a escribirse. Ver el comentario
+        // de la clase y de OperacionImportacion.cs para el diseño completo.
+        if (!await operacionImportacionRepositorio.GuardarSiOperacionNuevaAsync(cancellationToken))
+            return ResultadoImportacionDto.YaEjecutada();
 
         return new ResultadoImportacionDto(
             clientesCreados, centrosCreados, empresasCreadas, trabajadoresCreados, documentosCreados, asignacionesCreadas,
