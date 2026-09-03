@@ -61,7 +61,11 @@ public class ExtraccionIaCacheRepository(CaeManagerDbContext dbContext) : IExtra
         // "documentoIds.Contains" es false, nunca mira las filas que
         // RemoveRange va a marcar más abajo, así que da igual que ese borrado
         // todavía no se haya volcado con SaveChangesAsync — no hay ventana de
-        // carrera entre las dos consultas de este método.
+        // carrera DENTRO de esta llamada. Sí la hay ENTRE dos llamadas
+        // concurrentes a este método (dos EjecucionPurgaService.EjecutarAsync
+        // a la vez) — ver el riesgo documentado en
+        // IExtraccionIaCacheRepository.PurgarVinculadosADocumentosAsync.
+
         var cacheIdsConVinculoFueraDelLote = await dbContext.ExtraccionesIaCacheDocumentos
             .Where(v => cacheIdsAfectados.Contains(v.ExtraccionIaCacheId) && !documentoIds.Contains(v.DocumentoId))
             .Select(v => v.ExtraccionIaCacheId)

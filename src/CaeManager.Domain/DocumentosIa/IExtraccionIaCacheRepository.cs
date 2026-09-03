@@ -68,10 +68,38 @@ public interface IExtraccionIaCacheRepository
     /// Documentos que de verdad se anonimizaron en este lote, no todos los
     /// candidatos: un Documento cuyo archivo no se pudo borrar se queda
     /// intacto (ver <c>EjecucionPurgaService</c>) y su caché no debe tocarse.
-    /// Correcto también cuando dos Documentos de <paramref name="documentoIds"/>
-    /// comparten una entrada: la entrada solo se borra si, tras quitar los
-    /// vínculos de TODOS los Documentos del lote, no queda ningún vínculo de
-    /// un Documento fuera del lote.
+    /// Correcto DENTRO de una sola llamada cuando dos Documentos de
+    /// <paramref name="documentoIds"/> comparten una entrada: la entrada solo
+    /// se borra si, tras quitar los vínculos de TODOS los Documentos del
+    /// lote, no queda ningún vínculo de un Documento fuera del lote.
+    ///
+    /// <b>Riesgo conocido, no cerrado en este incremento (hallazgo de
+    /// revisión Codex, REC-036/DEC-34).</b> La comprobación anterior lee
+    /// antes de decidir, sin ningún bloqueo ni aislamiento serializable —
+    /// segura frente a lecturas dentro de la MISMA llamada (la lectura de
+    /// "vínculos fuera del lote" nunca mira las filas que esta misma llamada
+    /// va a borrar, así que no importa que ese borrado no esté todavía
+    /// volcado), pero NO frente a dos invocaciones de este método
+    /// EJECUTÁNDOSE A LA VEZ en transacciones separadas: si los Documentos A
+    /// y B comparten una entrada y cada purga solo conoce el suyo, las dos
+    /// pueden ver el vínculo del otro como "todavía vivo" (ninguna ha hecho
+    /// commit aún), borrar cada una su propio vínculo, y dejar la entrada con
+    /// cero vínculos sin que ninguna la borre — huérfana para siempre,
+    /// justo lo que "sin cachés huérfanas" prohíbe. El caso simétrico
+    /// también existe: una purga puede decidir "sin vínculos restantes" justo
+    /// cuando otro Documento activo confirma un vínculo nuevo, y el borrado
+    /// de la entrada se lleva por delante ese vínculo recién creado (FK en
+    /// cascada). <c>EjecucionPurgaService</c>/<c>SolicitudPurga</c> no tienen
+    /// hoy ningún token de concurrencia optimista ni bloqueo que impida dos
+    /// ejecuciones simultáneas de <c>EjecutarPurgaCommand</c> (p. ej. un
+    /// doble clic, o dos personas con acceso administrativo) — es un hueco
+    /// preexistente a este cambio, ampliado aquí porque hasta ahora ninguna
+    /// operación dependía de leer el estado de OTRO Documento para decidir
+    /// qué borrar. Cerrarlo de verdad exige aislamiento serializable o
+    /// bloqueo explícito alrededor de todo <c>EjecucionPurgaService.EjecutarAsync</c>
+    /// (no solo de este método), que es una unidad de trabajo distinta a "el
+    /// ciclo de vida de una tabla" — devuelto a la Oficina de Reconciliación
+    /// en el RETURN PACKAGE de HO-036-01, no decidido unilateralmente aquí.
     /// </summary>
     Task PurgarVinculadosADocumentosAsync(IReadOnlyCollection<Guid> documentoIds, CancellationToken cancellationToken = default);
 }
