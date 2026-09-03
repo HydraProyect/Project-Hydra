@@ -57,7 +57,10 @@ public class GuardarContactoAgendaCommandHandler(
         var visible = request.Tipo switch
         {
             TipoPropietarioAgenda.Cliente => await alcanceDatos.ClienteVisibleAsync(request.PropietarioId, cancellationToken),
-            TipoPropietarioAgenda.Empresa => await alcanceDatos.EmpresaVisibleAsync(request.PropietarioId, cancellationToken),
+            // Defensa en profundidad (REC-149): inalcanzable para el rol
+            // Cliente vía AutorizacionEscrituraBehavior; alcance de gestión
+            // como segunda barrera independiente.
+            TipoPropietarioAgenda.Empresa => await alcanceDatos.EmpresaParaGestionVisibleAsync(request.PropietarioId, cancellationToken),
             TipoPropietarioAgenda.Subcontrata => await alcanceDatos.SubcontrataVisibleAsync(request.PropietarioId, cancellationToken),
             TipoPropietarioAgenda.Centro => await alcanceDatos.CentroVisibleAsync(request.PropietarioId, cancellationToken),
             _ => false

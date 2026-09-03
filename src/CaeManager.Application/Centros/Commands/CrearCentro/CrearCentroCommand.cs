@@ -89,7 +89,10 @@ public class CrearCentroCommandHandler(
         if (!await alcanceDatos.ClienteVisibleAsync(request.ClienteId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Centro.ClienteNoEncontrado", "No encontramos este cliente."));
 
-        if (!await alcanceDatos.EmpresaVisibleAsync(request.EmpresaId, cancellationToken))
+        // Defensa en profundidad (REC-149): inalcanzable para el rol Cliente
+        // vía AutorizacionEscrituraBehavior; alcance de gestión como segunda
+        // barrera independiente.
+        if (!await alcanceDatos.EmpresaParaGestionVisibleAsync(request.EmpresaId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Centro.EmpresaNoEncontrada", "No encontramos esta empresa."));
 
         if (await repositorio.ExisteConNombreEnClienteAsync(request.ClienteId, request.Nombre, cancellationToken: cancellationToken))

@@ -72,6 +72,12 @@ public class ObtenerDocumentoPorIdQueryHandler(IDocumentosQueryContext documento
             ? await proyectosContext.Proyectos.Where(p => p.Id == proyectoIdVisibilidad).Select(p => (Guid?)p.ClienteId).FirstOrDefaultAsync(cancellationToken)
             : null;
 
+        // Rama Empresa en alcance de LECTURA es correcta (REC-149, se
+        // queda): el documento ES el objeto del portal — es literalmente la
+        // documentación de cumplimiento que un Cliente necesita revisar de
+        // su contratista. Cambiar esta rama a gestión vaciaría la pestaña
+        // "Documentación" para el mismo usuario al que el portal existe
+        // para servir.
         var visible = documento.TrabajadorId is { } trabajadorId
             ? await alcanceDatos.TrabajadorVisibleAsync(trabajadorId, cancellationToken)
             : documento.ClienteId is { } clienteId

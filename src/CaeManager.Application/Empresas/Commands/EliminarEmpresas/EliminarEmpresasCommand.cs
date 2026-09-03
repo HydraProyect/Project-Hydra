@@ -33,7 +33,10 @@ public class EliminarEmpresasCommandHandler(
         foreach (var id in request.Ids)
         {
             var empresa = await repositorio.ObtenerPorIdAsync(id, cancellationToken);
-            if (empresa is null || !await alcanceDatos.EmpresaVisibleAsync(empresa.Id, cancellationToken))
+            // Defensa en profundidad (REC-149): inalcanzable para el rol
+            // Cliente vía AutorizacionEscrituraBehavior; alcance de gestión
+            // como segunda barrera independiente.
+            if (empresa is null || !await alcanceDatos.EmpresaParaGestionVisibleAsync(empresa.Id, cancellationToken))
             {
                 errores.Add("Una empresa ya no existía.");
                 continue;

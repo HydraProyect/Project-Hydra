@@ -47,6 +47,21 @@ public class ObtenerAgendaContactosQueryHandler(
         // Alcance por el propietario: la agenda de un Cliente fuera de cartera
         // no se lee ni conociendo su Guid, igual que el resto de consultas
         // *PorId* (ver AlcanceDatosServiceExtensions).
+        //
+        // Rama Empresa en alcance de LECTURA es correcta (REC-149, se
+        // queda): la agenda es el interlocutor de la contratista —
+        // coordinación básica, análoga a la ficha de la Empresa, no la
+        // cartera comercial de esa contratista.
+        //
+        // HALLAZGO SECUNDARIO, elevado y no corregido aquí (detectado en
+        // revisión de Codex): el DTO no es solo nombre/email/teléfono/cargo
+        // — también viajan Notas (texto libre, puede llevar comentario
+        // interno sobre el contacto, no pensado para el Cliente),
+        // RecibeFacturacion, RecibeProgramacionVisitas, TipoDocumentoIds/
+        // Nombres y Roles, para las cuatro TipoPropietarioAgenda por igual.
+        // No separo el DTO por audiencia aquí porque redefinir qué campos ve
+        // el portal es una decisión de producto (§14 del handoff) — ver
+        // RETURN PACKAGE de HO-149-01.
         var visible = request.Tipo switch
         {
             TipoPropietarioAgenda.Cliente => await alcanceDatos.ClienteVisibleAsync(request.PropietarioId, cancellationToken),

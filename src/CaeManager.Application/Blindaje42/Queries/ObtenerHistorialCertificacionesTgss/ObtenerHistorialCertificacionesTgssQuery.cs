@@ -27,6 +27,14 @@ public class ObtenerHistorialCertificacionesTgssQueryHandler(
     public async Task<IReadOnlyList<SolicitudCertificacionTgssDto>> Handle(
         ObtenerHistorialCertificacionesTgssQuery request, CancellationToken cancellationToken)
     {
+        // Alcance de LECTURA aquí es correcto (REC-149, se queda): el doble
+        // gate por ClienteId Y EmpresaId ya acota a la relación propia — para
+        // el rol Cliente, ClienteVisibleAsync solo deja pasar su propio
+        // ClienteId, así que solo puede pedir el historial de certificación
+        // de SUS contratistas ante SÍ MISMO, nunca el de otro Cliente. Eso es
+        // documentación de cumplimiento en la relación con el propio
+        // Cliente — el objeto mismo del portal — no información ajena de la
+        // contratista.
         if (!await alcanceDatos.ClienteVisibleAsync(request.ClienteId, cancellationToken) ||
             !await alcanceDatos.EmpresaVisibleAsync(request.EmpresaId, cancellationToken))
             return [];
