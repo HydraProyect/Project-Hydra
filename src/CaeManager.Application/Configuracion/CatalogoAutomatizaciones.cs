@@ -10,10 +10,13 @@ namespace CaeManager.Application.Configuracion;
 /// comando) e Infrastructure (los propios hosted services), que sí puede
 /// referenciar Application.
 ///
-/// El árbol registra 12 <c>AddHostedService</c> (12 tipos distintos,
-/// verificado 2026-09-02 — no 14, cifra que traía el informe del Módulo 6 y
-/// que ya se corrigió ahí). Solo 4 son "automatización de negocio" y viven
-/// aquí; los otros 8 se excluyen por motivo, no por olvido:
+/// El árbol registra 13 <c>AddHostedService</c> (13 tipos distintos,
+/// verificado 2026-09-02 al añadir <c>RetencionHostedService</c> en
+/// HO-084-01 — antes eran 12, cifra corregida entonces del informe del
+/// Módulo 6 que traía 14; y este comentario decía por error "Solo 4" cuando
+/// el catálogo ya listaba 5, con VigilanciaNormativaBoe). Son 6
+/// "automatización de negocio" y viven aquí; los otros 7 se excluyen por
+/// motivo, no por olvido:
 ///
 /// <list type="bullet">
 /// <item><description><b>Con canal de observabilidad propio, mejor que el de
@@ -55,14 +58,27 @@ public static class CatalogoAutomatizaciones
     public const string VigilanciaVisitasUrgentes = "vigilancia-visitas-urgentes";
     public const string VigilanciaNormativaBoe = "vigilancia-normativa-boe";
 
+    /// <summary>
+    /// HO-084-01 (REC-084, DEC-35): con política de retención aprobada y
+    /// efectiva, el barrido de detección corre solo; sin ella, corre en modo
+    /// diagnóstico y no propone nada ejecutable. Nunca destruye — la
+    /// ejecución de una purga ya autorizada sigue siendo manual (Retencion.razor).
+    /// </summary>
+    public const string BarridoRetencionDatos = "barrido-retencion-datos";
+
     public static readonly IReadOnlyList<DefinicionAutomatizacion> Trabajos =
     [
+        // Sin Cadencia (null): sondean cada 10 s — un "próximo ciclo" con
+        // marca de tiempo sería ruido que envejece antes de que la pantalla
+        // termine de renderizar. El panel lo muestra como "Continuo".
         new(IngestaCorreoM365, "Ingesta de correo M365", "Lee los buzones conectados y extrae los adjuntos.", Conmutable: true),
         new(IngestaWhatsApp, "Ingesta de WhatsApp", "Lee las líneas de WhatsApp conectadas y extrae los mensajes entrantes.", Conmutable: true),
-        new(AlertasVencimientoDiarias, "Alertas de vencimiento diarias", "Correo diario a Administrador y Dirección CAE con la documentación pendiente de toda la cartera.", Conmutable: true),
-        new(VigilanciaVisitasUrgentes, "Vigilancia de gestiones urgentes de visita", "Avisa por hora cuando hay visitas o sugerencias dentro de la ventana mínima de validación.", Conmutable: true),
-        new(VigilanciaNormativaBoe, "Vigilancia normativa BOE", "Detecta publicaciones del BOE que afectan al catálogo de Tipos de documento — global para todos los tenants, no se apaga por uno solo sin afectar al resto.", Conmutable: false)
+        new(AlertasVencimientoDiarias, "Alertas de vencimiento diarias", "Correo diario a Administrador y Dirección CAE con la documentación pendiente de toda la cartera.", Conmutable: true, Cadencia: TimeSpan.FromHours(24)),
+        new(VigilanciaVisitasUrgentes, "Vigilancia de gestiones urgentes de visita", "Avisa por hora cuando hay visitas o sugerencias dentro de la ventana mínima de validación.", Conmutable: true, Cadencia: TimeSpan.FromHours(1)),
+        new(VigilanciaNormativaBoe, "Vigilancia normativa BOE", "Detecta publicaciones del BOE que afectan al catálogo de Tipos de documento — global para todos los tenants, no se apaga por uno solo sin afectar al resto.", Conmutable: false, Cadencia: TimeSpan.FromHours(12)),
+        new(BarridoRetencionDatos, "Barrido de retención de datos", "Con política de retención aprobada, detecta lo purgable y deja propuestas pendientes de revisión; sin política, solo diagnostica.", Conmutable: true, Cadencia: TimeSpan.FromHours(24))
     ];
 }
 
-public record DefinicionAutomatizacion(string Id, string Nombre, string Descripcion, bool Conmutable);
+/// <summary><paramref name="Cadencia"/> es el intervalo de sondeo real del hosted service (mismo valor que su <c>IntervaloSondeo</c>) — null para los que sondean en segundos, donde una marca de "próximo ciclo" no aporta nada.</summary>
+public record DefinicionAutomatizacion(string Id, string Nombre, string Descripcion, bool Conmutable, TimeSpan? Cadencia = null);

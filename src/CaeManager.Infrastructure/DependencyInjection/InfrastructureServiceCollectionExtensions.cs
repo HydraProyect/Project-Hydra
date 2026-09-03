@@ -552,6 +552,13 @@ public static class InfrastructureServiceCollectionExtensions
         // sin interruptor de configuración propio (a diferencia del resumen
         // de alertas por correo, no manda nada fuera de la aplicación).
         services.AddHostedService<Visitas.VigilanciaVisitasUrgentesHostedService>();
+        // HO-084-01 (REC-084, DEC-35): barrido automático de retención. Sin
+        // interruptor de configuración propio, igual que arriba — con
+        // política activa detecta y propone (como el botón "Buscar" manual);
+        // sin política, diagnostica sin crear nada. Ver el comentario de
+        // clase de RetencionHostedService para la interpretación de DEC-35
+        // fijada aquí (no automatiza la destrucción, solo el barrido).
+        services.AddHostedService<Retencion.RetencionHostedService>();
         // Mueve el estado de las asignaciones operativas según su vigencia. Es
         // requisito del esquema, no comodidad: los índices únicos parciales
         // filtran por Estado, así que una vigente caducada bloquearía el alta
