@@ -643,6 +643,12 @@ public partial class Trabajadores : ComponentBase
             var dto = resultado.Valor;
             var resumen = $"{dto.Creadas} asignación(es) creada(s)" + (dto.YaActivas > 0 ? $", {dto.YaActivas} ya estaban activas." : ".");
             ToastService.Mostrar(resumen, dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+            // Sin esto, un rechazo con motivo (p. ej. Asignaciones que solapan
+            // un periodo ya registrado, DEC-19) solo cambiaba el tono del
+            // toast de arriba a Advertencia, sin decir nunca por qué —
+            // mismo patrón que DrawerAsignacionMasiva.razor.cs.
+            foreach (var error in dto.Errores)
+                ToastService.Mostrar(error, TonoToast.Advertencia);
 
             _seleccionados.Clear();
             _asignarCentroVisible = false;

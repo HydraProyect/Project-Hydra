@@ -65,6 +65,34 @@ public class AsignacionSeSolapaConTests
     }
 
     [Fact]
+    public void Un_rango_vacio_por_cierre_de_ambito_no_solapa_con_un_alta_posterior()
+    {
+        // CerrarPorAmbitoEliminado ancla la baja al alta cuando el alta era
+        // futura: la fila queda vacía [d, d), sin haber ocupado ni un día.
+        // Sin el guard de rango vacío, la fórmula de rangos semiabiertos la
+        // trataría como si ocupara [d, ∞) (hallazgo de Codex, REC-064) y
+        // bloquearía una alta real y legítima más adelante.
+        var vacia = new Asignacion(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 12, 1));
+        vacia.CerrarPorAmbitoEliminado(new DateOnly(2026, 8, 30));
+        vacia.FechaAlta.Should().Be(vacia.FechaBaja, "el cierre ancló la baja al alta");
+
+        vacia.SeSolapaCon(new DateOnly(2026, 12, 1), null).Should().BeFalse();
+        vacia.SeSolapaCon(new DateOnly(2027, 1, 1), null).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Un_rango_vacio_por_baja_el_mismo_dia_del_alta_no_solapa_con_nada()
+    {
+        // DarDeBaja permite fechaBaja == FechaAlta (no lo rechaza, solo baja
+        // < alta): contratar y cesar a alguien el mismo día también deja un
+        // rango vacío, sin pasar por CerrarPorAmbitoEliminado.
+        var vacia = CrearAsignacion(new DateOnly(2026, 5, 10), new DateOnly(2026, 5, 10));
+
+        vacia.SeSolapaCon(new DateOnly(2026, 5, 10), null).Should().BeFalse();
+        vacia.SeSolapaCon(new DateOnly(2026, 1, 1), new DateOnly(2027, 1, 1)).Should().BeFalse();
+    }
+
+    [Fact]
     public void El_solape_es_simetrico()
     {
         var a = CrearAsignacion(new DateOnly(2026, 1, 1), new DateOnly(2026, 6, 1));

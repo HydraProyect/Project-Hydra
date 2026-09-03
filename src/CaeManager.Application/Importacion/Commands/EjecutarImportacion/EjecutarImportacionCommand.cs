@@ -262,7 +262,7 @@ public class EjecutarImportacionCommandHandler(
         // solo si el par sigue activo — el hueco que
         // IX_Asignaciones_TenantId_TrabajadorId_CentroId_Activa nunca cubrió.
         var asignacionesExistentes = await asignacionesContext.Asignaciones
-            .Select(a => new { a.TrabajadorId, a.CentroId, a.FechaBaja })
+            .Select(a => new { a.TrabajadorId, a.CentroId, a.FechaAlta, a.FechaBaja })
             .ToListAsync(cancellationToken);
         var clavesAsignacionesActivas = asignacionesExistentes
             .Where(a => a.FechaBaja is null)
@@ -270,9 +270,10 @@ public class EjecutarImportacionCommandHandler(
             .ToHashSet();
         // Mismo límite exclusivo que Asignacion.SeSolapaCon: la asignación
         // nueva es un rango abierto [hoy, ∞), así que solapa con una fila ya
-        // cerrada exactamente cuando esa fila se cerró después de hoy.
+        // cerrada exactamente cuando esa fila se cerró después de hoy. Un
+        // rango vacío (FechaAlta == FechaBaja) no cuenta: no ocupó ni un día.
         var clavesAsignacionesSolapanConCerrada = asignacionesExistentes
-            .Where(a => a.FechaBaja is not null && hoy < a.FechaBaja.Value)
+            .Where(a => a.FechaBaja is not null && a.FechaBaja.Value != a.FechaAlta && hoy < a.FechaBaja.Value)
             .Select(a => (a.TrabajadorId, a.CentroId))
             .ToHashSet();
 

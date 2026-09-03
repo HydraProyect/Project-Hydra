@@ -97,7 +97,7 @@ public class CrearAsignacionesCommandHandler(
         // una activa.
         var existentes = await asignacionesContext.Asignaciones
             .Where(a => trabajadorIdsValidos.Contains(a.TrabajadorId) && centroIdsValidos.Contains(a.CentroId))
-            .Select(a => new { a.TrabajadorId, a.CentroId, a.FechaBaja })
+            .Select(a => new { a.TrabajadorId, a.CentroId, a.FechaAlta, a.FechaBaja })
             .ToListAsync(cancellationToken);
 
         var yaActivasSet = new HashSet<(Guid, Guid)>();
@@ -110,6 +110,10 @@ public class CrearAsignacionesCommandHandler(
                 yaActivasSet.Add(clave);
                 continue;
             }
+
+            // Rango vacío (FechaAlta == FechaBaja, ver Asignacion.SeSolapaCon):
+            // no ocupó ni un día, así que no puede solapar con nada.
+            if (existente.FechaBaja.Value == existente.FechaAlta) continue;
 
             // Mismo límite exclusivo que Asignacion.SeSolapaCon: el alta
             // nueva es un rango abierto [FechaAlta, ∞), así que solapa con

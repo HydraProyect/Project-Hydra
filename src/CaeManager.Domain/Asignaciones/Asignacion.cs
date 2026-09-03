@@ -59,9 +59,22 @@ public class Asignacion : EntidadConTenant
     /// ReasignarMismoDiaTests, cuyo bug real (23505 de Postgres) esta
     /// invariante no puede reintroducir. Una baja abierta (<c>null</c>) se
     /// trata como horizonte infinito.
+    ///
+    /// Un rango VACÍO (<c>FechaAlta == FechaBaja</c>, el que deja
+    /// <see cref="CerrarPorAmbitoEliminado"/> al anclar la baja a una alta
+    /// futura, o un <see cref="DarDeBaja"/> el mismo día del alta) no se
+    /// solapa con nada — no contiene ni un solo día. Sin este caso aparte, la
+    /// fórmula de rangos semiabiertos de más abajo lo trataría como si
+    /// ocupara todo <c>[FechaAlta, ∞)</c> (revisión de Codex, REC-064):
+    /// PostgreSQL normaliza <c>daterange(d, d, '[)')</c> como vacío de forma
+    /// nativa, así que sin este guard la aplicación rechazaría altas que la
+    /// restricción de la base sí permitiría.
     /// </remarks>
     public bool SeSolapaCon(DateOnly otraFechaAlta, DateOnly? otraFechaBaja)
     {
+        if (FechaBaja == FechaAlta) return false;
+        if (otraFechaBaja == otraFechaAlta) return false;
+
         var estaBajaEfectiva = FechaBaja ?? DateOnly.MaxValue;
         var otraBajaEfectiva = otraFechaBaja ?? DateOnly.MaxValue;
 

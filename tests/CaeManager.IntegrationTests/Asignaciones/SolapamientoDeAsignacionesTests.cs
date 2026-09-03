@@ -152,6 +152,48 @@ public class SolapamientoDeAsignacionesTests : IAsyncLifetime
             .Which.ConstraintName.Should().Be("EX_Asignaciones_SinSolapeVigencia");
     }
 
+    [Fact]
+    public async Task Un_rango_vacio_por_cierre_de_ambito_no_bloquea_una_alta_real_posterior()
+    {
+        // Regresión de una revisión adversarial (Codex, REC-064): una fila
+        // vacía [d, d) —CerrarPorAmbitoEliminado anclando la baja al alta de
+        // una asignación futura cuyo centro se borró antes de esa fecha— no
+        // ocupó ni un día. Sin el guard de rango vacío en
+        // Asignacion.SeSolapaCon/ExisteSolapeAsync, esto habría bloqueado
+        // cualquier alta real posterior para el mismo trío, aunque
+        // PostgreSQL (que normaliza daterange(d,d,'[)') como vacío) nunca lo
+        // habría rechazado — una divergencia entre aplicación y base.
+        var fechaAmbitoEliminado = new DateOnly(2026, 12, 1);
+
+        Guid asignacionVaciaId;
+        await using (var contexto = CrearContexto())
+        {
+            var vacia = new Asignacion(_trabajadorId, _centroId, fechaAmbitoEliminado);
+            vacia.CerrarPorAmbitoEliminado(fechaAmbitoEliminado);
+            contexto.Asignaciones.Add(vacia);
+            await contexto.SaveChangesAsync();
+            asignacionVaciaId = vacia.Id;
+        }
+
+        await using (var contextoAlta = CrearContexto())
+        {
+            var creacion = new CrearAsignacionCommandHandler(
+                new AsignacionRepository(contextoAlta), new AutoridadAsignacionesServiceFalso(contextoAlta), contextoAlta);
+            var resultado = await creacion.Handle(
+                new CrearAsignacionCommand(_trabajadorId, _centroId, fechaAmbitoEliminado), CancellationToken.None);
+
+            resultado.EsExitoso.Should().BeTrue("el rango vacío no ocupó ningún día: no hay nada con lo que solapar");
+        }
+
+        await using var verificacion = CrearContexto();
+        var filas = await verificacion.Asignaciones
+            .Where(a => a.TrabajadorId == _trabajadorId && a.CentroId == _centroId)
+            .ToListAsync();
+
+        filas.Should().HaveCount(2);
+        filas.Should().ContainSingle(a => a.Id == asignacionVaciaId);
+    }
+
     private CaeManagerDbContext CrearContexto()
     {
         var tenantActual = new TenantActualAmbiental { TenantId = _tenant };

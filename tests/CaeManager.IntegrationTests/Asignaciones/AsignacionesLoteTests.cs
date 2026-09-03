@@ -130,6 +130,33 @@ public class AsignacionesLoteTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Un_rango_vacio_por_cierre_de_ambito_no_bloquea_una_alta_del_lote()
+    {
+        // Regresión de una revisión adversarial (Codex, REC-064): una fila
+        // vacía [hoy, hoy) no ocupó ningún día y no debe contar como
+        // "solapada" — ver Asignacion.SeSolapaCon.
+        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        await using (var contextoPrevio = CrearContexto())
+        {
+            var vacia = new Asignacion(_trabajador2Id, _centro2Id, hoy);
+            vacia.CerrarPorAmbitoEliminado(hoy);
+            contextoPrevio.Asignaciones.Add(vacia);
+            await contextoPrevio.SaveChangesAsync();
+        }
+
+        await using var contexto = CrearContexto();
+        var handler = new CrearAsignacionesCommandHandler(new AsignacionRepository(contexto), contexto, new AutoridadAsignacionesServiceFalso(contexto), contexto);
+
+        var resultado = await handler.Handle(
+            new CrearAsignacionesCommand([_trabajador2Id], [_centro2Id], hoy),
+            CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.Creadas.Should().Be(1);
+        resultado.Valor.Solapadas.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Un_id_de_trabajador_inexistente_se_reporta_como_error_sin_bloquear_el_resto()
     {
         await using var contexto = CrearContexto();

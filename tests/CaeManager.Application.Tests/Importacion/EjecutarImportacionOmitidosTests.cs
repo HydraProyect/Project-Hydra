@@ -373,4 +373,30 @@ public class EjecutarImportacionOmitidosTests
         escenario.AsignacionRepositorio.Asignaciones.Should().BeEmpty();
         resultado.AsignacionesCreadas.Should().Be(0);
     }
+
+    /// <summary>
+    /// Regresión de una revisión adversarial (Codex, REC-064): una Asignación
+    /// de rango vacío no ocupó ningún día y no debe bloquear el alta real que
+    /// la importación intenta crear para el mismo par.
+    /// </summary>
+    [Fact]
+    public async Task Una_asignacion_de_rango_vacio_no_bloquea_el_alta_de_la_importacion()
+    {
+        var escenario = new EscenarioImportacion()
+            .ConTrabajadorExistente()
+            .ConCentroExistente()
+            .ConAsignacionVaciaExistente();
+
+        var plan = EscenarioImportacion.Plan(asignaciones:
+        [
+            new AsignacionImportadaDto(
+                EscenarioImportacion.DniConocido, EscenarioImportacion.CentroConocido, YaExiste: false)
+        ]);
+
+        var resultado = await escenario.EjecutarAsync(plan);
+
+        resultado.Omitidos.Should().BeEmpty();
+        escenario.AsignacionRepositorio.Asignaciones.Should().ContainSingle();
+        resultado.AsignacionesCreadas.Should().Be(1);
+    }
 }

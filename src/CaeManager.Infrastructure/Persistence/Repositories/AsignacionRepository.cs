@@ -23,8 +23,13 @@ public class AsignacionRepository(CaeManagerDbContext dbContext) : IAsignacionRe
         // EstaActiva.
         var bajaEfectiva = fechaBaja ?? DateOnly.MaxValue;
 
+        // Un rango vacío (FechaAlta == FechaBaja, ver Asignacion.SeSolapaCon)
+        // no se solapa con nada — ni el candidato ni una fila existente.
+        if (fechaAlta == fechaBaja) return Task.FromResult(false);
+
         return dbContext.Asignaciones.AnyAsync(
             a => a.TrabajadorId == trabajadorId && a.CentroId == centroId
+                && a.FechaBaja != a.FechaAlta
                 && a.FechaAlta < bajaEfectiva
                 && fechaAlta < (a.FechaBaja ?? DateOnly.MaxValue),
             cancellationToken);
