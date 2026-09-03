@@ -763,4 +763,77 @@ public class DocumentAIRouterServiceTests
             return Task.FromResult(1);
         }
     }
+
+    /// <summary>
+    /// Hallazgo de revisión Codex sobre este mismo cambio (REC-036/DEC-36):
+    /// dos Documentos DISTINTOS procesan a la vez el mismo archivo bajo el
+    /// mismo tipo esperado — el escenario central del § 6 del handoff, no un
+    /// caso remoto. El primero en llegar aquí pierde la carrera de la propia
+    /// ENTRADA de caché (no solo del vínculo): al fallar su SaveChangesAsync,
+    /// la fila ganadora de "otro proceso" ya existe. Sin re-vincular contra
+    /// esa fila ganadora, este segundo documentoId se habría quedado sin
+    /// vínculo para siempre — su Id de entrada descartado nunca llegó a
+    /// existir en base de datos.
+    /// </summary>
+    [Fact]
+    public async Task Vincula_al_documento_con_la_entrada_ganadora_cuando_pierde_la_carrera_de_creacion_de_cache()
+    {
+        var proveedor = new ProveedorIaFalso(
+            "anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Exito(new ExtraccionEstructuradaDto("Apto médico", new Dictionary<string, string?>(), 97, null)));
+
+        var cache = new ExtraccionIaCacheRepositorioFalso();
+        var auditoria = new AuditoriaExtraccionIaRepositorioFalso();
+        byte[] archivo = [1, 2, 3];
+        var hash = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(archivo));
+        var unitOfWork = new UnitOfWorkQueFallaSimulandoOtroDocumentoGanadorFalso(cache, hash, "Apto médico");
+        var router = new DocumentAIRouterService(
+            new ClasificadorDocumentoServiceFalso(Clasificacion(TipoContenidoDocumento.Digital, true)),
+            new ExtractorTextoDigitalServiceFalso(Result.Exito<IReadOnlyList<string>>(["texto"])),
+            new LocalizadorPaginasRelevantesService(),
+            new RasterizadorPaginasFalso(),
+            new DocumentAIProviderFactory([proveedor]),
+            cache,
+            auditoria,
+            unitOfWork,
+            NullLogger<DocumentAIRouterService>.Instance);
+        var documentoId = Guid.NewGuid();
+
+        var resultado = await router.ProcesarAsync(archivo, "documento.pdf", "Apto médico", documentoId);
+
+        resultado.EsExitoso.Should().BeTrue();
+        cache.Vinculos.Should().ContainSingle(
+            "el documentoId no puede quedarse sin vínculo solo porque perdió la carrera de creación de la entrada");
+        cache.Vinculos[0].DocumentoId.Should().Be(documentoId);
+        cache.Vinculos[0].ExtraccionIaCacheId.Should().Be(unitOfWork.IdDeLaEntradaGanadora,
+            "el vínculo tiene que apuntar a la entrada que SÍ existe en base de datos, no a la que perdió la carrera");
+    }
+
+    private sealed class UnitOfWorkQueFallaSimulandoOtroDocumentoGanadorFalso(
+        ExtraccionIaCacheRepositorioFalso cache, string hash, string tipoEsperado) : IUnitOfWork
+    {
+        private bool _yaFallo;
+
+        public Guid IdDeLaEntradaGanadora { get; private set; }
+
+        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            if (!_yaFallo)
+            {
+                _yaFallo = true;
+
+                // Simula que otro documento, procesado concurrentemente,
+                // ganó la carrera de escritura de la ENTRADA de caché: su
+                // fila ya está en la "base de datos" cuando este
+                // SaveChangesAsync choca.
+                var ganadora = ExtraccionIaCache.Crear(hash, tipoEsperado, """{"gano":"otro-documento"}""");
+                cache.Agregar(ganadora);
+                IdDeLaEntradaGanadora = ganadora.Id;
+
+                throw new DbUpdateException("Simula el choque contra el índice único de ExtraccionIaCache.");
+            }
+
+            return Task.FromResult(1);
+        }
+    }
 }

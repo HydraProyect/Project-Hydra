@@ -10,16 +10,27 @@ namespace CaeManager.Application.Tests.DocumentosIa;
 /// </summary>
 public class ExtraccionIaCacheRepositorioFalso : IExtraccionIaCacheRepository
 {
-    private readonly Dictionary<(string Hash, string Tipo, string Version), ExtraccionIaCache> _porClave = [];
+    // Por Id, no por clave compuesta: un Dictionary por clave sobrescribiría
+    // en vez de coexistir cuando dos entidades DISTINTAS (dos Ids) comparten
+    // la misma clave (hash+tipo+versión) — justo lo que hace falta simular
+    // en la carrera de escritura (ver DocumentAIRouterServiceTests.
+    // Vincula_al_documento_con_la_entrada_ganadora_...): la "perdedora" tiene
+    // que poder existir en este almacén el tiempo suficiente para que
+    // DescartarTrasConflicto la retire A ELLA y no a la "ganadora" que
+    // comparte su misma clave.
+    private readonly Dictionary<Guid, ExtraccionIaCache> _porId = [];
     private readonly List<ExtraccionIaCacheDocumento> _vinculos = [];
 
     public Task<ExtraccionIaCache?> ObtenerAsync(
-        string hashSha256, string tipoEsperado, CancellationToken cancellationToken = default) =>
-        Task.FromResult(_porClave.GetValueOrDefault(
-            (hashSha256, ExtraccionIaCache.NormalizarTipoEsperado(tipoEsperado), ExtraccionIaCache.VersionPipelineActual)));
+        string hashSha256, string tipoEsperado, CancellationToken cancellationToken = default)
+    {
+        var tipoNormalizado = ExtraccionIaCache.NormalizarTipoEsperado(tipoEsperado);
+        var encontrada = _porId.Values.FirstOrDefault(c =>
+            c.HashSha256 == hashSha256 && c.TipoEsperado == tipoNormalizado && c.VersionPipeline == ExtraccionIaCache.VersionPipelineActual);
+        return Task.FromResult(encontrada);
+    }
 
-    public void Agregar(ExtraccionIaCache cache) =>
-        _porClave[(cache.HashSha256, cache.TipoEsperado, cache.VersionPipeline)] = cache;
+    public void Agregar(ExtraccionIaCache cache) => _porId[cache.Id] = cache;
 
     public int VecesDescartada { get; private set; }
 
@@ -30,10 +41,12 @@ public class ExtraccionIaCacheRepositorioFalso : IExtraccionIaCacheRepository
     /// <see cref="DocumentAIRouterServiceTests"/> pueda simular el conflicto
     /// (con un <c>IUnitOfWork</c> falso que lanza <c>DbUpdateException</c> la
     /// primera vez) y comprobar que el router la retira antes de reintentar.
+    /// Por Id, no por clave compuesta: retirar por clave borraría la entrada
+    /// GANADORA si comparte esa misma clave con la que se está descartando.
     /// </summary>
     public void DescartarTrasConflicto(ExtraccionIaCache cache)
     {
-        _porClave.Remove((cache.HashSha256, cache.TipoEsperado, cache.VersionPipeline));
+        _porId.Remove(cache.Id);
         VecesDescartada++;
     }
 
@@ -72,9 +85,7 @@ public class ExtraccionIaCacheRepositorioFalso : IExtraccionIaCacheRepository
             if (_vinculos.Any(v => v.ExtraccionIaCacheId == cacheId))
                 continue; // otro Documento fuera del lote sigue usando esta entrada.
 
-            var entrada = _porClave.Values.FirstOrDefault(c => c.Id == cacheId);
-            if (entrada is not null)
-                _porClave.Remove((entrada.HashSha256, entrada.TipoEsperado, entrada.VersionPipeline));
+            _porId.Remove(cacheId);
         }
 
         return Task.CompletedTask;

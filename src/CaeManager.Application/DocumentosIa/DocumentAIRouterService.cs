@@ -498,6 +498,17 @@ public class DocumentAIRouterService(
     /// si el SaveChangesAsync conjunto choca, también hay que retirarlo con
     /// <see cref="IExtraccionIaCacheRepository.DescartarVinculoTrasConflicto"/>
     /// antes de reintentar, o el mismo choque se repetiría.
+    ///
+    /// <b>Pero cuando lo que chocó es la propia ENTRADA de caché</b> (no solo
+    /// el vínculo) — dos Documentos distintos procesando el mismo archivo
+    /// bajo el mismo tipo esperado a la vez, el mismo escenario del § 6 del
+    /// handoff HO-036-01 — descartarla no basta: <paramref name="documentoId"/>
+    /// quedaría sin vínculo, porque nuestro <c>vinculoPendiente</c> apuntaba
+    /// al Id de nuestra propia entrada, que nunca llegó a existir en base de
+    /// datos (perdió la carrera). Hay que releer la entrada GANADORA (por la
+    /// misma clave hash+tipo+versión) y vincular a esa — hallazgo de revisión
+    /// Codex sobre este mismo cambio: sin esto, ambos <c>ProcesarAsync</c>
+    /// devuelven éxito pero solo uno de los dos Documentos queda enlazado.
     /// </summary>
     private async Task RegistrarAuditoriaAsync(
         string hash, string tipoEsperado, string proveedorCodigo, long tiempoMs, decimal? costeEstimadoOcr,
@@ -520,6 +531,13 @@ public class DocumentAIRouterService(
                 cacheRepositorio.DescartarTrasConflicto(entradaCachePendiente);
             if (vinculoPendiente is not null)
                 cacheRepositorio.DescartarVinculoTrasConflicto(vinculoPendiente);
+
+            if (entradaCachePendiente is not null && documentoId is { } documentoIdTrasConflicto)
+            {
+                var ganadora = await cacheRepositorio.ObtenerAsync(hash, tipoEsperado, cancellationToken);
+                if (ganadora is not null)
+                    await cacheRepositorio.VincularDocumentoAsync(ganadora.Id, documentoIdTrasConflicto, cancellationToken);
+            }
 
             await unitOfWork.SaveChangesAsync(cancellationToken);
         }
