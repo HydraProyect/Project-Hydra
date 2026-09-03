@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    partial class CaeManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260903034815_AgregarSensibilidadDocumental")]
+    partial class AgregarSensibilidadDocumental
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -22,6 +25,35 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+            modelBuilder.Entity("CaeManager.Domain.Alertas.Alerta", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("DocumentoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("FechaGeneracionUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Nivel")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentoId");
+
+                    b.HasIndex("TenantId", "DocumentoId");
+
+                    b.ToTable("Alertas", (string)null);
+                });
 
             modelBuilder.Entity("CaeManager.Domain.ApiKeys.ClaveApi", b =>
                 {
@@ -110,6 +142,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("TenantId", "CentroId");
 
                     b.HasIndex("TenantId", "TrabajadorId", "CentroId")
+                        .IsUnique()
                         .HasDatabaseName("IX_Asignaciones_TenantId_TrabajadorId_CentroId_Activa")
                         .HasFilter("\"FechaBaja\" IS NULL");
 
@@ -1057,18 +1090,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateTime?>("UltimaEjecucionUtc")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("UltimoMensajeError")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
                     b.Property<bool?>("UltimoResultadoExitoso")
                         .HasColumnType("boolean");
-
-                    b.Property<int?>("UltimosElementosAfectados")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("UltimosElementosEvaluados")
-                        .HasColumnType("integer");
 
                     b.HasKey("Id");
 
@@ -3993,30 +4016,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("TenantId", "EjecutadaEnUtc");
 
                     b.ToTable("HistorialImportaciones", (string)null);
-                });
-
-            modelBuilder.Entity("CaeManager.Domain.Importacion.OperacionImportacion", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("ConfirmadaEnUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("OperacionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TenantId", "OperacionId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_OperacionesImportacion_TenantId_OperacionId");
-
-                    b.ToTable("OperacionesImportacion", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Incidencias.Incidencia", b =>
@@ -6994,6 +6993,16 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasKey("UserId", "LoginProvider", "Name");
 
                     b.ToTable("AspNetUserTokens", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Alertas.Alerta", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Documentos.Documento", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DocumentoId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Asignaciones.Asignacion", b =>

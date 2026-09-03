@@ -321,6 +321,182 @@ public static class TipoDocumentoSeedData
     /// toca — ni un tercero de estas cuatro filas cambia de naturaleza,
     /// solo de si se pide.
     /// </summary>
+    /// <summary>
+    /// Ámbito Trabajador: cada Documento de este tipo queda vinculado a un
+    /// trabajador identificado (nombre, DNI) por definición del propio
+    /// ámbito — es dato personal aunque su contenido no diga nada sobre
+    /// salud (art. 4.1 RGPD: basta con identificar a la persona).
+    /// </summary>
+    private const string MotivoAmbitoTrabajador =
+        "Ámbito Trabajador: el Documento queda vinculado a un trabajador identificado por definición del ámbito — es dato personal por sí mismo, sin que su contenido revele salud.";
+
+    /// <summary>
+    /// Ámbito Empresa o Vehículo cuyo contenido describe a la organización o
+    /// al vehículo (certificación, cotización, evaluación, procedimiento,
+    /// ficha técnica, seguro) y no nombra a ninguna persona física.
+    /// </summary>
+    private const string MotivoEmpresaOVehiculoSinNombrar =
+        "El contenido describe a la Empresa o al Vehículo (certificación, cotización, evaluación, procedimiento, ficha técnica) y no identifica a ninguna persona física por su nombre.";
+
+    /// <summary>
+    /// <b>Propuesta</b> de sensibilidad documental del catálogo semilla —
+    /// DEC-34/36 (REC-132): clasificación canónica compartida por REC-036
+    /// (purga de derivados de IA) y REC-099 (auditoría de acceso), revisable
+    /// por el propietario (documento espejo:
+    /// <c>tecnico/docs/SENSIBILIDAD-DOCUMENTAL.md</c> en el repositorio de
+    /// negocio, estado <c>Draft</c>).
+    ///
+    /// <para>
+    /// <b>Regla aplicada, no el nombre del tipo</b>: la categoría especial de
+    /// salud cubre cualquier documento o dato derivado que revele
+    /// información sobre salud física o mental de una persona identificada
+    /// — aquí eso son, verificados uno por uno, el reconocimiento médico
+    /// (ejemplo literal de la decisión) y el informe de accidente o
+    /// incidente, que puede describir la lesión del trabajador. El resto de
+    /// ámbito Trabajador es dato personal ordinario (identifica a la
+    /// persona sin revelar su salud); el resto de ámbito Empresa/Vehículo es
+    /// dato personal solo cuando su contenido nombra a alguien en concreto
+    /// (una designación, un acta, un apoderamiento, un listado nominal) y no
+    /// tiene datos personales cuando describe a la organización o al
+    /// vehículo.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠️ <b>Hueco declarado</b>: "Informe de investigación de accidente o
+    /// incidente" se clasifica como categoría especial de salud porque
+    /// <i>puede</i> describir una lesión, no porque siempre lo haga — mismo
+    /// criterio de honestidad evidencial que <see cref="NaturalezaDe"/>: no
+    /// se ha revisado expediente por expediente, y ante la duda se aplica la
+    /// lectura más protectora.
+    /// </para>
+    /// </summary>
+    /// <summary>
+    /// <c>internal</c> en vez de <c>private</c>: el ratchet de cobertura
+    /// (<c>SensibilidadDelCatalogoSemillaTests</c>, en
+    /// <c>CaeManager.IntegrationTests</c> vía <c>InternalsVisibleTo</c>)
+    /// necesita distinguir "clasificado explícitamente" de "cayó en el valor
+    /// por defecto", algo que consultar solo <see cref="SensibilidadDe"/> no
+    /// permite cuando el resultado coincide con el default.
+    /// </summary>
+    internal static readonly Dictionary<string, (SensibilidadDocumental Valor, string Motivo)> SensibilidadPorNombre = new()
+    {
+        // --- Categoría especial de salud: el contenido revela salud física o mental de una persona identificada ---
+        ["Certificado de aptitud médica"] = (SensibilidadDocumental.CategoriaEspecialSalud,
+            "Resultado de un reconocimiento médico (art. 22.1 LPRL): revela aptitud/no aptitud derivada de datos de salud del trabajador. Ejemplo literal de DEC-34/36."),
+        ["Informe de investigación de accidente o incidente"] = (SensibilidadDocumental.CategoriaEspecialSalud,
+            "Puede describir la lesión o el estado de salud del trabajador accidentado — no verificado expediente por expediente, así que se aplica la lectura más protectora (ver 'Hueco declarado')."),
+
+        // --- Datos personales — ámbito Trabajador (identifica a la persona sin revelar salud) ---
+        ["Entrega de EPI"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Reciclaje 4h"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Formación Art. 19"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Formación 60h (base convenio)"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Formación 20h"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Formación 6h"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Información Art. 18"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Carretillas elevadoras"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["PEMP (plataformas elevadoras)"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["LOTO (4h)"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Seguridad alimentaria"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Primeros auxilios"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Espacios confinados"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Trabajos en altura (8h)"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Contrato de Trabajo"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Alta en Seguridad Social"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Formación Riesgos Específicos"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Formación EPIs"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Permiso de conducir"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Riesgo Eléctrico"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Manipulación Manual de Cargas"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Manipulación de Productos Químicos"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["ADR"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Soldadura"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Operador de Puente Grúa"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Operador de Grúa Torre"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Operador de Grúa Móvil"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Operador de Dumper"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Operador de Retroexcavadora"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Operador de Minicargadora"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Operador de Manipulador Telescópico"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Permiso de residencia"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Permiso de trabajo"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Certificado de Registro de Ciudadano de la UE"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Certificado A1 de Seguridad Social"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Documento de identidad"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Autorización de uso de equipo de trabajo"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+        ["Recibí de normas, procedimientos y plan de emergencia"] = (SensibilidadDocumental.DatosPersonales, MotivoAmbitoTrabajador),
+
+        // --- Datos personales — ámbito Empresa (el contenido nombra a una persona física concreta) ---
+        ["ITA"] = (SensibilidadDocumental.DatosPersonales,
+            "Informe con relación nominal de trabajadores en alta del centro: identifica a cada trabajador listado, aunque el trámite sea de ámbito Empresa — mismo motivo que activa DeteccionTrabajadoresActiva para este tipo."),
+        ["RNT"] = (SensibilidadDocumental.DatosPersonales,
+            "Relación Nominal de Trabajadores: listado nominal, mismo motivo que ITA."),
+        ["Designación de Recursos Preventivos"] = (SensibilidadDocumental.DatosPersonales,
+            "El contenido es precisamente nombrar a la persona designada como recurso preventivo."),
+        ["Organigrama Preventivo"] = (SensibilidadDocumental.DatosPersonales,
+            "Nombra a los responsables de cada función preventiva de la empresa."),
+        ["Escritura de Constitución"] = (SensibilidadDocumental.DatosPersonales,
+            "Acto público que identifica a los socios/fundadores por nombre y DNI como parte de su contenido legal."),
+        ["Poder del Representante Legal"] = (SensibilidadDocumental.DatosPersonales,
+            "El contenido es precisamente identificar a la persona apoderada."),
+        ["Comunicación de desplazamiento"] = (SensibilidadDocumental.DatosPersonales,
+            "Comunica qué trabajadores concretos se desplazan (Ley 45/1999): los identifica, aunque el trámite sea de ámbito Empresa."),
+        ["Acta de presencia del recurso preventivo"] = (SensibilidadDocumental.DatosPersonales,
+            "Registra qué persona concreta estuvo presente como recurso preventivo, y cuándo."),
+        ["Acta de reunión de coordinación"] = (SensibilidadDocumental.DatosPersonales,
+            "El acta nombra a los asistentes a la reunión de coordinación."),
+        ["Registro retributivo"] = (SensibilidadDocumental.DatosPersonales,
+            "RD 902/2020: retribución desglosada por trabajador y sexo — identifica a cada persona con su salario, sin revelar salud."),
+        ["Información y coordinación con trabajadores autónomos"] = (SensibilidadDocumental.DatosPersonales,
+            "Identifica al trabajador autónomo con el que se coordina."),
+
+        // --- Sin datos personales — ámbito Empresa (el contenido describe a la organización, no a una persona) ---
+        ["Certificado de estar al corriente con la Seguridad Social"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar),
+        ["Certificado de estar al corriente con Hacienda"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar),
+        ["RLC"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar + " El listado nominal es el RNT, tipo distinto."),
+        ["Recibo de pago RLC/TC1"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar),
+        ["RLC/TC1 + Recibo de pago"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar),
+        ["Mutua"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar + " Identifica la aseguradora contratada por la empresa, no la salud de ningún trabajador concreto."),
+        ["Seguro de Responsabilidad Civil + recibo de pago"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar),
+        ["Servicio de Prevención Ajeno"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar + " El concierto con el SPA no reproduce reconocimientos médicos individuales."),
+        ["Evaluación de Riesgos Laborales"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar + " Evalúa riesgos por puesto de trabajo, no a trabajadores concretos."),
+        ["Planificación de la Actividad Preventiva"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar),
+        ["Tarjeta de identificación fiscal"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar),
+        ["Plan de Prevención"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar),
+        ["Procedimiento de Coordinación de Actividades Empresariales"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar),
+        ["Política Preventiva"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar),
+        ["Modalidad Preventiva"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar),
+        ["ISO 45001"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar),
+        ["ISO 9001"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar),
+        ["ISO 14001"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar),
+        ["Declaración Responsable CAE"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar + " Declara el cumplimiento de la empresa; la firma del representante es incidental, no el contenido."),
+        ["Relación de Maquinaria"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar + " Listado de máquinas, no de personas."),
+        ["VAT europeo"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar),
+        ["Documento acreditativo de empresa extranjera"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar),
+        ["Traducción jurada"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar + " Traduce documentación de la empresa; el contenido traducido no cambia esta clasificación de base."),
+        ["Protocolo frente al acoso sexual y por razón de sexo"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar + " Es el protocolo institucional, no un expediente de caso concreto."),
+        ["Información de riesgos propios aportados al centro"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar),
+        ["Registro del deber de vigilancia sobre subcontratas"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar + " Vigilancia sobre Subcontratas (empresas), no sobre personas concretas."),
+
+        // --- Sin datos personales — ámbito Vehículo (el contenido describe el vehículo) ---
+        ["ITC"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar),
+        ["Ficha técnica"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar),
+        ["Seguro"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar),
+        ["Autorización de circulación"] = (SensibilidadDocumental.SinDatosPersonales, MotivoEmpresaOVehiculoSinNombrar),
+    };
+
+    /// <summary>
+    /// Traduce el nombre a la sensibilidad propuesta — <b>único punto</b>,
+    /// junto con <see cref="TipoDocumento.RevelaSalud"/>, donde el nombre de
+    /// un tipo decide algo sobre salud. Para cualquier nombre que no esté en
+    /// <see cref="SensibilidadPorNombre"/> (un tipo nuevo del catálogo, o uno
+    /// creado por un tenant), el valor por defecto ya es el más protector
+    /// desde el constructor de <see cref="TipoDocumento"/> — esta función
+    /// devuelve el mismo valor por coherencia, nunca uno más débil.
+    /// </summary>
+    private static SensibilidadDocumental SensibilidadDe(string nombre) =>
+        SensibilidadPorNombre.TryGetValue(nombre, out var entrada) ? entrada.Valor : SensibilidadDocumental.CategoriaEspecialSalud;
+
     private static RequisitoDocumental RequeridoDe(string nombre, bool esObligatorio) => nombre switch
     {
         // Dependen del supuesto concreto (nivel 2, no baseline): el art. 10
@@ -344,7 +520,8 @@ public static class TipoDocumentoSeedData
             var copia = new TipoDocumento(
                 t.Nombre, t.VigenciaMeses, t.AplicaVencimiento, t.Orden, t.Ambito,
                 RequeridoDe(t.Nombre, t.EsObligatorio),
-                NaturalezaDe(t.Nombre), t.Notas);
+                NaturalezaDe(t.Nombre), t.Notas,
+                sensibilidad: SensibilidadDe(t.Nombre));
             copia.EstablecerDeteccionTrabajadoresActiva(TieneDeteccionTrabajadores(t.Nombre));
             copia.EstablecerPerfilDocumentoOficial(PerfilOficialDe(t.Nombre));
             if (AliasesPorId.TryGetValue(t.Id, out var aliases))
@@ -365,6 +542,7 @@ public static class TipoDocumentoSeedData
             AmbitoAplicacion = d.Ambito,
             Requerido = RequeridoDe(d.Nombre, d.EsObligatorio),
             Naturaleza = NaturalezaDe(d.Nombre),
+            Sensibilidad = SensibilidadDe(d.Nombre),
             LecturaIaActiva = true,
             DeteccionTrabajadoresActiva = IdsConDeteccionTrabajadores.Contains(d.Id),
             // Empieza desactivada para todo el catálogo semilla — mismo

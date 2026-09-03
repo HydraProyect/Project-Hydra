@@ -61,6 +61,40 @@ public class TipoDocumento : EntidadConTenant
     public NaturalezaJuridica Naturaleza { get; private set; }
 
     /// <summary>
+    /// ¿Qué revela este tipo sobre una persona física? Eje independiente de
+    /// <see cref="Requerido"/> y <see cref="Naturaleza"/> — DEC-34/36
+    /// (REC-132): clasificación canónica compartida por la purga de
+    /// derivados de IA y la auditoría de acceso a documentos sensibles, para
+    /// que ninguna de las dos mantenga su propia lista. Nace en el valor más
+    /// protector (<see cref="SensibilidadDocumental.CategoriaEspecialSalud"/>)
+    /// para cualquier tipo que un Administrador cree sin especificarlo — ver
+    /// el constructor. La edición de este eje para tipos ya existentes no
+    /// está expuesta todavía (HO-132-01 § 9.3: decisión elevada al
+    /// propietario, no implementada en este incremento).
+    /// </summary>
+    public SensibilidadDocumental Sensibilidad { get; private set; }
+
+    /// <summary>
+    /// <b>Punto único de consulta</b> de sensibilidad de salud — el que deben
+    /// usar REC-036 (purga de derivados de IA) y REC-099 (auditoría de
+    /// acceso), y el único lugar permitido para decidirlo. Ningún otro código
+    /// debe comparar <see cref="Nombre"/> para inferir si un tipo revela
+    /// salud (ver el ratchet en Architecture.Tests que lo vigila); la única
+    /// excepción es la propuesta de clasificación del catálogo semilla en
+    /// <see cref="Infrastructure.Persistence.Seed.TipoDocumentoSeedData"/>,
+    /// que alimenta este mismo eje.
+    ///
+    /// <para>
+    /// ⚠️ Igual que <see cref="CuentaParaCumplimiento"/>: propiedad calculada
+    /// sin columna detrás, no se traduce a SQL dentro de un <c>Where</c>/
+    /// <c>Select</c> sobre el <c>DbSet</c> — comparar
+    /// <c>Sensibilidad == SensibilidadDocumental.CategoriaEspecialSalud</c>
+    /// directamente ahí.
+    /// </para>
+    /// </summary>
+    public bool RevelaSalud => Sensibilidad == SensibilidadDocumental.CategoriaEspecialSalud;
+
+    /// <summary>
     /// Atajo de lectura: <b>solo <see cref="RequisitoDocumental.Si"/> cuenta
     /// para el cumplimiento</b>. <see cref="RequisitoDocumental.Condicional"/>
     /// queda fuera a propósito mientras no exista la maquinaria que evalúa la
@@ -159,7 +193,8 @@ public class TipoDocumento : EntidadConTenant
         string? descripcion = null,
         string? criteriosValidacion = null,
         string? seSolicitaA = null,
-        string? observaciones = null)
+        string? observaciones = null,
+        SensibilidadDocumental sensibilidad = SensibilidadDocumental.CategoriaEspecialSalud)
     {
         EstablecerNombre(nombre);
         EstablecerVigencia(vigenciaMeses, aplicaVencimientoAutomatico);
@@ -168,6 +203,7 @@ public class TipoDocumento : EntidadConTenant
         Requerido = requerido;
         Naturaleza = naturaleza;
         Notas = notas;
+        Sensibilidad = sensibilidad;
         EstablecerGlosario(descripcion, criteriosValidacion, seSolicitaA, observaciones);
     }
 

@@ -97,6 +97,49 @@ public class TipoDocumentoTests
         tipo.VerificacionIaActiva.Should().BeTrue();
     }
 
+    /// <summary>
+    /// DEC-34/36 (REC-132): un tipo creado sin especificar sensibilidad tiene
+    /// que nacer en el valor <b>más protector</b>, no en el ordinal 0
+    /// implícito del enum — perder en silencio si un tipo nuevo revela salud
+    /// es justo el fallo que el valor por defecto existe para impedir.
+    /// </summary>
+    [Fact]
+    public void Sensibilidad_nace_en_el_valor_mas_protector_cuando_no_se_especifica()
+    {
+        var tipo = new TipoDocumento("Tipo nuevo sin clasificar", null, aplicaVencimientoAutomatico: false, orden: 1, AmbitoAplicacion.Trabajador);
+
+        tipo.Sensibilidad.Should().Be(SensibilidadDocumental.CategoriaEspecialSalud,
+            "un tipo sin clasificación propuesta todavía no puede presumir que NO revela salud");
+        tipo.RevelaSalud.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Sensibilidad_se_puede_especificar_explicitamente_al_crear()
+    {
+        var tipo = new TipoDocumento("RLC", null, aplicaVencimientoAutomatico: false, orden: 1, AmbitoAplicacion.Empresa,
+            sensibilidad: SensibilidadDocumental.SinDatosPersonales);
+
+        tipo.Sensibilidad.Should().Be(SensibilidadDocumental.SinDatosPersonales);
+        tipo.RevelaSalud.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// <see cref="TipoDocumento.RevelaSalud"/> es el punto único que REC-036 y
+    /// REC-099 deben consultar: solo la categoría especial de salud cuenta,
+    /// nunca dato personal ordinario.
+    /// </summary>
+    [Theory]
+    [InlineData(SensibilidadDocumental.SinDatosPersonales, false)]
+    [InlineData(SensibilidadDocumental.DatosPersonales, false)]
+    [InlineData(SensibilidadDocumental.CategoriaEspecialSalud, true)]
+    public void RevelaSalud_solo_es_verdadero_para_la_categoria_especial(SensibilidadDocumental sensibilidad, bool esperado)
+    {
+        var tipo = new TipoDocumento("Certificado de aptitud médica", 12, aplicaVencimientoAutomatico: true, orden: 1,
+            AmbitoAplicacion.Trabajador, sensibilidad: sensibilidad);
+
+        tipo.RevelaSalud.Should().Be(esperado);
+    }
+
     [Fact]
     public void Aliases_empieza_vacio()
     {
