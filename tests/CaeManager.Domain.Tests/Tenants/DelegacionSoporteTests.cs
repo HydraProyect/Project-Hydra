@@ -91,6 +91,45 @@ public class DelegacionSoporteTests
         delegacion.Activa.Should().BeTrue("el flag sigue puesto: lo que caducó es la ventana");
     }
 
+    /// <summary>
+    /// DEC-43: reabrir mientras la ventana anterior sigue viva movería
+    /// <see cref="DelegacionTenant.ExpiraEnUtc"/> hacia delante desde el
+    /// instante de la segunda llamada — una prórroga silenciosa. Repetir la
+    /// apertura cada pocas horas encadenaría un acceso indefinido sin que
+    /// ninguna llamada individual superase el techo de la vía de plataforma.
+    /// </summary>
+    [Fact]
+    public void Reabrir_una_ventana_todavia_vigente_se_rechaza_y_no_mueve_la_expiracion()
+    {
+        var delegacion = DelegacionTenant.ParaSoporte(Plataforma, Cliente);
+        var expiraOriginal = Ahora.AddHours(4);
+        delegacion.ActivarParaSoporte("Incidencia #442", expiraOriginal, Ahora);
+
+        var reabrir = () => delegacion.ActivarParaSoporte("Incidencia #443", Ahora.AddHours(3).AddHours(4), Ahora.AddHours(3));
+
+        reabrir.Should().Throw<InvalidOperationException>("la ventana de la incidencia #442 seguía viva");
+        delegacion.ExpiraEnUtc.Should().Be(expiraOriginal, "el intento rechazado no puede haber movido la expiración");
+        delegacion.MotivoActivacion.Should().Contain("#442", "el motivo original tampoco cambia con un intento rechazado");
+    }
+
+    [Fact]
+    public void Reabrir_despues_de_caducada_es_una_activacion_nueva_no_una_extension()
+    {
+        // Distinto del test de arriba: aquí la ventana anterior ya venció.
+        // Volver a abrir es un acceso nuevo con su propio motivo, no una
+        // prórroga del anterior — DEC-43 no lo prohíbe.
+        var delegacion = DelegacionTenant.ParaSoporte(Plataforma, Cliente);
+        delegacion.ActivarParaSoporte("Incidencia #442", Ahora.AddHours(4), Ahora);
+
+        var masTarde = Ahora.AddHours(5);
+        var nuevaExpira = masTarde.AddHours(4);
+        delegacion.ActivarParaSoporte("Incidencia #443", nuevaExpira, masTarde);
+
+        delegacion.ExpiraEnUtc.Should().Be(nuevaExpira);
+        delegacion.MotivoActivacion.Should().Contain("#443");
+        delegacion.EstaVigente(masTarde).Should().BeTrue();
+    }
+
     [Fact]
     public void Cerrar_el_acceso_borra_la_ventana_y_el_motivo()
     {

@@ -110,12 +110,28 @@ public class DelegacionTenant : Entity
     /// Abre una ventana de acceso de soporte: exige decir por qué y hasta
     /// cuándo. Las dos cosas son el precio de entrar en datos de los que
     /// responde otro.
+    ///
+    /// <b>Rechaza reabrir una ventana ya vigente (DEC-43).</b> Sin esta guarda,
+    /// llamar dos veces mientras la primera sigue viva movería
+    /// <see cref="ExpiraEnUtc"/> hacia delante desde el instante de la segunda
+    /// llamada — una prórroga silenciosa, exactamente lo que el techo de la vía
+    /// de plataforma (<c>SesionPrivilegiada.VentanaMaxima</c>) existe para
+    /// impedir. Repetir la apertura cada pocas horas encadenaría un acceso
+    /// indefinido sin que ninguna llamada individual superase las 4 horas. Una
+    /// ventana ya <b>caducada</b> (activa pero vencida) sí puede reabrirse: es
+    /// una activación nueva, con su propio motivo, no una extensión de la
+    /// anterior.
     /// </summary>
     public void ActivarParaSoporte(string motivo, DateTime expiraEnUtc, DateTime ahoraUtc)
     {
         if (Proposito is not PropositoDelegacion.Soporte)
             throw new InvalidOperationException(
                 "Solo una delegación de soporte se activa con motivo y ventana; una comercial se reactiva sin más.");
+
+        if (EstaVigente(ahoraUtc))
+            throw new InvalidOperationException(
+                "Ya hay un acceso de soporte abierto y vigente. Ciérralo antes de abrir uno nuevo: reabrirlo " +
+                "mientras sigue vivo movería su expiración hacia delante, y DEC-43 no admite prórroga.");
 
         if (string.IsNullOrWhiteSpace(motivo))
             throw new ArgumentException(
