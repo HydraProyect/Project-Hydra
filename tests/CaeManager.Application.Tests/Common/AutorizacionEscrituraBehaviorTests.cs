@@ -183,6 +183,46 @@ public class AutorizacionEscrituraBehaviorTests
         resultado.Should().Be("ok");
     }
 
+    // ── REC-067: el punto de mutación no puede confiar en la memo de circuito ──
+
+    /// <summary>
+    /// El ataque del handoff HO-067-01: una sesión de soporte válida al abrir
+    /// el circuito, pero su concesión se revoca a mitad de circuito —antes de
+    /// la SEGUNDA escritura, no de la primera—. Si el behavior reutilizara el
+    /// resultado que vio en la primera escritura (como hacía antes de
+    /// REC-067), la segunda seguiría denegando con el código de "hay sesión
+    /// privilegiada" aunque esa sesión ya no exista. Revalidando fresco, la
+    /// segunda escritura ve que la sesión ya no resuelve y cae al camino de
+    /// rol de siempre — que deniega igual, pero por el motivo correcto: no hay
+    /// sesión privilegiada que lo impida, es que un plano 3 no tiene rol de
+    /// negocio (mismo resultado final, procedencia distinta, y es esa
+    /// procedencia la que hay que revalidar antes de que un capacidad futura
+    /// con camino de escritura —BreakGlass, el día que lo tenga— dependa de
+    /// esta misma comprobación).
+    /// </summary>
+    [Fact]
+    public async Task Revoca_la_concesion_entre_dos_escrituras_del_mismo_circuito_y_la_segunda_revalida_fresca()
+    {
+        var resolutor = new SesionPrivilegiadaConMemoDeCircuito(SesionCon(CapacidadPrivilegio.SoporteLectura));
+        var currentUser = new CurrentUserServiceFalso(Guid.NewGuid(), null);
+
+        var primeraEscritura = await new AutorizacionEscrituraBehavior<FalsoCommand, Result>(currentUser, resolutor)
+            .Handle(new FalsoCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        primeraEscritura.Error.Codigo.Should().Be("Autorizacion.SesionPrivilegiadaSoloLectura");
+
+        resolutor.Revocar();
+
+        var segundaEscritura = await new AutorizacionEscrituraBehavior<FalsoCommand, Result>(currentUser, resolutor)
+            .Handle(new FalsoCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        segundaEscritura.EsFallido.Should().BeTrue();
+        segundaEscritura.Error.Codigo.Should().Be(
+            "Autorizacion.SoloLectura",
+            "tras revocar, RevalidarAsync debe ver que ya no hay sesión — si el behavior usara el " +
+            "resultado memoizado de ObtenerAsync, seguiría devolviendo Autorizacion.SesionPrivilegiadaSoloLectura");
+    }
+
     [Fact]
     public async Task Sin_sesion_privilegiada_el_rol_sigue_mandando()
     {
@@ -207,5 +247,33 @@ public class AutorizacionEscrituraBehaviorTests
     {
         public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(sesion);
+
+        // El behavior de escritura consulta este método, no ObtenerAsync — ver
+        // Revoca_la_concesion_entre_dos_escrituras_del_mismo_circuito_y_la_segunda_revalida_fresca.
+        public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(sesion);
+    }
+
+    /// <summary>
+    /// Doble que distingue las dos vías del REC-067: <c>ObtenerAsync</c> se
+    /// queda congelado en la sesión vista la primera vez —simula el ámbito de
+    /// DI compartido por un circuito de Blazor Server, donde memoiza— y
+    /// <c>RevalidarAsync</c> lee siempre el estado "real" actual, que el test
+    /// muta entre dos escrituras llamando a <see cref="Revocar"/>. Si el
+    /// behavior usara <c>ObtenerAsync</c> en vez de <c>RevalidarAsync</c>, la
+    /// segunda escritura seguiría viendo la sesión ya revocada.
+    /// </summary>
+    private sealed class SesionPrivilegiadaConMemoDeCircuito(SesionPrivilegiadaActiva sesionInicial) : ISesionPrivilegiadaActual
+    {
+        private readonly SesionPrivilegiadaActiva? _memoDeLectura = sesionInicial;
+        private SesionPrivilegiadaActiva? _estadoReal = sesionInicial;
+
+        public void Revocar() => _estadoReal = null;
+
+        public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(_memoDeLectura);
+
+        public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(_estadoReal);
     }
 }

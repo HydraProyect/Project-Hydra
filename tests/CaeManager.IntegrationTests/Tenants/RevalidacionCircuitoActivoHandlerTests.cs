@@ -228,6 +228,9 @@ public class RevalidacionCircuitoActivoHandlerTests : IAsyncLifetime
     {
         public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<SesionPrivilegiadaActiva?>(null);
+
+        public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<SesionPrivilegiadaActiva?>(null);
     }
 
     private sealed class CurrentUserServiceParaHandlerFalso(Guid usuarioId) : ICurrentUserService

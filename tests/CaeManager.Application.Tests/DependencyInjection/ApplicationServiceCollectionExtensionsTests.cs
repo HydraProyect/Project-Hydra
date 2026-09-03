@@ -67,6 +67,7 @@ public class ApplicationServiceCollectionExtensionsTests
         // Un default de una pieza de autorizacion tiene que decir "no" — si
         // alguna vez devolviera una sesion, este test lo veria.
         (await new SesionPrivilegiadaAusente().ObtenerAsync()).Should().BeNull();
+        (await new SesionPrivilegiadaAusente().RevalidarAsync()).Should().BeNull();
     }
 
     [Fact]
@@ -84,6 +85,9 @@ public class ApplicationServiceCollectionExtensionsTests
     private sealed class SesionPrivilegiadaFalsaDePrueba : ISesionPrivilegiadaActual
     {
         public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<SesionPrivilegiadaActiva?>(null);
+
+        public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<SesionPrivilegiadaActiva?>(null);
     }
 
