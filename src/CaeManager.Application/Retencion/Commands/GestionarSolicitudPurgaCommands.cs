@@ -25,11 +25,36 @@ public class BuscarDatosPurgablesCommandHandler(
         if (!opciones.Value.Activa)
             return Result.Fallo<int>(Error.Crear(
                 "Retencion.Desactivada",
-                "La política de retención está desactivada. Actívala en la configuración antes de buscar datos purgables."));
+                "La política de retención está desactivada. Usa el diagnóstico para ver qué sería purgable, o actívala en la configuración para poder crear propuestas."));
 
         var creadas = await deteccion.DetectarAsync(DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
 
         return Result.Exito(creadas);
+    }
+}
+
+/// <summary>
+/// El modo diagnóstico de DEC-35: cuenta lo purgable por categoría sin crear
+/// ninguna <see cref="Domain.Retencion.SolicitudPurga"/>, así que —a
+/// diferencia de <see cref="BuscarDatosPurgablesCommand"/>— no exige política
+/// activa. Es el gemelo que invierte la guarda: sin política solo se puede
+/// diagnosticar, nunca proponer ni destruir; con política, el camino sigue
+/// siendo <see cref="BuscarDatosPurgablesCommand"/>.
+/// </summary>
+public record DiagnosticarDatosPurgablesCommand : ICommand<ResultadoDiagnosticoPurgaDto>;
+
+public record ResultadoDiagnosticoPurgaDto(int DocumentosPurgables, int TrabajadoresPurgables, int Total);
+
+public class DiagnosticarDatosPurgablesCommandHandler(DeteccionPurgaService deteccion)
+    : IRequestHandler<DiagnosticarDatosPurgablesCommand, Result<ResultadoDiagnosticoPurgaDto>>
+{
+    public async Task<Result<ResultadoDiagnosticoPurgaDto>> Handle(
+        DiagnosticarDatosPurgablesCommand request, CancellationToken cancellationToken)
+    {
+        var resultado = await deteccion.DiagnosticarAsync(DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
+
+        return Result.Exito(new ResultadoDiagnosticoPurgaDto(
+            resultado.DocumentosPurgables, resultado.TrabajadoresPurgables, resultado.Total));
     }
 }
 

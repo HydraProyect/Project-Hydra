@@ -27,6 +27,19 @@ public class RetencionDatosOptions
     public bool Activa { get; set; }
 
     /// <summary>
+    /// "Política de retención aprobada y efectiva" en el sentido de DEC-35:
+    /// hoy equivale a <see cref="Activa"/>, porque los plazos
+    /// (<see cref="AniosRetencionDocumentos"/>, <see cref="AniosRetencionTrabajadores"/>)
+    /// ya llevan siempre un valor decidido por el propietario del producto,
+    /// activos o no — no hacen falta más condiciones para considerar la
+    /// política "efectiva". Nombre canónico para leer en el barrido
+    /// automático (<c>RetencionHostedService</c>) y en el panel de
+    /// Automatizaciones, en vez de repetir la pregunta "¿activa Y con qué?"
+    /// en cada sitio que la necesite.
+    /// </summary>
+    public bool PoliticaAprobadaYEfectiva => Activa;
+
+    /// <summary>
     /// Plazo para Documentos. Cinco años decididos por el propietario del
     /// producto (2026-07-18) por coincidir con la prescripción de
     /// responsabilidades en el orden social.
