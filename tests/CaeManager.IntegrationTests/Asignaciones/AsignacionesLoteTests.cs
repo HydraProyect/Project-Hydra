@@ -94,6 +94,42 @@ public class AsignacionesLoteTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Omite_una_combinacion_cuyo_alta_solapa_con_un_periodo_ya_cerrado()
+    {
+        // DEC-19 (REC-064): trabajador2 tuvo antes una asignación a centro2
+        // que se cerró en el futuro respecto a "hoy" — el alta del lote (hoy)
+        // cae dentro de ese rango todavía vigente en la fecha de cierre.
+        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        await using (var contextoPrevio = CrearContexto())
+        {
+            var previa = new Asignacion(_trabajador2Id, _centro2Id, hoy.AddDays(-30));
+            previa.DarDeBaja(hoy.AddDays(30));
+            contextoPrevio.Asignaciones.Add(previa);
+            await contextoPrevio.SaveChangesAsync();
+        }
+
+        await using var contexto = CrearContexto();
+        var handler = new CrearAsignacionesCommandHandler(new AsignacionRepository(contexto), contexto, new AutoridadAsignacionesServiceFalso(contexto), contexto);
+
+        var resultado = await handler.Handle(
+            new CrearAsignacionesCommand(
+                [_trabajador1Id, _trabajador2Id], [_centro1Id, _centro2Id], hoy),
+            CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        // 4 combinaciones: (t1,c1) ya activa, (t2,c2) solapa con la cerrada de
+        // arriba, (t1,c2) y (t2,c1) se crean sin problema.
+        resultado.Valor.Creadas.Should().Be(2);
+        resultado.Valor.YaActivas.Should().Be(1);
+        resultado.Valor.Solapadas.Should().Be(1);
+        resultado.Valor.Errores.Should().ContainSingle(e => e.Contains("solapa"));
+
+        var activasTrabajador2Centro2 = await contexto.Asignaciones
+            .CountAsync(a => a.TrabajadorId == _trabajador2Id && a.CentroId == _centro2Id && a.FechaBaja == null);
+        activasTrabajador2Centro2.Should().Be(0, "el alta que solapaba no debe haberse creado");
+    }
+
+    [Fact]
     public async Task Un_id_de_trabajador_inexistente_se_reporta_como_error_sin_bloquear_el_resto()
     {
         await using var contexto = CrearContexto();

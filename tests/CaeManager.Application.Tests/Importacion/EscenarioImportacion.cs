@@ -99,6 +99,21 @@ internal sealed class EscenarioImportacion
         return this;
     }
 
+    /// <summary>
+    /// Siembra una Asignación YA CERRADA cuyo rango sigue solapando "hoy" —
+    /// DEC-19: distinta de <see cref="ConAsignacionActivaExistente"/>, que la
+    /// importación reutiliza en vez de rechazar; esta debe rechazarse, porque
+    /// no hay nada que reutilizar en una fila que ya no está vigente.
+    /// </summary>
+    public EscenarioImportacion ConAsignacionCerradaSolapadaExistente()
+    {
+        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var cerrada = new Domain.Asignaciones.Asignacion(TrabajadorExistente!.Id, CentroExistente!.Id, hoy.AddDays(-30));
+        cerrada.DarDeBaja(hoy.AddDays(30));
+        AsignacionesContexto.ListaAsignaciones.Add(cerrada);
+        return this;
+    }
+
     public EjecutarImportacionCommandHandler Handler() => new(
         EmpresaRepositorio, TrabajadorRepositorio, DocumentoRepositorio, AsignacionRepositorio,
         AsignacionesContexto, CentrosContexto, DocumentosContexto, EmpresasContexto,

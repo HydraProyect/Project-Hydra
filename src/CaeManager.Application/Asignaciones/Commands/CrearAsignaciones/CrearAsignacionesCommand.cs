@@ -24,7 +24,7 @@ namespace CaeManager.Application.Asignaciones.Commands.CrearAsignaciones;
 public record CrearAsignacionesCommand(
     IReadOnlyList<Guid> TrabajadorIds, IReadOnlyList<Guid> CentroIds, DateOnly FechaAlta) : ICommand<ResultadoAsignacionLoteDto>;
 
-public record ResultadoAsignacionLoteDto(int Creadas, int YaActivas, IReadOnlyList<string> Errores);
+public record ResultadoAsignacionLoteDto(int Creadas, int YaActivas, int Solapadas, IReadOnlyList<string> Errores);
 
 public class CrearAsignacionesCommandValidator : AbstractValidator<CrearAsignacionesCommand>
 {
@@ -90,27 +90,53 @@ public class CrearAsignacionesCommandHandler(
             errores.Add($"{centrosFaltantes} centro(s) ya no existían.");
 
         // Una sola consulta para todo el lote en vez de un ExisteActivaAsync
-        // por combinación — con selecciones de decenas de trabajadores esto
-        // evita cientos de ida-y-vueltas a la base de datos.
-        var activasExistentes = await asignacionesContext.Asignaciones
-            .Where(a => a.FechaBaja == null
-                && trabajadorIdsValidos.Contains(a.TrabajadorId)
-                && centroIdsValidos.Contains(a.CentroId))
-            .Select(a => new { a.TrabajadorId, a.CentroId })
+        // (o ExisteSolapeAsync) por combinación — con selecciones de decenas
+        // de trabajadores esto evita cientos de ida-y-vueltas a la base de
+        // datos. Trae TODAS las filas del par, activas o cerradas: DEC-19
+        // exige comprobar solape también contra las cerradas, no solo si hay
+        // una activa.
+        var existentes = await asignacionesContext.Asignaciones
+            .Where(a => trabajadorIdsValidos.Contains(a.TrabajadorId) && centroIdsValidos.Contains(a.CentroId))
+            .Select(a => new { a.TrabajadorId, a.CentroId, a.FechaBaja })
             .ToListAsync(cancellationToken);
 
-        var yaActivasSet = activasExistentes.Select(a => (a.TrabajadorId, a.CentroId)).ToHashSet();
+        var yaActivasSet = new HashSet<(Guid, Guid)>();
+        var solapadasSet = new HashSet<(Guid, Guid)>();
+        foreach (var existente in existentes)
+        {
+            var clave = (existente.TrabajadorId, existente.CentroId);
+            if (existente.FechaBaja is null)
+            {
+                yaActivasSet.Add(clave);
+                continue;
+            }
+
+            // Mismo límite exclusivo que Asignacion.SeSolapaCon: el alta
+            // nueva es un rango abierto [FechaAlta, ∞), así que solapa con
+            // una fila cerrada exactamente cuando su alta es anterior a la
+            // baja de esa fila.
+            if (request.FechaAlta < existente.FechaBaja.Value)
+                solapadasSet.Add(clave);
+        }
 
         var creadas = 0;
         var yaActivas = 0;
+        var solapadas = 0;
 
         foreach (var trabajadorId in trabajadorIdsValidos)
         {
             foreach (var centroId in centroIdsValidos)
             {
-                if (yaActivasSet.Contains((trabajadorId, centroId)))
+                var clave = (trabajadorId, centroId);
+                if (yaActivasSet.Contains(clave))
                 {
                     yaActivas++;
+                    continue;
+                }
+
+                if (solapadasSet.Contains(clave))
+                {
+                    solapadas++;
                     continue;
                 }
 
@@ -119,8 +145,12 @@ public class CrearAsignacionesCommandHandler(
             }
         }
 
+        if (solapadas > 0)
+            errores.Add(
+                $"{solapadas} combinación(es) se omitieron: la fecha de alta solapa con un periodo ya registrado (activo o cerrado) para ese mismo trabajador y centro.");
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return Result.Exito(new ResultadoAsignacionLoteDto(creadas, yaActivas, errores));
+        return Result.Exito(new ResultadoAsignacionLoteDto(creadas, yaActivas, solapadas, errores));
     }
 }
