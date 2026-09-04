@@ -97,7 +97,26 @@ public class PaletaCubreDestinosDeTrabajoTests
             $"CoberturaDePaleta.SegmentosExcluidosDeLaPaleta — nació sin puerta: {string.Join(", ", sinPuerta)}");
     }
 
-    /// <summary>Control positivo: si el escaneo no encuentra NINGUNA ruta real, el test de arriba pasaría vacío por un instrumento ciego, no por cobertura real.</summary>
+    /// <summary>
+    /// Control positivo: si el escaneo no encuentra NINGUNA ruta real, el
+    /// test de arriba pasaría vacío por un instrumento ciego, no por
+    /// cobertura real.
+    /// </summary>
+    /// <remarks>
+    /// El umbral de recuento (medido: 34 segmentos de primer nivel reales en
+    /// el árbol de 2026-09-04) es la única defensa de este test contra un
+    /// colapso amplio del escaneo (p. ej. <c>Assembly.GetTypes()</c> lanzando
+    /// <see cref="ReflectionTypeLoadException"/> y <see cref="TiposDe"/>
+    /// quedándose con casi ningún tipo) — revisión adversarial de HO-190-01.
+    /// <b>No cierra el hueco de UN solo tipo nuevo que falle en cargar</b>:
+    /// ese tipo desaparecería del recuento sin bajar del umbral y sin que
+    /// ningún test lo note — el mismo punto ciego estructural de
+    /// <c>ReflexionArquitecturaHelper.TiposDe</c>
+    /// (CaeManager.Architecture.Tests), que ningún test de ese proyecto
+    /// cierra tampoco; no es un hueco nuevo de este trinquete. Un umbral
+    /// más alto que el real haría que este test fallara solo, así que se
+    /// deja con margen bajo (30, no 34) para no acoplarlo a cada ruta nueva.
+    /// </remarks>
     [Fact]
     public void El_escaneo_encuentra_rutas_de_primer_nivel_reales_control_positivo()
     {
@@ -106,6 +125,9 @@ public class PaletaCubreDestinosDeTrabajoTests
         segmentosReales.Should().Contain("clientes", "el propio escaneo debe encontrar rutas de primer nivel conocidas — si no, el test principal pasaría vacío sin haber comprobado nada");
         segmentosReales.Should().Contain("bandeja", "la ruta que este mismo REC (REC-190) acaba de cubrir debe seguir siendo un segmento de primer nivel real");
         segmentosReales.Should().Contain("configuracion", "/configuracion/{EntradaRuta?} debe colapsar a su segmento base — si esto falla, el colapso de parámetros opcionales dejó de funcionar");
+        segmentosReales.Count.Should().BeGreaterThanOrEqualTo(30,
+            $"un recuento muy por debajo de las ~34 rutas de primer nivel reales (encontradas: {segmentosReales.Count}) delataría un escaneo mayormente ciego " +
+            "(p.ej. ReflectionTypeLoadException descartando casi todos los tipos), no una cobertura real — no protege contra la pérdida de UN solo tipo nuevo");
     }
 
     private static IReadOnlyCollection<string> SegmentosDePrimerNivelDelEnsamblado(Assembly assembly)
