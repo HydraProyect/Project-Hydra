@@ -27,11 +27,27 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- REC-196 § 6: sin esto, "dotnet restore" no genera ni verifica
+         packages.lock.json y una medición de capacidad deja de ser
+         reproducible entre quien la corrió y quien intente repetirla. -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Playwright" Version="1.61.0" />
-    <PackageReference Include="Npgsql" Version="10.*" />
+    <!-- Versión exacta, alineada con tests/CaeManager.E2ETests (1.62.0,
+         revisión de navegador 1234) — REC-196 § 6.3: antes iba en 1.61.0
+         (revisión 1228), un segundo consumidor de la biblioteca de
+         automatización divergente del primero sin que nadie lo hubiera
+         declarado. -->
+    <PackageReference Include="Microsoft.Playwright" Version="1.62.0" />
+    <!-- Versión exacta — antes "10.*" resolvía a lo último publicado el día
+         del restore, así que dos mediciones de capacidad en fechas distintas
+         podían estar corriendo contra Npgsql distinto sin que el informe lo
+         reflejara. 10.0.3 es la versión que Npgsql.EntityFrameworkCore.PostgreSQL
+         10.0.3 resuelve de verdad en src/CaeManager.Infrastructure (comprobado
+         contra obj/project.assets.json tras un restore real, no citado de
+         memoria) — la misma que usa el proceso que este arnés arranca. -->
+    <PackageReference Include="Npgsql" Version="10.0.3" />
   </ItemGroup>
 
 </Project>
