@@ -127,7 +127,36 @@ public class DiskFileStorageService : IFileStorageService
         MarcaFormatoV2.CopyTo(salida, 0);
         cifrado.CopyTo(salida, MarcaFormatoV2.Length);
 
-        await File.WriteAllBytesAsync(rutaCompleta, salida, cancellationToken);
+        // Escritura atómica: se escribe primero a un temporal en la MISMA
+        // carpeta (mismo volumen, condición para que el rename sea atómico
+        // en vez de una copia) y solo se publica con File.Move al terminar.
+        // Sin esto, un proceso interrumpido a mitad de WriteAllBytesAsync
+        // (OOM del contenedor, kill -9, caída del host) deja en la ruta
+        // final un fichero truncado que ya sería servible en cuanto el
+        // identificador se devolviera — salvo que la interrupción sea
+        // anterior a ese punto, en cuyo caso el fichero queda huérfano y sin
+        // fila propietaria. Eso NO está compensado en general: solo existe
+        // limpieza de huérfanos para los dos llamadores de la ingesta de
+        // webhooks (ver CompensacionBlobsHuerfanosIngesta) — el resto de los
+        // llamadores de GuardarAsync no tiene ese mecanismo. Con el
+        // temporal, lo peor que deja una interrupción es el `.tmp` huérfano;
+        // la ruta final nunca existe a medias.
+        var rutaTemporal = $"{rutaCompleta}.tmp-{Guid.NewGuid():N}";
+        try
+        {
+            await File.WriteAllBytesAsync(rutaTemporal, salida, cancellationToken);
+            File.Move(rutaTemporal, rutaCompleta);
+        }
+        catch
+        {
+            // El borrado del temporal es limpieza best-effort: si él mismo
+            // falla (bloqueo transitorio, antivirus) no puede sustituir a la
+            // excepción original — eso ocultaría la causa real del fallo de
+            // guardado detrás de un fallo de borrado que no es la noticia.
+            try { if (File.Exists(rutaTemporal)) File.Delete(rutaTemporal); }
+            catch { /* best-effort: el temporal queda huérfano, no se enmascara el error original */ }
+            throw;
+        }
 
         return identificador;
     }
@@ -220,16 +249,35 @@ public class DiskFileStorageService : IFileStorageService
         // Sin marca: escrito antes del formato v2. Comportamiento anterior
         // intacto, incluida la ambigüedad — es la única forma de no romper lo
         // que ya está en disco. Ver el comentario de clase.
+        //
+        // AMBAS salidas de aquí dejan constancia, y son dos poblaciones
+        // distintas de archivo, no una:
+        //
+        //   · cifrado con el protector v1, sin marca — escrito entre el
+        //     2a2c76dd (2026-08-01, cuando entró el cifrado en reposo) y el
+        //     formato v2;
+        //   · en claro, anterior al cifrado en reposo.
+        //
+        // El aviso original solo cubría la segunda, que es la que NO existe en
+        // producción: el primer despliegue real fue el 2026-08-24, o sea
+        // posterior al cifrado v1. La población que sí puede haber allí se
+        // servía en silencio, de modo que un registro sin avisos se leía como
+        // "ya no queda nada legado" justo cuando quedaba todo. Retirar la rama
+        // con esa lectura dejaría ilegible cada documento subido antes del
+        // despliegue del formato v2. De ahí que se registren las dos.
         try
         {
-            return _protectorLegado.Unprotect(bytesDisco);
+            var descifrado = _protectorLegado.Unprotect(bytesDisco);
+
+            _logger.LogWarning(
+                "Se sirvió un archivo legado cifrado con el protector v1 y sin marca de formato ({Identificador}). " +
+                "Mientras existan, la rama legada no se puede retirar: hacerlo dejaría este archivo ilegible.",
+                identificador);
+
+            return descifrado;
         }
         catch (CryptographicException)
         {
-            // Cada lectura por aquí deja constancia: es lo que convierte
-            // "¿queda algo legado en producción?" en una pregunta medible, y
-            // sin esa medición no se puede retirar esta rama sin arriesgarse
-            // a dejar documentos ilegibles.
             _logger.LogWarning(
                 "Se sirvió un archivo legado sin cifrar ni marca de formato ({Identificador}). " +
                 "Mientras existan, la rama legada no se puede retirar y un contenido manipulado no se distingue de uno antiguo.",
