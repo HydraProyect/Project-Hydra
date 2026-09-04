@@ -57,4 +57,20 @@ public class CredencialAccesoEmpresaTests
         credencial.Contrasena.Should().Be("secreto");
         credencial.Notas.Should().Be("notas");
     }
+
+    /// <summary>DEC-62: borrar la contraseña es un acto propio que no toca el resto de campos.</summary>
+    [Fact]
+    public void BorrarContrasena_deja_null_la_contrasena_sin_tocar_el_resto()
+    {
+        var credencial = new CredencialAccesoEmpresa(
+            Guid.NewGuid(), "https://portal.ejemplo.com", "12345", "usuario", "secreto", "notas");
+
+        credencial.BorrarContrasena();
+
+        credencial.Contrasena.Should().BeNull();
+        credencial.UrlAcceso.Should().Be("https://portal.ejemplo.com");
+        credencial.CampoEmpresa.Should().Be("12345");
+        credencial.Usuario.Should().Be("usuario");
+        credencial.Notas.Should().Be("notas");
+    }
 }

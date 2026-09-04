@@ -17,9 +17,17 @@ public class ObtenerCredencialAccesoSubcontrataQueryHandler(
     public async Task<CredencialAccesoSubcontrataDto?> Handle(
         ObtenerCredencialAccesoSubcontrataQuery request, CancellationToken cancellationToken)
     {
+        // Alcance de GESTIÓN, no de lectura (REC-159, gemelo de REC-153): la
+        // credencial de acceso al portal de la Subcontrata es un artefacto
+        // interno de gestión, no documentación del propio Cliente. La cartera
+        // de lectura de un usuario de portal (rol Cliente) SÍ incluye las
+        // subcontratas de su Cliente —es lo que el portal existe para
+        // enseñar—, así que usarla aquí filtraba la contraseña en claro a
+        // ese mismo usuario.
+        //
         // Fuera de la cartera se responde como si no existiera: confirmar que la
         // fila existe ya seria decir algo sobre datos que no corresponden.
-        if (!await alcanceDatos.SubcontrataVisibleAsync(request.SubcontrataId, cancellationToken))
+        if (!await alcanceDatos.SubcontrataParaGestionVisibleAsync(request.SubcontrataId, cancellationToken))
             return null;
 
         return await dbContext.CredencialesAccesoSubcontrata

@@ -25,4 +25,63 @@ public class ExtraccionIaCacheRepository(CaeManagerDbContext dbContext) : IExtra
     public void Agregar(ExtraccionIaCache cache) => dbContext.ExtraccionesIaCache.Add(cache);
 
     public void DescartarTrasConflicto(ExtraccionIaCache cache) => dbContext.Entry(cache).State = EntityState.Detached;
+
+    public async Task<ExtraccionIaCacheDocumento?> VincularDocumentoAsync(
+        Guid extraccionIaCacheId, Guid documentoId, CancellationToken cancellationToken = default)
+    {
+        var yaVinculado = await dbContext.ExtraccionesIaCacheDocumentos.AnyAsync(
+            v => v.ExtraccionIaCacheId == extraccionIaCacheId && v.DocumentoId == documentoId, cancellationToken);
+        if (yaVinculado)
+            return null;
+
+        var vinculo = ExtraccionIaCacheDocumento.Crear(extraccionIaCacheId, documentoId);
+        dbContext.ExtraccionesIaCacheDocumentos.Add(vinculo);
+        return vinculo;
+    }
+
+    public void DescartarVinculoTrasConflicto(ExtraccionIaCacheDocumento vinculo) =>
+        dbContext.Entry(vinculo).State = EntityState.Detached;
+
+    public async Task PurgarVinculadosADocumentosAsync(
+        IReadOnlyCollection<Guid> documentoIds, CancellationToken cancellationToken = default)
+    {
+        if (documentoIds.Count == 0)
+            return;
+
+        var vinculosDelLote = await dbContext.ExtraccionesIaCacheDocumentos
+            .Where(v => documentoIds.Contains(v.DocumentoId))
+            .ToListAsync(cancellationToken);
+
+        if (vinculosDelLote.Count == 0)
+            return;
+
+        var cacheIdsAfectados = vinculosDelLote.Select(v => v.ExtraccionIaCacheId).Distinct().ToList();
+
+        // Consulta contra base ANTES de quitar nada del tracker: como filtra
+        // "documentoIds.Contains" es false, nunca mira las filas que
+        // RemoveRange va a marcar más abajo, así que da igual que ese borrado
+        // todavía no se haya volcado con SaveChangesAsync — no hay ventana de
+        // carrera DENTRO de esta llamada. Sí la hay ENTRE dos llamadas
+        // concurrentes a este método (dos EjecucionPurgaService.EjecutarAsync
+        // a la vez) — ver el riesgo documentado en
+        // IExtraccionIaCacheRepository.PurgarVinculadosADocumentosAsync.
+
+        var cacheIdsConVinculoFueraDelLote = await dbContext.ExtraccionesIaCacheDocumentos
+            .Where(v => cacheIdsAfectados.Contains(v.ExtraccionIaCacheId) && !documentoIds.Contains(v.DocumentoId))
+            .Select(v => v.ExtraccionIaCacheId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        dbContext.ExtraccionesIaCacheDocumentos.RemoveRange(vinculosDelLote);
+
+        var cacheIdsHuerfanos = cacheIdsAfectados.Except(cacheIdsConVinculoFueraDelLote).ToList();
+        if (cacheIdsHuerfanos.Count == 0)
+            return;
+
+        var cachesHuerfanas = await dbContext.ExtraccionesIaCache
+            .Where(c => cacheIdsHuerfanos.Contains(c.Id))
+            .ToListAsync(cancellationToken);
+
+        dbContext.ExtraccionesIaCache.RemoveRange(cachesHuerfanas);
+    }
 }

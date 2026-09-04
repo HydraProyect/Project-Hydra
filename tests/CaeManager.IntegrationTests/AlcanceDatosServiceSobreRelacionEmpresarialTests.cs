@@ -242,6 +242,101 @@ public class AlcanceDatosServiceSobreRelacionEmpresarialTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// REC-159, gemelo exacto del caso anterior pero en Subcontrata. El rol
+    /// Cliente (usuario de portal) SÍ ve Subcontratas para leer su
+    /// documentación —misma razón que con Empresa: la cartera se DERIVA de la
+    /// de Clientes— pero NO para operar sobre ellas: sin esta separación, ese
+    /// mismo usuario recibía la contraseña en claro de la credencial de
+    /// acceso al portal de la subcontrata.
+    ///
+    /// Va contra el servicio REAL a propósito, mismo motivo que el test de
+    /// Empresa: la regla vive en Infrastructure (necesita el rol), así que un
+    /// test con AlcanceDatosServiceFalso no puede observarla.
+    /// </summary>
+    [Fact]
+    public async Task El_rol_Cliente_ve_Subcontratas_para_leer_pero_ninguna_para_gestionar()
+    {
+        Guid clienteId;
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            var cliente = Empresa.CrearComoCliente("Cliente Portal Subcontrata S.L.", "B10380285", false, null, null);
+            var subcontrata = Empresa.CrearComoSubcontrata("Subcontrata del Portal S.L.", "B10380293", NivelServicioSubcontrata.Gestionada.ToString());
+            contexto.Empresas.AddRange(cliente, subcontrata);
+            await contexto.SaveChangesAsync();
+
+            var ahora = DateTime.UtcNow;
+            contexto.RelacionesEmpresariales.Add(RelacionEmpresarial.Migrar(subcontrata.Id, cliente.Id, ahora, ahora));
+            await contexto.SaveChangesAsync();
+            clienteId = cliente.Id;
+        }
+
+        var usuarioPortal = Guid.NewGuid();
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            contexto.Users.Add(new ApplicationUser
+            {
+                Id = usuarioPortal,
+                UserName = $"portal-sub-{usuarioPortal:N}@ejemplo.test",
+                Email = $"portal-sub-{usuarioPortal:N}@ejemplo.test",
+                ClienteId = clienteId,
+                TenantId = _tenant
+            });
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var lectura = CrearContexto(_tenant);
+        var servicio = new AlcanceDatosService(
+            lectura, new CurrentUserServiceFalso(usuarioPortal, "Cliente", tenantOrigenId: _tenant),
+            new TenantActualAmbiental { TenantId = _tenant }, new SesionPrivilegiadaAusente());
+
+        (await servicio.ObtenerSubcontrataIdsVisiblesAsync()).Should().NotBeNull().And.NotBeEmpty(
+            "el portal enseña la documentación de las subcontratas de su propio Cliente");
+
+        (await servicio.ObtenerSubcontrataIdsParaGestionAsync()).Should().NotBeNull().And.BeEmpty(
+            "pero operar sobre ellas —leer la credencial de acceso a su portal— es del lado de la gestión CAE, no del portal (REC-159)");
+    }
+
+    /// <summary>
+    /// REC-159, criterio de aceptación 2, segunda dirección — la que
+    /// <c>El_rol_Cliente_ve_Subcontratas_para_leer_pero_ninguna_para_gestionar</c>
+    /// no prueba: que para un rol de GESTIÓN (no portal) la cartera de
+    /// gestión no se quede corta respecto a la de lectura. Sin este test, una
+    /// implementación que devolviera vacío para TODOS los roles pasaría el
+    /// primero igual de verde.
+    /// </summary>
+    [Fact]
+    public async Task Rol_de_gestion_ve_las_mismas_Subcontratas_para_gestionar_que_para_leer()
+    {
+        Guid cliente, subcontrata;
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            var cli = Empresa.CrearComoCliente("Cliente Gestion Subcontrata S.A.", "B10380301", false, null, null);
+            var sub = Empresa.CrearComoSubcontrata("Subcontrata Gestion S.L.", "B10380319", NivelServicioSubcontrata.Gestionada.ToString());
+            contexto.Empresas.AddRange(cli, sub);
+            await contexto.SaveChangesAsync();
+            cliente = cli.Id; subcontrata = sub.Id;
+
+            var ahora = DateTime.UtcNow;
+            contexto.RelacionesEmpresariales.Add(RelacionEmpresarial.Migrar(subcontrata, cliente, ahora, ahora));
+            await contexto.SaveChangesAsync();
+        }
+
+        var usuarioId = await OtorgarCarteraAsync(cliente);
+
+        await using var contexto2 = CrearContexto(_tenant);
+        var servicio = new AlcanceDatosService(
+            contexto2, new CurrentUserServiceFalso(usuarioId, "GestorCae", tenantOrigenId: _tenant),
+            new TenantActualAmbiental { TenantId = _tenant }, new SesionPrivilegiadaAusente());
+
+        var visibles = await servicio.ObtenerSubcontrataIdsVisiblesAsync();
+        var paraGestion = await servicio.ObtenerSubcontrataIdsParaGestionAsync();
+
+        paraGestion.Should().NotBeNull().And.BeEquivalentTo(visibles,
+            "para un rol de gestión la cartera de gestión debe ser exactamente la de lectura, no una restricción adicional");
+        paraGestion.Should().Contain(subcontrata);
+    }
+
+    /// <summary>
     /// Otorga cartera de GestorCae sobre <paramref name="clienteId"/> y
     /// resuelve ObtenerEmpresaIdsVisiblesAsync — mismo mecanismo de F1 que
     /// MemoizacionAlcanceDatosTests. Solo puede llamarse UNA vez por test:

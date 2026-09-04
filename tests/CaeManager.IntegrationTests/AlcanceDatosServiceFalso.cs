@@ -17,7 +17,8 @@ public class AlcanceDatosServiceFalso(
     IReadOnlyList<Guid>? trabajadorIds = null,
     IReadOnlyList<Guid>? vehiculoIds = null,
     IReadOnlyList<Guid>? conexionesIntegracionAjenas = null,
-    IReadOnlyList<Guid>? empresaIdsParaGestion = null) : IAlcanceDatosService
+    IReadOnlyList<Guid>? empresaIdsParaGestion = null,
+    IReadOnlyList<Guid>? subcontrataIdsParaGestion = null) : IAlcanceDatosService
 {
     public Task<bool> TieneAccesoTotalAsync(CancellationToken cancellationToken = default) => Task.FromResult(
         clienteIds is null && centroIds is null && empresaIds is null &&
@@ -42,6 +43,14 @@ public class AlcanceDatosServiceFalso(
 
     public Task<IReadOnlyList<Guid>?> ObtenerSubcontrataIdsVisiblesAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(subcontrataIds);
+
+    /// <summary>
+    /// Por defecto igual que el alcance de lectura — solo el test que simule a
+    /// un usuario de portal (rol Cliente) pasa <paramref name="subcontrataIdsParaGestion"/>
+    /// vacío, que es lo que hace la implementación real para ese rol (REC-159).
+    /// </summary>
+    public Task<IReadOnlyList<Guid>?> ObtenerSubcontrataIdsParaGestionAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(subcontrataIdsParaGestion ?? subcontrataIds);
 
     public Task<IReadOnlyList<Guid>?> ObtenerTrabajadorIdsVisiblesAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(trabajadorIds);

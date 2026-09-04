@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    partial class CaeManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260903192804_HabilitarRlsExtraccionIaCacheDocumento")]
+    partial class HabilitarRlsExtraccionIaCacheDocumento
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -114,54 +117,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasFilter("\"FechaBaja\" IS NULL");
 
                     b.ToTable("Asignaciones", (string)null);
-                });
-
-            modelBuilder.Entity("CaeManager.Domain.Auditoria.RegistroAccesoDocumentoSensible", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("ActorRealUsuarioId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("DocumentoId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("OcurridoEnUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Sensibilidad")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("TipoAcceso")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<Guid?>("UsuarioId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ViaAcceso")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<Guid?>("ViaAccesoId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DocumentoId", "OcurridoEnUtc");
-
-                    b.HasIndex("TenantId", "OcurridoEnUtc");
-
-                    b.ToTable("RegistrosAccesoDocumentoSensible", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Auditoria.RegistroAuditoria", b =>
@@ -6861,9 +6816,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.Property<string>("PasswordHash")
                         .HasColumnType("text");
-
-                    b.Property<bool>("PermisoConsultarAccesoDocumentosSensibles")
-                        .HasColumnType("boolean");
 
                     b.Property<string>("PhoneNumber")
                         .HasColumnType("text");
