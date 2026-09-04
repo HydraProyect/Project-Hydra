@@ -200,4 +200,33 @@ public class ExtractorCamposAcroFormServiceTests
 
         candidatos.Should().BeEmpty();
     }
+
+    /// <summary>
+    /// REC-186: mismo patrón "bombaIlegible" que REC-176
+    /// (ConversorArchivosPdfTests) — trailer→Root→Pages→Count legibles en
+    /// texto plano (999 999 páginas), resto del fichero basura deliberada.
+    /// Medido en REC-176 contra PdfSharp 6.2.4: <c>PdfReader.Open</c> sobre
+    /// estos bytes exactos lanza <c>PdfReaderException</c> en los cuatro
+    /// <c>PdfDocumentOpenMode</c> públicos — nunca llega a devolver un
+    /// AcroForm para este documento. Que el resultado observado sea
+    /// <see cref="InvalidDataException"/> con el mensaje del tope (no
+    /// <c>PdfReaderException</c>) es la prueba de que el rechazo ocurrió
+    /// ANTES de invocar PdfReader.Open.
+    /// </summary>
+    [Fact]
+    public void Extraer_rechaza_antes_de_abrir_un_pdf_que_declara_demasiadas_paginas()
+    {
+        var servicio = new ExtractorCamposAcroFormService();
+        var bombaIlegible = Encoding.Latin1.GetBytes(
+            "%PDF-1.4\n" +
+            "1 0 obj\n<</Type/Catalog/Pages 2 0 R>>\nendobj\n" +
+            "2 0 obj\n<</Type/Pages/Count 999999/Kids[]>>\nendobj\n" +
+            "AQUI NO HAY TABLA XREF VALIDA, SOLO BASURA DELIBERADA\n" +
+            "trailer\n<</Root 1 0 R/Size 3>>\n" +
+            "startxref\n0\n%%EOF");
+
+        var extraer = () => servicio.Extraer(bombaIlegible);
+
+        extraer.Should().Throw<InvalidDataException>().WithMessage("*2000*");
+    }
 }

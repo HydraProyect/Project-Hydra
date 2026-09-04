@@ -789,4 +789,45 @@ public class RellenadorPlantillaPdfServiceTests
 
         accion.Should().Throw<NotSupportedException>();
     }
+
+    // ── REC-186: mismo patrón "bombaIlegible" que REC-176
+    // (ConversorArchivosPdfTests). La guarda vive una sola vez en Rellenar,
+    // antes del switch — un solo par de tests (uno por formato) basta para
+    // probar que cubre los DOS motores (RellenarAcroForm y
+    // RellenarPorPosicion, los dos PdfReader.Open más caros de los ocho
+    // sitios de REC-186, ambos en modo Modify). ────────────────────────────
+
+    private static byte[] CrearBombaIlegible() => System.Text.Encoding.Latin1.GetBytes(
+        "%PDF-1.4\n" +
+        "1 0 obj\n<</Type/Catalog/Pages 2 0 R>>\nendobj\n" +
+        "2 0 obj\n<</Type/Pages/Count 999999/Kids[]>>\nendobj\n" +
+        "AQUI NO HAY TABLA XREF VALIDA, SOLO BASURA DELIBERADA\n" +
+        "trailer\n<</Root 1 0 R/Size 3>>\n" +
+        "startxref\n0\n%%EOF");
+
+    [Fact]
+    public void RellenarAcroForm_rechaza_antes_de_abrir_un_pdf_que_declara_demasiadas_paginas()
+    {
+        var servicio = new RellenadorPlantillaPdfService();
+        var elementos = Array.Empty<ElementoRellenoPlantilla>();
+
+        var accion = () => servicio.Rellenar(CrearBombaIlegible(), FormatoOrigenPlantilla.PdfConCampos, elementos);
+
+        // Medido en REC-176: PdfReader.Open sobre estos bytes exactos lanza
+        // PdfReaderException en los cuatro PdfDocumentOpenMode públicos, así
+        // que ver InvalidDataException con el mensaje del tope prueba que el
+        // rechazo ocurrió ANTES de invocar PdfReader.Open.
+        accion.Should().Throw<InvalidDataException>().WithMessage("*2000*");
+    }
+
+    [Fact]
+    public void RellenarPorPosicion_rechaza_antes_de_abrir_un_pdf_que_declara_demasiadas_paginas()
+    {
+        var servicio = new RellenadorPlantillaPdfService();
+        var elementos = Array.Empty<ElementoRellenoPlantilla>();
+
+        var accion = () => servicio.Rellenar(CrearBombaIlegible(), FormatoOrigenPlantilla.PdfVisual, elementos);
+
+        accion.Should().Throw<InvalidDataException>().WithMessage("*2000*");
+    }
 }

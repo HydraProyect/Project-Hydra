@@ -91,6 +91,39 @@ public class ClasificadorDocumentoServiceTests
         resultado.Error.Codigo.Should().Be("ClasificacionDocumento.ArchivoInvalido");
     }
 
+    // ── REC-186: el rechazo por demasiadas páginas tiene que ocurrir SIN
+    // parsear el árbol de páginas completo, no solo "rechazar" — misma
+    // trampa que REC-176 (ver ConversorArchivosPdfTests). ──────────────────
+
+    /// <summary>
+    /// El PDF declara trailer→Root→Pages→Count en texto plano (999 999
+    /// páginas), pero el resto del fichero es basura deliberada: no hay
+    /// tabla xref válida. Medido en REC-176 contra PdfSharp 6.2.4:
+    /// <c>PdfReader.Open</c> sobre estos bytes exactos lanza
+    /// <c>PdfReaderException</c> para los cuatro <c>PdfDocumentOpenMode</c>
+    /// públicos — PdfSharp jamás llega a devolver un PageCount para este
+    /// documento. Que el resultado observado sea el código
+    /// "DemasiadasPaginas" (y no "ArchivoInvalido", el código del catch
+    /// genérico que produciría un PdfReaderException capturado) es la
+    /// prueba de que el rechazo ocurrió ANTES de invocar PdfReader.Open.
+    /// </summary>
+    [Fact]
+    public async Task Rechaza_antes_de_abrir_un_pdf_que_declara_demasiadas_paginas()
+    {
+        var bombaIlegible = System.Text.Encoding.Latin1.GetBytes(
+            "%PDF-1.4\n" +
+            "1 0 obj\n<</Type/Catalog/Pages 2 0 R>>\nendobj\n" +
+            "2 0 obj\n<</Type/Pages/Count 999999/Kids[]>>\nendobj\n" +
+            "AQUI NO HAY TABLA XREF VALIDA, SOLO BASURA DELIBERADA\n" +
+            "trailer\n<</Root 1 0 R/Size 3>>\n" +
+            "startxref\n0\n%%EOF");
+
+        var resultado = await _servicio.ClasificarAsync(bombaIlegible, "documento.pdf");
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("ClasificacionDocumento.DemasiadasPaginas");
+    }
+
     private static byte[] CrearPdf(bool paginaConTexto, params bool[] paginasAdicionalesConTexto)
     {
         using var documento = new PdfDocument();

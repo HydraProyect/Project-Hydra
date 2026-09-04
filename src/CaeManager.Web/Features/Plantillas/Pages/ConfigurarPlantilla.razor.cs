@@ -449,8 +449,40 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// REC-186: contenidoPdf llega de <c>ManejarArchivoSeleccionadoAsync</c>
+    /// (subida directa por InputFile, hasta <see
+    /// cref="TamanoMaximoArchivoBytes"/> = 10 MB — un tope de bytes que un
+    /// árbol de páginas compacto no toca, mismo vector que
+    /// ConversorArchivosPdf/REC-176) o del blob ya guardado con esos mismos
+    /// bytes (<c>CargarVersionExistenteAsync</c>). Es el único de los ocho
+    /// sitios de REC-186 con un <c>PdfReader.Open</c> directamente en Web en
+    /// vez de en Infrastructure. Pública solo para poder testearla
+    /// directamente (función pura, sin InternalsVisibleTo en
+    /// CaeManager.Web — mismo patrón que
+    /// <c>WebhookWhatsAppEndpoints.FirmaValida</c>).
+    /// </summary>
+    public static void ComprobarRecuentoDePaginas(byte[] contenidoPdf)
+    {
+        // ANTES de abrir con PdfReader (más abajo) — mismo patrón que
+        // ConversorArchivosPdf (REC-176): abstención (null) no cambia nada,
+        // PdfReader.Open sigue siendo la red de seguridad para lo que este
+        // pre-escaneo no cubre.
+        if (LectorRecuentoPaginasPdfSinAbrir.IntentarLeerRecuentoDePaginasSinAbrir(contenidoPdf) is { } paginasDeclaradas &&
+            paginasDeclaradas > MaximoPaginasPlantilla)
+        {
+            throw new InvalidDataException(
+                $"El PDF de la plantilla declara más de {MaximoPaginasPlantilla} páginas y no se puede procesar.");
+        }
+    }
+
+    /// <summary>Mismo umbral reutilizado que los sitios de Infrastructure — ver <see cref="ComprobarRecuentoDePaginas"/>.</summary>
+    private const int MaximoPaginasPlantilla = 2000;
+
     private async Task<List<PaginaEditor>> RasterizarPaginasAsync(byte[] contenidoPdf)
     {
+        ComprobarRecuentoDePaginas(contenidoPdf);
+
         using var documento = PdfReader.Open(new MemoryStream(contenidoPdf), PdfDocumentOpenMode.Import);
 
         var paginas = new List<PaginaEditor>();

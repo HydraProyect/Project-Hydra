@@ -26,6 +26,17 @@ public class EstampadoFirmaEnCampoPdfService : IEstampadoFirmaEnCampoPdfService
     private const double SeparacionCajas = 20;
     private const double Margen = 40;
 
+    /// <summary>
+    /// REC-186: pdfOriginal es <c>documento.ArchivoUrl</c> —un Documento que
+    /// un tenant subió (CrearDocumentoCommand) o renovó
+    /// (RenovarDocumentoCommand), o generó desde una plantilla— y este es
+    /// uno de los dos sitios que abren en
+    /// <see cref="PdfDocumentOpenMode.Modify"/> (711-754 ms sobre 20 000
+    /// páginas, el modo más caro de los cuatro, medido). Mismo umbral
+    /// reutilizado que el resto de sitios de este incremento.
+    /// </summary>
+    private const int MaximoPaginasDocumento = 2000;
+
     public byte[] Estampar(
         byte[] pdfOriginal,
         byte[] firmaPng,
@@ -35,6 +46,15 @@ public class EstampadoFirmaEnCampoPdfService : IEstampadoFirmaEnCampoPdfService
         DateTime firmadoEnUtc,
         string? ubicacion)
     {
+        // ANTES de abrir con PdfReader — ver el doc-comment de
+        // MaximoPaginasDocumento. Abstención (null) no cambia nada.
+        if (LectorRecuentoPaginasPdfSinAbrir.IntentarLeerRecuentoDePaginasSinAbrir(pdfOriginal) is { } paginasDeclaradas &&
+            paginasDeclaradas > MaximoPaginasDocumento)
+        {
+            throw new InvalidDataException(
+                $"El documento original declara más de {MaximoPaginasDocumento} páginas y no se puede procesar.");
+        }
+
         using var flujoOrigen = new MemoryStream(pdfOriginal);
         using var documento = PdfReader.Open(flujoOrigen, PdfDocumentOpenMode.Modify);
 

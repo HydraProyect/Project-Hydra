@@ -20,8 +20,32 @@ namespace CaeManager.Infrastructure.Plantillas;
 /// </summary>
 public class ExtractorCamposAcroFormService : IExtractorCamposAcroFormService
 {
+    /// <summary>
+    /// REC-186: pdfOriginal es el PDF de la plantilla, subido en
+    /// ConfigurarPlantilla.razor.cs (InputFile, hasta 10 MB — un tope de
+    /// bytes que un árbol de páginas compacto no toca, ver el mismo
+    /// razonamiento en ConversorArchivosPdf) y luego releído del blob
+    /// original en cada Extraer posterior (DetectarCamposPlantillaQuery,
+    /// ConfirmarPlantillaDocumentoVersionCommand). No es contenido generado
+    /// por TALVEG: "plantilla administrada por un Administrador" describe
+    /// quién configura el formulario, no de dónde vienen estos bytes en
+    /// concreto. Mismo umbral reutilizado que los sitios de DocumentosIa/Firmas.
+    /// </summary>
+    private const int MaximoPaginasDocumento = 2000;
+
     public IReadOnlyList<CampoAcroFormDetectado> Extraer(byte[] pdfOriginal)
     {
+        // ANTES de abrir con PdfReader — ver el doc-comment de
+        // MaximoPaginasDocumento. Mismo patrón que ConversorArchivosPdf
+        // (REC-176): abstención (null) no cambia nada, PdfReader.Open sigue
+        // siendo la red de seguridad para lo que este pre-escaneo no cubre.
+        if (LectorRecuentoPaginasPdfSinAbrir.IntentarLeerRecuentoDePaginasSinAbrir(pdfOriginal) is { } paginasDeclaradas &&
+            paginasDeclaradas > MaximoPaginasDocumento)
+        {
+            throw new InvalidDataException(
+                $"El PDF de la plantilla declara más de {MaximoPaginasDocumento} páginas y no se puede procesar.");
+        }
+
         using var flujo = new MemoryStream(pdfOriginal);
         using var documento = PdfReader.Open(flujo, PdfDocumentOpenMode.Import);
 
