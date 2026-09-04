@@ -82,16 +82,21 @@ public partial class BuscadorGlobal : ComponentBase
     /// rutas fijas de la propia app.
     /// </summary>
     /// <remarks>
-    /// HO-006-01 (REC-006) añadió las siete últimas entradas: vehículos,
-    /// proyectos, visitas, gestiones, incidencias, calendario y
-    /// comunicaciones existían como página y en <c>NavMenu.razor</c>, pero
-    /// el menú era su única vía — esta lista, a diferencia de
+    /// HO-006-01 (REC-006) añadió siete entradas: vehículos, proyectos,
+    /// visitas, gestiones, incidencias, calendario y comunicaciones existían
+    /// como página y en <c>NavMenu.razor</c>, pero el menú era su única vía
+    /// — esta lista, a diferencia de
     /// <see cref="CaeManager.Web.Features.AtajosGlobales.CatalogoAtajos.DestinosNavegacion"/>,
     /// no está limitada a una letra por área: admite varias con la misma
     /// inicial ("Ir a Calendario" e "Ir a Comunicaciones" conviven sin
-    /// conflicto), así que las siete entran aquí aunque solo dos (proyectos,
-    /// incidencias) tengan además atajo directo "g + letra" — ver el
-    /// criterio declarado allí.
+    /// conflicto), así que las siete entraron aquí aunque solo dos
+    /// (proyectos, incidencias) tengan además atajo directo "g + letra" —
+    /// ver el criterio declarado allí.
+    ///
+    /// HO-190-01 (REC-190, DEC-75) añadió "Ir a Mi trabajo" (/bandeja) con
+    /// la asimetría exactamente inversa a la de REC-006: esa ruta tiene
+    /// atajo directo "g b" desde antes de REC-006 pero cero entradas aquí —
+    /// quien sabe la tecla llega, quien no, no la encuentra ni buscándola.
     /// </remarks>
     private static readonly IReadOnlyList<(string Nombre, string Ruta)> DestinosNavegacion =
     [
@@ -112,6 +117,7 @@ public partial class BuscadorGlobal : ComponentBase
         ("Ir a Incidencias", "/incidencias"),
         ("Ir a Calendario", "/calendario"),
         ("Ir a Comunicaciones", "/comunicaciones"),
+        ("Ir a Mi trabajo", "/bandeja"),
     ];
 
     /// <summary>Grupo "Acciones" del palette — verbos que crean algo, nunca navegación pura.</summary>

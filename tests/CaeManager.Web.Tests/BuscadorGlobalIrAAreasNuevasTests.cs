@@ -17,15 +17,21 @@ namespace CaeManager.Web.Tests;
 /// menú a 14 entradas sin darles otra puerta las dejaría inalcanzables.
 ///
 /// <para>
-/// Fija las siete por nombre en vez de un trinquete de texto sobre las 35
-/// rutas <c>@page</c> del repositorio (criterio § 13 riesgo 3 del handoff):
-/// medido en el mismo barrido, unas dieciocho rutas más ya carecen hoy de
-/// entrada en <see cref="BuscadorGlobal"/> — un trinquete general fallaría
-/// de inmediato o exigiría una lista de exclusión de esas dieciocho que
-/// nadie mantendría al día, justo el trinquete que todo el mundo acaba
-/// desactivando. Fijar las siete, con el nombre del área en cada caso de
-/// <see cref="AreasObjetivo"/>, es lo que hace que "retirar el acceso de un
-/// área" ponga el rojo nombrando cuál.
+/// Fija las siete (más "bandeja", añadida por HO-190-01/REC-190 con la
+/// asimetría inversa: tecla directa "g b" desde antes de REC-006 pero cero
+/// entradas aquí) por nombre en vez de un trinquete de texto sobre las
+/// rutas <c>@page</c> del repositorio (criterio § 13 riesgo 3 del handoff
+/// HO-006-01): en su momento, medido en el mismo barrido, había unas
+/// dieciocho rutas más sin entrada en <see cref="BuscadorGlobal"/> — un
+/// trinquete general habría fallado de inmediato o exigido una lista de
+/// exclusión de esas dieciocho que nadie mantendría, justo el trinquete que
+/// todo el mundo acaba desactivando. DEC-75 (REC-190) cambió esa premisa con
+/// un criterio explícito y una lista corta de excepciones — el trinquete
+/// general que HO-006-01 descartó vive ahora en
+/// <c>PaletaCubreDestinosDeTrabajoTests</c>, que cubre TODAS las rutas de
+/// primer nivel, no solo las nombradas aquí. Esta clase sigue fijando cada
+/// área por nombre porque prueba algo distinto: el comportamiento real del
+/// componente (ver el párrafo siguiente), no la mera presencia en una lista.
 /// </para>
 ///
 /// <para>
@@ -85,6 +91,7 @@ public class BuscadorGlobalIrAAreasNuevasTests : BunitContext
         { "incidenc", "Ir a Incidencias", "/incidencias" },
         { "calendari", "Ir a Calendario", "/calendario" },
         { "comunicac", "Ir a Comunicaciones", "/comunicaciones" },
+        { "trabajo", "Ir a Mi trabajo", "/bandeja" },
     };
 
     [Theory]
