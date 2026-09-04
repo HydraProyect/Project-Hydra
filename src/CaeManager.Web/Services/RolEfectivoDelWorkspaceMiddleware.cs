@@ -70,10 +70,31 @@ public class RolEfectivoDelWorkspaceMiddleware(RequestDelegate siguiente)
     public async Task InvokeAsync(
         HttpContext contexto,
         IClienteActivoSeleccionado clienteActivoSeleccionado,
-        ICurrentUserService currentUserService)
+        ICurrentUserService currentUserService,
+        ILogger<RolEfectivoDelWorkspaceMiddleware> logger)
     {
         if (DebeAjustarse(contexto, clienteActivoSeleccionado))
-            AplicarRol(contexto.User, await currentUserService.ObtenerRolActualAsync());
+        {
+            var rolDeSesion = contexto.User.FindFirst(ClaimTypes.Role)?.Value;
+            var rolEfectivo = await currentUserService.ObtenerRolActualAsync();
+
+            AplicarRol(contexto.User, rolEfectivo);
+
+            // Se registra porque hasta REC-189 esta sustitución no dejaba
+            // rastro alguno: el propio hallazgo N-5 que este middleware
+            // cierra —un claim de rol equivocado colando puertas de
+            // [Authorize(Roles = …)]— sería indistinguible desde fuera de
+            // una sustitución legítima si ninguna de las dos se registrara.
+            // Mismo nivel que RevalidacionClienteActivoMiddleware, para que
+            // los dos middlewares hermanos se lean en el mismo artefacto.
+            logger.LogWarning(
+                "Rol efectivo del Workspace operativo derivado ajustado en {Ruta}: de {RolDeSesion} a "
+                + "{RolEfectivo} para el tenant {TenantSeleccionado}.",
+                contexto.Request.Path,
+                rolDeSesion ?? "(ninguno)",
+                rolEfectivo ?? "(ninguno)",
+                clienteActivoSeleccionado.TenantIdSeleccionado);
+        }
 
         await siguiente(contexto);
     }

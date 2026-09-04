@@ -780,7 +780,12 @@ app.UseAuthorization();
 app.UseAntiforgery();
 
 // Después de UseAuthentication (hace falta el usuario resuelto) y antes de
-// que nada resuelva el tenant.
+// los endpoints y componentes. No antes de que nada resuelva el tenant:
+// UseRolEfectivoDelWorkspace ya lo hizo más arriba, y entre los dos median
+// UseCuentaAMedioActivarSinAcceso, UseRateLimiter, UseAuthorization y
+// UseAntiforgery, que pueden cortar la petición sin pasar por aquí (REC-189,
+// ver el porqué y por qué no es un agujero de autorización en el doc-comment
+// de UseRevalidacionClienteActivo).
 app.UseRevalidacionClienteActivo();
 
 // Los archivos estáticos (JS/CSS) no son sensibles y nunca deben exigir
