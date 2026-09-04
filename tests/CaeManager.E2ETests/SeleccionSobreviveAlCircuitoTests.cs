@@ -101,8 +101,20 @@ public class SeleccionSobreviveAlCircuitoTests(WebAppFixture fixture)
         await Assertions.Expect(page.Locator(".selector-cliente-activo option:checked"))
             .ToHaveTextAsync(Ayudas.NombreClienteDelegadoDemo,
                 new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
-        await Assertions.Expect(page.GetByText("Aún no hay empresas")).Not.ToBeVisibleAsync(
-            new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        // Texto y timeout idénticos a la aserción de más abajo (línea ~141):
+        // envuelta en try/catch con mensaje propio para que un fallo diga CUÁL
+        // de las dos disparó, incluso si el stack trace colapsa (REC-137).
+        try
+        {
+            await Assertions.Expect(page.GetByText("Aún no hay empresas")).Not.ToBeVisibleAsync(
+                new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        }
+        catch (PlaywrightException ex)
+        {
+            Assert.Fail(
+                "[Tras el reload de CambiarClienteActivoAsync, todavía en ámbito HTTP, antes de la interacción "
+                + "de circuito puro] " + ex.Message);
+        }
 
         // ── Instrumento: peticiones HTTP observadas desde aquí ──────────────────
         var peticionesDurantePausaCircuito = new List<string>();
@@ -138,8 +150,19 @@ public class SeleccionSobreviveAlCircuitoTests(WebAppFixture fixture)
         // ── La pregunta: la selección de workspace sigue viva tras la interacción
         // de circuito puro de arriba, sin que ninguna petición HTTP haya vuelto a
         // pasar por RevalidacionClienteActivoMiddleware ────────────────────────
-        await Assertions.Expect(page.GetByText("Aún no hay empresas")).Not.ToBeVisibleAsync(
-            new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        // Texto y timeout idénticos a la aserción de más arriba (línea ~104):
+        // mismo motivo, mensaje propio (REC-137).
+        try
+        {
+            await Assertions.Expect(page.GetByText("Aún no hay empresas")).Not.ToBeVisibleAsync(
+                new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        }
+        catch (PlaywrightException ex)
+        {
+            Assert.Fail(
+                "[Tras la interacción de circuito puro, con la guarda de peticiones HTTP satisfecha] "
+                + ex.Message);
+        }
     }
 
     /// <summary>
