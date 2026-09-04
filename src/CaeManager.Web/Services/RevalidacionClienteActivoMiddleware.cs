@@ -102,6 +102,25 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
             // El token ya no vale por sí solo (caducó, se manipuló, es de
             // otro usuario): la cookie sobra y arrastrarla solo genera este
             // trabajo en cada petición.
+            //
+            // REC-136: esta rama borraba la cookie sin dejar ninguna traza,
+            // indistinguible desde fuera de la rama `!sigueAutorizado` de
+            // arriba —que sí avisa— salvo por el mensaje. Se distingue de esa
+            // otra en que aquí `TenantIdSeleccionado` ya resolvió a null
+            // *antes* de intentar revalidar nada: el token no se descifró, no
+            // tiene el formato esperado, o no está ligado a este usuario (ver
+            // `ClienteActivoSeleccionado.LeerCargaUtil`), así que no hay
+            // tenant seleccionado que citar en el aviso, a diferencia del de
+            // `:83`. Nivel Warning, igual que el otro camino que borra la
+            // misma cookie: los dos son el mismo evento observable desde
+            // fuera (cookie presente, selección perdida) y deben poder
+            // distinguirse en el mismo artefacto de CI.
+            logger.LogWarning(
+                "Selección de Workspace operativo derivado descartada en {Ruta}: la cookie está presente pero el "
+                + "token no resolvió a ningún tenant (no se pudo descifrar, formato inesperado, o no ligado al "
+                + "usuario actual).",
+                contexto.Request.Path);
+
             contexto.Response.Cookies.Delete(ClienteActivoSeleccionado.NombreCookie);
         }
 
