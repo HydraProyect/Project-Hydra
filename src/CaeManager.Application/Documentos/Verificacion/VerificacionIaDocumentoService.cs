@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Cumplimiento;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Documentos;
@@ -16,9 +17,11 @@ namespace CaeManager.Application.Documentos.Verificacion;
 /// <see cref="ComputarMotivos"/>) — nunca
 /// corrige nada automáticamente (ver Issue #19, "corrección automática" es
 /// una pieza con componente legal, pendiente de confirmación explícita del
-/// usuario). Solo corre si el TipoDocumento tiene la lectura IA activa a
-/// Nivel 1 (Administrador) y la verificación activa (ver
-/// TipoDocumento.VerificacionIaActiva) — a diferencia de
+/// usuario). Solo corre si el Tenant propietario tiene una instrucción
+/// documentada vigente de tratamiento con IA (Nivel 0, DEC-33/REC-035, ver
+/// <see cref="IInstruccionTratamientoIaService"/>), si el TipoDocumento
+/// tiene la lectura IA activa a Nivel 1 (Administrador) y la verificación
+/// activa (ver TipoDocumento.VerificacionIaActiva) — a diferencia de
 /// DeteccionTrabajadoresService (Fase 36), esta primera versión no
 /// comprueba el Nivel 2 (ConfiguracionIaDocumentoCliente): un Documento de
 /// Trabajador no tiene un ClienteId directo, y derivarlo exige recorrer sus
@@ -54,6 +57,8 @@ public class VerificacionIaDocumentoService(
     IRevisionIaDocumentoRepository revisionRepositorio,
     IAprobacionDocumentoRepository aprobacionRepositorio,
     IAuditoriaExtraccionIaRepository auditoriaRepositorio,
+    IInstruccionTratamientoIaService instruccionTratamientoIa,
+    ITenantActual tenantActual,
     IUnitOfWork unitOfWork) : IVerificacionIaDocumentoService
 {
     /// <summary>Por debajo de este umbral, la confianza general por sí sola ya justifica revisión humana (ver Issue #19, "70-95% revisar").</summary>
@@ -61,6 +66,15 @@ public class VerificacionIaDocumentoService(
 
     public async Task ProcesarDocumentoAsync(Guid documentoId, CancellationToken cancellationToken = default)
     {
+        // Nivel 0 (DEC-33, REC-035), por delante de los niveles 1 y 2 que ya
+        // existían: sin instrucción documentada vigente para este tenant, el
+        // tratamiento con IA no se activa — sea cual sea la configuración de
+        // TipoDocumento/ConfiguracionIaDocumentoCliente. tenantActual.TenantId
+        // nulo (sin tenant resuelto) también falla cerrado, mismo criterio
+        // que el resto del sistema.
+        if (tenantActual.TenantId is not { } tenantId || !await instruccionTratamientoIa.EstaHabilitadaAsync(tenantId, cancellationToken))
+            return;
+
         var documento = await documentosContext.Documentos.FirstOrDefaultAsync(d => d.Id == documentoId, cancellationToken);
 
         if (documento is null || documento.TrabajadorId is null || string.IsNullOrWhiteSpace(documento.ArchivoUrl))

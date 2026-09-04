@@ -21,6 +21,12 @@ public static class RequisitosDocumentalesEndpoints
             if (fila?.ArchivoUrl is null || !await alcanceDatos.CentroVisibleAsync(fila.CentroId, cancellationToken))
                 return Results.NotFound();
 
+            // No pasa por IRegistroAccesoDocumentoSensibleService (DEC-36,
+            // HO-099-01 § 6-7): TipoDocumentoCentro.ArchivoUrl es "la
+            // plantilla en blanco a rellenar, no un justificante" (ver el
+            // comentario de la entidad) — sin Documento ni persona detrás,
+            // no hay contenido que DEC-36 pida registrar aunque el
+            // TipoDocumentoId asociado sea sensible.
             var flujo = await almacenamiento.AbrirAsync(fila.ArchivoUrl, cancellationToken);
             var nombreArchivo = fila.NombreArchivoOriginal ?? "formulario.pdf";
             var tipoContenido = nombreArchivo.EndsWith(".docx", StringComparison.OrdinalIgnoreCase)

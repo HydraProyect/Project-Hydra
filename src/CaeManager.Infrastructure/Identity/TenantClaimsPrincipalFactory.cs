@@ -48,6 +48,16 @@ public class TenantClaimsPrincipalFactory(
     /// </summary>
     public const string TipoClaimRequiereActivacion = "requiere_activacion";
 
+    /// <summary>
+    /// DEC-36 (REC-099): «permiso específico», no el rol Administrador a
+    /// secas — ver <see cref="Policies.ConsultarAccesoDocumentosSensibles"/>.
+    /// Solo se añade cuando está concedido (mismo motivo que
+    /// <see cref="TipoClaimRequiereActivacion"/>: la política comprueba
+    /// presencia del claim, no su valor, así que un claim "false" añadido
+    /// siempre sería un permiso de más si alguien lo comprobara mal).
+    /// </summary>
+    public const string TipoClaimPermisoConsultarAccesoDocumentosSensibles = "permiso_consultar_acceso_documentos_sensibles";
+
     public override async Task<ClaimsPrincipal> CreateAsync(ApplicationUser user)
     {
         var principal = await base.CreateAsync(user);
@@ -56,6 +66,9 @@ public class TenantClaimsPrincipalFactory(
             return principal;
 
         identidad.AddClaim(new Claim(TipoClaimTenantId, user.TenantId.ToString()));
+
+        if (user.PermisoConsultarAccesoDocumentosSensibles)
+            identidad.AddClaim(new Claim(TipoClaimPermisoConsultarAccesoDocumentosSensibles, "true"));
 
         // El rol se lee del principal que acaba de construir la clase base: es
         // el rol ALMACENADO de la cuenta, no el efectivo de un workspace

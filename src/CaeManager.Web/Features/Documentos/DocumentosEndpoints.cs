@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Application.Importacion;
+using CaeManager.Domain.Auditoria;
 using CaeManager.Web.Exportacion;
 using ClosedXML.Excel;
 using MediatR;
@@ -15,39 +16,24 @@ namespace CaeManager.Web.Features.Documentos;
 /// </summary>
 public static class DocumentosEndpoints
 {
-    /// <summary>
-    /// Prohíbe almacenar la respuesta en cualquier caché. Sin una directiva
-    /// explícita, un navegador puede aplicar caducidad heurística y dejar el
-    /// PDF en su caché de disco: un reconocimiento médico —art. 9 RGPD—
-    /// sobreviviendo al cierre de sesión en un equipo compartido, que es
-    /// justamente lo que servirlo por endpoint autenticado quería evitar.
-    ///
-    /// Solo se aplica a lo que lleva datos del tenant. No se sube a
-    /// <c>UseCabecerasSeguridad</c> porque ahí alcanzaría también a los
-    /// estáticos, que sí deben cachearse. <c>X-Content-Type-Options: nosniff</c>
-    /// ya lo pone ese middleware para toda la aplicación, esta ruta incluida.
-    ///
-    /// <c>Pragma</c> es para los intermediarios que solo entienden HTTP/1.0;
-    /// es redundante en cualquier cliente actual y no molesta.
-    /// </summary>
-    private static void ProhibirCache(HttpContext contexto)
-    {
-        contexto.Response.Headers.CacheControl = "no-store, no-cache, must-revalidate";
-        contexto.Response.Headers.Pragma = "no-cache";
-    }
-
     public static IEndpointRouteBuilder MapDocumentosEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet("/documentos/{id:guid}/archivo", async (
-            Guid id, HttpContext contexto, IMediator mediator, IFileStorageService almacenamiento, CancellationToken cancellationToken) =>
+            Guid id, HttpContext contexto, IMediator mediator, IFileStorageService almacenamiento,
+            IRegistroAccesoDocumentoSensibleService registroAcceso, CancellationToken cancellationToken) =>
         {
             var documento = await mediator.Send(new ObtenerDocumentoPorIdQuery(id), cancellationToken);
             if (documento?.ArchivoUrl is null)
                 return Results.NotFound();
 
-            ProhibirCache(contexto);
+            CabecerasArchivoSensible.ProhibirCache(contexto);
 
+            // DEC-36 (REC-099): se abre primero y se registra después de que
+            // AbrirAsync confirme que el archivo existe — si el blob no
+            // estuviera (storage inconsistente), no queda un registro de un
+            // acceso que nunca entregó contenido (Codex, HO-099-01).
             var flujo = await almacenamiento.AbrirAsync(documento.ArchivoUrl, cancellationToken);
+            await registroAcceso.RegistrarSiSensibleAsync(documento.Id, TipoAccesoDocumentoSensible.Apertura, cancellationToken);
             // enableRangeProcessing: el visor de PDF del navegador pide por
             // rangos al paginar/buscar en vez de volver a traer el archivo
             // entero en cada petición. No reduce el coste del servidor —
@@ -73,7 +59,7 @@ public static class DocumentosEndpoints
         endpoints.MapGet("/documentos/exportar.xlsx", async (
             HttpContext contexto, IMediator mediator, CancellationToken cancellationToken) =>
         {
-            ProhibirCache(contexto);
+            CabecerasArchivoSensible.ProhibirCache(contexto);
 
             using var libro = new XLWorkbook();
             var hoja = libro.Worksheets.Add("Documentos");

@@ -54,4 +54,13 @@ public abstract class CredencialAccesoPortal : EntidadConTenant
         Contrasena = contrasena;
         Notas = notas;
     }
+
+    /// <summary>
+    /// Borra solo la contraseña, sin tocar el resto de campos — acto propio y
+    /// distinto de <see cref="Actualizar"/> (DEC-62): desde que el formulario
+    /// deja de cargar la contraseña al abrirse, un campo vacío ya no puede
+    /// significar "bórrala" (borraría en silencio al guardar cualquier otro
+    /// cambio) — borrar exige esta llamada explícita.
+    /// </summary>
+    public void BorrarContrasena() => Contrasena = null;
 }

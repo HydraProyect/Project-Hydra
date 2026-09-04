@@ -1,5 +1,6 @@
 using CaeManager.Application.Comunicaciones.Queries.DetectarActualizacionDocumentoDesdeAdjunto;
 using CaeManager.Application.Common;
+using CaeManager.Application.Cumplimiento;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Empresas;
@@ -61,7 +62,8 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryTests : IAsyncLifeti
         var opciones = Options.Create(new ExtraccionDocumentoAdjuntoOptions { Activa = false });
         var handler = new DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler(
             contexto, new AlcanceDatosServiceFalso(), new AlmacenamientoQueNuncaSeDebeLlamar(),
-            new RouterQueNuncaSeDebeLlamar(), opciones, contexto, contexto, contexto);
+            new RouterQueNuncaSeDebeLlamar(), opciones, contexto, contexto, contexto,
+            new InstruccionTratamientoIaSiempreHabilitada(), new TenantActualFalso(_tenant));
 
         var resultado = await handler.Handle(new DetectarActualizacionDocumentoDesdeAdjuntoQuery(adjunto.Id), CancellationToken.None);
 
@@ -80,7 +82,8 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryTests : IAsyncLifeti
         var opciones = Options.Create(new ExtraccionDocumentoAdjuntoOptions { Activa = false });
         var handler = new DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler(
             contexto, new AlcanceDatosServiceFalso(), new AlmacenamientoQueNuncaSeDebeLlamar(),
-            new RouterQueNuncaSeDebeLlamar(), opciones, contexto, contexto, contexto);
+            new RouterQueNuncaSeDebeLlamar(), opciones, contexto, contexto, contexto,
+            new InstruccionTratamientoIaSiempreHabilitada(), new TenantActualFalso(_tenant));
 
         var resultado = await handler.Handle(new DetectarActualizacionDocumentoDesdeAdjuntoQuery(Guid.NewGuid()), CancellationToken.None);
 
@@ -110,7 +113,8 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryTests : IAsyncLifeti
         var opciones = Options.Create(new ExtraccionDocumentoAdjuntoOptions { Activa = false });
         var handler = new DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler(
             contexto, new AlcanceDatosServiceFalso(conexionesIntegracionAjenas: [conexionAjenaId]), new AlmacenamientoQueNuncaSeDebeLlamar(),
-            new RouterQueNuncaSeDebeLlamar(), opciones, contexto, contexto, contexto);
+            new RouterQueNuncaSeDebeLlamar(), opciones, contexto, contexto, contexto,
+            new InstruccionTratamientoIaSiempreHabilitada(), new TenantActualFalso(_tenant));
 
         var resultado = await handler.Handle(new DetectarActualizacionDocumentoDesdeAdjuntoQuery(adjunto.Id), CancellationToken.None);
 
@@ -146,5 +150,16 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryTests : IAsyncLifeti
         public Task<Result<CaeManager.Application.DocumentosIa.Common.ExtraccionEstructuradaDto>> ProcesarAsync(
             byte[] contenido, string nombreArchivo, string tipoEsperado, Guid? documentoId = null, CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("No debería llamarse con el kill switch apagado.");
+    }
+
+    /// <summary>Nivel 0 (DEC-33/REC-035) siempre abierto: esta suite prueba el kill switch de despliegue y el alcance de datos, no el gate.</summary>
+    private sealed class InstruccionTratamientoIaSiempreHabilitada : IInstruccionTratamientoIaService
+    {
+        public Task<bool> EstaHabilitadaAsync(Guid tenantId, CancellationToken cancellationToken = default) => Task.FromResult(true);
+    }
+
+    private sealed class TenantActualFalso(Guid? tenantId) : ITenantActual
+    {
+        public Guid? TenantId => tenantId;
     }
 }

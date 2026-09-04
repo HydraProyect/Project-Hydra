@@ -98,7 +98,7 @@ public class Trabajador : EntidadBase
         EstablecerAlias(alias);
         EstablecerDni(dni);
         FechaNacimiento = fechaNacimiento;
-        Email = email;
+        EstablecerEmail(email);
         Observaciones = observaciones;
         EstablecerTelefono(telefono);
         EstablecerPuesto(puesto);
@@ -209,10 +209,34 @@ public class Trabajador : EntidadBase
         EstablecerApellidos(apellidos);
         EstablecerAlias(alias);
         FechaNacimiento = fechaNacimiento;
-        Email = email;
+        EstablecerEmail(email);
         Observaciones = observaciones;
         EstablecerTelefono(telefono);
         EstablecerPuesto(puesto);
+    }
+
+    /// <summary>
+    /// Sin migrar todavía al value object <c>Email</c> (ver
+    /// src/CaeManager.Domain/Common/Email.cs) — solo comprueba longitud.
+    /// Mismo motivo que EstablecerNombre/EstablecerApellidos (REC-109): el
+    /// mismo Excel de importación rellena este campo (fila.Email en
+    /// EjecutarImportacionCommand.cs) y sin este límite reproducía
+    /// exactamente el mismo defecto — dominio acepta, la columna
+    /// varchar(200) de TrabajadorConfiguration no.
+    /// </summary>
+    private void EstablecerEmail(string? email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            Email = null;
+            return;
+        }
+
+        var normalizado = email.Trim();
+        if (normalizado.Length > LongitudMaximaEmail)
+            throw new ArgumentException($"El email no puede superar {LongitudMaximaEmail} caracteres.", nameof(email));
+
+        Email = normalizado;
     }
 
     /// <summary>
@@ -245,14 +269,30 @@ public class Trabajador : EntidadBase
     {
         if (string.IsNullOrWhiteSpace(nombre))
             throw new ArgumentException("El nombre es obligatorio.", nameof(nombre));
-        Nombre = nombre.Trim();
+
+        var normalizado = nombre.Trim();
+        // REC-109: sin este límite, un nombre demasiado largo pasaba el
+        // dominio sin problema y solo reventaba al confirmar, dentro del
+        // único SaveChangesAsync de la importación — abortando con él
+        // cualquier otra fila válida del mismo archivo (DCR-12 B). Misma
+        // constante que la columna en TrabajadorConfiguration.
+        if (normalizado.Length > LongitudMaximaNombre)
+            throw new ArgumentException($"El nombre no puede superar {LongitudMaximaNombre} caracteres.", nameof(nombre));
+
+        Nombre = normalizado;
     }
 
     private void EstablecerApellidos(string apellidos)
     {
         if (string.IsNullOrWhiteSpace(apellidos))
             throw new ArgumentException("Los apellidos son obligatorios.", nameof(apellidos));
-        Apellidos = apellidos.Trim();
+
+        var normalizado = apellidos.Trim();
+        // Mismo motivo que EstablecerNombre — ver REC-109.
+        if (normalizado.Length > LongitudMaximaApellidos)
+            throw new ArgumentException($"Los apellidos no pueden superar {LongitudMaximaApellidos} caracteres.", nameof(apellidos));
+
+        Apellidos = normalizado;
     }
 
     private void EstablecerAlias(string? alias) => Alias = string.IsNullOrWhiteSpace(alias) ? null : alias.Trim();

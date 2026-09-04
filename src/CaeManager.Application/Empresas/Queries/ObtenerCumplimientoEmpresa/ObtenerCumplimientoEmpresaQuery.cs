@@ -27,6 +27,23 @@ public class ObtenerCumplimientoEmpresaQueryHandler(
 {
     public async Task<int?> Handle(ObtenerCumplimientoEmpresaQuery request, CancellationToken cancellationToken)
     {
+        // Alcance de LECTURA es correcto aquí (REC-149, se queda): devuelve
+        // un único porcentaje agregado, ni identidades ni artefactos internos
+        // de la contratista — el tipo de dato central que el portal CAE
+        // existe para mostrar a un Cliente sobre sus contratistas.
+        //
+        // HALLAZGO SECUNDARIO, elevado y no corregido aquí (detectado en
+        // revisión de Codex): el porcentaje se calcula sobre TODOS los
+        // Centros donde la Empresa tiene actividad (línea 41, sin cruzar con
+        // el Cliente de la relación), no solo los del Cliente que pregunta.
+        // Un usuario de portal ve así el cumplimiento agregado de la
+        // contratista con OTROS Clientes, mezclado en un solo número. No lo
+        // cambio aquí porque decidir si el portal debe ver cumplimiento
+        // agregado o solo el de su propia relación es una decisión de
+        // producto (§14 del handoff), y el mismo cálculo está además
+        // batcheado y sin gate propio en ObtenerEmpresasQuery
+        // (CalcularCumplimientoPorEmpresaAsync) — ver RETURN PACKAGE de
+        // HO-149-01.
         if (!await alcanceDatos.EmpresaVisibleAsync(request.EmpresaId, cancellationToken))
             return null;
 

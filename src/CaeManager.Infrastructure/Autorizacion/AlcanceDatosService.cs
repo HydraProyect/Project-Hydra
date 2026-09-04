@@ -316,6 +316,19 @@ public class AlcanceDatosService(
         return _subcontrataIds;
     }
 
+    public async Task<IReadOnlyList<Guid>?> ObtenerSubcontrataIdsParaGestionAsync(CancellationToken cancellationToken = default)
+    {
+        // Mismo criterio que ObtenerEmpresaIdsParaGestionAsync (REC-159, gemelo
+        // de REC-153): el rol Cliente es un usuario de portal y ve la
+        // documentación de las subcontratas de su Cliente, pero no opera sobre
+        // ellas. Lista vacía y no null — null significa "sin restricción", que
+        // aquí sería exactamente lo contrario de lo que toca (fallo cerrado).
+        if (await currentUserService.ObtenerRolActualAsync() == Roles.Cliente)
+            return [];
+
+        return await ObtenerSubcontrataIdsVisiblesAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Guid>?> ObtenerTrabajadorIdsVisiblesAsync(CancellationToken cancellationToken = default)
     {
         if (_trabajadorIdsResueltos) return _trabajadorIds;

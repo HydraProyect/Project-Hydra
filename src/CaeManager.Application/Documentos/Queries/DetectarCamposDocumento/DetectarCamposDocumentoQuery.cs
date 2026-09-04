@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Cumplimiento;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.DocumentosIa;
@@ -30,7 +31,9 @@ public class DetectarCamposDocumentoQueryHandler(
     IDocumentAIRouterService router,
     ITiposDocumentoQueryContext tiposDocumentoContext,
     ITrabajadoresQueryContext trabajadoresContext,
-    IOptions<DeteccionPreviaDocumentoOptions> opciones)
+    IOptions<DeteccionPreviaDocumentoOptions> opciones,
+    IInstruccionTratamientoIaService instruccionTratamientoIa,
+    ITenantActual tenantActual)
     : IRequestHandler<DetectarCamposDocumentoQuery, Result<DeteccionCamposDocumentoDto>>
 {
     private const string TipoEsperadoDesconocido = "documento CAE (tipo todavía no seleccionado por el usuario, infiérelo libremente del contenido)";
@@ -41,6 +44,11 @@ public class DetectarCamposDocumentoQueryHandler(
     public async Task<Result<DeteccionCamposDocumentoDto>> Handle(
         DetectarCamposDocumentoQuery request, CancellationToken cancellationToken)
     {
+        // Nivel 0 (DEC-33, REC-035), por delante del kill-switch de
+        // despliegue de abajo — ver el mismo gate en VerificacionIaDocumentoService.
+        if (tenantActual.TenantId is not { } tenantId || !await instruccionTratamientoIa.EstaHabilitadaAsync(tenantId, cancellationToken))
+            return Result.Exito(new DeteccionCamposDocumentoDto(null, null, 0));
+
         // Apagado por defecto (ver DeteccionPreviaDocumentoOptions): sin esto,
         // el PDF completo de cualquier Documento de Trabajador —incluido un
         // reconocimiento médico— viajaba a un proveedor de IA externo antes

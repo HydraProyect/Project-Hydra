@@ -299,6 +299,17 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("ApiPublica", policy => policy
         .AddAuthenticationSchemes(ApiKeyAuthenticationSchemeOptions.NombreEsquema)
         .RequireAuthenticatedUser());
+
+    // DEC-36 (REC-099): "Administrador del Tenant propietario, mediante
+    // permiso específico" — el rol Administrador es necesario pero no
+    // suficiente para consultar RegistroAccesoDocumentoSensible. El permiso
+    // viaja como claim de sesión (ver TenantClaimsPrincipalFactory), no como
+    // consulta a base en cada petición.
+    options.AddPolicy(
+        CaeManager.Infrastructure.Identity.Policies.ConsultarAccesoDocumentosSensibles,
+        policy => policy
+            .RequireRole(CaeManager.Infrastructure.Identity.Roles.Administrador)
+            .RequireClaim(CaeManager.Infrastructure.Identity.TenantClaimsPrincipalFactory.TipoClaimPermisoConsultarAccesoDocumentosSensibles));
 });
 
 // Rate limiting de la API pública, por tenant (no por IP — varias
@@ -673,6 +684,15 @@ using (var scope = app.Services.CreateScope())
     // los que se acaban de crear. Colgarla de un camino de siembra dejo cinco
     // de seis tenants sin encender en produccion (ver el metodo).
     await DatosPruebaSeeder.ReconciliarVerificacionIaEnTenantsDeDemoAsync(
+        dbContext, app.Configuration, logger);
+
+    // Nivel 0 (DEC-33, REC-035): sin esto, el Nivel 1 que la reconciliación
+    // de arriba acaba de encender no basta — la instrucción documentada de
+    // tratamiento IA es el gate que se comprueba primero, y sin ella ningún
+    // tenant de demo llega a ejercitar IA de verdad. Deliberadamente solo el
+    // tenant #1 (ver el método): el segundo tenant y el Cliente Delegante de
+    // demo quedan sin instrucción, como control negativo vivo.
+    await DatosPruebaSeeder.SembrarInstruccionTratamientoIaTenantPrincipalAsync(
         dbContext, app.Configuration, logger);
 
     // Al final a propósito: aprovisiona la delegación de soporte —apagada—

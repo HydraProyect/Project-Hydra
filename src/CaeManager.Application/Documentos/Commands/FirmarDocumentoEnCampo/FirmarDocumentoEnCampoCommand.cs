@@ -139,7 +139,10 @@ public class FirmarDocumentoEnCampoCommandHandler(
         byte[]? selloPng = null;
         if (request.SelloEmpresaId is { } empresaIdDelSello)
         {
-            if (!await alcanceDatos.EmpresaVisibleAsync(empresaIdDelSello, cancellationToken))
+            // Defensa en profundidad (REC-149): inalcanzable para el rol
+            // Cliente vía AutorizacionEscrituraBehavior; alcance de gestión
+            // como segunda barrera independiente.
+            if (!await alcanceDatos.EmpresaParaGestionVisibleAsync(empresaIdDelSello, cancellationToken))
                 return Result.Fallo(Error.Crear("FirmaEnCampo.SelloNoAutorizado", "No tienes acceso a este sello de empresa."));
 
             var selloEmpresa = await selloEmpresaRepositorio.ObtenerPorEmpresaAsync(empresaIdDelSello, cancellationToken);

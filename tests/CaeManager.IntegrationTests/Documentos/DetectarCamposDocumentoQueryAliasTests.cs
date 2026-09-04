@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Cumplimiento;
 using CaeManager.Application.Documentos.Queries.DetectarCamposDocumento;
 using CaeManager.Application.DocumentosIa;
 using CaeManager.Application.DocumentosIa.Common;
@@ -103,7 +104,8 @@ public class DetectarCamposDocumentoQueryAliasTests : IAsyncLifetime
         var router = new RouterFalso(Result.Exito(extraccion));
 
         return new DetectarCamposDocumentoQueryHandler(
-            router, contexto, contexto, Options.Create(new DeteccionPreviaDocumentoOptions { Activa = true }));
+            router, contexto, contexto, Options.Create(new DeteccionPreviaDocumentoOptions { Activa = true }),
+            new InstruccionTratamientoIaSiempreHabilitada(), new TenantActualFalso(_tenant));
     }
 
     private CaeManagerDbContext CrearContexto()
@@ -122,5 +124,16 @@ public class DetectarCamposDocumentoQueryAliasTests : IAsyncLifetime
         public Task<Result<ExtraccionEstructuradaDto>> ProcesarAsync(
             byte[] contenido, string nombreArchivo, string tipoEsperado, Guid? documentoId = null, CancellationToken cancellationToken = default) =>
             Task.FromResult(resultado);
+    }
+
+    /// <summary>Nivel 0 (DEC-33/REC-035) siempre abierto: esta suite prueba la sugerencia de alias, no el gate.</summary>
+    private sealed class InstruccionTratamientoIaSiempreHabilitada : IInstruccionTratamientoIaService
+    {
+        public Task<bool> EstaHabilitadaAsync(Guid tenantId, CancellationToken cancellationToken = default) => Task.FromResult(true);
+    }
+
+    private sealed class TenantActualFalso(Guid? tenantId) : ITenantActual
+    {
+        public Guid? TenantId => tenantId;
     }
 }

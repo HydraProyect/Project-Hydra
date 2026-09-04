@@ -19,7 +19,16 @@ public class ObtenerDeteccionesPorEmpresaQueryHandler(ITrabajadoresQueryContext 
     public async Task<Result<IReadOnlyList<DeteccionTrabajadorDto>>> Handle(
         ObtenerDeteccionesPorEmpresaQuery request, CancellationToken cancellationToken)
     {
-        if (!await alcanceDatos.EmpresaVisibleAsync(request.EmpresaId, cancellationToken))
+        // Alcance de GESTIÓN, no de lectura (REC-149): las detecciones son una
+        // herramienta de conciliación interna de personal (altas/bajas de la
+        // Empresa entera, sin relación con un Cliente concreto) que alimenta
+        // ResolverDeteccionAusenteCommand/ResolverDeteccionNuevoCommand, e
+        // incluyen el DNI de cada trabajador detectado. No es documentación
+        // de cumplimiento en la relación con el propio Cliente — es
+        // información operativa de personal de la contratista, que un
+        // usuario de portal (rol Cliente) no debería poder consultar solo
+        // por tener a esa Empresa en su cartera de lectura.
+        if (!await alcanceDatos.EmpresaParaGestionVisibleAsync(request.EmpresaId, cancellationToken))
             return Result.Fallo<IReadOnlyList<DeteccionTrabajadorDto>>(Error.Crear(
                 "Empresa.NoEncontrada", "No encontramos esta empresa."));
 

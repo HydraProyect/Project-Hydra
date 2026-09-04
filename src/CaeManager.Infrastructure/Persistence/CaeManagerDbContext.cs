@@ -170,6 +170,7 @@ public class CaeManagerDbContext(
     IQueryable<ExtraccionIaCache> IDocumentosIaQueryContext.ExtraccionesIaCache => ExtraccionesIaCache;
     public DbSet<AuditoriaExtraccionIa> AuditoriasExtraccionIa => Set<AuditoriaExtraccionIa>();
     IQueryable<AuditoriaExtraccionIa> IDocumentosIaQueryContext.AuditoriasExtraccionIa => AuditoriasExtraccionIa;
+    public DbSet<ExtraccionIaCacheDocumento> ExtraccionesIaCacheDocumentos => Set<ExtraccionIaCacheDocumento>();
     public DbSet<TrabajoAnalisisDocumento> TrabajosAnalisisDocumento => Set<TrabajoAnalisisDocumento>();
     public DbSet<FirmaDigitalDocumento> FirmasDigitalesDocumento => Set<FirmaDigitalDocumento>();
     IQueryable<FirmaDigitalDocumento> IDocumentosQueryContext.FirmasDigitalesDocumento => FirmasDigitalesDocumento;
@@ -201,6 +202,8 @@ public class CaeManagerDbContext(
     IQueryable<ParametroSistema> IConfiguracionQueryContext.ParametrosSistema => ParametrosSistema;
     public DbSet<RegistroAuditoria> RegistrosAuditoria => Set<RegistroAuditoria>();
     IQueryable<RegistroAuditoria> IAuditoriaQueryContext.RegistrosAuditoria => RegistrosAuditoria;
+    public DbSet<RegistroAccesoDocumentoSensible> RegistrosAccesoDocumentoSensible => Set<RegistroAccesoDocumentoSensible>();
+    IQueryable<RegistroAccesoDocumentoSensible> IAuditoriaQueryContext.RegistrosAccesoDocumentoSensible => RegistrosAccesoDocumentoSensible;
     public DbSet<Tenant> Tenants => Set<Tenant>();
     IQueryable<Tenant> ITenantsQueryContext.Tenants => Tenants;
     public DbSet<TarifaCliente> TarifasCliente => Set<TarifaCliente>();
@@ -214,6 +217,8 @@ public class CaeManagerDbContext(
     public DbSet<CaeManager.Domain.Soporte.RegistroActividadSoporte> RegistrosActividadSoporte => Set<CaeManager.Domain.Soporte.RegistroActividadSoporte>();
     IQueryable<CaeManager.Domain.Soporte.RegistroActividadSoporte> ITenantsQueryContext.RegistrosActividadSoporte => RegistrosActividadSoporte;
     public DbSet<AceptacionTerminos> AceptacionesTerminos => Set<AceptacionTerminos>();
+    public DbSet<CaeManager.Domain.Cumplimiento.InstruccionTratamientoIaTenantPropietario> InstruccionesTratamientoIaTenantPropietario
+        => Set<CaeManager.Domain.Cumplimiento.InstruccionTratamientoIaTenantPropietario>();
     public DbSet<CaeManager.Domain.VigilanciaNormativa.AvisoRevisionNormativa> AvisosRevisionNormativa => Set<CaeManager.Domain.VigilanciaNormativa.AvisoRevisionNormativa>();
     IQueryable<CaeManager.Domain.VigilanciaNormativa.AvisoRevisionNormativa> CaeManager.Application.VigilanciaNormativa.IVigilanciaNormativaQueryContext.AvisosRevisionNormativa => AvisosRevisionNormativa;
     public DbSet<ReclamacionDocumental> ReclamacionesDocumentales => Set<ReclamacionDocumental>();

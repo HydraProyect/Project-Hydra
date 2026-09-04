@@ -1,0 +1,106 @@
+name: Gobernanza de PR
+
+# WORKFLOW APARTE, no job aparte dentro de ci.yml — decisión deliberada
+# (DEC-66, cierra REC-140 y REC-162 juntos por orden expresa del propietario).
+#
+# El `on:` de GitHub Actions pertenece al WORKFLOW, no al job: un job de
+# gobernanza dentro de ci.yml seguiría heredando el disparador global de ese
+# fichero (`opened`, `synchronize`, `reopened` para pull_request) y no
+# resolvería el defecto de REC-140. Ampliar ESE disparador para que
+# reaccionase a `labeled`/`milestoned` despertaría los 17 jobs de ci.yml ante
+# cada cambio puramente administrativo de metadatos — exactamente la opción
+# que el propietario descartó. Un fichero de workflow separado tiene su
+# propio `on:`, así que revalidarse ante un cambio de milestone o etiqueta no
+# toca ci.yml en absoluto (medido y demostrado en HO-140-01 § 9).
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize # el SHA sobre el que se publica el check cambió
+      - reopened
+      - labeled # REC-140: hoy el check no se reevalúa al añadir Type:/Priority:
+      - unlabeled
+      - milestoned # REC-140: ni al asignar el milestone después de abrir la PR
+      - demilestoned
+
+# Deliberadamente SIN `merge_group` ni `push`: la convención (§ 5 de
+# tecnico/CONVENCION-METADATOS-PR.md) nunca aplicó a esos dos eventos — en
+# `push` el commit ya está fusionado y no hay nada que exigir, y en
+# `merge_group` la referencia temporal no lleva una PR en el payload que
+# resolver. Este workflow no cambia ese alcance, solo el disparador de
+# `pull_request` y la fuente del dato. No es un required status check (sigue
+# fuera de los ocho de la protección de `main`, DEC-42), así que su ausencia
+# en la cola de fusión no la bloquea — igual que antes.
+#
+# Cancela una ejecución anterior de la MISMA PR: un cambio de etiqueta más
+# reciente hace obsoleta la evaluación de un cambio de etiqueta anterior.
+concurrency:
+  group: gobernanza-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  gobernanza-pr:
+    # Nombre sin cambios a propósito: nada en la protección de rama, la cola
+    # de fusión o CONVENCION-METADATOS-PR.md depende de él (medido:
+    # `required_status_checks.contexts` de main y el ruleset de la cola no lo
+    # nombran; no hay otro workflow ni automatismo que lo cite), pero
+    # conservarlo evita que la pestaña de checks de las PR ya abiertas
+    # muestre un check nuevo sin historial en vez de continuar el mismo.
+    name: "Gobernanza — metadatos de PR"
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      pull-requests: read
+    steps:
+      # REC-162, revertido a propósito. El job original en ci.yml leía
+      # milestone y etiquetas de `github.event.pull_request.*` — el payload
+      # del evento. Su comentario (ci.yml, antes de este cambio, ~líneas
+      # 1084-1091) ya había considerado la vía por API y la había descartado,
+      # razonando que leer el payload evitaba pedir el permiso
+      # `pull-requests: read`. Quedó demostrado (REC-162, reproducido a
+      # propósito el 2026-09-03) que ese payload puede representar un estado
+      # ANTERIOR al que termina teniendo la PR: `gh pr create --milestone`
+      # adjunta el milestone en una llamada posterior a la creación, así que
+      # el payload del evento `opened` no lo lleva aunque la PR ya lo tenga
+      # un instante después — y no hay ningún evento de `synchronize`
+      # posterior que reevalúe ese caso.
+      #
+      # DEC-66 revierte esa decisión: el payload del evento sirve solo para
+      # identificar QUÉ PR mirar (su número); el milestone y las etiquetas se
+      # consultan por API, en solo lectura, en el momento de la ejecución —
+      # así el veredicto es siempre sobre el estado vigente, no sobre una
+      # fotografía tomada al abrir la PR.
+      - name: "Exigir milestone y etiquetas Type:/Priority: (estado vigente por API)"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUMERO: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          fallos=0
+
+          datos=$(gh api "repos/${REPO}/pulls/${NUMERO}")
+          MILESTONE=$(echo "$datos" | jq -r '.milestone.title // ""')
+          LABELS_JSON=$(echo "$datos" | jq -c '[.labels[].name]')
+
+          if [ -z "$MILESTONE" ]; then
+            echo "::error::Esta PR no tiene milestone. Convención: tecnico/CONVENCION-METADATOS-PR.md en el repositorio de negocio — toda PR entra en un milestone de 'Hydra — Roadmap'."
+            fallos=1
+          fi
+
+          if ! echo "$LABELS_JSON" | jq -e 'any(startswith("Type: "))' >/dev/null; then
+            echo "::error::Esta PR no lleva ninguna etiqueta 'Type: *'. Convención: tecnico/CONVENCION-METADATOS-PR.md en el repositorio de negocio."
+            fallos=1
+          fi
+
+          if ! echo "$LABELS_JSON" | jq -e 'any(startswith("Priority: "))' >/dev/null; then
+            echo "::error::Esta PR no lleva ninguna etiqueta 'Priority: *'. Convención: tecnico/CONVENCION-METADATOS-PR.md en el repositorio de negocio."
+            fallos=1
+          fi
+
+          if [ "$fallos" -ne 0 ]; then
+            exit 1
+          fi
+          echo "OK — milestone: '$MILESTONE'; etiquetas Type:/Priority: presentes (leído por API, PR #${NUMERO})."

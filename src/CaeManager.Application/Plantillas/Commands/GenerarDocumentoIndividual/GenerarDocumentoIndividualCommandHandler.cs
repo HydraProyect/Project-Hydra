@@ -80,7 +80,10 @@ public class GenerarDocumentoIndividualCommandHandler(
             AmbitoAplicacion.Cliente => await empresasContext.Empresas.AnyAsync(c => c.Id == request.OwnerId, cancellationToken)
                 && await alcanceDatos.ClienteVisibleAsync(request.OwnerId, cancellationToken),
             _ => await empresasContext.Empresas.AnyAsync(e => e.Id == request.OwnerId, cancellationToken)
-                && await alcanceDatos.EmpresaVisibleAsync(request.OwnerId, cancellationToken)
+                // Defensa en profundidad (REC-149): inalcanzable para el rol
+                // Cliente vía AutorizacionEscrituraBehavior; alcance de
+                // gestión como segunda barrera independiente.
+                && await alcanceDatos.EmpresaParaGestionVisibleAsync(request.OwnerId, cancellationToken)
         };
         if (!propietarioVisible)
             return Fallo("Plantilla.PropietarioNoEncontrado", "No encontramos a quién pertenece este documento.");

@@ -13,6 +13,13 @@ namespace CaeManager.Infrastructure.Importacion;
 /// importación CAE (ClosedXmlImportacionParser). Mismo principio que allí:
 /// cada fila es a la vez un Cliente y un Centro con el mismo nombre
 /// (ver Centro.cs).
+///
+/// Invariante «nada se descarta en silencio» (IMPORTACION.md § 3 bis, DCR-12
+/// B; auditada en REC-129): la única fila que este analizador salta sin
+/// registrar nada es la fila de ejemplo que <see cref="GenerarPlantilla"/>
+/// escribe con el marcador <c>EJEMPLO</c> — legítimo y silencioso a
+/// propósito, verificado por test. Cualquier otra fila con datos queda en
+/// <see cref="PlanImportacionDto.Omitidos"/> con su motivo concreto.
 /// </summary>
 public class ClosedXmlPlantillaClientesService(ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext) : IPlantillaClientesService
 {

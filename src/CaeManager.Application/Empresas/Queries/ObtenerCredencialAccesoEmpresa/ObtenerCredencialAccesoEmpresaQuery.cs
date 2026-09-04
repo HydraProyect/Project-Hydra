@@ -17,9 +17,18 @@ public class ObtenerCredencialAccesoEmpresaQueryHandler(
     public async Task<CredencialAccesoEmpresaDto?> Handle(
         ObtenerCredencialAccesoEmpresaQuery request, CancellationToken cancellationToken)
     {
+        // Alcance de GESTIÓN, no de lectura (REC-153): la cartera de lectura de
+        // un usuario de portal (rol Cliente) incluye las contratistas de su
+        // propio Cliente —es lo que ese portal existe para enseñar—, pero la
+        // credencial de acceso a la plataforma externa de esa contratista es un
+        // artefacto interno, no documentación. Con el alcance de lectura
+        // (ObtenerEmpresaIdsVisiblesAsync) como puerta, ese usuario recibía la
+        // contraseña en claro de una Empresa que solo debía poder consultar
+        // como cliente, nunca administrar.
+        //
         // Fuera de la cartera se responde como si no existiera: confirmar que la
         // fila existe ya seria decir algo sobre datos que no corresponden.
-        if (!await alcanceDatos.EmpresaVisibleAsync(request.EmpresaId, cancellationToken))
+        if (!await alcanceDatos.EmpresaParaGestionVisibleAsync(request.EmpresaId, cancellationToken))
             return null;
 
         return await dbContext.CredencialesAccesoEmpresa

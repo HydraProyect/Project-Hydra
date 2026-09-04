@@ -1,3 +1,4 @@
+using CaeManager.Application.Auditoria;
 using CaeManager.Application.Common;
 using System.Reflection;
 using CaeManager.Application.Alertas;
@@ -99,7 +100,9 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IPaqueteDocumentalVisitaService, PaqueteDocumentalVisitaService>();
         services.AddScoped<IEvaluadorExpedienteVisitaService, EvaluadorExpedienteVisitaService>();
         services.AddScoped<IVerificacionIaDocumentoService, VerificacionIaDocumentoService>();
+        services.AddScoped<CaeManager.Application.Cumplimiento.IInstruccionTratamientoIaService, CaeManager.Application.Cumplimiento.InstruccionTratamientoIaService>();
         services.AddScoped<IValidacionDocumentoOficialService, ValidacionDocumentoOficialService>();
+        services.AddScoped<IRegistroAccesoDocumentoSensibleService, RegistroAccesoDocumentoSensibleService>();
 
         // Parsers de documento oficial: lógica pura (regex sobre texto),
         // singletons sin estado; el registry los indexa por perfil.

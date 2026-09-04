@@ -2,6 +2,7 @@ using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Trabajadores;
+using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Retencion;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -27,6 +28,7 @@ namespace CaeManager.Application.Retencion;
 public class EjecucionPurgaService(
     IAsignacionesQueryContext asignacionesContext, IDocumentosQueryContext documentosContext, ITrabajadoresQueryContext trabajadoresContext,
     ISolicitudPurgaRepository solicitudRepositorio,
+    IExtraccionIaCacheRepository extraccionIaCacheRepositorio,
     IFileStorageService almacenamiento,
     ITenantActual tenantActual,
     IUnitOfWork unitOfWork,
@@ -99,6 +101,7 @@ public class EjecucionPurgaService(
         // intacto, con su ArchivoUrl, de modo que sigue siendo localizable y
         // una purga posterior puede volver a intentarlo.
         var anonimizados = 0;
+        var idsAnonimizados = new List<Guid>();
         var noSuprimidos = new List<Guid>();
 
         foreach (var documento in documentos)
@@ -124,7 +127,17 @@ public class EjecucionPurgaService(
 
             documento.Anonimizar(ahora);
             anonimizados++;
+            idsAnonimizados.Add(documento.Id);
         }
+
+        // REC-036/DEC-34: la caché de extracción IA entra en el ciclo de vida
+        // del Documento aquí, no en el borrado lógico reversible — ver el
+        // comentario de ExtraccionIaCacheDocumento. Solo los Documentos que
+        // de verdad se anonimizaron (idsAnonimizados, no "documentos": un
+        // fallo de borrado de archivo deja el Documento intacto y su caché
+        // no debe tocarse).
+        if (idsAnonimizados.Count > 0)
+            await extraccionIaCacheRepositorio.PurgarVinculadosADocumentosAsync(idsAnonimizados, cancellationToken);
 
         if (noSuprimidos.Count > 0)
         {

@@ -33,6 +33,8 @@ public class CorregirRequeridoCatalogoT2MigrationTests : IAsyncLifetime
 
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
 
+    private static readonly Guid IdFilaOtroTenant = Guid.NewGuid();
+
     public async Task InitializeAsync()
     {
         await using var contexto = CrearContexto(TenantNoSemilla);
@@ -42,12 +44,23 @@ public class CorregirRequeridoCatalogoT2MigrationTests : IAsyncLifetime
         // El estado que T1 le habría dejado a un tenant que no es el #1:
         // Requerido correcto (traducción mecánica sí alcanza a todos), pero
         // Naturaleza rebajada a RequisitoCliente pese a ser una obligación
-        // legal verificada.
-        var evr = new TipoDocumento(
-            "EVR (Evaluación de Riesgos Laborales)", null, aplicaVencimientoAutomatico: false, orden: 1,
-            AmbitoAplicacion.Empresa, RequisitoDocumental.Si, NaturalezaJuridica.RequisitoCliente);
-        contexto.TiposDocumento.Add(evr);
-        await contexto.SaveChangesAsync();
+        // legal verificada. SQL directo, no el DbContext actual: el modelo
+        // compilado de TipoDocumento incluye columnas añadidas después de
+        // esta migración (p. ej. Sensibilidad, REC-132) — cualquier INSERT
+        // vía EF fallaría con "column does not exist" contra una base
+        // migrada solo hasta aquí.
+        await contexto.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO "TiposDocumento"
+                ("Id", "TenantId", "Nombre", "VigenciaMeses", "AplicaVencimientoAutomatico", "Orden",
+                 "Notas", "Descripcion", "CriteriosValidacion", "SeSolicitaA", "Observaciones",
+                 "Requerido", "Naturaleza", "AmbitoAplicacion",
+                 "LecturaIaActiva", "DeteccionTrabajadoresActiva", "VerificacionIaActiva", "PerfilDocumentoOficial")
+            VALUES
+                ({IdFilaOtroTenant}, {TenantNoSemilla}, 'EVR (Evaluación de Riesgos Laborales)', NULL, false, 1,
+                 NULL, NULL, NULL, NULL, NULL,
+                 'Si', 'RequisitoCliente', 'Empresa',
+                 true, false, false, 'Ninguno');
+            """);
 
         await migrador.MigrateAsync();
     }

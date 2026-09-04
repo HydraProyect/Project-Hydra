@@ -81,7 +81,10 @@ public class CrearTrabajadorCommandHandler(
         {
             if (!await empresasContext.Empresas.AnyAsync(e => e.Id == empresaId, cancellationToken))
                 return Result.Fallo<Guid>(Error.Crear("Trabajador.EmpresaNoEncontrada", "No encontramos esta empresa."));
-            if (!await alcanceDatos.EmpresaVisibleAsync(empresaId, cancellationToken))
+            // Defensa en profundidad (REC-149): inalcanzable para el rol
+            // Cliente vía AutorizacionEscrituraBehavior; alcance de gestión
+            // como segunda barrera independiente.
+            if (!await alcanceDatos.EmpresaParaGestionVisibleAsync(empresaId, cancellationToken))
                 return Result.Fallo<Guid>(Error.Crear("Trabajador.EmpresaNoEncontrada", "No encontramos esta empresa."));
         }
 

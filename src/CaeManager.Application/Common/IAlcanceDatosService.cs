@@ -51,6 +51,22 @@ public interface IAlcanceDatosService
     Task<IReadOnlyList<Guid>?> ObtenerEmpresaIdsParaGestionAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Guid>?> ObtenerSubcontrataIdsVisiblesAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Las Subcontratas visibles <b>desde el lado de gestión CAE</b> — mismo
+    /// contrato que <see cref="ObtenerEmpresaIdsParaGestionAsync"/>, para el
+    /// mismo motivo: la cartera de Subcontratas también se DERIVA de la de
+    /// Clientes (ver <c>ObtenerSubcontrataIdsVisiblesAsync</c>), así que a un
+    /// contacto de una empresa cliente externa le salen ahí las subcontratas
+    /// de su propio Cliente. Para LEER su documentación eso es correcto; para
+    /// un artefacto interno de gestión —la credencial de acceso a su
+    /// portal, que es la única consulta que hoy usa este método— no lo es
+    /// (REC-159, gemelo de REC-153). No confundir con la vista de
+    /// supervisión (checklist de cumplimiento documental): esa se midió al
+    /// cerrar REC-159 y se queda en el alcance de LECTURA a propósito, por
+    /// ser justo la documentación que el portal existe para enseñar.
+    /// </summary>
+    Task<IReadOnlyList<Guid>?> ObtenerSubcontrataIdsParaGestionAsync(CancellationToken cancellationToken = default);
+
     /// <summary>Trabajadores con al menos una Asignación activa a un Centro visible — usar solo en listados, no en selectores.</summary>
     Task<IReadOnlyList<Guid>?> ObtenerTrabajadorIdsVisiblesAsync(CancellationToken cancellationToken = default);
 

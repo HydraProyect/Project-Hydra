@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Tenants;
+using CaeManager.Domain.Visitas;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Seed;
 using FluentAssertions;
@@ -155,6 +156,47 @@ public class DatosPruebaSeederDeterminismoTests
             verificadores.Should().NotBeEmpty("MEDIDO: la siembra completa produce verificaciones externas");
             verificadores.Should().AllSatisfy(id => id.Should().Be(verificadorEsperado),
                 "MEDIDO: antes de este arreglo era Guid.NewGuid() por tanda — distinto en cada siembra");
+        }
+    }
+
+    /// <summary>
+    /// REC-061: antes de este arreglo, "visita Crítica"/"Urgente"
+    /// (<see cref="CalculadoraUrgenciaVisita"/>) eran posibles pero no
+    /// garantizadas — dependían de que el sorteo de 91 días cayera justo en
+    /// la ventana de 24-48h, y con el seed fijo de producción (20260803) no
+    /// hay ninguna garantía de que eso ocurra. Ahora los dos primeros
+    /// índices del bucle de visitas fijan la fecha por posición (mismo
+    /// criterio que "origen" en el propio seeder), así que el estado se
+    /// puede revisar sin depender de la suerte del sorteo.
+    /// </summary>
+    [Fact]
+    public async Task La_siembra_completa_garantiza_al_menos_una_visita_critica_y_una_urgente()
+    {
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: true);
+        var tenantId = await CrearTenantConCatalogoAsync(arnes, "Tenant Determinismo F");
+        await SembrarAsync(arnes, tenantId);
+
+        using var ambito = arnes.Servicios.CreateScope();
+        var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+
+        using (AmbitoTenantExplicito.Establecer(tenantId))
+        {
+            var fechas = await contexto.Visitas
+                .Select(v => new { v.FechaInicio, v.FechaFin })
+                .ToListAsync();
+
+            var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+            var niveles = fechas
+                .Select(f => CalculadoraUrgenciaVisita.Calcular(
+                    f.FechaInicio, f.FechaFin, hoy,
+                    ParametroSistemaSeedData.HorasAvisoVisita, ParametroSistemaSeedData.HorasCriticasVisita))
+                .ToList();
+
+            niveles.Should().Contain(NivelUrgenciaVisita.Critica,
+                "MEDIDO: la siembra completa tiene que producir al menos una visita en ventana Crítica, " +
+                "para que /visitas y el Inicio (dashboard) tengan ese estado con el que probarse");
+            niveles.Should().Contain(NivelUrgenciaVisita.Urgente,
+                "MEDIDO: la siembra completa tiene que producir al menos una visita en ventana Urgente");
         }
     }
 
