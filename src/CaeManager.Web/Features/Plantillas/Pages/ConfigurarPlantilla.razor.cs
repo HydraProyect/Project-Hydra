@@ -180,6 +180,11 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
 
             var detalle = resultado.Valor;
 
+            // No pasa por IRegistroAccesoDocumentoSensibleService (DEC-36,
+            // HO-099-01 § 6-7): esto es el PDF en blanco de PlantillaDocumento
+            // ("formulario reutilizable a partir del cual se generan
+            // documentos"), que un Administrador configura — no un Documento
+            // relleno de una persona concreta.
             await using var flujo = await AlmacenamientoArchivos.AbrirAsync(detalle.ArchivoOriginalUrl);
             using var memoria = new MemoryStream();
             await flujo.CopyToAsync(memoria);

@@ -1,0 +1,91 @@
+@page "/auditoria/accesos-documentos-sensibles"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = CaeManager.Infrastructure.Identity.Policies.ConsultarAccesoDocumentosSensibles)]
+@inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
+@using CaeManager.Domain.Auditoria
+@using CaeManager.Domain.Documentos
+
+@if (!IntegradaEnConfiguracion)
+{
+    <PageTitle>Accesos a documentos sensibles — @Marca.Nombre</PageTitle>
+}
+
+@* Consulta mínima (HO-099-01 § 8): demuestra que el permiso funciona, sin
+   filtros ni exportación — una pantalla completa es otro incremento si hace
+   falta. *@
+<div class="@ClaseContenedorPagina">
+    <div class="cabecera-pagina">
+        @TituloPaginaIntegrable("Accesos a documentos sensibles")
+    </div>
+
+    @if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No pudimos cargar el rastro" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="CargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando)
+    {
+        <EstadoCargando Filas="6" />
+    }
+    else if (_totalElementos == 0)
+    {
+        <EstadoVacio Titulo="Sin accesos registrados todavía" Descripcion="Aquí aparecerá cada apertura o descarga de un documento sensible." />
+    }
+    else
+    {
+        <table class="tabla-datos">
+            <thead>
+                <tr>
+                    <th>Cuándo</th>
+                    <th>Quién</th>
+                    <th>Documento</th>
+                    <th>Categoría</th>
+                    <th>Tipo de acceso</th>
+                    <th>Contexto</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var acceso in _accesos)
+                {
+                    <tr>
+                        <td>@acceso.OcurridoEnUtc.ToLocalTime()</td>
+                        <td>@NombreDe(acceso.UsuarioId)</td>
+                        <td>@acceso.DocumentoId</td>
+                        <td>
+                            @(acceso.Sensibilidad switch
+                            {
+                                SensibilidadDocumental.CategoriaEspecialSalud => "Salud (categoría especial)",
+                                SensibilidadDocumental.DatosPersonales => "Datos personales",
+                                _ => "Sin datos personales"
+                            })
+                        </td>
+                        <td>
+                            @(acceso.TipoAcceso == TipoAccesoDocumentoSensible.VersionAnterior ? "Versión anterior" : "Apertura")
+                        </td>
+                        <td>
+                            @if (acceso.EsPrivilegiado)
+                            {
+                                <Badge Tono="TonoBadge.Advertencia">Sesión privilegiada</Badge>
+                            }
+                            else if (acceso.ViaAcceso == TipoViaAccesoAuditoria.OperacionDelegada)
+                            {
+                                <Badge Tono="TonoBadge.Neutro">Operación delegada</Badge>
+                            }
+                            else
+                            {
+                                <Badge Tono="TonoBadge.Neutro">Normal</Badge>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <PaginadorSimple PaginaActual="_pagina" TotalPaginas="_totalPaginas" TotalElementos="_totalElementos"
+                          Etiqueta="acceso(s)" PaginaActualChanged="IrAPaginaAsync"
+                          TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
+    }
+</div>

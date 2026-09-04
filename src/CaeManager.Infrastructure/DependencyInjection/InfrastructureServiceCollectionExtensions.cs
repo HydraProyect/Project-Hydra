@@ -4,6 +4,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Deteccion;
 using CaeManager.Application.DocumentosIa.Common;
 using CaeManager.Domain.Asignaciones;
+using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Configuracion;
@@ -356,6 +357,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IPreferenciaDashboardUsuarioRepository, PreferenciaDashboardUsuarioRepository>();
         services.AddScoped<IFiltroGuardadoRepository, FiltroGuardadoRepository>();
         services.AddScoped<IRegistroActividadSoporteRepository, RegistroActividadSoporteRepository>();
+        services.AddScoped<IRegistroAccesoDocumentoSensibleRepository, RegistroAccesoDocumentoSensibleRepository>();
         services.AddScoped<CaeManager.Domain.Retencion.ISolicitudPurgaRepository, SolicitudPurgaRepository>();
         services.AddScoped<CaeManager.Application.Retencion.DeteccionPurgaService>();
         services.AddScoped<CaeManager.Application.Retencion.EjecucionPurgaService>();

@@ -202,6 +202,8 @@ public class CaeManagerDbContext(
     IQueryable<ParametroSistema> IConfiguracionQueryContext.ParametrosSistema => ParametrosSistema;
     public DbSet<RegistroAuditoria> RegistrosAuditoria => Set<RegistroAuditoria>();
     IQueryable<RegistroAuditoria> IAuditoriaQueryContext.RegistrosAuditoria => RegistrosAuditoria;
+    public DbSet<RegistroAccesoDocumentoSensible> RegistrosAccesoDocumentoSensible => Set<RegistroAccesoDocumentoSensible>();
+    IQueryable<RegistroAccesoDocumentoSensible> IAuditoriaQueryContext.RegistrosAccesoDocumentoSensible => RegistrosAccesoDocumentoSensible;
     public DbSet<Tenant> Tenants => Set<Tenant>();
     IQueryable<Tenant> ITenantsQueryContext.Tenants => Tenants;
     public DbSet<TarifaCliente> TarifasCliente => Set<TarifaCliente>();

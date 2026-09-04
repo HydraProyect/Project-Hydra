@@ -77,4 +77,20 @@ public class ApplicationUser : IdentityUser<Guid>
     /// tuvo actividad registrada todavía" (usuario recién creado).
     /// </summary>
     public DateTime? UltimaActividadUtc { get; set; }
+
+    /// <summary>
+    /// DEC-36 (REC-099): «Administrador del Tenant propietario, mediante
+    /// permiso específico; no los gestores ordinarios por defecto». El rol
+    /// Administrador es necesario pero no suficiente para consultar el
+    /// rastro de acceso a documentos sensibles
+    /// (<c>Domain.Auditoria.RegistroAccesoDocumentoSensible</c>) — hace
+    /// falta además este permiso, concedido explícitamente por otro
+    /// Administrador (ver <c>Usuarios.razor.cs</c>). Empieza en <c>false</c>
+    /// para todo usuario nuevo, incluido un Administrador recién creado:
+    /// nadie hereda esta consulta solo por el rol. Viaja como claim de
+    /// sesión (ver <c>TenantClaimsPrincipalFactory</c>), mismo criterio que
+    /// <see cref="DebeCambiarContrasena"/>, para que la política de
+    /// autorización no dependa de una consulta a base en cada petición.
+    /// </summary>
+    public bool PermisoConsultarAccesoDocumentosSensibles { get; set; }
 }

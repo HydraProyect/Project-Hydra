@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    partial class CaeManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260903193339_AgregarRegistroAccesoDocumentoSensible")]
+    partial class AgregarRegistroAccesoDocumentoSensible
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -3713,41 +3716,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId", "Id")
-                        .IsUnique();
-
                     b.HasIndex("TenantId", "HashSha256", "TipoEsperado", "VersionPipeline")
                         .IsUnique();
 
                     b.ToTable("ExtraccionesIaCache", (string)null);
-                });
-
-            modelBuilder.Entity("CaeManager.Domain.DocumentosIa.ExtraccionIaCacheDocumento", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreadaEnUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("DocumentoId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ExtraccionIaCacheId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TenantId", "DocumentoId");
-
-                    b.HasIndex("TenantId", "ExtraccionIaCacheId", "DocumentoId")
-                        .IsUnique();
-
-                    b.ToTable("ExtraccionesIaCacheDocumentos", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.DocumentosIa.TrabajoAnalisisDocumento", b =>
@@ -6862,9 +6834,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<string>("PasswordHash")
                         .HasColumnType("text");
 
-                    b.Property<bool>("PermisoConsultarAccesoDocumentosSensibles")
-                        .HasColumnType("boolean");
-
                     b.Property<string>("PhoneNumber")
                         .HasColumnType("text");
 
@@ -7360,23 +7329,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasOne("CaeManager.Domain.Documentos.Documento", null)
                         .WithMany()
                         .HasForeignKey("DocumentoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("CaeManager.Domain.DocumentosIa.ExtraccionIaCacheDocumento", b =>
-                {
-                    b.HasOne("CaeManager.Domain.Documentos.Documento", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId", "DocumentoId")
-                        .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("CaeManager.Domain.DocumentosIa.ExtraccionIaCache", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId", "ExtraccionIaCacheId")
-                        .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
