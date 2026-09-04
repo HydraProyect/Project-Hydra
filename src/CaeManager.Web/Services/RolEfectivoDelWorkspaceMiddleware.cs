@@ -85,15 +85,36 @@ public class RolEfectivoDelWorkspaceMiddleware(RequestDelegate siguiente)
             // cierra —un claim de rol equivocado colando puertas de
             // [Authorize(Roles = …)]— sería indistinguible desde fuera de
             // una sustitución legítima si ninguna de las dos se registrara.
-            // Mismo nivel que RevalidacionClienteActivoMiddleware, para que
-            // los dos middlewares hermanos se lean en el mismo artefacto.
-            logger.LogWarning(
-                "Rol efectivo del Workspace operativo derivado ajustado en {Ruta}: de {RolDeSesion} a "
-                + "{RolEfectivo} para el tenant {TenantSeleccionado}.",
-                contexto.Request.Path,
-                rolDeSesion ?? "(ninguno)",
-                rolEfectivo ?? "(ninguno)",
-                clienteActivoSeleccionado.TenantIdSeleccionado);
+            //
+            // Nivel distinto según lo que representa, no el mismo para las
+            // dos ramas: operar un workspace delegado con el rol de su
+            // cartera es el camino feliz de cualquier Operador Delegado
+            // activo, en cada petición no estática — avisar ahí con Warning
+            // fabricaría el defecto que REC-162 documentó (un aviso que
+            // siempre suena se aprende a ignorar, y se ignorará el día que
+            // tenga razón). Solo la retirada del rol —la delegación dejó de
+            // valer— es la anomalía real, y es la que comparte nivel con
+            // RevalidacionClienteActivoMiddleware para que los dos se lean
+            // igual en el mismo artefacto cuando algo va mal.
+            if (rolEfectivo is null)
+            {
+                logger.LogWarning(
+                    "Rol efectivo del Workspace operativo derivado retirado en {Ruta}: {RolDeSesion} sin "
+                    + "sustituto para el tenant {TenantSeleccionado}.",
+                    contexto.Request.Path,
+                    rolDeSesion ?? "(ninguno)",
+                    clienteActivoSeleccionado.TenantIdSeleccionado);
+            }
+            else
+            {
+                logger.LogInformation(
+                    "Rol efectivo del Workspace operativo derivado ajustado en {Ruta}: de {RolDeSesion} a "
+                    + "{RolEfectivo} para el tenant {TenantSeleccionado}.",
+                    contexto.Request.Path,
+                    rolDeSesion ?? "(ninguno)",
+                    rolEfectivo,
+                    clienteActivoSeleccionado.TenantIdSeleccionado);
+            }
         }
 
         await siguiente(contexto);

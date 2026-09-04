@@ -181,11 +181,18 @@ public class RolEfectivoDelWorkspaceMiddlewareTests
     }
 
     [Fact]
-    public async Task Sustituir_el_rol_deja_rastro_en_el_log()
+    public async Task Sustituir_el_rol_deja_rastro_en_el_log_como_informativo()
     {
         // REC-189: hasta esta prueba, ninguna sustitución de rol por
         // delegación dejaba rastro. Se comprueba el nivel y el contenido, no
         // solo que "algo" se registrara: un aviso vacío pasaría igual.
+        //
+        // Nivel Information, no Warning: operar un workspace delegado con el
+        // rol de su cartera es el camino feliz de cualquier Operador
+        // Delegado activo, no una anomalía — avisar con Warning en cada
+        // petición fabricaría el ruido que REC-162 documentó (decisión
+        // corregida tras la revisión de REC-189, ver el comentario en
+        // RolEfectivoDelWorkspaceMiddleware).
         var protector = ProtectorDePruebas();
         var token = ClienteActivoSeleccionado.Proteger(
             protector, Usuario, TenantVisitado, asignacionOperacionId: Guid.NewGuid());
@@ -196,14 +203,17 @@ public class RolEfectivoDelWorkspaceMiddlewareTests
         await EjecutarAsync(contexto, protector, new CurrentUserServiceFalso(Roles.Consulta), capturador);
 
         var evento = capturador.Eventos.Should().ContainSingle().Subject;
-        evento.Nivel.Should().Be(LogLevel.Warning);
+        evento.Nivel.Should().Be(LogLevel.Information);
         evento.Mensaje.Should().Contain(Roles.Administrador).And.Contain(Roles.Consulta)
             .And.Contain(TenantVisitado.ToString());
     }
 
     [Fact]
-    public async Task Retirar_el_rol_por_delegacion_revocada_tambien_deja_rastro_en_el_log()
+    public async Task Retirar_el_rol_por_delegacion_revocada_deja_rastro_en_el_log_como_aviso()
     {
+        // A diferencia de la sustitución rutinaria, retirar el rol entero
+        // significa que la delegación ya no vale: es la anomalía real, y
+        // comparte nivel con RevalidacionClienteActivoMiddleware.
         var protector = ProtectorDePruebas();
         var token = ClienteActivoSeleccionado.Proteger(
             protector, Usuario, TenantVisitado, asignacionOperacionId: Guid.NewGuid());
@@ -215,7 +225,8 @@ public class RolEfectivoDelWorkspaceMiddlewareTests
 
         var evento = capturador.Eventos.Should().ContainSingle().Subject;
         evento.Nivel.Should().Be(LogLevel.Warning);
-        evento.Mensaje.Should().Contain(Roles.Administrador).And.Contain("(ninguno)");
+        evento.Mensaje.Should().Contain(Roles.Administrador).And.Contain("sin sustituto")
+            .And.Contain(TenantVisitado.ToString());
     }
 
     [Theory]
