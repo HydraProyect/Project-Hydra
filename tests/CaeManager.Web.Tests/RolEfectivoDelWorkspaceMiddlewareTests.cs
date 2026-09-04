@@ -5,6 +5,8 @@ using CaeManager.Web.Services;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CaeManager.Web.Tests;
 
@@ -178,6 +180,55 @@ public class RolEfectivoDelWorkspaceMiddlewareTests
         contexto.User.IsInRole(Roles.Consulta).Should().BeTrue();
     }
 
+    [Fact]
+    public async Task Sustituir_el_rol_deja_rastro_en_el_log_como_informativo()
+    {
+        // REC-189: hasta esta prueba, ninguna sustitución de rol por
+        // delegación dejaba rastro. Se comprueba el nivel y el contenido, no
+        // solo que "algo" se registrara: un aviso vacío pasaría igual.
+        //
+        // Nivel Information, no Warning: operar un workspace delegado con el
+        // rol de su cartera es el camino feliz de cualquier Operador
+        // Delegado activo, no una anomalía — avisar con Warning en cada
+        // petición fabricaría el ruido que REC-162 documentó (decisión
+        // corregida tras la revisión de REC-189, ver el comentario en
+        // RolEfectivoDelWorkspaceMiddleware).
+        var protector = ProtectorDePruebas();
+        var token = ClienteActivoSeleccionado.Proteger(
+            protector, Usuario, TenantVisitado, asignacionOperacionId: Guid.NewGuid());
+
+        var contexto = ContextoCon(token, rolDeSesion: Roles.Administrador);
+        var capturador = new LoggerCapturador<RolEfectivoDelWorkspaceMiddleware>();
+
+        await EjecutarAsync(contexto, protector, new CurrentUserServiceFalso(Roles.Consulta), capturador);
+
+        var evento = capturador.Eventos.Should().ContainSingle().Subject;
+        evento.Nivel.Should().Be(LogLevel.Information);
+        evento.Mensaje.Should().Contain(Roles.Administrador).And.Contain(Roles.Consulta)
+            .And.Contain(TenantVisitado.ToString());
+    }
+
+    [Fact]
+    public async Task Retirar_el_rol_por_delegacion_revocada_deja_rastro_en_el_log_como_aviso()
+    {
+        // A diferencia de la sustitución rutinaria, retirar el rol entero
+        // significa que la delegación ya no vale: es la anomalía real, y
+        // comparte nivel con RevalidacionClienteActivoMiddleware.
+        var protector = ProtectorDePruebas();
+        var token = ClienteActivoSeleccionado.Proteger(
+            protector, Usuario, TenantVisitado, asignacionOperacionId: Guid.NewGuid());
+
+        var contexto = ContextoCon(token, rolDeSesion: Roles.Administrador);
+        var capturador = new LoggerCapturador<RolEfectivoDelWorkspaceMiddleware>();
+
+        await EjecutarAsync(contexto, protector, new CurrentUserServiceFalso(rolEfectivo: null), capturador);
+
+        var evento = capturador.Eventos.Should().ContainSingle().Subject;
+        evento.Nivel.Should().Be(LogLevel.Warning);
+        evento.Mensaje.Should().Contain(Roles.Administrador).And.Contain("sin sustituto")
+            .And.Contain(TenantVisitado.ToString());
+    }
+
     [Theory]
     [InlineData("/_framework/blazor.web.js")]
     [InlineData("/_content/paquete/estilo.css")]
@@ -224,8 +275,13 @@ public class RolEfectivoDelWorkspaceMiddlewareTests
     private static Task EjecutarAsync(HttpContext contexto, IDataProtectionProvider protector, string? rolEfectivo) =>
         EjecutarAsync(contexto, protector, new CurrentUserServiceFalso(rolEfectivo));
 
+    private static Task EjecutarAsync(
+        HttpContext contexto, IDataProtectionProvider protector, CurrentUserServiceFalso servicio) =>
+        EjecutarAsync(contexto, protector, servicio, NullLogger<RolEfectivoDelWorkspaceMiddleware>.Instance);
+
     private static async Task EjecutarAsync(
-        HttpContext contexto, IDataProtectionProvider protector, CurrentUserServiceFalso servicio)
+        HttpContext contexto, IDataProtectionProvider protector, CurrentUserServiceFalso servicio,
+        ILogger<RolEfectivoDelWorkspaceMiddleware> logger)
     {
         var siguienteFueLlamado = false;
         var middleware = new RolEfectivoDelWorkspaceMiddleware(_ =>
@@ -236,7 +292,7 @@ public class RolEfectivoDelWorkspaceMiddlewareTests
 
         var seleccion = new ClienteActivoSeleccionado(new HttpContextAccessorFijoLocal(contexto), protector);
 
-        await middleware.InvokeAsync(contexto, seleccion, servicio);
+        await middleware.InvokeAsync(contexto, seleccion, servicio, logger);
 
         siguienteFueLlamado.Should().BeTrue("el middleware nunca corta la petición: solo ajusta el principal");
     }
@@ -286,6 +342,31 @@ public class RolEfectivoDelWorkspaceMiddlewareTests
         {
             get => httpContext;
             set => throw new NotSupportedException();
+        }
+    }
+
+    /// <summary>
+    /// Captura nivel y mensaje formateado en vez de solo contar llamadas: un
+    /// aviso que se dispara pero no dice nada útil pasaría igual con un mero
+    /// contador (REC-189).
+    /// </summary>
+    private sealed class LoggerCapturador<T> : ILogger<T>
+    {
+        public List<(LogLevel Nivel, string Mensaje)> Eventos { get; } = [];
+
+        public IDisposable BeginScope<TState>(TState state) where TState : notnull => AmbitoVacio.Instancia;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Eventos.Add((logLevel, formatter(state, exception)));
+
+        private sealed class AmbitoVacio : IDisposable
+        {
+            public static readonly AmbitoVacio Instancia = new();
+            public void Dispose() { }
         }
     }
 }

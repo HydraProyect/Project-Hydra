@@ -299,6 +299,26 @@ public class ProcesadorAnalisisDocumentoHostedService(
 
         while (!stoppingToken.IsCancellationRequested && procesadosEnEsteTick < LoteMaximoPorTenant)
         {
+            // using var, disposal síncrono, a propósito por ahora (REC-183):
+            // ese camino de cierre alcanza el override síncrono de
+            // TenantRlsConnectionInterceptor —no su versión async—, que solo
+            // hace I/O real (RESET ROLE) cuando la sesión privilegiada
+            // seleccionada no es null. Esa propiedad se resuelve leyendo el
+            // contexto HTTP ambiental de la petición en curso (ver
+            // ClienteActivoSeleccionado, en CaeManager.Web.Services), algo
+            // que un HostedService, al no correr dentro de una petición HTTP,
+            // no tiene ni propaga hacia su tarea de fondo — comprobado en
+            // 2026-09-04 sobre el código de producción de este proyecto
+            // (Infrastructure), no en comentarios ni en este texto. No es una
+            // condición que hoy dé la casualidad de ser falsa: es estructural
+            // mientras exista una sola implementación de esa dependencia y
+            // ningún HostedService adopte el patrón de capturar y fluir ese
+            // contexto hacia su tarea. Si alguno llegara a hacerlo, este
+            // ámbito empezaría a pagar ese cierre síncrono sin que nadie lo
+            // hubiera vuelto a medir — y ese día sí haría falta la variante
+            // asíncrona de creación de ámbito, ausente hoy de este proyecto:
+            // introducirla sería una convención nueva, no una corrección
+            // local (REC-183).
             using var ambito = ambitoFactory.CreateScope();
             using var _ = AmbitoTenantExplicito.Establecer(tenantId);
 

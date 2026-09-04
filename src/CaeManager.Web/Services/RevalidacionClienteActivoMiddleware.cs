@@ -213,9 +213,37 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
 public static class RevalidacionClienteActivoMiddlewareExtensions
 {
     /// <summary>
-    /// Debe ir después de <c>UseAuthentication</c> — sin usuario resuelto no
-    /// se puede comprobar de quién es el token — y antes de que nada resuelva
-    /// el tenant, es decir antes de los endpoints y de los componentes.
+    /// Debe ir después de <c>UseAuthentication</c> —sin usuario resuelto no se
+    /// puede comprobar de quién es el token— y antes de los endpoints y de
+    /// los componentes. <b>No es cierto que vaya antes de que nada resuelva
+    /// el tenant</b>: <c>UseRolEfectivoDelWorkspace</c> ya lo resolvió antes,
+    /// y entre los dos hay <b>cuatro capas que pueden cortar la petición sin
+    /// pasar por aquí</b> — <c>UseCuentaAMedioActivarSinAcceso</c>,
+    /// <c>UseRateLimiter</c>, <c>UseAuthorization</c> y
+    /// <c>UseAntiforgery</c> (ver <c>Program.cs</c>). Una petición que corte
+    /// ahí no revalida, no borra la cookie y no emite ninguno de los dos
+    /// avisos de este middleware (REC-189).
+    ///
+    /// <para>
+    /// Eso <b>no</b> es un agujero de autorización: el fallo cerrado real —
+    /// retirar el rol cuando la delegación ya no vale— lo impone
+    /// <c>RolEfectivoDelWorkspaceMiddleware</c> en cada petición,
+    /// independientemente de si este middleware llega a correr (ver
+    /// <c>CurrentUserService.ObtenerRolActualAsync</c>, que resuelve por las
+    /// mismas tres vías que <see cref="RevalidacionClienteActivoMiddleware.SigueAutorizadoAsync"/>
+    /// contra la misma base viva, no contra el token). Las dos consultas NO
+    /// son idénticas condición por condición —la vía de asignación de
+    /// operación en <c>ObtenerRolActualAsync</c> no comprueba
+    /// <c>operacion.VigenciaDesde</c>, y esta sí (REC-189, hallazgo
+    /// secundario sin corregir aquí: está en <c>CurrentUserService</c>, fuera
+    /// del alcance de este cambio)—, pero ninguna discrepancia entre las dos
+    /// hace que <b>saltarse este middleware conceda algo que
+    /// <c>RolEfectivoDelWorkspaceMiddleware</c> ya no hubiera concedido antes</b>,
+    /// que es lo único que importa para que las cuatro capas intermedias no
+    /// sean un agujero de autorización. Lo que se pierde en el hueco es
+    /// diagnóstico y limpieza de cookie, no la comprobación que decide el
+    /// acceso.
+    /// </para>
     /// </summary>
     public static IApplicationBuilder UseRevalidacionClienteActivo(this IApplicationBuilder app) =>
         app.UseMiddleware<RevalidacionClienteActivoMiddleware>();
