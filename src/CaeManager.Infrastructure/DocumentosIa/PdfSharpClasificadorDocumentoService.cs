@@ -25,6 +25,28 @@ public class PdfSharpClasificadorDocumentoService(
     private static readonly string[] ExtensionesImagen = [".jpg", ".jpeg", ".png", ".tif", ".tiff", ".heic", ".bmp", ".gif"];
     private static readonly HashSet<string> OperadoresDeTexto = new(StringComparer.Ordinal) { "Tj", "TJ", "'", "\"" };
 
+    /// <summary>
+    /// REC-186: este método es el primer paso de DocumentAIRouterService
+    /// (ClasificarAsync se llama antes que cualquier comprobación de
+    /// tamaño — MaximoPaginasEscaneadasPorDocumento actúa mucho después,
+    /// sobre páginas ya clasificadas), y el contenido llega sin filtrar
+    /// desde una subida de portal, un adjunto de WhatsApp o un adjunto de
+    /// correo entrante (DetectarCamposDocumentoQuery,
+    /// DetectarActualizacionDocumentoDesdeAdjuntoQuery, los dos
+    /// IngestaWebhook*HostedService). Sin este tope, PdfReader.Open pagaba
+    /// el coste de parsear el árbol de páginas completo (217-380 ms sobre
+    /// 20 000 páginas, medido REC-176/REC-186 — los cuatro
+    /// PdfDocumentOpenMode públicos miden igual) sobre un PDF que nadie
+    /// había mirado todavía. Mismo orden de magnitud que
+    /// MaximoPaginasCombinadas de ConversorArchivosPdf (REC-176): generoso
+    /// para un documento real, no una cota medida contra un punto de
+    /// ruptura de PdfSharp. Lo que SIGUE sin proteger: documentos cifrados
+    /// o con xref comprimida (PDF 1.5+), donde
+    /// LectorRecuentoPaginasPdfSinAbrir se abstiene y el único freno vuelve
+    /// a ser MaximoPaginasEscaneadasPorDocumento, río abajo.
+    /// </summary>
+    private const int MaximoPaginasDocumento = 2000;
+
     public Task<Result<ClasificacionDocumentoDto>> ClasificarAsync(
         byte[] contenido, string nombreArchivo, CancellationToken cancellationToken = default)
     {
@@ -32,6 +54,26 @@ public class PdfSharpClasificadorDocumentoService(
         {
             return Task.FromResult(Result.Exito(
                 new ClasificacionDocumentoDto(TipoContenidoDocumento.Imagen, TotalPaginas: 1, PaginasConTextoDigital: [false])));
+        }
+
+        // ANTES de abrir con PdfReader (que parsea el árbol de páginas
+        // completo — ver el doc-comment de MaximoPaginasDocumento): para la
+        // forma "clásica" de PDF esto ya sabe si el documento se pasaría de
+        // tope sin pagar ese coste. Si no puede determinarlo (cifrado, xref
+        // comprimida...) devuelve null y no cambia nada: el try/catch de
+        // más abajo, sobre PdfReader.Open, sigue intacto como red de
+        // seguridad — la decisión de aceptar o rechazar nunca cambia por
+        // esta comprobación, solo CUÁNDO se paga el coste de parsear.
+        if (LectorRecuentoPaginasPdfSinAbrir.IntentarLeerRecuentoDePaginasSinAbrir(contenido) is { } paginasDeclaradas &&
+            paginasDeclaradas > MaximoPaginasDocumento)
+        {
+            logger.LogWarning(
+                "Documento rechazado antes de abrir: declara {PaginasDeclaradas} páginas, por encima del máximo de {MaximoPaginas} (hash {HashContenido}).",
+                paginasDeclaradas, MaximoPaginasDocumento, CalcularHash(contenido));
+
+            return Task.FromResult(Result.Fallo<ClasificacionDocumentoDto>(Error.Crear(
+                "ClasificacionDocumento.DemasiadasPaginas",
+                $"Este archivo declara más de {MaximoPaginasDocumento} páginas y no se puede procesar.")));
         }
 
         try

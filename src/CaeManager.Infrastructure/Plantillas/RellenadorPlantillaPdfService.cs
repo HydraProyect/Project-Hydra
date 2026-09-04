@@ -56,13 +56,39 @@ public class RellenadorPlantillaPdfService : IRellenadorPlantillaPdfService
     private static readonly HashSet<string> ValoresNegativosCheckbox =
         new(StringComparer.OrdinalIgnoreCase) { "false", "0", "no", "off" };
 
-    public ResultadoRellenoPlantilla Rellenar(byte[] pdfOriginal, FormatoOrigenPlantilla formato, IReadOnlyList<ElementoRellenoPlantilla> elementos) =>
-        formato switch
+    /// <summary>
+    /// REC-186: pdfOriginal es <c>version.ArchivoOriginalUrl</c> —el mismo
+    /// PDF de plantilla subido en ConfigurarPlantilla.razor.cs, ver el
+    /// doc-comment gemelo en ExtractorCamposAcroFormService. Este es el
+    /// sitio MÁS caro de los ocho de REC-186 (ambos motores abren en
+    /// <see cref="PdfDocumentOpenMode.Modify"/>, 711-754 ms sobre 20 000
+    /// páginas frente a 335-380 ms de Import, medido) y el único con dos
+    /// llamadas a <c>PdfReader.Open</c> tras el mismo método público — se
+    /// comprueba UNA vez aquí, antes del switch, para cubrir los dos
+    /// motores con una sola guarda.
+    /// </summary>
+    private const int MaximoPaginasDocumento = 2000;
+
+    public ResultadoRellenoPlantilla Rellenar(byte[] pdfOriginal, FormatoOrigenPlantilla formato, IReadOnlyList<ElementoRellenoPlantilla> elementos)
+    {
+        // ANTES de abrir con PdfReader (los dos motores, más abajo) — ver el
+        // doc-comment de MaximoPaginasDocumento. Abstención (null) no cambia
+        // nada: cada PdfReader.Open sigue siendo la red de seguridad para lo
+        // que este pre-escaneo no cubre.
+        if (LectorRecuentoPaginasPdfSinAbrir.IntentarLeerRecuentoDePaginasSinAbrir(pdfOriginal) is { } paginasDeclaradas &&
+            paginasDeclaradas > MaximoPaginasDocumento)
+        {
+            throw new InvalidDataException(
+                $"El PDF de la plantilla declara más de {MaximoPaginasDocumento} páginas y no se puede procesar.");
+        }
+
+        return formato switch
         {
             FormatoOrigenPlantilla.PdfConCampos => RellenarAcroForm(pdfOriginal, elementos),
             FormatoOrigenPlantilla.PdfVisual => RellenarPorPosicion(pdfOriginal, elementos),
             _ => throw new NotSupportedException($"IRellenadorPlantillaPdfService no soporta el formato {formato}.")
         };
+    }
 
     private static ResultadoRellenoPlantilla RellenarAcroForm(byte[] pdfOriginal, IReadOnlyList<ElementoRellenoPlantilla> elementos)
     {

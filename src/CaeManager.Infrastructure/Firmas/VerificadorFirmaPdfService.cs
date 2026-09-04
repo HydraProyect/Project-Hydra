@@ -59,9 +59,39 @@ public class VerificadorFirmaPdfService(
     private static readonly Regex PatronCifEntidad = new(
         @"^(VATES-)?([A-HJNP-SUVW]\d{7}[0-9A-J])$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    /// <summary>
+    /// REC-186: contenidoPdf viene de ValidacionDocumentoOficialService
+    /// sobre Documento.ArchivoUrl — un PDF que un tenant subió o renovó
+    /// (CrearDocumentoCommand, RenovarDocumentoCommand), nunca contenido
+    /// generado internamente por TALVEG. LocalizarFirmas abre con
+    /// PdfReader.Open en modo Import antes de que este método pueda
+    /// rechazar nada por otra vía. Mismo umbral reutilizado que los demás
+    /// sitios de este incremento (ver PdfSharpClasificadorDocumentoService).
+    /// </summary>
+    private const int MaximoPaginasDocumento = 2000;
+
     public Task<Result<ResultadoVerificacionFirmasPdf>> VerificarAsync(
         byte[] contenidoPdf, CancellationToken cancellationToken = default)
     {
+        // ANTES de LocalizarFirmas (que abre con PdfReader.Open) — ver el
+        // doc-comment de MaximoPaginasDocumento. Se comprueba fuera del
+        // try/catch de más abajo a propósito: así el Result.Fallo que
+        // produce lleva un código distinto ("DemasiadasPaginas") del que
+        // produce ese catch genérico ("ArchivoInvalido"), y esa diferencia
+        // de código es la prueba de que el rechazo ocurrió aquí y no tras
+        // un PdfReaderException capturado.
+        if (LectorRecuentoPaginasPdfSinAbrir.IntentarLeerRecuentoDePaginasSinAbrir(contenidoPdf) is { } paginasDeclaradas &&
+            paginasDeclaradas > MaximoPaginasDocumento)
+        {
+            logger.LogWarning(
+                "PDF rechazado antes de abrir para verificar firmas: declara {PaginasDeclaradas} páginas, por encima del máximo de {MaximoPaginas} ({Bytes} bytes).",
+                paginasDeclaradas, MaximoPaginasDocumento, contenidoPdf.Length);
+
+            return Task.FromResult(Result.Fallo<ResultadoVerificacionFirmasPdf>(Error.Crear(
+                "VerificadorFirmaPdf.DemasiadasPaginas",
+                $"Este archivo declara más de {MaximoPaginasDocumento} páginas y no se puede procesar.")));
+        }
+
         List<FirmaLocalizada> localizadas;
         try
         {

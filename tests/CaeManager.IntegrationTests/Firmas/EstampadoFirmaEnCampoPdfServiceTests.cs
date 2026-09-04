@@ -82,4 +82,32 @@ public class EstampadoFirmaEnCampoPdfServiceTests
 
         accion.Should().NotThrow();
     }
+
+    /// <summary>
+    /// REC-186: mismo patrón "bombaIlegible" que REC-176
+    /// (ConversorArchivosPdfTests). Estampar abre en
+    /// <see cref="PdfDocumentOpenMode.Modify"/> — el modo más caro de los
+    /// cuatro (711-754 ms sobre 20 000 páginas, medido) — así que este es
+    /// uno de los dos sitios más caros de los ocho de REC-186. Medido en
+    /// REC-176: PdfReader.Open sobre estos bytes exactos lanza
+    /// PdfReaderException en los cuatro PdfDocumentOpenMode públicos; ver
+    /// InvalidDataException con el mensaje del tope prueba que el rechazo
+    /// ocurrió ANTES de invocar PdfReader.Open.
+    /// </summary>
+    [Fact]
+    public void Estampar_rechaza_antes_de_abrir_un_pdf_que_declara_demasiadas_paginas()
+    {
+        var servicio = new EstampadoFirmaEnCampoPdfService();
+        var bombaIlegible = System.Text.Encoding.Latin1.GetBytes(
+            "%PDF-1.4\n" +
+            "1 0 obj\n<</Type/Catalog/Pages 2 0 R>>\nendobj\n" +
+            "2 0 obj\n<</Type/Pages/Count 999999/Kids[]>>\nendobj\n" +
+            "AQUI NO HAY TABLA XREF VALIDA, SOLO BASURA DELIBERADA\n" +
+            "trailer\n<</Root 1 0 R/Size 3>>\n" +
+            "startxref\n0\n%%EOF");
+
+        var accion = () => servicio.Estampar(bombaIlegible, TrazoPngDePrueba, null, "Juan Pérez", "GestorCae", DateTime.UtcNow, null);
+
+        accion.Should().Throw<InvalidDataException>().WithMessage("*2000*");
+    }
 }

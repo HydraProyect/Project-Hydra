@@ -178,6 +178,28 @@ public class VerificadorFirmaPdfServiceTests
         firma.TieneSelloDeTiempo.Should().BeFalse();
     }
 
+    // ── REC-186: el código "DemasiadasPaginas" (no "ArchivoInvalido") es la
+    // prueba de que el rechazo ocurre ANTES de LocalizarFirmas/PdfReader.Open,
+    // no como efecto colateral de un PdfReaderException capturado — misma
+    // trampa que REC-176 (ver ConversorArchivosPdfTests). ──────────────────
+
+    [Fact]
+    public async Task Rechaza_antes_de_abrir_un_pdf_que_declara_demasiadas_paginas()
+    {
+        var bombaIlegible = System.Text.Encoding.Latin1.GetBytes(
+            "%PDF-1.4\n" +
+            "1 0 obj\n<</Type/Catalog/Pages 2 0 R>>\nendobj\n" +
+            "2 0 obj\n<</Type/Pages/Count 999999/Kids[]>>\nendobj\n" +
+            "AQUI NO HAY TABLA XREF VALIDA, SOLO BASURA DELIBERADA\n" +
+            "trailer\n<</Root 1 0 R/Size 3>>\n" +
+            "startxref\n0\n%%EOF");
+
+        var resultado = await CrearServicio(new X509Certificate2Collection()).VerificarAsync(bombaIlegible);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("VerificadorFirmaPdf.DemasiadasPaginas");
+    }
+
     private static VerificadorFirmaPdfService CrearServicio(X509Certificate2Collection raices) =>
         new(new AlmacenConfianzaFirmas(raices), NullLogger<VerificadorFirmaPdfService>.Instance);
 
