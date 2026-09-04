@@ -155,9 +155,29 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// RLS (HO-099-01 § 9): un tenant distinto no ve las filas del primero,
-    /// aunque conozca el TenantId no se puede leer sin AmbitoTenantExplicito.
-    /// Segunda línea de defensa además del filtro global de EF.
+    /// RLS (HO-099-01 § 9): un tenant distinto no ve las filas del primero.
+    ///
+    /// <para>
+    /// <b>Se lee con <c>cae_app_runtime</c>, no con el DbContext del test, y
+    /// esa es la mitad que da valor a la prueba.</b> Hasta HO-099-02 este test
+    /// consultaba <c>_dbContext</c> cambiando <c>_tenantActual.TenantId</c>, y
+    /// esa conexión autentica como <c>postgres</c>, que es <b>superusuario</b>:
+    /// PostgreSQL no aplica RLS a un superusuario, y ahí <c>FORCE</c> no
+    /// cambia nada. Que además sea propietario de la tabla es incidental —
+    /// <c>FORCE</c> existe precisamente para someter al propietario, así que
+    /// no es la propiedad lo que exime, es la superusuaría. Lo que el test
+    /// medía entonces era el filtro global de EF Core, es decir la primera
+    /// línea de defensa, mientras su nombre prometía la segunda. Medido por
+    /// mutación: retirando por completo la política <c>aislamiento_tenant</c>
+    /// de la migración, el test seguía en verde. Con la lectura de abajo, no.
+    /// </para>
+    ///
+    /// <para>
+    /// El control positivo va primero y es imprescindible: un cero leído desde
+    /// otro tenant solo demuestra aislamiento si la misma consulta, con el
+    /// tenant correcto y el mismo rol, devuelve la fila. Sin él, un registro
+    /// que nunca llegó a escribirse daría exactamente el mismo verde.
+    /// </para>
     /// </summary>
     [Fact]
     public async Task Rls_impide_leer_filas_de_otro_tenant()
@@ -170,18 +190,37 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
         var servicio = CrearServicio(ActorAuditoria.Normal(Guid.NewGuid()));
         await servicio.RegistrarSiSensibleAsync(documento.Id, TipoAccesoDocumentoSensible.Apertura);
 
-        _tenantActual.TenantId = Guid.NewGuid();
-        try
-        {
-            var visibleDesdeOtroTenant = await _dbContext.RegistrosAccesoDocumentoSensible
-                .AnyAsync(r => r.DocumentoId == documento.Id);
+        await using var conexionRuntime = new NpgsqlConnection(BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaConexion));
+        await conexionRuntime.OpenAsync();
 
-            visibleDesdeOtroTenant.Should().BeFalse();
-        }
-        finally
-        {
-            _tenantActual.TenantId = TenantSeedData.IdPorDefecto;
-        }
+        var vistasDesdeSuTenant = await ContarConTenantFijadoAsync(conexionRuntime, TenantSeedData.IdPorDefecto, documento.Id);
+        vistasDesdeSuTenant.Should().BeGreaterThan(0,
+            "control positivo: sin esto, el cero de abajo podría deberse a que la fila nunca se escribió");
+
+        var vistasDesdeOtroTenant = await ContarConTenantFijadoAsync(conexionRuntime, Guid.NewGuid(), documento.Id);
+        vistasDesdeOtroTenant.Should().Be(0,
+            "la política aislamiento_tenant filtra por app.tenant_id, así que otro tenant no ve el rastro " +
+            "aunque conozca el DocumentoId y consulte por SQL crudo, fuera del alcance del filtro de EF");
+    }
+
+    /// <summary>
+    /// Fija <c>app.tenant_id</c> en la sesión —la coordenada de la que se
+    /// alimenta la política— y cuenta las filas del rastro para un documento.
+    /// Por SQL crudo a propósito: el objeto de la prueba es lo que hace la
+    /// base, no lo que hace EF.
+    /// </summary>
+    private static async Task<long> ContarConTenantFijadoAsync(NpgsqlConnection conexion, Guid tenantId, Guid documentoId)
+    {
+        await using var comandoTenant = conexion.CreateCommand();
+        comandoTenant.CommandText = "SELECT set_config('app.tenant_id', $1, false);";
+        comandoTenant.Parameters.AddWithValue(tenantId.ToString());
+        await comandoTenant.ExecuteNonQueryAsync();
+
+        await using var comandoConteo = conexion.CreateCommand();
+        comandoConteo.CommandText = """SELECT COUNT(*) FROM "RegistrosAccesoDocumentoSensible" WHERE "DocumentoId" = $1;""";
+        comandoConteo.Parameters.AddWithValue(documentoId);
+
+        return (long)(await comandoConteo.ExecuteScalarAsync())!;
     }
 
     /// <summary>
@@ -262,6 +301,38 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
         var guardar = () => repositorio.GuardarAsync(registro);
 
         (await guardar.Should().NotThrowAsync()).Which.Should().BeFalse();
+
+        // Y que el rechazo sea POR PRIVILEGIO, no por RLS. Importa porque
+        // 42501 es el mismo SQLSTATE para «permission denied for table» y para
+        // «new row violates row-level security policy», y el repositorio
+        // captura por código sin distinguirlos: este contexto no registra
+        // TenantSelladoInterceptor ni TenantRlsConnectionInterceptor, así que
+        // la fila va con TenantId vacío y app.tenant_id sin fijar, y el WITH
+        // CHECK de aislamiento_tenant la rechazaría igual. Sin esta
+        // comprobación, conceder INSERT a cae_app_soporte —la regresión que
+        // este test vigila— dejaría el verde intacto.
+        //
+        // Se pregunta al catálogo y no al texto del error a propósito: los
+        // mensajes de PostgreSQL dependen de lc_messages y una aserción sobre
+        // ellos se rompería en cualquier servidor que no hable inglés.
+        await using var conexionPropietaria = new NpgsqlConnection(_cadenaConexion);
+        await conexionPropietaria.OpenAsync();
+        await using var comandoPrivilegios = conexionPropietaria.CreateCommand();
+        comandoPrivilegios.CommandText = """
+            SELECT has_table_privilege('cae_app_soporte', '"RegistrosAccesoDocumentoSensible"', 'INSERT'),
+                   has_table_privilege('cae_app_soporte', '"RegistrosAccesoDocumentoSensible"', 'SELECT');
+            """;
+
+        await using var lector = await comandoPrivilegios.ExecuteReaderAsync();
+        (await lector.ReadAsync()).Should().BeTrue();
+
+        lector.GetBoolean(0).Should().BeFalse(
+            "cae_app_soporte no tiene INSERT sobre esta tabla, y por eso el guardado falla antes de que RLS " +
+            "llegue a evaluarse: la comprobación de ACL ocurre al arrancar el ejecutor");
+
+        lector.GetBoolean(1).Should().BeTrue(
+            "control positivo: la inspección de soporte SÍ lee (RolSoporteSoloLectura). Sin esto, un rol sin " +
+            "ningún privilegio —o inexistente— daría exactamente el mismo verde que uno de solo lectura");
     }
 
     /// <summary>
@@ -280,9 +351,18 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
 
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            // El ORDEN importa y es el mismo que en producción (ver
+            // ConfiguracionDeContexto): auditoría primero, sellado después.
+            // Al revés —como estaba hasta HO-099-02— las filas que añade
+            // AuditoriaInterceptor nacen sin TenantId, porque sellarlas es
+            // exclusivo de TenantSelladoInterceptor, y el filtro global las
+            // esconde para siempre. Este test contaba entonces un cero que no
+            // significaba "no se escribió" sino "no se ve", y habría seguido
+            // en verde con la exclusión de AuditoriaInterceptor retirada —
+            // es decir, ciego a la única mutación que existe para detectar.
             .AddInterceptors(
-                new TenantSelladoInterceptor(_tenantActual),
-                new CaeManager.Infrastructure.Auditing.AuditoriaInterceptor(new ActorAuditoriaFalso(ActorAuditoria.Normal(Guid.NewGuid()))))
+                new CaeManager.Infrastructure.Auditing.AuditoriaInterceptor(new ActorAuditoriaFalso(ActorAuditoria.Normal(Guid.NewGuid()))),
+                new TenantSelladoInterceptor(_tenantActual))
             .Options;
 
         await using var dbContextConAuditoria = new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), _tenantActual);
@@ -294,10 +374,27 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
 
         (await repositorio.GuardarAsync(registro)).Should().BeTrue();
 
+        // Control positivo del instrumento, y no es opcional: una entidad que
+        // SÍ se audita, guardada por el mismo contexto y contada por la misma
+        // consulta. Sin él, el cero de abajo sale igual de "excluida
+        // correctamente" que de "escrita sin TenantId y escondida", y esas dos
+        // cosas no se parecen en nada.
+        dbContextConAuditoria.Empresas.Add(new Empresa("Auditada S.L."));
+        await dbContextConAuditoria.SaveChangesAsync();
+
+        var filasDeUnaEntidadAuditada = await _dbContext.RegistrosAuditoria
+            .CountAsync(r => r.EntidadTipo == nameof(Empresa));
+
+        filasDeUnaEntidadAuditada.Should().BeGreaterThan(0,
+            "si ni siquiera una entidad auditada normal se ve por esta consulta, el cero de la aserción " +
+            "siguiente no demuestra que el rastro esté excluido: demuestra que no estamos mirando");
+
         var filasEnAuditoriaGeneral = await _dbContext.RegistrosAuditoria
             .CountAsync(r => r.EntidadTipo == nameof(RegistroAccesoDocumentoSensible));
 
-        filasEnAuditoriaGeneral.Should().Be(0);
+        filasEnAuditoriaGeneral.Should().Be(0,
+            "el rastro de acceso sensible no puede filtrarse a la auditoría general, que ve cualquier " +
+            "Administrador sin el permiso específico que DEC-36 exige para consultarlo");
     }
 }
 

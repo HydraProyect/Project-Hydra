@@ -18,7 +18,29 @@ namespace CaeManager.Domain.Auditoria;
 /// un rastro que se puede editar o eliminar por vía ordinaria no es un
 /// rastro (DEC-36, «no permitir modificación ni borrado ordinario»). RLS
 /// obligatoria en la migración que crea la tabla (ver
-/// <c>HabilitarRlsRegistrosAccesoDocumentoSensible</c>).
+/// <c>HabilitarRlsRegistrosAccesoDocumentoSensible</c>), que además revoca
+/// UPDATE y DELETE sobre esta tabla a <c>cae_app_runtime</c>.
+/// </para>
+///
+/// <para>
+/// <b>Sin plazo de retención propio todavía, y no por olvido.</b> DEC-36
+/// obliga a que exista —«la conservación del log debe definirse aparte y
+/// someterse también a minimización/retención»— pero no fija ninguno, y el
+/// de <c>RetencionDatosOptions.AniosRetencionDocumentos</c> (cinco años, por
+/// la prescripción de responsabilidades en el orden social) justifica el
+/// plazo del Documento, no el de un rastro de accountability sobre quién lo
+/// abrió. Leído el mecanismo que REC-084 dejó en <c>main</c>
+/// (<c>DeteccionPurgaService</c>/<c>EjecucionPurgaService</c>), añadir aquí
+/// una tercera categoría de <c>TipoDatoPurgable</c> no bastaría: ese barrido
+/// escribe por <c>IUnitOfWork</c> sobre el contexto de tráfico, a cuya
+/// identidad esta tabla revoca UPDATE y DELETE, así que la purga fallaría con
+/// <c>42501</c> antes de tocar nada. Es una inferencia sobre código leído, no
+/// una ejecución observada: no existe test que lo demuestre, porque no existe
+/// el barrido que lo intentaría.
+/// Conciliar retención y append-only exige decidir tanto el plazo como la
+/// identidad que puede ejecutarla — las dos son decisiones del propietario,
+/// elevadas por HO-099-02 y no tomadas aquí. Mientras tanto rige DEC-35:
+/// sin política aprobada no se destruye nada.
 /// </para>
 ///
 /// <para>
