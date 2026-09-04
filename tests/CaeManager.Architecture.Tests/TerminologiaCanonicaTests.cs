@@ -1,5 +1,7 @@
 using System.Text.RegularExpressions;
 using FluentAssertions;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 
 namespace CaeManager.Architecture.Tests;
 
@@ -16,51 +18,77 @@ namespace CaeManager.Architecture.Tests;
 /// nunca tuvo PR y no llegó a <c>main</c> — la deuda siguió creciendo esos días sin
 /// ningún instrumento que lo notara. El detalle completo de esa historia, con sus
 /// cifras concretas, está en el registro de la Oficina de Reconciliación (REC-171) y
-/// no se repite aquí: esta versión recalibra la línea base contra el árbol real en
-/// lugar de rescatar los números de aquella rama, precisamente porque llevaban días
-/// envejeciendo y ya discrepaban entre sí en el propio fichero original — el mismo
-/// defecto de fondo por el que la Oficina degradó REC-155 a P3, un comentario con
-/// cifras muertas conviviendo con un mecanismo que sí mide. Regla de este fichero en
-/// adelante: <b>ninguna cifra viaja en la prosa si no está también verificada por el
-/// mecanismo de abajo para el commit actual</b> — evita reproducir aquí, aunque sea a
-/// título histórico, números que ya no se pueden volver a medir.
+/// no se repite aquí. Regla de este fichero en adelante: <b>ninguna cifra viaja en la
+/// prosa si no está también verificada por el mecanismo de abajo para el commit
+/// actual</b>.
 /// </para>
 ///
 /// <para>
 /// <b>Igualdad exacta, no un techo.</b> Mismo criterio que
 /// <see cref="UsosDeEsPlataformaCongeladosTests"/>: si el número baja, este test se pone
-/// rojo y obliga a actualizarlo en el mismo commit que lo bajó. Un <c>&lt;=</c> dejaría
-/// el inventario mintiendo hacia abajo, y el objetivo es que la cifra de aquí sea
-/// citable sin volver a medirla — hasta que alguien la vuelva a bajar.
+/// rojo y obliga a actualizarlo en el mismo commit que lo bajó.
 /// </para>
 ///
 /// <para>
-/// <b>Qué cuenta cada patrón, y por qué.</b> Se cuenta con <see cref="Regex.Matches(string)"/>
-/// (no overlapping) sobre el texto completo del fichero — <b>incluye comentarios y
-/// cadenas</b>, deliberadamente: editar un <c>&lt;summary&gt;</c> que menciona el término
-/// legacy es coste real y filtrar comentarios exigiría un parser que, al equivocarse,
-/// fallaría hacia verde y en silencio (mismo razonamiento que
-/// <see cref="UsosDeEsPlataformaCongeladosTests"/>). <c>EjecutivoUsuarioId</c> y
+/// <b>Segunda versión del instrumento (REC-178, DEC-65, 2026-09-04).</b> La primera
+/// versión contaba con <see cref="Regex.Matches(string)"/> sobre el texto completo del
+/// fichero — comentarios, doc-comments y literales de cadena incluidos — y eso produjo
+/// dos falsos positivos reales el mismo día: la PR #458 subía porque su propio
+/// doc-comment citaba <c>DelegacionTenant</c> como precedente de diseño y nombraba
+/// <c>Hydra</c> al enumerar tratamientos cubiertos; la PR #448 subía por una línea de
+/// comentario dentro de <c>RevalidacionClienteActivoMiddleware.cs</c> — un fichero cuyo
+/// propio nombre ya es la deuda. Las dos arreglaban o documentaban bien el problema y
+/// las castigaba el instrumento por ello. El § 5 del contrato dice medir
+/// <b>«identificador en código»</b>; un observador que no distingue código de comentario
+/// no mide esa propiedad. DEC-65 decidió corregir el observador, no sus entradas: **no
+/// se reescribe ningún comentario** para esquivar el patrón, y las cifras congeladas
+/// **bajan** cuando el instrumento nuevo mide menos, nunca suben.
+/// </para>
+///
+/// <para>
+/// <b>Qué cuenta cada patrón, y por qué.</b> <c>EjecutivoUsuarioId</c> y
 /// <c>Delegacion</c>/<c>ClienteActivo</c> son subcadena, no <c>\bpalabra\w*</c>: una
 /// frontera de palabra por delante dejaría fuera tipos con prefijo como
-/// <c>IDelegacionesQueryContext</c>, que es la misma deuda de ADR-004 (así lo destapó la
-/// versión original de este test, cuando discrepó del grep con el que se preparó).
-/// <c>Hydra</c> lleva un <i>lookbehind</i> negativo que excluye <c>Project-Hydra</c>: es
-/// el nombre del repositorio y de su gemelo de negocio, y esa referencia de ruta no es
-/// deuda de marca — la deuda es la que ve el usuario ("Detectado por Hydra").
+/// <c>IDelegacionesQueryContext</c>, que es la misma deuda de ADR-004. <c>Hydra</c> lleva
+/// un <i>lookbehind</i> negativo que excluye <c>Project-Hydra</c>: es el nombre del
+/// repositorio y de su gemelo de negocio, y esa referencia de ruta no es deuda de marca.
+/// Este reparto de qué cadena busca cada patrón no lo toca REC-178: lo que cambia es
+/// <b>qué región del fichero se deja mirar</b>, no cómo se comparan los tokens dentro.
 /// </para>
 ///
 /// <para>
-/// <b>Límite conocido, no decidido aquí: sensibilidad a mayúsculas.</b> Los cuatro
-/// patrones son <i>case-sensitive</i> — igual que el trinquete original y que la tabla
-/// § 5 del contrato, para que las cifras sigan siendo comparables (§ 5.1: "mismo
-/// alcance... para que las cifras sean comparables entre sí"). Consecuencia medida el
-/// 2026-09-03: una variable local <c>delegacion</c> o un parámetro <c>clienteActivo</c>
-/// en <i>camelCase</i> no cuentan, y esa forma de la deuda es mayoritaria — el recuento
-/// case-insensitive del mismo árbol da 764 apariciones de <c>Delegacion</c> frente a las
-/// 390 que congela este trinquete. Decidir si el § 5 del contrato debe cubrir también el
-/// uso en minúsculas es una decisión de alcance de la deuda, no de instrumento —
-/// corresponde al propietario del contrato, no a este incremento (REC-171).
+/// <b>Dos regímenes distintos, .cs y .razor — declarado, no por inercia (§ 10 de
+/// HO-178-01).</b> Para <c>.cs</c>, <see cref="ContarIdentificadoresEnCodigoCSharp"/>
+/// analiza el árbol sintáctico y solo cuenta apariciones dentro de un
+/// <see cref="SyntaxKind.IdentifierToken"/> real: excluye comentarios/doc-comments
+/// (control 2 de DEC-65) y literales de cadena o carácter (control 3: hoy el § 5 no
+/// dice que deban contar). Para <c>.razor</c> se conserva el régimen anterior —contar
+/// sobre el texto completo del fichero—, medido y decidido así a propósito, no dejado
+/// caer: un analizador de C# no puede parsear un <c>.razor</c> tal cual, que mezcla
+/// marcado HTML, directivas <c>@</c> y bloques <c>@code</c>, y extraer con precisión
+/// solo los identificadores de C# embebidos en marcado (<c>@variable</c>, atributos
+/// <c>@bind-Value</c>, etc.) exige un analizador de Razor que este incremento —una S,
+/// un arreglo de instrumento— no tiene mandato para construir. La medición del
+/// 2026-09-04 sobre <c>origin/main</c> <c>9b98599f</c> lo confirma para el total, que sí
+/// es exacto (recontado con el propio patrón sobre solo los <c>.razor</c>): de las 117
+/// apariciones de <c>Hydra</c>, 53 están en <c>.razor</c>. La mayoría de esas 53 —medido
+/// con una heurística de balanceo de llaves para localizar bloques <c>@code</c>, no con
+/// un analizador de Razor, así que sirve para el orden de magnitud y no como cifra
+/// citable— caen fuera de cualquier bloque <c>@code</c>: es texto de interfaz visible al
+/// usuario, el propio caso que la versión anterior de este fichero señalaba como "parte
+/// de la deuda de marca vive en texto de interfaz". Si en vez del régimen viejo se
+/// extrajeran solo identificadores de C# de esos ficheros (dentro de <c>@code</c> y de
+/// expresiones <c>@algo</c> embebidas), la cifra de 117 se hundiría a un dígito, un
+/// recorte de alcance que el § 5 no pidió y que esta PR no decide. Esa pregunta —si el
+/// trinquete debe seguir viendo la prosa de
+/// marca en <c>.razor</c> o solo sus identificadores de C#— queda elevada a la Oficina
+/// de Reconciliación con la medición hecha, no resuelta aquí. Consecuencia declarada
+/// del régimen viejo en <c>.razor</c>: un comentario <c>@* ... *@</c> o una cadena
+/// dentro de un <c>.razor</c> todavía puede mover la cifra (5 casos de
+/// <c>Delegacion</c>, 7 de <c>Hydra</c>, 2 de <c>ClienteActivo</c>, 0 de
+/// <c>EjecutivoUsuarioId</c>, medido el 2026-09-04) — un residuo del mismo defecto que
+/// esta versión corrige para <c>.cs</c>, y no para <c>.razor</c>, por la razón de
+/// alcance de arriba.
 /// </para>
 ///
 /// <para>
@@ -76,6 +104,17 @@ namespace CaeManager.Architecture.Tests;
 /// suelo inmutable en vez de la deuda viva.</item>
 /// <item><c>Project-Hydra</c> queda fuera del contador de marca (ver el lookbehind
 /// arriba): es el nombre del repositorio, y se llama así legítimamente.</item>
+/// <item>El <i>casing</i> sigue sin decidir (§ 9 de HO-178-01): los cuatro patrones
+/// siguen siendo <i>case-sensitive</i>, igual que antes de REC-178. Es una pregunta
+/// distinta —cómo se comparan los tokens, no qué región se mira— y no es la de este
+/// incremento.</item>
+/// <item>Un identificador dentro de un bloque desactivado por el preprocesador
+/// (<c>#if false</c> y similares) no cuenta: <see cref="CSharpSyntaxTree.ParseText"/>
+/// marca ese código como trivia deshabilitada, no como <see cref="SyntaxKind.IdentifierToken"/>,
+/// y es coherente con el resto del trinquete — código que no se ejecuta ni se compila no
+/// es la deuda viva que esto vigila (mismo razonamiento que excluir migraciones).
+/// Verificado por mutación durante la revisión adversarial de esta PR: no hay ningún
+/// caso real de esto en el árbol hoy.</item>
 /// </list>
 /// </para>
 /// </summary>
@@ -113,25 +152,42 @@ public class TerminologiaCanonicaTests
     };
 
     /// <summary>
-    /// <b>Medido el 2026-09-03 sobre <c>origin/main</c> <c>e6efa4fe</c></b> — no rescatado
-    /// de la rama <c>claude/b1-3-cierre-sesion-soporte</c> ni de la tabla § 5 del contrato
-    /// (ambas fechadas el 2026-08-31 y por tanto más viejas que este commit). El propio
-    /// § 5.1 del contrato exige volver a medir antes de citar.
+    /// <b>Recalculadas por REC-178/DEC-65 el 2026-09-04, sobre <c>origin/main</c>
+    /// <c>9b98599f</c>, con el instrumento nuevo</b> — no son las mismas cifras que
+    /// congeló REC-171 (117/66/390/110): esas medían texto completo, estas miden solo
+    /// identificadores de C# en <c>.cs</c> más el régimen viejo, sin cambios, en
+    /// <c>.razor</c> (ver el doc-comment de la clase). Todas BAJAN respecto a las
+    /// anteriores, nunca suben, tal y como exige DEC-65.
     ///
     /// <para>
-    /// <b>Orden de reproducción</b> (recuento por reflexión del propio árbol, mismo
-    /// alcance que <see cref="ArchivosDeCodigo"/>): ejecutar este test. Si el número real
-    /// no coincide con el de abajo, <c>FluentAssertions</c> imprime en el mensaje de fallo
-    /// tanto el valor esperado como el medido — no hace falta instrumentación externa para
-    /// reobtener la cifra, el propio test es el instrumento reproducible.
+    /// <b>La bajada, separada por causa y verificada contra la medición — DEC-65,
+    /// riesgo 1.</b> Para <c>.cs</c> hay dos causas distintas y se midieron por
+    /// separado para no confundirlas: apariciones dentro de un comentario o doc-comment
+    /// (control 2), y apariciones dentro de un literal de cadena o carácter (control 3).
+    /// La resta (cifra vieja − cifra nueva) coincide exactamente con
+    /// <c>comentario + literal</c> medidos en <c>.cs</c> para los cuatro términos —si no
+    /// coincidiera, habría una tercera causa sin identificar y esta tabla no se habría
+    /// escrito—:
+    /// <list type="bullet">
+    /// <item><c>Hydra</c>: 117 − 55 = 62; en <c>.cs</c>, comentario=59 + literal=3 = 62.</item>
+    /// <item><c>EjecutivoUsuarioId</c>: 66 − 48 = 18; en <c>.cs</c>, comentario=18 + literal=0 = 18.</item>
+    /// <item><c>Delegacion</c>: 390 − 291 = 99; en <c>.cs</c>, comentario=71 + literal=28 = 99.</item>
+    /// <item><c>ClienteActivo</c>: 110 − 68 = 42; en <c>.cs</c>, comentario=41 + literal=1 = 42.</item>
+    /// </list>
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Orden de reproducción</b>: ejecutar este test. Si el número real no coincide
+    /// con el de abajo, <c>FluentAssertions</c> imprime en el mensaje de fallo tanto el
+    /// valor esperado como el medido.
     /// </para>
     /// </summary>
     private static readonly Dictionary<string, int> Congelado = new()
     {
-        ["Hydra"] = 117,
-        ["EjecutivoUsuarioId"] = 66,
-        ["Delegacion"] = 390,
-        ["ClienteActivo"] = 110,
+        ["Hydra"] = 55,
+        ["EjecutivoUsuarioId"] = 48,
+        ["Delegacion"] = 291,
+        ["ClienteActivo"] = 68,
     };
 
     [Theory]
@@ -144,13 +200,181 @@ public class TerminologiaCanonicaTests
         var (patron, conceptoCanonico) = Deuda[termino];
         var regex = new Regex(patron, RegexOptions.Compiled);
 
-        var apariciones = ArchivosDeCodigo().Sum(a => regex.Matches(File.ReadAllText(a)).Count);
+        var apariciones = ArchivosDeCodigo().Sum(archivo => ContarEnArchivo(archivo, regex));
 
         apariciones.Should().Be(Congelado[termino],
             $"'{termino}' es deuda terminológica: representa {conceptoCanonico}. El contrato prohíbe " +
             "renombrarlo automáticamente, así que la deuda se queda — pero no puede CRECER, y si baja " +
-            "hay que actualizar el número aquí en el mismo commit. Si has añadido apariciones nuevas, " +
-            "usa el término canónico; si las has retirado, baja la cifra de 'Congelado'");
+            "hay que actualizar el número aquí en el mismo commit. Si has añadido un identificador nuevo " +
+            "en código con este término, usa el canónico; si has retirado alguno, baja la cifra de " +
+            "'Congelado'. Un comentario o una cadena de texto con esta cadena NO cuentan (DEC-65)");
+    }
+
+    /// <summary>
+    /// Cuenta las apariciones de <paramref name="regex"/> que de verdad cuentan para el
+    /// § 5 del contrato, según el tipo de fichero (ver el doc-comment de la clase para el
+    /// porqué de los dos regímenes).
+    /// </summary>
+    private static int ContarEnArchivo(string archivo, Regex regex)
+    {
+        var texto = File.ReadAllText(archivo);
+
+        return archivo.EndsWith(".razor", StringComparison.OrdinalIgnoreCase)
+            ? regex.Matches(texto).Count
+            : ContarIdentificadoresEnCodigoCSharp(texto, regex);
+    }
+
+    /// <summary>
+    /// Cuenta solo las apariciones de <paramref name="regex"/> que caen dentro de un
+    /// <see cref="SyntaxKind.IdentifierToken"/> real del árbol sintáctico de
+    /// <paramref name="textoFuente"/> — ni en trivia (comentarios, doc-comments,
+    /// espacios), ni en un literal de cadena o carácter, ni en cualquier otro token.
+    /// Instrumentación sintáctica, no otra regex (preferencia explícita de DEC-65).
+    ///
+    /// <para>
+    /// <b>Por qué <c>findInsideTrivia: false</c> en las dos búsquedas, y no <c>true</c>
+    /// — el detalle que se midió mal en el primer intento.</b>
+    /// <see cref="SyntaxNode.FindTrivia"/> con <c>findInsideTrivia: true</c> no
+    /// devuelve la trivia contenedora cuando la posición cae sobre un TOKEN real dentro
+    /// de una trivia ESTRUCTURADA (un doc-comment <c>///</c> es trivia estructurada: su
+    /// texto son <see cref="SyntaxKind.XmlTextLiteralToken"/> de verdad, no más trivia
+    /// anidada) — en ese caso el método busca otra trivia DENTRO de la estructura, no la
+    /// encuentra porque ahí lo que hay es un token, y devuelve <c>default</c>. El
+    /// resultado, medido: la búsqueda cae al siguiente paso
+    /// (<see cref="SyntaxNode.FindToken(int, bool)"/> con el mismo <c>true</c>), que sí
+    /// desciende a la estructura y devuelve el <c>XmlTextLiteralToken</c> real — y ese
+    /// token no es <c>IdentifierToken</c> ni un literal de cadena/carácter, así que con
+    /// una implementación descuidada cae en una categoría "otro" que ni cuenta ni se
+    /// excluye a propósito: exactamente el "identificador legítimo que deja de verse"
+    /// que el § 16 de HO-178-01 pide vigilar, solo que al revés — aquí lo que casi se
+    /// perdía era la exclusión del comentario, no un identificador. Con
+    /// <c>findInsideTrivia: false</c> en ambas llamadas, <see cref="SyntaxNode.FindTrivia"/>
+    /// devuelve directamente la trivia contenedora (el bloque de doc-comment entero,
+    /// diga lo que diga por dentro) sin intentar bajar a su estructura, que es
+    /// exactamente la granularidad que hace falta: "¿esta posición está dentro de ALGÚN
+    /// comentario?", no "¿dentro de qué parte concreta de su XML interno?". Medido sobre
+    /// el árbol real: con <c>true</c> este método reportaba <c>Delegacion</c>=280
+    /// identificadores y "otro"=32 sin clasificar; con <c>false</c>, 268 identificadores
+    /// y cero sin clasificar — los 12 que cambiaron de bando eran, los 12, coincidencias
+    /// dentro de un <c>&lt;c&gt;DelegacionTenant&lt;/c&gt;</c> de un doc-comment.
+    /// </para>
+    /// </summary>
+    private static int ContarIdentificadoresEnCodigoCSharp(string textoFuente, Regex regex)
+    {
+        var root = CSharpSyntaxTree.ParseText(textoFuente).GetRoot();
+        var total = 0;
+
+        foreach (Match coincidencia in regex.Matches(textoFuente))
+        {
+            var posicion = coincidencia.Index;
+
+            var trivia = root.FindTrivia(posicion, findInsideTrivia: false);
+            if (trivia.Span.Contains(posicion) && EsComentario(trivia.Kind()))
+                continue;
+
+            var token = root.FindToken(posicion, findInsideTrivia: false);
+            if (token.IsKind(SyntaxKind.IdentifierToken))
+                total++;
+
+            // Cualquier otro tipo de token (literal de cadena, literal de carácter,
+            // palabra clave, puntuación...) no cuenta: solo el identificador real
+            // cuenta (control 1 de DEC-65), y hoy el § 5 no pide contar literales de
+            // texto aparte (control 3).
+        }
+
+        return total;
+    }
+
+    private static bool EsComentario(SyntaxKind kind) => kind
+        is SyntaxKind.SingleLineCommentTrivia
+        or SyntaxKind.MultiLineCommentTrivia
+        or SyntaxKind.SingleLineDocumentationCommentTrivia
+        or SyntaxKind.MultiLineDocumentationCommentTrivia
+        or SyntaxKind.DocumentationCommentExteriorTrivia;
+
+    /// <summary>
+    /// Control 1 y control 2 de DEC-65, emparejados en la misma prueba: el identificador
+    /// real en código cuenta; la misma cadena dentro de un comentario de línea no cuenta.
+    /// </summary>
+    [Fact]
+    public void Un_identificador_real_cuenta_y_la_misma_cadena_en_un_comentario_de_linea_no()
+    {
+        var regex = new Regex("Delegacion", RegexOptions.Compiled);
+
+        const string conIdentificador = "namespace N; public class Delegacion { }";
+        ContarIdentificadoresEnCodigoCSharp(conIdentificador, regex).Should().Be(1,
+            "control 1 (DEC-65): un identificador real en código sí debe contar");
+
+        const string soloEnComentario = "namespace N;\n// Esto menciona Delegacion de pasada\npublic class Otro { }";
+        ContarIdentificadoresEnCodigoCSharp(soloEnComentario, regex).Should().Be(0,
+            "control 2 (DEC-65): la misma cadena dentro de un comentario de línea no debe contar");
+    }
+
+    /// <summary>
+    /// Control 2 de DEC-65 específicamente contra un doc-comment XML — el caso real que
+    /// puso en rojo la PR #458 con el instrumento anterior (su <c>&lt;summary&gt;</c>
+    /// citaba <c>DelegacionTenant</c> como precedente de diseño).
+    /// </summary>
+    [Fact]
+    public void Un_identificador_real_cuenta_y_la_misma_cadena_en_un_doc_comment_no()
+    {
+        var regex = new Regex("Delegacion", RegexOptions.Compiled);
+
+        const string conIdentificador = "namespace N; public class Delegacion { }";
+        ContarIdentificadoresEnCodigoCSharp(conIdentificador, regex).Should().Be(1,
+            "control 1 (DEC-65): un identificador real en código sí debe contar");
+
+        const string soloEnDocComment = """
+            namespace N;
+            /// <summary>
+            /// Sigue el precedente de <c>DelegacionTenant</c> para este diseño.
+            /// </summary>
+            public class Otro { }
+            """;
+        ContarIdentificadoresEnCodigoCSharp(soloEnDocComment, regex).Should().Be(0,
+            "control 2 (DEC-65): la misma cadena dentro de un doc-comment no debe contar — " +
+            "es el caso real que puso en rojo la PR #458 con el instrumento anterior");
+    }
+
+    /// <summary>
+    /// Control 3 de DEC-65: si la implementación captura también literales de cadena o
+    /// carácter, no deben contar salvo que el § 5 del contrato lo diga expresamente — y
+    /// hoy no lo dice (comprobado leyendo el § 5 de <c>CONTRATO_TERMINOLOGIA.md</c>, no
+    /// asumido).
+    /// </summary>
+    [Fact]
+    public void Un_identificador_real_cuenta_y_el_mismo_texto_en_un_literal_de_cadena_no()
+    {
+        var regex = new Regex("ClienteActivo", RegexOptions.Compiled);
+
+        const string conIdentificador = "namespace N; public class ClienteActivo { }";
+        ContarIdentificadoresEnCodigoCSharp(conIdentificador, regex).Should().Be(1,
+            "control 1 (DEC-65): un identificador real en código sí debe contar");
+
+        const string enLiteralDeCadena = """namespace N; class Otro { string M() => "ClienteActivo"; }""";
+        ContarIdentificadoresEnCodigoCSharp(enLiteralDeCadena, regex).Should().Be(0,
+            "control 3 (DEC-65): un literal de cadena con la misma cadena no debe contar — " +
+            "el § 5 del contrato no pide contar literales de texto aparte de identificadores");
+    }
+
+    /// <summary>
+    /// Ciclo de mutación de instrumento (no de deuda): comprueba que
+    /// <see cref="ContarIdentificadoresEnCodigoCSharp"/> sigue vivo y no se ha quedado
+    /// devolviendo cero por ceguera. Un identificador legítimo y sin relación con la
+    /// deuda vigilada debe seguir contando: si esto fallara, el trinquete completo
+    /// dejaría de ver identificadores de verdad y los cuatro casos de
+    /// <see cref="La_deuda_terminologica_no_crece"/> pasarían en falso por no encontrar
+    /// nunca nada, deuda incluida.
+    /// </summary>
+    [Fact]
+    public void El_analizador_de_identificadores_no_esta_ciego()
+    {
+        var regex = new Regex("Ejemplo", RegexOptions.Compiled);
+        const string codigo = "namespace N; public class Ejemplo { public int EjemploId; }";
+
+        ContarIdentificadoresEnCodigoCSharp(codigo, regex).Should().Be(2,
+            "control positivo del propio analizador: dos identificadores reales, ninguno en comentario " +
+            "ni en literal, deben contar los dos — si esto da 0, el analizador dejó de ver el árbol");
     }
 
     /// <summary>
@@ -162,6 +386,12 @@ public class TerminologiaCanonicaTests
     /// <c>ModeloTenantTests</c> ("si esto está vacío, el propio test dejó de poder ver el
     /// modelo real"): no se copia el código, se copia la idea de exigir un mínimo que solo
     /// puede cumplirse mirando de verdad.
+    ///
+    /// <para>
+    /// <b>Conservado sin cambios por REC-178</b>: sigue vigilando <see cref="ArchivosDeCodigo"/>,
+    /// que no cambió — lo que cambió es <see cref="ContarEnArchivo"/>, cómo se cuenta
+    /// dentro de cada fichero, no qué ficheros se recorren.
+    /// </para>
     ///
     /// <para>
     /// <b>Lo que este control NO cubre.</b> Protege contra perder de vista el árbol casi
