@@ -123,6 +123,10 @@ public class UsosDeEsPlataformaCongeladosTests
     /// Medido el 2026-08-29: <b>22 ficheros, 34 apariciones</b>. Eran 36 sobre
     /// <c>2e463b1d</c>, antes de que A4.2 retirase <c>DejarDeSerPlataforma</c> y sus dos
     /// apariciones.
+    /// Actualizado 2026-09-04 (HO-035-02, REC-035): <b>23 ficheros, 35 apariciones</b> —
+    /// nuevo <c>RegistrarInstruccionTratamientoIaTenantPropietarioCommand.cs</c>
+    /// (1 aparición, <see cref="CategoriaUso.ReglaComercial"/>, mismo criterio que
+    /// <c>RegistrarSuscripcionTenantCommand</c>).
     ///
     /// <para>
     /// Cada entrada se leyó una a una; el conteo <b>no</b> se ajustó a lo que salió del
@@ -178,6 +182,12 @@ public class UsosDeEsPlataformaCongeladosTests
             new(1, CategoriaUso.ReglaComercial,
                 ":53 filtro de presentación; la autorización real está tres líneas antes, en " +
                 "PuedeGlobalmenteAsync. Se conserva"),
+        ["src/CaeManager.Application/Cumplimiento/Commands/RegistrarInstruccionTratamientoIaTenantPropietario/RegistrarInstruccionTratamientoIaTenantPropietarioCommand.cs"] =
+            new(1, CategoriaUso.ReglaComercial,
+                ":75 rechaza registrar la instrucción de tratamiento IA (REC-035) contra el tenant de " +
+                "plataforma — mismo criterio que RegistrarSuscripcionTenantCommand:69: TALVEG no se " +
+                "instruye tratamiento a sí misma. La autorización real es PuedeSobreTenantAsync, dos " +
+                "líneas antes"),
 
         // ── GUARDA ────────────────────────────────────────────────────────────────
         ["src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs"] =

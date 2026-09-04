@@ -9,6 +9,7 @@ using CaeManager.Domain.Centros;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Contactos;
+using CaeManager.Domain.Cumplimiento;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Facturacion;
@@ -407,6 +408,84 @@ public static class DatosPruebaSeeder
             "Reconciliacion de verificacion IA: {Total} tipos activados en {Tenants} tenants de demo.",
             totalActivados, tenantsDemo.Count);
     }
+
+    /// <summary>
+    /// REC-035 (DEC-33): sin esto, el Nivel 0
+    /// (<c>IInstruccionTratamientoIaService</c>) bloquearia todo tratamiento
+    /// con IA en TODOS los tenants de demo, incluidos los que
+    /// <see cref="ReconciliarVerificacionIaEnTenantsDeDemoAsync"/> acaba de
+    /// encender a Nivel 1 — esa reconciliacion enciende Nivel 1
+    /// (TipoDocumento), esta enciende Nivel 0 (el tenant), y los dos hacen
+    /// falta a la vez para que la IA corra de verdad.
+    ///
+    /// Deliberadamente NO reconcilia todos los tenants de demo, solo el
+    /// tenant #1 (<see cref="TenantSeedData.IdPorDefecto"/>): el diseño de
+    /// HO-035-02 (<c>tecnico/docs/POLITICA-TECNICA-IA.md</c> § 5, punto 4)
+    /// pide poder demostrar los dos estados en la misma demo — un tenant CON
+    /// instrucción vigente y otro SIN ella — y el tenant #1 es el que usan
+    /// los flujos E2E existentes que ya ejercitan IA de verdad
+    /// (<c>FlujoCicloDocumentalTests</c>, admin sembrado por
+    /// <c>IdentitySeeder</c> con <c>TenantId = TenantSeedData.IdPorDefecto</c>).
+    /// Los demás tenants de demo (el Cliente Delegante de
+    /// <c>DelegacionDemoSeeder</c>, el segundo tenant de
+    /// <c>SegundoTenantSeeder</c>) quedan sin instrucción a propósito, como
+    /// control negativo vivo del Nivel 0.
+    ///
+    /// Idempotente: si el tenant #1 ya tiene una instrucción vigente, no
+    /// hace nada. Las versiones son las filas Draft de HO-035-01
+    /// (<c>legal/LISTA_SUBENCARGADOS.md</c> § 3) — texto de demo, nunca una
+    /// aceptación real: ver la prohibición de HO-035-02 § 9 de publicar
+    /// nada legal en firme.
+    /// </summary>
+    public static async Task SembrarInstruccionTratamientoIaTenantPrincipalAsync(
+        CaeManagerDbContext dbContext, IConfiguration configuration, ILogger logger, CancellationToken cancellationToken = default)
+    {
+        if (!configuration.GetValue<bool>("DatosPrueba:Activo")) return;
+
+        using (AmbitoTenantExplicito.Establecer(TenantSeedData.IdPorDefecto))
+        {
+            var yaTieneInstruccion = await dbContext.InstruccionesTratamientoIaTenantPropietario
+                .AnyAsync(i => i.RevocadaEnUtc == null, cancellationToken);
+            if (yaTieneInstruccion) return;
+
+            // Cualquier usuario del tenant #1 sirve como "quien la registró"
+            // a efectos de demo — no hay todavía un Administrador de
+            // plataforma dedicado a esta operación (§ 4.5 del documento
+            // citado arriba: comando administrativo, sin panel propio en
+            // este incremento).
+            var administradorId = await dbContext.Users
+                .Where(u => u.TenantId == TenantSeedData.IdPorDefecto)
+                .Select(u => u.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (administradorId == Guid.Empty)
+            {
+                logger.LogInformation(
+                    "Sin usuario en el tenant #1 todavía — se pospone la siembra de la instrucción de tratamiento IA.");
+                return;
+            }
+
+            dbContext.InstruccionesTratamientoIaTenantPropietario.Add(new InstruccionTratamientoIaTenantPropietario(
+                VersionDpaDemo, VersionAnexoSubencargadosDemo, DateTime.UtcNow,
+                OrigenInstruccionTratamientoIa.AltaManualPlataforma, administradorId));
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+            logger.LogInformation("Instrucción de tratamiento IA sembrada para el tenant #1 (demo, Nivel 0 de REC-035).");
+        }
+    }
+
+    /// <summary>
+    /// Versión Draft de <c>legal/DPA.md</c> a efectos de demo — HO-035-01
+    /// todavía no versiona ese documento formalmente (fuera de su alcance);
+    /// esta cadena solo tiene que ser estable y no vacía, nunca se compara
+    /// contra una versión "vigente" (ver diseño § 4.3 del documento
+    /// canónico, decisión a elevar #4: el estado por defecto de v1 es
+    /// "existe fila no revocada", no "coincide con la última versión").
+    /// </summary>
+    internal const string VersionDpaDemo = "Draft-2026-09-03";
+
+    /// <summary>Versión de <c>legal/LISTA_SUBENCARGADOS.md</c> § 3 tras las filas de IA que añadió HO-035-01.</summary>
+    internal const string VersionAnexoSubencargadosDemo = "Draft-2026-09-03";
 
     /// <summary>Clave de configuracion que decide si hay proveedor de IA real.</summary>
     internal const string ClaveApiProveedorIa = "Anthropic:ApiKey";

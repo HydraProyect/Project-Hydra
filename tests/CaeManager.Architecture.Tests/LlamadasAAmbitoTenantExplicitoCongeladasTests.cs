@@ -77,6 +77,16 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         /// hecha antes de esta línea (allowlist, sesión de soporte ya abierta).
         /// </summary>
         ServicioDePlataformaConGuardaPropia,
+
+        /// <summary>
+        /// El TenantId es el objetivo explícito de una operación administrativa
+        /// de plataforma, verificada contra el modelo de concesiones de ADR-011
+        /// § 4bis (<c>IAutorizacionAdminPlataforma.PuedeSobreTenantAsync</c>) —
+        /// no una Delegación ni un Cliente cargado, sino la capacidad
+        /// AdminPlataforma sobre ESE tenant concreto, comprobada antes de la
+        /// línea que abre el ámbito.
+        /// </summary>
+        AdminPlataformaVerificadoPorConcesion,
     }
 
     private sealed record EntradaBlanca(Categoria Categoria, string Motivo);
@@ -94,6 +104,13 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
     /// nuevo <c>RetencionHostedService.cs</c> (3 llamadas), mismo patrón que
     /// <c>VigilanciaVisitasUrgentesHostedService.cs</c>: barrido diario sobre la
     /// enumeración propia de tenants activos.
+    /// Actualizado 2026-09-04 (HO-035-02, REC-035): <b>30 ficheros, 54 llamadas</b> —
+    /// tres ficheros nuevos de Application (Registrar/Revocar/ObtenerHistorico
+    /// de <c>InstruccionTratamientoIaTenantPropietario</c>, categoría nueva
+    /// <see cref="Categoria.AdminPlataformaVerificadoPorConcesion"/>) y una
+    /// llamada más en <c>DatosPruebaSeeder.cs</c> (de 1 a 2): siembra la
+    /// instrucción de Nivel 0 solo para el tenant #1, mismo patrón
+    /// <see cref="Categoria.BootstrapOSiembra"/> que ya tenía.
     /// </summary>
     private static readonly Dictionary<string, EntradaBlanca> Autorizados = new()
     {
@@ -149,7 +166,9 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         ["src/CaeManager.Infrastructure/Persistence/Seed/AsignacionesOperativasBackfillSeeder.cs"] =
             new(Categoria.BootstrapOSiembra, "tenants[0].Id, de la lista de tenants ya sembrados por el propio arranque"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs"] =
-            new(Categoria.BootstrapOSiembra, "tenant.Id, de un tenant que el propio seeder acaba de crear"),
+            new(Categoria.BootstrapOSiembra,
+                "2 llamadas — tenant.Id de un tenant que el propio seeder acaba de crear, y " +
+                "TenantSeedData.IdPorDefecto en SembrarInstruccionTratamientoIaTenantPrincipalAsync (HO-035-02, REC-035)"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs"] =
             new(Categoria.BootstrapOSiembra, "9 llamadas — todas sobre Ids de tenants de demo que el propio seeder crea o localiza"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionesSoporteSeeder.cs"] =
@@ -164,6 +183,17 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.ServicioDePlataformaConGuardaPropia, "tenantId ya comprobado contra la allowlist de nombres de demo del propio servicio"),
         ["src/CaeManager.Web/Services/TrazaSoporteService.cs"] =
             new(Categoria.ServicioDePlataformaConGuardaPropia, "tenantId del tenant visitado de una sesión de soporte ya abierta y resuelta por ResolverSesionAsync"),
+
+        // ── ADMIN PLATAFORMA VERIFICADO POR CONCESIÓN (Application, REC-035) ────────
+        ["src/CaeManager.Application/Cumplimiento/Commands/RegistrarInstruccionTratamientoIaTenantPropietario/RegistrarInstruccionTratamientoIaTenantPropietarioCommand.cs"] =
+            new(Categoria.AdminPlataformaVerificadoPorConcesion,
+                "request.TenantPropietarioId, tras IAutorizacionAdminPlataforma.PuedeSobreTenantAsync confirmar la capacidad sobre ese tenant"),
+        ["src/CaeManager.Application/Cumplimiento/Commands/RevocarInstruccionTratamientoIaTenantPropietario/RevocarInstruccionTratamientoIaTenantPropietarioCommand.cs"] =
+            new(Categoria.AdminPlataformaVerificadoPorConcesion,
+                "request.TenantPropietarioId, mismo criterio que Registrar"),
+        ["src/CaeManager.Application/Cumplimiento/Queries/ObtenerHistoricoInstruccionTratamientoIaTenantPropietario/ObtenerHistoricoInstruccionTratamientoIaTenantPropietarioQuery.cs"] =
+            new(Categoria.AdminPlataformaVerificadoPorConcesion,
+                "request.TenantPropietarioId, mismo criterio que Registrar — lectura cruzada, no solo escritura"),
     };
 
     private static readonly Regex LlamadaAEstablecer = new(
@@ -230,6 +260,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs"] = 9,
             ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionesSoporteSeeder.cs"] = 3,
             ["src/CaeManager.Infrastructure/Persistence/Seed/SegundoTenantSeeder.cs"] = 2,
+            ["src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs"] = 2,
         };
 
         foreach (var fichero in conocidos)

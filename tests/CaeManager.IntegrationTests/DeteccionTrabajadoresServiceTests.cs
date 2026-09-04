@@ -1,4 +1,5 @@
 ﻿using CaeManager.Application.Common;
+using CaeManager.Application.Cumplimiento;
 using CaeManager.Application.Trabajadores.Deteccion;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -33,16 +34,17 @@ public class DeteccionTrabajadoresServiceTests : IAsyncLifetime
 
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private CaeManagerDbContext _dbContext = null!;
+    private TenantActualAmbiental _tenantActual = null!;
 
     public async Task InitializeAsync()
     {
-        var tenantActual = new TenantActualAmbiental { TenantId = TenantSeedData.IdPorDefecto };
+        _tenantActual = new TenantActualAmbiental { TenantId = TenantSeedData.IdPorDefecto };
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
-            .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
+            .AddInterceptors(new TenantSelladoInterceptor(_tenantActual))
             .Options;
 
-        _dbContext = new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
+        _dbContext = new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), _tenantActual);
         await _dbContext.Database.MigrateAsync();
     }
 
@@ -56,7 +58,7 @@ public class DeteccionTrabajadoresServiceTests : IAsyncLifetime
         new(_dbContext, _dbContext, _dbContext, _dbContext,
             almacenamiento ?? new AlmacenamientoFalso(), extraccion,
             new DeteccionTrabajadorRepository(_dbContext), new NotificacionUsuarioRepository(_dbContext),
-            _dbContext);
+            new InstruccionTratamientoIaSiempreHabilitada(), _tenantActual, _dbContext);
 
     [Fact]
     public async Task Detecta_altas_y_bajas_y_avisa_al_gestor_del_cliente()
@@ -346,6 +348,16 @@ public class DeteccionTrabajadoresServiceTests : IAsyncLifetime
         await Assert.ThrowsAsync<InvalidOperationException>(() => servicio.ProcesarDocumentoAsync(documento.Id));
 
         (await _dbContext.DeteccionesTrabajador.AnyAsync(d => d.DocumentoId == documento.Id)).Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Nivel 0 (DEC-33/REC-035) siempre abierto: lo que prueban estos tests
+    /// es la lógica de comparación de Niveles 1-2, no el gate — que tiene su
+    /// propia suite (ver InstruccionTratamientoIaGateTests).
+    /// </summary>
+    private sealed class InstruccionTratamientoIaSiempreHabilitada : IInstruccionTratamientoIaService
+    {
+        public Task<bool> EstaHabilitadaAsync(Guid tenantId, CancellationToken cancellationToken = default) => Task.FromResult(true);
     }
 
     private sealed class ExtraccionIaFalsa(Result<IReadOnlyList<TrabajadorExtraidoDto>> resultado) : IExtraccionTrabajadoresIaService

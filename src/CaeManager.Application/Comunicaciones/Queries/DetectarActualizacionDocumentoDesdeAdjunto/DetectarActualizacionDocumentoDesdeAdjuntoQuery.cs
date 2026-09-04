@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Cumplimiento;
 using CaeManager.Application.DocumentosIa;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
@@ -37,7 +38,8 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler(
     IComunicacionesQueryContext comunicacionesContext, IAlcanceDatosService alcanceDatos, IFileStorageService almacenamiento,
     IDocumentAIRouterService router, IOptions<ExtraccionDocumentoAdjuntoOptions> opciones,
     ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext,
-    IEmpresasQueryContext empresasContext)
+    IEmpresasQueryContext empresasContext,
+    IInstruccionTratamientoIaService instruccionTratamientoIa, ITenantActual tenantActual)
     : IRequestHandler<DetectarActualizacionDocumentoDesdeAdjuntoQuery, Result<DeteccionActualizacionDocumentoDto>>
 {
     private const string TipoEsperadoDesconocido =
@@ -59,6 +61,11 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler(
 
         if (adjunto is null || !await alcanceDatos.ConversacionVisibleAsync(adjunto.ClienteId, adjunto.EmpresaId, adjunto.ConexionIntegracionId, cancellationToken))
             return Result.Fallo<DeteccionActualizacionDocumentoDto>(Error.Crear("Adjunto.NoEncontrado", "No encontramos este adjunto."));
+
+        // Nivel 0 (DEC-33, REC-035), por delante del kill-switch de
+        // despliegue de abajo — ver el mismo gate en VerificacionIaDocumentoService.
+        if (tenantActual.TenantId is not { } tenantId || !await instruccionTratamientoIa.EstaHabilitadaAsync(tenantId, cancellationToken))
+            return Result.Exito(SinDeteccion(adjunto.Id));
 
         // Apagado por defecto (ver ExtraccionDocumentoAdjuntoOptions): sin DPA
         // que cubra este tratamiento, el gestor rellena los campos a mano —

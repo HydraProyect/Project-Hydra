@@ -217,6 +217,8 @@ public class CaeManagerDbContext(
     public DbSet<CaeManager.Domain.Soporte.RegistroActividadSoporte> RegistrosActividadSoporte => Set<CaeManager.Domain.Soporte.RegistroActividadSoporte>();
     IQueryable<CaeManager.Domain.Soporte.RegistroActividadSoporte> ITenantsQueryContext.RegistrosActividadSoporte => RegistrosActividadSoporte;
     public DbSet<AceptacionTerminos> AceptacionesTerminos => Set<AceptacionTerminos>();
+    public DbSet<CaeManager.Domain.Cumplimiento.InstruccionTratamientoIaTenantPropietario> InstruccionesTratamientoIaTenantPropietario
+        => Set<CaeManager.Domain.Cumplimiento.InstruccionTratamientoIaTenantPropietario>();
     public DbSet<CaeManager.Domain.VigilanciaNormativa.AvisoRevisionNormativa> AvisosRevisionNormativa => Set<CaeManager.Domain.VigilanciaNormativa.AvisoRevisionNormativa>();
     IQueryable<CaeManager.Domain.VigilanciaNormativa.AvisoRevisionNormativa> CaeManager.Application.VigilanciaNormativa.IVigilanciaNormativaQueryContext.AvisosRevisionNormativa => AvisosRevisionNormativa;
     public DbSet<ReclamacionDocumental> ReclamacionesDocumentales => Set<ReclamacionDocumental>();
