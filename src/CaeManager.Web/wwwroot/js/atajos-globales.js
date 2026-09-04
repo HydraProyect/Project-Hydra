@@ -3,7 +3,10 @@
 // sin interop porque el foco puede estar en cualquier elemento — mismo
 // motivo que atajos-lista.js y buscador-global.js. Registrado una sola vez
 // en MainLayout, no por página.
-const TECLAS_DESTINO = ['c', 'e', 't', 'd', 'a', 'b'];
+// Debe coincidir exactamente con las claves de CatalogoAtajos.DestinosNavegacion
+// (C# no puede leer este array ni viceversa — CatalogoAtajosSincronizadoConJsTests
+// vigila el emparejamiento leyendo este fichero como texto).
+const TECLAS_DESTINO = ['c', 'e', 't', 'd', 'a', 'b', 'p', 'i'];
 const VENTANA_PREFIJO_MS = 900;
 
 export function registrarAtajosGlobales(dotNetRef) {

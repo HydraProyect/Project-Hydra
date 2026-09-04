@@ -81,6 +81,18 @@ public partial class BuscadorGlobal : ComponentBase
     /// datos. Filtro simple por substring, sin Query: no son datos, son
     /// rutas fijas de la propia app.
     /// </summary>
+    /// <remarks>
+    /// HO-006-01 (REC-006) añadió las siete últimas entradas: vehículos,
+    /// proyectos, visitas, gestiones, incidencias, calendario y
+    /// comunicaciones existían como página y en <c>NavMenu.razor</c>, pero
+    /// el menú era su única vía — esta lista, a diferencia de
+    /// <see cref="CaeManager.Web.Features.AtajosGlobales.CatalogoAtajos.DestinosNavegacion"/>,
+    /// no está limitada a una letra por área: admite varias con la misma
+    /// inicial ("Ir a Calendario" e "Ir a Comunicaciones" conviven sin
+    /// conflicto), así que las siete entran aquí aunque solo dos (proyectos,
+    /// incidencias) tengan además atajo directo "g + letra" — ver el
+    /// criterio declarado allí.
+    /// </remarks>
     private static readonly IReadOnlyList<(string Nombre, string Ruta)> DestinosNavegacion =
     [
         ("Ir a Clientes", "/clientes"),
@@ -93,6 +105,13 @@ public partial class BuscadorGlobal : ComponentBase
         ("Ir a Configuración", "/configuracion"),
         ("Ir a Claves API", "/configuracion/claves-api"),
         ("Ir a Tipos de documento", "/tipos-documento"),
+        ("Ir a Vehículos", "/vehiculos"),
+        ("Ir a Proyectos", "/proyectos"),
+        ("Ir a Visitas", "/visitas"),
+        ("Ir a Gestiones", "/gestiones"),
+        ("Ir a Incidencias", "/incidencias"),
+        ("Ir a Calendario", "/calendario"),
+        ("Ir a Comunicaciones", "/comunicaciones"),
     ];
 
     /// <summary>Grupo "Acciones" del palette — verbos que crean algo, nunca navegación pura.</summary>
