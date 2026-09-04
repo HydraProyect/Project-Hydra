@@ -1,4 +1,5 @@
 ﻿using CaeManager.Application.Common;
+using CaeManager.Application.Cumplimiento;
 using CaeManager.Application.Documentos.Verificacion;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -28,16 +29,17 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
     private CaeManagerDbContext _dbContext = null!;
     private Empresa _empresa = null!;
     private TipoDocumento _tipoApto = null!;
+    private TenantActualAmbiental _tenantActual = null!;
 
     public async Task InitializeAsync()
     {
-        var tenantActual = new TenantActualAmbiental { TenantId = TenantSeedData.IdPorDefecto };
+        _tenantActual = new TenantActualAmbiental { TenantId = TenantSeedData.IdPorDefecto };
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
-            .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
+            .AddInterceptors(new TenantSelladoInterceptor(_tenantActual))
             .Options;
 
-        _dbContext = new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
+        _dbContext = new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), _tenantActual);
         await _dbContext.Database.MigrateAsync();
 
         _empresa = new Empresa("Ibertec S.A.");
@@ -58,7 +60,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
     private VerificacionIaDocumentoService CrearServicio(IExtraccionMetadatosDocumentoIaService extraccion, IFileStorageService? almacenamiento = null) =>
         new(_dbContext, _dbContext, almacenamiento ?? new AlmacenamientoFalso(), extraccion,
             new RevisionIaDocumentoRepository(_dbContext), new AprobacionDocumentoRepository(_dbContext),
-            new AuditoriaExtraccionIaRepository(_dbContext), _dbContext);
+            new AuditoriaExtraccionIaRepository(_dbContext), new InstruccionTratamientoIaSiempreHabilitada(), _tenantActual, _dbContext);
 
     private Trabajador CrearTrabajador() => Trabajador.DeEmpresa(_empresa.Id, "Alvaro", "Sanchez Martin", "77189989B");
 
@@ -349,6 +351,16 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
 
         (await _dbContext.RevisionesIaDocumento.AnyAsync(r => r.DocumentoId == documento.Id)).Should().BeFalse();
         (await _dbContext.AprobacionesDocumento.AnyAsync(a => a.DocumentoId == documento.Id)).Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Nivel 0 (DEC-33/REC-035) siempre abierto: lo que prueban estos tests
+    /// es la lógica de verificación de Niveles 1-2, no el gate — que tiene
+    /// su propia suite (ver InstruccionTratamientoIaGateTests).
+    /// </summary>
+    private sealed class InstruccionTratamientoIaSiempreHabilitada : IInstruccionTratamientoIaService
+    {
+        public Task<bool> EstaHabilitadaAsync(Guid tenantId, CancellationToken cancellationToken = default) => Task.FromResult(true);
     }
 
     private sealed class ExtraccionIaFalsa(Result<MetadatosDocumentoExtraidosDto> resultado) : IExtraccionMetadatosDocumentoIaService

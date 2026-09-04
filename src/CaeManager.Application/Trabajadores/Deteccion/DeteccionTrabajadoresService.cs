@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Cumplimiento;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
@@ -17,12 +18,14 @@ namespace CaeManager.Application.Trabajadores.Deteccion;
 /// separada, y no aparece en documentos de Seguridad Social de la Empresa
 /// contratista), y registra una DeteccionTrabajador pendiente por cada
 /// discrepancia: alguien en el documento sin alta (Nuevo), o alguien de
-/// alta que ya no aparece (Ausente). Solo corre si el TipoDocumento tiene
-/// la lectura IA activa a Nivel 1 (Administrador) y, cuando la Empresa
-/// presta servicio a algún Cliente, si al menos uno de esos Clientes no la
-/// tiene desactivada a Nivel 2 — ver ConfiguracionIaDocumentoCliente
-/// (Fase 35). Si ya hay una detección pendiente sin resolver para el mismo
-/// documento, no duplica.
+/// alta que ya no aparece (Ausente). Solo corre si el Tenant propietario
+/// tiene una instrucción documentada vigente de tratamiento con IA (Nivel 0,
+/// DEC-33/REC-035, ver <see cref="IInstruccionTratamientoIaService"/>), si
+/// el TipoDocumento tiene la lectura IA activa a Nivel 1 (Administrador) y,
+/// cuando la Empresa presta servicio a algún Cliente, si al menos uno de
+/// esos Clientes no la tiene desactivada a Nivel 2 — ver
+/// ConfiguracionIaDocumentoCliente (Fase 35). Si ya hay una detección
+/// pendiente sin resolver para el mismo documento, no duplica.
 ///
 /// <b>No confundir "no aplica" con "falló"</b> (mismo criterio que
 /// VerificacionIaDocumentoService, D3): los primeros chequeos de
@@ -53,10 +56,16 @@ public class DeteccionTrabajadoresService(
     IExtraccionTrabajadoresIaService extraccion,
     IDeteccionTrabajadorRepository deteccionRepositorio,
     INotificacionUsuarioRepository notificacionRepositorio,
+    IInstruccionTratamientoIaService instruccionTratamientoIa,
+    ITenantActual tenantActual,
     IUnitOfWork unitOfWork) : IDeteccionTrabajadoresService
 {
     public async Task ProcesarDocumentoAsync(Guid documentoId, CancellationToken cancellationToken = default)
     {
+        // Nivel 0 (DEC-33, REC-035) — ver el mismo gate en VerificacionIaDocumentoService.
+        if (tenantActual.TenantId is not { } tenantId || !await instruccionTratamientoIa.EstaHabilitadaAsync(tenantId, cancellationToken))
+            return;
+
         var documento = await documentosContext.Documentos.FirstOrDefaultAsync(d => d.Id == documentoId, cancellationToken);
 
         if (documento is null || documento.EmpresaId is null || string.IsNullOrWhiteSpace(documento.ArchivoUrl))

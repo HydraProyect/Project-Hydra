@@ -231,6 +231,12 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Comunicaciones.ResponderConversacionWhatsAppCommandHandler", "ILineaWhatsAppRepository"),
         ("Contactos.GuardarContactoAgendaCommandHandler", "ITiposDocumentoQueryContext"),
         ("Contactos.ObtenerAgendaContactosQueryHandler", "ITiposDocumentoQueryContext"),
+        // REC-035 (HO-035-02): el Administrador de plataforma registra la
+        // instrucción sobre un Tenant propietario elegido de la lista
+        // completa de tenants — mismo criterio que ApiKeys.GenerarClaveApiCommandHandler
+        // arriba, que también depende de ITenantsQueryContext para resolver
+        // el tenant objetivo fuera de su propia feature.
+        ("Cumplimiento.RegistrarInstruccionTratamientoIaTenantPropietarioCommandHandler", "ITenantsQueryContext"),
         ("Dashboard.GuardarPreferenciaDashboardCommandHandler", "IPreferenciaDashboardUsuarioRepository"),
         // Horizonte 2.7: CalcularFacturacionEstimadaAsync pasó de despachar
         // ObtenerResumenFacturacionQuery por Mediator (la dependencia cruzada

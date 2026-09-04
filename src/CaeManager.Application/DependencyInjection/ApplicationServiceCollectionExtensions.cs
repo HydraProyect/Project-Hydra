@@ -99,6 +99,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IPaqueteDocumentalVisitaService, PaqueteDocumentalVisitaService>();
         services.AddScoped<IEvaluadorExpedienteVisitaService, EvaluadorExpedienteVisitaService>();
         services.AddScoped<IVerificacionIaDocumentoService, VerificacionIaDocumentoService>();
+        services.AddScoped<CaeManager.Application.Cumplimiento.IInstruccionTratamientoIaService, CaeManager.Application.Cumplimiento.InstruccionTratamientoIaService>();
         services.AddScoped<IValidacionDocumentoOficialService, ValidacionDocumentoOficialService>();
 
         // Parsers de documento oficial: lógica pura (regex sobre texto),

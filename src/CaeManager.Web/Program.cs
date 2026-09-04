@@ -675,6 +675,15 @@ using (var scope = app.Services.CreateScope())
     await DatosPruebaSeeder.ReconciliarVerificacionIaEnTenantsDeDemoAsync(
         dbContext, app.Configuration, logger);
 
+    // Nivel 0 (DEC-33, REC-035): sin esto, el Nivel 1 que la reconciliación
+    // de arriba acaba de encender no basta — la instrucción documentada de
+    // tratamiento IA es el gate que se comprueba primero, y sin ella ningún
+    // tenant de demo llega a ejercitar IA de verdad. Deliberadamente solo el
+    // tenant #1 (ver el método): el segundo tenant y el Cliente Delegante de
+    // demo quedan sin instrucción, como control negativo vivo.
+    await DatosPruebaSeeder.SembrarInstruccionTratamientoIaTenantPrincipalAsync(
+        dbContext, app.Configuration, logger);
+
     // Al final a propósito: aprovisiona la delegación de soporte —apagada—
     // de todo tenant que exista, incluidos los que acaben de sembrarse.
     // Idempotente, así que cubre también los tenants creados en arranques
