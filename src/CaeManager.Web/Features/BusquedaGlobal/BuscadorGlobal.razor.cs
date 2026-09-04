@@ -59,7 +59,7 @@ public partial class BuscadorGlobal : ComponentBase
 
     /// <summary>
     /// Acciones contextuales por pantalla del grupo "En esta pantalla" —
-    /// mismo estilo literal que <see cref="DestinosNavegacion"/>/<see cref="AccionesFijas"/>.
+    /// mismo estilo literal que <see cref="CoberturaDePaleta.DestinosNavegacion"/>/<see cref="AccionesFijas"/>.
     /// Solo cubre verbos que YA existen de verdad en cada pantalla (ver plan
     /// de implementación): no se inventa "Exportar la vista" ni "Guardar
     /// filtro" donde el propio módulo no lo tiene todavía.
@@ -74,51 +74,6 @@ public partial class BuscadorGlobal : ComponentBase
             ["trabajadores"] = [("Nuevo trabajador", "/trabajadores?accion=crear"), ("Exportar a Excel", "/trabajadores/exportar.xlsx"), ("Guardar filtro actual", MarcadorGuardarFiltro)],
             ["documentos"] = [("Nuevo documento", "/documentos?accion=crear"), ("Exportar a Excel", "/documentos/exportar.xlsx"), ("Guardar filtro actual", MarcadorGuardarFiltro)],
         };
-
-    /// <summary>
-    /// Grupo "Ir a" del palette (Parte XVI PROMPT 05) — navegación pura a
-    /// listados y a páginas de Configuración, nunca acciones que cambien
-    /// datos. Filtro simple por substring, sin Query: no son datos, son
-    /// rutas fijas de la propia app.
-    /// </summary>
-    /// <remarks>
-    /// HO-006-01 (REC-006) añadió siete entradas: vehículos, proyectos,
-    /// visitas, gestiones, incidencias, calendario y comunicaciones existían
-    /// como página y en <c>NavMenu.razor</c>, pero el menú era su única vía
-    /// — esta lista, a diferencia de
-    /// <see cref="CaeManager.Web.Features.AtajosGlobales.CatalogoAtajos.DestinosNavegacion"/>,
-    /// no está limitada a una letra por área: admite varias con la misma
-    /// inicial ("Ir a Calendario" e "Ir a Comunicaciones" conviven sin
-    /// conflicto), así que las siete entraron aquí aunque solo dos
-    /// (proyectos, incidencias) tengan además atajo directo "g + letra" —
-    /// ver el criterio declarado allí.
-    ///
-    /// HO-190-01 (REC-190, DEC-75) añadió "Ir a Mi trabajo" (/bandeja) con
-    /// la asimetría exactamente inversa a la de REC-006: esa ruta tiene
-    /// atajo directo "g b" desde antes de REC-006 pero cero entradas aquí —
-    /// quien sabe la tecla llega, quien no, no la encuentra ni buscándola.
-    /// </remarks>
-    private static readonly IReadOnlyList<(string Nombre, string Ruta)> DestinosNavegacion =
-    [
-        ("Ir a Clientes", "/clientes"),
-        ("Ir a Empresas", "/empresas"),
-        ("Ir a Subcontratas", "/subcontratas"),
-        ("Ir a Centros", "/centros"),
-        ("Ir a Trabajadores", "/trabajadores"),
-        ("Ir a Documentos", "/documentos"),
-        ("Ir a Dashboard", "/"),
-        ("Ir a Configuración", "/configuracion"),
-        ("Ir a Claves API", "/configuracion/claves-api"),
-        ("Ir a Tipos de documento", "/tipos-documento"),
-        ("Ir a Vehículos", "/vehiculos"),
-        ("Ir a Proyectos", "/proyectos"),
-        ("Ir a Visitas", "/visitas"),
-        ("Ir a Gestiones", "/gestiones"),
-        ("Ir a Incidencias", "/incidencias"),
-        ("Ir a Calendario", "/calendario"),
-        ("Ir a Comunicaciones", "/comunicaciones"),
-        ("Ir a Mi trabajo", "/bandeja"),
-    ];
 
     /// <summary>Grupo "Acciones" del palette — verbos que crean algo, nunca navegación pura.</summary>
     private static readonly IReadOnlyList<(string Nombre, string Ruta)> AccionesFijas =
@@ -135,7 +90,7 @@ public partial class BuscadorGlobal : ComponentBase
             var termino = _termino.Trim();
             if (termino.Length < 2) return [];
 
-            return DestinosNavegacion
+            return CoberturaDePaleta.DestinosNavegacion
                 .Where(c => c.Nombre.Contains(termino, StringComparison.OrdinalIgnoreCase))
                 .Select(c => new ItemBusquedaDto(Guid.Empty, c.Nombre, null, c.Ruta))
                 .ToList();
