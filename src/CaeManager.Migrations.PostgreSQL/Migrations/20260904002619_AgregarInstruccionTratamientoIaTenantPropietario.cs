@@ -39,6 +39,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 name: "IX_InstruccionesTratamientoIaTenantPropietario_TenantId_Vigente",
                 table: "InstruccionesTratamientoIaTenantPropietario",
                 column: "TenantId",
+                unique: true,
                 filter: "\"RevocadaEnUtc\" IS NULL");
 
             // RLS en la misma migración que crea la tabla (mismo criterio que

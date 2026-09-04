@@ -28,7 +28,19 @@ public class InstruccionTratamientoIaTenantPropietarioConfiguration : IEntityTyp
         // incremento gatea. Filtro parcial: solo indexa lo que la consulta
         // realmente busca (RevocadaEnUtc IS NULL), igual criterio que otros
         // índices de "vigente" del repositorio.
+        //
+        // IsUnique() no es solo rendimiento: es la única garantía real de "a
+        // lo sumo una fila vigente por tenant", el invariante del que
+        // depende ObtenerVigenteAsync (FirstOrDefaultAsync sin ORDER BY, así
+        // que si hubiera dos filas vigentes cuál gobierna el gate de Nivel 0
+        // sería indeterminado). El check-then-insert de
+        // RegistrarInstruccionTratamientoIaTenantPropietarioCommandHandler
+        // es TOCTOU por construcción — dos altas concurrentes para el mismo
+        // tenant podrían pasar la comprobación las dos. Mismo defecto y
+        // misma corrección que ya tienen AsignacionConfiguration (el
+        // incidente que la motivó) y ProyectoTecnicoConfiguration.
         builder.HasIndex(i => i.TenantId)
+            .IsUnique()
             .HasFilter("\"RevocadaEnUtc\" IS NULL")
             .HasDatabaseName("IX_InstruccionesTratamientoIaTenantPropietario_TenantId_Vigente");
 

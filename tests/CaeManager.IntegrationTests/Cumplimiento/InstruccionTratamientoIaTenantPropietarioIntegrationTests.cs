@@ -4,6 +4,7 @@ using CaeManager.Application.Cumplimiento.Commands.RegistrarInstruccionTratamien
 using CaeManager.Application.Cumplimiento.Commands.RevocarInstruccionTratamientoIaTenantPropietario;
 using CaeManager.Application.Cumplimiento.Queries.ObtenerHistoricoInstruccionTratamientoIaTenantPropietario;
 using CaeManager.Application.Plataforma;
+using CaeManager.Domain.Cumplimiento;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -140,6 +141,44 @@ public class InstruccionTratamientoIaTenantPropietarioIntegrationTests : IAsyncL
             invisibleDesdeOtroTenant.Should().BeNull(
                 "el aislamiento por tenant (filtro global + RLS) tiene que impedir que el tenant de " +
                 "plataforma vea la instrucción de otro tenant, aunque haya sido él quien la registró");
+        }
+    }
+
+    /// <summary>
+    /// El check-then-insert de RegistrarInstruccionTratamientoIaTenantPropietarioCommandHandler
+    /// (¿ya hay una vigente?) es TOCTOU por construcción: dos altas
+    /// concurrentes para el mismo tenant podrían pasar las dos la
+    /// comprobación (hallazgo de la revisión adversarial de HO-035-02, §16).
+    /// La defensa real no es el check de Application, es el índice único
+    /// filtrado de <c>InstruccionTratamientoIaTenantPropietarioConfiguration</c>
+    /// — este test lo prueba saltándose el comando y escribiendo directo por
+    /// el repositorio, dos veces, para la misma fila vigente del mismo
+    /// tenant: la segunda escritura tiene que fallar en la base, no en la
+    /// aplicación.
+    /// </summary>
+    [Fact]
+    public async Task El_indice_unico_impide_dos_filas_vigentes_para_el_mismo_tenant_aunque_la_aplicacion_no_lo_evite()
+    {
+        await using var primeraEscritura = CrearContexto();
+        using (AmbitoTenantExplicito.Establecer(_tenantClienteId))
+        {
+            new InstruccionTratamientoIaTenantPropietarioRepository(primeraEscritura).Agregar(
+                new InstruccionTratamientoIaTenantPropietario("v1", "v1", DateTime.UtcNow, OrigenInstruccionTratamientoIa.AltaManualPlataforma, _usuarioAdmin));
+            await primeraEscritura.SaveChangesAsync();
+        }
+
+        await using var segundaEscritura = CrearContexto();
+        using (AmbitoTenantExplicito.Establecer(_tenantClienteId))
+        {
+            new InstruccionTratamientoIaTenantPropietarioRepository(segundaEscritura).Agregar(
+                new InstruccionTratamientoIaTenantPropietario("v2", "v2", DateTime.UtcNow, OrigenInstruccionTratamientoIa.AltaManualPlataforma, _usuarioAdmin));
+
+            var intento = async () => await segundaEscritura.SaveChangesAsync();
+
+            await intento.Should().ThrowAsync<DbUpdateException>(
+                "el índice único IX_InstruccionesTratamientoIaTenantPropietario_TenantId_Vigente tiene que " +
+                "rechazar una segunda fila no revocada para el mismo tenant, sin depender de que el comando " +
+                "de Application la evitara primero");
         }
     }
 

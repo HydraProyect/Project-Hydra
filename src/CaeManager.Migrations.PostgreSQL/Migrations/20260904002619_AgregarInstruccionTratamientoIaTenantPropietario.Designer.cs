@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    [Migration("20260903235932_AgregarInstruccionTratamientoIaTenantPropietario")]
+    [Migration("20260904002619_AgregarInstruccionTratamientoIaTenantPropietario")]
     partial class AgregarInstruccionTratamientoIaTenantPropietario
     {
         /// <inheritdoc />
@@ -1408,6 +1408,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId")
+                        .IsUnique()
                         .HasDatabaseName("IX_InstruccionesTratamientoIaTenantPropietario_TenantId_Vigente")
                         .HasFilter("\"RevocadaEnUtc\" IS NULL");
 

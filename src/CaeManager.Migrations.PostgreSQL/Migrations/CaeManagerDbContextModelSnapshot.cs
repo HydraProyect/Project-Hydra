@@ -1405,6 +1405,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId")
+                        .IsUnique()
                         .HasDatabaseName("IX_InstruccionesTratamientoIaTenantPropietario_TenantId_Vigente")
                         .HasFilter("\"RevocadaEnUtc\" IS NULL");
 
