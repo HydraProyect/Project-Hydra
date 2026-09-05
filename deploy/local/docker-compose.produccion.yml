@@ -118,6 +118,11 @@ services:
       start_period: 60s
 
   db:
+    # SIN mem_limit — hueco declarado, no resuelto aquí (REC-199, § 5 punto
+    # 4 del handoff HO-199-01). De los cuatro contenedores de este stack,
+    # "app" es hoy el único con techo (REC-198); su valor sale de REC-196,
+    # que sigue en stop condition — no se inventa aquí.
+    #
     # Misma versión mayor que llevaba producción en Railway (18.4) y que el
     # pg_dump de la imagen de la app (postgresql-client-18 del Dockerfile).
     # Versión exacta + digest (cadena de suministro, auditoría Módulo 10,
@@ -150,6 +155,9 @@ services:
       retries: 10
 
   caddy:
+    # SIN mem_limit — mismo hueco declarado que "db" arriba (REC-199/REC-198,
+    # valor pendiente de REC-196).
+    #
     # Versión exacta + digest, mismo motivo que "db" de arriba.
     image: caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
     container_name: caemanager-caddy
@@ -171,6 +179,9 @@ services:
       - app
 
   seq:
+    # SIN mem_limit — mismo hueco declarado que "db" arriba (REC-199/REC-198,
+    # valor pendiente de REC-196).
+    #
     # Logs centralizados (P0-3 de RUNBOOK-HORIZONTE-0.md) — licencia
     # Individual gratuita, autoalojado, sin coste por asiento (Datalust
     # solo cobra por usuarios adicionales, no aplica con un único operador).
