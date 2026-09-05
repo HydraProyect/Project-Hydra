@@ -1,0 +1,9 @@
+# REC-196 — SOLO para validar el instrumento en WSL2, desechable, no se
+# commitea su uso. docker-compose.produccion.yml no publica el puerto de
+# `app` a propósito (solo Caddy es público); aquí se publica temporalmente
+# para que CargaCircuitos (que corre en Windows, fuera del contenedor) pueda
+# apuntar los circuitos de Playwright directamente sin montar Caddy con TLS.
+services:
+  app:
+    ports:
+      - "8080:8080"

@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Generador de carga real de LibreOffice y Chromium — REC-196 (ver
+    HO-196-01 en el repositorio de negocio). Complementa a
+    tools/CargaCircuitos (que abre circuitos Blazor) para poder ejercitar
+    las Combinaciones B/C/D del encargo: circuitos + esta carga + PostgreSQL
+    coincidiendo bajo el mismo techo de memoria.
+
+    Deliberadamente separado de tools/CargaCircuitos, mismo criterio que ese
+    proyecto documenta sobre scripts/carga-basica.js: NO forma parte de
+    CaeManager.slnx a propósito, para no entrar en "dotnet build
+    CaeManager.slnx" ni en el escaneo de vulnerabilidades de ci.yml.
+
+    Modo "libreoffice": referencia CaeManager.Infrastructure y llama
+    DIRECTAMENTE a LibreOfficeConversorWordPdfService — el mismo código que
+    corre en producción, con el MISMO SemaphoreSlim(1,1) que serializa todas
+    las conversiones a una sola vez. Se decidió así (y no "N soffice
+    concurrentes" vía shell) tras la revisión adversarial de HO-196-01: N
+    procesos soffice en paralelo miden un escenario que la propia app nunca
+    permite, así que no sería carga "real". Este modo sí lo es: N peticiones
+    concurrentes contra el servicio real, que el semáforo real convierte en
+    una cola.
+
+    Modo "chromium": launches concurrentes de chromium-headless-shell (sin
+    el paquete "chromium" completo — confirmado que el driver .NET lo acepta,
+    ver RETURN PACKAGE de REC-196) renderizando una plantilla HTML
+    representativa, en bucle sostenido — no un render-y-sale, porque bajo
+    ADR-007 el render ocurriría repetidas veces mientras el proceso vive.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Solo para el modo "libreoffice": LibreOfficeConversorWordPdfService
+         real, con su semáforo real. -->
+    <ProjectReference Include="..\..\src\CaeManager.Infrastructure\CaeManager.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Misma versión que tools/CargaCircuitos (REC-196 § 6.3: dos
+         consumidores de esta librería con versiones divergentes era el
+         hallazgo original; alineada también con tests/CaeManager.E2ETests). -->
+    <PackageReference Include="Microsoft.Playwright" Version="1.62.0" />
+  </ItemGroup>
+
+</Project>
