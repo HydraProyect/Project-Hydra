@@ -29,71 +29,107 @@ var outDir = ParseString(
     "--out",
     Path.Combine(Path.GetTempPath(), "carga-circuitos-" + DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)));
 
+// REC-196: modo "adjuntar" — en vez de arrancar su propio proceso dotnet
+// (aproximación sin cgroups del Horizonte 2.1, ver comentario más abajo),
+// se conecta a un CaeManager.Web YA contenedorizado (docker-compose.produccion.yml)
+// para que la medición de memoria sea la que ve el OOM killer de verdad
+// (cgroup del contenedor), no el WorkingSet64 del proceso. Sin esto no se
+// puede medir la Combinación D de HO-196-01 (circuitos + LibreOffice +
+// Chromium + PostgreSQL coincidiendo bajo el mismo techo de memoria).
+var attachUrl = ParseString(args, "--attach-url", "");
+var modoAdjunto = !string.IsNullOrWhiteSpace(attachUrl);
+var contenedor = ParseString(args, "--container", "");
+var dockerExe = ParseString(args, "--docker-exe", "docker");
+
 Directory.CreateDirectory(outDir);
 
 Console.WriteLine($"Etapas objetivo: {string.Join(", ", stages)}");
 Console.WriteLine($"Espera por etapa: {holdSeconds}s — ruta ejercitada: {ruta}");
-Console.WriteLine($"Constricción de CPU del proceso servidor (DOTNET_PROCESSOR_COUNT): {cpus}");
-Console.WriteLine($"Presupuesto de memoria (RAM disponible real del VPS de producción): {memBudgetMb} MB — presupuesto de latencia p95: {latencyBudgetMs} ms");
 Console.WriteLine($"Salida: {outDir}");
-Console.WriteLine();
 
-var servidorPg = Environment.GetEnvironmentVariable("CAEMANAGER_TESTS_PG") ?? "Host=localhost;Username=postgres;Password=postgres";
-var nombreBd = $"caemanager_carga_{Guid.NewGuid():N}";
-var cadenaConexion = $"{servidorPg};Database={nombreBd}";
+Process? proceso = null;
+string? servidorPg = null;
+string? nombreBd = null;
+string baseUrl;
 
-var rutaDll = LocalizarCaeManagerWebDll();
-var puerto = ObtenerPuertoLibre();
-var baseUrl = $"http://127.0.0.1:{puerto}";
-
-Console.WriteLine($"Arrancando {rutaDll} en {baseUrl} contra {nombreBd}...");
-
-var infoInicio = new ProcessStartInfo
+if (modoAdjunto)
 {
-    FileName = "dotnet",
-    Arguments = $"\"{rutaDll}\"",
-    WorkingDirectory = Path.GetDirectoryName(rutaDll),
-    UseShellExecute = false,
-    RedirectStandardOutput = true,
-    RedirectStandardError = true,
-    CreateNoWindow = true,
-};
-
-infoInicio.Environment["ASPNETCORE_ENVIRONMENT"] = "Development";
-infoInicio.Environment["ASPNETCORE_URLS"] = baseUrl;
-infoInicio.Environment["ConnectionStrings__CaeManagerDb"] = cadenaConexion;
-infoInicio.Environment["DatosPrueba__Activo"] = "true";
-
-// Mismo motivo que WebAppFixture.cs: decenas de logins reales en poco
-// tiempo desde 127.0.0.1 chocarían con el límite de fuerza bruta de
-// /cuenta/* (P0-2). Aquí el "ataque" es el propio harness.
-infoInicio.Environment["RateLimiting__Cuenta__LimiteAnonimo"] = "5000";
-infoInicio.Environment["RateLimiting__Cuenta__LimiteAutenticado"] = "5000";
-
-// Aproximación sin Docker/cgroups al presupuesto de 2 vCPU del VPS de
-// producción (ver ADR-008): DOTNET_PROCESSOR_COUNT limita cuántos
-// procesadores ve el runtime (thread pool, Server GC con tantos heaps como
-// procesadores) sin necesitar un contenedor. La memoria se deja SIN
-// constreñir a propósito — lo que interesa medir es el crecimiento
-// orgánico de RAM por circuito para extrapolarlo contra el presupuesto real
-// (3.7 GB totales / ~2.8 GB disponibles), no forzar un techo artificial de
-// heap que podría producir un patrón de GC distinto al de producción.
-infoInicio.Environment["DOTNET_PROCESSOR_COUNT"] = cpus.ToString(CultureInfo.InvariantCulture);
-
-var proceso = Process.Start(infoInicio) ?? throw new InvalidOperationException("No se pudo arrancar CaeManager.Web.");
-
-proceso.OutputDataReceived += (_, _) => { };
-proceso.ErrorDataReceived += (_, e) =>
+    baseUrl = attachUrl.TrimEnd('/');
+    Console.WriteLine($"Modo adjunto: NO se arranca proceso propio ni se crea BD temporal. Servidor ya en marcha en {baseUrl}.");
+    if (!string.IsNullOrWhiteSpace(contenedor))
+        Console.WriteLine($"Medición de memoria por cgroup del contenedor \"{contenedor}\" (docker exe: {dockerExe}) — NO por WorkingSet64 del proceso.");
+    else
+        Console.WriteLine("AVISO: --attach-url sin --container — no hay forma de medir memoria de verdad en este modo; solo se medirá latencia.");
+}
+else
 {
-    if (!string.IsNullOrEmpty(e.Data))
-        Console.Error.WriteLine($"[CaeManager.Web] {e.Data}");
-};
-proceso.BeginOutputReadLine();
-proceso.BeginErrorReadLine();
+    Console.WriteLine($"Constricción de CPU del proceso servidor (DOTNET_PROCESSOR_COUNT): {cpus}");
+    Console.WriteLine($"Presupuesto de memoria (RAM disponible real del VPS de producción): {memBudgetMb} MB — presupuesto de latencia p95: {latencyBudgetMs} ms");
+
+    servidorPg = Environment.GetEnvironmentVariable("CAEMANAGER_TESTS_PG") ?? "Host=localhost;Username=postgres;Password=postgres";
+    nombreBd = $"caemanager_carga_{Guid.NewGuid():N}";
+    var cadenaConexion = $"{servidorPg};Database={nombreBd}";
+
+    var rutaDll = LocalizarCaeManagerWebDll();
+    var puerto = ObtenerPuertoLibre();
+    baseUrl = $"http://127.0.0.1:{puerto}";
+
+    Console.WriteLine($"Arrancando {rutaDll} en {baseUrl} contra {nombreBd}...");
+
+    var infoInicio = new ProcessStartInfo
+    {
+        FileName = "dotnet",
+        Arguments = $"\"{rutaDll}\"",
+        WorkingDirectory = Path.GetDirectoryName(rutaDll),
+        UseShellExecute = false,
+        RedirectStandardOutput = true,
+        RedirectStandardError = true,
+        CreateNoWindow = true,
+    };
+
+    infoInicio.Environment["ASPNETCORE_ENVIRONMENT"] = "Development";
+    infoInicio.Environment["ASPNETCORE_URLS"] = baseUrl;
+    infoInicio.Environment["ConnectionStrings__CaeManagerDb"] = cadenaConexion;
+    infoInicio.Environment["DatosPrueba__Activo"] = "true";
+
+    // Mismo motivo que WebAppFixture.cs: decenas de logins reales en poco
+    // tiempo desde 127.0.0.1 chocarían con el límite de fuerza bruta de
+    // /cuenta/* (P0-2). Aquí el "ataque" es el propio harness.
+    infoInicio.Environment["RateLimiting__Cuenta__LimiteAnonimo"] = "5000";
+    infoInicio.Environment["RateLimiting__Cuenta__LimiteAutenticado"] = "5000";
+
+    // Aproximación sin Docker/cgroups al presupuesto de 2 vCPU del VPS de
+    // producción (ver ADR-008): DOTNET_PROCESSOR_COUNT limita cuántos
+    // procesadores ve el runtime (thread pool, Server GC con tantos heaps como
+    // procesadores) sin necesitar un contenedor. La memoria se deja SIN
+    // constreñir a propósito — lo que interesa medir es el crecimiento
+    // orgánico de RAM por circuito para extrapolarlo contra el presupuesto real
+    // (3.7 GB totales / ~2.8 GB disponibles), no forzar un techo artificial de
+    // heap que podría producir un patrón de GC distinto al de producción.
+    //
+    // Este es el modo "solo circuitos" del Horizonte 2.1 (replica ADR-008).
+    // Para medir bajo coincidencia real de memoria (REC-196) usa --attach-url
+    // + --container contra el contenedor real, que sí respeta su mem_limit.
+    infoInicio.Environment["DOTNET_PROCESSOR_COUNT"] = cpus.ToString(CultureInfo.InvariantCulture);
+
+    proceso = Process.Start(infoInicio) ?? throw new InvalidOperationException("No se pudo arrancar CaeManager.Web.");
+
+    proceso.OutputDataReceived += (_, _) => { };
+    proceso.ErrorDataReceived += (_, e) =>
+    {
+        if (!string.IsNullOrEmpty(e.Data))
+            Console.Error.WriteLine($"[CaeManager.Web] {e.Data}");
+    };
+    proceso.BeginOutputReadLine();
+    proceso.BeginErrorReadLine();
+}
 
 try
 {
-    await EsperarArranqueAsync(baseUrl, proceso);
+    if (modoAdjunto)
+        await EsperarArranqueAdjuntoAsync(baseUrl, dockerExe, contenedor);
+    else
+        await EsperarArranqueAsync(baseUrl, proceso!);
     Console.WriteLine("Servidor arriba, migraciones y siembra completas. Arrancando Playwright...");
 
     using var playwright = await Playwright.CreateAsync();
@@ -105,7 +141,26 @@ try
     var muestrasLock = new object();
     using var muestreoCts = new CancellationTokenSource();
 
-    var tareaMuestreo = MuestrearMemoriaAsync(proceso.Id, () => contextos.Count, cpus, muestras, muestrasLock, muestreoCts.Token);
+    // Modo cgroup (REC-196): sin tarea de muestreo por PID — no hay proceso
+    // local que muestrear (el servidor vive en otro contenedor/namespace), y
+    // no hace falta: /sys/fs/cgroup/memory.peak ya es un máximo acumulado
+    // desde que se resetea, así que no puede perderse un pico transitorio
+    // entre dos lecturas como sí le puede pasar al muestreo por WorkingSet64
+    // de más abajo (ver § 7 de HO-196-01) — el kernel lo registra siempre,
+    // no solo cuando el harness mira.
+    var modoCgroup = modoAdjunto && !string.IsNullOrWhiteSpace(contenedor);
+    if (modoCgroup)
+    {
+        // Resuelto y declarado UNA vez aquí (falla rápido si no hay ni v1 ni
+        // v2 antes de gastar ninguna etapa) — HO-196-01 § 7 exige declarar
+        // qué versión de cgroup y qué fichero se usó en el retorno.
+        var rutaCgroupDeclarada = await ResolverRutaPicoCgroupAsync(dockerExe, contenedor);
+        Console.WriteLine($"[cgroup] contenedor \"{contenedor}\": leyendo {rutaCgroupDeclarada}");
+    }
+
+    var tareaMuestreo = modoAdjunto
+        ? Task.CompletedTask
+        : MuestrearMemoriaAsync(proceso!.Id, () => contextos.Count, cpus, muestras, muestrasLock, muestreoCts.Token);
 
     var resumenEtapas = new List<ResumenEtapa>();
     var techoAlcanzado = false;
@@ -144,6 +199,15 @@ try
         }
 
         Console.WriteLine($"  {contextos.Count} circuitos abiertos (objetivo {n}, {erroresApertura} errores de apertura). Manteniendo {holdSeconds}s con interacción...");
+
+        // Resetear el pico ANTES de la etapa (no después): memory.peak es
+        // acumulado desde el último reset (o desde el arranque del
+        // contenedor si nunca se reseteó), así que sin esto la etapa N=160
+        // reportaría el pico de TODAS las etapas anteriores, no el suyo
+        // propio — un resultado monótonamente creciente que parecería un
+        // techo real sin serlo.
+        if (modoCgroup)
+            await ResetearPicoCgroupAsync(dockerExe, contenedor);
 
         // Un bucle de interacción POR CIRCUITO (no un único bucle rotando por
         // turnos): con un solo bucle el ritmo total de peticiones queda fijo
@@ -193,15 +257,34 @@ try
 
         var latencias = latenciasConcurrentes.ToList();
 
-        List<MuestraMemoria> muestrasEtapa;
-        lock (muestrasLock)
-        {
-            muestrasEtapa = muestras.Where(m => m.Hora >= inicioHold && m.Hora <= DateTime.UtcNow).ToList();
-        }
+        double memoriaPromedioMb;
+        double memoriaMaximaMb;
+        double cpuPromedioPct;
 
-        var memoriaPromedioMb = muestrasEtapa.Count > 0 ? muestrasEtapa.Average(m => m.WorkingSetMb) : double.NaN;
-        var memoriaMaximaMb = muestrasEtapa.Count > 0 ? muestrasEtapa.Max(m => m.WorkingSetMb) : double.NaN;
-        var cpuPromedioPct = muestrasEtapa.Count > 0 ? muestrasEtapa.Average(m => m.CpuPercentDelBudget) : double.NaN;
+        if (modoCgroup)
+        {
+            // Pico real de cgroup para ESTA etapa (reseteado justo antes de
+            // abrir los circuitos). No hay "promedio" que tenga sentido
+            // equivalente al WorkingSet64 muestreado — memory.peak es un
+            // único número, el máximo — así que se reporta como promedio Y
+            // máximo iguales, y se marca explícitamente de dónde viene en
+            // el JSON de salida (ver "fuenteMemoria").
+            memoriaMaximaMb = await LeerPicoCgroupMbAsync(dockerExe, contenedor);
+            memoriaPromedioMb = memoriaMaximaMb;
+            cpuPromedioPct = double.NaN; // no medido en modo contenedor — usar `docker stats` aparte.
+        }
+        else
+        {
+            List<MuestraMemoria> muestrasEtapa;
+            lock (muestrasLock)
+            {
+                muestrasEtapa = muestras.Where(m => m.Hora >= inicioHold && m.Hora <= DateTime.UtcNow).ToList();
+            }
+
+            memoriaPromedioMb = muestrasEtapa.Count > 0 ? muestrasEtapa.Average(m => m.WorkingSetMb) : double.NaN;
+            memoriaMaximaMb = muestrasEtapa.Count > 0 ? muestrasEtapa.Max(m => m.WorkingSetMb) : double.NaN;
+            cpuPromedioPct = muestrasEtapa.Count > 0 ? muestrasEtapa.Average(m => m.CpuPercentDelBudget) : double.NaN;
+        }
 
         latencias.Sort();
         var p50 = Percentil(latencias, 0.50);
@@ -270,6 +353,13 @@ try
         cpus,
         memBudgetMb,
         latencyBudgetMs,
+        modoAdjunto,
+        attachUrl = modoAdjunto ? attachUrl : null,
+        contenedor = modoCgroup ? contenedor : null,
+        // fuenteMemoria declara de dónde sale MemoriaMaximaMb en cada etapa
+        // — imprescindible para no confundir un pico de cgroup con un
+        // WorkingSet64 al comparar contra ADR-008 (que sí es WorkingSet64).
+        fuenteMemoria = modoCgroup ? "cgroup-peak" : "working-set64-proceso",
         resumenEtapas,
         techoAlcanzado,
         razonTecho
@@ -297,25 +387,32 @@ try
 }
 finally
 {
-    if (proceso is { HasExited: false })
+    // Modo adjunto (REC-196): ni el proceso ni la base de datos son
+    // propiedad de este harness — los gestiona el propio docker-compose. No
+    // hay nada que matar ni que borrar aquí; hacerlo destruiría el
+    // contenedor/BD que otra herramienta puso en marcha.
+    if (!modoAdjunto)
     {
+        if (proceso is { HasExited: false })
+        {
+            try
+            {
+                proceso.Kill(entireProcessTree: true);
+                await proceso.WaitForExitAsync();
+            }
+            catch (InvalidOperationException) { }
+        }
+
+        proceso?.Dispose();
+
         try
         {
-            proceso.Kill(entireProcessTree: true);
-            await proceso.WaitForExitAsync();
+            await EliminarBaseDatosAsync(servidorPg!, nombreBd!);
         }
-        catch (InvalidOperationException) { }
-    }
-
-    proceso.Dispose();
-
-    try
-    {
-        await EliminarBaseDatosAsync(servidorPg, nombreBd);
-    }
-    catch (Exception ex)
-    {
-        Console.Error.WriteLine($"No se pudo borrar la base de datos temporal {nombreBd}: {ex.Message}");
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"No se pudo borrar la base de datos temporal {nombreBd}: {ex.Message}");
+        }
     }
 }
 
@@ -497,6 +594,131 @@ static async Task EsperarArranqueAsync(string baseUrl, Process proceso)
     }
 
     throw new TimeoutException($"CaeManager.Web no respondió 200 en {baseUrl}/salud a tiempo.");
+}
+
+// REC-196 § 6/§7 de HO-196-01: variante de EsperarArranqueAsync para modo
+// adjunto — no hay Process local que consultar (HasExited), así que si hay
+// --container se usa "docker inspect" para detectar un contenedor
+// reiniciado/caído durante el arranque en vez de quedarse esperando el
+// timeout completo sin explicación.
+static async Task EsperarArranqueAdjuntoAsync(string baseUrl, string dockerExe, string contenedor)
+{
+    using var cliente = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+    var limite = DateTime.UtcNow.AddSeconds(90);
+
+    while (DateTime.UtcNow < limite)
+    {
+        if (!string.IsNullOrWhiteSpace(contenedor))
+        {
+            var (exitCode, salida, _) = await EjecutarProcesoAsync(dockerExe, $"inspect --format {{{{.State.Running}}}} {contenedor}");
+            if (exitCode != 0)
+                throw new InvalidOperationException($"\"{dockerExe} inspect {contenedor}\" falló (código {exitCode}) — ¿existe el contenedor?");
+            if (salida.Trim() != "true")
+                throw new InvalidOperationException($"El contenedor \"{contenedor}\" no está en ejecución (State.Running={salida.Trim()}) mientras se esperaba su arranque.");
+        }
+
+        try
+        {
+            var respuesta = await cliente.GetAsync($"{baseUrl}/salud");
+            if (respuesta.IsSuccessStatusCode)
+                return;
+        }
+        catch (HttpRequestException) { }
+
+        await Task.Delay(250);
+    }
+
+    throw new TimeoutException($"El servidor adjunto no respondió 200 en {baseUrl}/salud a tiempo.");
+}
+
+// REC-196 § 7: pico de memoria a nivel de cgroup del contenedor, que es el
+// que ve el OOM killer — no el WorkingSet64 del proceso (ver
+// MuestrearMemoriaAsync más abajo, que sigue existiendo para el modo "solo
+// circuitos" sin contenedor). cgroup v2 expone memory.peak; v1 solo tiene
+// memory.max_usage_in_bytes (semántica equivalente: máximo acumulado desde
+// el último reset). Se resuelve en cada llamada (sin caché de proceso: un
+// top-level program no admite campos static fuera de una clase, y el coste
+// de un "test -e" de más por etapa es irrelevante) — declarar cuál se usó
+// es parte del contrato de retorno de HO-196-01 § 7.
+static async Task<string> ResolverRutaPicoCgroupAsync(string dockerExe, string contenedor)
+{
+    const string rutaV2 = "/sys/fs/cgroup/memory.peak";
+    const string rutaV1 = "/sys/fs/cgroup/memory/memory.max_usage_in_bytes";
+
+    var (exitV2, _, _) = await EjecutarProcesoAsync(dockerExe, $"exec {contenedor} test -e {rutaV2}");
+    if (exitV2 == 0)
+        return rutaV2;
+
+    var (exitV1, _, _) = await EjecutarProcesoAsync(dockerExe, $"exec {contenedor} test -e {rutaV1}");
+    if (exitV1 == 0)
+        return rutaV1;
+
+    throw new InvalidOperationException(
+        $"Ni {rutaV2} (v2) ni {rutaV1} (v1) existen dentro de \"{contenedor}\" — no se puede medir memoria de cgroup. " +
+        "Declara esto como hueco en el retorno, no sigas con un número que no es de cgroup.");
+}
+
+static async Task ResetearPicoCgroupAsync(string dockerExe, string contenedor)
+{
+    var ruta = await ResolverRutaPicoCgroupAsync(dockerExe, contenedor);
+    // "echo 0 > ruta" resetea el máximo acumulado al uso actual, tanto en
+    // v2 (memory.peak, documentado desde Linux 5.19) como en v1
+    // (memory.max_usage_in_bytes, mismo mecanismo desde siempre). Sin este
+    // reset por etapa, la etapa N mediría el máximo de TODAS las etapas
+    // anteriores, no el suyo — un resultado monótono que simula un techo
+    // sin que lo haya.
+    var (exitCode, _, error) = await EjecutarProcesoAsync(dockerExe, $"exec {contenedor} sh -c \"echo 0 > {ruta}\"");
+    if (exitCode != 0)
+        Console.Error.WriteLine($"  [cgroup] AVISO: no se pudo resetear {ruta} en \"{contenedor}\" (código {exitCode}: {error.Trim()}) — la siguiente lectura puede incluir memoria de etapas previas.");
+}
+
+static async Task<double> LeerPicoCgroupMbAsync(string dockerExe, string contenedor)
+{
+    var ruta = await ResolverRutaPicoCgroupAsync(dockerExe, contenedor);
+    var (exitCode, salida, error) = await EjecutarProcesoAsync(dockerExe, $"exec {contenedor} cat {ruta}");
+    if (exitCode != 0)
+        throw new InvalidOperationException($"No se pudo leer {ruta} en \"{contenedor}\" (código {exitCode}): {error.Trim()}");
+
+    if (!long.TryParse(salida.Trim(), out var bytes))
+        throw new InvalidOperationException($"Contenido inesperado en {ruta} dentro de \"{contenedor}\": \"{salida.Trim()}\"");
+
+    return bytes / 1024.0 / 1024.0;
+}
+
+static async Task<(int ExitCode, string Salida, string Error)> EjecutarProcesoAsync(string archivo, string argumentos)
+{
+    var info = new ProcessStartInfo
+    {
+        FileName = archivo,
+        Arguments = argumentos,
+        UseShellExecute = false,
+        RedirectStandardOutput = true,
+        RedirectStandardError = true,
+        CreateNoWindow = true,
+    };
+
+    Process proceso;
+    try
+    {
+        proceso = Process.Start(info) ?? throw new InvalidOperationException($"No se pudo ejecutar \"{archivo} {argumentos}\".");
+    }
+    catch (System.ComponentModel.Win32Exception ex)
+    {
+        // Caso real observado al validar este modo en Windows sin Docker en
+        // el PATH: sin este catch, la excepción sube sin contexto y parece
+        // un fallo del harness en vez de "falta el binario". El objetivo
+        // real (CX23 Linux) SÍ tiene docker nativo; --docker-exe existe
+        // justo para el caso de probar esto desde un host sin él.
+        throw new InvalidOperationException(
+            $"No se encontró el ejecutable \"{archivo}\" (¿está en el PATH? usa --docker-exe para apuntar a otro). " +
+            $"Comando: \"{archivo} {argumentos}\".", ex);
+    }
+
+    using var _ = proceso;
+    var salida = await proceso.StandardOutput.ReadToEndAsync();
+    var error = await proceso.StandardError.ReadToEndAsync();
+    await proceso.WaitForExitAsync();
+    return (proceso.ExitCode, salida, error);
 }
 
 static int ObtenerPuertoLibre()
