@@ -2,6 +2,12 @@
   "version": 1,
   "dependencies": {
     "net10.0": {
+      "AngleSharp": {
+        "type": "Direct",
+        "requested": "[1.7.3, )",
+        "resolved": "1.7.3",
+        "contentHash": "I8TpSvgOPAVQHjVvXaROZOkIGZdX0tn+e9CUix6mv5pMqfyKO+/zm/dofsXgsxVTJl/sSTnEMFwrdnqxTt2axQ=="
+      },
       "AWSSDK.KeyManagementService": {
         "type": "Direct",
         "requested": "[4.0.100.11, )",
@@ -155,11 +161,6 @@
         "requested": "[10.*, )",
         "resolved": "10.0.11",
         "contentHash": "8IV+rI3xN/Mkq9MsSX7VZTv9T9Wt+tyhHLwBX9VNZBk8m8kknEs1JeTSjI2x9M2L/fSja+c2WSE5n5Yy0GXdoQ=="
-      },
-      "AngleSharp": {
-        "type": "Transitive",
-        "resolved": "1.7.2",
-        "contentHash": "r1rb5Qo/0KPzmP0nbSiXPDVfh4Ctu0B+y1RyyUq73g4sgAmEW7q10RDyTq2ZsILwtO9O2LAvMrUles7eD4zz1g=="
       },
       "AngleSharp.Css": {
         "type": "Transitive",

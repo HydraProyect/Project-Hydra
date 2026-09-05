@@ -12,6 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="AngleSharp" Version="1.7.3" />
     <PackageReference Include="AWSSDK.KeyManagementService" Version="4.0.100.11" />
     <PackageReference Include="AWSSDK.S3" Version="4.0.102.5" />
     <PackageReference Include="ClosedXML" Version="0.105.*" />
