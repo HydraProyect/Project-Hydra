@@ -54,9 +54,26 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
         _temaActual = TemaATexto(_usuario?.Tema ?? TemaPreferido.Sistema);
     }
 
+    /// <summary>
+    /// La condición NO es <c>firstRender</c>, y ese era el defecto: como
+    /// <see cref="OnInitializedAsync"/> es asíncrono —lee el usuario de la
+    /// base—, el primer render ocurre con <c>_temaActual</c> todavía en
+    /// <c>null</c>, así que la guarda antigua (<c>!firstRender ||
+    /// _temaActual is null</c>) salía por el segundo término. Y en el render
+    /// siguiente, ya con el tema resuelto, salía por el primero. Las dos
+    /// ramas de la guarda se tapaban entre sí: <c>_modulo</c> no se importaba
+    /// <b>nunca</b>, de modo que el tema no se aplicaba ni al cargar la
+    /// página ni al cambiarlo en el selector. El cambio sí se guardaba en la
+    /// cuenta, así que el fallo era mudo: la preferencia quedaba registrada y
+    /// no se veía jamás.
+    ///
+    /// La condición correcta es "en cuanto se sepa el tema, y una sola vez".
+    /// <c>OnAfterRenderAsync</c> no se ejecuta durante el prerenderizado, así
+    /// que aquí la interoperación de JS siempre es legal.
+    /// </summary>
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || _temaActual is null) return;
+        if (_temaActual is null || _modulo is not null) return;
 
         _modulo = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/tema.js");
         await _modulo.InvokeVoidAsync("aplicarTema", _temaActual);
