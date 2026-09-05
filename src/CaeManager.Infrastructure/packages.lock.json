@@ -10,11 +10,11 @@
       },
       "AWSSDK.KeyManagementService": {
         "type": "Direct",
-        "requested": "[4.0.100.11, )",
-        "resolved": "4.0.100.11",
-        "contentHash": "W5ftytRbIp0OUMQvmpv6AFx/YqzFlfzM84UgP6XgN343uNcVSCQ7lTXV/tsBzhpEDVWCSCrNKALxqZFBc2pdBg==",
+        "requested": "[4.0.100.12, )",
+        "resolved": "4.0.100.12",
+        "contentHash": "8OA+7ttRjZnbaP2xcMnA//VtN5rHK8XkhtOpV+eXD0shrJ8TXLTRjLTgzTInAyWBT+xvoZfD5YofCzUipZZHJQ==",
         "dependencies": {
-          "AWSSDK.Core": "[4.0.102.1, 5.0.0)"
+          "AWSSDK.Core": "[4.0.102.3, 5.0.0)"
         }
       },
       "AWSSDK.S3": {
