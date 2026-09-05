@@ -133,6 +133,10 @@ public static class DelegacionDemoSeeder
         await CrearDelegacionAsync(
             dbContext, tenantConsultoraId, tenantClienteId, administradorConsultora, logger, NombreTenantClienteDemo, cancellationToken);
 
+        // MEDICIÓN HO-136-05 (opción 1 acotada) — NO ES UN CAMBIO DEFINITIVO.
+        await SembrarCarteraAcotadaDelAdministradorDelegadoAsync(
+            dbContext, tenantClienteId, administradorConsultora, logger, cancellationToken);
+
         // --- Transportes Planet Express: solo datos + cartera a un único gestor ---
         var tenantCliente2Id = await AprovisionarTenantAsync(
             dbContext, NombreTenantClienteDemo2, PerfilVocabularioTenant.ClienteDirecto, logger, cancellationToken);
@@ -809,5 +813,59 @@ public static class DelegacionDemoSeeder
         logger.LogInformation(
             "Delegated Workspace de demo sembrado: {Administrador} puede operar {TenantCliente} como {Rol}.",
             administradorConsultora.Email, nombreTenantCliente, RolOperadorDelegadoDemo);
+    }
+
+    /// <summary>
+    /// MEDICIÓN HO-136-05, opción (1) acotada. Da al Administrador de la
+    /// Consultora una cartera <b>acotada</b> sobre el Cliente Delegante — no
+    /// universal — haciéndole ejecutivo de los Clientes del ÚLTIMO gestor de
+    /// prueba del reparto round-robin. Se elige el último, y no el primero,
+    /// porque <c>AlcanceRolesTests.GestorCae_ve_solo_su_cartera_acotada</c>
+    /// comprueba el reparto exacto del PRIMER gestor (3 de 9).
+    ///
+    /// No se emite aquí ninguna <c>AsignacionCartera</c> a mano: se mueve el
+    /// ejecutivo y <see cref="AsignacionesOperativasBackfillSeeder"/> —que
+    /// corre después, en Program.cs— emite la cartera externa acotada por su
+    /// propio mecanismo. Emitirla a mano no serviría: el paso 4 de ese
+    /// backfill cierra toda cartera vigente que no respalde un
+    /// <c>EjecutivoUsuarioId</c>.
+    /// </summary>
+    private static async Task SembrarCarteraAcotadaDelAdministradorDelegadoAsync(
+        CaeManagerDbContext dbContext,
+        Guid tenantClienteId,
+        ApplicationUser administradorConsultora,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        using var _ = AmbitoTenantExplicito.Establecer(tenantClienteId);
+
+        var clientes = await dbContext.Empresas
+            .Where(e => e.EsCritico != null && !e.EstaEliminado)
+            .OrderBy(e => e.CreadoEnUtc).ThenBy(e => e.Id)
+            .ToListAsync(cancellationToken);
+
+        if (clientes.Count == 0) return;
+
+        var ejecutivosEnOrden = clientes
+            .Select(c => c.EjecutivoUsuarioId)
+            .Where(id => id is not null && id != administradorConsultora.Id)
+            .Select(id => id!.Value)
+            .Distinct()
+            .ToList();
+
+        if (ejecutivosEnOrden.Count < 2) return;
+
+        var cedente = ejecutivosEnOrden[^1];
+        var aMover = clientes.Where(c => c.EjecutivoUsuarioId == cedente).ToList();
+        if (aMover.Count == 0) return;
+
+        foreach (var cliente in aMover)
+            cliente.AsignarEjecutivo(administradorConsultora.Id);
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        logger.LogInformation(
+            "MEDICIÓN HO-136-05: cartera acotada de {Cuantos} de {Total} Clientes movida a {Administrador}.",
+            aMover.Count, clientes.Count, administradorConsultora.Email);
     }
 }
