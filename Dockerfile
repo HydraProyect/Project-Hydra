@@ -20,7 +20,15 @@ COPY src/CaeManager.Application/CaeManager.Application.csproj src/CaeManager.App
 COPY src/CaeManager.Infrastructure/CaeManager.Infrastructure.csproj src/CaeManager.Infrastructure/
 COPY src/CaeManager.Migrations.PostgreSQL/CaeManager.Migrations.PostgreSQL.csproj src/CaeManager.Migrations.PostgreSQL/
 COPY src/CaeManager.Web/CaeManager.Web.csproj src/CaeManager.Web/
-RUN dotnet restore src/CaeManager.Web/CaeManager.Web.csproj -r linux-x64
+#
+# -p:UseSharedCompilation=false (REC-199, apagón de producción 2026-09-04):
+# sin esto, `dotnet restore`/`publish` levantan VBCSCompiler como servidor
+# de compilación persistente entre los cinco proyectos — es exactamente el
+# proceso que el kernel mató por OOM esa noche (anon-rss 2,1 GB). La
+# contención real del incidente es el techo de memoria del paso de build en
+# ci-deploy.sh; esto es una segunda línea, gratuita, que apaga el propio
+# mecanismo que acumuló ese estado.
+RUN dotnet restore src/CaeManager.Web/CaeManager.Web.csproj -r linux-x64 -p:UseSharedCompilation=false
 
 COPY src/ src/
 # -r linux-x64 --self-contained false: sin fijar un RuntimeIdentifier, este SDK
@@ -35,7 +43,7 @@ COPY src/ src/
 # ya con el código fuente presente, sí lo detecta. Sigue siendo
 # framework-dependent (no self-contained), solo fuerza qué paquete de runtime
 # se resuelve.
-RUN dotnet publish src/CaeManager.Web/CaeManager.Web.csproj -c Release -o /app/publish -r linux-x64 --self-contained false
+RUN dotnet publish src/CaeManager.Web/CaeManager.Web.csproj -c Release -o /app/publish -r linux-x64 --self-contained false -p:UseSharedCompilation=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0.11@sha256:a4556ed033fa96f984bb7a8d348851cb2d36b1281dd2420070045f664fbb5f94 AS final
 WORKDIR /app
