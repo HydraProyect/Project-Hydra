@@ -110,6 +110,20 @@ public class FlujoSoporteTests(WebAppFixtureParaSoporte fixture)
         // TrazaSoporte.OnInitializedAsync/LocationChanged.
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
 
+        // Interacción real: un clic en el menú lo captura trazaSoporte.js y lo
+        // envía por lotes cada 2 s (INTERVALO_ENVIO_MS). Es la mitad del
+        // rastro que este test no observaba, y por no observarla estuvo rota
+        // sin que nadie lo notara: la guarda de TrazaSoporte.OnAfterRenderAsync
+        // no podía dispararse, así que el módulo no se importaba nunca y no se
+        // registraba una sola Interaccion. Se espera al vaciado del lote ANTES
+        // de cambiar de workspace, porque ese cambio recarga el documento y se
+        // llevaría por delante lo que quedara pendiente de enviar.
+        await page.Locator("a.nav-item[href='empresas']").First.ClickAsync();
+        await Assertions.Expect(page).ToHaveURLAsync(
+            new System.Text.RegularExpressions.Regex("/empresas$"),
+            new PageAssertionsToHaveURLOptions { Timeout = 15_000 });
+        await page.WaitForTimeoutAsync(3500);
+
         // --- Volver al tenant de origen: gestionar delegaciones (incluida
         // la propia lectura de actividad) se hace desde la organización
         // propia, nunca operando el workspace ajeno (Delegaciones.razor.cs,
@@ -144,6 +158,9 @@ public class FlujoSoporteTests(WebAppFixtureParaSoporte fixture)
         var textoActividad = await tabla.InnerTextAsync();
         Assert.Contains("Acceso concedido", textoActividad);
         Assert.Contains("Navegó a", textoActividad);
+        // "Pulsó" es la etiqueta de TipoActividadSoporte.Interaccion
+        // (Delegaciones.razor.cs:181), leída del código y no inventada.
+        Assert.Contains("Pulsó", textoActividad);
 
         // Cerrar el drawer para poder interactuar de nuevo con la tarjeta —
         // el botón explícito, no Escape: no depende de que dialogo-foco.js

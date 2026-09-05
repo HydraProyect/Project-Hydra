@@ -57,9 +57,27 @@ public partial class TrazaSoporte : ComponentBase, IAsyncDisposable
         await RegistrarAsync(TipoActividadSoporte.Navegacion, RutaRelativa(NavigationManager.Uri));
     }
 
+    /// <summary>
+    /// La condición NO es <c>firstRender</c>, y ese era el defecto — el mismo
+    /// que <c>SelectorTema</c>: <see cref="OnInitializedAsync"/> consulta la
+    /// base para saber si esto es una sesión de soporte, así que el primer
+    /// render ocurre con <c>_esSesionDeSoporte</c> todavía en <c>false</c> y
+    /// la guarda antigua salía por el segundo término; en el render siguiente,
+    /// ya resuelto a <c>true</c>, salía por el primero. Las dos ramas se
+    /// tapaban entre sí y el módulo <b>no se importaba nunca</b>.
+    ///
+    /// Su forma más dañina es que fallaba <b>solo</b> en el caso que importa:
+    /// sin sesión de soporte, <c>ResolverSesionAsync</c> no toca la base y
+    /// <c>OnInitializedAsync</c> completa de forma síncrona, así que la guarda
+    /// antigua se comportaba bien justo cuando no había nada que hacer. Con
+    /// sesión de soporte —la única vez que este módulo hace falta— la
+    /// captura de interacciones del técnico no arrancaba, y el rastro
+    /// quedaba con las navegaciones pero sin una sola <c>Interaccion</c>.
+    /// Mudo por completo: nada fallaba, simplemente faltaba media auditoría.
+    /// </summary>
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || !_esSesionDeSoporte) return;
+        if (!_esSesionDeSoporte || _modulo is not null) return;
 
         _referencia = DotNetObjectReference.Create(this);
         _modulo = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./js/trazaSoporte.js");
