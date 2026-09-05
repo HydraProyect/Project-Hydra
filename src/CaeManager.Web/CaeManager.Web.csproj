@@ -23,6 +23,7 @@
     <!-- Pin explícito: Microsoft.OpenApi 2.0.0 (versión que arrastra
          Microsoft.AspNetCore.OpenApi 10.*) tiene una vulnerabilidad de
          gravedad alta conocida (GHSA-v5pm-xwqc-g5wc). -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
     <PackageReference Include="Microsoft.OpenApi" Version="2.12.2" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.*">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
