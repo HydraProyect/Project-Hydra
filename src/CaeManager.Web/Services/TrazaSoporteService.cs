@@ -55,7 +55,7 @@ public class TrazaSoporteService(
         {
             using (AmbitoTenantExplicito.Establecer(tenantId))
             {
-                repositorio.Agregar(new RegistroActividadSoporte(usuarioId, delegacionId, tipo, detalle));
+                repositorio.Agregar(RegistroActividadSoporte.PorViaHeredada(usuarioId, delegacionId, tipo, detalle));
                 await unitOfWork.SaveChangesAsync(cancellationToken);
             }
         }, cancellationToken);

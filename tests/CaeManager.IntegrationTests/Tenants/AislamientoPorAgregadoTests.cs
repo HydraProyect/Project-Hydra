@@ -433,7 +433,7 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
     /// </summary>
     [Fact]
     public Task Aislamiento_RegistroActividadSoporte() => VerificarAislamientoAsync(
-        () => new RegistroActividadSoporte(
+        () => RegistroActividadSoporte.PorViaHeredada(
             Guid.NewGuid(), Guid.NewGuid(), TipoActividadSoporte.Navegacion, "/documentos"));
 
     [Fact]

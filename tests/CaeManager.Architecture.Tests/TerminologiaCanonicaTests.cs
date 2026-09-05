@@ -181,12 +181,34 @@ public class TerminologiaCanonicaTests
     /// con el de abajo, <c>FluentAssertions</c> imprime en el mensaje de fallo tanto el
     /// valor esperado como el medido.
     /// </para>
+    ///
+    /// <para>
+    /// <b>REC-208 (2026-09-05) baja <c>Delegacion</c> de 291 a 290.</b>
+    /// <c>RegistroActividadSoporteConfiguration</c> perdía su única línea
+    /// <c>builder.Property(r =&gt; r.DelegacionTenantId).IsRequired()</c> al pasar
+    /// esa columna a anulable (el agregado admite ahora dos agrupadores
+    /// posibles — ver <c>RegistroActividadSoporte</c>): −1. El incremento
+    /// necesitaba referenciar la propiedad ya existente <c>DelegacionTenantId</c>
+    /// varias veces más (la nueva guarda XOR del constructor privado, la nueva
+    /// constraint <c>CK_RegistrosActividadSoporte_UnSoloAgrupador</c>, el nuevo
+    /// índice), pero esas referencias se escribieron sin introducir ningún
+    /// identificador nuevo con el término —la variable local que sí lo hacía se
+    /// llamó <c>tieneViaHeredada</c>, no <c>tieneDelegacion</c>, y la factoría
+    /// nueva se llamó <c>PorViaHeredada</c>, no <c>PorDelegacion</c>, siguiendo
+    /// la instrucción de este mismo mensaje de fallo ("si has añadido un
+    /// identificador nuevo... usa el canónico"); no se usó el canónico literal
+    /// <c>AsignacionOperacion</c> porque esa clase generaliza expresamente solo
+    /// <c>DelegacionTenant</c> de propósito <b>Comercial</b>
+    /// (<c>AsignacionOperacion.cs</c>), y este incremento toca la vía de
+    /// propósito <b>Soporte</b>, un caso que ADR-011 § 2.7 no cubre— así que el
+    /// neto es <b>−1</b>, no una tercera causa sin identificar.
+    /// </para>
     /// </summary>
     private static readonly Dictionary<string, int> Congelado = new()
     {
         ["Hydra"] = 55,
         ["EjecutivoUsuarioId"] = 48,
-        ["Delegacion"] = 291,
+        ["Delegacion"] = 290,
         ["ClienteActivo"] = 68,
     };
 

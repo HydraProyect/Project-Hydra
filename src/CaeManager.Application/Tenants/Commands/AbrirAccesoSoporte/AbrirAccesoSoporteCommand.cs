@@ -156,7 +156,7 @@ public class AbrirAccesoSoporteCommandHandler(
         // cliente no lo vería nunca.
         using (AmbitoTenantExplicito.Establecer(delegacion.TenantClienteId))
         {
-            registroRepositorio.Agregar(new RegistroActividadSoporte(
+            registroRepositorio.Agregar(RegistroActividadSoporte.PorViaHeredada(
                 usuarioId.Value, delegacion.Id, TipoActividadSoporte.AccesoConcedido,
                 $"Ventana de {request.HorasDeVentana} hora(s). Motivo: {request.Motivo}"));
 
