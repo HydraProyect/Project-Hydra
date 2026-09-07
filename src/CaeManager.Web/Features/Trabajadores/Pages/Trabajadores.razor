@@ -71,6 +71,45 @@
         </Boton>
     </div>
 
+    @* Mismo bloque que Clientes y Empresas. Aquí importa más que en ninguna
+       otra lista: son CUATRO filtros y tres de ellos viven dentro de
+       desplegables cerrados, así que sin esto no hay forma de ver desde fuera
+       por qué la lista está recortada. *@
+    @if (HayFiltrosActivos)
+    {
+        <div class="chips-filtros">
+            <span class="chips-filtros-indicador" aria-hidden="true"><Icono Nombre="filtro" Tamano="TamanoIcono.Pequeno" /></span>
+            @if (!string.IsNullOrWhiteSpace(_busqueda))
+            {
+                <span class="chip-filtro">
+                    Búsqueda: "@_busqueda"
+                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroBusquedaAsync" aria-label="Quitar filtro de búsqueda"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
+                </span>
+            }
+            @if (!string.IsNullOrWhiteSpace(_estadoFiltro))
+            {
+                <span class="chip-filtro">
+                    @EtiquetaFiltroEstado
+                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroEstadoAsync" aria-label="Quitar filtro de documentación"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
+                </span>
+            }
+            @if (!string.IsNullOrWhiteSpace(_filtroEmpresaId))
+            {
+                <span class="chip-filtro">
+                    @EtiquetaFiltroEmpresa
+                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroEmpresaAsync" aria-label="Quitar filtro de empresa"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
+                </span>
+            }
+            @if (!string.IsNullOrWhiteSpace(_filtroSubcontrataId))
+            {
+                <span class="chip-filtro">
+                    @EtiquetaFiltroSubcontrata
+                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroSubcontrataAsync" aria-label="Quitar filtro de subcontrata"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
+                </span>
+            }
+        </div>
+    }
+
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
     @if (_errorCarga)
@@ -120,6 +159,13 @@
                         <ItemMenuAccion OnClick='() => AbrirPreview(context.Id)'>
                             Detalles
                         </ItemMenuAccion>
+                        @* Hasta ahora Trabajador 360 solo se alcanzaba abriendo antes la
+                           vista previa. Es la opción que el propio mockup marca como
+                           recomendada de las tres que plantea, y no cuesta dato ni
+                           componente nuevos: la ruta /trabajadores/{id} ya existe. *@
+                        <ItemMenuAccion OnClick='() => AbrirTrabajador360(context.Id)'>
+                            Abrir Trabajador 360
+                        </ItemMenuAccion>
                         <ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, NombreCompleto(context))">
                             Eliminar
                         </ItemMenuAccion>
@@ -132,7 +178,24 @@
                               TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
         </div>
 
-        @if (_totalElementos == 0 && !_cargando)
+        @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)
+        {
+            @* Distinto de "aún no hay trabajadores": aquí hay cuatro filtros
+               puestos —búsqueda, documentación, empresa y subcontrata— y
+               ofrecer "crea el primero" a quien ha filtrado lo manda a dar de
+               alta un trabajador que probablemente ya existe, con el DNI
+               duplicado que eso arrastra.
+
+               La copia no afirma que HAYA trabajadores dados de alta: el
+               filtrado es de servidor y solo devuelve el total ya filtrado. *@
+            <EstadoVacio NombreIcono="vacio" Titulo="Ningún trabajador con estos filtros"
+                         Descripcion="Ninguno coincide con la búsqueda ni con los filtros de documentación, empresa o subcontrata.">
+                <Accion>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar los filtros</Boton>
+                </Accion>
+            </EstadoVacio>
+        }
+        else if (_totalElementos == 0 && !_cargando)
         {
             <EstadoVacio NombreIcono="trabajadores" Titulo="Aún no hay trabajadores" Descripcion="Crea el primero para empezar a gestionar su documentación.">
                 <Accion>

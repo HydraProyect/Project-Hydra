@@ -284,6 +284,61 @@ public partial class Trabajadores : ComponentBase
         await RecargarAsync();
     }
 
+    /// <summary>
+    /// Abre Trabajador 360 desde el menú de la fila, sin pasar por la vista
+    /// previa. <c>forceLoad: true</c> por el mismo motivo, ya medido, que
+    /// documenta <c>TrabajadorPreviewDrawer.AbrirTrabajador360</c>: el menú vive
+    /// anidado dentro de la propia página que la navegación va a reemplazar, y
+    /// una navegación mejorada dejaba a veces la URL cambiada con la lista
+    /// todavía en pantalla. Es una transición ocasional lista→ficha, no una
+    /// ruta caliente.
+    /// </summary>
+    private void AbrirTrabajador360(Guid id) =>
+        NavigationManager.NavigateTo($"/trabajadores/{id}", forceLoad: true);
+
+    private bool HayFiltrosActivos =>
+        !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_estadoFiltro)
+        || !string.IsNullOrWhiteSpace(_filtroEmpresaId) || !string.IsNullOrWhiteSpace(_filtroSubcontrataId);
+
+    private string EtiquetaFiltroEstado =>
+        EstadoDocumentoUi.OpcionesDocumentales.FirstOrDefault(o => o.Valor == _estadoFiltro)?.Texto ?? _estadoFiltro;
+
+    /// <summary>
+    /// Rótulo del chip de empresa. Si el id filtrado no está en el catálogo
+    /// cargado —cartera que ya no lo alcanza, empresa dada de baja— se dice
+    /// "Empresa" a secas en vez de pintar un GUID: el chip existe para que se
+    /// pueda quitar el filtro, y para eso no hace falta saber su nombre.
+    /// </summary>
+    private string EtiquetaFiltroEmpresa =>
+        _empresasDisponibles.FirstOrDefault(e => e.Id.ToString() == _filtroEmpresaId)?.RazonSocial ?? "Empresa";
+
+    private string EtiquetaFiltroSubcontrata =>
+        _subcontratasDisponibles.FirstOrDefault(s => s.Id.ToString() == _filtroSubcontrataId)?.RazonSocial ?? "Subcontrata";
+
+    private Task QuitarFiltroBusquedaAsync() => BuscarAsync(string.Empty);
+
+    private Task QuitarFiltroEstadoAsync() => CambiarEstadoAsync(string.Empty);
+
+    private Task QuitarFiltroEmpresaAsync() => FiltrarPorEmpresaAsync(string.Empty);
+
+    private Task QuitarFiltroSubcontrataAsync() => FiltrarPorSubcontrataAsync(string.Empty);
+
+    /// <summary>
+    /// Quita los cuatro filtros en una sola recarga. Encadenar los setters
+    /// lanzaría cuatro consultas y las tres primeras devolverían listas que ya
+    /// no se van a pintar.
+    /// </summary>
+    private async Task LimpiarFiltrosAsync()
+    {
+        _busqueda = string.Empty;
+        _estadoFiltro = string.Empty;
+        _filtroEmpresaId = string.Empty;
+        _filtroSubcontrataId = string.Empty;
+        NavigationManager.ActualizarFiltroEnUrl("q", string.Empty);
+        NavigationManager.ActualizarFiltroEnUrl("estado", string.Empty);
+        await RecargarAsync();
+    }
+
     private async Task RecargarAsync()
     {
         await _paginacion.SetCurrentPageIndexAsync(0);
