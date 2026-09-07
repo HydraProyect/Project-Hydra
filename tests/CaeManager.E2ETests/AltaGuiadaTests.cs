@@ -41,7 +41,11 @@ public class AltaGuiadaTests(WebAppFixture fixture)
         await Expect(page.Locator(".texto-vacio-seccion")).ToContainTextAsync(razonSocialCliente);
 
         await page.GetByLabel("Razón social").FillAsync(razonSocialEmpresa);
-        await page.GetByLabel("CIF", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_997_702));
+        // "CIF (opcional)", no "CIF": la asimetría es real y no un rótulo
+        // descuidado — CrearClienteCommand exige el CIF (NotEmpty + NIF de
+        // empresa válido) y CrearEmpresaCommand lo acepta nulo. El paso 1
+        // sigue pidiendo "CIF" a secas.
+        await page.GetByLabel("CIF (opcional)", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_997_702));
         await page.GetByText("Guardar y continuar a Centro").ClickAsync();
 
         // --- Paso 3: Centro ---
@@ -58,10 +62,16 @@ public class AltaGuiadaTests(WebAppFixture fixture)
 
         // "Terminar aquí" desaparece (_centrosCreados pasa a 1) — es la señal
         // de que el Centro se guardó de verdad, sin depender de leer un
-        // toast. (El comentario del propio código habla de limpiar el
-        // formulario tras guardar, pero en la práctica el campo "Nombre"
-        // sigue mostrando el valor guardado — no es lo que este test
-        // necesita verificar, así que no se afirma aquí.)
+        // toast.
+        //
+        // Este comentario decía que "en la práctica el campo Nombre sigue
+        // mostrando el valor guardado" pese a que el código lo limpia. Era
+        // cierto cuando se escribió (2026-08-14) y dejó de serlo el
+        // 2026-09-06: CampoTexto ganó @key="_generacionValor" en #485, que
+        // recrea el <input> cuando el padre reescribe el valor por su cuenta
+        // — antes, devolver el campo al mismo valor que Blazor ya tenía
+        // renderizado no producía diff y el DOM se quedaba con lo tecleado.
+        // El paso 3 ya afirma en pantalla que el formulario se ha vaciado.
         await Expect(page.GetByText("Terminar aquí")).Not.ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
 
         // Los tres pasos quedan marcados como completados en el stepper.
