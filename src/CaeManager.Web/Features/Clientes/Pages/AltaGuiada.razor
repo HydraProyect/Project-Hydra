@@ -21,6 +21,12 @@
 <PageTitle>Alta guiada — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina contenedor-alta-guiada">
+    @* Miguero de dos nodos, igual que Centro 360 y Trabajador 360: arranca en
+       la lista, no en el grupo de menú. El mockup dibuja «Negocio › Clientes ›
+       Alta guiada», pero «Negocio» no tiene página a la que ir y Breadcrumb
+       pinta todo nodo no final como botón — sería un control muerto. *@
+    <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="Ruta de alta guiada" />
+
     <div class="cabecera-pagina">
         <h1 class="titulo-pagina">Alta guiada de cliente</h1>
         <a class="enlace-exportar" href="/clientes">Volver a Clientes</a>
@@ -50,6 +56,9 @@
             <label class="campo-checkbox">
                 <input type="checkbox" @bind="_esCriticoCliente" /> Cliente crítico
             </label>
+            @* Qué hace la casilla, no qué es: "crítico" a secas no dice al gestor
+               qué cambia si la marca. *@
+            <p class="texto-vacio-seccion">Prioriza sus vencimientos.</p>
 
             <CampoTextarea Etiqueta="Notas del cliente" Valor="@_notasCliente" ValorChanged="v => _notasCliente = v" Filas="3" />
 
@@ -63,7 +72,14 @@
         else if (_pasoActual == "empresa")
         {
             <h2 class="titulo-seccion-importacion">2. Empresa</h2>
-            <p class="texto-vacio-seccion">Cliente: <strong>@_clienteNombre</strong></p>
+            @* El guardado es incremental de verdad: al llegar aquí el Cliente ya
+               está en base. La marca lo dice explícitamente, que es lo que hace
+               honesto que el botón secundario de este paso sea "Terminar aquí"
+               y no "Cancelar". *@
+            <p class="texto-vacio-seccion">
+                Cliente: <strong>@_clienteNombre</strong>
+                <Badge Tono="TonoBadge.Exito" Tamano="TamanoBadge.Pequeno">Ya creado</Badge>
+            </p>
 
             @if (_mensajeErrorEmpresa is not null)
             {
@@ -76,24 +92,51 @@
 
             @if (_empresaExistente)
             {
-                <CampoSelect Etiqueta="Empresa" Valor="@_empresaExistenteId" ValorChanged="v => _empresaExistenteId = v">
-                    <option value="">Selecciona una empresa…</option>
-                    @foreach (var empresa in _empresasCatalogo)
-                    {
-                        <option value="@empresa.Id">@empresa.RazonSocial</option>
-                    }
-                </CampoSelect>
+                @* Tres estados, no uno. Hasta ahora el select se dibujaba igual
+                   con catálogo lleno que vacío: con cero empresas quedaba un
+                   desplegable cuya única opción era "Selecciona una empresa…",
+                   que invita a elegir algo que no existe. Distinguir "no hay
+                   nada" de "no hay resultados" es la regla de estados, y aquí
+                   faltaba. *@
+                @if (_cargandoCatalogo)
+                {
+                    <EstadoCargando Filas="1" />
+                }
+                else if (_empresasCatalogo.Count == 0)
+                {
+                    <EstadoVacio Titulo="Todavía no hay ninguna empresa dada de alta"
+                                 Descripcion="No es que el filtro no encuentre nada: el catálogo entero está vacío. Desmarca la casilla y crea la primera empresa aquí mismo." />
+                }
+                else
+                {
+                    <CampoSelect Etiqueta="Empresa" Valor="@_empresaExistenteId" ValorChanged="v => _empresaExistenteId = v">
+                        <option value="">Selecciona una empresa…</option>
+                        @foreach (var empresa in _empresasCatalogo)
+                        {
+                            <option value="@empresa.Id">@empresa.RazonSocial</option>
+                        }
+                    </CampoSelect>
+                }
             }
             else
             {
                 <CampoTexto Etiqueta="Razón social" Valor="@_razonSocialEmpresa" ValorChanged="v => _razonSocialEmpresa = v"
                             OnBlur="ValidarRazonSocialEmpresaAsync" MensajeError="@ObtenerError(_erroresEmpresa, nameof(CrearEmpresaCommand.RazonSocial))" />
-                <CampoTexto Etiqueta="CIF" Valor="@_cifEmpresa" ValorChanged="v => _cifEmpresa = v"
+                @* Asimetría real, no un olvido de rótulo: CrearClienteCommand
+                   exige CIF (NotEmpty + NIF de empresa válido) y
+                   CrearEmpresaCommand lo acepta nulo. Rotularlo "opcional" aquí
+                   y obligatorio en el paso 1 es lo correcto. *@
+                <CampoTexto Etiqueta="CIF (opcional)" Valor="@_cifEmpresa" ValorChanged="v => _cifEmpresa = v"
                             OnBlur="ValidarCifEmpresaAsync" MensajeError="@ObtenerError(_erroresEmpresa, nameof(CrearEmpresaCommand.Cif))" />
             }
 
             <div class="acciones-formulario">
-                <Boton Cargando="_guardandoEmpresa" OnClick="GuardarEmpresaAsync">
+                @* Con el catálogo vacío el botón no tiene nada que vincular:
+                   dejarlo activo llevaría a "Selecciona una empresa.", que es
+                   verdad con catálogo lleno y mentira aquí — no hay ninguna que
+                   seleccionar. La salida la da el estado vacío: desmarcar. *@
+                <Boton Cargando="_guardandoEmpresa" OnClick="GuardarEmpresaAsync"
+                       Deshabilitado="@(_empresaExistente && !_cargandoCatalogo && _empresasCatalogo.Count == 0)">
                     @(_empresaExistente ? "Vincular y continuar a Centro" : "Guardar y continuar a Centro")
                 </Boton>
                 <Boton Variante="VarianteBoton.Fantasma" Deshabilitado="_guardandoEmpresa" OnClick="VerClienteAsync">
@@ -144,6 +187,13 @@
                             Asignar trabajadores
                         </Boton>
                     </div>
+                    @* Los campos de arriba se acaban de vaciar. Sin decirlo, el
+                       formulario en blanco se lee como que algo se ha perdido,
+                       cuando es justo lo contrario: está listo para el
+                       siguiente centro del mismo Cliente y Empresa. *@
+                    <p class="texto-vacio-seccion">
+                        El formulario se ha vaciado: puedes crear otro centro para este mismo Cliente y Empresa sin salir del paso.
+                    </p>
                 </div>
             }
         }

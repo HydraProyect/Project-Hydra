@@ -51,6 +51,12 @@ public partial class AltaGuiada : ComponentBase
     private string _cifEmpresa = string.Empty;
     private string _empresaExistenteId = string.Empty;
     private IReadOnlyList<EmpresaSelectorDto> _empresasCatalogo = [];
+
+    // Arranca en true: entre el primer render y el final de OnInitializedAsync
+    // el catálogo está vacío porque todavía no ha llegado, no porque no haya
+    // empresas. Sin esta bandera esos dos casos son indistinguibles y el paso 2
+    // anunciaría "todavía no hay ninguna empresa dada de alta" mientras carga.
+    private bool _cargandoCatalogo = true;
     private bool _guardandoEmpresa;
     private string? _mensajeErrorEmpresa;
     private Dictionary<string, string> _erroresEmpresa = new();
@@ -80,7 +86,25 @@ public partial class AltaGuiada : ComponentBase
         // filtro "empresas ya asociadas a este cliente" siempre estaría
         // vacío — lo que hace falta aquí es el catálogo entero, igual que al
         // dar de alta un Trabajador.
-        _empresasCatalogo = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
+        try
+        {
+            _empresasCatalogo = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
+        }
+        finally
+        {
+            _cargandoCatalogo = false;
+        }
+    }
+
+    private static readonly IReadOnlyList<BreadcrumbElemento> MigueroEstatico =
+        [new BreadcrumbElemento("Clientes"), new BreadcrumbElemento("Alta guiada")];
+
+    private IReadOnlyList<BreadcrumbElemento> Miguero => MigueroEstatico;
+
+    private void IrABreadcrumb(int indice)
+    {
+        if (indice == 0)
+            NavigationManager.NavigateTo("/clientes");
     }
 
     private async Task GuardarClienteAsync()
