@@ -106,7 +106,9 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
 
         await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "2. Empresa" }).WaitForAsync();
         await page.GetByLabel("Razón social").FillAsync(razonSocialEmpresa);
-        await page.GetByLabel("CIF", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_995_502));
+        // Paso 2: "CIF (opcional)", no "CIF" — CrearEmpresaCommand lo acepta
+        // nulo mientras CrearClienteCommand (paso 1) lo exige.
+        await page.GetByLabel("CIF (opcional)", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_995_502));
         await page.GetByText("Guardar y continuar a Centro").ClickAsync();
 
         await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "3. Centro" }).WaitForAsync();
