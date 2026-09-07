@@ -238,6 +238,35 @@ public partial class Empresas : ComponentBase
         await CargarAsync(resetPagina: true);
     }
 
+    private bool HayFiltrosActivos =>
+        !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_estadoFiltro);
+
+    /// <summary>
+    /// Rótulo del chip del filtro documental. Si el valor de la URL no está en
+    /// el catálogo se cae al valor crudo en vez de romper: la coordenada viene
+    /// de fuera y no es autoridad sobre lo que existe.
+    /// </summary>
+    private string EtiquetaFiltroEstado =>
+        EstadoDocumentoUi.OpcionesDocumentales.FirstOrDefault(o => o.Valor == _estadoFiltro)?.Texto ?? _estadoFiltro;
+
+    private Task QuitarFiltroBusquedaAsync() => BuscarAsync(string.Empty);
+
+    private Task QuitarFiltroEstadoAsync() => CambiarEstadoAsync(string.Empty);
+
+    /// <summary>
+    /// Quita los dos filtros en una sola recarga. Encadenar
+    /// <see cref="BuscarAsync"/> y <see cref="CambiarEstadoAsync"/> lanzaría dos
+    /// consultas, y la primera devolvería una lista que ya no se va a pintar.
+    /// </summary>
+    private async Task LimpiarFiltrosAsync()
+    {
+        _busqueda = string.Empty;
+        _estadoFiltro = string.Empty;
+        NavigationManager.ActualizarFiltroEnUrl("q", string.Empty);
+        NavigationManager.ActualizarFiltroEnUrl("estado", string.Empty);
+        await CargarAsync(resetPagina: true);
+    }
+
     private async Task AbrirCrear()
     {
         _clientesDisponibles = await Mediator.Send(new ObtenerClientesParaSelectorQuery());
