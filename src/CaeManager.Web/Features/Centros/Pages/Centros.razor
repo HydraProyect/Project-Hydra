@@ -88,6 +88,22 @@
     {
         <EstadoCargando Filas="6" />
     }
+    else if (_elementosPagina.Count == 0 && HayFiltrosActivos)
+    {
+        @* Distinto de "aún no hay X": son dos situaciones opuestas y llevan
+           a acciones opuestas. Ofrecer "crea el primero" a quien acaba de
+           filtrar lo manda a duplicar algo que ya existe.
+
+           La copia no afirma que HAYA registros dados de alta: el filtrado
+           es de servidor y la consulta solo devuelve el total ya filtrado,
+           así que la pantalla no sabe cuántos hay sin filtro. *@
+        <EstadoVacio NombreIcono="vacio" Titulo="Ningún centro con estos filtros"
+                     Descripcion="Ninguno coincide con la búsqueda ni con el estado de documentación seleccionado.">
+            <Accion>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar los filtros</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
     else if (_elementosPagina.Count == 0)
     {
         <EstadoVacio NombreIcono="centros" Titulo="Aún no hay centros" Descripcion="Crea el primero para empezar a asignar trabajadores.">

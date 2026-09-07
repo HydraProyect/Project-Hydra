@@ -306,6 +306,19 @@ public partial class Documentos : ComponentBase
         await RecargarAsync();
     }
 
+    private bool HayFiltrosActivos =>
+        !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_estadoFiltro)
+        || !string.IsNullOrWhiteSpace(_ambitoFiltro);
+
+    private async Task LimpiarFiltrosAsync()
+    {
+        _busqueda = string.Empty;
+        _estadoFiltro = string.Empty;
+        _ambitoFiltro = string.Empty;
+        NavigationManager.ActualizarFiltroEnUrl("q", string.Empty);
+        await RecargarAsync();
+    }
+
     private async Task RecargarAsync()
     {
         await _paginacion.SetCurrentPageIndexAsync(0);

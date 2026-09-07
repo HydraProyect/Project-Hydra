@@ -171,6 +171,10 @@ public partial class Subcontratas : ComponentBase
         await CargarAsync(resetPagina: true);
     }
 
+    private bool HayFiltrosActivos => !string.IsNullOrWhiteSpace(_busqueda);
+
+    private Task LimpiarFiltrosAsync() => BuscarAsync(string.Empty);
+
     private async Task AbrirCrear()
     {
         _clientesDisponibles = await Mediator.Send(new ObtenerClientesParaSelectorQuery());
