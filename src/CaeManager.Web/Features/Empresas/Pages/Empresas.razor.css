@@ -1,0 +1,52 @@
+/*
+  Cabecera de columnas sobre la lista de Empresas.
+
+  NO se usa QuickGrid, y no es un olvido: la fila de Empresas se despliega para
+  mostrar los Clientes de esa empresa, y QuickGrid no soporta filas expandibles
+  — la misma razón, y con el mismo comentario, que ya llevaba Subcontratas.
+  El mockup pide «una rejilla con cabecera, como Clientes y Trabajadores», pero
+  esas dos NO tienen fila desplegable, así que la comparación no se traslada:
+  lo que se traslada es la CABECERA y las columnas alineadas, que sí se pueden
+  hacer con grid sobre las celdas que la fila ya pinta.
+
+  Va en CSS aislado y no en list-page.css porque .tarjeta-fila-acordeon-cabecera
+  es compartida con Subcontratas y Centros: cambiarla allí a grid movería tres
+  pantallas en un incremento que solo ha verificado una.
+*/
+
+.rejilla-empresas {
+    /* chevron · razón social · CIF · cumplimiento · documentación · detecciones · acciones */
+    display: grid;
+    grid-template-columns: 28px minmax(0, 2fr) minmax(0, 1fr) 104px 132px 116px auto;
+    gap: var(--space-2);
+    align-items: center;
+}
+
+/* Con selección múltiple entra una casilla delante y las columnas se corren. */
+.rejilla-empresas-seleccion {
+    grid-template-columns: 24px 28px minmax(0, 2fr) minmax(0, 1fr) 104px 132px 116px auto;
+}
+
+.cabecera-columnas-empresas {
+    padding: var(--space-2) var(--space-4);
+    font: var(--font-label);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--color-text-muted);
+}
+
+/* Cada celda recorta por su cuenta: sin esto, una razón social larga estira su
+   columna y desalinea la fila respecto a la cabecera. */
+.celda-empresa {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* La columna de detecciones se reserva aunque no haya ninguna — es lo que
+   mantiene la rejilla cuadrada de fila en fila. */
+.celda-sin-deteccion {
+    color: var(--color-text-muted);
+}
