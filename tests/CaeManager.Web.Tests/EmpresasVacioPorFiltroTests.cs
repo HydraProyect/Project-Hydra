@@ -162,6 +162,68 @@ public class EmpresasVacioPorFiltroTests : BunitContext
             "el chip muestra el rótulo del catálogo, no el valor crudo del enum");
     }
 
+    /// <summary>
+    /// La cabecera y la fila tienen que llevar el MISMO número de celdas, o la
+    /// rejilla se desalinea en cuanto una fila no pinta alguna. Es justo lo que
+    /// pasaba con las detecciones: eran un badge condicional.
+    /// </summary>
+    [Fact]
+    public void La_cabecera_de_columnas_y_la_fila_tienen_el_mismo_numero_de_celdas()
+    {
+        var cut = Renderizar(empresas: new EmpresaListaDto(Guid.NewGuid(), "Montajes Ebro S.L.", "B-48.220.917", DateTime.UtcNow));
+
+        var cabecera = cut.Find(".cabecera-columnas-empresas");
+        cabecera.TextContent.Should().Contain("Razón social").And.Contain("CIF")
+            .And.Contain("Cumplimiento").And.Contain("Documentación").And.Contain("Detecciones");
+
+        var fila = cut.Find(".tarjeta-fila-acordeon-cabecera");
+        fila.Children.Length.Should().Be(cabecera.Children.Length,
+            "cabecera y fila comparten la misma definición de rejilla: si no coinciden las celdas, las columnas no cuadran");
+    }
+
+    [Fact]
+    public void Una_empresa_sin_detecciones_conserva_su_celda_para_no_desalinear_la_fila()
+    {
+        var cut = Renderizar(empresas: new EmpresaListaDto(Guid.NewGuid(), "Montajes Ebro S.L.", "B-48.220.917", DateTime.UtcNow));
+
+        cut.FindAll(".badge-deteccion").Should().BeEmpty("esta empresa no tiene detecciones pendientes");
+        cut.FindAll(".celda-sin-deteccion").Should().HaveCount(1,
+            "la celda se reserva igual: es lo que mantiene la rejilla cuadrada de fila en fila");
+    }
+
+    /// <summary>
+    /// «Detección de trabajadores» solo se ofrece cuando hay alguna pendiente —
+    /// misma condición que ya gobierna el badge. Ofrecerla siempre sería un
+    /// cambio de producto que nadie ha decidido.
+    /// </summary>
+    [Fact]
+    public void Sin_detecciones_pendientes_el_menu_de_fila_no_ofrece_la_deteccion()
+    {
+        var cut = Renderizar(empresas: new EmpresaListaDto(
+            Guid.NewGuid(), "Montajes Ebro S.L.", "B-48.220.917", DateTime.UtcNow, null, null, 0));
+
+        // MenuAcciones no pinta sus ítems hasta que se abre: sin este clic el
+        // test comprobaría una ausencia contra un menú cerrado, que es verde
+        // vacío — daría lo mismo que el ítem existiera o no.
+        cut.Find(".menu-acciones-disparador").Click();
+
+        cut.Markup.Should().Contain("Abrir Empresa 360",
+            "el menú abierto es la barrera que hace válida la comprobación siguiente");
+        cut.Markup.Should().NotContain("Detección de trabajadores");
+    }
+
+    [Fact]
+    public void Con_detecciones_pendientes_el_menu_de_fila_si_las_ofrece()
+    {
+        var cut = Renderizar(empresas: new EmpresaListaDto(
+            Guid.NewGuid(), "Aislamientos Nervión S.L.", "B-48.111.222", DateTime.UtcNow, null, null, 3));
+
+        cut.Markup.Should().Contain("3 detecciones", "el badge de la celda sigue estando");
+
+        cut.Find(".menu-acciones-disparador").Click();
+        cut.Markup.Should().Contain("Detección de trabajadores");
+    }
+
     [Fact]
     public void Sin_filtros_no_se_pinta_ningun_chip()
     {

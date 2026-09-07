@@ -117,12 +117,29 @@
             </label>
         }
 
+        @* Cabecera de columnas. Sin roles de tabla a propósito: esto no es una
+           tabla —la fila se despliega— y anunciarlo como tal prometería a un
+           lector de pantalla una navegación por celdas que no existe. *@
+        <div class="cabecera-columnas-empresas rejilla-empresas @(_seleccionMultiple ? "rejilla-empresas-seleccion" : null)">
+            @if (_seleccionMultiple)
+            {
+                <span></span>
+            }
+            <span></span>
+            <span>Razón social</span>
+            <span>CIF</span>
+            <span>Cumplimiento</span>
+            <span>Documentación</span>
+            <span>Detecciones</span>
+            <span></span>
+        </div>
+
         <div class="lista-filas-acordeon">
             @foreach (var empresa in _elementosPagina)
             {
                 <div class="@("tarjeta-fila-acordeon" + (empresa.Id == _idEnfocado ? " fila-enfocada" : ""))" @key="empresa.Id">
                     @{ var expandido = _expandidos.Contains(empresa.Id); }
-                    <div class="tarjeta-fila-acordeon-cabecera">
+                    <div class="tarjeta-fila-acordeon-cabecera rejilla-empresas @(_seleccionMultiple ? "rejilla-empresas-seleccion" : null)">
                         @if (_seleccionMultiple)
                         {
                             <input type="checkbox" checked="@_seleccionados.Contains(empresa.Id)" @onchange="e => AlternarSeleccion(empresa.Id, (bool)e.Value!)" />
@@ -133,29 +150,59 @@
                                 @onclick="() => AlternarExpansionAsync(empresa.Id)">
                             <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
                         </button>
-                        <button type="button" class="enlace-nombre-fila" @onclick='() => AbrirPreview(empresa.Id)'>
+                        <button type="button" class="enlace-nombre-fila celda-empresa" @onclick='() => AbrirPreview(empresa.Id)'>
                             @empresa.RazonSocial
                         </button>
-                        <span class="tarjeta-fila-acordeon-meta">@(empresa.Cif ?? "—")</span>
-                        <Badge Tono="EstadoDocumentoUi.TonoDocumental(empresa.EstadoDocumental)" Tamano="TamanoBadge.Pequeno">
-                            @EstadoDocumentoUi.TextoDocumental(empresa.EstadoDocumental)
-                        </Badge>
-                        <AnilloCumplimiento Porcentaje="empresa.CumplimientoPorcentaje" Tamano="TamanoAnillo.Pequeno"
-                                             Etiqueta="@($"{empresa.CumplimientoPorcentaje}% de cumplimiento acumulado en los centros donde esta empresa tiene actividad")" />
-                        @if (empresa.DeteccionesPendientes > 0)
-                        {
-                            <button type="button" class="badge-deteccion"
-                                    @onclick='() => NavigationManager.NavigateTo($"/empresas/{empresa.Id}/deteccion-trabajadores")'>
-                                @(empresa.DeteccionesPendientes == 1 ? "1 detección" : $"{empresa.DeteccionesPendientes} detecciones")
-                            </button>
-                        }
+                        <span class="tarjeta-fila-acordeon-meta celda-empresa">@(empresa.Cif ?? "—")</span>
+                        @* Cumplimiento antes que Documentación, en el orden del mockup. Cada
+                           celda va envuelta para que la rejilla tenga SIEMPRE el mismo número
+                           de columnas: un componente que no se pinta desalinearía la fila
+                           respecto a la cabecera. *@
+                        <span>
+                            <AnilloCumplimiento Porcentaje="empresa.CumplimientoPorcentaje" Tamano="TamanoAnillo.Pequeno"
+                                                 Etiqueta="@($"{empresa.CumplimientoPorcentaje}% de cumplimiento acumulado en los centros donde esta empresa tiene actividad")" />
+                        </span>
+                        <span>
+                            <Badge Tono="EstadoDocumentoUi.TonoDocumental(empresa.EstadoDocumental)" Tamano="TamanoBadge.Pequeno">
+                                @EstadoDocumentoUi.TextoDocumental(empresa.EstadoDocumental)
+                            </Badge>
+                        </span>
+                        <span>
+                            @if (empresa.DeteccionesPendientes > 0)
+                            {
+                                <button type="button" class="badge-deteccion"
+                                        @onclick='() => NavigationManager.NavigateTo($"/empresas/{empresa.Id}/deteccion-trabajadores")'>
+                                    @(empresa.DeteccionesPendientes == 1 ? "1 detección" : $"{empresa.DeteccionesPendientes} detecciones")
+                                </button>
+                            }
+                            else
+                            {
+                                <span class="celda-sin-deteccion">—</span>
+                            }
+                        </span>
+                        @* Las acciones se agrupan tras "⋯", mismo criterio que Usuarios: dos
+                           botones fantasma en línea competían visualmente y estiraban la fila.
+                           "Detección de trabajadores" solo aparece cuando hay alguna pendiente
+                           — es la misma condición que hoy gobierna el badge, y ofrecerla
+                           siempre sería un cambio de producto que nadie ha decidido. *@
                         <div class="tarjeta-fila-acordeon-acciones">
-                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick='() => AbrirPreview(empresa.Id)'>
-                                Detalles
-                            </Boton>
-                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEliminar(empresa.Id, empresa.RazonSocial)">
-                                Eliminar
-                            </Boton>
+                            <MenuAcciones>
+                                <ItemMenuAccion OnClick="() => AbrirPreview(empresa.Id)">
+                                    Detalles
+                                </ItemMenuAccion>
+                                <ItemMenuAccion OnClick='() => AbrirDesdePreviewAsync((empresa.Id, "informacion"))'>
+                                    Abrir Empresa 360
+                                </ItemMenuAccion>
+                                @if (empresa.DeteccionesPendientes > 0)
+                                {
+                                    <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo($"/empresas/{empresa.Id}/deteccion-trabajadores")'>
+                                        Detección de trabajadores
+                                    </ItemMenuAccion>
+                                }
+                                <ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(empresa.Id, empresa.RazonSocial)">
+                                    Eliminar
+                                </ItemMenuAccion>
+                            </MenuAcciones>
                         </div>
                     </div>
                     @if (expandido)
