@@ -207,6 +207,24 @@
     {
         <EstadoCargando Filas="6" />
     }
+    else if (AlertasFiltradas.Count == 0 && HayFiltrosActivos && _alertas.Count > 0)
+    {
+        @* La única de las nueve listas del defecto sistémico que filtra EN
+           MEMORIA: _alertas trae todo y AlertasFiltradas recorta encima. Por
+           eso aquí la copia SÍ puede decir cuántas quedan fuera —lo sabe— y
+           por eso el recuento es exacto: si ninguna coincide con el estado
+           elegido, las _alertas.Count están todas en otros estados.
+
+           Sin esta rama, filtrar por "Próximo" y no encontrar nada decía
+           "todos los documentos están vigentes", que es justo lo contrario de
+           lo que puede estar pasando: puede haber una docena vencidos. *@
+        <EstadoVacio NombreIcono="vacio" Titulo="Ninguna alerta con este estado"
+                     Descripcion="@($"Hay {_alertas.Count} documento(s) que reclamar en otros estados.")">
+            <Accion>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar el filtro</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
     else if (AlertasFiltradas.Count == 0)
     {
         <EstadoVacio Titulo="Nada que reclamar" Descripcion="Todos los documentos están vigentes o fuera del umbral de aviso." />

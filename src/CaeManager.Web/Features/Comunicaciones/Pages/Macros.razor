@@ -47,9 +47,36 @@
     {
         <EstadoCargando Filas="5" />
     }
+    else if (_macros.Count == 0 && HayFiltrosActivos)
+    {
+        @* El filtro de esta pantalla ENSANCHA el resultado en vez de
+           estrecharlo: ObtenerMacrosQuery sin cliente devuelve solo las
+           genéricas, y con un cliente devuelve las genéricas MÁS las suyas.
+           De ahí dos consecuencias que rompen el patrón de las otras ocho
+           listas del defecto sistémico:
+
+           - vacío CON cliente elegido implica vacío sin él, porque lo que se
+             ve es un superconjunto: por eso la frase puede afirmar las dos
+             cosas a la vez sin mentir;
+           - y por eso NO se ofrece "quitar el filtro" aquí, que es la acción
+             de todas las demás: quitarlo enseñaría MENOS, no más. La salida
+             útil es crear la macro que falta, o cambiar de cliente en el
+             selector de arriba, que sigue puesto. *@
+        <EstadoVacio NombreIcono="vacio" Titulo="Ni macros genéricas ni de este cliente"
+                     Descripcion="Este cliente no tiene plantillas propias, y tampoco hay ninguna genérica que aplicarle.">
+            <Accion>
+                <Boton OnClick="AbrirCrear">+ Nueva macro</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
     else if (_macros.Count == 0)
     {
-        <EstadoVacio Titulo="Aún no hay macros" Descripcion="Crea la primera plantilla de respuesta para agilizar la bandeja.">
+        @* "No hay macros genéricas", y no "aún no hay macros": sin cliente
+           elegido la consulta devuelve SOLO las genéricas, así que puede haber
+           macros específicas de algún cliente y esta pantalla no las está
+           viendo. Decir que no hay ninguna sería falso. *@
+        <EstadoVacio Titulo="No hay macros genéricas"
+                     Descripcion="Crea la primera plantilla de respuesta, o elige un cliente arriba para ver las suyas.">
             <Accion>
                 <Boton OnClick="AbrirCrear">+ Nueva macro</Boton>
             </Accion>

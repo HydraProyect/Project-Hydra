@@ -86,6 +86,22 @@ public partial class Macros : CaeManager.Web.Components.PaginaIntegrableConfigur
         return CargarAsync();
     }
 
+    /// <summary>
+    /// El único filtro de la pantalla, y el único de todo el defecto sistémico
+    /// del vacío por filtro que <b>ensancha</b> el resultado en vez de
+    /// estrecharlo: sin cliente, <c>ObtenerMacrosQuery</c> devuelve solo las
+    /// macros genéricas; con un cliente, las genéricas MÁS las suyas.
+    ///
+    /// <para>
+    /// Por eso esta pantalla no tiene <c>LimpiarFiltrosAsync</c> como las
+    /// otras ocho: "quitar el filtro" sobre un resultado vacío enseñaría
+    /// menos, no más — el sin-filtro es un subconjunto del con-filtro. Es la
+    /// misma clase de trampa que Visitas, donde copiar el patrón mecánico
+    /// habría empeorado la pantalla.
+    /// </para>
+    /// </summary>
+    private bool HayFiltrosActivos => !string.IsNullOrWhiteSpace(_clienteFiltro);
+
     private void AbrirCrear()
     {
         _editandoId = null;
