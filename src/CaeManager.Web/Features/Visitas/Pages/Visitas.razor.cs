@@ -251,7 +251,16 @@ public partial class Visitas : ComponentBase
         _busqueda = string.Empty;
         _soloUrgentes = false;
         _filtroNotificado = string.Empty;
-        NavigationManager.ActualizarFiltroEnUrl("q", string.Empty);
+        // "notificado" también viaja por la URL y OnParametersSet lo
+        // re-sincroniza desde ella: dejarlo puesto lo devolvía en la siguiente
+        // pasada de parámetros, y "Quitar los filtros" no lo quitaba. Mismo
+        // defecto que Clientes y Documentos, encontrado al barrer las pantallas
+        // hermanas. Los dos en una sola llamada: varias seguidas se pisan.
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["q"] = null,
+            ["notificado"] = null,
+        });
         await RecargarAsync();
     }
 
