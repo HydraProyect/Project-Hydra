@@ -152,6 +152,20 @@
     /// debounce pendiente y se notifica el valor ya mismo — si no, un clic
     /// rápido tras escribir podría llegar al padre antes que la última
     /// tecla, enviando un valor desactualizado.
+    ///
+    /// <para>
+    /// Nota para quien escriba un test bUnit contra un consumidor de este
+    /// componente: cancelar aquí un <c>Task.Delay</c> pendiente reencola su
+    /// continuación en el <c>Dispatcher</c> con un salto de hilo real — si
+    /// el test dispara <c>Input()</c>/<c>Blur()</c>/<c>Click()</c>
+    /// (fire-and-forget, no <c>InputAsync</c>/<c>BlurAsync</c>/<c>ClickAsync</c>)
+    /// y hace un assert justo después sin esperar nada, el assert puede
+    /// adelantarse al manejador del siguiente clic. No es que el clic se
+    /// pierda: es que el test no esperó. Investigado a fondo (causa raíz
+    /// real, con evidencia de navegador) en el comentario de
+    /// <c>Buscar</c>, en
+    /// tests/CaeManager.Web.Tests/TiposDocumentoVacioPorFiltroTests.cs.
+    /// </para>
     /// </summary>
     private async Task ManejarBlurAsync()
     {

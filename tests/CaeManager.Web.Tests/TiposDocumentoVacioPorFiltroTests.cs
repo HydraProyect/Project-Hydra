@@ -109,14 +109,44 @@ public class TiposDocumentoVacioPorFiltroTests : BunitContext
     /// ya mismo, así que esto deja la pantalla filtrada de inmediato.
     ///
     /// <para>
-    /// <b>Pero deja vivo un temporizador de 300 ms</b>, y eso lo hace
-    /// inservible para un caso que después pulse un botón: medido, tres de cada
-    /// seis pases de la suite completa se tragaban el clic —el manejador no
-    /// llegaba a ejecutarse, sin excepción y sin tercera consulta— y con 500 ms
-    /// de espera por medio pasaba 6 de 6. Un caso que interactúe después del
-    /// filtro usa <see cref="FiltrarPorCliente"/>, que no rebota. Y ojo: el
-    /// fallo NO aparecía ejecutando esta clase con <c>--filter</c>; hizo falta
-    /// la suite entera para verlo.
+    /// <b>Pero es inservible para un caso que después pulse un botón</b> —
+    /// medido, tres de cada seis pases de la suite completa se tragaban el
+    /// clic (el manejador tardaba en ejecutarse) y con 500 ms de espera por
+    /// medio pasaba 6 de 6. Un caso que interactúe después del filtro usa
+    /// <see cref="FiltrarPorCliente"/>, que no rebota.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Causa raíz real</b> (investigada instrumentando bUnit —
+    /// <c>ManejarCambioAsync</c>/<c>ManejarBlurAsync</c> de
+    /// <c>CampoTexto.razor</c> y el manejador del botón, con trazas de
+    /// tiempo/hilo en runs repetidos): no es que el manejador del botón no
+    /// llegue a ejecutarse — SIEMPRE se ejecuta. Lo que pasa es que
+    /// <c>Input()</c>/<c>Blur()</c>/<c>Click()</c> de bUnit son
+    /// fire-and-forget: despachan el evento al <c>Dispatcher</c> del
+    /// <c>BunitRenderer</c> pero no esperan a que termine (a diferencia de
+    /// <c>InputAsync</c>/<c>BlurAsync</c>/<c>ClickAsync</c>, que sí). El
+    /// <c>await Task.Delay(300, cts.Token)</c> pendiente de
+    /// <c>ManejarCambioAsync</c> es una espera real registrada en el
+    /// temporizador del CLR; al cancelarla desde <c>ManejarBlurAsync</c>, su
+    /// continuación se reencola en el <c>Dispatcher</c> mediante un salto de
+    /// hilo genuino (vía <c>SynchronizationContext.Post</c>, no en línea) —
+    /// a diferencia del resto de esta prueba, donde el mediator falso
+    /// devuelve <c>Task.FromResult</c> ya completado y todo corre síncrono.
+    /// Ese salto real es lo que abre una ventana en la que el siguiente
+    /// <c>Click()</c> (también fire-and-forget) puede devolver el control al
+    /// hilo de test ANTES de que <c>LimpiarFiltrosAsync</c> termine de
+    /// ejecutarse — y como el test assert justo después sin esperar nada, la
+    /// aserción se adelanta al manejador. No es una ausencia de ejecución:
+    /// es una carrera entre el hilo de test (que no espera) y el
+    /// <c>Dispatcher</c> (que sí tiene trabajo asíncrono real pendiente por
+    /// culpa del debounce). Clasificación: ARNÉS, no PRODUCTO — verificado
+    /// además con un E2E de Playwright contra un Kestrel real (escribir +
+    /// clic inmediato en un botón siempre visible, con y sin CPU ralentizada
+    /// 4×, ~96 repeticiones): el clic nunca se pierde fuera de bUnit, porque
+    /// el navegador manda <c>blur</c> y <c>click</c> como mensajes SignalR
+    /// separados y ordenados, y Blazor no descarta un evento por una
+    /// continuación pendiente en otro punto del mismo circuito.
     /// </para>
     /// </summary>
     private static void Buscar(IRenderedComponent<Features.TiposDocumento.Pages.TiposDocumento> cut, string texto)
