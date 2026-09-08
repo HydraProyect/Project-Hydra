@@ -119,9 +119,25 @@
                     {
                         <EstadoCargando Filas="6" />
                     }
+                    else if (_conversaciones.Count == 0 && HayFiltrosActivos)
+                    {
+                        @* Este estado y el siguiente eran uno solo, y el texto
+                           culpaba siempre a los filtros: a un tenant recién
+                           creado, sin una sola conversación y sin filtro
+                           puesto, le decía "no encontramos conversaciones con
+                           estos filtros" — señalando como causa algo que el
+                           usuario no había tocado. *@
+                        <EstadoVacio NombreIcono="vacio" Titulo="Ninguna conversación con estos filtros"
+                                     Descripcion="Ninguna coincide con la búsqueda ni con los filtros de estado y asignación.">
+                            <Accion>
+                                <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar los filtros</Boton>
+                            </Accion>
+                        </EstadoVacio>
+                    }
                     else if (_conversaciones.Count == 0)
                     {
-                        <EstadoVacio NombreIcono="chat" Titulo="No hay conversaciones" Descripcion="No encontramos conversaciones con estos filtros." />
+                        <EstadoVacio NombreIcono="chat" Titulo="No hay conversaciones"
+                                     Descripcion="Cuando llegue el primer correo de un cliente aparecerá aquí." />
                     }
                     else
                     {
