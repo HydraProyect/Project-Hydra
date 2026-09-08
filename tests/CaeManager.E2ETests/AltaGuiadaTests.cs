@@ -49,7 +49,13 @@ public class AltaGuiadaTests(WebAppFixture fixture)
         await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "2. Cliente" }).WaitForAsync();
         // El resumen del paso demuestra que la Empresa del paso 1 ya está
         // persistida y encadenada — no es solo estado en memoria del wizard.
-        await Expect(page.Locator(".texto-vacio-seccion")).ToContainTextAsync(razonSocialEmpresa);
+        // Locator acotado con HasText, no ".texto-vacio-seccion" a secas: el
+        // formulario de Cliente nuevo (el camino por defecto) ya pinta un
+        // segundo párrafo con esa misma clase ("Prioriza sus vencimientos."),
+        // y un locator sin acotar viola el modo estricto de Playwright con
+        // dos coincidencias.
+        await Expect(page.Locator(".texto-vacio-seccion", new PageLocatorOptions { HasText = razonSocialEmpresa }))
+            .ToBeVisibleAsync();
 
         await page.GetByLabel("Razón social").FillAsync(razonSocialCliente);
         await page.GetByLabel("CIF", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_997_701));
