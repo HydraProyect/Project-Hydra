@@ -170,6 +170,7 @@ jobs:
           --logger "trx;LogFileName=bloque-${{ matrix.bloque }}.trx"
           --filter "${{ steps.reparto.outputs.filtro }}"
           --collect "XPlat Code Coverage" --results-directory ./coverage/integration
+          --settings tests/CaeManager.IntegrationTests/coverlet.runsettings
           -- xUnit.MaxParallelThreads=8
 
       # Diagnostico para la PROXIMA vez que un bloque falle con algo raro
