@@ -69,6 +69,32 @@
     {
         <EstadoCargando Filas="6" />
     }
+    else if (_tipos.Count == 0 && HayFiltrosActivos)
+    {
+        @* La tabla vacía no decía nada: con cuatro filtros puestos —búsqueda,
+           cliente, empresa y centro— salían las cabeceras y ninguna fila, y
+           quien acababa de escribir "TC2" mal no tenía forma de saber si el
+           tipo no existe o si es el filtro. Ofrecerle "+ Nuevo tipo" ahí lo
+           manda a duplicar un tipo de documento que ya está dado de alta.
+
+           La copia no afirma que HAYA tipos: el filtrado es de servidor y la
+           consulta devuelve solo el total ya filtrado. *@
+        <EstadoVacio NombreIcono="vacio" Titulo="Ningún tipo con estos filtros"
+                     Descripcion="Ninguno coincide con la búsqueda por nombre o alias ni con el ámbito de cliente, empresa o centro seleccionado.">
+            <Accion>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar los filtros</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_tipos.Count == 0)
+    {
+        <EstadoVacio NombreIcono="tipos-documento" Titulo="Aún no hay tipos de documento"
+                     Descripcion="Crea el primero para poder exigir documentación a empresas, centros y trabajadores.">
+            <Accion>
+                <Boton OnClick="AbrirCrear">+ Nuevo tipo</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
     else
     {
         <table class="tabla-datos">
