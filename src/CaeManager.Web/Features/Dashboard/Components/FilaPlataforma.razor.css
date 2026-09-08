@@ -29,3 +29,28 @@
     color: var(--color-danger-700);
     font-weight: 600;
 }
+
+/* Marca y nombre juntos: la fila reparte con space-between y un tercer hijo
+   suelto empujaría el nombre al centro. */
+.fila-plataforma-identidad {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+}
+
+/*
+  Tamaños del mockup (Inicio TALVEG): 72px de ancho máximo y 28 de alto.
+  object-fit: contain y width/height auto porque los originales no comparten
+  proporción —CTAIMA es apaisado 1536x688, Dokify y Nalanda son cuadrados de
+  400— y estirarlos deformaría una marca registrada. Se sirven tal cual: no se
+  recolorean, no se recortan y no se reescalan en origen.
+*/
+.fila-plataforma-logo {
+    flex: none;
+    width: auto;
+    height: auto;
+    max-width: 72px;
+    max-height: 28px;
+    object-fit: contain;
+}

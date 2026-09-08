@@ -7,11 +7,27 @@
     sin destino real sería justo el botón muerto que el informe de
     consistencia (§ 46.3) verificó que este producto NO tiene en ningún
     sitio. Se añade cuando exista esa pantalla.
+
+    El logotipo identifica la plataforma de un vistazo, que es lo que esta
+    tabla resuelve: el gestor reconoce antes la marca del portal al que le
+    toca subir que su razón social. Uso nominativo, aprobado por el
+    propietario — no se recolorea, no se recorta y no se usa como reclamo:
+    solo dice a qué portal pertenece cada pendiente.
 *@
 @using CaeManager.Application.Dashboard.Queries
 
 <div class="fila-plataforma">
-    <span class="fila-plataforma-nombre">@Plataforma.ProveedorNombre</span>
+    @* Marca y nombre van juntos en un bloque: la fila reparte con
+       space-between, y un tercer hijo suelto empujaría el nombre al centro. *@
+    <span class="fila-plataforma-identidad">
+        @if (LogoPlataforma.Ruta(Plataforma.ProveedorCodigo) is { } ruta)
+        {
+            @* alt vacío y aria-hidden: el nombre va justo al lado en texto, así que
+               anunciarlo dos veces solo alarga la lectura con un lector de pantalla. *@
+            <img class="fila-plataforma-logo" src="@ruta" alt="" aria-hidden="true" loading="lazy" />
+        }
+        <span class="fila-plataforma-nombre">@Plataforma.ProveedorNombre</span>
+    </span>
     <span class="fila-plataforma-detalle">
         <span>@Plataforma.PendientesDeSubir @(Plataforma.PendientesDeSubir == 1 ? "pendiente" : "pendientes") de subir</span>
         @if (Plataforma.Rechazadas > 0)

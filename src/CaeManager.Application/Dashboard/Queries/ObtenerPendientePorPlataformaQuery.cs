@@ -16,7 +16,14 @@ public record PendientePorPlataformaDto(
     Guid ProveedorPlataformaCaeId,
     string ProveedorNombre,
     int PendientesDeSubir,
-    int Rechazadas);
+    int Rechazadas,
+    /// <summary>
+    /// Slug estable del catálogo ("dokify", "e-coordina"…). Nunca se muestra:
+    /// la UI lo usa para elegir el logotipo de la plataforma, que es un dato
+    /// de presentación y no puede colgar del Nombre — ese sí es editable y
+    /// lleva acentos.
+    /// </summary>
+    string ProveedorCodigo = "");
 
 /// <summary>
 /// Cierra el hallazgo P-04 de la auditoría de producto 2026-08-16: la cadena
@@ -65,16 +72,18 @@ public class ObtenerPendientePorPlataformaQueryHandler(
         if (conteosPorProveedor.Count == 0) return [];
 
         var proveedorIds = conteosPorProveedor.Select(c => c.ProveedorPlataformaCaeId).ToList();
-        var nombresPorProveedor = await proveedoresContext.ProveedoresPlataformaCae
+        var proveedores = await proveedoresContext.ProveedoresPlataformaCae
             .Where(p => proveedorIds.Contains(p.Id))
-            .ToDictionaryAsync(p => p.Id, p => p.Nombre, cancellationToken);
+            .Select(p => new { p.Id, p.Nombre, p.Codigo })
+            .ToDictionaryAsync(p => p.Id, p => p, cancellationToken);
 
         return conteosPorProveedor
             .Select(c => new PendientePorPlataformaDto(
                 c.ProveedorPlataformaCaeId,
-                nombresPorProveedor.GetValueOrDefault(c.ProveedorPlataformaCaeId, "—"),
+                proveedores.GetValueOrDefault(c.ProveedorPlataformaCaeId)?.Nombre ?? "—",
                 c.PendientesDeSubir,
-                c.Rechazadas))
+                c.Rechazadas,
+                proveedores.GetValueOrDefault(c.ProveedorPlataformaCaeId)?.Codigo ?? string.Empty))
             .OrderByDescending(d => d.PendientesDeSubir + d.Rechazadas)
             .ThenBy(d => d.ProveedorNombre)
             .ToList();
