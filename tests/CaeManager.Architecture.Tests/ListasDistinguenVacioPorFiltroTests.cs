@@ -43,15 +43,32 @@ public class ListasDistinguenVacioPorFiltroTests
     /// de otra forma.
     ///
     /// <para>
-    /// Son DOS clases, no una. Empezó siendo solo <c>barra-filtros</c> y eso
-    /// dejaba fuera a Centros y Subcontratas, que usan
-    /// <c>barra-trabajo-centros</c> — es decir, el trinquete daba verde sobre
-    /// dos de las cuatro pantallas que este mismo incremento arregla, sin
-    /// haberlas mirado. Se descubrió porque una mutación deliberada sobre
-    /// Centros NO puso el trinquete en rojo.
+    /// <b>Son cuatro marcas y hay que quedarse con la UNIÓN, no elegir.</b> El
+    /// detector empezó mirando solo <c>barra-filtros</c> y dejaba fuera a
+    /// Centros y Subcontratas (<c>barra-trabajo-centros</c>): daba verde sobre
+    /// dos pantallas que nunca miró. Al descubrir que <c>Bandeja.razor</c> se
+    /// maqueta con clases propias, la tentación fue cambiar a detectar por
+    /// componentes — y medido, ESO HABRÍA PERDIDO CINCO pantallas que el
+    /// criterio por clase sí veía (Alertas, Auditoría, Auditoría IA, Macros y
+    /// DocumentosGeneradosPanel), todas en la deuda de abajo: habrían salido
+    /// del radar en silencio.
+    /// </para>
+    ///
+    /// <para>
+    /// Los dos criterios se solapan sin contenerse, así que van los dos: el
+    /// estilo es libre, y los controles también se pueden envolver. Al añadir
+    /// una marca, comprobar que la lista de detectadas CRECE — cambiar un
+    /// criterio por otro es lo que a punto estuvo de reducir la cobertura
+    /// mientras el trinquete seguía en verde.
     /// </para>
     /// </summary>
-    private static readonly string[] MarcasDeListaConFiltros = ["barra-filtros", "barra-trabajo"];
+    private static readonly string[] MarcasDeListaConFiltros =
+    [
+        "barra-filtros",                   // la barra compartida de la mayoría
+        "barra-trabajo",                   // Centros y Subcontratas
+        "<FiltroEstado",                   // filtro por estado documental
+        "CampoTexto Placeholder=\"Buscar", // buscador de lista (Bandeja y otras)
+    ];
 
     /// <summary>
     /// Deuda congelada: pantallas que hoy NO distinguen los dos vacíos. El
@@ -120,7 +137,8 @@ public class ListasDistinguenVacioPorFiltroTests
 
         nombres.Should().Contain("Empresas.razor").And.Contain("Trabajadores.razor")
             .And.Contain("Clientes.razor").And.Contain("Documentos.razor")
-            .And.Contain("Centros.razor").And.Contain("Subcontratas.razor");
+            .And.Contain("Centros.razor").And.Contain("Subcontratas.razor")
+            .And.Contain("Bandeja.razor", "detectar por clase CSS la dejaba fuera: se maqueta con la suya propia");
     }
 
     /// <summary>

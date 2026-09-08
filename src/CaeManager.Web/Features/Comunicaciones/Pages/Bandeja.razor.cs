@@ -388,6 +388,32 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Los SIETE filtros de la bandeja: cuatro que viajan en la URL (estado,
+    /// mes, cliente y búsqueda) y tres conmutadores de asignación que no.
+    /// </summary>
+    private bool HayFiltrosActivos =>
+        !string.IsNullOrWhiteSpace(_estadoFiltro) || !string.IsNullOrWhiteSpace(_mesFiltro)
+        || !string.IsNullOrWhiteSpace(_clienteIdFiltro) || !string.IsNullOrWhiteSpace(_busqueda)
+        || _soloAsignadasAMi || _soloSinAsignar || _soloEsperandoCliente;
+
+    /// <summary>
+    /// Los siete de una vez y una sola recarga, por el mismo motivo que
+    /// documenta <see cref="AplicarFiltrosAsync"/>: encadenar navegaciones
+    /// arriesga que cada una lea la URL sin el cambio de la anterior.
+    /// </summary>
+    private Task LimpiarFiltrosAsync()
+    {
+        _estadoFiltro = string.Empty;
+        _mesFiltro = string.Empty;
+        _clienteIdFiltro = string.Empty;
+        _busqueda = string.Empty;
+        _soloAsignadasAMi = false;
+        _soloSinAsignar = false;
+        _soloEsperandoCliente = false;
+        return AplicarFiltrosAsync();
+    }
+
     private Task AplicarFiltrosAsync()
     {
         // Los cuatro a la vez en una sola navegación — llamar a
