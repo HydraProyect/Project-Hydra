@@ -1,8 +1,10 @@
 using Bunit;
 using CaeManager.Application.Centros.Commands.CrearCentro;
 using CaeManager.Application.Clientes.Commands.CrearCliente;
+using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Empresas.Commands.CrearEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
+using CaeManager.Application.Trabajadores.Commands.CrearTrabajador;
 using CaeManager.Domain.Common;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
@@ -15,8 +17,10 @@ using Microsoft.Extensions.DependencyInjection;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// Paso 2 del asistente de alta guiada: "usar una empresa que ya existe"
-/// tiene que distinguir <b>catálogo vacío</b> de <b>catálogo con datos</b>.
+/// Paso 1 del asistente de alta guiada (Empresa → Cliente → Centro →
+/// Trabajadores desde la corrección del orden, ver AltaGuiada.razor.cs):
+/// "usar una empresa que ya existe" tiene que distinguir <b>catálogo
+/// vacío</b> de <b>catálogo con datos</b>.
 ///
 /// <para>
 /// Hasta 2026-09-07 no lo distinguía: con cero empresas se dibujaba el mismo
@@ -35,9 +39,8 @@ namespace CaeManager.Web.Tests;
 public class AltaGuiadaCatalogoEmpresasVacioTests : BunitContext
 {
     /// <summary>
-    /// La página lanza dos consultas distintas por el mismo IMediator, así
-    /// que responde por tipo: el catálogo del paso 2, y el alta del Cliente
-    /// que hace falta para llegar hasta él.
+    /// La página lanza varias consultas distintas por el mismo IMediator,
+    /// así que responde por tipo: el catálogo de cada paso de vinculación.
     /// </summary>
     private sealed class MediatorPorTipo : IMediator
     {
@@ -47,7 +50,7 @@ public class AltaGuiadaCatalogoEmpresasVacioTests : BunitContext
             Task.FromResult((TResponse)(object)(request switch
             {
                 ObtenerEmpresasParaSelectorQuery => Catalogo,
-                CrearClienteCommand => (object)Result.Exito(Guid.NewGuid()),
+                ObtenerClientesParaSelectorQuery => (object)(IReadOnlyList<ClienteSelectorDto>)[],
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             }));
 
@@ -70,12 +73,10 @@ public class AltaGuiadaCatalogoEmpresasVacioTests : BunitContext
     }
 
     /// <summary>
-    /// Renderiza la página y la deja en el paso 2 con la casilla "usar una
-    /// empresa que ya existe" marcada. Los campos del paso 1 se dejan vacíos
-    /// a propósito: quien decide si el alta prospera es el Command, y aquí
-    /// está doblado — validar el paso 1 es competencia de otra capa.
+    /// Renderiza la página en el paso 1 (Empresa) con la casilla "usar una
+    /// empresa que ya existe" marcada.
     /// </summary>
-    private IRenderedComponent<AltaGuiada> RenderizarEnPaso2ConCatalogo(params EmpresaSelectorDto[] catalogo)
+    private IRenderedComponent<AltaGuiada> RenderizarEnPaso1ConCatalogo(params EmpresaSelectorDto[] catalogo)
     {
         Services.AddScoped<IMediator>(_ => new MediatorPorTipo { Catalogo = catalogo });
         Services.AddScoped<ToastService>();
@@ -83,20 +84,19 @@ public class AltaGuiadaCatalogoEmpresasVacioTests : BunitContext
         Services.AddScoped<IValidator<CrearClienteCommand>>(_ => new InlineValidator<CrearClienteCommand>());
         Services.AddScoped<IValidator<CrearEmpresaCommand>>(_ => new InlineValidator<CrearEmpresaCommand>());
         Services.AddScoped<IValidator<CrearCentroCommand>>(_ => new InlineValidator<CrearCentroCommand>());
+        Services.AddScoped<IValidator<CrearTrabajadorCommand>>(_ => new InlineValidator<CrearTrabajadorCommand>());
 
         var cut = Render<AltaGuiada>();
 
-        cut.FindAll("button").First(b => b.TextContent.Contains("Guardar y continuar a Empresa")).Click();
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("2. Empresa"));
-
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("1. Empresa"));
         cut.Find("input[type=checkbox]").Change(true);
         return cut;
     }
 
     [Fact]
-    public void Sin_ninguna_empresa_dada_de_alta_el_paso_2_no_ofrece_un_desplegable_vacio()
+    public void Sin_ninguna_empresa_dada_de_alta_el_paso_1_no_ofrece_un_desplegable_vacio()
     {
-        var cut = RenderizarEnPaso2ConCatalogo();
+        var cut = RenderizarEnPaso1ConCatalogo();
 
         cut.Markup.Should().Contain("Todavía no hay ninguna empresa dada de alta",
             "con cero empresas hay que decir que el catálogo entero está vacío, no ofrecer un select donde elegir");
@@ -107,23 +107,23 @@ public class AltaGuiadaCatalogoEmpresasVacioTests : BunitContext
     [Fact]
     public void Sin_ninguna_empresa_el_boton_de_vincular_queda_desactivado()
     {
-        var cut = RenderizarEnPaso2ConCatalogo();
+        var cut = RenderizarEnPaso1ConCatalogo();
 
-        var vincular = cut.FindAll("button").First(b => b.TextContent.Contains("Vincular y continuar a Centro"));
+        var vincular = cut.FindAll("button").First(b => b.TextContent.Contains("Vincular y continuar"));
         vincular.HasAttribute("disabled").Should().BeTrue(
             "activo llevaría a «Selecciona una empresa.», que es verdad con catálogo lleno y mentira sin ninguna empresa");
     }
 
     [Fact]
-    public void Con_empresas_en_el_catalogo_el_paso_2_sigue_ofreciendo_el_desplegable()
+    public void Con_empresas_en_el_catalogo_el_paso_1_sigue_ofreciendo_el_desplegable()
     {
-        var cut = RenderizarEnPaso2ConCatalogo(new EmpresaSelectorDto(Guid.NewGuid(), "Montajes Ebro S.L."));
+        var cut = RenderizarEnPaso1ConCatalogo(new EmpresaSelectorDto(Guid.NewGuid(), "Montajes Ebro S.L."));
 
         cut.FindAll("select").Should().NotBeEmpty("con catálogo lleno el desplegable es lo correcto");
         cut.Markup.Should().Contain("Montajes Ebro S.L.");
         cut.Markup.Should().NotContain("Todavía no hay ninguna empresa dada de alta");
 
-        var vincular = cut.FindAll("button").First(b => b.TextContent.Contains("Vincular y continuar a Centro"));
+        var vincular = cut.FindAll("button").First(b => b.TextContent.Contains("Vincular y continuar"));
         vincular.HasAttribute("disabled").Should().BeFalse();
     }
 }
