@@ -81,10 +81,18 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+      # "10.0.x" (comodín de banda de features, no solo de parche) resolvió
+      # hoy el SDK 10.0.400 nada más publicarse, cuyas referencias implícitas
+      # exigen paquetes Microsoft.Extensions.* >= 10.0.12 que nuget.org
+      # todavía no publica en estable (solo hasta 10.0.11) — NU1103 en los 10
+      # jobs que restauran, transversal a cualquier PR, no causado por ningún
+      # cambio de código. Acotado a "10.0.3xx" (banda de features fija, parche
+      # libre) siguiendo la regla de la § 23: fijar la versión libre cuando
+      # una herramienta cambia de condiciones sin avisar.
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: "10.0.3xx"
 
       # Solo lo necesita CaeManager.IntegrationTests, en
       # Conversion/LibreOfficeConversorWordPdfServiceTests. Por eso se instala
@@ -280,7 +288,7 @@ jobs:
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: "10.0.3xx"
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
@@ -349,7 +357,7 @@ jobs:
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: "10.0.3xx"
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
@@ -391,7 +399,7 @@ jobs:
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: "10.0.3xx"
 
       # Solo para reportgenerator; no se compila nada en este job.
       - name: Restaurar herramientas locales
@@ -574,7 +582,7 @@ jobs:
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: "10.0.3xx"
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
@@ -639,7 +647,7 @@ jobs:
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: "10.0.3xx"
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
@@ -699,7 +707,7 @@ jobs:
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: "10.0.3xx"
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
@@ -821,7 +829,7 @@ jobs:
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: "10.0.3xx"
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
@@ -1083,7 +1091,7 @@ jobs:
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: "10.0.3xx"
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
@@ -1115,7 +1123,7 @@ jobs:
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: "10.0.3xx"
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
