@@ -116,9 +116,24 @@
     {
         @if (_seleccionMultiple)
         {
+            @* "Seleccionar todos" era falso y se contradecía con la propia barra
+               de lote, que ya dice «N seleccionado(s) EN ESTA PÁGINA»: la casilla
+               solo marca los de la página actual. Con 20 por página y 200
+               coincidencias, quien la marcaba y pulsaba "Eliminar seleccionados"
+               borraba 20 creyendo que borraba 200.
+
+               Se dice ademas cuantas quedan fuera cuando las hay: es la mitad
+               informativa del banner que pide el mockup. La otra mitad,
+               "seleccionar las N filtradas", NO se implementa aqui — añade una
+               capacidad de selección masiva sobre un camino destructivo, y eso
+               es una decisión de producto, no de maquetación. *@
             <label class="campo-checkbox">
                 <input type="checkbox" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
-                Seleccionar todos
+                Seleccionar los de esta página
+                @if (_totalElementos > _elementosPagina.Count)
+                {
+                    <span class="texto-vacio-seccion">@($" — hay {_totalElementos} en total con estos filtros")</span>
+                }
             </label>
         }
 
