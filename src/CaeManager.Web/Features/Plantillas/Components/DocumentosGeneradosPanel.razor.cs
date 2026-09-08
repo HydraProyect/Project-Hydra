@@ -59,4 +59,24 @@ public partial class DocumentosGeneradosPanel : ComponentBase
         _trabajadorFiltro = Guid.TryParse(valor, out var id) ? id : null;
         return CargarAsync();
     }
+
+    /// <summary>
+    /// Los dos filtros de la barra. Separa "todavía no se ha generado ninguno"
+    /// de "ninguno con estos filtros": con una plantilla elegida, la primera
+    /// frase manda a generar de nuevo algo que ya existe en otra.
+    /// </summary>
+    private bool HayFiltrosActivos => _plantillaFiltro is not null || _trabajadorFiltro is not null;
+
+    /// <summary>
+    /// Quita los dos filtros en una sola recarga; encadenar los manejadores
+    /// lanzaría dos consultas y la primera devolvería una lista que ya no se
+    /// va a pintar. Vuelve a notificar el total, que es lo que alimenta el
+    /// contador de la pestaña "Generados" de Plantillas.
+    /// </summary>
+    private Task LimpiarFiltrosAsync()
+    {
+        _plantillaFiltro = null;
+        _trabajadorFiltro = null;
+        return CargarAsync();
+    }
 }

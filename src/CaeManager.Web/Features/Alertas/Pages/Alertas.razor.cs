@@ -104,6 +104,21 @@ public partial class Alertas : ComponentBase
     }
 
     /// <summary>
+    /// El único filtro de la lista. Separa "nada que reclamar" —una buena
+    /// noticia— de "ninguna con este estado", que puede convivir con una
+    /// docena de documentos vencidos.
+    /// </summary>
+    private bool HayFiltrosActivos => !string.IsNullOrWhiteSpace(_estadoFiltro);
+
+    // La guarda de la plantilla pide ADEMÁS que _alertas tenga algo. No sobra:
+    // con cero alertas y un filtro puesto, "ninguna con este estado, hay 0 en
+    // otros" es cierto y completamente inútil — lo que el usuario quiere leer
+    // ahí es la buena noticia, "nada que reclamar". Lo destapó el propio test
+    // al escribirlo desde la conducta esperada, no desde el código ya escrito.
+
+    private Task LimpiarFiltrosAsync() => CambiarEstadoFiltroAsync(string.Empty);
+
+    /// <summary>
     /// Un documento faltante (P1-15) no tiene DocumentoId — no hay nada que
     /// "gestionar" todavía. Lleva al drawer de creación con el propietario y
     /// el tipo ya elegidos en vez de a un documento inexistente.

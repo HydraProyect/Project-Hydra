@@ -78,33 +78,42 @@ public class ListasDistinguenVacioPorFiltroTests
     /// cuenta de lo que está haciendo.
     ///
     /// <para>
-    /// Medido el 2026-09-08 tras corregir Empresas (#497), Trabajadores y las
-    /// cuatro listas de Negocio. El defecto estaba en NUEVE pantallas a la vez
-    /// y ninguna lo notaba: un estado vacío equivocado no rompe nada, se ve
-    /// bien, es una frase razonable, y solo miente.
+    /// <b>Está vacía desde el 2026-09-08</b>, y esa es toda la gracia: mientras
+    /// tuvo entradas, el trinquete solo impedía que la lista creciera. Vacía,
+    /// cualquier pantalla de lista nueva tiene que nacer distinguiendo los dos
+    /// vacíos o no pasa. Volver a meter una entrada aquí es una decisión
+    /// explícita, no un descuido — y por eso el motivo es obligatorio.
+    /// </para>
     ///
     /// <para>
-    /// De nueve quedan tres: Auditoría, Auditoría IA y Tipos de Documento
-    /// primero, y después Vehículos, Incidencias y Gestiones —las tres de la
-    /// misma forma que Trabajadores, rejilla y filtrado de servidor—. Las que
-    /// siguen no son mecánicas: Alertas filtra EN MEMORIA (sí sabe cuántas hay
-    /// sin filtro), Macros tiene un filtro que ENSANCHA el resultado en vez de
-    /// estrecharlo, y DocumentosGeneradosPanel no es una página. El motivo
-    /// apuntado aquí para Tipos de
-    /// Documento —«ya tiene chips de filtro»— <b>era falso</b>: los
-    /// <c>chips-filtros</c> de esa página son los alias del formulario de
-    /// edición, dentro del Drawer. Ni tenía chips ni tenía estado vacío
-    /// alguno: con filtros puestos y cero resultados salían las cabeceras de
-    /// la tabla y ninguna fila.
+    /// Las nueve se cerraron en tres tandas: Auditoría, Auditoría IA y Tipos de
+    /// Documento (#505); Vehículos, Incidencias y Gestiones (#506); y Alertas,
+    /// Macros y DocumentosGeneradosPanel al final, <b>que son las que no se
+    /// podían arreglar copiando</b>:
+    /// <list type="bullet">
+    /// <item><b>Alertas</b> filtra EN MEMORIA —<c>_alertas</c> trae todo—, así
+    /// que es la única que SÍ sabe cuántas quedan fuera del filtro y la única
+    /// cuya copia puede decir un número sin mentir.</item>
+    /// <item><b>Macros</b> tiene un filtro que ENSANCHA: sin cliente devuelve
+    /// solo las genéricas; con cliente, las genéricas más las suyas. «Quitar el
+    /// filtro» ahí enseñaría MENOS, así que esa pantalla no lo ofrece — es la
+    /// misma trampa de Visitas, donde copiar el patrón la habría empeorado.</item>
+    /// <item><b>DocumentosGeneradosPanel</b> no es una página con ruta propia,
+    /// sino un panel embebido en la pestaña «Generados» de Plantillas.</item>
+    /// </list>
     /// </para>
+    ///
+    /// <para>
+    /// Dos motivos apuntados aquí resultaron <b>falsos</b> al ir a arreglarlos.
+    /// El de Tipos de Documento decía «ya tiene chips de filtro»: sus
+    /// <c>chips-filtros</c> son los alias del formulario de edición, dentro del
+    /// Drawer — ni chips ni estado vacío alguno. El de Macros decía «pantalla de
+    /// Operación» sin más, y lo que tenía era un filtro con la semántica
+    /// invertida. <b>Un motivo escrito de memoria no es una medición</b>: se
+    /// comprueba en el código antes de actuar sobre él.
     /// </para>
     /// </summary>
-    private static readonly Dictionary<string, string> DeudaCongelada = new()
-    {
-        ["Alertas.razor"] = "pendiente: lista de Control, no tocada en el rediseño del núcleo todavía",
-        ["DocumentosGeneradosPanel.razor"] = "pendiente: es un panel embebido, no una página con ruta propia",
-        ["Macros.razor"] = "pendiente: pantalla de Operación",
-    };
+    private static readonly Dictionary<string, string> DeudaCongelada = new();
 
     [Fact]
     public void Toda_lista_con_filtros_distingue_vacio_sin_registros_de_vacio_por_filtro()

@@ -41,6 +41,21 @@ else if (_cargando)
 {
     <EstadoCargando Filas="6" />
 }
+else if (_documentosGenerados.Count == 0 && HayFiltrosActivos)
+{
+    @* Distinto de "todavía no se ha generado ninguno": con una plantilla o un
+       trabajador elegido, esa frase manda a generar de nuevo un documento que
+       probablemente ya existe para otro trabajador u otra plantilla.
+
+       La copia no afirma cuántos hay: el filtrado es de servidor y la consulta
+       devuelve solo el total ya filtrado. *@
+    <EstadoVacio NombreIcono="vacio" Titulo="Ningún documento con estos filtros"
+                 Descripcion="Ninguno corresponde a la plantilla ni al trabajador seleccionado.">
+        <Accion>
+            <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar los filtros</Boton>
+        </Accion>
+    </EstadoVacio>
+}
 else if (_documentosGenerados.Count == 0)
 {
     <EstadoVacio Titulo="Todavía no se ha generado ningún documento" Descripcion="Genera uno individual o en lote desde una plantilla confirmada." />
