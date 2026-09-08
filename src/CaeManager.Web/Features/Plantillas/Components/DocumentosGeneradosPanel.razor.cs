@@ -1,5 +1,6 @@
 using CaeManager.Application.Plantillas.Queries.ObtenerDocumentosGenerados;
 using CaeManager.Application.Plantillas.Queries.ObtenerPlantillasDocumento;
+using CaeManager.Application.Plantillas.Queries.ObtenerTotalDocumentosGeneradosConAvisos;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using Microsoft.AspNetCore.Components;
 
@@ -16,14 +17,31 @@ public partial class DocumentosGeneradosPanel : ComponentBase
     private bool _cargando = true;
     private bool _errorCarga;
 
-    /// <summary>Notifica el total tras cada carga — lo usa Plantillas.razor para el contador de la pestaña "Generados", sin duplicar la consulta.</summary>
-    [Parameter] public EventCallback<int> TotalCambiado { get; set; }
+    /// <summary>
+    /// Notifica cuántos documentos generados quedaron en
+    /// <see cref="Domain.Plantillas.EstadoDocumentoGenerado.GeneradoConAvisos"/>
+    /// — lo usa Plantillas.razor para el badge de la pestaña "Generados"
+    /// (Plantillas TALVEG.dc.html: tono aviso, "N documentos generados con
+    /// avisos, pendientes de revisar"). Se pide una sola vez en
+    /// <see cref="OnInitializedAsync"/>, con
+    /// <see cref="ObtenerTotalDocumentosGeneradosConAvisosQuery"/> —que no
+    /// admite filtro—, para que no dependa del filtro de este panel:
+    /// defecto encontrado el 2026-09-08, el número anterior venía de
+    /// <c>_documentosGenerados.Count</c> tras cada <see cref="CargarAsync"/>
+    /// y bajaba al filtrar aunque los avisos pendientes de revisar
+    /// siguieran siendo los mismos.
+    /// </summary>
+    [Parameter] public EventCallback<int> AvisosPendientesCambiado { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
         _plantillasDisponibles = await Mediator.Send(new ObtenerPlantillasDocumentoQuery());
         _versionActualPorPlantilla = _plantillasDisponibles.ToDictionary(p => p.Id, p => p.UltimaVersionId);
         _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
+
+        var avisosPendientes = await Mediator.Send(new ObtenerTotalDocumentosGeneradosConAvisosQuery());
+        await AvisosPendientesCambiado.InvokeAsync(avisosPendientes);
+
         await CargarAsync();
     }
 
@@ -36,7 +54,6 @@ public partial class DocumentosGeneradosPanel : ComponentBase
         try
         {
             _documentosGenerados = await Mediator.Send(new ObtenerDocumentosGeneradosQuery(_plantillaFiltro, _trabajadorFiltro));
-            await TotalCambiado.InvokeAsync(_documentosGenerados.Count);
         }
         catch (Exception)
         {
@@ -70,8 +87,9 @@ public partial class DocumentosGeneradosPanel : ComponentBase
     /// <summary>
     /// Quita los dos filtros en una sola recarga; encadenar los manejadores
     /// lanzaría dos consultas y la primera devolvería una lista que ya no se
-    /// va a pintar. Vuelve a notificar el total, que es lo que alimenta el
-    /// contador de la pestaña "Generados" de Plantillas.
+    /// va a pintar. No vuelve a notificar <see cref="AvisosPendientesCambiado"/>:
+    /// ese badge no depende de estos filtros, así que no hay nada que
+    /// re-sincronizar aquí.
     /// </summary>
     private Task LimpiarFiltrosAsync()
     {

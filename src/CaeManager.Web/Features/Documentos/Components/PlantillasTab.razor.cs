@@ -14,7 +14,7 @@ public partial class PlantillasTab : ComponentBase
     private IReadOnlyList<PlantillaDocumentoListaDto> _plantillas = [];
     private bool _cargando = true;
     private bool _errorCarga;
-    private int _totalGenerados;
+    private int _avisosPendientes;
 
     /// <summary>
     /// Sub-pestaña que pide el padre (Catálogo/Generados) — ver
@@ -63,8 +63,17 @@ public partial class PlantillasTab : ComponentBase
         await PestanaActivaChanged.InvokeAsync(pestana);
     }
 
+    /// <summary>
+    /// El badge de "Generados" no es la cardinalidad de la pestaña (cuántos
+    /// documentos generados hay): es "N documentos generados con avisos,
+    /// pendientes de revisar" (Plantillas TALVEG.dc.html). Se omite en cero
+    /// para no leerse como una alarma vacía — "Generados" a secas basta
+    /// cuando no hay nada que revisar.
+    /// </summary>
+    private string EtiquetaGenerados => _avisosPendientes > 0 ? $"Generados ({_avisosPendientes} con avisos)" : "Generados";
+
     private IReadOnlyList<PestanaDefinicion> PestanasConContador =>
-        [new("catalogo", $"Catálogo ({_plantillas.Count})"), new("generados", $"Generados ({_totalGenerados})")];
+        [new("catalogo", $"Catálogo ({_plantillas.Count})"), new("generados", EtiquetaGenerados)];
 
     // Subir nueva versión (PR10) — el gestor decide manualmente que este PDF
     // sustituye al de una plantilla ya existente (ADR-010 § 4, § 6).
@@ -98,7 +107,7 @@ public partial class PlantillasTab : ComponentBase
         }
     }
 
-    private void CambiarTotalGenerados(int total) => _totalGenerados = total;
+    private void CambiarAvisosPendientes(int avisos) => _avisosPendientes = avisos;
 
     private void IrAConfigurar(Guid versionId) => Navigation.NavigateTo($"/plantillas/{versionId}/editar");
 

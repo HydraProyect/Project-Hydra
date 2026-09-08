@@ -1,6 +1,7 @@
 using Bunit;
 using CaeManager.Application.Plantillas.Queries.ObtenerDocumentosGenerados;
 using CaeManager.Application.Plantillas.Queries.ObtenerPlantillasDocumento;
+using CaeManager.Application.Plantillas.Queries.ObtenerTotalDocumentosGeneradosConAvisos;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Domain.Plantillas;
 using CaeManager.Web.Features.Plantillas.Components;
@@ -50,6 +51,10 @@ public class DocumentosGeneradosPanelVacioPorFiltroTests : BunitContext
                         .Where(d => q.TrabajadorId is null || d.TrabajadorId == q.TrabajadorId)
                         .ToList();
                     return Task.FromResult((TResponse)(object)(IReadOnlyList<DocumentoGeneradoListaDto>)visibles);
+
+                case ObtenerTotalDocumentosGeneradosConAvisosQuery:
+                    // A propósito ignora cualquier filtro: es justo lo que este arnés existe para comprobar.
+                    return Task.FromResult((TResponse)(object)generados.Count(d => d.Estado == EstadoDocumentoGenerado.GeneradoConAvisos));
 
                 default:
                     throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.");
