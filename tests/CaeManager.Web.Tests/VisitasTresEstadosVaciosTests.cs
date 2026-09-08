@@ -8,6 +8,7 @@ using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Visitas.Pages;
 using FluentAssertions;
 using MediatR;
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Web.Tests;
@@ -76,12 +77,18 @@ public class VisitasTresEstadosVaciosTests : BunitContext
 
     private MediatorPorTipo _mediator = null!;
 
-    private IRenderedComponent<Visitas> Renderizar(params VisitaListaDto[] visitas)
+    /// <param name="notificado">Filtro que llega por la URL (?notificado=).</param>
+    private IRenderedComponent<Visitas> Renderizar(string? notificado = null, params VisitaListaDto[] visitas)
     {
         _mediator = new MediatorPorTipo { Visitas = visitas };
         Services.AddScoped<IMediator>(_ => _mediator);
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
+
+        if (notificado is not null)
+            Services.GetRequiredService<NavigationManager>()
+                .NavigateTo("visitas?notificado=" + Uri.EscapeDataString(notificado));
+
         return Render<Visitas>();
     }
 
@@ -131,6 +138,35 @@ public class VisitasTresEstadosVaciosTests : BunitContext
         cut.Markup.Should().Contain("Ninguna visita con estos filtros");
         cut.Markup.Should().Contain("Quitar los filtros");
         cut.Markup.Should().NotContain("Todavía no hay visitas programadas");
+    }
+
+    /// <summary>
+    /// «Quitar los filtros» tiene que borrar de la URL <b>todos</b> los filtros
+    /// que viajan por ella, no solo <c>q</c>. <c>notificado</c> se quedaba
+    /// puesto y <c>OnParametersSet</c> —que re-sincroniza desde la URL— lo
+    /// devolvía en la siguiente pasada de parámetros: la lista seguía igual de
+    /// recortada después de pulsar.
+    ///
+    /// <para>
+    /// Encontrado el 2026-09-08 al barrer las pantallas hermanas de Clientes y
+    /// Documentos, que tenían el mismo defecto. Las tres pasaban el trinquete
+    /// de fuente, que solo comprueba que la rama exista.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void Quitar_los_filtros_borra_tambien_el_de_notificado_de_la_url()
+    {
+        var cut = Renderizar(notificado: "pendiente");
+        cut.Markup.Should().Contain("Ninguna visita con estos filtros", "es el punto de partida de este caso");
+
+        cut.Find(".estado-vacio button").Click();
+
+        var uri = Services.GetRequiredService<NavigationManager>().Uri;
+        uri.Should().NotContain("notificado", "dejarlo en la URL lo devuelve en la siguiente pasada de parámetros");
+
+        cut.Markup.Should().NotContain("Ninguna visita con estos filtros");
+        cut.Markup.Should().Contain("No hay visitas activas",
+            "sin filtros del usuario vuelve el estado de partida, con «Solo activas» de fábrica");
     }
 
     /// <summary>

@@ -310,12 +310,31 @@ public partial class Documentos : ComponentBase
         !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_estadoFiltro)
         || !string.IsNullOrWhiteSpace(_ambitoFiltro);
 
+    /// <summary>
+    /// Quita los tres filtros, y los tres <b>también de la URL</b>. Hasta ahora
+    /// solo se borraba <c>q</c>: <c>Estado</c> y <c>Ambito</c> se quedaban
+    /// puestos y <see cref="OnParametersSet"/>, que re-sincroniza desde la URL,
+    /// los devolvía en la siguiente pasada de parámetros. Pulsar "Quitar los
+    /// filtros" con un estado documental elegido dejaba la lista igual de
+    /// recortada. Mismo defecto que tenía Clientes, encontrado por la prueba
+    /// por render: el trinquete de fuente solo mira que exista la rama.
+    ///
+    /// <para>
+    /// Los tres van en una sola llamada por la razón que documenta el helper:
+    /// cada <c>NavigateTo</c> lee la URL vigente y varias seguidas se pisan.
+    /// </para>
+    /// </summary>
     private async Task LimpiarFiltrosAsync()
     {
         _busqueda = string.Empty;
         _estadoFiltro = string.Empty;
         _ambitoFiltro = string.Empty;
-        NavigationManager.ActualizarFiltroEnUrl("q", string.Empty);
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["q"] = null,
+            [nameof(Estado)] = null,
+            [nameof(Ambito)] = null,
+        });
         await RecargarAsync();
     }
 

@@ -323,6 +323,24 @@ public partial class Clientes : ComponentBase
     /// Quita los cuatro filtros en una sola recarga. Encadenar los setters
     /// lanzaría cuatro consultas y las tres primeras devolverían listas que ya
     /// no se van a pintar.
+    ///
+    /// <para>
+    /// <b>Los dos filtros que viajan por la URL se limpian TAMBIÉN allí.</b>
+    /// Hasta ahora solo se borraba <c>q</c>: <c>critico</c> se quedaba puesto y
+    /// <see cref="OnParametersSetAsync"/>, que re-sincroniza desde la URL, lo
+    /// devolvía a true en la siguiente pasada de parámetros. El resultado era
+    /// que pulsar "Quitar los filtros" con "solo críticos" activo dejaba la
+    /// lista igual de recortada y el chip volvía a aparecer — el chip sí lo
+    /// limpiaba bien (ver <see cref="CambiarSoloCriticosAsync"/>), el botón no.
+    /// Lo destapó la prueba por render; el trinquete de fuente lo daba por
+    /// bueno, porque solo mira que exista la rama.
+    /// </para>
+    ///
+    /// <para>
+    /// Se usa <c>ActualizarFiltrosEnUrl</c> —los dos de una vez— y no dos
+    /// llamadas seguidas, por la razón que documenta el propio helper: cada
+    /// <c>NavigateTo</c> lee la URL vigente y dos seguidas pueden pisarse.
+    /// </para>
     /// </summary>
     private async Task LimpiarFiltrosAsync()
     {
@@ -330,7 +348,11 @@ public partial class Clientes : ComponentBase
         _soloCriticos = false;
         _ejecutivoFiltro = string.Empty;
         _estadoDocumentalFiltro = string.Empty;
-        NavigationManager.ActualizarFiltroEnUrl("q", string.Empty);
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["q"] = null,
+            ["critico"] = null,
+        });
         await RecargarAsync();
     }
 
