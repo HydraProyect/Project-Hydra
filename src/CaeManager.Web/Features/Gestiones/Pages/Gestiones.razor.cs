@@ -112,6 +112,27 @@ public partial class Gestiones : ComponentBase
         await RecargarAsync();
     }
 
+    /// <summary>
+    /// Los dos filtros de la barra. Separa "sin gestiones" de "ninguna con
+    /// estos filtros": el texto sin filtrar explica cómo se generan las
+    /// gestiones, y con un estado puesto se lee como que el mecanismo falla.
+    /// </summary>
+    private bool HayFiltrosActivos =>
+        !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_filtroEstado);
+
+    /// <summary>
+    /// Quita los dos filtros en una sola recarga. El estado vive además en la
+    /// URL y se limpia allí: <see cref="OnParametersSet"/> re-sincroniza desde
+    /// ella en cada navegación dentro de la página.
+    /// </summary>
+    private async Task LimpiarFiltrosAsync()
+    {
+        _busqueda = string.Empty;
+        _filtroEstado = string.Empty;
+        NavigationManager.ActualizarFiltroEnUrl("estado", string.Empty);
+        await RecargarAsync();
+    }
+
     private async Task RecargarAsync()
     {
         await _paginacion.SetCurrentPageIndexAsync(0);

@@ -110,9 +110,26 @@
                               TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
         </div>
 
-        @if (_totalElementos == 0 && !_cargando)
+        @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)
         {
-            <EstadoVacio Titulo="Todavía no hay incidencias" Descripcion="Registra la primera incidencia operativa de un centro.">
+            @* Distinto de "todavía no hay incidencias", y aquí la diferencia
+               cambia una conclusión de seguridad: filtrar por "Sin resolver" y
+               leer que no hay ninguna incidencia registrada hace creer que
+               nunca ha pasado nada, cuando el cero solo dice que no queda
+               ninguna abierta.
+
+               La copia no afirma que HAYA incidencias registradas: el filtrado
+               es de servidor y solo devuelve el total ya filtrado. *@
+            <EstadoVacio NombreIcono="vacio" Titulo="Ninguna incidencia con estos filtros"
+                         Descripcion="Ninguna coincide con la búsqueda ni con el estado seleccionado.">
+                <Accion>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar los filtros</Boton>
+                </Accion>
+            </EstadoVacio>
+        }
+        else if (_totalElementos == 0 && !_cargando)
+        {
+            <EstadoVacio NombreIcono="incidencias" Titulo="Todavía no hay incidencias" Descripcion="Registra la primera incidencia operativa de un centro.">
                 <Accion>
                     <Boton OnClick="AbrirCrearAsync">+ Nueva incidencia</Boton>
                 </Accion>

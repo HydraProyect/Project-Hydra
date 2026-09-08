@@ -196,6 +196,27 @@ public partial class Incidencias : ComponentBase
         await RecargarAsync();
     }
 
+    /// <summary>
+    /// Los dos filtros de la barra. Separa "todavía no hay incidencias" de
+    /// "ninguna con estos filtros": con "Sin resolver" puesto, la primera
+    /// frase hace creer que nunca ha pasado nada en ningún centro.
+    /// </summary>
+    private bool HayFiltrosActivos =>
+        !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_estadoFiltro);
+
+    /// <summary>
+    /// Quita los dos filtros en una sola recarga. El estado vive además en la
+    /// URL y se limpia allí: <see cref="OnParametersSet"/> re-sincroniza desde
+    /// ella en cada navegación dentro de la página.
+    /// </summary>
+    private async Task LimpiarFiltrosAsync()
+    {
+        _busqueda = string.Empty;
+        _estadoFiltro = string.Empty;
+        NavigationManager.ActualizarFiltroEnUrl("estado", string.Empty);
+        await RecargarAsync();
+    }
+
     private async Task RecargarAsync()
     {
         await _paginacion.SetCurrentPageIndexAsync(0);

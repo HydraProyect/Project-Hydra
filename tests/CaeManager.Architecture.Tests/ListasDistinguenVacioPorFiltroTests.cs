@@ -84,8 +84,13 @@ public class ListasDistinguenVacioPorFiltroTests
     /// bien, es una frase razonable, y solo miente.
     ///
     /// <para>
-    /// De nueve quedan seis: Auditoría, Auditoría IA y Tipos de Documento ya
-    /// distinguen los dos vacíos. El motivo apuntado aquí para Tipos de
+    /// De nueve quedan tres: Auditoría, Auditoría IA y Tipos de Documento
+    /// primero, y después Vehículos, Incidencias y Gestiones —las tres de la
+    /// misma forma que Trabajadores, rejilla y filtrado de servidor—. Las que
+    /// siguen no son mecánicas: Alertas filtra EN MEMORIA (sí sabe cuántas hay
+    /// sin filtro), Macros tiene un filtro que ENSANCHA el resultado en vez de
+    /// estrecharlo, y DocumentosGeneradosPanel no es una página. El motivo
+    /// apuntado aquí para Tipos de
     /// Documento —«ya tiene chips de filtro»— <b>era falso</b>: los
     /// <c>chips-filtros</c> de esa página son los alias del formulario de
     /// edición, dentro del Drawer. Ni tenía chips ni tenía estado vacío
@@ -98,10 +103,7 @@ public class ListasDistinguenVacioPorFiltroTests
     {
         ["Alertas.razor"] = "pendiente: lista de Control, no tocada en el rediseño del núcleo todavía",
         ["DocumentosGeneradosPanel.razor"] = "pendiente: es un panel embebido, no una página con ruta propia",
-        ["Gestiones.razor"] = "pendiente: lista de Operación",
-        ["Incidencias.razor"] = "pendiente: lista de Operación",
         ["Macros.razor"] = "pendiente: pantalla de Operación",
-        ["Vehiculos.razor"] = "pendiente: rediseñada en #494 pero sin este estado",
     };
 
     [Fact]
