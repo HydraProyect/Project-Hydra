@@ -96,19 +96,19 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await Expect(interruptorVerificacionIa).ToHaveTextAsync(
             "Activa", new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
 
-        // --- Paso 1: Cliente → Empresa → Centro encadenados (alta guiada) ---
+        // --- Paso 1: Empresa → Cliente → Centro encadenados (alta guiada) ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes/alta-guiada");
 
-        await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "1. Cliente" }).WaitForAsync();
+        await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "1. Empresa" }).WaitForAsync();
+        await page.GetByLabel("Razón social").FillAsync(razonSocialEmpresa);
+        // Paso 1: "CIF (opcional)", no "CIF" — CrearEmpresaCommand lo acepta
+        // nulo mientras CrearClienteCommand (paso 2) lo exige.
+        await page.GetByLabel("CIF (opcional)", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_995_502));
+        await page.GetByText("Guardar y continuar").ClickAsync();
+
+        await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "2. Cliente" }).WaitForAsync();
         await page.GetByLabel("Razón social").FillAsync(razonSocialCliente);
         await page.GetByLabel("CIF", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_995_501));
-        await page.GetByText("Guardar y continuar a Empresa").ClickAsync();
-
-        await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "2. Empresa" }).WaitForAsync();
-        await page.GetByLabel("Razón social").FillAsync(razonSocialEmpresa);
-        // Paso 2: "CIF (opcional)", no "CIF" — CrearEmpresaCommand lo acepta
-        // nulo mientras CrearClienteCommand (paso 1) lo exige.
-        await page.GetByLabel("CIF (opcional)", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_995_502));
         await page.GetByText("Guardar y continuar a Centro").ClickAsync();
 
         await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "3. Centro" }).WaitForAsync();
