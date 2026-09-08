@@ -1,6 +1,7 @@
 using Bunit;
 using CaeManager.Application.Plantillas.Queries.ObtenerDocumentosGenerados;
 using CaeManager.Application.Plantillas.Queries.ObtenerPlantillasDocumento;
+using CaeManager.Application.Plantillas.Queries.ObtenerTotalDocumentosGeneradosConAvisos;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Domain.Plantillas;
 using CaeManager.Web.Features.Plantillas.Components;
@@ -37,6 +38,7 @@ public class DocumentosGeneradosPanelAvisosTests : BunitContext
                 ObtenerDocumentosGeneradosQuery => Generados,
                 ObtenerPlantillasDocumentoQuery => (object)Array.Empty<PlantillaDocumentoListaDto>(),
                 ObtenerTrabajadoresParaSelectorQuery => Array.Empty<TrabajadorSelectorDto>(),
+                ObtenerTotalDocumentosGeneradosConAvisosQuery => Generados.Count(d => d.Estado == EstadoDocumentoGenerado.GeneradoConAvisos),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             }));
 
