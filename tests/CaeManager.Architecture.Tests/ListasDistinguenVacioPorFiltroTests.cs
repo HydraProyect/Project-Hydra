@@ -82,18 +82,25 @@ public class ListasDistinguenVacioPorFiltroTests
     /// cuatro listas de Negocio. El defecto estaba en NUEVE pantallas a la vez
     /// y ninguna lo notaba: un estado vacío equivocado no rompe nada, se ve
     /// bien, es una frase razonable, y solo miente.
+    ///
+    /// <para>
+    /// De nueve quedan seis: Auditoría, Auditoría IA y Tipos de Documento ya
+    /// distinguen los dos vacíos. El motivo apuntado aquí para Tipos de
+    /// Documento —«ya tiene chips de filtro»— <b>era falso</b>: los
+    /// <c>chips-filtros</c> de esa página son los alias del formulario de
+    /// edición, dentro del Drawer. Ni tenía chips ni tenía estado vacío
+    /// alguno: con filtros puestos y cero resultados salían las cabeceras de
+    /// la tabla y ninguna fila.
+    /// </para>
     /// </para>
     /// </summary>
     private static readonly Dictionary<string, string> DeudaCongelada = new()
     {
         ["Alertas.razor"] = "pendiente: lista de Control, no tocada en el rediseño del núcleo todavía",
-        ["Auditoria.razor"] = "pendiente: pantalla de Administración",
-        ["AuditoriaIa.razor"] = "pendiente: pantalla de Administración",
         ["DocumentosGeneradosPanel.razor"] = "pendiente: es un panel embebido, no una página con ruta propia",
         ["Gestiones.razor"] = "pendiente: lista de Operación",
         ["Incidencias.razor"] = "pendiente: lista de Operación",
         ["Macros.razor"] = "pendiente: pantalla de Operación",
-        ["TiposDocumento.razor"] = "pendiente: pantalla de Administración; ya tiene chips de filtro, le falta el estado",
         ["Vehiculos.razor"] = "pendiente: rediseñada en #494 pero sin este estado",
     };
 
@@ -154,6 +161,17 @@ public class ListasDistinguenVacioPorFiltroTests
     /// Exigir solo la primera daba un falso positivo sobre Usuarios, que
     /// distingue los dos vacíos perfectamente desde antes que nadie escribiera
     /// este trinquete.
+    ///
+    /// <para>
+    /// <b>El <c>[^)]*</c> obliga a una guarda plana</b>, sin paréntesis
+    /// interiores: <c>if ((a || b) &amp;&amp; HayFiltrosActivos)</c> no casa y da
+    /// falsa alarma sobre una pantalla correcta (le pasó a Auditoría y a
+    /// Auditoría IA, y se resolvió aplanando la condición en una propiedad).
+    /// <b>No se ensancha a la ligera</b> —por ejemplo, a un patrón que admita
+    /// cualquier carácter hasta el fin de línea—: ensancharlo
+    /// hace que pasen MÁS pantallas, que es la dirección que encoge en
+    /// silencio la lista de infractoras. Avisar de más es el fallo barato.
+    /// </para>
     /// </summary>
     /// <param name="contenido">El <c>.razor</c>.</param>
     /// <param name="codeBehind">Su <c>.razor.cs</c>, o cadena vacía si no tiene.</param>

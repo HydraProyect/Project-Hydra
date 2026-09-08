@@ -38,9 +38,26 @@
     {
         <EstadoCargando Filas="8" />
     }
-    else if (_resultado is null || _resultado.Elementos.Count == 0)
+    else if (SinRegistros && HayFiltrosActivos)
     {
-        <EstadoVacio Titulo="No hay registros de auditoría" Descripcion="Todavía no se ha modificado ninguna entidad con este filtro." />
+        @* Distinto de "no hay registros de auditoría", y llevan a conclusiones
+           opuestas: decirle a quien acaba de filtrar por "Documento" que nunca
+           se modificó nada le hace creer que la auditoría no registra, cuando
+           lo único cierto es que no registra ESE tipo de entidad.
+
+           La copia no afirma que HAYA registros: el filtrado es de servidor y
+           la consulta solo devuelve el total ya filtrado, así que esta página
+           no sabe cuántos hay sin filtro. *@
+        <EstadoVacio NombreIcono="vacio" Titulo="Ningún registro con este filtro"
+                     Descripcion="Ninguna modificación registrada corresponde al tipo de entidad seleccionado.">
+            <Accion>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar el filtro</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (SinRegistros)
+    {
+        <EstadoVacio Titulo="No hay registros de auditoría" Descripcion="Todavía no se ha modificado ninguna entidad." />
     }
     else
     {
@@ -55,7 +72,7 @@
                 </tr>
             </thead>
             <tbody>
-                @foreach (var registro in _resultado.Elementos)
+                @foreach (var registro in Resultado.Elementos)
                 {
                     <tr>
                         <td>@registro.FechaUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
@@ -86,8 +103,8 @@
             </tbody>
         </table>
 
-        <PaginadorSimple PaginaActual="_resultado.Pagina" TotalPaginas="_resultado.TotalPaginas"
-                          TotalElementos="_resultado.TotalElementos" Etiqueta="registro(s)"
+        <PaginadorSimple PaginaActual="Resultado.Pagina" TotalPaginas="Resultado.TotalPaginas"
+                          TotalElementos="Resultado.TotalElementos" Etiqueta="registro(s)"
                           PaginaActualChanged="IrAPaginaAsync" />
     }
 </div>

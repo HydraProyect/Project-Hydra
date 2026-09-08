@@ -109,6 +109,33 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
         return CargarAsync();
     }
 
+    /// <summary>
+    /// Único filtro de la página. Separa "no hay registros" de "ninguno con
+    /// este filtro": son situaciones opuestas y la primera, dicha a quien
+    /// acaba de filtrar, hace creer que la auditoría no registra nada.
+    /// </summary>
+    private bool HayFiltrosActivos => !string.IsNullOrWhiteSpace(_filtroEntidadTipo);
+
+    /// <summary>
+    /// La condición va en una propiedad y no en la plantilla a propósito: el
+    /// trinquete <c>ListasDistinguenVacioPorFiltroTests</c> reconoce la guarda
+    /// con <c>[^)]*</c>, que no cruza un paréntesis, así que un
+    /// <c>if ((a || b) &amp;&amp; HayFiltrosActivos)</c> le pasa desapercibido y
+    /// da falsa alarma. Es la dirección segura de fallo para un trinquete
+    /// —avisa de más, nunca de menos— y sale más barato adoptar su idioma que
+    /// aflojarlo.
+    /// </summary>
+    private bool SinRegistros => _resultado is null || _resultado.Elementos.Count == 0;
+
+    /// <summary>
+    /// La página ya cargada. Solo se usa en la rama que <see cref="SinRegistros"/>
+    /// descarta, donde nunca es null — pero el compilador no puede verlo a
+    /// través de una propiedad, y CI compila con <c>-warnaserror</c>.
+    /// </summary>
+    private ResultadoPaginado<RegistroAuditoriaListaDto> Resultado => _resultado!;
+
+    private Task LimpiarFiltrosAsync() => FiltrarPorEntidadAsync(null);
+
     private Task IrAPaginaAsync(int pagina)
     {
         _pagina = pagina;

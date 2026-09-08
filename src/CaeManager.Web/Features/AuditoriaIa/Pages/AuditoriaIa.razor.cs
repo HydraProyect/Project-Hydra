@@ -70,6 +70,27 @@ public partial class AuditoriaIa : CaeManager.Web.Components.PaginaIntegrableCon
         return CargarAsync();
     }
 
+    /// <summary>
+    /// Único filtro de la página. Ver <c>Auditoria.razor.cs</c>: separa "no hay
+    /// nada" de "nada con este filtro", que aquí además se leen al revés — un
+    /// cero filtrando por fallos es una buena noticia, no una IA parada.
+    /// </summary>
+    private bool HayFiltrosActivos => !string.IsNullOrWhiteSpace(_filtroProveedor);
+
+    /// <summary>Ver el comentario de <c>Auditoria.razor.cs</c>: la condición se
+    /// aplana en una propiedad para que la guarda quede en el idioma que el
+    /// trinquete de vacío-por-filtro sabe leer.</summary>
+    private bool SinRegistros => _resultado is null || _resultado.Elementos.Count == 0;
+
+    /// <summary>
+    /// La página ya cargada. Solo se usa en la rama que <see cref="SinRegistros"/>
+    /// descarta, donde nunca es null — pero el compilador no puede verlo a
+    /// través de una propiedad, y CI compila con <c>-warnaserror</c>.
+    /// </summary>
+    private ResultadoPaginado<RegistroAuditoriaIaDto> Resultado => _resultado!;
+
+    private Task LimpiarFiltrosAsync() => FiltrarPorProveedorAsync(null);
+
     private Task IrAPaginaAsync(int pagina)
     {
         _pagina = pagina;

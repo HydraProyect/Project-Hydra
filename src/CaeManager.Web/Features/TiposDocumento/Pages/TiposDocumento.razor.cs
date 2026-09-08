@@ -147,6 +147,32 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
         return CargarAsync();
     }
 
+    /// <summary>
+    /// Los cuatro filtros de la barra. Separa "aún no hay tipos" de "ninguno
+    /// con estos filtros": ofrecer "+ Nuevo tipo" a quien acaba de filtrar lo
+    /// manda a duplicar un tipo que ya existe.
+    /// </summary>
+    private bool HayFiltrosActivos =>
+        !string.IsNullOrWhiteSpace(_terminoBusqueda) || !string.IsNullOrWhiteSpace(_clienteFiltroId)
+        || !string.IsNullOrWhiteSpace(_empresaFiltroId) || !string.IsNullOrWhiteSpace(_centroFiltroId);
+
+    /// <summary>
+    /// Quita los cuatro filtros en una sola recarga. Encadenar los manejadores
+    /// lanzaría hasta cuatro consultas y las tres primeras devolverían listas
+    /// que ya no se van a pintar. Los selectores dependientes se vacían con
+    /// ellos: sin cliente, la lista de empresas cargada ya no aplica.
+    /// </summary>
+    private Task LimpiarFiltrosAsync()
+    {
+        _terminoBusqueda = string.Empty;
+        _clienteFiltroId = string.Empty;
+        _empresaFiltroId = string.Empty;
+        _centroFiltroId = string.Empty;
+        _empresasFiltroDisponibles = [];
+        _centrosFiltroDisponibles = [];
+        return CargarAsync();
+    }
+
     private async Task AbrirCrear()
     {
         _centrosDisponibles = await Mediator.Send(new ObtenerCentrosParaSelectorQuery());

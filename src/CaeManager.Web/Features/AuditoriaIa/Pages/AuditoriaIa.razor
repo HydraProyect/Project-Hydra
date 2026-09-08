@@ -36,9 +36,25 @@
     {
         <EstadoCargando Filas="8" />
     }
-    else if (_resultado is null || _resultado.Elementos.Count == 0)
+    else if (SinRegistros && HayFiltrosActivos)
     {
-        <EstadoVacio Titulo="Sin registros de procesamiento IA" Descripcion="Todavía no se ha procesado ningún documento con este filtro." />
+        @* Distinto de "sin registros de procesamiento IA". Aquí la confusión
+           es cara: filtrar por "Sin proveedor (fallo)" y leer que no se ha
+           procesado ningún documento sugiere que la IA está parada, cuando lo
+           que dice el cero es justo lo contrario — que no hubo fallos.
+
+           La copia no afirma que HAYA registros: el filtrado es de servidor y
+           la consulta solo devuelve el total ya filtrado. *@
+        <EstadoVacio NombreIcono="vacio" Titulo="Ningún registro con este filtro"
+                     Descripcion="Ningún procesamiento registrado corresponde al proveedor seleccionado.">
+            <Accion>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar el filtro</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (SinRegistros)
+    {
+        <EstadoVacio Titulo="Sin registros de procesamiento IA" Descripcion="Todavía no se ha procesado ningún documento." />
     }
     else
     {
@@ -58,7 +74,7 @@
                 </tr>
             </thead>
             <tbody>
-                @foreach (var registro in _resultado.Elementos)
+                @foreach (var registro in Resultado.Elementos)
                 {
                     <tr>
                         <td>@registro.CreadaEnUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
@@ -96,8 +112,8 @@
             </tbody>
         </table>
 
-        <PaginadorSimple PaginaActual="_resultado.Pagina" TotalPaginas="_resultado.TotalPaginas"
-                          TotalElementos="_resultado.TotalElementos" Etiqueta="registro(s)"
+        <PaginadorSimple PaginaActual="Resultado.Pagina" TotalPaginas="Resultado.TotalPaginas"
+                          TotalElementos="Resultado.TotalElementos" Etiqueta="registro(s)"
                           PaginaActualChanged="IrAPaginaAsync" />
     }
 </div>
