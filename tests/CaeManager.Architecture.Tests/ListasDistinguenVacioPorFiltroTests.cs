@@ -1,0 +1,189 @@
+using System.Text.RegularExpressions;
+using FluentAssertions;
+
+namespace CaeManager.Architecture.Tests;
+
+/// <summary>
+/// Toda pantalla de lista con filtros tiene que distinguir <b>«aún no hay
+/// nada»</b> de <b>«nada coincide con el filtro»</b>. Son situaciones opuestas
+/// y llevan a acciones opuestas: ofrecer «crea el primero» a quien acaba de
+/// filtrar lo manda a duplicar un registro que ya existe — en Trabajadores,
+/// con el DNI repetido que eso arrastra.
+///
+/// <para>
+/// El defecto estaba en NUEVE pantallas a la vez y ninguna lo notaba, porque
+/// un estado vacío equivocado no rompe nada: se ve bien, es una frase
+/// razonable, y solo miente. Por eso hace falta un trinquete y no basta con
+/// haberlo arreglado una vez.
+/// </para>
+///
+/// <para>
+/// <b>Contrato efectivo, más estrecho que el nombre.</b> Esto comprueba
+/// ESTRUCTURA sobre el fuente: que una página con barra de filtros declare
+/// <c>HayFiltrosActivos</c> y lo use para separar dos estados vacíos
+/// distintos. NO comprueba que el estado se pinte bien, ni que su texto sea
+/// cierto, ni que el botón de limpiar funcione.
+/// </para>
+///
+/// <para>
+/// <b>Dónde está la prueba por render, y dónde no.</b> Existe para una pantalla
+/// de cada forma de lista, las dos ya en <c>main</c>:
+/// <c>EmpresasVacioPorFiltroTests</c> (acordeón) y
+/// <c>TrabajadoresVacioPorFiltroTests</c> (QuickGrid). Clientes, Centros,
+/// Subcontratas y Documentos son la MISMA construcción y aquí solo se verifican
+/// estructuralmente — es un hueco declarado, no una propiedad demostrada. Un
+/// trinquete de texto da la alarma, no la garantía.
+/// </para>
+/// </summary>
+public class ListasDistinguenVacioPorFiltroTests
+{
+    /// <summary>
+    /// Una pantalla "de lista con filtros" se reconoce por su barra, no por el
+    /// nombre del fichero: eso dejaría fuera cualquier lista futura que se llame
+    /// de otra forma.
+    ///
+    /// <para>
+    /// Son DOS clases, no una. Empezó siendo solo <c>barra-filtros</c> y eso
+    /// dejaba fuera a Centros y Subcontratas, que usan
+    /// <c>barra-trabajo-centros</c> — es decir, el trinquete daba verde sobre
+    /// dos de las cuatro pantallas que este mismo incremento arregla, sin
+    /// haberlas mirado. Se descubrió porque una mutación deliberada sobre
+    /// Centros NO puso el trinquete en rojo.
+    /// </para>
+    /// </summary>
+    private static readonly string[] MarcasDeListaConFiltros = ["barra-filtros", "barra-trabajo"];
+
+    /// <summary>
+    /// Deuda congelada: pantallas que hoy NO distinguen los dos vacíos. El
+    /// trinquete no las arregla — impide que la lista crezca. Cada vez que una
+    /// se corrige, se borra de aquí; una pantalla nueva con filtros no puede
+    /// entrar sin la rama, porque nadie va a añadirla a esta lista sin darse
+    /// cuenta de lo que está haciendo.
+    ///
+    /// <para>
+    /// Medido el 2026-09-08 tras corregir Empresas (#497), Trabajadores y las
+    /// cuatro listas de Negocio. El defecto estaba en NUEVE pantallas a la vez
+    /// y ninguna lo notaba: un estado vacío equivocado no rompe nada, se ve
+    /// bien, es una frase razonable, y solo miente.
+    /// </para>
+    /// </summary>
+    private static readonly Dictionary<string, string> DeudaCongelada = new()
+    {
+        ["Alertas.razor"] = "pendiente: lista de Control, no tocada en el rediseño del núcleo todavía",
+        ["Auditoria.razor"] = "pendiente: pantalla de Administración",
+        ["AuditoriaIa.razor"] = "pendiente: pantalla de Administración",
+        ["DocumentosGeneradosPanel.razor"] = "pendiente: es un panel embebido, no una página con ruta propia",
+        ["Gestiones.razor"] = "pendiente: lista de Operación",
+        ["Incidencias.razor"] = "pendiente: lista de Operación",
+        ["Macros.razor"] = "pendiente: pantalla de Operación",
+        ["TiposDocumento.razor"] = "pendiente: pantalla de Administración; ya tiene chips de filtro, le falta el estado",
+        ["Vehiculos.razor"] = "pendiente: rediseñada en #494 pero sin este estado",
+        ["Visitas.razor"] = "pendiente: lista de Operación",
+    };
+
+    [Fact]
+    public void Toda_lista_con_filtros_distingue_vacio_sin_registros_de_vacio_por_filtro()
+    {
+        var paginas = LocalizarPaginasRazor();
+
+        paginas.Should().NotBeEmpty(
+            "si el escáner no encuentra ninguna página, este trinquete estaría en verde por no mirar nada");
+
+        var sinDistinguir = new List<string>();
+
+        foreach (var (ruta, contenido) in paginas)
+        {
+            if (!MarcasDeListaConFiltros.Any(m => contenido.Contains(m, StringComparison.Ordinal))) continue;
+
+            var nombre = Path.GetFileName(ruta);
+            if (DeudaCongelada.ContainsKey(nombre)) continue;
+
+            if (!DistingueLosDosVacios(contenido, LeerCodeBehind(ruta)))
+                sinDistinguir.Add(nombre);
+        }
+
+        string.Join("\n", sinDistinguir.OrderBy(x => x)).Should().BeEmpty(
+            "una lista con filtros que solo tiene un estado vacío le dice «crea el primero» a quien acaba de "
+            + "filtrar, y eso termina en registros duplicados. Añade la rama con HayFiltrosActivos, o añade la "
+            + "pantalla a DeudaCongelada CON su motivo");
+    }
+
+    /// <summary>
+    /// Prueba de que el escáner mira donde dice mirar. Sin esto, un cambio de
+    /// rutas dejaría el trinquete en verde por no encontrar ficheros — el modo
+    /// de fallo más común de un ratchet de fuente.
+    /// </summary>
+    [Fact]
+    public void El_escaner_encuentra_las_listas_conocidas()
+    {
+        var nombres = LocalizarPaginasRazor().Select(p => Path.GetFileName(p.Ruta)).ToList();
+
+        nombres.Should().Contain("Empresas.razor").And.Contain("Trabajadores.razor")
+            .And.Contain("Clientes.razor").And.Contain("Documentos.razor")
+            .And.Contain("Centros.razor").And.Contain("Subcontratas.razor");
+    }
+
+    /// <summary>
+    /// Se acepta la PROPIEDAD, no una implementación concreta. Hay dos formas
+    /// legítimas y las dos valen:
+    /// <list type="bullet">
+    /// <item>una guarda sobre <c>HayFiltrosActivos</c> — filtrado de servidor,
+    /// donde la pantalla solo conoce el total ya filtrado (Empresas,
+    /// Trabajadores, Centros…);</item>
+    /// <item>un segundo estado vacío cuyo título habla de coincidencia con el
+    /// filtro — filtrado en memoria, donde la pantalla sí sabe cuántos hay sin
+    /// filtro (Usuarios: «Ningún usuario coincide»).</item>
+    /// </list>
+    /// Exigir solo la primera daba un falso positivo sobre Usuarios, que
+    /// distingue los dos vacíos perfectamente desde antes que nadie escribiera
+    /// este trinquete.
+    /// </summary>
+    /// <param name="contenido">El <c>.razor</c>.</param>
+    /// <param name="codeBehind">Su <c>.razor.cs</c>, o cadena vacía si no tiene.</param>
+    private static bool DistingueLosDosVacios(string contenido, string codeBehind)
+    {
+        // La propiedad se DECLARA en el code-behind y se USA en la plantilla, así
+        // que hay que mirar los dos ficheros. Mirando solo el .razor, cambiar la
+        // guarda por "if (false)" borraba de ahí la única mención y el trinquete
+        // caía al criterio de título — que seguía escrito— y daba verde sobre una
+        // rama muerta. Se descubrió por mutación sobre Centros, y hubo que
+        // repetir la mutación DOS veces para verlo: la primera corrección
+        // tampoco servía, por esta misma razón.
+        if (Regex.IsMatch(codeBehind, @"\bHayFiltrosActivos\b"))
+            return Regex.IsMatch(contenido, @"@?(else\s+)?if\s*\([^)]*HayFiltrosActivos");
+
+        // Sin esa propiedad, vale el idioma de filtrado en memoria: un segundo
+        // estado vacío que hable de coincidencia con el filtro (Usuarios).
+        return Regex.IsMatch(contenido, @"Titulo=""[^""]*(coincide|con est[eo]s? filtro|con esta búsqueda)",
+            RegexOptions.IgnoreCase);
+    }
+
+    /// <summary>El .razor.cs hermano, o cadena vacía si la página no tiene code-behind.</summary>
+    private static string LeerCodeBehind(string rutaRazor)
+    {
+        var companero = rutaRazor + ".cs";
+        return File.Exists(companero) ? File.ReadAllText(companero) : string.Empty;
+    }
+
+    private static List<(string Ruta, string Contenido)> LocalizarPaginasRazor()
+    {
+        var raiz = RaizDelRepositorio();
+        var features = Path.Combine(raiz, "src", "CaeManager.Web", "Features");
+
+        if (!Directory.Exists(features)) return [];
+
+        return Directory
+            .EnumerateFiles(features, "*.razor", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .Select(f => (Ruta: f, Contenido: File.ReadAllText(f)))
+            .ToList();
+    }
+
+    private static string RaizDelRepositorio()
+    {
+        var dir = AppContext.BaseDirectory;
+        while (dir is not null && !File.Exists(Path.Combine(dir, "CaeManager.slnx")))
+            dir = Path.GetDirectoryName(dir);
+        return dir ?? AppContext.BaseDirectory;
+    }
+}

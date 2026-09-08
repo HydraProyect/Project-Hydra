@@ -319,6 +319,21 @@ public partial class Clientes : ComponentBase
             ? (estado == EstadoDocumento.Vigente ? "Al corriente" : EstadoDocumentoUi.Texto(estado))
             : "—");
 
+    /// <summary>
+    /// Quita los cuatro filtros en una sola recarga. Encadenar los setters
+    /// lanzaría cuatro consultas y las tres primeras devolverían listas que ya
+    /// no se van a pintar.
+    /// </summary>
+    private async Task LimpiarFiltrosAsync()
+    {
+        _busqueda = string.Empty;
+        _soloCriticos = false;
+        _ejecutivoFiltro = string.Empty;
+        _estadoDocumentalFiltro = string.Empty;
+        NavigationManager.ActualizarFiltroEnUrl("q", string.Empty);
+        await RecargarAsync();
+    }
+
     private async Task RecargarAsync()
     {
         // SetCurrentPageIndexAsync no dispara una recarga si el índice no cambia
