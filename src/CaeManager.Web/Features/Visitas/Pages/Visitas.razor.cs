@@ -226,6 +226,42 @@ public partial class Visitas : ComponentBase
         await RecargarAsync();
     }
 
+    /// <summary>
+    /// Filtros que el USUARIO ha puesto, más allá del que viene de fábrica.
+    ///
+    /// <para>
+    /// <c>_soloActivas</c> queda deliberadamente fuera: nace en <c>true</c>, así
+    /// que incluirlo haría esta propiedad siempre cierta y dejaría inalcanzable
+    /// el estado de «todavía no hay visitas». Su caso tiene su propio estado
+    /// vacío, que además es el único que puede decir la verdad cuando hay
+    /// visitas finalizadas detrás.
+    /// </para>
+    ///
+    /// <para>
+    /// Desmarcar «Solo activas» tampoco cuenta como filtrar: ensancha la lista,
+    /// no la recorta, así que nunca puede ser la causa de que no salga nada.
+    /// </para>
+    /// </summary>
+    private bool HayFiltrosActivos =>
+        !string.IsNullOrWhiteSpace(_busqueda) || _soloUrgentes
+        || !string.IsNullOrWhiteSpace(_filtroNotificado);
+
+    private async Task LimpiarFiltrosAsync()
+    {
+        _busqueda = string.Empty;
+        _soloUrgentes = false;
+        _filtroNotificado = string.Empty;
+        NavigationManager.ActualizarFiltroEnUrl("q", string.Empty);
+        await RecargarAsync();
+    }
+
+    /// <summary>Desmarca el filtro de fábrica para que aparezcan las finalizadas.</summary>
+    private async Task VerTambienFinalizadasAsync()
+    {
+        _soloActivas = false;
+        await RecargarAsync();
+    }
+
     private async Task RecargarAsync()
     {
         await _paginacion.SetCurrentPageIndexAsync(0);

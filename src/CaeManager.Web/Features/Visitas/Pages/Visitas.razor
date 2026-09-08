@@ -157,7 +157,40 @@
                               TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
         </div>
 
-        @if (_totalElementos == 0 && !_cargando)
+        @* TRES estados vacíos, no dos, y la razón es que "Solo activas" viene
+           MARCADO de fábrica (_soloActivas = true). El patrón de dos estados que
+           usan las demás listas no se traslada aquí:
+
+           - contarlo como filtro dejaría "Todavía no hay visitas" inalcanzable,
+             porque siempre habría un filtro puesto;
+           - no contarlo haría que esa misma frase mintiera a quien sí tiene
+             visitas, pero todas finalizadas.
+
+           Cada uno de los tres dice algo que es cierto, y ofrece la salida que
+           corresponde. *@
+        @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)
+        {
+            <EstadoVacio NombreIcono="vacio" Titulo="Ninguna visita con estos filtros"
+                         Descripcion="Ninguna coincide con la búsqueda ni con los filtros de urgencia o notificación.">
+                <Accion>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar los filtros</Boton>
+                </Accion>
+            </EstadoVacio>
+        }
+        else if (_totalElementos == 0 && !_cargando && _soloActivas)
+        {
+            @* Sin más filtros que el de fábrica: puede haber visitas finalizadas
+               detrás. Decir "crea la primera" aquí sería falso, y ofrecer
+               "quitar los filtros" señalaría algo que el usuario no puso. *@
+            <EstadoVacio NombreIcono="vacio" Titulo="No hay visitas activas"
+                         Descripcion="Puede haber visitas ya finalizadas: la lista llega filtrada por «Solo activas».">
+                <Accion>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="VerTambienFinalizadasAsync">Ver también las finalizadas</Boton>
+                    <Boton OnClick="AbrirCrearAsync">+ Nueva visita</Boton>
+                </Accion>
+            </EstadoVacio>
+        }
+        else if (_totalElementos == 0 && !_cargando)
         {
             <EstadoVacio Titulo="Todavía no hay visitas programadas" Descripcion="Crea la primera visita para empezar a llevar el control de accesos programados.">
                 <Accion>

@@ -95,7 +95,6 @@ public class ListasDistinguenVacioPorFiltroTests
         ["Macros.razor"] = "pendiente: pantalla de Operación",
         ["TiposDocumento.razor"] = "pendiente: pantalla de Administración; ya tiene chips de filtro, le falta el estado",
         ["Vehiculos.razor"] = "pendiente: rediseñada en #494 pero sin este estado",
-        ["Visitas.razor"] = "pendiente: lista de Operación",
     };
 
     [Fact]
