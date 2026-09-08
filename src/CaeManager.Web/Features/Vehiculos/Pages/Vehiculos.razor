@@ -108,9 +108,26 @@
                               TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
         </div>
 
-        @if (_totalElementos == 0 && !_cargando)
+        @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)
         {
-            <EstadoVacio Titulo="Aún no hay vehículos" Descripcion="Crea el primero para empezar a gestionar su documentación.">
+            @* Distinto de "aún no hay vehículos": hay cuatro filtros puestos
+               —búsqueda, documentación, empresa y subcontrata— y ofrecer "crea
+               el primero" a quien acaba de filtrar lo manda a dar de alta un
+               vehículo que probablemente ya existe, con la matrícula duplicada
+               que eso arrastra.
+
+               La copia no afirma que HAYA vehículos dados de alta: el filtrado
+               es de servidor y solo devuelve el total ya filtrado. *@
+            <EstadoVacio NombreIcono="vacio" Titulo="Ningún vehículo con estos filtros"
+                         Descripcion="Ninguno coincide con la búsqueda ni con los filtros de documentación, empresa o subcontrata.">
+                <Accion>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar los filtros</Boton>
+                </Accion>
+            </EstadoVacio>
+        }
+        else if (_totalElementos == 0 && !_cargando)
+        {
+            <EstadoVacio NombreIcono="vehiculos" Titulo="Aún no hay vehículos" Descripcion="Crea el primero para empezar a gestionar su documentación.">
                 <Accion>
                     <Boton OnClick="AbrirCrearAsync">+ Nuevo vehículo</Boton>
                 </Accion>

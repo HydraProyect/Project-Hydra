@@ -222,6 +222,32 @@ public partial class Vehiculos : ComponentBase
         await RecargarAsync();
     }
 
+    /// <summary>
+    /// Los cuatro filtros de la barra. Separa "aún no hay vehículos" de
+    /// "ninguno con estos filtros": ofrecer "crea el primero" a quien acaba de
+    /// filtrar lo manda a duplicar un vehículo que ya existe.
+    /// </summary>
+    private bool HayFiltrosActivos =>
+        !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_estadoFiltro)
+        || !string.IsNullOrWhiteSpace(_filtroEmpresaId) || !string.IsNullOrWhiteSpace(_filtroSubcontrataId);
+
+    /// <summary>
+    /// Quita los cuatro filtros en una sola recarga. Los dos que viven en la
+    /// URL se limpian TAMBIÉN allí: <see cref="OnParametersSet"/> re-sincroniza
+    /// desde la URL en cada navegación dentro de la página, así que dejarlos
+    /// puestos los devolvería en cuanto el router volviera a pasar.
+    /// </summary>
+    private async Task LimpiarFiltrosAsync()
+    {
+        _busqueda = string.Empty;
+        _estadoFiltro = string.Empty;
+        _filtroEmpresaId = string.Empty;
+        _filtroSubcontrataId = string.Empty;
+        NavigationManager.ActualizarFiltroEnUrl("q", string.Empty);
+        NavigationManager.ActualizarFiltroEnUrl("estado", string.Empty);
+        await RecargarAsync();
+    }
+
     private async Task RecargarAsync()
     {
         await _paginacion.SetCurrentPageIndexAsync(0);

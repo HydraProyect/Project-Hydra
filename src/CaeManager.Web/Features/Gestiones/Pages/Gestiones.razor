@@ -71,7 +71,20 @@
                               TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
         </div>
 
-        @if (_totalElementos == 0 && !_cargando)
+        @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)
+        {
+            @* Distinto de "sin gestiones", y aquí el texto sin filtrar es
+               además una explicación de cómo se generan: leída con "Completadas"
+               puesto, hace creer que el mecanismo no funciona — cuando el cero
+               solo dice que ninguna se ha completado todavía. *@
+            <EstadoVacio NombreIcono="vacio" Titulo="Ninguna gestión con estos filtros"
+                         Descripcion="Ninguna coincide con la búsqueda ni con el estado seleccionado.">
+                <Accion>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar los filtros</Boton>
+                </Accion>
+            </EstadoVacio>
+        }
+        else if (_totalElementos == 0 && !_cargando)
         {
             <EstadoVacio Titulo="Sin gestiones" Descripcion="Las gestiones se generan desde la Bandeja cuando se detecta la actualización de un documento de un trabajador, o desde el propio Trabajador/Centro." />
         }
