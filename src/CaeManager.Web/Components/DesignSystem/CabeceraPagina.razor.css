@@ -42,17 +42,28 @@
 /* margin 0 a propósito: el navegador da margen propio a <p> y se sumaría al
    gap del contenedor, dejando dos valores para una sola separación.
 
-   max-width 70ch (≈604px con Inter a 16px) es DECISIÓN, no lectura del
-   mockup. Medidos, los mockups dan 689, 720, 760, 800 y 820px, y en dos casos
-   no fijan ninguno: no hay un valor que honrar. 70ch mantiene la línea dentro
-   de la medida de lectura cómoda —los 760px de la mediana son ~88 caracteres,
-   por encima del rango habitual de 45-75— y, al ir en ch, la conserva si
-   cambia el cuerpo de letra. Si el propietario prefiere el ancho del mockup,
-   es cambiar este número y nada más. */
+   DEC 2026-09-09 — ancho de la entradilla: 48rem (~768px con raíz de 16px).
+   Los mockups medidos dan 689, 720, 760, 800 y 820px, y en dos casos no fijan
+   ninguno: no hay un valor que honrar, así que esto es decisión y no lectura.
+   48rem cae dentro de ese rango sin fingir una precisión —742px, 86ch— que
+   los mockups no dan.
+
+   Sustituye a un 70ch (~604px) que estuvo aquí unas horas: es buena heurística
+   editorial para texto largo, pero la entradilla de una pantalla de gestión no
+   es un artículo. Aquí manda la jerarquía de la interfaz, no optimizar una
+   columna de lectura prolongada, y 604px se desviaba materialmente por debajo
+   de todo lo observado.
+
+   En rem y no en ch para no depender de la métrica de la tipografía.
+
+   NO se crea todavía un token semántico (--content-page-intro-max-width):
+   institucionalizarlo con un solo consumidor sería inventar reutilización. Si
+   la reconciliación saca dos o tres primitivas más con este mismo concepto, ahí
+   sí. */
 .cabecera-pagina-descripcion {
     font: var(--font-body-lg);
     color: var(--color-text-muted);
-    max-width: 70ch;
+    max-inline-size: 48rem;
     margin: 0;
 }
 
