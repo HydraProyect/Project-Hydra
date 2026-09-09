@@ -539,16 +539,42 @@ jobs:
           cat coveragereport/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
 
       # Ratchet de cobertura (§ 8 del plan de negocio, Horizonte transversal):
-      # cobertura de línea medida en local a 2026-08-15 sobre Domain +
-      # Application + Integration (los tres proyectos con --collect de este
-      # job) = 91.6%. El umbral se fija en 90.0%, no en 91.6% exacto — 1.6
-      # puntos de margen absorben el ruido normal entre ejecuciones (orden
-      # de tests, generación de datos aleatorios en los builders) sin que un
-      # PR legítimo falle por decimales; una caída real de cobertura (borrar
-      # tests, añadir código sin cubrir de un tamaño con el que valga la
-      # pena preocuparse) sigue siendo mucho mayor que ese margen y sí falla
-      # el build. Es un ratchet: solo sube cuando la cobertura real mejora
-      # de forma sostenida, nunca se baja para que pase un PR concreto.
+      #
+      # REBASELINE del 2026-09-09 (PR #511), por corrección del universo
+      # medido — no por que la cobertura real haya caído:
+      #
+      # El umbral de 90.0% (fijado el 2026-08-15 sobre un 91.6% medido) se
+      # calculaba sobre un universo donde CaeManager.Migrations.PostgreSQL
+      # (codigo generado de EF, ~355.000 lineas — 15x el tamano de
+      # Domain+Application+Infrastructure+Web juntos) se instrumentaba por
+      # transitividad en cada bloque de integracion, sin que el ratchet
+      # quisiera medir cuanto de esas migraciones esta cubierto. Al excluirlo
+      # (ver tests/CaeManager.IntegrationTests/coverlet.runsettings) la
+      # cobertura de linea real de Domain+Application+Infrestructure+Web bajo
+      # a 37.2%, medida en 3 ejecuciones de CI independientes sobre el mismo
+      # commit: 37.2% / 37.2% / 37.2% — sin variacion detectada a la
+      # resolucion de una decima que reporta el instrumento.
+      #
+      # No hay evidencia de que la calidad efectiva del sistema haya
+      # empeorado: ningun test se quito ni se modifico, solo cambio que se
+      # instrumenta. El umbral se fija en 37.0%, no en 37.2% exacto — 0.2
+      # puntos de margen, proporcionales al ruido REAL observado (no
+      # detectado, no "pequeno por convencion") en vez de los 1.6 puntos del
+      # ratchet anterior, que respondian a un ruido de otra magnitud sobre
+      # otro universo.
+      #
+      # El 90% historico NO se conserva como objetivo implicito: pertenecia a
+      # un universo de medicion distinto y no hay evidencia de que sea el
+      # nivel correcto para este. Este 37.0% es ahora el suelo real: sube
+      # solo cuando la cobertura real mejore de forma sostenida sobre ESTE
+      # universo, y no puede bajarse para hacer pasar un PR sin una nueva
+      # decision explicita del propietario sustentada en un cambio del
+      # instrumento o del universo medido — igual que este mismo rebaseline.
+      #
+      # Caracterizacion pendiente (que capas y que riesgo hay detras del
+      # 37.2%, y que objetivo fijar): REC-210, Negocio
+      # tecnico/reconciliacion/REGISTRO-REC.md. No convertir este REC en
+      # "subir a 90%" sin haberlo hecho primero.
       #
       # Vive dentro de "Build, format y tests" — ya es required status check
       # de la protección de la rama main — en vez de un job nuevo: así el
@@ -556,11 +582,11 @@ jobs:
       # protección de rama, y no hay forma de que este paso corra y su
       # resultado se ignore (a diferencia del job de k6 de más abajo, que es
       # informativo a propósito y por eso está fuera de los required checks).
-      - name: Umbral de cobertura (ratchet — nunca bajar de 90%)
+      - name: Umbral de cobertura (ratchet — nunca bajar de 37%)
         run: |
           cobertura=$(jq -r '.summary.linecoverage' coveragereport/Summary.json)
-          umbral="90.0"
-          echo "Cobertura de línea (Domain+Application+Integration): ${cobertura}% — umbral ratchet: ${umbral}%"
+          umbral="37.0"
+          echo "Cobertura de línea (Domain+Application+Integration, sin Migrations): ${cobertura}% — umbral ratchet: ${umbral}%"
           if ! python3 -c "import sys; sys.exit(0 if float('${cobertura}') >= float('${umbral}') else 1)"; then
             echo "::error::La cobertura de línea (${cobertura}%) cayó por debajo del umbral ratchet (${umbral}%). Sube el umbral solo cuando la cobertura real mejore de forma sostenida — nunca lo bajes para que pase este PR."
             exit 1
@@ -667,8 +693,10 @@ jobs:
       # umbral bajo pasa siempre) o uno que falla por ruido de instrumentación
       # sin relación con una regresión real. El número honesto de cobertura ya
       # tiene su gate en "Build, format y tests" (Domain+Application+
-      # Integration, 91.6% medido); replicarlo aquí sobre una cifra que no
-      # significa lo que parece decir sería peor que no tener gate.
+      # Integration sin Migrations, 37.0% umbral tras el rebaseline del
+      # 2026-09-09 — ver el comentario de ese paso); replicarlo aquí sobre una
+      # cifra que no significa lo que parece decir sería peor que no tener
+      # gate.
       - name: Informe de cobertura
         if: always()
         continue-on-error: true

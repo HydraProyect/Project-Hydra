@@ -24,9 +24,13 @@
   repositorio de negocio.
 
   Esto SI cambia el numero que produce el ratchet (el denominador de
-  lineas medidas baja en ~355.000), asi que el umbral fijo de 90.0% en
-  ci.yml tiene que remedirse contra un run real antes de fusionar este
-  cambio — no se toca aqui a ciegas.
+  lineas medidas baja en ~355.000): remedido en 3 ejecuciones de CI
+  independientes sobre el mismo commit, 37.2% / 37.2% / 37.2% (antes 91.6%
+  sobre el universo contaminado por migraciones). El umbral de "Umbral de
+  cobertura" en ci.yml se recalibro a 37.0% como parte de este mismo
+  cambio — ver el comentario de ese paso para el rebaseline completo y
+  tecnico/ci-diagnostico-regresion-22min-2026-09-08.md en el repositorio de
+  negocio para las tres muestras y su justificacion.
 -->
 <RunSettings>
   <DataCollectionRunSettings>
