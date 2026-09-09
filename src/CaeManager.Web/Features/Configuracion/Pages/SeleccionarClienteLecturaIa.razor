@@ -18,10 +18,11 @@
         <a href="/configuracion/ia" class="enlace-volver-configuracion">← Configuración</a>
     }
 
-    @TituloPaginaIntegrable("Lectura IA por cliente")
-    <p class="descripcion-seleccion-cliente">
-        Qué se extrae y con qué umbral de confianza, por cliente. Elige un cliente para configurar su lectura IA.
-    </p>
+    <CabeceraPagina Titulo="Lectura IA por cliente" Integrada="@IntegradaEnConfiguracion">
+        <Descripcion>
+            Qué se extrae y con qué umbral de confianza, por cliente. Elige un cliente para configurar su lectura IA.
+        </Descripcion>
+    </CabeceraPagina>
 
     @if (_cargando)
     {

@@ -17,23 +17,22 @@
 }
 
 <div class="@ClaseContenedorPagina">
-    <div class="cabecera-delegaciones">
-        @TituloPaginaIntegrable("Delegaciones")
-
-        @if (_esAdministradorPlataforma && !OperandoWorkspaceAjeno)
-        {
-            @* v1 de ADR-004 § 12.2: solo el administrador de la plataforma
-               puede iniciar una delegación nueva. *@
-            <Boton OnClick="AbrirFormularioNuevaDelegacion">Nueva delegación</Boton>
-        }
-    </div>
-
-    <p class="descripcion-delegaciones">
-        Una delegación autoriza a una consultora a gestionar la CAE de un cliente sin ser dueña de
-        sus datos. Revocarla corta el acceso de inmediato y no borra ni mueve ninguna información:
-        los datos nunca dejaron de ser del cliente. Se conserva el registro de la delegación
-        revocada para saber quién operó y cuándo, y para poder reactivarla.
-    </p>
+    <CabeceraPagina Titulo="Delegaciones" Integrada="@IntegradaEnConfiguracion">
+        <Descripcion>
+            Una delegación autoriza a una consultora a gestionar la CAE de un cliente sin ser dueña de
+            sus datos. Revocarla corta el acceso de inmediato y no borra ni mueve ninguna información:
+            los datos nunca dejaron de ser del cliente. Se conserva el registro de la delegación
+            revocada para saber quién operó y cuándo, y para poder reactivarla.
+        </Descripcion>
+        <Acciones>
+            @if (_esAdministradorPlataforma && !OperandoWorkspaceAjeno)
+            {
+                @* v1 de ADR-004 § 12.2: solo el administrador de la plataforma
+                   puede iniciar una delegación nueva. *@
+                <Boton OnClick="AbrirFormularioNuevaDelegacion">Nueva delegación</Boton>
+            }
+        </Acciones>
+    </CabeceraPagina>
 
     @if (OperandoWorkspaceAjeno)
     {

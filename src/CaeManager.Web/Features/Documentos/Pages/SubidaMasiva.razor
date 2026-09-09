@@ -7,16 +7,16 @@
 <PageTitle>Subida múltiple — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <div class="cabecera-pagina">
-        <h1 class="titulo-pagina">Subida múltiple de documentos</h1>
-        <a class="enlace-exportar" href="/documentos">Volver a Documentos</a>
-    </div>
-
-    <p class="descripcion-subida-masiva">
-        Arrastra o selecciona varios archivos (PDF, JPG, PNG, Word) o un único .zip con varios dentro.
-        Solo documentos de Trabajador. Detectamos automáticamente el trabajador y el tipo de documento de
-        cada archivo — si estamos muy seguros, se crea directamente; si no, te lo dejamos abajo para confirmar.
-    </p>
+    <CabeceraPagina Titulo="Subida múltiple de documentos" Kicker="Ciclo documental">
+        <Descripcion>
+            Arrastra o selecciona varios archivos (PDF, JPG, PNG, Word) o un único .zip con varios dentro.
+            Solo documentos de Trabajador. Detectamos automáticamente el trabajador y el tipo de documento de
+            cada archivo — si estamos muy seguros, se crea directamente; si no, te lo dejamos abajo para confirmar.
+        </Descripcion>
+        <Acciones>
+            <a class="enlace-exportar" href="/documentos">Volver a Documentos</a>
+        </Acciones>
+    </CabeceraPagina>
 
     <div class="campo">
         <label>Archivos</label>

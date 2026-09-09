@@ -1,17 +1,4 @@
-.retencion-cabecera {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-3);
-    align-items: center;
-    justify-content: space-between;
-}
 
-.descripcion-retencion {
-    max-width: 75ch;
-    margin-bottom: var(--space-5);
-    color: var(--color-text-muted);
-    font: var(--font-body-sm);
-}
 
 .celda-acciones-purga {
     display: flex;

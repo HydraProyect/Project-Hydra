@@ -12,15 +12,13 @@
 <PageTitle>Mi firma — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <div class="cabecera-pagina">
-        <h1 class="titulo-pagina">Mi firma</h1>
-    </div>
-
-    <p class="descripcion-roles">
-        Esta es la firma que se ofrecerá por defecto al firmar documentos en campo. Dibújala, escribe tu
-        nombre o sube una foto de tu firma en papel — se guarda una sola, la última que confirmes
-        reemplaza a la anterior.
-    </p>
+    <CabeceraPagina Titulo="Mi firma" Kicker="Mi cuenta">
+        <Descripcion>
+            Esta es la firma que se ofrecerá por defecto al firmar documentos en campo. Dibújala, escribe tu
+            nombre o sube una foto de tu firma en papel — se guarda una sola, la última que confirmes
+            reemplaza a la anterior.
+        </Descripcion>
+    </CabeceraPagina>
 
     @if (_cargando)
     {

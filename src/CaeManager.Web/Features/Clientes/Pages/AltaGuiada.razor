@@ -29,14 +29,15 @@
        pinta todo nodo no final como botón — sería un control muerto. *@
     <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="Ruta de alta guiada" />
 
-    <div class="cabecera-pagina">
-        <h1 class="titulo-pagina">Alta guiada de cliente</h1>
-        <a class="enlace-exportar" href="/clientes">Volver a Clientes</a>
-    </div>
-    <p class="descripcion-importacion">
-        Da de alta la Empresa, su Cliente, el primer Centro y sus Trabajadores en un solo sitio. Cada paso se guarda al
-        confirmarlo — si te detienes a mitad de camino, lo ya creado no se pierde.
-    </p>
+    <CabeceraPagina Titulo="Alta guiada de cliente">
+        <Descripcion>
+            Da de alta la Empresa, su Cliente, el primer Centro y sus Trabajadores en un solo sitio. Cada paso se guarda al
+            confirmarlo — si te detienes a mitad de camino, lo ya creado no se pierde.
+        </Descripcion>
+        <Acciones>
+            <a class="enlace-exportar" href="/clientes">Volver a Clientes</a>
+        </Acciones>
+    </CabeceraPagina>
 
     <IndicadorPasos Pasos="Pasos" PasoActual="@_pasoActual" PasosCompletados="_pasosCompletados" EtiquetaGrupo="Alta guiada" />
 

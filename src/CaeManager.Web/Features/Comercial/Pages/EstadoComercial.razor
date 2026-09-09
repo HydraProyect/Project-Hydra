@@ -18,14 +18,14 @@
 }
 
 <div class="@ClaseContenedorPagina">
-    @TituloPaginaIntegrable("Estado comercial de los tenants")
-
-    <p class="descripcion-delegaciones">
-        Alta manual de suscripción (Horizonte 1.7): la Subscription se crea en Stripe fuera de Hydra
-        (link de pago) y aquí solo se vincula su Id — nunca desde la organización del cliente, igual
-        criterio que Claves API. El estado se aplica automáticamente por webhook de Stripe; "Actualizar
-        desde Stripe" es solo para resincronizar a mano.
-    </p>
+    <CabeceraPagina Titulo="Estado comercial de los tenants" Integrada="@IntegradaEnConfiguracion">
+        <Descripcion>
+            Alta manual de suscripción (Horizonte 1.7): la Subscription se crea en Stripe fuera de Hydra
+            (link de pago) y aquí solo se vincula su Id — nunca desde la organización del cliente, igual
+            criterio que Claves API. El estado se aplica automáticamente por webhook de Stripe; "Actualizar
+            desde Stripe" es solo para resincronizar a mano.
+        </Descripcion>
+    </CabeceraPagina>
 
     @if (_cargando)
     {

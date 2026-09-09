@@ -14,15 +14,13 @@
 <PageTitle>Detección de personal — @(_empresa?.RazonSocial ?? "Empresa") — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <div class="cabecera-pagina">
-        <h1 class="titulo-pagina">Detección de personal — @(_empresa?.RazonSocial ?? "…")</h1>
-    </div>
-
-    <p class="descripcion-roles">
-        Cambios de personal detectados automáticamente al leer por IA un documento de esta empresa
-        (p. ej. ITA, RNT/TC2). Revisa cada caso antes de aplicar cualquier cambio — nada se hace
-        automáticamente.
-    </p>
+    <CabeceraPagina Titulo="@($"Detección de personal — {_empresa?.RazonSocial ?? "…"}")">
+        <Descripcion>
+            Cambios de personal detectados automáticamente al leer por IA un documento de esta empresa
+            (p. ej. ITA, RNT/TC2). Revisa cada caso antes de aplicar cualquier cambio — nada se hace
+            automáticamente.
+        </Descripcion>
+    </CabeceraPagina>
 
     @if (_errorCarga)
     {

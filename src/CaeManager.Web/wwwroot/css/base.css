@@ -71,6 +71,25 @@ button {
 }
 
 /*
+  Texto explicativo atenuado que NO es la entradilla de la pantalla: el
+  párrafo bajo un h2 de sección, el que abre una pestaña, o el que explica un
+  estado concreto dentro del flujo. La entradilla de la pantalla —la que va
+  justo bajo el h1— es <CabeceraPagina Descripcion=...>, y va un paso más
+  grande (--font-body-lg) porque es la que sitúa la página entera.
+
+  Global y no aislado a propósito: la deriva que sustituye venía justamente
+  de copiar entre features clases declaradas en un .razor.css, donde el
+  selector generado lleva el atributo de ámbito del componente de origen y no
+  puede casar en el destino. Once párrafos se quedaron así sin estilo alguno.
+*/
+.texto-descriptivo {
+  font: var(--font-body-md);
+  color: var(--color-text-muted);
+  max-width: 70ch;
+  margin: 0 0 var(--space-4);
+}
+
+/*
   Envoltorio compartido de campo de formulario (etiqueta + control + mensaje
   de error) — CampoTexto, CampoSelect y CampoTextarea comparten el mismo
   marcado ".campo" > label + control, pero cada uno es su propio componente

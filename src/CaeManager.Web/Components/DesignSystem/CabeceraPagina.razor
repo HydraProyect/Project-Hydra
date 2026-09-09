@@ -1,0 +1,102 @@
+@*
+    Cabecera de página Gen 2: kicker opcional + título + descripción opcional,
+    con las acciones de la página a la derecha.
+
+    Por qué existe (medido el 2026-09-09 sobre origin/main, no de memoria):
+
+    1. La descripción de página estaba escrita NUEVE veces, una clase por
+       feature —descripcion-alertas, -buzon, -retencion, -delegaciones,
+       -roles, -seleccion-cliente, -subida-masiva, -importacion y
+       -pagina (esta última duplicada literalmente en Facturacion.razor.css y
+       Proyectos.razor.css)—, con seis anchos máximos distintos (640px, 720px,
+       65ch, 70ch, 75ch, 80ch), tres márgenes inferiores y tres tamaños de
+       letra. Semánticamente era una sola cosa.
+
+    2. Peor que la deriva: ONCE de esos párrafos NO recibían ningún estilo. Las
+       clases viven en CSS aislado (.razor.css) y se copiaron a otras features,
+       donde el selector generado —p. ej. .descripcion-delegaciones[b-41fh1yr74k]—
+       no puede casar. ClavesApi, EstadoComercial, ConfiguracionIaCliente,
+       DeteccionTrabajadores, MiFirma, RevisionIaTab, PlantillasTab y
+       Plataforma ni siquiera tienen .razor.css propio, así que sus elementos
+       no llevan atributo de ámbito alguno. Se veían como texto corrido.
+
+    3. El kicker existía como .dashboard-kicker, exclusivo de los tres
+       dashboards, con font-label-md (600 13/16, ls .06em). El mockup Gen 2 lo
+       usa en pantallas normales —Vehículos, Proyectos, Mi trabajo— con
+       12/16 peso 500 y ls .08em, que es font-body-sm.
+
+    Contrato visual, medido sobre los mockups Gen 2 (getComputedStyle en el
+    fichero servido, no leído del fuente):
+
+      kicker       12/16 peso 500, mayúsculas, ls .08em, texto atenuado
+      h1           36/44 peso 700  → --font-heading-xl (el código ya acertaba)
+      descripción  16/24           → --font-body-lg
+
+    Los propios mockups derivan aquí —cuatro pintan la descripción a 16/24 y
+    tres a 14/20—, así que 16/24 es una DECISIÓN, no una lectura: es el tamaño
+    de los cuatro casos en que la descripción es la entradilla de la página,
+    justo bajo el h1, que es exactamente lo que este componente representa. El
+    texto explicativo que no es entradilla usa .texto-descriptivo (base.css).
+
+    Este componente NO sustituye a las 21 páginas que hoy escriben
+    .cabecera-pagina a mano sin descripción ni kicker: en esas la cabecera ya
+    coincide con Gen 2 y migrarlas sería refactor sin cambio visible. Entrarán
+    con el incremento de su familia.
+*@
+<header class="cabecera-pagina @(Descripcion is null ? null : "cabecera-pagina-con-descripcion")">
+    <div class="cabecera-pagina-texto">
+        @if (!string.IsNullOrWhiteSpace(Kicker))
+        {
+            <span class="cabecera-pagina-kicker">@Kicker</span>
+        }
+
+        @if (Integrada)
+        {
+            <h2 class="titulo-panel-configuracion">@Titulo</h2>
+        }
+        else
+        {
+            <h1 class="titulo-pagina">@Titulo</h1>
+        }
+
+        @if (Descripcion is not null)
+        {
+            <p class="cabecera-pagina-descripcion">@Descripcion</p>
+        }
+    </div>
+
+    @if (Acciones is not null)
+    {
+        <div class="acciones-cabecera">@Acciones</div>
+    }
+</header>
+
+@code {
+    /// <summary>Título de la pantalla. Es el <c>h1</c>, salvo en el hub de Configuración.</summary>
+    [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Antetítulo en mayúsculas sobre el título — normalmente el grupo del
+    /// menú al que pertenece la pantalla ("Operación", "Control"). Opcional:
+    /// sin valor no se pinta ningún hueco.
+    /// </summary>
+    [Parameter] public string? Kicker { get; set; }
+
+    /// <summary>
+    /// Entradilla bajo el título: qué es esta pantalla y para qué sirve.
+    /// Es <see cref="RenderFragment"/> y no <c>string</c> porque varias
+    /// llevan enlaces y <c>code</c> dentro (Conexiones, Claves API).
+    /// </summary>
+    [Parameter] public RenderFragment? Descripcion { get; set; }
+
+    /// <summary>Acciones de la pantalla, alineadas a la derecha del título.</summary>
+    [Parameter] public RenderFragment? Acciones { get; set; }
+
+    /// <summary>
+    /// La pantalla se está pintando embebida en el hub de Configuración. El
+    /// título pasa a <c>h2</c> con la clase del panel, igual que hace
+    /// <see cref="CaeManager.Web.Components.PaginaIntegrableConfiguracionBase.TituloPaginaIntegrable"/>,
+    /// para no meter un segundo <c>h1</c> en la misma página.
+    /// </summary>
+    [Parameter] public bool Integrada { get; set; }
+}
