@@ -7,27 +7,26 @@
 <PageTitle>Dashboard Ejecutivo — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <div class="dashboard-cabecera">
-        <span class="dashboard-kicker">Dashboard Ejecutivo</span>
-        <h1 class="titulo-pagina">Tu cartera, con los KPI que elijas</h1>
+    <CabeceraPagina Titulo="Tu cartera, con los KPI que elijas" Kicker="Dashboard Ejecutivo">
+        <Acciones>
+            <div class="dashboard-periodo">
+                <CampoSelect Etiqueta="Periodo" Valor="@_preset.ToString()" ValorChanged="CambiarPresetAsync">
+                    @foreach (var preset in Enum.GetValues<PresetPeriodoKpi>())
+                    {
+                        <option value="@preset">@EtiquetaPreset(preset)</option>
+                    }
+                </CampoSelect>
 
-        <div class="dashboard-periodo">
-            <CampoSelect Etiqueta="Periodo" Valor="@_preset.ToString()" ValorChanged="CambiarPresetAsync">
-                @foreach (var preset in Enum.GetValues<PresetPeriodoKpi>())
+                @if (_preset == PresetPeriodoKpi.Personalizado)
                 {
-                    <option value="@preset">@EtiquetaPreset(preset)</option>
+                    <CampoTexto Etiqueta="Desde" Type="date" Valor="@_desdePersonalizado"
+                                ValorChanged="v => _desdePersonalizado = v" OnBlur="AplicarRangoPersonalizadoAsync" />
+                    <CampoTexto Etiqueta="Hasta" Type="date" Valor="@_hastaPersonalizado"
+                                ValorChanged="v => _hastaPersonalizado = v" OnBlur="AplicarRangoPersonalizadoAsync" />
                 }
-            </CampoSelect>
-
-            @if (_preset == PresetPeriodoKpi.Personalizado)
-            {
-                <CampoTexto Etiqueta="Desde" Type="date" Valor="@_desdePersonalizado"
-                            ValorChanged="v => _desdePersonalizado = v" OnBlur="AplicarRangoPersonalizadoAsync" />
-                <CampoTexto Etiqueta="Hasta" Type="date" Valor="@_hastaPersonalizado"
-                            ValorChanged="v => _hastaPersonalizado = v" OnBlur="AplicarRangoPersonalizadoAsync" />
-            }
-        </div>
-    </div>
+            </div>
+        </Acciones>
+    </CabeceraPagina>
 
     @if (_error)
     {

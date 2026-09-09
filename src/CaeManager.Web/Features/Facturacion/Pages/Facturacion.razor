@@ -9,10 +9,11 @@
 <PageTitle>Facturación — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <h1 class="titulo-pagina">Facturación y costes</h1>
-    <p class="descripcion-pagina">
-        Define las tarifas pactadas con cada cliente para generar el resumen de facturación mensual estimado.
-    </p>
+    <CabeceraPagina Titulo="Facturación y costes">
+        <Descripcion>
+            Define las tarifas pactadas con cada cliente para generar el resumen de facturación mensual estimado.
+        </Descripcion>
+    </CabeceraPagina>
 
     @if (_errorCarga)
     {

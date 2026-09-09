@@ -29,13 +29,6 @@
     border-bottom-color: var(--color-primary-500);
 }
 
-.descripcion-roles {
-    color: var(--color-text-muted);
-    font: var(--font-body-md);
-    margin-bottom: var(--space-5);
-    max-width: 640px;
-}
-
 .rejilla-roles {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));

@@ -1,28 +1,4 @@
-/*
-  Cabecera y rejillas de KPI compartidas entre Dashboard (vista de un solo
-  Cliente) y Visión de cartera (vista agregada, ver ROADMAP.md Fase 51,
-  Capa de Reporting). Vive en un stylesheet global — no en el .razor.css
-  aislado de un componente — precisamente porque dos páginas distintas la
-  consumen; el aislamiento de CSS de Blazor (los atributos b-xxxx) no
-  alcanza entre componentes, así que una regla en Dashboard.razor.css nunca
-  llegaría a VisionCartera.razor. Jerarquía en dos niveles (ver
-  DESIGN_SYSTEM.md, rediseño de jerarquía visual): .rejilla-kpis-criticos es
-  la primera cosa que se lee — con el tratamiento "premium" completo
-  (degradado, borde de color, número grande) — y .rejilla-kpis-secundarios
-  es contexto que no requiere ninguna decisión hoy.
-*/
-.dashboard-cabecera {
-    margin-bottom: var(--space-8);
-}
 
-.dashboard-kicker {
-    display: block;
-    font: var(--font-label-md);
-    color: var(--color-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    margin-bottom: var(--space-1);
-}
 
 .dashboard-subtitulo {
     font: var(--font-heading-sm);

@@ -35,13 +35,11 @@
 <PageTitle>Mi trabajo — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <div class="bandeja-cabecera">
-        <div>
-            <span class="dashboard-kicker">Cola priorizada</span>
-            <h1 class="titulo-pagina">Mi trabajo</h1>
-        </div>
-        <Boton Variante="VarianteBoton.Secundario" OnClick="AbrirReclamacionLoteAsync">Reclamar en lote</Boton>
-    </div>
+    <CabeceraPagina Titulo="Mi trabajo" Kicker="Cola priorizada">
+        <Acciones>
+            <Boton Variante="VarianteBoton.Secundario" OnClick="AbrirReclamacionLoteAsync">Reclamar en lote</Boton>
+        </Acciones>
+    </CabeceraPagina>
 
     <div class="bandeja-barra">
         <div class="bandeja-chips" role="group" aria-label="Filtrar por tipo">

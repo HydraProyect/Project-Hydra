@@ -10,14 +10,14 @@
 }
 
 <div class="@ClaseContenedorPagina">
-    @TituloPaginaIntegrable("Conexiones de integración")
-
-    <p class="descripcion-delegaciones">
-        Buzones de Microsoft 365 conectados para la bandeja de correo compartida (Comunicaciones).
-        Cada conexión pertenece a un Cliente Delegante concreto, o al propio Tenant si se deja en blanco.
-        Para investigar una conexión en concreto —carpetas, mensajes en Graph que aún no llegaron por
-        webhook—, usa el <a href="/comunicaciones/buzon">explorador técnico del buzón (diagnóstico)</a>.
-    </p>
+    <CabeceraPagina Titulo="Conexiones de integración" Integrada="@IntegradaEnConfiguracion">
+        <Descripcion>
+            Buzones de Microsoft 365 conectados para la bandeja de correo compartida (Comunicaciones).
+            Cada conexión pertenece a un Cliente Delegante concreto, o al propio Tenant si se deja en blanco.
+            Para investigar una conexión en concreto —carpetas, mensajes en Graph que aún no llegaron por
+            webhook—, usa el <a href="/comunicaciones/buzon">explorador técnico del buzón (diagnóstico)</a>.
+        </Descripcion>
+    </CabeceraPagina>
 
     <div class="acciones-claves-api">
         <CampoSelect Etiqueta="Cliente (opcional)" Valor="@(_clienteSeleccionadoId?.ToString() ?? string.Empty)"
@@ -100,7 +100,7 @@
 
     <h2 class="titulo-seccion-lineas">Líneas de WhatsApp</h2>
 
-    <p class="descripcion-delegaciones">
+    <p class="texto-descriptivo">
         Líneas oficiales de WhatsApp Cloud API (Meta). Cada línea enruta sus conversaciones nuevas a su gestor
         dueño (modo gestor fijo) o las reparte equitativamente entre un grupo (modo pool inbound).
     </p>

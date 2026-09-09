@@ -12,12 +12,11 @@
 <PageTitle>Proyectos — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <div class="cabecera-pagina">
-        <h1 class="titulo-pagina">Proyectos</h1>
-    </div>
-    <p class="descripcion-pagina">
-        Documentación de requerimiento para instalaciones y obras nuevas — distinta de la documentación de acceso de mantenimiento tradicional.
-    </p>
+    <CabeceraPagina Titulo="Proyectos" Kicker="Operación">
+        <Descripcion>
+            Documentación de requerimiento para instalaciones y obras nuevas — distinta de la documentación de acceso de mantenimiento tradicional.
+        </Descripcion>
+    </CabeceraPagina>
 
     @if (_errorCarga)
     {

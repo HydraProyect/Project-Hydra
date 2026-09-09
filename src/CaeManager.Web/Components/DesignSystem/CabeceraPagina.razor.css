@@ -1,0 +1,66 @@
+/*
+   La caja exterior (.cabecera-pagina: flex, space-between, margin-bottom) la
+   sigue poniendo list-page.css, que es global y compartido con las 21 páginas
+   que todavía escriben la cabecera a mano. Aquí solo van las piezas nuevas.
+*/
+
+/* .retencion-cabecera y .cabecera-delegaciones —dos copias byte a byte de la
+   misma caja— traían wrap y gap, que .cabecera-pagina no tiene. Se conservan
+   aquí para no estrechar el título contra su botón en pantallas angostas. */
+.cabecera-pagina {
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+/* La separación entre kicker, título y entradilla la pone el gap, no los
+   márgenes de cada hijo: así hay UN valor y no tres que se suman. 8px es el
+   del mockup, medido —no elegido— sobre Proyectos, Facturación y Vehículos:
+   los tres pintan este bloque como flex column con rowGap 8px y los hijos a
+   margen cero (kicker 113→121, título 165→173). */
+.cabecera-pagina-texto {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-width: 0;
+}
+
+/* Con descripción la cabecera deja de ser una línea: alinear las acciones al
+   alto del título y no al centro del bloque entero, que las dejaría flotando
+   a media entradilla. Gana a la regla global por especificidad (clase +
+   atributo de ámbito). */
+.cabecera-pagina-con-descripcion {
+    align-items: flex-start;
+}
+
+.cabecera-pagina-kicker {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+/* margin 0 a propósito: el navegador da margen propio a <p> y se sumaría al
+   gap del contenedor, dejando dos valores para una sola separación.
+
+   max-width 70ch (≈604px con Inter a 16px) es DECISIÓN, no lectura del
+   mockup. Medidos, los mockups dan 689, 720, 760, 800 y 820px, y en dos casos
+   no fijan ninguno: no hay un valor que honrar. 70ch mantiene la línea dentro
+   de la medida de lectura cómoda —los 760px de la mediana son ~88 caracteres,
+   por encima del rango habitual de 45-75— y, al ir en ch, la conserva si
+   cambia el cuerpo de letra. Si el propietario prefiere el ancho del mockup,
+   es cambiar este número y nada más. */
+.cabecera-pagina-descripcion {
+    font: var(--font-body-lg);
+    color: var(--color-text-muted);
+    max-width: 70ch;
+    margin: 0;
+}
+
+/* La separación bajo la cabecera la pone .cabecera-pagina; el título no debe
+   añadir la suya (base.css da --space-6 a .titulo-pagina y configuracion.css
+   --space-4 a .titulo-panel-configuracion). Sin descripción, list-page.css ya
+   lo hacía para .titulo-pagina, pero no para el título del panel. */
+.cabecera-pagina-texto .titulo-pagina,
+.cabecera-pagina-texto .titulo-panel-configuracion {
+    margin-bottom: 0;
+}

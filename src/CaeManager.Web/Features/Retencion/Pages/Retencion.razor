@@ -10,17 +10,17 @@
 }
 
 <div class="@ClaseContenedorPagina">
-    <div class="retencion-cabecera">
-        @TituloPaginaIntegrable("Retención de datos")
-        <Boton OnClick="BuscarAsync" Cargando="_buscando">Buscar datos que hayan cumplido plazo</Boton>
-    </div>
-
-    <p class="descripcion-retencion">
-        Cuando un dato cumple su plazo de conservación, el sistema <strong>propone</strong> destruirlo — nunca lo
-        hace por su cuenta. Así hay margen para avisar a la organización afectada por si su política interna
-        exige conservarlo más años. Destruir es anonimizar: se rompe el vínculo con la persona y se conserva el
-        histórico, que ya no es dato personal.
-    </p>
+    <CabeceraPagina Titulo="Retención de datos" Integrada="@IntegradaEnConfiguracion">
+        <Descripcion>
+            Cuando un dato cumple su plazo de conservación, el sistema <strong>propone</strong> destruirlo — nunca lo
+            hace por su cuenta. Así hay margen para avisar a la organización afectada por si su política interna
+            exige conservarlo más años. Destruir es anonimizar: se rompe el vínculo con la persona y se conserva el
+            histórico, que ya no es dato personal.
+        </Descripcion>
+        <Acciones>
+            <Boton OnClick="BuscarAsync" Cargando="_buscando">Buscar datos que hayan cumplido plazo</Boton>
+        </Acciones>
+    </CabeceraPagina>
 
     @if (_error)
     {
