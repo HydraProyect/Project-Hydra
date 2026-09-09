@@ -85,11 +85,10 @@ public class ImportacionTests(WebAppFixture fixture)
             // (elegir plantilla), pero el input de archivo solo existe en el
             // paso 2 — hay que confirmar la plantilla primero.
             await page.GetByText("Continuar con Importación CAE completa").ClickAsync();
-            await page.Locator("input[type=\"file\"]").SetInputFilesAsync(rutaExcel);
+            await Ayudas.SubirArchivoDeImportacionAsync(page, rutaExcel);
 
-            var botonVerPlan = page.GetByText("Ver plan de importación");
-            await Expect(botonVerPlan).ToBeEnabledAsync(new LocatorAssertionsToBeEnabledOptions { Timeout = 15_000 });
-            await botonVerPlan.ClickAsync();
+            await Ayudas.EsperarPlanDeImportacionAsync(page);
+            await page.GetByText("Ver plan de importación").ClickAsync();
 
             // --- Paso 3 "Revisar plan": el plan promete las 6 altas, incluida la
             // Asignación (Importacion.razor.cs, NombresPasos — el wizard

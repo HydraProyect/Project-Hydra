@@ -662,6 +662,200 @@ public static class Ayudas
         return ruta;
     }
 
+    private const int IntentosSubirArchivoImportacion = 2;
+
+    /// <summary>
+    /// Sube el archivo al &lt;InputFile&gt; del asistente de importación
+    /// (Importacion.razor, paso 2) y espera una <b>señal del servidor</b> de que
+    /// el análisis arrancó, repitiendo la subida si no llega.
+    ///
+    /// <para><b>Por qué no vale esperar a que se habilite el botón.</b> "Ver
+    /// plan de importación" se pinta con <c>Deshabilitado="!TienePlan"</c>, y
+    /// <c>TienePlan</c> solo se pone a true en la rama de éxito de
+    /// <c>ManejarArchivoSeleccionadoAsync</c>. En todas las demás ramas
+    /// —excepción al leer el libro, archivo por encima del tamaño máximo, o un
+    /// evento <c>change</c> que nunca llega al circuito— el botón se queda
+    /// deshabilitado <b>para siempre</b>. Un <c>ToBeEnabledAsync</c> con timeout
+    /// fijo no distingue "el análisis va lento" de "el análisis no va a terminar
+    /// nunca"; como la mayoría de los estados alcanzables son permanentes,
+    /// subir el timeout no arregla nada: tarda más en dar el mismo error ciego.
+    /// </para>
+    ///
+    /// <para><b>Medido en CI</b> (cola de merge, run 34373414188, job
+    /// 102540034790, sobre f6572fb4 — el mismo contenido pasó en la rama y dos
+    /// veces en local). <c>ImportarClientesTests</c> falló con "Locator expected
+    /// to be enabled … unexpected value disabled" tras 15 s, y
+    /// "34 × locator resolved to &lt;button disabled&gt;". El sink de fichero de
+    /// Serilog del propio job (artefacto <c>logs-caemanager-web-e2e</c>) sitúa
+    /// ese circuito así: en <c>16:00:12.379</c> se pide
+    /// <c>/js/zona-soltar-archivo.js</c> —o sea, el paso 2 SÍ renderizó y
+    /// <c>ZonaSoltarArchivo.OnAfterRenderAsync</c> corrió— y desde ahí el
+    /// circuito no vuelve a registrar <b>nada</b> hasta cerrarse en
+    /// <c>16:00:27.391</c> ("/_blazor responded 101 in 15637 ms"). Quince
+    /// segundos de silencio absoluto.</para>
+    ///
+    /// <para>Eso descarta por medición —no por argumento— la hipótesis por
+    /// defecto de que "15 s no bastan con la máquina cargada":
+    /// <c>LoggingBehavior</c> registra a Warning todo request que pase de
+    /// <c>UmbralLentitudMs = 1000</c>, lecturas incluidas, y ese nivel sí sale
+    /// en este fichero (lo demuestra el "CrearClienteCommand falló con
+    /// Autorizacion.SoloLectura" del mismo log). En las 39 pruebas del run
+    /// entero <b>no hay una sola línea de request lento</b>. Y los dos tests
+    /// hermanos con esta misma forma corrieron segundos antes en la misma
+    /// máquina: de renderizar la zona de soltar a tener la importación ya
+    /// ejecutada tardaron 331 ms (combinada) y 1,30 s (documentos). El análisis
+    /// no fue lento: no llegó a ocurrir.</para>
+    ///
+    /// <para><b>El arreglo</b> es el que ya usa
+    /// <see cref="SeleccionarPestanaAsync"/> para el clic que se pierde en
+    /// silencio: esperar una <b>señal</b> de que el evento llegó al servidor, y
+    /// repetirlo si no llegó. La señal es que aparezca cualquiera de los tres
+    /// observables del estado del servidor en el paso 2 —la barra de
+    /// <c>ProgresoConMensajes</c> (<c>_analizando</c>), la alerta de error
+    /// (<c>_mensajeError</c>) o el botón ya habilitado (<c>TienePlan</c>)—.
+    /// Reintentar es seguro: <c>ManejarArchivoSeleccionadoAsync</c> es
+    /// idempotente, empieza poniendo el plan a null y vuelve a analizar.</para>
+    ///
+    /// <para><b>Cómo reproducir el fallo a voluntad</b> (no se manifiesta en una
+    /// máquina de desarrollo, igual que el de
+    /// <see cref="SeleccionarPestanaAsync"/>): sustituir el
+    /// &lt;input type=file&gt; por un clon justo antes de subir, con
+    /// <c>page.EvalOnSelectorAsync("input[type=file]", "e =&gt; e.replaceWith(e.cloneNode(true))")</c>.
+    /// El clon está en el DOM y acepta <c>SetInputFilesAsync</c>, pero perdió el
+    /// cableado de Blazor, así que el <c>change</c> no llega al circuito —
+    /// exactamente el estado observado en CI.</para>
+    /// </summary>
+    public static async Task SubirArchivoDeImportacionAsync(IPage page, string rutaArchivo)
+    {
+        var entrada = page.Locator("input[type=\"file\"]");
+
+        for (var intento = 1; intento <= IntentosSubirArchivoImportacion; intento++)
+        {
+            await entrada.SetInputFilesAsync(rutaArchivo);
+
+            // 5 s es enormísimo para que el servidor acuse recibo del change:
+            // los dos tests hermanos hacen el ciclo entero (análisis, plan,
+            // confirmación e importación escrita) en 331 ms y 1,30 s. Mismo
+            // criterio y mismo número que SeleccionarPestanaAsync.
+            if (await EsperarAcuseDeReciboDelAnalisisAsync(page, TimeSpan.FromSeconds(5)))
+                return;
+        }
+
+        throw new TimeoutException(
+            $"El análisis de la importación nunca arrancó tras {IntentosSubirArchivoImportacion} intentos de subir " +
+            $"\"{Path.GetFileName(rutaArchivo)}\": ni barra de progreso (_analizando), ni alerta de error " +
+            "(_mensajeError), ni plan (TienePlan). El evento 'change' del <InputFile> no llegó al circuito de " +
+            $"Blazor. URL en ese momento: {page.Url}{await DescribirToastsAsync(page)}");
+    }
+
+    /// <summary>
+    /// Espera al <b>desenlace</b> del análisis y lo nombra al fallar. Sustituye
+    /// a un <c>Expect(boton).ToBeEnabledAsync(…)</c> a secas: si el análisis
+    /// terminó en error, el mensaje del test es el del error y no un timeout
+    /// ciego; y si no terminó, dice si seguía en curso o si la página estaba
+    /// inerte. Ver <see cref="SubirArchivoDeImportacionAsync"/> para la medición
+    /// que motiva las dos esperas.
+    /// </summary>
+    public static async Task EsperarPlanDeImportacionAsync(IPage page, int timeoutMs = 15_000)
+    {
+        try
+        {
+            await page.WaitForFunctionAsync(
+                $"() => {{ const e = ({GuionEstadoDelAnalisis})(); return e === 'plan' || e === 'error'; }}",
+                null,
+                new PageWaitForFunctionOptions { Timeout = timeoutMs });
+        }
+        catch (PlaywrightException)
+        {
+            var estado = await LeerEstadoDelAnalisisAsync(page);
+            throw new TimeoutException(
+                $"El análisis de la importación no llegó a ningún desenlace en {timeoutMs} ms. Estado observado en " +
+                $"la página: \"{estado}\" — \"analizando\" = sigue en curso de verdad (ahí sí faltaría tiempo); " +
+                "\"inerte\" = ni progreso, ni error, ni plan, o sea que el 'change' se perdió y esperar más no " +
+                $"habría servido de nada. URL: {page.Url}{await DescribirToastsAsync(page)}");
+        }
+
+        var mensajeError = await LeerAlertaDeFormularioAsync(page);
+        if (mensajeError is not null)
+            throw new InvalidOperationException(
+                $"El análisis de la importación terminó en error, no en plan: \"{mensajeError}\" " +
+                "(Importacion.razor, _mensajeError). Esto NO es un timeout: el servidor respondió.");
+    }
+
+    /// <summary>
+    /// Los tres observables del estado del servidor durante el paso 2 de
+    /// Importacion.razor, leídos del DOM en una sola pasada. Guion compartido
+    /// por la espera y por el diagnóstico, para que ambos midan exactamente lo
+    /// mismo.
+    /// </summary>
+    private const string GuionEstadoDelAnalisis = """
+        () => {
+            const boton = [...document.querySelectorAll('button')]
+                .find(b => b.textContent.includes('Ver plan de importación'));
+            return boton && !boton.disabled ? 'plan'
+                : document.querySelector('.alerta-formulario') ? 'error'
+                : document.querySelector('.progreso-carga') ? 'analizando'
+                : null;
+        }
+        """;
+
+    private static async Task<bool> EsperarAcuseDeReciboDelAnalisisAsync(IPage page, TimeSpan limite)
+    {
+        var vencimiento = DateTime.UtcNow + limite;
+        while (DateTime.UtcNow < vencimiento)
+        {
+            if (await page.EvaluateAsync<string?>(GuionEstadoDelAnalisis) is not null)
+                return true;
+
+            await Task.Delay(100);
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Lee el estado para el mensaje de error. Va en su propio try porque un
+    /// diagnóstico no puede tapar el fallo que describe: si la página ya no
+    /// responde, lo que hay que ver sigue siendo el timeout, no la excepción
+    /// de haber intentado explicarlo.
+    /// </summary>
+    private static async Task<string> LeerEstadoDelAnalisisAsync(IPage page)
+    {
+        try
+        {
+            return await page.EvaluateAsync<string?>(GuionEstadoDelAnalisis) ?? "inerte";
+        }
+        catch (PlaywrightException)
+        {
+            return "no se pudo leer (la página ya no responde)";
+        }
+    }
+
+    private static async Task<string?> LeerAlertaDeFormularioAsync(IPage page)
+    {
+        var alerta = page.Locator(".alerta-formulario");
+        return await alerta.CountAsync() > 0 ? (await alerta.First.InnerTextAsync()).Trim() : null;
+    }
+
+    /// <summary>
+    /// El archivo por encima del tamaño máximo no pinta .alerta-formulario:
+    /// avisa por toast y sale sin tocar _analizando
+    /// (ManejarArchivoSeleccionadoAsync), así que sin esto ese caso sería
+    /// indistinguible de un 'change' perdido.
+    /// </summary>
+    private static async Task<string> DescribirToastsAsync(IPage page)
+    {
+        try
+        {
+            var toasts = await page.Locator(".toast").AllInnerTextsAsync();
+            return toasts.Count == 0 ? string.Empty : $" Toasts visibles: {string.Join(" | ", toasts).Trim()}.";
+        }
+        catch (PlaywrightException)
+        {
+            return string.Empty;
+        }
+    }
+
     /// <summary>
     /// Lee el número mostrado por una TarjetaMetrica de las pantallas de
     /// importación ("Clientes nuevos", "Documentos creados"…) — cada
