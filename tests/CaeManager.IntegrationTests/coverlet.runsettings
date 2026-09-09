@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+  Excluye CaeManager.Migrations.PostgreSQL de la instrumentacion de
+  cobertura de este bloque.
+
+  El ratchet de "Umbral de cobertura" en ci.yml declara medir
+  Domain + Application + Integration (ver su comentario). El ensamblado de
+  migraciones de EF (297 ficheros, ~355.000 lineas generadas — 15 veces el
+  tamano de Domain+Application+Infrastructure juntos, medido el 2026-09-08)
+  nunca fue parte de esa intencion: se carga por transitividad porque
+  IntegrationTests referencia CaeManager.Migrations.PostgreSQL para poder
+  ejecutar MigrateAsync() en sus tests, no porque el ratchet quisiera medir
+  cuanto de esas migraciones esta "cubierto".
+
+  Sin esta exclusion, coverlet.collector instrumenta esas ~355.000 lineas
+  en CADA uno de los 4 bloques de tests-integracion (una vez por bloque,
+  sobre el mismo ensamblado identico) y las recorre entera al cerrar el
+  colector, incluso cuando el bloque solo ejecuto un subconjunto pequeno
+  de las clases de test. Medido en el run 34258842000 (2026-09-08): el
+  hueco entre "xUnit termina de ejecutar tests" y "dotnet test reporta su
+  resumen final" (el cierre de coverlet.collector) es de 4,9 a 10,2
+  minutos por bloque — en 3 de los 4, mayor que el tiempo de ejecutar los
+  tests. Ver tecnico/ci-diagnostico-regresion-22min-2026-09-08.md en el
+  repositorio de negocio.
+
+  Esto SI cambia el numero que produce el ratchet (el denominador de
+  lineas medidas baja en ~355.000): remedido en 3 ejecuciones de CI
+  independientes sobre el mismo commit, 37.2% / 37.2% / 37.2% (antes 91.6%
+  sobre el universo contaminado por migraciones). El umbral de "Umbral de
+  cobertura" en ci.yml se recalibro a 37.0% como parte de este mismo
+  cambio — ver el comentario de ese paso para el rebaseline completo y
+  tecnico/ci-diagnostico-regresion-22min-2026-09-08.md en el repositorio de
+  negocio para las tres muestras y su justificacion.
+-->
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat code coverage">
+        <Configuration>
+          <Exclude>[CaeManager.Migrations.PostgreSQL]*</Exclude>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>
