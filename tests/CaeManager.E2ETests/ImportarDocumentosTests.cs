@@ -92,12 +92,11 @@ public class ImportarDocumentosTests(WebAppFixture fixture)
             await Expect(page).ToHaveURLAsync(new Regex(@"/importacion\?plantilla=documentos$"));
 
             await page.GetByText("Continuar con Documentos").ClickAsync();
-            await page.Locator("input[type=\"file\"]").SetInputFilesAsync(rutaExcel);
+            await Ayudas.SubirArchivoDeImportacionAsync(page, rutaExcel);
 
             // --- Paso 2: una fila nueva, la del DNI inexistente ya aparece omitida ---
-            var botonVerPlan = page.GetByText("Ver plan de importación");
-            await Expect(botonVerPlan).ToBeEnabledAsync(new LocatorAssertionsToBeEnabledOptions { Timeout = 15_000 });
-            await botonVerPlan.ClickAsync();
+            await Ayudas.EsperarPlanDeImportacionAsync(page);
+            await page.GetByText("Ver plan de importación").ClickAsync();
 
             // GetByText("Revisar plan") a secas es ambigua: el nombre del paso
             // 3 aparece tanto en el botón del stepper del wizard como en el <h2>
