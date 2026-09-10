@@ -22,6 +22,20 @@
         </Descripcion>
     </CabeceraPagina>
 
+    @* Confirmación de la baja. ResolverDeteccionAusenteCommand con desactivar a
+       true elimina al trabajador (soft delete) y le cierra las asignaciones: antes
+       iba directo del botón al comando, con un solo clic. Ahora solo lo envía
+       ConfirmarBajaAsync, con el mismo diálogo que el resto de acciones
+       destructivas. «Mantener activo» no destruye nada y sigue siendo un clic. *@
+    <DialogoConfirmacion
+        Visible="_confirmarBajaVisible"
+        VisibleChanged="v => _confirmarBajaVisible = v"
+        Titulo="@($"¿Dar de baja a {NombreBajaPendiente}?")"
+        Mensaje="Se dará de baja al trabajador y se cerrarán sus asignaciones activas. Hazlo solo si ya no trabaja para esta empresa; si solo falta en este documento, elige «Mantener activo»."
+        TextoBotonConfirmar="Dar de baja"
+        EnProgreso="_dandoDeBaja"
+        OnConfirmar="ConfirmarBajaAsync" />
+
     @if (_errorCarga)
     {
         <EstadoVacio Titulo="No pudimos cargar las detecciones" Descripcion="Intenta nuevamente en unos segundos, o puede que no tengas acceso a esta empresa.">
@@ -97,10 +111,10 @@
                             <td>@deteccion.Dni</td>
                             <td>
                                 <div style="display:flex;gap:.5rem;">
-                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="@(_procesandoId == deteccion.Id)" OnClick="() => ResolverAusenteAsync(deteccion.Id, false)">
+                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="@(_procesandoId == deteccion.Id)" OnClick="() => MantenerActivoAsync(deteccion.Id)">
                                         Mantener activo
                                     </Boton>
-                                    <Boton Variante="VarianteBoton.Destructivo" Tamano="TamanoBoton.Pequeno" Cargando="@(_procesandoId == deteccion.Id)" OnClick="() => ResolverAusenteAsync(deteccion.Id, true)">
+                                    <Boton Variante="VarianteBoton.Destructivo" Tamano="TamanoBoton.Pequeno" Cargando="@(_procesandoId == deteccion.Id)" OnClick="() => AbrirConfirmarBaja(deteccion)">
                                         Dar de baja
                                     </Boton>
                                 </div>

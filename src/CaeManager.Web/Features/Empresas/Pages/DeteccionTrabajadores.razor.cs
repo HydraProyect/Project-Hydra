@@ -17,6 +17,12 @@ public partial class DeteccionTrabajadores : ComponentBase
     private bool _errorCarga;
     private Guid? _procesandoId;
 
+    // Baja pendiente de confirmar: «Dar de baja» elimina (soft delete) al
+    // trabajador y le cierra las asignaciones, así que no sale de un solo clic.
+    private DeteccionTrabajadorDto? _bajaPendiente;
+    private bool _confirmarBajaVisible;
+    private bool _dandoDeBaja;
+
     protected override Task OnInitializedAsync() => CargarAsync();
 
     private async Task CargarAsync()
@@ -76,7 +82,51 @@ public partial class DeteccionTrabajadores : ComponentBase
         }
     }
 
-    private async Task ResolverAusenteAsync(Guid deteccionId, bool desactivar)
+    /// <summary>
+    /// «Mantener activo» no destruye nada —solo da la detección por resuelta— y
+    /// por eso sigue siendo un clic. La baja pasa siempre por
+    /// <see cref="AbrirConfirmarBaja"/> y <see cref="ConfirmarBajaAsync"/>: ningún
+    /// otro camino envía el comando con desactivar a true.
+    /// </summary>
+    private Task MantenerActivoAsync(Guid deteccionId) => EnviarResolucionAusenteAsync(deteccionId, desactivar: false);
+
+    private void AbrirConfirmarBaja(DeteccionTrabajadorDto deteccion)
+    {
+        _bajaPendiente = deteccion;
+        _confirmarBajaVisible = true;
+    }
+
+    private string NombreBajaPendiente =>
+        _bajaPendiente is null ? string.Empty : $"{_bajaPendiente.Nombre} {_bajaPendiente.Apellidos}".Trim();
+
+    private async Task ConfirmarBajaAsync()
+    {
+        if (_bajaPendiente is not { } deteccion)
+            return;
+
+        _dandoDeBaja = true;
+        try
+        {
+            if (await EnviarResolucionAusenteAsync(deteccion.Id, desactivar: true))
+            {
+                _confirmarBajaVisible = false;
+                _bajaPendiente = null;
+            }
+        }
+        finally
+        {
+            _dandoDeBaja = false;
+        }
+    }
+
+    /// <returns>
+    /// <c>true</c> si la operación terminó —se aplicase la baja o no hiciera
+    /// falta—; <c>false</c> si falló, ya avisado con un toast. Una excepción
+    /// también acaba en <c>false</c> con aviso: antes solo había <c>finally</c>,
+    /// el error subía sin decir nada y el diálogo quedaba abierto sin motivo
+    /// visible. Mismo criterio que la eliminación de tarifas en Facturación.
+    /// </returns>
+    private async Task<bool> EnviarResolucionAusenteAsync(Guid deteccionId, bool desactivar)
     {
         _procesandoId = deteccionId;
         StateHasChanged();
@@ -87,11 +137,28 @@ public partial class DeteccionTrabajadores : ComponentBase
             if (resultado.EsFallido)
             {
                 ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
-                return;
+                return false;
             }
 
-            ToastService.Mostrar(desactivar ? "Trabajador dado de baja." : "Trabajador mantenido activo.", TonoToast.Exito);
+            // El mensaje sale de lo que el comando dice que hizo, no de lo que se
+            // le pidió: pedir una baja y que el trabajador ya no estuviera activo
+            // no es una baja.
+            var (mensaje, tono) = resultado.Valor switch
+            {
+                ResultadoResolucionAusente.DadoDeBaja => ("Trabajador dado de baja.", TonoToast.Exito),
+                ResultadoResolucionAusente.YaNoEstabaActivo => (
+                    "Este trabajador ya no estaba activo, así que no había nada que dar de baja. La detección queda cerrada.",
+                    TonoToast.Info),
+                _ => ("Trabajador mantenido activo.", TonoToast.Exito),
+            };
+            ToastService.Mostrar(mensaje, tono);
             await CargarAsync();
+            return true;
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar("No pudimos aplicar el cambio. Intenta nuevamente.", TonoToast.Error);
+            return false;
         }
         finally
         {
