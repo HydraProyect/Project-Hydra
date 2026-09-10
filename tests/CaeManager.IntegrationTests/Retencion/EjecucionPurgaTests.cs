@@ -141,6 +141,10 @@ public class EjecucionPurgaTests : IAsyncLifetime
 
         trabajadorAnonimizado.EstaAnonimizado.Should().BeTrue(
             "el trabajador estaba soft-deleted pero seguía dentro del plazo de retención — debía anonimizarse igual");
+
+        var solicitudEjecutada = await contextoVerificacion.SolicitudesPurga.FirstAsync(s => s.Id == solicitudId);
+        solicitudEjecutada.ResultadoEjecucion.Should().Be(ResultadoEjecucionPurga.Completa,
+            "anonimizar un Trabajador no tiene paso de almacenamiento externo que pueda fallar a medias");
     }
 
     /// <summary>
@@ -307,6 +311,19 @@ public class EjecucionPurgaTests : IAsyncLifetime
         alertas.Alertas.Should().ContainSingle()
             .Which.Nivel.Should().Be(NivelAlertaOperativa.Critica,
                 "la solicitud ya quedó marcada como ejecutada, así que nadie reintentará esto solo");
+
+        // Opción 4 (decisión de producto 2026-09-11): "Ejecutada" no equivale
+        // a "completa". El resultado durable de la ejecución debe distinguir
+        // este caso, con trazabilidad mínima del candidato que falló.
+        var solicitud = await contextoVerificacion.SolicitudesPurga.FirstAsync(s => s.Id == solicitudId);
+        solicitud.ResultadoEjecucion.Should().Be(ResultadoEjecucionPurga.ConIncidencias);
+        solicitud.CandidatosEnEjecucion.Should().Be(1);
+        solicitud.SuprimidosEnEjecucion.Should().Be(0);
+        solicitud.FallidosEnEjecucion.Should().Be(1);
+
+        var incidencia = await contextoVerificacion.IncidenciasPurga.SingleAsync(i => i.SolicitudPurgaId == solicitudId);
+        incidencia.ObjetivoId.Should().Be(documentoId);
+        incidencia.Tipo.Should().Be(TipoIncidenciaPurga.FalloEliminacionArchivo);
     }
 
     [Fact]
@@ -340,6 +357,15 @@ public class EjecucionPurgaTests : IAsyncLifetime
         documento.EstaAnonimizado.Should().BeTrue();
         documento.ArchivoUrl.Should().BeNull();
         alertas.Alertas.Should().BeEmpty();
+
+        var solicitud = await contextoVerificacion.SolicitudesPurga.FirstAsync(s => s.Id == solicitudId);
+        solicitud.ResultadoEjecucion.Should().Be(ResultadoEjecucionPurga.Completa);
+        solicitud.CandidatosEnEjecucion.Should().Be(1);
+        solicitud.SuprimidosEnEjecucion.Should().Be(1);
+        solicitud.FallidosEnEjecucion.Should().Be(0);
+
+        (await contextoVerificacion.IncidenciasPurga.AnyAsync(i => i.SolicitudPurgaId == solicitudId))
+            .Should().BeFalse("una ejecución completa no deja incidencias");
     }
 
     private CaeManagerDbContext CrearContexto()

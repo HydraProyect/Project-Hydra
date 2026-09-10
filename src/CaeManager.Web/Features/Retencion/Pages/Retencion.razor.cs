@@ -366,17 +366,39 @@ public partial class Retencion : CaeManager.Web.Components.PaginaIntegrableConfi
             solicitud.PuedeEjecutarseHoy
                 ? "Lista para ejecutar"
                 : $"Autorizada para el {solicitud.FechaEjecucionProgramada:dd/MM/yyyy}",
-        EstadoSolicitudPurga.Ejecutada => $"Ejecutada el {solicitud.EjecutadaEnUtc?.ToLocalTime():dd/MM/yyyy}",
+        EstadoSolicitudPurga.Ejecutada => DescribirEjecutada(solicitud),
         EstadoSolicitudPurga.Cancelada => "Descartada",
         _ => solicitud.Estado.ToString()
     };
 
-    private static TonoBadge TonoDeEstado(EstadoSolicitudPurga estado) => estado switch
+    /// <summary>
+    /// "Ejecutada" no equivale a "se suprimió todo": ver
+    /// SolicitudPurga.RegistrarResultadoEjecucion. Una ejecución con al menos
+    /// un fallo se rotula explícitamente "con incidencias", nunca como una
+    /// ejecución simple. Las solicitudes ejecutadas antes de que este eje
+    /// existiera no tienen ResultadoEjecucion — para esas no se infiere nada,
+    /// se muestra solo la fecha, igual que antes de este cambio.
+    /// </summary>
+    private static string DescribirEjecutada(SolicitudPurgaDto solicitud)
+    {
+        var fecha = solicitud.EjecutadaEnUtc?.ToLocalTime().ToString("dd/MM/yyyy");
+
+        if (solicitud.ResultadoEjecucion is not { } resultado)
+            return $"Ejecutada el {fecha}";
+
+        var conteo = $"{solicitud.SuprimidosEnEjecucion}/{solicitud.CandidatosEnEjecucion} suprimidos";
+        return resultado == ResultadoEjecucionPurga.ConIncidencias
+            ? $"Ejecutada con incidencias el {fecha} · {conteo}"
+            : $"Ejecutada el {fecha} · {conteo}";
+    }
+
+    private static TonoBadge TonoDeEstado(SolicitudPurgaDto solicitud) => solicitud.Estado switch
     {
         EstadoSolicitudPurga.PendienteDeRevision => TonoBadge.Advertencia,
         EstadoSolicitudPurga.TenantAvisado => TonoBadge.Advertencia,
         EstadoSolicitudPurga.Programada => TonoBadge.Peligro,
-        EstadoSolicitudPurga.Ejecutada => TonoBadge.Neutro,
+        EstadoSolicitudPurga.Ejecutada =>
+            solicitud.ResultadoEjecucion == ResultadoEjecucionPurga.ConIncidencias ? TonoBadge.Advertencia : TonoBadge.Neutro,
         _ => TonoBadge.Neutro
     };
 }

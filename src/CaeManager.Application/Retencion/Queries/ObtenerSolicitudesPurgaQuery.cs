@@ -24,7 +24,10 @@ public record SolicitudPurgaDto(
     DateTime? AvisadaAlTenantEnUtc,
     DateOnly? FechaEjecucionProgramada,
     DateTime? EjecutadaEnUtc,
-    string? Motivo)
+    string? Motivo,
+    ResultadoEjecucionPurga? ResultadoEjecucion,
+    int? CandidatosEnEjecucion,
+    int? SuprimidosEnEjecucion)
 {
     public bool EstaResuelta => Estado is EstadoSolicitudPurga.Ejecutada or EstadoSolicitudPurga.Cancelada;
 
@@ -44,6 +47,7 @@ public class ObtenerSolicitudesPurgaQueryHandler(IRetencionQueryContext dbContex
             .ThenByDescending(s => s.DetectadaEnUtc)
             .Select(s => new SolicitudPurgaDto(
                 s.Id, s.TipoDato, s.Estado, s.RegistrosAfectados, s.FechaCorte, s.DetectadaEnUtc,
-                s.AvisadaAlTenantEnUtc, s.FechaEjecucionProgramada, s.EjecutadaEnUtc, s.Motivo))
+                s.AvisadaAlTenantEnUtc, s.FechaEjecucionProgramada, s.EjecutadaEnUtc, s.Motivo,
+                s.ResultadoEjecucion, s.CandidatosEnEjecucion, s.SuprimidosEnEjecucion))
             .ToListAsync(cancellationToken);
 }

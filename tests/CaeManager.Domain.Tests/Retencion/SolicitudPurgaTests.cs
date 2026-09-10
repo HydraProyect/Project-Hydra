@@ -159,4 +159,71 @@ public class SolicitudPurgaTests
 
         crear.Should().Throw<ArgumentOutOfRangeException>();
     }
+
+    private static SolicitudPurga CrearYEjecutar(out DateOnly fechaEjecucion)
+    {
+        var solicitud = CrearSolicitud();
+        fechaEjecucion = Hoy.AddDays(10);
+        solicitud.Programar(fechaEjecucion, Autorizador, Hoy);
+        solicitud.Ejecutar(fechaEjecucion);
+        return solicitud;
+    }
+
+    [Fact]
+    public void No_se_puede_registrar_un_resultado_antes_de_ejecutar()
+    {
+        // El resultado describe UNA ejecución concreta: no existe sin ella.
+        var solicitud = CrearSolicitud();
+        solicitud.Programar(Hoy.AddDays(10), Autorizador, Hoy);
+
+        var registrar = () => solicitud.RegistrarResultadoEjecucion(candidatos: 1, suprimidos: 1, fallidos: 0);
+
+        registrar.Should().Throw<InvalidOperationException>().WithMessage("*solo se registra tras ejecutar*");
+    }
+
+    [Fact]
+    public void Sin_fallidos_el_resultado_es_completa()
+    {
+        var solicitud = CrearYEjecutar(out _);
+
+        solicitud.RegistrarResultadoEjecucion(candidatos: 3, suprimidos: 3, fallidos: 0);
+
+        solicitud.ResultadoEjecucion.Should().Be(ResultadoEjecucionPurga.Completa);
+        solicitud.CandidatosEnEjecucion.Should().Be(3);
+        solicitud.SuprimidosEnEjecucion.Should().Be(3);
+        solicitud.FallidosEnEjecucion.Should().Be(0);
+    }
+
+    [Fact]
+    public void Con_algun_fallido_el_resultado_es_con_incidencias()
+    {
+        // El caso central de la Opción 4: Ejecutada no equivale a completa.
+        var solicitud = CrearYEjecutar(out _);
+
+        solicitud.RegistrarResultadoEjecucion(candidatos: 3, suprimidos: 2, fallidos: 1);
+
+        solicitud.ResultadoEjecucion.Should().Be(ResultadoEjecucionPurga.ConIncidencias);
+        solicitud.FallidosEnEjecucion.Should().Be(1);
+    }
+
+    [Fact]
+    public void Suprimidos_y_fallidos_deben_sumar_los_candidatos()
+    {
+        var solicitud = CrearYEjecutar(out _);
+
+        var registrar = () => solicitud.RegistrarResultadoEjecucion(candidatos: 3, suprimidos: 1, fallidos: 1);
+
+        registrar.Should().Throw<ArgumentException>().WithMessage("*sumar exactamente*");
+    }
+
+    [Fact]
+    public void El_resultado_de_una_ejecucion_no_se_registra_dos_veces()
+    {
+        var solicitud = CrearYEjecutar(out _);
+        solicitud.RegistrarResultadoEjecucion(candidatos: 1, suprimidos: 1, fallidos: 0);
+
+        var registrar = () => solicitud.RegistrarResultadoEjecucion(candidatos: 1, suprimidos: 1, fallidos: 0);
+
+        registrar.Should().Throw<InvalidOperationException>().WithMessage("*ya tiene un resultado*");
+    }
 }
