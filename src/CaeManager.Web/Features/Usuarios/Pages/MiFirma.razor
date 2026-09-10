@@ -8,6 +8,7 @@
 @inject IMediator Mediator
 @inject ToastService Toasts
 @inject IJSRuntime JSRuntime
+@inject ILogger<MiFirma> Logger
 
 <PageTitle>Mi firma — @Marca.Nombre</PageTitle>
 
@@ -104,6 +105,14 @@
                 <Tarjeta>
                     <section class="mi-firma-seccion mi-firma-seccion-compacta" aria-labelledby="mi-firma-titulo-guardada">
                         <h2 id="mi-firma-titulo-guardada" class="mi-firma-seccion-titulo">Firma guardada</h2>
+
+                        @if (_firmaMostradaDesactualizada)
+                        {
+                            <div class="mi-firma-desactualizada" role="status">
+                                <span>Tu firma nueva se guardó, pero no pudimos cargarla: lo que ves aquí es anterior al guardado.</span>
+                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="VolverACargarFirmaAsync">Volver a cargar</Boton>
+                            </div>
+                        }
 
                         @if (_firmaActual is not null)
                         {

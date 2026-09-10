@@ -120,6 +120,18 @@
     object-fit: contain;
 }
 
+.mi-firma-desactualizada {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    background: var(--color-warning-50);
+    color: var(--color-warning-700);
+    font: var(--font-caption);
+}
+
 .mi-firma-dato {
     display: flex;
     flex-direction: column;
