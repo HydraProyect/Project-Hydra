@@ -1,0 +1,120 @@
+@*
+    Vista previa de una subcontrata (Subcontratas TALVEG.dc.html) — mismo
+    patrón que EmpresaPreviewDrawer/VehiculoPreviewDrawer. Sin Application
+    nuevo:
+
+    - Cumplimiento, vencidos y próximos salen de la FILA de la lista
+      (SubcontrataListaDto): ya están calculados y así el panel no puede
+      discrepar de la fila que tiene al lado.
+    - CIF, alta y con quién tiene relación: ObtenerSubcontrataPorIdQuery.
+    - Trabajadores: ObtenerTrabajadoresQuery filtrada por SubcontrataId, solo
+      para el recuento (TamanoPagina = 1), igual que EmpresaPreviewDrawer.
+    - Nombres de «Presta servicio a»: los selectores de Empresas y Clientes.
+      Los Ids de la relación NO se acotan por cartera y los selectores sí, así
+      que un Id puede no tener nombre visible: se cuenta, no se inventa.
+
+    Frente al mockup, «Documentación» no es una lista de documentos de la
+    subcontrata: el modelo no asocia Documentos a una Subcontrata (lo dice la
+    propia pestaña de Subcontrata 360). Lo que sí existe son las incidencias
+    de sus trabajadores que la lista ya trae, y eso es lo que se enseña.
+*@
+@using CaeManager.Application.Subcontratas
+@using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId
+@using CaeManager.Web.Components.Workspace
+@using CaeManager.Web.Features.Documentos
+
+@if (Visible && Fila is not null)
+{
+    <aside class="drawer-preview-subcontrata" role="complementary" aria-label="Vista previa de la subcontrata">
+        <div class="cabecera-preview-subcontrata">
+            <div class="texto-cabecera-preview-subcontrata">
+                <span class="etiqueta-cabecera-preview-subcontrata">Consulta · Subcontrata</span>
+                <span class="nombre-cabecera-preview-subcontrata">@Fila.RazonSocial</span>
+                <span class="meta-cabecera-preview-subcontrata">
+                    <Badge Tono="EstadoSupervisionUi.TonoNivel(Fila.NivelServicio)" Tamano="TamanoBadge.Pequeno">@EstadoSupervisionUi.TextoNivel(Fila.NivelServicio)</Badge>
+                    <span>@TextoMeta</span>
+                </span>
+            </div>
+            <button type="button" class="boton-cerrar-preview-subcontrata" aria-label="Cerrar la vista previa" @onclick="Cerrar"><Icono Nombre="cerrar" /></button>
+        </div>
+
+        <div class="cuerpo-preview-subcontrata">
+        <Pestanas Definiciones="Pestanas" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestanaAsync" EtiquetaGrupo="Secciones de la subcontrata">
+            @if (_pestanaActiva == "informacion")
+            {
+                @if (_cargando)
+                {
+                    <EstadoCargando Filas="3" />
+                }
+                else if (_errorCarga)
+                {
+                    <EstadoVacio Titulo="No pudimos cargar la subcontrata" Descripcion="Intenta nuevamente en unos segundos.">
+                        <Accion>
+                            <Boton OnClick="ReintentarAsync">Reintentar</Boton>
+                        </Accion>
+                    </EstadoVacio>
+                }
+                else if (_detalle is null)
+                {
+                    <EstadoVacio Titulo="No encontramos esta subcontrata" Descripcion="Puede que se haya eliminado o que ya no esté en tu cartera." />
+                }
+                else
+                {
+                    <div class="rejilla-info-preview-subcontrata">
+                        <div class="celda-info-preview-subcontrata"><span>CIF</span><strong>@(string.IsNullOrEmpty(_detalle.Cif) ? "—" : _detalle.Cif)</strong></div>
+                        <div class="celda-info-preview-subcontrata"><span>Nivel de servicio</span><strong>@EstadoSupervisionUi.TextoNivel(_detalle.NivelServicio)</strong></div>
+                        <div class="celda-info-preview-subcontrata"><span>Cumplimiento</span><strong>@(Fila.CumplimientoPorcentaje is { } c ? $"{c}%" : "—")</strong></div>
+                        <div class="celda-info-preview-subcontrata"><span>Trabajadores</span><strong>@_totalTrabajadores</strong></div>
+                        <div class="celda-info-preview-subcontrata"><span>Vencidos</span><strong>@Fila.Recuentos.TotalVencidas</strong></div>
+                        <div class="celda-info-preview-subcontrata"><span>Próximos a vencer</span><strong>@Fila.Recuentos.TotalProximas</strong></div>
+                        <div class="celda-info-preview-subcontrata"><span>Alta</span><strong>@_detalle.CreadoEnUtc.ToLocalTime().ToString("MM/yyyy")</strong></div>
+                        <div class="celda-info-preview-subcontrata celda-info-preview-subcontrata-ancha"><span>Presta servicio a</span><strong>@TextoPrestaServicioA</strong></div>
+                    </div>
+                }
+            }
+
+            @if (_pestanaActiva == "documentacion")
+            {
+                @if (Incidencias.Count == 0)
+                {
+                    <p class="vacio-preview-subcontrata">Ningún documento exigido a sus trabajadores está vencido ni próximo a vencer.</p>
+                }
+                else
+                {
+                    <ul class="lista-incidencias-preview-subcontrata" aria-label="Documentos vencidos y próximos a vencer de sus trabajadores">
+                        @foreach (var incidencia in Incidencias)
+                        {
+                            <li class="fila-incidencia-preview-subcontrata">
+                                <span class="texto-incidencia-preview-subcontrata">@incidencia.Descripcion</span>
+                                <Badge Tono="EstadoDocumentoUi.Tono(incidencia.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(incidencia.Estado)</Badge>
+                            </li>
+                        }
+                    </ul>
+                }
+                <button type="button" class="enlace-ver-todo-preview-subcontrata" @onclick='() => Operar("trabajadores")'>
+                    Ver sus trabajadores y su documentación →
+                </button>
+            }
+
+            @if (_pestanaActiva == "historial")
+            {
+                <PestanaHistorial EntidadTipo="Subcontrata" EntidadId="Fila.Id" />
+            }
+        </Pestanas>
+        </div>
+
+        <div class="pie-preview-subcontrata">
+            <Boton OnClick='() => Operar("informacion")'>Operar →</Boton>
+            <span class="nota-pie-preview-subcontrata">Abre Subcontrata 360</span>
+        </div>
+    </aside>
+}
+
+@code {
+    private static readonly IReadOnlyList<PestanaDefinicion> Pestanas =
+        [new("informacion", "Información"), new("documentacion", "Documentación"), new("historial", "Historial")];
+
+    /// <summary>Vencidas primero —faltantes incluidas, mismo criterio que la fila— y después las próximas.</summary>
+    private IReadOnlyList<IncidenciaSubcontrataDto> Incidencias =>
+        Fila is null ? [] : [.. Fila.Recuentos.Vencidas, .. Fila.Recuentos.Proximas];
+}

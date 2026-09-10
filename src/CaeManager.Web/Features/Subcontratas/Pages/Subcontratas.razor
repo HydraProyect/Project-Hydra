@@ -20,32 +20,38 @@
 <PageTitle>Subcontratas — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <div class="cabecera-pagina">
-        <h1 class="titulo-pagina">Subcontratas</h1>
-        <div class="acciones-cabecera">
+    @* Cabecera Gen 2 (Subcontratas TALVEG.dc.html): el kicker es el grupo del
+       menú al que pertenece la pantalla, y el alta sube a la cabecera junto a
+       Exportar — antes vivía en la barra de trabajo, mezclada con los
+       controles que actúan sobre la lista. *@
+    <CabeceraPagina Titulo="Subcontratas" Kicker="Negocio">
+        <Acciones>
             <a class="enlace-exportar" href="/subcontratas/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel</a>
-        </div>
-    </div>
+            <Boton OnClick="AbrirCrear">+ Nueva subcontrata</Boton>
+        </Acciones>
+    </CabeceraPagina>
 
-    @*
-        "Subcontrata 360" (mismo lenguaje que Centro 360): una barra de
-        trabajo con buscar/selección-múltiple/expandir-todos/nuevo, filas en
-        acordeón con anillo de cumplimiento — sin QuickGrid, que no soporta
-        filas expandibles.
-    *@
+    @* El mockup dibuja además un desplegable «Nivel de servicio» y lo marca él
+       mismo como PROPUESTA: ObtenerSubcontratasQuery no acepta ese filtro.
+       Pintarlo sin el parámetro sería un control que no filtra nada, así que
+       no se dibuja hasta que exista. *@
     <div class="barra-trabajo-centros">
         <CampoTexto Placeholder="Buscar por razón social o CIF…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
-        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
-               OnClick="() => AlternarSeleccionMultiple(!_seleccionMultiple)"
-               aria-pressed="@(_seleccionMultiple ? "true" : "false")">
-            Selección múltiple
-        </Boton>
-        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
-               OnClick="() => AlternarTodosExpandidos(!TodosExpandidos)">
-            @(TodosExpandidos ? "Colapsar todos" : "Expandir todos")
-        </Boton>
-        <Boton OnClick="AbrirCrear">+ Nueva subcontrata</Boton>
     </div>
+
+    @* Mismo bloque que Empresas: lo que está filtrando se ve y se quita. Aquí
+       hay un único filtro, así que un único chip — y sin «Limpiar todo», que
+       con un solo chip haría exactamente lo mismo que su aspa. *@
+    @if (HayFiltrosActivos)
+    {
+        <div class="chips-filtros">
+            <span class="chips-filtros-indicador" aria-hidden="true"><Icono Nombre="filtro" Tamano="TamanoIcono.Pequeno" /></span>
+            <span class="chip-filtro">
+                Búsqueda: "@_busqueda"
+                <button type="button" class="chip-filtro-quitar" @onclick="LimpiarFiltrosAsync" aria-label="Quitar la búsqueda"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
+            </span>
+        </div>
+    }
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
@@ -69,7 +75,9 @@
 
            La copia no afirma que HAYA registros dados de alta: el filtrado
            es de servidor y la consulta solo devuelve el total ya filtrado,
-           así que la pantalla no sabe cuántos hay sin filtro. *@
+           así que la pantalla no sabe cuántos hay sin filtro. El mockup dice
+           «Hay subcontratas dadas de alta, pero ninguna coincide» — esa frase
+           no se copia porque esta pantalla no puede saberla. *@
         <EstadoVacio NombreIcono="vacio" Titulo="Ninguna subcontrata con esta búsqueda"
                      Descripcion="Ninguna coincide con el texto buscado.">
             <Accion>
@@ -79,7 +87,7 @@
     }
     else if (_elementosPagina.Count == 0)
     {
-        <EstadoVacio Titulo="Aún no hay subcontratas" Descripcion="Crea la primera para poder dar de alta a sus trabajadores.">
+        <EstadoVacio NombreIcono="subcontratas" Titulo="Aún no hay subcontratas" Descripcion="Crea la primera para poder dar de alta a sus trabajadores.">
             <Accion>
                 <Boton OnClick="AbrirCrear">+ Nueva subcontrata</Boton>
             </Accion>
@@ -87,6 +95,13 @@
     }
     else
     {
+        <BarraHerramientasLista SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple"
+                                TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidos">
+            <Extra>
+                <span class="conteo-subcontratas">@TextoConteo</span>
+            </Extra>
+        </BarraHerramientasLista>
+
         @if (_seleccionMultiple)
         {
             @* "Seleccionar todos" era falso y se contradecía con la propia barra
@@ -110,12 +125,33 @@
             </label>
         }
 
+        @* Cabecera de columnas. Sin roles de tabla a propósito, igual que en
+           Empresas: la fila se despliega, y anunciarla como tabla prometería a
+           un lector de pantalla una navegación por celdas que no existe. Sin
+           QuickGrid por la misma razón: no soporta filas expandibles. *@
+        <div class="@ClaseRejilla("cabecera-columnas-subcontratas")">
+            @if (_seleccionMultiple)
+            {
+                <span></span>
+            }
+            <span></span>
+            <span>Razón social</span>
+            <span>Nivel de servicio</span>
+            <span>Cumplimiento</span>
+            <span>Vencidos</span>
+            <span>Próximos</span>
+            <span></span>
+        </div>
+
         <div class="lista-filas-acordeon">
             @foreach (var subcontrata in _elementosPagina)
             {
                 var expandido = _expandidos.Contains(subcontrata.Id);
-                <div class="@("tarjeta-fila-acordeon" + (subcontrata.Id == _idEnfocado ? " fila-enfocada" : ""))" @key="subcontrata.Id">
-                    <div class="tarjeta-fila-acordeon-cabecera">
+                <div class="@ClaseTarjeta(subcontrata.Id)" @key="subcontrata.Id">
+                    @* Cada celda va envuelta para que la rejilla tenga SIEMPRE el
+                       mismo número de columnas que la cabecera: un componente que
+                       no se pinta desalinearía la fila. *@
+                    <div class="@ClaseRejilla("tarjeta-fila-acordeon-cabecera")">
                         @if (_seleccionMultiple)
                         {
                             <input type="checkbox" checked="@_seleccionados.Contains(subcontrata.Id)" @onchange="e => AlternarSeleccion(subcontrata.Id, (bool)e.Value!)" />
@@ -126,65 +162,84 @@
                                 @onclick="() => AlternarExpansion(subcontrata.Id)">
                             <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
                         </button>
-                        <AnilloCumplimiento Porcentaje="subcontrata.CumplimientoPorcentaje" Tamano="TamanoAnillo.Pequeno"
-                                             Etiqueta="@($"{subcontrata.CumplimientoPorcentaje}% de cumplimiento — documentos al día / exigidos entre sus trabajadores")" />
-                        <span class="tarjeta-fila-acordeon-identidad">
-                            <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Subcontrata, subcontrata.Id, subcontrata.RazonSocial, "informacion")'>
+                        <span class="celda-identidad-subcontrata">
+                            <button type="button" class="enlace-nombre-fila" @onclick="() => AbrirPreview(subcontrata.Id)">
                                 @subcontrata.RazonSocial
                             </button>
-                            <span class="tarjeta-fila-acordeon-meta">
-                                @(string.IsNullOrEmpty(subcontrata.Cif) ? "Sin CIF" : subcontrata.Cif)
-                                · <Badge Tono="EstadoSupervisionUi.TonoNivel(subcontrata.NivelServicio)" Tamano="TamanoBadge.Pequeno">@EstadoSupervisionUi.TextoNivel(subcontrata.NivelServicio)</Badge>
-                            </span>
+                            <span class="tarjeta-fila-acordeon-meta">@(string.IsNullOrEmpty(subcontrata.Cif) ? "Sin CIF" : subcontrata.Cif)</span>
                         </span>
-                        <span class="tarjeta-fila-acordeon-indicadores">
-                            <span class="ranura-recuento">
-                                @if (subcontrata.Recuentos.TotalVencidas > 0)
-                                {
-                                    <VentanaContexto Etiqueta="@DescribirRecuento(subcontrata.Recuentos.Vencidas, "vencido")"
-                                                     Titulo="@($"{subcontrata.Recuentos.TotalVencidas} {(subcontrata.Recuentos.TotalVencidas == 1 ? "documento vencido" : "documentos vencidos")}")">
-                                        <Disparador>
-                                            <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno" class="badge-solo-recuento">
-                                                @subcontrata.Recuentos.TotalVencidas
-                                            </Badge>
-                                        </Disparador>
-                                        <Detalle>
-                                            @foreach (var incidencia in subcontrata.Recuentos.Vencidas)
-                                            {
-                                                <span class="ventana-linea">@incidencia.Descripcion</span>
-                                            }
-                                        </Detalle>
-                                    </VentanaContexto>
-                                }
-                            </span>
-                            <span class="ranura-recuento ranura-recuento-final">
-                                @if (subcontrata.Recuentos.TotalProximas > 0)
-                                {
-                                    <VentanaContexto Etiqueta="@DescribirRecuento(subcontrata.Recuentos.Proximas, "próximo a vencer")"
-                                                     Titulo="@($"{subcontrata.Recuentos.TotalProximas} {(subcontrata.Recuentos.TotalProximas == 1 ? "documento próximo a vencer" : "documentos próximos a vencer")}")">
-                                        <Disparador>
-                                            <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno" class="badge-solo-recuento">
-                                                @subcontrata.Recuentos.TotalProximas
-                                            </Badge>
-                                        </Disparador>
-                                        <Detalle>
-                                            @foreach (var incidencia in subcontrata.Recuentos.Proximas)
-                                            {
-                                                <span class="ventana-linea">@incidencia.Descripcion</span>
-                                            }
-                                        </Detalle>
-                                    </VentanaContexto>
-                                }
-                                else if (subcontrata.Recuentos.TotalVencidas == 0)
-                                {
-                                    <Badge Tono="TonoBadge.Exito" Tamano="TamanoBadge.Pequeno">Al corriente</Badge>
-                                }
-                            </span>
+                        <span>
+                            <Badge Tono="EstadoSupervisionUi.TonoNivel(subcontrata.NivelServicio)" Tamano="TamanoBadge.Pequeno"
+                                   title="@DescribirNivel(subcontrata.NivelServicio)">
+                                @EstadoSupervisionUi.TextoNivel(subcontrata.NivelServicio)
+                            </Badge>
                         </span>
+                        <span>
+                            <AnilloCumplimiento Porcentaje="subcontrata.CumplimientoPorcentaje" Tamano="TamanoAnillo.Pequeno"
+                                                 Etiqueta="@EtiquetaCumplimiento(subcontrata.CumplimientoPorcentaje)" />
+                        </span>
+                        <span class="celda-recuento-subcontrata">
+                            @if (subcontrata.Recuentos.TotalVencidas > 0)
+                            {
+                                <VentanaContexto Etiqueta="@DescribirRecuento(subcontrata.Recuentos.Vencidas, "vencido")"
+                                                 Titulo="@($"{subcontrata.Recuentos.TotalVencidas} {(subcontrata.Recuentos.TotalVencidas == 1 ? "documento vencido" : "documentos vencidos")}")">
+                                    <Disparador>
+                                        <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">
+                                            @TextoRecuento(subcontrata.Recuentos.TotalVencidas, "vencido", "vencidos")
+                                        </Badge>
+                                    </Disparador>
+                                    <Detalle>
+                                        @foreach (var incidencia in subcontrata.Recuentos.Vencidas)
+                                        {
+                                            <span class="ventana-linea">@incidencia.Descripcion</span>
+                                        }
+                                    </Detalle>
+                                </VentanaContexto>
+                            }
+                            else
+                            {
+                                <span class="celda-sin-recuento">—</span>
+                            }
+                        </span>
+                        <span class="celda-recuento-subcontrata">
+                            @if (subcontrata.Recuentos.TotalProximas > 0)
+                            {
+                                <VentanaContexto Etiqueta="@DescribirRecuento(subcontrata.Recuentos.Proximas, "próximo a vencer")"
+                                                 Titulo="@($"{subcontrata.Recuentos.TotalProximas} {(subcontrata.Recuentos.TotalProximas == 1 ? "documento próximo a vencer" : "documentos próximos a vencer")}")">
+                                    <Disparador>
+                                        <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">
+                                            @TextoRecuento(subcontrata.Recuentos.TotalProximas, "próximo", "próximos")
+                                        </Badge>
+                                    </Disparador>
+                                    <Detalle>
+                                        @foreach (var incidencia in subcontrata.Recuentos.Proximas)
+                                        {
+                                            <span class="ventana-linea">@incidencia.Descripcion</span>
+                                        }
+                                    </Detalle>
+                                </VentanaContexto>
+                            }
+                            else if (subcontrata.Recuentos.TotalVencidas == 0)
+                            {
+                                <Badge Tono="TonoBadge.Exito" Tamano="TamanoBadge.Pequeno">Al corriente</Badge>
+                            }
+                        </span>
+                        @* Acciones tras "⋯", mismo criterio que Empresas. "Detalles"
+                           abre la vista previa y "Abrir Subcontrata 360" el Context
+                           Workspace: son dos profundidades distintas, y el mockup
+                           ofrece las dos. *@
                         <div class="tarjeta-fila-acordeon-acciones">
-                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace" OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Subcontrata, subcontrata.Id, subcontrata.RazonSocial, "informacion")'>
-                                Detalles
-                            </Boton>
+                            <MenuAcciones>
+                                <ItemMenuAccion OnClick="() => AbrirPreview(subcontrata.Id)">
+                                    Detalles
+                                </ItemMenuAccion>
+                                <ItemMenuAccion OnClick='() => AbrirDesdePreviewAsync((subcontrata.Id, "informacion"))'>
+                                    Abrir Subcontrata 360
+                                </ItemMenuAccion>
+                                <ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(subcontrata.Id, subcontrata.RazonSocial)">
+                                    Eliminar
+                                </ItemMenuAccion>
+                            </MenuAcciones>
                         </div>
                     </div>
                     @if (expandido)
@@ -245,6 +300,14 @@
     </Pie>
 </Drawer>
 
+<DialogoConfirmacion
+    Visible="_confirmarEliminarVisible"
+    VisibleChanged="v => _confirmarEliminarVisible = v"
+    Titulo="@($"¿Eliminar a {_razonSocialAEliminar}?")"
+    Mensaje="Se ocultará de las listas activas."
+    EnProgreso="_eliminando"
+    OnConfirmar="ConfirmarEliminarAsync" />
+
 <BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
                     OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />
 
@@ -255,3 +318,5 @@
     Mensaje="Se ocultarán de las listas activas."
     EnProgreso="_eliminandoLote"
     OnConfirmar="ConfirmarEliminarLoteAsync" />
+
+<SubcontrataPreviewDrawer Fila="FilaEnVistaPrevia" Visible="_previewVisible" VisibleChanged="v => _previewVisible = v" OnOperar="AbrirDesdePreviewAsync" />
