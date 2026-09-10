@@ -7,9 +7,23 @@
 <PageTitle>Calendario — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <div class="cabecera-pagina">
-        <h1 class="titulo-pagina">Calendario de vencimientos</h1>
-    </div>
+    <CabeceraPagina Titulo="Calendario" Kicker="Control">
+        <Acciones>
+            @if (!_error)
+            {
+                <div class="calendario-navegacion">
+                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="MesAnteriorAsync" aria-label="Mes anterior">
+                        <span class="calendario-flecha-anterior"><Icono Nombre="siguiente" Tamano="TamanoIcono.Pequeno" /></span>
+                    </Boton>
+                    <span class="calendario-titulo-mes" aria-live="polite">@TituloMes</span>
+                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="MesSiguienteAsync" aria-label="Mes siguiente">
+                        <Icono Nombre="siguiente" Tamano="TamanoIcono.Pequeno" />
+                    </Boton>
+                </div>
+                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="MesActualAsync">Hoy</Boton>
+            }
+        </Acciones>
+    </CabeceraPagina>
 
     @if (_error)
     {
@@ -19,153 +33,148 @@
             </Accion>
         </EstadoVacio>
     }
+    else if (_cargando)
+    {
+        <EstadoCargando Filas="4" />
+    }
     else
     {
-        <div class="calendario-navegacion">
-            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="MesAnteriorAsync">← Mes anterior</Boton>
-            <div class="calendario-mes-actual">
-                <span class="calendario-titulo-mes">@TituloMes.Substring(0, 1).ToUpperInvariant()@TituloMes.Substring(1)</span>
-                <button type="button" class="enlace-hoy" @onclick="MesActualAsync">Hoy</button>
-            </div>
-            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="MesSiguienteAsync">Mes siguiente →</Boton>
-        </div>
+        <div class="calendario-rejilla">
+            @foreach (var nombreDia in NombresDiasSemana)
+            {
+                <div class="calendario-cabecera-dia">@nombreDia</div>
+            }
 
-        <div class="calendario-leyenda">
-            <span class="calendario-leyenda-item"><span class="calendario-leyenda-punto calendario-leyenda-punto-peligro"></span>Vencido / urgente</span>
-            <span class="calendario-leyenda-item"><span class="calendario-leyenda-punto calendario-leyenda-punto-advertencia"></span>Próximo</span>
-            <span class="calendario-leyenda-item"><span class="calendario-leyenda-punto calendario-leyenda-punto-exito"></span>Vigente</span>
-            <span class="calendario-leyenda-item"><span class="calendario-leyenda-punto calendario-leyenda-punto-info"></span>Visitas programadas</span>
-        </div>
-
-        @if (_cargando)
-        {
-            <EstadoCargando Filas="4" />
-        }
-        else
-        {
-            <div class="calendario-rejilla">
-                @foreach (var nombreDia in NombresDiasSemana)
+            @foreach (var celda in CeldasDelMes())
+            {
+                @if (!celda.DelMes)
                 {
-                    <div class="calendario-cabecera-dia">@nombreDia</div>
+                    @* Días del mes anterior/siguiente que completan la semana: se
+                       pintan atenuados para orientar, pero no se consultan (la
+                       carga es por mes), así que no pueden afirmar nada — ni
+                       recuento ni «sin eventos». Por eso tampoco son botón. *@
+                    <div class="calendario-celda calendario-celda-fuera" aria-hidden="true">
+                        <span class="calendario-dia-numero">@celda.Fecha.Day</span>
+                    </div>
                 }
-
-                @foreach (var celda in CeldasDelMes())
+                else
                 {
-                    @if (celda is null)
+                    var dia = celda.Fecha;
+                    var vencimientosDelDia = VencimientosDelDia(dia);
+                    var visitasDelDia = VisitasDelDia(dia);
+                    var peorEstado = PeorEstado(vencimientosDelDia);
+                    var esHoy = dia == DateOnly.FromDateTime(DateTime.Today);
+                    var claseNumero = esHoy ? "calendario-dia-numero calendario-dia-hoy" : "calendario-dia-numero";
+
+                    @if (vencimientosDelDia.Count == 0 && visitasDelDia.Count == 0)
                     {
-                        <div class="calendario-celda calendario-celda-vacia"></div>
+                        <div class="calendario-celda">
+                            <span class="@claseNumero">@dia.Day</span>
+                        </div>
                     }
                     else
                     {
-                        var dia = celda.Value;
-                        var vencimientosDelDia = VencimientosDelDia(dia);
-                        var visitasDelDia = VisitasDelDia(dia);
-                        var peorEstado = PeorEstado(vencimientosDelDia);
-                        var esHoy = dia == DateOnly.FromDateTime(DateTime.Today);
-                        var tieneDatos = vencimientosDelDia.Count > 0 || visitasDelDia.Count > 0;
-
-                        <div class="calendario-celda @(esHoy ? "calendario-celda-hoy" : "") @(tieneDatos ? "calendario-celda-con-datos" : "")"
-                             @onclick="() => SeleccionarDia(dia)">
-                            <span class="calendario-dia-numero">@dia.Day</span>
-                            <span class="calendario-indicadores">
-                                @if (peorEstado is not null)
-                                {
-                                    <span class="calendario-indicador">
-                                        <Badge Tono="EstadoDocumentoUi.Tono(peorEstado.Value)">@vencimientosDelDia.Count</Badge>
-                                    </span>
-                                }
-                                @if (visitasDelDia.Count > 0)
-                                {
-                                    <span class="calendario-indicador" title="Visitas programadas">
-                                        <Badge Tono="TonoBadge.Info">@visitasDelDia.Count</Badge>
-                                    </span>
-                                }
-                            </span>
-                        </div>
+                        <button type="button" class="calendario-celda calendario-celda-con-datos"
+                                aria-label="@EtiquetaDia(dia, vencimientosDelDia, visitasDelDia, peorEstado)"
+                                title="@EtiquetaDia(dia, vencimientosDelDia, visitasDelDia, peorEstado)"
+                                @onclick="() => SeleccionarDia(dia)">
+                            <span class="@claseNumero">@dia.Day</span>
+                            @if (peorEstado is not null)
+                            {
+                                <Badge Tono="EstadoDocumentoUi.Tono(peorEstado.Value)">@vencimientosDelDia.Count</Badge>
+                            }
+                            @if (visitasDelDia.Count > 0)
+                            {
+                                <span class="calendario-visitas">
+                                    <span class="calendario-barra-visita"></span>
+                                    @if (visitasDelDia.Count > 1)
+                                    {
+                                        <span class="calendario-visitas-numero">@visitasDelDia.Count</span>
+                                    }
+                                </span>
+                            }
+                        </button>
                     }
                 }
-            </div>
-        }
+            }
+        </div>
+
+        @* La leyenda dice lo que PeorEstado calcula con el semáforo único del
+           sistema (EstadoDocumentoUi): Urgente es rojo como Vencido, y un día
+           puede ser verde si todo lo que vence en él aún está vigente. El
+           mockup Gen 2 dibuja solo rojo = «algún vencido» y ámbar = «próximos
+           o urgentes»; copiar esa frase afirmaría algo que esta pantalla no
+           pinta. *@
+        <div class="calendario-leyenda">
+            <span class="calendario-leyenda-item"><Badge Tono="TonoBadge.Peligro">n</Badge>Algún vencido o urgente</span>
+            <span class="calendario-leyenda-item"><Badge Tono="TonoBadge.Advertencia">n</Badge>Algún próximo, ninguno peor</span>
+            <span class="calendario-leyenda-item"><Badge Tono="TonoBadge.Exito">n</Badge>Todo vigente</span>
+            <span class="calendario-leyenda-item"><span class="calendario-barra-visita calendario-barra-visita-leyenda"></span>Visita programada</span>
+            <span>El número es el recuento del día; el color, su peor estado.</span>
+        </div>
     }
 </div>
 
 <Modal Visible="@(_diaSeleccionado is not null)"
        VisibleChanged="@((bool visible) => { if (!visible) CerrarDetalle(); })"
-       Titulo="@(_diaSeleccionado is not null ? $"{_diaSeleccionado:dd/MM/yyyy}" : string.Empty)">
+       Titulo="@(_diaSeleccionado is not null ? FechaLarga(_diaSeleccionado.Value) : string.Empty)">
     @if (_diaSeleccionado is not null)
     {
         var vencimientosDelDiaSeleccionado = VencimientosDelDia(_diaSeleccionado.Value);
         var visitasDelDiaSeleccionado = VisitasDelDia(_diaSeleccionado.Value);
 
+        <p class="calendario-resumen-dia">@ResumenDia(_diaSeleccionado.Value, vencimientosDelDiaSeleccionado.Count, visitasDelDiaSeleccionado.Count)</p>
+
         @if (vencimientosDelDiaSeleccionado.Count > 0)
         {
-            <h3 class="calendario-subtitulo-modal">Vencimientos</h3>
-            <table class="tabla-datos">
-                <thead>
-                    <tr>
-                        <th>Estado</th>
-                        <th>Trabajador</th>
-                        <th>Tipo de documento</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
+            <section class="calendario-seccion-modal">
+                <h3 class="calendario-subtitulo-modal">Vencimientos</h3>
+                <ul class="calendario-lista-modal">
                     @foreach (var vencimiento in vencimientosDelDiaSeleccionado)
                     {
-                        <tr>
-                            <td><Badge Tono="EstadoDocumentoUi.Tono(vencimiento.Estado)">@EstadoDocumentoUi.Texto(vencimiento.Estado)</Badge></td>
-                            <td>@vencimiento.TrabajadorNombre</td>
-                            <td>@vencimiento.TipoDocumentoNombre</td>
-                            <td>
-                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => GestionarDocumento(vencimiento.DocumentoId)">
-                                    Gestionar
-                                </Boton>
-                            </td>
-                        </tr>
+                        <li class="calendario-fila-modal">
+                            <span class="calendario-fila-texto">
+                                <span class="calendario-fila-principal">@vencimiento.TrabajadorNombre</span>
+                                <span class="calendario-fila-secundaria">@vencimiento.TipoDocumentoNombre</span>
+                            </span>
+                            <Badge Tono="EstadoDocumentoUi.Tono(vencimiento.Estado)">@EstadoDocumentoUi.Texto(vencimiento.Estado)</Badge>
+                            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => GestionarDocumento(vencimiento.DocumentoId)">
+                                Gestionar
+                            </Boton>
+                        </li>
                     }
-                </tbody>
-            </table>
+                </ul>
+            </section>
         }
 
         @if (visitasDelDiaSeleccionado.Count > 0)
         {
-            <h3 class="calendario-subtitulo-modal">Visitas programadas</h3>
-            <div class="calendario-tabla-modal-contenedor">
-            <table class="tabla-datos">
-                <thead>
-                    <tr>
-                        <th>Centro / Cliente</th>
-                        <th>Trabaj.</th>
-                        <th>Notif.</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
+            <section class="calendario-seccion-modal">
+                <h3 class="calendario-subtitulo-modal">Visitas programadas</h3>
+                <ul class="calendario-lista-modal">
                     @foreach (var visita in visitasDelDiaSeleccionado)
                     {
-                        <tr>
-                            <td>@visita.CentroNombre<div class="calendario-fila-secundaria">@visita.ClienteRazonSocial</div></td>
-                            <td>@visita.TotalTrabajadores</td>
-                            <td>
-                                @if (visita.NotificadoCliente)
-                                {
-                                    <Badge Tono="TonoBadge.Exito">Sí</Badge>
-                                }
-                                else
-                                {
-                                    <Badge Tono="TonoBadge.Advertencia">No</Badge>
-                                }
-                            </td>
-                            <td>
-                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => GestionarVisita(visita.Id)">
-                                    Gestionar
-                                </Boton>
-                            </td>
-                        </tr>
+                        <li class="calendario-fila-modal">
+                            <span class="calendario-barra-visita calendario-barra-visita-fila"></span>
+                            <span class="calendario-fila-texto">
+                                <span class="calendario-fila-principal">@visita.CentroNombre</span>
+                                <span class="calendario-fila-secundaria">@DetalleVisita(visita)</span>
+                            </span>
+                            @if (visita.NotificadoCliente)
+                            {
+                                <Badge Tono="TonoBadge.Exito" title="La empresa titular del centro ya está avisada de la visita">Notificada</Badge>
+                            }
+                            else
+                            {
+                                <Badge Tono="TonoBadge.Advertencia" title="La empresa titular del centro todavía no está avisada de la visita">Sin notificar</Badge>
+                            }
+                            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => GestionarVisita(visita.Id)">
+                                Ir a Visitas
+                            </Boton>
+                        </li>
                     }
-                </tbody>
-            </table>
-            </div>
+                </ul>
+            </section>
         }
     }
 </Modal>
