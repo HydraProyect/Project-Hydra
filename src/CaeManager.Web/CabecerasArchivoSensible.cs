@@ -25,10 +25,18 @@ public static class CabecerasArchivoSensible
     ///
     /// <c>Pragma</c> es para los intermediarios que solo entienden HTTP/1.0;
     /// es redundante en cualquier cliente actual y no molesta.
+    ///
+    /// <c>private</c> es redundante con <c>no-store</c> —que ya prohíbe
+    /// almacenar a cualquier caché, compartida o no— y aun así se declara:
+    /// esta cabecera pisa el <c>no-store, private</c> que pone
+    /// <c>UseCabecerasSeguridad</c> para toda la aplicación, y quitarle
+    /// <c>private</c> al pisarlo dejaba la respuesta MÁS abierta a un
+    /// intermediario que respete una directiva y no la otra que el valor por
+    /// defecto que venía a endurecer.
     /// </summary>
     public static void ProhibirCache(HttpContext contexto)
     {
-        contexto.Response.Headers.CacheControl = "no-store, no-cache, must-revalidate";
+        contexto.Response.Headers.CacheControl = "no-store, no-cache, must-revalidate, private";
         contexto.Response.Headers.Pragma = "no-cache";
     }
 }
