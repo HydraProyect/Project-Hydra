@@ -88,3 +88,12 @@
     background-color: var(--color-primary-600);
     transform: translateY(-1px);
 }
+
+/* Con la cuenta bloqueada, la salida es un enlace con aspecto de botón. Un <a>
+   es inline: sin esto ignoraría el alto mínimo y el texto no se centraría. */
+a.boton-primario {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+}
