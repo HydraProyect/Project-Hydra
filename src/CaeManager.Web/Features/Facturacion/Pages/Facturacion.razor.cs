@@ -51,6 +51,11 @@ public partial class Facturacion : ComponentBase
     private string _editMoneda = "EUR";
     private Dictionary<string, string> _editErrores = new();
 
+    // Eliminar tarifa pendiente de confirmar (antes iba directo del enlace al comando).
+    private TarifaClienteDto? _tarifaAEliminar;
+    private bool _confirmarEliminarVisible;
+    private bool _eliminando;
+
     protected override Task OnInitializedAsync() => CargarAsync();
 
     private async Task CargarAsync()
@@ -215,11 +220,21 @@ public partial class Facturacion : ComponentBase
         }
     }
 
-    private async Task EliminarAsync(Guid tarifaId)
+    private void AbrirConfirmarEliminar(TarifaClienteDto tarifa)
     {
+        _tarifaAEliminar = tarifa;
+        _confirmarEliminarVisible = true;
+    }
+
+    private async Task ConfirmarEliminarAsync()
+    {
+        if (_tarifaAEliminar is not { } tarifa)
+            return;
+
+        _eliminando = true;
         try
         {
-            var resultado = await Mediator.Send(new EliminarTarifaClienteCommand(tarifaId));
+            var resultado = await Mediator.Send(new EliminarTarifaClienteCommand(tarifa.Id));
 
             if (resultado.EsFallido)
             {
@@ -228,11 +243,17 @@ public partial class Facturacion : ComponentBase
             }
 
             ToastService.Mostrar("Tarifa eliminada.", TonoToast.Exito);
+            _confirmarEliminarVisible = false;
+            _tarifaAEliminar = null;
             await CargarTarifasAsync();
         }
         catch (Exception)
         {
             ToastService.Mostrar("No pudimos eliminar la tarifa. Intenta nuevamente.", TonoToast.Error);
+        }
+        finally
+        {
+            _eliminando = false;
         }
     }
 

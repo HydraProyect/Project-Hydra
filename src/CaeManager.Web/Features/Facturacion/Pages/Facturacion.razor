@@ -15,6 +15,16 @@
         </Descripcion>
     </CabeceraPagina>
 
+    @* Eliminar una tarifa iba directo del enlace al comando, con un solo clic.
+       Ahora pasa por la misma confirmación que el resto de acciones destructivas. *@
+    <DialogoConfirmacion
+        Visible="_confirmarEliminarVisible"
+        VisibleChanged="v => _confirmarEliminarVisible = v"
+        Titulo="@($"¿Eliminar la tarifa de «{_tarifaAEliminar?.ConceptoNombre}»?")"
+        Mensaje="Se retirará de las tarifas configuradas."
+        EnProgreso="_eliminando"
+        OnConfirmar="ConfirmarEliminarAsync" />
+
     @if (_errorCarga)
     {
         <EstadoVacio Titulo="No pudimos cargar los datos" Descripcion="Intenta nuevamente en unos segundos.">
@@ -108,7 +118,7 @@
                                             <td class="col-moneda">@tarifa.MonedaIso</td>
                                             <td class="col-acciones">
                                                 <button class="enlace-accion" @onclick="() => IniciarEdicion(tarifa)">Editar</button>
-                                                <button class="enlace-accion enlace-peligro" @onclick="() => EliminarAsync(tarifa.Id)">Eliminar</button>
+                                                <button class="enlace-accion enlace-peligro" @onclick="() => AbrirConfirmarEliminar(tarifa)">Eliminar</button>
                                             </td>
                                         </tr>
                                     }
