@@ -26,7 +26,9 @@ namespace CaeManager.Web.Tests;
 /// asignaciones se sustituye por un stub: sus enlaces condicionales a Centro
 /// 360 son precisamente el defecto que el mockup señala, y el enlace nuevo no
 /// puede depender de ellos. Si el test viera el acordeón real, un enlace suyo
-/// podría dar verde por el camino equivocado.
+/// podría dar verde por el camino equivocado. Que esos enlaces del acordeón no
+/// se sumen al de la página —un solo camino por fila— lo mide, con el acordeón
+/// real, <see cref="CentrosEnlaceUnicoCentro360Tests"/>.
 /// </para>
 /// </summary>
 public class CentrosListaGen2Tests : BunitContext
