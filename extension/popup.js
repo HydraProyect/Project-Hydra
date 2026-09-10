@@ -3,10 +3,6 @@
 
 const seccionConectar = document.getElementById("seccion-conectar");
 const seccionConectado = document.getElementById("seccion-conectado");
-const campoUrl = document.getElementById("campo-url");
-const campoToken = document.getElementById("campo-token");
-const botonConectar = document.getElementById("boton-conectar");
-const errorConectar = document.getElementById("error-conectar");
 const textoUrl = document.getElementById("texto-url");
 const textoExpira = document.getElementById("texto-expira");
 const botonDesconectar = document.getElementById("boton-desconectar");
@@ -39,37 +35,6 @@ async function inicializar() {
     await cargarPendientesAsync();
   }
 }
-
-botonConectar.addEventListener("click", async () => {
-  mostrarError(errorConectar, "");
-  const hydraUrl = campoUrl.value.trim();
-  const token = campoToken.value.trim();
-
-  if (!hydraUrl || !token) {
-    mostrarError(errorConectar, "Completa la URL y el token.");
-    return;
-  }
-
-  botonConectar.disabled = true;
-  try {
-    // Vigencia informativa: la caducidad real la impone y comprueba el
-    // servidor en cada petición (ver TokenExtensionRespuesta.ExpiraEnUtc en
-    // el backend) — aquí solo decide cuándo el popup deja de dar el token
-    // por bueno sin haber hecho ninguna llamada todavía.
-    const expiraEnUtc = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
-    const resultado = await enviarMensaje({ accion: "conectar", hydraUrl, token, expiraEnUtc });
-
-    if (!resultado.ok) {
-      mostrarError(errorConectar, resultado.error);
-      return;
-    }
-
-    campoToken.value = "";
-    await inicializar();
-  } finally {
-    botonConectar.disabled = false;
-  }
-});
 
 botonDesconectar.addEventListener("click", async () => {
   await enviarMensaje({ accion: "desconectar" });
