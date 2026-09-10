@@ -18,6 +18,7 @@ public partial class MiFirma : ComponentBase, IAsyncDisposable
 
     private FirmaGuardadaUsuarioDto? _firmaActual;
     private bool _cargando = true;
+    private bool _errorCarga;
     private bool _trazoIniciado;
     private bool _guardando;
 
@@ -25,16 +26,50 @@ public partial class MiFirma : ComponentBase, IAsyncDisposable
     private bool _escribirNombre;
     private string _nombreEscrito = string.Empty;
 
-    protected override async Task OnInitializedAsync()
+    /// <summary>
+    /// La URL lleva la fecha de actualización para que cambie al guardar una
+    /// firma nueva. Sin eso, el &lt;img&gt; conserva el mismo <c>src</c>, Blazor
+    /// no produce diff y el navegador sigue mostrando la firma ANTERIOR aunque
+    /// «Actualizada» ya diga la hora nueva. El endpoint ignora la query.
+    /// </summary>
+    private string? UrlFirmaGuardada => _firmaActual is null
+        ? null
+        : $"/mi-firma/archivo?v={_firmaActual.ActualizadaEnUtc.Ticks}";
+
+    private string PistaLienzo => _escribirNombre
+        ? "Escribe tu nombre arriba y aparecerá aquí, con la misma tipografía que se guardará."
+        : "Dibuja aquí tu firma con el ratón, el dedo o el lápiz.";
+
+    protected override Task OnInitializedAsync() => CargarAsync();
+
+    private async Task CargarAsync()
     {
-        _firmaActual = await Mediator.Send(new ObtenerFirmaGuardadaUsuarioQuery());
-        _cargando = false;
+        _cargando = true;
+        _errorCarga = false;
+        StateHasChanged();
+
+        try
+        {
+            _firmaActual = await Mediator.Send(new ObtenerFirmaGuardadaUsuarioQuery());
+        }
+        catch (Exception)
+        {
+            _errorCarga = true;
+        }
+        finally
+        {
+            _cargando = false;
+        }
     }
 
-    /// <summary>Ver comentario equivalente en FirmaEnCampoTab.razor.cs — no se gatea solo por firstRender.</summary>
+    /// <summary>
+    /// Ver comentario equivalente en FirmaEnCampoTab.razor.cs — no se gatea solo por firstRender.
+    /// Tampoco se inicia en el estado de error: ahí no hay &lt;canvas&gt; al que engancharse, y
+    /// marcarlo como iniciado impediría engancharlo cuando «Reintentar» lo haga aparecer.
+    /// </summary>
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_moduloIniciado || _cargando) return;
+        if (_moduloIniciado || _cargando || _errorCarga) return;
 
         _moduloIniciado = true;
         _referencia = DotNetObjectReference.Create(this);
