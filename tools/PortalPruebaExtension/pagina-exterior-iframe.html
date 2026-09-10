@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<title>4. Iframe de otro origen</title>
+<style>
+  body { font-family: sans-serif; max-width: 560px; margin: 2rem auto; }
+  iframe { width: 100%; height: 220px; border: 1px solid #ccc; border-radius: 6px; }
+</style>
+</head>
+<body>
+  <p><a href="index.html">&larr; volver</a></p>
+  <h1>4. Iframe de otro origen</h1>
+  <p>La plataforma CAE (esta página, en <code>localhost</code>) embebe el widget de subida de
+  un tercero en un <code>&lt;iframe&gt;</code> servido desde <code>127.0.0.1</code> — mismo
+  servidor y puerto, pero origen distinto para el navegador. <code>manifest.json</code> no
+  declara <code>all_frames</code> (por tanto es <code>false</code>, su valor por defecto), así
+  que el content script de la extensión solo se inyecta en el frame de más arriba —
+  <b>esta página comprueba si eso deja el widget del iframe completamente fuera de
+  alcance</b>, sea o no de otro origen.</p>
+
+  <div class="campo">
+    <label for="archivo-exterior">Campo de la propia plataforma (fuera del iframe)</label><br />
+    <input id="archivo-exterior" type="file" accept="application/pdf" />
+  </div>
+
+  <p><strong>Widget embebido (otro origen):</strong></p>
+  <iframe src="http://127.0.0.1:8766/pagina-interior-iframe.html"></iframe>
+
+  <p>Botón de esta página exterior (para comparar con el de dentro del iframe):</p>
+  <button id="btn-inyectar">Inyectar PDF de prueba (en el frame exterior)</button>
+  <p id="salida"></p>
+  <script src="arnes-prueba.js"></script>
+  <script>conectarBotonInyectar("btn-inyectar", "salida");</script>
+</body>
+</html>
