@@ -66,8 +66,7 @@ public class SubcontratasListaGen2Tests : BunitContext
             return Task.FromResult((TResponse)(request switch
             {
                 ObtenerPerfilVocabularioActualQuery => (object)PerfilVocabularioTenant.Consultora,
-                ObtenerSubcontratasQuery q => new ResultadoPaginado<SubcontrataListaDto>(
-                    Subcontratas, Subcontratas.Count, q.Pagina, q.TamanoPagina),
+                ObtenerSubcontratasQuery q => FiltrarPorBusqueda(q),
                 ObtenerSubcontrataPorIdQuery q => Detalle is not null && Detalle.Id == q.Id ? Detalle : null!,
                 ObtenerTrabajadoresQuery q => new ResultadoPaginado<TrabajadorListaDto>(
                     [], q.SubcontrataId == SubcontrataConTrabajadores ? TrabajadoresDeEsaSubcontrata : 0, 1, 1),
@@ -76,6 +75,19 @@ public class SubcontratasListaGen2Tests : BunitContext
                 EliminarSubcontrataCommand => ResultadoEliminar,
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             }));
+        }
+
+        /// <summary>
+        /// Filtra por <c>Busqueda</c> como lo haría el handler (razón social,
+        /// sin distinguir mayúsculas): si la pantalla no enviara lo escrito en
+        /// <c>?q=</c>, recibiría la lista entera y el conteo lo delataría.
+        /// </summary>
+        private ResultadoPaginado<SubcontrataListaDto> FiltrarPorBusqueda(ObtenerSubcontratasQuery q)
+        {
+            var coincidentes = q.Busqueda is null
+                ? Subcontratas
+                : Subcontratas.Where(s => s.RazonSocial.Contains(q.Busqueda, StringComparison.OrdinalIgnoreCase)).ToList();
+            return new ResultadoPaginado<SubcontrataListaDto>(coincidentes, coincidentes.Count, q.Pagina, q.TamanoPagina);
         }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
@@ -289,20 +301,27 @@ public class SubcontratasListaGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// Los Ids de la relación no se acotan por cartera y los selectores sí: un
-    /// Id puede no tener nombre visible. Omitirlo haría parecer completa una
-    /// lista que no lo es.
+    /// Prueba solo presentación, contra un doble del mediador: si la relación
+    /// trae un Id cuyo nombre no llega en las listas de los selectores, se
+    /// cuenta como «y N más» en vez de omitirse — omitirlo haría parecer
+    /// completa una lista que no lo es.
+    /// <para>
+    /// NO prueba ninguna garantía de alcance: qué nombres llegan lo deciden los
+    /// handlers de los selectores, y aquí los sustituye el doble. (Hoy el de
+    /// Empresas ni siquiera acota por cartera; ver el comentario de
+    /// <c>SubcontrataPreviewDrawer.ResolverPrestaServicioAAsync</c>.)
+    /// </para>
     /// </summary>
     [Fact]
-    public void Presta_servicio_a_cuenta_las_relaciones_sin_nombre_visible_en_vez_de_omitirlas()
+    public void Presta_servicio_a_cuenta_como_y_N_mas_las_relaciones_cuyo_nombre_no_llega_en_vez_de_omitirlas()
     {
         var id = Guid.NewGuid();
         var refrielectric = Guid.NewGuid();
-        var fueraDeCartera = Guid.NewGuid();
+        var sinNombreEnLaLista = Guid.NewGuid();
         var cut = Renderizar(new MediatorFalso
         {
             Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", id: id)],
-            Detalle = Detalle(id, refrielectric, fueraDeCartera),
+            Detalle = Detalle(id, refrielectric, sinNombreEnLaLista),
             Empresas = [new EmpresaSelectorDto(refrielectric, "Refrielectric S.A.")]
         });
 
@@ -419,15 +438,28 @@ public class SubcontratasListaGen2Tests : BunitContext
         navegacion.Uri.Should().NotContain("q=");
     }
 
+    /// <summary>
+    /// El doble filtra por <c>ObtenerSubcontratasQuery.Busqueda</c>: de las
+    /// tres, solo una coincide con «iparra». Si la pantalla no enviara lo
+    /// escrito en <c>?q=</c>, el conteo diría 3, no 1.
+    /// </summary>
     [Fact]
     public void El_conteo_dice_cuantas_se_ven_de_cuantas_coinciden_con_la_busqueda()
     {
-        var cut = Renderizar(new MediatorFalso
+        var mediador = new MediatorFalso
         {
-            Subcontratas = [Subcontrata("Andamios Bidasoa S.L."), Subcontrata("Soldaduras Iparra S. Coop.")]
-        }, busqueda: "S.");
+            Subcontratas =
+            [
+                Subcontrata("Andamios Bidasoa S.L."),
+                Subcontrata("Soldaduras Iparra S. Coop."),
+                Subcontrata("Transportes Argia S.A."),
+            ]
+        };
+        var cut = Renderizar(mediador, busqueda: "iparra");
 
-        cut.Find(".conteo-subcontratas").TextContent.Trim().Should().Be("2 de 2 subcontratas con esta búsqueda");
+        mediador.Enviadas.OfType<ObtenerSubcontratasQuery>().Last().Busqueda.Should().Be("iparra",
+            "la búsqueda escrita en ?q= es la que tiene que llegar a la consulta");
+        cut.Find(".conteo-subcontratas").TextContent.Trim().Should().Be("1 de 1 subcontrata con esta búsqueda");
     }
 
     [Fact]

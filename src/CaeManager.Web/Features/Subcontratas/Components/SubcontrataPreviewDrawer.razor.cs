@@ -84,9 +84,20 @@ public partial class SubcontrataPreviewDrawer : ComponentBase
 
     /// <summary>
     /// Nombres de las contrapartes a las que presta servicio. La relación
-    /// devuelve Ids SIN acotar por cartera y los selectores sí acotan, así que
-    /// un Id puede quedarse sin nombre visible: se cuenta como «y N más» en
-    /// vez de omitirlo —la lista parecería completa— o de adivinarlo.
+    /// devuelve Ids SIN acotar por cartera, y los nombres salen de dos
+    /// selectores con contratos distintos:
+    /// <list type="bullet">
+    /// <item><c>ObtenerClientesParaSelectorQuery</c> SÍ acota por
+    /// <c>IAlcanceDatosService</c>: un Cliente empresarial fuera de la
+    /// Asignación de Cartera no trae nombre.</item>
+    /// <item><c>ObtenerEmpresasParaSelectorQuery</c> NO acota: devuelve todas
+    /// las Empresas propias del Tenant propietario. Hueco conocido: hasta que
+    /// ese selector aplique el alcance, aquí puede aparecer el nombre de una
+    /// Empresa propia fuera de la cartera — igual que ya ocurre en
+    /// <c>SubcontrataWorkspacePanel</c>, que usa el mismo selector.</item>
+    /// </list>
+    /// Un Id que no trae nombre se cuenta como «y N más» en vez de omitirlo
+    /// —la lista parecería completa— o de adivinarlo.
     /// </summary>
     private async Task ResolverPrestaServicioAAsync()
     {
