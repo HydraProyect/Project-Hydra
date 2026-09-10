@@ -60,6 +60,7 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
+    [Inject] private ILogger<Importacion> Logger { get; set; } = default!;
 
     [SupplyParameterFromQuery(Name = "plantilla")]
     private string? PlantillaInicial { get; set; }
@@ -188,8 +189,9 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
                     break;
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Logger.LogError(ex, "Error al analizar el archivo {NombreArchivo} con la plantilla {PlantillaId}.", archivo.Name, _plantillaId);
             _mensajeError = "No pudimos leer este archivo. Comprueba que sea el formato de importación de esta plantilla.";
         }
         finally
@@ -311,8 +313,9 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
             _pasoMaximoAlcanzado = Math.Max(_pasoMaximoAlcanzado, 5);
             await CargarHistorialAsync();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Logger.LogError(ex, "Excepción no controlada al importar el archivo {NombreArchivo} con la plantilla {PlantillaId}.", _nombreArchivo, _plantillaId);
             await RegistrarFalloAsync("Excepción no controlada durante la importación.");
             _mensajeError = "No pudimos completar la importación. Intenta nuevamente en unos segundos.";
         }

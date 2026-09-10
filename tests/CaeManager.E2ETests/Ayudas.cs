@@ -867,4 +867,81 @@ public static class Ayudas
         var tarjeta = page.Locator(".tarjeta-metrica", new PageLocatorOptions { HasText = etiqueta });
         return (await tarjeta.Locator(".tarjeta-metrica-valor").InnerTextAsync()).Trim();
     }
+
+    /// <summary>
+    /// Sondea App_Data/logs (sink de fichero de Serilog de la app real que
+    /// arrancó WebAppFixture — ver el comentario largo de esa clase) hasta
+    /// encontrar una línea que contenga <paramref name="textoBuscado"/>, o
+    /// agota el presupuesto. Existe para probar por sensibilidad que un
+    /// <c>catch</c> registra de verdad la excepción y no solo cambia
+    /// <c>_mensajeError</c> en la UI — ver Importacion_archivo_ilegible_deja_rastro
+    /// en ImportacionTests. Se abre con FileShare.ReadWrite porque Serilog
+    /// mantiene el fichero abierto para escritura mientras la app real sigue
+    /// corriendo.
+    /// </summary>
+    public static async Task<string> EsperarLineaEnLogDeLaAppAsync(string textoBuscado, TimeSpan presupuesto)
+    {
+        var limite = DateTime.UtcNow + presupuesto;
+        Exception? ultimoErrorDeLectura = null;
+
+        while (DateTime.UtcNow < limite)
+        {
+            try
+            {
+                var directorioLogs = DirectorioLogsCaeManagerWeb();
+                if (Directory.Exists(directorioLogs))
+                {
+                    foreach (var ruta in Directory.GetFiles(directorioLogs, "log-*.txt")
+                                 .OrderByDescending(File.GetLastWriteTimeUtc))
+                    {
+                        using var flujo = new FileStream(ruta, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                        using var lector = new StreamReader(flujo);
+                        var contenido = await lector.ReadToEndAsync();
+                        var linea = contenido
+                            .Split('\n')
+                            .LastOrDefault(l => l.Contains(textoBuscado, StringComparison.Ordinal));
+                        if (linea is not null)
+                            return linea.Trim();
+                    }
+                }
+            }
+            catch (IOException ex)
+            {
+                // El sink puede tener el fichero bloqueado un instante mientras rota o escribe — se reintenta.
+                ultimoErrorDeLectura = ex;
+            }
+
+            await Task.Delay(250);
+        }
+
+        throw new TimeoutException(
+            $"No apareció ninguna línea con \"{textoBuscado}\" en App_Data/logs tras {presupuesto.TotalSeconds:F0}s."
+            + (ultimoErrorDeLectura is null ? string.Empty : $" Último error de lectura: {ultimoErrorDeLectura.Message}"));
+    }
+
+    /// <summary>
+    /// Mismo criterio de resolución de ruta que
+    /// WebAppFixture.LocalizarCaeManagerWebDll (duplicado en vez de
+    /// referenciado: es privado allí y este helper vive del lado del test,
+    /// no de la fixture) — sube desde el binario de este proyecto de test
+    /// hasta la raíz del repo (marcada por CaeManager.slnx) y baja al
+    /// content root real de CaeManager.Web.
+    /// </summary>
+    private static string DirectorioLogsCaeManagerWeb()
+    {
+        var directorio = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directorio is not null && !File.Exists(Path.Combine(directorio.FullName, "CaeManager.slnx")))
+            directorio = directorio.Parent;
+
+        if (directorio is null)
+            throw new InvalidOperationException($"No se encontró la raíz del repo (CaeManager.slnx) subiendo desde {AppContext.BaseDirectory}.");
+
+#if DEBUG
+        const string configuracion = "Debug";
+#else
+        const string configuracion = "Release";
+#endif
+
+        return Path.Combine(directorio.FullName, "src", "CaeManager.Web", "bin", configuracion, "net10.0", "App_Data", "logs");
+    }
 }
