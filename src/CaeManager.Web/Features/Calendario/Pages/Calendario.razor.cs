@@ -16,40 +16,82 @@ public partial class Calendario : ComponentBase
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
-    private DateOnly _mesActual = new(DateTime.Today.Year, DateTime.Today.Month, 1);
+    /// <summary>
+    /// Fecha que la pantalla toma por «hoy»: el mes con el que arranca, al que
+    /// vuelve «Hoy» y el día que resalta. Sin informar es
+    /// <see cref="DateTime.Today"/>; el router nunca la rellena (la ruta no
+    /// tiene segmentos ni lleva <c>[SupplyParameterFromQuery]</c>). Existe para
+    /// que los tests fijen el reloj y no dependan del día en que se ejecutan (un
+    /// test que cruza medianoche a fin de mes cambiaría de mes a mitad). Es un
+    /// parámetro y no un <see cref="TimeProvider"/> inyectado porque la Web no
+    /// registra ninguno en DI, ni tiene <c>InternalsVisibleTo</c> para una
+    /// propiedad interna.
+    /// </summary>
+    [Parameter] public DateOnly? Hoy { get; set; }
+
+    private DateOnly HoyEfectivo => Hoy ?? DateOnly.FromDateTime(DateTime.Today);
+
+    private DateOnly _mesActual;
     private IReadOnlyList<VencimientoCalendarioDto> _vencimientos = [];
     private IReadOnlyList<VisitaCalendarioDto> _visitas = [];
     private bool _cargando = true;
     private bool _error;
     private DateOnly? _diaSeleccionado;
 
+    /// <summary>
+    /// Número de la carga vigente. Cada <see cref="CargarAsync"/> se queda con
+    /// uno nuevo; una respuesta que vuelve cuando ya hay otro no es la del mes
+    /// que se ve y se descarta entera (datos, error y fin de carga).
+    /// </summary>
+    private int _versionCarga;
+
     /// <summary>Una celda de la rejilla: los días de relleno de la primera y última semana llevan <see cref="DelMes"/> a false.</summary>
     private readonly record struct CeldaCalendario(DateOnly Fecha, bool DelMes);
 
     private string TituloMes => Capitalizar(_mesActual.ToString("MMMM yyyy", Espanol));
 
-    protected override Task OnInitializedAsync() => CargarAsync();
+    protected override Task OnInitializedAsync()
+    {
+        _mesActual = PrimeroDeMes(HoyEfectivo);
+        return CargarAsync();
+    }
 
+    // Navegar de mes mientras otra carga sigue en vuelo deja dos cargas
+    // abiertas que pueden volver en cualquier orden. Por eso: el mes se captura
+    // antes del primer await (las dos consultas piden el MISMO mes aunque
+    // _mesActual cambie entre ellas), y lo que vuelve de una carga que ya no es
+    // la vigente no toca el estado — ni datos, ni error, ni _cargando.
     private async Task CargarAsync()
     {
+        var version = ++_versionCarga;
+        var mes = _mesActual;
+
         _cargando = true;
         _error = false;
         StateHasChanged();
 
+        IReadOnlyList<VencimientoCalendarioDto> vencimientos;
+        IReadOnlyList<VisitaCalendarioDto> visitas;
         try
         {
-            _vencimientos = await Mediator.Send(new ObtenerVencimientosMesQuery(_mesActual.Year, _mesActual.Month));
-            _visitas = await Mediator.Send(new ObtenerVisitasParaCalendarioQuery(_mesActual.Year, _mesActual.Month));
+            vencimientos = await Mediator.Send(new ObtenerVencimientosMesQuery(mes.Year, mes.Month));
+            visitas = await Mediator.Send(new ObtenerVisitasParaCalendarioQuery(mes.Year, mes.Month));
         }
         catch (Exception)
         {
+            if (version != _versionCarga) return;
             _error = true;
-        }
-        finally
-        {
             _cargando = false;
+            return;
         }
+
+        if (version != _versionCarga) return;
+        _vencimientos = vencimientos;
+        _visitas = visitas;
+        _cargando = false;
     }
+
+    private static DateOnly PrimeroDeMes(DateOnly fecha) => new(fecha.Year, fecha.Month, 1);
 
     private Task MesAnteriorAsync()
     {
@@ -67,7 +109,7 @@ public partial class Calendario : ComponentBase
 
     private Task MesActualAsync()
     {
-        _mesActual = new DateOnly(DateTime.Today.Year, DateTime.Today.Month, 1);
+        _mesActual = PrimeroDeMes(HoyEfectivo);
         _diaSeleccionado = null;
         return CargarAsync();
     }

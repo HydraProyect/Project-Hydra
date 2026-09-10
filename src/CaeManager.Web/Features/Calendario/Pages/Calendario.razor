@@ -63,7 +63,7 @@
                     var vencimientosDelDia = VencimientosDelDia(dia);
                     var visitasDelDia = VisitasDelDia(dia);
                     var peorEstado = PeorEstado(vencimientosDelDia);
-                    var esHoy = dia == DateOnly.FromDateTime(DateTime.Today);
+                    var esHoy = dia == HoyEfectivo;
                     var claseNumero = esHoy ? "calendario-dia-numero calendario-dia-hoy" : "calendario-dia-numero";
 
                     @if (vencimientosDelDia.Count == 0 && visitasDelDia.Count == 0)

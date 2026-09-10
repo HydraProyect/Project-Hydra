@@ -17,15 +17,18 @@ namespace CaeManager.Web.Tests;
 /// de varios días), no la maquetación.
 ///
 /// <para>
-/// Todas las fechas caen en el mes en curso (días 10 a 12), porque la pantalla
-/// arranca en <see cref="DateTime.Today"/> y no admite reloj inyectado.
+/// El reloj es fijo (<see cref="Hoy"/>, pasado por el parámetro
+/// <see cref="Calendario.Hoy"/>): el resultado no depende del día en que se
+/// ejecuta la suite ni cambia si cruza medianoche a fin de mes. Marzo de 2026
+/// empieza en domingo, así que la primera semana lleva seis días de relleno.
 /// </para>
 /// </summary>
 public class CalendarioTests : BunitContext
 {
     public CalendarioTests() => JSInterop.Mode = JSRuntimeMode.Loose;
 
-    private static readonly DateOnly PrimeroDelMes = new(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private static readonly DateOnly Hoy = new(2026, 3, 15);
+    private static readonly DateOnly PrimeroDelMes = new(Hoy.Year, Hoy.Month, 1);
     private static readonly DateOnly Dia10 = PrimeroDelMes.AddDays(9);
     private static readonly DateOnly Dia11 = PrimeroDelMes.AddDays(10);
     private static readonly DateOnly Dia12 = PrimeroDelMes.AddDays(11);
@@ -70,7 +73,207 @@ public class CalendarioTests : BunitContext
             Vencimientos = vencimientos ?? [],
             Visitas = visitas ?? []
         });
-        return Render<Calendario>();
+        return Render<Calendario>(p => p.Add(c => c.Hoy, Hoy));
+    }
+
+    /// <summary>
+    /// Mediador cuyas respuestas retiene una compuerta por mes: nada vuelve
+    /// hasta que el test la abre, así que el test decide en qué orden
+    /// terminan dos cargas solapadas. Anota cada consulta con su mes, y cada
+    /// respuesta lleva un vencimiento el día 10 del mes pedido, de modo que la
+    /// pantalla delata de qué mes son los datos que pinta.
+    /// </summary>
+    private sealed class MediatorConCompuertas : IMediator
+    {
+        private readonly Dictionary<(int Anio, int Mes), TaskCompletionSource> _compuertas = [];
+
+        public List<string> Consultas { get; } = [];
+
+        public void Abrir(DateOnly mes) => Compuerta(mes.Year, mes.Month).SetResult();
+
+        /// <summary>Suelta la carga de ese mes con una excepción, como una consulta que falla.</summary>
+        public void Fallar(DateOnly mes) =>
+            Compuerta(mes.Year, mes.Month).SetException(new InvalidOperationException("Fallo simulado de la consulta."));
+
+        private TaskCompletionSource Compuerta(int anio, int mes)
+        {
+            if (!_compuertas.TryGetValue((anio, mes), out var compuerta))
+            {
+                compuerta = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                _compuertas[(anio, mes)] = compuerta;
+            }
+            return compuerta;
+        }
+
+        public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        {
+            var (tipo, anio, mes) = request switch
+            {
+                ObtenerVencimientosMesQuery q => ("vencimientos", q.Anio, q.Mes),
+                ObtenerVisitasParaCalendarioQuery q => ("visitas", q.Anio, q.Mes),
+                _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
+            };
+            Consultas.Add($"{tipo} {anio}-{mes:00}");
+
+            await Compuerta(anio, mes).Task;
+
+            object respuesta = tipo == "vencimientos"
+                ? new List<VencimientoCalendarioDto> { Vencimiento(new DateOnly(anio, mes, 10), EstadoDocumento.Vigente) }
+                : new List<VisitaCalendarioDto>();
+            return (TResponse)respuesta;
+        }
+
+        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
+            Task.CompletedTask;
+
+        public Task<object?> Send(object request, CancellationToken cancellationToken = default) =>
+            Task.FromResult<object?>(null);
+
+        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task Publish(object notification, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
+            where TNotification : INotification => Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Arranca en el mes de <see cref="Hoy"/> con su carga retenida y pulsa
+    /// «Mes siguiente» sin esperar: quedan dos cargas en vuelo, la del mes
+    /// inicial (obsoleta) y la del siguiente (vigente).
+    /// </summary>
+    private (IRenderedComponent<Calendario> Cut, MediatorConCompuertas Mediador, Task Clic) DosCargasSolapadas()
+    {
+        var mediador = new MediatorConCompuertas();
+        Services.AddScoped<IMediator>(_ => mediador);
+        var cut = Render<Calendario>(p => p.Add(c => c.Hoy, Hoy));
+
+        var clic = cut.Find("button[aria-label='Mes siguiente']").ClickAsync(new());
+        return (cut, mediador, clic);
+    }
+
+    private static readonly DateOnly MesSiguiente = PrimeroDelMes.AddMonths(1);
+
+    /// <summary>
+    /// Tope para esperar el clic: si la pantalla pide un mes cuya compuerta el
+    /// test nunca abre (p. ej. porque ignora el reloj recibido), la espera
+    /// fallaría colgada en vez de en rojo.
+    /// </summary>
+    private static readonly TimeSpan EsperaMaxima = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// Pulsar «Mes siguiente» mientras aún carga el mes en curso deja dos
+    /// cargas abiertas. Si la vieja vuelve la última, no puede pisar a la
+    /// nueva: la pantalla dice abril y pinta los datos de abril.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_carga_de_un_mes_ya_abandonado_vuelve_la_ultima_se_descarta()
+    {
+        var (cut, mediador, clic) = DosCargasSolapadas();
+
+        mediador.Abrir(MesSiguiente);
+        await clic.WaitAsync(EsperaMaxima);
+        var rendersAntes = cut.RenderCount;
+        mediador.Abrir(PrimeroDelMes);
+
+        // La carga obsoleta tiene que haber TERMINADO antes de mirar: si no,
+        // el test pasaría solo porque aún no ha vuelto. Es la de
+        // OnInitializedAsync, y ComponentBase vuelve a pintar al acabarla.
+        cut.WaitForState(() => cut.RenderCount > rendersAntes);
+
+        cut.Find(".calendario-titulo-mes").TextContent.Should().Be("Abril 2026");
+        cut.FindAll("button.calendario-celda").Select(b => b.GetAttribute("aria-label"))
+            .Should().ContainSingle("abril trae un vencimiento el día 10; si falta, los datos de marzo, que llegaron tarde, han pisado a los de abril")
+            .Which.Should().StartWith("10 de abril:", "los datos pintados tienen que ser los del mes que dice el título");
+    }
+
+    /// <summary>
+    /// Si la carga vieja vuelve PRIMERO, la nueva sigue en vuelo: la pantalla
+    /// tiene que seguir cargando, no enseñar los datos de marzo bajo el título
+    /// de abril.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_carga_abandonada_vuelve_primero_la_pantalla_sigue_cargando_el_mes_vigente()
+    {
+        var (cut, mediador, clic) = DosCargasSolapadas();
+
+        var rendersAntes = cut.RenderCount;
+        mediador.Abrir(PrimeroDelMes);
+        cut.WaitForState(() => cut.RenderCount > rendersAntes);
+
+        cut.Find(".calendario-titulo-mes").TextContent.Should().Be("Abril 2026");
+        cut.FindAll(".calendario-rejilla").Should().BeEmpty("abril aún no ha vuelto y lo que ha vuelto es marzo");
+
+        mediador.Abrir(MesSiguiente);
+        await clic.WaitAsync(EsperaMaxima);
+        cut.WaitForAssertion(() => cut.Find("button.calendario-celda").GetAttribute("aria-label").Should().StartWith("10 de abril:"));
+    }
+
+    /// <summary>
+    /// Un fallo es una respuesta más: si la carga que falla es la de un mes ya
+    /// abandonado, no puede tapar con «No pudimos cargar el calendario» el mes
+    /// que sí se cargó bien.
+    /// </summary>
+    [Fact]
+    public async Task Si_falla_la_carga_de_un_mes_ya_abandonado_no_tapa_el_mes_vigente_con_el_error()
+    {
+        var (cut, mediador, clic) = DosCargasSolapadas();
+
+        mediador.Abrir(MesSiguiente);
+        await clic.WaitAsync(EsperaMaxima);
+        var rendersAntes = cut.RenderCount;
+        mediador.Fallar(PrimeroDelMes);
+        cut.WaitForState(() => cut.RenderCount > rendersAntes);
+
+        cut.Markup.Should().NotContain("No pudimos cargar el calendario", "lo que falló es marzo, y la pantalla ya enseña abril");
+        cut.Find(".calendario-titulo-mes").TextContent.Should().Be("Abril 2026");
+        cut.Find("button.calendario-celda").GetAttribute("aria-label").Should().StartWith("10 de abril:");
+    }
+
+    /// <summary>
+    /// Las dos consultas de una carga —vencimientos y visitas— piden el mismo
+    /// mes aunque el usuario navegue entre una y otra: el mes se fija al
+    /// empezar la carga, no se relee después del primer await.
+    /// </summary>
+    [Fact]
+    public async Task Las_dos_consultas_de_una_carga_piden_el_mismo_mes_aunque_se_navegue_entre_ellas()
+    {
+        var (cut, mediador, clic) = DosCargasSolapadas();
+
+        mediador.Abrir(MesSiguiente);
+        await clic.WaitAsync(EsperaMaxima);
+        mediador.Abrir(PrimeroDelMes);
+        cut.WaitForAssertion(() => mediador.Consultas.Should().HaveCount(4));
+
+        mediador.Consultas.Should().BeEquivalentTo(
+            ["vencimientos 2026-03", "visitas 2026-03", "vencimientos 2026-04", "visitas 2026-04"],
+            "cada carga pide sus dos consultas del mismo mes; la de marzo no puede pedir las visitas de abril");
+    }
+
+    /// <summary>
+    /// El reloj que recibe la pantalla manda en las tres cosas que dependen de
+    /// «hoy»: el mes con el que arranca, el día resaltado y el mes al que
+    /// vuelve el botón «Hoy» tras navegar.
+    /// </summary>
+    [Fact]
+    public async Task La_pantalla_toma_hoy_del_reloj_que_recibe_para_arrancar_resaltar_y_volver()
+    {
+        var cut = Renderizar();
+
+        cut.Find(".calendario-titulo-mes").TextContent.Should().Be("Marzo 2026");
+        cut.FindAll(".calendario-dia-hoy").Select(d => d.TextContent.Trim())
+            .Should().Equal(["15"], "el día resaltado es el del reloj recibido, no el del sistema");
+
+        await cut.Find("button[aria-label='Mes siguiente']").ClickAsync(new());
+        cut.Find(".calendario-titulo-mes").TextContent.Should().Be("Abril 2026");
+        cut.FindAll(".calendario-dia-hoy").Should().BeEmpty("en abril no cae el 15 de marzo");
+
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Hoy").ClickAsync(new());
+        cut.Find(".calendario-titulo-mes").TextContent.Should().Be("Marzo 2026", "«Hoy» vuelve al mes del reloj recibido");
     }
 
     private static VencimientoCalendarioDto Vencimiento(DateOnly fecha, EstadoDocumento estado, string trabajador = "Nuria Salas") =>
