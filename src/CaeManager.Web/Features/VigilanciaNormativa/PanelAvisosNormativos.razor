@@ -71,8 +71,21 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _avisos = await Mediator.Send(new ObtenerAvisosRevisionNormativaQuery());
-        _esAdministradorPlataforma = await Mediator.Send(new EsAdministradorPlataformaQuery());
+        // Mismo mecanismo documentado en MainLayout.razor.cs y en
+        // NotificacionesPopup.razor: el circuito de Blazor puede
+        // desconectarse (y con él el CaeManagerDbContext scoped) mientras
+        // esta carga todavía está en vuelo. Sin captura aquí, la excepción
+        // quedaba sin observar y tumbaba el circuito entero. No queda nadie
+        // al otro lado esperando el panel — el circuito ya se fue — así que
+        // no hay nada que hacer salvo no dejarla sin observar.
+        try
+        {
+            _avisos = await Mediator.Send(new ObtenerAvisosRevisionNormativaQuery());
+            _esAdministradorPlataforma = await Mediator.Send(new EsAdministradorPlataformaQuery());
+        }
+        catch (Exception ex) when (ex is ObjectDisposedException or ArgumentOutOfRangeException)
+        {
+        }
     }
 
     private async Task MarcarRevisadoAsync(Guid id)

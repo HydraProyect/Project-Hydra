@@ -27,7 +27,23 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _pendientes = await Mediator.Send(new ObtenerNotificacionesPendientesQuery());
+        // El circuito de Blazor puede desconectarse (y con él el
+        // CaeManagerDbContext scoped) mientras esta carga todavía está en
+        // vuelo — mismo mecanismo documentado en MainLayout.razor.cs
+        // (Sentry DOTNET-3/DOTNET-6): ObjectDisposedException o
+        // ArgumentOutOfRangeException dentro de NpgsqlDataReader según en
+        // qué punto exacto del socket la sorprenda la desconexión. Sin
+        // captura aquí la excepción quedaba sin observar y tumbaba el
+        // circuito entero ("Unhandled exception rendering component"). No
+        // queda nadie al otro lado esperando el popup — el circuito ya se
+        // fue — así que no hay nada que hacer salvo no dejarla sin observar.
+        try
+        {
+            _pendientes = await Mediator.Send(new ObtenerNotificacionesPendientesQuery());
+        }
+        catch (Exception ex) when (ex is ObjectDisposedException or ArgumentOutOfRangeException)
+        {
+        }
     }
 
     private async Task DescartarAsync(NotificacionDto notificacion)

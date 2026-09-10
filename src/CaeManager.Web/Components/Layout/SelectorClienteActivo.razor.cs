@@ -38,17 +38,21 @@ public partial class SelectorClienteActivo : ComponentBase
         {
             _clientes = await Mediator.Send(new ObtenerClientesAutorizadosQuery());
         }
-        catch (ObjectDisposedException)
+        catch (Exception ex) when (ex is ObjectDisposedException or ArgumentOutOfRangeException)
         {
             // El circuito de Blazor puede desconectarse (y con él el
             // IServiceProvider del scope, del que el pipeline de MediatR
-            // resuelve sus propios behaviors) mientras este despacho
-            // sigue en vuelo — reproducido en producción (2026-08-17,
-            // mismo evento que MainLayout/SelectorTema, ver
-            // Project-Hydra-Negocio/tecnico/d8-vps-evidence.md). Sin
-            // lista de clientes no hay nada más que calcular aquí, y no
-            // hay nadie al otro lado esperando el resultado de todos
-            // modos.
+            // resuelve sus propios behaviors, y el CaeManagerDbContext
+            // scoped que hay debajo) mientras este despacho sigue en
+            // vuelo — reproducido en producción (2026-08-17, mismo evento
+            // que MainLayout/SelectorTema, ver
+            // Project-Hydra-Negocio/tecnico/d8-vps-evidence.md).
+            // ArgumentOutOfRangeException dentro de NpgsqlDataReader es la
+            // misma carrera que ObjectDisposedException, solo que la
+            // desconexión sorprende a la lectura en un punto distinto del
+            // socket (ver MainLayout.razor.cs, Sentry DOTNET-3). Sin lista
+            // de clientes no hay nada más que calcular aquí, y no hay
+            // nadie al otro lado esperando el resultado de todos modos.
             return;
         }
 
