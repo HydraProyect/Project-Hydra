@@ -76,6 +76,10 @@ public partial class Proyectos : ComponentBase
 
     private async Task OnClienteChangedAsync()
     {
+        // Invalida la carga del cliente anterior también cuando se vuelve a
+        // "ningún cliente", que no arranca carga propia que la sustituya.
+        _versionCargaCliente++;
+        _cargandoProyectos = false;
         _proyectos = [];
         _centrosDisponibles = [];
         _errorProyectos = false;
@@ -88,52 +92,76 @@ public partial class Proyectos : ComponentBase
     }
 
     /// <summary>
+    /// Número de la carga de datos de cliente vigente. Cada carga (cambio de
+    /// cliente, "Reintentar", recarga tras crear o cerrar) toma uno nuevo y,
+    /// tras cada <c>await</c>, solo escribe si sigue siendo la vigente: sin
+    /// esto, cambiar de cliente A→B con la carga de A en curso dejaba que la
+    /// respuesta tardía de A pintase sus centros, proyectos o error bajo B.
+    /// </summary>
+    private int _versionCargaCliente;
+
+    /// <summary>
     /// Centros (para el alta) y proyectos del cliente elegido. Es también lo
     /// que repite "Reintentar": antes un fallo aquí no tenía estado propio y
     /// subía sin capturar.
     /// </summary>
     private async Task CargarDatosClienteAsync()
     {
+        var version = ++_versionCargaCliente;
+        var clienteId = _clienteSeleccionadoId;
         _cargandoProyectos = true;
         _errorProyectos = false;
         StateHasChanged();
 
         try
         {
-            _centrosDisponibles = await Mediator.Send(new ObtenerCentrosParaSelectorQuery(ClienteId: _clienteSeleccionadoId));
-            _proyectos = (await Mediator.Send(new ObtenerProyectosQuery(_clienteSeleccionadoId))).ToList();
+            var centros = await Mediator.Send(new ObtenerCentrosParaSelectorQuery(ClienteId: clienteId));
+            if (version != _versionCargaCliente) return;
+            _centrosDisponibles = centros;
+
+            var proyectos = await Mediator.Send(new ObtenerProyectosQuery(clienteId));
+            if (version != _versionCargaCliente) return;
+            _proyectos = proyectos.ToList();
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "No se pudieron cargar los proyectos del cliente {ClienteId}.", _clienteSeleccionadoId);
+            Logger.LogError(ex, "No se pudieron cargar los proyectos del cliente {ClienteId}.", clienteId);
+            if (version != _versionCargaCliente) return;
             _proyectos = [];
             _errorProyectos = true;
         }
         finally
         {
-            _cargandoProyectos = false;
+            if (version == _versionCargaCliente)
+                _cargandoProyectos = false;
         }
     }
 
     private async Task CargarProyectosAsync()
     {
+        var version = ++_versionCargaCliente;
+        var clienteId = _clienteSeleccionadoId;
         _cargandoProyectos = true;
         _errorProyectos = false;
         StateHasChanged();
 
         try
         {
-            _proyectos = (await Mediator.Send(new ObtenerProyectosQuery(_clienteSeleccionadoId))).ToList();
+            var proyectos = await Mediator.Send(new ObtenerProyectosQuery(clienteId));
+            if (version != _versionCargaCliente) return;
+            _proyectos = proyectos.ToList();
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "No se pudieron recargar los proyectos del cliente {ClienteId}.", _clienteSeleccionadoId);
+            Logger.LogError(ex, "No se pudieron recargar los proyectos del cliente {ClienteId}.", clienteId);
+            if (version != _versionCargaCliente) return;
             _proyectos = [];
             _errorProyectos = true;
         }
         finally
         {
-            _cargandoProyectos = false;
+            if (version == _versionCargaCliente)
+                _cargandoProyectos = false;
         }
     }
 
@@ -321,8 +349,18 @@ public partial class Proyectos : ComponentBase
     private ProyectoDetalleDto? _detalle;
     private bool _cargandoDetalle;
 
+    /// <summary>
+    /// Número de la selección de detalle vigente: cada selección y cada cierre
+    /// del panel toman uno nuevo. Pulsar A y enseguida B dejaba que la
+    /// respuesta tardía de A se pintase en el panel de B —y Editar/Cerrar,
+    /// que usan <c>_detalle.Id</c>, operaban sobre A—. También invalida los
+    /// técnicos pedidos para un detalle que ya no está abierto.
+    /// </summary>
+    private int _versionDetalle;
+
     private async Task SeleccionarProyectoAsync(Guid id)
     {
+        var version = ++_versionDetalle;
         _proyectoSeleccionadoId = id;
         _pestanaDetalle = "informacion";
         _editandoInfo = false;
@@ -330,11 +368,15 @@ public partial class Proyectos : ComponentBase
         _cargandoDetalle = true;
         _detalle = null;
         _tecnicos = [];
+        _cargandoTecnicos = false;
         StateHasChanged();
 
         try
         {
-            _detalle = await Mediator.Send(new ObtenerProyectoPorIdQuery(id));
+            var detalle = await Mediator.Send(new ObtenerProyectoPorIdQuery(id));
+            if (version != _versionDetalle) return;
+
+            _detalle = detalle;
             if (_detalle is not null)
             {
                 _editNombre = _detalle.Nombre;
@@ -344,12 +386,14 @@ public partial class Proyectos : ComponentBase
         }
         finally
         {
-            _cargandoDetalle = false;
+            if (version == _versionDetalle)
+                _cargandoDetalle = false;
         }
     }
 
     private void CerrarDetalle()
     {
+        _versionDetalle++;
         _proyectoSeleccionadoId = null;
         _detalle = null;
         _editandoInfo = false;
@@ -429,6 +473,10 @@ public partial class Proyectos : ComponentBase
     {
         if (_detalle is null) return;
 
+        // El id se fija antes del await: mientras se guarda, el usuario puede
+        // abrir otro proyecto y _detalle pasar a ser otro, o null mientras
+        // carga (y entonces _detalle.Id reventaba tras un guardado correcto).
+        var id = _detalle.Id;
         _editErrores = new();
         _editError = null;
         _guardando = true;
@@ -440,7 +488,7 @@ public partial class Proyectos : ComponentBase
             var notas = string.IsNullOrWhiteSpace(_editNotas) ? null : _editNotas;
 
             var resultado = await Mediator.Send(
-                new ActualizarProyectoCommand(_detalle.Id, _editNombre, fechaFinPrevista, notas, _detalle.Version));
+                new ActualizarProyectoCommand(id, _editNombre, fechaFinPrevista, notas, _detalle.Version));
 
             if (resultado.EsFallido)
             {
@@ -450,7 +498,12 @@ public partial class Proyectos : ComponentBase
 
             ToastService.Mostrar("Proyecto actualizado correctamente.", TonoToast.Exito);
             _editandoInfo = false;
-            await SeleccionarProyectoAsync(_detalle.Id);
+
+            // Solo se refresca el detalle si sigue siendo el abierto: si el
+            // usuario ya eligió otro, recargar este le devolvería el panel.
+            if (_proyectoSeleccionadoId == id)
+                await SeleccionarProyectoAsync(id);
+
             await CargarProyectosAsync();
         }
         catch (ValidationException ex)
@@ -588,16 +641,20 @@ public partial class Proyectos : ComponentBase
     {
         if (_detalle is null) return;
 
+        var version = _versionDetalle;
         _cargandoTecnicos = true;
         StateHasChanged();
 
         try
         {
-            _tecnicos = (await Mediator.Send(new ObtenerTecnicosProyectoQuery(_detalle.Id))).ToList();
+            var tecnicos = await Mediator.Send(new ObtenerTecnicosProyectoQuery(_detalle.Id));
+            if (version != _versionDetalle) return;
+            _tecnicos = tecnicos.ToList();
         }
         finally
         {
-            _cargandoTecnicos = false;
+            if (version == _versionDetalle)
+                _cargandoTecnicos = false;
         }
     }
 
