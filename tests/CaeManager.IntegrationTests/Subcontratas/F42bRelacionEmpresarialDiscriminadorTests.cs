@@ -296,7 +296,7 @@ public class F42bRelacionEmpresarialDiscriminadorTests : IAsyncLifetime
         }
 
         await using var lectura = CrearContexto();
-        var handler = new ObtenerEmpresasParaSelectorQueryHandler(lectura);
+        var handler = new ObtenerEmpresasParaSelectorQueryHandler(lectura, new AlcanceDatosServiceFalso());
 
         var acotado = await handler.Handle(new ObtenerEmpresasParaSelectorQuery(clienteId), CancellationToken.None);
         acotado.Should().ContainSingle().Which.Id.Should().Be(empresaPropiaId);
