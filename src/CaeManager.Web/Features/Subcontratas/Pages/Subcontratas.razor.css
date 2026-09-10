@@ -1,0 +1,78 @@
+/*
+  Cabecera de columnas y rejilla de la lista de Subcontratas (Subcontratas
+  TALVEG.dc.html). Mismo planteamiento que Empresas.razor.css, y en CSS
+  aislado por la misma razón: .tarjeta-fila-acordeon-cabecera es compartida
+  con Centros, y cambiarla a grid en list-page.css movería pantallas que este
+  incremento no verifica.
+
+  Sin QuickGrid: la fila se despliega en el acordeón de trabajadores, y
+  QuickGrid no soporta filas expandibles.
+*/
+
+.rejilla-subcontratas {
+    /* chevron · razón social · nivel de servicio · cumplimiento · vencidos · próximos · acciones */
+    display: grid;
+    grid-template-columns: 28px minmax(0, 2fr) 120px 104px 112px 112px auto;
+    gap: var(--space-2);
+    align-items: center;
+}
+
+/* Con selección múltiple entra una casilla delante y las columnas se corren. */
+.rejilla-subcontratas-seleccion {
+    grid-template-columns: 24px 28px minmax(0, 2fr) 120px 104px 112px 112px auto;
+}
+
+.cabecera-columnas-subcontratas {
+    padding: var(--space-2) var(--space-4);
+    font: var(--font-label);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--color-text-muted);
+}
+
+/* Identidad en dos líneas —razón social y CIF— que recorta con elipsis: sin
+   esto, una razón social larga estira su columna y desalinea la fila. */
+.celda-identidad-subcontrata {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.celda-identidad-subcontrata > * {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+}
+
+.celda-identidad-subcontrata > .enlace-nombre-fila {
+    font-weight: 600;
+}
+
+/* La celda se reserva aunque no haya vencidos: es lo que mantiene la rejilla
+   cuadrada de fila en fila. */
+.celda-sin-recuento {
+    color: var(--color-text-muted);
+}
+
+/* El desglose de vencidos y próximos se abre hacia abajo, igual que en la
+   zona de indicadores de Centros: hacia arriba lo recortaba la cabecera de
+   columnas en la primera fila. ::deep porque el panel lo pinta VentanaContexto. */
+.celda-recuento-subcontrata ::deep .ventana-contexto-panel {
+    bottom: auto;
+    top: calc(100% + var(--space-1));
+}
+
+.conteo-subcontratas {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+/* La fila cuya vista previa está abierta se marca, para no perder de vista
+   a qué fila corresponde el panel de la derecha. */
+.fila-en-vista-previa {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: -2px;
+}
