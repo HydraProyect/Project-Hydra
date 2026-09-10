@@ -1,0 +1,35 @@
+/*
+  Toolbar de Centros como superficie (Lista Centros TALVEG.dc.html): la fila
+  única de buscar/estado/orden/selección/expandir/exportar/nuevo va sobre una
+  tarjeta, igual que en el mockup. La disposición en una sola fila sigue
+  viniendo de .barra-trabajo-centros en list-page.css; aquí solo se añade la
+  superficie.
+*/
+.barra-trabajo-centros {
+    background-color: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+}
+
+/* Título del contenido expandido de la fila de Centro. */
+.acordeon-centro-titulo {
+    margin: 0 0 var(--space-3);
+    font: var(--font-label-md);
+    color: var(--color-text);
+}
+
+/* Pie del contenido expandido: el camino a Centro 360, siempre presente. */
+.acordeon-centro-pie {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-top: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: var(--border-default);
+}
+
+.acordeon-centro-enlace-360 {
+    font: var(--font-label-md);
+    color: var(--color-primary-500);
+}
