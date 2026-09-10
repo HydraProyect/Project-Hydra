@@ -9,19 +9,38 @@
 }
 
 <div class="@ClaseContenedorPagina">
-    <div class="cabecera-pagina">
-        @TituloPaginaIntegrable("Auditoría")
-        <div class="acciones-cabecera">
+    @* La entradilla solo dice lo que esta pantalla puede saber: el mockup
+       Gen 2 afirma «registro inmutable», y nada en el código ni en la base
+       (ni trigger ni política) lo garantiza hoy, así que no se copia. *@
+    <CabeceraPagina Titulo="Auditoría" Integrada="@IntegradaEnConfiguracion">
+        <Descripcion>
+            Qué entidades se crearon, modificaron o eliminaron, quién lo hizo y cuándo. Cuando una baja
+            es lógica y la entidad admite restauración, la fila ofrece <strong>Restaurar</strong>.
+        </Descripcion>
+        <Acciones>
             <a class="enlace-exportar" href="@EnlaceExportar"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel</a>
-        </div>
-    </div>
+        </Acciones>
+    </CabeceraPagina>
 
     <div class="barra-filtros">
         <CampoSelect Etiqueta="Tipo de entidad" Valor="@(_filtroEntidadTipo ?? string.Empty)" ValorChanged="FiltrarPorEntidadAsync">
             <option value="">Todas</option>
-            @foreach (var tipo in TiposEntidad)
+            @* Atajo, no catálogo: AuditoriaInterceptor registra el nombre
+               simple de CUALQUIER entidad del dominio, así que en la tabla
+               salen tipos (mensajes, líneas de WhatsApp...) que esta lista
+               no ofrece. «Todas» es lo que de verdad los enseña. *@
+            <optgroup label="Entidades principales">
+                @foreach (var tipo in TiposEntidad)
+                {
+                    <option value="@tipo">@tipo</option>
+                }
+            </optgroup>
+            @if (FiltroFueraDelCatalogo)
             {
-                <option value="@tipo">@tipo</option>
+                @* Un ?entidad= que no es de las principales (un enlace
+                   compartido) sí filtra en servidor; sin esta opción el
+                   desplegable diría «Todas» sobre una tabla filtrada. *@
+                <option value="@_filtroEntidadTipo">@_filtroEntidadTipo</option>
             }
         </CampoSelect>
     </div>
@@ -67,8 +86,14 @@
                     <th>Fecha</th>
                     <th>Entidad</th>
                     <th>Acción</th>
+                    @* Hoy es el actor real: el interceptor escribe aquí
+                       UsuarioSimulado ?? ActorReal y la impersonación no
+                       existe (UsuarioSimulado siempre null). Cuando exista,
+                       esta columna sola pasará a nombrar al usuario simulado
+                       y hará falta proyectar ActorRealUsuarioId y ViaAcceso
+                       en RegistroAuditoriaListaDto para separarlos. *@
                     <th>Usuario</th>
-                    <th></th>
+                    <th class="columna-acciones-auditoria">Acciones</th>
                 </tr>
             </thead>
             <tbody>
@@ -83,9 +108,18 @@
                                 "Eliminado" => TonoBadge.Peligro,
                                 _ => TonoBadge.Advertencia
                             })">@registro.Accion</Badge>
+                            @* PuedeRestaurar solo es cierto cuando el
+                               Modificado puso EstaEliminado a true en una de
+                               las cinco entidades restaurables: explica por
+                               qué una fila que dice «Modificado» ofrece
+                               «Restaurar». *@
+                            @if (registro.PuedeRestaurar)
+                            {
+                                <span class="detalle-baja-logica">↳ eliminado lógicamente</span>
+                            }
                         </td>
-                        <td>@NombreUsuario(registro.UsuarioId)</td>
-                        <td>
+                        <td><span class="@ClaseUsuario(registro.UsuarioId)">@NombreUsuario(registro.UsuarioId)</span></td>
+                        <td class="celda-acciones-auditoria">
                             @if (registro.TieneArchivoAnterior)
                             {
                                 <a href="/auditoria/@registro.Id/archivo-anterior" target="_blank">Ver archivo anterior</a>
@@ -96,6 +130,10 @@
                                        Cargando="EstaRestaurando(registro)" OnClick="() => RestaurarAsync(registro)">
                                     Restaurar
                                 </Boton>
+                            }
+                            else
+                            {
+                                <span class="sin-accion">—</span>
                             }
                         </td>
                     </tr>

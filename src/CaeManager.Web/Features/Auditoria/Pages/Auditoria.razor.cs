@@ -40,6 +40,15 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
     private const int TamanoPagina = 30;
     private readonly HashSet<Guid> _restaurando = [];
 
+    /// <summary>Identifica la carga vigente; ver <see cref="CargarAsync"/>.</summary>
+    private int _versionCarga;
+
+    /// <summary>
+    /// Identity no encuentra el Id. AspNetUsers no tiene RLS ni filtro de
+    /// tenant, así que no es un usuario de otro tenant oculto: no existe.
+    /// </summary>
+    private const string UsuarioNoEncontrado = "(usuario eliminado)";
+
     protected override Task OnInitializedAsync()
     {
         // Los [Parameter] ya están asignados en este punto (SetParametersAsync
@@ -63,17 +72,36 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
         _filtroEntidadTipo = string.IsNullOrWhiteSpace(EntidadTipoInicial) ? null : EntidadTipoInicial;
     }
 
+    /// <summary>
+    /// Carga la página vigente de la auditoría.
+    ///
+    /// <para>
+    /// Filtro y página se capturan al empezar, y la respuesta se descarta si
+    /// al volver del <c>await</c> ya no es la carga vigente: sin esto, cambiar
+    /// de filtro mientras la carga anterior sigue en vuelo dejaba que la
+    /// respuesta VIEJA, si llegaba la última, pintara sus filas bajo el
+    /// desplegable y el enlace de exportar del filtro NUEVO — un rastro de
+    /// auditoría que enseña filas de otra consulta es exactamente lo que esta
+    /// pantalla no puede permitirse.
+    /// </para>
+    /// </summary>
     private async Task CargarAsync()
     {
+        var version = ++_versionCarga;
+        var filtro = _filtroEntidadTipo;
+        var pagina = _pagina;
+
         _cargando = true;
         _error = false;
         StateHasChanged();
 
         try
         {
-            _resultado = await Mediator.Send(new ObtenerAuditoriaQuery(_filtroEntidadTipo, UsuarioId: null, _pagina, TamanoPagina));
+            var resultado = await Mediator.Send(new ObtenerAuditoriaQuery(filtro, UsuarioId: null, pagina, TamanoPagina));
+            if (version != _versionCarga)
+                return;
 
-            var idsFaltantes = _resultado.Elementos
+            var idsFaltantes = resultado.Elementos
                 .Where(r => r.UsuarioId is not null && !_usuariosPorId.ContainsKey(r.UsuarioId.Value))
                 .Select(r => r.UsuarioId!.Value)
                 .Distinct()
@@ -87,17 +115,26 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
                 foreach (var id in idsFaltantes)
                 {
                     var usuario = await UserManager.FindByIdAsync(id.ToString());
-                    _usuariosPorId[id] = usuario?.NombreCompleto ?? usuario?.Email ?? "(usuario eliminado)";
+                    _usuariosPorId[id] = usuario?.NombreCompleto ?? usuario?.Email ?? UsuarioNoEncontrado;
                 }
             });
+
+            // La caché de nombres sí puede quedarse lo resuelto por una carga
+            // superada (un nombre por Id no depende del filtro); las filas no.
+            if (version != _versionCarga)
+                return;
+
+            _resultado = resultado;
         }
         catch (Exception)
         {
-            _error = true;
+            if (version == _versionCarga)
+                _error = true;
         }
         finally
         {
-            _cargando = false;
+            if (version == _versionCarga)
+                _cargando = false;
         }
     }
 
@@ -145,8 +182,21 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
     private string EnlaceExportar =>
         _filtroEntidadTipo is null ? "/auditoria/exportar.xlsx" : $"/auditoria/exportar.xlsx?entidad={Uri.EscapeDataString(_filtroEntidadTipo)}";
 
+    /// <summary>
+    /// El filtro vigente llegó por la URL y no es de las entidades principales
+    /// del desplegable: se ofrece como opción propia para que el control no
+    /// diga «Todas» sobre una tabla filtrada.
+    /// </summary>
+    private bool FiltroFueraDelCatalogo =>
+        _filtroEntidadTipo is not null && !TiposEntidad.Contains(_filtroEntidadTipo);
+
     private string NombreUsuario(Guid? usuarioId) =>
         usuarioId is null ? "Sistema" : _usuariosPorId.GetValueOrDefault(usuarioId.Value, "—");
+
+    private string? ClaseUsuario(Guid? usuarioId) =>
+        usuarioId is not null && _usuariosPorId.GetValueOrDefault(usuarioId.Value) == UsuarioNoEncontrado
+            ? "usuario-no-resuelto"
+            : null;
 
     private bool EstaRestaurando(RegistroAuditoriaListaDto registro) => _restaurando.Contains(registro.Id);
 
