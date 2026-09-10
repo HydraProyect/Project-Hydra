@@ -3,11 +3,14 @@
    seleccionarse entera, que es justo para lo que está ahí. */
 .enlace-activacion {
     word-break: break-all;
-    font-family: var(--fuente-monoespaciada, monospace);
+    font-family: monospace;
     font-size: 0.875rem;
-    background: var(--color-superficie-hundida, #f4f4f4);
+    /* Token real de superficie hundida. El anterior no existía y resolvía
+       siempre al #f4f4f4 de reserva: en tema oscuro dejaba el texto claro
+       sobre fondo claro, a 1,10:1, y el enlace no se podía leer. */
+    background: var(--color-surface-subtle);
     padding: 0.5rem 0.75rem;
-    border-radius: var(--radio-pequeno, 4px);
+    border-radius: var(--radius-sm);
 }
 
 /*

@@ -36,8 +36,7 @@
     border-radius: var(--radius-full);
     background-color: var(--color-danger-500);
     color: var(--color-neutral-0);
-    font-size: var(--font-size-xs);
-    font-weight: var(--font-weight-bold);
+    font: var(--font-label-md);
 }
 
 .descripcion-avisos-normativos {
@@ -68,13 +67,13 @@
 }
 
 .etiqueta-norma-vigilada {
-    font-weight: var(--font-weight-bold);
+    font-weight: 600;
     color: var(--color-primary-600);
 }
 
 .fecha-aviso-normativo {
     color: var(--color-neutral-500);
-    font-size: var(--font-size-sm);
+    font: var(--font-body-md);
 }
 
 .titulo-aviso-normativo {
@@ -99,13 +98,13 @@
     display: inline-flex;
     align-items: center;
     gap: var(--space-1);
-    color: var(--color-success-600);
-    font-size: var(--font-size-sm);
+    color: var(--color-success-700);
+    font: var(--font-body-md);
 }
 
 .estado-aviso-pendiente {
     color: var(--color-neutral-500);
-    font-size: var(--font-size-sm);
+    font: var(--font-body-md);
 }
 
 @media (prefers-reduced-motion: reduce) {
