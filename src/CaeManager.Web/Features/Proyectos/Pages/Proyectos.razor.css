@@ -1,37 +1,333 @@
 
-.bloque-selector-cliente {
-    max-width: 360px;
-    margin-bottom: var(--space-8);
+/* Barra de filtros (Proyectos TALVEG.dc.html): cliente, estado y búsqueda en
+   una sola tira. No reutiliza .barra-filtros de list-page.css: aquella tiene
+   max-width 480px, pensada para un buscador y un filtro, y aquí van tres. */
+.barra-filtros-proyectos {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-3);
+    background-color: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    padding: var(--space-3);
+    margin-bottom: var(--space-4);
+}
+
+.filtro-cliente-proyectos {
+    min-width: 260px;
+}
+
+.filtro-estado-proyectos {
+    min-width: 160px;
+}
+
+.filtro-busqueda-proyectos {
+    flex: 1;
+    min-width: 220px;
+}
+
+@media (max-width: 768px) {
+    .barra-filtros-proyectos {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .filtro-cliente-proyectos,
+    .filtro-estado-proyectos,
+    .filtro-busqueda-proyectos {
+        min-width: 0;
+    }
+}
+
+.limpiar-filtros-proyectos {
+    border: 0;
+    background: none;
+    padding: 0;
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+
+.limpiar-filtros-proyectos:hover {
+    color: var(--color-text);
+}
+
+.limpiar-filtros-proyectos:focus-visible {
+    outline: var(--border-focus);
+}
+
+.conteo-proyectos {
+    margin: 0 0 var(--space-3);
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+.contenedor-tabla-proyectos {
+    overflow-x: auto;
 }
 
 .acciones-seccion {
-    margin-bottom: var(--space-6);
+    margin: var(--space-4) 0 var(--space-2);
 }
 
 /* Tabla de proyectos */
-.tabla-proyectos .col-acciones,
-.tabla-tecnicos .col-acciones {
-    width: 160px;
+.tabla-proyectos .col-acciones {
+    width: 56px;
     text-align: right;
 }
 
-.fila-seleccionada td {
-    background: var(--color-surface-subtle);
+.nombre-proyecto {
+    font-weight: 600;
+    color: var(--color-text);
 }
 
-/* Formularios (nuevo proyecto, edición, alta de técnico) */
+.celda-fecha-proyecto {
+    font-variant-numeric: tabular-nums;
+}
+
+.fin-indefinido {
+    color: var(--color-text-muted);
+}
+
+.fila-seleccionada td {
+    background-color: var(--color-primary-50);
+}
+
+.texto-solo-lectores {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/*
+    Panel lateral de detalle. Mismo apilamiento que los PreviewDrawer de
+    Clientes/Empresas/Trabajadores/Vehículos (VehiculoPreviewDrawer.razor.css):
+    sin scrim —role="complementary", la lista sigue usable detrás— y 400px de
+    ancho según el mockup. Las reglas se repiten aquí porque el CSS aislado no
+    viaja entre componentes.
+*/
+.panel-proyecto {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: 400px;
+    background-color: var(--color-overlay);
+    box-shadow: var(--shadow-overlay);
+    border-left: var(--border-default);
+    z-index: 1045;
+    display: flex;
+    flex-direction: column;
+    animation: panel-proyecto-entrar var(--motion-transition) var(--ease-fluid);
+}
+
+@keyframes panel-proyecto-entrar {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .panel-proyecto {
+        animation: none;
+    }
+}
+
+@media (max-width: 767px) {
+    .panel-proyecto {
+        max-width: 100%;
+    }
+}
+
+.cabecera-panel-proyecto {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-5);
+    border-bottom: var(--border-default);
+    flex-shrink: 0;
+}
+
+.texto-cabecera-panel-proyecto {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+}
+
+.etiqueta-cabecera-panel-proyecto {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+}
+
+.nombre-cabecera-panel-proyecto {
+    font: var(--font-heading-md);
+}
+
+.meta-cabecera-panel-proyecto {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+.cerrar-panel-proyecto {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    padding: var(--space-1);
+    flex-shrink: 0;
+}
+
+.cerrar-panel-proyecto:hover {
+    color: var(--color-text);
+}
+
+.cerrar-panel-proyecto:focus-visible {
+    outline: var(--border-focus);
+}
+
+.cuerpo-panel-proyecto {
+    padding: 0 var(--space-5) var(--space-5);
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+}
+
+.rejilla-info-proyecto {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+    background-color: var(--color-surface-subtle);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+}
+
+.notas-proyecto {
+    margin-top: var(--space-4);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.titulo-notas-proyecto {
+    font: var(--font-label-md);
+}
+
+.texto-notas-proyecto {
+    margin: 0;
+    font: var(--font-body-md);
+    color: var(--color-text-muted);
+}
+
+.lista-tecnicos-proyecto {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.fila-tecnico-proyecto {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: 44px;
+    padding: var(--space-2) var(--space-4);
+}
+
+.fila-tecnico-proyecto + .fila-tecnico-proyecto {
+    border-top: var(--border-default);
+}
+
+.datos-tecnico-proyecto {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+}
+
+.nombre-tecnico-proyecto {
+    font: var(--font-body-md);
+    font-weight: 600;
+}
+
+.meta-tecnico-proyecto {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+/* Dar de baja no borra la asignación (rellena FechaBaja), pero la quita de los
+   técnicos activos: tono destructivo, -700 por contraste (ver .aviso-error). */
+.baja-tecnico-proyecto {
+    border: 0;
+    background: none;
+    padding: 0;
+    font: var(--font-label-md);
+    color: var(--color-danger-700);
+    cursor: pointer;
+}
+
+.baja-tecnico-proyecto:focus-visible {
+    outline: var(--border-focus);
+}
+
+.enlace-documentos-proyecto {
+    font: var(--font-label-md);
+}
+
+.pie-panel-proyecto {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5);
+    border-top: var(--border-default);
+    flex-shrink: 0;
+}
+
+/* Formularios del panel (edición, alta de técnico): una columna, el panel mide 400px. */
 .rejilla-formulario {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: var(--space-4);
-    margin-bottom: var(--space-6);
+    margin: var(--space-4) 0;
+}
+
+.acciones-formulario {
+    display: flex;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
 }
 
 @media (max-width: 640px) {
-    .rejilla-formulario {
-        grid-template-columns: 1fr;
-    }
-
     /* Guardar/Cancelar a todo el ancho y apilados (Guardar arriba, ya es el
        primero en el marcado) — más fácil de alcanzar con el pulgar que dos
        botones lado a lado. */
@@ -44,23 +340,9 @@
     }
 }
 
-.acciones-formulario {
-    display: flex;
-    gap: var(--space-2);
-    margin-top: var(--space-2);
-}
-
 /* --color-peligro y --color-peligro-hover mapean a danger-500 y danger-700,
    pero como FOREGROUND el -500 incumple el 4.5:1 (3.76:1 sobre Surface), asi
-   que el estado de reposo sube tambien a -700 y las dos reglas colapsan en el
-   mismo valor. La escala del semaforo solo tiene -50, -500 y -700: no hay un
-   tercer tono con el que distinguir el hover sin inventarlo. La regla :hover
-   se retira por ser un no-op; la afordancia de hover del enlace destructivo
-   queda registrada como ODM-12. */
-.enlace-peligro {
-    color: var(--color-danger-700);
-}
-
+   que el texto de error sube a -700. */
 .aviso-error {
     color: var(--color-danger-700);
     font: var(--font-body-md);
