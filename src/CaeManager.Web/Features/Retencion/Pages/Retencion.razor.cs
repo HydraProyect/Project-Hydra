@@ -229,6 +229,15 @@ public partial class Retencion : CaeManager.Web.Components.PaginaIntegrableConfi
     {
         if (_aCancelar is null) return;
 
+        // Espejo de CancelarPurgaCommandValidator (NotEmpty: nulo, vacío o solo
+        // espacios), que sigue siendo la autoridad. Aquí solo evita enviar un
+        // comando que se sabe rechazado y hace la regla visible en la pantalla.
+        if (string.IsNullOrWhiteSpace(_motivoCancelacion))
+        {
+            _errorFormulario = "Indica por qué se descarta esta purga.";
+            return;
+        }
+
         _procesando = true;
         _errorFormulario = null;
         StateHasChanged();
@@ -259,20 +268,32 @@ public partial class Retencion : CaeManager.Web.Components.PaginaIntegrableConfi
 
     /// <summary>
     /// Lo llama <see cref="DialogoConfirmacion"/>, que ya descarta el segundo
-    /// clic mientras el primero sigue en curso. Un fallo deja el diálogo
-    /// abierto a propósito: para reintentar o cancelar, no para cerrarse como
-    /// si la destrucción hubiera ocurrido.
+    /// clic mientras el primero sigue en curso.
+    ///
+    /// <para>
+    /// Un <see cref="Result"/> fallido es un rechazo limpio (la propuesta no
+    /// era ejecutable): el diálogo sigue abierto para cancelar.
+    /// </para>
+    ///
+    /// <para>
+    /// Una excepción, en cambio, no dice qué pasó: <c>EjecucionPurgaService</c>
+    /// borra archivos antes de guardar, así que la ejecución puede haberse
+    /// aplicado en parte. Por eso el aviso no afirma nada sobre el resultado,
+    /// el diálogo se cierra —dejar «Destruir definitivamente» delante invitaría
+    /// a repetir a ciegas— y la lista se recarga para enseñar el estado real
+    /// de la propuesta antes de decidir si repetir.
+    /// </para>
     /// </summary>
     private async Task EjecutarAsync()
     {
-        if (_aEjecutar is null) return;
+        if (_aEjecutar is not { } solicitud) return;
 
         _procesando = true;
         StateHasChanged();
 
         try
         {
-            var resultado = await Mediator.Send(new EjecutarPurgaCommand(_aEjecutar.Id));
+            var resultado = await Mediator.Send(new EjecutarPurgaCommand(solicitud.Id));
 
             if (resultado.EsFallido)
             {
@@ -286,8 +307,13 @@ public partial class Retencion : CaeManager.Web.Components.PaginaIntegrableConfi
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error al ejecutar la purga {SolicitudId}.", _aEjecutar?.Id);
-            ToastService.Mostrar("No pudimos ejecutar la purga. No se ha dado por hecha; inténtalo de nuevo.", TonoToast.Error);
+            Logger.LogError(ex, "Error al ejecutar la purga {SolicitudId}: resultado sin confirmar.", solicitud.Id);
+            ToastService.Mostrar(
+                "No pudimos confirmar el resultado de la purga: puede haberse aplicado en parte. " +
+                "Revisa el estado de la propuesta antes de volver a intentarlo.",
+                TonoToast.Error);
+            _aEjecutar = null;
+            await CargarAsync();
         }
         finally
         {
@@ -299,15 +325,18 @@ public partial class Retencion : CaeManager.Web.Components.PaginaIntegrableConfi
     /// Lo que se afirma tiene que ser lo que <c>EjecucionPurgaService</c> hace
     /// para ESE tipo: solo los Documentos tienen archivo que borrar;
     /// anonimizar un Trabajador vacía sus campos identificativos y no toca
-    /// ningún fichero. Y el número es el de la detección: la ejecución vuelve a
-    /// seleccionar por la fecha de corte, así que se dice de dónde sale.
+    /// ningún fichero, y se dice expresamente para que nadie suponga un
+    /// borrado que no ocurre. Y el número es el de la detección: la ejecución
+    /// vuelve a seleccionar por la fecha de corte, así que se dice de dónde sale.
     /// </summary>
     private string MensajeEjecutar => _aEjecutar is not { } solicitud
         ? string.Empty
         : string.Concat(
             $"Se van a anonimizar los registros de {DescribirTipo(solicitud.TipoDato)} que cumplieron plazo antes del ",
             $"{solicitud.FechaCorte:dd/MM/yyyy} ({solicitud.RegistrosAfectados} al detectarlos)",
-            solicitud.TipoDato == TipoDatoPurgable.Documentos ? " y a borrar sus archivos asociados. " : ". ",
+            solicitud.TipoDato == TipoDatoPurgable.Documentos
+                ? " y a borrar sus archivos asociados. "
+                : ". No se borra ningún archivo: solo se vacían sus datos identificativos. ",
             "Esto no se puede deshacer: los datos personales dejarán de existir; el histórico se conserva sin ellos.");
 
     /// <summary>
