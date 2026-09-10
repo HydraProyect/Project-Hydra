@@ -111,6 +111,14 @@ function arrayBufferABase64(buffer) {
   return btoa(binario);
 }
 
+// Ritmo humano (MVP2 § 14.5): esta función descarga UN documento e inyecta
+// UN archivo por invocación — nunca un bucle sobre varios. La única forma
+// de llamarla es un mensaje "subirDocumento" disparado por el clic real de
+// un botón concreto en popup.js (ver el comentario gemelo ahí,
+// renderizarDocumento) — no añadas aquí ningún camino que la invoque más de
+// una vez por gesto de usuario (un "subir todos", un reintento automático
+// en bucle...): es la base del argumento "lo hace el gestor, no un bot"
+// frente a las plataformas externas.
 async function subirDocumento({ documentoId, acreditacionId, nombreArchivo }) {
   const descarga = await peticionAutenticada(`/documentos/${documentoId}/archivo`);
   if (!descarga.ok) return descarga;
@@ -144,7 +152,20 @@ async function subirDocumento({ documentoId, acreditacionId, nombreArchivo }) {
   // y lo registra con "Marcar aceptado"/"Marcar rechazado" en Hydra).
   const marcado = await peticionAutenticada(`/extension/acreditaciones/${acreditacionId}/subida`, { method: "POST" });
   if (!marcado.ok) return marcado;
-  if (!marcado.respuesta.ok) return { ok: false, error: `Hydra no aceptó marcarla como subida (${marcado.respuesta.status}).` };
+  if (!marcado.respuesta.ok) {
+    // Kill switch remoto (MVP2 § 14.5): un 409 aquí es
+    // "Acreditacion.ConectorInactivo" — segunda línea de defensa, poco
+    // probable de alcanzar porque popup.js ya deja de ofrecer "Subir" para
+    // un proveedor inactivo (mismo dato, leído antes). Se muestra el
+    // detalle real del problema en vez de un genérico "Hydra no aceptó".
+    let detalle;
+    try {
+      detalle = (await marcado.respuesta.json())?.detail;
+    } catch {
+      // Cuerpo no JSON (o vacío) — se usa el mensaje genérico de abajo.
+    }
+    return { ok: false, error: detalle ?? `Hydra no aceptó marcarla como subida (${marcado.respuesta.status}).` };
+  }
 
   return { ok: true };
 }

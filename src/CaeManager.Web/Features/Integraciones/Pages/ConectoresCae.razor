@@ -1,0 +1,82 @@
+@page "/plataforma/conectores-cae"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@* MVP2 § 14.5 (kill switch remoto, ver ARQUITECTURA-INTEGRACIONES.md en el
+   repositorio de negocio): el catálogo de ProveedorPlataformaCae es
+   transversal a todos los tenants, así que esto lo autoriza AdminPlataforma
+   global, no el rol Administrador de Identity de ningún tenant — mismo
+   criterio que Delegaciones.razor/EstadoComercial.razor. La página no es el
+   enforcement: eso vive en CambiarActivoProveedorPlataformaCommand. *@
+@using CaeManager.Application.Integraciones.Queries.ObtenerProveedoresPlataformaCae
+
+<PageTitle>Conectores CAE — @Marca.Nombre</PageTitle>
+
+<div class="pagina-conectores-cae">
+    <h1>Conectores CAE</h1>
+
+    <p class="descripcion-delegaciones">
+        Cada conector activo aquí es un candidato a que la extensión de navegador ofrezca "Subir"
+        para él. Desactivar uno no borra ni cambia ningún canal de gestión documental ya
+        configurado con él — solo apaga, de inmediato y sin publicar una extensión nueva, el
+        botón que dejaría inyectar un documento en su plataforma.
+    </p>
+
+    @if (_error is not null)
+    {
+        <p class="aviso-error">@_error</p>
+    }
+
+    @if (_cargando)
+    {
+        <EstadoCargando Filas="4" />
+    }
+    else if (_proveedores.Count == 0)
+    {
+        <EstadoVacio Titulo="Sin proveedores en el catálogo" Descripcion="No hay ningún ProveedorPlataformaCae sembrado." />
+    }
+    else
+    {
+        <table class="tabla-datos">
+            <thead>
+                <tr>
+                    <th>Proveedor</th>
+                    <th>Código</th>
+                    <th>Estado</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var proveedor in _proveedores)
+                {
+                    <tr>
+                        <td>@proveedor.Nombre</td>
+                        <td>@proveedor.Codigo</td>
+                        <td>
+                            <Badge Tono="@(proveedor.Activo ? TonoBadge.Exito : TonoBadge.Neutro)">
+                                @(proveedor.Activo ? "Activo" : "Desactivado")
+                            </Badge>
+                        </td>
+                        <td>
+                            @if (proveedor.Activo)
+                            {
+                                <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Destructivo"
+                                       OnClick="() => CambiarActivoAsync(proveedor.Id, activo: false)"
+                                       Cargando="@(_procesandoId == proveedor.Id)">
+                                    Desactivar
+                                </Boton>
+                            }
+                            else
+                            {
+                                <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario"
+                                       OnClick="() => CambiarActivoAsync(proveedor.Id, activo: true)"
+                                       Cargando="@(_procesandoId == proveedor.Id)">
+                                    Activar
+                                </Boton>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
