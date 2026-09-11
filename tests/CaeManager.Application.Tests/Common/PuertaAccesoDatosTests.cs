@@ -127,4 +127,49 @@ public class PuertaAccesoDatosTests
         ganadora.Should().Be(tareaB, "sin Dispose no hay ninguna carrera que pueda colgar la espera de B");
         await tareaB; // no debe lanzar nada
     }
+
+    [Fact]
+    public async Task Cancelar_la_espera_justo_antes_de_que_el_ocupante_libere_nunca_ejecuta_la_operacion()
+    {
+        // SemaphoreSlim.WaitAsync puede conceder el semáforo a un esperador
+        // aunque su token ya estuviera cancelado en el instante del Release()
+        // de quien lo tenía: es una carrera de la propia BCL entre "cancelar"
+        // y "liberar" (confirmada en aislamiento: sin el control explícito de
+        // EjecutarAsync tras WaitAsync, ~53% de 20.000 iteraciones de este
+        // mismo patrón ejecutaban la operación pese a la cancelación ya
+        // solicitada antes de liberar). Sin este test, esa carrera es el
+        // flake intermitente de
+        // ImportarClientesGen2Tests.Retirar_la_pagina_mientras_el_historial_espera_la_puerta_de_datos_la_saca_de_la_cola
+        // bajo la contención de la suite completa. Muchas iteraciones porque
+        // es una carrera de timing: una sola pasada no la detectaría de forma
+        // fiable en ningún sentido (ni en rojo ni en verde).
+        const int iteraciones = 3000;
+
+        for (var i = 0; i < iteraciones; i++)
+        {
+            var puerta = new PuertaAccesoDatos();
+            var ocupante = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var cts = new CancellationTokenSource();
+            var operacionEjecuto = false;
+
+            var tareaOcupante = puerta.EjecutarAsync(() => ocupante.Task);
+            var tareaEsperador = puerta.EjecutarAsync(() => { operacionEjecuto = true; return Task.CompletedTask; }, cts.Token);
+
+            // Deja que el esperador quede realmente encolado en el semáforo
+            // antes de cancelar, igual que en el test de bUnit real la página
+            // ya está bloqueada en el await cuando el test sigue.
+            await Task.Yield();
+            await Task.Delay(0);
+
+            cts.Cancel();
+            ocupante.SetResult();
+            await tareaOcupante;
+
+            try { await tareaEsperador; }
+            catch (OperationCanceledException) { }
+
+            operacionEjecuto.Should().BeFalse(
+                $"iteración {i}: la espera se canceló antes de que el ocupante liberara la puerta");
+        }
+    }
 }
