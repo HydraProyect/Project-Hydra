@@ -1,116 +1,166 @@
-.tarjeta-login {
+/* Tarjeta de acceso sobre la escena de AccesoLayout, contra el artefacto
+   «Luz de agua». Colores escritos y no tokens por lo mismo que la escena: es
+   paleta de marca, oscura siempre. Los textos tenues quedan en .6 o más de
+   marfil, que da ≥ 4,5:1 incluso con dos bandas de agua bajo el texto. */
+.acceso-tarjeta {
     width: 100%;
-    max-width: 380px;
-    background-color: var(--color-surface);
-    border: var(--border-default);
-    border-radius: var(--radius-lg);
-    padding: var(--space-8);
-}
-
-.tarjeta-login h1 {
-    font: var(--font-heading-lg);
-    color: var(--color-primary-500);
+    max-width: 340px;
     text-align: center;
+    color: #F2EEE1;
+    line-height: 1.6;
 }
 
-.subtitulo-login {
-    text-align: center;
-    color: var(--color-text-muted);
-    font: var(--font-body-sm);
-    margin-top: var(--space-1);
-    margin-bottom: var(--space-6);
+/* El lockup ocupa el sitio de un texto de 34–42 px: el SVG se genera a 200
+   unidades por em con 185 de alto (generar-lockup.py), así que su altura es
+   0,925 veces ese cuerpo. */
+.acceso-marca {
+    margin: 0;
+    line-height: 1;
 }
 
-.tarjeta-login label {
+.acceso-marca img {
+    display: inline-block;
+    width: auto;
+    height: clamp(31.45px, 4.625vw, 38.85px);
+    vertical-align: top;
+}
+
+.acceso-lema {
+    margin: 9px 0 28px;
+    font-size: 12.5px;
+    color: rgba(242, 238, 225, .6);
+}
+
+.acceso-alerta {
+    margin: 0 0 16px;
+    padding: 10px 12px;
+    text-align: left;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: #FEE2E2;
+    background: rgba(127, 29, 29, .55);
+    border: 1px solid rgba(252, 165, 165, .45);
+    border-radius: 7px;
+}
+
+.acceso-campo {
+    margin-bottom: 13px;
+    text-align: left;
+}
+
+.acceso-campo label {
     display: block;
-    font: var(--font-label-md);
-    margin-top: var(--space-4);
-    margin-bottom: var(--space-1);
-}
-
-/*
-  ::deep es obligatorio aquí: <InputText> es un componente hijo de Blazor,
-  no una etiqueta escrita directamente en este archivo — el <input> que
-  renderiza internamente no recibe el atributo de scope de CSS isolation de
-  Login.razor. Sin ::deep este selector nunca matchea (bug real encontrado
-  al verificar el rediseño: los inputs de login llevaban toda la vida del
-  proyecto sin ningún estilo aplicado, con el tamaño nativo del navegador).
-*/
-.tarjeta-login ::deep input {
-    width: 100%;
-    min-height: 48px;
-    padding: 0 var(--space-4);
-    border-radius: var(--radius-md);
-    border: var(--border-control);
-    background-color: var(--color-surface);
-    color: var(--color-text);
-    font: var(--font-body-md);
-    transition: border-color var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard);
-}
-
-.tarjeta-login ::deep input:focus {
-    outline: var(--border-focus);
-    outline-offset: -1px;
-    box-shadow: 0 0 0 4px var(--color-primary-100);
-}
-
-.tarjeta-login ::deep .validation-message {
-    display: block;
-    color: var(--color-danger-700);
-    font: var(--font-body-sm);
-    margin-top: var(--space-1);
-}
-
-.alerta-login {
-    background-color: var(--color-danger-50);
-    color: var(--color-danger-700);
-    border-radius: var(--radius-sm);
-    padding: var(--space-3);
-    font: var(--font-body-sm);
-    margin-bottom: var(--space-2);
-}
-
-.boton-primario {
-    width: 100%;
-    min-height: 48px;
-    margin-top: var(--space-6);
-    border-radius: var(--radius-md);
-    border: none;
-    background-color: var(--color-primary-500);
-    color: var(--color-neutral-0);
-    font: var(--font-label-md);
+    margin-bottom: 5px;
+    font-size: 11.5px;
     font-weight: 600;
-    cursor: pointer;
-    transition: background-color var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard);
+    color: rgba(242, 238, 225, .75);
 }
 
-.boton-primario:hover {
-    background-color: var(--color-primary-600);
+/* ::deep porque el <input> lo pinta <InputText>, un componente hijo que no
+   recibe el atributo de ámbito de esta página. */
+.acceso-campo ::deep input {
+    width: 100%;
+    height: 43px;
+    padding: 0 14px;
+    font: 400 14px/1.4 'TALVEG Plex', system-ui, sans-serif;
+    color: #F2EEE1;
+    background: rgba(10, 24, 18, .42);
+    backdrop-filter: blur(3px);
+    border: 1px solid rgba(242, 238, 225, .3);
+    border-radius: 7px;
+    transition: border-color .18s ease, box-shadow .18s ease;
+}
+
+.acceso-campo ::deep input:focus {
+    outline: 2px solid #8FC7BC;
+    outline-offset: 1px;
+    border-color: #8FC7BC;
+    box-shadow: 0 0 0 3px rgba(143, 199, 188, .3);
+}
+
+/* El autorrelleno del navegador pinta fondo claro y letra oscura: en esta
+   escena el campo saltaría a la vista como una mancha. */
+.acceso-campo ::deep input:-webkit-autofill {
+    -webkit-text-fill-color: #F2EEE1;
+    caret-color: #F2EEE1;
+    box-shadow: 0 0 0 1000px #1B342A inset;
+}
+
+.acceso-campo ::deep input.invalid {
+    border-color: #FCA5A5;
+}
+
+.acceso-campo ::deep .validation-message {
+    margin-top: 4px;
+    font-size: 12px;
+    color: #FCA5A5;
+}
+
+.acceso-entrar {
+    width: 100%;
+    height: 45px;
+    margin-top: 8px;
+    border: 0;
+    border-radius: 7px;
+    font: 600 14px/1 'TALVEG Plex', system-ui, sans-serif;
+    color: #0B1F17;
+    background: #8FC7BC;
+    cursor: pointer;
+    transition: background-color .18s ease, transform .18s ease;
+}
+
+.acceso-entrar:hover {
+    background: #A3D3CA;
     transform: translateY(-1px);
 }
 
-/* .boton-primario ya da tamaño/color — aquí solo lo necesario para que un
-   <a> (no un <button>) se comporte igual: sin esto, "width: 100%" e "inline"
-   (el display por defecto de <a>) dejan el enlace encogido al texto. */
-.boton-microsoft {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-decoration: none;
-    margin-top: 0;
+.acceso-entrar:focus-visible {
+    outline: 2px solid #F2EEE1;
+    outline-offset: 2px;
 }
 
-.separador-login {
-    text-align: center;
-    color: var(--color-text-muted);
-    font: var(--font-body-sm);
-    margin: var(--space-4) 0 0;
+.acceso-alterno {
+    margin: 17px 0 0;
+    font-size: 12px;
+    color: rgba(242, 238, 225, .62);
 }
 
-.enlace-olvide-contrasena {
-    display: block;
-    text-align: center;
-    font: var(--font-body-sm);
-    font-weight: 600;
-    margin-top: var(--space-4);
+.acceso-nota {
+    margin: 4px 0 0;
+    font-size: 11.5px;
+    color: rgba(242, 238, 225, .62);
+}
+
+.acceso-olvido {
+    margin: 6px 0 0;
+    font-size: 12px;
+}
+
+.acceso-alterno a,
+.acceso-olvido a {
+    color: rgba(242, 238, 225, .72);
+    text-underline-offset: 2px;
+}
+
+.acceso-alterno a:hover,
+.acceso-olvido a:hover {
+    color: #F2EEE1;
+}
+
+.acceso-alterno a:focus-visible,
+.acceso-olvido a:focus-visible {
+    outline: 2px solid #8FC7BC;
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .acceso-entrar,
+    .acceso-campo ::deep input {
+        transition: none;
+    }
+
+    .acceso-entrar:hover {
+        transform: none;
+    }
 }

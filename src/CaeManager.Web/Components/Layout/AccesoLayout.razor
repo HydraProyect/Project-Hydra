@@ -1,0 +1,25 @@
+@inherits LayoutComponentBase
+
+@* Escena de la pantalla de acceso, trasladada del artefacto aprobado «Luz de
+   agua». Es la única pantalla oscura del producto a propósito: el contraste con
+   el resto es el punto (decisión escrita en la hoja de estilo de la web).
+   El movimiento lo pone wwwroot/js/acceso-agua.js; sin él la escena se lee y
+   funciona entera, y el interruptor nace con [hidden] porque no haría nada. *@
+<div class="acceso-escena">
+    <canvas class="acceso-agua" data-acceso-agua aria-hidden="true"></canvas>
+    <div class="acceso-velo" aria-hidden="true"></div>
+
+    <main class="acceso-centro">
+        @Body
+    </main>
+
+    <span class="acceso-aviso" data-acceso-aviso role="status" aria-live="polite"></span>
+    <button type="button" class="acceso-mov" data-acceso-mov aria-pressed="true" hidden>
+        <svg width="17" height="17" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false">
+            <path d="M2 7.5c1.9-1.7 3.4-1.7 5.3 0s3.4 1.7 5.3 0 3.4-1.7 5.3 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+            <path d="M2 12.5c1.9-1.7 3.4-1.7 5.3 0s3.4 1.7 5.3 0 3.4-1.7 5.3 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+            <path class="acceso-mov-tachado" d="M3.8 16.5 L16.5 3.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+        </svg>
+        <span class="acceso-solo-lectores" data-acceso-mov-texto>Desactivar el movimiento del fondo</span>
+    </button>
+</div>
