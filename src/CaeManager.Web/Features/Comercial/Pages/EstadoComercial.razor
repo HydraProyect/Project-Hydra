@@ -18,89 +18,138 @@
 }
 
 <div class="@ClaseContenedorPagina">
-    <CabeceraPagina Titulo="Estado comercial de los tenants" Integrada="@IntegradaEnConfiguracion">
+    <CabeceraPagina Titulo="Estado comercial de los tenants" Kicker="Plataforma" Integrada="@IntegradaEnConfiguracion">
         <Descripcion>
-            Alta manual de suscripción (Horizonte 1.7): la Subscription se crea en Stripe fuera de Hydra
-            (link de pago) y aquí solo se vincula su Id — nunca desde la organización del cliente, igual
-            criterio que Claves API. El estado se aplica automáticamente por webhook de Stripe; "Actualizar
-            desde Stripe" es solo para resincronizar a mano.
+            La suscripción se crea en Stripe, fuera de TALVEG; aquí solo se vincula su identificador. Cuando Stripe
+            notifica un cambio por webhook, el estado comercial se aplica solo; «Actualizar desde Stripe» lo consulta
+            a mano. Cada fila es un tenant: el Tenant beneficiario de su suscripción. Quién la paga —el Pagador
+            TALVEG— lo sabe Stripe, no esta tabla, y no tiene por qué coincidir con el Tenant propietario.
         </Descripcion>
     </CabeceraPagina>
 
-    @if (_cargando)
+    @if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No pudimos cargar el estado comercial"
+                     Descripcion="La lista de tenants no se ha podido obtener. No se ha modificado nada."
+                     NombreIcono="advertencia"
+                     AcentoIcono="var(--color-danger-500)"
+                     FondoIcono="var(--color-danger-50)">
+            <Accion>
+                <Boton Variante="VarianteBoton.Secundario" Cargando="_cargando" OnClick="ReintentarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (!_listaPintada)
     {
         <EstadoCargando Filas="4" />
     }
     else if (_tenants.Count == 0)
     {
-        <EstadoVacio Titulo="No hay ningún tenant cliente todavía" Descripcion="Los tenants aparecerán aquí en cuanto existan." />
+        <EstadoVacio Titulo="No hay ningún tenant todavía"
+                     Descripcion="Los tenants aparecerán aquí en cuanto existan. Si esperabas verlos, esta vista requiere la capacidad de administración de plataforma con alcance global; sin ella, la lista llega vacía."
+                     NombreIcono="cartera" />
     }
     else
     {
-        <table class="tabla-datos">
-            <thead>
-                <tr>
-                    <th>Tenant</th>
-                    <th>Estado comercial</th>
-                    <th>Suscripción de Stripe</th>
-                    <th>Actualizado</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var tenant in _tenants)
-                {
+        <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
+
+        <div class="estado-comercial-tabla">
+            <table class="tabla-datos">
+                <thead>
                     <tr>
-                        <td>@tenant.Nombre</td>
-                        <td><Badge Tono="@TonoDe(tenant.EstadoComercial)">@TextoDe(tenant.EstadoComercial)</Badge></td>
-                        <td>@(tenant.StripeSubscriptionId is null ? "—" : (MarkupString)$"<code>{tenant.StripeSubscriptionId}</code>")</td>
-                        <td>@(tenant.EstadoComercialActualizadoEnUtc?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "—")</td>
-                        <td>
-                            @if (tenant.StripeSubscriptionId is null)
-                            {
-                                <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirVincular(tenant)">Vincular suscripción</Boton>
-                            }
-                            else
-                            {
-                                <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario"
-                                       Cargando="@(_actualizandoTenantId == tenant.TenantId)"
-                                       OnClick="() => ActualizarDesdeStripeAsync(tenant)">
-                                    Actualizar desde Stripe
-                                </Boton>
-                            }
-                        </td>
+                        <th>Tenant</th>
+                        <th>Estado comercial</th>
+                        <th>Suscripción de Stripe</th>
+                        <th>Actualizado</th>
+                        <th><span class="estado-comercial-oculto">Acciones</span></th>
                     </tr>
-                }
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    @foreach (var tenant in _tenants)
+                    {
+                        <tr @key="tenant.TenantId" class="@(tenant.TenantId == _idEnfocado ? "fila-enfocada" : null)"
+                            data-tenant-id="@tenant.TenantId">
+                            <td class="estado-comercial-nombre">@tenant.Nombre</td>
+                            <td><Badge Tono="@TonoDe(tenant.EstadoComercial)">@TextoDe(tenant.EstadoComercial)</Badge></td>
+                            <td>
+                                @if (tenant.StripeSubscriptionId is { } idSuscripcion)
+                                {
+                                    <button type="button" class="estado-comercial-id" title="Copiar el id de suscripción"
+                                            @onclick="() => CopiarIdAsync(idSuscripcion)">@idSuscripcion</button>
+                                }
+                                else
+                                {
+                                    <span class="estado-comercial-sin-id">—</span>
+                                }
+                            </td>
+                            <td class="estado-comercial-fecha">@TextoActualizado(tenant)</td>
+                            <td class="columna-accion">
+                                @if (tenant.StripeSubscriptionId is null)
+                                {
+                                    <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirVincular(tenant)">Vincular suscripción</Boton>
+                                }
+                                else
+                                {
+                                    <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario"
+                                           Cargando="@(_actualizandoTenantId == tenant.TenantId)"
+                                           OnClick="() => PedirConfirmacionActualizar(tenant)">
+                                        Actualizar desde Stripe
+                                    </Boton>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
     }
 </div>
 
-<Modal Visible="_tenantAVincular is not null" VisibleChanged="v => { if (!v) _tenantAVincular = null; }"
+<Modal Visible="FormularioVincularVisible" VisibleChanged="CerrarFormularioVincular"
        Titulo="Vincular suscripción de Stripe" CerrarAlHacerClicFuera="!_vinculando">
     <ChildContent>
         @if (_tenantAVincular is not null)
         {
-            <p>
-                Tenant: <strong>@_tenantAVincular.Nombre</strong>. Pega el Id de la Subscription creada en
-                Stripe (empieza por <code>sub_</code>) — el Id de cliente y el estado inicial se toman
-                directamente de Stripe.
-            </p>
+            <div class="estado-comercial-formulario">
+                <p class="texto-descriptivo">
+                    Tenant: <strong>@_tenantAVincular.Nombre</strong>. Pega el identificador de la suscripción creada
+                    en Stripe. Quién la paga en Stripe y su estado inicial se leen de la propia suscripción, no de lo
+                    que escribas aquí.
+                </p>
 
-            <CampoTexto Etiqueta="Id de suscripción de Stripe" Valor="@_stripeSubscriptionId"
-                        ValorChanged="v => _stripeSubscriptionId = v" Placeholder="sub_..." />
+                <div>
+                    <CampoTexto Etiqueta="Id de suscripción de Stripe" Valor="@_stripeSubscriptionId"
+                                ValorChanged="CambiarIdSuscripcion" Placeholder="sub_…"
+                                autocomplete="off" spellcheck="false" />
+                    <p class="estado-comercial-pista">Empieza por sub_ y se puede copiar del panel de Stripe.</p>
+                </div>
 
-            @if (_errorVincular is not null)
-            {
-                <p class="aviso-error">@_errorVincular</p>
-            }
+                @if (_errorVincular is not null)
+                {
+                    <div class="alerta-formulario" role="alert">@_errorVincular</div>
+                }
+            </div>
         }
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_vinculando" OnClick="() => _tenantAVincular = null">Cancelar</Boton>
-        <Boton Cargando="_vinculando" OnClick="VincularAsync">Vincular</Boton>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_vinculando" OnClick="() => CerrarFormularioVincular(false)">Cancelar</Boton>
+        <Boton Cargando="_vinculando" OnClick="PedirConfirmacionVincular">Vincular</Boton>
     </Pie>
 </Modal>
+
+<DialogoConfirmacion Visible="ConfirmacionVincularVisible" VisibleChanged="CerrarConfirmacionVincular"
+                     Titulo="¿Vincular esta suscripción?"
+                     Mensaje="@MensajeConfirmacionVincular"
+                     TextoBotonConfirmar="Vincular suscripción"
+                     EnProgreso="_vinculando"
+                     OnConfirmar="VincularAsync" />
+
+<DialogoConfirmacion Visible="_tenantAActualizar is not null" VisibleChanged="CerrarConfirmacionActualizar"
+                     Titulo="¿Actualizar el estado comercial desde Stripe?"
+                     Mensaje="@MensajeConfirmacionActualizar"
+                     TextoBotonConfirmar="Actualizar desde Stripe"
+                     EnProgreso="_actualizandoTenantId is not null"
+                     OnConfirmar="ActualizarDesdeStripeAsync" />
 
 @code {
     private static TonoBadge TonoDe(EstadoComercialTenant estado) => estado switch

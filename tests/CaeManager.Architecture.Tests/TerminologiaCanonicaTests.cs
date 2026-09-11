@@ -211,10 +211,20 @@ public class TerminologiaCanonicaTests
     /// sigue el régimen viejo y sí contaba. Era su única aparición del término; el
     /// texto pasa a «se sube y se valida aquí». Neto <b>−1</b>.
     /// </para>
+    ///
+    /// <para>
+    /// <b><c>Hydra</c> 54 → 53 (Estado comercial Gen 2, 2026-09-11).</b> La única
+    /// aparición retirada es texto de marcado de <c>EstadoComercial.razor</c>
+    /// —la entradilla antigua decía «se crea en Stripe fuera de Hydra»—, que
+    /// cuenta porque en <c>.razor</c> sigue el régimen crudo descrito arriba.
+    /// Independiente de la retirada de Subcontrata 360 (otro fichero): las dos
+    /// suman. Medido con este mismo test sobre el árbol ya rebasado sobre la
+    /// entrada de Subcontrata 360: 53.
+    /// </para>
     /// </summary>
     private static readonly Dictionary<string, int> Congelado = new()
     {
-        ["Hydra"] = 54,
+        ["Hydra"] = 53,
         ["EjecutivoUsuarioId"] = 48,
         ["Delegacion"] = 290,
         ["ClienteActivo"] = 68,
