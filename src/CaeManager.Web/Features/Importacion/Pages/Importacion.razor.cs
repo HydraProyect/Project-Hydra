@@ -20,10 +20,18 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
     private const long TamanoMaximoCaeCompletaBytes = 20 * 1024 * 1024;
     private const long TamanoMaximoPlantillaBytes = 5 * 1024 * 1024;
     private const string IdPlantillaClientes = "clientes";
+    private const string IdPlantillaCombinada = "combinada";
 
+    /// <param name="NombreIcono">Icono del catálogo (Icono.razor) de la tarjeta, el del mockup.</param>
+    /// <param name="NombreCorto">
+    /// Nombre de la plantilla en «Continuar con …»: el mockup lo corta en el
+    /// primer « (» o «:» (<c>title.split(' (')[0].split(':')[0]</c>). La zona
+    /// de soltar sigue usando <see cref="DefinicionPlantilla.Titulo"/> entero,
+    /// como pinta el mockup «Importar Combinado».
+    /// </param>
     private sealed record DefinicionPlantilla(
-        string Id, string Icono, string Titulo, string Descripcion, string? RutaPlantillaBlanco, long TamanoMaximoBytes,
-        string NombreHistorial);
+        string Id, string NombreIcono, string Titulo, string NombreCorto, string Descripcion, string? RutaPlantillaBlanco,
+        long TamanoMaximoBytes, string NombreHistorial);
 
     /// <summary>
     /// Copy y orden fieles al array TEMPLATES del mockup real (Importar
@@ -60,22 +68,51 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         // PlanImportacionDto sin romper el emparejamiento posicional de
         // Centros_Plataformas con Asignaciones ni la causal de Asignación
         // que exige DCR-12 (ver IMPORTACION.md § 3 bis).
-        new("cae", "CAE", "Importación CAE completa (multi-hoja)",
-            "Clientes, empresas, centros, trabajadores y sus documentos en un solo libro (Cuadro de Control CAE) que ya existe. No da de alta ningún Cliente empresarial ni Centro nuevos — solo reutiliza los que ya existan. Para incorporar un cliente nuevo con su estructura completa, usa Combinada.",
+        new("cae", "importar", "Importación CAE completa (multi-hoja)", "Importación CAE completa",
+            "Clientes, empresas, centros, trabajadores y sus documentos en un solo libro (Cuadro de Control CAE) que ya existe. No da de alta ningún Cliente empresarial ni Centro nuevos — solo reutiliza los que ya existan. Para incorporar un Cliente empresarial nuevo con su estructura completa, usa Combinada.",
             null, TamanoMaximoCaeCompletaBytes, "CAE completa"),
         // La descripción NO es la del mockup («Solo clientes con sus datos
         // fiscales y de contacto»): la plantilla no recoge CIF, que es el dato
         // fiscal, y por eso EjecutarImportacionCommandHandler omite toda fila
         // cuyo Cliente empresarial o Centro no exista ya. Se dice lo que hace.
-        new(IdPlantillaClientes, "CLI", "Plantilla de Clientes",
+        new(IdPlantillaClientes, "clientes", "Plantilla de Clientes", "Plantilla de Clientes",
             "Una fila por nombre de Cliente empresarial y Centro, con criticidad, dirección y contacto. No recoge CIF ni Empresa, así que no da de alta ninguno nuevo.",
             "/clientes/plantilla.xlsx", TamanoMaximoPlantillaBytes, "Clientes"),
-        new("combinada", "CMB", "Combinada: Cliente + Empresas + Centros + Trabajadores",
-            "Estructura organizativa completa sin documentos. Útil al incorporar un cliente nuevo con su plantilla.",
+        // El título conserva «Cliente» a secas: es el nombre que pinta el
+        // mockup «Importar Combinado» en la zona de soltar y el que busca el
+        // E2E. Es deuda terminológica (la hoja «Clientes» crea Empresas en
+        // papel de Cliente empresarial), no un concepto nuevo.
+        new(IdPlantillaCombinada, "empresas", "Combinada: Cliente + Empresas + Centros + Trabajadores", "Combinada",
+            "Estructura organizativa completa sin documentos. Útil al incorporar un Cliente empresarial nuevo con su plantilla.",
             "/clientes/plantilla-combinada.xlsx", TamanoMaximoPlantillaBytes, "Combinada"),
-        new("documentos", "DOC", "Documentos",
+        new("documentos", "documentos", "Documentos", "Documentos",
             "Lote de documentos con propietario y tipo por fila. Los PDF se aportan después con subida múltiple.",
             "/documentos/plantilla.xlsx", TamanoMaximoPlantillaBytes, "Documentos")
+    ];
+
+    private sealed record HojaCombinada(int Numero, string Nombre, IReadOnlyList<string> Columnas, string Regla);
+
+    /// <summary>
+    /// Las cuatro hojas de la Combinada en el orden en que las lee
+    /// ClosedXmlPlantillaCombinadaService.AnalizarAsync (Clientes → Empresas →
+    /// Centros → Trabajadores), con los rótulos de cabecera que escribe su
+    /// GenerarPlantilla —el test ImportarDatosGen2 las compara con la plantilla
+    /// real generada— y la regla que el lector aplica a cada una: CIF válido
+    /// (AnalizarClientes), asociación descartada con aviso y Empresa creada
+    /// igual (AnalizarEmpresas), Cliente y Empresa obligatorios y resueltos
+    /// (AnalizarCentros), documento con dígito de control y Empresa resuelta
+    /// (AnalizarTrabajadores). Si el lector cambia una regla, este texto va con él.
+    /// </summary>
+    private static readonly IReadOnlyList<HojaCombinada> HojasCombinada =
+    [
+        new(1, "Clientes", ["Razón social", "CIF", "Crítico (C/N)"],
+            "Cada fila es un Cliente empresarial. Sin CIF válido, la fila se omite entera."),
+        new(2, "Empresas", ["Razón social", "Clientes asociados (separados por ;)"],
+            "Cada Cliente empresarial citado se busca en el sistema y en la hoja 1. Si no aparece, esa asociación se descarta con un aviso y la Empresa se crea igual."),
+        new(3, "Centros", ["Nombre", "Cliente", "Empresa", "Código", "Dirección", "Contacto", "Contrato vigente hasta"],
+            "Cliente y Empresa son obligatorios y tienen que existir en el sistema o en las hojas 1 y 2."),
+        new(4, "Trabajadores", ["Nombre", "Apellidos", "DNI", "Empresa", "Fecha de nacimiento", "Email"],
+            "DNI, NIE o CIF con dígito de control válido. La Empresa tiene que existir en el sistema o en la hoja 2.")
     ];
 
     private static readonly IReadOnlyList<string> NombresPasos =
@@ -115,12 +152,17 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
     private string _plantillaId = "cae";
 
     /// <summary>
-    /// Se llegó desde Clientes (su enlace «Importar clientes», o el marcador
-    /// /clientes/importar, que redirige aquí): la página se titula como el
-    /// mockup «Importar Clientes» y ofrece la vuelta a Clientes. Es contexto
-    /// de navegación, no de autorización.
+    /// Plantilla con la que se llegó desde Clientes: sus enlaces «Importar
+    /// clientes» e «Importación combinada», o los marcadores
+    /// /clientes/importar y /clientes/importar-combinado, que redirigen aquí
+    /// (H-1). Con ella la página ofrece la vuelta a Clientes y, mientras siga
+    /// elegida, se titula como su mockup («Importar Clientes» o «Importar
+    /// Combinado»). <c>null</c> si no se llegó desde Clientes. Es contexto de
+    /// navegación, no de autorización.
     /// </summary>
-    private bool _desdeClientes;
+    private string? _plantillaDesdeClientes;
+
+    private bool DesdeClientes => _plantillaDesdeClientes is not null;
 
     // Cada análisis y cada carga del historial se numera antes de su primer
     // await; la respuesta que vuelve con un número que ya no es el vigente se
@@ -141,12 +183,88 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         if (PlantillaInicial is not null && Plantillas.Any(p => p.Id == PlantillaInicial))
             _plantillaId = PlantillaInicial;
 
-        _desdeClientes = PlantillaInicial == IdPlantillaClientes;
+        if (PlantillaInicial is IdPlantillaClientes or IdPlantillaCombinada)
+            _plantillaDesdeClientes = PlantillaInicial;
     }
 
     private bool EsPlantillaClientes => _plantillaId == IdPlantillaClientes;
 
-    private string TituloPagina => _desdeClientes && EsPlantillaClientes ? "Importar clientes" : "Importar datos";
+    private bool EsPlantillaCombinada => _plantillaId == IdPlantillaCombinada;
+
+    /// <summary>
+    /// Entradilla del mockup «Importar Combinado», con el apellido que el
+    /// mockup no pone: lo que crea la hoja «Clientes» son Clientes empresariales.
+    /// </summary>
+    private static readonly RenderFragment EntradillaCombinada = builder => builder.AddContent(0,
+        "Estructura organizativa completa sin documentos: Clientes empresariales, Empresas, Centros y Trabajadores en un solo libro de cuatro hojas. Útil al incorporar un Cliente empresarial nuevo con su plantilla.");
+
+    private string TextoSinNadaNuevo
+    {
+        get
+        {
+            var n = TotalReutilizados;
+            var sujeto = n == 1 ? "El único registro del archivo ya existe" : $"Los {n} registros del archivo ya existen";
+            return $"{sujeto} en el sistema. No es un archivo vacío: es una importación que no añadiría nada. " +
+                "Si lo que quieres es actualizarlos, marca «Reemplazar los campos ya rellenados» en el paso siguiente.";
+        }
+    }
+
+    private string ClaseVistaPlan(bool arbol) =>
+        arbol == _vistaArbolPlan ? "vista-plan-importacion vista-plan-importacion-activa" : "vista-plan-importacion";
+
+    /// <summary>Se llegó desde Clientes con la Combinada y sigue elegida: cabecera del mockup «Importar Combinado».</summary>
+    private bool EsCombinadaDesdeClientes => _plantillaDesdeClientes == IdPlantillaCombinada && _plantillaId == IdPlantillaCombinada;
+
+    private string TituloPagina =>
+        _plantillaDesdeClientes is not null && _plantillaDesdeClientes == _plantillaId
+            ? _plantillaId == IdPlantillaClientes ? "Importar clientes" : "Importación combinada"
+            : "Importar datos";
+
+    // Mismas vistas del paso 3 que el mockup «Importar Combinado»: el árbol
+    // de lo que se va a crear (por defecto) o la lista plana de ProyectarFilas.
+    private bool _vistaArbolPlan = true;
+
+    /// <summary>
+    /// Registros del plan de la Combinada que ya existen (el YaExiste del DTO,
+    /// en sus cuatro listas): no son altas ni descartes, se reutilizan y, sin
+    /// «Reemplazar», solo se completa lo vacío. Las plantillas simples no los
+    /// cuentan: ninguna actualiza nada.
+    /// </summary>
+    private int TotalReutilizados => _planCombinada is { } pc
+        ? pc.Clientes.Count(c => c.YaExiste) + pc.Empresas.Count(e => e.YaExiste)
+            + pc.Centros.Count(c => c.YaExiste) + pc.Trabajadores.Count(t => t.YaExiste)
+        : 0;
+
+    /// <summary>
+    /// El archivo se leyó entero y todo lo que trae ya existe: ni altas, ni
+    /// avisos, ni omitidos. No es un archivo vacío (eso daría 0 reutilizados).
+    /// </summary>
+    private bool CombinadaSinNadaNuevo => _planCombinada is not null && TotalACrear == 0
+        && TotalAdvertencias == 0 && TotalOmitidos == 0 && TotalReutilizados > 0;
+
+    /// <summary>
+    /// Alcance real de «Reemplazar» según EjecutarImportacionCombinadaCommandHandler:
+    /// un dato del archivo distinto sustituye al que había (ResolverTexto, y
+    /// en el Cliente empresarial razón social y Crítico tal como vengan); las
+    /// asociaciones Empresa↔Cliente empresarial que su celda no nombre se
+    /// cierran, también con la celda vacía; y un texto o fecha en blanco no
+    /// borra lo que había. El mockup decía solo lo último.
+    /// </summary>
+    private string TextoAvisoReemplazar
+    {
+        get
+        {
+            var n = TotalReutilizados;
+            if (n == 0)
+                return "Ningún registro de este archivo existe todavía, así que marcarla no cambia nada.";
+
+            var sujeto = n == 1 ? "el registro que ya existía toma" : $"los {n} registros que ya existían toman";
+            return $"Con esta casilla marcada, {sujeto} lo que traiga el archivo: un dato distinto sustituye al que había, " +
+                "y la razón social y la marca Crítico de cada Cliente empresarial se toman tal como vengan. En cada Empresa, " +
+                "las asociaciones con Clientes empresariales que su celda no nombre se cierran, también si la celda viene vacía. " +
+                "Un texto o una fecha que el archivo deje en blanco no borra lo que había.";
+        }
+    }
 
     private string? _nombreArchivo;
     private bool _analizando;
@@ -281,8 +399,23 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         _plantillaPorEnfocar = destino;
     }
 
+    // Al cambiar de paso, el control que tenía el foco («Continuar…», «Ver
+    // plan…», el paso del indicador) desaparece con el paso anterior: sin
+    // moverlo, teclado y lector de pantalla se quedan sin contexto. Cada paso
+    // pinta un único <h2> con esta referencia (la cadena if/else de _step), y
+    // el foco va a él cuando el paso pintado ya no es el último enfocado. El
+    // paso inicial cuenta como enfocado: al entrar no se roba el foco.
+    private ElementReference _tituloPaso;
+    private int _pasoEnfocado = 1;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (_step != _pasoEnfocado)
+        {
+            _pasoEnfocado = _step;
+            await _tituloPaso.FocusAsync();
+        }
+
         if (_plantillaPorEnfocar is not { } indice) return;
 
         _plantillaPorEnfocar = null;

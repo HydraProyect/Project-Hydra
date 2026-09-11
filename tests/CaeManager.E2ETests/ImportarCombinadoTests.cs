@@ -92,7 +92,9 @@ public class ImportarCombinadoTests(WebAppFixture fixture)
             await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes/importar-combinado");
             await Expect(page).ToHaveURLAsync(new Regex(@"/importacion\?plantilla=combinada$"));
 
-            await page.GetByText("Continuar con Combinada: Cliente + Empresas + Centros + Trabajadores").ClickAsync();
+            // El botón lleva el nombre corto de la plantilla, como el mockup
+            // «Importar datos» (el título entero sigue en la zona de soltar).
+            await page.GetByText("Continuar con Combinada").ClickAsync();
             await Ayudas.SubirArchivoDeImportacionAsync(page, rutaExcel);
 
             // --- Paso 2 "Revisar plan": las 4 altas nuevas y la fila inválida ya aislada ---

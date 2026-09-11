@@ -1,0 +1,186 @@
+@using CaeManager.Application.Importacion
+@using CaeManager.Web.Components.DesignSystem
+
+@*
+    Árbol de lo que la plantilla Combinada va a crear o reutilizar (paso 3 de
+    /importacion), del mockup «Importar Combinado TALVEG.dc.html». Sin dato
+    nuevo: se compone con PlanImportacionCombinadaDto tal como ya viaja
+    (Clientes, Empresas.ClientesAsociados, Centros.RazonSocialCliente y
+    RazonSocialEmpresa, Trabajadores.RazonSocialEmpresa).
+
+    Cliente empresarial → Empresa → Centros y Trabajadores. «Ya existe · se
+    reutiliza» es gris: no es un alta ni un descarte, es el YaExiste del DTO.
+    Un Cliente empresarial o una Empresa que no vienen en su hoja pero que el
+    archivo cita solo pueden venir del sistema —el lector
+    (ClosedXmlPlantillaCombinadaService) omite cualquier referencia que no
+    resuelva ahí o en la hoja—, así que salen como reutilizados. La
+    Empresa que no cuelga de ningún Cliente empresarial va bajo «Sin Cliente
+    empresarial asociado». Una Empresa asociada a varios Clientes
+    empresariales sale bajo cada uno, con sus Trabajadores: el árbol enseña
+    estructura, los recuentos son los de los badges.
+
+    Solo lista altas y reutilizados. Los avisos y omitidos los pinta la
+    página debajo, como antes en la lista plana.
+*@
+<div class="arbol-plan-importacion">
+    @if (Nodos.Count == 0)
+    {
+        <p class="arbol-plan-vacio">El plan no trae nada que crear ni que reutilizar.</p>
+    }
+    else
+    {
+        <ul class="arbol-plan-lista">
+            @foreach (var cliente in Nodos)
+            {
+                <li class="@(cliente.YaExiste == false ? "arbol-plan-rama arbol-plan-rama-nueva" : "arbol-plan-rama")" data-nodo-cliente="@cliente.Nombre">
+                    <div class="arbol-plan-fila">
+                        <span class="arbol-plan-icono" aria-hidden="true"><Icono Nombre="clientes" /></span>
+                        <span class="arbol-plan-nombre-cliente">@cliente.Nombre</span>
+                        @if (cliente.Meta is not null)
+                        {
+                            <span class="arbol-plan-meta">@cliente.Meta</span>
+                        }
+                        @if (cliente.YaExiste is { } clienteYaExiste)
+                        {
+                            <Badge Tono="@Tono(clienteYaExiste)">@Estado(clienteYaExiste)</Badge>
+                        }
+                    </div>
+
+                    @if (cliente.Empresas.Count > 0)
+                    {
+                        <ul class="arbol-plan-sublista">
+                            @foreach (var empresa in cliente.Empresas)
+                            {
+                                <li class="arbol-plan-rama" data-nodo-empresa="@empresa.Nombre">
+                                    <div class="arbol-plan-fila">
+                                        <span class="arbol-plan-icono" aria-hidden="true"><Icono Nombre="empresas" Tamano="TamanoIcono.Pequeno" /></span>
+                                        <span class="arbol-plan-nombre-empresa">@empresa.Nombre</span>
+                                        <Badge Tono="@Tono(empresa.YaExiste)">@Estado(empresa.YaExiste)</Badge>
+                                    </div>
+
+                                    @if (empresa.Hijos.Count > 0)
+                                    {
+                                        <ul class="arbol-plan-sublista">
+                                            @foreach (var hijo in empresa.Hijos)
+                                            {
+                                                <li class="arbol-plan-rama arbol-plan-fila" data-nodo-hijo="@hijo.Tipo">
+                                                    <span class="arbol-plan-icono" aria-hidden="true"><Icono Nombre="@hijo.Tipo" Tamano="TamanoIcono.Pequeno" /></span>
+                                                    <span class="arbol-plan-nombre-hijo">@hijo.Nombre</span>
+                                                    <span class="arbol-plan-meta">@hijo.Meta</span>
+                                                    <Badge Tono="@Tono(hijo.YaExiste)">@Estado(hijo.YaExiste)</Badge>
+                                                </li>
+                                            }
+                                        </ul>
+                                    }
+                                </li>
+                            }
+                        </ul>
+                    }
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    public const string TextoSeCreara = "Se creará";
+    public const string TextoSeReutiliza = "Ya existe · se reutiliza";
+    public const string NombreGrupoSinCliente = "Sin Cliente empresarial asociado";
+
+    [Parameter, EditorRequired] public PlanImportacionCombinadaDto Plan { get; set; } = default!;
+
+    /// <param name="Tipo">Nombre del icono del catálogo: "centros" o "trabajadores".</param>
+    public sealed record NodoHijo(string Tipo, string Nombre, string Meta, bool YaExiste);
+
+    public sealed record NodoEmpresa(string Nombre, bool YaExiste, IReadOnlyList<NodoHijo> Hijos);
+
+    /// <param name="YaExiste"><c>null</c> en el grupo «Sin Cliente empresarial asociado», que no es un registro.</param>
+    public sealed record NodoCliente(string Nombre, string? Meta, bool? YaExiste, IReadOnlyList<NodoEmpresa> Empresas);
+
+    private IReadOnlyList<NodoCliente> Nodos { get; set; } = [];
+
+    protected override void OnParametersSet() => Nodos = Construir(Plan);
+
+    private static TonoBadge Tono(bool yaExiste) => yaExiste ? TonoBadge.Neutro : TonoBadge.Exito;
+
+    private static string Estado(bool yaExiste) => yaExiste ? TextoSeReutiliza : TextoSeCreara;
+
+    /// <summary>
+    /// Compone el árbol. Los nombres se comparan sin distinguir mayúsculas,
+    /// como el lector (StringComparer.OrdinalIgnoreCase en todas sus
+    /// búsquedas), y se pinta el primero que aparece: el de la hoja, si viene.
+    /// </summary>
+    public static IReadOnlyList<NodoCliente> Construir(PlanImportacionCombinadaDto plan)
+    {
+        var comparador = StringComparer.OrdinalIgnoreCase;
+        var clientesHoja = new Dictionary<string, ClienteImportadoDto>(comparador);
+        foreach (var cliente in plan.Clientes)
+            clientesHoja.TryAdd(cliente.RazonSocial, cliente);
+
+        var empresasHoja = new Dictionary<string, EmpresaCombinadaImportadaDto>(comparador);
+        foreach (var empresa in plan.Empresas)
+            empresasHoja.TryAdd(empresa.RazonSocial, empresa);
+
+        var nombresClientes = SinRepetir(plan.Clientes.Select(c => c.RazonSocial)
+            .Concat(plan.Empresas.SelectMany(e => e.ClientesAsociados))
+            .Concat(plan.Centros.Select(c => c.RazonSocialCliente)));
+
+        var empresasColocadas = new HashSet<string>(comparador);
+        var nodos = new List<NodoCliente>();
+
+        foreach (var nombreCliente in nombresClientes)
+        {
+            var nombresEmpresas = SinRepetir(plan.Empresas
+                .Where(e => e.ClientesAsociados.Contains(nombreCliente, comparador)).Select(e => e.RazonSocial)
+                .Concat(plan.Centros.Where(c => comparador.Equals(c.RazonSocialCliente, nombreCliente)).Select(c => c.RazonSocialEmpresa)));
+            empresasColocadas.UnionWith(nombresEmpresas);
+
+            var (meta, yaExiste) = clientesHoja.TryGetValue(nombreCliente, out var filaCliente)
+                ? ($"CIF {filaCliente.Cif}", filaCliente.YaExiste)
+                : ("No viene en la hoja Clientes", true);
+
+            nodos.Add(new NodoCliente(nombreCliente, meta, yaExiste,
+                [.. nombresEmpresas.Select(e => Empresa(e, nombreCliente))]));
+        }
+
+        var empresasSueltas = SinRepetir(plan.Empresas.Select(e => e.RazonSocial)
+                .Concat(plan.Trabajadores.Select(t => t.RazonSocialEmpresa)))
+            .Where(e => !empresasColocadas.Contains(e)).ToList();
+        if (empresasSueltas.Count > 0)
+            nodos.Add(new NodoCliente(NombreGrupoSinCliente, null, null, [.. empresasSueltas.Select(e => Empresa(e, null))]));
+
+        return nodos;
+
+        NodoEmpresa Empresa(string nombreEmpresa, string? nombreCliente)
+        {
+            var centros = nombreCliente is null
+                ? []
+                : plan.Centros
+                    .Where(c => comparador.Equals(c.RazonSocialCliente, nombreCliente) && comparador.Equals(c.RazonSocialEmpresa, nombreEmpresa))
+                    .Select(c => new NodoHijo("centros", c.Nombre, MetaCentro(c), c.YaExiste));
+            var trabajadores = plan.Trabajadores
+                .Where(t => comparador.Equals(t.RazonSocialEmpresa, nombreEmpresa))
+                .Select(t => new NodoHijo("trabajadores", $"{t.Nombre} {t.Apellidos}", t.Dni, t.YaExiste));
+
+            // Fuera de la hoja Empresas solo puede venir del sistema.
+            var yaExiste = !empresasHoja.TryGetValue(nombreEmpresa, out var filaEmpresa) || filaEmpresa.YaExiste;
+            return new NodoEmpresa(filaEmpresa?.RazonSocial ?? nombreEmpresa, yaExiste, [.. centros, .. trabajadores]);
+        }
+
+        List<string> SinRepetir(IEnumerable<string> nombres)
+        {
+            var vistos = new HashSet<string>(comparador);
+            return [.. nombres.Where(vistos.Add)];
+        }
+    }
+
+    private static string MetaCentro(CentroImportadoDto centro)
+    {
+        var partes = new List<string>();
+        if (!string.IsNullOrWhiteSpace(centro.CodigoCentro))
+            partes.Add($"Código {centro.CodigoCentro}");
+        if (centro.ContratoVigenteHasta is { } hasta)
+            partes.Add($"contrato hasta {hasta:dd/MM/yyyy}");
+        return partes.Count == 0 ? "Sin código" : string.Join(" · ", partes);
+    }
+}
