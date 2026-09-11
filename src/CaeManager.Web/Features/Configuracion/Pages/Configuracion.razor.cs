@@ -26,11 +26,12 @@ public partial class Configuracion : ComponentBase
     /// hoy solo "plataforma") solo llega a este hub por "/configuracion?entry=…"
     /// o por deep-link forzado; el clic normal en la subnav ya va directo a su
     /// ruta literal (más específica que "/configuracion/{EntradaRuta?}") y
-    /// nunca instancia este componente. Sin este redirect, el hub mostraría
-    /// "Pantalla pendiente de especificación" sobre una pantalla que sí
-    /// existe — un mensaje falso, y el mismo defecto que motivó retirar "2fa"
-    /// (A-08), pero invertido: aquí la pantalla existe y el hub miente al
-    /// decir que no. Corregido tras revisión de la coordinadora del turno.
+    /// nunca instancia este componente. Este redirect cubre las dos vías (la
+    /// ruta y el parámetro de query pasan ambos por EntradaEfectiva). Mientras
+    /// llega, el hub dice la verdad —la sección tiene pantalla propia— y ofrece
+    /// el enlace; antes decía "Pantalla pendiente de especificación" sobre una
+    /// pantalla que sí existe, el mismo defecto que motivó retirar "2fa"
+    /// (A-08), pero invertido.
     /// </summary>
     protected override void OnParametersSet()
     {
@@ -43,13 +44,20 @@ public partial class Configuracion : ComponentBase
         ? $"{entrada.Nombre} — Configuración"
         : "Configuración";
 
+    /// <param name="Entradilla">
+    /// Solo para paneles propios del hub que no pintan cabecera: el hub les
+    /// pone el h2 (su Nombre) y esta entradilla. Las páginas integrables y
+    /// los paneles con cabecera propia (Automatizaciones) la dejan en null,
+    /// o saldrían dos títulos seguidos.
+    /// </param>
     private sealed record EntradaConfiguracion(
         string Id,
         string Icono,
         string Nombre,
         string Descripcion,
         Type? TipoPanel,
-        bool EsPaginaIntegrable = true);
+        bool EsPaginaIntegrable = true,
+        string? Entradilla = null);
 
     private sealed record GrupoConfiguracion(string Titulo, IReadOnlyList<EntradaConfiguracion> Entradas);
 
@@ -102,15 +110,12 @@ public partial class Configuracion : ComponentBase
             // descubrimiento (H-2/DEC-2): al pulsarla, la ruta literal
             // "/configuracion/plataforma" (más específica que
             // "/configuracion/{EntradaRuta?}") gana en el router de Blazor y
-            // resuelve su propio gate. LÍMITE CONOCIDO (hallado en revisión
-            // adversaria de Codex, no bloqueante): navegar a
-            // "/configuracion?entry=plataforma" SÍ hace que este hub resuelva
-            // la entrada por el parámetro de query (ver EntradaEfectiva) y
-            // muestre el placeholder de abajo en vez de redirigir — ese acceso
-            // sigue exigiendo el rol Administrador del propio hub, así que no
-            // es una fuga de autorización, solo un callejón sin salida para
-            // quien construya esa URL a mano; el mismo límite ya existía para
-            // cualquier entrada con TipoPanel null (antes "2fa").
+            // resuelve su propio gate. Si se llega por
+            // "/configuracion?entry=plataforma", el hub resuelve la entrada por
+            // el parámetro de query (ver EntradaEfectiva) y OnParametersSet
+            // redirige igualmente a la ruta literal; ese acceso exige además el
+            // rol Administrador del propio hub, así que no es fuga de
+            // autorización.
             new("plataforma", "PL", "Administración de plataforma", "Inicialización e identidad raíz", null, false)
         ]),
         new("Catálogos y datos",
@@ -121,7 +126,14 @@ public partial class Configuracion : ComponentBase
             // en la entradilla de la pantalla a la vez (su nota «OJO»).
             new("ia", "IA", "Lectura IA por Cliente empresarial", "Restricción por tipo de documento", typeof(SeleccionarClienteLecturaIa)),
             new("macros", "MA", "Macros de respuesta", "Plantillas de comunicación", typeof(Features.Comunicaciones.Pages.Macros)),
-            new("params", "PS", "Parámetros del sistema", "Umbrales del semáforo", typeof(Components.ParametrosSistemaPanel), false),
+            // El mockup pone de entradilla «Umbrales que gobiernan el semáforo
+            // documental de toda la cartera» y promete que el cambio «recalcula
+            // los estados en la próxima pasada nocturna». No hay pasada
+            // nocturna (el estado se calcula en vivo, ver AutomatizacionesPanel)
+            // y el panel tiene además jornada, medición de tiempo y
+            // presupuesto de IA: la entradilla dice lo que el panel contiene.
+            new("params", "PS", "Parámetros del sistema", "Umbrales del semáforo", typeof(Components.ParametrosSistemaPanel), false,
+                "Umbrales del semáforo documental, franja de jornada y medición de tiempo, y aviso de gasto en IA."),
             new("retencion", "RT", "Retención de datos", "Plazos de borrado", typeof(Features.Retencion.Pages.Retencion))
         ]),
         new("Auditoría",
