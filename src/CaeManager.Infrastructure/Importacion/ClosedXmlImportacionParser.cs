@@ -81,9 +81,17 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
     {
         using var libro = new XLWorkbook(archivo);
 
-        // F3b — Empresas, no la tabla legacy Clientes.
+        // F3b — Empresas, no la tabla legacy Clientes. Cliente empresarial
+        // específicamente (EsCritico != null, igual que
+        // EjecutarImportacionCommandHandler y ObtenerClientesQuery) — no
+        // cualquier Empresa con ese nombre. A diferencia de
+        // razonesSocialesExistentes (de abajo, para Empleados/Extranjeros,
+        // donde cualquier Empresa sí es la respuesta correcta), aquí
+        // "cliente" tiene un significado específico y una Subcontrata u otra
+        // Empresa homónima no lo satisface.
         var nombresClientesExistentes = new HashSet<string>(
-            await empresasContext.Empresas.Select(c => c.RazonSocial).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
+            await empresasContext.Empresas.Where(e => e.EsCritico != null).Select(c => c.RazonSocial).ToListAsync(cancellationToken),
+            StringComparer.OrdinalIgnoreCase);
         var nombresCentrosExistentes = new HashSet<string>(
             await centrosContext.Centros.Select(c => c.Nombre).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
         var razonesSocialesExistentes = new HashSet<string>(
