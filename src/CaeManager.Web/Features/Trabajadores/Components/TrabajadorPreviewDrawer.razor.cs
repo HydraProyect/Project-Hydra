@@ -46,7 +46,15 @@ public partial class TrabajadorPreviewDrawer : ComponentBase
         _cargando = true;
         StateHasChanged();
 
-        _detalle = await Mediator.Send(new ObtenerTrabajadorPorIdQuery(trabajadorId));
+        var detalle = await Mediator.Send(new ObtenerTrabajadorPorIdQuery(trabajadorId));
+
+        // Abrir la vista previa de A y enseguida la de B lanza dos consultas.
+        // Si la de A vuelve la última, sin esto el panel titulado por B
+        // enseñaría los datos de A. _idCargado es la pregunta vigente.
+        if (_idCargado != trabajadorId)
+            return;
+
+        _detalle = detalle;
         _cargando = false;
         StateHasChanged();
     }
