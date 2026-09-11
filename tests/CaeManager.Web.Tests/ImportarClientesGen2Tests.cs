@@ -56,7 +56,7 @@ namespace CaeManager.Web.Tests;
 /// con la plantilla real que genera <see cref="ClosedXmlPlantillaClientesService"/>.
 /// </para>
 /// </summary>
-public class ImportarClientesGen2Tests : BunitContext
+public partial class ImportarClientesGen2Tests : BunitContext
 {
     /// <summary>ZonaSoltarArchivo y Modal importan módulos JS: quedan fuera de lo que se observa aquí.</summary>
     public ImportarClientesGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
@@ -518,7 +518,7 @@ public class ImportarClientesGen2Tests : BunitContext
     public async Task Con_otra_plantilla_el_paso_2_no_enseña_las_columnas_de_Clientes()
     {
         var (cut, _) = Renderizar(new Escenario(), url: "importacion");
-        await Pulsar(cut, "Continuar con Importación CAE completa (multi-hoja)");
+        await Pulsar(cut, "Continuar con Importación CAE completa");
 
         cut.FindAll(".columnas-plantilla-importacion").Should().BeEmpty();
     }
@@ -591,7 +591,7 @@ public class ImportarClientesGen2Tests : BunitContext
         escenario.Plan<AnalizarImportacionExcelQuery>("cae", [Fila("Obra Norte")], empresas: [new EmpresaImportadaDto("Montajes Ebro S.A.", false)]);
         var (cut, _) = Renderizar(escenario, url: "importacion");
 
-        await Pulsar(cut, "Continuar con Importación CAE completa (multi-hoja)");
+        await Pulsar(cut, "Continuar con Importación CAE completa");
         await Subir(cut, "cae.xlsx", "cae");
         await Pulsar(cut, "Ver plan de importación");
 
@@ -801,7 +801,7 @@ public class ImportarClientesGen2Tests : BunitContext
 
         foreach (var paso in new[] { "Analizar", "Revisar plan", "Confirmar", "Reporte" })
             PasoDelIndicador(cut, paso).HasAttribute("disabled").Should().BeTrue($"«{paso}» dependía del plan de la otra plantilla");
-        await Pulsar(cut, "Continuar con Importación CAE completa (multi-hoja)");
+        await Pulsar(cut, "Continuar con Importación CAE completa");
         Boton(cut, "Ver plan de importación").HasAttribute("disabled").Should().BeTrue(
             "el análisis de la Plantilla de Clientes terminó después del cambio y no puede confirmarse como CAE completa");
     }
@@ -1044,7 +1044,7 @@ public class ImportarClientesGen2Tests : BunitContext
             PasoDelIndicador(cut, paso).HasAttribute("disabled").Should().BeTrue($"«{paso}» dependía del plan de la Plantilla de Clientes");
         Campo<PlanImportacionDto?>(cut.Instance, "_planSimple").Should().BeNull("el plan era de la Plantilla de Clientes");
         Campo<bool>(cut.Instance, "_confirmado").Should().BeFalse("la revisión marcada era de ese plan");
-        await Pulsar(cut, "Continuar con Combinada: Cliente + Empresas + Centros + Trabajadores");
+        await Pulsar(cut, "Continuar con Combinada");
         Boton(cut, "Ver plan de importación").HasAttribute("disabled").Should().BeTrue();
     }
 
@@ -1067,7 +1067,7 @@ public class ImportarClientesGen2Tests : BunitContext
             new ClienteImportadoDto("Frío Turia S.A.", "A46000001", false, YaExiste: false)
         ]);
         var (cut, mediador) = Renderizar(escenario, url: "importacion?plantilla=combinada");
-        await Pulsar(cut, "Continuar con Combinada: Cliente + Empresas + Centros + Trabajadores");
+        await Pulsar(cut, "Continuar con Combinada");
         await Subir(cut, "combinada.xlsx", "combinada");
         await Pulsar(cut, "Ver plan de importación");
         await Pulsar(cut, "Continuar a confirmar");

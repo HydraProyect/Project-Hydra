@@ -1,0 +1,68 @@
+/* Árbol del plan de la Combinada, medidas del mockup «Importar Combinado». */
+.arbol-plan-importacion {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+}
+
+.arbol-plan-vacio {
+    margin: 0;
+    color: var(--color-text-muted);
+    font: var(--font-body-md);
+}
+
+.arbol-plan-lista,
+.arbol-plan-sublista {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.arbol-plan-sublista {
+    margin-left: var(--space-3);
+}
+
+.arbol-plan-rama {
+    border-left: 2px solid var(--color-border);
+    padding-left: var(--space-4);
+}
+
+.arbol-plan-rama-nueva {
+    border-left-color: var(--color-success-500);
+}
+
+.arbol-plan-fila {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: 44px;
+    flex-wrap: wrap;
+}
+
+.arbol-plan-icono {
+    display: inline-flex;
+    color: var(--color-text-muted);
+}
+
+.arbol-plan-nombre-cliente {
+    font: var(--font-body-lg);
+    font-weight: 700;
+}
+
+.arbol-plan-nombre-empresa {
+    font: var(--font-body-md);
+    font-weight: 600;
+}
+
+.arbol-plan-nombre-hijo {
+    font: var(--font-body-md);
+}
+
+.arbol-plan-meta {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}

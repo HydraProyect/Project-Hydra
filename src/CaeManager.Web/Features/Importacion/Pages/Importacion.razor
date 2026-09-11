@@ -10,13 +10,14 @@
 }
 
 <div class="@ClaseContenedorPagina">
-    @* Cabecera Gen 2. Con ?plantilla=clientes —el enlace «Importar clientes»
-       de Clientes y el marcador /clientes/importar, que redirige aquí— es la
-       del mockup «Importar Clientes TALVEG.dc.html»: vuelta a Clientes, ruta
-       y título propios. Sin él, la de «Importar datos». Las filas de esa
-       plantilla son Clientes empresariales del Tenant, no Clientes
-       comerciales TALVEG. *@
-    @if (_desdeClientes && !IntegradaEnConfiguracion)
+    @* Cabecera Gen 2. Con ?plantilla=clientes o ?plantilla=combinada —los
+       enlaces de Clientes y los marcadores /clientes/importar y
+       /clientes/importar-combinado, que redirigen aquí— es la de los mockups
+       «Importar Clientes» e «Importar Combinado»: vuelta a Clientes, ruta y
+       título propios, y en la Combinada su entradilla. Sin ellos, la de
+       «Importar datos». Las filas de esas plantillas son Clientes
+       empresariales del Tenant, no Clientes comerciales TALVEG. *@
+    @if (DesdeClientes && !IntegradaEnConfiguracion)
     {
         <div class="ruta-importacion">
             <a class="enlace-volver-importacion" href="/clientes"><Icono Nombre="volver" Tamano="TamanoIcono.Pequeno" /> Volver a Clientes</a>
@@ -28,7 +29,8 @@
         </div>
     }
 
-    <CabeceraPagina Titulo="@TituloPagina" Kicker="@(IntegradaEnConfiguracion ? null : "Configuración")" Integrada="IntegradaEnConfiguracion" />
+    <CabeceraPagina Titulo="@TituloPagina" Kicker="@(IntegradaEnConfiguracion ? null : "Configuración")" Integrada="IntegradaEnConfiguracion"
+                    Descripcion="@(EsCombinadaDesdeClientes ? EntradillaCombinada : null)" />
 
     <nav class="pasos-importacion" aria-label="Progreso de la importación">
         @for (var i = 0; i < NombresPasos.Count; i++)
@@ -89,7 +91,7 @@
                                     @onclick="() => SeleccionarPlantilla(plantilla.Id)"
                                     @onkeydown="e => ManejarTeclaPlantilla(e, indice)">
                                 <span class="cabecera-tarjeta-plantilla">
-                                    <span class="icono-tarjeta-plantilla" aria-hidden="true">@plantilla.Icono</span>
+                                    <span class="icono-tarjeta-plantilla" aria-hidden="true"><Icono Nombre="@plantilla.NombreIcono" Tamano="TamanoIcono.Pequeno" /></span>
                                     <span class="titulo-tarjeta-plantilla" id="@($"titulo-plantilla-{plantilla.Id}")">@plantilla.Titulo</span>
                                 </span>
                                 <span class="descripcion-tarjeta-plantilla" id="@($"descripcion-plantilla-{plantilla.Id}")">@plantilla.Descripcion</span>
@@ -103,7 +105,7 @@
                     }
                 </div>
                 <div class="acciones-formulario acciones-derecha">
-                    <Boton OnClick="ContinuarAAnalizar">Continuar con @PlantillaActual.Titulo</Boton>
+                    <Boton OnClick="ContinuarAAnalizar">Continuar con @PlantillaActual.NombreCorto</Boton>
                 </div>
             </div>
 
@@ -195,6 +197,34 @@
                 </section>
             }
 
+            @* Mockup «Importar Combinado», paso 2: las cuatro hojas en el orden
+               en que el lector las resuelve. Mismo papel que las columnas de
+               la hoja «Clientes» de arriba, para la otra plantilla con hojas
+               fijas. *@
+            @if (EsPlantillaCombinada)
+            {
+                <section class="hojas-combinada-importacion" aria-labelledby="hojas-combinada-titulo">
+                    <h3 id="hojas-combinada-titulo" class="titulo-hojas-combinada">Las cuatro hojas, y en qué orden se leen</h3>
+                    <ol class="rejilla-hojas-combinada">
+                        @foreach (var hoja in HojasCombinada)
+                        {
+                            <li class="tarjeta-hoja-combinada" data-hoja-combinada="@hoja.Nombre">
+                                <span class="cabecera-hoja-combinada">
+                                    <span class="numero-hoja-combinada" aria-hidden="true">@hoja.Numero</span>
+                                    <span class="nombre-hoja-combinada">@hoja.Nombre</span>
+                                </span>
+                                <span class="columnas-hoja-combinada">@string.Join(" · ", hoja.Columnas)</span>
+                                <span class="regla-hoja-combinada">@hoja.Regla</span>
+                            </li>
+                        }
+                    </ol>
+                    <p class="nota-hojas-combinada">
+                        Cada referencia se busca en lo que ya existe y en la hoja de este mismo libro que la declara: un Centro
+                        puede apuntar a un Cliente empresarial que todavía no existe si viene en la hoja Clientes.
+                    </p>
+                </section>
+            }
+
             <div class="acciones-formulario acciones-entre">
                 <Boton Variante="VarianteBoton.Secundario" OnClick="() => IrAPaso(1)">← Cambiar plantilla</Boton>
                 <Boton Deshabilitado="!TienePlan" OnClick="ContinuarARevisarPlan">Ver plan de importación</Boton>
@@ -209,8 +239,23 @@
                 <span class="detalle-revision-plan">@_nombreArchivo · nada escrito todavía</span>
             </div>
 
+            @if (CombinadaSinNadaNuevo)
+            {
+                @* Mockup «Importar Combinado», estado «Nada nuevo que crear»:
+                   ni badges ni lista, porque no hay nada que listar. Los
+                   botones de abajo siguen: el paso 4 es donde se elige
+                   reemplazar para actualizar lo que ya existe. *@
+                <EstadoVacio Titulo="El archivo se leyó entero, pero no hay nada nuevo que crear"
+                             Descripcion="@TextoSinNadaNuevo" NombreIcono="importar" />
+            }
+            else
+            {
             <div class="badges-resumen-plan">
                 <Badge Tono="TonoBadgeCrear" title="@TituloBadgeCrear">@TotalACrear se crearán</Badge>
+                @if (_planCombinada is not null)
+                {
+                    <Badge Tono="TonoBadge.Neutro" title="Ya existen: no son altas ni descartes. Sin «Reemplazar» solo se completan sus campos vacíos.">@TotalReutilizados ya existen · se reutilizan</Badge>
+                }
                 <Badge Tono="TonoBadge.Advertencia">@TotalAdvertencias con aviso</Badge>
                 <Badge Tono="TonoBadge.Peligro">@TotalOmitidos se omitirán</Badge>
             </div>
@@ -233,27 +278,65 @@
                 </div>
             }
 
-            <div class="tabla-plan-importacion-envoltorio">
-                <table class="tabla-datos">
-                    <thead>
-                        <tr>
-                            <th>Entidad</th>
-                            <th>Acción</th>
-                            <th>Motivo</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var fila in ProyectarFilas())
-                        {
+            @* Combinada: árbol de lo que se va a crear (por defecto, como el
+               mockup) o la lista plana de siempre. El árbol solo enseña altas
+               y reutilizados; los avisos y omitidos, que la lista plana ya
+               traía, se siguen enseñando debajo en vez de desaparecer. *@
+            @if (_planCombinada is not null)
+            {
+                <div class="vistas-plan-importacion" role="group" aria-label="Vista del plan">
+                    <button type="button" class="@ClaseVistaPlan(true)" aria-pressed="@(_vistaArbolPlan ? "true" : "false")"
+                            @onclick="() => _vistaArbolPlan = true">Árbol de lo que se va a crear</button>
+                    <button type="button" class="@ClaseVistaPlan(false)" aria-pressed="@(_vistaArbolPlan ? "false" : "true")"
+                            @onclick="() => _vistaArbolPlan = false">Lista plana</button>
+                </div>
+            }
+
+            @if (_planCombinada is { } planArbol && _vistaArbolPlan)
+            {
+                <ArbolPlanImportacion Plan="planArbol" />
+
+                @if (planArbol.Advertencias.Count > 0)
+                {
+                    <h3 class="titulo-items-plan">Avisos (@planArbol.Advertencias.Count)</h3>
+                    <div class="tabla-plan-importacion-envoltorio">
+                        <TablaItemsImportacion Items="planArbol.Advertencias" Tono="TonoBadge.Advertencia" />
+                    </div>
+                }
+
+                @if (planArbol.Omitidos.Count > 0)
+                {
+                    <h3 class="titulo-items-plan">Omitidos (@planArbol.Omitidos.Count)</h3>
+                    <div class="tabla-plan-importacion-envoltorio">
+                        <TablaItemsImportacion Items="planArbol.Omitidos" Tono="TonoBadge.Peligro" />
+                    </div>
+                }
+            }
+            else
+            {
+                <div class="tabla-plan-importacion-envoltorio">
+                    <table class="tabla-datos">
+                        <thead>
                             <tr>
-                                <td>@fila.Entidad</td>
-                                <td><Badge Tono="fila.Tono">@fila.Accion</Badge></td>
-                                <td>@fila.Motivo</td>
+                                <th>Entidad</th>
+                                <th>Acción</th>
+                                <th>Motivo</th>
                             </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
+                        </thead>
+                        <tbody>
+                            @foreach (var fila in ProyectarFilas())
+                            {
+                                <tr>
+                                    <td>@fila.Entidad</td>
+                                    <td><Badge Tono="fila.Tono">@fila.Accion</Badge></td>
+                                    <td>@fila.Motivo</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            }
 
             <div class="acciones-formulario acciones-entre">
                 <Boton Variante="VarianteBoton.Secundario" OnClick="() => IrAPaso(2)">← Volver al archivo</Boton>
@@ -281,6 +364,14 @@
                         <input type="checkbox" @bind="_reemplazarExistentes" />
                         Reemplazar los campos ya rellenados de los registros existentes (por defecto solo se completa lo vacío)
                     </label>
+
+                    @if (_reemplazarExistentes)
+                    {
+                        <div class="aviso-reemplazar-importacion" role="note">
+                            <span class="icono-aviso-reemplazar"><Icono Nombre="advertencia" /></span>
+                            <p class="texto-aviso-reemplazar">@TextoAvisoReemplazar</p>
+                        </div>
+                    }
                 }
 
                 <label class="casilla-confirmacion-importacion">
@@ -355,6 +446,13 @@
                     @if (EsPlantillaClientes && omitidosReporte.Count > 0)
                     {
                         <Boton Variante="VarianteBoton.Secundario" Href="/clientes?accion=crear">Dar de alta un Cliente empresarial a mano</Boton>
+                    }
+                    @* Salida del mockup «Importar Combinado». /clientes lista las
+                       Empresas con papel de Cliente empresarial (ObtenerClientesQuery,
+                       EsCritico != null), que es lo que crea la hoja «Clientes». *@
+                    @if (_resultadoCombinada is not null)
+                    {
+                        <Boton Variante="VarianteBoton.Secundario" Href="/clientes">Ver Clientes empresariales</Boton>
                     }
                 </div>
             </div>
