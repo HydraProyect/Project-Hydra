@@ -149,10 +149,314 @@
     border: 0;
 }
 
+/* ══ Tarjeta de las pantallas de acceso ══════════════════════════════
+   Las reglas viven aquí y no en cada página: login, 2FA, recuperar,
+   restablecer y cambiar contraseña pintan la misma tarjeta. Con ::deep
+   porque ese markup es de las páginas, de CabeceraAcceso y de
+   RequisitosContrasena, no de este layout. Los textos tenues quedan en .6 o
+   más de marfil, que da ≥ 4,5:1 incluso con dos bandas de agua debajo. */
+.acceso-centro ::deep .acceso-tarjeta {
+    width: 100%;
+    max-width: 340px;
+    text-align: center;
+    color: #F2EEE1;
+    line-height: 1.6;
+}
+
+/* El lockup ocupa el sitio de un texto de 34–42 px: el SVG se genera a 200
+   unidades por em con 185 de alto (generar-lockup.py), así que su altura es
+   0,925 veces ese cuerpo. */
+.acceso-centro ::deep .acceso-marca {
+    margin: 0;
+    line-height: 1;
+}
+
+.acceso-centro ::deep .acceso-marca img {
+    display: inline-block;
+    width: auto;
+    height: clamp(31.45px, 4.625vw, 38.85px);
+    vertical-align: top;
+}
+
+.acceso-centro ::deep .acceso-lema {
+    margin: 9px 0 28px;
+    font-size: 12.5px;
+    color: rgba(242, 238, 225, .6);
+}
+
+.acceso-centro ::deep .acceso-titulo {
+    margin: -8px 0 6px;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.4;
+    color: #F2EEE1;
+}
+
+.acceso-centro ::deep .acceso-explica {
+    margin: 0 0 20px;
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: rgba(242, 238, 225, .72);
+}
+
+.acceso-centro ::deep .acceso-alerta {
+    margin: 0 0 16px;
+    padding: 10px 12px;
+    text-align: left;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: #FEE2E2;
+    background: rgba(127, 29, 29, .55);
+    border: 1px solid rgba(252, 165, 165, .45);
+    border-radius: 7px;
+}
+
+.acceso-centro ::deep .acceso-campo {
+    margin-bottom: 13px;
+    text-align: left;
+}
+
+.acceso-centro ::deep .acceso-campo label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: rgba(242, 238, 225, .75);
+}
+
+.acceso-centro ::deep .acceso-campo input {
+    width: 100%;
+    height: 43px;
+    padding: 0 14px;
+    font: 400 14px/1.4 'TALVEG Plex', system-ui, sans-serif;
+    color: #F2EEE1;
+    background: rgba(10, 24, 18, .42);
+    backdrop-filter: blur(3px);
+    border: 1px solid rgba(242, 238, 225, .3);
+    border-radius: 7px;
+    transition: border-color .18s ease, box-shadow .18s ease;
+}
+
+.acceso-centro ::deep .acceso-campo input:focus {
+    outline: 2px solid #8FC7BC;
+    outline-offset: 1px;
+    border-color: #8FC7BC;
+    box-shadow: 0 0 0 3px rgba(143, 199, 188, .3);
+}
+
+/* El autorrelleno del navegador pinta fondo claro y letra oscura: en esta
+   escena el campo saltaría a la vista como una mancha. */
+.acceso-centro ::deep .acceso-campo input:-webkit-autofill {
+    -webkit-text-fill-color: #F2EEE1;
+    caret-color: #F2EEE1;
+    box-shadow: 0 0 0 1000px #1B342A inset;
+}
+
+.acceso-centro ::deep .acceso-campo input.invalid {
+    border-color: #FCA5A5;
+}
+
+.acceso-centro ::deep .acceso-campo .validation-message {
+    margin-top: 4px;
+    font-size: 12px;
+    color: #FCA5A5;
+}
+
+/* El código de 2FA se lee de un vistazo: centrado y con aire entre cifras. */
+.acceso-centro ::deep .acceso-codigo input {
+    text-align: center;
+    font-size: 18px;
+    letter-spacing: .5em;
+}
+
+/* Botón principal de la tarjeta; también como <a> cuando la salida es navegar. */
+.acceso-centro ::deep .acceso-entrar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 45px;
+    margin-top: 8px;
+    border: 0;
+    border-radius: 7px;
+    font: 600 14px/1 'TALVEG Plex', system-ui, sans-serif;
+    color: #0B1F17;
+    background: #8FC7BC;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color .18s ease, transform .18s ease;
+}
+
+.acceso-centro ::deep .acceso-entrar:hover:not(:disabled) {
+    background: #A3D3CA;
+    transform: translateY(-1px);
+}
+
+.acceso-centro ::deep .acceso-entrar:disabled {
+    opacity: .7;
+    cursor: not-allowed;
+}
+
+.acceso-centro ::deep .acceso-entrar:focus-visible {
+    outline: 2px solid #F2EEE1;
+    outline-offset: 2px;
+}
+
+.acceso-centro ::deep .acceso-alterno {
+    margin: 17px 0 0;
+    font-size: 12px;
+    color: rgba(242, 238, 225, .62);
+}
+
+.acceso-centro ::deep .acceso-nota {
+    margin: 4px 0 0;
+    font-size: 11.5px;
+    color: rgba(242, 238, 225, .62);
+}
+
+.acceso-centro ::deep .acceso-olvido {
+    margin: 6px 0 0;
+    font-size: 12px;
+}
+
+.acceso-centro ::deep .acceso-alterno a,
+.acceso-centro ::deep .acceso-olvido a,
+.acceso-centro ::deep .acceso-enlace-boton {
+    color: rgba(242, 238, 225, .72);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.acceso-centro ::deep .acceso-alterno a:hover,
+.acceso-centro ::deep .acceso-olvido a:hover,
+.acceso-centro ::deep .acceso-enlace-boton:hover {
+    color: #F2EEE1;
+}
+
+.acceso-centro ::deep .acceso-alterno a:focus-visible,
+.acceso-centro ::deep .acceso-olvido a:focus-visible,
+.acceso-centro ::deep .acceso-enlace-boton:focus-visible {
+    outline: 2px solid #8FC7BC;
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+
+.acceso-centro ::deep .acceso-exito {
+    width: 44px;
+    height: 44px;
+    margin: 0 auto 12px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: rgba(143, 199, 188, .16);
+    color: #8FC7BC;
+}
+
+.acceso-centro ::deep .acceso-reenvio {
+    margin: 0;
+    font-size: 12px;
+    color: rgba(242, 238, 225, .62);
+}
+
+.acceso-centro ::deep .acceso-enlace-boton {
+    display: inline;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    cursor: pointer;
+}
+
+/* Requisitos de la contraseña nueva: lista hacia abajo, un círculo vacío por
+   cumplir y un check celeste al cumplirse (acceso-contrasena.js lo marca en
+   vivo). El estado también se dice en texto para lector de pantalla. */
+.acceso-centro ::deep .acceso-requisitos {
+    list-style: none;
+    margin: -4px 0 14px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    text-align: left;
+}
+
+.acceso-centro ::deep .acceso-requisitos li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: rgba(242, 238, 225, .68);
+    transition: color .18s ease;
+}
+
+.acceso-centro ::deep .acceso-requisito-marca {
+    flex: none;
+    width: 14px;
+    height: 14px;
+    border: 1.5px solid rgba(242, 238, 225, .4);
+    border-radius: 50%;
+    background: transparent center / 10px no-repeat;
+    transition: background-color .18s ease, border-color .18s ease;
+}
+
+.acceso-centro ::deep .acceso-requisitos li.acceso-requisito-cumplido {
+    color: #F2EEE1;
+}
+
+.acceso-centro ::deep .acceso-requisitos li.acceso-requisito-cumplido .acceso-requisito-marca {
+    border-color: #8FC7BC;
+    background-color: #8FC7BC;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2l2.2 2.2 4.8-4.9' fill='none' stroke='%230B1F17' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+.acceso-centro ::deep .acceso-requisito-estado,
+.acceso-centro ::deep .acceso-requisitos-resumen {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Coincidencia de la confirmación, en vivo. Vacío no ocupa sitio. */
+.acceso-centro ::deep .acceso-coincidencia {
+    margin: 0;
+    font-size: 12px;
+    text-align: left;
+}
+
+.acceso-centro ::deep .acceso-coincidencia:not(:empty) {
+    margin-top: 5px;
+}
+
+.acceso-centro ::deep .acceso-coincidencia-ok {
+    color: #8FC7BC;
+}
+
+.acceso-centro ::deep .acceso-coincidencia-error {
+    color: #FCA5A5;
+}
+
 @media (prefers-reduced-motion: reduce) {
     .acceso-mov,
     .acceso-mov-tachado,
     .acceso-aviso {
         transition: none;
+    }
+
+    .acceso-centro ::deep .acceso-entrar,
+    .acceso-centro ::deep .acceso-campo input,
+    .acceso-centro ::deep .acceso-requisitos li,
+    .acceso-centro ::deep .acceso-requisito-marca {
+        transition: none;
+    }
+
+    .acceso-centro ::deep .acceso-entrar:hover:not(:disabled) {
+        transform: none;
     }
 }

@@ -1,5 +1,5 @@
 @page "/cuenta/cambiar-contrasena"
-@layout CaeManager.Web.Components.Layout.AuthLayout
+@layout CaeManager.Web.Components.Layout.AccesoLayout
 @attribute [Authorize]
 @using System.ComponentModel.DataAnnotations
 @using System.Security.Claims
@@ -7,40 +7,50 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Identity
+@using Microsoft.Extensions.Options
 @inject UserManager<ApplicationUser> UserManager
 @inject SignInManager<ApplicationUser> SignInManager
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
+@inject IOptions<IdentityOptions> OpcionesIdentity
 
 <PageTitle>Cambiar contraseña — @Marca.Nombre</PageTitle>
 
-<div class="tarjeta-login">
-    <h1>@Marca.Nombre</h1>
-    <p class="subtitulo-login">Tienes que cambiar tu contraseña antes de continuar</p>
+<div class="acceso-tarjeta">
+    <CabeceraAcceso Titulo="Cambiar contraseña" Explicacion="Tienes que cambiar tu contraseña antes de continuar." />
 
     @if (Entrada is not null)
     {
-        <EditForm Model="Entrada" method="post" OnValidSubmit="CambiarContrasenaAsync" FormName="cambiar-contrasena">
+        <EditForm Model="Entrada" method="post" OnValidSubmit="CambiarContrasenaAsync" FormName="cambiar-contrasena" novalidate>
             <DataAnnotationsValidator />
 
             @if (mensajeError is not null)
             {
-                <div class="alerta-login" role="alert">@mensajeError</div>
+                <div class="acceso-alerta" role="alert">@mensajeError</div>
             }
 
-            <label for="password-actual">Contraseña actual</label>
-            <InputText id="password-actual" type="password" @bind-Value="Entrada.ContrasenaActual" autocomplete="current-password" />
-            <ValidationMessage For="() => Entrada.ContrasenaActual" />
+            <div class="acceso-campo">
+                <label for="password-actual">Contraseña actual</label>
+                <InputText id="password-actual" type="password" @bind-Value="Entrada.ContrasenaActual" autocomplete="current-password" />
+                <ValidationMessage For="() => Entrada.ContrasenaActual" />
+            </div>
 
-            <label for="password-nueva">Contraseña nueva</label>
-            <InputText id="password-nueva" type="password" @bind-Value="Entrada.ContrasenaNueva" autocomplete="new-password" />
-            <ValidationMessage For="() => Entrada.ContrasenaNueva" />
+            <div class="acceso-campo">
+                <label for="password-nueva">Contraseña nueva</label>
+                <InputText id="password-nueva" type="password" @bind-Value="Entrada.ContrasenaNueva" autocomplete="new-password" aria-describedby="password-nueva-requisitos" />
+                <ValidationMessage For="() => Entrada.ContrasenaNueva" />
+            </div>
 
-            <label for="password-confirmar">Confirma la contraseña nueva</label>
-            <InputText id="password-confirmar" type="password" @bind-Value="Entrada.ConfirmarContrasenaNueva" autocomplete="new-password" />
-            <ValidationMessage For="() => Entrada.ConfirmarContrasenaNueva" />
+            <RequisitosContrasena IdCampo="password-nueva" Politica="OpcionesIdentity.Value.Password" Valor="@Entrada.ContrasenaNueva" />
 
-            <button type="submit" class="boton-primario">Cambiar contraseña</button>
+            <div class="acceso-campo">
+                <label for="password-confirmar">Confirma la contraseña nueva</label>
+                <InputText id="password-confirmar" type="password" @bind-Value="Entrada.ConfirmarContrasenaNueva" autocomplete="new-password" />
+                <ValidationMessage For="() => Entrada.ConfirmarContrasenaNueva" />
+                <p class="acceso-coincidencia" data-coincidencia-de="password-confirmar" data-coincidencia-con="password-nueva" aria-live="polite"></p>
+            </div>
+
+            <button type="submit" class="acceso-entrar">Cambiar contraseña</button>
         </EditForm>
     }
 </div>

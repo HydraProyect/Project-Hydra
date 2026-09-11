@@ -52,7 +52,7 @@ public class VerificacionDosPasosBloqueoTests : BunitContext
             "el mensaje de código incorrecto manda a reintentar, y bloqueado no sirve de nada");
         cut.FindAll("#codigo").Should().BeEmpty("con la cuenta bloqueada no hay código que reintentar");
         cut.FindAll("form").Should().BeEmpty("no puede quedar ningún formulario de envío, tenga el campo que tenga");
-        cut.Find("a.boton-primario").GetAttribute("href").Should().Be("/cuenta/iniciar-sesion");
+        cut.Find("a.acceso-entrar").GetAttribute("href").Should().Be("/cuenta/iniciar-sesion");
         _registro.Mensajes.Should().Contain(m => m.Contains("cuenta bloqueada"),
             "el log distingue el bloqueo del código incorrecto");
         _signIn.SesionCerrada.Should().BeTrue(
