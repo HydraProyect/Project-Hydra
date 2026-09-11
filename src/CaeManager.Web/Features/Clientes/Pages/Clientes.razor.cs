@@ -186,9 +186,11 @@ public partial class Clientes : ComponentBase
     /// <summary>
     /// Lo que se guarda de un filtro. Hasta ahora solo viajaban la búsqueda y
     /// «solo críticos»: guardar «Con vencidos» o un ejecutivo concreto
-    /// devolvía, al aplicarlo, una lista sin ese filtro. Los dos campos nuevos
-    /// son opcionales, así que un filtro guardado antes de este cambio se sigue
-    /// leyendo (sin ejecutivo ni estado).
+    /// devolvía, al aplicarlo, una lista sin ese filtro. Se escribe SIEMPRE con
+    /// los cuatro ejes (aunque alguno vaya a null): así un filtro nuevo declara
+    /// los cuatro y, al aplicarlo, los fija todos. Solo se usa para escribir;
+    /// la lectura va por <see cref="LeerFiltroGuardado"/>, que distingue la
+    /// clave ausente de la clave con null.
     ///
     /// <para>
     /// El campo nuevo se llama <c>GestorCaeId</c> y no como la columna
@@ -834,11 +836,109 @@ public partial class Clientes : ComponentBase
     // --- P3-31: filtros guardados ---
 
     /// <summary>
-    /// Aplicar un filtro guardado sustituye los cuatro filtros por los suyos y
-    /// escribe en la URL los dos que viajan por ella. Antes solo cambiaba los
+    /// Un eje de un filtro guardado tal como vino en su JSON: <c>Declarado</c>
+    /// dice si la clave ESTABA (aunque fuera con null); <c>Valor</c>, lo que
+    /// traía.
+    /// </summary>
+    private readonly record struct EjeGuardado<T>(bool Declarado, T Valor);
+
+    private sealed record FiltroGuardadoLeido(
+        EjeGuardado<string?> Busqueda,
+        EjeGuardado<bool> SoloCriticos,
+        EjeGuardado<string?> GestorCaeId,
+        EjeGuardado<string?> EstadoDocumental);
+
+    /// <summary>
+    /// Lee el <c>ValoresJson</c> de un filtro guardado eje por eje, distinguiendo
+    /// la clave AUSENTE de la clave presente con null: es lo que separa un filtro
+    /// antiguo (que no conocía Ejecutivo ni Estado) de uno nuevo que los dejó sin
+    /// valor a propósito. Devuelve null si el texto no es un objeto JSON o si
+    /// un eje trae un tipo que no es el suyo: <c>ValoresJson</c> vive en la
+    /// tabla <c>FiltrosGuardados</c>, Application solo exige que no esté vacío,
+    /// y puede llegar corrupto o escrito por otro productor.
+    /// </summary>
+    private static FiltroGuardadoLeido? LeerFiltroGuardado(string valoresJson)
+    {
+        try
+        {
+            using var documento = JsonDocument.Parse(valoresJson);
+            var raiz = documento.RootElement;
+            if (raiz.ValueKind != JsonValueKind.Object)
+                return null;
+
+            // Las claves salen del mismo record con el que se escriben: un
+            // renombrado en uno no puede dejar al otro leyendo otra clave.
+            if (!LeerTexto(raiz, nameof(FiltrosClientesJson.Busqueda), out var busqueda)
+                || !LeerBooleano(raiz, nameof(FiltrosClientesJson.SoloCriticos), out var soloCriticos)
+                || !LeerTexto(raiz, nameof(FiltrosClientesJson.GestorCaeId), out var gestorCaeId)
+                || !LeerTexto(raiz, nameof(FiltrosClientesJson.EstadoDocumental), out var estadoDocumental))
+                return null;
+
+            return new FiltroGuardadoLeido(busqueda, soloCriticos, gestorCaeId, estadoDocumental);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static bool LeerTexto(JsonElement raiz, string clave, out EjeGuardado<string?> eje)
+    {
+        eje = default;
+        if (!raiz.TryGetProperty(clave, out var valor))
+            return true;
+
+        switch (valor.ValueKind)
+        {
+            case JsonValueKind.Null:
+                eje = new EjeGuardado<string?>(true, null);
+                return true;
+            case JsonValueKind.String:
+                eje = new EjeGuardado<string?>(true, valor.GetString());
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static bool LeerBooleano(JsonElement raiz, string clave, out EjeGuardado<bool> eje)
+    {
+        eje = default;
+        if (!raiz.TryGetProperty(clave, out var valor))
+            return true;
+
+        switch (valor.ValueKind)
+        {
+            case JsonValueKind.True:
+            case JsonValueKind.False:
+                eje = new EjeGuardado<bool>(true, valor.GetBoolean());
+                return true;
+            case JsonValueKind.Null:
+                eje = new EjeGuardado<bool>(true, false);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Aplicar un filtro guardado fija los ejes que su JSON DECLARA y deja
+    /// los demás como estaban. Un filtro guardado antes de que existieran
+    /// Ejecutivo y Estado (solo <c>Busqueda</c> y <c>SoloCriticos</c>) no los
+    /// limpia: no dice nada de ellos. Uno nuevo declara los cuatro —aunque
+    /// alguno vaya a null— y los fija todos, null incluido.
+    ///
+    /// <para>
+    /// Escribe en la URL los dos que viajan por ella. Antes solo cambiaba los
     /// campos en memoria: la URL seguía con el <c>q</c>/<c>critico</c> anterior
     /// y la siguiente pasada de <see cref="OnParametersSetAsync"/> (cualquier
     /// otro filtro que escribiera en la URL) devolvía la búsqueda vieja.
+    /// </para>
+    ///
+    /// <para>
+    /// Un JSON que no se puede leer no tumba el circuito: los filtros se quedan
+    /// como estaban y se avisa.
+    /// </para>
     /// </summary>
     private async Task AplicarFiltroGuardadoAsync(string idTexto)
     {
@@ -847,19 +947,28 @@ public partial class Clientes : ComponentBase
         var filtro = _filtrosGuardados.FirstOrDefault(f => f.Id == id);
         if (filtro is null) return;
 
-        var valores = JsonSerializer.Deserialize<FiltrosClientesJson>(filtro.ValoresJson);
-        if (valores is null) return;
+        if (LeerFiltroGuardado(filtro.ValoresJson) is not { } valores)
+        {
+            ToastService.Mostrar(
+                $"No se pudo aplicar este filtro guardado («{filtro.Nombre}»): su contenido no se puede leer. Los filtros de la lista siguen como estaban.",
+                TonoToast.Advertencia);
+            return;
+        }
 
-        _busqueda = valores.Busqueda ?? string.Empty;
-        _soloCriticos = valores.SoloCriticos;
+        if (valores.Busqueda.Declarado)
+            _busqueda = valores.Busqueda.Valor ?? string.Empty;
+        if (valores.SoloCriticos.Declarado)
+            _soloCriticos = valores.SoloCriticos.Valor;
         // Un ejecutivo que ya no está en el directorio visible no se repone:
         // filtraría por alguien que la pantalla no puede nombrar («Ejecutivo: —»).
-        _ejecutivoFiltro = _ejecutivosParaFiltro.Any(g => g.Id.ToString() == valores.GestorCaeId)
-            ? valores.GestorCaeId!
-            : string.Empty;
-        _estadoDocumentalFiltro = Enum.TryParse<EstadoDocumento>(valores.EstadoDocumental, out _)
-            ? valores.EstadoDocumental!
-            : string.Empty;
+        if (valores.GestorCaeId.Declarado)
+            _ejecutivoFiltro = _ejecutivosParaFiltro.Any(g => g.Id.ToString() == valores.GestorCaeId.Valor)
+                ? valores.GestorCaeId.Valor!
+                : string.Empty;
+        if (valores.EstadoDocumental.Declarado)
+            _estadoDocumentalFiltro = Enum.TryParse<EstadoDocumento>(valores.EstadoDocumental.Valor, out _)
+                ? valores.EstadoDocumental.Valor!
+                : string.Empty;
 
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {

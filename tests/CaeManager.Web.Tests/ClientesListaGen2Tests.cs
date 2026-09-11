@@ -60,7 +60,10 @@ namespace CaeManager.Web.Tests;
 /// El arnés (autenticación, directorio sin tenant, UserManager que lanza) es el
 /// de <see cref="ClientesVacioPorFiltroTests"/>, por las mismas razones que
 /// documenta allí: el directorio devuelve vacío sin tocar la base, así que el
-/// desplegable de Ejecutivo no tiene opciones.
+/// desplegable de Ejecutivo no tiene opciones. Los casos que necesitan Gestores
+/// CAE que elegir los pasan a <see cref="Renderizar"/>: entonces el directorio
+/// tiene un tenant resuelto, un almacén que devuelve esos Gestores CAE por rol
+/// y ningún Operador Delegado.
 /// </para>
 /// </summary>
 public class ClientesListaGen2Tests : BunitContext
@@ -157,21 +160,39 @@ public class ClientesListaGen2Tests : BunitContext
             }
         }
 
-        /// <summary>Filtra, ordena y pagina como <c>ObtenerClientesQueryHandler</c>.</summary>
+        /// <summary>Mismo tope que <c>limiteCandidatosConFiltroCalculado</c> del handler.</summary>
+        public const int LimiteCandidatosConFiltroDeEstado = 2000;
+
+        /// <summary>
+        /// Filtra, ordena y pagina en el mismo orden de pasos que
+        /// <c>ObtenerClientesQueryHandler</c>: primero los filtros que el handler
+        /// resuelve en SQL (búsqueda, críticos, ejecutivo), luego el orden con su
+        /// desempate por Id y, solo si se filtra por estado documental, el tope
+        /// de <see cref="LimiteCandidatosConFiltroDeEstado"/> candidatos ANTES de
+        /// filtrar por estado: el total con ese filtro es el de los que
+        /// coinciden entre esos candidatos, no en toda la cartera.
+        /// </summary>
         public ResultadoPaginado<ClienteListaDto> Filtrar(ObtenerClientesQuery q)
         {
-            var coincidentes = Almacen
+            var sinEstado = Almacen
                 .Where(c => string.IsNullOrWhiteSpace(q.Busqueda)
                     || c.RazonSocial.ToUpperInvariant().Contains(q.Busqueda.ToUpperInvariant()))
                 .Where(c => q.SoloCriticos != true || c.EsCritico)
                 .Where(c => q.EjecutivoUsuarioId is null || c.EjecutivoUsuarioId == q.EjecutivoUsuarioId)
-                .Where(c => q.EstadoDocumental is null
-                    || (q.EstadoDocumental == EstadoDocumento.Vigente
-                        ? c.EstadoDocumentalPeor is null
-                        : Presentes(c).Contains(q.EstadoDocumental.Value)))
                 .ToList();
 
-            var pagina = Ordenar(coincidentes, q.OrdenarPor, q.Descendente)
+            var ordenados = Ordenar(sinEstado, q.OrdenarPor, q.Descendente).ThenBy(c => c.Id);
+
+            var coincidentes = q.EstadoDocumental is null
+                ? ordenados.ToList()
+                : ordenados
+                    .Take(LimiteCandidatosConFiltroDeEstado)
+                    .Where(c => q.EstadoDocumental == EstadoDocumento.Vigente
+                        ? c.EstadoDocumentalPeor is null
+                        : Presentes(c).Contains(q.EstadoDocumental.Value))
+                    .ToList();
+
+            var pagina = coincidentes
                 .Skip((q.Pagina - 1) * q.TamanoPagina)
                 .Take(q.TamanoPagina)
                 .ToList();
@@ -187,11 +208,14 @@ public class ClientesListaGen2Tests : BunitContext
         /// <summary>
         /// Misma lista blanca que el handler; cualquier otro nombre (o ninguno)
         /// cae en su orden por defecto, por razón social ascendente. El
-        /// desempate es el orden de inserción (OrderBy es estable), no el Id:
-        /// con Ids aleatorios, los tests que miran posiciones cambiarían entre
-        /// ejecuciones.
+        /// desempate final por Id lo pone <see cref="Filtrar"/>, como el
+        /// handler. Dos salvedades: se compara con <see cref="Guid.CompareTo(Guid)"/>,
+        /// que no ordena igual que el <c>uuid</c> de PostgreSQL para Ids
+        /// arbitrarios (el test del desempate usa Ids en los que ambos
+        /// coinciden), y con Ids aleatorios un test que mirase posiciones de
+        /// filas EMPATADAS cambiaría entre ejecuciones: ninguno lo hace.
         /// </summary>
-        private static IEnumerable<ClienteListaDto> Ordenar(List<ClienteListaDto> filas, string? ordenarPor, bool descendente) =>
+        private static IOrderedEnumerable<ClienteListaDto> Ordenar(List<ClienteListaDto> filas, string? ordenarPor, bool descendente) =>
             (ordenarPor, descendente) switch
             {
                 (nameof(ClienteListaDto.RazonSocial), true) => filas.OrderByDescending(c => c.RazonSocial, StringComparer.Ordinal),
@@ -232,9 +256,92 @@ public class ClientesListaGen2Tests : BunitContext
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }
 
-    private sealed class TenantActualFalso : ITenantActual
+    /// <summary>Tenant del arnés cuando hay Gestores CAE; sin ellos no hay tenant resuelto.</summary>
+    private static readonly Guid TenantDelArnes = Guid.Parse("0f1e2d3c-4b5a-4968-8776-a5b4c3d2e1f0");
+
+    private sealed class TenantActualFalso(Guid? tenantId = null) : ITenantActual
     {
-        public Guid? TenantId => null;
+        public Guid? TenantId => tenantId;
+    }
+
+    /// <summary>
+    /// Con tenant resuelto, el directorio pregunta por los Operadores Delegados
+    /// del tenant con <c>ToDictionaryAsync</c>: aquí no hay ninguno, y las dos
+    /// colecciones van envueltas para que EF acepte recorrerlas en asíncrono.
+    /// </summary>
+    private sealed class TenantsQueryContextSinDelegaciones : ITenantsQueryContext
+    {
+        private static Exception NoDeberia() =>
+            new NotSupportedException("El directorio solo consulta delegaciones y asignaciones; si esto salta, cambió el camino.");
+
+        public IQueryable<Tenant> Tenants => throw NoDeberia();
+        public IQueryable<DelegacionTenant> DelegacionesTenant => new ConsultaAsincrona<DelegacionTenant>(Array.Empty<DelegacionTenant>().AsQueryable());
+        public IQueryable<AsignacionOperadorDelegado> AsignacionesOperadorDelegado => new ConsultaAsincrona<AsignacionOperadorDelegado>(Array.Empty<AsignacionOperadorDelegado>().AsQueryable());
+        public IQueryable<RegistroActividadSoporte> RegistrosActividadSoporte => throw NoDeberia();
+    }
+
+    /// <summary>
+    /// <c>IQueryable</c> en memoria que además es <see cref="IAsyncEnumerable{T}"/>,
+    /// que es lo único que piden los operadores asíncronos de EF que usa el
+    /// directorio (mismo patrón que <c>TestAsyncQueryable</c> de Application.Tests).
+    /// </summary>
+    private sealed class ConsultaAsincrona<T>(IQueryable<T> interna) : IOrderedQueryable<T>, IAsyncEnumerable<T>
+    {
+        public Type ElementType => interna.ElementType;
+        public System.Linq.Expressions.Expression Expression => interna.Expression;
+        public IQueryProvider Provider { get; } = new ProveedorAsincrono(interna.Provider);
+
+        public IEnumerator<T> GetEnumerator() => interna.GetEnumerator();
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => interna.GetEnumerator();
+
+        public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default) =>
+            new EnumeradorAsincrono<T>(interna.GetEnumerator());
+    }
+
+    private sealed class ProveedorAsincrono(IQueryProvider interno) : IQueryProvider
+    {
+        public IQueryable CreateQuery(System.Linq.Expressions.Expression expression) =>
+            throw new NotSupportedException("El directorio solo compone consultas tipadas.");
+
+        public IQueryable<TElement> CreateQuery<TElement>(System.Linq.Expressions.Expression expression) =>
+            new ConsultaAsincrona<TElement>(interno.CreateQuery<TElement>(expression));
+
+        public object? Execute(System.Linq.Expressions.Expression expression) => interno.Execute(expression);
+
+        public TResult Execute<TResult>(System.Linq.Expressions.Expression expression) => interno.Execute<TResult>(expression);
+    }
+
+    private sealed class EnumeradorAsincrono<T>(IEnumerator<T> interno) : IAsyncEnumerator<T>
+    {
+        public T Current => interno.Current;
+
+        public ValueTask<bool> MoveNextAsync() => ValueTask.FromResult(interno.MoveNext());
+
+        public ValueTask DisposeAsync()
+        {
+            interno.Dispose();
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    /// <summary>
+    /// Almacén que solo sabe una cosa: quién tiene el rol Gestor CAE. Es lo que
+    /// usa <c>ObtenerVisiblesEnRolAsync</c> (vía <c>GetUsersInRoleAsync</c>);
+    /// todo lo demás sigue lanzando.
+    /// </summary>
+    private sealed class AlmacenGestoresCae(IReadOnlyList<ApplicationUser> gestores)
+        : AlmacenUsuariosQueNadieDebeTocar, IUserRoleStore<ApplicationUser>
+    {
+        private static Exception NoDeberia() =>
+            new NotSupportedException("Este almacén solo lista Gestores CAE por rol; si esto salta, cambió el camino.");
+
+        public Task<IList<ApplicationUser>> GetUsersInRoleAsync(string roleName, CancellationToken cancellationToken) =>
+            Task.FromResult<IList<ApplicationUser>>(roleName == Roles.GestorCae ? gestores.ToList() : []);
+
+        public Task AddToRoleAsync(ApplicationUser user, string roleName, CancellationToken cancellationToken) => throw NoDeberia();
+        public Task RemoveFromRoleAsync(ApplicationUser user, string roleName, CancellationToken cancellationToken) => throw NoDeberia();
+        public Task<IList<string>> GetRolesAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoDeberia();
+        public Task<bool> IsInRoleAsync(ApplicationUser user, string roleName, CancellationToken cancellationToken) => throw NoDeberia();
     }
 
     private sealed class TenantsQueryContextQueNadieDebeTocar : ITenantsQueryContext
@@ -248,7 +355,7 @@ public class ClientesListaGen2Tests : BunitContext
         public IQueryable<RegistroActividadSoporte> RegistrosActividadSoporte => throw NoDeberia();
     }
 
-    private sealed class AlmacenUsuariosQueNadieDebeTocar : IUserStore<ApplicationUser>
+    private class AlmacenUsuariosQueNadieDebeTocar : IUserStore<ApplicationUser>
     {
         private static Exception NoDeberia() =>
             new NotSupportedException("Sin tenant resuelto no se consulta ningún usuario; si esto salta, cambió el camino.");
@@ -299,23 +406,31 @@ public class ClientesListaGen2Tests : BunitContext
                 new ClaimsIdentity([new Claim(ClaimTypes.Role, rol)], "test"))));
     }
 
-    private static DirectorioUsuariosTenant CrearDirectorio()
+    /// <param name="gestores">
+    /// Sin ninguno, el camino de <see cref="ClientesVacioPorFiltroTests"/>: sin
+    /// tenant, vacío y sin consultar. Con alguno, tenant resuelto y esos
+    /// Gestores CAE como únicos visibles en el rol.
+    /// </param>
+    private static DirectorioUsuariosTenant CrearDirectorio(IReadOnlyList<ApplicationUser> gestores)
     {
-        var tenantActual = new TenantActualFalso();
+        var conGestores = gestores.Count > 0;
+        var tenantActual = new TenantActualFalso(conGestores ? TenantDelArnes : null);
         var identidad = new CaeManagerDbContext(
             new DbContextOptionsBuilder<CaeManagerDbContext>().Options,
             DataProtectionProvider.Create(nameof(ClientesListaGen2Tests)),
             tenantActual);
 
         var userManager = new UserManager<ApplicationUser>(
-            new AlmacenUsuariosQueNadieDebeTocar(), null!, null!, null!, null!, null!, null!, null!, null!);
+            conGestores ? new AlmacenGestoresCae(gestores) : new AlmacenUsuariosQueNadieDebeTocar(),
+            null!, null!, null!, null!, null!, null!, null!, null!);
 
         return new DirectorioUsuariosTenant(
-            userManager, new TenantsQueryContextQueNadieDebeTocar(), tenantActual,
-            new PuertaAccesoDatos(), identidad);
+            userManager,
+            conGestores ? new TenantsQueryContextSinDelegaciones() : new TenantsQueryContextQueNadieDebeTocar(),
+            tenantActual, new PuertaAccesoDatos(), identidad);
     }
 
-    private void Registrar(MediatorFalso mediador, string rol = Roles.Administrador)
+    private void Registrar(MediatorFalso mediador, string rol = Roles.Administrador, IReadOnlyList<ApplicationUser>? gestores = null)
     {
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
@@ -326,16 +441,19 @@ public class ClientesListaGen2Tests : BunitContext
         Services.AddScoped<IAuthorizationService, AutorizacionPorRoles>();
         Services.AddCascadingAuthenticationState();
         Services.AddScoped<IValidator<CrearClienteCommand>>(_ => new InlineValidator<CrearClienteCommand>());
-        Services.AddScoped(_ => CrearDirectorio());
+        Services.AddScoped(_ => CrearDirectorio(gestores ?? []));
         Services.AddScoped(_ => new UserManager<ApplicationUser>(
             new AlmacenUsuariosQueNadieDebeTocar(), null!, null!, null!, null!, null!, null!, null!, null!));
         Services.AddScoped<PuertaAccesoDatos>();
     }
 
     /// <param name="url">Ruta relativa con la que se abre la página (p. ej. <c>clientes?critico=true</c>).</param>
-    private IRenderedComponent<Clientes> Renderizar(MediatorFalso mediador, string url = "clientes", string rol = Roles.Administrador)
+    /// <param name="gestores">Gestores CAE que ofrece el desplegable de Ejecutivo; ver <see cref="CrearDirectorio"/>.</param>
+    private IRenderedComponent<Clientes> Renderizar(
+        MediatorFalso mediador, string url = "clientes", string rol = Roles.Administrador,
+        IReadOnlyList<ApplicationUser>? gestores = null)
     {
-        Registrar(mediador, rol);
+        Registrar(mediador, rol, gestores);
         Services.GetRequiredService<NavigationManager>().NavigateTo(url);
 
         var cut = Render<Clientes>();
@@ -357,6 +475,12 @@ public class ClientesListaGen2Tests : BunitContext
 
     private static IElement SelectConOpcion(IRenderedComponent<Clientes> cut, string textoOpcion) =>
         cut.FindAll(".barra-filtros select").Single(s => s.TextContent.Contains(textoOpcion));
+
+    private static ApplicationUser GestorCae(string nombreCompleto) =>
+        new() { Id = Guid.NewGuid(), NombreCompleto = nombreCompleto, Email = "gestor@arnes.invalid", TenantId = TenantDelArnes };
+
+    private static List<string> TextosDeLosChips(IRenderedComponent<Clientes> cut) =>
+        cut.FindAll(".barra-filtros .chip-filtro").Select(c => c.TextContent.Trim()).ToList();
 
     private static IElement BotonDelDialogo(IRenderedComponent<Clientes> cut, string texto) =>
         cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == texto);
@@ -772,6 +896,20 @@ public class ClientesListaGen2Tests : BunitContext
             "el agregado de ObtenerClientesQuery sale de las alertas de sus trabajadores; los centros no entran");
     }
 
+    /// <summary>
+    /// El punto de «Crítico» no tiene texto: sin un nombre accesible, un lector
+    /// de pantalla lee la celda vacía (el <c>title</c> no se anuncia en todos).
+    /// </summary>
+    [Fact]
+    public void El_indicador_de_critico_tiene_nombre_accesible_en_cada_fila()
+    {
+        var cut = Renderizar(new MediatorFalso { Almacen = { Cliente("Montajes Ebro S.L."), Cliente("Refrielectric S.A.", critico: true) } });
+
+        cut.FindAll("tbody .punto-critico")
+            .Select(p => (Rol: p.GetAttribute("role"), Nombre: p.GetAttribute("aria-label")))
+            .Should().Equal([("img", "Sin situación crítica"), ("img", "Crítico")]);
+    }
+
     [Fact]
     public async Task El_numero_de_centros_abre_el_Cliente_360_en_su_pestana_de_centros()
     {
@@ -895,21 +1033,41 @@ public class ClientesListaGen2Tests : BunitContext
 
     // ---------------------------------------------------- Filtros guardados
 
+    /// <summary>
+    /// Los cuatro ejes puestos —búsqueda y críticos por la URL, Gestor CAE y
+    /// estado por sus desplegables— y los cuatro en el JSON enviado. Un JSON al
+    /// que le faltara cualquiera devolvería, al aplicarlo, una lista sin ese
+    /// filtro.
+    /// </summary>
     [Fact]
     public async Task Guardar_filtro_guarda_los_cuatro_filtros_y_no_solo_busqueda_y_criticos()
     {
-        var mediador = new MediatorFalso { Almacen = { Cliente("Refrielectric S.A.", critico: true, peor: EstadoDocumento.Vencido, cantidad: 2) } };
-        var cut = Renderizar(mediador, "clientes?critico=true");
+        var marta = GestorCae("Marta Ibarra");
+        var mediador = new MediatorFalso
+        {
+            Almacen = { Cliente("Refrielectric S.A.", critico: true, peor: EstadoDocumento.Vencido, cantidad: 2) with { EjecutivoUsuarioId = marta.Id } }
+        };
+        var cut = Renderizar(mediador, "clientes?q=Refri&critico=true", gestores: [marta]);
+        await SelectConOpcion(cut, "Ejecutivo: todos").ChangeAsync(new ChangeEventArgs { Value = marta.Id.ToString() });
         await SelectConOpcion(cut, "Estado: todos").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vencido) });
 
+        // Punto de partida: los cuatro ejes están puestos en la consulta vigente.
+        var vigente = UltimaConsulta(mediador);
+        vigente.Busqueda.Should().Be("Refri");
+        vigente.SoloCriticos.Should().BeTrue();
+        vigente.EjecutivoUsuarioId.Should().Be(marta.Id);
+        vigente.EstadoDocumental.Should().Be(EstadoDocumento.Vencido);
+
         await cut.FindAll(".barra-filtros button").Single(b => b.TextContent.Trim() == "Guardar filtro").ClickAsync(new MouseEventArgs());
-        await cut.Find("[role=dialog] input").InputAsync(new ChangeEventArgs { Value = "Críticos con vencidos" });
+        await cut.Find("[role=dialog] input").InputAsync(new ChangeEventArgs { Value = "Refri críticos de Marta con vencidos" });
         await BotonDelDialogo(cut, "Guardar").ClickAsync(new MouseEventArgs());
 
         var guardado = mediador.Enviadas.OfType<GuardarFiltroCommand>().Single();
-        guardado.Nombre.Should().Be("Críticos con vencidos");
+        guardado.Nombre.Should().Be("Refri críticos de Marta con vencidos");
         using var json = JsonDocument.Parse(guardado.ValoresJson);
+        json.RootElement.GetProperty("Busqueda").GetString().Should().Be("Refri");
         json.RootElement.GetProperty("SoloCriticos").GetBoolean().Should().BeTrue();
+        json.RootElement.GetProperty("GestorCaeId").GetString().Should().Be(marta.Id.ToString());
         json.RootElement.GetProperty("EstadoDocumental").GetString().Should().Be(nameof(EstadoDocumento.Vencido));
         cut.WaitForAssertion(() => cut.FindAll("[role=dialog]").Should().BeEmpty());
     }
@@ -918,55 +1076,152 @@ public class ClientesListaGen2Tests : BunitContext
     /// Aplicar un filtro guardado repone los cuatro filtros y escribe en la URL
     /// los dos que viajan por ella. Si solo los cambiara en memoria, la URL
     /// seguiría sin <c>q</c> ni <c>critico</c> y la siguiente pasada de
-    /// parámetros los quitaría.
+    /// parámetros los quitaría. El Gestor CAE no es nulo: Refri Levante cumple
+    /// todo menos el Gestor CAE, y solo desaparece si el filtro lo repone.
     /// </summary>
     [Fact]
     public async Task Aplicar_un_filtro_guardado_repone_sus_filtros_en_la_consulta_y_en_la_url()
     {
-        var filtro = new FiltroGuardadoDto(Guid.NewGuid(), "Refri críticos con vencidos",
-            JsonSerializer.Serialize(new { Busqueda = "Refri", SoloCriticos = true, GestorCaeId = (string?)null, EstadoDocumental = "Vencido" }),
+        var marta = GestorCae("Marta Ibarra");
+        var filtro = new FiltroGuardadoDto(Guid.NewGuid(), "Refri críticos de Marta con vencidos",
+            JsonSerializer.Serialize(new { Busqueda = "Refri", SoloCriticos = true, GestorCaeId = marta.Id.ToString(), EstadoDocumental = "Vencido" }),
             DateTime.UtcNow);
         var mediador = new MediatorFalso
         {
             Almacen =
             {
-                Cliente("Refrielectric S.A.", critico: true, peor: EstadoDocumento.Vencido, cantidad: 3),
-                Cliente("Refrigeración Norte S.L.", critico: true),
+                Cliente("Refrielectric S.A.", critico: true, peor: EstadoDocumento.Vencido, cantidad: 3) with { EjecutivoUsuarioId = marta.Id },
+                Cliente("Refri Levante S.L.", critico: true, peor: EstadoDocumento.Vencido, cantidad: 1),
+                Cliente("Refrigeración Norte S.L.", critico: true) with { EjecutivoUsuarioId = marta.Id },
                 Cliente("Montajes Ebro S.L."),
             },
             FiltrosGuardados = { filtro }
         };
-        var cut = Renderizar(mediador);
+        var cut = Renderizar(mediador, gestores: [marta]);
 
         await SelectConOpcion(cut, "Filtros guardados…").ChangeAsync(new ChangeEventArgs { Value = filtro.Id.ToString() });
 
         var consulta = UltimaConsulta(mediador);
         consulta.Busqueda.Should().Be("Refri");
         consulta.SoloCriticos.Should().BeTrue();
+        consulta.EjecutivoUsuarioId.Should().Be(marta.Id);
         consulta.EstadoDocumental.Should().Be(EstadoDocumento.Vencido);
         var uri = Services.GetRequiredService<NavigationManager>().Uri;
         uri.Should().Contain("q=Refri").And.Contain("critico=true");
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal(["Refrielectric S.A."]));
+        SelectConOpcion(cut, "Ejecutivo: todos").GetAttribute("value").Should().Be(marta.Id.ToString(),
+            "el desplegable enseña elegido al Gestor CAE del filtro");
+        TextosDeLosChips(cut).Should().Contain(t => t.StartsWith("Ejecutivo: Marta Ibarra"));
     }
 
-    /// <summary>Un filtro guardado antes de este cambio solo trae búsqueda y críticos: se sigue aplicando.</summary>
+    /// <summary>
+    /// Un filtro guardado antes de que existieran Ejecutivo y Estado solo
+    /// declara búsqueda y críticos. Aplica esos dos —también el
+    /// <c>SoloCriticos: false</c>, que quita el «solo críticos» de la URL— y NO
+    /// toca Ejecutivo ni Estado: no dice nada de ellos.
+    /// </summary>
     [Fact]
-    public async Task Un_filtro_guardado_con_el_formato_antiguo_se_sigue_aplicando()
+    public async Task Un_filtro_guardado_con_el_formato_antiguo_aplica_sus_dos_ejes_y_conserva_ejecutivo_y_estado()
     {
+        var marta = GestorCae("Marta Ibarra");
         var antiguo = new FiltroGuardadoDto(Guid.NewGuid(), "Solo Refri", "{\"Busqueda\":\"Refri\",\"SoloCriticos\":false}", DateTime.UtcNow);
         var mediador = new MediatorFalso
         {
-            Almacen = { Cliente("Refrielectric S.A."), Cliente("Montajes Ebro S.L.") },
+            Almacen =
+            {
+                Cliente("Refrielectric S.A.", peor: EstadoDocumento.Vencido, cantidad: 2) with { EjecutivoUsuarioId = marta.Id },
+                Cliente("Refrigeración Norte S.L.", peor: EstadoDocumento.Vencido, cantidad: 1),
+                Cliente("Montajes Ebro S.L.", peor: EstadoDocumento.Vencido, cantidad: 4) with { EjecutivoUsuarioId = marta.Id },
+            },
             FiltrosGuardados = { antiguo }
         };
-        var cut = Renderizar(mediador);
+        var cut = Renderizar(mediador, "clientes?critico=true", gestores: [marta]);
+        await SelectConOpcion(cut, "Ejecutivo: todos").ChangeAsync(new ChangeEventArgs { Value = marta.Id.ToString() });
+        await SelectConOpcion(cut, "Estado: todos").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vencido) });
 
         await SelectConOpcion(cut, "Filtros guardados…").ChangeAsync(new ChangeEventArgs { Value = antiguo.Id.ToString() });
 
         var consulta = UltimaConsulta(mediador);
         consulta.Busqueda.Should().Be("Refri");
-        consulta.EstadoDocumental.Should().BeNull();
+        consulta.SoloCriticos.Should().BeNull("el filtro antiguo SÍ declara SoloCriticos: false");
+        consulta.EjecutivoUsuarioId.Should().Be(marta.Id, "el filtro antiguo no declara Gestor CAE: se queda el que había");
+        consulta.EstadoDocumental.Should().Be(EstadoDocumento.Vencido, "el filtro antiguo no declara estado: se queda el que había");
+        Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("q=Refri").And.NotContain("critico");
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal(["Refrielectric S.A."]));
+        SelectConOpcion(cut, "Ejecutivo: todos").GetAttribute("value").Should().Be(marta.Id.ToString());
+        TextosDeLosChips(cut).Should().Contain(t => t.StartsWith("Ejecutivo: Marta Ibarra")).And.Contain(t => t.StartsWith("Estado: Vencido"));
+    }
+
+    /// <summary>
+    /// Un filtro nuevo declara los cuatro ejes aunque alguno vaya a null, y
+    /// null es un valor: «sin Gestor CAE» y «sin estado» limpian lo que hubiera.
+    /// </summary>
+    [Fact]
+    public async Task Un_filtro_guardado_nuevo_con_GestorCaeId_null_limpia_el_ejecutivo_y_el_estado()
+    {
+        var marta = GestorCae("Marta Ibarra");
+        var nuevo = new FiltroGuardadoDto(Guid.NewGuid(), "Toda la cartera",
+            "{\"Busqueda\":null,\"SoloCriticos\":false,\"GestorCaeId\":null,\"EstadoDocumental\":null}", DateTime.UtcNow);
+        var mediador = new MediatorFalso
+        {
+            Almacen =
+            {
+                Cliente("Refrielectric S.A.", peor: EstadoDocumento.Vencido, cantidad: 2) with { EjecutivoUsuarioId = marta.Id },
+                Cliente("Montajes Ebro S.L."),
+            },
+            FiltrosGuardados = { nuevo }
+        };
+        var cut = Renderizar(mediador, gestores: [marta]);
+        await SelectConOpcion(cut, "Ejecutivo: todos").ChangeAsync(new ChangeEventArgs { Value = marta.Id.ToString() });
+        await SelectConOpcion(cut, "Estado: todos").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vencido) });
+        UltimaConsulta(mediador).EjecutivoUsuarioId.Should().Be(marta.Id, "punto de partida: hay Gestor CAE elegido");
+
+        await SelectConOpcion(cut, "Filtros guardados…").ChangeAsync(new ChangeEventArgs { Value = nuevo.Id.ToString() });
+
+        var consulta = UltimaConsulta(mediador);
+        consulta.EjecutivoUsuarioId.Should().BeNull("el filtro declara GestorCaeId: null");
+        consulta.EstadoDocumental.Should().BeNull("el filtro declara EstadoDocumental: null");
+        SelectConOpcion(cut, "Ejecutivo: todos").GetAttribute("value").Should().BeNullOrEmpty();
+        cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal(["Montajes Ebro S.L.", "Refrielectric S.A."]));
+        TextosDeLosChips(cut).Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// <c>ValoresJson</c> vive en la tabla <c>FiltrosGuardados</c> y Application
+    /// solo exige que no esté vacío: puede llegar corrupto, con otra forma o
+    /// con un tipo que no es el suyo. Ninguno tumba el circuito: los filtros se
+    /// quedan como estaban, no se recarga nada y se avisa. Después la página
+    /// sigue respondiendo.
+    /// </summary>
+    [Theory]
+    [InlineData("{no es json")]
+    [InlineData("[\"Refri\"]")]
+    [InlineData("{\"Busqueda\":\"Refri\",\"SoloCriticos\":\"sí\"}")]
+    public async Task Un_filtro_guardado_ilegible_avisa_y_deja_los_filtros_como_estaban(string valoresJson)
+    {
+        var roto = new FiltroGuardadoDto(Guid.NewGuid(), "Roto", valoresJson, DateTime.UtcNow);
+        var mediador = new MediatorFalso
+        {
+            Almacen = { Cliente("Refrielectric S.A.", critico: true, peor: EstadoDocumento.Vencido, cantidad: 1), Cliente("Montajes Ebro S.L.") },
+            FiltrosGuardados = { roto }
+        };
+        var cut = Renderizar(mediador);
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        await SelectConOpcion(cut, "Estado: todos").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vencido) });
+        var consultasAntes = mediador.Enviadas.OfType<ObtenerClientesQuery>().Count();
+        var uriAntes = navegacion.Uri;
+
+        await SelectConOpcion(cut, "Filtros guardados…").ChangeAsync(new ChangeEventArgs { Value = roto.Id.ToString() });
+
+        mediador.Enviadas.OfType<ObtenerClientesQuery>().Should().HaveCount(consultasAntes, "no se aplicó nada, así que no hay nada que recargar");
+        UltimaConsulta(mediador).EstadoDocumental.Should().Be(EstadoDocumento.Vencido);
+        navegacion.Uri.Should().Be(uriAntes);
+        TextosDeLosChips(cut).Should().ContainSingle(t => t.StartsWith("Estado: Vencido"));
+        Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle(m =>
+            m.Tono == TonoToast.Advertencia && m.Mensaje.StartsWith("No se pudo aplicar este filtro guardado"));
+
+        await cut.Find(".filtro-critico input").ChangeAsync(new ChangeEventArgs { Value = true });
+        UltimaConsulta(mediador).SoloCriticos.Should().BeTrue("la página sigue viva y aplica el filtro siguiente");
     }
 
     [Fact]
@@ -1003,5 +1258,44 @@ public class ClientesListaGen2Tests : BunitContext
 
         mediador.Enviadas.OfType<EliminarFiltroGuardadoCommand>().Should().BeEmpty();
         cut.FindAll(".chip-filtro").Should().ContainSingle(c => c.TextContent.Contains("Cartera Levante"));
+    }
+
+    // ------------------------------------------- El propio doble de la consulta
+
+    /// <summary>
+    /// Con filtro de estado, el handler solo calcula el agregado de los 2.000
+    /// primeros candidatos en orden: un cliente con vencidos más allá no cuenta.
+    /// Cliente 0001 es el control positivo (dentro del tope, sí cuenta).
+    /// </summary>
+    [Fact]
+    public void El_doble_con_filtro_de_estado_solo_mira_los_primeros_2000_candidatos_como_el_handler()
+    {
+        var mediador = new MediatorFalso();
+        mediador.Almacen.Add(Cliente("Cliente 0001", peor: EstadoDocumento.Vencido, cantidad: 1));
+        for (var i = 2; i <= MediatorFalso.LimiteCandidatosConFiltroDeEstado; i++)
+            mediador.Almacen.Add(Cliente($"Cliente {i:0000}"));
+        mediador.Almacen.Add(Cliente("Cliente 9999", peor: EstadoDocumento.Vencido, cantidad: 1));
+
+        var conEstado = mediador.Filtrar(new ObtenerClientesQuery(null, null, EstadoDocumental: EstadoDocumento.Vencido));
+
+        conEstado.TotalElementos.Should().Be(1, "Cliente 9999 es el candidato 2.001 y queda fuera del tope");
+        conEstado.Elementos.Select(c => c.RazonSocial).Should().Equal(["Cliente 0001"]);
+        mediador.Filtrar(new ObtenerClientesQuery(null, null)).TotalElementos
+            .Should().Be(MediatorFalso.LimiteCandidatosConFiltroDeEstado + 1, "sin filtro de estado no hay tope");
+    }
+
+    /// <summary>
+    /// Empatados en el orden elegido, el handler cierra con el Id. Se insertan
+    /// al revés para que el orden de inserción no dé la respuesta por casualidad.
+    /// </summary>
+    [Fact]
+    public void El_doble_desempata_por_Id_como_el_handler()
+    {
+        var primeroPorId = Cliente("Refrielectric S.A.") with { Id = Guid.Parse("00000000-0000-0000-0000-000000000001") };
+        var segundoPorId = Cliente("Refrielectric S.A.") with { Id = Guid.Parse("00000000-0000-0000-0000-000000000002") };
+        var mediador = new MediatorFalso { Almacen = { segundoPorId, primeroPorId } };
+
+        mediador.Filtrar(new ObtenerClientesQuery(null, null)).Elementos.Select(c => c.Id)
+            .Should().Equal([primeroPorId.Id, segundoPorId.Id]);
     }
 }

@@ -243,7 +243,14 @@
                     }
                 </TemplateColumn>
                 <TemplateColumn Title="Crítico" Align="Align.Center" Sortable="true" SortBy="@(GridSort<ClienteListaDto>.ByAscending(c => c.EsCritico))">
+                    @* Un span vacío con solo title no tiene nombre fiable para un
+                       lector de pantalla (title no se anuncia en todos). El
+                       catálogo no tiene una clase global de texto solo para
+                       lectores (las que hay son CSS aislado de cada página), así
+                       que el punto es una imagen con nombre. *@
                     <span class="@("punto-critico" + (context.EsCritico ? " punto-critico-activo" : ""))"
+                          role="img"
+                          aria-label="@(context.EsCritico ? "Crítico" : "Sin situación crítica")"
                           title="@(context.EsCritico ? "Crítico: bloquea acceso a un centro" : "Sin situación crítica")"></span>
                 </TemplateColumn>
                 <TemplateColumn Title="Acciones" Align="Align.End">
