@@ -14,11 +14,16 @@
     - «Queda registrado en Auditoría quién la ha revelado y cuándo»: ni
       ObtenerCredencialAccesoSubcontrataQuery ni ningún behavior de su
       pipeline escriben un registro de auditoría (AutorizacionSecretosDeTenant
-      solo la corta en sesión privilegiada). Tampoco hay una consulta sin
-      contraseña para Subcontrata (sí para Empresa), así que la tarjeta
-      «Acceso al portal» no pide nada al abrir el panel: las credenciales
-      llegan solo al pulsar «Ver credenciales» (DEC-53/DEC-62), «Revelar» solo
-      desenmascara lo ya recibido y «Ocultar credenciales» lo suelta.
+      solo la corta en sesión privilegiada; AuditoriaInterceptor solo
+      intercepta SaveChanges, nunca una lectura). La tarjeta «Acceso al
+      portal» no pide nada al abrir el panel: las credenciales llegan solo al
+      pulsar «Ver credenciales» (DEC-53/DEC-62), «Revelar» solo desenmascara
+      lo ya recibido y «Ocultar credenciales» lo suelta. El formulario de
+      edición tampoco la precarga — usa
+      ObtenerCredencialAccesoSubcontrataSinContrasenaQuery, gemela de la de
+      Empresa, cuyo DTO no tiene la propiedad Contrasena — y su «Copiar»
+      la pide con ObtenerCredencialAccesoSubcontrataQuery en el momento, igual
+      que el botón «Revelar» de la tarjeta de lectura.
     - Lista de documentos de la subcontrata y su recuento en la pestaña: el
       panel no tiene una consulta de Documentos de la subcontrata; la pestaña
       lo dice y lleva a sus trabajadores.
@@ -50,6 +55,7 @@
 @using CaeManager.Application.Subcontratas.Commands.RegistrarVerificacionExterna
 @using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConActividadDeSubcontrata
 @using CaeManager.Application.Subcontratas.Queries.ObtenerCredencialAccesoSubcontrata
+@using CaeManager.Application.Subcontratas.Queries.ObtenerCredencialAccesoSubcontrataSinContrasena
 @using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId
 @using CaeManager.Application.Subcontratas.Queries.ObtenerSupervisionSubcontrata
 @using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento
@@ -147,8 +153,8 @@ else
                         <BotonCopiar Valor="@_credencialUsuario" Etiqueta="el usuario" />
                     </div>
                     <div class="campo-con-boton">
-                        <CampoTexto Etiqueta="Contraseña" Type="password" Valor="@_credencialContrasena" ValorChanged="v => _credencialContrasena = v" />
-                        <BotonCopiar Valor="@_credencialContrasena" Etiqueta="la contraseña" />
+                        <CampoTexto Etiqueta="Contraseña" Type="password" Placeholder="Déjalo en blanco para conservar la actual" Valor="@_credencialContrasena" ValorChanged="v => _credencialContrasena = v" />
+                        <BotonCopiar ValorAsync="ObtenerContrasenaParaCopiarAsync" Etiqueta="la contraseña" />
                     </div>
                     <CampoTextarea Etiqueta="Notas" Valor="@_credencialNotas" ValorChanged="v => _credencialNotas = v" Filas="3" />
                     <div class="workspace-acciones-edicion">
@@ -651,6 +657,13 @@ else
     private string _credencialUrl = string.Empty;
     private string _credencialCampoEmpresa = string.Empty;
     private string _credencialUsuario = string.Empty;
+
+    /// <summary>
+    /// Nunca se precarga desde el servidor (DEC-53/DEC-62) — solo lo que el
+    /// usuario escriba en esta sesión de edición. Vacío al guardar significa
+    /// "conserva la almacenada", no "bórrala": ver
+    /// <c>GuardarCredencialAccesoSubcontrataCommand</c>.
+    /// </summary>
     private string _credencialContrasena = string.Empty;
     private string _credencialNotas = string.Empty;
     private bool _guardandoCredenciales;
@@ -1028,7 +1041,9 @@ else
             if (generacion != _generacion) return;
             var empresas = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery(), _cancelacion);
             if (generacion != _generacion) return;
-            var credencial = await Mediator.Send(new ObtenerCredencialAccesoSubcontrataQuery(detalle.Id), _cancelacion);
+            // DEC-53/DEC-62: la contraseña no se carga aquí — solo los campos no
+            // sensibles, vía una consulta que ni siquiera lee la columna cifrada.
+            var credencial = await Mediator.Send(new ObtenerCredencialAccesoSubcontrataSinContrasenaQuery(detalle.Id), _cancelacion);
             if (generacion != _generacion) return;
 
             _clientesDisponibles = clientes;
@@ -1043,7 +1058,7 @@ else
             _credencialUrl = credencial?.UrlAcceso ?? string.Empty;
             _credencialCampoEmpresa = credencial?.CampoEmpresa ?? string.Empty;
             _credencialUsuario = credencial?.Usuario ?? string.Empty;
-            _credencialContrasena = credencial?.Contrasena ?? string.Empty;
+            _credencialContrasena = string.Empty;
             _credencialNotas = credencial?.Notas ?? string.Empty;
             _mensajeErrorCredenciales = null;
 
@@ -1059,6 +1074,27 @@ else
             if (generacion == _generacion)
                 _abriendoEdicion = false;
         }
+    }
+
+    /// <summary>
+    /// Petición explícita y separada (DEC-53/DEC-62): solo se pide al
+    /// servidor en el momento de copiar, nunca como efecto de abrir el
+    /// formulario de edición. <see cref="ObtenerCredencialAccesoSubcontrataQuery"/>
+    /// sigue siendo la única vía que descifra la contraseña, y sigue marcada
+    /// como <c>IConsultaDeSecretosDeTenant</c>.
+    /// </summary>
+    private async Task<string?> ObtenerContrasenaParaCopiarAsync()
+    {
+        if (_detalle is null) return null;
+
+        var credencial = await Mediator.Send(new ObtenerCredencialAccesoSubcontrataQuery(_detalle.Id), _cancelacion);
+        if (string.IsNullOrEmpty(credencial?.Contrasena))
+        {
+            ToastService.Mostrar("No hay ninguna contraseña guardada.", TonoToast.Info);
+            return null;
+        }
+
+        return credencial.Contrasena;
     }
 
     private void CancelarEdicionInformacion() => _editandoInformacion = false;
