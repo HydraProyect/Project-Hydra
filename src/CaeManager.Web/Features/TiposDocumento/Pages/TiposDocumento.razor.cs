@@ -1,5 +1,6 @@
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
+using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.TiposDocumento.Commands.ActualizarDeteccionTrabajadoresGlobal;
 using CaeManager.Application.TiposDocumento.Commands.ActualizarLecturaIaGlobal;
@@ -727,9 +728,9 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
     }
 
     /// <summary>
-    /// Si guardar cambia lo que se pide en los centros —«¿Se pide?» entra o
-    /// sale de «Sí, siempre», o se desmarcan centros donde se pedía
-    /// expresamente—, antes se confirma diciendo ese efecto. Si no, se guarda.
+    /// Si guardar cambia lo que se pide en algún centro, antes se confirma
+    /// diciendo ese efecto; si no cambia en ninguno, se guarda sin preguntar.
+    /// El cálculo está en <see cref="CalcularCambio"/>.
     /// </summary>
     private async Task GuardarAsync()
     {
@@ -754,33 +755,137 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
         _confirmacionVisible = false;
     }
 
+    /// <summary>
+    /// Clave con la que se evalúa en memoria un tipo que todavía no existe:
+    /// solo indexa el par (tipo, centro) y no viaja en ningún comando.
+    /// </summary>
+    private static readonly Guid TipoAunSinCrear = Guid.Parse("7a1c0000-0000-0000-0000-000000000001");
+
+    /// <summary>
+    /// «Cualquier centro sin fila propia»: <see cref="TipoDocumentoCentro"/>
+    /// rechaza <see cref="Guid.Empty"/> como centro, así que nunca coincide con una fila.
+    /// </summary>
+    private static readonly Guid CentroSinFilaPropia = Guid.Empty;
+
+    /// <summary>Lo que cambia en lo que se pide al guardar.</summary>
+    /// <param name="Empiezan">Centros con fila antes o después que no lo pedían y pasan a pedirlo.</param>
+    /// <param name="Dejan">Centros con fila antes o después que lo pedían y dejan de pedirlo.</param>
+    /// <param name="RestoAntes">Si lo pedía un centro sin fila propia, antes de guardar.</param>
+    /// <param name="RestoDespues">Si lo pide un centro sin fila propia, después de guardar.</param>
+    private sealed record CambioEnLoQueSePide(IReadOnlyList<Guid> Empiezan, IReadOnlyList<Guid> Dejan, bool RestoAntes, bool RestoDespues)
+    {
+        public bool HayCambio => Empiezan.Count > 0 || Dejan.Count > 0 || RestoAntes != RestoDespues;
+    }
+
+    /// <summary>
+    /// Qué centros cambian al guardar, evaluados con la misma regla con la que
+    /// Application decide si un tipo aplica a un centro
+    /// (<see cref="ResolucionTipoDocumentoCentro.Aplica"/>, reutilizada, no
+    /// copiada): si el par tiene fila <see cref="TipoDocumentoCentro"/>, manda
+    /// su <c>Incluido</c>; si no, el valor general, «¿Se pide?» == «Sí, siempre».
+    ///
+    /// <para>
+    /// Las filas son las Incluido=true, las del selector: son las únicas que
+    /// crean o borran <c>CrearTipoDocumentoCommand</c> y
+    /// <c>EditarTipoDocumentoCommand</c> (este borra por ausencia las
+    /// Incluido=true que no lleguen y crea las nuevas). Las Incluido=false
+    /// —exclusiones dadas de alta desde los requisitos del centro— el comando
+    /// las conserva, así que su centro no lo pide ni antes ni después y no
+    /// entra en ninguna cuenta; por eso el valor general se describe para «los
+    /// centros que no tengan su propia configuración».
+    /// </para>
+    /// </summary>
+    private static CambioEnLoQueSePide CalcularCambio(
+        Guid tipoId, IReadOnlySet<Guid> marcadosAntes, bool generalAntes, IReadOnlySet<Guid> marcadosDespues, bool generalDespues)
+    {
+        var filasAntes = FilasIncluidas(tipoId, marcadosAntes);
+        var filasDespues = FilasIncluidas(tipoId, marcadosDespues);
+
+        bool Antes(Guid centroId) => ResolucionTipoDocumentoCentro.Aplica(filasAntes, tipoId, centroId, generalAntes);
+        bool Despues(Guid centroId) => ResolucionTipoDocumentoCentro.Aplica(filasDespues, tipoId, centroId, generalDespues);
+
+        var conFila = marcadosAntes.Union(marcadosDespues).ToList();
+        return new CambioEnLoQueSePide(
+            Empiezan: conFila.Where(c => !Antes(c) && Despues(c)).ToList(),
+            Dejan: conFila.Where(c => Antes(c) && !Despues(c)).ToList(),
+            RestoAntes: Antes(CentroSinFilaPropia),
+            RestoDespues: Despues(CentroSinFilaPropia));
+    }
+
+    private static Dictionary<(Guid TipoDocumentoId, Guid CentroId), TipoDocumentoCentro> FilasIncluidas(Guid tipoId, IEnumerable<Guid> centroIds) =>
+        centroIds.ToDictionary(centroId => (tipoId, centroId), centroId => new TipoDocumentoCentro(tipoId, centroId));
+
     private List<string> EfectosSobreLoQueSePide()
     {
+        var creando = _editandoId is null;
+        var cambio = CalcularCambio(
+            _editandoId ?? TipoAunSinCrear,
+            // Antes de crearlo el tipo no existe: no lo pide ningún centro.
+            marcadosAntes: creando ? new HashSet<Guid>() : _centroIdsOriginales,
+            generalAntes: !creando && _requeridoOriginal == RequisitoDocumental.Si,
+            marcadosDespues: CentroIdsQueSeEnvian().ToHashSet(),
+            generalDespues: _requerido == RequisitoDocumental.Si);
+
         var efectos = new List<string>();
-        var nombre = string.IsNullOrWhiteSpace(_nombre) ? "Este tipo de documento" : $"«{_nombre.Trim()}»";
-        var sePide = _requerido == RequisitoDocumental.Si;
-
-        if (_editandoId is null)
-        {
-            // Un tipo nuevo no tiene fila propia en ningún centro: todos siguen el valor general.
-            if (sePide)
-                efectos.Add($"{nombre} se pedirá en todos los centros, porque «¿Se pide?» es «Sí, siempre».");
-
+        if (!cambio.HayCambio)
             return efectos;
+
+        var nombre = string.IsNullOrWhiteSpace(_nombre) ? "Este tipo de documento" : $"«{_nombre.Trim()}»";
+
+        if (!cambio.RestoAntes && cambio.RestoDespues)
+        {
+            // Un tipo nuevo no tiene fila en ningún centro: con «Sí, siempre»
+            // lo piden todos, los marcados incluidos, y no hay nada más que contar.
+            if (creando)
+            {
+                efectos.Add($"{nombre} se pedirá en todos los centros, porque «¿Se pide?» es «Sí, siempre».");
+                return efectos;
+            }
+
+            efectos.Add($"{nombre} pasará a pedirse en todos los centros que no tengan su propia configuración para este tipo.");
+        }
+        else if (cambio.RestoAntes && !cambio.RestoDespues)
+        {
+            efectos.Add($"{nombre} dejará de pedirse por defecto: los centros que no tengan su propia configuración para este tipo ya no lo pedirán.");
         }
 
-        var sePedia = _requeridoOriginal == RequisitoDocumental.Si;
-        if (sePide && !sePedia)
-            efectos.Add($"{nombre} pasará a pedirse en todos los centros que no tengan su propia configuración para este tipo.");
-        if (!sePide && sePedia)
-            efectos.Add($"{nombre} dejará de pedirse por defecto: los centros que no tengan su propia configuración para este tipo ya no lo pedirán.");
+        if (cambio.Empiezan.Count > 0)
+            efectos.Add($"{nombre} se pedirá en {CuentaCentros(cambio.Empiezan.Count, "marcado")}{ListaNombresCentros(cambio.Empiezan)}.");
 
-        var quitados = _centroIdsOriginales.Count(id => !_centroIdsSeleccionados.Contains(id));
-        if (quitados > 0)
-            efectos.Add($"Se borra la marca de {quitados} centro(s) donde se pedía expresamente: pasarán a seguir el valor general, «{TextoRequerido(_requerido)}».");
+        if (cambio.Dejan.Count > 0)
+        {
+            var siguen = cambio.Dejan.Count == 1 ? "que pasa" : "que pasan";
+            efectos.Add($"{nombre} dejará de pedirse en {CuentaCentros(cambio.Dejan.Count, "desmarcado")}{ListaNombresCentros(cambio.Dejan)}, "
+                + $"{siguen} a seguir el valor general («{TextoRequerido(_requerido)}»).");
+        }
 
         return efectos;
     }
+
+    private static string CuentaCentros(int cuantos, string participio) =>
+        cuantos == 1 ? $"1 centro {participio}" : $"{cuantos} centros {participio}s";
+
+    /// <summary>
+    /// «: Planta Zaragoza, Nave logística Tudela», en el orden del selector.
+    /// Si alguno no está en el selector se omiten los nombres: la cuenta ya
+    /// es exacta y una lista incompleta diría menos centros de los que son.
+    /// </summary>
+    private string ListaNombresCentros(IReadOnlyCollection<Guid> centroIds)
+    {
+        var nombres = _centrosDisponibles.Where(c => centroIds.Contains(c.Id)).Select(c => c.Nombre).ToList();
+        return nombres.Count == centroIds.Count ? $": {string.Join(", ", nombres)}" : string.Empty;
+    }
+
+    /// <summary>
+    /// Los centros que viajan en el comando, y con los que se calcula el
+    /// efecto. Al crear, solo con ámbito Trabajador: si se marcaron y luego
+    /// se cambió el ámbito, no viajan. Al editar, toda la selección, incluidos
+    /// los centros que el selector no enseña (fuera del alcance de quien
+    /// edita): <c>EditarTipoDocumentoCommand</c> borra por ausencia, y lo que
+    /// no se pudo desmarcar no puede leerse como quitado.
+    /// </summary>
+    private List<Guid> CentroIdsQueSeEnvian() =>
+        _editandoId is null && _ambito != AmbitoAplicacion.Trabajador ? [] : _centroIdsSeleccionados.ToList();
 
     private async Task EnviarAsync()
     {
@@ -806,13 +911,10 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
 
             if (_editandoId is null)
             {
-                // Los centros solo se eligen para el ámbito Trabajador: si se
-                // marcaron y luego se cambió el ámbito, no viajan.
-                var centroIds = _ambito == AmbitoAplicacion.Trabajador ? _centroIdsSeleccionados.ToList() : [];
                 var resultado = await Mediator.Send(
                     new CrearTipoDocumentoCommand(
                         _nombre, vigenciaMeses, _aplicaVencimientoAutomatico, orden, _ambito, _requerido, _naturaleza, notas,
-                        descripcion, criteriosValidacion, seSolicitaA, observaciones, centroIds, _aliasesSeleccionados));
+                        descripcion, criteriosValidacion, seSolicitaA, observaciones, CentroIdsQueSeEnvian(), _aliasesSeleccionados));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }
             else
@@ -820,7 +922,7 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
                 var resultado = await Mediator.Send(
                     new EditarTipoDocumentoCommand(
                         _editandoId.Value, _nombre, vigenciaMeses, _aplicaVencimientoAutomatico, orden, _requerido, _naturaleza, notas,
-                        descripcion, criteriosValidacion, seSolicitaA, observaciones, _centroIdsSeleccionados.ToList(), _aliasesSeleccionados));
+                        descripcion, criteriosValidacion, seSolicitaA, observaciones, CentroIdsQueSeEnvian(), _aliasesSeleccionados));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }
 
