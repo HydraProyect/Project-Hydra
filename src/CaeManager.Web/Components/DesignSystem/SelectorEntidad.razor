@@ -19,6 +19,7 @@
                aria-expanded="@(_abierto ? "true" : "false")"
                aria-controls="@_listaId"
                aria-autocomplete="list"
+               aria-activedescendant="@IdOpcionResaltada"
                autocomplete="off"
                value="@_filtro"
                placeholder="@Placeholder"
@@ -35,7 +36,7 @@
                 @foreach (var opcion in FilasFiltradas)
                 {
                     var indiceFila = indice++;
-                    <li role="option"
+                    <li id="@IdOpcion(opcion.Id)" role="option"
                         aria-selected="@(indiceFila == _indiceResaltado ? "true" : "false")"
                         class="selector-entidad-opcion @(indiceFila == _indiceResaltado ? "selector-entidad-opcion-resaltada" : "")"
                         @onmousedown:preventDefault="true"
@@ -46,7 +47,7 @@
                 @if (MostrarFilaCrear)
                 {
                     var indiceFilaCrear = indice;
-                    <li role="option"
+                    <li id="@IdOpcionCrear" role="option"
                         aria-selected="@(indiceFilaCrear == _indiceResaltado ? "true" : "false")"
                         class="selector-entidad-opcion selector-entidad-opcion-crear @(indiceFilaCrear == _indiceResaltado ? "selector-entidad-opcion-resaltada" : "")"
                         @onmousedown:preventDefault="true"
@@ -91,6 +92,19 @@
     [Parameter] public EventCallback<string> OnCrearSolicitado { get; set; }
 
     private bool TieneError => !string.IsNullOrWhiteSpace(MensajeError);
+
+    private string? IdOpcionResaltada
+    {
+        get
+        {
+            if (!_abierto || _indiceResaltado < 0) return null;
+            if (_indiceResaltado < FilasFiltradas.Count) return IdOpcion(FilasFiltradas[_indiceResaltado].Id);
+            return _indiceResaltado == FilasFiltradas.Count && MostrarFilaCrear ? IdOpcionCrear : null;
+        }
+    }
+
+    private string IdOpcion(string id) => $"{_listaId}-opcion-{id}";
+    private string IdOpcionCrear => $"{_listaId}-opcion-crear";
 
     private IReadOnlyList<OpcionBuscable> FilasFiltradas
     {

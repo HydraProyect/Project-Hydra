@@ -9,13 +9,13 @@
 *@
 <div class="menu-acciones">
     <button type="button" class="menu-acciones-disparador" aria-haspopup="menu" aria-expanded="@(_abierto ? "true" : "false")"
-            aria-label="Más acciones" @onclick="Alternar">
+            aria-controls="@_panelId" aria-label="Más acciones" @ref="_disparador" @onclick="Alternar" @onkeydown="ManejarTeclaDisparadorAsync">
         <Icono Nombre="mas-opciones" />
     </button>
     @if (_abierto)
     {
         <div class="menu-acciones-superposicion" @onclick="Cerrar"></div>
-        <div class="menu-acciones-panel" role="menu" @onclick:stopPropagation="true" @onkeydown="ManejarTecla">
+        <div id="@_panelId" class="menu-acciones-panel" role="menu" @onclick:stopPropagation="true">
             <CascadingValue Value="this" IsFixed="true">
                 @ChildContent
             </CascadingValue>
@@ -24,11 +24,27 @@
 </div>
 
 @code {
+    private readonly string _panelId = $"menu-acciones-{Guid.NewGuid():N}";
+    private readonly List<ItemMenuAccion> _items = [];
+    private ElementReference _disparador;
     private bool _abierto;
+    private ItemMenuAccion? _itemPendienteDeFoco;
+    private bool _primerItemPendiente;
+    private bool _ultimoItemPendiente;
+    private bool _disparadorPendienteDeFoco;
 
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
-    private void Alternar() => _abierto = !_abierto;
+    private void Alternar()
+    {
+        if (_abierto)
+        {
+            Cerrar();
+            return;
+        }
+
+        Abrir(primerItem: true);
+    }
 
     internal void Cerrar()
     {
@@ -36,9 +52,93 @@
         StateHasChanged();
     }
 
-    private void ManejarTecla(KeyboardEventArgs e)
+    internal void Registrar(ItemMenuAccion item)
     {
-        if (e.Key == "Escape")
-            Cerrar();
+        if (_items.Contains(item)) return;
+
+        _items.Add(item);
+        if ((_primerItemPendiente || _ultimoItemPendiente) && _items.Count > 0)
+            StateHasChanged();
+    }
+
+    internal Task ManejarTeclaDeItemAsync(ItemMenuAccion item, KeyboardEventArgs e)
+    {
+        var habilitados = _items.Where(i => i.Habilitado).ToList();
+
+        switch (e.Key)
+        {
+            case "ArrowDown": ProgramarFoco(Siguiente(habilitados, item, 1)); break;
+            case "ArrowUp": ProgramarFoco(Siguiente(habilitados, item, -1)); break;
+            case "Home": ProgramarFoco(habilitados.FirstOrDefault()); break;
+            case "End": ProgramarFoco(habilitados.LastOrDefault()); break;
+            case "Escape":
+                _disparadorPendienteDeFoco = true;
+                Cerrar();
+                break;
+            case "Tab": Cerrar(); break;
+            // Enter y Espacio NO se manejan aquí: sobre un <button> el navegador ya
+            // dispara el click nativo, que ejecuta el ítem y cierra. Manejarlos también
+            // en keydown ejecutaría la acción dos veces.
+        }
+
+        return Task.CompletedTask;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if ((_primerItemPendiente || _ultimoItemPendiente) && _items.Count > 0)
+        {
+            var habilitados = _items.Where(i => i.Habilitado).ToList();
+            _itemPendienteDeFoco = _primerItemPendiente ? habilitados.FirstOrDefault() : habilitados.LastOrDefault();
+            _primerItemPendiente = false;
+            _ultimoItemPendiente = false;
+        }
+
+        if (_itemPendienteDeFoco is not null)
+        {
+            var item = _itemPendienteDeFoco;
+            _itemPendienteDeFoco = null;
+            await item.EnfocarAsync();
+        }
+
+        if (_disparadorPendienteDeFoco)
+        {
+            _disparadorPendienteDeFoco = false;
+            await _disparador.FocusAsync();
+        }
+    }
+
+    private void Abrir(bool primerItem)
+    {
+        _abierto = true;
+        _items.Clear();
+        _primerItemPendiente = primerItem;
+        _ultimoItemPendiente = !primerItem;
+    }
+
+    // La tecla llega por el @onkeydown del ítem hijo, así que Blazor solo repinta el
+    // hijo: sin este StateHasChanged el menú no vuelve a pintarse, OnAfterRenderAsync
+    // no corre y el foco nunca se mueve en el navegador.
+    private void ProgramarFoco(ItemMenuAccion? item)
+    {
+        if (item is null) return;
+        _itemPendienteDeFoco = item;
+        StateHasChanged();
+    }
+
+    private static ItemMenuAccion? Siguiente(IReadOnlyList<ItemMenuAccion> items, ItemMenuAccion actual, int direccion)
+    {
+        if (items.Count == 0) return null;
+        var indice = Enumerable.Range(0, items.Count).FirstOrDefault(i => ReferenceEquals(items[i], actual));
+        if (!ReferenceEquals(items[indice], actual)) indice = -1;
+        if (indice < 0) return items[0];
+        return items[(indice + direccion + items.Count) % items.Count];
+    }
+
+    private Task ManejarTeclaDisparadorAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "ArrowDown") Abrir(primerItem: true);
+        else if (e.Key == "ArrowUp") Abrir(primerItem: false);
+        return Task.CompletedTask;
     }
 }
