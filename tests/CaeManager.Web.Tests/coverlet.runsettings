@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+  Cobertura de la suite bUnit, acotada al ensamblado CaeManager.Web.
+
+  Alimenta el trinquete de cobertura de la Web en "Build, format y tests"
+  (ver su comentario en .github/workflows/ci.yml). Sin este Include,
+  coverlet instrumentaría todo el árbol de dependencias de la suite
+  (Domain/Application/Infrastructure/Web completos) y la cifra resultante
+  sería «cuánto del código TOTAL toca bUnit de refilón» —medido en local,
+  0,4 %—, no «cuánto de la Web cubren sus tests». Acotado a
+  [CaeManager.Web]*, el número mide lo que dice.
+
+  El núcleo (Domain + Application + Infrastructure) tiene su propio
+  trinquete, alimentado por las suites unitarias y de integración; ver
+  tests/CaeManager.IntegrationTests/coverlet.runsettings.
+-->
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat code coverage">
+        <Configuration>
+          <Include>[CaeManager.Web]*</Include>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>
