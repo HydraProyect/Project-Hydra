@@ -2,14 +2,10 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
 @inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
-@using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector
-@using MediatR
-@inject IMediator Mediator
-@inject NavigationManager NavigationManager
 
 @if (!IntegradaEnConfiguracion)
 {
-    <PageTitle>Lectura IA por cliente — @Marca.Nombre</PageTitle>
+    <PageTitle>Lectura IA por Cliente empresarial — @Marca.Nombre</PageTitle>
 }
 
 <div class="@ClaseContenedorPagina">
@@ -18,31 +14,69 @@
         <a href="/configuracion/ia" class="enlace-volver-configuracion">← Configuración</a>
     }
 
-    <CabeceraPagina Titulo="Lectura IA por cliente" Integrada="@IntegradaEnConfiguracion">
+    @* Mockup «Lectura IA TALVEG.dc.html», pantalla A. Su copy decía «qué se
+       extrae y con qué umbral»: no existe ningún umbral configurable (el
+       propio mockup lo anota y recomienda dejar de prometerlo), y tampoco es
+       cierto que el Nivel 2 decida «qué se lee» — ver el comentario de la
+       clase. El texto dice lo que el código hace. *@
+    <CabeceraPagina Titulo="Lectura IA por Cliente empresarial" Integrada="@IntegradaEnConfiguracion">
         <Descripcion>
-            Qué se extrae y con qué umbral de confianza, por cliente. Elige un cliente para configurar su lectura IA.
+            La lectura IA de cada tipo de documento se activa para todos en
+            <a href="/configuracion/tipos">Tipos de documento</a>. Aquí eliges un Cliente empresarial para
+            restringirla solo para él: puedes desactivar un tipo que está activo para todos, nunca activar uno
+            que está desactivado.
         </Descripcion>
     </CabeceraPagina>
 
-    @if (_cargando)
+    <p class="texto-descriptivo nota-alcance-lectura-ia">
+        Hoy esa restricción solo la aplica la detección de trabajadores en los documentos de empresa, y la omite
+        para una empresa únicamente cuando todos los Clientes empresariales a los que presta servicio tienen ese
+        tipo desactivado.
+    </p>
+
+    @if (_error)
+    {
+        <EstadoVacio Titulo="No pudimos cargar los Clientes empresariales" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="ReintentarAsync" Cargando="_cargando">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando)
     {
         <EstadoCargando Filas="4" />
     }
     else if (_clientes.Count == 0)
     {
-        <EstadoVacio Titulo="No hay clientes en tu cartera" Descripcion="Da de alta un cliente para poder configurar su lectura IA." />
+        @* Sin buscador: filtrar una lista vacía no lleva a ninguna parte (nota del mockup). *@
+        <EstadoVacio NombreIcono="clientes"
+                     Titulo="Todavía no hay ningún Cliente empresarial"
+                     Descripcion="Da de alta un Cliente empresarial para poder restringir su lectura IA." />
     }
     else
     {
-        <CampoTexto Etiqueta="Buscar cliente" Valor="@_filtro" ValorChanged="v => _filtro = v" Placeholder="Razón social…" />
+        <div class="seleccion-cliente-lectura-ia">
+            <CampoTexto Etiqueta="Buscar Cliente empresarial" Valor="@_filtro" ValorChanged="v => _filtro = v" Placeholder="Razón social…" />
 
-        <ul class="lista-seleccion-cliente">
-            @foreach (var cliente in ClientesFiltrados)
+            @if (SinCoincidencias)
             {
-                <li>
-                    <a href="@($"/clientes/{cliente.Id}/lectura-ia")" class="item-seleccion-cliente">@cliente.RazonSocial</a>
-                </li>
+                <p class="sin-coincidencias-lectura-ia" role="status">Ningún Cliente empresarial coincide con «@_filtro.Trim()».</p>
             }
-        </ul>
+            else
+            {
+                <ul class="lista-seleccion-cliente">
+                    @foreach (var cliente in ClientesFiltrados)
+                    {
+                        <li @key="cliente.Id">
+                            @* Un enlace, no un botón: navega de verdad a la configuración de ese Cliente empresarial. *@
+                            <a href="@($"/clientes/{cliente.Id}/lectura-ia")" class="item-seleccion-cliente">
+                                <span>@cliente.RazonSocial</span>
+                                <span class="item-seleccion-cliente-flecha" aria-hidden="true">→</span>
+                            </a>
+                        </li>
+                    }
+                </ul>
+            }
+        </div>
     }
 </div>
