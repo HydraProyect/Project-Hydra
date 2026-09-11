@@ -58,6 +58,8 @@ public class IncidenciasGen2Tests : BunitContext
 
         public IReadOnlyList<IncidenciaListaDto> Filas { get; set; } = [];
 
+        public int? TotalElementos { get; set; }
+
         /// <summary>Retiene TODAS las cargas de la lista.</summary>
         public bool CargasDiferidas { get; set; }
 
@@ -78,6 +80,8 @@ public class IncidenciasGen2Tests : BunitContext
         public Dictionary<Guid, IncidenciaDetalleDto> Detalles { get; } = [];
 
         public Result RespuestaEditar { get; set; } = Result.Exito();
+
+        public TaskCompletionSource<Result>? RespuestaEditarPendiente { get; set; }
 
         public IEnumerable<ObtenerIncidenciasQuery> Consultas => Peticiones.OfType<ObtenerIncidenciasQuery>();
 
@@ -106,7 +110,7 @@ public class IncidenciasGen2Tests : BunitContext
                         return (Task<TResponse>)(object)tcs.Task;
                     }
 
-                    return Task.FromResult((TResponse)(object)new ResultadoPaginado<IncidenciaListaDto>(Filas, Filas.Count, q.Pagina, q.TamanoPagina));
+                    return Task.FromResult((TResponse)(object)new ResultadoPaginado<IncidenciaListaDto>(Filas, TotalElementos ?? Filas.Count, q.Pagina, q.TamanoPagina));
 
                 case ObtenerIncidenciaPorIdQuery q:
                     if (DetallesDiferidos)
@@ -126,6 +130,8 @@ public class IncidenciasGen2Tests : BunitContext
                     return Task.FromResult((TResponse)(object)Array.Empty<TrabajadorSelectorDto>());
 
                 case EditarIncidenciaCommand:
+                    if (RespuestaEditarPendiente is not null)
+                        return (Task<TResponse>)(object)RespuestaEditarPendiente.Task;
                     return Task.FromResult((TResponse)(object)RespuestaEditar);
 
                 case EliminarIncidenciaCommand:
@@ -311,11 +317,15 @@ public class IncidenciasGen2Tests : BunitContext
     public void Con_filtro_el_recuento_lo_dice()
     {
         var cut = Renderizar(
-            new MediadorControlado { Filas = [Fila(IdAlfa, "Centro Alfa"), Fila(IdBeta, "Centro Beta")] },
+            new MediadorControlado
+            {
+                Filas = [Fila(IdAlfa, "Centro Alfa"), Fila(IdBeta, "Centro Beta")],
+                TotalElementos = 42
+            },
             estado: "SinResolver");
 
         cut.WaitForAssertion(() => cut.Find(".recuento-incidencias").TextContent.Trim()
-            .Should().Be("2 incidencias con el filtro actual"));
+            .Should().Be("42 incidencias con el filtro actual"));
     }
 
     [Fact]
@@ -328,6 +338,70 @@ public class IncidenciasGen2Tests : BunitContext
         await cut.Find("input[placeholder^='Buscar por centro']").InputAsync(new ChangeEventArgs { Value = "andamio" });
 
         cut.WaitForAssertion(() => mediador.Consultas.Last().Busqueda.Should().Be("andamio"), TimeSpan.FromSeconds(3));
+    }
+
+    [Fact]
+    public async Task Un_guardado_lento_de_Alfa_no_cierra_ni_altera_el_formulario_de_Beta()
+    {
+        var respuestaEditarAlfa = new TaskCompletionSource<Result>();
+        var mediador = new MediadorControlado
+        {
+            Filas = [Fila(IdAlfa, "Centro Alfa"), Fila(IdBeta, "Centro Beta")],
+            RespuestaEditarPendiente = respuestaEditarAlfa
+        };
+        mediador.Detalles[IdAlfa] = Detalle(IdAlfa, "Centro Alfa", VersionAlfa, "Caída en la nave");
+        mediador.Detalles[IdBeta] = Detalle(IdBeta, "Centro Beta", VersionBeta, "Andamio sin barandilla");
+        var cut = Renderizar(mediador);
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro Beta"));
+
+        await cut.FindAll(".menu-acciones-disparador")[0].ClickAsync(new());
+        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Editar").ClickAsync(new());
+
+        var guardarAlfa = cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new());
+        cut.WaitForAssertion(() => mediador.Peticiones.OfType<EditarIncidenciaCommand>().Should().ContainSingle());
+
+        await cut.FindAll(".menu-acciones-disparador")[1].ClickAsync(new());
+        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Editar").ClickAsync(new());
+        cut.Find(".drawer-panel .texto-vacio-seccion").TextContent.Should().Be("Centro Beta");
+
+        await cut.InvokeAsync(() => respuestaEditarAlfa.TrySetResult(Result.Exito()));
+        await guardarAlfa;
+
+        cut.FindAll(".drawer-panel").Should().ContainSingle("el guardado de Alfa no puede cerrar el formulario de Beta");
+        cut.Find(".drawer-panel .texto-vacio-seccion").TextContent.Should().Be("Centro Beta");
+        cut.FindAll(".alerta-formulario").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_fallo_de_guardado_lento_de_Alfa_no_muestra_su_error_en_el_formulario_de_Beta()
+    {
+        var respuestaEditarAlfa = new TaskCompletionSource<Result>();
+        var mediador = new MediadorControlado
+        {
+            Filas = [Fila(IdAlfa, "Centro Alfa"), Fila(IdBeta, "Centro Beta")],
+            RespuestaEditarPendiente = respuestaEditarAlfa
+        };
+        mediador.Detalles[IdAlfa] = Detalle(IdAlfa, "Centro Alfa", VersionAlfa, "Caída en la nave");
+        mediador.Detalles[IdBeta] = Detalle(IdBeta, "Centro Beta", VersionBeta, "Andamio sin barandilla");
+        var cut = Renderizar(mediador);
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro Beta"));
+
+        await cut.FindAll(".menu-acciones-disparador")[0].ClickAsync(new());
+        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Editar").ClickAsync(new());
+
+        var guardarAlfa = cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new());
+        cut.WaitForAssertion(() => mediador.Peticiones.OfType<EditarIncidenciaCommand>().Should().ContainSingle());
+
+        await cut.FindAll(".menu-acciones-disparador")[1].ClickAsync(new());
+        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Editar").ClickAsync(new());
+        cut.Find(".drawer-panel .texto-vacio-seccion").TextContent.Should().Be("Centro Beta");
+
+        await cut.InvokeAsync(() => respuestaEditarAlfa.TrySetResult(Result.Fallo(Error.Crear("Guardar.Alfa", "Error de Alfa."))));
+        await guardarAlfa;
+
+        cut.FindAll(".drawer-panel").Should().ContainSingle();
+        cut.Find(".drawer-panel .texto-vacio-seccion").TextContent.Should().Be("Centro Beta");
+        cut.FindAll(".alerta-formulario").Should().BeEmpty("el fallo de Alfa no pertenece al formulario de Beta");
     }
 
     [Fact]

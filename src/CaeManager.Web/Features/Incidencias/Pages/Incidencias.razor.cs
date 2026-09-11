@@ -330,6 +330,7 @@ public partial class Incidencias : ComponentBase
         _descripcion = string.Empty;
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
+        _guardando = false;
         _drawerVisible = true;
     }
 
@@ -360,6 +361,7 @@ public partial class Incidencias : ComponentBase
         _descripcion = incidencia.Descripcion;
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
+        _guardando = false;
         _drawerVisible = true;
     }
 
@@ -376,6 +378,8 @@ public partial class Incidencias : ComponentBase
 
     private async Task GuardarAsync()
     {
+        var generacionFormulario = _generacionFormulario;
+        var editandoId = _editandoId;
         _guardando = true;
         _mensajeErrorFormulario = null;
         _erroresCampo = new Dictionary<string, string>();
@@ -403,7 +407,7 @@ public partial class Incidencias : ComponentBase
             var trabajadorId = Guid.TryParse(_trabajadorId, out var tId) ? tId : (Guid?)null;
             string? mensajeError;
 
-            if (_editandoId is null)
+            if (editandoId is null)
             {
                 if (!Guid.TryParse(_centroId, out var centroId))
                 {
@@ -416,36 +420,43 @@ public partial class Incidencias : ComponentBase
             }
             else
             {
-                var resultado = await Mediator.Send(new EditarIncidenciaCommand(_editandoId.Value, trabajadorId, tipo, gravedad, fechaOcurrencia, _descripcion, _versionEditando));
+                var resultado = await Mediator.Send(new EditarIncidenciaCommand(editandoId.Value, trabajadorId, tipo, gravedad, fechaOcurrencia, _descripcion, _versionEditando));
                 mensajeError = resultado.EsFallido ? MensajeDeFallo(resultado.Error) : null;
             }
 
             if (mensajeError is not null)
             {
-                _mensajeErrorFormulario = mensajeError;
+                if (generacionFormulario == _generacionFormulario)
+                    _mensajeErrorFormulario = mensajeError;
                 return;
             }
 
             ToastService.Mostrar(
-                _editandoId is null ? "Incidencia creada correctamente." : "Incidencia actualizada correctamente.",
+                editandoId is null ? "Incidencia creada correctamente." : "Incidencia actualizada correctamente.",
                 TonoToast.Exito);
 
-            _drawerVisible = false;
+            if (generacionFormulario == _generacionFormulario)
+                _drawerVisible = false;
             await RecargarAsync();
         }
         catch (ValidationException ex)
         {
-            _erroresCampo = ex.Errors
-                .GroupBy(e => e.PropertyName)
-                .ToDictionary(g => g.Key, g => g.First().ErrorMessage);
+            if (generacionFormulario == _generacionFormulario)
+            {
+                _erroresCampo = ex.Errors
+                    .GroupBy(e => e.PropertyName)
+                    .ToDictionary(g => g.Key, g => g.First().ErrorMessage);
+            }
         }
         catch (Exception)
         {
-            _mensajeErrorFormulario = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
+            if (generacionFormulario == _generacionFormulario)
+                _mensajeErrorFormulario = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
         }
         finally
         {
-            _guardando = false;
+            if (generacionFormulario == _generacionFormulario)
+                _guardando = false;
         }
     }
 
