@@ -102,6 +102,42 @@ public class CampoTextoTests : BunitContext
     }
 
     /// <summary>
+    /// Defecto real (ver CampoTexto.razor, ManejarBlurAsync): si el debounce
+    /// ya notificó el valor antes de que el usuario saliera del campo (p.
+    /// ej. escribió, esperó los 300ms sin teclear más, y luego clicó otro
+    /// control), el blur no debe volver a invocar ValorChanged con el mismo
+    /// valor — en pantallas de lista que usan CampoTexto como filtro, una
+    /// segunda notificación recarga la rejilla sin motivo. OnBlur sí debe
+    /// seguir disparándose siempre.
+    /// </summary>
+    [Fact]
+    public async Task Blur_tras_debounce_ya_notificado_no_reinvoca_ValorChanged()
+    {
+        var valoresRecibidos = new List<string>();
+        var vecesOnBlurDisparado = 0;
+        var cut = Render<CampoTexto>(parametros => parametros
+            .Add(p => p.Valor, string.Empty)
+            .Add(p => p.ValorChanged, v => valoresRecibidos.Add(v))
+            .Add(p => p.OnBlur, () => vecesOnBlurDisparado++));
+
+        var input = cut.Find("input");
+
+        // Se espera el debounce completo (300ms) antes del blur, a
+        // diferencia del test "Perder el foco vuelca..." de arriba, que
+        // clica antes de que el debounce termine — aquí el valor ya llegó
+        // al padre por el propio debounce antes de que el usuario cambie de
+        // campo.
+        await input.InputAsync("valor ya notificado");
+        valoresRecibidos.Should().ContainSingle().Which.Should().Be("valor ya notificado");
+
+        await input.BlurAsync(new FocusEventArgs());
+
+        valoresRecibidos.Should().ContainSingle(
+            "el blur no debe reinvocar ValorChanged si el debounce ya notificó el mismo valor");
+        vecesOnBlurDisparado.Should().Be(1, "OnBlur se dispara siempre al perder el foco, cambie o no el valor");
+    }
+
+    /// <summary>
     /// Reporte de campo (worktree dni-field-character-loss): escribir una
     /// cadena larga de un tirón dejaba el valor final recortado por el
     /// final. Hipótesis descartada aquí: que el settle de una pulsación
