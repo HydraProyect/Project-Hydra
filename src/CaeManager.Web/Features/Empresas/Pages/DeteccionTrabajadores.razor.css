@@ -212,6 +212,14 @@
     width: 240px;
 }
 
+.deteccion-col-impacto {
+    width: 220px;
+}
+
+.deteccion-impacto {
+    color: var(--color-text-muted);
+}
+
 .deteccion-col-acciones {
     width: 280px;
 }

@@ -43,7 +43,7 @@
         Visible="_confirmarBajaVisible"
         VisibleChanged="v => _confirmarBajaVisible = v"
         Titulo="@($"¿Dar de baja a {NombreDe(_bajaPendiente)}?")"
-        Mensaje="Se marca como eliminado (baja lógica) y se cierran sus asignaciones activas. Deja de aparecer en los listados, y desde esta pantalla no se puede deshacer. La única evidencia es que no figura en el documento leído por IA: si sabes que sigue en plantilla, elige «Mantener activo»."
+        Mensaje="@MensajeConfirmarBaja(_bajaPendiente)"
         TextoBotonConfirmar="Dar de baja"
         EnProgreso="_dandoDeBaja"
         OnConfirmar="ConfirmarBajaAsync" />
@@ -124,10 +124,10 @@
                 <span class="deteccion-regla-icono deteccion-regla-sistema"><Icono Nombre="ia" Tamano="TamanoIcono.Pequeno" /></span>
                 <div>
                     <strong>Lo que lee la IA se trata como una propuesta, no como un hecho</strong>
-                    @* Lo que hace DeteccionTrabajadoresService al agrupar y comparar:
-                       Trim() + ToUpperInvariant(), sin quitar guiones ni espacios
-                       intermedios. No prometer que une variantes del mismo DNI. *@
-                    <span class="deteccion-regla-identificadores">Los identificadores leídos se comparan tal cual, sin distinguir mayúsculas de minúsculas y sin contar los espacios del principio o del final: de dos filas con el mismo identificador así comparado se queda una, pero el mismo DNI escrito de otra forma (12345678Z y 12345678-Z) cuenta como dos, también al compararlo con la plantilla. Un documento con más de 2.000 identificadores distintos se descarta entero y solo se propone un alta si el identificador es un DNI o NIE con dígito de control correcto. Para las ausencias cuenta cualquier identificador leído, sea o no DNI/NIE, para no proponer la baja de quien sí aparece con otro documento de identidad.</span>
+                    @* Lo que hace DeteccionTrabajadoresService al agrupar y comparar
+                       (NormalizarDni, desde el 2026-09-11): Trim() + ToUpperInvariant()
+                       + quitar guiones y espacios, también los intermedios. *@
+                    <span class="deteccion-regla-identificadores">Los identificadores leídos se comparan sin mayúsculas/minúsculas, sin espacios y sin guiones: de dos filas con el mismo identificador así comparado se queda una, y el mismo DNI escrito de otra forma (12345678Z y 12345678-Z) cuenta como uno solo, también al compararlo con la plantilla. Un documento con más de 2.000 identificadores distintos se descarta entero y solo se propone un alta si el identificador es un DNI o NIE con dígito de control correcto, con el mismo validador que usa la columna «Comprobación». Para las ausencias cuenta cualquier identificador leído, sea o no DNI/NIE, para no proponer la baja de quien sí aparece con otro documento de identidad.</span>
                 </div>
             </li>
         </ul>
@@ -174,7 +174,7 @@
                         <Badge Tono="TonoBadge.Advertencia">Descartar no se puede deshacer desde aquí</Badge>
                     </div>
                     <p class="texto-descriptivo">Aparecen en el documento pero no están dados de alta en el sistema.</p>
-                    <p class="texto-descriptivo deteccion-ayuda-comprobacion">«Comprobación» es una comprobación de formato que hace esta pantalla: quita guiones y espacios y revisa el dígito de control. La detección no los quita al comparar, así que puede tratar como distintas dos variantes del mismo DNI.</p>
+                    <p class="texto-descriptivo deteccion-ayuda-comprobacion">«Comprobación» es una comprobación de formato que hace esta pantalla: quita guiones y espacios y revisa el dígito de control, con el mismo criterio que usa la detección al comparar.</p>
                     <div class="deteccion-tabla-marco">
                         <table class="tabla-datos deteccion-tabla">
                             <thead>
@@ -235,6 +235,7 @@
                                 <tr>
                                     <th scope="col">Nombre</th>
                                     <th scope="col" class="deteccion-col-dni">DNI</th>
+                                    <th scope="col" class="deteccion-col-impacto">Qué se pierde al dar de baja</th>
                                     <th scope="col" class="deteccion-col-acciones"><span class="deteccion-solo-lectores">Acciones</span></th>
                                 </tr>
                             </thead>
@@ -247,6 +248,7 @@
                                             <span class="deteccion-dni">@deteccion.Dni</span>
                                             <BotonCopiar Valor="@deteccion.Dni" Etiqueta="el DNI" />
                                         </td>
+                                        <td class="deteccion-impacto">@TextoQueSePierde(deteccion.AsignacionesActivas)</td>
                                         <td>
                                             <div class="deteccion-acciones-fila">
                                                 <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"

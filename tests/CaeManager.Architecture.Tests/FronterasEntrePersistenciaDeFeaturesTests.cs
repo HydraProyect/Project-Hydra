@@ -508,6 +508,7 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Trabajadores.EliminarTrabajadorCommandHandler", "IAsignacionRepository"),
         ("Trabajadores.EliminarTrabajadoresCommandHandler", "IAsignacionRepository"),
         ("Trabajadores.ObtenerDeteccionesPendientesQueryHandler", "IEmpresasQueryContext"),
+        ("Trabajadores.ObtenerDeteccionesPorEmpresaQueryHandler", "IAsignacionesQueryContext"),
         ("Trabajadores.ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler", "IAsignacionesQueryContext"),
         ("Trabajadores.ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler", "ICentrosQueryContext"),
         ("Trabajadores.ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler", "IClientesQueryContext"),
