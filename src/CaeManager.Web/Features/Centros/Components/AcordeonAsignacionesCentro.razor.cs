@@ -69,6 +69,19 @@ public partial class AcordeonAsignacionesCentro : ComponentBase
     /// </summary>
     [Parameter] public bool SoloIncidencias { get; set; }
 
+    /// <summary>
+    /// Si el acordeón pinta sus propios caminos a la ficha del centro
+    /// (<c>/centros/{id}</c>): «Ver los N en Centro 360» en el estado «Todos al
+    /// día» y «Ver Centro 360 →» junto a la nota de trabajadores al día
+    /// ocultos. Por defecto sí, para que cualquier consumidor que no lo diga
+    /// quede como estaba. La lista de /centros lo apaga porque ya pinta, bajo
+    /// el acordeón, un enlace único y siempre presente a la misma ficha: con
+    /// los dos, la misma fila ofrecía dos caminos al mismo destino. Apagado,
+    /// el texto informativo (título «Todos al día», recuento de ocultos) se
+    /// conserva; solo desaparece el botón.
+    /// </summary>
+    [Parameter] public bool MostrarEnlacesCentro360 { get; set; } = true;
+
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
     private bool _cargando = true;

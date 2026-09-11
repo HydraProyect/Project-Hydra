@@ -31,12 +31,25 @@
   cambio — ver el comentario de ese paso para el rebaseline completo y
   tecnico/ci-diagnostico-regresion-22min-2026-09-08.md en el repositorio de
   negocio para las tres muestras y su justificacion.
+
+  SEGUNDO CAMBIO DE UNIVERSO (2026-09-11, decisión del propietario): el
+  trinquete se parte en dos. Este fichero alimenta ahora solo el del
+  NÚCLEO —Domain + Application + Infrastructure—, con el Include de abajo.
+  La Web sale de este universo: sus componentes Razor solo los ejecuta la
+  suite bUnit, cuya cobertura no entraba aquí, así que cada pantalla nueva
+  sumaba líneas al denominador que ningún test contable podía cubrir (una
+  pantalla con 13 tests bUnit y 6 mutaciones que muerden hizo caer la cifra
+  de 37,0 % a 36,9 %). La Web tiene su propio trinquete, alimentado por
+  bUnit: ver tests/CaeManager.Web.Tests/coverlet.runsettings y el
+  comentario del gate en .github/workflows/ci.yml. El Exclude de Migrations
+  se conserva por claridad; el Include ya lo deja fuera.
 -->
 <RunSettings>
   <DataCollectionRunSettings>
     <DataCollectors>
       <DataCollector friendlyName="XPlat code coverage">
         <Configuration>
+          <Include>[CaeManager.Domain]*,[CaeManager.Application]*,[CaeManager.Infrastructure]*</Include>
           <Exclude>[CaeManager.Migrations.PostgreSQL]*</Exclude>
         </Configuration>
       </DataCollector>
