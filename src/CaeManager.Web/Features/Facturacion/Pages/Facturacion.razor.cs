@@ -17,22 +17,55 @@ public partial class Facturacion : ComponentBase
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
 
+    internal const string PestanaTarifas = "tarifas";
+    internal const string PestanaResumen = "resumen";
+
+    private static readonly IReadOnlyList<PestanaDefinicion> Pestanas =
+    [
+        new(PestanaTarifas, "Tarifas configuradas"),
+        new(PestanaResumen, "Resumen mensual"),
+    ];
+
+    private static readonly int TotalConceptos = Enum.GetValues<ConceptoFacturable>().Length;
+
     private bool _cargando = true;
     private bool _errorCarga;
     private bool _cargandoTarifas;
     private bool _errorTarifas;
-    private bool _cargandoResumen;
     private bool _guardando;
 
     private IReadOnlyList<ClienteSelectorDto> _clientes = [];
     private Guid _clienteSeleccionadoId = Guid.Empty;
     private List<TarifaClienteDto> _tarifas = [];
     private List<ConceptoFacturable> _conceptosDisponibles = [];
-    private ResumenFacturacionDto? _resumen;
 
-    private int _pestanaActiva;
+    private string _pestanaActiva = PestanaTarifas;
+
+    // Cada carga que escribe estado tras un await lleva su número de solicitud.
+    // Si al volver ya no es la última (cambió el cliente, el periodo, o se
+    // lanzó otra carga igual), la respuesta se descarta: sin esto, las
+    // tarifas de un cliente elegido antes y resuelto después se pintaban bajo
+    // el cliente que el usuario tiene seleccionado ahora.
+    private int _solicitudTarifas;
+    private int _solicitudEstimado;
+    private int _solicitudResumen;
+
+    // Estimado del mes en curso, junto al selector de cliente.
+    private ResumenFacturacionDto? _estimado;
+    private bool _cargandoEstimado;
+    private bool _errorEstimado;
+
+    // Resumen mensual. El periodo que se pinta es el que se CALCULÓ, no el que
+    // tienen ahora los filtros: cambiar el mes sin pulsar «Calcular» dejaba el
+    // título y el enlace de exportación hablando de un mes cuyos datos no
+    // estaban en pantalla.
     private int _anyoResumen = DateTime.Today.Year;
     private int _mesResumen = DateTime.Today.Month;
+    private bool _cargandoResumen;
+    private bool _errorResumen;
+    private bool _resumenConsultado;
+    private ResumenFacturacionDto? _resumen;
+    private (Guid ClienteId, int Anyo, int Mes) _periodoResumen;
 
     // Formulario nueva tarifa
     private bool _mostrarFormularioNueva;
@@ -49,6 +82,11 @@ public partial class Facturacion : ComponentBase
     private Guid _versionEditando;
     private decimal _editPrecio;
     private string _editMoneda = "EUR";
+    // Fallo del comando (conflicto de versión, tarifa inexistente) o excepción.
+    private string? _editError;
+    // Errores de validación por propiedad del comando. Antes se guardaban aquí
+    // con la clave "PrecioUnitario"/"MonedaIso" pero la vista solo leía
+    // "precio": un precio negativo no mostraba nada al pulsar Guardar.
     private Dictionary<string, string> _editErrores = new();
 
     // Eliminar tarifa pendiente de confirmar (antes iba directo del enlace al comando).
@@ -81,50 +119,136 @@ public partial class Facturacion : ComponentBase
     private async Task OnClienteChangedAsync()
     {
         _tarifas = [];
-        _resumen = null;
-        _pestanaActiva = 0;
+        _conceptosDisponibles = [];
+        _pestanaActiva = PestanaTarifas;
         _mostrarFormularioNueva = false;
         CancelarEdicion();
 
+        _estimado = null;
+        _errorEstimado = false;
+        _cargandoEstimado = false;
+
+        _resumen = null;
+        _resumenConsultado = false;
+        _errorResumen = false;
+        _cargandoResumen = false;
+
+        // Invalida lo que siguiera en vuelo para el cliente anterior, también
+        // cuando se vuelve a «— Selecciona un cliente —».
+        _solicitudTarifas++;
+        _solicitudEstimado++;
+        _solicitudResumen++;
+
         if (_clienteSeleccionadoId != Guid.Empty)
-            await CargarTarifasAsync();
+            await CargarDatosClienteAsync();
+    }
+
+    /// <summary>
+    /// Tarifas y, después, el estimado del mes en curso. En serie y no a la
+    /// vez: las dos consultas pasan por el mismo circuito.
+    /// </summary>
+    private async Task CargarDatosClienteAsync()
+    {
+        var clienteId = _clienteSeleccionadoId;
+        await CargarTarifasAsync();
+
+        if (clienteId == _clienteSeleccionadoId)
+            await CargarEstimadoAsync();
     }
 
     private async Task CargarTarifasAsync()
     {
+        var solicitud = ++_solicitudTarifas;
+        var clienteId = _clienteSeleccionadoId;
         _cargandoTarifas = true;
         _errorTarifas = false;
         StateHasChanged();
 
         try
         {
-            _tarifas = await Mediator.Send(new ObtenerTarifasClienteQuery(_clienteSeleccionadoId));
+            var tarifas = await Mediator.Send(new ObtenerTarifasClienteQuery(clienteId));
+            if (solicitud != _solicitudTarifas) return;
+
+            _tarifas = tarifas;
             RecalcularConceptosDisponibles();
         }
         catch (Exception)
         {
+            if (solicitud != _solicitudTarifas) return;
             _errorTarifas = true;
         }
         finally
         {
-            _cargandoTarifas = false;
+            if (solicitud == _solicitudTarifas)
+                _cargandoTarifas = false;
+        }
+    }
+
+    /// <summary>
+    /// El «Estimado de {mes}» del mockup: la misma consulta que el resumen
+    /// mensual, para el mes en curso. No hay cifra nueva que calcular aquí;
+    /// solo se decide cómo pintarla (ver <see cref="TextoEstimado"/>).
+    /// </summary>
+    private async Task CargarEstimadoAsync()
+    {
+        var solicitud = ++_solicitudEstimado;
+        var clienteId = _clienteSeleccionadoId;
+        var hoy = DateTime.Today;
+        _cargandoEstimado = true;
+        _errorEstimado = false;
+        StateHasChanged();
+
+        try
+        {
+            var estimado = await Mediator.Send(new ObtenerResumenFacturacionQuery(clienteId, hoy.Year, hoy.Month));
+            if (solicitud != _solicitudEstimado) return;
+
+            _estimado = estimado;
+        }
+        catch (Exception)
+        {
+            if (solicitud != _solicitudEstimado) return;
+            _estimado = null;
+            _errorEstimado = true;
+        }
+        finally
+        {
+            if (solicitud == _solicitudEstimado)
+                _cargandoEstimado = false;
         }
     }
 
     private async Task CargarResumenAsync()
     {
+        var solicitud = ++_solicitudResumen;
+        var periodo = (_clienteSeleccionadoId, _anyoResumen, _mesResumen);
         _cargandoResumen = true;
-        _resumen = null;
+        _errorResumen = false;
         StateHasChanged();
 
         try
         {
-            _resumen = await Mediator.Send(
-                new ObtenerResumenFacturacionQuery(_clienteSeleccionadoId, _anyoResumen, _mesResumen));
+            var resumen = await Mediator.Send(
+                new ObtenerResumenFacturacionQuery(periodo.Item1, periodo.Item2, periodo.Item3));
+            if (solicitud != _solicitudResumen) return;
+
+            _resumen = resumen;
+            _periodoResumen = periodo;
+            _resumenConsultado = true;
+        }
+        catch (Exception)
+        {
+            // Antes no había catch: una excepción de la consulta subía sin
+            // aviso. Ahora se dice y se ofrece reintentar.
+            if (solicitud != _solicitudResumen) return;
+            _resumen = null;
+            _resumenConsultado = false;
+            _errorResumen = true;
         }
         finally
         {
-            _cargandoResumen = false;
+            if (solicitud == _solicitudResumen)
+                _cargandoResumen = false;
         }
     }
 
@@ -150,13 +274,11 @@ public partial class Facturacion : ComponentBase
             _mostrarFormularioNueva = false;
             _nuevaPrecio = 0;
             _nuevaMoneda = "EUR";
-            await CargarTarifasAsync();
+            await CargarDatosClienteAsync();
         }
         catch (ValidationException ex)
         {
-            _nuevaErrores = ex.Errors
-                .GroupBy(e => e.PropertyName)
-                .ToDictionary(g => g.Key, g => g.First().ErrorMessage);
+            _nuevaErrores = ErroresPorPropiedad(ex);
         }
         catch (Exception)
         {
@@ -174,17 +296,20 @@ public partial class Facturacion : ComponentBase
         _versionEditando = tarifa.Version;
         _editPrecio = tarifa.PrecioUnitario;
         _editMoneda = tarifa.MonedaIso;
+        _editError = null;
         _editErrores = new();
     }
 
     private void CancelarEdicion()
     {
         _tarifaEditandoId = Guid.Empty;
+        _editError = null;
         _editErrores = new();
     }
 
     private async Task GuardarEdicionAsync()
     {
+        _editError = null;
         _editErrores = new();
         _guardando = true;
         StateHasChanged();
@@ -196,23 +321,21 @@ public partial class Facturacion : ComponentBase
 
             if (resultado.EsFallido)
             {
-                _editErrores["precio"] = resultado.Error.Mensaje;
+                _editError = resultado.Error.Mensaje;
                 return;
             }
 
             ToastService.Mostrar("Tarifa actualizada correctamente.", TonoToast.Exito);
             _tarifaEditandoId = Guid.Empty;
-            await CargarTarifasAsync();
+            await CargarDatosClienteAsync();
         }
         catch (ValidationException ex)
         {
-            _editErrores = ex.Errors
-                .GroupBy(e => e.PropertyName)
-                .ToDictionary(g => g.Key, g => g.First().ErrorMessage);
+            _editErrores = ErroresPorPropiedad(ex);
         }
         catch (Exception)
         {
-            _editErrores["precio"] = "No pudimos guardar los cambios. Intenta nuevamente.";
+            _editError = "No pudimos guardar los cambios. Intenta nuevamente.";
         }
         finally
         {
@@ -245,7 +368,7 @@ public partial class Facturacion : ComponentBase
             ToastService.Mostrar("Tarifa eliminada.", TonoToast.Exito);
             _confirmarEliminarVisible = false;
             _tarifaAEliminar = null;
-            await CargarTarifasAsync();
+            await CargarDatosClienteAsync();
         }
         catch (Exception)
         {
@@ -257,15 +380,24 @@ public partial class Facturacion : ComponentBase
         }
     }
 
-    private void CambiarPestana(int pestana)
+    private void CambiarPestana(string pestana)
     {
         _pestanaActiva = pestana;
         CancelarEdicion();
         _mostrarFormularioNueva = false;
     }
 
-    private string PestanaClase(int indice) =>
-        indice == _pestanaActiva ? "pestana-btn pestana-activa" : "pestana-btn";
+    private void CambiarMesResumen(string valor)
+    {
+        if (int.TryParse(valor, out var mes) && mes is >= 1 and <= 12)
+            _mesResumen = mes;
+    }
+
+    private void CambiarConceptoNueva(string valor)
+    {
+        if (Enum.TryParse<ConceptoFacturable>(valor, out var concepto))
+            _nuevaConcepto = concepto;
+    }
 
     private void RecalcularConceptosDisponibles()
     {
@@ -278,13 +410,111 @@ public partial class Facturacion : ComponentBase
             _nuevaConcepto = _conceptosDisponibles[0];
     }
 
+    private static Dictionary<string, string> ErroresPorPropiedad(ValidationException ex) =>
+        ex.Errors
+            .GroupBy(e => e.PropertyName)
+            .ToDictionary(g => g.Key, g => g.First().ErrorMessage);
+
+    private string? ErrorEdicion(string propiedad) =>
+        _editErrores.TryGetValue(propiedad, out var error) ? error : null;
+
+    private string TextoConceptosTarificados =>
+        _cargandoTarifas || _errorTarifas ? "—" : $"{_tarifas.Count} de {TotalConceptos}";
+
+    private static string EtiquetaEstimado => $"Estimado de {NombreMes(DateTime.Today.Month).ToLowerInvariant()}";
+
+    /// <summary>
+    /// El total del mes en curso, sin inventar nada: sin tarifas no hay importe
+    /// (el DTO trae 0 y una moneda por defecto que nadie eligió), y con tarifas
+    /// en varias monedas se da un total por moneda en vez de la suma a ciegas
+    /// que trae <see cref="ResumenFacturacionDto.TotalEstimado"/>.
+    /// </summary>
+    private string TextoEstimado
+    {
+        get
+        {
+            if (_cargandoEstimado) return "…";
+            if (_errorEstimado) return "No disponible";
+            if (_estimado is null || _estimado.Lineas.Count == 0) return "—";
+
+            return string.Join(" · ", TotalesPorMoneda(_estimado.Lineas).Select(t => FormatearImporte(t.Total, t.Moneda)));
+        }
+    }
+
+    private string PistaEstimado =>
+        _estimado is { Lineas.Count: 0 } && !_cargandoEstimado && !_errorEstimado
+            ? "Sin tarifas configuradas"
+            : "Mes en curso, con los datos de hoy";
+
+    /// <summary>
+    /// Totales agrupados por moneda, en el orden en que aparecen las líneas.
+    /// <see cref="ResumenFacturacionDto.TotalEstimado"/> suma todos los
+    /// subtotales y los rotula con la moneda de la primera tarifa: con dos
+    /// monedas, esa cifra no significa nada y no se enseña.
+    /// </summary>
+    internal static IReadOnlyList<(string Moneda, decimal Total)> TotalesPorMoneda(IEnumerable<LineaFacturacionDto> lineas) =>
+        lineas
+            .GroupBy(l => l.MonedaIso.Trim().ToUpperInvariant())
+            .Select(g => (g.Key, g.Sum(l => l.Subtotal)))
+            .ToList();
+
+    /// <summary>
+    /// Cultura de la aplicación (es-ES, fijada en Program.cs), no de la
+    /// pantalla: «857,40 EUR».
+    /// </summary>
+    internal static string FormatearImporte(decimal importe, string moneda) => $"{importe:N2} {moneda}";
+
+    /// <summary>
+    /// Ancho de la barra de «Dónde está el importe» respecto del subtotal
+    /// mayor. Solo tiene sentido con una sola moneda y algún importe positivo:
+    /// la vista no pinta el gráfico en otro caso.
+    /// </summary>
+    internal static decimal PorcentajeBarra(decimal subtotal, decimal maximo) =>
+        maximo <= 0 ? 0 : Math.Round(subtotal / maximo * 100m, 1);
+
+    // Invariante porque es CSS («50.5%», nunca «50,5%»), y "0.#" porque
+    // Math.Round sobre decimal conserva la escala: sin él salía «50.0%».
+    private static string AnchoBarra(decimal subtotal, decimal maximo) =>
+        PorcentajeBarra(subtotal, maximo).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + "%";
+
+    private string UrlExportacion =>
+        $"/facturacion/resumen.xlsx?clienteId={_periodoResumen.ClienteId}&anyo={_periodoResumen.Anyo}&mes={_periodoResumen.Mes}";
+
+    /// <summary>
+    /// Mismos nombres que <c>ObtenerTarifasClienteQueryHandler.NombreConcepto</c>
+    /// (Application). Antes esta copia solo cubría 4 de los 7 conceptos y el
+    /// desplegable de «Nueva tarifa» enseñaba «GestionProyectoRealizada» en
+    /// crudo mientras la tabla decía «Gestión de proyecto realizada».
+    /// </summary>
     internal static string NombreConcepto(ConceptoFacturable concepto) => concepto switch
     {
-        ConceptoFacturable.TrabajadorActivo => "Trabajador activo (mensual)",
+        ConceptoFacturable.TrabajadorActivo => "Trabajador activo",
         ConceptoFacturable.AltaCentro => "Alta de centro",
         ConceptoFacturable.VisitaTrabajadorExtranjero => "Visita de trabajador extranjero",
         ConceptoFacturable.DocumentoGestionado => "Documento gestionado",
+        ConceptoFacturable.TecnicoAsignadoProyecto => "Técnico asignado a proyecto",
+        ConceptoFacturable.GestionProyectoRealizada => "Gestión de proyecto realizada",
+        ConceptoFacturable.DiaProyectoAbierto => "Día de proyecto abierto",
         _ => concepto.ToString()
+    };
+
+    /// <summary>
+    /// Qué cuenta cada unidad, leído de lo que realmente cuenta
+    /// <c>ObtenerResumenFacturacionQueryHandler</c> — no del comentario del
+    /// enum, que para TrabajadorActivo dice «al cierre del período» cuando la
+    /// consulta cuenta cualquier asignación viva en algún momento del mes.
+    /// Si cambia una de esas consultas, esta frase cambia con ella.
+    /// </summary>
+    internal static string UnidadConcepto(ConceptoFacturable concepto) => concepto switch
+    {
+        ConceptoFacturable.TrabajadorActivo => "Por trabajador con asignación activa en algún momento del período",
+        ConceptoFacturable.AltaCentro => "Por centro dado de alta durante el período",
+        ConceptoFacturable.VisitaTrabajadorExtranjero => "Por trabajador sin DNI español que visita un centro en el período",
+        ConceptoFacturable.DocumentoGestionado => "Por documento creado en el período para un trabajador asignado",
+        ConceptoFacturable.TecnicoAsignadoProyecto => "Por técnico distinto asignado a algún proyecto en el período",
+        ConceptoFacturable.GestionProyectoRealizada => "Por documento creado en el período en un proyecto",
+        ConceptoFacturable.DiaProyectoAbierto => "Por día abierto de cada proyecto, contando el primero y el último",
+        _ => string.Empty
     };
 
     internal static string NombreMes(int mes) => mes switch
