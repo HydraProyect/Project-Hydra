@@ -216,18 +216,23 @@ public class TiposDocumentoGen2Tests : BunitContext
             return resultado.OrderBy(t => t.Orden).ToList();
         }
 
-        /// <summary>Como <c>ObtenerTipoDocumentoPorIdQueryHandler</c>: solo las filas Incluido=true.</summary>
+        /// <summary>Como <c>ObtenerTipoDocumentoPorIdQueryHandler</c>: las filas Incluido=true, y aparte las Incluido=false.</summary>
         private TipoDocumentoDetalleDto? Detalle(Guid id) =>
             Tipos.FirstOrDefault(t => t.Id == id) is { } t
                 ? new TipoDocumentoDetalleDto(t.Id, t.Nombre, t.VigenciaMeses, t.AplicaVencimientoAutomatico, t.Orden, t.AmbitoAplicacion,
                     t.Requerido, t.Naturaleza, Notas: null, t.Descripcion, t.CriteriosValidacion, t.SeSolicitaA, t.Observaciones,
-                    Filas.Where(f => f.TipoDocumentoId == id && f.Incluido).Select(f => f.CentroId).ToList(), t.Aliases)
+                    Filas.Where(f => f.TipoDocumentoId == id && f.Incluido).Select(f => f.CentroId).ToList(), t.Aliases,
+                    Filas.Where(f => f.TipoDocumentoId == id && !f.Incluido).Select(f => f.CentroId).ToList())
                 : null;
 
         /// <summary>
         /// El diff de <c>EditarTipoDocumentoCommandHandler</c>: borra las filas
-        /// Incluido=true cuyo centro no llega, crea las de los centros nuevos y
-        /// no toca las Incluido=false.
+        /// Incluido=true cuyo centro no llega y crea las de los centros nuevos —
+        /// salvo que el centro nuevo ya tenga una fila Incluido=false (exclusión
+        /// dada de alta desde Requisitos del Centro): esa fila es la misma
+        /// (TenantId, TipoDocumentoId, CentroId) que el índice único protege, así
+        /// que se convierte a Incluido=true en vez de duplicarla. Las Incluido=false
+        /// de un centro que no se marca aquí no se tocan.
         /// </summary>
         private Result Editar(EditarTipoDocumentoCommand c)
         {
@@ -239,15 +244,22 @@ public class TiposDocumentoGen2Tests : BunitContext
             var deseados = c.CentroIds.Distinct().ToHashSet();
             var nuevos = deseados.Except(actuales.Select(f => f.CentroId)).ToList();
 
-            // El handler añadiría una segunda fila para el par, y el índice
-            // único (tenant, tipo, centro) lo rechazaría al guardar.
-            if (nuevos.Any(centroId => Filas.Any(f => f.TipoDocumentoId == c.Id && f.CentroId == centroId)))
-                throw new InvalidOperationException("Índice único (TenantId, TipoDocumentoId, CentroId) violado (simulado).");
-
             foreach (var fila in actuales.Where(f => !deseados.Contains(f.CentroId)))
                 Filas.Remove(fila);
+
             foreach (var centroId in nuevos)
-                Filas.Add(new TipoDocumentoCentro(c.Id, centroId));
+            {
+                var filaExcluida = Filas.SingleOrDefault(f => f.TipoDocumentoId == c.Id && f.CentroId == centroId);
+                if (filaExcluida is not null)
+                {
+                    Filas.Remove(filaExcluida);
+                    Filas.Add(new TipoDocumentoCentro(c.Id, centroId));
+                }
+                else
+                {
+                    Filas.Add(new TipoDocumentoCentro(c.Id, centroId));
+                }
+            }
 
             return resultado;
         }
@@ -864,6 +876,83 @@ public class TiposDocumentoGen2Tests : BunitContext
         escenario.FilasDe(tipo.Id).Should().BeEquivalentTo([(CentroZaragoza, true), (CentroFueraDeAlcance, true), (CentroTudela, true)]);
     }
 
+    /// <summary>
+    /// Defecto real: Tudela ya tenía una exclusión (Incluido=false, dada de alta desde
+    /// Requisitos del Centro) para este mismo Tipo. Antes del fix, marcarla aquí y guardar
+    /// intentaba crear una segunda fila para el par y el índice único
+    /// (TenantId, TipoDocumentoId, CentroId) lo rechazaba con un 500 sin capturar.
+    /// </summary>
+    [Fact]
+    public async Task Editar_con_No_y_marcar_un_centro_ya_excluido_lo_convierte_en_vez_de_duplicarlo()
+    {
+        var escenario = new Escenario();
+        var tipo = Tipo("Aptitud médica", AmbitoAplicacion.Trabajador);
+        escenario.Tipos.Add(tipo);
+        escenario.Fila(tipo.Id, CentroZaragoza);
+        escenario.Fila(tipo.Id, CentroTudela, incluido: false);
+        var (cut, mediador) = Renderizar(escenario);
+
+        await PulsarEditar(cut, "Aptitud médica");
+        await MarcarCentro(cut, "Nave logística Tudela", true);
+        await PulsarGuardar(cut);
+
+        mediador.Enviados.OfType<EditarTipoDocumentoCommand>().Should().BeEmpty("todavía no se ha confirmado");
+        TextoDelDialogo(cut).Should().Be("«Aptitud médica» se pedirá en 1 centro marcado: Nave logística Tudela.");
+
+        await BotonDelDialogo(cut, "Guardar y aplicar").ClickAsync(new MouseEventArgs());
+
+        escenario.FilasDe(tipo.Id).Should().BeEquivalentTo(
+            [(CentroZaragoza, true), (CentroTudela, true)],
+            "el índice único exige una sola fila por (Tipo, Centro): la exclusión se convierte, no se duplica");
+    }
+
+    /// <summary>
+    /// Con «Sí, siempre» el valor general ya cubre a Tudela, pero su fila explícita
+    /// (Incluido=false) lo excluía — sin verla, <c>CalcularCambio</c> daría "sin cambios"
+    /// (Antes y Después caerían los dos al valor general) y guardaría sin avisar que
+    /// Tudela pasa a pedirlo. <see cref="TipoDocumentoDetalleDto.CentroIdsExcluidos"/>
+    /// existe para que esto no pase inadvertido.
+    /// </summary>
+    [Fact]
+    public async Task Editar_con_Si_siempre_y_marcar_un_centro_ya_excluido_pide_confirmacion_y_lo_nombra()
+    {
+        var escenario = new Escenario();
+        var tipo = Tipo("Formación en PRL", AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
+        escenario.Tipos.Add(tipo);
+        escenario.Fila(tipo.Id, CentroTudela, incluido: false);
+        var (cut, mediador) = Renderizar(escenario);
+
+        await PulsarEditar(cut, "Formación en PRL");
+        await MarcarCentro(cut, "Nave logística Tudela", true);
+        await PulsarGuardar(cut);
+
+        mediador.Enviados.OfType<EditarTipoDocumentoCommand>().Should().BeEmpty("todavía no se ha confirmado");
+        TextoDelDialogo(cut).Should().Be("«Formación en PRL» se pedirá en 1 centro marcado: Nave logística Tudela.",
+            "el valor general ya lo pedía, pero la fila explícita de Tudela lo excluía: sin verla, el diálogo no habría avisado del cambio real");
+
+        await BotonDelDialogo(cut, "Guardar y aplicar").ClickAsync(new MouseEventArgs());
+
+        escenario.FilasDe(tipo.Id).Should().BeEquivalentTo([(CentroTudela, true)]);
+    }
+
+    /// <summary>Un centro excluido que se deja sin marcar no debe entrar en el diálogo ni tocarse.</summary>
+    [Fact]
+    public async Task Un_centro_ya_excluido_que_no_se_marca_no_pide_confirmacion_ni_se_toca()
+    {
+        var escenario = new Escenario();
+        var tipo = Tipo("Formación en PRL", AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
+        escenario.Tipos.Add(tipo);
+        escenario.Fila(tipo.Id, CentroTudela, incluido: false);
+        var (cut, mediador) = Renderizar(escenario);
+
+        await PulsarEditar(cut, "Formación en PRL");
+        await PulsarGuardar(cut);
+
+        cut.FindAll(".modal-contenido").Should().BeEmpty("nada de lo que se pide cambia: Tudela sigue excluida");
+        mediador.Enviados.OfType<EditarTipoDocumentoCommand>().Should().ContainSingle();
+        escenario.FilasDe(tipo.Id).Should().BeEquivalentTo([(CentroTudela, false)]);
+    }
+
     [Fact]
     public async Task Desmarcar_un_centro_con_No_pide_confirmacion_y_dice_cual_deja_de_pedirlo()
     {
@@ -1023,7 +1112,7 @@ public class TiposDocumentoGen2Tests : BunitContext
         ControlDelDrawer(cut, "Nombre").GetAttribute("value").Should().Be("Registro de entrega de EPI");
 
         var detalleDeA = new TipoDocumentoDetalleDto(a.Id, a.Nombre, a.VigenciaMeses, a.AplicaVencimientoAutomatico, a.Orden,
-            a.AmbitoAplicacion, a.Requerido, a.Naturaleza, null, null, null, null, null, [], []);
+            a.AmbitoAplicacion, a.Requerido, a.Naturaleza, null, null, null, null, null, [], [], []);
         await cut.InvokeAsync(() => detalleA.SetResult(detalleDeA));
         await aperturaA;
 

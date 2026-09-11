@@ -13,8 +13,11 @@ namespace CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 /// paginación server-side. Los filtros de ámbito son opcionales y
 /// acumulativos (Cliente → Empresa → Centro, igual que el resto de
 /// selectores en cascada de la aplicación): un Tipo de Documento sin
-/// ninguna asociación a Centro (<see cref="TipoDocumentoCentro"/>) es
-/// global y aparece siempre, independientemente del filtro.
+/// ninguna asociación a Centro (<see cref="TipoDocumentoCentro"/>) sigue el
+/// criterio general de <see cref="RequisitoDocumental"/> — con «Sí,
+/// siempre» aparece pase lo que pase el filtro; con «No» o «Solo si
+/// aplica» no aparece si ningún Centro filtrado lo exige explícitamente
+/// (ver <see cref="ResolucionTipoDocumentoCentro.Aplica"/>).
 ///
 /// <paramref name="Texto"/> busca por <c>Nombre</c> o por cualquiera de los
 /// <see cref="TipoDocumentoAlias"/> — es la razón de ser del campo de alias

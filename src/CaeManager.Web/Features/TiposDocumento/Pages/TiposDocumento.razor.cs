@@ -105,6 +105,7 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
     private string _observaciones = string.Empty;
     private HashSet<Guid> _centroIdsSeleccionados = [];
     private HashSet<Guid> _centroIdsOriginales = [];
+    private HashSet<Guid> _centroIdsExcluidosOriginales = [];
     private string _aliasNuevo = string.Empty;
     private List<string> _aliasesSeleccionados = [];
     private bool _guardando;
@@ -626,6 +627,7 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
         _observaciones = string.Empty;
         _centroIdsSeleccionados = [];
         _centroIdsOriginales = [];
+        _centroIdsExcluidosOriginales = [];
         _aliasNuevo = string.Empty;
         _aliasesSeleccionados = [];
         _erroresCampo = new Dictionary<string, string>();
@@ -684,6 +686,7 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
         // ausencia y lo que no se pudo desmarcar no puede leerse como quitado.
         _centroIdsSeleccionados = tipo.CentroIds.ToHashSet();
         _centroIdsOriginales = tipo.CentroIds.ToHashSet();
+        _centroIdsExcluidosOriginales = tipo.CentroIdsExcluidos.ToHashSet();
         _aliasNuevo = string.Empty;
         _aliasesSeleccionados = tipo.Aliases.ToList();
         _erroresCampo = new Dictionary<string, string>();
@@ -785,26 +788,30 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
     /// su <c>Incluido</c>; si no, el valor general, «¿Se pide?» == «Sí, siempre».
     ///
     /// <para>
-    /// Las filas son las Incluido=true, las del selector: son las únicas que
-    /// crean o borran <c>CrearTipoDocumentoCommand</c> y
-    /// <c>EditarTipoDocumentoCommand</c> (este borra por ausencia las
-    /// Incluido=true que no lleguen y crea las nuevas). Las Incluido=false
-    /// —exclusiones dadas de alta desde los requisitos del centro— el comando
-    /// las conserva, así que su centro no lo pide ni antes ni después y no
-    /// entra en ninguna cuenta; por eso el valor general se describe para «los
-    /// centros que no tengan su propia configuración».
+    /// El selector solo marca/desmarca filas Incluido=true: es lo único que
+    /// <c>CrearTipoDocumentoCommand</c> y <c>EditarTipoDocumentoCommand</c> crean o
+    /// borran por ausencia. Pero <c>EditarTipoDocumentoCommand</c> SÍ toca una fila
+    /// Incluido=false cuando se marca aquí su centro — la convierte a Incluido=true
+    /// en vez de duplicarla (índice único por par) — así que <paramref name="excluidosAntes"/>
+    /// entra en el cálculo: un centro excluido que se marca pasa de no pedirlo (pase
+    /// lo que pase el valor general, la fila explícita manda) a pedirlo. Un centro
+    /// excluido que NO se marca se deja tal cual, sin entrar en el cambio devuelto.
     /// </para>
     /// </summary>
     private static CambioEnLoQueSePide CalcularCambio(
-        Guid tipoId, IReadOnlySet<Guid> marcadosAntes, bool generalAntes, IReadOnlySet<Guid> marcadosDespues, bool generalDespues)
+        Guid tipoId, IReadOnlySet<Guid> marcadosAntes, IReadOnlySet<Guid> excluidosAntes, bool generalAntes,
+        IReadOnlySet<Guid> marcadosDespues, bool generalDespues)
     {
-        var filasAntes = FilasIncluidas(tipoId, marcadosAntes);
-        var filasDespues = FilasIncluidas(tipoId, marcadosDespues);
+        // Marcar un centro excluido lo convierte a Incluido=true (EditarTipoDocumentoCommand);
+        // uno que sigue sin marcarse conserva su exclusión intacta.
+        var excluidosDespues = excluidosAntes.Except(marcadosDespues).ToHashSet();
+        var filasAntes = FilasConEstado(tipoId, marcadosAntes, excluidosAntes);
+        var filasDespues = FilasConEstado(tipoId, marcadosDespues, excluidosDespues);
 
         bool Antes(Guid centroId) => ResolucionTipoDocumentoCentro.Aplica(filasAntes, tipoId, centroId, generalAntes);
         bool Despues(Guid centroId) => ResolucionTipoDocumentoCentro.Aplica(filasDespues, tipoId, centroId, generalDespues);
 
-        var conFila = marcadosAntes.Union(marcadosDespues).ToList();
+        var conFila = marcadosAntes.Union(marcadosDespues).Union(excluidosAntes).ToList();
         return new CambioEnLoQueSePide(
             Empiezan: conFila.Where(c => !Antes(c) && Despues(c)).ToList(),
             Dejan: conFila.Where(c => Antes(c) && !Despues(c)).ToList(),
@@ -812,16 +819,24 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
             RestoDespues: Despues(CentroSinFilaPropia));
     }
 
-    private static Dictionary<(Guid TipoDocumentoId, Guid CentroId), TipoDocumentoCentro> FilasIncluidas(Guid tipoId, IEnumerable<Guid> centroIds) =>
-        centroIds.ToDictionary(centroId => (tipoId, centroId), centroId => new TipoDocumentoCentro(tipoId, centroId));
+    private static Dictionary<(Guid TipoDocumentoId, Guid CentroId), TipoDocumentoCentro> FilasConEstado(
+        Guid tipoId, IEnumerable<Guid> incluidos, IEnumerable<Guid> excluidos)
+    {
+        var filas = incluidos.ToDictionary(centroId => (tipoId, centroId), centroId => new TipoDocumentoCentro(tipoId, centroId));
+        foreach (var centroId in excluidos)
+            filas[(tipoId, centroId)] = new TipoDocumentoCentro(tipoId, centroId, incluido: false);
+
+        return filas;
+    }
 
     private List<string> EfectosSobreLoQueSePide()
     {
         var creando = _editandoId is null;
         var cambio = CalcularCambio(
             _editandoId ?? TipoAunSinCrear,
-            // Antes de crearlo el tipo no existe: no lo pide ningún centro.
+            // Antes de crearlo el tipo no existe: no lo pide ningún centro, ni tiene exclusiones.
             marcadosAntes: creando ? new HashSet<Guid>() : _centroIdsOriginales,
+            excluidosAntes: creando ? new HashSet<Guid>() : _centroIdsExcluidosOriginales,
             generalAntes: !creando && _requeridoOriginal == RequisitoDocumental.Si,
             marcadosDespues: CentroIdsQueSeEnvian().ToHashSet(),
             generalDespues: _requerido == RequisitoDocumental.Si);
