@@ -9,19 +9,11 @@
 }
 
 <div class="@ClaseContenedorPagina">
-    @TituloPaginaIntegrable("Roles")
+    <CabeceraPagina Titulo="Roles" Integrada="IntegradaEnConfiguracion" />
 
-    <div class="pestanas-roles">
-        <button type="button" class="@ClasePestana("roles")" @onclick='() => CambiarPestana("roles")'>Roles</button>
-        <button type="button" class="@ClasePestana("pendientes")" @onclick='() => CambiarPestana("pendientes")'>
-            Pendientes de asignar
-            @if (_usuariosPendientes.Count > 0)
-            {
-                <Badge Tono="TonoBadge.Peligro">@_usuariosPendientes.Count</Badge>
-            }
-        </button>
-    </div>
-
+    @* Carga y error son del contenedor, no de cada pestaña (mockup Gen 2):
+       roles y pendientes llegan juntos en CargarAsync, así que mientras carga
+       o si falla no hay nada que pestañear — las dos pestañas desaparecen. *@
     @if (_error)
     {
         <EstadoVacio Titulo="No pudimos cargar los roles" Descripcion="Intenta nuevamente en unos segundos.">
@@ -34,73 +26,144 @@
     {
         <EstadoCargando Filas="4" />
     }
-    else if (_pestanaActiva == "roles")
+    else
     {
-        <p class="texto-descriptivo">
-            Los 6 roles del sistema están fijos: cada uno corresponde a un nivel de visibilidad ya
-            integrado en Dashboard y en los módulos de administración. No es un catálogo editable —
-            para dar de alta usuarios y asignarles un rol, ve a <a href="/configuracion/usuarios">Usuarios</a>.
-        </p>
+        <div class="pestanas-roles" role="tablist" aria-label="Secciones de roles">
+            <button type="button" role="tab" id="pestana-roles-roles"
+                    aria-selected="@AriaSeleccionada("roles")" aria-controls="panel-roles"
+                    class="@ClasePestana("roles")" @onclick='() => CambiarPestana("roles")'>
+                Roles
+            </button>
+            <button type="button" role="tab" id="pestana-roles-pendientes"
+                    aria-selected="@AriaSeleccionada("pendientes")" aria-controls="panel-roles"
+                    class="@ClasePestana("pendientes")" @onclick='() => CambiarPestana("pendientes")'>
+                Pendientes de asignar
+                @if (_usuariosPendientes.Count > 0)
+                {
+                    <Badge Tono="TonoBadge.Peligro" aria-label="@EtiquetaAccesiblePendientes" title="@TituloPendientes">@_usuariosPendientes.Count</Badge>
+                }
+            </button>
+        </div>
 
-        <div class="rejilla-roles">
-            @foreach (var rol in _roles)
+        <div role="tabpanel" id="panel-roles" class="panel-roles"
+             aria-labelledby="@(_pestanaActiva == "roles" ? "pestana-roles-roles" : "pestana-roles-pendientes")">
+            @if (_pestanaActiva == "roles")
             {
-                <Tarjeta Titulo="@rol.Nombre">
-                    <p class="descripcion-rol">@rol.Descripcion</p>
-                    <span class="contador-usuarios">@rol.CantidadUsuarios usuario(s)</span>
-                </Tarjeta>
+                <p class="texto-descriptivo">
+                    Los 6 roles del sistema están fijos: cada uno corresponde a un nivel de visibilidad ya
+                    integrado en Dashboard y en los módulos de administración. No es un catálogo editable —
+                    para dar de alta usuarios y asignarles un rol, ve a <a href="/configuracion/usuarios">Usuarios</a>.
+                </p>
+
+                <div class="rejilla-roles">
+                    @foreach (var rol in _roles)
+                    {
+                        <Tarjeta Titulo="@rol.Nombre">
+                            <p class="descripcion-rol">@rol.Descripcion</p>
+                            <p class="contador-usuarios">
+                                <Icono Nombre="usuarios" Tamano="TamanoIcono.Pequeno" />
+                                @rol.CantidadUsuarios usuario(s)
+                            </p>
+                        </Tarjeta>
+                    }
+                </div>
+
+                @* Sin este bloque la pantalla mentiría por omisión: el rol no
+                   es toda la autoridad de una cuenta. Cada afirmación está
+                   comprobada en el código, no copiada del mockup:
+                   - El permiso de rastro exige rol Administrador MÁS la
+                     reclamación propia (Program.cs, política de
+                     AccesosDocumentosSensibles), y solo otro Administrador lo
+                     concede, desde Usuarios (Usuarios.razor.cs).
+                   - Las capacidades de plataforma son del plano 3: una sesión
+                     privilegiada no lleva rol de negocio
+                     (SesionPrivilegiadaSinRolDeNegocioMiddleware) y la
+                     administración de plataforma exige la identidad raíz del
+                     despliegue, no el rol Administrador (Plataforma.razor).
+                   El mockup enlazaba «Plataforma» a "#": no hay una pantalla
+                   donde se concedan esas capacidades, así que no se promete. *@
+                <div class="otros-planos-autoridad">
+                    <p class="otros-planos-titulo">El rol no es todo lo que puede hacer un usuario</p>
+                    <p class="otros-planos-texto">
+                        Hay dos planos de autoridad que no se gobiernan aquí. El permiso para consultar el
+                        rastro de acceso a documentos sensibles no lo trae ningún rol: se concede persona a
+                        persona, solo a cuentas con rol Administrador y solo por otro Administrador, desde
+                        <a href="/configuracion/usuarios">Usuarios</a>. Y las capacidades de plataforma de
+                        TALVEG —soporte de lectura, impersonación, break-glass y administración de
+                        plataforma— no dependen de ningún rol de esta lista, tampoco de Administrador, ni se
+                        conceden desde esta pantalla.
+                    </p>
+                </div>
+            }
+            else
+            {
+                <p class="texto-descriptivo">
+                    Usuarios que iniciaron sesión con su cuenta de Microsoft pero todavía no tienen rol
+                    asignado — ven una pantalla de espera hasta que les asignes uno aquí. Para Gestor CAE o
+                    Cliente con sus vínculos completos (coordinador, cliente asociado), asígnales primero un
+                    rol simple aquí y termina de configurarlo después en <a href="/configuracion/usuarios">Usuarios</a>.
+                </p>
+
+                @if (_usuariosPendientes.Count == 0)
+                {
+                    <EstadoVacio Titulo="No hay nadie pendiente" Descripcion="Todos los usuarios que han iniciado sesión tienen un rol asignado." />
+                }
+                else
+                {
+                    <div class="tabla-pendientes">
+                        <table class="tabla-datos">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Correo</th>
+                                    <th scope="col">Nombre</th>
+                                    <th scope="col">Solicitado</th>
+                                    <th scope="col">Rol a asignar</th>
+                                    <th scope="col"><span class="texto-solo-lector">Acciones</span></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var pendiente in _usuariosPendientes)
+                                {
+                                    <tr>
+                                        <td>@pendiente.Email</td>
+                                        <td class="celda-nombre">@pendiente.NombreCompleto</td>
+                                        <td class="celda-solicitado">@pendiente.FechaCreacion.ToString("dd/MM/yyyy HH:mm")</td>
+                                        <td class="celda-rol">
+                                            @* La etiqueta existe para el lector de pantalla —el
+                                               encabezado de columna no nombra el control— y se
+                                               oculta a la vista desde Roles.razor.css. *@
+                                            <CampoSelect Etiqueta="@($"Rol a asignar a {pendiente.NombreCompleto}")" Valor="@RolElegido(pendiente.Id)" ValorChanged="v => CambiarRolElegido(pendiente.Id, v)">
+                                                @foreach (var rol in CaeManager.Infrastructure.Identity.Roles.Todos)
+                                                {
+                                                    <option value="@rol">@CaeManager.Infrastructure.Identity.Roles.NombreVisible(rol)</option>
+                                                }
+                                            </CampoSelect>
+                                        </td>
+                                        <td class="celda-accion">
+                                            <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => PedirConfirmacion(pendiente)"
+                                                   Cargando="@(_asignandoId == pendiente.Id)"
+                                                   aria-label="@($"Asignar rol a {pendiente.NombreCompleto}")">
+                                                Asignar
+                                            </Boton>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
             }
         </div>
     }
-    else
-    {
-        <p class="texto-descriptivo">
-            Usuarios que iniciaron sesión con su cuenta de Microsoft pero todavía no tienen rol
-            asignado — ven una pantalla de espera hasta que les asignes uno aquí. Para Gestor CAE o
-            Cliente con sus vínculos completos (coordinador, cliente asociado), asígnales primero un
-            rol simple aquí y termina de configurarlo después en <a href="/configuracion/usuarios">Usuarios</a>.
-        </p>
 
-        @if (_usuariosPendientes.Count == 0)
-        {
-            <EstadoVacio Titulo="No hay nadie pendiente" Descripcion="Todos los usuarios que han iniciado sesión tienen un rol asignado." />
-        }
-        else
-        {
-            <table class="tabla-datos">
-                <thead>
-                    <tr>
-                        <th>Correo</th>
-                        <th>Nombre</th>
-                        <th>Solicitado</th>
-                        <th>Rol a asignar</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var pendiente in _usuariosPendientes)
-                    {
-                        <tr>
-                            <td>@pendiente.Email</td>
-                            <td>@pendiente.NombreCompleto</td>
-                            <td>@pendiente.FechaCreacion.ToString("dd/MM/yyyy HH:mm")</td>
-                            <td>
-                                <CampoSelect Etiqueta="" Valor="@RolElegido(pendiente.Id)" ValorChanged="v => CambiarRolElegido(pendiente.Id, v)">
-                                    @foreach (var rol in CaeManager.Infrastructure.Identity.Roles.Todos)
-                                    {
-                                        <option value="@rol">@CaeManager.Infrastructure.Identity.Roles.NombreVisible(rol)</option>
-                                    }
-                                </CampoSelect>
-                            </td>
-                            <td>
-                                <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => AsignarRolAsync(pendiente)" Cargando="@(_asignandoId == pendiente.Id)">
-                                    Asignar
-                                </Boton>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        }
-    }
+    @* Asignar un rol cambia lo que una persona puede ver y hacer: no sale de
+       un solo clic. El rol que se confirma es el que estaba elegido al pedir
+       la confirmación, y es exactamente el que se envía. *@
+    <DialogoConfirmacion Visible="@(_pendienteAConfirmar is not null)"
+                         VisibleChanged="AlCambiarVisibilidadConfirmacion"
+                         Titulo="@TituloConfirmacion"
+                         Mensaje="@MensajeConfirmacion"
+                         TextoBotonConfirmar="Asignar rol"
+                         EnProgreso="@(_asignandoId is not null)"
+                         OnConfirmar="ConfirmarAsignacionAsync" />
 </div>
