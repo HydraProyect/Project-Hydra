@@ -30,7 +30,10 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
     /// datos TALVEG.dc.html). "cae" es la única sin plantilla en blanco —
     /// decisión ya tomada en la Importacion.razor anterior a este wizard
     /// ("procesa un archivo ya existente", no una plantilla propia) y que
-    /// este wizard no cambia, solo hereda.
+    /// este wizard no cambia, solo hereda. Su descripción tampoco es ya la
+    /// del mockup — ver el comentario junto a "cae" — por el mismo motivo
+    /// que la de Clientes: dice lo que la plantilla hace hoy, no lo que
+    /// hacía antes de Fase 10.
     /// NombreHistorial es el label corto que exige HistorialImportacion.Plantilla
     /// (varchar(50), ver HistorialImportacionConfiguration) — Titulo es copy de UI
     /// fiel al mockup y no tiene ese límite; "Combinada: Cliente + Empresas +
@@ -38,8 +41,27 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
     /// </summary>
     private static readonly IReadOnlyList<DefinicionPlantilla> Plantillas =
     [
+        // La descripción NO es la del mockup («Para arrancar una cartera
+        // entera»): Centros_Plataformas es a la vez Cliente y Centro (ver
+        // ClosedXmlImportacionParser), y desde Fase 10 Cliente exige CIF y
+        // Centro exige Empresa — datos que este libro no recoge. Por eso
+        // EjecutarImportacionCommandHandler nunca da de alta un Cliente
+        // empresarial ni un Centro nuevos desde aquí, solo reutiliza los que
+        // ya existan (mismo motivo que la Plantilla de Clientes, más abajo).
+        // "CAE completa" reimporta una cartera CAE que ya existe en otro
+        // sitio, no da de alta una cartera nueva — para eso está "combinada",
+        // la única de las cuatro que sí recoge CIF y Empresa. El recuento del
+        // paso "Revisar plan" sigue sin corregirse para este formato (a
+        // diferencia de Clientes): AltasClienteCentroQueNoSeHaran avisa de
+        // cuántas de sus altas no se harán, pero las cuenta igual en
+        // TotalACrear — brecha registrada como REC-106
+        // (Project-Hydra-Negocio/tecnico/reconciliacion/REGISTRO-REC.md),
+        // NOT READY porque su cierre exige extender el contrato de
+        // PlanImportacionDto sin romper el emparejamiento posicional de
+        // Centros_Plataformas con Asignaciones ni la causal de Asignación
+        // que exige DCR-12 (ver IMPORTACION.md § 3 bis).
         new("cae", "CAE", "Importación CAE completa (multi-hoja)",
-            "Clientes, empresas, centros, trabajadores y sus documentos en un solo libro (Cuadro de Control CAE). Para arrancar una cartera entera.",
+            "Clientes, empresas, centros, trabajadores y sus documentos en un solo libro (Cuadro de Control CAE) que ya existe. No da de alta ningún Cliente empresarial ni Centro nuevos — solo reutiliza los que ya existan. Para incorporar un cliente nuevo con su estructura completa, usa Combinada.",
             null, TamanoMaximoCaeCompletaBytes, "CAE completa"),
         // La descripción NO es la del mockup («Solo clientes con sus datos
         // fiscales y de contacto»): la plantilla no recoge CIF, que es el dato
@@ -418,6 +440,16 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         ? $"{ps.ClientesCentros.Count(c => !c.YaExisteCliente)} Clientes empresariales y {ps.ClientesCentros.Count(c => !c.YaExisteCentro)} Centros con nombre nuevo"
         : null;
 
+    /// <summary>
+    /// Ámbar en vez de verde cuando el plan ya sabe que alguna de sus altas de
+    /// Cliente empresarial o Centro no se hará (ver
+    /// <see cref="AltasClienteCentroQueNoSeHaran"/>): la cifra de
+    /// <see cref="TotalACrear"/> sigue siendo la del análisis —corregirla es
+    /// trabajo de REC-106, no de esta pantalla—, pero el color no debe leer
+    /// como éxito garantizado algo que ya se sabe que no lo es del todo.
+    /// </summary>
+    private TonoBadge TonoBadgeCrear => AltasClienteCentroQueNoSeHaran > 0 ? TonoBadge.Advertencia : TonoBadge.Exito;
+
     private string TituloAvisoAltas => AltasClienteCentroQueNoSeHaran == TotalACrear
         ? "Ninguna de estas altas se hará al importar."
         : $"{AltasClienteCentroQueNoSeHaran} de estas altas no se harán al importar.";
@@ -493,9 +525,14 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         {
             // La Plantilla de Clientes lee la hoja «Clientes»; solo la CAE
             // completa trae Centros_Plataformas.
+            // Ámbar, no verde: por construcción (ver AltasClienteCentroQueNoSeHaran)
+            // toda fila que cae en estos dos Where es una que
+            // EjecutarImportacionCommandHandler nunca creará — el análisis la
+            // sigue contando en TotalACrear (REC-106), pero la fila no debe
+            // pintarse como una alta ya garantizada.
             var motivoNombreNuevo = EsPlantillaClientes ? "Nombre nuevo en la hoja «Clientes»." : "Nombre nuevo en Centros_Plataformas.";
-            filas.AddRange(ps.ClientesCentros.Where(c => !c.YaExisteCliente).Select(c => new FilaPlan(c.Nombre, "Crear cliente", TonoBadge.Exito, motivoNombreNuevo)));
-            filas.AddRange(ps.ClientesCentros.Where(c => !c.YaExisteCentro).Select(c => new FilaPlan(c.Nombre, "Crear centro", TonoBadge.Exito, motivoNombreNuevo)));
+            filas.AddRange(ps.ClientesCentros.Where(c => !c.YaExisteCliente).Select(c => new FilaPlan(c.Nombre, "Crear cliente", TonoBadge.Advertencia, motivoNombreNuevo)));
+            filas.AddRange(ps.ClientesCentros.Where(c => !c.YaExisteCentro).Select(c => new FilaPlan(c.Nombre, "Crear centro", TonoBadge.Advertencia, motivoNombreNuevo)));
             filas.AddRange(ps.Empresas.Where(e => !e.YaExiste).Select(e => new FilaPlan(e.RazonSocial, "Crear empresa", TonoBadge.Exito, "Razón social nueva.")));
             filas.AddRange(ps.Trabajadores.Where(t => !t.YaExiste).Select(t => new FilaPlan($"{t.Nombre} {t.Apellidos} ({t.Dni})", "Crear trabajador", TonoBadge.Exito, $"DNI nuevo en {t.RazonSocialEmpresa}.")));
             filas.AddRange(ps.Documentos.Where(d => !d.YaExiste).Select(d => new FilaPlan($"{d.Dni} — {d.NombreTipoDocumento}", "Crear documento", TonoBadge.Exito, $"Emitido {d.FechaEmision:dd/MM/yyyy}.")));

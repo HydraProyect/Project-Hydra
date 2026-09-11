@@ -470,6 +470,25 @@ public class ImportarClientesGen2Tests : BunitContext
         Texto(cut.Find(".vacio-historial-importacion")).Should().Be("Todavía no se ha ejecutado ninguna importación.");
     }
 
+    /// <summary>
+    /// REC-106 (Project-Hydra-Negocio/tecnico/reconciliacion/REGISTRO-REC.md):
+    /// Centros_Plataformas no da de alta Cliente ni Centro nuevos desde Fase
+    /// 10 (exigen CIF/Empresa que este libro no recoge), así que la tarjeta no
+    /// puede seguir prometiendo que sirve para arrancar una cartera desde
+    /// cero — eso es "combinada", la única de las cuatro que sí recoge CIF y
+    /// Empresa.
+    /// </summary>
+    [Fact]
+    public void La_tarjeta_de_CAE_completa_no_promete_arrancar_una_cartera_nueva()
+    {
+        var (cut, _) = Renderizar(new Escenario(), url: "importacion");
+
+        var descripcion = Texto(cut.Find("[data-plantilla='cae'] .descripcion-tarjeta-plantilla"));
+        descripcion.Should().Contain("ya existe").And.Contain("Combinada")
+            .And.NotContain("arrancar").And.NotContain("cartera entera",
+                "Centros_Plataformas no puede dar de alta un Cliente o Centro nuevo: no es la vía de bootstrap");
+    }
+
     [Fact]
     public async Task Las_columnas_del_paso_2_son_las_de_la_plantilla_que_se_descarga()
     {
@@ -528,6 +547,8 @@ public class ImportarClientesGen2Tests : BunitContext
         cut.FindAll(".badges-resumen-plan .badge").Select(Texto).Should().Equal(["3 se crearán", "0 con aviso", "0 se omitirán"],
             "el recuento es el del análisis: 1 Cliente empresarial y 2 Centros con nombre nuevo");
         cut.Find(".badges-resumen-plan .badge").GetAttribute("title").Should().Be("1 Clientes empresariales y 2 Centros con nombre nuevo");
+        cut.Find(".badges-resumen-plan .badge").GetAttribute("class").Should().Contain("badge-advertencia",
+            "las 3 altas contadas son de Cliente/Centro y ninguna se hará: el color no debe leer como éxito garantizado (REC-106)");
         cut.FindAll(".tabla-plan-importacion-envoltorio tbody tr").Select(f => f.QuerySelectorAll("td").Select(Texto).ToArray())
             .Should().BeEquivalentTo(new[]
             {
@@ -535,6 +556,9 @@ public class ImportarClientesGen2Tests : BunitContext
                 new[] { "Instalaciones Vidal S.L.", "Crear centro", "Nombre nuevo en la hoja «Clientes»." },
                 new[] { "Refrielectric S.L.", "Crear centro", "Nombre nuevo en la hoja «Clientes»." }
             }, o => o.WithStrictOrdering());
+        cut.FindAll(".tabla-plan-importacion-envoltorio tbody tr .badge").Select(b => b.GetAttribute("class"))
+            .Should().OnlyContain(clase => clase!.Contains("badge-advertencia"),
+                "las tres filas son altas de Cliente/Centro que el handler nunca hará: ninguna debe pintarse en verde");
 
         Texto(cut.Find(".titulo-aviso-altas")).Should().Be("Ninguna de estas altas se hará al importar.");
         Texto(cut.Find(".detalle-aviso-altas")).Should().Be(
@@ -555,6 +579,8 @@ public class ImportarClientesGen2Tests : BunitContext
         await Pulsar(cut, "Ver plan de importación");
 
         Texto(cut.Find(".badges-resumen-plan .badge")).Should().Be("0 se crearán");
+        cut.Find(".badges-resumen-plan .badge").GetAttribute("class").Should().Contain("badge-exito",
+            "no hay ninguna alta que no vaya a hacerse: el verde original sigue siendo correcto aquí");
         cut.FindAll(".aviso-altas-importacion").Should().BeEmpty();
     }
 
@@ -570,9 +596,22 @@ public class ImportarClientesGen2Tests : BunitContext
         await Pulsar(cut, "Ver plan de importación");
 
         Texto(cut.Find(".badges-resumen-plan .badge")).Should().Be("3 se crearán");
+        cut.Find(".badges-resumen-plan .badge").GetAttribute("class").Should().Contain("badge-advertencia",
+            "2 de las 3 altas contadas no se harán: el color no debe leer como éxito garantizado (REC-106)");
         Texto(cut.Find(".titulo-aviso-altas")).Should().Be("2 de estas altas no se harán al importar.");
-        cut.FindAll(".tabla-plan-importacion-envoltorio tbody tr").Select(f => Texto(f.QuerySelectorAll("td")[2]))
+        var filasPlan = cut.FindAll(".tabla-plan-importacion-envoltorio tbody tr");
+        filasPlan.Select(f => Texto(f.QuerySelectorAll("td")[2]))
             .Should().Contain("Nombre nuevo en Centros_Plataformas.", "la CAE completa sí lee Centros_Plataformas");
+
+        var filasClienteCentro = filasPlan.Where(f => Texto(f.QuerySelectorAll("td")[1]) is "Crear cliente" or "Crear centro").ToList();
+        filasClienteCentro.Should().HaveCount(2);
+        filasClienteCentro.Select(f => f.QuerySelector(".badge")!.GetAttribute("class"))
+            .Should().OnlyContain(clase => clase!.Contains("badge-advertencia"),
+                "Centros_Plataformas nunca da de alta Cliente ni Centro: no deben pintarse en verde");
+
+        var filaCrearEmpresa = filasPlan.Single(f => Texto(f.QuerySelectorAll("td")[1]) == "Crear empresa");
+        filaCrearEmpresa.QuerySelector(".badge")!.GetAttribute("class").Should().Contain("badge-exito",
+            "esta alta sí la hace el handler: sigue siendo un éxito garantizado");
 
         await Pulsar(cut, "Continuar a confirmar");
         Texto(cut.Find(".titulo-aviso-confirmacion")).Should().Be(
