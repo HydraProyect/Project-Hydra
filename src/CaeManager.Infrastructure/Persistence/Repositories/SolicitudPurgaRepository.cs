@@ -39,4 +39,6 @@ public class SolicitudPurgaRepository(CaeManagerDbContext dbContext) : ISolicitu
             .ToListAsync(cancellationToken);
 
     public void Agregar(SolicitudPurga solicitud) => dbContext.SolicitudesPurga.Add(solicitud);
+
+    public void AgregarIncidencia(IncidenciaPurga incidencia) => dbContext.IncidenciasPurga.Add(incidencia);
 }

@@ -125,7 +125,7 @@
                         <td class="purga-fecha">@solicitud.FechaCorte.ToString("dd/MM/yyyy")</td>
                         <td>
                             <TextoFechaCopiable Fecha="FechaDelEstado(solicitud)">
-                                <Badge Tono="@TonoDeEstado(solicitud.Estado)">@DescribirEstado(solicitud)</Badge>
+                                <Badge Tono="@TonoDeEstado(solicitud)">@DescribirEstado(solicitud)</Badge>
                             </TextoFechaCopiable>
                         </td>
                         <td class="purga-acciones">

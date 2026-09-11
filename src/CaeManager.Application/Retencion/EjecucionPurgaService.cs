@@ -53,23 +53,38 @@ public class EjecucionPurgaService(
 
         var ahora = DateTime.UtcNow;
 
-        var afectados = solicitud.TipoDato switch
+        var resultado = solicitud.TipoDato switch
         {
             TipoDatoPurgable.Documentos => await AnonimizarDocumentosAsync(tenantId, solicitud.Id, solicitud.FechaCorte, ahora, cancellationToken),
             TipoDatoPurgable.TrabajadoresDadosDeBaja => await AnonimizarTrabajadoresAsync(tenantId, solicitud.FechaCorte, ahora, cancellationToken),
-            _ => 0
+            _ => new ResultadoAnonimizacion(0, 0, [])
         };
+
+        foreach (var incidencia in resultado.Incidencias)
+            solicitudRepositorio.AgregarIncidencia(incidencia);
+
+        // Resultado durable de ESTA ejecución, aparte de Estado — ver
+        // SolicitudPurga.RegistrarResultadoEjecucion. Persistido en el mismo
+        // SaveChangesAsync que el cambio de estado y las anonimizaciones: no
+        // hay ventana en la que uno se guarde sin el otro.
+        solicitud.RegistrarResultadoEjecucion(resultado.Candidatos, resultado.Suprimidos, resultado.Fallidos);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         logger.LogWarning(
-            "Purga ejecutada: {Afectados} registros de tipo {Tipo} anonimizados (solicitud {SolicitudId}).",
-            afectados, solicitud.TipoDato, solicitud.Id);
+            "Purga ejecutada: {Suprimidos}/{Candidatos} registros de tipo {Tipo} anonimizados, {Fallidos} con incidencias (solicitud {SolicitudId}).",
+            resultado.Suprimidos, resultado.Candidatos, solicitud.TipoDato, resultado.Fallidos, solicitud.Id);
 
-        return afectados;
+        return resultado.Suprimidos;
     }
 
-    private async Task<int> AnonimizarDocumentosAsync(
+    /// <summary>Cuántos candidatos había, cuántos se suprimieron y las incidencias de los que no.</summary>
+    private readonly record struct ResultadoAnonimizacion(int Candidatos, int Suprimidos, IReadOnlyList<IncidenciaPurga> Incidencias)
+    {
+        public int Fallidos => Candidatos - Suprimidos;
+    }
+
+    private async Task<ResultadoAnonimizacion> AnonimizarDocumentosAsync(
         Guid tenantId, Guid solicitudId, DateOnly fechaCorte, DateTime ahora, CancellationToken cancellationToken)
     {
         // IgnoreQueryFilters() + Where(TenantId) explícito — ver el comentario
@@ -103,6 +118,7 @@ public class EjecucionPurgaService(
         var anonimizados = 0;
         var idsAnonimizados = new List<Guid>();
         var noSuprimidos = new List<Guid>();
+        var incidencias = new List<IncidenciaPurga>();
 
         foreach (var documento in documentos)
         {
@@ -116,11 +132,17 @@ public class EjecucionPurgaService(
                 {
                     // No se aborta la purga entera por un archivo: el resto de
                     // la supresión sigue siendo válida y necesaria. Este
-                    // documento se queda como estaba.
+                    // documento se queda como estaba. El detalle de la
+                    // excepción va al log, no a IncidenciaPurga — esa es
+                    // durable y no debe llevar rutas de almacenamiento ni
+                    // otros detalles internos crudos.
                     logger.LogError(ex,
                         "No se pudo borrar el archivo del documento {DocumentoId} durante la purga: se deja sin anonimizar para que un reintento posterior pueda encontrarlo.",
                         documento.Id);
                     noSuprimidos.Add(documento.Id);
+                    incidencias.Add(IncidenciaPurga.Crear(
+                        solicitudId, documento.Id, TipoIncidenciaPurga.FalloEliminacionArchivo,
+                        "No se pudo eliminar el archivo del almacenamiento durante la purga."));
                     continue;
                 }
             }
@@ -141,23 +163,25 @@ public class EjecucionPurgaService(
 
         if (noSuprimidos.Count > 0)
         {
-            // La solicitud ya se marcó ejecutada arriba (SolicitudPurga.Ejecutar),
-            // así que nada va a reintentar esto por su cuenta: sin aviso, el
-            // residuo quedaría sin que nadie lo supiera. Cerrar el ciclo de
-            // verdad —no dar la solicitud por completada hasta confirmar todos
-            // los borrados— exige un registro durable de supresiones con
-            // reintentos, que hoy no existe: decisión de arquitectura pendiente
-            // (ver el informe del Módulo 2).
+            // La solicitud ya se marcó ejecutada arriba (SolicitudPurga.Ejecutar):
+            // nada va a reintentar esto automáticamente todavía. La alerta
+            // sigue siendo el aviso inmediato, pero ya no es el único rastro
+            // — cada documento sin suprimir queda también en IncidenciaPurga,
+            // correlacionado con esta solicitud (SolicitudPurga.ResultadoEjecucion
+            // = ConIncidencias), para que un futuro outbox de reintentos no
+            // tenga que reinventar qué falló. El reintento automático en sí
+            // sigue siendo la decisión de arquitectura pendiente, compartida
+            // con el Módulo 7 (ver el informe del Módulo 2).
             alertaOperativa.Emitir(
                 $"Purga {solicitudId}: {noSuprimidos.Count} documento(s) no se pudieron suprimir y quedan sin anonimizar. " +
                 $"Ids: {string.Join(", ", noSuprimidos)}.",
                 NivelAlertaOperativa.Critica);
         }
 
-        return anonimizados;
+        return new ResultadoAnonimizacion(documentos.Count, anonimizados, incidencias);
     }
 
-    private async Task<int> AnonimizarTrabajadoresAsync(
+    private async Task<ResultadoAnonimizacion> AnonimizarTrabajadoresAsync(
         Guid tenantId, DateOnly fechaCorte, DateTime ahora, CancellationToken cancellationToken)
     {
         // Mismo criterio que AnonimizarDocumentosAsync — ver comentario ahí.
@@ -175,6 +199,8 @@ public class EjecucionPurgaService(
         foreach (var trabajador in trabajadores)
             trabajador.Anonimizar(ahora);
 
-        return trabajadores.Count;
+        // Sin paso de almacenamiento externo — anonimizar un Trabajador no
+        // puede fallar a medias hoy, así que no hay incidencias que registrar.
+        return new ResultadoAnonimizacion(trabajadores.Count, trabajadores.Count, []);
     }
 }

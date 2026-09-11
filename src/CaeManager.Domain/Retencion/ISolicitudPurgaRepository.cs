@@ -17,4 +17,7 @@ public interface ISolicitudPurgaRepository
     Task<IReadOnlyList<SolicitudPurga>> ObtenerEjecutablesAsync(DateOnly hoy, CancellationToken cancellationToken = default);
 
     void Agregar(SolicitudPurga solicitud);
+
+    /// <summary>Registra un candidato que la ejecución no pudo suprimir — ver <see cref="IncidenciaPurga"/>.</summary>
+    void AgregarIncidencia(IncidenciaPurga incidencia);
 }
