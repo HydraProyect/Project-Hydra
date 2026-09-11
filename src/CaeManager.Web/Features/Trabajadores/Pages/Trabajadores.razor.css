@@ -1,9 +1,16 @@
-.barra-filtros {
-    max-width: 640px;
-}
-
-.filtro-empresa {
-    flex: 0 0 240px;
+/*
+  Barra de trabajo como superficie (Lista Trabajadores TALVEG.dc.html): la
+  fila de buscar/documentación/empleador/selección múltiple va sobre una
+  tarjeta, igual que en Centros. La disposición en una sola fila la da
+  .barra-trabajo-centros (list-page.css, global); aquí solo se añade la
+  superficie. Clase propia para no depender del CSS aislado de Centros.
+*/
+.barra-trabajo-trabajadores {
+    align-items: flex-end;
+    background-color: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
 }
 
 .pista-documento {
