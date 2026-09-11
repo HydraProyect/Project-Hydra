@@ -116,7 +116,10 @@ public partial class Configuracion : ComponentBase
         new("Catálogos y datos",
         [
             new("tipos", "TD", "Tipos de documento", "Catálogo y vigencias", typeof(Features.TiposDocumento.Pages.TiposDocumento)),
-            new("ia", "IA", "Lectura IA por cliente", "Qué se extrae y con qué umbral", typeof(SeleccionarClienteLecturaIa)),
+            // El mockup decía «Qué se extrae y con qué umbral»: no hay umbral
+            // configurable, y el propio mockup pide corregir la promesa aquí y
+            // en la entradilla de la pantalla a la vez (su nota «OJO»).
+            new("ia", "IA", "Lectura IA por Cliente empresarial", "Restricción por tipo de documento", typeof(SeleccionarClienteLecturaIa)),
             new("macros", "MA", "Macros de respuesta", "Plantillas de comunicación", typeof(Features.Comunicaciones.Pages.Macros)),
             new("params", "PS", "Parámetros del sistema", "Umbrales del semáforo", typeof(Components.ParametrosSistemaPanel), false),
             new("retencion", "RT", "Retención de datos", "Plazos de borrado", typeof(Features.Retencion.Pages.Retencion))
