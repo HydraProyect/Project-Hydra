@@ -203,10 +203,19 @@ public class TerminologiaCanonicaTests
     /// propósito <b>Soporte</b>, un caso que ADR-011 § 2.7 no cubre— así que el
     /// neto es <b>−1</b>, no una tercera causa sin identificar.
     /// </para>
+    ///
+    /// <para>
+    /// <b><c>Hydra</c> 55 → 54 (Estado comercial Gen 2, 2026-09-11).</b> La única
+    /// aparición retirada es texto de marcado de <c>EstadoComercial.razor</c>
+    /// —la entradilla antigua decía «se crea en Stripe fuera de Hydra»—, que
+    /// cuenta porque en <c>.razor</c> sigue el régimen crudo descrito arriba.
+    /// Medido con <c>git show origin/main:</c> sobre ese fichero y su
+    /// code-behind: 1 aparición antes, 0 después, ninguna en el <c>.razor.cs</c>.
+    /// </para>
     /// </summary>
     private static readonly Dictionary<string, int> Congelado = new()
     {
-        ["Hydra"] = 55,
+        ["Hydra"] = 54,
         ["EjecutivoUsuarioId"] = 48,
         ["Delegacion"] = 290,
         ["ClienteActivo"] = 68,
