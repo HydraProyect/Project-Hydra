@@ -6,6 +6,7 @@ using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Application.Importacion;
 using CaeManager.Application.Importacion.Commands.EjecutarImportacion;
+using CaeManager.Application.Importacion.Commands.EjecutarImportacionCombinada;
 using CaeManager.Application.Importacion.Commands.RegistrarHistorialImportacion;
 using CaeManager.Application.Importacion.Queries;
 using CaeManager.Application.Importacion.Queries.ObtenerHistorialImportaciones;
@@ -106,6 +107,9 @@ public class ImportarClientesGen2Tests : BunitContext
         /// <summary>Plan que devuelve cada análisis, por consulta y contenido del archivo recibido.</summary>
         public Dictionary<(Type Consulta, string Contenido), PlanImportacionDto> Planes { get; } = [];
 
+        /// <summary>Plan que devuelve el análisis de la Combinada, por contenido del archivo recibido.</summary>
+        public Dictionary<string, PlanImportacionCombinadaDto> PlanesCombinados { get; } = [];
+
         /// <summary>Clientes empresariales (Empresas con EsCritico) y Centros que ya existen: los únicos que el handler reutiliza.</summary>
         public HashSet<string> ClientesExistentes { get; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -131,6 +135,13 @@ public class ImportarClientesGen2Tests : BunitContext
             return plan;
         }
 
+        public PlanImportacionCombinadaDto PlanCombinado(string contenido, IEnumerable<ClienteImportadoDto> clientes)
+        {
+            var plan = new PlanImportacionCombinadaDto([.. clientes], [], [], [], [], []);
+            PlanesCombinados[contenido] = plan;
+            return plan;
+        }
+
         public HistorialImportacionDto RegistrarEnHistorial(string plantilla, string archivo)
         {
             var entrada = new HistorialImportacionDto(Guid.NewGuid(), plantilla, archivo, _reloj = _reloj.AddMinutes(1),
@@ -142,15 +153,33 @@ public class ImportarClientesGen2Tests : BunitContext
         public IReadOnlyList<HistorialImportacionDto> Foto(int limite) =>
             Historial.OrderByDescending(h => h.EjecutadaEnUtc).Take(limite).ToList();
 
+        /// <summary>
+        /// Como un handler real, lo retenido no ignora el token que recibe: si
+        /// se cancela mientras la respuesta espera, la petición termina
+        /// cancelada con ESE token, sin esperar a que el test abra la puerta.
+        /// </summary>
         public async Task<object?> Responder(object peticion, CancellationToken token)
         {
             if (Interceptar(peticion) is { } respuesta)
-                return await respuesta;
+                return await ConCancelacion(respuesta, token);
 
             if (Retener(peticion) is { } puerta)
-                await puerta;
+                await ConCancelacion(Esperar(puerta), token);
 
             return ResponderAhora(peticion);
+
+            static async Task<object?> Esperar(Task tarea)
+            {
+                await tarea;
+                return null;
+            }
+        }
+
+        private static async Task<T> ConCancelacion<T>(Task<T> tarea, CancellationToken token)
+        {
+            var cancelada = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var registro = token.Register(() => cancelada.TrySetCanceled(token));
+            return await await Task.WhenAny(tarea, cancelada.Task);
         }
 
         private object? ResponderAhora(object peticion) =>
@@ -158,11 +187,28 @@ public class ImportarClientesGen2Tests : BunitContext
             {
                 AnalizarPlantillaClientesQuery q => Analizar(typeof(AnalizarPlantillaClientesQuery), q.ContenidoArchivo),
                 AnalizarImportacionExcelQuery q => Analizar(typeof(AnalizarImportacionExcelQuery), q.ContenidoArchivo),
+                AnalizarPlantillaCombinadaQuery q => PlanesCombinados.TryGetValue(Encoding.UTF8.GetString(q.ContenidoArchivo), out var plan)
+                    ? plan
+                    : throw new InvalidDataException("No es un libro que la Combinada sepa leer."),
                 ObtenerHistorialImportacionesQuery q => Foto(q.Limite),
                 EjecutarImportacionCommand c => Ejecutar(c.Plan),
+                EjecutarImportacionCombinadaCommand c => EjecutarCombinada(c),
                 RegistrarHistorialImportacionCommand c => Registrar(c),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {peticion.GetType().Name}.")
             };
+
+        /// <summary>
+        /// Responde según <see cref="EjecutarImportacionCombinadaCommand.ReemplazarExistentes"/>
+        /// para que la pantalla no pueda pintar lo mismo con los dos valores:
+        /// con él, cada Cliente empresarial que ya existía cuenta como
+        /// actualizado; sin él, ninguno. Es una simplificación: el handler real
+        /// solo actualiza lo que difiere y, sin reemplazar, completa lo vacío —
+        /// eso se prueba en Application, no aquí.
+        /// </summary>
+        private static Result<ResultadoImportacionCombinadaDto> EjecutarCombinada(EjecutarImportacionCombinadaCommand c) =>
+            Result.Exito(new ResultadoImportacionCombinadaDto(
+                c.Plan.Clientes.Count(x => !x.YaExiste), c.ReemplazarExistentes ? c.Plan.Clientes.Count(x => x.YaExiste) : 0,
+                0, 0, 0, 0, 0, 0, c.Plan.Advertencias, c.Plan.Omitidos));
 
         /// <summary>Como el handler: el plan sale de los bytes; un archivo que no sabe leer, excepción.</summary>
         private PlanImportacionDto Analizar(Type consulta, byte[] contenido) =>
@@ -208,12 +254,28 @@ public class ImportarClientesGen2Tests : BunitContext
         }
     }
 
-    /// <summary>Ningún usuario del historial se encuentra: la página pinta «(usuario eliminado)». Nada más se consulta.</summary>
+    /// <summary>
+    /// Ningún usuario del historial se encuentra: la página pinta «(usuario
+    /// eliminado)». Nada más se consulta. Registra cada búsqueda y puede
+    /// retenerla hasta que el test la suelte.
+    /// </summary>
     private sealed class AlmacenUsuariosVacio : IUserStore<ApplicationUser>
     {
         private static Exception NoDeberia() => new NotSupportedException("La página solo busca usuarios por id.");
 
-        public Task<ApplicationUser?> FindByIdAsync(string userId, CancellationToken cancellationToken) => Task.FromResult<ApplicationUser?>(null);
+        public List<string> Buscados { get; } = [];
+
+        /// <summary>Si devuelve una tarea, la búsqueda espera a que el test la complete.</summary>
+        public Func<string, Task?> Retener { get; set; } = _ => null;
+
+        public async Task<ApplicationUser?> FindByIdAsync(string userId, CancellationToken cancellationToken)
+        {
+            Buscados.Add(userId);
+            if (Retener(userId) is { } puerta)
+                await puerta;
+            return null;
+        }
+
         public Task<IdentityResult> CreateAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoDeberia();
         public Task<IdentityResult> DeleteAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoDeberia();
         public Task<ApplicationUser?> FindByNameAsync(string normalizedUserName, CancellationToken cancellationToken) => throw NoDeberia();
@@ -226,6 +288,11 @@ public class ImportarClientesGen2Tests : BunitContext
         public void Dispose() { }
     }
 
+    /// <summary>
+    /// Como el <c>BrowserFile</c> real: abrir con un límite menor que el
+    /// tamaño lanza (así, un límite equivocado en la página —el de 512 KB por
+    /// defecto— se ve aquí), y un token ya cancelado no abre nada.
+    /// </summary>
     private sealed class ArchivoFalso(string nombre, byte[] contenido) : IBrowserFile
     {
         public string Name => nombre;
@@ -233,14 +300,23 @@ public class ImportarClientesGen2Tests : BunitContext
         public long Size => contenido.LongLength;
         public string ContentType => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-        public Stream OpenReadStream(long maxAllowedSize = 512000, CancellationToken cancellationToken = default) =>
-            new MemoryStream(contenido);
+        public Stream OpenReadStream(long maxAllowedSize = 512000, CancellationToken cancellationToken = default)
+        {
+            if (Size > maxAllowedSize)
+                throw new IOException($"Supplied file with size {Size} bytes exceeds the maximum of {maxAllowedSize} bytes.");
+
+            cancellationToken.ThrowIfCancellationRequested();
+            return new MemoryStream(contenido);
+        }
     }
 
     // ---------------------------------------------------------------- arnés
 
+    private readonly AlmacenUsuariosVacio _usuarios = new();
+
+    /// <param name="antesDeRenderizar">Corre con los servicios ya registrados y la página aún sin inicializar.</param>
     private (IRenderedComponent<PaginaImportacion> Cut, MediadorControlado Mediador) Renderizar(
-        Escenario escenario, string url = "importacion?plantilla=clientes")
+        Escenario escenario, string url = "importacion?plantilla=clientes", Action? antesDeRenderizar = null)
     {
         var mediador = new MediadorControlado(escenario.Responder);
         Services.AddScoped<IMediator>(_ => mediador);
@@ -248,12 +324,33 @@ public class ImportarClientesGen2Tests : BunitContext
         Services.AddScoped<PuertaAccesoDatos>();
         Services.AddLogging();
         Services.AddScoped(_ => new UserManager<ApplicationUser>(
-            new AlmacenUsuariosVacio(), null!, null!, null!, null!, null!, null!, null!, null!));
+            _usuarios, null!, null!, null!, null!, null!, null!, null!, null!));
         Services.GetRequiredService<NavigationManager>().NavigateTo(url);
+        antesDeRenderizar?.Invoke();
 
         var cut = Render<PaginaImportacion>();
         return (cut, mediador);
     }
+
+    private static readonly string[] OrdenPlantillas = ["cae", "clientes", "combinada", "documentos"];
+
+    private static IElement OpcionPlantilla(IRenderedComponent<PaginaImportacion> cut, string id) =>
+        cut.Find($"[role=radiogroup] [data-plantilla='{id}'] [role=radio]");
+
+    private IEnumerable<JSRuntimeInvocation> PeticionesDeFoco() =>
+        JSInterop.Invocations.Where(i => i.Identifier.Contains("focus", StringComparison.OrdinalIgnoreCase));
+
+    private static string Metrica(IRenderedComponent<PaginaImportacion> cut, string etiqueta) =>
+        Texto(cut.FindAll(".tarjeta-metrica")
+            .Single(t => Texto(t.QuerySelector(".tarjeta-metrica-etiqueta")!) == etiqueta).QuerySelector(".tarjeta-metrica-valor")!);
+
+    /// <summary>
+    /// Entra y sale de la puerta de datos. La puerta atiende por orden de
+    /// llegada, así que esto termina DESPUÉS de lo que la página tuviera ya en
+    /// cola; con tope, para que un fallo sea un rojo y no un cuelgue.
+    /// </summary>
+    private Task PasarPorLaPuertaDeDatos() =>
+        Services.GetRequiredService<PuertaAccesoDatos>().EjecutarAsync(() => Task.CompletedTask).WaitAsync(TimeSpan.FromSeconds(10));
 
     private static string Normalizar(string texto) => Regex.Replace(texto, @"\s+", " ").Trim();
 
@@ -333,9 +430,9 @@ public class ImportarClientesGen2Tests : BunitContext
         volver.GetAttribute("href").Should().Be("/clientes");
         Texto(volver).Should().Be("Volver a Clientes");
         Texto(cut.Find(".miga-importacion")).Should().Be("Negocio → Clientes → Importar clientes");
-        cut.Find("[data-plantilla='clientes']").GetAttribute("aria-pressed").Should().Be("true");
+        OpcionPlantilla(cut, "clientes").GetAttribute("aria-checked").Should().Be("true");
 
-        await cut.Find("[data-plantilla='documentos']").ClickAsync(new MouseEventArgs());
+        await OpcionPlantilla(cut, "documentos").ClickAsync(new MouseEventArgs());
 
         Texto(cut.Find("h1.titulo-pagina")).Should().Be("Importar datos",
             "con otra plantilla ya no se están importando Clientes empresariales");
@@ -349,7 +446,7 @@ public class ImportarClientesGen2Tests : BunitContext
 
         Texto(cut.Find("h1.titulo-pagina")).Should().Be("Importar datos");
         cut.FindAll("a.enlace-volver-importacion").Should().BeEmpty();
-        cut.Find("[data-plantilla='cae']").GetAttribute("aria-pressed").Should().Be("true");
+        OpcionPlantilla(cut, "cae").GetAttribute("aria-checked").Should().Be("true");
     }
 
     // ---------------------------------------------------------------- paso 1 y 2
@@ -554,10 +651,8 @@ public class ImportarClientesGen2Tests : BunitContext
 
         cut.WaitForAssertion(() => TituloDeLaSeccion(cut).Should().Be("Reporte"));
         cut.FindAll(".modal-contenido").Should().BeEmpty();
-        string Metrica(string etiqueta) => Texto(cut.FindAll(".tarjeta-metrica")
-            .Single(t => Texto(t.QuerySelector(".tarjeta-metrica-etiqueta")!) == etiqueta).QuerySelector(".tarjeta-metrica-valor")!);
-        Metrica("Creados").Should().Be("0");
-        Metrica("Omitidos").Should().Be("2", "las dos filas que el diálogo anunció como omitidas");
+        Metrica(cut, "Creados").Should().Be("0");
+        Metrica(cut, "Omitidos").Should().Be("2", "las dos filas que el diálogo anunció como omitidas");
         cut.FindAll(".tabla-datos tbody tr").Select(Texto).Should().SatisfyRespectively(
             f => f.Should().Contain("Instalaciones Vidal S.L.").And.Contain("CIF"),
             f => f.Should().Contain("Refrielectric S.L.").And.Contain("Empresa asociada"));
@@ -661,7 +756,7 @@ public class ImportarClientesGen2Tests : BunitContext
 
         var subida = Subir(cut, "a.xlsx", "A");
         await Pulsar(cut, "← Cambiar plantilla");
-        await cut.Find("[data-plantilla='cae']").ClickAsync(new MouseEventArgs());
+        await OpcionPlantilla(cut, "cae").ClickAsync(new MouseEventArgs());
         puerta.SetResult();
         await subida;
 
@@ -718,15 +813,243 @@ public class ImportarClientesGen2Tests : BunitContext
         var subida = Subir(cut, "a.xlsx", "A");
         cut.WaitForAssertion(() => mediador.Recibidas.Should().Contain(r => r.Peticion is AnalizarPlantillaClientesQuery));
         var token = mediador.Recibidas.Single(r => r.Peticion is AnalizarPlantillaClientesQuery).Token;
+        // La instancia se toma ANTES: tras desechar ya no hay componente que pedir.
         var instancia = cut.Instance;
 
         await DisposeComponentsAsync();
 
         Campo<bool>(instancia, "_desechada").Should().BeTrue("el Dispose de la página se ejecutó");
         token.IsCancellationRequested.Should().BeTrue("el análisis en vuelo se cancela al retirar la página");
+        await subida.WaitAsync(TimeSpan.FromSeconds(10));
+        puerta.Task.IsCompleted.Should().BeFalse(
+            "la subida terminó porque el doble convirtió en cancelación ESE token, no porque el test soltara la respuesta");
+        Campo<PlanImportacionDto?>(instancia, "_planSimple").Should().BeNull("la respuesta nunca llegó a una página ya retirada");
+        Campo<string?>(instancia, "_mensajeError").Should().BeNull("una cancelación por retirada no es un error de lectura");
+    }
 
-        puerta.SetResult();
-        await subida;
-        Campo<PlanImportacionDto?>(instancia, "_planSimple").Should().BeNull("la respuesta llegó a una página ya retirada");
+    [Fact]
+    public async Task Retirar_la_pagina_mientras_el_historial_espera_la_puerta_de_datos_la_saca_de_la_cola()
+    {
+        var escenario = new Escenario();
+        escenario.RegistrarEnHistorial("Documentos", "documentos-agosto.xlsx");
+        var ocupante = Puerta();
+        Task? ocupada = null;
+        var (cut, mediador) = Renderizar(escenario, antesDeRenderizar: () =>
+            ocupada = Services.GetRequiredService<PuertaAccesoDatos>().EjecutarAsync(() => ocupante.Task));
+        var instancia = cut.Instance;
+        Campo<bool>(instancia, "_cargandoHistorial").Should().BeTrue("la página espera la puerta para buscar al usuario");
+        _usuarios.Buscados.Should().BeEmpty();
+
+        await DisposeComponentsAsync();
+
+        mediador.Recibidas.Single(r => r.Peticion is ObtenerHistorialImportacionesQuery).Token.IsCancellationRequested
+            .Should().BeTrue("la consulta del historial llevaba el token del ciclo de la página");
+        ocupante.SetResult();
+        await ocupada!;
+        await PasarPorLaPuertaDeDatos();
+        _usuarios.Buscados.Should().BeEmpty(
+            "la espera de la puerta se canceló al retirar la página: si siguiera en la cola, habría entrado antes que el test y buscado al usuario");
+    }
+
+    [Fact]
+    public async Task Retirar_la_pagina_con_una_busqueda_de_usuario_en_curso_no_empieza_la_siguiente()
+    {
+        var escenario = new Escenario();
+        escenario.RegistrarEnHistorial("Documentos", "documentos-agosto.xlsx");
+        escenario.RegistrarEnHistorial("Clientes", "clientes-levante.xlsx");
+        var primeraBusqueda = Puerta();
+        _usuarios.Retener = _ => _usuarios.Buscados.Count == 1 ? primeraBusqueda.Task : null;
+        var (cut, _) = Renderizar(escenario);
+        var instancia = cut.Instance;
+        _usuarios.Buscados.Should().ContainSingle("la primera búsqueda está retenida");
+
+        await DisposeComponentsAsync();
+        // UserManager.FindByIdAsync no admite token: la búsqueda en curso termina.
+        primeraBusqueda.SetResult();
+        await PasarPorLaPuertaDeDatos();
+
+        _usuarios.Buscados.Should().ContainSingle("tras retirar la página no empieza la búsqueda del segundo usuario");
+        Campo<bool>(instancia, "_desechada").Should().BeTrue();
+    }
+
+    // ---------------------------------------------------------------- tamaño del archivo
+
+    [Fact]
+    public async Task Un_archivo_por_encima_del_limite_de_la_plantilla_se_rechaza_sin_abrirlo_ni_analizarlo()
+    {
+        var (cut, mediador) = Renderizar(new Escenario());
+        await Pulsar(cut, "Continuar con Plantilla de Clientes");
+
+        await Subir(cut, "grande.xlsx", new string('x', (5 * 1024 * 1024) + 1));
+
+        var aviso = Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle().Subject;
+        aviso.Mensaje.Should().Be("El archivo no puede superar los 5 MB.");
+        aviso.Tono.Should().Be(TonoToast.Error);
+        mediador.Enviados.OfType<AnalizarPlantillaClientesQuery>().Should().BeEmpty();
+        cut.FindAll(".alerta-formulario").Should().BeEmpty(
+            "se rechaza antes de abrir el archivo: si lo abriera, el límite del propio archivo lanzaría y saldría el error de lectura");
+        Boton(cut, "Ver plan de importación").HasAttribute("disabled").Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task El_archivo_se_lee_con_el_limite_de_la_plantilla_y_no_con_el_de_512_KB_por_defecto()
+    {
+        var contenido = new string('A', 1024 * 1024);
+        var escenario = new Escenario();
+        escenario.Plan<AnalizarPlantillaClientesQuery>(contenido, [Fila("Alfa S.L.")]);
+        var (cut, mediador) = Renderizar(escenario);
+        await Pulsar(cut, "Continuar con Plantilla de Clientes");
+
+        await Subir(cut, "un-mega.xlsx", contenido);
+
+        cut.FindAll(".alerta-formulario").Should().BeEmpty("1 MB está por debajo de los 5 MB de la Plantilla de Clientes");
+        mediador.Enviados.OfType<AnalizarPlantillaClientesQuery>().Should().ContainSingle()
+            .Which.ContenidoArchivo.Length.Should().Be(1024 * 1024);
+        Boton(cut, "Ver plan de importación").HasAttribute("disabled").Should().BeFalse();
+    }
+
+    // ---------------------------------------------------------------- plantillas por teclado
+
+    [Fact]
+    public void Las_plantillas_son_un_radiogroup_con_una_sola_parada_de_tabulador_y_el_enlace_fuera_de_cada_radio()
+    {
+        var (cut, _) = Renderizar(new Escenario());
+
+        var grupo = cut.Find("[role=radiogroup]");
+        grupo.GetAttribute("aria-labelledby").Should().Be("titulo-plantillas-importacion");
+        Texto(cut.Find("#titulo-plantillas-importacion")).Should().Be("Elige una plantilla");
+        cut.FindAll("[aria-pressed]").Should().BeEmpty("una elección exclusiva no es un juego de conmutadores");
+
+        var radios = grupo.QuerySelectorAll("[role=radio]");
+        radios.Select(r => r.ParentElement!.GetAttribute("data-plantilla")).Should().Equal(OrdenPlantillas);
+        foreach (var radio in radios)
+        {
+            var id = radio.ParentElement!.GetAttribute("data-plantilla");
+            var marcada = id == "clientes";
+            radio.TagName.Should().Be("BUTTON", "Enter y Espacio llegan como su clic porque es un botón nativo");
+            radio.GetAttribute("type").Should().Be("button");
+            radio.GetAttribute("aria-checked").Should().Be(marcada ? "true" : "false");
+            radio.GetAttribute("tabindex").Should().Be(marcada ? "0" : "-1", "solo la marcada es parada de tabulador");
+            Texto(cut.Find($"#{radio.GetAttribute("aria-labelledby")}")).Should().Be(Texto(radio.QuerySelector(".titulo-tarjeta-plantilla")!));
+            radio.QuerySelector("a").Should().BeNull("dentro de un radio el enlace sería presentacional");
+        }
+
+        cut.FindAll("a.enlace-plantilla-blanco").Should().HaveCount(3)
+            .And.OnlyContain(a => a.Closest("[role=radio]") == null && a.Closest("[data-plantilla]") != null);
+    }
+
+    /// <summary>
+    /// Abajo/derecha van a la siguiente plantilla y arriba/izquierda a la
+    /// anterior, dando la vuelta en los extremos. Del foco solo se observa que
+    /// la página LLAMA a <c>FocusAsync</c> con la referencia del botón destino;
+    /// que el navegador lo mueva de verdad sería un E2E.
+    /// </summary>
+    [Theory]
+    [InlineData("cae", "ArrowDown", "clientes")]
+    [InlineData("cae", "ArrowRight", "clientes")]
+    [InlineData("combinada", "ArrowDown", "documentos")]
+    [InlineData("documentos", "ArrowRight", "cae")]
+    [InlineData("cae", "ArrowUp", "documentos")]
+    [InlineData("cae", "ArrowLeft", "documentos")]
+    [InlineData("combinada", "ArrowUp", "clientes")]
+    public async Task Cada_flecha_marca_la_plantilla_destino_y_le_pide_el_foco(string inicio, string tecla, string destino)
+    {
+        var (cut, _) = Renderizar(new Escenario(), url: $"importacion?plantilla={inicio}");
+        PeticionesDeFoco().Should().BeEmpty();
+
+        await OpcionPlantilla(cut, inicio).KeyDownAsync(new KeyboardEventArgs { Key = tecla });
+
+        foreach (var id in OrdenPlantillas)
+        {
+            var opcion = OpcionPlantilla(cut, id);
+            var esDestino = id == destino;
+            opcion.GetAttribute("aria-checked").Should().Be(esDestino ? "true" : "false", $"{tecla} desde «{inicio}» lleva a «{destino}»");
+            opcion.GetAttribute("tabindex").Should().Be(esDestino ? "0" : "-1");
+        }
+
+        var foco = PeticionesDeFoco().Should().ContainSingle().Subject;
+        var referenciaDestino = Campo<ElementReference[]>(cut.Instance, "_referenciasPlantillas")[Array.IndexOf(OrdenPlantillas, destino)];
+        referenciaDestino.Id.Should().NotBeNullOrEmpty("sin @ref capturado la comparación no distinguiría nada");
+        foco.Arguments[0].Should().BeOfType<ElementReference>()
+            .Which.Id.Should().Be(referenciaDestino.Id, "el foco se pide para la plantilla destino, no para la de origen");
+    }
+
+    [Theory]
+    [InlineData("Home")]
+    [InlineData("Tab")]
+    [InlineData("a")]
+    public async Task Una_tecla_ajena_al_patron_no_cambia_de_plantilla_ni_pide_el_foco(string tecla)
+    {
+        var (cut, _) = Renderizar(new Escenario());
+
+        await OpcionPlantilla(cut, "clientes").KeyDownAsync(new KeyboardEventArgs { Key = tecla });
+
+        OpcionPlantilla(cut, "clientes").GetAttribute("aria-checked").Should().Be("true");
+        PeticionesDeFoco().Should().BeEmpty("sin plantilla destino no hay foco que pedir");
+    }
+
+    [Fact]
+    public async Task Cambiar_de_plantilla_con_las_flechas_descarta_el_plan_igual_que_el_clic()
+    {
+        var escenario = new Escenario();
+        escenario.Plan<AnalizarPlantillaClientesQuery>("A", [Fila("Alfa S.L.")]);
+        var (cut, _) = Renderizar(escenario);
+        await LlevarAConfirmarAsync(cut, "a.xlsx", "A");
+        await MarcarRevisado(cut);
+        await PasoDelIndicador(cut, "Elegir plantilla").ClickAsync(new MouseEventArgs());
+
+        await OpcionPlantilla(cut, "clientes").KeyDownAsync(new KeyboardEventArgs { Key = "ArrowDown" });
+
+        OpcionPlantilla(cut, "combinada").GetAttribute("aria-checked").Should().Be("true");
+        foreach (var paso in new[] { "Analizar", "Revisar plan", "Confirmar", "Reporte" })
+            PasoDelIndicador(cut, paso).HasAttribute("disabled").Should().BeTrue($"«{paso}» dependía del plan de la Plantilla de Clientes");
+        Campo<PlanImportacionDto?>(cut.Instance, "_planSimple").Should().BeNull("el plan era de la Plantilla de Clientes");
+        Campo<bool>(cut.Instance, "_confirmado").Should().BeFalse("la revisión marcada era de ese plan");
+        await Pulsar(cut, "Continuar con Combinada: Cliente + Empresas + Centros + Trabajadores");
+        Boton(cut, "Ver plan de importación").HasAttribute("disabled").Should().BeTrue();
+    }
+
+    // ---------------------------------------------------------------- Combinada: reemplazar existentes
+
+    /// <summary>
+    /// El E2E de la Combinada no marca «Reemplazar existentes» ni comprueba
+    /// ninguna actualización: esto observa, al menos, que la casilla llega al
+    /// comando tal como se dejó y que el diálogo y el reporte hablan de ella.
+    /// </summary>
+    [Theory]
+    [InlineData(true, "En los registros que ya existen se reemplazarán los campos ya rellenados.", "1")]
+    [InlineData(false, "En los registros que ya existen solo se completarán los campos vacíos.", "0")]
+    public async Task La_Combinada_envia_Reemplazar_existentes_tal_como_quedo_la_casilla(bool marcar, string fraseDialogo, string actualizados)
+    {
+        var escenario = new Escenario();
+        var plan = escenario.PlanCombinado("combinada",
+        [
+            new ClienteImportadoDto("Refrielectric S.L.", "B12345674", false, YaExiste: true),
+            new ClienteImportadoDto("Frío Turia S.A.", "A46000001", false, YaExiste: false)
+        ]);
+        var (cut, mediador) = Renderizar(escenario, url: "importacion?plantilla=combinada");
+        await Pulsar(cut, "Continuar con Combinada: Cliente + Empresas + Centros + Trabajadores");
+        await Subir(cut, "combinada.xlsx", "combinada");
+        await Pulsar(cut, "Ver plan de importación");
+        await Pulsar(cut, "Continuar a confirmar");
+
+        var casilla = cut.Find("label.opcion-reemplazar-importacion input");
+        casilla.HasAttribute("checked").Should().BeFalse("por defecto solo se completa lo vacío");
+        if (marcar)
+            await casilla.ChangeAsync(new ChangeEventArgs { Value = true });
+        await MarcarRevisado(cut);
+        await Pulsar(cut, "Importar ahora");
+        Texto(cut.Find(".modal-cuerpo p")).Should().Contain(fraseDialogo);
+
+        await BotonDelDialogo(cut, "Sí, importar").ClickAsync(new MouseEventArgs());
+
+        var comando = mediador.Enviados.OfType<EjecutarImportacionCombinadaCommand>().Should().ContainSingle().Subject;
+        comando.ReemplazarExistentes.Should().Be(marcar, "el comando lleva la casilla tal como quedó");
+        comando.Plan.Should().BeSameAs(plan, "se escribe el plan que se revisó");
+        cut.WaitForAssertion(() => TituloDeLaSeccion(cut).Should().Be("Reporte"));
+        Metrica(cut, "Creados").Should().Be("1");
+        Metrica(cut, "Actualizados").Should().Be(actualizados);
+        mediador.Enviados.OfType<RegistrarHistorialImportacionCommand>().Should().ContainSingle()
+            .Which.Should().BeEquivalentTo(new RegistrarHistorialImportacionCommand("Combinada", "combinada.xlsx", true, 1, 0, 0, null));
     }
 }

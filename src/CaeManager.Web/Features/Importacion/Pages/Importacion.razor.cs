@@ -10,6 +10,7 @@ using CaeManager.Web.Components.DesignSystem;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Identity;
 
 namespace CaeManager.Web.Features.Importacion.Pages;
@@ -154,12 +155,16 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         if (_desechada) return;
 
         var version = ++_versionHistorial;
+        // Se toma aquí, con la página viva: tras Dispose, _ciclo.Token lanza
+        // ObjectDisposedException, pero este token ya tomado sigue diciendo
+        // que se canceló.
+        var token = _ciclo.Token;
         _cargandoHistorial = true;
         StateHasChanged();
 
         try
         {
-            var historial = await Mediator.Send(new ObtenerHistorialImportacionesQuery(), _ciclo.Token);
+            var historial = await Mediator.Send(new ObtenerHistorialImportacionesQuery(), token);
             if (version != _versionHistorial) return;
 
             var idsFaltantes = historial.Select(h => h.EjecutadaPorUsuarioId).Distinct()
@@ -167,15 +172,19 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
 
             // Mismo patrón que Auditoria.razor.cs: UserManager no pasa por
             // MediatR y compite por el mismo DbContext scoped que el resto
-            // del layout.
+            // del layout. La espera de la puerta sí se cancela con el token;
+            // UserManager.FindByIdAsync no admite uno (usa su propio
+            // CancellationToken, None), así que la búsqueda en curso termina
+            // y lo que se corta es la siguiente.
             await PuertaAccesoDatos.EjecutarAsync(async () =>
             {
                 foreach (var id in idsFaltantes)
                 {
                     var usuario = await UserManager.FindByIdAsync(id.ToString());
                     _usuariosPorId[id] = usuario?.NombreCompleto ?? usuario?.Email ?? "(usuario eliminado)";
+                    token.ThrowIfCancellationRequested();
                 }
-            });
+            }, token);
 
             if (version != _versionHistorial) return;
             _historial = historial;
@@ -217,6 +226,45 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         _plantillaId = plantillaId;
         DescartarAnalisis();
         _pasoMaximoAlcanzado = 1;
+    }
+
+    // --- Plantillas como radiogroup de WAI-ARIA (mismo patrón que Reportes) ---
+
+    private readonly ElementReference[] _referenciasPlantillas = new ElementReference[Plantillas.Count];
+
+    // La plantilla que una flecha acaba de marcar y que aún no tiene el foco.
+    // El foco se da DESPUÉS del render, cuando ya lleva tabindex="0": darlo
+    // antes lo pondría en un botón que el propio render está a punto de cambiar.
+    private int? _plantillaPorEnfocar;
+
+    /// <summary>
+    /// Flechas circulares en el orden de la rejilla: abajo/derecha a la
+    /// siguiente, arriba/izquierda a la anterior. Marcar pasa por
+    /// <see cref="SeleccionarPlantilla"/>, así que descarta el plan igual que
+    /// el clic. Enter y Espacio no se tratan aquí: la opción es un
+    /// <c>&lt;button&gt;</c> y el navegador los convierte en su clic.
+    /// </summary>
+    private void ManejarTeclaPlantilla(KeyboardEventArgs e, int indiceActual)
+    {
+        var destino = e.Key switch
+        {
+            "ArrowDown" or "ArrowRight" => (indiceActual + 1) % Plantillas.Count,
+            "ArrowUp" or "ArrowLeft" => (indiceActual - 1 + Plantillas.Count) % Plantillas.Count,
+            _ => -1
+        };
+
+        if (destino < 0) return;
+
+        SeleccionarPlantilla(Plantillas[destino].Id);
+        _plantillaPorEnfocar = destino;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_plantillaPorEnfocar is not { } indice) return;
+
+        _plantillaPorEnfocar = null;
+        await _referenciasPlantillas[indice].FocusAsync();
     }
 
     /// <summary>Invalida el análisis en vuelo (si lo hay) y todo lo que colgaba de un plan.</summary>
