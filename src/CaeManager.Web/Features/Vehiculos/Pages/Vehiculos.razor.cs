@@ -26,12 +26,13 @@ public partial class Vehiculos : ComponentBase
     private Task CambiarPaginaAsync(int pagina) => _paginacion.SetCurrentPageIndexAsync(pagina - 1);
 
     // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
-    private async Task CambiarTamanoPaginaAsync(int tamano)
+    // Una sola petición: SetCurrentPageIndexAsync ya avisa a QuickGrid aunque la
+    // página no cambie, así que refrescar además la rejilla pedía lo mismo dos
+    // veces (ver RecargarAsync).
+    private Task CambiarTamanoPaginaAsync(int tamano)
     {
         _paginacion.ItemsPerPage = tamano;
-        await _paginacion.SetCurrentPageIndexAsync(0);
-        if (_grid is not null)
-            await _grid.RefreshDataAsync();
+        return _paginacion.SetCurrentPageIndexAsync(0);
     }
 
     private QuickGrid<VehiculoListaDto>? _grid;
@@ -68,6 +69,24 @@ public partial class Vehiculos : ComponentBase
     private Guid _idAEliminar;
     private string _nombreAEliminar = string.Empty;
     private bool _eliminando;
+
+    // Drawer ligero (Vehiculos TALVEG.dc.html, mismo patrón que
+    // ClientePreviewDrawer/EmpresaPreviewDrawer): nombre de fila y "Ver" del
+    // menú abren esto primero, no el Context Workspace directamente.
+    private Guid? _previewVehiculoId;
+    private bool _previewVisible;
+
+    private void AbrirPreview(Guid id)
+    {
+        _previewVehiculoId = id;
+        _previewVisible = true;
+    }
+
+    private Task AbrirDesdePreviewAsync((Guid Id, string Pestana) destino)
+    {
+        var nombre = _elementosPagina.FirstOrDefault(e => e.Id == destino.Id)?.Nombre ?? string.Empty;
+        return WorkspaceService.AbrirAsync(EntidadWorkspace.Vehiculo, destino.Id, nombre, destino.Pestana);
+    }
 
     private readonly HashSet<Guid> _seleccionados = [];
 
@@ -204,12 +223,45 @@ public partial class Vehiculos : ComponentBase
         await RecargarAsync();
     }
 
+    /// <summary>
+    /// Los cuatro filtros de la barra. Separa "aún no hay vehículos" de
+    /// "ninguno con estos filtros": ofrecer "crea el primero" a quien acaba de
+    /// filtrar lo manda a duplicar un vehículo que ya existe.
+    /// </summary>
+    private bool HayFiltrosActivos =>
+        !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_estadoFiltro)
+        || !string.IsNullOrWhiteSpace(_filtroEmpresaId) || !string.IsNullOrWhiteSpace(_filtroSubcontrataId);
+
+    /// <summary>
+    /// Quita los cuatro filtros en una sola recarga. Los dos que viven en la
+    /// URL se limpian TAMBIÉN allí: <see cref="OnParametersSet"/> re-sincroniza
+    /// desde la URL en cada navegación dentro de la página, así que dejarlos
+    /// puestos los devolvería en cuanto el router volviera a pasar.
+    /// </summary>
+    private async Task LimpiarFiltrosAsync()
+    {
+        _busqueda = string.Empty;
+        _estadoFiltro = string.Empty;
+        _filtroEmpresaId = string.Empty;
+        _filtroSubcontrataId = string.Empty;
+        NavigationManager.ActualizarFiltroEnUrl("q", string.Empty);
+        NavigationManager.ActualizarFiltroEnUrl("estado", string.Empty);
+        await RecargarAsync();
+    }
+
+    /// <summary>
+    /// Vuelve a la página 1 y pide la lista UNA vez.
+    /// <see cref="PaginationState.SetCurrentPageIndexAsync"/> no lleva guarda de
+    /// igualdad: avisa a QuickGrid cambie o no la página, y QuickGrid recarga al
+    /// recibir el aviso. Llamar además a <c>RefreshDataAsync</c> pedía dos veces
+    /// lo mismo. Ver <c>Clientes.razor.cs</c> para el detalle del componente.
+    /// </summary>
     private async Task RecargarAsync()
     {
-        await _paginacion.SetCurrentPageIndexAsync(0);
-
-        if (_grid is not null)
+        if (_grid is not null && _paginacion.CurrentPageIndex == 0)
             await _grid.RefreshDataAsync();
+        else
+            await _paginacion.SetCurrentPageIndexAsync(0);
 
         StateHasChanged();
     }
@@ -458,11 +510,7 @@ public partial class Vehiculos : ComponentBase
                 break;
             case "Enter":
                 if (_idEnfocado is { } idAbrir)
-                {
-                    var elemento = _elementosPagina.FirstOrDefault(e => e.Id == idAbrir);
-                    if (elemento is not null)
-                        await WorkspaceService.AbrirAsync(EntidadWorkspace.Vehiculo, elemento.Id, elemento.Nombre, "informacion");
-                }
+                    AbrirPreview(idAbrir);
                 break;
         }
 

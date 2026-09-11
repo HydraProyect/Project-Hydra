@@ -1,7 +1,9 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Subcontratas;
 using FluentValidation;
@@ -62,6 +64,7 @@ public class RegistrarVerificacionExternaSubcontrataCommandHandler(
     IEmpresaRepository subcontrataRepositorio,
     IVerificacionExternaSubcontrataRepository verificacionRepositorio,
     ICentrosQueryContext centrosContext,
+    IEmpresasQueryContext empresasContext,
     ITiposDocumentoQueryContext tiposDocumentoContext,
     IAlcanceDatosService alcanceDatos,
     ICurrentUserService currentUserService,
@@ -77,10 +80,26 @@ public class RegistrarVerificacionExternaSubcontrataCommandHandler(
             return Result.Fallo(Error.Crear("Subcontrata.NoEncontrada", "No encontramos esta subcontrata."));
 
         // Ids ajenos bajo el filtro de tenant = no encontrados (regla global del repo).
-        if (!await centrosContext.Centros.AnyAsync(c => c.Id == request.CentroId, cancellationToken))
+        // Mismo criterio que CentrosSeleccionables de ObtenerSupervisionSubcontrataQuery:
+        // el Centro tiene que estar bajo un Cliente con una RelacionEmpresarial vigente
+        // con ESTA Subcontrata — si no, es un Centro ajeno aunque exista en el tenant.
+        var centroEnRelacionVigente = await empresasContext.RelacionesEmpresariales
+            .Where(r => r.ProveedoraId == request.SubcontrataId && r.VigenciaHasta == null)
+            .Join(centrosContext.Centros, r => r.ClienteId, c => c.ClienteId, (r, c) => c.Id)
+            .AnyAsync(id => id == request.CentroId, cancellationToken);
+        if (!centroEnRelacionVigente)
             return Result.Fallo(Error.Crear("VerificacionExterna.CentroNoEncontrado", "No encontramos este centro."));
 
-        if (!await tiposDocumentoContext.TiposDocumento.AnyAsync(t => t.Id == request.TipoDocumentoId, cancellationToken))
+        // Mismo criterio que _tiposVerificables del drawer y que tiposCandidatos de
+        // ObtenerSupervisionSubcontrataQuery: los ámbitos que un portal puede exigir a
+        // una subcontrata. No se exige que el tipo esté "aplicado" en este Centro
+        // concreto (ResolucionTipoDocumentoCentro.Aplica) — la propia consulta de
+        // supervisión muestra y conserva verificaciones sobre tipos no exigidos
+        // (evidencia voluntaria), así que ese cruce es intencional, no un hueco.
+        if (!await tiposDocumentoContext.TiposDocumento.AnyAsync(
+                t => t.Id == request.TipoDocumentoId &&
+                     (t.AmbitoAplicacion == AmbitoAplicacion.Trabajador || t.AmbitoAplicacion == AmbitoAplicacion.Empresa),
+                cancellationToken))
             return Result.Fallo(Error.Crear("VerificacionExterna.TipoNoEncontrado", "No encontramos este tipo de documento."));
 
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();

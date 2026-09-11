@@ -22,6 +22,15 @@ public class SolicitudPurgaConfiguration : IEntityTypeConfiguration<SolicitudPur
         builder.Property(s => s.DetectadaEnUtc).IsRequired();
         builder.Property(s => s.Motivo).HasMaxLength(SolicitudPurga.LongitudMaximaMotivo);
 
+        // Resultado de la ejecución — eje aparte de Estado, ver el comentario
+        // de SolicitudPurga.RegistrarResultadoEjecucion. Nullable a propósito:
+        // las solicitudes ejecutadas antes de que este eje existiera se
+        // quedan sin dato, no con uno inferido.
+        builder.Property(s => s.ResultadoEjecucion).HasConversion<string>().HasMaxLength(20);
+        builder.Property(s => s.CandidatosEnEjecucion);
+        builder.Property(s => s.SuprimidosEnEjecucion);
+        builder.Property(s => s.FallidosEnEjecucion);
+
         // La consulta que importa: qué hay pendiente de revisar por categoría.
         builder.HasIndex(s => new { s.TipoDato, s.Estado });
 

@@ -1,6 +1,6 @@
 @page "/clientes/{ClienteId:guid}/lectura-ia"
 @rendermode InteractiveServer
-@attribute [Authorize]
+@attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
 @using CaeManager.Application.Clientes.Queries.ObtenerClientePorId
 @using CaeManager.Application.TiposDocumento.Commands.ActualizarLecturaIaCliente
 @using CaeManager.Application.TiposDocumento.Queries.ObtenerConfiguracionIaPorCliente
@@ -18,15 +18,13 @@
        atrás del navegador. *@
     <a href="/configuracion/lectura-ia" class="enlace-volver-configuracion">← Lectura IA por cliente</a>
 
-    <div class="cabecera-pagina">
-        <h1 class="titulo-pagina">Lectura automática por IA — @(_cliente?.RazonSocial ?? "…")</h1>
-    </div>
-
-    <p class="descripcion-roles">
-        Activa o desactiva la extracción automática por IA para cada tipo de documento, solo para
-        este cliente. Un tipo de documento desactivado por el Administrador para todos los
-        clientes (columna "Nivel 1") no se puede reactivar aquí.
-    </p>
+    <CabeceraPagina Titulo="@($"Lectura automática por IA — {_cliente?.RazonSocial ?? "…"}")">
+        <Descripcion>
+            Activa o desactiva la extracción automática por IA para cada tipo de documento, solo para
+            este cliente. Un tipo de documento desactivado por el Administrador para todos los
+            clientes (columna "Nivel 1") no se puede reactivar aquí.
+        </Descripcion>
+    </CabeceraPagina>
 
     @if (_errorCarga)
     {

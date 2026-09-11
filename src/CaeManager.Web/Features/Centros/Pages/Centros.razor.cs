@@ -287,6 +287,18 @@ public partial class Centros : ComponentBase
         await CargarAsync(resetPagina: true);
     }
 
+    private bool HayFiltrosActivos =>
+        !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_estadoFiltro);
+
+    private async Task LimpiarFiltrosAsync()
+    {
+        _busqueda = string.Empty;
+        _estadoFiltro = string.Empty;
+        NavigationManager.ActualizarFiltroEnUrl("q", string.Empty);
+        NavigationManager.ActualizarFiltroEnUrl("estado", string.Empty);
+        await CargarAsync(resetPagina: true);
+    }
+
     private async Task AbrirCrearAsync()
     {
         _clientesDisponibles = await Mediator.Send(new ObtenerClientesParaSelectorQuery());

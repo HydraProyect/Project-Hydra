@@ -16,7 +16,12 @@
     <h1>@Marca.Nombre</h1>
     <p class="subtitulo-login">Introduce el código de tu aplicación autenticadora</p>
 
-    @if (Entrada is not null && _usuarioPendiente is not null)
+    @if (_bloqueado)
+    {
+        <div class="alerta-login" role="alert">@MensajeBloqueo</div>
+        <a class="boton-primario" href="/cuenta/iniciar-sesion">Volver a iniciar sesión</a>
+    }
+    else if (Entrada is not null && _usuarioPendiente is not null)
     {
         <EditForm Model="Entrada" method="post" OnValidSubmit="VerificarAsync" FormName="verificar-2fa">
             <DataAnnotationsValidator />
@@ -37,6 +42,7 @@
 
 @code {
     private string? mensajeError;
+    private bool _bloqueado;
     private ApplicationUser? _usuarioPendiente;
 
     [SupplyParameterFromForm]
@@ -85,9 +91,32 @@
             return;
         }
 
+        if (resultado.IsLockedOut)
+        {
+            // Aquí el bloqueo SÍ se le dice al usuario, al revés que en
+            // Login.razor. Allí un mensaje distinto dejaría enumerar qué
+            // cuentas existen; aquí no hay nada que enumerar, porque llegar a
+            // este paso exige haber demostrado ya la contraseña. Y el mensaje
+            // de código incorrecto le mandaría a reintentar algo que no puede
+            // funcionar mientras dure el bloqueo. Decisión del propietario,
+            // 2026-09-10.
+            logger.LogWarning("Verificación 2FA rechazada, cuenta bloqueada: {UsuarioId}", _usuarioPendiente.Id);
+
+            // Se cierra también el paso de 2FA pendiente (la cookie
+            // Identity.TwoFactorUserId). Si la cuenta se desbloquea mientras
+            // esa cookie sigue viva, volver aquí no debe ahorrar la
+            // contraseña. Mismo idioma que RestablecerContrasena.razor.cs.
+            await SignInManager.SignOutAsync();
+            _bloqueado = true;
+            return;
+        }
+
         logger.LogWarning("Verificación 2FA fallida: {UsuarioId}", _usuarioPendiente.Id);
         mensajeError = "Código no válido. Revisa tu aplicación autenticadora e intenta nuevamente.";
     }
+
+    private const string MensajeBloqueo =
+        "Demasiados intentos. Tu cuenta está bloqueada temporalmente; espera unos minutos y vuelve a iniciar sesión.";
 
     private sealed class DatosEntrada
     {

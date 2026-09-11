@@ -27,5 +27,31 @@
 
     private Task CancelarAsync() => VisibleChanged.InvokeAsync(false);
 
-    private Task ConfirmarAsync() => OnConfirmar.InvokeAsync();
+    // Guarda de reentrada. Los botones se desactivan con EnProgreso, pero ese valor
+    // lo pone el padre y solo llega aquí cuando el padre vuelve a pintar; hasta
+    // que ese repintado alcanza al navegador el botón sigue pulsable, y en el
+    // servidor nada descarta un clic por llegar a un botón que ya se desactivó
+    // (Boton mantiene el @onclick enganchado aunque esté disabled). Un doble clic
+    // podía así enviar dos veces el comando destructivo. La bandera propia se
+    // levanta antes del primer await, así que el segundo evento ya la encuentra
+    // puesta, y se baja al terminar para que un fallo no deje el diálogo inútil.
+    // Ninguna de las pantallas que usan este diálogo tenía guarda propia: por eso
+    // va aquí, una vez para todas, y no en cada pantalla.
+    private bool _confirmando;
+
+    private async Task ConfirmarAsync()
+    {
+        if (EnProgreso || _confirmando)
+            return;
+
+        _confirmando = true;
+        try
+        {
+            await OnConfirmar.InvokeAsync();
+        }
+        finally
+        {
+            _confirmando = false;
+        }
+    }
 }

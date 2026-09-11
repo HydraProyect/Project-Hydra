@@ -34,6 +34,21 @@ namespace CaeManager.Web.Features.Documentos.Pages;
 public partial class Documentos : ComponentBase
 {
     /// <summary>
+    /// Plataforma, Reclamaciones, Revisión IA y Plantillas son pestañas de
+    /// gestión interna (acreditaciones, reclamaciones, revisión y aplicación
+    /// de lecturas IA, generación de documentos desde plantilla) — todas
+    /// despachan Commands. La página en sí no restringe rol (Documentos
+    /// también es la superficie de lectura del rol Cliente, ver NavMenu.razor),
+    /// y Pestanas no autoriza por pestaña hoy, así que cada rama de contenido
+    /// se protege aquí para que el rol Cliente (y Consulta, que tampoco
+    /// escribe — ver AutorizacionEscrituraBehavior) no llegue ni a ver el
+    /// formulario, aunque el Command ya lo rechazaría igual.
+    /// </summary>
+    private const string RolesDeGestionDocumental =
+        $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae}," +
+        $"{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}";
+
+    /// <summary>
     /// Permite llegar aquí desde Alertas o Calendario con un documento
     /// concreto ya listo para gestionar (p. ej. "/documentos?documentoId=...")
     /// en vez de obligar a buscarlo manualmente en la lista.
@@ -212,12 +227,13 @@ public partial class Documentos : ComponentBase
     private Task CambiarPaginaAsync(int pagina) => _paginacion.SetCurrentPageIndexAsync(pagina - 1);
 
     // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
-    private async Task CambiarTamanoPaginaAsync(int tamano)
+    // Una sola petición: SetCurrentPageIndexAsync ya avisa a QuickGrid aunque la
+    // página no cambie, así que refrescar además la rejilla pedía lo mismo dos
+    // veces (ver RecargarAsync).
+    private Task CambiarTamanoPaginaAsync(int tamano)
     {
         _paginacion.ItemsPerPage = tamano;
-        await _paginacion.SetCurrentPageIndexAsync(0);
-        if (_grid is not null)
-            await _grid.RefreshDataAsync();
+        return _paginacion.SetCurrentPageIndexAsync(0);
     }
 
     private QuickGrid<DocumentoListaDto>? _grid;
@@ -306,12 +322,51 @@ public partial class Documentos : ComponentBase
         await RecargarAsync();
     }
 
+    private bool HayFiltrosActivos =>
+        !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_estadoFiltro)
+        || !string.IsNullOrWhiteSpace(_ambitoFiltro);
+
+    /// <summary>
+    /// Quita los tres filtros, y los tres <b>también de la URL</b>. Hasta ahora
+    /// solo se borraba <c>q</c>: <c>Estado</c> y <c>Ambito</c> se quedaban
+    /// puestos y <see cref="OnParametersSet"/>, que re-sincroniza desde la URL,
+    /// los devolvía en la siguiente pasada de parámetros. Pulsar "Quitar los
+    /// filtros" con un estado documental elegido dejaba la lista igual de
+    /// recortada. Mismo defecto que tenía Clientes, encontrado por la prueba
+    /// por render: el trinquete de fuente solo mira que exista la rama.
+    ///
+    /// <para>
+    /// Los tres van en una sola llamada por la razón que documenta el helper:
+    /// cada <c>NavigateTo</c> lee la URL vigente y varias seguidas se pisan.
+    /// </para>
+    /// </summary>
+    private async Task LimpiarFiltrosAsync()
+    {
+        _busqueda = string.Empty;
+        _estadoFiltro = string.Empty;
+        _ambitoFiltro = string.Empty;
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["q"] = null,
+            [nameof(Estado)] = null,
+            [nameof(Ambito)] = null,
+        });
+        await RecargarAsync();
+    }
+
+    /// <summary>
+    /// Vuelve a la página 1 y pide la lista UNA vez.
+    /// <see cref="PaginationState.SetCurrentPageIndexAsync"/> no lleva guarda de
+    /// igualdad: avisa a QuickGrid cambie o no la página, y QuickGrid recarga al
+    /// recibir el aviso. Llamar además a <c>RefreshDataAsync</c> pedía dos veces
+    /// lo mismo. Ver <c>Clientes.razor.cs</c> para el detalle del componente.
+    /// </summary>
     private async Task RecargarAsync()
     {
-        await _paginacion.SetCurrentPageIndexAsync(0);
-
-        if (_grid is not null)
+        if (_grid is not null && _paginacion.CurrentPageIndex == 0)
             await _grid.RefreshDataAsync();
+        else
+            await _paginacion.SetCurrentPageIndexAsync(0);
 
         StateHasChanged();
     }

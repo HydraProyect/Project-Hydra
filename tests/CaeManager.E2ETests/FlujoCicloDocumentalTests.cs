@@ -96,17 +96,19 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await Expect(interruptorVerificacionIa).ToHaveTextAsync(
             "Activa", new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
 
-        // --- Paso 1: Cliente → Empresa → Centro encadenados (alta guiada) ---
+        // --- Paso 1: Empresa → Cliente → Centro encadenados (alta guiada) ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes/alta-guiada");
 
-        await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "1. Cliente" }).WaitForAsync();
+        await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "1. Empresa" }).WaitForAsync();
+        await page.GetByLabel("Razón social").FillAsync(razonSocialEmpresa);
+        // Paso 1: "CIF (opcional)", no "CIF" — CrearEmpresaCommand lo acepta
+        // nulo mientras CrearClienteCommand (paso 2) lo exige.
+        await page.GetByLabel("CIF (opcional)", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_995_502));
+        await page.GetByText("Guardar y continuar").ClickAsync();
+
+        await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "2. Cliente" }).WaitForAsync();
         await page.GetByLabel("Razón social").FillAsync(razonSocialCliente);
         await page.GetByLabel("CIF", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_995_501));
-        await page.GetByText("Guardar y continuar a Empresa").ClickAsync();
-
-        await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "2. Empresa" }).WaitForAsync();
-        await page.GetByLabel("Razón social").FillAsync(razonSocialEmpresa);
-        await page.GetByLabel("CIF", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_995_502));
         await page.GetByText("Guardar y continuar a Centro").ClickAsync();
 
         await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "3. Centro" }).WaitForAsync();
@@ -234,9 +236,10 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await page.Locator(".modal-cuerpo").GetByLabel("Centro", new LocatorGetByLabelOptions { Exact = true })
             .FillAsync($"{nombreCentro} ({razonSocialCliente})");
         await page.WaitForTimeoutAsync(500);
-        // El botón de confirmar cambia de texto a "Asignar igualmente" si
-        // quedan documentos obligatorios sin cubrir (ver Trabajadores.razor.cs,
-        // ObtenerDocumentosFaltantesParaAsignacionQuery) — este Trabajador de
+        // El botón de confirmar cambia de texto a "Asignar igualmente" si al
+        // comprobarlo faltaba algún documento de los que se piden (ver
+        // Trabajadores.razor.cs, ObtenerDocumentosFaltantesParaAsignacionQuery)
+        // — este Trabajador de
         // prueba solo tiene el Documento de este test, así que casi seguro
         // los tiene: se acepta cualquiera de los dos textos.
         await page.Locator(".modal-pie").GetByText(new Regex("^Asignar")).ClickAsync();

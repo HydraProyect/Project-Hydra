@@ -156,13 +156,20 @@ else
     }
     else if (TrabajadoresAMostrar.Count == 0)
     {
-        <EstadoVacio Titulo="Todos al día" Descripcion="@($"Los {_trabajadores.Count} trabajadores de este centro tienen su documentación completa.")">
-            <Accion>
-                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="VerCentroCompleto">
-                    Ver los @_trabajadores.Count en Centro 360
-                </Boton>
-            </Accion>
-        </EstadoVacio>
+        @if (MostrarEnlacesCentro360)
+        {
+            <EstadoVacio Titulo="Todos al día" Descripcion="@($"Los {_trabajadores.Count} trabajadores de este centro tienen su documentación completa.")">
+                <Accion>
+                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="VerCentroCompleto">
+                        Ver los @_trabajadores.Count en Centro 360
+                    </Boton>
+                </Accion>
+            </EstadoVacio>
+        }
+        else
+        {
+            <EstadoVacio Titulo="Todos al día" Descripcion="@($"Los {_trabajadores.Count} trabajadores de este centro tienen su documentación completa.")" />
+        }
     }
     else
     {
@@ -324,13 +331,17 @@ else
                                             <span role="cell">
                                                 @if (documento.DocumentoId is null)
                                                 {
-                                                    <VentanaContexto Etiqueta="Falta: el centro lo exige y no hay ningún documento todavía"
+                                                    @* Se pide aquí por dos vías posibles (ResolucionTipoDocumentoCentro.Aplica,
+                                                       mismo criterio que Alertas.razor): la fila de este centro, o si el
+                                                       centro no dice nada, el valor general del tipo. Atribuirlo solo al
+                                                       centro mentía en los centros que no han configurado nada. *@
+                                                    <VentanaContexto Etiqueta="Falta: se pide en este centro —porque lo tiene configurado o, si no dice nada, porque el tipo se pide siempre— y no hay ningún documento todavía"
                                                                      Titulo="Falta">
                                                         <Disparador>
                                                             <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">Falta</Badge>
                                                         </Disparador>
                                                         <Detalle>
-                                                            Este centro exige el documento y todavía no hay ninguno subido.
+                                                            Se pide en este centro —porque este centro lo tiene configurado o, si no dice nada, porque el tipo de documento se pide siempre— y todavía no hay ninguno subido.
                                                         </Detalle>
                                                     </VentanaContexto>
                                                 }
@@ -400,9 +411,12 @@ else
         {
             <div class="nota-trabajadores-ocultos">
                 <span>@TrabajadoresOcultosAlDia @(TrabajadoresOcultosAlDia == 1 ? "trabajador al día no se muestra aquí" : "trabajadores al día no se muestran aquí")</span>
-                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace" OnClick="VerCentroCompleto">
-                    Ver Centro 360 →
-                </Boton>
+                @if (MostrarEnlacesCentro360)
+                {
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace" OnClick="VerCentroCompleto">
+                        Ver Centro 360 →
+                    </Boton>
+                }
             </div>
         }
     }

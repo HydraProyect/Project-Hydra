@@ -57,11 +57,15 @@ public static class DocumentosEndpoints
         // cosa que una clave de API de tenant no habría podido dar.
         .RequireAuthorization(Policies.SesionOExtension);
 
+        // Solo se enlaza desde /importacion (Importacion.razor: Roles = Administrador)
+        // — mismo motivo que el RequireAuthorization de /clientes/plantilla.xlsx,
+        // aunque aquí el archivo es una plantilla en blanco sin datos de tenant.
         endpoints.MapGet("/documentos/plantilla.xlsx", (IPlantillaDocumentosService servicio) =>
             Results.File(
                 servicio.GenerarPlantilla(),
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                "plantilla-documentos.xlsx"));
+                "plantilla-documentos.xlsx"))
+        .RequireAuthorization(policy => policy.RequireRole(CaeManager.Infrastructure.Identity.Roles.Administrador));
 
         // Mismo patrón de referencia que ClientesEndpoints. Sin columna de
         // Plataformas/Acreditaciones: ObtenerDocumentosQueryHandler la

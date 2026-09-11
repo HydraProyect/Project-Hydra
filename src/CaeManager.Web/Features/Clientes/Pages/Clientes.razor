@@ -22,9 +22,16 @@
 <PageTitle>Clientes — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <div class="cabecera-pagina">
-        <h1 class="titulo-pagina">Clientes</h1>
-        <div class="acciones-cabecera">
+    @* Cabecera Gen 2 (Lista Clientes TALVEG.dc.html): el kicker es el grupo
+       del menú y el alta vive junto a Exportar. Las filas de esta pantalla son
+       Clientes empresariales del Tenant (Empresas que reciben el servicio en
+       una Relación Empresarial), no Clientes comerciales TALVEG.
+
+       El mockup solo dibuja «Exportar» y «+ Nuevo cliente»; las
+       importaciones (solo Administrador) y «Alta guiada» ya estaban aquí y se
+       conservan: el mockup no las retira, simplemente no las pinta. *@
+    <CabeceraPagina Titulo="Clientes" Kicker="Negocio">
+        <Acciones>
             <a class="enlace-exportar" href="/clientes/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel</a>
             <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador">
                 <a class="enlace-exportar" href="/importacion?plantilla=clientes">Importar clientes</a>
@@ -32,14 +39,25 @@
             </AuthorizeView>
             <a class="enlace-exportar" href="/clientes/alta-guiada">Alta guiada</a>
             <Boton OnClick="AbrirCrear">+ Nuevo cliente</Boton>
-        </div>
-    </div>
+        </Acciones>
+    </CabeceraPagina>
 
+    @* Tarjeta de filtros del mockup: buscador, Ejecutivo, Estado documental y
+       Filtros guardados, con los filtros activos dentro de la misma tarjeta.
+
+       Frente al mockup:
+       - El buscador dice «Buscar por nombre…», no «Razón social, alias o
+         CIF»: ObtenerClientesQuery solo busca en la razón social, y el DTO
+         no tiene alias. Prometer CIF sería un buscador que no encuentra lo
+         que dice.
+       - «Solo críticos» y «Guardar filtro» no salen en el mockup y se
+         conservan: son filtros y acciones que la pantalla ya tenía.
+       - «Ejecutivo» es deuda terminológica que el propio mockup anota:
+         nombra al Gestor CAE (la persona) con Asignación de Cartera sobre
+         este Cliente empresarial. Se mantiene el rótulo; el renombrado es un
+         incremento propio. *@
     <div class="barra-filtros">
         <CampoTexto Placeholder="Buscar por nombre…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
-        <label class="filtro-critico">
-            <input type="checkbox" checked="@_soloCriticos" @onchange="e => CambiarSoloCriticosAsync((bool)e.Value!)" /> Solo críticos
-        </label>
         <CampoSelect Etiqueta="" Valor="@_ejecutivoFiltro" ValorChanged="CambiarEjecutivoFiltroAsync">
             <option value="">Ejecutivo: todos</option>
             @foreach (var gestor in _ejecutivosParaFiltro)
@@ -63,45 +81,52 @@
                 }
             </CampoSelect>
         }
+        <label class="filtro-critico">
+            <input type="checkbox" checked="@_soloCriticos" @onchange="e => CambiarSoloCriticosAsync((bool)e.Value!)" /> Solo críticos
+        </label>
         <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _mostrarGuardarFiltro = true">
             Guardar filtro
         </Boton>
-    </div>
 
-    @if (HayFiltrosActivos)
-    {
-        <div class="chips-filtros">
-            <span class="chips-filtros-indicador" aria-hidden="true"><Icono Nombre="filtro" Tamano="TamanoIcono.Pequeno" /></span>
-            @if (!string.IsNullOrWhiteSpace(_busqueda))
-            {
-                <span class="chip-filtro">
-                    Búsqueda: "@_busqueda"
-                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroBusquedaAsync" aria-label="Quitar filtro de búsqueda"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
-                </span>
-            }
-            @if (_soloCriticos)
-            {
-                <span class="chip-filtro">
-                    Solo críticos
-                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroCriticosAsync" aria-label="Quitar filtro de críticos"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
-                </span>
-            }
-            @if (!string.IsNullOrWhiteSpace(_ejecutivoFiltro))
-            {
-                <span class="chip-filtro">
-                    @EtiquetaFiltroEjecutivo
-                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroEjecutivoAsync" aria-label="Quitar filtro de ejecutivo"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
-                </span>
-            }
-            @if (!string.IsNullOrWhiteSpace(_estadoDocumentalFiltro))
-            {
-                <span class="chip-filtro">
-                    @EtiquetaFiltroEstadoDocumental
-                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroEstadoDocumentalAsync" aria-label="Quitar filtro de estado documental"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
-                </span>
-            }
-        </div>
-    }
+        @if (HayFiltrosActivos)
+        {
+            <div class="chips-filtros chips-filtros-barra">
+                <span class="chips-filtros-indicador" aria-hidden="true"><Icono Nombre="filtro" Tamano="TamanoIcono.Pequeno" /></span>
+                @if (!string.IsNullOrWhiteSpace(_busqueda))
+                {
+                    <span class="chip-filtro">
+                        Búsqueda: "@_busqueda"
+                        <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroBusquedaAsync" aria-label="Quitar filtro de búsqueda"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
+                    </span>
+                }
+                @if (_soloCriticos)
+                {
+                    <span class="chip-filtro">
+                        Solo críticos
+                        <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroCriticosAsync" aria-label="Quitar filtro de críticos"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
+                    </span>
+                }
+                @if (!string.IsNullOrWhiteSpace(_ejecutivoFiltro))
+                {
+                    <span class="chip-filtro">
+                        @EtiquetaFiltroEjecutivo
+                        <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroEjecutivoAsync" aria-label="Quitar filtro de ejecutivo"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
+                    </span>
+                }
+                @if (!string.IsNullOrWhiteSpace(_estadoDocumentalFiltro))
+                {
+                    <span class="chip-filtro">
+                        @EtiquetaFiltroEstadoDocumental
+                        <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroEstadoDocumentalAsync" aria-label="Quitar filtro de estado documental"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
+                    </span>
+                }
+                @* «Limpiar todo» del mockup: el mismo LimpiarFiltrosAsync que
+                   «Quitar los filtros» del estado vacío, que limpia también los
+                   filtros que viajan en la URL. *@
+                <button type="button" class="limpiar-filtros-barra" @onclick="LimpiarFiltrosAsync">Limpiar todo</button>
+            </div>
+        }
+    </div>
 
     @if (_filtrosGuardados.Count > 0)
     {
@@ -110,7 +135,7 @@
             {
                 <span class="chip-filtro" title="Filtro guardado">
                     @filtro.Nombre
-                    <button type="button" class="chip-filtro-quitar" @onclick="() => EliminarFiltroGuardadoAsync(filtro.Id)" aria-label="@($"Borrar filtro guardado {filtro.Nombre}")"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
+                    <button type="button" class="chip-filtro-quitar" @onclick="() => PedirEliminarFiltroGuardado(filtro)" aria-label="@($"Borrar filtro guardado {filtro.Nombre}")"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
                 </span>
             }
         </div>
@@ -131,7 +156,29 @@
         @* El grid se mantiene siempre montado (solo se oculta con CSS) para que la
            referencia @@ref siga siendo válida y RefreshDataAsync funcione incluso al
            pasar de 0 a 1 elementos — ver Clientes.razor.cs. *@
-        <BarraHerramientasLista SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple" />
+        <BarraHerramientasLista SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple">
+            <Extra>
+                @if (_totalElementos > 0)
+                {
+                    @* El total lo da la consulta ya filtrada: es el número de
+                       coincidencias, no el de la cartera entera. *@
+                    <span class="conteo-clientes">@TextoConteo</span>
+                }
+            </Extra>
+        </BarraHerramientasLista>
+
+        @if (_seleccionMultiple && TodosSeleccionados && _totalElementos > _elementosPagina.Count)
+        {
+            @* Mitad informativa del banner del mockup. La otra mitad,
+               «Seleccionar los N filtrados», NO se implementa: añade selección
+               masiva sobre un camino destructivo (la barra de lote borra), y
+               eso es una decisión de producto, no de maquetación — mismo
+               criterio que Centros y Subcontratas. Por eso el texto dice
+               expresamente que los de otras páginas no entran. *@
+            <p class="aviso-seleccion-pagina" role="status">
+                @TextoAvisoSeleccionPagina
+            </p>
+        }
 
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
             <QuickGrid @ref="_grid" TGridItem="ClienteListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
@@ -139,10 +186,10 @@
                 {
                     <TemplateColumn Title="" Align="Align.Center">
                         <HeaderTemplate Context="columna">
-                            <input type="checkbox" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
+                            <input type="checkbox" aria-label="Seleccionar los de esta página" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
                         </HeaderTemplate>
                         <ChildContent>
-                            <input type="checkbox" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
+                            <input type="checkbox" aria-label="@($"Seleccionar {context.RazonSocial}")" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
                         </ChildContent>
                     </TemplateColumn>
                 }
@@ -151,7 +198,8 @@
                         @context.RazonSocial
                     </button>
                     @* Perfil incompleto: sin agenda no hay a quién reclamarle.
-                       Lleva directo a la pestaña que lo resuelve. *@
+                       Lleva directo a la pestaña que lo resuelve. No sale en el
+                       mockup y se conserva. *@
                     @if (context.SinContactoEnAgenda)
                     {
                         <button type="button" class="aviso-sin-agenda"
@@ -166,9 +214,18 @@
                     @(ObtenerNombreEjecutivo(context.EjecutivoUsuarioId))
                 </TemplateColumn>
                 <TemplateColumn Title="Centros" Align="Align.Center">
+                    @* Antes era un enlace a /centros?clienteId=…, pero la lista
+                       de Centros no filtra por ese parámetro (solo lo usa para
+                       encadenar un alta): llevaba a TODOS los centros. Los
+                       centros de este cliente sí están en su Cliente 360, en su
+                       propia pestaña. *@
                     @if (context.Centros > 0)
                     {
-                        <a href="/centros?clienteId=@context.Id">@context.Centros</a>
+                        <button type="button" class="enlace-centros-cliente"
+                                aria-label="@($"Ver los {context.Centros} centros de {context.RazonSocial}")"
+                                @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.Id, context.RazonSocial, "centros")'>
+                            @context.Centros
+                        </button>
                     }
                     else
                     {
@@ -178,21 +235,36 @@
                 <TemplateColumn Title="Estado documental">
                     @if (context.EstadoDocumentalPeor is { } peor)
                     {
-                        <Badge Tono="EstadoDocumentoUi.Tono(peor)">@context.EstadoDocumentalCantidad @EstadoDocumentoUi.Texto(peor).ToLowerInvariant()</Badge>
+                        <Badge Tono="EstadoDocumentoUi.Tono(peor)" title="@TituloEstadoDocumental(peor)">@TextoEstadoDocumental(peor, context.EstadoDocumentalCantidad)</Badge>
                     }
                     else
                     {
-                        <Badge Tono="TonoBadge.Exito">Al corriente</Badge>
+                        <Badge Tono="TonoBadge.Exito" title="Sin alertas de vigencia abiertas entre sus trabajadores">Al corriente</Badge>
                     }
                 </TemplateColumn>
                 <TemplateColumn Title="Crítico" Align="Align.Center" Sortable="true" SortBy="@(GridSort<ClienteListaDto>.ByAscending(c => c.EsCritico))">
+                    @* Un span vacío con solo title no tiene nombre fiable para un
+                       lector de pantalla (title no se anuncia en todos). El
+                       catálogo no tiene una clase global de texto solo para
+                       lectores (las que hay son CSS aislado de cada página), así
+                       que el punto es una imagen con nombre. *@
                     <span class="@("punto-critico" + (context.EsCritico ? " punto-critico-activo" : ""))"
+                          role="img"
+                          aria-label="@(context.EsCritico ? "Crítico" : "Sin situación crítica")"
                           title="@(context.EsCritico ? "Crítico: bloquea acceso a un centro" : "Sin situación crítica")"></span>
                 </TemplateColumn>
                 <TemplateColumn Title="Acciones" Align="Align.End">
+                    @* Menú del mockup: vista rápida, Cliente 360 y editar. El
+                       mockup rotula la baja «Dar de baja»; aquí sigue siendo
+                       «Eliminar», el mismo verbo que la barra de lote y que su
+                       diálogo de confirmación, para no llamar de dos formas a
+                       la misma operación (EliminarClienteCommand). *@
                     <MenuAcciones>
                         <ItemMenuAccion OnClick='() => AbrirPreview(context.Id)'>
-                            Ver
+                            Vista rápida
+                        </ItemMenuAccion>
+                        <ItemMenuAccion OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.Id, context.RazonSocial, "informacion")'>
+                            Abrir Cliente 360
                         </ItemMenuAccion>
                         <ItemMenuAccion OnClick="() => AbrirEditarAsync(context.Id)">
                             Editar
@@ -209,7 +281,23 @@
                               TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
         </div>
 
-        @if (_totalElementos == 0 && !_cargando)
+        @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)
+        {
+            @* Distinto de "aún no hay X": son dos situaciones opuestas y llevan
+               a acciones opuestas. Ofrecer "crea el primero" a quien acaba de
+               filtrar lo manda a duplicar algo que ya existe.
+
+               La copia no afirma que HAYA registros dados de alta: el filtrado
+               es de servidor y la consulta solo devuelve el total ya filtrado,
+               así que la pantalla no sabe cuántos hay sin filtro. *@
+            <EstadoVacio NombreIcono="vacio" Titulo="Ningún cliente con estos filtros"
+                         Descripcion="Ninguno coincide con la búsqueda ni con los filtros de criticidad, gestor o documentación.">
+                <Accion>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar los filtros</Boton>
+                </Accion>
+            </EstadoVacio>
+        }
+        else if (_totalElementos == 0 && !_cargando)
         {
             <EstadoVacio NombreIcono="clientes" Titulo="Aún no hay clientes" Descripcion="Crea el primero para empezar a organizar tus centros de trabajo.">
                 <Accion>
@@ -286,12 +374,25 @@
     EnProgreso="_eliminandoLote"
     OnConfirmar="ConfirmarEliminarLoteAsync" />
 
-<Modal Visible="_mostrarGuardarFiltro" VisibleChanged="v => _mostrarGuardarFiltro = v" Titulo="Guardar filtro actual" CerrarAlHacerClicFuera="!_guardandoFiltro">
+@* Borrar un filtro guardado no tiene deshacer (el handler lo elimina), así que
+   pide confirmación como cualquier otra acción destructiva. El mensaje dice el
+   efecto real: desaparece de TUS filtros (son por usuario) y no toca ningún
+   cliente ni lo que la lista enseña ahora. *@
+<DialogoConfirmacion
+    Visible="_filtroGuardadoAEliminar is not null"
+    VisibleChanged="v => { if (!v) _filtroGuardadoAEliminar = null; }"
+    Titulo="@($"¿Borrar el filtro guardado «{_filtroGuardadoAEliminar?.Nombre}»?")"
+    Mensaje="Desaparecerá de tus filtros guardados de Clientes. No borra ningún cliente ni cambia lo que la lista enseña ahora."
+    TextoBotonConfirmar="Borrar filtro"
+    EnProgreso="_eliminandoFiltroGuardado"
+    OnConfirmar="ConfirmarEliminarFiltroGuardadoAsync" />
+
+<Modal Visible="_mostrarGuardarFiltro" VisibleChanged="CerrarModalGuardarFiltro" Titulo="Guardar filtro actual" CerrarAlHacerClicFuera="!_guardandoFiltro">
     <ChildContent>
         <CampoTexto Etiqueta="Nombre" Valor="@_nombreFiltroNuevo" ValorChanged="v => _nombreFiltroNuevo = v" Placeholder="Críticos sin CIF verificado" />
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoFiltro" OnClick="() => _mostrarGuardarFiltro = false">Cancelar</Boton>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoFiltro" OnClick="() => CerrarModalGuardarFiltro(false)">Cancelar</Boton>
         <Boton Cargando="_guardandoFiltro" OnClick="GuardarFiltroActualAsync">Guardar</Boton>
     </Pie>
 </Modal>

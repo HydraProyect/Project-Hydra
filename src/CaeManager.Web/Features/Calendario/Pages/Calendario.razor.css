@@ -1,85 +1,69 @@
 .calendario-navegacion {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    margin-bottom: var(--space-4);
-}
-
-.calendario-mes-actual {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
+    gap: var(--space-1);
 }
 
 .calendario-titulo-mes {
-    font: var(--font-heading-md);
-    text-transform: capitalize;
-    min-width: 10ch;
+    font: var(--font-heading-sm);
+    min-width: 10rem;
     text-align: center;
 }
 
-.enlace-hoy {
-    background: none;
-    /* Borde que identifica un control: sujeto al 3:1 de 02 § 8
-       (DDL-062/063). --color-border no lo alcanza (1.18:1). */
-    border: var(--border-control);
-    border-radius: var(--radius-sm);
-    padding: var(--space-1) var(--space-3);
-    font: var(--font-body-sm);
-    color: var(--color-text-muted);
-    cursor: pointer;
-}
-
-.enlace-hoy:hover {
-    background-color: var(--color-surface-hover);
+/* El catálogo solo tiene «siguiente»: la flecha de «anterior» es la misma, girada. */
+.calendario-flecha-anterior {
+    display: inline-flex;
+    transform: rotate(180deg);
 }
 
 /*
-  H3 (docs/ux-audit/10-bandeja-alertas-calendario.md): estas tres reglas
-  usaban --color-neutral-50, un token de paleta crudo que ningún tema
-  redefine (a diferencia de los tokens semánticos --color-bg/--color-surface,
-  que sí cambian por tema) — por eso los huecos previos al día 1 y
-  posteriores al último se pintaban blanco puro sobre fondo oscuro.
+  H3 (auditoría de UX de Bandeja/Alertas/Calendario): la rejilla usaba
+  --color-neutral-50, un token de paleta crudo que ningún tema redefine (a
+  diferencia de los semánticos --color-bg/--color-surface, que sí cambian por
+  tema) — por eso los huecos previos al día 1 y posteriores al último se
+  pintaban blanco puro sobre fondo oscuro.
 */
 .calendario-rejilla {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    gap: 1px;
-    background-color: var(--color-bg);
+    background-color: var(--color-surface);
     border: var(--border-default);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg);
     overflow: hidden;
 }
 
 .calendario-cabecera-dia {
-    background-color: var(--color-bg);
-    padding: var(--space-2);
-    text-align: center;
+    background-color: var(--color-surface-hover);
+    border-bottom: var(--border-default);
+    padding: var(--space-2) var(--space-3);
     font: var(--font-label-md);
+    text-transform: uppercase;
+    letter-spacing: .06em;
     color: var(--color-text-muted);
 }
 
 .calendario-celda {
-    background-color: var(--color-surface);
-    min-height: 84px;
-    padding: var(--space-2);
     display: flex;
     flex-direction: column;
-    gap: var(--space-1);
+    align-items: flex-start;
+    gap: var(--space-2);
+    min-height: 96px;
+    padding: var(--space-2) var(--space-3);
+    border: 0;
+    border-right: var(--border-default);
+    border-bottom: var(--border-default);
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    font: inherit;
+    text-align: left;
 }
 
-.calendario-celda-vacia {
+.calendario-celda:nth-child(7n) {
+    border-right: 0;
+}
+
+.calendario-celda-fuera {
     background-color: var(--color-bg);
-}
-
-.calendario-dia-numero {
-    font: var(--font-body-sm);
-    color: var(--color-text-muted);
-}
-
-.calendario-celda-hoy .calendario-dia-numero {
-    color: var(--color-primary-500);
-    font-weight: 700;
 }
 
 .calendario-celda-con-datos {
@@ -90,37 +74,66 @@
     background-color: var(--color-surface-hover);
 }
 
-.calendario-indicadores {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1);
-    align-self: flex-start;
+.calendario-celda-con-datos:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: -2px;
 }
 
-.calendario-subtitulo-modal {
-    font: var(--font-heading-sm);
-    margin: var(--space-5) 0 var(--space-3);
+.calendario-dia-numero {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-full);
+    font: var(--font-body-md);
+    color: var(--color-text);
 }
 
-.calendario-subtitulo-modal:first-child {
-    margin-top: 0;
-}
-
-.calendario-tabla-modal-contenedor {
-    overflow-x: auto;
-}
-
-.calendario-fila-secundaria {
-    font: var(--font-body-sm);
+.calendario-celda-fuera .calendario-dia-numero {
     color: var(--color-text-muted);
 }
 
-/* Leyenda de colores (H3) — mismo criterio que .barra-comparativa-leyenda de Dashboard.razor.css. */
+.calendario-dia-hoy {
+    background-color: var(--color-primary-500);
+    color: var(--color-neutral-0);
+    font-weight: 700;
+}
+
+.calendario-visitas {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    width: 70%;
+    font: var(--font-body-sm);
+    color: var(--color-primary-500);
+}
+
+.calendario-barra-visita {
+    display: block;
+    flex: 1;
+    height: 5px;
+    border-radius: var(--radius-full);
+    background-color: var(--color-primary-500);
+}
+
+.calendario-barra-visita-leyenda {
+    flex: none;
+    width: 24px;
+}
+
+.calendario-barra-visita-fila {
+    flex: none;
+    width: 4px;
+    height: 28px;
+}
+
 .calendario-leyenda {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-3);
-    margin-bottom: var(--space-3);
+    align-items: center;
+    gap: var(--space-5);
+    margin-top: var(--space-4);
     font: var(--font-body-sm);
     color: var(--color-text-muted);
 }
@@ -128,27 +141,62 @@
 .calendario-leyenda-item {
     display: inline-flex;
     align-items: center;
-    gap: var(--space-1);
+    gap: var(--space-2);
 }
 
-.calendario-leyenda-punto {
-    width: 10px;
-    height: 10px;
-    border-radius: var(--radius-full);
+.calendario-resumen-dia {
+    margin: 0 0 var(--space-5);
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
 }
 
-.calendario-leyenda-punto-peligro {
-    background-color: var(--color-danger-700);
+.calendario-seccion-modal + .calendario-seccion-modal {
+    margin-top: var(--space-5);
 }
 
-.calendario-leyenda-punto-advertencia {
-    background-color: var(--color-warning-700);
+.calendario-subtitulo-modal {
+    margin: 0 0 var(--space-2);
+    font: var(--font-label-md);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--color-text-muted);
 }
 
-.calendario-leyenda-punto-exito {
-    background-color: var(--color-success-700);
+.calendario-lista-modal {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
 }
 
-.calendario-leyenda-punto-info {
-    background-color: var(--color-info-500);
+.calendario-fila-modal {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: 44px;
+    padding: var(--space-2) var(--space-4);
+}
+
+.calendario-fila-modal + .calendario-fila-modal {
+    border-top: var(--border-default);
+}
+
+.calendario-fila-texto {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.calendario-fila-principal {
+    font: var(--font-body-md);
+    font-weight: 600;
+}
+
+.calendario-fila-secundaria {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
 }

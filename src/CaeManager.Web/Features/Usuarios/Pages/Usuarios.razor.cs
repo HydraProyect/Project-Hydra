@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Claims;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Empresas.Queries.BuscarEmpresaPorCif;
@@ -15,7 +16,31 @@ using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Web.Features.Usuarios.Pages;
 
-public record UsuarioListaDto(Guid Id, string Email, string NombreCompleto, string Rol, bool Activo);
+/// <summary>
+/// <paramref name="EsOperadorDelegado"/> no es un dato nuevo: sale del mismo
+/// diccionario que ya decide qué rol se muestra (ver CargarAsync). Se expone
+/// aparte porque la lista necesita distinguir visualmente "este rol es el de
+/// una asignación de otra organización" de "este es su rol propio" — sin él,
+/// las dos filas se ven idénticas y el rol delegado parece nativo.
+/// </summary>
+public record UsuarioListaDto(
+    Guid Id, string Email, string NombreCompleto, string Rol, bool Activo, bool EsOperadorDelegado,
+    AlcanceUsuarioDto Alcance);
+
+/// <summary>
+/// Qué alcanza una cuenta, ya resuelto a texto. Es presentación y por eso vive
+/// aquí y no en el directorio: la misma cartera se lee distinto según el rol
+/// —un Coordinador CAE alcanza lo de sus gestores, un usuario de portal solo su
+/// propia empresa— y quien mira la lista necesita la respuesta, no los datos
+/// para calcularla.
+/// </summary>
+/// <param name="EsAviso">
+/// Alcance cero. No es un error de configuración necesariamente —una cuenta
+/// recién creada todavía no tiene cartera— pero sí la explicación de por qué
+/// esa persona abre el producto y no ve nada, que sin esta columna no está
+/// escrita en ningún sitio.
+/// </param>
+public record AlcanceUsuarioDto(string Texto, bool EsAviso, string Explicacion);
 
 public record CoordinadorDto(Guid Id, string NombreCompleto, string Email);
 
@@ -51,8 +76,144 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
     private int _pagina = 1;
 
-    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_usuarios.Count / (double)_tamanoPagina));
-    private IReadOnlyList<UsuarioListaDto> UsuariosDePagina => _usuarios.Skip((_pagina - 1) * _tamanoPagina).Take(_tamanoPagina).ToList();
+    private string _busqueda = string.Empty;
+    private string _rolFiltro = string.Empty;
+    private string _activacionFiltro = string.Empty;
+
+    private static readonly IReadOnlyList<OpcionEstado> OpcionesRol =
+        Roles.Todos.Select(rol => new OpcionEstado(rol, Roles.NombreVisible(rol))).ToList();
+
+    private const string ActivacionActivos = "activos";
+    private const string ActivacionDesactivados = "desactivados";
+
+    private static readonly IReadOnlyList<OpcionEstado> OpcionesActivacion =
+    [
+        new(ActivacionActivos, "Activos"),
+        new(ActivacionDesactivados, "Desactivados")
+    ];
+
+    /// <summary>
+    /// El filtrado es en memoria a propósito: <see cref="CargarAsync"/> ya trae
+    /// la lista entera de usuarios del tenant —son decenas, no miles— y la
+    /// paginación también es de cliente. Llevarlo a consulta obligaría a
+    /// rehacer una carga que no pasa por MediatR sino por UserManager, y no
+    /// ganaría nada.
+    ///
+    /// <para>
+    /// El rol que se compara es el de <see cref="UsuarioListaDto"/>, que para
+    /// un Operador Delegado es el de su asignación aquí y no el de su
+    /// organización de origen — filtrar por "Gestor CAE" tiene que devolver a
+    /// quien opera como tal en esta organización, que es lo que la fila dice.
+    /// </para>
+    /// </summary>
+    private IReadOnlyList<UsuarioListaDto> UsuariosFiltrados
+    {
+        get
+        {
+            IEnumerable<UsuarioListaDto> filtrados = _usuarios;
+
+            if (!string.IsNullOrWhiteSpace(_busqueda))
+            {
+                var termino = _busqueda.Trim();
+                filtrados = filtrados.Where(u => Contiene(u.NombreCompleto, termino) || Contiene(u.Email, termino));
+            }
+
+            if (!string.IsNullOrWhiteSpace(_rolFiltro))
+                filtrados = filtrados.Where(u => u.Rol == _rolFiltro);
+
+            filtrados = _activacionFiltro switch
+            {
+                ActivacionActivos => filtrados.Where(u => u.Activo),
+                ActivacionDesactivados => filtrados.Where(u => !u.Activo),
+                _ => filtrados
+            };
+
+            return filtrados.ToList();
+        }
+    }
+
+    /// <summary>
+    /// Ignora mayúsculas <b>y</b> acentos: quien teclea "martinez" espera
+    /// encontrar a "Martínez". Con <c>OrdinalIgnoreCase</c> no lo encontraría y
+    /// el fallo sería mudo — la lista sale vacía y parece que esa persona no
+    /// existe, que es exactamente el error que lleva a crearla dos veces.
+    ///
+    /// <para>
+    /// Público solo para poder probarlo: montar la página entera en bUnit
+    /// exigiría registrar UserManager, MediatR, Identity y el directorio de
+    /// tenant para comprobar una función pura de dos cadenas.
+    /// </para>
+    /// </summary>
+    public static bool Contiene(string texto, string termino) =>
+        !string.IsNullOrEmpty(texto)
+        && CultureInfo.InvariantCulture.CompareInfo.IndexOf(
+            texto, termino, CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace) >= 0;
+
+    /// <summary>
+    /// DEC-36 (REC-099) dice "solo otro Administrador puede concederlo o
+    /// revocarlo" — no "solo otro puede concederlo" con la revocación propia
+    /// permitida. Un Administrador que se edita a sí mismo no puede cambiar
+    /// su propio <see cref="ApplicationUser.PermisoConsultarAccesoDocumentosSensibles"/>
+    /// en ninguna dirección, aunque técnicamente tenga el rol que la política
+    /// exige: el permiso existe justamente para que nadie se audite a sí
+    /// mismo sin que otro Administrador lo sepa, y permitir la autoconcesión
+    /// —o la autorrevocación silenciosa, que borra el rastro de quién lo
+    /// tenía— rompe esa separación de funciones por la vía más simple.
+    ///
+    /// <para>
+    /// Solo se compara mientras <paramref name="rolNuevo"/> sigue siendo
+    /// Administrador: si el rol cambia a otro distinto, el permiso se retira
+    /// como consecuencia automática de dejar de ser Administrador (ver
+    /// EditarUsuarioAsync), no como una revocación decidida por nadie —
+    /// bloquear eso impediría a un Administrador cambiar su propio rol.
+    /// </para>
+    ///
+    /// <para>
+    /// Público solo para poder probarlo sin montar el componente entero —
+    /// mismo motivo que <see cref="Contiene"/>.
+    /// </para>
+    /// </summary>
+    public static bool EsAutogestionDelPermisoSensible(
+        Guid idEditado, Guid? idActor, string rolNuevo, bool valorNuevo, bool valorActual) =>
+        idActor is not null
+        && idEditado == idActor.Value
+        && rolNuevo == Roles.Administrador
+        && valorNuevo != valorActual;
+
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(UsuariosFiltrados.Count / (double)_tamanoPagina));
+    private IReadOnlyList<UsuarioListaDto> UsuariosDePagina => UsuariosFiltrados.Skip((_pagina - 1) * _tamanoPagina).Take(_tamanoPagina).ToList();
+
+    // Todo cambio de filtro vuelve a la página 1: si no, filtrar estando en la
+    // página 3 deja la lista en una página que ya no existe y se ve vacía.
+    private Task BuscarAsync(string valor)
+    {
+        _busqueda = valor;
+        _pagina = 1;
+        return Task.CompletedTask;
+    }
+
+    private Task FiltrarPorRolAsync(string valor)
+    {
+        _rolFiltro = valor;
+        _pagina = 1;
+        return Task.CompletedTask;
+    }
+
+    private Task FiltrarPorActivacionAsync(string valor)
+    {
+        _activacionFiltro = valor;
+        _pagina = 1;
+        return Task.CompletedTask;
+    }
+
+    private Task LimpiarFiltrosAsync()
+    {
+        _busqueda = string.Empty;
+        _rolFiltro = string.Empty;
+        _activacionFiltro = string.Empty;
+        _pagina = 1;
+        return Task.CompletedTask;
+    }
 
     private Task IrAPaginaAsync(int pagina)
     {
@@ -138,17 +299,30 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                 // esa restricción y alarma sin motivo a quien lo ve.
                 var rolesDelegados = await DirectorioUsuarios.ObtenerRolesDeOperadoresDelegadosAsync();
 
-                foreach (var usuario in await DirectorioUsuarios.ObtenerVisiblesAsync())
+                // Dos consultas para toda la página, no una por fila: las
+                // carteras vigentes del tenant, y los usuarios visibles (de
+                // donde sale también qué gestores cuelga de cada coordinador,
+                // sin volver a la base).
+                var carteras = await DirectorioUsuarios.ObtenerCarterasVigentesAsync();
+                var visibles = await DirectorioUsuarios.ObtenerVisiblesAsync();
+
+                var gestoresPorCoordinador = visibles
+                    .Where(u => u.CoordinadorUsuarioId is not null)
+                    .ToLookup(u => u.CoordinadorUsuarioId!.Value, u => u.Id);
+
+                foreach (var usuario in visibles)
                 {
                     var activo = usuario.LockoutEnd is null || usuario.LockoutEnd < DateTimeOffset.UtcNow;
                     string rol;
-                    if (rolesDelegados.TryGetValue(usuario.Id, out var rolDelegado))
-                        rol = rolDelegado;
+                    var esOperadorDelegado = rolesDelegados.TryGetValue(usuario.Id, out var rolDelegado);
+                    if (esOperadorDelegado)
+                        rol = rolDelegado!;
                     else
                         rol = (await UserManager.GetRolesAsync(usuario)).FirstOrDefault() ?? "—";
 
                     usuarios.Add(new UsuarioListaDto(
-                        usuario.Id, usuario.Email ?? string.Empty, usuario.NombreCompleto, rol, activo));
+                        usuario.Id, usuario.Email ?? string.Empty, usuario.NombreCompleto, rol, activo, esOperadorDelegado,
+                        CalcularAlcance(usuario, rol, carteras, gestoresPorCoordinador)));
                 }
             });
 
@@ -164,6 +338,77 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             _cargando = false;
         }
     }
+
+    /// <summary>
+    /// El rol que entra aquí es el <b>efectivo en esta organización</b>: para
+    /// un Operador Delegado, el de su asignación aquí y no el de su tenant de
+    /// origen. Es el mismo que se pinta en la columna Rol, y tiene que serlo —
+    /// decir "Administrador" en una columna y calcular el alcance con otra
+    /// cosa sería peor que no decir nada.
+    /// </summary>
+    private static AlcanceUsuarioDto CalcularAlcance(
+        ApplicationUser usuario,
+        string rol,
+        IReadOnlyDictionary<Guid, CarteraDeUsuario> carteras,
+        ILookup<Guid, Guid> gestoresPorCoordinador)
+    {
+        // El mismo predicado que usa AlcanceDatosService para decidirlo de
+        // verdad, no una copia: si allí un rol pasa a ver todo y aquí no, la
+        // columna diría "sin cartera" de alguien que ve toda la organización.
+        if (Roles.AlcanzaTodaLaOrganizacion(rol))
+            return new("Todos los clientes", false,
+                "Su rol alcanza toda la organización; no depende de ninguna Asignación de Cartera.");
+
+        if (rol == Roles.Cliente)
+            return usuario.ClienteId is not null
+                ? new("1 cliente", false,
+                    "Usuario de portal: solo ve la documentación relacionada con la empresa a la que está vinculado.")
+                : new("Sin empresa vinculada", true,
+                    "Un usuario de portal sin empresa vinculada no ve nada. Se vincula por CIF al editar la cuenta.");
+
+        if (rol == Roles.CoordinadorCae)
+        {
+            // Un Coordinador CAE no tiene cartera propia: alcanza la unión de
+            // las de los Gestores CAE que tiene asignados (ver
+            // AlcanceDatosService.ObtenerClienteIdsParaCoordinadorAsync).
+            // Mirar la suya sería mirar donde nunca hay nada.
+            var gestores = gestoresPorCoordinador[usuario.Id].ToList();
+            if (gestores.Count == 0)
+                return new("Sin gestores asignados", true,
+                    "Un Coordinador CAE alcanza lo que alcanzan los Gestores CAE que tiene asignados. Sin ninguno, no ve nada.");
+
+            return DesdeCarteras(
+                gestores.Where(carteras.ContainsKey).Select(id => carteras[id]).ToList(),
+                explicacion: $"A través de {DescribirCantidad(gestores.Count, "Gestor CAE", "Gestores CAE")} que tiene asignados.",
+                explicacionSinAlcance: "Sus Gestores CAE no tienen ninguna cartera vigente, así que tampoco él alcanza nada.");
+        }
+
+        if (rol == Roles.GestorCae)
+            return DesdeCarteras(
+                carteras.TryGetValue(usuario.Id, out var propia) ? [propia] : [],
+                explicacion: "Por sus Asignaciones de Cartera vigentes en esta organización.",
+                explicacionSinAlcance: "Sin Asignación de Cartera vigente no ve ningún cliente, y toda lista le sale vacía.");
+
+        return new("—", false, "Esta cuenta todavía no tiene rol, así que no alcanza nada.");
+    }
+
+    private static AlcanceUsuarioDto DesdeCarteras(
+        IReadOnlyList<CarteraDeUsuario> carteras, string explicacion, string explicacionSinAlcance)
+    {
+        // Universal es "toda la operación de este tenant", no "todos los
+        // tenants" — el ámbito nunca se lee fuera de su propietario.
+        if (carteras.Any(c => c.EsUniversal))
+            return new("Toda la operación", false, explicacion);
+
+        var clientes = carteras.SelectMany(c => c.ClienteIds).Distinct().Count();
+
+        return clientes == 0
+            ? new("Sin cartera", true, explicacionSinAlcance)
+            : new(DescribirCantidad(clientes, "cliente", "clientes"), false, explicacion);
+    }
+
+    private static string DescribirCantidad(int cantidad, string singular, string plural) =>
+        $"{cantidad} {(cantidad == 1 ? singular : plural)}";
 
     private async Task CambiarRolAsync(string valor)
     {
@@ -415,10 +660,10 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             return;
         }
 
-        var actualizado = await PuertaAccesoDatos.EjecutarAsync(async () =>
+        var resultado = await PuertaAccesoDatos.EjecutarAsync(async () =>
         {
             var usuario = await UserManager.FindByIdAsync(id.ToString());
-            if (usuario is null) return false;
+            if (usuario is null) return ResultadoEdicionUsuario.NoEncontrado;
 
             usuario.NombreCompleto = _nombreCompleto;
             usuario.CoordinadorUsuarioId = _rol == Roles.GestorCae && Guid.TryParse(_coordinadorUsuarioId, out var coordId) ? coordId : null;
@@ -430,7 +675,19 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             // concederlo ni revocarlo — el valor existente en base se
             // conserva tal cual si quien edita no es Administrador.
             if (_usuarioActualEsAdministrador)
-                usuario.PermisoConsultarAccesoDocumentosSensibles = _rol == Roles.Administrador && _permisoConsultarAccesoDocumentosSensibles;
+            {
+                var nuevoValorPermiso = _rol == Roles.Administrador && _permisoConsultarAccesoDocumentosSensibles;
+
+                // Autogestión (Codex, revisión 2026-09-11): ni siquiera un
+                // Administrador puede concederse o revocarse este permiso a
+                // sí mismo — ver EsAutogestionDelPermisoSensible. El UI ya
+                // oculta el interruptor en la propia fila; esto es lo que de
+                // verdad lo impide si esa defensa se saltara.
+                if (EsAutogestionDelPermisoSensible(id, _usuarioActualId, _rol, nuevoValorPermiso, usuario.PermisoConsultarAccesoDocumentosSensibles))
+                    return ResultadoEdicionUsuario.AutogestionPermisoSensibleRechazada;
+
+                usuario.PermisoConsultarAccesoDocumentosSensibles = nuevoValorPermiso;
+            }
 
             await UserManager.UpdateAsync(usuario);
 
@@ -441,12 +698,14 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                 await UserManager.AddToRoleAsync(usuario, _rol);
             }
 
-            return true;
+            return ResultadoEdicionUsuario.Actualizado;
         });
 
-        if (!actualizado)
+        if (resultado != ResultadoEdicionUsuario.Actualizado)
         {
-            _mensajeErrorFormulario = "No encontramos este usuario.";
+            _mensajeErrorFormulario = resultado == ResultadoEdicionUsuario.NoEncontrado
+                ? "No encontramos este usuario."
+                : "No puedes conceder ni revocar tu propio permiso de rastro de acceso a documentos sensibles. Da de alta a otro Administrador y pídele que lo gestione.";
             return;
         }
 
@@ -454,6 +713,8 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         _drawerVisible = false;
         await CargarAsync();
     }
+
+    private enum ResultadoEdicionUsuario { Actualizado, NoEncontrado, AutogestionPermisoSensibleRechazada }
 
     private async Task CambiarActivacionAsync(UsuarioListaDto usuarioLista)
     {

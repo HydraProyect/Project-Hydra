@@ -9,22 +9,20 @@
 <PageTitle>Buzón — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina buzon-contenedor">
-    <div class="cabecera-pagina">
-        <h1 class="titulo-pagina">Buzón</h1>
-        <div class="acciones-cabecera">
+    <CabeceraPagina Titulo="Buzón" Kicker="Operación">
+        <Descripcion>
+            Estructura de carpetas e historial reales del buzón conectado — incluye Enviados, Archivo y todo lo
+            anterior a que se conectara a Hydra. Para responder a un hilo concreto ya gestionado en Comunicaciones,
+            usa la <a href="/comunicaciones">Bandeja</a>.
+        </Descripcion>
+        <Acciones>
             <a class="enlace-exportar" href="/comunicaciones">Volver a Comunicaciones</a>
             @if (_conexionSeleccionadaId is not null)
             {
                 <Boton Tamano="TamanoBoton.Pequeno" OnClick="AbrirRedactar">Redactar</Boton>
             }
-        </div>
-    </div>
-
-    <p class="descripcion-buzon">
-        Estructura de carpetas e historial reales del buzón conectado — incluye Enviados, Archivo y todo lo
-        anterior a que se conectara a Hydra. Para responder a un hilo concreto ya gestionado en Comunicaciones,
-        usa la <a href="/comunicaciones">Bandeja</a>.
-    </p>
+        </Acciones>
+    </CabeceraPagina>
 
     <div class="campo buzon-selector-conexion">
         <label>Buzón conectado</label>

@@ -8,10 +8,7 @@
 <PageTitle>Dashboard — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <div class="dashboard-cabecera">
-        <span class="dashboard-kicker">Dashboard</span>
-        <h1 class="titulo-pagina">@Saludo</h1>
-    </div>
+    <CabeceraPagina Titulo="@Saludo" Kicker="Dashboard" />
 
     @if (_error)
     {

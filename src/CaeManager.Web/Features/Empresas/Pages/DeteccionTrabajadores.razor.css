@@ -1,0 +1,243 @@
+/* Detección de personal, Gen 2 («Deteccion Trabajadores TALVEG.dc.html»). Solo tokens de tokens.css. */
+
+.deteccion-migas {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+}
+
+.deteccion-volver {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font: var(--font-label);
+    color: var(--color-primary-500);
+    text-decoration: none;
+}
+
+.deteccion-volver:hover {
+    color: var(--color-primary-600);
+    text-decoration: underline;
+}
+
+.deteccion-ruta {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.deteccion-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-bottom: var(--space-5);
+    padding: var(--space-4) var(--space-5);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.deteccion-panel-kicker {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font: var(--font-label);
+    color: var(--color-system-text);
+}
+
+.deteccion-punto-sistema {
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-full);
+    background-color: var(--color-system-indicator);
+}
+
+.deteccion-procedencia {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: var(--space-3);
+    margin: 0;
+}
+
+.deteccion-procedencia div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.deteccion-procedencia dt {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.deteccion-procedencia dd {
+    margin: 0;
+    font: var(--font-body-md);
+    color: var(--color-text);
+}
+
+.deteccion-panel-nota {
+    margin: 0;
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.deteccion-panel-titulo {
+    margin: 0;
+    font: var(--font-h4);
+}
+
+.deteccion-reglas {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.deteccion-reglas li {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    min-height: 44px;
+}
+
+.deteccion-reglas li div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.deteccion-reglas strong {
+    font: var(--font-body-md);
+    font-weight: 600;
+}
+
+.deteccion-reglas span {
+    font: var(--font-body-md);
+    color: var(--color-text-muted);
+    text-wrap: pretty;
+}
+
+.deteccion-reglas .deteccion-regla-icono {
+    display: inline-flex;
+    flex: none;
+    margin-top: 2px;
+}
+
+.deteccion-reglas .deteccion-regla-exito {
+    color: var(--color-success-700);
+}
+
+.deteccion-reglas .deteccion-regla-aviso {
+    color: var(--color-warning-700);
+}
+
+.deteccion-reglas .deteccion-regla-sistema {
+    color: var(--color-system-text);
+}
+
+.deteccion-enlaces-configuracion {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    font: var(--font-label);
+}
+
+.deteccion-lista {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+}
+
+.deteccion-lista[aria-busy="true"] {
+    opacity: 0.7;
+}
+
+.deteccion-seccion {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.deteccion-seccion .texto-descriptivo {
+    margin: 0;
+}
+
+.deteccion-seccion-cabecera {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-3);
+}
+
+.deteccion-seccion-titulo {
+    margin: 0;
+    font: var(--font-h3);
+}
+
+.deteccion-tabla-marco {
+    overflow-x: auto;
+    border-radius: var(--radius-lg);
+}
+
+.deteccion-tabla {
+    min-width: 760px;
+}
+
+.deteccion-tabla td {
+    vertical-align: middle;
+}
+
+.deteccion-nombre {
+    font-weight: 600;
+}
+
+.deteccion-dni {
+    margin-right: var(--space-2);
+    color: var(--color-text-muted);
+}
+
+.deteccion-col-dni {
+    width: 220px;
+}
+
+.deteccion-col-comprobacion {
+    width: 240px;
+}
+
+.deteccion-col-impacto {
+    width: 220px;
+}
+
+.deteccion-impacto {
+    color: var(--color-text-muted);
+}
+
+.deteccion-col-acciones {
+    width: 280px;
+}
+
+.deteccion-acciones-fila {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+}
+
+.deteccion-solo-lectores {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}

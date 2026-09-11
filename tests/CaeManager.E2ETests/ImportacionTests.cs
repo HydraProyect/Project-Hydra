@@ -85,11 +85,10 @@ public class ImportacionTests(WebAppFixture fixture)
             // (elegir plantilla), pero el input de archivo solo existe en el
             // paso 2 — hay que confirmar la plantilla primero.
             await page.GetByText("Continuar con Importación CAE completa").ClickAsync();
-            await page.Locator("input[type=\"file\"]").SetInputFilesAsync(rutaExcel);
+            await Ayudas.SubirArchivoDeImportacionAsync(page, rutaExcel);
 
-            var botonVerPlan = page.GetByText("Ver plan de importación");
-            await Expect(botonVerPlan).ToBeEnabledAsync(new LocatorAssertionsToBeEnabledOptions { Timeout = 15_000 });
-            await botonVerPlan.ClickAsync();
+            await Ayudas.EsperarPlanDeImportacionAsync(page);
+            await page.GetByText("Ver plan de importación").ClickAsync();
 
             // --- Paso 3 "Revisar plan": el plan promete las 6 altas, incluida la
             // Asignación (Importacion.razor.cs, NombresPasos — el wizard
@@ -111,6 +110,9 @@ public class ImportacionTests(WebAppFixture fixture)
             await page.GetByText("Continuar a confirmar").ClickAsync();
             await page.GetByText("He revisado el plan y quiero escribir estos datos").ClickAsync();
             await page.GetByText("Importar ahora").ClickAsync();
+            // «Importar ahora» abre el DialogoConfirmacion; escribe su botón.
+            await page.GetByRole(AriaRole.Dialog)
+                .GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Sí, importar" }).ClickAsync();
 
             // --- Resultado: Empresa/Trabajador/Documento sí se crean, y las dos filas que
             // no pudieron importarse aparecen AMBAS en Omitidos con su motivo — la de
@@ -173,6 +175,54 @@ public class ImportacionTests(WebAppFixture fixture)
         await page.GetByPlaceholder("Buscar centro, cliente o empresa…").FillAsync(nombreCentro);
         await page.WaitForTimeoutAsync(500);
         await Expect(page.GetByText(nombreCentro)).Not.ToBeVisibleAsync();
+    }
+
+    /// <summary>
+    /// Prueba de sensibilidad para el catch de
+    /// <c>ManejarArchivoSeleccionadoAsync</c> (Importacion.razor.cs): antes de
+    /// inyectar <c>ILogger&lt;Importacion&gt;</c> ese catch descartaba la
+    /// excepción por completo, y el ÚNICO rastro de un análisis fallido era el
+    /// texto de <c>.alerta-formulario</c> en la pantalla — nada llegaba al sink
+    /// de fichero de Serilog (diagnosticado así al investigar el E2E
+    /// inestable de ImportarClientesTests, donde esa rama de excepción
+    /// indistinguible costó horas de hipótesis). Este test no basta con "el
+    /// mensaje de error aparece": eso ya pasaba antes del arreglo. Exige que
+    /// la excepción real quede también en App_Data/logs — verde antes del
+    /// arreglo (mensaje visible) y rojo después de revertirlo (nada en el
+    /// log) es la asimetría que demuestra que el catch ahora sí registra.
+    /// </summary>
+    [Fact]
+    public async Task Importacion_archivo_ilegible_deja_rastro_de_la_excepcion_en_el_log_de_Serilog()
+    {
+        var sufijo = Guid.NewGuid().ToString("N")[..8];
+        var nombreArchivo = $"archivo-ilegible-{sufijo}.xlsx";
+        var rutaArchivo = Path.Combine(Path.GetTempPath(), nombreArchivo);
+        await File.WriteAllTextAsync(rutaArchivo, "Esto no es un libro de Excel válido — fuerza la excepción de ClosedXML al abrirlo.");
+
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await contexto.NewPageAsync();
+
+        try
+        {
+            await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
+            await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/importacion");
+
+            // Wizard de 5 pasos: "cae" ya viene preseleccionada en el paso 1.
+            await page.GetByText("Continuar con Importación CAE completa").ClickAsync();
+            await Ayudas.SubirArchivoDeImportacionAsync(page, rutaArchivo);
+
+            await Expect(page.Locator(".alerta-formulario")).ToContainTextAsync(
+                "No pudimos leer este archivo",
+                new LocatorAssertionsToContainTextOptions { Timeout = 10_000 });
+
+            var lineaDeLog = await Ayudas.EsperarLineaEnLogDeLaAppAsync(nombreArchivo, TimeSpan.FromSeconds(10));
+            Assert.Contains("Error al analizar el archivo", lineaDeLog);
+            Assert.Contains("cae", lineaDeLog);
+        }
+        finally
+        {
+            File.Delete(rutaArchivo);
+        }
     }
 
     private static ILocatorAssertions Expect(ILocator locator) => Assertions.Expect(locator);

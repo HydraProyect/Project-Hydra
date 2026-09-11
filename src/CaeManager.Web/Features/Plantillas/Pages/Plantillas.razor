@@ -1,6 +1,6 @@
 @page "/plantillas"
 @rendermode InteractiveServer
-@attribute [Authorize]
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
 @using CaeManager.Web.Features.Documentos.Components
 @inject NavigationManager Navigation
 

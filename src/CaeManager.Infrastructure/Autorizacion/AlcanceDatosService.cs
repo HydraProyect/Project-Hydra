@@ -11,7 +11,17 @@ namespace CaeManager.Infrastructure.Autorizacion;
 /// <summary>
 /// Implementación real de IAlcanceDatosService — vive en Infrastructure
 /// porque necesita leer ApplicationUser (CoordinadorUsuarioId/ClienteId),
-/// que Application no puede referenciar (ver Roles.cs). Cachea el resultado
+/// que Application no puede referenciar (ver Roles.cs).
+///
+/// <para>
+/// Resuelve el alcance del usuario que MIRA, y es el único punto que lo hace:
+/// toda restricción de datos por cartera pasa por aquí. No confundir con
+/// <c>DirectorioUsuariosTenant.ObtenerCarterasVigentesAsync</c>, que responde
+/// la pregunta simétrica —qué alcanzan OTROS— y es puramente informativa: pinta
+/// una columna en /usuarios y no restringe nada. Si algún día hay que
+/// restringir datos según el alcance de un tercero, se hace desde aquí, no
+/// desde allí.
+/// </para> Cachea el resultado
 /// de cada método en la propia instancia (scoped por request/circuito) para
 /// no repetir la misma resolución de cartera varias veces en la misma
 /// petición cuando varios filtros de una Query la necesitan.
@@ -22,6 +32,21 @@ namespace CaeManager.Infrastructure.Autorizacion;
 /// y Subcontrata, y Subcontrata vuelve a pedir Empresa. Una sola carga del
 /// listado de Documentos —que pide cuatro alcances— repetía la consulta de
 /// Empresas tres veces.
+///
+/// <para>
+/// El caché está indexado por <see cref="ITenantActual.TenantId"/>, no es un
+/// único valor por instancia. El fan-out multi-tenant de
+/// <c>ObtenerKpisGlobalesQuery</c>/<c>ObtenerDashboardEjecutivoQuery</c>
+/// reutiliza esta MISMA instancia (scoped) para varios tenants dentro de la
+/// misma petición, cambiando <c>AmbitoTenantExplicito</c> en cada vuelta del
+/// bucle: un único valor por instancia habría memoizado el acceso total (y la
+/// cartera) del PRIMER tenant visitado y lo habría servido, sin volver a
+/// resolverlo, a cada tenant siguiente — un Administrador de la consultora
+/// habría calculado acceso total también para sus Clientes Delegantes
+/// (hallazgo Codex 2026-09-11). Indexar por tenant hace que cada clave del
+/// diccionario se resuelva una sola vez —conservando la memoización dentro de
+/// un mismo tenant— sin que ninguna se sirva de otra.
+/// </para>
 /// </summary>
 public class AlcanceDatosService(
     CaeManagerDbContext dbContext,
@@ -30,27 +55,30 @@ public class AlcanceDatosService(
     ISesionPrivilegiadaActual sesionPrivilegiadaActual)
     : IAlcanceDatosService
 {
-    private bool? _accesoTotal;
-    private IReadOnlyList<Guid>? _clienteIds;
-    private bool _clienteIdsResueltos;
+    // Dictionary<TKey,TValue> exige TKey : notnull, y tenantActual.TenantId es
+    // Guid? (null cuando no hay tenant resuelto) — Guid.Empty es la clave
+    // centinela para ese caso: ningún Tenant real usa ese Id (se generan con
+    // Guid.NewGuid()), así que no puede colisionar con uno de verdad. Es una
+    // clave más, no un caso especial, y TryGetValue ya distingue de forma
+    // nativa "no está la clave" de "está con valor null", así que no hace
+    // falta un flag "resuelto" aparte por alcance como antes de indexar por
+    // tenant.
+    private readonly Dictionary<Guid, bool> _accesoTotal = new();
+    private readonly Dictionary<Guid, IReadOnlyList<Guid>?> _clienteIds = new();
+    private readonly Dictionary<Guid, IReadOnlyList<Guid>?> _centroIds = new();
+    private readonly Dictionary<Guid, IReadOnlyList<Guid>?> _empresaIds = new();
+    private readonly Dictionary<Guid, IReadOnlyList<Guid>?> _subcontrataIds = new();
+    private readonly Dictionary<Guid, IReadOnlyList<Guid>?> _trabajadorIds = new();
+    private readonly Dictionary<Guid, IReadOnlyList<Guid>?> _vehiculoIds = new();
 
-    // Un flag aparte por alcance y no un "is not null": null es un valor con
-    // significado propio (sin restricción), distinto de "todavía sin
-    // resolver". Confundirlos convertiría el caché en un fallo abierto.
-    private IReadOnlyList<Guid>? _centroIds;
-    private bool _centroIdsResueltos;
-    private IReadOnlyList<Guid>? _empresaIds;
-    private bool _empresaIdsResueltos;
-    private IReadOnlyList<Guid>? _subcontrataIds;
-    private bool _subcontrataIdsResueltos;
-    private IReadOnlyList<Guid>? _trabajadorIds;
-    private bool _trabajadorIdsResueltos;
-    private IReadOnlyList<Guid>? _vehiculoIds;
-    private bool _vehiculoIdsResueltos;
+    private static Guid ClaveTenant(Guid? tenantId) => tenantId ?? Guid.Empty;
 
     public async Task<bool> TieneAccesoTotalAsync(CancellationToken cancellationToken = default)
     {
-        if (_accesoTotal is not null) return _accesoTotal.Value;
+        var tenant = ClaveTenant(tenantActual.TenantId);
+        if (_accesoTotal.TryGetValue(tenant, out var cacheado)) return cacheado;
+
+        bool accesoTotal;
 
         // Plano 3 antes que el rol, porque una sesión privilegiada NO tiene rol
         // de negocio: <c>ObtenerRolActualAsync</c> devuelve null a propósito
@@ -76,43 +104,44 @@ public class AlcanceDatosService(
             // Las dos acaban igual: sin acceso total, y con el reparto por
             // cliente saliendo de la rama de rol, que sin rol devuelve lista
             // vacía. Fallo cerrado.
-            _accesoTotal = sesion.Capacidad
+            accesoTotal = sesion.Capacidad
                 is CapacidadPrivilegio.SoporteLectura
                 or CapacidadPrivilegio.BreakGlass;
-
-            return _accesoTotal.Value;
+        }
+        else
+        {
+            var rol = await currentUserService.ObtenerRolActualAsync();
+            accesoTotal = Roles.AlcanzaTodaLaOrganizacion(rol);
         }
 
-        var rol = await currentUserService.ObtenerRolActualAsync();
-        _accesoTotal = rol is Roles.Administrador or Roles.DireccionCae or Roles.Consulta;
-
-        return _accesoTotal.Value;
+        _accesoTotal[tenant] = accesoTotal;
+        return accesoTotal;
     }
 
     public async Task<IReadOnlyList<Guid>?> ObtenerClienteIdsVisiblesAsync(CancellationToken cancellationToken = default)
     {
-        if (_clienteIdsResueltos) return _clienteIds;
+        var tenant = ClaveTenant(tenantActual.TenantId);
+        if (_clienteIds.TryGetValue(tenant, out var cacheado)) return cacheado;
 
         if (await TieneAccesoTotalAsync(cancellationToken))
         {
-            _clienteIds = null;
-            _clienteIdsResueltos = true;
+            _clienteIds[tenant] = null;
             return null;
         }
 
         var rol = await currentUserService.ObtenerRolActualAsync();
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
 
-        _clienteIds = (rol, usuarioId) switch
+        var resultado = (rol, usuarioId) switch
         {
             (Roles.Cliente, { } id) => await ObtenerClienteIdsParaRolClienteAsync(id, cancellationToken),
             (Roles.GestorCae, { } id) => await ObtenerClienteIdsDeCarteraAsync([id], cancellationToken),
             (Roles.CoordinadorCae, { } id) => await ObtenerClienteIdsParaCoordinadorAsync(id, cancellationToken),
-            _ => []
+            _ => (IReadOnlyList<Guid>)[]
         };
-        _clienteIdsResueltos = true;
+        _clienteIds[tenant] = resultado;
 
-        return _clienteIds;
+        return resultado;
     }
 
     /// <summary>
@@ -211,11 +240,12 @@ public class AlcanceDatosService(
 
     public async Task<IReadOnlyList<Guid>?> ObtenerCentroIdsVisiblesAsync(CancellationToken cancellationToken = default)
     {
-        if (_centroIdsResueltos) return _centroIds;
+        var tenant = ClaveTenant(tenantActual.TenantId);
+        if (_centroIds.TryGetValue(tenant, out var cacheado)) return cacheado;
 
         var clienteIds = await ObtenerClienteIdsVisiblesAsync(cancellationToken);
 
-        _centroIds = clienteIds switch
+        IReadOnlyList<Guid>? resultado = clienteIds switch
         {
             null => null,
             { Count: 0 } => [],
@@ -224,9 +254,9 @@ public class AlcanceDatosService(
                 .Select(c => c.Id)
                 .ToListAsync(cancellationToken)
         };
-        _centroIdsResueltos = true;
+        _centroIds[tenant] = resultado;
 
-        return _centroIds;
+        return resultado;
     }
 
     public async Task<IReadOnlyList<Guid>?> ObtenerEmpresaIdsParaGestionAsync(CancellationToken cancellationToken = default)
@@ -254,15 +284,16 @@ public class AlcanceDatosService(
     /// </summary>
     public async Task<IReadOnlyList<Guid>?> ObtenerEmpresaIdsVisiblesAsync(CancellationToken cancellationToken = default)
     {
-        if (_empresaIdsResueltos) return _empresaIds;
+        var tenant = ClaveTenant(tenantActual.TenantId);
+        if (_empresaIds.TryGetValue(tenant, out var cacheado)) return cacheado;
 
         var clienteIds = await ObtenerClienteIdsVisiblesAsync(cancellationToken);
 
         if (clienteIds is null || clienteIds.Count == 0)
         {
-            _empresaIds = clienteIds is null ? null : [];
-            _empresaIdsResueltos = true;
-            return _empresaIds;
+            var vacioOSinRestriccion = clienteIds is null ? null : (IReadOnlyList<Guid>)[];
+            _empresaIds[tenant] = vacioOSinRestriccion;
+            return vacioOSinRestriccion;
         }
 
         var porCentro = dbContext.Centros.Where(c => clienteIds.Contains(c.ClienteId)).Select(c => c.EmpresaId);
@@ -270,10 +301,10 @@ public class AlcanceDatosService(
             .Where(r => clienteIds.Contains(r.ClienteId) && r.VigenciaHasta == null)
             .Join(dbContext.Empresas.Where(e => e.EsPropia), r => r.ProveedoraId, e => e.Id, (r, e) => e.Id);
 
-        _empresaIds = await porCentro.Concat(porVinculoDirecto).Distinct().ToListAsync(cancellationToken);
-        _empresaIdsResueltos = true;
+        var resultado = await porCentro.Concat(porVinculoDirecto).Distinct().ToListAsync(cancellationToken);
+        _empresaIds[tenant] = resultado;
 
-        return _empresaIds;
+        return resultado;
     }
 
     /// <summary>
@@ -290,15 +321,16 @@ public class AlcanceDatosService(
     /// </summary>
     public async Task<IReadOnlyList<Guid>?> ObtenerSubcontrataIdsVisiblesAsync(CancellationToken cancellationToken = default)
     {
-        if (_subcontrataIdsResueltos) return _subcontrataIds;
+        var tenant = ClaveTenant(tenantActual.TenantId);
+        if (_subcontrataIds.TryGetValue(tenant, out var cacheado)) return cacheado;
 
         var clienteIds = await ObtenerClienteIdsVisiblesAsync(cancellationToken);
 
         if (clienteIds is null || clienteIds.Count == 0)
         {
-            _subcontrataIds = clienteIds is null ? null : [];
-            _subcontrataIdsResueltos = true;
-            return _subcontrataIds;
+            var vacioOSinRestriccion = clienteIds is null ? null : (IReadOnlyList<Guid>)[];
+            _subcontrataIds[tenant] = vacioOSinRestriccion;
+            return vacioOSinRestriccion;
         }
 
         var empresaIds = await ObtenerEmpresaIdsVisiblesAsync(cancellationToken) ?? [];
@@ -310,10 +342,10 @@ public class AlcanceDatosService(
         var porCliente = relacionesConSubcontrataComoProveedora.Where(x => clienteIds.Contains(x.ClienteId)).Select(x => x.SubcontrataId);
         var porEmpresa = relacionesConSubcontrataComoProveedora.Where(x => empresaIds.Contains(x.ClienteId)).Select(x => x.SubcontrataId);
 
-        _subcontrataIds = await porCliente.Concat(porEmpresa).Distinct().ToListAsync(cancellationToken);
-        _subcontrataIdsResueltos = true;
+        var resultado = await porCliente.Concat(porEmpresa).Distinct().ToListAsync(cancellationToken);
+        _subcontrataIds[tenant] = resultado;
 
-        return _subcontrataIds;
+        return resultado;
     }
 
     public async Task<IReadOnlyList<Guid>?> ObtenerSubcontrataIdsParaGestionAsync(CancellationToken cancellationToken = default)
@@ -331,11 +363,12 @@ public class AlcanceDatosService(
 
     public async Task<IReadOnlyList<Guid>?> ObtenerTrabajadorIdsVisiblesAsync(CancellationToken cancellationToken = default)
     {
-        if (_trabajadorIdsResueltos) return _trabajadorIds;
+        var tenant = ClaveTenant(tenantActual.TenantId);
+        if (_trabajadorIds.TryGetValue(tenant, out var cacheado)) return cacheado;
 
         var centroIds = await ObtenerCentroIdsVisiblesAsync(cancellationToken);
 
-        _trabajadorIds = centroIds switch
+        IReadOnlyList<Guid>? resultado = centroIds switch
         {
             null => null,
             { Count: 0 } => [],
@@ -345,25 +378,26 @@ public class AlcanceDatosService(
                 .Distinct()
                 .ToListAsync(cancellationToken)
         };
-        _trabajadorIdsResueltos = true;
+        _trabajadorIds[tenant] = resultado;
 
-        return _trabajadorIds;
+        return resultado;
     }
 
     public async Task<IReadOnlyList<Guid>?> ObtenerVehiculoIdsVisiblesAsync(CancellationToken cancellationToken = default)
     {
-        if (_vehiculoIdsResueltos) return _vehiculoIds;
+        var tenant = ClaveTenant(tenantActual.TenantId);
+        if (_vehiculoIds.TryGetValue(tenant, out var cacheado)) return cacheado;
 
         var empresaIds = await ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
         if (empresaIds is null)
         {
-            _vehiculoIdsResueltos = true;
-            return _vehiculoIds = null;
+            _vehiculoIds[tenant] = null;
+            return null;
         }
 
         var subcontrataIds = await ObtenerSubcontrataIdsVisiblesAsync(cancellationToken) ?? [];
 
-        _vehiculoIds = empresaIds.Count == 0 && subcontrataIds.Count == 0
+        IReadOnlyList<Guid> resultado = empresaIds.Count == 0 && subcontrataIds.Count == 0
             ? []
             : await dbContext.Vehiculos
                 .Where(v =>
@@ -371,9 +405,9 @@ public class AlcanceDatosService(
                     (v.SubcontrataId != null && subcontrataIds.Contains(v.SubcontrataId.Value)))
                 .Select(v => v.Id)
                 .ToListAsync(cancellationToken);
-        _vehiculoIdsResueltos = true;
+        _vehiculoIds[tenant] = resultado;
 
-        return _vehiculoIds;
+        return resultado;
     }
 
     /// <summary>

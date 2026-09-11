@@ -31,6 +31,70 @@
     max-width: none;
     flex-wrap: wrap;
     row-gap: var(--space-3);
+    /* Tarjeta de filtros Gen 2 (Lista Clientes TALVEG.dc.html). */
+    gap: var(--space-3);
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+}
+
+/* Los filtros activos van dentro de la tarjeta, en una fila propia a todo el
+   ancho, como en el mockup. */
+.chips-filtros-barra {
+    flex-basis: 100%;
+    align-items: center;
+    margin-bottom: 0;
+}
+
+.limpiar-filtros-barra {
+    border: 0;
+    background: none;
+    padding: 0;
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+
+.limpiar-filtros-barra:hover {
+    color: var(--color-text);
+}
+
+.limpiar-filtros-barra:focus-visible,
+.enlace-centros-cliente:focus-visible {
+    outline: var(--border-focus);
+}
+
+.conteo-clientes {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+/* Aviso de «todos los de esta página seleccionados» — la mitad informativa
+   del banner del mockup, mismos tokens que él. */
+.aviso-seleccion-pagina {
+    margin: 0 0 var(--space-3);
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-primary-50);
+    border: 1px solid var(--color-primary-500);
+    border-radius: var(--radius-md);
+    font: var(--font-body-md);
+}
+
+/* Recuento de centros: abre la pestaña Centros del Cliente 360. Botón con
+   aspecto de enlace, como el número del mockup. */
+.enlace-centros-cliente {
+    border: 0;
+    background: none;
+    padding: 0;
+    font: var(--font-body-md);
+    font-weight: 600;
+    color: var(--color-primary-500);
+    cursor: pointer;
+}
+
+.enlace-centros-cliente:hover {
+    color: var(--color-primary-600);
 }
 
 /*

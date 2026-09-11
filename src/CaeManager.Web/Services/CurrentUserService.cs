@@ -54,6 +54,20 @@ public class CurrentUserService(
     /// selección seguía vigente— devuelve null, y ningún rol es peor que
     /// cualquier rol. Por eso <c>AutorizacionEscrituraBehavior</c> decide por
     /// lista blanca: con lista negra, "sin rol" habría dejado escribir.
+    ///
+    /// <para>
+    /// <see cref="AmbitoTenantExplicito.TenantIdActual"/> tiene prioridad sobre
+    /// la selección de workspace, con la misma precedencia que
+    /// <c>TenantActual.TenantId</c> (mismo <c>AsyncLocal</c>): el fan-out
+    /// multi-tenant de <c>ObtenerKpisGlobalesQuery</c>/<c>ObtenerDashboardEjecutivoQuery</c>
+    /// visita, dentro del mismo ámbito de DI, tenants que no son ni el de
+    /// origen ni el workspace seleccionado en la UI. Sin esto, cada vuelta del
+    /// bucle recibía el mismo rol —el de la sesión, o el del workspace que
+    /// sí estuviera activo— en vez del rol efectivo en CADA Cliente Delegante
+    /// visitado: un Administrador de la consultora calculaba acceso total
+    /// también para sus clientes delegantes, saltándose la Asignación de
+    /// Cartera de su rol real ahí (hallazgo Codex 2026-09-11).
+    /// </para>
     /// </summary>
     public async Task<string?> ObtenerRolActualAsync()
     {
@@ -74,6 +88,9 @@ public class CurrentUserService(
         // este contexto no es de negocio.
         if (clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is not null)
             return null;
+
+        if (AmbitoTenantExplicito.TenantIdActual is { } tenantAmbito)
+            return await ResolverRolParaAmbitoExplicitoAsync(tenantAmbito, rolDeSesion);
 
         // Sin selección no hay delegación en juego: el caso de todo usuario
         // que no es Operador Delegado de nadie, sin ninguna consulta extra.
@@ -118,20 +135,51 @@ public class CurrentUserService(
                 .FirstOrDefaultAsync();
         }
 
-        // Vía heredada: el acceso de soporte sigue montado sobre delegaciones
-        // hasta su propia fase (plano 3), así que conserva su resolución.
-        // Se comprueba contra la delegación viva, no contra lo que dijera el
-        // token al emitirse — una revocación tiene que notarse aquí.
+        return await ResolverRolViaHeredadaAsync(tenantSeleccionado, usuarioId.Value);
+    }
+
+    /// <summary>
+    /// Rol efectivo para un tenant fijado por <see cref="AmbitoTenantExplicito"/>
+    /// (fan-out multi-tenant, sin workspace seleccionado en la UI). Si el
+    /// ámbito coincide con el tenant de origen, es simplemente "mirar el
+    /// propio tenant" y el rol es el de la sesión — no hay
+    /// <c>DelegacionTenant</c> de un tenant a sí mismo que consultar.
+    ///
+    /// Solo resuelve por la vía heredada (<c>AsignacionOperadorDelegado</c>):
+    /// es la misma que usa <c>ObtenerClientesAutorizadosQuery</c> para
+    /// enumerar qué tenants entran en el fan-out, así que es la única fuente
+    /// de la que puede venir un tenant distinto del propio en este ámbito.
+    /// </summary>
+    private async Task<string?> ResolverRolParaAmbitoExplicitoAsync(Guid tenantAmbito, string? rolDeSesion)
+    {
+        var usuarioId = await ObtenerUsuarioActualIdAsync();
+        if (usuarioId is null) return null;
+
+        var tenantOrigenId = await ObtenerTenantOrigenIdAsync();
+        if (tenantOrigenId == tenantAmbito) return rolDeSesion;
+
+        return await ResolverRolViaHeredadaAsync(tenantAmbito, usuarioId.Value);
+    }
+
+    /// <summary>
+    /// Vía heredada: el acceso de soporte —y, hasta que termine su propia
+    /// fase de migración, el resto de Delegated Workspaces— sigue montado
+    /// sobre delegaciones. Se comprueba contra la delegación viva, no contra
+    /// lo que dijera el token al emitirse — una revocación tiene que notarse
+    /// aquí.
+    /// </summary>
+    private async Task<string?> ResolverRolViaHeredadaAsync(Guid tenantClienteId, Guid usuarioId)
+    {
         var dbContext = serviceProvider.GetRequiredService<ITenantsQueryContext>();
 
         return await (
             from asignacion in dbContext.AsignacionesOperadorDelegado
             join delegacion in dbContext.DelegacionesTenant on asignacion.DelegacionTenantId equals delegacion.Id
-            where asignacion.UsuarioId == usuarioId.Value
+            where asignacion.UsuarioId == usuarioId
                   // Activa y no caducada — ver DelegacionTenant.EstaVigente.
                   && delegacion.Activa
                   && (delegacion.ExpiraEnUtc == null || delegacion.ExpiraEnUtc > DateTime.UtcNow)
-                  && delegacion.TenantClienteId == tenantSeleccionado
+                  && delegacion.TenantClienteId == tenantClienteId
             select asignacion.Rol)
             .FirstOrDefaultAsync();
     }

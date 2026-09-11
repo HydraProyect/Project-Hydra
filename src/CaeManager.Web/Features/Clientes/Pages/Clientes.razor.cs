@@ -48,12 +48,13 @@ public partial class Clientes : ComponentBase
     private Task CambiarPaginaAsync(int pagina) => _paginacion.SetCurrentPageIndexAsync(pagina - 1);
 
     // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
-    private async Task CambiarTamanoPaginaAsync(int tamano)
+    // Una sola petición: SetCurrentPageIndexAsync ya avisa a QuickGrid aunque la
+    // página no cambie, así que refrescar además la rejilla pedía lo mismo dos
+    // veces (ver RecargarAsync).
+    private Task CambiarTamanoPaginaAsync(int tamano)
     {
         _paginacion.ItemsPerPage = tamano;
-        await _paginacion.SetCurrentPageIndexAsync(0);
-        if (_grid is not null)
-            await _grid.RefreshDataAsync();
+        return _paginacion.SetCurrentPageIndexAsync(0);
     }
 
     private bool _puedeReasignarEjecutivo;
@@ -69,6 +70,25 @@ public partial class Clientes : ComponentBase
     private bool _cargando = true;
     private bool _errorCarga;
     private int _totalElementos;
+
+    /// <summary>
+    /// Número de la última carga de la lista. Cada carga captura el suyo ANTES
+    /// del <c>await</c> y, al volver, solo escribe estado si sigue siendo la
+    /// vigente: si mientras tanto cambió un filtro, la página, el tamaño o el
+    /// orden, su respuesta es de otra pregunta. QuickGrid ya descarta las FILAS
+    /// de una carga superada, pero no sabe nada de <see cref="_totalElementos"/>,
+    /// <see cref="_elementosPagina"/> (de la que tiran j/k/x y la selección) ni
+    /// de <see cref="_errorCarga"/>: sin esto, una respuesta lenta del filtro
+    /// anterior pisaba el total del nuevo.
+    /// </summary>
+    private int _cargaVigente;
+
+    /// <summary>
+    /// Mismo criterio para el formulario de edición: abrir «Editar» sobre A y
+    /// en seguida sobre B no puede acabar con el formulario de B relleno con
+    /// los datos de A porque la consulta de A llegó la última.
+    /// </summary>
+    private int _edicionVigente;
 
     private bool _drawerVisible;
     private Guid? _editandoId;
@@ -86,9 +106,12 @@ public partial class Clientes : ComponentBase
     private string _razonSocialAEliminar = string.Empty;
     private bool _eliminando;
 
+    /// <summary>Restauraciones en vuelo, por Cliente: el «Deshacer» del aviso no manda dos veces la misma.</summary>
+    private readonly HashSet<Guid> _restaurando = [];
+
     // Drawer ligero (Lista Clientes TALVEG.dc.html): paso intermedio antes
-    // del Context Workspace completo — clic en el nombre de la fila y "Ver"
-    // del menú abren esto primero, no el workspace directamente.
+    // del Context Workspace completo — clic en el nombre de la fila y "Vista
+    // rápida" del menú abren esto primero, no el workspace directamente.
     private Guid? _previewClienteId;
     private bool _previewVisible;
 
@@ -113,8 +136,21 @@ public partial class Clientes : ComponentBase
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
-    /// <summary>Comando del palette "Crear cliente" (P3-31): /clientes?accion=crear abre el Drawer directamente.</summary>
+    /// <summary>
+    /// Acción pedida por URL: <c>crear</c> (palette "Crear cliente" y el atajo
+    /// global «n») abre el Drawer de alta; <c>guardar-filtro</c> (palette)
+    /// abre el modal de guardar filtro. Ver <see cref="OnParametersSetAsync"/>.
+    /// </summary>
     [SupplyParameterFromQuery] public string? Accion { get; set; }
+
+    /// <summary>
+    /// Última <see cref="Accion"/> ya atendida. La acción se ejecuta al CAMBIAR,
+    /// no en cada pasada de parámetros: la URL la conserva mientras se trabaja
+    /// (cada filtro que se escribe en la URL preserva los demás parámetros), y
+    /// atenderla en cada pasada reabría el Drawer o el modal al teclear en el
+    /// buscador después de cerrarlos.
+    /// </summary>
+    private string? _accionAtendida;
 
     private GridItemsProvider<ClienteListaDto>? _proveedorElementos;
 
@@ -145,8 +181,28 @@ public partial class Clientes : ComponentBase
     private bool _mostrarGuardarFiltro;
     private string _nombreFiltroNuevo = string.Empty;
     private bool _guardandoFiltro;
+    private FiltroGuardadoDto? _filtroGuardadoAEliminar;
+    private bool _eliminandoFiltroGuardado;
 
-    private record FiltrosClientesJson(string? Busqueda, bool SoloCriticos);
+    /// <summary>
+    /// Lo que se guarda de un filtro. Hasta ahora solo viajaban la búsqueda y
+    /// «solo críticos»: guardar «Con vencidos» o un ejecutivo concreto
+    /// devolvía, al aplicarlo, una lista sin ese filtro. Se escribe SIEMPRE con
+    /// los cuatro ejes (aunque alguno vaya a null): así un filtro nuevo declara
+    /// los cuatro y, al aplicarlo, los fija todos. Solo se usa para escribir;
+    /// la lectura va por <see cref="LeerFiltroGuardado"/>, que distingue la
+    /// clave ausente de la clave con null.
+    ///
+    /// <para>
+    /// El campo nuevo se llama <c>GestorCaeId</c> y no como la columna
+    /// (<c>EjecutivoUsuarioId</c>, deuda terminológica congelada por
+    /// TerminologiaCanonicaTests): nombra a la persona, el Gestor CAE con
+    /// Asignación de Cartera sobre el Cliente empresarial. Al ser una clave
+    /// nueva del JSON guardado, no hay filtros antiguos que la lleven.
+    /// </para>
+    /// </summary>
+    private record FiltrosClientesJson(
+        string? Busqueda, bool SoloCriticos, string? GestorCaeId = null, string? EstadoDocumental = null);
 
     protected override async Task OnInitializedAsync()
     {
@@ -163,9 +219,6 @@ public partial class Clientes : ComponentBase
         // clientes.
         var estadoAutenticacion = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         _puedeReasignarEjecutivo = RolesQuePuedenReasignar.Any(estadoAutenticacion.User.IsInRole);
-
-        if (Accion == "crear")
-            AbrirCrear();
 
         _filtrosGuardados = await Mediator.Send(new ObtenerFiltrosGuardadosQuery(PantallasConFiltrosGuardados.Clientes));
 
@@ -208,40 +261,62 @@ public partial class Clientes : ComponentBase
         _busqueda = deLaUrl;
         _soloCriticos = soloCriticosDeLaUrl;
 
-        // A diferencia de "accion=crear" (OnInitializedAsync, solo se
-        // ejecuta al montar: siempre llega desde otra página), "guardar-filtro"
-        // tiene que funcionar estando YA en /clientes — el propio Command
-        // Palette navega a la misma ruta añadiendo el query string, sin
-        // recrear el componente. OnParametersSet es el único hook que se
-        // re-ejecuta en ese caso, y se ejecuta después de resincronizar los
-        // filtros de arriba desde la URL, así que el modal parte de los
-        // filtros ya vigentes en pantalla.
-        if (Accion == "guardar-filtro")
-            _mostrarGuardarFiltro = true;
+        // Las dos acciones por URL se atienden aquí y no en OnInitializedAsync:
+        // ese solo corre al montar, y tanto el atajo global «n» como el
+        // palette navegan a /clientes?accion=… estando YA en /clientes, sin
+        // recrear el componente. Antes «crear» vivía en OnInitializedAsync y,
+        // desde la propia lista, «n» cambiaba la URL sin abrir nada. Se
+        // ejecutan después de resincronizar los filtros, así que el modal de
+        // guardar filtro parte de los ya vigentes en pantalla.
+        if (Accion != _accionAtendida)
+        {
+            _accionAtendida = Accion;
+            if (Accion == "crear")
+                AbrirCrear();
+            else if (Accion == "guardar-filtro")
+                _mostrarGuardarFiltro = true;
+        }
 
         return cambio && _grid is not null ? RecargarAsync() : Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Al cerrar lo que abrió una acción por URL se quita esa acción de la
+    /// URL: si no, volver a pulsar «n» navegaría a la misma URL, la acción no
+    /// cambiaría y no se abriría nada. Solo desde manejadores de eventos
+    /// (sesión interactiva), nunca durante el prerender.
+    /// </summary>
+    private void QuitarAccionDeLaUrl()
+    {
+        if (!string.IsNullOrEmpty(Accion))
+            NavigationManager.ActualizarFiltroEnUrl("accion", null);
     }
 
     private async ValueTask<GridItemsProviderResult<ClienteListaDto>> ProveerElementosAsync(
         GridItemsProviderRequest<ClienteListaDto> request)
     {
+        // Todo lo que define la pregunta se lee ANTES del await.
+        var carga = ++_cargaVigente;
+        var (ordenarPor, descendente) = LecturaOrden.Leer(request);
+        var consulta = new ObtenerClientesQuery(
+            Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
+            SoloCriticos: _soloCriticos ? true : null,
+            EjecutivoUsuarioId: Guid.TryParse(_ejecutivoFiltro, out var ejecutivoId) ? ejecutivoId : null,
+            EstadoDocumental: Enum.TryParse<EstadoDocumento>(_estadoDocumentalFiltro, out var estado) ? estado : null,
+            Pagina: (request.StartIndex / _paginacion.ItemsPerPage) + 1,
+            TamanoPagina: _paginacion.ItemsPerPage,
+            OrdenarPor: ordenarPor,
+            Descendente: descendente);
+
         _cargando = true;
         _errorCarga = false;
 
         try
         {
-            var pagina = (request.StartIndex / _paginacion.ItemsPerPage) + 1;
-            var (ordenarPor, descendente) = LecturaOrden.Leer(request);
+            var resultado = await Mediator.Send(consulta, request.CancellationToken);
 
-            var resultado = await Mediator.Send(new ObtenerClientesQuery(
-                Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
-                SoloCriticos: _soloCriticos ? true : null,
-                EjecutivoUsuarioId: Guid.TryParse(_ejecutivoFiltro, out var ejecutivoId) ? ejecutivoId : null,
-                EstadoDocumental: Enum.TryParse<EstadoDocumento>(_estadoDocumentalFiltro, out var estado) ? estado : null,
-                Pagina: pagina,
-                TamanoPagina: _paginacion.ItemsPerPage,
-                OrdenarPor: ordenarPor,
-                Descendente: descendente));
+            if (carga != _cargaVigente)
+                return GridItemsProviderResult.From(new List<ClienteListaDto>(), 0);
 
             _totalElementos = resultado.TotalElementos;
 
@@ -252,6 +327,12 @@ public partial class Clientes : ComponentBase
 
             return GridItemsProviderResult.From(elementos, resultado.TotalElementos);
         }
+        catch (Exception) when (carga != _cargaVigente)
+        {
+            // Una carga superada que falla (o que QuickGrid canceló) no es un
+            // error de la vigente: no puede tapar su resultado.
+            return GridItemsProviderResult.From(new List<ClienteListaDto>(), 0);
+        }
         catch (Exception)
         {
             _errorCarga = true;
@@ -259,8 +340,11 @@ public partial class Clientes : ComponentBase
         }
         finally
         {
-            _cargando = false;
-            StateHasChanged();
+            if (carga == _cargaVigente)
+            {
+                _cargando = false;
+                StateHasChanged();
+            }
         }
     }
 
@@ -319,20 +403,130 @@ public partial class Clientes : ComponentBase
             ? (estado == EstadoDocumento.Vigente ? "Al corriente" : EstadoDocumentoUi.Texto(estado))
             : "—");
 
+    /// <summary>
+    /// Cuántos coinciden (mockup: «N clientes con el filtro actual»). Sin
+    /// filtros no habla de ninguno; con filtros dice que el número es el de
+    /// los que coinciden, no el de la cartera.
+    /// </summary>
+    private string TextoConteo
+    {
+        get
+        {
+            var sustantivo = _totalElementos == 1 ? "cliente" : "clientes";
+            return HayFiltrosActivos
+                ? $"{_totalElementos} {sustantivo} con estos filtros"
+                : $"{_totalElementos} {sustantivo}";
+        }
+    }
+
+    private string TextoAvisoSeleccionPagina
+    {
+        get
+        {
+            var ambito = HayFiltrosActivos ? "con estos filtros" : "en total";
+            return $"Los {_elementosPagina.Count} de esta página están seleccionados. Hay {_totalElementos} {ambito}: los de otras páginas no entran en la selección.";
+        }
+    }
+
+    /// <summary>
+    /// «12 vencidos», «1 vencido», «3 faltan»: el recuento de alertas en el
+    /// peor estado, con el calificativo concordado. Antes se pintaba
+    /// «12 vencido».
+    /// </summary>
+    private static string TextoEstadoDocumental(EstadoDocumento peor, int cantidad)
+    {
+        var uno = cantidad == 1;
+        var calificativo = peor switch
+        {
+            EstadoDocumento.Vencido => uno ? "vencido" : "vencidos",
+            EstadoDocumento.Urgente => uno ? "urgente" : "urgentes",
+            EstadoDocumento.Proximo => uno ? "próximo" : "próximos",
+            EstadoDocumento.Faltante => uno ? "falta" : "faltan",
+            _ => EstadoDocumentoUi.Texto(peor).ToLowerInvariant()
+        };
+        return $"{cantidad} {calificativo}";
+    }
+
+    /// <summary>
+    /// Lo que de verdad cuenta el agregado de ObtenerClientesQuery: las
+    /// alertas de vigencia de los trabajadores cuyo cliente principal es este,
+    /// en su peor estado. El mockup dice «entre los trabajadores y centros»;
+    /// los centros no entran en ese agregado, así que no se nombran.
+    /// </summary>
+    private static string TituloEstadoDocumental(EstadoDocumento peor) =>
+        $"Peor estado entre las alertas de vigencia abiertas de sus trabajadores: {EstadoDocumentoUi.Texto(peor).ToLowerInvariant()}";
+
+    /// <summary>
+    /// Quita los cuatro filtros en una sola recarga. Encadenar los setters
+    /// lanzaría cuatro consultas y las tres primeras devolverían listas que ya
+    /// no se van a pintar. Lo usan «Quitar los filtros» del estado vacío y
+    /// «Limpiar todo» de la tarjeta de filtros.
+    ///
+    /// <para>
+    /// <b>Los dos filtros que viajan por la URL se limpian TAMBIÉN allí.</b>
+    /// Hasta ahora solo se borraba <c>q</c>: <c>critico</c> se quedaba puesto y
+    /// <see cref="OnParametersSetAsync"/>, que re-sincroniza desde la URL, lo
+    /// devolvía a true en la siguiente pasada de parámetros. El resultado era
+    /// que pulsar "Quitar los filtros" con "solo críticos" activo dejaba la
+    /// lista igual de recortada y el chip volvía a aparecer — el chip sí lo
+    /// limpiaba bien (ver <see cref="CambiarSoloCriticosAsync"/>), el botón no.
+    /// Lo destapó la prueba por render; el trinquete de fuente lo daba por
+    /// bueno, porque solo mira que exista la rama.
+    /// </para>
+    ///
+    /// <para>
+    /// Se usa <c>ActualizarFiltrosEnUrl</c> —los dos de una vez— y no dos
+    /// llamadas seguidas, por la razón que documenta el propio helper: cada
+    /// <c>NavigateTo</c> lee la URL vigente y dos seguidas pueden pisarse.
+    /// </para>
+    /// </summary>
+    private async Task LimpiarFiltrosAsync()
+    {
+        _busqueda = string.Empty;
+        _soloCriticos = false;
+        _ejecutivoFiltro = string.Empty;
+        _estadoDocumentalFiltro = string.Empty;
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["q"] = null,
+            ["critico"] = null,
+        });
+        await RecargarAsync();
+    }
+
+    /// <summary>
+    /// Vuelve a la página 1 y pide la lista UNA vez.
+    /// <see cref="PaginationState.SetCurrentPageIndexAsync"/> NO lleva guarda de
+    /// igualdad: asigna el índice e invoca <c>CurrentPageItemsChanged</c> siempre,
+    /// cambie o no la página, y QuickGrid tiene ahí suscrito su
+    /// <c>RefreshDataCoreAsync</c> — avisar a la paginación ya es pedir los datos.
+    /// (Su hermano <c>SetTotalItemCountAsync</c> sí compara antes de disparar; la
+    /// asimetría es del componente.) Un comentario anterior aquí afirmaba lo
+    /// contrario y justificaba llamar también a <c>RefreshDataAsync</c>: eso
+    /// costaba dos consultas idénticas por búsqueda o filtro aunque el total no
+    /// cambiara, medido en <c>ClientesListaGen2Tests</c>.
+    ///
+    /// <para>
+    /// Se refresca por la referencia cuando ya estamos en la página 0 porque con
+    /// el error a la vista la rejilla no está montada y nadie escucha el aviso de
+    /// la paginación; la referencia vieja sí sigue sirviendo para volver a pedir.
+    /// </para>
+    /// </summary>
     private async Task RecargarAsync()
     {
-        // SetCurrentPageIndexAsync no dispara una recarga si el índice no cambia
-        // (p.ej. ya estábamos en la página 0), así que se refresca explícitamente.
-        await _paginacion.SetCurrentPageIndexAsync(0);
-
-        if (_grid is not null)
+        if (_grid is not null && _paginacion.CurrentPageIndex == 0)
             await _grid.RefreshDataAsync();
+        else
+            await _paginacion.SetCurrentPageIndexAsync(0);
 
         StateHasChanged();
     }
 
     private void AbrirCrear()
     {
+        // Un «Editar» cuya consulta siga en vuelo no puede rellenar este
+        // formulario de alta al volver.
+        _edicionVigente++;
         _editandoId = null;
         _razonSocial = string.Empty;
         _cif = string.Empty;
@@ -347,7 +541,12 @@ public partial class Clientes : ComponentBase
 
     private async Task AbrirEditarAsync(Guid id)
     {
+        var edicion = ++_edicionVigente;
+
         var cliente = await Mediator.Send(new ObtenerClientePorIdQuery(id));
+        if (edicion != _edicionVigente)
+            return;
+
         if (cliente is null)
         {
             ToastService.Mostrar("No encontramos este cliente. Puede que ya se haya eliminado.", TonoToast.Error);
@@ -363,6 +562,9 @@ public partial class Clientes : ComponentBase
             _gestoresDisponibles = gestores
                 .Select(u => new GestorCaeSelectorDto(u.Id, u.NombreCompleto, u.Email ?? string.Empty))
                 .ToList();
+
+            if (edicion != _edicionVigente)
+                return;
         }
 
         _editandoId = cliente.Id;
@@ -383,6 +585,8 @@ public partial class Clientes : ComponentBase
     private Task CerrarDrawerAsync(bool visible)
     {
         _drawerVisible = visible;
+        if (!visible)
+            QuitarAccionDeLaUrl();
         return Task.CompletedTask;
     }
 
@@ -398,6 +602,13 @@ public partial class Clientes : ComponentBase
 
     private async Task GuardarAsync(bool continuarACrearEmpresa)
     {
+        // Guarda de doble clic: el botón se desactiva con _guardando, pero ese
+        // repintado llega al navegador después; un segundo clic en ese hueco
+        // crearía el Cliente dos veces. Cubre también que «Guardar» y
+        // «Continuar con la empresa» se pulsen uno tras otro.
+        if (_guardando)
+            return;
+
         _guardando = true;
         _mensajeErrorFormulario = null;
         _erroresCampo = new Dictionary<string, string>();
@@ -448,6 +659,7 @@ public partial class Clientes : ComponentBase
                 return;
             }
 
+            QuitarAccionDeLaUrl();
             await RecargarAsync();
         }
         catch (ValidationException ex)
@@ -498,11 +710,15 @@ public partial class Clientes : ComponentBase
 
     private async Task ConfirmarEliminarAsync()
     {
+        if (_eliminando)
+            return;
+
         _eliminando = true;
+        var idAEliminar = _idAEliminar;
 
         try
         {
-            var resultado = await Mediator.Send(new EliminarClienteCommand(_idAEliminar));
+            var resultado = await Mediator.Send(new EliminarClienteCommand(idAEliminar));
 
             if (resultado.EsFallido)
             {
@@ -510,8 +726,7 @@ public partial class Clientes : ComponentBase
             }
             else
             {
-                var idEliminado = _idAEliminar;
-                ToastService.Mostrar("Cliente eliminado correctamente.", TonoToast.Exito, "Deshacer", () => DeshacerEliminarAsync(idEliminado));
+                ToastService.Mostrar("Cliente eliminado correctamente.", TonoToast.Exito, "Deshacer", () => DeshacerEliminarAsync(idAEliminar));
                 _confirmarEliminarVisible = false;
                 await RecargarAsync();
             }
@@ -529,14 +744,24 @@ public partial class Clientes : ComponentBase
     /// <summary>Fase D ("Deshacer al eliminar") — acción del toast tras eliminar, ver RestaurarClienteCommand.</summary>
     private async Task DeshacerEliminarAsync(Guid id)
     {
-        var resultado = await Mediator.Send(new RestaurarClienteCommand(id));
+        if (!_restaurando.Add(id))
+            return;
 
-        ToastService.Mostrar(
-            resultado.EsExitoso ? "Cliente restaurado." : resultado.Error.Mensaje,
-            resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
+        try
+        {
+            var resultado = await Mediator.Send(new RestaurarClienteCommand(id));
 
-        if (resultado.EsExitoso)
-            await RecargarAsync();
+            ToastService.Mostrar(
+                resultado.EsExitoso ? "Cliente restaurado." : resultado.Error.Mensaje,
+                resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
+
+            if (resultado.EsExitoso)
+                await RecargarAsync();
+        }
+        finally
+        {
+            _restaurando.Remove(id);
+        }
     }
 
     // --- P3-31: selección múltiple ---
@@ -560,6 +785,9 @@ public partial class Clientes : ComponentBase
 
     private async Task ConfirmarEliminarLoteAsync()
     {
+        if (_eliminandoLote)
+            return;
+
         _eliminandoLote = true;
 
         try
@@ -624,6 +852,111 @@ public partial class Clientes : ComponentBase
 
     // --- P3-31: filtros guardados ---
 
+    /// <summary>
+    /// Un eje de un filtro guardado tal como vino en su JSON: <c>Declarado</c>
+    /// dice si la clave ESTABA (aunque fuera con null); <c>Valor</c>, lo que
+    /// traía.
+    /// </summary>
+    private readonly record struct EjeGuardado<T>(bool Declarado, T Valor);
+
+    private sealed record FiltroGuardadoLeido(
+        EjeGuardado<string?> Busqueda,
+        EjeGuardado<bool> SoloCriticos,
+        EjeGuardado<string?> GestorCaeId,
+        EjeGuardado<string?> EstadoDocumental);
+
+    /// <summary>
+    /// Lee el <c>ValoresJson</c> de un filtro guardado eje por eje, distinguiendo
+    /// la clave AUSENTE de la clave presente con null: es lo que separa un filtro
+    /// antiguo (que no conocía Ejecutivo ni Estado) de uno nuevo que los dejó sin
+    /// valor a propósito. Devuelve null si el texto no es un objeto JSON o si
+    /// un eje trae un tipo que no es el suyo: <c>ValoresJson</c> vive en la
+    /// tabla <c>FiltrosGuardados</c>, Application solo exige que no esté vacío,
+    /// y puede llegar corrupto o escrito por otro productor.
+    /// </summary>
+    private static FiltroGuardadoLeido? LeerFiltroGuardado(string valoresJson)
+    {
+        try
+        {
+            using var documento = JsonDocument.Parse(valoresJson);
+            var raiz = documento.RootElement;
+            if (raiz.ValueKind != JsonValueKind.Object)
+                return null;
+
+            // Las claves salen del mismo record con el que se escriben: un
+            // renombrado en uno no puede dejar al otro leyendo otra clave.
+            if (!LeerTexto(raiz, nameof(FiltrosClientesJson.Busqueda), out var busqueda)
+                || !LeerBooleano(raiz, nameof(FiltrosClientesJson.SoloCriticos), out var soloCriticos)
+                || !LeerTexto(raiz, nameof(FiltrosClientesJson.GestorCaeId), out var gestorCaeId)
+                || !LeerTexto(raiz, nameof(FiltrosClientesJson.EstadoDocumental), out var estadoDocumental))
+                return null;
+
+            return new FiltroGuardadoLeido(busqueda, soloCriticos, gestorCaeId, estadoDocumental);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static bool LeerTexto(JsonElement raiz, string clave, out EjeGuardado<string?> eje)
+    {
+        eje = default;
+        if (!raiz.TryGetProperty(clave, out var valor))
+            return true;
+
+        switch (valor.ValueKind)
+        {
+            case JsonValueKind.Null:
+                eje = new EjeGuardado<string?>(true, null);
+                return true;
+            case JsonValueKind.String:
+                eje = new EjeGuardado<string?>(true, valor.GetString());
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static bool LeerBooleano(JsonElement raiz, string clave, out EjeGuardado<bool> eje)
+    {
+        eje = default;
+        if (!raiz.TryGetProperty(clave, out var valor))
+            return true;
+
+        switch (valor.ValueKind)
+        {
+            case JsonValueKind.True:
+            case JsonValueKind.False:
+                eje = new EjeGuardado<bool>(true, valor.GetBoolean());
+                return true;
+            case JsonValueKind.Null:
+                eje = new EjeGuardado<bool>(true, false);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Aplicar un filtro guardado fija los ejes que su JSON DECLARA y deja
+    /// los demás como estaban. Un filtro guardado antes de que existieran
+    /// Ejecutivo y Estado (solo <c>Busqueda</c> y <c>SoloCriticos</c>) no los
+    /// limpia: no dice nada de ellos. Uno nuevo declara los cuatro —aunque
+    /// alguno vaya a null— y los fija todos, null incluido.
+    ///
+    /// <para>
+    /// Escribe en la URL los dos que viajan por ella. Antes solo cambiaba los
+    /// campos en memoria: la URL seguía con el <c>q</c>/<c>critico</c> anterior
+    /// y la siguiente pasada de <see cref="OnParametersSetAsync"/> (cualquier
+    /// otro filtro que escribiera en la URL) devolvía la búsqueda vieja.
+    /// </para>
+    ///
+    /// <para>
+    /// Un JSON que no se puede leer no tumba el circuito: los filtros se quedan
+    /// como estaban y se avisa.
+    /// </para>
+    /// </summary>
     private async Task AplicarFiltroGuardadoAsync(string idTexto)
     {
         if (!Guid.TryParse(idTexto, out var id)) return;
@@ -631,24 +964,57 @@ public partial class Clientes : ComponentBase
         var filtro = _filtrosGuardados.FirstOrDefault(f => f.Id == id);
         if (filtro is null) return;
 
-        var valores = JsonSerializer.Deserialize<FiltrosClientesJson>(filtro.ValoresJson);
-        if (valores is null) return;
+        if (LeerFiltroGuardado(filtro.ValoresJson) is not { } valores)
+        {
+            ToastService.Mostrar(
+                $"No se pudo aplicar este filtro guardado («{filtro.Nombre}»): su contenido no se puede leer. Los filtros de la lista siguen como estaban.",
+                TonoToast.Advertencia);
+            return;
+        }
 
-        _busqueda = valores.Busqueda ?? string.Empty;
-        _soloCriticos = valores.SoloCriticos;
+        if (valores.Busqueda.Declarado)
+            _busqueda = valores.Busqueda.Valor ?? string.Empty;
+        if (valores.SoloCriticos.Declarado)
+            _soloCriticos = valores.SoloCriticos.Valor;
+        // Un ejecutivo que ya no está en el directorio visible no se repone:
+        // filtraría por alguien que la pantalla no puede nombrar («Ejecutivo: —»).
+        if (valores.GestorCaeId.Declarado)
+            _ejecutivoFiltro = _ejecutivosParaFiltro.Any(g => g.Id.ToString() == valores.GestorCaeId.Valor)
+                ? valores.GestorCaeId.Valor!
+                : string.Empty;
+        if (valores.EstadoDocumental.Declarado)
+            _estadoDocumentalFiltro = Enum.TryParse<EstadoDocumento>(valores.EstadoDocumental.Valor, out _)
+                ? valores.EstadoDocumental.Valor!
+                : string.Empty;
+
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["q"] = _busqueda,
+            ["critico"] = _soloCriticos ? "true" : null,
+        });
         await RecargarAsync();
+    }
+
+    private void CerrarModalGuardarFiltro(bool visible)
+    {
+        _mostrarGuardarFiltro = visible;
+        if (!visible)
+            QuitarAccionDeLaUrl();
     }
 
     private async Task GuardarFiltroActualAsync()
     {
-        if (string.IsNullOrWhiteSpace(_nombreFiltroNuevo)) return;
+        if (_guardandoFiltro || string.IsNullOrWhiteSpace(_nombreFiltroNuevo)) return;
 
         _guardandoFiltro = true;
 
         try
         {
             var valoresJson = JsonSerializer.Serialize(new FiltrosClientesJson(
-                string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda, _soloCriticos));
+                string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
+                _soloCriticos,
+                string.IsNullOrWhiteSpace(_ejecutivoFiltro) ? null : _ejecutivoFiltro,
+                string.IsNullOrWhiteSpace(_estadoDocumentalFiltro) ? null : _estadoDocumentalFiltro));
 
             var resultado = await Mediator.Send(
                 new GuardarFiltroCommand(PantallasConFiltrosGuardados.Clientes, _nombreFiltroNuevo, valoresJson));
@@ -660,9 +1026,13 @@ public partial class Clientes : ComponentBase
             }
 
             _filtrosGuardados = await Mediator.Send(new ObtenerFiltrosGuardadosQuery(PantallasConFiltrosGuardados.Clientes));
-            _mostrarGuardarFiltro = false;
             _nombreFiltroNuevo = string.Empty;
+            CerrarModalGuardarFiltro(false);
             ToastService.Mostrar("Filtro guardado.", TonoToast.Exito);
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar("No pudimos guardar el filtro. Intenta nuevamente en unos segundos.", TonoToast.Error);
         }
         finally
         {
@@ -670,15 +1040,34 @@ public partial class Clientes : ComponentBase
         }
     }
 
-    private async Task EliminarFiltroGuardadoAsync(Guid id)
-    {
-        var resultado = await Mediator.Send(new EliminarFiltroGuardadoCommand(id));
-        if (resultado.EsFallido)
-        {
-            ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
-            return;
-        }
+    private void PedirEliminarFiltroGuardado(FiltroGuardadoDto filtro) => _filtroGuardadoAEliminar = filtro;
 
-        _filtrosGuardados = await Mediator.Send(new ObtenerFiltrosGuardadosQuery(PantallasConFiltrosGuardados.Clientes));
+    private async Task ConfirmarEliminarFiltroGuardadoAsync()
+    {
+        if (_eliminandoFiltroGuardado || _filtroGuardadoAEliminar is not { } filtro)
+            return;
+
+        _eliminandoFiltroGuardado = true;
+
+        try
+        {
+            var resultado = await Mediator.Send(new EliminarFiltroGuardadoCommand(filtro.Id));
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            _filtrosGuardados = await Mediator.Send(new ObtenerFiltrosGuardadosQuery(PantallasConFiltrosGuardados.Clientes));
+            _filtroGuardadoAEliminar = null;
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar("No pudimos borrar el filtro guardado. Intenta nuevamente en unos segundos.", TonoToast.Error);
+        }
+        finally
+        {
+            _eliminandoFiltroGuardado = false;
+        }
     }
 }

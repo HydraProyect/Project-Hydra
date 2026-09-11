@@ -1,0 +1,22 @@
+/* Nota bajo el badge de acción cuando el «Modificado» fue una baja lógica. */
+.detalle-baja-logica {
+    display: block;
+    margin-top: var(--space-1);
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+/* Autor que Identity ya no encuentra: se atenúa para no leerse como una persona real. */
+.usuario-no-resuelto {
+    color: var(--color-text-muted);
+}
+
+.columna-acciones-auditoria,
+.celda-acciones-auditoria {
+    text-align: right;
+}
+
+.sin-accion {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}

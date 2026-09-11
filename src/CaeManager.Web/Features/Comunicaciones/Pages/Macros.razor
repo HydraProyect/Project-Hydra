@@ -13,31 +13,50 @@
 
 @if (!IntegradaEnConfiguracion)
 {
-    <PageTitle>Macros — Comunicaciones — @Marca.Nombre</PageTitle>
+    <PageTitle>Macros de respuesta — @Marca.Nombre</PageTitle>
 }
 
 <div class="@ClaseContenedorPagina">
-    <div class="cabecera-pagina">
-        @TituloPaginaIntegrable("Macros de respuesta")
-        <div class="acciones-cabecera">
-            <a class="enlace-exportar" href="/comunicaciones">Volver a la bandeja</a>
+    @* «Una macro de cliente solo se ofrece en las conversaciones de ese
+       cliente»: es lo que hace Bandeja.razor.cs, que pide ObtenerMacrosQuery
+       con el ClienteId de la conversación y NO pide ninguna cuando la
+       conversación no tiene cliente. Por eso ni aquí ni en el formulario se
+       copia el «las genéricas aparecen siempre» del mockup: una conversación
+       sin cliente no ofrece ninguna. *@
+    <CabeceraPagina Titulo="Macros de respuesta" Integrada="IntegradaEnConfiguracion">
+        <Descripcion>
+            Textos reutilizables para responder desde la bandeja de Comunicaciones. Una macro es genérica
+            —se ofrece en las conversaciones de cualquier cliente— o específica de un cliente.
+        </Descripcion>
+        <Acciones>
+            <a class="enlace-volver-bandeja" href="/comunicaciones">Volver a la bandeja</a>
             <Boton OnClick="AbrirCrear">+ Nueva macro</Boton>
-        </div>
-    </div>
+        </Acciones>
+    </CabeceraPagina>
 
-    <div class="barra-filtros">
+    @* El filtro ENSANCHA en vez de estrechar (ver HayFiltrosActivos): sin
+       cliente, solo genéricas; con cliente, las genéricas MÁS las suyas. La
+       opción «Todas las macros» del mockup NO está: pide una consulta nueva
+       sin filtro de cliente que ObtenerMacrosQuery no tiene, y añadirla es
+       tocar Application, fuera de este incremento. *@
+    <div class="barra-filtros macros-filtros">
         <CampoSelect Etiqueta="Cliente" Valor="@_clienteFiltro" ValorChanged="FiltrarPorClienteAsync">
-            <option value="">Macros genéricas</option>
+            <option value="">Solo genéricas</option>
             @foreach (var cliente in _clientesSelector)
             {
                 <option value="@cliente.Id">@cliente.RazonSocial</option>
             }
         </CampoSelect>
+        @if (!_cargando && !_errorCarga)
+        {
+            <p class="macros-filtro-resumen" title="@DesgloseFiltro">@ResumenFiltro</p>
+        }
     </div>
 
     @if (_errorCarga)
     {
-        <EstadoVacio Titulo="No pudimos cargar las macros" Descripcion="Intenta nuevamente en unos segundos.">
+        <EstadoVacio NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)"
+                     Titulo="No pudimos cargar las macros" Descripcion="Intenta nuevamente en unos segundos.">
             <Accion>
                 <Boton OnClick="CargarAsync">Reintentar</Boton>
             </Accion>
@@ -45,11 +64,38 @@
     }
     else if (_cargando)
     {
-        <EstadoCargando Filas="5" />
+        <EstadoCargando Filas="6" />
+    }
+    else if (_macros.Count == 0 && HayFiltrosActivos)
+    {
+        @* El filtro de esta pantalla ENSANCHA el resultado en vez de
+           estrecharlo: ObtenerMacrosQuery sin cliente devuelve solo las
+           genéricas, y con un cliente devuelve las genéricas MÁS las suyas.
+           De ahí dos consecuencias que rompen el patrón de las otras ocho
+           listas del defecto sistémico:
+
+           - vacío CON cliente elegido implica vacío sin él, porque lo que se
+             ve es un superconjunto: por eso la frase puede afirmar las dos
+             cosas a la vez sin mentir;
+           - y por eso NO se ofrece "quitar el filtro" aquí, que es la acción
+             de todas las demás: quitarlo enseñaría MENOS, no más. La salida
+             útil es crear la macro que falta, o cambiar de cliente en el
+             selector de arriba, que sigue puesto. *@
+        <EstadoVacio NombreIcono="vacio" Titulo="Ni macros genéricas ni de este cliente"
+                     Descripcion="Este cliente no tiene plantillas propias, y tampoco hay ninguna genérica que aplicarle.">
+            <Accion>
+                <Boton OnClick="AbrirCrear">+ Nueva macro</Boton>
+            </Accion>
+        </EstadoVacio>
     }
     else if (_macros.Count == 0)
     {
-        <EstadoVacio Titulo="Aún no hay macros" Descripcion="Crea la primera plantilla de respuesta para agilizar la bandeja.">
+        @* "No hay macros genéricas", y no el «Aún no hay macros» del mockup:
+           sin cliente elegido la consulta devuelve SOLO las genéricas, así que
+           puede haber macros específicas de algún cliente y esta pantalla no
+           las está viendo. Decir que no hay ninguna sería falso. *@
+        <EstadoVacio Titulo="No hay macros genéricas"
+                     Descripcion="Crea la primera plantilla de respuesta, o elige un cliente arriba para ver las suyas.">
             <Accion>
                 <Boton OnClick="AbrirCrear">+ Nueva macro</Boton>
             </Accion>
@@ -57,37 +103,94 @@
     }
     else
     {
-        <table class="tabla-datos">
-            <thead>
-                <tr>
-                    <th>Título</th>
-                    <th>Cliente</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var macro in _macros)
-                {
-                    <tr>
-                        <td>@macro.Titulo</td>
-                        <td>@(macro.ClienteRazonSocial ?? "Genérica")</td>
-                        <td>
-                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditar(macro)">
-                                Editar
-                            </Boton>
-                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEliminar(macro.Id, macro.Titulo)">
-                                Eliminar
-                            </Boton>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+        <div class="macros-lista">
+            <div class="macros-tabla-contenedor">
+                <table class="tabla-datos tabla-macros">
+                    <thead>
+                        <tr>
+                            <th scope="col">Título</th>
+                            <th scope="col" class="macros-col-cliente">Cliente</th>
+                            <th scope="col" class="macros-col-acciones"><span class="macros-solo-lectores">Acciones</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var macro in MacrosPagina)
+                        {
+                            <tr @key="macro.Id" class="fila-macro">
+                                <td>
+                                    <span class="macro-titulo">@macro.Titulo</span>
+                                    @* Resumen del contenido ya cargado en la fila:
+                                       ninguna consulta extra. *@
+                                    <span class="macro-resumen">@ResumenContenido(macro.CuerpoHtml)</span>
+                                </td>
+                                <td class="macros-col-cliente">
+                                    @if (macro.ClienteId is null)
+                                    {
+                                        <Badge Tono="TonoBadge.Neutro">Genérica</Badge>
+                                    }
+                                    else
+                                    {
+                                        <span class="macro-cliente">@macro.ClienteRazonSocial</span>
+                                    }
+                                </td>
+                                <td class="macros-col-acciones">
+                                    <span class="macros-acciones-fila">
+                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditar(macro)"
+                                               aria-label="@($"Editar la macro «{macro.Titulo}»")">
+                                            Editar
+                                        </Boton>
+                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="boton-eliminar-macro"
+                                               OnClick="() => AbrirEliminar(macro.Id, macro.Titulo)"
+                                               aria-label="@($"Eliminar la macro «{macro.Titulo}»")">
+                                            Eliminar
+                                        </Boton>
+                                    </span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <PaginadorSimple PaginaActual="_paginaActual" TotalPaginas="TotalPaginas" TotalElementos="_macros.Count"
+                             Etiqueta="@EtiquetaRecuento" PaginaActualChanged="CambiarPagina"
+                             TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPagina" />
+        </div>
     }
 </div>
 
-<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nueva macro" : "Editar macro")" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
+<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nueva macro" : "Editar macro")"
+        CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando && !_conflicto)">
     <ChildContent>
+        <p class="macros-drawer-subtitulo">
+            @(_editandoId is null
+                ? "Se ofrecerá al responder desde la bandeja, en las conversaciones vinculadas a un cliente."
+                : "Los cambios valen para las respuestas que se redacten a partir de ahora; las ya enviadas no cambian.")
+        </p>
+
+        @if (_conflicto)
+        {
+            @* Concurrencia optimista: EditarMacroCommand devuelve
+               Concurrencia.Conflicto y no pisa nada. El mockup dice también
+               quién guardó y cuándo («Guardado el 6 sep 2026, 09:14 por
+               Álvaro B.»): el comando no devuelve ese dato, así que no se
+               escribe. *@
+            <div class="macros-conflicto" role="alert">
+                <strong class="macros-conflicto-titulo">Otra persona editó esta macro mientras la tenías abierta</strong>
+                <span class="macros-conflicto-texto">
+                    Tus cambios no se han guardado. Copia tu contenido si quieres conservarlo y carga la versión actual.
+                </span>
+                <div class="macros-conflicto-acciones">
+                    <Boton Tamano="TamanoBoton.Pequeno" Cargando="_recargandoVersion" OnClick="CargarVersionActualAsync">
+                        Cargar la versión actual
+                    </Boton>
+                    <span class="macros-conflicto-copiar">
+                        Tu contenido: <BotonCopiar Valor="@_cuerpo" Etiqueta="tu contenido" />
+                    </span>
+                </div>
+            </div>
+        }
+
         @if (_mensajeErrorFormulario is not null)
         {
             <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
@@ -100,25 +203,43 @@
                 <option value="@cliente.Id">@cliente.RazonSocial</option>
             }
         </CampoSelect>
+        <p class="texto-ayuda-campo">
+            Una macro de cliente solo se ofrece en las conversaciones de ese cliente; una genérica, en las de cualquier cliente.
+        </p>
 
-        <CampoTexto Etiqueta="Título" Valor="@_titulo" ValorChanged="v => _titulo = v" MensajeError="@ObtenerError(nameof(CrearMacroCommand.Titulo))" />
+        <CampoTexto Etiqueta="Título" Valor="@_titulo" ValorChanged="v => _titulo = v" Placeholder="Cómo la verás en la lista de macros"
+                    MensajeError="@ObtenerError(nameof(CrearMacroCommand.Titulo))" />
 
-        <CampoTextarea Etiqueta="Contenido" Valor="@_cuerpo" ValorChanged="v => _cuerpo = v" Filas="6" MensajeError="@ObtenerError(nameof(CrearMacroCommand.CuerpoHtml))" />
+        @* El mockup declara el campo de «texto plano» que se escapa al guardar
+           y convierte los saltos: eso no existe. Lo que hace hoy la bandeja
+           (Bandeja.razor.cs, AplicarMacro) es copiar el contenido tal cual en
+           el cuadro de respuesta, y eso es lo que dice la ayuda. *@
+        <CampoTextarea Etiqueta="Contenido" Valor="@_cuerpo" ValorChanged="v => _cuerpo = v" Filas="6"
+                       Placeholder="El texto que se insertará en la respuesta"
+                       MensajeError="@ObtenerError(nameof(CrearMacroCommand.CuerpoHtml))" />
+        <p class="texto-ayuda-campo">
+            Se copia tal cual en el cuadro de respuesta, con sus saltos de línea; allí puedes retocarlo antes de enviar.
+        </p>
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
             Cancelar
         </Boton>
-        <Boton Cargando="_guardando" OnClick="GuardarAsync">
+        <Boton Cargando="_guardando" Deshabilitado="_conflicto" OnClick="GuardarAsync">
             Guardar
         </Boton>
     </Pie>
 </Drawer>
 
+@* «Podrás recuperarla desde Auditoría», que decía esta pantalla y repite el
+   mockup, era falso: EliminarMacroCommand hace borrado lógico y el
+   interceptor de auditoría deja constancia, pero Auditoría solo restaura
+   Cliente, Empresa, Centro, Trabajador y Documento (Auditoria.razor.cs,
+   RestaurarAsync). Se dice lo que sí pasa. *@
 <DialogoConfirmacion
     Visible="_confirmarEliminarVisible"
     VisibleChanged="v => _confirmarEliminarVisible = v"
     Titulo="@($"¿Eliminar la macro «{_tituloAEliminar}»?")"
-    Mensaje="Se ocultará de la bandeja. Podrás recuperarla desde Auditoría."
+    Mensaje="Dejará de ofrecerse al responder desde la bandeja. El borrado queda registrado en Auditoría, pero no se puede deshacer desde la aplicación."
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />

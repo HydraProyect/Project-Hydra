@@ -15,24 +15,26 @@ namespace CaeManager.E2ETests;
 /// ahora" (EjecutarImportacionCommand) — misma query/comando que usaba la
 /// página retirada, así que el comportamiento de dominio no cambia.
 ///
-/// Este test documenta, con una fila real, un comportamiento verificado
-/// leyendo EjecutarImportacionCommandHandler: desde que Cliente exige CIF y
-/// Centro exige Empresa (Fase 10), esta plantilla de una sola columna
-/// (Cliente/Centro, sin CIF ni Empresa) ya NO puede dar de alta un Cliente o
-/// Centro nuevo — el comentario del propio handler lo dice ("ninguno de los
-/// dos formatos de Excel soportados hoy recoge esos datos todavía"). El
-/// paso 2 (el plan) sigue contando la fila como dos altas potenciales
-/// (Cliente + Centro) porque el análisis solo compara nombres contra la base
-/// de datos; al confirmar, la fila nunca se crea a medias ni con datos
-/// inventados: se omite con el motivo exacto, y el bucle del handler corta
-/// (`continue`) en cuanto falta el Cliente, así que es un único Omitido, no
-/// dos.
+/// Este test documenta, con una fila real, el comportamiento correcto: desde
+/// que Cliente exige CIF y Centro exige Empresa (Fase 10), esta plantilla de
+/// una sola columna (Cliente/Centro, sin CIF ni Empresa) no puede dar de alta
+/// un Cliente o Centro nuevo — el comentario de
+/// EjecutarImportacionCommandHandler lo dice ("ninguno de los dos formatos
+/// de Excel soportados hoy recoge esos datos todavía"). Hasta el defecto
+/// corregido aquí, el paso 2 (el plan) SÍ contaba la fila como dos altas
+/// potenciales (Cliente + Centro) — el análisis
+/// (ClosedXmlPlantillaClientesService.AnalizarAsync) solo comparaba nombres
+/// contra la base de datos sin anticipar que la escritura se negaría a
+/// crearlos — y el usuario descubría la omisión recién en el reporte final.
+/// Ahora el análisis anticipa exactamente lo que la escritura hará: la fila
+/// se omite ya en el paso 2, con el mismo motivo que antes solo aparecía al
+/// confirmar.
 /// </summary>
 [Collection("AppCollection")]
 public class ImportarClientesTests(WebAppFixture fixture)
 {
     [Fact]
-    public async Task Importar_clientes_analiza_el_plan_pero_una_fila_nueva_termina_omitida_sin_CIF()
+    public async Task Importar_clientes_el_plan_ya_omite_la_fila_nueva_sin_CIF_y_no_crea_nada_al_confirmar()
     {
         var sufijo = Guid.NewGuid().ToString("N")[..8];
         var nombreClienteCentro = $"ImportarClientes {sufijo}";
@@ -60,24 +62,33 @@ public class ImportarClientesTests(WebAppFixture fixture)
             await Expect(page).ToHaveURLAsync(new Regex(@"/importacion\?plantilla=clientes$"));
 
             await page.GetByText("Continuar con Plantilla de Clientes").ClickAsync();
-            await page.Locator("input[type=\"file\"]").SetInputFilesAsync(rutaExcel);
+            await Ayudas.SubirArchivoDeImportacionAsync(page, rutaExcel);
 
-            // --- Paso 2 "Revisar plan": cuenta la fila como dos altas potenciales (Cliente + Centro) ---
-            var botonVerPlan = page.GetByText("Ver plan de importación");
-            await Expect(botonVerPlan).ToBeEnabledAsync(new LocatorAssertionsToBeEnabledOptions { Timeout = 15_000 });
-            await botonVerPlan.ClickAsync();
+            // --- Paso 2 "Revisar plan": el análisis ya sabe que no puede crear
+            // ni el Cliente (falta CIF) ni el Centro (falta Empresa) — la fila
+            // aparece omitida aquí, no como una alta prometida. ---
+            await Ayudas.EsperarPlanDeImportacionAsync(page);
+            await page.GetByText("Ver plan de importación").ClickAsync();
 
             // GetByText("Revisar plan") a secas es ambigua: el nombre del paso
             // 3 aparece tanto en el botón del stepper del wizard como en el <h2>
             // de esta sección — el rol Heading es inequívoco.
             await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "Revisar plan" })
                 .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-            await Expect(page.GetByText("2 se crearán")).ToBeVisibleAsync();
-            await Expect(page.GetByText("0 se omitirán")).ToBeVisibleAsync();
+            await Expect(page.GetByText("0 se crearán")).ToBeVisibleAsync();
+            await Expect(page.GetByText("1 se omitirán")).ToBeVisibleAsync();
+
+            var filaOmitidaEnPlan = page.Locator(".tabla-plan-importacion-envoltorio .tabla-datos tbody tr", new PageLocatorOptions { HasText = nombreClienteCentro });
+            await filaOmitidaEnPlan.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
+            await Expect(filaOmitidaEnPlan).ToContainTextAsync("CIF");
 
             await page.GetByText("Continuar a confirmar").ClickAsync();
             await page.GetByText("He revisado el plan y quiero escribir estos datos").ClickAsync();
             await page.GetByText("Importar ahora").ClickAsync();
+            // «Importar ahora» abre el DialogoConfirmacion con el efecto real
+            // (con esta plantilla, ninguna alta se hará); escribe su botón.
+            await page.GetByRole(AriaRole.Dialog)
+                .GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Sí, importar" }).ClickAsync();
 
             // --- Resultado: la fila "nueva" no crea nada, termina omitida con motivo explícito ---
             await page.Locator(".titulo-reporte-importacion")

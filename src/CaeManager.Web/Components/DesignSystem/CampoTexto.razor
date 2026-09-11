@@ -4,7 +4,15 @@
     {
         <label for="@_id">@Etiqueta</label>
     }
-    <input id="@_id"
+    @* @key cambia SOLO cuando el padre reescribe el valor por su cuenta (ver
+       OnParametersSet) y sirve para forzar que el navegador reciba el valor
+       nuevo. Hace falta porque _valorMostrado no se toca al teclear: el DOM
+       del navegador se ha ido por su lado, y devolverlo al mismo valor que
+       Blazor ya tenía renderizado no produce diff ninguno — el <input> se
+       quedaría con lo tecleado pese a que el padre lo acaba de limpiar. Con
+       @key el elemento se recrea y nace con el valor correcto. *@
+    <input @key="_generacionValor"
+           id="@_id"
            type="@Type"
            class="@ClaseCompleta"
            value="@_valorMostrado"
@@ -27,6 +35,13 @@
     private string _ultimoValor = string.Empty;
     private string _valorMostrado = string.Empty;
     private string _ultimoValorNotificado = string.Empty;
+
+    /// <summary>
+    /// Se incrementa en cada resincronización venida del padre — ver el @key
+    /// del &lt;input&gt;. No cuenta pulsaciones: solo las veces que el valor
+    /// cambió por una razón ajena a lo que el usuario está escribiendo.
+    /// </summary>
+    private int _generacionValor;
 
     [Parameter] public string? Etiqueta { get; set; }
     [Parameter] public string Valor { get; set; } = string.Empty;
@@ -86,6 +101,7 @@
             _valorMostrado = Valor;
             _ultimoValor = Valor;
             _ultimoValorNotificado = Valor;
+            _generacionValor++;
         }
     }
 
@@ -136,6 +152,20 @@
     /// debounce pendiente y se notifica el valor ya mismo — si no, un clic
     /// rápido tras escribir podría llegar al padre antes que la última
     /// tecla, enviando un valor desactualizado.
+    ///
+    /// <para>
+    /// Nota para quien escriba un test bUnit contra un consumidor de este
+    /// componente: cancelar aquí un <c>Task.Delay</c> pendiente reencola su
+    /// continuación en el <c>Dispatcher</c> con un salto de hilo real — si
+    /// el test dispara <c>Input()</c>/<c>Blur()</c>/<c>Click()</c>
+    /// (fire-and-forget, no <c>InputAsync</c>/<c>BlurAsync</c>/<c>ClickAsync</c>)
+    /// y hace un assert justo después sin esperar nada, el assert puede
+    /// adelantarse al manejador del siguiente clic. No es que el clic se
+    /// pierda: es que el test no esperó. Investigado a fondo (causa raíz
+    /// real, con evidencia de navegador) en el comentario de
+    /// <c>Buscar</c>, en
+    /// tests/CaeManager.Web.Tests/TiposDocumentoVacioPorFiltroTests.cs.
+    /// </para>
     /// </summary>
     private async Task ManejarBlurAsync()
     {

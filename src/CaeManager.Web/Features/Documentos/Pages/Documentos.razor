@@ -44,11 +44,15 @@
     <Pestanas Definiciones="_pestanasDocumentos" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestana" EtiquetaGrupo="Secciones de documentos">
         @if (_pestanaActiva == "plataforma")
         {
-            <PlataformaTab />
+            <AuthorizeView Roles="@RolesDeGestionDocumental">
+                <PlataformaTab />
+            </AuthorizeView>
         }
         else if (_pestanaActiva == "reclamaciones")
         {
-            <ReclamacionesTab />
+            <AuthorizeView Roles="@RolesDeGestionDocumental">
+                <ReclamacionesTab />
+            </AuthorizeView>
         }
         else if (_pestanaActiva == "sugerencias")
         {
@@ -56,11 +60,15 @@
         }
         else if (_pestanaActiva == "revision-ia")
         {
-            <RevisionIaTab />
+            <AuthorizeView Roles="@RolesDeGestionDocumental">
+                <RevisionIaTab />
+            </AuthorizeView>
         }
         else if (_pestanaActiva == "plantillas")
         {
-            <PlantillasTab />
+            <AuthorizeView Roles="@RolesDeGestionDocumental">
+                <PlantillasTab />
+            </AuthorizeView>
         }
         else
         {
@@ -176,7 +184,23 @@
                                       TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
                 </div>
 
-                @if (_totalElementos == 0 && !_cargando)
+                @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)
+                {
+            @* Distinto de "aún no hay X": son dos situaciones opuestas y llevan
+               a acciones opuestas. Ofrecer "crea el primero" a quien acaba de
+               filtrar lo manda a duplicar algo que ya existe.
+
+               La copia no afirma que HAYA registros dados de alta: el filtrado
+               es de servidor y la consulta solo devuelve el total ya filtrado,
+               así que la pantalla no sabe cuántos hay sin filtro. *@
+                    <EstadoVacio NombreIcono="vacio" Titulo="Ningún documento con estos filtros"
+                                 Descripcion="Ninguno coincide con la búsqueda ni con los filtros de ámbito y estado.">
+                        <Accion>
+                            <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar los filtros</Boton>
+                        </Accion>
+                    </EstadoVacio>
+                }
+                else                 @if (_totalElementos == 0 && !_cargando)
                 {
                     <EstadoVacio NombreIcono="documentos" Titulo="Aún no hay documentos" Descripcion="Sube el primero para empezar a controlar vigencias.">
                         <Accion>

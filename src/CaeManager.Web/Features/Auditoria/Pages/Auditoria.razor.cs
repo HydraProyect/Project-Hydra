@@ -40,6 +40,15 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
     private const int TamanoPagina = 30;
     private readonly HashSet<Guid> _restaurando = [];
 
+    /// <summary>Identifica la carga vigente; ver <see cref="CargarAsync"/>.</summary>
+    private int _versionCarga;
+
+    /// <summary>
+    /// Identity no encuentra el Id. AspNetUsers no tiene RLS ni filtro de
+    /// tenant, así que no es un usuario de otro tenant oculto: no existe.
+    /// </summary>
+    private const string UsuarioNoEncontrado = "(usuario eliminado)";
+
     protected override Task OnInitializedAsync()
     {
         // Los [Parameter] ya están asignados en este punto (SetParametersAsync
@@ -53,27 +62,60 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
 
     /// <summary>
     /// Re-sincroniza el filtro con la URL en navegaciones posteriores dentro
-    /// de la propia página (volver atrás, compartir la URL) — la recarga de
-    /// datos la sigue disparando explícitamente cada manejador de filtro, no
+    /// de la propia página (volver atrás o adelante, abrir una URL compartida).
+    ///
+    /// <para>
+    /// Los cambios que inicia la propia página los recarga su manejador, no
     /// este método, para no depender del timing del router (P1-18 de
-    /// docs/business/MATURITY_REVIEW.md).
+    /// docs/business/MATURITY_REVIEW.md): cuando llegan aquí, el filtro ya
+    /// coincide con la URL y no se hace nada. Solo recarga cuando la URL trae
+    /// un filtro DISTINTO del que enseña la página, que es lo que pasa al
+    /// volver atrás. Antes solo cambiaba el filtro: el desplegable y el enlace
+    /// de exportar pasaban a decir una cosa mientras la tabla seguía
+    /// enseñando las filas de otra consulta.
+    /// </para>
     /// </summary>
-    protected override void OnParametersSet()
+    protected override Task OnParametersSetAsync()
     {
-        _filtroEntidadTipo = string.IsNullOrWhiteSpace(EntidadTipoInicial) ? null : EntidadTipoInicial;
+        var filtroDeLaUrl = string.IsNullOrWhiteSpace(EntidadTipoInicial) ? null : EntidadTipoInicial;
+        if (filtroDeLaUrl == _filtroEntidadTipo)
+            return Task.CompletedTask;
+
+        _filtroEntidadTipo = filtroDeLaUrl;
+        _pagina = 1;
+        return CargarAsync();
     }
 
+    /// <summary>
+    /// Carga la página vigente de la auditoría.
+    ///
+    /// <para>
+    /// Filtro y página se capturan al empezar, y la respuesta se descarta si
+    /// al volver del <c>await</c> ya no es la carga vigente: sin esto, cambiar
+    /// de filtro mientras la carga anterior sigue en vuelo dejaba que la
+    /// respuesta VIEJA, si llegaba la última, pintara sus filas bajo el
+    /// desplegable y el enlace de exportar del filtro NUEVO — un rastro de
+    /// auditoría que enseña filas de otra consulta es exactamente lo que esta
+    /// pantalla no puede permitirse.
+    /// </para>
+    /// </summary>
     private async Task CargarAsync()
     {
+        var version = ++_versionCarga;
+        var filtro = _filtroEntidadTipo;
+        var pagina = _pagina;
+
         _cargando = true;
         _error = false;
         StateHasChanged();
 
         try
         {
-            _resultado = await Mediator.Send(new ObtenerAuditoriaQuery(_filtroEntidadTipo, UsuarioId: null, _pagina, TamanoPagina));
+            var resultado = await Mediator.Send(new ObtenerAuditoriaQuery(filtro, UsuarioId: null, pagina, TamanoPagina));
+            if (version != _versionCarga)
+                return;
 
-            var idsFaltantes = _resultado.Elementos
+            var idsFaltantes = resultado.Elementos
                 .Where(r => r.UsuarioId is not null && !_usuariosPorId.ContainsKey(r.UsuarioId.Value))
                 .Select(r => r.UsuarioId!.Value)
                 .Distinct()
@@ -87,17 +129,26 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
                 foreach (var id in idsFaltantes)
                 {
                     var usuario = await UserManager.FindByIdAsync(id.ToString());
-                    _usuariosPorId[id] = usuario?.NombreCompleto ?? usuario?.Email ?? "(usuario eliminado)";
+                    _usuariosPorId[id] = usuario?.NombreCompleto ?? usuario?.Email ?? UsuarioNoEncontrado;
                 }
             });
+
+            // La caché de nombres sí puede quedarse lo resuelto por una carga
+            // superada (un nombre por Id no depende del filtro); las filas no.
+            if (version != _versionCarga)
+                return;
+
+            _resultado = resultado;
         }
         catch (Exception)
         {
-            _error = true;
+            if (version == _versionCarga)
+                _error = true;
         }
         finally
         {
-            _cargando = false;
+            if (version == _versionCarga)
+                _cargando = false;
         }
     }
 
@@ -109,6 +160,33 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
         return CargarAsync();
     }
 
+    /// <summary>
+    /// Único filtro de la página. Separa "no hay registros" de "ninguno con
+    /// este filtro": son situaciones opuestas y la primera, dicha a quien
+    /// acaba de filtrar, hace creer que la auditoría no registra nada.
+    /// </summary>
+    private bool HayFiltrosActivos => !string.IsNullOrWhiteSpace(_filtroEntidadTipo);
+
+    /// <summary>
+    /// La condición va en una propiedad y no en la plantilla a propósito: el
+    /// trinquete <c>ListasDistinguenVacioPorFiltroTests</c> reconoce la guarda
+    /// con <c>[^)]*</c>, que no cruza un paréntesis, así que un
+    /// <c>if ((a || b) &amp;&amp; HayFiltrosActivos)</c> le pasa desapercibido y
+    /// da falsa alarma. Es la dirección segura de fallo para un trinquete
+    /// —avisa de más, nunca de menos— y sale más barato adoptar su idioma que
+    /// aflojarlo.
+    /// </summary>
+    private bool SinRegistros => _resultado is null || _resultado.Elementos.Count == 0;
+
+    /// <summary>
+    /// La página ya cargada. Solo se usa en la rama que <see cref="SinRegistros"/>
+    /// descarta, donde nunca es null — pero el compilador no puede verlo a
+    /// través de una propiedad, y CI compila con <c>-warnaserror</c>.
+    /// </summary>
+    private ResultadoPaginado<RegistroAuditoriaListaDto> Resultado => _resultado!;
+
+    private Task LimpiarFiltrosAsync() => FiltrarPorEntidadAsync(null);
+
     private Task IrAPaginaAsync(int pagina)
     {
         _pagina = pagina;
@@ -118,8 +196,21 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
     private string EnlaceExportar =>
         _filtroEntidadTipo is null ? "/auditoria/exportar.xlsx" : $"/auditoria/exportar.xlsx?entidad={Uri.EscapeDataString(_filtroEntidadTipo)}";
 
+    /// <summary>
+    /// El filtro vigente llegó por la URL y no es de las entidades principales
+    /// del desplegable: se ofrece como opción propia para que el control no
+    /// diga «Todas» sobre una tabla filtrada.
+    /// </summary>
+    private bool FiltroFueraDelCatalogo =>
+        _filtroEntidadTipo is not null && !TiposEntidad.Contains(_filtroEntidadTipo);
+
     private string NombreUsuario(Guid? usuarioId) =>
         usuarioId is null ? "Sistema" : _usuariosPorId.GetValueOrDefault(usuarioId.Value, "—");
+
+    private string? ClaseUsuario(Guid? usuarioId) =>
+        usuarioId is not null && _usuariosPorId.GetValueOrDefault(usuarioId.Value) == UsuarioNoEncontrado
+            ? "usuario-no-resuelto"
+            : null;
 
     private bool EstaRestaurando(RegistroAuditoriaListaDto registro) => _restaurando.Contains(registro.Id);
 

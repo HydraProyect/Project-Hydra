@@ -1,0 +1,153 @@
+/* Macros de respuesta, Gen 2 («Macros TALVEG.dc.html»). Solo tokens de tokens.css. */
+
+.enlace-volver-bandeja {
+    font: var(--font-label);
+    color: var(--color-primary-500);
+    text-decoration: none;
+}
+
+.enlace-volver-bandeja:hover {
+    color: var(--color-primary-600);
+    text-decoration: underline;
+}
+
+/* list-page.css limita .barra-filtros a 480px: aquí el selector lleva al
+   lado el resumen de lo que hay en la lista. */
+.macros-filtros {
+    max-width: none;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.macros-filtros ::deep .campo {
+    flex: 0 1 340px;
+    min-width: 240px;
+}
+
+.macros-filtro-resumen {
+    margin: 0 0 var(--space-3);
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.macros-lista {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.macros-tabla-contenedor {
+    overflow-x: auto;
+    border-radius: var(--radius-lg);
+}
+
+.tabla-macros {
+    min-width: 820px;
+    table-layout: fixed;
+}
+
+.tabla-macros td {
+    vertical-align: top;
+}
+
+.macros-col-cliente {
+    width: 280px;
+}
+
+.macros-col-acciones {
+    width: 180px;
+    text-align: right;
+}
+
+.macros-solo-lectores {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.macro-titulo {
+    display: block;
+    font: var(--font-body-md);
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.macro-resumen {
+    display: block;
+    margin-top: 2px;
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.macro-cliente {
+    color: var(--color-text);
+}
+
+.macros-acciones-fila {
+    display: inline-flex;
+    gap: var(--space-2);
+}
+
+.macros-acciones-fila ::deep .boton-eliminar-macro {
+    color: var(--color-danger-700);
+}
+
+.macros-acciones-fila ::deep .boton-eliminar-macro:hover {
+    background-color: var(--color-danger-50);
+}
+
+.macros-drawer-subtitulo {
+    margin: 0 0 var(--space-4);
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.macros-conflicto {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+    padding: var(--space-4);
+    background-color: var(--color-warning-50);
+    border: 1px solid var(--color-warning-500);
+    border-radius: var(--radius-md);
+}
+
+.macros-conflicto-titulo {
+    font: var(--font-label);
+    color: var(--color-warning-700);
+}
+
+.macros-conflicto-texto {
+    font: var(--font-caption);
+    color: var(--color-warning-700);
+}
+
+.macros-conflicto-acciones {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.macros-conflicto-copiar {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font: var(--font-caption);
+    color: var(--color-text);
+}

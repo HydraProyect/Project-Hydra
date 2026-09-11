@@ -1,11 +1,3 @@
-/*
-  Cabecera + barra de chips/orden (mockup "Mi trabajo TALVEG"): reemplaza el
-  <select> de tipo por chips clicables con recuento inline, más el toggle
-  Impacto/Fecha — traducción 1:1 de los estilos inline del .dc.html.
-*/
-.bandeja-cabecera {
-    margin-bottom: var(--space-5);
-}
 
 .bandeja-barra {
     display: flex;

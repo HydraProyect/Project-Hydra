@@ -2,9 +2,11 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas;
 using CaeManager.Application.Subcontratas.Commands.CrearSubcontrata;
+using CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarSubcontratas;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
+using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Tenants;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
@@ -71,6 +73,26 @@ public partial class Subcontratas : ComponentBase
     private bool _eliminandoLote;
     private bool _confirmarEliminarLoteVisible;
 
+    private bool _confirmarEliminarVisible;
+    private Guid _idAEliminar;
+    private string _razonSocialAEliminar = string.Empty;
+    private bool _eliminando;
+
+    // Vista previa (Subcontratas TALVEG.dc.html, mismo patrón que Empresas y
+    // Vehículos): el nombre de la fila y "Detalles" abren esto primero, no el
+    // Context Workspace directamente. Antes los dos abrían Subcontrata 360.
+    private Guid? _previewSubcontrataId;
+    private bool _previewVisible;
+
+    /// <summary>
+    /// La fila que la vista previa enseña, leída de la página ya cargada: el
+    /// panel reutiliza el cumplimiento y los recuentos que la lista ya tiene,
+    /// y se entera sola cuando <see cref="RefrescarSubcontrataAsync"/> los
+    /// sustituye tras gestionar un documento desde el acordeón.
+    /// </summary>
+    private SubcontrataListaDto? FilaEnVistaPrevia =>
+        _previewSubcontrataId is { } id ? _elementosPagina.FirstOrDefault(e => e.Id == id) : null;
+
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
 
@@ -121,6 +143,12 @@ public partial class Subcontratas : ComponentBase
             _seleccionados.Clear();
             _expandidos.Clear();
             _idEnfocado = null;
+
+            // La vista previa se alimenta de la fila de la página: si esa fila
+            // ya no está (otra página, otra búsqueda, eliminada), el panel no
+            // tiene nada cierto que enseñar y se cierra.
+            if (FilaEnVistaPrevia is null)
+                _previewVisible = false;
         }
         catch (Exception)
         {
@@ -169,6 +197,45 @@ public partial class Subcontratas : ComponentBase
         _busqueda = valor;
         NavigationManager.ActualizarFiltroEnUrl("q", valor);
         await CargarAsync(resetPagina: true);
+    }
+
+    private bool HayFiltrosActivos => !string.IsNullOrWhiteSpace(_busqueda);
+
+    /// <summary>
+    /// Limpia la búsqueda en memoria Y en la URL: el filtro vuelve por
+    /// <see cref="OnParametersSetAsync"/> desde <c>?q=</c>, así que limpiar
+    /// solo el campo dejaría que la siguiente pasada de parámetros lo
+    /// repusiera. <see cref="BuscarAsync"/> ya hace las dos cosas.
+    /// </summary>
+    private Task LimpiarFiltrosAsync() => BuscarAsync(string.Empty);
+
+    /// <summary>
+    /// «N de M» de la barra de herramientas. M es el total que devuelve la
+    /// consulta, que con búsqueda ya viene filtrado — por eso la frase lo dice,
+    /// y no promete cuántas hay sin filtro, que esta pantalla no sabe.
+    /// </summary>
+    private string TextoConteo =>
+        $"{_elementosPagina.Count} de {_totalElementos} {(_totalElementos == 1 ? "subcontrata" : "subcontratas")}"
+        + (HayFiltrosActivos ? " con esta búsqueda" : string.Empty);
+
+    private string ClaseRejilla(string claseBase) =>
+        $"{claseBase} rejilla-subcontratas" + (_seleccionMultiple ? " rejilla-subcontratas-seleccion" : string.Empty);
+
+    private string ClaseTarjeta(Guid id) =>
+        "tarjeta-fila-acordeon"
+        + (id == _idEnfocado ? " fila-enfocada" : string.Empty)
+        + (_previewVisible && id == _previewSubcontrataId ? " fila-en-vista-previa" : string.Empty);
+
+    private void AbrirPreview(Guid id)
+    {
+        _previewSubcontrataId = id;
+        _previewVisible = true;
+    }
+
+    private Task AbrirDesdePreviewAsync((Guid Id, string Pestana) destino)
+    {
+        var nombre = _elementosPagina.FirstOrDefault(e => e.Id == destino.Id)?.RazonSocial ?? string.Empty;
+        return WorkspaceService.AbrirAsync(EntidadWorkspace.Subcontrata, destino.Id, nombre, destino.Pestana);
     }
 
     private async Task AbrirCrear()
@@ -306,6 +373,49 @@ public partial class Subcontratas : ComponentBase
         else _seleccionados.Remove(id);
     }
 
+    private void AbrirEliminar(Guid id, string razonSocial)
+    {
+        _idAEliminar = id;
+        _razonSocialAEliminar = razonSocial;
+        _confirmarEliminarVisible = true;
+    }
+
+    /// <summary>
+    /// Eliminación de una sola fila desde su menú, con el mismo comando que
+    /// ya existía (EliminarSubcontrataCommand) y que la lista no usaba. Sin
+    /// "Deshacer": no hay comando de restauración de subcontratas, y ofrecer
+    /// un botón sin camino detrás sería prometer algo que no ocurre. El motivo
+    /// de un rechazo —p. ej. que aún tenga trabajadores— lo da el propio
+    /// comando y se enseña tal cual.
+    /// </summary>
+    private async Task ConfirmarEliminarAsync()
+    {
+        _eliminando = true;
+
+        try
+        {
+            var resultado = await Mediator.Send(new EliminarSubcontrataCommand(_idAEliminar));
+            _confirmarEliminarVisible = false;
+
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            ToastService.Mostrar("Subcontrata eliminada correctamente.", TonoToast.Exito);
+            await CargarAsync();
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar("No pudimos eliminar la subcontrata. Intenta nuevamente en unos segundos.", TonoToast.Error);
+        }
+        finally
+        {
+            _eliminando = false;
+        }
+    }
+
     private async Task ConfirmarEliminarLoteAsync()
     {
         _eliminandoLote = true;
@@ -335,9 +445,9 @@ public partial class Subcontratas : ComponentBase
         }
     }
 
-    private async Task ManejarAtajoAsync(string tecla)
+    private Task ManejarAtajoAsync(string tecla)
     {
-        if (_elementosPagina.Count == 0) return;
+        if (_elementosPagina.Count == 0) return Task.CompletedTask;
 
         switch (tecla)
         {
@@ -358,21 +468,49 @@ public partial class Subcontratas : ComponentBase
                     AlternarSeleccion(idAlternar, !_seleccionados.Contains(idAlternar));
                 break;
             case "Enter":
+                // Enter hace lo mismo que pulsar el nombre de la fila: abrir la
+                // vista previa. Mismo criterio que Empresas.
                 if (_idEnfocado is { } idAbrir)
-                {
-                    var elemento = _elementosPagina.FirstOrDefault(e => e.Id == idAbrir);
-                    if (elemento is not null)
-                        await WorkspaceService.AbrirAsync(EntidadWorkspace.Subcontrata, elemento.Id, elemento.RazonSocial, "informacion");
-                }
+                    AbrirPreview(idAbrir);
                 break;
         }
 
         StateHasChanged();
+        return Task.CompletedTask;
     }
 
-    /// <summary>Nombre accesible de un badge de solo recuento — mismo criterio que Centros.razor.cs.DescribirRecuento.</summary>
+    /// <summary>Nombre accesible de un badge de recuento — mismo criterio que Centros.razor.cs.DescribirRecuento.</summary>
     private static string DescribirRecuento(IReadOnlyList<IncidenciaSubcontrataDto> incidencias, string calificativo) =>
         incidencias.Count == 1
             ? $"1 documento {calificativo}"
             : $"{incidencias.Count} documentos {(calificativo.EndsWith('o') ? calificativo + "s" : calificativo)}";
+
+    /// <summary>Texto visible del badge de recuento: «1 vencido», «3 próximos».</summary>
+    private static string TextoRecuento(int total, string singular, string plural) =>
+        $"{total} {(total == 1 ? singular : plural)}";
+
+    /// <summary>
+    /// Nombre accesible del anillo. Antes se interpolaba el porcentaje sin
+    /// mirar si existía, y una subcontrata sin universo de requisitos se
+    /// anunciaba como «% de cumplimiento…» — un número que no hay. Null
+    /// significa que ningún trabajador tiene un documento exigido por un
+    /// centro activo (ver <see cref="SubcontrataListaDto"/>).
+    /// </summary>
+    private static string EtiquetaCumplimiento(int? porcentaje) =>
+        porcentaje is { } p
+            ? $"{p}% de cumplimiento — documentos al día / exigidos entre sus trabajadores"
+            : "Sin trabajadores con documentos exigidos por algún centro activo";
+
+    /// <summary>
+    /// Qué significa cada nivel de servicio, con las mismas palabras que el
+    /// panel de Subcontrata 360. El mockup decía «TALVEG gestiona su
+    /// documentación», y eso atribuye a la plataforma el papel de Operador
+    /// CAE: quien gestiona es la organización que opera el tenant, no TALVEG.
+    /// </summary>
+    private static string DescribirNivel(NivelServicioSubcontrata nivel) => nivel switch
+    {
+        NivelServicioSubcontrata.Supervisada =>
+            "Supervisada: no se gestionan sus documentos — solo se audita su cumplimiento en las plataformas del titular de cada centro.",
+        _ => "Gestionada: su documentación se sube y se valida en esta plataforma."
+    };
 }

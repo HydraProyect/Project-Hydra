@@ -9,18 +9,31 @@
 }
 
 <div class="@ClaseContenedorPagina">
-    <div class="cabecera-pagina">
-        @TituloPaginaIntegrable("Auditoría IA Documental")
-    </div>
+    @* La entradilla solo afirma lo que la pantalla puede saber: qué columnas
+       tiene cada registro y que desde aquí no se modifica nada. No dice que el
+       registro sea completo ni inmutable — eso no lo garantiza esta capa. *@
+    <CabeceraPagina Titulo="Auditoría IA Documental" Integrada="IntegradaEnConfiguracion">
+        <Descripcion>
+            Cada registro indica qué proveedor procesó una lectura automática, con qué confianza, a qué coste
+            y si después se confirmó, se descartó o se aplicó sin revisión.
+            <strong>Solo lectura</strong>: sin exportación y sin acciones que modifiquen el registro.
+        </Descripcion>
+    </CabeceraPagina>
 
     <div class="barra-filtros">
         <CampoSelect Etiqueta="Proveedor" Valor="@(_filtroProveedor ?? string.Empty)" ValorChanged="FiltrarPorProveedorAsync">
             <option value="">Todos</option>
-            <option value="anthropic">Anthropic</option>
-            <option value="gemini">Gemini</option>
-            <option value="mistral-ocr">Mistral OCR</option>
-            <option value="cache">Caché</option>
-            <option value="ninguno">Sin proveedor (fallo)</option>
+            @foreach (var (codigo, nombre) in ProveedoresDelDesplegable)
+            {
+                <option value="@codigo">@nombre</option>
+            }
+            @if (FiltroFueraDelDesplegable)
+            {
+                @* Un ?proveedor= que no está en la lista (enlace compartido, código
+                   nuevo) se ofrece seleccionado: dejar el control en «Todos» sobre
+                   una tabla filtrada mentiría sobre lo que se está viendo. *@
+                <option value="@_filtroProveedor">@NombreProveedor(_filtroProveedor!)</option>
+            }
         </CampoSelect>
     </div>
 
@@ -36,68 +49,162 @@
     {
         <EstadoCargando Filas="8" />
     }
-    else if (_resultado is null || _resultado.Elementos.Count == 0)
+    else if (SinRegistros && HayFiltrosActivos)
     {
-        <EstadoVacio Titulo="Sin registros de procesamiento IA" Descripcion="Todavía no se ha procesado ningún documento con este filtro." />
+        @* Distinto de "sin registros de procesamiento IA". Aquí la confusión
+           es cara: filtrar por "Sin proveedor (fallo)" y leer que no se ha
+           procesado ningún documento sugiere que la IA está parada, cuando lo
+           que dice el cero es justo lo contrario — que no hubo fallos.
+
+           La copia no afirma que HAYA registros: el filtrado es de servidor y
+           la consulta solo devuelve el total ya filtrado. *@
+        <EstadoVacio NombreIcono="vacio" Titulo="Ningún registro con este filtro"
+                     Descripcion="Ningún procesamiento registrado corresponde al proveedor seleccionado.">
+            <Accion>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar el filtro</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (SinRegistros)
+    {
+        <EstadoVacio Titulo="Sin registros de procesamiento IA" Descripcion="Todavía no se ha procesado ningún documento." />
     }
     else
     {
-        <table class="tabla-datos">
-            <thead>
-                <tr>
-                    <th>Fecha</th>
-                    <th>Tipo esperado</th>
-                    <th>Proveedor</th>
-                    <th>Páginas</th>
-                    <th>Confianza</th>
-                    <th>Coste OCR</th>
-                    <th>Coste extracción</th>
-                    <th>Tiempo (ms)</th>
-                    <th>Decisión humana</th>
-                    <th>Incidencias</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var registro in _resultado.Elementos)
-                {
+        <div class="tabla-auditoria-ia-desplazable">
+            <table class="tabla-datos">
+                <thead>
                     <tr>
-                        <td>@registro.CreadaEnUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
-                        <td>@registro.TipoEsperado</td>
-                        <td>
-                            <Badge Tono="@BadgeParaProveedor(registro.ProveedorCodigo)">@registro.ProveedorCodigo</Badge>
-                        </td>
-                        <td>@(registro.NumeroPaginas > 0 ? registro.NumeroPaginas.ToString() : "—")</td>
-                        <td>
-                            @if (registro.ProveedorCodigo is not "ninguno" and not "cache")
-                            {
-                                <Badge Tono="@BadgeParaConfianza(registro.ConfianzaGeneral)">@registro.ConfianzaGeneral%</Badge>
-                            }
-                            else
-                            {
-                                <span>—</span>
-                            }
-                        </td>
-                        <td>@FormatearCoste(registro.CosteEstimadoOcr)</td>
-                        <td>@FormatearCoste(registro.CosteEstimado)</td>
-                        <td>@registro.TiempoProcesamientoMs</td>
-                        <td>
-                            @if (registro.DocumentoId is null)
-                            {
-                                <span>—</span>
-                            }
-                            else
-                            {
-                                <Badge Tono="@BadgeParaDecision(registro)">@TextoDecision(registro)</Badge>
-                            }
-                        </td>
-                        <td class="celda-incidencias">@(registro.Incidencias ?? "—")</td>
+                        <th>Fecha</th>
+                        <th>Tipo esperado</th>
+                        <th>Proveedor</th>
+                        <th class="celda-numerica-auditoria-ia">Páginas</th>
+                        <th class="celda-numerica-auditoria-ia">Confianza</th>
+                        <th class="celda-numerica-auditoria-ia">Coste OCR</th>
+                        <th class="celda-numerica-auditoria-ia">Coste extracción</th>
+                        <th class="celda-numerica-auditoria-ia">Tiempo (ms)</th>
+                        <th>Decisión humana</th>
+                        <th>Incidencias</th>
+                        <th>Detalle</th>
                     </tr>
-                }
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    @foreach (var registro in Resultado.Elementos)
+                    {
+                        var abierto = _registroAbierto == registro.Id;
+                        <tr class="@(abierto ? "fila-abierta-auditoria-ia" : null)">
+                            <td>@FormatearFecha(registro.CreadaEnUtc)</td>
+                            <td>@registro.TipoEsperado</td>
+                            <td>
+                                <Badge Tono="@BadgeParaProveedor(registro.ProveedorCodigo)">@NombreProveedor(registro.ProveedorCodigo)</Badge>
+                            </td>
+                            <td class="celda-numerica-auditoria-ia">@(registro.NumeroPaginas > 0 ? registro.NumeroPaginas.ToString() : "—")</td>
+                            <td class="celda-numerica-auditoria-ia">
+                                @* Caché y fallo no tienen confianza que medir: «—», no un cero. *@
+                                @if (registro.ProveedorCodigo is not "ninguno" and not "cache")
+                                {
+                                    <Badge Tono="@BadgeParaConfianza(registro.ConfianzaGeneral)">@registro.ConfianzaGeneral%</Badge>
+                                }
+                                else
+                                {
+                                    <span>—</span>
+                                }
+                            </td>
+                            <td class="celda-numerica-auditoria-ia">@FormatearCoste(registro.CosteEstimadoOcr)</td>
+                            <td class="celda-numerica-auditoria-ia">@FormatearCoste(registro.CosteEstimado)</td>
+                            <td class="celda-numerica-auditoria-ia">@FormatearMilisegundos(registro.TiempoProcesamientoMs)</td>
+                            <td>
+                                @if (registro.DocumentoId is null)
+                                {
+                                    @* Sin Documento enlazado no se puede registrar decisión
+                                       (AuditoriaExtraccionIa.RegistrarDecisionHumana lo
+                                       rechaza): no es «Pendiente», que sí espera a alguien. *@
+                                    <span class="sin-decision-auditoria-ia"
+                                          title="Lectura sin Documento enlazado (p. ej. triaje previo a crearlo): no hay decisión que registrar">—</span>
+                                }
+                                else
+                                {
+                                    <Badge Tono="@BadgeParaDecision(registro)">@TextoDecision(registro)</Badge>
+                                }
+                            </td>
+                            <td class="celda-incidencias-auditoria-ia" title="@registro.Incidencias">@(registro.Incidencias ?? "—")</td>
+                            <td>
+                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                       aria-expanded="@(abierto ? "true" : "false")"
+                                       aria-label="@($"Detalle del registro del {FormatearFecha(registro.CreadaEnUtc)}")"
+                                       OnClick="() => AlternarDetalle(registro.Id)">
+                                    @(abierto ? "Cerrar" : "Ver")
+                                </Boton>
+                            </td>
+                        </tr>
+                        @if (abierto)
+                        {
+                            @* Solo se monta al abrir. Quién decidió solo viaja como
+                               identificador (UsuarioDecisionId): esta pantalla no
+                               resuelve ni enseña un nombre de usuario. *@
+                            <tr class="fila-detalle-auditoria-ia">
+                                <td colspan="11">
+                                    <div class="detalle-auditoria-ia">
+                                        <dl class="detalle-auditoria-ia-datos">
+                                            <div class="detalle-auditoria-ia-dato">
+                                                <dt>Huella SHA-256 del contenido</dt>
+                                                <dd>
+                                                    <span class="detalle-auditoria-ia-codigo" title="@registro.HashSha256">@AbreviarHuella(registro.HashSha256)</span>
+                                                    <BotonCopiar Valor="@registro.HashSha256" Etiqueta="la huella SHA-256" />
+                                                </dd>
+                                            </div>
+                                            <div class="detalle-auditoria-ia-dato">
+                                                <dt>Decisión registrada el</dt>
+                                                <dd>@(registro.FechaDecisionUtc is { } fechaDecision ? FormatearFecha(fechaDecision) : "—")</dd>
+                                            </div>
+                                            <div class="detalle-auditoria-ia-dato">
+                                                <dt>Versión de pipeline</dt>
+                                                <dd>@registro.VersionPipeline</dd>
+                                            </div>
+                                            <div class="detalle-auditoria-ia-dato">
+                                                <dt>Modelo exacto</dt>
+                                                <dd>@(registro.ModeloExacto ?? "—")</dd>
+                                            </div>
+                                            <div class="detalle-auditoria-ia-dato">
+                                                <dt>Identificador de petición</dt>
+                                                <dd>
+                                                    @if (registro.RequestId is { } requestId)
+                                                    {
+                                                        <span class="detalle-auditoria-ia-codigo" title="@requestId">@requestId</span>
+                                                        <BotonCopiar Valor="@requestId" Etiqueta="el identificador de petición" />
+                                                    }
+                                                    else
+                                                    {
+                                                        <span>—</span>
+                                                    }
+                                                </dd>
+                                            </div>
+                                            <div class="detalle-auditoria-ia-dato">
+                                                <dt>Proveedores intentados</dt>
+                                                <dd>@FormatearProveedoresInvocados(registro.ProveedoresInvocados)</dd>
+                                            </div>
+                                        </dl>
+                                        <div class="detalle-auditoria-ia-pie">
+                                            @if (registro.DocumentoId is { } documentoId)
+                                            {
+                                                <a href="@($"/documentos?documentoId={documentoId}")">Abrir el documento →</a>
+                                            }
+                                            else
+                                            {
+                                                <span>Sin Documento enlazado.</span>
+                                            }
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
 
-        <PaginadorSimple PaginaActual="_resultado.Pagina" TotalPaginas="_resultado.TotalPaginas"
-                          TotalElementos="_resultado.TotalElementos" Etiqueta="registro(s)"
+        <PaginadorSimple PaginaActual="Resultado.Pagina" TotalPaginas="Resultado.TotalPaginas"
+                          TotalElementos="Resultado.TotalElementos" Etiqueta="registro(s)"
                           PaginaActualChanged="IrAPaginaAsync" />
     }
 </div>

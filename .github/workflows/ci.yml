@@ -81,10 +81,18 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+      # "10.0.x" (comodín de banda de features, no solo de parche) resolvió
+      # hoy el SDK 10.0.400 nada más publicarse, cuyas referencias implícitas
+      # exigen paquetes Microsoft.Extensions.* >= 10.0.12 que nuget.org
+      # todavía no publica en estable (solo hasta 10.0.11) — NU1103 en los 10
+      # jobs que restauran, transversal a cualquier PR, no causado por ningún
+      # cambio de código. Acotado a "10.0.3xx" (banda de features fija, parche
+      # libre) siguiendo la regla de la § 23: fijar la versión libre cuando
+      # una herramienta cambia de condiciones sin avisar.
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: "10.0.3xx"
 
       # Solo lo necesita CaeManager.IntegrationTests, en
       # Conversion/LibreOfficeConversorWordPdfServiceTests. Por eso se instala
@@ -170,7 +178,58 @@ jobs:
           --logger "trx;LogFileName=bloque-${{ matrix.bloque }}.trx"
           --filter "${{ steps.reparto.outputs.filtro }}"
           --collect "XPlat Code Coverage" --results-directory ./coverage/integration
+          --settings tests/CaeManager.IntegrationTests/coverlet.runsettings
           -- xUnit.MaxParallelThreads=8
+
+      # Diagnostico para la PROXIMA vez que un bloque falle con algo raro
+      # dentro de InitializeAsync/MigrateAsync.
+      #
+      # El 2026-09-06 un NullReferenceException opaco ahi dentro costo
+      # reconstruir a mano, desde los logs crudos de un job ya terminado
+      # (`gh api .../jobs/<id>/logs`), que la causa NO era agotamiento de
+      # `max_connections` — ese FATAL de PostgreSQL no aparecio ni una vez en
+      # todo el log — sino una rafaga de CHECKPOINTs forzados: `DROP DATABASE
+      # ... WITH (FORCE)` (el teardown de cada clase, ver
+      # BaseDatosPostgresDePruebas.EliminarAsync) obliga a PostgreSQL a un
+      # checkpoint inmediato y sincrono (comportamiento documentado de
+      # `dropdb()`), y con hasta 8 clases terminando a la vez eso satura la
+      # E/O del runner compartido. Ese dia el fallo cayo un segundo justo
+      # despues de uno de esos checkpoints.
+      #
+      # El log del servicio no sobrevive al job por si solo, asi que se saca
+      # aqui y las dos senales se cuentan por separado en vez de dejar que la
+      # proxima investigacion tenga que releer el log entero para distinguir
+      # "no quedan conexiones" (agotamiento real) de "PostgreSQL esta ocupado
+      # haciendo fsync de la ultima base borrada" (contencion de E/O).
+      - name: Guardar el log de PostgreSQL de este bloque
+        if: failure()
+        run: docker logs ${{ job.services.postgres.id }} > postgres-bloque-${{ matrix.bloque }}.log 2>&1
+
+      - name: Diagnosticar el log de PostgreSQL si el bloque fallo
+        if: failure()
+        run: |
+          log="postgres-bloque-${{ matrix.bloque }}.log"
+          if [ ! -f "$log" ]; then
+            echo "::warning::No se pudo capturar el log de PostgreSQL de este bloque."
+            exit 0
+          fi
+          agotamiento=$(grep -c -iE "too many clients|remaining connection slots" "$log" || true)
+          checkpoints=$(grep -c "checkpoint starting: immediate force wait" "$log" || true)
+          echo "Checkpoints forzados por DROP DATABASE ... WITH (FORCE) durante el bloque: ${checkpoints:-0}"
+          if [ "${agotamiento:-0}" -gt 0 ]; then
+            echo "::error::PostgreSQL rechazo conexiones por limite de max_connections (${agotamiento} mensaje(s) de 'too many clients'/'remaining connection slots'). Esto SI es agotamiento de capacidad de conexiones: bajar el pool por clase o subir max_connections del servicio."
+          else
+            echo "::notice::PostgreSQL no rechazo ninguna conexion por max_connections en este bloque. Si el fallo fue una excepcion rara dentro de InitializeAsync/MigrateAsync, sospechar primero de los ${checkpoints:-0} checkpoints forzados de este log (contencion de E/O) antes que de un fallo de producto — ver postgres-bloque-${{ matrix.bloque }}.log."
+          fi
+
+      - name: Publicar el log de PostgreSQL del bloque
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: postgres-log-bloque-${{ matrix.bloque }}
+          path: postgres-bloque-${{ matrix.bloque }}.log
+          retention-days: 7
+          if-no-files-found: ignore
 
       # El paso de reparto garantiza que el FILTRO no este vacio, pero no que
       # el filtro haya CASADO con algo: `dotnet test` con un patron que no
@@ -200,7 +259,7 @@ jobs:
       # caería muy por debajo del umbral, que es justo lo que un gate no debe
       # hacer — cambiar de significado sin que nadie lo decida.
       - name: Publicar la cobertura del bloque
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: cobertura-integracion-${{ matrix.bloque }}
           path: coverage/integration
@@ -212,7 +271,7 @@ jobs:
       # los cuatro en verde y nadie mirando. Es una perdida parcial y muda,
       # peor que un bloque entero vacio porque no se nota.
       - name: Publicar el reparto del bloque
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: reparto-bloque-${{ matrix.bloque }}
           path: reparto
@@ -230,7 +289,7 @@ jobs:
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: "10.0.3xx"
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
@@ -260,7 +319,7 @@ jobs:
 
 
       - name: Publicar la cobertura de Domain y Application
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: cobertura-unitarios
           path: coverage
@@ -299,7 +358,7 @@ jobs:
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: "10.0.3xx"
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
@@ -311,7 +370,7 @@ jobs:
   build-and-test:
     name: Build, format y tests
     runs-on: ubuntu-latest
-    needs: [compilacion-y-unitarios, formato, tests-integracion]
+    needs: [compilacion-y-unitarios, formato, tests-integracion, bunit-tests]
     # SIEMPRE se ejecuta, incluso si sus dependencias fallan. No es un detalle:
     # un job que se salta reporta su check como "skipped", y la proteccion de
     # rama trata un check obligatorio omitido como aprobado. Sin esto, un bloque
@@ -341,7 +400,7 @@ jobs:
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: "10.0.3xx"
 
       # Solo para reportgenerator; no se compila nada en este job.
       - name: Restaurar herramientas locales
@@ -352,6 +411,14 @@ jobs:
         with:
           name: cobertura-unitarios
           path: coverage
+
+      # En coverage-web y NO bajo coverage/: el informe del núcleo recoge
+      # coverage/**, y la Web tiene su propio universo y su propio trinquete.
+      - name: Recoger la cobertura de la Web (bUnit)
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: cobertura-web
+          path: coverage-web
 
       - name: Recoger el reparto de los bloques
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -485,19 +552,49 @@ jobs:
         continue-on-error: true
         run: |
           dotnet reportgenerator -reports:"coverage/**/coverage.cobertura.xml" -targetdir:coveragereport -reporttypes:"MarkdownSummaryGithub;JsonSummary"
+          echo "## Núcleo (Domain + Application + Infrastructure)" >> "$GITHUB_STEP_SUMMARY"
           cat coveragereport/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
+          dotnet reportgenerator -reports:"coverage-web/**/coverage.cobertura.xml" -targetdir:coveragereport-web -reporttypes:"MarkdownSummaryGithub;JsonSummary"
+          echo "## Web (bUnit, CaeManager.Web)" >> "$GITHUB_STEP_SUMMARY"
+          cat coveragereport-web/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
 
       # Ratchet de cobertura (§ 8 del plan de negocio, Horizonte transversal):
-      # cobertura de línea medida en local a 2026-08-15 sobre Domain +
-      # Application + Integration (los tres proyectos con --collect de este
-      # job) = 91.6%. El umbral se fija en 90.0%, no en 91.6% exacto — 1.6
-      # puntos de margen absorben el ruido normal entre ejecuciones (orden
-      # de tests, generación de datos aleatorios en los builders) sin que un
-      # PR legítimo falle por decimales; una caída real de cobertura (borrar
-      # tests, añadir código sin cubrir de un tamaño con el que valga la
-      # pena preocuparse) sigue siendo mucho mayor que ese margen y sí falla
-      # el build. Es un ratchet: solo sube cuando la cobertura real mejora
-      # de forma sostenida, nunca se baja para que pase un PR concreto.
+      #
+      # REBASELINE del 2026-09-09 (PR #511), por corrección del universo
+      # medido — no por que la cobertura real haya caído:
+      #
+      # El umbral de 90.0% (fijado el 2026-08-15 sobre un 91.6% medido) se
+      # calculaba sobre un universo donde CaeManager.Migrations.PostgreSQL
+      # (codigo generado de EF, ~355.000 lineas — 15x el tamano de
+      # Domain+Application+Infrastructure+Web juntos) se instrumentaba por
+      # transitividad en cada bloque de integracion, sin que el ratchet
+      # quisiera medir cuanto de esas migraciones esta cubierto. Al excluirlo
+      # (ver tests/CaeManager.IntegrationTests/coverlet.runsettings) la
+      # cobertura de linea real de Domain+Application+Infrestructure+Web bajo
+      # a 37.2%, medida en 3 ejecuciones de CI independientes sobre el mismo
+      # commit: 37.2% / 37.2% / 37.2% — sin variacion detectada a la
+      # resolucion de una decima que reporta el instrumento.
+      #
+      # No hay evidencia de que la calidad efectiva del sistema haya
+      # empeorado: ningun test se quito ni se modifico, solo cambio que se
+      # instrumenta. El umbral se fija en 37.0%, no en 37.2% exacto — 0.2
+      # puntos de margen, proporcionales al ruido REAL observado (no
+      # detectado, no "pequeno por convencion") en vez de los 1.6 puntos del
+      # ratchet anterior, que respondian a un ruido de otra magnitud sobre
+      # otro universo.
+      #
+      # El 90% historico NO se conserva como objetivo implicito: pertenecia a
+      # un universo de medicion distinto y no hay evidencia de que sea el
+      # nivel correcto para este. Este 37.0% es ahora el suelo real: sube
+      # solo cuando la cobertura real mejore de forma sostenida sobre ESTE
+      # universo, y no puede bajarse para hacer pasar un PR sin una nueva
+      # decision explicita del propietario sustentada en un cambio del
+      # instrumento o del universo medido — igual que este mismo rebaseline.
+      #
+      # Caracterizacion pendiente (que capas y que riesgo hay detras del
+      # 37.2%, y que objetivo fijar): REC-210, Negocio
+      # tecnico/reconciliacion/REGISTRO-REC.md. No convertir este REC en
+      # "subir a 90%" sin haberlo hecho primero.
       #
       # Vive dentro de "Build, format y tests" — ya es required status check
       # de la protección de la rama main — en vez de un job nuevo: así el
@@ -505,13 +602,46 @@ jobs:
       # protección de rama, y no hay forma de que este paso corra y su
       # resultado se ignore (a diferencia del job de k6 de más abajo, que es
       # informativo a propósito y por eso está fuera de los required checks).
-      - name: Umbral de cobertura (ratchet — nunca bajar de 90%)
+      #
+      # SEGUNDO CAMBIO DE UNIVERSO (2026-09-11, decisión explícita del
+      # propietario, en los términos que exige el párrafo de arriba): el
+      # trinquete se parte en DOS, uno por universo, porque el anterior
+      # mezclaba en su denominador el ensamblado Web entero sin medirlo donde
+      # se ejecuta. Los componentes Razor de las pantallas solo los ejercita
+      # la suite bUnit, cuya cobertura no entraba en el informe: cada pantalla
+      # del programa Gen 2 añadía líneas que ningún test contable podía
+      # cubrir, y el número bajaba aunque la pantalla viniera con sus tests y
+      # sus mutaciones (37,0 % → 36,9 % con Mi Firma; la cola expulsó a
+      # Proyectos por lo mismo). Fusionarlo todo en una cifra se descartó: una
+      # mejora de la Web podría tapar una regresión del núcleo.
+      #
+      #   - NÚCLEO: Domain + Application + Infrastructure, medido por las
+      #     suites unitarias y de integración (Include en
+      #     tests/CaeManager.IntegrationTests/coverlet.runsettings).
+      #   - WEB: [CaeManager.Web]*, medido solo por bUnit (Include en
+      #     tests/CaeManager.Web.Tests/coverlet.runsettings).
+      #
+      # Umbrales: se fijan tras remedir cada universo en varias ejecuciones
+      # sobre el mismo commit, con el mismo patrón que el rebaseline de
+      # arriba (lo medido menos 0,2). Ninguno se relaja por el camino.
+      - name: Umbral de cobertura del núcleo (ratchet)
         run: |
           cobertura=$(jq -r '.summary.linecoverage' coveragereport/Summary.json)
-          umbral="90.0"
-          echo "Cobertura de línea (Domain+Application+Integration): ${cobertura}% — umbral ratchet: ${umbral}%"
+          umbral="64.8"  # núcleo: 65 % medido (run 34547527082) − 0,2
+          echo "Cobertura de línea del NÚCLEO (Domain+Application+Infrastructure): ${cobertura}% — umbral ratchet: ${umbral}%"
           if ! python3 -c "import sys; sys.exit(0 if float('${cobertura}') >= float('${umbral}') else 1)"; then
-            echo "::error::La cobertura de línea (${cobertura}%) cayó por debajo del umbral ratchet (${umbral}%). Sube el umbral solo cuando la cobertura real mejore de forma sostenida — nunca lo bajes para que pase este PR."
+            echo "::error::La cobertura de línea del núcleo (${cobertura}%) cayó por debajo del umbral ratchet (${umbral}%). Sube el umbral solo cuando la cobertura real mejore de forma sostenida — nunca lo bajes para que pase este PR."
+            exit 1
+          fi
+
+      - name: Umbral de cobertura de la Web (ratchet)
+        if: always()
+        run: |
+          cobertura=$(jq -r '.summary.linecoverage' coveragereport-web/Summary.json)
+          umbral="21.4"  # Web: 21,6 % medido (run 34547527082) − 0,2
+          echo "Cobertura de línea de la WEB (bUnit sobre CaeManager.Web): ${cobertura}% — umbral ratchet: ${umbral}%"
+          if ! python3 -c "import sys; sys.exit(0 if float('${cobertura}') >= float('${umbral}') else 1)"; then
+            echo "::error::La cobertura de línea de la Web (${cobertura}%) cayó por debajo del umbral ratchet (${umbral}%). Sube el umbral solo cuando la cobertura real mejore de forma sostenida — nunca lo bajes para que pase este PR."
             exit 1
           fi
 
@@ -524,7 +654,7 @@ jobs:
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: "10.0.3xx"
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
@@ -589,7 +719,7 @@ jobs:
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: "10.0.3xx"
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
@@ -597,27 +727,27 @@ jobs:
       - name: Restaurar herramientas locales
         run: dotnet tool restore
 
+      # --settings acota la instrumentación a [CaeManager.Web]*: sin él,
+      # coverlet instrumentaba todo el árbol de dependencias de la suite y la
+      # cifra era «cuánto del código TOTAL toca bUnit de refilón» (0,4 % en
+      # local), que no significaba nada. Acotada, alimenta el trinquete de la
+      # Web del gate "Build, format y tests" (ver el comentario de ese paso).
       - name: Tests de componentes Blazor
         run: >
           dotnet test tests/CaeManager.Web.Tests --logger "console;verbosity=normal"
           --collect "XPlat Code Coverage" --results-directory ./coverage/web
+          --settings tests/CaeManager.Web.Tests/coverlet.runsettings
 
-      # continue-on-error: un fallo en el informe (p. ej. ningún .cobertura.xml
-      # si algo cambia en coverlet) no debe tumbar un job cuyos tests ya
-      # pasaron — es visibilidad, no gate.
-      #
-      # Deliberadamente sin el ratchet que sí tiene "Build, format y tests":
-      # coverlet instrumenta todo el árbol de dependencias de
-      # CaeManager.Web.Tests (Domain/Application/Infrastructure/Web
-      # completos, no solo los componentes Blazor), así que esta cifra
-      # es "cuánto del código TOTAL ejecuta la suite de bUnit sola" — medido
-      # en local, 0.4% — no "cuánto cubren los componentes Blazor". Fijar un
-      # umbral sobre ese número sería o bien un gate casi vacío (cualquier
-      # umbral bajo pasa siempre) o uno que falla por ruido de instrumentación
-      # sin relación con una regresión real. El número honesto de cobertura ya
-      # tiene su gate en "Build, format y tests" (Domain+Application+
-      # Integration, 91.6% medido); replicarlo aquí sobre una cifra que no
-      # significa lo que parece decir sería peor que no tener gate.
+      - name: Publicar la cobertura de la Web
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cobertura-web
+          path: coverage/web
+          retention-days: 1
+
+      # continue-on-error: un fallo en el informe no debe tumbar un job cuyos
+      # tests ya pasaron — aquí es visibilidad; el gate de la Web vive en
+      # "Build, format y tests", que recoge el artefacto de arriba.
       - name: Informe de cobertura
         if: always()
         continue-on-error: true
@@ -649,7 +779,7 @@ jobs:
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: "10.0.3xx"
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
@@ -729,7 +859,7 @@ jobs:
 
       - name: Publicar logs de CaeManager.Web si el E2E falla
         if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: logs-caemanager-web-e2e
           path: |
@@ -771,7 +901,7 @@ jobs:
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: "10.0.3xx"
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
@@ -1004,6 +1134,20 @@ jobs:
       - name: deploy/liberar-disco.tests.sh
         run: bash deploy/liberar-disco.tests.sh
 
+      # No corria en ningun sitio hasta ahora: el guion se probaba a mano.
+      #
+      # MINIMO_CLASES a vacio: el `env:` de nivel de workflow lo fija en 120
+      # para el paso REAL de reparto (mas abajo), pero aqui el propio test del
+      # guion usa un listado fijo de 4 clases para probar el reparto en si, y
+      # hereda ese mismo valor si no se anula — el suelo salta antes de que el
+      # test llegue a comprobar nada, y las 4 comprobaciones que dependen del
+      # reparto fallan con "obtenido: 0" (medido: sin este override, este paso
+      # falla incluso con el guion correcto).
+      - name: scripts/repartir-clases-de-test.tests.sh
+        env:
+          MINIMO_CLASES: ""
+        run: bash scripts/repartir-clases-de-test.tests.sh
+
   licencias-dependencias:
     name: Licencias de dependencias
     runs-on: ubuntu-latest
@@ -1019,7 +1163,7 @@ jobs:
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: "10.0.3xx"
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
@@ -1051,7 +1195,7 @@ jobs:
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: "10.0.3xx"
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx

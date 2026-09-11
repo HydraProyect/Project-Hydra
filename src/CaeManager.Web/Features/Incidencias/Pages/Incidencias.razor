@@ -23,43 +23,77 @@
 <PageTitle>Incidencias — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <div class="cabecera-pagina">
-        <h1 class="titulo-pagina">Incidencias</h1>
-        <div class="acciones-cabecera">
+    <CabeceraPagina Titulo="Incidencias" Kicker="Operación">
+        <Acciones>
             <a class="enlace-exportar" href="/incidencias/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel</a>
             <Boton OnClick="AbrirCrearAsync">+ Nueva incidencia</Boton>
-        </div>
-    </div>
+        </Acciones>
+    </CabeceraPagina>
 
     <div class="barra-filtros">
         <CampoTexto Placeholder="Buscar por centro, trabajador o descripción…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
-        <FiltroEstado Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync" Opciones="OpcionesEstado" />
+        <FiltroEstado Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync" Opciones="OpcionesEstado" TextoTodos="Todas" />
     </div>
+
+    @* El valor del filtro de estado vive dentro de un desplegable cerrado: sin
+       el chip, una lista de incidencias abiertas se lee como la lista de todas.
+       La búsqueda no lleva chip porque ya se ve escrita en su propio campo. *@
+    @if (!string.IsNullOrWhiteSpace(_estadoFiltro))
+    {
+        <div class="chips-filtros">
+            <span class="chips-filtros-indicador" aria-hidden="true"><Icono Nombre="filtro" Tamano="TamanoIcono.Pequeno" /></span>
+            <span class="chip-filtro">
+                @EtiquetaFiltroEstado
+                <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroEstadoAsync" aria-label="Quitar el filtro de estado"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
+            </span>
+        </div>
+    }
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
     @if (_errorCarga)
     {
-        <EstadoVacio Titulo="No pudimos cargar las incidencias" Descripcion="Intenta nuevamente en unos segundos.">
-            <Accion>
-                <Boton OnClick="RecargarAsync">Reintentar</Boton>
-            </Accion>
-        </EstadoVacio>
+        <div role="alert">
+            <EstadoVacio NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)"
+                         Titulo="No pudimos cargar las incidencias" Descripcion="Intenta nuevamente en unos segundos.">
+                <Accion>
+                    <Boton OnClick="ReintentarAsync">Reintentar</Boton>
+                </Accion>
+            </EstadoVacio>
+        </div>
     }
     else
     {
-        <BarraHerramientasLista SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple" />
+        <BarraHerramientasLista SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple">
+            <Extra>
+                @if (MostrarRecuento)
+                {
+                    <span class="recuento-incidencias">@TextoRecuento</span>
+                }
+                @if (_elementosPagina.Count > 0)
+                {
+                    <span class="atajos-incidencias">
+                        Atajos: <kbd>j</kbd> / <kbd>k</kbd> mover · <kbd>x</kbd> marcar · <kbd>Enter</kbd> abrir el centro
+                    </span>
+                }
+            </Extra>
+        </BarraHerramientasLista>
 
-        <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
+        @if (MostrarEsqueleto)
+        {
+            <EstadoCargando Filas="6" />
+        }
+
+        <div style="display:@(OcultarTabla ? "none" : "block")">
             <QuickGrid @ref="_grid" TGridItem="IncidenciaListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
                 @if (_seleccionMultiple)
                 {
                     <TemplateColumn Title="" Align="Align.Center">
                         <HeaderTemplate Context="columna">
-                            <input type="checkbox" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
+                            <input type="checkbox" aria-label="Seleccionar la página" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
                         </HeaderTemplate>
                         <ChildContent>
-                            <input type="checkbox" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
+                            <input type="checkbox" aria-label="@($"Seleccionar la incidencia de {context.CentroNombre} del {context.FechaOcurrencia:dd/MM/yyyy}")" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
                         </ChildContent>
                     </TemplateColumn>
                 }
@@ -110,9 +144,27 @@
                               TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
         </div>
 
-        @if (_totalElementos == 0 && !_cargando)
+        @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)
         {
-            <EstadoVacio Titulo="Todavía no hay incidencias" Descripcion="Registra la primera incidencia operativa de un centro.">
+            @* Distinto de "todavía no hay incidencias", y aquí la diferencia
+               cambia una conclusión de seguridad: filtrar por "Sin resolver" y
+               leer que no hay ninguna incidencia registrada hace creer que
+               nunca ha pasado nada, cuando el cero solo dice que no queda
+               ninguna abierta.
+
+               La copia no afirma que HAYA incidencias registradas (el mockup Gen 2
+               sí lo hace): el filtrado es de servidor y solo devuelve el total ya
+               filtrado, así que la pantalla no puede saberlo. *@
+            <EstadoVacio NombreIcono="filtro" Titulo="Ninguna incidencia con estos filtros"
+                         Descripcion="Ninguna coincide con la búsqueda ni con el estado seleccionado.">
+                <Accion>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar los filtros</Boton>
+                </Accion>
+            </EstadoVacio>
+        }
+        else if (_totalElementos == 0 && !_cargando)
+        {
+            <EstadoVacio NombreIcono="incidencias" Titulo="Todavía no hay incidencias" Descripcion="Registra la primera incidencia operativa de un centro.">
                 <Accion>
                     <Boton OnClick="AbrirCrearAsync">+ Nueva incidencia</Boton>
                 </Accion>
@@ -140,6 +192,7 @@
         }
         else
         {
+            @* El Centro solo se elige al crear: EditarIncidenciaCommand no lo lleva. *@
             <div class="campo">
                 <label>Centro</label>
                 <p class="texto-vacio-seccion">@_centroNombreEnEdicion</p>
@@ -154,19 +207,21 @@
             }
         </CampoSelect>
 
-        <CampoSelect Etiqueta="Tipo" Valor="@_tipo" ValorChanged="v => _tipo = v">
-            <option value="@nameof(TipoIncidencia.Accidente)">Accidente</option>
-            <option value="@nameof(TipoIncidencia.Incumplimiento)">Incumplimiento</option>
-        </CampoSelect>
+        <div class="campos-en-par">
+            <CampoSelect Etiqueta="Tipo" Valor="@_tipo" ValorChanged="v => _tipo = v">
+                <option value="@nameof(TipoIncidencia.Accidente)">Accidente</option>
+                <option value="@nameof(TipoIncidencia.Incumplimiento)">Incumplimiento</option>
+            </CampoSelect>
 
-        <CampoSelect Etiqueta="Gravedad" Valor="@_gravedad" ValorChanged="v => _gravedad = v">
-            <option value="@nameof(GravedadIncidencia.Leve)">Leve</option>
-            <option value="@nameof(GravedadIncidencia.Grave)">Grave</option>
-            <option value="@nameof(GravedadIncidencia.MuyGrave)">Muy grave</option>
-        </CampoSelect>
+            <CampoSelect Etiqueta="Gravedad" Valor="@_gravedad" ValorChanged="v => _gravedad = v">
+                <option value="@nameof(GravedadIncidencia.Leve)">Leve</option>
+                <option value="@nameof(GravedadIncidencia.Grave)">Grave</option>
+                <option value="@nameof(GravedadIncidencia.MuyGrave)">Muy grave</option>
+            </CampoSelect>
+        </div>
 
         <CampoTexto Etiqueta="Fecha de ocurrencia" Type="date" Valor="@_fechaOcurrencia" ValorChanged="v => _fechaOcurrencia = v" />
-        <CampoTextarea Etiqueta="Descripción" Valor="@_descripcion" ValorChanged="v => _descripcion = v" Filas="4" MensajeError="@ObtenerError(nameof(CrearIncidenciaCommand.Descripcion))" />
+        <CampoTextarea Etiqueta="Descripción" Placeholder="Qué pasó, dónde y quién lo detectó" Valor="@_descripcion" ValorChanged="v => _descripcion = v" Filas="4" MensajeError="@ObtenerError(nameof(CrearIncidenciaCommand.Descripcion))" />
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">

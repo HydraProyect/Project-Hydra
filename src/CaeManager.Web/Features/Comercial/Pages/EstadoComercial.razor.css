@@ -1,0 +1,75 @@
+/* La tabla tiene cinco columnas y un id de Stripe largo: en pantallas
+   estrechas se desplaza dentro de su caja, nunca la página entera. */
+.estado-comercial-tabla {
+    overflow-x: auto;
+}
+
+.estado-comercial-tabla ::deep .tabla-datos {
+    min-width: 820px;
+}
+
+.estado-comercial-nombre {
+    font-weight: 600;
+}
+
+/* El id de la suscripción: monoespaciado y copiable con un clic, sin
+   aspecto de botón (el mockup lo pinta como texto). */
+.estado-comercial-id {
+    background: none;
+    border: 0;
+    border-radius: var(--radius-sm);
+    padding: 2px var(--space-1);
+    margin: 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.8125rem;
+    color: var(--color-text);
+    cursor: copy;
+    text-align: left;
+}
+
+.estado-comercial-id:hover {
+    background-color: var(--color-surface-subtle);
+}
+
+.estado-comercial-sin-id {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: var(--color-text-muted);
+}
+
+.estado-comercial-fecha {
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+.estado-comercial-oculto {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.estado-comercial-formulario {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.estado-comercial-formulario .texto-descriptivo {
+    margin: 0;
+}
+
+/* Qué estados bloquean la escritura: pie de la tabla, como en el mockup. */
+.estado-comercial-nota {
+    margin: var(--space-2) 0 0;
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    text-wrap: pretty;
+}
+
+.estado-comercial-pista {
+    margin: var(--space-1) 0 0;
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}

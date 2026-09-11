@@ -9,13 +9,13 @@
 }
 
 <div class="@ClaseContenedorPagina">
-    @TituloPaginaIntegrable("Claves de la API pública")
-
-    <p class="descripcion-delegaciones">
-        La API pública (<code>/api/v1</code>, solo lectura por ahora) se autentica con estas claves,
-        una por integración. Se emiten desde aquí, nunca desde la organización del cliente — igual
-        criterio que el acceso de soporte: solo sobre una delegación de soporte ya existente.
-    </p>
+    <CabeceraPagina Titulo="Claves de la API pública" Integrada="@IntegradaEnConfiguracion">
+        <Descripcion>
+            La API pública (<code>/api/v1</code>, solo lectura por ahora) se autentica con estas claves,
+            una por integración. Se emiten desde aquí, nunca desde la organización del cliente — igual
+            criterio que el acceso de soporte: solo sobre una delegación de soporte ya existente.
+        </Descripcion>
+    </CabeceraPagina>
 
     @if (_delegacionesSoporte.Count == 0 && !_cargandoDelegaciones)
     {

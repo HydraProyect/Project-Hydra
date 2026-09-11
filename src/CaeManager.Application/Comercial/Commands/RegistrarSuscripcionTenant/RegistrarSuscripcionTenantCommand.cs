@@ -36,7 +36,9 @@ public class RegistrarSuscripcionTenantCommandValidator : AbstractValidator<Regi
 
         RuleFor(c => c.StripeSubscriptionId)
             .NotEmpty().WithMessage("Indica el Id de la suscripción de Stripe (empieza por \"sub_\").")
-            .MaximumLength(100);
+            .MaximumLength(100)
+            .Must(id => id is not null && id.StartsWith("sub_", StringComparison.Ordinal))
+                .WithMessage("El Id de la suscripción de Stripe debe empezar por \"sub_\".");
     }
 }
 
@@ -60,7 +62,7 @@ public class RegistrarSuscripcionTenantCommandHandler(
 
         if (!await autorizacion.PuedeSobreTenantAsync(usuarioId.Value, request.TenantId, cancellationToken))
             return Result.Fallo(Error.Crear(
-                "Comercial.NoAutorizado", "No tienes autorización de plataforma sobre ese cliente."));
+                "Comercial.NoAutorizado", "No tienes autorización de plataforma sobre ese tenant."));
 
         var tenant = await dbContext.Tenants.SingleOrDefaultAsync(t => t.Id == request.TenantId, cancellationToken);
         if (tenant is null)

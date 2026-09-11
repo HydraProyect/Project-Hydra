@@ -16,15 +16,30 @@
 <PageTitle>Alertas — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <div>
-        <span class="dashboard-kicker">Reclamación</span>
-        <h1 class="titulo-pagina">Alertas</h1>
-        <p class="descripcion-alertas">
+    <CabeceraPagina Titulo="Alertas" Kicker="Reclamación">
+        <Descripcion>
             La documentación de tus trabajadores que hay que reclamar o subir — incluida la que
             todavía no es urgente — para que puedas anticiparte antes del vencimiento en vez de
             esperar a que se vuelva crítica.
-        </p>
-    </div>
+        </Descripcion>
+    </CabeceraPagina>
+
+    @* Procedencia (mockup Gen 2): la frase del mockup decía "derivada del
+       vencimiento de cada documento", y eso es solo media verdad —
+       ObtenerAlertasQuery suma un segundo bloque, "Falta", que no sale de
+       ningún vencimiento sino de IDocumentosFaltantesService. Y ese bloque
+       tiene a su vez dos procedencias (ResolucionTipoDocumentoCentro.Aplica):
+       la fila TipoDocumentoCentro del centro si existe ("Incluido" en la ficha
+       del centro) y, si el centro no dice nada de ese tipo, el valor general
+       del tipo (Requerido == Si, «¿Se pide? Sí, siempre»). Atribuirlo solo al
+       centro mentía: sale «Falta» en centros que no han configurado nada.
+       Se dice «se pide», no «obligatorio»: la regla es de configuración, no
+       afirma ninguna norma. "En cada carga" es literal: la query recalcula en
+       vivo, no lee de una tabla sincronizada. *@
+    <p class="alertas-procedencia">
+        <span class="alertas-procedencia-punto" aria-hidden="true"></span>
+        Lista calculada en cada carga a partir del vencimiento de cada documento y de los documentos que se piden en cada centro: los que ese centro tiene configurados o, si el centro no dice nada de un tipo, los tipos de documento que se piden siempre. Nadie la escribe a mano.
+    </p>
 
     @* DEC-4: /alertas no es una segunda cola de "qué hacer ahora" (A-02) —
        esa es /bandeja. Hasta esta noche, "Bandeja priorizada" mostraba aquí
@@ -36,13 +51,15 @@
     <a href="/bandeja" class="enlace-nombre-fila">Ver tu cola de trabajo en Mi trabajo →</a>
 
     @* Reclamación agregada (DEC-4 + DEC-7, PLAN-SESIONES-NOCTURNAS-2026-09-02.md):
-       SelectorLoteDocumental (PR #408) es el mismo componente que usará el
+       SelectorLoteDocumental (PR #408) es el mismo componente que usa el
        lote de /bandeja — aquí solo se le pasa Alertas.AmbitosSoportados
-       (Trabajador únicamente; AlertasTests.cs protege que no se amplíe a
-       Empresa hasta que exista camino de envío real para ese ámbito).
+       (Trabajador y Empresa; AlertasTests.cs protege que no se amplíe a
+       Cliente, Vehículo o Proyecto hasta que exista camino de envío real).
        OnCancelar queda sin enlazar a propósito: a diferencia de un uso
        dentro de un modal/drawer, aquí el selector es el contenido inicial
-       de la sección — no hay una pantalla previa a la que "cancelar" vuelva. *@
+       de la sección — no hay una pantalla previa a la que "cancelar" vuelva.
+       Colapsada por defecto: el mockup la pinta abierta para enseñar su
+       contenido, pero la tarea primaria de la pantalla es la lista. *@
     <SeccionColapsable Titulo="Reclamar por tipo de documento y ámbito" ExpandidaPorDefecto="false">
         @if (_filtroLote is null)
         {
@@ -77,31 +94,33 @@
 
                     <Tarjeta @key="lote.TitularId" Titulo="@lote.TitularNombre" Class="tarjeta-reclamacion">
                         <AccionesHeader>
+                            <span class="alertas-lote-ultima">
+                                @(lote.UltimaReclamacionFechaUtc is null
+                                    ? "Nunca reclamado."
+                                    : $"Última reclamación: {FormatearHaceTiempo(lote.UltimaReclamacionFechaUtc.Value)}.")
+                            </span>
+                            @* El filtro de /comunicaciones es por Cliente
+                               (ObtenerConversacionesQuery.ClienteId), así que solo
+                               se ofrece para un titular Cliente. El hilo de una
+                               reclamación a una Empresa existe y está anclado a
+                               ella (Conversacion.EmpresaId), pero llevar hasta él
+                               exige un filtro por Empresa que esa pantalla todavía
+                               no tiene — enlazar con ?cliente= abriría una bandeja
+                               vacía, que se leería como "no hay hilo". *@
+                            @if (lote.UltimaReclamacionConversacionId is not null && lote.Ambito != AmbitoAplicacion.Empresa)
+                            {
+                                <a href="@($"/comunicaciones?cliente={lote.TitularId}")">Ver en Comunicaciones</a>
+                            }
+                            @* Reclamar envía un mensaje a terceros: nunca de un
+                               solo clic. El botón solo abre la confirmación, que
+                               dice cuántos documentos y a quién. *@
                             <Boton Tamano="TamanoBoton.Pequeno" Deshabilitado="@(seleccionados.Count == 0 || ContactosMarcados(lote.TitularId).Count == 0)"
-                                   Cargando="enviando" OnClick="() => EnviarLoteAsync(lote)">
+                                   Cargando="enviando" OnClick="() => PedirConfirmacionEnvio(lote)">
                                 Enviar reclamación (@seleccionados.Count)
                             </Boton>
                         </AccionesHeader>
 
                         <ChildContent>
-                            <p class="texto-vacio-seccion">
-                                @(lote.UltimaReclamacionFechaUtc is null
-                                    ? "Nunca reclamado."
-                                    : $"Última reclamación: {FormatearHaceTiempo(lote.UltimaReclamacionFechaUtc.Value)}.")
-                                @* El filtro de /comunicaciones es por Cliente
-                                   (ObtenerConversacionesQuery.ClienteId), así que solo
-                                   se ofrece para un titular Cliente. El hilo de una
-                                   reclamación a una Empresa existe y está anclado a
-                                   ella (Conversacion.EmpresaId), pero llevar hasta él
-                                   exige un filtro por Empresa que esa pantalla todavía
-                                   no tiene — enlazar con ?cliente= abriría una bandeja
-                                   vacía, que se leería como "no hay hilo". *@
-                                @if (lote.UltimaReclamacionConversacionId is not null && lote.Ambito != AmbitoAplicacion.Empresa)
-                                {
-                                    <a href="@($"/comunicaciones?cliente={lote.TitularId}")">Ver en Comunicaciones</a>
-                                }
-                            </p>
-
                             @if (lote.Destinatarios is not { Count: > 0 })
                             {
                                 <div class="alerta-formulario" role="alert">
@@ -137,38 +156,41 @@
                                propietario de cada documento es la propia titular de la
                                tarjeta (DocumentoReclamableDto.TrabajadorNombre es null ahí). *@
                             @{ var muestraTrabajador = lote.Ambito != AmbitoAplicacion.Empresa; }
-                            <table class="tabla-datos">
-                                <thead>
-                                    <tr>
-                                        <th></th>
-                                        @if (muestraTrabajador)
-                                        {
-                                            <th>Trabajador</th>
-                                        }
-                                        <th>Documento</th>
-                                        <th>Vencimiento</th>
-                                        <th>Estado</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach (var documento in lote.Documentos)
-                                    {
-                                        <tr @key="documento.DocumentoId">
-                                            <td>
-                                                <input type="checkbox" checked="@seleccionados.Contains(documento.DocumentoId)"
-                                                       @onchange="e => AlternarSeleccion(lote.TitularId, documento.DocumentoId, (bool)e.Value!)" />
-                                            </td>
+                            <div class="alertas-tabla-desplazable">
+                                <table class="tabla-datos">
+                                    <thead>
+                                        <tr>
+                                            <th></th>
                                             @if (muestraTrabajador)
                                             {
-                                                <td>@documento.TrabajadorNombre</td>
+                                                <th>Trabajador</th>
                                             }
-                                            <td>@documento.TipoDocumentoNombre</td>
-                                            <td>@documento.FechaVencimiento.ToString("dd/MM/yyyy")</td>
-                                            <td><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)">@EstadoDocumentoUi.Texto(documento.Estado)</Badge></td>
+                                            <th>Documento</th>
+                                            <th>Vencimiento</th>
+                                            <th>Estado</th>
                                         </tr>
-                                    }
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var documento in lote.Documentos)
+                                        {
+                                            <tr @key="documento.DocumentoId">
+                                                <td>
+                                                    <input type="checkbox" checked="@seleccionados.Contains(documento.DocumentoId)"
+                                                           aria-label="@($"Incluir {documento.TipoDocumentoNombre} en la reclamación")"
+                                                           @onchange="e => AlternarSeleccion(lote.TitularId, documento.DocumentoId, (bool)e.Value!)" />
+                                                </td>
+                                                @if (muestraTrabajador)
+                                                {
+                                                    <td>@documento.TrabajadorNombre</td>
+                                                }
+                                                <td>@documento.TipoDocumentoNombre</td>
+                                                <td>@documento.FechaVencimiento.ToString("dd/MM/yyyy")</td>
+                                                <td><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" ConIcono="true">@EstadoDocumentoUi.Texto(documento.Estado)</Badge></td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
                         </ChildContent>
                     </Tarjeta>
                 }
@@ -185,7 +207,19 @@
                          Tipo="_tipoAgendaAltaContacto" PropietarioId="_titularAltaContacto"
                          PredeterminadoPorDefecto="true" OnGuardado="_ => CargarLoteAsync()" />
 
-    <div class="barra-filtros">
+    <DialogoConfirmacion Visible="_envioPendiente is not null"
+                         VisibleChanged="CerrarConfirmacionEnvio"
+                         Titulo="@($"¿Enviar la reclamación a {_envioPendiente?.TitularNombre}?")"
+                         Mensaje="@MensajeConfirmacionEnvio"
+                         TextoBotonConfirmar="Enviar reclamación"
+                         EnProgreso="_enviandoTitularId is not null"
+                         OnConfirmar="ConfirmarEnvioAsync" />
+
+    @* Estado recorta la lista y viaja en la URL (llega así desde las tarjetas
+       KPI del Dashboard); Agrupar por solo la ordena y la parte en bloques,
+       así que no es un filtro: ni cuenta para el vacío por filtro ni lo
+       borra "Quitar el filtro". *@
+    <div class="barra-filtros alertas-barra-filtros">
         <CampoSelect Etiqueta="Estado" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoFiltroAsync">
             <option value="">Todos</option>
             <option value="@nameof(EstadoDocumento.Faltante)">Falta</option>
@@ -193,6 +227,20 @@
             <option value="@nameof(EstadoDocumento.Urgente)">Urgente</option>
             <option value="@nameof(EstadoDocumento.Proximo)">Próximo</option>
         </CampoSelect>
+
+        <div class="alertas-agrupar" role="group" aria-label="Agrupar por">
+            <span class="alertas-agrupar-etiqueta" aria-hidden="true">Agrupar por</span>
+            <Boton Variante="@(_agrupacion == ModoAgrupacion.Severidad ? VarianteBoton.Secundario : VarianteBoton.Fantasma)"
+                   Tamano="TamanoBoton.Pequeno" OnClick="() => CambiarAgrupacion(ModoAgrupacion.Severidad)"
+                   aria-pressed="@(_agrupacion == ModoAgrupacion.Severidad ? "true" : "false")">
+                Severidad
+            </Boton>
+            <Boton Variante="@(_agrupacion == ModoAgrupacion.Motivo ? VarianteBoton.Secundario : VarianteBoton.Fantasma)"
+                   Tamano="TamanoBoton.Pequeno" OnClick="() => CambiarAgrupacion(ModoAgrupacion.Motivo)"
+                   aria-pressed="@(_agrupacion == ModoAgrupacion.Motivo ? "true" : "false")">
+                Motivo
+            </Boton>
+        </div>
     </div>
 
     @if (_errorCarga)
@@ -207,52 +255,104 @@
     {
         <EstadoCargando Filas="6" />
     }
+    else if (AlertasFiltradas.Count == 0 && HayFiltrosActivos && _alertas.Count > 0)
+    {
+        @* La única de las nueve listas del defecto sistémico que filtra EN
+           MEMORIA: _alertas trae todo y AlertasFiltradas recorta encima. Por
+           eso aquí la copia SÍ puede decir cuántas quedan fuera —lo sabe— y
+           por eso el recuento es exacto: si ninguna coincide con el estado
+           elegido, las _alertas.Count están todas en otros estados.
+
+           Sin esta rama, filtrar por "Próximo" y no encontrar nada decía
+           "todos los documentos están vigentes", que es justo lo contrario de
+           lo que puede estar pasando: puede haber una docena vencidos. *@
+        <EstadoVacio NombreIcono="filtro" Titulo="Ninguna alerta con este estado"
+                     Descripcion="@($"Hay {_alertas.Count} documento(s) que reclamar en otros estados.")">
+            <Accion>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar el filtro</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
     else if (AlertasFiltradas.Count == 0)
     {
-        <EstadoVacio Titulo="Nada que reclamar" Descripcion="Todos los documentos están vigentes o fuera del umbral de aviso." />
+        <EstadoVacio NombreIcono="exito-circulo" AcentoIcono="var(--color-success-700)" FondoIcono="var(--color-success-50)"
+                     Titulo="Nada que reclamar" Descripcion="Todos los documentos están vigentes o fuera del umbral de aviso." />
     }
     else
     {
-        <table class="tabla-datos">
-            <thead>
-                <tr>
-                    <th>Estado</th>
-                    <th>Trabajador</th>
-                    <th>Tipo de documento</th>
-                    <th>Centro</th>
-                    <th>Vencimiento</th>
-                    <th>Archivo</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var alerta in AlertasDePagina)
-                {
-                    <tr>
-                        <td><Badge Tono="EstadoDocumentoUi.Tono(alerta.Estado)">@EstadoDocumentoUi.Texto(alerta.Estado)</Badge></td>
-                        <td>@alerta.TrabajadorNombre</td>
-                        <td>@alerta.TipoDocumentoNombre</td>
-                        <td>@(alerta.CentroNombre ?? "—")</td>
-                        <td>@(alerta.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "—")</td>
-                        <td>
-                            @if (alerta.DocumentoId is not null && alerta.ArchivoUrl is not null)
-                            {
-                                <a href="/documentos/@alerta.DocumentoId/archivo" target="_blank">Ver PDF</a>
-                            }
-                            else
-                            {
-                                <span class="detalle-tecnico">Sin adjunto</span>
-                            }
-                        </td>
-                        <td>
-                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => GestionarAlerta(alerta)">
-                                @(alerta.DocumentoId is not null ? "Gestionar" : "Subir documento")
-                            </Boton>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+        <div class="alertas-grupos">
+            @foreach (var (grupo, filas) in GruposDePagina)
+            {
+                var abierto = !_gruposCerrados.Contains(grupo.Clave);
+
+                <section class="@(grupo.Critico ? "alertas-grupo alertas-grupo-critico" : "alertas-grupo")" @key="grupo.Clave">
+                    <button type="button" class="alertas-grupo-cabecera" aria-expanded="@(abierto ? "true" : "false")"
+                            @onclick="() => AlternarGrupo(grupo.Clave)">
+                        <span class="@(abierto ? "alertas-grupo-chevron" : "alertas-grupo-chevron alertas-grupo-chevron-cerrado")" aria-hidden="true">
+                            <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+                        </span>
+                        <Badge Tono="grupo.Tono" ConIcono="@(_agrupacion == ModoAgrupacion.Motivo)" title="@grupo.TituloInsignia">@grupo.Insignia</Badge>
+                        <span class="alertas-grupo-titulo">@grupo.Titulo</span>
+                        <span class="alertas-grupo-meta">@MetaDeGrupo(grupo, filas.Count)</span>
+                    </button>
+
+                    @if (abierto)
+                    {
+                        <div class="alertas-tabla-desplazable">
+                            <table class="tabla-datos">
+                                <thead>
+                                    <tr>
+                                        <th>Trabajador</th>
+                                        <th>@(_agrupacion == ModoAgrupacion.Severidad ? "Tipo de documento" : "Severidad")</th>
+                                        <th>Centro</th>
+                                        <th>Vencimiento</th>
+                                        <th>Archivo</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var alerta in filas)
+                                    {
+                                        <tr>
+                                            <td>@alerta.TrabajadorNombre</td>
+                                            <td>
+                                                @if (_agrupacion == ModoAgrupacion.Severidad)
+                                                {
+                                                    @alerta.TipoDocumentoNombre
+                                                }
+                                                else
+                                                {
+                                                    <Badge Tono="EstadoDocumentoUi.Tono(alerta.Estado)" ConIcono="true">@EstadoDocumentoUi.Texto(alerta.Estado)</Badge>
+                                                }
+                                            </td>
+                                            <td>@(alerta.CentroNombre ?? "—")</td>
+                                            <td>
+                                                <TextoFechaCopiable Fecha="alerta.FechaVencimiento">@(alerta.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "—")</TextoFechaCopiable>
+                                            </td>
+                                            <td>
+                                                @if (alerta.DocumentoId is not null && alerta.ArchivoUrl is not null)
+                                                {
+                                                    <a href="/documentos/@alerta.DocumentoId/archivo" target="_blank">Ver PDF</a>
+                                                }
+                                                else
+                                                {
+                                                    <span class="detalle-tecnico">Sin adjunto</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => GestionarAlerta(alerta)">
+                                                    @(alerta.DocumentoId is not null ? "Gestionar" : "Subir documento")
+                                                </Boton>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </section>
+            }
+        </div>
 
         <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="AlertasFiltradas.Count"
                           Etiqueta="alerta(s)" PaginaActualChanged="IrAPaginaAsync"

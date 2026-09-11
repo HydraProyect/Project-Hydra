@@ -1,4 +1,4 @@
-<button type="button" class="menu-acciones-item @(Destructivo ? "menu-acciones-item-destructivo" : "")" role="menuitem" @onclick="EjecutarAsync">
+<button type="button" class="menu-acciones-item @(Destructivo ? "menu-acciones-item-destructivo" : "")" role="menuitem" tabindex="-1" disabled="@(!Habilitado)" @ref="_boton" @onclick="EjecutarAsync" @onkeydown="ManejarTeclaAsync">
     @ChildContent
 </button>
 
@@ -9,9 +9,21 @@
     [Parameter] public bool Destructivo { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
+    private ElementReference _boton;
+
+    internal bool Habilitado => OnClick.HasDelegate;
+
+    protected override void OnAfterRender(bool firstRender) => Menu?.Registrar(this);
+
     private async Task EjecutarAsync()
     {
+        if (!Habilitado) return;
         await OnClick.InvokeAsync();
         Menu?.Cerrar();
     }
+
+    internal Task EnfocarAsync() => _boton.FocusAsync().AsTask();
+
+    private Task ManejarTeclaAsync(KeyboardEventArgs e) =>
+        Menu?.ManejarTeclaDeItemAsync(this, e) ?? Task.CompletedTask;
 }

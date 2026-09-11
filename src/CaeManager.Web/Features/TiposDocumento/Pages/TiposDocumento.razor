@@ -2,18 +2,9 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
 @inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
-@using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector
-@using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector
-@using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector
-@using CaeManager.Application.TiposDocumento.Commands.ActualizarDeteccionTrabajadoresGlobal
-@using CaeManager.Application.TiposDocumento.Commands.ActualizarLecturaIaGlobal
-@using CaeManager.Application.TiposDocumento.Commands.ActualizarVerificacionIaGlobal
 @using CaeManager.Application.TiposDocumento.Commands.CrearTipoDocumento
-@using CaeManager.Application.TiposDocumento.Commands.EditarTipoDocumento
-@using CaeManager.Application.TiposDocumento.Queries.ObtenerTipoDocumentoPorId
 @using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento
 @using CaeManager.Domain.Documentos
-@using FluentValidation
 @using MediatR
 @inject IMediator Mediator
 @inject ToastService ToastService
@@ -24,13 +15,25 @@
 }
 
 <div class="@ClaseContenedorPagina">
-    <div class="cabecera-pagina">
-        @TituloPaginaIntegrable("Tipos de Documento")
-        <Boton OnClick="AbrirCrear">+ Nuevo tipo</Boton>
-    </div>
+    <CabeceraPagina Titulo="Tipos de documento" Integrada="@IntegradaEnConfiguracion">
+        <Descripcion>
+            @* El mockup remite los ajustes de Nivel 2 a «la configuración
+               documental de cada cliente», una pantalla que no existe: lo único
+               que se afina por cliente es la lectura IA, y lo que pide cada
+               centro se decide en sus propios requisitos. *@
+            <Badge Tamano="TamanoBadge.Pequeno">Nivel 1 · Global</Badge>
+            Catálogo maestro: qué documentos existen, a qué ámbito aplican, si se piden por defecto y cómo los
+            procesa la lectura IA. La lectura IA de cada cliente (Nivel 2) se afina en
+            <a href="@RutaLecturaIaPorCliente">Lectura IA por cliente</a>.
+        </Descripcion>
+        <Acciones>
+            <Boton OnClick="AbrirCrearAsync">+ Nuevo tipo</Boton>
+        </Acciones>
+    </CabeceraPagina>
 
-    <div class="barra-filtros">
-        <CampoTexto Placeholder="Buscar por nombre o alias (p. ej. TC2)…" Valor="@_terminoBusqueda" ValorChanged="BuscarAsync" />
+    <div class="barra-filtros barra-filtros-tipos">
+        <CampoTexto Placeholder="Buscar por nombre o alias (p. ej. TC2)…" aria-label="Buscar por nombre o alias"
+                    Valor="@_terminoBusqueda" ValorChanged="BuscarAsync" />
 
         <CampoSelect Etiqueta="Cliente" Valor="@_clienteFiltroId" ValorChanged="CambiarClienteFiltroAsync">
             <option value="">Todos los clientes</option>
@@ -61,134 +64,158 @@
     {
         <EstadoVacio Titulo="No pudimos cargar los tipos de documento" Descripcion="Intenta nuevamente en unos segundos.">
             <Accion>
-                <Boton OnClick="CargarAsync">Reintentar</Boton>
+                <Boton OnClick="ReintentarAsync">Reintentar</Boton>
             </Accion>
         </EstadoVacio>
     }
-    else if (_cargando)
+    else if (_cargando && !_listaPintada)
     {
+        @* El esqueleto solo sale cuando no hay nada que enseñar: en la carga
+           inicial y al reintentar tras un error. Al filtrar o al guardar la
+           tabla se queda en su sitio, marcada como ocupada. *@
         <EstadoCargando Filas="6" />
+    }
+    else if (_tipos.Count == 0 && HayFiltrosActivos)
+    {
+        @* La tabla vacía no decía nada: con cuatro filtros puestos —búsqueda,
+           cliente, empresa y centro— salían las cabeceras y ninguna fila, y
+           quien acababa de escribir "TC2" mal no tenía forma de saber si el
+           tipo no existe o si es el filtro. Ofrecerle "+ Nuevo tipo" ahí lo
+           manda a duplicar un tipo de documento que ya está dado de alta.
+
+           La copia no afirma que HAYA tipos: el filtrado es de servidor y la
+           consulta devuelve solo el total ya filtrado. *@
+        <EstadoVacio NombreIcono="vacio" Titulo="Ningún tipo con estos filtros"
+                     Descripcion="Ninguno coincide con la búsqueda por nombre o alias ni con el ámbito de cliente, empresa o centro seleccionado.">
+            <Accion>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar los filtros</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_tipos.Count == 0)
+    {
+        <EstadoVacio NombreIcono="tipos-documento" Titulo="Aún no hay tipos de documento"
+                     Descripcion="Crea el primero para empezar a construir el catálogo.">
+            <Accion>
+                <Boton OnClick="AbrirCrearAsync">+ Nuevo tipo</Boton>
+            </Accion>
+        </EstadoVacio>
     }
     else
     {
-        <table class="tabla-datos">
-            <thead>
-                <tr>
-                    <th>Orden</th>
-                    <th>Nombre</th>
-                    <th>Ámbito</th>
-                    <th>Vigencia</th>
-                    <th>Vencimiento automático</th>
-                    @* "Exigencia", no "Obligatorio": desde que EsObligatorio se
-                       partió en Requerido × NaturalezaJuridica, esta celda ya no
-                       responde sí/no — dice con qué autoridad se pide (obligación
-                       legal, práctica del sector, requisito de cliente…). *@
-                    <th>Exigencia</th>
-                    <th>Lectura IA</th>
-                    <th>Detecta trabajadores</th>
-                    <th>Verificación IA</th>
-                    <th>Documento oficial</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var tipo in TiposDePagina)
-                {
+        <div class="tabla-tipos-marco" aria-busy="@(_cargando ? "true" : "false")">
+            <table class="tabla-datos tabla-tipos">
+                <thead>
                     <tr>
-                        <td>@tipo.Orden</td>
-                        <td>
-                            @tipo.Nombre
-                            @if (tipo.Aliases.Count > 0)
-                            {
-                                <p class="texto-ayuda-campo">@string.Join(", ", tipo.Aliases)</p>
-                            }
-                        </td>
-                        <td>@tipo.AmbitoAplicacion</td>
-                        <td>@(tipo.VigenciaMeses is null ? "—" : $"{tipo.VigenciaMeses} meses")</td>
-                        <td>
-                            @if (tipo.AplicaVencimientoAutomatico)
-                            {
-                                <Badge Tono="TonoBadge.Exito">Sí</Badge>
-                            }
-                            else
-                            {
-                                <Badge>No</Badge>
-                            }
-                        </td>
-                        <td>
-                            @if (tipo.Requerido != RequisitoDocumental.No)
-                            {
+                        <th scope="col" class="col-orden">Orden</th>
+                        <th scope="col">Nombre</th>
+                        <th scope="col" class="col-ambito">Ámbito</th>
+                        <th scope="col" class="col-vigencia">Vigencia</th>
+                        <th scope="col" class="col-vencimiento">Vencimiento automático</th>
+                        @* "Exigencia", no "Obligatorio": desde que EsObligatorio se
+                           partió en Requerido × NaturalezaJuridica, esta celda ya no
+                           responde sí/no — dice con qué autoridad se pide (obligación
+                           legal, práctica del sector, requisito de cliente…). *@
+                        <th scope="col" class="col-exigencia">Exigencia</th>
+                        <th scope="col" class="col-lectura">Lectura IA</th>
+                        <th scope="col" class="col-deteccion">Detecta trabajadores</th>
+                        <th scope="col" class="col-verificacion">Verificación IA</th>
+                        <th scope="col" class="col-oficial">Documento oficial</th>
+                        <th scope="col" class="col-acciones"><span class="solo-lectores">Acciones</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var tipo in TiposDePagina)
+                    {
+                        <tr @key="tipo.Id">
+                            <td class="celda-orden">@tipo.Orden</td>
+                            <td>
+                                <span class="nombre-tipo">@tipo.Nombre</span>
+                                @if (tipo.Aliases.Count > 0)
+                                {
+                                    <span class="alias-tipo">@string.Join(", ", tipo.Aliases)</span>
+                                }
+                            </td>
+                            <td>@TextoAmbito(tipo.AmbitoAplicacion)</td>
+                            <td class="@(tipo.VigenciaMeses is null ? "celda-vigencia celda-sin-valor" : "celda-vigencia")">@TextoVigencia(tipo.VigenciaMeses)</td>
+                            <td>
+                                @if (tipo.AplicaVencimientoAutomatico)
+                                {
+                                    <Badge Tono="TonoBadge.Exito">Sí</Badge>
+                                }
+                                else
+                                {
+                                    <Badge>No</Badge>
+                                }
+                            </td>
+                            <td>
                                 @* El badge dice CON QUÉ AUTORIDAD se pide, no
                                    "Obligatorio" a secas: llamar obligación a
                                    una práctica del sector es exactamente lo
                                    que esta taxonomía existe para impedir. *@
-                                <Badge Tono="@RequisitoDocumentalUi.Tono(tipo.Naturaleza)">@RequisitoDocumentalUi.Texto(tipo.Requerido, tipo.Naturaleza)</Badge>
-                            }
-                            else
-                            {
-                                <Badge>Opcional</Badge>
-                            }
-                        </td>
-                        <td>
-                            <label class="campo-checkbox" title="Lectura automática por IA para este tipo de documento, en todos los clientes">
-                                <input type="checkbox" checked="@tipo.LecturaIaActiva" @onchange="e => AlternarLecturaIaAsync(tipo.Id, e.Value is bool activa && activa)" />
-                                @(tipo.LecturaIaActiva ? "Activa" : "Desactivada")
-                            </label>
-                        </td>
-                        <td>
-                            @if (tipo.AmbitoAplicacion == AmbitoAplicacion.Empresa)
-                            {
-                                <label class="campo-checkbox" title="Detecta automáticamente altas y bajas de personal comparando este documento (p. ej. ITA, RNT) contra los trabajadores activos de la empresa">
-                                    <input type="checkbox" checked="@tipo.DeteccionTrabajadoresActiva" @onchange="e => AlternarDeteccionTrabajadoresAsync(tipo.Id, e.Value is bool activa && activa)" />
-                                    @(tipo.DeteccionTrabajadoresActiva ? "Activa" : "Desactivada")
-                                </label>
-                            }
-                            else
-                            {
-                                <span class="texto-vacio-seccion">No aplica</span>
-                            }
-                        </td>
-                        <td>
-                            @if (tipo.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
-                            {
-                                <label class="campo-checkbox" title="Verifica por IA el tipo, fecha de emisión y firma del documento contra lo introducido al subirlo, con confidence score">
-                                    <input type="checkbox" checked="@tipo.VerificacionIaActiva" @onchange="e => AlternarVerificacionIaAsync(tipo.Id, e.Value is bool activa && activa)" />
-                                    @(tipo.VerificacionIaActiva ? "Activa" : "Desactivada")
-                                </label>
-                            }
-                            else
-                            {
-                                <span class="texto-vacio-seccion">No aplica</span>
-                            }
-                        </td>
-                        <td>
-                            @if (tipo.AmbitoAplicacion is AmbitoAplicacion.Empresa or AmbitoAplicacion.Cliente)
-                            {
-                                <select class="campo-select" title="Documento oficial de la Administración con validación automática: verificación criptográfica de la firma digital y cotejo de datos, sin IA"
-                                        value="@tipo.PerfilDocumentoOficial"
-                                        @onchange="e => CambiarPerfilDocumentoOficialAsync(tipo.Id, e.Value?.ToString())">
-                                    <option value="@PerfilDocumentoOficial.Ninguno">—</option>
-                                    <option value="@PerfilDocumentoOficial.CorrienteTgss">Corriente TGSS</option>
-                                    <option value="@PerfilDocumentoOficial.CorrienteAeat">Corriente AEAT</option>
-                                    <option value="@PerfilDocumentoOficial.Ita">ITA</option>
-                                    <option value="@PerfilDocumentoOficial.Rnt">RNT</option>
-                                    <option value="@PerfilDocumentoOficial.Rlc">RLC</option>
-                                </select>
-                            }
-                            else
-                            {
-                                <span class="texto-vacio-seccion">No aplica</span>
-                            }
-                        </td>
-                        <td>
-                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarAsync(tipo.Id)">
-                                Editar
-                            </Boton>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+                                <Badge Tono="@TonoExigencia(tipo.Requerido, tipo.Naturaleza)"
+                                       title="@AyudaExigencia(tipo.Requerido, tipo.Naturaleza)">@TextoExigencia(tipo.Requerido, tipo.Naturaleza)</Badge>
+                            </td>
+                            <td>@CeldaInterruptor(tipo, CampoEnLinea.LecturaIa, "Lectura IA", AyudaLecturaIa)</td>
+                            <td>
+                                @if (tipo.AmbitoAplicacion == AmbitoAplicacion.Empresa)
+                                {
+                                    @CeldaInterruptor(tipo, CampoEnLinea.DeteccionTrabajadores, "Detecta trabajadores", AyudaDeteccionTrabajadores)
+                                }
+                                else
+                                {
+                                    <span class="celda-no-aplica">No aplica</span>
+                                }
+                            </td>
+                            <td>
+                                @if (tipo.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
+                                {
+                                    @CeldaInterruptor(tipo, CampoEnLinea.VerificacionIa, "Verificación IA", AyudaVerificacionIa)
+                                }
+                                else
+                                {
+                                    <span class="celda-no-aplica">No aplica</span>
+                                }
+                            </td>
+                            <td>
+                                @if (tipo.AmbitoAplicacion is AmbitoAplicacion.Empresa or AmbitoAplicacion.Cliente)
+                                {
+                                    var claveOficial = new ClaveCambio(tipo.Id, CampoEnLinea.DocumentoOficial);
+                                    <div class="celda-oficial">
+                                        <select @key="GeneracionDe(claveOficial)" class="select-oficial"
+                                                title="Documento oficial de la Administración con validación automática: verificación criptográfica de la firma digital y cotejo de datos, sin IA"
+                                                aria-label="@($"Documento oficial de {tipo.Nombre}")"
+                                                value="@tipo.PerfilDocumentoOficial" disabled="@_pendientes.Contains(claveOficial)"
+                                                @onchange="e => CambiarPerfilDocumentoOficialAsync(tipo.Id, e.Value?.ToString())">
+                                            <option value="@PerfilDocumentoOficial.Ninguno">—</option>
+                                            <option value="@PerfilDocumentoOficial.CorrienteTgss">Corriente TGSS</option>
+                                            <option value="@PerfilDocumentoOficial.CorrienteAeat">Corriente AEAT</option>
+                                            <option value="@PerfilDocumentoOficial.Ita">ITA</option>
+                                            <option value="@PerfilDocumentoOficial.Rnt">RNT</option>
+                                            <option value="@PerfilDocumentoOficial.Rlc">RLC</option>
+                                        </select>
+                                        @if (TextoAvisoCambio(claveOficial) is { } avisoOficial)
+                                        {
+                                            <span class="@ClaseAvisoCambio(claveOficial)">@avisoOficial</span>
+                                        }
+                                    </div>
+                                }
+                                else
+                                {
+                                    <span class="celda-no-aplica">No aplica</span>
+                                }
+                            </td>
+                            <td class="celda-acciones">
+                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                       aria-label="@($"Editar {tipo.Nombre}")" OnClick="() => AbrirEditarAsync(tipo.Id)">
+                                    Editar
+                                </Boton>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
 
         <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_tipos.Count"
                           Etiqueta="tipo(s) de documento" PaginaActualChanged="IrAPaginaAsync"
@@ -198,6 +225,8 @@
 
 <Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nuevo tipo de documento" : "Editar tipo de documento")" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
     <ChildContent>
+        <p class="nivel-drawer">Nivel 1 · valor general para todos los centros</p>
+
         @if (_mensajeErrorFormulario is not null)
         {
             <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
@@ -205,14 +234,15 @@
 
         <CampoTexto Etiqueta="Nombre" Valor="@_nombre" ValorChanged="v => _nombre = v" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.Nombre))" />
 
-        <div class="campo">
-            <label>Nombres alternativos (siglas, alias históricos — p. ej. "TC2")</label>
-            <div class="campo-con-boton">
-                <div class="campo">
-                    <input class="campo-input" placeholder="Escribe un alias y pulsa Añadir"
-                           value="@_aliasNuevo" @oninput="e => _aliasNuevo = e.Value?.ToString() ?? string.Empty"
-                           @onkeydown="ManejarTeclaAliasAsync" />
-                </div>
+        <div class="bloque-campo">
+            @* Sin for= a propósito: los E2E piden GetByLabel("Nombre"), y un
+               «Nombres alternativos» asociado al input casaría también. El input
+               lleva su propio aria-label. *@
+            <span class="etiqueta-campo">Nombres alternativos <span class="etiqueta-pista">(siglas, alias históricos — p. ej. "TC2")</span></span>
+            <div class="fila-alias">
+                <input class="input-alias" aria-label="Alias nuevo" placeholder="Escribe un alias y pulsa Añadir"
+                       value="@_aliasNuevo" @oninput="e => _aliasNuevo = e.Value?.ToString() ?? string.Empty"
+                       @onkeydown="ManejarTeclaAliasAsync" />
                 <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="AgregarAlias">
                     Añadir
                 </Boton>
@@ -233,7 +263,7 @@
 
         @if (_editandoId is null)
         {
-            <CampoSelect Etiqueta="Ámbito" Valor="@_ambitoAplicacion" ValorChanged="v => _ambitoAplicacion = v">
+            <CampoSelect Etiqueta="Ámbito de aplicación" Valor="@_ambito.ToString()" ValorChanged="v => _ambito = Enum.Parse<AmbitoAplicacion>(v)">
                 <option value="@nameof(AmbitoAplicacion.Trabajador)">Trabajador</option>
                 <option value="@nameof(AmbitoAplicacion.Cliente)">Cliente</option>
                 <option value="@nameof(AmbitoAplicacion.Empresa)">Empresa</option>
@@ -243,17 +273,27 @@
         }
         else
         {
-            <div class="campo">
-                <label>Ámbito</label>
-                <span>@_ambitoAplicacion</span>
+            <div class="bloque-campo ambito-fijo">
+                <span class="etiqueta-campo">Ámbito de aplicación</span>
+                <span class="ambito-fijo-valor">@TextoAmbito(_ambito)</span>
+                <span class="pista-campo">El ámbito define qué columnas y automatismos aplican; no se cambia una vez creado el tipo.</span>
             </div>
         }
 
-        <label class="campo-checkbox">
-            <input type="checkbox" @bind="_aplicaVencimientoAutomatico" /> Aplica vencimiento automático
-        </label>
+        <div class="bloque-vencimiento">
+            <label class="campo-checkbox">
+                <input type="checkbox" @bind="_aplicaVencimientoAutomatico" /> Aplica vencimiento automático
+            </label>
+            @if (_aplicaVencimientoAutomatico)
+            {
+                <div class="sangria-vigencia">
+                    <CampoTexto Etiqueta="Vigencia (meses)" Type="number" Valor="@_vigenciaMeses" ValorChanged="v => _vigenciaMeses = v" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.VigenciaMeses))" />
+                </div>
+            }
+        </div>
 
-        <label class="campo-checkbox">
+        <fieldset class="bloque-exigencia">
+            <legend>Exigencia</legend>
             <CampoSelect Etiqueta="¿Se pide?" Valor="@_requerido.ToString()" ValorChanged="v => _requerido = Enum.Parse<RequisitoDocumental>(v)">
                 <option value="@nameof(RequisitoDocumental.No)">No se pide</option>
                 <option value="@nameof(RequisitoDocumental.Si)">Sí, siempre</option>
@@ -266,46 +306,58 @@
                 <option value="@nameof(NaturalezaJuridica.RequisitoCliente)">Requisito de cliente</option>
                 <option value="@nameof(NaturalezaJuridica.Recomendacion)">Recomendación de TALVEG</option>
             </CampoSelect>
-        </label>
-
-        @if (_aplicaVencimientoAutomatico)
-        {
-            <CampoTexto Etiqueta="Vigencia (meses)" Type="number" Valor="@_vigenciaMeses" ValorChanged="v => _vigenciaMeses = v" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.VigenciaMeses))" />
-        }
+            <p class="vista-previa-exigencia">
+                En la tabla se verá como
+                <Badge Tono="@TonoExigencia(_requerido, _naturaleza)">@TextoExigencia(_requerido, _naturaleza)</Badge>
+            </p>
+        </fieldset>
 
         <CampoTexto Etiqueta="Orden" Type="number" Valor="@_orden" ValorChanged="v => _orden = v" />
-        <CampoTextarea Etiqueta="Notas" Valor="@_notas" ValorChanged="v => _notas = v" Filas="3" />
+        @if (_editandoId is null)
+        {
+            <p class="pista-campo pista-orden">@PistaOrden</p>
+        }
 
+        <CampoTextarea Etiqueta="Notas" Valor="@_notas" ValorChanged="v => _notas = v" Filas="3" />
         <CampoTextarea Etiqueta="Descripción" Valor="@_descripcion" ValorChanged="v => _descripcion = v" Filas="3" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.Descripcion))" />
-        <CampoTextarea Etiqueta="Criterios de validación" Valor="@_criteriosValidacion" ValorChanged="v => _criteriosValidacion = v" Filas="3" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.CriteriosValidacion))" />
-        <p class="texto-ayuda-campo">
+        <CampoTextarea Etiqueta="Criterios de validación" Valor="@_criteriosValidacion" ValorChanged="v => _criteriosValidacion = v" Filas="4" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.CriteriosValidacion))" />
+        <p class="pista-campo pista-criterios">
             Pega aquí los términos de validación tal como los describe la plataforma documental del cliente (la sección de criterios/requisitos de aceptación del propio portal),
             sin reescribirlos: es el texto contra el que se comprueba si un documento vale, y la referencia que usará la lectura automática de documentos.
         </p>
         <CampoTexto Etiqueta="Se solicita a" Valor="@_seSolicitaA" ValorChanged="v => _seSolicitaA = v" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.SeSolicitaA))" />
         <CampoTextarea Etiqueta="Observaciones" Valor="@_observaciones" ValorChanged="v => _observaciones = v" Filas="3" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.Observaciones))" />
 
-        @if (_ambitoAplicacion == nameof(AmbitoAplicacion.Trabajador))
+        @if (_ambito == AmbitoAplicacion.Trabajador)
         {
-            <div class="campo">
-                <label>Centros donde aplica (vacío = aplica en todos)</label>
+            @* El mockup rotula esto «vacío = aplica en todos». Solo es verdad
+               cuando «¿Se pide?» es «Sí, siempre»: un centro sin fila propia
+               sigue el valor general (ResolucionTipoDocumentoCentro.Aplica), así
+               que con «No se pide» dejarlo vacío significa que no lo pide
+               ninguno. El resumen de abajo dice lo que pasa de verdad. *@
+            <div class="bloque-campo bloque-centros">
+                <span class="etiqueta-campo">Centros donde se pide expresamente <span class="etiqueta-pista">(sin marcar, cada centro sigue «¿Se pide?»)</span></span>
                 @if (_centrosDisponibles.Count == 0)
                 {
                     <p class="texto-vacio-seccion">Todavía no hay centros creados.</p>
                 }
                 else
                 {
-                    <div class="lista-seleccion-multiple">
+                    <div class="lista-centros">
                         @foreach (var centro in _centrosDisponibles)
                         {
-                            <label class="campo-checkbox">
+                            <label class="opcion-centro">
                                 <input type="checkbox"
                                        checked="@_centroIdsSeleccionados.Contains(centro.Id)"
                                        @onchange="e => AlternarCentro(centro.Id, e.Value is bool marcado && marcado)" />
-                                @centro.Nombre (@centro.ClienteRazonSocial — @centro.EmpresaRazonSocial)
+                                <span class="opcion-centro-texto">
+                                    <span>@centro.Nombre</span>
+                                    <span class="opcion-centro-contexto">@centro.ClienteRazonSocial — @centro.EmpresaRazonSocial</span>
+                                </span>
                             </label>
                         }
                     </div>
+                    <p class="pista-campo resumen-centros">@ResumenCentros</p>
                 }
             </div>
         }
@@ -319,3 +371,36 @@
         </Boton>
     </Pie>
 </Drawer>
+
+<DialogoConfirmacion Visible="_confirmacionVisible"
+                     VisibleChanged="v => _confirmacionVisible = v"
+                     Titulo="Esto cambia lo que se pide en los centros"
+                     Mensaje="@_mensajeConfirmacion"
+                     TextoBotonConfirmar="Guardar y aplicar"
+                     EnProgreso="_guardando"
+                     OnConfirmar="ConfirmarGuardadoAsync" />
+
+@code {
+    /// <summary>
+    /// Interruptor de una fila. Sigue siendo un <c>&lt;input type="checkbox"&gt;</c>
+    /// —con <c>role="switch"</c> y aspecto de interruptor por CSS— y no un
+    /// <c>&lt;button&gt;</c> como en el mockup: <c>FlujoCicloDocumentalTests</c>
+    /// localiza la celda por su <c>title</c>, marca su <c>input</c> y espera a
+    /// que el texto de la celda sea exactamente «Activa». Por eso el texto
+    /// dice «Guardando…» mientras el comando viaja: «Activa» solo puede
+    /// aparecer cuando ya está persistido.
+    /// </summary>
+    private RenderFragment CeldaInterruptor(TipoDocumentoListaDto tipo, CampoEnLinea campo, string nombre, string ayuda) => __builder =>
+    {
+        var clave = new ClaveCambio(tipo.Id, campo);
+        var activa = ValorEnLinea(tipo, campo);
+        var pendiente = _pendientes.Contains(clave);
+        <label class="celda-interruptor" title="@ayuda">
+            <input @key="GeneracionDe(clave)" type="checkbox" role="switch" class="interruptor-tipo"
+                   aria-label="@($"{nombre} de {tipo.Nombre}")"
+                   checked="@activa" disabled="@pendiente"
+                   @onchange="() => AlternarAsync(tipo.Id, campo)" />
+            <span class="@ClaseAvisoCambio(clave)">@(TextoAvisoCambio(clave) ?? (activa ? "Activa" : "Desactivada"))</span>
+        </label>
+    };
+}

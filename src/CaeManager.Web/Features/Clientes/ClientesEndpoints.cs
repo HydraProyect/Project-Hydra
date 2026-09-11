@@ -71,17 +71,23 @@ public static class ClientesEndpoints
             CaeManager.Infrastructure.Identity.Roles.GestorCae,
             CaeManager.Infrastructure.Identity.Roles.Consulta));
 
+        // Solo se enlazan desde /importacion (Importacion.razor: Roles = Administrador)
+        // — mismo motivo que el RequireAuthorization de /clientes/exportar.xlsx más
+        // arriba, aunque aquí el archivo es una plantilla en blanco sin datos de
+        // tenant, no un export con contenido real.
         endpoints.MapGet("/clientes/plantilla.xlsx", (IPlantillaClientesService servicio) =>
             Results.File(
                 servicio.GenerarPlantilla(),
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                "plantilla-clientes.xlsx"));
+                "plantilla-clientes.xlsx"))
+        .RequireAuthorization(policy => policy.RequireRole(CaeManager.Infrastructure.Identity.Roles.Administrador));
 
         endpoints.MapGet("/clientes/plantilla-combinada.xlsx", (IPlantillaCombinadaService servicio) =>
             Results.File(
                 servicio.GenerarPlantilla(),
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                "plantilla-combinada.xlsx"));
+                "plantilla-combinada.xlsx"))
+        .RequireAuthorization(policy => policy.RequireRole(CaeManager.Infrastructure.Identity.Roles.Administrador));
 
         return endpoints;
     }

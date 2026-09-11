@@ -22,8 +22,19 @@ public class RegistrarHistorialImportacionCommandHandler(
     IHistorialImportacionRepository repositorio, IUnitOfWork unitOfWork, ICurrentUserService usuarioActual)
     : IRequestHandler<RegistrarHistorialImportacionCommand, Result>
 {
+    // Application no puede referenciar Infrastructure.Identity.Roles — mismo motivo que en AutorizacionEscrituraBehavior.
+    // Aunque este comando "solo" escribe una fila de historial, es alcanzable por MediatR con cualquier rol de
+    // escritura: sin este guard, un rol no-Administrador podría inyectar un registro de historial fabricado
+    // (éxito, totales) sin haber ejecutado ninguna importación real — corrompe el rastro de auditoría del propio
+    // flujo que este comando existe para dejar por escrito.
+    private const string RolAdministrador = "Administrador";
+
     public async Task<Result> Handle(RegistrarHistorialImportacionCommand request, CancellationToken cancellationToken)
     {
+        if (await usuarioActual.ObtenerRolActualAsync() != RolAdministrador)
+            return Result.Fallo(Error.Crear(
+                "Importacion.SoloAdministrador", "Solo Administrador puede registrar el historial de una importación."));
+
         var usuarioId = await usuarioActual.ObtenerUsuarioActualIdAsync() ?? Guid.Empty;
 
         var registro = request.Exitosa

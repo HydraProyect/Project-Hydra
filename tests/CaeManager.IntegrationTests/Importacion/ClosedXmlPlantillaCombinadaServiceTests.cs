@@ -1,4 +1,5 @@
 using CaeManager.Application.Importacion;
+using CaeManager.Domain.Empresas;
 using CaeManager.Infrastructure.Importacion;
 using ClosedXML.Excel;
 using FluentAssertions;
@@ -164,6 +165,36 @@ public class ClosedXmlPlantillaCombinadaServiceTests
         trabajador.FechaNacimiento.Should().BeNull();
     }
 
+    /// <summary>
+    /// Mismo defecto que en la Plantilla de Clientes y en la importación CAE
+    /// completa: la hoja "Centros" resuelve su columna "Cliente" contra
+    /// CUALQUIER Empresa existente por nombre, pero la escritura
+    /// (EjecutarImportacionCombinadaCommandHandler) solo indexa
+    /// <c>clientesIdPorRazonSocial</c> desde Clientes reales (Cif != null,
+    /// creados vía <c>CrearComoCliente</c>) — una Subcontrata homónima no
+    /// puede hacer que la fila "encuentre" un cliente que no es tal, para
+    /// acabar omitida igualmente al confirmar sin que el análisis lo avisara.
+    /// </summary>
+    [Fact]
+    public async Task Centro_cuyo_Cliente_referenciado_es_una_Empresa_que_no_es_Cliente_empresarial_se_omite()
+    {
+        var libro = NuevoLibroBase();
+        EscribirEmpresaValida(libro, fila: 2, razonSocial: "Empresa Sur S.L.");
+        var hojaCentros = libro.Worksheets.Worksheet("Centros");
+        hojaCentros.Cell(2, 1).Value = "Centro Norte";
+        hojaCentros.Cell(2, 2).Value = "Subcontrata Homónima S.L.";
+        hojaCentros.Cell(2, 3).Value = "Empresa Sur S.L.";
+
+        var empresas = new EmpresasQueryContextFalso();
+        empresas.ListaEmpresas.Add(new Empresa("Subcontrata Homónima S.L.")); // EsCritico == null: no es Cliente.
+
+        var plan = await AnalizarAsync(libro, empresas);
+
+        plan.Centros.Should().BeEmpty();
+        var omitido = plan.Omitidos.Should().ContainSingle(o => o.Hoja == "Centros").Subject;
+        omitido.Motivo.Should().Contain("No se encontró el cliente");
+    }
+
     private static void EscribirClienteValido(XLWorkbook libro, int fila, string razonSocial)
     {
         var hoja = libro.Worksheets.Worksheet("Clientes");
@@ -187,10 +218,13 @@ public class ClosedXmlPlantillaCombinadaServiceTests
         return libro;
     }
 
-    private static async Task<PlanImportacionCombinadaDto> AnalizarAsync(XLWorkbook libro)
+    private static Task<PlanImportacionCombinadaDto> AnalizarAsync(XLWorkbook libro) =>
+        AnalizarAsync(libro, new EmpresasQueryContextFalso());
+
+    private static async Task<PlanImportacionCombinadaDto> AnalizarAsync(XLWorkbook libro, EmpresasQueryContextFalso empresas)
     {
         var servicio = new ClosedXmlPlantillaCombinadaService(
-            new CentrosQueryContextFalso(), new EmpresasQueryContextFalso(), new TrabajadoresQueryContextFalso());
+            new CentrosQueryContextFalso(), empresas, new TrabajadoresQueryContextFalso());
 
         using var flujo = new MemoryStream();
         libro.SaveAs(flujo);

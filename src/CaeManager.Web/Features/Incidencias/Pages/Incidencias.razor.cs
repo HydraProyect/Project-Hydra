@@ -1,5 +1,6 @@
 using CaeManager.Web.Components;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
+using CaeManager.Application.Common;
 using CaeManager.Application.Incidencias.Commands.CrearIncidencia;
 using CaeManager.Application.Incidencias.Commands.EditarIncidencia;
 using CaeManager.Application.Incidencias.Commands.EliminarIncidencia;
@@ -8,6 +9,7 @@ using CaeManager.Application.Incidencias.Commands.MarcarResueltaIncidencia;
 using CaeManager.Application.Incidencias.Queries.ObtenerIncidenciaPorId;
 using CaeManager.Application.Incidencias.Queries.ObtenerIncidencias;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Incidencias;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
@@ -27,12 +29,13 @@ public partial class Incidencias : ComponentBase
     private Task CambiarPaginaAsync(int pagina) => _paginacion.SetCurrentPageIndexAsync(pagina - 1);
 
     // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
-    private async Task CambiarTamanoPaginaAsync(int tamano)
+    // Una sola petición: SetCurrentPageIndexAsync ya avisa a QuickGrid aunque la
+    // página no cambie, así que refrescar además la rejilla pedía lo mismo dos
+    // veces (ver RecargarAsync).
+    private Task CambiarTamanoPaginaAsync(int tamano)
     {
         _paginacion.ItemsPerPage = tamano;
-        await _paginacion.SetCurrentPageIndexAsync(0);
-        if (_grid is not null)
-            await _grid.RefreshDataAsync();
+        return _paginacion.SetCurrentPageIndexAsync(0);
     }
 
     private QuickGrid<IncidenciaListaDto>? _grid;
@@ -42,6 +45,25 @@ public partial class Incidencias : ComponentBase
     private bool _cargando = true;
     private bool _errorCarga;
     private int _totalElementos;
+
+    /// <summary>
+    /// Número de la carga de la lista en curso. Cada llamada al proveedor lo
+    /// incrementa y, tras el <c>await</c>, solo escribe estado si sigue siendo
+    /// la última: una respuesta lenta de un filtro anterior no puede pisar el
+    /// total, la página ni el error de la consulta vigente. Lo que se protege
+    /// son los campos que esta página escribe al lado de las filas —el total
+    /// decide qué estado vacío se pinta y qué dice el recuento—; la guarda no
+    /// depende de lo que QuickGrid haga con las filas de una carga superada.
+    /// </summary>
+    private int _generacionCarga;
+
+    /// <summary>
+    /// Mismo mecanismo para abrir el formulario: abrir «Editar» en una fila y,
+    /// antes de que llegue su detalle, abrirlo en otra — o pulsar «Nueva
+    /// incidencia» — no puede acabar con el formulario de la primera a la vista
+    /// y guardando sobre ella.
+    /// </summary>
+    private int _generacionFormulario;
 
     private IReadOnlyList<CentroSelectorDto> _centrosDisponibles = [];
     private IReadOnlyList<TrabajadorSelectorDto> _trabajadoresDisponibles = [];
@@ -89,6 +111,14 @@ public partial class Incidencias : ComponentBase
     private bool _eliminandoLote;
     private bool _confirmarEliminarLoteVisible;
 
+    /// <summary>
+    /// Mensaje del conflicto de versión, con el género de «incidencia». El que
+    /// trae <see cref="ConcurrenciaOptimista"/> es genérico y en masculino
+    /// («mientras lo editabas») para cualquier entidad.
+    /// </summary>
+    internal const string MensajeConflictoVersion =
+        "Otra persona guardó esta incidencia mientras la tenías abierta. Vuelve a abrirla para no pisar sus cambios.";
+
     private static TonoBadge GravedadTono(GravedadIncidencia gravedad) => gravedad switch
     {
         GravedadIncidencia.Leve => TonoBadge.Advertencia,
@@ -125,6 +155,32 @@ public partial class Incidencias : ComponentBase
         new("Resuelta", "Resuelta")
     ];
 
+    private string EtiquetaFiltroEstado => _estadoFiltro == "Resuelta" ? "Estado: resueltas" : "Estado: sin resolver";
+
+    /// <summary>
+    /// El recuento solo se pinta con la carga terminada: durante una recarga el
+    /// total todavía es el del filtro anterior, y «con el filtro actual» sería
+    /// falso justo en ese instante. Con cero lo dicen ya los estados vacíos.
+    /// </summary>
+    private bool MostrarRecuento => !_cargando && _totalElementos > 0;
+
+    /// <summary>
+    /// Es el total de servidor YA filtrado: la pantalla no sabe cuántas hay sin
+    /// filtro, así que «con el filtro actual» solo se añade cuando lo hay.
+    /// </summary>
+    private string TextoRecuento =>
+        (_totalElementos == 1 ? "1 incidencia" : $"{_totalElementos} incidencias")
+        + (HayFiltrosActivos ? " con el filtro actual" : string.Empty);
+
+    /// <summary>
+    /// Esqueleto solo cuando no hay nada que enseñar todavía (primera carga, o
+    /// recarga tras un cero). Con filas ya pintadas, una recarga las deja a la
+    /// vista en vez de parpadear a un esqueleto en cada cambio de página.
+    /// </summary>
+    private bool MostrarEsqueleto => _cargando && _elementosPagina.Count == 0;
+
+    private bool OcultarTabla => MostrarEsqueleto || (_totalElementos == 0 && !_cargando);
+
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
     [SupplyParameterFromQuery(Name = "estado")]
@@ -148,9 +204,13 @@ public partial class Incidencias : ComponentBase
         await RecargarAsync();
     }
 
+    /// <summary>El chip quita solo el estado; la búsqueda se queda como está.</summary>
+    private Task QuitarFiltroEstadoAsync() => CambiarEstadoAsync(string.Empty);
+
     private async ValueTask<GridItemsProviderResult<IncidenciaListaDto>> ProveerElementosAsync(
         GridItemsProviderRequest<IncidenciaListaDto> request)
     {
+        var generacion = ++_generacionCarga;
         _cargando = true;
         _errorCarga = false;
 
@@ -160,6 +220,9 @@ public partial class Incidencias : ComponentBase
 
             var (ordenarPor, descendente) = LecturaOrden.Leer(request);
 
+            // La consulta se construye con los filtros de ESTE instante: si
+            // cambian mientras llega la respuesta, lo que se descarta es la
+            // respuesta, no se reinterpreta con los filtros nuevos.
             var resultado = await Mediator.Send(new ObtenerIncidenciasQuery(
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
                 SoloSinResolver: false,
@@ -167,7 +230,10 @@ public partial class Incidencias : ComponentBase
                 Pagina: pagina,
                 TamanoPagina: _paginacion.ItemsPerPage,
                 OrdenarPor: ordenarPor,
-                Descendente: descendente));
+                Descendente: descendente), request.CancellationToken);
+
+            if (generacion != _generacionCarga)
+                return GridItemsProviderResult.From(new List<IncidenciaListaDto>(), 0);
 
             _totalElementos = resultado.TotalElementos;
 
@@ -180,12 +246,16 @@ public partial class Incidencias : ComponentBase
         }
         catch (Exception)
         {
-            _errorCarga = true;
+            // Una carga ya superada que falla (o que QuickGrid canceló) no es
+            // un error de la lista que se está mirando.
+            if (generacion == _generacionCarga)
+                _errorCarga = true;
             return GridItemsProviderResult.From(new List<IncidenciaListaDto>(), 0);
         }
         finally
         {
-            _cargando = false;
+            if (generacion == _generacionCarga)
+                _cargando = false;
             StateHasChanged();
         }
     }
@@ -196,21 +266,69 @@ public partial class Incidencias : ComponentBase
         await RecargarAsync();
     }
 
+    /// <summary>
+    /// Los dos filtros de la barra. Separa "todavía no hay incidencias" de
+    /// "ninguna con estos filtros": con "Sin resolver" puesto, la primera
+    /// frase hace creer que nunca ha pasado nada en ningún centro.
+    /// </summary>
+    private bool HayFiltrosActivos =>
+        !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_estadoFiltro);
+
+    /// <summary>
+    /// Quita los dos filtros en una sola recarga. El estado vive además en la
+    /// URL y se limpia allí: <see cref="OnParametersSet"/> re-sincroniza desde
+    /// ella en cada navegación dentro de la página.
+    /// </summary>
+    private async Task LimpiarFiltrosAsync()
+    {
+        _busqueda = string.Empty;
+        _estadoFiltro = string.Empty;
+        NavigationManager.ActualizarFiltroEnUrl("estado", string.Empty);
+        await RecargarAsync();
+    }
+
+    /// <summary>
+    /// Vuelve a la página 1 y pide la lista UNA vez.
+    /// <see cref="PaginationState.SetCurrentPageIndexAsync"/> no lleva guarda de
+    /// igualdad: avisa a QuickGrid cambie o no la página, y QuickGrid recarga al
+    /// recibir el aviso. Llamar además a <c>RefreshDataAsync</c> pedía dos veces
+    /// lo mismo. Ver <c>Clientes.razor.cs</c> para el detalle del componente.
+    /// El error tiene su propio camino en <see cref="ReintentarAsync"/>.
+    /// </summary>
     private async Task RecargarAsync()
     {
-        await _paginacion.SetCurrentPageIndexAsync(0);
-
-        if (_grid is not null)
+        if (_grid is not null && _paginacion.CurrentPageIndex == 0)
             await _grid.RefreshDataAsync();
+        else
+            await _paginacion.SetCurrentPageIndexAsync(0);
 
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Con el error a la vista la tabla no está en el árbol: su QuickGrid se
+    /// desmontó y refrescar la referencia vieja no garantiza nada. Se vuelve a
+    /// montar una tabla nueva, que hace su propia primera carga.
+    /// </summary>
+    private async Task ReintentarAsync()
+    {
+        _errorCarga = false;
+        _cargando = true;
+        _elementosPagina = [];
+        await _paginacion.SetCurrentPageIndexAsync(0);
         StateHasChanged();
     }
 
     private async Task AbrirCrearAsync()
     {
-        _centrosDisponibles = await Mediator.Send(new ObtenerCentrosParaSelectorQuery());
-        _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
+        var generacion = ++_generacionFormulario;
 
+        var centros = await Mediator.Send(new ObtenerCentrosParaSelectorQuery());
+        var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
+        if (generacion != _generacionFormulario) return;
+
+        _centrosDisponibles = centros;
+        _trabajadoresDisponibles = trabajadores;
         _editandoId = null;
         _centroId = string.Empty;
         _centroNombreEnEdicion = string.Empty;
@@ -221,14 +339,18 @@ public partial class Incidencias : ComponentBase
         _descripcion = string.Empty;
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
+        _guardando = false;
         _drawerVisible = true;
     }
 
     private async Task AbrirEditarAsync(Guid id)
     {
-        _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
+        var generacion = ++_generacionFormulario;
 
+        var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
         var incidencia = await Mediator.Send(new ObtenerIncidenciaPorIdQuery(id));
+        if (generacion != _generacionFormulario) return;
+
         if (incidencia is null)
         {
             ToastService.Mostrar("No encontramos esta incidencia. Puede que ya se haya eliminado.", TonoToast.Error);
@@ -236,6 +358,7 @@ public partial class Incidencias : ComponentBase
             return;
         }
 
+        _trabajadoresDisponibles = trabajadores;
         _editandoId = incidencia.Id;
         _versionEditando = incidencia.Version;
         _centroId = incidencia.CentroId.ToString();
@@ -247,17 +370,25 @@ public partial class Incidencias : ComponentBase
         _descripcion = incidencia.Descripcion;
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
+        _guardando = false;
         _drawerVisible = true;
     }
 
     private Task CerrarDrawerAsync(bool visible)
     {
         _drawerVisible = visible;
+        if (!visible)
+            _generacionFormulario++;
         return Task.CompletedTask;
     }
 
+    private static string MensajeDeFallo(Error error) =>
+        error.Codigo == ConcurrenciaOptimista.CodigoConflicto ? MensajeConflictoVersion : error.Mensaje;
+
     private async Task GuardarAsync()
     {
+        var generacionFormulario = _generacionFormulario;
+        var editandoId = _editandoId;
         _guardando = true;
         _mensajeErrorFormulario = null;
         _erroresCampo = new Dictionary<string, string>();
@@ -285,7 +416,7 @@ public partial class Incidencias : ComponentBase
             var trabajadorId = Guid.TryParse(_trabajadorId, out var tId) ? tId : (Guid?)null;
             string? mensajeError;
 
-            if (_editandoId is null)
+            if (editandoId is null)
             {
                 if (!Guid.TryParse(_centroId, out var centroId))
                 {
@@ -294,40 +425,47 @@ public partial class Incidencias : ComponentBase
                 }
 
                 var resultado = await Mediator.Send(new CrearIncidenciaCommand(centroId, trabajadorId, tipo, gravedad, fechaOcurrencia, _descripcion));
-                mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
+                mensajeError = resultado.EsFallido ? MensajeDeFallo(resultado.Error) : null;
             }
             else
             {
-                var resultado = await Mediator.Send(new EditarIncidenciaCommand(_editandoId.Value, trabajadorId, tipo, gravedad, fechaOcurrencia, _descripcion, _versionEditando));
-                mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
+                var resultado = await Mediator.Send(new EditarIncidenciaCommand(editandoId.Value, trabajadorId, tipo, gravedad, fechaOcurrencia, _descripcion, _versionEditando));
+                mensajeError = resultado.EsFallido ? MensajeDeFallo(resultado.Error) : null;
             }
 
             if (mensajeError is not null)
             {
-                _mensajeErrorFormulario = mensajeError;
+                if (generacionFormulario == _generacionFormulario)
+                    _mensajeErrorFormulario = mensajeError;
                 return;
             }
 
             ToastService.Mostrar(
-                _editandoId is null ? "Incidencia creada correctamente." : "Incidencia actualizada correctamente.",
+                editandoId is null ? "Incidencia creada correctamente." : "Incidencia actualizada correctamente.",
                 TonoToast.Exito);
 
-            _drawerVisible = false;
+            if (generacionFormulario == _generacionFormulario)
+                _drawerVisible = false;
             await RecargarAsync();
         }
         catch (ValidationException ex)
         {
-            _erroresCampo = ex.Errors
-                .GroupBy(e => e.PropertyName)
-                .ToDictionary(g => g.Key, g => g.First().ErrorMessage);
+            if (generacionFormulario == _generacionFormulario)
+            {
+                _erroresCampo = ex.Errors
+                    .GroupBy(e => e.PropertyName)
+                    .ToDictionary(g => g.Key, g => g.First().ErrorMessage);
+            }
         }
         catch (Exception)
         {
-            _mensajeErrorFormulario = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
+            if (generacionFormulario == _generacionFormulario)
+                _mensajeErrorFormulario = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
         }
         finally
         {
-            _guardando = false;
+            if (generacionFormulario == _generacionFormulario)
+                _guardando = false;
         }
     }
 
@@ -459,7 +597,14 @@ public partial class Incidencias : ComponentBase
                 }
             case "x":
                 if (_idEnfocado is { } idAlternar)
+                {
+                    // Marcar con los checkboxes ocultos dejaba una selección
+                    // invisible —con «Eliminar seleccionados» a la vista— sobre
+                    // filas que no se ven marcadas: la trampa que
+                    // AlternarSeleccionMultiple evita al apagarse.
+                    _seleccionMultiple = true;
                     AlternarSeleccion(idAlternar, !_seleccionados.Contains(idAlternar));
+                }
                 break;
             case "Enter":
                 if (_idEnfocado is { } idAbrir)

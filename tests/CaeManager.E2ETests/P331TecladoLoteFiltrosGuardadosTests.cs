@@ -181,8 +181,11 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
             .SelectOptionAsync(new SelectOptionValue { Label = nombreFiltro });
         await Expect(page.GetByPlaceholder("Buscar por nombre…")).ToHaveValueAsync(razonSocialA);
 
-        // Borrar el filtro guardado desde su propio chip.
+        // Borrar el filtro guardado desde su propio chip. Desde la lista Gen 2
+        // el borrado pide confirmación (no tiene deshacer): el chip sigue ahí
+        // hasta que se confirma en el diálogo.
         await chipFiltro.Locator(".chip-filtro-quitar").ClickAsync();
+        await page.GetByRole(AriaRole.Dialog).GetByText("Borrar filtro", new LocatorGetByTextOptions { Exact = true }).ClickAsync();
         await chipFiltro.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 10_000 });
     }
 

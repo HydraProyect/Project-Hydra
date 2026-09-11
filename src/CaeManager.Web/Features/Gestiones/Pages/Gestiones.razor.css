@@ -1,0 +1,188 @@
+/*
+    Gestiones Gen 2 (Gestiones TALVEG.dc.html). Solo lo que pinta esta
+    página: la rejilla, los chips y los estados vacíos son del catálogo o de
+    list-page.css (global).
+*/
+
+.conteo-gestiones {
+    display: block;
+    margin-bottom: var(--space-3);
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+/*
+    Vista rápida. Mismo criterio de apilamiento que las vistas previas de
+    Vehículos y Subcontratas: sin scrim (role="complementary"), se puede
+    seguir trabajando con la lista detrás. 380px según el mockup.
+*/
+.vista-rapida-gestion {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: 380px;
+    background-color: var(--color-overlay);
+    box-shadow: var(--shadow-overlay);
+    border-left: var(--border-default);
+    z-index: 1045;
+    display: flex;
+    flex-direction: column;
+    animation: vista-rapida-gestion-entrar var(--motion-transition) var(--ease-fluid);
+}
+
+@keyframes vista-rapida-gestion-entrar {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .vista-rapida-gestion {
+        animation: none;
+    }
+}
+
+.cabecera-vista-rapida-gestion {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-5);
+    border-bottom: var(--border-default);
+    flex-shrink: 0;
+}
+
+.texto-cabecera-vista-rapida-gestion {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-width: 0;
+}
+
+.etiqueta-vista-rapida-gestion {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+}
+
+.nombre-vista-rapida-gestion {
+    font: var(--font-h3);
+}
+
+.meta-vista-rapida-gestion {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.boton-cerrar-vista-rapida-gestion {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    border: var(--border-default);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+
+.boton-cerrar-vista-rapida-gestion:hover {
+    border-color: var(--color-border-strong);
+    color: var(--color-text);
+}
+
+.boton-cerrar-vista-rapida-gestion:focus-visible {
+    outline: var(--border-focus);
+}
+
+.cuerpo-vista-rapida-gestion {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: var(--space-5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.rejilla-vista-rapida-gestion {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    background: var(--color-surface-subtle);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+}
+
+.celda-vista-rapida-gestion {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.celda-vista-rapida-gestion span {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.celda-vista-rapida-gestion strong {
+    font: var(--font-body-md);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.enlaces-vista-rapida-gestion {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+}
+
+.enlace-vista-rapida-gestion {
+    border: 0;
+    background: none;
+    padding: 0;
+    text-align: left;
+    color: var(--color-primary-500);
+    font: var(--font-label);
+    cursor: pointer;
+}
+
+.enlace-vista-rapida-gestion:hover {
+    color: var(--color-primary-600);
+}
+
+.enlace-vista-rapida-gestion:focus-visible {
+    outline: var(--border-focus);
+}
+
+.pie-vista-rapida-gestion {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-4) var(--space-5);
+    border-top: var(--border-default);
+    flex-shrink: 0;
+}
+
+@media (max-width: 767px) {
+    .vista-rapida-gestion {
+        max-width: 100%;
+    }
+}

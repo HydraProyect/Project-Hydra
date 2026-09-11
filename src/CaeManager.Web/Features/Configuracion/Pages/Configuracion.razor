@@ -5,60 +5,88 @@
 
 <PageTitle>@TituloDocumento — @Marca.Nombre</PageTitle>
 
+@{
+    // EntradaEfectiva siempre resuelve a una entrada del catálogo (lo
+    // desconocido cae en "params"), así que aquí nunca hay null.
+    var actual = Buscar(EntradaEfectiva)!;
+}
+
 <div class="contenedor-pagina configuracion-pagina">
-    <div>
-        <div class="eyebrow-configuracion">Sistema</div>
-        <h1 class="titulo-configuracion">Configuración</h1>
-    </div>
+    <CabeceraPagina Kicker="Sistema" Titulo="Configuración" />
 
     <div class="hub-configuracion">
+        @* Patrón WAI-ARIA de navegación, no de pestañas: cada entrada es un
+           enlace de verdad a /configuracion/{id} (deep link, historial, abrir
+           en pestaña nueva) y la vigente se marca con aria-current="page". El
+           teclado es el nativo de los enlaces: Tab entre entradas, Intro para
+           abrir. Cada grupo es una lista nombrada por su título, para que el
+           lector de pantalla anuncie «Catálogos y datos, lista, 5 elementos». *@
         <nav class="subnav-configuracion" aria-label="Secciones de configuración">
-            @foreach (var grupo in Grupos)
+            @for (var indice = 0; indice < Grupos.Count; indice++)
             {
+                var grupo = Grupos[indice];
+                var idTitulo = $"configuracion-grupo-{indice}";
                 <div class="grupo-subnav">
-                    <div class="titulo-grupo-subnav">@grupo.Titulo</div>
-                    @foreach (var entrada in grupo.Entradas)
-                    {
-                        var activa = entrada.Id == EntradaEfectiva;
-                        <a href="@RutaDe(entrada.Id)"
-                           class="@($"entrada-subnav {(activa ? "entrada-subnav-activa" : "")}")"
-                           aria-current="@(activa ? "page" : null)">
-                            <span class="icono-entrada-subnav">@entrada.Icono</span>
-                            <span class="texto-entrada-subnav">
-                                <span class="nombre-entrada-subnav">@entrada.Nombre</span>
-                                <span class="descripcion-entrada-subnav">@entrada.Descripcion</span>
-                            </span>
-                        </a>
-                    }
+                    <span class="titulo-grupo-subnav" id="@idTitulo">@grupo.Titulo</span>
+                    <ul class="lista-subnav" aria-labelledby="@idTitulo">
+                        @foreach (var entrada in grupo.Entradas)
+                        {
+                            var activa = entrada.Id == actual.Id;
+                            <li>
+                                <a href="@RutaDe(entrada.Id)"
+                                   class="@($"entrada-subnav {(activa ? "entrada-subnav-activa" : "")}")"
+                                   aria-current="@(activa ? "page" : null)">
+                                    @* La abreviatura es decoración: sin aria-hidden el
+                                       nombre accesible sería «US Usuarios …». *@
+                                    <span class="icono-entrada-subnav" aria-hidden="true">@entrada.Icono</span>
+                                    <span class="texto-entrada-subnav">
+                                        <span class="nombre-entrada-subnav">@entrada.Nombre</span>
+                                        <span class="descripcion-entrada-subnav">@entrada.Descripcion</span>
+                                    </span>
+                                </a>
+                            </li>
+                        }
+                    </ul>
                 </div>
             }
         </nav>
 
         <div class="contenido-configuracion">
-            @{
-                var actual = Buscar(EntradaEfectiva);
-            }
-            <div class="migas-configuracion">
-                Configuración <span class="separador-migas">→</span> @(actual is null ? "" : GrupoDe(actual.Id)) <span class="separador-migas">→</span> <span class="miga-actual">@(actual?.Nombre)</span>
-            </div>
+            <p class="migas-configuracion">
+                Configuración <span class="separador-migas" aria-hidden="true">→</span>
+                @GrupoDe(actual.Id) <span class="separador-migas" aria-hidden="true">→</span>
+                <span class="miga-actual">@actual.Nombre</span>
+            </p>
 
-            @if (actual?.TipoPanel is not null)
+            @if (actual.TipoPanel is not null)
             {
+                @* Solo los paneles propios del hub (sin ruta ni cabecera
+                   propias) reciben aquí su h2; las páginas integrables ya
+                   pintan el suyo con IntegradaEnConfiguracion. *@
+                @if (actual.Entradilla is not null)
+                {
+                    <CabeceraPagina Integrada="true" Titulo="@actual.Nombre">
+                        <Descripcion>@actual.Entradilla</Descripcion>
+                    </CabeceraPagina>
+                }
+
                 <div class="panel-configuracion-host" @key="actual.Id">
                     <DynamicComponent Type="actual.TipoPanel" Parameters="@ParametrosDelPanel(actual)" />
                 </div>
             }
             else
             {
-                <div class="placeholder-configuracion">
-                    <span class="icono-placeholder-configuracion"></span>
-                    <span class="titulo-placeholder-configuracion">@(actual?.Nombre ?? "Sección no encontrada")</span>
-                    <span class="descripcion-placeholder-configuracion">
-                        @(actual is null
-                            ? "No reconocemos esta sección."
-                            : $"{actual.Descripcion}. Pantalla pendiente de especificación.")
-                    </span>
-                </div>
+                @* Enlace de salida puro ("plataforma"): OnParametersSet ya
+                   redirige a su ruta literal. Esto es lo que se ve durante ese
+                   instante, o si la navegación no llega: la verdad y el
+                   enlace, no una «pantalla pendiente» que sí existe. *@
+                <EstadoVacio Titulo="@actual.Nombre"
+                             NombreIcono="configuracion"
+                             Descripcion="Esta sección tiene pantalla propia, fuera del hub de Configuración.">
+                    <Accion>
+                        <a href="@RutaDe(actual.Id)">Ir a @actual.Nombre</a>
+                    </Accion>
+                </EstadoVacio>
             }
         </div>
     </div>

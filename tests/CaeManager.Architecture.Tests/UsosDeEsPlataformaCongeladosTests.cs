@@ -127,6 +127,11 @@ public class UsosDeEsPlataformaCongeladosTests
     /// nuevo <c>RegistrarInstruccionTratamientoIaTenantPropietarioCommand.cs</c>
     /// (1 aparición, <see cref="CategoriaUso.ReglaComercial"/>, mismo criterio que
     /// <c>RegistrarSuscripcionTenantCommand</c>).
+    /// Actualizado 2026-09-11 (hallazgo Codex, resincronización/webhook de Stripe):
+    /// <b>24 ficheros, 36 apariciones</b> — nuevo <c>TenantComercialExtensions.cs</c>
+    /// (1 aparición, <see cref="CategoriaUso.ReglaComercial"/>). Es el único fichero nuevo:
+    /// los dos consumidores nuevos del criterio (la resincronización manual y el webhook)
+    /// llaman a <c>EsSuscribible()</c> y no aparecen aquí.
     ///
     /// <para>
     /// Cada entrada se leyó una a una; el conteo <b>no</b> se ajustó a lo que salió del
@@ -188,6 +193,15 @@ public class UsosDeEsPlataformaCongeladosTests
                 "plataforma — mismo criterio que RegistrarSuscripcionTenantCommand:69: TALVEG no se " +
                 "instruye tratamiento a sí misma. La autorización real es PuedeSobreTenantAsync, dos " +
                 "líneas antes"),
+        ["src/CaeManager.Application/Comercial/Common/TenantComercialExtensions.cs"] =
+            new(1, CategoriaUso.ReglaComercial,
+                ":15 define EsSuscribible = !EsPlataforma. Nuevo en la corrección de hallazgo Codex del " +
+                "2026-09-11: ActualizarEstadoComercialTenantCommand (resincronización manual) y el webhook " +
+                "de Stripe ahora excluyen al tenant de plataforma con el mismo criterio que " +
+                "RegistrarSuscripcionTenantCommand:69, pero ninguno de los dos aparece en esta lista — " +
+                "ambos llaman a EsSuscribible() y no mencionan EsPlataforma en su propio fichero. Este es " +
+                "el único punto de verdad, y existe en Application (no en CaeManager.Web) precisamente " +
+                "porque El_ensamblado_de_Web_no_depende_de_EsPlataforma congela esa frontera a cero"),
 
         // ── GUARDA ────────────────────────────────────────────────────────────────
         ["src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs"] =

@@ -26,56 +26,111 @@
 <PageTitle>@_tituloPagina — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <div class="cabecera-pagina">
-        <h1 class="titulo-pagina">@_tituloPagina</h1>
-        <div class="acciones-cabecera">
+    @* Cabecera Gen 2 (Lista Trabajadores TALVEG.dc.html): h1 sin kicker ni
+       entradilla, con Exportar y el alta a la derecha. El título sigue
+       dependiendo del perfil de vocabulario del tenant («Mis trabajadores» en
+       Cliente Directo), que es lo que el propio mockup pide con su selector de
+       perfil. *@
+    <CabeceraPagina Titulo="@_tituloPagina">
+        <Acciones>
             <a class="enlace-exportar" href="/trabajadores/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel</a>
             <Boton OnClick="AbrirCrearAsync">+ Nuevo trabajador</Boton>
-        </div>
-    </div>
+        </Acciones>
+    </CabeceraPagina>
 
-    <div class="barra-filtros">
+    @* Barra de trabajo sobre una superficie, como en el mockup: buscar,
+       documentación, empleador y «Selección múltiple» en una sola fila. La
+       selección múltiple sube aquí desde BarraHerramientasLista, igual que en
+       Centros: mismo método, otra colocación.
+
+       El mockup dibuja además «Todos los centros». No se pinta:
+       ObtenerTrabajadoresQuery no acepta un filtro por Centro, y un
+       desplegable que no filtra nada mentiría. Tampoco se funden Empresa y
+       Subcontrata en un solo desplegable: son dos parámetros distintos de la
+       consulta. Los filtros guardados no salen en el mockup y se conservan. *@
+    <div class="barra-trabajo-centros barra-trabajo-trabajadores">
         <CampoTexto Placeholder="Buscar por nombre, apellidos, alias o DNI…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
-        <FiltroEstado Etiqueta="Documentación" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+        <FiltroEstado Etiqueta="Documentación" TextoTodos="Todas" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
                       Opciones="EstadoDocumentoUi.OpcionesDocumentales" />
-        <div class="filtro-empresa">
-            <CampoSelect Etiqueta="Empresa" Valor="@_filtroEmpresaId" ValorChanged="FiltrarPorEmpresaAsync">
-                <option value="">Todas las empresas</option>
-                @foreach (var empresa in _empresasDisponibles)
-                {
-                    <option value="@empresa.Id">@empresa.RazonSocial</option>
-                }
-            </CampoSelect>
-        </div>
-        <div class="filtro-empresa">
-            <CampoSelect Etiqueta="Subcontrata" Valor="@_filtroSubcontrataId" ValorChanged="FiltrarPorSubcontrataAsync">
-                <option value="">Todas las subcontratas</option>
-                @foreach (var subcontrata in _subcontratasDisponibles)
-                {
-                    <option value="@subcontrata.Id">@subcontrata.RazonSocial</option>
-                }
-            </CampoSelect>
-        </div>
+        <CampoSelect Etiqueta="Empresa" Valor="@_filtroEmpresaId" ValorChanged="FiltrarPorEmpresaAsync">
+            <option value="">Todas las empresas</option>
+            @foreach (var empresa in _empresasDisponibles)
+            {
+                <option value="@empresa.Id">@empresa.RazonSocial</option>
+            }
+        </CampoSelect>
+        <CampoSelect Etiqueta="Subcontrata" Valor="@_filtroSubcontrataId" ValorChanged="FiltrarPorSubcontrataAsync">
+            <option value="">Todas las subcontratas</option>
+            @foreach (var subcontrata in _subcontratasDisponibles)
+            {
+                <option value="@subcontrata.Id">@subcontrata.RazonSocial</option>
+            }
+        </CampoSelect>
         @if (_filtrosGuardados.Count > 0)
         {
-            <CampoSelect Etiqueta="" Valor="" ValorChanged="AplicarFiltroGuardadoAsync">
-                <option value="">Filtros guardados…</option>
+            <CampoSelect Etiqueta="Filtros guardados" Valor="" ValorChanged="AplicarFiltroGuardadoAsync">
+                <option value="">Aplicar uno…</option>
                 @foreach (var filtro in _filtrosGuardados)
                 {
                     <option value="@filtro.Id">@filtro.Nombre</option>
                 }
             </CampoSelect>
         }
+        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+               OnClick="() => AlternarSeleccionMultiple(!_seleccionMultiple)"
+               aria-pressed="@(_seleccionMultiple ? "true" : "false")">
+            Selección múltiple
+        </Boton>
         <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _mostrarGuardarFiltro = true">
             Guardar filtro
         </Boton>
     </div>
 
+    @* Mismo bloque que Clientes y Empresas. Aquí importa más que en ninguna
+       otra lista: son CUATRO filtros y tres de ellos viven dentro de
+       desplegables cerrados, así que sin esto no hay forma de ver desde fuera
+       por qué la lista está recortada. *@
+    @if (HayFiltrosActivos)
+    {
+        <div class="chips-filtros">
+            <span class="chips-filtros-indicador" aria-hidden="true"><Icono Nombre="filtro" Tamano="TamanoIcono.Pequeno" /></span>
+            @if (!string.IsNullOrWhiteSpace(_busqueda))
+            {
+                <span class="chip-filtro">
+                    Búsqueda: "@_busqueda"
+                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroBusquedaAsync" aria-label="Quitar filtro de búsqueda"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
+                </span>
+            }
+            @if (!string.IsNullOrWhiteSpace(_estadoFiltro))
+            {
+                <span class="chip-filtro">
+                    @EtiquetaFiltroEstado
+                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroEstadoAsync" aria-label="Quitar filtro de documentación"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
+                </span>
+            }
+            @if (!string.IsNullOrWhiteSpace(_filtroEmpresaId))
+            {
+                <span class="chip-filtro">
+                    @EtiquetaFiltroEmpresa
+                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroEmpresaAsync" aria-label="Quitar filtro de empresa"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
+                </span>
+            }
+            @if (!string.IsNullOrWhiteSpace(_filtroSubcontrataId))
+            {
+                <span class="chip-filtro">
+                    @EtiquetaFiltroSubcontrata
+                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroSubcontrataAsync" aria-label="Quitar filtro de subcontrata"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
+                </span>
+            }
+        </div>
+    }
+
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
     @if (_errorCarga)
     {
-        <EstadoVacio Titulo="No pudimos cargar los trabajadores" Descripcion="Intenta nuevamente en unos segundos.">
+        <EstadoVacio NombreIcono="error-circulo" AcentoIcono="var(--color-danger-700)" FondoIcono="var(--color-danger-50)"
+                     Titulo="No pudimos cargar los trabajadores" Descripcion="Intenta nuevamente en unos segundos.">
             <Accion>
                 <Boton OnClick="RecargarAsync">Reintentar</Boton>
             </Accion>
@@ -83,18 +138,27 @@
     }
     else
     {
-        <BarraHerramientasLista SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple" />
+        @if (_cargando && _totalElementos == 0)
+        {
+            <EstadoCargando Filas="8" />
+        }
 
-        <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
+        @* La rejilla se monta siempre (es la que pide los datos a
+           ProveerElementosAsync): se esconde mientras no haya filas que
+           enseñar, y en su lugar se ve el esqueleto o el estado vacío que
+           toque. *@
+        <div style="display:@(_totalElementos == 0 ? "none" : "block")">
             <QuickGrid @ref="_grid" TGridItem="TrabajadorListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
                 @if (_seleccionMultiple)
                 {
+                    @* La casilla de cabecera solo marca los de la página
+                       visible, y su nombre accesible lo dice. *@
                     <TemplateColumn Title="" Align="Align.Center">
                         <HeaderTemplate Context="columna">
-                            <input type="checkbox" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
+                            <input type="checkbox" aria-label="Seleccionar los trabajadores de esta página" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
                         </HeaderTemplate>
                         <ChildContent>
-                            <input type="checkbox" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
+                            <input type="checkbox" aria-label="@($"Seleccionar a {NombreCompleto(context)}")" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
                         </ChildContent>
                     </TemplateColumn>
                 }
@@ -120,6 +184,13 @@
                         <ItemMenuAccion OnClick='() => AbrirPreview(context.Id)'>
                             Detalles
                         </ItemMenuAccion>
+                        @* Hasta ahora Trabajador 360 solo se alcanzaba abriendo antes la
+                           vista previa. Es la opción que el propio mockup marca como
+                           recomendada de las tres que plantea, y no cuesta dato ni
+                           componente nuevos: la ruta /trabajadores/{id} ya existe. *@
+                        <ItemMenuAccion OnClick='() => AbrirTrabajador360(context.Id)'>
+                            Abrir Trabajador 360
+                        </ItemMenuAccion>
                         <ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, NombreCompleto(context))">
                             Eliminar
                         </ItemMenuAccion>
@@ -132,9 +203,26 @@
                               TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
         </div>
 
-        @if (_totalElementos == 0 && !_cargando)
+        @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)
         {
-            <EstadoVacio NombreIcono="trabajadores" Titulo="Aún no hay trabajadores" Descripcion="Crea el primero para empezar a gestionar su documentación.">
+            @* Distinto de "aún no hay trabajadores": aquí hay cuatro filtros
+               puestos —búsqueda, documentación, empresa y subcontrata— y
+               ofrecer "crea el primero" a quien ha filtrado lo manda a dar de
+               alta un trabajador que probablemente ya existe, con el DNI
+               duplicado que eso arrastra.
+
+               La copia no afirma que HAYA trabajadores dados de alta: el
+               filtrado es de servidor y solo devuelve el total ya filtrado. *@
+            <EstadoVacio NombreIcono="vacio" Titulo="Ningún trabajador con estos filtros"
+                         Descripcion="Ninguno coincide con la búsqueda ni con los filtros de documentación, empresa o subcontrata.">
+                <Accion>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar los filtros</Boton>
+                </Accion>
+            </EstadoVacio>
+        }
+        else if (_totalElementos == 0 && !_cargando)
+        {
+            <EstadoVacio NombreIcono="trabajadores" Titulo="Aún no hay trabajadores" Descripcion="Da de alta el primero para empezar a controlar su documentación.">
                 <Accion>
                     <Boton OnClick="AbrirCrearAsync">+ Nuevo trabajador</Boton>
                 </Accion>
@@ -244,7 +332,7 @@
 
 <TrabajadorPreviewDrawer TrabajadorId="_previewTrabajadorId" Visible="_previewVisible" VisibleChanged="v => _previewVisible = v" />
 
-<Modal Visible="_asignarCentroVisible" VisibleChanged="v => _asignarCentroVisible = v" Titulo="@($"Asignar {_seleccionados.Count} trabajador(es) a un centro")" CerrarAlHacerClicFuera="!_asignandoLote">
+<Modal Visible="_asignarCentroVisible" VisibleChanged="v => { if (!v) CerrarAsignarCentro(); }" Titulo="@($"Asignar {_seleccionados.Count} trabajador(es) a un centro")" CerrarAlHacerClicFuera="!_asignandoLote">
     <ChildContent>
         <CampoBuscarSelect
             Etiqueta="Centro"
@@ -255,11 +343,15 @@
 
         <CampoTexto Etiqueta="Fecha de alta" Type="date" Valor="@_fechaAltaParaAsignar" ValorChanged="v => _fechaAltaParaAsignar = v" />
 
+        @* La comprobación es una lectura aparte, hecha al elegir el centro:
+           CrearAsignacionesCommand ni la repite ni se detiene por documentos.
+           Por eso el aviso habla en pasado (lo que faltaba al comprobarlo) y
+           no promete qué quedará al confirmar. *@
         @if (_documentosFaltantesParaAsignar.Count > 0)
         {
             <div class="alerta-preflight-asignacion" role="status">
                 <p>
-                    <strong>@_documentosFaltantesParaAsignar.Count combinación(es)</strong> quedarán sin este documento obligatorio al confirmar:
+                    Al comprobarlo faltaban <strong>@_documentosFaltantesParaAsignar.Count documento(s) que se piden</strong>:
                 </p>
                 <ul>
                     @foreach (var faltante in _documentosFaltantesParaAsignar.Take(5))
@@ -271,11 +363,12 @@
                 {
                     <p>y @(_documentosFaltantesParaAsignar.Count - 5) más…</p>
                 }
+                <p>Asignar no crea esos documentos, y que falten no impide la asignación.</p>
             </div>
         }
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_asignandoLote" OnClick="() => _asignarCentroVisible = false">
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_asignandoLote" OnClick="CerrarAsignarCentro">
             Cancelar
         </Boton>
         <Boton Cargando="_asignandoLote" OnClick="ConfirmarAsignarCentroAsync">

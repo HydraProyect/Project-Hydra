@@ -66,18 +66,23 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         await drawer.GetByLabel("Nombre").FillAsync(nombreTipoDocumento);
         await drawer.GetByLabel("¿Se pide?").SelectOptionAsync("Si");
         await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+        // Crear un tipo con «Sí, siempre» cambia lo que se pide en todos los
+        // centros, así que la pantalla lo confirma antes de guardar.
+        await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Guardar y aplicar" }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
-        // --- Paso 1: Cliente → Empresa → Centro (alta guiada) ---
+        // --- Paso 1: Empresa → Cliente → Centro (alta guiada) ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes/alta-guiada");
-        await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "1. Cliente" }).WaitForAsync();
+        await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "1. Empresa" }).WaitForAsync();
+        await page.GetByLabel("Razón social").FillAsync(razonSocialEmpresa);
+        // Paso 1: "CIF (opcional)", no "CIF" — CrearEmpresaCommand lo acepta
+        // nulo mientras CrearClienteCommand (paso 2) lo exige.
+        await page.GetByLabel("CIF (opcional)", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_994_602));
+        await page.GetByText("Guardar y continuar").ClickAsync();
+
+        await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "2. Cliente" }).WaitForAsync();
         await page.GetByLabel("Razón social").FillAsync(razonSocialCliente);
         await page.GetByLabel("CIF", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_994_601));
-        await page.GetByText("Guardar y continuar a Empresa").ClickAsync();
-
-        await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "2. Empresa" }).WaitForAsync();
-        await page.GetByLabel("Razón social").FillAsync(razonSocialEmpresa);
-        await page.GetByLabel("CIF", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_994_602));
         await page.GetByText("Guardar y continuar a Centro").ClickAsync();
 
         await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "3. Centro" }).WaitForAsync();
@@ -114,9 +119,10 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         await page.Locator(".modal-cuerpo").GetByLabel("Centro", new LocatorGetByLabelOptions { Exact = true })
             .FillAsync($"{nombreCentro} ({razonSocialCliente})");
         await page.WaitForTimeoutAsync(500);
-        // El botón dice "Asignar igualmente" cuando quedan documentos
-        // obligatorios sin cubrir — exactamente el caso de este test, que
-        // necesita esa Falta para poder demostrar luego cómo se resuelve.
+        // El botón dice "Asignar igualmente" cuando al comprobarlo faltaba
+        // algún documento de los que se piden — exactamente el caso de este
+        // test, que necesita esa Falta para poder demostrar luego cómo se
+        // resuelve.
         await page.Locator(".modal-pie").GetByText(new System.Text.RegularExpressions.Regex("^Asignar")).ClickAsync();
         await page.Locator(".modal-pie").WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 

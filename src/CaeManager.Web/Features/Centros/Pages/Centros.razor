@@ -24,9 +24,9 @@
 <PageTitle>Centros — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <div class="cabecera-pagina">
-        <h1 class="titulo-pagina">Centros</h1>
-    </div>
+    @* Cabecera Gen 2 (Lista Centros TALVEG.dc.html): el mockup no lleva
+       kicker ni entradilla, solo el h1. *@
+    <CabeceraPagina Titulo="Centros" />
 
     @*
         Toolbar de Centros (contrato de fidelidad 2026-08-09 § 1.4): una sola
@@ -88,6 +88,22 @@
     {
         <EstadoCargando Filas="6" />
     }
+    else if (_elementosPagina.Count == 0 && HayFiltrosActivos)
+    {
+        @* Distinto de "aún no hay X": son dos situaciones opuestas y llevan
+           a acciones opuestas. Ofrecer "crea el primero" a quien acaba de
+           filtrar lo manda a duplicar algo que ya existe.
+
+           La copia no afirma que HAYA registros dados de alta: el filtrado
+           es de servidor y la consulta solo devuelve el total ya filtrado,
+           así que la pantalla no sabe cuántos hay sin filtro. *@
+        <EstadoVacio NombreIcono="vacio" Titulo="Ningún centro con estos filtros"
+                     Descripcion="Ninguno coincide con la búsqueda ni con el estado de documentación seleccionado.">
+            <Accion>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar los filtros</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
     else if (_elementosPagina.Count == 0)
     {
         <EstadoVacio NombreIcono="centros" Titulo="Aún no hay centros" Descripcion="Crea el primero para empezar a asignar trabajadores.">
@@ -100,9 +116,24 @@
     {
         @if (_seleccionMultiple)
         {
+            @* "Seleccionar todos" era falso y se contradecía con la propia barra
+               de lote, que ya dice «N seleccionado(s) EN ESTA PÁGINA»: la casilla
+               solo marca los de la página actual. Con 20 por página y 200
+               coincidencias, quien la marcaba y pulsaba "Eliminar seleccionados"
+               borraba 20 creyendo que borraba 200.
+
+               Se dice ademas cuantas quedan fuera cuando las hay: es la mitad
+               informativa del banner que pide el mockup. La otra mitad,
+               "seleccionar las N filtradas", NO se implementa aqui — añade una
+               capacidad de selección masiva sobre un camino destructivo, y eso
+               es una decisión de producto, no de maquetación. *@
             <label class="campo-checkbox">
                 <input type="checkbox" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
-                Seleccionar todos
+                Seleccionar los de esta página
+                @if (_totalElementos > _elementosPagina.Count)
+                {
+                    <span class="texto-vacio-seccion">@($" — hay {_totalElementos} en total con estos filtros")</span>
+                }
             </label>
         }
 
@@ -249,13 +280,31 @@
                         @* Igual que antes con SeccionColapsable: el contenido solo se
                            monta al expandir, no se paga el render de 34 acordeones. *@
                         <div class="tarjeta-fila-acordeon-contenido">
+                            @* El título es verdadero por construcción: el
+                               acordeón se monta aquí con SoloIncidencias. *@
+                            <p class="acordeon-centro-titulo">Asignaciones con incidencias</p>
                             <AcordeonAsignacionesCentro CentroId="centro.Id" CentroNombre="@centro.Nombre"
                                                           VisitaId="visita?.VisitaId" VisitaFechaFin="visita?.FechaFin"
                                                           EmpresaId="centro.EmpresaId" EmpresaNombre="@centro.EmpresaRazonSocial"
                                                           IncidenciasEmpresa="IncidenciasDeEmpresa(centro)"
                                                           SeleccionMultiple="_seleccionMultiple"
                                                           SoloIncidencias="true"
+                                                          MostrarEnlacesCentro360="false"
                                                           OnCambio="() => RefrescarCentroAsync(centro.Id)" />
+                            @* Camino a Centro 360 ÚNICO y SIEMPRE presente (Lista
+                               Centros TALVEG.dc.html). Los enlaces que el acordeón
+                               pinta por su cuenta son condicionales —solo con
+                               trabajadores al día ocultos o con el estado «Todos
+                               al día»—, así que un centro con pendientes y sin
+                               ocultos no ofrecía camino alguno a /centros/{id}; y
+                               cuando sí aparecían, se sumaban a este y la fila
+                               ofrecía dos caminos al mismo destino. Por eso aquí
+                               se apagan (MostrarEnlacesCentro360="false") y el
+                               camino vive solo en la página: el acordeón también
+                               lo monta CentroDetalle, donde apuntaría a sí mismo. *@
+                            <div class="acordeon-centro-pie">
+                                <a class="acordeon-centro-enlace-360" href="@($"/centros/{centro.Id}")">Ver el centro completo →</a>
+                            </div>
                         </div>
                     }
                 </div>
