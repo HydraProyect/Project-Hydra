@@ -171,7 +171,8 @@ public class PlantillaClientesAlineacionAnalisisEjecucionTests : IAsyncLifetime
         new(
             new EmpresaRepository(contexto), new TrabajadorRepository(contexto), new DocumentoRepository(contexto),
             new AsignacionRepository(contexto), new OperacionImportacionRepository(contexto),
-            contexto, contexto, contexto, contexto, contexto, contexto);
+            contexto, contexto, contexto, contexto, contexto, contexto,
+            new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador"));
 
     private CaeManagerDbContext CrearContexto()
     {
