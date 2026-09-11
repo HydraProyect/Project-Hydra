@@ -31,6 +31,12 @@ namespace CaeManager.Web.Api.Comercial;
 /// Hydra guarda con Stripe — de ahí que <see cref="ITenantsQueryContext"/>
 /// no necesite ningún ámbito de tenant explícito aquí (Tenant no pertenece a
 /// ningún tenant, ver TenantConfiguration).
+///
+/// Si esa correlación resolviera al tenant de plataforma —nunca debería,
+/// pero es deriva de datos, no una invariante de base de datos—, el evento
+/// se ignora sin mutar (<c>Tenant.EsSuscribible</c>, ver
+/// <see cref="TenantComercialExtensions"/> sobre por qué la comprobación
+/// vive allí y no aquí).
 /// </summary>
 public static class WebhookStripeEndpoints
 {
@@ -97,6 +103,23 @@ public static class WebhookStripeEndpoints
                 // que no se pierde nada). No es un error: se ignora.
                 logger.LogInformation(
                     "Webhook de Stripe para una suscripción sin tenant vinculado todavía: {IdSuscripcion}.", suscripcion.IdSuscripcion);
+                return Results.Ok();
+            }
+
+            if (!tenant.EsSuscribible())
+            {
+                // El tenant de plataforma nunca es él mismo un suscriptor
+                // (RegistrarSuscripcionTenantCommand lo impide al vincular).
+                // Que llegue aquí solo puede ser deriva de datos — se ignora
+                // sin mutar el estado comercial, con acuse 200 igual que el
+                // resto de ramas benignas de este endpoint (Stripe no debe
+                // reintentar algo que no se va a arreglar reintentando), pero
+                // en Warning porque, a diferencia de una suscripción sin
+                // vincular todavía, esto no es un estado esperado del ciclo
+                // de alta y merece revisión manual.
+                logger.LogWarning(
+                    "Webhook de Stripe {TipoEvento} para una suscripción vinculada al tenant de plataforma ({TenantId}): {IdSuscripcion}. Se ignora sin mutar el estado comercial.",
+                    evento.Valor.TipoEvento, tenant.Id, suscripcion.IdSuscripcion);
                 return Results.Ok();
             }
 

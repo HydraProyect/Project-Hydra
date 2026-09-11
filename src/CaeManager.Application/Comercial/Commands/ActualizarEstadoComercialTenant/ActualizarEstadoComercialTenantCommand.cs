@@ -48,11 +48,15 @@ public class ActualizarEstadoComercialTenantCommandHandler(
 
         if (!await autorizacion.PuedeSobreTenantAsync(usuarioId.Value, request.TenantId, cancellationToken))
             return Result.Fallo(Error.Crear(
-                "Comercial.NoAutorizado", "No tienes autorización de plataforma sobre ese cliente."));
+                "Comercial.NoAutorizado", "No tienes autorización de plataforma sobre ese tenant."));
 
         var tenant = await dbContext.Tenants.SingleOrDefaultAsync(t => t.Id == request.TenantId, cancellationToken);
         if (tenant is null)
             return Result.Fallo(Error.Crear("Comercial.TenantNoEncontrado", "No encontramos ese tenant."));
+
+        if (!tenant.EsSuscribible())
+            return Result.Fallo(Error.Crear(
+                "Comercial.TenantPlataforma", "El tenant de plataforma no es un tenant suscriptor."));
 
         if (tenant.StripeSubscriptionId is null)
             return Result.Fallo(Error.Crear(
