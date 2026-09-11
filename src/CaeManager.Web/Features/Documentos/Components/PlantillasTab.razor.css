@@ -1,0 +1,42 @@
+/*
+  Catálogo de plantillas (Plantillas TALVEG.dc.html).
+
+  Sigue siendo una <table>: aquí la fila no se despliega (a diferencia de
+  Empresas), así que la semántica de tabla es la correcta y un lector de
+  pantalla puede recorrerla por celdas. Lo que se traslada del mockup es el
+  marco: una tarjeta con desplazamiento horizontal propio, para que en una
+  ventana estrecha se desplace la lista y no la página entera.
+*/
+.marco-lista-plantillas {
+    overflow-x: auto;
+    background: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+}
+
+/* El borde y el radio los pone el marco: la tabla dentro no los repite. */
+.marco-lista-plantillas .tabla-datos {
+    min-width: 880px;
+    border: 0;
+    border-radius: 0;
+}
+
+/* Densidad del mockup: cabecera de 40 px y filas de 44-48 px. */
+.marco-lista-plantillas .tabla-datos th {
+    padding: var(--space-3) var(--space-5);
+}
+
+.marco-lista-plantillas .tabla-datos td {
+    padding: var(--space-2) var(--space-5);
+}
+
+.nombre-plantilla {
+    font-weight: 600;
+}
+
+.acciones-plantilla {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
