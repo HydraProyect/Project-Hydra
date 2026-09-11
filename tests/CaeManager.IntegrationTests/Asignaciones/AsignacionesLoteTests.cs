@@ -210,7 +210,7 @@ public class AsignacionesLoteTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
         var servicio = new DocumentosFaltantesService(contexto, contexto);
-        var handler = new ObtenerDocumentosFaltantesParaAsignacionQueryHandler(contexto, contexto, servicio);
+        var handler = new ObtenerDocumentosFaltantesParaAsignacionQueryHandler(contexto, contexto, servicio, new AlcanceDatosServiceFalso());
 
         // Ninguno de los dos trabajadores tiene el Apto médico todavía —
         // asignarlos a los dos centros debería avisar de 2 x 2 = 4 huecos.
@@ -220,6 +220,27 @@ public class AsignacionesLoteTests : IAsyncLifetime
 
         faltantes.Should().HaveCount(4);
         faltantes.Should().OnlyContain(f => f.TipoDocumentoId == _tipoObligatorioId);
+    }
+
+    [Fact]
+    public async Task El_preflight_descarta_en_silencio_un_centro_fuera_de_cartera()
+    {
+        // Defecto detectado en la revisión de Codex del 2026-09-11: el
+        // handler no comprobaba cartera sobre el Centro, así que un llamador
+        // que construyera un CentroId ajeno obtenía su nombre real y sus
+        // documentos faltantes antes de que CrearAsignacionesCommand lo
+        // rechazara. Contra Postgres real (no un fake en memoria) para
+        // comprobar que el filtro sobrevive a la traducción EF → SQL.
+        await using var contexto = CrearContexto();
+        var servicio = new DocumentosFaltantesService(contexto, contexto);
+        var handler = new ObtenerDocumentosFaltantesParaAsignacionQueryHandler(
+            contexto, contexto, servicio, new AlcanceDatosServiceFalso(centroIds: [_centro1Id]));
+
+        var faltantes = await handler.Handle(
+            new ObtenerDocumentosFaltantesParaAsignacionQuery([_trabajador2Id], [_centro1Id, _centro2Id]),
+            CancellationToken.None);
+
+        faltantes.Should().OnlyContain(f => f.CentroId == _centro1Id, "el Centro2 no está en la cartera de quien consulta");
     }
 
     [Fact]
@@ -234,7 +255,7 @@ public class AsignacionesLoteTests : IAsyncLifetime
 
         await using var contexto2 = CrearContexto();
         var servicio = new DocumentosFaltantesService(contexto2, contexto2);
-        var handler = new ObtenerDocumentosFaltantesParaAsignacionQueryHandler(contexto2, contexto2, servicio);
+        var handler = new ObtenerDocumentosFaltantesParaAsignacionQueryHandler(contexto2, contexto2, servicio, new AlcanceDatosServiceFalso());
 
         var faltantes = await handler.Handle(
             new ObtenerDocumentosFaltantesParaAsignacionQuery([_trabajador1Id], [_centro1Id]),
