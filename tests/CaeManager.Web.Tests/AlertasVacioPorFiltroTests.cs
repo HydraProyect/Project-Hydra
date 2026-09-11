@@ -32,6 +32,9 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class AlertasVacioPorFiltroTests : BunitContext
 {
+    /// <summary>La columna Vencimiento usa TextoFechaCopiable, que importa clipboard.js al pintarse; el JavaScript queda fuera.</summary>
+    public AlertasVacioPorFiltroTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+
     private sealed class MediatorConAlertas(IReadOnlyList<AlertaDto> alertas) : IMediator
     {
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
