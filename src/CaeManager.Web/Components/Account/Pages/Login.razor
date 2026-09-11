@@ -1,5 +1,5 @@
 @page "/cuenta/iniciar-sesion"
-@layout CaeManager.Web.Components.Layout.AuthLayout
+@layout CaeManager.Web.Components.Layout.AccesoLayout
 @attribute [AllowAnonymous]
 @using System.ComponentModel.DataAnnotations
 @using CaeManager.Infrastructure.Identity
@@ -15,47 +15,62 @@
 
 <PageTitle>Iniciar sesión — @Marca.Nombre</PageTitle>
 
-<div class="tarjeta-login">
-    <h1>@Marca.Nombre</h1>
-    <p class="subtitulo-login">Coordinación de Actividades Empresariales</p>
+@* Pantalla contra el artefacto aprobado «Luz de agua» (el acceso hecho junto a
+   la web oficial), no contra «Iniciar Sesion TALVEG.dc.html». El artefacto no
+   pinta errores, validación ni SSO: ese comportamiento es del código y se
+   conserva tal cual. El lockup es el activo final de marca, vectorizado: no
+   depende de ninguna fuente. *@
+<div class="acceso-tarjeta">
+    <h1 class="acceso-marca">
+        <img src="img/marca/talveg-lockup-oscuro.svg" alt="TALVEG" width="889" height="185" />
+    </h1>
+    <p class="acceso-lema">Coordinación de actividades empresariales</p>
 
     @if (mensajeErrorSso is not null)
     {
-        <div class="alerta-login" role="alert">@mensajeErrorSso</div>
-    }
-
-    @* Sin AzureAd configurado el botón ni se muestra — el login local sigue
-       siendo el único camino (mismo principio "inerte por defecto" que
-       Sentry/Backups/Anthropic). Ver RestriccionLoginLocalClaimsTransformation:
-       una vez configurado, el login local deja de dar rol de edición. *@
-    @if (OpcionesAzureAd.Value.EstaConfigurado)
-    {
-        <a class="boton-primario boton-microsoft" href="@EnlaceLoginMicrosoft">Iniciar sesión con Microsoft</a>
-        <p class="separador-login">o con tu correo y contraseña (acceso solo de consulta)</p>
+        <div class="acceso-alerta" role="alert">@mensajeErrorSso</div>
     }
 
     @if (Entrada is not null)
     {
-        <EditForm Model="Entrada" method="post" OnValidSubmit="IniciarSesionAsync" FormName="iniciar-sesion">
+        @* novalidate: la validación la dice el servidor, con sus mensajes, en
+           vez de la burbuja nativa que traería type="email". *@
+        <EditForm Model="Entrada" method="post" OnValidSubmit="IniciarSesionAsync" FormName="iniciar-sesion" novalidate>
             <DataAnnotationsValidator />
 
             @if (mensajeError is not null)
             {
-                <div class="alerta-login" role="alert">@mensajeError</div>
+                <div class="acceso-alerta" role="alert">@mensajeError</div>
             }
 
-            <label for="email">Correo electrónico</label>
-            <InputText id="email" @bind-Value="Entrada.Email" autocomplete="username" />
-            <ValidationMessage For="() => Entrada.Email" />
+            <div class="acceso-campo">
+                <label for="email">Correo electrónico</label>
+                <InputText id="email" type="email" @bind-Value="Entrada.Email" autocomplete="username" />
+                <ValidationMessage For="() => Entrada.Email" />
+            </div>
 
-            <label for="password">Contraseña</label>
-            <InputText id="password" type="password" @bind-Value="Entrada.Password" autocomplete="current-password" />
-            <ValidationMessage For="() => Entrada.Password" />
+            <div class="acceso-campo">
+                <label for="password">Contraseña</label>
+                <InputText id="password" type="password" @bind-Value="Entrada.Password" autocomplete="current-password" />
+                <ValidationMessage For="() => Entrada.Password" />
+            </div>
 
-            <button type="submit" class="boton-primario">Iniciar sesión</button>
-            <a class="enlace-olvide-contrasena" href="/cuenta/olvide-contrasena">¿Olvidaste tu contraseña?</a>
+            <button type="submit" class="acceso-entrar">Entrar</button>
         </EditForm>
     }
+
+    @* Sin AzureAd configurado el enlace ni se muestra — el login local sigue
+       siendo el único camino (mismo principio "inerte por defecto" que
+       Sentry/Backups/Anthropic). Ver RestriccionLoginLocalClaimsTransformation:
+       una vez configurado, el login local deja de dar rol de edición, y la nota
+       lo dice antes de que alguien entre y no pueda editar. *@
+    @if (OpcionesAzureAd.Value.EstaConfigurado)
+    {
+        <p class="acceso-alterno">o <a href="@EnlaceLoginMicrosoft">continuar con Microsoft</a></p>
+        <p class="acceso-nota">Con correo y contraseña, el acceso es solo de consulta.</p>
+    }
+
+    <p class="acceso-olvido"><a href="/cuenta/olvide-contrasena">¿Has olvidado la contraseña?</a></p>
 </div>
 
 @code {
@@ -80,7 +95,9 @@
         Entrada ??= new DatosEntrada();
         mensajeErrorSso = ErrorSso switch
         {
-            "sin-cuenta" => "Tu cuenta de Microsoft no está dada de alta en @Marca.Nombre. Contacta con tu administrador.",
+            // Interpolado: dentro de una cadena C# «@Marca.Nombre» no es Razor,
+            // es texto, y así llegaba a la pantalla.
+            "sin-cuenta" => $"Tu cuenta de Microsoft no está dada de alta en {Marca.Nombre}. Contacta con tu administrador.",
             "fallo" => "No pudimos completar el inicio de sesión con Microsoft. Intenta nuevamente.",
             _ => null,
         };

@@ -26,10 +26,16 @@ public static class CabecerasSeguridadExtensions
     // ADVERTENCIA: este hash cambia si cambia el conjunto de módulos JS de
     // la app (añadir/quitar un archivo .js o .razor.js, o una librería con
     // JS isolation) — un build con la CSP rota (mismo error en consola) es
-    // la señal de que hay que recalcularlo.
+    // la señal de que hay que recalcularlo. También cambia si cambia el
+    // CONTENIDO de cualquiera de esos .js, porque el mapa lleva su fingerprint:
+    // el valor anterior llevaba roto desde algún cambio de JS posterior al
+    // 2026-08-18 sin que nadie lo notara. Cómo recalcularlo: el hash lo pide el
+    // propio navegador en el error de consola; para medirlo sin navegador, SHA-256
+    // en base64 del contenido del <script type="importmap"> servido, con los
+    // CRLF pasados a LF (el analizador HTML normaliza los saltos antes de hashear).
     private const string PoliticaSeguridadContenido =
         "default-src 'self'; " +
-        "script-src 'self' 'sha256-QGm8WYBGPLZFJDgw7y+COnKm9Lrusl5LogX6lNPAXAw='; " +
+        "script-src 'self' 'sha256-6JryZaOZrIoqLjeCzRQwtbfIAZRpY06IyPhC2k6DHq8='; " +
         "style-src 'self' 'unsafe-inline'; " +
         "img-src 'self' data:; " +
         "font-src 'self'; " +
