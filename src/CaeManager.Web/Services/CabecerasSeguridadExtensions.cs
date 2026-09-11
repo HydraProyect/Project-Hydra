@@ -38,7 +38,7 @@ public static class CabecerasSeguridadExtensions
     // entorno Windows así, este error de consola es esperable.
     private const string PoliticaSeguridadContenido =
         "default-src 'self'; " +
-        "script-src 'self' 'sha256-2S62ZZDju0Qo1ScKgyhgdhk001JDzVt/CUfyWkBnd1o='; " +
+        "script-src 'self' 'sha256-nRFxaKlNp9fIdEMoUkQE5At518PXz6NP0P0CU+b16nU='; " +
         "style-src 'self' 'unsafe-inline'; " +
         "img-src 'self' data:; " +
         "font-src 'self'; " +
