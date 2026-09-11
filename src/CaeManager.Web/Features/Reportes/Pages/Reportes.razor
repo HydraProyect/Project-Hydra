@@ -25,12 +25,23 @@
         <div class="columna-reportes-filtros">
             <div class="tarjeta-biblioteca">
                 <span class="titulo-biblioteca" id="titulo-biblioteca">Biblioteca</span>
+                @* Patrón radiogroup de WAI-ARIA: una sola parada de tabulador (la
+                   opción marcada lleva tabindex="0", las demás "-1") y flechas
+                   arriba/abajo/izquierda/derecha circulares que MARCAN la opción
+                   destino —con la misma invalidación de la vista previa que el
+                   clic— y le mueven el foco. El foco se da en OnAfterRenderAsync,
+                   cuando la opción ya lleva tabindex="0", sin JS nuevo. *@
                 <div class="lista-informes" role="radiogroup" aria-labelledby="titulo-biblioteca">
-                    @foreach (var informe in Informes)
+                    @for (var i = 0; i < Informes.Count; i++)
                     {
+                        var indice = i;
+                        var informe = Informes[indice];
                         var seleccionado = informe.Id == _tipoInforme;
                         <button type="button" role="radio" class="@("item-informe " + (seleccionado ? "item-informe-seleccionado" : ""))"
-                                aria-checked="@(seleccionado ? "true" : "false")" @onclick="() => SeleccionarInforme(informe.Id)">
+                                aria-checked="@(seleccionado ? "true" : "false")" tabindex="@(seleccionado ? "0" : "-1")"
+                                @ref="_referenciasInformes[indice]"
+                                @onclick="() => SeleccionarInforme(informe.Id)"
+                                @onkeydown="e => ManejarTeclaInforme(e, indice)">
                             <span class="radio-informe" aria-hidden="true">
                                 @if (seleccionado)
                                 {
@@ -150,16 +161,25 @@
                 </div>
             }
 
-            <ProgresoConMensajes Visible="_generando" Mensajes="MensajesGenerando" />
+            @* ProgresoConMensajes y EstadoVacio no anuncian nada por sí mismos
+               y tienen otros consumidores, así que los anuncios se ponen aquí:
+               la región de estado existe SIEMPRE —vacía mientras no se genera—
+               para que el lector de pantalla ya la esté vigilando cuando
+               aparezca el progreso; el error, que se inserta, va en alert. *@
+            <div class="@("region-progreso-informe" + (_generando ? "" : " region-progreso-informe-vacia"))" role="status" aria-live="polite">
+                <ProgresoConMensajes Visible="_generando" Mensajes="MensajesGenerando" />
+            </div>
 
             @* Generar empieza por InvalidarVistaPrevia: mientras _generando, las
                ramas de error, «sin informe» y hoja están todas apagadas. *@
             @if (_errorGeneracion)
             {
-                <EstadoVacio NombreIcono="error-circulo" Titulo="No pudimos generar la vista previa"
-                             Descripcion="Intenta nuevamente en unos segundos.">
-                    <Accion><Boton OnClick="GenerarVistaPreviaAsync">Reintentar</Boton></Accion>
-                </EstadoVacio>
+                <div class="error-generacion-informe" role="alert">
+                    <EstadoVacio NombreIcono="error-circulo" Titulo="No pudimos generar la vista previa"
+                                 Descripcion="Intenta nuevamente en unos segundos.">
+                        <Accion><Boton OnClick="GenerarVistaPreviaAsync">Reintentar</Boton></Accion>
+                    </EstadoVacio>
+                </div>
             }
             else if (_sinInforme)
             {
@@ -251,7 +271,10 @@
                             }
                         }
                     </article>
-                    <span class="nota-vista-previa-informe">Vista previa · el PDF y el Excel llevan las mismas filas; su maquetación puede variar</span>
+                    @* Cada descarga vuelve a ejecutar su consulta con los filtros de
+                       la vista previa (ReportesEndpoints): no es una instantánea
+                       de estas filas, así que no se promete que coincidan. *@
+                    <span class="nota-vista-previa-informe">Vista previa · el PDF y el Excel se generan con estos mismos filtros en el momento de descargarlos; si los datos cambiaron desde la vista previa, pueden no coincidir con ella</span>
                 </div>
             }
             else if (!_generando)

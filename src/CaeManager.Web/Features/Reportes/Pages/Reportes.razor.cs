@@ -10,6 +10,7 @@ using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Reportes;
 using MediatR;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Identity;
 
 namespace CaeManager.Web.Features.Reportes.Pages;
@@ -179,6 +180,44 @@ public partial class Reportes : ComponentBase
         if (tipo == TipoIncidencias) _incluirVigentes = false;
         else if (tipo == TipoVigencia) _incluirVigentes = true;
         InvalidarVistaPrevia();
+    }
+
+    // --- Biblioteca como radiogroup de WAI-ARIA ---
+
+    private readonly ElementReference[] _referenciasInformes = new ElementReference[Informes.Count];
+
+    // La opción que una flecha acaba de marcar y que aún no tiene el foco. El
+    // foco se da DESPUÉS del render, cuando ya lleva tabindex="0": darlo antes
+    // lo pondría en un botón que el propio render está a punto de cambiar.
+    private int? _informePorEnfocar;
+
+    /// <summary>
+    /// Flechas circulares en el orden visual de la biblioteca: abajo/derecha
+    /// a la siguiente, arriba/izquierda a la anterior. Marcar pasa por
+    /// <see cref="SeleccionarInforme"/>, así que invalida la vista previa
+    /// igual que el clic.
+    /// </summary>
+    private void ManejarTeclaInforme(KeyboardEventArgs e, int indiceActual)
+    {
+        var destino = e.Key switch
+        {
+            "ArrowDown" or "ArrowRight" => (indiceActual + 1) % Informes.Count,
+            "ArrowUp" or "ArrowLeft" => (indiceActual - 1 + Informes.Count) % Informes.Count,
+            _ => -1
+        };
+
+        if (destino < 0) return;
+
+        SeleccionarInforme(Informes[destino].Id);
+        _informePorEnfocar = destino;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_informePorEnfocar is not { } indice) return;
+
+        _informePorEnfocar = null;
+        await _referenciasInformes[indice].FocusAsync();
     }
 
     private async Task CambiarClienteAsync(string clienteId)
@@ -387,10 +426,11 @@ public partial class Reportes : ComponentBase
     private static string ContarFilas(int cantidad, string singular, string plural) =>
         cantidad == 1 ? $"1 {singular}" : $"{cantidad:N0} {plural}";
 
-    // --- Enviar por Comunicaciones — adjunta el mismo PDF que "Descargar
-    // PDF" a un mensaje nuevo, reutilizando RedactarMensajeDrawer (extraído
-    // de Bandeja.razor) en vez de construir un compositor propio para esta
-    // pantalla. ---
+    // --- Enviar por Comunicaciones — adjunta a un mensaje nuevo un PDF
+    // construido con las filas de la vista previa (no vuelve a consultar, a
+    // diferencia de "Descargar PDF", que ejecuta su consulta al descargar),
+    // reutilizando RedactarMensajeDrawer (extraído de Bandeja.razor) en vez de
+    // construir un compositor propio para esta pantalla. ---
 
     private bool _composerVisible;
     private AdjuntoParaEnviarDto? _adjuntoInforme;

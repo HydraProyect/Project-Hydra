@@ -27,7 +27,7 @@ namespace CaeManager.Web.Tests;
 /// <para>
 /// <b>Lo que esto SÍ observa:</b> qué consultas y comandos llegan al mediador
 /// y con qué parámetros —el doble responde según ellos: filtra filas por
-/// cliente empresarial y por «incluir vigentes», y rotula el alcance con el
+/// cliente empresarial, por centro y por «incluir vigentes», y rotula el alcance con el
 /// cliente o centro pedido, así que una pantalla que no los enviara recibiría
 /// otra cosa—, qué se pinta con lo que vuelve, la URL que queda, y qué pasa
 /// cuando las respuestas llegan fuera de orden (mediador controlado por
@@ -49,6 +49,7 @@ public class ReportesGen2Tests : BunitContext
     private static readonly Guid ClienteA = Guid.Parse("a1a1a1a1-0000-0000-0000-000000000001");
     private static readonly Guid ClienteB = Guid.Parse("b2b2b2b2-0000-0000-0000-000000000002");
     private static readonly Guid CentroA1 = Guid.Parse("a1a1a1a1-0000-0000-0000-0000000000c1");
+    private static readonly Guid CentroA2 = Guid.Parse("a1a1a1a1-0000-0000-0000-0000000000c2");
     private static readonly Guid CentroB1 = Guid.Parse("b2b2b2b2-0000-0000-0000-0000000000c1");
     private static readonly Guid UsuarioMarta = Guid.Parse("99999999-0000-0000-0000-000000000001");
 
@@ -105,7 +106,7 @@ public class ReportesGen2Tests : BunitContext
         public void Dispose() { }
     }
 
-    private sealed record FilaDe(Guid ClienteId, FilaReporteDocumentoDto Fila);
+    private sealed record FilaDe(Guid ClienteId, Guid CentroId, FilaReporteDocumentoDto Fila);
 
     /// <summary>
     /// Datos que ve el mediador. Todo se responde <b>según los parámetros de
@@ -118,17 +119,22 @@ public class ReportesGen2Tests : BunitContext
 
         public Dictionary<Guid, List<CentroSelectorDto>> Centros { get; } = new()
         {
-            [ClienteA] = [new(CentroA1, "Nave Norte", NombreA, NombreA)],
+            [ClienteA] = [new(CentroA1, "Nave Norte", NombreA, NombreA), new(CentroA2, "Nave Sur", NombreA, NombreA)],
             [ClienteB] = [new(CentroB1, "Planta Zaragoza", NombreB, NombreB)]
         };
 
+        /// <summary>
+        /// Nuria Salas es la única de Refrielectric en la Nave Sur: filtrar
+        /// por la Nave Norte tiene que dejarla fuera, y es la fila que delata
+        /// una pantalla que no envía el centro.
+        /// </summary>
         public List<FilaDe> Documentos { get; } =
         [
-            new(ClienteA, Documento("Juan Pérez", "Formación PRL — 20 h", new DateOnly(2026, 8, 2), EstadoDocumento.Vencido)),
-            new(ClienteA, Documento("Nuria Salas", "Certificado de aptitud", new DateOnly(2026, 9, 21), EstadoDocumento.Urgente)),
-            new(ClienteA, Documento("Iker Mena", "Formación trabajos en altura", new DateOnly(2026, 11, 14), EstadoDocumento.Vigente)),
-            new(ClienteA, Documento("David Rey", "Alta en Seguridad Social", null, EstadoDocumento.SinCaducidad)),
-            new(ClienteB, Documento("Laura Ortiz", "Reconocimiento médico", new DateOnly(2026, 7, 30), EstadoDocumento.Vencido)),
+            new(ClienteA, CentroA1, Documento("Juan Pérez", "Formación PRL — 20 h", new DateOnly(2026, 8, 2), EstadoDocumento.Vencido)),
+            new(ClienteA, CentroA2, Documento("Nuria Salas", "Certificado de aptitud", new DateOnly(2026, 9, 21), EstadoDocumento.Urgente)),
+            new(ClienteA, CentroA1, Documento("Iker Mena", "Formación trabajos en altura", new DateOnly(2026, 11, 14), EstadoDocumento.Vigente)),
+            new(ClienteA, CentroA1, Documento("David Rey", "Alta en Seguridad Social", null, EstadoDocumento.SinCaducidad)),
+            new(ClienteB, CentroB1, Documento("Laura Ortiz", "Reconocimiento médico", new DateOnly(2026, 7, 30), EstadoDocumento.Vencido)),
         ];
 
         public List<HistorialInformeDto> Historial { get; } = [];
@@ -159,6 +165,7 @@ public class ReportesGen2Tests : BunitContext
             Alcance(q.ClienteId, q.CentroId),
             Documentos
                 .Where(d => q.ClienteId is null || d.ClienteId == q.ClienteId)
+                .Where(d => q.CentroId is null || d.CentroId == q.CentroId)
                 .Select(d => d.Fila)
                 .Where(f => q.IncluirVigentes || f.Estado is EstadoDocumento.Vencido or EstadoDocumento.Urgente)
                 .ToList());
@@ -235,6 +242,30 @@ public class ReportesGen2Tests : BunitContext
     private static IElement EnviarPorComunicaciones(IRenderedComponent<ReportesPagina> cut) =>
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "Enviar por Comunicaciones…");
 
+    /// <summary>Títulos de la biblioteca en su orden visual, el que siguen las flechas.</summary>
+    private static readonly string[] OrdenBiblioteca = ["Vigencia documental", "Incidencias", "Asignaciones activas"];
+
+    private static IElement OpcionInforme(IRenderedComponent<ReportesPagina> cut, string titulo) =>
+        cut.FindAll("[role=radiogroup] [role=radio]").Single(b => b.QuerySelector(".titulo-item-informe")!.TextContent == titulo);
+
+    /// <summary>
+    /// Las referencias que la página capturó con <c>@ref</c> para sus opciones,
+    /// en el orden de la biblioteca. bUnit 2.9 pinta el atributo
+    /// <c>blazor:elementreference</c> vacío, así que el marcado no permite
+    /// saber a qué botón apunta una llamada a <c>FocusAsync</c>: se lee el campo
+    /// privado de la página, que es exactamente lo que ella enfoca.
+    /// </summary>
+    private static ElementReference[] ReferenciasInformes(IRenderedComponent<ReportesPagina> cut)
+    {
+        var campo = typeof(ReportesPagina).GetField("_referenciasInformes",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        campo.Should().NotBeNull("si el campo cambia de nombre, esta prueba tiene que enterarse, no pasar en falso");
+        return (ElementReference[])campo!.GetValue(cut.Instance)!;
+    }
+
+    private IEnumerable<JSRuntimeInvocation> PeticionesDeFoco() =>
+        JSInterop.Invocations.Where(i => i.Identifier.Contains("focus", StringComparison.OrdinalIgnoreCase));
+
     // ---------------------------------------------------------------- generar
 
     [Fact]
@@ -244,17 +275,37 @@ public class ReportesGen2Tests : BunitContext
 
         await Generar(cut);
 
+        // Las filas se comprueban ANTES que el parámetro: el doble filtra por
+        // centro, así que una pantalla que no enviara el centro caería aquí,
+        // por pintar la fila de la Nave Sur, y no solo por la consulta.
+        var filas = FilasHoja(cut);
+        filas.Select(f => Celdas(f)[0]).Should().Equal(["Juan Pérez", "Iker Mena", "David Rey"],
+            "con la Nave Norte elegida solo se pintan sus filas; Nuria Salas es de la Nave Sur");
+        Celdas(filas[0]).Should().Equal("Juan Pérez", "Instalaciones Vega S.L.", "Formación PRL — 20 h", "02/08/2026", "Vencido");
+        Celdas(filas[2]).Should().Equal("David Rey", "Instalaciones Vega S.L.", "Alta en Seguridad Social", "No caduca", "Sin caducidad");
+
+        Texto(cut.Find(".titulo-hoja-informe")).Should().Be($"Informe de vigencia documental — {NombreA}");
+        cut.FindAll(".metadato-hoja-informe").Select(Texto).Last()
+            .Should().Be("Abarca: Solo centro: Nave Norte · incluye los vigentes · 3 documentos");
         mediador.Enviados.OfType<GenerarInformeVigenciaQuery>().Should().ContainSingle()
             .Which.Should().Be(new GenerarInformeVigenciaQuery(ClienteA, CentroA1, true),
                 "el enlace profundo desde Centro 360 preselecciona cliente empresarial y centro");
-        Texto(cut.Find(".titulo-hoja-informe")).Should().Be($"Informe de vigencia documental — {NombreA}");
-        cut.FindAll(".metadato-hoja-informe").Select(Texto).Last()
-            .Should().Be("Abarca: Solo centro: Nave Norte · incluye los vigentes · 4 documentos");
+    }
 
-        var filas = FilasHoja(cut);
-        filas.Should().HaveCount(4);
-        Celdas(filas[0]).Should().Equal("Juan Pérez", "Instalaciones Vega S.L.", "Formación PRL — 20 h", "02/08/2026", "Vencido");
-        Celdas(filas[3]).Should().Equal("David Rey", "Instalaciones Vega S.L.", "Alta en Seguridad Social", "No caduca", "Sin caducidad");
+    [Fact]
+    public async Task La_nota_de_la_hoja_no_promete_que_las_descargas_lleven_las_mismas_filas()
+    {
+        var (cut, _) = Renderizar(new Escenario(), $"reportes?clienteId={ClienteA}");
+
+        await Generar(cut);
+
+        // Cada descarga vuelve a ejecutar su consulta (ReportesEndpoints), no
+        // descarga una instantánea de la vista previa: si los datos cambian
+        // entre medias, las filas pueden diferir.
+        var nota = Texto(cut.Find(".nota-vista-previa-informe"));
+        nota.Should().Be("Vista previa · el PDF y el Excel se generan con estos mismos filtros en el momento de descargarlos; "
+            + "si los datos cambiaron desde la vista previa, pueden no coincidir con ella");
+        nota.Should().NotContain("mismas filas");
     }
 
     [Fact]
@@ -305,6 +356,144 @@ public class ReportesGen2Tests : BunitContext
         Descargas(cut).Should().Equal(
             $"/reportes/asignaciones.pdf?clienteId={ClienteB}",
             $"/reportes/asignaciones.xlsx?clienteId={ClienteB}");
+    }
+
+    // ---------------------------------------------------------------- biblioteca con teclado
+
+    [Fact]
+    public void La_biblioteca_es_un_radiogroup_con_nombre_y_una_sola_parada_de_tabulador()
+    {
+        var (cut, _) = Renderizar(new Escenario());
+
+        var grupo = cut.Find("[role=radiogroup]");
+        var idTitulo = grupo.GetAttribute("aria-labelledby");
+        idTitulo.Should().NotBeNullOrEmpty();
+        Texto(cut.Find($"#{idTitulo}")).Should().Be("Biblioteca");
+
+        OrdenBiblioteca.Select(t => OpcionInforme(cut, t).GetAttribute("tabindex"))
+            .Should().Equal(["0", "-1", "-1"], "solo la opción marcada entra en el orden de tabulación");
+    }
+
+    /// <summary>
+    /// Abajo/derecha van a la siguiente opción y arriba/izquierda a la
+    /// anterior, dando la vuelta en los extremos. Del foco solo se observa que
+    /// la página LLAMA a <c>FocusAsync</c> con la referencia del botón destino
+    /// (bUnit registra la invocación); que el navegador lo mueva de verdad
+    /// sería un E2E.
+    /// </summary>
+    [Theory]
+    [InlineData("Vigencia documental", "ArrowDown", "Incidencias")]
+    [InlineData("Vigencia documental", "ArrowRight", "Incidencias")]
+    [InlineData("Incidencias", "ArrowDown", "Asignaciones activas")]
+    [InlineData("Asignaciones activas", "ArrowDown", "Vigencia documental")]
+    [InlineData("Asignaciones activas", "ArrowRight", "Vigencia documental")]
+    [InlineData("Vigencia documental", "ArrowUp", "Asignaciones activas")]
+    [InlineData("Vigencia documental", "ArrowLeft", "Asignaciones activas")]
+    [InlineData("Asignaciones activas", "ArrowUp", "Incidencias")]
+    [InlineData("Incidencias", "ArrowLeft", "Vigencia documental")]
+    public async Task Cada_flecha_marca_la_opcion_destino_y_le_pide_el_foco(string inicio, string tecla, string destino)
+    {
+        var (cut, _) = Renderizar(new Escenario());
+        if (inicio != OrdenBiblioteca[0])
+            await OpcionInforme(cut, inicio).ClickAsync(new MouseEventArgs());
+        PeticionesDeFoco().Should().BeEmpty("el clic marca, pero no pide el foco por su cuenta");
+
+        await OpcionInforme(cut, inicio).KeyDownAsync(new KeyboardEventArgs { Key = tecla });
+
+        foreach (var titulo in OrdenBiblioteca)
+        {
+            var opcion = OpcionInforme(cut, titulo);
+            var esDestino = titulo == destino;
+            opcion.GetAttribute("aria-checked").Should().Be(esDestino ? "true" : "false", $"{tecla} desde «{inicio}» lleva a «{destino}»");
+            opcion.GetAttribute("tabindex").Should().Be(esDestino ? "0" : "-1");
+        }
+
+        var foco = PeticionesDeFoco().Should().ContainSingle().Subject;
+        var referenciaDestino = ReferenciasInformes(cut)[Array.IndexOf(OrdenBiblioteca, destino)];
+        referenciaDestino.Id.Should().NotBeNullOrEmpty("sin @ref capturado la comparación no distinguiría nada");
+        foco.Arguments[0].Should().BeOfType<ElementReference>()
+            .Which.Id.Should().Be(referenciaDestino.Id, "el foco se pide para la opción destino, no para la de origen");
+    }
+
+    [Fact]
+    public async Task Una_tecla_ajena_al_patron_no_cambia_de_informe_ni_mueve_el_foco()
+    {
+        var (cut, _) = Renderizar(new Escenario());
+
+        await OpcionInforme(cut, "Vigencia documental").KeyDownAsync(new KeyboardEventArgs { Key = "Home" });
+
+        OpcionInforme(cut, "Vigencia documental").GetAttribute("aria-checked").Should().Be("true");
+        PeticionesDeFoco().Should().BeEmpty("sin opción destino no hay foco que pedir");
+    }
+
+    [Fact]
+    public async Task Cambiar_de_informe_con_las_flechas_retira_la_vista_previa_igual_que_el_clic()
+    {
+        var (cut, _) = Renderizar(new Escenario(), $"reportes?clienteId={ClienteA}");
+        await Generar(cut);
+        cut.FindAll(".hoja-informe").Should().ContainSingle();
+
+        await OpcionInforme(cut, "Vigencia documental").KeyDownAsync(new KeyboardEventArgs { Key = "ArrowDown" });
+
+        OpcionInforme(cut, "Incidencias").GetAttribute("aria-checked").Should().Be("true");
+        cut.FindAll(".hoja-informe").Should().BeEmpty("la hoja era de vigencia y el informe elegido ahora es Incidencias");
+        cut.FindAll("a.boton-exportar-informe").Should().BeEmpty();
+        EnviarPorComunicaciones(cut).HasAttribute("disabled").Should().BeTrue();
+        cut.FindAll(".opcion-checkbox-informe input").Should().BeEmpty("Incidencias no ofrece la casilla de vigentes");
+        Texto(cut.Find(".estado-vacio h3")).Should().Be("Genera una vista previa");
+    }
+
+    // ---------------------------------------------------------------- anuncios
+
+    [Fact]
+    public async Task El_progreso_se_anuncia_desde_una_region_de_estado_que_ya_existia_antes_de_generar()
+    {
+        var vigencia = new TaskCompletionSource<object?>();
+        var escenario = new Escenario();
+        escenario.Interceptar = p => p is GenerarInformeVigenciaQuery ? vigencia.Task : null;
+        var (cut, _) = Renderizar(escenario, $"reportes?clienteId={ClienteA}");
+
+        // La región tiene que estar en el DOM ANTES de que llegue el progreso:
+        // un lector de pantalla no anuncia una región viva que nace con su contenido.
+        var region = cut.Find(".region-progreso-informe");
+        region.GetAttribute("role").Should().Be("status");
+        region.GetAttribute("aria-live").Should().Be("polite");
+        region.QuerySelectorAll(".progreso-carga").Should().BeEmpty();
+
+        var generacion = Generar(cut);
+        cut.WaitForAssertion(() =>
+            cut.FindAll(".region-progreso-informe[role=status][aria-live=polite] .progreso-carga").Should().ContainSingle());
+        cut.Find(".region-progreso-informe").ClassList.Should().NotContain("region-progreso-informe-vacia");
+
+        await cut.InvokeAsync(() => vigencia.SetResult(escenario.VigenciaSegun(new GenerarInformeVigenciaQuery(ClienteA, null, true))));
+        await generacion;
+
+        FilasHoja(cut).Should().HaveCount(4);
+        cut.Find(".region-progreso-informe").QuerySelectorAll(".progreso-carga").Should().BeEmpty();
+        cut.Find(".region-progreso-informe").ClassList.Should().Contain("region-progreso-informe-vacia");
+    }
+
+    [Fact]
+    public async Task El_error_de_generacion_se_anuncia_como_alerta_y_desaparece_al_reintentar_con_exito()
+    {
+        var llamadas = 0;
+        var escenario = new Escenario();
+        escenario.Vigencia = q =>
+        {
+            if (++llamadas == 1) throw new InvalidOperationException("Base de datos caída (simulada).");
+            return escenario.VigenciaSegun(q);
+        };
+        var (cut, _) = Renderizar(escenario, $"reportes?clienteId={ClienteA}");
+        cut.FindAll("[role=alert]").Should().BeEmpty("«Genera una vista previa» es un estado inicial, no un error");
+
+        await Generar(cut);
+
+        Texto(cut.Find("[role=alert] .estado-vacio h3")).Should().Be("No pudimos generar la vista previa");
+
+        await cut.Find("[role=alert] .estado-vacio-accion button").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("[role=alert]").Should().BeEmpty();
+        FilasHoja(cut).Should().HaveCount(4);
     }
 
     // ---------------------------------------------------------------- descargas y filtros

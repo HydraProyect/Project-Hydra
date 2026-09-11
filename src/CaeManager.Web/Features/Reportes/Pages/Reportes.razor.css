@@ -293,6 +293,14 @@ a.boton-exportar-informe:hover {
     min-width: 0;
 }
 
+/* La región de estado del progreso vive siempre en el DOM (ver Reportes.razor):
+   vacía, su margen negativo anula el hueco de la columna que si no dejaría. La
+   clase la pone la página según _generando: un :has(.progreso-carga) apuntaría
+   a un elemento de otro componente, fuera del alcance de este CSS aislado. */
+.region-progreso-informe-vacia {
+    margin-bottom: calc(-1 * var(--space-4));
+}
+
 .aviso-sin-cliente-informe {
     display: flex;
     align-items: center;
