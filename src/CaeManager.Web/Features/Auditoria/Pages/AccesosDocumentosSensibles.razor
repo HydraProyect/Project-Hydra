@@ -2,20 +2,71 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = CaeManager.Infrastructure.Identity.Policies.ConsultarAccesoDocumentosSensibles)]
 @inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
-@using CaeManager.Domain.Auditoria
-@using CaeManager.Domain.Documentos
 
 @if (!IntegradaEnConfiguracion)
 {
     <PageTitle>Accesos a documentos sensibles — @Marca.Nombre</PageTitle>
 }
 
-@* Consulta mínima (HO-099-01 § 8): demuestra que el permiso funciona, sin
-   filtros ni exportación — una pantalla completa es otro incremento si hace
-   falta. *@
+@* Gen 2 («Accesos Documentos Sensibles TALVEG.dc.html»). Frente al mockup:
+   - Sin filtros ni exportación: ObtenerAccesosDocumentosSensiblesQuery no
+     admite ninguno (consulta mínima de HO-099-01 § 8) y el propio mockup los
+     marca como alcance nuevo. Exportar, además, sacaría datos de salud del
+     sistema sin quedar auditado a su vez.
+   - «Documento» sigue siendo el identificador: el título es un dato nuevo de
+     la consulta, y el enlace al documento exigiría saber si quien mira puede
+     abrirlo — ver el rastro no implica poder abrir el documento.
+   - Sin entrada en el hub: dónde vive y cómo se comporta sin el permiso es
+     una pregunta abierta de producto en el propio mockup.
+   - Cada afirmación de los dos avisos está comprobada en el código: el
+     alcance, en la entidad RegistroAccesoDocumentoSensible; la puerta, en la
+     política de Program.cs, en Usuarios.razor.cs (EsAutogestionDelPermisoSensible
+     y el permiso solo para el rol Administrador) y en AuditoriaInterceptor,
+     que salta estos registros. La referencia interna «DEC-36» del mockup no
+     se copia: no le dice nada a quien lee la pantalla. *@
 <div class="@ClaseContenedorPagina">
-    <div class="cabecera-pagina">
-        @TituloPaginaIntegrable("Accesos a documentos sensibles")
+    <CabeceraPagina Titulo="Accesos a documentos sensibles" Integrada="@IntegradaEnConfiguracion">
+        <Descripcion>
+            Cada vez que alguien abre o descarga un documento sensible —y cada vez que consulta una de sus
+            versiones anteriores— queda registrado aquí, con una excepción conocida que se explica abajo.
+        </Descripcion>
+    </CabeceraPagina>
+
+    <div class="accesos-sensibles-avisos">
+        <p class="accesos-sensibles-alcance">
+            <span class="accesos-sensibles-punto" aria-hidden="true"></span>
+            <span>
+                <strong>Qué NO se registra, a propósito:</strong> los adjuntos de comunicaciones, las plantillas en
+                blanco de los requisitos documentales, las firmas y sellos guardados, los procesos automáticos en los
+                que no hay una persona mirando y los listados que solo enseñan datos generales. No es un olvido: es el
+                alcance decidido.
+            </span>
+        </p>
+
+        @* No es alcance decidido sino un hueco real, y una pantalla de auditoría
+           no puede prometer exhaustividad que no tiene. RegistroAccesoDocumentoSensibleRepository
+           tolera el 42501 de la Sesión Privilegiada de soporte (rol cae_app_soporte,
+           sin escritura en ninguna tabla, ADR-011 § 4bis): el registro se descarta
+           y solo queda un aviso en el log del servidor. Decisión pendiente en HO-099-01. *@
+        <p class="accesos-sensibles-alcance accesos-sensibles-hueco" role="note">
+            <span class="accesos-sensibles-punto" aria-hidden="true"></span>
+            <span>
+                <strong>Hueco conocido, pendiente de decisión:</strong> un acceso de Soporte TALVEG desde una Sesión
+                Privilegiada de solo lectura todavía no puede registrarse aquí, porque esa sesión no puede escribir en
+                ninguna tabla. Queda solo en el registro técnico del servidor.
+            </span>
+        </p>
+
+        <div class="accesos-sensibles-puerta">
+            <span class="accesos-sensibles-puerta-titulo">La puerta más estrecha del producto</span>
+            <p>
+                No basta con ser Administrador: hace falta además un <strong>permiso granular</strong> que otro
+                Administrador concede expresamente desde la ficha del usuario, en Usuarios. Dirección CAE no puede
+                concederlo ni recibirlo. Por eso estos registros <strong>no aparecen en la pantalla de Auditoría
+                general</strong>: un Administrador sin este permiso no debe poder deducir quién consultó un
+                reconocimiento médico.
+            </p>
+        </div>
     </div>
 
     @if (_errorCarga)
@@ -36,56 +87,40 @@
     }
     else
     {
-        <table class="tabla-datos">
-            <thead>
-                <tr>
-                    <th>Cuándo</th>
-                    <th>Quién</th>
-                    <th>Documento</th>
-                    <th>Categoría</th>
-                    <th>Tipo de acceso</th>
-                    <th>Contexto</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var acceso in _accesos)
-                {
+        @* Sin acciones de fila: la pantalla no ofrece nada que hacer, solo leer. *@
+        @* El marco se desplaza en horizontal en pantallas estrechas: como región
+           con nombre y foco, con teclado también se puede desplazar. *@
+        <div class="accesos-sensibles-marco-tabla" role="region" aria-label="Registro de accesos a documentos sensibles" tabindex="0">
+            <table class="tabla-datos accesos-sensibles-tabla">
+                <thead>
                     <tr>
-                        <td>@acceso.OcurridoEnUtc.ToLocalTime()</td>
-                        <td>@NombreDe(acceso.UsuarioId)</td>
-                        <td>@acceso.DocumentoId</td>
-                        <td>
-                            @(acceso.Sensibilidad switch
-                            {
-                                SensibilidadDocumental.CategoriaEspecialSalud => "Salud (categoría especial)",
-                                SensibilidadDocumental.DatosPersonales => "Datos personales",
-                                _ => "Sin datos personales"
-                            })
-                        </td>
-                        <td>
-                            @(acceso.TipoAcceso == TipoAccesoDocumentoSensible.VersionAnterior ? "Versión anterior" : "Apertura")
-                        </td>
-                        <td>
-                            @if (acceso.EsPrivilegiado)
-                            {
-                                <Badge Tono="TonoBadge.Advertencia">Sesión privilegiada</Badge>
-                            }
-                            else if (acceso.ViaAcceso == TipoViaAccesoAuditoria.OperacionDelegada)
-                            {
-                                <Badge Tono="TonoBadge.Neutro">Operación delegada</Badge>
-                            }
-                            else
-                            {
-                                <Badge Tono="TonoBadge.Neutro">Normal</Badge>
-                            }
-                        </td>
+                        <th scope="col">Cuándo</th>
+                        <th scope="col">Quién</th>
+                        <th scope="col">Documento</th>
+                        <th scope="col">Categoría</th>
+                        <th scope="col">Tipo de acceso</th>
+                        <th scope="col">Contexto</th>
                     </tr>
-                }
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    @foreach (var acceso in _accesos)
+                    {
+                        <tr @key="acceso.Id">
+                            <td class="accesos-sensibles-cuando">@Cuando(acceso.OcurridoEnUtc)</td>
+                            <td><span class="@ClaseQuien(acceso.UsuarioId)">@NombreDe(acceso.UsuarioId)</span></td>
+                            <td><span class="accesos-sensibles-documento" translate="no" title="Identificador del documento">@acceso.DocumentoId</span></td>
+                            <td><Badge Tono="TonoCategoria(acceso.Sensibilidad)" Tamano="TamanoBadge.Pequeno">@TextoCategoria(acceso.Sensibilidad)</Badge></td>
+                            <td class="accesos-sensibles-tipo">@TextoTipoAcceso(acceso.TipoAcceso)</td>
+                            <td><Badge Tono="TonoContexto(acceso)" Tamano="TamanoBadge.Pequeno">@TextoContexto(acceso)</Badge></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
 
         <PaginadorSimple PaginaActual="_pagina" TotalPaginas="_totalPaginas" TotalElementos="_totalElementos"
                           Etiqueta="acceso(s)" PaginaActualChanged="IrAPaginaAsync"
-                          TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
+                          TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync"
+                          OpcionesTamanoPagina="TamanosPagina" />
     }
 </div>
