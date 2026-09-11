@@ -29,7 +29,8 @@ namespace CaeManager.Web.Tests;
 ///
 /// <para>
 /// El doble del mediador guarda las gestiones y APLICA lo que recibe: filtra
-/// por <c>Estado</c> y <c>Busqueda</c>, y los comandos cambian lo guardado. Un
+/// por <c>Estado</c> y <c>Busqueda</c>, ordena por <c>OrdenarPor</c>/<c>Descendente</c>,
+/// pagina con <c>Pagina</c>/<c>TamanoPagina</c>, y los comandos cambian lo guardado. Un
 /// doble que ignorase los parámetros dejaría en verde una pantalla que no los
 /// envía, y uno que no mutase no distinguiría «recargó» de «volvió a pintar lo
 /// mismo».
@@ -100,6 +101,12 @@ public class GestionesListaGen2Tests : BunitContext
             }
         }
 
+        /// <summary>
+        /// Filtra, ordena y pagina como <c>ObtenerGestionesQueryHandler</c>: el
+        /// total es el de las coincidentes y las filas, solo las de la página
+        /// pedida. Un doble que devolviera todo en orden de inserción dejaría en
+        /// verde una pantalla que no propaga ni la página ni el orden.
+        /// </summary>
         public ResultadoPaginado<GestionListaDto> Filtrar(ObtenerGestionesQuery q)
         {
             var coincidentes = Almacen
@@ -107,7 +114,36 @@ public class GestionesListaGen2Tests : BunitContext
                 .Where(g => q.Busqueda is null
                     || $"{g.TrabajadorNombre} {g.CentroNombre} {g.TipoDocumentoNombre}".Contains(q.Busqueda, StringComparison.OrdinalIgnoreCase))
                 .ToList();
-            return new ResultadoPaginado<GestionListaDto>(coincidentes, coincidentes.Count, q.Pagina, q.TamanoPagina);
+            var pagina = Ordenar(coincidentes, q.OrdenarPor, q.Descendente)
+                .Skip((q.Pagina - 1) * q.TamanoPagina)
+                .Take(q.TamanoPagina)
+                .ToList();
+            return new ResultadoPaginado<GestionListaDto>(pagina, coincidentes.Count, q.Pagina, q.TamanoPagina);
+        }
+
+        /// <summary>
+        /// Misma lista blanca que el handler; cualquier otro nombre (o ninguno)
+        /// cae en su orden por defecto, la más reciente primero. El desempate es
+        /// el orden de inserción (OrderBy es estable), no el Id como en el
+        /// handler: con Ids aleatorios, los tests que señalan filas por
+        /// posición cambiarían de fila entre ejecuciones.
+        /// </summary>
+        private static IEnumerable<GestionListaDto> Ordenar(List<GestionListaDto> filas, string? ordenarPor, bool descendente)
+        {
+            Func<GestionListaDto, IComparable>? clave = ordenarPor switch
+            {
+                nameof(GestionListaDto.TrabajadorNombre) => g => g.TrabajadorNombre,
+                nameof(GestionListaDto.CentroNombre) => g => g.CentroNombre,
+                nameof(GestionListaDto.TipoDocumentoNombre) => g => g.TipoDocumentoNombre,
+                nameof(GestionListaDto.Estado) => g => g.Estado,
+                nameof(GestionListaDto.CreadoEnUtc) => g => g.CreadoEnUtc,
+                _ => null
+            };
+
+            if (clave is null)
+                return filas.OrderByDescending(g => g.CreadoEnUtc);
+
+            return descendente ? filas.OrderByDescending(clave) : filas.OrderBy(clave);
         }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
@@ -194,6 +230,35 @@ public class GestionesListaGen2Tests : BunitContext
         EstadoEnLaVistaRapida(cut).Should().Be("Completada");
         Services.GetRequiredService<ContextWorkspaceService>().EstaAbierto.Should().BeFalse(
             "el 360 se abre desde la vista rápida, no desde el nombre");
+    }
+
+    /// <summary>
+    /// El nombre del Centro es el segundo disparador de la vista rápida (antes
+    /// abría directamente el Centro 360). Desde ella, «Abrir Centro 360 →» abre
+    /// el Context Workspace de ESE centro en la pestaña «informacion».
+    /// </summary>
+    [Fact]
+    public async Task El_nombre_del_centro_abre_la_vista_rapida_de_esa_fila_y_desde_ella_el_Centro_360()
+    {
+        var otra = Gestion("Juan Pérez Ibarra", centro: "Centro Norte", documento: "Formación PRL específica");
+        var abierta = Gestion("Nuria Salas Ortiz", EstadoGestion.Completada, centro: "Centro Logístico Sur", documento: "Reconocimiento médico");
+        var cut = Renderizar(new MediatorFalso { Almacen = { otra, abierta } });
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+
+        await NombreEnLaFila(cut, "Centro Logístico Sur").ClickAsync(new MouseEventArgs());
+
+        var panel = cut.Find("aside.vista-rapida-gestion");
+        panel.QuerySelector(".nombre-vista-rapida-gestion")!.TextContent.Trim().Should().Be("Nuria Salas Ortiz");
+        panel.TextContent.Should().Contain("Centro Logístico Sur").And.Contain("Reconocimiento médico");
+        workspace.EstaAbierto.Should().BeFalse("el nombre del centro abre la vista rápida, no el 360");
+
+        await BotonDeLaVistaRapida(cut, "Abrir Centro 360 →").ClickAsync(new MouseEventArgs());
+
+        var frame = workspace.FrameActual;
+        frame.Should().NotBeNull();
+        frame!.Tipo.Should().Be(EntidadWorkspace.Centro);
+        frame.EntidadId.Should().Be(abierta.CentroId);
+        frame.PestanaActiva.Should().Be("informacion");
     }
 
     [Fact]
@@ -496,6 +561,84 @@ public class GestionesListaGen2Tests : BunitContext
 
         cut.Find(".conteo-gestiones").TextContent.Trim().Should().Be("2 gestiones");
         cut.FindAll(".chip-filtro").Should().BeEmpty();
+    }
+
+    private static IElement CabeceraOrdenable(IRenderedComponent<Gestiones> cut, string titulo) =>
+        cut.FindAll("thead th").Single(th => th.TextContent.Trim() == titulo).QuerySelector("button")!;
+
+    /// <summary>Texto del botón de nombre en la posición <paramref name="columna"/> (0 Trabajador, 1 Centro) de cada fila.</summary>
+    private static List<string> ColumnaDeLasFilas(IRenderedComponent<Gestiones> cut, int columna) =>
+        cut.FindAll("tbody tr")
+            .Select(tr => tr.QuerySelectorAll(".enlace-nombre-fila"))
+            .Where(botones => botones.Length > columna)
+            .Select(botones => botones[columna].TextContent.Trim())
+            .ToList();
+
+    /// <summary>
+    /// El doble ordena según lo que recibe: si la pantalla no enviara el
+    /// <c>OrdenarPor</c>/<c>Descendente</c> de la cabecera, las filas llegarían
+    /// en el orden por defecto (el de inserción, con la misma fecha), que no es
+    /// ni el ascendente ni el descendente por centro.
+    /// </summary>
+    [Fact]
+    public async Task Pulsar_la_cabecera_Centro_ordena_la_consulta_por_centro_y_la_segunda_vez_al_reves()
+    {
+        var mediador = new MediatorFalso
+        {
+            Almacen =
+            {
+                Gestion("Juan Pérez Ibarra", centro: "Centro Norte"),
+                Gestion("Nuria Salas Ortiz", centro: "Centro Este"),
+                Gestion("Iker Zubiaga Mena", centro: "Centro Sur"),
+            }
+        };
+        var cut = Renderizar(mediador);
+        ColumnaDeLasFilas(cut, 1).Should().Equal(["Centro Norte", "Centro Este", "Centro Sur"],
+            "punto de partida: el orden por defecto no coincide con ninguno de los dos que se piden");
+
+        await CabeceraOrdenable(cut, "Centro").ClickAsync(new MouseEventArgs());
+
+        var ascendente = mediador.Enviadas.OfType<ObtenerGestionesQuery>().Last();
+        ascendente.OrdenarPor.Should().Be(nameof(GestionListaDto.CentroNombre));
+        ascendente.Descendente.Should().BeFalse();
+        cut.WaitForAssertion(() => ColumnaDeLasFilas(cut, 1).Should().Equal(["Centro Este", "Centro Norte", "Centro Sur"]));
+
+        await CabeceraOrdenable(cut, "Centro").ClickAsync(new MouseEventArgs());
+
+        var descendente = mediador.Enviadas.OfType<ObtenerGestionesQuery>().Last();
+        descendente.OrdenarPor.Should().Be(nameof(GestionListaDto.CentroNombre));
+        descendente.Descendente.Should().BeTrue("la segunda pulsación invierte el orden");
+        cut.WaitForAssertion(() => ColumnaDeLasFilas(cut, 1).Should().Equal(["Centro Sur", "Centro Norte", "Centro Este"]));
+    }
+
+    /// <summary>
+    /// 25 gestiones con fechas distintas: la página 1 son las 20 más recientes
+    /// y la 2, las cinco más antiguas. El doble pagina con lo que recibe; si la
+    /// pantalla mandara siempre la página 1, la segunda repetiría la primera.
+    /// </summary>
+    [Fact]
+    public async Task Pasar_a_la_pagina_siguiente_pide_la_pagina_2_y_pinta_sus_filas()
+    {
+        var mediador = new MediatorFalso();
+        for (var i = 1; i <= 25; i++)
+        {
+            mediador.Almacen.Add(Gestion($"Trabajador {i:00}") with
+            {
+                CreadoEnUtc = new DateTime(2026, 8, 1, 9, 0, 0, DateTimeKind.Utc).AddDays(i)
+            });
+        }
+        var cut = Renderizar(mediador);
+        ColumnaDeLasFilas(cut, 0).Should().HaveCount(20).And.StartWith("Trabajador 25");
+        cut.Find(".paginador-texto").TextContent.Should().Contain("Página 1 de 2");
+
+        await cut.FindAll(".paginador-simple button").Single(b => b.TextContent.Contains("Siguiente")).ClickAsync(new MouseEventArgs());
+
+        var consulta = mediador.Enviadas.OfType<ObtenerGestionesQuery>().Last();
+        consulta.Pagina.Should().Be(2);
+        consulta.TamanoPagina.Should().Be(20);
+        cut.WaitForAssertion(() => ColumnaDeLasFilas(cut, 0).Should().Equal(
+            ["Trabajador 05", "Trabajador 04", "Trabajador 03", "Trabajador 02", "Trabajador 01"]));
+        cut.Find(".paginador-texto").TextContent.Should().Contain("Página 2 de 2").And.Contain("25 gestión(es)");
     }
 
     [Fact]
