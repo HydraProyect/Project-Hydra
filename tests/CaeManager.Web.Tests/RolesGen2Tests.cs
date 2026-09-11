@@ -341,9 +341,10 @@ public class RolesGen2Tests : BunitContext
         texto.Should().Contain("rastro de acceso a documentos sensibles");
         texto.Should().Contain(
             "exige el rol Administrador más una concesión expresa, persona a persona, que hace un Administrador desde Usuarios");
-        // Usuarios deja que un Administrador se conceda el permiso a sí mismo
-        // (nada compara la cuenta editada con quien edita): prometer que tiene
-        // que ser «otro» sería afirmar un control que el código no hace.
+        // Este texto no se compromete con la palabra «otro»: quien de verdad
+        // impide la autogestión es EsAutogestionDelPermisoSensible en
+        // Usuarios.razor.cs, no esta pantalla — pin de la redacción actual,
+        // no una afirmación de que el control viva aquí.
         texto.Should().NotContain("otro Administrador");
         texto.Should().Contain("ni se conceden desde esta pantalla");
 
