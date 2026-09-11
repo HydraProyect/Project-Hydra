@@ -1,3 +1,8 @@
+using System.Collections.Concurrent;
+using System.Security.Cryptography;
+using System.Text;
+using Microsoft.AspNetCore.Components;
+
 namespace CaeManager.Web.Services;
 
 /// <summary>
@@ -14,39 +19,36 @@ public static class CabecerasSeguridadExtensions
     // son manejadores HTML inline (los registra el propio framework desde
     // blazor.web.js), así que no dependen de ello.
     //
-    // El hash sha256 es el único <script> inline que sirve el propio
-    // framework: el componente <ImportMap /> de App.razor (H6, docs/ux-audit/
+    // El único <script> inline que sirve el propio framework es el
+    // componente <ImportMap /> de App.razor (H6, docs/ux-audit/
     // 16-transversales.md — "Executing inline script violates CSP" en cada
-    // navegación, atribuido aquí) — el mapa de imports con el fingerprint de
+    // navegación, atribuido aquí): el mapa de imports con el fingerprint de
     // cada .razor.js/.js de la app (QuickGrid, ApexCharts, ReconnectModal,
     // los módulos propios en wwwroot/js). Un <script type="importmap"> no
     // admite src externo de forma fiable entre navegadores, así que ASP.NET
     // Core siempre lo renderiza inline — la única forma de permitirlo sin
     // 'unsafe-inline' es fijar el hash de su contenido exacto.
-    // ADVERTENCIA: este hash cambia si cambia el conjunto de módulos JS de
-    // la app (añadir/quitar un archivo .js o .razor.js, o una librería con
-    // JS isolation) — un build con la CSP rota (mismo error en consola) es
-    // la señal de que hay que recalcularlo. También cambia si cambia el
-    // CONTENIDO de cualquiera de esos .js, porque el mapa lleva su fingerprint:
-    // el valor anterior llevaba roto desde algún cambio de JS posterior al
-    // 2026-08-18 sin que nadie lo notara. Cómo recalcularlo: SHA-256 en base64 del
-    // contenido del <script type="importmap"> servido, con los CRLF pasados a LF
-    // (el analizador HTML normaliza los saltos antes de hashear). Y medido sobre
-    // un checkout con saltos LF, como el de CI y la imagen Docker: con
-    // core.autocrlf=true, Windows saca los .js con CRLF, sus fingerprints cambian
-    // y el hash que pide el navegador en local NO es el de producción — en un
-    // entorno Windows así, este error de consola es esperable.
-    private const string PoliticaSeguridadContenido =
-        "default-src 'self'; " +
-        "script-src 'self' 'sha256-2S62ZZDju0Qo1ScKgyhgdhk001JDzVt/CUfyWkBnd1o='; " +
-        "style-src 'self' 'unsafe-inline'; " +
-        "img-src 'self' data:; " +
-        "font-src 'self'; " +
-        "connect-src 'self'; " +
-        "object-src 'none'; " +
-        "base-uri 'self'; " +
-        "form-action 'self'; " +
-        "frame-ancestors 'none'";
+    //
+    // Ese contenido cambia cada vez que se añade, quita o edita un .js/
+    // .razor.js de la app, así que un hash fijado a mano (un string
+    // constante) queda obsoleto en silencio en cuanto cambia el árbol — con
+    // el navegador bloqueando el importmap en cada página sin que ningún
+    // build ni test lo note (ocurrió de verdad, dos veces: primero un hash
+    // que llevaba roto desde un cambio de JS posterior al 2026-08-18 sin que
+    // nadie lo notara; después, remedido a mano, un checkout Windows con
+    // CRLF que tampoco coincidía con el que sirve producción, que compila
+    // sobre LF — y ni siquiera coincide entre endpoints, porque
+    // <ImportMapDefinition> se resuelve por endpoint). Por eso NO se fija a
+    // mano: se lee, para cada petición, el mismo
+    // <see cref="ImportMapDefinition"/> que el propio componente
+    // <c>&lt;ImportMap /&gt;</c> resuelve para ESE endpoint
+    // (<c>HttpContext.GetEndpoint().Metadata.GetMetadata&lt;ImportMapDefinition&gt;()</c>,
+    // literalmente la misma llamada que hace <c>ImportMap.SetParametersAsync</c>
+    // en el framework) y se hashea su <c>ToString()</c> — que reenvía al
+    // mismo <c>ToJson()</c> interno que usa <ImportMap /> para renderizar —
+    // así que el hash SIEMPRE coincide con lo que el navegador va a recibir
+    // en esa página, en cualquier entorno.
+    private static readonly ConcurrentDictionary<ImportMapDefinition, string> _hashesImportMapPorDefinicion = new();
 
     public static IApplicationBuilder UseCabecerasSeguridad(this IApplicationBuilder app)
     {
@@ -54,7 +56,7 @@ public static class CabecerasSeguridadExtensions
         {
             var cabeceras = contexto.Response.Headers;
 
-            cabeceras["Content-Security-Policy"] = PoliticaSeguridadContenido;
+            cabeceras["Content-Security-Policy"] = ConstruirPoliticaSeguridadContenido(contexto);
             cabeceras["X-Content-Type-Options"] = "nosniff";
             // Redundante con frame-ancestors para navegadores actuales, pero
             // es la única forma de decírselo a los que no aplican CSP 2.
@@ -81,4 +83,60 @@ public static class CabecerasSeguridadExtensions
             await siguiente();
         });
     }
+
+    private static string ConstruirPoliticaSeguridadContenido(HttpContext contexto)
+    {
+        return
+            "default-src 'self'; " +
+            $"{ConstruirDirectivaScriptSrc(contexto)}; " +
+            "style-src 'self' 'unsafe-inline'; " +
+            "img-src 'self' data:; " +
+            "font-src 'self'; " +
+            "connect-src 'self'; " +
+            "object-src 'none'; " +
+            "base-uri 'self'; " +
+            "form-action 'self'; " +
+            "frame-ancestors 'none'";
+    }
+
+    /// <summary>
+    /// La misma resolución que hace <c>ImportMap.SetParametersAsync</c> del
+    /// framework: si el endpoint actual no tiene <see cref="ImportMapDefinition"/>
+    /// en sus metadatos (rutas que no son una página Razor — /salud,
+    /// /api/v1/..., los propios activos estáticos), esa página no va a
+    /// renderizar ningún <c>&lt;ImportMap /&gt;</c>, así que no hace falta
+    /// ningún hash en <c>script-src</c>.
+    /// </summary>
+    private static string ConstruirDirectivaScriptSrc(HttpContext contexto)
+    {
+        var definicion = contexto.GetEndpoint()?.Metadata.GetMetadata<ImportMapDefinition>();
+        if (definicion is null)
+        {
+            return "script-src 'self'";
+        }
+
+        var hash = _hashesImportMapPorDefinicion.GetOrAdd(definicion, CalcularHashImportMap);
+        return $"script-src 'self' 'sha256-{hash}'";
+    }
+
+    private static string CalcularHashImportMap(ImportMapDefinition definicion)
+    {
+        // ImportMapDefinition.ToJson() indenta con Utf8JsonWriter, cuyo salto
+        // de línea (\r\n en este SDK/plataforma) es un detalle de
+        // implementación, no algo que el navegador respete: al parsear el
+        // HTML, el "preprocessing the input stream" del propio estándar
+        // (https://html.spec.whatwg.org/multipage/parsing.html#preprocessing-the-input-stream)
+        // normaliza TODO salto de línea a \n antes de que el motor calcule el
+        // hash del <script> — el mismo texto que ejecuta. Sin esta
+        // normalización el hash que calculamos aquí no es el que el
+        // navegador exige, con independencia del sistema operativo donde
+        // corra la app (reproducido en local: 1566 bytes con \r\n contra los
+        // 1544 que ve el navegador).
+        var json = NormalizarSaltosDeLinea(definicion.ToString()!);
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(json));
+        return Convert.ToBase64String(hash);
+    }
+
+    private static string NormalizarSaltosDeLinea(string texto) =>
+        texto.Replace("\r\n", "\n").Replace("\r", "\n");
 }
