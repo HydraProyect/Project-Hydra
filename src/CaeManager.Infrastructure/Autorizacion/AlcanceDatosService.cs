@@ -104,9 +104,17 @@ public class AlcanceDatosService(
             // Las dos acaban igual: sin acceso total, y con el reparto por
             // cliente saliendo de la rama de rol, que sin rol devuelve lista
             // vacía. Fallo cerrado.
-            accesoTotal = sesion.Capacidad
-                is CapacidadPrivilegio.SoporteLectura
-                or CapacidadPrivilegio.BreakGlass;
+            //
+            // Y solo DENTRO del tenant que la sesión abrió: sesion.Capacidad es
+            // un dato de la concesión, fijo mientras dure la sesión, y no varía
+            // con el tenant que esté de visita. Sin comparar TenantObjetivoId
+            // aquí, un fan-out multi-tenant que reutilizara esta misma
+            // instancia (scoped) para varios tenants —cambiando solo
+            // AmbitoTenantExplicito en cada vuelta, igual que el defecto de
+            // #571 con el rol— heredaría "acceso total" en cada tenant
+            // visitado a partir de una sesión abierta para uno solo.
+            accesoTotal = sesion.TenantObjetivoId == tenantActual.TenantId
+                          && (sesion.Capacidad is CapacidadPrivilegio.SoporteLectura or CapacidadPrivilegio.BreakGlass);
         }
         else
         {

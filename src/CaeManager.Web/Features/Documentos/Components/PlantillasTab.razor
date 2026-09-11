@@ -4,7 +4,7 @@
     Plantillas sigue teniendo rutas propias (/plantillas, /plantillas/nueva,
     /plantillas/{id}/editar, /plantillas/documentos-generados), que se
     conservan como deep links — Plantillas.razor es ahora una página fina
-    que renderiza este mismo componente.
+    que renderiza este mismo componente y pinta encima la cabecera Gen 2.
 
     Sub-pestañas Catálogo/Generados: aquí se mantienen como selector interno
     (PestanaInicial solo se lee en el primer render; el cambio posterior
@@ -24,13 +24,16 @@
 @inject NavigationManager Navigation
 @inject ToastService Toasts
 
-<div class="cabecera-pagina">
-    <p class="texto-descriptivo">
-        Formularios que entrega un centro (acceso, autorización, ficha de riesgos…) configurados una vez para
-        rellenarse automáticamente con los datos ya conocidos de cada Trabajador o Empresa.
-    </p>
-    <Boton OnClick='() => Navigation.NavigateTo("/plantillas/nueva")'>+ Nueva plantilla</Boton>
-</div>
+@* Embebida en /documentos la pestaña trae su propia entradilla y su «+ Nueva
+   plantilla»: la cabecera de esa página es la de Documentos. En /plantillas
+   la cabecera Gen 2 la pinta la página, y aquí no se repite. *@
+@if (!CabeceraEnLaPagina)
+{
+    <div class="cabecera-pagina">
+        <p class="texto-descriptivo">@TextoDescripcion</p>
+        <Boton OnClick='() => Navigation.NavigateTo("/plantillas/nueva")'>+ Nueva plantilla</Boton>
+    </div>
+}
 
 <Pestanas Definiciones="PestanasConContador" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestanaAsync" EtiquetaGrupo="Plantillas">
     @if (_pestanaActiva == "catalogo")
@@ -49,6 +52,10 @@
         }
         else if (_plantillas.Count == 0)
         {
+            @* El mockup escribe «Sube tu primera plantilla Word o PDF» y
+               promete que TALVEG detectará sus campos. No se copia: el alta
+               solo acepta PDF (accept=".pdf" en ConfigurarPlantilla) y un
+               PDF sin campos AcroForm se configura a mano por posición. *@
             <EstadoVacio NombreIcono="plantilla" Titulo="Todavía no hay plantillas" Descripcion="Crea la primera a partir de un PDF que te entregue un centro.">
                 <Accion>
                     <Boton OnClick='() => Navigation.NavigateTo("/plantillas/nueva")'>+ Nueva plantilla</Boton>
@@ -57,50 +64,70 @@
         }
         else
         {
-            <table class="tabla-datos">
-                <thead>
-                    <tr>
-                        <th>Nombre</th>
-                        <th>Ámbito</th>
-                        <th>Formato</th>
-                        <th>Estado</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var plantilla in _plantillas)
-                    {
+            @* j/k recorre el catálogo y Enter abre la plantilla enfocada, igual
+               que su botón. Sin «x»: el catálogo no tiene selección múltiple. *@
+            <AtajosListaTeclado OnAtajo="ManejarAtajo" />
+
+            @* Columnas frente al mockup: «Versión confirmada» no se pinta porque
+               PlantillaDocumentoListaDto no trae ni el número ni la fecha de la
+               versión; «Origen» (Word/PDF) sería siempre PDF, así que se
+               conserva «Formato», que sí distingue cómo se rellena. «Ámbito» no
+               lo pinta el mockup, pero la lista ya lo enseñaba. *@
+            @* La tabla tiene ancho mínimo y el marco se desplaza en horizontal:
+               como región con nombre y foco, con teclado también se puede
+               desplazar y el lector de pantalla anuncia qué contiene. *@
+            <div class="marco-lista-plantillas" role="region" aria-label="Catálogo de plantillas" tabindex="0">
+                <table class="tabla-datos">
+                    <thead>
                         <tr>
-                            <td>@plantilla.Nombre</td>
-                            <td>@plantilla.AmbitoAplicacion</td>
-                            <td>@(plantilla.FormatoOrigen == FormatoOrigenPlantilla.PdfConCampos ? "Campos AcroForm" : "Posición manual")</td>
-                            <td>
-                                @if (plantilla.UltimaVersionEstado == EstadoConfiguracionPlantilla.Confirmada)
-                                {
-                                    <Badge Tono="TonoBadge.Exito">Confirmada</Badge>
-                                }
-                                else
-                                {
-                                    <Badge Tono="TonoBadge.Advertencia">@plantilla.UltimaVersionEstado</Badge>
-                                }
-                            </td>
-                            <td>
-                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
-                                       OnClick="() => IrAConfigurar(plantilla.UltimaVersionId)">
-                                    @(plantilla.UltimaVersionEstado == EstadoConfiguracionPlantilla.Confirmada ? "Ver" : "Configurar")
-                                </Boton>
-                                @if (plantilla.UltimaVersionEstado == EstadoConfiguracionPlantilla.Confirmada)
-                                {
-                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
-                                           OnClick="() => AbrirModalNuevaVersion(plantilla.Id, plantilla.Nombre)">
-                                        Subir nueva versión
-                                    </Boton>
-                                }
-                            </td>
+                            <th>Nombre</th>
+                            <th>Ámbito</th>
+                            <th>Formato</th>
+                            <th>Estado</th>
+                            <th></th>
                         </tr>
-                    }
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        @foreach (var plantilla in _plantillas)
+                        {
+                            var confirmada = plantilla.UltimaVersionEstado == EstadoConfiguracionPlantilla.Confirmada;
+                            <tr @key="plantilla.Id" class="@(plantilla.Id == _idEnfocado ? "fila-enfocada" : null)">
+                                <td class="nombre-plantilla">@plantilla.Nombre</td>
+                                <td>@TextoAmbito(plantilla.AmbitoAplicacion)</td>
+                                <td>@(plantilla.FormatoOrigen == FormatoOrigenPlantilla.PdfConCampos ? "Campos AcroForm" : "Posición manual")</td>
+                                <td>
+                                    <Badge Tono="@(confirmada ? TonoBadge.Exito : TonoBadge.Advertencia)" Tamano="TamanoBadge.Pequeno">
+                                        @TextoEstado(plantilla.UltimaVersionEstado)
+                                    </Badge>
+                                </td>
+                                <td>
+                                    @* «Ver» y no «Configurar» cuando la última versión
+                                       está confirmada: es inmutable y el editor la abre
+                                       en lectura (con la generación de documentos). El
+                                       mockup dice «Configurar» siempre; aquí manda lo
+                                       que el editor permite. El nombre accesible añade
+                                       la plantilla: hay un botón igual en cada fila. *@
+                                    <div class="acciones-plantilla">
+                                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                               aria-label="@($"{(confirmada ? "Ver" : "Configurar")} {plantilla.Nombre}")"
+                                               OnClick="() => IrAConfigurar(plantilla.UltimaVersionId)">
+                                            @(confirmada ? "Ver" : "Configurar")
+                                        </Boton>
+                                        @if (confirmada)
+                                        {
+                                            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                                   aria-label="@($"Nueva versión de {plantilla.Nombre}")"
+                                                   OnClick="() => AbrirModalNuevaVersion(plantilla.Id, plantilla.Nombre)">
+                                                Nueva versión
+                                            </Boton>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
         }
     }
     else

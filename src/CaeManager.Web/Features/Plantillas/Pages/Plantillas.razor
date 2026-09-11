@@ -7,7 +7,19 @@
 <PageTitle>Plantillas — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <h1 class="titulo-pagina">Plantillas</h1>
+    @* Cabecera Gen 2 (Plantillas TALVEG.dc.html): kicker, título y la acción
+       principal a la derecha. La entradilla no la pinta el mockup, pero la
+       página ya la tenía y explica qué es una plantilla: se conserva, con el
+       mismo texto que la pestaña embebida en /documentos.
 
-    <PlantillasTab PestanaInicial="@PestanaInicial" PestanaActivaChanged="CambiarPestana" />
+       La pestaña no repite su propia cabecera aquí (CabeceraEnLaPagina): con
+       ella habría dos «+ Nueva plantilla» en la misma pantalla. *@
+    <CabeceraPagina Titulo="Plantillas" Kicker="Ciclo documental">
+        <Descripcion>@PlantillasTab.TextoDescripcion</Descripcion>
+        <Acciones>
+            <Boton OnClick='() => Navigation.NavigateTo("/plantillas/nueva")'>+ Nueva plantilla</Boton>
+        </Acciones>
+    </CabeceraPagina>
+
+    <PlantillasTab CabeceraEnLaPagina="true" PestanaInicial="@PestanaInicial" PestanaActivaChanged="CambiarPestana" />
 </div>

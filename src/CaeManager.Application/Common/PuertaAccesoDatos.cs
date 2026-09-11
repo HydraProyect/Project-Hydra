@@ -69,6 +69,17 @@ public sealed class PuertaAccesoDatos
             return await operacion();
 
         await _puerta.WaitAsync(cancellationToken);
+        // SemaphoreSlim.WaitAsync puede conceder el semáforo aunque el token ya
+        // estuviera cancelado en el momento del Release() de quien lo tenía: es
+        // una carrera de la propia BCL entre "cancelar" y "liberar", no algo que
+        // WaitAsync garantice resolver a favor de la cancelación. Sin este
+        // segundo control, un circuito de Blazor ya retirado podría ejecutar
+        // igualmente la operación que se creía cancelada.
+        if (cancellationToken.IsCancellationRequested)
+        {
+            _puerta.Release();
+            cancellationToken.ThrowIfCancellationRequested();
+        }
         _flujoDentro.Value = true;
         try
         {
@@ -90,6 +101,12 @@ public sealed class PuertaAccesoDatos
         }
 
         await _puerta.WaitAsync(cancellationToken);
+        // Ver el comentario en el overload genérico: misma carrera de la BCL.
+        if (cancellationToken.IsCancellationRequested)
+        {
+            _puerta.Release();
+            cancellationToken.ThrowIfCancellationRequested();
+        }
         _flujoDentro.Value = true;
         try
         {
