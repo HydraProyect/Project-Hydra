@@ -84,6 +84,16 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Asignaciones.ObtenerDocumentosFaltantesParaAsignacionQueryHandler", "ITrabajadoresQueryContext"),
         ("Asignaciones.ObtenerTrabajadoresVisitaSinAsignacionQueryHandler", "ITrabajadoresQueryContext"),
         ("Asignaciones.ObtenerTrabajadoresVisitaSinAsignacionQueryHandler", "IVisitasQueryContext"),
+        // ObtenerAuditoriaQuery necesita saber si Cliente/Empresa/Centro/
+        // Trabajador/Documento SIGUEN eliminados hoy (no solo lo que dice el
+        // JSON histórico) para no ofrecer un "Restaurar" que el
+        // Restaurar*Command de cada feature va a rechazar (defecto de Codex,
+        // 2026-09-11) — la misma comprobación IgnoreQueryFilters()+TenantId
+        // de esos Restaurar*Command, hecha en lote aquí en vez de por fila.
+        ("Auditoria.ObtenerAuditoriaQueryHandler", "ICentrosQueryContext"),
+        ("Auditoria.ObtenerAuditoriaQueryHandler", "IDocumentosQueryContext"),
+        ("Auditoria.ObtenerAuditoriaQueryHandler", "IEmpresasQueryContext"),
+        ("Auditoria.ObtenerAuditoriaQueryHandler", "ITrabajadoresQueryContext"),
         ("Bandeja.ObtenerBandejaGestorQueryHandler", "IConfiguracionQueryContext"),
         ("Blindaje42.ObtenerBlindajeEmpresasDeClienteQueryHandler", "IEmpresasQueryContext"),
         ("Blindaje42.SolicitarCertificacionTgssCommandHandler", "IEmpresasQueryContext"),
@@ -483,6 +493,10 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Subcontratas.ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler", "ITiposDocumentoQueryContext"),
         ("Subcontratas.ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler", "ITrabajadoresQueryContext"),
         ("Subcontratas.RegistrarVerificacionExternaSubcontrataCommandHandler", "ICentrosQueryContext"),
+        // Revisión Codex 2026-09-11: el Centro tiene que estar en una RelacionEmpresarial
+        // vigente de esta Subcontrata, mismo criterio que CentrosSeleccionables de
+        // ObtenerSupervisionSubcontrataQuery.
+        ("Subcontratas.RegistrarVerificacionExternaSubcontrataCommandHandler", "IEmpresasQueryContext"),
         ("Subcontratas.RegistrarVerificacionExternaSubcontrataCommandHandler", "ITiposDocumentoQueryContext"),
         ("Telemetria.ObtenerTiempoGestionConversacionQueryHandler", "IConfiguracionQueryContext"),
         ("Telemetria.RegistrarTramoGestionCommandHandler", "IComunicacionesQueryContext"),
@@ -508,6 +522,7 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Trabajadores.EliminarTrabajadorCommandHandler", "IAsignacionRepository"),
         ("Trabajadores.EliminarTrabajadoresCommandHandler", "IAsignacionRepository"),
         ("Trabajadores.ObtenerDeteccionesPendientesQueryHandler", "IEmpresasQueryContext"),
+        ("Trabajadores.ObtenerDeteccionesPorEmpresaQueryHandler", "IAsignacionesQueryContext"),
         ("Trabajadores.ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler", "IAsignacionesQueryContext"),
         ("Trabajadores.ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler", "ICentrosQueryContext"),
         ("Trabajadores.ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler", "IClientesQueryContext"),

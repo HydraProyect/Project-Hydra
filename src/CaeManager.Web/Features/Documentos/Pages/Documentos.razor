@@ -44,11 +44,15 @@
     <Pestanas Definiciones="_pestanasDocumentos" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestana" EtiquetaGrupo="Secciones de documentos">
         @if (_pestanaActiva == "plataforma")
         {
-            <PlataformaTab />
+            <AuthorizeView Roles="@RolesDeGestionDocumental">
+                <PlataformaTab />
+            </AuthorizeView>
         }
         else if (_pestanaActiva == "reclamaciones")
         {
-            <ReclamacionesTab />
+            <AuthorizeView Roles="@RolesDeGestionDocumental">
+                <ReclamacionesTab />
+            </AuthorizeView>
         }
         else if (_pestanaActiva == "sugerencias")
         {
@@ -56,11 +60,15 @@
         }
         else if (_pestanaActiva == "revision-ia")
         {
-            <RevisionIaTab />
+            <AuthorizeView Roles="@RolesDeGestionDocumental">
+                <RevisionIaTab />
+            </AuthorizeView>
         }
         else if (_pestanaActiva == "plantillas")
         {
-            <PlantillasTab />
+            <AuthorizeView Roles="@RolesDeGestionDocumental">
+                <PlantillasTab />
+            </AuthorizeView>
         }
         else
         {

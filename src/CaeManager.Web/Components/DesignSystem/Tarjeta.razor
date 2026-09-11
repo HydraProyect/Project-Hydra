@@ -4,7 +4,7 @@
         <div class="tarjeta-header">
             @if (!string.IsNullOrWhiteSpace(Titulo))
             {
-                <h2 class="tarjeta-titulo">@Titulo</h2>
+                @TituloTarjeta
             }
             @if (AccionesHeader is not null)
             {
@@ -22,4 +22,25 @@
     [Parameter] public RenderFragment? AccionesHeader { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
     [Parameter] public string? Class { get; set; }
+
+    /// <summary>
+    /// Nivel de encabezado HTML del título (2 a 4). 2 por defecto, para no
+    /// cambiar a ningún consumidor existente: solo baja a 3 o 4 cuando la
+    /// tarjeta es una subsección bajo un h2/h3 que ya pintó el contenedor.
+    /// </summary>
+    [Parameter] public int NivelTitulo { get; set; } = 2;
+
+    protected override void OnParametersSet()
+    {
+        if (NivelTitulo is < 2 or > 4)
+            throw new ArgumentOutOfRangeException(nameof(NivelTitulo), NivelTitulo, "NivelTitulo debe estar entre 2 y 4.");
+    }
+
+    private RenderFragment TituloTarjeta => builder =>
+    {
+        builder.OpenElement(0, $"h{NivelTitulo}");
+        builder.AddAttribute(1, "class", "tarjeta-titulo");
+        builder.AddContent(2, Titulo);
+        builder.CloseElement();
+    };
 }

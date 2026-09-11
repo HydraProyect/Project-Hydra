@@ -26,44 +26,58 @@
 <PageTitle>@_tituloPagina — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <div class="cabecera-pagina">
-        <h1 class="titulo-pagina">@_tituloPagina</h1>
-        <div class="acciones-cabecera">
+    @* Cabecera Gen 2 (Empresas TALVEG.dc.html): el kicker es el grupo del menú
+       y el título lo sigue decidiendo el perfil de vocabulario del tenant
+       («Empresas», o «Mi empresa» con el perfil ClienteDirecto). *@
+    <CabeceraPagina Titulo="@_tituloPagina" Kicker="Negocio">
+        <Acciones>
             <a class="enlace-exportar" href="/empresas/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel</a>
             <Boton OnClick="AbrirCrear">+ Nueva empresa</Boton>
-        </div>
-    </div>
+        </Acciones>
+    </CabeceraPagina>
 
+    @* Tarjeta de filtros del mockup, con los filtros activos dentro.
+
+       Frente al mockup:
+       - El buscador dice «Buscar por razón social…», que es lo que busca
+         ObtenerEmpresasQuery: el CIF no entra. El propio mockup lo anota, y
+         los E2E localizan el campo por este texto.
+       - El filtro documental conserva su rótulo visible «Documentación»: el
+         mockup lo mete en la primera opción, pero CampoSelect sin etiqueta
+         deja el desplegable sin nombre accesible. *@
     <div class="barra-filtros">
         <CampoTexto Placeholder="Buscar por razón social…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
-        <FiltroEstado Etiqueta="Documentación" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+        <FiltroEstado Etiqueta="Documentación" TextoTodos="Todas" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
                       Opciones="EstadoDocumentoUi.OpcionesDocumentales" />
-    </div>
 
-    @* Mismo bloque que Clientes y Tipos de documento: lo que está filtrando se
-       ve, y se quita de uno en uno. El valor del FiltroEstado vive dentro de un
-       desplegable cerrado, así que sin esto una lista corta parece una lista
-       corta, y no una lista recortada. *@
-    @if (HayFiltrosActivos)
-    {
-        <div class="chips-filtros">
-            <span class="chips-filtros-indicador" aria-hidden="true"><Icono Nombre="filtro" Tamano="TamanoIcono.Pequeno" /></span>
-            @if (!string.IsNullOrWhiteSpace(_busqueda))
-            {
-                <span class="chip-filtro">
-                    Búsqueda: "@_busqueda"
-                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroBusquedaAsync" aria-label="Quitar filtro de búsqueda"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
-                </span>
-            }
-            @if (!string.IsNullOrWhiteSpace(_estadoFiltro))
-            {
-                <span class="chip-filtro">
-                    @EtiquetaFiltroEstado
-                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroEstadoAsync" aria-label="Quitar filtro de documentación"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
-                </span>
-            }
-        </div>
-    }
+        @* Lo que está filtrando se ve y se quita de uno en uno (#497). El
+           valor del FiltroEstado vive dentro de un desplegable cerrado, así que
+           sin esto una lista corta parece una lista corta, y no una recortada. *@
+        @if (HayFiltrosActivos)
+        {
+            <div class="chips-filtros chips-filtros-barra">
+                <span class="chips-filtros-indicador" aria-hidden="true"><Icono Nombre="filtro" Tamano="TamanoIcono.Pequeno" /></span>
+                @if (!string.IsNullOrWhiteSpace(_busqueda))
+                {
+                    <span class="chip-filtro">
+                        Búsqueda: "@_busqueda"
+                        <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroBusquedaAsync" aria-label="Quitar filtro de búsqueda"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
+                    </span>
+                }
+                @if (!string.IsNullOrWhiteSpace(_estadoFiltro))
+                {
+                    <span class="chip-filtro">
+                        @EtiquetaFiltroEstado
+                        <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroEstadoAsync" aria-label="Quitar filtro de documentación"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
+                    </span>
+                }
+                @* «Limpiar todo» del mockup: el mismo LimpiarFiltrosAsync que
+                   «Quitar los filtros» del estado vacío, que limpia también los
+                   dos filtros de la URL. *@
+                <button type="button" class="limpiar-filtros-barra" @onclick="LimpiarFiltrosAsync">Limpiar todo</button>
+            </div>
+        }
+    </div>
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
@@ -88,7 +102,8 @@
            La copia no afirma que HAYA empresas dadas de alta: aquí el filtrado
            es de servidor y la consulta solo devuelve el total YA filtrado, así
            que no sabemos cuántas hay sin filtro. Con cero empresas y un filtro
-           escrito, "no coincide ninguna" sigue siendo cierto. *@
+           escrito, "no coincide ninguna" sigue siendo cierto. Por eso no se
+           copia el «Hay empresas dadas de alta, pero…» del mockup. *@
         <EstadoVacio NombreIcono="vacio" Titulo="Ninguna empresa con este filtro"
                      Descripcion="Ninguna coincide con la búsqueda ni con el estado de documentación seleccionado.">
             <Accion>
@@ -107,7 +122,13 @@
     else
     {
         <BarraHerramientasLista SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple"
-                                TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidosAsync" />
+                                TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidosAsync">
+            <Extra>
+                @* El total lo da la consulta ya filtrada: es el número de
+                   coincidencias, no el de la cartera entera. *@
+                <span class="conteo-empresas">@TextoConteo</span>
+            </Extra>
+        </BarraHerramientasLista>
 
         @if (_seleccionMultiple)
         {
@@ -115,7 +136,7 @@
                de lote, que ya dice «N seleccionado(s) EN ESTA PÁGINA»: la casilla
                solo marca los de la página actual. Con 20 por página y 200
                coincidencias, quien la marcaba y pulsaba "Eliminar seleccionados"
-               borraba 20 creyendo que borraba 200.
+               borraba 20 creyendo que borraba 200 (#503).
 
                Se dice ademas cuantas quedan fuera cuando las hay: es la mitad
                informativa del banner que pide el mockup. La otra mitad,
@@ -132,10 +153,19 @@
             </label>
         }
 
-        @* Cabecera de columnas. Sin roles de tabla a propósito: esto no es una
-           tabla —la fila se despliega— y anunciarlo como tal prometería a un
-           lector de pantalla una navegación por celdas que no existe. *@
-        <div class="cabecera-columnas-empresas rejilla-empresas @(_seleccionMultiple ? "rejilla-empresas-seleccion" : null)">
+        @* Marco de la lista del mockup: una sola tarjeta con la cabecera de
+           columnas arriba y las filas separadas por una línea, en vez de una
+           tarjeta suelta por Empresa. Sin overflow en el marco a propósito: el
+           panel de MenuAcciones de las últimas filas se saldría y quedaría
+           recortado (mismo motivo que la nota de .tarjeta-fila-acordeon en
+           list-page.css). *@
+        <div class="marco-lista-empresas">
+        @* Cabecera de columnas (#498). Sin roles de tabla a propósito: esto no
+           es una tabla —la fila se despliega— y anunciarlo como tal prometería
+           a un lector de pantalla una navegación por celdas que no existe. Sin
+           QuickGrid por lo mismo: no soporta filas expandibles. Los rótulos no
+           ordenan: el mockup no lo pide. *@
+        <div class="@ClaseRejilla("cabecera-columnas-empresas")">
             @if (_seleccionMultiple)
             {
                 <span></span>
@@ -152,19 +182,23 @@
         <div class="lista-filas-acordeon">
             @foreach (var empresa in _elementosPagina)
             {
-                <div class="@("tarjeta-fila-acordeon" + (empresa.Id == _idEnfocado ? " fila-enfocada" : ""))" @key="empresa.Id">
+                <div class="@ClaseTarjeta(empresa.Id)" @key="empresa.Id">
                     @{ var expandido = _expandidos.Contains(empresa.Id); }
-                    <div class="tarjeta-fila-acordeon-cabecera rejilla-empresas @(_seleccionMultiple ? "rejilla-empresas-seleccion" : null)">
+                    <div class="@ClaseRejilla("tarjeta-fila-acordeon-cabecera")">
                         @if (_seleccionMultiple)
                         {
-                            <input type="checkbox" checked="@_seleccionados.Contains(empresa.Id)" @onchange="e => AlternarSeleccion(empresa.Id, (bool)e.Value!)" />
+                            <input type="checkbox" aria-label="@($"Seleccionar {empresa.RazonSocial}")" checked="@_seleccionados.Contains(empresa.Id)" @onchange="e => AlternarSeleccion(empresa.Id, (bool)e.Value!)" />
                         }
                         <button type="button" class="@("boton-expandir-fila" + (expandido ? " boton-expandir-fila-abierta" : ""))"
                                 aria-expanded="@(expandido ? "true" : "false")"
-                                aria-label="@($"Clientes de {empresa.RazonSocial}")"
+                                aria-label="@($"{(expandido ? "Ocultar" : "Ver")} los clientes empresariales de {empresa.RazonSocial}")"
                                 @onclick="() => AlternarExpansionAsync(empresa.Id)">
                             <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
                         </button>
+                        @* El mockup pinta bajo la razón social «CNAE 4322 · Anexo I».
+                           EmpresaListaDto no trae ni el CNAE ni el Anexo I (viven en
+                           el detalle, y el panel de vista previa ya los enseña), así
+                           que no se copia: sería una consulta más por fila. *@
                         <button type="button" class="enlace-nombre-fila celda-empresa" @onclick='() => AbrirPreview(empresa.Id)'>
                             @empresa.RazonSocial
                         </button>
@@ -175,10 +209,11 @@
                            respecto a la cabecera. *@
                         <span>
                             <AnilloCumplimiento Porcentaje="empresa.CumplimientoPorcentaje" Tamano="TamanoAnillo.Pequeno"
-                                                 Etiqueta="@($"{empresa.CumplimientoPorcentaje}% de cumplimiento acumulado en los centros donde esta empresa tiene actividad")" />
+                                                 Etiqueta="@EtiquetaCumplimiento(empresa.CumplimientoPorcentaje)" />
                         </span>
                         <span>
-                            <Badge Tono="EstadoDocumentoUi.TonoDocumental(empresa.EstadoDocumental)" Tamano="TamanoBadge.Pequeno">
+                            <Badge Tono="EstadoDocumentoUi.TonoDocumental(empresa.EstadoDocumental)" Tamano="TamanoBadge.Pequeno"
+                                   title="@TituloEstadoDocumental(empresa.EstadoDocumental)">
                                 @EstadoDocumentoUi.TextoDocumental(empresa.EstadoDocumental)
                             </Badge>
                         </span>
@@ -187,6 +222,7 @@
                             {
                                 <button type="button" class="badge-deteccion"
                                         @onclick='() => NavigationManager.NavigateTo($"/empresas/{empresa.Id}/deteccion-trabajadores")'>
+                                    <Icono Nombre="ia" Tamano="TamanoIcono.Pequeno" />
                                     @(empresa.DeteccionesPendientes == 1 ? "1 detección" : $"{empresa.DeteccionesPendientes} detecciones")
                                 </button>
                             }
@@ -222,18 +258,33 @@
                     </div>
                     @if (expandido)
                     {
+                        @* La fila desplegada son los Clientes empresariales a los que
+                           esta Empresa presta servicio en una Relación Empresarial: un
+                           rol de la relación, no un tipo de la Empresa. Por eso el
+                           rótulo dice «Presta servicio a», y no «N clientes» a secas. *@
                         <div class="tarjeta-fila-acordeon-contenido">
                             @{ var clientes = _clientesPorEmpresa.GetValueOrDefault(empresa.Id); }
                             @if (clientes is null)
                             {
                                 <EstadoCargando Filas="2" />
                             }
+                            else if (_clientesConError.Contains(empresa.Id))
+                            {
+                                @* Antes un fallo se pintaba como «no tiene ningún
+                                   Cliente asociado»: calma donde lo cierto es que no
+                                   sabemos nada. *@
+                                <p class="texto-vacio-seccion" role="alert">No pudimos cargar a quién presta servicio esta empresa.</p>
+                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => ReintentarClientesAsync(empresa.Id)">
+                                    Reintentar
+                                </Boton>
+                            }
                             else if (clientes.Count == 0)
                             {
-                                <EstadoVacio Titulo="Sin clientes" Descripcion="Esta empresa todavía no tiene ningún Cliente asociado." />
+                                <p class="texto-vacio-seccion">Esta empresa todavía no presta servicio a ningún cliente empresarial.</p>
                             }
                             else
                             {
+                                <span class="titulo-clientes-empresa">@TituloClientes(clientes.Count)</span>
                                 <ul class="workspace-lista-entidades">
                                     @foreach (var cliente in clientes)
                                     {
@@ -249,6 +300,7 @@
                     }
                 </div>
             }
+        </div>
         </div>
 
         <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"

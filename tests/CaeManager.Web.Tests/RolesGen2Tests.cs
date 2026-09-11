@@ -273,6 +273,41 @@ public class RolesGen2Tests : BunitContext
         cut.FindAll(".contenido-panel-configuracion").Should().HaveCount(1);
     }
 
+    /// <summary>
+    /// Con ruta propia el título de la página es el único h1→h2 de la
+    /// pantalla: las tarjetas de rol se quedan en h2. Embebida en
+    /// Configuración, el hub ya puso su propio h2 («Roles»), así que las
+    /// tarjetas de rol tienen que bajar a h3 para no aplanar la jerarquía
+    /// (hallado por Codex en la revisión del 2026-09-11). Cae si
+    /// <c>NivelTitulo</c> se fija a 2 en <see cref="CaeManager.Web.Features.GestionRoles.Pages.Roles"/>.
+    /// </summary>
+    [Fact]
+    public void Embebida_en_Configuracion_las_tarjetas_de_rol_bajan_a_h3()
+    {
+        _fuente.Recuento = _ => Task.FromResult<IReadOnlyDictionary<string, int>>(
+            new Dictionary<string, int> { [RolesIdentidad.Administrador] = 1 });
+
+        var cut = Renderizar(integrada: true);
+
+        cut.Find("h2.titulo-panel-configuracion").TextContent.Trim().Should().Be("Roles");
+        cut.FindAll(".tarjeta-titulo").Should().NotBeEmpty();
+        cut.FindAll(".tarjeta-titulo").Select(t => t.TagName).Should().OnlyContain(tag => tag == "H3",
+            "bajo el h2 «Roles» del hub, cada tarjeta de rol es una subsección: h3, no un segundo h2");
+    }
+
+    [Fact]
+    public void Con_ruta_propia_las_tarjetas_de_rol_se_quedan_en_h2()
+    {
+        _fuente.Recuento = _ => Task.FromResult<IReadOnlyDictionary<string, int>>(
+            new Dictionary<string, int> { [RolesIdentidad.Administrador] = 1 });
+
+        var cut = Renderizar(integrada: false);
+
+        cut.FindAll(".tarjeta-titulo").Should().NotBeEmpty();
+        cut.FindAll(".tarjeta-titulo").Select(t => t.TagName).Should().OnlyContain(tag => tag == "H2",
+            "sin el h2 de un hub por encima, la tarjeta de rol es la subsección directa del h1 de la página");
+    }
+
     // ---------------------------------------------------------------- pestaña Roles
 
     [Fact]

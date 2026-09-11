@@ -52,6 +52,16 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Application/Trabajadores/Commands/RestaurarTrabajador/RestaurarTrabajadorCommand.cs", ".IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Application/Documentos/Commands/RestaurarDocumento/RestaurarDocumentoCommand.cs", ".IgnoreQueryFilters()")] = 1,
 
+        // ObtenerAuditoriaQuery (H1, defecto de Codex 2026-09-11): mismo
+        // motivo que los cinco Restaurar*Command de arriba — PuedeRestaurar
+        // necesita saber si Cliente/Empresa/Centro/Trabajador/Documento
+        // SIGUEN eliminados hoy, no solo lo que dijo el JSON histórico en su
+        // momento, y el filtro global excluiría justo esas filas eliminadas.
+        // Cuatro apariciones: una por tabla consultada en lote (Empresas
+        // cubre tanto "Cliente" como "Empresa"; Centros; Trabajadores;
+        // Documentos), siempre con el TenantId comprobado a mano.
+        [("src/CaeManager.Application/Auditoria/Queries/ObtenerAuditoriaQuery.cs", ".IgnoreQueryFilters()")] = 4,
+
         // Backfill de asignaciones operativas (F1): recorre los Clientes de
         // TODOS los tenants en un solo barrido, al arrancar y sin sesión, para
         // trasladar el reparto que ya existe (Cliente.EjecutivoUsuarioId) a las

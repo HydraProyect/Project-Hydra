@@ -138,13 +138,15 @@ public class DeteccionTrabajadoresGen2Tests : BunitContext
         public Func<object, Task?> Retener { get; set; } = _ => null;
 
         public DeteccionTrabajadorDto Nuevo(Guid empresaId, string nombre, string apellidos, string dni, DateTime? creadaEnUtc = null) =>
-            Agregar(empresaId, new DeteccionTrabajadorDto(Guid.NewGuid(), TipoDeteccion.Nuevo, nombre, apellidos, dni, null, creadaEnUtc ?? Ahora));
+            Agregar(empresaId, new DeteccionTrabajadorDto(Guid.NewGuid(), TipoDeteccion.Nuevo, nombre, apellidos, dni, null, creadaEnUtc ?? Ahora, AsignacionesActivas: 0));
 
-        public DeteccionTrabajadorDto Ausente(Guid empresaId, string nombre, string apellidos, string dni, DateTime? creadaEnUtc = null)
+        public DeteccionTrabajadorDto Ausente(
+            Guid empresaId, string nombre, string apellidos, string dni, DateTime? creadaEnUtc = null, int asignacionesActivas = 0)
         {
             var trabajadorId = Guid.NewGuid();
             TrabajadoresActivos.Add(trabajadorId);
-            return Agregar(empresaId, new DeteccionTrabajadorDto(Guid.NewGuid(), TipoDeteccion.Ausente, nombre, apellidos, dni, trabajadorId, creadaEnUtc ?? Ahora));
+            return Agregar(empresaId, new DeteccionTrabajadorDto(
+                Guid.NewGuid(), TipoDeteccion.Ausente, nombre, apellidos, dni, trabajadorId, creadaEnUtc ?? Ahora, asignacionesActivas));
         }
 
         private DeteccionTrabajadorDto Agregar(Guid empresaId, DeteccionTrabajadorDto dto)
@@ -364,35 +366,79 @@ public class DeteccionTrabajadoresGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// <c>DeteccionTrabajadoresService</c> agrupa y compara los identificadores
-    /// solo con <c>Trim().ToUpperInvariant()</c>: <c>12345678Z</c> y
-    /// <c>12345678-Z</c> sobreviven como dos. La regla no puede prometer que
-    /// «se quitan los DNI repetidos» sin más, y la columna «Comprobación» —que
-    /// sí quita guiones y espacios— tiene que decir que eso es cosa suya.
+    /// Desde el 2026-09-11, <c>DeteccionTrabajadoresService.NormalizarDni</c>
+    /// también quita guiones y espacios (además de Trim + ToUpperInvariant):
+    /// <c>12345678Z</c> y <c>12345678-Z</c> ya cuentan como el mismo
+    /// identificador, y la columna «Comprobación» usa exactamente el mismo
+    /// criterio de limpieza. La regla tiene que decir eso, no lo contrario.
     /// </summary>
     [Fact]
-    public void La_regla_de_repetidos_dice_lo_que_hace_el_servicio_y_no_promete_unir_variantes_con_guion()
+    public void La_regla_de_repetidos_dice_que_guiones_y_espacios_ya_se_quitan_igual_que_en_comprobacion()
     {
         var escenario = new Escenario();
         escenario.Nuevo(EmpresaA, "Iker", "Mena Ruiz", "12345678Z");
         escenario.Nuevo(EmpresaA, "Jon", "Olano Sáez", "12345678-Z");
         var (cut, _) = Renderizar(escenario);
 
-        cut.Markup.Should().NotContainEquivalentOf("se quitan los DNI repetidos",
-            "el servicio solo quita los repetidos idénticos: la frase antigua prometía más de lo que hace");
+        cut.Markup.Should().NotContainEquivalentOf("cuenta como dos",
+            "desde la normalización de 2026-09-11 el mismo DNI con guion ya no cuenta como un identificador distinto");
 
         Texto(cut.Find(".deteccion-regla-identificadores")).Should().Be(
-            "Los identificadores leídos se comparan tal cual, sin distinguir mayúsculas de minúsculas y sin contar los espacios del principio o del final: " +
-            "de dos filas con el mismo identificador así comparado se queda una, pero el mismo DNI escrito de otra forma (12345678Z y 12345678-Z) " +
-            "cuenta como dos, también al compararlo con la plantilla. " +
+            "Los identificadores leídos se comparan sin mayúsculas/minúsculas, sin espacios y sin guiones: " +
+            "de dos filas con el mismo identificador así comparado se queda una, y el mismo DNI escrito de otra forma (12345678Z y 12345678-Z) " +
+            "cuenta como uno solo, también al compararlo con la plantilla. " +
             "Un documento con más de 2.000 identificadores distintos se descarta entero y solo se propone un alta si el identificador es un DNI o NIE " +
-            "con dígito de control correcto. Para las ausencias cuenta cualquier identificador leído, sea o no DNI/NIE, para no proponer la baja " +
-            "de quien sí aparece con otro documento de identidad.",
-            "la regla dice lo que hace DeteccionTrabajadoresService (Trim + ToUpperInvariant antes del GroupBy), sin prometer que une variantes con guion");
+            "con dígito de control correcto, con el mismo validador que usa la columna «Comprobación». Para las ausencias cuenta cualquier identificador " +
+            "leído, sea o no DNI/NIE, para no proponer la baja de quien sí aparece con otro documento de identidad.",
+            "la regla dice lo que hace DeteccionTrabajadoresService.NormalizarDni tras el ratchet de 2026-09-11");
 
         Texto(cut.Find(".deteccion-ayuda-comprobacion")).Should().Be(
-            "«Comprobación» es una comprobación de formato que hace esta pantalla: quita guiones y espacios y revisa el dígito de control. " +
-            "La detección no los quita al comparar, así que puede tratar como distintas dos variantes del mismo DNI.");
+            "«Comprobación» es una comprobación de formato que hace esta pantalla: quita guiones y espacios y revisa el dígito de control, " +
+            "con el mismo criterio que usa la detección al comparar.");
+    }
+
+    // ---------------------------------------------------------------- qué se pierde
+
+    /// <summary>
+    /// DATO NUEVO del mockup Gen 2: la columna «Qué se pierde al dar de baja»
+    /// —antes no existía— pinta cuántas asignaciones activas del trabajador
+    /// cerraría la baja, tal como las trae <c>ObtenerDeteccionesPorEmpresaQuery</c>.
+    /// </summary>
+    [Fact]
+    public void La_columna_que_se_pierde_pinta_las_asignaciones_activas_de_cada_ausente()
+    {
+        var escenario = new Escenario();
+        var sinAsignaciones = escenario.Ausente(EmpresaA, "Ana", "Cid Puente", "99887766P", asignacionesActivas: 0);
+        var unaAsignacion = escenario.Ausente(EmpresaA, "David", "Rey Otero", "55667788B", asignacionesActivas: 1);
+        var variasAsignaciones = escenario.Ausente(EmpresaA, "Nuria", "Salas Prieto", "11223344B", asignacionesActivas: 2);
+        var (cut, _) = Renderizar(escenario);
+
+        string QueSePierde(DeteccionTrabajadorDto deteccion) => Texto(FilaDe(cut, deteccion).QuerySelector("td.deteccion-impacto")!);
+
+        QueSePierde(sinAsignaciones).Should().Be("Sin asignaciones vigentes");
+        QueSePierde(unaAsignacion).Should().Be("1 asignación vigente se cerrará");
+        QueSePierde(variasAsignaciones).Should().Be("2 asignaciones vigentes se cerrarán");
+    }
+
+    /// <summary>
+    /// El mismo dato de la columna se repite en el diálogo de confirmación
+    /// (mockup: «se cierran sus 2 asignaciones vigentes»), para que confirmar
+    /// no sea un acto a ciegas sobre cuánto se va a cerrar.
+    /// </summary>
+    [Fact]
+    public async Task El_dialogo_de_confirmar_baja_dice_cuantas_asignaciones_vigentes_se_cerraran()
+    {
+        var escenario = new Escenario();
+        var nuria = escenario.Ausente(EmpresaA, "Nuria", "Salas Prieto", "11223344B", asignacionesActivas: 2);
+        var ana = escenario.Ausente(EmpresaA, "Ana", "Cid Puente", "99887766P", asignacionesActivas: 0);
+        var (cut, _) = Renderizar(escenario);
+
+        await Pulsar(cut, nuria, "Dar de baja");
+        cut.Find(".modal-cuerpo p").TextContent.Should().Contain("se cierran sus 2 asignaciones vigentes");
+        await BotonDelDialogo(cut, "Cancelar").ClickAsync(new MouseEventArgs());
+
+        await Pulsar(cut, ana, "Dar de baja");
+        cut.Find(".modal-cuerpo p").TextContent.Should().Contain("no tiene asignaciones vigentes que cerrar");
     }
 
     [Fact]

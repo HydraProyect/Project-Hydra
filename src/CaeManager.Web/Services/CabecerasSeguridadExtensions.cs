@@ -33,11 +33,13 @@ public static class CabecerasSeguridadExtensions
     // .razor.js de la app, así que un hash fijado a mano (un string
     // constante) queda obsoleto en silencio en cuanto cambia el árbol — con
     // el navegador bloqueando el importmap en cada página sin que ningún
-    // build ni test lo note (ocurrió de verdad: el hash medido en un
-    // checkout Windows con CRLF tampoco coincide con el que sirve
-    // producción, que compila sobre LF, y ni siquiera coincide entre
-    // endpoints — <ImportMapDefinition> se resuelve por endpoint). Por eso
-    // NO se fija a mano: se lee, para cada petición, el mismo
+    // build ni test lo note (ocurrió de verdad, dos veces: primero un hash
+    // que llevaba roto desde un cambio de JS posterior al 2026-08-18 sin que
+    // nadie lo notara; después, remedido a mano, un checkout Windows con
+    // CRLF que tampoco coincidía con el que sirve producción, que compila
+    // sobre LF — y ni siquiera coincide entre endpoints, porque
+    // <ImportMapDefinition> se resuelve por endpoint). Por eso NO se fija a
+    // mano: se lee, para cada petición, el mismo
     // <see cref="ImportMapDefinition"/> que el propio componente
     // <c>&lt;ImportMap /&gt;</c> resuelve para ESE endpoint
     // (<c>HttpContext.GetEndpoint().Metadata.GetMetadata&lt;ImportMapDefinition&gt;()</c>,

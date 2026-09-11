@@ -4,6 +4,7 @@ using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Trabajadores;
@@ -254,43 +255,39 @@ public class DeteccionTrabajadoresService(
     /// </summary>
     private const int MaximoTrabajadoresPorDocumento = 2000;
 
-    private const string LetrasControlDni = "TRWAGMYFPDXBNJZSQVHLCKE";
-
     /// <summary>
-    /// Dígito de control de DNI y NIE españoles (módulo 23). En el NIE la
-    /// letra inicial vale como dígito: X→0, Y→1, Z→2.
+    /// Dígito de control de DNI y NIE españoles, con el mismo
+    /// <see cref="ValidadorIdentificacion"/> que usa el resto del dominio (p.
+    /// ej. la columna «Comprobación» de la pantalla) — antes este servicio
+    /// tenía su propia copia del algoritmo, que podía divergir en silencio de
+    /// la del validador compartido.
     ///
     /// Solo se usa para decidir si se propone un ALTA — ver el comentario en
     /// <see cref="ProcesarDocumentoAsync"/> sobre por qué las bajas no pueden
     /// depender de esto. Un identificador que no sea DNI/NIE (pasaporte,
-    /// documento extranjero) devuelve <c>false</c> aquí: es correcto para el
-    /// uso que se le da, y por eso ese uso está acotado.
+    /// documento extranjero, o un CIF/NIF de empresa) devuelve <c>false</c>
+    /// aquí: es correcto para el uso que se le da, y por eso ese uso está
+    /// acotado.
     ///
     /// Acepta <c>null</c> desde que un Trabajador anonimizado puede no tener
-    /// Dni: <see cref="NormalizarDni"/> lo lleva a cadena vacía y la
-    /// comprobación de longitud lo rechaza, sin caso especial.
+    /// Dni: <see cref="NormalizarDni"/> lo lleva a cadena vacía, que
+    /// <see cref="ValidadorIdentificacion.Analizar"/> rechaza sin caso especial.
     /// </summary>
     private static bool EsDocumentoIdentidadValido(string? documentoIdentidad)
     {
-        var valor = NormalizarDni(documentoIdentidad).Replace("-", string.Empty).Replace(" ", string.Empty);
-
-        if (valor.Length != 9)
-            return false;
-
-        var cuerpo = valor[..8];
-        var letra = valor[8];
-
-        if (cuerpo[0] is 'X' or 'Y' or 'Z')
-            cuerpo = (char)('0' + (cuerpo[0] - 'X')) + cuerpo[1..];
-
-        return int.TryParse(cuerpo, out var numero)
-            && numero >= 0
-            && letra == LetrasControlDni[numero % 23];
+        var resultado = ValidadorIdentificacion.Analizar(NormalizarDni(documentoIdentidad));
+        return resultado.EsValido && resultado.Tipo is TipoIdentificacion.Dni or TipoIdentificacion.Nie;
     }
 
     // string? — un trabajador anonimizado (Dni null) nunca debe casar con un
     // Dni extraído de un documento: normaliza a "", que ninguna extracción
-    // real produce tras el Trim().
-    private static string NormalizarDni(string? dni) => dni?.Trim().ToUpperInvariant() ?? string.Empty;
+    // real produce tras el Trim(). Quita también guiones y espacios
+    // intermedios (no solo los de los extremos): antes del ratchet de
+    // 2026-09-11, "12345678Z" y "12345678-Z" sobrevivían como dos
+    // identificadores distintos, tanto al deduplicar el listado extraído
+    // como al compararlo con la plantilla — ver
+    // DeteccionTrabajadoresServiceTests.Normaliza_guiones_y_espacios_al_deduplicar_y_comparar.
+    private static string NormalizarDni(string? dni) =>
+        dni?.Trim().ToUpperInvariant().Replace("-", string.Empty).Replace(" ", string.Empty) ?? string.Empty;
     private static string NormalizarDni(TrabajadorExtraidoDto trabajador) => NormalizarDni(trabajador.Dni);
 }

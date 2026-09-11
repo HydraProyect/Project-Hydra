@@ -107,7 +107,7 @@ public class ConfirmacionAccionesDestructivasTests : BunitContext
         Func<ResolverDeteccionAusenteCommand, object>? alResolver = null)
     {
         var ausente = new DeteccionTrabajadorDto(
-            DeteccionId, TipoDeteccion.Ausente, "Javier", "Salas Moreno", "12345678Z", Guid.NewGuid(), DateTime.UtcNow);
+            DeteccionId, TipoDeteccion.Ausente, "Javier", "Salas Moreno", "12345678Z", Guid.NewGuid(), DateTime.UtcNow, AsignacionesActivas: 2);
 
         alResolver ??= c => Result.Exito(c.Desactivar
             ? ResultadoResolucionAusente.DadoDeBaja
@@ -148,6 +148,8 @@ public class ConfirmacionAccionesDestructivasTests : BunitContext
             "dar de baja elimina al trabajador y le cierra las asignaciones: no puede salir de un solo clic");
         cut.Find("[role=dialog] h2").TextContent.Should().Contain("Javier Salas Moreno",
             "quien confirma tiene que ver a quién está dando de baja");
+        cut.Find(".modal-cuerpo p").TextContent.Should().Contain("se cierran sus 2 asignaciones vigentes",
+            "quien confirma tiene que ver cuánto va a cerrar, no solo que algo se cierra");
     }
 
     [Fact]

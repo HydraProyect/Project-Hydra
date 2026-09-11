@@ -14,12 +14,27 @@ namespace CaeManager.Infrastructure.Importacion;
 /// cada fila es a la vez un Cliente y un Centro con el mismo nombre
 /// (ver Centro.cs).
 ///
+/// Cliente ahora exige CIF y Centro exige Empresa (Fase 10) y esta hoja de
+/// una sola columna (Cliente/Centro, sin CIF ni Empresa) no recoge ninguno
+/// de los dos — así que EjecutarImportacionCommandHandler nunca crea nada
+/// desde <see cref="PlanImportacionDto.ClientesCentros"/>: solo reutiliza el
+/// Cliente y el Centro que YA existieran. El análisis tiene que prometer
+/// exactamente eso: una fila cuyo Cliente o Centro no exista todavía no
+/// entra en <c>ClientesCentros</c> — va directa a <see
+/// cref="PlanImportacionDto.Omitidos"/> con el mismo motivo que antes solo
+/// aparecía al confirmar. "Existe" usa el mismo criterio que la
+/// escritura y que <c>ObtenerClientesQuery</c>: Empresa con <c>EsCritico !=
+/// null</c> (Cliente empresarial), no cualquier Empresa con ese nombre — una
+/// Subcontrata u otra Empresa homónima no cuenta como "el cliente ya existe".
+///
 /// Invariante «nada se descarta en silencio» (IMPORTACION.md § 3 bis, DCR-12
 /// B; auditada en REC-129): la única fila que este analizador salta sin
 /// registrar nada es la fila de ejemplo que <see cref="GenerarPlantilla"/>
 /// escribe con el marcador <c>EJEMPLO</c> — legítimo y silencioso a
 /// propósito, verificado por test. Cualquier otra fila con datos queda en
-/// <see cref="PlanImportacionDto.Omitidos"/> con su motivo concreto.
+/// <see cref="PlanImportacionDto.ClientesCentros"/> (Cliente y Centro ya
+/// existían, se reutilizan) o en <see cref="PlanImportacionDto.Omitidos"/>
+/// con su motivo concreto.
 /// </summary>
 public class ClosedXmlPlantillaClientesService(ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext) : IPlantillaClientesService
 {
@@ -53,9 +68,14 @@ public class ClosedXmlPlantillaClientesService(ICentrosQueryContext centrosConte
 
     public async Task<PlanImportacionDto> AnalizarAsync(Stream archivo, CancellationToken cancellationToken = default)
     {
-        // F3b — Empresas, no la tabla legacy Clientes.
+        // F3b — Empresas, no la tabla legacy Clientes. Cliente empresarial
+        // específicamente (EsCritico != null, igual que
+        // EjecutarImportacionCommandHandler y ObtenerClientesQuery) — no
+        // cualquier Empresa con ese nombre, que podría ser una Subcontrata u
+        // otra contraparte homónima.
         var nombresClientesExistentes = new HashSet<string>(
-            await empresasContext.Empresas.Select(c => c.RazonSocial).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
+            await empresasContext.Empresas.Where(e => e.EsCritico != null).Select(c => c.RazonSocial).ToListAsync(cancellationToken),
+            StringComparer.OrdinalIgnoreCase);
         var nombresCentrosExistentes = new HashSet<string>(
             await centrosContext.Centros.Select(c => c.Nombre).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
 
@@ -90,9 +110,29 @@ public class ClosedXmlPlantillaClientesService(ICentrosQueryContext centrosConte
             var direccion = TextoCelda(hoja.Cell(fila, 3));
             var contacto = TextoCelda(hoja.Cell(fila, 4));
 
-            clientesCentros.Add(new ClienteCentroImportadoDto(
-                nombre, esCritico, direccion, contacto,
-                nombresClientesExistentes.Contains(nombre), nombresCentrosExistentes.Contains(nombre)));
+            // Ninguno de los dos existía en la escritura (ver nota de clase, Fase
+            // 10): esta plantilla no puede crear el Cliente porque le falta CIF,
+            // ni el Centro porque le falta Empresa. El plan no puede prometer una
+            // alta que la confirmación se negará a hacer — se omite aquí mismo,
+            // con el mismo motivo (y ya con el número de fila real) que antes solo
+            // aparecía al confirmar.
+            if (!nombresClientesExistentes.Contains(nombre))
+            {
+                omitidos.Add(new ItemImportacionDto(
+                    NombreHoja, fila, nombre,
+                    "Este cliente no existe todavía. Ahora requiere un CIF, que esta plantilla no recoge — créalo manualmente en Clientes."));
+                continue;
+            }
+
+            if (!nombresCentrosExistentes.Contains(nombre))
+            {
+                omitidos.Add(new ItemImportacionDto(
+                    NombreHoja, fila, nombre,
+                    "Este centro no existe todavía. Ahora requiere una Empresa asociada, que esta plantilla no recoge — créalo manualmente en Centros."));
+                continue;
+            }
+
+            clientesCentros.Add(new ClienteCentroImportadoDto(nombre, esCritico, direccion, contacto, YaExisteCliente: true, YaExisteCentro: true));
         }
 
         return new PlanImportacionDto(Guid.NewGuid(), clientesCentros, [], [], [], [], [], omitidos);

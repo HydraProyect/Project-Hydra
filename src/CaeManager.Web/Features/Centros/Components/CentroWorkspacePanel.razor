@@ -400,8 +400,12 @@ else
             {
                 <div class="alerta-formulario" role="alert">@_mensajeErrorDocumentacion</div>
             }
+            @* _incluidoEdicion parte de item.Aplica (ResolucionTipoDocumentoCentro.Aplica): puede
+               llegar marcado sin que este centro tenga fila propia, solo porque el tipo se pide
+               siempre por defecto (nota de la lista, arriba). "Este centro lo exige" atribuía la
+               marca inicial al centro incluso cuando venía del valor general del tipo. *@
             <label class="campo-checkbox">
-                <input type="checkbox" @bind="_incluidoEdicion" /> Incluido — este centro lo exige
+                <input type="checkbox" @bind="_incluidoEdicion" /> Incluido en este centro
             </label>
 
             <CampoSelect Etiqueta="Periodo especial de renovación" Valor="@_periodicidadSeleccionEdicion" ValorChanged="v => _periodicidadSeleccionEdicion = v">
