@@ -1,7 +1,5 @@
-using CaeManager.Application.Common;
 using CaeManager.Application.Dashboard.Queries;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
-using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using MediatR;
 using Microsoft.AspNetCore.Components;
@@ -9,7 +7,23 @@ using Microsoft.AspNetCore.Components.Forms;
 
 namespace CaeManager.Web.Features.VisionCartera.Pages;
 
-public partial class VisionCartera : ComponentBase
+/// <summary>
+/// Visión de cartera. El alcance de cada organización lo resuelve
+/// <see cref="ObtenerKpisGlobalesQuery"/> —una vuelta por tenant con
+/// <c>AmbitoTenantExplicito</c>, y dentro de cada una el rol efectivo y la
+/// Asignación de Cartera de ESE tenant—; la pantalla no calcula ninguno por su
+/// cuenta. Lo único que sabe del alcance es lo que la consulta le devuelve por
+/// organización (<see cref="ClienteRiesgoDto.SinCarteraAsignada"/>): el rol
+/// del contexto activo no vale para las demás, porque un Administrador de su
+/// organización puede ser Gestor CAE en la de otro Tenant propietario.
+///
+/// <para>
+/// Cargas: la vigente es la última (<see cref="_versionCarga"/>) y la retirada
+/// cancela la que siga en vuelo (<see cref="_ciclo"/>); lo que vuelve de una
+/// carga que ya no es la vigente no toca el estado.
+/// </para>
+/// </summary>
+public partial class VisionCartera : ComponentBase, IDisposable
 {
     /// <summary>Mismos cortes que el tono del cumplimiento en el resto de la pantalla: verde desde 90, ámbar desde 70.</summary>
     private const int UmbralVerde = 90;
@@ -27,13 +41,10 @@ public partial class VisionCartera : ComponentBase
 
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private AntiforgeryStateProvider AntiforgeryStateProvider { get; set; } = default!;
-    [Inject] private ICurrentUserService CurrentUserService { get; set; } = default!;
-    [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private ILogger<VisionCartera> Logger { get; set; } = default!;
 
     private KpisGlobalesDto? _kpis;
     private IReadOnlySet<Guid> _tenantsDeOrigen = new HashSet<Guid>();
-    private AlcanceVista _alcance;
     private bool _error;
     private AntiforgeryRequestToken? _token;
 
@@ -44,20 +55,8 @@ public partial class VisionCartera : ComponentBase
     /// </summary>
     private int _versionCarga;
 
-    /// <summary>
-    /// Qué acota los recuentos de cada organización. Sale del rol EFECTIVO en el
-    /// contexto actual (<see cref="ICurrentUserService.ObtenerRolActualAsync"/>),
-    /// que es el mismo dato con el que <c>AlcanceDatosService</c> decide el
-    /// alcance dentro de cada organización que recorre la consulta — no del
-    /// claim de sesión: operando un workspace delegado, un Administrador de
-    /// origen puede tener ahí rol de Gestor CAE, y entonces cuenta su cartera.
-    /// </summary>
-    private enum AlcanceVista
-    {
-        TodaLaOrganizacion,
-        CarteraDeSusGestores,
-        CarteraPropia
-    }
+    private readonly CancellationTokenSource _ciclo = new();
+    private bool _desechado;
 
     protected override Task OnInitializedAsync()
     {
@@ -65,47 +64,66 @@ public partial class VisionCartera : ComponentBase
         return CargarAsync();
     }
 
+    public void Dispose()
+    {
+        if (_desechado)
+            return;
+
+        _desechado = true;
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+    }
+
+    private bool EsVigente(int version) => !_desechado && version == _versionCarga;
+
     private async Task CargarAsync()
     {
+        if (_desechado)
+            return;
+
         var version = ++_versionCarga;
+        var token = _ciclo.Token;
         _error = false;
         _kpis = null;
         StateHasChanged();
 
-        string? rol;
         IReadOnlyList<ClienteAutorizadoDto> autorizados;
         KpisGlobalesDto kpis;
         try
         {
-            // ObtenerRolActualAsync consulta la base cuando hay un workspace
-            // delegado activo: fuera de MediatR, así que pasa por la puerta
-            // igual que el resto de accesos directos (ver PuertaAccesoDatos).
-            rol = await PuertaAccesoDatos.EjecutarAsync(CurrentUserService.ObtenerRolActualAsync);
-            autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery());
-            kpis = await Mediator.Send(new ObtenerKpisGlobalesQuery());
+            autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery(), token);
+            kpis = await Mediator.Send(new ObtenerKpisGlobalesQuery(), token);
         }
         catch (Exception ex)
         {
-            if (version != _versionCarga) return;
+            if (!EsVigente(version)) return;
             Logger.LogError(ex, "Error al cargar los KPIs globales de la visión de cartera.");
             _error = true;
             return;
         }
 
-        if (version != _versionCarga) return;
+        if (!EsVigente(version)) return;
 
-        _alcance = Roles.AlcanzaTodaLaOrganizacion(rol) ? AlcanceVista.TodaLaOrganizacion
-            : rol == Roles.CoordinadorCae ? AlcanceVista.CarteraDeSusGestores
-            : AlcanceVista.CarteraPropia;
         _tenantsDeOrigen = autorizados.Where(c => c.EsOrigen).Select(c => c.TenantId).ToHashSet();
         _kpis = kpis;
     }
 
     private IReadOnlyList<ClienteRiesgoDto> Organizaciones => _kpis?.ClientesConMasRiesgo ?? [];
 
+    /// <summary>
+    /// Las que tienen algo que evaluar para quien mira. En una organización sin
+    /// ninguna Asignación de Cartera suya, la tasa es 100 porque no hay nada que
+    /// contar, no porque esté al día: no entra en verdes ni en la media.
+    /// </summary>
+    private IReadOnlyList<ClienteRiesgoDto> ConCartera => Organizaciones.Where(o => !o.SinCarteraAsignada).ToList();
+
+    private IReadOnlyList<ClienteRiesgoDto> SinCartera => Organizaciones.Where(o => o.SinCarteraAsignada).ToList();
+
+    private bool HayMediaQueMostrar => ConCartera.Count > 0;
+
     private int ConVencidos => Organizaciones.Count(o => o.DocumentosVencidos > 0);
 
-    private int EnVerde => Organizaciones.Count(o => o.TasaCumplimientoDocumental >= UmbralVerde);
+    private int EnVerde => ConCartera.Count(o => o.TasaCumplimientoDocumental >= UmbralVerde);
 
     private int DocumentosEnRiesgo => _kpis is null ? 0 : _kpis.DocumentosVencidos + _kpis.DocumentosUrgentes;
 
@@ -125,31 +143,21 @@ public partial class VisionCartera : ComponentBase
         }
     }
 
-    private string LineaAlcance => _alcance switch
+    private string LineaAlcance => SinCartera.Count == 0
+        ? "Cada organización cuenta solo lo que tu rol alcanza en ella"
+        : $"Cada organización cuenta solo lo que tu rol alcanza en ella; en {SinCartera.Count} no tienes ninguna Asignación de Cartera";
+
+    /// <summary>Solo cuando alguna organización llega sin Asignación de Cartera de quien mira.</summary>
+    private string? AvisoSinCartera => SinCartera.Count switch
     {
-        AlcanceVista.TodaLaOrganizacion => "Tu rol ve cada organización completa, sin acotar por cartera",
-        AlcanceVista.CarteraDeSusGestores => "Cada organización cuenta solo lo que alcanza la cartera de los Gestores CAE que coordinas",
-        _ => "Cada organización cuenta solo lo que alcanza tu cartera"
+        0 => null,
+        1 => $"En {SinCartera[0].Nombre} no tienes ninguna Asignación de Cartera: no cuentas ningún documento suyo y su tasa no entra en la media.",
+        _ => $"En {Enumerar(SinCartera.Select(o => o.Nombre))} no tienes ninguna Asignación de Cartera: no cuentas ningún documento suyo y sus tasas no entran en la media."
     };
 
-    private string DescripcionCartera => _alcance == AlcanceVista.CarteraDeSusGestores
-        ? "la cartera de los Gestores CAE que coordinas"
-        : "tu cartera";
-
-    /// <summary>
-    /// Solo para roles acotados por cartera. ObtenerKpisGlobalesQuery descarta
-    /// el <c>SinCarteraAsignada</c> que ObtenerKpisDashboardQuery sí calcula
-    /// por organización, así que una sin cartera llega como cero documentos y
-    /// 100%: la pantalla no puede distinguirla de una al día, y lo dice en vez
-    /// de afirmar lo segundo.
-    /// </summary>
-    private string? AvisoSinCartera => _alcance == AlcanceVista.TodaLaOrganizacion
-        ? null
-        : $"Donde {DescripcionCartera} no alcance nada, la organización sale con cero documentos y un 100% de cumplimiento: esta vista todavía no distingue «sin cartera» de «todo al día».";
-
-    private string TextoSinRiesgo => _alcance == AlcanceVista.TodaLaOrganizacion
+    private string TextoSinRiesgo => SinCartera.Count == 0
         ? "Ninguna organización tiene documentación vencida ni urgente."
-        : $"Ninguna organización tiene documentación vencida ni urgente dentro de {DescripcionCartera}.";
+        : "Ninguna organización tiene documentación vencida ni urgente en lo que tu rol alcanza.";
 
     // ---------------------------------------------------------------- cifras
 
@@ -157,14 +165,25 @@ public partial class VisionCartera : ComponentBase
         ? "En ninguna organización"
         : $"En {ConVencidos} de {Organizaciones.Count} organizaciones";
 
+    private string ValorMedia => HayMediaQueMostrar && _kpis is not null ? $"{_kpis.TasaCumplimientoDocumentalPromedio}%" : "—";
+
+    private string PistaMedia => HayMediaQueMostrar
+        ? "Ponderada por volumen de documentos"
+        : "Sin Asignación de Cartera en ninguna organización";
+
     private string DetalleMedia
     {
         get
         {
-            var tasas = Organizaciones.Select(o => o.TasaCumplimientoDocumental).OrderByDescending(t => t).ToList();
-            return $"Media simple, sin ponderar por volumen, de las tasas de las {tasas.Count} organizaciones: {Enumerar(tasas.Select(t => t.ToString()))}%.";
+            var tasas = ConCartera.Select(o => o.TasaCumplimientoDocumental).OrderByDescending(t => t).ToList();
+            var media = $"Media ponderada por el volumen de documentos con vencimiento de cada organización; tasas de las {tasas.Count} que la forman: {Enumerar(tasas.Select(t => t.ToString()))}%.";
+            return SinCartera.Count == 0 ? media : $"{media} {DetalleExcluidas}";
         }
     }
+
+    private string DetalleExcluidas => SinCartera.Count == 1
+        ? $"No entra {SinCartera[0].Nombre}: sin Asignación de Cartera tuya."
+        : $"No entran {Enumerar(SinCartera.Select(o => o.Nombre))}: sin Asignación de Cartera tuya.";
 
     private string FrasePulso => ConVencidos switch
     {
@@ -177,11 +196,13 @@ public partial class VisionCartera : ComponentBase
     {
         get
         {
-            var enVerde = Organizaciones.Where(o => o.TasaCumplimientoDocumental >= UmbralVerde)
+            var enVerde = ConCartera.Where(o => o.TasaCumplimientoDocumental >= UmbralVerde)
                 .Select(o => $"{o.Nombre} {o.TasaCumplimientoDocumental}%").ToList();
-            return enVerde.Count == 0
-                ? $"Ninguna de las {Organizaciones.Count} organizaciones llega al 90% de cumplimiento documental."
-                : $"{enVerde.Count} de {Organizaciones.Count} organizaciones con el cumplimiento documental en el 90% o más: {Enumerar(enVerde)}.";
+            var conCartera = SinCartera.Count == 0 ? string.Empty : " con cartera";
+            var frase = enVerde.Count == 0
+                ? $"Ninguna de las {ConCartera.Count} organizaciones{conCartera} llega al 90% de cumplimiento documental."
+                : $"{enVerde.Count} de {ConCartera.Count} organizaciones{conCartera} con el cumplimiento documental en el 90% o más: {Enumerar(enVerde)}.";
+            return SinCartera.Count == 0 ? frase : $"{frase} {DetalleExcluidas}";
         }
     }
 
@@ -194,6 +215,10 @@ public partial class VisionCartera : ComponentBase
         >= UmbralAmbar => TonoBadge.Advertencia,
         _ => TonoBadge.Peligro
     };
+
+    private TonoBadge TonoMedia => HayMediaQueMostrar && _kpis is not null
+        ? TonoCumplimiento(_kpis.TasaCumplimientoDocumentalPromedio)
+        : TonoBadge.Neutro;
 
     private static string ClaseTono(int tasa) => $"tono-{TonoCumplimiento(tasa).ToString().ToLowerInvariant()}";
 
@@ -212,6 +237,9 @@ public partial class VisionCartera : ComponentBase
 
     private static string TituloCumplimiento(ClienteRiesgoDto o)
     {
+        if (o.SinCarteraAsignada)
+            return $"{o.Nombre}: no tienes ninguna Asignación de Cartera aquí, así que no hay cumplimiento que medir";
+
         var tramo = o.TasaCumplimientoDocumental >= UmbralVerde ? "en verde, 90% o más"
             : o.TasaCumplimientoDocumental >= UmbralAmbar ? "en ámbar, entre el 70 y el 89%"
             : "en rojo, por debajo del 70%";
@@ -223,9 +251,12 @@ public partial class VisionCartera : ComponentBase
     private sealed record BarraRiesgo(
         string Nombre, string EtiquetaCorta, int X, int Centro,
         int AltoVencidos, int YVencidos, string TituloVencidos,
-        int AltoUrgentes, int YUrgentes, string TituloUrgentes)
+        int AltoUrgentes, int YUrgentes, string TituloUrgentes,
+        bool SinCartera)
     {
         public bool SinRiesgo => AltoVencidos == 0 && AltoUrgentes == 0;
+
+        public string TextoSinBarra => SinCartera ? "sin cartera" : "sin riesgo";
     }
 
     private int AnchoGrafico => Math.Max(1, Organizaciones.Count) * AnchoPorOrganizacion;
@@ -244,14 +275,11 @@ public partial class VisionCartera : ComponentBase
                 return new BarraRiesgo(
                     o.Nombre, Acortar(o.Nombre), x, x + AnchoBarra / 2,
                     altoVencidos, yUrgentes - altoVencidos, $"{o.Nombre}: {Documentos(o.DocumentosVencidos, "vencido", "vencidos")}",
-                    altoUrgentes, yUrgentes, $"{o.Nombre}: {Documentos(o.DocumentosUrgentes, "urgente", "urgentes")}, dentro de su umbral urgente");
+                    altoUrgentes, yUrgentes, $"{o.Nombre}: {Documentos(o.DocumentosUrgentes, "urgente", "urgentes")}, dentro de su umbral urgente",
+                    o.SinCarteraAsignada);
             }).ToList();
         }
     }
-
-    private string EtiquetaGrafico =>
-        "Documentos vencidos y urgentes por organización: "
-        + Enumerar(Organizaciones.Select(o => $"{o.Nombre} {o.DocumentosVencidos} y {o.DocumentosUrgentes}"));
 
     /// <summary>Alto proporcional al mayor total; nunca por debajo de 2 si hay algo, para que un 1 no desaparezca.</summary>
     private static int Escalar(int valor, int maximo) =>

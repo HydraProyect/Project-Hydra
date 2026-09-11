@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Reflection;
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Common;
@@ -11,6 +10,7 @@ using MediatR;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using VisionCarteraPagina = CaeManager.Web.Features.VisionCartera.Pages.VisionCartera;
 
 namespace CaeManager.Web.Tests;
@@ -19,21 +19,27 @@ namespace CaeManager.Web.Tests;
 /// Visión de cartera contra su mockup Gen 2 («Vision Cartera TALVEG.dc.html»).
 ///
 /// <para>
-/// <b>Lo que esto SÍ observa:</b> qué se pinta con lo que devuelven
-/// <see cref="ObtenerClientesAutorizadosQuery"/> y
-/// <see cref="ObtenerKpisGlobalesQuery"/> —el doble agrega igual que el
-/// handler real: suma, media simple truncada y orden por vencidos y urgentes,
-/// sobre exactamente las organizaciones autorizadas—, cómo cambia el texto del
-/// alcance según el rol efectivo que devuelve <see cref="ICurrentUserService"/>,
-/// el formulario POST de cambio de organización, el reintento y qué pasa cuando
-/// dos cargas vuelven fuera de orden (mediador controlado por
-/// <see cref="TaskCompletionSource{TResult}"/>).
+/// <b>El doble del mediador ejecuta el fan-out REAL.</b>
+/// <see cref="ObtenerKpisGlobalesQuery"/> la resuelve
+/// <see cref="ObtenerKpisGlobalesQueryHandler"/> de verdad: pide
+/// <see cref="ObtenerClientesAutorizadosQuery"/> y, por cada organización, un
+/// <see cref="ObtenerKpisDashboardQuery"/> dentro de su
+/// <see cref="AmbitoTenantExplicito"/>. El doble contesta ese último LEYENDO el
+/// ámbito, y aplica el alcance como <c>AlcanceDatosService</c> tras #571: con el
+/// rol efectivo del usuario EN ESA organización —acceso total si el rol la
+/// abarca; si no, lo que alcance su Asignación de Cartera allí, o nada y
+/// <c>SinCarteraAsignada</c>—. Una petición por organización sin ámbito
+/// explícito revienta, porque en producción se contaría con el tenant activo.
+/// Así una pantalla que mezclase organizaciones —un rol para todas, las cifras
+/// de una en la fila de otra, un 100% «sin cartera» contado como verde— no casa
+/// con lo que se comprueba.
 /// </para>
 ///
 /// <para>
-/// <b>Lo que NO observa:</b> la autorización de la ruta
-/// (<c>AutorizacionDePaginasTests</c>), el acotado real por cartera dentro de
-/// cada organización (<c>AlcanceDatosService</c>, Infrastructure), el endpoint
+/// <b>Lo que NO observa:</b> la resolución real del rol por tenant
+/// (<c>CurrentUserService</c>) ni de la cartera (<c>AlcanceDatosService</c>) —
+/// eso lo prueba <c>FanOutMultiTenantFugaDeAlcanceTests</c> contra PostgreSQL—,
+/// la autorización de la ruta (<c>AutorizacionDePaginasTests</c>), el endpoint
 /// <c>/cuenta/cliente-activo</c> ni el aspecto (bUnit no evalúa CSS).
 /// </para>
 /// </summary>
@@ -51,14 +57,86 @@ public class VisionCarteraGen2Tests : BunitContext
 
     // ---------------------------------------------------------------- dobles
 
-    private sealed class MediadorControlado(Func<object, Task<object?>> responder) : IMediator
+    /// <summary>Documentos por estado y actividad; la tasa se calcula como <c>ObtenerKpisDashboardQueryHandler</c>.</summary>
+    private sealed record Datos(int Vencidos, int Urgentes, int Proximos, int Vigentes, int Trabajadores, int Centros)
     {
-        public List<object> Enviados { get; } = [];
+        public static readonly Datos Nada = new(0, 0, 0, 0, 0, 0);
+
+        private int ConVigencia => Vigentes + Proximos + Urgentes + Vencidos;
+
+        public KpisDashboardDto Kpis(bool sinCartera) => new(
+            TrabajadoresActivos: Trabajadores, Centros: Centros,
+            DocumentosVencidos: Vencidos, DocumentosUrgentes: Urgentes, DocumentosProximos: Proximos, DocumentosVigentes: Vigentes,
+            VisitasProgramadas: 0,
+            TasaCumplimientoDocumental: ConVigencia == 0 ? 100 : Vigentes * 100 / ConVigencia,
+            SinCarteraAsignada: sinCartera);
+    }
+
+    /// <param name="Rol">Rol efectivo del usuario EN esta organización (el que resuelve CurrentUserService dentro del ámbito).</param>
+    /// <param name="Completa">Lo que hay en la organización entera.</param>
+    /// <param name="Cartera">Lo que alcanza su Asignación de Cartera aquí; null si no tiene ninguna.</param>
+    private sealed record Organizacion(Guid TenantId, string Nombre, bool EsOrigen, string Rol, Datos Completa, Datos? Cartera)
+    {
+        /// <summary>Lo que ObtenerKpisDashboardQuery devolvería dentro del ámbito de esta organización.</summary>
+        public KpisDashboardDto KpisConSuAlcance() =>
+            Roles.AlcanzaTodaLaOrganizacion(Rol) ? Completa.Kpis(sinCartera: false)
+            : Cartera is null ? Datos.Nada.Kpis(sinCartera: true)
+            : Cartera.Kpis(sinCartera: false);
+    }
+
+    private sealed class Escenario
+    {
+        /// <summary>
+        /// Por defecto: Administrador en su organización y Gestor CAE con
+        /// Asignación de Cartera en las dos que os han delegado su gestión CAE.
+        /// Las cifras de «Completa» en A y B son las que NO deben verse: son
+        /// lo que contaría quien aplicase a todas el rol de la organización propia.
+        /// </summary>
+        public List<Organizacion> Organizaciones { get; } =
+        [
+            new(TenantPropio, NombrePropio, true, Roles.Administrador,
+                Completa: new(0, 0, 2, 62, 74, 6), Cartera: null),
+            new(TenantB, NombreB, false, Roles.GestorCae,
+                Completa: new(90, 1, 1, 8, 400, 30), Cartera: new(9, 4, 6, 11, 61, 5)),
+            new(TenantA, NombreA, false, Roles.GestorCae,
+                Completa: new(40, 20, 30, 10, 300, 20), Cartera: new(12, 5, 9, 74, 84, 7)),
+        ];
+
+        public Organizacion this[Guid tenantId] => Organizaciones.Single(o => o.TenantId == tenantId);
+
+        public void Cambiar(Guid tenantId, Func<Organizacion, Organizacion> cambio)
+        {
+            var i = Organizaciones.FindIndex(o => o.TenantId == tenantId);
+            Organizaciones[i] = cambio(Organizaciones[i]);
+        }
+
+        /// <summary>Si devuelve una tarea, esa petición se resuelve cuando el test lo diga.</summary>
+        public Func<object, Task<object?>?> Retener { get; set; } = _ => null;
+    }
+
+    private sealed class MediadorConFanOut(Escenario escenario) : IMediator
+    {
+        public List<(object Peticion, Guid? Ambito, CancellationToken Token)> Enviadas { get; } = [];
 
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
-            Enviados.Add(request);
-            return (TResponse)(await responder(request))!;
+            var ambito = AmbitoTenantExplicito.TenantIdActual;
+            Enviadas.Add((request, ambito, cancellationToken));
+
+            if (escenario.Retener(request) is { } retenida)
+                return (TResponse)(await retenida)!;
+
+            object respuesta = request switch
+            {
+                ObtenerKpisGlobalesQuery q => await new ObtenerKpisGlobalesQueryHandler(this).Handle(q, cancellationToken),
+                ObtenerClientesAutorizadosQuery => escenario.Organizaciones
+                    .Select(o => new ClienteAutorizadoDto(o.TenantId, o.Nombre, o.EsOrigen)).ToList(),
+                ObtenerKpisDashboardQuery => escenario[ambito
+                    ?? throw new InvalidOperationException("KPIs de una organización pedidos sin ámbito explícito: se contarían con el tenant activo.")]
+                    .KpisConSuAlcance(),
+                _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
+            };
+            return (TResponse)respuesta;
         }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
@@ -79,100 +157,46 @@ public class VisionCarteraGen2Tests : BunitContext
             where TNotification : INotification => Task.CompletedTask;
     }
 
-    private sealed class UsuarioActualFalso(string? rol) : ICurrentUserService
-    {
-        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
-        public Task<string?> ObtenerRolActualAsync() => Task.FromResult(rol);
-        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(TenantPropio);
-        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
-    }
-
     private sealed class AntiforgeryFalso : AntiforgeryStateProvider
     {
         public override AntiforgeryRequestToken? GetAntiforgeryToken() => new("token-de-prueba", "__RequestVerificationToken");
     }
 
-    /// <summary>Lo que <see cref="ObtenerKpisDashboardQuery"/> devolvería dentro de cada organización.</summary>
-    private sealed record Datos(int Vencidos, int Urgentes, int Proximos, int Trabajadores, int Centros, int Tasa);
-
-    /// <summary>
-    /// Datos que ve el mediador. <see cref="ObtenerKpisGlobalesQuery"/> se
-    /// responde <b>agregando como el handler real</b> sobre las organizaciones
-    /// de <see cref="Autorizadas"/>: una pantalla que recalculase por su cuenta
-    /// o reordenase no casaría con lo que se comprueba.
-    /// </summary>
-    private sealed class Escenario
+    private sealed class LoggerQueGuarda : ILogger<VisionCarteraPagina>
     {
-        public List<ClienteAutorizadoDto> Autorizadas { get; } =
-        [
-            new(TenantPropio, NombrePropio, true),
-            new(TenantB, NombreB, false),
-            new(TenantA, NombreA, false),
-        ];
+        public List<string> Errores { get; } = [];
 
-        public Dictionary<Guid, Datos> PorOrganizacion { get; } = new()
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
         {
-            [TenantPropio] = new(0, 0, 2, 74, 6, 97),
-            [TenantA] = new(12, 5, 9, 84, 7, 71),
-            [TenantB] = new(9, 4, 6, 61, 5, 82),
-        };
-
-        /// <summary>Si devuelve una tarea, esa petición se resuelve cuando el test lo diga.</summary>
-        public Func<object, Task<object?>?> Interceptar { get; set; } = _ => null;
-
-        public Task<object?> Responder(object peticion) =>
-            Interceptar(peticion) ?? Task.FromResult<object?>(peticion switch
-            {
-                ObtenerClientesAutorizadosQuery => Autorizadas.ToList(),
-                ObtenerKpisGlobalesQuery => Kpis(),
-                _ => throw new NotSupportedException($"Petición no prevista en este test: {peticion.GetType().Name}.")
-            });
-
-        public KpisGlobalesDto Kpis()
-        {
-            var porCliente = Autorizadas.Select(c => (Cliente: c, Datos: PorOrganizacion[c.TenantId])).ToList();
-            return new KpisGlobalesDto(
-                TotalClientes: porCliente.Count,
-                DocumentosVencidos: porCliente.Sum(p => p.Datos.Vencidos),
-                DocumentosUrgentes: porCliente.Sum(p => p.Datos.Urgentes),
-                DocumentosProximos: porCliente.Sum(p => p.Datos.Proximos),
-                TrabajadoresActivos: porCliente.Sum(p => p.Datos.Trabajadores),
-                Centros: porCliente.Sum(p => p.Datos.Centros),
-                TasaCumplimientoDocumentalPromedio: porCliente.Count == 0 ? 100 : (int)porCliente.Average(p => p.Datos.Tasa),
-                ClientesConMasRiesgo: porCliente
-                    .Select(p => new ClienteRiesgoDto(p.Cliente.TenantId, p.Cliente.Nombre, p.Datos.Vencidos, p.Datos.Urgentes, p.Datos.Tasa))
-                    .OrderByDescending(c => c.DocumentosVencidos)
-                    .ThenByDescending(c => c.DocumentosUrgentes)
-                    .ToList());
-        }
-
-        /// <summary>
-        /// Lo que produce una cartera que no alcanza nada: ObtenerKpisDashboardQuery
-        /// devuelve ceros y tasa 100 en cada organización, y la consulta global
-        /// descarta su <c>SinCarteraAsignada</c>.
-        /// </summary>
-        public Escenario SinCartera()
-        {
-            foreach (var id in PorOrganizacion.Keys.ToList())
-                PorOrganizacion[id] = new(0, 0, 0, 0, 0, 100);
-            return this;
+            if (logLevel >= LogLevel.Error) Errores.Add(formatter(state, exception));
         }
     }
 
     // ---------------------------------------------------------------- arnés
 
-    private (IRenderedComponent<VisionCarteraPagina> Cut, MediadorControlado Mediador) Renderizar(Escenario escenario, string? rol = Roles.DireccionCae)
+    private sealed record Montaje(IRenderedComponent<VisionCarteraPagina> Cut, MediadorConFanOut Mediador, LoggerQueGuarda Logger);
+
+    /// <summary>
+    /// Sin <see cref="ICurrentUserService"/> registrado a propósito: la
+    /// pantalla no debe leer ningún rol. Si vuelve a inyectarlo, el render
+    /// falla aquí.
+    /// </summary>
+    private Montaje Renderizar(Escenario escenario)
     {
         CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("es-ES");
         CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("es-ES");
 
-        var mediador = new MediadorControlado(escenario.Responder);
+        var mediador = new MediadorConFanOut(escenario);
+        var logger = new LoggerQueGuarda();
         Services.AddScoped<IMediator>(_ => mediador);
-        Services.AddScoped<ICurrentUserService>(_ => new UsuarioActualFalso(rol));
         Services.AddScoped<AntiforgeryStateProvider, AntiforgeryFalso>();
-        Services.AddScoped<PuertaAccesoDatos>();
+        Services.AddSingleton<ILogger<VisionCarteraPagina>>(logger);
 
-        return (Render<VisionCarteraPagina>(), mediador);
+        return new Montaje(Render<VisionCarteraPagina>(), mediador, logger);
     }
 
     private static string Texto(IElement elemento) => elemento.TextContent.Trim();
@@ -183,71 +207,140 @@ public class VisionCarteraGen2Tests : BunitContext
     private static IReadOnlyList<IElement> Filas(IRenderedComponent<VisionCarteraPagina> cut) =>
         cut.FindAll(".tarjeta-organizaciones-riesgo tbody tr");
 
+    private static IReadOnlyList<string> NombresEnTabla(IRenderedComponent<VisionCarteraPagina> cut) =>
+        Filas(cut).Select(f => Texto(f.QuerySelector(".nombre-organizacion")!)).ToList();
+
     private static IReadOnlyList<string> LineasAmbito(IRenderedComponent<VisionCarteraPagina> cut) =>
         cut.FindAll(".ambito-cartera-linea").Select(Texto).ToList();
-
-    /// <summary>
-    /// Lanza una segunda carga mientras la primera sigue en vuelo: lo que haría
-    /// un doble clic en «Reintentar» antes de que el render retire el botón.
-    /// Por reflexión porque, mientras carga, la pantalla no tiene ningún control
-    /// que la dispare; si el método cambia de nombre, la prueba se entera.
-    /// </summary>
-    private static Task LanzarSegundaCarga(IRenderedComponent<VisionCarteraPagina> cut)
-    {
-        var cargar = typeof(VisionCarteraPagina).GetMethod("CargarAsync", BindingFlags.Instance | BindingFlags.NonPublic);
-        cargar.Should().NotBeNull("si el método cambia de nombre, esta prueba tiene que enterarse, no pasar en falso");
-        return cut.InvokeAsync(() => (Task)cargar!.Invoke(cut.Instance, null)!);
-    }
-
-    /// <summary>
-    /// Espera a que la segunda carga termine y repinta, que es lo que hace un
-    /// EventCallback al acabar su manejador. Invocada por reflexión, Blazor no
-    /// sabe que ha terminado y no repintaría solo.
-    /// </summary>
-    private static async Task TerminarComoUnClic(IRenderedComponent<VisionCarteraPagina> cut, Task carga)
-    {
-        await carga;
-        cut.Render();
-    }
 
     private static (string Etiqueta, string Valor, string Pista) Metrica(IElement tarjeta) => (
         Texto(tarjeta.QuerySelector(".tarjeta-metrica-etiqueta")!),
         Texto(tarjeta.QuerySelector(".tarjeta-metrica-valor")!),
         tarjeta.QuerySelector(".tarjeta-metrica-pista") is { } pista ? Texto(pista) : string.Empty);
 
+    private static (string Etiqueta, string Valor, string Pista) MetricaMedia(IRenderedComponent<VisionCarteraPagina> cut) =>
+        cut.FindAll(".rejilla-kpis-criticos .tarjeta-metrica").Select(Metrica).Single(m => m.Etiqueta == "Cumplimiento documental promedio");
+
+    private static IReadOnlyList<(string Organizacion, string Vencidos, string Urgentes)> TablaDelGrafico(IRenderedComponent<VisionCarteraPagina> cut) =>
+        cut.FindAll("figure.reparto-riesgo table.reparto-riesgo-datos tbody tr")
+            .Select(f => (Texto(f.QuerySelector("th")!), Texto(f.QuerySelectorAll("td")[0]), Texto(f.QuerySelectorAll("td")[1])))
+            .ToList();
+
+    // ---------------------------------------------------------------- fan-out y alcance por organización
+
+    [Fact]
+    public void La_pantalla_pide_una_sola_consulta_global_y_cada_organizacion_se_cuenta_en_su_propio_ambito()
+    {
+        var montaje = Renderizar(new Escenario());
+
+        var enviadas = montaje.Mediador.Enviadas;
+        enviadas.Where(e => e.Peticion is ObtenerKpisGlobalesQuery).Should().ContainSingle()
+            .Which.Ambito.Should().BeNull("la pantalla no fija ningún ámbito: el reparto lo hace la consulta");
+        enviadas.Where(e => e.Peticion is ObtenerKpisDashboardQuery).Select(e => e.Ambito).Should().Equal(
+            [TenantPropio, TenantB, TenantA],
+            "una vuelta por organización autorizada, cada una con su ámbito, y ninguna pedida por la pantalla sin él");
+        NombresEnTabla(montaje.Cut).Should().Equal(NombreA, NombreB, NombrePropio);
+    }
+
+    [Fact]
+    public void Cada_organizacion_cuenta_con_el_rol_que_el_usuario_tiene_en_ella_y_no_con_el_de_la_suya()
+    {
+        // Administrador en su organización; en Refrielectric, Gestor CAE con
+        // Asignación de Cartera; en Montajes Ebro, Gestor CAE sin ninguna.
+        var escenario = new Escenario();
+        escenario.Cambiar(TenantB, o => o with { Cartera = null });
+
+        var cut = Renderizar(escenario).Cut;
+
+        // Montajes Ebro empata a cero con la propia: el orden estable de la
+        // consulta conserva el de las autorizadas, así que va la última.
+        var filas = Filas(cut);
+        NombresEnTabla(cut).Should().Equal(NombreA, NombrePropio, NombreB);
+        filas[0].QuerySelectorAll("td").Skip(1).Take(3).Select(Texto).Should().Equal(
+            ["12", "5", "74%"], "Refrielectric cuenta lo que alcanza su cartera ahí (12), no la organización entera (40)");
+        filas[1].QuerySelectorAll("td").Skip(1).Take(3).Select(Texto).Should().Equal("0", "0", "96%");
+        filas[2].QuerySelectorAll("td").Skip(1).Take(3).Select(Texto).Should().Equal(
+            ["0", "0", "Sin Asignación de Cartera tuya"], "su 100% es «nada que evaluar», no «al día»");
+
+        LineasAmbito(cut)[1].Should().Be("Cada organización cuenta solo lo que tu rol alcanza en ella; en 1 no tienes ninguna Asignación de Cartera");
+        Texto(cut.Find(".aviso-sin-cartera")).Should().Be(
+            $"En {NombreB} no tienes ninguna Asignación de Cartera: no cuentas ningún documento suyo y su tasa no entra en la media.");
+        MetricaMedia(cut).Valor.Should().Be("82%", "(96×64 + 74×100) / 164: Montajes Ebro no pesa en la media");
+        cut.Find(".pulso-en-verde").GetAttribute("aria-label").Should().Be(
+            $"1 de 2 organizaciones con cartera con el cumplimiento documental en el 90% o más: {NombrePropio} 96%. "
+            + $"No entra {NombreB}: sin Asignación de Cartera tuya.");
+        cut.FindAll("svg.reparto-riesgo-grafico g.barra-organizacion")[2].TextContent.Should().Contain("sin cartera");
+        TablaDelGrafico(cut)[2].Organizacion.Should().Be($"{NombreB}, sin Asignación de Cartera tuya");
+        TextoPagina(cut).Should().NotContain("completa", "la pantalla no afirma un alcance que no puede saber por organización");
+    }
+
+    [Fact]
+    public void Con_un_rol_que_abarca_cada_organizacion_cuenta_cada_una_entera_y_no_avisa_de_cartera()
+    {
+        var escenario = new Escenario();
+        escenario.Cambiar(TenantA, o => o with { Rol = Roles.DireccionCae });
+        escenario.Cambiar(TenantB, o => o with { Rol = Roles.Administrador });
+
+        var cut = Renderizar(escenario).Cut;
+
+        NombresEnTabla(cut).Should().Equal(NombreB, NombreA, NombrePropio);
+        Filas(cut).Select(f => Texto(f.QuerySelectorAll("td")[1])).Should().Equal("90", "40", "0");
+        LineasAmbito(cut)[1].Should().Be("Cada organización cuenta solo lo que tu rol alcanza en ella");
+        cut.FindAll(".aviso-sin-cartera").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Sin_Asignacion_de_Cartera_en_ninguna_no_pinta_un_100_por_ciento_en_verde()
+    {
+        var escenario = new Escenario();
+        foreach (var id in new[] { TenantPropio, TenantA, TenantB })
+            escenario.Cambiar(id, o => o with { Rol = Roles.CoordinadorCae, Cartera = null });
+
+        var cut = Renderizar(escenario).Cut;
+
+        MetricaMedia(cut).Should().Be(("Cumplimiento documental promedio", "—", "Sin Asignación de Cartera en ninguna organización"));
+        Texto(cut.Find(".dashboard-resumen-anillo-titulo")).Should().Be("Sin cumplimiento que medir");
+        cut.FindAll(".dashboard-resumen-tarjeta-anillo svg").Should().BeEmpty("un anillo al 100% afirmaría «al día»");
+        Texto(cut.Find(".tarjeta-organizaciones-riesgo .texto-vacio-seccion"))
+            .Should().Be("Ninguna organización tiene documentación vencida ni urgente en lo que tu rol alcanza.");
+        cut.Find(".pulso-en-verde").TextContent.Should().StartWith("0");
+    }
+
     // ---------------------------------------------------------------- cabecera y cifras
 
     [Fact]
     public void La_cabecera_nombra_organizaciones_y_cuenta_la_propia_y_las_delegadas()
     {
-        var (cut, _) = Renderizar(new Escenario());
+        var cut = Renderizar(new Escenario()).Cut;
 
         Texto(cut.Find("header.cabecera-pagina h1.titulo-pagina")).Should().Be("Todas las organizaciones que operas, de un vistazo");
         Texto(cut.Find("header.cabecera-pagina .cabecera-pagina-kicker")).Should().Be("Visión de cartera");
-        LineasAmbito(cut)[0].Should().Be("3 organizaciones: la tuya y 2 que os han delegado su gestión CAE",
+        LineasAmbito(cut).Should().Equal(
+            ["3 organizaciones: la tuya y 2 que os han delegado su gestión CAE", "Cada organización cuenta solo lo que tu rol alcanza en ella"],
             "la propia sale de EsOrigen en ObtenerClientesAutorizadosQuery, no de la posición en la tabla");
     }
 
     [Fact]
     public void Las_cuatro_cifras_criticas_salen_de_la_consulta_con_su_contexto_real()
     {
-        var (cut, _) = Renderizar(new Escenario());
+        var cut = Renderizar(new Escenario()).Cut;
 
         cut.FindAll(".rejilla-kpis-criticos .tarjeta-metrica").Select(Metrica).Should().Equal(
             ("Documentos vencidos", "21", "En 2 de 3 organizaciones"),
             ("Urgentes", "9", "Según el umbral urgente de cada organización"),
             ("Próximos a vencer", "17", "Según el umbral próximo de cada organización"),
-            ("Cumplimiento documental promedio", "83%", "Media simple de 3 organizaciones"));
+            // (96×64 + 74×100 + 36×30) / 194 = 75; la media simple de 96, 74 y 36 sería 68.
+            ("Cumplimiento documental promedio", "75%", "Ponderada por volumen de documentos"));
 
         // Los umbrales son ParametroSistema de cada organización, configurables:
         // una ventana fija escrita en la pantalla sería falsa en cuanto alguien los cambie.
-        TextoPagina(cut).Should().NotContain("≤15").And.NotContain("≤30").And.NotContain("SLA");
+        TextoPagina(cut).Should().NotContain("≤15").And.NotContain("≤30").And.NotContain("SLA").And.NotContain("Media simple");
     }
 
     [Fact]
     public void La_actividad_general_suma_las_organizaciones_sin_enlazar_a_listas_de_una_sola()
     {
-        var (cut, _) = Renderizar(new Escenario());
+        var cut = Renderizar(new Escenario()).Cut;
 
         var tarjetas = cut.FindAll(".rejilla-actividad-cartera .tarjeta-metrica");
         tarjetas.Select(Metrica).Select(m => (m.Etiqueta, m.Valor)).Should().Equal(
@@ -261,14 +354,14 @@ public class VisionCarteraGen2Tests : BunitContext
     [Fact]
     public void La_tabla_lista_todas_en_el_orden_de_la_consulta_y_marca_la_propia()
     {
-        var (cut, _) = Renderizar(new Escenario());
+        var cut = Renderizar(new Escenario()).Cut;
 
         var filas = Filas(cut);
-        filas.Select(f => Texto(f.QuerySelector(".nombre-organizacion")!)).Should().Equal(NombreA, NombreB, NombrePropio);
+        NombresEnTabla(cut).Should().Equal(NombreA, NombreB, NombrePropio);
         filas.Select(f => Texto(f.QuerySelector(".meta-organizacion")!)).Should().Equal(
             "Os ha delegado su gestión CAE", "Os ha delegado su gestión CAE", "Tu organización");
         filas.Select(f => f.QuerySelectorAll("td").Skip(1).Take(3).Select(Texto).ToList()).Should().BeEquivalentTo(
-            new[] { new[] { "12", "5", "71%" }, new[] { "9", "4", "82%" }, new[] { "0", "0", "97%" } },
+            new[] { new[] { "12", "5", "74%" }, new[] { "9", "4", "36%" }, new[] { "0", "0", "96%" } },
             o => o.WithStrictOrdering());
         filas[0].QuerySelectorAll(".badge")[0].GetAttribute("title").Should().Be($"{NombreA}: 12 documentos vencidos");
         filas[2].QuerySelectorAll(".badge")[0].ClassList.Should().Contain("badge-neutro", "un cero no es una señal de peligro");
@@ -277,7 +370,7 @@ public class VisionCarteraGen2Tests : BunitContext
     [Fact]
     public void Cambiar_de_organizacion_es_un_POST_con_antiforgery_y_su_tenant()
     {
-        var (cut, _) = Renderizar(new Escenario());
+        var cut = Renderizar(new Escenario()).Cut;
 
         var formularios = cut.FindAll(".tarjeta-organizaciones-riesgo form");
         formularios.Should().HaveCount(3);
@@ -296,25 +389,23 @@ public class VisionCarteraGen2Tests : BunitContext
         Texto(boton).Should().Be("Cambiar a esta organización →");
     }
 
-    // ---------------------------------------------------------------- resumen y pulso
+    // ---------------------------------------------------------------- resumen, reparto y pulso
 
     [Fact]
-    public void El_anillo_explica_la_media_simple_con_las_tasas_que_la_forman()
+    public void El_anillo_explica_que_la_media_pondera_y_con_que_tasas()
     {
-        var (cut, _) = Renderizar(new Escenario());
+        var cut = Renderizar(new Escenario()).Cut;
 
-        Texto(cut.Find(".dashboard-resumen-anillo-titulo")).Should().Be("83% de cumplimiento documental promedio");
+        Texto(cut.Find(".dashboard-resumen-anillo-titulo")).Should().Be("75% de cumplimiento documental promedio");
         Texto(cut.Find(".detalle-media-cartera")).Should().Be(
-            "Media simple, sin ponderar por volumen, de las tasas de las 3 organizaciones: 97, 82 y 71%.");
+            "Media ponderada por el volumen de documentos con vencimiento de cada organización; tasas de las 3 que la forman: 96, 74 y 36%.");
     }
 
     [Fact]
     public void El_reparto_del_riesgo_dibuja_cada_organizacion_con_sus_cifras()
     {
-        var (cut, _) = Renderizar(new Escenario());
+        var cut = Renderizar(new Escenario()).Cut;
 
-        cut.Find("svg.reparto-riesgo-grafico").GetAttribute("aria-label").Should().Be(
-            $"Documentos vencidos y urgentes por organización: {NombreA} 12 y 5, {NombreB} 9 y 4 y {NombrePropio} 0 y 0");
         var grupos = cut.FindAll("svg.reparto-riesgo-grafico g.barra-organizacion");
         grupos.Should().HaveCount(3);
         grupos[0].QuerySelector("rect.barra-vencidos title")!.TextContent.Should().Be($"{NombreA}: 12 documentos vencidos");
@@ -327,79 +418,50 @@ public class VisionCarteraGen2Tests : BunitContext
         Alto(grupos[0]).Should().BeGreaterThan(Alto(grupos[1]));
     }
 
+    /// <summary>
+    /// El SVG no es operable ni legible con lector de pantalla —sus &lt;title&gt;
+    /// son ayuda de ratón—, así que va aria-hidden y sin foco, y su equivalente
+    /// es una tabla con los nombres completos (las etiquetas del eje van
+    /// recortadas) y las mismas cifras en el mismo orden, con nombre accesible.
+    /// </summary>
+    [Fact]
+    public void El_reparto_del_riesgo_tiene_su_equivalente_accesible_en_una_tabla()
+    {
+        var cut = Renderizar(new Escenario()).Cut;
+
+        var svg = cut.Find("figure.reparto-riesgo svg.reparto-riesgo-grafico");
+        svg.GetAttribute("aria-hidden").Should().Be("true", "el lector de pantalla lee la tabla, no la imagen");
+        svg.GetAttribute("focusable").Should().Be("false");
+        svg.HasAttribute("role").Should().BeFalse();
+        svg.HasAttribute("tabindex").Should().BeFalse("no tiene ninguna interacción a la que dar foco");
+
+        var figura = cut.Find("figure.reparto-riesgo");
+        var titulo = cut.Find($"#{figura.GetAttribute("aria-labelledby")}");
+        Texto(titulo).Should().Be("Reparto del riesgo entre las 3 organizaciones");
+        Texto(cut.Find("table.reparto-riesgo-datos caption")).Should().Be("Documentos vencidos y urgentes por organización");
+        cut.FindAll("table.reparto-riesgo-datos thead th").Select(Texto).Should().Equal("Organización", "Vencidos", "Urgentes");
+
+        TablaDelGrafico(cut).Should().Equal(
+            (NombreA, "12", "5"), (NombreB, "9", "4"), (NombrePropio, "0", "0"));
+        cut.FindAll("svg.reparto-riesgo-grafico .reparto-riesgo-etiqueta").Select(e => e.LastChild!.TextContent.Trim())
+            .Should().Equal(["Refrielec…", "Montajes …", "Consultor…"], "el eje recorta; la tabla lleva el nombre entero");
+    }
+
     [Fact]
     public void El_pulso_cuenta_con_vencidos_en_verde_y_en_riesgo_con_su_desglose()
     {
-        var (cut, _) = Renderizar(new Escenario());
+        var cut = Renderizar(new Escenario()).Cut;
 
         Texto(cut.Find(".pulso-cartera-frase")).Should().Be("2 de 3 organizaciones tienen documentación vencida.");
 
         var verde = cut.Find(".pulso-en-verde");
         verde.GetAttribute("aria-label").Should().Be(
-            $"1 de 3 organizaciones con el cumplimiento documental en el 90% o más: {NombrePropio} 97%.");
+            $"1 de 3 organizaciones con el cumplimiento documental en el 90% o más: {NombrePropio} 96%.");
         verde.TextContent.Should().StartWith("1");
 
         var riesgo = cut.Find(".pulso-en-riesgo");
         riesgo.GetAttribute("aria-label").Should().Be("30 documentos en riesgo: 21 vencidos más 9 urgentes.");
         riesgo.TextContent.Should().StartWith("30");
-    }
-
-    // ---------------------------------------------------------------- rol y cartera
-
-    [Theory]
-    [InlineData(Roles.Administrador)]
-    [InlineData(Roles.DireccionCae)]
-    public void Un_rol_de_toda_la_organizacion_no_lee_ninguna_cartera(string rol)
-    {
-        var (cut, _) = Renderizar(new Escenario(), rol);
-
-        LineasAmbito(cut)[1].Should().Be("Tu rol ve cada organización completa, sin acotar por cartera");
-        cut.FindAll(".aviso-sin-cartera").Should().BeEmpty();
-        TextoPagina(cut).Should().NotContain("tu cartera").And.NotContain("Gestores CAE que coordinas");
-    }
-
-    [Fact]
-    public void Un_rol_de_toda_la_organizacion_sin_riesgo_lo_dice_sin_mencionar_cartera()
-    {
-        var (cut, _) = Renderizar(new Escenario().SinCartera(), Roles.DireccionCae);
-
-        Texto(cut.Find(".tarjeta-organizaciones-riesgo .texto-vacio-seccion"))
-            .Should().Be("Ninguna organización tiene documentación vencida ni urgente.");
-        Filas(cut).Should().BeEmpty();
-    }
-
-    [Fact]
-    public void Un_Gestor_CAE_con_cartera_ve_su_alcance_acotado_y_el_aviso()
-    {
-        // GestorCae no entra por el [Authorize] de la ruta, pero es rol
-        // EFECTIVO de quien opera un workspace delegado con esa asignación.
-        var (cut, _) = Renderizar(new Escenario(), Roles.GestorCae);
-
-        LineasAmbito(cut)[1].Should().Be("Cada organización cuenta solo lo que alcanza tu cartera");
-        Texto(cut.Find(".aviso-sin-cartera")).Should().Be(
-            "Donde tu cartera no alcance nada, la organización sale con cero documentos y un 100% de cumplimiento: "
-            + "esta vista todavía no distingue «sin cartera» de «todo al día».");
-        Filas(cut).Should().HaveCount(3);
-    }
-
-    [Fact]
-    public void Un_Gestor_CAE_sin_cartera_no_lee_que_todo_esta_al_dia_sin_matiz()
-    {
-        var (cut, _) = Renderizar(new Escenario().SinCartera(), Roles.GestorCae);
-
-        Texto(cut.Find(".tarjeta-organizaciones-riesgo .texto-vacio-seccion"))
-            .Should().Be("Ninguna organización tiene documentación vencida ni urgente dentro de tu cartera.");
-        cut.FindAll(".aviso-sin-cartera").Should().ContainSingle(
-            "los ceros y el 100% de una cartera vacía son indistinguibles de «al día» en lo que devuelve la consulta");
-    }
-
-    [Fact]
-    public void Un_Coordinador_CAE_ve_la_cartera_de_los_Gestores_CAE_que_coordina()
-    {
-        var (cut, _) = Renderizar(new Escenario(), Roles.CoordinadorCae);
-
-        LineasAmbito(cut)[1].Should().Be("Cada organización cuenta solo lo que alcanza la cartera de los Gestores CAE que coordinas");
-        Texto(cut.Find(".aviso-sin-cartera")).Should().StartWith("Donde la cartera de los Gestores CAE que coordinas no alcance nada,");
     }
 
     // ---------------------------------------------------------------- estados
@@ -408,9 +470,9 @@ public class VisionCarteraGen2Tests : BunitContext
     public void Con_una_sola_organizacion_la_vista_se_declara_vacia()
     {
         var escenario = new Escenario();
-        escenario.Autorizadas.RemoveAll(c => !c.EsOrigen);
+        escenario.Organizaciones.RemoveAll(o => !o.EsOrigen);
 
-        var (cut, _) = Renderizar(escenario);
+        var cut = Renderizar(escenario).Cut;
 
         Texto(cut.Find(".estado-vacio h3")).Should().Be("Todavía no operas ninguna otra organización");
         cut.Find(".estado-vacio a").GetAttribute("href").Should().Be("/delegaciones");
@@ -423,84 +485,91 @@ public class VisionCarteraGen2Tests : BunitContext
     {
         var escenario = new Escenario();
         var fallos = 1;
-        escenario.Interceptar = p => p is ObtenerKpisGlobalesQuery && fallos-- > 0
+        escenario.Retener = p => p is ObtenerKpisGlobalesQuery && fallos-- > 0
             ? Task.FromException<object?>(new InvalidOperationException("caída de prueba"))
             : null;
 
-        var (cut, mediador) = Renderizar(escenario);
+        var (cut, mediador, logger) = Renderizar(escenario);
 
         Texto(cut.Find(".estado-vacio h3")).Should().Be("No pudimos cargar la visión de cartera");
         cut.FindAll(".tarjeta-metrica").Should().BeEmpty();
+        logger.Errores.Should().ContainSingle();
 
         await cut.FindAll("button").Single(b => Texto(b) == "Reintentar").ClickAsync(new MouseEventArgs());
 
         cut.FindAll(".estado-vacio").Should().BeEmpty();
         Filas(cut).Should().HaveCount(3);
-        mediador.Enviados.OfType<ObtenerKpisGlobalesQuery>().Should().HaveCount(2);
+        mediador.Enviadas.Count(e => e.Peticion is ObtenerKpisGlobalesQuery).Should().Be(2);
     }
 
-    [Fact]
-    public async Task Una_carga_que_vuelve_tarde_no_pisa_a_la_vigente()
-    {
-        var escenario = new Escenario();
-        var pendientes = new Queue<TaskCompletionSource<object?>>();
-        escenario.Interceptar = p =>
-        {
-            if (p is not ObtenerKpisGlobalesQuery) return null;
-            var tcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
-            pendientes.Enqueue(tcs);
-            return tcs.Task;
-        };
+    // ---------------------------------------------------------------- carreras y retirada
 
-        var (cut, _) = Renderizar(escenario);
+    /// <summary>
+    /// Salir de la página cancela la consulta en curso, y su respuesta tardía
+    /// ya no toca un componente retirado. Que el token quede cancelado
+    /// demuestra además que el Dispose se ejecutó de verdad:
+    /// DisposeComponentsAsync lo llama, cut.Dispose() de bUnit no.
+    /// </summary>
+    [Fact]
+    public async Task Salir_de_la_pagina_cancela_la_carga_en_curso()
+    {
+        var respuesta = new TaskCompletionSource<object?>();
+        var escenario = new Escenario { Retener = p => p is ObtenerKpisGlobalesQuery ? respuesta.Task : null };
+        var (cut, mediador, _) = Renderizar(escenario);
         cut.FindAll(".esqueleto-lista").Should().ContainSingle("mientras la consulta no vuelve, se pinta la carga");
 
-        // Segunda carga mientras la primera sigue en vuelo: lo que haría un
-        // doble clic en «Reintentar» antes de que el render retire el botón.
-        var segundaCarga = LanzarSegundaCarga(cut);
-        cut.WaitForAssertion(() => pendientes.Should().HaveCount(2));
+        var token = mediador.Enviadas.Single(e => e.Peticion is ObtenerKpisGlobalesQuery).Token;
+        token.CanBeCanceled.Should().BeTrue("la consulta tiene que llevar el token del ciclo de la página");
+        token.IsCancellationRequested.Should().BeFalse();
 
-        var primera = pendientes.Dequeue();
-        var segunda = pendientes.Dequeue();
+        await DisposeComponentsAsync();
 
-        var vigente = new Escenario();
-        vigente.Autorizadas.RemoveAt(1); // sin Montajes Ebro
-        await cut.InvokeAsync(() => segunda.SetResult(vigente.Kpis()));
-        await TerminarComoUnClic(cut, segundaCarga);
-        Filas(cut).Should().HaveCount(2);
-
-        // La primera vuelve después, con otro contenido: no debe pisar la vigente.
-        await cut.InvokeAsync(() => primera.SetResult(new Escenario().Kpis()));
-        cut.WaitForAssertion(() => Filas(cut).Select(f => Texto(f.QuerySelector(".nombre-organizacion")!))
-            .Should().Equal(NombreA, NombrePropio));
-        LineasAmbito(cut)[0].Should().Be("2 organizaciones: la tuya y 1 que os ha delegado su gestión CAE");
+        token.IsCancellationRequested.Should().BeTrue("salir de la página cancela la consulta en curso");
+        var llegaTarde = () => cut.InvokeAsync(() => respuesta.SetResult(null));
+        await llegaTarde.Should().NotThrowAsync("la respuesta tardía no toca un componente retirado");
     }
 
+    /// <summary>
+    /// Un fallo que vuelve después de salir —lo normal: la cancelación llega
+    /// como excepción— no es un error de la pantalla: no se registra ni
+    /// prepara un «No pudimos cargar» que nadie va a ver.
+    /// </summary>
     [Fact]
-    public async Task Un_error_que_vuelve_tarde_no_tapa_los_datos_de_la_carga_vigente()
+    public async Task Un_fallo_que_llega_tras_salir_no_se_registra_como_error()
     {
+        var respuesta = new TaskCompletionSource<object?>();
+        var escenario = new Escenario { Retener = p => p is ObtenerKpisGlobalesQuery ? respuesta.Task : null };
+        var (cut, _, logger) = Renderizar(escenario);
+
+        await DisposeComponentsAsync();
+        await cut.InvokeAsync(() => respuesta.SetException(new OperationCanceledException("cancelada al salir")));
+
+        logger.Errores.Should().BeEmpty("la carga ya no es de nadie: su fallo no es un error que registrar");
+    }
+
+    /// <summary>
+    /// El fan-out recorre las organizaciones de una en una: mientras la
+    /// primera no responde, las demás ni se han pedido, y la pantalla no pinta
+    /// un resultado parcial. Cuando responde, cada organización llega con lo
+    /// suyo.
+    /// </summary>
+    [Fact]
+    public async Task Mientras_una_organizacion_no_responde_no_se_pinta_un_resultado_parcial()
+    {
+        var respuestaPropia = new TaskCompletionSource<object?>();
         var escenario = new Escenario();
-        var pendientes = new Queue<TaskCompletionSource<object?>>();
-        escenario.Interceptar = p =>
-        {
-            if (p is not ObtenerKpisGlobalesQuery) return null;
-            var tcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
-            pendientes.Enqueue(tcs);
-            return tcs.Task;
-        };
+        escenario.Retener = p => p is ObtenerKpisDashboardQuery && AmbitoTenantExplicito.TenantIdActual == TenantPropio
+            ? respuestaPropia.Task
+            : null;
+        var (cut, mediador, _) = Renderizar(escenario);
 
-        var (cut, _) = Renderizar(escenario);
-        var segundaCarga = LanzarSegundaCarga(cut);
-        cut.WaitForAssertion(() => pendientes.Should().HaveCount(2));
+        cut.FindAll(".esqueleto-lista").Should().ContainSingle("la consulta global espera a todas sus organizaciones");
+        mediador.Enviadas.Where(e => e.Peticion is ObtenerKpisDashboardQuery).Select(e => e.Ambito).Should().Equal([TenantPropio]);
+        Filas(cut).Should().BeEmpty();
 
-        var primera = pendientes.Dequeue();
-        var segunda = pendientes.Dequeue();
-        await cut.InvokeAsync(() => segunda.SetResult(escenario.Kpis()));
-        await TerminarComoUnClic(cut, segundaCarga);
-        Filas(cut).Should().HaveCount(3);
+        await cut.InvokeAsync(() => respuestaPropia.SetResult(escenario[TenantPropio].KpisConSuAlcance()));
 
-        await cut.InvokeAsync(() => primera.SetException(new InvalidOperationException("respuesta vieja")));
-        cut.WaitForAssertion(() => cut.FindAll(".estado-vacio").Should().BeEmpty());
-        Filas(cut).Should().HaveCount(3);
+        cut.WaitForAssertion(() => NombresEnTabla(cut).Should().Equal(NombreA, NombreB, NombrePropio));
+        Filas(cut).Select(f => Texto(f.QuerySelectorAll("td")[3])).Should().Equal("74%", "36%", "96%");
     }
 }

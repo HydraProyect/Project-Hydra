@@ -14,6 +14,11 @@
     «organización» y no «cliente», que en el resto del producto es la Empresa
     contraparte de una Relación Empresarial.
 
+    El alcance de cada fila lo decide ObtenerKpisGlobalesQuery con el rol
+    efectivo y la Asignación de Cartera de ESA organización; la pantalla no
+    lee ningún rol (el del contexto activo no vale para las demás) y solo pinta
+    lo que la consulta dice por fila: SinCarteraAsignada.
+
     Lo que el mockup pinta y aquí NO se copia, porque la consulta no lo sabe:
     el desglose por centro de cada fila (ClienteRiesgoDto no lo trae), el
     «84 trabajadores · 7 centros» por fila, «X de N bloquean acceso a algún
@@ -79,22 +84,35 @@
                                     Pista="Según el umbral urgente de cada organización" />
                     <TarjetaMetrica Etiqueta="Próximos a vencer" Valor="@_kpis.DocumentosProximos.ToString()" NombreIcono="calendario" Tono="TonoBadge.Advertencia"
                                     Pista="Según el umbral próximo de cada organización" />
-                    <TarjetaMetrica Etiqueta="Cumplimiento documental promedio" Valor="@($"{_kpis.TasaCumplimientoDocumentalPromedio}%")" NombreIcono="check"
-                                    Tono="@TonoCumplimiento(_kpis.TasaCumplimientoDocumentalPromedio)" Pista="@($"Media simple de {Organizaciones.Count} organizaciones")" />
+                    <TarjetaMetrica Etiqueta="Cumplimiento documental promedio" Valor="@ValorMedia" NombreIcono="check"
+                                    Tono="@TonoMedia" Pista="@PistaMedia" />
                 </div>
             </section>
 
             <section class="resumen-cartera">
                 <div class="dashboard-resumen-tarjeta-anillo">
-                    <AnilloCumplimiento Porcentaje="_kpis.TasaCumplimientoDocumentalPromedio" Tamano="TamanoAnillo.Grande" Leyenda="Cumplimiento"
-                                        Etiqueta="@($"{_kpis.TasaCumplimientoDocumentalPromedio}% de cumplimiento documental promedio")" />
-                    <div>
-                        <p class="dashboard-resumen-anillo-titulo">@_kpis.TasaCumplimientoDocumentalPromedio% de cumplimiento documental promedio</p>
-                        <p class="dashboard-resumen-anillo-detalle detalle-media-cartera">@DetalleMedia</p>
-                        <p class="dashboard-resumen-anillo-detalle detalle-tasa-cartera">
-                            Tasa de cada organización: documentos que aún no han entrado en su umbral próximo, sobre todos los que tienen fecha de vencimiento. Sin ninguno con fecha, cuenta como 100%.
-                        </p>
-                    </div>
+                    @if (HayMediaQueMostrar)
+                    {
+                        <AnilloCumplimiento Porcentaje="_kpis.TasaCumplimientoDocumentalPromedio" Tamano="TamanoAnillo.Grande" Leyenda="Cumplimiento"
+                                            Etiqueta="@($"{_kpis.TasaCumplimientoDocumentalPromedio}% de cumplimiento documental promedio")" />
+                        <div>
+                            <p class="dashboard-resumen-anillo-titulo">@_kpis.TasaCumplimientoDocumentalPromedio% de cumplimiento documental promedio</p>
+                            <p class="dashboard-resumen-anillo-detalle detalle-media-cartera">@DetalleMedia</p>
+                            <p class="dashboard-resumen-anillo-detalle detalle-tasa-cartera">
+                                Tasa de cada organización: documentos que aún no han entrado en su umbral próximo, sobre todos los que tienen fecha de vencimiento. Sin ninguno con fecha, cuenta como 100%.
+                            </p>
+                        </div>
+                    }
+                    else
+                    {
+                        @* Sin ninguna Asignación de Cartera en ninguna organización, el
+                           100% que devuelve la consulta es «nada que evaluar»: pintarlo
+                           en un anillo verde afirmaría lo contrario. *@
+                        <div>
+                            <p class="dashboard-resumen-anillo-titulo">Sin cumplimiento que medir</p>
+                            <p class="dashboard-resumen-anillo-detalle detalle-media-cartera">No tienes ninguna Asignación de Cartera en estas organizaciones: no hay documentos tuyos que evaluar.</p>
+                        </div>
+                    }
                 </div>
 
                 <div class="actividad-cartera">
@@ -105,9 +123,35 @@
                         <TarjetaMetrica Discreta="true" Etiqueta="Centros / plataformas" Valor="@_kpis.Centros.ToString()" NombreIcono="centros" />
                     </div>
 
-                    <div class="reparto-riesgo">
-                        <span class="reparto-riesgo-titulo">Reparto del riesgo entre las @Organizaciones.Count organizaciones</span>
-                        <svg class="reparto-riesgo-grafico" viewBox="0 0 @AnchoGrafico @AltoGrafico" role="img" aria-label="@EtiquetaGrafico"
+                    @* Accesibilidad: el SVG es solo la imagen (aria-hidden, sin foco:
+                       no tiene ninguna interacción, las <title> son ayuda de ratón).
+                       Lo que dice lo dice también la tabla .reparto-riesgo-datos —
+                       nombres completos y las dos cifras de cada organización, en el
+                       mismo orden—, que el lector de pantalla recorre como tabla y a
+                       la que el <figcaption> da nombre. *@
+                    <figure class="reparto-riesgo" aria-labelledby="titulo-reparto-riesgo">
+                        <figcaption id="titulo-reparto-riesgo" class="reparto-riesgo-titulo">Reparto del riesgo entre las @Organizaciones.Count organizaciones</figcaption>
+                        <table class="reparto-riesgo-datos">
+                            <caption>Documentos vencidos y urgentes por organización</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Organización</th>
+                                    <th scope="col">Vencidos</th>
+                                    <th scope="col">Urgentes</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var organizacion in Organizaciones)
+                                {
+                                    <tr>
+                                        <th scope="row">@organizacion.Nombre@(organizacion.SinCarteraAsignada ? ", sin Asignación de Cartera tuya" : string.Empty)</th>
+                                        <td>@organizacion.DocumentosVencidos</td>
+                                        <td>@organizacion.DocumentosUrgentes</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                        <svg class="reparto-riesgo-grafico" viewBox="0 0 @AnchoGrafico @AltoGrafico" aria-hidden="true" focusable="false"
                              preserveAspectRatio="xMinYMid meet">
                             <line class="reparto-riesgo-base" x1="0" y1="@BaseBarras" x2="@AnchoGrafico" y2="@BaseBarras" />
                             @foreach (var barra in Barras)
@@ -130,7 +174,7 @@
                                         @* Envuelto en <g>: un <text> justo tras la transición a código lo
                                            interpretaría Razor como su propia etiqueta, no como SVG. *@
                                         <g>
-                                            <text class="reparto-riesgo-sin-riesgo" x="@barra.Centro" y="@(BaseBarras - 14)" text-anchor="middle">sin riesgo</text>
+                                            <text class="reparto-riesgo-sin-riesgo" x="@barra.Centro" y="@(BaseBarras - 14)" text-anchor="middle">@barra.TextoSinBarra</text>
                                         </g>
                                     }
                                     <text class="reparto-riesgo-etiqueta" x="@barra.Centro" y="@(BaseBarras + 16)" text-anchor="middle">
@@ -143,7 +187,7 @@
                             <span><span class="muestra-leyenda muestra-vencidos" aria-hidden="true"></span>Vencidos</span>
                             <span><span class="muestra-leyenda muestra-urgentes" aria-hidden="true"></span>Urgentes (umbral de cada organización)</span>
                         </div>
-                    </div>
+                    </figure>
                 </div>
             </section>
 
@@ -193,12 +237,19 @@
                                                    title="@TituloUrgentes(organizacion)">@organizacion.DocumentosUrgentes</Badge>
                                         </td>
                                         <td>
-                                            <span class="cumplimiento-organizacion" title="@TituloCumplimiento(organizacion)">
-                                                <span class="barra-cumplimiento" aria-hidden="true">
-                                                    <span class="barra-cumplimiento-relleno @ClaseTono(tasa)" style="width: @(tasa)%"></span>
+                                            @if (organizacion.SinCarteraAsignada)
+                                            {
+                                                <span class="sin-cartera-organizacion" title="@TituloCumplimiento(organizacion)">Sin Asignación de Cartera tuya</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="cumplimiento-organizacion" title="@TituloCumplimiento(organizacion)">
+                                                    <span class="barra-cumplimiento" aria-hidden="true">
+                                                        <span class="barra-cumplimiento-relleno @ClaseTono(tasa)" style="width: @(tasa)%"></span>
+                                                    </span>
+                                                    <span class="valor-cumplimiento @ClaseTono(tasa)">@tasa%</span>
                                                 </span>
-                                                <span class="valor-cumplimiento @ClaseTono(tasa)">@tasa%</span>
-                                            </span>
+                                            }
                                         </td>
                                         <td class="celda-accion-organizacion">
                                             @* Mismo patrón que SelectorClienteActivo: cambiar la organización
