@@ -6,11 +6,16 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas.Commands.CambiarNivelServicioSubcontrata;
+using CaeManager.Application.Subcontratas.Commands.EditarSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata;
+using CaeManager.Application.Subcontratas.Commands.EliminarVerificacionExterna;
+using CaeManager.Application.Subcontratas.Commands.GuardarCredencialAccesoSubcontrata;
+using CaeManager.Application.Subcontratas.Commands.RegistrarVerificacionExterna;
 using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConActividadDeSubcontrata;
 using CaeManager.Application.Subcontratas.Queries.ObtenerCredencialAccesoSubcontrata;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSupervisionSubcontrata;
+using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -21,6 +26,7 @@ using CaeManager.Web.Features.Subcontratas.Components;
 using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -62,14 +68,25 @@ public class Subcontrata360Gen2Tests : BunitContext
         public List<EmpresaSelectorDto> Empresas { get; } = [];
         public Result ResultadoEliminar { get; set; } = Result.Exito();
 
+        /// <summary>Catálogo de tipos de documento por ámbito: la consulta responde según el ámbito que pide.</summary>
+        public Dictionary<AmbitoAplicacion, List<TipoDocumentoListaDto>> Tipos { get; } = [];
+        public Result ResultadoRegistrarVerificacion { get; set; } = Result.Exito();
+        public Result ResultadoEliminarVerificacion { get; set; } = Result.Exito();
+        public Result ResultadoEditar { get; set; } = Result.Exito();
+        public Result ResultadoGuardarCredenciales { get; set; } = Result.Exito();
+
         /// <summary>Si devuelve una tarea, la respuesta espera a que se complete.</summary>
         public Func<object, Task?>? Retener { get; set; }
 
         public List<object> Enviadas { get; } = [];
 
+        /// <summary>El token con el que llegó cada petición, en el mismo orden que <see cref="Enviadas"/>.</summary>
+        public List<(object Peticion, CancellationToken Token)> Tokens { get; } = [];
+
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
+            Tokens.Add((request, cancellationToken));
             if (Retener?.Invoke(request) is { } retenida)
                 await retenida;
             return (TResponse)Responder(request)!;
@@ -84,8 +101,15 @@ public class Subcontrata360Gen2Tests : BunitContext
             ObtenerCredencialAccesoSubcontrataQuery q => Credenciales.GetValueOrDefault(q.SubcontrataId),
             ObtenerClientesParaSelectorQuery => Clientes,
             ObtenerEmpresasParaSelectorQuery => Empresas,
+            ObtenerTiposDocumentoQuery q => q.AmbitoAplicacion is { } ambito
+                ? Tipos.GetValueOrDefault(ambito) ?? []
+                : Tipos.Values.SelectMany(t => t).ToList(),
             EliminarSubcontrataCommand => ResultadoEliminar,
             CambiarNivelServicioSubcontrataCommand => Result.Exito(),
+            RegistrarVerificacionExternaSubcontrataCommand => ResultadoRegistrarVerificacion,
+            EliminarVerificacionExternaSubcontrataCommand => ResultadoEliminarVerificacion,
+            EditarSubcontrataCommand => ResultadoEditar,
+            GuardarCredencialAccesoSubcontrataCommand => ResultadoGuardarCredenciales,
             _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
         };
 
@@ -491,5 +515,518 @@ public class Subcontrata360Gen2Tests : BunitContext
         cut.Find(".pestanas-panel").TextContent.Should()
             .Contain("Última verificación registrada el 11/08/2026", "es la más reciente de todos los centros")
             .And.Contain("Centro Norte").And.Contain("Planta Zaragoza");
+    }
+
+    // ------------------------------------------------ flujos conservados: utilidades
+
+    private static TipoDocumentoListaDto TipoCatalogo(string nombre, AmbitoAplicacion ambito, int orden) => new(
+        Guid.NewGuid(), nombre, null, false, orden, ambito, default, default,
+        null, null, null, null, false, false, false, default, []);
+
+    private static SupervisionTipoDto TipoVerificado(string nombre, Guid verificacionId, DateOnly fecha) =>
+        new(Guid.NewGuid(), nombre, true, EstadoSupervision.Vigente,
+            new UltimaVerificacionDto(verificacionId, fecha, ResultadoVerificacionExterna.Valido, null, null, false, null));
+
+    /// <summary>CampoTexto, CampoSelect y CampoTextarea enlazan su &lt;label for&gt;: se localiza el control por la etiqueta que ve el usuario.</summary>
+    private static IElement Control(IRenderedComponent<SubcontrataWorkspacePanel> cut, string etiqueta)
+    {
+        var id = cut.FindAll("label").Where(l => l.TextContent.Trim() == etiqueta)
+            .Should().ContainSingle($"tiene que haber exactamente un campo «{etiqueta}»").Subject.GetAttribute("for");
+        return cut.Find($"#{id}");
+    }
+
+    private static IElement Casilla(IRenderedComponent<SubcontrataWorkspacePanel> cut, string nombre) =>
+        cut.FindAll("label.campo-checkbox").Where(l => l.TextContent.Trim() == nombre)
+            .Should().ContainSingle($"tiene que haber exactamente una casilla «{nombre}»").Subject
+            .QuerySelector("input[type=checkbox]")!;
+
+    private static IElement BotonDelPie(IRenderedComponent<SubcontrataWorkspacePanel> cut, string selectorPie, string texto) =>
+        cut.Find(selectorPie).QuerySelectorAll("button").Where(b => b.TextContent.Trim() == texto)
+            .Should().ContainSingle($"el pie tiene que tener exactamente un botón «{texto}»").Subject;
+
+    private static IElement ConfirmarEliminacion(IRenderedComponent<SubcontrataWorkspacePanel> cut) =>
+        BotonDelPie(cut, "[role=dialog] .modal-pie", "Eliminar");
+
+    private static IElement BotonEliminarVerificacion(IRenderedComponent<SubcontrataWorkspacePanel> cut, string tipo, string centro) =>
+        cut.Find($"button[aria-label='Eliminar la verificación de {tipo} en {centro}']");
+
+    private IReadOnlyList<ToastMensaje> Toasts => Services.GetRequiredService<ToastService>().Mensajes;
+
+    private sealed record EscenaRegistro(Guid Id, Guid Norte, Guid Zaragoza, TipoDocumentoListaDto Seguro, MediatorFalso Mediador);
+
+    /// <summary>
+    /// Dos centros seleccionables —con uno solo el panel lo preselecciona y
+    /// el test no distinguiría el elegido del primero— y dos tipos en el
+    /// catálogo, repartidos entre los dos ámbitos que pide el panel.
+    /// </summary>
+    private EscenaRegistro PrepararRegistro(MediatorFalso mediador)
+    {
+        var id = Guid.NewGuid();
+        var norte = Guid.NewGuid();
+        var zaragoza = Guid.NewGuid();
+        var seguro = TipoCatalogo("Seguro RC", AmbitoAplicacion.Empresa, 2);
+        Registrar(mediador);
+        mediador.Detalles[id] = Detalle(id, "Pinturas Lauburu S.A.", NivelServicioSubcontrata.Supervisada);
+        mediador.Tipos[AmbitoAplicacion.Trabajador] = [TipoCatalogo("Certificado TGSS", AmbitoAplicacion.Trabajador, 1)];
+        mediador.Tipos[AmbitoAplicacion.Empresa] = [seguro];
+        mediador.Supervisiones[id] = new SupervisionSubcontrataDto([],
+            [new(norte, "Centro Norte", "Refrielectric S.A."), new(zaragoza, "Planta Zaragoza", "Refrielectric S.A.")]);
+        return new(id, norte, zaragoza, seguro, mediador);
+    }
+
+    /// <summary>Abre el formulario y elige Planta Zaragoza, «Seguro RC», «No válido», el 03/09/2026 y una captura como evidencia.</summary>
+    private async Task<IRenderedComponent<SubcontrataWorkspacePanel>> RellenarRegistroAsync(EscenaRegistro escena)
+    {
+        var cut = Renderizar(escena.Id, "supervision");
+        await Boton(cut, "+ Registrar verificación").ClickAsync(new MouseEventArgs());
+
+        await Control(cut, "Centro").ChangeAsync(new ChangeEventArgs { Value = escena.Zaragoza.ToString() });
+        await Control(cut, "Tipo de documento").ChangeAsync(new ChangeEventArgs { Value = escena.Seguro.Id.ToString() });
+        await Control(cut, "Resultado").ChangeAsync(new ChangeEventArgs { Value = nameof(ResultadoVerificacionExterna.NoValido) });
+        // CampoTexto notifica tras su rebote: InputAsync espera a que termine.
+        await Control(cut, "Fecha de verificación").InputAsync(new ChangeEventArgs { Value = "2026-09-03" });
+        cut.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromBinary([7, 7, 7], "captura-portal.png"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Adjunto: captura-portal.png"));
+        return cut;
+    }
+
+    // ------------------------------------------------ registrar una verificación
+
+    [Fact]
+    public async Task Registrar_una_verificacion_envia_la_subcontrata_el_centro_el_tipo_y_la_evidencia_elegidos_y_refresca_la_supervision()
+    {
+        var escena = PrepararRegistro(new MediatorFalso());
+        var cut = await RellenarRegistroAsync(escena);
+        var supervisionesAntes = escena.Mediador.Enviadas.OfType<ObtenerSupervisionSubcontrataQuery>().Count();
+        // Lo que devolverá la supervisión al volver a pedirla: si el panel no la refresca, no aparece.
+        escena.Mediador.Supervisiones[escena.Id] = new SupervisionSubcontrataDto(
+            [CentroSupervisado("Planta Zaragoza", Tipo("Seguro RC", exigido: true, EstadoSupervision.Vigente, new DateOnly(2026, 9, 3)))],
+            [new(escena.Norte, "Centro Norte", "Refrielectric S.A."), new(escena.Zaragoza, "Planta Zaragoza", "Refrielectric S.A.")]);
+
+        await BotonDelPie(cut, ".drawer-pie", "Registrar").ClickAsync(new MouseEventArgs());
+
+        var comando = escena.Mediador.Enviadas.OfType<RegistrarVerificacionExternaSubcontrataCommand>().Should().ContainSingle().Subject;
+        comando.SubcontrataId.Should().Be(escena.Id);
+        comando.CentroId.Should().Be(escena.Zaragoza, "se eligió Planta Zaragoza, no el primer centro de la lista");
+        comando.TipoDocumentoId.Should().Be(escena.Seguro.Id);
+        comando.Resultado.Should().Be(ResultadoVerificacionExterna.NoValido);
+        comando.FechaVerificacion.Should().Be(new DateOnly(2026, 9, 3));
+        comando.EvidenciaContenido.Should().Equal([7, 7, 7]);
+        comando.EvidenciaNombreArchivo.Should().Be("captura-portal.png");
+
+        escena.Mediador.Enviadas.OfType<ObtenerSupervisionSubcontrataQuery>().Should().HaveCount(supervisionesAntes + 1)
+            .And.Subject.Last().SubcontrataId.Should().Be(escena.Id);
+        cut.FindAll(".drawer-panel").Should().BeEmpty("registrada, el formulario se cierra");
+        cut.Find(".pestanas-panel").TextContent.Should().Contain("Última verificación registrada el 03/09/2026");
+        Toasts.Should().ContainSingle(m => m.Mensaje == "Verificación registrada." && m.Tono == TonoToast.Exito);
+    }
+
+    [Fact]
+    public async Task Si_el_registro_de_la_verificacion_falla_su_motivo_sale_en_el_formulario_que_sigue_abierto_y_se_puede_reintentar()
+    {
+        const string motivo = "Ese centro ya no está en tu cartera.";
+        var escena = PrepararRegistro(new MediatorFalso
+        {
+            ResultadoRegistrarVerificacion = Result.Fallo(Error.Crear("VerificacionExterna.CentroFueraDeAlcance", motivo))
+        });
+        var cut = await RellenarRegistroAsync(escena);
+        var supervisionesAntes = escena.Mediador.Enviadas.OfType<ObtenerSupervisionSubcontrataQuery>().Count();
+
+        await BotonDelPie(cut, ".drawer-pie", "Registrar").ClickAsync(new MouseEventArgs());
+
+        cut.Find(".drawer-panel [role=alert]").TextContent.Trim().Should().Be(motivo);
+        BotonDelPie(cut, ".drawer-pie", "Registrar").HasAttribute("disabled").Should().BeFalse("el guardado terminó: el botón no se queda cargando");
+        escena.Mediador.Enviadas.OfType<ObtenerSupervisionSubcontrataQuery>().Should().HaveCount(supervisionesAntes, "nada se registró: no hay qué refrescar");
+        Toasts.Should().NotContain(m => m.Tono == TonoToast.Exito);
+
+        escena.Mediador.ResultadoRegistrarVerificacion = Result.Exito();
+        await BotonDelPie(cut, ".drawer-pie", "Registrar").ClickAsync(new MouseEventArgs());
+
+        escena.Mediador.Enviadas.OfType<RegistrarVerificacionExternaSubcontrataCommand>().Select(c => (c.CentroId, c.EvidenciaNombreArchivo))
+            .Should().Equal([(escena.Zaragoza, "captura-portal.png"), (escena.Zaragoza, "captura-portal.png")],
+                "el reintento sale con lo que ya estaba elegido: el fallo no vació el formulario");
+        cut.FindAll(".drawer-panel").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_doble_clic_en_Registrar_manda_un_solo_comando()
+    {
+        var registro = new TaskCompletionSource();
+        var escena = PrepararRegistro(new MediatorFalso
+        {
+            Retener = p => p is RegistrarVerificacionExternaSubcontrataCommand ? registro.Task : null
+        });
+        var cut = await RellenarRegistroAsync(escena);
+
+        // Sin await: el comando está retenido.
+        var primero = BotonDelPie(cut, ".drawer-pie", "Registrar").ClickAsync(new MouseEventArgs());
+        var segundo = BotonDelPie(cut, ".drawer-pie", "Registrar").ClickAsync(new MouseEventArgs());
+
+        escena.Mediador.Enviadas.OfType<RegistrarVerificacionExternaSubcontrataCommand>().Should().ContainSingle();
+
+        await cut.InvokeAsync(() => registro.SetResult());
+        await primero;
+        await segundo;
+
+        escena.Mediador.Enviadas.OfType<RegistrarVerificacionExternaSubcontrataCommand>().Should().ContainSingle();
+    }
+
+    // ------------------------------------------------ eliminar una verificación
+
+    private sealed record EscenaEliminacion(Guid Id, Guid VerificacionNorte, Guid VerificacionZaragoza, MediatorFalso Mediador);
+
+    private EscenaEliminacion PrepararEliminacion(MediatorFalso mediador)
+    {
+        var id = Guid.NewGuid();
+        var norte = Guid.NewGuid();
+        var zaragoza = Guid.NewGuid();
+        Registrar(mediador);
+        mediador.Detalles[id] = Detalle(id, "Pinturas Lauburu S.A.", NivelServicioSubcontrata.Supervisada);
+        mediador.Supervisiones[id] = new SupervisionSubcontrataDto(
+        [
+            CentroSupervisado("Centro Norte", TipoVerificado("Certificado TGSS", norte, new DateOnly(2026, 7, 13))),
+            CentroSupervisado("Planta Zaragoza", TipoVerificado("Certificado TGSS", zaragoza, new DateOnly(2026, 8, 11))),
+        ], []);
+        return new(id, norte, zaragoza, mediador);
+    }
+
+    [Fact]
+    public void Cada_Eliminar_de_una_verificacion_dice_en_su_nombre_accesible_que_verificacion_y_de_que_centro_borra()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Pinturas Lauburu S.A.");
+        mediador.Supervisiones[id] = new SupervisionSubcontrataDto(
+        [
+            CentroSupervisado("Centro Norte",
+                TipoVerificado("Certificado TGSS", Guid.NewGuid(), new DateOnly(2026, 7, 13)),
+                TipoVerificado("Seguro RC", Guid.NewGuid(), new DateOnly(2026, 7, 20)),
+                // Sin verificación: no hay nada que eliminar y no lleva botón.
+                Tipo("Evaluación de riesgos", exigido: true, EstadoSupervision.SinVerificar)),
+            CentroSupervisado("Planta Zaragoza", TipoVerificado("Certificado TGSS", Guid.NewGuid(), new DateOnly(2026, 8, 11))),
+        ], []);
+
+        var cut = Renderizar(id, "supervision");
+
+        cut.FindAll("button").Where(b => b.TextContent.Trim() == "Eliminar").Select(b => b.GetAttribute("aria-label")).Should().Equal(
+            [
+                "Eliminar la verificación de Certificado TGSS en Centro Norte",
+                "Eliminar la verificación de Seguro RC en Centro Norte",
+                "Eliminar la verificación de Certificado TGSS en Planta Zaragoza",
+            ],
+            "tres botones con el mismo texto visible: el nombre accesible es lo único que los distingue, y el tipo se repite entre centros");
+    }
+
+    [Fact]
+    public async Task Eliminar_una_verificacion_pide_confirmacion_envia_su_id_y_refresca_la_supervision()
+    {
+        var escena = PrepararEliminacion(new MediatorFalso());
+        var cut = Renderizar(escena.Id, "supervision");
+
+        await BotonEliminarVerificacion(cut, "Certificado TGSS", "Planta Zaragoza").ClickAsync(new MouseEventArgs());
+
+        cut.Find("[role=dialog]").TextContent.Should().Contain("¿Eliminar esta verificación?");
+        escena.Mediador.Enviadas.OfType<EliminarVerificacionExternaSubcontrataCommand>().Should().BeEmpty("abrir el diálogo no elimina");
+
+        var supervisionesAntes = escena.Mediador.Enviadas.OfType<ObtenerSupervisionSubcontrataQuery>().Count();
+        escena.Mediador.Supervisiones[escena.Id] = new SupervisionSubcontrataDto(
+            [CentroSupervisado("Centro Norte", TipoVerificado("Certificado TGSS", escena.VerificacionNorte, new DateOnly(2026, 7, 13)))], []);
+
+        await ConfirmarEliminacion(cut).ClickAsync(new MouseEventArgs());
+
+        escena.Mediador.Enviadas.OfType<EliminarVerificacionExternaSubcontrataCommand>().Select(c => c.Id)
+            .Should().Equal([escena.VerificacionZaragoza], "es la del botón pulsado, no la de otro centro con el mismo tipo");
+        escena.Mediador.Enviadas.OfType<ObtenerSupervisionSubcontrataQuery>().Should().HaveCount(supervisionesAntes + 1);
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
+        cut.Find(".pestanas-panel").TextContent.Should().NotContain("Planta Zaragoza", "la supervisión refrescada ya no la trae");
+        Toasts.Should().ContainSingle(m => m.Mensaje == "Verificación eliminada." && m.Tono == TonoToast.Exito);
+    }
+
+    [Fact]
+    public async Task Si_eliminar_la_verificacion_falla_se_avisa_del_motivo_y_el_dialogo_queda_listo_para_reintentar()
+    {
+        const string motivo = "La verificación ya no existe.";
+        var escena = PrepararEliminacion(new MediatorFalso
+        {
+            ResultadoEliminarVerificacion = Result.Fallo(Error.Crear("VerificacionExterna.NoEncontrada", motivo))
+        });
+        var cut = Renderizar(escena.Id, "supervision");
+        await BotonEliminarVerificacion(cut, "Certificado TGSS", "Planta Zaragoza").ClickAsync(new MouseEventArgs());
+        var supervisionesAntes = escena.Mediador.Enviadas.OfType<ObtenerSupervisionSubcontrataQuery>().Count();
+
+        await ConfirmarEliminacion(cut).ClickAsync(new MouseEventArgs());
+
+        Toasts.Should().ContainSingle(m => m.Mensaje == motivo && m.Tono == TonoToast.Error);
+        ConfirmarEliminacion(cut).HasAttribute("disabled").Should().BeFalse("el comando terminó: el botón no se queda cargando");
+        escena.Mediador.Enviadas.OfType<ObtenerSupervisionSubcontrataQuery>().Should().HaveCount(supervisionesAntes);
+
+        escena.Mediador.ResultadoEliminarVerificacion = Result.Exito();
+        await ConfirmarEliminacion(cut).ClickAsync(new MouseEventArgs());
+
+        escena.Mediador.Enviadas.OfType<EliminarVerificacionExternaSubcontrataCommand>().Select(c => c.Id)
+            .Should().Equal([escena.VerificacionZaragoza, escena.VerificacionZaragoza], "el reintento borra la misma verificación");
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_doble_clic_en_confirmar_la_eliminacion_manda_un_solo_comando()
+    {
+        var eliminacion = new TaskCompletionSource();
+        var escena = PrepararEliminacion(new MediatorFalso
+        {
+            Retener = p => p is EliminarVerificacionExternaSubcontrataCommand ? eliminacion.Task : null
+        });
+        var cut = Renderizar(escena.Id, "supervision");
+        await BotonEliminarVerificacion(cut, "Certificado TGSS", "Planta Zaragoza").ClickAsync(new MouseEventArgs());
+
+        // Sin await: el comando está retenido.
+        var primero = ConfirmarEliminacion(cut).ClickAsync(new MouseEventArgs());
+        var segundo = ConfirmarEliminacion(cut).ClickAsync(new MouseEventArgs());
+
+        escena.Mediador.Enviadas.OfType<EliminarVerificacionExternaSubcontrataCommand>().Should().ContainSingle();
+
+        await cut.InvokeAsync(() => eliminacion.SetResult());
+        await primero;
+        await segundo;
+
+        escena.Mediador.Enviadas.OfType<EliminarVerificacionExternaSubcontrataCommand>().Should().ContainSingle();
+    }
+
+    // ------------------------------------------------ editar identidad y credenciales
+
+    private sealed record EscenaEdicion(SubcontrataDetalleDto Original, Guid Refrielectric, Guid Arrasate, Guid Montajes, MediatorFalso Mediador);
+
+    private EscenaEdicion PrepararEdicion(MediatorFalso mediador)
+    {
+        var id = Guid.NewGuid();
+        var refrielectric = Guid.NewGuid();
+        var arrasate = Guid.NewGuid();
+        var montajes = Guid.NewGuid();
+        Registrar(mediador);
+        var original = Detalle(id, "Pinturas Lauburu S.A.", clientes: [refrielectric]);
+        mediador.Detalles[id] = original;
+        mediador.Clientes.AddRange([new(refrielectric, "Refrielectric S.A."), new(arrasate, "Talleres Arrasate S.Coop.")]);
+        mediador.Empresas.Add(new(montajes, "Montajes Ebro S.L."));
+        mediador.Credenciales[id] = new("app.dokify.net/acceso", null, "lauburu.prl", null, null);
+        return new(original, refrielectric, arrasate, montajes, mediador);
+    }
+
+    private async Task<IRenderedComponent<SubcontrataWorkspacePanel>> AbrirEdicionAsync(EscenaEdicion escena)
+    {
+        var cut = Renderizar(escena.Original.Id);
+        await Boton(cut, "Editar identidad").ClickAsync(new MouseEventArgs());
+        return cut;
+    }
+
+    [Fact]
+    public async Task Guardar_la_edicion_envia_los_datos_editados_y_vuelve_a_la_lectura_con_la_cabecera_refrescada()
+    {
+        var escena = PrepararEdicion(new MediatorFalso());
+        var cut = await AbrirEdicionAsync(escena);
+
+        await Control(cut, "Razón social").InputAsync(new ChangeEventArgs { Value = "Pinturas Lauburu Norte S.A." });
+        await Control(cut, "CIF").InputAsync(new ChangeEventArgs { Value = "A-48.007.616" });
+        await Casilla(cut, "Talleres Arrasate S.Coop.").ChangeAsync(new ChangeEventArgs { Value = true });
+        await Casilla(cut, "Montajes Ebro S.L.").ChangeAsync(new ChangeEventArgs { Value = true });
+        // Lo que devolverá la cabecera al volver a pedirla.
+        escena.Mediador.Detalles[escena.Original.Id] = Detalle(escena.Original.Id, "Pinturas Lauburu Norte S.A.");
+
+        await Boton(cut, "Guardar").ClickAsync(new MouseEventArgs());
+
+        var comando = escena.Mediador.Enviadas.OfType<EditarSubcontrataCommand>().Should().ContainSingle().Subject;
+        comando.Id.Should().Be(escena.Original.Id);
+        comando.RazonSocial.Should().Be("Pinturas Lauburu Norte S.A.");
+        comando.Cif.Should().Be("A-48.007.616");
+        comando.ClienteIds.Should().BeEquivalentTo([escena.Refrielectric, escena.Arrasate], "se conserva el que tenía y se añade el marcado");
+        comando.EmpresaIds.Should().BeEquivalentTo([escena.Montajes]);
+        comando.Version.Should().Be(escena.Original.Version, "la versión leída es la que protege contra una edición concurrente");
+
+        cut.Find(".cabecera-subcontrata-360 h2").TextContent.Trim().Should().Be("Pinturas Lauburu Norte S.A.");
+        cut.FindAll(".rejilla-info-subcontrata-360").Should().ContainSingle("guardado, se vuelve a la lectura");
+        Toasts.Should().ContainSingle(m => m.Mensaje == "Subcontrata actualizada correctamente." && m.Tono == TonoToast.Exito);
+    }
+
+    [Fact]
+    public async Task Si_guardar_la_edicion_falla_su_motivo_sale_en_el_formulario_y_se_sigue_editando_con_lo_escrito()
+    {
+        const string motivo = "Ya existe otra subcontrata con ese CIF.";
+        var escena = PrepararEdicion(new MediatorFalso
+        {
+            ResultadoEditar = Result.Fallo(Error.Crear("Subcontrata.CifDuplicado", motivo))
+        });
+        var cut = await AbrirEdicionAsync(escena);
+        await Control(cut, "Razón social").InputAsync(new ChangeEventArgs { Value = "Pinturas Lauburu Norte S.A." });
+
+        await Boton(cut, "Guardar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".alerta-formulario[role=alert]").Select(a => a.TextContent.Trim()).Should().Equal([motivo]);
+        Boton(cut, "Guardar").HasAttribute("disabled").Should().BeFalse("el guardado terminó: el botón no se queda cargando");
+        cut.FindAll(".rejilla-info-subcontrata-360").Should().BeEmpty("un rechazo no saca de la edición");
+        escena.Mediador.Enviadas.OfType<ObtenerSubcontrataPorIdQuery>().Should().ContainSingle("nada cambió: la cabecera no se vuelve a pedir");
+        Toasts.Should().NotContain(m => m.Tono == TonoToast.Exito);
+
+        escena.Mediador.ResultadoEditar = Result.Exito();
+        await Boton(cut, "Guardar").ClickAsync(new MouseEventArgs());
+
+        escena.Mediador.Enviadas.OfType<EditarSubcontrataCommand>().Select(c => c.RazonSocial)
+            .Should().Equal(["Pinturas Lauburu Norte S.A.", "Pinturas Lauburu Norte S.A."], "el reintento conserva lo escrito");
+    }
+
+    [Fact]
+    public async Task Un_doble_clic_en_Guardar_la_edicion_manda_un_solo_comando()
+    {
+        var edicion = new TaskCompletionSource();
+        var escena = PrepararEdicion(new MediatorFalso
+        {
+            Retener = p => p is EditarSubcontrataCommand ? edicion.Task : null
+        });
+        var cut = await AbrirEdicionAsync(escena);
+
+        // Sin await: el comando está retenido.
+        var primero = Boton(cut, "Guardar").ClickAsync(new MouseEventArgs());
+        var segundo = Boton(cut, "Guardar").ClickAsync(new MouseEventArgs());
+
+        escena.Mediador.Enviadas.OfType<EditarSubcontrataCommand>().Should().ContainSingle();
+
+        await cut.InvokeAsync(() => edicion.SetResult());
+        await primero;
+        await segundo;
+
+        escena.Mediador.Enviadas.OfType<EditarSubcontrataCommand>().Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// No afirma nada de la contraseña: cómo se precarga en la edición es un
+    /// contrato que se decide en otra parte, y este test no debe fijarlo.
+    /// </summary>
+    [Fact]
+    public async Task Guardar_las_credenciales_envia_lo_editado_y_conserva_lo_que_no_se_toco()
+    {
+        var escena = PrepararEdicion(new MediatorFalso());
+        var cut = await AbrirEdicionAsync(escena);
+
+        await Control(cut, "Usuario").InputAsync(new ChangeEventArgs { Value = "lauburu.admin" });
+        await Control(cut, "Notas").InputAsync(new ChangeEventArgs { Value = "Portal renovado en septiembre" });
+
+        await Boton(cut, "Guardar credenciales").ClickAsync(new MouseEventArgs());
+
+        var comando = escena.Mediador.Enviadas.OfType<GuardarCredencialAccesoSubcontrataCommand>().Should().ContainSingle().Subject;
+        comando.SubcontrataId.Should().Be(escena.Original.Id);
+        comando.UrlAcceso.Should().Be("app.dokify.net/acceso", "precargada y sin tocar: se reenvía tal cual");
+        comando.CampoEmpresa.Should().BeNull();
+        comando.Usuario.Should().Be("lauburu.admin");
+        comando.Notas.Should().Be("Portal renovado en septiembre");
+        Toasts.Should().ContainSingle(m => m.Mensaje == "Credenciales guardadas correctamente." && m.Tono == TonoToast.Exito);
+    }
+
+    [Fact]
+    public async Task Si_guardar_las_credenciales_falla_su_motivo_sale_junto_a_ellas_y_se_puede_reintentar()
+    {
+        const string motivo = "La URL de acceso es demasiado larga.";
+        var escena = PrepararEdicion(new MediatorFalso
+        {
+            ResultadoGuardarCredenciales = Result.Fallo(Error.Crear("Credencial.UrlDemasiadoLarga", motivo))
+        });
+        var cut = await AbrirEdicionAsync(escena);
+        await Control(cut, "Usuario").InputAsync(new ChangeEventArgs { Value = "lauburu.admin" });
+
+        await Boton(cut, "Guardar credenciales").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".alerta-formulario[role=alert]").Select(a => a.TextContent.Trim()).Should().Equal([motivo]);
+        Boton(cut, "Guardar credenciales").HasAttribute("disabled").Should().BeFalse("el guardado terminó: el botón no se queda cargando");
+        cut.FindAll(".rejilla-info-subcontrata-360").Should().BeEmpty("un rechazo no saca de la edición");
+        Toasts.Should().NotContain(m => m.Tono == TonoToast.Exito);
+
+        escena.Mediador.ResultadoGuardarCredenciales = Result.Exito();
+        await Boton(cut, "Guardar credenciales").ClickAsync(new MouseEventArgs());
+
+        escena.Mediador.Enviadas.OfType<GuardarCredencialAccesoSubcontrataCommand>().Select(c => c.Usuario)
+            .Should().Equal(["lauburu.admin", "lauburu.admin"], "el reintento conserva lo escrito");
+        cut.FindAll(".alerta-formulario[role=alert]").Should().BeEmpty("el reintento que sale bien retira el motivo del fallo anterior");
+    }
+
+    [Fact]
+    public async Task Un_doble_clic_en_Guardar_credenciales_manda_un_solo_comando()
+    {
+        var guardado = new TaskCompletionSource();
+        var escena = PrepararEdicion(new MediatorFalso
+        {
+            Retener = p => p is GuardarCredencialAccesoSubcontrataCommand ? guardado.Task : null
+        });
+        var cut = await AbrirEdicionAsync(escena);
+
+        // Sin await: el comando está retenido.
+        var primero = Boton(cut, "Guardar credenciales").ClickAsync(new MouseEventArgs());
+        var segundo = Boton(cut, "Guardar credenciales").ClickAsync(new MouseEventArgs());
+
+        escena.Mediador.Enviadas.OfType<GuardarCredencialAccesoSubcontrataCommand>().Should().ContainSingle();
+
+        await cut.InvokeAsync(() => guardado.SetResult());
+        await primero;
+        await segundo;
+
+        escena.Mediador.Enviadas.OfType<GuardarCredencialAccesoSubcontrataCommand>().Should().ContainSingle();
+    }
+
+    // ------------------------------------------------ cancelación al retirar el panel
+
+    /// <summary>
+    /// El doble convierte la cancelación del token en la de la consulta
+    /// retenida, como haría EF: si el panel no cancela, la tarea se queda
+    /// pendiente y el token sin cancelar.
+    /// </summary>
+    [Fact]
+    public async Task Retirar_el_panel_cancela_la_consulta_que_estaba_en_vuelo_sin_dejar_una_excepcion_sin_controlar()
+    {
+        var id = Guid.NewGuid();
+        var trabajadores = new TaskCompletionSource();
+        var mediador = Registrar(new MediatorFalso
+        {
+            Retener = p => p is ObtenerTrabajadoresQuery ? trabajadores.Task : null
+        });
+        mediador.Detalles[id] = Detalle(id, "Pinturas Lauburu S.A.");
+
+        var cut = Renderizar(id);
+        var token = mediador.Tokens.Where(t => t.Peticion is ObtenerTrabajadoresQuery)
+            .Should().ContainSingle("la cadena está parada en los trabajadores").Subject.Token;
+        token.CanBeCanceled.Should().BeTrue("la consulta tiene que llevar el token del panel, no CancellationToken.None");
+        token.Register(() => trabajadores.TrySetCanceled(token));
+
+        await DisposeComponentsAsync();
+
+        token.IsCancellationRequested.Should().BeTrue("Dispose cancela lo que ya estaba emitido");
+        trabajadores.Task.IsCanceled.Should().BeTrue();
+        Renderer.UnhandledException.IsCompleted.Should().BeFalse("la cancelación la absorbe el catch de la propia carga");
+        mediador.Enviadas.OfType<ObtenerCentrosConActividadDeSubcontrataQuery>().Should().BeEmpty("y la cadena no sigue");
+    }
+
+    [Fact]
+    public async Task Todas_las_consultas_de_carga_llevan_el_token_del_panel_y_ninguna_sobrevive_a_retirarlo()
+    {
+        var escena = PrepararEdicion(new MediatorFalso());
+        var id = escena.Original.Id;
+        escena.Mediador.Detalles[id] = Detalle(id, "Pinturas Lauburu S.A.", clientes: [escena.Refrielectric], empresas: [escena.Montajes]);
+        escena.Mediador.Supervisiones[id] = new SupervisionSubcontrataDto([], [new(Guid.NewGuid(), "Centro Norte", "Refrielectric S.A.")]);
+        escena.Mediador.Tipos[AmbitoAplicacion.Empresa] = [TipoCatalogo("Seguro RC", AmbitoAplicacion.Empresa, 1)];
+
+        var cut = Renderizar(id);
+        await Boton(cut, "Ver credenciales").ClickAsync(new MouseEventArgs());
+        await Boton(cut, "Editar identidad").ClickAsync(new MouseEventArgs());
+        cut.Render(p => p.Add(x => x.EntidadId, id).Add(x => x.PestanaActiva, "supervision"));
+        await Boton(cut, "+ Registrar verificación").ClickAsync(new MouseEventArgs());
+
+        var consultas = escena.Mediador.Tokens.Where(t => t.Peticion.GetType().Name.EndsWith("Query", StringComparison.Ordinal)).ToList();
+        consultas.Select(t => t.Peticion.GetType().Name).Distinct().Should().BeEquivalentTo(
+            [
+                nameof(ObtenerSubcontrataPorIdQuery), nameof(ObtenerClientesParaSelectorQuery), nameof(ObtenerEmpresasParaSelectorQuery),
+                nameof(ObtenerTrabajadoresQuery), nameof(ObtenerCentrosConActividadDeSubcontrataQuery), nameof(ObtenerSupervisionSubcontrataQuery),
+                nameof(ObtenerCredencialAccesoSubcontrataQuery), nameof(ObtenerTiposDocumentoQuery),
+            ],
+            "el recorrido tiene que haber pasado por todas las consultas que lanza el panel, o la comprobación no las mira");
+        consultas.Should().OnlyContain(t => t.Token.CanBeCanceled && !t.Token.IsCancellationRequested);
+
+        await DisposeComponentsAsync();
+
+        consultas.Should().OnlyContain(t => t.Token.IsCancellationRequested, "retirado el panel no queda ninguna consulta suya viva");
     }
 }

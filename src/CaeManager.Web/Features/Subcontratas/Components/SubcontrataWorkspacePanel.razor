@@ -379,7 +379,8 @@ else
                                                     {
                                                         <a href="@($"/subcontratas/verificaciones/{ultima.Id}/evidencia")" target="_blank" rel="noopener">Ver evidencia</a>
                                                     }
-                                                    <button type="button" class="enlace-nombre-fila" @onclick="() => AbrirEliminarVerificacion(ultima.Id)">Eliminar</button>
+                                                    @* Nombre contextual: hay un «Eliminar» por verificación, y a secas un lector de pantalla no distingue cuál borra. *@
+                                                    <button type="button" class="enlace-nombre-fila" aria-label="@($"Eliminar la verificación de {tipo.TipoDocumentoNombre} en {centro.CentroNombre}")" @onclick="() => AbrirEliminarVerificacion(ultima.Id)">Eliminar</button>
                                                 </div>
                                                 @if (!string.IsNullOrWhiteSpace(ultima.Observaciones))
                                                 {
@@ -554,6 +555,18 @@ else
     private int _cargaSupervision;
     private int _cargaCredencial;
 
+    /// <summary>
+    /// Los contadores impiden que una respuesta tardía escriba; esto corta la
+    /// consulta misma. Todas las consultas de carga llevan su token y
+    /// <see cref="Dispose"/> lo cancela: retirado el panel, lo que estaba en
+    /// vuelo deja de ocupar el DbContext del circuito. Los comandos NO lo
+    /// llevan: cerrar la ficha no deshace un guardado que el usuario ya pidió.
+    /// El token se copia al inicializar porque leer <c>Token</c> de un
+    /// <see cref="CancellationTokenSource"/> ya desechado lanza.
+    /// </summary>
+    private readonly CancellationTokenSource _ciclo = new();
+    private CancellationToken _cancelacion;
+
     private IReadOnlyList<TrabajadorListaDto>? _trabajadores;
     private int _totalTrabajadores;
     private bool _cargandoTrabajadores;
@@ -710,6 +723,8 @@ else
         };
     }
 
+    protected override void OnInitialized() => _cancelacion = _ciclo.Token;
+
     protected override async Task OnParametersSetAsync()
     {
         if (EntidadId == _idCargado)
@@ -807,7 +822,7 @@ else
 
         try
         {
-            var detalle = await Mediator.Send(new ObtenerSubcontrataPorIdQuery(id));
+            var detalle = await Mediator.Send(new ObtenerSubcontrataPorIdQuery(id), _cancelacion);
             if (carga != _cargaCabecera) return;
             _detalle = detalle;
         }
@@ -839,9 +854,9 @@ else
 
         try
         {
-            var clientes = detalle.ClienteIds.Count == 0 ? [] : await Mediator.Send(new ObtenerClientesParaSelectorQuery());
+            var clientes = detalle.ClienteIds.Count == 0 ? [] : await Mediator.Send(new ObtenerClientesParaSelectorQuery(), _cancelacion);
             if (carga != _cargaNombres) return;
-            var empresas = detalle.EmpresaIds.Count == 0 ? [] : await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
+            var empresas = detalle.EmpresaIds.Count == 0 ? [] : await Mediator.Send(new ObtenerEmpresasParaSelectorQuery(), _cancelacion);
             if (carga != _cargaNombres) return;
 
             _nombresClientes = clientes.GroupBy(c => c.Id).ToDictionary(g => g.Key, g => g.First().RazonSocial);
@@ -871,7 +886,7 @@ else
 
         try
         {
-            var resultado = await Mediator.Send(new ObtenerTrabajadoresQuery(Busqueda: null, SubcontrataId: id, TamanoPagina: TamanoPaginaTrabajadores));
+            var resultado = await Mediator.Send(new ObtenerTrabajadoresQuery(Busqueda: null, SubcontrataId: id, TamanoPagina: TamanoPaginaTrabajadores), _cancelacion);
             if (carga != _cargaTrabajadores) return;
             _trabajadores = resultado.Elementos;
             _totalTrabajadores = resultado.TotalElementos;
@@ -902,7 +917,7 @@ else
 
         try
         {
-            var resultado = await Mediator.Send(new ObtenerCentrosConActividadDeSubcontrataQuery(id));
+            var resultado = await Mediator.Send(new ObtenerCentrosConActividadDeSubcontrataQuery(id), _cancelacion);
             if (carga != _cargaCentros) return;
             _centros = resultado;
         }
@@ -932,7 +947,7 @@ else
 
         try
         {
-            var resultado = await Mediator.Send(new ObtenerSupervisionSubcontrataQuery(id));
+            var resultado = await Mediator.Send(new ObtenerSupervisionSubcontrataQuery(id), _cancelacion);
             if (carga != _cargaSupervision) return;
             _supervision = resultado ?? new SupervisionSubcontrataDto([], []);
         }
@@ -968,7 +983,7 @@ else
 
         try
         {
-            var credencial = await Mediator.Send(new ObtenerCredencialAccesoSubcontrataQuery(id));
+            var credencial = await Mediator.Send(new ObtenerCredencialAccesoSubcontrataQuery(id), _cancelacion);
             if (carga != _cargaCredencial) return;
             _credencial = credencial;
             _credencialConsultada = true;
@@ -1009,11 +1024,11 @@ else
 
         try
         {
-            var clientes = await Mediator.Send(new ObtenerClientesParaSelectorQuery());
+            var clientes = await Mediator.Send(new ObtenerClientesParaSelectorQuery(), _cancelacion);
             if (generacion != _generacion) return;
-            var empresas = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
+            var empresas = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery(), _cancelacion);
             if (generacion != _generacion) return;
-            var credencial = await Mediator.Send(new ObtenerCredencialAccesoSubcontrataQuery(detalle.Id));
+            var credencial = await Mediator.Send(new ObtenerCredencialAccesoSubcontrataQuery(detalle.Id), _cancelacion);
             if (generacion != _generacion) return;
 
             _clientesDisponibles = clientes;
@@ -1224,8 +1239,8 @@ else
             {
                 // Los ámbitos que un portal puede exigir a una subcontrata — misma
                 // regla que ObtenerSupervisionSubcontrataQuery.
-                var trabajador = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: AmbitoAplicacion.Trabajador));
-                var empresa = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: AmbitoAplicacion.Empresa));
+                var trabajador = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: AmbitoAplicacion.Trabajador), _cancelacion);
+                var empresa = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: AmbitoAplicacion.Empresa), _cancelacion);
                 _tiposVerificables = trabajador.Concat(empresa).OrderBy(t => t.Orden).ToList();
             }
 
@@ -1430,9 +1445,16 @@ else
 
     /// <summary>
     /// Al retirar el panel (cerrarlo, o que el Context Workspace pase a otro
-    /// tipo de entidad) se invalida toda carga en vuelo: la cadena de
+    /// tipo de entidad) se invalida toda carga en vuelo —la cadena de
     /// <see cref="CargarTodoAsync"/> no sigue pidiendo datos para una ficha
-    /// que ya no se ve.
+    /// que ya no se ve— y se cancela la consulta que estuviera emitida. La
+    /// cancelación llega a cada carga como una excepción que su propio catch
+    /// ya descarta (la generación dejó de ser la vigente).
     /// </summary>
-    public void Dispose() => InvalidarCargas();
+    public void Dispose()
+    {
+        InvalidarCargas();
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+    }
 }
