@@ -69,7 +69,7 @@
                 <div class="rejilla-roles">
                     @foreach (var rol in _roles)
                     {
-                        <Tarjeta Titulo="@rol.Nombre">
+                        <Tarjeta Titulo="@rol.Nombre" NivelTitulo="@(IntegradaEnConfiguracion ? 3 : 2)">
                             <p class="descripcion-rol">@rol.Descripcion</p>
                             <p class="contador-usuarios">
                                 <Icono Nombre="usuarios" Tamano="TamanoIcono.Pequeno" />

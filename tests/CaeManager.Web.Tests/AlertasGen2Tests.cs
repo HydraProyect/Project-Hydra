@@ -3,6 +3,7 @@ using Bunit;
 using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
 using CaeManager.Application.Contactos;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
+using CaeManager.Application.Reclamaciones;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
@@ -262,7 +263,8 @@ public class AlertasGen2Tests : BunitContext
         {
             ObtenerAlertasQuery => (object)Array.Empty<AlertaDto>(),
             ObtenerLoteReclamacionPorFiltroQuery => lotes[Math.Min(llamadasLote++, lotes.Length - 1)],
-            EnviarReclamacionCommand or EnviarReclamacionEmpresaCommand => alEnviar?.Invoke(peticion) ?? Result.Exito(),
+            EnviarReclamacionCommand cmd => alEnviar?.Invoke(peticion) ?? Result.Exito(new EnvioReclamacionResultado(cmd.DocumentoIds, [])),
+            EnviarReclamacionEmpresaCommand cmd => alEnviar?.Invoke(peticion) ?? Result.Exito(new EnvioReclamacionResultado(cmd.DocumentoIds, [])),
             _ => throw new NotSupportedException($"Petición no prevista en este test: {peticion.GetType().Name}.")
         });
         Services.GetRequiredService<NavigationManager>().NavigateTo("alertas");
@@ -377,7 +379,7 @@ public class AlertasGen2Tests : BunitContext
     public async Task Si_el_envio_falla_avisa_deja_el_dialogo_abierto_y_no_recarga()
     {
         var (cut, mediator) = RenderizarConLote(
-            alEnviar: _ => Result.Fallo(Error.Crear("Reclamacion.SinDestinatarios", "Ningún contacto válido en la agenda.")),
+            alEnviar: _ => Result.Fallo<EnvioReclamacionResultado>(Error.Crear("Reclamacion.SinDestinatarios", "Ningún contacto válido en la agenda.")),
             lotes: [[LoteCliente()]]);
         await AbrirSeccionYElegirFiltro(cut);
 

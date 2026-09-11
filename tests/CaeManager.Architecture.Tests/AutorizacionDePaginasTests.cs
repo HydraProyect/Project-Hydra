@@ -113,4 +113,73 @@ public class AutorizacionDePaginasTests
             "otras organizaciones) ni más estrecho (GestorCae o Consulta perderían un acceso que ya tenían y que " +
             "AlcanceDatosService ya acota correctamente por su lado)");
     }
+
+    /// <summary>
+    /// Plantillas, ConfigurarPlantilla y RevisionIa (auditoría 2026-09-11,
+    /// misma clase de hallazgo que Gestiones/Incidencias/Proyectos/Vehiculos/
+    /// Visitas descrita arriba) son herramientas de gestión documental interna
+    /// —generan documentos desde plantilla, aplican o rechazan lo que la IA
+    /// detectó en un documento— y no aparecen en el menú de ningún rol
+    /// (tampoco el de Cliente, ver NavMenu.razor): llevaban solo
+    /// <c>[Authorize]</c> genérico, alcanzables por cualquier rol autenticado
+    /// escribiendo la URL, aunque <c>AutorizacionEscrituraBehavior</c> ya
+    /// rechazara el Command en el momento de escribir. Mismo conjunto que
+    /// <c>RolesConEscritura</c> de <c>AutorizacionEscrituraBehavior</c>
+    /// (Administrador, DireccionCae, CoordinadorCae, GestorCae — Consulta
+    /// tampoco escribe, así que no gana nada viendo el formulario).
+    /// </summary>
+    [Theory]
+    [InlineData("CaeManager.Web.Features.Plantillas.Pages.Plantillas")]
+    [InlineData("CaeManager.Web.Features.Plantillas.Pages.ConfigurarPlantilla")]
+    [InlineData("CaeManager.Web.Features.Documentos.Pages.RevisionIa")]
+    public void Plantillas_y_RevisionIa_solo_permiten_roles_con_escritura(string nombreCompletoDeLaPagina)
+    {
+        var web = ReflexionArquitecturaHelper.CargarAssembly("CaeManager.Web");
+        var pagina = ReflexionArquitecturaHelper.TiposDe(web).Single(t => t.FullName == nombreCompletoDeLaPagina);
+
+        var autorizacion = pagina.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: false)
+            .Cast<AuthorizeAttribute>()
+            .Should().ContainSingle("la página debe declarar exactamente un [Authorize] con Roles=")
+            .Subject;
+
+        var rolesDeclarados = (autorizacion.Roles ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var rolesConEscritura = new[]
+        {
+            CaeManager.Infrastructure.Identity.Roles.Administrador,
+            CaeManager.Infrastructure.Identity.Roles.DireccionCae,
+            CaeManager.Infrastructure.Identity.Roles.CoordinadorCae,
+            CaeManager.Infrastructure.Identity.Roles.GestorCae
+        }.ToHashSet(StringComparer.Ordinal);
+
+        rolesDeclarados.Should().BeEquivalentTo(rolesConEscritura,
+            "estas páginas solo despachan Commands (AgregarVersionPlantilla, CrearPlantillaDocumento, " +
+            "GenerarDocumentoIndividual, ResolverRevisionIaDocumento, AplicarDeteccionIaDocumento...) y ningún rol " +
+            "de solo lectura (Consulta, Cliente) puede ejecutarlos — ver AutorizacionEscrituraBehavior.RolesConEscritura");
+    }
+
+    /// <summary>
+    /// ConfiguracionIaCliente (/clientes/{ClienteId}/lectura-ia) solo se llega
+    /// desde SeleccionarClienteLecturaIa (/configuracion/lectura-ia), que ya es
+    /// Administrador-only — sin este ratchet, la pantalla de destino quedaba
+    /// alcanzable por cualquier rol autenticado escribiendo la URL, mismo
+    /// hallazgo que el Theory de arriba.
+    /// </summary>
+    [Fact]
+    public void ConfiguracionIaCliente_solo_permite_Administrador()
+    {
+        var web = ReflexionArquitecturaHelper.CargarAssembly("CaeManager.Web");
+        var pagina = ReflexionArquitecturaHelper.TiposDe(web)
+            .Single(t => t.FullName == "CaeManager.Web.Features.Clientes.Pages.ConfiguracionIaCliente");
+
+        var autorizacion = pagina.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: false)
+            .Cast<AuthorizeAttribute>()
+            .Should().ContainSingle("la página debe declarar exactamente un [Authorize] con Roles=")
+            .Subject;
+
+        autorizacion.Roles.Should().Be(CaeManager.Infrastructure.Identity.Roles.Administrador,
+            "es el mismo criterio que SeleccionarClienteLecturaIa, el único punto de entrada a esta pantalla");
+    }
 }

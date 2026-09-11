@@ -1,6 +1,6 @@
 @page "/clientes/{ClienteId:guid}/lectura-ia"
 @rendermode InteractiveServer
-@attribute [Authorize]
+@attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
 @using CaeManager.Application.Clientes.Queries.ObtenerClientePorId
 @using CaeManager.Application.TiposDocumento.Commands.ActualizarLecturaIaCliente
 @using CaeManager.Application.TiposDocumento.Queries.ObtenerConfiguracionIaPorCliente

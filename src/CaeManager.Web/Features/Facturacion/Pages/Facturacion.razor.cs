@@ -425,9 +425,9 @@ public partial class Facturacion : ComponentBase
 
     /// <summary>
     /// El total del mes en curso, sin inventar nada: sin tarifas no hay importe
-    /// (el DTO trae 0 y una moneda por defecto que nadie eligió), y con tarifas
-    /// en varias monedas se da un total por moneda en vez de la suma a ciegas
-    /// que trae <see cref="ResumenFacturacionDto.TotalEstimado"/>.
+    /// (el DTO trae la lista de totales vacía), y con tarifas en varias monedas
+    /// se muestra el total por moneda que ya calculó el handler — la pantalla
+    /// no vuelve a sumar subtotales.
     /// </summary>
     private string TextoEstimado
     {
@@ -437,7 +437,7 @@ public partial class Facturacion : ComponentBase
             if (_errorEstimado) return "No disponible";
             if (_estimado is null || _estimado.Lineas.Count == 0) return "—";
 
-            return string.Join(" · ", TotalesPorMoneda(_estimado.Lineas).Select(t => FormatearImporte(t.Total, t.Moneda)));
+            return string.Join(" · ", _estimado.TotalesPorMoneda.Select(t => FormatearImporte(t.Total, t.MonedaIso)));
         }
     }
 
@@ -445,18 +445,6 @@ public partial class Facturacion : ComponentBase
         _estimado is { Lineas.Count: 0 } && !_cargandoEstimado && !_errorEstimado
             ? "Sin tarifas configuradas"
             : "Mes en curso, con los datos de hoy";
-
-    /// <summary>
-    /// Totales agrupados por moneda, en el orden en que aparecen las líneas.
-    /// <see cref="ResumenFacturacionDto.TotalEstimado"/> suma todos los
-    /// subtotales y los rotula con la moneda de la primera tarifa: con dos
-    /// monedas, esa cifra no significa nada y no se enseña.
-    /// </summary>
-    internal static IReadOnlyList<(string Moneda, decimal Total)> TotalesPorMoneda(IEnumerable<LineaFacturacionDto> lineas) =>
-        lineas
-            .GroupBy(l => l.MonedaIso.Trim().ToUpperInvariant())
-            .Select(g => (g.Key, g.Sum(l => l.Subtotal)))
-            .ToList();
 
     /// <summary>
     /// Cultura de la aplicación (es-ES, fijada en Program.cs), no de la

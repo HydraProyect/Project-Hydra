@@ -20,9 +20,23 @@ public record ObtenerResumenFacturacionQuery(Guid ClienteId, int Anyo, int Mes)
 
 public record ResumenFacturacionDto(
     string ClienteNombre,
-    string MonedaIso,
-    decimal TotalEstimado,
-    IList<LineaFacturacionDto> Lineas);
+    IReadOnlyList<TotalPorMonedaDto> TotalesPorMoneda,
+    IList<LineaFacturacionDto> Lineas)
+{
+    /// <summary>
+    /// Un total por cada moneda presente en <paramref name="lineas"/>, en el
+    /// orden en que aparece cada moneda por primera vez. Nunca suma subtotales
+    /// de monedas distintas: con tarifas en EUR y USD a la vez, sumarlas sin
+    /// mirar la moneda producía una cifra sin significado (100 EUR + 50 USD = "150").
+    /// </summary>
+    public static IReadOnlyList<TotalPorMonedaDto> CalcularTotalesPorMoneda(IEnumerable<LineaFacturacionDto> lineas) =>
+        lineas
+            .GroupBy(l => l.MonedaIso.Trim().ToUpperInvariant())
+            .Select(g => new TotalPorMonedaDto(g.Key, g.Sum(l => l.Subtotal)))
+            .ToList();
+}
+
+public record TotalPorMonedaDto(string MonedaIso, decimal Total);
 
 public record LineaFacturacionDto(
     ConceptoFacturable Concepto,
@@ -64,14 +78,13 @@ public class ObtenerResumenFacturacionQueryHandler(IAsignacionesQueryContext asi
             .ToListAsync(cancellationToken);
 
         if (tarifas.Count == 0)
-            return new ResumenFacturacionDto(clienteNombre, "EUR", 0, []);
+            return new ResumenFacturacionDto(clienteNombre, [], []);
 
         var centroIds = await centrosContext.Centros
             .Where(c => c.ClienteId == request.ClienteId)
             .Select(c => c.Id)
             .ToListAsync(cancellationToken);
 
-        var moneda = tarifas[0].MonedaIso;
         var lineas = new List<LineaFacturacionDto>();
 
         foreach (var tarifa in tarifas)
@@ -104,7 +117,7 @@ public class ObtenerResumenFacturacionQueryHandler(IAsignacionesQueryContext asi
                 unidades * tarifa.PrecioUnitario));
         }
 
-        return new ResumenFacturacionDto(clienteNombre, moneda, lineas.Sum(l => l.Subtotal), lineas);
+        return new ResumenFacturacionDto(clienteNombre, ResumenFacturacionDto.CalcularTotalesPorMoneda(lineas), lineas);
     }
 
     private async Task<int> ContarTrabajadoresActivosAsync(

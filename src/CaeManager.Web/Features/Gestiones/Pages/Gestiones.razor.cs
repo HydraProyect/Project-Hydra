@@ -20,12 +20,11 @@ public partial class Gestiones : ComponentBase
     private Task CambiarPaginaAsync(int pagina) => _paginacion.SetCurrentPageIndexAsync(pagina - 1);
 
     // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
-    private async Task CambiarTamanoPaginaAsync(int tamano)
+    // Una sola petición, por el mismo motivo que RecargarAsync.
+    private Task CambiarTamanoPaginaAsync(int tamano)
     {
         _paginacion.ItemsPerPage = tamano;
-        await _paginacion.SetCurrentPageIndexAsync(0);
-        if (_grid is not null)
-            await _grid.RefreshDataAsync();
+        return _paginacion.SetCurrentPageIndexAsync(0);
     }
 
     private QuickGrid<GestionListaDto>? _grid;
@@ -208,12 +207,31 @@ public partial class Gestiones : ComponentBase
         await RecargarAsync();
     }
 
+    /// <summary>
+    /// Vuelve a la página 1 y pide la lista UNA vez.
+    /// <see cref="PaginationState.SetCurrentPageIndexAsync"/> no tiene guarda de
+    /// igualdad: asigna el índice e invoca <c>CurrentPageItemsChanged</c> siempre,
+    /// cambie o no la página, y QuickGrid tiene ahí suscrito su
+    /// <c>RefreshDataCoreAsync</c>. Así que avisar a la paginación YA es pedir los
+    /// datos; añadir <c>RefreshDataAsync</c> lanzaba dos consultas idénticas por
+    /// cada búsqueda o filtro aunque el total no cambiara (medido en
+    /// <c>GestionesListaGen2Tests</c>).
+    ///
+    /// <para>
+    /// Lo que esto no evita: si la respuesta trae un total distinto del anterior,
+    /// QuickGrid puede volver a pedir la misma página por su cuenta. Su guarda
+    /// compara un hash de <c>PaginationState</c> que incluye <c>TotalItemCount</c>
+    /// y que se guarda ANTES de conocer el total nuevo, así que queda rancio y la
+    /// siguiente pasada de parámetros vuelve a consultar. Es de QuickGrid, no de
+    /// esta página.
+    /// </para>
+    /// </summary>
     private async Task RecargarAsync()
     {
-        await _paginacion.SetCurrentPageIndexAsync(0);
-
-        if (_grid is not null)
+        if (_grid is not null && _paginacion.CurrentPageIndex == 0)
             await _grid.RefreshDataAsync();
+        else
+            await _paginacion.SetCurrentPageIndexAsync(0);
 
         StateHasChanged();
     }

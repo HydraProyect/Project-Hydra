@@ -18,7 +18,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.11")
+                .HasAnnotation("ProductVersion", "10.0.12")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -6101,6 +6101,41 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("HistorialInformes", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Retencion.IncidenciaPurga", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Detalle")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("DetectadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ObjetivoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SolicitudPurgaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "SolicitudPurgaId");
+
+                    b.ToTable("IncidenciasPurga", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Retencion.SolicitudPurga", b =>
                 {
                     b.Property<Guid>("Id")
@@ -6113,6 +6148,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateTime?>("AvisadaAlTenantEnUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int?>("CandidatosEnEjecucion")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime>("DetectadaEnUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -6123,6 +6161,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsRequired()
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
+
+                    b.Property<int?>("FallidosEnEjecucion")
+                        .HasColumnType("integer");
 
                     b.Property<DateOnly>("FechaCorte")
                         .HasColumnType("date");
@@ -6135,6 +6176,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasColumnType("character varying(500)");
 
                     b.Property<int>("RegistrosAfectados")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ResultadoEjecucion")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<int?>("SuprimidosEnEjecucion")
                         .HasColumnType("integer");
 
                     b.Property<Guid>("TenantId")
@@ -7730,6 +7778,16 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasForeignKey("TenantId", "ProveedoraId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Retencion.IncidenciaPurga", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Retencion.SolicitudPurga", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "SolicitudPurgaId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 

@@ -284,7 +284,7 @@
                             }
                             else
                             {
-                                var totales = TotalesPorMoneda(_resumen.Lineas);
+                                var totales = _resumen.TotalesPorMoneda;
                                 var maximo = _resumen.Lineas.Max(l => l.Subtotal);
                                 <Tarjeta Titulo="@($"Resumen — {_resumen.ClienteNombre} — {NombreMes(_periodoResumen.Mes)} {_periodoResumen.Anyo}")">
                                     <AccionesHeader>
@@ -341,7 +341,7 @@
                                                     {
                                                         <tr class="fila-total">
                                                             <td colspan="3">Total estimado</td>
-                                                            <td class="col-numero cifra total-importe">@FormatearImporte(totales[0].Total, totales[0].Moneda)</td>
+                                                            <td class="col-numero cifra total-importe">@FormatearImporte(totales[0].Total, totales[0].MonedaIso)</td>
                                                         </tr>
                                                     }
                                                     else
@@ -349,8 +349,8 @@
                                                         @foreach (var total in totales)
                                                         {
                                                             <tr class="fila-total">
-                                                                <td colspan="3">Total estimado en @total.Moneda</td>
-                                                                <td class="col-numero cifra total-importe">@FormatearImporte(total.Total, total.Moneda)</td>
+                                                                <td colspan="3">Total estimado en @total.MonedaIso</td>
+                                                                <td class="col-numero cifra total-importe">@FormatearImporte(total.Total, total.MonedaIso)</td>
                                                             </tr>
                                                         }
                                                     }

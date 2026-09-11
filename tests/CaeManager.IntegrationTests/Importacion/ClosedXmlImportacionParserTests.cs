@@ -1,4 +1,5 @@
 using System.Text;
+using CaeManager.Domain.Empresas;
 using CaeManager.Infrastructure.Importacion;
 using ClosedXML.Excel;
 using FluentAssertions;
@@ -211,6 +212,29 @@ public class ClosedXmlImportacionParserTests
     }
 
     /// <summary>
+    /// Mismo defecto que <c>ClosedXmlPlantillaClientesServiceTests.Empresa_homonima_...</c>:
+    /// Centros_Plataformas también compara por nombre contra CUALQUIER Empresa,
+    /// no contra Cliente empresarial (<c>EsCritico != null</c>) como hace
+    /// EjecutarImportacionCommandHandler — una Subcontrata homónima no puede
+    /// marcar la fila como "cliente ya existente".
+    /// </summary>
+    [Fact]
+    public async Task Centro_cuyo_nombre_coincide_con_una_Empresa_que_no_es_Cliente_no_se_marca_como_cliente_existente()
+    {
+        var libro = NuevoLibroBase();
+        var hojaCentros = libro.Worksheets.Worksheet("Centros_Plataformas");
+        hojaCentros.Cell(5, 2).Value = "Subcontrata Homónima S.L.";
+
+        var empresas = new EmpresasQueryContextFalso();
+        empresas.ListaEmpresas.Add(new Empresa("Subcontrata Homónima S.L.")); // EsCritico == null: no es Cliente.
+
+        var plan = await AnalizarAsync(libro, empresas);
+
+        var clienteCentro = plan.ClientesCentros.Should().ContainSingle().Subject;
+        clienteCentro.YaExisteCliente.Should().BeFalse();
+    }
+
+    /// <summary>
     /// Las cuatro hojas que <see cref="ClosedXmlImportacionParser.AnalizarAsync"/>
     /// espera siempre, vacías: sin esto, la ausencia de cualquiera de ellas
     /// registraría su propio "Hoja completa no encontrada" en Omitidos y
@@ -250,11 +274,14 @@ public class ClosedXmlImportacionParserTests
         hojaAsignaciones.Cell(4, 5).Value = "TOTAL CENTROS";
     }
 
-    private static async Task<CaeManager.Application.Importacion.PlanImportacionDto> AnalizarAsync(XLWorkbook libro)
+    private static Task<CaeManager.Application.Importacion.PlanImportacionDto> AnalizarAsync(XLWorkbook libro) =>
+        AnalizarAsync(libro, new EmpresasQueryContextFalso());
+
+    private static async Task<CaeManager.Application.Importacion.PlanImportacionDto> AnalizarAsync(XLWorkbook libro, EmpresasQueryContextFalso empresas)
     {
         var parser = new ClosedXmlImportacionParser(
             new AsignacionesQueryContextFalso(), new CentrosQueryContextFalso(), new DocumentosQueryContextFalso(),
-            new EmpresasQueryContextFalso(), new TiposDocumentoQueryContextFalso(), new TrabajadoresQueryContextFalso());
+            empresas, new TiposDocumentoQueryContextFalso(), new TrabajadoresQueryContextFalso());
 
         using var flujo = new MemoryStream();
         libro.SaveAs(flujo);

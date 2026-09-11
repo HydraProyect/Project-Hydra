@@ -113,6 +113,9 @@ public class ImportarDocumentosTests(WebAppFixture fixture)
             await page.GetByText("Continuar a confirmar").ClickAsync();
             await page.GetByText("He revisado el plan y quiero escribir estos datos").ClickAsync();
             await page.GetByText("Importar ahora").ClickAsync();
+            // «Importar ahora» abre el DialogoConfirmacion; escribe su botón.
+            await page.GetByRole(AriaRole.Dialog)
+                .GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Sí, importar" }).ClickAsync();
 
             // --- Resultado: 1 documento real creado, el DNI inexistente sigue omitido ---
             await page.Locator(".titulo-reporte-importacion")

@@ -60,6 +60,24 @@ public class SolicitudPurga : EntidadConTenant
 
     public string? Motivo { get; private set; }
 
+    /// <summary>
+    /// Resultado de la ejecución ya realizada — distinto de <see cref="Estado"/>,
+    /// que solo dice que el proceso terminó. Null hasta que
+    /// <see cref="RegistrarResultadoEjecucion"/> lo fija, incluidas todas las
+    /// solicitudes ejecutadas antes de que este eje existiera: para esas no se
+    /// infiere nada retroactivamente, se deja sin dato.
+    /// </summary>
+    public ResultadoEjecucionPurga? ResultadoEjecucion { get; private set; }
+
+    /// <summary>Cuántos registros entraban en la ejecución ya realizada.</summary>
+    public int? CandidatosEnEjecucion { get; private set; }
+
+    /// <summary>Cuántos de los candidatos se suprimieron de verdad.</summary>
+    public int? SuprimidosEnEjecucion { get; private set; }
+
+    /// <summary>Cuántos de los candidatos quedaron sin suprimir — ver <see cref="IncidenciaPurga"/> para el detalle de cada uno.</summary>
+    public int? FallidosEnEjecucion { get; private set; }
+
     private SolicitudPurga()
     {
         // Requerido por EF Core.
@@ -150,6 +168,40 @@ public class SolicitudPurga : EntidadConTenant
 
         EjecutadaEnUtc = DateTime.UtcNow;
         Estado = EstadoSolicitudPurga.Ejecutada;
+    }
+
+    /// <summary>
+    /// Registra el resultado de la ejecución que <see cref="Ejecutar"/> acaba
+    /// de autorizar — cuántos candidatos había, cuántos se suprimieron y
+    /// cuántos quedaron pendientes. Se llama una sola vez, en la misma unidad
+    /// de trabajo que <see cref="Ejecutar"/>: el resultado se persiste junto
+    /// al cambio de estado, no en un paso aparte que pudiera perderse o
+    /// quedar desincronizado.
+    ///
+    /// No decide él mismo qué hacer con los fallidos — de eso se encargan las
+    /// <see cref="IncidenciaPurga"/> que el llamador registre aparte y, hoy,
+    /// la alerta operativa. Este método solo dos cosas: fija el conteo y
+    /// deriva <see cref="ResultadoEjecucion"/> (Completa si no hay fallidos).
+    /// </summary>
+    public void RegistrarResultadoEjecucion(int candidatos, int suprimidos, int fallidos)
+    {
+        if (Estado is not EstadoSolicitudPurga.Ejecutada)
+            throw new InvalidOperationException("El resultado de ejecución solo se registra tras ejecutar.");
+
+        if (ResultadoEjecucion is not null)
+            throw new InvalidOperationException("Esta ejecución ya tiene un resultado registrado.");
+
+        if (candidatos < 0 || suprimidos < 0 || fallidos < 0)
+            throw new ArgumentOutOfRangeException(nameof(candidatos), "Los conteos de una ejecución no pueden ser negativos.");
+
+        if (suprimidos + fallidos != candidatos)
+            throw new ArgumentException(
+                "Los suprimidos y los fallidos deben sumar exactamente los candidatos de la ejecución.", nameof(suprimidos));
+
+        CandidatosEnEjecucion = candidatos;
+        SuprimidosEnEjecucion = suprimidos;
+        FallidosEnEjecucion = fallidos;
+        ResultadoEjecucion = fallidos > 0 ? ResultadoEjecucionPurga.ConIncidencias : ResultadoEjecucionPurga.Completa;
     }
 
     /// <summary>Si a día de hoy puede ejecutarse, sin lanzar — para que el barrido consulte antes de actuar.</summary>

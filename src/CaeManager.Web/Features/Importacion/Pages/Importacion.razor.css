@@ -1,10 +1,37 @@
-.eyebrow-importacion {
-    font-size: 12px;
-    line-height: 16px;
-    font-weight: 500;
+/* Vuelta a Clientes y ruta: solo cuando se llega desde Clientes
+   (?plantilla=clientes), como en el mockup «Importar Clientes». */
+.ruta-importacion {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-4);
+}
+
+.enlace-volver-importacion {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font: var(--font-label-md);
+    color: var(--color-primary-500);
+    text-decoration: none;
+}
+
+.enlace-volver-importacion:hover {
+    color: var(--color-primary-600);
+}
+
+.miga-importacion {
+    font: var(--font-body-sm);
     color: var(--color-text-muted);
-    text-transform: uppercase;
-    letter-spacing: .08em;
+}
+
+.miga-importacion-flecha {
+    color: var(--color-border-strong);
+}
+
+.miga-importacion-actual {
+    color: var(--color-text);
 }
 
 .pasos-importacion {
@@ -116,15 +143,34 @@
     gap: var(--space-3);
 }
 
+/* La tarjeta es el marco; el radio (.opcion-tarjeta-plantilla) ocupa todo lo
+   que no es la franja del enlace de la plantilla en blanco, que va fuera del
+   radio para seguir siendo un enlace accesible. */
 .tarjeta-plantilla {
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
     background-color: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
+}
+
+.opcion-tarjeta-plantilla {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
     padding: var(--space-5);
+    background: none;
+    border: none;
+    border-radius: var(--radius-lg);
+    color: inherit;
+    font: inherit;
+    text-align: left;
     cursor: pointer;
+}
+
+.opcion-tarjeta-plantilla:focus-visible {
+    outline-offset: -4px;
 }
 
 .tarjeta-plantilla:hover {
@@ -167,13 +213,18 @@
     font: var(--font-body-md);
 }
 
+.limite-tarjeta-plantilla {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
 .enlace-plantilla-blanco {
     display: inline-flex;
     align-items: center;
     gap: var(--space-2);
     font-size: 13px;
     font-weight: 600;
-    margin-top: auto;
+    margin: 0 var(--space-5) var(--space-5);
 }
 
 .acciones-formulario {
@@ -295,6 +346,72 @@
 
 .tabla-plan-importacion-envoltorio {
     overflow-x: auto;
+}
+
+/* Columnas de la hoja «Clientes» (paso 2, solo esa plantilla). */
+.columnas-plantilla-importacion {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.cabecera-columnas-plantilla {
+    margin: 0;
+    padding: var(--space-3) var(--space-4);
+    background-color: var(--color-surface-hover);
+    border-bottom: 1px solid var(--color-border);
+    font: var(--font-label-md);
+    color: var(--color-text-muted);
+}
+
+.tabla-columnas-plantilla-envoltorio {
+    overflow-x: auto;
+}
+
+.nombre-columna-plantilla {
+    font-weight: 600;
+}
+
+.ejemplo-columna-plantilla {
+    color: var(--color-text-muted);
+}
+
+.nota-columnas-plantilla {
+    margin: 0;
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--color-border);
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+/* Altas del plan que la escritura no hará (paso 3). */
+.aviso-altas-importacion {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    background-color: var(--color-warning-50);
+    border: 1px solid var(--color-warning-500);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+}
+
+.icono-aviso-altas {
+    flex: none;
+    display: inline-flex;
+    color: var(--color-warning-700);
+}
+
+.titulo-aviso-altas {
+    margin: 0 0 var(--space-1);
+    font: var(--font-label-md);
+    color: var(--color-warning-700);
+}
+
+.detalle-aviso-altas {
+    margin: 0;
+    font: var(--font-body-md);
+    color: var(--color-text);
 }
 
 .tarjeta-confirmacion-importacion {

@@ -491,6 +491,31 @@ public class TrabajadoresListaGen2Tests : BunitContext
         cut.WaitForAssertion(() => Columna(cut, 0).Should().HaveCount(25));
     }
 
+    /// <summary>
+    /// Cambiar el tamaño de página pide la página 1 del tamaño nuevo UNA vez.
+    /// Mismo motivo que <see cref="Buscar_desde_la_caja_navega_una_vez_y_hace_una_sola_consulta"/>:
+    /// <c>SetCurrentPageIndexAsync</c> ya avisa a QuickGrid aunque la página no
+    /// cambie, y refrescar además la rejilla pedía lo mismo dos veces. Los 25
+    /// trabajadores son los mismos antes y después, así que con el total quieto
+    /// lo que se cuenta es lo que pide la página.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_el_tamano_de_pagina_hace_una_sola_consulta()
+    {
+        var mediador = new MediatorFalso();
+        for (var i = 1; i <= 25; i++)
+            mediador.Almacen.Add(Trabajador("Nombre", $"Apellido {i:00}"));
+        var cut = Renderizar(mediador);
+        var consultasAntes = ConsultasDeLista(mediador);
+
+        await cut.Find(".paginador-tamano-select").ChangeAsync(new ChangeEventArgs { Value = "50" });
+
+        cut.WaitForAssertion(() => Columna(cut, 0).Should().HaveCount(25));
+        UltimaConsulta(mediador).TamanoPagina.Should().Be(50);
+        (ConsultasDeLista(mediador) - consultasAntes).Should().Be(1,
+            "avisar a la paginación y refrescar la rejilla son dos formas de pedir lo mismo");
+    }
+
     // --- Filtros y URL ------------------------------------------------------------------------
 
     [Fact]
@@ -938,10 +963,11 @@ public class TrabajadoresListaGen2Tests : BunitContext
 
         var aviso = string.Join(' ', cut.Find(".alerta-preflight-asignacion").TextContent
             .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
-        aviso.Should().Contain("Al comprobarlo faltaban 1 documento(s) obligatorio(s):")
+        aviso.Should().Contain("Al comprobarlo faltaban 1 documento(s) que se piden:")
             .And.Contain("Bea Alonso — Formación PRL específica")
             .And.Contain("Asignar no crea esos documentos, y que falten no impide la asignación.")
-            .And.NotContain("quedarán sin", "la consulta previa no sabe qué quedará al confirmar");
+            .And.NotContain("quedarán sin", "la consulta previa no sabe qué quedará al confirmar")
+            .And.NotContainEquivalentOf("obligatori", "es configuración (se pide), no una obligación legal");
         BotonesDelPieDelDialogo(cut).Should().Contain("Asignar igualmente");
     }
 }

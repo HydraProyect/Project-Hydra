@@ -66,10 +66,18 @@ public class IncidenciasGen2Tests : BunitContext
         /// <summary>
         /// Retiene solo las cargas que cumplen esto; el resto responde al
         /// momento. Existe porque un cambio de filtro puede lanzar más de una
-        /// carga (la recarga pasa por SetCurrentPageIndexAsync y por
-        /// RefreshDataAsync): una versión anterior de esta prueba resolvía «las
-        /// cargas que hay ahora», apareció otra después, y el manejador del
-        /// cambio no terminó nunca — vstest la abortó por cuelgue.
+        /// carga: una versión anterior de esta prueba resolvía «las cargas que
+        /// hay ahora», apareció otra después, y el manejador del cambio no
+        /// terminó nunca — vstest la abortó por cuelgue.
+        ///
+        /// <para>
+        /// Entonces la segunda carga la ponía la propia página, que avisaba a la
+        /// paginación Y refrescaba la rejilla. Eso ya no pasa (ver
+        /// <c>Cambiar_de_filtro_sin_cambiar_el_total_hace_una_sola_consulta</c>),
+        /// pero el mecanismo sigue haciendo falta: cuando la respuesta trae un
+        /// total distinto, QuickGrid vuelve a pedir la misma página por su
+        /// cuenta.
+        /// </para>
         /// </summary>
         public Func<ObtenerIncidenciasQuery, bool>? DiferirCarga { get; set; }
 
@@ -460,5 +468,51 @@ public class IncidenciasGen2Tests : BunitContext
 
         mediador.Peticiones.OfType<EliminarIncidenciaCommand>().Should().ContainSingle()
             .Which.Id.Should().Be(IdBeta);
+    }
+
+    // --- Recuento de consultas ----------------------------------------------------------------
+
+    private static int ConsultasDeLista(MediadorControlado mediador) => mediador.Consultas.Count();
+
+    /// <summary>
+    /// Cambiar el filtro de estado recarga la lista UNA vez.
+    /// <c>SetCurrentPageIndexAsync</c> ya avisa a QuickGrid aunque la página no
+    /// cambie, así que refrescar además la rejilla pedía lo mismo dos veces.
+    /// El doble devuelve siempre las mismas filas, así que el total no se mueve
+    /// y no puede colarse en el recuento una repetición de QuickGrid.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_de_filtro_sin_cambiar_el_total_hace_una_sola_consulta()
+    {
+        var mediador = new MediadorControlado { Filas = [Fila(IdAlfa, "Centro Alfa"), Fila(IdBeta, "Centro Beta")] };
+        var cut = Renderizar(mediador);
+        cut.WaitForAssertion(() => ConsultasDeLista(mediador).Should().BeGreaterThan(0));
+        var consultasAntes = ConsultasDeLista(mediador);
+
+        await SelectDeEstado(cut).ChangeAsync(new ChangeEventArgs { Value = "SinResolver" });
+
+        cut.WaitForAssertion(() => mediador.Consultas.Last().Resuelta.Should().BeFalse());
+        (ConsultasDeLista(mediador) - consultasAntes).Should().Be(1,
+            "avisar a la paginación y refrescar la rejilla son dos formas de pedir lo mismo");
+    }
+
+    /// <summary>
+    /// Cambiar el tamaño de página pide la página 1 del tamaño nuevo UNA vez,
+    /// por el mismo motivo.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_el_tamano_de_pagina_hace_una_sola_consulta()
+    {
+        var mediador = new MediadorControlado { Filas = [Fila(IdAlfa, "Centro Alfa"), Fila(IdBeta, "Centro Beta")] };
+        var cut = Renderizar(mediador);
+        cut.WaitForAssertion(() => ConsultasDeLista(mediador).Should().BeGreaterThan(0));
+        var consultasAntes = ConsultasDeLista(mediador);
+
+        await cut.Find(".paginador-tamano-select").ChangeAsync(new ChangeEventArgs { Value = "50" });
+
+        cut.WaitForAssertion(() => mediador.Consultas.Last().TamanoPagina.Should().Be(50));
+        mediador.Consultas.Last().Pagina.Should().Be(1);
+        (ConsultasDeLista(mediador) - consultasAntes).Should().Be(1,
+            "el total no se mueve: la única consulta que cabe contar es la del tamaño nuevo");
     }
 }

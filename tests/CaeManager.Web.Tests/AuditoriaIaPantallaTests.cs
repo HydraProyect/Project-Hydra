@@ -102,9 +102,12 @@ public class AuditoriaIaPantallaTests : BunitContext
 
     private static RegistroAuditoriaIaDto Fila(
         string tipo, string proveedor = "anthropic", long ms = 1200, Guid? documentoId = null,
-        DecisionHumanaIa? decision = null, DateTime? fechaDecisionUtc = null, string? hash = null) =>
+        DecisionHumanaIa? decision = null, DateTime? fechaDecisionUtc = null, string? hash = null,
+        string versionPipeline = "v1", string? modeloExacto = null, string? requestId = null,
+        string? proveedoresInvocados = null) =>
         new(Guid.NewGuid(), hash ?? new string('a', 64), tipo, proveedor, ms, null, 0.01m, 3, 92,
-            Incidencias: null, DateTime.UtcNow, documentoId, decision, UsuarioDecisionId: null, fechaDecisionUtc);
+            Incidencias: null, DateTime.UtcNow, documentoId, decision, UsuarioDecisionId: null, fechaDecisionUtc,
+            versionPipeline, modeloExacto, requestId, proveedoresInvocados);
 
     private static IElement FilaDe(IRenderedComponent<Features.AuditoriaIa.Pages.AuditoriaIa> cut, string tipo) =>
         cut.FindAll("table.tabla-datos tbody tr:not(.fila-detalle-auditoria-ia)")
@@ -360,6 +363,38 @@ public class AuditoriaIaPantallaTests : BunitContext
 
         cut.FindAll(".fila-detalle-auditoria-ia").Should().BeEmpty();
         Boton(cut, "Ver").GetAttribute("aria-expanded").Should().Be("false");
+    }
+
+    [Fact]
+    public async Task El_detalle_enseña_version_de_pipeline_modelo_peticion_y_proveedores_intentados()
+    {
+        _mediador.Filas.Add(Fila("Certificado",
+            versionPipeline: "2026-08-30.1", modeloExacto: "claude-sonnet-5-20260115",
+            requestId: "req_9f0ef40e1234abcd", proveedoresInvocados: "anthropic,gemini"));
+        var cut = Renderizar();
+
+        await Boton(cut, "Ver").ClickAsync(new MouseEventArgs());
+
+        var detalle = cut.Find(".fila-detalle-auditoria-ia");
+        detalle.TextContent.Should().Contain("2026-08-30.1");
+        detalle.TextContent.Should().Contain("claude-sonnet-5-20260115");
+        detalle.TextContent.Should().Contain("req_9f0ef40e1234abcd");
+        detalle.TextContent.Should().Contain("Anthropic → Gemini",
+            "traduce los códigos a nombre legible y conserva el orden en que se probaron");
+    }
+
+    [Fact]
+    public async Task Sin_modelo_peticion_ni_proveedores_el_detalle_muestra_una_raya()
+    {
+        _mediador.Filas.Add(Fila("Triaje", modeloExacto: null, requestId: null, proveedoresInvocados: null));
+        var cut = Renderizar();
+
+        await Boton(cut, "Ver").ClickAsync(new MouseEventArgs());
+
+        var detalle = cut.Find(".fila-detalle-auditoria-ia");
+        detalle.QuerySelectorAll("dd")[3].TextContent.Trim().Should().Be("—", "modelo exacto null cuando no se llegó a llamar a ningún proveedor");
+        detalle.QuerySelectorAll("dd")[4].TextContent.Trim().Should().Be("—", "id de petición null cuando no se llegó a llamar a ningún proveedor");
+        detalle.QuerySelectorAll("dd")[5].TextContent.Trim().Should().Be("—", "proveedores intentados null cuando no se intentó ninguno");
     }
 
     [Fact]

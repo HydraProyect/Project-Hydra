@@ -465,8 +465,16 @@ public partial class Alertas : ComponentBase
                 return;
             }
 
+            // El comando manda todo o nada (revisión 2026-09-11): si esto es
+            // éxito, lo enviado coincide con lo pedido — pero el mensaje lo
+            // dice con lo que el comando REALMENTE confirmó que envió
+            // (resultado.Valor), no repitiendo ciegamente lo que anunció el
+            // diálogo de confirmación.
+            var enviado = resultado.Valor;
             _envioPendiente = null;
-            ToastService.Mostrar($"Reclamación enviada a {envio.TitularNombre}.", TonoToast.Exito);
+            ToastService.Mostrar(
+                $"Reclamación enviada a {envio.TitularNombre}: {enviado.DocumentoIdsEnviados.Count} documento(s) a {enviado.Destinatarios.Count} contacto(s).",
+                TonoToast.Exito);
         }
         catch (Exception)
         {

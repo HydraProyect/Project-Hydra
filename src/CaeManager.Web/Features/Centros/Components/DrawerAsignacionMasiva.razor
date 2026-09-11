@@ -88,11 +88,16 @@
             }
         </Pestanas>
 
+        @* La comprobación es una lectura aparte, hecha al elegir trabajadores y
+           centros: CrearAsignacionesCommand ni la repite ni se detiene por
+           documentos. Por eso el aviso habla en pasado (lo que faltaba al
+           comprobarlo) y no promete qué quedará al confirmar — mismo criterio
+           que Trabajadores.razor. *@
         @if (_documentosFaltantes.Count > 0)
         {
             <div class="alerta-preflight-asignacion" role="status">
                 <p>
-                    <strong>@_documentosFaltantes.Count combinación(es)</strong> quedarán sin este documento obligatorio al confirmar:
+                    Al comprobarlo faltaban <strong>@_documentosFaltantes.Count documento(s) que se piden</strong> en estas combinaciones:
                 </p>
                 <ul>
                     @foreach (var faltante in _documentosFaltantes.Take(5))
@@ -104,6 +109,7 @@
                 {
                     <p>y @(_documentosFaltantes.Count - 5) más…</p>
                 }
+                <p>Guardar no crea esos documentos, y que falten no impide el alta.</p>
             </div>
         }
     </ChildContent>

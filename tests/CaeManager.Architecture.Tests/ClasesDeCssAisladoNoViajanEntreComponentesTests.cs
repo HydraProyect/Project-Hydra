@@ -44,7 +44,7 @@ public class ClasesDeCssAisladoNoViajanEntreComponentesTests
     /// arregla. El trinquete no los repara — impide que la lista crezca.
     ///
     /// <para>
-    /// <b>Son 32, y ninguno es de descripción de página.</b> Los once párrafos
+    /// <b>Son 31, y ninguno es de descripción de página.</b> Los once párrafos
     /// de descripción que motivaron este trinquete se cerraron con
     /// <c>CabeceraPagina</c> y <c>.texto-descriptivo</c>: por eso no hay aquí
     /// ni una entrada <c>descripcion-*</c>. Lo que queda son otras cinco
@@ -58,7 +58,7 @@ public class ClasesDeCssAisladoNoViajanEntreComponentesTests
     /// entidades relacionadas de los siete workspaces, declarada en
     /// <c>FilaEntidadRelacionada.razor.css</c>. Su sitio es
     /// <c>wwwroot/css/workspace.css</c>.</item>
-    /// <item><b>avisos</b> (5) — <c>aviso-error</c> y <c>aviso-revocacion</c>
+    /// <item><b>avisos</b> (4) — <c>aviso-error</c> y <c>aviso-revocacion</c>
     /// copiados entre features; les corresponde una primitiva de aviso.</item>
     /// <item><b>controles de formulario a pelo</b> (2) —
     /// <c>campo-input</c>, <c>campo-info-vacio</c>. Los dos de Tipos de
@@ -88,7 +88,6 @@ public class ClasesDeCssAisladoNoViajanEntreComponentesTests
         ["DocumentoWorkspacePanel.razor::campo-info-vacio"] = "estado vacio de CampoInfo usado desde el panel; le corresponde a CampoInfo",
         ["EmpresaWorkspacePanel.razor::workspace-lista-entidades"] = "lista de entidades relacionadas de los siete workspaces; la regla vive en FilaEntidadRelacionada.razor.css y le corresponde a workspace.css",
         ["Empresas.razor::workspace-lista-entidades"] = "lista de entidades relacionadas de los siete workspaces; la regla vive en FilaEntidadRelacionada.razor.css y le corresponde a workspace.css",
-        ["EstadoComercial.razor::aviso-error"] = "aviso de error copiado de Facturacion/Proyectos; le corresponde una primitiva de aviso",
         ["PestanaBlindaje42.razor::workspace-lista-entidades"] = "lista de entidades relacionadas de los siete workspaces; la regla vive en FilaEntidadRelacionada.razor.css y le corresponde a workspace.css",
         ["PestanaDocumentacion.razor::workspace-lista-entidades"] = "lista de entidades relacionadas de los siete workspaces; la regla vive en FilaEntidadRelacionada.razor.css y le corresponde a workspace.css",
         ["Plataforma.razor::boton"] = "markup de boton a pelo en vez del componente Boton",

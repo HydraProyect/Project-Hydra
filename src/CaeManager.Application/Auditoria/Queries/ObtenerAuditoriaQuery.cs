@@ -1,6 +1,10 @@
 using System.Text.Json;
 using CaeManager.Application.Auditoria;
+using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos;
+using CaeManager.Application.Empresas;
+using CaeManager.Application.Trabajadores;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -57,7 +61,13 @@ public record RegistroAuditoriaDto(
     string? DatosAntes,
     string? DatosDespues);
 
-public class ObtenerAuditoriaQueryHandler(IAuditoriaQueryContext dbContext)
+public class ObtenerAuditoriaQueryHandler(
+    IAuditoriaQueryContext dbContext,
+    IEmpresasQueryContext empresasContext,
+    ICentrosQueryContext centrosContext,
+    ITrabajadoresQueryContext trabajadoresContext,
+    IDocumentosQueryContext documentosContext,
+    ITenantActual tenantActual)
     : IRequestHandler<ObtenerAuditoriaQuery, ResultadoPaginado<RegistroAuditoriaListaDto>>
 {
     // Solo estas 5 tienen Restaurar*Command (patrón "Deshacer", ver
@@ -103,10 +113,29 @@ public class ObtenerAuditoriaQueryHandler(IAuditoriaQueryContext dbContext)
             })
             .ToListAsync(cancellationToken);
 
+        // El JSON histórico de DatosDespues solo dice que ESE cambio puso
+        // EstaEliminado=true — no que la entidad siga eliminada HOY. Si se
+        // restauró después, esta fila de auditoría sigue siendo el registro
+        // de aquel borrado (es historia), pero el botón "Restaurar" de la
+        // pantalla ya no tiene nada que hacer: el Restaurar*Command lo
+        // rechazaría porque la entidad ya no está eliminada. Por eso el
+        // candidato histórico se cruza aquí con el estado actual, con una
+        // única consulta por lote y por tabla (evita N+1 en TamanoPagina
+        // filas) y siempre acotada a TenantId — la misma frontera de
+        // aislamiento que exige cualquier IgnoreQueryFilters() nuevo.
+        var candidatos = filas
+            .Where(r => EsCandidataHistoricaARestaurar(r.EntidadTipo, r.Accion, r.DatosDespues))
+            .Select(r => (r.EntidadTipo, r.EntidadId))
+            .ToList();
+
+        var siguenEliminadasHoy = await ObtenerEliminadasActualmenteAsync(candidatos, cancellationToken);
+
         var elementos = filas
             .Select(r => new RegistroAuditoriaListaDto(
                 r.Id, r.EntidadTipo, r.EntidadId, r.Accion, r.UsuarioId, r.FechaUtc,
-                PuedeRestaurar(r.EntidadTipo, r.Accion, r.DatosDespues),
+                EsCandidataHistoricaARestaurar(r.EntidadTipo, r.Accion, r.DatosDespues)
+                    && siguenEliminadasHoy.TryGetValue(r.EntidadTipo, out var idsEliminados)
+                    && idsEliminados.Contains(r.EntidadId),
                 TieneArchivoAnterior(r.EntidadTipo, r.Accion, r.DatosAntes)))
             .ToList();
 
@@ -122,8 +151,13 @@ public class ObtenerAuditoriaQueryHandler(IAuditoriaQueryContext dbContext)
     /// en <c>Accion</c> solo existe para un borrado físico que este dominio no
     /// hace — por eso hay que mirar el JSON de <c>DatosDespues</c>, igual que
     /// <see cref="TieneArchivoAnterior"/> con <c>DatosAntes</c>.
+    ///
+    /// Es solo el hecho histórico: "este cambio marcó EstaEliminado=true".
+    /// No dice si la entidad sigue eliminada hoy — eso lo resuelve
+    /// <see cref="ObtenerEliminadasActualmenteAsync"/> contra el estado
+    /// actual, porque una restauración posterior no reescribe esta fila.
     /// </summary>
-    private static bool PuedeRestaurar(string entidadTipo, string accion, string? datosDespues)
+    private static bool EsCandidataHistoricaARestaurar(string entidadTipo, string accion, string? datosDespues)
     {
         if (!EntidadesRestaurables.Contains(entidadTipo) || accion != "Modificado" || datosDespues is null)
             return false;
@@ -137,6 +171,80 @@ public class ObtenerAuditoriaQueryHandler(IAuditoriaQueryContext dbContext)
         {
             return false;
         }
+    }
+
+    /// <summary>
+    /// Estado ACTUAL de cada candidato (agrupado por tabla, un lote por
+    /// tipo — nunca una consulta por fila). "Cliente" y "Empresa" son el
+    /// mismo tipo persistido desde F3b (ver RestaurarClienteCommand): ambos
+    /// EntidadTipo se resuelven contra Empresas.
+    ///
+    /// <c>IgnoreQueryFilters()</c> hace falta porque el filtro global de
+    /// soft-delete excluiría justo las filas que se buscan (las eliminadas);
+    /// como ese filtro combina tenant + soft-delete en una sola condición,
+    /// ignorarlo también deja de filtrar por tenant — por eso TenantId se
+    /// compara aquí a mano, igual que en cada Restaurar*Command. Sin esa
+    /// comprobación, una entidad de OTRO tenant con el mismo Id contaría
+    /// como "sigue eliminada" y el botón de restaurar en el registro de
+    /// auditoría de un tenant ofrecería recuperar la fila de otro.
+    /// </summary>
+    private async Task<Dictionary<string, HashSet<Guid>>> ObtenerEliminadasActualmenteAsync(
+        List<(string EntidadTipo, Guid EntidadId)> candidatos, CancellationToken cancellationToken)
+    {
+        var resultado = new Dictionary<string, HashSet<Guid>>();
+        var tenantId = tenantActual.TenantId;
+
+        var idsEmpresa = candidatos
+            .Where(c => c.EntidadTipo is "Cliente" or "Empresa")
+            .Select(c => c.EntidadId)
+            .Distinct()
+            .ToArray();
+        if (idsEmpresa.Length > 0)
+        {
+            var eliminadas = (await empresasContext.Empresas
+                .IgnoreQueryFilters()
+                .Where(e => e.TenantId == tenantId && idsEmpresa.Contains(e.Id) && e.EstaEliminado)
+                .Select(e => e.Id)
+                .ToListAsync(cancellationToken))
+                .ToHashSet();
+            resultado["Cliente"] = eliminadas;
+            resultado["Empresa"] = eliminadas;
+        }
+
+        var idsCentro = candidatos.Where(c => c.EntidadTipo == "Centro").Select(c => c.EntidadId).Distinct().ToArray();
+        if (idsCentro.Length > 0)
+        {
+            resultado["Centro"] = (await centrosContext.Centros
+                .IgnoreQueryFilters()
+                .Where(c => c.TenantId == tenantId && idsCentro.Contains(c.Id) && c.EstaEliminado)
+                .Select(c => c.Id)
+                .ToListAsync(cancellationToken))
+                .ToHashSet();
+        }
+
+        var idsTrabajador = candidatos.Where(c => c.EntidadTipo == "Trabajador").Select(c => c.EntidadId).Distinct().ToArray();
+        if (idsTrabajador.Length > 0)
+        {
+            resultado["Trabajador"] = (await trabajadoresContext.Trabajadores
+                .IgnoreQueryFilters()
+                .Where(t => t.TenantId == tenantId && idsTrabajador.Contains(t.Id) && t.EstaEliminado)
+                .Select(t => t.Id)
+                .ToListAsync(cancellationToken))
+                .ToHashSet();
+        }
+
+        var idsDocumento = candidatos.Where(c => c.EntidadTipo == "Documento").Select(c => c.EntidadId).Distinct().ToArray();
+        if (idsDocumento.Length > 0)
+        {
+            resultado["Documento"] = (await documentosContext.Documentos
+                .IgnoreQueryFilters()
+                .Where(d => d.TenantId == tenantId && idsDocumento.Contains(d.Id) && d.EstaEliminado)
+                .Select(d => d.Id)
+                .ToListAsync(cancellationToken))
+                .ToHashSet();
+        }
+
+        return resultado;
     }
 
     /// <summary>
