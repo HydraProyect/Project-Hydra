@@ -44,7 +44,7 @@ public class ClasesDeCssAisladoNoViajanEntreComponentesTests
     /// arregla. El trinquete no los repara — impide que la lista crezca.
     ///
     /// <para>
-    /// <b>Son 34, y ninguno es de descripción de página.</b> Los once párrafos
+    /// <b>Son 32, y ninguno es de descripción de página.</b> Los once párrafos
     /// de descripción que motivaron este trinquete se cerraron con
     /// <c>CabeceraPagina</c> y <c>.texto-descriptivo</c>: por eso no hay aquí
     /// ni una entrada <c>descripcion-*</c>. Lo que queda son otras cinco
@@ -60,8 +60,9 @@ public class ClasesDeCssAisladoNoViajanEntreComponentesTests
     /// <c>wwwroot/css/workspace.css</c>.</item>
     /// <item><b>avisos</b> (5) — <c>aviso-error</c> y <c>aviso-revocacion</c>
     /// copiados entre features; les corresponde una primitiva de aviso.</item>
-    /// <item><b>controles de formulario a pelo</b> (4) —
-    /// <c>campo-input</c>, <c>campo-select</c>, <c>campo-info-vacio</c>.</item>
+    /// <item><b>controles de formulario a pelo</b> (2) —
+    /// <c>campo-input</c>, <c>campo-info-vacio</c>. Los dos de Tipos de
+    /// documento se cerraron con estilo propio en su <c>.razor.css</c>.</item>
     /// <item><b>tres pistas y tres barras de confianza</b> (6) — copiadas de
     /// <c>Trabajadores.razor</c> y de <c>RevisionIa.razor</c>.</item>
     /// </list>
@@ -100,8 +101,6 @@ public class ClasesDeCssAisladoNoViajanEntreComponentesTests
         ["SelectorEntidad.razor::campo-input"] = "control de formulario a pelo en vez de CampoTexto o CampoBuscarSelect",
         ["SubcontrataWorkspacePanel.razor::workspace-lista-entidades"] = "lista de entidades relacionadas de los siete workspaces; la regla vive en FilaEntidadRelacionada.razor.css y le corresponde a workspace.css",
         ["SugerenciasPreventivasTab.razor::workspace-lista-entidades"] = "lista de entidades relacionadas de los siete workspaces; la regla vive en FilaEntidadRelacionada.razor.css y le corresponde a workspace.css",
-        ["TiposDocumento.razor::campo-input"] = "control de formulario a pelo en vez de CampoTexto o CampoBuscarSelect",
-        ["TiposDocumento.razor::campo-select"] = "control de formulario a pelo en vez de CampoSelect",
         ["TrabajadorWorkspacePanel.razor::workspace-lista-entidades"] = "lista de entidades relacionadas de los siete workspaces; la regla vive en FilaEntidadRelacionada.razor.css y le corresponde a workspace.css",
         ["Usuarios.razor::pista-documento"] = "pista de validacion copiada de Trabajadores; primitiva de pista pendiente",
         ["Usuarios.razor::pista-documento-error"] = "pista de validacion copiada de Trabajadores; primitiva de pista pendiente",

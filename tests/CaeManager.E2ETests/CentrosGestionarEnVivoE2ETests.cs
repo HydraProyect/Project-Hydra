@@ -66,6 +66,9 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         await drawer.GetByLabel("Nombre").FillAsync(nombreTipoDocumento);
         await drawer.GetByLabel("¿Se pide?").SelectOptionAsync("Si");
         await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+        // Crear un tipo con «Sí, siempre» cambia lo que se pide en todos los
+        // centros, así que la pantalla lo confirma antes de guardar.
+        await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Guardar y aplicar" }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         // --- Paso 1: Empresa → Cliente → Centro (alta guiada) ---
