@@ -4,6 +4,7 @@ using CaeManager.Application.Plantillas.Queries.ObtenerPlantillasDocumento;
 using CaeManager.Application.Plantillas.Queries.ObtenerTotalDocumentosGeneradosConAvisos;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Domain.Plantillas;
+using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Plantillas.Components;
 using FluentAssertions;
 using MediatR;
@@ -27,6 +28,13 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class DocumentosGeneradosPanelVacioPorFiltroTests : BunitContext
 {
+    /// <summary>Con filas, el panel monta AtajosListaTeclado y TextoFechaCopiable: importan módulos JS y avisan por toast.</summary>
+    public DocumentosGeneradosPanelVacioPorFiltroTests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddScoped<ToastService>();
+    }
+
     private static readonly Guid PlantillaId = Guid.Parse("55555555-5555-5555-5555-555555555555");
     private static readonly Guid OtraPlantillaId = Guid.Parse("66666666-6666-6666-6666-666666666666");
 
@@ -116,7 +124,7 @@ public class DocumentosGeneradosPanelVacioPorFiltroTests : BunitContext
 
         FiltrarPorPlantilla(cut, PlantillaId);
 
-        cut.Markup.Should().Contain("Ningún documento con estos filtros");
+        cut.Markup.Should().Contain("Ningún documento generado con este filtro");
         cut.Markup.Should().Contain("Quitar los filtros");
         cut.Markup.Should().NotContain("Todavía no se ha generado ningún documento",
             "sí se generó uno, con otra plantilla: decir lo contrario manda a generarlo otra vez");
@@ -129,7 +137,7 @@ public class DocumentosGeneradosPanelVacioPorFiltroTests : BunitContext
 
         cut.Markup.Should().Contain("Todavía no se ha generado ningún documento");
         cut.Markup.Should().Contain("Genera uno individual o en lote desde una plantilla confirmada.");
-        cut.Markup.Should().NotContain("Ningún documento con estos filtros");
+        cut.Markup.Should().NotContain("Ningún documento generado con este filtro");
     }
 
     [Fact]
@@ -137,7 +145,7 @@ public class DocumentosGeneradosPanelVacioPorFiltroTests : BunitContext
     {
         var cut = Renderizar(Generado(OtraPlantillaId));
         FiltrarPorPlantilla(cut, PlantillaId);
-        cut.Markup.Should().Contain("Ningún documento con estos filtros", "es el punto de partida de este caso");
+        cut.Markup.Should().Contain("Ningún documento generado con este filtro", "es el punto de partida de este caso");
 
         cut.Find(".estado-vacio button").Click();
 
@@ -145,7 +153,7 @@ public class DocumentosGeneradosPanelVacioPorFiltroTests : BunitContext
             "«Quitar los filtros» tiene que limpiar el filtro de verdad, no solo repintar el estado");
         _mediator.UltimaConsulta!.TrabajadorId.Should().BeNull();
         cut.Find("table.tabla-datos").TextContent.Should().Contain("Ficha de riesgos");
-        cut.Markup.Should().NotContain("Ningún documento con estos filtros");
+        cut.Markup.Should().NotContain("Ningún documento generado con este filtro");
     }
 
     /// <summary>
@@ -159,7 +167,7 @@ public class DocumentosGeneradosPanelVacioPorFiltroTests : BunitContext
 
         FiltrarPorPlantilla(cut, PlantillaId);
 
-        cut.Markup.Should().Contain("Ningún documento con estos filtros");
+        cut.Markup.Should().Contain("Ningún documento generado con este filtro");
         cut.Markup.Should().NotContain("Hay documentos generados");
     }
 
@@ -170,7 +178,7 @@ public class DocumentosGeneradosPanelVacioPorFiltroTests : BunitContext
 
         FiltrarPorPlantilla(cut, PlantillaId);
 
-        cut.Markup.Should().NotContain("Ningún documento con estos filtros");
+        cut.Markup.Should().NotContain("Ningún documento generado con este filtro");
         cut.Markup.Should().NotContain("Todavía no se ha generado ningún documento");
         cut.Find("table.tabla-datos").TextContent.Should().Contain("Ficha de riesgos");
     }

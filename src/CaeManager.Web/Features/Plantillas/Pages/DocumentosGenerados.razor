@@ -6,10 +6,17 @@
 <PageTitle>Documentos generados — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <div class="cabecera-pagina">
-        <h1 class="titulo-pagina">Documentos generados</h1>
-        <a class="enlace-exportar" href="/plantillas">Volver a Plantillas</a>
-    </div>
+    @* Cabecera Gen 2 (Documentos Generados TALVEG.dc.html): kicker, título y
+       «Volver a Plantillas» como acción secundaria a la derecha. Esta ruta se
+       conserva para marcadores guardados; el mismo panel vive como pestaña
+       «Generados» de Plantillas, que es donde lo pinta PlantillasTab. *@
+    <CabeceraPagina Titulo="Documentos generados" Kicker="Documentos · Plantillas">
+        <Acciones>
+            <Boton Variante="VarianteBoton.Secundario" Href="/plantillas">
+                <Icono Nombre="volver" Tamano="TamanoIcono.Pequeno" /> Volver a Plantillas
+            </Boton>
+        </Acciones>
+    </CabeceraPagina>
 
     <DocumentosGeneradosPanel />
 </div>
