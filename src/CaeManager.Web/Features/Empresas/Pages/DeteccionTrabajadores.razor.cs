@@ -394,7 +394,11 @@ public partial class DeteccionTrabajadores : ComponentBase, IDisposable
     /// <see cref="ValidadorIdentificacion"/> sobre el DNI que trae la detección;
     /// el servicio usa su propia copia privada del algoritmo, así que esta
     /// columna no puede afirmar nada más que lo que se ve: si el identificador
-    /// cuadra, no por qué se propuso.
+    /// cuadra, no por qué se propuso. Quitar guiones y espacios vale solo para
+    /// esta comprobación de formato: al deduplicar y al comparar con la
+    /// plantilla el servicio solo recorta extremos y pasa a mayúsculas, así que
+    /// <c>12345678Z</c> y <c>12345678-Z</c> son allí dos identificadores
+    /// distintos (lo dice la ayuda de la columna).
     /// </summary>
     private static Comprobacion Comprobar(string dni)
     {

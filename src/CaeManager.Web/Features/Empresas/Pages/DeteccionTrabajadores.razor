@@ -124,7 +124,10 @@
                 <span class="deteccion-regla-icono deteccion-regla-sistema"><Icono Nombre="ia" Tamano="TamanoIcono.Pequeno" /></span>
                 <div>
                     <strong>Lo que lee la IA se trata como una propuesta, no como un hecho</strong>
-                    <span>Se quitan los DNI repetidos, un documento con más de 2.000 personas se descarta entero y solo se propone un alta si el identificador es un DNI o NIE con dígito de control correcto. Para las ausencias cuenta cualquier identificador leído, sea o no DNI/NIE, para no proponer la baja de quien sí aparece con otro documento de identidad.</span>
+                    @* Lo que hace DeteccionTrabajadoresService al agrupar y comparar:
+                       Trim() + ToUpperInvariant(), sin quitar guiones ni espacios
+                       intermedios. No prometer que une variantes del mismo DNI. *@
+                    <span class="deteccion-regla-identificadores">Los identificadores leídos se comparan tal cual, sin distinguir mayúsculas de minúsculas y sin contar los espacios del principio o del final: de dos filas con el mismo identificador así comparado se queda una, pero el mismo DNI escrito de otra forma (12345678Z y 12345678-Z) cuenta como dos, también al compararlo con la plantilla. Un documento con más de 2.000 identificadores distintos se descarta entero y solo se propone un alta si el identificador es un DNI o NIE con dígito de control correcto. Para las ausencias cuenta cualquier identificador leído, sea o no DNI/NIE, para no proponer la baja de quien sí aparece con otro documento de identidad.</span>
                 </div>
             </li>
         </ul>
@@ -171,6 +174,7 @@
                         <Badge Tono="TonoBadge.Advertencia">Descartar no se puede deshacer desde aquí</Badge>
                     </div>
                     <p class="texto-descriptivo">Aparecen en el documento pero no están dados de alta en el sistema.</p>
+                    <p class="texto-descriptivo deteccion-ayuda-comprobacion">«Comprobación» es una comprobación de formato que hace esta pantalla: quita guiones y espacios y revisa el dígito de control. La detección no los quita al comparar, así que puede tratar como distintas dos variantes del mismo DNI.</p>
                     <div class="deteccion-tabla-marco">
                         <table class="tabla-datos deteccion-tabla">
                             <thead>

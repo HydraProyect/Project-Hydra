@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Security.Claims;
 using AngleSharp.Dom;
 using Bunit;
@@ -58,7 +59,7 @@ public class DeteccionTrabajadoresGen2Tests : BunitContext
 
     // ---------------------------------------------------------------- dobles
 
-    private sealed class MediadorControlado(Func<object, Task<object?>> responder) : IMediator
+    private sealed class MediadorControlado(Func<object, CancellationToken, Task<object?>> responder) : IMediator
     {
         public List<(object Peticion, CancellationToken Token)> Recibidas { get; } = [];
 
@@ -67,7 +68,7 @@ public class DeteccionTrabajadoresGen2Tests : BunitContext
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Recibidas.Add((request, cancellationToken));
-            return (TResponse)(await responder(request))!;
+            return (TResponse)(await responder(request, cancellationToken))!;
         }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest
@@ -122,8 +123,12 @@ public class DeteccionTrabajadoresGen2Tests : BunitContext
 
         public List<(Guid EmpresaId, string Nombre, string Dni)> TrabajadoresCreados { get; } = [];
 
-        /// <summary>Si devuelve una tarea, ESA es la respuesta: sustituye a la del «servidor» (un fallo, una lista vieja).</summary>
-        public Func<object, Task<object?>?> Interceptar { get; set; } = _ => null;
+        /// <summary>
+        /// Si devuelve una tarea, ESA es la respuesta: sustituye a la del «servidor»
+        /// (un fallo, una lista vieja). Recibe el token con el que la página envió
+        /// la petición, para poder imitar a un handler que lo honra.
+        /// </summary>
+        public Func<object, CancellationToken, Task<object?>?> Interceptar { get; set; } = (_, _) => null;
 
         /// <summary>
         /// Si devuelve una tarea, la petición espera a que el test la complete y
@@ -150,9 +155,9 @@ public class DeteccionTrabajadoresGen2Tests : BunitContext
 
         public Registro RegistroDe(DeteccionTrabajadorDto dto) => Detecciones.Single(r => r.Dto.Id == dto.Id);
 
-        public async Task<object?> Responder(object peticion)
+        public async Task<object?> Responder(object peticion, CancellationToken token)
         {
-            if (Interceptar(peticion) is { } respuesta)
+            if (Interceptar(peticion, token) is { } respuesta)
                 return await respuesta;
 
             if (Retener(peticion) is { } puerta)
@@ -282,6 +287,12 @@ public class DeteccionTrabajadoresGen2Tests : BunitContext
 
     private static string Texto(IElement elemento) => elemento.TextContent.Trim();
 
+    /// <summary>Estado privado de una instancia ya retirada: bUnit no deja leer <c>cut.Instance</c> tras desecharla.</summary>
+    private static T Campo<T>(DeteccionTrabajadores instancia, string nombre) =>
+        (T)(typeof(DeteccionTrabajadores).GetField(nombre, BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException($"DeteccionTrabajadores ya no tiene el campo {nombre}: el test ha dejado de observar lo que dice."))
+        .GetValue(instancia)!;
+
     private static IElement FilaDe(IRenderedComponent<DeteccionTrabajadores> cut, DeteccionTrabajadorDto deteccion) =>
         cut.Find($"tr[data-deteccion='{deteccion.Id}']");
 
@@ -325,7 +336,7 @@ public class DeteccionTrabajadoresGen2Tests : BunitContext
         Comprobacion("Sofía Landa Vera").Should().Be("Dígito de control incorrecto", "la letra de 12345678 es la Z");
         Comprobacion("Lucía Nogal Pérez").Should().Be("Dígito de control correcto", "NIE: la X vale 0");
         Comprobacion("Jon Olano Sáez").Should().Be("Dígito de control correcto",
-            "el servicio quita guiones y espacios antes de comprobar: la pantalla no puede decir lo contrario de lo que decidió");
+            "el servicio quita guiones y espacios antes de comprobar el dígito de control: la pantalla no puede decir lo contrario de lo que decidió");
         Comprobacion("Amir Qasim").Should().Be("No es DNI ni NIE: sin comprobar");
 
         NombresPintados(cut).Should().Equal(
@@ -350,6 +361,38 @@ public class DeteccionTrabajadoresGen2Tests : BunitContext
             ["confianza", "precisión", "%", "Reversible", "RNT de agosto", "Personas leídas", "tope de seguridad", "no aparecerá en futuras detecciones"]);
         cut.Find(".deteccion-panel-nota").TextContent.Trim()
             .Should().Be("Esta pantalla todavía no muestra qué documento concreto originó cada fila.");
+    }
+
+    /// <summary>
+    /// <c>DeteccionTrabajadoresService</c> agrupa y compara los identificadores
+    /// solo con <c>Trim().ToUpperInvariant()</c>: <c>12345678Z</c> y
+    /// <c>12345678-Z</c> sobreviven como dos. La regla no puede prometer que
+    /// «se quitan los DNI repetidos» sin más, y la columna «Comprobación» —que
+    /// sí quita guiones y espacios— tiene que decir que eso es cosa suya.
+    /// </summary>
+    [Fact]
+    public void La_regla_de_repetidos_dice_lo_que_hace_el_servicio_y_no_promete_unir_variantes_con_guion()
+    {
+        var escenario = new Escenario();
+        escenario.Nuevo(EmpresaA, "Iker", "Mena Ruiz", "12345678Z");
+        escenario.Nuevo(EmpresaA, "Jon", "Olano Sáez", "12345678-Z");
+        var (cut, _) = Renderizar(escenario);
+
+        cut.Markup.Should().NotContainEquivalentOf("se quitan los DNI repetidos",
+            "el servicio solo quita los repetidos idénticos: la frase antigua prometía más de lo que hace");
+
+        Texto(cut.Find(".deteccion-regla-identificadores")).Should().Be(
+            "Los identificadores leídos se comparan tal cual, sin distinguir mayúsculas de minúsculas y sin contar los espacios del principio o del final: " +
+            "de dos filas con el mismo identificador así comparado se queda una, pero el mismo DNI escrito de otra forma (12345678Z y 12345678-Z) " +
+            "cuenta como dos, también al compararlo con la plantilla. " +
+            "Un documento con más de 2.000 identificadores distintos se descarta entero y solo se propone un alta si el identificador es un DNI o NIE " +
+            "con dígito de control correcto. Para las ausencias cuenta cualquier identificador leído, sea o no DNI/NIE, para no proponer la baja " +
+            "de quien sí aparece con otro documento de identidad.",
+            "la regla dice lo que hace DeteccionTrabajadoresService (Trim + ToUpperInvariant antes del GroupBy), sin prometer que une variantes con guion");
+
+        Texto(cut.Find(".deteccion-ayuda-comprobacion")).Should().Be(
+            "«Comprobación» es una comprobación de formato que hace esta pantalla: quita guiones y espacios y revisa el dígito de control. " +
+            "La detección no los quita al comparar, así que puede tratar como distintas dos variantes del mismo DNI.");
     }
 
     [Fact]
@@ -528,7 +571,7 @@ public class DeteccionTrabajadoresGen2Tests : BunitContext
         var escenario = new Escenario();
         escenario.Nuevo(EmpresaA, "Iker", "Mena Ruiz", "12345678Z");
         escenario.Nuevo(EmpresaB, "Lucía", "Nogal Pérez", "X1234567L");
-        escenario.Interceptar = p => p is ObtenerDeteccionesPorEmpresaQuery q && q.EmpresaId == EmpresaA ? listaA.Task : null;
+        escenario.Interceptar = (p, _) => p is ObtenerDeteccionesPorEmpresaQuery q && q.EmpresaId == EmpresaA ? listaA.Task : null;
         var (cut, mediador) = Renderizar(escenario, EmpresaA);
 
         cut.Render(p => p.Add(c => c.EmpresaId, EmpresaB));
@@ -545,7 +588,7 @@ public class DeteccionTrabajadoresGen2Tests : BunitContext
         var llamadas = 0;
         var escenario = new Escenario();
         escenario.Nuevo(EmpresaA, "Iker", "Mena Ruiz", "12345678Z");
-        escenario.Interceptar = p => p is ObtenerDeteccionesPorEmpresaQuery && ++llamadas == 1
+        escenario.Interceptar = (p, _) => p is ObtenerDeteccionesPorEmpresaQuery && ++llamadas == 1
             ? Task.FromException<object?>(new InvalidOperationException("Base de datos caída (simulada)."))
             : null;
         var (cut, _) = Renderizar(escenario);
@@ -583,24 +626,108 @@ public class DeteccionTrabajadoresGen2Tests : BunitContext
 
     /// <summary>
     /// bUnit 2.x no llama al <c>Dispose</c> del componente con <c>cut.Dispose()</c>:
-    /// se retira con <see cref="BunitContext.DisposeComponentsAsync"/>. Que el
-    /// <c>Dispose</c> se ejecutó se comprueba en el token que viajó con la
-    /// carga: queda cancelado.
+    /// se retira con <see cref="BunitContext.DisposeComponentsAsync"/>, y
+    /// después no deja leer <c>cut.Instance</c>: la instancia se toma antes.
+    ///
+    /// <para>
+    /// La carga de detecciones queda EN VUELO al retirar la página: el doble
+    /// la retiene con un <see cref="TaskCompletionSource{TResult}"/> y honra el
+    /// token como lo haría EF —al cancelarse, la consulta termina cancelada—.
+    /// Así el test observa que <c>Dispose</c> cancela el token con el que
+    /// viajó ESA carga, no el de una consulta que ya había terminado.
+    /// </para>
     /// </summary>
     [Fact]
-    public async Task Al_retirar_la_pagina_se_cancela_la_carga_y_una_resolucion_en_vuelo_no_recarga()
+    public async Task Al_retirar_la_pagina_se_cancela_la_carga_de_detecciones_en_vuelo_y_no_pinta_ni_recarga()
+    {
+        var lista = new TaskCompletionSource<object?>();
+        CancellationToken? tokenDeLaCarga = null;
+        var escenario = new Escenario();
+        escenario.Nuevo(EmpresaA, "Iker", "Mena Ruiz", "12345678Z");
+        escenario.Interceptar = (p, token) =>
+        {
+            if (p is not ObtenerDeteccionesPorEmpresaQuery)
+                return null;
+
+            tokenDeLaCarga = token;
+            token.Register(() => lista.TrySetCanceled(token));
+            return lista.Task;
+        };
+        var (cut, mediador) = Renderizar(escenario);
+
+        cut.FindAll(".esqueleto-lista").Should().ContainSingle("la carga de detecciones sigue retenida: la página está esperando");
+        tokenDeLaCarga.Should().NotBeNull("la carga de detecciones llegó al doble");
+        tokenDeLaCarga!.Value.CanBeCanceled.Should().BeTrue(
+            "la carga tiene que viajar con el token del ciclo de la página: con CancellationToken.None, retirarla no la cancela");
+        tokenDeLaCarga.Value.IsCancellationRequested.Should().BeFalse("antes de retirar la página nadie ha cancelado nada");
+        var instancia = cut.Instance;
+
+        await DisposeComponentsAsync();
+
+        tokenDeLaCarga.Value.IsCancellationRequested.Should().BeTrue(
+            "Dispose tiene que cancelar el token con el que viajó la carga de detecciones en vuelo");
+        lista.Task.IsCanceled.Should().BeTrue("el doble honra el token: la consulta retenida terminó cancelada");
+
+        // Si la respuesta llegara aun así, no hay nada que escribir: la
+        // consulta ya se canceló (TrySetResult no la cambia) y la página no la espera.
+        Func<Task> llegaTarde = () => Renderer.Dispatcher.InvokeAsync(() => lista.TrySetResult(escenario.Lista(EmpresaA)));
+        await llegaTarde.Should().NotThrowAsync();
+
+        Renderer.UnhandledException.IsCompleted.Should().BeFalse("la cancelación por retirada se absorbe: no sale como excepción no controlada");
+        Campo<bool>(instancia, "_errorCarga").Should().BeFalse("una carga cancelada por retirar la página no es un fallo de carga");
+        Campo<bool>(instancia, "_listaPintada").Should().BeFalse("la página retirada no pinta ninguna lista");
+        Campo<IReadOnlyList<DeteccionTrabajadorDto>>(instancia, "_detecciones").Should().BeEmpty();
+        mediador.Enviados.OfType<ObtenerDeteccionesPorEmpresaQuery>().Should().ContainSingle(
+            "la página ya no existe: no se vuelve a pedir una lista que nadie va a ver");
+        mediador.Enviados.OfType<ObtenerEmpresaPorIdQuery>().Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// Un handler que ya pasó su último punto de cancelación responde igual,
+    /// aunque el token esté cancelado: aquí el doble retiene la consulta SIN
+    /// mirar el token. Lo que impide que esa respuesta tardía siga la carga es
+    /// la comprobación de vigencia tras cada <c>await</c>, no la cancelación.
+    /// </summary>
+    [Theory]
+    [InlineData(nameof(ObtenerEmpresaPorIdQuery))]
+    [InlineData(nameof(ObtenerDeteccionesPorEmpresaQuery))]
+    public async Task Una_respuesta_que_llega_tras_retirar_la_pagina_no_pinta_ni_pide_mas(string consultaTardia)
+    {
+        var respuesta = new TaskCompletionSource();
+        var escenario = new Escenario();
+        escenario.Nuevo(EmpresaA, "Iker", "Mena Ruiz", "12345678Z");
+        escenario.Retener = p => p.GetType().Name == consultaTardia ? respuesta.Task : null;
+        var (cut, mediador) = Renderizar(escenario);
+
+        cut.FindAll(".esqueleto-lista").Should().ContainSingle($"{consultaTardia} sigue retenida: la página está esperando");
+        var enviadasAntes = mediador.Enviados.Count();
+        var instancia = cut.Instance;
+
+        await DisposeComponentsAsync();
+
+        Func<Task> llegaTarde = () => Renderer.Dispatcher.InvokeAsync(() => respuesta.SetResult());
+        await llegaTarde.Should().NotThrowAsync("la respuesta tardía no puede tocar un componente ya retirado");
+
+        mediador.Enviados.Should().HaveCount(enviadasAntes,
+            "retirada la página, una respuesta tardía no sigue la carga: no pide nada más");
+        Campo<bool>(instancia, "_listaPintada").Should().BeFalse("la página retirada no pinta la lista que llegó tarde");
+        Campo<IReadOnlyList<DeteccionTrabajadorDto>>(instancia, "_detecciones").Should().BeEmpty();
+        Campo<EmpresaDetalleDto?>(instancia, "_empresa").Should().BeNull();
+        Campo<bool>(instancia, "_errorCarga").Should().BeFalse();
+        Renderer.UnhandledException.IsCompleted.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Una_resolucion_que_termina_tras_retirar_la_pagina_no_recarga_la_lista()
     {
         var mantener = new TaskCompletionSource();
         var escenario = new Escenario();
         var nuria = escenario.Ausente(EmpresaA, "Nuria", "Salas Prieto", "11223344B");
         escenario.Retener = p => p is ResolverDeteccionAusenteCommand ? mantener.Task : null;
         var (cut, mediador) = Renderizar(escenario);
-        var tokenDeLaCarga = mediador.Recibidas.Single(r => r.Peticion is ObtenerDeteccionesPorEmpresaQuery).Token;
 
         var resolucion = Pulsar(cut, nuria, "Mantener activo");
         await DisposeComponentsAsync();
-
-        tokenDeLaCarga.IsCancellationRequested.Should().BeTrue("Dispose se ejecutó y canceló lo que la página tenía en vuelo");
 
         mantener.SetResult();
         await resolucion;
