@@ -77,6 +77,10 @@ public class ImportarClientesTests(WebAppFixture fixture)
             await page.GetByText("Continuar a confirmar").ClickAsync();
             await page.GetByText("He revisado el plan y quiero escribir estos datos").ClickAsync();
             await page.GetByText("Importar ahora").ClickAsync();
+            // «Importar ahora» abre el DialogoConfirmacion con el efecto real
+            // (con esta plantilla, ninguna alta se hará); escribe su botón.
+            await page.GetByRole(AriaRole.Dialog)
+                .GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Sí, importar" }).ClickAsync();
 
             // --- Resultado: la fila "nueva" no crea nada, termina omitida con motivo explícito ---
             await page.Locator(".titulo-reporte-importacion")
