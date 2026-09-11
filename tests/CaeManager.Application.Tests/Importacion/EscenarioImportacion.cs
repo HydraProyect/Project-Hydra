@@ -129,15 +129,16 @@ internal sealed class EscenarioImportacion
         return this;
     }
 
-    public EjecutarImportacionCommandHandler Handler() => new(
+    public EjecutarImportacionCommandHandler Handler(string? rol = "Administrador") => new(
         EmpresaRepositorio, TrabajadorRepositorio, DocumentoRepositorio, AsignacionRepositorio,
         OperacionImportacionRepositorio,
         AsignacionesContexto, CentrosContexto, DocumentosContexto, EmpresasContexto,
-        TiposDocumentoContexto, TrabajadoresContexto);
+        TiposDocumentoContexto, TrabajadoresContexto,
+        new CurrentUserServiceFalso(Guid.NewGuid(), rol));
 
-    public async Task<ResultadoImportacionDto> EjecutarAsync(PlanImportacionDto plan)
+    public async Task<ResultadoImportacionDto> EjecutarAsync(PlanImportacionDto plan, string? rol = "Administrador")
     {
-        var resultado = await Handler().Handle(new EjecutarImportacionCommand(plan), CancellationToken.None);
+        var resultado = await Handler(rol).Handle(new EjecutarImportacionCommand(plan), CancellationToken.None);
         return resultado.Valor;
     }
 

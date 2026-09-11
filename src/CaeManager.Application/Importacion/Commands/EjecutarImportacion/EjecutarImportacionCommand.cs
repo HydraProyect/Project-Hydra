@@ -94,11 +94,21 @@ public class EjecutarImportacionCommandHandler(
     IDocumentoRepository documentoRepositorio,
     IAsignacionRepository asignacionRepositorio,
     IOperacionImportacionRepository operacionImportacionRepositorio,
-    IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext)
+    IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext,
+    ICurrentUserService currentUserService)
     : IRequestHandler<EjecutarImportacionCommand, Result<ResultadoImportacionDto>>
 {
+    // Application no puede referenciar Infrastructure.Identity.Roles — mismo motivo que en AutorizacionEscrituraBehavior.
+    // Restaura en Application el límite que ya exponen las 4 páginas de importación (@attribute [Authorize(Roles = Administrador)]):
+    // sin este guard, cualquier llamador de MediatR que no sea esa página exacta podía importar como DireccionCae/CoordinadorCae/GestorCae.
+    private const string RolAdministrador = "Administrador";
+
     public async Task<Result<ResultadoImportacionDto>> Handle(EjecutarImportacionCommand request, CancellationToken cancellationToken)
     {
+        if (await currentUserService.ObtenerRolActualAsync() != RolAdministrador)
+            return Result.Fallo<ResultadoImportacionDto>(Error.Crear(
+                "Importacion.SoloAdministrador", "Solo Administrador puede ejecutar una importación."));
+
         var plan = request.Plan;
 
         // Reintento secuencial (doble clic, reintento tras un timeout de red) de
