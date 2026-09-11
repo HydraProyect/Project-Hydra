@@ -1,9 +1,11 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Retencion.Commands;
 using CaeManager.Application.Retencion.Queries;
 using CaeManager.Domain.Retencion;
 using CaeManager.Web.Components.DesignSystem;
 using MediatR;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Options;
 
 namespace CaeManager.Web.Features.Retencion.Pages;
 
@@ -17,10 +19,20 @@ namespace CaeManager.Web.Features.Retencion.Pages;
 /// <para>
 /// La detección (paso 1) ocurre de dos formas: el botón de esta pantalla, y el
 /// barrido diario de <c>RetencionHostedService</c> (REC-084), que crea las
-/// mismas propuestas sin que nadie las pida. Los tres pasos siguientes siguen
-/// siendo íntegramente humanos: la máquina propone, la persona dispone, y hasta
-/// el último momento se puede descartar. Ninguna rama automática programa ni
+/// mismas propuestas sin que nadie las pida cuando su interruptor de
+/// Automatizaciones está encendido. Los tres pasos siguientes siguen siendo
+/// íntegramente humanos: la máquina propone, la persona dispone, y hasta el
+/// último momento se puede descartar. Ninguna rama automática programa ni
 /// ejecuta una purga.
+/// </para>
+///
+/// <para>
+/// Sin política de retención activa (<see cref="RetencionDatosOptions.PoliticaAprobadaYEfectiva"/>)
+/// <see cref="BuscarDatosPurgablesCommand"/> falla siempre, así que el botón se
+/// deshabilita y la pantalla lo explica en vez de dejar que se pulse para
+/// recibir un error. En su lugar ofrece el diagnóstico de DEC-35
+/// (<see cref="DiagnosticarDatosPurgablesCommand"/>), que solo cuenta: no crea
+/// ninguna propuesta ni destruye nada.
 /// </para>
 /// </summary>
 public partial class Retencion : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
@@ -28,6 +40,7 @@ public partial class Retencion : CaeManager.Web.Components.PaginaIntegrableConfi
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private ILogger<Retencion> Logger { get; set; } = default!;
+    [Inject] private IOptions<RetencionDatosOptions> OpcionesRetencion { get; set; } = default!;
 
     private IReadOnlyList<SolicitudPurgaDto> _solicitudes = [];
     private bool _cargando = true;
@@ -36,12 +49,25 @@ public partial class Retencion : CaeManager.Web.Components.PaginaIntegrableConfi
     private bool _procesando;
     private string? _errorFormulario;
 
+    private bool _diagnosticando;
+    private ResultadoDiagnosticoPurgaDto? _diagnostico;
+
     private SolicitudPurgaDto? _aProgramar;
     private SolicitudPurgaDto? _aCancelar;
     private SolicitudPurgaDto? _aEjecutar;
 
     private string _fechaEjecucion = string.Empty;
     private string _motivoCancelacion = string.Empty;
+
+    /// <summary>La misma condición que comprueba <see cref="BuscarDatosPurgablesCommandHandler"/>.</summary>
+    private bool PoliticaActiva => OpcionesRetencion.Value.PoliticaAprobadaYEfectiva;
+
+    /// <summary>
+    /// Sin plazo para trabajadores la categoría está desactivada y el
+    /// diagnóstico devuelve 0 sin haber contado nada: pintar ese 0 diría que
+    /// no hay trabajadores purgables cuando la pregunta ni se ha hecho.
+    /// </summary>
+    private bool TrabajadoresEnPolitica => OpcionesRetencion.Value.AniosRetencionTrabajadores is not null;
 
     protected override Task OnInitializedAsync() => CargarAsync();
 
@@ -68,6 +94,10 @@ public partial class Retencion : CaeManager.Web.Components.PaginaIntegrableConfi
 
     private async Task BuscarAsync()
     {
+        // Boton deja el @onclick enganchado aunque esté deshabilitado: la
+        // guarda no puede vivir solo en el atributo disabled.
+        if (!PoliticaActiva || _buscando) return;
+
         _buscando = true;
         StateHasChanged();
 
@@ -92,6 +122,36 @@ public partial class Retencion : CaeManager.Web.Components.PaginaIntegrableConfi
         finally
         {
             _buscando = false;
+        }
+    }
+
+    private async Task DiagnosticarAsync()
+    {
+        if (_diagnosticando) return;
+
+        _diagnosticando = true;
+        StateHasChanged();
+
+        try
+        {
+            var resultado = await Mediator.Send(new DiagnosticarDatosPurgablesCommand());
+
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            _diagnostico = resultado.Valor;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al calcular el diagnóstico de retención.");
+            ToastService.Mostrar("No pudimos calcular el diagnóstico. Inténtalo de nuevo.", TonoToast.Error);
+        }
+        finally
+        {
+            _diagnosticando = false;
         }
     }
 
@@ -169,6 +229,15 @@ public partial class Retencion : CaeManager.Web.Components.PaginaIntegrableConfi
     {
         if (_aCancelar is null) return;
 
+        // Espejo de CancelarPurgaCommandValidator (NotEmpty: nulo, vacío o solo
+        // espacios), que sigue siendo la autoridad. Aquí solo evita enviar un
+        // comando que se sabe rechazado y hace la regla visible en la pantalla.
+        if (string.IsNullOrWhiteSpace(_motivoCancelacion))
+        {
+            _errorFormulario = "Indica por qué se descarta esta purga.";
+            return;
+        }
+
         _procesando = true;
         _errorFormulario = null;
         StateHasChanged();
@@ -197,16 +266,34 @@ public partial class Retencion : CaeManager.Web.Components.PaginaIntegrableConfi
         }
     }
 
+    /// <summary>
+    /// Lo llama <see cref="DialogoConfirmacion"/>, que ya descarta el segundo
+    /// clic mientras el primero sigue en curso.
+    ///
+    /// <para>
+    /// Un <see cref="Result"/> fallido es un rechazo limpio (la propuesta no
+    /// era ejecutable): el diálogo sigue abierto para cancelar.
+    /// </para>
+    ///
+    /// <para>
+    /// Una excepción, en cambio, no dice qué pasó: <c>EjecucionPurgaService</c>
+    /// borra archivos antes de guardar, así que la ejecución puede haberse
+    /// aplicado en parte. Por eso el aviso no afirma nada sobre el resultado,
+    /// el diálogo se cierra —dejar «Destruir definitivamente» delante invitaría
+    /// a repetir a ciegas— y la lista se recarga para enseñar el estado real
+    /// de la propuesta antes de decidir si repetir.
+    /// </para>
+    /// </summary>
     private async Task EjecutarAsync()
     {
-        if (_aEjecutar is null) return;
+        if (_aEjecutar is not { } solicitud) return;
 
         _procesando = true;
         StateHasChanged();
 
         try
         {
-            var resultado = await Mediator.Send(new EjecutarPurgaCommand(_aEjecutar.Id));
+            var resultado = await Mediator.Send(new EjecutarPurgaCommand(solicitud.Id));
 
             if (resultado.EsFallido)
             {
@@ -218,11 +305,51 @@ public partial class Retencion : CaeManager.Web.Components.PaginaIntegrableConfi
             _aEjecutar = null;
             await CargarAsync();
         }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al ejecutar la purga {SolicitudId}: resultado sin confirmar.", solicitud.Id);
+            ToastService.Mostrar(
+                "No pudimos confirmar el resultado de la purga: puede haberse aplicado en parte. " +
+                "Revisa el estado de la propuesta antes de volver a intentarlo.",
+                TonoToast.Error);
+            _aEjecutar = null;
+            await CargarAsync();
+        }
         finally
         {
             _procesando = false;
         }
     }
+
+    /// <summary>
+    /// Lo que se afirma tiene que ser lo que <c>EjecucionPurgaService</c> hace
+    /// para ESE tipo: solo los Documentos tienen archivo que borrar;
+    /// anonimizar un Trabajador vacía sus campos identificativos y no toca
+    /// ningún fichero, y se dice expresamente para que nadie suponga un
+    /// borrado que no ocurre. Y el número es el de la detección: la ejecución
+    /// vuelve a seleccionar por la fecha de corte, así que se dice de dónde sale.
+    /// </summary>
+    private string MensajeEjecutar => _aEjecutar is not { } solicitud
+        ? string.Empty
+        : string.Concat(
+            $"Se van a anonimizar los registros de {DescribirTipo(solicitud.TipoDato)} que cumplieron plazo antes del ",
+            $"{solicitud.FechaCorte:dd/MM/yyyy} ({solicitud.RegistrosAfectados} al detectarlos)",
+            solicitud.TipoDato == TipoDatoPurgable.Documentos
+                ? " y a borrar sus archivos asociados. "
+                : ". No se borra ningún archivo: solo se vacían sus datos identificativos. ",
+            "Esto no se puede deshacer: los datos personales dejarán de existir; el histórico se conserva sin ellos.");
+
+    /// <summary>
+    /// La fecha que el estado lleva dentro, para poder copiarla. «Lista para
+    /// ejecutar» no la muestra, así que tampoco la ofrece.
+    /// </summary>
+    private static DateOnly? FechaDelEstado(SolicitudPurgaDto solicitud) => solicitud.Estado switch
+    {
+        EstadoSolicitudPurga.Programada when !solicitud.PuedeEjecutarseHoy => solicitud.FechaEjecucionProgramada,
+        EstadoSolicitudPurga.Ejecutada when solicitud.EjecutadaEnUtc is { } ejecutada =>
+            DateOnly.FromDateTime(ejecutada.ToLocalTime()),
+        _ => null
+    };
 
     private static string DescribirTipo(TipoDatoPurgable tipo) => tipo switch
     {
