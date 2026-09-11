@@ -170,8 +170,20 @@
     private async Task ManejarBlurAsync()
     {
         _debounceCts?.Cancel();
-        _ultimoValorNotificado = _ultimoValor;
-        await ValorChanged.InvokeAsync(_ultimoValor);
+
+        // Si el debounce ya notificó este mismo valor (blur llegado después
+        // de que Task.Delay venciera por su cuenta, sin que el usuario
+        // tecleara nada más), no hay nada pendiente que volcar — reinvocar
+        // ValorChanged aquí duplicaría la notificación y, en listas que lo
+        // usan como filtro, recargaría la rejilla una segunda vez sin
+        // motivo. OnBlur sí se invoca siempre: es "el campo perdió el
+        // foco", independiente de si el valor cambió.
+        if (_ultimoValor != _ultimoValorNotificado)
+        {
+            _ultimoValorNotificado = _ultimoValor;
+            await ValorChanged.InvokeAsync(_ultimoValor);
+        }
+
         await OnBlur.InvokeAsync();
     }
 
