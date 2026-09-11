@@ -102,17 +102,21 @@ public class RetencionTests : BunitContext
 
     private static SolicitudPurgaDto PendienteDeRevision() =>
         new(SolicitudId, TipoDatoPurgable.Documentos, EstadoSolicitudPurga.PendienteDeRevision, 42, new DateOnly(2020, 3, 31),
-            DateTime.UtcNow.AddDays(-2), null, null, null, null);
+            DateTime.UtcNow.AddDays(-2), null, null, null, null, null, null, null);
 
     private static SolicitudPurgaDto ListaParaEjecutar(TipoDatoPurgable tipo = TipoDatoPurgable.Documentos) =>
         new(SolicitudId, tipo, EstadoSolicitudPurga.Programada, 42, new DateOnly(2020, 3, 31),
             DateTime.UtcNow.AddDays(-40), DateTime.UtcNow.AddDays(-35),
-            DateOnly.FromDateTime(DateTime.UtcNow), null, null);
+            DateOnly.FromDateTime(DateTime.UtcNow), null, null, null, null, null);
 
+    /// <summary>
+    /// Sin ResultadoEjecucion a propósito: representa una solicitud ejecutada
+    /// antes de que ese eje existiera (SolicitudPurga.RegistrarResultadoEjecucion).
+    /// </summary>
     private static SolicitudPurgaDto Ejecutada() =>
         new(Guid.NewGuid(), TipoDatoPurgable.Documentos, EstadoSolicitudPurga.Ejecutada, 311, new DateOnly(2018, 12, 31),
             DateTime.UtcNow.AddDays(-90), DateTime.UtcNow.AddDays(-80),
-            DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-70)), DateTime.UtcNow.AddDays(-70), null);
+            DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-70)), DateTime.UtcNow.AddDays(-70), null, null, null, null);
 
     private (IRenderedComponent<RetencionPage> Cut, MediatorRegistrador Mediator) Renderizar(
         bool politicaActiva,
