@@ -1,3 +1,4 @@
+using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
@@ -37,8 +38,12 @@ public class VehiculosVacioPorFiltroTests : BunitContext
     {
         public required IReadOnlyList<VehiculoListaDto> Vehiculos { get; init; }
 
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
-            Task.FromResult((TResponse)(object)(request switch
+        public List<object> Enviadas { get; } = [];
+
+        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        {
+            Enviadas.Add(request);
+            return Task.FromResult((TResponse)(object)(request switch
             {
                 ObtenerPerfilVocabularioActualQuery => PerfilVocabularioTenant.Consultora,
                 ObtenerEmpresasParaSelectorQuery => (object)new[] { new EmpresaSelectorDto(EmpresaId, "Montajes Ebro S.L.") },
@@ -47,6 +52,7 @@ public class VehiculosVacioPorFiltroTests : BunitContext
                     Vehiculos, Vehiculos.Count, q.Pagina, q.TamanoPagina),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             }));
+        }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
             Task.CompletedTask;
@@ -75,9 +81,14 @@ public class VehiculosVacioPorFiltroTests : BunitContext
     }
 
     private IRenderedComponent<Vehiculos> Renderizar(string? busqueda = null, string? estado = null,
-        params VehiculoListaDto[] vehiculos)
+        params VehiculoListaDto[] vehiculos) =>
+        RenderizarConMediador(busqueda, estado, vehiculos).Cut;
+
+    private (IRenderedComponent<Vehiculos> Cut, MediatorPorTipo Mediador) RenderizarConMediador(
+        string? busqueda = null, string? estado = null, params VehiculoListaDto[] vehiculos)
     {
-        Services.AddScoped<IMediator>(_ => new MediatorPorTipo { Vehiculos = vehiculos });
+        var mediador = new MediatorPorTipo { Vehiculos = vehiculos };
+        Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
@@ -91,7 +102,7 @@ public class VehiculosVacioPorFiltroTests : BunitContext
         Services.GetRequiredService<NavigationManager>()
             .NavigateTo(partes.Count == 0 ? "vehiculos" : "vehiculos?" + string.Join('&', partes));
 
-        return Render<Vehiculos>();
+        return (Render<Vehiculos>(), mediador);
     }
 
     [Fact]
@@ -160,5 +171,60 @@ public class VehiculosVacioPorFiltroTests : BunitContext
         cut.Markup.Should().NotContain("Ningún vehículo con estos filtros");
         cut.Markup.Should().NotContain("Aún no hay vehículos");
         cut.Markup.Should().Contain("1234-ABC");
+    }
+
+    // --- Recuento de consultas ----------------------------------------------------------------
+
+    private static int ConsultasDeLista(MediatorPorTipo mediador) =>
+        mediador.Enviadas.OfType<ObtenerVehiculosQuery>().Count();
+
+    private static IRenderedComponent<CampoTexto> CajaDeBusqueda(IRenderedComponent<Vehiculos> cut) =>
+        cut.FindComponents<CampoTexto>().First(c => c.Instance.Placeholder?.StartsWith("Buscar por nombre") == true);
+
+    /// <summary>
+    /// Cambiar el tamaño de página pide la página 1 del tamaño nuevo UNA vez.
+    /// <c>SetCurrentPageIndexAsync</c> ya avisa a QuickGrid aunque la página no
+    /// cambie, así que refrescar además la rejilla pedía lo mismo dos veces
+    /// (ver <c>RecargarAsync</c> en <c>Vehiculos.razor.cs</c>). Los mismos dos
+    /// vehículos antes y después mantienen el total quieto, así que lo que se
+    /// cuenta es lo que pide la página y no una repetición de QuickGrid.
+    /// </summary>
+    [Fact]
+    public void Cambiar_el_tamano_de_pagina_hace_una_sola_consulta()
+    {
+        var (cut, mediador) = RenderizarConMediador(vehiculos:
+        [
+            new VehiculoListaDto(Guid.NewGuid(), "Furgoneta de obra", "Transit", "1234-ABC", "Montajes Ebro S.L."),
+            new VehiculoListaDto(Guid.NewGuid(), "Camión grúa", "Actros", "5678-DEF", "Montajes Ebro S.L.")
+        ]);
+        var consultasAntes = ConsultasDeLista(mediador);
+
+        cut.Find(".paginador-tamano-select").Change("50");
+
+        mediador.Enviadas.OfType<ObtenerVehiculosQuery>().Last().TamanoPagina.Should().Be(50);
+        (ConsultasDeLista(mediador) - consultasAntes).Should().Be(1,
+            "avisar a la paginación y refrescar la rejilla son dos formas de pedir lo mismo");
+    }
+
+    /// <summary>
+    /// Buscar recarga la lista UNA vez, por el mismo motivo. El doble del
+    /// mediador no filtra de verdad, así que el total se queda quieto y no
+    /// puede colarse una repetición de QuickGrid en el recuento.
+    /// </summary>
+    [Fact]
+    public async Task Buscar_sin_cambiar_el_total_hace_una_sola_consulta()
+    {
+        var (cut, mediador) = RenderizarConMediador(vehiculos:
+        [
+            new VehiculoListaDto(Guid.NewGuid(), "Furgoneta de obra", "Transit", "1234-ABC", "Montajes Ebro S.L."),
+            new VehiculoListaDto(Guid.NewGuid(), "Camión grúa", "Actros", "5678-DEF", "Montajes Ebro S.L.")
+        ]);
+        var consultasAntes = ConsultasDeLista(mediador);
+
+        await cut.InvokeAsync(() => CajaDeBusqueda(cut).Instance.ValorChanged.InvokeAsync("1234-ABC"));
+
+        mediador.Enviadas.OfType<ObtenerVehiculosQuery>().Last().Busqueda.Should().Be("1234-ABC");
+        (ConsultasDeLista(mediador) - consultasAntes).Should().Be(1,
+            "avisar a la paginación y refrescar la rejilla son dos formas de pedir lo mismo");
     }
 }

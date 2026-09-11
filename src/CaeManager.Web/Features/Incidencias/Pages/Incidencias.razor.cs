@@ -29,12 +29,13 @@ public partial class Incidencias : ComponentBase
     private Task CambiarPaginaAsync(int pagina) => _paginacion.SetCurrentPageIndexAsync(pagina - 1);
 
     // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
-    private async Task CambiarTamanoPaginaAsync(int tamano)
+    // Una sola petición: SetCurrentPageIndexAsync ya avisa a QuickGrid aunque la
+    // página no cambie, así que refrescar además la rejilla pedía lo mismo dos
+    // veces (ver RecargarAsync).
+    private Task CambiarTamanoPaginaAsync(int tamano)
     {
         _paginacion.ItemsPerPage = tamano;
-        await _paginacion.SetCurrentPageIndexAsync(0);
-        if (_grid is not null)
-            await _grid.RefreshDataAsync();
+        return _paginacion.SetCurrentPageIndexAsync(0);
     }
 
     private QuickGrid<IncidenciaListaDto>? _grid;
@@ -286,12 +287,20 @@ public partial class Incidencias : ComponentBase
         await RecargarAsync();
     }
 
+    /// <summary>
+    /// Vuelve a la página 1 y pide la lista UNA vez.
+    /// <see cref="PaginationState.SetCurrentPageIndexAsync"/> no lleva guarda de
+    /// igualdad: avisa a QuickGrid cambie o no la página, y QuickGrid recarga al
+    /// recibir el aviso. Llamar además a <c>RefreshDataAsync</c> pedía dos veces
+    /// lo mismo. Ver <c>Clientes.razor.cs</c> para el detalle del componente.
+    /// El error tiene su propio camino en <see cref="ReintentarAsync"/>.
+    /// </summary>
     private async Task RecargarAsync()
     {
-        await _paginacion.SetCurrentPageIndexAsync(0);
-
-        if (_grid is not null)
+        if (_grid is not null && _paginacion.CurrentPageIndex == 0)
             await _grid.RefreshDataAsync();
+        else
+            await _paginacion.SetCurrentPageIndexAsync(0);
 
         StateHasChanged();
     }

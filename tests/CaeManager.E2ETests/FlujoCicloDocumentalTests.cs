@@ -236,9 +236,10 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await page.Locator(".modal-cuerpo").GetByLabel("Centro", new LocatorGetByLabelOptions { Exact = true })
             .FillAsync($"{nombreCentro} ({razonSocialCliente})");
         await page.WaitForTimeoutAsync(500);
-        // El botón de confirmar cambia de texto a "Asignar igualmente" si
-        // quedan documentos obligatorios sin cubrir (ver Trabajadores.razor.cs,
-        // ObtenerDocumentosFaltantesParaAsignacionQuery) — este Trabajador de
+        // El botón de confirmar cambia de texto a "Asignar igualmente" si al
+        // comprobarlo faltaba algún documento de los que se piden (ver
+        // Trabajadores.razor.cs, ObtenerDocumentosFaltantesParaAsignacionQuery)
+        // — este Trabajador de
         // prueba solo tiene el Documento de este test, así que casi seguro
         // los tiene: se acepta cualquiera de los dos textos.
         await page.Locator(".modal-pie").GetByText(new Regex("^Asignar")).ClickAsync();

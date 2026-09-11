@@ -149,8 +149,9 @@ public partial class AcordeonAsignacionesCentro : ComponentBase
     /// <summary>
     /// "Asignación rápida desde visita" (§ 0.3): el trabajador ya está
     /// identificado por <c>VisitaTrabajador</c> — no hace falta un selector,
-    /// solo confirmar la fecha de alta (hoy) y avisar si le faltará algún
-    /// documento obligatorio, mismo preflight no bloqueante que el drawer N×M.
+    /// solo confirmar la fecha de alta (hoy) y avisar si al comprobarlo le
+    /// faltaba algún documento de los que se piden, mismo preflight no
+    /// bloqueante que el drawer N×M.
     /// </summary>
     private async Task AsignarDesdeVisitaAsync(TrabajadorSinAsignacionDto trabajador)
     {
@@ -172,7 +173,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase
             ToastService.Mostrar(
                 faltantes.Count == 0
                     ? $"{trabajador.TrabajadorNombre} asignado a {CentroNombre}."
-                    : $"{trabajador.TrabajadorNombre} asignado a {CentroNombre} — le faltan {faltantes.Count} documento(s) obligatorio(s).",
+                    : $"{trabajador.TrabajadorNombre} asignado a {CentroNombre} — al comprobarlo le faltaban {faltantes.Count} documento(s) que se piden.",
                 faltantes.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
 
             await CargarAsync();
