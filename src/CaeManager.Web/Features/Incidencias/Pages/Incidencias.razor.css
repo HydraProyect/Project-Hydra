@@ -1,0 +1,25 @@
+/* Incidencias TALVEG.dc.html: Tipo y Gravedad comparten fila en el formulario. */
+.campos-en-par {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+}
+
+/* Recuento de la lista, junto a «Selección múltiple». */
+.recuento-incidencias {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+/* Recordatorio de los atajos de AtajosListaTeclado, a la derecha de la barra. */
+.atajos-incidencias {
+    margin-left: auto;
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+.atajos-incidencias kbd {
+    font: var(--font-body-sm);
+    font-weight: 700;
+    color: var(--color-text);
+}
