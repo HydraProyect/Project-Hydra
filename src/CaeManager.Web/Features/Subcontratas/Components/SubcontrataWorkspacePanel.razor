@@ -1,9 +1,42 @@
 @*
-    Panel de Subcontrata para el Context Workspace — se le da el mismo
-    tratamiento de primer nivel que a Empresa (decisión explícita del
-    usuario: "si la dejas solo como pestaña del Cliente, acabarás
-    duplicando lógica o limitando funcionalidades"). Pestañas: Información,
-    Trabajadores, Documentación, Centros, Historial.
+    Subcontrata 360 — Context Workspace de una Subcontrata, contra su mockup
+    Gen 2 («Subcontrata 360 TALVEG.dc.html»). «Subcontrata» es el papel que
+    ocupa una Empresa en una Relación Empresarial —la proveedora—, no un tipo
+    permanente de Empresa: la misma Empresa puede ser contratista en otra
+    relación. Tratamiento de primer nivel, igual que Empresa (decisión
+    explícita del usuario: "si la dejas solo como pestaña del Cliente,
+    acabarás duplicando lógica o limitando funcionalidades").
+
+    Qué del mockup NO se copia, y por qué:
+    - «2.º nivel» (profundidad en la cadena de subcontratación): ningún DTO la
+      trae. La cabecera enseña el nivel de servicio (Gestionada/Supervisada),
+      que es lo que el código sí sabe.
+    - «Queda registrado en Auditoría quién la ha revelado y cuándo»: ni
+      ObtenerCredencialAccesoSubcontrataQuery ni ningún behavior de su
+      pipeline escriben un registro de auditoría (AutorizacionSecretosDeTenant
+      solo la corta en sesión privilegiada). Tampoco hay una consulta sin
+      contraseña para Subcontrata (sí para Empresa), así que la tarjeta
+      «Acceso al portal» no pide nada al abrir el panel: las credenciales
+      llegan solo al pulsar «Ver credenciales» (DEC-53/DEC-62), «Revelar» solo
+      desenmascara lo ya recibido y «Ocultar credenciales» lo suelta.
+    - Lista de documentos de la subcontrata y su recuento en la pestaña: el
+      panel no tiene una consulta de Documentos de la subcontrata; la pestaña
+      lo dice y lleva a sus trabajadores.
+    - «+ Añadir trabajador», «+ Asignar a centro» y el estado por centro de la
+      pestaña Centros: no hay flujo ni dato que los respalde desde aquí.
+    - «hace 34 días» y «por Marta R.» en Supervisión: el DTO trae la fecha de
+      la verificación, no quién la registró; se enseña la fecha.
+
+    Qué se conserva aunque el mockup no lo pinte: edición in situ con
+    credenciales, cambio de nivel de servicio, verificación con tipo de
+    documento, fechas y evidencia, «Eliminar» de cada verificación, enlaces que
+    apilan Trabajador 360 y Centro 360, Agenda e Historial reales. El apilado,
+    el deep link (?ctx=Subcontrata:id:pestaña) y Escape los pone
+    ContextWorkspace.razor, igual que para los otros seis paneles.
+
+    Carga: los recuentos de la cabecera y de las pestañas exigen conocer
+    trabajadores, centros y supervisión al abrir, así que se piden en serie
+    detrás de la cabecera (antes, cada pestaña cargaba al entrar en ella).
 *@
 @using CaeManager.Application.Centros
 @using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector
@@ -11,6 +44,7 @@
 @using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector
 @using CaeManager.Application.Subcontratas.Commands.CambiarNivelServicioSubcontrata
 @using CaeManager.Application.Subcontratas.Commands.EditarSubcontrata
+@using CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata
 @using CaeManager.Application.Subcontratas.Commands.EliminarVerificacionExterna
 @using CaeManager.Application.Subcontratas.Commands.GuardarCredencialAccesoSubcontrata
 @using CaeManager.Application.Subcontratas.Commands.RegistrarVerificacionExterna
@@ -22,10 +56,12 @@
 @using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores
 @using CaeManager.Domain.Documentos
 @using CaeManager.Domain.Subcontratas
+@using CaeManager.Web.Features.Documentos
 @using Microsoft.AspNetCore.Components.Forms
 @using FluentValidation
 @using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
 @using MediatR
+@implements IDisposable
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
 @inject ToastService ToastService
@@ -38,23 +74,33 @@ else if (_error || _detalle is null)
 {
     <EstadoVacio Titulo="No pudimos cargar la subcontrata" Descripcion="Intenta nuevamente en unos segundos.">
         <Accion>
-            <Boton OnClick="CargarCabeceraAsync">Reintentar</Boton>
+            <Boton OnClick="ReintentarAsync">Reintentar</Boton>
         </Accion>
     </EstadoVacio>
 }
 else
 {
-    <div class="workspace-cabecera-entidad">
-        <h2 class="workspace-titulo-entidad">@_detalle.RazonSocial</h2>
-        @if (PestanaActiva == "informacion" && !_editandoInformacion)
-        {
-            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="IniciarEdicionInformacionAsync" aria-label="Editar información de la subcontrata">
-                <Icono Nombre="editar" Tamano="TamanoIcono.Pequeno" />
-            </Boton>
-        }
+    <div class="cabecera-subcontrata-360">
+        <span class="icono-subcontrata-360"><Icono Nombre="subcontratas" /></span>
+        <div class="texto-cabecera-subcontrata-360">
+            <span class="kicker-subcontrata-360">Subcontrata</span>
+            <h2 class="workspace-titulo-entidad titulo-subcontrata-360">@_detalle.RazonSocial</h2>
+            <div class="meta-subcontrata-360">
+                <Badge Tono="EstadoSupervisionUi.TonoNivel(_detalle.NivelServicio)" Tamano="TamanoBadge.Pequeno">@EstadoSupervisionUi.TextoNivel(_detalle.NivelServicio)</Badge>
+                @if (CentrosSinVerificar > 0)
+                {
+                    <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">@(CentrosSinVerificar == 1 ? "1 centro sin verificar" : $"{CentrosSinVerificar} centros sin verificar")</Badge>
+                }
+                @if (TextoRecuentos is { } recuentos)
+                {
+                    <span class="recuentos-subcontrata-360">@recuentos</span>
+                }
+            </div>
+        </div>
     </div>
 
-    <Pestanas Definiciones="_pestanas" PestanaActiva="PestanaActiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="Secciones de la subcontrata">
+    @* PestanaActiva con @: el parámetro es string, y sin @ Razor le pasa el literal "PestanaActiva" (ninguna pestaña quedaba marcada como activa). *@
+    <Pestanas Definiciones="PestanasConRecuento" PestanaActiva="@PestanaActiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="Secciones de la subcontrata">
         @switch (PestanaActiva)
         {
             case "informacion":
@@ -66,11 +112,11 @@ else
                     }
                     <CampoTexto Etiqueta="Razón social" Valor="@_razonSocialInfo" ValorChanged="v => _razonSocialInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarSubcontrataCommand.RazonSocial))" />
                     <CampoTexto Etiqueta="CIF" Valor="@_cifInfo" ValorChanged="v => _cifInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarSubcontrataCommand.Cif))" />
-                    <SelectorMultiple Etiqueta="Clientes que la contrataron"
+                    <SelectorMultiple Etiqueta="Clientes empresariales para los que trabaja"
                                        Elementos="@_clientesDisponiblesSelector"
                                        Seleccionados="@_clienteIdsInfo"
                                        OnAlternar="args => AlternarClienteInfo(args.Id, args.Marcado)"
-                                       TextoVacio="Todavía no hay clientes creados." />
+                                       TextoVacio="Todavía no hay clientes empresariales creados." />
                     <SelectorMultiple Etiqueta="Empresas a las que presta servicio"
                                        Elementos="@_empresasDisponiblesSelector"
                                        Seleccionados="@_empresaIdsInfo"
@@ -113,23 +159,120 @@ else
                 }
                 else
                 {
-                    <div class="workspace-grupo-campos">
-                        <CampoInfo Etiqueta="Razón social" Valor="@_detalle.RazonSocial" />
-                        <CampoInfo Etiqueta="CIF" Valor="@_detalle.Cif" />
-                        <CampoInfo Etiqueta="Nivel de servicio" Valor="@EstadoSupervisionUi.TextoNivel(_detalle.NivelServicio)" />
-                        <CampoInfo Etiqueta="Clientes con los que trabaja" Valor="@_detalle.ClienteIds.Count.ToString()" />
-                        <CampoInfo Etiqueta="Empresas a las que presta servicio" Valor="@_detalle.EmpresaIds.Count.ToString()" />
-                        <CampoInfo Etiqueta="Creada" Valor="@_detalle.CreadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy")" />
+                    <div class="rejilla-info-subcontrata-360">
+                        <div class="celda-info-subcontrata-360 celda-info-subcontrata-360-ancha"><span>Razón social</span><strong>@_detalle.RazonSocial</strong></div>
+                        <div class="celda-info-subcontrata-360">
+                            <span>CIF</span>
+                            <div class="valor-con-copia-subcontrata-360">
+                                <strong>@(string.IsNullOrWhiteSpace(_detalle.Cif) ? "—" : _detalle.Cif)</strong>
+                                @if (!string.IsNullOrWhiteSpace(_detalle.Cif))
+                                {
+                                    <BotonCopiar Valor="@_detalle.Cif" Etiqueta="el CIF" />
+                                }
+                            </div>
+                        </div>
+                        <div class="celda-info-subcontrata-360"><span>Nivel de servicio</span><strong>@EstadoSupervisionUi.TextoNivel(_detalle.NivelServicio)</strong></div>
+                        <div class="celda-info-subcontrata-360"><span>Clientes empresariales para los que trabaja</span><strong>@TextoRelaciones(_detalle.ClienteIds, _nombresClientes)</strong></div>
+                        <div class="celda-info-subcontrata-360"><span>Empresas a las que presta servicio</span><strong>@TextoRelaciones(_detalle.EmpresaIds, _nombresEmpresas)</strong></div>
+                        <div class="celda-info-subcontrata-360"><span>Alta</span><strong>@_detalle.CreadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy")</strong></div>
                     </div>
+
                     <p class="workspace-nota-contextual">
                         @(_detalle.NivelServicio == NivelServicioSubcontrata.Gestionada
-                            ? "Gestionada: su documentación se sube y valida dentro de Hydra."
-                            : "Supervisada: no se gestionan sus documentos — solo se audita su cumplimiento en las plataformas del titular (pestaña Supervisión).")
+                            ? "Gestionada: su documentación se sube y se valida aquí."
+                            : "Supervisada: no se gestionan sus documentos — solo se audita su cumplimiento en las plataformas externas de cada centro (pestaña Supervisión).")
                     </p>
-                    <div class="workspace-acciones-edicion">
-                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_cambiandoNivel" OnClick="ConfirmarCambioNivelAsync">
+
+                    <section class="tarjeta-acceso-subcontrata-360" aria-label="Acceso al portal">
+                        <div class="cabecera-tarjeta-acceso-subcontrata-360">
+                            <span class="titulo-tarjeta-acceso-subcontrata-360">Acceso al portal</span>
+                            <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">Credenciales de terceros</Badge>
+                        </div>
+                        <div class="cuerpo-tarjeta-acceso-subcontrata-360">
+                            @if (_credencial is null)
+                            {
+                                @if (_errorCredencial)
+                                {
+                                    <p class="texto-secundario" role="alert">No pudimos traer las credenciales. Intenta nuevamente en unos segundos.</p>
+                                }
+                                else if (_credencialConsultada)
+                                {
+                                    <p class="texto-secundario">No hay credenciales que puedas ver para esta subcontrata.</p>
+                                }
+                                else
+                                {
+                                    <p class="texto-secundario">Se piden solo cuando las necesitas, no al abrir la ficha.</p>
+                                }
+                                <div>
+                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_cargandoCredencial" OnClick="MostrarCredencialAsync">Ver credenciales</Boton>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="rejilla-acceso-subcontrata-360">
+                                    <div class="celda-info-subcontrata-360 celda-info-subcontrata-360-ancha">
+                                        <span>URL</span>
+                                        <div class="valor-con-copia-subcontrata-360">
+                                            <strong>@(string.IsNullOrWhiteSpace(_credencial.UrlAcceso) ? "—" : _credencial.UrlAcceso)</strong>
+                                            @if (!string.IsNullOrWhiteSpace(_credencial.UrlAcceso))
+                                            {
+                                                <BotonCopiar Valor="@_credencial.UrlAcceso" Etiqueta="la URL" />
+                                            }
+                                        </div>
+                                    </div>
+                                    @if (!string.IsNullOrWhiteSpace(_credencial.CampoEmpresa))
+                                    {
+                                        <div class="celda-info-subcontrata-360 celda-info-subcontrata-360-ancha">
+                                            <span>Empresa / Cliente / Proveedor</span>
+                                            <div class="valor-con-copia-subcontrata-360">
+                                                <strong>@_credencial.CampoEmpresa</strong>
+                                                <BotonCopiar Valor="@_credencial.CampoEmpresa" Etiqueta="este campo" />
+                                            </div>
+                                        </div>
+                                    }
+                                    <div class="celda-info-subcontrata-360">
+                                        <span>Usuario</span>
+                                        <div class="valor-con-copia-subcontrata-360">
+                                            <strong>@(string.IsNullOrWhiteSpace(_credencial.Usuario) ? "—" : _credencial.Usuario)</strong>
+                                            @if (!string.IsNullOrWhiteSpace(_credencial.Usuario))
+                                            {
+                                                <BotonCopiar Valor="@_credencial.Usuario" Etiqueta="el usuario" />
+                                            }
+                                        </div>
+                                    </div>
+                                    <div class="celda-info-subcontrata-360">
+                                        <span>Contraseña</span>
+                                        @if (string.IsNullOrEmpty(_credencial.Contrasena))
+                                        {
+                                            <strong>—</strong>
+                                        }
+                                        else
+                                        {
+                                            <div class="valor-con-copia-subcontrata-360">
+                                                <strong class="contrasena-subcontrata-360">@(_contrasenaVisible ? _credencial.Contrasena : "••••••••••")</strong>
+                                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" aria-pressed="@(_contrasenaVisible ? "true" : "false")" OnClick="AlternarContrasena">@(_contrasenaVisible ? "Ocultar" : "Revelar")</Boton>
+                                                <BotonCopiar Valor="@_credencial.Contrasena" Etiqueta="la contraseña" />
+                                            </div>
+                                        }
+                                    </div>
+                                    @if (!string.IsNullOrWhiteSpace(_credencial.Notas))
+                                    {
+                                        <div class="celda-info-subcontrata-360 celda-info-subcontrata-360-ancha"><span>Notas</span><strong class="workspace-texto-notas">@_credencial.Notas</strong></div>
+                                    }
+                                </div>
+                                <div>
+                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="OcultarCredencial">Ocultar credenciales</Boton>
+                                </div>
+                            }
+                        </div>
+                    </section>
+
+                    <div class="acciones-subcontrata-360">
+                        <Boton Variante="VarianteBoton.Secundario" Cargando="_abriendoEdicion" OnClick="IniciarEdicionInformacionAsync">Editar identidad</Boton>
+                        <Boton Variante="VarianteBoton.Secundario" Cargando="_cambiandoNivel" OnClick="ConfirmarCambioNivelAsync">
                             Cambiar a @EstadoSupervisionUi.TextoNivel(NivelOpuesto)
                         </Boton>
+                        <Boton Variante="VarianteBoton.Destructivo" OnClick="AbrirDarDeBaja">Dar de baja</Boton>
                     </div>
                 }
                 break;
@@ -143,16 +286,17 @@ else
                 {
                     <EstadoVacio Titulo="No pudimos cargar los trabajadores" Descripcion="Intenta nuevamente en unos segundos.">
                         <Accion>
-                            <Boton OnClick="CargarTrabajadoresAsync">Reintentar</Boton>
+                            <Boton OnClick="ReintentarTrabajadoresAsync">Reintentar</Boton>
                         </Accion>
                     </EstadoVacio>
                 }
                 else if (_trabajadores is { Count: 0 })
                 {
-                    <EstadoVacio Titulo="Sin trabajadores" Descripcion="Esta subcontrata todavía no tiene ningún trabajador dado de alta." />
+                    <EstadoVacio Titulo="Sin trabajadores que puedas ver" Descripcion="Si tu acceso está acotado a una cartera, solo aparecen los trabajadores con una asignación activa en uno de sus centros." />
                 }
                 else if (_trabajadores is not null)
                 {
+                    <p class="resumen-subcontrata-360">@TextoResumenTrabajadores</p>
                     <ul class="workspace-lista-entidades">
                         @foreach (var trabajador in _trabajadores)
                         {
@@ -160,14 +304,20 @@ else
                                 @key="trabajador.Id"
                                 Titulo="@($"{trabajador.Nombre} {trabajador.Apellidos}")"
                                 Subtitulo="@trabajador.Dni"
-                                OnClic="() => AbrirTrabajadorAsync(trabajador)" />
+                                OnClic="() => AbrirTrabajadorAsync(trabajador)">
+                                <Badge Tono="EstadoDocumentoUi.TonoDocumental(trabajador.EstadoDocumental)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.TextoDocumental(trabajador.EstadoDocumental)</Badge>
+                            </FilaEntidadRelacionada>
                         }
                     </ul>
                 }
                 break;
 
             case "documentacion":
-                <EstadoVacio Titulo="Documentación no modelada a nivel de Subcontrata" Descripcion="El modelo de datos actual solo asocia Documentos a Trabajador, Cliente, Empresa o Vehículo — consulta la pestaña Documentación de cada Trabajador de esta subcontrata." />
+                <EstadoVacio Titulo="Documentación no modelada a nivel de Subcontrata" Descripcion="El modelo de datos actual solo asocia Documentos a Trabajador, Cliente, Empresa o Vehículo — consulta la pestaña Documentación de cada Trabajador de esta subcontrata.">
+                    <Accion>
+                        <Boton Variante="VarianteBoton.Secundario" OnClick='() => PestanaActivaChanged.InvokeAsync("trabajadores")'>Ver sus trabajadores</Boton>
+                    </Accion>
+                </EstadoVacio>
                 break;
 
             case "supervision":
@@ -179,36 +329,37 @@ else
                 {
                     <EstadoVacio Titulo="No pudimos cargar la supervisión" Descripcion="Intenta nuevamente en unos segundos.">
                         <Accion>
-                            <Boton OnClick="CargarSupervisionAsync">Reintentar</Boton>
+                            <Boton OnClick="ReintentarSupervisionAsync">Reintentar</Boton>
                         </Accion>
                     </EstadoVacio>
                 }
                 else if (_supervision is not null)
                 {
-                    <p class="workspace-nota-contextual">
-                        Cumplimiento de la subcontrata en las plataformas del titular de cada centro, verificado a mano por el gestor
-                        — el semáforo se calcula con la última verificación y los umbrales del sistema.
+                    <p class="texto-supervision-subcontrata-360">
+                        Cumplimiento de la subcontrata en las plataformas externas de cada centro, según las verificaciones
+                        que se registran a mano aquí. El semáforo se calcula con la última verificación y los umbrales del sistema.
                     </p>
-                    <div class="workspace-acciones-edicion">
+                    <div class="acciones-subcontrata-360">
                         <Boton Tamano="TamanoBoton.Pequeno" OnClick="AbrirRegistrarVerificacionAsync" Deshabilitado="@(_supervision.CentrosSeleccionables.Count == 0)">
                             + Registrar verificación
                         </Boton>
+                        <span class="resumen-subcontrata-360">@TextoUltimaVerificacion</span>
                     </div>
 
                     @if (_supervision.Centros.Count == 0)
                     {
                         <EstadoVacio Titulo="Sin supervisión registrada"
                                      Descripcion="@(_supervision.CentrosSeleccionables.Count == 0
-                                         ? "Vincula la subcontrata a un Cliente con Centros para poder verificar su cumplimiento."
+                                         ? "Vincula la subcontrata a un Cliente empresarial con Centros para poder verificar su cumplimiento."
                                          : "Registra la primera verificación para empezar a seguir su cumplimiento externo.")" />
                     }
                     else
                     {
                         @foreach (var centro in _supervision.Centros)
                         {
-                            <div class="workspace-grupo-campos">
+                            <section class="centro-supervision-subcontrata-360" aria-label="@centro.CentroNombre">
                                 <h3 class="workspace-subtitulo-seccion">@centro.CentroNombre <span class="texto-secundario">· @centro.ClienteRazonSocial</span></h3>
-                                <ul class="workspace-lista-entidades">
+                                <ul class="lista-supervision-subcontrata-360">
                                     @foreach (var tipo in centro.Tipos)
                                     {
                                         <li class="fila-supervision">
@@ -228,7 +379,8 @@ else
                                                     {
                                                         <a href="@($"/subcontratas/verificaciones/{ultima.Id}/evidencia")" target="_blank" rel="noopener">Ver evidencia</a>
                                                     }
-                                                    <button type="button" class="enlace-nombre-fila" @onclick="() => AbrirEliminarVerificacion(ultima.Id)">Eliminar</button>
+                                                    @* Nombre contextual: hay un «Eliminar» por verificación, y a secas un lector de pantalla no distingue cuál borra. *@
+                                                    <button type="button" class="enlace-nombre-fila" aria-label="@($"Eliminar la verificación de {tipo.TipoDocumentoNombre} en {centro.CentroNombre}")" @onclick="() => AbrirEliminarVerificacion(ultima.Id)">Eliminar</button>
                                                 </div>
                                                 @if (!string.IsNullOrWhiteSpace(ultima.Observaciones))
                                                 {
@@ -238,7 +390,7 @@ else
                                         </li>
                                     }
                                 </ul>
-                            </div>
+                            </section>
                         }
                     }
                 }
@@ -253,7 +405,7 @@ else
                 {
                     <EstadoVacio Titulo="No pudimos cargar los centros" Descripcion="Intenta nuevamente en unos segundos.">
                         <Accion>
-                            <Boton OnClick="CargarCentrosAsync">Reintentar</Boton>
+                            <Boton OnClick="ReintentarCentrosAsync">Reintentar</Boton>
                         </Accion>
                     </EstadoVacio>
                 }
@@ -286,6 +438,15 @@ else
                 break;
         }
     </Pestanas>
+
+    <DialogoConfirmacion
+        Visible="_confirmarBajaVisible"
+        VisibleChanged="v => _confirmarBajaVisible = v"
+        Titulo="@($"¿Dar de baja a {_detalle.RazonSocial}?")"
+        Mensaje="Se marca como eliminada: deja de aparecer en las listas y en los selectores, y se cierra esta ficha. Si todavía tiene trabajadores no se da de baja, y se te dice por qué."
+        TextoBotonConfirmar="Dar de baja"
+        EnProgreso="_dandoDeBaja"
+        OnConfirmar="ConfirmarDarDeBajaAsync" />
 
     <DialogoConfirmacion
         Visible="_confirmarEliminarVerificacionVisible"
@@ -366,6 +527,9 @@ else
         new("historial", "Historial")
     ];
 
+    /// <summary>Tope de la lista de la pestaña Trabajadores: si hay más, el resumen lo dice.</summary>
+    private const int TamanoPaginaTrabajadores = 50;
+
     [Parameter, EditorRequired] public Guid EntidadId { get; set; }
     [Parameter, EditorRequired] public string PestanaActiva { get; set; } = string.Empty;
     [Parameter] public EventCallback<string> PestanaActivaChanged { get; set; }
@@ -375,12 +539,51 @@ else
     private bool _error;
     private Guid _idCargado;
 
+    /// <summary>
+    /// Generación de la entidad que enseña el panel. El Context Workspace
+    /// reutiliza ESTA instancia al pasar de una Subcontrata a otra (mismo tipo,
+    /// sin @key), así que una carga de la primera puede volver cuando ya se ve
+    /// la segunda. Cambiar de entidad y retirar el componente suben la
+    /// generación y todos los contadores de carga: cada respuesta compara el
+    /// suyo antes de escribir y, si ya no es el vigente, se descarta.
+    /// </summary>
+    private int _generacion;
+    private int _cargaCabecera;
+    private int _cargaNombres;
+    private int _cargaTrabajadores;
+    private int _cargaCentros;
+    private int _cargaSupervision;
+    private int _cargaCredencial;
+
+    /// <summary>
+    /// Los contadores impiden que una respuesta tardía escriba; esto corta la
+    /// consulta misma. Todas las consultas de carga llevan su token y
+    /// <see cref="Dispose"/> lo cancela: retirado el panel, lo que estaba en
+    /// vuelo deja de ocupar el DbContext del circuito. Los comandos NO lo
+    /// llevan: cerrar la ficha no deshace un guardado que el usuario ya pidió.
+    /// El token se copia al inicializar porque leer <c>Token</c> de un
+    /// <see cref="CancellationTokenSource"/> ya desechado lanza.
+    /// </summary>
+    private readonly CancellationTokenSource _ciclo = new();
+    private CancellationToken _cancelacion;
+
     private IReadOnlyList<TrabajadorListaDto>? _trabajadores;
+    private int _totalTrabajadores;
     private bool _cargandoTrabajadores;
     private bool _errorTrabajadores;
     private IReadOnlyList<CentroConActividadDto>? _centros;
     private bool _cargandoCentros;
     private bool _errorCentros;
+
+    /// <summary>
+    /// Nombres de las contrapartes de la relación, por Id. Los Ids de
+    /// <see cref="SubcontrataDetalleDto"/> NO se acotan por cartera y los
+    /// selectores sí pueden hacerlo: un Id sin nombre se cuenta, no se inventa.
+    /// </summary>
+    private IReadOnlyDictionary<Guid, string> _nombresClientes = new Dictionary<Guid, string>();
+    private IReadOnlyDictionary<Guid, string> _nombresEmpresas = new Dictionary<Guid, string>();
+    private bool _nombresCargados;
+    private bool _errorNombres;
 
     // Supervisión externa (ADR-005 § 2.3).
     private SupervisionSubcontrataDto? _supervision;
@@ -402,6 +605,21 @@ else
     private Guid _verificacionAEliminarId;
     private bool _confirmarEliminarVerificacionVisible;
     private bool _eliminandoVerificacion;
+    private bool _abriendoRegistroVerificacion;
+
+    /// <summary>
+    /// Tarjeta «Acceso al portal» en modo lectura. Nada se pide al abrir el
+    /// panel: la consulta devuelve también la contraseña, y DEC-53/DEC-62
+    /// exige que solo viaje tras una acción explícita.
+    /// </summary>
+    private CredencialAccesoSubcontrataDto? _credencial;
+    private bool _credencialConsultada;
+    private bool _cargandoCredencial;
+    private bool _errorCredencial;
+    private bool _contrasenaVisible;
+
+    private bool _confirmarBajaVisible;
+    private bool _dandoDeBaja;
 
     private NivelServicioSubcontrata NivelOpuesto =>
         _detalle?.NivelServicio == NivelServicioSubcontrata.Supervisada
@@ -415,6 +633,7 @@ else
     /// Drawer (solo en modo edición) — se mueven aquí en vez de perderse.
     /// </summary>
     private bool _editandoInformacion;
+    private bool _abriendoEdicion;
     private string _razonSocialInfo = string.Empty;
     private string _cifInfo = string.Empty;
     private HashSet<Guid> _clienteIdsInfo = [];
@@ -437,95 +656,313 @@ else
     private bool _guardandoCredenciales;
     private string? _mensajeErrorCredenciales;
 
+    /// <summary>Las pestañas con lista llevan su recuento en cuanto se conoce (mismo patrón que PlantillasTab).</summary>
+    private IReadOnlyList<PestanaDefinicion> PestanasConRecuento =>
+        _pestanas.Select(p => p.Id switch
+        {
+            "trabajadores" when _trabajadores is not null => p with { Etiqueta = $"{p.Etiqueta} ({_totalTrabajadores})" },
+            "centros" when _centros is not null => p with { Etiqueta = $"{p.Etiqueta} ({_centros.Count})" },
+            _ => p
+        }).ToList();
+
+    /// <summary>
+    /// Centros con algún documento EXIGIDO sin ninguna verificación
+    /// registrada. Un tipo «No exigido» sin verificar no cuenta: el centro no
+    /// lo pide.
+    /// </summary>
+    private int CentrosSinVerificar =>
+        _supervision?.Centros.Count(c => c.Tipos.Any(t => t.Exigido && t.Estado == EstadoSupervision.SinVerificar)) ?? 0;
+
+    private string? TextoRecuentos
+    {
+        get
+        {
+            var partes = new List<string>(2);
+            if (_trabajadores is not null)
+                partes.Add(_totalTrabajadores == 1 ? "1 trabajador" : $"{_totalTrabajadores} trabajadores");
+            if (_centros is not null)
+                partes.Add(_centros.Count == 1 ? "1 centro" : $"{_centros.Count} centros");
+            return partes.Count == 0 ? null : string.Join(" · ", partes);
+        }
+    }
+
+    private string TextoResumenTrabajadores
+    {
+        get
+        {
+            var mostrados = _trabajadores?.Count ?? 0;
+            return mostrados < _totalTrabajadores
+                ? $"Se muestran {mostrados} de {_totalTrabajadores} trabajadores que puedes ver"
+                : _totalTrabajadores == 1 ? "1 trabajador que puedes ver" : $"{_totalTrabajadores} trabajadores que puedes ver";
+        }
+    }
+
+    private string TextoUltimaVerificacion =>
+        _supervision?.Centros.SelectMany(c => c.Tipos).Select(t => t.UltimaVerificacion?.FechaVerificacion).Max() is { } fecha
+            ? $"Última verificación registrada el {fecha:dd/MM/yyyy}"
+            : "Todavía no hay verificaciones registradas";
+
+    private string TextoRelaciones(IReadOnlyList<Guid> ids, IReadOnlyDictionary<Guid, string> nombresPorId)
+    {
+        if (ids.Count == 0) return "—";
+        if (_errorNombres) return ids.Count == 1 ? "1 (no pudimos cargar su nombre)" : $"{ids.Count} (no pudimos cargar sus nombres)";
+        if (!_nombresCargados) return ids.Count.ToString();
+
+        var nombres = ids.Where(nombresPorId.ContainsKey)
+            .Select(id => nombresPorId[id])
+            .OrderBy(n => n, StringComparer.CurrentCulture)
+            .ToList();
+        var sinNombre = ids.Count - nombres.Count;
+
+        return (nombres.Count, sinNombre) switch
+        {
+            (0, 1) => "1 sin nombre visible para ti",
+            (0, var n) => $"{n} sin nombre visible para ti",
+            (_, 0) => string.Join(", ", nombres),
+            (_, var n) => $"{string.Join(", ", nombres)} y {n} más"
+        };
+    }
+
+    protected override void OnInitialized() => _cancelacion = _ciclo.Token;
+
     protected override async Task OnParametersSetAsync()
     {
-        if (EntidadId != _idCargado)
-        {
-            _idCargado = EntidadId;
-            _trabajadores = null;
-            _errorTrabajadores = false;
-            _centros = null;
-            _errorCentros = false;
-            _supervision = null;
-            _errorSupervision = false;
-            _editandoInformacion = false;
-            await CargarCabeceraAsync();
-        }
+        if (EntidadId == _idCargado)
+            return;
 
-        if (PestanaActiva == "trabajadores" && _trabajadores is null && !_errorTrabajadores && !_cargandoTrabajadores)
-            await CargarTrabajadoresAsync();
-
-        if (PestanaActiva == "centros" && _centros is null && !_errorCentros && !_cargandoCentros)
-            await CargarCentrosAsync();
-
-        if (PestanaActiva == "supervision" && _supervision is null && !_errorSupervision && !_cargandoSupervision)
-            await CargarSupervisionAsync();
+        _idCargado = EntidadId;
+        ReiniciarParaNuevaEntidad();
+        await CargarTodoAsync();
     }
+
+    /// <summary>Invalida cualquier carga en vuelo: su respuesta ya no escribirá nada.</summary>
+    private void InvalidarCargas()
+    {
+        _generacion++;
+        _cargaCabecera++;
+        _cargaNombres++;
+        _cargaTrabajadores++;
+        _cargaCentros++;
+        _cargaSupervision++;
+        _cargaCredencial++;
+    }
+
+    private void ReiniciarParaNuevaEntidad()
+    {
+        InvalidarCargas();
+        _detalle = null;
+        _error = false;
+        _trabajadores = null;
+        _totalTrabajadores = 0;
+        _errorTrabajadores = false;
+        _cargandoTrabajadores = false;
+        _centros = null;
+        _errorCentros = false;
+        _cargandoCentros = false;
+        _supervision = null;
+        _errorSupervision = false;
+        _cargandoSupervision = false;
+        _nombresClientes = new Dictionary<Guid, string>();
+        _nombresEmpresas = new Dictionary<Guid, string>();
+        _nombresCargados = false;
+        _errorNombres = false;
+        _credencial = null;
+        _credencialConsultada = false;
+        _cargandoCredencial = false;
+        _errorCredencial = false;
+        _contrasenaVisible = false;
+        _editandoInformacion = false;
+        _abriendoEdicion = false;
+        _guardandoInformacion = false;
+        _guardandoCredenciales = false;
+        _cambiandoNivel = false;
+        _confirmarBajaVisible = false;
+        _dandoDeBaja = false;
+        _drawerVerificacionVisible = false;
+        _guardandoVerificacion = false;
+        _abriendoRegistroVerificacion = false;
+        _confirmarEliminarVerificacionVisible = false;
+        _eliminandoVerificacion = false;
+    }
+
+    /// <summary>
+    /// Cabecera y, detrás, lo que alimenta sus recuentos y las pestañas —
+    /// trabajadores, centros y supervisión—, en serie: todas las consultas
+    /// comparten el DbContext del circuito. Cada paso pinta en cuanto llega.
+    /// </summary>
+    private async Task CargarTodoAsync()
+    {
+        var generacion = _generacion;
+        await CargarCabeceraAsync();
+        if (generacion != _generacion || _detalle is null) return;
+
+        _cargandoTrabajadores = true;
+        _cargandoCentros = true;
+        _cargandoSupervision = true;
+        StateHasChanged();
+
+        await CargarNombresRelacionesAsync();
+        if (generacion != _generacion) return;
+        await CargarTrabajadoresAsync();
+        if (generacion != _generacion) return;
+        await CargarCentrosAsync();
+        if (generacion != _generacion) return;
+        await CargarSupervisionAsync();
+    }
+
+    /// <summary>Un doble clic en «Reintentar» no lanza una segunda cadena: la primera ya puso _cargando.</summary>
+    private Task ReintentarAsync() => _cargando ? Task.CompletedTask : CargarTodoAsync();
 
     private async Task CargarCabeceraAsync()
     {
+        var carga = ++_cargaCabecera;
+        var id = EntidadId;
         _cargando = true;
         _error = false;
 
         try
         {
-            _detalle = await Mediator.Send(new ObtenerSubcontrataPorIdQuery(EntidadId));
+            var detalle = await Mediator.Send(new ObtenerSubcontrataPorIdQuery(id), _cancelacion);
+            if (carga != _cargaCabecera) return;
+            _detalle = detalle;
         }
         catch (Exception)
         {
-            _error = true;
+            if (carga == _cargaCabecera)
+                _error = true;
         }
         finally
         {
-            _cargando = false;
+            if (carga == _cargaCabecera)
+                _cargando = false;
         }
     }
 
+    private async Task CargarNombresRelacionesAsync()
+    {
+        if (_detalle is null) return;
+
+        var carga = ++_cargaNombres;
+        var detalle = _detalle;
+        _errorNombres = false;
+
+        if (detalle.ClienteIds.Count == 0 && detalle.EmpresaIds.Count == 0)
+        {
+            _nombresCargados = true;
+            return;
+        }
+
+        try
+        {
+            var clientes = detalle.ClienteIds.Count == 0 ? [] : await Mediator.Send(new ObtenerClientesParaSelectorQuery(), _cancelacion);
+            if (carga != _cargaNombres) return;
+            var empresas = detalle.EmpresaIds.Count == 0 ? [] : await Mediator.Send(new ObtenerEmpresasParaSelectorQuery(), _cancelacion);
+            if (carga != _cargaNombres) return;
+
+            _nombresClientes = clientes.GroupBy(c => c.Id).ToDictionary(g => g.Key, g => g.First().RazonSocial);
+            _nombresEmpresas = empresas.GroupBy(e => e.Id).ToDictionary(g => g.Key, g => g.First().RazonSocial);
+            _nombresCargados = true;
+        }
+        catch (Exception)
+        {
+            if (carga == _cargaNombres)
+                _errorNombres = true;
+        }
+        finally
+        {
+            if (carga == _cargaNombres)
+                StateHasChanged();
+        }
+    }
+
+    private Task ReintentarTrabajadoresAsync() => _cargandoTrabajadores ? Task.CompletedTask : CargarTrabajadoresAsync();
+
     private async Task CargarTrabajadoresAsync()
     {
-        var idSolicitado = EntidadId;
+        var carga = ++_cargaTrabajadores;
+        var id = EntidadId;
         _cargandoTrabajadores = true;
         _errorTrabajadores = false;
 
         try
         {
-            var resultado = await Mediator.Send(new ObtenerTrabajadoresQuery(Busqueda: null, SubcontrataId: idSolicitado, TamanoPagina: 50));
-            if (idSolicitado == EntidadId)
-                _trabajadores = resultado.Elementos;
+            var resultado = await Mediator.Send(new ObtenerTrabajadoresQuery(Busqueda: null, SubcontrataId: id, TamanoPagina: TamanoPaginaTrabajadores), _cancelacion);
+            if (carga != _cargaTrabajadores) return;
+            _trabajadores = resultado.Elementos;
+            _totalTrabajadores = resultado.TotalElementos;
         }
         catch (Exception)
         {
-            if (idSolicitado == EntidadId)
+            if (carga == _cargaTrabajadores)
                 _errorTrabajadores = true;
         }
         finally
         {
-            if (idSolicitado == EntidadId)
+            if (carga == _cargaTrabajadores)
+            {
                 _cargandoTrabajadores = false;
+                StateHasChanged();
+            }
         }
     }
 
+    private Task ReintentarCentrosAsync() => _cargandoCentros ? Task.CompletedTask : CargarCentrosAsync();
+
     private async Task CargarCentrosAsync()
     {
-        var idSolicitado = EntidadId;
+        var carga = ++_cargaCentros;
+        var id = EntidadId;
         _cargandoCentros = true;
         _errorCentros = false;
 
         try
         {
-            var resultado = await Mediator.Send(new ObtenerCentrosConActividadDeSubcontrataQuery(idSolicitado));
-            if (idSolicitado == EntidadId)
-                _centros = resultado;
+            var resultado = await Mediator.Send(new ObtenerCentrosConActividadDeSubcontrataQuery(id), _cancelacion);
+            if (carga != _cargaCentros) return;
+            _centros = resultado;
         }
         catch (Exception)
         {
-            if (idSolicitado == EntidadId)
+            if (carga == _cargaCentros)
                 _errorCentros = true;
         }
         finally
         {
-            if (idSolicitado == EntidadId)
+            if (carga == _cargaCentros)
+            {
                 _cargandoCentros = false;
+                StateHasChanged();
+            }
+        }
+    }
+
+    private Task ReintentarSupervisionAsync() => _cargandoSupervision ? Task.CompletedTask : CargarSupervisionAsync();
+
+    private async Task CargarSupervisionAsync()
+    {
+        var carga = ++_cargaSupervision;
+        var id = EntidadId;
+        _cargandoSupervision = true;
+        _errorSupervision = false;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerSupervisionSubcontrataQuery(id), _cancelacion);
+            if (carga != _cargaSupervision) return;
+            _supervision = resultado ?? new SupervisionSubcontrataDto([], []);
+        }
+        catch (Exception)
+        {
+            if (carga == _cargaSupervision)
+                _errorSupervision = true;
+        }
+        finally
+        {
+            if (carga == _cargaSupervision)
+            {
+                _cargandoSupervision = false;
+                StateHasChanged();
+            }
         }
     }
 
@@ -535,29 +972,93 @@ else
     private Task AbrirCentroAsync(CentroConActividadDto centro) =>
         WorkspaceService.NavegarAAsync(EntidadWorkspace.Centro, centro.Id, centro.Nombre, "informacion");
 
+    private async Task MostrarCredencialAsync()
+    {
+        if (_detalle is null || _cargandoCredencial) return;
+
+        var carga = ++_cargaCredencial;
+        var id = _detalle.Id;
+        _cargandoCredencial = true;
+        _errorCredencial = false;
+
+        try
+        {
+            var credencial = await Mediator.Send(new ObtenerCredencialAccesoSubcontrataQuery(id), _cancelacion);
+            if (carga != _cargaCredencial) return;
+            _credencial = credencial;
+            _credencialConsultada = true;
+            _contrasenaVisible = false;
+        }
+        catch (Exception)
+        {
+            if (carga == _cargaCredencial)
+                _errorCredencial = true;
+        }
+        finally
+        {
+            if (carga == _cargaCredencial)
+                _cargandoCredencial = false;
+        }
+    }
+
+    private void AlternarContrasena() => _contrasenaVisible = !_contrasenaVisible;
+
+    /// <summary>Suelta la credencial de la memoria del circuito, no solo de la vista.</summary>
+    private void OcultarCredencial()
+    {
+        _cargaCredencial++;
+        _credencial = null;
+        _credencialConsultada = false;
+        _cargandoCredencial = false;
+        _errorCredencial = false;
+        _contrasenaVisible = false;
+    }
+
     private async Task IniciarEdicionInformacionAsync()
     {
-        if (_detalle is null) return;
+        if (_detalle is null || _abriendoEdicion) return;
 
-        _clientesDisponibles = await Mediator.Send(new ObtenerClientesParaSelectorQuery());
-        _empresasDisponibles = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
+        var generacion = _generacion;
+        var detalle = _detalle;
+        _abriendoEdicion = true;
 
-        _razonSocialInfo = _detalle.RazonSocial;
-        _cifInfo = _detalle.Cif ?? string.Empty;
-        _clienteIdsInfo = _detalle.ClienteIds.ToHashSet();
-        _empresaIdsInfo = _detalle.EmpresaIds.ToHashSet();
-        _mensajeErrorInformacion = null;
-        _erroresInformacion = new Dictionary<string, string>();
+        try
+        {
+            var clientes = await Mediator.Send(new ObtenerClientesParaSelectorQuery(), _cancelacion);
+            if (generacion != _generacion) return;
+            var empresas = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery(), _cancelacion);
+            if (generacion != _generacion) return;
+            var credencial = await Mediator.Send(new ObtenerCredencialAccesoSubcontrataQuery(detalle.Id), _cancelacion);
+            if (generacion != _generacion) return;
 
-        var credencial = await Mediator.Send(new ObtenerCredencialAccesoSubcontrataQuery(_detalle.Id));
-        _credencialUrl = credencial?.UrlAcceso ?? string.Empty;
-        _credencialCampoEmpresa = credencial?.CampoEmpresa ?? string.Empty;
-        _credencialUsuario = credencial?.Usuario ?? string.Empty;
-        _credencialContrasena = credencial?.Contrasena ?? string.Empty;
-        _credencialNotas = credencial?.Notas ?? string.Empty;
-        _mensajeErrorCredenciales = null;
+            _clientesDisponibles = clientes;
+            _empresasDisponibles = empresas;
+            _razonSocialInfo = detalle.RazonSocial;
+            _cifInfo = detalle.Cif ?? string.Empty;
+            _clienteIdsInfo = detalle.ClienteIds.ToHashSet();
+            _empresaIdsInfo = detalle.EmpresaIds.ToHashSet();
+            _mensajeErrorInformacion = null;
+            _erroresInformacion = new Dictionary<string, string>();
 
-        _editandoInformacion = true;
+            _credencialUrl = credencial?.UrlAcceso ?? string.Empty;
+            _credencialCampoEmpresa = credencial?.CampoEmpresa ?? string.Empty;
+            _credencialUsuario = credencial?.Usuario ?? string.Empty;
+            _credencialContrasena = credencial?.Contrasena ?? string.Empty;
+            _credencialNotas = credencial?.Notas ?? string.Empty;
+            _mensajeErrorCredenciales = null;
+
+            _editandoInformacion = true;
+        }
+        catch (Exception)
+        {
+            if (generacion == _generacion)
+                ToastService.Mostrar("No pudimos abrir la edición. Intenta nuevamente en unos segundos.", TonoToast.Error);
+        }
+        finally
+        {
+            if (generacion == _generacion)
+                _abriendoEdicion = false;
+        }
     }
 
     private void CancelarEdicionInformacion() => _editandoInformacion = false;
@@ -582,8 +1083,10 @@ else
 
     private async Task GuardarInformacionAsync()
     {
-        if (_detalle is null) return;
+        if (_detalle is null || _guardandoInformacion) return;
 
+        var generacion = _generacion;
+        var detalle = _detalle;
         _guardandoInformacion = true;
         _mensajeErrorInformacion = null;
         _erroresInformacion = new Dictionary<string, string>();
@@ -592,7 +1095,8 @@ else
         {
             var cif = string.IsNullOrWhiteSpace(_cifInfo) ? null : _cifInfo;
             var resultado = await Mediator.Send(new EditarSubcontrataCommand(
-                _detalle.Id, _razonSocialInfo, cif, _clienteIdsInfo.ToList(), _empresaIdsInfo.ToList(), _detalle.Version));
+                detalle.Id, _razonSocialInfo, cif, _clienteIdsInfo.ToList(), _empresaIdsInfo.ToList(), detalle.Version));
+            if (generacion != _generacion) return;
 
             if (resultado.EsFallido)
             {
@@ -603,44 +1107,25 @@ else
             ToastService.Mostrar("Subcontrata actualizada correctamente.", TonoToast.Exito);
             _editandoInformacion = false;
             await CargarCabeceraAsync();
+            if (generacion != _generacion) return;
+            await CargarNombresRelacionesAsync();
         }
         catch (ValidationException ex)
         {
-            _erroresInformacion = ex.Errors
-                .GroupBy(e => e.PropertyName)
-                .ToDictionary(g => g.Key, g => g.First().ErrorMessage);
+            if (generacion == _generacion)
+                _erroresInformacion = ex.Errors
+                    .GroupBy(e => e.PropertyName)
+                    .ToDictionary(g => g.Key, g => g.First().ErrorMessage);
         }
         catch (Exception)
         {
-            _mensajeErrorInformacion = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
+            if (generacion == _generacion)
+                _mensajeErrorInformacion = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
         }
         finally
         {
-            _guardandoInformacion = false;
-        }
-    }
-
-    private async Task CargarSupervisionAsync()
-    {
-        var idSolicitado = EntidadId;
-        _cargandoSupervision = true;
-        _errorSupervision = false;
-
-        try
-        {
-            var resultado = await Mediator.Send(new ObtenerSupervisionSubcontrataQuery(idSolicitado));
-            if (idSolicitado == EntidadId)
-                _supervision = resultado ?? new SupervisionSubcontrataDto([], []);
-        }
-        catch (Exception)
-        {
-            if (idSolicitado == EntidadId)
-                _errorSupervision = true;
-        }
-        finally
-        {
-            if (idSolicitado == EntidadId)
-                _cargandoSupervision = false;
+            if (generacion == _generacion)
+                _guardandoInformacion = false;
         }
     }
 
@@ -650,19 +1135,23 @@ else
     /// 2.1) — no cumple el criterio de "destructivo o irreversible en la
     /// práctica" que exige una confirmación (04_UX_PATTERNS.md § 7.2). Mismo
     /// tratamiento que "Reactivar" en Delegaciones.razor: acción directa con
-    /// estado de carga, aviso del resultado en el toast.
+    /// estado de carga, aviso del resultado en el toast. La guarda de
+    /// <c>_cambiandoNivel</c> es la que impide que un doble clic mande el
+    /// comando dos veces: el botón sigue enganchado aunque pinte «cargando».
     /// </summary>
     private async Task ConfirmarCambioNivelAsync()
     {
-        if (_detalle is null) return;
+        if (_detalle is null || _cambiandoNivel) return;
 
+        var generacion = _generacion;
+        var detalle = _detalle;
         var nivelDestino = NivelOpuesto;
         _cambiandoNivel = true;
 
         try
         {
             var resultado = await Mediator.Send(new CambiarNivelServicioSubcontrataCommand(
-                _detalle.Id, nivelDestino, _detalle.Version));
+                detalle.Id, nivelDestino, detalle.Version));
 
             if (resultado.EsFallido)
             {
@@ -671,6 +1160,7 @@ else
             }
 
             ToastService.Mostrar($"Nivel de servicio cambiado a {EstadoSupervisionUi.TextoNivel(nivelDestino)}.", TonoToast.Exito);
+            if (generacion != _generacion) return;
             await CargarCabeceraAsync();
         }
         catch (Exception)
@@ -679,33 +1169,106 @@ else
         }
         finally
         {
-            _cambiandoNivel = false;
+            if (generacion == _generacion)
+                _cambiandoNivel = false;
+        }
+    }
+
+    private void AbrirDarDeBaja() => _confirmarBajaVisible = true;
+
+    /// <summary>
+    /// Baja lógica (EliminarSubcontrataCommand marca la Empresa como
+    /// eliminada; el comando la rechaza si tiene trabajadores). Tras la baja
+    /// la ficha ya no tiene nada que enseñar: se sale de este nivel —vuelve al
+    /// anterior de la pila si lo hay, si no cierra el panel—, solo si este
+    /// nivel sigue siendo el de esta subcontrata.
+    /// </summary>
+    private async Task ConfirmarDarDeBajaAsync()
+    {
+        if (_detalle is null || _dandoDeBaja) return;
+
+        var generacion = _generacion;
+        var detalle = _detalle;
+        _dandoDeBaja = true;
+
+        try
+        {
+            var resultado = await Mediator.Send(new EliminarSubcontrataCommand(detalle.Id));
+
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                if (generacion == _generacion)
+                    _confirmarBajaVisible = false;
+                return;
+            }
+
+            ToastService.Mostrar($"{detalle.RazonSocial} se dio de baja.", TonoToast.Exito);
+            if (generacion != _generacion) return;
+            _confirmarBajaVisible = false;
+
+            if (WorkspaceService.FrameActual is { Tipo: EntidadWorkspace.Subcontrata } frame && frame.EntidadId == detalle.Id)
+            {
+                if (WorkspaceService.Pila.Count > 1)
+                    await WorkspaceService.VolverAsync();
+                else
+                    await WorkspaceService.CerrarAsync();
+            }
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar("No pudimos dar de baja la subcontrata. Intenta nuevamente en unos segundos.", TonoToast.Error);
+        }
+        finally
+        {
+            if (generacion == _generacion)
+                _dandoDeBaja = false;
         }
     }
 
     private async Task AbrirRegistrarVerificacionAsync()
     {
-        if (_tiposVerificables.Count == 0)
-        {
-            // Los ámbitos que un portal puede exigir a una subcontrata — misma
-            // regla que ObtenerSupervisionSubcontrataQuery.
-            var trabajador = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: AmbitoAplicacion.Trabajador));
-            var empresa = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: AmbitoAplicacion.Empresa));
-            _tiposVerificables = trabajador.Concat(empresa).OrderBy(t => t.Orden).ToList();
-        }
+        if (_abriendoRegistroVerificacion) return;
 
-        _verificacionCentroId = _supervision?.CentrosSeleccionables.Count == 1
-            ? _supervision.CentrosSeleccionables[0].CentroId.ToString()
-            : string.Empty;
-        _verificacionTipoId = string.Empty;
-        _verificacionResultado = nameof(ResultadoVerificacionExterna.Valido);
-        _verificacionFecha = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
-        _verificacionValidoHasta = string.Empty;
-        _verificacionObservaciones = string.Empty;
-        _evidenciaContenido = null;
-        _evidenciaNombre = null;
-        _mensajeErrorVerificacion = null;
-        _drawerVerificacionVisible = true;
+        var generacion = _generacion;
+        _abriendoRegistroVerificacion = true;
+
+        try
+        {
+            if (_tiposVerificables.Count == 0)
+            {
+                // Los ámbitos que un portal puede exigir a una subcontrata — misma
+                // regla que ObtenerSupervisionSubcontrataQuery.
+                var trabajador = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: AmbitoAplicacion.Trabajador), _cancelacion);
+                var empresa = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: AmbitoAplicacion.Empresa), _cancelacion);
+                _tiposVerificables = trabajador.Concat(empresa).OrderBy(t => t.Orden).ToList();
+            }
+
+            if (generacion != _generacion) return;
+
+            _verificacionCentroId = _supervision?.CentrosSeleccionables.Count == 1
+                ? _supervision.CentrosSeleccionables[0].CentroId.ToString()
+                : string.Empty;
+            _verificacionTipoId = string.Empty;
+            _verificacionResultado = nameof(ResultadoVerificacionExterna.Valido);
+            _verificacionFecha = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
+            _verificacionValidoHasta = string.Empty;
+            _verificacionObservaciones = string.Empty;
+            _evidenciaContenido = null;
+            _evidenciaNombre = null;
+            _mensajeErrorVerificacion = null;
+            _drawerVerificacionVisible = true;
+        }
+        catch (Exception)
+        {
+            if (generacion == _generacion)
+                ToastService.Mostrar("No pudimos preparar el registro de la verificación. Intenta nuevamente en unos segundos.", TonoToast.Error);
+        }
+        finally
+        {
+            if (generacion == _generacion)
+                _abriendoRegistroVerificacion = false;
+        }
     }
 
     private Task CerrarDrawerVerificacion(bool visible)
@@ -734,7 +1297,7 @@ else
 
     private async Task GuardarVerificacionAsync()
     {
-        if (_detalle is null) return;
+        if (_detalle is null || _guardandoVerificacion) return;
 
         if (!Guid.TryParse(_verificacionCentroId, out var centroId))
         {
@@ -757,6 +1320,8 @@ else
         DateOnly? validoHasta = DateOnly.TryParse(_verificacionValidoHasta, out var vh) ? vh : null;
         var resultadoVerificacion = Enum.Parse<ResultadoVerificacionExterna>(_verificacionResultado);
 
+        var generacion = _generacion;
+        var detalle = _detalle;
         _guardandoVerificacion = true;
         _mensajeErrorVerificacion = null;
 
@@ -764,30 +1329,35 @@ else
         {
             var observaciones = string.IsNullOrWhiteSpace(_verificacionObservaciones) ? null : _verificacionObservaciones;
             var resultado = await Mediator.Send(new RegistrarVerificacionExternaSubcontrataCommand(
-                _detalle.Id, centroId, tipoId, fecha, resultadoVerificacion, validoHasta, observaciones,
+                detalle.Id, centroId, tipoId, fecha, resultadoVerificacion, validoHasta, observaciones,
                 _evidenciaContenido, _evidenciaNombre));
 
             if (resultado.EsFallido)
             {
-                _mensajeErrorVerificacion = resultado.Error.Mensaje;
+                if (generacion == _generacion)
+                    _mensajeErrorVerificacion = resultado.Error.Mensaje;
                 return;
             }
 
             ToastService.Mostrar("Verificación registrada.", TonoToast.Exito);
+            if (generacion != _generacion) return;
             _drawerVerificacionVisible = false;
             await CargarSupervisionAsync();
         }
         catch (ValidationException ex)
         {
-            _mensajeErrorVerificacion = ex.Errors.FirstOrDefault()?.ErrorMessage ?? "Revisa los datos del formulario.";
+            if (generacion == _generacion)
+                _mensajeErrorVerificacion = ex.Errors.FirstOrDefault()?.ErrorMessage ?? "Revisa los datos del formulario.";
         }
         catch (Exception)
         {
-            _mensajeErrorVerificacion = "No pudimos registrar la verificación. Intenta nuevamente en unos segundos.";
+            if (generacion == _generacion)
+                _mensajeErrorVerificacion = "No pudimos registrar la verificación. Intenta nuevamente en unos segundos.";
         }
         finally
         {
-            _guardandoVerificacion = false;
+            if (generacion == _generacion)
+                _guardandoVerificacion = false;
         }
     }
 
@@ -799,6 +1369,9 @@ else
 
     private async Task ConfirmarEliminarVerificacionAsync()
     {
+        if (_eliminandoVerificacion) return;
+
+        var generacion = _generacion;
         _eliminandoVerificacion = true;
 
         try
@@ -812,6 +1385,7 @@ else
             }
 
             ToastService.Mostrar("Verificación eliminada.", TonoToast.Exito);
+            if (generacion != _generacion) return;
             _confirmarEliminarVerificacionVisible = false;
             await CargarSupervisionAsync();
         }
@@ -821,14 +1395,17 @@ else
         }
         finally
         {
-            _eliminandoVerificacion = false;
+            if (generacion == _generacion)
+                _eliminandoVerificacion = false;
         }
     }
 
     private async Task GuardarCredencialesAsync()
     {
-        if (_detalle is null) return;
+        if (_detalle is null || _guardandoCredenciales) return;
 
+        var generacion = _generacion;
+        var detalle = _detalle;
         _guardandoCredenciales = true;
         _mensajeErrorCredenciales = null;
 
@@ -841,7 +1418,8 @@ else
             var notas = string.IsNullOrWhiteSpace(_credencialNotas) ? null : _credencialNotas;
 
             var resultado = await Mediator.Send(
-                new GuardarCredencialAccesoSubcontrataCommand(_detalle.Id, urlAcceso, campoEmpresa, usuario, contrasena, notas));
+                new GuardarCredencialAccesoSubcontrataCommand(detalle.Id, urlAcceso, campoEmpresa, usuario, contrasena, notas));
+            if (generacion != _generacion) return;
 
             if (resultado.EsFallido)
             {
@@ -850,14 +1428,33 @@ else
             }
 
             ToastService.Mostrar("Credenciales guardadas correctamente.", TonoToast.Exito);
+            // La tarjeta de lectura tenía la versión anterior: se suelta.
+            OcultarCredencial();
         }
         catch (Exception)
         {
-            _mensajeErrorCredenciales = "No pudimos guardar las credenciales. Intenta nuevamente en unos segundos.";
+            if (generacion == _generacion)
+                _mensajeErrorCredenciales = "No pudimos guardar las credenciales. Intenta nuevamente en unos segundos.";
         }
         finally
         {
-            _guardandoCredenciales = false;
+            if (generacion == _generacion)
+                _guardandoCredenciales = false;
         }
+    }
+
+    /// <summary>
+    /// Al retirar el panel (cerrarlo, o que el Context Workspace pase a otro
+    /// tipo de entidad) se invalida toda carga en vuelo —la cadena de
+    /// <see cref="CargarTodoAsync"/> no sigue pidiendo datos para una ficha
+    /// que ya no se ve— y se cancela la consulta que estuviera emitida. La
+    /// cancelación llega a cada carga como una excepción que su propio catch
+    /// ya descarta (la generación dejó de ser la vigente).
+    /// </summary>
+    public void Dispose()
+    {
+        InvalidarCargas();
+        _ciclo.Cancel();
+        _ciclo.Dispose();
     }
 }
