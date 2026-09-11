@@ -23,7 +23,8 @@ public record TipoDocumentoDetalleDto(
     string? SeSolicitaA,
     string? Observaciones,
     IReadOnlyList<Guid> CentroIds,
-    IReadOnlyList<string> Aliases);
+    IReadOnlyList<string> Aliases,
+    IReadOnlyList<Guid> CentroIdsExcluidos);
 
 public class ObtenerTipoDocumentoPorIdQueryHandler(ITiposDocumentoQueryContext dbContext)
     : IRequestHandler<ObtenerTipoDocumentoPorIdQuery, TipoDocumentoDetalleDto?>
@@ -57,6 +58,15 @@ public class ObtenerTipoDocumentoPorIdQueryHandler(ITiposDocumentoQueryContext d
             .Select(tc => tc.CentroId)
             .ToListAsync(cancellationToken);
 
+        // Solo para calcular en el formulario el efecto real de marcar uno de estos
+        // centros (EditarTipoDocumentoCommandHandler convierte la fila Incluido=false
+        // en Incluido=true en vez de duplicarla) — el picker de centros nunca las
+        // pinta como marcadas, exactamente igual que antes de este campo.
+        var centroIdsExcluidos = await dbContext.TiposDocumentoCentros
+            .Where(tc => tc.TipoDocumentoId == request.Id && !tc.Incluido)
+            .Select(tc => tc.CentroId)
+            .ToListAsync(cancellationToken);
+
         var aliases = await dbContext.TiposDocumentoAlias
             .Where(a => a.TipoDocumentoId == request.Id)
             .Select(a => a.Texto)
@@ -65,6 +75,6 @@ public class ObtenerTipoDocumentoPorIdQueryHandler(ITiposDocumentoQueryContext d
         return new TipoDocumentoDetalleDto(
             tipoDocumento.Id, tipoDocumento.Nombre, tipoDocumento.VigenciaMeses, tipoDocumento.AplicaVencimientoAutomatico,
             tipoDocumento.Orden, tipoDocumento.AmbitoAplicacion, tipoDocumento.Requerido, tipoDocumento.Naturaleza, tipoDocumento.Notas, tipoDocumento.Descripcion,
-            tipoDocumento.CriteriosValidacion, tipoDocumento.SeSolicitaA, tipoDocumento.Observaciones, centroIds, aliases);
+            tipoDocumento.CriteriosValidacion, tipoDocumento.SeSolicitaA, tipoDocumento.Observaciones, centroIds, aliases, centroIdsExcluidos);
     }
 }

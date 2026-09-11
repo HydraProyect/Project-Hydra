@@ -83,12 +83,17 @@ public class EditarTipoDocumentoCommandHandler(
 
         tipoDocumento.EstablecerAliases(request.Aliases ?? []);
 
-        // Solo se tocan las filas Incluido=true (creadas desde este mismo picker) — las
-        // Incluido=false son exclusiones explícitas por Centro dadas de alta desde
-        // Requisitos del Centro (PLAN-EJECUCION-UX.md § 0.4) y no debe pisarlas este flujo.
-        var actuales = (await tipoDocumentoCentroRepositorio.ObtenerPorTipoDocumentoAsync(tipoDocumento.Id, cancellationToken))
-            .Where(tc => tc.Incluido)
-            .ToList();
+        // Solo se BORRAN las filas Incluido=true (creadas desde este mismo picker) que
+        // dejen de marcarse — las Incluido=false son exclusiones explícitas por Centro
+        // dadas de alta desde Requisitos del Centro (PLAN-EJECUCION-UX.md § 0.4) y una
+        // ausencia en CentroIds no las borra ni las lee como "quitadas". Pero SÍ es la
+        // misma fila (TenantId, TipoDocumentoId, CentroId) que este picker gestiona
+        // (índice único): si el centro que se marca aquí ya tiene esa fila con
+        // Incluido=false, no se crea una segunda — se convierte a Incluido=true, que es
+        // precisamente lo que marcar ese centro aquí significa: "la fila explícita
+        // manda" de § 0.4, no una fila nueva por cada origen.
+        var todasLasFilas = await tipoDocumentoCentroRepositorio.ObtenerPorTipoDocumentoAsync(tipoDocumento.Id, cancellationToken);
+        var actuales = todasLasFilas.Where(tc => tc.Incluido).ToList();
         var deseados = request.CentroIds.Distinct().ToHashSet();
         var actualesCentroIds = actuales.Select(tc => tc.CentroId).ToHashSet();
 
@@ -103,8 +108,14 @@ public class EditarTipoDocumentoCommandHandler(
         foreach (var tc in actuales.Where(tc => !deseados.Contains(tc.CentroId)))
             tipoDocumentoCentroRepositorio.Eliminar(tc);
 
+        var filaExcluidaPorCentroId = todasLasFilas.Where(tc => !tc.Incluido).ToDictionary(tc => tc.CentroId);
         foreach (var centroId in centroIdsNuevos)
-            tipoDocumentoCentroRepositorio.Agregar(new TipoDocumentoCentro(tipoDocumento.Id, centroId));
+        {
+            if (filaExcluidaPorCentroId.TryGetValue(centroId, out var filaExcluida))
+                filaExcluida.Actualizar(true, filaExcluida.PeriodicidadEspecialMeses, filaExcluida.BloqueaAcceso, filaExcluida.ArchivoUrl, filaExcluida.NombreArchivoOriginal);
+            else
+                tipoDocumentoCentroRepositorio.Agregar(new TipoDocumentoCentro(tipoDocumento.Id, centroId));
+        }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
