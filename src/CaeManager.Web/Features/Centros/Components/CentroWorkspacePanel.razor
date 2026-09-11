@@ -100,7 +100,8 @@ else
         </p>
     }
 
-    <Pestanas Definiciones="_pestanas" PestanaActiva="PestanaActiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="Secciones del centro">
+    @* PestanaActiva con @: el parámetro es string, y sin @ Razor le pasa el literal "PestanaActiva" (ninguna pestaña quedaba marcada como activa). *@
+    <Pestanas Definiciones="_pestanas" PestanaActiva="@PestanaActiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="Secciones del centro">
         @switch (PestanaActiva)
         {
             case "informacion":

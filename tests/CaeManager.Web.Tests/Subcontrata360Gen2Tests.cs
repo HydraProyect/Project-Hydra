@@ -13,6 +13,7 @@ using CaeManager.Application.Subcontratas.Commands.GuardarCredencialAccesoSubcon
 using CaeManager.Application.Subcontratas.Commands.RegistrarVerificacionExterna;
 using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConActividadDeSubcontrata;
 using CaeManager.Application.Subcontratas.Queries.ObtenerCredencialAccesoSubcontrata;
+using CaeManager.Application.Subcontratas.Queries.ObtenerCredencialAccesoSubcontrataSinContrasena;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSupervisionSubcontrata;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
@@ -99,6 +100,9 @@ public class Subcontrata360Gen2Tests : BunitContext
             ObtenerCentrosConActividadDeSubcontrataQuery q => Centros.GetValueOrDefault(q.SubcontrataId) ?? [],
             ObtenerSupervisionSubcontrataQuery q => Supervisiones.GetValueOrDefault(q.SubcontrataId),
             ObtenerCredencialAccesoSubcontrataQuery q => Credenciales.GetValueOrDefault(q.SubcontrataId),
+            ObtenerCredencialAccesoSubcontrataSinContrasenaQuery q => Credenciales.TryGetValue(q.SubcontrataId, out var c)
+                ? new CredencialAccesoSubcontrataSinContrasenaDto(c.UrlAcceso, c.CampoEmpresa, c.Usuario, c.Notas)
+                : null,
             ObtenerClientesParaSelectorQuery => Clientes,
             ObtenerEmpresasParaSelectorQuery => Empresas,
             ObtenerTiposDocumentoQuery q => q.AmbitoAplicacion is { } ambito
@@ -919,6 +923,41 @@ public class Subcontrata360Gen2Tests : BunitContext
         Toasts.Should().ContainSingle(m => m.Mensaje == "Credenciales guardadas correctamente." && m.Tono == TonoToast.Exito);
     }
 
+    /// <summary>
+    /// DEFECTO 2 (2026-09-11): el formulario de edición precargaba la
+    /// contraseña real vía <c>ObtenerCredencialAccesoSubcontrataQuery</c> —la
+    /// consulta marcada como <c>IConsultaDeSecretosDeTenant</c>—, así que
+    /// viajaba al circuito y al DOM (enmascarada visualmente, pero presente)
+    /// aunque nadie pulsara «Revelar». Ahora abrir la edición usa
+    /// <c>ObtenerCredencialAccesoSubcontrataSinContrasenaQuery</c>, cuyo DTO
+    /// no tiene esa propiedad: la contraseña solo llega por su camino
+    /// explícito, «Ver credenciales»/«Revelar» en la tarjeta de lectura (ver
+    /// <see cref="Las_credenciales_no_se_piden_al_abrir_y_la_contrasena_sale_enmascarada_hasta_revelarla"/>)
+    /// o «Copiar» en este formulario.
+    /// </summary>
+    [Fact]
+    public async Task Abrir_la_edicion_no_precarga_la_contrasena_y_guardar_sin_tocarla_la_conserva()
+    {
+        var escena = PrepararEdicion(new MediatorFalso());
+        // PrepararEdicion no pone contraseña almacenada: sin una real que
+        // pudiera filtrarse, la comprobación de abajo pasaría igual con el
+        // defecto sin corregir. Se fija una para que el test sea sensible.
+        escena.Mediador.Credenciales[escena.Original.Id] = new("app.dokify.net/acceso", null, "lauburu.prl", "Lauburu.2026", null);
+        var cut = await AbrirEdicionAsync(escena);
+
+        escena.Mediador.Enviadas.OfType<ObtenerCredencialAccesoSubcontrataQuery>().Should().BeEmpty(
+            "abrir la edición no debe pedir la consulta que descifra la contraseña");
+        cut.Markup.Should().NotContain("Lauburu.2026", "la contraseña almacenada no debe llegar nunca al DOM del formulario");
+        Control(cut, "Contraseña").GetAttribute("value").Should().BeNullOrEmpty(
+            "el campo empieza vacío: la contraseña almacenada nunca llega al formulario");
+
+        await Boton(cut, "Guardar credenciales").ClickAsync(new MouseEventArgs());
+
+        var comando = escena.Mediador.Enviadas.OfType<GuardarCredencialAccesoSubcontrataCommand>().Should().ContainSingle().Subject;
+        comando.Contrasena.Should().BeNullOrEmpty(
+            "sin tocar el campo, el comando no manda nada — GuardarCredencialAccesoSubcontrataCommandHandler conserva la almacenada (DEC-62)");
+    }
+
     [Fact]
     public async Task Si_guardar_las_credenciales_falla_su_motivo_sale_junto_a_ellas_y_se_puede_reintentar()
     {
@@ -1020,7 +1059,7 @@ public class Subcontrata360Gen2Tests : BunitContext
             [
                 nameof(ObtenerSubcontrataPorIdQuery), nameof(ObtenerClientesParaSelectorQuery), nameof(ObtenerEmpresasParaSelectorQuery),
                 nameof(ObtenerTrabajadoresQuery), nameof(ObtenerCentrosConActividadDeSubcontrataQuery), nameof(ObtenerSupervisionSubcontrataQuery),
-                nameof(ObtenerCredencialAccesoSubcontrataQuery), nameof(ObtenerTiposDocumentoQuery),
+                nameof(ObtenerCredencialAccesoSubcontrataQuery), nameof(ObtenerCredencialAccesoSubcontrataSinContrasenaQuery), nameof(ObtenerTiposDocumentoQuery),
             ],
             "el recorrido tiene que haber pasado por todas las consultas que lanza el panel, o la comprobación no las mira");
         consultas.Should().OnlyContain(t => t.Token.CanBeCanceled && !t.Token.IsCancellationRequested);

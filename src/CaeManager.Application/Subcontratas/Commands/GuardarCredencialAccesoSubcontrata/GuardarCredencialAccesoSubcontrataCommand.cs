@@ -10,6 +10,14 @@ namespace CaeManager.Application.Subcontratas.Commands.GuardarCredencialAccesoSu
 /// <summary>
 /// Alta o edición en un solo paso (upsert): una Subcontrata tiene como mucho
 /// un juego de credenciales — mismo patrón que GuardarCredencialAccesoEmpresaCommand.
+///
+/// <c>Contrasena</c> vacío o null en una edición **conserva la almacenada**
+/// (DEC-62) — el formulario ya no la carga al abrirse
+/// (<c>ObtenerCredencialAccesoSubcontrataSinContrasenaQuery</c>), así que un
+/// campo vacío no puede significar "bórrala" sin borrarla en silencio al
+/// guardar cualquier otro cambio (p. ej. la razón social). En un alta
+/// (todavía no hay fila) no aplica: ahí vacío/null simplemente significa que
+/// no se ha puesto contraseña.
 /// </summary>
 public record GuardarCredencialAccesoSubcontrataCommand(
     Guid SubcontrataId, string? UrlAcceso, string? CampoEmpresa, string? Usuario, string? Contrasena, string? Notas = null) : ICommand;
@@ -50,7 +58,9 @@ public class GuardarCredencialAccesoSubcontrataCommandHandler(
         }
         else
         {
-            credencial.Actualizar(request.UrlAcceso, request.CampoEmpresa, request.Usuario, request.Contrasena, request.Notas);
+            // DEC-62: vacío/null conserva la contraseña ya almacenada.
+            var contrasena = string.IsNullOrEmpty(request.Contrasena) ? credencial.Contrasena : request.Contrasena;
+            credencial.Actualizar(request.UrlAcceso, request.CampoEmpresa, request.Usuario, contrasena, request.Notas);
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
