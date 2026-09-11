@@ -370,7 +370,7 @@ jobs:
   build-and-test:
     name: Build, format y tests
     runs-on: ubuntu-latest
-    needs: [compilacion-y-unitarios, formato, tests-integracion]
+    needs: [compilacion-y-unitarios, formato, tests-integracion, bunit-tests]
     # SIEMPRE se ejecuta, incluso si sus dependencias fallan. No es un detalle:
     # un job que se salta reporta su check como "skipped", y la proteccion de
     # rama trata un check obligatorio omitido como aprobado. Sin esto, un bloque
@@ -411,6 +411,14 @@ jobs:
         with:
           name: cobertura-unitarios
           path: coverage
+
+      # En coverage-web y NO bajo coverage/: el informe del núcleo recoge
+      # coverage/**, y la Web tiene su propio universo y su propio trinquete.
+      - name: Recoger la cobertura de la Web (bUnit)
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: cobertura-web
+          path: coverage-web
 
       - name: Recoger el reparto de los bloques
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -544,7 +552,11 @@ jobs:
         continue-on-error: true
         run: |
           dotnet reportgenerator -reports:"coverage/**/coverage.cobertura.xml" -targetdir:coveragereport -reporttypes:"MarkdownSummaryGithub;JsonSummary"
+          echo "## Núcleo (Domain + Application + Infrastructure)" >> "$GITHUB_STEP_SUMMARY"
           cat coveragereport/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
+          dotnet reportgenerator -reports:"coverage-web/**/coverage.cobertura.xml" -targetdir:coveragereport-web -reporttypes:"MarkdownSummaryGithub;JsonSummary"
+          echo "## Web (bUnit, CaeManager.Web)" >> "$GITHUB_STEP_SUMMARY"
+          cat coveragereport-web/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
 
       # Ratchet de cobertura (§ 8 del plan de negocio, Horizonte transversal):
       #
@@ -590,13 +602,46 @@ jobs:
       # protección de rama, y no hay forma de que este paso corra y su
       # resultado se ignore (a diferencia del job de k6 de más abajo, que es
       # informativo a propósito y por eso está fuera de los required checks).
-      - name: Umbral de cobertura (ratchet — nunca bajar de 37%)
+      #
+      # SEGUNDO CAMBIO DE UNIVERSO (2026-09-11, decisión explícita del
+      # propietario, en los términos que exige el párrafo de arriba): el
+      # trinquete se parte en DOS, uno por universo, porque el anterior
+      # mezclaba en su denominador el ensamblado Web entero sin medirlo donde
+      # se ejecuta. Los componentes Razor de las pantallas solo los ejercita
+      # la suite bUnit, cuya cobertura no entraba en el informe: cada pantalla
+      # del programa Gen 2 añadía líneas que ningún test contable podía
+      # cubrir, y el número bajaba aunque la pantalla viniera con sus tests y
+      # sus mutaciones (37,0 % → 36,9 % con Mi Firma; la cola expulsó a
+      # Proyectos por lo mismo). Fusionarlo todo en una cifra se descartó: una
+      # mejora de la Web podría tapar una regresión del núcleo.
+      #
+      #   - NÚCLEO: Domain + Application + Infrastructure, medido por las
+      #     suites unitarias y de integración (Include en
+      #     tests/CaeManager.IntegrationTests/coverlet.runsettings).
+      #   - WEB: [CaeManager.Web]*, medido solo por bUnit (Include en
+      #     tests/CaeManager.Web.Tests/coverlet.runsettings).
+      #
+      # Umbrales: se fijan tras remedir cada universo en varias ejecuciones
+      # sobre el mismo commit, con el mismo patrón que el rebaseline de
+      # arriba (lo medido menos 0,2). Ninguno se relaja por el camino.
+      - name: Umbral de cobertura del núcleo (ratchet)
         run: |
           cobertura=$(jq -r '.summary.linecoverage' coveragereport/Summary.json)
-          umbral="37.0"
-          echo "Cobertura de línea (Domain+Application+Integration, sin Migrations): ${cobertura}% — umbral ratchet: ${umbral}%"
+          umbral="100.0"  # PROVISIONAL: se fija tras medir, en este mismo PR
+          echo "Cobertura de línea del NÚCLEO (Domain+Application+Infrastructure): ${cobertura}% — umbral ratchet: ${umbral}%"
           if ! python3 -c "import sys; sys.exit(0 if float('${cobertura}') >= float('${umbral}') else 1)"; then
-            echo "::error::La cobertura de línea (${cobertura}%) cayó por debajo del umbral ratchet (${umbral}%). Sube el umbral solo cuando la cobertura real mejore de forma sostenida — nunca lo bajes para que pase este PR."
+            echo "::error::La cobertura de línea del núcleo (${cobertura}%) cayó por debajo del umbral ratchet (${umbral}%). Sube el umbral solo cuando la cobertura real mejore de forma sostenida — nunca lo bajes para que pase este PR."
+            exit 1
+          fi
+
+      - name: Umbral de cobertura de la Web (ratchet)
+        if: always()
+        run: |
+          cobertura=$(jq -r '.summary.linecoverage' coveragereport-web/Summary.json)
+          umbral="100.0"  # PROVISIONAL: se fija tras medir, en este mismo PR
+          echo "Cobertura de línea de la WEB (bUnit sobre CaeManager.Web): ${cobertura}% — umbral ratchet: ${umbral}%"
+          if ! python3 -c "import sys; sys.exit(0 if float('${cobertura}') >= float('${umbral}') else 1)"; then
+            echo "::error::La cobertura de línea de la Web (${cobertura}%) cayó por debajo del umbral ratchet (${umbral}%). Sube el umbral solo cuando la cobertura real mejore de forma sostenida — nunca lo bajes para que pase este PR."
             exit 1
           fi
 
@@ -682,29 +727,27 @@ jobs:
       - name: Restaurar herramientas locales
         run: dotnet tool restore
 
+      # --settings acota la instrumentación a [CaeManager.Web]*: sin él,
+      # coverlet instrumentaba todo el árbol de dependencias de la suite y la
+      # cifra era «cuánto del código TOTAL toca bUnit de refilón» (0,4 % en
+      # local), que no significaba nada. Acotada, alimenta el trinquete de la
+      # Web del gate "Build, format y tests" (ver el comentario de ese paso).
       - name: Tests de componentes Blazor
         run: >
           dotnet test tests/CaeManager.Web.Tests --logger "console;verbosity=normal"
           --collect "XPlat Code Coverage" --results-directory ./coverage/web
+          --settings tests/CaeManager.Web.Tests/coverlet.runsettings
 
-      # continue-on-error: un fallo en el informe (p. ej. ningún .cobertura.xml
-      # si algo cambia en coverlet) no debe tumbar un job cuyos tests ya
-      # pasaron — es visibilidad, no gate.
-      #
-      # Deliberadamente sin el ratchet que sí tiene "Build, format y tests":
-      # coverlet instrumenta todo el árbol de dependencias de
-      # CaeManager.Web.Tests (Domain/Application/Infrastructure/Web
-      # completos, no solo los componentes Blazor), así que esta cifra
-      # es "cuánto del código TOTAL ejecuta la suite de bUnit sola" — medido
-      # en local, 0.4% — no "cuánto cubren los componentes Blazor". Fijar un
-      # umbral sobre ese número sería o bien un gate casi vacío (cualquier
-      # umbral bajo pasa siempre) o uno que falla por ruido de instrumentación
-      # sin relación con una regresión real. El número honesto de cobertura ya
-      # tiene su gate en "Build, format y tests" (Domain+Application+
-      # Integration sin Migrations, 37.0% umbral tras el rebaseline del
-      # 2026-09-09 — ver el comentario de ese paso); replicarlo aquí sobre una
-      # cifra que no significa lo que parece decir sería peor que no tener
-      # gate.
+      - name: Publicar la cobertura de la Web
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cobertura-web
+          path: coverage/web
+          retention-days: 1
+
+      # continue-on-error: un fallo en el informe no debe tumbar un job cuyos
+      # tests ya pasaron — aquí es visibilidad; el gate de la Web vive en
+      # "Build, format y tests", que recoge el artefacto de arriba.
       - name: Informe de cobertura
         if: always()
         continue-on-error: true
