@@ -143,6 +143,12 @@ public class EstadoComercialGen2Tests : BunitContext
 
         public Func<object, Exception?> Fallar { get; set; } = _ => null;
 
+        /// <summary>
+        /// Un comando que el «handler» rechaza con un <see cref="Error"/> (no
+        /// una excepción): la respuesta es <c>Result.Fallo</c> con ese error.
+        /// </summary>
+        public Func<object, Error?> Rechazar { get; set; } = _ => null;
+
         public Func<object, bool> Retener { get; set; } = _ => false;
 
         public List<Retenida> Retenidas { get; } = [];
@@ -151,6 +157,9 @@ public class EstadoComercialGen2Tests : BunitContext
         {
             if (Fallar(peticion) is { } excepcion)
                 return Task.FromException<object?>(excepcion);
+
+            if (peticion is not ObtenerEstadoComercialTenantsQuery && Rechazar(peticion) is { } error)
+                return Task.FromResult<object?>(Result.Fallo(error));
 
             if (Retener(peticion))
             {
@@ -245,6 +254,18 @@ public class EstadoComercialGen2Tests : BunitContext
         contenedor.QuerySelectorAll("button").Single(b => b.TextContent.Trim() == texto);
 
     private static List<T> Enviados<T>(MediadorControlado mediador) => mediador.Enviados.OfType<T>().ToList();
+
+    /// <summary>
+    /// El texto LITERAL que devuelven hoy los dos handlers con
+    /// <c>Comercial.NoAutorizado</c> (RegistrarSuscripcionTenantCommand.cs y
+    /// ActualizarEstadoComercialTenantCommand.cs). Copiado tal cual: si la
+    /// pantalla lo pintara, «cliente» a secas llegaría a la vista.
+    /// </summary>
+    private const string MensajeNoAutorizadoDelHandler = "No tienes autorización de plataforma sobre ese cliente.";
+
+    private const string MensajeNoAutorizadoDeLaPantalla = "No tienes autorización de plataforma sobre ese Tenant.";
+
+    private static Error NoAutorizado() => Error.Crear("Comercial.NoAutorizado", MensajeNoAutorizadoDelHandler);
 
     private const string TituloFormulario = "Vincular suscripción de Stripe";
     private const string TituloConfirmarVincular = "¿Vincular esta suscripción?";
@@ -491,6 +512,122 @@ public class EstadoComercialGen2Tests : BunitContext
         Celda(cut, TenantArbeko, 1).Should().Be("Activa");
     }
 
+    // ---------------------------------------------------------------- mensajes de error
+
+    /// <summary>Lanza la escritura (vincular o actualizar) y devuelve el texto de error que queda a la vista.</summary>
+    private async Task<string> MensajeVisibleDelFalloAsync(IRenderedComponent<EstadoComercial> cut, bool vincular)
+    {
+        if (vincular)
+        {
+            await AbrirFormularioYPedirConfirmacionAsync(cut, TenantBeitia, "sub_beitia");
+            await BotonDe(Dialogo(cut, TituloConfirmarVincular)!, "Vincular suscripción").ClickAsync(new MouseEventArgs());
+            return Dialogo(cut, TituloFormulario)!.QuerySelector("[role=alert]")!.TextContent.Trim();
+        }
+
+        await BotonDeFila(cut, TenantArbeko).ClickAsync(new MouseEventArgs());
+        await BotonDe(Dialogo(cut, TituloConfirmarActualizar)!, "Actualizar desde Stripe").ClickAsync(new MouseEventArgs());
+        return Toasts().Should().ContainSingle().Which.Mensaje;
+    }
+
+    /// <summary>
+    /// Cada código propio de los dos handlers lleva un mensaje de la pantalla.
+    /// El doble devuelve un texto que no debe verse nunca: si la pantalla lo
+    /// pintara, dependería del handler.
+    /// </summary>
+    [Theory]
+    [InlineData("Comercial.SinUsuario", "No pudimos identificarte. Vuelve a iniciar sesión.", true)]
+    [InlineData("Comercial.SinUsuario", "No pudimos identificarte. Vuelve a iniciar sesión.", false)]
+    [InlineData("Comercial.NoAutorizado", MensajeNoAutorizadoDeLaPantalla, true)]
+    [InlineData("Comercial.NoAutorizado", MensajeNoAutorizadoDeLaPantalla, false)]
+    [InlineData("Comercial.TenantNoEncontrado", "No encontramos ese Tenant.", true)]
+    [InlineData("Comercial.TenantNoEncontrado", "No encontramos ese Tenant.", false)]
+    [InlineData("Comercial.TenantPlataforma", "El tenant de plataforma no es Tenant beneficiario de ninguna suscripción.", true)]
+    [InlineData("Comercial.SinSuscripcionVinculada", "Este Tenant todavía no tiene ninguna suscripción de Stripe vinculada.", false)]
+    [InlineData("Comercial.EstadoNoReconocido", "Stripe devolvió un estado de suscripción que no reconocemos. Revisa la suscripción directamente en Stripe.", true)]
+    [InlineData("Comercial.EstadoNoReconocido", "Stripe devolvió un estado de suscripción que no reconocemos. Revisa la suscripción directamente en Stripe.", false)]
+    public async Task Un_codigo_propio_del_handler_se_cuenta_con_el_mensaje_de_la_pantalla(string codigo, string esperado, bool vincular)
+    {
+        var escenario = new Escenario { Rechazar = _ => Error.Crear(codigo, "TEXTO DEL HANDLER QUE NO DEBE VERSE") };
+        var (cut, _, _) = Montar(escenario);
+
+        var visible = await MensajeVisibleDelFalloAsync(cut, vincular);
+
+        visible.Should().Be(esperado);
+        cut.Markup.Should().NotContain("TEXTO DEL HANDLER");
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Sin_autorizacion_sobre_ese_Tenant_la_pantalla_no_repite_el_cliente_a_secas_del_handler(bool vincular)
+    {
+        var (cut, mediador, _) = Montar(new Escenario { Rechazar = _ => NoAutorizado() });
+
+        var visible = await MensajeVisibleDelFalloAsync(cut, vincular);
+
+        visible.Should().Be(MensajeNoAutorizadoDeLaPantalla);
+        Enviados<ObtenerEstadoComercialTenantsQuery>(mediador).Should().ContainSingle("un rechazo no escribe, así que no se recarga");
+    }
+
+    /// <summary>
+    /// Un código que la pantalla no conoce —aquí, uno del proveedor de pago—
+    /// se enseña con el mensaje que trae: la pantalla no sabe decirlo mejor.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Un_codigo_desconocido_se_cuenta_con_el_mensaje_que_trae(bool vincular)
+    {
+        const string mensaje = "Stripe no responde ahora mismo. Inténtalo dentro de unos minutos.";
+        var (cut, _, _) = Montar(new Escenario { Rechazar = _ => Error.Crear("Stripe.NoDisponible", mensaje) });
+
+        var visible = await MensajeVisibleDelFalloAsync(cut, vincular);
+
+        visible.Should().Be(mensaje);
+    }
+
+    // ---------------------------------------------------------------- qué bloquea
+
+    /// <summary>
+    /// La aclaración del mockup («Dominio: … Solo «Solo lectura» y
+    /// «Suspendida» bloquean la escritura del tenant»). La partición es la de
+    /// <c>GateComercialTenantBehavior</c> —SoloLectura y Suspendida devuelven
+    /// fallo; el resto pasa—, que prueba en su capa
+    /// <c>GateComercialTenantBehaviorTests</c> (Theory de SinSuscripcion, Activa
+    /// y AvisoImpago que no bloquean; SoloLectura y Suspendida que sí). Este
+    /// test no la vuelve a probar: exige que la pantalla la diga.
+    /// </summary>
+    [Fact]
+    public void La_tabla_dice_que_estados_bloquean_la_escritura_y_cuales_no()
+    {
+        var (cut, _, _) = Montar(new Escenario());
+
+        var nota = Regex.Replace(cut.Find(".estado-comercial-nota").TextContent, @"\s+", " ").Trim();
+        var frases = Regex.Split(nota, @"(?<=[.!?])\s+");
+
+        var noRestringe = frases.Should().ContainSingle(f => f.Contains("no restringe nada")).Which;
+        noRestringe.Should().Contain("«Sin suscripción»").And.Contain("«Aviso de impago»").And.Contain("«Activa»")
+            .And.NotContain("«Solo lectura»").And.NotContain("«Suspendida»");
+
+        var bloquean = frases.Should().ContainSingle(f => f.Contains("bloquean")).Which;
+        bloquean.Should().StartWith("Solo «Solo lectura» y «Suspendida» bloquean")
+            .And.NotContain("«Sin suscripción»").And.NotContain("«Aviso de impago»");
+
+        // Las dos frases nombran los cinco estados que existen hoy. Un estado
+        // nuevo no cabría en ninguna de las dos sin que alguien decida si el
+        // gate lo bloquea: que este recuento salte obliga a revisar la nota.
+        Enum.GetValues<EstadoComercialTenant>().Should().HaveCount(5,
+            "la nota reparte cinco estados entre «no restringe» y «bloquean»; uno nuevo exige revisarla contra GateComercialTenantBehavior");
+    }
+
+    [Fact]
+    public void La_aclaracion_de_bloqueo_no_se_pinta_sin_tabla()
+    {
+        var (cut, _, _) = Montar(new Escenario { AutorizacionGlobal = false });
+
+        cut.FindAll(".estado-comercial-nota").Should().BeEmpty("sin filas no hay estados que aclarar");
+    }
+
     [Fact]
     public async Task Mientras_una_actualizacion_esta_en_curso_otra_fila_no_cambia_lo_que_se_confirma()
     {
@@ -582,13 +719,24 @@ public class EstadoComercialGen2Tests : BunitContext
     /// los estados y diálogos de la pantalla y exige que ninguna frase visible
     /// los iguale, que ninguna haga pagar al tenant y que «cliente» no
     /// aparezca sin su apellido semántico.
+    ///
+    /// <para>
+    /// Los estados de error entran también: el fallo de carga (con una
+    /// excepción que dice «cliente»), y el rechazo de vincular y de actualizar
+    /// con el texto literal que devuelven hoy los handlers
+    /// (<see cref="MensajeNoAutorizadoDelHandler"/>). El texto de los handlers
+    /// es de Application y no se toca desde aquí: lo que se exige es que la
+    /// pantalla no lo repita.
+    /// </para>
     /// </summary>
     [Fact]
     public async Task Ningun_texto_visible_confunde_Pagador_TALVEG_con_Tenant_propietario()
     {
         var textos = new List<string>();
+        var escenario = new Escenario();
 
-        var (cut, _, _) = Montar(new Escenario());
+        // Lista, formulario, confirmaciones y éxito de las dos escrituras.
+        var (cut, _, _) = Montar(escenario);
         textos.Add(TextoDe(cut));
         await AbrirFormularioYPedirConfirmacionAsync(cut, TenantBeitia, "sub_x");
         textos.Add(TextoDe(cut));
@@ -598,10 +746,31 @@ public class EstadoComercialGen2Tests : BunitContext
         textos.Add(TextoDe(cut));
         await BotonDe(Dialogo(cut, TituloConfirmarActualizar)!, "Actualizar desde Stripe").ClickAsync(new MouseEventArgs());
         textos.Add(TextoDe(cut));
+
+        // Rechazo de vincular: el formulario vuelve con el error a la vista.
+        escenario.Rechazar = _ => NoAutorizado();
+        await AbrirFormularioYPedirConfirmacionAsync(cut, TenantBeitia, "sub_beitia");
+        await BotonDe(Dialogo(cut, TituloConfirmarVincular)!, "Vincular suscripción").ClickAsync(new MouseEventArgs());
+        textos.Add(TextoDe(cut));
+        await BotonDe(Dialogo(cut, TituloFormulario)!, "Cancelar").ClickAsync(new MouseEventArgs());
+
+        // Rechazo de actualizar: el error sale en un aviso.
+        await BotonDeFila(cut, TenantElorrio).ClickAsync(new MouseEventArgs());
+        await BotonDe(Dialogo(cut, TituloConfirmarActualizar)!, "Actualizar desde Stripe").ClickAsync(new MouseEventArgs());
+        textos.Add(TextoDe(cut));
         textos.AddRange(Toasts().Select(t => t.Mensaje));
 
-        var vacia = Render<EstadoComercial>();
-        textos.Add(TextoDe(vacia));
+        // Lista vacía (sin autorización global).
+        escenario.Rechazar = _ => null;
+        escenario.AutorizacionGlobal = false;
+        textos.Add(TextoDe(Render<EstadoComercial>()));
+
+        // Fallo de carga.
+        escenario.Fallar = p => p is ObtenerEstadoComercialTenantsQuery
+            ? new InvalidOperationException("Timeout al leer los tenants de ese cliente.")
+            : null;
+        var fallida = Render<EstadoComercial>();
+        textos.Add(TextoDe(fallida));
 
         var todo = Regex.Replace(string.Join(" ", textos), @"\s+", " ");
         var frases = Regex.Split(todo, @"(?<=[.!?])\s+");
@@ -619,8 +788,16 @@ public class EstadoComercialGen2Tests : BunitContext
                 RegexOptions.IgnoreCase),
             "el tenant no es quien paga por definición");
 
-        Regex.Matches(todo, @"\bcliente\b(?!\s+(comercial TALVEG|empresarial))", RegexOptions.IgnoreCase)
+        Regex.Matches(todo, @"\bclientes?\b(?!\s+(comercial TALVEG|empresarial))", RegexOptions.IgnoreCase)
+            .Select(m => todo.Substring(Math.Max(0, m.Index - 50), Math.Min(todo.Length - Math.Max(0, m.Index - 50), 70)))
             .Should().BeEmpty("«cliente» a secas no dice de qué plano se habla");
+
+        // Controles de que los estados de error se han mirado de verdad: sin
+        // ellos, la regla de arriba pasaría en vacío sobre esos estados.
+        Regex.Matches(todo, Regex.Escape(MensajeNoAutorizadoDeLaPantalla)).Should().HaveCount(2,
+            "el rechazo de vincular (alerta del formulario) y el de actualizar (aviso de ToastService) tienen que haberse recogido");
+        todo.Should().Contain("No pudimos cargar el estado comercial", "el fallo de carga tiene que haberse pintado");
+        todo.Should().Contain("No hay ningún tenant todavía", "la lista vacía tiene que haberse pintado");
     }
 
     [Fact]

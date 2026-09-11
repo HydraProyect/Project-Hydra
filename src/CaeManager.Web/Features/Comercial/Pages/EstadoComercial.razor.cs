@@ -1,6 +1,7 @@
 using CaeManager.Application.Comercial.Commands.ActualizarEstadoComercialTenant;
 using CaeManager.Application.Comercial.Commands.RegistrarSuscripcionTenant;
 using CaeManager.Application.Comercial.Queries.ObtenerEstadoComercialTenants;
+using CaeManager.Domain.Common;
 using CaeManager.Web.Components.DesignSystem;
 using MediatR;
 using Microsoft.AspNetCore.Components;
@@ -93,6 +94,29 @@ public partial class EstadoComercial : CaeManager.Web.Components.PaginaIntegrabl
         : $"TALVEG consultará ahora en Stripe la suscripción {_tenantAActualizar.StripeSubscriptionId} y aplicará a " +
           $"{_tenantAActualizar.Nombre} el estado que devuelva. Si Stripe la da por impagada o cancelada, " +
           $"{_tenantAActualizar.Nombre} pasará a «Solo lectura» o «Suspendida» y dejará de poder escribir.";
+
+    /// <summary>
+    /// El texto que la pantalla enseña cuando vincular o actualizar fallan.
+    /// Para los códigos que devuelven los propios handlers
+    /// (<c>RegistrarSuscripcionTenantCommand</c> y
+    /// <c>ActualizarEstadoComercialTenantCommand</c>) el mensaje es de la
+    /// pantalla, en el vocabulario del plano comercial, y no depende del que
+    /// traiga el handler: el de <c>Comercial.NoAutorizado</c> dice «ese
+    /// cliente», y aquí cada fila es un Tenant. Un código que no está en la
+    /// lista —los del proveedor de pago, los de validación, los del gate— se
+    /// enseña con el mensaje que trae, porque la pantalla no sabe decirlo mejor.
+    /// </summary>
+    private static string MensajeDeError(Error error) => error.Codigo switch
+    {
+        "Comercial.SinUsuario" => "No pudimos identificarte. Vuelve a iniciar sesión.",
+        "Comercial.NoAutorizado" => "No tienes autorización de plataforma sobre ese Tenant.",
+        "Comercial.TenantNoEncontrado" => "No encontramos ese Tenant.",
+        "Comercial.TenantPlataforma" => "El tenant de plataforma no es Tenant beneficiario de ninguna suscripción.",
+        "Comercial.SinSuscripcionVinculada" => "Este Tenant todavía no tiene ninguna suscripción de Stripe vinculada.",
+        "Comercial.EstadoNoReconocido" =>
+            "Stripe devolvió un estado de suscripción que no reconocemos. Revisa la suscripción directamente en Stripe.",
+        _ => error.Mensaje,
+    };
 
     protected override Task OnInitializedAsync() => CargarAsync();
 
@@ -271,7 +295,7 @@ public partial class EstadoComercial : CaeManager.Web.Components.PaginaIntegrabl
 
             if (resultado.EsFallido)
             {
-                _errorVincular = resultado.Error.Mensaje;
+                _errorVincular = MensajeDeError(resultado.Error);
                 _confirmandoVincular = false;
                 return;
             }
@@ -327,7 +351,7 @@ public partial class EstadoComercial : CaeManager.Web.Components.PaginaIntegrabl
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.Mostrar(MensajeDeError(resultado.Error), TonoToast.Error);
                 return;
             }
 

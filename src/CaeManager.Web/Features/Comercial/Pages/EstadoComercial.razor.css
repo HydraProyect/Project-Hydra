@@ -60,6 +60,14 @@
     margin: 0;
 }
 
+/* Qué estados bloquean la escritura: pie de la tabla, como en el mockup. */
+.estado-comercial-nota {
+    margin: var(--space-2) 0 0;
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    text-wrap: pretty;
+}
+
 .estado-comercial-pista {
     margin: var(--space-1) 0 0;
     font: var(--font-body-sm);
