@@ -63,13 +63,20 @@ public partial class AuditoriaIa : CaeManager.Web.Components.PaginaIntegrableCon
     }
 
     /// <summary>
-    /// Re-sincroniza el filtro con la URL en navegaciones posteriores (P1-18
-    /// de docs/business/MATURITY_REVIEW.md) — la recarga la sigue disparando
-    /// cada manejador de filtro explícitamente, no este método.
+    /// Re-sincroniza el filtro con la URL en navegaciones posteriores y recarga
+    /// solo si esta cambia el filtro mostrado. Así volver atrás o adelante no
+    /// conserva filas de la consulta anterior, mientras que los manejadores de
+    /// filtro, que ya cargan explícitamente, no generan una segunda consulta.
     /// </summary>
-    protected override void OnParametersSet()
+    protected override Task OnParametersSetAsync()
     {
-        _filtroProveedor = string.IsNullOrWhiteSpace(ProveedorInicial) ? null : ProveedorInicial;
+        var filtroDeLaUrl = string.IsNullOrWhiteSpace(ProveedorInicial) ? null : ProveedorInicial;
+        if (filtroDeLaUrl == _filtroProveedor)
+            return Task.CompletedTask;
+
+        _filtroProveedor = filtroDeLaUrl;
+        _pagina = 1;
+        return CargarAsync();
     }
 
     private async Task CargarAsync()

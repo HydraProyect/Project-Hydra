@@ -150,6 +150,34 @@ public class AuditoriaIaPantallaTests : BunitContext
     }
 
     [Fact]
+    public async Task Navegar_a_una_url_sin_proveedor_recarga_las_filas_de_todos_los_proveedores()
+    {
+        _mediador.Filas.AddRange([Fila("Certificado", "anthropic"), Fila("TC2", "gemini")]);
+        var cut = Renderizar(proveedor: "anthropic");
+
+        await cut.InvokeAsync(() => Navegacion.NavigateTo("auditoria-ia"));
+
+        cut.WaitForAssertion(() =>
+        {
+            _mediador.Consultas[^1].Should().Be(new ObtenerAuditoriaIaQuery(null, Pagina: 1, TamanoPagina: 30));
+            cut.FindAll("table.tabla-datos tbody tr:not(.fila-detalle-auditoria-ia)").Should().HaveCount(2);
+            FilaDe(cut, "Certificado").TextContent.Should().Contain("Certificado");
+            FilaDe(cut, "TC2").TextContent.Should().Contain("TC2");
+        });
+    }
+
+    [Fact]
+    public async Task Cambiar_el_proveedor_desde_el_desplegable_hace_una_sola_consulta_nueva()
+    {
+        var cut = Renderizar();
+        var consultasAntesDelCambio = _mediador.Consultas.Count;
+
+        await cut.Find("select").ChangeAsync(new ChangeEventArgs { Value = "gemini" });
+
+        cut.WaitForAssertion(() => _mediador.Consultas.Should().HaveCount(consultasAntesDelCambio + 1));
+    }
+
+    [Fact]
     public async Task Paginar_pide_la_pagina_siguiente_sin_perder_el_filtro()
     {
         _mediador.Filas.Add(Fila("Certificado", "mistral-ocr"));
@@ -275,11 +303,12 @@ public class AuditoriaIaPantallaTests : BunitContext
     }
 
     [Fact]
-    public void Las_columnas_numericas_van_a_la_derecha_y_el_tiempo_lleva_separador_de_miles()
+    public void Las_columnas_numericas_llevan_la_clase_de_celda_numerica_y_el_tiempo_lleva_separador_de_miles()
     {
         _mediador.Filas.Add(Fila("Evaluación de riesgos", ms: 12040));
         var cut = Renderizar();
 
+        // bUnit observa que las celdas llevan la clase; no evalúa su alineación visual.
         var cabeceras = cut.FindAll("table.tabla-datos thead th");
         cabeceras.Where(th => th.ClassList.Contains("celda-numerica-auditoria-ia")).Select(th => th.TextContent)
             .Should().Equal("Páginas", "Confianza", "Coste OCR", "Coste extracción", "Tiempo (ms)");
@@ -321,7 +350,8 @@ public class AuditoriaIaPantallaTests : BunitContext
         detalle.QuerySelector("td")!.GetAttribute("colspan").Should().Be("11", "ocupa todas las columnas de la tabla");
         detalle.QuerySelector(".detalle-auditoria-ia-codigo")!.TextContent.Should().Be("9f0ef40e1234…");
         detalle.QuerySelector(".detalle-auditoria-ia-codigo")!.GetAttribute("title").Should().Be(hash);
-        detalle.QuerySelector("button.boton-copiar").Should().NotBeNull("la huella completa se copia con el botón");
+        cut.FindComponents<BotonCopiar>().Should().ContainSingle()
+            .Which.Instance.Valor.Should().Be(hash, "el componente recibe la huella completa del registro");
         detalle.TextContent.Should().Contain(decididaUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm"));
         detalle.QuerySelector("a")!.GetAttribute("href").Should().Be($"/documentos?documentoId={documentoId}");
         Boton(cut, "Cerrar").GetAttribute("aria-expanded").Should().Be("true");
