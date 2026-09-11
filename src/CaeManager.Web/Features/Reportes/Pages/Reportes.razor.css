@@ -1,18 +1,8 @@
-.eyebrow-reportes {
-    font-size: 12px;
-    line-height: 16px;
-    font-weight: 500;
-    color: var(--color-text-muted);
-    text-transform: uppercase;
-    letter-spacing: .08em;
-}
-
 .rejilla-reportes {
     display: grid;
     grid-template-columns: 360px minmax(0, 1fr);
     gap: var(--space-5);
     align-items: start;
-    margin-top: var(--space-6);
 }
 
 @media (max-width: 1150px) {
@@ -38,12 +28,11 @@
 }
 
 .titulo-biblioteca {
-    font-size: 12px;
-    line-height: 16px;
-    font-weight: 500;
+    font: var(--font-label);
+    font-size: 11px;
     color: var(--color-text-muted);
     text-transform: uppercase;
-    letter-spacing: .1em;
+    letter-spacing: .06em;
 }
 
 .lista-informes {
@@ -55,13 +44,14 @@
 .item-informe {
     display: flex;
     align-items: flex-start;
-    gap: var(--space-2);
+    gap: 10px;
     background-color: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
-    padding: var(--space-3);
+    padding: 14px;
     text-align: left;
     cursor: pointer;
+    color: var(--color-text);
 }
 
 .item-informe:hover {
@@ -69,7 +59,7 @@
 }
 
 .item-informe-seleccionado {
-    background-color: var(--color-surface-subtle);
+    background-color: var(--color-primary-50);
     border-color: var(--color-primary-500);
 }
 
@@ -104,16 +94,14 @@
 }
 
 .titulo-item-informe {
-    font-size: 14px;
-    line-height: 20px;
+    font: var(--font-body-md);
     font-weight: 600;
 }
 
 .descripcion-item-informe {
-    font-size: 12px;
-    line-height: 16px;
-    font-weight: 500;
+    font: var(--font-caption);
     color: var(--color-text-muted);
+    text-wrap: pretty;
 }
 
 .filtros-informe {
@@ -124,36 +112,33 @@
     padding-top: var(--space-4);
 }
 
-.campo-select-informe {
+.campo-cliente-informe {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: var(--space-1);
 }
 
-.campo-select-informe span:first-child {
-    font-size: 13px;
-    font-weight: 600;
+.quitar-filtro-cliente {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    border: 0;
+    background: none;
+    padding: 0;
+    color: var(--color-text-muted);
+    font: var(--font-caption);
+    cursor: pointer;
 }
 
-.campo-select-informe select {
-    min-height: 48px;
-    border-radius: var(--radius-md);
-    border: var(--border-control);
-    padding: 0 var(--space-3);
-    font: var(--font-body-md);
-    background-color: var(--color-surface);
+.quitar-filtro-cliente:hover {
     color: var(--color-text);
-}
-
-.campo-select-informe select:disabled {
-    opacity: .6;
-    cursor: not-allowed;
 }
 
 .opcion-checkbox-informe {
     display: flex;
     align-items: flex-start;
-    gap: var(--space-2);
+    gap: 10px;
     cursor: pointer;
 }
 
@@ -162,6 +147,7 @@
     height: 18px;
     margin: 1px 0 0;
     flex: none;
+    accent-color: var(--color-primary-500);
 }
 
 .texto-opcion-checkbox-informe {
@@ -172,9 +158,9 @@
 }
 
 .detalle-opcion-checkbox-informe {
-    font-size: 12px;
-    font-weight: 500;
+    font: var(--font-caption);
     color: var(--color-text-muted);
+    text-wrap: pretty;
 }
 
 .acciones-exportar-informe {
@@ -183,31 +169,29 @@
 }
 
 .boton-exportar-informe {
+    flex: 1;
+    min-height: 40px;
     display: inline-flex;
     align-items: center;
-    gap: var(--space-2);
-    flex: 1;
-    height: 40px;
-    display: flex;
-    align-items: center;
     justify-content: center;
+    gap: var(--space-2);
     border: 1px solid var(--color-border-control);
     border-radius: var(--radius-md);
     background-color: var(--color-surface);
     color: var(--color-primary-500);
+    font: var(--font-label);
     font-size: 14px;
-    font-weight: 600;
     text-decoration: none;
 }
 
-.boton-exportar-informe:hover {
+a.boton-exportar-informe:hover {
     border-color: var(--color-primary-500);
-    background-color: var(--color-surface-subtle);
+    background-color: var(--color-surface-hover);
 }
 
 .boton-exportar-informe-deshabilitado {
-    pointer-events: none;
     opacity: .5;
+    cursor: not-allowed;
 }
 
 .enlace-secundario-informe {
@@ -216,8 +200,7 @@
     padding: 0;
     text-align: left;
     color: var(--color-primary-500);
-    font-size: 13px;
-    font-weight: 600;
+    font: var(--font-label);
     cursor: pointer;
 }
 
@@ -239,24 +222,38 @@
 
 .cabecera-historial-informes {
     padding: var(--space-3) var(--space-5);
-    background-color: var(--color-surface-subtle);
+    background-color: var(--color-surface-hover);
     border-bottom: 1px solid var(--color-border);
-    font-size: 12px;
-    font-weight: 500;
+    font: var(--font-label);
+    font-size: 11px;
     color: var(--color-text-muted);
     text-transform: uppercase;
-    letter-spacing: .1em;
+    letter-spacing: .06em;
 }
 
-.vacio-historial-informes {
-    padding: var(--space-5);
+.vacio-historial-informes,
+.aviso-historial-informes {
+    padding: var(--space-4) var(--space-5);
     color: var(--color-text-muted);
     font: var(--font-body-md);
     margin: 0;
 }
 
+.aviso-historial-informes {
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-warning-700);
+    background-color: var(--color-warning-50);
+}
+
+.error-historial-informes {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-2);
+}
+
 .item-historial-informes {
-    padding: var(--space-3) var(--space-5);
+    padding: 10px var(--space-5);
     border-bottom: 1px solid var(--color-border);
     display: flex;
     flex-direction: column;
@@ -274,20 +271,18 @@
 }
 
 .nombre-item-historial-informes {
-    font-size: 14px;
+    font: var(--font-body-md);
     font-weight: 600;
 }
 
 .fecha-item-historial-informes {
     margin-left: auto;
-    font-size: 12px;
-    font-weight: 500;
+    font: var(--font-caption);
     color: var(--color-text-muted);
 }
 
 .detalle-item-historial-informes {
-    font-size: 12px;
-    font-weight: 500;
+    font: var(--font-caption);
     color: var(--color-text-muted);
 }
 
@@ -301,49 +296,68 @@
 .aviso-sin-cliente-informe {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
+    gap: 10px;
     background-color: var(--color-warning-50);
     border: 1px solid var(--color-warning-500);
     border-radius: var(--radius-lg);
     padding: var(--space-3) var(--space-4);
     color: var(--color-warning-700);
-    font-size: 14px;
+    font: var(--font-body-md);
     font-weight: 600;
+    text-wrap: pretty;
 }
 
-.punto-aviso-sin-cliente {
-    width: 8px;
-    height: 8px;
-    flex: none;
-    border-radius: var(--radius-full);
-    background-color: var(--color-warning-500);
-}
-
-.documento-vista-previa-informe {
-    background-color: var(--color-surface);
+/* La vista previa del mockup: una hoja sobre una mesa atenuada. */
+.mesa-vista-previa-informe {
+    background-color: var(--color-surface-subtle);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
     padding: var(--space-6);
     display: flex;
     flex-direction: column;
-    gap: var(--space-4);
+    align-items: center;
+    gap: var(--space-5);
 }
 
-.cabecera-documento-informe {
+.hoja-informe {
+    width: 100%;
+    max-width: 680px;
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border-strong);
+    border-radius: 2px;
+    padding: var(--space-12) 56px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+}
+
+@media (max-width: 768px) {
+    .hoja-informe {
+        padding: var(--space-6) var(--space-4);
+    }
+}
+
+.cabecera-hoja-informe {
     display: flex;
     flex-direction: column;
     gap: 2px;
     border-bottom: 2px solid var(--color-text);
-    padding-bottom: var(--space-3);
+    padding-bottom: var(--space-4);
 }
 
-.titulo-documento-informe {
-    font: var(--font-heading-md);
+.titulo-hoja-informe {
+    margin: 0 0 var(--space-1);
+    font: var(--font-h3);
 }
 
-.metadato-documento-informe {
-    font-size: 12px;
-    font-weight: 500;
+.metadato-hoja-informe {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.vacio-hoja-informe {
+    margin: 0;
+    font: var(--font-body-md);
     color: var(--color-text-muted);
 }
 
@@ -351,8 +365,16 @@
     overflow-x: auto;
 }
 
+.celda-trabajador-informe {
+    font-weight: 600;
+}
+
+.celda-vence-informe {
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
 .nota-vista-previa-informe {
-    font-size: 12px;
-    font-weight: 500;
+    font: var(--font-caption);
     color: var(--color-text-muted);
 }
