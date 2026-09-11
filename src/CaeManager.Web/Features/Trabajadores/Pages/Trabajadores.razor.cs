@@ -380,12 +380,28 @@ public partial class Trabajadores : ComponentBase
         await RecargarAsync();
     }
 
+    /// <summary>
+    /// Vuelve a la página 1 y pide la lista UNA vez.
+    /// <see cref="PaginationState.SetCurrentPageIndexAsync"/> avisa a QuickGrid
+    /// siempre, cambie o no la página, y QuickGrid recarga al recibir el aviso
+    /// (así funciona <see cref="CambiarPaginaAsync"/>). Llamar a los dos,
+    /// aviso y <c>RefreshDataAsync</c>, lanzaba dos consultas idénticas por
+    /// cada búsqueda o filtro aunque el total no cambiara (medido en
+    /// <c>TrabajadoresListaGen2Tests</c>).
+    ///
+    /// <para>
+    /// Lo que esto no evita: si la respuesta trae un total distinto del
+    /// anterior, QuickGrid vuelve a pedir la misma página por su cuenta en el
+    /// render siguiente (<c>QuickGrid.OnParametersSetAsync</c> →
+    /// <c>RefreshDataCoreAsync</c>). Es de QuickGrid, no de esta página.
+    /// </para>
+    /// </summary>
     private async Task RecargarAsync()
     {
-        await _paginacion.SetCurrentPageIndexAsync(0);
-
-        if (_grid is not null)
+        if (_grid is not null && _paginacion.CurrentPageIndex == 0)
             await _grid.RefreshDataAsync();
+        else
+            await _paginacion.SetCurrentPageIndexAsync(0);
 
         StateHasChanged();
     }
@@ -711,6 +727,9 @@ public partial class Trabajadores : ComponentBase
 
     private async Task AbrirAsignarCentroAsync()
     {
+        // Antes del await: una consulta de faltantes del diálogo anterior que
+        // siga en vuelo ya no es de este.
+        ++_faltantesVigente;
         _centrosDisponiblesParaAsignar = await Mediator.Send(new ObtenerCentrosParaSelectorQuery());
         _centroIdParaAsignar = string.Empty;
         _fechaAltaParaAsignar = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
@@ -719,10 +738,26 @@ public partial class Trabajadores : ComponentBase
     }
 
     /// <summary>
+    /// Única salida del diálogo (Cancelar, la X, Escape, clic fuera y el
+    /// cierre tras asignar): invalida la consulta de faltantes en vuelo y
+    /// suelta el aviso, que era del centro elegido en este diálogo.
+    /// </summary>
+    private void CerrarAsignarCentro()
+    {
+        ++_faltantesVigente;
+        _asignarCentroVisible = false;
+        _centroIdParaAsignar = string.Empty;
+        _documentosFaltantesParaAsignar = [];
+    }
+
+    /// <summary>
     /// Carga vigente del aviso de documentos faltantes. Elegir un centro y
     /// después otro lanza dos consultas; si la del primero vuelve la última,
     /// sin esto el aviso hablaría del centro que ya no está elegido — y el
     /// botón diría «Asignar igualmente» (o «Asignar») por el centro equivocado.
+    /// Abrir y cerrar el diálogo también la invalidan: cerrar con la consulta
+    /// del centro A en vuelo y reabrir no puede pintar los faltantes de A en
+    /// un diálogo nuevo que todavía no tiene centro.
     /// </summary>
     private int _faltantesVigente;
 
@@ -783,7 +818,7 @@ public partial class Trabajadores : ComponentBase
                 ToastService.Mostrar(error, TonoToast.Advertencia);
 
             _seleccionados.Clear();
-            _asignarCentroVisible = false;
+            CerrarAsignarCentro();
             await RecargarAsync();
         }
         catch (Exception)

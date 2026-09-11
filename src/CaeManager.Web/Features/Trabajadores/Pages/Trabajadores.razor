@@ -332,7 +332,7 @@
 
 <TrabajadorPreviewDrawer TrabajadorId="_previewTrabajadorId" Visible="_previewVisible" VisibleChanged="v => _previewVisible = v" />
 
-<Modal Visible="_asignarCentroVisible" VisibleChanged="v => _asignarCentroVisible = v" Titulo="@($"Asignar {_seleccionados.Count} trabajador(es) a un centro")" CerrarAlHacerClicFuera="!_asignandoLote">
+<Modal Visible="_asignarCentroVisible" VisibleChanged="v => { if (!v) CerrarAsignarCentro(); }" Titulo="@($"Asignar {_seleccionados.Count} trabajador(es) a un centro")" CerrarAlHacerClicFuera="!_asignandoLote">
     <ChildContent>
         <CampoBuscarSelect
             Etiqueta="Centro"
@@ -343,11 +343,15 @@
 
         <CampoTexto Etiqueta="Fecha de alta" Type="date" Valor="@_fechaAltaParaAsignar" ValorChanged="v => _fechaAltaParaAsignar = v" />
 
+        @* La comprobación es una lectura aparte, hecha al elegir el centro:
+           CrearAsignacionesCommand ni la repite ni se detiene por documentos.
+           Por eso el aviso habla en pasado (lo que faltaba al comprobarlo) y
+           no promete qué quedará al confirmar. *@
         @if (_documentosFaltantesParaAsignar.Count > 0)
         {
             <div class="alerta-preflight-asignacion" role="status">
                 <p>
-                    <strong>@_documentosFaltantesParaAsignar.Count combinación(es)</strong> quedarán sin este documento obligatorio al confirmar:
+                    Al comprobarlo faltaban <strong>@_documentosFaltantesParaAsignar.Count documento(s) obligatorio(s)</strong>:
                 </p>
                 <ul>
                     @foreach (var faltante in _documentosFaltantesParaAsignar.Take(5))
@@ -359,11 +363,12 @@
                 {
                     <p>y @(_documentosFaltantesParaAsignar.Count - 5) más…</p>
                 }
+                <p>Asignar no crea esos documentos, y que falten no impide la asignación.</p>
             </div>
         }
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_asignandoLote" OnClick="() => _asignarCentroVisible = false">
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_asignandoLote" OnClick="CerrarAsignarCentro">
             Cancelar
         </Boton>
         <Boton Cargando="_asignandoLote" OnClick="ConfirmarAsignarCentroAsync">

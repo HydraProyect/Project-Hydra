@@ -39,12 +39,22 @@ namespace CaeManager.Web.Tests;
 ///
 /// <para>
 /// El doble del mediador guarda los trabajadores y APLICA lo que recibe:
-/// filtra por <c>Busqueda</c>, <c>EmpresaId</c>, <c>SubcontrataId</c> y
-/// <c>EstadoDocumental</c>, ordena por <c>OrdenarPor</c>/<c>Descendente</c>
-/// con la misma lista blanca que <c>ObtenerTrabajadoresQueryHandler</c>, y
-/// pagina con <c>Pagina</c>/<c>TamanoPagina</c>. Los comandos cambian lo
-/// guardado. Un doble que ignorase un parámetro dejaría en verde una pantalla
-/// que no lo envía.
+/// busca como <c>ObtenerTrabajadoresQueryHandler</c> (campo a campo en
+/// nombre, apellidos, DNI y alias, sin distinguir mayúsculas), filtra por
+/// <c>EmpresaId</c>, <c>SubcontrataId</c> y <c>EstadoDocumental</c>, ordena
+/// con el mismo reparto en dos caminos que el handler (por estado documental
+/// si se filtra u ordena por él; si no, la misma lista blanca de columnas) con
+/// el Id como desempate final, y pagina con <c>Pagina</c>/<c>TamanoPagina</c>.
+/// Los comandos cambian lo guardado. Un doble que ignorase un parámetro
+/// dejaría en verde una pantalla que no lo envía.
+/// </para>
+///
+/// <para>
+/// Lo que el doble NO reproduce, y por eso ningún test de aquí depende de
+/// ello: el alcance de cartera (<c>IAlcanceDatosService</c>), la intercalación
+/// de PostgreSQL (aquí se compara ordinal) y el orden de los <c>uuid</c> en
+/// PostgreSQL, que no es el de <see cref="Guid"/> en .NET — el desempate por
+/// Id solo garantiza aquí que el orden sea total, no cuál.
 /// </para>
 /// </summary>
 public class TrabajadoresListaGen2Tests : BunitContext
@@ -56,7 +66,8 @@ public class TrabajadoresListaGen2Tests : BunitContext
     private static readonly Guid EmpresaDexter = Guid.Parse("33333333-3333-3333-3333-333333333333");
     private static readonly Guid SubcontrataNervion = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
-    private sealed record Fila(TrabajadorListaDto Dto, Guid? EmpresaId, Guid? SubcontrataId);
+    /// <summary><see cref="TrabajadorListaDto"/> no lleva el alias, pero el handler busca en él: va aparte.</summary>
+    private sealed record Fila(TrabajadorListaDto Dto, Guid? EmpresaId, Guid? SubcontrataId, string? Alias = null);
 
     private sealed class MediatorFalso : IMediator
     {
@@ -142,26 +153,51 @@ public class TrabajadoresListaGen2Tests : BunitContext
         public ResultadoPaginado<TrabajadorListaDto> Filtrar(ObtenerTrabajadoresQuery q)
         {
             var coincidentes = Almacen
-                .Where(f => q.Busqueda is null
-                    || $"{f.Dto.Nombre} {f.Dto.Apellidos} {f.Dto.Dni}".Contains(q.Busqueda, StringComparison.OrdinalIgnoreCase))
+                .Where(f => string.IsNullOrWhiteSpace(q.Busqueda) || CoincideBusqueda(f, q.Busqueda))
                 .Where(f => q.EmpresaId is null || f.EmpresaId == q.EmpresaId)
                 .Where(f => q.SubcontrataId is null || f.SubcontrataId == q.SubcontrataId)
                 .Where(f => EstadoDocumentalFiltro.Coincide(f.Dto.EstadoDocumental, q.EstadoDocumental))
                 .Select(f => f.Dto)
                 .ToList();
 
-            var pagina = Ordenar(coincidentes, q.OrdenarPor, q.Descendente)
+            var pagina = Ordenar(coincidentes, q)
                 .Skip((q.Pagina - 1) * q.TamanoPagina)
                 .Take(q.TamanoPagina)
                 .ToList();
             return new ResultadoPaginado<TrabajadorListaDto>(pagina, coincidentes.Count, q.Pagina, q.TamanoPagina);
         }
 
-        /// <summary>Misma lista blanca que el handler; cualquier otro nombre cae en Apellidos, Nombre.</summary>
-        private static IEnumerable<TrabajadorListaDto> Ordenar(List<TrabajadorListaDto> filas, string? ordenarPor, bool descendente)
+        /// <summary>
+        /// Campo a campo, como el handler: «Javier Salas» no casa con nadie
+        /// aunque sean el nombre y el apellido de la misma fila.
+        /// </summary>
+        private static bool CoincideBusqueda(Fila f, string busqueda) =>
+            new[] { f.Dto.Nombre, f.Dto.Apellidos, f.Dto.Dni ?? string.Empty, f.Alias ?? string.Empty }
+                .Any(campo => campo.Contains(busqueda, StringComparison.OrdinalIgnoreCase));
+
+        /// <summary>
+        /// Mismo reparto en dos caminos que el handler. Con filtro de
+        /// documentación, o al ordenar por ella, el handler ordena por la clave
+        /// del estado (<c>Descendente</c> la invierte) y después por apellidos,
+        /// nombre e Id, SIN mirar qué columna pide <c>OrdenarPor</c>. Si no,
+        /// lista blanca de columnas —cualquier otro nombre cae en apellidos,
+        /// nombre— y el Id como desempate final.
+        /// </summary>
+        private static IEnumerable<TrabajadorListaDto> Ordenar(List<TrabajadorListaDto> filas, ObtenerTrabajadoresQuery q)
         {
             var c = StringComparer.Ordinal;
-            return (ordenarPor, descendente) switch
+
+            var porEstado = !string.IsNullOrWhiteSpace(q.EstadoDocumental)
+                || q.OrdenarPor == nameof(TrabajadorListaDto.EstadoDocumental);
+            if (porEstado)
+            {
+                return (q.Descendente
+                        ? filas.OrderByDescending(t => EstadoDocumentalFiltro.ClaveOrden(t.EstadoDocumental))
+                        : filas.OrderBy(t => EstadoDocumentalFiltro.ClaveOrden(t.EstadoDocumental)))
+                    .ThenBy(t => t.Apellidos, c).ThenBy(t => t.Nombre, c).ThenBy(t => t.Id);
+            }
+
+            IOrderedEnumerable<TrabajadorListaDto> ordenada = (q.OrdenarPor, q.Descendente) switch
             {
                 (nameof(TrabajadorListaDto.Apellidos), true) => filas.OrderByDescending(t => t.Apellidos, c).ThenBy(t => t.Nombre, c),
                 (nameof(TrabajadorListaDto.Nombre), false) => filas.OrderBy(t => t.Nombre, c).ThenBy(t => t.Apellidos, c),
@@ -170,10 +206,9 @@ public class TrabajadoresListaGen2Tests : BunitContext
                 (nameof(TrabajadorListaDto.Dni), true) => filas.OrderByDescending(t => t.Dni, c),
                 (nameof(TrabajadorListaDto.EmpleadorNombre), false) => filas.OrderBy(t => t.EmpleadorNombre, c).ThenBy(t => t.Apellidos, c),
                 (nameof(TrabajadorListaDto.EmpleadorNombre), true) => filas.OrderByDescending(t => t.EmpleadorNombre, c).ThenBy(t => t.Apellidos, c),
-                (nameof(TrabajadorListaDto.EstadoDocumental), false) => filas.OrderBy(t => EstadoDocumentalFiltro.ClaveOrden(t.EstadoDocumental)).ThenBy(t => t.Apellidos, c),
-                (nameof(TrabajadorListaDto.EstadoDocumental), true) => filas.OrderByDescending(t => EstadoDocumentalFiltro.ClaveOrden(t.EstadoDocumental)).ThenBy(t => t.Apellidos, c),
                 _ => filas.OrderBy(t => t.Apellidos, c).ThenBy(t => t.Nombre, c)
             };
+            return ordenada.ThenBy(t => t.Id);
         }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
@@ -203,14 +238,15 @@ public class TrabajadoresListaGen2Tests : BunitContext
     }
 
     private static Fila Trabajador(string nombre, string apellidos, Guid? empresaId = null, Guid? subcontrataId = null,
-        EstadoDocumento? estado = EstadoDocumento.Vigente)
+        EstadoDocumento? estado = EstadoDocumento.Vigente, string? alias = null)
     {
         var empleador = subcontrataId is not null ? "Aislamientos Nervión S.L."
             : empresaId == EmpresaDexter ? "Dexter Industrial S.A." : "Montajes Ebro S.L.";
         return new Fila(
             new TrabajadorListaDto(Guid.NewGuid(), nombre, apellidos, $"{Math.Abs(apellidos.GetHashCode()) % 100000000:00000000}Z", empleador, estado),
             subcontrataId is null ? empresaId ?? EmpresaEbro : null,
-            subcontrataId);
+            subcontrataId,
+            alias);
     }
 
     private void Registrar(MediatorFalso mediador, string url)
@@ -251,6 +287,20 @@ public class TrabajadoresListaGen2Tests : BunitContext
 
     private static ObtenerTrabajadoresQuery UltimaConsulta(MediatorFalso mediador) =>
         mediador.Enviadas.OfType<ObtenerTrabajadoresQuery>().Last();
+
+    private static int ConsultasDeLista(MediatorFalso mediador) =>
+        mediador.Enviadas.OfType<ObtenerTrabajadoresQuery>().Count();
+
+    private static IRenderedComponent<CampoTexto> CajaDeBusqueda(IRenderedComponent<Trabajadores> cut) =>
+        cut.FindComponents<CampoTexto>().First(c => c.Instance.Placeholder?.StartsWith("Buscar", StringComparison.Ordinal) == true);
+
+    /// <summary>Cuenta las navegaciones desde ahora: cada una es una pasada de parámetros más.</summary>
+    private Func<int> ContarNavegaciones()
+    {
+        var navegaciones = 0;
+        Services.GetRequiredService<NavigationManager>().LocationChanged += (_, _) => navegaciones++;
+        return () => navegaciones;
+    }
 
     // --- Cabecera y barra de trabajo -----------------------------------------------------------
 
@@ -479,6 +529,8 @@ public class TrabajadoresListaGen2Tests : BunitContext
         cut.Markup.Should().Contain("Ningún trabajador con estos filtros", "es el punto de partida de este caso");
         UltimaConsulta(mediador).Busqueda.Should().Be("Nadie");
         UltimaConsulta(mediador).EstadoDocumental.Should().Be("Vencido");
+        var navegaciones = ContarNavegaciones();
+        var consultasAntes = ConsultasDeLista(mediador);
 
         await cut.FindAll(".estado-vacio button").Single(b => b.TextContent.Trim() == "Quitar los filtros").ClickAsync(new MouseEventArgs());
 
@@ -488,6 +540,36 @@ public class TrabajadoresListaGen2Tests : BunitContext
         UltimaConsulta(mediador).EstadoDocumental.Should().BeNull();
         cut.WaitForAssertion(() => Columna(cut, 0).Should().Equal("Salas Moreno", "Vega Ortiz"));
         cut.FindAll(".chip-filtro").Should().BeEmpty();
+        navegaciones().Should().Be(1, "la búsqueda y el estado se quitan de la URL en una sola navegación");
+        mediador.Enviadas.OfType<ObtenerTrabajadoresQuery>().Skip(consultasAntes).Distinct().Should().ContainSingle(
+            "es una sola pregunta nueva; aquí el total pasa de 0 a 2 y QuickGrid la repite idéntica por su cuenta, así que cuántas "
+            + "veces se hace lo cuenta Quitar_los_filtros_sin_cambiar_el_total_navega_una_vez_y_hace_una_sola_consulta");
+    }
+
+    /// <summary>
+    /// Recuento exacto de «Quitar los filtros»: una navegación y una consulta.
+    /// El almacén vacío deja el total en 0 antes y después; si cambiara,
+    /// QuickGrid volvería a pedir la misma página en el render siguiente (ver
+    /// <see cref="Buscar_desde_la_caja_navega_una_vez_y_hace_una_sola_consulta"/>)
+    /// y el recuento mezclaría esa repetición con lo que pide la página.
+    /// </summary>
+    [Fact]
+    public async Task Quitar_los_filtros_sin_cambiar_el_total_navega_una_vez_y_hace_una_sola_consulta()
+    {
+        var mediador = new MediatorFalso();
+        var cut = Renderizar(mediador, "trabajadores?q=Nadie&estado=Vencido");
+        cut.Markup.Should().Contain("Ningún trabajador con estos filtros", "es el punto de partida de este caso");
+        var navegaciones = ContarNavegaciones();
+        var consultasAntes = ConsultasDeLista(mediador);
+
+        await cut.FindAll(".estado-vacio button").Single(b => b.TextContent.Trim() == "Quitar los filtros").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Aún no hay trabajadores"));
+        navegaciones().Should().Be(1, "la búsqueda y el estado se quitan de la URL en una sola navegación");
+        (ConsultasDeLista(mediador) - consultasAntes).Should().Be(1,
+            "quitar los cuatro filtros es una sola consulta, y la pasada de parámetros que sigue a la navegación ya encuentra la URL igual a la pantalla");
+        UltimaConsulta(mediador).Busqueda.Should().BeNull();
+        UltimaConsulta(mediador).EstadoDocumental.Should().BeNull();
     }
 
     /// <summary>
@@ -533,6 +615,84 @@ public class TrabajadoresListaGen2Tests : BunitContext
 
         UltimaConsulta(mediador).Busqueda.Should().Be("Vega", "cambiar un filtro no puede soltar otro que sigue puesto");
         UltimaConsulta(mediador).EstadoDocumental.Should().Be(nameof(EstadoDocumento.Vigente));
+    }
+
+    /// <summary>
+    /// Buscar desde la propia página escribe el campo, después la URL, y
+    /// recarga una vez. La navegación vuelve a pasar por OnParametersSetAsync,
+    /// que encuentra la URL igual a la pantalla y no repite la consulta; si la
+    /// repitiera, cada búsqueda costaría dos.
+    ///
+    /// <para>
+    /// El total se queda en 1 (de «Salas» a «Vega») a propósito: cuando el
+    /// total cambia, QuickGrid vuelve a pedir la misma página por su cuenta en
+    /// el render siguiente (su pila: <c>QuickGrid.OnParametersSetAsync</c> →
+    /// <c>RefreshDataCoreAsync</c>), y el recuento mezclaría esa repetición
+    /// con lo que pide la página.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task Buscar_desde_la_caja_navega_una_vez_y_hace_una_sola_consulta()
+    {
+        var mediador = new MediatorFalso { Almacen = { Trabajador("Javier", "Salas Moreno"), Trabajador("Ana", "Vega Ortiz") } };
+        var cut = Renderizar(mediador, "trabajadores?q=Salas");
+        Columna(cut, 0).Should().Equal("Salas Moreno");
+        var navegaciones = ContarNavegaciones();
+        var consultasAntes = ConsultasDeLista(mediador);
+
+        await cut.InvokeAsync(() => CajaDeBusqueda(cut).Instance.ValorChanged.InvokeAsync("Vega"));
+
+        cut.WaitForAssertion(() => Columna(cut, 0).Should().Equal("Vega Ortiz"));
+        Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("q=Vega");
+        navegaciones().Should().Be(1);
+        (ConsultasDeLista(mediador) - consultasAntes).Should().Be(1, "la pasada de parámetros que sigue a la navegación no vuelve a pedir la lista");
+        UltimaConsulta(mediador).Busqueda.Should().Be("Vega");
+    }
+
+    /// <summary>
+    /// Lo mismo con el filtro de documentación, que también vive en la URL
+    /// (<c>?estado=</c>). También aquí el total se queda en 1, de «Vencido» a
+    /// «Vigente», por el mismo motivo que en la búsqueda.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_la_documentacion_navega_una_vez_y_hace_una_sola_consulta()
+    {
+        var mediador = new MediatorFalso
+        {
+            Almacen = { Trabajador("Javier", "Salas Moreno"), Trabajador("Ana", "Vega Ortiz", estado: EstadoDocumento.Vencido) }
+        };
+        var cut = Renderizar(mediador, "trabajadores?estado=Vencido");
+        Columna(cut, 0).Should().Equal("Vega Ortiz");
+        var navegaciones = ContarNavegaciones();
+        var consultasAntes = ConsultasDeLista(mediador);
+
+        await SelectDeLaBarra(cut, "Documentación").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vigente) });
+
+        cut.WaitForAssertion(() => Columna(cut, 0).Should().Equal("Salas Moreno"));
+        Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("estado=Vigente");
+        navegaciones().Should().Be(1);
+        (ConsultasDeLista(mediador) - consultasAntes).Should().Be(1, "la pasada de parámetros que sigue a la navegación no vuelve a pedir la lista");
+        UltimaConsulta(mediador).EstadoDocumental.Should().Be(nameof(EstadoDocumento.Vigente));
+    }
+
+    /// <summary>
+    /// El handler busca también en el alias, y la caja lo promete en su
+    /// marcador. «juanjo» no está en el nombre, los apellidos ni el DNI de
+    /// nadie: solo en el alias de uno.
+    /// </summary>
+    [Fact]
+    public async Task Buscar_por_alias_encuentra_al_trabajador_de_ese_alias()
+    {
+        var mediador = new MediatorFalso
+        {
+            Almacen = { Trabajador("José Juan", "Pérez Gil", alias: "Juanjo"), Trabajador("Ana", "Vega Ortiz") }
+        };
+        var cut = Renderizar(mediador);
+
+        await cut.InvokeAsync(() => CajaDeBusqueda(cut).Instance.ValorChanged.InvokeAsync("juanjo"));
+
+        UltimaConsulta(mediador).Busqueda.Should().Be("juanjo");
+        cut.WaitForAssertion(() => Columna(cut, 0).Should().Equal("Pérez Gil"));
     }
 
     // --- Acciones de fila ---------------------------------------------------------------------
@@ -698,5 +858,90 @@ public class TrabajadoresListaGen2Tests : BunitContext
         cut.FindAll(".alerta-preflight-asignacion").Should().BeEmpty("el centro elegido es B, que no deja faltantes");
         cut.FindAll(".modal-pie button, [role=dialog] button").Select(b => b.TextContent.Trim())
             .Should().Contain("Asignar").And.NotContain("Asignar igualmente");
+    }
+
+    private static IElement BotonAsignarACentro(IRenderedComponent<Trabajadores> cut) =>
+        cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Asignar a centro…");
+
+    private static async Task AbrirAsignarACentro(IRenderedComponent<Trabajadores> cut, Fila trabajador)
+    {
+        await BotonDeLaBarra(cut, "Selección múltiple").ClickAsync(new MouseEventArgs());
+        await cut.Find($"tbody input[aria-label='Seleccionar a {trabajador.Dto.Nombre} {trabajador.Dto.Apellidos}']")
+            .ChangeAsync(new ChangeEventArgs { Value = true });
+        await BotonAsignarACentro(cut).ClickAsync(new MouseEventArgs());
+    }
+
+    private static List<string> BotonesDelPieDelDialogo(IRenderedComponent<Trabajadores> cut) =>
+        cut.FindAll("[role=dialog] .modal-pie button").Select(b => b.TextContent.Trim()).ToList();
+
+    /// <summary>
+    /// Se elige el centro A (su consulta de faltantes tarda), se cierra el
+    /// diálogo con Cancelar y se reabre. Cuando A responde, el diálogo nuevo
+    /// no tiene centro elegido: ni aviso ni «Asignar igualmente».
+    /// </summary>
+    [Fact]
+    public async Task Cerrar_y_reabrir_Asignar_a_centro_descarta_los_faltantes_tardios_del_dialogo_anterior()
+    {
+        var bea = Trabajador("Bea", "Alonso");
+        var centroA = new CentroSelectorDto(Guid.NewGuid(), "Planta Zaragoza", "Refrielectric S.L.", "Montajes Ebro S.L.");
+        var respuestaDeA = new TaskCompletionSource<object>();
+        var mediador = new MediatorFalso
+        {
+            Almacen = { bea },
+            Centros = { centroA },
+            Retener = p => p is ObtenerDocumentosFaltantesParaAsignacionQuery ? respuestaDeA.Task : null
+        };
+        var cut = Renderizar(mediador);
+        await AbrirAsignarACentro(cut, bea);
+        var campo = cut.FindComponent<CampoBuscarSelect>();
+
+        // Sin await: la consulta de faltantes de A queda retenida.
+        var eleccionA = cut.InvokeAsync(() => campo.Instance.ValorChanged.InvokeAsync(centroA.Id.ToString()));
+        await cut.FindAll("[role=dialog] .modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+        cut.FindComponents<CampoBuscarSelect>().Should().BeEmpty("Cancelar cierra el diálogo");
+        await BotonAsignarACentro(cut).ClickAsync(new MouseEventArgs());
+        cut.FindComponent<CampoBuscarSelect>().Instance.Valor.Should().BeNullOrEmpty("es un diálogo nuevo");
+
+        IReadOnlyList<DocumentoFaltanteDto> faltantesDeA =
+            [new(bea.Dto.Id, "Bea Alonso", centroA.Id, centroA.Nombre, Guid.NewGuid(), "Formación PRL específica")];
+        await cut.InvokeAsync(() => respuestaDeA.SetResult(faltantesDeA));
+        await eleccionA;
+        cut.Render();
+
+        cut.FindComponent<CampoBuscarSelect>().Instance.Valor.Should().BeNullOrEmpty();
+        cut.FindAll(".alerta-preflight-asignacion").Should().BeEmpty(
+            "la respuesta era del centro A de un diálogo ya cerrado; el nuevo no tiene centro elegido");
+        BotonesDelPieDelDialogo(cut).Should().Contain("Asignar").And.NotContain("Asignar igualmente");
+    }
+
+    /// <summary>
+    /// La comprobación de faltantes es una lectura hecha al elegir el centro, y
+    /// CrearAsignacionesCommand ni la repite ni se detiene por documentos: el
+    /// aviso cuenta lo que faltaba al comprobarlo y que asignar no lo cambia,
+    /// sin prometer qué «quedará» al confirmar.
+    /// </summary>
+    [Fact]
+    public async Task El_aviso_de_faltantes_dice_lo_que_faltaba_al_comprobarlo_y_que_asignar_no_lo_crea_ni_lo_impide()
+    {
+        var bea = Trabajador("Bea", "Alonso");
+        var centro = new CentroSelectorDto(Guid.NewGuid(), "Planta Zaragoza", "Refrielectric S.L.", "Montajes Ebro S.L.");
+        var mediador = new MediatorFalso
+        {
+            Almacen = { bea },
+            Centros = { centro },
+            Faltantes = _ => [new(bea.Dto.Id, "Bea Alonso", centro.Id, centro.Nombre, Guid.NewGuid(), "Formación PRL específica")]
+        };
+        var cut = Renderizar(mediador);
+        await AbrirAsignarACentro(cut, bea);
+
+        await cut.InvokeAsync(() => cut.FindComponent<CampoBuscarSelect>().Instance.ValorChanged.InvokeAsync(centro.Id.ToString()));
+
+        var aviso = string.Join(' ', cut.Find(".alerta-preflight-asignacion").TextContent
+            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        aviso.Should().Contain("Al comprobarlo faltaban 1 documento(s) obligatorio(s):")
+            .And.Contain("Bea Alonso — Formación PRL específica")
+            .And.Contain("Asignar no crea esos documentos, y que falten no impide la asignación.")
+            .And.NotContain("quedarán sin", "la consulta previa no sabe qué quedará al confirmar");
+        BotonesDelPieDelDialogo(cut).Should().Contain("Asignar igualmente");
     }
 }
