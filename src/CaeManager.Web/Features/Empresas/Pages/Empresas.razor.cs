@@ -17,7 +17,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace CaeManager.Web.Features.Empresas.Pages;
 
-public partial class Empresas : ComponentBase
+public partial class Empresas : ComponentBase, IDisposable
 {
     // QuickGrid no soporta filas expandibles (Centro 360, PLAN-EJECUCION-UX.md
     // § 0.11 — migra /empresas al mismo patrón de Centros.razor § 0.1): cada
@@ -239,10 +239,34 @@ public partial class Empresas : ComponentBase
             NavigationManager.ActualizarFiltroEnUrl("accion", null);
     }
 
+    /// <summary>
+    /// Se cancela al salir de la página: las consultas en curso dejan de
+    /// trabajar para nadie y ninguna respuesta tardía repinta un componente
+    /// ya retirado. Mismo patrón que DeteccionTrabajadores.
+    /// </summary>
+    private readonly CancellationTokenSource _ciclo = new();
+    private bool _desechado;
+
+    public void Dispose()
+    {
+        if (_desechado)
+            return;
+
+        _desechado = true;
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+    }
+
+    /// <summary>La respuesta es de la pregunta vigente y la página sigue viva.</summary>
+    private bool EsVigente(int carga) => !_desechado && carga == _cargaVigente;
+
     private async Task CargarAsync(bool resetPagina = false)
     {
         if (resetPagina)
             _pagina = 1;
+
+        if (_desechado)
+            return;
 
         // Todo lo que define la pregunta se lee ANTES del await.
         var carga = ++_cargaVigente;
@@ -258,8 +282,8 @@ public partial class Empresas : ComponentBase
 
         try
         {
-            var resultado = await Mediator.Send(consulta);
-            if (carga != _cargaVigente)
+            var resultado = await Mediator.Send(consulta, _ciclo.Token);
+            if (!EsVigente(carga))
                 return;
 
             _totalElementos = resultado.TotalElementos;
@@ -270,7 +294,7 @@ public partial class Empresas : ComponentBase
             _clientesConError.Clear();
             _idEnfocado = null;
         }
-        catch (Exception) when (carga != _cargaVigente)
+        catch (Exception) when (!EsVigente(carga))
         {
             // Una carga superada que falla no es un error de la vigente: no
             // puede tapar su resultado con el estado de error.
@@ -281,7 +305,7 @@ public partial class Empresas : ComponentBase
         }
         finally
         {
-            if (carga == _cargaVigente)
+            if (EsVigente(carga))
             {
                 _cargando = false;
                 StateHasChanged();
@@ -393,7 +417,7 @@ public partial class Empresas : ComponentBase
             : $"Peor estado de vigencia entre sus documentos: {EstadoDocumentoUi.Texto(estado.Value)}";
 
     private static string TituloClientes(int cantidad) =>
-        cantidad == 1 ? "Presta servicio a 1 cliente" : $"Presta servicio a {cantidad} clientes";
+        cantidad == 1 ? "Presta servicio a 1 cliente empresarial" : $"Presta servicio a {cantidad} clientes empresariales";
 
     private async Task AbrirCrear()
     {
@@ -640,19 +664,22 @@ public partial class Empresas : ComponentBase
 
     private async Task CargarClientesDeEmpresaAsync(Guid empresaId)
     {
+        if (_desechado)
+            return;
+
         // La respuesta solo vale para la lista que se veía al pedirla: tras
         // recargar, la fila ya no está desplegada y su entrada se limpió.
         var cargaDeLaLista = _cargaVigente;
 
         try
         {
-            var resultado = await Mediator.Send(new ObtenerClientesDeEmpresaQuery(empresaId));
-            if (cargaDeLaLista != _cargaVigente)
+            var resultado = await Mediator.Send(new ObtenerClientesDeEmpresaQuery(empresaId), _ciclo.Token);
+            if (!EsVigente(cargaDeLaLista))
                 return;
 
             _clientesPorEmpresa[empresaId] = resultado;
         }
-        catch (Exception) when (cargaDeLaLista != _cargaVigente)
+        catch (Exception) when (!EsVigente(cargaDeLaLista))
         {
             return;
         }

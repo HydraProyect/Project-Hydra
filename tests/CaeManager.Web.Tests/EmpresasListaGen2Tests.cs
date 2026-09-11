@@ -54,6 +54,7 @@ public class EmpresasListaGen2Tests : BunitContext
         public HashSet<Guid> ClientesQueFallan { get; } = [];
         public PerfilVocabularioTenant Perfil { get; set; } = PerfilVocabularioTenant.Consultora;
         public List<object> Enviadas { get; } = [];
+        public List<CancellationToken> Tokens { get; } = [];
 
         /// <summary>
         /// Si devuelve una tarea para la petición, esa es la respuesta: permite
@@ -65,6 +66,7 @@ public class EmpresasListaGen2Tests : BunitContext
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
+            Tokens.Add(cancellationToken);
 
             if (Retener?.Invoke(request) is { } retenida)
                 return (TResponse)await retenida;
@@ -301,13 +303,13 @@ public class EmpresasListaGen2Tests : BunitContext
     {
         var cut = Renderizar(new MediatorFalso { Almacen = { Empresa("Refrielectric S.A.") } });
         var chevron = cut.Find(".boton-expandir-fila");
-        chevron.GetAttribute("aria-label").Should().Be("Ver los clientes de Refrielectric S.A.");
+        chevron.GetAttribute("aria-label").Should().Be("Ver los clientes empresariales de Refrielectric S.A.");
         chevron.GetAttribute("aria-expanded").Should().Be("false");
 
         await chevron.ClickAsync(new MouseEventArgs());
 
         var abierto = cut.Find(".boton-expandir-fila");
-        abierto.GetAttribute("aria-label").Should().Be("Ocultar los clientes de Refrielectric S.A.");
+        abierto.GetAttribute("aria-label").Should().Be("Ocultar los clientes empresariales de Refrielectric S.A.");
         abierto.GetAttribute("aria-expanded").Should().Be("true");
     }
 
@@ -393,7 +395,7 @@ public class EmpresasListaGen2Tests : BunitContext
         await cut.FindAll(".barra-herramientas-lista button").Single(b => b.TextContent.Trim() == "Expandir todos").ClickAsync(new MouseEventArgs());
 
         cut.WaitForAssertion(() => cut.FindAll(".titulo-clientes-empresa").Select(t => t.TextContent.Trim())
-            .Should().Equal(["Presta servicio a 1 cliente", "Presta servicio a 2 clientes"]));
+            .Should().Equal(["Presta servicio a 1 cliente empresarial", "Presta servicio a 2 clientes empresariales"]));
         var contenidoRefrielectric = cut.FindAll(".tarjeta-fila-acordeon-contenido")[1];
         contenidoRefrielectric.TextContent.Should().Contain("Grupo Arbeko").And.Contain("Petronor Servicios");
     }
@@ -407,7 +409,7 @@ public class EmpresasListaGen2Tests : BunitContext
         await cut.Find(".boton-expandir-fila").ClickAsync(new MouseEventArgs());
 
         cut.Find(".tarjeta-fila-acordeon-contenido").TextContent.Trim()
-            .Should().Be("Esta empresa todavía no tiene ningún Cliente asociado.");
+            .Should().Be("Esta empresa todavía no presta servicio a ningún cliente empresarial.");
         cut.FindAll(".titulo-clientes-empresa").Should().BeEmpty();
     }
 
@@ -433,7 +435,7 @@ public class EmpresasListaGen2Tests : BunitContext
         mediador.ClientesDe[empresa.Id] = [ClienteEmpresarial("Grupo Arbeko", "A-95.117.220")];
         await cut.Find(".tarjeta-fila-acordeon-contenido button").ClickAsync(new MouseEventArgs());
 
-        cut.WaitForAssertion(() => cut.Find(".titulo-clientes-empresa").TextContent.Trim().Should().Be("Presta servicio a 1 cliente"));
+        cut.WaitForAssertion(() => cut.Find(".titulo-clientes-empresa").TextContent.Trim().Should().Be("Presta servicio a 1 cliente empresarial"));
         cut.FindAll(".tarjeta-fila-acordeon-contenido [role=alert]").Should().BeEmpty();
     }
 
@@ -474,7 +476,7 @@ public class EmpresasListaGen2Tests : BunitContext
 
         ConsultasDeClientes(mediador).Should().Be(consultasAntes + 1,
             "la respuesta vieja era de antes de recargar la lista: no puede servir de caché a la fila");
-        cut.WaitForAssertion(() => cut.Find(".titulo-clientes-empresa").TextContent.Trim().Should().Be("Presta servicio a 1 cliente"));
+        cut.WaitForAssertion(() => cut.Find(".titulo-clientes-empresa").TextContent.Trim().Should().Be("Presta servicio a 1 cliente empresarial"));
     }
 
     // ------------------------------------------------------------- Carreras
@@ -515,6 +517,55 @@ public class EmpresasListaGen2Tests : BunitContext
         cut.Markup.Should().Contain("Ninguna empresa con este filtro",
             "la respuesta vieja era de la lista sin filtrar, no de la pregunta vigente");
         cut.FindAll(".tarjeta-fila-acordeon").Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Salir de la página cancela la consulta de la lista en curso, y su
+    /// respuesta tardía ya no toca un componente retirado. Que el token
+    /// quede cancelado demuestra además que el Dispose se ejecutó de verdad:
+    /// DisposeComponentsAsync lo llama, cut.Dispose() de bUnit no.
+    /// </summary>
+    [Fact]
+    public async Task Salir_de_la_pagina_cancela_la_carga_de_la_lista_en_curso()
+    {
+        var respuesta = new TaskCompletionSource<object>();
+        var mediador = new MediatorFalso { Almacen = { Empresa("Refrielectric S.A.") } };
+        mediador.Retener = p => p is ObtenerEmpresasQuery ? respuesta.Task : null;
+        Registrar(mediador);
+        Navegacion.NavigateTo("empresas");
+        Render<Empresas>();
+
+        var token = mediador.Tokens[mediador.Enviadas.FindIndex(p => p is ObtenerEmpresasQuery)];
+        token.CanBeCanceled.Should().BeTrue("la consulta tiene que llevar el token del ciclo de la página");
+        token.IsCancellationRequested.Should().BeFalse();
+
+        await DisposeComponentsAsync();
+
+        token.IsCancellationRequested.Should().BeTrue("salir de la página cancela la consulta en curso");
+        var llegaTarde = () => respuesta.SetResult(mediador.Filtrar(new ObtenerEmpresasQuery(null)));
+        llegaTarde.Should().NotThrow("la respuesta tardía no repinta un componente retirado");
+    }
+
+    /// <summary>Lo mismo para la consulta de la fila desplegada.</summary>
+    [Fact]
+    public async Task Salir_de_la_pagina_cancela_la_carga_de_la_fila_desplegada()
+    {
+        var respuesta = new TaskCompletionSource<object>();
+        var mediador = new MediatorFalso { Almacen = { Empresa("Refrielectric S.A.") } };
+        mediador.Retener = p => p is ObtenerClientesDeEmpresaQuery ? respuesta.Task : null;
+        var cut = Renderizar(mediador);
+
+        // Sin await: el manejador del clic espera la respuesta retenida, y
+        // esperarlo aquí colgaría el test. Se espera al final.
+        var clic = cut.Find(".boton-expandir-fila").ClickAsync(new MouseEventArgs());
+        var token = mediador.Tokens[mediador.Enviadas.FindIndex(p => p is ObtenerClientesDeEmpresaQuery)];
+        token.CanBeCanceled.Should().BeTrue("la consulta de la fila tiene que llevar el token del ciclo");
+
+        await DisposeComponentsAsync();
+
+        token.IsCancellationRequested.Should().BeTrue("salir de la página cancela también la consulta de la fila");
+        respuesta.SetResult((IReadOnlyList<ClienteDeEmpresaDto>)[]);
+        await clic; // el manejador termina sin tocar el componente retirado
     }
 
     /// <summary>Mientras viaja el alta, un segundo «Guardar» no manda otra: crearía la misma Empresa dos veces.</summary>

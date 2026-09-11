@@ -191,7 +191,7 @@
                         }
                         <button type="button" class="@("boton-expandir-fila" + (expandido ? " boton-expandir-fila-abierta" : ""))"
                                 aria-expanded="@(expandido ? "true" : "false")"
-                                aria-label="@($"{(expandido ? "Ocultar" : "Ver")} los clientes de {empresa.RazonSocial}")"
+                                aria-label="@($"{(expandido ? "Ocultar" : "Ver")} los clientes empresariales de {empresa.RazonSocial}")"
                                 @onclick="() => AlternarExpansionAsync(empresa.Id)">
                             <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
                         </button>
@@ -280,7 +280,7 @@
                             }
                             else if (clientes.Count == 0)
                             {
-                                <p class="texto-vacio-seccion">Esta empresa todavía no tiene ningún Cliente asociado.</p>
+                                <p class="texto-vacio-seccion">Esta empresa todavía no presta servicio a ningún cliente empresarial.</p>
                             }
                             else
                             {
