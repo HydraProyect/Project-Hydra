@@ -685,6 +685,59 @@ public class ClientesListaGen2Tests : BunitContext
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().HaveCount(50));
     }
 
+    private static int ConsultasDeLista(MediatorFalso mediador) =>
+        mediador.Enviadas.OfType<ObtenerClientesQuery>().Count();
+
+    /// <summary>
+    /// Cambiar el tamaño de página pide la página 1 del tamaño nuevo UNA vez.
+    /// <c>SetCurrentPageIndexAsync</c> ya avisa a QuickGrid aunque la página no
+    /// cambie, así que refrescar además la rejilla pedía lo mismo dos veces.
+    /// Los 60 clientes son los mismos antes y después: con el total quieto, lo
+    /// que se cuenta es lo que pide la página y no una repetición de QuickGrid.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_el_tamano_de_pagina_hace_una_sola_consulta()
+    {
+        var mediador = new MediatorFalso();
+        for (var i = 1; i <= 60; i++)
+            mediador.Almacen.Add(Cliente($"Cliente {i:00}"));
+        var cut = Renderizar(mediador);
+        var consultasAntes = ConsultasDeLista(mediador);
+
+        await cut.Find(".paginador-tamano-select").ChangeAsync(new ChangeEventArgs { Value = "50" });
+
+        cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().HaveCount(50));
+        (ConsultasDeLista(mediador) - consultasAntes).Should().Be(1,
+            "avisar a la paginación y refrescar la rejilla son dos formas de pedir lo mismo");
+    }
+
+    /// <summary>
+    /// Cambiar un filtro recarga la lista UNA vez. El primer cambio solo sirve
+    /// para asentar el total en 1: se mide el SEGUNDO, de «Vencido» a «Vigente»,
+    /// con el total quieto — si cambiara, QuickGrid volvería a pedir la misma
+    /// página por su cuenta y el recuento mezclaría esa repetición con la
+    /// consulta de la página.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_de_filtro_sin_cambiar_el_total_hace_una_sola_consulta()
+    {
+        var mediador = new MediatorFalso
+        {
+            Almacen = { Cliente("Refrielectric S.A.", peor: EstadoDocumento.Vencido, cantidad: 1), Cliente("Montajes Ebro S.L.") }
+        };
+        var cut = Renderizar(mediador);
+
+        await SelectConOpcion(cut, "Estado: todos").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vencido) });
+        cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal("Refrielectric S.A."));
+        var consultasAntes = ConsultasDeLista(mediador);
+
+        await SelectConOpcion(cut, "Estado: todos").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vigente) });
+
+        cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal("Montajes Ebro S.L."));
+        (ConsultasDeLista(mediador) - consultasAntes).Should().Be(1,
+            "los dos estados devuelven un cliente: la única consulta que cabe contar es la del filtro nuevo");
+    }
+
     private static IElement CabeceraOrdenable(IRenderedComponent<Clientes> cut, string titulo) =>
         cut.FindAll("thead th").Single(th => th.TextContent.Trim() == titulo).QuerySelector("button")!;
 

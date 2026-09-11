@@ -190,6 +190,50 @@ public class VisitasGen2Tests : BunitContext
         return Render<Visitas>();
     }
 
+    /// <summary>
+    /// Cambiar el filtro recarga la lista UNA vez.
+    /// <c>SetCurrentPageIndexAsync</c> ya avisa a QuickGrid aunque la página no
+    /// cambie, así que refrescar además la rejilla pedía lo mismo dos veces.
+    /// El primer cambio solo asienta el total en 1; se mide el SEGUNDO, de «No»
+    /// a «Sí», con el total quieto — si cambiara, QuickGrid volvería a pedir la
+    /// misma página por su cuenta y el recuento mezclaría esa repetición.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_de_filtro_sin_cambiar_el_total_hace_una_sola_consulta()
+    {
+        var mediator = new MediatorVisitas { Visitas = { Visita("Centro Norte"), Visita("Planta Zaragoza", notificado: true) } };
+        var cut = Renderizar(mediator);
+
+        await cut.Find(".barra-filtros select").ChangeAsync(new ChangeEventArgs { Value = "no" });
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro Norte").And.NotContain("Planta Zaragoza"));
+        var consultasAntes = mediator.ConsultasVisitas;
+
+        await cut.Find(".barra-filtros select").ChangeAsync(new ChangeEventArgs { Value = "si" });
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Planta Zaragoza").And.NotContain("Centro Norte"));
+        (mediator.ConsultasVisitas - consultasAntes).Should().Be(1,
+            "los dos valores devuelven una visita: la única consulta que cabe contar es la del filtro nuevo");
+    }
+
+    /// <summary>
+    /// Cambiar el tamaño de página pide la página 1 del tamaño nuevo UNA vez,
+    /// por el mismo motivo; las dos visitas son las mismas antes y después.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_el_tamano_de_pagina_hace_una_sola_consulta()
+    {
+        var mediator = new MediatorVisitas { Visitas = { Visita("Centro Norte"), Visita("Planta Zaragoza") } };
+        var cut = Renderizar(mediator);
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro Norte"));
+        var consultasAntes = mediator.ConsultasVisitas;
+
+        await cut.Find(".paginador-tamano-select").ChangeAsync(new ChangeEventArgs { Value = "50" });
+
+        cut.WaitForAssertion(() => mediator.ConsultasVisitas.Should().BeGreaterThan(consultasAntes));
+        (mediator.ConsultasVisitas - consultasAntes).Should().Be(1,
+            "avisar a la paginación y refrescar la rejilla son dos formas de pedir lo mismo");
+    }
+
     private static IElement Fila(IRenderedComponent<Visitas> cut, string centro) =>
         cut.FindAll("tbody tr").First(tr => tr.TextContent.Contains(centro));
 
@@ -222,12 +266,13 @@ public class VisitasGen2Tests : BunitContext
         await cut.InvokeAsync(() => mediator.CargasPendientes.Single().Respuesta.SetResult(Pagina(Visita("Centro Norte"))));
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro Norte"));
 
-        // Medido, no supuesto: cada cambio de filtro pide DOS cargas seguidas
-        // (RecargarAsync: SetCurrentPageIndexAsync(0) refresca el grid y luego
-        // RefreshDataAsync vuelve a hacerlo), y la segunda solo sale cuando la
-        // primera responde. La carrera que no se cura sola es la de la
-        // SEGUNDA carga del filtro anterior llegando después de todo lo del
-        // filtro nuevo: nada vuelve a cargar detrás de ella.
+        // Medido, no supuesto: cada cambio de filtro pide UNA carga. Antes pedía
+        // dos, porque RecargarAsync avisaba a la paginación Y refrescaba la
+        // rejilla, que son dos formas de pedir lo mismo; este test se escribió
+        // sobre aquella coreografía de dos en dos. La carrera que mide no
+        // dependía de eso y sigue igual: la carga del filtro ANTERIOR llegando
+        // después de todo lo del filtro nuevo, sin que nada vuelva a cargar
+        // detrás de ella para curarla.
         //
         // Las tareas de los manejadores se guardan sin esperar y se esperan al
         // final como barrera: la primera versión de este test comprobaba antes
@@ -235,28 +280,34 @@ public class VisitasGen2Tests : BunitContext
         // quitada (mutación M1).
         var cambioUrgentes = FiltroCheckbox(cut, "Solo urgentes").ChangeAsync(new ChangeEventArgs { Value = true });
         cut.WaitForAssertion(() => mediator.CargasPendientes.Should().HaveCount(2));
-        await cut.InvokeAsync(() => mediator.CargasPendientes[1].Respuesta.SetResult(Pagina(Visita("Centro Norte"))));
-        cut.WaitForAssertion(() => mediator.CargasPendientes.Should().HaveCount(3));
-        var anterior = mediator.CargasPendientes[2];
+        var anterior = mediator.CargasPendientes[1];
 
         var cambioNotificado = cut.Find(".barra-filtros select").ChangeAsync(new ChangeEventArgs { Value = "no" });
-        cut.WaitForAssertion(() => mediator.CargasPendientes.Should().HaveCount(4));
-        await cut.InvokeAsync(() => mediator.CargasPendientes[3].Respuesta.SetResult(Pagina()));
-        cut.WaitForAssertion(() => mediator.CargasPendientes.Should().HaveCount(5));
-        var actual = mediator.CargasPendientes[4];
+        cut.WaitForAssertion(() => mediator.CargasPendientes.Should().HaveCount(3));
+        var actual = mediator.CargasPendientes[2];
 
         anterior.Consulta.SoloUrgentes.Should().BeTrue();
         anterior.Consulta.NotificadoCliente.Should().BeNull("es la carga lanzada antes de elegir «No»");
         actual.Consulta.SoloUrgentes.Should().BeTrue("los filtros de la carga vigente se capturan todos");
         actual.Consulta.NotificadoCliente.Should().BeFalse();
 
+        // La respuesta vigente trae un total distinto (de 1 a 0) y eso hace que
+        // QuickGrid pida la misma página otra vez por su cuenta: su guarda
+        // compara un hash de PaginationState que incluye TotalItemCount y que se
+        // guardó ANTES de conocer el total nuevo, así que queda rancio. Es del
+        // componente, no de la página — y por eso los tests de recuento de
+        // consultas se escriben siempre con el total quieto. Se resuelve esa
+        // repetición para llegar al estado vacío; con el total ya en 0 no vuelve
+        // a repetirse.
         await cut.InvokeAsync(() => actual.Respuesta.SetResult(Pagina()));
+        cut.WaitForAssertion(() => mediator.CargasPendientes.Should().HaveCount(4));
+        await cut.InvokeAsync(() => mediator.CargasPendientes[3].Respuesta.SetResult(Pagina()));
         await cambioNotificado.WaitAsync(TimeSpan.FromSeconds(5));
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ninguna visita con estos filtros"));
 
         await cut.InvokeAsync(() => anterior.Respuesta.SetResult(Pagina(Visita("Planta Zaragoza"), Visita("Nave Berriz"))));
         await cambioUrgentes.WaitAsync(TimeSpan.FromSeconds(5));
-        mediator.CargasPendientes.Should().HaveCount(5, "detrás de la respuesta tardía no sale ninguna carga que la cure");
+        mediator.CargasPendientes.Should().HaveCount(4, "detrás de la respuesta tardía no sale ninguna carga que la cure");
 
         cut.Markup.Should().Contain("Ninguna visita con estos filtros",
             "la respuesta del filtro anterior llegó la última y no puede sustituir a la del filtro vigente");

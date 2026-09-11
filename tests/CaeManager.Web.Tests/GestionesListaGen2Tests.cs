@@ -669,4 +669,74 @@ public class GestionesListaGen2Tests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll("td .enlace-nombre-fila").Select(e => e.TextContent.Trim())
             .Should().Contain("Juan Pérez Ibarra"));
     }
+
+    // --- Recuento de consultas ----------------------------------------------------------------
+
+    private static int ConsultasDeLista(MediatorFalso mediador) =>
+        mediador.Enviadas.OfType<ObtenerGestionesQuery>().Count();
+
+    /// <summary>
+    /// Solo la primera columna: en Gen 2 el Centro también es un enlace con la
+    /// misma clase, así que <c>td .enlace-nombre-fila</c> a secas devuelve dos
+    /// textos por fila y no distingue filtrar de no filtrar.
+    /// </summary>
+    private static IEnumerable<string> TrabajadoresDeLasFilas(IRenderedComponent<Gestiones> cut) =>
+        cut.FindAll("tbody tr td:first-child .enlace-nombre-fila").Select(e => e.TextContent.Trim());
+
+    private static IRenderedComponent<CampoTexto> CajaDeBusqueda(IRenderedComponent<Gestiones> cut) =>
+        cut.FindComponents<CampoTexto>().First(c => c.Instance.Placeholder?.StartsWith("Buscar por trabajador") == true);
+
+    /// <summary>
+    /// Buscar recarga la lista UNA vez.
+    /// <c>PaginationState.SetCurrentPageIndexAsync</c> ya avisa a QuickGrid
+    /// aunque la página no cambie, así que llamar además a <c>RefreshDataAsync</c>
+    /// pedía dos veces lo mismo por cada búsqueda.
+    ///
+    /// <para>
+    /// La primera búsqueda solo sirve para asentar el total en 1: se mide la
+    /// SEGUNDA, de «Ana» a «Luis», con el total quieto. Si el total cambiara,
+    /// QuickGrid volvería a pedir la misma página por su cuenta y el recuento
+    /// mezclaría esa repetición con lo que pide la página.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task Buscar_sin_cambiar_el_total_hace_una_sola_consulta()
+    {
+        var mediador = new MediatorFalso { Almacen = { Gestion("Ana Vega Ortiz"), Gestion("Luis Salas Moreno") } };
+        var cut = Renderizar(mediador);
+
+        await cut.InvokeAsync(() => CajaDeBusqueda(cut).Instance.ValorChanged.InvokeAsync("Ana"));
+        cut.WaitForAssertion(() => TrabajadoresDeLasFilas(cut).Should().Equal("Ana Vega Ortiz"));
+        var consultasAntes = ConsultasDeLista(mediador);
+
+        await cut.InvokeAsync(() => CajaDeBusqueda(cut).Instance.ValorChanged.InvokeAsync("Luis"));
+
+        cut.WaitForAssertion(() => TrabajadoresDeLasFilas(cut).Should().Equal("Luis Salas Moreno"));
+        (ConsultasDeLista(mediador) - consultasAntes).Should().Be(1,
+            "avisar a la paginación y refrescar la rejilla son dos formas de pedir lo mismo: juntas costaban dos consultas por búsqueda");
+    }
+
+    /// <summary>
+    /// Cambiar el tamaño de página pide la página 1 del tamaño nuevo UNA vez.
+    /// Mismo motivo que <see cref="Buscar_sin_cambiar_el_total_hace_una_sola_consulta"/>;
+    /// aquí el total no cambia solo (tres gestiones antes y después), así que
+    /// lo que se cuente es de la página.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_el_tamano_de_pagina_hace_una_sola_consulta()
+    {
+        var mediador = new MediatorFalso
+        {
+            Almacen = { Gestion("Ana Vega Ortiz"), Gestion("Luis Salas Moreno"), Gestion("Bea Alonso Ruiz") }
+        };
+        var cut = Renderizar(mediador);
+        var consultasAntes = ConsultasDeLista(mediador);
+
+        await cut.Find(".paginador-tamano-select").ChangeAsync(new ChangeEventArgs { Value = "50" });
+
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerGestionesQuery>().Last().TamanoPagina.Should().Be(50));
+        mediador.Enviadas.OfType<ObtenerGestionesQuery>().Last().Pagina.Should().Be(1);
+        (ConsultasDeLista(mediador) - consultasAntes).Should().Be(1,
+            "el total sigue siendo 3: la única consulta que cabe contar es la del tamaño nuevo");
+    }
 }

@@ -119,9 +119,10 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         await page.Locator(".modal-cuerpo").GetByLabel("Centro", new LocatorGetByLabelOptions { Exact = true })
             .FillAsync($"{nombreCentro} ({razonSocialCliente})");
         await page.WaitForTimeoutAsync(500);
-        // El botón dice "Asignar igualmente" cuando quedan documentos
-        // obligatorios sin cubrir — exactamente el caso de este test, que
-        // necesita esa Falta para poder demostrar luego cómo se resuelve.
+        // El botón dice "Asignar igualmente" cuando al comprobarlo faltaba
+        // algún documento de los que se piden — exactamente el caso de este
+        // test, que necesita esa Falta para poder demostrar luego cómo se
+        // resuelve.
         await page.Locator(".modal-pie").GetByText(new System.Text.RegularExpressions.Regex("^Asignar")).ClickAsync();
         await page.Locator(".modal-pie").WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 

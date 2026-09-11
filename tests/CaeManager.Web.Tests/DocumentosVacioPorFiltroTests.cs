@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion.Queries;
@@ -46,14 +47,19 @@ public class DocumentosVacioPorFiltroTests : BunitContext
     {
         public required IReadOnlyList<DocumentoListaDto> Documentos { get; init; }
 
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
-            Task.FromResult((TResponse)(object)(request switch
+        public List<object> Enviadas { get; } = [];
+
+        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        {
+            Enviadas.Add(request);
+            return Task.FromResult((TResponse)(object)(request switch
             {
                 ObtenerFiltrosGuardadosQuery => (object)Array.Empty<FiltroGuardadoDto>(),
                 ObtenerDocumentosQuery q => new ResultadoPaginado<DocumentoListaDto>(
                     Documentos, Documentos.Count, q.Pagina, q.TamanoPagina),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             }));
+        }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
             Task.CompletedTask;
@@ -139,9 +145,14 @@ public class DocumentosVacioPorFiltroTests : BunitContext
     /// <param name="estado">Filtro documental que llega por la URL (?Estado=).</param>
     /// <param name="ambito">Filtro de ámbito que llega por la URL (?Ambito=).</param>
     private IRenderedComponent<PaginaDocumentos> Renderizar(string? busqueda = null, string? estado = null,
-        string? ambito = null, params DocumentoListaDto[] documentos)
+        string? ambito = null, params DocumentoListaDto[] documentos) =>
+        RenderizarConMediador(busqueda, estado, ambito, documentos).Cut;
+
+    private (IRenderedComponent<PaginaDocumentos> Cut, MediatorPorTipo Mediador) RenderizarConMediador(
+        string? busqueda = null, string? estado = null, string? ambito = null, params DocumentoListaDto[] documentos)
     {
-        Services.AddScoped<IMediator>(_ => new MediatorPorTipo { Documentos = documentos });
+        var mediador = new MediatorPorTipo { Documentos = documentos };
+        Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
@@ -160,7 +171,7 @@ public class DocumentosVacioPorFiltroTests : BunitContext
         Services.GetRequiredService<NavigationManager>()
             .NavigateTo(partes.Count == 0 ? "documentos" : "documentos?" + string.Join('&', partes));
 
-        return Render<PaginaDocumentos>();
+        return (Render<PaginaDocumentos>(), mediador);
     }
 
     [Fact]
@@ -239,5 +250,53 @@ public class DocumentosVacioPorFiltroTests : BunitContext
         cut.Markup.Should().NotContain("Ningún documento con estos filtros");
         cut.Markup.Should().NotContain("Aún no hay documentos");
         cut.Markup.Should().Contain("Reconocimiento médico");
+    }
+
+    // --- Recuento de consultas ----------------------------------------------------------------
+
+    private static int ConsultasDeLista(MediatorPorTipo mediador) =>
+        mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Count();
+
+    private static IRenderedComponent<CampoTexto> CajaDeBusqueda(IRenderedComponent<PaginaDocumentos> cut) =>
+        cut.FindComponents<CampoTexto>().First(c => c.Instance.Placeholder?.StartsWith("Buscar por propietario") == true);
+
+    /// <summary>
+    /// Cambiar el tamaño de página pide la página 1 del tamaño nuevo UNA vez.
+    /// <c>SetCurrentPageIndexAsync</c> ya avisa a QuickGrid aunque la página no
+    /// cambie, así que refrescar además la rejilla pedía lo mismo dos veces
+    /// (ver <c>RecargarAsync</c> en <c>Documentos.razor.cs</c>). Los mismos dos
+    /// documentos antes y después mantienen el total quieto, así que lo que se
+    /// cuenta es lo que pide la página y no una repetición de QuickGrid.
+    /// </summary>
+    [Fact]
+    public void Cambiar_el_tamano_de_pagina_hace_una_sola_consulta()
+    {
+        var (cut, mediador) = RenderizarConMediador(documentos: [Documento("Reconocimiento médico"), Documento("Formación PRL")]);
+        var consultasAntes = ConsultasDeLista(mediador);
+
+        cut.Find(".paginador-tamano-select").Change("50");
+
+        mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Last().TamanoPagina.Should().Be(50);
+        (ConsultasDeLista(mediador) - consultasAntes).Should().Be(1,
+            "avisar a la paginación y refrescar la rejilla son dos formas de pedir lo mismo");
+    }
+
+    /// <summary>
+    /// Buscar recarga la lista UNA vez, por el mismo motivo. Los dos documentos
+    /// distintos que trae el doble del mediador no cambian con el texto (el
+    /// doble no filtra de verdad), así que el total se queda quieto y no puede
+    /// colarse una repetición de QuickGrid en el recuento.
+    /// </summary>
+    [Fact]
+    public async Task Buscar_sin_cambiar_el_total_hace_una_sola_consulta()
+    {
+        var (cut, mediador) = RenderizarConMediador(documentos: [Documento("Reconocimiento médico"), Documento("Formación PRL")]);
+        var consultasAntes = ConsultasDeLista(mediador);
+
+        await cut.InvokeAsync(() => CajaDeBusqueda(cut).Instance.ValorChanged.InvokeAsync("Reconocimiento"));
+
+        mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Last().Busqueda.Should().Be("Reconocimiento");
+        (ConsultasDeLista(mediador) - consultasAntes).Should().Be(1,
+            "avisar a la paginación y refrescar la rejilla son dos formas de pedir lo mismo");
     }
 }
