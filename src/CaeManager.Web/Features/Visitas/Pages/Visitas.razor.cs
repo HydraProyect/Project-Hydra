@@ -113,6 +113,7 @@ public partial class Visitas : ComponentBase
     private VisitaListaDto? _filaDetalle;
 
     private bool _marcandoNotificadoDetalle;
+    private readonly HashSet<Guid> _marcandoNotificado = [];
 
     // Contadores de carga vigente. Cada carga que escribe estado tras un
     // await captura el suyo al empezar y descarta su respuesta si, al volver,
@@ -121,6 +122,7 @@ public partial class Visitas : ComponentBase
     private int _cargaLista;
     private int _cargaDetalle;
     private int _cargaFormulario;
+    private int _cargaDocumentacion;
 
     private bool _cargandoDocumentacion;
     private bool _errorDocumentacion;
@@ -355,7 +357,11 @@ public partial class Visitas : ComponentBase
     /// <summary>Variante de AbrirCrearAsync que prellena Centro/fechas/notas con lo que detectó la IA en un correo — el Gestor sigue teniendo que elegir los trabajadores y confirmar el resto a mano.</summary>
     private async Task AbrirCrearDesdeSugerenciaAsync(Guid sugerenciaId)
     {
+        var carga = ++_cargaFormulario;
         var sugerencia = await Mediator.Send(new ObtenerSugerenciaVisitaCorreoQuery(sugerenciaId));
+        if (carga != _cargaFormulario)
+            return;
+
         if (sugerencia is null)
         {
             ToastService.Mostrar("No encontramos esta sugerencia. Puede que ya se haya resuelto.", TonoToast.Error);
@@ -440,6 +446,7 @@ public partial class Visitas : ComponentBase
         // Abrir otra visita mientras la anterior aún carga: la respuesta que
         // llegue tarde no puede pintar la visita equivocada en el drawer.
         var carga = ++_cargaDetalle;
+        ++_cargaDocumentacion;
         _filaDetalle = _elementosPagina.FirstOrDefault(e => e.Id == id);
         _detalleVisible = true;
         _cargandoDetalle = true;
@@ -460,7 +467,7 @@ public partial class Visitas : ComponentBase
                 return;
             }
 
-            await CargarDocumentacionAsync(id, carga);
+            await CargarDocumentacionAsync(id);
         }
         catch (Exception)
         {
@@ -475,10 +482,11 @@ public partial class Visitas : ComponentBase
     }
 
     private Task ReintentarDocumentacionAsync() =>
-        _detalle is { } detalle ? CargarDocumentacionAsync(detalle.Id, _cargaDetalle) : Task.CompletedTask;
+        _detalle is { } detalle ? CargarDocumentacionAsync(detalle.Id) : Task.CompletedTask;
 
-    private async Task CargarDocumentacionAsync(Guid visitaId, int carga)
+    private async Task CargarDocumentacionAsync(Guid visitaId)
     {
+        var carga = ++_cargaDocumentacion;
         _cargandoDocumentacion = true;
         _errorDocumentacion = false;
         _documentacion = null;
@@ -486,17 +494,17 @@ public partial class Visitas : ComponentBase
         try
         {
             var documentacion = await Mediator.Send(new ObtenerDocumentacionVisitaQuery(visitaId));
-            if (carga == _cargaDetalle)
+            if (carga == _cargaDocumentacion)
                 _documentacion = documentacion;
         }
         catch (Exception)
         {
-            if (carga == _cargaDetalle)
+            if (carga == _cargaDocumentacion)
                 _errorDocumentacion = true;
         }
         finally
         {
-            if (carga == _cargaDetalle)
+            if (carga == _cargaDocumentacion)
                 _cargandoDocumentacion = false;
         }
     }
@@ -564,6 +572,9 @@ public partial class Visitas : ComponentBase
             if (resultado.EsFallido)
             {
                 ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                await RecargarAsync();
+                if (_detalle?.Id == detalle.Id)
+                    await AbrirDetalleAsync(detalle.Id);
                 return;
             }
 
@@ -576,6 +587,9 @@ public partial class Visitas : ComponentBase
         catch (Exception)
         {
             ToastService.Mostrar("No pudimos actualizar el estado de notificación. Intenta nuevamente.", TonoToast.Error);
+            await RecargarAsync();
+            if (_detalle?.Id == detalle.Id)
+                await AbrirDetalleAsync(detalle.Id);
         }
         finally
         {
@@ -727,6 +741,9 @@ public partial class Visitas : ComponentBase
 
     private async Task AlternarNotificadoAsync(Guid id, bool notificado)
     {
+        if (!_marcandoNotificado.Add(id))
+            return;
+
         try
         {
             var resultado = await Mediator.Send(new MarcarNotificadoClienteCommand(id, notificado));
@@ -742,6 +759,11 @@ public partial class Visitas : ComponentBase
         catch (Exception)
         {
             ToastService.Mostrar("No pudimos actualizar el estado de notificación. Intenta nuevamente.", TonoToast.Error);
+            await RecargarAsync();
+        }
+        finally
+        {
+            _marcandoNotificado.Remove(id);
         }
     }
 

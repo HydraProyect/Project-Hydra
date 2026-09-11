@@ -57,9 +57,19 @@ public class VisitasGen2Tests : BunitContext
 
         public DocumentacionVisitaDto? Documentacion { get; set; }
 
+        public bool DiferirDocumentacion { get; set; }
+
+        public List<TaskCompletionSource<DocumentacionVisitaDto>> CargasDocumentacionPendientes { get; } = [];
+
         public TramoAntelacion? Tramo { get; set; }
 
         public List<object> Comandos { get; } = [];
+
+        public int ConsultasVisitas { get; private set; }
+
+        public TaskCompletionSource<Result>? NotificacionDiferida { get; set; }
+
+        public Exception? ErrorNotificacion { get; set; }
 
         public static DetalleVisitaDto Detalle(VisitaListaDto v, TramoAntelacion? tramo = null) => new(
             v.Id, v.CentroNombre, v.ClienteRazonSocial, v.EmpresaId, v.EmpresaRazonSocial, v.FechaInicio, v.FechaFin,
@@ -86,6 +96,7 @@ public class VisitasGen2Tests : BunitContext
             switch (request)
             {
                 case ObtenerVisitasQuery consulta:
+                    ConsultasVisitas++;
                     if (DiferirLista)
                     {
                         var pendiente = new TaskCompletionSource<ResultadoPaginado<VisitaListaDto>>();
@@ -107,11 +118,24 @@ public class VisitasGen2Tests : BunitContext
                         : Respuesta<TResponse>(ParaEditar(Visitas.Single(v => v.Id == edicion.Id)));
 
                 case ObtenerDocumentacionVisitaQuery:
+                    if (DiferirDocumentacion)
+                    {
+                        var pendiente = new TaskCompletionSource<DocumentacionVisitaDto>();
+                        CargasDocumentacionPendientes.Add(pendiente);
+                        return (Task<TResponse>)(object)pendiente.Task;
+                    }
+
                     return Respuesta<TResponse>(Documentacion
                         ?? new DocumentacionVisitaDto(Guid.NewGuid(), new SeccionDocumentacionDto(EstadoDocumento.Vigente, []), []));
 
                 case MarcarNotificadoClienteCommand marcar:
                     Comandos.Add(marcar);
+                    if (ErrorNotificacion is { } error)
+                        return Task.FromException<TResponse>(error);
+
+                    if (NotificacionDiferida is { } notificacionDiferida)
+                        return (Task<TResponse>)(object)notificacionDiferida.Task;
+
                     var indice = Visitas.FindIndex(v => v.Id == marcar.Id);
                     Visitas[indice] = Visitas[indice] with { NotificadoCliente = marcar.Notificado };
                     return Respuesta<TResponse>(Result.Exito());
@@ -320,6 +344,64 @@ public class VisitasGen2Tests : BunitContext
     }
 
     [Fact]
+    public async Task El_interruptor_de_la_fila_envia_false_al_quitar_la_marca()
+    {
+        var norte = Visita("Centro Norte", notificado: true);
+        var mediator = new MediatorVisitas();
+        mediator.Visitas.Add(norte);
+        var cut = Renderizar(mediator);
+
+        await Interruptor(cut, "Centro Norte").ChangeAsync(new ChangeEventArgs { Value = false });
+
+        mediator.Comandos.Should().ContainSingle().Which.Should()
+            .Be(new MarcarNotificadoClienteCommand(norte.Id, false));
+    }
+
+    [Fact]
+    public async Task Un_doble_clic_en_el_interruptor_mientras_el_comando_esta_en_vuelo_envia_un_solo_comando()
+    {
+        var norte = Visita("Centro Norte");
+        var mediator = new MediatorVisitas
+        {
+            NotificacionDiferida = new TaskCompletionSource<Result>(),
+        };
+        mediator.Visitas.Add(norte);
+        var cut = Renderizar(mediator);
+
+        var primerClic = Interruptor(cut, "Centro Norte").ChangeAsync(new ChangeEventArgs { Value = true });
+        cut.WaitForAssertion(() => mediator.Comandos.Should().ContainSingle());
+
+        // El segundo clic NO se espera antes de comprobar: sin la guarda, su
+        // comando también queda retenido y un await aquí colgaría el test en
+        // vez de dejarlo en rojo. El doble registra el comando al recibirlo,
+        // así que un segundo envío se vería en este mismo instante.
+        var segundoClic = Interruptor(cut, "Centro Norte").ChangeAsync(new ChangeEventArgs { Value = true });
+        mediator.Comandos.Should().ContainSingle("la segunda interacción llega mientras el primer comando sigue pendiente");
+
+        await cut.InvokeAsync(() => mediator.NotificacionDiferida!.SetResult(Result.Exito()));
+        await Task.WhenAll(primerClic, segundoClic);
+    }
+
+    [Fact]
+    public async Task Una_excepcion_al_notificar_recarga_la_lista()
+    {
+        var norte = Visita("Centro Norte");
+        var mediator = new MediatorVisitas
+        {
+            ErrorNotificacion = new InvalidOperationException("fallo del comando"),
+        };
+        mediator.Visitas.Add(norte);
+        var cut = Renderizar(mediator);
+        var consultasAntes = mediator.ConsultasVisitas;
+
+        await Interruptor(cut, "Centro Norte").ChangeAsync(new ChangeEventArgs { Value = true });
+
+        mediator.Comandos.Should().ContainSingle();
+        mediator.ConsultasVisitas.Should().BeGreaterThan(consultasAntes,
+            "tras una excepción se consulta de nuevo el estado real de la lista");
+    }
+
+    [Fact]
     public async Task Desde_el_detalle_se_marca_como_notificada_y_la_fila_recargada_lo_refleja()
     {
         var norte = Visita("Centro Norte", notificado: false);
@@ -398,6 +480,49 @@ public class VisitasGen2Tests : BunitContext
             new(Guid.NewGuid(), nombre, "12345678Z", "Instalaciones Arbeko S.L.", new SeccionDocumentacionDto(peor, []));
     }
 
+    /// <summary>
+    /// La documentación tiene su propio número de carga. Un segundo
+    /// «Reintentar» seguido no se puede dar en la interfaz (mientras recarga,
+    /// el botón desaparece), pero sí esto: con un reintento aún en vuelo se
+    /// vuelve a abrir el detalle; la carga nueva responde primero y la del
+    /// reintento llega tarde. Esa respuesta vieja no puede pintar el detalle.
+    /// </summary>
+    [Fact]
+    public async Task Un_reintento_de_documentacion_que_llega_tarde_no_pisa_la_carga_vigente()
+    {
+        var norte = Visita("Centro Norte");
+        var mediator = new MediatorVisitas { DiferirDocumentacion = true };
+        mediator.Visitas.Add(norte);
+        var cut = Renderizar(mediator);
+
+        ItemDeMenu(cut, "Centro Norte", "Ver").Click();
+        cut.WaitForAssertion(() => mediator.CargasDocumentacionPendientes.Should().HaveCount(1));
+        await cut.InvokeAsync(() => mediator.CargasDocumentacionPendientes[0].SetException(new InvalidOperationException()));
+        cut.WaitForAssertion(() => cut.FindAll(".drawer-panel button").Should().Contain(b => b.TextContent.Contains("Reintentar")));
+
+        // Cada elemento se busca de nuevo antes de pulsarlo: tras un render,
+        // el manejador de una referencia anterior ya no existe.
+        var reintento = cut.FindAll(".drawer-panel button").First(b => b.TextContent.Contains("Reintentar")).ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => mediator.CargasDocumentacionPendientes.Should().HaveCount(2));
+
+        ItemDeMenu(cut, "Centro Norte", "Ver").Click();
+        cut.WaitForAssertion(() => mediator.CargasDocumentacionPendientes.Should().HaveCount(3));
+
+        await cut.InvokeAsync(() => mediator.CargasDocumentacionPendientes[2].SetResult(DocumentacionDe("Última respuesta")));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Última respuesta"));
+
+        await cut.InvokeAsync(() => mediator.CargasDocumentacionPendientes[1].SetResult(DocumentacionDe("Respuesta antigua")));
+        await reintento;
+        cut.Markup.Should().Contain("Última respuesta");
+        cut.Markup.Should().NotContain("Respuesta antigua",
+            "la respuesta del reintento ya no es la carga vigente");
+
+        static DocumentacionVisitaDto DocumentacionDe(string nombre) => new(
+            Guid.NewGuid(),
+            new SeccionDocumentacionDto(EstadoDocumento.Vigente, []),
+            [new TrabajadorDocumentacionDto(Guid.NewGuid(), nombre, "12345678Z", "Empresa", new SeccionDocumentacionDto(EstadoDocumento.Vigente, []))]);
+    }
+
     [Fact]
     public void La_urgencia_normal_tambien_se_pinta()
     {
@@ -431,5 +556,19 @@ public class VisitasGen2Tests : BunitContext
         await cut.FindAll(".acciones-cabecera button").First(b => b.TextContent.Contains("Nueva visita")).ClickAsync(new MouseEventArgs());
         cut.Markup.Should().Contain("Notificada a la empresa titular del centro", "el formulario tiene que estar abierto");
         cliente.IsMatch(cut.Markup).Should().BeFalse("en el formulario");
+    }
+
+    [Fact]
+    public async Task La_anticipo_no_atribuye_el_aviso_a_la_empresa_titular()
+    {
+        var mediator = new MediatorVisitas { Tramo = TramoAntelacion.Urgente };
+        mediator.Visitas.Add(Visita("Centro Norte"));
+        var cut = Renderizar(mediator);
+
+        await ItemDeMenu(cut, "Centro Norte", "Ver").ClickAsync(new MouseEventArgs());
+
+        var textoAntelacion = cut.FindAll(".texto-vacio-seccion")
+            .First(p => p.TextContent.Contains("Aviso recibido")).TextContent;
+        textoAntelacion.Should().NotContain("empresa titular");
     }
 }
