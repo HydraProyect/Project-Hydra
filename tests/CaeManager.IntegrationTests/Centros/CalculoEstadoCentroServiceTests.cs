@@ -173,6 +173,44 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
         resultado.Causas.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Premisa del estado vacío de "Centros con menor cumplimiento"
+    /// (<c>ObtenerCatalogoKpisQuery</c> solo lista centros con
+    /// <c>Requeridos &gt; 0</c>): un centro que SÍ pide documentación de
+    /// trabajador —aquí por el valor general del tipo, sin fila propia, igual
+    /// que el centro del fixture— pero sin ningún trabajador asignado cuenta
+    /// cero requeridos, exactamente como uno que no pide nada. Por eso el
+    /// dashboard no puede atribuir la lista vacía a que ningún centro la pida.
+    /// Se ejercitan las dos salidas: el retorno temprano cuando ninguno de los
+    /// centros tiene asignaciones y el bucle cuando solo algunos las tienen.
+    /// </summary>
+    [Fact]
+    public async Task Un_centro_que_pide_documentacion_de_trabajador_pero_sin_trabajadores_asignados_cuenta_cero_requeridos()
+    {
+        Guid centroSinTrabajadoresId;
+        await using (var contexto = CrearContexto())
+        {
+            var centroConTrabajadores = await contexto.Centros.SingleAsync(c => c.Id == _centroId);
+            var centroSinTrabajadores = new Centro(centroConTrabajadores.ClienteId, _empresaId, "Centro sin trabajadores");
+            contexto.Centros.Add(centroSinTrabajadores);
+            await contexto.SaveChangesAsync();
+            centroSinTrabajadoresId = centroSinTrabajadores.Id;
+        }
+
+        await using var lectura = CrearContexto();
+        var servicio = new CalculoEstadoCentroService(lectura, lectura, lectura, lectura, lectura, lectura);
+
+        var ambos = await servicio.CalcularCumplimientoAsync([_centroId, centroSinTrabajadoresId], CancellationToken.None);
+        var soloElVacio = await servicio.CalcularCumplimientoAsync([centroSinTrabajadoresId], CancellationToken.None);
+
+        ambos[_centroId].Requeridos.Should().Be(1,
+            "control positivo: el mismo tipo, sin fila de centro, se pide y se evalúa en cuanto hay un trabajador asignado");
+        ambos[centroSinTrabajadoresId].Requeridos.Should().Be(0,
+            "sin trabajadores asignados no hay pares trabajador × tipo que evaluar, aunque el centro pida el tipo");
+        soloElVacio[centroSinTrabajadoresId].Requeridos.Should().Be(0,
+            "misma respuesta por el retorno temprano, cuando ningún centro pedido tiene asignaciones");
+    }
+
     private async Task<ResultadoEstadoCentro> CalcularAsync()
     {
         await using var contexto = CrearContexto();

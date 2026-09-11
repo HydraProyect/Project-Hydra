@@ -62,6 +62,34 @@ public class DashboardEjecutivoCentrosConMenorCumplimientoVacioTests : BunitCont
     [Fact]
     public void El_vacio_del_KPI_no_llama_obligatoria_a_la_documentacion_de_trabajador()
     {
+        var texto = RenderizarTextoVacio();
+
+        texto.Should().Be("Todavía no hay documentación de trabajador que evaluar: ningún centro con trabajadores asignados la pide.");
+        texto.Should().NotContainEquivalentOf("obligatori", "es configuración (ResolucionTipoDocumentoCentro.Aplica), no una obligación legal");
+    }
+
+    /// <summary>
+    /// La lista llega vacía también cuando un centro SÍ pide documentación de
+    /// trabajador pero no tiene a nadie asignado (CalculoEstadoCentroService
+    /// cuenta cero requeridos sin asignaciones activas — premisa probada contra
+    /// Postgres en CalculoEstadoCentroServiceTests). El DTO no distingue ese
+    /// caso del de un centro que no pide nada, así que el texto tiene que ser
+    /// cierto en los dos: vacío ⇔ ningún centro CON trabajadores asignados la
+    /// pide. "Ningún centro pide…" mandaba a revisar la configuración de un
+    /// centro que ya la tiene bien.
+    /// </summary>
+    [Fact]
+    public void El_vacio_del_KPI_no_atribuye_la_ausencia_a_que_ningun_centro_pida_documentacion()
+    {
+        var texto = RenderizarTextoVacio();
+
+        texto.Should().NotStartWith("Ningún centro pide",
+            "un centro que pide documentación de trabajador pero sin trabajadores asignados también deja la lista vacía");
+        texto.Should().Contain("con trabajadores asignados");
+    }
+
+    private string RenderizarTextoVacio()
+    {
         Services.AddScoped<IMediator>(_ => new MediatorFalso());
         Services.AddScoped<ToastService>();
         Services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
@@ -69,9 +97,6 @@ public class DashboardEjecutivoCentrosConMenorCumplimientoVacioTests : BunitCont
         var cut = Render<DashboardEjecutivo>();
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("texto-vacio-seccion"));
-        var texto = cut.Find("p.texto-vacio-seccion").TextContent;
-
-        texto.Should().Be("Ningún centro pide todavía documentación de trabajador que evaluar.");
-        texto.Should().NotContainEquivalentOf("obligatori", "es configuración (ResolucionTipoDocumentoCentro.Aplica), no una obligación legal");
+        return cut.Find("p.texto-vacio-seccion").TextContent;
     }
 }
