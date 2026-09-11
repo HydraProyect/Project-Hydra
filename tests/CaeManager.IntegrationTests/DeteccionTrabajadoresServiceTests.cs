@@ -232,6 +232,59 @@ public class DeteccionTrabajadoresServiceTests : IAsyncLifetime
         detecciones[0].Dni.Should().Be("99999999R");
     }
 
+    /// <summary>
+    /// Hallazgo de la revisión de Codex del 2026-09-11: antes de este test,
+    /// NormalizarDni solo hacía Trim().ToUpperInvariant() — "12345678Z" y
+    /// "12345678-Z" sobrevivían como dos identificadores distintos, tanto al
+    /// deduplicar el listado extraído como al compararlo con la plantilla.
+    /// Cubre las tres variantes con las que puede volver un OCR: guion,
+    /// espacio interno y minúsculas.
+    /// </summary>
+    [Fact]
+    public async Task Normaliza_guiones_y_espacios_al_deduplicar_y_comparar_con_la_plantilla()
+    {
+        var (_, documento, _) = await PrepararEmpresaConPlantillaAsync(
+            ("Alvaro", "Sanchez Martin", "77189989B"),
+            ("Pedro", "Gomez Ruiz", "12345678Z"));
+
+        var servicio = CrearServicioQueExtrae(
+            // Alvaro sigue de alta: DNI con guion. Pedro no aparece: se
+            // propondría su baja de no reconocer que "12345678Z" ya es él.
+            new TrabajadorExtraidoDto("Alvaro", "Sanchez Martin", "77-189989-B"),
+            new TrabajadorExtraidoDto("Repetido", "En El Pdf", "99999999R"),
+            new TrabajadorExtraidoDto("Repetido", "En El Pdf", "9999-9999R"),
+            new TrabajadorExtraidoDto("Repetido", "En El Pdf", "99 99 99 99 r"));
+
+        await servicio.ProcesarDocumentoAsync(documento.Id);
+
+        var detecciones = await _dbContext.DeteccionesTrabajador.Where(d => d.DocumentoId == documento.Id).ToListAsync();
+        detecciones.Should().HaveCount(2, "un alta (deduplicada) y una baja de Pedro, que no figura con ningún formato");
+        detecciones.Should().ContainSingle(d => d.Tipo == TipoDeteccion.Nuevo && d.Dni == "99999999R");
+        detecciones.Should().ContainSingle(d => d.Tipo == TipoDeteccion.Ausente && d.Dni == "12345678Z");
+    }
+
+    /// <summary>
+    /// El validador compartido acepta NIE con guion/espacios tras normalizar,
+    /// igual que un DNI. Antes la copia privada del algoritmo lo aceptaba
+    /// también, pero por una casualidad de implementación (no comparaba con
+    /// el validador de Domain) — este test fija el comportamiento con el
+    /// validador compartido.
+    /// </summary>
+    [Fact]
+    public async Task Propone_el_alta_de_un_nie_con_guion_usando_el_validador_compartido()
+    {
+        var (_, documento, _) = await PrepararEmpresaConPlantillaAsync(("Alvaro", "Sanchez Martin", "77189989B"));
+
+        var servicio = CrearServicioQueExtrae(
+            new TrabajadorExtraidoDto("Alvaro", "Sanchez Martin", "77189989B"),
+            new TrabajadorExtraidoDto("Nuevo", "Extranjero", "X-1234567-L"));
+
+        await servicio.ProcesarDocumentoAsync(documento.Id);
+
+        var detecciones = await _dbContext.DeteccionesTrabajador.Where(d => d.DocumentoId == documento.Id).ToListAsync();
+        detecciones.Should().ContainSingle(d => d.Tipo == TipoDeteccion.Nuevo && d.Dni == "X-1234567-L");
+    }
+
     [Fact]
     public async Task Rechaza_un_listado_extraido_de_tamano_absurdo()
     {

@@ -385,20 +385,49 @@ public partial class DeteccionTrabajadores : ComponentBase, IDisposable
 
     private static string FormatearFecha(DateTime utc) => utc.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
 
+    /// <summary>Columna «Qué se pierde al dar de baja» de la tabla de ausentes.</summary>
+    private static string TextoQueSePierde(int asignacionesActivas) => asignacionesActivas switch
+    {
+        0 => "Sin asignaciones vigentes",
+        1 => "1 asignación vigente se cerrará",
+        var n => $"{n} asignaciones vigentes se cerrarán"
+    };
+
+    private const string SufijoMensajeConfirmarBaja =
+        " Deja de aparecer en los listados, y desde esta pantalla no se puede deshacer. La única evidencia es que no figura en el documento leído por IA: si sabes que sigue en plantilla, elige «Mantener activo».";
+
+    /// <summary>
+    /// El diálogo de confirmación dice cuántas asignaciones vigentes se
+    /// cerrarían — el mismo dato que pinta la columna «Qué se pierde», con el
+    /// mismo criterio que <c>ResolverDeteccionAusenteCommand</c> usa de
+    /// verdad al ejecutar la baja (<c>CierreDeAsignaciones.PorTrabajadorEliminadoAsync</c>).
+    /// </summary>
+    private static string MensajeConfirmarBaja(DeteccionTrabajadorDto? deteccion)
+    {
+        var apertura = deteccion?.AsignacionesActivas switch
+        {
+            null => "Se marca como eliminado (baja lógica) y se cierran sus asignaciones vigentes.",
+            0 => "Se marca como eliminado (baja lógica) y no tiene asignaciones vigentes que cerrar.",
+            1 => "Se marca como eliminado (baja lógica) y se cierra su única asignación vigente.",
+            var n => $"Se marca como eliminado (baja lógica) y se cierran sus {n} asignaciones vigentes."
+        };
+
+        return apertura + SufijoMensajeConfirmarBaja;
+    }
+
     private enum Comprobacion { DigitoCorrecto, DigitoIncorrecto, NoEsDniNiNie }
 
     /// <summary>
     /// El mismo criterio con el que <c>DeteccionTrabajadoresService</c> decide
     /// si propone un alta: DNI o NIE con dígito de control (módulo 23), tras
     /// quitar guiones y espacios. Se calcula con
-    /// <see cref="ValidadorIdentificacion"/> sobre el DNI que trae la detección;
-    /// el servicio usa su propia copia privada del algoritmo, así que esta
-    /// columna no puede afirmar nada más que lo que se ve: si el identificador
-    /// cuadra, no por qué se propuso. Quitar guiones y espacios vale solo para
-    /// esta comprobación de formato: al deduplicar y al comparar con la
-    /// plantilla el servicio solo recorta extremos y pasa a mayúsculas, así que
-    /// <c>12345678Z</c> y <c>12345678-Z</c> son allí dos identificadores
-    /// distintos (lo dice la ayuda de la columna).
+    /// <see cref="ValidadorIdentificacion"/> sobre el DNI que trae la
+    /// detección — el mismo validador compartido que usa el servicio desde el
+    /// 2026-09-11 (antes tenía su propia copia del algoritmo). También quita
+    /// guiones y espacios con el mismo criterio que
+    /// <c>DeteccionTrabajadoresService.NormalizarDni</c> usa al deduplicar y
+    /// comparar con la plantilla: <c>12345678Z</c> y <c>12345678-Z</c> ya son
+    /// un único identificador en los dos sitios.
     /// </summary>
     private static Comprobacion Comprobar(string dni)
     {
