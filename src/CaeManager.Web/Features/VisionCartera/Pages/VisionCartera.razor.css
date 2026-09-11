@@ -1,19 +1,321 @@
-/* Botón de submit que se lee como el enlace que era antes de que la acción
-   pasara a POST (ver VisionCartera.razor). */
-.accion-ver-cliente {
+/* Visión de cartera — mockup Gen 2 «Vision Cartera TALVEG.dc.html». Solo
+   tokens de tokens.css; las clases globales que reutiliza (rejilla-kpis-criticos,
+   dashboard-resumen-tarjeta-anillo, tabla-datos, texto-vacio-seccion) viven en
+   dashboard.css / list-page.css. */
+
+.vision-cartera-contenido {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-8);
+}
+
+.seccion-cartera {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.titulo-seccion-cartera {
+    margin: 0;
+    font: var(--font-h3);
+    color: var(--color-text);
+}
+
+.cabecera-seccion-cartera {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+}
+
+.nota-seccion-cartera {
+    font: var(--font-label);
+    color: var(--color-text-muted);
+}
+
+.aviso-sin-cartera {
+    margin: 0;
+    font: var(--font-body-md);
+    color: var(--color-text-muted);
+}
+
+/* Cabecera: ámbito a la derecha del título. */
+.ambito-cartera {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--space-1);
+    font: var(--font-body-md);
+    color: var(--color-text-muted);
+    text-align: right;
+}
+
+.ambito-cartera-sistema {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--color-system-text);
+}
+
+.punto-sistema {
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-full);
+    background: var(--color-system-indicator);
+}
+
+.enlace-accion-cartera {
+    font: var(--font-label);
+}
+
+/* Resumen: anillo (340px) + actividad general. */
+.resumen-cartera {
+    display: grid;
+    grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+    gap: var(--space-5);
+    align-items: stretch;
+}
+
+.actividad-cartera {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
+}
+
+.rejilla-actividad-cartera {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-3);
+}
+
+.rejilla-actividad-cartera ::deep .tarjeta-metrica {
+    background: var(--color-surface);
+}
+
+.reparto-riesgo {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-5);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+figure.reparto-riesgo {
+    margin: 0;
+}
+
+/* Equivalente accesible del gráfico: la misma serie en tabla, fuera de la
+   vista pero leída por el lector de pantalla (el SVG va aria-hidden). */
+.reparto-riesgo-datos {
+    position: absolute;
+    width: 1px;
+    height: 1px;
     padding: 0;
-    border: none;
-    background: none;
-    color: var(--color-primary-500);
-    font: var(--font-body-sm);
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
     white-space: nowrap;
-    cursor: pointer;
+    border: 0;
 }
 
-.accion-ver-cliente:hover {
-    text-decoration: underline;
+.sin-cartera-organizacion {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
 }
 
-.tarjeta-clientes-riesgo {
-    margin-top: var(--space-5);
+.reparto-riesgo-titulo {
+    font: var(--font-label);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+}
+
+.reparto-riesgo-grafico {
+    width: 100%;
+    height: 120px;
+}
+
+.reparto-riesgo-base {
+    stroke: var(--color-border);
+    stroke-width: 1;
+}
+
+.barra-vencidos {
+    fill: var(--color-danger-500);
+}
+
+.barra-urgentes {
+    fill: var(--color-warning-500);
+}
+
+.reparto-riesgo-etiqueta,
+.reparto-riesgo-sin-riesgo {
+    fill: var(--color-text-muted);
+    font-family: var(--font-family);
+    font-size: 10px;
+}
+
+.reparto-riesgo-sin-riesgo {
+    font-size: 11px;
+}
+
+.reparto-riesgo-leyenda {
+    display: flex;
+    gap: var(--space-5);
+    flex-wrap: wrap;
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.reparto-riesgo-leyenda > span {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.muestra-leyenda {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+}
+
+.muestra-vencidos {
+    background: var(--color-danger-500);
+}
+
+.muestra-urgentes {
+    background: var(--color-warning-500);
+}
+
+/* Tabla de organizaciones. */
+.nombre-organizacion {
+    display: block;
+    font-weight: 600;
+}
+
+.meta-organizacion {
+    display: block;
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.cumplimiento-organizacion {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 140px;
+}
+
+.barra-cumplimiento {
+    flex: 1;
+    height: 6px;
+    border-radius: var(--radius-full);
+    background: var(--color-surface-subtle);
+    overflow: hidden;
+}
+
+.barra-cumplimiento-relleno {
+    display: block;
+    height: 100%;
+    border-radius: var(--radius-full);
+}
+
+.barra-cumplimiento-relleno.tono-exito { background: var(--color-success-500); }
+.barra-cumplimiento-relleno.tono-advertencia { background: var(--color-warning-500); }
+.barra-cumplimiento-relleno.tono-peligro { background: var(--color-danger-500); }
+
+.valor-cumplimiento {
+    flex: none;
+    font: var(--font-caption);
+    font-weight: 600;
+}
+
+.valor-cumplimiento.tono-exito { color: var(--color-success-700); }
+.valor-cumplimiento.tono-advertencia { color: var(--color-warning-700); }
+.valor-cumplimiento.tono-peligro { color: var(--color-danger-700); }
+
+.celda-accion-organizacion {
+    text-align: right;
+    white-space: nowrap;
+}
+
+/* Pulso. */
+.pulso-cartera {
+    display: flex;
+    align-items: center;
+    gap: var(--space-8);
+    flex-wrap: wrap;
+    padding: var(--space-6);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.pulso-cartera-titular {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.pulso-cartera-kicker {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+}
+
+.pulso-cartera-frase {
+    font: var(--font-h4);
+}
+
+.pulso-cartera-cifras {
+    display: flex;
+    gap: var(--space-6);
+    padding-left: var(--space-8);
+    border-left: 1px solid var(--color-border);
+}
+
+.pulso-cartera-cifra {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.pulso-cartera-etiqueta {
+    font: var(--font-body-md);
+    color: var(--color-text-muted);
+}
+
+.pulso-cartera-cifra ::deep .pulso-cartera-valor {
+    font: var(--font-h4);
+}
+
+.pulso-cartera-cifra ::deep .pulso-en-verde {
+    color: var(--color-success-700);
+}
+
+.pulso-cartera-cifra ::deep .pulso-en-riesgo {
+    color: var(--color-danger-700);
+}
+
+@media (max-width: 768px) {
+    .resumen-cartera,
+    .rejilla-actividad-cartera {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .ambito-cartera {
+        align-items: flex-start;
+        text-align: left;
+    }
+
+    .pulso-cartera-cifras {
+        padding-left: 0;
+        border-left: 0;
+    }
 }

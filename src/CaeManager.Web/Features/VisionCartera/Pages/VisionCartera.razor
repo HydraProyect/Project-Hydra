@@ -5,12 +5,48 @@
 
 <PageTitle>Visión de cartera — @Marca.Nombre</PageTitle>
 
+@*
+    Visión de cartera contra su mockup Gen 2 («Vision Cartera TALVEG.dc.html»).
+
+    Cada fila es un TENANT, no un Cliente empresarial: el tenant de origen del
+    usuario más los que os han delegado su gestión CAE (ObtenerKpisGlobalesQuery
+    recorre ObtenerClientesAutorizadosQuery). Por eso los textos dicen
+    «organización» y no «cliente», que en el resto del producto es la Empresa
+    contraparte de una Relación Empresarial.
+
+    El alcance de cada fila lo decide ObtenerKpisGlobalesQuery con el rol
+    efectivo y la Asignación de Cartera de ESA organización; la pantalla no
+    lee ningún rol (el del contexto activo no vale para las demás) y solo pinta
+    lo que la consulta dice por fila: SinCarteraAsignada.
+
+    Lo que el mockup pinta y aquí NO se copia, porque la consulta no lo sabe:
+    el desglose por centro de cada fila (ClienteRiesgoDto no lo trae), el
+    «84 trabajadores · 7 centros» por fila, «X de N bloquean acceso a algún
+    centro», las ventanas fijas «≤15/≤30 días» (son los umbrales urgente y
+    próximo de cada organización, configurables) y el rótulo «SLA» (no hay
+    acuerdo de nivel de servicio detrás: es la tasa de cumplimiento
+    documental). Tampoco los enlaces de las cifras a /documentos, /centros,
+    /trabajadores o /bandeja: esas pantallas enseñan solo la organización
+    activa, y el número de aquí suma varias.
+*@
 <div class="contenedor-pagina">
-    <CabeceraPagina Titulo="Todos tus clientes de un vistazo" Kicker="Visión de cartera" />
+    <CabeceraPagina Titulo="Todas las organizaciones que operas, de un vistazo" Kicker="Visión de cartera">
+        <Acciones>
+            @if (_kpis is { TotalClientes: > 1 })
+            {
+                <div class="ambito-cartera">
+                    <span class="ambito-cartera-linea">@LineaAmbito</span>
+                    <span class="ambito-cartera-linea">@LineaAlcance</span>
+                    <span class="ambito-cartera-sistema"><span class="punto-sistema" aria-hidden="true"></span>Recalculado en cada carga</span>
+                </div>
+            }
+        </Acciones>
+    </CabeceraPagina>
 
     @if (_error)
     {
-        <EstadoVacio Titulo="No pudimos cargar la visión de cartera" Descripcion="Intenta nuevamente en unos segundos.">
+        <EstadoVacio Titulo="No pudimos cargar la visión de cartera" Descripcion="Intenta nuevamente en unos segundos."
+                     NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">
             <Accion>
                 <Boton OnClick="CargarAsync">Reintentar</Boton>
             </Accion>
@@ -22,73 +58,246 @@
     }
     else if (_kpis.TotalClientes <= 1)
     {
-        <EstadoVacio Titulo="Todavía no operas ningún cliente delegado" Descripcion="Esta vista agrega datos entre varios clientes. Cuando tengas al menos un Delegated Workspace activo, aparecerá aquí." />
+        @* Con una sola organización —la propia— esta vista coincidiría con el
+           Dashboard, así que se declara vacía aunque haya datos (mockup,
+           estado «Vacía»). *@
+        <EstadoVacio Titulo="Todavía no operas ninguna otra organización"
+                     Descripcion="Esta vista suma varias organizaciones: la tuya y las que os han delegado su gestión CAE. Cuando alguna os la delegue, aparecerá aquí."
+                     NombreIcono="cartera">
+            <Accion>
+                <a class="enlace-accion-cartera" href="/delegaciones">Ver delegaciones →</a>
+            </Accion>
+        </EstadoVacio>
     }
     else
     {
-        @* Iconografía obligatoria en superficies de resumen (02 § 7, DDL-036) —
-           mismo criterio y mismos iconos que Dashboard.razor: es la misma
-           rejilla reutilizada, ver el comentario de VisionCartera.razor.css. *@
-        <div class="rejilla-kpis-criticos">
-            <TarjetaMetrica Etiqueta="Documentos vencidos" Valor="@_kpis.DocumentosVencidos.ToString()" NombreIcono="advertencia" Tono="TonoBadge.Peligro" />
-            <TarjetaMetrica Etiqueta="Urgentes (≤15 días)" Valor="@_kpis.DocumentosUrgentes.ToString()" NombreIcono="reloj" Tono="TonoBadge.Peligro" />
-            <TarjetaMetrica Etiqueta="Próximos (≤30 días)" Valor="@_kpis.DocumentosProximos.ToString()" NombreIcono="calendario" Tono="TonoBadge.Advertencia" />
-            <TarjetaMetrica Etiqueta="SLA documental promedio" Valor="@($"{_kpis.TasaCumplimientoDocumentalPromedio}%")" NombreIcono="check" Tono="@SlaDocumentalTono(_kpis.TasaCumplimientoDocumentalPromedio)" />
-        </div>
+        <div class="vision-cartera-contenido">
+            <section class="seccion-cartera" aria-labelledby="titulo-riesgo-documental">
+                <h2 id="titulo-riesgo-documental" class="titulo-seccion-cartera">Documentación en riesgo</h2>
+                @* Iconografía obligatoria en superficies de resumen (02 § 7, DDL-036),
+                   mismos iconos que Inicio. El desglose por organización de
+                   vencidos y urgentes es la tabla de abajo. *@
+                <div class="rejilla-kpis-criticos">
+                    <TarjetaMetrica Etiqueta="Documentos vencidos" Valor="@_kpis.DocumentosVencidos.ToString()" NombreIcono="advertencia" Tono="TonoBadge.Peligro"
+                                    Pista="@PistaVencidos" />
+                    <TarjetaMetrica Etiqueta="Urgentes" Valor="@_kpis.DocumentosUrgentes.ToString()" NombreIcono="reloj" Tono="TonoBadge.Peligro"
+                                    Pista="Según el umbral urgente de cada organización" />
+                    <TarjetaMetrica Etiqueta="Próximos a vencer" Valor="@_kpis.DocumentosProximos.ToString()" NombreIcono="calendario" Tono="TonoBadge.Advertencia"
+                                    Pista="Según el umbral próximo de cada organización" />
+                    <TarjetaMetrica Etiqueta="Cumplimiento documental promedio" Valor="@ValorMedia" NombreIcono="check"
+                                    Tono="@TonoMedia" Pista="@PistaMedia" />
+                </div>
+            </section>
 
-        <h2 class="dashboard-subtitulo">Actividad general</h2>
-        <div class="rejilla-kpis-secundarios">
-            <TarjetaMetrica Discreta="true" Etiqueta="Clientes" Valor="@_kpis.TotalClientes.ToString()" NombreIcono="clientes" />
-            <TarjetaMetrica Discreta="true" Etiqueta="Trabajadores activos" Valor="@_kpis.TrabajadoresActivos.ToString()" NombreIcono="trabajadores" />
-            <TarjetaMetrica Discreta="true" Etiqueta="Centros / plataformas" Valor="@_kpis.Centros.ToString()" NombreIcono="centros" />
-        </div>
+            <section class="resumen-cartera">
+                <div class="dashboard-resumen-tarjeta-anillo">
+                    @if (HayMediaQueMostrar)
+                    {
+                        <AnilloCumplimiento Porcentaje="_kpis.TasaCumplimientoDocumentalPromedio" Tamano="TamanoAnillo.Grande" Leyenda="Cumplimiento"
+                                            Etiqueta="@($"{_kpis.TasaCumplimientoDocumentalPromedio}% de cumplimiento documental promedio")" />
+                        <div>
+                            <p class="dashboard-resumen-anillo-titulo">@_kpis.TasaCumplimientoDocumentalPromedio% de cumplimiento documental promedio</p>
+                            <p class="dashboard-resumen-anillo-detalle detalle-media-cartera">@DetalleMedia</p>
+                            <p class="dashboard-resumen-anillo-detalle detalle-tasa-cartera">
+                                Tasa de cada organización: documentos que aún no han entrado en su umbral próximo, sobre todos los que tienen fecha de vencimiento. Sin ninguno con fecha, cuenta como 100%.
+                            </p>
+                        </div>
+                    }
+                    else
+                    {
+                        @* Sin ninguna Asignación de Cartera en ninguna organización, el
+                           100% que devuelve la consulta es «nada que evaluar»: pintarlo
+                           en un anillo verde afirmaría lo contrario. *@
+                        <div>
+                            <p class="dashboard-resumen-anillo-titulo">Sin cumplimiento que medir</p>
+                            <p class="dashboard-resumen-anillo-detalle detalle-media-cartera">No tienes ninguna Asignación de Cartera en estas organizaciones: no hay documentos tuyos que evaluar.</p>
+                        </div>
+                    }
+                </div>
 
-        <Tarjeta Titulo="Clientes con más riesgo" Class="tarjeta-clientes-riesgo">
-            @if (_kpis.ClientesConMasRiesgo.All(c => c.DocumentosVencidos == 0 && c.DocumentosUrgentes == 0))
-            {
-                <p class="texto-vacio-seccion">Ningún cliente tiene documentación urgente o vencida.</p>
-            }
-            else
-            {
-                <table class="tabla-datos">
-                    <thead>
-                        <tr>
-                            <th>Cliente</th>
-                            <th>Vencidos</th>
-                            <th>Urgentes</th>
-                            <th>SLA documental</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var cliente in _kpis.ClientesConMasRiesgo)
-                        {
-                            <tr>
-                                <td>@cliente.Nombre</td>
-                                <td><Badge Tono="TonoBadge.Peligro">@cliente.DocumentosVencidos</Badge></td>
-                                <td><Badge Tono="TonoBadge.Advertencia">@cliente.DocumentosUrgentes</Badge></td>
-                                <td><Badge Tono="@SlaDocumentalTono(cliente.TasaCumplimientoDocumental)">@cliente.TasaCumplimientoDocumental%</Badge></td>
-                                <td>
-                                    @* Mismo patrón que SelectorClienteActivo: cambiar de cliente
-                                       activo escribe una cookie de servidor, así que va por POST
-                                       con antiforgery (M-8) y no por navegación GET. Por eso la
-                                       acción vive en un botón y no en un @onclick de la fila: un
-                                       <form> no puede envolver un <tr>. *@
-                                    <form method="post" action="/cuenta/cliente-activo">
-                                        @if (_token is not null)
-                                        {
-                                            <input type="hidden" name="@_token.FormFieldName" value="@_token.Value" />
-                                        }
-                                        <input type="hidden" name="returnUrl" value="/" />
-                                        <input type="hidden" name="tenantId" value="@cliente.TenantId" />
-                                        <button type="submit" class="accion-ver-cliente">Ver como este cliente →</button>
-                                    </form>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            }
-        </Tarjeta>
+                <div class="actividad-cartera">
+                    <h2 class="titulo-seccion-cartera">Actividad general</h2>
+                    <div class="rejilla-actividad-cartera">
+                        <TarjetaMetrica Discreta="true" Etiqueta="Organizaciones" Valor="@_kpis.TotalClientes.ToString()" NombreIcono="clientes" />
+                        <TarjetaMetrica Discreta="true" Etiqueta="Trabajadores activos" Valor="@_kpis.TrabajadoresActivos.ToString()" NombreIcono="trabajadores" />
+                        <TarjetaMetrica Discreta="true" Etiqueta="Centros / plataformas" Valor="@_kpis.Centros.ToString()" NombreIcono="centros" />
+                    </div>
+
+                    @* Accesibilidad: el SVG es solo la imagen (aria-hidden, sin foco:
+                       no tiene ninguna interacción, las <title> son ayuda de ratón).
+                       Lo que dice lo dice también la tabla .reparto-riesgo-datos —
+                       nombres completos y las dos cifras de cada organización, en el
+                       mismo orden—, que el lector de pantalla recorre como tabla y a
+                       la que el <figcaption> da nombre. *@
+                    <figure class="reparto-riesgo" aria-labelledby="titulo-reparto-riesgo">
+                        <figcaption id="titulo-reparto-riesgo" class="reparto-riesgo-titulo">Reparto del riesgo entre las @Organizaciones.Count organizaciones</figcaption>
+                        <table class="reparto-riesgo-datos">
+                            <caption>Documentos vencidos y urgentes por organización</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Organización</th>
+                                    <th scope="col">Vencidos</th>
+                                    <th scope="col">Urgentes</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var organizacion in Organizaciones)
+                                {
+                                    <tr>
+                                        <th scope="row">@organizacion.Nombre@(organizacion.SinCarteraAsignada ? ", sin Asignación de Cartera tuya" : string.Empty)</th>
+                                        <td>@organizacion.DocumentosVencidos</td>
+                                        <td>@organizacion.DocumentosUrgentes</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                        <svg class="reparto-riesgo-grafico" viewBox="0 0 @AnchoGrafico @AltoGrafico" aria-hidden="true" focusable="false"
+                             preserveAspectRatio="xMinYMid meet">
+                            <line class="reparto-riesgo-base" x1="0" y1="@BaseBarras" x2="@AnchoGrafico" y2="@BaseBarras" />
+                            @foreach (var barra in Barras)
+                            {
+                                <g class="barra-organizacion">
+                                    @if (barra.AltoVencidos > 0)
+                                    {
+                                        <rect class="barra-vencidos" x="@barra.X" y="@barra.YVencidos" width="@AnchoBarra" height="@barra.AltoVencidos" rx="2">
+                                            <title>@barra.TituloVencidos</title>
+                                        </rect>
+                                    }
+                                    @if (barra.AltoUrgentes > 0)
+                                    {
+                                        <rect class="barra-urgentes" x="@barra.X" y="@barra.YUrgentes" width="@AnchoBarra" height="@barra.AltoUrgentes" rx="2">
+                                            <title>@barra.TituloUrgentes</title>
+                                        </rect>
+                                    }
+                                    @if (barra.SinRiesgo)
+                                    {
+                                        @* Envuelto en <g>: un <text> justo tras la transición a código lo
+                                           interpretaría Razor como su propia etiqueta, no como SVG. *@
+                                        <g>
+                                            <text class="reparto-riesgo-sin-riesgo" x="@barra.Centro" y="@(BaseBarras - 14)" text-anchor="middle">@barra.TextoSinBarra</text>
+                                        </g>
+                                    }
+                                    <text class="reparto-riesgo-etiqueta" x="@barra.Centro" y="@(BaseBarras + 16)" text-anchor="middle">
+                                        <title>@barra.Nombre</title>@barra.EtiquetaCorta
+                                    </text>
+                                </g>
+                            }
+                        </svg>
+                        <div class="reparto-riesgo-leyenda">
+                            <span><span class="muestra-leyenda muestra-vencidos" aria-hidden="true"></span>Vencidos</span>
+                            <span><span class="muestra-leyenda muestra-urgentes" aria-hidden="true"></span>Urgentes (umbral de cada organización)</span>
+                        </div>
+                    </figure>
+                </div>
+            </section>
+
+            <section class="seccion-cartera" aria-labelledby="titulo-organizaciones-riesgo">
+                <div class="cabecera-seccion-cartera">
+                    <h2 id="titulo-organizaciones-riesgo" class="titulo-seccion-cartera">Organizaciones con más riesgo</h2>
+                    <span class="nota-seccion-cartera">Todas, ordenadas por vencidos y, a igualdad, por urgentes</span>
+                </div>
+
+                @if (AvisoSinCartera is { } aviso)
+                {
+                    <p class="aviso-sin-cartera">@aviso</p>
+                }
+
+                <Tarjeta Class="tarjeta-organizaciones-riesgo">
+                    @if (Organizaciones.All(o => o.DocumentosVencidos == 0 && o.DocumentosUrgentes == 0))
+                    {
+                        <p class="texto-vacio-seccion">@TextoSinRiesgo</p>
+                    }
+                    else
+                    {
+                        <table class="tabla-datos">
+                            <thead>
+                                <tr>
+                                    <th>Organización</th>
+                                    <th>Vencidos</th>
+                                    <th>Urgentes</th>
+                                    <th>Cumplimiento documental</th>
+                                    <th aria-label="Acciones"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var organizacion in Organizaciones)
+                                {
+                                    var tasa = Math.Clamp(organizacion.TasaCumplimientoDocumental, 0, 100);
+                                    <tr>
+                                        <td>
+                                            <span class="nombre-organizacion">@organizacion.Nombre</span>
+                                            <span class="meta-organizacion">@MetaOrganizacion(organizacion)</span>
+                                        </td>
+                                        <td>
+                                            <Badge Tono="@(organizacion.DocumentosVencidos > 0 ? TonoBadge.Peligro : TonoBadge.Neutro)"
+                                                   title="@TituloVencidos(organizacion)">@organizacion.DocumentosVencidos</Badge>
+                                        </td>
+                                        <td>
+                                            <Badge Tono="@(organizacion.DocumentosUrgentes > 0 ? TonoBadge.Advertencia : TonoBadge.Neutro)"
+                                                   title="@TituloUrgentes(organizacion)">@organizacion.DocumentosUrgentes</Badge>
+                                        </td>
+                                        <td>
+                                            @if (organizacion.SinCarteraAsignada)
+                                            {
+                                                <span class="sin-cartera-organizacion" title="@TituloCumplimiento(organizacion)">Sin Asignación de Cartera tuya</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="cumplimiento-organizacion" title="@TituloCumplimiento(organizacion)">
+                                                    <span class="barra-cumplimiento" aria-hidden="true">
+                                                        <span class="barra-cumplimiento-relleno @ClaseTono(tasa)" style="width: @(tasa)%"></span>
+                                                    </span>
+                                                    <span class="valor-cumplimiento @ClaseTono(tasa)">@tasa%</span>
+                                                </span>
+                                            }
+                                        </td>
+                                        <td class="celda-accion-organizacion">
+                                            @* Mismo patrón que SelectorClienteActivo: cambiar la organización
+                                               activa escribe una cookie de servidor, así que va por POST con
+                                               antiforgery (M-8) y no por navegación GET. Por eso la acción vive
+                                               en un botón y no en un @onclick de la fila: un <form> no puede
+                                               envolver un <tr>. *@
+                                            <form method="post" action="/cuenta/cliente-activo">
+                                                @if (_token is not null)
+                                                {
+                                                    <input type="hidden" name="@_token.FormFieldName" value="@_token.Value" />
+                                                }
+                                                <input type="hidden" name="returnUrl" value="/" />
+                                                <input type="hidden" name="tenantId" value="@organizacion.TenantId" />
+                                                <Boton Type="submit" Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                                       title="@($"Hace de {organizacion.Nombre} la organización activa y abre su Dashboard")">Cambiar a esta organización →</Boton>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </Tarjeta>
+            </section>
+
+            <section class="pulso-cartera" aria-label="Pulso de las organizaciones">
+                <div class="pulso-cartera-titular">
+                    <span class="pulso-cartera-kicker">Pulso de las organizaciones</span>
+                    <span class="pulso-cartera-frase">@FrasePulso</span>
+                </div>
+                <div class="pulso-cartera-cifras">
+                    <div class="pulso-cartera-cifra">
+                        <span class="pulso-cartera-etiqueta">Organizaciones en verde (90% o más)</span>
+                        <VentanaContexto class="pulso-cartera-valor pulso-en-verde" Etiqueta="@DetalleEnVerde" Titulo="En verde">
+                            <Disparador>@EnVerde</Disparador>
+                            <Detalle>@DetalleEnVerde</Detalle>
+                        </VentanaContexto>
+                    </div>
+                    <div class="pulso-cartera-cifra">
+                        <span class="pulso-cartera-etiqueta">Documentos en riesgo</span>
+                        <VentanaContexto class="pulso-cartera-valor pulso-en-riesgo" Etiqueta="@DetalleEnRiesgo" Titulo="En riesgo">
+                            <Disparador>@DocumentosEnRiesgo</Disparador>
+                            <Detalle>@DetalleEnRiesgo</Detalle>
+                        </VentanaContexto>
+                    </div>
+                </div>
+            </section>
+        </div>
     }
 </div>
