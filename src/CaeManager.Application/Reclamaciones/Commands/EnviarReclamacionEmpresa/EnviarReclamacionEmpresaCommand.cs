@@ -30,8 +30,12 @@ namespace CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa
 ///
 /// MVP1 es siempre manual (el Gestor CAE revisa la vista previa y pulsa
 /// Enviar). DocumentoIds llega de esa vista previa, así que se recarga y
-/// revalida server-side: un Id que ya no cumple los criterios se descarta en
-/// silencio en vez de tumbar todo el envío.
+/// revalida server-side con el MISMO criterio de "reclamable" que
+/// <see cref="Queries.ObtenerLoteReclamacionEmpresa.ObtenerLoteReclamacionEmpresaQuery"/>
+/// (incluida la ventana de 3 meses): un Id que ya no cumple esos criterios
+/// hace fallar el envío ENTERO en vez de mandar una parte sin avisar
+/// (revisión 2026-09-11) — ver el razonamiento completo en el docstring
+/// gemelo de <c>EnviarReclamacionCommand</c>.
 /// </summary>
 /// <param name="ContactoIdsSeleccionados">
 /// Contactos marcados a mano en la pantalla. Null/vacío = "los que resuelva la
@@ -42,7 +46,7 @@ namespace CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa
 public record EnviarReclamacionEmpresaCommand(
     Guid EmpresaId,
     IReadOnlyList<Guid> DocumentoIds,
-    IReadOnlyList<Guid>? ContactoIdsSeleccionados = null) : ICommand;
+    IReadOnlyList<Guid>? ContactoIdsSeleccionados = null) : ICommand<EnvioReclamacionResultado>;
 
 public class EnviarReclamacionEmpresaCommandHandler(
     IEmpresasQueryContext empresasContext,
@@ -51,35 +55,40 @@ public class EnviarReclamacionEmpresaCommandHandler(
     IAlcanceDatosService alcanceDatos,
     Contactos.IResolucionDestinatariosAgendaService resolucionDestinatarios,
     IRegistroEnvioReclamacionService registroEnvio)
-    : IRequestHandler<EnviarReclamacionEmpresaCommand, Result>
+    : IRequestHandler<EnviarReclamacionEmpresaCommand, Result<EnvioReclamacionResultado>>
 {
-    public async Task<Result> Handle(EnviarReclamacionEmpresaCommand request, CancellationToken cancellationToken)
+    public async Task<Result<EnvioReclamacionResultado>> Handle(EnviarReclamacionEmpresaCommand request, CancellationToken cancellationToken)
     {
         // Cartera de Empresas, no de Clientes: reclamar es escribir historial y
         // mandar un correo en nombre del tenant, así que la puerta va antes de
         // leer nada (CLAUDE.md § 14 — una coordenada de contexto no es
         // autoridad).
         if (!await alcanceDatos.EmpresaParaGestionVisibleAsync(request.EmpresaId, cancellationToken))
-            return Result.Fallo(Error.Crear("Reclamacion.SinAcceso", "No tienes acceso a esta empresa."));
+            return Result.Fallo<EnvioReclamacionResultado>(Error.Crear("Reclamacion.SinAcceso", "No tienes acceso a esta empresa."));
 
         var empresa = await empresasContext.Empresas
             .FirstOrDefaultAsync(e => e.Id == request.EmpresaId, cancellationToken);
         if (empresa is null)
-            return Result.Fallo(Error.Crear("Reclamacion.EmpresaNoEncontrada", "No encontramos esta empresa."));
+            return Result.Fallo<EnvioReclamacionResultado>(Error.Crear("Reclamacion.EmpresaNoEncontrada", "No encontramos esta empresa."));
 
         if (request.DocumentoIds.Count == 0)
-            return Result.Fallo(Error.Crear("Reclamacion.SinDocumentos", "Selecciona al menos un documento a reclamar."));
+            return Result.Fallo<EnvioReclamacionResultado>(Error.Crear("Reclamacion.SinDocumentos", "Selecciona al menos un documento a reclamar."));
 
         var idsSolicitados = request.DocumentoIds.Distinct().ToList();
 
-        // Mismos criterios que ObtenerLoteReclamacionEmpresaQuery, revalidados
+        // Misma ventana que ObtenerLoteReclamacionEmpresaQuery (3 meses, sin
+        // límite inferior), además de los criterios de siempre revalidados
         // contra la base: que el documento siga siendo de ESTA Empresa y de
         // ámbito Empresa. Sin el filtro de ámbito, un Id de un documento de
         // Cliente de la misma Empresa contraparte entraría en el lote.
+        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var limiteVentana = hoy.AddMonths(3);
+
         var filas = await (
             from documento in documentosContext.Documentos
             where idsSolicitados.Contains(documento.Id)
             where documento.EmpresaId == request.EmpresaId && documento.FechaVencimiento != null
+            where documento.FechaVencimiento <= limiteVentana
             join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             where tipoDocumento.AmbitoAplicacion == AmbitoAplicacion.Empresa
             select new
@@ -94,9 +103,20 @@ public class EnviarReclamacionEmpresaCommandHandler(
 
         if (filas.Count == 0)
         {
-            return Result.Fallo(Error.Crear(
+            return Result.Fallo<EnvioReclamacionResultado>(Error.Crear(
                 "Reclamacion.SinDocumentosValidos",
                 "Ninguno de los documentos seleccionados sigue siendo reclamable para esta empresa — puede que ya se hayan renovado."));
+        }
+
+        // Todo o nada (revisión 2026-09-11), igual que EnviarReclamacionCommand:
+        // si algo de lo pedido ya no es reclamable, el envío entero falla en
+        // vez de mandar solo lo que sobrevivió.
+        var idsEncontrados = filas.Select(f => f.DocumentoId).ToHashSet();
+        if (idsSolicitados.Exists(id => !idsEncontrados.Contains(id)))
+        {
+            return Result.Fallo<EnvioReclamacionResultado>(Error.Crear(
+                "Reclamacion.DocumentosDesactualizados",
+                "Algunos de los documentos seleccionados ya no son reclamables — puede que se hayan renovado o hayan salido de la ventana de reclamación. Actualiza la vista antes de volver a intentarlo."));
         }
 
         var resueltos = await resolucionDestinatarios.ResolverParaEmpresaAsync(
@@ -104,26 +124,40 @@ public class EnviarReclamacionEmpresaCommandHandler(
 
         // La selección manual se filtra CONTRA lo resuelto, no lo sustituye:
         // así un Id de contacto de otra Empresa colado a mano no se convierte
-        // en destinatario.
+        // en destinatario. Mismo "todo o nada" que con los documentos.
         if (request.ContactoIdsSeleccionados is { Count: > 0 } seleccionados)
+        {
+            var contactoIdsResueltos = resueltos.Select(d => d.ContactoId).ToHashSet();
+            if (seleccionados.Any(id => !contactoIdsResueltos.Contains(id)))
+            {
+                return Result.Fallo<EnvioReclamacionResultado>(Error.Crear(
+                    "Reclamacion.ContactosDesactualizados",
+                    "Alguno de los contactos seleccionados ya no está en la agenda para esta documentación. Actualiza la vista antes de volver a intentarlo."));
+            }
+
             resueltos = [.. resueltos.Where(d => seleccionados.Contains(d.ContactoId))];
+        }
 
         if (resueltos.Count == 0)
         {
-            return Result.Fallo(Error.Crear(
+            return Result.Fallo<EnvioReclamacionResultado>(Error.Crear(
                 "Reclamacion.SinDestinatario",
                 "No hay ningún contacto en la agenda al que reclamar esta documentación — añade uno en la ficha de la empresa."));
         }
 
+        var documentoIds = filas.Select(f => f.DocumentoId).Distinct().ToList();
         var destinatarios = resueltos.Select(d => d.Email).Distinct().ToList();
         var asunto = $"{Marca.Nombre} — documentación pendiente de {empresa.RazonSocial}";
         var cuerpoHtml = ConstruirCuerpoHtml(
             empresa.RazonSocial, filas.Select(f => (f.TipoDocumentoNombre, f.FechaVencimiento!.Value)));
 
-        return await registroEnvio.EnviarYRegistrarAsync(
+        var envio = await registroEnvio.EnviarYRegistrarAsync(
             new TitularReclamacion(request.EmpresaId, empresa.RazonSocial, AmbitoAplicacion.Empresa),
-            filas.Select(f => f.DocumentoId).Distinct().ToList(),
-            destinatarios, asunto, cuerpoHtml, cancellationToken);
+            documentoIds, destinatarios, asunto, cuerpoHtml, cancellationToken);
+
+        return envio.EsFallido
+            ? Result.Fallo<EnvioReclamacionResultado>(envio.Error)
+            : Result.Exito(new EnvioReclamacionResultado(documentoIds, destinatarios));
     }
 
     /// <summary>
