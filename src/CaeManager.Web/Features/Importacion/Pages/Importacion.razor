@@ -6,17 +6,29 @@
 
 @if (!IntegradaEnConfiguracion)
 {
-    <PageTitle>Importar datos — @Marca.Nombre</PageTitle>
+    <PageTitle>@TituloPagina — @Marca.Nombre</PageTitle>
 }
 
 <div class="@ClaseContenedorPagina">
-    <div>
-        @if (!IntegradaEnConfiguracion)
-        {
-            <div class="eyebrow-importacion">Configuración</div>
-        }
-        @TituloPaginaIntegrable("Importar datos")
-    </div>
+    @* Cabecera Gen 2. Con ?plantilla=clientes —el enlace «Importar clientes»
+       de Clientes y el marcador /clientes/importar, que redirige aquí— es la
+       del mockup «Importar Clientes TALVEG.dc.html»: vuelta a Clientes, ruta
+       y título propios. Sin él, la de «Importar datos». Las filas de esa
+       plantilla son Clientes empresariales del Tenant, no Clientes
+       comerciales TALVEG. *@
+    @if (_desdeClientes && !IntegradaEnConfiguracion)
+    {
+        <div class="ruta-importacion">
+            <a class="enlace-volver-importacion" href="/clientes"><Icono Nombre="volver" Tamano="TamanoIcono.Pequeno" /> Volver a Clientes</a>
+            <span class="miga-importacion">
+                Negocio <span class="miga-importacion-flecha" aria-hidden="true">→</span>
+                Clientes <span class="miga-importacion-flecha" aria-hidden="true">→</span>
+                <span class="miga-importacion-actual">@TituloPagina</span>
+            </span>
+        </div>
+    }
+
+    <CabeceraPagina Titulo="@TituloPagina" Kicker="@(IntegradaEnConfiguracion ? null : "Configuración")" Integrada="IntegradaEnConfiguracion" />
 
     <nav class="pasos-importacion" aria-label="Progreso de la importación">
         @for (var i = 0; i < NombresPasos.Count; i++)
@@ -56,12 +68,13 @@
                     {
                         var seleccionada = plantilla.Id == _plantillaId;
                         <div role="button" tabindex="0" class="@($"tarjeta-plantilla {(seleccionada ? "tarjeta-plantilla-seleccionada" : "")}")"
-                             aria-pressed="@seleccionada" @onclick="() => SeleccionarPlantilla(plantilla.Id)">
+                             aria-pressed="@(seleccionada ? "true" : "false")" data-plantilla="@plantilla.Id" @onclick="() => SeleccionarPlantilla(plantilla.Id)">
                             <div class="cabecera-tarjeta-plantilla">
                                 <span class="icono-tarjeta-plantilla">@plantilla.Icono</span>
                                 <span class="titulo-tarjeta-plantilla">@plantilla.Titulo</span>
                             </div>
                             <span class="descripcion-tarjeta-plantilla">@plantilla.Descripcion</span>
+                            <span class="limite-tarjeta-plantilla">.xlsx · máx. @(plantilla.TamanoMaximoBytes / (1024 * 1024)) MB</span>
                             @if (plantilla.RutaPlantillaBlanco is not null)
                             {
                                 <a href="@plantilla.RutaPlantillaBlanco" class="enlace-plantilla-blanco" @onclick:stopPropagation="true"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Descargar plantilla en blanco</a>
@@ -120,12 +133,47 @@
                                 Accept=".xlsx" Cargando="_analizando" NombreArchivoActual="@_nombreArchivo"
                                 OnChange="ManejarArchivoSeleccionadoAsync" />
 
+            @* .alerta-formulario es SOLO el error de lectura: el E2E
+               (Ayudas.GuionEstadoDelAnalisis) la toma como desenlace «error»
+               del análisis. Ningún otro aviso de este paso puede llevarla. *@
             @if (_mensajeError is not null)
             {
                 <div class="alerta-formulario" role="alert">@_mensajeError</div>
             }
 
             <ProgresoConMensajes Visible="_analizando" Mensajes="MensajesAnalizando" />
+
+            @if (EsPlantillaClientes)
+            {
+                <section class="columnas-plantilla-importacion" aria-labelledby="columnas-plantilla-clientes-titulo">
+                    <h3 id="columnas-plantilla-clientes-titulo" class="cabecera-columnas-plantilla">Columnas que espera la hoja «Clientes»</h3>
+                    <div class="tabla-columnas-plantilla-envoltorio">
+                        <table class="tabla-datos">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Columna</th>
+                                    <th scope="col">Ejemplo</th>
+                                    <th scope="col">Obligatoria</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var columna in ColumnasPlantillaClientes)
+                                {
+                                    <tr data-columna-plantilla>
+                                        <td class="nombre-columna-plantilla">@columna.Nombre</td>
+                                        <td class="ejemplo-columna-plantilla">@columna.Ejemplo</td>
+                                        <td><Badge Tono="@(columna.Obligatoria ? TonoBadge.Exito : TonoBadge.Neutro)">@(columna.Obligatoria ? "Sí" : "No")</Badge></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="nota-columnas-plantilla">
+                        La fila de ejemplo, la que empieza por «EJEMPLO», se ignora. La lectura termina en la primera
+                        fila sin nombre: lo que haya debajo no se lee. «Crítico» solo cuenta como sí con una C.
+                    </p>
+                </section>
+            }
 
             <div class="acciones-formulario acciones-entre">
                 <Boton Variante="VarianteBoton.Secundario" OnClick="() => IrAPaso(1)">← Cambiar plantilla</Boton>
@@ -142,10 +190,28 @@
             </div>
 
             <div class="badges-resumen-plan">
-                <Badge Tono="TonoBadge.Exito">@TotalACrear se crearán</Badge>
+                <Badge Tono="TonoBadge.Exito" title="@TituloBadgeCrear">@TotalACrear se crearán</Badge>
                 <Badge Tono="TonoBadge.Advertencia">@TotalAdvertencias con aviso</Badge>
                 <Badge Tono="TonoBadge.Peligro">@TotalOmitidos se omitirán</Badge>
             </div>
+
+            @* El mockup, en su modo «Fiel al código de hoy», pinta aquí el
+               defecto: el plan cuenta altas de Cliente empresarial y Centro que
+               la escritura no hará. Se dice al usuario en su idioma, sin
+               nombres de clases; el recuento de arriba sigue siendo el del
+               análisis. La «Propuesta corregida» del mockup (recontar esas
+               filas como «No se creará») no se hace aquí: corregir el recuento
+               es del análisis, no de la pantalla. *@
+            @if (AltasClienteCentroQueNoSeHaran > 0)
+            {
+                <div class="aviso-altas-importacion" role="note">
+                    <span class="icono-aviso-altas"><Icono Nombre="advertencia" /></span>
+                    <div>
+                        <p class="titulo-aviso-altas">@TituloAvisoAltas</p>
+                        <p class="detalle-aviso-altas">@TextoFilasClienteCentroQueSeOmitiran Dalos de alta a mano en Clientes y Centros.</p>
+                    </div>
+                </div>
+            }
 
             <div class="tabla-plan-importacion-envoltorio">
                 <table class="tabla-datos">
@@ -184,12 +250,8 @@
                 <div class="aviso-confirmacion-importacion">
                     <span class="punto-aviso-confirmacion"></span>
                     <div>
-                        <p class="titulo-aviso-confirmacion">
-                            Se crearán @TotalACrear elementos. Esta acción escribe datos reales.
-                        </p>
-                        <p class="detalle-aviso-confirmacion">
-                            Punto de no retorno. Los @TotalOmitidos omitidos y @TotalAdvertencias avisos no se tocan.
-                        </p>
+                        <p class="titulo-aviso-confirmacion">@TituloConfirmacion</p>
+                        <p class="detalle-aviso-confirmacion">@DetalleConfirmacion</p>
                     </div>
                 </div>
 
@@ -214,7 +276,7 @@
 
             <div class="acciones-formulario acciones-entre">
                 <Boton Variante="VarianteBoton.Secundario" OnClick="() => IrAPaso(3)">← Revisar el plan</Boton>
-                <Boton Deshabilitado="!_confirmado" Cargando="_importando" OnClick="ConfirmarImportacionAsync">Importar ahora</Boton>
+                <Boton Deshabilitado="!_confirmado" Cargando="_importando" OnClick="SolicitarImportacion">Importar ahora</Boton>
             </div>
         </div>
     }
@@ -266,8 +328,20 @@
 
                 <div class="acciones-formulario">
                     <Boton OnClick="EmpezarDeNuevo">Nueva importación</Boton>
+                    @* Salida del mockup: el propio motivo del handler dice
+                       «créalo manualmente en Clientes» sin llevar a ninguna
+                       parte. /clientes?accion=crear abre el alta de Cliente
+                       empresarial de la lista (Clientes.razor.cs, Accion). *@
+                    @if (EsPlantillaClientes && omitidosReporte.Count > 0)
+                    {
+                        <Boton Variante="VarianteBoton.Secundario" Href="/clientes?accion=crear">Dar de alta un Cliente empresarial a mano</Boton>
+                    }
                 </div>
             </div>
         </div>
     }
+
+    <DialogoConfirmacion Visible="_mostrarDialogoImportar" VisibleChanged="CambiarVisibilidadDialogoImportar"
+                         Titulo="¿Importar este archivo?" Mensaje="@MensajeDialogoImportar"
+                         TextoBotonConfirmar="Sí, importar" EnProgreso="_importando" OnConfirmar="ConfirmarImportacionAsync" />
 </div>
