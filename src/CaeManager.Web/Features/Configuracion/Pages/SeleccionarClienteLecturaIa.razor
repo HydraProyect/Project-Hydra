@@ -36,11 +36,13 @@
 
     @if (_error)
     {
-        <EstadoVacio Titulo="No pudimos cargar los Clientes empresariales" Descripcion="Intenta nuevamente en unos segundos.">
-            <Accion>
-                <Boton OnClick="ReintentarAsync" Cargando="_cargando">Reintentar</Boton>
-            </Accion>
-        </EstadoVacio>
+        <div role="alert">
+            <EstadoVacio Titulo="No pudimos cargar los Clientes empresariales" Descripcion="Intenta nuevamente en unos segundos.">
+                <Accion>
+                    <Boton OnClick="ReintentarAsync" Cargando="_cargando">Reintentar</Boton>
+                </Accion>
+            </EstadoVacio>
+        </div>
     }
     else if (_cargando)
     {

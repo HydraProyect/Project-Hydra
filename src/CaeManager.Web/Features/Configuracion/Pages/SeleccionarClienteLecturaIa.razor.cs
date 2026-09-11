@@ -15,11 +15,13 @@ namespace CaeManager.Web.Features.Configuracion.Pages;
 /// (por eso la entradilla no dice «qué se extrae»): el Nivel 1
 /// (<c>TipoDocumento.LecturaIaActiva</c>) lo consultan la verificación y la
 /// detección de trabajadores; el Nivel 2 (<c>ConfiguracionIaDocumentoCliente</c>)
-/// solo lo consulta <c>DeteccionTrabajadoresService</c>, que omite un documento
-/// de empresa únicamente cuando todos los Clientes empresariales a los que esa
-/// empresa presta servicio lo tienen desactivado. <c>VerificacionIaDocumentoService</c>
-/// no mira el Nivel 2 (lo dice su propio comentario). Si eso cambia, la nota
-/// de alcance de la página tiene que cambiar con ello.
+/// se aplica únicamente en <c>DeteccionTrabajadoresService</c>, que omite un
+/// documento de empresa únicamente cuando todos los Clientes empresariales a
+/// los que esa empresa presta servicio lo tienen desactivado.
+/// <c>ReasignarEjecutivoClienteCommandHandler</c> solo lo lee para avisar al
+/// nuevo Gestor CAE de los tipos desactivados. <c>VerificacionIaDocumentoService</c>
+/// no mira el Nivel 2 en absoluto. Si eso cambia, la nota de alcance de la
+/// página tiene que cambiar con ello.
 /// </para>
 ///
 /// <para>

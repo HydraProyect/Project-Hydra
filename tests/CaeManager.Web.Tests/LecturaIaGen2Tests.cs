@@ -20,8 +20,8 @@ namespace CaeManager.Web.Tests;
 /// <para>
 /// <b>Lo que esto SÍ observa:</b> qué consulta llega al mediador y cuántas
 /// veces; qué se pinta con lo que vuelve (enlaces, filtro en memoria, vacío,
-/// sin coincidencias, error y reintento); que un doble clic en Reintentar no
-/// lanza dos cargas (mediador controlado por
+/// sin coincidencias, error anunciado y reintento; que una respuesta retenida
+/// no escribe en un componente ya desechado (mediador controlado por
 /// <see cref="TaskCompletionSource{TResult}"/>); el título y la vuelta según
 /// esté embebida o no; y que ni la pantalla ni la entrada del hub prometen un
 /// umbral que no existe.
@@ -186,7 +186,7 @@ public class LecturaIaGen2Tests : BunitContext
     // ---------------------------------------------------------------- error y reintento
 
     [Fact]
-    public async Task Si_la_carga_falla_ofrece_reintentar_y_el_reintento_pinta_la_lista()
+    public async Task Si_la_carga_falla_se_anuncia_y_el_reintento_pinta_la_lista_sin_alerta()
     {
         var escenario = new Escenario();
         var fallos = 1;
@@ -195,14 +195,50 @@ public class LecturaIaGen2Tests : BunitContext
             : null;
         var (cut, mediador) = Renderizar(escenario);
 
-        cut.Find(".estado-vacio h3").TextContent.Trim().Should().Be("No pudimos cargar los Clientes empresariales");
+        var alerta = cut.Find("[role=alert]");
+        alerta.QuerySelector(".estado-vacio h3")!.TextContent.Trim().Should().Be("No pudimos cargar los Clientes empresariales");
         Filas(cut).Should().BeEmpty();
 
         await BotonReintentar(cut).ClickAsync(new MouseEventArgs());
 
         Consultas(mediador).Should().Be(2);
         cut.FindAll(".estado-vacio").Should().BeEmpty("el reintento salió bien: el error ya no aplica");
+        cut.FindAll("[role=alert]").Should().BeEmpty("el aviso de error desaparece al cargar correctamente");
         Nombres(cut).Should().HaveCount(3);
+    }
+
+    [Fact]
+    public async Task Una_respuesta_que_llega_despues_de_desechar_el_componente_no_escribe_su_estado()
+    {
+        var escenario = new Escenario();
+        var respuestaRetenida = new TaskCompletionSource<object?>();
+        escenario.Interceptar = p => p is ObtenerClientesParaSelectorQuery ? respuestaRetenida.Task : null;
+        var (cut, mediador) = Renderizar(escenario);
+
+        Consultas(mediador).Should().Be(1, "la carga inicial sigue retenida");
+        // bUnit no deja leer cut.Instance tras desecharlo (ComponentDisposedException):
+        // la referencia se toma antes para poder mirar después qué escribió la carga.
+        var instancia = cut.Instance;
+        var campoVersion = typeof(SeleccionarClienteLecturaIa)
+            .GetField("_versionCarga", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        var versionAntes = (int)campoVersion.GetValue(instancia)!;
+
+        // cut.Dispose() solo suelta el envoltorio de bUnit: no llama al Dispose del
+        // componente. DisposeComponentsAsync lo retira del renderer como al navegar.
+        await DisposeComponentsAsync();
+        ((int)campoVersion.GetValue(instancia)!).Should().BeGreaterThan(versionAntes,
+            "si el Dispose del componente no se llamó, este test no observa la guarda que dice observar");
+
+        // La respuesta llega después de retirarlo: no se espera la carga retenida
+        // antes de observar el estado que intentaría escribir.
+        Func<Task> liberarRespuesta = () => Renderer.Dispatcher.InvokeAsync(
+            () => respuestaRetenida.SetResult(escenario.Clientes.OrderBy(c => c.RazonSocial).ToList()));
+        await liberarRespuesta.Should().NotThrowAsync("la respuesta tardía no puede tocar un componente ya retirado");
+
+        var clientes = (IReadOnlyList<ClienteSelectorDto>)typeof(SeleccionarClienteLecturaIa)
+            .GetField("_clientes", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .GetValue(instancia)!;
+        clientes.Should().BeEmpty("Dispose invalida la carga: una respuesta tardía no puede escribir en el componente retirado");
     }
 
     [Fact]
