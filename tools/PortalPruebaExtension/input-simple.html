@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<title>1. Input simple</title>
+<style>
+  body { font-family: sans-serif; max-width: 480px; margin: 2rem auto; }
+  .campo { border: 1px solid #ccc; padding: 1rem; border-radius: 6px; }
+</style>
+</head>
+<body>
+  <p><a href="index.html">&larr; volver</a></p>
+  <h1>1. Input simple</h1>
+  <p>Caso base: un <code>&lt;input type="file"&gt;</code> sin ningún framework de por medio.</p>
+  <div class="campo">
+    <label for="archivo">Certificado de estar al corriente con Hacienda</label><br />
+    <input id="archivo" type="file" accept="application/pdf" />
+  </div>
+  <button id="btn-inyectar">Inyectar PDF de prueba</button>
+  <p id="salida"></p>
+  <script src="arnes-prueba.js"></script>
+  <script>
+    const input = document.getElementById("archivo");
+    input.addEventListener("change", () => {
+      const f = input.files[0];
+      document.title = f ? `1. Input simple — ${f.name}` : "1. Input simple";
+    });
+    conectarBotonInyectar("btn-inyectar", "salida");
+  </script>
+</body>
+</html>
