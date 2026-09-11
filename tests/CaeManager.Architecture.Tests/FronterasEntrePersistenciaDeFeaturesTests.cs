@@ -493,6 +493,10 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Subcontratas.ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler", "ITiposDocumentoQueryContext"),
         ("Subcontratas.ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler", "ITrabajadoresQueryContext"),
         ("Subcontratas.RegistrarVerificacionExternaSubcontrataCommandHandler", "ICentrosQueryContext"),
+        // Revisión Codex 2026-09-11: el Centro tiene que estar en una RelacionEmpresarial
+        // vigente de esta Subcontrata, mismo criterio que CentrosSeleccionables de
+        // ObtenerSupervisionSubcontrataQuery.
+        ("Subcontratas.RegistrarVerificacionExternaSubcontrataCommandHandler", "IEmpresasQueryContext"),
         ("Subcontratas.RegistrarVerificacionExternaSubcontrataCommandHandler", "ITiposDocumentoQueryContext"),
         ("Telemetria.ObtenerTiempoGestionConversacionQueryHandler", "IConfiguracionQueryContext"),
         ("Telemetria.RegistrarTramoGestionCommandHandler", "IComunicacionesQueryContext"),

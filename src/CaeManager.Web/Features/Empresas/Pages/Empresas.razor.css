@@ -1,18 +1,65 @@
 /*
-  Cabecera de columnas sobre la lista de Empresas.
+  Lista de Empresas (Empresas TALVEG.dc.html).
 
   NO se usa QuickGrid, y no es un olvido: la fila de Empresas se despliega para
-  mostrar los Clientes de esa empresa, y QuickGrid no soporta filas expandibles
-  — la misma razón, y con el mismo comentario, que ya llevaba Subcontratas.
-  El mockup pide «una rejilla con cabecera, como Clientes y Trabajadores», pero
-  esas dos NO tienen fila desplegable, así que la comparación no se traslada:
-  lo que se traslada es la CABECERA y las columnas alineadas, que sí se pueden
-  hacer con grid sobre las celdas que la fila ya pinta.
+  mostrar los Clientes empresariales a los que presta servicio, y QuickGrid no
+  soporta filas expandibles — la misma razón, y con el mismo comentario, que ya
+  llevaba Subcontratas. El mockup pide «una rejilla con cabecera, como Clientes
+  y Trabajadores», pero esas dos NO tienen fila desplegable, así que la
+  comparación no se traslada: lo que se traslada es la CABECERA y las columnas
+  alineadas, que sí se pueden hacer con grid sobre las celdas que la fila ya
+  pinta.
 
   Va en CSS aislado y no en list-page.css porque .tarjeta-fila-acordeon-cabecera
   es compartida con Subcontratas y Centros: cambiarla allí a grid movería tres
   pantallas en un incremento que solo ha verificado una.
 */
+
+/*
+  Tarjeta de filtros Gen 2. .barra-filtros (list-page.css, global) trae
+  max-width:480px, pensado para buscador + un filtro sin chips; aquí los
+  filtros activos y «Limpiar todo» van dentro, en su propia fila. La regla
+  lleva el atributo de ámbito de esta página: no toca las demás listas.
+*/
+.barra-filtros {
+    max-width: none;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+}
+
+/* Los filtros activos van dentro de la tarjeta, a todo el ancho (mismas
+   clases y reglas que Clientes.razor.css: cada una en su CSS aislado). */
+.chips-filtros-barra {
+    flex-basis: 100%;
+    align-items: center;
+    margin-bottom: 0;
+}
+
+.limpiar-filtros-barra {
+    border: 0;
+    background: none;
+    padding: 0;
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+
+.limpiar-filtros-barra:hover {
+    color: var(--color-text);
+}
+
+.limpiar-filtros-barra:focus-visible {
+    outline: var(--border-focus);
+}
+
+.conteo-empresas {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
 
 .rejilla-empresas {
     /* chevron · razón social · CIF · cumplimiento · documentación · detecciones · acciones */
@@ -27,13 +74,56 @@
     grid-template-columns: 24px 28px minmax(0, 2fr) minmax(0, 1fr) 104px 132px 116px auto;
 }
 
+/*
+  Marco de la lista (mockup): una tarjeta con la cabecera de columnas en una
+  banda gris y las filas pegadas, separadas por una línea. Las reglas de
+  .tarjeta-fila-acordeon* de list-page.css las comparten Subcontratas y
+  Centros; aquí solo se anulan DENTRO del marco, con el atributo de ámbito de
+  esta página. Sin overflow: ver el comentario del marco en Empresas.razor.
+*/
+.marco-lista-empresas {
+    background: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+}
+
 .cabecera-columnas-empresas {
-    padding: var(--space-2) var(--space-4);
+    min-height: 40px;
+    padding: 0 var(--space-4);
+    background: var(--color-surface-hover);
+    border-bottom: var(--border-default);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     font: var(--font-label);
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: .06em;
     color: var(--color-text-muted);
+}
+
+.marco-lista-empresas .lista-filas-acordeon {
+    gap: 0;
+}
+
+.marco-lista-empresas .tarjeta-fila-acordeon {
+    border: 0;
+    border-bottom: var(--border-default);
+    border-radius: 0;
+}
+
+.marco-lista-empresas .tarjeta-fila-acordeon:last-child {
+    border-bottom: 0;
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+.marco-lista-empresas .tarjeta-fila-acordeon-cabecera {
+    min-height: 48px;
+    border-bottom: 0;
+    border-radius: 0;
+}
+
+.marco-lista-empresas .tarjeta-fila-acordeon-contenido {
+    border-top: var(--border-default);
+    border-radius: 0;
 }
 
 /* Cada celda recorta por su cuenta: sin esto, una razón social larga estira su
@@ -48,5 +138,24 @@
 /* La columna de detecciones se reserva aunque no haya ninguna — es lo que
    mantiene la rejilla cuadrada de fila en fila. */
 .celda-sin-deteccion {
+    color: var(--color-text-muted);
+}
+
+/* La fila cuya vista previa está abierta se marca, como en el mockup. */
+.marco-lista-empresas .fila-empresa-en-vista-previa {
+    background: var(--color-primary-50);
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: -2px;
+}
+
+/* Rótulo de la fila desplegada: a cuántos Clientes empresariales presta
+   servicio esta Empresa. */
+.titulo-clientes-empresa {
+    display: block;
+    margin-bottom: var(--space-2);
+    font: var(--font-label);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
     color: var(--color-text-muted);
 }

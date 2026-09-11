@@ -60,15 +60,25 @@ public class EjecutarImportacionCombinadaCommandHandler(
     ICentroRepository centroRepositorio,
     ITrabajadorRepository trabajadorRepositorio,
     ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    ICurrentUserService currentUserService)
     : IRequestHandler<EjecutarImportacionCombinadaCommand, Result<ResultadoImportacionCombinadaDto>>
 {
     /// <summary>Par vigente Empresa propia→Cliente, en memoria durante la importación — value equality para poder hacer Remove.</summary>
     private sealed record ParEmpresaCliente(Guid EmpresaId, Guid ClienteId);
 
+    // Application no puede referenciar Infrastructure.Identity.Roles — mismo motivo que en AutorizacionEscrituraBehavior.
+    // Restaura en Application el límite que ya expone ImportarCombinado.razor (@attribute [Authorize(Roles = Administrador)]):
+    // sin este guard, cualquier llamador de MediatR que no sea esa página exacta podía importar como DireccionCae/CoordinadorCae/GestorCae.
+    private const string RolAdministrador = "Administrador";
+
     public async Task<Result<ResultadoImportacionCombinadaDto>> Handle(
         EjecutarImportacionCombinadaCommand request, CancellationToken cancellationToken)
     {
+        if (await currentUserService.ObtenerRolActualAsync() != RolAdministrador)
+            return Result.Fallo<ResultadoImportacionCombinadaDto>(Error.Crear(
+                "Importacion.SoloAdministrador", "Solo Administrador puede ejecutar una importación combinada."));
+
         var plan = request.Plan;
         var reemplazar = request.ReemplazarExistentes;
         var omitidosEnEscritura = new List<ItemImportacionDto>();
