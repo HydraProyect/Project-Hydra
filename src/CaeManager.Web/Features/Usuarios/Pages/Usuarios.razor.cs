@@ -705,7 +705,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         {
             _mensajeErrorFormulario = resultado == ResultadoEdicionUsuario.NoEncontrado
                 ? "No encontramos este usuario."
-                : "No puedes conceder ni revocar tu propio permiso de rastro de acceso a documentos sensibles. Pide a otro Administrador que lo cambie.";
+                : "No puedes conceder ni revocar tu propio permiso de rastro de acceso a documentos sensibles. Da de alta a otro Administrador y pídele que lo gestione.";
             return;
         }
 
