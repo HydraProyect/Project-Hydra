@@ -73,7 +73,10 @@
                versión; «Origen» (Word/PDF) sería siempre PDF, así que se
                conserva «Formato», que sí distingue cómo se rellena. «Ámbito» no
                lo pinta el mockup, pero la lista ya lo enseñaba. *@
-            <div class="marco-lista-plantillas">
+            @* La tabla tiene ancho mínimo y el marco se desplaza en horizontal:
+               como región con nombre y foco, con teclado también se puede
+               desplazar y el lector de pantalla anuncia qué contiene. *@
+            <div class="marco-lista-plantillas" role="region" aria-label="Catálogo de plantillas" tabindex="0">
                 <table class="tabla-datos">
                     <thead>
                         <tr>

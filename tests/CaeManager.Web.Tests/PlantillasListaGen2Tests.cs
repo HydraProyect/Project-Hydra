@@ -167,6 +167,11 @@ public class PlantillasListaGen2Tests : BunitContext
             }
         });
 
+        var marco = cut.Find(".marco-lista-plantillas");
+        marco.GetAttribute("role").Should().Be("region", "el marco se desplaza en horizontal: tiene que ser una región");
+        marco.GetAttribute("aria-label").Should().Be("Catálogo de plantillas");
+        marco.GetAttribute("tabindex").Should().Be("0", "sin foco, con teclado no se puede desplazar");
+
         var tabla = cut.Find(".marco-lista-plantillas > table.tabla-datos");
         tabla.QuerySelectorAll("th").Select(th => th.TextContent.Trim()).Should().Equal(["Nombre", "Ámbito", "Formato", "Estado", ""]);
 
