@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<title>3. Dropzone sin input</title>
+<style>
+  body { font-family: sans-serif; max-width: 480px; margin: 2rem auto; }
+  #dropzone {
+    border: 2px dashed #888; border-radius: 8px; padding: 3rem 1rem;
+    text-align: center; color: #666;
+  }
+  #dropzone.sobre-elemento { border-color: #2563eb; color: #2563eb; background: #eff6ff; }
+</style>
+</head>
+<body>
+  <p><a href="index.html">&larr; volver</a></p>
+  <h1>3. Dropzone sin input</h1>
+  <p>Sin ningún <code>&lt;input type="file"&gt;</code> en el DOM (patrón habitual de
+  <code>react-dropzone</code> y similares) — solo un elemento que escucha
+  <code>dragenter</code>/<code>dragover</code>/<code>drop</code>. El mecanismo actual de
+  <code>content.js</code> solo sabe rellenar un <code>input[type=file]</code>, así que esta
+  página debería producir el error limpio ya previsto
+  ("No encontramos ningún campo de subida de archivo en esta página"), no un fallo silencioso
+  ni una excepción sin control — eso es lo que comprueba.</p>
+  <div id="dropzone">Arrastra un fichero aquí (o usa el botón de abajo para simular la extensión)</div>
+  <p id="nombre-soltado"></p>
+  <button id="btn-inyectar">Inyectar PDF de prueba</button>
+  <p id="salida"></p>
+  <script src="arnes-prueba.js"></script>
+  <script>
+    const zona = document.getElementById("dropzone");
+    const nombreSoltado = document.getElementById("nombre-soltado");
+    ["dragenter", "dragover"].forEach((tipo) =>
+      zona.addEventListener(tipo, (e) => { e.preventDefault(); zona.classList.add("sobre-elemento"); })
+    );
+    ["dragleave", "drop"].forEach((tipo) =>
+      zona.addEventListener(tipo, (e) => { e.preventDefault(); zona.classList.remove("sobre-elemento"); })
+    );
+    zona.addEventListener("drop", (e) => {
+      const archivo = e.dataTransfer.files[0];
+      nombreSoltado.textContent = archivo ? `Soltado: ${archivo.name}` : "";
+    });
+    conectarBotonInyectar("btn-inyectar", "salida");
+  </script>
+</body>
+</html>
