@@ -1,48 +1,92 @@
-﻿.editor-plantilla-alta {
+.editor-plantilla-alta {
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
     max-width: 520px;
 }
 
+/* Editor Plantilla TALVEG.dc.html: lienzo a la izquierda, columna de 380px a
+   la derecha, 24px entre ambos. En pantallas angostas la columna baja. */
 .editor-plantilla-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 380px;
+    gap: var(--space-6);
+    align-items: start;
+}
+
+@media (max-width: 1024px) {
+    .editor-plantilla-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.editor-plantilla-marco-lienzo {
+    min-width: 0;
     display: flex;
+    flex-direction: column;
     gap: var(--space-4);
-    align-items: flex-start;
+    padding: var(--space-5);
+    background: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+}
+
+.editor-plantilla-lienzo-cabecera {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+.editor-plantilla-lienzo-paginas {
+    font: var(--font-label);
+    color: var(--color-text-muted);
+}
+
+.editor-plantilla-lienzo-pista {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
 }
 
 /* 1 punto PDF = 1 píxel CSS a propósito (ver editorPlantilla.js) — el
    scroll nativo sustituye a cualquier cálculo de escala responsive. */
 .editor-plantilla-lienzo {
-    flex: 1;
-    min-width: 0;
     max-height: 80vh;
     overflow: auto;
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
     gap: var(--space-4);
     padding: var(--space-4);
     background: var(--color-surface-subtle);
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius-md);
 }
 
 .editor-plantilla-pagina {
     position: relative;
     flex-shrink: 0;
+    background-color: var(--color-neutral-0, #fff);
     background-repeat: no-repeat;
     background-size: 100% 100%;
-    border: 1px solid var(--color-border-control);
+    border: 1px solid var(--color-border-strong);
+    box-shadow: var(--shadow-overlay);
 }
 
+/* El mockup pinta las cajas con fondo de superficie opaco porque su página es
+   un marcador vacío. Sobre el PDF real un fondo opaco taparía el texto que la
+   caja tiene que rellenar: se conserva translúcido. */
 .editor-plantilla-caja {
     position: absolute;
     box-sizing: border-box;
-    border: 2px dashed var(--color-primary-400);
-    background: color-mix(in srgb, var(--color-primary-400) 12%, transparent);
+    border: 1px dashed var(--color-border-control);
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--color-surface) 55%, transparent);
+    color: var(--color-text-muted);
     cursor: move;
     touch-action: none;
     display: flex;
+    gap: var(--space-1);
     /* Alineado arriba, no centrado: el PDF final ancla el texto al borde
        superior de la caja (XStringFormats.TopLeft en RellenadorPlantillaPdfService),
        así que el editor debe mostrar lo mismo que se va a estampar. */
@@ -50,23 +94,50 @@
     overflow: hidden;
 }
 
+.editor-plantilla-caja:hover {
+    border-color: var(--color-primary-500);
+}
+
+.editor-plantilla-caja:focus-visible {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: 2px;
+}
+
+.editor-plantilla-caja-firma {
+    background: color-mix(in srgb, var(--color-surface-subtle) 70%, transparent);
+}
+
 .editor-plantilla-caja-seleccionada {
-    border-color: var(--color-primary-700);
-    border-style: solid;
-    background: color-mix(in srgb, var(--color-primary-400) 22%, transparent);
+    border: 2px solid var(--color-primary-500);
+    background: color-mix(in srgb, var(--color-primary-50) 70%, transparent);
+    color: var(--color-primary-700);
 }
 
 .editor-plantilla-caja-etiqueta {
+    flex: 1;
+    min-width: 0;
     pointer-events: none;
     font-size: 11px;
+    font-weight: 500;
     line-height: 1.2;
-    color: var(--color-text);
+    color: inherit;
     padding: 2px 4px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
+.editor-plantilla-caja-obligatorio {
+    flex: none;
+    pointer-events: none;
+    padding: 2px 4px 0 0;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--color-danger-700);
+}
+
+/* 10px y no los 7px del mockup: es el área que se agarra para redimensionar. */
 .editor-plantilla-handle {
     position: absolute;
     right: -4px;
@@ -74,75 +145,202 @@
     width: 10px;
     height: 10px;
     border-radius: 2px;
-    background: var(--color-primary-700);
+    background: var(--color-primary-500);
     cursor: nwse-resize;
     touch-action: none;
 }
 
-.editor-plantilla-panel {
-    width: 320px;
-    flex-shrink: 0;
-    position: sticky;
-    top: var(--space-4);
+.editor-plantilla-columna {
+    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
-    padding: var(--space-4);
-    border: 1px solid var(--color-border-control);
-    border-radius: var(--radius-lg);
-    background: var(--color-surface);
+    position: sticky;
+    top: var(--space-4);
+}
+
+.editor-plantilla-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
 }
 
 .editor-plantilla-panel-campo {
     display: flex;
     flex-direction: column;
+    gap: var(--space-4);
+}
+
+.editor-plantilla-grupo-campo {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.editor-plantilla-aviso-campo {
+    margin: 0;
+    font: var(--font-caption);
+    color: var(--color-danger-700);
+}
+
+.editor-plantilla-ayuda-campo {
+    margin: 0;
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.editor-plantilla-casilla {
+    display: flex;
+    align-items: center;
     gap: var(--space-3);
+    min-height: 44px;
+    cursor: pointer;
+    font: var(--font-body-md);
+}
+
+.editor-plantilla-casilla input {
+    width: 18px;
+    height: 18px;
+    flex: none;
+    accent-color: var(--color-primary-500);
+}
+
+.editor-plantilla-sin-seleccion {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-8) var(--space-4);
+    text-align: center;
+}
+
+.editor-plantilla-sin-seleccion p {
+    margin: 0;
+    font: var(--font-body-md);
+    color: var(--color-text-muted);
+    text-wrap: pretty;
+}
+
+.editor-plantilla-sin-seleccion-icono {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-full);
+    background: var(--color-surface-subtle);
+    border: 1px solid var(--color-border-strong);
+    color: var(--color-text-muted);
 }
 
 .editor-plantilla-acciones {
     display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    border-top: 1px solid var(--color-border-control);
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    border-top: var(--border-default);
     padding-top: var(--space-4);
 }
 
 .editor-plantilla-modo-generacion {
     display: flex;
-    gap: var(--space-4);
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.editor-plantilla-texto-atenuado {
+    margin: 0;
+    font: var(--font-body-md);
+    color: var(--color-text-muted);
+    text-wrap: pretty;
 }
 
 .editor-plantilla-lista-trabajadores {
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
-    max-height: 200px;
+    max-height: 180px;
     overflow-y: auto;
-    padding: var(--space-2);
-    border: 1px solid var(--color-border-control);
+    padding: var(--space-2) var(--space-3);
+    border: var(--border-default);
     border-radius: var(--radius-md);
 }
 
-/* DEC-5 (2026-09-02): el aviso de obligatorios vacíos se queda en pantalla
-   junto al enlace al PDF — el toast se va solo y el aviso tiene que poder
-   leerse después de generar. */
-.editor-plantilla-aviso-obligatorios {
-    margin: var(--space-2) 0 0;
-    padding: var(--space-2);
+.editor-plantilla-seccion {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    border-top: var(--border-default);
+    padding-top: var(--space-4);
+}
+
+.editor-plantilla-enlace-resultado {
+    font: var(--font-label);
+}
+
+/* DEC-5 (2026-09-02) y DEC-32: los avisos de la generación se quedan en
+   pantalla junto al enlace al PDF — el toast se va solo y el aviso tiene que
+   poder leerse después de generar. */
+.editor-plantilla-avisos {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-warning-500);
     border-radius: var(--radius-md);
     background-color: var(--color-warning-50);
     color: var(--color-warning-700);
 }
 
+.editor-plantilla-avisos p {
+    margin: 0;
+    text-wrap: pretty;
+}
+
 .editor-plantilla-progreso-lote {
-    display: flex;
-    flex-direction: column;
     gap: var(--space-2);
+}
+
+.editor-plantilla-progreso-lote p {
+    margin: 0;
 }
 
 .editor-plantilla-progreso-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: var(--space-2);
+    gap: var(--space-3);
+    min-height: 44px;
+    border-top: var(--border-default);
+}
+
+.editor-plantilla-ficha {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+}
+
+.editor-plantilla-ficha-fila {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    min-height: 36px;
+}
+
+.editor-plantilla-ficha-fila + .editor-plantilla-ficha-fila {
+    border-top: var(--border-default);
+}
+
+.editor-plantilla-ficha-fila dt {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.editor-plantilla-ficha-fila dd {
+    margin: 0;
+    font: var(--font-body-md);
+    text-align: right;
+    min-width: 0;
 }
