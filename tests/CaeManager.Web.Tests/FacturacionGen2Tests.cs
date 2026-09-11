@@ -130,9 +130,9 @@ public class FacturacionGen2Tests : BunitContext
     private static LineaFacturacionDto Linea(ConceptoFacturable concepto, string nombre, int unidades, decimal precio, string moneda = "EUR") =>
         new(concepto, nombre, unidades, precio, moneda, unidades * precio);
 
-    /// <summary>Como el handler: moneda de la primera línea y suma de todos los subtotales, sin mirar la moneda.</summary>
+    /// <summary>Como el handler: un total por cada moneda presente en las líneas.</summary>
     private static ResumenFacturacionDto Resumen(string cliente, params LineaFacturacionDto[] lineas) =>
-        new(cliente, lineas.FirstOrDefault()?.MonedaIso ?? "EUR", lineas.Sum(l => l.Subtotal), lineas.ToList());
+        new(cliente, ResumenFacturacionDto.CalcularTotalesPorMoneda(lineas), lineas.ToList());
 
     /// <summary>84×3,50 + 1×45 + 6×12 + 148×1,80 + 3×60 = 857,40 EUR, las cifras del mockup.</summary>
     private static ResumenFacturacionDto ResumenDelMockup() => Resumen("Refrielectric S.L.",
@@ -256,14 +256,14 @@ public class FacturacionGen2Tests : BunitContext
         await ElegirCliente(cut, ClienteA);
 
         Estimado(cut).Should().Be("100,00 EUR · 50,00 USD",
-            "TotalEstimado suma euros y dólares y lo rotula EUR: esa cifra (150) no significa nada");
+            "sumar euros y dólares en una sola cifra (150) no significa nada");
     }
 
     [Fact]
     public async Task Sin_tarifas_el_estimado_no_inventa_cero_euros()
     {
-        // El handler, sin tarifas, devuelve TotalEstimado 0 y una moneda "EUR" que nadie eligió.
-        var escenario = new Escenario { Resumen = q => q.ClienteId == ClienteA ? new ResumenFacturacionDto("Refrielectric S.L.", "EUR", 0, []) : null };
+        // El handler, sin tarifas, devuelve la lista de totales vacía.
+        var escenario = new Escenario { Resumen = q => q.ClienteId == ClienteA ? new ResumenFacturacionDto("Refrielectric S.L.", [], []) : null };
         var (cut, _) = Renderizar(escenario);
 
         await ElegirCliente(cut, ClienteA);
