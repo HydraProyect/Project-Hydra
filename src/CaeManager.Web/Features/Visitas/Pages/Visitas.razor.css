@@ -16,3 +16,145 @@
     color: var(--color-text);
     margin-bottom: var(--space-2);
 }
+
+/* Barra de herramientas (Gen 2): recuento a la izquierda, junto a
+   «Selección múltiple», y la nota de sistema empujada a la derecha. */
+.visitas-recuento {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.visitas-nota-sistema {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-left: auto;
+    font: var(--font-caption);
+    color: var(--color-system-text);
+}
+
+.visitas-nota-sistema-punto {
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-full);
+    background: var(--color-system-indicator);
+}
+
+/* Titular del centro arriba, empresa debajo en tamaño de pie. */
+.visitas-celda-apilada {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    min-width: 0;
+}
+
+.visitas-celda-secundaria {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+/* Interruptor de «Notificada a la empresa titular»: sigue siendo un
+   checkbox nativo (teclado, foco y estado accesibles de serie) con
+   role="switch" y aspecto de interruptor, como pide el mockup. */
+.visitas-interruptor {
+    appearance: none;
+    position: relative;
+    flex: none;
+    width: 36px;
+    height: 20px;
+    margin: 0;
+    border: 1px solid var(--color-border-control);
+    border-radius: var(--radius-full);
+    background: var(--color-surface-subtle);
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.visitas-interruptor::before {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: var(--radius-full);
+    background: var(--color-text-muted);
+    transition: left 0.15s ease, background-color 0.15s ease;
+}
+
+.visitas-interruptor:checked {
+    background: var(--color-primary-500);
+    border-color: var(--color-primary-500);
+}
+
+.visitas-interruptor:checked::before {
+    left: 18px;
+    background: var(--color-neutral-0);
+}
+
+.visitas-interruptor:focus-visible {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: 2px;
+}
+
+/* Detalle de la visita (Gen 2). */
+.visitas-detalle-cabecera {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+}
+
+.visitas-detalle-centro {
+    font: var(--font-heading-md);
+    color: var(--color-text);
+}
+
+.visitas-detalle-marcas {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.visitas-detalle-fechas {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.visitas-detalle-campos {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+    margin: 0 0 var(--space-4);
+    padding: var(--space-4);
+    background: var(--color-surface-subtle);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.visitas-detalle-campo {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.visitas-detalle-campo dt {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.visitas-detalle-campo dd {
+    margin: 0;
+    font: var(--font-body-md);
+    font-weight: 600;
+    color: var(--color-text);
+    overflow-wrap: anywhere;
+}
+
+.visitas-detalle-resumen {
+    margin: 0 0 var(--space-3);
+    font: var(--font-body-md);
+    color: var(--color-text-muted);
+}

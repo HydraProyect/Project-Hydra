@@ -28,23 +28,29 @@
 
 <PageTitle>Visitas — @Marca.Nombre</PageTitle>
 
+@*
+    Gen 2 (Visitas TALVEG.dc.html). Vocabulario: los datos traen
+    NotificadoCliente / ClienteRazonSocial, pero representan a la Empresa
+    titular del Centro de Trabajo. En el texto visible se dice «titular» o
+    «empresa titular», nunca «cliente» a secas; los nombres de código son
+    deuda terminológica y no se renombran aquí.
+*@
 <div class="contenedor-pagina">
-    <div class="cabecera-pagina">
-        <h1 class="titulo-pagina">Visitas</h1>
-        <div class="acciones-cabecera">
+    <CabeceraPagina Kicker="Operación" Titulo="Visitas">
+        <Acciones>
             <Boton OnClick="AbrirCrearAsync">+ Nueva visita</Boton>
-        </div>
-    </div>
+        </Acciones>
+    </CabeceraPagina>
 
     <div class="barra-filtros">
-        <CampoTexto Placeholder="Buscar por centro, cliente o empresa…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
+        <CampoTexto Placeholder="Buscar por centro, titular o empresa…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
         <label class="filtro-critico">
             <input type="checkbox" @bind="_soloActivas" @bind:after="RecargarAsync" /> Solo activas
         </label>
         <label class="filtro-critico">
             <input type="checkbox" @bind="_soloUrgentes" @bind:after="RecargarAsync" /> Solo urgentes
         </label>
-        <CampoSelect Etiqueta="Notificado al cliente" Valor="@_filtroNotificado" ValorChanged="FiltrarPorNotificadoAsync">
+        <CampoSelect Etiqueta="Notificada a la empresa titular" Valor="@_filtroNotificado" ValorChanged="FiltrarPorNotificadoAsync">
             <option value="">Todas</option>
             <option value="si">Sí</option>
             <option value="no">No</option>
@@ -66,7 +72,24 @@
         @* El grid se mantiene siempre montado (solo se oculta con CSS) para que la
            referencia @@ref siga siendo válida y RefreshDataAsync funcione incluso al
            pasar de 0 a 1 elementos — ver Clientes.razor.cs. *@
-        <BarraHerramientasLista SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple" />
+        <BarraHerramientasLista SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple">
+            <Extra>
+                @if (!_cargando && _totalElementos > 0)
+                {
+                    <span class="visitas-recuento">@TextoRecuento</span>
+                }
+                @* Lo que la pantalla puede afirmar, comprobado en
+                   ObtenerVisitasQueryHandler: la urgencia se calcula en cada
+                   consulta con la fecha de hoy y las fechas de la visita
+                   (CalculadoraUrgenciaVisita). El mockup dice «recalculada cada
+                   hora sobre la fecha de entrada»: no hay tal proceso horario, y
+                   la calculadora no mira la hora de entrada. *@
+                <span class="visitas-nota-sistema">
+                    <span class="visitas-nota-sistema-punto" aria-hidden="true"></span>
+                    Urgencia calculada al cargar la lista, sobre las fechas de cada visita
+                </span>
+            </Extra>
+        </BarraHerramientasLista>
 
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
             <QuickGrid @ref="_grid" TGridItem="VisitaListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
@@ -86,40 +109,31 @@
                         @context.CentroNombre
                     </button>
                 </TemplateColumn>
-                <TemplateColumn Title="Cliente / Empresa" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.ClienteRazonSocial))">
-                    <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.ClienteId, context.ClienteRazonSocial, "informacion")'>
-                        @context.ClienteRazonSocial
-                    </button>
-                    —
-                    <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, context.EmpresaId, context.EmpresaRazonSocial, "informacion")'>
-                        @context.EmpresaRazonSocial
-                    </button>
+                <TemplateColumn Title="Titular del centro / Empresa" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.ClienteRazonSocial))">
+                    <span class="visitas-celda-apilada">
+                        <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.ClienteId, context.ClienteRazonSocial, "informacion")'>
+                            @context.ClienteRazonSocial
+                        </button>
+                        <button type="button" class="enlace-nombre-fila visitas-celda-secundaria" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, context.EmpresaId, context.EmpresaRazonSocial, "informacion")'>
+                            @context.EmpresaRazonSocial
+                        </button>
+                    </span>
                 </TemplateColumn>
                 <TemplateColumn Title="Fechas" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.FechaInicio))">
-                    @context.FechaInicio.ToString("dd/MM/yyyy") – @context.FechaFin.ToString("dd/MM/yyyy")
-                </TemplateColumn>
-                <TemplateColumn Title="Urgencia" Align="Align.Center">
-                    @if (context.NivelUrgencia != NivelUrgenciaVisita.Normal)
-                    {
-                        <Badge Tono="NivelUrgenciaVisitaUi.Tono(context.NivelUrgencia)">@NivelUrgenciaVisitaUi.Texto(context.NivelUrgencia)</Badge>
-                    }
-                </TemplateColumn>
-                <TemplateColumn Title="Origen" Align="Align.Center" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.Origen))">
-                    @if (context.Origen == OrigenVisita.Correo)
-                    {
-                        <Badge Tono="TonoBadge.Info">Correo</Badge>
-                    }
-                    else if (context.Origen == OrigenVisita.WhatsApp)
-                    {
-                        <Badge Tono="TonoBadge.Exito">WhatsApp</Badge>
-                    }
-                    else
-                    {
-                        <Badge Tono="TonoBadge.Neutro">Plataforma</Badge>
-                    }
+                    @TextoFechas(context.FechaInicio, context.FechaFin)
                 </TemplateColumn>
                 <TemplateColumn Title="Trabajadores" Align="Align.Center">
                     @context.TotalTrabajadores
+                </TemplateColumn>
+                <TemplateColumn Title="Urgencia" Align="Align.Center">
+                    @* Los cuatro valores de NivelUrgenciaVisita, «Normal» incluido:
+                       una celda vacía no distingue «normal» de «sin calcular». *@
+                    <Badge Tono="NivelUrgenciaVisitaUi.Tono(context.NivelUrgencia)">@NivelUrgenciaVisitaUi.Texto(context.NivelUrgencia)</Badge>
+                </TemplateColumn>
+                @* El mockup lleva el origen solo al detalle; aquí se conserva
+                   también en la lista porque ya existía y se ordena por él. *@
+                <TemplateColumn Title="Origen" Align="Align.Center" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.Origen))">
+                    <Badge Tono="TonoOrigen(context.Origen)">@TextoOrigen(context.Origen)</Badge>
                 </TemplateColumn>
                 <TemplateColumn Title="Documentación" Align="Align.Center">
                     @if (context.DocumentacionCompleta)
@@ -131,11 +145,11 @@
                         <Badge Tono="TonoBadge.Peligro">Por gestionar</Badge>
                     }
                 </TemplateColumn>
-                <TemplateColumn Title="Notificado al cliente" Align="Align.Center" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.NotificadoCliente))">
-                    <label class="campo-checkbox">
-                        <input type="checkbox" checked="@context.NotificadoCliente"
-                               @onchange="e => AlternarNotificadoAsync(context.Id, e.Value is bool marcado && marcado)" />
-                    </label>
+                <TemplateColumn Title="Notificada a la empresa titular" Align="Align.Center" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.NotificadoCliente))">
+                    <input type="checkbox" role="switch" class="visitas-interruptor" checked="@context.NotificadoCliente"
+                           aria-label="@($"Notificada a la empresa titular: {context.CentroNombre}, {TextoFechas(context.FechaInicio, context.FechaFin)}")"
+                           disabled="@_marcandoNotificado.Contains(context.Id)"
+                           @onchange="e => AlternarNotificadoAsync(context.Id, e.Value is bool marcado && marcado)" />
                 </TemplateColumn>
                 <TemplateColumn Title="Acciones" Align="Align.End">
                     <MenuAcciones>
@@ -243,7 +257,7 @@
                            TextoVacio="Todavía no hay trabajadores creados." />
 
         <label class="campo-checkbox">
-            <input type="checkbox" @bind="_notificadoCliente" /> Notificado al cliente
+            <input type="checkbox" @bind="_notificadoCliente" /> Notificada a la empresa titular del centro
         </label>
 
         <CampoTextarea Etiqueta="Notas" Valor="@_notas" ValorChanged="v => _notas = v" Filas="3" />
@@ -266,20 +280,46 @@
         }
         else if (_detalle is not null)
         {
-            <div class="campo">
-                <label>Centro</label>
-                <p class="texto-vacio-seccion">@_detalle.CentroNombre (@_detalle.ClienteRazonSocial — @_detalle.EmpresaRazonSocial)</p>
-            </div>
-            <div class="campo">
-                <label>Fechas</label>
-                <p class="texto-vacio-seccion">
-                    @_detalle.FechaInicio.ToString("dd/MM/yyyy") – @_detalle.FechaFin.ToString("dd/MM/yyyy")
-                    @if (_detalle.HoraEstimadaAcceso is { } horaAcceso)
+            <div class="visitas-detalle-cabecera">
+                <span class="visitas-detalle-centro">@_detalle.CentroNombre</span>
+                <div class="visitas-detalle-marcas">
+                    @if (_filaDetalle is { } filaUrgencia)
                     {
-                        <text> · entrada a las @horaAcceso.ToString("HH:mm")</text>
+                        <Badge Tono="NivelUrgenciaVisitaUi.Tono(filaUrgencia.NivelUrgencia)">@NivelUrgenciaVisitaUi.Texto(filaUrgencia.NivelUrgencia)</Badge>
                     }
-                </p>
+                    <span class="visitas-detalle-fechas">@TextoFechas(_detalle.FechaInicio, _detalle.FechaFin)</span>
+                </div>
             </div>
+
+            <dl class="visitas-detalle-campos">
+                <div class="visitas-detalle-campo">
+                    <dt>Titular del centro</dt>
+                    <dd>@_detalle.ClienteRazonSocial</dd>
+                </div>
+                <div class="visitas-detalle-campo">
+                    <dt>Empresa</dt>
+                    <dd>@_detalle.EmpresaRazonSocial</dd>
+                </div>
+                <div class="visitas-detalle-campo">
+                    <dt>Entrada</dt>
+                    <dd>@(_detalle.HoraEstimadaAcceso is { } horaAcceso ? horaAcceso.ToString("HH:mm") : "Sin hora fijada")</dd>
+                </div>
+                @if (_filaDetalle is { } filaOrigen)
+                {
+                    <div class="visitas-detalle-campo">
+                        <dt>Origen</dt>
+                        <dd>@TextoOrigen(filaOrigen.Origen)</dd>
+                    </div>
+                }
+                <div class="visitas-detalle-campo">
+                    <dt>Trabajadores</dt>
+                    <dd>@_detalle.Trabajadores.Count</dd>
+                </div>
+                <div class="visitas-detalle-campo">
+                    <dt>Notificada a la empresa titular</dt>
+                    <dd>@(_detalle.NotificadoCliente ? "Sí" : "No")</dd>
+                </div>
+            </dl>
 
             @if (_detalle.Tramo is { } tramo)
             {
@@ -290,15 +330,11 @@
                         @AntelacionVisitaUi.TextoAtribucion(_detalle.Atribucion)
                     </p>
                     <p class="texto-vacio-seccion">
-                        El cliente avisó con @AntelacionVisitaUi.Horas(_detalle.AntelacionNominalHoras) de margen;
+                        Aviso recibido con @AntelacionVisitaUi.Horas(_detalle.AntelacionNominalHoras) de antelación;
                         el expediente quedó completo @AntelacionVisitaUi.Horas(_detalle.AntelacionEfectivaHoras) antes de la entrada.
                     </p>
                 </div>
             }
-            <div class="campo">
-                <label>Notificado al cliente</label>
-                <p class="texto-vacio-seccion">@(_detalle.NotificadoCliente ? "Sí" : "No")</p>
-            </div>
             @if (!string.IsNullOrWhiteSpace(_detalle.Notas))
             {
                 <div class="campo">
@@ -307,7 +343,7 @@
                 </div>
             }
 
-            <h3 class="detalle-visita-subtitulo">Documentación</h3>
+            <h3 class="detalle-visita-subtitulo">Comprobación previa</h3>
             @if (_cargandoDocumentacion)
             {
                 <EstadoCargando Filas="3" />
@@ -316,12 +352,17 @@
             {
                 <EstadoVacio Titulo="No pudimos cargar la documentación" Descripcion="Intenta nuevamente en unos segundos.">
                     <Accion>
-                        <Boton OnClick="() => CargarDocumentacionAsync(_detalle.Id)">Reintentar</Boton>
+                        <Boton OnClick="ReintentarDocumentacionAsync">Reintentar</Boton>
                     </Accion>
                 </EstadoVacio>
             }
             else if (_documentacion is not null)
             {
+                @if (ResumenComprobacion(_documentacion) is { } resumen)
+                {
+                    <p class="visitas-detalle-resumen">@resumen</p>
+                }
+
                 <SeccionColapsable Titulo="Documentación de la empresa">
                     <Encabezado>
                         <Badge Tono="EstadoDocumentoUi.Tono(_documentacion.Empresa.PeorEstado)">@EstadoDocumentoUi.Texto(_documentacion.Empresa.PeorEstado)</Badge>
@@ -356,9 +397,9 @@
                 }
                 else
                 {
-                    @foreach (var trabajador in _documentacion.Trabajadores)
+                    @foreach (var trabajador in TrabajadoresPorSeveridad(_documentacion))
                     {
-                        <SeccionColapsable Titulo="@($"{trabajador.NombreCompleto} ({trabajador.Dni}) — {trabajador.EmpleadorNombre}")">
+                        <SeccionColapsable @key="trabajador.TrabajadorId" Titulo="@($"{trabajador.NombreCompleto} ({trabajador.Dni}) — {trabajador.EmpleadorNombre}")">
                             <Encabezado>
                                 <Badge Tono="EstadoDocumentoUi.Tono(trabajador.Documentacion.PeorEstado)">@EstadoDocumentoUi.Texto(trabajador.Documentacion.PeorEstado)</Badge>
                             </Encabezado>
@@ -390,7 +431,19 @@
         }
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" OnClick="() => _detalleVisible = false">Cerrar</Boton>
+        @if (_detalle is not null && !_cargandoDetalle)
+        {
+            @* Solo cambia la marca: MarcarNotificadoClienteCommand no envía
+               ningún aviso, así que el texto no puede prometer uno. *@
+            <Boton Cargando="_marcandoNotificadoDetalle" OnClick="AlternarNotificadoDesdeDetalleAsync">
+                @(_detalle.NotificadoCliente ? "Quitar la marca de notificada" : "Marcar como notificada")
+            </Boton>
+            <Boton Variante="VarianteBoton.Secundario" OnClick="EditarDesdeDetalleAsync">Editar</Boton>
+        }
+        else
+        {
+            <Boton Variante="VarianteBoton.Secundario" OnClick="() => _detalleVisible = false">Cerrar</Boton>
+        }
     </Pie>
 </Drawer>
 
