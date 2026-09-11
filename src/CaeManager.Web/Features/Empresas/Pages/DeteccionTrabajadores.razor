@@ -1,6 +1,7 @@
 @page "/empresas/{EmpresaId:guid}/deteccion-trabajadores"
 @rendermode InteractiveServer
 @attribute [Authorize]
+@implements IDisposable
 @using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId
 @using CaeManager.Application.Trabajadores.Commands.ResolverDeteccionAusente
 @using CaeManager.Application.Trabajadores.Commands.ResolverDeteccionNuevo
@@ -13,7 +14,19 @@
 
 <PageTitle>Detección de personal — @(_empresa?.RazonSocial ?? "Empresa") — @Marca.Nombre</PageTitle>
 
+@* j/k recorren UNA sola secuencia —primero los nuevos, después los
+   ausentes—: el componente se monta una vez por página. *@
+<AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
+
 <div class="contenedor-pagina">
+    <div class="deteccion-migas">
+        <a class="deteccion-volver" href="/empresas">
+            <Icono Nombre="volver" Tamano="TamanoIcono.Pequeno" />
+            <span>Volver a Empresas</span>
+        </a>
+        <span class="deteccion-ruta">Negocio → Empresas → @(_empresa?.RazonSocial ?? "…") → Detección de personal</span>
+    </div>
+
     <CabeceraPagina Titulo="@($"Detección de personal — {_empresa?.RazonSocial ?? "…"}")">
         <Descripcion>
             Cambios de personal detectados automáticamente al leer por IA un documento de esta empresa
@@ -23,106 +36,239 @@
     </CabeceraPagina>
 
     @* Confirmación de la baja. ResolverDeteccionAusenteCommand con desactivar a
-       true elimina al trabajador (soft delete) y le cierra las asignaciones: antes
-       iba directo del botón al comando, con un solo clic. Ahora solo lo envía
-       ConfirmarBajaAsync, con el mismo diálogo que el resto de acciones
-       destructivas. «Mantener activo» no destruye nada y sigue siendo un clic. *@
+       true elimina al trabajador (soft delete) y le cierra las asignaciones
+       activas: solo lo envía ConfirmarBajaAsync. «Mantener activo» no destruye
+       nada y sigue siendo un clic. *@
     <DialogoConfirmacion
         Visible="_confirmarBajaVisible"
         VisibleChanged="v => _confirmarBajaVisible = v"
-        Titulo="@($"¿Dar de baja a {NombreBajaPendiente}?")"
-        Mensaje="Se dará de baja al trabajador y se cerrarán sus asignaciones activas. Hazlo solo si ya no trabaja para esta empresa; si solo falta en este documento, elige «Mantener activo»."
+        Titulo="@($"¿Dar de baja a {NombreDe(_bajaPendiente)}?")"
+        Mensaje="Se marca como eliminado (baja lógica) y se cierran sus asignaciones activas. Deja de aparecer en los listados, y desde esta pantalla no se puede deshacer. La única evidencia es que no figura en el documento leído por IA: si sabes que sigue en plantilla, elige «Mantener activo»."
         TextoBotonConfirmar="Dar de baja"
         EnProgreso="_dandoDeBaja"
         OnConfirmar="ConfirmarBajaAsync" />
 
+    @* Descartar un alta propuesta cierra la detección sin crear a nadie, y no
+       hay forma de reabrirla: por eso también se confirma. «Dar de alta» es un
+       clic —crea un solo trabajador, que se puede eliminar desde Trabajadores—. *@
+    <DialogoConfirmacion
+        Visible="_confirmarDescarteVisible"
+        VisibleChanged="v => _confirmarDescarteVisible = v"
+        Titulo="@($"¿Descartar a {NombreDe(_descartePendiente)}?")"
+        Mensaje="La detección se cierra sin dar de alta a nadie y no se puede recuperar desde esta pantalla. Si esta persona vuelve a aparecer en otro documento leído por IA, se propondrá de nuevo."
+        TextoBotonConfirmar="Descartar"
+        EnProgreso="_descartando"
+        OnConfirmar="ConfirmarDescarteAsync" />
+
+    @if (_listaPintada && _detecciones.Count > 0)
+    {
+        <section class="deteccion-panel" aria-labelledby="deteccion-procedencia-titulo">
+            <div class="deteccion-panel-kicker">
+                <span class="deteccion-punto-sistema" aria-hidden="true"></span>
+                <span id="deteccion-procedencia-titulo">De dónde sale esta lista</span>
+            </div>
+            <dl class="deteccion-procedencia">
+                <div>
+                    <dt>Origen</dt>
+                    <dd>Lectura IA de documentos de esta empresa</dd>
+                </div>
+                <div>
+                    <dt>Pendientes de revisar</dt>
+                    <dd class="deteccion-pendientes">@TextoPendientes</dd>
+                </div>
+                <div>
+                    <dt>Detección más reciente</dt>
+                    <dd class="deteccion-fecha-reciente">
+                        <TextoFechaCopiable Fecha="@DateOnly.FromDateTime(DeteccionMasReciente.ToLocalTime())">@FormatearFecha(DeteccionMasReciente)</TextoFechaCopiable>
+                    </dd>
+                </div>
+                @if (DeteccionMasAntigua != DeteccionMasReciente)
+                {
+                    <div>
+                        <dt>Detección pendiente más antigua</dt>
+                        <dd class="deteccion-fecha-antigua">
+                            <TextoFechaCopiable Fecha="@DateOnly.FromDateTime(DeteccionMasAntigua.ToLocalTime())">@FormatearFecha(DeteccionMasAntigua)</TextoFechaCopiable>
+                        </dd>
+                    </div>
+                }
+            </dl>
+            <p class="deteccion-panel-nota">Esta pantalla todavía no muestra qué documento concreto originó cada fila.</p>
+        </section>
+    }
+
+    <section class="deteccion-panel" aria-labelledby="deteccion-reglas-titulo">
+        <h2 id="deteccion-reglas-titulo" class="deteccion-panel-titulo">Qué se ha comparado, y qué NO cuenta como baja</h2>
+        <ul class="deteccion-reglas">
+            <li>
+                <span class="deteccion-regla-icono deteccion-regla-exito"><Icono Nombre="check" Tamano="TamanoIcono.Pequeno" /></span>
+                <div>
+                    <strong>Se comparó contra los trabajadores de alta de esta Empresa</strong>
+                    <span>Solo los suyos, y solo los que no están dados de baja. Un trabajador ya dado de baja no puede proponerse como ausente: no forma parte de la comparación.</span>
+                </div>
+            </li>
+            <li>
+                <span class="deteccion-regla-icono deteccion-regla-aviso"><Icono Nombre="advertencia" Tamano="TamanoIcono.Pequeno" /></span>
+                <div>
+                    <strong>Ausencia no es baja: es una propuesta que una persona tiene que confirmar</strong>
+                    <span>Faltar en un documento concreto puede ser una baja real, una ausencia puntual o un error del documento. Nada se aplica solo: cada fila espera tu decisión.</span>
+                </div>
+            </li>
+            <li>
+                <span class="deteccion-regla-icono deteccion-regla-sistema"><Icono Nombre="seguridad" Tamano="TamanoIcono.Pequeno" /></span>
+                <div>
+                    <strong>Si nadie de la plantilla apareciera en el documento, no habría lista</strong>
+                    <span>Un documento que no reconoce a ninguno de los trabajadores de alta se trata como un fallo de lectura y no genera propuestas, en vez de proponer la baja de toda la plantilla. El criterio es que no coincida nadie, no un porcentaje.</span>
+                </div>
+            </li>
+            <li>
+                <span class="deteccion-regla-icono deteccion-regla-sistema"><Icono Nombre="ia" Tamano="TamanoIcono.Pequeno" /></span>
+                <div>
+                    <strong>Lo que lee la IA se trata como una propuesta, no como un hecho</strong>
+                    @* Lo que hace DeteccionTrabajadoresService al agrupar y comparar:
+                       Trim() + ToUpperInvariant(), sin quitar guiones ni espacios
+                       intermedios. No prometer que une variantes del mismo DNI. *@
+                    <span class="deteccion-regla-identificadores">Los identificadores leídos se comparan tal cual, sin distinguir mayúsculas de minúsculas y sin contar los espacios del principio o del final: de dos filas con el mismo identificador así comparado se queda una, pero el mismo DNI escrito de otra forma (12345678Z y 12345678-Z) cuenta como dos, también al compararlo con la plantilla. Un documento con más de 2.000 identificadores distintos se descarta entero y solo se propone un alta si el identificador es un DNI o NIE con dígito de control correcto. Para las ausencias cuenta cualquier identificador leído, sea o no DNI/NIE, para no proponer la baja de quien sí aparece con otro documento de identidad.</span>
+                </div>
+            </li>
+        </ul>
+    </section>
+
     @if (_errorCarga)
     {
-        <EstadoVacio Titulo="No pudimos cargar las detecciones" Descripcion="Intenta nuevamente en unos segundos, o puede que no tengas acceso a esta empresa.">
+        <EstadoVacio Titulo="No pudimos cargar las detecciones" Descripcion="Intenta nuevamente en unos segundos, o puede que no tengas acceso a esta empresa."
+                     NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">
             <Accion>
-                <Boton OnClick="CargarAsync">Reintentar</Boton>
+                <Boton OnClick="ReintentarAsync">Reintentar</Boton>
             </Accion>
         </EstadoVacio>
     }
-    else if (_cargando)
+    else if (_cargando && !_listaPintada)
     {
         <EstadoCargando Filas="4" />
     }
     else if (_detecciones.Count == 0)
     {
-        <EstadoVacio Titulo="Sin cambios pendientes" Descripcion="No hay detecciones de personal pendientes de revisar para esta empresa." />
+        <EstadoVacio Titulo="Sin cambios pendientes"
+                     Descripcion="No hay detecciones de personal pendientes de revisar para esta empresa. Eso no garantiza que se haya leído ningún documento: la detección solo se ejecuta si el tipo de documento tiene activas la lectura IA y la detección de trabajadores, y si no la han desactivado todos los Clientes empresariales a los que esta empresa presta servicio."
+                     NombreIcono="exito-circulo" AcentoIcono="var(--color-success-500)" FondoIcono="var(--color-success-50)">
+            <Accion>
+                @* Las dos pantallas donde se activa la lectura son de Administrador:
+                   enlazarlas a quien no puede abrirlas sería mandarle a un acceso denegado. *@
+                <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador">
+                    <div class="deteccion-enlaces-configuracion">
+                        <a href="/tipos-documento">Revisar la lectura IA de los tipos de documento →</a>
+                        <a href="/configuracion/lectura-ia">Revisar la lectura IA por Cliente empresarial →</a>
+                    </div>
+                </AuthorizeView>
+            </Accion>
+        </EstadoVacio>
     }
     else
     {
-        var nuevos = _detecciones.Where(d => d.Tipo == TipoDeteccion.Nuevo).ToList();
-        var ausentes = _detecciones.Where(d => d.Tipo == TipoDeteccion.Ausente).ToList();
+        <div class="deteccion-lista" aria-busy="@(_cargando ? "true" : "false")">
+            @if (Nuevos.Count > 0)
+            {
+                <section class="deteccion-seccion" aria-labelledby="deteccion-nuevos-titulo">
+                    <div class="deteccion-seccion-cabecera">
+                        <h2 id="deteccion-nuevos-titulo" class="deteccion-seccion-titulo">Trabajadores nuevos detectados (@Nuevos.Count)</h2>
+                        <Badge Tono="TonoBadge.Advertencia">Descartar no se puede deshacer desde aquí</Badge>
+                    </div>
+                    <p class="texto-descriptivo">Aparecen en el documento pero no están dados de alta en el sistema.</p>
+                    <p class="texto-descriptivo deteccion-ayuda-comprobacion">«Comprobación» es una comprobación de formato que hace esta pantalla: quita guiones y espacios y revisa el dígito de control. La detección no los quita al comparar, así que puede tratar como distintas dos variantes del mismo DNI.</p>
+                    <div class="deteccion-tabla-marco">
+                        <table class="tabla-datos deteccion-tabla">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Nombre</th>
+                                    <th scope="col" class="deteccion-col-dni">DNI</th>
+                                    <th scope="col" class="deteccion-col-comprobacion">Comprobación</th>
+                                    <th scope="col" class="deteccion-col-acciones"><span class="deteccion-solo-lectores">Acciones</span></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var deteccion in Nuevos)
+                                {
+                                    var comprobacion = Comprobar(deteccion.Dni);
+                                    <tr @key="deteccion.Id" class="@(deteccion.Id == _idEnfocado ? "fila-enfocada" : null)" data-deteccion="@deteccion.Id">
+                                        <td class="deteccion-nombre">@NombreDe(deteccion)</td>
+                                        <td>
+                                            <span class="deteccion-dni">@deteccion.Dni</span>
+                                            <BotonCopiar Valor="@deteccion.Dni" Etiqueta="el DNI" />
+                                        </td>
+                                        <td class="deteccion-comprobacion">
+                                            <Badge Tono="@TonoComprobacion(comprobacion)" ConIcono="true">@TextoComprobacion(comprobacion)</Badge>
+                                        </td>
+                                        <td>
+                                            <div class="deteccion-acciones-fila">
+                                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                                       Deshabilitado="@(_procesandoId is not null)"
+                                                       OnClick="() => PedirDescarte(deteccion)">
+                                                    Descartar
+                                                </Boton>
+                                                <Boton Tamano="TamanoBoton.Pequeno"
+                                                       Deshabilitado="@(_procesandoId is not null)"
+                                                       Cargando="@(_procesandoId == deteccion.Id && !_descartando)"
+                                                       OnClick="() => DarDeAltaAsync(deteccion)">
+                                                    Dar de alta
+                                                </Boton>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            }
 
-        @if (nuevos.Count > 0)
-        {
-            <h2 class="titulo-seccion">Trabajadores nuevos detectados (@nuevos.Count)</h2>
-            <p class="texto-vacio-seccion">Aparecen en el documento pero no están dados de alta en el sistema.</p>
-            <table class="tabla-datos">
-                <thead>
-                    <tr>
-                        <th>Nombre</th>
-                        <th>DNI</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var deteccion in nuevos)
-                    {
-                        <tr>
-                            <td>@deteccion.Nombre @deteccion.Apellidos</td>
-                            <td>@deteccion.Dni</td>
-                            <td>
-                                <div style="display:flex;gap:.5rem;">
-                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="@(_procesandoId == deteccion.Id)" OnClick="() => ResolverNuevoAsync(deteccion.Id, false)">
-                                        Descartar
-                                    </Boton>
-                                    <Boton Tamano="TamanoBoton.Pequeno" Cargando="@(_procesandoId == deteccion.Id)" OnClick="() => ResolverNuevoAsync(deteccion.Id, true)">
-                                        Dar de alta
-                                    </Boton>
-                                </div>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        }
-
-        @if (ausentes.Count > 0)
-        {
-            <h2 class="titulo-seccion">Trabajadores ausentes (@ausentes.Count)</h2>
-            <p class="texto-vacio-seccion">Están activos en el sistema pero ya no aparecen en el documento.</p>
-            <table class="tabla-datos">
-                <thead>
-                    <tr>
-                        <th>Nombre</th>
-                        <th>DNI</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var deteccion in ausentes)
-                    {
-                        <tr>
-                            <td>@deteccion.Nombre @deteccion.Apellidos</td>
-                            <td>@deteccion.Dni</td>
-                            <td>
-                                <div style="display:flex;gap:.5rem;">
-                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="@(_procesandoId == deteccion.Id)" OnClick="() => MantenerActivoAsync(deteccion.Id)">
-                                        Mantener activo
-                                    </Boton>
-                                    <Boton Variante="VarianteBoton.Destructivo" Tamano="TamanoBoton.Pequeno" Cargando="@(_procesandoId == deteccion.Id)" OnClick="() => AbrirConfirmarBaja(deteccion)">
-                                        Dar de baja
-                                    </Boton>
-                                </div>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        }
+            @if (Ausentes.Count > 0)
+            {
+                <section class="deteccion-seccion" aria-labelledby="deteccion-ausentes-titulo">
+                    <div class="deteccion-seccion-cabecera">
+                        <h2 id="deteccion-ausentes-titulo" class="deteccion-seccion-titulo">Trabajadores ausentes (@Ausentes.Count)</h2>
+                        <Badge Tono="TonoBadge.Peligro">Dar de baja no se puede deshacer desde aquí</Badge>
+                    </div>
+                    <p class="texto-descriptivo">Están activos en el sistema pero ya no aparecen en el documento. Dar de baja les cierra además las asignaciones activas.</p>
+                    <div class="deteccion-tabla-marco">
+                        <table class="tabla-datos deteccion-tabla">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Nombre</th>
+                                    <th scope="col" class="deteccion-col-dni">DNI</th>
+                                    <th scope="col" class="deteccion-col-acciones"><span class="deteccion-solo-lectores">Acciones</span></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var deteccion in Ausentes)
+                                {
+                                    <tr @key="deteccion.Id" class="@(deteccion.Id == _idEnfocado ? "fila-enfocada" : null)" data-deteccion="@deteccion.Id">
+                                        <td class="deteccion-nombre">@NombreDe(deteccion)</td>
+                                        <td>
+                                            <span class="deteccion-dni">@deteccion.Dni</span>
+                                            <BotonCopiar Valor="@deteccion.Dni" Etiqueta="el DNI" />
+                                        </td>
+                                        <td>
+                                            <div class="deteccion-acciones-fila">
+                                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                                       Deshabilitado="@(_procesandoId is not null)"
+                                                       Cargando="@(_procesandoId == deteccion.Id && !_dandoDeBaja)"
+                                                       OnClick="() => MantenerActivoAsync(deteccion)">
+                                                    Mantener activo
+                                                </Boton>
+                                                <Boton Variante="VarianteBoton.Destructivo" Tamano="TamanoBoton.Pequeno"
+                                                       Deshabilitado="@(_procesandoId is not null)"
+                                                       OnClick="() => AbrirConfirmarBaja(deteccion)">
+                                                    Dar de baja
+                                                </Boton>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            }
+        </div>
     }
 </div>
