@@ -189,18 +189,30 @@ public partial class Trabajadores : ComponentBase
     /// compartir la URL, volver atrás) — no solo en el primer render — para
     /// que el filtro de la URL sea la fuente de verdad, no solo su semilla
     /// inicial (P1-18 de docs/business/MATURITY_REVIEW.md).
+    ///
+    /// <para>
+    /// Si la URL trae un filtro distinto del que hay en pantalla y la rejilla
+    /// ya existe, se recarga: antes solo se copiaba el valor, y volver atrás a
+    /// <c>?q=Salas</c> dejaba el chip diciendo «Salas» sobre las filas de la
+    /// búsqueda anterior. En el primer paso la rejilla todavía no existe y su
+    /// primera carga ya lee los valores de aquí. Los cambios que hace la propia
+    /// página (buscar, quitar un chip) escriben primero el campo y después la
+    /// URL, así que al llegar aquí ya coinciden y no duplican la consulta.
+    /// </para>
     /// </summary>
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
-        if (deLaUrl != _busqueda)
-            _busqueda = deLaUrl;
-
         var estadoDeLaUrl = EstadoDocumentoUi.OpcionesDocumentales.Any(o => o.Valor == EstadoInicial)
             ? EstadoInicial!
             : string.Empty;
-        if (estadoDeLaUrl != _estadoFiltro)
-            _estadoFiltro = estadoDeLaUrl;
+
+        var cambiaronLosFiltros = deLaUrl != _busqueda || estadoDeLaUrl != _estadoFiltro;
+        _busqueda = deLaUrl;
+        _estadoFiltro = estadoDeLaUrl;
+
+        if (cambiaronLosFiltros && _grid is not null)
+            await RecargarAsync();
 
         // A diferencia de "accion=crear" (OnInitializedAsync, solo se
         // ejecuta al montar: siempre llega desde otra página), "guardar-filtro"
@@ -221,26 +233,43 @@ public partial class Trabajadores : ComponentBase
         await RecargarAsync();
     }
 
+    /// <summary>
+    /// Número de la última carga pedida. Cada carga captura el suyo antes del
+    /// <c>await</c> y, al volver, solo escribe estado si sigue siendo la
+    /// vigente: si mientras tanto cambió un filtro, la búsqueda, la página o
+    /// el orden, su respuesta es de otra pregunta. QuickGrid ya descarta las
+    /// FILAS de una carga superada, pero no sabe nada de
+    /// <see cref="_totalElementos"/>, <see cref="_elementosPagina"/> (de la que
+    /// viven los atajos j/k/x y la selección) ni <see cref="_errorCarga"/>, que
+    /// son de esta página. Mismo mecanismo que Gestiones.razor.cs.
+    /// </summary>
+    private int _cargaVigente;
+
     private async ValueTask<GridItemsProviderResult<TrabajadorListaDto>> ProveerElementosAsync(
         GridItemsProviderRequest<TrabajadorListaDto> request)
     {
+        // Todo lo que define la pregunta se lee ANTES del await.
+        var carga = ++_cargaVigente;
+        var (ordenarPor, descendente) = LecturaOrden.Leer(request);
+        var consulta = new ObtenerTrabajadoresQuery(
+            Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
+            EmpresaId: Guid.TryParse(_filtroEmpresaId, out var empresaId) ? empresaId : null,
+            SubcontrataId: Guid.TryParse(_filtroSubcontrataId, out var subcontrataId) ? subcontrataId : null,
+            Pagina: (request.StartIndex / _paginacion.ItemsPerPage) + 1,
+            TamanoPagina: _paginacion.ItemsPerPage,
+            OrdenarPor: ordenarPor,
+            Descendente: descendente,
+            EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro);
+
         _cargando = true;
         _errorCarga = false;
 
         try
         {
-            var pagina = (request.StartIndex / _paginacion.ItemsPerPage) + 1;
-            var (ordenarPor, descendente) = LecturaOrden.Leer(request);
+            var resultado = await Mediator.Send(consulta, request.CancellationToken);
 
-            var resultado = await Mediator.Send(new ObtenerTrabajadoresQuery(
-                Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
-                EmpresaId: Guid.TryParse(_filtroEmpresaId, out var empresaId) ? empresaId : null,
-                SubcontrataId: Guid.TryParse(_filtroSubcontrataId, out var subcontrataId) ? subcontrataId : null,
-                Pagina: pagina,
-                TamanoPagina: _paginacion.ItemsPerPage,
-                OrdenarPor: ordenarPor,
-                Descendente: descendente,
-                EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro));
+            if (carga != _cargaVigente)
+                return GridItemsProviderResult.From(new List<TrabajadorListaDto>(), 0);
 
             _totalElementos = resultado.TotalElementos;
 
@@ -251,6 +280,12 @@ public partial class Trabajadores : ComponentBase
 
             return GridItemsProviderResult.From(elementos, resultado.TotalElementos);
         }
+        catch (Exception) when (carga != _cargaVigente)
+        {
+            // Una carga superada que falla (o que QuickGrid canceló) no es un
+            // error de la vigente: no puede tapar su resultado.
+            return GridItemsProviderResult.From(new List<TrabajadorListaDto>(), 0);
+        }
         catch (Exception)
         {
             _errorCarga = true;
@@ -258,8 +293,11 @@ public partial class Trabajadores : ComponentBase
         }
         finally
         {
-            _cargando = false;
-            StateHasChanged();
+            if (carga == _cargaVigente)
+            {
+                _cargando = false;
+                StateHasChanged();
+            }
         }
     }
 
@@ -326,7 +364,11 @@ public partial class Trabajadores : ComponentBase
     /// <summary>
     /// Quita los cuatro filtros en una sola recarga. Encadenar los setters
     /// lanzaría cuatro consultas y las tres primeras devolverían listas que ya
-    /// no se van a pintar.
+    /// no se van a pintar. La búsqueda y el estado viven además en la URL y se
+    /// limpian allí en UNA sola navegación (ver
+    /// <see cref="NavigationManagerExtensions.ActualizarFiltrosEnUrl"/>): si no,
+    /// <see cref="OnParametersSetAsync"/> los repondría desde <c>?q=</c> y
+    /// <c>?estado=</c> en la siguiente pasada de parámetros.
     /// </summary>
     private async Task LimpiarFiltrosAsync()
     {
@@ -334,17 +376,32 @@ public partial class Trabajadores : ComponentBase
         _estadoFiltro = string.Empty;
         _filtroEmpresaId = string.Empty;
         _filtroSubcontrataId = string.Empty;
-        NavigationManager.ActualizarFiltroEnUrl("q", string.Empty);
-        NavigationManager.ActualizarFiltroEnUrl("estado", string.Empty);
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = null, ["estado"] = null });
         await RecargarAsync();
     }
 
+    /// <summary>
+    /// Vuelve a la página 1 y pide la lista UNA vez.
+    /// <see cref="PaginationState.SetCurrentPageIndexAsync"/> avisa a QuickGrid
+    /// siempre, cambie o no la página, y QuickGrid recarga al recibir el aviso
+    /// (así funciona <see cref="CambiarPaginaAsync"/>). Llamar a los dos,
+    /// aviso y <c>RefreshDataAsync</c>, lanzaba dos consultas idénticas por
+    /// cada búsqueda o filtro aunque el total no cambiara (medido en
+    /// <c>TrabajadoresListaGen2Tests</c>).
+    ///
+    /// <para>
+    /// Lo que esto no evita: si la respuesta trae un total distinto del
+    /// anterior, QuickGrid vuelve a pedir la misma página por su cuenta en el
+    /// render siguiente (<c>QuickGrid.OnParametersSetAsync</c> →
+    /// <c>RefreshDataCoreAsync</c>). Es de QuickGrid, no de esta página.
+    /// </para>
+    /// </summary>
     private async Task RecargarAsync()
     {
-        await _paginacion.SetCurrentPageIndexAsync(0);
-
-        if (_grid is not null)
+        if (_grid is not null && _paginacion.CurrentPageIndex == 0)
             await _grid.RefreshDataAsync();
+        else
+            await _paginacion.SetCurrentPageIndexAsync(0);
 
         StateHasChanged();
     }
@@ -410,6 +467,11 @@ public partial class Trabajadores : ComponentBase
 
     private async Task GuardarAsync()
     {
+        // Guarda de doble clic: un segundo «Guardar» antes de que vuelva el
+        // primero daría de alta el mismo trabajador dos veces (o chocaría con
+        // el DNI duplicado). El botón se deshabilita con Cargando, pero el
+        // segundo clic puede llegar antes de ese render.
+        if (_guardando) return;
         _guardando = true;
         _mensajeErrorFormulario = null;
         _erroresCampo = new Dictionary<string, string>();
@@ -555,11 +617,15 @@ public partial class Trabajadores : ComponentBase
 
     private async Task ConfirmarEliminarAsync()
     {
+        // Guarda de doble clic sobre «Eliminar» del diálogo: mandaría el
+        // comando dos veces y el segundo fallaría con un error que no es real.
+        if (_eliminando) return;
         _eliminando = true;
+        var idEliminado = _idAEliminar;
 
         try
         {
-            var resultado = await Mediator.Send(new EliminarTrabajadorCommand(_idAEliminar));
+            var resultado = await Mediator.Send(new EliminarTrabajadorCommand(idEliminado));
 
             if (resultado.EsFallido)
             {
@@ -567,7 +633,6 @@ public partial class Trabajadores : ComponentBase
             }
             else
             {
-                var idEliminado = _idAEliminar;
                 ToastService.Mostrar("Trabajador eliminado correctamente.", TonoToast.Exito, "Deshacer", () => DeshacerEliminarAsync(idEliminado));
                 _confirmarEliminarVisible = false;
                 await RecargarAsync();
@@ -586,15 +651,28 @@ public partial class Trabajadores : ComponentBase
     /// <summary>Fase D ("Deshacer al eliminar") — acción del toast tras eliminar, ver RestaurarTrabajadorCommand.</summary>
     private async Task DeshacerEliminarAsync(Guid id)
     {
-        var resultado = await Mediator.Send(new RestaurarTrabajadorCommand(id));
+        // Guarda por trabajador: dos pulsaciones en «Deshacer» del mismo aviso
+        // no mandan dos restauraciones.
+        if (!_restaurando.Add(id)) return;
 
-        ToastService.Mostrar(
-            resultado.EsExitoso ? "Trabajador restaurado." : resultado.Error.Mensaje,
-            resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
+        try
+        {
+            var resultado = await Mediator.Send(new RestaurarTrabajadorCommand(id));
 
-        if (resultado.EsExitoso)
-            await RecargarAsync();
+            ToastService.Mostrar(
+                resultado.EsExitoso ? "Trabajador restaurado." : resultado.Error.Mensaje,
+                resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
+
+            if (resultado.EsExitoso)
+                await RecargarAsync();
+        }
+        finally
+        {
+            _restaurando.Remove(id);
+        }
     }
+
+    private readonly HashSet<Guid> _restaurando = [];
 
     // --- P3-31: selección múltiple ---
 
@@ -617,6 +695,7 @@ public partial class Trabajadores : ComponentBase
 
     private async Task ConfirmarEliminarLoteAsync()
     {
+        if (_eliminandoLote) return;
         _eliminandoLote = true;
 
         try
@@ -648,6 +727,9 @@ public partial class Trabajadores : ComponentBase
 
     private async Task AbrirAsignarCentroAsync()
     {
+        // Antes del await: una consulta de faltantes del diálogo anterior que
+        // siga en vuelo ya no es de este.
+        ++_faltantesVigente;
         _centrosDisponiblesParaAsignar = await Mediator.Send(new ObtenerCentrosParaSelectorQuery());
         _centroIdParaAsignar = string.Empty;
         _fechaAltaParaAsignar = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
@@ -655,8 +737,33 @@ public partial class Trabajadores : ComponentBase
         _asignarCentroVisible = true;
     }
 
+    /// <summary>
+    /// Única salida del diálogo (Cancelar, la X, Escape, clic fuera y el
+    /// cierre tras asignar): invalida la consulta de faltantes en vuelo y
+    /// suelta el aviso, que era del centro elegido en este diálogo.
+    /// </summary>
+    private void CerrarAsignarCentro()
+    {
+        ++_faltantesVigente;
+        _asignarCentroVisible = false;
+        _centroIdParaAsignar = string.Empty;
+        _documentosFaltantesParaAsignar = [];
+    }
+
+    /// <summary>
+    /// Carga vigente del aviso de documentos faltantes. Elegir un centro y
+    /// después otro lanza dos consultas; si la del primero vuelve la última,
+    /// sin esto el aviso hablaría del centro que ya no está elegido — y el
+    /// botón diría «Asignar igualmente» (o «Asignar») por el centro equivocado.
+    /// Abrir y cerrar el diálogo también la invalidan: cerrar con la consulta
+    /// del centro A en vuelo y reabrir no puede pintar los faltantes de A en
+    /// un diálogo nuevo que todavía no tiene centro.
+    /// </summary>
+    private int _faltantesVigente;
+
     private async Task CambiarCentroParaAsignarAsync(string valor)
     {
+        var carga = ++_faltantesVigente;
         _centroIdParaAsignar = valor;
 
         if (!Guid.TryParse(valor, out var centroId))
@@ -665,12 +772,17 @@ public partial class Trabajadores : ComponentBase
             return;
         }
 
-        _documentosFaltantesParaAsignar = await Mediator.Send(
+        var faltantes = await Mediator.Send(
             new ObtenerDocumentosFaltantesParaAsignacionQuery(_seleccionados.ToList(), [centroId]));
+
+        if (carga == _faltantesVigente)
+            _documentosFaltantesParaAsignar = faltantes;
     }
 
     private async Task ConfirmarAsignarCentroAsync()
     {
+        if (_asignandoLote) return;
+
         if (!Guid.TryParse(_centroIdParaAsignar, out var centroId))
         {
             ToastService.Mostrar("Selecciona un centro.", TonoToast.Error);
@@ -706,7 +818,7 @@ public partial class Trabajadores : ComponentBase
                 ToastService.Mostrar(error, TonoToast.Advertencia);
 
             _seleccionados.Clear();
-            _asignarCentroVisible = false;
+            CerrarAsignarCentro();
             await RecargarAsync();
         }
         catch (Exception)
@@ -769,12 +881,18 @@ public partial class Trabajadores : ComponentBase
         _busqueda = valores.Busqueda ?? string.Empty;
         _filtroEmpresaId = valores.EmpresaId ?? string.Empty;
         _filtroSubcontrataId = valores.SubcontrataId ?? string.Empty;
+
+        // La búsqueda del filtro guardado se escribe también en ?q=. Si solo
+        // se aplicara en memoria, la siguiente navegación dentro de la página
+        // (p. ej. cambiar el filtro de documentación, que sí escribe la URL)
+        // haría que OnParametersSetAsync la borrase leyendo un ?q= vacío.
+        NavigationManager.ActualizarFiltroEnUrl("q", _busqueda);
         await RecargarAsync();
     }
 
     private async Task GuardarFiltroActualAsync()
     {
-        if (string.IsNullOrWhiteSpace(_nombreFiltroNuevo)) return;
+        if (string.IsNullOrWhiteSpace(_nombreFiltroNuevo) || _guardandoFiltro) return;
 
         _guardandoFiltro = true;
 
