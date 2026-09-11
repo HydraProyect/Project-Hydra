@@ -200,7 +200,14 @@ public class AccesosDocumentosSensiblesGen2Tests : BunitContext
         var cabecera = cut.Find("header.cabecera-pagina");
         Texto(cabecera.QuerySelector("h1.titulo-pagina")!).Should().Be("Accesos a documentos sensibles");
         Texto(cabecera.QuerySelector(".cabecera-pagina-descripcion")!).Should()
-            .Contain("abre o descarga un documento sensible").And.Contain("versiones anteriores");
+            .Contain("abre o descarga un documento sensible").And.Contain("versiones anteriores")
+            .And.Contain("excepción conocida",
+                "RegistroAccesoDocumentoSensibleRepository descarta el registro de la Sesión Privilegiada de soporte: «cada vez» sin salvedad es falso");
+
+        var hueco = cut.Find(".accesos-sensibles-hueco");
+        hueco.GetAttribute("role").Should().Be("note");
+        Texto(hueco.QuerySelector("strong")!).Should().Be("Hueco conocido, pendiente de decisión:");
+        Texto(hueco).Should().Contain("Sesión Privilegiada de solo lectura").And.Contain("registro técnico del servidor");
 
         Texto(cut.Find(".accesos-sensibles-alcance strong")).Should().Be("Qué NO se registra, a propósito:");
         Texto(cut.Find(".accesos-sensibles-alcance")).Should()
@@ -311,6 +318,11 @@ public class AccesosDocumentosSensiblesGen2Tests : BunitContext
         Celda(filas[0], 2).Should().Be(documento.ToString());
         cut.FindAll(".accesos-sensibles-tabla tbody a, .accesos-sensibles-tabla tbody button")
             .Should().BeEmpty("es una pantalla de solo lectura");
+
+        var marco = cut.Find(".accesos-sensibles-marco-tabla");
+        marco.GetAttribute("role").Should().Be("region", "el marco se desplaza en horizontal: tiene que ser una región");
+        marco.GetAttribute("aria-label").Should().Be("Registro de accesos a documentos sensibles");
+        marco.GetAttribute("tabindex").Should().Be("0", "sin foco, con teclado no se puede desplazar");
     }
 
     // ------------------------------------------------------------------ Estados

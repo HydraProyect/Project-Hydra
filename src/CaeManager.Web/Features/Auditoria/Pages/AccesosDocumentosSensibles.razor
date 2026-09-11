@@ -28,7 +28,7 @@
     <CabeceraPagina Titulo="Accesos a documentos sensibles" Integrada="@IntegradaEnConfiguracion">
         <Descripcion>
             Cada vez que alguien abre o descarga un documento sensible —y cada vez que consulta una de sus
-            versiones anteriores— queda registrado aquí.
+            versiones anteriores— queda registrado aquí, con una excepción conocida que se explica abajo.
         </Descripcion>
     </CabeceraPagina>
 
@@ -40,6 +40,20 @@
                 blanco de los requisitos documentales, las firmas y sellos guardados, los procesos automáticos en los
                 que no hay una persona mirando y los listados que solo enseñan datos generales. No es un olvido: es el
                 alcance decidido.
+            </span>
+        </p>
+
+        @* No es alcance decidido sino un hueco real, y una pantalla de auditoría
+           no puede prometer exhaustividad que no tiene. RegistroAccesoDocumentoSensibleRepository
+           tolera el 42501 de la Sesión Privilegiada de soporte (rol cae_app_soporte,
+           sin escritura en ninguna tabla, ADR-011 § 4bis): el registro se descarta
+           y solo queda un aviso en el log del servidor. Decisión pendiente en HO-099-01. *@
+        <p class="accesos-sensibles-alcance accesos-sensibles-hueco" role="note">
+            <span class="accesos-sensibles-punto" aria-hidden="true"></span>
+            <span>
+                <strong>Hueco conocido, pendiente de decisión:</strong> un acceso de Soporte TALVEG desde una Sesión
+                Privilegiada de solo lectura todavía no puede registrarse aquí, porque esa sesión no puede escribir en
+                ninguna tabla. Queda solo en el registro técnico del servidor.
             </span>
         </p>
 
@@ -74,7 +88,9 @@
     else
     {
         @* Sin acciones de fila: la pantalla no ofrece nada que hacer, solo leer. *@
-        <div class="accesos-sensibles-marco-tabla">
+        @* El marco se desplaza en horizontal en pantallas estrechas: como región
+           con nombre y foco, con teclado también se puede desplazar. *@
+        <div class="accesos-sensibles-marco-tabla" role="region" aria-label="Registro de accesos a documentos sensibles" tabindex="0">
             <table class="tabla-datos accesos-sensibles-tabla">
                 <thead>
                     <tr>
