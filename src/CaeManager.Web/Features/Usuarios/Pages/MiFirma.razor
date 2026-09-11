@@ -8,6 +8,7 @@
 @inject IMediator Mediator
 @inject ToastService Toasts
 @inject IJSRuntime JSRuntime
+@inject ILogger<MiFirma> Logger
 
 <PageTitle>Mi firma — @Marca.Nombre</PageTitle>
 
@@ -24,41 +25,144 @@
     {
         <EstadoCargando Filas="2" />
     }
+    else if (_errorCarga)
+    {
+        <div role="alert">
+            <EstadoVacio Titulo="No pudimos cargar tu firma"
+                         Descripcion="Intenta nuevamente en unos segundos. Tu firma guardada no se ha modificado."
+                         NombreIcono="error-circulo"
+                         AcentoIcono="var(--color-danger-500)"
+                         FondoIcono="var(--color-danger-50)">
+                <Accion>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">Reintentar</Boton>
+                </Accion>
+            </EstadoVacio>
+        </div>
+    }
     else
     {
-        @if (_firmaActual is not null)
-        {
-            <div class="workspace-grupo-campos">
-                <CampoInfo Etiqueta="Firma guardada actualmente">
-                    <img src="/mi-firma/archivo" alt="Firma guardada" class="firma-guardada-vista-previa" />
-                </CampoInfo>
-                <CampoInfo Etiqueta="Actualizada" Valor="@_firmaActual.ActualizadaEnUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")" />
+        <div class="mi-firma-rejilla">
+            <div class="mi-firma-columna">
+                <Tarjeta>
+                    <section class="mi-firma-seccion" aria-labelledby="mi-firma-titulo-captura">
+                        <h2 id="mi-firma-titulo-captura" class="mi-firma-seccion-titulo">Dibujar o escribir</h2>
+
+                        <div class="mi-firma-modos" role="tablist" aria-label="Modo de entrada de la firma">
+                            <Boton Variante="@(_escribirNombre ? VarianteBoton.Secundario : VarianteBoton.Primario)" Tamano="TamanoBoton.Pequeno"
+                                   role="tab" aria-selected="@(_escribirNombre ? "false" : "true")"
+                                   OnClick="() => CambiarModoEntradaAsync(escribir: false)">
+                                Dibujar
+                            </Boton>
+                            <Boton Variante="@(_escribirNombre ? VarianteBoton.Primario : VarianteBoton.Secundario)" Tamano="TamanoBoton.Pequeno"
+                                   role="tab" aria-selected="@(_escribirNombre ? "true" : "false")"
+                                   OnClick="() => CambiarModoEntradaAsync(escribir: true)">
+                                Escribir mi nombre
+                            </Boton>
+                        </div>
+
+                        @if (_escribirNombre)
+                        {
+                            <div class="mi-firma-nombre">
+                                <CampoTexto Etiqueta="Tu nombre" Valor="@_nombreEscrito" ValorChanged="AlCambiarNombreEscritoAsync" Placeholder="Escribe tu nombre tal como quieres que aparezca" class="firma-escrita-nombre" />
+                                <span class="mi-firma-ayuda">Se dibuja en el mismo lienzo que un trazo a mano: de ahí en adelante siguen el mismo camino.</span>
+                            </div>
+                        }
+
+                        <div class="mi-firma-vista-previa">
+                            <span class="mi-firma-etiqueta">Vista previa en vivo</span>
+                            <div class="mi-firma-lienzo">
+                                <canvas id="@_idCanvas" class="firma-en-campo-lienzo" width="500" height="200"></canvas>
+                                @if (!_trazoIniciado)
+                                {
+                                    <span class="mi-firma-lienzo-pista" aria-hidden="true">@PistaLienzo</span>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="mi-firma-acciones">
+                            <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarLienzoAsync" Deshabilitado="_guardando">Borrar</Boton>
+                            <Boton OnClick="GuardarDibujadaAsync" Cargando="_guardando" Deshabilitado="@(!_trazoIniciado || _guardando)">
+                                @(_guardando ? "Guardando…" : "Guardar como mi firma")
+                            </Boton>
+                            @if (!_trazoIniciado)
+                            {
+                                <span class="mi-firma-ayuda">Dibuja un trazo o escribe tu nombre para poder guardar.</span>
+                            }
+                        </div>
+                    </section>
+                </Tarjeta>
+
+                <Tarjeta>
+                    <section class="mi-firma-seccion" aria-labelledby="mi-firma-titulo-foto">
+                        <h2 id="mi-firma-titulo-foto" class="mi-firma-seccion-titulo">O sube una foto</h2>
+                        <ZonaSoltarArchivo Titulo="Sube una foto de tu firma" FormatosTexto="JPG o PNG, máx. 5 MB" Accept="image/*"
+                                           Cargando="_guardando" OnChange="SubirArchivoAsync" />
+                    </section>
+                </Tarjeta>
             </div>
-        }
 
-        <h3 class="workspace-subtitulo">Dibujar o escribir</h3>
-        <div class="workspace-acciones-edicion">
-            <Boton Variante="@(_escribirNombre ? VarianteBoton.Secundario : VarianteBoton.Primario)" Tamano="TamanoBoton.Pequeno" OnClick="() => CambiarModoEntradaAsync(escribir: false)">
-                Dibujar
-            </Boton>
-            <Boton Variante="@(_escribirNombre ? VarianteBoton.Primario : VarianteBoton.Secundario)" Tamano="TamanoBoton.Pequeno" OnClick="() => CambiarModoEntradaAsync(escribir: true)">
-                Escribir mi nombre
-            </Boton>
+            <div class="mi-firma-columna">
+                <Tarjeta>
+                    <section class="mi-firma-seccion mi-firma-seccion-compacta" aria-labelledby="mi-firma-titulo-guardada">
+                        <h2 id="mi-firma-titulo-guardada" class="mi-firma-seccion-titulo">Firma guardada</h2>
+
+                        @if (_firmaMostradaDesactualizada)
+                        {
+                            <div class="mi-firma-desactualizada" role="status">
+                                <span>Tu firma nueva se guardó, pero no pudimos cargarla: lo que ves aquí es anterior al guardado.</span>
+                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="VolverACargarFirmaAsync">Volver a cargar</Boton>
+                            </div>
+                        }
+
+                        @if (_firmaActual is not null)
+                        {
+                            <div class="mi-firma-guardada-marco">
+                                <img src="@UrlFirmaGuardada" alt="Firma guardada actualmente" class="mi-firma-guardada-imagen" />
+                            </div>
+                            <div class="mi-firma-dato">
+                                <span class="mi-firma-dato-etiqueta">Actualizada</span>
+                                <span class="mi-firma-dato-valor">@_firmaActual.ActualizadaEnUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span>
+                            </div>
+                            <span class="mi-firma-ayuda">Solo hay una firma guardada. La próxima que confirmes reemplaza a esta.</span>
+                        }
+                        else
+                        {
+                            <EstadoVacio Titulo="Aún no tienes ninguna firma guardada"
+                                         Descripcion="Mientras no la guardes, al firmar en campo se te ofrecerá el lienzo en blanco en vez de tu firma." />
+                        }
+                    </section>
+                </Tarjeta>
+
+                <Tarjeta>
+                    <section class="mi-firma-seccion mi-firma-seccion-compacta" aria-labelledby="mi-firma-titulo-usos">
+                        <h2 id="mi-firma-titulo-usos" class="mi-firma-seccion-titulo">Dónde se usa</h2>
+                        <ul class="mi-firma-usos">
+                            <li class="mi-firma-uso">
+                                <span class="mi-firma-uso-icono"><Icono Nombre="documentos" Tamano="TamanoIcono.Pequeno" /></span>
+                                <span class="mi-firma-uso-texto">
+                                    <span class="mi-firma-uso-titulo">Pestaña «Firma» del panel de Documento</span>
+                                    <span class="mi-firma-ayuda">Si tienes firma guardada, se ofrece por defecto en vez del lienzo; siempre puedes dibujar otra.</span>
+                                </span>
+                            </li>
+                            <li class="mi-firma-uso">
+                                <span class="mi-firma-uso-icono"><Icono Nombre="editar" Tamano="TamanoIcono.Pequeno" /></span>
+                                <span class="mi-firma-uso-texto">
+                                    <span class="mi-firma-uso-titulo">Firma en campo sobre el PDF</span>
+                                    <span class="mi-firma-ayuda">El trazo se estampa sobre el archivo, sin proveedor externo. Solo en documentos sin formato oficial de la Administración.</span>
+                                </span>
+                            </li>
+                            <li class="mi-firma-uso">
+                                <span class="mi-firma-uso-icono"><Icono Nombre="empresas" Tamano="TamanoIcono.Pequeno" /></span>
+                                <span class="mi-firma-uso-texto">
+                                    <span class="mi-firma-uso-titulo">Sello de empresa (aparte)</span>
+                                    <span class="mi-firma-ayuda">Si la Empresa del documento tiene sello guardado, se ofrece incluirlo junto a tu firma.</span>
+                                </span>
+                            </li>
+                        </ul>
+                        <a href="/documentos" class="mi-firma-enlace">Ir a Documentos →</a>
+                    </section>
+                </Tarjeta>
+            </div>
         </div>
-
-        @if (_escribirNombre)
-        {
-            <CampoTexto Etiqueta="Tu nombre" Valor="@_nombreEscrito" ValorChanged="AlCambiarNombreEscritoAsync" Placeholder="Escribe tu nombre tal como quieres que aparezca" class="firma-escrita-nombre" />
-        }
-
-        <canvas id="@_idCanvas" class="firma-en-campo-lienzo" width="500" height="200"></canvas>
-        <div class="workspace-acciones-edicion">
-            <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarLienzoAsync" Deshabilitado="_guardando">Borrar</Boton>
-            <Boton OnClick="GuardarDibujadaAsync" Cargando="_guardando" Deshabilitado="@(!_trazoIniciado || _guardando)">Guardar como mi firma</Boton>
-        </div>
-
-        <h3 class="workspace-subtitulo">O sube una foto</h3>
-        <ZonaSoltarArchivo Titulo="Sube una foto de tu firma" FormatosTexto="JPG o PNG, máx. 5 MB" Accept="image/*"
-                           Cargando="_guardando" OnChange="SubirArchivoAsync" />
     }
 </div>

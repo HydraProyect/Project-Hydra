@@ -1,0 +1,203 @@
+/*
+  Mi firma (Gen 2): dos columnas —captura a la izquierda, firma guardada y
+  «Dónde se usa» a la derecha— que se apilan en pantallas estrechas. Todo lo
+  que se declara aquí se usa solo en MiFirma.razor; el lienzo conserva su
+  clase global (.firma-en-campo-lienzo, workspace.css) porque la comparte con
+  FirmaEnCampoTab, y aquí solo se ajusta su marco dentro de esta pantalla.
+*/
+.mi-firma-rejilla {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+    gap: var(--space-6);
+    align-items: start;
+}
+
+.mi-firma-columna {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    min-width: 0;
+}
+
+.mi-firma-seccion {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.mi-firma-seccion-compacta {
+    gap: var(--space-3);
+}
+
+.mi-firma-seccion-titulo {
+    margin: 0;
+    font: var(--font-h3);
+    color: var(--color-text);
+}
+
+.mi-firma-modos {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.mi-firma-nombre {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    max-width: 520px;
+}
+
+.mi-firma-ayuda {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    text-wrap: pretty;
+}
+
+.mi-firma-vista-previa {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.mi-firma-etiqueta {
+    font: var(--font-label);
+    color: var(--color-text-muted);
+}
+
+.mi-firma-lienzo {
+    position: relative;
+    width: 100%;
+    max-width: 500px;
+}
+
+.mi-firma-lienzo .firma-en-campo-lienzo {
+    border: 1px dashed var(--color-border-strong);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+}
+
+.mi-firma-lienzo .firma-en-campo-lienzo:hover {
+    border-color: var(--color-border-control);
+}
+
+/* La pista no puede interceptar el puntero: el trazo empieza justo debajo. */
+.mi-firma-lienzo-pista {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 var(--space-6);
+    font: var(--font-body-md);
+    color: var(--color-text-muted);
+    text-align: center;
+    text-wrap: pretty;
+    pointer-events: none;
+}
+
+.mi-firma-acciones {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.mi-firma-guardada-marco {
+    height: 120px;
+    border: var(--border-default);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.mi-firma-guardada-imagen {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+.mi-firma-desactualizada {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    background: var(--color-warning-50);
+    color: var(--color-warning-700);
+    font: var(--font-caption);
+}
+
+.mi-firma-dato {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.mi-firma-dato-etiqueta {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+}
+
+.mi-firma-dato-valor {
+    font: var(--font-body-md);
+    color: var(--color-text);
+}
+
+.mi-firma-usos {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.mi-firma-uso {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    min-height: 44px;
+    padding: var(--space-2) 0;
+    border-top: var(--border-default);
+}
+
+.mi-firma-uso:first-child {
+    border-top-color: transparent;
+}
+
+.mi-firma-uso-icono {
+    flex: none;
+    margin-top: 3px;
+    color: var(--color-text-muted);
+    display: inline-flex;
+}
+
+.mi-firma-uso-texto {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.mi-firma-uso-titulo {
+    font: var(--font-body-md);
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.mi-firma-enlace {
+    align-self: flex-start;
+    font: var(--font-label);
+}
+
+@media (max-width: 768px) {
+    .mi-firma-rejilla {
+        grid-template-columns: 1fr;
+    }
+}
