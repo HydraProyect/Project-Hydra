@@ -20,8 +20,10 @@ namespace CaeManager.Web.Features.Comercial.Pages;
 /// <c>GateComercialTenantBehavior</c> en «Solo lectura» y «Suspendida». Quién
 /// paga (el Pagador TALVEG) es el Customer de Stripe: TALVEG solo guarda su
 /// identificador (<c>StripeCustomerId</c>), no lo pinta y nunca lo deduce del
-/// tenant. No hay en el código ni Producto Contratado, ni plan, ni importe, ni
-/// fecha de renovación: la pantalla no inventa ninguno.
+/// tenant. El agregado <c>Tenant</c> no lleva plan, importe ni fecha de
+/// renovación, y no existe ninguna entidad Producto Contratado —solo el valor
+/// <c>OrigenInstruccionTratamientoIa.ProductoContratado</c>, que la anticipa—:
+/// la pantalla no inventa ninguno de esos datos.
 /// </para>
 ///
 /// <para>
