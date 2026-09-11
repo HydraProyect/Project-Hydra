@@ -1,20 +1,28 @@
+/* Pestañas propias y no <Pestanas> del catálogo: la de «Pendientes de
+   asignar» lleva un Badge con el recuento, y PestanaDefinicion solo admite
+   texto e icono. Métrica del mockup Gen 2: 40px de alto, 14/20 a peso 600. */
 .pestanas-roles {
     display: flex;
+    align-items: flex-end;
     gap: var(--space-2);
     border-bottom: var(--border-default);
     margin-bottom: var(--space-5);
 }
 
 .pestana-rol {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: var(--space-2);
+    flex: none;
+    white-space: nowrap;
+    height: 2.5rem;
+    padding: 0 var(--space-3);
+    margin-bottom: -1px;
     background: none;
     border: none;
     border-bottom: 2px solid transparent;
-    padding: var(--space-3) var(--space-1);
-    margin-bottom: -1px;
-    font: var(--font-label-md);
+    font: var(--font-body-md);
+    font-weight: 600;
     color: var(--color-text-muted);
     cursor: pointer;
     transition: color var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard);
@@ -29,18 +37,131 @@
     border-bottom-color: var(--color-primary-500);
 }
 
+.panel-roles {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+}
+
+/* El gap del panel ya separa: el margen propio de .texto-descriptivo se
+   sumaría a él. */
+.panel-roles > .texto-descriptivo {
+    margin: 0;
+}
+
 .rejilla-roles {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(18.75rem, 1fr));
     gap: var(--space-4);
 }
 
+/* La tarjeta del rol es una columna: título, descripción que crece y pie
+   con el recuento, alineado abajo en toda la fila. Tarjeta pinta su propio
+   markup, así que se alcanza con ::deep desde la rejilla. */
+.rejilla-roles ::deep .tarjeta {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.rejilla-roles ::deep .tarjeta-header {
+    padding: var(--space-5) var(--space-5) 0;
+    border-bottom: none;
+}
+
+.rejilla-roles ::deep .tarjeta-titulo {
+    margin: 0;
+    font: var(--font-heading-sm);
+}
+
+.rejilla-roles ::deep .tarjeta-contenido {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding-top: var(--space-3);
+}
+
 .descripcion-rol {
+    flex: 1;
+    margin: 0;
+    font: var(--font-body-md);
     color: var(--color-text-muted);
-    font: var(--font-body-sm);
-    margin-bottom: var(--space-3);
 }
 
 .contador-usuarios {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0;
+    padding-top: var(--space-3);
+    border-top: var(--border-default);
     font: var(--font-label-md);
+    color: var(--color-text);
+}
+
+.contador-usuarios ::deep .icono {
+    color: var(--color-text-muted);
+}
+
+.otros-planos-autoridad {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    max-width: 47.5rem;
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface-subtle);
+    border: var(--border-default);
+    border-radius: var(--radius-md);
+}
+
+.otros-planos-titulo {
+    margin: 0;
+    font: var(--font-label-md);
+    color: var(--color-text);
+}
+
+.otros-planos-texto {
+    margin: 0;
+    font: var(--font-body-md);
+    color: var(--color-text-muted);
+}
+
+.otros-planos-texto a,
+.panel-roles > .texto-descriptivo a {
+    font-weight: 600;
+}
+
+/* En pantallas estrechas la tabla se desplaza dentro de su caja, no la página. */
+.tabla-pendientes {
+    overflow-x: auto;
+}
+
+.celda-nombre {
+    font-weight: 600;
+}
+
+.celda-solicitado {
+    color: var(--color-text-muted);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.celda-accion {
+    text-align: right;
+}
+
+/* Nombre accesible sin ocupar sitio: el encabezado vacío de la columna de
+   acciones y la etiqueta del selector de rol de cada fila. */
+.texto-solo-lector,
+.celda-rol ::deep label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
 }
