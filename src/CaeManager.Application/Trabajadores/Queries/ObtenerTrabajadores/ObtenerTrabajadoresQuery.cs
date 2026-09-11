@@ -61,44 +61,14 @@ public class ObtenerTrabajadoresQueryHandler(IEmpresasQueryContext empresasConte
         if (request.SubcontrataId is not null)
             consulta = consulta.Where(x => x.trabajador.SubcontrataId == request.SubcontrataId);
 
-        var proyeccion = consulta.Select(x => new TrabajadorListaDto(
-            x.trabajador.Id, x.trabajador.Nombre, x.trabajador.Apellidos, x.trabajador.Dni, x.EmpleadorNombre));
-
-        // El estado documental se deriva de los Documentos, así que filtrar u
-        // ordenar por él exige conocerlo de todos los que pasan los filtros
-        // antes de paginar — mismo reparto en dos caminos que
-        // ObtenerCentrosQuery, y por el mismo motivo (el estado no está
-        // persistido, ver DATABASE.md).
-        var necesitaEstadoCompleto =
-            !string.IsNullOrWhiteSpace(request.EstadoDocumental) ||
-            string.Equals(request.OrdenarPor, nameof(TrabajadorListaDto.EstadoDocumental), StringComparison.Ordinal);
-
-        if (necesitaEstadoCompleto)
-        {
-            var todos = await proyeccion.ToListAsync(cancellationToken);
-            var estadosTodos = await calculoEstadoDocumental.CalcularPeorEstadoAsync(
-                AmbitoAplicacion.Trabajador, todos.Select(t => t.Id).ToList(), cancellationToken);
-
-            var conEstado = todos
-                .Select(t => t with { EstadoDocumental = estadosTodos.GetValueOrDefault(t.Id) })
-                .Where(t => EstadoDocumentalFiltro.Coincide(t.EstadoDocumental, request.EstadoDocumental));
-
-            var ordenadosEnMemoria = (request.Descendente
-                    ? conEstado.OrderByDescending(t => EstadoDocumentalFiltro.ClaveOrden(t.EstadoDocumental))
-                    : conEstado.OrderBy(t => EstadoDocumentalFiltro.ClaveOrden(t.EstadoDocumental)))
-                .ThenBy(t => t.Apellidos).ThenBy(t => t.Nombre).ThenBy(t => t.Id)
-                .ToList();
-
-            return new ResultadoPaginado<TrabajadorListaDto>(
-                ordenadosEnMemoria.Skip((request.Pagina - 1) * request.TamanoPagina).Take(request.TamanoPagina).ToList(),
-                ordenadosEnMemoria.Count,
-                request.Pagina,
-                request.TamanoPagina);
-        }
-
-        var total = await consulta.CountAsync(cancellationToken);
-
-        // Lista blanca de columnas ordenables — ver ObtenerClientesQuery.
+        // Lista blanca de columnas ordenables — ver ObtenerClientesQuery. Se
+        // aplica ANTES de saber si hace falta el estado completo, porque los
+        // dos caminos ordenan por lo mismo: el de abajo pagina en SQL sobre
+        // este orden, y el de arriba materializa ya ordenado y solo lo
+        // reordena si la columna pedida es el propio estado (que SQL no sabe
+        // calcular). Que el orden lo fije SQL en los dos casos es lo que evita
+        // que "Nombre" signifique una cosa con el filtro documental puesto y
+        // otra sin él: misma cláusula, misma intercalación de PostgreSQL.
         var ordenada = (request.OrdenarPor, request.Descendente) switch
         {
             (nameof(TrabajadorListaDto.Apellidos), true) => consulta.OrderByDescending(x => x.trabajador.Apellidos).ThenBy(x => x.trabajador.Nombre),
@@ -117,10 +87,53 @@ public class ObtenerTrabajadoresQueryHandler(IEmpresasQueryContext empresasConte
         // el orden que haya elegido el usuario.
         ordenada = ordenada.ThenBy(x => x.trabajador.Id);
 
-        var elementos = await ordenada
+        var proyeccion = ordenada.Select(x => new TrabajadorListaDto(
+            x.trabajador.Id, x.trabajador.Nombre, x.trabajador.Apellidos, x.trabajador.Dni, x.EmpleadorNombre));
+
+        // El estado documental se deriva de los Documentos, así que filtrar u
+        // ordenar por él exige conocerlo de todos los que pasan los filtros
+        // antes de paginar — mismo reparto en dos caminos que
+        // ObtenerCentrosQuery, y por el mismo motivo (el estado no está
+        // persistido, ver DATABASE.md).
+        var ordenaPorEstado = string.Equals(
+            request.OrdenarPor, nameof(TrabajadorListaDto.EstadoDocumental), StringComparison.Ordinal);
+        var necesitaEstadoCompleto = !string.IsNullOrWhiteSpace(request.EstadoDocumental) || ordenaPorEstado;
+
+        if (necesitaEstadoCompleto)
+        {
+            var todos = await proyeccion.ToListAsync(cancellationToken);
+            var estadosTodos = await calculoEstadoDocumental.CalcularPeorEstadoAsync(
+                AmbitoAplicacion.Trabajador, todos.Select(t => t.Id).ToList(), cancellationToken);
+
+            // Where preserva el orden de la secuencia, así que lo filtrado
+            // sigue en el orden que fijó SQL: no hay que reordenar salvo por
+            // la columna de estado, la única que SQL no pudo ordenar.
+            var conEstado = todos
+                .Select(t => t with { EstadoDocumental = estadosTodos.GetValueOrDefault(t.Id) })
+                .Where(t => EstadoDocumentalFiltro.Coincide(t.EstadoDocumental, request.EstadoDocumental))
+                .ToList();
+
+            if (ordenaPorEstado)
+            {
+                conEstado = (request.Descendente
+                        ? conEstado.OrderByDescending(t => EstadoDocumentalFiltro.ClaveOrden(t.EstadoDocumental))
+                        : conEstado.OrderBy(t => EstadoDocumentalFiltro.ClaveOrden(t.EstadoDocumental)))
+                    .ThenBy(t => t.Apellidos).ThenBy(t => t.Nombre).ThenBy(t => t.Id)
+                    .ToList();
+            }
+
+            return new ResultadoPaginado<TrabajadorListaDto>(
+                conEstado.Skip((request.Pagina - 1) * request.TamanoPagina).Take(request.TamanoPagina).ToList(),
+                conEstado.Count,
+                request.Pagina,
+                request.TamanoPagina);
+        }
+
+        var total = await consulta.CountAsync(cancellationToken);
+
+        var elementos = await proyeccion
             .Skip((request.Pagina - 1) * request.TamanoPagina)
             .Take(request.TamanoPagina)
-            .Select(x => new TrabajadorListaDto(x.trabajador.Id, x.trabajador.Nombre, x.trabajador.Apellidos, x.trabajador.Dni, x.EmpleadorNombre))
             .ToListAsync(cancellationToken);
 
         // Solo para los de la página: el badge de la tabla, no un filtro.
