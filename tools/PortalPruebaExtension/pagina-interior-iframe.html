@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<title>Widget interior (otro origen)</title>
+<style>
+  body { font-family: sans-serif; margin: 1rem; background: #fff7ed; }
+  .campo { border: 1px solid #f59e0b; padding: 0.75rem; border-radius: 6px; }
+</style>
+</head>
+<body>
+  <p style="font-size:0.85rem;color:#92400e">
+    Esta página se sirve por <code>127.0.0.1</code>, no por <code>localhost</code> — mismo
+    servidor y puerto que la página exterior, pero el navegador lo trata como un origen
+    distinto (host distinto). Simula un widget de subida de un proveedor externo embebido en
+    la plataforma CAE.
+  </p>
+  <div class="campo">
+    <label for="archivo">Certificado (widget de terceros)</label><br />
+    <input id="archivo" type="file" accept="application/pdf" />
+  </div>
+  <button id="btn-inyectar">Inyectar PDF de prueba</button>
+  <p id="salida"></p>
+  <script src="arnes-prueba.js"></script>
+  <script>conectarBotonInyectar("btn-inyectar", "salida");</script>
+</body>
+</html>
