@@ -627,7 +627,7 @@ jobs:
       - name: Umbral de cobertura del núcleo (ratchet)
         run: |
           cobertura=$(jq -r '.summary.linecoverage' coveragereport/Summary.json)
-          umbral="100.0"  # PROVISIONAL: se fija tras medir, en este mismo PR
+          umbral="64.8"  # núcleo: 65 % medido (run 34547527082) − 0,2
           echo "Cobertura de línea del NÚCLEO (Domain+Application+Infrastructure): ${cobertura}% — umbral ratchet: ${umbral}%"
           if ! python3 -c "import sys; sys.exit(0 if float('${cobertura}') >= float('${umbral}') else 1)"; then
             echo "::error::La cobertura de línea del núcleo (${cobertura}%) cayó por debajo del umbral ratchet (${umbral}%). Sube el umbral solo cuando la cobertura real mejore de forma sostenida — nunca lo bajes para que pase este PR."
@@ -638,7 +638,7 @@ jobs:
         if: always()
         run: |
           cobertura=$(jq -r '.summary.linecoverage' coveragereport-web/Summary.json)
-          umbral="100.0"  # PROVISIONAL: se fija tras medir, en este mismo PR
+          umbral="21.4"  # Web: 21,6 % medido (run 34547527082) − 0,2
           echo "Cobertura de línea de la WEB (bUnit sobre CaeManager.Web): ${cobertura}% — umbral ratchet: ${umbral}%"
           if ! python3 -c "import sys; sys.exit(0 if float('${cobertura}') >= float('${umbral}') else 1)"; then
             echo "::error::La cobertura de línea de la Web (${cobertura}%) cayó por debajo del umbral ratchet (${umbral}%). Sube el umbral solo cuando la cobertura real mejore de forma sostenida — nunca lo bajes para que pase este PR."
