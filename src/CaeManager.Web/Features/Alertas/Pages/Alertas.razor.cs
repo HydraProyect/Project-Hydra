@@ -183,7 +183,9 @@ public partial class Alertas : ComponentBase
     private static string? DescripcionSeveridad(EstadoDocumento estado) => estado switch
     {
         EstadoDocumento.Vencido => "El documento existe, pero su vigencia ya terminó.",
-        EstadoDocumento.Faltante => "Un centro al que está asignado lo tiene como obligatorio y no hay ningún documento de ese tipo.",
+        // Dos procedencias, como el párrafo de procedencia de Alertas.razor:
+        // la configuración del centro o, si no la hay, el valor general del tipo.
+        EstadoDocumento.Faltante => "Se pide en un centro al que está asignado —porque ese centro lo tiene configurado o, si el centro no dice nada, porque el tipo de documento se pide siempre— y no hay ningún documento de ese tipo.",
         EstadoDocumento.Urgente => "Vence dentro del umbral corto de aviso.",
         EstadoDocumento.Proximo => "Vence dentro del umbral largo de aviso: hay margen para anticiparse.",
         _ => null

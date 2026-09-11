@@ -27,13 +27,18 @@
     @* Procedencia (mockup Gen 2): la frase del mockup decía "derivada del
        vencimiento de cada documento", y eso es solo media verdad —
        ObtenerAlertasQuery suma un segundo bloque, "Falta", que no sale de
-       ningún vencimiento sino de lo que un Centro tiene configurado como
-       obligatorio (IDocumentosFaltantesService). Se nombran las dos fuentes.
-       "En cada carga" es literal: la query recalcula en vivo, no lee de una
-       tabla sincronizada. *@
+       ningún vencimiento sino de IDocumentosFaltantesService. Y ese bloque
+       tiene a su vez dos procedencias (ResolucionTipoDocumentoCentro.Aplica):
+       la fila TipoDocumentoCentro del centro si existe ("Incluido" en la ficha
+       del centro) y, si el centro no dice nada de ese tipo, el valor general
+       del tipo (Requerido == Si, «¿Se pide? Sí, siempre»). Atribuirlo solo al
+       centro mentía: sale «Falta» en centros que no han configurado nada.
+       Se dice «se pide», no «obligatorio»: la regla es de configuración, no
+       afirma ninguna norma. "En cada carga" es literal: la query recalcula en
+       vivo, no lee de una tabla sincronizada. *@
     <p class="alertas-procedencia">
         <span class="alertas-procedencia-punto" aria-hidden="true"></span>
-        Lista calculada en cada carga a partir del vencimiento de cada documento y de lo que los centros tienen configurado como obligatorio: nadie la escribe a mano.
+        Lista calculada en cada carga a partir del vencimiento de cada documento y de los documentos que se piden en cada centro: los que ese centro tiene configurados o, si el centro no dice nada de un tipo, los tipos de documento que se piden siempre. Nadie la escribe a mano.
     </p>
 
     @* DEC-4: /alertas no es una segunda cola de "qué hacer ahora" (A-02) —

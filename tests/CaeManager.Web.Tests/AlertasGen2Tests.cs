@@ -134,6 +134,39 @@ public class AlertasGen2Tests : BunitContext
     private static IElement CabeceraDeGrupo(IRenderedComponent<Features.Alertas.Pages.Alertas> cut, string titulo) =>
         cut.FindAll(".alertas-grupo-cabecera").Single(b => b.QuerySelector(".alertas-grupo-titulo")!.TextContent.Trim() == titulo);
 
+    // ---------------------------------------------------------------- Procedencia de «Falta»
+
+    /// <summary>
+    /// «Falta» sale de ResolucionTipoDocumentoCentro.Aplica: la fila del centro
+    /// si existe y, si no, el valor general del tipo (Requerido == Si). Un
+    /// texto que lo atribuye solo al centro miente en los centros que no han
+    /// configurado nada. Y es configuración, no norma: nada de «obligatorio».
+    /// </summary>
+    [Fact]
+    public void La_procedencia_nombra_la_configuracion_del_centro_y_el_valor_general_del_tipo()
+    {
+        var cut = RenderizarLista();
+
+        var procedencia = cut.Find(".alertas-procedencia").TextContent;
+        procedencia.Should().Contain("los que ese centro tiene configurados")
+            .And.Contain("si el centro no dice nada de un tipo, los tipos de documento que se piden siempre",
+                "sin fila del centro, manda el valor general del tipo de documento");
+        procedencia.Should().NotContain("lo que los centros tienen configurado como obligatorio",
+            "esa frase atribuía «Falta» solo al centro");
+        procedencia.Should().NotContainEquivalentOf("obligatori", "es configuración, no una obligación legal");
+    }
+
+    [Fact]
+    public void La_descripcion_del_bloque_Falta_nombra_las_dos_procedencias()
+    {
+        var cut = RenderizarLista(Alerta(EstadoDocumento.Faltante));
+
+        var meta = CabeceraDeGrupo(cut, "Falta").QuerySelector(".alertas-grupo-meta")!.TextContent;
+        meta.Should().Contain("porque ese centro lo tiene configurado")
+            .And.Contain("si el centro no dice nada, porque el tipo de documento se pide siempre");
+        meta.Should().NotContainEquivalentOf("obligatori", "es configuración, no una obligación legal");
+    }
+
     // ---------------------------------------------------------------- Agrupación
 
     [Fact]
