@@ -84,11 +84,11 @@
                    comprobada en el código, no copiada del mockup:
                    - El permiso de rastro exige rol Administrador MÁS la
                      reclamación propia (Program.cs, política de
-                     AccesosDocumentosSensibles), y lo concede un Administrador
-                     desde Usuarios (Usuarios.razor.cs). Cualquier
-                     Administrador, también sobre su propia cuenta: nada
-                     compara la cuenta editada con quien edita, así que aquí
-                     no se promete que tenga que ser «otro».
+                     AccesosDocumentosSensibles), y lo concede otro
+                     Administrador desde Usuarios (Usuarios.razor.cs) — nunca
+                     uno mismo: EsAutogestionDelPermisoSensible lo bloquea
+                     aunque la fila propia ya oculta el interruptor, y
+                     Dirección CAE no puede concederlo ni recibirlo.
                    - Las capacidades de plataforma son del plano 3: una sesión
                      privilegiada no lleva rol de negocio
                      (SesionPrivilegiadaSinRolDeNegocioMiddleware) y la
