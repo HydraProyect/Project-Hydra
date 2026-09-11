@@ -2,6 +2,10 @@ using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Auditoria.Queries;
 using CaeManager.Application.Common;
+using CaeManager.Application.Centros.Commands.RestaurarCentro;
+using CaeManager.Application.Clientes.Commands.RestaurarCliente;
+using CaeManager.Application.Documentos.Commands.RestaurarDocumento;
+using CaeManager.Application.Empresas.Commands.RestaurarEmpresa;
 using CaeManager.Application.Trabajadores.Commands.RestaurarTrabajador;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Identity;
@@ -266,7 +270,8 @@ public class AuditoriaPantallaTests : BunitContext
         cut.FindAll("table.tabla-datos thead th")[^1].TextContent.Should().Be("Acciones");
 
         var baja = FilaDe(cut, "Trabajador");
-        baja.QuerySelector(".detalle-baja-logica")!.TextContent.Should().Contain("eliminado lógicamente");
+        baja.QuerySelector(".detalle-baja-logica")!.TextContent.Should().Contain("baja lógica en este cambio",
+            "el rótulo describe el cambio registrado, no el estado actual de la entidad, que puede haberse restaurado");
         baja.QuerySelectorAll("button").Should().ContainSingle().Which.TextContent.Should().Contain("Restaurar");
 
         var conArchivo = FilaDe(cut, "Documento");
@@ -279,18 +284,73 @@ public class AuditoriaPantallaTests : BunitContext
         FilaDe(cut, "Cliente").QuerySelector(".detalle-baja-logica").Should().BeNull();
     }
 
-    [Fact]
-    public async Task Restaurar_envia_el_comando_de_su_entidad_y_recarga_la_lista()
+    /// <summary>
+    /// Las cinco entidades restaurables, cada una con SU comando: con una sola
+    /// fila de prueba, intercambiar dos ramas del <c>switch</c> quedaba en verde.
+    /// </summary>
+    [Theory]
+    [InlineData("Cliente")]
+    [InlineData("Empresa")]
+    [InlineData("Centro")]
+    [InlineData("Trabajador")]
+    [InlineData("Documento")]
+    public async Task Restaurar_envia_el_comando_de_su_entidad_y_recarga_la_lista(string entidad)
     {
-        var baja = Fila("Trabajador", "Modificado", puedeRestaurar: true);
+        var baja = Fila(entidad, "Modificado", puedeRestaurar: true);
         _mediador.Filas.Add(baja);
         var cut = Renderizar();
         _mediador.Consultas.Should().HaveCount(1);
 
         await Boton(cut, "Restaurar").ClickAsync(new MouseEventArgs());
 
-        _mediador.Comandos.Should().ContainSingle().Which.Should().Be(new RestaurarTrabajadorCommand(baja.EntidadId));
+        object esperado = entidad switch
+        {
+            "Cliente" => new RestaurarClienteCommand(baja.EntidadId),
+            "Empresa" => new RestaurarEmpresaCommand(baja.EntidadId),
+            "Centro" => new RestaurarCentroCommand(baja.EntidadId),
+            "Trabajador" => new RestaurarTrabajadorCommand(baja.EntidadId),
+            "Documento" => new RestaurarDocumentoCommand(baja.EntidadId),
+            _ => throw new ArgumentOutOfRangeException(nameof(entidad))
+        };
+        _mediador.Comandos.Should().ContainSingle().Which.Should().Be(esperado);
         _mediador.Consultas.Should().HaveCount(2, "tras restaurar se recarga la página vigente");
+    }
+
+    /// <summary>
+    /// Volver atrás en el navegador cambia la URL sin pasar por los manejadores
+    /// de la página. Antes solo se re-sincronizaba el filtro: el desplegable y
+    /// el enlace de exportar decían «Todas» mientras la tabla seguía enseñando
+    /// las filas de Documento.
+    /// </summary>
+    [Fact]
+    public async Task Volver_atras_a_otra_url_recarga_la_tabla_con_el_filtro_de_esa_url()
+    {
+        _mediador.Filas.AddRange([Fila("Documento", "Creado"), Fila("Trabajador", "Creado")]);
+        var cut = Renderizar(entidad: "Documento");
+        cut.FindAll("table.tabla-datos tbody tr").Should().ContainSingle("es el punto de partida: solo Documento");
+
+        await cut.InvokeAsync(() => Navegacion.NavigateTo("auditoria"));
+
+        cut.WaitForAssertion(() => cut.FindAll("table.tabla-datos tbody tr").Should().HaveCount(2,
+            "la tabla tiene que enseñar lo mismo que dicen la URL, el desplegable y el enlace de exportar"));
+        _mediador.Consultas[^1].EntidadTipo.Should().BeNull();
+        cut.Find("a.enlace-exportar").GetAttribute("href").Should().Be("/auditoria/exportar.xlsx");
+    }
+
+    /// <summary>
+    /// El otro lado del arreglo: un cambio que inicia la propia página ya lo
+    /// recarga su manejador (P1-18). Cuando la URL nueva vuelve a la página, el
+    /// filtro ya coincide y no puede salir una segunda consulta.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_el_filtro_desde_la_pagina_hace_una_sola_carga()
+    {
+        var cut = Renderizar();
+        _mediador.Consultas.Should().HaveCount(1, "la carga inicial es una sola");
+
+        await cut.Find("select").ChangeAsync(new ChangeEventArgs { Value = "Documento" });
+
+        _mediador.Consultas.Should().HaveCount(2, "el manejador recarga una vez y la URL que escribe no provoca otra");
     }
 
     [Fact]

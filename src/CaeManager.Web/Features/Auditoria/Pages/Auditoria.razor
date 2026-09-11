@@ -108,14 +108,15 @@
                                 "Eliminado" => TonoBadge.Peligro,
                                 _ => TonoBadge.Advertencia
                             })">@registro.Accion</Badge>
-                            @* PuedeRestaurar solo es cierto cuando el
-                               Modificado puso EstaEliminado a true en una de
-                               las cinco entidades restaurables: explica por
-                               qué una fila que dice «Modificado» ofrece
-                               «Restaurar». *@
+                            @* PuedeRestaurar es cierto cuando ESTE cambio puso
+                               EstaEliminado a true en una de las cinco
+                               entidades restaurables. Es un hecho del registro,
+                               no el estado actual de la entidad —que puede
+                               haberse restaurado después—, y por eso el rótulo
+                               habla del cambio y no de cómo está hoy. *@
                             @if (registro.PuedeRestaurar)
                             {
-                                <span class="detalle-baja-logica">↳ eliminado lógicamente</span>
+                                <span class="detalle-baja-logica">↳ baja lógica en este cambio</span>
                             }
                         </td>
                         <td><span class="@ClaseUsuario(registro.UsuarioId)">@NombreUsuario(registro.UsuarioId)</span></td>

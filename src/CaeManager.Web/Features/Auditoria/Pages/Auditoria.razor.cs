@@ -62,14 +62,28 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
 
     /// <summary>
     /// Re-sincroniza el filtro con la URL en navegaciones posteriores dentro
-    /// de la propia página (volver atrás, compartir la URL) — la recarga de
-    /// datos la sigue disparando explícitamente cada manejador de filtro, no
+    /// de la propia página (volver atrás o adelante, abrir una URL compartida).
+    ///
+    /// <para>
+    /// Los cambios que inicia la propia página los recarga su manejador, no
     /// este método, para no depender del timing del router (P1-18 de
-    /// docs/business/MATURITY_REVIEW.md).
+    /// docs/business/MATURITY_REVIEW.md): cuando llegan aquí, el filtro ya
+    /// coincide con la URL y no se hace nada. Solo recarga cuando la URL trae
+    /// un filtro DISTINTO del que enseña la página, que es lo que pasa al
+    /// volver atrás. Antes solo cambiaba el filtro: el desplegable y el enlace
+    /// de exportar pasaban a decir una cosa mientras la tabla seguía
+    /// enseñando las filas de otra consulta.
+    /// </para>
     /// </summary>
-    protected override void OnParametersSet()
+    protected override Task OnParametersSetAsync()
     {
-        _filtroEntidadTipo = string.IsNullOrWhiteSpace(EntidadTipoInicial) ? null : EntidadTipoInicial;
+        var filtroDeLaUrl = string.IsNullOrWhiteSpace(EntidadTipoInicial) ? null : EntidadTipoInicial;
+        if (filtroDeLaUrl == _filtroEntidadTipo)
+            return Task.CompletedTask;
+
+        _filtroEntidadTipo = filtroDeLaUrl;
+        _pagina = 1;
+        return CargarAsync();
     }
 
     /// <summary>
