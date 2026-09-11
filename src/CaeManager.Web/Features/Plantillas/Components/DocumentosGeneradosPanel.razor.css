@@ -88,3 +88,18 @@
 .aviso-generados-con-avisos ::deep .icono {
     flex: none;
 }
+
+/* Rótulo de la columna de acciones: lo leen los lectores de pantalla y no
+   ocupa sitio. No se reutiliza .solo-lectores de TiposDocumento: es CSS
+   aislado de aquel componente y el trinquete prohíbe usarlo desde otro. */
+.encabezado-acciones-generados {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}

@@ -61,7 +61,7 @@ else if (_documentosGenerados.Count == 0 && HayFiltrosActivos)
        generados»—: el filtrado es de servidor y la consulta devuelve solo el
        total ya filtrado, así que ese «sí hay» no se puede sostener. *@
     <EstadoVacio NombreIcono="filtro" Titulo="Ningún documento generado con este filtro"
-                 Descripcion="Ninguno corresponde a la plantilla ni al trabajador seleccionado.">
+                 Descripcion="@DescripcionVacioPorFiltro">
         <Accion>
             <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar los filtros</Boton>
         </Accion>
@@ -92,7 +92,9 @@ else
                     <th>Empresa</th>
                     <th>Generado el</th>
                     <th>Estado</th>
-                    <th></th>
+                    @* La columna de acciones se rotula para quien navega la tabla con
+                       lector de pantalla; a la vista sigue sin encabezado. *@
+                    <th><span class="encabezado-acciones-generados">Acciones</span></th>
                 </tr>
             </thead>
             <tbody>

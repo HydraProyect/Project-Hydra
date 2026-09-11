@@ -38,7 +38,9 @@ public class DocumentosGeneradosPanelVacioPorFiltroTests : BunitContext
     private static readonly Guid PlantillaId = Guid.Parse("55555555-5555-5555-5555-555555555555");
     private static readonly Guid OtraPlantillaId = Guid.Parse("66666666-6666-6666-6666-666666666666");
 
-    private sealed class MediatorQueFiltraDeVerdad(IReadOnlyList<DocumentoGeneradoListaDto> generados) : IMediator
+    private sealed class MediatorQueFiltraDeVerdad(
+        IReadOnlyList<DocumentoGeneradoListaDto> generados,
+        IReadOnlyList<TrabajadorSelectorDto>? trabajadores = null) : IMediator
     {
         public ObtenerDocumentosGeneradosQuery? UltimaConsulta { get; private set; }
 
@@ -50,7 +52,7 @@ public class DocumentosGeneradosPanelVacioPorFiltroTests : BunitContext
                     return Task.FromResult((TResponse)(object)(IReadOnlyList<PlantillaDocumentoListaDto>)[]);
 
                 case ObtenerTrabajadoresParaSelectorQuery:
-                    return Task.FromResult((TResponse)(object)(IReadOnlyList<TrabajadorSelectorDto>)[]);
+                    return Task.FromResult((TResponse)(object)(trabajadores ?? []));
 
                 case ObtenerDocumentosGeneradosQuery q:
                     UltimaConsulta = q;
@@ -93,18 +95,23 @@ public class DocumentosGeneradosPanelVacioPorFiltroTests : BunitContext
     /// en verde por el motivo equivocado: comparaban contra una plantilla
     /// distinta y salían vacíos igual. Solo cayó el que exigía ver la fila.
     /// </summary>
-    private static DocumentoGeneradoListaDto Generado(Guid plantillaId) => new(
+    private static DocumentoGeneradoListaDto Generado(Guid plantillaId, Guid? trabajadorId = null) => new(
         DocumentoGeneradoId: Guid.NewGuid(), DocumentoId: Guid.NewGuid(),
         PlantillaDocumentoId: plantillaId, PlantillaNombre: "Ficha de riesgos",
-        TrabajadorId: Guid.NewGuid(), TrabajadorNombreCompleto: "Juan Pérez",
+        TrabajadorId: trabajadorId ?? Guid.NewGuid(), TrabajadorNombreCompleto: "Juan Pérez",
         EmpresaId: null, EmpresaRazonSocial: null, GeneradoEnUtc: DateTime.UtcNow,
         Estado: EstadoDocumentoGenerado.Generado);
 
     private MediatorQueFiltraDeVerdad _mediator = null!;
 
-    private IRenderedComponent<DocumentosGeneradosPanel> Renderizar(params DocumentoGeneradoListaDto[] generados)
+    private IRenderedComponent<DocumentosGeneradosPanel> Renderizar(params DocumentoGeneradoListaDto[] generados) =>
+        RenderizarCon(null, generados);
+
+    /// <summary>Con trabajadores el segundo selector tiene opciones: sin ellas no se puede filtrar por trabajador desde la interfaz.</summary>
+    private IRenderedComponent<DocumentosGeneradosPanel> RenderizarCon(
+        IReadOnlyList<TrabajadorSelectorDto>? trabajadores, params DocumentoGeneradoListaDto[] generados)
     {
-        _mediator = new MediatorQueFiltraDeVerdad(generados);
+        _mediator = new MediatorQueFiltraDeVerdad(generados, trabajadores);
         Services.AddScoped<IMediator>(_ => _mediator);
         return Render<DocumentosGeneradosPanel>();
     }
@@ -116,6 +123,21 @@ public class DocumentosGeneradosPanelVacioPorFiltroTests : BunitContext
     /// </summary>
     private static void FiltrarPorPlantilla(IRenderedComponent<DocumentosGeneradosPanel> cut, Guid plantillaId)
         => cut.FindAll(".barra-filtros select")[0].Change(plantillaId.ToString());
+
+    private static void FiltrarPorTrabajador(IRenderedComponent<DocumentosGeneradosPanel> cut, Guid trabajadorId)
+        => cut.FindAll(".barra-filtros select")[1].Change(trabajadorId.ToString());
+
+    private static readonly Guid TrabajadorId = Guid.Parse("77777777-7777-7777-7777-777777777777");
+    private static readonly Guid OtroTrabajadorId = Guid.Parse("88888888-8888-8888-8888-888888888888");
+
+    private static readonly IReadOnlyList<TrabajadorSelectorDto> Trabajadores =
+    [
+        new(TrabajadorId, "Marta Ruiz", "12345678Z", null),
+        new(OtroTrabajadorId, "Juan Pérez", "87654321X", null)
+    ];
+
+    private static string DescripcionDelVacio(IRenderedComponent<DocumentosGeneradosPanel> cut)
+        => cut.Find(".estado-vacio").TextContent;
 
     [Fact]
     public void Filtrando_por_una_plantilla_sin_generados_no_se_dice_que_no_se_genero_nada()
@@ -181,5 +203,59 @@ public class DocumentosGeneradosPanelVacioPorFiltroTests : BunitContext
         cut.Markup.Should().NotContain("Ningún documento generado con este filtro");
         cut.Markup.Should().NotContain("Todavía no se ha generado ningún documento");
         cut.Find("table.tabla-datos").TextContent.Should().Contain("Ficha de riesgos");
+    }
+
+    /// <summary>
+    /// Revisión de Codex: la descripción daba por elegidos los dos filtros
+    /// («ni al trabajador seleccionado») aunque solo hubiera uno puesto.
+    /// </summary>
+    [Fact]
+    public void Con_solo_la_plantilla_filtrada_el_vacio_no_nombra_un_trabajador_que_nadie_eligio()
+    {
+        var cut = RenderizarCon(Trabajadores, Generado(OtraPlantillaId, OtroTrabajadorId));
+
+        FiltrarPorPlantilla(cut, PlantillaId);
+
+        DescripcionDelVacio(cut).Should().Contain("Ninguno corresponde a la plantilla seleccionada.")
+            .And.NotContain("trabajador", "no hay ningún trabajador elegido que pueda dejar fuera a nadie");
+    }
+
+    [Fact]
+    public void Con_solo_el_trabajador_filtrado_el_vacio_no_nombra_una_plantilla_que_nadie_eligio()
+    {
+        var cut = RenderizarCon(Trabajadores, Generado(PlantillaId, OtroTrabajadorId));
+
+        FiltrarPorTrabajador(cut, TrabajadorId);
+
+        DescripcionDelVacio(cut).Should().Contain("Ninguno corresponde al trabajador seleccionado.")
+            .And.NotContain("plantilla seleccionada");
+    }
+
+    [Fact]
+    public void Con_los_dos_filtros_puestos_el_vacio_nombra_los_dos()
+    {
+        var cut = RenderizarCon(Trabajadores, Generado(OtraPlantillaId, OtroTrabajadorId));
+
+        FiltrarPorPlantilla(cut, PlantillaId);
+        FiltrarPorTrabajador(cut, TrabajadorId);
+
+        DescripcionDelVacio(cut).Should().Contain("Ninguno corresponde a la plantilla ni al trabajador seleccionados.");
+    }
+
+    /// <summary>
+    /// Revisión de Codex: la columna de acciones no tenía encabezado, así que
+    /// quien recorre la tabla con lector de pantalla no sabía de qué columna
+    /// venían «Ver PDF» y «Gestionar». A la vista sigue sin rótulo.
+    /// </summary>
+    [Fact]
+    public void La_columna_de_acciones_se_rotula_para_los_lectores_de_pantalla()
+    {
+        var cut = Renderizar(Generado(PlantillaId));
+
+        var encabezados = cut.FindAll("table.tabla-datos thead th");
+        encabezados.Should().HaveCount(6);
+        encabezados[5].TextContent.Trim().Should().Be("Acciones");
+        encabezados[5].QuerySelector("span")!.ClassName.Should().Be("encabezado-acciones-generados",
+            "el rótulo se oculta a la vista con la clase del propio panel, no con una de otro componente");
     }
 }

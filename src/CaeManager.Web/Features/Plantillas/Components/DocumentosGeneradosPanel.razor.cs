@@ -149,6 +149,19 @@ public partial class DocumentosGeneradosPanel : ComponentBase, IDisposable
     private bool HayFiltrosActivos => _plantillaFiltro is not null || _trabajadorFiltro is not null;
 
     /// <summary>
+    /// Nombra solo los filtros puestos (revisión de Codex): decir «ni al
+    /// trabajador seleccionado» cuando nadie eligió trabajador da por elegido
+    /// algo que no lo está. Solo se pinta con al menos un filtro activo.
+    /// </summary>
+    private string DescripcionVacioPorFiltro => (_plantillaFiltro, _trabajadorFiltro) switch
+    {
+        (not null, not null) => "Ninguno corresponde a la plantilla ni al trabajador seleccionados.",
+        (not null, null) => "Ninguno corresponde a la plantilla seleccionada.",
+        (null, not null) => "Ninguno corresponde al trabajador seleccionado.",
+        _ => "Ninguno corresponde a los filtros puestos."
+    };
+
+    /// <summary>
     /// Quita los dos filtros en una sola recarga; encadenar los manejadores
     /// lanzaría dos consultas y la primera devolvería una lista que ya no se
     /// va a pintar. No vuelve a notificar <see cref="AvisosPendientesCambiado"/>:
