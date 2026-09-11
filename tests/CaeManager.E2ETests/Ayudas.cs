@@ -334,9 +334,9 @@ public static class Ayudas
                 // clic protegido, un re-render que se lleva el panel justo
                 // tras confirmarse aria-expanded (antes de que el propio
                 // AbrirMenuAccionesAsync termine de esperarlo) lanza su
-                // PlaywrightException sin pasar por ningún catch de este
-                // bucle, y ese fallo escapa de PulsarAccionDeMenuAsync entero
-                // sin agotar IntentosPulsarAccionDeMenu — el reintento de más
+                // TimeoutException sin pasar por ningún catch de este bucle, y
+                // ese fallo escapa de PulsarAccionDeMenuAsync entero sin
+                // agotar IntentosPulsarAccionDeMenu — el reintento de más
                 // arriba nunca llegaba a ejecutarse.
                 var panel = await AbrirMenuAccionesAsync(disparador);
                 var item = panel.GetByText(textoAccion, new LocatorGetByTextOptions { Exact = true });
@@ -349,8 +349,22 @@ public static class Ayudas
                 if (await EsperarMenuAccionesCerradoAsync(panel, TimeSpan.FromSeconds(5)))
                     return;
             }
-            catch (PlaywrightException)
+            catch (TimeoutException)
             {
+                // Microsoft.Playwright NO define su propio TimeoutException
+                // (confirmado por reflexión sobre el ensamblado: solo existe
+                // Microsoft.Playwright.PlaywrightException, que deriva de
+                // System.Exception) — WaitForAsync/ClickAsync con Timeout
+                // lanzan System.TimeoutException de verdad al agotar su
+                // reintento interno de actionability, así que ese es el tipo
+                // correcto a capturar aquí (mismo criterio que
+                // DescartarNotificacionesPendientesAsync, más arriba en este
+                // fichero). Un catch(PlaywrightException) NUNCA lo atrapa —
+                // medido en CI (PR #580, run 34640688258, cola de fusión):
+                // ese catch dejó escapar la excepción cruda 3 veces seguidas
+                // sin que el retry llegara a ejecutarse ni una vez, pese a
+                // estar bien posicionado dentro del try.
+                //
                 // El menú no llegó a abrirse de forma estable, o el ítem se
                 // desprendió (o nunca se estabilizó) a mitad del clic — un
                 // re-render se llevó el panel por delante. Se reabre desde
