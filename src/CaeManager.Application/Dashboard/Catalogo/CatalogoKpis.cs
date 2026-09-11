@@ -69,7 +69,7 @@ public static class CatalogoKpis
         new(SemaforoDocumental, "Semáforo documental", "Distribución de documentos por estado: Vigente/Próximo/Urgente/Vencido.", CategoriaKpi.Documental, TipoRenderKpi.GraficoDonut),
         new(TasaCumplimiento, "Tasa de cumplimiento documental", "Porcentaje de documentos en estado Vigente sobre el total con vigencia.", CategoriaKpi.Documental, TipoRenderKpi.TilePorcentajeConTono),
         new(PorcentajeCumplimientoDocumental, "% de cumplimiento documental (trabajadores)", "Documentos obligatorios de trabajador al día sobre el total requerido, agregado de todos los centros.", CategoriaKpi.Documental, TipoRenderKpi.TilePorcentajeConTono),
-        new(CentrosConMenorCumplimiento, "Centros con menor cumplimiento", "Centros con menor % de documentación obligatoria de trabajador al día (top 5).", CategoriaKpi.Documental, TipoRenderKpi.GraficoBarras),
+        new(CentrosConMenorCumplimiento, "Centros con menor cumplimiento", "Centros con menor % de documentación de trabajador que se pide y está al día (top 5).", CategoriaKpi.Documental, TipoRenderKpi.GraficoBarras),
         new(EmpresasConMasRiesgo, "Empresas con más riesgo", "Empresas con más documentos vencidos o urgentes de sus trabajadores (top 5).", CategoriaKpi.Documental, TipoRenderKpi.TablaRiesgo),
         new(IncidenciasAbiertas, "Incidencias abiertas", "Incidencias operativas sin resolver.", CategoriaKpi.Incidencias, TipoRenderKpi.TileNumerico),
         new(IncidenciasPorGravedad, "Incidencias por gravedad", "Distribución de incidencias por gravedad: Leve/Grave/MuyGrave.", CategoriaKpi.Incidencias, TipoRenderKpi.GraficoBarras),
