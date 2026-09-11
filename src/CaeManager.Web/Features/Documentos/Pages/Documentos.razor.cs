@@ -34,6 +34,21 @@ namespace CaeManager.Web.Features.Documentos.Pages;
 public partial class Documentos : ComponentBase
 {
     /// <summary>
+    /// Plataforma, Reclamaciones, Revisión IA y Plantillas son pestañas de
+    /// gestión interna (acreditaciones, reclamaciones, revisión y aplicación
+    /// de lecturas IA, generación de documentos desde plantilla) — todas
+    /// despachan Commands. La página en sí no restringe rol (Documentos
+    /// también es la superficie de lectura del rol Cliente, ver NavMenu.razor),
+    /// y Pestanas no autoriza por pestaña hoy, así que cada rama de contenido
+    /// se protege aquí para que el rol Cliente (y Consulta, que tampoco
+    /// escribe — ver AutorizacionEscrituraBehavior) no llegue ni a ver el
+    /// formulario, aunque el Command ya lo rechazaría igual.
+    /// </summary>
+    private const string RolesDeGestionDocumental =
+        $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae}," +
+        $"{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}";
+
+    /// <summary>
     /// Permite llegar aquí desde Alertas o Calendario con un documento
     /// concreto ya listo para gestionar (p. ej. "/documentos?documentoId=...")
     /// en vez de obligar a buscarlo manualmente en la lista.
