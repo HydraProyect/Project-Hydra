@@ -129,7 +129,10 @@
                     {
                         @if (_centrosConMenorCumplimiento.Count == 0)
                         {
-                            <p class="texto-vacio-seccion">Ningún centro tiene todavía documentación obligatoria de trabajador que evaluar.</p>
+                            @* "Obligatoria" implicaba una norma legal; es configuración
+                               (ResolucionTipoDocumentoCentro.Aplica, mismo criterio que Alertas.razor):
+                               la fila del centro o, si no dice nada, el valor general del tipo. *@
+                            <p class="texto-vacio-seccion">Ningún centro pide todavía documentación de trabajador que evaluar.</p>
                         }
                         else
                         {
