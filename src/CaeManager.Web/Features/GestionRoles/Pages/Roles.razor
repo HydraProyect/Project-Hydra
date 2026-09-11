@@ -28,15 +28,26 @@
     }
     else
     {
+        @* Patrón de pestañas WAI-ARIA, con el mismo idioma que <Pestanas>
+           del catálogo (ids por pestaña, tabindex móvil, flechas circulares,
+           Inicio y Fin) salvo en una cosa: aquí la activación es AUTOMÁTICA
+           —la tecla activa la pestaña además de moverle el foco—, porque
+           las dos pestañas se cargan juntas en CargarAsync y cambiar de una
+           a otra no dispara ninguna lectura. <Pestanas> activa a mano para
+           no cargar datos solo por hojear con el teclado. *@
         <div class="pestanas-roles" role="tablist" aria-label="Secciones de roles">
-            <button type="button" role="tab" id="pestana-roles-roles"
-                    aria-selected="@AriaSeleccionada("roles")" aria-controls="panel-roles"
-                    class="@ClasePestana("roles")" @onclick='() => CambiarPestana("roles")'>
+            <button type="button" role="tab" id="@IdPestana("roles")"
+                    aria-selected="@AriaSeleccionada("roles")" aria-controls="@IdPanel("roles")"
+                    tabindex="@TabIndex("roles")" @ref="_referenciasPestanas[0]"
+                    class="@ClasePestana("roles")" @onclick='() => CambiarPestana("roles")'
+                    @onkeydown='e => ManejarTeclaPestana(e, "roles")'>
                 Roles
             </button>
-            <button type="button" role="tab" id="pestana-roles-pendientes"
-                    aria-selected="@AriaSeleccionada("pendientes")" aria-controls="panel-roles"
-                    class="@ClasePestana("pendientes")" @onclick='() => CambiarPestana("pendientes")'>
+            <button type="button" role="tab" id="@IdPestana("pendientes")"
+                    aria-selected="@AriaSeleccionada("pendientes")" aria-controls="@IdPanel("pendientes")"
+                    tabindex="@TabIndex("pendientes")" @ref="_referenciasPestanas[1]"
+                    class="@ClasePestana("pendientes")" @onclick='() => CambiarPestana("pendientes")'
+                    @onkeydown='e => ManejarTeclaPestana(e, "pendientes")'>
                 Pendientes de asignar
                 @if (_usuariosPendientes.Count > 0)
                 {
@@ -45,8 +56,8 @@
             </button>
         </div>
 
-        <div role="tabpanel" id="panel-roles" class="panel-roles"
-             aria-labelledby="@(_pestanaActiva == "roles" ? "pestana-roles-roles" : "pestana-roles-pendientes")">
+        <div role="tabpanel" id="@IdPanel(_pestanaActiva)" class="panel-roles"
+             aria-labelledby="@IdPestana(_pestanaActiva)" tabindex="0">
             @if (_pestanaActiva == "roles")
             {
                 <p class="texto-descriptivo">
@@ -73,8 +84,11 @@
                    comprobada en el código, no copiada del mockup:
                    - El permiso de rastro exige rol Administrador MÁS la
                      reclamación propia (Program.cs, política de
-                     AccesosDocumentosSensibles), y solo otro Administrador lo
-                     concede, desde Usuarios (Usuarios.razor.cs).
+                     AccesosDocumentosSensibles), y lo concede un Administrador
+                     desde Usuarios (Usuarios.razor.cs). Cualquier
+                     Administrador, también sobre su propia cuenta: nada
+                     compara la cuenta editada con quien edita, así que aquí
+                     no se promete que tenga que ser «otro».
                    - Las capacidades de plataforma son del plano 3: una sesión
                      privilegiada no lleva rol de negocio
                      (SesionPrivilegiadaSinRolDeNegocioMiddleware) y la
@@ -86,9 +100,9 @@
                     <p class="otros-planos-titulo">El rol no es todo lo que puede hacer un usuario</p>
                     <p class="otros-planos-texto">
                         Hay dos planos de autoridad que no se gobiernan aquí. El permiso para consultar el
-                        rastro de acceso a documentos sensibles no lo trae ningún rol: se concede persona a
-                        persona, solo a cuentas con rol Administrador y solo por otro Administrador, desde
-                        <a href="/configuracion/usuarios">Usuarios</a>. Y las capacidades de plataforma de
+                        rastro de acceso a documentos sensibles no lo trae ningún rol: exige el rol
+                        Administrador más una concesión expresa, persona a persona, que hace un Administrador
+                        desde <a href="/configuracion/usuarios">Usuarios</a>. Y las capacidades de plataforma de
                         TALVEG —soporte de lectura, impersonación, break-glass y administración de
                         plataforma— no dependen de ningún rol de esta lista, tampoco de Administrador, ni se
                         conceden desde esta pantalla.

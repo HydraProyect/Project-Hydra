@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 
@@ -90,7 +91,50 @@ public partial class Roles : CaeManager.Web.Components.PaginaIntegrableConfigura
 
     // ── Pestañas ─────────────────────────────────────────────────────────
 
+    /// <summary>Orden visual de la tira: el que siguen las flechas, Inicio y Fin.</summary>
+    private static readonly string[] OrdenPestanas = ["roles", "pendientes"];
+
+    private readonly ElementReference[] _referenciasPestanas = new ElementReference[OrdenPestanas.Length];
+
+    // La pestaña a la que una tecla acaba de mover la selección y que aún no
+    // tiene el foco. El foco se da DESPUÉS del render, cuando la pestaña ya
+    // lleva tabindex="0": darlo antes lo pondría en un botón que el propio
+    // render está a punto de cambiar.
+    private string? _pestanaPorEnfocar;
+
     private void CambiarPestana(string pestana) => _pestanaActiva = pestana;
+
+    private void ManejarTeclaPestana(KeyboardEventArgs e, string pestanaActual)
+    {
+        var indiceActual = Array.IndexOf(OrdenPestanas, pestanaActual);
+        var destino = e.Key switch
+        {
+            "ArrowRight" => (indiceActual + 1) % OrdenPestanas.Length,
+            "ArrowLeft" => (indiceActual - 1 + OrdenPestanas.Length) % OrdenPestanas.Length,
+            "Home" => 0,
+            "End" => OrdenPestanas.Length - 1,
+            _ => -1
+        };
+
+        if (destino < 0) return;
+
+        CambiarPestana(OrdenPestanas[destino]);
+        _pestanaPorEnfocar = OrdenPestanas[destino];
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_pestanaPorEnfocar is not { } pestana) return;
+
+        _pestanaPorEnfocar = null;
+        await _referenciasPestanas[Array.IndexOf(OrdenPestanas, pestana)].FocusAsync();
+    }
+
+    private static string IdPestana(string pestana) => $"pestana-roles-{pestana}";
+
+    private static string IdPanel(string pestana) => $"panel-roles-{pestana}";
+
+    private string TabIndex(string pestana) => _pestanaActiva == pestana ? "0" : "-1";
 
     private string ClasePestana(string pestana) => _pestanaActiva == pestana ? "pestana-rol pestana-rol-activa" : "pestana-rol";
 

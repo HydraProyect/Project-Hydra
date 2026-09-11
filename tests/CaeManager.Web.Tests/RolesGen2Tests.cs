@@ -224,6 +224,21 @@ public class RolesGen2Tests : BunitContext
     private static IElement Pestana(IRenderedComponent<RolesControlados> cut, string id) =>
         cut.Find($"#pestana-roles-{id}");
 
+    /// <summary>
+    /// Las referencias que la página capturó con <c>@ref</c> para sus dos
+    /// pestañas, en el orden de la tira. bUnit 2.9 pinta el atributo
+    /// <c>blazor:elementreference</c> vacío, así que el marcado no permite
+    /// saber a qué botón apunta una llamada a <c>FocusAsync</c>: se lee el
+    /// campo privado de la página, que es exactamente lo que ella enfoca.
+    /// </summary>
+    private static ElementReference[] ReferenciasPestanas(IRenderedComponent<RolesControlados> cut)
+    {
+        var campo = typeof(Roles).GetField("_referenciasPestanas",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        campo.Should().NotBeNull("si el campo cambia de nombre, esta prueba tiene que enterarse, no pasar en falso");
+        return (ElementReference[])campo!.GetValue(cut.Instance)!;
+    }
+
     private static IElement BotonAsignar(IRenderedComponent<RolesControlados> cut, string nombre) =>
         cut.Find($"button[aria-label='Asignar rol a {nombre}']");
 
@@ -289,7 +304,12 @@ public class RolesGen2Tests : BunitContext
         // frases, no maquetación.
         var texto = System.Text.RegularExpressions.Regex.Replace(bloque.TextContent, @"\s+", " ");
         texto.Should().Contain("rastro de acceso a documentos sensibles");
-        texto.Should().Contain("solo a cuentas con rol Administrador y solo por otro Administrador");
+        texto.Should().Contain(
+            "exige el rol Administrador más una concesión expresa, persona a persona, que hace un Administrador desde Usuarios");
+        // Usuarios deja que un Administrador se conceda el permiso a sí mismo
+        // (nada compara la cuenta editada con quien edita): prometer que tiene
+        // que ser «otro» sería afirmar un control que el código no hace.
+        texto.Should().NotContain("otro Administrador");
         texto.Should().Contain("ni se conceden desde esta pantalla");
 
         bloque.QuerySelectorAll("a").Select(a => a.GetAttribute("href")).Should().Equal(
@@ -344,6 +364,77 @@ public class RolesGen2Tests : BunitContext
         cut.FindAll("tbody tr").Should().HaveCount(2);
         cut.FindAll(".celda-rol label").Select(l => l.TextContent.Trim()).Should().Equal(
             "Rol a asignar a Aitor Zabala", "Rol a asignar a Miren Echeverría");
+    }
+
+    [Fact]
+    public void Las_pestanas_forman_un_tablist_con_tabindex_movil_y_cada_una_controla_su_panel()
+    {
+        var cut = Renderizar();
+
+        cut.Find("[role=tablist]").QuerySelectorAll("[role=tab]").Select(t => t.Id).Should().Equal(
+            "pestana-roles-roles", "pestana-roles-pendientes");
+
+        Pestana(cut, "roles").GetAttribute("tabindex").Should().Be("0");
+        Pestana(cut, "pendientes").GetAttribute("tabindex").Should().Be("-1",
+            "solo la pestaña activa está en el orden de tabulación; a las demás se llega con las flechas");
+        Pestana(cut, "roles").GetAttribute("aria-controls").Should().Be("panel-roles-roles");
+        Pestana(cut, "pendientes").GetAttribute("aria-controls").Should().Be("panel-roles-pendientes");
+
+        var panel = cut.Find("[role=tabpanel]");
+        panel.Id.Should().Be("panel-roles-roles", "el panel es el que controla la pestaña activa");
+        panel.GetAttribute("aria-labelledby").Should().Be("pestana-roles-roles");
+    }
+
+    /// <summary>
+    /// Activación automática: la tecla activa la pestaña destino y le pasa el
+    /// tabindex. Con dos pestañas, la flecha derecha desde la última y la
+    /// izquierda desde la primera solo pueden probar la vuelta circular.
+    ///
+    /// <para>
+    /// Del foco solo se observa que la página LLAMA a <c>FocusAsync</c> con la
+    /// referencia del botón destino (bUnit registra la invocación). Que el
+    /// navegador mueva de verdad el foco no lo ve bUnit: eso sería un E2E.
+    /// </para>
+    /// </summary>
+    [Theory]
+    [InlineData("roles", "ArrowRight", "pendientes")]
+    [InlineData("pendientes", "ArrowRight", "roles")]
+    [InlineData("roles", "ArrowLeft", "pendientes")]
+    [InlineData("pendientes", "ArrowLeft", "roles")]
+    [InlineData("pendientes", "Home", "roles")]
+    [InlineData("roles", "End", "pendientes")]
+    public async Task Cada_tecla_activa_la_pestana_destino_y_le_pide_el_foco(string inicio, string tecla, string destino)
+    {
+        var cut = Renderizar();
+        if (inicio != "roles")
+            await Pestana(cut, inicio).ClickAsync(new MouseEventArgs());
+
+        await Pestana(cut, inicio).KeyDownAsync(new KeyboardEventArgs { Key = tecla });
+
+        var otra = destino == "roles" ? "pendientes" : "roles";
+        Pestana(cut, destino).GetAttribute("aria-selected").Should().Be("true", $"{tecla} desde «{inicio}» lleva a «{destino}»");
+        Pestana(cut, destino).GetAttribute("tabindex").Should().Be("0");
+        Pestana(cut, otra).GetAttribute("aria-selected").Should().Be("false");
+        Pestana(cut, otra).GetAttribute("tabindex").Should().Be("-1");
+        cut.Find("[role=tabpanel]").GetAttribute("aria-labelledby").Should().Be($"pestana-roles-{destino}");
+
+        var foco = JSInterop.VerifyFocusAsyncInvoke();
+        var referenciaDestino = ReferenciasPestanas(cut)[destino == "roles" ? 0 : 1];
+        referenciaDestino.Id.Should().NotBeNullOrEmpty("sin @ref capturado la comparación no distinguiría nada");
+        foco.Arguments[0].Should().BeOfType<ElementReference>()
+            .Which.Id.Should().Be(referenciaDestino.Id,
+                "el foco se pide para el botón de la pestaña destino, no para la de origen");
+    }
+
+    [Fact]
+    public async Task Una_tecla_ajena_al_patron_no_cambia_de_pestana_ni_mueve_el_foco()
+    {
+        var cut = Renderizar();
+
+        await Pestana(cut, "roles").KeyDownAsync(new KeyboardEventArgs { Key = "ArrowDown" });
+
+        Pestana(cut, "roles").GetAttribute("aria-selected").Should().Be("true");
+        JSInterop.Invocations.Should().BeEmpty("sin pestaña destino no hay foco que pedir");
     }
 
     /// <summary>
