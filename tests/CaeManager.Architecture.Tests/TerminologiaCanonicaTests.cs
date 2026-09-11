@@ -203,10 +203,18 @@ public class TerminologiaCanonicaTests
     /// propósito <b>Soporte</b>, un caso que ADR-011 § 2.7 no cubre— así que el
     /// neto es <b>−1</b>, no una tercera causa sin identificar.
     /// </para>
+    ///
+    /// <para>
+    /// <b>Subcontrata 360 Gen 2 (2026-09-11) baja <c>Hydra</c> de 55 a 54.</b>
+    /// <c>SubcontrataWorkspacePanel.razor</c> decía «Gestionada: su documentación se
+    /// sube y valida dentro de Hydra.»: una cadena, pero en <c>.razor</c>, donde
+    /// sigue el régimen viejo y sí contaba. Era su única aparición del término; el
+    /// texto pasa a «se sube y se valida aquí». Neto <b>−1</b>.
+    /// </para>
     /// </summary>
     private static readonly Dictionary<string, int> Congelado = new()
     {
-        ["Hydra"] = 55,
+        ["Hydra"] = 54,
         ["EjecutivoUsuarioId"] = 48,
         ["Delegacion"] = 290,
         ["ClienteActivo"] = 68,
