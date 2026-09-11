@@ -16,6 +16,14 @@ public record ObtenerAuditoriaIaQuery(
 /// "¿qué hizo la IA y quién lo confirmó?" (MACRO_PLAN § 6.6) — null cuando la
 /// lectura fue de mero triage previo a la creación del Documento, o cuando
 /// todavía no hay decisión (revisión pendiente).
+///
+/// <paramref name="VersionPipeline"/>/<paramref name="ModeloExacto"/>/
+/// <paramref name="RequestId"/>/<paramref name="ProveedoresInvocados"/> son la
+/// reproducibilidad de la extracción (ver el comentario de
+/// <see cref="AuditoriaExtraccionIa"/>): con qué versión de prompt/esquema, qué
+/// modelo exacto respondió, con qué identificador de correlación y qué
+/// proveedores se intentaron. <paramref name="UsuarioDecisionId"/> viaja como
+/// identificador — esta proyección no resuelve nombre de usuario.
 /// </summary>
 public record RegistroAuditoriaIaDto(
     Guid Id,
@@ -32,7 +40,11 @@ public record RegistroAuditoriaIaDto(
     Guid? DocumentoId,
     DecisionHumanaIa? DecisionHumana,
     Guid? UsuarioDecisionId,
-    DateTime? FechaDecisionUtc);
+    DateTime? FechaDecisionUtc,
+    string VersionPipeline,
+    string? ModeloExacto,
+    string? RequestId,
+    string? ProveedoresInvocados);
 
 public class ObtenerAuditoriaIaQueryHandler(IDocumentosIaQueryContext dbContext)
     : IRequestHandler<ObtenerAuditoriaIaQuery, ResultadoPaginado<RegistroAuditoriaIaDto>>
@@ -54,7 +66,8 @@ public class ObtenerAuditoriaIaQueryHandler(IDocumentosIaQueryContext dbContext)
                 a.Id, a.HashSha256, a.TipoEsperado, a.ProveedorCodigo,
                 a.TiempoProcesamientoMs, a.CosteEstimadoOcr, a.CosteEstimado,
                 a.NumeroPaginas, a.ConfianzaGeneral, a.Incidencias, a.CreadaEnUtc,
-                a.DocumentoId, a.DecisionHumana, a.UsuarioDecisionId, a.FechaDecisionUtc))
+                a.DocumentoId, a.DecisionHumana, a.UsuarioDecisionId, a.FechaDecisionUtc,
+                a.VersionPipeline, a.ModeloExacto, a.RequestId, a.ProveedoresInvocados))
             .ToListAsync(cancellationToken);
 
         return new ResultadoPaginado<RegistroAuditoriaIaDto>(elementos, total, request.Pagina, request.TamanoPagina);
