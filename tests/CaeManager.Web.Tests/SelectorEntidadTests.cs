@@ -130,6 +130,33 @@ public class SelectorEntidadTests : BunitContext
     }
 
     [Fact]
+    public async Task Las_flechas_relacionan_el_combobox_con_la_opcion_resaltada_y_cerrar_limpia_la_relacion()
+    {
+        var cut = Render<SelectorEntidad>(parametros => parametros
+            .Add(p => p.Opciones, TresClientes)
+            .Add(p => p.Valor, string.Empty));
+
+        await cut.Find("input").InputAsync("Iberia");
+        await cut.Find("input").KeyDownAsync(new KeyboardEventArgs { Key = "ArrowDown" });
+
+        var activaPrimera = cut.Find("input").GetAttribute("aria-activedescendant");
+        activaPrimera.Should().NotBeNullOrEmpty();
+        var opcionPrimera = cut.Find($"#{activaPrimera}");
+        opcionPrimera.GetAttribute("role").Should().Be("option");
+        opcionPrimera.GetAttribute("aria-selected").Should().Be("true");
+
+        await cut.Find("input").KeyDownAsync(new KeyboardEventArgs { Key = "ArrowDown" });
+
+        var activaSegunda = cut.Find("input").GetAttribute("aria-activedescendant");
+        activaSegunda.Should().NotBe(activaPrimera);
+        cut.Find($"#{activaSegunda}").GetAttribute("aria-selected").Should().Be("true");
+
+        await cut.Find("input").KeyDownAsync(new KeyboardEventArgs { Key = "Escape" });
+
+        cut.Find("input").GetAttribute("aria-activedescendant").Should().BeNull();
+    }
+
+    [Fact]
     public void Escape_cierra_la_lista_y_restaura_el_texto_del_valor_actual()
     {
         var cut = Render<SelectorEntidad>(parametros => parametros
