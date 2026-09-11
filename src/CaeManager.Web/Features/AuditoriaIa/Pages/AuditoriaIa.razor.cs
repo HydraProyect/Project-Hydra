@@ -153,6 +153,18 @@ public partial class AuditoriaIa : CaeManager.Web.Components.PaginaIntegrableCon
     private static string NombreProveedor(string proveedorCodigo) =>
         ProveedoresDelDesplegable.FirstOrDefault(p => p.Codigo == proveedorCodigo).Nombre ?? proveedorCodigo;
 
+    /// <summary>
+    /// <see cref="RegistroAuditoriaIaDto.ProveedoresInvocados"/> es una lista de
+    /// códigos separados por coma, en el orden en que se probaron para la
+    /// estructuración. Se traducen a nombre legible y se unen con «→» para no
+    /// perder ese orden — es justo lo que distingue "se llamó a Gemini porque
+    /// Anthropic falló" de "se llamó a Anthropic porque Gemini falló".
+    /// </summary>
+    private static string FormatearProveedoresInvocados(string? proveedoresInvocados) =>
+        string.IsNullOrWhiteSpace(proveedoresInvocados)
+            ? "—"
+            : string.Join(" → ", proveedoresInvocados.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(NombreProveedor));
+
     private static TonoBadge BadgeParaProveedor(string proveedorCodigo) => proveedorCodigo switch
     {
         "cache" => TonoBadge.Info,

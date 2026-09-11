@@ -139,11 +139,9 @@
                         </tr>
                         @if (abierto)
                         {
-                            @* Solo se monta al abrir. Enseña únicamente campos que
-                               RegistroAuditoriaIaDto ya trae: versión de pipeline,
-                               modelo exacto, id de petición y proveedores intentados
-                               están persistidos pero la consulta no los proyecta, y
-                               quién decidió solo viaja como identificador. *@
+                            @* Solo se monta al abrir. Quién decidió solo viaja como
+                               identificador (UsuarioDecisionId): esta pantalla no
+                               resuelve ni enseña un nombre de usuario. *@
                             <tr class="fila-detalle-auditoria-ia">
                                 <td colspan="11">
                                     <div class="detalle-auditoria-ia">
@@ -158,6 +156,32 @@
                                             <div class="detalle-auditoria-ia-dato">
                                                 <dt>Decisión registrada el</dt>
                                                 <dd>@(registro.FechaDecisionUtc is { } fechaDecision ? FormatearFecha(fechaDecision) : "—")</dd>
+                                            </div>
+                                            <div class="detalle-auditoria-ia-dato">
+                                                <dt>Versión de pipeline</dt>
+                                                <dd>@registro.VersionPipeline</dd>
+                                            </div>
+                                            <div class="detalle-auditoria-ia-dato">
+                                                <dt>Modelo exacto</dt>
+                                                <dd>@(registro.ModeloExacto ?? "—")</dd>
+                                            </div>
+                                            <div class="detalle-auditoria-ia-dato">
+                                                <dt>Identificador de petición</dt>
+                                                <dd>
+                                                    @if (registro.RequestId is { } requestId)
+                                                    {
+                                                        <span class="detalle-auditoria-ia-codigo" title="@requestId">@requestId</span>
+                                                        <BotonCopiar Valor="@requestId" Etiqueta="el identificador de petición" />
+                                                    }
+                                                    else
+                                                    {
+                                                        <span>—</span>
+                                                    }
+                                                </dd>
+                                            </div>
+                                            <div class="detalle-auditoria-ia-dato">
+                                                <dt>Proveedores intentados</dt>
+                                                <dd>@FormatearProveedoresInvocados(registro.ProveedoresInvocados)</dd>
                                             </div>
                                         </dl>
                                         <div class="detalle-auditoria-ia-pie">

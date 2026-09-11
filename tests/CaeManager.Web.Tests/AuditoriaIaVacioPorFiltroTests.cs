@@ -105,7 +105,8 @@ public class AuditoriaIaVacioPorFiltroTests : BunitContext
         var cut = Renderizar(proveedor: "anthropic", registros: new RegistroAuditoriaIaDto(
             Guid.NewGuid(), "abc123", "Certificado", "anthropic", 1200, null, 0.01m, 3, 92,
             Incidencias: null, DateTime.UtcNow, DocumentoId: null, DecisionHumana: null,
-            UsuarioDecisionId: null, FechaDecisionUtc: null));
+            UsuarioDecisionId: null, FechaDecisionUtc: null, VersionPipeline: "v1",
+            ModeloExacto: null, RequestId: null, ProveedoresInvocados: null));
 
         cut.Markup.Should().NotContain("Ningún registro con este filtro");
         cut.Markup.Should().NotContain("Sin registros de procesamiento IA");
