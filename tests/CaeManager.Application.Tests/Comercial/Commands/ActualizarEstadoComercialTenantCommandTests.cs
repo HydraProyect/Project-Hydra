@@ -17,6 +17,39 @@ public class ActualizarEstadoComercialTenantCommandTests
         return tenant;
     }
 
+    /// <summary>
+    /// Hallazgo Codex del 2026-09-11: a diferencia de RegistrarSuscripcionTenantCommand,
+    /// esta resincronización no excluía al tenant de plataforma — si por deriva de datos
+    /// tuviera un StripeSubscriptionId, el botón "Actualizar desde Stripe" le cambiaría el
+    /// estado comercial y con ello el gate de escrituras. Se comprueba ANTES que
+    /// SinSuscripcionVinculada a propósito: en el árbol sano nunca coexisten (el tenant de
+    /// plataforma nunca tiene StripeSubscriptionId), así que solo este orden demuestra que
+    /// la exclusión es real y no una coincidencia con la otra guarda.
+    /// </summary>
+    [Fact]
+    public async Task Bloquea_la_resincronizacion_del_tenant_de_plataforma_aunque_tenga_una_suscripcion_vinculada()
+    {
+        var plataforma = CrearTenantPlataforma();
+        plataforma.VincularSuscripcionStripe("cus_deriva", "sub_deriva", EstadoComercialTenant.Activa);
+        var dbContext = new TenantsQueryContextFalso();
+        dbContext.ListaTenants.Add(plataforma);
+
+        var paymentProvider = new PaymentProviderFalso(
+            CaeManager.Domain.Common.Result.Exito(new SuscripcionProveedorDto("sub_deriva", "cus_deriva", EstadoSuscripcionProveedor.Cancelada)));
+        var unitOfWork = new UnitOfWorkFalso();
+
+        var handler = new ActualizarEstadoComercialTenantCommandHandler(
+            dbContext, paymentProvider, AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), unitOfWork);
+
+        var resultado = await handler.Handle(new ActualizarEstadoComercialTenantCommand(plataforma.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Comercial.TenantPlataforma");
+        plataforma.EstadoComercial.Should().Be(EstadoComercialTenant.Activa);
+        paymentProvider.UltimoIdConsultado.Should().BeNull();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
     [Fact]
     public async Task Bloquea_si_el_tenant_todavia_no_tiene_ninguna_suscripcion_vinculada()
     {
