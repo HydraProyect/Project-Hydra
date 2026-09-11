@@ -156,13 +156,20 @@ else
     }
     else if (TrabajadoresAMostrar.Count == 0)
     {
-        <EstadoVacio Titulo="Todos al día" Descripcion="@($"Los {_trabajadores.Count} trabajadores de este centro tienen su documentación completa.")">
-            <Accion>
-                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="VerCentroCompleto">
-                    Ver los @_trabajadores.Count en Centro 360
-                </Boton>
-            </Accion>
-        </EstadoVacio>
+        @if (MostrarEnlacesCentro360)
+        {
+            <EstadoVacio Titulo="Todos al día" Descripcion="@($"Los {_trabajadores.Count} trabajadores de este centro tienen su documentación completa.")">
+                <Accion>
+                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="VerCentroCompleto">
+                        Ver los @_trabajadores.Count en Centro 360
+                    </Boton>
+                </Accion>
+            </EstadoVacio>
+        }
+        else
+        {
+            <EstadoVacio Titulo="Todos al día" Descripcion="@($"Los {_trabajadores.Count} trabajadores de este centro tienen su documentación completa.")" />
+        }
     }
     else
     {
@@ -400,9 +407,12 @@ else
         {
             <div class="nota-trabajadores-ocultos">
                 <span>@TrabajadoresOcultosAlDia @(TrabajadoresOcultosAlDia == 1 ? "trabajador al día no se muestra aquí" : "trabajadores al día no se muestran aquí")</span>
-                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace" OnClick="VerCentroCompleto">
-                    Ver Centro 360 →
-                </Boton>
+                @if (MostrarEnlacesCentro360)
+                {
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace" OnClick="VerCentroCompleto">
+                        Ver Centro 360 →
+                    </Boton>
+                }
             </div>
         }
     }
