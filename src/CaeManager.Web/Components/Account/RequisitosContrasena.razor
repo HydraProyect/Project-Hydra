@@ -1,0 +1,32 @@
+@using Microsoft.AspNetCore.Identity
+
+@* Requisitos de la contraseña nueva, en lista, bajo su campo. El servidor los
+   pinta con la política real y con el estado del valor que tenga (tras un envío
+   fallido); wwwroot/js/acceso-contrasena.js los va marcando mientras se escribe,
+   para no esperar al envío. Sin ese guion la lista sigue anunciando la política
+   y quien decide es el servidor al guardar.
+   El campo debe apuntar aquí con aria-describedby="{IdCampo}-requisitos".
+   Los estilos viven en AccesoLayout.razor.css: es la tarjeta de acceso. *@
+<ul class="acceso-requisitos" id="@IdLista(IdCampo)" data-requisitos-de="@IdCampo">
+    @foreach (var requisito in ReglasContrasena.Evaluar(Politica, Valor))
+    {
+        <li class="@(requisito.Cumplido ? "acceso-requisito-cumplido" : null)" data-regla="@requisito.Clave" data-minimo="@requisito.Minimo">
+            <span class="acceso-requisito-marca" aria-hidden="true"></span>
+            <span>@requisito.Etiqueta<span class="acceso-requisito-estado" data-requisito-estado>@(requisito.Cumplido ? ", cumplido" : ", pendiente")</span></span>
+        </li>
+    }
+</ul>
+@* Resumen para lector de pantalla: uno por pausa al escribir, no uno por tecla. *@
+<p class="acceso-requisitos-resumen" data-requisitos-resumen="@IdCampo" aria-live="polite"></p>
+
+@code {
+    /// <summary>Id del &lt;input&gt; de la contraseña nueva.</summary>
+    [Parameter, EditorRequired] public string IdCampo { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired] public PasswordOptions Politica { get; set; } = new();
+
+    /// <summary>Valor ya enviado, si lo hay, para pintar el estado inicial.</summary>
+    [Parameter] public string? Valor { get; set; }
+
+    public static string IdLista(string idCampo) => $"{idCampo}-requisitos";
+}

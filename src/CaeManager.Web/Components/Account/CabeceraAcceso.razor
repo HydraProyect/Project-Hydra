@@ -1,0 +1,25 @@
+@* Cabecera común de las pantallas de acceso (AccesoLayout): el lockup de marca
+   como título de la página, el lema y, si la pantalla lo necesita, su propio
+   título y una explicación. El lockup es el activo final vectorizado: no
+   depende de ninguna fuente. *@
+<h1 class="acceso-marca">
+    <img src="img/marca/talveg-lockup-oscuro.svg" alt="TALVEG" width="889" height="185" />
+</h1>
+<p class="acceso-lema">Coordinación de actividades empresariales</p>
+
+@if (Titulo is not null)
+{
+    <h2 class="acceso-titulo">@Titulo</h2>
+}
+
+@if (Explicacion is not null)
+{
+    <p class="acceso-explica">@Explicacion</p>
+}
+
+@code {
+    /// <summary>Título de la pantalla, bajo el lema. El login no lleva.</summary>
+    [Parameter] public string? Titulo { get; set; }
+
+    [Parameter] public string? Explicacion { get; set; }
+}

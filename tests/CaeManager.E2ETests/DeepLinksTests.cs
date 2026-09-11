@@ -73,8 +73,7 @@ public class DeepLinksTests(WebAppFixture fixture)
         // dado en esa ventana se pierde en silencio. AbrirMenuAccionesAsync
         // espera a aria-expanded antes de dar el menú por abierto — ver su
         // documentación en Ayudas.
-        var menuTrabajador = await Ayudas.AbrirMenuAccionesAsync(page.Locator(".menu-acciones-disparador"));
-        await menuTrabajador.GetByText("Editar", new LocatorGetByTextOptions { Exact = true }).ClickAsync();
+        await Ayudas.PulsarAccionDeMenuAsync(page.Locator(".menu-acciones-disparador"), "Editar");
         await page.Locator(".workspace-titulo-entidad").WaitForAsync();
         var tituloOriginal = (await page.Locator(".workspace-titulo-entidad").TextContentAsync())!.Trim();
 
@@ -162,8 +161,7 @@ public class DeepLinksTests(WebAppFixture fixture)
 
         // Documentos abre el panel desde el menú "⋯" de la fila (MenuAcciones),
         // no de un enlace directo como Trabajadores/Centros.
-        var menuDocumento = await Ayudas.AbrirMenuAccionesAsync(page.Locator(".menu-acciones-disparador").First);
-        await menuDocumento.GetByText("Ver", new LocatorGetByTextOptions { Exact = true }).ClickAsync();
+        await Ayudas.PulsarAccionDeMenuAsync(page.Locator(".menu-acciones-disparador").First, "Ver");
 
         await page.Locator(".workspace-titulo-entidad").WaitForAsync();
         var tituloOriginal = (await page.Locator(".workspace-titulo-entidad").TextContentAsync())!.Trim();

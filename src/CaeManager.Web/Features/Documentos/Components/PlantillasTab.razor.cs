@@ -1,5 +1,7 @@
 using CaeManager.Application.Plantillas.Commands.AgregarVersionPlantilla;
 using CaeManager.Application.Plantillas.Queries.ObtenerPlantillasDocumento;
+using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Plantillas;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using Microsoft.AspNetCore.Components;
@@ -7,14 +9,62 @@ using Microsoft.AspNetCore.Components.Forms;
 
 namespace CaeManager.Web.Features.Documentos.Components;
 
-public partial class PlantillasTab : ComponentBase
+public partial class PlantillasTab : ComponentBase, IDisposable
 {
     private const long TamanoMaximoArchivoBytes = 10 * 1024 * 1024;
+
+    /// <summary>
+    /// Qué es una plantilla. Lo pinta la propia pestaña cuando va embebida en
+    /// /documentos, y la cabecera Gen 2 de /plantillas como entradilla: un solo
+    /// texto para que las dos superficies no deriven.
+    /// </summary>
+    public const string TextoDescripcion =
+        "Formularios que entrega un centro (acceso, autorización, ficha de riesgos…) configurados una vez para "
+        + "rellenarse automáticamente con los datos ya conocidos de cada Trabajador o Empresa.";
 
     private IReadOnlyList<PlantillaDocumentoListaDto> _plantillas = [];
     private bool _cargando = true;
     private bool _errorCarga;
     private int _avisosPendientes;
+
+    /// <summary>
+    /// La página que monta la pestaña ya pinta la cabecera (título,
+    /// entradilla y «+ Nueva plantilla»): /plantillas lo hace con
+    /// <see cref="CabeceraPagina"/>. Embebida en /documentos no se pasa, y la
+    /// pestaña conserva su propia entradilla y su botón de alta.
+    /// </summary>
+    [Parameter] public bool CabeceraEnLaPagina { get; set; }
+
+    /// <summary>
+    /// Número de la última carga del catálogo. Se captura ANTES del
+    /// <c>await</c> y, al volver, solo se escribe estado si sigue siendo la
+    /// vigente y la pestaña sigue viva. Mismo patrón que Empresas.
+    /// </summary>
+    private int _cargaVigente;
+
+    /// <summary>
+    /// Se cancela al retirarse la pestaña (salir de la página o cambiar de
+    /// pestaña exterior en /documentos): la consulta en curso deja de trabajar
+    /// para nadie. Mismo patrón que DeteccionTrabajadores y Empresas.
+    /// </summary>
+    private readonly CancellationTokenSource _ciclo = new();
+    private bool _desechado;
+
+    /// <summary>Plantilla con el foco de teclado (atajos j/k, P3-31).</summary>
+    private Guid? _idEnfocado;
+
+    public void Dispose()
+    {
+        if (_desechado)
+            return;
+
+        _desechado = true;
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+    }
+
+    /// <summary>La respuesta es de la carga vigente y la pestaña sigue viva.</summary>
+    private bool EsVigente(int carga) => !_desechado && carga == _cargaVigente;
 
     /// <summary>
     /// Sub-pestaña que pide el padre (Catálogo/Generados) — ver
@@ -89,13 +139,27 @@ public partial class PlantillasTab : ComponentBase
 
     private async Task CargarAsync()
     {
+        if (_desechado)
+            return;
+
+        var carga = ++_cargaVigente;
         _cargando = true;
         _errorCarga = false;
         StateHasChanged();
 
         try
         {
-            _plantillas = await Mediator.Send(new ObtenerPlantillasDocumentoQuery());
+            var plantillas = await Mediator.Send(new ObtenerPlantillasDocumentoQuery(), _ciclo.Token);
+            if (!EsVigente(carga))
+                return;
+
+            _plantillas = plantillas;
+            _idEnfocado = null;
+        }
+        catch (Exception) when (!EsVigente(carga))
+        {
+            // Una carga superada (o cancelada al retirarse) que falla no es un
+            // error de la vigente: no puede tapar su resultado con el estado de error.
         }
         catch (Exception)
         {
@@ -103,7 +167,49 @@ public partial class PlantillasTab : ComponentBase
         }
         finally
         {
-            _cargando = false;
+            if (EsVigente(carga))
+                _cargando = false;
+        }
+    }
+
+    /// <summary>
+    /// Texto del estado de la última versión. Antes se pintaba el nombre del
+    /// enum tal cual, y una versión pendiente de revisión salía como
+    /// «PendienteRevision».
+    /// </summary>
+    private static string TextoEstado(EstadoConfiguracionPlantilla estado) => estado switch
+    {
+        EstadoConfiguracionPlantilla.Borrador => "Borrador",
+        EstadoConfiguracionPlantilla.PendienteRevision => "Pendiente de revisión",
+        EstadoConfiguracionPlantilla.Confirmada => "Confirmada",
+        _ => estado.ToString()
+    };
+
+    /// <summary>Mismos rótulos que SelectorLoteDocumental: el enum no lleva tildes.</summary>
+    private static string TextoAmbito(AmbitoAplicacion ambito) => ambito switch
+    {
+        AmbitoAplicacion.Vehiculo => "Vehículo",
+        _ => ambito.ToString()
+    };
+
+    private void ManejarAtajo(string tecla)
+    {
+        if (_plantillas.Count == 0) return;
+
+        var indiceActual = _idEnfocado is { } id ? _plantillas.ToList().FindIndex(p => p.Id == id) : -1;
+
+        switch (tecla)
+        {
+            case "j":
+                _idEnfocado = _plantillas[Math.Min(indiceActual + 1, _plantillas.Count - 1)].Id;
+                break;
+            case "k":
+                _idEnfocado = _plantillas[Math.Max(indiceActual - 1, 0)].Id;
+                break;
+            case "Enter":
+                if (indiceActual >= 0)
+                    IrAConfigurar(_plantillas[indiceActual].UltimaVersionId);
+                break;
         }
     }
 

@@ -1,8 +1,17 @@
-// Luz de agua de la pantalla de acceso (AccesoLayout). Traslada el artefacto
+// Luz de agua de la pantalla de acceso (AccesoLayout). Traslada 1:1 el artefacto
 // aprobado «Luz de agua»: luz difusa que cruza, cuatro capas con periodos primos
 // entre sí (7/11/17/26 s) para que el conjunto no repita un patrón reconocible,
 // todas avanzando en el mismo sentido — un río fluye hacia un lado; oscilar es
-// lo que hace el viento.
+// lo que hace el viento. Velocidad «Elegida» (×1) e intensidad «El río» (×1).
+//
+// 1:1 también en escala. El artefacto dibuja el río en un recuadro de 920×575
+// (16:10, el ancho útil de su página de 1000 px) con un desenfoque fijo de 7 px
+// y el lienzo a un cuarto de resolución. Dibujado a pantalla completa con esos
+// mismos 7 px y un cuarto de resolución, el agua salía más nítida, más densa y
+// con otra proporción que la elegida. Por eso aquí se dibuja SIEMPRE esa escena
+// de referencia —mismo lienzo de 258×161, mismo desenfoque, mismo velo— y se
+// amplía entera hasta cubrir la pantalla (--acceso-escala), recortando lo que
+// sobre, como una fotografía a sangre.
 //
 // Progresivo: sin JavaScript la pantalla se lee y funciona entera. El lienzo
 // queda vacío sobre el verde y el interruptor de movimiento nace con [hidden],
@@ -19,9 +28,10 @@
     // autenticarse, así que no hay usuario al que asociar la preferencia.
     var CLAVE = 'talveg.movimiento';
     var TAU = Math.PI * 2;
-    // Un sexto de resolución daba bordes visibles con esta velocidad; a un
-    // cuarto la suavidad sigue saliendo gratis del escalado.
     var DIV = 4;
+    // Recuadro del artefacto: min(1000, ancho) − 2 × 40 px de margen, 16:10.
+    var REF_ANCHO = 920;
+    var REF_ALTO = 575;
 
     var capas = [
         { y: .60, ciclos: 1.3, amp: .042, periodo: 7, grosor: .20, a: .085, fase: 0 },
@@ -50,6 +60,7 @@
 
         var e = {
             lienzo: lienzo,
+            referencia: document.querySelector('[data-acceso-referencia]'),
             x: lienzo.getContext('2d'),
             W: 0,
             H: 0,
@@ -65,6 +76,17 @@
         escena = e;
 
         medir(e);
+        // La escala sigue al contenedor, no solo a la ventana: la escena crece
+        // cuando aparece un error o la validación, y hay cambios de tamaño que
+        // no disparan «resize» (emulación de dispositivo, paneles).
+        if (window.ResizeObserver && e.referencia && e.referencia.parentElement) {
+            e.observador = new ResizeObserver(function () {
+                if (escena !== e) return;
+                medir(e);
+                if (!enMovimiento(e)) pintar(e, e.ultimo);
+            });
+            e.observador.observe(e.referencia.parentElement);
+        }
         if (e.boton) {
             e.boton.hidden = false;
             e.boton.addEventListener('click', function () { alternar(e); });
@@ -75,16 +97,30 @@
     function desmontar() {
         if (!escena) return;
         if (escena.raf !== null) cancelAnimationFrame(escena.raf);
+        if (escena.observador) escena.observador.disconnect();
         clearTimeout(escena.tAviso);
         escena = null;
     }
 
     function medir(e) {
+        // La escena de referencia se amplía hasta cubrir la de verdad.
+        var escala = 1;
+        if (e.referencia && e.referencia.parentElement) {
+            var contenedor = e.referencia.parentElement;
+            escala = Math.max(contenedor.clientWidth / REF_ANCHO, contenedor.clientHeight / REF_ALTO) || 1;
+            e.referencia.style.setProperty('--acceso-escala', String(escala));
+        }
+        // Tamaño del lienzo SIN la ampliación: el de la escena de referencia
+        // (112 % de 920×575), así su resolución es siempre la del artefacto.
         var r = e.lienzo.getBoundingClientRect();
-        e.W = Math.max(2, Math.ceil(r.width / DIV));
-        e.H = Math.max(2, Math.ceil(r.height / DIV));
-        e.lienzo.width = e.W;
-        e.lienzo.height = e.H;
+        var W = Math.max(2, Math.ceil(r.width / escala / DIV));
+        var H = Math.max(2, Math.ceil(r.height / escala / DIV));
+        if (W !== e.W || H !== e.H) {
+            e.W = W;
+            e.H = H;
+            e.lienzo.width = W;
+            e.lienzo.height = H;
+        }
     }
 
     function pintar(e, t) {

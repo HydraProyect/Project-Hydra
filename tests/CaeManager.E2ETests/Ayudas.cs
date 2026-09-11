@@ -255,6 +255,129 @@ public static class Ayudas
 
     private const int IntentosAbrirMenuAcciones = 4;
 
+    private const int IntentosPulsarAccionDeMenu = 3;
+
+    /// <summary>
+    /// Abre el menú "⋯" de <see cref="AbrirMenuAccionesAsync"/> y pulsa uno de
+    /// sus ítems por su texto, reabriendo el menú desde cero y reintentando si
+    /// el clic llega a un elemento que se desprende (o nunca se estabiliza) a
+    /// mitad de la acción.
+    ///
+    /// <para><b>El fallo que motiva este helper</b> (PR #574, run 34624659728,
+    /// job "Tests E2E (Playwright)", <c>FlujoCicloDocumentalTests…Renovar</c>):
+    /// "Timeout 30000ms exceeded […] waiting for element to be visible, enabled
+    /// and stable" sobre el <c>&lt;button role="menuitem"&gt;</c> de "Renovar",
+    /// con <see cref="AbrirMenuAccionesAsync"/> ya habiendo confirmado
+    /// <c>aria-expanded="true"</c> justo antes. O sea: el menú SÍ se abrió,
+    /// pero el ítem se desprendió entre que Playwright lo resolvió y el clic
+    /// llegó a ejecutarse — un re-render reconstruyó la fila (y con ella la
+    /// instancia de <c>MenuAcciones</c>/<c>ItemMenuAccion</c>, ver esos
+    /// archivos en Components/DesignSystem) con el panel todavía abierto.
+    /// </para>
+    ///
+    /// <para><b>Investigado el lado de producto antes de asumir que es solo
+    /// arnés</b> (regla de Diagnóstico de fallos): ni <c>MenuAcciones.razor</c>
+    /// ni <c>ItemMenuAccion.razor</c> traen temporizador ni suscripción propia
+    /// que provoque ese re-render — el candidato estaba en el consumidor. En
+    /// <c>Documentos.razor.cs</c>, <c>BuscarAsync</c> → <c>RecargarAsync</c> →
+    /// <c>_grid.RefreshDataAsync()</c> reconstruye la QuickGrid entera cada vez
+    /// que <c>CampoTexto</c> notifica <c>ValorChanged</c> — y
+    /// <c>CampoTexto.ManejarBlurAsync</c> (ver ese archivo) reinvoca
+    /// <c>ValorChanged</c> en CADA blur sin comprobar si el valor ya se había
+    /// notificado por el debounce (a diferencia de <c>ManejarCambioAsync</c>,
+    /// que sí evita notificar dos veces lo mismo): un defecto de producto real
+    /// y de alcance amplio (~45 pantallas usan <c>CampoTexto</c> como filtro de
+    /// lista), que se reporta por separado — no se parchea aquí.
+    /// </para>
+    ///
+    /// <para><b>Esa hipótesis concreta quedó refutada por mutación</b> (regla
+    /// de Validación del instrumento: "una mutación que pasa cuando predijiste
+    /// rojo es un hallazgo, no un contratiempo"): forzar exactamente ese
+    /// mecanismo —blur del buscador tras clicar "Más acciones", recarga
+    /// redundante de la rejilla a mitad del clic sobre "Renovar"— NO reprodujo
+    /// ningún fallo. QuickGrid renderiza sin <c>@key</c> por fila, y para el
+    /// MISMO conjunto de resultados (misma búsqueda) el árbol de render tiene
+    /// la misma forma en la misma posición, así que Blazor parchea la fila en
+    /// sitio en vez de destruir y recrear la instancia de <c>MenuAcciones</c>
+    /// — <c>_abierto</c> sobrevive intacto a la recarga redundante. Lo que SÍ
+    /// reproduce el fallo, medido por mutación: quitar el panel del DOM justo
+    /// cuando aparece (vía <c>MutationObserver</c> en el propio test, sin
+    /// tocar código de producto) — simula que un
+    /// re-render genuino se lleva por delante el panel recién abierto antes de
+    /// que el clic llegue, dejando <c>_abierto</c> desincronizado del cliente
+    /// (Menu?.Cerrar() del lado servidor, o cualquier mecanismo que fuerce una
+    /// instancia nueva del componente). Con <c>IntentosPulsarAccionDeMenu</c> a
+    /// 1 esto da rojo por "Timeout … waiting for … .menu-acciones-panel to be
+    /// visible" — mismo tipo de fallo por actionability que el de CI, aunque no
+    /// idéntico en el punto exacto—; con los 3 intentos de vuelta, verde. Esa
+    /// misma mutación destapó además un bug real en este propio helper (ver el
+    /// comentario en el cuerpo del método, más abajo) que ya está corregido.
+    /// </para>
+    ///
+    /// <para>Reabrir y reintentar es seguro: si el re-render cerró el panel,
+    /// <see cref="AbrirMenuAccionesAsync"/> lo reabre (y es idempotente si
+    /// seguía abierto); y el efecto que se comprueba al final no es "el clic
+    /// se entregó" sino que <c>ItemMenuAccion.EjecutarAsync</c> invocó
+    /// <c>OnClick</c> con éxito y cerró el menú — <c>Menu?.Cerrar()</c> corre
+    /// SOLO después de que el callback del servidor termine, así que el panel
+    /// desaparecido del DOM es la señal de que la acción se ejecutó de
+    /// verdad, no un simulacro de Playwright.</para>
+    /// </summary>
+    public static async Task PulsarAccionDeMenuAsync(ILocator disparador, string textoAccion)
+    {
+        for (var intento = 1; intento <= IntentosPulsarAccionDeMenu; intento++)
+        {
+            try
+            {
+                // AbrirMenuAccionesAsync va DENTRO del mismo try que el clic
+                // — no solo este último. Medido por mutación: con solo el
+                // clic protegido, un re-render que se lleva el panel justo
+                // tras confirmarse aria-expanded (antes de que el propio
+                // AbrirMenuAccionesAsync termine de esperarlo) lanza su
+                // PlaywrightException sin pasar por ningún catch de este
+                // bucle, y ese fallo escapa de PulsarAccionDeMenuAsync entero
+                // sin agotar IntentosPulsarAccionDeMenu — el reintento de más
+                // arriba nunca llegaba a ejecutarse.
+                var panel = await AbrirMenuAccionesAsync(disparador);
+                var item = panel.GetByText(textoAccion, new LocatorGetByTextOptions { Exact = true });
+                await item.ClickAsync(new LocatorClickOptions { Timeout = 10_000 });
+
+                // Menu?.Cerrar() en ItemMenuAccion.EjecutarAsync solo corre
+                // tras invocar OnClick con éxito — que el panel desaparezca
+                // del DOM es la única señal de que la acción llegó a
+                // ejecutarse de verdad, no solo que el clic se entregó.
+                if (await EsperarMenuAccionesCerradoAsync(panel, TimeSpan.FromSeconds(5)))
+                    return;
+            }
+            catch (PlaywrightException)
+            {
+                // El menú no llegó a abrirse de forma estable, o el ítem se
+                // desprendió (o nunca se estabilizó) a mitad del clic — un
+                // re-render se llevó el panel por delante. Se reabre desde
+                // cero en la siguiente vuelta en vez de reintentar sobre el
+                // mismo locator: tras un re-render el elemento ya resuelto no
+                // es fiable.
+            }
+        }
+
+        throw new TimeoutException(
+            $"La acción \"{textoAccion}\" del menú \"⋯\" no llegó a ejecutarse tras {IntentosPulsarAccionDeMenu} " +
+            "intentos: o el clic nunca llegó a entregarse de forma estable, o el panel nunca se cerró después " +
+            "(Menu?.Cerrar() no corrió, así que OnClick tampoco terminó con éxito).");
+    }
+
+    private static async Task<bool> EsperarMenuAccionesCerradoAsync(ILocator panel, TimeSpan limite)
+    {
+        var vencimiento = DateTime.UtcNow + limite;
+        while (DateTime.UtcNow < vencimiento)
+        {
+            if (await panel.CountAsync() == 0) return true;
+            await Task.Delay(100);
+        }
+
+        return false;
+    }
+
     private const int IntentosSeleccionarPestana = 4;
 
     /// <summary>

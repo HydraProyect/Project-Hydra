@@ -1,5 +1,5 @@
 @page "/cuenta/verificar-2fa"
-@layout CaeManager.Web.Components.Layout.AuthLayout
+@layout CaeManager.Web.Components.Layout.AccesoLayout
 @attribute [AllowAnonymous]
 @using System.ComponentModel.DataAnnotations
 @using CaeManager.Infrastructure.Identity
@@ -12,31 +12,37 @@
 
 <PageTitle>Verificación en dos pasos — @Marca.Nombre</PageTitle>
 
-<div class="tarjeta-login">
-    <h1>@Marca.Nombre</h1>
-    <p class="subtitulo-login">Introduce el código de tu aplicación autenticadora</p>
-
+<div class="acceso-tarjeta">
     @if (_bloqueado)
     {
-        <div class="alerta-login" role="alert">@MensajeBloqueo</div>
-        <a class="boton-primario" href="/cuenta/iniciar-sesion">Volver a iniciar sesión</a>
+        <CabeceraAcceso Titulo="Verificación en dos pasos" />
+        <div class="acceso-alerta" role="alert">@MensajeBloqueo</div>
+        <a class="acceso-entrar" href="/cuenta/iniciar-sesion">Volver a iniciar sesión</a>
     }
     else if (Entrada is not null && _usuarioPendiente is not null)
     {
-        <EditForm Model="Entrada" method="post" OnValidSubmit="VerificarAsync" FormName="verificar-2fa">
+        <CabeceraAcceso Titulo="Verificación en dos pasos" Explicacion="Introduce el código de tu aplicación autenticadora." />
+
+        <EditForm Model="Entrada" method="post" OnValidSubmit="VerificarAsync" FormName="verificar-2fa" novalidate>
             <DataAnnotationsValidator />
 
             @if (mensajeError is not null)
             {
-                <div class="alerta-login" role="alert">@mensajeError</div>
+                <div class="acceso-alerta" role="alert">@mensajeError</div>
             }
 
-            <label for="codigo">Código de 6 dígitos</label>
-            <InputText id="codigo" @bind-Value="Entrada.Codigo" autocomplete="one-time-code" inputmode="numeric" />
-            <ValidationMessage For="() => Entrada.Codigo" />
+            <div class="acceso-campo acceso-codigo">
+                <label for="codigo">Código de 6 dígitos</label>
+                <InputText id="codigo" @bind-Value="Entrada.Codigo" autocomplete="one-time-code" inputmode="numeric" />
+                <ValidationMessage For="() => Entrada.Codigo" />
+            </div>
 
-            <button type="submit" class="boton-primario">Verificar</button>
+            <button type="submit" class="acceso-entrar">Verificar</button>
         </EditForm>
+
+        @* Salida también sin bloqueo: quien se equivocó de cuenta o no tiene el
+           móvil a mano no debe quedarse atrapado en este paso. *@
+        <p class="acceso-olvido"><a href="/cuenta/iniciar-sesion">Volver a iniciar sesión</a></p>
     }
 </div>
 
