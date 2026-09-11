@@ -149,6 +149,37 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         && CultureInfo.InvariantCulture.CompareInfo.IndexOf(
             texto, termino, CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace) >= 0;
 
+    /// <summary>
+    /// DEC-36 (REC-099) dice "solo otro Administrador puede concederlo o
+    /// revocarlo" — no "solo otro puede concederlo" con la revocación propia
+    /// permitida. Un Administrador que se edita a sí mismo no puede cambiar
+    /// su propio <see cref="ApplicationUser.PermisoConsultarAccesoDocumentosSensibles"/>
+    /// en ninguna dirección, aunque técnicamente tenga el rol que la política
+    /// exige: el permiso existe justamente para que nadie se audite a sí
+    /// mismo sin que otro Administrador lo sepa, y permitir la autoconcesión
+    /// —o la autorrevocación silenciosa, que borra el rastro de quién lo
+    /// tenía— rompe esa separación de funciones por la vía más simple.
+    ///
+    /// <para>
+    /// Solo se compara mientras <paramref name="rolNuevo"/> sigue siendo
+    /// Administrador: si el rol cambia a otro distinto, el permiso se retira
+    /// como consecuencia automática de dejar de ser Administrador (ver
+    /// EditarUsuarioAsync), no como una revocación decidida por nadie —
+    /// bloquear eso impediría a un Administrador cambiar su propio rol.
+    /// </para>
+    ///
+    /// <para>
+    /// Público solo para poder probarlo sin montar el componente entero —
+    /// mismo motivo que <see cref="Contiene"/>.
+    /// </para>
+    /// </summary>
+    public static bool EsAutogestionDelPermisoSensible(
+        Guid idEditado, Guid? idActor, string rolNuevo, bool valorNuevo, bool valorActual) =>
+        idActor is not null
+        && idEditado == idActor.Value
+        && rolNuevo == Roles.Administrador
+        && valorNuevo != valorActual;
+
     private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(UsuariosFiltrados.Count / (double)_tamanoPagina));
     private IReadOnlyList<UsuarioListaDto> UsuariosDePagina => UsuariosFiltrados.Skip((_pagina - 1) * _tamanoPagina).Take(_tamanoPagina).ToList();
 
@@ -629,10 +660,10 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             return;
         }
 
-        var actualizado = await PuertaAccesoDatos.EjecutarAsync(async () =>
+        var resultado = await PuertaAccesoDatos.EjecutarAsync(async () =>
         {
             var usuario = await UserManager.FindByIdAsync(id.ToString());
-            if (usuario is null) return false;
+            if (usuario is null) return ResultadoEdicionUsuario.NoEncontrado;
 
             usuario.NombreCompleto = _nombreCompleto;
             usuario.CoordinadorUsuarioId = _rol == Roles.GestorCae && Guid.TryParse(_coordinadorUsuarioId, out var coordId) ? coordId : null;
@@ -644,7 +675,19 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             // concederlo ni revocarlo — el valor existente en base se
             // conserva tal cual si quien edita no es Administrador.
             if (_usuarioActualEsAdministrador)
-                usuario.PermisoConsultarAccesoDocumentosSensibles = _rol == Roles.Administrador && _permisoConsultarAccesoDocumentosSensibles;
+            {
+                var nuevoValorPermiso = _rol == Roles.Administrador && _permisoConsultarAccesoDocumentosSensibles;
+
+                // Autogestión (Codex, revisión 2026-09-11): ni siquiera un
+                // Administrador puede concederse o revocarse este permiso a
+                // sí mismo — ver EsAutogestionDelPermisoSensible. El UI ya
+                // oculta el interruptor en la propia fila; esto es lo que de
+                // verdad lo impide si esa defensa se saltara.
+                if (EsAutogestionDelPermisoSensible(id, _usuarioActualId, _rol, nuevoValorPermiso, usuario.PermisoConsultarAccesoDocumentosSensibles))
+                    return ResultadoEdicionUsuario.AutogestionPermisoSensibleRechazada;
+
+                usuario.PermisoConsultarAccesoDocumentosSensibles = nuevoValorPermiso;
+            }
 
             await UserManager.UpdateAsync(usuario);
 
@@ -655,12 +698,14 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                 await UserManager.AddToRoleAsync(usuario, _rol);
             }
 
-            return true;
+            return ResultadoEdicionUsuario.Actualizado;
         });
 
-        if (!actualizado)
+        if (resultado != ResultadoEdicionUsuario.Actualizado)
         {
-            _mensajeErrorFormulario = "No encontramos este usuario.";
+            _mensajeErrorFormulario = resultado == ResultadoEdicionUsuario.NoEncontrado
+                ? "No encontramos este usuario."
+                : "No puedes conceder ni revocar tu propio permiso de rastro de acceso a documentos sensibles. Pide a otro Administrador que lo cambie.";
             return;
         }
 
@@ -668,6 +713,8 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         _drawerVisible = false;
         await CargarAsync();
     }
+
+    private enum ResultadoEdicionUsuario { Actualizado, NoEncontrado, AutogestionPermisoSensibleRechazada }
 
     private async Task CambiarActivacionAsync(UsuarioListaDto usuarioLista)
     {
