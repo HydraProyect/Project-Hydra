@@ -1,48 +1,54 @@
 @page "/cuenta/olvide-contrasena"
-@layout CaeManager.Web.Components.Layout.AuthLayout
+@layout CaeManager.Web.Components.Layout.AccesoLayout
 @attribute [AllowAnonymous]
 @using System.ComponentModel.DataAnnotations
 @using Microsoft.AspNetCore.Authorization
 
-<PageTitle>¿Olvidaste tu contraseña? — @Marca.Nombre</PageTitle>
+<PageTitle>¿Has olvidado la contraseña? — @Marca.Nombre</PageTitle>
 
-<div class="tarjeta-login">
-    <h1>@Marca.Nombre</h1>
-
+@* Mismo texto que el enlace del login («¿Has olvidado la contraseña?»): antes la
+   pantalla decía «¿Olvidaste tu contraseña?» y el enlace que lleva a ella otra cosa. *@
+<div class="acceso-tarjeta">
     @if (!_enviado)
     {
-        <p class="subtitulo-login">¿Olvidaste tu contraseña?</p>
-        <p class="texto-explicativo-login">
-            Escribe la dirección con la que entras a @Marca.Nombre y te enviaremos un enlace para restablecerla.
-        </p>
+        <CabeceraAcceso Titulo="¿Has olvidado la contraseña?" Explicacion="@ExplicacionFormulario" />
 
         @if (Entrada is not null)
         {
-            <EditForm Model="Entrada" method="post" OnValidSubmit="EnviarAsync" FormName="olvide-contrasena">
+            <EditForm Model="Entrada" method="post" OnValidSubmit="EnviarAsync" FormName="olvide-contrasena" novalidate>
                 <DataAnnotationsValidator />
 
-                <label for="email">Correo electrónico</label>
-                <InputText id="email" @bind-Value="Entrada.Email" type="email" placeholder="nombre@consultora.es" autocomplete="username" />
-                <ValidationMessage For="() => Entrada.Email" />
+                <div class="acceso-campo">
+                    <label for="email">Correo electrónico</label>
+                    <InputText id="email" @bind-Value="Entrada.Email" type="email" placeholder="nombre@consultora.es" autocomplete="username" />
+                    <ValidationMessage For="() => Entrada.Email" />
+                </div>
 
-                <button type="submit" class="boton-primario" disabled="@_enviando">@(_enviando ? "Enviando…" : "Enviarme el enlace")</button>
+                <button type="submit" class="acceso-entrar" disabled="@_enviando">@(_enviando ? "Enviando…" : "Enviarme el enlace")</button>
             </EditForm>
         }
     }
     else
     {
-        <div class="confirmacion-envio-login">
-            <span class="icono-exito-login" aria-hidden="true"><Icono Nombre="check" Tamano="TamanoIcono.Grande" /></span>
-            <p class="subtitulo-login">Revisa tu correo</p>
-            <p class="texto-explicativo-login">
-                Si la dirección existe, recibirás un enlace en unos minutos. El enlace caduca en @MinutosCaducidad minutos.
-            </p>
-            <p class="texto-reenvio-login">
+        <CabeceraAcceso />
+        <span class="acceso-exito" aria-hidden="true"><Icono Nombre="check" Tamano="TamanoIcono.Grande" /></span>
+        <h2 class="acceso-titulo">Revisa tu correo</h2>
+        <p class="acceso-explica">
+            Si la dirección existe, recibirás un enlace en unos minutos. El enlace caduca en @MinutosCaducidad minutos.
+        </p>
+
+        @* El reenvío es un segundo envío del mismo formulario, con el correo en un
+           campo oculto. Antes era un botón con @onclick, y esta página es SSR
+           estática: sin circuito, ese clic no ejecutaba nada. *@
+        @if (Entrada is not null)
+        {
+            <EditForm Model="Entrada" method="post" OnValidSubmit="EnviarAsync" FormName="olvide-contrasena" class="acceso-reenvio">
+                <InputText type="hidden" @bind-Value="Entrada.Email" />
                 ¿No llega nada? Revisa la carpeta de spam o
-                <button type="button" class="enlace-boton-login" @onclick="EnviarAsync" disabled="@_enviando">vuelve a enviarlo</button>.
-            </p>
-        </div>
+                <button type="submit" class="acceso-enlace-boton">vuelve a enviarlo</button>.
+            </EditForm>
+        }
     }
 
-    <a class="enlace-volver-login" href="/cuenta/iniciar-sesion">Volver a iniciar sesión</a>
+    <p class="acceso-olvido"><a href="/cuenta/iniciar-sesion">Volver a iniciar sesión</a></p>
 </div>

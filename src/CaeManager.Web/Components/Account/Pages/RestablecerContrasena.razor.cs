@@ -11,8 +11,6 @@ namespace CaeManager.Web.Components.Account.Pages;
 
 public partial class RestablecerContrasena : ComponentBase
 {
-    private sealed record Requisito(string Etiqueta, bool Cumplido);
-
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private SignInManager<ApplicationUser> SignInManager { get; set; } = default!;
     [Inject] private IOptions<IdentityOptions> OpcionesIdentity { get; set; } = default!;
@@ -35,10 +33,8 @@ public partial class RestablecerContrasena : ComponentBase
     private bool _completado;
     private bool _guardando;
     private string? _mensajeError;
-    private IReadOnlyList<Requisito> _requisitos = [];
 
-    private bool _mostrarDesajuste => Entrada is not null && Entrada.ConfirmarContrasenaNueva.Length > 0
-        && Entrada.ContrasenaNueva != Entrada.ConfirmarContrasenaNueva;
+    private string? ExplicacionCuenta => _correoCuenta is null ? null : $"Para la cuenta {_correoCuenta}.";
 
     // Aquí vivía PuedeGuardar, que gobernaba el disabled del botón. Retirado
     // en vez de dejarlo sin uso: era una barrera que NUNCA llegaba a
@@ -50,13 +46,14 @@ public partial class RestablecerContrasena : ComponentBase
     // Lo que sí comprobaba —que las dos contraseñas coincidan— está ahora en
     // GuardarAsync, que es donde corre de verdad. Y la política la sigue
     // aplicando ResetPasswordAsync, que devuelve sus errores al usuario.
+    //
+    // Los requisitos se anuncian con RequisitosContrasena, que los marca en
+    // vivo desde el navegador; la coincidencia también se anuncia en vivo.
 
     protected override void OnInitialized() => Entrada ??= new DatosEntrada();
 
     protected override async Task OnInitializedAsync()
     {
-        ActualizarRequisitos();
-
         if (string.IsNullOrWhiteSpace(UserId) || string.IsNullOrWhiteSpace(Code))
         {
             _enlaceInvalido = true;
@@ -81,25 +78,6 @@ public partial class RestablecerContrasena : ComponentBase
         }
 
         _correoCuenta = _usuario.Email;
-    }
-
-    private void ActualizarRequisitos()
-    {
-        var politica = OpcionesIdentity.Value.Password;
-        var p = Entrada?.ContrasenaNueva ?? string.Empty;
-
-        var requisitos = new List<Requisito> { new($"Al menos {politica.RequiredLength} caracteres", p.Length >= politica.RequiredLength) };
-
-        if (politica.RequireUppercase)
-            requisitos.Add(new("Una mayúscula", p.Any(char.IsUpper)));
-        if (politica.RequireLowercase)
-            requisitos.Add(new("Una minúscula", p.Any(char.IsLower)));
-        if (politica.RequireDigit)
-            requisitos.Add(new("Un número", p.Any(char.IsDigit)));
-        if (politica.RequireNonAlphanumeric)
-            requisitos.Add(new("Un símbolo", p.Any(c => !char.IsLetterOrDigit(c))));
-
-        _requisitos = requisitos;
     }
 
     private async Task GuardarAsync()

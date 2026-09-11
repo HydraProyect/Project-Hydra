@@ -24,6 +24,9 @@ public partial class OlvideContrasena : ComponentBase
     private bool _enviando;
     private bool _enviado;
 
+    private static string ExplicacionFormulario =>
+        $"Escribe la dirección con la que entras a {Marca.Nombre} y te enviaremos un enlace para restablecerla.";
+
     protected override void OnInitialized() => Entrada ??= new DatosEntrada();
 
     /// <summary>
