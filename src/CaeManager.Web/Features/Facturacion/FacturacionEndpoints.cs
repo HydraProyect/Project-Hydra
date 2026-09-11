@@ -44,10 +44,18 @@ public static class FacturacionEndpoints
                 fila++;
             }
 
-            hoja.Cell(fila, 1).Value = "Total estimado";
-            hoja.Cell(fila, 1).Style.Font.Bold = true;
-            hoja.Cell(fila, 4).Value = resumen.TotalEstimado;
-            hoja.Cell(fila, 4).Style.Font.Bold = true;
+            // Una fila de total por moneda: sumar subtotales de monedas distintas
+            // en una sola cifra (100 EUR + 50 USD = "150") no significa nada.
+            foreach (var total in resumen.TotalesPorMoneda)
+            {
+                hoja.Cell(fila, 1).Value = resumen.TotalesPorMoneda.Count == 1
+                    ? "Total estimado"
+                    : $"Total estimado en {total.MonedaIso}";
+                hoja.Cell(fila, 1).Style.Font.Bold = true;
+                hoja.Cell(fila, 4).Value = total.Total;
+                hoja.Cell(fila, 4).Style.Font.Bold = true;
+                fila++;
+            }
 
             hoja.Columns().AdjustToContents();
 
