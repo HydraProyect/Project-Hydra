@@ -57,7 +57,20 @@ public static class IncidenciasEndpoints
                 stream,
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 "incidencias.xlsx");
-        });
+        })
+        // Mismos roles que /incidencias (Incidencias.razor), que excluye Cliente
+        // — mismo patrón que /clientes/exportar.xlsx. Sin esto, restringir la
+        // página dejaba este endpoint como vía de bypass para descargar el
+        // Excel completo de incidencias del tenant con cualquier rol
+        // autenticado, Cliente incluido. ObtenerIncidenciasQuery ya aplica
+        // IAlcanceDatosService, así que un GestorCae exporta su propia
+        // cartera, no la de todos.
+        .RequireAuthorization(policy => policy.RequireRole(
+            CaeManager.Infrastructure.Identity.Roles.Administrador,
+            CaeManager.Infrastructure.Identity.Roles.DireccionCae,
+            CaeManager.Infrastructure.Identity.Roles.CoordinadorCae,
+            CaeManager.Infrastructure.Identity.Roles.GestorCae,
+            CaeManager.Infrastructure.Identity.Roles.Consulta));
 
         return endpoints;
     }
