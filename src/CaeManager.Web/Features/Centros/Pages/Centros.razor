@@ -24,9 +24,9 @@
 <PageTitle>Centros — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <div class="cabecera-pagina">
-        <h1 class="titulo-pagina">Centros</h1>
-    </div>
+    @* Cabecera Gen 2 (Lista Centros TALVEG.dc.html): el mockup no lleva
+       kicker ni entradilla, solo el h1. *@
+    <CabeceraPagina Titulo="Centros" />
 
     @*
         Toolbar de Centros (contrato de fidelidad 2026-08-09 § 1.4): una sola
@@ -280,13 +280,31 @@
                         @* Igual que antes con SeccionColapsable: el contenido solo se
                            monta al expandir, no se paga el render de 34 acordeones. *@
                         <div class="tarjeta-fila-acordeon-contenido">
+                            @* El título es verdadero por construcción: el
+                               acordeón se monta aquí con SoloIncidencias. *@
+                            <p class="acordeon-centro-titulo">Asignaciones con incidencias</p>
                             <AcordeonAsignacionesCentro CentroId="centro.Id" CentroNombre="@centro.Nombre"
                                                           VisitaId="visita?.VisitaId" VisitaFechaFin="visita?.FechaFin"
                                                           EmpresaId="centro.EmpresaId" EmpresaNombre="@centro.EmpresaRazonSocial"
                                                           IncidenciasEmpresa="IncidenciasDeEmpresa(centro)"
                                                           SeleccionMultiple="_seleccionMultiple"
                                                           SoloIncidencias="true"
+                                                          MostrarEnlacesCentro360="false"
                                                           OnCambio="() => RefrescarCentroAsync(centro.Id)" />
+                            @* Camino a Centro 360 ÚNICO y SIEMPRE presente (Lista
+                               Centros TALVEG.dc.html). Los enlaces que el acordeón
+                               pinta por su cuenta son condicionales —solo con
+                               trabajadores al día ocultos o con el estado «Todos
+                               al día»—, así que un centro con pendientes y sin
+                               ocultos no ofrecía camino alguno a /centros/{id}; y
+                               cuando sí aparecían, se sumaban a este y la fila
+                               ofrecía dos caminos al mismo destino. Por eso aquí
+                               se apagan (MostrarEnlacesCentro360="false") y el
+                               camino vive solo en la página: el acordeón también
+                               lo monta CentroDetalle, donde apuntaría a sí mismo. *@
+                            <div class="acordeon-centro-pie">
+                                <a class="acordeon-centro-enlace-360" href="@($"/centros/{centro.Id}")">Ver el centro completo →</a>
+                            </div>
                         </div>
                     }
                 </div>

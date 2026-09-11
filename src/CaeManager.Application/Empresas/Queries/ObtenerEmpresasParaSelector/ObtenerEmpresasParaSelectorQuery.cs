@@ -8,14 +8,27 @@ namespace CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 /// <summary>
 /// Lista ligera para poblar selectores. Con ClienteId, se restringe a las
 /// Empresas ya asociadas a ese Cliente (p. ej. al elegir la Empresa de un
-/// Centro nuevo) — sin ClienteId, devuelve todas (p. ej. al dar de alta un
-/// Trabajador, donde la Empresa no depende de ningún Cliente concreto).
+/// Centro nuevo) — sin ClienteId, devuelve todas las que el usuario alcanza
+/// a gestionar (p. ej. al dar de alta un Trabajador, donde la Empresa no
+/// depende de ningún Cliente concreto).
+///
+/// A diferencia de los selectores de Subcontrata/Trabajador/Vehículo (que sí
+/// muestran el catálogo global a propósito, para reutilizar un registro ya
+/// existente sin duplicarlo), Empresa es aquí la entidad "contratista propia"
+/// cuya cartera debe respetarse — igual que <c>ObtenerClientesParaSelectorQuery</c>
+/// con Cliente, del que Empresa es la raíz simétrica (Cliente = quien exige
+/// la documentación, Empresa propia = quien la aporta). Todos los
+/// consumidores actuales (alta/edición de Vehículo, Trabajador, Subcontrata,
+/// Centro, Documento; generación/reclamación de documentación) son
+/// artefactos internos de gestión, nunca contenido de portal — de ahí
+/// <see cref="IAlcanceDatosService.ObtenerEmpresaIdsParaGestionAsync"/> y no
+/// la variante de visibilidad de portal.
 /// </summary>
 public record ObtenerEmpresasParaSelectorQuery(Guid? ClienteId = null) : IRequest<IReadOnlyList<EmpresaSelectorDto>>;
 
 public record EmpresaSelectorDto(Guid Id, string RazonSocial);
 
-public class ObtenerEmpresasParaSelectorQueryHandler(IEmpresasQueryContext dbContext)
+public class ObtenerEmpresasParaSelectorQueryHandler(IEmpresasQueryContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerEmpresasParaSelectorQuery, IReadOnlyList<EmpresaSelectorDto>>
 {
     public async Task<IReadOnlyList<EmpresaSelectorDto>> Handle(
@@ -30,6 +43,10 @@ public class ObtenerEmpresasParaSelectorQueryHandler(IEmpresasQueryContext dbCon
         // los consumidores lo confirman: /vehiculos y /subcontratas cargan
         // por separado el selector de Empresas y el de la contraparte.
         var consulta = dbContext.Empresas.Where(e => e.EsPropia);
+
+        var empresaIdsGestionables = await alcanceDatos.ObtenerEmpresaIdsParaGestionAsync(cancellationToken);
+        if (empresaIdsGestionables is not null)
+            consulta = consulta.Where(e => empresaIdsGestionables.Contains(e.Id));
 
         if (request.ClienteId is not null)
         {
