@@ -1,3 +1,4 @@
+using System.Globalization;
 using CaeManager.Application.Common;
 using CaeManager.Application.DocumentosIa.Queries;
 using CaeManager.Domain.DocumentosIa;
@@ -10,6 +11,23 @@ namespace CaeManager.Web.Features.AuditoriaIa.Pages;
 
 public partial class AuditoriaIa : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 {
+    /// <summary>
+    /// Códigos que el desplegable ofrece, con su nombre legible. Es también la
+    /// tabla de traducción del badge de proveedor, que antes imprimía el código
+    /// en crudo («mistral-ocr», «ninguno»). Un código que no esté aquí se
+    /// muestra tal cual: inventarle un nombre sería peor que enseñarlo.
+    /// </summary>
+    private static readonly (string Codigo, string Nombre)[] ProveedoresDelDesplegable =
+    [
+        ("anthropic", "Anthropic"),
+        ("gemini", "Gemini"),
+        ("mistral-ocr", "Mistral OCR"),
+        ("cache", "Caché"),
+        ("ninguno", "Sin proveedor (fallo)"),
+    ];
+
+    private static readonly CultureInfo Espanol = CultureInfo.GetCultureInfo("es-ES");
+
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
@@ -22,6 +40,18 @@ public partial class AuditoriaIa : CaeManager.Web.Components.PaginaIntegrableCon
     private string? _filtroProveedor;
     private int _pagina = 1;
     private const int TamanoPagina = 30;
+
+    /// <summary>Registro con el panel de detalle abierto; como mucho uno.</summary>
+    private Guid? _registroAbierto;
+
+    /// <summary>
+    /// Número de la última carga pedida. Cada <see cref="CargarAsync"/> se
+    /// queda con el suyo y, al volver del <c>await</c>, solo escribe estado si
+    /// sigue siendo el vigente: una respuesta vieja que llegue la última (se
+    /// filtró o se paginó mientras estaba en vuelo) pintaría sus filas bajo el
+    /// filtro y la página nuevos.
+    /// </summary>
+    private int _cargaVigente;
 
     protected override Task OnInitializedAsync()
     {
@@ -44,22 +74,32 @@ public partial class AuditoriaIa : CaeManager.Web.Components.PaginaIntegrableCon
 
     private async Task CargarAsync()
     {
+        var carga = ++_cargaVigente;
         _cargando = true;
         _error = false;
+        _registroAbierto = null;
         StateHasChanged();
 
+        ResultadoPaginado<RegistroAuditoriaIaDto>? resultado = null;
+        var fallo = false;
         try
         {
-            _resultado = await Mediator.Send(new ObtenerAuditoriaIaQuery(_filtroProveedor, _pagina, TamanoPagina));
+            resultado = await Mediator.Send(new ObtenerAuditoriaIaQuery(_filtroProveedor, _pagina, TamanoPagina));
         }
         catch (Exception)
         {
-            _error = true;
+            fallo = true;
         }
-        finally
-        {
-            _cargando = false;
-        }
+
+        // Una carga posterior ya manda: ni sus datos ni su error son de la
+        // pantalla que se está viendo, y tampoco puede apagar su «cargando».
+        if (carga != _cargaVigente)
+            return;
+
+        if (!fallo)
+            _resultado = resultado;
+        _error = fallo;
+        _cargando = false;
     }
 
     private Task FiltrarPorProveedorAsync(string? proveedor)
@@ -89,6 +129,9 @@ public partial class AuditoriaIa : CaeManager.Web.Components.PaginaIntegrableCon
     /// </summary>
     private ResultadoPaginado<RegistroAuditoriaIaDto> Resultado => _resultado!;
 
+    private bool FiltroFueraDelDesplegable =>
+        HayFiltrosActivos && ProveedoresDelDesplegable.All(p => p.Codigo != _filtroProveedor);
+
     private Task LimpiarFiltrosAsync() => FiltrarPorProveedorAsync(null);
 
     private Task IrAPaginaAsync(int pagina)
@@ -96,6 +139,12 @@ public partial class AuditoriaIa : CaeManager.Web.Components.PaginaIntegrableCon
         _pagina = pagina;
         return CargarAsync();
     }
+
+    private void AlternarDetalle(Guid registroId) =>
+        _registroAbierto = _registroAbierto == registroId ? null : registroId;
+
+    private static string NombreProveedor(string proveedorCodigo) =>
+        ProveedoresDelDesplegable.FirstOrDefault(p => p.Codigo == proveedorCodigo).Nombre ?? proveedorCodigo;
 
     private static TonoBadge BadgeParaProveedor(string proveedorCodigo) => proveedorCodigo switch
     {
@@ -111,8 +160,19 @@ public partial class AuditoriaIa : CaeManager.Web.Components.PaginaIntegrableCon
         _ => TonoBadge.Peligro
     };
 
+    private static string FormatearFecha(DateTime utc) => utc.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+
     private static string FormatearCoste(decimal? coste) =>
         coste.HasValue ? $"${coste.Value:F4}" : "—";
+
+    /// <summary>Con separador de miles («12.040»): la columna se lee alineada a la derecha.</summary>
+    private static string FormatearMilisegundos(long milisegundos) => milisegundos.ToString("N0", Espanol);
+
+    /// <summary>
+    /// La huella completa son 64 caracteres hexadecimales y rompería el panel;
+    /// se abrevia a la vista y se copia entera con el botón (y va en el title).
+    /// </summary>
+    private static string AbreviarHuella(string hash) => hash.Length <= 12 ? hash : hash[..12] + "…";
 
     /// <summary>
     /// "¿qué hizo la IA y quién lo confirmó?" (MACRO_PLAN § 6.6): null sin

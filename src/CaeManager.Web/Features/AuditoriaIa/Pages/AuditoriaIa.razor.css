@@ -1,0 +1,98 @@
+/*
+  Solo clases que pinta AuditoriaIa.razor: el CSS aislado no viaja a otros
+  componentes (trinquete ClasesDeCssAisladoNoViajanEntreComponentesTests).
+*/
+
+/* Once columnas no caben en un panel estrecho: desplaza la tabla, no la página. */
+.tabla-auditoria-ia-desplazable {
+    overflow-x: auto;
+}
+
+.tabla-auditoria-ia-desplazable .tabla-datos th,
+.tabla-auditoria-ia-desplazable .tabla-datos td {
+    white-space: nowrap;
+}
+
+/* Numéricas a la derecha y con cifras de ancho fijo, para compararlas en vertical. */
+.celda-numerica-auditoria-ia {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.celda-incidencias-auditoria-ia {
+    max-width: 14rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--color-text-muted);
+}
+
+.sin-decision-auditoria-ia {
+    color: var(--color-text-muted);
+    border-bottom: 1px dotted var(--color-border-strong);
+    cursor: help;
+}
+
+.fila-abierta-auditoria-ia td {
+    background-color: var(--color-surface-hover);
+}
+
+.fila-detalle-auditoria-ia td {
+    padding: 0;
+    background-color: var(--color-system-tint);
+    white-space: normal;
+}
+
+.detalle-auditoria-ia {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    padding: var(--space-4) var(--space-5);
+}
+
+.detalle-auditoria-ia-datos {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    gap: var(--space-4);
+    margin: 0;
+}
+
+.detalle-auditoria-ia-dato {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+}
+
+.detalle-auditoria-ia-dato dt {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.detalle-auditoria-ia-dato dd {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0;
+    font: var(--font-body-md);
+}
+
+.detalle-auditoria-ia-codigo {
+    font-family: monospace;
+    overflow-wrap: anywhere;
+}
+
+.detalle-auditoria-ia-pie {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: var(--border-default);
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.detalle-auditoria-ia-pie a {
+    font: var(--font-label);
+}
