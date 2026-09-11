@@ -33,6 +33,23 @@
     font-family: 'TALVEG Plex', system-ui, sans-serif;
 }
 
+/* La escena de referencia del artefacto (920×575, 16:10: el ancho útil de su
+   página de 1000 px), ampliada por acceso-agua.js hasta cubrir la pantalla con
+   --acceso-escala. Todo lo de dentro —lienzo, desenfoque de 7 px, velo— se
+   amplía en la misma proporción, así que el agua se ve como en el artefacto a
+   cualquier tamaño, recortada lo que sobre. Sin guion queda a escala 1 y
+   centrada; fuera de ella se ve el mismo verde en que acaba el velo. */
+.acceso-referencia {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 920px;
+    height: 575px;
+    transform: translate(-50%, -50%) scale(var(--acceso-escala, 1));
+    pointer-events: none;
+    z-index: 0;
+}
+
 /* Lienzo a un cuarto de resolución, escalado y desenfocado: la suavidad sale
    del escalado, no de un desenfoque caro. Desborda un 6 % por cada lado para que
    el desenfoque no deje un borde oscuro. */

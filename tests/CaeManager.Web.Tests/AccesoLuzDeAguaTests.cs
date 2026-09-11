@@ -142,6 +142,9 @@ public class AccesoLuzDeAguaTests : BunitContext
         var cut = Render<AccesoLayout>(p => p.Add(l => l.Body, (RenderFragment)(b => b.AddMarkupContent(0, "<p id=cuerpo>cuerpo</p>"))));
 
         cut.Find("canvas[data-acceso-agua]").GetAttribute("aria-hidden").Should().Be("true");
+        cut.Find("[data-acceso-referencia] canvas[data-acceso-agua]").Should().NotBeNull(
+            "el lienzo vive en la escena de referencia del artefacto, que es lo que se amplía");
+        cut.Find("[data-acceso-referencia]").GetAttribute("aria-hidden").Should().Be("true");
         cut.Find("main #cuerpo").Should().NotBeNull("el contenido de la página va en el punto de referencia principal");
 
         var interruptor = cut.Find("button[data-acceso-mov]");
