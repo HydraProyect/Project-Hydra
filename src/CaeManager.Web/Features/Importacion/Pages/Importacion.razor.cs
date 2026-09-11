@@ -399,8 +399,23 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         _plantillaPorEnfocar = destino;
     }
 
+    // Al cambiar de paso, el control que tenía el foco («Continuar…», «Ver
+    // plan…», el paso del indicador) desaparece con el paso anterior: sin
+    // moverlo, teclado y lector de pantalla se quedan sin contexto. Cada paso
+    // pinta un único <h2> con esta referencia (la cadena if/else de _step), y
+    // el foco va a él cuando el paso pintado ya no es el último enfocado. El
+    // paso inicial cuenta como enfocado: al entrar no se roba el foco.
+    private ElementReference _tituloPaso;
+    private int _pasoEnfocado = 1;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (_step != _pasoEnfocado)
+        {
+            _pasoEnfocado = _step;
+            await _tituloPaso.FocusAsync();
+        }
+
         if (_plantillaPorEnfocar is not { } indice) return;
 
         _plantillaPorEnfocar = null;

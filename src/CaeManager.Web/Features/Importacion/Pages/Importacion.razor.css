@@ -636,3 +636,9 @@
     color: var(--color-text-muted);
     font: var(--font-body-sm);
 }
+
+/* El título de cada paso recibe el foco al cambiar de paso (tabindex="-1",
+   solo por código): es un punto de lectura, no un control, y no se marca. */
+.titulo-seccion-importacion:focus {
+  outline: none;
+}

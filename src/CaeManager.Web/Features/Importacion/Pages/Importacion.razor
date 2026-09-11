@@ -64,7 +64,7 @@
     {
         <div class="rejilla-paso1">
             <div class="columna-plantillas">
-                <h2 class="titulo-seccion-importacion" id="titulo-plantillas-importacion">Elige una plantilla</h2>
+                <h2 class="titulo-seccion-importacion" id="titulo-plantillas-importacion" tabindex="-1" @ref="_tituloPaso">Elige una plantilla</h2>
                 @* Elegir plantilla es una elección exclusiva entre cuatro: patrón
                    radiogroup de WAI-ARIA, como la biblioteca de Reportes, y no
                    botones con aria-pressed (que anuncian conmutadores
@@ -148,7 +148,7 @@
     else if (_step == 2)
     {
         <div class="columna-paso-ancho">
-            <h2 class="titulo-seccion-importacion">Sube el archivo</h2>
+            <h2 class="titulo-seccion-importacion" tabindex="-1" @ref="_tituloPaso">Sube el archivo</h2>
 
             <ZonaSoltarArchivo Titulo="@($"Arrastra el archivo de {PlantillaActual.Titulo}")"
                                 FormatosTexto="@($".xlsx · máx. {PlantillaActual.TamanoMaximoBytes / (1024 * 1024)} MB · el análisis no escribe nada")"
@@ -163,7 +163,13 @@
                 <div class="alerta-formulario" role="alert">@_mensajeError</div>
             }
 
-            <ProgresoConMensajes Visible="_analizando" Mensajes="MensajesAnalizando" />
+            @* ProgresoConMensajes no anuncia nada por sí mismo (igual que en
+               Reportes): la región existe SIEMPRE en este paso —vacía mientras no
+               se analiza— para que el lector de pantalla ya la esté vigilando
+               cuando aparezca el progreso. *@
+            <div class="region-progreso-analisis" role="status" aria-live="polite">
+                <ProgresoConMensajes Visible="_analizando" Mensajes="MensajesAnalizando" />
+            </div>
 
             @if (EsPlantillaClientes)
             {
@@ -235,7 +241,7 @@
     {
         <div class="columna-paso-ancho">
             <div class="cabecera-revision-plan">
-                <h2 class="titulo-seccion-importacion">Revisar plan</h2>
+                <h2 class="titulo-seccion-importacion" tabindex="-1" @ref="_tituloPaso">Revisar plan</h2>
                 <span class="detalle-revision-plan">@_nombreArchivo · nada escrito todavía</span>
             </div>
 
@@ -347,7 +353,7 @@
     else if (_step == 4)
     {
         <div class="columna-paso-estrecho">
-            <h2 class="titulo-seccion-importacion">Confirmar importación</h2>
+            <h2 class="titulo-seccion-importacion" tabindex="-1" @ref="_tituloPaso">Confirmar importación</h2>
 
             <div class="tarjeta-confirmacion-importacion">
                 <div class="aviso-confirmacion-importacion">
@@ -394,7 +400,7 @@
     else if (_step == 5)
     {
         <div class="columna-paso-estrecho">
-            <h2 class="titulo-seccion-importacion">Reporte</h2>
+            <h2 class="titulo-seccion-importacion" tabindex="-1" @ref="_tituloPaso">Reporte</h2>
 
             <div class="tarjeta-reporte-importacion">
                 <div class="cabecera-reporte-importacion">
