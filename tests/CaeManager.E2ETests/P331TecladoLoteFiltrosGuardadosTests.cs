@@ -104,14 +104,21 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         // terminase de procesar la primera).
         await page.Keyboard.PressAsync("j");
         await Expect(filaA).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("fila-enfocada"));
+        // La fila "enfocada" por j/k debe llevarse también el foco real de
+        // DOM, no solo la clase CSS — si no, un lector de pantalla nunca se
+        // entera de cuál es (defecto detectado en revisión de Plantillas,
+        // fix en atajos-lista.js: enfocarFilaActiva()).
+        await Expect(filaA).ToBeFocusedAsync();
         await page.WaitForTimeoutAsync(300);
 
         await page.Keyboard.PressAsync("j");
         await Expect(filaB).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("fila-enfocada"));
+        await Expect(filaB).ToBeFocusedAsync();
         await page.WaitForTimeoutAsync(300);
 
         await page.Keyboard.PressAsync("k");
         await Expect(filaA).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("fila-enfocada"));
+        await Expect(filaA).ToBeFocusedAsync();
         await page.WaitForTimeoutAsync(300);
 
         // "x" alterna la selección de la fila enfocada (Alfa) sin necesidad
@@ -187,6 +194,44 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         await chipFiltro.Locator(".chip-filtro-quitar").ClickAsync();
         await page.GetByRole(AriaRole.Dialog).GetByText("Borrar filtro", new LocatorGetByTextOptions { Exact = true }).ClickAsync();
         await chipFiltro.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 10_000 });
+    }
+
+    /// <summary>
+    /// Defecto de accesibilidad (WCAG 2.1.1) encontrado en revisión de
+    /// Plantillas: atajos-lista.js interceptaba Enter con preventDefault()
+    /// sin mirar dónde estaba el foco, así que tabular hasta CUALQUIER botón
+    /// o enlace de una lista Gen 2 y pulsar Enter abría la fila "enfocada"
+    /// por j/k en vez de activar el control con el foco — el usuario de
+    /// teclado nunca podía disparar "+ Nuevo cliente" con Enter.
+    /// </summary>
+    [Fact]
+    public async Task Enter_sobre_un_boton_enfocado_activa_el_boton_y_no_el_atajo_de_fila()
+    {
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await contexto.NewPageAsync();
+
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
+
+        // FocusAsync en vez de Tab real, mismo motivo que
+        // FlujoBandejaPriorizadaTests: a atajos-lista.js solo le importa
+        // document.activeElement en el momento del keydown, no cuántos Tabs
+        // hicieron falta para llegar ahí, y depender del orden de tabulación
+        // real es frágil en Chromium headless.
+        var botonNuevoCliente = page.GetByText("+ Nuevo cliente").First;
+        await botonNuevoCliente.FocusAsync();
+        await Expect(botonNuevoCliente).ToBeFocusedAsync();
+
+        await page.Keyboard.PressAsync("Enter");
+
+        // Con el defecto (preventDefault incondicional sobre Enter), este
+        // drawer nunca se abría: el click nativo del botón se cancelaba y
+        // "j"/"k" tampoco habían fijado ninguna fila enfocada, así que
+        // RecibirAtajo("Enter") no tenía nada que abrir.
+        var drawer = page.Locator(".drawer-panel");
+        await Expect(drawer.GetByText("Nuevo cliente", new LocatorGetByTextOptions { Exact = true }))
+            .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 10_000 });
+        await Expect(page.Locator(".drawer-preview-cliente")).Not.ToBeVisibleAsync();
     }
 
     private static Microsoft.Playwright.ILocatorAssertions Expect(ILocator locator) => Assertions.Expect(locator);
