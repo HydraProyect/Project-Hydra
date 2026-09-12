@@ -3,7 +3,9 @@ using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Asignaciones.Commands.CrearAsignacion;
 using CaeManager.Application.Centros.Commands.CrearCentro;
+using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
 using CaeManager.Application.Clientes.Commands.CrearCliente;
+using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Empresas.Commands.CrearEmpresa;
 using CaeManager.Application.Empresas.Commands.EditarEmpresa;
@@ -43,8 +45,13 @@ namespace CaeManager.Web.Tests;
 ///
 /// <para>
 /// <b>Lo que esto NO prueba:</b> la autorización real de los Commands, ni la
-/// tarea aparte y ya en curso sobre los identificadores que llegan por query
-/// string.
+/// resolución de los identificadores que llegan por query string contra su
+/// alcance de tenant/cartera — <c>MediadorControlado</c> responde
+/// <c>ObtenerEmpresaPorIdQuery</c>/<c>ObtenerClientePorIdQuery</c>/
+/// <c>ObtenerCentroPorIdQuery</c> con lo que cada test precarga en
+/// <c>Empresa</c>/<c>Cliente</c>/<c>Centro</c>, sin ningún alcance real de
+/// por medio; esa propiedad la prueba <c>AltaGuiadaResolucionIdentificadoresTests</c>
+/// (componente) y <c>ObtenerPorIdMultiTenantTests</c> (Postgres real).
 /// </para>
 /// </summary>
 public class AltaGuiadaDesenlacesParcialesTests : BunitContext
@@ -63,6 +70,8 @@ public class AltaGuiadaDesenlacesParcialesTests : BunitContext
         public IReadOnlyList<EmpresaSelectorDto> CatalogoEmpresas { get; set; } = [];
         public IReadOnlyList<ClienteSelectorDto> CatalogoClientes { get; set; } = [];
         public EmpresaDetalleDto? Empresa { get; set; }
+        public ClienteDetalleDto? Cliente { get; set; }
+        public CentroDetalleDto? Centro { get; set; }
 
         public Func<CrearEmpresaCommand, Result<Guid>> AlCrearEmpresa { get; set; } = _ => Result.Exito(Guid.NewGuid());
         public Func<CrearClienteCommand, Result<Guid>> AlCrearCliente { get; set; } = _ => Result.Exito(Guid.NewGuid());
@@ -89,6 +98,8 @@ public class AltaGuiadaDesenlacesParcialesTests : BunitContext
             ObtenerEmpresasParaSelectorQuery => CatalogoEmpresas,
             ObtenerClientesParaSelectorQuery => CatalogoClientes,
             ObtenerEmpresaPorIdQuery => Empresa,
+            ObtenerClientePorIdQuery => Cliente,
+            ObtenerCentroPorIdQuery => Centro,
             CrearEmpresaCommand c => AlCrearEmpresa(c),
             CrearClienteCommand c => AlCrearCliente(c),
             EditarEmpresaCommand c => AlEditarEmpresa(c),
@@ -175,7 +186,7 @@ public class AltaGuiadaDesenlacesParcialesTests : BunitContext
             AlEditarEmpresa = _ => Result.Fallo(Error.Crear("Empresa.Concurrencia", "La empresa cambió mientras tanto.")),
         };
 
-        var (cut, _, toasts) = Renderizar($"clientes/alta-guiada?empresaId={empresaId}&empresaNombre=Montajes+Ebro", mediador);
+        var (cut, _, toasts) = Renderizar($"clientes/alta-guiada?empresaId={empresaId}", mediador);
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("2. Cliente empresarial"));
 
@@ -231,13 +242,15 @@ public class AltaGuiadaDesenlacesParcialesTests : BunitContext
         var centroId = Guid.NewGuid();
         var mediador = new MediadorControlado
         {
+            Empresa = new EmpresaDetalleDto(empresaId, "Montajes Ebro S.L.", null, DateTime.UtcNow, [], Guid.NewGuid()),
+            Cliente = new ClienteDetalleDto(clienteId, "Refrielectric", "B00000000", false, null, DateTime.UtcNow, null, Guid.NewGuid()),
+            Centro = new CentroDetalleDto(
+                centroId, clienteId, "Refrielectric", empresaId, "Montajes Ebro S.L.", "Nave 1", null, null, null, null, Guid.NewGuid()),
             AlCrearAsignacion = _ => Result.Fallo<Guid>(Error.Crear("Asignacion.Duplicada", "Ya existe una asignación activa en este centro.")),
         };
 
         var (cut, _, toasts) = Renderizar(
-            $"clientes/alta-guiada?empresaId={empresaId}&empresaNombre=Montajes+Ebro" +
-            $"&clienteId={clienteId}&clienteNombre=Refrielectric" +
-            $"&centroId={centroId}&centroNombre=Nave+1",
+            $"clientes/alta-guiada?empresaId={empresaId}&clienteId={clienteId}&centroId={centroId}",
             mediador);
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("4. Trabajadores"));
@@ -295,15 +308,19 @@ public class AltaGuiadaDesenlacesParcialesTests : BunitContext
         var empresaId = Guid.NewGuid();
         var clienteId = Guid.NewGuid();
         var centroId = Guid.NewGuid();
-        var mediador = new MediadorControlado();
+        var mediador = new MediadorControlado
+        {
+            Empresa = new EmpresaDetalleDto(empresaId, "Montajes Ebro S.L.", null, DateTime.UtcNow, [], Guid.NewGuid()),
+            Cliente = new ClienteDetalleDto(clienteId, "Refrielectric", "B00000000", false, null, DateTime.UtcNow, null, Guid.NewGuid()),
+            Centro = new CentroDetalleDto(
+                centroId, clienteId, "Refrielectric", empresaId, "Montajes Ebro S.L.", "Nave 1", null, null, null, null, Guid.NewGuid()),
+        };
 
         var retenido = new TaskCompletionSource<object?>();
         mediador.Interceptar = p => p is CrearTrabajadorCommand ? retenido.Task : null;
 
         var (cut, _, _) = Renderizar(
-            $"clientes/alta-guiada?empresaId={empresaId}&empresaNombre=Montajes+Ebro" +
-            $"&clienteId={clienteId}&clienteNombre=Refrielectric" +
-            $"&centroId={centroId}&centroNombre=Nave+1",
+            $"clientes/alta-guiada?empresaId={empresaId}&clienteId={clienteId}&centroId={centroId}",
             mediador);
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("4. Trabajadores"));
 
