@@ -503,20 +503,26 @@ public class UsuariosGen2Tests : BunitContext
 
     /// <summary>
     /// Dos cargas encadenadas: la primera se queda retenida y la segunda la
-    /// releva. Cuando por fin responde la primera, su lista ya no describe lo
-    /// que se pidió y no puede pintarse.
+    /// releva. Lo que queda en pantalla es la lista de la carga vigente.
     ///
     /// <para>
-    /// <b>Por qué la segunda no se espera antes de soltar la primera.</b>
-    /// <see cref="PuertaAccesoDatos"/> serializa el acceso a datos del
-    /// circuito: la segunda carga se queda en la puerta hasta que la primera
-    /// la suelta. Esperarla antes sería un interbloqueo, no un fallo del
-    /// producto. Lo que sí ocurre antes de la puerta —y es lo que esta prueba
-    /// ejercita— es el sello de versión.
+    /// <b>Qué NO demuestra este caso.</b> No demuestra el sello de versión que
+    /// protege la asignación de la lista: <see cref="PuertaAccesoDatos"/>
+    /// serializa el acceso a datos del circuito, así que la carga vieja
+    /// termina siempre antes de que la nueva lea, y su asignación quedaría
+    /// sobrescrita igualmente. Comprobado por mutación (quitar ese
+    /// <c>return</c> deja este caso en verde). El sello sí es observable en el
+    /// trato del error — ver
+    /// <see cref="Una_carga_fallida_relevada_por_otra_que_va_bien_no_deja_la_pantalla_en_error"/>.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Por qué la segunda no se espera antes de soltar la primera</b>: sería
+    /// un interbloqueo contra la puerta, no un fallo del producto.
     /// </para>
     /// </summary>
     [Fact]
-    public async Task Una_carga_vieja_no_pisa_a_la_que_la_releva()
+    public async Task La_lista_que_queda_en_pantalla_es_la_de_la_carga_vigente()
     {
         var marta = Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez");
         var jon = Cuenta(JonId, "j.ibarra@talveg.es", "Jon Ibarra");
@@ -542,6 +548,38 @@ public class UsuariosGen2Tests : BunitContext
         cut.WaitForAssertion(() => Filas(cut).Should().ContainSingle());
         Filas(cut)[0].TextContent.Should().Contain("j.ibarra@talveg.es")
             .And.NotContain("marta.r@talveg.es");
+    }
+
+    /// <summary>
+    /// El sello de versión donde SÍ se nota: una carga que falla después de
+    /// haber sido relevada no puede dejar la pantalla diciendo «No pudimos
+    /// cargar los usuarios» mientras enseña la lista que sí cargó. Sin el
+    /// sello queda así, porque la carga nueva pone <c>_errorCarga</c> a falso
+    /// al empezar —antes de la puerta— y la vieja lo vuelve a poner a cierto
+    /// al terminar, ya con la nueva esperando.
+    /// </summary>
+    [Fact]
+    public async Task Una_carga_fallida_relevada_por_otra_que_va_bien_no_deja_la_pantalla_en_error()
+    {
+        var jon = Cuenta(JonId, "j.ibarra@talveg.es", "Jon Ibarra");
+        _identidad.RolesPorCuenta[JonId] = [RolesIdentidad.DireccionCae];
+
+        var primera = new TaskCompletionSource<IReadOnlyList<ApplicationUser>>();
+        _fuente.Visibles = numero => numero == 1
+            ? primera.Task
+            : Task.FromResult<IReadOnlyList<ApplicationUser>>([jon]);
+
+        var cut = Renderizar();
+
+        Task? segunda = null;
+        await cut.InvokeAsync(() => { segunda = cut.Instance.RecargarAsync(); });
+
+        primera.SetException(new InvalidOperationException("la base se cayó"));
+        await segunda!;
+
+        cut.WaitForAssertion(() => Filas(cut).Should().ContainSingle());
+        cut.Markup.Should().NotContain("No pudimos cargar los usuarios",
+            "el fallo era de una carga que ya nadie estaba esperando");
     }
 
     [Fact]
@@ -667,12 +705,17 @@ public class UsuariosGen2Tests : BunitContext
         // caso daría verde por una razón que no es la que dice.
         cut.WaitForAssertion(() => _identidad.Creadas.Should().ContainSingle());
 
-        await GuardarAsync(cut);
-        _identidad.Creadas.Should().ContainSingle("el segundo clic no vuelve a entrar en el guardado");
+        // El segundo clic TAMPOCO se espera todavía: si la guarda se rompiera,
+        // su manejador entraría y quedaría bloqueado en la misma retención, y
+        // el caso se colgaría en vez de fallar con un mensaje. Se suelta la
+        // retención primero y se esperan los dos después.
+        var segundoClic = GuardarAsync(cut);
 
         token.SetResult("token-de-prueba");
         await primerClic;
-        _identidad.Creadas.Should().ContainSingle();
+        await segundoClic;
+
+        _identidad.Creadas.Should().ContainSingle("el segundo clic no vuelve a entrar en el guardado");
     }
 
     // -------------------------------------- el permiso sobre lo sensible

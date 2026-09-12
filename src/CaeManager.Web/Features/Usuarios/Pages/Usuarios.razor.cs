@@ -367,6 +367,18 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
             // Otra carga tomó el relevo mientras esta viajaba: la lista que se
             // ve es la suya, y pintar esta la haría retroceder.
+            //
+            // HOY ESTA LÍNEA NO ES OBSERVABLE, y conviene decirlo en vez de
+            // dar por probado lo que no lo está: PuertaAccesoDatos serializa
+            // el acceso a datos del circuito, así que la carga vieja termina
+            // SIEMPRE antes de que la nueva empiece a leer, y su asignación
+            // queda sobrescrita de inmediato. Se comprobó por mutación
+            // (2026-09-12): quitar este return no pone ninguna prueba en rojo.
+            // Se queda porque la garantía viene de la puerta y no de esta
+            // pantalla: el día que una de las cuatro lecturas deje de pasar
+            // por ella, esto es lo único que impide que una respuesta vieja
+            // repinte la lista. Lo que sí es observable del sello es el trato
+            // del error y del esqueleto, más abajo.
             if (version != _versionCarga) return;
 
             _usuarios = usuarios;
