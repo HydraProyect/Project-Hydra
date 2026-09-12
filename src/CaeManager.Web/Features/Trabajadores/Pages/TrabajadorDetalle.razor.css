@@ -1,19 +1,25 @@
 /*
-  Cabecera de entidad de Trabajador 360 (Parte XVI PROMPT 04): mismo
-  lenguaje que Centro 360 (CentroDetalle.razor.css) — anillo + identidad +
-  acciones en una fila.
+  Trabajador 360 contra su mockup Gen 2 («Trabajador 360 TALVEG.dc.html»).
+
+  Gen 1 pintaba la cabecera de entidad como una fila con borde inferior. El
+  mockup la pinta como TARJETA —superficie, borde completo, radio grande y
+  padding de 24px—, que es lo que separa la identidad del trabajador del
+  resto del contenido sin apoyarse en una sola línea.
 */
 .trabajador360-cabecera {
     display: flex;
     align-items: flex-start;
-    gap: var(--space-6);
-    padding-bottom: var(--space-6);
-    margin-bottom: var(--space-6);
-    border-bottom: var(--border-default);
+    flex-wrap: wrap;
+    gap: var(--space-5);
+    padding: var(--space-6);
+    margin-bottom: var(--space-4);
+    background: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
 }
 
 .trabajador360-identidad {
-    flex: 1;
+    flex: 1 1 20rem;
     min-width: 0;
     display: flex;
     flex-direction: column;
@@ -36,6 +42,7 @@
 .trabajador360-meta {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: var(--space-1);
     font: var(--font-body-md);
     color: var(--color-text-muted);
@@ -49,10 +56,185 @@
     flex-wrap: wrap;
 }
 
+/*
+  En el mockup las acciones van en fila (botón primario + menú de tres
+  puntos), no apiladas: apiladas empujaban el menú bajo el botón y dejaban la
+  tarjeta más alta de lo que su contenido pide.
+*/
 .trabajador360-acciones {
     display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex: none;
+}
+
+/* ------------------------------------------------------------------ */
+/* Operación: un centro, una tarjeta                                    */
+/* ------------------------------------------------------------------ */
+
+/*
+  Gen 1 reutilizaba ".fila-trabajador-rejilla" de list-page.css —una rejilla
+  de cinco columnas pensada para una fila de Trabajador— para pintar una fila
+  de Centro. Cuadraba de milagro y el nombre mentía sobre el sujeto. El
+  mockup pide otra cosa: cada centro es su propia tarjeta con una banda
+  izquierda que dice de un vistazo si ahí hay algo que resolver.
+*/
+.trabajador360-centros {
+    display: flex;
     flex-direction: column;
-    align-items: flex-end;
+    gap: var(--space-3);
+}
+
+.trabajador360-centro {
+    background: var(--color-surface);
+    border: var(--border-default);
+    border-left: 3px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+/*
+  La banda NO es el único portador del significado: la misma fila lleva el
+  badge con el recuento de incidencias y su tono (02 § 8).
+*/
+.trabajador360-centro-con-incidencia {
+    border-left-color: var(--color-danger-500);
+}
+
+.trabajador360-centro-cabecera {
+    display: flex;
+    align-items: center;
     gap: var(--space-2);
-    flex-shrink: 0;
+    min-height: 44px;
+    padding: var(--space-2) var(--space-4);
+}
+
+.trabajador360-centro-disparador {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    background: none;
+    border: none;
+    padding: 0;
+    text-align: left;
+    cursor: pointer;
+    color: inherit;
+    border-radius: var(--radius-sm);
+}
+
+.trabajador360-centro-disparador:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+}
+
+.trabajador360-centro-chevron {
+    flex: none;
+    display: inline-flex;
+    color: var(--color-text-muted);
+    transform: rotate(-90deg);
+    transition: transform var(--motion-fast) var(--ease-standard);
+}
+
+.trabajador360-centro-chevron-abierta {
+    transform: rotate(0deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .trabajador360-centro-chevron {
+        transition: none;
+    }
+}
+
+.trabajador360-centro-identidad {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.trabajador360-centro-nombre {
+    font: var(--font-body-md);
+    font-weight: 600;
+    color: var(--color-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/*
+  «Cliente empresarial · 5 de 7 exigidos correctos»: la fracción del mockup
+  escrita en palabras, no como "5/7" suelto — el número sin unidad obligaba a
+  deducir qué se contaba.
+*/
+.trabajador360-centro-resumen {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* El único camino desde aquí a la página propia del Centro (/centros/{id}). */
+.trabajador360-centro-360 {
+    flex: none;
+    width: 30px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: var(--border-default);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+}
+
+.trabajador360-centro-360:hover {
+    border-color: var(--color-primary-500);
+    color: var(--color-primary-500);
+}
+
+/* Isla interna: separa lo desplegado de la cabecera de su propia tarjeta. */
+.trabajador360-centro-detalle {
+    background: var(--color-surface-subtle);
+    border-top: var(--border-default);
+    padding: var(--space-2) var(--space-4) var(--space-3);
+}
+
+/* ------------------------------------------------------------------ */
+/* Contactos                                                            */
+/* ------------------------------------------------------------------ */
+
+.trabajador360-contactos {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    gap: var(--space-3);
+    background: var(--color-surface-subtle);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    margin: 0 0 var(--space-4);
+}
+
+.trabajador360-contacto {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.trabajador360-contacto-clave {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.trabajador360-contacto-valor {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0;
+    font: var(--font-body-md);
+    font-weight: 600;
+    color: var(--color-text);
+    overflow-wrap: anywhere;
 }

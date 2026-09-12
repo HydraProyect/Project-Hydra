@@ -27,6 +27,18 @@
                     <Icono Nombre="@nombreIcono" Tamano="TamanoIcono.Pequeno" />
                 }
                 @definicion.Etiqueta
+                @if (definicion.Contador is { } contador)
+                {
+                    <span class="pestanas-contador @(contador.EnAlerta ? "pestanas-contador-alerta" : null)">
+                        @*
+                            El espacio va dentro de la interpolación: escrito
+                            como literal delante de @contador.Glosa, Razor lo
+                            recorta en la transición a código y el nombre
+                            accesible queda «2documentos con incidencia».
+                        *@
+                        @contador.Valor<span class="pestanas-contador-glosa">@($" {contador.Glosa}")</span>
+                    </span>
+                }
             </button>
         }
     </div>

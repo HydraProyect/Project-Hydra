@@ -43,6 +43,43 @@
     border-bottom-color: var(--color-primary-500);
 }
 
+/*
+   Píldora de recuento de la pestaña (mockup Gen 2 de Trabajador 360: 11/14
+   peso 500, radio completo, fondo sutil). El tono de alerta NO sustituye al
+   número: el número sigue siendo el dato y el color solo lo enfatiza.
+*/
+.pestanas-contador {
+    display: inline-flex;
+    align-items: center;
+    border-radius: var(--radius-full);
+    padding: 1px var(--space-2);
+    background: var(--color-surface-subtle);
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+    font-variant-numeric: tabular-nums;
+}
+
+.pestanas-contador-alerta {
+    background: var(--color-danger-50);
+    color: var(--color-danger-700);
+}
+
+/*
+   La glosa ("documentos con incidencia") solo existe para el nombre
+   accesible del botón: sin ella un lector de pantalla anuncia «Operación 3»
+   y el 3 queda sin unidad. No se pinta, pero no se marca aria-hidden — es
+   justamente lo que hay que oír.
+*/
+.pestanas-contador-glosa {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
 .pestanas-panel {
     padding-top: var(--space-4);
     flex: 1;
