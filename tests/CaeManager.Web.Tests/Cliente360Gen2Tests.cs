@@ -451,11 +451,54 @@ public class Cliente360Gen2Tests : BunitContext
         await EscribirAsync(cut.Find("textarea"), "Una nota.");
         await Boton(cut, "Guardar nota").ClickAsync(new MouseEventArgs());
 
-        cut.Find(".alerta-formulario").TextContent.Should().Contain(motivo);
+        cut.Find(".alerta-formulario").TextContent.Trim().Should().Be(motivo,
+            "en el formulario el motivo va tal cual: está dentro de la ficha, con su razón social encima, "
+            + "así que nombrarla aquí sería ruido — el nombre es del canal aviso, no de todos");
         Services.GetRequiredService<ToastService>().Mensajes.Should().NotContain(m => m.Tono == TonoToast.Exito,
             "un Result fallido no se disfraza de éxito");
         mediador.Enviadas.OfType<ObtenerClientePorIdQuery>().Should().ContainSingle(
             "un rechazo no recarga la cabecera: solo la carga de apertura pidió el detalle");
+    }
+
+    /// <summary>
+    /// El otro lado de la regla del canal: si la ficha ya es otra, el
+    /// formulario donde iba el motivo no existe, así que el motivo se va al
+    /// aviso — y ahí sí nombra de quién era, porque el aviso se lee sobre la
+    /// ficha nueva.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_nota_de_una_ficha_relevada_falla_el_motivo_se_va_al_aviso_nombrandola()
+    {
+        const string motivo = "Ya existe otro cliente con ese CIF.";
+        var a = Guid.NewGuid();
+        var b = Guid.NewGuid();
+        var guardadoDeA = new TaskCompletionSource();
+        var mediador = Registrar(new MediatorFalso
+        {
+            ResultadoEditar = Result.Fallo(Error.Crear("Cliente.CifDuplicado", motivo)),
+            Retener = p => p is EditarClienteCommand ? guardadoDeA.Task : null
+        });
+        mediador.Detalles[a] = Detalle(a, "Refrielectric S.A.");
+        mediador.Detalles[b] = Detalle(b, "Montajes Ebro S.L.");
+        mediador.Resumenes[a] = Resumen(a, 3, 42);
+        mediador.Resumenes[b] = Resumen(b, 2, 18);
+
+        var cut = Renderizar(a, "notas");
+        await EscribirAsync(cut.Find("textarea"), "Una nota de A.");
+        // Sin await: el comando de A queda retenido.
+        var guardado = Boton(cut, "Guardar nota").ClickAsync(new MouseEventArgs());
+
+        cut.Render(p => p.Add(x => x.EntidadId, b).Add(x => x.PestanaActiva, "notas"));
+
+        await InvokeAsync(() => guardadoDeA.SetResult());
+        await guardado;
+
+        var aviso = Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle().Subject;
+        aviso.Tono.Should().Be(TonoToast.Error);
+        aviso.Mensaje.Should().Be($"No pudimos guardar la nota de Refrielectric S.A.: {motivo}",
+            "en pantalla está B: sin el nombre, el motivo se leería como que es la nota de B la que falló");
+        cut.FindAll(".alerta-formulario").Should().BeEmpty(
+            "el formulario de B no hereda el error de A");
     }
 
     // ─────────── Dar de baja ───────────
@@ -601,6 +644,56 @@ public class Cliente360Gen2Tests : BunitContext
         aviso.Tono.Should().Be(TonoToast.Error);
         aviso.Mensaje.Should().Be($"Refrielectric S.A.: {motivo}",
             "en pantalla está B: un motivo sin nombre se leería como que es B quien no se puede dar de baja");
+    }
+
+    /// <summary>
+    /// La guarda de reentrada de la baja, aislada de la del diálogo.
+    /// <see cref="DialogoConfirmacion"/> trae la suya
+    /// (<c>if (EnProgreso || _confirmando) return;</c>), así que un doble clic
+    /// del usuario NO llega dos veces a este panel y no puede demostrar nada
+    /// sobre su guarda: la del diálogo tapa la del panel. Este caso entra por
+    /// el <c>OnConfirmar</c> del hijo, que es el mismo punto por el que
+    /// entraría cualquier otro llamador —incluida una futura acción sin
+    /// diálogo—, y así observa la guarda del panel y solo la del panel.
+    ///
+    /// <para>
+    /// Queda dicho lo que esto NO es: hoy no hay camino de interfaz que mande
+    /// dos confirmaciones a la vez. La guarda no se retira porque el contrato
+    /// exige que toda escritura compruebe al entrar, y porque la guarda del
+    /// diálogo no es la de esta página — si mañana se cuelga «Dar de baja» de
+    /// un botón directo, la del diálogo deja de estar delante.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task Dos_confirmaciones_de_baja_a_la_vez_mandan_un_solo_comando()
+    {
+        var id = Guid.NewGuid();
+        var comando = new TaskCompletionSource();
+        var mediador = Registrar(new MediatorFalso
+        {
+            Retener = p => p is EliminarClienteCommand ? comando.Task : null
+        });
+        mediador.Detalles[id] = Detalle(id, "Refrielectric S.A.");
+        mediador.Resumenes[id] = Resumen(id, 3, 42);
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        await workspace.AbrirAsync(EntidadWorkspace.Cliente, id, "Refrielectric S.A.", "informacion");
+
+        var cut = Renderizar(id);
+        await Boton(cut, "Dar de baja").ClickAsync(new MouseEventArgs());
+        var dialogo = cut.FindComponent<DialogoConfirmacion>();
+
+        // Sin await: las dos entradas quedan dentro del método a la vez.
+        var primera = cut.InvokeAsync(() => dialogo.Instance.OnConfirmar.InvokeAsync());
+        var segunda = cut.InvokeAsync(() => dialogo.Instance.OnConfirmar.InvokeAsync());
+
+        mediador.Enviadas.OfType<EliminarClienteCommand>().Should().ContainSingle(
+            "la guarda comprueba al entrar: la segunda entrada se va sin mandar nada");
+
+        await InvokeAsync(() => comando.SetResult());
+        await primera;
+        await segunda;
+
+        mediador.Enviadas.OfType<EliminarClienteCommand>().Should().ContainSingle();
     }
 
     // ─────────── Concurrencia y ciclo de vida ───────────

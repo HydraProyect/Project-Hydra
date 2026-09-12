@@ -710,6 +710,8 @@ else
 
             if (resultado.EsFallido)
             {
+                // Misma regla del canal que en la nota: al formulario sin
+                // nombre, al aviso con él.
                 if (generacion == _generacion)
                     _mensajeErrorIdentidad = resultado.Error.Mensaje;
                 else
@@ -766,10 +768,13 @@ else
 
             if (resultado.EsFallido)
             {
-                // El motivo va al formulario si sigue siendo esta ficha; si ya
-                // no lo es, ese formulario no existe y va al aviso, nombrando
-                // de quién era. Un fallo no se traga por haber cambiado de
-                // pantalla mientras el comando viajaba.
+                // Regla del canal (ver ConfirmarDarDeBajaAsync): si sigue
+                // siendo esta ficha, el motivo va a su formulario TAL CUAL,
+                // sin nombre —el formulario está dentro de la ficha, con su
+                // razón social encima, y repetirlo ahí sería ruido—; si ya no
+                // lo es, ese formulario no existe, el motivo se va al aviso y
+                // entonces sí nombra de quién era. Un fallo no se traga por
+                // haber cambiado de pantalla mientras el comando viajaba.
                 if (generacion == _generacion)
                     _mensajeErrorNota = resultado.Error.Mensaje;
                 else
@@ -824,14 +829,24 @@ else
         {
             var resultado = await Mediator.Send(new EliminarClienteCommand(detalle.Id));
 
-            // El desenlace se anuncia SIEMPRE y nombrando de quién es. El
-            // comando no lleva el token del ciclo precisamente porque cerrar la
-            // ficha no deshace la baja: callar el resultado porque entretanto
-            // cambió la ficha sería tragarse un desenlace real —y, en el otro
-            // camino, un fallo—. Lo que no pasa de la comprobación de
-            // generación es TOCAR la pantalla: el diálogo y la navegación van
-            // detrás de ella, y la navegación además comprueba que el nivel
-            // vigente siga siendo el de esta entidad.
+            // Regla de las tres escrituras del panel, y es del CANAL, no del
+            // manejador: un desenlace que viaja por AVISO nombra la entidad
+            // —el aviso es global y puede leerse sobre cualquier ficha, así que
+            // sin nombre se entendería de la que se esté viendo—; uno que
+            // aterriza en el FORMULARIO de la ficha va sin nombre, porque ese
+            // formulario solo existe mientras esa ficha está en pantalla y
+            // lleva su razón social en la cabecera, justo encima. La baja no
+            // tiene formulario: su único canal es el aviso, así que nombra
+            // siempre, en los tres caminos.
+            //
+            // Y se anuncia siempre: el comando no lleva el token del ciclo
+            // precisamente porque cerrar la ficha no deshace la baja, así que
+            // callar el resultado porque entretanto cambió la ficha sería
+            // tragarse un desenlace real —y, en el otro camino, un fallo—. Lo
+            // que no pasa de la comprobación de generación es TOCAR la
+            // pantalla: el diálogo y la navegación van detrás de ella, y la
+            // navegación además comprueba que el nivel vigente siga siendo el
+            // de esta entidad.
             if (resultado.EsFallido)
             {
                 ToastService.Mostrar($"{detalle.RazonSocial}: {resultado.Error.Mensaje}", TonoToast.Error);
