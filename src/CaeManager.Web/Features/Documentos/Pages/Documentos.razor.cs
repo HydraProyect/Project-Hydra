@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Configuracion.Commands.EliminarFiltroGuardado;
 using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
@@ -31,7 +31,7 @@ using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Web.Features.Documentos.Pages;
 
-public partial class Documentos : ComponentBase
+public partial class Documentos : ComponentBase, IDisposable
 {
     /// <summary>
     /// Plataforma, Reclamaciones, Revisión IA y Plantillas son pestañas de
@@ -92,10 +92,32 @@ public partial class Documentos : ComponentBase
 
     private GridItemsProvider<DocumentoListaDto>? _proveedorElementos;
 
-    private static readonly IReadOnlyList<PestanaDefinicion> _pestanasDocumentos =
+    /// <summary>
+    /// Los Ids son estables y viajan en la URL (<c>?pestana=</c>, deep-link
+    /// desde el timeline de Comunicaciones): las etiquetas se alinean al mockup
+    /// Gen 2, los Ids NO se tocan.
+    ///
+    /// <para>
+    /// Dos rótulos se apartan del mockup por el contrato terminológico, que
+    /// manda sobre el diseño en el vocabulario: «Plataformas CAE» y no
+    /// «Por plataforma» —«plataforma» a secas colisiona con el plano Plataforma
+    /// del ADR-011, el de quien accede excepcionalmente desde TALVEG, mientras
+    /// que aquí se habla de la Plataforma CAE externa (Nalanda, Dokify,
+    /// CTAIMA), que es como la nombra el propio dominio
+    /// (<c>ProveedorPlataformaCae</c>)—; y «Plantillas», que el mockup no
+    /// dibuja pero la pantalla ya tiene: un mockup omite comportamiento, no lo
+    /// deroga.
+    /// </para>
+    ///
+    /// <para>
+    /// No es estática porque la primera pestaña lleva el recuento del mockup, y
+    /// ese número depende de lo cargado.
+    /// </para>
+    /// </summary>
+    private IReadOnlyList<PestanaDefinicion> PestanasDocumentos =>
     [
-        new("listado", "Listado", "documentos"),
-        new("plataforma", "Plataforma", "plataforma"),
+        new("listado", "Estado", "documentos") { Contador = ContadorDeEstado },
+        new("plataforma", "Plataformas CAE", "plataforma"),
         // "correo" y "reloj" son los más cercanos del catálogo: no hay glifo
         // propio de reclamación (que sale por correo) ni de preventivo (que
         // es anticiparse al vencimiento). Si algún día se dibujan, aquí.
@@ -104,6 +126,38 @@ public partial class Documentos : ComponentBase
         new("revision-ia", "Revisión IA", "ia"),
         new("plantillas", "Plantillas", "plantilla")
     ];
+
+    /// <summary>Ids de pestaña válidos, sin construir la tira entera para comprobar uno.</summary>
+    private static readonly string[] _idsDePestana =
+        ["listado", "plataforma", "reclamaciones", "sugerencias", "revision-ia", "plantillas"];
+
+    /// <summary>
+    /// El recuento de la pestaña «Estado», que el mockup pinta como píldora.
+    /// Es el total que YA devuelve <see cref="ObtenerDocumentosQuery"/> —el
+    /// filtrado vigente incluido—, no un total inventado: hasta que la lista
+    /// responda por primera vez no hay número y la píldora no se pinta, en
+    /// lugar de anunciar un cero que nadie ha contado.
+    ///
+    /// <para>
+    /// Un cero medido tampoco se pinta, y esto sí es una DECISIÓN: «Estado 0»
+    /// no informa de nada que el estado vacío de la lista no diga mejor, y
+    /// añade una píldora permanente a la pestaña más usada. El mockup tampoco
+    /// dibuja ninguna con cero.
+    /// </para>
+    ///
+    /// <para>
+    /// Las otras cinco pestañas se quedan sin píldora a propósito: sus
+    /// recuentos (documentos pendientes por Plataforma CAE, reclamaciones
+    /// abiertas, vencimientos de la ventana preventiva, extracciones de IA por
+    /// revisar) exigirían una consulta de recuento propia por pestaña que hoy
+    /// no existe, y que además se pagaría en cada carga de la página. Ver el
+    /// informe del incremento.
+    /// </para>
+    /// </summary>
+    private ContadorPestana? ContadorDeEstado =>
+        _totalConocido is not { } total || total == 0
+            ? null
+            : new ContadorPestana(total, total == 1 ? "documento" : "documentos");
 
     private string _pestanaActiva = "listado";
 
@@ -118,7 +172,104 @@ public partial class Documentos : ComponentBase
     private void CambiarPestana(string pestana)
     {
         _pestanaActiva = pestana;
+        CambiarContextoDocumental();
         NavigationManager.ActualizarFiltroEnUrl(nameof(Pestana), pestana == "listado" ? null : pestana);
+    }
+
+    // --- Ciclo de vida y contexto en pantalla ---------------------------------------------------
+
+    /// <summary>
+    /// Se cancela al retirarse la página: las consultas en curso dejan de
+    /// trabajar para nadie y ninguna respuesta tardía repinta un componente ya
+    /// desechado. Mismo patrón que <c>Empresas.razor.cs</c>.
+    ///
+    /// <para>
+    /// Su <c>Token</c> se lee SIEMPRE antes del primer <c>await</c> del método
+    /// que lo usa. Leerlo después deja que un <see cref="Dispose"/> intermedio
+    /// lo haya desechado, y la lectura lanzaría <see cref="ObjectDisposedException"/>
+    /// en una continuación donde nadie la recoge.
+    /// </para>
+    /// </summary>
+    private readonly CancellationTokenSource _ciclo = new();
+    private bool _desechado;
+
+    /// <summary>
+    /// Número de la última carga de la lista. Cada carga captura el suyo ANTES
+    /// del <c>await</c> y, al volver, solo escribe estado si sigue siendo la
+    /// vigente: sin esto, la respuesta de un filtro ya abandonado pisaba el
+    /// total, las filas y la selección de la pregunta que sí se está mirando.
+    /// </summary>
+    private int _cargaVigente;
+
+    /// <summary>
+    /// Qué documentos hay en pantalla: cambia al cambiar de pestaña o de
+    /// cualquiera de los tres filtros. Lo que una modal, una selección o un
+    /// formulario tuvieran preparado pertenecía al contexto anterior y deja de
+    /// valer — las modales y la barra de lote se pintan FUERA del bloque de
+    /// pestañas, así que sin esto sobreviven al cambio y se ejecutan sobre lo
+    /// que ya no se ve.
+    ///
+    /// <para>
+    /// Es un número, y no un booleano, porque también decide si el
+    /// <c>finally</c> de una escritura puede apagar su bandera de «en curso»:
+    /// la escritura anterior, al terminar, apagaría la bandera de la que
+    /// empezó después y la reabriría a un segundo envío.
+    /// </para>
+    /// </summary>
+    private int _contextoVigente;
+
+    /// <summary>
+    /// Firma del contexto tal y como se vio la última vez, para distinguir
+    /// «los parámetros se volvieron a evaluar» de «cambió lo que hay en
+    /// pantalla». <c>null</c> es la primera pasada, que no cierra nada: no hay
+    /// nada anterior a lo que pudiera pertenecer lo abierto.
+    /// </summary>
+    private string? _contextoEnPantalla;
+
+    public void Dispose()
+    {
+        if (_desechado)
+            return;
+
+        _desechado = true;
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+    }
+
+    /// <summary>La respuesta es de la pregunta vigente y la página sigue viva.</summary>
+    private bool EsVigente(int carga) => !_desechado && carga == _cargaVigente;
+
+    /// <summary>Lo preparado sigue perteneciendo a lo que hay en pantalla.</summary>
+    private bool ContextoSigueSiendo(int contexto) => !_desechado && contexto == _contextoVigente;
+
+    /// <summary>
+    /// Cambió lo que hay en pantalla: se cierra todo lo que quedara abierto y
+    /// se tira lo que tuviera preparado. No basta con cerrar la modal — hay que
+    /// soltar además el objetivo que guardaba, o volver a abrirla mostraría el
+    /// documento de antes.
+    /// </summary>
+    private void CambiarContextoDocumental()
+    {
+        _contextoVigente++;
+
+        _confirmarEliminarVisible = false;
+        _idAEliminar = Guid.Empty;
+        _propietarioAEliminar = string.Empty;
+        _tipoDocumentoAEliminar = string.Empty;
+
+        _confirmarEliminarLoteVisible = false;
+        _seleccionados.Clear();
+
+        _mostrarGuardarFiltro = false;
+        _nombreFiltroNuevo = string.Empty;
+
+        // Las banderas de «en curso» se reinician porque pertenecían a lo
+        // anterior: dejarlas encendidas bloquearía para siempre el botón del
+        // contexto nuevo. Su contrapartida está en cada finally, que solo
+        // apaga la suya si el contexto sigue siendo el que la encendió.
+        _eliminando = false;
+        _eliminandoLote = false;
+        _guardandoFiltro = false;
     }
 
     // --- P3-31: selección múltiple, atajos j/k, filtros guardados ---
@@ -158,7 +309,8 @@ public partial class Documentos : ComponentBase
         // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
         _proveedorElementos = ProveerElementosAsync;
 
-        _filtrosGuardados = await Mediator.Send(new ObtenerFiltrosGuardadosQuery(PantallasConFiltrosGuardados.Documentos));
+        var token = _ciclo.Token;
+        _filtrosGuardados = await Mediator.Send(new ObtenerFiltrosGuardadosQuery(PantallasConFiltrosGuardados.Documentos), token);
     }
 
     /// <summary>
@@ -204,8 +356,26 @@ public partial class Documentos : ComponentBase
         // Deep-link de pestaña: lo usa el timeline de Comunicaciones para llevar
         // desde el evento de reclamación enviada a su pestaña. Se ignora un
         // valor que no exista en vez de dejar la página en blanco.
-        if (!string.IsNullOrWhiteSpace(Pestana) && _pestanasDocumentos.Any(p => p.Id == Pestana))
+        if (!string.IsNullOrWhiteSpace(Pestana) && _idsDePestana.Contains(Pestana))
             _pestanaActiva = Pestana;
+
+        // Los filtros son la fuente de verdad de QUÉ hay en pantalla, y viajan
+        // por la URL: cambiarlos desde el selector, desde otra pantalla o
+        // volviendo atrás pasa siempre por aquí. Si el conjunto cambió, lo que
+        // una modal tuviera preparado ya no es de esta pantalla. Va ANTES de
+        // "accion=guardar-filtro", que abre su modal a propósito.
+        //
+        // El separador no es decorativo: concatenando a pelo, mover una letra
+        // de un filtro al siguiente daría la misma firma y el cambio pasaría
+        // por no-cambio.
+        var contexto = string.Join('\n', _pestanaActiva, _busqueda, _ambitoFiltro, _estadoFiltro);
+        if (_contextoEnPantalla is null)
+            _contextoEnPantalla = contexto;
+        else if (_contextoEnPantalla != contexto)
+        {
+            _contextoEnPantalla = contexto;
+            CambiarContextoDocumental();
+        }
 
         // A diferencia de "accion=crear" (OnAfterRenderAsync, solo primer
         // render: siempre llega desde otra página), "guardar-filtro" tiene
@@ -245,6 +415,14 @@ public partial class Documentos : ComponentBase
     private bool _errorCarga;
     private int _totalElementos;
 
+    /// <summary>
+    /// El total, solo cuando la lista ha respondido de verdad alguna vez. El
+    /// cero de <see cref="_totalElementos"/> antes de la primera respuesta no
+    /// es un recuento: es la falta de uno, y la píldora de la pestaña no puede
+    /// anunciarlo como si lo fuera.
+    /// </summary>
+    private int? _totalConocido;
+
     private bool _confirmarEliminarVisible;
     private Guid _idAEliminar;
     private string _propietarioAEliminar = string.Empty;
@@ -254,6 +432,16 @@ public partial class Documentos : ComponentBase
     private async ValueTask<GridItemsProviderResult<DocumentoListaDto>> ProveerElementosAsync(
         GridItemsProviderRequest<DocumentoListaDto> request)
     {
+        if (_desechado)
+            return GridItemsProviderResult.From(new List<DocumentoListaDto>(), 0);
+
+        // Todo lo que define la pregunta —el número de carga y el token— se lee
+        // ANTES del await. Leer _ciclo.Token después dejaría que un Dispose
+        // intermedio lo hubiera desechado, y la lectura lanzaría
+        // ObjectDisposedException en una continuación que nadie observa.
+        var carga = ++_cargaVigente;
+        var token = _ciclo.Token;
+
         _cargando = true;
         _errorCarga = false;
 
@@ -273,9 +461,17 @@ public partial class Documentos : ComponentBase
                 Pagina: pagina,
                 TamanoPagina: _paginacion.ItemsPerPage,
                 OrdenarPor: ordenarPor,
-                Descendente: descendente));
+                Descendente: descendente), token);
+
+            // La respuesta de un filtro ya abandonado no puede pisar el total,
+            // las filas ni la selección de la pregunta que sí se está mirando.
+            // QuickGrid descarta por su cuenta el resultado de un provider
+            // superado, pero el estado de la página lo escribimos aquí.
+            if (!EsVigente(carga))
+                return GridItemsProviderResult.From(new List<DocumentoListaDto>(), 0);
 
             _totalElementos = resultado.TotalElementos;
+            _totalConocido = resultado.TotalElementos;
 
             var elementos = resultado.Elementos.ToList();
             _elementosPagina = elementos;
@@ -283,6 +479,13 @@ public partial class Documentos : ComponentBase
             _idEnfocado = null;
 
             return GridItemsProviderResult.From(elementos, resultado.TotalElementos);
+        }
+        catch (Exception) when (!EsVigente(carga))
+        {
+            // Una carga superada que falla no es un error de la vigente: no
+            // puede tapar su resultado con el estado de error ni ensuciar el
+            // log con un fallo de una pregunta que ya nadie hace.
+            return GridItemsProviderResult.From(new List<DocumentoListaDto>(), 0);
         }
         catch (Exception ex)
         {
@@ -296,8 +499,11 @@ public partial class Documentos : ComponentBase
         }
         finally
         {
-            _cargando = false;
-            StateHasChanged();
+            if (EsVigente(carga))
+            {
+                _cargando = false;
+                StateHasChanged();
+            }
         }
     }
 
@@ -381,11 +587,25 @@ public partial class Documentos : ComponentBase
 
     private async Task ConfirmarEliminarAsync()
     {
+        // El botón deshabilitado no basta: el segundo clic ya viajaba cuando se
+        // deshabilitó. La guarda va en el método, que es lo que se ejecuta.
+        if (_eliminando || _desechado)
+            return;
+
+        // La pregunta entera se lee antes del primer await: el id que se borra,
+        // el token y el contexto al que pertenece esta operación.
+        var idEliminado = _idAEliminar;
+        var token = _ciclo.Token;
+        var contexto = _contextoVigente;
+
+        if (idEliminado == Guid.Empty)
+            return;
+
         _eliminando = true;
 
         try
         {
-            var resultado = await Mediator.Send(new EliminarDocumentoCommand(_idAEliminar));
+            var resultado = await Mediator.Send(new EliminarDocumentoCommand(idEliminado), token);
 
             if (resultado.EsFallido)
             {
@@ -393,7 +613,6 @@ public partial class Documentos : ComponentBase
             }
             else
             {
-                var idEliminado = _idAEliminar;
                 ToastService.Mostrar("Documento eliminado correctamente.", TonoToast.Exito, "Deshacer", () => DeshacerEliminarAsync(idEliminado));
                 _confirmarEliminarVisible = false;
                 await RecargarAsync();
@@ -405,21 +624,43 @@ public partial class Documentos : ComponentBase
         }
         finally
         {
-            _eliminando = false;
+            // Solo apaga la bandera que ella encendió: si entre medias cambió lo
+            // que hay en pantalla, la bandera vigente es de otra operación y
+            // apagarla la reabriría a un segundo envío.
+            if (ContextoSigueSiendo(contexto))
+                _eliminando = false;
         }
     }
 
-    /// <summary>Fase D ("Deshacer al eliminar") — acción del toast tras eliminar, ver RestaurarDocumentoCommand.</summary>
+    /// <summary>
+    /// Fase D ("Deshacer al eliminar") — acción del toast tras eliminar, ver
+    /// RestaurarDocumentoCommand. Con guarda propia: el aviso sigue en pantalla
+    /// mientras se restaura y dos pulsaciones mandarían dos restauraciones.
+    /// </summary>
+    private readonly HashSet<Guid> _restaurando = [];
+
     private async Task DeshacerEliminarAsync(Guid id)
     {
-        var resultado = await Mediator.Send(new RestaurarDocumentoCommand(id));
+        if (_desechado || !_restaurando.Add(id))
+            return;
 
-        ToastService.Mostrar(
-            resultado.EsExitoso ? "Documento restaurado." : resultado.Error.Mensaje,
-            resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
+        var token = _ciclo.Token;
 
-        if (resultado.EsExitoso)
-            await RecargarAsync();
+        try
+        {
+            var resultado = await Mediator.Send(new RestaurarDocumentoCommand(id), token);
+
+            ToastService.Mostrar(
+                resultado.EsExitoso ? "Documento restaurado." : resultado.Error.Mensaje,
+                resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
+
+            if (resultado.EsExitoso)
+                await RecargarAsync();
+        }
+        finally
+        {
+            _restaurando.Remove(id);
+        }
     }
 
     // --- P3-31: selección múltiple ---
@@ -443,18 +684,55 @@ public partial class Documentos : ComponentBase
 
     private async Task ConfirmarEliminarLoteAsync()
     {
+        if (_eliminandoLote || _desechado)
+            return;
+
+        // Se lee todo antes del await, y el número de pedidos se guarda: sin él
+        // no hay forma de distinguir después «hizo todo lo pedido» de «hizo
+        // parte», porque el DTO solo dice cuántos borró.
+        var pedidos = _seleccionados.ToList();
+        var token = _ciclo.Token;
+        var contexto = _contextoVigente;
+
+        // Una selección vacía no se manda: el validador la rechazaría y el
+        // fallo acabaría presentado como «no pudimos eliminar», que sugiere una
+        // avería donde solo había un lote que se quedó sin filas —p. ej. porque
+        // la lista se recargó con la modal abierta.
+        if (pedidos.Count == 0)
+        {
+            _confirmarEliminarLoteVisible = false;
+            return;
+        }
+
         _eliminandoLote = true;
 
         try
         {
-            var resultado = await Mediator.Send(new EliminarDocumentosCommand(_seleccionados.ToList()));
-            var dto = resultado.Valor;
+            var resultado = await Mediator.Send(new EliminarDocumentosCommand(pedidos), token);
 
+            // Un Result fallido no traía DTO: leer .Valor sin mirar esto
+            // reventaba, y la excepción acababa en el catch de abajo con un
+            // texto genérico que se comía el motivo que dio el servidor.
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            var dto = resultado.Valor;
+            var completo = dto.Eliminados == pedidos.Count && dto.Errores.Count == 0;
+
+            // Tres desenlaces, no dos. Un lote que borró MENOS de lo pedido no
+            // es un éxito aunque no traiga ni un error: la lista de errores no
+            // es la medida de lo hecho, el recuento sí. Y cero borrados no es
+            // un logro que anunciar en tono de éxito.
             ToastService.Mostrar(
-                dto.Errores.Count == 0
+                completo
                     ? $"{dto.Eliminados} documento(s) eliminado(s)."
-                    : $"{dto.Eliminados} eliminado(s). {dto.Errores.Count} no se pudieron borrar: {string.Join(" ", dto.Errores)}",
-                dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+                    : dto.Eliminados == 0
+                        ? $"No se eliminó ningún documento de los {pedidos.Count} seleccionados.{DetalleDeErrores(dto.Errores)}"
+                        : $"{dto.Eliminados} de {pedidos.Count} eliminado(s); el resto sigue en la lista.{DetalleDeErrores(dto.Errores)}",
+                completo ? TonoToast.Exito : dto.Eliminados == 0 ? TonoToast.Error : TonoToast.Advertencia);
 
             _seleccionados.Clear();
             _confirmarEliminarLoteVisible = false;
@@ -466,9 +744,18 @@ public partial class Documentos : ComponentBase
         }
         finally
         {
-            _eliminandoLote = false;
+            if (ContextoSigueSiendo(contexto))
+                _eliminandoLote = false;
         }
     }
+
+    /// <summary>
+    /// Los motivos que dio el servidor, si los dio. El handler devuelve mensajes
+    /// ya redactados y sin Id, así que no se pueden atribuir a una fila
+    /// concreta: se muestran tal cual, que es más de lo que dice callarlos.
+    /// </summary>
+    private static string DetalleDeErrores(IReadOnlyList<string> errores) =>
+        errores.Count == 0 ? string.Empty : " " + string.Join(" ", errores);
 
     // --- P3-31: atajos de teclado j/k/x/Enter ---
 
@@ -524,24 +811,43 @@ public partial class Documentos : ComponentBase
         _busqueda = valores.Busqueda ?? string.Empty;
         _ambitoFiltro = valores.Ambito ?? string.Empty;
         _estadoFiltro = valores.Estado ?? string.Empty;
+
+        // Los tres van también a la URL, y en una sola llamada. Sin esto, el
+        // filtro guardado duraba hasta la siguiente pasada de parámetros:
+        // OnParametersSet re-sincroniza desde la URL, que seguía con los
+        // filtros de antes, y los devolvía encima de lo recién aplicado. Es el
+        // mismo defecto que tenía "Quitar los filtros".
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["q"] = valores.Busqueda,
+            [nameof(Estado)] = valores.Estado,
+            [nameof(Ambito)] = valores.Ambito,
+        });
         await RecargarAsync();
     }
 
     private async Task GuardarFiltroActualAsync()
     {
+        // Sin guarda, dos clics —o un clic mientras el botón todavía se estaba
+        // deshabilitando— guardaban dos filtros con el mismo nombre.
+        if (_guardandoFiltro || _desechado) return;
         if (string.IsNullOrWhiteSpace(_nombreFiltroNuevo)) return;
+
+        var nombre = _nombreFiltroNuevo;
+        var token = _ciclo.Token;
+        var contexto = _contextoVigente;
+
+        var valoresJson = JsonSerializer.Serialize(new FiltrosDocumentosJson(
+            string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
+            string.IsNullOrWhiteSpace(_ambitoFiltro) ? null : _ambitoFiltro,
+            string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro));
 
         _guardandoFiltro = true;
 
         try
         {
-            var valoresJson = JsonSerializer.Serialize(new FiltrosDocumentosJson(
-                string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
-                string.IsNullOrWhiteSpace(_ambitoFiltro) ? null : _ambitoFiltro,
-                string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro));
-
             var resultado = await Mediator.Send(
-                new GuardarFiltroCommand(PantallasConFiltrosGuardados.Documentos, _nombreFiltroNuevo, valoresJson));
+                new GuardarFiltroCommand(PantallasConFiltrosGuardados.Documentos, nombre, valoresJson), token);
 
             if (resultado.EsFallido)
             {
@@ -549,26 +855,31 @@ public partial class Documentos : ComponentBase
                 return;
             }
 
-            _filtrosGuardados = await Mediator.Send(new ObtenerFiltrosGuardadosQuery(PantallasConFiltrosGuardados.Documentos));
+            _filtrosGuardados = await Mediator.Send(new ObtenerFiltrosGuardadosQuery(PantallasConFiltrosGuardados.Documentos), token);
             _mostrarGuardarFiltro = false;
             _nombreFiltroNuevo = string.Empty;
             ToastService.Mostrar("Filtro guardado.", TonoToast.Exito);
         }
         finally
         {
-            _guardandoFiltro = false;
+            if (ContextoSigueSiendo(contexto))
+                _guardandoFiltro = false;
         }
     }
 
     private async Task EliminarFiltroGuardadoAsync(Guid id)
     {
-        var resultado = await Mediator.Send(new EliminarFiltroGuardadoCommand(id));
+        if (_desechado) return;
+
+        var token = _ciclo.Token;
+
+        var resultado = await Mediator.Send(new EliminarFiltroGuardadoCommand(id), token);
         if (resultado.EsFallido)
         {
             ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
             return;
         }
 
-        _filtrosGuardados = await Mediator.Send(new ObtenerFiltrosGuardadosQuery(PantallasConFiltrosGuardados.Documentos));
+        _filtrosGuardados = await Mediator.Send(new ObtenerFiltrosGuardadosQuery(PantallasConFiltrosGuardados.Documentos), token);
     }
 }

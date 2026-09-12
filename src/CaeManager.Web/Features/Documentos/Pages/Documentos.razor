@@ -29,19 +29,23 @@
 <PageTitle>Documentos — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <div class="cabecera-pagina">
-        <h1 class="titulo-pagina">Documentos</h1>
-        <div class="acciones-cabecera">
+    @*
+        Cabecera Gen 2: el mockup pone sobre el título el antetítulo del ciclo
+        al que pertenece la pantalla. "Exportar a Excel" no está en el mockup y
+        se queda: un mockup omite comportamiento, no lo deroga.
+    *@
+    <CabeceraPagina Titulo="Documentos" Kicker="Ciclo documental">
+        <Acciones>
             <a class="enlace-exportar" href="/documentos/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel</a>
             <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador">
                 <a class="enlace-exportar" href="/importacion?plantilla=documentos">Importar documentos</a>
             </AuthorizeView>
             <a class="enlace-exportar" href="/documentos/subida-masiva">Subida múltiple</a>
             <Boton OnClick="() => _drawerGestion.AbrirCrearAsync()">+ Nuevo documento</Boton>
-        </div>
-    </div>
+        </Acciones>
+    </CabeceraPagina>
 
-    <Pestanas Definiciones="_pestanasDocumentos" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestana" EtiquetaGrupo="Secciones de documentos">
+    <Pestanas Definiciones="PestanasDocumentos" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestana" EtiquetaGrupo="Secciones de documentos">
         @if (_pestanaActiva == "plataforma")
         {
             <AuthorizeView Roles="@RolesDeGestionDocumental">
