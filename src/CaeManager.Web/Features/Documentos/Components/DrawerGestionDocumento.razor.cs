@@ -167,7 +167,8 @@ public partial class DrawerGestionDocumento : ComponentBase
     public async Task AbrirCrearParaFaltanteAsync(Guid trabajadorId, Guid tipoDocumentoId)
     {
         await AbrirCrearAsync();
-        _trabajadorId = trabajadorId.ToString();
+        if (_trabajadoresDisponibles.Any(t => t.Id == trabajadorId))
+            _trabajadorId = trabajadorId.ToString();
         CambiarTipoDocumento(tipoDocumentoId.ToString());
         StateHasChanged();
     }
@@ -176,7 +177,8 @@ public partial class DrawerGestionDocumento : ComponentBase
     {
         await AbrirCrearAsync();
         await CambiarAmbitoAsync(nameof(AmbitoAplicacion.Empresa));
-        _empresaId = empresaId.ToString();
+        if (_empresasDisponibles.Any(e => e.Id == empresaId))
+            _empresaId = empresaId.ToString();
         CambiarTipoDocumento(tipoDocumentoId.ToString());
         StateHasChanged();
     }
