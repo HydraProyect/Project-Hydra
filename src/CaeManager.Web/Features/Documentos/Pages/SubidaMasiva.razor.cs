@@ -41,7 +41,9 @@ namespace CaeManager.Web.Features.Documentos.Pages;
 /// todavía (evita huérfanos si se descartan, y evita abrir un endpoint que
 /// sirva un archivo por clave sin un Documento que autorizar contra él —
 /// el mismo vector IDOR que Fase 31/Issue #18 ya cerraron para el resto de
-/// la aplicación) — solo se persiste el que el usuario confirma.
+/// la aplicación). Los archivos con Trabajador y Tipo resueltos por la IA
+/// con una confianza de al menos 95 se crean automáticamente; los demás
+/// solo se persisten tras la confirmación humana.
 ///
 /// El <c>[Authorize]</c> de la página incluye <see cref="Roles.Consulta"/> —
 /// a quién se le deja abrir esta pantalla no lo decide este fichero. Pero
@@ -55,7 +57,7 @@ namespace CaeManager.Web.Features.Documentos.Pages;
 /// que <see cref="DescartarArchivoHuerfanoAsync"/> ya documenta para el
 /// caso general.
 /// </summary>
-public partial class SubidaMasiva : ComponentBase
+public partial class SubidaMasiva : ComponentBase, IDisposable
 {
     private const long TamanoMaximoArchivoBytes = 10 * 1024 * 1024;
     private const int MaximoArchivosPorLote = 60;
@@ -105,10 +107,16 @@ public partial class SubidaMasiva : ComponentBase
         public string? MensajeError { get; set; }
         public bool Expandido { get; set; }
         public bool Confirmando { get; set; }
+        public bool CreadoAutomaticamente { get; set; }
     }
 
     private readonly List<ItemLote> _items = [];
     private bool _procesandoLote;
+    private readonly CancellationTokenSource _ciclo = new();
+    private bool _desechado;
+    private int _cargaVigente;
+    private const string FiltroTodos = "todos";
+    private string _filtro = FiltroTodos;
     private IReadOnlyList<TrabajadorSelectorDto> _trabajadoresDisponibles = [];
     private IReadOnlyList<TipoDocumentoListaDto> _tiposDisponibles = [];
 
@@ -122,6 +130,18 @@ public partial class SubidaMasiva : ComponentBase
     /// exacto sin tocarlo.
     /// </summary>
     private bool _esSoloLectura;
+    private int _totalRecibidos;
+    private int _totalCreados;
+    private int _totalDescartados;
+    private int _totalErrores;
+
+    private static readonly (string Valor, string Etiqueta)[] Filtros =
+    [
+        (FiltroTodos, "Todos"),
+        ("pendientes", "Ambiguos"),
+        ("errores", "Errores"),
+        ("creados", "Creados")
+    ];
 
     private IReadOnlyList<OpcionBuscable> OpcionesTrabajadores => _trabajadoresDisponibles
         .Select(t => new OpcionBuscable(
@@ -129,16 +149,34 @@ public partial class SubidaMasiva : ComponentBase
             string.IsNullOrWhiteSpace(t.Alias) ? $"{t.NombreCompleto} ({t.Dni})" : $"{t.NombreCompleto} — {t.Alias} ({t.Dni})"))
         .ToList();
 
-    private int TotalCreados => _items.Count(i => i.Estado == EstadoItem.Creado);
+    private int TotalCreados => _totalCreados;
     private int TotalPendientes => _items.Count(i => i.Estado == EstadoItem.PendienteConfirmar);
-    private int TotalDescartados => _items.Count(i => i.Estado == EstadoItem.Descartado);
-    private int TotalErrores => _items.Count(i => i.Estado == EstadoItem.Error);
+    private int TotalDescartados => _totalDescartados;
+    private int TotalErrores => _totalErrores;
+    private int TotalRecibidos => _totalRecibidos;
+    private int ArchivosEnCurso => _items.Count(i => i.Estado == EstadoItem.Procesando);
+    private bool HayArchivosEnCurso => ArchivosEnCurso > 0;
+    private int ArchivosLeidos => TotalRecibidos - ArchivosEnCurso;
+    private int PorcentajeProgreso => TotalRecibidos == 0 ? 0 : ArchivosLeidos * 100 / TotalRecibidos;
+    private IReadOnlyList<ItemLote> ItemsFiltrados => _items.Where(item => _filtro switch
+    {
+        "pendientes" => item.Estado == EstadoItem.PendienteConfirmar,
+        "errores" => item.Estado == EstadoItem.Error,
+        "creados" => item.Estado == EstadoItem.Creado,
+        _ => true
+    }).ToList();
 
     protected override async Task OnInitializedAsync()
     {
         _esSoloLectura = await CurrentUserService.ObtenerRolActualAsync() == Roles.Consulta;
-        _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
-        _tiposDisponibles = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: AmbitoAplicacion.Trabajador));
+        var carga = ++_cargaVigente;
+        var token = _ciclo.Token;
+        var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(), token);
+        if (!EsVigente(carga)) return;
+        var tipos = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: AmbitoAplicacion.Trabajador), token);
+        if (!EsVigente(carga)) return;
+        _trabajadoresDisponibles = trabajadores;
+        _tiposDisponibles = tipos;
     }
 
     private async Task ManejarArchivosSeleccionadosAsync(InputFileChangeEventArgs e)
@@ -148,6 +186,11 @@ public partial class SubidaMasiva : ComponentBase
         // cualquier InputFileChangeEventArgs, venga de donde venga.
         if (_esSoloLectura) return;
 
+        if (_desechado || _procesandoLote)
+            return;
+
+        var carga = ++_cargaVigente;
+        var token = _ciclo.Token;
         var archivosSeleccionados = e.GetMultipleFiles(MaximoArchivosPorLote);
 
         _procesandoLote = true;
@@ -168,14 +211,15 @@ public partial class SubidaMasiva : ComponentBase
             {
                 await using var flujo = archivo.OpenReadStream(TamanoMaximoArchivoBytes);
                 using var memoria = new MemoryStream();
-                await flujo.CopyToAsync(memoria);
+                await flujo.CopyToAsync(memoria, token);
+                if (!EsVigente(carga)) return;
                 var contenido = memoria.ToArray();
 
                 if (ExtractorZip.EsZip(archivo.Name))
                 {
                     if (!ValidadorFirmaArchivo.TieneFirmaValida(contenido, archivo.Name))
                     {
-                        _items.Add(NuevoItemError(archivo.Name, "El archivo no es realmente un .zip válido."));
+                        AgregarItem(NuevoItemError(archivo.Name, "El archivo no es realmente un .zip válido."));
                         continue;
                     }
 
@@ -200,13 +244,13 @@ public partial class SubidaMasiva : ComponentBase
                         Logger.LogWarning(
                             "Se descartó un .zip que supera los límites de descompresión en la subida múltiple: {Motivo}",
                             ex.Message);
-                        _items.Add(NuevoItemError(archivo.Name, ex.Message));
+                        AgregarItem(NuevoItemError(archivo.Name, ex.Message));
                         continue;
                     }
                     catch (Exception ex)
                     {
                         Logger.LogWarning(ex, "No se pudo leer un .zip en la subida múltiple.");
-                        _items.Add(NuevoItemError(archivo.Name, "No pudimos abrir este archivo .zip."));
+                        AgregarItem(NuevoItemError(archivo.Name, "No pudimos abrir este archivo .zip."));
                         continue;
                     }
 
@@ -235,53 +279,60 @@ public partial class SubidaMasiva : ComponentBase
             }
 
             foreach (var (contenido, nombreArchivo) in entradas)
-                await ProcesarEntradaAsync(contenido, nombreArchivo);
+                await ProcesarEntradaAsync(contenido, nombreArchivo, carga, token);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
         }
         finally
         {
-            _procesandoLote = false;
-            StateHasChanged();
+            if (EsVigente(carga))
+            {
+                _procesandoLote = false;
+                StateHasChanged();
+            }
         }
     }
 
-    private async Task ProcesarEntradaAsync(byte[] contenido, string nombreArchivo)
+    private async Task ProcesarEntradaAsync(byte[] contenido, string nombreArchivo, int carga, CancellationToken token)
     {
         if (!ConversorArchivosPdf.EsPdf(nombreArchivo) && !ConversorArchivosPdf.EsImagen(nombreArchivo) && !ConversorArchivosPdf.EsWord(nombreArchivo))
         {
-            _items.Add(NuevoItemError(nombreArchivo, "No es un PDF, JPG, PNG ni Word (.docx) — se omitió."));
+            AgregarItem(NuevoItemError(nombreArchivo, "No es un PDF, JPG, PNG ni Word (.docx) — se omitió."));
             StateHasChanged();
             return;
         }
 
         if (contenido.Length > TamanoMaximoArchivoBytes)
         {
-            _items.Add(NuevoItemError(nombreArchivo, "Supera los 10 MB — se omitió."));
+            AgregarItem(NuevoItemError(nombreArchivo, "Supera los 10 MB — se omitió."));
             StateHasChanged();
             return;
         }
 
         if (!ValidadorFirmaArchivo.TieneFirmaValida(contenido, nombreArchivo))
         {
-            _items.Add(NuevoItemError(nombreArchivo, "El contenido real no coincide con la extensión — se omitió."));
+            AgregarItem(NuevoItemError(nombreArchivo, "El contenido real no coincide con la extensión — se omitió."));
             StateHasChanged();
             return;
         }
 
         var item = new ItemLote { NombreArchivo = nombreArchivo };
-        _items.Add(item);
+        AgregarItem(item);
         StateHasChanged();
 
         byte[] contenidoPdf;
         try
         {
             contenidoPdf = await ConversorArchivosPdf.UnificarAsync([(contenido, nombreArchivo)], ConversorWordPdf);
+            if (!EsVigente(carga)) return;
         }
         catch (Exception ex)
         {
+            if (!EsVigente(carga)) return;
             Logger.LogWarning(ex, "No se pudo convertir {ReferenciaArchivo} a PDF en la subida múltiple.",
                 ReferenciaArchivoTraza.De(nombreArchivo));
-            item.Estado = EstadoItem.Error;
-            item.MensajeError = "No pudimos convertir este archivo a PDF.";
+            MarcarError(item, "No pudimos convertir este archivo a PDF.");
             StateHasChanged();
             return;
         }
@@ -289,7 +340,8 @@ public partial class SubidaMasiva : ComponentBase
         item.ContenidoPdf = contenidoPdf;
         item.MiniaturaBase64 = GenerarMiniatura(contenidoPdf, nombreArchivo);
 
-        var deteccion = await DetectarCamposAsync(contenidoPdf, nombreArchivo);
+        var deteccion = await DetectarCamposAsync(contenidoPdf, nombreArchivo, token);
+        if (!EsVigente(carga)) return;
         item.Confianza = deteccion?.ConfianzaGeneral;
 
         var tipoResuelto = deteccion?.TipoDocumentoId is { } tipoId && _tiposDisponibles.Any(t => t.Id == tipoId) ? tipoId : (Guid?)null;
@@ -301,14 +353,15 @@ public partial class SubidaMasiva : ComponentBase
         var confianzaSuficiente = deteccion?.ConfianzaGeneral >= UmbralConfianzaAutoCreacion;
 
         if (confianzaSuficiente && tipoResuelto is not null && trabajadorResuelto is not null)
-            await CrearDocumentoDelItemAsync(item, tipoResuelto.Value, trabajadorResuelto.Value);
+            await CrearDocumentoDelItemAsync(item, tipoResuelto.Value, trabajadorResuelto.Value, carga, creadoAutomaticamente: true);
         else
             item.Estado = EstadoItem.PendienteConfirmar;
 
         // Feedback incremental: con un lote de varios archivos, esperar al
         // StateHasChanged de después del foreach entero dejaría la lista
         // congelada en "Procesando…" hasta que termina el último.
-        StateHasChanged();
+        if (EsVigente(carga))
+            StateHasChanged();
     }
 
     private static ItemLote NuevoItemError(string nombreArchivo, string mensaje) => new()
@@ -340,11 +393,11 @@ public partial class SubidaMasiva : ComponentBase
     }
 
     /// <summary>Mejor esfuerzo, mismo criterio que el alta individual (Fase 54): si falla, el item sigue pendiente de confirmar a mano.</summary>
-    private async Task<DeteccionCamposDocumentoDto?> DetectarCamposAsync(byte[] contenidoPdf, string nombreArchivo)
+    private async Task<DeteccionCamposDocumentoDto?> DetectarCamposAsync(byte[] contenidoPdf, string nombreArchivo, CancellationToken token)
     {
         try
         {
-            var resultado = await Mediator.Send(new DetectarCamposDocumentoQuery(contenidoPdf, nombreArchivo, AmbitoAplicacion.Trabajador));
+            var resultado = await Mediator.Send(new DetectarCamposDocumentoQuery(contenidoPdf, nombreArchivo, AmbitoAplicacion.Trabajador), token);
             return resultado.EsFallido ? null : resultado.Valor;
         }
         catch (Exception ex)
@@ -369,6 +422,10 @@ public partial class SubidaMasiva : ComponentBase
 
     private async Task ConfirmarAsync(ItemLote item)
     {
+        if (_desechado || item.Confirmando)
+            return;
+
+        var carga = _cargaVigente;
         if (!Guid.TryParse(item.TrabajadorId, out var trabajadorId))
         {
             ToastService.Mostrar("Selecciona un trabajador antes de confirmar.", TonoToast.Error);
@@ -386,20 +443,20 @@ public partial class SubidaMasiva : ComponentBase
 
         try
         {
-            await CrearDocumentoDelItemAsync(item, tipoDocumentoId, trabajadorId);
+            await CrearDocumentoDelItemAsync(item, tipoDocumentoId, trabajadorId, carga, creadoAutomaticamente: false);
         }
         finally
         {
-            item.Confirmando = false;
+            if (EsVigente(carga))
+                item.Confirmando = false;
         }
     }
 
-    private async Task CrearDocumentoDelItemAsync(ItemLote item, Guid tipoDocumentoId, Guid trabajadorId)
+    private async Task CrearDocumentoDelItemAsync(ItemLote item, Guid tipoDocumentoId, Guid trabajadorId, int carga, bool creadoAutomaticamente)
     {
         if (item.ContenidoPdf is null)
         {
-            item.Estado = EstadoItem.Error;
-            item.MensajeError = "No hay archivo que guardar.";
+            MarcarError(item, "No hay archivo que guardar.");
             return;
         }
 
@@ -410,8 +467,7 @@ public partial class SubidaMasiva : ComponentBase
         // que no hace falta escribir el PDF para descubrirlo.
         if (_esSoloLectura)
         {
-            item.Estado = EstadoItem.Error;
-            item.MensajeError = "Tu rol de Consulta no permite crear documentos.";
+            MarcarError(item, "Tu rol de Consulta no permite crear documentos.");
             return;
         }
 
@@ -455,20 +511,26 @@ public partial class SubidaMasiva : ComponentBase
             if (resultado.EsFallido)
             {
                 await DescartarArchivoHuerfanoAsync(archivoUrl);
-                item.Estado = EstadoItem.Error;
-                item.MensajeError = resultado.Error.Mensaje;
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                if (!EsVigente(carga)) return;
+                MarcarError(item, resultado.Error.Mensaje);
                 return;
             }
 
+            ToastService.Mostrar("Documento creado correctamente.", TonoToast.Exito);
+            if (!EsVigente(carga)) return;
             item.Estado = EstadoItem.Creado;
+            item.CreadoAutomaticamente = creadoAutomaticamente;
+            _totalCreados++;
         }
         catch (Exception ex)
         {
             await DescartarArchivoHuerfanoAsync(archivoUrl);
             Logger.LogError(ex, "Fallo al crear el Documento de {ReferenciaArchivo} desde la subida múltiple.",
                 ReferenciaArchivoTraza.De(item.NombreArchivo));
-            item.Estado = EstadoItem.Error;
-            item.MensajeError = "No pudimos guardar este documento. Intenta nuevamente.";
+            ToastService.Mostrar("No pudimos guardar este documento. Intenta nuevamente.", TonoToast.Error);
+            if (!EsVigente(carga)) return;
+            MarcarError(item, "No pudimos guardar este documento. Intenta nuevamente.");
         }
         finally
         {
@@ -508,6 +570,7 @@ public partial class SubidaMasiva : ComponentBase
     private void Descartar(ItemLote item)
     {
         item.Estado = EstadoItem.Descartado;
+        _totalDescartados++;
         item.ContenidoPdf = null;
         item.MiniaturaBase64 = null;
     }
@@ -516,11 +579,48 @@ public partial class SubidaMasiva : ComponentBase
 
     private void LimpiarResueltos() => _items.RemoveAll(i => i.Estado is EstadoItem.Creado or EstadoItem.Descartado);
 
-    private static string ObtenerEtiquetaEstado(EstadoItem estado) => estado switch
+    private void AgregarItem(ItemLote item)
+    {
+        _items.Add(item);
+        _totalRecibidos++;
+        switch (item.Estado)
+        {
+            case EstadoItem.Creado:
+                _totalCreados++;
+                break;
+            case EstadoItem.Descartado:
+                _totalDescartados++;
+                break;
+            case EstadoItem.Error:
+                _totalErrores++;
+                break;
+        }
+    }
+
+    private void MarcarError(ItemLote item, string mensaje)
+    {
+        item.Estado = EstadoItem.Error;
+        item.MensajeError = mensaje;
+        _totalErrores++;
+    }
+
+    public void Dispose()
+    {
+        if (_desechado)
+            return;
+
+        _desechado = true;
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+    }
+
+    private bool EsVigente(int carga) => !_desechado && carga == _cargaVigente;
+
+    private static string ObtenerEtiquetaEstado(ItemLote item) => item.Estado switch
     {
         EstadoItem.Procesando => "Procesando…",
         EstadoItem.PendienteConfirmar => "Pendiente de confirmar",
-        EstadoItem.Creado => "Creado",
+        EstadoItem.Creado => item.CreadoAutomaticamente ? "Creado por la IA" : "Creado tras confirmar",
         EstadoItem.Descartado => "Descartado",
         EstadoItem.Error => "Error",
         _ => string.Empty
