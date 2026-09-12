@@ -627,4 +627,47 @@ public class ConfigurarPlantillaEditorGen2Tests : BunitContext
         mediador.Veces<ObtenerEmpresasParaSelectorQuery>().Should().Be(
             1, "cada versión carga las opciones de SU ámbito, no se queda con las de la anterior");
     }
+
+    /// <summary>
+    /// La otra mitad del hallazgo Alta, y la que de verdad describía Codex: la
+    /// orden de confirmar YA salió y vuelve bien, pero para entonces el usuario
+    /// abrió otra versión. La vieja se confirma —eso ya no se puede deshacer—,
+    /// pero ni el aviso ni la navegación pueden arrastrar a quien está en otra.
+    ///
+    /// <para>
+    /// Sin este test, quitar la guarda posterior al comando pasaba en verde: el
+    /// test de la guarda previa corta antes de enviarlo.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task Una_confirmacion_que_vuelve_con_otra_version_abierta_no_saca_al_usuario_de_ella()
+    {
+        var confirmacion = new TaskCompletionSource<object>();
+        var otraVersionId = Guid.NewGuid();
+        var mediador = new MediatorFalso { Version = Result.Exito(Detalle(_versionId)) };
+        var cut = Renderizar(mediador);
+
+        await Boton(cut, "Confirmar plantilla").ClickAsync(new MouseEventArgs());
+
+        // El clic NO se espera aquí: su manejador queda detenido en la
+        // confirmación retenida, y esperarlo colgaría el test.
+        mediador.Retener = p => p is ConfirmarPlantillaDocumentoVersionCommand ? confirmacion.Task : null;
+        var confirmando = Boton(cut, "Sí, confirmar").ClickAsync(new MouseEventArgs());
+
+        mediador.Retener = null;
+        mediador.Version = Result.Exito(Detalle(otraVersionId, "Acta de coordinación"));
+        cut.Render(p => p.Add(c => c.PlantillaDocumentoVersionId, otraVersionId));
+        cut.WaitForAssertion(() => cut.Find("h1.titulo-pagina").TextContent.Trim().Should().Be("Acta de coordinación"));
+        var urlEnLaNueva = Navegacion.Uri;
+
+        await cut.InvokeAsync(() => confirmacion.SetResult(Result.Exito()));
+        await confirmando;
+
+        mediador.Veces<ConfirmarPlantillaDocumentoVersionCommand>().Should().Be(
+            1, "la orden ya había salido: lo que no puede es arrastrar la pantalla del usuario");
+        Navegacion.Uri.Should().Be(urlEnLaNueva, "el usuario está en otra versión: no se le saca al catálogo");
+        Toasts.Mensajes.Select(m => m.Mensaje).Should().NotContain(
+            "Plantilla confirmada.", "el aviso hablaría de una versión que ya no se está viendo");
+        cut.Find("h1.titulo-pagina").TextContent.Trim().Should().Be("Acta de coordinación");
+    }
 }
