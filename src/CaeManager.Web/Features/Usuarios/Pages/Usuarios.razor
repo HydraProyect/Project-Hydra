@@ -212,12 +212,19 @@
                tu propia cuenta (ver EsAutogestionDelPermisoSensible, que es
                quien de verdad lo impide si esto se saltara).
 
-               Las dos frases del texto de ayuda son veraces EN ESTE BLOQUE, y
-               solo aquí: la retirada automática al dejar de ser Administrador
-               la ejecuta EditarUsuarioAsync dentro del mismo "si quien edita
-               es Administrador" que gobierna esta condición. Si alguna vez
-               este bloque se muestra a un DireccionCae, la segunda frase deja
-               de ser cierta y hay que reescribirla. *@
+               La retirada automática al dejar de ser Administrador es otra
+               cosa: no es "conceder ni revocar", es la consecuencia de perder
+               el rol que la política exige junto al permiso, y EditarUsuarioAsync
+               la ejecuta SIEMPRE que el rol deja de ser Administrador — la
+               decida quien la decida, también un DireccionCae que cambie el
+               Rol de esta misma cuenta desde este formulario. Simétricamente,
+               si un DireccionCae PROMOCIONA a alguien a Administrador,
+               EditarUsuarioAsync fuerza el permiso a false en vez de heredar
+               lo que hubiera en base: promocionar el rol tampoco es
+               "conceder". Por eso las tres frases de este comentario y las
+               dos del texto de ayuda siguen siendo veraces aunque este bloque
+               solo se muestre a un Administrador: describen lo que pasa
+               dentro y fuera de él. *@
             <div class="bloque-permiso-sensible">
                 <label class="campo-checkbox" title="Permite consultar quién ha abierto o descargado documentos sensibles (reconocimientos médicos y similares)">
                     <input type="checkbox" checked="@_permisoConsultarAccesoDocumentosSensibles" @onchange="e => _permisoConsultarAccesoDocumentosSensibles = e.Value is bool activo && activo" />

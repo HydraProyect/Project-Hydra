@@ -844,6 +844,65 @@ public class UsuariosGen2Tests : BunitContext
     }
 
     /// <summary>
+    /// Hueco detectado 2026-09-12: la retirada del permiso al perder el rol
+    /// Administrador vivía dentro del "si quien edita es Administrador", así
+    /// que un DireccionCae que degradaba a un Administrador dejaba el permiso
+    /// vivo en base — inerte mientras el rol no volviera, pero recuperable sin
+    /// que ningún Administrador lo concediera en cuanto alguien reasignara el
+    /// rol. DireccionCae sí puede cambiar el Rol desde esta pantalla (no ve el
+    /// interruptor, pero el &lt;select&gt; de Rol no tiene guarda por actor);
+    /// la retirada debe ejecutarse igual.
+    /// </summary>
+    [Fact]
+    public async Task DireccionCae_degrada_a_un_Administrador_y_el_permiso_se_retira_solo()
+    {
+        var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia");
+        ander.PermisoConsultarAccesoDocumentosSensibles = true;
+        Sembrar(
+            (Cuenta(JonId, "j.ibarra@talveg.es", "Jon Ibarra"), RolesIdentidad.DireccionCae),
+            (ander, RolesIdentidad.Administrador));
+
+        var cut = Renderizar(actorId: JonId, rolActor: RolesIdentidad.DireccionCae);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Editar");
+        await CampoPorEtiqueta(cut, "Rol").ChangeAsync(new() { Value = RolesIdentidad.Consulta });
+        await GuardarAsync(cut);
+
+        cut.FindAll(".alerta-formulario").Should().BeEmpty();
+        _identidad.Cuentas[AnderId].PermisoConsultarAccesoDocumentosSensibles.Should().BeFalse(
+            "perder el rol Administrador retira el permiso, decida quien decida el cambio de rol");
+        _identidad.Asignaciones.Should().ContainSingle().Which.Rol.Should().Be(RolesIdentidad.Consulta);
+    }
+
+    /// <summary>
+    /// Segunda mitad del mismo hueco (Codex, revisión 2026-09-12): no basta
+    /// con retirar el permiso al perder el rol Administrador si al volver a
+    /// ganarlo por otra vía —una promoción hecha por un DireccionCae, aquí
+    /// desde una cuenta con un flag histórico en `true` (p.ej. dejado así por
+    /// el hueco de arriba antes de su propio arreglo)— el flag se conserva tal
+    /// cual. Un DireccionCae no puede conceder este permiso; promocionar a
+    /// Administrador no puede ser una vía indirecta para heredarlo.
+    /// </summary>
+    [Fact]
+    public async Task DireccionCae_promociona_a_Administrador_y_no_hereda_un_permiso_historico()
+    {
+        var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia");
+        ander.PermisoConsultarAccesoDocumentosSensibles = true;
+        Sembrar(
+            (Cuenta(JonId, "j.ibarra@talveg.es", "Jon Ibarra"), RolesIdentidad.DireccionCae),
+            (ander, RolesIdentidad.Consulta));
+
+        var cut = Renderizar(actorId: JonId, rolActor: RolesIdentidad.DireccionCae);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Editar");
+        await CampoPorEtiqueta(cut, "Rol").ChangeAsync(new() { Value = RolesIdentidad.Administrador });
+        await GuardarAsync(cut);
+
+        cut.FindAll(".alerta-formulario").Should().BeEmpty();
+        _identidad.Cuentas[AnderId].PermisoConsultarAccesoDocumentosSensibles.Should().BeFalse(
+            "solo otro Administrador concede el permiso; promocionar el rol no es una concesión");
+        _identidad.Asignaciones.Should().ContainSingle().Which.Rol.Should().Be(RolesIdentidad.Administrador);
+    }
+
+    /// <summary>
     /// Escribe el campo privado del formulario. No hay otra vía: el marcado
     /// oculta el interruptor sobre la propia cuenta a propósito, y lo que se
     /// quiere probar es justamente que el guardado no se fía de ese marcado.

@@ -934,14 +934,49 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             usuario.CoordinadorUsuarioId = _rol == Roles.GestorCae && Guid.TryParse(_coordinadorUsuarioId, out var coordId) ? coordId : null;
             usuario.ClienteId = _rol == Roles.Cliente ? _clienteEncontrado?.Id : null;
 
+            // Necesario ANTES de decidir el permiso: distingue "seguía siendo
+            // Administrador" de "acaba de convertirse en Administrador en
+            // este mismo guardado" (ver más abajo). UpdateAsync no toca roles,
+            // así que leerlo aquí o después de él da el mismo resultado.
+            var rolesActuales = await UserManager.GetRolesAsync(usuario);
+            var eraAdministrador = rolesActuales.Contains(Roles.Administrador);
+
             // Solo un Administrador puede tocar este permiso (Codex,
             // HO-099-01): un DireccionCae editando otros campos de la misma
             // cuenta no debe poder cambiarlo en ninguna dirección, ni
             // concederlo ni revocarlo — el valor existente en base se
-            // conserva tal cual si quien edita no es Administrador.
-            if (_usuarioActualEsAdministrador)
+            // conserva tal cual si quien edita no es Administrador Y el rol
+            // editado sigue siendo Administrador Y ya lo era antes de este
+            // guardado.
+            //
+            // Pero la RETIRADA por dejar de ser Administrador no es "tocar el
+            // permiso": es la consecuencia automática de perder el rol que la
+            // política exige junto al permiso (ver Policies.cs), y el rol
+            // también lo puede cambiar un DireccionCae desde esta misma
+            // pantalla (ver el <select> de "Rol" en el .razor, sin guarda por
+            // actor). Antes esta retirada vivía dentro del "si quien edita es
+            // Administrador": un DireccionCae que degradaba a un Administrador
+            // dejaba el permiso vivo en base, inerte mientras el rol no
+            // volviera — y recuperable sin que ningún Administrador lo
+            // concediera, en cuanto alguien reasignara el rol Administrador
+            // sin tocar el interruptor. Hueco detectado 2026-09-12, corregido
+            // aquí: la retirada por rol se ejecuta siempre, la decida quien la
+            // decida.
+            //
+            // Simétricamente (Codex, revisión 2026-09-12): una PROMOCIÓN a
+            // Administrador hecha por un DireccionCae tampoco puede heredar un
+            // flag que quedara en `true` de antes —por ejemplo, de una cuenta
+            // degradada antes de este fix, o de cualquier otro camino que deje
+            // el dato así—. Solo un Administrador concede el permiso, y aquí
+            // no lo está concediendo ninguno: se fuerza a `false` igual que en
+            // la retirada.
+            if (_rol != Roles.Administrador)
             {
-                var nuevoValorPermiso = _rol == Roles.Administrador && _permisoConsultarAccesoDocumentosSensibles;
+                usuario.PermisoConsultarAccesoDocumentosSensibles = false;
+            }
+            else if (_usuarioActualEsAdministrador)
+            {
+                var nuevoValorPermiso = _permisoConsultarAccesoDocumentosSensibles;
 
                 // Autogestión (Codex, revisión 2026-09-11): ni siquiera un
                 // Administrador puede concederse o revocarse este permiso a
@@ -953,10 +988,13 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
                 usuario.PermisoConsultarAccesoDocumentosSensibles = nuevoValorPermiso;
             }
+            else if (!eraAdministrador)
+            {
+                usuario.PermisoConsultarAccesoDocumentosSensibles = false;
+            }
 
             await UserManager.UpdateAsync(usuario);
 
-            var rolesActuales = await UserManager.GetRolesAsync(usuario);
             if (!rolesActuales.Contains(_rol))
             {
                 await UserManager.RemoveFromRolesAsync(usuario, rolesActuales);
