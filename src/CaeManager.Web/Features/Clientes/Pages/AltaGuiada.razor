@@ -29,13 +29,13 @@
        pinta todo nodo no final como botón — sería un control muerto. *@
     <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="Ruta de alta guiada" />
 
-    <CabeceraPagina Titulo="Alta guiada de cliente">
+    <CabeceraPagina Titulo="Alta guiada de Cliente empresarial">
         <Descripcion>
-            Da de alta la Empresa, su Cliente, el primer Centro y sus Trabajadores en un solo sitio. Cada paso se guarda al
-            confirmarlo — si te detienes a mitad de camino, lo ya creado no se pierde.
+            Da de alta la Empresa, su Cliente empresarial, el primer Centro y sus Trabajadores en un solo sitio. Cada paso se
+            guarda al confirmarlo — si te detienes a mitad de camino, lo ya creado no se pierde.
         </Descripcion>
         <Acciones>
-            <a class="enlace-exportar" href="/clientes">Volver a Clientes</a>
+            <a class="enlace-exportar" href="/clientes">Volver a Clientes empresariales</a>
         </Acciones>
     </CabeceraPagina>
 
@@ -101,7 +101,7 @@
         }
         else if (_pasoActual == "cliente")
         {
-            <h2 class="titulo-seccion-importacion">2. Cliente</h2>
+            <h2 class="titulo-seccion-importacion">2. Cliente empresarial</h2>
             @* El guardado es incremental de verdad: al llegar aquí la Empresa
                ya está en base. La marca lo dice explícitamente, que es lo que
                hace honesto que el botón secundario de este paso sea "Terminar
@@ -116,64 +116,96 @@
                 <div class="alerta-formulario" role="alert">@_mensajeErrorCliente</div>
             }
 
-            <label class="campo-checkbox">
-                <input type="checkbox" @bind="_clienteExistente" /> Vincular a un cliente que ya existe
-            </label>
-
-            @if (_clienteExistente)
+            @if (_clienteId is null)
             {
-                @if (_cargandoCatalogoClientes)
+                <label class="campo-checkbox">
+                    <input type="checkbox" @bind="_clienteExistente" /> Vincular a un Cliente empresarial que ya existe
+                </label>
+
+                @if (_clienteExistente)
                 {
-                    <EstadoCargando Filas="1" />
-                }
-                else if (_clientesCatalogo.Count == 0)
-                {
-                    <EstadoVacio Titulo="Todavía no hay ningún cliente dado de alta"
-                                 Descripcion="No es que el filtro no encuentre nada: el catálogo entero está vacío. Desmarca la casilla y crea el primer cliente aquí mismo." />
+                    @if (_cargandoCatalogoClientes)
+                    {
+                        <EstadoCargando Filas="1" />
+                    }
+                    else if (_clientesCatalogo.Count == 0)
+                    {
+                        <EstadoVacio Titulo="Todavía no hay ningún Cliente empresarial dado de alta"
+                                     Descripcion="No es que el filtro no encuentre nada: el catálogo entero está vacío. Desmarca la casilla y crea el primer Cliente empresarial aquí mismo." />
+                    }
+                    else
+                    {
+                        <CampoSelect Etiqueta="Cliente empresarial" Valor="@_clienteExistenteId" ValorChanged="v => _clienteExistenteId = v">
+                            <option value="">Selecciona un Cliente empresarial…</option>
+                            @foreach (var cliente in _clientesCatalogo)
+                            {
+                                <option value="@cliente.Id">@cliente.RazonSocial</option>
+                            }
+                        </CampoSelect>
+                    }
                 }
                 else
                 {
-                    <CampoSelect Etiqueta="Cliente" Valor="@_clienteExistenteId" ValorChanged="v => _clienteExistenteId = v">
-                        <option value="">Selecciona un cliente…</option>
-                        @foreach (var cliente in _clientesCatalogo)
-                        {
-                            <option value="@cliente.Id">@cliente.RazonSocial</option>
-                        }
-                    </CampoSelect>
+                    <CampoTexto Etiqueta="Razón social" Valor="@_razonSocialCliente" ValorChanged="v => _razonSocialCliente = v"
+                                OnBlur="ValidarRazonSocialClienteAsync" MensajeError="@ObtenerError(_erroresCliente, nameof(CrearClienteCommand.RazonSocial))" />
+                    <CampoTexto Etiqueta="CIF" Valor="@_cifCliente" ValorChanged="v => _cifCliente = v"
+                                OnBlur="ValidarCifClienteAsync" MensajeError="@ObtenerError(_erroresCliente, nameof(CrearClienteCommand.Cif))" />
+
+                    <label class="campo-checkbox">
+                        <input type="checkbox" @bind="_esCriticoCliente" /> Cliente empresarial crítico
+                    </label>
+                    @* Qué hace la casilla, no qué es: "crítico" a secas no dice al
+                       gestor qué cambia si la marca. *@
+                    <p class="texto-vacio-seccion">Prioriza sus vencimientos.</p>
+
+                    <CampoTextarea Etiqueta="Notas del Cliente empresarial" Valor="@_notasCliente" ValorChanged="v => _notasCliente = v" Filas="3" />
                 }
+
+                <div class="acciones-formulario">
+                    <Boton Cargando="_guardandoCliente" OnClick="GuardarClienteAsync"
+                           Deshabilitado="@(_clienteExistente && !_cargandoCatalogoClientes && _clientesCatalogo.Count == 0)">
+                        @(_clienteExistente ? "Vincular y continuar a Centro" : "Guardar y continuar a Centro")
+                    </Boton>
+                    <Boton Variante="VarianteBoton.Fantasma" Deshabilitado="_guardandoCliente" OnClick="VerEmpresaAsync">
+                        Terminar aquí
+                    </Boton>
+                </div>
             }
             else
             {
-                <CampoTexto Etiqueta="Razón social" Valor="@_razonSocialCliente" ValorChanged="v => _razonSocialCliente = v"
-                            OnBlur="ValidarRazonSocialClienteAsync" MensajeError="@ObtenerError(_erroresCliente, nameof(CrearClienteCommand.RazonSocial))" />
-                <CampoTexto Etiqueta="CIF" Valor="@_cifCliente" ValorChanged="v => _cifCliente = v"
-                            OnBlur="ValidarCifClienteAsync" MensajeError="@ObtenerError(_erroresCliente, nameof(CrearClienteCommand.Cif))" />
+                @* El Cliente empresarial ya está creado — CrearClienteCommand ya
+                   se ejecutó. Repintar el formulario de alta invitaría a
+                   repetirlo y chocar contra este mismo registro; lo que queda
+                   por resolver, si algo, es solo la vinculación con la Empresa. *@
+                <p class="texto-vacio-seccion">
+                    Cliente empresarial: <strong>@_clienteNombre</strong>
+                    @if (_vinculacionEmpresaClientePendiente)
+                    {
+                        <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">Vinculación con la Empresa pendiente</Badge>
+                    }
+                    else
+                    {
+                        <Badge Tono="TonoBadge.Exito" Tamano="TamanoBadge.Pequeno">Vinculado a la Empresa</Badge>
+                    }
+                </p>
 
-                <label class="campo-checkbox">
-                    <input type="checkbox" @bind="_esCriticoCliente" /> Cliente crítico
-                </label>
-                @* Qué hace la casilla, no qué es: "crítico" a secas no dice al
-                   gestor qué cambia si la marca. *@
-                <p class="texto-vacio-seccion">Prioriza sus vencimientos.</p>
-
-                <CampoTextarea Etiqueta="Notas del cliente" Valor="@_notasCliente" ValorChanged="v => _notasCliente = v" Filas="3" />
+                <div class="acciones-formulario">
+                    @if (_vinculacionEmpresaClientePendiente)
+                    {
+                        <Boton Variante="VarianteBoton.Secundario" OnClick="() => ReintentarVinculacionClienteAsync(_clienteId.Value)">
+                            Reintentar vinculación
+                        </Boton>
+                    }
+                    <Boton Variante="VarianteBoton.Primario" OnClick='() => _pasoActual = "centro"'>Continuar a Centro</Boton>
+                    <Boton Variante="VarianteBoton.Fantasma" OnClick="VerEmpresaAsync">Terminar aquí</Boton>
+                </div>
             }
-
-            <div class="acciones-formulario">
-                <Boton Cargando="_guardandoCliente" OnClick="GuardarClienteAsync"
-                       Deshabilitado="@(_clienteExistente && !_cargandoCatalogoClientes && _clientesCatalogo.Count == 0)">
-                    @(_clienteExistente ? "Vincular y continuar a Centro" : "Guardar y continuar a Centro")
-                </Boton>
-                <Boton Variante="VarianteBoton.Fantasma" Deshabilitado="_guardandoCliente" OnClick="VerEmpresaAsync">
-                    Terminar aquí
-                </Boton>
-            </div>
         }
         else if (_pasoActual == "centro")
         {
             <h2 class="titulo-seccion-importacion">3. Centro</h2>
             <p class="texto-vacio-seccion">
-                Empresa: <strong>@_empresaNombre</strong> · Cliente: <strong>@_clienteNombre</strong>
+                Empresa: <strong>@_empresaNombre</strong> · Cliente empresarial: <strong>@_clienteNombre</strong>
             </p>
 
             @if (_mensajeErrorCentro is not null)
@@ -207,15 +239,15 @@
                     </p>
                     <div class="acciones-formulario">
                         <Boton Variante="VarianteBoton.Primario" OnClick="IrAPasoTrabajadores">Continuar a Trabajadores</Boton>
-                        <Boton Variante="VarianteBoton.Secundario" OnClick="VerClienteAsync">Ver el cliente</Boton>
+                        <Boton Variante="VarianteBoton.Secundario" OnClick="VerClienteAsync">Ver el Cliente empresarial</Boton>
                         <Boton Variante="VarianteBoton.Secundario" OnClick="AnadirRequisitosAsync">Añadir requisitos documentales</Boton>
                     </div>
                     @* Los campos de arriba se acaban de vaciar. Sin decirlo, el
                        formulario en blanco se lee como que algo se ha perdido,
                        cuando es justo lo contrario: está listo para el
-                       siguiente centro de la misma Empresa y Cliente. *@
+                       siguiente centro de la misma Empresa y Cliente empresarial. *@
                     <p class="texto-vacio-seccion">
-                        El formulario se ha vaciado: puedes crear otro centro para esta misma Empresa y Cliente sin salir del paso.
+                        El formulario se ha vaciado: puedes crear otro centro para esta misma Empresa y este mismo Cliente empresarial sin salir del paso.
                     </p>
                 </div>
             }
@@ -262,9 +294,19 @@
             {
                 <div class="resumen-alta-guiada" role="status">
                     <p>
-                        <strong>@_ultimoTrabajadorNombre</strong> creado@(_ultimoCentroId is not null ? " y asignado al centro" : "").
+                        <strong>@_ultimoTrabajadorNombre</strong> creado@(SufijoAsignacionUltimoTrabajador()).
                         @(_trabajadoresCreados > 1 ? $"({_trabajadoresCreados} trabajadores creados en esta alta.)" : "")
                     </p>
+                    @if (_ultimoCentroId is not null && _ultimoTrabajadorAsignacionPendiente)
+                    {
+                        <div class="alerta-formulario" role="alert">
+                            La asignación de <strong>@_ultimoTrabajadorNombre</strong> a @_ultimoCentroNombre no se completó.
+                            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                   OnClick="() => AsignarTrabajadorRecienCreadoAsync(_ultimoTrabajadorId!.Value, _ultimoTrabajadorNombre, _ultimoCentroId!.Value)">
+                                Reintentar asignación
+                            </Boton>
+                        </div>
+                    }
                     <div class="acciones-formulario">
                         <Boton Variante="VarianteBoton.Secundario" OnClick="VerEmpresaAsync">Ver la empresa</Boton>
                     </div>

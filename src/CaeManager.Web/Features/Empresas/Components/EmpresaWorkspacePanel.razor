@@ -11,6 +11,7 @@
 @using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector
 @using CaeManager.Application.Empresas.Commands.BorrarCredencialAccesoEmpresaContrasena
 @using CaeManager.Application.Empresas.Commands.EditarEmpresa
+@using CaeManager.Application.Empresas.Commands.EliminarEmpresa
 @using CaeManager.Application.Empresas.Commands.GuardarCredencialAccesoEmpresa
 @using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa
 @using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresa
@@ -21,6 +22,7 @@
 @using FluentValidation
 @using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
 @using MediatR
+@implements IDisposable
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
 @inject ToastService ToastService
@@ -39,10 +41,21 @@ else if (_error || _detalle is null)
 }
 else
 {
-    <div class="workspace-cabecera-entidad">
-        <h2 class="workspace-titulo-entidad">@_detalle.RazonSocial</h2>
-        <AnilloCumplimiento Porcentaje="_cumplimiento" Tamano="TamanoAnillo.Medio"
-                             Etiqueta="@($"{_cumplimiento}% de cumplimiento acumulado en los centros donde esta empresa tiene actividad")" />
+    <div class="cabecera-empresa-360">
+        <span class="icono-empresa-360"><Icono Nombre="empresas" /></span>
+        <div class="texto-cabecera-empresa-360">
+            <span class="kicker-empresa-360">Empresa</span>
+            <h2 class="workspace-titulo-entidad titulo-empresa-360">@_detalle.RazonSocial</h2>
+            @if (PestanaActiva == "clientes" && _clientes is not null)
+            {
+                <span class="recuentos-empresa-360">@(_clientes.Count == 1 ? "1 cliente empresarial" : $"{_clientes.Count} clientes empresariales")</span>
+            }
+        </div>
+        @if (_cumplimiento is not null)
+        {
+            <AnilloCumplimiento Porcentaje="_cumplimiento" Tamano="TamanoAnillo.Medio"
+                                 Etiqueta="@($"{_cumplimiento}% de cumplimiento acumulado en los centros donde esta empresa tiene actividad")" />
+        }
         @if (PestanaActiva == "informacion" && !_editandoInformacion)
         {
             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="IniciarEdicionInformacionAsync" aria-label="Editar información de la empresa">
@@ -52,7 +65,7 @@ else
     </div>
 
     @* PestanaActiva con @: el parámetro es string, y sin @ Razor le pasa el literal "PestanaActiva" (ninguna pestaña quedaba marcada como activa). *@
-    <Pestanas Definiciones="_pestanas" PestanaActiva="@PestanaActiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="Secciones de la empresa">
+    <Pestanas Definiciones="PestanasConRecuento" PestanaActiva="@PestanaActiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="Secciones de la empresa">
         @switch (PestanaActiva)
         {
             case "informacion":
@@ -69,18 +82,18 @@ else
                     <label class="campo-checkbox">
                         <input type="checkbox" @bind="_esActividadAnexoIInfo" /> Actividad del Anexo I del RSP
                     </label>
-                    <SelectorMultiple Etiqueta="Clientes con los que trabaja"
+                    <SelectorMultiple Etiqueta="Clientes empresariales con los que trabaja"
                                        Elementos="@_clientesDisponiblesSelector"
                                        Seleccionados="@_clienteIdsInfo"
                                        OnAlternar="args => AlternarClienteInfo(args.Id, args.Marcado)"
-                                       TextoVacio="Todavía no hay clientes creados." />
+                                       TextoVacio="Todavía no hay clientes empresariales creados." />
                     <div class="workspace-acciones-edicion">
                         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_guardandoInformacion" OnClick="CancelarEdicionInformacion">Cancelar</Boton>
                         <Boton Tamano="TamanoBoton.Pequeno" Cargando="_guardandoInformacion" OnClick="GuardarInformacionAsync">Guardar</Boton>
                     </div>
 
                     <div class="campo">
-                        <label>Credenciales de acceso a plataforma externa</label>
+                        <label>Credenciales de acceso a Plataforma CAE</label>
                     </div>
                     @if (_mensajeErrorCredenciales is not null)
                     {
@@ -91,7 +104,7 @@ else
                         <BotonCopiar Valor="@_credencialUrl" Etiqueta="la URL" />
                     </div>
                     <div class="campo-con-boton">
-                        <CampoTexto Etiqueta="Empresa / Cliente / Proveedor" Valor="@_credencialCampoEmpresa" ValorChanged="v => _credencialCampoEmpresa = v" />
+                        <CampoTexto Etiqueta="Empresa / Cliente empresarial / Proveedor" Valor="@_credencialCampoEmpresa" ValorChanged="v => _credencialCampoEmpresa = v" />
                         <BotonCopiar Valor="@_credencialCampoEmpresa" Etiqueta="este campo" />
                     </div>
                     <div class="campo-con-boton">
@@ -119,14 +132,18 @@ else
                 }
                 else
                 {
-                    <div class="workspace-grupo-campos">
+                    <div class="rejilla-info-empresa-360">
                         <CampoInfo Etiqueta="Razón social" Valor="@_detalle.RazonSocial" />
                         <CampoInfo Etiqueta="CIF" Valor="@_detalle.Cif" />
                         <CampoInfo Etiqueta="CNAE" Valor="@_detalle.Cnae" />
                         <CampoInfo Etiqueta="Convenio aplicable" Valor="@_detalle.ConvenioAplicable" />
                         <CampoInfo Etiqueta="Actividad del Anexo I del RSP" Valor="@(_detalle.EsActividadAnexoI ? "Sí" : "No")" />
-                        <CampoInfo Etiqueta="Clientes con los que trabaja" Valor="@_detalle.ClienteIds.Count.ToString()" />
+                        <CampoInfo Etiqueta="Clientes empresariales con los que trabaja" Valor="@_detalle.ClienteIds.Count.ToString()" />
                         <CampoInfo Etiqueta="Creada" Valor="@_detalle.CreadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy")" />
+                    </div>
+                    <div class="acciones-empresa-360">
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="IniciarEdicionInformacionAsync">Editar identidad</Boton>
+                        <Boton Variante="VarianteBoton.Destructivo" Tamano="TamanoBoton.Pequeno" OnClick="AbrirDarDeBaja">Dar de baja</Boton>
                     </div>
                 }
                 break;
@@ -146,7 +163,7 @@ else
                 }
                 else if (_clientes is { Count: 0 })
                 {
-                    <EstadoVacio Titulo="Sin clientes" Descripcion="Esta empresa todavía no tiene ningún Cliente asociado." />
+                    <EstadoVacio Titulo="Sin clientes empresariales" Descripcion="Esta empresa todavía no tiene ningún Cliente empresarial asociado." />
                 }
                 else if (_clientes is not null)
                 {
@@ -188,13 +205,21 @@ else
         Mensaje="La URL, el usuario y las notas de la credencial no se tocan — solo se borra la contraseña."
         EnProgreso="_borrandoContrasena"
         OnConfirmar="ConfirmarBorrarContrasenaAsync" />
+
+    <DialogoConfirmacion
+        Visible="_confirmarBajaVisible"
+        VisibleChanged="v => _confirmarBajaVisible = v"
+        Titulo="¿Dar de baja esta empresa?"
+        Mensaje="La baja no se puede deshacer desde esta ficha. Si tiene trabajadores, la operación se rechazará."
+        EnProgreso="_dandoDeBaja"
+        OnConfirmar="ConfirmarDarDeBajaAsync" />
 }
 
 @code {
     private static readonly IReadOnlyList<PestanaDefinicion> _pestanas =
     [
         new("informacion", "Información"),
-        new("clientes", "Clientes"),
+        new("clientes", "Clientes empresariales"),
         new("documentacion", "Documentación"),
         new("agenda", "Agenda"),
         new("sello", "Sello"),
@@ -214,6 +239,11 @@ else
     private IReadOnlyList<ClienteDeEmpresaDto>? _clientes;
     private bool _cargandoClientes;
     private bool _errorClientes;
+    private int _generacion;
+    private int _cargaCabecera;
+    private int _cargaClientes;
+    private readonly CancellationTokenSource _ciclo = new();
+    private CancellationToken _cancelacion;
 
     /// <summary>
     /// Edición in situ de "Información" (Centro 360, PLAN-EJECUCION-UX.md
@@ -255,16 +285,32 @@ else
     private string? _mensajeErrorCredenciales;
     private bool _confirmarBorrarContrasenaVisible;
     private bool _borrandoContrasena;
+    private bool _confirmarBajaVisible;
+    private bool _dandoDeBaja;
+
+    // El recuento se limita a la pestaña que representa; la cabecera solo lo muestra allí.
+    private IReadOnlyList<PestanaDefinicion> PestanasConRecuento =>
+        _pestanas.Select(p => p.Id == "clientes" && _clientes is not null
+            ? p with { Etiqueta = $"{p.Etiqueta} ({_clientes.Count})" }
+            : p).ToList();
+
+    protected override void OnInitialized() => _cancelacion = _ciclo.Token;
 
     protected override async Task OnParametersSetAsync()
     {
         if (EntidadId != _idCargado)
         {
+            _generacion++;
             _idCargado = EntidadId;
             _clientes = null;
             _errorClientes = false;
             _cumplimiento = null;
             _editandoInformacion = false;
+            _confirmarBajaVisible = false;
+            _guardandoInformacion = false;
+            _guardandoCredenciales = false;
+            _borrandoContrasena = false;
+            _dandoDeBaja = false;
             await CargarCabeceraAsync();
         }
 
@@ -274,44 +320,59 @@ else
 
     private async Task CargarCabeceraAsync()
     {
+        var cancelacion = _cancelacion;
+        var generacion = _generacion;
+        var carga = ++_cargaCabecera;
+        var id = EntidadId;
         _cargando = true;
         _error = false;
 
         try
         {
-            _detalle = await Mediator.Send(new ObtenerEmpresaPorIdQuery(EntidadId));
-            _cumplimiento = await Mediator.Send(new ObtenerCumplimientoEmpresaQuery(EntidadId));
+            var detalle = await Mediator.Send(new ObtenerEmpresaPorIdQuery(id), cancelacion);
+            if (generacion != _generacion || carga != _cargaCabecera) return;
+            var cumplimiento = await Mediator.Send(new ObtenerCumplimientoEmpresaQuery(id), cancelacion);
+            if (generacion != _generacion || carga != _cargaCabecera) return;
+            _detalle = detalle;
+            _cumplimiento = cumplimiento;
         }
+        catch (OperationCanceledException) when (cancelacion.IsCancellationRequested) { }
         catch (Exception)
         {
-            _error = true;
+            if (generacion == _generacion && carga == _cargaCabecera)
+                _error = true;
         }
         finally
         {
-            _cargando = false;
+            if (generacion == _generacion && carga == _cargaCabecera)
+                _cargando = false;
         }
     }
 
     private async Task CargarClientesAsync()
     {
+        var cancelacion = _cancelacion;
+        var generacion = _generacion;
+        var carga = ++_cargaClientes;
         var idSolicitado = EntidadId;
         _cargandoClientes = true;
         _errorClientes = false;
 
         try
         {
-            var resultado = await Mediator.Send(new ObtenerClientesDeEmpresaQuery(idSolicitado));
-            if (idSolicitado == EntidadId)
+            var resultado = await Mediator.Send(new ObtenerClientesDeEmpresaQuery(idSolicitado), cancelacion);
+            if (generacion == _generacion && carga == _cargaClientes && idSolicitado == EntidadId)
                 _clientes = resultado;
         }
+        catch (OperationCanceledException) when (cancelacion.IsCancellationRequested) { }
         catch (Exception)
         {
-            if (idSolicitado == EntidadId)
+            if (generacion == _generacion && carga == _cargaClientes && idSolicitado == EntidadId)
                 _errorClientes = true;
         }
         finally
         {
-            if (idSolicitado == EntidadId)
+            if (generacion == _generacion && carga == _cargaClientes && idSolicitado == EntidadId)
                 _cargandoClientes = false;
         }
     }
@@ -323,29 +384,43 @@ else
     {
         if (_detalle is null) return;
 
-        _clientesDisponibles = await Mediator.Send(new ObtenerClientesParaSelectorQuery());
+        var cancelacion = _cancelacion;
+        var generacion = _generacion;
+        var detalle = _detalle;
+        IReadOnlyList<ClienteSelectorDto> clientes;
+        try
+        {
+            clientes = await Mediator.Send(new ObtenerClientesParaSelectorQuery(), cancelacion);
+            if (generacion != _generacion) return;
+            var credencial = await Mediator.Send(new ObtenerCredencialAccesoEmpresaSinContrasenaQuery(detalle.Id), cancelacion);
+            if (generacion != _generacion) return;
 
-        _razonSocialInfo = _detalle.RazonSocial;
-        _cifInfo = _detalle.Cif ?? string.Empty;
-        _cnaeInfo = _detalle.Cnae ?? string.Empty;
-        _convenioAplicableInfo = _detalle.ConvenioAplicable ?? string.Empty;
-        _esActividadAnexoIInfo = _detalle.EsActividadAnexoI;
-        _clienteIdsInfo = _detalle.ClienteIds.ToHashSet();
-        _mensajeErrorInformacion = null;
-        _erroresInformacion = new Dictionary<string, string>();
+            _clientesDisponibles = clientes;
+            _razonSocialInfo = detalle.RazonSocial;
+            _cifInfo = detalle.Cif ?? string.Empty;
+            _cnaeInfo = detalle.Cnae ?? string.Empty;
+            _convenioAplicableInfo = detalle.ConvenioAplicable ?? string.Empty;
+            _esActividadAnexoIInfo = detalle.EsActividadAnexoI;
+            _clienteIdsInfo = detalle.ClienteIds.ToHashSet();
+            _mensajeErrorInformacion = null;
+            _erroresInformacion = new Dictionary<string, string>();
 
-        // DEC-53/DEC-62: la contraseña no se carga aquí — solo los campos no
-        // sensibles, vía una consulta que ni siquiera lee la columna cifrada.
-        var credencial = await Mediator.Send(new ObtenerCredencialAccesoEmpresaSinContrasenaQuery(_detalle.Id));
-        _credencialUrl = credencial?.UrlAcceso ?? string.Empty;
-        _credencialCampoEmpresa = credencial?.CampoEmpresa ?? string.Empty;
-        _credencialUsuario = credencial?.Usuario ?? string.Empty;
-        _credencialContrasena = string.Empty;
-        _credencialNotas = credencial?.Notas ?? string.Empty;
-        _hayCredencialGuardada = credencial is not null;
-        _mensajeErrorCredenciales = null;
+            _credencialUrl = credencial?.UrlAcceso ?? string.Empty;
+            _credencialCampoEmpresa = credencial?.CampoEmpresa ?? string.Empty;
+            _credencialUsuario = credencial?.Usuario ?? string.Empty;
+            _credencialContrasena = string.Empty;
+            _credencialNotas = credencial?.Notas ?? string.Empty;
+            _hayCredencialGuardada = credencial is not null;
+            _mensajeErrorCredenciales = null;
 
-        _editandoInformacion = true;
+            _editandoInformacion = true;
+        }
+        catch (OperationCanceledException) when (cancelacion.IsCancellationRequested) { }
+        catch (Exception)
+        {
+            if (generacion == _generacion)
+                ToastService.Mostrar("No pudimos abrir la edición. Intenta nuevamente en unos segundos.", TonoToast.Error);
+        }
     }
 
     private void CancelarEdicionInformacion() => _editandoInformacion = false;
@@ -362,8 +437,10 @@ else
 
     private async Task GuardarInformacionAsync()
     {
-        if (_detalle is null) return;
+        if (_detalle is null || _guardandoInformacion) return;
 
+        var generacion = _generacion;
+        var detalle = _detalle;
         _guardandoInformacion = true;
         _mensajeErrorInformacion = null;
         _erroresInformacion = new Dictionary<string, string>();
@@ -375,39 +452,51 @@ else
             var convenioAplicable = string.IsNullOrWhiteSpace(_convenioAplicableInfo) ? null : _convenioAplicableInfo;
             var resultado = await Mediator.Send(
                 new EditarEmpresaCommand(
-                    _detalle.Id, _razonSocialInfo, cif, _clienteIdsInfo.ToList(),
-                    cnae, convenioAplicable, _esActividadAnexoIInfo, _detalle.Version));
-
+                    detalle.Id, _razonSocialInfo, cif, _clienteIdsInfo.ToList(),
+                    cnae, convenioAplicable, _esActividadAnexoIInfo, detalle.Version));
             if (resultado.EsFallido)
             {
-                _mensajeErrorInformacion = resultado.Error.Mensaje;
+                if (generacion == _generacion)
+                    _mensajeErrorInformacion = resultado.Error.Mensaje;
+                else
+                    ToastService.Mostrar($"{detalle.RazonSocial}: {resultado.Error.Mensaje}", TonoToast.Error);
                 return;
             }
 
-            ToastService.Mostrar("Empresa actualizada correctamente.", TonoToast.Exito);
+            if (generacion != _generacion) return;
+
+            ToastService.Mostrar($"{detalle.RazonSocial} actualizada correctamente.", TonoToast.Exito);
             _editandoInformacion = false;
             await CargarCabeceraAsync();
         }
         catch (ValidationException ex)
         {
-            _erroresInformacion = ex.Errors
-                .GroupBy(e => e.PropertyName)
-                .ToDictionary(g => g.Key, g => g.First().ErrorMessage);
+            if (generacion == _generacion)
+                _erroresInformacion = ex.Errors.GroupBy(e => e.PropertyName)
+                    .ToDictionary(g => g.Key, g => g.First().ErrorMessage);
+            else
+                ToastService.Mostrar($"No pudimos guardar los cambios de {detalle.RazonSocial}. Intenta nuevamente en unos segundos.", TonoToast.Error);
         }
         catch (Exception)
         {
-            _mensajeErrorInformacion = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
+            if (generacion == _generacion)
+                _mensajeErrorInformacion = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
+            else
+                ToastService.Mostrar($"No pudimos guardar los cambios de {detalle.RazonSocial}. Intenta nuevamente en unos segundos.", TonoToast.Error);
         }
         finally
         {
-            _guardandoInformacion = false;
+            if (generacion == _generacion)
+                _guardandoInformacion = false;
         }
     }
 
     private async Task GuardarCredencialesAsync()
     {
-        if (_detalle is null) return;
+        if (_detalle is null || _guardandoCredenciales) return;
 
+        var generacion = _generacion;
+        var detalle = _detalle;
         _guardandoCredenciales = true;
         _mensajeErrorCredenciales = null;
 
@@ -420,25 +509,33 @@ else
             var notas = string.IsNullOrWhiteSpace(_credencialNotas) ? null : _credencialNotas;
 
             var resultado = await Mediator.Send(
-                new GuardarCredencialAccesoEmpresaCommand(_detalle.Id, urlAcceso, campoEmpresa, usuario, contrasena, notas));
-
+                new GuardarCredencialAccesoEmpresaCommand(detalle.Id, urlAcceso, campoEmpresa, usuario, contrasena, notas));
             if (resultado.EsFallido)
             {
-                _mensajeErrorCredenciales = resultado.Error.Mensaje;
+                if (generacion == _generacion)
+                    _mensajeErrorCredenciales = resultado.Error.Mensaje;
+                else
+                    ToastService.Mostrar($"{detalle.RazonSocial}: {resultado.Error.Mensaje}", TonoToast.Error);
                 return;
             }
 
-            ToastService.Mostrar("Credenciales guardadas correctamente.", TonoToast.Exito);
+            if (generacion != _generacion) return;
+
+            ToastService.Mostrar($"Credenciales de {detalle.RazonSocial} guardadas correctamente.", TonoToast.Exito);
             _hayCredencialGuardada = true;
             _credencialContrasena = string.Empty;
         }
         catch (Exception)
         {
-            _mensajeErrorCredenciales = "No pudimos guardar las credenciales. Intenta nuevamente en unos segundos.";
+            if (generacion == _generacion)
+                _mensajeErrorCredenciales = "No pudimos guardar las credenciales. Intenta nuevamente en unos segundos.";
+            else
+                ToastService.Mostrar($"No pudimos guardar las credenciales de {detalle.RazonSocial}. Intenta nuevamente en unos segundos.", TonoToast.Error);
         }
         finally
         {
-            _guardandoCredenciales = false;
+            if (generacion == _generacion)
+                _guardandoCredenciales = false;
         }
     }
 
@@ -453,7 +550,10 @@ else
     {
         if (_detalle is null) return null;
 
-        var credencial = await Mediator.Send(new ObtenerCredencialAccesoEmpresaQuery(_detalle.Id));
+        var cancelacion = _cancelacion;
+        var generacion = _generacion;
+        var credencial = await Mediator.Send(new ObtenerCredencialAccesoEmpresaQuery(_detalle.Id), cancelacion);
+        if (generacion != _generacion) return null;
         if (string.IsNullOrEmpty(credencial?.Contrasena))
         {
             ToastService.Mostrar("No hay ninguna contraseña guardada.", TonoToast.Info);
@@ -467,31 +567,80 @@ else
 
     private async Task ConfirmarBorrarContrasenaAsync()
     {
-        if (_detalle is null) return;
+        if (_detalle is null || _borrandoContrasena) return;
 
+        var generacion = _generacion;
+        var detalle = _detalle;
         _borrandoContrasena = true;
 
         try
         {
-            var resultado = await Mediator.Send(new BorrarCredencialAccesoEmpresaContrasenaCommand(_detalle.Id));
+            var resultado = await Mediator.Send(new BorrarCredencialAccesoEmpresaContrasenaCommand(detalle.Id));
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.Mostrar($"{detalle.RazonSocial}: {resultado.Error.Mensaje}", TonoToast.Error);
                 return;
             }
 
-            ToastService.Mostrar("Contraseña borrada.", TonoToast.Exito);
+            ToastService.Mostrar($"Contraseña de {detalle.RazonSocial} borrada.", TonoToast.Exito);
+            if (generacion != _generacion) return;
             _credencialContrasena = string.Empty;
             _confirmarBorrarContrasenaVisible = false;
         }
         catch (Exception)
         {
-            ToastService.Mostrar("No pudimos borrar la contraseña. Intenta nuevamente en unos segundos.", TonoToast.Error);
+            ToastService.Mostrar($"No pudimos borrar la contraseña de {detalle.RazonSocial}. Intenta nuevamente en unos segundos.", TonoToast.Error);
         }
         finally
         {
-            _borrandoContrasena = false;
+            if (generacion == _generacion)
+                _borrandoContrasena = false;
         }
+    }
+
+    private void AbrirDarDeBaja() => _confirmarBajaVisible = true;
+
+    private async Task ConfirmarDarDeBajaAsync()
+    {
+        if (_detalle is null || _dandoDeBaja) return;
+
+        var generacion = _generacion;
+        var detalle = _detalle;
+        _dandoDeBaja = true;
+        try
+        {
+            var resultado = await Mediator.Send(new EliminarEmpresaCommand(detalle.Id));
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar($"{detalle.RazonSocial}: {resultado.Error.Mensaje}", TonoToast.Error);
+                if (generacion == _generacion) _confirmarBajaVisible = false;
+                return;
+            }
+
+            ToastService.Mostrar($"{detalle.RazonSocial} se dio de baja.", TonoToast.Exito);
+            if (generacion != _generacion) return;
+            _confirmarBajaVisible = false;
+            if (WorkspaceService.FrameActual is { Tipo: EntidadWorkspace.Empresa } frame && frame.EntidadId == detalle.Id)
+            {
+                if (WorkspaceService.Pila.Count > 1) await WorkspaceService.VolverAsync();
+                else await WorkspaceService.CerrarAsync();
+            }
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar($"No pudimos dar de baja {detalle.RazonSocial}. Intenta nuevamente en unos segundos.", TonoToast.Error);
+        }
+        finally
+        {
+            if (generacion == _generacion) _dandoDeBaja = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        _generacion++;
+        _ciclo.Cancel();
+        _ciclo.Dispose();
     }
 }

@@ -5,6 +5,7 @@ using CaeManager.Application.DocumentosIa.Common;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Domain.Documentos;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Documentos;
 using MediatR;
@@ -41,6 +42,18 @@ namespace CaeManager.Web.Features.Documentos.Pages;
 /// sirva un archivo por clave sin un Documento que autorizar contra él —
 /// el mismo vector IDOR que Fase 31/Issue #18 ya cerraron para el resto de
 /// la aplicación) — solo se persiste el que el usuario confirma.
+///
+/// El <c>[Authorize]</c> de la página incluye <see cref="Roles.Consulta"/> —
+/// a quién se le deja abrir esta pantalla no lo decide este fichero. Pero
+/// Consulta es de solo lectura (<see cref="AutorizacionEscrituraBehavior{TRequest,TResponse}"/>
+/// no lo admite para <see cref="CrearDocumentoCommand"/>), así que aquí
+/// dentro no se le pinta ningún disparador de escritura (<see cref="_esSoloLectura"/>)
+/// y <see cref="CrearDocumentoDelItemAsync"/> comprueba la capacidad ANTES
+/// de llamar a <see cref="IFileStorageService.GuardarAsync"/>: sin esto, un
+/// Consulta podía dejar el PDF ya escrito en almacenamiento aunque el
+/// Command fuera a fallar siempre, con el mismo huérfano de mejor esfuerzo
+/// que <see cref="DescartarArchivoHuerfanoAsync"/> ya documenta para el
+/// caso general.
 /// </summary>
 public partial class SubidaMasiva : ComponentBase
 {
@@ -73,6 +86,7 @@ public partial class SubidaMasiva : ComponentBase
     [Inject] private IConversorWordPdfService ConversorWordPdf { get; set; } = default!;
     [Inject] private IRasterizadorPaginasPdfService Rasterizador { get; set; } = default!;
     [Inject] private ILogger<SubidaMasiva> Logger { get; set; } = default!;
+    [Inject] private ICurrentUserService CurrentUserService { get; set; } = default!;
 
     private enum EstadoItem { Procesando, PendienteConfirmar, Creado, Descartado, Error }
 
@@ -98,6 +112,17 @@ public partial class SubidaMasiva : ComponentBase
     private IReadOnlyList<TrabajadorSelectorDto> _trabajadoresDisponibles = [];
     private IReadOnlyList<TipoDocumentoListaDto> _tiposDisponibles = [];
 
+    /// <summary>
+    /// Consulta es el único rol de solo lectura que el <c>[Authorize]</c> de
+    /// esta página admite (ver el comentario de clase) — comprobarlo contra
+    /// ESE rol, y no contra una lista de roles con escritura duplicada aquí,
+    /// mantiene esta comprobación correcta aunque el día de mañana alguien
+    /// amplíe la lista blanca de <c>AutorizacionEscrituraBehavior</c> en otro
+    /// fichero: seguiría sin admitir Consulta y este campo seguiría siendo
+    /// exacto sin tocarlo.
+    /// </summary>
+    private bool _esSoloLectura;
+
     private IReadOnlyList<OpcionBuscable> OpcionesTrabajadores => _trabajadoresDisponibles
         .Select(t => new OpcionBuscable(
             t.Id.ToString(),
@@ -111,12 +136,18 @@ public partial class SubidaMasiva : ComponentBase
 
     protected override async Task OnInitializedAsync()
     {
+        _esSoloLectura = await CurrentUserService.ObtenerRolActualAsync() == Roles.Consulta;
         _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
         _tiposDisponibles = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: AmbitoAplicacion.Trabajador));
     }
 
     private async Task ManejarArchivosSeleccionadosAsync(InputFileChangeEventArgs e)
     {
+        // La zona de soltar no se pinta para _esSoloLectura (ver el marcado),
+        // pero el guarda va también aquí: es el punto de entrada real de
+        // cualquier InputFileChangeEventArgs, venga de donde venga.
+        if (_esSoloLectura) return;
+
         var archivosSeleccionados = e.GetMultipleFiles(MaximoArchivosPorLote);
 
         _procesandoLote = true;
@@ -369,6 +400,18 @@ public partial class SubidaMasiva : ComponentBase
         {
             item.Estado = EstadoItem.Error;
             item.MensajeError = "No hay archivo que guardar.";
+            return;
+        }
+
+        // Capacidad ANTES de almacenamiento, no al revés: comprobarlo aquí
+        // evita el huérfano de mejor esfuerzo de DescartarArchivoHuerfanoAsync
+        // en el único caso en que se puede evitar del todo — el mismo rol que
+        // abre la pantalla es un rol que nunca podrá crear el Documento, así
+        // que no hace falta escribir el PDF para descubrirlo.
+        if (_esSoloLectura)
+        {
+            item.Estado = EstadoItem.Error;
+            item.MensajeError = "Tu rol de Consulta no permite crear documentos.";
             return;
         }
 

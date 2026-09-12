@@ -1,0 +1,64 @@
+.cabecera-empresa-360 {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+}
+
+.icono-empresa-360 {
+    width: 36px;
+    height: 36px;
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--color-primary-100);
+    border-radius: var(--radius-md);
+    background: var(--color-primary-50);
+    color: var(--color-primary-500);
+}
+
+.texto-cabecera-empresa-360 {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.kicker-empresa-360,
+.recuentos-empresa-360 {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.kicker-empresa-360 {
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.titulo-empresa-360 {
+    font: var(--font-heading-md);
+    text-wrap: pretty;
+}
+
+.rejilla-info-empresa-360 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface-subtle);
+}
+
+.acciones-empresa-360 {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+}
+
+@media (max-width: 480px) {
+    .rejilla-info-empresa-360 { grid-template-columns: 1fr; }
+}

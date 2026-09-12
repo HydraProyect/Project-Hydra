@@ -87,7 +87,6 @@ public class ClasesDeCssAisladoNoViajanEntreComponentesTests
         ["Conexiones.razor::boton-medio"] = "markup de boton a pelo en vez del componente Boton",
         ["Conexiones.razor::boton-primario"] = "markup de boton a pelo en vez del componente Boton",
         ["Delegaciones.razor::aviso-error"] = "aviso de error copiado de Facturacion/Proyectos; le corresponde una primitiva de aviso",
-        ["DocumentoWorkspacePanel.razor::campo-info-vacio"] = "estado vacio de CampoInfo usado desde el panel; le corresponde a CampoInfo",
         ["EmpresaWorkspacePanel.razor::workspace-lista-entidades"] = "lista de entidades relacionadas de los siete workspaces; la regla vive en FilaEntidadRelacionada.razor.css y le corresponde a workspace.css",
         ["Empresas.razor::workspace-lista-entidades"] = "lista de entidades relacionadas de los siete workspaces; la regla vive en FilaEntidadRelacionada.razor.css y le corresponde a workspace.css",
         ["PestanaBlindaje42.razor::workspace-lista-entidades"] = "lista de entidades relacionadas de los siete workspaces; la regla vive en FilaEntidadRelacionada.razor.css y le corresponde a workspace.css",

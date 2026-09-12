@@ -22,52 +22,70 @@
 <div class="contenedor-pagina">
     <div class="cabecera-pagina">
         <h1 class="titulo-pagina">Autenticación en dos pasos</h1>
+        <p class="cabecera-pagina-descripcion">Configura el segundo factor de tu propia cuenta.</p>
     </div>
 
     @if (_cargando)
     {
-        <p>Cargando…</p>
+        <div class="dos-factores-cargando" aria-busy="true" aria-label="Cargando la configuración de autenticación en dos pasos">
+            <span class="dos-factores-esqueleto dos-factores-esqueleto-qr" aria-hidden="true"></span>
+            <span class="dos-factores-esqueleto dos-factores-esqueleto-linea" aria-hidden="true"></span>
+            <span class="dos-factores-esqueleto dos-factores-esqueleto-linea-corta" aria-hidden="true"></span>
+        </div>
     }
     else if (_dosFactoresActivo)
     {
+        <div class="tarjeta-2fa tarjeta-2fa-activa">
+            <p class="texto-2fa-exito"><Icono Nombre="exito-circulo" Tamano="TamanoIcono.Pequeno" /> <span>La autenticación en dos pasos ya está activada en tu cuenta.</span></p>
+            <p class="texto-2fa-secundario">Tu aplicación autenticadora te pedirá un código cuando sea necesario.</p>
+        </div>
+    }
+    else if (_errorCarga is not null)
+    {
         <div class="tarjeta-2fa">
-            <p class="texto-2fa-exito"><Icono Nombre="exito-circulo" Tamano="TamanoIcono.Pequeno" /> La autenticación en dos pasos ya está activada en tu cuenta.</p>
+            <div class="alerta-login" role="alert"><Icono Nombre="error-circulo" Tamano="TamanoIcono.Pequeno" /> <span>@_errorCarga</span></div>
         </div>
     }
     else if (_claveCompartida is not null && Entrada is not null)
     {
-        <div class="tarjeta-2fa">
-            <p>
-                Escanea este código QR con una aplicación autenticadora compatible con TOTP
-                (Google Authenticator, Microsoft Authenticator, 1Password, etc.):
-            </p>
+        <div class="dos-factores-alta">
+            <aside class="tarjeta-2fa tarjeta-qr" aria-label="Código QR de configuración">
+                <img class="qr-2fa" src="@_qrCodeDataUri" alt="Código QR para configurar la aplicación autenticadora" width="220" height="220" />
+                <p>Escanea con Google Authenticator, Microsoft Authenticator o 1Password.</p>
+            </aside>
 
-            <img class="qr-2fa" src="@_qrCodeDataUri" alt="Código QR para configurar la app autenticadora" width="220" height="220" />
+            <div class="dos-factores-pasos">
+                <section class="tarjeta-2fa" aria-labelledby="anadir-aplicacion-titulo">
+                    <h2 id="anadir-aplicacion-titulo">1. Añade la cuenta a tu aplicación</h2>
+                    <p>Escanea el código QR con una aplicación autenticadora compatible con TOTP. ¿No puedes escanearlo? Introduce esta clave manualmente:</p>
+                    <div class="clave-manual">
+                        <code>@_claveCompartida</code>
+                    </div>
 
-            <p class="texto-vacio-seccion">
-                ¿No puedes escanear el código? Introduce esta clave manualmente:
-            </p>
-            <p class="clave-manual"><code>@_claveCompartida</code></p>
+                    <p class="texto-2fa-secundario">Si tu aplicación admite pegar una URI, usa esta:</p>
+                    <p class="uri-otpauth"><code>@_uriOtpAuth</code></p>
+                </section>
 
-            <p class="texto-vacio-seccion">
-                Si tu aplicación admite añadir cuentas pegando una URI, usa esta:
-            </p>
-            <p class="clave-manual"><code>@_uriOtpAuth</code></p>
+                <section class="tarjeta-2fa tarjeta-confirmacion" aria-labelledby="confirmar-aplicacion-titulo">
+                    <h2 id="confirmar-aplicacion-titulo">2. Confirma que funciona</h2>
 
-            @if (mensajeError is not null)
-            {
-                <div class="alerta-login" role="alert">@mensajeError</div>
-            }
+                    @if (mensajeError is not null)
+                    {
+                        <div class="alerta-login" role="alert"><Icono Nombre="error-circulo" Tamano="TamanoIcono.Pequeno" /> <span>@mensajeError</span></div>
+                    }
 
-            <EditForm Model="Entrada" method="post" OnValidSubmit="VerificarAsync" FormName="configurar-2fa">
-                <DataAnnotationsValidator />
+                    <EditForm Model="Entrada" method="post" OnValidSubmit="VerificarAsync" FormName="configurar-2fa">
+                        <DataAnnotationsValidator />
 
-                <label for="codigo">Código de 6 dígitos generado por la app</label>
-                <InputText id="codigo" @bind-Value="Entrada.Codigo" autocomplete="one-time-code" inputmode="numeric" />
-                <ValidationMessage For="() => Entrada.Codigo" />
+                        <label for="codigo">Código de 6 dígitos generado por la app</label>
+                        <InputText id="codigo" @bind-Value="Entrada.Codigo" autocomplete="one-time-code" inputmode="numeric" maxlength="6" placeholder="000000" aria-describedby="codigo-ayuda" />
+                        <span id="codigo-ayuda" class="ayuda-codigo">Se aceptan espacios y guiones: se limpian antes de verificar.</span>
+                        <ValidationMessage For="() => Entrada.Codigo" />
 
-                <button type="submit" class="boton-primario">Activar autenticación en dos pasos</button>
-            </EditForm>
+                        <button type="submit" class="boton-primario">Activar autenticación en dos pasos</button>
+                    </EditForm>
+                </section>
+            </div>
         </div>
     }
 </div>
@@ -79,9 +97,13 @@
     private string? _uriOtpAuth;
     private string? _qrCodeDataUri;
     private string? mensajeError;
+    private string? _errorCarga;
     private ApplicationUser? _usuario;
 
-    private const string Emisor = "@Marca.Nombre";
+    // Dentro de @code no hay interpolacion de Razor: el literal "@Marca.Nombre" llegaba tal cual
+    // a la URI del TOTP. Y Marca.Nombre se fija desde la configuracion al arrancar, asi que se
+    // lee al usarse y no al cargar el tipo.
+    private static string Emisor => Marca.Nombre;
 
     [SupplyParameterFromForm]
     private DatosEntrada? Entrada { get; set; }
@@ -117,7 +139,16 @@
         var claveSinFormato = await UserManager.GetAuthenticatorKeyAsync(usuario);
         if (string.IsNullOrEmpty(claveSinFormato))
         {
-            await UserManager.ResetAuthenticatorKeyAsync(usuario);
+            // Si el reinicio no se guardo, no hay clave que ensenar: pintar una en cualquiera de los dos
+            // modos seria ensenar una clave que el servidor nunca guardo, y el codigo que alguien
+            // registre con ella no lo aceptaria jamas (#625).
+            var resultadoReset = await UserManager.ResetAuthenticatorKeyAsync(usuario);
+            if (!resultadoReset.Succeeded)
+            {
+                _errorCarga = string.Join(" ", resultadoReset.Errors.Select(e => e.Description));
+                return;
+            }
+
             claveSinFormato = await UserManager.GetAuthenticatorKeyAsync(usuario);
         }
 
@@ -157,7 +188,16 @@
             return;
         }
 
-        await UserManager.SetTwoFactorEnabledAsync(_usuario, true);
+        var resultadoActivar = await UserManager.SetTwoFactorEnabledAsync(_usuario, true);
+        if (!resultadoActivar.Succeeded)
+        {
+            // Si esta escritura no ocurrio de verdad, la cuenta se queda sin segundo factor aunque el
+            // codigo introducido fuera valido: ni se reemite la sesion, ni se audita una activacion
+            // que no paso, ni se navega como si hubiera terminado (#625).
+            mensajeError = string.Join(" ", resultadoActivar.Errors.Select(e => e.Description));
+            return;
+        }
+
         mensajeError = null;
 
         // Reemite el ticket de autenticación, y hacen falta las dos cosas que

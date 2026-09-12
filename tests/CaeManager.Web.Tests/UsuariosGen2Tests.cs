@@ -156,6 +156,9 @@ public class UsuariosGen2Tests : BunitContext
         public List<Guid> Actualizadas { get; } = [];
 
         public IdentityResult ResultadoDeCrear { get; set; } = IdentityResult.Success;
+        public IdentityResult ResultadoDeAsignarRol { get; set; } = IdentityResult.Success;
+        public IdentityResult ResultadoDeQuitarRol { get; set; } = IdentityResult.Success;
+        public IdentityResult ResultadoDeActualizar { get; set; } = IdentityResult.Success;
         public Exception? FalloAlActualizar { get; set; }
 
         public override Task<ApplicationUser?> FindByIdAsync(string userId) =>
@@ -175,6 +178,8 @@ public class UsuariosGen2Tests : BunitContext
 
         public override Task<IdentityResult> AddToRoleAsync(ApplicationUser user, string role)
         {
+            if (!ResultadoDeAsignarRol.Succeeded) return Task.FromResult(ResultadoDeAsignarRol);
+
             Asignaciones.Add((user.Id, role));
             RolesPorCuenta[user.Id] = [role];
             return Task.FromResult(IdentityResult.Success);
@@ -182,6 +187,8 @@ public class UsuariosGen2Tests : BunitContext
 
         public override Task<IdentityResult> RemoveFromRolesAsync(ApplicationUser user, IEnumerable<string> roles)
         {
+            if (!ResultadoDeQuitarRol.Succeeded) return Task.FromResult(ResultadoDeQuitarRol);
+
             RolesPorCuenta[user.Id] = [];
             return Task.FromResult(IdentityResult.Success);
         }
@@ -189,6 +196,7 @@ public class UsuariosGen2Tests : BunitContext
         public override Task<IdentityResult> UpdateAsync(ApplicationUser user)
         {
             if (FalloAlActualizar is not null) throw FalloAlActualizar;
+            if (!ResultadoDeActualizar.Succeeded) return Task.FromResult(ResultadoDeActualizar);
 
             Actualizadas.Add(user.Id);
             Cuentas[user.Id] = user;
@@ -694,6 +702,89 @@ public class UsuariosGen2Tests : BunitContext
         _identidad.Cuentas[AnderId].NombreCompleto.Should().Be("Ander Beitia Zabala");
     }
 
+    /// <summary>
+    /// Distinto del caso anterior: aquí <c>UpdateAsync</c> no lanza, vuelve con
+    /// <c>IdentityResult.Failed</c>. El desenlace visible tiene que ser el
+    /// mismo —nada se anuncia como guardado— y el motivo que da Identity tiene
+    /// que llegar al formulario, no un texto genérico.
+    /// </summary>
+    [Fact]
+    public async Task Un_IdentityResult_fallido_sin_excepcion_al_actualizar_los_datos_se_dice_con_el_motivo()
+    {
+        var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia");
+        Sembrar(
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (ander, RolesIdentidad.Consulta));
+        _identidad.ResultadoDeActualizar = IdentityResult.Failed(new IdentityError { Description = "el correo ya está en uso" });
+
+        var cut = Renderizar();
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Editar");
+        await EscribirAsync(cut, "Nombre completo", "Ander Beitia Zabala");
+        await GuardarAsync(cut);
+
+        var alerta = cut.Find(".alerta-formulario").TextContent;
+        alerta.Should().Contain("No pudimos guardar los cambios");
+        alerta.Should().Contain("el correo ya está en uso");
+        cut.FindAll(".drawer-panel").Should().NotBeEmpty("el formulario no se cierra sobre un fallo");
+        _identidad.Actualizadas.Should().NotContain(AnderId,
+            "UpdateAsync falló: la cuenta no se registra como actualizada");
+    }
+
+    /// <summary>
+    /// <c>RemoveFromRolesAsync</c> falla antes de intentar
+    /// <c>AddToRoleAsync</c>: el usuario conserva su rol anterior, que es un
+    /// estado válido, en vez de arriesgarse a los dos roles a la vez que
+    /// dejaría un Remove-que-sí-fue seguido de un Add-que-también.
+    /// </summary>
+    [Fact]
+    public async Task Si_falla_quitar_el_rol_anterior_el_usuario_conserva_el_suyo_y_se_dice()
+    {
+        var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia");
+        Sembrar(
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (ander, RolesIdentidad.Consulta));
+        _identidad.ResultadoDeQuitarRol = IdentityResult.Failed(new IdentityError { Description = "bloqueo en la tabla de roles" });
+
+        var cut = Renderizar();
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Editar");
+        await CampoPorEtiqueta(cut, "Rol").ChangeAsync(new() { Value = RolesIdentidad.GestorCae });
+        await GuardarAsync(cut);
+
+        var alerta = cut.Find(".alerta-formulario").TextContent;
+        alerta.Should().Contain("bloqueo en la tabla de roles");
+        alerta.Should().Contain("conserva su rol anterior");
+        _identidad.RolesPorCuenta[AnderId].Should().Equal([RolesIdentidad.Consulta],
+            "el Remove no llegó a completarse: el rol de antes sigue siendo el único");
+        _identidad.Asignaciones.Should().BeEmpty("no se intenta Add sobre un Remove que falló");
+    }
+
+    /// <summary>
+    /// <c>RemoveFromRolesAsync</c> sí completó y <c>AddToRoleAsync</c> falla
+    /// después: el peor de los tres desenlaces, porque el usuario se queda sin
+    /// ningún rol. No hay compensación posible sin la transacción que Identity
+    /// no ofrece, así que se dice tal cual y se pide revisión manual.
+    /// </summary>
+    [Fact]
+    public async Task Si_falla_asignar_el_rol_nuevo_tras_quitar_el_anterior_el_usuario_se_queda_sin_ninguno()
+    {
+        var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia");
+        Sembrar(
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (ander, RolesIdentidad.Consulta));
+        _identidad.ResultadoDeAsignarRol = IdentityResult.Failed(new IdentityError { Description = "la tabla de roles se cayó" });
+
+        var cut = Renderizar();
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Editar");
+        await CampoPorEtiqueta(cut, "Rol").ChangeAsync(new() { Value = RolesIdentidad.GestorCae });
+        await GuardarAsync(cut);
+
+        var alerta = cut.Find(".alerta-formulario").TextContent;
+        alerta.Should().Contain("la tabla de roles se cayó");
+        alerta.Should().Contain("se quedó sin ningún rol");
+        _identidad.RolesPorCuenta[AnderId].Should().BeEmpty(
+            "el Remove sí completó y el Add falló: no queda ningún rol asignado");
+    }
+
     [Fact]
     public async Task El_doble_clic_en_Guardar_no_crea_dos_cuentas()
     {
@@ -731,6 +822,40 @@ public class UsuariosGen2Tests : BunitContext
         await segundoClic;
 
         _identidad.Creadas.Should().ContainSingle("el segundo clic no vuelve a entrar en el guardado");
+    }
+
+    /// <summary>
+    /// <c>CreateAsync</c> ya tuvo éxito cuando <c>AddToRoleAsync</c> falla: la
+    /// cuenta existe, pero sin ningún rol. El alta no se deshace —Identity no
+    /// ofrece esa transacción— y el toast no puede decir "correctamente",
+    /// porque quien entre por el enlace de activación no tendrá acceso a nada.
+    /// </summary>
+    [Fact]
+    public async Task Un_fallo_al_asignar_el_rol_en_el_alta_no_se_anuncia_como_exito()
+    {
+        Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
+        _identidad.ResultadoDeAsignarRol = IdentityResult.Failed(new IdentityError { Description = "la tabla de roles se cayó" });
+
+        var cut = Renderizar();
+        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await EscribirAsync(cut, "Correo", "sinrol@talveg.es");
+        await EscribirAsync(cut, "Nombre completo", "Sin Rol");
+        await GuardarAsync(cut);
+
+        // La cuenta sí se creó: no se inventa una compensación que Identity no ofrece.
+        _identidad.Creadas.Should().ContainSingle().Which.Email.Should().Be("sinrol@talveg.es");
+        _identidad.Asignaciones.Should().BeEmpty("AddToRoleAsync falló: no llegó a registrarse ninguna asignación");
+
+        _toasts.Mensajes.Should().ContainSingle();
+        var toast = _toasts.Mensajes[0];
+        toast.Tono.Should().Be(TonoToast.Error);
+        toast.Mensaje.Should().Contain("la tabla de roles se cayó")
+            .And.NotContain("correctamente", "sin rol la cuenta no tiene acceso a nada: no es un éxito");
+
+        // Y el resto del alta sigue su curso: el enlace de activación se enseña igual.
+        _correo.Enviados.Should().ContainSingle();
+        cut.WaitForAssertion(() =>
+            cut.Find(".enlace-activacion").TextContent.Should().Contain("/cuenta/restablecer-contrasena"));
     }
 
     // -------------------------------------- el permiso sobre lo sensible
@@ -1063,6 +1188,30 @@ public class UsuariosGen2Tests : BunitContext
             .Which.Mensaje.Should().Be("No pudimos desactivar esta cuenta. Vuelve a intentarlo.");
         Fila(cut, "a.beitia@talveg.es").TextContent.Should().Contain("Activo",
             "la fila no cambia hasta que el servidor confirma");
+    }
+
+    /// <summary>
+    /// Distinto del caso anterior: aquí <c>UpdateAsync</c> no lanza, vuelve con
+    /// <c>IdentityResult.Failed</c> —el <c>LockoutEnd</c> nunca llegó a
+    /// escribirse—. El toast tiene que decir el motivo de Identity, no el
+    /// texto genérico de "vuelve a intentarlo" que solo cabe para excepciones.
+    /// </summary>
+    [Fact]
+    public async Task Un_IdentityResult_fallido_sin_excepcion_al_desactivar_se_dice_con_el_motivo()
+    {
+        var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia");
+        Sembrar(
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (ander, RolesIdentidad.GestorCae));
+        _identidad.ResultadoDeActualizar = IdentityResult.Failed(new IdentityError { Description = "la cuenta está bloqueada por otra escritura" });
+
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+
+        _toasts.Mensajes.Should().ContainSingle()
+            .Which.Mensaje.Should().Contain("la cuenta está bloqueada por otra escritura");
+        Fila(cut, "a.beitia@talveg.es").TextContent.Should().Contain("Activo",
+            "el IdentityResult falló: la fila no puede decir que se desactivó");
     }
 
     // ----------------------- Revisión de Codex sobre esta misma rama
