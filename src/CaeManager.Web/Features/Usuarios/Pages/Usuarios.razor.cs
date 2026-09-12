@@ -44,7 +44,7 @@ public record AlcanceUsuarioDto(string Texto, bool EsAviso, string Explicacion);
 
 public record CoordinadorDto(Guid Id, string NombreCompleto, string Email);
 
-public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
+public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase, IDisposable
 {
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
@@ -63,6 +63,35 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     private bool _cargando = true;
     private bool _errorCarga;
     private Guid? _usuarioActualId;
+
+    /// <summary>
+    /// Retirada de la pantalla. Cancela lo que esté en vuelo —la carga de la
+    /// lista, la búsqueda de empresa por CIF— para que ninguna respuesta
+    /// intente pintar sobre un componente que ya no está.
+    /// </summary>
+    private readonly CancellationTokenSource _ciclo = new();
+    private bool _desechado;
+
+    /// <summary>
+    /// Qué carga es la vigente. Se captura antes del primer <c>await</c>: si
+    /// mientras viajaba se pidió otra (reintento, recarga tras guardar), la
+    /// respuesta vieja ya no describe lo que se ve y se descarta en vez de
+    /// pisar la nueva. Mismo criterio que <see cref="_versionBusquedaCif"/>.
+    /// </summary>
+    private int _versionCarga;
+
+    public void Dispose()
+    {
+        // Idempotente: Cancel() sobre un CancellationTokenSource ya desechado
+        // lanza, y una segunda llamada a Dispose no es una hipótesis (el
+        // anfitrión de pruebas de componente desecha además de quien lo pida
+        // explícitamente).
+        if (_desechado) return;
+
+        _desechado = true;
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+    }
 
     /// <summary>
     /// El actor que edita, no el rol que se le asigna al usuario editado —
@@ -269,8 +298,18 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
     protected override Task OnInitializedAsync() => CargarAsync();
 
-    private async Task CargarAsync()
+    /// <summary>
+    /// <c>protected</c> y no <c>private</c> para que una prueba de componente
+    /// pueda pedir una segunda carga mientras la primera sigue en vuelo — la
+    /// carrera que <see cref="_versionCarga"/> existe para resolver y que
+    /// desde la interfaz no es alcanzable, porque durante la primera carga la
+    /// pantalla solo muestra el esqueleto y no hay ningún control que pulsar.
+    /// </summary>
+    protected async Task CargarAsync()
     {
+        var version = ++_versionCarga;
+        var token = _ciclo.Token;
+
         _cargando = true;
         _errorCarga = false;
         StateHasChanged();
@@ -297,14 +336,14 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                 // plataforma, pero CurrentUserService.ObtenerRolActualAsync ya
                 // lo acota al operar aquí — mostrar "Administrador" contradice
                 // esa restricción y alarma sin motivo a quien lo ve.
-                var rolesDelegados = await DirectorioUsuarios.ObtenerRolesDeOperadoresDelegadosAsync();
+                var rolesDelegados = await ObtenerRolesDelegadosAsync(token);
 
                 // Dos consultas para toda la página, no una por fila: las
                 // carteras vigentes del tenant, y los usuarios visibles (de
                 // donde sale también qué gestores cuelga de cada coordinador,
                 // sin volver a la base).
-                var carteras = await DirectorioUsuarios.ObtenerCarterasVigentesAsync();
-                var visibles = await DirectorioUsuarios.ObtenerVisiblesAsync();
+                var carteras = await ObtenerCarterasVigentesAsync(token);
+                var visibles = await ObtenerUsuariosVisiblesAsync(token);
 
                 var gestoresPorCoordinador = visibles
                     .Where(u => u.CoordinadorUsuarioId is not null)
@@ -324,20 +363,78 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                         usuario.Id, usuario.Email ?? string.Empty, usuario.NombreCompleto, rol, activo, esOperadorDelegado,
                         CalcularAlcance(usuario, rol, carteras, gestoresPorCoordinador)));
                 }
-            });
+            }, token);
+
+            // Otra carga tomó el relevo mientras esta viajaba: la lista que se
+            // ve es la suya, y pintar esta la haría retroceder.
+            //
+            // ALCANZABLE, pero hoy sin efecto observable, y conviene decir
+            // exactamente cuál de las dos cosas es (revisión de Codex,
+            // 2026-09-12): con dos cargas en vuelo esta comparación SÍ se
+            // evalúa —PuertaAccesoDatos serializa las lecturas, pero no ordena
+            // las continuaciones posteriores a su Release—. Lo que se midió
+            // por mutación es más estrecho: quitar el return no deja una lista
+            // obsoleta EN PANTALLA, porque la carga vigente la reasigna
+            // después. Se queda porque es lo único que lo impide el día que
+            // una de las cuatro lecturas deje de pasar por la puerta, o que
+            // una respuesta vieja llegue después de la nueva. Lo observable
+            // del sello hoy es el trato del error y del esqueleto, más abajo.
+            if (version != _versionCarga) return;
 
             _usuarios = usuarios;
             _pagina = 1;
         }
+        catch (OperationCanceledException)
+        {
+            // Retirarse de la pantalla no es un error de carga: pintar
+            // "No pudimos cargar los usuarios" al navegar a otro sitio sería
+            // mentir sobre un fallo que no hubo.
+            return;
+        }
         catch (Exception)
         {
-            _errorCarga = true;
+            if (version == _versionCarga)
+                _errorCarga = true;
         }
         finally
         {
-            _cargando = false;
+            if (version == _versionCarga && !_desechado)
+            {
+                _cargando = false;
+
+                // Explícito y no confiado al repintado que Blazor hace tras un
+                // manejador de evento: CargarAsync también se llama desde
+                // sitios que no son un manejador (la inicialización, y una
+                // recarga encadenada tras una escritura), y ahí nadie repinta
+                // por nosotros — la pantalla se quedaría en el esqueleto con
+                // la lista ya cargada detrás.
+                StateHasChanged();
+            }
         }
     }
+
+    /// <summary>
+    /// Las cuatro lecturas del directorio, en métodos propios para poder
+    /// sustituirlas en pruebas de componente sin base de datos — mismo
+    /// mecanismo que <c>Roles.razor.cs</c>. Lo que hacen es exactamente lo que
+    /// hacía la llamada directa: <see cref="DirectorioUsuariosTenant"/> sigue
+    /// siendo quien acota al tenant activo, y esa acotación no se prueba aquí
+    /// (ver <c>CarterasVigentesDelDirectorioAcotadasAlTenantTests</c>).
+    /// </summary>
+    protected virtual Task<IReadOnlyDictionary<Guid, string>> ObtenerRolesDelegadosAsync(CancellationToken cancellationToken) =>
+        DirectorioUsuarios.ObtenerRolesDeOperadoresDelegadosAsync(cancellationToken);
+
+    /// <inheritdoc cref="ObtenerRolesDelegadosAsync"/>
+    protected virtual Task<IReadOnlyDictionary<Guid, CarteraDeUsuario>> ObtenerCarterasVigentesAsync(CancellationToken cancellationToken) =>
+        DirectorioUsuarios.ObtenerCarterasVigentesAsync(cancellationToken);
+
+    /// <inheritdoc cref="ObtenerRolesDelegadosAsync"/>
+    protected virtual Task<IReadOnlyList<ApplicationUser>> ObtenerUsuariosVisiblesAsync(CancellationToken cancellationToken) =>
+        DirectorioUsuarios.ObtenerVisiblesAsync(cancellationToken);
+
+    /// <inheritdoc cref="ObtenerRolesDelegadosAsync"/>
+    protected virtual Task<IReadOnlyList<ApplicationUser>> ObtenerVisiblesEnRolAsync(string rol, CancellationToken cancellationToken) =>
+        DirectorioUsuarios.ObtenerVisiblesEnRolAsync(rol, cancellationToken);
 
     /// <summary>
     /// El rol que entra aquí es el <b>efectivo en esta organización</b>: para
@@ -420,34 +517,103 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
     private async Task CargarCoordinadoresAsync()
     {
-        var coordinadores = await DirectorioUsuarios.ObtenerVisiblesEnRolAsync(Roles.CoordinadorCae);
-        _coordinadoresDisponibles = coordinadores
-            .Select(u => new CoordinadorDto(u.Id, u.NombreCompleto, u.Email ?? string.Empty))
-            .ToList();
+        var token = _ciclo.Token;
+
+        try
+        {
+            var coordinadores = await ObtenerVisiblesEnRolAsync(Roles.CoordinadorCae, token);
+            _coordinadoresDisponibles = coordinadores
+                .Select(u => new CoordinadorDto(u.Id, u.NombreCompleto, u.Email ?? string.Empty))
+                .ToList();
+        }
+        catch (OperationCanceledException)
+        {
+            // La pantalla ya no está; no hay desplegable que rellenar.
+        }
+        catch (Exception)
+        {
+            // El desplegable se queda sin opciones, pero "Sin asignar por
+            // ahora" sigue siendo una respuesta válida y el alta puede
+            // completarse: no se bloquea el formulario entero por esto.
+            _coordinadoresDisponibles = [];
+            ToastService.Mostrar(
+                "No pudimos cargar los Coordinadores CAE. Puedes guardar sin asignar ninguno y hacerlo después.",
+                TonoToast.Error);
+        }
     }
+
+    /// <summary>
+    /// Qué respuesta del servidor describe lo último tecleado en el CIF.
+    /// <c>CampoTexto</c> ya reboté las pulsaciones (300 ms), pero el rebote no
+    /// ordena respuestas: dos búsquedas en vuelo pueden volver al revés y la
+    /// vieja dejaría en pantalla —y en <see cref="_clienteEncontrado"/>, que es
+    /// lo que se guarda— una empresa que no corresponde al CIF escrito.
+    /// </summary>
+    private int _versionBusquedaCif;
+
+    /// <summary>
+    /// La búsqueda falló, que no es lo mismo que "no hay ninguna empresa con
+    /// este CIF". Decir lo segundo cuando pasó lo primero manda a crear una
+    /// empresa que ya existe.
+    /// </summary>
+    private bool _errorBusquedaCif;
 
     private async Task BuscarClientePorCifAsync(string valor)
     {
+        var version = ++_versionBusquedaCif;
+        var token = _ciclo.Token;
+
         _clienteCif = valor;
         _clienteEncontrado = null;
+        _errorBusquedaCif = false;
 
-        if (string.IsNullOrWhiteSpace(valor)) return;
+        if (string.IsNullOrWhiteSpace(valor))
+        {
+            _buscandoCliente = false;
+            return;
+        }
 
         _buscandoCliente = true;
         StateHasChanged();
 
+        EmpresaPorCifDto? encontrada = null;
+        var fallo = false;
+
         try
         {
-            _clienteEncontrado = await Mediator.Send(new BuscarEmpresaPorCifQuery(valor));
+            encontrada = await Mediator.Send(new BuscarEmpresaPorCifQuery(valor), token);
         }
-        finally
+        catch (OperationCanceledException)
         {
-            _buscandoCliente = false;
+            return;
         }
+        catch (Exception)
+        {
+            fallo = true;
+        }
+
+        // Una respuesta vieja no puede pisar a la del CIF que se ve escrito.
+        if (version != _versionBusquedaCif) return;
+
+        _clienteEncontrado = encontrada;
+        _errorBusquedaCif = fallo;
+        _buscandoCliente = false;
     }
+
+    /// <summary>
+    /// Qué apertura de formulario es la vigente. Dos clics seguidos en
+    /// «Editar» de filas distintas lanzan dos lecturas: sin esto, la que
+    /// vuelve antes deja sus datos y la que vuelve después los pisa, y el
+    /// formulario acabaría mostrando el nombre de una cuenta con el
+    /// <see cref="_editandoId"/> de otra — es decir, guardando sobre quien no
+    /// se está viendo.
+    /// </summary>
+    private int _versionApertura;
 
     private void AbrirCrear()
     {
+        _versionApertura++;
+        _versionBusquedaCif++;
         _editandoId = null;
         _email = string.Empty;
         _nombreCompleto = string.Empty;
@@ -456,23 +622,54 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         _coordinadorUsuarioId = string.Empty;
         _clienteCif = string.Empty;
         _clienteEncontrado = null;
+        _errorBusquedaCif = false;
+        _buscandoCliente = false;
         _permisoConsultarAccesoDocumentosSensibles = false;
         _mensajeErrorFormulario = null;
+        _guardando = false;
         _drawerVisible = true;
     }
 
     private async Task AbrirEditarAsync(Guid id)
     {
-        var usuario = await PuertaAccesoDatos.EjecutarAsync(() => UserManager.FindByIdAsync(id.ToString()));
-        if (usuario is null)
+        var version = ++_versionApertura;
+        var token = _ciclo.Token;
+
+        ApplicationUser? usuario;
+        IList<string> roles;
+        try
         {
-            ToastService.Mostrar("No encontramos este usuario.", TonoToast.Error);
-            await CargarAsync();
+            usuario = await PuertaAccesoDatos.EjecutarAsync(() => UserManager.FindByIdAsync(id.ToString()), token);
+            if (usuario is null)
+            {
+                if (version != _versionApertura) return;
+
+                ToastService.Mostrar("No encontramos este usuario.", TonoToast.Error);
+                await CargarAsync();
+                return;
+            }
+
+            roles = await PuertaAccesoDatos.EjecutarAsync(() => UserManager.GetRolesAsync(usuario), token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception)
+        {
+            if (version != _versionApertura) return;
+
+            ToastService.Mostrar("No pudimos abrir esta ficha. Vuelve a intentarlo.", TonoToast.Error);
             return;
         }
 
-        var roles = await PuertaAccesoDatos.EjecutarAsync(() => UserManager.GetRolesAsync(usuario));
+        // Otra apertura tomó el relevo mientras esta leía.
+        if (version != _versionApertura) return;
 
+        _versionBusquedaCif++;
+        _guardando = false;
+        _buscandoCliente = false;
+        _errorBusquedaCif = false;
         _editandoId = usuario.Id;
         _email = usuario.Email ?? string.Empty;
         _nombreCompleto = usuario.NombreCompleto;
@@ -488,11 +685,34 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
         if (_rol == Roles.Cliente && usuario.ClienteId is not null)
         {
-            var cliente = await Mediator.Send(new ObtenerClientePorIdQuery(usuario.ClienteId.Value));
-            if (cliente is not null)
+            try
             {
-                _clienteCif = cliente.Cif;
-                _clienteEncontrado = new EmpresaPorCifDto(cliente.Id, cliente.RazonSocial, cliente.Cif);
+                var cliente = await Mediator.Send(new ObtenerClientePorIdQuery(usuario.ClienteId.Value), token);
+
+                // Sin esta guarda, la empresa vinculada de una ficha abierta y
+                // abandonada acabaría escrita en la ficha que se ve ahora.
+                if (version != _versionApertura) return;
+
+                if (cliente is not null)
+                {
+                    _clienteCif = cliente.Cif;
+                    _clienteEncontrado = new EmpresaPorCifDto(cliente.Id, cliente.RazonSocial, cliente.Cif);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception)
+            {
+                if (version != _versionApertura) return;
+
+                // El campo queda vacío y el guardado lo exigirá antes de
+                // continuar (ver GuardarAsync): no se deja pasar un vínculo
+                // silenciosamente perdido.
+                ToastService.Mostrar(
+                    "No pudimos recuperar la empresa vinculada a esta cuenta. Vuelve a buscarla por CIF antes de guardar.",
+                    TonoToast.Error);
             }
         }
 
@@ -502,12 +722,46 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
     private Task CerrarDrawerAsync(bool visible)
     {
+        if (!visible)
+        {
+            // Al cerrar se retira el formulario: una apertura o una búsqueda
+            // de CIF que siguieran en vuelo ya no tienen dónde escribir, y sin
+            // estas dos versiones repoblarían el formulario de la SIGUIENTE
+            // ficha que se abriera.
+            _versionApertura++;
+            _versionBusquedaCif++;
+            _buscandoCliente = false;
+            _mensajeErrorFormulario = null;
+        }
+
         _drawerVisible = visible;
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Tres desenlaces distintos, y se distinguen:
+    /// <list type="bullet">
+    /// <item><b>Validación</b>: falta un campo o el vínculo por CIF. Mensaje en
+    /// el formulario, que sigue abierto con todo lo tecleado.</item>
+    /// <item><b>Fallo</b>: la escritura no llegó a completarse. Mensaje propio
+    /// —distinto del de validación, porque la acción del usuario es otra: no
+    /// hay nada que corregir, hay que reintentar— y tampoco se pierde nada de
+    /// lo escrito.</item>
+    /// <item><b>Éxito</b>: toast, cierre del formulario y recarga.</item>
+    /// </list>
+    ///
+    /// <para>
+    /// A prueba de doble clic: el segundo clic no vuelve a entrar mientras el
+    /// primero está en vuelo. Sin esto, dos clics sobre «Guardar» en un alta
+    /// crean dos cuentas —<c>UserManager.CreateAsync</c> no es idempotente— y
+    /// el segundo alta se lleva el enlace de activación del modal, dejando la
+    /// primera cuenta sin forma de activarse.
+    /// </para>
+    /// </summary>
     private async Task GuardarAsync()
     {
+        if (_guardando) return;
+
         _guardando = true;
         _mensajeErrorFormulario = null;
         StateHasChanged();
@@ -516,7 +770,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         {
             if (_rol == Roles.Cliente && _clienteEncontrado is null)
             {
-                _mensajeErrorFormulario = "Busca y confirma el CIF del cliente a vincular antes de guardar.";
+                _mensajeErrorFormulario = "Busca y confirma el CIF de la empresa a vincular antes de guardar.";
                 return;
             }
 
@@ -524,6 +778,17 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                 await CrearUsuarioAsync();
             else
                 await EditarUsuarioAsync(_editandoId.Value);
+        }
+        catch (OperationCanceledException)
+        {
+            // La pantalla se retiró mientras se guardaba; no hay formulario en
+            // el que escribir nada.
+        }
+        catch (Exception excepcion)
+        {
+            Logger.LogError(excepcion, "Fallo al guardar el usuario {UsuarioId}.", _editandoId);
+            _mensajeErrorFormulario =
+                "No pudimos guardar los cambios. Vuelve a intentarlo — no hemos perdido nada de lo que has escrito.";
         }
         finally
         {
@@ -716,6 +981,16 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
     private enum ResultadoEdicionUsuario { Actualizado, NoEncontrado, AutogestionPermisoSensibleRechazada }
 
+    /// <summary>
+    /// Nada cambia en pantalla hasta que responde el servidor: la fila no se
+    /// pinta desactivada «por adelantado» para luego tener que retroceder.
+    ///
+    /// <para>
+    /// Cada desenlace se dice. Antes, una cuenta que ya no existía salía por
+    /// <c>return</c> sin toast ninguno: el menú se cerraba, la fila seguía
+    /// igual y no había forma de saber si la orden se había ejecutado.
+    /// </para>
+    /// </summary>
     private async Task CambiarActivacionAsync(UsuarioListaDto usuarioLista)
     {
         if (usuarioLista.Id == _usuarioActualId)
@@ -724,22 +999,61 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             return;
         }
 
-        var encontrado = await PuertaAccesoDatos.EjecutarAsync(async () =>
+        if (_cambiandoActivacionDe.Contains(usuarioLista.Id)) return;
+        _cambiandoActivacionDe.Add(usuarioLista.Id);
+
+        var token = _ciclo.Token;
+
+        try
         {
-            var usuario = await UserManager.FindByIdAsync(usuarioLista.Id.ToString());
-            if (usuario is null) return false;
+            var encontrado = await PuertaAccesoDatos.EjecutarAsync(async () =>
+            {
+                var usuario = await UserManager.FindByIdAsync(usuarioLista.Id.ToString());
+                if (usuario is null) return false;
 
-            usuario.LockoutEnabled = true;
-            usuario.LockoutEnd = usuarioLista.Activo ? DateTimeOffset.MaxValue : null;
-            await UserManager.UpdateAsync(usuario);
-            return true;
-        });
-        if (!encontrado) return;
+                usuario.LockoutEnabled = true;
+                usuario.LockoutEnd = usuarioLista.Activo ? DateTimeOffset.MaxValue : null;
+                await UserManager.UpdateAsync(usuario);
+                return true;
+            }, token);
 
-        ToastService.Mostrar(
-            usuarioLista.Activo ? "Usuario desactivado." : "Usuario reactivado.",
-            TonoToast.Exito);
+            if (!encontrado)
+            {
+                ToastService.Mostrar(
+                    "Esta cuenta ya no existe. Recargamos la lista.", TonoToast.Error);
+                await CargarAsync();
+                return;
+            }
 
-        await CargarAsync();
+            ToastService.Mostrar(
+                usuarioLista.Activo ? "Usuario desactivado." : "Usuario reactivado.",
+                TonoToast.Exito);
+
+            await CargarAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            // La pantalla ya no está.
+        }
+        catch (Exception excepcion)
+        {
+            Logger.LogError(excepcion, "Fallo al cambiar la activación del usuario {UsuarioId}.", usuarioLista.Id);
+            ToastService.Mostrar(
+                usuarioLista.Activo
+                    ? "No pudimos desactivar esta cuenta. Vuelve a intentarlo."
+                    : "No pudimos reactivar esta cuenta. Vuelve a intentarlo.",
+                TonoToast.Error);
+        }
+        finally
+        {
+            _cambiandoActivacionDe.Remove(usuarioLista.Id);
+        }
     }
+
+    /// <summary>
+    /// Las cuentas con un cambio de activación en vuelo. A prueba de doble
+    /// clic por fila, no por pantalla: desactivar a una persona no debe
+    /// impedir desactivar a otra mientras la primera viaja.
+    /// </summary>
+    private readonly HashSet<Guid> _cambiandoActivacionDe = [];
 }

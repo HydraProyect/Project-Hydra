@@ -10,14 +10,23 @@
 }
 
 <div class="@ClaseContenedorPagina">
-    <div class="cabecera-pagina">
-        @TituloPaginaIntegrable("Usuarios")
-        <Boton OnClick="AbrirCrear">+ Nuevo usuario</Boton>
-    </div>
+    @* Gen 2: la cabecera es la primitiva, no un div a mano. Integrada resuelve
+       h1/h2 igual que TituloPaginaIntegrable, y las acciones entran por
+       .acciones-cabecera, que es lo que el mockup nombra. *@
+    <CabeceraPagina Titulo="Usuarios" Integrada="IntegradaEnConfiguracion">
+        <Acciones>
+            <Boton OnClick="AbrirCrear">+ Nuevo usuario</Boton>
+        </Acciones>
+    </CabeceraPagina>
 
     @* Mismo sitio y misma composición que las demás listas (list-page.css
        ".barra-filtros"): buscador a la izquierda, filtros a su derecha, nunca
        escondidos tras un menú. Se filtra en memoria — ver UsuariosFiltrados.
+
+       El mockup Gen 2 no los pinta, y aun así se quedan: omitir un control en
+       un mockup no es pedir que se retire del producto, y sin ellos una
+       organización con cuarenta cuentas solo puede buscar a ojo. Ver también
+       el estado vacío por filtro, que existe justamente por esta barra.
 
        Solo se pinta cuando hay algo que filtrar: sobre el error de carga
        mentiría (no hay lista sobre la que actuar) y sobre una organización
@@ -49,6 +58,7 @@
     }
     else if (_usuarios.Count == 0)
     {
+        @* Sin acción: el alta ya está en la cabecera, a dos centímetros. *@
         <EstadoVacio Titulo="Aún no hay usuarios" Descripcion="Crea el primero para dar acceso al sistema." />
     }
     else if (UsuariosFiltrados.Count == 0)
@@ -68,19 +78,33 @@
         <table class="tabla-datos">
             <thead>
                 <tr>
-                    <th>Correo</th>
-                    <th>Nombre</th>
-                    <th>Rol</th>
-                    <th>Alcance</th>
-                    <th>Estado</th>
-                    <th></th>
+                    <th scope="col">Correo</th>
+                    <th scope="col">Nombre</th>
+                    <th scope="col">Rol</th>
+                    <th scope="col">Alcance</th>
+                    <th scope="col">Estado</th>
+                    @* La columna de acciones no lleva rótulo visible, pero sí
+                       nombre: una cabecera vacía deja a quien navega con
+                       lector de pantalla sin saber de qué columna es la celda
+                       en la que está. *@
+                    <th scope="col"><span class="encabezado-solo-lectores">Acciones</span></th>
                 </tr>
             </thead>
             <tbody>
                 @foreach (var usuario in UsuariosDePagina)
                 {
                     <tr>
-                        <td>@usuario.Email</td>
+                        <td>
+                            @usuario.Email
+                            @if (usuario.Id == _usuarioActualId)
+                            {
+                                @* Quién eres tú en esta lista. Es la fila en la
+                                   que ni puedes desactivarte ni tocar tu propio
+                                   permiso sobre documentos sensibles, así que
+                                   conviene que se distinga antes de intentarlo. *@
+                                <span class="marca-eres-tu">tú</span>
+                            }
+                        </td>
                         <td>@usuario.NombreCompleto</td>
                         <td>
                             @Roles.NombreVisible(usuario.Rol)
@@ -88,8 +112,12 @@
                             {
                                 @* El rol mostrado es el de su asignación en esta organización,
                                    no el que tiene en la suya. Sin esta marca la fila es
-                                   indistinguible de la de un usuario propio. *@
-                                <Badge Tono="TonoBadge.Info" Tamano="TamanoBadge.Pequeno"
+                                   indistinguible de la de un usuario propio.
+
+                                   Tono neutro, no Info: los tonos de color están
+                                   reservados al semáforo documental (ver TonoBadge),
+                                   y "Delegado" no es un estado bueno ni malo. *@
+                                <Badge Tono="TonoBadge.Neutro" Tamano="TamanoBadge.Pequeno"
                                        title="Opera esta organización desde otra mediante una delegación; el rol mostrado es el de su asignación aquí, no el de su organización de origen.">
                                     Delegado
                                 </Badge>
@@ -98,7 +126,9 @@
                         @* Qué ve esta cuenta. Sin esta columna, un Gestor CAE
                            sin cartera tiene una fila idéntica a la de uno con
                            cartera, y el "no veo nada" que reporta no tiene
-                           respuesta en ninguna pantalla. *@
+                           respuesta en ninguna pantalla. El mockup Gen 2 no la
+                           dibuja; se conserva porque responde una pregunta que
+                           no se responde en ningún otro sitio del producto. *@
                         <td title="@usuario.Alcance.Explicacion">
                             @if (usuario.Alcance.EsAviso)
                             {
@@ -129,7 +159,10 @@
                                 <ItemMenuAccion OnClick="() => AbrirEditarAsync(usuario.Id)">
                                     Editar
                                 </ItemMenuAccion>
-                                <ItemMenuAccion OnClick="() => CambiarActivacionAsync(usuario)">
+                                @* Destructivo solo al desactivar: reactivar
+                                   devuelve un acceso, no lo quita. *@
+                                <ItemMenuAccion Destructivo="usuario.Activo"
+                                                OnClick="() => CambiarActivacionAsync(usuario)">
                                     @(usuario.Activo ? "Desactivar" : "Reactivar")
                                 </ItemMenuAccion>
                             </MenuAcciones>
@@ -152,7 +185,12 @@
             <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
         }
 
-        <CampoTexto Etiqueta="Correo" Type="email" Valor="@_email" ValorChanged="v => _email = v" Deshabilitado="@(_editandoId is not null)" />
+        <CampoTexto Etiqueta="Correo" Type="email" Placeholder="@("nombre@empresa.es")" Valor="@_email" ValorChanged="v => _email = v" Deshabilitado="@(_editandoId is not null)" />
+        @if (_editandoId is not null)
+        {
+            <p class="texto-ayuda-campo">El correo identifica la cuenta y no se puede cambiar.</p>
+        }
+
         <CampoTexto Etiqueta="Nombre completo" Valor="@_nombreCompleto" ValorChanged="v => _nombreCompleto = v" />
         @* Sin campo de contraseña: la cuenta nace sin ninguna y el propio
            usuario la establece desde su enlace de activación. Nadie más llega
@@ -172,31 +210,54 @@
                (no DireccionCae) puede concederlo o revocarlo. "Otro" excluye
                la propia fila: el interruptor ni siquiera se ofrece editando
                tu propia cuenta (ver EsAutogestionDelPermisoSensible, que es
-               quien de verdad lo impide si esto se saltara). *@
-            <label class="campo-checkbox" title="Permite consultar quién ha abierto o descargado documentos sensibles (reconocimientos médicos y similares)">
-                <input type="checkbox" checked="@_permisoConsultarAccesoDocumentosSensibles" @onchange="e => _permisoConsultarAccesoDocumentosSensibles = e.Value is bool activo && activo" />
-                Puede consultar el rastro de acceso a documentos sensibles
-            </label>
+               quien de verdad lo impide si esto se saltara).
+
+               Las dos frases del texto de ayuda son veraces EN ESTE BLOQUE, y
+               solo aquí: la retirada automática al dejar de ser Administrador
+               la ejecuta EditarUsuarioAsync dentro del mismo "si quien edita
+               es Administrador" que gobierna esta condición. Si alguna vez
+               este bloque se muestra a un DireccionCae, la segunda frase deja
+               de ser cierta y hay que reescribirla. *@
+            <div class="bloque-permiso-sensible">
+                <label class="campo-checkbox" title="Permite consultar quién ha abierto o descargado documentos sensibles (reconocimientos médicos y similares)">
+                    <input type="checkbox" checked="@_permisoConsultarAccesoDocumentosSensibles" @onchange="e => _permisoConsultarAccesoDocumentosSensibles = e.Value is bool activo && activo" />
+                    Puede consultar el rastro de acceso a documentos sensibles
+                </label>
+                <p class="texto-permiso-sensible">
+                    Permiso aparte del rol: solo otro usuario con el rol Administrador puede concederlo o revocarlo.
+                    Si el rol deja de ser Administrador, se retira automáticamente.
+                </p>
+            </div>
         }
 
         @if (_rol == Roles.GestorCae)
         {
-            <CampoSelect Etiqueta="Coordinador CAE asignado" Valor="@_coordinadorUsuarioId" ValorChanged="v => _coordinadorUsuarioId = v">
+            <CampoSelect Etiqueta="Coordinador CAE asignado (opcional)" Valor="@_coordinadorUsuarioId" ValorChanged="v => _coordinadorUsuarioId = v">
                 <option value="">Sin asignar por ahora</option>
                 @foreach (var coordinador in _coordinadoresDisponibles)
                 {
                     <option value="@coordinador.Id">@coordinador.NombreCompleto (@coordinador.Email)</option>
                 }
             </CampoSelect>
-            <p class="texto-vacio-seccion">Sin coordinador asignado, solo Administrador y Dirección CAE ven su cartera.</p>
+            <p class="texto-ayuda-campo">Sin coordinador asignado, su cartera solo la ven los roles Administrador y Dirección CAE.</p>
         }
 
         @if (_rol == Roles.Cliente)
         {
-            <CampoTexto Etiqueta="CIF del cliente a vincular" Valor="@_clienteCif" ValorChanged="BuscarClientePorCifAsync" />
+            @* "Empresa", no "cliente": lo que se busca es una Empresa del
+               catálogo (BuscarEmpresaPorCifQuery) y lo que se vincula es esa
+               empresa a la cuenta de portal. "Cliente" a secas aquí nombraría
+               a la vez el rol de la cuenta y la contraparte buscada. *@
+            <CampoTexto Etiqueta="CIF de la empresa a vincular" Placeholder="A00000000" Valor="@_clienteCif" ValorChanged="BuscarClientePorCifAsync" />
             @if (_buscandoCliente)
             {
-                <p class="texto-vacio-seccion">Buscando…</p>
+                <p class="pista-documento pista-documento-info">Buscando…</p>
+            }
+            else if (_errorBusquedaCif)
+            {
+                @* No es lo mismo que "no existe": mandar a crear una empresa
+                   que sí está en el catálogo la duplicaría. *@
+                <p class="pista-documento pista-documento-error">No pudimos comprobar este CIF. Vuelve a intentarlo.</p>
             }
             else if (!string.IsNullOrWhiteSpace(_clienteCif))
             {
@@ -209,11 +270,19 @@
                     <p class="pista-documento pista-documento-error">✗ No encontramos ninguna empresa con este CIF — créala primero en Empresas.</p>
                 }
             }
+            else
+            {
+                <p class="texto-ayuda-campo">Se comprueba contra el catálogo de Empresas al dejar de escribir.</p>
+            }
         }
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" OnClick="() => CerrarDrawerAsync(false)">Cancelar</Boton>
-        <Boton OnClick="GuardarAsync" Cargando="_guardando">Guardar</Boton>
+        @* Deshabilitado mientras viaja la comprobación del CIF: guardar en ese
+           instante decidiría con un resultado que todavía no ha llegado.
+           Cargando ya impide el doble clic en el cliente; GuardarAsync lo
+           impide además en el servidor, que es donde cuenta. *@
+        <Boton OnClick="GuardarAsync" Cargando="_guardando" Deshabilitado="_buscandoCliente">Guardar</Boton>
     </Pie>
 </Drawer>
 
@@ -233,9 +302,10 @@
         </p>
         <p>Si el correo no le llega, puedes hacerle llegar tú este enlace:</p>
         <p class="enlace-activacion">@_enlaceActivacion</p>
+        <p class="nota-cuenta-sin-contrasena">Cuenta creada sin contraseña: nadie más que la persona llega a conocerla.</p>
     </ChildContent>
     <Pie>
-        <BotonCopiar Valor="@(_enlaceActivacion ?? string.Empty)" />
+        <BotonCopiar Valor="@(_enlaceActivacion ?? string.Empty)" Etiqueta="el enlace de activación" />
         <Boton OnClick="() => _enlaceActivacion = null">Hecho</Boton>
     </Pie>
 </Modal>
