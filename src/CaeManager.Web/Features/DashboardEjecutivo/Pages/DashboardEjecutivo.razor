@@ -99,11 +99,16 @@
         }
         else
         {
-            @if (Tiles.Count > 0)
+            @* Dos secciones porque son dos alcances temporales distintos: solo IA,
+               facturación y BPO reciben el PeriodoKpi (medido en
+               ObtenerCatalogoKpisQueryHandler). Documental, cumplimiento e
+               incidencias son foto de hoy o total acumulado, y bajo un rótulo de
+               rango histórico afirmarían ser del rango. *@
+            @if (TilesDelPeriodo.Count > 0)
             {
                 <section class="seccion-kpis" aria-labelledby="titulo-negocio-periodo">
                     <div class="cabecera-seccion-kpis">
-                        <h2 id="titulo-negocio-periodo" class="titulo-seccion-kpis">El negocio este periodo</h2>
+                        <h2 id="titulo-negocio-periodo" class="titulo-seccion-kpis">El negocio en el periodo</h2>
                         <VentanaContexto class="periodo-texto" Etiqueta="@DetalleOrganizaciones" Titulo="Alcance">
                             <Disparador>@PeriodoTexto</Disparador>
                             <Detalle>@DetalleOrganizaciones</Detalle>
@@ -111,14 +116,14 @@
                     </div>
 
                     <div class="rejilla-kpis-criticos">
-                        @foreach (var kpi in Tiles)
+                        @foreach (var kpi in TilesDelPeriodo)
                         {
                             <TarjetaMetrica Etiqueta="@kpi.Titulo" Valor="@ValorTile(kpi.Codigo)"
                                             Tono="@TonoTile(kpi.Codigo)" Pista="@PistaTile(kpi.Codigo)" />
                         }
                     </div>
 
-                    @if (Tiles.Any(k => k.Codigo == CatalogoKpis.CosteMesActualIa) && TenantsConPresupuestoIaExcedido.Count > 0)
+                    @if (TilesDelPeriodo.Any(k => k.Codigo == CatalogoKpis.CosteMesActualIa) && TenantsConPresupuestoIaExcedido.Count > 0)
                     {
                         <div class="alerta-formulario" role="alert">
                             Presupuesto de IA superado este período en:
@@ -130,6 +135,24 @@
                 </section>
             }
 
+            @if (TilesFueraDelPeriodo.Count > 0)
+            {
+                <section class="seccion-kpis" aria-labelledby="titulo-estado-actual">
+                    <div class="cabecera-seccion-kpis">
+                        <h2 id="titulo-estado-actual" class="titulo-seccion-kpis">Al margen del periodo</h2>
+                        <span class="periodo-texto">@TextoFueraDelPeriodo</span>
+                    </div>
+
+                    <div class="rejilla-kpis-criticos">
+                        @foreach (var kpi in TilesFueraDelPeriodo)
+                        {
+                            <TarjetaMetrica Etiqueta="@kpi.Titulo" Valor="@ValorTile(kpi.Codigo)"
+                                            Tono="@TonoTile(kpi.Codigo)" Pista="@PistaTile(kpi.Codigo)" />
+                        }
+                    </div>
+                </section>
+            }
+
             @foreach (var kpi in Graficos)
             {
                 <Tarjeta Titulo="@kpi.Titulo" Class="tarjeta-kpi">
@@ -137,6 +160,13 @@
                         <span class="descripcion-kpi">@kpi.Descripcion</span>
                     </AccionesHeader>
                     <ChildContent>
+                        @* Los dos alcances de la tarjeta —organizativo y temporal— antes
+                           de la cifra: lo que la tarjeta mide, y sobre qué. *@
+                        @if (AvisoAlcanceKpi(kpi) is { } avisoAlcance)
+                        {
+                            <p class="aviso-alcance-kpi">@avisoAlcance</p>
+                        }
+
                         @if (kpi.TipoRender == TipoRenderKpi.GraficoDonut)
                         {
                             var segmentos = SegmentosDonut(kpi.Codigo);
@@ -219,11 +249,6 @@
                         }
                         else if (kpi.Codigo == CatalogoKpis.EmpresasConMasRiesgo)
                         {
-                            @if (AvisoSoloOrganizacionActiva is { } avisoEmpresas)
-                            {
-                                <p class="aviso-alcance-kpi">@avisoEmpresas</p>
-                            }
-
                             @if (_empresasEnRiesgo.Count == 0)
                             {
                                 <p class="texto-vacio-seccion">Ninguna empresa tiene documentación urgente o vencida.</p>
@@ -300,11 +325,6 @@
                         }
                         else if (kpi.Codigo == CatalogoKpis.AutomaticoVsManual)
                         {
-                            @if (AvisoSoloOrganizacionActiva is { } avisoGestiones)
-                            {
-                                <p class="aviso-alcance-kpi">@avisoGestiones</p>
-                            }
-
                             @if (TotalAprobaciones == 0)
                             {
                                 <p class="texto-vacio-seccion">Todavía no hay documentos verificados por IA.</p>

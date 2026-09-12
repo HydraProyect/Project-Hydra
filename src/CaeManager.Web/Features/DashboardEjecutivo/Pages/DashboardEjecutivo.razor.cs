@@ -78,6 +78,14 @@ public partial class DashboardEjecutivo : ComponentBase, IDisposable
     private IReadOnlyList<RiesgoEmpresaDto> _empresasEnRiesgo = [];
 
     /// <summary>
+    /// El rango que de verdad viajó en la petición cuya respuesta se está
+    /// pintando. Es este el que se rotula, y no una reconstrucción al
+    /// renderizar: el rótulo tiene que decir de qué son las cifras que hay
+    /// debajo, no de qué serían si se consultara ahora.
+    /// </summary>
+    private PeriodoKpi? _periodoConsultado;
+
+    /// <summary>
     /// Número de la carga vigente. Cada <see cref="CargarAsync"/> se queda con
     /// uno nuevo; lo que vuelve de una carga que ya no es la vigente no toca el
     /// estado.
@@ -163,14 +171,16 @@ public partial class DashboardEjecutivo : ComponentBase, IDisposable
 
         var version = ++_versionCarga;
         var token = _ciclo.Token;
+
+        // El rango se congela aquí, ANTES de la petición, y es este el que se
+        // pinta: recalcularlo al renderizar hace que una carga que cruce la
+        // medianoche del último día del mes consulte septiembre y rotule
+        // octubre. La bandera de guardado NO se toca: un guardado en vuelo
+        // sigue siendo el único, cambie o no el periodo.
+        var periodo = PeriodoSeleccionado();
         _error = false;
         _valores = null;
         _seleccionGuardada = null;
-
-        // La carga establece un contexto nuevo para el panel: la bandera de
-        // guardado en curso pertenecía al anterior, y el guardado que siga en
-        // vuelo ya no la apagará (solo la apaga quien sigue siendo vigente).
-        _guardando = false;
         StateHasChanged();
 
         IReadOnlyList<string> seleccion;
@@ -180,7 +190,7 @@ public partial class DashboardEjecutivo : ComponentBase, IDisposable
         try
         {
             seleccion = await Mediator.Send(new ObtenerPreferenciaDashboardQuery(), token);
-            valores = await Mediator.Send(new ObtenerDashboardEjecutivoQuery(PeriodoSeleccionado()), token);
+            valores = await Mediator.Send(new ObtenerDashboardEjecutivoQuery(periodo), token);
             estadisticasAprobacion = await Mediator.Send(new ObtenerEstadisticasAprobacionDocumentoQuery(), token);
             desglose = await Mediator.Send(new ObtenerDesgloseDashboardQuery(), token);
         }
@@ -194,6 +204,7 @@ public partial class DashboardEjecutivo : ComponentBase, IDisposable
 
         if (!EsVigente(version)) return;
 
+        _periodoConsultado = periodo;
         _seleccionGuardada = seleccion;
         _seleccionEnEdicion = [.. seleccion];
         _valores = valores;
@@ -219,6 +230,19 @@ public partial class DashboardEjecutivo : ComponentBase, IDisposable
 
     private IReadOnlyList<DefinicionKpi> Tiles => Seleccionados
         .Where(k => k.TipoRender is TipoRenderKpi.TileNumerico or TipoRenderKpi.TilePorcentajeConTono)
+        .ToList();
+
+    /// <summary>
+    /// Las tiles cuyo valor sí se calcula sobre el periodo elegido. Van bajo el
+    /// rótulo del rango; las demás, no: con un rango histórico sin actividad, una
+    /// foto de hoy debajo de «en el periodo» afirmaría algo que no es.
+    /// </summary>
+    private IReadOnlyList<DefinicionKpi> TilesDelPeriodo => Tiles
+        .Where(k => k.AlcanceTemporal == AlcanceTemporalKpi.Periodo)
+        .ToList();
+
+    private IReadOnlyList<DefinicionKpi> TilesFueraDelPeriodo => Tiles
+        .Where(k => k.AlcanceTemporal != AlcanceTemporalKpi.Periodo)
         .ToList();
 
     private IReadOnlyList<DefinicionKpi> Graficos => Seleccionados
@@ -252,6 +276,20 @@ public partial class DashboardEjecutivo : ComponentBase, IDisposable
     /// Guarda lo que estaba marcado AL PULSAR, y solo declara guardado eso: leer
     /// <c>_seleccionEnEdicion</c> después del await daría por guardado lo que el
     /// usuario marcase mientras el comando viajaba, que nunca se envió.
+    ///
+    /// <para>
+    /// <b>Un solo guardado en vuelo por pantalla, y ninguna carga lo reinicia.</b>
+    /// <see cref="GuardarPreferenciaDashboardCommandHandler"/> no lleva versión ni
+    /// control de concurrencia: dos comandos simultáneos acaban en un
+    /// último-en-escribir-gana sobre <c>PreferenciaDashboardUsuario</c>, y la
+    /// pantalla confirmaría uno mientras la base guarda el otro. Por eso
+    /// <c>_guardando</c> vive hasta que el comando vuelve —<see cref="CargarAsync"/>
+    /// no lo apaga, aunque cambie el periodo—: es lo único que impide la carrera
+    /// desde aquí. <b>Lo que esto NO cierra</b>: dos pestañas o dos circuitos del
+    /// mismo usuario siguen pudiendo pisarse, porque cada uno tiene su propia
+    /// bandera. Cerrar eso exige versión en el comando o en la entidad, y es un
+    /// incremento de Application aparte.
+    /// </para>
     /// </summary>
     private async Task GuardarSeleccionAsync()
     {
@@ -268,28 +306,33 @@ public partial class DashboardEjecutivo : ComponentBase, IDisposable
         {
             var resultado = await Mediator.Send(new GuardarPreferenciaDashboardCommand(enviada), token);
 
-            if (!EsVigente(version)) return;
-
             if (resultado.EsFallido)
             {
                 ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
                 return;
             }
 
-            _seleccionGuardada = enviada;
+            // El desenlace se dice siempre: el comando se ejecutó, y de qué
+            // periodo esté el panel no cambia que la preferencia se guardó.
             ToastService.Mostrar("Selección guardada.", TonoToast.Exito);
+
+            // Reflejarlo, en cambio, solo tiene sentido en la pantalla que lo
+            // pidió: si entre medias hubo una carga nueva, esa ya releyó la
+            // preferencia del servidor y pisarla sería pintar la de antes.
+            if (EsVigente(version)) _seleccionGuardada = enviada;
         }
         catch (Exception ex)
         {
-            if (!EsVigente(version)) return;
+            // La cancelación al salir de la página no es un error que contar.
+            if (_desechado) return;
             Logger.LogError(ex, "Error al guardar la selección de KPIs del Dashboard Ejecutivo.");
             ToastService.Mostrar("No pudimos guardar la selección. Intenta nuevamente.", TonoToast.Error);
         }
         finally
         {
-            // Solo la apaga quien sigue siendo vigente: si entre medias hubo una
-            // carga nueva, el final de este guardado no reabre el panel de otra.
-            if (EsVigente(version)) _guardando = false;
+            // Se apaga siempre, y no la apaga nadie más: mientras este guardado
+            // siga en vuelo no puede salir un segundo, ni aunque cambie el periodo.
+            _guardando = false;
         }
     }
 
@@ -299,12 +342,25 @@ public partial class DashboardEjecutivo : ComponentBase, IDisposable
 
     private string TextoOrganizaciones => Organizaciones == 1 ? "1 organización" : $"{Organizaciones} organizaciones";
 
-    /// <summary>Rango consultado, con el día de fin inclusivo: <see cref="PeriodoKpi"/> es semiabierto y su FinUtc es exclusivo.</summary>
+    /// <summary>
+    /// El rango del rótulo es el que viajó en la petición, y no
+    /// <see cref="PeriodoSeleccionado"/> otra vez: recalcularlo al pintar hace
+    /// que una carga que cruce la medianoche del último día del mes consulte
+    /// septiembre y rotule octubre, y que un rango personalizado inválido —que
+    /// no recarga— rotule el mes en curso sobre las cifras del rango anterior.
+    /// </summary>
+    private PeriodoKpi? PeriodoDelRotulo => _periodoConsultado;
+
+    /// <summary>
+    /// Rango que viajó en la petición cuya respuesta se pinta, con el día de fin
+    /// inclusivo: <see cref="PeriodoKpi"/> es semiabierto y su FinUtc es exclusivo.
+    /// </summary>
     private string PeriodoTexto
     {
         get
         {
-            var periodo = PeriodoSeleccionado();
+            if (PeriodoDelRotulo is not { } periodo) return TextoOrganizaciones;
+
             var desde = DateOnly.FromDateTime(periodo.InicioUtc);
             var hasta = DateOnly.FromDateTime(periodo.FinUtc.AddDays(-1));
             var rango = desde == hasta ? Fecha(desde) : $"Del {Fecha(desde)} al {Fecha(hasta)}";
@@ -324,6 +380,52 @@ public partial class DashboardEjecutivo : ComponentBase, IDisposable
     private string? AvisoSoloOrganizacionActiva => Organizaciones > 1
         ? "Solo la organización activa: esta consulta no recorre las demás."
         : null;
+
+    /// <summary>
+    /// Alcance temporal de un KPI, en una frase, cuando NO es el periodo elegido.
+    /// La pantalla tiene un selector de periodo arriba, así que el silencio se
+    /// lee como «del periodo»: solo la excepción necesita rótulo.
+    /// </summary>
+    private static string? AvisoAlcanceTemporal(AlcanceTemporalKpi alcance) => alcance switch
+    {
+        AlcanceTemporalKpi.EstadoActual => "Estado de hoy: no depende del periodo elegido.",
+        AlcanceTemporalKpi.Acumulado => "Todo lo registrado desde el principio: no depende del periodo elegido.",
+        _ => null
+    };
+
+    /// <summary>
+    /// Los dos alcances de una tarjeta —organizativo y temporal— en una sola
+    /// línea, o nulo si no hay nada que advertir. Son avisos distintos y la
+    /// misma forma de defecto: una cifra presentada bajo un alcance que no es el suyo.
+    /// </summary>
+    /// <summary>
+    /// Los dos KPI que NO salen del fan-out: «Empresas con más riesgo» viene de
+    /// <see cref="ObtenerDesgloseDashboardQuery"/> y el reparto automáticas/manuales
+    /// de <see cref="ObtenerEstadisticasAprobacionDocumentoQuery"/>, y la pantalla
+    /// pide las dos sin <c>AmbitoTenantExplicito</c>. El resto sí recorre las
+    /// organizaciones autorizadas: rotularlas también sería el defecto simétrico,
+    /// advertir de un límite que no tienen.
+    /// </summary>
+    private static bool SaleDeUnaSolaOrganizacion(string codigo) =>
+        codigo is CatalogoKpis.EmpresasConMasRiesgo or CatalogoKpis.AutomaticoVsManual;
+
+    private string? AvisoAlcanceKpi(DefinicionKpi kpi)
+    {
+        var organizativo = SaleDeUnaSolaOrganizacion(kpi.Codigo) ? AvisoSoloOrganizacionActiva : null;
+        var avisos = new[] { organizativo, AvisoAlcanceTemporal(kpi.AlcanceTemporal) }
+            .Where(a => a is not null)
+            .ToList();
+
+        return avisos.Count == 0 ? null : string.Join(" ", avisos);
+    }
+
+    /// <summary>
+    /// Lo que los KPI de la sección de estado no comparten con el periodo. Nulo
+    /// si ninguno de los mostrados es foto de hoy ni acumulado.
+    /// </summary>
+    private string TextoFueraDelPeriodo => TilesFueraDelPeriodo.All(k => k.AlcanceTemporal == AlcanceTemporalKpi.EstadoActual)
+        ? "Foto de hoy: estas cifras no dependen del periodo elegido."
+        : "Foto de hoy y totales desde el principio: estas cifras no dependen del periodo elegido.";
 
     // ---------------------------------------------------------------- tiles
 
@@ -644,21 +746,26 @@ public partial class DashboardEjecutivo : ComponentBase, IDisposable
 
     // ---------------------------------------------------------------- pulso
 
+    /// <summary>
+    /// <see cref="ObtenerEstadisticasAprobacionDocumentoQuery"/> no recibe periodo
+    /// ni filtra fechas: es el total desde el principio. La frase dice «en total»
+    /// porque bajo un selector de periodo se leería como del periodo.
+    /// </summary>
     private string PulsoVerificaciones => TotalAprobaciones switch
     {
         0 => "Todavía no hay verificaciones de IA resueltas en la organización activa.",
-        1 => "1 verificación de IA resuelta en la organización activa.",
-        _ => $"{TotalAprobaciones} verificaciones de IA resueltas en la organización activa."
+        1 => "1 verificación de IA resuelta en total en la organización activa.",
+        _ => $"{TotalAprobaciones} verificaciones de IA resueltas en total en la organización activa."
     };
 
     private string DetallePulsoVerificaciones => TotalAprobaciones == 0
-        ? "Ningún Documento verificado por IA en el periodo consultado de la organización activa."
-        : $"{TotalAprobaciones} decisiones de verificación resueltas: {_estadisticasAprobacion!.Automaticas} automáticas y {_estadisticasAprobacion.Manuales} manuales. Solo la organización activa.";
+        ? "Ningún Documento verificado por IA en la organización activa. La consulta no recibe periodo: cuenta desde el principio."
+        : $"{TotalAprobaciones} decisiones de verificación resueltas: {_estadisticasAprobacion!.Automaticas} automáticas y {_estadisticasAprobacion.Manuales} manuales. Solo la organización activa, y desde el principio: la consulta no recibe periodo.";
 
     private string DetalleCosteIa => TenantsConPresupuestoIaExcedido.Count == 0
-        ? $"{_valores!.CosteIaMesActual:F2} € de coste estimado de IA documental (OCR más extracción) sumando las {Organizaciones} del alcance."
-        : $"{_valores!.CosteIaMesActual:F2} € de coste estimado de IA documental (OCR más extracción) sumando las {Organizaciones} del alcance; {TenantsConPresupuestoIaExcedido.Count} por encima de su presupuesto.";
+        ? $"{_valores!.CosteIaMesActual:F2} € de coste estimado de IA documental (OCR más extracción) en el periodo consultado, sumando las {Organizaciones} del alcance."
+        : $"{_valores!.CosteIaMesActual:F2} € de coste estimado de IA documental (OCR más extracción) en el periodo consultado, sumando las {Organizaciones} del alcance; {TenantsConPresupuestoIaExcedido.Count} por encima de su presupuesto.";
 
     private string DetalleFacturacion =>
-        $"{_valores!.FacturacionEstimadaMesActual:F2} € de facturación estimada, sumando solo los Clientes empresariales con tarifas configuradas de las {Organizaciones} del alcance.";
+        $"{_valores!.FacturacionEstimadaMesActual:F2} € de facturación estimada del periodo consultado, sumando solo los Clientes empresariales con tarifas configuradas de las {Organizaciones} del alcance.";
 }

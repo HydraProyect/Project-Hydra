@@ -323,8 +323,11 @@ public class DashboardEjecutivoGen2Tests : BunitContext
     /// cuando no hay nada elegido), así que hay que abrirlo antes de tocar sus
     /// casillas: si no, no existen en el DOM.
     /// </summary>
-    private static Task AbrirPersonalizar(IRenderedComponent<DashboardEjecutivoPagina> cut) =>
-        cut.Find(".seccion-colapsable-cabecera").ClickAsync(new MouseEventArgs());
+    private static async Task AbrirPersonalizar(IRenderedComponent<DashboardEjecutivoPagina> cut)
+    {
+        if (cut.FindAll(".seccion-colapsable-contenido").Count == 0)
+            await cut.Find(".seccion-colapsable-cabecera").ClickAsync(new MouseEventArgs());
+    }
 
     private static Task Marcar(IRenderedComponent<DashboardEjecutivoPagina> cut, string titulo, bool valor)
     {
@@ -410,9 +413,14 @@ public class DashboardEjecutivoGen2Tests : BunitContext
 
         var cut = Renderizar(new Escenario()).Cut;
 
-        Texto(TarjetaKpi(cut, "Gestiones automáticas vs manuales").QuerySelector(".aviso-alcance-kpi")!).Should().Be(aviso);
-        Texto(TarjetaKpi(cut, "Empresas con más riesgo").QuerySelector(".aviso-alcance-kpi")!).Should().Be(aviso);
-        Disparador(cut.Find(".pulso-negocio-frase")).Should().Be("459 verificaciones de IA resueltas en la organización activa.");
+        Texto(TarjetaKpi(cut, "Gestiones automáticas vs manuales").QuerySelector(".aviso-alcance-kpi")!).Should().StartWith(aviso);
+        Texto(TarjetaKpi(cut, "Empresas con más riesgo").QuerySelector(".aviso-alcance-kpi")!).Should().StartWith(aviso);
+        Disparador(cut.Find(".pulso-negocio-frase")).Should().Be("459 verificaciones de IA resueltas en total en la organización activa.");
+
+        // Las que SÍ recorren las organizaciones no lo llevan: advertir de un
+        // límite que no tienen es el defecto simétrico.
+        Texto(TarjetaKpi(cut, "Semáforo documental").QuerySelector(".aviso-alcance-kpi")!).Should().NotContain(aviso);
+        Texto(TarjetaKpi(cut, "Centros con menor cumplimiento").QuerySelector(".aviso-alcance-kpi")!).Should().NotContain(aviso);
     }
 
     [Fact]
@@ -423,7 +431,10 @@ public class DashboardEjecutivoGen2Tests : BunitContext
 
         var cut = Renderizar(escenario).Cut;
 
-        cut.FindAll(".aviso-alcance-kpi").Should().BeEmpty();
+        cut.FindAll(".aviso-alcance-kpi").Select(Texto).Should().OnlyContain(
+            a => !a.Contains("Solo la organización activa"),
+            "con una sola organización no hay dos alcances organizativos que distinguir");
+        cut.FindAll(".aviso-alcance-kpi").Should().NotBeEmpty("el alcance temporal no depende de cuántas organizaciones haya");
         Disparador(cut.Find(".periodo-texto")).Should().EndWith("· 1 organización");
     }
 
@@ -754,6 +765,181 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         await cut.InvokeAsync(() => respuesta.SetResult(Result.Exito()));
         await primero;
         await segundo;
+    }
+
+    /// <summary>
+    /// <b>Cambiar de periodo no reabre el guardado.</b>
+    /// <c>GuardarPreferenciaDashboardCommandHandler</c> no lleva versión ni control
+    /// de concurrencia: dos comandos a la vez acaban en un último-en-escribir-gana
+    /// sobre <c>PreferenciaDashboardUsuario</c>, y la pantalla confirmaría uno
+    /// mientras la base guarda el otro. La única barrera desde aquí es que la
+    /// bandera de guardado NO la apague una carga nueva.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_de_periodo_con_un_guardado_en_vuelo_no_habilita_un_segundo()
+    {
+        var respuesta = new TaskCompletionSource<object?>();
+        var escenario = new Escenario
+        {
+            Seleccion = [CatalogoKpis.TrabajadoresActivos],
+            Retener = p => p is GuardarPreferenciaDashboardCommand ? respuesta.Task : null
+        };
+        var (cut, mediador, _, _) = Renderizar(escenario);
+        await AbrirPersonalizar(cut);
+        await Marcar(cut, "Centros", true);
+
+        // Sin await: el comando queda en vuelo, que es la premisa del caso.
+        var primero = Pulsar(cut, "Guardar selección");
+        mediador.Enviadas.Count(e => e.Peticion is GuardarPreferenciaDashboardCommand).Should().Be(1);
+
+        await cut.Find(".dashboard-periodo select").ChangeAsync(new ChangeEventArgs { Value = "MesAnterior" });
+        cut.WaitForAssertion(() => cut.FindAll(".rejilla-kpis-criticos .tarjeta-metrica").Should().NotBeEmpty());
+
+        await AbrirPersonalizar(cut);
+        await Marcar(cut, "Visitas programadas", true);
+        var segundo = Pulsar(cut, "Guardar selección");
+
+        mediador.Enviadas.Count(e => e.Peticion is GuardarPreferenciaDashboardCommand).Should().Be(1,
+            "con un guardado en vuelo no sale un segundo, ni aunque cambie el periodo: los dos llegarían al manejador y el último en terminar pisaría al otro");
+
+        await cut.InvokeAsync(() => respuesta.SetResult(Result.Exito()));
+        await primero;
+        await segundo;
+    }
+
+    /// <summary>
+    /// El desenlace se dice aunque el panel ya sea de otro periodo —el comando se
+    /// ejecutó—, pero lo guardado solo se refleja en la pantalla que lo pidió: la
+    /// carga nueva ya releyó la preferencia del servidor.
+    /// </summary>
+    [Fact]
+    public async Task Un_guardado_que_vuelve_tras_cambiar_de_periodo_avisa_pero_no_pinta_la_seleccion_de_antes()
+    {
+        var respuesta = new TaskCompletionSource<object?>();
+        var escenario = new Escenario
+        {
+            Seleccion = [CatalogoKpis.TrabajadoresActivos],
+            Retener = p => p is GuardarPreferenciaDashboardCommand ? respuesta.Task : null
+        };
+        var (cut, _, _, toasts) = Renderizar(escenario);
+        await AbrirPersonalizar(cut);
+        await Marcar(cut, "Centros", true);
+        var guardado = Pulsar(cut, "Guardar selección");
+
+        await cut.Find(".dashboard-periodo select").ChangeAsync(new ChangeEventArgs { Value = "MesAnterior" });
+        await cut.InvokeAsync(() => respuesta.SetResult(Result.Exito()));
+        await guardado;
+
+        toasts.Mensajes.Select(m => (m.Mensaje, m.Tono)).Should().Equal(("Selección guardada.", TonoToast.Exito));
+        cut.FindAll(".rejilla-kpis-criticos .tarjeta-metrica").Select(t => Tile(t).Etiqueta).Should().Equal(
+            ["Trabajadores activos"],
+            "la carga nueva releyó la preferencia: pintar la selección de antes sería pisarla");
+    }
+
+    // ---------------------------------------------------------------- alcance temporal
+
+    /// <summary>
+    /// Medido en <c>ObtenerCatalogoKpisQueryHandler.Handle</c>: <c>request.Periodo</c>
+    /// solo llega a IA, facturación y BPO. Lo demás es foto de hoy o total desde el
+    /// principio, y bajo el rótulo del rango afirmaría ser del rango.
+    /// </summary>
+    [Fact]
+    public void Solo_las_cifras_del_periodo_van_bajo_el_rotulo_del_rango()
+    {
+        var cut = Renderizar(new Escenario()).Cut;
+
+        var delPeriodo = cut.Find("section[aria-labelledby='titulo-negocio-periodo']");
+        Texto(delPeriodo.QuerySelector("h2")!).Should().Be("El negocio en el periodo");
+        delPeriodo.QuerySelectorAll(".tarjeta-metrica").Select(t => Tile(t).Etiqueta).Should().Equal(
+            "Confianza media de extracción IA", "Coste IA del mes", "Tiempo medio de procesamiento IA",
+            "Facturación estimada del mes", "Índice de palanca IA", "Falsos avisos con tiempo",
+            "Tiempo bloqueado por el Cliente empresarial");
+
+        var fuera = cut.Find("section[aria-labelledby='titulo-estado-actual']");
+        Texto(fuera.QuerySelector("h2")!).Should().Be("Al margen del periodo");
+        Texto(fuera.QuerySelector(".periodo-texto")!).Should().Be(
+            "Foto de hoy y totales desde el principio: estas cifras no dependen del periodo elegido.");
+        fuera.QuerySelectorAll(".tarjeta-metrica").Select(t => Tile(t).Etiqueta).Should().Equal(
+            "Trabajadores activos", "Centros", "Visitas programadas", "Gestiones urgentes (visitas)",
+            "Tasa de cumplimiento documental", "% de cumplimiento documental (trabajadores)",
+            "Incidencias abiertas", "Tiempo medio de resolución");
+
+        // El rango no puede quedar en la sección que no es suya.
+        fuera.QuerySelectorAll(".ventana-contexto").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Cada_tarjeta_dice_su_alcance_temporal_cuando_no_es_el_periodo()
+    {
+        var cut = Renderizar(new Escenario()).Cut;
+
+        string? Aviso(string titulo) =>
+            TarjetaKpi(cut, titulo).QuerySelector(".aviso-alcance-kpi") is { } a ? Texto(a) : null;
+
+        const string activa = "Solo la organización activa: esta consulta no recorre las demás.";
+        const string hoy = "Estado de hoy: no depende del periodo elegido.";
+        const string siempre = "Todo lo registrado desde el principio: no depende del periodo elegido.";
+
+        Aviso("Semáforo documental").Should().Be(hoy);
+        Aviso("Centros con menor cumplimiento").Should().Be(hoy);
+        Aviso("Empresas con más riesgo").Should().Be($"{activa} {hoy}");
+        Aviso("Incidencias por gravedad").Should().Be(siempre);
+        Aviso("Gestiones automáticas vs manuales").Should().Be($"{activa} {siempre}");
+
+        // Las del periodo no llevan rótulo temporal: el silencio ya dice «del periodo».
+        Aviso("Distribución por tramo de antelación").Should().BeNull();
+        Aviso("Ocupación por Gestor CAE").Should().BeNull();
+        Aviso("Horas de gestión por Cliente empresarial").Should().BeNull();
+        Aviso("Urgencias por atribución").Should().BeNull();
+    }
+
+    /// <summary>
+    /// <c>ObtenerEstadisticasAprobacionDocumentoQuery</c> no recibe periodo ni filtra
+    /// fechas: cuenta desde el principio. Bajo un selector de periodo, decirlo «este
+    /// periodo» sería falso con cualquier rango histórico.
+    /// </summary>
+    [Fact]
+    public void El_pulso_no_presenta_como_del_periodo_lo_que_cuenta_desde_el_principio()
+    {
+        var cut = Renderizar(new Escenario()).Cut;
+
+        var frase = cut.Find(".pulso-negocio-frase");
+        Disparador(frase).Should().Be("459 verificaciones de IA resueltas en total en la organización activa.");
+        frase.GetAttribute("aria-label").Should().Be(
+            "459 decisiones de verificación resueltas: 312 automáticas y 147 manuales. Solo la organización activa, y desde el principio: la consulta no recibe periodo.");
+
+        // Las dos cifras del pulso que SÍ son del periodo lo dicen.
+        cut.FindAll(".pulso-negocio-valor")[0].GetAttribute("aria-label").Should().Contain("en el periodo consultado");
+        cut.FindAll(".pulso-negocio-valor")[1].GetAttribute("aria-label").Should().Contain("del periodo consultado");
+    }
+
+    /// <summary>
+    /// El rótulo del rango tiene que ser el que viajó en la petición, no una
+    /// reconstrucción al pintar. Con un rango personalizado inválido no hay recarga,
+    /// y recalcular caería en el mes en curso: el rótulo diría un rango que nadie
+    /// consultó sobre las cifras del anterior. Es el mismo defecto que cruzar la
+    /// medianoche del último día del mes, por un camino que sí se puede observar.
+    /// </summary>
+    [Fact]
+    public async Task El_rotulo_del_rango_es_el_consultado_y_no_se_recalcula_al_pintar()
+    {
+        var cut = Renderizar(new Escenario()).Cut;
+
+        await cut.Find(".dashboard-periodo select").ChangeAsync(new ChangeEventArgs { Value = "Personalizado" });
+        await cut.FindAll(".dashboard-periodo input[type=date]")[0].InputAsync(new ChangeEventArgs { Value = "2026-03-02" });
+        await cut.FindAll(".dashboard-periodo input[type=date]")[1].InputAsync(new ChangeEventArgs { Value = "2026-03-05" });
+        await cut.FindAll(".dashboard-periodo input[type=date]")[1].BlurAsync(new FocusEventArgs());
+
+        cut.WaitForAssertion(() => Disparador(cut.Find(".periodo-texto")).Should().Be(
+            "Del 2 de marzo de 2026 al 5 de marzo de 2026 · 2 organizaciones"));
+
+        // Hasta anterior a Desde: AplicarRangoPersonalizadoAsync no recarga.
+        await cut.FindAll(".dashboard-periodo input[type=date]")[1].InputAsync(new ChangeEventArgs { Value = "2026-01-01" });
+        await cut.FindAll(".dashboard-periodo input[type=date]")[1].BlurAsync(new FocusEventArgs());
+
+        Disparador(cut.Find(".periodo-texto")).Should().Be(
+            "Del 2 de marzo de 2026 al 5 de marzo de 2026 · 2 organizaciones",
+            "sin recarga, el rótulo sigue siendo el del rango que de verdad se consultó");
     }
 
     // ---------------------------------------------------------------- estados
