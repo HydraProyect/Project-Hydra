@@ -103,4 +103,128 @@ public class GrupoColaTests : BunitContext
 
         cut.FindAll(".grupo-cola-subcabecera-trabajador").Should().HaveCount(2, "la segunda página solo tiene los 2 trabajadores restantes");
     }
+
+    /// <summary>
+    /// Defecto real (leyendo código, 2026-09-12): j/k en Bandeja.razor.cs
+    /// recorren TODOS los ItemsFiltrados, ajenos a que PaginarPorGrupo solo
+    /// pinta los 5 primeros trabajadores de cada Empresa — sin el salto de
+    /// página, IdEnfocado puede apuntar a una fila que esta tarjeta no ha
+    /// pintado nunca, y el gestor CAE no ve dónde está el foco.
+    /// </summary>
+    [Fact]
+    public void IdEnfocado_fuera_de_la_pagina_visible_hace_saltar_a_la_pagina_que_lo_contiene()
+    {
+        var items = Enumerable.Range(1, 7).Select(n => Item(n, Guid.NewGuid())).ToList();
+        var grupo = new GrupoColaDto("cliente-1", "Cliente X", true, items);
+
+        var cut = Render<GrupoCola>(p => p
+            .Add(c => c.Grupo, grupo)
+            .Add(c => c.ExpandidaPorDefecto, true)
+            .Add(c => c.PaginarPorGrupo, true));
+
+        cut.FindAll(".panel-resolver-item-enfocado").Should().BeEmpty("todavía no hay foco");
+
+        // item-7 es el 7º trabajador (uno por item, ver Item()) — en la
+        // página 2, fuera de los 5 que la página 1 pinta.
+        cut.Render(p => p.Add(c => c.IdEnfocado, "item-7"));
+
+        cut.Find(".paginador-simple").TextContent.Should().Contain("Página 2 de 2",
+            "sin el salto, item-7 se queda en una página que PaginarPorGrupo nunca pinta");
+        cut.FindAll(".panel-resolver-item-enfocado").Should().HaveCount(1);
+        cut.FindAll(".grupo-cola-subcabecera-trabajador").Should().Contain(e => e.TextContent == "Trabajador 7");
+    }
+
+    /// <summary>
+    /// El salto solo ocurre cuando IdEnfocado CAMBIA — si el gestor CAE pagina
+    /// a mano después (sin volver a tocar j/k), ese clic no se revierte solo
+    /// en el siguiente render porque IdEnfocado sigue siendo el mismo.
+    /// </summary>
+    [Fact]
+    public void Paginar_a_mano_tras_el_salto_no_se_revierte_sin_un_nuevo_cambio_de_foco()
+    {
+        var items = Enumerable.Range(1, 7).Select(n => Item(n, Guid.NewGuid())).ToList();
+        var grupo = new GrupoColaDto("cliente-1", "Cliente X", true, items);
+
+        var cut = Render<GrupoCola>(p => p
+            .Add(c => c.Grupo, grupo)
+            .Add(c => c.ExpandidaPorDefecto, true)
+            .Add(c => c.PaginarPorGrupo, true)
+            .Add(c => c.IdEnfocado, "item-7"));
+
+        cut.Find(".paginador-simple").TextContent.Should().Contain("Página 2 de 2");
+
+        var anterior = cut.FindAll("button").Single(b => b.TextContent.Contains("Anterior"));
+        anterior.Click();
+        cut.Find(".paginador-simple").TextContent.Should().Contain("Página 1 de 2");
+
+        cut.Render();
+
+        cut.Find(".paginador-simple").TextContent.Should().Contain("Página 1 de 2",
+            "IdEnfocado no cambió desde el salto — un render de más no debe deshacer el clic manual");
+    }
+
+    /// <summary>
+    /// Con AgruparPorEmpresa cada Empresa pagina por su cuenta
+    /// (_paginaPorEmpresa está indexado por ClaveEmpresa) — el salto de
+    /// página tiene que tocar solo el paginador de la Empresa propietaria
+    /// del foco, no el de las demás.
+    /// </summary>
+    [Fact]
+    public void AgruparPorEmpresa_solo_salta_la_pagina_de_la_empresa_propietaria_del_foco()
+    {
+        var empresaAId = Guid.NewGuid();
+        var empresaBId = Guid.NewGuid();
+        var itemsA = Enumerable.Range(1, 7)
+            .Select(n => Item(n, Guid.NewGuid()) with { EmpresaId = empresaAId, EmpresaNombre = "Empresa A" })
+            .ToList();
+        var itemsB = Enumerable.Range(1, 7)
+            .Select(n => Item(n + 100, Guid.NewGuid()) with { EmpresaId = empresaBId, EmpresaNombre = "Empresa B" })
+            .ToList();
+        var grupo = new GrupoColaDto("cliente-1", "Cliente X", true, [.. itemsA, .. itemsB]);
+
+        var cut = Render<GrupoCola>(p => p
+            .Add(c => c.Grupo, grupo)
+            .Add(c => c.ExpandidaPorDefecto, true)
+            .Add(c => c.AgruparPorEmpresa, true)
+            .Add(c => c.PaginarPorGrupo, true));
+
+        // GruposAnidados ordena por EmpresaNombre — "Empresa A" antes que
+        // "Empresa B", así que el orden de los paginadores en el DOM coincide.
+        cut.FindAll(".paginador-simple").Should().AllSatisfy(p => p.TextContent.Should().Contain("Página 1 de 2"));
+
+        // item-107 es el 7º trabajador de Empresa B (n=7, id = n+100=107).
+        cut.Render(p => p.Add(c => c.IdEnfocado, "item-107"));
+
+        var paginadores = cut.FindAll(".paginador-simple");
+        paginadores.Should().HaveCount(2);
+        paginadores[0].TextContent.Should().Contain("Página 1 de 2", "Empresa A no tiene el foco");
+        paginadores[1].TextContent.Should().Contain("Página 2 de 2", "Empresa B sí lo tiene y salta a la página de item-107");
+    }
+
+    /// <summary>
+    /// Un IdEnfocado que pertenece a OTRO GrupoCola (otro Cliente/Empresa en
+    /// Bandeja.razor) no debe tocar la paginación de este — el bucle de
+    /// OnParametersSet recorre GruposAnidados sin encontrar coincidencia y
+    /// tiene que salir sin modificar _paginaPorEmpresa.
+    /// </summary>
+    [Fact]
+    public void IdEnfocado_de_otro_grupo_no_toca_la_paginacion_de_este()
+    {
+        var items = Enumerable.Range(1, 7).Select(n => Item(n, Guid.NewGuid())).ToList();
+        var grupo = new GrupoColaDto("cliente-1", "Cliente X", true, items);
+
+        var cut = Render<GrupoCola>(p => p
+            .Add(c => c.Grupo, grupo)
+            .Add(c => c.ExpandidaPorDefecto, true)
+            .Add(c => c.PaginarPorGrupo, true));
+
+        var siguiente = cut.FindAll("button").Single(b => b.TextContent.Contains("Siguiente"));
+        siguiente.Click();
+        cut.Find(".paginador-simple").TextContent.Should().Contain("Página 2 de 2");
+
+        cut.Render(p => p.Add(c => c.IdEnfocado, "item-de-otro-grupo"));
+
+        cut.Find(".paginador-simple").TextContent.Should().Contain("Página 2 de 2",
+            "el foco es de otro GrupoCola — este no debe alterar su paginación manual");
+    }
 }

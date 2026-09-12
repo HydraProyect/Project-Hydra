@@ -165,13 +165,32 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         // ítem. Confirmado en vivo (fuera de este test, con un
         // KeyboardEvent despachado a mano sobre /bandeja filtrada a
         // Urgente): ManejarAtajoAsync sí calcula el _idEnfocado correcto en
-        // el servidor, pero el cliente nunca refleja la clase — un fallo
-        // real de re-renderizado tras agrupar por cola (GrupoCola), no un
-        // problema de tiempos del test. Sin diagnosticar más a fondo
-        // todavía (Blazor + @foreach sin @key en GruposOrdenados/
-        // GruposAnidados, ambos recalculados en cada render, es la hipótesis
-        // más probable) — este bucle deja constancia del fallo real en vez
-        // de esconderlo tras una espera insuficiente.
+        // el servidor, pero el cliente nunca refleja la clase.
+        //
+        // La hipótesis original de este comentario ("@foreach sin @key en
+        // GruposOrdenados/GruposAnidados") se revisó leyendo código
+        // (2026-09-12) y NO se sostiene: Bandeja.razor sí pone
+        // @key="grupo.GrupoId" en cada <GrupoCola>, y GrupoCola.razor sí pone
+        // @key="item.Id" en cada <PanelResolverItem> — la clave estable vive
+        // justo en el componente que carga el estado (Enfocado es un
+        // [Parameter] bool plano, sin caché local). Nada de eso debería
+        // bloquear la actualización de la clase.
+        //
+        // Se encontró y arregló un defecto real y distinto en la misma zona
+        // (GrupoCola.PaginarPorGrupo podía pintar una página que no incluye
+        // al trabajador enfocado — ver GrupoCola.razor.OnParametersSet y
+        // GrupoColaTests), pero NO explica el fallo de este test: aquí cada
+        // Cliente/Empresa del E2E tiene un solo Trabajador (ObtenerBandeja
+        // AgrupadaQueryHandler.ClaveGrupo agrupa por Cliente/Empresa, nunca
+        // mezcla Clientes de otros tests), así que cabe entero en la
+        // página 1 aunque la base compartida (AppCollection) acumule otros
+        // Urgentes.
+        //
+        // El mecanismo real sigue sin verificarse en vivo — esta sesión no
+        // tuvo Postgres/Playwright a mano para reproducirlo (UNKNOWN, no una
+        // hipótesis nueva). El bucle de abajo se queda como red mientras
+        // tanto: deja constancia del fallo real en vez de esconderlo tras
+        // una espera insuficiente.
         var claseEnfocado = new System.Text.RegularExpressions.Regex("panel-resolver-item-enfocado");
         var enfocada = false;
         for (var i = 0; i < totalVisibles && !enfocada; i++)
