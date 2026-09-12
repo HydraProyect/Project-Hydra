@@ -1,6 +1,8 @@
 using CaeManager.Application.Asignaciones.Commands.CrearAsignacion;
 using CaeManager.Application.Centros.Commands.CrearCentro;
+using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
 using CaeManager.Application.Clientes.Commands.CrearCliente;
+using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Empresas.Commands.CrearEmpresa;
 using CaeManager.Application.Empresas.Commands.EditarEmpresa;
@@ -32,11 +34,18 @@ namespace CaeManager.Web.Features.Clientes.Pages;
 /// — o al revés si se entra por una rama que ya trae el Cliente resuelto.
 ///
 /// El asistente admite entrar por cualquier rama vía query string
-/// (<see cref="EmpresaId"/>/<see cref="ClienteId"/>/<see cref="CentroId"/>):
-/// quien ya creó una Empresa, un Cliente o un Centro en otra pantalla puede
-/// continuar aquí sin repetir el paso ya hecho. El paso de partida es
-/// siempre el primero, en orden canónico, cuyo identificador no llegó por
-/// query string.
+/// (<see cref="EmpresaIdEntrada"/>/<see cref="ClienteIdEntrada"/>/
+/// <see cref="CentroIdEntrada"/>): quien ya creó una Empresa, un Cliente o
+/// un Centro en otra pantalla puede continuar aquí sin repetir el paso ya
+/// hecho. Un identificador de la URL es una coordenada, no una autoridad:
+/// cada uno se resuelve contra su Query (<c>ObtenerEmpresaPorIdQuery</c>/
+/// <c>ObtenerClientePorIdQuery</c>/<c>ObtenerCentroPorIdQuery</c>), que
+/// devuelve null tanto si no existe como si es de otro tenant o queda fuera
+/// de la cartera de quien mira — las dos situaciones se tratan igual, para
+/// no filtrar cuál de las dos es. Solo si resuelve se marca el paso como
+/// completado y se pinta el nombre, y ese nombre sale siempre de la
+/// respuesta de la Query, nunca del parámetro de la URL. El paso de partida
+/// es siempre el primero, en orden canónico, cuyo identificador no resolvió.
 /// </summary>
 public partial class AltaGuiada : ComponentBase
 {
@@ -48,23 +57,17 @@ public partial class AltaGuiada : ComponentBase
         new("trabajadores", "Trabajadores")
     ];
 
+    // Solo el identificador viaja por query string — el nombre nunca se lee
+    // de la URL (ver comentario normativo de la clase): se pinta el que
+    // devuelve la Query de resolución, o no se pinta nada si no resuelve.
     [SupplyParameterFromQuery(Name = "empresaId")]
     private Guid? EmpresaIdEntrada { get; set; }
-
-    [SupplyParameterFromQuery(Name = "empresaNombre")]
-    private string? EmpresaNombreEntrada { get; set; }
 
     [SupplyParameterFromQuery(Name = "clienteId")]
     private Guid? ClienteIdEntrada { get; set; }
 
-    [SupplyParameterFromQuery(Name = "clienteNombre")]
-    private string? ClienteNombreEntrada { get; set; }
-
     [SupplyParameterFromQuery(Name = "centroId")]
     private Guid? CentroIdEntrada { get; set; }
-
-    [SupplyParameterFromQuery(Name = "centroNombre")]
-    private string? CentroNombreEntrada { get; set; }
 
     private string _pasoActual = "empresa";
     private readonly HashSet<string> _pasosCompletados = [];
@@ -180,26 +183,44 @@ public partial class AltaGuiada : ComponentBase
             _cargandoCatalogoClientes = false;
         }
 
+        // Cada identificador de la URL se resuelve contra su propia Query
+        // antes de afirmar nada de él — una coordenada de contexto no es
+        // autoridad. La Query ya aplica el alcance de quien mira (tenant y
+        // cartera) y devuelve null por igual si no existe o si es ajeno, así
+        // que aquí no hay nada más que comprobar: si no resuelve, el paso
+        // arranca como si no hubiera nada preseleccionado.
         if (EmpresaIdEntrada is { } empresaId)
         {
-            _empresaId = empresaId;
-            _empresaNombre = EmpresaNombreEntrada ?? string.Empty;
-            _pasosCompletados.Add("empresa");
+            var empresa = await Mediator.Send(new ObtenerEmpresaPorIdQuery(empresaId));
+            if (empresa is not null)
+            {
+                _empresaId = empresa.Id;
+                _empresaNombre = empresa.RazonSocial;
+                _pasosCompletados.Add("empresa");
+            }
         }
 
         if (ClienteIdEntrada is { } clienteId)
         {
-            _clienteId = clienteId;
-            _clienteNombre = ClienteNombreEntrada ?? string.Empty;
-            _pasosCompletados.Add("cliente");
+            var cliente = await Mediator.Send(new ObtenerClientePorIdQuery(clienteId));
+            if (cliente is not null)
+            {
+                _clienteId = cliente.Id;
+                _clienteNombre = cliente.RazonSocial;
+                _pasosCompletados.Add("cliente");
+            }
         }
 
         if (CentroIdEntrada is { } centroId)
         {
-            _ultimoCentroId = centroId;
-            _ultimoCentroNombre = CentroNombreEntrada ?? string.Empty;
-            _centrosCreados = 1;
-            _pasosCompletados.Add("centro");
+            var centro = await Mediator.Send(new ObtenerCentroPorIdQuery(centroId));
+            if (centro is not null)
+            {
+                _ultimoCentroId = centro.Id;
+                _ultimoCentroNombre = centro.Nombre;
+                _centrosCreados = 1;
+                _pasosCompletados.Add("centro");
+            }
         }
 
         // El paso de partida es el primero, en orden canónico, que no llegó
