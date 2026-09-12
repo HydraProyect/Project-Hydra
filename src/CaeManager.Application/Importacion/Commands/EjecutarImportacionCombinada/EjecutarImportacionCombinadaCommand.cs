@@ -96,8 +96,20 @@ public class EjecutarImportacionCombinadaCommandHandler(
         // Cliente (si solo indexáramos el nombre "actual" tras la fusión, una
         // fila de Empresas/Centros que usa el nombre del archivo dejaría de
         // encontrarlo).
+        //
+        // La semilla sale del discriminador de Cliente empresarial —
+        // EsCritico != null, el mismo que usan ObtenerClientesQuery, el handler
+        // hermano de la Plantilla de Clientes y el ANÁLISIS de esta misma
+        // plantilla (ClosedXmlPlantillaCombinadaService.AnalizarAsync)— y no de
+        // "tener CIF", que no es un rol: lo tienen también Empresas propias y
+        // Subcontratas, y un Cliente empresarial puede perderlo
+        // (Empresa.Actualizar admite cif nulo sin tocar EsCritico). Sembrar
+        // esto desde clientesPorCif desalineaba los dos lados en ambas
+        // direcciones: un Cliente empresarial sin CIF que el análisis prometía
+        // se omitía al escribir, y una Subcontrata con CIF que el análisis
+        // rechazaba podía recibir centros aquí.
         var clientesIdPorRazonSocial = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
-        foreach (var cliente in clientesPorCif.Values)
+        foreach (var cliente in await empresasContext.Empresas.Where(e => e.EsCritico != null).ToListAsync(cancellationToken))
             clientesIdPorRazonSocial[cliente.RazonSocial] = cliente.Id;
 
         var clientesCreados = 0;
@@ -110,6 +122,24 @@ public class EjecutarImportacionCombinadaCommandHandler(
                 if (reemplazar && (existente.RazonSocial != fila.RazonSocial || existente.EsCritico != fila.EsCritico))
                 {
                     existente.ActualizarComoCliente(fila.RazonSocial, fila.Cif, fila.EsCritico, existente.Notas);
+                    clientesActualizados++;
+                }
+                else if (!reemplazar && existente.EsCritico is null)
+                {
+                    // El CIF es la clave natural de esta hoja, así que emparejar
+                    // por él puede dar con una Empresa que todavía no es Cliente
+                    // empresarial (una Subcontrata, típicamente: desde F3 ambas
+                    // condiciones viven en la misma Empresa y no son
+                    // excluyentes). Fusionar es "rellenar lo que está vacío sin
+                    // sobrescribir nada" y la fila declara justamente eso, así
+                    // que se fija EsCritico y NO se renombra. Sin esto, la
+                    // Empresa quedaba indexada abajo como cliente sin serlo —
+                    // la misma semántica "tener CIF es ser Cliente" que este
+                    // handler dejó de usar— y sus Relaciones Empresariales
+                    // nacían invisibles para `asociacionesActuales`, que filtra
+                    // por EsCritico != null: ninguna importación posterior
+                    // podía volver a cerrarlas.
+                    existente.ActualizarComoCliente(existente.RazonSocial, fila.Cif, fila.EsCritico, existente.Notas);
                     clientesActualizados++;
                 }
 

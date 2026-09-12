@@ -117,11 +117,11 @@ public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosCont
         var cifsExistentes = new HashSet<string>(
             clientesExistentes.Where(c => c.Cif is not null).Select(c => c.Cif!), StringComparer.OrdinalIgnoreCase);
         // La hoja "Centros" referencia un Cliente por razón social, y la
-        // escritura solo resuelve ese nombre contra Clientes reales
+        // escritura resuelve ese nombre contra Clientes empresariales reales
         // (EjecutarImportacionCombinadaCommand siembra clientesIdPorRazonSocial
-        // solo desde clientesPorCif, es decir Empresa con Cif != null creada
-        // como Cliente aquí mismo). Si este conjunto incluyera cualquier
-        // Empresa por nombre, una fila de Centros que referencia una
+        // con este mismo discriminador, EsCritico != null, más los que la hoja
+        // "Clientes" cree en esa misma ejecución). Si este conjunto incluyera
+        // cualquier Empresa por nombre, una fila de Centros que referencia una
         // Subcontrata homónima pasaría el análisis como "cliente encontrado"
         // y se omitiría igualmente al confirmar — el mismo desajuste
         // análisis/escritura que la Plantilla de Clientes.
