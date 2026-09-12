@@ -10,7 +10,7 @@ public enum CategoriaKpi
     /// <summary>Rendimiento del equipo: cuánto multiplica la IA y cómo está repartida la carga.</summary>
     Operativa,
 
-    /// <summary>De quién es la prisa: antelación real frente a la que el cliente cree haber dado.</summary>
+    /// <summary>De quién es la prisa: antelación real frente a la que el Cliente empresarial cree haber dado.</summary>
     Friccion
 }
 
@@ -25,6 +25,24 @@ public enum TipoRenderKpi
 }
 
 public record DefinicionKpi(string Codigo, string Titulo, string Descripcion, CategoriaKpi Categoria, TipoRenderKpi TipoRender);
+
+/// <summary>
+/// Rótulo de una categoría tal y como se lee en pantalla. El nombre del miembro
+/// del enum no sirve: <c>Ia</c> y <c>Facturacion</c> se leerían sin la mayúscula
+/// ni el acento que llevan en castellano, y el mockup Gen 2 los pinta como «IA»
+/// y «Facturación». Vive aquí, junto al catálogo, y no en la página, porque el
+/// rótulo es parte de la definición del KPI, no de su maquetación.
+/// </summary>
+public static class EtiquetasCategoriaKpi
+{
+    public static string De(CategoriaKpi categoria) => categoria switch
+    {
+        CategoriaKpi.Ia => "IA",
+        CategoriaKpi.Facturacion => "Facturación",
+        CategoriaKpi.Friccion => "Fricción",
+        _ => categoria.ToString()
+    };
+}
 
 /// <summary>
 /// Catálogo v1 de KPIs disponibles para el Dashboard Ejecutivo — lista
@@ -65,26 +83,26 @@ public static class CatalogoKpis
         new(TrabajadoresActivos, "Trabajadores activos", "Trabajadores con al menos una asignación activa.", CategoriaKpi.Documental, TipoRenderKpi.TileNumerico),
         new(Centros, "Centros", "Centros de trabajo dados de alta.", CategoriaKpi.Documental, TipoRenderKpi.TileNumerico),
         new(VisitasProgramadas, "Visitas programadas", "Visitas cuya fecha fin todavía no ha pasado.", CategoriaKpi.Documental, TipoRenderKpi.TileNumerico),
-        new(VisitasUrgentes, "Gestiones urgentes (visitas)", "Visitas activas dentro de la ventana mínima de validación de la plataforma del cliente (horas de aviso configurables en Parámetros).", CategoriaKpi.Documental, TipoRenderKpi.TileNumerico),
+        new(VisitasUrgentes, "Gestiones urgentes (visitas)", "Visitas activas dentro de la ventana mínima de validación de la Plataforma CAE del Cliente empresarial (horas de aviso configurables en Parámetros).", CategoriaKpi.Documental, TipoRenderKpi.TileNumerico),
         new(SemaforoDocumental, "Semáforo documental", "Distribución de documentos por estado: Vigente/Próximo/Urgente/Vencido.", CategoriaKpi.Documental, TipoRenderKpi.GraficoDonut),
         new(TasaCumplimiento, "Tasa de cumplimiento documental", "Porcentaje de documentos en estado Vigente sobre el total con vigencia.", CategoriaKpi.Documental, TipoRenderKpi.TilePorcentajeConTono),
         new(PorcentajeCumplimientoDocumental, "% de cumplimiento documental (trabajadores)", "Documentos de trabajador que se piden y están al día sobre el total que se pide, agregado de todos los centros.", CategoriaKpi.Documental, TipoRenderKpi.TilePorcentajeConTono),
         new(CentrosConMenorCumplimiento, "Centros con menor cumplimiento", "Centros con menor % de documentación de trabajador que se pide y está al día (top 5).", CategoriaKpi.Documental, TipoRenderKpi.GraficoBarras),
         new(EmpresasConMasRiesgo, "Empresas con más riesgo", "Empresas con más documentos vencidos o urgentes de sus trabajadores (top 5).", CategoriaKpi.Documental, TipoRenderKpi.TablaRiesgo),
         new(IncidenciasAbiertas, "Incidencias abiertas", "Incidencias operativas sin resolver.", CategoriaKpi.Incidencias, TipoRenderKpi.TileNumerico),
-        new(IncidenciasPorGravedad, "Incidencias por gravedad", "Distribución de incidencias por gravedad: Leve/Grave/MuyGrave.", CategoriaKpi.Incidencias, TipoRenderKpi.GraficoBarras),
+        new(IncidenciasPorGravedad, "Incidencias por gravedad", "Distribución de incidencias por gravedad: Leve, Grave o Muy grave.", CategoriaKpi.Incidencias, TipoRenderKpi.GraficoBarras),
         new(TiempoMedioResolucionIncidencias, "Tiempo medio de resolución", "Días de media entre la creación de una incidencia y su resolución.", CategoriaKpi.Incidencias, TipoRenderKpi.TileNumerico),
         new(AutomaticoVsManual, "Gestiones automáticas vs manuales", "Reparto de verificaciones IA de documentos resueltas solas frente a las que necesitaron un Gestor CAE.", CategoriaKpi.Ia, TipoRenderKpi.BarraComparativa),
         new(ConfianzaMediaIa, "Confianza media de extracción IA", "Confianza media de las extracciones IA del mes actual.", CategoriaKpi.Ia, TipoRenderKpi.TilePorcentajeConTono),
         new(CosteMesActualIa, "Coste IA del mes", "Coste estimado (OCR + extracción) de la IA documental este mes.", CategoriaKpi.Ia, TipoRenderKpi.TileNumerico),
         new(TiempoMedioProcesamientoIa, "Tiempo medio de procesamiento IA", "Milisegundos de media por documento procesado este mes.", CategoriaKpi.Ia, TipoRenderKpi.TileNumerico),
-        new(FacturacionEstimadaMesActual, "Facturación estimada del mes", "Suma de los resúmenes de facturación estimada de los clientes con tarifas configuradas.", CategoriaKpi.Facturacion, TipoRenderKpi.TileNumerico),
+        new(FacturacionEstimadaMesActual, "Facturación estimada del mes", "Suma de los resúmenes de facturación estimada de los Clientes empresariales con tarifas configuradas.", CategoriaKpi.Facturacion, TipoRenderKpi.TileNumerico),
         new(PalancaIa, "Índice de palanca IA", "Sugerencias de la IA confirmadas sin tocar ningún campo, sobre todas las resueltas este mes.", CategoriaKpi.Operativa, TipoRenderKpi.TilePorcentajeConTono),
-        new(OcupacionGestores, "Ocupación por gestor", "Horas de gestión medidas este mes frente a la jornada mensual configurada. Requiere la medición de tiempo activada.", CategoriaKpi.Operativa, TipoRenderKpi.GraficoBarras),
-        new(HorasPorCliente, "Horas de gestión por cliente", "Dónde se va el tiempo del equipo: horas medidas este mes por cliente (top 5).", CategoriaKpi.Operativa, TipoRenderKpi.TablaRiesgo),
-        new(DistribucionAntelacion, "Distribución por tramo de antelación", "Reparto de las visitas del mes entre Estándar, Urgente y Exprés según el margen real del gestor.", CategoriaKpi.Friccion, TipoRenderKpi.GraficoDonut),
+        new(OcupacionGestores, "Ocupación por Gestor CAE", "Horas de gestión medidas este mes frente a la jornada mensual configurada. Requiere la medición de tiempo activada.", CategoriaKpi.Operativa, TipoRenderKpi.GraficoBarras),
+        new(HorasPorCliente, "Horas de gestión por Cliente empresarial", "Dónde se va el tiempo del equipo: horas medidas este mes por Cliente empresarial (top 5).", CategoriaKpi.Operativa, TipoRenderKpi.TablaRiesgo),
+        new(DistribucionAntelacion, "Distribución por tramo de antelación", "Reparto de las visitas del mes entre Estándar, Urgente y Exprés según el margen real del Gestor CAE.", CategoriaKpi.Friccion, TipoRenderKpi.GraficoDonut),
         new(FalsosAvisos, "Falsos avisos con tiempo", "Visitas avisadas con margen de sobra cuya documentación no llegó completa hasta dentro de la ventana de urgencia.", CategoriaKpi.Friccion, TipoRenderKpi.TilePorcentajeConTono),
-        new(TiempoBloqueadoCliente, "Tiempo bloqueado por el cliente", "Horas de media entre que el cliente pide la visita y completa la documentación.", CategoriaKpi.Friccion, TipoRenderKpi.TileNumerico),
+        new(TiempoBloqueadoCliente, "Tiempo bloqueado por el Cliente empresarial", "Horas de media entre que el Cliente empresarial pide la visita y completa la documentación.", CategoriaKpi.Friccion, TipoRenderKpi.TileNumerico),
         new(AtribucionUrgencia, "Urgencias por atribución", "A qué se debió la prisa en cada visita: aviso tardío, documentación tardía o ninguna urgencia.", CategoriaKpi.Friccion, TipoRenderKpi.GraficoBarras),
     ];
 
