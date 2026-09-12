@@ -34,6 +34,12 @@
             <p class="texto-2fa-exito"><Icono Nombre="exito-circulo" Tamano="TamanoIcono.Pequeno" /> La autenticación en dos pasos ya está activada en tu cuenta.</p>
         </div>
     }
+    else if (_errorCarga is not null)
+    {
+        <div class="tarjeta-2fa">
+            <div class="alerta-login" role="alert">@_errorCarga</div>
+        </div>
+    }
     else if (_claveCompartida is not null && Entrada is not null)
     {
         <div class="tarjeta-2fa">
@@ -78,6 +84,7 @@
     private string? _claveCompartida;
     private string? _uriOtpAuth;
     private string? _qrCodeDataUri;
+    private string? _errorCarga;
     private string? mensajeError;
     private ApplicationUser? _usuario;
 
@@ -117,7 +124,17 @@
         var claveSinFormato = await UserManager.GetAuthenticatorKeyAsync(usuario);
         if (string.IsNullOrEmpty(claveSinFormato))
         {
-            await UserManager.ResetAuthenticatorKeyAsync(usuario);
+            // Si esta escritura falla, la clave sin formato sigue siendo null
+            // y no hay QR ni clave manual que enseñar: mostrarlos de todos
+            // modos sería enseñar una clave que el servidor nunca guardó — el
+            // código que alguien registre con ella no lo aceptaría jamás.
+            var resultadoReset = await UserManager.ResetAuthenticatorKeyAsync(usuario);
+            if (!resultadoReset.Succeeded)
+            {
+                _errorCarga = string.Join(" ", resultadoReset.Errors.Select(e => e.Description));
+                return;
+            }
+
             claveSinFormato = await UserManager.GetAuthenticatorKeyAsync(usuario);
         }
 
@@ -157,7 +174,17 @@
             return;
         }
 
-        await UserManager.SetTwoFactorEnabledAsync(_usuario, true);
+        var resultadoActivar = await UserManager.SetTwoFactorEnabledAsync(_usuario, true);
+        if (!resultadoActivar.Succeeded)
+        {
+            // Si esta escritura no ocurrió de verdad, la cuenta se queda sin
+            // segundo factor aunque el código introducido fuera válido: ni se
+            // reemite la sesión, ni se audita una activación que no pasó, ni
+            // se navega como si hubiera terminado.
+            mensajeError = string.Join(" ", resultadoActivar.Errors.Select(e => e.Description));
+            return;
+        }
+
         mensajeError = null;
 
         // Reemite el ticket de autenticación, y hacen falta las dos cosas que
