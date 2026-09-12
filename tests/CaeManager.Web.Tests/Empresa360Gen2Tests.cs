@@ -3,6 +3,7 @@ using Bunit;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Empresas.Commands.EditarEmpresa;
 using CaeManager.Application.Empresas.Commands.EliminarEmpresa;
+using CaeManager.Application.Empresas.Commands.GuardarCredencialAccesoEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresaSinContrasena;
 using CaeManager.Application.Empresas.Queries.ObtenerCumplimientoEmpresa;
@@ -31,6 +32,7 @@ public class Empresa360Gen2Tests : BunitContext
         public Dictionary<Guid, IReadOnlyList<ClienteDeEmpresaDto>> Clientes { get; } = [];
         public Result Baja { get; set; } = Result.Exito();
         public Result Edicion { get; set; } = Result.Exito();
+        public Result Credenciales { get; set; } = Result.Exito();
         public Func<object, Task?>? Retener { get; set; }
         public Func<object, Exception?>? Fallar { get; set; }
         public List<object> Enviadas { get; } = [];
@@ -52,6 +54,7 @@ public class Empresa360Gen2Tests : BunitContext
                 ObtenerCredencialAccesoEmpresaSinContrasenaQuery => null,
                 EliminarEmpresaCommand => Baja,
                 EditarEmpresaCommand => Edicion,
+                GuardarCredencialAccesoEmpresaCommand => Credenciales,
                 _ => throw new NotSupportedException(request.GetType().Name)
             };
             return (T)valor!;
@@ -82,6 +85,36 @@ public class Empresa360Gen2Tests : BunitContext
         var cut = Renderizar(id, "clientes");
         cut.FindAll("[role=tab]").Single(x => x.TextContent.Contains("Clientes empresariales")).TextContent.Should().Contain("(2)");
         cut.Markup.Should().Contain("2 clientes empresariales");
+    }
+
+    [Fact]
+    public void El_recuento_de_clientes_empresariales_de_la_cabecera_solo_se_muestra_en_su_pestana()
+    {
+        var id = Guid.NewGuid(); var m = Registrar(new MediadorFalso());
+        m.Detalles[id] = Detalle(id, "Montajes Ebro S.L."); m.Cumplimientos[id] = 80;
+        m.Clientes[id] = [new(Guid.NewGuid(), "Refrielectric S.A.", "A-01")];
+        var cut = Renderizar(id, "clientes");
+
+        cut.FindAll(".recuentos-empresa-360").Should().ContainSingle("la pestaña de clientes empresariales está activa")
+            .Which.TextContent.Trim().Should().Be("1 cliente empresarial");
+
+        cut.Render(p => p.Add(x => x.EntidadId, id).Add(x => x.PestanaActiva, "informacion"));
+        cut.FindAll(".recuentos-empresa-360").Should().BeEmpty("el recuento de clientes empresariales no pertenece a las demás pestañas");
+    }
+
+    [Fact]
+    public async Task Las_etiquetas_de_credenciales_usan_la_terminologia_canonica()
+    {
+        var id = Guid.NewGuid(); var m = Registrar(new MediadorFalso());
+        m.Detalles[id] = Detalle(id, "Montajes Ebro S.L."); m.Cumplimientos[id] = 80;
+        var cut = Renderizar(id);
+
+        await Boton(cut, "Editar identidad").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("label").Select(x => x.TextContent.Trim()).Should().Contain("Credenciales de acceso a Plataforma CAE")
+            .And.Contain("Empresa / Cliente empresarial / Proveedor");
+        cut.Markup.Should().NotContain("Credenciales de acceso a plataforma externa")
+            .And.NotContain("Empresa / Cliente / Proveedor");
     }
 
     [Fact]
@@ -140,6 +173,79 @@ public class Empresa360Gen2Tests : BunitContext
         await guardar; Toasts.Should().NotContain(x => x.Tono == TonoToast.Exito, "un Result fallido no es un guardado");
         if (!cambiarAB) { cut.FindAll(".alerta-formulario[role=alert]").Select(x => x.TextContent.Trim()).Should().Equal([motivo]); Toasts.Should().BeEmpty("el formulario de A ya identifica la ficha"); }
         else { cut.Find(".titulo-empresa-360").TextContent.Trim().Should().Be(bNombre); cut.FindAll(".alerta-formulario[role=alert]").Should().BeEmpty(); Toasts.Should().ContainSingle(x => x.Tono == TonoToast.Error && x.Mensaje.Contains(aNombre) && x.Mensaje.Contains(motivo)); }
+    }
+
+    [Fact]
+    public async Task El_rechazo_de_credenciales_vigente_se_muestra_en_su_formulario()
+    {
+        const string motivo = "La URL no es válida.";
+        var id = Guid.NewGuid(); var m = Registrar(new MediadorFalso { Credenciales = Result.Fallo(Error.Crear("Empresa.UrlInvalida", motivo)) });
+        m.Detalles[id] = Detalle(id, "Montajes Ebro S.L."); m.Cumplimientos[id] = 80;
+        var cut = Renderizar(id); await Boton(cut, "Editar identidad").ClickAsync(new MouseEventArgs());
+
+        await Boton(cut, "Guardar credenciales").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".alerta-formulario[role=alert]").Should().ContainSingle("la edición de la empresa sigue siendo vigente")
+            .Which.TextContent.Trim().Should().Be(motivo);
+        Toasts.Should().BeEmpty("el formulario vigente ya identifica la empresa");
+    }
+
+    [Theory]
+    [InlineData(false, 0)]
+    [InlineData(false, 1)]
+    [InlineData(false, 2)]
+    [InlineData(true, 0)]
+    [InlineData(true, 2)]
+    public async Task El_fallo_tardio_al_guardar_identidad_o_credenciales_se_anuncia_con_la_empresa_original(bool credenciales, int claseFallo)
+    {
+        const string aNombre = "Montajes Ebro S.L."; const string bNombre = "Ibertec S.A."; const string motivo = "El dato ya existe.";
+        var a = Guid.NewGuid(); var b = Guid.NewGuid(); var espera = new TaskCompletionSource();
+        Func<object, bool> esComando = x => credenciales ? x is GuardarCredencialAccesoEmpresaCommand : x is EditarEmpresaCommand;
+        Exception? excepcion = claseFallo switch
+        {
+            1 => new FluentValidation.ValidationException("Validación rechazada."),
+            2 => new InvalidOperationException(),
+            _ => null
+        };
+        var m = Registrar(new MediadorFalso
+        {
+            Retener = x => esComando(x) ? espera.Task : null,
+            Fallar = x => esComando(x) ? excepcion : null,
+            Edicion = Result.Fallo(Error.Crear("Empresa.DatoDuplicado", motivo)),
+            Credenciales = Result.Fallo(Error.Crear("Empresa.CredencialInvalida", motivo))
+        });
+        m.Detalles[a] = Detalle(a, aNombre); m.Detalles[b] = Detalle(b, bNombre); m.Cumplimientos[a] = m.Cumplimientos[b] = 80;
+        var cut = Renderizar(a); await Boton(cut, "Editar identidad").ClickAsync(new MouseEventArgs());
+        var guardar = Boton(cut, credenciales ? "Guardar credenciales" : "Guardar").ClickAsync(new MouseEventArgs());
+        m.Enviadas.Where(esComando).Should().ContainSingle("el guardado de A quedó retenido antes de cambiar de ficha");
+
+        cut.Render(p => p.Add(x => x.EntidadId, b).Add(x => x.PestanaActiva, "informacion"));
+        cut.Find(".titulo-empresa-360").TextContent.Trim().Should().Be(bNombre, "la ficha ya es B");
+        await cut.InvokeAsync(espera.SetResult); await guardar;
+
+        var toast = Toasts.Should().ContainSingle(x => x.Tono == TonoToast.Error).Subject;
+        toast.Mensaje.Should().Contain(aNombre).And.NotContain(bNombre);
+        toast.Mensaje.Should().Contain(claseFallo == 0 ? motivo : "No pudimos guardar");
+        cut.FindAll(".alerta-formulario[role=alert]").Should().BeEmpty("el error de A no debe dibujarse sobre el formulario de B");
+    }
+
+    [Fact]
+    public async Task Un_guardado_de_A_en_vuelo_no_bloquea_el_guardado_de_B()
+    {
+        var a = Guid.NewGuid(); var b = Guid.NewGuid(); var espera = new TaskCompletionSource();
+        var m = Registrar(new MediadorFalso { Retener = x => x is EditarEmpresaCommand q && q.Id == a ? espera.Task : null });
+        m.Detalles[a] = Detalle(a, "Montajes Ebro S.L."); m.Detalles[b] = Detalle(b, "Ibertec S.A."); m.Cumplimientos[a] = m.Cumplimientos[b] = 80;
+        var cut = Renderizar(a); await Boton(cut, "Editar identidad").ClickAsync(new MouseEventArgs());
+        var guardarA = Boton(cut, "Guardar").ClickAsync(new MouseEventArgs());
+        m.Enviadas.OfType<EditarEmpresaCommand>().Should().ContainSingle("el guardado de A sigue retenido");
+
+        cut.Render(p => p.Add(x => x.EntidadId, b).Add(x => x.PestanaActiva, "informacion"));
+        await Boton(cut, "Editar identidad").ClickAsync(new MouseEventArgs());
+        var guardarB = Boton(cut, "Guardar").ClickAsync(new MouseEventArgs());
+        m.Enviadas.OfType<EditarEmpresaCommand>().Select(x => x.Id).Should().Equal([a, b], "B reinicia su guarda aunque A continúe en vuelo");
+
+        await guardarB;
+        await cut.InvokeAsync(espera.SetResult); await guardarA;
     }
 
     [Fact]

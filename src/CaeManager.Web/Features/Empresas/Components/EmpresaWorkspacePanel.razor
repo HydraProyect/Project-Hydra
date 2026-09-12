@@ -46,7 +46,7 @@ else
         <div class="texto-cabecera-empresa-360">
             <span class="kicker-empresa-360">Empresa</span>
             <h2 class="workspace-titulo-entidad titulo-empresa-360">@_detalle.RazonSocial</h2>
-            @if (_clientes is not null)
+            @if (PestanaActiva == "clientes" && _clientes is not null)
             {
                 <span class="recuentos-empresa-360">@(_clientes.Count == 1 ? "1 cliente empresarial" : $"{_clientes.Count} clientes empresariales")</span>
             }
@@ -93,7 +93,7 @@ else
                     </div>
 
                     <div class="campo">
-                        <label>Credenciales de acceso a plataforma externa</label>
+                        <label>Credenciales de acceso a Plataforma CAE</label>
                     </div>
                     @if (_mensajeErrorCredenciales is not null)
                     {
@@ -104,7 +104,7 @@ else
                         <BotonCopiar Valor="@_credencialUrl" Etiqueta="la URL" />
                     </div>
                     <div class="campo-con-boton">
-                        <CampoTexto Etiqueta="Empresa / Cliente / Proveedor" Valor="@_credencialCampoEmpresa" ValorChanged="v => _credencialCampoEmpresa = v" />
+                        <CampoTexto Etiqueta="Empresa / Cliente empresarial / Proveedor" Valor="@_credencialCampoEmpresa" ValorChanged="v => _credencialCampoEmpresa = v" />
                         <BotonCopiar Valor="@_credencialCampoEmpresa" Etiqueta="este campo" />
                     </div>
                     <div class="campo-con-boton">
@@ -288,6 +288,7 @@ else
     private bool _confirmarBajaVisible;
     private bool _dandoDeBaja;
 
+    // El recuento se limita a la pestaña que representa; la cabecera solo lo muestra allí.
     private IReadOnlyList<PestanaDefinicion> PestanasConRecuento =>
         _pestanas.Select(p => p.Id == "clientes" && _clientes is not null
             ? p with { Etiqueta = $"{p.Etiqueta} ({_clientes.Count})" }
@@ -306,6 +307,10 @@ else
             _cumplimiento = null;
             _editandoInformacion = false;
             _confirmarBajaVisible = false;
+            _guardandoInformacion = false;
+            _guardandoCredenciales = false;
+            _borrandoContrasena = false;
+            _dandoDeBaja = false;
             await CargarCabeceraAsync();
         }
 
@@ -469,11 +474,15 @@ else
             if (generacion == _generacion)
                 _erroresInformacion = ex.Errors.GroupBy(e => e.PropertyName)
                     .ToDictionary(g => g.Key, g => g.First().ErrorMessage);
+            else
+                ToastService.Mostrar($"No pudimos guardar los cambios de {detalle.RazonSocial}. Intenta nuevamente en unos segundos.", TonoToast.Error);
         }
         catch (Exception)
         {
             if (generacion == _generacion)
                 _mensajeErrorInformacion = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
+            else
+                ToastService.Mostrar($"No pudimos guardar los cambios de {detalle.RazonSocial}. Intenta nuevamente en unos segundos.", TonoToast.Error);
         }
         finally
         {
@@ -501,13 +510,16 @@ else
 
             var resultado = await Mediator.Send(
                 new GuardarCredencialAccesoEmpresaCommand(detalle.Id, urlAcceso, campoEmpresa, usuario, contrasena, notas));
-            if (generacion != _generacion) return;
-
             if (resultado.EsFallido)
             {
-                _mensajeErrorCredenciales = resultado.Error.Mensaje;
+                if (generacion == _generacion)
+                    _mensajeErrorCredenciales = resultado.Error.Mensaje;
+                else
+                    ToastService.Mostrar($"{detalle.RazonSocial}: {resultado.Error.Mensaje}", TonoToast.Error);
                 return;
             }
+
+            if (generacion != _generacion) return;
 
             ToastService.Mostrar($"Credenciales de {detalle.RazonSocial} guardadas correctamente.", TonoToast.Exito);
             _hayCredencialGuardada = true;
@@ -517,6 +529,8 @@ else
         {
             if (generacion == _generacion)
                 _mensajeErrorCredenciales = "No pudimos guardar las credenciales. Intenta nuevamente en unos segundos.";
+            else
+                ToastService.Mostrar($"No pudimos guardar las credenciales de {detalle.RazonSocial}. Intenta nuevamente en unos segundos.", TonoToast.Error);
         }
         finally
         {
