@@ -822,6 +822,10 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         }
     }
 
+    /// <summary>El motivo que da Identity, en una sola línea legible. Nunca un mensaje genérico para un fallo suyo.</summary>
+    private static string DescribirErrores(IdentityResult resultado) =>
+        string.Join(" ", resultado.Errors.Select(e => e.Description));
+
     private async Task CrearUsuarioAsync()
     {
         if (string.IsNullOrWhiteSpace(_email) || string.IsNullOrWhiteSpace(_nombreCompleto))
@@ -873,15 +877,25 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         var resultado = await PuertaAccesoDatos.EjecutarAsync(() => UserManager.CreateAsync(usuario));
         if (!resultado.Succeeded)
         {
-            _mensajeErrorFormulario = string.Join(" ", resultado.Errors.Select(e => e.Description));
+            _mensajeErrorFormulario = DescribirErrores(resultado);
             return;
         }
 
-        await PuertaAccesoDatos.EjecutarAsync(() => UserManager.AddToRoleAsync(usuario, _rol));
+        var resultadoRol = await PuertaAccesoDatos.EjecutarAsync(() => UserManager.AddToRoleAsync(usuario, _rol));
 
         _enlaceActivacion = await GenerarEnlaceActivacionAsync(usuario);
 
-        ToastService.Mostrar("Usuario creado correctamente.", TonoToast.Exito);
+        // La cuenta ya quedó creada en Identity —CreateAsync sí tuvo éxito—,
+        // así que un fallo aquí no deshace el alta: se dice tal cual, nunca
+        // como "creado correctamente", porque sin rol la cuenta no da acceso
+        // a nada y nadie lo sabría por el toast.
+        if (resultadoRol.Succeeded)
+            ToastService.Mostrar("Usuario creado correctamente.", TonoToast.Exito);
+        else
+            ToastService.Mostrar(
+                $"Usuario creado, pero no pudimos asignarle el rol {_rol}: {DescribirErrores(resultadoRol)} Ábrelo y vuelve a intentarlo.",
+                TonoToast.Error);
+
         await EnviarCorreoActivacionAsync(usuario.Id, _email, _nombreCompleto, _enlaceActivacion);
         _drawerVisible = false;
         await CargarAsync();
@@ -1027,12 +1041,38 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                 usuario.PermisoConsultarAccesoDocumentosSensibles = false;
             }
 
-            await UserManager.UpdateAsync(usuario);
+            var resultadoDatos = await UserManager.UpdateAsync(usuario);
+            if (!resultadoDatos.Succeeded)
+            {
+                _mensajeErrorFormulario = $"No pudimos guardar los cambios. {DescribirErrores(resultadoDatos)}";
+                return ResultadoEdicionUsuario.FalloAlActualizarDatos;
+            }
 
             if (!rolesActuales.Contains(_rol))
             {
-                await UserManager.RemoveFromRolesAsync(usuario, rolesActuales);
-                await UserManager.AddToRoleAsync(usuario, _rol);
+                var resultadoQuitar = await UserManager.RemoveFromRolesAsync(usuario, rolesActuales);
+                if (!resultadoQuitar.Succeeded)
+                {
+                    // No se intenta AddToRoleAsync sobre un Remove que no
+                    // llegó a completarse: el usuario conserva su rol
+                    // anterior, que es un estado válido, en vez de arriesgar
+                    // dos roles a la vez (la invariante es exactamente uno).
+                    _mensajeErrorFormulario =
+                        $"Los datos se guardaron, pero no pudimos cambiar el rol. {DescribirErrores(resultadoQuitar)} El usuario conserva su rol anterior.";
+                    return ResultadoEdicionUsuario.FalloAlCambiarRolConservado;
+                }
+
+                var resultadoAsignar = await UserManager.AddToRoleAsync(usuario, _rol);
+                if (!resultadoAsignar.Succeeded)
+                {
+                    // El Remove sí completó: el usuario se queda sin ningún
+                    // rol. No se reintenta ni se inventa una compensación que
+                    // Identity no ofrece como transacción — se dice tal cual,
+                    // porque es el peor de los tres desenlaces posibles.
+                    _mensajeErrorFormulario =
+                        $"Los datos se guardaron, pero el cambio de rol quedó a medias. {DescribirErrores(resultadoAsignar)} El usuario se quedó sin ningún rol asignado: revísalo y asígnaselo a mano.";
+                    return ResultadoEdicionUsuario.FalloAlCambiarRolSinNinguno;
+                }
             }
 
             return ResultadoEdicionUsuario.Actualizado;
@@ -1040,9 +1080,14 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
         if (resultado != ResultadoEdicionUsuario.Actualizado)
         {
-            _mensajeErrorFormulario = resultado == ResultadoEdicionUsuario.NoEncontrado
-                ? "No encontramos este usuario."
-                : "No puedes conceder ni revocar tu propio permiso de rastro de acceso a documentos sensibles. Da de alta a otro Administrador y pídele que lo gestione.";
+            if (resultado == ResultadoEdicionUsuario.NoEncontrado)
+                _mensajeErrorFormulario = "No encontramos este usuario.";
+            else if (resultado == ResultadoEdicionUsuario.AutogestionPermisoSensibleRechazada)
+                _mensajeErrorFormulario = "No puedes conceder ni revocar tu propio permiso de rastro de acceso a documentos sensibles. Da de alta a otro Administrador y pídele que lo gestione.";
+            // Los fallos de escritura en Identity (datos o rol) ya dejaron su
+            // propio mensaje en _mensajeErrorFormulario, con el motivo que dio
+            // Identity — no se sobrescribe aquí con uno genérico.
+
             return;
         }
 
@@ -1051,7 +1096,15 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         await CargarAsync();
     }
 
-    private enum ResultadoEdicionUsuario { Actualizado, NoEncontrado, AutogestionPermisoSensibleRechazada }
+    private enum ResultadoEdicionUsuario
+    {
+        Actualizado,
+        NoEncontrado,
+        AutogestionPermisoSensibleRechazada,
+        FalloAlActualizarDatos,
+        FalloAlCambiarRolConservado,
+        FalloAlCambiarRolSinNinguno
+    }
 
     private enum ResultadoActivacionUsuario { Actualizado, NoEncontrado, NoPropia }
 
@@ -1080,6 +1133,12 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
         try
         {
+            // La escritura puede volver sin lanzar y sin haber escrito nada
+            // (IdentityResult.Failed): el motivo viaja aquí fuera del comando
+            // porque "encontrado"/"propia" y "se escribió" son preguntas
+            // distintas.
+            string? motivoFallo = null;
+
             var resultado = await PuertaAccesoDatos.EjecutarAsync(async () =>
             {
                 var usuario = await UserManager.FindByIdAsync(usuarioLista.Id.ToString());
@@ -1097,7 +1156,10 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
                 usuario.LockoutEnabled = true;
                 usuario.LockoutEnd = usuarioLista.Activo ? DateTimeOffset.MaxValue : null;
-                await UserManager.UpdateAsync(usuario);
+                var resultadoEscritura = await UserManager.UpdateAsync(usuario);
+                if (!resultadoEscritura.Succeeded)
+                    motivoFallo = DescribirErrores(resultadoEscritura);
+
                 return ResultadoActivacionUsuario.Actualizado;
             }, token);
 
@@ -1112,6 +1174,14 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                 ToastService.Mostrar(
                     "Esta cuenta ya no existe. Recargamos la lista.", TonoToast.Error);
                 await CargarAsync();
+                return;
+            }
+
+            if (motivoFallo is not null)
+            {
+                ToastService.Mostrar(
+                    $"No pudimos {(usuarioLista.Activo ? "desactivar" : "reactivar")} esta cuenta. {motivoFallo}",
+                    TonoToast.Error);
                 return;
             }
 
