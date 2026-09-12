@@ -18,15 +18,25 @@
         </Acciones>
     </CabeceraPagina>
 
-    <div class="campo">
-        <label>Archivos</label>
-        <ZonaSoltarArchivo
-            OnChange="ManejarArchivosSeleccionadosAsync"
-            Multiple="true"
-            Accept=".pdf,.jpg,.jpeg,.png,.docx,.zip"
-            FormatosTexto="PDF · JPG · PNG · DOCX · ZIP"
-            Cargando="_procesandoLote" />
-    </div>
+    @if (_esSoloLectura)
+    {
+        <EstadoVacio
+            Titulo="Solo lectura"
+            Descripcion="Tu rol de Consulta permite ver este flujo, pero no crear documentos desde aquí."
+            NombreIcono="seguridad" />
+    }
+    else
+    {
+        <div class="campo">
+            <label>Archivos</label>
+            <ZonaSoltarArchivo
+                OnChange="ManejarArchivosSeleccionadosAsync"
+                Multiple="true"
+                Accept=".pdf,.jpg,.jpeg,.png,.docx,.zip"
+                FormatosTexto="PDF · JPG · PNG · DOCX · ZIP"
+                Cargando="_procesandoLote" />
+        </div>
+    }
 
     @if (_items.Count > 0)
     {
@@ -75,7 +85,7 @@
                         </div>
 
                         <div class="item-subida-masiva-acciones">
-                            @if (item.Estado == EstadoItem.PendienteConfirmar)
+                            @if (!_esSoloLectura && item.Estado == EstadoItem.PendienteConfirmar)
                             {
                                 <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => AlternarExpandido(item)">
                                     @(item.Expandido ? "Ocultar" : "Confirmar…")
@@ -93,7 +103,7 @@
                         </div>
                     </div>
 
-                    @if (item.Expandido && item.Estado == EstadoItem.PendienteConfirmar)
+                    @if (!_esSoloLectura && item.Expandido && item.Estado == EstadoItem.PendienteConfirmar)
                     {
                         <div class="item-subida-masiva-confirmacion">
                             @if (item.ContenidoPdf is not null)
