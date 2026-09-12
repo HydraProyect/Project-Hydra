@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Hydra CAE — Subida asistida",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Sube documentos de Hydra directamente a las plataformas CAE externas, sin descargarlos antes a tu disco.",
   "action": {
     "default_popup": "popup.html",
@@ -21,7 +21,10 @@
     "type": "module"
   },
   "permissions": ["storage", "activeTab"],
-  "optional_host_permissions": ["<all_urls>"],
+  "host_permissions": ["https://app.talveg.es/*", "https://staging.talveg.es/*"],
+  "externally_connectable": {
+    "matches": ["https://app.talveg.es/*", "https://staging.talveg.es/*"]
+  },
   "content_scripts": [
     {
       "matches": [

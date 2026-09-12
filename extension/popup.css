@@ -87,3 +87,12 @@ summary {
 .fila-completada {
   opacity: 0.6;
 }
+
+.aviso-conector-inactivo {
+  color: #92400e;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 4px;
+  padding: 4px 6px;
+  margin: 4px 0;
+}

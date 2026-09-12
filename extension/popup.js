@@ -3,10 +3,6 @@
 
 const seccionConectar = document.getElementById("seccion-conectar");
 const seccionConectado = document.getElementById("seccion-conectado");
-const campoUrl = document.getElementById("campo-url");
-const campoToken = document.getElementById("campo-token");
-const botonConectar = document.getElementById("boton-conectar");
-const errorConectar = document.getElementById("error-conectar");
 const textoUrl = document.getElementById("texto-url");
 const textoExpira = document.getElementById("texto-expira");
 const botonDesconectar = document.getElementById("boton-desconectar");
@@ -39,37 +35,6 @@ async function inicializar() {
     await cargarPendientesAsync();
   }
 }
-
-botonConectar.addEventListener("click", async () => {
-  mostrarError(errorConectar, "");
-  const hydraUrl = campoUrl.value.trim();
-  const token = campoToken.value.trim();
-
-  if (!hydraUrl || !token) {
-    mostrarError(errorConectar, "Completa la URL y el token.");
-    return;
-  }
-
-  botonConectar.disabled = true;
-  try {
-    // Vigencia informativa: la caducidad real la impone y comprueba el
-    // servidor en cada petición (ver TokenExtensionRespuesta.ExpiraEnUtc en
-    // el backend) — aquí solo decide cuándo el popup deja de dar el token
-    // por bueno sin haber hecho ninguna llamada todavía.
-    const expiraEnUtc = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
-    const resultado = await enviarMensaje({ accion: "conectar", hydraUrl, token, expiraEnUtc });
-
-    if (!resultado.ok) {
-      mostrarError(errorConectar, resultado.error);
-      return;
-    }
-
-    campoToken.value = "";
-    await inicializar();
-  } finally {
-    botonConectar.disabled = false;
-  }
-});
 
 botonDesconectar.addEventListener("click", async () => {
   await enviarMensaje({ accion: "desconectar" });
@@ -112,6 +77,19 @@ function renderizarProveedor(proveedor) {
   resumen.textContent = `${proveedor.proveedorNombre} (${totalDocumentos})`;
   detalle.appendChild(resumen);
 
+  // Kill switch remoto (MVP2 § 14.5): proveedorActivo viene de
+  // ObtenerAcreditacionesPorProveedorQuery, que a su vez lo lee de
+  // ProveedorPlataformaCae.Activo — un dato de configuración que TALVEG
+  // puede apagar sin publicar una extensión nueva. Aquí es donde de verdad
+  // se frena la subida: ni se ofrece el botón, así que ni la descarga del
+  // PDF ni la inyección en el DOM llegan a intentarse para este proveedor.
+  if (proveedor.proveedorActivo === false) {
+    const aviso = document.createElement("p");
+    aviso.className = "aviso-conector-inactivo";
+    aviso.textContent = "Conector desactivado temporalmente. Contacta con soporte si lo necesitas.";
+    detalle.appendChild(aviso);
+  }
+
   for (const cliente of proveedor.clientes) {
     const grupoCliente = document.createElement("div");
     grupoCliente.className = "grupo-cliente";
@@ -121,7 +99,8 @@ function renderizarProveedor(proveedor) {
     tituloCliente.textContent = cliente.clienteNombre;
     grupoCliente.appendChild(tituloCliente);
 
-    for (const documento of cliente.documentos) grupoCliente.appendChild(renderizarDocumento(documento));
+    for (const documento of cliente.documentos)
+      grupoCliente.appendChild(renderizarDocumento(documento, proveedor.proveedorActivo !== false));
 
     detalle.appendChild(grupoCliente);
   }
@@ -129,7 +108,7 @@ function renderizarProveedor(proveedor) {
   listaProveedores.appendChild(detalle);
 }
 
-function renderizarDocumento(documento) {
+function renderizarDocumento(documento, proveedorActivo) {
   const fila = document.createElement("div");
   fila.className = "fila-documento";
 
@@ -142,9 +121,15 @@ function renderizarDocumento(documento) {
   }
   fila.appendChild(descripcion);
 
+  // Ritmo humano (MVP2 § 14.5): un botón por documento, un clic, una subida
+  // — nunca una selección múltiple ni un "subir todos". No se toca este
+  // invariante sin una decisión explícita nueva: cada llamada a
+  // subirDocumento debe nacer de un clic real del gestor sobre UN documento
+  // concreto (ver el mismo comentario en background.js, subirDocumento).
   const boton = document.createElement("button");
   boton.type = "button";
   boton.textContent = "Subir";
+  boton.disabled = !proveedorActivo;
   boton.addEventListener("click", () => subirAsync(documento, boton, fila));
   fila.appendChild(boton);
 
