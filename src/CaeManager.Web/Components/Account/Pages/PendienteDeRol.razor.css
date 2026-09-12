@@ -1,38 +1,94 @@
-.tarjeta-login {
+.pendiente-rol {
     width: 100%;
-    max-width: 380px;
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-6);
+}
+
+.pendiente-rol-tarjeta {
+    width: 100%;
     background-color: var(--color-surface);
     border: var(--border-default);
     border-radius: var(--radius-lg);
     padding: var(--space-8);
+    box-shadow: var(--shadow-overlay);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-5);
 }
 
-.tarjeta-login h1 {
-    font: var(--font-heading-lg);
-    color: var(--color-primary-500);
-    text-align: center;
+.pendiente-rol-icono {
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    border-radius: var(--radius-full);
+    background-color: var(--color-info-50);
+    color: var(--color-info-500);
+    font: 700 1rem/1 var(--font-family);
 }
 
-.subtitulo-login {
-    text-align: center;
+.pendiente-rol-cabecera {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.pendiente-rol-eyebrow {
+    margin: 0;
     color: var(--color-text-muted);
-    font: var(--font-body-sm);
-    margin-top: var(--space-1);
-    margin-bottom: var(--space-6);
+    font: var(--font-label);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
 }
 
-.mensaje-pendiente {
-    text-align: center;
-    color: var(--color-text-muted);
-    font: var(--font-body-md);
-    margin-bottom: var(--space-6);
-}
-
-.tarjeta-login form {
+.pendiente-rol h1,
+.pendiente-rol h2,
+.pendiente-rol p {
     margin: 0;
 }
 
-.boton-primario {
+.pendiente-rol h1 {
+    font: var(--font-heading-lg);
+    color: var(--color-text);
+}
+
+.pendiente-rol-mensaje {
+    color: var(--color-text-muted);
+    font: var(--font-body-md);
+    line-height: 1.5;
+}
+
+.pendiente-rol-ayuda {
+    width: 100%;
+    padding: var(--space-4);
+    border-left: 3px solid var(--color-info-500);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-info-50);
+}
+
+.pendiente-rol-ayuda h2 {
+    font: var(--font-label);
+    color: var(--color-text);
+    margin-bottom: var(--space-2);
+}
+
+.pendiente-rol-ayuda p,
+.pendiente-rol-pie {
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+    line-height: 1.5;
+}
+
+.pendiente-rol form {
+    width: 100%;
+    margin: 0;
+}
+
+.pendiente-rol-cerrar-sesion {
     width: 100%;
     min-height: 48px;
     border-radius: var(--radius-md);
@@ -45,7 +101,7 @@
     transition: background-color var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard);
 }
 
-.boton-primario:hover {
+.pendiente-rol-cerrar-sesion:hover {
     background-color: var(--color-primary-600);
     transform: translateY(-1px);
 }
