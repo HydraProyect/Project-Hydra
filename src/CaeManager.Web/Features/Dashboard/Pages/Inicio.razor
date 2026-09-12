@@ -1,6 +1,7 @@
 @page "/"
 @rendermode InteractiveServer
 @attribute [Authorize]
+@using CaeManager.Web.Features.Bandeja
 @using CaeManager.Web.Features.Bandeja.Components
 @using CaeManager.Web.Features.Dashboard.Components
 @using CaeManager.Web.Features.Visitas
@@ -8,7 +9,25 @@
 <PageTitle>Dashboard — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <CabeceraPagina Titulo="@Saludo" Kicker="Dashboard" />
+    @* La cabecera del mockup lleva a la derecha la fecha de hoy y un indicador
+       de sistema. El indicador dice ahí «Recuentos calculados en tiempo real»;
+       aquí dice la hora de la lectura, que es lo único cierto: esta pantalla no
+       refresca sola. Solo aparece cuando ya hay algo cargado — durante el
+       esqueleto no hay ninguna hora que afirmar. *@
+    <CabeceraPagina Titulo="@Saludo" Kicker="Dashboard">
+        <Acciones>
+            <span class="inicio-cabecera-meta">
+                <span class="inicio-fecha">@FechaDeHoy</span>
+                @if (TextoActualizado is { } actualizado)
+                {
+                    <span class="inicio-separador" aria-hidden="true">·</span>
+                    <span class="inicio-indicador-sistema">
+                        <span class="inicio-punto-sistema" aria-hidden="true"></span>@actualizado
+                    </span>
+                }
+            </span>
+        </Acciones>
+    </CabeceraPagina>
 
     @if (_error)
     {
@@ -30,7 +49,10 @@
     {
         @if (_queLlegoSinVer.Count > 0)
         {
-            <h2 class="dashboard-subtitulo">Qué llegó sin ver</h2>
+            <div class="inicio-seccion-cabecera">
+                <h2 class="dashboard-subtitulo">Qué llegó sin ver</h2>
+                <span class="inicio-seccion-meta">@ResumenQueLlegoSinVer</span>
+            </div>
             <div class="dashboard-lista-unificada">
                 @foreach (var item in _queLlegoSinVer)
                 {
@@ -41,29 +63,47 @@
 
         @if (_mostrarRequiereAtencion && _bandejaAgrupada is { } bandeja)
         {
-            <h2 class="dashboard-subtitulo">Requiere atención</h2>
+            <div class="inicio-seccion-cabecera">
+                <h2 class="dashboard-subtitulo">Requiere atención</h2>
+                @if (ResumenAtencion is { } resumenAtencion)
+                {
+                    <span class="inicio-seccion-meta">@resumenAtencion</span>
+                }
+            </div>
             @if (bandeja.Grupos.Count == 0 && bandeja.SinGrupo.Count == 0)
             {
                 @* Cierre verificado (DDL-071): "nada pendiente" solo tranquiliza si dice
-                   también qué viene después — el próximo vencimiento conocido. *@
-                <p class="texto-vacio-seccion">@TextoCierreAtencion</p>
+                   también qué viene después — el próximo vencimiento conocido. El mockup
+                   lo pinta como tarjeta con marca de éxito y salida al Calendario, no
+                   como un párrafo suelto: es el único momento en que esta pantalla da
+                   una buena noticia. *@
+                <div class="inicio-cierre">
+                    <span class="inicio-cierre-marca" aria-hidden="true">
+                        <Icono Nombre="exito-circulo" Tamano="TamanoIcono.Pequeno" />
+                    </span>
+                    <p class="inicio-cierre-texto">@TextoCierreAtencion</p>
+                    <a class="inicio-cierre-enlace" href="/calendario">Ver calendario →</a>
+                </div>
             }
             else
             {
                 <div class="lista-bandeja">
                     @for (var i = 0; i < Math.Min(bandeja.Grupos.Count, MaximoGruposAtencion); i++)
                     {
-                        <GrupoCola Grupo="bandeja.Grupos[i]" ExpandidaPorDefecto="@(i == 0 && bandeja.Grupos[i].BloqueaAcceso)" Compacto="true" AgruparPorEmpresa="AgruparPorEmpresa" />
+                        <GrupoCola @key="bandeja.Grupos[i].GrupoId" Grupo="bandeja.Grupos[i]"
+                                   ExpandidaPorDefecto="@(i == 0 && TipoItemBandejaUi.BloqueaAccesoDeVerdad(bandeja.Grupos[i]))"
+                                   Compacto="true" AgruparPorEmpresa="AgruparPorEmpresa" />
                     }
                     @foreach (var item in bandeja.SinGrupo)
                     {
-                        <PanelResolverItem Item="item" />
+                        <PanelResolverItem @key="item.Id" Item="item" />
                     }
                 </div>
-                @if (bandeja.Grupos.Count > MaximoGruposAtencion)
-                {
-                    <a class="enlace-ver-todas" href="/bandeja">Ver todo en Mi trabajo →</a>
-                }
+                @* El mockup deja la salida a la cola completa siempre visible, no solo
+                   cuando el resumen se queda corto: aquí se ven como mucho
+                   MaximoGruposAtencion grupos, y quien quiere operar de verdad va a
+                   Mi trabajo tanto si son tres como si son treinta. *@
+                <a class="enlace-ver-todas" href="/bandeja">Ver todo en Mi trabajo →</a>
             }
 
             @if (_pendientePorPlataforma.Count > 0)
@@ -131,7 +171,16 @@
             </div>
         </div>
 
-        <h2 class="dashboard-subtitulo">Próximamente</h2>
+        @* El mockup sube «Ver todas las visitas» a la cabecera de la sección: la
+           tabla muestra como mucho MaximoVisitasProximas, así que la salida al
+           listado completo tiene que verse antes de recorrerla, no después. *@
+        <div class="inicio-seccion-cabecera">
+            <h2 class="dashboard-subtitulo">Próximamente</h2>
+            @if (_proximamente.Count > 0)
+            {
+                <a class="inicio-seccion-enlace" href="/visitas">Ver todas las visitas →</a>
+            }
+        </div>
         @if (_proximamente.Count == 0)
         {
             <p class="texto-vacio-seccion">No hay visitas programadas.</p>
@@ -161,7 +210,6 @@
                     }
                 </tbody>
             </table>
-            <a class="enlace-ver-todas" href="/visitas">Ver todas en Visitas →</a>
         }
 
         @* Pulso del equipo: al final de la pantalla (mockup Inicio TALVEG) —

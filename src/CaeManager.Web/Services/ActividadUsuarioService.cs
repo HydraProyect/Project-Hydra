@@ -39,7 +39,14 @@ public class ActividadUsuarioService(
     /// no sirve para distinguirlo aquí: en este hosting model no está disponible en ninguna de
     /// las dos pasadas.
     /// </param>
-    public async Task<(bool Ausente, DateTime? DesdeParaResumen)> RegistrarYEvaluarAsync(bool interactivo, CancellationToken cancellationToken = default)
+    /// <remarks>
+    /// <c>virtual</c> para poder sustituirlo en los tests de componente de
+    /// Inicio: la implementación real necesita un <see cref="UserManager{TUser}"/>
+    /// que escriba de verdad (<c>UpdateAsync</c> pasa por los validadores de
+    /// Identity), y montar ese aparato para decidir si el resumen «qué llegó sin
+    /// ver» aparece haría que el andamio tapara lo que el caso mide.
+    /// </remarks>
+    public virtual async Task<(bool Ausente, DateTime? DesdeParaResumen)> RegistrarYEvaluarAsync(bool interactivo, CancellationToken cancellationToken = default)
     {
         if (_resuelto) return (_ausente, _ultimaActividadAnteriorUtc);
         if (!interactivo) return (false, null);
