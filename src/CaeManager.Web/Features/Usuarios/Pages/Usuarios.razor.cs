@@ -437,6 +437,18 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         DirectorioUsuarios.ObtenerVisiblesEnRolAsync(rol, cancellationToken);
 
     /// <summary>
+    /// Si la cuenta pertenece al tenant activo — propiedad, no visibilidad:
+    /// ver <c>DirectorioUsuariosTenant.EsCuentaPropiaDelTenantActualAsync</c>.
+    /// Un Operador Delegado se ve en esta misma lista (fila marcada
+    /// "Delegado"), pero su cuenta es de otra organización y no se gobierna
+    /// desde aquí — mismo criterio que ya aplica <c>Roles.razor.cs</c> para el
+    /// mismo riesgo. Toda operación que MODIFIQUE una cuenta tiene que pasar
+    /// por aquí antes de escribir.
+    /// </summary>
+    protected virtual Task<bool> EsCuentaPropiaAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
+        DirectorioUsuarios.EsCuentaPropiaDelTenantActualAsync(usuarioId, cancellationToken);
+
+    /// <summary>
     /// El rol que entra aquí es el <b>efectivo en esta organización</b>: para
     /// un Operador Delegado, el de su asignación aquí y no el de su tenant de
     /// origen. Es el mismo que se pinta en la columna Rol, y tiene que serlo —
@@ -646,6 +658,20 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
                 ToastService.Mostrar("No encontramos este usuario.", TonoToast.Error);
                 await CargarAsync();
+                return;
+            }
+
+            // Propiedad, no visibilidad (ver EsCuentaPropiaAsync): un Operador
+            // Delegado aparece en esta lista, pero editar su ficha desde aquí
+            // sería escribir sobre la cuenta de otra organización. Antes esta
+            // comprobación no existía y el Id de cualquier fila —delegada o
+            // no— bastaba para abrir su ficha con FindByIdAsync, que no
+            // filtra por tenant.
+            if (!await EsCuentaPropiaAsync(id, token))
+            {
+                if (version != _versionApertura) return;
+
+                ToastService.Mostrar("No encontramos este usuario.", TonoToast.Error);
                 return;
             }
 
@@ -930,6 +956,14 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             var usuario = await UserManager.FindByIdAsync(id.ToString());
             if (usuario is null) return ResultadoEdicionUsuario.NoEncontrado;
 
+            // Autoridad por PROPIEDAD del tenant activo sobre esta cuenta, no
+            // por su visibilidad en la lista: un Operador Delegado se ve aquí,
+            // pero su cuenta y su rol se gobiernan en su propia organización
+            // (ver EsCuentaPropiaAsync). Mismo resultado que "no encontrado",
+            // para no revelar con un mensaje distinto que el Id pertenece a
+            // otra organización.
+            if (!await EsCuentaPropiaAsync(id)) return ResultadoEdicionUsuario.NoEncontrado;
+
             usuario.NombreCompleto = _nombreCompleto;
             usuario.CoordinadorUsuarioId = _rol == Roles.GestorCae && Guid.TryParse(_coordinadorUsuarioId, out var coordId) ? coordId : null;
             usuario.ClienteId = _rol == Roles.Cliente ? _clienteEncontrado?.Id : null;
@@ -981,6 +1015,8 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
     private enum ResultadoEdicionUsuario { Actualizado, NoEncontrado, AutogestionPermisoSensibleRechazada }
 
+    private enum ResultadoActivacionUsuario { Actualizado, NoEncontrado, NoPropia }
+
     /// <summary>
     /// Nada cambia en pantalla hasta que responde el servidor: la fila no se
     /// pinta desactivada «por adelantado» para luego tener que retroceder.
@@ -1006,18 +1042,34 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
         try
         {
-            var encontrado = await PuertaAccesoDatos.EjecutarAsync(async () =>
+            var resultado = await PuertaAccesoDatos.EjecutarAsync(async () =>
             {
                 var usuario = await UserManager.FindByIdAsync(usuarioLista.Id.ToString());
-                if (usuario is null) return false;
+                if (usuario is null) return ResultadoActivacionUsuario.NoEncontrado;
+
+                // Sin esto, la fila "Delegado" de un Operador Delegado
+                // —cuenta de otra organización, visible aquí porque opera
+                // este tenant— se podía desactivar o reactivar igual que una
+                // propia: FindByIdAsync no filtra por tenant y esta acción no
+                // pasaba por EsCuentaPropiaAsync en ningún punto. No es el
+                // mismo desenlace que "no encontrado": la fila sigue siendo
+                // una fila legítima de esta lista, así que no hay nada que
+                // recargar.
+                if (!await EsCuentaPropiaAsync(usuarioLista.Id, token)) return ResultadoActivacionUsuario.NoPropia;
 
                 usuario.LockoutEnabled = true;
                 usuario.LockoutEnd = usuarioLista.Activo ? DateTimeOffset.MaxValue : null;
                 await UserManager.UpdateAsync(usuario);
-                return true;
+                return ResultadoActivacionUsuario.Actualizado;
             }, token);
 
-            if (!encontrado)
+            if (resultado == ResultadoActivacionUsuario.NoPropia)
+            {
+                ToastService.Mostrar("No encontramos este usuario.", TonoToast.Error);
+                return;
+            }
+
+            if (resultado == ResultadoActivacionUsuario.NoEncontrado)
             {
                 ToastService.Mostrar(
                     "Esta cuenta ya no existe. Recargamos la lista.", TonoToast.Error);
