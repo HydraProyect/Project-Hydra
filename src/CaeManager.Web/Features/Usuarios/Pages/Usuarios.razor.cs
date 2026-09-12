@@ -368,17 +368,17 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             // Otra carga tomó el relevo mientras esta viajaba: la lista que se
             // ve es la suya, y pintar esta la haría retroceder.
             //
-            // HOY ESTA LÍNEA NO ES OBSERVABLE, y conviene decirlo en vez de
-            // dar por probado lo que no lo está: PuertaAccesoDatos serializa
-            // el acceso a datos del circuito, así que la carga vieja termina
-            // SIEMPRE antes de que la nueva empiece a leer, y su asignación
-            // queda sobrescrita de inmediato. Se comprobó por mutación
-            // (2026-09-12): quitar este return no pone ninguna prueba en rojo.
-            // Se queda porque la garantía viene de la puerta y no de esta
-            // pantalla: el día que una de las cuatro lecturas deje de pasar
-            // por ella, esto es lo único que impide que una respuesta vieja
-            // repinte la lista. Lo que sí es observable del sello es el trato
-            // del error y del esqueleto, más abajo.
+            // ALCANZABLE, pero hoy sin efecto observable, y conviene decir
+            // exactamente cuál de las dos cosas es (revisión de Codex,
+            // 2026-09-12): con dos cargas en vuelo esta comparación SÍ se
+            // evalúa —PuertaAccesoDatos serializa las lecturas, pero no ordena
+            // las continuaciones posteriores a su Release—. Lo que se midió
+            // por mutación es más estrecho: quitar el return no deja una lista
+            // obsoleta EN PANTALLA, porque la carga vigente la reasigna
+            // después. Se queda porque es lo único que lo impide el día que
+            // una de las cuatro lecturas deje de pasar por la puerta, o que
+            // una respuesta vieja llegue después de la nueva. Lo observable
+            // del sello hoy es el trato del error y del esqueleto, más abajo.
             if (version != _versionCarga) return;
 
             _usuarios = usuarios;

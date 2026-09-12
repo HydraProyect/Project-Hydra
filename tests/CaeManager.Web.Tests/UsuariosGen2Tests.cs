@@ -990,4 +990,44 @@ public class UsuariosGen2Tests : BunitContext
         Fila(cut, "a.beitia@talveg.es").TextContent.Should().Contain("Activo",
             "la fila no cambia hasta que el servidor confirma");
     }
+
+    // ----------------------- Revisión de Codex sobre esta misma rama
+
+    /// <summary>
+    /// Contrato de terminología: en un texto de producto «Administrador» a
+    /// secas no dice si es un rol, una persona o una organización. Este aviso
+    /// habla del ROL, y así tiene que leerse.
+    /// </summary>
+    [Fact]
+    public async Task El_aviso_del_permiso_sensible_dice_que_Administrador_es_un_rol()
+    {
+        Sembrar(
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia"), RolesIdentidad.Administrador));
+
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Editar");
+
+        var aviso = cut.Find(".bloque-permiso-sensible .texto-permiso-sensible").TextContent;
+        aviso.Should().Contain("con el rol Administrador",
+            "el permiso lo concede quien tiene ese rol, y el texto tiene que decirlo");
+        aviso.Should().NotContain("solo otro Administrador puede");
+    }
+
+    /// <summary>Lo mismo en la ayuda del coordinador: quienes ven la cartera se nombran por su rol.</summary>
+    [Fact]
+    public async Task La_ayuda_del_coordinador_nombra_los_roles_que_ven_la_cartera()
+    {
+        Sembrar(
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia"), RolesIdentidad.GestorCae));
+
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Editar");
+
+        var ayuda = cut.FindAll(".texto-ayuda-campo").Select(p => p.TextContent).ToList();
+        ayuda.Should().Contain(t => t.Contains("los roles Administrador y Dirección CAE"),
+            "quien ve la cartera se nombra por su rol, no por una palabra suelta");
+        ayuda.Should().NotContain(t => t.Contains("solo Administrador y Dirección CAE ven"));
+    }
 }

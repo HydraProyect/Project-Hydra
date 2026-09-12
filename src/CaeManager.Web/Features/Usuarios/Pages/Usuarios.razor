@@ -224,7 +224,7 @@
                     Puede consultar el rastro de acceso a documentos sensibles
                 </label>
                 <p class="texto-permiso-sensible">
-                    Permiso aparte del rol: solo otro Administrador puede concederlo o revocarlo.
+                    Permiso aparte del rol: solo otro usuario con el rol Administrador puede concederlo o revocarlo.
                     Si el rol deja de ser Administrador, se retira automáticamente.
                 </p>
             </div>
@@ -239,7 +239,7 @@
                     <option value="@coordinador.Id">@coordinador.NombreCompleto (@coordinador.Email)</option>
                 }
             </CampoSelect>
-            <p class="texto-ayuda-campo">Sin coordinador asignado, solo Administrador y Dirección CAE ven su cartera.</p>
+            <p class="texto-ayuda-campo">Sin coordinador asignado, su cartera solo la ven los roles Administrador y Dirección CAE.</p>
         }
 
         @if (_rol == Roles.Cliente)
