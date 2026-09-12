@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
@@ -8,6 +9,7 @@ using CaeManager.Web.Components.Layout;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
@@ -125,8 +127,16 @@ public class AccesoCuentaEscenaTests : BunitContext
             li.ClassList.Contains("acceso-requisito-cumplido") && li.TextContent.Contains("cumplido"));
     }
 
+    /// <summary>
+    /// Comprueba el marcado: que la lista de requisitos y el aviso de
+    /// coincidencia existen con los atributos que <c>acceso-contrasena.js</c>
+    /// necesita para engancharse. bUnit no ejecuta ese guion (ver el
+    /// comentario de clase), así que esto NO demuestra que la marca en vivo
+    /// funcione — quitar el listener 'input' del guion no lo haría fallar.
+    /// Eso es responsabilidad de un E2E.
+    /// </summary>
     [Fact]
-    public void Restablecer_pinta_la_escena_los_requisitos_y_la_coincidencia_en_vivo()
+    public void Restablecer_pinta_la_escena_y_el_marcado_de_requisitos_y_coincidencia()
     {
         var id = Guid.NewGuid();
         _almacen.Usuario = new ApplicationUser { Id = id, Email = "marta.ruiz@consultora.es" };
@@ -197,6 +207,110 @@ public class AccesoCuentaEscenaTests : BunitContext
             .Should().NotBeNull("el segundo envío tiene que llevar el correo del primero");
     }
 
+    /// <summary>
+    /// Cuenta real, pero <see cref="IEmailService.EnviarAsync"/> falla (Graph
+    /// caído, sin configurar, sin red...). Antes esto se registraba en el log y
+    /// la pantalla mentía «revisa tu correo» de todos modos; ahora tiene que
+    /// avisar del fallo sin decir «no encontramos esa cuenta» — el mensaje no
+    /// puede depender de si la cuenta existe.
+    /// </summary>
+    [Fact]
+    public async Task Recuperar_contrasena_cuenta_existente_pero_envio_fallido_avisa_sin_decir_enviado()
+    {
+        _almacen.Usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta.ruiz@consultora.es" };
+        Services.AddSingleton<IEmailService>(new EmailServiceConfigurable(
+            Result.Fallo(Error.Crear("Email.ErrorRed", "No pudimos enviar el correo."))));
+
+        var cut = Render<OlvideContrasena>();
+        await cut.Find("#email").ChangeAsync(new ChangeEventArgs { Value = "marta.ruiz@consultora.es" });
+        await cut.Find("form").SubmitAsync();
+
+        cut.Find("h2.acceso-titulo").TextContent.Should().Be("¿Has olvidado la contraseña?",
+            "el envío falló de verdad: no puede decir 'Revisa tu correo' como si hubiera salido");
+        cut.Find(".acceso-alerta").TextContent.Should().Be("No pudimos procesar tu solicitud. Inténtalo de nuevo en unos minutos.");
+    }
+
+    /// <summary>
+    /// Fija la no-enumeración para el camino de éxito: cuenta real con envío
+    /// correcto acaba en la MISMA pantalla que
+    /// <see cref="Recuperar_contrasena_reenvia_con_un_formulario_y_no_con_un_clic_sin_circuito"/>
+    /// usa para una cuenta inexistente («Revisa tu correo» en ambas). El fallo
+    /// de envío (test de arriba) es la única desviación permitida, y su mensaje
+    /// no menciona la existencia de la cuenta.
+    /// </summary>
+    [Fact]
+    public async Task Recuperar_contrasena_cuenta_existente_y_envio_correcto_dice_revisa_tu_correo_igual_que_sin_cuenta()
+    {
+        _almacen.Usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta.ruiz@consultora.es" };
+        Services.AddSingleton<IEmailService>(new EmailServiceConfigurable(Result.Exito()));
+
+        var cut = Render<OlvideContrasena>();
+        await cut.Find("#email").ChangeAsync(new ChangeEventArgs { Value = "marta.ruiz@consultora.es" });
+        await cut.Find("form").SubmitAsync();
+
+        cut.Find("h2.acceso-titulo").TextContent.Should().Be("Revisa tu correo");
+    }
+
+    /// <summary>
+    /// <see cref="UserManager{TUser}.ResetPasswordAsync"/> tuvo éxito (la
+    /// contraseña ya cambió), pero el <c>UpdateAsync</c> que persiste el fin del
+    /// cambio obligatorio falla. Antes el resultado se descartaba y la pantalla
+    /// anunciaba «Restablecimiento de contraseña correcto» igual; ahora tiene que
+    /// enseñar el motivo de Identity y no anunciar el proceso como terminado
+    /// (ni cerrar sesión).
+    /// </summary>
+    [Fact]
+    public async Task Restablecer_contrasena_si_falla_persistir_el_usuario_no_dice_correcto()
+    {
+        var usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta.ruiz@consultora.es", DebeCambiarContrasena = true };
+        _almacen.Usuario = usuario;
+        var token = await _usuarios.GeneratePasswordResetTokenAsync(usuario);
+        var codigo = WebEncoders.Base64UrlEncode(System.Text.Encoding.UTF8.GetBytes(token));
+        Services.GetRequiredService<NavigationManager>()
+            .NavigateTo($"/cuenta/restablecer-contrasena?userId={usuario.Id}&code={codigo}");
+
+        _almacen.ResultadoUpdate = IdentityResult.Failed(new IdentityError { Code = "FalloDePrueba", Description = "No se pudo guardar el usuario." });
+
+        var cut = Render<RestablecerContrasena>();
+        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghi1" });
+        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghi1" });
+        await cut.Find("form").SubmitAsync();
+
+        cut.FindAll("h2.acceso-titulo").Should().NotContain(h => h.TextContent == "Contraseña actualizada");
+        cut.Find(".acceso-alerta").TextContent.Should().Be("No se pudo guardar el usuario.");
+    }
+
+    /// <summary>
+    /// Mismo defecto que arriba, en la pantalla de cambio obligatorio ya
+    /// autenticado: si <c>UpdateAsync</c> falla tras un
+    /// <c>ChangePasswordAsync</c> correcto, no se refresca la sesión ni se
+    /// navega a "/" como si el cambio hubiera terminado del todo.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_contrasena_si_falla_persistir_el_usuario_no_navega_ni_refresca_sesion()
+    {
+        var usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta.ruiz@consultora.es", DebeCambiarContrasena = true };
+        var contrasenaActual = "Abcdefghi1";
+        _almacen.Usuario = usuario;
+        _almacen.HashContrasena = new PasswordHasher<ApplicationUser>().HashPassword(usuario, contrasenaActual);
+        _almacen.ResultadoUpdate = IdentityResult.Failed(new IdentityError { Code = "FalloDePrueba", Description = "No se pudo guardar el usuario." });
+
+        AddAuthorization().SetAuthorized("marta.ruiz@consultora.es")
+            .SetClaims(new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()));
+
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        var uriDePartida = navegacion.Uri;
+
+        var cut = Render<CambiarContrasena>();
+        await cut.Find("#password-actual").ChangeAsync(new ChangeEventArgs { Value = contrasenaActual });
+        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvuts2" });
+        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvuts2" });
+        await cut.Find("form").SubmitAsync();
+
+        cut.Find(".acceso-alerta").TextContent.Should().Be("No se pudo guardar el usuario.");
+        navegacion.Uri.Should().Be(uriDePartida, "un UpdateAsync fallido no puede terminar en NavigateTo(\"/\") como si el cambio hubiera terminado");
+    }
+
     private static readonly Dictionary<string, string> ClavePorCodigo = new()
     {
         ["PasswordTooShort"] = "longitud",
@@ -216,13 +330,57 @@ public class AccesoCuentaEscenaTests : BunitContext
         return opciones;
     }
 
-    private static UserManager<ApplicationUser> CrearUsuarios(IUserStore<ApplicationUser> almacen, IdentityOptions opciones) => new(
-        almacen, Opciones.Create(opciones), new PasswordHasher<ApplicationUser>(),
-        [], [], new UpperInvariantLookupNormalizer(), new IdentityErrorDescriber(), null!,
-        NullLogger<UserManager<ApplicationUser>>.Instance);
+    /// <summary>
+    /// Registra un <see cref="DataProtectorTokenProvider{TUser}"/> real (con un
+    /// <see cref="EphemeralDataProtectionProvider"/> en memoria, sin persistencia)
+    /// bajo el nombre por defecto — necesario para que Generate/Reset/Verify
+    /// PasswordResetToken hagan el viaje de ida y vuelta de verdad en los tests
+    /// que ejercitan <c>RestablecerContrasena.GuardarAsync</c>, en vez de lanzar
+    /// «no hay proveedor de tokens 'Default' registrado».
+    /// </summary>
+    private static UserManager<ApplicationUser> CrearUsuarios(IUserStore<ApplicationUser> almacen, IdentityOptions opciones)
+    {
+        var usuarios = new UserManager<ApplicationUser>(
+            almacen, Opciones.Create(opciones), new PasswordHasher<ApplicationUser>(),
+            [], [], new UpperInvariantLookupNormalizer(), new IdentityErrorDescriber(), null!,
+            NullLogger<UserManager<ApplicationUser>>.Instance);
+        usuarios.RegisterTokenProvider(TokenOptions.DefaultProvider,
+            new DataProtectorTokenProvider<ApplicationUser>(
+                new EphemeralDataProtectionProvider(),
+                Opciones.Create(new DataProtectionTokenProviderOptions()),
+                NullLogger<DataProtectorTokenProvider<ApplicationUser>>.Instance));
+        return usuarios;
+    }
+
+    /// <summary>
+    /// Un <see cref="HttpContext"/> con <see cref="IAuthenticationService"/> falso
+    /// (sin operación) en <c>RequestServices</c> — sin él, <c>SignOutAsync</c> y
+    /// <c>RefreshSignInAsync</c> lanzan «HttpContext must not be null» o «Unable to
+    /// find the required services» en cuanto una página los llama de verdad, en
+    /// vez de en el momento en que el defecto que se prueba debería hacerlos
+    /// fallar.
+    /// </summary>
+    private static IHttpContextAccessor CrearHttpContextAccessor() => new HttpContextAccessor
+    {
+        HttpContext = new DefaultHttpContext
+        {
+            RequestServices = new ServiceCollection()
+                .AddSingleton<IAuthenticationService>(new AutenticacionSinOperacion())
+                .BuildServiceProvider(),
+        },
+    };
+
+    private sealed class AutenticacionSinOperacion : IAuthenticationService
+    {
+        public Task<AuthenticateResult> AuthenticateAsync(HttpContext context, string? scheme) => Task.FromResult(AuthenticateResult.NoResult());
+        public Task ChallengeAsync(HttpContext context, string? scheme, AuthenticationProperties? properties) => Task.CompletedTask;
+        public Task ForbidAsync(HttpContext context, string? scheme, AuthenticationProperties? properties) => Task.CompletedTask;
+        public Task SignInAsync(HttpContext context, string? scheme, ClaimsPrincipal principal, AuthenticationProperties? properties) => Task.CompletedTask;
+        public Task SignOutAsync(HttpContext context, string? scheme, AuthenticationProperties? properties) => Task.CompletedTask;
+    }
 
     private static SignInManager<ApplicationUser> CrearSignIn(UserManager<ApplicationUser> usuarios) => new(
-        usuarios, new HttpContextAccessor(),
+        usuarios, CrearHttpContextAccessor(),
         new UserClaimsPrincipalFactory<ApplicationUser>(usuarios, Opciones.Create(new IdentityOptions())),
         Opciones.Create(new IdentityOptions()), NullLogger<SignInManager<ApplicationUser>>.Instance,
         new AuthenticationSchemeProvider(Opciones.Create(new AuthenticationOptions())),
@@ -245,32 +403,85 @@ public class AccesoCuentaEscenaTests : BunitContext
             throw new InvalidOperationException("con una cuenta que no existe no se envía ningún correo");
     }
 
-    /// <summary>Solo lo que las páginas consultan: buscar por id y por correo.</summary>
-    private sealed class AlmacenFalso : IUserStore<ApplicationUser>, IUserEmailStore<ApplicationUser>
+    /// <summary>Devuelve siempre el mismo <see cref="Result"/>, para simular un envío que sí se intenta.</summary>
+    private sealed class EmailServiceConfigurable(Result resultado) : IEmailService
     {
+        public Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, CancellationToken cancellationToken = default) =>
+            Task.FromResult(resultado);
+    }
+
+    /// <summary>
+    /// Lo que las páginas consultan: buscar por id y por correo, contraseña y
+    /// security stamp (los necesita Identity para el viaje de ida y vuelta real
+    /// de <c>ResetPasswordAsync</c>/<c>ChangePasswordAsync</c>: hashea, rota el
+    /// stamp y persiste). También soporta <see cref="UpdateAsync"/> con un
+    /// resultado configurable por <see cref="ResultadoUpdate"/>, para probar qué
+    /// hace cada página cuando Identity no puede persistir el fin del cambio
+    /// obligatorio.
+    /// </summary>
+    private sealed class AlmacenFalso :
+        IUserStore<ApplicationUser>, IUserEmailStore<ApplicationUser>,
+        IUserPasswordStore<ApplicationUser>, IUserSecurityStampStore<ApplicationUser>
+    {
+        private string? _hashContrasena;
+        private string _securityStamp = Guid.NewGuid().ToString();
+
         public ApplicationUser? Usuario { get; set; }
+        public IdentityResult ResultadoUpdate { get; set; } = IdentityResult.Success;
+
+        /// <summary>Para sembrar la contraseña inicial directamente en el test, sin pasar por CreateAsync (no soportado).</summary>
+        public string? HashContrasena { get => _hashContrasena; set => _hashContrasena = value; }
 
         public Task<ApplicationUser?> FindByIdAsync(string userId, CancellationToken ct) =>
             Task.FromResult(Usuario is not null && Usuario.Id.ToString() == userId ? Usuario : null);
 
         public Task<ApplicationUser?> FindByEmailAsync(string normalizedEmail, CancellationToken ct) =>
-            Task.FromResult<ApplicationUser?>(null);
+            Task.FromResult(Usuario is not null && string.Equals(Usuario.Email, normalizedEmail, StringComparison.OrdinalIgnoreCase)
+                ? Usuario : null);
 
         public void Dispose() { }
         public Task<string> GetUserIdAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(user.Id.ToString());
-        public Task<string?> GetUserNameAsync(ApplicationUser user, CancellationToken ct) => throw new NotSupportedException();
-        public Task SetUserNameAsync(ApplicationUser user, string? userName, CancellationToken ct) => throw new NotSupportedException();
-        public Task<string?> GetNormalizedUserNameAsync(ApplicationUser user, CancellationToken ct) => throw new NotSupportedException();
-        public Task SetNormalizedUserNameAsync(ApplicationUser user, string? normalizedName, CancellationToken ct) => throw new NotSupportedException();
+        public Task<string?> GetUserNameAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(user.Email);
+        public Task SetUserNameAsync(ApplicationUser user, string? userName, CancellationToken ct) => Task.CompletedTask;
+        public Task<string?> GetNormalizedUserNameAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(user.Email?.ToUpperInvariant());
+        public Task SetNormalizedUserNameAsync(ApplicationUser user, string? normalizedName, CancellationToken ct) => Task.CompletedTask;
         public Task<IdentityResult> CreateAsync(ApplicationUser user, CancellationToken ct) => throw new NotSupportedException();
-        public Task<IdentityResult> UpdateAsync(ApplicationUser user, CancellationToken ct) => throw new NotSupportedException();
+
+        /// <summary>
+        /// Identity ya llama a esto por su cuenta dentro de
+        /// ResetPasswordAsync/ChangePasswordAsync, para guardar el hash nuevo y el
+        /// security stamp rotado — con <c>DebeCambiarContrasena</c> todavía en su
+        /// valor de partida (true en estos tests). Esa llamada siempre tiene
+        /// éxito: lo que <see cref="ResultadoUpdate"/> gobierna es solo la
+        /// escritura explícita de la página, la que pone el campo a false.
+        /// </summary>
+        public Task<IdentityResult> UpdateAsync(ApplicationUser user, CancellationToken ct) =>
+            Task.FromResult(user.DebeCambiarContrasena ? IdentityResult.Success : ResultadoUpdate);
+
         public Task<IdentityResult> DeleteAsync(ApplicationUser user, CancellationToken ct) => throw new NotSupportedException();
         public Task<ApplicationUser?> FindByNameAsync(string normalizedUserName, CancellationToken ct) => throw new NotSupportedException();
-        public Task SetEmailAsync(ApplicationUser user, string? email, CancellationToken ct) => throw new NotSupportedException();
+        public Task SetEmailAsync(ApplicationUser user, string? email, CancellationToken ct) => Task.CompletedTask;
         public Task<string?> GetEmailAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(user.Email);
-        public Task<bool> GetEmailConfirmedAsync(ApplicationUser user, CancellationToken ct) => throw new NotSupportedException();
-        public Task SetEmailConfirmedAsync(ApplicationUser user, bool confirmed, CancellationToken ct) => throw new NotSupportedException();
-        public Task<string?> GetNormalizedEmailAsync(ApplicationUser user, CancellationToken ct) => throw new NotSupportedException();
-        public Task SetNormalizedEmailAsync(ApplicationUser user, string? normalizedEmail, CancellationToken ct) => throw new NotSupportedException();
+        public Task<bool> GetEmailConfirmedAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(true);
+        public Task SetEmailConfirmedAsync(ApplicationUser user, bool confirmed, CancellationToken ct) => Task.CompletedTask;
+        public Task<string?> GetNormalizedEmailAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(user.Email?.ToUpperInvariant());
+        public Task SetNormalizedEmailAsync(ApplicationUser user, string? normalizedEmail, CancellationToken ct) => Task.CompletedTask;
+
+        public Task SetPasswordHashAsync(ApplicationUser user, string? passwordHash, CancellationToken ct)
+        {
+            _hashContrasena = passwordHash;
+            return Task.CompletedTask;
+        }
+
+        public Task<string?> GetPasswordHashAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(_hashContrasena);
+        public Task<bool> HasPasswordAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(_hashContrasena is not null);
+
+        public Task SetSecurityStampAsync(ApplicationUser user, string stamp, CancellationToken ct)
+        {
+            _securityStamp = stamp;
+            return Task.CompletedTask;
+        }
+
+        public Task<string?> GetSecurityStampAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult<string?>(_securityStamp);
     }
 }
