@@ -24,7 +24,14 @@
                     <ValidationMessage For="() => Entrada.Email" />
                 </div>
 
-                <button type="submit" class="acceso-entrar" disabled="@_enviando">@(_enviando ? "Enviando…" : "Enviarme el enlace")</button>
+                @* El disabled en el envío en curso lo pone acceso-doble-envio.js al
+                   capturar el submit, no una bandera de instancia: esta página es
+                   SSR estática, así que un "@_enviando" que naciera en true en la
+                   misma petición que lo pone a true nunca llega a pintarse — cada
+                   POST reconstruye la instancia con la bandera en false. Mismo
+                   motivo por el que se retiró PuedeGuardar en
+                   RestablecerContrasena.razor.cs. *@
+                <button type="submit" class="acceso-entrar">Enviarme el enlace</button>
             </EditForm>
         }
     }

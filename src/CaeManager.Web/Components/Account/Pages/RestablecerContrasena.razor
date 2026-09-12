@@ -50,17 +50,14 @@
                     <p class="acceso-coincidencia" data-coincidencia-de="password-confirmar" data-coincidencia-con="password-nueva" aria-live="polite"></p>
                 </div>
 
-                @* disabled SOLO por _guardando, que nace en false — igual que el
-                   _enviando de OlvideContrasena. Con !PuedeGuardar el boton
-                   nacia deshabilitado y NADA podia habilitarlo: esta pagina es
-                   SSR estatica, ese disabled se evaluaba una sola vez en
-                   servidor con la contrasena vacia, y sin circuito escribir no
-                   reevalua nada. Restablecer la contrasena era imposible.
-                   La coincidencia de las dos contrasenas la comprueba ahora
-                   GuardarAsync, que es donde puede comprobarse de verdad. *@
-                <button type="submit" class="acceso-entrar" disabled="@_guardando">
-                    @(_guardando ? "Guardando…" : "Guardar y entrar")
-                </button>
+                @* El disabled en el envío en curso lo pone acceso-doble-envio.js al
+                   capturar el submit, no una bandera de instancia: esta página es
+                   SSR estática, así que "@_guardando" nace en false en cada POST
+                   —cada uno reconstruye la instancia— y nunca llega a pintarse en
+                   true, igual que pasaba con PuedeGuardar antes de retirarlo. La
+                   coincidencia de las dos contraseñas la comprueba GuardarAsync,
+                   que es donde puede comprobarse de verdad. *@
+                <button type="submit" class="acceso-entrar">Guardar y entrar</button>
             </EditForm>
         }
     }

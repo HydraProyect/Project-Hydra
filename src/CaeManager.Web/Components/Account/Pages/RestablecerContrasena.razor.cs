@@ -31,7 +31,6 @@ public partial class RestablecerContrasena : ComponentBase
     private string? _correoCuenta;
     private bool _enlaceInvalido;
     private bool _completado;
-    private bool _guardando;
     private string? _mensajeError;
 
     private string? ExplicacionCuenta => _correoCuenta is null ? null : $"Para la cuenta {_correoCuenta}.";
@@ -103,45 +102,36 @@ public partial class RestablecerContrasena : ComponentBase
             return;
         }
 
-        _guardando = true;
         _mensajeError = null;
-        StateHasChanged();
 
-        try
+        var resultado = await UserManager.ResetPasswordAsync(_usuario, _token, Entrada.ContrasenaNueva);
+        var logger = LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog);
+
+        if (!resultado.Succeeded)
         {
-            var resultado = await UserManager.ResetPasswordAsync(_usuario, _token, Entrada.ContrasenaNueva);
-            var logger = LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog);
-
-            if (!resultado.Succeeded)
+            // Un token caducado o ya usado cae aquí igual que un fallo de
+            // política de contraseña — no se distingue el motivo exacto
+            // en el mensaje (mismo criterio de no-enumeración que
+            // Login.razor), pero si el problema es el token se ofrece
+            // directamente pedir uno nuevo.
+            if (resultado.Errors.Any(e => e.Code is "InvalidToken"))
             {
-                // Un token caducado o ya usado cae aquí igual que un fallo de
-                // política de contraseña — no se distingue el motivo exacto
-                // en el mensaje (mismo criterio de no-enumeración que
-                // Login.razor), pero si el problema es el token se ofrece
-                // directamente pedir uno nuevo.
-                if (resultado.Errors.Any(e => e.Code is "InvalidToken"))
-                {
-                    logger.LogWarning("Restablecimiento de contraseña rechazado (token inválido o caducado): {UsuarioId}", _usuario.Id);
-                    _enlaceInvalido = true;
-                    return;
-                }
-
-                _mensajeError = string.Join(" ", resultado.Errors.Select(e => e.Description));
+                logger.LogWarning("Restablecimiento de contraseña rechazado (token inválido o caducado): {UsuarioId}", _usuario.Id);
+                _enlaceInvalido = true;
                 return;
             }
 
-            _usuario.DebeCambiarContrasena = false;
-            await UserManager.UpdateAsync(_usuario);
-
-            logger.LogInformation("Restablecimiento de contraseña correcto: {UsuarioId}", _usuario.Id);
-
-            await SignInManager.SignOutAsync();
-            _completado = true;
+            _mensajeError = string.Join(" ", resultado.Errors.Select(e => e.Description));
+            return;
         }
-        finally
-        {
-            _guardando = false;
-        }
+
+        _usuario.DebeCambiarContrasena = false;
+        await UserManager.UpdateAsync(_usuario);
+
+        logger.LogInformation("Restablecimiento de contraseña correcto: {UsuarioId}", _usuario.Id);
+
+        await SignInManager.SignOutAsync();
+        _completado = true;
     }
 
     private sealed class DatosEntrada
