@@ -321,7 +321,8 @@ public class ComunicacionesGen2Tests : BunitContext
         var (cut, mediador) = Renderizar(escenario);
 
         var pestanas = cut.FindAll("[role=tablist] [role=tab]");
-        pestanas.Select(p => p.TextContent.Trim()).Should().Equal(["Clientes", "Mi buzón personal"]);
+        pestanas.Select(p => p.TextContent.Trim()).Should().Equal(["Clientes empresariales", "Mi buzón personal"],
+            "el contrato terminológico no admite «Clientes» a secas: la contraparte de una Relación Empresarial es el Cliente empresarial");
         pestanas[0].GetAttribute("aria-selected").Should().Be("true");
         pestanas[1].GetAttribute("aria-selected").Should().Be("false");
 
@@ -346,7 +347,7 @@ public class ComunicacionesGen2Tests : BunitContext
         var (cut, _) = Renderizar(escenario);
 
         CabecerasGrupo(cut).Select(c => c.QuerySelector(".bandeja-grupo-titulo")!.TextContent.Trim())
-            .Should().BeEquivalentTo(["Sin cliente asignado (Triage) (1)", "Refrielectric S.A. (2)"],
+            .Should().BeEquivalentTo(["Sin Cliente empresarial asignado (Triage) (1)", "Refrielectric S.A. (2)"],
                 "el recuento va en el rótulo, como en el mockup");
 
         var deRefrielectric = CabeceraGrupo(cut, "Refrielectric S.A. (2)");
@@ -610,5 +611,28 @@ public class ComunicacionesGen2Tests : BunitContext
             "el cliente empresarial filtrado es Montajes Ebro: la lista de Refrielectric llegó tarde");
         cut.FindAll(".bandeja-lista .esqueleto-lista").Should().BeEmpty(
             "la carga vigente terminó: la que llegó tarde no puede dejar la lista en «cargando» tampoco");
+    }
+
+    /// <summary>
+    /// Contrato terminológico TALVEG: la contraparte de una Relación
+    /// Empresarial es el <b>Cliente empresarial</b>. «Cliente» a secas
+    /// colisiona con el Cliente comercial TALVEG —quien contrata TALVEG— y con
+    /// el Pagador; en una bandeja que agrupa el correo por contraparte, esa
+    /// ambigüedad decide qué cree la persona que está mirando.
+    /// </summary>
+    [Fact]
+    public void Los_rotulos_de_la_bandeja_nombran_al_Cliente_empresarial_sin_abreviar()
+    {
+        var (cut, _) = Renderizar(new Escenario());
+
+        cut.Markup.Should()
+            .Contain("Esperando al Cliente empresarial")
+            .And.Contain("Todos los Clientes empresariales")
+            .And.Contain("primer correo de un Cliente empresarial");
+
+        cut.Markup.Should()
+            .NotContain("Esperando cliente")
+            .And.NotContain("Todos los clientes")
+            .And.NotContain("Sin cliente asignado");
     }
 }

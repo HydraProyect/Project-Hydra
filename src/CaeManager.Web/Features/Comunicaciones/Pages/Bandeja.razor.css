@@ -189,7 +189,7 @@
 }
 
 /* Triage es el grupo que reclama atención: el mockup lo pinta en ámbar.
-   No es la única señal — su rótulo ya dice "Sin cliente asignado". */
+   No es la única señal — su rótulo ya dice "Sin Cliente empresarial asignado". */
 .bandeja-grupo-urgente {
     color: var(--color-warning-700);
 }

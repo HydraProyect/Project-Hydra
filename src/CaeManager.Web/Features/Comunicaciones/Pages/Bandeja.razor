@@ -62,7 +62,7 @@
             <div class="bandeja-vista-toggle" role="tablist" aria-label="Ámbito de la bandeja">
                 <button type="button" role="tab" aria-selected="@(_vista == "clientes" ? "true" : "false")"
                         class="bandeja-toggle @(_vista == "clientes" ? "bandeja-toggle-activo" : null)" @onclick='() => CambiarVistaAsync("clientes")'>
-                    Clientes
+                    Clientes empresariales
                 </button>
                 <button type="button" role="tab" aria-selected="@(_vista == "personal" ? "true" : "false")"
                         class="bandeja-toggle @(_vista == "personal" ? "bandeja-toggle-activo" : null)" @onclick='() => CambiarVistaAsync("personal")'>
@@ -86,7 +86,7 @@
                             Sin asignar
                         </button>
                         <button type="button" class="bandeja-toggle @(_soloEsperandoCliente ? "bandeja-toggle-activo" : null)" @onclick="AlternarEsperandoCliente">
-                            Esperando cliente
+                            Esperando al Cliente empresarial
                         </button>
                     </div>
 
@@ -104,7 +104,7 @@
                             <CampoTexto Etiqueta="Mes" Type="month" Valor="@_mesFiltro" ValorChanged="async v => { _mesFiltro = v; await AplicarFiltrosAsync(); }" />
 
                             <CampoSelect Etiqueta="Cliente" Valor="@_clienteIdFiltro" ValorChanged="async v => { _clienteIdFiltro = v; await AplicarFiltrosAsync(); }">
-                                <option value="">Todos los clientes</option>
+                                <option value="">Todos los Clientes empresariales</option>
                                 @foreach (var cliente in _clientesSelector)
                                 {
                                     <option value="@cliente.Id">@cliente.RazonSocial</option>
@@ -145,7 +145,7 @@
                     else if (_conversaciones.Count == 0)
                     {
                         <EstadoVacio NombreIcono="chat" Titulo="No hay conversaciones"
-                                     Descripcion="Cuando llegue el primer correo de un cliente aparecerá aquí." />
+                                     Descripcion="Cuando llegue el primer correo de un Cliente empresarial aparecerá aquí." />
                     }
                     else
                     {
@@ -162,7 +162,7 @@
                                         aria-expanded="@(GrupoColapsado("triage") ? "false" : "true")" title="@DesgloseGrupo(triage)"
                                         @onclick='() => AlternarGrupo("triage")'>
                                     <span class="bandeja-grupo-caret" aria-hidden="true"><Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" /></span>
-                                    <span class="bandeja-grupo-titulo">Sin cliente asignado (Triage) (@triage.Count)</span>
+                                    <span class="bandeja-grupo-titulo">Sin Cliente empresarial asignado (Triage) (@triage.Count)</span>
                                 </button>
                                 @if (!GrupoColapsado("triage"))
                                 {
@@ -211,7 +211,7 @@
             else
             {
                 <p class="bandeja-vista-personal-descripcion">
-                    Correo que llega a tu buzón personal de Microsoft 365, no al de ningún Cliente — notificaciones de
+                    Correo que llega a tu buzón personal de Microsoft 365, no al de ningún Cliente empresarial — notificaciones de
                     plataformas externas a tu nombre, correo interno y correo que no reconocemos. Solo lectura: no hay
                     Composer aquí, no hay ninguna gestión CAE que atender.
                 </p>
@@ -279,7 +279,7 @@
                                     Contexto de negocio — sin gestión CAE todavía
                                 </Badge>
                             }
-                            <span class="bandeja-centro-subtitulo">@(_detalle.ClienteRazonSocial ?? "Sin cliente asignado")</span>
+                            <span class="bandeja-centro-subtitulo">@(_detalle.ClienteRazonSocial ?? "Sin Cliente empresarial asignado")</span>
                         </div>
                     </div>
                     <div class="bandeja-centro-acciones">
