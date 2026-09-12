@@ -162,4 +162,69 @@ public class GrupoColaTests : BunitContext
         cut.Find(".paginador-simple").TextContent.Should().Contain("Página 1 de 2",
             "IdEnfocado no cambió desde el salto — un render de más no debe deshacer el clic manual");
     }
+
+    /// <summary>
+    /// Con AgruparPorEmpresa cada Empresa pagina por su cuenta
+    /// (_paginaPorEmpresa está indexado por ClaveEmpresa) — el salto de
+    /// página tiene que tocar solo el paginador de la Empresa propietaria
+    /// del foco, no el de las demás.
+    /// </summary>
+    [Fact]
+    public void AgruparPorEmpresa_solo_salta_la_pagina_de_la_empresa_propietaria_del_foco()
+    {
+        var empresaAId = Guid.NewGuid();
+        var empresaBId = Guid.NewGuid();
+        var itemsA = Enumerable.Range(1, 7)
+            .Select(n => Item(n, Guid.NewGuid()) with { EmpresaId = empresaAId, EmpresaNombre = "Empresa A" })
+            .ToList();
+        var itemsB = Enumerable.Range(1, 7)
+            .Select(n => Item(n + 100, Guid.NewGuid()) with { EmpresaId = empresaBId, EmpresaNombre = "Empresa B" })
+            .ToList();
+        var grupo = new GrupoColaDto("cliente-1", "Cliente X", true, [.. itemsA, .. itemsB]);
+
+        var cut = Render<GrupoCola>(p => p
+            .Add(c => c.Grupo, grupo)
+            .Add(c => c.ExpandidaPorDefecto, true)
+            .Add(c => c.AgruparPorEmpresa, true)
+            .Add(c => c.PaginarPorGrupo, true));
+
+        // GruposAnidados ordena por EmpresaNombre — "Empresa A" antes que
+        // "Empresa B", así que el orden de los paginadores en el DOM coincide.
+        cut.FindAll(".paginador-simple").Should().AllSatisfy(p => p.TextContent.Should().Contain("Página 1 de 2"));
+
+        // item-107 es el 7º trabajador de Empresa B (n=7, id = n+100=107).
+        cut.Render(p => p.Add(c => c.IdEnfocado, "item-107"));
+
+        var paginadores = cut.FindAll(".paginador-simple");
+        paginadores.Should().HaveCount(2);
+        paginadores[0].TextContent.Should().Contain("Página 1 de 2", "Empresa A no tiene el foco");
+        paginadores[1].TextContent.Should().Contain("Página 2 de 2", "Empresa B sí lo tiene y salta a la página de item-107");
+    }
+
+    /// <summary>
+    /// Un IdEnfocado que pertenece a OTRO GrupoCola (otro Cliente/Empresa en
+    /// Bandeja.razor) no debe tocar la paginación de este — el bucle de
+    /// OnParametersSet recorre GruposAnidados sin encontrar coincidencia y
+    /// tiene que salir sin modificar _paginaPorEmpresa.
+    /// </summary>
+    [Fact]
+    public void IdEnfocado_de_otro_grupo_no_toca_la_paginacion_de_este()
+    {
+        var items = Enumerable.Range(1, 7).Select(n => Item(n, Guid.NewGuid())).ToList();
+        var grupo = new GrupoColaDto("cliente-1", "Cliente X", true, items);
+
+        var cut = Render<GrupoCola>(p => p
+            .Add(c => c.Grupo, grupo)
+            .Add(c => c.ExpandidaPorDefecto, true)
+            .Add(c => c.PaginarPorGrupo, true));
+
+        var siguiente = cut.FindAll("button").Single(b => b.TextContent.Contains("Siguiente"));
+        siguiente.Click();
+        cut.Find(".paginador-simple").TextContent.Should().Contain("Página 2 de 2");
+
+        cut.Render(p => p.Add(c => c.IdEnfocado, "item-de-otro-grupo"));
+
+        cut.Find(".paginador-simple").TextContent.Should().Contain("Página 2 de 2",
+            "el foco es de otro GrupoCola — este no debe alterar su paginación manual");
+    }
 }
