@@ -1,0 +1,18 @@
+.cabecera-documento-360 { display:flex; align-items:flex-start; gap:var(--space-3); margin-bottom:var(--space-3); }
+.icono-documento-360 { width:36px; height:36px; flex:none; display:inline-flex; align-items:center; justify-content:center; border:1px solid var(--color-primary-100); border-radius:var(--radius-md); background:var(--color-primary-50); color:var(--color-primary-500); }
+.texto-cabecera-documento-360 { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.kicker-documento-360 { font:var(--font-caption); color:var(--color-text-muted); letter-spacing:.08em; text-transform:uppercase; }
+.titulo-documento-360 { font:var(--font-heading-md); text-wrap:pretty; }
+.meta-documento-360 { display:flex; flex-wrap:wrap; gap:var(--space-1); margin-top:2px; font:var(--font-caption); color:var(--color-text-muted); }
+.rejilla-info-documento-360 { display:grid; grid-template-columns:1fr 1fr; gap:var(--space-3); margin-bottom:var(--space-4); padding:var(--space-4); border:var(--border-default); border-radius:var(--radius-lg); background:var(--color-surface-subtle); }
+.celda-info-documento-360 { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.celda-info-documento-360-ancha { grid-column:1 / -1; }
+.celda-info-documento-360 > span { font:var(--font-caption); color:var(--color-text-muted); }
+.celda-info-documento-360 strong, .celda-info-documento-360 a { font:var(--font-body-md); font-weight:600; overflow-wrap:anywhere; }
+.acciones-documento-360 { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-3); margin-bottom:var(--space-3); }
+.formulario-documento-360 { display:flex; flex-direction:column; gap:var(--space-3); margin-bottom:var(--space-4); }
+.firmas-documento-360 { overflow:hidden; border:var(--border-default); border-radius:var(--radius-lg); }
+.firma-documento-360 { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2); padding:var(--space-3) var(--space-4); border-top:var(--border-default); font:var(--font-caption); color:var(--color-text-muted); }
+.firma-documento-360:first-child { border-top:0; }
+.firma-documento-360 strong { color:var(--color-text); }
+@media (max-width:480px) { .rejilla-info-documento-360 { grid-template-columns:1fr; } }

@@ -1,25 +1,15 @@
-@*
-    Panel de Documento para el Context Workspace. Pestañas: Información,
-    Validación, Firma, Historial.
-
-    La pestaña "Versiones" (versionado de archivos v1/v2/v3…) se retiró
-    (REC-097, DEC-21): no existe capacidad real detrás, y anunciarla como
-    "Próximamente" es peor que no tenerla — mismo criterio que #411 con
-    "2fa". Se repone cuando exista un REC propio con modelo, UX,
-    cardinalidad y prioridad, no antes. Un deep-link guardado con
-    "?ctx=Documento:…:versiones" cae a la pestaña por defecto (ver
-    PestanaEfectiva) en vez de mostrar contenido vacío.
-
-    Validación muestra el resultado de la validación oficial automática
-    (firma digital + cotejo — ver ValidacionDocumentoOficialService) cuando
-    el tipo tiene perfil oficial; el flujo de aprobación manual con
-    validador/fecha/motivo sigue pendiente como concepto aparte.
-*@
+@using CaeManager.Application.Documentos.Commands.EliminarDocumento
+@using CaeManager.Application.Documentos.Commands.RenovarDocumento
 @using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId
 @using CaeManager.Application.Documentos.Queries.ObtenerValidacionOficialDocumento
 @using CaeManager.Domain.Documentos
+@using CaeManager.Web.Components.DesignSystem
+@using FluentValidation
 @using MediatR
+@using Microsoft.Extensions.DependencyInjection
+@implements IDisposable
 @inject IMediator Mediator
+@inject IServiceProvider ServiceProvider
 
 @if (_cargando)
 {
@@ -28,39 +18,74 @@
 else if (_error || _detalle is null)
 {
     <EstadoVacio Titulo="No pudimos cargar el documento" Descripcion="Intenta nuevamente en unos segundos.">
-        <Accion>
-            <Boton OnClick="CargarCabeceraAsync">Reintentar</Boton>
-        </Accion>
+        <Accion><Boton OnClick="ReintentarAsync">Reintentar</Boton></Accion>
     </EstadoVacio>
 }
 else
 {
-    <div class="workspace-cabecera-entidad">
-        <h2 class="workspace-titulo-entidad">@_detalle.TipoDocumentoNombre</h2>
-        <Badge>@_detalle.Ambito</Badge>
+    <div class="cabecera-documento-360">
+        <span class="icono-documento-360"><Icono Nombre="documentos" /></span>
+        <div class="texto-cabecera-documento-360">
+            <span class="kicker-documento-360">Documento · Ámbito @_detalle.Ambito</span>
+            <h2 class="workspace-titulo-entidad titulo-documento-360">@_detalle.TipoDocumentoNombre</h2>
+            <div class="meta-documento-360">
+                <span>@_detalle.PropietarioNombre</span>
+                @if (_detalle.FechaVencimiento is { } vencimiento)
+                {
+                    <span>· vence el @vencimiento.ToString("dd/MM/yyyy")</span>
+                }
+            </div>
+        </div>
     </div>
 
     <Pestanas Definiciones="_pestanas" PestanaActiva="@PestanaEfectiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="Secciones del documento">
         @switch (PestanaEfectiva)
         {
             case "informacion":
-                <div class="workspace-grupo-campos">
-                    <CampoInfo Etiqueta="Propietario" Valor="@_detalle.PropietarioNombre" />
-                    <CampoInfo Etiqueta="Tipo de documento" Valor="@_detalle.TipoDocumentoNombre" />
-                    <CampoInfo Etiqueta="Fecha de emisión" Valor="@_detalle.FechaEmision.ToString("dd/MM/yyyy")" />
-                    <CampoInfo Etiqueta="Fecha de vencimiento" Valor="@(_detalle.FechaVencimiento?.ToString("dd/MM/yyyy") ?? (_detalle.TipoDocumentoAplicaVencimientoAutomatico ? null : "Sin caducidad"))" />
-                    <CampoInfo Etiqueta="Comentarios" Valor="@_detalle.Comentarios" />
-                    <CampoInfo Etiqueta="Archivo">
-                        @if (_detalle.ArchivoUrl is not null)
+                @if (_editandoInformacion)
+                {
+                    @if (_mensajeErrorInformacion is not null)
+                    {
+                        <div class="alerta-formulario" role="alert">@_mensajeErrorInformacion</div>
+                    }
+                    <div class="formulario-documento-360">
+                        <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@_fechaEmisionEditada" ValorChanged="v => _fechaEmisionEditada = v" />
+                        @if (!_detalle.TipoDocumentoAplicaVencimientoAutomatico)
                         {
-                            <a href="/documentos/@EntidadId/archivo" target="_blank">Ver PDF</a>
+                            <CampoTexto Etiqueta="Fecha de vencimiento" Type="date" Valor="@_fechaVencimientoEditada" ValorChanged="v => _fechaVencimientoEditada = v" />
                         }
-                        else
-                        {
-                            <span class="campo-info-vacio">Sin adjunto</span>
-                        }
-                    </CampoInfo>
-                </div>
+                        <CampoTextarea Etiqueta="Comentarios" Valor="@_comentariosEditados" ValorChanged="v => _comentariosEditados = v" Filas="3" />
+                    </div>
+                    <div class="workspace-acciones-edicion">
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_guardandoInformacion" OnClick="CancelarEdicionInformacion">Cancelar</Boton>
+                        <Boton Tamano="TamanoBoton.Pequeno" Cargando="_guardandoInformacion" OnClick="GuardarInformacionAsync">Guardar fechas y comentarios (sin sustituir el archivo)</Boton>
+                    </div>
+                }
+                else
+                {
+                    <div class="rejilla-info-documento-360">
+                        <div class="celda-info-documento-360"><span>Propietario</span><strong>@_detalle.PropietarioNombre</strong></div>
+                        <div class="celda-info-documento-360"><span>Tipo de documento</span><strong>@_detalle.TipoDocumentoNombre</strong></div>
+                        <div class="celda-info-documento-360"><span>Fecha de emisión</span><strong>@_detalle.FechaEmision.ToString("dd/MM/yyyy")</strong></div>
+                        <div class="celda-info-documento-360"><span>Fecha de vencimiento</span><strong>@(_detalle.FechaVencimiento?.ToString("dd/MM/yyyy") ?? (_detalle.TipoDocumentoAplicaVencimientoAutomatico ? "—" : "Sin caducidad"))</strong></div>
+                        <div class="celda-info-documento-360 celda-info-documento-360-ancha"><span>Comentarios</span><strong>@(_detalle.Comentarios ?? "—")</strong></div>
+                        <div class="celda-info-documento-360 celda-info-documento-360-ancha">
+                            <span>Archivo</span>
+                            @if (_detalle.ArchivoUrl is not null)
+                            {
+                                <a href="/documentos/@EntidadId/archivo" target="_blank">Ver PDF</a>
+                            }
+                            else
+                            {
+                                <strong>Sin adjunto</strong>
+                            }
+                        </div>
+                    </div>
+                    <div class="acciones-documento-360">
+                        <Boton Variante="VarianteBoton.Secundario" OnClick="IniciarEdicionInformacion">Renovar</Boton>
+                        <Boton Variante="VarianteBoton.Destructivo" OnClick="AbrirDarDeBaja">Dar de baja</Boton>
+                    </div>
+                }
                 break;
 
             case "validacion":
@@ -74,52 +99,31 @@ else
                 }
                 else
                 {
-                    <div class="workspace-grupo-campos">
-                        <CampoInfo Etiqueta="Nivel de confianza">
-                            <Badge Tono="@TonoDeNivel(_validacion.NivelConfianza)">@TextoDeNivel(_validacion.NivelConfianza)</Badge>
-                        </CampoInfo>
-                        <CampoInfo Etiqueta="Decisión">
-                            <Badge Tono="@(_validacion.Decision == DecisionValidacionOficial.AutoValidado ? TonoBadge.Exito : TonoBadge.Advertencia)">
-                                @(_validacion.Decision switch
-                                {
-                                    DecisionValidacionOficial.AutoValidado => "Auto-validado",
-                                    DecisionValidacionOficial.RevisionRequerida => "Revisión requerida",
-                                    _ => "Sin firma válida",
-                                })
-                            </Badge>
-                        </CampoInfo>
+                    <div class="rejilla-info-documento-360">
+                        <div class="celda-info-documento-360"><span>Nivel de confianza</span><Badge Tono="@TonoDeNivel(_validacion.NivelConfianza)">@TextoDeNivel(_validacion.NivelConfianza)</Badge></div>
+                        <div class="celda-info-documento-360"><span>Decisión</span><Badge Tono="@(_validacion.Decision == DecisionValidacionOficial.AutoValidado ? TonoBadge.Exito : TonoBadge.Advertencia)">@TextoDeDecision(_validacion.Decision)</Badge></div>
                         @if (!string.IsNullOrWhiteSpace(_validacion.Motivos))
                         {
-                            <CampoInfo Etiqueta="Motivos" Valor="@_validacion.Motivos" />
+                            <div class="celda-info-documento-360 celda-info-documento-360-ancha"><span>Motivos</span><strong>@_validacion.Motivos</strong></div>
                         }
-                        <CampoInfo Etiqueta="Código de verificación (CEA/CSV)" Valor="@_validacion.CodigoVerificacion" />
-                        <CampoInfo Etiqueta="CIF detectado" Valor="@_validacion.CifDetectado" />
-                        <CampoInfo Etiqueta="Fecha de emisión detectada" Valor="@_validacion.FechaEmisionDetectada?.ToString("dd/MM/yyyy")" />
-                        <CampoInfo Etiqueta="Periodo detectado" Valor="@_validacion.PeriodoDetectado" />
-                        <CampoInfo Etiqueta="Validado el" Valor="@_validacion.CreadaEnUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")" />
+                        <div class="celda-info-documento-360"><span>Código de verificación (CEA/CSV)</span><strong>@(_validacion.CodigoVerificacion ?? "—")</strong></div>
+                        <div class="celda-info-documento-360"><span>CIF detectado</span><strong>@(_validacion.CifDetectado ?? "—")</strong></div>
+                        <div class="celda-info-documento-360"><span>Fecha de emisión detectada</span><strong>@(_validacion.FechaEmisionDetectada?.ToString("dd/MM/yyyy") ?? "—")</strong></div>
+                        <div class="celda-info-documento-360"><span>Periodo detectado</span><strong>@(_validacion.PeriodoDetectado ?? "—")</strong></div>
+                        <div class="celda-info-documento-360 celda-info-documento-360-ancha"><span>Validado el</span><strong>@_validacion.CreadaEnUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</strong></div>
                     </div>
-
                     @if (_validacion.Firmas.Count > 0)
                     {
                         <h3 class="workspace-subtitulo">Firmas del archivo</h3>
-                        <div class="workspace-grupo-campos">
+                        <div class="firmas-documento-360">
                             @foreach (var firma in _validacion.Firmas)
                             {
-                                <CampoInfo Etiqueta="@($"Firma {firma.Indice + 1}")">
-                                    <Badge Tono="@(firma.Estado == EstadoFirmaPdf.Valida ? TonoBadge.Exito : firma.Estado == EstadoFirmaPdf.Invalida ? TonoBadge.Peligro : TonoBadge.Neutro)">
-                                        @(firma.Estado == EstadoFirmaPdf.Valida ? "Íntegra" : firma.Estado == EstadoFirmaPdf.Invalida ? "Inválida" : "No soportada")
-                                    </Badge>
-                                    <span class="detalle-tecnico">
-                                        @(firma.FirmanteNombre ?? "Firmante no registrado")@(firma.FirmanteNif is not null ? $" ({firma.FirmanteNif})" : "")
-                                        — emitido por @firma.EmisorCertificado
-                                        @(firma.FechaFirmaUtc is not null ? $" · {firma.FechaFirmaUtc.Value.ToLocalTime():dd/MM/yyyy HH:mm}" : "")
-                                        @(firma.TieneSelloDeTiempo ? " · con sello de tiempo" : "")
-                                    </span>
-                                    @if (firma.MotivoInvalidez is not null)
-                                    {
-                                        <span class="detalle-tecnico">@firma.MotivoInvalidez</span>
-                                    }
-                                </CampoInfo>
+                                <div class="firma-documento-360">
+                                    <strong>Firma @(firma.Indice + 1)</strong>
+                                    <Badge Tono="@(firma.Estado == EstadoFirmaPdf.Valida ? TonoBadge.Exito : firma.Estado == EstadoFirmaPdf.Invalida ? TonoBadge.Peligro : TonoBadge.Neutro)">@(firma.Estado == EstadoFirmaPdf.Valida ? "Íntegra" : firma.Estado == EstadoFirmaPdf.Invalida ? "Inválida" : "No soportada")</Badge>
+                                    <span>@(firma.FirmanteNombre ?? "Firmante no registrado")@(firma.FirmanteNif is not null ? $" ({firma.FirmanteNif})" : "") · emitido por @firma.EmisorCertificado</span>
+                                    @if (firma.MotivoInvalidez is not null) { <span>@firma.MotivoInvalidez</span> }
+                                </div>
                             }
                         </div>
                     }
@@ -137,63 +141,182 @@ else
     </Pestanas>
 }
 
-@code {
-    private static readonly IReadOnlyList<PestanaDefinicion> _pestanas =
-    [
-        new("informacion", "Información"),
-        new("validacion", "Validación"),
-        new("firma", "Firma"),
-        new("historial", "Historial")
-    ];
+<DialogoConfirmacion Visible="_confirmarBajaVisible" VisibleChanged="v => _confirmarBajaVisible = v"
+                     Titulo="@($"¿Dar de baja {_detalle?.TipoDocumentoNombre}?")"
+                     Mensaje="El documento se marca como eliminado, deja de aparecer en las listas y se cierra esta ficha."
+                     TextoBotonConfirmar="Dar de baja" EnProgreso="_dandoDeBaja" OnConfirmar="ConfirmarDarDeBajaAsync" />
 
+@code {
+    private static readonly IReadOnlyList<PestanaDefinicion> _pestanas = [new("informacion", "Información"), new("validacion", "Validación"), new("firma", "Firma"), new("historial", "Historial")];
     [Parameter, EditorRequired] public Guid EntidadId { get; set; }
     [Parameter, EditorRequired] public string PestanaActiva { get; set; } = string.Empty;
     [Parameter] public EventCallback<string> PestanaActivaChanged { get; set; }
 
-    /// <summary>
-    /// <see cref="Pestanas"/> no valida que <see cref="PestanaActiva"/> exista
-    /// en <see cref="_pestanas"/> — un deep-link guardado antes de retirar
-    /// "versiones" (REC-097) llegaría aquí sin pasar por ningún filtro. Cae a
-    /// la primera pestaña en vez de dejar el panel sin pestaña activa ni
-    /// contenido.
-    /// </summary>
-    private string PestanaEfectiva => _pestanas.Any(p => p.Id == PestanaActiva) ? PestanaActiva : _pestanas[0].Id;
-
+    private readonly CancellationTokenSource _ciclo = new();
+    private CancellationToken _cancelacion;
     private DocumentoDetalleDto? _detalle;
     private ValidacionOficialDocumentoDto? _validacion;
-    private bool _cargando = true;
-    private bool _cargandoValidacion = true;
-    private bool _error;
+    private bool _cargando = true, _cargandoValidacion = true, _error, _editandoInformacion, _guardandoInformacion, _confirmarBajaVisible, _dandoDeBaja;
+    private string _fechaEmisionEditada = string.Empty, _fechaVencimientoEditada = string.Empty, _comentariosEditados = string.Empty;
+    private string? _mensajeErrorInformacion;
     private Guid _idCargado;
+    private int _generacion, _cargaCabecera, _cargaValidacion;
+
+    private string PestanaEfectiva => _pestanas.Any(p => p.Id == PestanaActiva) ? PestanaActiva : _pestanas[0].Id;
+
+    protected override void OnInitialized() => _cancelacion = _ciclo.Token;
 
     protected override async Task OnParametersSetAsync()
     {
-        if (EntidadId == _idCargado)
-            return;
-
+        if (EntidadId == _idCargado) return;
         _idCargado = EntidadId;
+        ReiniciarParaNuevaEntidad();
+        await CargarTodoAsync();
+    }
+
+    private void ReiniciarParaNuevaEntidad()
+    {
+        _generacion++; _cargaCabecera++; _cargaValidacion++;
+        _detalle = null; _validacion = null; _error = false; _cargando = true; _cargandoValidacion = true;
+        _editandoInformacion = false; _guardandoInformacion = false; _mensajeErrorInformacion = null;
+        _confirmarBajaVisible = false; _dandoDeBaja = false;
+    }
+
+    private Task ReintentarAsync() => _cargando ? Task.CompletedTask : CargarTodoAsync();
+
+    private async Task CargarTodoAsync()
+    {
+        var generacion = _generacion;
         await CargarCabeceraAsync();
+        if (generacion != _generacion || _detalle is null) return;
+        await CargarValidacionAsync();
     }
 
     private async Task CargarCabeceraAsync()
     {
-        _cargando = true;
-        _cargandoValidacion = true;
-        _error = false;
-
+        var carga = ++_cargaCabecera; var id = EntidadId;
+        _cargando = true; _error = false;
         try
         {
-            _detalle = await Mediator.Send(new ObtenerDocumentoPorIdQuery(EntidadId));
-            _validacion = await Mediator.Send(new ObtenerValidacionOficialDocumentoQuery(EntidadId));
+            var detalle = await Mediator.Send(new ObtenerDocumentoPorIdQuery(id), _cancelacion);
+            if (carga != _cargaCabecera) return;
+            _detalle = detalle;
         }
         catch (Exception)
         {
-            _error = true;
+            if (carga == _cargaCabecera) _error = true;
         }
         finally
         {
-            _cargando = false;
-            _cargandoValidacion = false;
+            if (carga == _cargaCabecera) _cargando = false;
+        }
+    }
+
+    private async Task CargarValidacionAsync()
+    {
+        var carga = ++_cargaValidacion; var id = EntidadId;
+        _cargandoValidacion = true;
+        try
+        {
+            var validacion = await Mediator.Send(new ObtenerValidacionOficialDocumentoQuery(id), _cancelacion);
+            if (carga != _cargaValidacion) return;
+            _validacion = validacion;
+        }
+        catch (Exception) { }
+        finally
+        {
+            if (carga == _cargaValidacion) _cargandoValidacion = false;
+        }
+    }
+
+    private void IniciarEdicionInformacion()
+    {
+        if (_detalle is null) return;
+        _fechaEmisionEditada = _detalle.FechaEmision.ToString("yyyy-MM-dd");
+        _fechaVencimientoEditada = _detalle.FechaVencimiento?.ToString("yyyy-MM-dd") ?? string.Empty;
+        _comentariosEditados = _detalle.Comentarios ?? string.Empty;
+        _mensajeErrorInformacion = null;
+        _editandoInformacion = true;
+    }
+
+    private void CancelarEdicionInformacion() => _editandoInformacion = false;
+
+    private async Task GuardarInformacionAsync()
+    {
+        if (_detalle is null || _guardandoInformacion) return;
+        var generacion = _generacion; var detalle = _detalle;
+        _guardandoInformacion = true; _mensajeErrorInformacion = null;
+        try
+        {
+            if (!DateOnly.TryParse(_fechaEmisionEditada, out var fechaEmision))
+            {
+                _mensajeErrorInformacion = "Introduce una fecha de emisión válida.";
+                return;
+            }
+            var fechaVencimiento = DateOnly.TryParse(_fechaVencimientoEditada, out var fecha) ? fecha : (DateOnly?)null;
+            var resultado = await Mediator.Send(new RenovarDocumentoCommand(detalle.Id, fechaEmision, fechaVencimiento, null, string.IsNullOrWhiteSpace(_comentariosEditados) ? null : _comentariosEditados, detalle.Version));
+            if (resultado.EsFallido)
+            {
+                if (generacion == _generacion) _mensajeErrorInformacion = resultado.Error.Mensaje;
+                else Avisar($"No pudimos renovar {detalle.TipoDocumentoNombre}: {resultado.Error.Mensaje}", TonoToast.Error);
+                return;
+            }
+            Avisar($"{detalle.TipoDocumentoNombre}: fechas y comentarios actualizados; el archivo no se ha sustituido.", TonoToast.Exito);
+            if (generacion != _generacion) return;
+            _editandoInformacion = false;
+            await CargarTodoAsync();
+        }
+        catch (ValidationException ex)
+        {
+            var mensaje = ex.Errors.FirstOrDefault()?.ErrorMessage ?? "Revisa los datos de la renovación.";
+            if (generacion == _generacion) _mensajeErrorInformacion = mensaje;
+            else Avisar($"No pudimos renovar {detalle.TipoDocumentoNombre}: {mensaje}", TonoToast.Error);
+        }
+        catch (Exception)
+        {
+            const string mensaje = "No pudimos guardar la renovación. Intenta nuevamente en unos segundos.";
+            if (generacion == _generacion) _mensajeErrorInformacion = mensaje;
+            else Avisar($"No pudimos renovar {detalle.TipoDocumentoNombre}. Intenta nuevamente en unos segundos.", TonoToast.Error);
+        }
+        finally
+        {
+            if (generacion == _generacion) _guardandoInformacion = false;
+        }
+    }
+
+    private void AbrirDarDeBaja() => _confirmarBajaVisible = true;
+
+    private async Task ConfirmarDarDeBajaAsync()
+    {
+        if (_detalle is null || _dandoDeBaja) return;
+        var generacion = _generacion; var detalle = _detalle;
+        _dandoDeBaja = true;
+        try
+        {
+            var resultado = await Mediator.Send(new EliminarDocumentoCommand(detalle.Id));
+            if (resultado.EsFallido)
+            {
+                Avisar($"{detalle.TipoDocumentoNombre}: {resultado.Error.Mensaje}", TonoToast.Error);
+                if (generacion == _generacion) _confirmarBajaVisible = false;
+                return;
+            }
+            Avisar($"{detalle.TipoDocumentoNombre} se dio de baja.", TonoToast.Exito);
+            if (generacion != _generacion) return;
+            _confirmarBajaVisible = false;
+            var workspace = ServiceProvider.GetService<ContextWorkspaceService>();
+            if (workspace?.FrameActual is { Tipo: EntidadWorkspace.Documento } frame && frame.EntidadId == detalle.Id)
+            {
+                if (workspace.Pila.Count > 1) await workspace.VolverAsync();
+                else await workspace.CerrarAsync();
+            }
+        }
+        catch (Exception)
+        {
+            Avisar($"No pudimos dar de baja {detalle.TipoDocumentoNombre}. Intenta nuevamente en unos segundos.", TonoToast.Error);
+        }
+        finally
+        {
+            if (generacion == _generacion) _dandoDeBaja = false;
         }
     }
 
@@ -205,14 +328,17 @@ else
         NivelConfianzaDocumental.FirmaIntegraEmisorNoConfiable => TonoBadge.Advertencia,
         _ => TonoBadge.Neutro,
     };
-
     private static string TextoDeNivel(NivelConfianzaDocumental nivel) => nivel switch
     {
-        NivelConfianzaDocumental.VerificadoOficialmente => "Verificado oficialmente",
-        NivelConfianzaDocumental.FirmaValida => "Firma válida",
-        NivelConfianzaDocumental.FirmaValidaSinRevocacion => "Firma válida (revocación no comprobada)",
-        NivelConfianzaDocumental.FirmaIntegraEmisorNoConfiable => "Firma íntegra, emisor no reconocido",
-        NivelConfianzaDocumental.Manipulado => "Documento manipulado",
-        _ => "Sin firma digital",
+        NivelConfianzaDocumental.VerificadoOficialmente => "Verificado oficialmente", NivelConfianzaDocumental.FirmaValida => "Firma válida", NivelConfianzaDocumental.FirmaValidaSinRevocacion => "Firma válida (revocación no comprobada)", NivelConfianzaDocumental.FirmaIntegraEmisorNoConfiable => "Firma íntegra, emisor no reconocido", NivelConfianzaDocumental.Manipulado => "Documento manipulado", _ => "Sin firma digital",
     };
+    private static string TextoDeDecision(DecisionValidacionOficial decision) => decision switch { DecisionValidacionOficial.AutoValidado => "Auto-validado", DecisionValidacionOficial.RevisionRequerida => "Revisión requerida", _ => "Sin firma válida" };
+
+    private void Avisar(string mensaje, TonoToast tono) => ServiceProvider.GetService<ToastService>()?.Mostrar(mensaje, tono);
+
+    public void Dispose()
+    {
+        _generacion++; _cargaCabecera++; _cargaValidacion++;
+        _ciclo.Cancel(); _ciclo.Dispose();
+    }
 }
