@@ -1,7 +1,11 @@
 using Bunit;
 using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
 using CaeManager.Application.Centros.Queries.ObtenerEstadoCentro;
+using CaeManager.Application.Clientes.Queries.ObtenerCentrosDeCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
+using CaeManager.Application.Clientes.Queries.ObtenerEmpresasDeCliente;
+using CaeManager.Application.Clientes.Queries.ObtenerResumenCliente;
+using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasDeCliente;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas.Queries.ObtenerCumplimientoEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId;
@@ -49,9 +53,23 @@ namespace CaeManager.Web.Tests;
 /// <c>OnParametersSetAsync</c> de cada panel) — para no acoplar este test a
 /// las demás pestañas.
 /// </para>
+///
+/// <para>
+/// <b>Excepción medida: Cliente 360.</b> Desde su paso al mockup Gen 2,
+/// <see cref="ClienteWorkspacePanel"/> pide al abrir —en cualquier pestaña— el
+/// resumen y las tres listas que alimentan los recuentos de la cabecera y de
+/// las pestañas. Su caso registra esas cuatro consultas, así que el fake no
+/// tiene que fingir que no se piden.
+/// </para>
 /// </summary>
 public class PestanaActivaSeMarcaEnLosPanelesTests : BunitContext
 {
+    /// <summary>
+    /// La celda «CIF» de Cliente 360 lleva un <c>BotonCopiar</c>, que importa
+    /// ./js/clipboard.js. Sin esto, ese panel no llega ni a renderizarse.
+    /// </summary>
+    public PestanaActivaSeMarcaEnLosPanelesTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+
     /// <summary>Un responder por test: nada compartido que un panel no toca necesita fingirse.</summary>
     private sealed class MediatorFalso(Func<object, object?> responder) : IMediator
     {
@@ -161,6 +179,10 @@ public class PestanaActivaSeMarcaEnLosPanelesTests : BunitContext
         RegistrarServiciosBasicos(new MediatorFalso(request => request switch
         {
             ObtenerClientePorIdQuery q when q.Id == id => detalle,
+            ObtenerResumenClienteQuery q when q.ClienteId == id => null,
+            ObtenerEmpresasDeClienteQuery q when q.ClienteId == id => Array.Empty<EmpresaDeClienteDto>(),
+            ObtenerSubcontratasDeClienteQuery q when q.ClienteId == id => Array.Empty<SubcontrataDeClienteDto>(),
+            ObtenerCentrosDeClienteQuery q when q.ClienteId == id => Array.Empty<CentroDeClienteDto>(),
             _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
         }));
 

@@ -1,0 +1,118 @@
+/*
+    Cliente 360 contra «Cliente 360 TALVEG.dc.html». El aside de 520 px, su
+    cabecera de navegación (volver, copiar enlace, cerrar) y el apilado los
+    pone ContextWorkspace.razor, común a los siete paneles; aquí solo va lo
+    propio de esta ficha. Todo con tokens declarados en tokens.css.
+
+    CSS aislado: estas clases solo pintan en este componente. Las que vienen
+    de fuera —workspace-lista-entidades, workspace-acciones-edicion,
+    workspace-titulo-entidad, alerta-formulario, campo-checkbox— son globales
+    y NO se redeclaran aquí.
+*/
+
+.cabecera-cliente-360 {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+}
+
+.icono-cliente-360 {
+    width: 36px;
+    height: 36px;
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+    background-color: var(--color-primary-50);
+    border: 1px solid var(--color-primary-100);
+    color: var(--color-primary-500);
+}
+
+.texto-cabecera-cliente-360 {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.kicker-cliente-360 {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+}
+
+.titulo-cliente-360 {
+    font: var(--font-heading-md);
+    text-wrap: pretty;
+}
+
+.meta-cliente-360 {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: 2px;
+}
+
+.recuentos-cliente-360 {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+/* Rejilla de Información: la isla interna del mockup, dos columnas. */
+.rejilla-info-cliente-360 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+    background-color: var(--color-surface-subtle);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    margin-bottom: var(--space-4);
+}
+
+.celda-info-cliente-360 {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.celda-info-cliente-360-ancha {
+    grid-column: 1 / -1;
+}
+
+.celda-info-cliente-360 > span {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.celda-info-cliente-360 strong {
+    font: var(--font-body-md);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.valor-con-copia-cliente-360 {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.acciones-cliente-360 {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+}
+
+@media (max-width: 480px) {
+    .rejilla-info-cliente-360 {
+        grid-template-columns: 1fr;
+    }
+}
