@@ -39,13 +39,40 @@
     }
 }
 
-.buscador-input {
-    border: none;
+/* Cabecera del mockup Gen 2: lupa + campo + chip "esc". El borde inferior
+   que antes llevaba el propio input pasa aquí, porque ahora el input es solo
+   una de las tres piezas de la fila. */
+.buscador-cabecera {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: 0 var(--space-5);
     border-bottom: var(--border-default);
-    padding: var(--space-4) var(--space-5);
+}
+
+.buscador-cabecera .icono {
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+}
+
+.buscador-input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    padding: var(--space-4) 0;
     font: var(--font-body-lg);
     color: var(--color-text);
     background: transparent;
+}
+
+.buscador-tecla-escape {
+    flex: none;
+    padding: 0.05em 0.4em;
+    border: var(--border-default);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-bg);
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
 }
 
 /* Sin esto el foco del buscador global era invisible: outline: none sin
@@ -67,6 +94,24 @@
     text-align: center;
 }
 
+/* Un fallo de la búsqueda no se pinta con el mismo gris que "sin
+   resultados": son desenlaces distintos y tienen que distinguirse. */
+.buscador-mensaje-error {
+    color: var(--color-danger-700);
+}
+
+/* Aviso de "no encontré nada" cuando, aun así, hay acciones de creación que
+   ofrecer debajo: separado del mensaje a pantalla completa. */
+.buscador-mensaje-vacio {
+    padding: var(--space-4) var(--space-5) var(--space-2);
+    text-align: left;
+}
+
+.buscador-lista {
+    display: flex;
+    flex-direction: column;
+}
+
 .buscador-grupo + .buscador-grupo {
     border-top: var(--border-default);
     margin-top: var(--space-2);
@@ -82,20 +127,12 @@
     color: var(--color-primary-500);
 }
 
-.buscador-categoria h3 {
-    padding: var(--space-2) var(--space-5);
-    font: var(--font-label-md);
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--color-text-muted);
-}
-
 .buscador-item {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-5);
+    gap: var(--space-3);
+    min-height: 2.75rem;
+    padding: var(--space-2) var(--space-5) var(--space-2) calc(var(--space-5) - 2px);
     color: var(--color-text);
     text-decoration: none;
     font: var(--font-body-md);
@@ -103,9 +140,33 @@
     transition: background-color var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard);
 }
 
-.buscador-item .icono {
-    flex-shrink: 0;
+/* Caja del icono del mockup: cuadro de 28 px con fondo y borde propios, no
+   el glifo suelto. */
+.buscador-item-icono {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 1.75rem;
+    height: 1.75rem;
+    border: var(--border-default);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-bg);
     color: var(--color-text-muted);
+}
+
+.buscador-item-texto {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.buscador-item-titulo {
+    font: var(--font-label-md);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .buscador-item:hover,
@@ -120,6 +181,16 @@
 .buscador-item-subtitulo {
     color: var(--color-text-muted);
     font: var(--font-body-sm);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* "↵ abrir ficha" — solo en la fila activa, como en el mockup. */
+.buscador-item-pista {
+    flex: none;
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
 }
 
 .buscador-pie {
@@ -128,8 +199,24 @@
     gap: var(--space-4);
     padding: var(--space-3) var(--space-5);
     border-top: var(--border-default);
+    background-color: var(--color-bg);
     font: var(--font-body-sm);
     color: var(--color-text-muted);
+}
+
+.buscador-leyenda {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-left: auto;
+}
+
+/* El mockup oculta la chuleta de teclas en pantallas estrechas, donde no hay
+   teclado que la use y el ámbito de búsqueda importa más. */
+@media (max-width: 48rem) {
+    .buscador-leyenda {
+        display: none;
+    }
 }
 
 .buscador-pie kbd {

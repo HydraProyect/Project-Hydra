@@ -7,196 +7,106 @@
 
 @if (_visible)
 {
+    var grupos = GruposVisibles;
+    var indice = 0;
+
     <div class="buscador-superposicion" @onclick="Cerrar">
-        <div class="buscador-panel" @onclick:stopPropagation="true" role="dialog" aria-modal="true">
-            <input @ref="_inputElemento"
-                   class="buscador-input"
-                   placeholder="Buscar clientes, empresas, centros, trabajadores…"
-                   value="@_valorMostrado"
-                   @oninput="ManejarEntradaAsync"
-                   @onkeydown="ManejarTeclaAsync" />
+        <div class="buscador-panel" @onclick:stopPropagation="true" role="dialog" aria-modal="true" aria-label="Buscar o ejecutar">
+
+            <div class="buscador-cabecera">
+                <Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" />
+                <input @ref="_inputElemento"
+                       class="buscador-input"
+                       type="text"
+                       role="combobox"
+                       aria-label="Buscar o ejecutar"
+                       aria-autocomplete="list"
+                       aria-expanded="@(grupos.Count > 0 ? "true" : "false")"
+                       aria-controls="buscador-lista"
+                       aria-activedescendant="@(_indiceSeleccionado >= 0 ? $"buscador-item-{_indiceSeleccionado}" : null)"
+                       placeholder="Buscar o ejecutar… (clientes empresariales, trabajadores, documentos, acciones)"
+                       value="@_valorMostrado"
+                       @oninput="ManejarEntradaAsync"
+                       @onkeydown="ManejarTeclaAsync" />
+                <span class="buscador-tecla-escape" aria-hidden="true">esc</span>
+            </div>
 
             <div class="buscador-resultados">
-                @if (_termino.Trim().Length < 2)
+                @if (ConsultaVacia && grupos.Count == 0)
                 {
-                    if (_recientes.Count == 0 && _accionesPantalla.Count == 0)
+                    <p class="buscador-mensaje">Escribe al menos 2 caracteres para buscar.</p>
+                }
+                else if (!ConsultaVacia && _errorBusqueda is not null)
+                {
+                    <p class="buscador-mensaje buscador-mensaje-error" role="status">@_errorBusqueda</p>
+                }
+                else if (!ConsultaVacia && _buscando)
+                {
+                    <p class="buscador-mensaje" role="status">Buscando…</p>
+                }
+                else if (!ConsultaVacia && grupos.Count == 0)
+                {
+                    <p class="buscador-mensaje" role="status">Sin resultados para «@_termino» en tu cartera.</p>
+                }
+                else
+                {
+                    @* La búsqueda encontró cero entidades, pero la lista no
+                       está vacía porque el palette siempre ofrece "Crear X
+                       «término»" para las categorías sin resultado. Sin este
+                       aviso esas acciones tapaban la noticia y el usuario no
+                       llegaba a enterarse de que su búsqueda no encontró
+                       nada — el mensaje existía, pero su guarda exigía que no
+                       hubiera ninguna acción, cosa que nunca ocurre. *@
+                    @if (!ConsultaVacia && _resultado is not null && !_resultado.TieneResultados)
                     {
-                        <p class="buscador-mensaje">Escribe al menos 2 caracteres para buscar.</p>
+                        <p class="buscador-mensaje buscador-mensaje-vacio" role="status">Sin resultados para «@_termino» en tu cartera.</p>
                     }
-                    else
-                    {
-                        var indice = 0;
-                        @if (_recientes.Count > 0)
+                    <div id="buscador-lista" class="buscador-lista" role="listbox" aria-label="Resultados">
+                        @foreach (var grupo in grupos)
                         {
-                            <div class="buscador-grupo">
-                                <h2 class="buscador-grupo-titulo">Recientes</h2>
-                                <div class="buscador-categoria">
-                                    @foreach (var item in _recientes)
-                                    {
-                                        var indiceItem = indice++;
-                                        <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")"
-                                           href="@item.UrlDestino" @onclick='() => Seleccionar(RecienteComoItem(item), item.Tipo)' @onclick:preventDefault="true">
-                                            <Icono Nombre="@IconoParaTipo(item.Tipo)" Tamano="TamanoIcono.Pequeno" />@item.Titulo
-                                            @if (item.Subtitulo is not null)
+                            <div class="buscador-grupo" role="group" aria-label="@grupo.Titulo">
+                                <h2 class="buscador-grupo-titulo">@grupo.Titulo</h2>
+                                @foreach (var fila in grupo.Items)
+                                {
+                                    var indiceItem = indice++;
+                                    var activo = indiceItem == _indiceSeleccionado;
+                                    <a class="buscador-item @(activo ? "buscador-item-seleccionado" : "")"
+                                       id="buscador-item-@indiceItem"
+                                       role="option"
+                                       aria-selected="@(activo ? "true" : "false")"
+                                       href="@fila.Item.UrlDestino"
+                                       @onclick="() => Seleccionar(fila.Item, fila.TipoHistorial)"
+                                       @onclick:preventDefault="true">
+                                        <span class="buscador-item-icono" aria-hidden="true">
+                                            <Icono Nombre="@fila.Icono" Tamano="TamanoIcono.Pequeno" />
+                                        </span>
+                                        <span class="buscador-item-texto">
+                                            <span class="buscador-item-titulo">@fila.Item.Titulo</span>
+                                            @if (!string.IsNullOrWhiteSpace(fila.Subtitulo))
                                             {
-                                                <span class="buscador-item-subtitulo">@item.Subtitulo</span>
+                                                <span class="buscador-item-subtitulo">@fila.Subtitulo</span>
                                             }
-                                        </a>
-                                    }
-                                </div>
-                            </div>
-                        }
-                        @if (_accionesPantalla.Count > 0)
-                        {
-                            <div class="buscador-grupo">
-                                <h2 class="buscador-grupo-titulo">En esta pantalla</h2>
-                                <div class="buscador-categoria">
-                                    @foreach (var item in _accionesPantalla)
-                                    {
-                                        var indiceItem = indice++;
-                                        <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")"
-                                           href="@item.UrlDestino" @onclick='() => Seleccionar(item, "Accion")' @onclick:preventDefault="true">
-                                            <Icono Nombre="editar" Tamano="TamanoIcono.Pequeno" />@item.Titulo
-                                        </a>
-                                    }
-                                </div>
-                            </div>
-                        }
-                    }
-                }
-                else if (_buscando)
-                {
-                    <p class="buscador-mensaje">Buscando…</p>
-                }
-                else if (_resultado is not null && !_resultado.TieneResultados && IrA.Count == 0 && Acciones.Count == 0)
-                {
-                    <p class="buscador-mensaje">Sin resultados para «@_termino» en tu cartera.</p>
-                }
-                else if (_resultado is not null)
-                {
-                    var indice = 0;
-                    @if (_resultado.TieneResultados)
-                    {
-                        <div class="buscador-grupo">
-                            <h2 class="buscador-grupo-titulo">Entidades</h2>
-                            @if (_resultado.Clientes.Count > 0)
-                            {
-                                <div class="buscador-categoria">
-                                    <h3>Clientes</h3>
-                                    @foreach (var item in _resultado.Clientes)
-                                    {
-                                        var indiceItem = indice++;
-                                        <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino" @onclick='() => Seleccionar(item, "Cliente")' @onclick:preventDefault="true">
-                                            <Icono Nombre="clientes" Tamano="TamanoIcono.Pequeno" />@item.Titulo
-                                        </a>
-                                    }
-                                </div>
-                            }
-                            @if (_resultado.Empresas.Count > 0)
-                            {
-                                <div class="buscador-categoria">
-                                    <h3>Empresas</h3>
-                                    @foreach (var item in _resultado.Empresas)
-                                    {
-                                        var indiceItem = indice++;
-                                        <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino" @onclick='() => Seleccionar(item, "Empresa")' @onclick:preventDefault="true">
-                                            <Icono Nombre="empresas" Tamano="TamanoIcono.Pequeno" />@item.Titulo
-                                        </a>
-                                    }
-                                </div>
-                            }
-                            @if (_resultado.Subcontratas.Count > 0)
-                            {
-                                <div class="buscador-categoria">
-                                    <h3>Subcontratas</h3>
-                                    @foreach (var item in _resultado.Subcontratas)
-                                    {
-                                        var indiceItem = indice++;
-                                        <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino" @onclick='() => Seleccionar(item, "Subcontrata")' @onclick:preventDefault="true">
-                                            <Icono Nombre="subcontratas" Tamano="TamanoIcono.Pequeno" />@item.Titulo
-                                        </a>
-                                    }
-                                </div>
-                            }
-                            @if (_resultado.Centros.Count > 0)
-                            {
-                                <div class="buscador-categoria">
-                                    <h3>Centros</h3>
-                                    @foreach (var item in _resultado.Centros)
-                                    {
-                                        var indiceItem = indice++;
-                                        <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino" @onclick='() => Seleccionar(item, "Centro")' @onclick:preventDefault="true">
-                                            <Icono Nombre="centros" Tamano="TamanoIcono.Pequeno" />@item.Titulo
-                                        </a>
-                                    }
-                                </div>
-                            }
-                            @if (_resultado.Trabajadores.Count > 0)
-                            {
-                                <div class="buscador-categoria">
-                                    <h3>Trabajadores</h3>
-                                    @foreach (var item in _resultado.Trabajadores)
-                                    {
-                                        var indiceItem = indice++;
-                                        <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino" @onclick='() => Seleccionar(item, "Trabajador")' @onclick:preventDefault="true">
-                                            <Icono Nombre="trabajadores" Tamano="TamanoIcono.Pequeno" />@item.Titulo <span class="buscador-item-subtitulo">@item.Subtitulo</span>
-                                        </a>
-                                    }
-                                </div>
-                            }
-                            @if (_resultado.Documentos.Count > 0)
-                            {
-                                <div class="buscador-categoria">
-                                    <h3>Documentos</h3>
-                                    @foreach (var item in _resultado.Documentos)
-                                    {
-                                        var indiceItem = indice++;
-                                        <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino" @onclick='() => Seleccionar(item, "Documento")' @onclick:preventDefault="true">
-                                            <Icono Nombre="documentos" Tamano="TamanoIcono.Pequeno" />@item.Titulo <span class="buscador-item-subtitulo">@item.Subtitulo</span>
-                                        </a>
-                                    }
-                                </div>
-                            }
-                        </div>
-                    }
-                    @if (IrA.Count > 0)
-                    {
-                        <div class="buscador-grupo">
-                            <h2 class="buscador-grupo-titulo">Ir a</h2>
-                            <div class="buscador-categoria">
-                                @foreach (var item in IrA)
-                                {
-                                    var indiceItem = indice++;
-                                    <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino">
-                                        <Icono Nombre="configuracion" Tamano="TamanoIcono.Pequeno" />@item.Titulo
+                                        </span>
+                                        @if (activo)
+                                        {
+                                            <span class="buscador-item-pista" aria-hidden="true">↵ @fila.PistaEnter</span>
+                                        }
                                     </a>
                                 }
                             </div>
-                        </div>
-                    }
-                    @if (Acciones.Count > 0)
-                    {
-                        <div class="buscador-grupo">
-                            <h2 class="buscador-grupo-titulo">Acciones</h2>
-                            <div class="buscador-categoria">
-                                @foreach (var item in Acciones)
-                                {
-                                    var indiceItem = indice++;
-                                    <a class="buscador-item @(indiceItem == _indiceSeleccionado ? "buscador-item-seleccionado" : "")" href="@item.UrlDestino" @onclick='() => Seleccionar(item, "Accion")' @onclick:preventDefault="true">
-                                        <Icono Nombre="editar" Tamano="TamanoIcono.Pequeno" />@item.Titulo
-                                    </a>
-                                }
-                            </div>
-                        </div>
-                    }
+                        }
+                    </div>
                 }
             </div>
 
             <div class="buscador-pie">
-                <span><kbd>↑</kbd><kbd>↓</kbd> navegar</span>
-                <span><kbd>Tab</kbd> grupo</span>
-                <span><kbd>↵</kbd> abrir</span>
-                <span><kbd>Esc</kbd> cerrar</span>
+                <span class="buscador-ambito">Buscando en tu cartera</span>
+                <span class="buscador-leyenda">
+                    <span><kbd>↑</kbd><kbd>↓</kbd> navegar</span>
+                    <span><kbd>Tab</kbd> grupo</span>
+                    <span><kbd>↵</kbd> abrir</span>
+                    <span><kbd>Esc</kbd> cerrar</span>
+                </span>
             </div>
         </div>
     </div>
