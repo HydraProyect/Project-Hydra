@@ -87,6 +87,9 @@ public class UsuariosGen2Tests : BunitContext
 
         public Func<string, IReadOnlyList<ApplicationUser>> EnRol { get; set; } = _ => [];
 
+        /// <summary>Por defecto, toda cuenta es propia del tenant activo — ver <see cref="UsuariosControlados.EsCuentaPropiaAsync"/>.</summary>
+        public Func<Guid, bool> EsPropia { get; set; } = _ => true;
+
         public int LlamadasVisibles { get; set; }
         public int LlamadasRolesDelegados { get; set; }
         public int LlamadasCarteras { get; set; }
@@ -118,6 +121,18 @@ public class UsuariosGen2Tests : BunitContext
             Fuente.RolesConsultados.Add(rol);
             return Task.FromResult(Fuente.EnRol(rol));
         }
+
+        /// <summary>
+        /// Por defecto todas las cuentas son propias: los tests de esta clase
+        /// editan y desactivan cuentas del propio tenant, no Operadores
+        /// Delegados (eso lo cubre <c>FronteraDeTenantEnGestionDeUsuariosTests</c>
+        /// contra PostgreSQL real, que es la capa que de verdad garantiza esta
+        /// propiedad). Igual que las otras tres lecturas, sin sustituirla el
+        /// guardián caería en el <see cref="DirectorioUsuariosTenant"/> real
+        /// —construido sin proveedor de base de datos a propósito— y lanzaría.
+        /// </summary>
+        protected override Task<bool> EsCuentaPropiaAsync(Guid usuarioId, CancellationToken cancellationToken) =>
+            Task.FromResult(Fuente.EsPropia(usuarioId));
 
         /// <summary>
         /// Una segunda carga mientras la primera sigue retenida. Desde la
