@@ -96,8 +96,20 @@ public class EjecutarImportacionCombinadaCommandHandler(
         // Cliente (si solo indexáramos el nombre "actual" tras la fusión, una
         // fila de Empresas/Centros que usa el nombre del archivo dejaría de
         // encontrarlo).
+        //
+        // La semilla sale del discriminador de Cliente empresarial —
+        // EsCritico != null, el mismo que usan ObtenerClientesQuery, el handler
+        // hermano de la Plantilla de Clientes y el ANÁLISIS de esta misma
+        // plantilla (ClosedXmlPlantillaCombinadaService.AnalizarAsync)— y no de
+        // "tener CIF", que no es un rol: lo tienen también Empresas propias y
+        // Subcontratas, y un Cliente empresarial puede perderlo
+        // (Empresa.Actualizar admite cif nulo sin tocar EsCritico). Sembrar
+        // esto desde clientesPorCif desalineaba los dos lados en ambas
+        // direcciones: un Cliente empresarial sin CIF que el análisis prometía
+        // se omitía al escribir, y una Subcontrata con CIF que el análisis
+        // rechazaba podía recibir centros aquí.
         var clientesIdPorRazonSocial = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
-        foreach (var cliente in clientesPorCif.Values)
+        foreach (var cliente in await empresasContext.Empresas.Where(e => e.EsCritico != null).ToListAsync(cancellationToken))
             clientesIdPorRazonSocial[cliente.RazonSocial] = cliente.Id;
 
         var clientesCreados = 0;
