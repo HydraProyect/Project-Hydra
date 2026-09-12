@@ -240,14 +240,29 @@ public class TerminologiaCanonicaTests
         var (patron, conceptoCanonico) = Deuda[termino];
         var regex = new Regex(patron, RegexOptions.Compiled);
 
-        var apariciones = ArchivosDeCodigo().Sum(archivo => ContarEnArchivo(archivo, regex));
+        var porFichero = ArchivosDeCodigo()
+            .Select(archivo => (archivo, apariciones: ContarEnArchivo(archivo, regex)))
+            .Where(par => par.apariciones > 0)
+            .OrderByDescending(par => par.apariciones)
+            .ToList();
+
+        var apariciones = porFichero.Sum(par => par.apariciones);
+
+        var listado = string.Join("\n", porFichero.Select(par =>
+            $"  {par.apariciones,4}  {Path.GetRelativePath(RaizDelRepositorio(), par.archivo)}"));
 
         apariciones.Should().Be(Congelado[termino],
             $"'{termino}' es deuda terminológica: representa {conceptoCanonico}. El contrato prohíbe " +
             "renombrarlo automáticamente, así que la deuda se queda — pero no puede CRECER, y si baja " +
             "hay que actualizar el número aquí en el mismo commit. Si has añadido un identificador nuevo " +
             "en código con este término, usa el canónico; si has retirado alguno, baja la cifra de " +
-            "'Congelado'. Un comentario o una cadena de texto con esta cadena NO cuentan (DEC-65)");
+            "'Congelado'. RÉGIMEN, DISTINTO POR TIPO DE FICHERO (DEC-65): en .cs, un comentario, " +
+            "doc-comment o literal de cadena/carácter con esta cadena NO cuenta — solo un identificador " +
+            "real del árbol sintáctico cuenta; en .razor SÍ cuenta cualquier aparición en el texto " +
+            "completo del fichero (un comentario @* ... *@, una cadena o marcado visible incluidos), " +
+            "porque un analizador de C# no puede parsear un .razor tal cual y este trinquete no tiene " +
+            "mandato para construir uno de Razor (régimen declarado en el doc-comment de la clase). " +
+            $"Ficheros con aparición que cuenta hoy, más frecuente primero:\n{listado}");
     }
 
     /// <summary>
