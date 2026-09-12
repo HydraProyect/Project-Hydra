@@ -9,6 +9,7 @@ using CaeManager.Application.Gestiones.Queries.ObtenerGestiones;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Trabajadores.Commands.EliminarTrabajador;
+using CaeManager.Application.Trabajadores.Commands.RestaurarTrabajador;
 using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId;
 using CaeManager.Domain.Documentos;
@@ -41,7 +42,7 @@ namespace CaeManager.Web.Features.Trabajadores.Pages;
 /// confirme, y nunca se inventa un criterio automático (próxima visita,
 /// "el más urgente"...) que el usuario no pidió.
 /// </summary>
-public partial class TrabajadorDetalle : ComponentBase
+public partial class TrabajadorDetalle : ComponentBase, IDisposable
 {
     private static readonly IReadOnlyDictionary<EstadoDocumento, int> OrdenSeveridad = new Dictionary<EstadoDocumento, int>
     {
@@ -52,20 +53,12 @@ public partial class TrabajadorDetalle : ComponentBase
         [EstadoDocumento.Vigente] = 4
     };
 
-    private static readonly IReadOnlyList<PestanaDefinicion> _pestanas =
-    [
-        new("operacion", "Operación"),
-        new("historial", "Historial"),
-        new("contactos", "Contactos")
-    ];
-
     [Parameter] public Guid TrabajadorId { get; set; }
 
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ContextWorkspaceService WorkspaceService { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
-    [Inject] private ICurrentUserService CurrentUserService { get; set; } = default!;
 
     private TrabajadorDetalleDto? _detalle;
     private IReadOnlyList<CentroDocumentacionTrabajadorDto> _centros = [];
@@ -95,8 +88,70 @@ public partial class TrabajadorDetalle : ComponentBase
     private IReadOnlyList<GestionListaDto> _gestionesPendientes = [];
     private bool _cargandoGestiones = true;
     private readonly HashSet<Guid> _completandoGestion = [];
+    private readonly HashSet<Guid> _dandoDeBajaAsignacion = [];
+
+    /// <summary>Trabajador cuya ficha se está pintando: al cambiar, lo que quedara preparado en una modal deja de valer.</summary>
+    private Guid _trabajadorEnPantalla;
+
+    /// <summary>Guarda del «Deshacer» del aviso: dos pulsaciones no mandan dos restauraciones.</summary>
+    private readonly HashSet<Guid> _restaurando = [];
+
+    /// <summary>
+    /// Se cancela al retirarse la página: las consultas en curso dejan de
+    /// trabajar para nadie y ninguna respuesta tardía repinta un componente
+    /// ya desechado. Mismo patrón que <c>Empresas.razor.cs</c>.
+    /// </summary>
+    private readonly CancellationTokenSource _ciclo = new();
+    private bool _desechado;
+
+    /// <summary>
+    /// Número de la última carga. Cada carga captura el suyo ANTES del
+    /// <c>await</c> y, al volver, solo escribe estado si sigue siendo la
+    /// vigente. Sin esto, navegar de un trabajador a otro —o recargar tras
+    /// guardar un documento— dejaba que la respuesta de la pregunta anterior
+    /// pintara la cabecera, el anillo y los centros del trabajador que ya no
+    /// se está mirando. La carga de gestiones comparte el mismo número: una
+    /// respuesta de antes de recargar ya no pertenece a lo que se ve.
+    /// </summary>
+    private int _cargaVigente;
+
+    public void Dispose()
+    {
+        if (_desechado)
+            return;
+
+        _desechado = true;
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+    }
+
+    /// <summary>La respuesta es de la pregunta vigente y la página sigue viva.</summary>
+    private bool EsVigente(int carga) => !_desechado && carga == _cargaVigente;
 
     private string? NombreCompleto => _detalle is null ? null : $"{_detalle.Nombre} {_detalle.Apellidos}";
+
+    /// <summary>
+    /// Las tres pestañas de esta ficha. No es estático porque el recuento de
+    /// «Operación» depende de los datos cargados: el mockup Gen 2 pinta ahí
+    /// la píldora con los documentos que hoy tienen incidencia.
+    /// </summary>
+    private IReadOnlyList<PestanaDefinicion> Pestanas =>
+    [
+        new("operacion", "Operación")
+        {
+            Contador = TotalConIncidencia == 0
+                ? null
+                : new ContadorPestana(
+                    TotalConIncidencia,
+                    TotalConIncidencia == 1 ? "documento con incidencia" : "documentos con incidencia",
+                    EnAlerta: true)
+        },
+        new("historial", "Historial"),
+        new("contactos", "Contactos")
+    ];
+
+    private int TotalConIncidencia =>
+        _centros.Sum(c => c.Documentos.Count(d => d.Estado != EstadoDocumento.Vigente));
 
     private IReadOnlyList<BreadcrumbElemento> Miguero =>
         new[] { new BreadcrumbElemento("Trabajadores"), new BreadcrumbElemento(NombreCompleto ?? "…") };
@@ -118,19 +173,49 @@ public partial class TrabajadorDetalle : ComponentBase
 
     private async Task CargarAsync()
     {
+        if (_desechado)
+            return;
+
+        // Todo lo que define la pregunta se lee ANTES del await.
+        var carga = ++_cargaVigente;
+        var trabajadorId = TrabajadorId;
+
+        // Las modales se pintan fuera del bloque de la página, así que
+        // sobrevivían al cambio de ruta: abrir «Dar de baja» para A, navegar a
+        // B y confirmar daba de baja a B. Cambiar de trabajador las cierra y
+        // tira lo que habían preparado.
+        if (_trabajadorEnPantalla != trabajadorId)
+        {
+            _trabajadorEnPantalla = trabajadorId;
+            CerrarModalesPendientes();
+        }
+
         _cargando = true;
         _error = false;
 
         try
         {
-            _detalle = await Mediator.Send(new ObtenerTrabajadorPorIdQuery(TrabajadorId));
+            var detalle = await Mediator.Send(new ObtenerTrabajadorPorIdQuery(trabajadorId), _ciclo.Token);
+            if (!EsVigente(carga))
+                return;
+
+            _detalle = detalle;
             if (_detalle is null)
             {
                 _error = true;
                 return;
             }
 
-            _centros = await Mediator.Send(new ObtenerDocumentacionPorCentroDeTrabajadorQuery(TrabajadorId));
+            // El acordeón se cierra al cambiar de pregunta: los Ids
+            // expandidos eran de la respuesta anterior y no significan nada
+            // en la nueva.
+            _expandidosCentro.Clear();
+
+            var centros = await Mediator.Send(new ObtenerDocumentacionPorCentroDeTrabajadorQuery(trabajadorId), _ciclo.Token);
+            if (!EsVigente(carga))
+                return;
+
+            _centros = centros;
 
             // RendererInfo.IsInteractive: OnParametersSetAsync (y por tanto
             // CargarAsync) también corre durante el prerenderizado estático
@@ -147,24 +232,49 @@ public partial class TrabajadorDetalle : ComponentBase
             if (RendererInfo.IsInteractive)
                 _ = CargarGestionesAsync();
         }
+        catch (Exception) when (!EsVigente(carga))
+        {
+            // Una carga superada que falla no es un error de la vigente: no
+            // puede tapar su resultado con el estado de error.
+        }
         catch (Exception)
         {
             _error = true;
         }
         finally
         {
-            _cargando = false;
+            if (EsVigente(carga))
+            {
+                _cargando = false;
+                StateHasChanged();
+            }
         }
     }
 
     private async Task CargarGestionesAsync()
     {
+        if (_desechado)
+            return;
+
+        // La respuesta solo vale para la carga que la pidió: tras cambiar de
+        // trabajador (o recargar), unas gestiones de antes ya no son de este
+        // trabajador ni de este estado.
+        var carga = _cargaVigente;
+        var trabajadorId = TrabajadorId;
+
         _cargandoGestiones = true;
         try
         {
             var resultado = await Mediator.Send(new ObtenerGestionesQuery(
-                Busqueda: null, Estado: EstadoGestion.Pendiente, TrabajadorId: TrabajadorId, TamanoPagina: 50));
+                Busqueda: null, Estado: EstadoGestion.Pendiente, TrabajadorId: trabajadorId, TamanoPagina: 50), _ciclo.Token);
+            if (!EsVigente(carga))
+                return;
+
             _gestionesPendientes = resultado.Elementos;
+        }
+        catch (Exception) when (!EsVigente(carga))
+        {
+            return;
         }
         catch (Exception)
         {
@@ -172,8 +282,11 @@ public partial class TrabajadorDetalle : ComponentBase
         }
         finally
         {
-            _cargandoGestiones = false;
-            StateHasChanged();
+            if (EsVigente(carga))
+            {
+                _cargandoGestiones = false;
+                StateHasChanged();
+            }
         }
     }
 
@@ -214,15 +327,40 @@ public partial class TrabajadorDetalle : ComponentBase
 
     private async Task DarDeBajaAsignacionAsync(Guid asignacionId)
     {
-        var resultado = await Mediator.Send(new DarDeBajaAsignacionesCommand([asignacionId], DateOnly.FromDateTime(DateTime.UtcNow)));
-        if (resultado.EsFallido)
-        {
-            ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
-            return;
-        }
+        // Guarda de reentrada por asignación, como en CompletarGestionAsync:
+        // dos eventos seguidos mandaban dos bajas.
+        if (!_dandoDeBajaAsignacion.Add(asignacionId)) return;
 
-        ToastService.Mostrar("Asignación dada de baja.", TonoToast.Exito);
-        await CargarAsync();
+        try
+        {
+            var resultado = await Mediator.Send(new DarDeBajaAsignacionesCommand([asignacionId], DateOnly.FromDateTime(DateTime.UtcNow)));
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            // El comando devuelve éxito aunque no haya dado de baja ninguna
+            // (asignación ya cerrada, o fuera de alcance): decir «hecho»
+            // entonces es mentir sobre lo que pasó.
+            var (dadasDeBaja, errores) = (resultado.Valor.DadasDeBaja, resultado.Valor.Errores);
+            if (dadasDeBaja == 0)
+            {
+                ToastService.Mostrar(
+                    errores.Count > 0 ? errores[0] : "No se dio de baja la asignación.",
+                    TonoToast.Error);
+            }
+            else if (errores.Count > 0)
+                ToastService.Mostrar($"Asignación dada de baja, con avisos: {string.Join("; ", errores)}", TonoToast.Advertencia);
+            else
+                ToastService.Mostrar("Asignación dada de baja.", TonoToast.Exito);
+
+            await CargarAsync();
+        }
+        finally
+        {
+            _dandoDeBajaAsignacion.Remove(asignacionId);
+        }
     }
 
     /// <summary>
@@ -282,6 +420,8 @@ public partial class TrabajadorDetalle : ComponentBase
     /// </summary>
     private async Task EnviarReclamacionAClientesAsync(IReadOnlyList<ClienteReclamableDto> clientes)
     {
+        if (_reclamandoFaltantes) return;
+
         _reclamandoFaltantes = true;
         try
         {
@@ -300,7 +440,7 @@ public partial class TrabajadorDetalle : ComponentBase
             if (enviadosA.Count == 1)
                 ToastService.Mostrar($"Reclamación enviada a {enviadosA[0]}.", TonoToast.Exito);
             else if (enviadosA.Count > 1)
-                ToastService.Mostrar($"Reclamación enviada a {enviadosA.Count} clientes: {string.Join(", ", enviadosA)}.", TonoToast.Exito);
+                ToastService.Mostrar($"Reclamación enviada a {enviadosA.Count} Clientes empresariales: {string.Join(", ", enviadosA)}.", TonoToast.Exito);
 
             foreach (var mensaje in fallidos)
                 ToastService.Mostrar(mensaje, TonoToast.Error);
@@ -316,13 +456,19 @@ public partial class TrabajadorDetalle : ComponentBase
 
     private async Task AbrirCrearGestionAsync()
     {
-        _tiposDocumentoDisponibles = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: AmbitoAplicacion.Trabajador));
+        var carga = _cargaVigente;
+        var tipos = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: AmbitoAplicacion.Trabajador), _ciclo.Token);
+        if (!EsVigente(carga))
+            return;
+
+        _tiposDocumentoDisponibles = tipos;
         _tipoDocumentoParaGestion = string.Empty;
         _crearGestionVisible = true;
     }
 
     private async Task ConfirmarCrearGestionAsync()
     {
+        if (_creandoGestion) return;
         if (!Guid.TryParse(_tipoDocumentoParaGestion, out var tipoDocumentoId)) return;
 
         _creandoGestion = true;
@@ -367,17 +513,25 @@ public partial class TrabajadorDetalle : ComponentBase
 
     private async Task ConfirmarDarDeBajaTrabajadorAsync()
     {
+        if (_dandoDeBajaTrabajador) return;
+
+        // El trabajador que se está viendo AHORA, leído antes del await.
+        var trabajadorId = TrabajadorId;
+
         _dandoDeBajaTrabajador = true;
         try
         {
-            var resultado = await Mediator.Send(new EliminarTrabajadorCommand(TrabajadorId));
+            var resultado = await Mediator.Send(new EliminarTrabajadorCommand(trabajadorId));
             if (resultado.EsFallido)
             {
                 ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
                 return;
             }
 
-            ToastService.Mostrar("Trabajador dado de baja.", TonoToast.Exito);
+            // El diálogo promete deshacerlo desde el aviso: aquí se cumple,
+            // como en la lista de Trabajadores. Antes el aviso no traía acción
+            // y, además, esta página navegaba: la promesa se perdía.
+            ToastService.Mostrar("Trabajador dado de baja.", TonoToast.Exito, "Deshacer", () => DeshacerBajaTrabajadorAsync(trabajadorId));
             NavigationManager.NavigateTo("/trabajadores");
         }
         finally
@@ -385,5 +539,34 @@ public partial class TrabajadorDetalle : ComponentBase
             _dandoDeBajaTrabajador = false;
             _confirmarBajaTrabajadorVisible = false;
         }
+    }
+
+    /// <summary>
+    /// Acción del aviso tras la baja. No toca estado de la página: para cuando
+    /// alguien la pulsa, esta ya navegó a la lista y se retiró. La guarda evita
+    /// que dos pulsaciones manden dos restauraciones, igual que en la lista.
+    /// </summary>
+    private async Task DeshacerBajaTrabajadorAsync(Guid trabajadorId)
+    {
+        if (!_restaurando.Add(trabajadorId)) return;
+
+        var resultado = await Mediator.Send(new RestaurarTrabajadorCommand(trabajadorId));
+        ToastService.Mostrar(
+            resultado.EsExitoso ? "Trabajador restaurado." : resultado.Error.Mensaje,
+            resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
+    }
+
+    /// <summary>
+    /// Cierra las modales y tira lo que tuvieran preparado. Se llama al cambiar
+    /// de trabajador: lo elegido para uno no puede ejecutarse sobre otro.
+    /// </summary>
+    private void CerrarModalesPendientes()
+    {
+        _crearGestionVisible = false;
+        _tipoDocumentoParaGestion = string.Empty;
+        _reclamarFaltantesVisible = false;
+        _clientesReclamables = [];
+        _clientesSeleccionadosReclamar.Clear();
+        _confirmarBajaTrabajadorVisible = false;
     }
 }

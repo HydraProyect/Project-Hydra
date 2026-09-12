@@ -85,7 +85,7 @@
             </div>
         </div>
 
-        <Pestanas Definiciones="_pestanas" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="v => _pestanaActiva = v" EtiquetaGrupo="Secciones de Trabajador 360">
+        <Pestanas Definiciones="Pestanas" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="v => _pestanaActiva = v" EtiquetaGrupo="Secciones de Trabajador 360">
             @switch (_pestanaActiva)
             {
                 case "operacion":
@@ -103,38 +103,59 @@
                     else
                     {
                         <div class="separador-ambito">Documentación por centro</div>
-                        <div class="lista-trabajadores-acordeon">
+                        @*
+                            Mockup Gen 2 § Operación: lo primero que hay que
+                            entender de esta lista es por qué el mismo
+                            trabajador puede estar completo en una fila y
+                            bloqueado en la de al lado.
+                        *@
+                        <p class="texto-descriptivo">
+                            La exigencia documental es por centro: el mismo trabajador puede estar completo en un centro
+                            y bloqueado en otro, porque cada centro pide cosas distintas.
+                        </p>
+                        <div class="trabajador360-centros">
                             @foreach (var centro in _centros)
                             {
                                 var expandido = _expandidosCentro.Contains(centro.CentroId);
                                 var alDia = centro.Documentos.Count(d => d.Estado == EstadoDocumento.Vigente);
                                 var incidencias = centro.Documentos.Count(d => d.Estado != EstadoDocumento.Vigente);
-                                <div class="fila-trabajador-acordeon" @key="centro.CentroId">
-                                    <div class="fila-trabajador-acordeon-cuerpo">
-                                        <div class="fila-trabajador-rejilla">
-                                            <button type="button" class="@("boton-expandir-fila" + (expandido ? " boton-expandir-fila-abierta" : ""))"
-                                                    aria-expanded="@(expandido ? "true" : "false")"
-                                                    aria-label="@($"Documentos exigidos en {centro.CentroNombre}")"
-                                                    @onclick="() => AlternarExpansionCentro(centro.CentroId)">
+                                <div class="trabajador360-centro @(incidencias > 0 ? "trabajador360-centro-con-incidencia" : null)" @key="centro.CentroId">
+                                    <div class="trabajador360-centro-cabecera">
+                                        @*
+                                            Un solo botón con el chevron y las dos líneas: el nombre
+                                            accesible sale del contenido, así que no lleva aria-label
+                                            que pudiera decir otra cosa que lo que se lee.
+                                        *@
+                                        <button type="button" class="trabajador360-centro-disparador"
+                                                aria-expanded="@(expandido ? "true" : "false")"
+                                                @onclick="() => AlternarExpansionCentro(centro.CentroId)">
+                                            <span class="trabajador360-centro-chevron @(expandido ? "trabajador360-centro-chevron-abierta" : null)">
                                                 <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
-                                            </button>
-                                            <span class="fila-trabajador-nombre">
-                                                @centro.CentroNombre <span class="etiqueta-ambito">@centro.ClienteRazonSocial</span>
                                             </span>
-                                            <span class="fila-trabajador-fraccion">
-                                                @(centro.Documentos.Count > 0 ? $"{alDia}/{centro.Documentos.Count}" : "—")
+                                            <span class="trabajador360-centro-identidad">
+                                                <span class="trabajador360-centro-nombre">@centro.CentroNombre</span>
+                                                <span class="trabajador360-centro-resumen">
+                                                    @centro.ClienteRazonSocial ·
+                                                    @(centro.Documentos.Count == 0
+                                                        ? "Sin documentación exigida"
+                                                        : $"{alDia} de {centro.Documentos.Count} exigidos correctos")
+                                                </span>
                                             </span>
-                                            <span class="tarjeta-fila-acordeon-indicadores">
-                                                @if (incidencias > 0)
-                                                {
-                                                    <Badge Tono="EstadoDocumentoUi.Tono(centro.PeorEstado)" Tamano="TamanoBadge.Pequeno">
-                                                        @incidencias @(incidencias == 1 ? "incidencia" : "incidencias")
-                                                    </Badge>
-                                                }
-                                            </span>
-                                        </div>
-                                        @if (expandido)
-                                        {
+                                        </button>
+                                        <Badge Tono="EstadoDocumentoUi.Tono(centro.PeorEstado)" Tamano="TamanoBadge.Pequeno">
+                                            @(incidencias == 0
+                                                ? "Completo"
+                                                : $"{incidencias} {(incidencias == 1 ? "incidencia" : "incidencias")}")
+                                        </Badge>
+                                        <a class="trabajador360-centro-360" href="@($"/centros/{centro.CentroId}")"
+                                           title="Abrir el Centro 360"
+                                           aria-label="@($"Abrir el Centro 360 de {centro.CentroNombre}")">
+                                            <Icono Nombre="centros" Tamano="TamanoIcono.Pequeno" />
+                                        </a>
+                                    </div>
+                                    @if (expandido)
+                                    {
+                                        <div class="trabajador360-centro-detalle">
                                             @if (centro.Documentos.Count == 0)
                                             {
                                                 <p class="texto-vacio-seccion">Este centro no exige documentación específica a este trabajador.</p>
@@ -176,8 +197,8 @@
                                                     }
                                                 </div>
                                             }
-                                        }
-                                    </div>
+                                        </div>
+                                    }
                                 </div>
                             }
                         </div>
@@ -192,7 +213,7 @@
                         <div class="tabla-documentos-requeridos" role="table" aria-label="Asignaciones activas">
                             <div class="documentos-requeridos-cabecera" role="row">
                                 <span role="columnheader">Centro</span>
-                                <span role="columnheader">Cliente</span>
+                                <span role="columnheader">Cliente empresarial</span>
                                 <span role="columnheader">Desde</span>
                                 <span role="columnheader" class="columna-accion">Acción</span>
                             </div>
@@ -258,6 +279,42 @@
                     break;
 
                 case "contactos":
+                    @*
+                        Mockup Gen 2 § Contactos: los datos de contacto del
+                        propio trabajador, copiables. Solo se pintan Teléfono y
+                        Correo porque son los únicos que trae
+                        TrabajadorDetalleDto — Dirección, contacto de
+                        emergencia y su teléfono NO existen en ningún DTO y no
+                        se inventan (el propio mockup los marca como campos
+                        ilustrativos sin confirmar en el código).
+                    *@
+                    @if (!string.IsNullOrWhiteSpace(_detalle.Telefono) || !string.IsNullOrWhiteSpace(_detalle.Email))
+                    {
+                        <div class="separador-ambito">Datos del trabajador</div>
+                        <dl class="trabajador360-contactos">
+                            @if (!string.IsNullOrWhiteSpace(_detalle.Telefono))
+                            {
+                                <div class="trabajador360-contacto">
+                                    <dt class="trabajador360-contacto-clave">Teléfono</dt>
+                                    <dd class="trabajador360-contacto-valor">
+                                        @_detalle.Telefono
+                                        <BotonCopiar Valor="@_detalle.Telefono" Etiqueta="el teléfono" />
+                                    </dd>
+                                </div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(_detalle.Email))
+                            {
+                                <div class="trabajador360-contacto">
+                                    <dt class="trabajador360-contacto-clave">Correo electrónico</dt>
+                                    <dd class="trabajador360-contacto-valor">
+                                        @_detalle.Email
+                                        <BotonCopiar Valor="@_detalle.Email" Etiqueta="el correo electrónico" />
+                                    </dd>
+                                </div>
+                            }
+                        </dl>
+                        <div class="separador-ambito">Agenda del empleador</div>
+                    }
                     @if (_detalle.EmpresaId is { } empresaIdContactos)
                     {
                         <PestanaAgendaContactos Tipo="TipoPropietarioAgenda.Empresa" PropietarioId="empresaIdContactos" />
@@ -295,20 +352,22 @@
     Visible="_confirmarBajaTrabajadorVisible"
     VisibleChanged="v => _confirmarBajaTrabajadorVisible = v"
     Titulo="@($"¿Dar de baja a {NombreCompleto}?")"
-    Mensaje="Se ocultará de las listas activas. Podrás deshacerlo desde el aviso que aparecerá."
+    Mensaje="Se ocultará de las listas activas y se cerrarán sus asignaciones vigentes. Podrás deshacerlo desde el aviso, pero las asignaciones cerradas no se reabren."
+    TextoBotonConfirmar="Dar de baja"
     EnProgreso="_dandoDeBajaTrabajador"
     OnConfirmar="ConfirmarDarDeBajaTrabajadorAsync" />
 
-@* Solo aparece cuando el trabajador tiene asignaciones activas en más de un
-   Cliente a la vez — con uno solo, ReclamarFaltantesAsync envía directo. *@
+@* Solo aparece cuando el trabajador tiene asignaciones activas en Centros de
+   más de un Cliente empresarial a la vez — con uno solo, ReclamarFaltantesAsync
+   envía directo. *@
 <Modal Visible="_reclamarFaltantesVisible" VisibleChanged="v => _reclamarFaltantesVisible = v"
        Titulo="Reclamar documentación pendiente" CerrarAlHacerClicFuera="!_reclamandoFaltantes">
     <ChildContent>
         <p class="workspace-nota-contextual">
-            @NombreCompleto tiene documentación pendiente en varios clientes a la vez. Elige a cuáles reclamar.
+            @NombreCompleto tiene documentación pendiente en varios Clientes empresariales a la vez. Elige a cuáles reclamar.
         </p>
         <fieldset class="reclamacion-destinatarios">
-            <legend>Clientes</legend>
+            <legend>Clientes empresariales</legend>
             @foreach (var cliente in _clientesReclamables)
             {
                 <label class="campo-checkbox" @key="cliente.ClienteId">
