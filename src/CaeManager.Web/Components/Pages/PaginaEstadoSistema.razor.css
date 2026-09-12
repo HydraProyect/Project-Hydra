@@ -97,19 +97,6 @@
     margin: 0;
 }
 
-.aviso-permisos-estado-sistema {
-    width: 100%;
-    margin-top: var(--space-2);
-    background-color: var(--color-info-50);
-    border: var(--border-default);
-    border-left: 3px solid var(--color-info-500);
-    border-radius: var(--radius-md);
-    padding: var(--space-3) var(--space-4);
-    text-align: left;
-    font: var(--font-body-md);
-    color: var(--color-text-muted);
-}
-
 .acciones-estado-sistema {
     margin-top: var(--space-2);
     display: flex;
