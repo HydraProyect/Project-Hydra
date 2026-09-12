@@ -1,26 +1,91 @@
 @*
-    Panel de Cliente para el Context Workspace (ver arquitectura acordada
-    con el usuario). Pestañas: Información, Empresas, Subcontratas, Centros,
-    Blindaje 42.1 (art. 42.1/42.2 ET — certificaciones TGSS solicitadas
-    sobre cada Empresa relacionada), Documentación, Actividad (= historial de
-    auditoría, con otro nombre porque Cliente no tiene una pestaña
-    "Historial" separada), Notas.
+    Cliente 360 — Context Workspace del Cliente empresarial, contra su mockup
+    Gen 2 («Cliente 360 TALVEG.dc.html»). «Cliente empresarial» es quien
+    recibe el servicio en una Relación Empresarial: un papel, no un tipo
+    permanente de Empresa — la misma Empresa puede ser contratista en otra
+    relación. De ahí que la entradilla diga «Cliente empresarial» y no
+    «Cliente» a secas como el mockup: a secas no distingue al Cliente
+    comercial TALVEG (quien contrata TALVEG) del Cliente empresarial (la
+    contraparte de la relación), que son planos distintos.
 
-    "Centros" es la relación directa: Centro.ClienteId es FK real (un Cliente
-    es dueño de todos sus Centros, los opere la Empresa que los opere) — a
-    diferencia de "Clientes" en el panel de Empresa, que se deriva de
-    EmpresaCliente. Ver ObtenerCentrosDeClienteQuery.
+    «Centros» es la relación directa: Centro.ClienteId es FK real (un Cliente
+    empresarial es dueño de todos sus Centros, los opere la Empresa que los
+    opere) — a diferencia de «Clientes» en el panel de Empresa, que se deriva
+    de EmpresaCliente. Ver ObtenerCentrosDeClienteQuery.
+
+    Qué del mockup NO se copia, y por qué (ningún dato se inventa ni se simula):
+    - «cumplimiento 81%» en la cabecera y la celda «Cumplimiento» de
+      Información: no existe un porcentaje de cumplimiento por Cliente
+      empresarial. CumplimientoPorcentaje vive en CentroListaDto (lo calcula
+      ICalculoEstadoCentroService) y como KPI de tenant en el Dashboard; nada
+      lo agrega por Cliente. Tendría que crecer ResumenClienteDto.
+    - «12 vencidos» en la cabecera: el recuento por estado documental existe
+      solo en ClienteListaDto (EstadoDocumentalPeor/EstadoDocumentalCantidad),
+      que lo produce ObtenerClientesQuery reenviando ObtenerAlertasQuery en
+      proceso y agrupando por Cliente. ObtenerAlertasQuery no acepta ningún
+      filtro —calcula en vivo TODAS las alertas del tenant, y por eso la lista
+      topa los candidatos en 2000—, así que pedirla para pintar una píldora de
+      una ficha saldría carísimo. Además ese recuento es el del estado PEOR, y
+      Faltante gana a Vencido: no es «12 vencidos». Tendría que crecer
+      ResumenClienteDto.
+    - Celdas «Alias», «Domicilio»: no hay columna ni propiedad en el modelo.
+    - Celda «Portal principal»: decisión explícita ya tomada y documentada en
+      ObtenerResumenClienteQuery — no hay portal a nivel de Cliente
+      empresarial; el portal es del Centro.
+    - Celda «Gestor CAE» (el «Ejecutivo» del mockup, que su propia anotación
+      marca como deuda terminológica): el único dato que la alimentaría es
+      la propiedad legacy de ClienteDetalleDto que nombra a esa persona, y ese
+      nombre está congelado por TerminologiaCanonicaTests — cuyo trinquete
+      cuenta TODAS sus apariciones en los .razor de src y exige un total
+      exacto. Medido: leerla aquí añade tres apariciones y hace CRECER la
+      deuda, que es precisamente lo que el trinquete prohibe. La celda entra
+      cuando entre el renombrado, que es un incremento propio con
+      productores, consumidores, tests y trinquete. No se renombra de paso ni
+      se sube la cifra congelada.
+    - Recuento en las pestañas «Blindaje 42.1» y «Documentación»: sus datos los
+      pide el componente de la pestaña (PestanaBlindaje42, PestanaDocumentacion),
+      no este panel. Ponerles número exigiría o duplicar la consulta al abrir la
+      ficha, o que el hijo se lo devolviera al padre. Las tres pestañas que sí
+      llevan recuento son las tres cuyas listas carga este panel.
+    - Historial de notas con fecha y autor: no existe entidad Nota de Cliente.
+      «Notas» es una única columna string de la Empresa, que se escribe con
+      EditarClienteCommand. Se construye el editor, no el historial inventado.
+    - Semáforo por fila en Empresas/Subcontratas/Centros, y los subtítulos con
+      trabajadores y portal: EmpresaDeClienteDto(Id, RazonSocial, Cif),
+      SubcontrataDeClienteDto(Id, RazonSocial) y CentroDeClienteDto(Id, Nombre,
+      EmpresaRazonSocial) no traen estado ni recuentos. Se enseña lo que traen.
+    - Colores máquina/persona de «Actividad» y los filtros de «Documentación»:
+      viven dentro de PestanaHistorial y PestanaDocumentacion, compartidas con
+      los otros paneles; tocarlas se sale de esta ficha.
+
+    Qué se conserva aunque el mockup no lo pinte: la píldora «Crítico», la
+    celda «Crítico» de Información, los estados de error con «Reintentar» de
+    cada carga, los vacíos distinguidos de cada pestaña, y las pestañas
+    Blindaje 42.1, Documentación, Agenda y Actividad tal como estaban. El
+    apilado, el deep link (?ctx=Cliente:id:pestaña), la cabecera de navegación
+    y Escape los pone ContextWorkspace.razor, común a los siete paneles.
+
+    Carga: los recuentos de la cabecera y de las pestañas exigen conocer
+    resumen, empresas, subcontratas y centros al abrir, así que se piden en
+    serie detrás de la cabecera (antes, cada pestaña cargaba al entrar en
+    ella). Todas comparten el DbContext del circuito.
 *@
+@using CaeManager.Application.Clientes.Commands.EditarCliente
+@using CaeManager.Application.Clientes.Commands.EliminarCliente
 @using CaeManager.Application.Clientes.Queries.ObtenerCentrosDeCliente
 @using CaeManager.Application.Clientes.Queries.ObtenerClientePorId
 @using CaeManager.Application.Clientes.Queries.ObtenerEmpresasDeCliente
+@using CaeManager.Application.Clientes.Queries.ObtenerResumenCliente
 @using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasDeCliente
 @using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
 @using CaeManager.Domain.Documentos
 @using CaeManager.Web.Features.Blindaje42.Components
+@using FluentValidation
 @using MediatR
+@implements IDisposable
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
+@inject ToastService ToastService
 
 @if (_cargando)
 {
@@ -28,33 +93,76 @@
 }
 else if (_error || _detalle is null)
 {
-    <EstadoVacio Titulo="No pudimos cargar el cliente" Descripcion="Intenta nuevamente en unos segundos.">
+    <EstadoVacio Titulo="No pudimos cargar el cliente empresarial" Descripcion="Intenta nuevamente en unos segundos.">
         <Accion>
-            <Boton OnClick="CargarCabeceraAsync">Reintentar</Boton>
+            <Boton OnClick="ReintentarAsync">Reintentar</Boton>
         </Accion>
     </EstadoVacio>
 }
 else
 {
-    <div class="workspace-cabecera-entidad">
-        <h2 class="workspace-titulo-entidad">@_detalle.RazonSocial</h2>
-        @if (_detalle.EsCritico)
-        {
-            <Badge Tono="TonoBadge.Peligro">Crítico</Badge>
-        }
+    <div class="cabecera-cliente-360">
+        <span class="icono-cliente-360"><Icono Nombre="clientes" /></span>
+        <div class="texto-cabecera-cliente-360">
+            <span class="kicker-cliente-360">Cliente empresarial</span>
+            <h2 class="workspace-titulo-entidad titulo-cliente-360">@_detalle.RazonSocial</h2>
+            <div class="meta-cliente-360">
+                @if (_detalle.EsCritico)
+                {
+                    <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">Crítico</Badge>
+                }
+                @if (TextoRecuentos is { } recuentos)
+                {
+                    <span class="recuentos-cliente-360">@recuentos</span>
+                }
+            </div>
+        </div>
     </div>
 
     @* PestanaActiva con @: el parámetro es string, y sin @ Razor le pasa el literal "PestanaActiva" (ninguna pestaña quedaba marcada como activa). *@
-    <Pestanas Definiciones="_pestanas" PestanaActiva="@PestanaActiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="Secciones del cliente">
+    <Pestanas Definiciones="PestanasConRecuento" PestanaActiva="@PestanaActiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="Secciones del cliente empresarial">
         @switch (PestanaActiva)
         {
             case "informacion":
-                <div class="workspace-grupo-campos">
-                    <CampoInfo Etiqueta="Razón social" Valor="@_detalle.RazonSocial" />
-                    <CampoInfo Etiqueta="CIF" Valor="@_detalle.Cif" />
-                    <CampoInfo Etiqueta="Crítico" Valor="@(_detalle.EsCritico ? "Sí" : "No")" />
-                    <CampoInfo Etiqueta="Creado" Valor="@_detalle.CreadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy")" />
-                </div>
+                @if (_editandoIdentidad)
+                {
+                    @if (_mensajeErrorIdentidad is not null)
+                    {
+                        <div class="alerta-formulario" role="alert">@_mensajeErrorIdentidad</div>
+                    }
+                    <CampoTexto Etiqueta="Razón social" Valor="@_razonSocialEditada" ValorChanged="v => _razonSocialEditada = v" MensajeError="@ObtenerErrorIdentidad(nameof(EditarClienteCommand.RazonSocial))" />
+                    <CampoTexto Etiqueta="CIF" Valor="@_cifEditado" ValorChanged="v => _cifEditado = v" MensajeError="@ObtenerErrorIdentidad(nameof(EditarClienteCommand.Cif))" />
+                    <label class="campo-checkbox">
+                        <input type="checkbox" @bind="_esCriticoEditado" /> Cliente empresarial crítico
+                    </label>
+                    <div class="workspace-acciones-edicion">
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_guardandoIdentidad" OnClick="CancelarEdicionIdentidad">Cancelar</Boton>
+                        <Boton Tamano="TamanoBoton.Pequeno" Cargando="_guardandoIdentidad" OnClick="GuardarIdentidadAsync">Guardar</Boton>
+                    </div>
+                }
+                else
+                {
+                    <div class="rejilla-info-cliente-360">
+                        <div class="celda-info-cliente-360 celda-info-cliente-360-ancha"><span>Razón social</span><strong>@_detalle.RazonSocial</strong></div>
+                        <div class="celda-info-cliente-360">
+                            <span>CIF</span>
+                            <div class="valor-con-copia-cliente-360">
+                                <strong>@(string.IsNullOrWhiteSpace(_detalle.Cif) ? "—" : _detalle.Cif)</strong>
+                                @if (!string.IsNullOrWhiteSpace(_detalle.Cif))
+                                {
+                                    <BotonCopiar Valor="@_detalle.Cif" Etiqueta="el CIF" />
+                                }
+                            </div>
+                        </div>
+                        <div class="celda-info-cliente-360"><span>Crítico</span><strong>@(_detalle.EsCritico ? "Sí" : "No")</strong></div>
+                        <div class="celda-info-cliente-360"><span>Alta</span><strong>@_detalle.CreadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy")</strong></div>
+                    </div>
+
+                    <div class="acciones-cliente-360">
+                        <Boton Variante="VarianteBoton.Secundario" OnClick="IniciarEdicionIdentidad">Editar identidad</Boton>
+                        <Boton Variante="VarianteBoton.Destructivo" OnClick="AbrirDarDeBaja">Dar de baja</Boton>
+                    </div>
+                }
                 break;
 
             case "empresas":
@@ -66,13 +174,13 @@ else
                 {
                     <EstadoVacio Titulo="No pudimos cargar las empresas" Descripcion="Intenta nuevamente en unos segundos.">
                         <Accion>
-                            <Boton OnClick="CargarEmpresasAsync">Reintentar</Boton>
+                            <Boton OnClick="ReintentarEmpresasAsync">Reintentar</Boton>
                         </Accion>
                     </EstadoVacio>
                 }
                 else if (_empresas is { Count: 0 })
                 {
-                    <EstadoVacio Titulo="Sin empresas" Descripcion="Este cliente todavía no tiene ninguna Empresa asociada." />
+                    <EstadoVacio Titulo="Sin empresas" Descripcion="Este cliente empresarial todavía no tiene ninguna Empresa contratada con relación viva." />
                 }
                 else if (_empresas is not null)
                 {
@@ -94,13 +202,13 @@ else
                 {
                     <EstadoVacio Titulo="No pudimos cargar las subcontratas" Descripcion="Intenta nuevamente en unos segundos.">
                         <Accion>
-                            <Boton OnClick="CargarSubcontratasAsync">Reintentar</Boton>
+                            <Boton OnClick="ReintentarSubcontratasAsync">Reintentar</Boton>
                         </Accion>
                     </EstadoVacio>
                 }
                 else if (_subcontratas is { Count: 0 })
                 {
-                    <EstadoVacio Titulo="Sin subcontratas" Descripcion="Este cliente todavía no tiene ninguna Subcontrata asociada." />
+                    <EstadoVacio Titulo="Sin subcontratas" Descripcion="Este cliente empresarial todavía no tiene ninguna Subcontrata declarada." />
                 }
                 else if (_subcontratas is not null)
                 {
@@ -122,13 +230,13 @@ else
                 {
                     <EstadoVacio Titulo="No pudimos cargar los centros" Descripcion="Intenta nuevamente en unos segundos.">
                         <Accion>
-                            <Boton OnClick="CargarCentrosAsync">Reintentar</Boton>
+                            <Boton OnClick="ReintentarCentrosAsync">Reintentar</Boton>
                         </Accion>
                     </EstadoVacio>
                 }
                 else if (_centros is { Count: 0 })
                 {
-                    <EstadoVacio Titulo="Sin centros" Descripcion="Este cliente todavía no tiene ningún Centro." />
+                    <EstadoVacio Titulo="Sin centros" Descripcion="Este cliente empresarial todavía no tiene ningún Centro." />
                 }
                 else if (_centros is not null)
                 {
@@ -158,10 +266,34 @@ else
                 break;
 
             case "notas":
-                <p class="workspace-texto-notas">@(string.IsNullOrWhiteSpace(_detalle.Notas) ? "Sin notas." : _detalle.Notas)</p>
+                @*
+                    El mockup pinta un editor y, debajo, un historial de notas
+                    con fecha y autor. El historial no existe: «Notas» es una
+                    sola columna de la Empresa. Se construye el editor —que sí
+                    escribe— y no se finge el historial.
+                *@
+                @if (_mensajeErrorNota is not null)
+                {
+                    <div class="alerta-formulario" role="alert">@_mensajeErrorNota</div>
+                }
+                <CampoTextarea Etiqueta="Nota interna" Valor="@_notaEditada" ValorChanged="v => _notaEditada = v" Filas="4"
+                               Placeholder="Solo la ve tu equipo. No se envía al cliente empresarial." />
+                <div class="acciones-cliente-360">
+                    <Boton Cargando="_guardandoNota" OnClick="GuardarNotaAsync">Guardar nota</Boton>
+                    <span class="recuentos-cliente-360">Solo visible para tu equipo.</span>
+                </div>
                 break;
         }
     </Pestanas>
+
+    <DialogoConfirmacion
+        Visible="_confirmarBajaVisible"
+        VisibleChanged="v => _confirmarBajaVisible = v"
+        Titulo="@($"¿Dar de baja a {_detalle.RazonSocial}?")"
+        Mensaje="Se marca como eliminado: deja de aparecer en las listas y en los selectores, y se cierra esta ficha. Si todavía tiene centros activos no se da de baja, y se te dice por qué."
+        TextoBotonConfirmar="Dar de baja"
+        EnProgreso="_dandoDeBaja"
+        OnConfirmar="ConfirmarDarDeBajaAsync" />
 }
 
 @code {
@@ -187,6 +319,46 @@ else
     private bool _error;
     private Guid _idCargado;
 
+    /// <summary>
+    /// Generación de la entidad que enseña el panel. El Context Workspace
+    /// reutiliza ESTA instancia al pasar de un Cliente empresarial a otro
+    /// (mismo tipo, sin @@key), así que una carga del primero puede volver
+    /// cuando ya se ve el segundo. Cambiar de entidad y retirar el componente
+    /// suben la generación y todos los contadores de carga: cada respuesta
+    /// compara el suyo antes de escribir y, si ya no es el vigente, se
+    /// descarta.
+    /// </summary>
+    private int _generacion;
+    private int _cargaCabecera;
+    private int _cargaResumen;
+    private int _cargaEmpresas;
+    private int _cargaSubcontratas;
+    private int _cargaCentros;
+
+    /// <summary>
+    /// Los contadores impiden que una respuesta tardía escriba; esto corta la
+    /// consulta misma. Todas las CONSULTAS de carga llevan su token y
+    /// <see cref="Dispose"/> lo cancela: retirado el panel, lo que estaba en
+    /// vuelo deja de ocupar el DbContext del circuito. Los COMANDOS no lo
+    /// llevan, igual que en SubcontrataWorkspacePanel: cerrar la ficha no
+    /// deshace una baja ni un guardado que el usuario ya pidió, y cancelar a
+    /// medias una escritura es peor que dejarla terminar.
+    /// El token se copia al inicializar porque leer <c>Token</c> de un
+    /// <see cref="CancellationTokenSource"/> ya desechado lanza — y se lee
+    /// antes del primer await, nunca después de uno.
+    /// </summary>
+    private readonly CancellationTokenSource _ciclo = new();
+    private CancellationToken _cancelacion;
+
+    /// <summary>
+    /// Recuentos de la cabecera. Va aparte de <see cref="_detalle"/> porque
+    /// ClienteDetalleDto no los trae: los da ObtenerResumenClienteQuery, el
+    /// mismo DTO que ya alimenta ClientePreviewDrawer. Si su consulta falla se
+    /// queda en null y la cabecera no enseña recuentos — un fallo no se
+    /// disfraza de «0 centros · 0 trabajadores».
+    /// </summary>
+    private ResumenClienteDto? _resumen;
+
     private IReadOnlyList<EmpresaDeClienteDto>? _empresas;
     private bool _cargandoEmpresas;
     private bool _errorEmpresas;
@@ -197,118 +369,292 @@ else
     private bool _cargandoCentros;
     private bool _errorCentros;
 
+    /// <summary>
+    /// Edición in situ de «Información», igual que Subcontrata 360 y Centro
+    /// 360. La anotación del mockup pide abrir «el MISMO drawer que la lista»,
+    /// pero ese drawer no es un componente reutilizable: vive incrustado en
+    /// Clientes.razor con su propio estado (FormularioRapidoCliente solo crea,
+    /// no edita). Reproducir aquí el patrón ya fijado por los otros paneles
+    /// cuesta menos deuda que extraer ese drawer dentro de este incremento.
+    /// </summary>
+    private bool _editandoIdentidad;
+    private string _razonSocialEditada = string.Empty;
+    private string _cifEditado = string.Empty;
+    private bool _esCriticoEditado;
+    private bool _guardandoIdentidad;
+    private string? _mensajeErrorIdentidad;
+    private Dictionary<string, string> _erroresIdentidad = new();
+
+    /// <summary>
+    /// Borrador de la nota. EditarClienteCommand reemplaza el registro
+    /// completo, así que guardar la nota reenvía la identidad vigente y
+    /// guardar la identidad reenvía la nota vigente: ninguno de los dos borra
+    /// lo del otro.
+    /// </summary>
+    private string _notaEditada = string.Empty;
+    private bool _guardandoNota;
+    private string? _mensajeErrorNota;
+
+    private bool _confirmarBajaVisible;
+    private bool _dandoDeBaja;
+
+    /// <summary>
+    /// Las tres pestañas cuyas listas carga este panel llevan su recuento.
+    /// Blindaje 42.1 y Documentación no: sus datos los pide el componente de
+    /// la pestaña, y un número que este panel no ha medido sería inventado.
+    /// </summary>
+    private IReadOnlyList<PestanaDefinicion> PestanasConRecuento =>
+        _pestanas.Select(p => p.Id switch
+        {
+            "empresas" when _empresas is not null =>
+                p with { Contador = new ContadorPestana(_empresas.Count, _empresas.Count == 1 ? "empresa" : "empresas") },
+            "subcontratas" when _subcontratas is not null =>
+                p with { Contador = new ContadorPestana(_subcontratas.Count, _subcontratas.Count == 1 ? "subcontrata" : "subcontratas") },
+            "centros" when _centros is not null =>
+                p with { Contador = new ContadorPestana(_centros.Count, _centros.Count == 1 ? "centro" : "centros") },
+            _ => p
+        }).ToList();
+
+    /// <summary>
+    /// «3 centros · 42 trabajadores» del mockup. Sin cumplimiento: no existe
+    /// un porcentaje por Cliente empresarial (ver la cabecera del fichero).
+    /// </summary>
+    private string? TextoRecuentos
+    {
+        get
+        {
+            if (_resumen is null) return null;
+            var centros = _resumen.TotalCentros == 1 ? "1 centro" : $"{_resumen.TotalCentros} centros";
+            var trabajadores = _resumen.TotalTrabajadores == 1 ? "1 trabajador" : $"{_resumen.TotalTrabajadores} trabajadores";
+            return $"{centros} · {trabajadores}";
+        }
+    }
+
+    protected override void OnInitialized() => _cancelacion = _ciclo.Token;
+
     protected override async Task OnParametersSetAsync()
     {
-        if (EntidadId != _idCargado)
-        {
-            _idCargado = EntidadId;
-            _empresas = null;
-            _errorEmpresas = false;
-            _subcontratas = null;
-            _errorSubcontratas = false;
-            _centros = null;
-            _errorCentros = false;
-            await CargarCabeceraAsync();
-        }
+        if (EntidadId == _idCargado)
+            return;
 
-        if (PestanaActiva == "empresas" && _empresas is null && !_errorEmpresas && !_cargandoEmpresas)
-            await CargarEmpresasAsync();
-
-        if (PestanaActiva == "subcontratas" && _subcontratas is null && !_errorSubcontratas && !_cargandoSubcontratas)
-            await CargarSubcontratasAsync();
-
-        if (PestanaActiva == "centros" && _centros is null && !_errorCentros && !_cargandoCentros)
-            await CargarCentrosAsync();
+        _idCargado = EntidadId;
+        ReiniciarParaNuevaEntidad();
+        await CargarTodoAsync();
     }
+
+    /// <summary>Invalida cualquier carga en vuelo: su respuesta ya no escribirá nada.</summary>
+    private void InvalidarCargas()
+    {
+        _generacion++;
+        _cargaCabecera++;
+        _cargaResumen++;
+        _cargaEmpresas++;
+        _cargaSubcontratas++;
+        _cargaCentros++;
+    }
+
+    /// <summary>
+    /// Nada preparado para un Cliente empresarial puede ejecutarse sobre otro:
+    /// el formulario de identidad, el borrador de la nota y el diálogo de baja
+    /// se cierran y se tira lo que tuvieran preparado. Las banderas de
+    /// «operación en curso» también se apagan aquí, y por eso cada operación
+    /// comprueba su generación antes de apagar la suya en el finally: si no,
+    /// el final de la operación anterior reabriría la nueva ficha a un segundo
+    /// envío.
+    /// </summary>
+    private void ReiniciarParaNuevaEntidad()
+    {
+        InvalidarCargas();
+        _detalle = null;
+        _error = false;
+        _resumen = null;
+        _empresas = null;
+        _errorEmpresas = false;
+        _cargandoEmpresas = false;
+        _subcontratas = null;
+        _errorSubcontratas = false;
+        _cargandoSubcontratas = false;
+        _centros = null;
+        _errorCentros = false;
+        _cargandoCentros = false;
+        _editandoIdentidad = false;
+        _guardandoIdentidad = false;
+        _mensajeErrorIdentidad = null;
+        _erroresIdentidad = new Dictionary<string, string>();
+        _razonSocialEditada = string.Empty;
+        _cifEditado = string.Empty;
+        _esCriticoEditado = false;
+        _notaEditada = string.Empty;
+        _guardandoNota = false;
+        _mensajeErrorNota = null;
+        _confirmarBajaVisible = false;
+        _dandoDeBaja = false;
+    }
+
+    /// <summary>
+    /// Cabecera y, detrás, lo que alimenta sus recuentos y las pestañas, en
+    /// serie: todas las consultas comparten el DbContext del circuito. Cada
+    /// paso pinta en cuanto llega.
+    /// </summary>
+    private async Task CargarTodoAsync()
+    {
+        var generacion = _generacion;
+        await CargarCabeceraAsync();
+        if (generacion != _generacion || _detalle is null) return;
+
+        _cargandoEmpresas = true;
+        _cargandoSubcontratas = true;
+        _cargandoCentros = true;
+        StateHasChanged();
+
+        await CargarResumenAsync();
+        if (generacion != _generacion) return;
+        await CargarEmpresasAsync();
+        if (generacion != _generacion) return;
+        await CargarSubcontratasAsync();
+        if (generacion != _generacion) return;
+        await CargarCentrosAsync();
+    }
+
+    /// <summary>Un doble clic en «Reintentar» no lanza una segunda cadena: la primera ya puso _cargando.</summary>
+    private Task ReintentarAsync() => _cargando ? Task.CompletedTask : CargarTodoAsync();
 
     private async Task CargarCabeceraAsync()
     {
+        var carga = ++_cargaCabecera;
+        var id = EntidadId;
         _cargando = true;
         _error = false;
 
         try
         {
-            _detalle = await Mediator.Send(new ObtenerClientePorIdQuery(EntidadId));
+            var detalle = await Mediator.Send(new ObtenerClientePorIdQuery(id), _cancelacion);
+            if (carga != _cargaCabecera) return;
+            _detalle = detalle;
+            _notaEditada = detalle?.Notas ?? string.Empty;
         }
         catch (Exception)
         {
-            _error = true;
+            if (carga == _cargaCabecera)
+                _error = true;
         }
         finally
         {
-            _cargando = false;
+            if (carga == _cargaCabecera)
+                _cargando = false;
         }
     }
 
+    private async Task CargarResumenAsync()
+    {
+        var carga = ++_cargaResumen;
+        var id = EntidadId;
+
+        try
+        {
+            var resumen = await Mediator.Send(new ObtenerResumenClienteQuery(id), _cancelacion);
+            if (carga != _cargaResumen) return;
+            _resumen = resumen;
+        }
+        catch (Exception)
+        {
+            // Se queda en null a propósito: la cabecera omite los recuentos en
+            // vez de pintar ceros que nadie ha medido.
+        }
+        finally
+        {
+            if (carga == _cargaResumen)
+                StateHasChanged();
+        }
+    }
+
+    private Task ReintentarEmpresasAsync() => _cargandoEmpresas ? Task.CompletedTask : CargarEmpresasAsync();
+
     private async Task CargarEmpresasAsync()
     {
-        var idSolicitado = EntidadId;
+        var carga = ++_cargaEmpresas;
+        var id = EntidadId;
         _cargandoEmpresas = true;
         _errorEmpresas = false;
 
         try
         {
-            var resultado = await Mediator.Send(new ObtenerEmpresasDeClienteQuery(idSolicitado));
-            if (idSolicitado == EntidadId)
-                _empresas = resultado;
+            var resultado = await Mediator.Send(new ObtenerEmpresasDeClienteQuery(id), _cancelacion);
+            if (carga != _cargaEmpresas) return;
+            _empresas = resultado;
         }
         catch (Exception)
         {
-            if (idSolicitado == EntidadId)
+            if (carga == _cargaEmpresas)
                 _errorEmpresas = true;
         }
         finally
         {
-            if (idSolicitado == EntidadId)
+            if (carga == _cargaEmpresas)
+            {
                 _cargandoEmpresas = false;
+                StateHasChanged();
+            }
         }
     }
 
+    private Task ReintentarSubcontratasAsync() => _cargandoSubcontratas ? Task.CompletedTask : CargarSubcontratasAsync();
+
     private async Task CargarSubcontratasAsync()
     {
-        var idSolicitado = EntidadId;
+        var carga = ++_cargaSubcontratas;
+        var id = EntidadId;
         _cargandoSubcontratas = true;
         _errorSubcontratas = false;
 
         try
         {
-            var resultado = await Mediator.Send(new ObtenerSubcontratasDeClienteQuery(idSolicitado));
-            if (idSolicitado == EntidadId)
-                _subcontratas = resultado;
+            var resultado = await Mediator.Send(new ObtenerSubcontratasDeClienteQuery(id), _cancelacion);
+            if (carga != _cargaSubcontratas) return;
+            _subcontratas = resultado;
         }
         catch (Exception)
         {
-            if (idSolicitado == EntidadId)
+            if (carga == _cargaSubcontratas)
                 _errorSubcontratas = true;
         }
         finally
         {
-            if (idSolicitado == EntidadId)
+            if (carga == _cargaSubcontratas)
+            {
                 _cargandoSubcontratas = false;
+                StateHasChanged();
+            }
         }
     }
 
+    private Task ReintentarCentrosAsync() => _cargandoCentros ? Task.CompletedTask : CargarCentrosAsync();
+
     private async Task CargarCentrosAsync()
     {
-        var idSolicitado = EntidadId;
+        var carga = ++_cargaCentros;
+        var id = EntidadId;
         _cargandoCentros = true;
         _errorCentros = false;
 
         try
         {
-            var resultado = await Mediator.Send(new ObtenerCentrosDeClienteQuery(idSolicitado));
-            if (idSolicitado == EntidadId)
-                _centros = resultado;
+            var resultado = await Mediator.Send(new ObtenerCentrosDeClienteQuery(id), _cancelacion);
+            if (carga != _cargaCentros) return;
+            _centros = resultado;
         }
         catch (Exception)
         {
-            if (idSolicitado == EntidadId)
+            if (carga == _cargaCentros)
                 _errorCentros = true;
         }
         finally
         {
-            if (idSolicitado == EntidadId)
+            if (carga == _cargaCentros)
+            {
                 _cargandoCentros = false;
+                StateHasChanged();
+            }
         }
     }
 
@@ -320,4 +666,215 @@ else
 
     private Task AbrirCentroAsync(CentroDeClienteDto centro) =>
         WorkspaceService.NavegarAAsync(EntidadWorkspace.Centro, centro.Id, centro.Nombre, "informacion");
+
+    private void IniciarEdicionIdentidad()
+    {
+        if (_detalle is null) return;
+
+        _razonSocialEditada = _detalle.RazonSocial;
+        _cifEditado = _detalle.Cif ?? string.Empty;
+        _esCriticoEditado = _detalle.EsCritico;
+        _mensajeErrorIdentidad = null;
+        _erroresIdentidad = new Dictionary<string, string>();
+        _editandoIdentidad = true;
+    }
+
+    private void CancelarEdicionIdentidad() => _editandoIdentidad = false;
+
+    private string? ObtenerErrorIdentidad(string campo) => _erroresIdentidad.GetValueOrDefault(campo);
+
+    /// <summary>
+    /// La guarda de <c>_guardandoIdentidad</c> comprueba AL ENTRAR: el botón
+    /// deshabilitado no basta, porque el clic ya viajaba cuando se
+    /// deshabilitó. Reenvía la nota vigente para no borrarla, y la Version del
+    /// detalle para que el comando detecte la edición concurrente.
+    /// </summary>
+    private async Task GuardarIdentidadAsync()
+    {
+        if (_detalle is null || _guardandoIdentidad) return;
+
+        var generacion = _generacion;
+        var detalle = _detalle;
+        // El nombre que se está guardando, capturado antes del await: al
+        // cambiar de ficha el borrador se tira, y el aviso tiene que poder
+        // decir a quién se actualizó aunque ya no se vea.
+        var nombreGuardado = _razonSocialEditada;
+        _guardandoIdentidad = true;
+        _mensajeErrorIdentidad = null;
+        _erroresIdentidad = new Dictionary<string, string>();
+
+        try
+        {
+            var resultado = await Mediator.Send(new EditarClienteCommand(
+                detalle.Id, _razonSocialEditada, _cifEditado, _esCriticoEditado, detalle.Notas, detalle.Version));
+
+            if (resultado.EsFallido)
+            {
+                if (generacion == _generacion)
+                    _mensajeErrorIdentidad = resultado.Error.Mensaje;
+                else
+                    ToastService.Mostrar($"No pudimos actualizar a {detalle.RazonSocial}: {resultado.Error.Mensaje}", TonoToast.Error);
+                return;
+            }
+
+            ToastService.Mostrar($"{nombreGuardado} actualizado correctamente.", TonoToast.Exito);
+            if (generacion != _generacion) return;
+            _editandoIdentidad = false;
+            // Recarga obligatoria: sin la Version nueva, un segundo guardado
+            // choca contra la comprobación de concurrencia optimista.
+            await CargarCabeceraAsync();
+        }
+        catch (ValidationException ex)
+        {
+            if (generacion == _generacion)
+                _erroresIdentidad = ex.Errors
+                    .GroupBy(e => e.PropertyName)
+                    .ToDictionary(g => g.Key, g => g.First().ErrorMessage);
+        }
+        catch (Exception)
+        {
+            if (generacion == _generacion)
+                _mensajeErrorIdentidad = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
+        }
+        finally
+        {
+            if (generacion == _generacion)
+                _guardandoIdentidad = false;
+        }
+    }
+
+    /// <summary>
+    /// Guardar la nota es un EditarClienteCommand completo —no hay comando de
+    /// nota— así que reenvía la identidad vigente para no pisarla. Éxito solo
+    /// si el comando lo dice: un Result fallido pinta el error y no toca ni el
+    /// toast ni el borrador.
+    /// </summary>
+    private async Task GuardarNotaAsync()
+    {
+        if (_detalle is null || _guardandoNota) return;
+
+        var generacion = _generacion;
+        var detalle = _detalle;
+        _guardandoNota = true;
+        _mensajeErrorNota = null;
+
+        try
+        {
+            var nota = string.IsNullOrWhiteSpace(_notaEditada) ? null : _notaEditada;
+            var resultado = await Mediator.Send(new EditarClienteCommand(
+                detalle.Id, detalle.RazonSocial, detalle.Cif, detalle.EsCritico, nota, detalle.Version));
+
+            if (resultado.EsFallido)
+            {
+                // El motivo va al formulario si sigue siendo esta ficha; si ya
+                // no lo es, ese formulario no existe y va al aviso, nombrando
+                // de quién era. Un fallo no se traga por haber cambiado de
+                // pantalla mientras el comando viajaba.
+                if (generacion == _generacion)
+                    _mensajeErrorNota = resultado.Error.Mensaje;
+                else
+                    ToastService.Mostrar($"No pudimos guardar la nota de {detalle.RazonSocial}: {resultado.Error.Mensaje}", TonoToast.Error);
+                return;
+            }
+
+            ToastService.Mostrar($"Nota de {detalle.RazonSocial} guardada.", TonoToast.Exito);
+            if (generacion != _generacion) return;
+            await CargarCabeceraAsync();
+        }
+        catch (ValidationException ex)
+        {
+            var motivo = ex.Errors.FirstOrDefault()?.ErrorMessage ?? "Revisa el contenido de la nota.";
+            if (generacion == _generacion)
+                _mensajeErrorNota = motivo;
+            else
+                ToastService.Mostrar($"No pudimos guardar la nota de {detalle.RazonSocial}: {motivo}", TonoToast.Error);
+        }
+        catch (Exception)
+        {
+            if (generacion == _generacion)
+                _mensajeErrorNota = "No pudimos guardar la nota. Intenta nuevamente en unos segundos.";
+            else
+                ToastService.Mostrar($"No pudimos guardar la nota de {detalle.RazonSocial}. Intenta nuevamente en unos segundos.", TonoToast.Error);
+        }
+        finally
+        {
+            if (generacion == _generacion)
+                _guardandoNota = false;
+        }
+    }
+
+    private void AbrirDarDeBaja() => _confirmarBajaVisible = true;
+
+    /// <summary>
+    /// Baja lógica (EliminarClienteCommand marca la Empresa como eliminada; el
+    /// comando la rechaza si tiene centros activos). Tras la baja la ficha ya
+    /// no tiene nada que enseñar: se sale de este nivel —vuelve al anterior de
+    /// la pila si lo hay, si no cierra el panel—, solo si este nivel sigue
+    /// siendo el de este Cliente empresarial.
+    /// </summary>
+    private async Task ConfirmarDarDeBajaAsync()
+    {
+        if (_detalle is null || _dandoDeBaja) return;
+
+        var generacion = _generacion;
+        var detalle = _detalle;
+        _dandoDeBaja = true;
+
+        try
+        {
+            var resultado = await Mediator.Send(new EliminarClienteCommand(detalle.Id));
+
+            // El desenlace se anuncia SIEMPRE y nombrando de quién es. El
+            // comando no lleva el token del ciclo precisamente porque cerrar la
+            // ficha no deshace la baja: callar el resultado porque entretanto
+            // cambió la ficha sería tragarse un desenlace real —y, en el otro
+            // camino, un fallo—. Lo que no pasa de la comprobación de
+            // generación es TOCAR la pantalla: el diálogo y la navegación van
+            // detrás de ella, y la navegación además comprueba que el nivel
+            // vigente siga siendo el de esta entidad.
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar($"{detalle.RazonSocial}: {resultado.Error.Mensaje}", TonoToast.Error);
+                if (generacion == _generacion)
+                    _confirmarBajaVisible = false;
+                return;
+            }
+
+            ToastService.Mostrar($"{detalle.RazonSocial} se dio de baja.", TonoToast.Exito);
+            if (generacion != _generacion) return;
+            _confirmarBajaVisible = false;
+
+            if (WorkspaceService.FrameActual is { Tipo: EntidadWorkspace.Cliente } frame && frame.EntidadId == detalle.Id)
+            {
+                if (WorkspaceService.Pila.Count > 1)
+                    await WorkspaceService.VolverAsync();
+                else
+                    await WorkspaceService.CerrarAsync();
+            }
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar($"No pudimos dar de baja a {detalle.RazonSocial}. Intenta nuevamente en unos segundos.", TonoToast.Error);
+        }
+        finally
+        {
+            if (generacion == _generacion)
+                _dandoDeBaja = false;
+        }
+    }
+
+    /// <summary>
+    /// Al retirar el panel (cerrarlo, o que el Context Workspace pase a otro
+    /// tipo de entidad) se invalida toda carga en vuelo —la cadena de
+    /// <see cref="CargarTodoAsync"/> no sigue pidiendo datos para una ficha
+    /// que ya no se ve— y se cancela la consulta que estuviera emitida. La
+    /// cancelación llega a cada carga como una excepción que su propio catch
+    /// ya descarta (la generación dejó de ser la vigente).
+    /// </summary>
+    public void Dispose()
+    {
+        InvalidarCargas();
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+    }
 }
