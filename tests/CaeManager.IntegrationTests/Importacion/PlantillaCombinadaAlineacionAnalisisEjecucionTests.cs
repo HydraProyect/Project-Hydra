@@ -212,6 +212,38 @@ public class PlantillaCombinadaAlineacionAnalisisEjecucionTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// El mismo emparejamiento por CIF contra una Empresa que no es Cliente
+    /// empresarial, ahora en modo reemplazar. Esa rama ya lo resolvía —
+    /// <c>existente.EsCritico != fila.EsCritico</c> es cierto cuando el
+    /// discriminador está vacío— pero nada lo fijaba: el archivo usa aquí la
+    /// MISMA razón social a propósito, para que la única condición que puede
+    /// disparar la actualización sea la del discriminador.
+    /// </summary>
+    [Fact]
+    public async Task Fila_de_Clientes_cuyo_CIF_ya_es_de_una_Subcontrata_tambien_la_convierte_al_reemplazar()
+    {
+        const string razonSocial = "Empresa Mixta Reemplazo S.L.";
+        const string cif = "B12345674";
+
+        await SembrarAsync(Empresa.CrearComoSubcontrata(razonSocial, cif, nivelServicio: "Estándar"));
+
+        var libro = NuevoLibroBase();
+        var hojaClientes = libro.Worksheets.Worksheet("Clientes");
+        hojaClientes.Cell(2, 1).Value = razonSocial;
+        hojaClientes.Cell(2, 2).Value = cif;
+
+        var plan = await AnalizarAsync(libro);
+        var resultado = await EjecutarAsync(plan, reemplazar: true);
+
+        resultado.ClientesActualizados.Should().Be(1);
+
+        await using var verificacion = CrearContexto();
+        var empresa = await verificacion.Empresas.SingleAsync(e => e.RazonSocial == razonSocial);
+        empresa.EsCritico.Should().NotBeNull();
+        empresa.NivelServicio.Should().Be("Estándar", "reemplazar sobrescribe los campos de la hoja, no los de otra hoja");
+    }
+
+    /// <summary>
     /// Cliente empresarial creado como tal y luego editado sin CIF
     /// (<see cref="Empresa.Actualizar"/> admite <c>cif</c> nulo y no toca
     /// <c>EsCritico</c>): queda con <c>EsCritico != null</c> y <c>Cif == null</c>.
@@ -259,7 +291,7 @@ public class PlantillaCombinadaAlineacionAnalisisEjecucionTests : IAsyncLifetime
         return await servicio.AnalizarAsync(flujo);
     }
 
-    private async Task<ResultadoImportacionCombinadaDto> EjecutarAsync(PlanImportacionCombinadaDto plan)
+    private async Task<ResultadoImportacionCombinadaDto> EjecutarAsync(PlanImportacionCombinadaDto plan, bool reemplazar = false)
     {
         await using var contexto = CrearContexto();
         var handler = new EjecutarImportacionCombinadaCommandHandler(
@@ -271,7 +303,7 @@ public class PlantillaCombinadaAlineacionAnalisisEjecucionTests : IAsyncLifetime
             new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador"));
 
         var resultado = await handler.Handle(
-            new EjecutarImportacionCombinadaCommand(plan, ReemplazarExistentes: false), CancellationToken.None);
+            new EjecutarImportacionCombinadaCommand(plan, ReemplazarExistentes: reemplazar), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         return resultado.Valor;
