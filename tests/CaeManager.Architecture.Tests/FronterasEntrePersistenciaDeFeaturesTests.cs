@@ -307,6 +307,14 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Documentos.EliminarDocumentosCommandHandler", "IProyectosQueryContext"),
         ("Documentos.MarcarAcreditacionAceptadaCommandHandler", "IProyectosQueryContext"),
         ("Documentos.MarcarAcreditacionRechazadaCommandHandler", "IProyectosQueryContext"),
+        // MVP2 § 14.5 (kill switch remoto, ver ARQUITECTURA-INTEGRACIONES.md en
+        // el repositorio de negocio): ExigirProveedorActivo necesita resolver
+        // el proveedor del canal de la acreditación (ICentrosQueryContext) y
+        // comprobar su Activo (IProveedoresPlataformaCaeQueryContext), solo
+        // cuando el llamante es la extensión — el drill-down interno no exige
+        // esta comprobación y sigue sin depender de ninguna de las dos.
+        ("Documentos.MarcarAcreditacionSubidaCommandHandler", "ICentrosQueryContext"),
+        ("Documentos.MarcarAcreditacionSubidaCommandHandler", "IProveedoresPlataformaCaeQueryContext"),
         ("Documentos.MarcarAcreditacionSubidaCommandHandler", "IProyectosQueryContext"),
         ("Documentos.ObtenerAcreditacionesPorProveedorQueryHandler", "ICentrosQueryContext"),
         ("Documentos.ObtenerAcreditacionesPorProveedorQueryHandler", "IClientesQueryContext"),
