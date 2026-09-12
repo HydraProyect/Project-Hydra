@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<title>2. Input controlado (React)</title>
+<style>
+  body { font-family: sans-serif; max-width: 480px; margin: 2rem auto; }
+  .campo { border: 1px solid #ccc; padding: 1rem; border-radius: 6px; }
+</style>
+</head>
+<body>
+  <p><a href="index.html">&larr; volver</a></p>
+  <h1>2. Input controlado (React)</h1>
+  <p>El widget no lee <code>input.files</code> directamente al mostrar el nombre del
+  fichero — lo hace a través del estado de React, actualizado en <code>onChange</code>. Si el
+  evento sintético que dispara <code>inyectarEnInput()</code> no llega al <code>onChange</code>
+  de React, el estado nunca se actualiza aunque el navegador sí muestre el fichero en el input
+  nativo — ese desajuste es justo el riesgo que esta página comprueba.</p>
+  <div id="raiz"></div>
+  <button id="btn-inyectar">Inyectar PDF de prueba</button>
+  <p id="salida"></p>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+  <script src="arnes-prueba.js"></script>
+  <script>
+    const { useState } = React;
+    const h = React.createElement;
+
+    function CampoControlado() {
+      const [archivo, setArchivo] = useState(null);
+      return h("div", { className: "campo" }, [
+        h("label", { key: "l", htmlFor: "archivo" }, "Certificado de estar al corriente con Hacienda"),
+        h("br", { key: "br" }),
+        h("input", {
+          key: "i",
+          id: "archivo",
+          type: "file",
+          accept: "application/pdf",
+          onChange: (evento) => setArchivo(evento.target.files[0] ?? null),
+        }),
+        h(
+          "p",
+          { key: "p", id: "estado-react" },
+          archivo
+            ? `Estado de React: ${archivo.name} (${archivo.size} bytes)`
+            : "Estado de React: ningún archivo (esto NO se actualiza solo -- depende de onChange)."
+        ),
+      ]);
+    }
+
+    ReactDOM.createRoot(document.getElementById("raiz")).render(h(CampoControlado));
+    conectarBotonInyectar("btn-inyectar", "salida");
+  </script>
+</body>
+</html>

@@ -78,6 +78,8 @@ public class ClasesDeCssAisladoNoViajanEntreComponentesTests
     private static readonly Dictionary<string, string> DeudaCongelada = new()
     {
         ["ClavesApi.razor::aviso-error"] = "aviso de error copiado de Facturacion/Proyectos; le corresponde una primitiva de aviso",
+        ["ConectarExtension.razor::aviso-error"] = "aviso de error copiado de Facturacion/Proyectos; le corresponde una primitiva de aviso",
+        ["ConectoresCae.razor::aviso-error"] = "aviso de error copiado de Facturacion/Proyectos; le corresponde una primitiva de aviso",
         ["ClavesApi.razor::aviso-revocacion"] = "aviso copiado de Delegaciones; la misma primitiva de aviso, pendiente",
         ["CentroWorkspacePanel.razor::workspace-lista-entidades"] = "lista de entidades relacionadas de los siete workspaces; la regla vive en FilaEntidadRelacionada.razor.css y le corresponde a workspace.css",
         ["ClienteWorkspacePanel.razor::workspace-lista-entidades"] = "lista de entidades relacionadas de los siete workspaces; la regla vive en FilaEntidadRelacionada.razor.css y le corresponde a workspace.css",
