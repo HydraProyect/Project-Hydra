@@ -224,7 +224,7 @@ public class TerminologiaCanonicaTests
     /// </summary>
     private static readonly Dictionary<string, int> Congelado = new()
     {
-        ["Hydra"] = 53,
+        ["Hydra"] = 52,
         ["EjecutivoUsuarioId"] = 48,
         ["Delegacion"] = 289,
         ["ClienteActivo"] = 68,
