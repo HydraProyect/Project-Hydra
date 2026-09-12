@@ -29,6 +29,12 @@ export function iniciar(referencia, idContenedor) {
         const caja = evento.target.closest('.editor-plantilla-caja');
         if (!caja) return;
 
+        // Versión confirmada: las cajas se ven, no se tocan. La página las
+        // marca con data-editable="false" y el callback de C# también lo
+        // rechaza, para que ni el arrastre ni una invocación suelta muevan
+        // nada de lo que ya es inmutable.
+        if (caja.dataset.editable === 'false') return;
+
         evento.preventDefault();
         caja.setPointerCapture(evento.pointerId);
 

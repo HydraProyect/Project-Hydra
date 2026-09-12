@@ -19,6 +19,7 @@ using CaeManager.Web.Components.DesignSystem;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
 using PdfSharp.Pdf.IO;
 
@@ -96,6 +97,95 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
     private bool _confirmando;
     private bool _errorCarga;
 
+    /// <summary>
+    /// Versión que la ruta pidió cargar. Se fija ANTES del primer await de la
+    /// carga —a diferencia de <see cref="_versionIdActual"/>, que solo existe
+    /// cuando el editor ya está montado—: así un repintado con la misma ruta
+    /// mientras la carga está en vuelo no dispara una segunda carga, y
+    /// «Reintentar» sabe qué volver a pedir tras un fallo.
+    /// </summary>
+    private Guid? _versionSolicitada;
+
+    /// <summary>
+    /// Número de la última carga del editor. Se captura ANTES del
+    /// <c>await</c> y, al volver, solo se escribe estado si sigue siendo la
+    /// vigente y la página sigue viva: una carga superada (cambio de versión en
+    /// la ruta, «Reintentar», alta recién creada) no pisa a la actual. Mismo
+    /// patrón que PlantillasTab y Empresas.
+    /// </summary>
+    private int _cargaVigente;
+
+    /// <summary>
+    /// Se cancela al retirarse la página: la consulta, la lectura del PDF o el
+    /// guardado en curso dejan de trabajar para nadie. Mismo patrón que
+    /// PlantillasTab.
+    /// </summary>
+    private readonly CancellationTokenSource _ciclo = new();
+    private bool _desechado;
+
+    /// <summary>Campo cuya eliminación espera confirmación (diálogo «Eliminar este campo»).</summary>
+    private int? _idLocalPendienteEliminar;
+
+    /// <summary>Diálogo «Confirmar la plantilla»: confirmar es irreversible (ADR-010 § 2.3).</summary>
+    private bool _dialogoConfirmarVisible;
+
+    // Públicas, no internas: CaeManager.Web no tiene InternalsVisibleTo — mismo
+    // motivo que ComprobarRecuentoDePaginas (ver su doc-comment).
+    public const string TextoDescripcionEditable =
+        "Coloca cada campo sobre el PDF y di de dónde sale su dato. Mientras no la confirmes, esta versión no genera documentos.";
+
+    public const string TextoDescripcionConfirmada =
+        "Versión confirmada e inmutable: es la fuente de verdad determinista para generar. Para cambiar algo, se crea una versión nueva.";
+
+    /// <summary>El alta (/plantillas/nueva) mientras todavía no se ha creado la versión.</summary>
+    private bool EsAlta => PlantillaDocumentoVersionId is null && _versionIdActual is null;
+
+    /// <summary>Hay una versión montada en el editor (ni alta, ni cargando, ni en error).</summary>
+    private bool EnEditor => !EsAlta && _versionIdActual is not null && !_cargandoEditor && !_errorCarga;
+
+    private string TituloPagina => EsAlta
+        ? "Nueva plantilla"
+        : string.IsNullOrWhiteSpace(_nombrePlantilla) ? "Plantilla" : _nombrePlantilla;
+
+    private string TextoPaginas => _paginas.Count == 1 ? "1 página" : $"{_paginas.Count} páginas";
+
+    /// <summary>Antes el badge pintaba el nombre del enum: «PendienteRevision». Mismos rótulos que el catálogo.</summary>
+    private static string TextoEstado(EstadoConfiguracionPlantilla estado) => estado switch
+    {
+        EstadoConfiguracionPlantilla.Borrador => "Borrador",
+        EstadoConfiguracionPlantilla.PendienteRevision => "Pendiente de revisión",
+        EstadoConfiguracionPlantilla.Confirmada => "Confirmada",
+        _ => estado.ToString()
+    };
+
+    /// <summary>Mismos rótulos que el catálogo (PlantillasTab): el enum no lleva tildes.</summary>
+    private static string TextoAmbito(AmbitoAplicacion ambito) => ambito switch
+    {
+        AmbitoAplicacion.Vehiculo => "Vehículo",
+        _ => ambito.ToString()
+    };
+
+    private static string TextoFormato(FormatoOrigenPlantilla formato) => formato switch
+    {
+        FormatoOrigenPlantilla.PdfConCampos => "PDF con campos (AcroForm)",
+        FormatoOrigenPlantilla.PdfVisual => "PDF visual (posición a mano)",
+        _ => formato.ToString()
+    };
+
+    /// <summary>Mismos rótulos que el selector «Tipo» del panel.</summary>
+    private static string TextoTipo(TipoElementoPlantilla tipo) => tipo switch
+    {
+        TipoElementoPlantilla.Checkbox => "Casilla",
+        TipoElementoPlantilla.Constante => "Texto fijo",
+        _ => tipo.ToString()
+    };
+
+    private static string TextoAccesibleCaja(ElementoEditor elemento) =>
+        $"Campo {elemento.EtiquetaVisible}, tipo {TextoTipo(elemento.Tipo)}{(elemento.Obligatorio ? ", obligatorio" : string.Empty)}";
+
+    /// <summary>La respuesta es de la carga vigente y la página sigue viva.</summary>
+    private bool EsVigente(int carga) => !_desechado && carga == _cargaVigente;
+
     // Generación individual (PR7) — solo cuando la versión está Confirmada.
     private Guid? _ownerIdGeneracion;
     private Guid? _centroIdGeneracion;
@@ -152,26 +242,43 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
 
     protected override async Task OnParametersSetAsync()
     {
-        if (PlantillaDocumentoVersionId == _versionIdActual) return;
+        if (PlantillaDocumentoVersionId == _versionSolicitada) return;
 
         if (PlantillaDocumentoVersionId is not { } versionId)
         {
+            // Vuelta al alta con la misma instancia: la carga que hubiera en
+            // vuelo deja de ser la vigente y no puede montar el editor encima.
+            _versionSolicitada = null;
             _versionIdActual = null;
+            _cargaVigente++;
+            _cargandoEditor = false;
+            _errorCarga = false;
             return;
         }
 
         await CargarVersionExistenteAsync(versionId);
     }
 
+    private Task ReintentarAsync() =>
+        _versionSolicitada is { } versionId ? CargarVersionExistenteAsync(versionId) : Task.CompletedTask;
+
     private async Task CargarVersionExistenteAsync(Guid versionId)
     {
+        if (_desechado)
+            return;
+
+        var carga = ++_cargaVigente;
+        _versionSolicitada = versionId;
         _cargandoEditor = true;
         _errorCarga = false;
         StateHasChanged();
 
         try
         {
-            var resultado = await Mediator.Send(new ObtenerPlantillaDocumentoVersionQuery(versionId));
+            var resultado = await Mediator.Send(new ObtenerPlantillaDocumentoVersionQuery(versionId), _ciclo.Token);
+            if (!EsVigente(carga))
+                return;
+
             if (resultado.EsFallido)
             {
                 _errorCarga = true;
@@ -185,14 +292,22 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
             // ("formulario reutilizable a partir del cual se generan
             // documentos"), que un Administrador configura — no un Documento
             // relleno de una persona concreta.
-            await using var flujo = await AlmacenamientoArchivos.AbrirAsync(detalle.ArchivoOriginalUrl);
+            await using var flujo = await AlmacenamientoArchivos.AbrirAsync(detalle.ArchivoOriginalUrl, _ciclo.Token);
             using var memoria = new MemoryStream();
-            await flujo.CopyToAsync(memoria);
+            await flujo.CopyToAsync(memoria, _ciclo.Token);
+            if (!EsVigente(carga))
+                return;
+
             var contenido = memoria.ToArray();
 
             await IniciarEditorAsync(
-                versionId, detalle.PlantillaDocumentoId, detalle.NombrePlantilla, detalle.AmbitoAplicacion, detalle.FormatoOrigen,
+                carga, versionId, detalle.PlantillaDocumentoId, detalle.NombrePlantilla, detalle.AmbitoAplicacion, detalle.FormatoOrigen,
                 detalle.EstadoConfiguracion, contenido, ElementosIniciales(detalle));
+        }
+        catch (Exception) when (!EsVigente(carga))
+        {
+            // Una carga superada (o cancelada al retirarse la página) que falla
+            // no es un error de la vigente: no puede tapar su resultado.
         }
         catch (Exception)
         {
@@ -200,8 +315,11 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
         }
         finally
         {
-            _cargandoEditor = false;
-            StateHasChanged();
+            if (EsVigente(carga))
+            {
+                _cargandoEditor = false;
+                StateHasChanged();
+            }
         }
     }
 
@@ -256,8 +374,13 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
                 return;
             }
 
+            // La ruta pasará a /plantillas/{id}/editar (NavigateTo de abajo):
+            // marcarla ya como solicitada evita que OnParametersSetAsync la
+            // vuelva a cargar desde el servidor sobre el editor recién montado.
+            var carga = ++_cargaVigente;
+            _versionSolicitada = resultado.Valor.PlantillaDocumentoVersionId;
             await IniciarEditorAsync(
-                resultado.Valor.PlantillaDocumentoVersionId, resultado.Valor.PlantillaDocumentoId, _nombre, _ambitoAplicacion,
+                carga, resultado.Valor.PlantillaDocumentoVersionId, resultado.Valor.PlantillaDocumentoId, _nombre, _ambitoAplicacion,
                 _formatoOrigenSeleccionado, EstadoConfiguracionPlantilla.Borrador, _archivoSeleccionado, []);
 
             Navigation.NavigateTo($"/plantillas/{resultado.Valor.PlantillaDocumentoVersionId}/editar", replace: true);
@@ -276,9 +399,12 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
     /// y confirma" (ADR-010 § 2.4).
     /// </summary>
     private async Task IniciarEditorAsync(
-        Guid versionId, Guid documentoId, string nombrePlantilla, AmbitoAplicacion ambitoAplicacion, FormatoOrigenPlantilla formatoOrigen,
+        int carga, Guid versionId, Guid documentoId, string nombrePlantilla, AmbitoAplicacion ambitoAplicacion, FormatoOrigenPlantilla formatoOrigen,
         EstadoConfiguracionPlantilla estadoConfiguracion, byte[] contenidoPdf, List<ElementoEditor> elementosExistentes)
     {
+        if (!EsVigente(carga))
+            return;
+
         _versionIdActual = versionId;
         _documentoId = documentoId;
         _nombrePlantilla = nombrePlantilla;
@@ -287,17 +413,38 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
         _estadoConfiguracion = estadoConfiguracion;
         _elementos = elementosExistentes;
         _idLocalSeleccionado = null;
+        ReiniciarEstadoDeGeneracion();
 
         _paginas = await RasterizarPaginasAsync(contenidoPdf);
 
         if (_elementos.Count == 0 && estadoConfiguracion == EstadoConfiguracionPlantilla.Borrador)
-            await EjecutarDeteccionInicialAsync(versionId, formatoOrigen, contenidoPdf);
+            await EjecutarDeteccionInicialAsync(carga, formatoOrigen, contenidoPdf);
 
-        if (estadoConfiguracion == EstadoConfiguracionPlantilla.Confirmada)
-            await CargarOpcionesGeneracionAsync();
+        if (estadoConfiguracion == EstadoConfiguracionPlantilla.Confirmada && EsVigente(carga))
+            await CargarOpcionesGeneracionAsync(carga);
     }
 
-    private async Task CargarOpcionesGeneracionAsync()
+    /// <summary>
+    /// Lo que se genera pertenece a UNA versión. Al cargar otra en la misma
+    /// instancia (navegación mejorada entre /plantillas/{id}/editar) quedaban
+    /// aquí el documento generado antes, sus avisos y las opciones del ámbito
+    /// anterior: la versión nueva enseñaba el enlace y los avisos de la vieja.
+    /// </summary>
+    private void ReiniciarEstadoDeGeneracion()
+    {
+        _opcionesGeneracionCargadas = false;
+        _documentoGeneradoId = null;
+        _camposObligatoriosVacios = [];
+        _valoresNoReconocidos = [];
+        _ownerIdGeneracion = null;
+        _centroIdGeneracion = null;
+        _trabajadoresDisponibles = [];
+        _empresasDisponibles = [];
+        _valoresManualesPorIdReal.Clear();
+        _trabajadoresSeleccionadosLote.Clear();
+    }
+
+    private async Task CargarOpcionesGeneracionAsync(int carga)
     {
         if (_opcionesGeneracionCargadas) return;
         _opcionesGeneracionCargadas = true;
@@ -305,10 +452,14 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
         switch (_ambitoAplicacion)
         {
             case AmbitoAplicacion.Trabajador:
-                _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
+                var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(), _ciclo.Token);
+                if (!EsVigente(carga)) return;
+                _trabajadoresDisponibles = trabajadores;
                 break;
             case AmbitoAplicacion.Empresa:
-                _empresasDisponibles = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
+                var empresas = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery(), _ciclo.Token);
+                if (!EsVigente(carga)) return;
+                _empresasDisponibles = empresas;
                 break;
                 // Cliente reutiliza _clientesDisponibles, ya cargado en OnInitializedAsync.
         }
@@ -515,10 +666,10 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
         return paginas;
     }
 
-    private async Task EjecutarDeteccionInicialAsync(Guid versionId, FormatoOrigenPlantilla formatoOrigen, byte[] contenidoPdf)
+    private async Task EjecutarDeteccionInicialAsync(int carga, FormatoOrigenPlantilla formatoOrigen, byte[] contenidoPdf)
     {
-        var deteccion = await Mediator.Send(new DetectarCamposPlantillaQuery(contenidoPdf, formatoOrigen));
-        if (deteccion.EsFallido || deteccion.Valor.Count == 0) return;
+        var deteccion = await Mediator.Send(new DetectarCamposPlantillaQuery(contenidoPdf, formatoOrigen), _ciclo.Token);
+        if (!EsVigente(carga) || deteccion.EsFallido || deteccion.Valor.Count == 0) return;
 
         _elementos = deteccion.Valor.Select(c => new ElementoEditor
         {
@@ -534,7 +685,9 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
             NombreCampoAcroForm = c.NombreCampoAcroForm,
         }).ToList();
 
-        await GuardarCambiosAsync(mostrarToast: false);
+        // «La IA propone» se persiste en silencio: si falla, las cajas siguen
+        // en pantalla y el siguiente «Guardar cambios» lo dirá.
+        await GuardarElementosAsync(avisarExito: false, avisarFallo: false);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -550,6 +703,11 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
     [JSInvokable]
     public void ActualizarPosicionAsync(int idLocal, double x, double y, double ancho, double alto)
     {
+        // Una versión confirmada es inmutable: aunque llegue la invocación, no
+        // se mueve nada. El JS ya no la lanza (data-editable), pero la guarda
+        // vive aquí porque esta es la puerta de entrada.
+        if (_desechado || !PuedeEditar) return;
+
         var elemento = _elementos.FirstOrDefault(e => e.IdLocal == idLocal);
         if (elemento is null) return;
 
@@ -561,6 +719,13 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
     }
 
     private void SeleccionarElemento(int idLocal) => _idLocalSeleccionado = idLocal;
+
+    /// <summary>La caja es role="button": Intro y Espacio la seleccionan, como haría un botón.</summary>
+    private void SeleccionarConTeclado(KeyboardEventArgs e, int idLocal)
+    {
+        if (PuedeEditar && e.Key is "Enter" or " ")
+            SeleccionarElemento(idLocal);
+    }
 
     private void AnadirElemento()
     {
@@ -587,14 +752,61 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
             _idLocalSeleccionado = null;
     }
 
+    /// <summary>
+    /// «Eliminar campo» ya no quita la caja al primer clic: pide confirmación
+    /// (Editor Plantilla TALVEG.dc.html). La baja sigue siendo local hasta
+    /// «Guardar cambios».
+    /// </summary>
+    private void PedirEliminarElemento(int idLocal) => _idLocalPendienteEliminar = idLocal;
+
+    private void CerrarDialogoEliminar(bool visible)
+    {
+        if (!visible) _idLocalPendienteEliminar = null;
+    }
+
+    private void ConfirmarEliminarElemento()
+    {
+        if (_idLocalPendienteEliminar is { } idLocal)
+            EliminarElemento(idLocal);
+
+        _idLocalPendienteEliminar = null;
+    }
+
     private bool PuedeEditar => _estadoConfiguracion != EstadoConfiguracionPlantilla.Confirmada;
 
-    private async Task GuardarCambiosAsync(bool mostrarToast = true)
+    public const string MensajeFalloGuardado =
+        "No pudimos guardar los cambios. Lo que has editado sigue en pantalla: vuelve a intentarlo.";
+
+    public const string MensajeFalloConfirmacion = "No pudimos confirmar la plantilla. Vuelve a intentarlo.";
+
+    /// <summary>
+    /// «Guardar cambios». No se guarda mientras se confirma: la confirmación
+    /// ya guarda antes, y un segundo guardado en paralelo competiría con ella.
+    /// </summary>
+    private async Task GuardarDesdeBotonAsync()
     {
-        if (_versionIdActual is not { } versionId || _guardando) return;
+        if (_confirmando) return;
+
+        await GuardarElementosAsync(avisarExito: true, avisarFallo: true);
+    }
+
+    /// <summary>
+    /// Envía la lista completa de cajas (el comando sustituye todos los
+    /// elementos de la versión). Tres desenlaces, y ninguno toca lo tecleado:
+    /// éxito; rechazo del servidor (versión inexistente o ya confirmada), con
+    /// su mensaje; y excepción, con <see cref="MensajeFalloGuardado"/>. No hay
+    /// conflicto de concurrencia que distinguir: el comando no lleva versión
+    /// de fila. Devuelve si se guardó, para que confirmar no siga adelante
+    /// sobre un guardado fallido.
+    /// </summary>
+    private async Task<bool> GuardarElementosAsync(bool avisarExito, bool avisarFallo)
+    {
+        // La bandera se levanta antes del primer await: un doble clic encuentra
+        // el guardado en curso y no envía un segundo comando.
+        if (_desechado || _versionIdActual is not { } versionId || _guardando) return false;
 
         _guardando = true;
-        if (mostrarToast) StateHasChanged();
+        if (avisarExito) StateHasChanged();
 
         try
         {
@@ -602,15 +814,29 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
                 e.Tipo, e.Pagina, e.X, e.Y, e.Ancho, e.Alto, e.EtiquetaVisible, e.FuenteDato,
                 e.ValorConstante, e.Formato, e.Obligatorio, e.RolFirmante, e.NombreCampoAcroForm)).ToList();
 
-            var resultado = await Mediator.Send(new GuardarElementosPlantillaCommand(versionId, dtos));
+            var resultado = await Mediator.Send(new GuardarElementosPlantillaCommand(versionId, dtos), _ciclo.Token);
+            if (_desechado) return false;
+
             if (resultado.EsFallido)
             {
-                if (mostrarToast) Toasts.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
-                return;
+                if (avisarFallo) Toasts.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return false;
             }
 
             _estadoConfiguracion = EstadoConfiguracionPlantilla.PendienteRevision;
-            if (mostrarToast) Toasts.Mostrar("Cambios guardados.", TonoToast.Exito);
+            if (avisarExito) Toasts.Mostrar("Cambios guardados.", TonoToast.Exito);
+            return true;
+        }
+        catch (Exception) when (_desechado)
+        {
+            return false;
+        }
+        catch (Exception)
+        {
+            // Antes la excepción subía sin capturar y tumbaba el circuito, con
+            // lo tecleado dentro.
+            if (avisarFallo) Toasts.Mostrar(MensajeFalloGuardado, TonoToast.Error);
+            return false;
         }
         finally
         {
@@ -618,18 +844,47 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
         }
     }
 
+    private void PedirConfirmar()
+    {
+        if (_confirmando || _guardando || _elementos.Count == 0) return;
+
+        _dialogoConfirmarVisible = true;
+    }
+
+    private void CerrarDialogoConfirmar(bool visible)
+    {
+        if (!visible && !_confirmando) _dialogoConfirmarVisible = false;
+    }
+
+    /// <summary>
+    /// «Sí, confirmar» del diálogo: guarda primero y solo confirma si el
+    /// guardado salió bien. Antes confirmaba igualmente tras un guardado
+    /// fallido, y la versión quedaba inmutable con los elementos anteriores:
+    /// lo tecleado se perdía sin aviso.
+    /// </summary>
     private async Task ConfirmarAsync()
     {
-        if (_versionIdActual is not { } versionId || _confirmando) return;
+        if (_desechado || _versionIdActual is not { } versionId || _confirmando || _guardando) return;
+
+        // La carga vigente al empezar. Comprobar solo _desechado no bastaba: si
+        // durante el guardado se navega a otra versión (la página sigue viva,
+        // solo cambia el parámetro de ruta), se confirmaba la versión vieja y
+        // se navegaba al catálogo desde la nueva, que el usuario estaba viendo.
+        var carga = _cargaVigente;
 
         _confirmando = true;
         StateHasChanged();
 
         try
         {
-            await GuardarCambiosAsync(mostrarToast: false);
+            if (!await GuardarElementosAsync(avisarExito: false, avisarFallo: true))
+                return;
 
-            var resultado = await Mediator.Send(new ConfirmarPlantillaDocumentoVersionCommand(versionId));
+            if (!EsVigente(carga)) return;
+
+            var resultado = await Mediator.Send(new ConfirmarPlantillaDocumentoVersionCommand(versionId), _ciclo.Token);
+            if (!EsVigente(carga)) return;
+
             if (resultado.EsFallido)
             {
                 Toasts.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
@@ -639,14 +894,29 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
             Toasts.Mostrar("Plantilla confirmada.", TonoToast.Exito);
             Navigation.NavigateTo("/plantillas");
         }
+        catch (Exception) when (_desechado)
+        {
+        }
+        catch (Exception)
+        {
+            Toasts.Mostrar(MensajeFalloConfirmacion, TonoToast.Error);
+        }
         finally
         {
             _confirmando = false;
+            _dialogoConfirmarVisible = false;
         }
     }
 
     public async ValueTask DisposeAsync()
     {
+        if (_desechado)
+            return;
+
+        _desechado = true;
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+
         if (_modulo is not null)
         {
             try

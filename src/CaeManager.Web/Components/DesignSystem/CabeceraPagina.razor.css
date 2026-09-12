@@ -32,6 +32,17 @@
     align-items: flex-start;
 }
 
+/* Título y su pieza acompañante (JuntoAlTitulo) en una sola línea, con el
+   mismo gap de 12px que el mockup del editor de plantillas pone entre el h1 y
+   su badge de estado. Envuelve en pantallas angostas. */
+.cabecera-pagina-titular {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    min-width: 0;
+}
+
 .cabecera-pagina-kicker {
     font: var(--font-body-sm);
     color: var(--color-text-muted);

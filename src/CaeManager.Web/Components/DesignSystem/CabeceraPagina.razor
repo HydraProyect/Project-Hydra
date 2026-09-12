@@ -50,13 +50,16 @@
             <span class="cabecera-pagina-kicker">@Kicker</span>
         }
 
-        @if (Integrada)
+        @if (JuntoAlTitulo is null)
         {
-            <h2 class="titulo-panel-configuracion">@Titulo</h2>
+            @EncabezadoTitulo
         }
         else
         {
-            <h1 class="titulo-pagina">@Titulo</h1>
+            <div class="cabecera-pagina-titular">
+                @EncabezadoTitulo
+                @JuntoAlTitulo
+            </div>
         }
 
         @if (Descripcion is not null)
@@ -88,6 +91,26 @@
     /// llevan enlaces y <c>code</c> dentro (Conexiones, Claves API).
     /// </summary>
     [Parameter] public RenderFragment? Descripcion { get; set; }
+
+    /// <summary>
+    /// Pieza que va en la misma línea que el título, a su derecha —el estado
+    /// de lo que se está viendo, p. ej. el badge «Confirmada» del editor de
+    /// plantillas—. Opcional: sin valor el título se pinta como siempre, sin
+    /// envoltorio, y ningún consumidor existente cambia.
+    /// </summary>
+    [Parameter] public RenderFragment? JuntoAlTitulo { get; set; }
+
+    private RenderFragment EncabezadoTitulo => __builder =>
+    {
+        if (Integrada)
+        {
+            <h2 class="titulo-panel-configuracion">@Titulo</h2>
+        }
+        else
+        {
+            <h1 class="titulo-pagina">@Titulo</h1>
+        }
+    };
 
     /// <summary>Acciones de la pantalla, alineadas a la derecha del título.</summary>
     [Parameter] public RenderFragment? Acciones { get; set; }
