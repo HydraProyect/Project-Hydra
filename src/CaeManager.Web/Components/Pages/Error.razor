@@ -12,10 +12,11 @@
 @layout CaeManager.Web.Components.Layout.AuthLayout
 @attribute [AllowAnonymous]
 @using System.Diagnostics
+@using Microsoft.AspNetCore.Diagnostics
 
 <PageTitle>Error — @Marca.Nombre</PageTitle>
 
-<PaginaEstadoSistema Tipo="TipoEstadoSistema.Error" ReferenciaTecnica="@RequestId" />
+<PaginaEstadoSistema Tipo="TipoEstadoSistema.Error" ReferenciaTecnica="@RequestId" RutaReintentar="@RutaOrigen" />
 
 @code {
     [CascadingParameter]
@@ -23,6 +24,16 @@
 
     private string? RequestId { get; set; }
 
-    protected override void OnInitialized() =>
+    // IExceptionHandlerPathFeature.Path es la ruta que UseExceptionHandler("/Error")
+    // capturó ANTES de reejecutar la petición aquí — la petición que de verdad falló,
+    // no /Error. Sin ella "Reintentar" no tiene adónde volver de verdad (ver
+    // PaginaEstadoSistema.RutaReintentar): PaginaEstadoSistema decide si es segura
+    // para navegar, aquí solo se lee tal cual la deja el framework.
+    private string? RutaOrigen { get; set; }
+
+    protected override void OnInitialized()
+    {
         RequestId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+        RutaOrigen = HttpContext?.Features.Get<IExceptionHandlerPathFeature>()?.Path;
+    }
 }

@@ -7,11 +7,15 @@
    icono/título/descripción, y un camino de salida siempre visible.
 
    Deliberadamente sin @rendermode: nada aquí necesita un circuito
-   interactivo — Boton navega con Href (ancla real) y "Reintentar" usa
-   OnClickScript (onclick nativo). Error.razor en concreto depende de esto:
+   interactivo — Boton navega con Href (ancla real), incluido "Reintentar"
+   (ver RutaReintentar en el @code). Error.razor en concreto depende de esto:
    si lo que trajo al usuario aquí fue la base de datos caída, abrir un
    circuito interactivo no debería añadir más trabajo antes de poder pintar
    el mensaje (mismo principio que ya aplicaba AuthLayout, Sentry DOTNET-8). *@
+@using CaeManager.Infrastructure.Comunicaciones
+@using CaeManager.Web.Features.Comunicaciones
+@using Microsoft.Extensions.Options
+@inject IOptions<ComunicacionesOptions> OpcionesComunicaciones
 <div class="pagina-estado-sistema">
     <a class="marca-estado-sistema" href="/" aria-label="@($"{Marca.Nombre} — ir al Dashboard")">
         <span class="marca-estado-sistema-marca" aria-hidden="true"></span>
@@ -35,22 +39,24 @@
                     </p>
                 }
 
-                @if (Tipo == TipoEstadoSistema.AccesoDenegado)
-                {
-                    <div class="aviso-permisos-estado-sistema">
-                        Los permisos dependen de tu rol y de la cartera que tengas asignada. Un administrador de tu organización puede revisarlos.
-                    </div>
-                }
-
                 <div class="acciones-estado-sistema">
                     <Boton Href="/">Ir al Dashboard</Boton>
                     @if (MostrarReintentar)
                     {
-                        <Boton Variante="VarianteBoton.Secundario" OnClickScript="window.location.reload()">Reintentar</Boton>
+                        <Boton Variante="VarianteBoton.Secundario" Href="@RutaReintentar">Reintentar</Boton>
                     }
-                    @if (MostrarSoporte)
+                    @if (Tipo == TipoEstadoSistema.AccesoDenegado && OpcionesComunicaciones.Value.Activo)
                     {
-                        <Boton Variante="VarianteBoton.Secundario" Href="/comunicaciones">Escribir a un administrador</Boton>
+                        @* RolesComunicaciones.Gestion es la misma constante que exige
+                           Bandeja.razor vía [Authorize(Roles = ...)] — este destino solo
+                           se pinta si el usuario denegado puede llegar de verdad a
+                           /comunicaciones (nunca el rol Cliente, que RolesComunicaciones
+                           excluye a propósito). Comparar contra la autorización real de
+                           la página en vez de una lista propia evita que las dos se
+                           desincronicen. *@
+                        <AuthorizeView Roles="@RolesComunicaciones.Gestion" Context="autorizacionComunicaciones">
+                            <Boton Variante="VarianteBoton.Secundario" Href="/comunicaciones">Escribir en Comunicaciones</Boton>
+                        </AuthorizeView>
                     }
                 </div>
             </Accion>
@@ -74,12 +80,32 @@
     /// </summary>
     [Parameter] public string? ReferenciaTecnica { get; set; }
 
+    /// <summary>
+    /// Solo aplica a <see cref="TipoEstadoSistema.Error"/>: la ruta que
+    /// falló (<c>IExceptionHandlerPathFeature.Path</c>, capturada en
+    /// Error.razor), para que "Reintentar" repita de verdad esa petición en
+    /// vez de recargar /Error — que no reproduce nada, solo vuelve a pintar
+    /// la propia pantalla de error. Sin ruta conocida, o si no es local
+    /// (nunca una URL absoluta ni protocol-relative: sería un redirect
+    /// abierto), el botón no se pinta — mejor sin acción que una que promete
+    /// un reintento que no hace. Como "Reintentar" siempre navega (ancla real
+    /// vía Boton.Href, nunca un POST), tampoco puede duplicar una escritura
+    /// que sí hubiera fallado.
+    /// </summary>
+    [Parameter] public string? RutaReintentar { get; set; }
+
     private bool MostrarReferenciaTecnica =>
         Tipo == TipoEstadoSistema.Error && !string.IsNullOrEmpty(ReferenciaTecnica);
 
-    private bool MostrarReintentar => Tipo == TipoEstadoSistema.Error;
+    private bool MostrarReintentar =>
+        Tipo == TipoEstadoSistema.Error && EsRutaLocalSegura(RutaReintentar);
 
-    private bool MostrarSoporte => Tipo == TipoEstadoSistema.AccesoDenegado;
+    private static bool EsRutaLocalSegura(string? ruta) =>
+        !string.IsNullOrEmpty(ruta)
+        && ruta.StartsWith('/')
+        && !ruta.StartsWith("//", StringComparison.Ordinal)
+        && !ruta.StartsWith("/\\", StringComparison.Ordinal)
+        && Uri.TryCreate(ruta, UriKind.Relative, out _);
 
     private string ClaseTipo => Tipo switch
     {
@@ -104,7 +130,7 @@
         // Nunca "el cliente X no es tuyo" ni "esa ficha no existe": ambas
         // frases confirmarían que el recurso existe, y eso es justo la fuga
         // de información que esta pantalla existe para evitar.
-        TipoEstadoSistema.AccesoDenegado => "Si crees que es un error, contacta a un administrador.",
+        TipoEstadoSistema.AccesoDenegado => "Si crees que es un error, contacta con quien gestione tus accesos en tu organización.",
         _ => string.Empty,
     };
 
