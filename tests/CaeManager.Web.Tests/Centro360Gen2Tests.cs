@@ -702,11 +702,31 @@ public class Centro360Gen2Tests : BunitContext
     [Fact]
     public async Task Una_baja_que_hizo_todo_lo_pedido_si_es_un_exito()
     {
-        var toasts = await EjecutarBajaAsync(new ResultadoBajaLoteDto(1, []));
+        // Dos seleccionadas, dos dadas de baja. Antes este caso pedía dos y
+        // recibía una, y aun así esperaba éxito: no observaba lo que su nombre
+        // afirma. Lo señaló la revisión de Codex.
+        var toasts = await EjecutarBajaAsync(new ResultadoBajaLoteDto(2, []));
 
         var toast = toasts.Should().ContainSingle().Subject;
         toast.Tono.Should().Be(TonoToast.Exito);
-        toast.Mensaje.Should().Contain("1 trabajador(es) dado(s) de baja");
+        toast.Mensaje.Should().Contain("2 trabajador(es) dado(s) de baja");
+    }
+
+    /// <summary>
+    /// Menos bajas que asignaciones pedidas, y sin errores que lo expliquen. El
+    /// handler de hoy añade un error por cada una que no da de baja, así que
+    /// este DTO no llega a producirse — pero esa garantía es suya, no del
+    /// contrato de <c>ResultadoBajaLoteDto</c>, y mientras el recuento pueda
+    /// quedarse corto decir «hecho» afirma un efecto que no consta.
+    /// </summary>
+    [Fact]
+    public async Task Una_baja_que_solo_hizo_parte_no_se_presenta_como_exito_aunque_no_traiga_errores()
+    {
+        var toasts = await EjecutarBajaAsync(new ResultadoBajaLoteDto(1, []));
+
+        var toast = toasts.Should().ContainSingle().Subject;
+        toast.Tono.Should().Be(TonoToast.Advertencia);
+        toast.Mensaje.Should().Contain("1 de 2");
     }
 
     /// <summary>Un comando rechazado se enseña con su motivo y no se traga.</summary>
@@ -747,5 +767,65 @@ public class Centro360Gen2Tests : BunitContext
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Dar de baja").ClickAsync(new MouseEventArgs());
 
         return (Services.GetRequiredService<ToastService>().Mensajes, cut);
+    }
+
+    /// <summary>
+    /// La bandera de «baja en curso» es una sola para el componente, y cambiar
+    /// de centro la baja. Si la baja del centro anterior termina DESPUÉS de que
+    /// el centro nuevo haya arrancado la suya, su <c>finally</c> apagaba la
+    /// bandera del nuevo y dejaba su modal abierta a un segundo envío. Lo
+    /// señaló la revisión de Codex: el caso de doble clic no cruzaba de centro,
+    /// así que no ejercitaba esta reentrada.
+    /// </summary>
+    [Fact]
+    public async Task La_baja_del_centro_anterior_al_terminar_no_reabre_la_del_centro_nuevo_a_un_segundo_envio()
+    {
+        var a = Guid.NewGuid();
+        var b = Guid.NewGuid();
+        var deA = Asignado("Juan Pérez", EstadoDocumento.Vencido, Documento("Formación PRL", EstadoDocumento.Vencido));
+        var deB = Asignado("Marco Vila", EstadoDocumento.Vencido, Documento("Formación PRL", EstadoDocumento.Vencido));
+        var bajaDeA = new TaskCompletionSource();
+        var bajaDeB = new TaskCompletionSource();
+        var mediador = Registrar(new MediatorFalso
+        {
+            Retener = p => p is DarDeBajaAsignacionesCommand c
+                ? (c.Ids.Contains(deA.AsignacionId) ? bajaDeA.Task : bajaDeB.Task)
+                : null,
+            ResultadoBaja = Result.Exito(new ResultadoBajaLoteDto(1, []))
+        });
+        mediador.Asignaciones[a] = [deA];
+        mediador.Asignaciones[b] = [deB];
+
+        var cut = RenderizarAcordeon(a);
+        await cut.Find("input[type=checkbox]").ChangeAsync(new ChangeEventArgs { Value = true });
+        await BotonAcordeon(cut, "Dar de baja seleccionados").ClickAsync(new MouseEventArgs());
+        // Sin await: el comando de A queda retenido.
+        var enA = cut.FindAll("button").Single(x => x.TextContent.Trim() == "Dar de baja").ClickAsync(new MouseEventArgs());
+
+        cut.Render(p => p
+            .Add(x => x.CentroId, b)
+            .Add(x => x.CentroNombre, "Planta Zaragoza")
+            .Add(x => x.EmpresaId, Guid.NewGuid())
+            .Add(x => x.EmpresaNombre, "Ibertec GmbH")
+            .Add(x => x.SeleccionMultiple, true)
+            .Add(x => x.MostrarTotales, true));
+
+        await cut.Find("input[type=checkbox]").ChangeAsync(new ChangeEventArgs { Value = true });
+        await BotonAcordeon(cut, "Dar de baja seleccionados").ClickAsync(new MouseEventArgs());
+        var enB = cut.FindAll("button").Single(x => x.TextContent.Trim() == "Dar de baja").ClickAsync(new MouseEventArgs());
+
+        // Ahora termina la de A, con la de B todavía en vuelo.
+        await cut.InvokeAsync(bajaDeA.SetResult);
+        await enA;
+
+        var otroEnB = cut.FindAll("button").Single(x => x.TextContent.Trim() == "Dar de baja").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<DarDeBajaAsignacionesCommand>()
+            .Count(c => c.Ids.Contains(deB.AsignacionId)).Should().Be(1,
+                "la baja del centro anterior no puede reabrir la del nuevo a un segundo envío");
+
+        await cut.InvokeAsync(bajaDeB.SetResult);
+        await enB;
+        await otroEnB;
     }
 }

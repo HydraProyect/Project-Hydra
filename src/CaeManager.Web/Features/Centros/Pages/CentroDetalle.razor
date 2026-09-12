@@ -41,7 +41,7 @@
         *@
         <CabeceraPagina Titulo="@_detalle.Nombre">
             <Descripcion>
-                Cliente empresarial: <button type="button" class="enlace-nombre-fila" @onclick="AbrirCliente">@_detalle.ClienteRazonSocial</button>
+                Cliente empresarial: <button type="button" class="enlace-nombre-fila" @onclick="AbrirClienteEmpresarial">@_detalle.ClienteRazonSocial</button>
                 · Empresa: <button type="button" class="enlace-nombre-fila" @onclick="AbrirEmpresa">@_detalle.EmpresaRazonSocial</button>
                 @if (_visitas.Count > 0)
                 {

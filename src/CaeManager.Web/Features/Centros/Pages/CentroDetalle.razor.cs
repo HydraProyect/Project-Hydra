@@ -313,7 +313,7 @@ public partial class CentroDetalle : ComponentBase, IDisposable
     private void AbrirPlataforma() =>
         WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, CentroId, _detalle?.Nombre ?? string.Empty, "plataforma");
 
-    private void AbrirCliente() =>
+    private void AbrirClienteEmpresarial() =>
         WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, _detalle!.ClienteId, _detalle.ClienteRazonSocial, "informacion");
 
     private void AbrirEmpresa() =>

@@ -636,7 +636,13 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         }
         finally
         {
-            _procesandoBajaLote = false;
+            // Solo si esta sigue siendo la baja vigente. Al cambiar de centro,
+            // ReiniciarParaNuevoCentro baja la bandera y el centro nuevo puede
+            // haber arrancado ya la suya: sin esta condición, el final de la
+            // baja del centro anterior la apagaba y el nuevo quedaba abierto a
+            // un segundo envío.
+            if (generacion == _generacion)
+                _procesandoBajaLote = false;
         }
     }
 
@@ -653,6 +659,16 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         if (dto.DadasDeBaja == 0)
             return ($"No se dio de baja a nadie: ninguna de las {pedidas} asignaciones seleccionadas seguía activa.",
                 TonoToast.Advertencia);
+
+        // Menos bajas que asignaciones pedidas, y sin errores que lo expliquen.
+        // El handler de hoy añade un error por cada una que no da de baja, así
+        // que este DTO no llega a producirse — pero esa es una garantía SUYA,
+        // no algo que el contrato de ResultadoBajaLoteDto prometa. Mientras el
+        // recuento pueda quedarse corto, decir «hecho» afirma un efecto que no
+        // consta. Es también el desenlace que un test daba por bueno pidiendo
+        // dos bajas y recibiendo una.
+        if (dto.DadasDeBaja < pedidas)
+            return ($"{dto.DadasDeBaja} de {pedidas} dado(s) de baja. El resto no se procesó.", TonoToast.Advertencia);
 
         return ($"{dto.DadasDeBaja} trabajador(es) dado(s) de baja.", TonoToast.Exito);
     }
