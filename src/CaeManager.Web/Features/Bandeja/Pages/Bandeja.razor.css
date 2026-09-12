@@ -1,11 +1,29 @@
+/* Mi trabajo TALVEG.dc.html — la fila de chips va bajo la cabecera, a todo
+   el ancho, y el selector de orden viaja dentro de las acciones de
+   CabeceraPagina (en el mockup comparte línea con el h1, alineado a la
+   derecha). */
 
-.bandeja-barra {
-    display: flex;
+.bandeja-orden {
+    display: inline-flex;
     align-items: center;
-    gap: var(--space-4);
-    flex-wrap: wrap;
-    justify-content: space-between;
-    margin-bottom: var(--space-5);
+    gap: var(--space-2);
+}
+
+.bandeja-orden-etiqueta {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+.bandeja-orden-select {
+    min-height: 36px;
+    border: var(--border-control);
+    border-radius: var(--radius-md);
+    padding: 0 var(--space-3);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: var(--font-body-md);
+    cursor: pointer;
 }
 
 .bandeja-chips {
@@ -13,20 +31,22 @@
     align-items: center;
     gap: var(--space-2);
     flex-wrap: wrap;
+    margin-bottom: var(--space-4);
 }
 
+/* Píldora, no rectángulo: es la forma del chip en el mockup y lo separa de
+   los botones de acción, que son rectangulares en todo el sistema. */
 .bandeja-chip {
     display: inline-flex;
     align-items: center;
     gap: var(--space-1);
     height: 32px;
     padding: 0 var(--space-3);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-full);
     border: var(--border-default);
     background: var(--color-surface);
     color: var(--color-text);
     font: var(--font-label-md);
-    font-size: 0.8125rem;
     cursor: pointer;
 }
 
@@ -34,57 +54,42 @@
     border-color: var(--color-border-strong);
 }
 
+/* El número lleva el title que lo explica: «6» no dice si son seis
+   documentos, seis personas o seis avisos. */
 .bandeja-chip-cuenta {
-    font-weight: 500;
-    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+    opacity: 0.75;
 }
 
 .bandeja-chip-activo {
     background: var(--color-primary-500);
     border-color: var(--color-primary-500);
-    color: var(--color-surface);
+    color: var(--color-neutral-0);
 }
 
-.bandeja-chip-activo .bandeja-chip-cuenta {
-    color: rgba(255, 255, 255, 0.8);
-}
-
-.bandeja-orden {
+/* Resumen de lo visible + recordatorio de atajos, la línea que el mockup
+   pone entre los chips y la cola. */
+.bandeja-resumen {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-3);
 }
 
-.bandeja-orden-etiqueta {
-    font: var(--font-label-md);
+.bandeja-resumen-cuenta {
+    font: var(--font-body-sm);
     color: var(--color-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
 }
 
-.bandeja-orden-grupo {
-    display: inline-flex;
-    border: var(--border-control);
-    border-radius: var(--radius-md);
-    overflow: hidden;
+.bandeja-atajos {
+    margin-left: auto;
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
 }
 
-.bandeja-orden-boton {
-    height: 36px;
-    padding: 0 var(--space-4);
-    border: 0;
-    background: var(--color-surface);
-    color: var(--color-primary-500);
-    font: var(--font-label-md);
-    font-size: 0.8125rem;
-    cursor: pointer;
-}
-
-.bandeja-orden-boton + .bandeja-orden-boton {
-    border-left: var(--border-control);
-}
-
-.bandeja-orden-boton-activo {
-    background: var(--color-primary-500);
-    color: var(--color-surface);
+.bandeja-atajos kbd {
+    font: var(--font-body-sm);
+    font-weight: 700;
+    color: var(--color-text);
 }

@@ -6,6 +6,13 @@
     overflow: hidden;
 }
 
+/* Mi trabajo TALVEG.dc.html: el grupo que hoy impide entrar a un Centro lleva
+   banda de 4 px en el borde izquierdo. Opt-in vía MarcarBloqueo — ver el
+   comentario del parámetro. */
+.grupo-cola-bloquea {
+    border-left: 4px solid var(--color-danger-500);
+}
+
 .grupo-cola-cabecera {
     display: flex;
     align-items: center;

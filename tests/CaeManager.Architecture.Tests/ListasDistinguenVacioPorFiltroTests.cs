@@ -68,7 +68,35 @@ public class ListasDistinguenVacioPorFiltroTests
         "barra-trabajo",                   // Centros y Subcontratas
         "<FiltroEstado",                   // filtro por estado documental
         "CampoTexto Placeholder=\"Buscar", // buscador de lista (Bandeja y otras)
+        "aria-label=\"Filtrar",            // grupo de chips de filtro (Mi trabajo)
     ];
+
+    /// <summary>
+    /// La cuarta marca entró el 2026-09-12 con el rediseño de Mi trabajo y la
+    /// lista de detectadas CRECIÓ en una pantalla —<c>Bandeja.razor</c>, que
+    /// filtra por chips y no tiene ninguna de las otras tres marcas—, que es la
+    /// comprobación que exige el comentario de arriba. Se eligió el
+    /// <c>aria-label</c> del grupo de chips y no la clase <c>-chip</c>: esa
+    /// habría arrastrado además a Buzón, ComposerBar y UnifiedTimeline, donde
+    /// los chips no son un filtro de lista, y una alarma falsa sobre tres
+    /// pantallas enseña a apagar el trinquete.
+    /// </summary>
+    [Fact]
+    public void La_marca_del_grupo_de_chips_es_la_que_mete_a_Mi_trabajo_en_el_radar()
+    {
+        // Por ruta y no por nombre de fichero: hay DOS Bandeja.razor en
+        // Features —esta y la de Comunicaciones, que es el buzón— y quedarse
+        // con la primera que aparezca mediría la pantalla equivocada.
+        var bandeja = LocalizarPaginasRazor().Single(
+            p => p.Ruta.Replace('\\', '/').EndsWith("Features/Bandeja/Pages/Bandeja.razor", StringComparison.Ordinal));
+
+        MarcasDeListaConFiltros
+            .Where(m => bandeja.Contenido.Contains(m, StringComparison.Ordinal))
+            .Should().ContainSingle().Which.Should().Be("aria-label=\"Filtrar",
+                "si otra marca empezara a casar con Bandeja, este caso dejaría de probar lo que dice probar");
+
+        DistingueLosDosVacios(bandeja.Contenido, LeerCodeBehind(bandeja.Ruta)).Should().BeTrue();
+    }
 
     /// <summary>
     /// Deuda congelada: pantallas que hoy NO distinguen los dos vacíos. El

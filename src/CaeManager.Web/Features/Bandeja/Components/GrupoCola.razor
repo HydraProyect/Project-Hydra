@@ -18,7 +18,7 @@
 @inject Microsoft.AspNetCore.Components.NavigationManager NavigationManager
 @inject CaeManager.Web.Components.Workspace.ContextWorkspaceService WorkspaceService
 
-<div class="grupo-cola">
+<div class="@("grupo-cola" + (MarcarBloqueo && BloqueaDeVerdad ? " grupo-cola-bloquea" : ""))">
     <button type="button"
             class="grupo-cola-cabecera"
             aria-expanded="@(_expandida ? "true" : "false")"
@@ -32,7 +32,7 @@
             <span class="grupo-cola-resumen">@Resumen</span>
         </span>
         <span class="grupo-cola-badges">
-            @if (Grupo.BloqueaAcceso)
+            @if (BloqueaDeVerdad)
             {
                 <Badge Tono="TonoBadge.Peligro">Bloquea acceso</Badge>
             }
@@ -124,6 +124,18 @@
     private readonly string _panelId = $"grupo-cola-{Guid.NewGuid():N}";
     private bool _expandida;
 
+    /// <summary>
+    /// «Bloquea acceso» solo cuando de verdad bloquea.
+    /// <see cref="GrupoColaDto.BloqueaAcceso"/> significa «el grupo tiene algún
+    /// RequisitoPendiente», y un requisito de ALTA NUEVA no es un bloqueo que
+    /// corregir sino un alta sin completar (mismo criterio que
+    /// <see cref="TipoItemBandejaUi.Tono(ItemBandejaDto)"/>, que ya le da otro
+    /// tono). Pintar la banda y el badge por él le dice al Gestor CAE que un
+    /// Centro está cerrado cuando no lo está.
+    /// </summary>
+    private bool BloqueaDeVerdad =>
+        Grupo.BloqueaAcceso && Grupo.Items.Any(i => i.Tipo == TipoItemBandeja.RequisitoPendiente && !i.EsAltaNueva);
+
     [Parameter, EditorRequired] public GrupoColaDto Grupo { get; set; } = default!;
 
     /// <summary>Colapsado por defecto salvo que el llamador ya sepa que este es el primer grupo (ver Inicio.razor: el primero que bloquea acceso se abre solo).</summary>
@@ -152,6 +164,18 @@
 
     /// <summary>Id del item con foco de teclado (j/k, ver Bandeja.razor.cs) — solo relevante fuera de Compacto, donde cada item es un PanelResolverItem completo.</summary>
     [Parameter] public string? IdEnfocado { get; set; }
+
+    /// <summary>
+    /// Banda de color a la izquierda de la tarjeta cuando el grupo bloquea el
+    /// acceso a un Centro (mockup "Mi trabajo TALVEG": 4 px en rojo frente al
+    /// 1 px del borde normal). Opt-in porque es la marca de una COLA de
+    /// trabajo, donde el gestor CAE recorre decenas de grupos y necesita ver
+    /// dónde parar sin leer los badges; Inicio, que es un resumen de unos
+    /// pocos, no la pasa y no cambia. El badge "Bloquea acceso" sigue estando
+    /// en los dos: la banda es refuerzo, nunca el único portador del dato
+    /// —color solo no comunica.
+    /// </summary>
+    [Parameter] public bool MarcarBloqueo { get; set; }
 
     /// <summary>U-2: se reenvía tal cual a cada PanelResolverItem completo (no aplica en modo Compacto). Ver PanelResolverItem.OnReclamar.</summary>
     [Parameter] public EventCallback<ItemBandejaDto> OnReclamar { get; set; }
