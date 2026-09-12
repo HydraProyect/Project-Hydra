@@ -1,9 +1,74 @@
 .tarjeta-2fa {
-    max-width: 480px;
     background-color: var(--color-surface);
     border: var(--border-default);
     border-radius: var(--radius-lg);
-    padding: var(--space-8);
+    padding: var(--space-5);
+}
+
+.cabecera-pagina-descripcion,
+.texto-2fa-secundario,
+.tarjeta-qr p,
+.ayuda-codigo {
+    color: var(--color-text-muted);
+}
+
+.dos-factores-cargando {
+    max-width: 640px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    padding: var(--space-6);
+    background: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+}
+
+.dos-factores-esqueleto {
+    display: block;
+    border-radius: var(--radius-sm);
+    background: linear-gradient(90deg, var(--color-surface-subtle), var(--color-surface-hover), var(--color-surface-subtle));
+    background-size: 200% 100%;
+    animation: brillo-2fa 1.4s linear infinite;
+}
+
+.dos-factores-esqueleto-qr { width: 220px; height: 220px; }
+.dos-factores-esqueleto-linea { width: 60%; height: 16px; }
+.dos-factores-esqueleto-linea-corta { width: 35%; height: 16px; }
+
+@keyframes brillo-2fa {
+    from { background-position: 100% 50%; }
+    to { background-position: 0 50%; }
+}
+
+.dos-factores-alta {
+    display: grid;
+    grid-template-columns: 280px minmax(0, 1fr);
+    align-items: start;
+    gap: var(--space-6);
+}
+
+.dos-factores-pasos {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+}
+
+.tarjeta-2fa h2 {
+    margin: 0;
+    font: var(--font-h4);
+}
+
+.tarjeta-qr {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.tarjeta-qr p {
+    margin: 0;
+    text-align: center;
+    font: var(--font-caption);
 }
 
 .tarjeta-2fa label {
@@ -14,12 +79,32 @@
 }
 
 .clave-manual {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
     background-color: var(--color-surface-subtle);
+    border: var(--border-default);
     border-radius: var(--radius-sm);
     padding: var(--space-3);
-    font-family: monospace;
-    word-break: break-all;
     margin: var(--space-2) 0;
+}
+
+.clave-manual code {
+    flex: 1;
+    min-width: 0;
+    font: 600 16px/24px var(--font-family);
+    letter-spacing: .12em;
+    word-break: break-all;
+}
+
+.uri-otpauth {
+    margin: var(--space-2) 0 0;
+    padding: var(--space-3);
+    background: var(--color-surface-subtle);
+    border: var(--border-default);
+    border-radius: var(--radius-md);
+    font: var(--font-body-sm);
+    word-break: break-all;
 }
 
 .qr-2fa {
@@ -41,12 +126,20 @@
     font-weight: 600;
 }
 
+.tarjeta-2fa-activa {
+    max-width: 640px;
+}
+
+.tarjeta-2fa-activa .texto-2fa-exito { margin: 0; font: var(--font-h4); }
+.tarjeta-2fa-activa .texto-2fa-secundario { margin: var(--space-3) 0 0; }
+
 /*
   ::deep obligatorio: <InputText> renderiza su <input> nativo sin el
   atributo de scope de CSS isolation de este archivo — mismo motivo
   documentado en Login.razor.css.
 */
 .tarjeta-2fa ::deep input {
+    max-width: 220px;
     width: 100%;
     min-height: 48px;
     padding: 0 var(--space-4);
@@ -55,6 +148,10 @@
     background-color: var(--color-surface);
     color: var(--color-text);
     font: var(--font-body-md);
+    font-weight: 600;
+    font-size: 20px;
+    letter-spacing: .42em;
+    text-align: center;
     transition: border-color var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard);
 }
 
@@ -72,7 +169,11 @@
 }
 
 .alerta-login {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
     background-color: var(--color-danger-50);
+    border: 1px solid var(--color-danger-500);
     color: var(--color-danger-700);
     border-radius: var(--radius-sm);
     padding: var(--space-3);
@@ -81,7 +182,7 @@
 }
 
 .boton-primario {
-    width: 100%;
+    width: auto;
     min-height: 48px;
     margin-top: var(--space-6);
     border-radius: var(--radius-md);
@@ -92,6 +193,17 @@
     font-weight: 600;
     cursor: pointer;
     transition: background-color var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard);
+}
+
+@media (max-width: 1024px) {
+    .dos-factores-alta { grid-template-columns: 1fr; }
+    .tarjeta-qr { max-width: 280px; }
+}
+
+@media (max-width: 640px) {
+    .clave-manual { align-items: flex-start; flex-direction: column; }
+    .tarjeta-2fa ::deep input { max-width: 100%; }
+    .boton-primario { width: 100%; }
 }
 
 .boton-primario:hover {
