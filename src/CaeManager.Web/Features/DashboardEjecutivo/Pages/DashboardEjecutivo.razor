@@ -1,11 +1,29 @@
 @page "/dashboard-ejecutivo"
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
-@using ApexCharts
 @using CaeManager.Application.Dashboard.Catalogo
 
 <PageTitle>Dashboard Ejecutivo — @Marca.Nombre</PageTitle>
 
+@*
+    Dashboard Ejecutivo contra su mockup Gen 2 («Dashboard Ejecutivo TALVEG.dc.html»).
+
+    Los gráficos se dibujan aquí (SVG y CSS) y no con una librería de JS, que es
+    lo que el mockup especifica: donut con su leyenda —etiqueta, recuento y
+    porcentaje en texto, cada uno con su desglose literal— y barras con la cifra
+    al lado. La librería pintaba los números dentro de un contenedor que inserta
+    JavaScript, que ningún lector de pantalla lee y ninguna prueba de componente
+    puede afirmar; aquí cada cifra está en el DOM y el color nunca es su único
+    portador (02 § 8).
+
+    Lo que el mockup pinta y aquí NO se copia, porque ninguna consulta lo sabe:
+    la línea «vs. mes anterior» de cada tile (ObtenerDashboardEjecutivoQuery
+    devuelve un solo PeriodoKpi), los denominadores de las pistas («12 altas
+    este mes», «sobre 4.212 obligatorios», «sobre 459 extracciones») y la frase
+    del pulso que mezcla las verificaciones con el número de organizaciones: las
+    verificaciones salen de una consulta de la organización activa y las sumas
+    del fan-out, así que cada cifra dice su alcance en vez de compartir una frase.
+*@
 <div class="contenedor-pagina">
     <CabeceraPagina Titulo="Tu cartera, con los KPI que elijas" Kicker="Dashboard Ejecutivo">
         <Acciones>
@@ -30,7 +48,8 @@
 
     @if (_error)
     {
-        <EstadoVacio Titulo="No pudimos cargar el Dashboard Ejecutivo" Descripcion="Intenta nuevamente en unos segundos.">
+        <EstadoVacio Titulo="No pudimos cargar el Dashboard Ejecutivo" Descripcion="Intenta nuevamente en unos segundos."
+                     NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">
             <Accion>
                 <Boton OnClick="CargarAsync">Reintentar</Boton>
             </Accion>
@@ -42,248 +61,328 @@
     }
     else
     {
-        <SeccionColapsable Titulo="Personalizar" ExpandidaPorDefecto="@(_seleccionGuardada.Count == 0)">
-            <div class="rejilla-categorias-kpi">
-                @foreach (var categoria in CatalogoKpis.Todos.GroupBy(k => k.Categoria))
-                {
-                    <div class="categoria-kpi">
-                        <h3 class="categoria-kpi-titulo">@categoria.Key</h3>
-                        @foreach (var kpi in categoria)
-                        {
-                            <label class="checkbox-kpi" title="@kpi.Descripcion">
-                                <input type="checkbox"
-                                       checked="@_seleccionEnEdicion.Contains(kpi.Codigo)"
-                                       @onchange="@(e => AlternarSeleccion(kpi.Codigo, (bool)e.Value!))" />
-                                @kpi.Titulo
-                            </label>
-                        }
-                    </div>
-                }
-            </div>
-            <Boton OnClick="GuardarSeleccionAsync" Cargando="_guardando">Guardar selección</Boton>
+        <SeccionColapsable Titulo="Personalizar" ExpandidaPorDefecto="@(Seleccionados.Count == 0)">
+            <Encabezado>
+                <span class="resumen-seleccion">@ResumenSeleccion</span>
+            </Encabezado>
+            <ChildContent>
+                <div class="rejilla-categorias-kpi">
+                    @foreach (var categoria in CatalogoKpis.Todos.GroupBy(k => k.Categoria))
+                    {
+                        <div class="categoria-kpi">
+                            <h3 class="categoria-kpi-titulo">@EtiquetasCategoriaKpi.De(categoria.Key)</h3>
+                            @foreach (var kpi in categoria)
+                            {
+                                <label class="checkbox-kpi" title="@kpi.Descripcion">
+                                    <input type="checkbox"
+                                           checked="@_seleccionEnEdicion.Contains(kpi.Codigo)"
+                                           @onchange="@(e => AlternarSeleccion(kpi.Codigo, (bool)e.Value!))" />
+                                    @kpi.Titulo
+                                </label>
+                            }
+                        </div>
+                    }
+                </div>
+                <div class="acciones-personalizar">
+                    <Boton OnClick="GuardarSeleccionAsync" Cargando="_guardando">Guardar selección</Boton>
+                    @if (HayCambiosSinGuardar)
+                    {
+                        <Badge Tono="TonoBadge.Advertencia" class="aviso-sin-guardar">Cambios sin guardar</Badge>
+                    }
+                </div>
+            </ChildContent>
         </SeccionColapsable>
 
-        var seleccionados = _seleccionGuardada
-            .Where(codigo => CatalogoKpis.Todos.Any(k => k.Codigo == codigo))
-            .Select(codigo => CatalogoKpis.Todos.First(k => k.Codigo == codigo))
-            .ToList();
-        var tiles = seleccionados.Where(k => k.TipoRender is TipoRenderKpi.TileNumerico or TipoRenderKpi.TilePorcentajeConTono).ToList();
-        var graficos = seleccionados.Where(k => k.TipoRender is TipoRenderKpi.GraficoDonut or TipoRenderKpi.GraficoBarras
-            or TipoRenderKpi.TablaRiesgo or TipoRenderKpi.BarraComparativa).ToList();
-
-        @if (seleccionados.Count == 0)
+        @if (Seleccionados.Count == 0)
         {
             <EstadoVacio Titulo="Todavía no has elegido ningún KPI" Descripcion="Marca al menos uno en el panel de arriba y guarda la selección." />
         }
         else
         {
-            @if (tiles.Count > 0)
+            @* Dos secciones porque son dos alcances temporales distintos: solo IA,
+               facturación y BPO reciben el PeriodoKpi (medido en
+               ObtenerCatalogoKpisQueryHandler). Documental, cumplimiento e
+               incidencias son foto de hoy o total acumulado, y bajo un rótulo de
+               rango histórico afirmarían ser del rango. *@
+            @if (TilesDelPeriodo.Count > 0)
             {
-                <div class="rejilla-kpis-criticos">
-                    @foreach (var kpi in tiles)
-                    {
-                        <TarjetaMetrica Etiqueta="@kpi.Titulo" Valor="@ValorTile(kpi.Codigo)" Tono="@TonoTile(kpi.Codigo)" />
-                    }
-                </div>
-
-                @if (tiles.Any(k => k.Codigo == CatalogoKpis.CosteMesActualIa) && TenantsConPresupuestoIaExcedido.Count > 0)
-                {
-                    <div class="alerta-formulario" role="alert">
-                        Presupuesto de IA superado este período en:
-                        @string.Join(", ", TenantsConPresupuestoIaExcedido).
-                        No se ha bloqueado ni degradado nada — ajusta el límite en
-                        <a href="/configuracion">Configuración</a> si sigue siendo el esperado.
+                <section class="seccion-kpis" aria-labelledby="titulo-negocio-periodo">
+                    <div class="cabecera-seccion-kpis">
+                        <h2 id="titulo-negocio-periodo" class="titulo-seccion-kpis">El negocio en el periodo</h2>
+                        <VentanaContexto class="periodo-texto" Etiqueta="@DetalleOrganizaciones" Titulo="Alcance">
+                            <Disparador>@PeriodoTexto</Disparador>
+                            <Detalle>@DetalleOrganizaciones</Detalle>
+                        </VentanaContexto>
                     </div>
-                }
+
+                    <div class="rejilla-kpis-criticos">
+                        @foreach (var kpi in TilesDelPeriodo)
+                        {
+                            <TarjetaMetrica Etiqueta="@kpi.Titulo" Valor="@ValorTile(kpi.Codigo)"
+                                            Tono="@TonoTile(kpi.Codigo)" Pista="@PistaTile(kpi.Codigo)" />
+                        }
+                    </div>
+
+                    @if (TilesDelPeriodo.Any(k => k.Codigo == CatalogoKpis.CosteMesActualIa) && TenantsConPresupuestoIaExcedido.Count > 0)
+                    {
+                        <div class="alerta-formulario" role="alert">
+                            Presupuesto de IA superado este período en:
+                            @string.Join(", ", TenantsConPresupuestoIaExcedido).
+                            No se ha bloqueado ni degradado nada — ajusta el límite en
+                            <a href="/configuracion">Configuración</a> si sigue siendo el esperado.
+                        </div>
+                    }
+                </section>
             }
 
-            @foreach (var kpi in graficos)
+            @if (TilesFueraDelPeriodo.Count > 0)
             {
-                <Tarjeta Titulo="@kpi.Titulo">
-                    @if (kpi.Codigo == CatalogoKpis.SemaforoDocumental)
-                    {
-                        <ApexChart TItem="SegmentoGraficoDto" Height="280">
-                            <ApexPointSeries TItem="SegmentoGraficoDto" Items="_semaforoDocumental"
-                                             SeriesType="SeriesType.Donut"
-                                             XValue="@(s => s.Etiqueta)"
-                                             YValue="@(s => s.Valor)" />
-                        </ApexChart>
-                    }
-                    else if (kpi.Codigo == CatalogoKpis.IncidenciasPorGravedad)
-                    {
-                        @if (_incidenciasPorGravedad.Count == 0)
+                <section class="seccion-kpis" aria-labelledby="titulo-estado-actual">
+                    <div class="cabecera-seccion-kpis">
+                        <h2 id="titulo-estado-actual" class="titulo-seccion-kpis">Al margen del periodo</h2>
+                        <span class="periodo-texto">@TextoFueraDelPeriodo</span>
+                    </div>
+
+                    <div class="rejilla-kpis-criticos">
+                        @foreach (var kpi in TilesFueraDelPeriodo)
                         {
-                            <p class="texto-vacio-seccion">No hay incidencias registradas.</p>
+                            <TarjetaMetrica Etiqueta="@kpi.Titulo" Valor="@ValorTile(kpi.Codigo)"
+                                            Tono="@TonoTile(kpi.Codigo)" Pista="@PistaTile(kpi.Codigo)" />
                         }
-                        else
+                    </div>
+                </section>
+            }
+
+            @foreach (var kpi in Graficos)
+            {
+                <Tarjeta Titulo="@kpi.Titulo" Class="tarjeta-kpi">
+                    <AccionesHeader>
+                        <span class="descripcion-kpi">@kpi.Descripcion</span>
+                    </AccionesHeader>
+                    <ChildContent>
+                        @* Los dos alcances de la tarjeta —organizativo y temporal— antes
+                           de la cifra: lo que la tarjeta mide, y sobre qué. *@
+                        @if (AvisoAlcanceKpi(kpi) is { } avisoAlcance)
                         {
-                            <ApexChart TItem="SegmentoGraficoDto" Height="280" Options="OpcionesBarraHorizontal">
-                                <ApexPointSeries TItem="SegmentoGraficoDto" Items="_incidenciasPorGravedad"
-                                                 SeriesType="SeriesType.Bar"
-                                                 XValue="@(s => s.Etiqueta)"
-                                                 YValue="@(s => s.Valor)" />
-                            </ApexChart>
+                            <p class="aviso-alcance-kpi">@avisoAlcance</p>
                         }
-                    }
-                    else if (kpi.Codigo == CatalogoKpis.CentrosConMenorCumplimiento)
-                    {
-                        @if (_centrosConMenorCumplimiento.Count == 0)
+
+                        @if (kpi.TipoRender == TipoRenderKpi.GraficoDonut)
                         {
-                            @* "Obligatoria" implicaba una norma legal; es configuración
-                               (ResolucionTipoDocumentoCentro.Aplica, mismo criterio que Alertas.razor):
-                               la fila del centro o, si no dice nada, el valor general del tipo.
-                               Y la lista también llega vacía cuando un centro sí la pide pero no
-                               tiene trabajadores asignados (CalculoEstadoCentroService cuenta cero
-                               requeridos): el texto dice exactamente la condición, sin culpar a la
-                               configuración de un centro que puede tenerla bien. *@
-                            <p class="texto-vacio-seccion">Todavía no hay documentación de trabajador que evaluar: ningún centro con trabajadores asignados la pide.</p>
+                            var segmentos = SegmentosDonut(kpi.Codigo);
+                            var total = segmentos.Sum(s => s.Valor);
+                            var unidad = UnidadDonut(kpi.Codigo);
+
+                            @if (total == 0)
+                            {
+                                <p class="texto-vacio-seccion">@VacioDonut(kpi.Codigo)</p>
+                            }
+                            else
+                            {
+                                @* El SVG va aria-hidden: lo que dice lo dice la leyenda de al
+                                   lado —etiqueta, recuento y porcentaje en texto—, igual que el
+                                   reparto del riesgo de Visión de cartera. *@
+                                <div class="grafico-donut">
+                                    <svg class="donut" viewBox="0 0 @LadoDonut @LadoDonut" aria-hidden="true" focusable="false">
+                                        <circle class="donut-fondo" cx="@CentroDonut" cy="@CentroDonut" r="@RadioDonut" stroke-width="@GrosorDonut" />
+                                        @foreach (var arco in ArcosDonut(segmentos))
+                                        {
+                                            <circle class="donut-arco @arco.Clase" cx="@CentroDonut" cy="@CentroDonut" r="@RadioDonut"
+                                                    stroke-width="@GrosorDonut" stroke-dasharray="@arco.Longitud @arco.Resto"
+                                                    stroke-dashoffset="@arco.Desplazamiento"
+                                                    transform="rotate(-90 @CentroDonut @CentroDonut)" />
+                                        }
+                                        <g>
+                                            <text class="donut-total" x="@CentroDonut" y="@(CentroDonut + 8)" text-anchor="middle">@total</text>
+                                        </g>
+                                    </svg>
+                                    <ul class="leyenda-donut">
+                                        @foreach (var linea in LeyendaDonut(segmentos, unidad))
+                                        {
+                                            <li class="leyenda-donut-item">
+                                                <span class="leyenda-donut-punto @linea.Clase" aria-hidden="true"></span>
+                                                <span class="leyenda-donut-etiqueta">@linea.Etiqueta</span>
+                                                <VentanaContexto class="leyenda-donut-valor" Etiqueta="@linea.Desglose">
+                                                    <Disparador>@linea.Valor</Disparador>
+                                                    <Detalle>@linea.Desglose</Detalle>
+                                                </VentanaContexto>
+                                            </li>
+                                        }
+                                    </ul>
+                                </div>
+                                <p class="grafico-total">@total @unidad en total</p>
+                            }
                         }
-                        else
+                        else if (kpi.TipoRender == TipoRenderKpi.GraficoBarras)
                         {
-                            <ApexChart TItem="SegmentoGraficoDto" Height="280" Options="OpcionesBarraHorizontal">
-                                <ApexPointSeries TItem="SegmentoGraficoDto" Items="_centrosConMenorCumplimiento"
-                                                 SeriesType="SeriesType.Bar"
-                                                 XValue="@(s => s.Etiqueta)"
-                                                 YValue="@(s => s.Valor)" />
-                            </ApexChart>
-                        }
-                    }
-                    else if (kpi.Codigo == CatalogoKpis.EmpresasConMasRiesgo)
-                    {
-                        @if (_empresasEnRiesgo.Count == 0)
-                        {
-                            <p class="texto-vacio-seccion">Ninguna empresa tiene documentación urgente o vencida.</p>
-                        }
-                        else
-                        {
-                            <table class="tabla-datos">
-                                <thead>
-                                    <tr>
-                                        <th>Empresa</th>
-                                        <th>Vencidos</th>
-                                        <th>Urgentes</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach (var empresa in _empresasEnRiesgo)
+                            var barras = BarrasKpi(kpi.Codigo);
+
+                            @if (barras.Count == 0)
+                            {
+                                <p class="texto-vacio-seccion">@VacioBarras(kpi.Codigo)</p>
+                            }
+                            else
+                            {
+                                <ul class="barras-kpi">
+                                    @foreach (var barra in barras)
                                     {
-                                        <tr class="fila-clicable" @onclick="() => IrAEmpresa(empresa.EmpresaRazonSocial)">
-                                            <td>@empresa.EmpresaRazonSocial</td>
-                                            <td><Badge Tono="TonoBadge.Peligro">@empresa.DocumentosVencidos</Badge></td>
-                                            <td><Badge Tono="TonoBadge.Advertencia">@empresa.DocumentosUrgentes</Badge></td>
-                                        </tr>
+                                        <li class="barra-kpi">
+                                            <span class="barra-kpi-etiqueta" title="@barra.Etiqueta">@barra.Etiqueta</span>
+                                            <span class="barra-kpi-carril" aria-hidden="true">
+                                                @if (barra.Ancho > 0)
+                                                {
+                                                    <span class="barra-kpi-relleno @barra.Clase" style="width:@(barra.Ancho)%"></span>
+                                                }
+                                            </span>
+                                            @if (barra.SinDato is { } motivo)
+                                            {
+                                                <span class="barra-kpi-sin-dato">@motivo</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="barra-kpi-valor">@barra.Valor</span>
+                                            }
+                                        </li>
                                     }
-                                </tbody>
-                            </table>
+                                </ul>
+                            }
                         }
-                    }
-                    else if (kpi.Codigo == CatalogoKpis.AutomaticoVsManual)
-                    {
-                        @if (TotalAprobaciones == 0)
+                        else if (kpi.Codigo == CatalogoKpis.EmpresasConMasRiesgo)
                         {
-                            <p class="texto-vacio-seccion">Todavía no hay documentos verificados por IA.</p>
-                        }
-                        else
-                        {
-                            <div class="barra-comparativa" role="img" aria-label="@($"{PorcentajeAutomatica}% de las gestiones fueron automáticas, {PorcentajeManual}% manuales")">
-                                @if (PorcentajeAutomatica > 0)
-                                {
-                                    <div class="barra-comparativa-segmento barra-comparativa-automatica" style="width:@(PorcentajeAutomatica)%"></div>
-                                }
-                                @if (PorcentajeManual > 0)
-                                {
-                                    <div class="barra-comparativa-segmento barra-comparativa-manual" style="width:@(PorcentajeManual)%"></div>
-                                }
-                            </div>
-                            <ul class="barra-comparativa-leyenda">
-                                <li class="barra-comparativa-item">
-                                    <span class="barra-comparativa-punto barra-comparativa-automatica"></span>
-                                    Automáticas — @_estadisticasAprobacion!.Automaticas (@PorcentajeAutomatica%)
-                                </li>
-                                <li class="barra-comparativa-item">
-                                    <span class="barra-comparativa-punto barra-comparativa-manual"></span>
-                                    Manuales — @_estadisticasAprobacion.Manuales (@PorcentajeManual%)
-                                </li>
-                            </ul>
-                        }
-                    }
-                    else if (kpi.Codigo == CatalogoKpis.DistribucionAntelacion)
-                    {
-                        @if (_distribucionAntelacion.Count == 0)
-                        {
-                            <p class="texto-vacio-seccion">Todavía no hay visitas con la antelación medida.</p>
-                        }
-                        else
-                        {
-                            <ApexChart TItem="SegmentoGraficoDto" Height="280">
-                                <ApexPointSeries TItem="SegmentoGraficoDto" Items="_distribucionAntelacion"
-                                                 SeriesType="SeriesType.Donut"
-                                                 XValue="@(s => s.Etiqueta)"
-                                                 YValue="@(s => s.Valor)" />
-                            </ApexChart>
-                        }
-                    }
-                    else if (kpi.Codigo == CatalogoKpis.AtribucionUrgencia)
-                    {
-                        @if (_atribucionUrgencia.Count == 0)
-                        {
-                            <p class="texto-vacio-seccion">Todavía no hay visitas con la antelación medida.</p>
-                        }
-                        else
-                        {
-                            <ApexChart TItem="SegmentoGraficoDto" Height="280" Options="OpcionesBarraHorizontal">
-                                <ApexPointSeries TItem="SegmentoGraficoDto" Items="_atribucionUrgencia"
-                                                 SeriesType="SeriesType.Bar"
-                                                 XValue="@(s => s.Etiqueta)"
-                                                 YValue="@(s => s.Valor)" />
-                            </ApexChart>
-                        }
-                    }
-                    else if (kpi.Codigo == CatalogoKpis.OcupacionGestores)
-                    {
-                        @if (_ocupacionGestores.Count == 0)
-                        {
-                            <p class="texto-vacio-seccion">No hay tiempo de gestión registrado este mes. La medición de tiempo se activa en Configuración.</p>
-                        }
-                        else
-                        {
-                            <ApexChart TItem="SegmentoGraficoDto" Height="280" Options="OpcionesBarraHorizontal">
-                                <ApexPointSeries TItem="SegmentoGraficoDto" Items="_ocupacionGestores"
-                                                 SeriesType="SeriesType.Bar"
-                                                 XValue="@(s => s.Etiqueta)"
-                                                 YValue="@(s => s.Valor)" />
-                            </ApexChart>
-                        }
-                    }
-                    else if (kpi.Codigo == CatalogoKpis.HorasPorCliente)
-                    {
-                        @if (_valores!.Bpo.HorasPorCliente.Count == 0)
-                        {
-                            <p class="texto-vacio-seccion">No hay tiempo de gestión registrado este mes. La medición de tiempo se activa en Configuración.</p>
-                        }
-                        else
-                        {
-                            <table class="tabla-datos">
-                                <thead>
-                                    <tr>
-                                        <th>Cliente</th>
-                                        <th>Horas de gestión</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach (var fila in _valores.Bpo.HorasPorCliente)
-                                    {
+                            @if (_empresasEnRiesgo.Count == 0)
+                            {
+                                <p class="texto-vacio-seccion">Ninguna empresa tiene documentación urgente o vencida.</p>
+                            }
+                            else
+                            {
+                                <table class="tabla-datos">
+                                    <thead>
                                         <tr>
-                                            <td>@fila.ClienteNombre</td>
-                                            <td>@Horas(fila.SegundosActivos)</td>
+                                            <th scope="col">Empresa</th>
+                                            <th scope="col">Vencidos</th>
+                                            <th scope="col">Urgentes</th>
                                         </tr>
-                                    }
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var empresa in _empresasEnRiesgo)
+                                        {
+                                            <tr>
+                                                <td>
+                                                    @* El deep link es el mismo de antes —/empresas?q=RazonSocial, por
+                                                       texto y no por Id—, ahora en un enlace: la fila entera clicable
+                                                       no llegaba con el teclado. *@
+                                                    <a class="nombre-empresa-riesgo" href="@($"/empresas?q={Uri.EscapeDataString(empresa.EmpresaRazonSocial)}")">@empresa.EmpresaRazonSocial</a>
+                                                </td>
+                                                <td>
+                                                    <Badge Tono="@(empresa.DocumentosVencidos > 0 ? TonoBadge.Peligro : TonoBadge.Neutro)"
+                                                           title="@($"{empresa.EmpresaRazonSocial}: {empresa.DocumentosVencidos} documentos de trabajador vencidos")">@empresa.DocumentosVencidos</Badge>
+                                                </td>
+                                                <td>
+                                                    <Badge Tono="@(empresa.DocumentosUrgentes > 0 ? TonoBadge.Advertencia : TonoBadge.Neutro)"
+                                                           title="@($"{empresa.EmpresaRazonSocial}: {empresa.DocumentosUrgentes} documentos de trabajador urgentes")">@empresa.DocumentosUrgentes</Badge>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            }
                         }
-                    }
+                        else if (kpi.Codigo == CatalogoKpis.HorasPorCliente)
+                        {
+                            var filasHoras = FilasHorasPorCliente;
+
+                            @if (filasHoras.Count == 0)
+                            {
+                                <p class="texto-vacio-seccion">No hay tiempo de gestión registrado este mes. La medición de tiempo se activa en Configuración.</p>
+                            }
+                            else
+                            {
+                                <table class="tabla-datos">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">Cliente empresarial</th>
+                                            <th scope="col">Horas de gestión</th>
+                                            <th scope="col">Reparto entre los mostrados</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var fila in filasHoras)
+                                        {
+                                            <tr>
+                                                <td>@fila.Nombre</td>
+                                                <td>@fila.Horas</td>
+                                                <td>
+                                                    <VentanaContexto class="reparto-horas" Etiqueta="@fila.Desglose">
+                                                        <Disparador>@fila.Reparto</Disparador>
+                                                        <Detalle>@fila.Desglose</Detalle>
+                                                    </VentanaContexto>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            }
+                        }
+                        else if (kpi.Codigo == CatalogoKpis.AutomaticoVsManual)
+                        {
+                            @if (TotalAprobaciones == 0)
+                            {
+                                <p class="texto-vacio-seccion">Todavía no hay documentos verificados por IA.</p>
+                            }
+                            else
+                            {
+                                <div class="barra-comparativa" role="img" aria-label="@($"{PorcentajeAutomatica}% de las gestiones fueron automáticas, {PorcentajeManual}% manuales")">
+                                    @if (PorcentajeAutomatica > 0)
+                                    {
+                                        <div class="barra-comparativa-segmento barra-comparativa-automatica" style="width:@(PorcentajeAutomatica)%"></div>
+                                    }
+                                    @if (PorcentajeManual > 0)
+                                    {
+                                        <div class="barra-comparativa-segmento barra-comparativa-manual" style="width:@(PorcentajeManual)%"></div>
+                                    }
+                                </div>
+                                <ul class="barra-comparativa-leyenda">
+                                    <li class="barra-comparativa-item">
+                                        <span class="barra-comparativa-punto barra-comparativa-automatica"></span>
+                                        Automáticas — @_estadisticasAprobacion!.Automaticas (@PorcentajeAutomatica%)
+                                    </li>
+                                    <li class="barra-comparativa-item">
+                                        <span class="barra-comparativa-punto barra-comparativa-manual"></span>
+                                        Manuales — @_estadisticasAprobacion.Manuales (@PorcentajeManual%)
+                                    </li>
+                                </ul>
+                            }
+                        }
+                    </ChildContent>
                 </Tarjeta>
             }
+
+            <section class="pulso-negocio" aria-label="Pulso del negocio">
+                <div class="pulso-negocio-titular">
+                    <span class="pulso-negocio-kicker">Pulso del negocio</span>
+                    <VentanaContexto class="pulso-negocio-frase" Etiqueta="@DetallePulsoVerificaciones" Titulo="Verificaciones de IA">
+                        <Disparador>@PulsoVerificaciones</Disparador>
+                        <Detalle>@DetallePulsoVerificaciones</Detalle>
+                    </VentanaContexto>
+                </div>
+                <div class="pulso-negocio-cifras">
+                    <div class="pulso-negocio-cifra">
+                        <span class="pulso-negocio-etiqueta">Coste IA del periodo</span>
+                        <VentanaContexto class="pulso-negocio-valor" Etiqueta="@DetalleCosteIa" Titulo="Coste de IA">
+                            <Disparador>@($"{_valores.CosteIaMesActual:F2} €")</Disparador>
+                            <Detalle>@DetalleCosteIa</Detalle>
+                        </VentanaContexto>
+                    </div>
+                    <div class="pulso-negocio-cifra">
+                        <span class="pulso-negocio-etiqueta">Facturación estimada</span>
+                        <VentanaContexto class="pulso-negocio-valor" Etiqueta="@DetalleFacturacion" Titulo="Facturación estimada">
+                            <Disparador>@($"{_valores.FacturacionEstimadaMesActual:F2} €")</Disparador>
+                            <Detalle>@DetalleFacturacion</Detalle>
+                        </VentanaContexto>
+                    </div>
+                </div>
+                <a class="enlace-facturacion" href="/facturacion">Ver facturación →</a>
+            </section>
         }
     }
 </div>
