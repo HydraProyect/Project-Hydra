@@ -1,95 +1,41 @@
-
-.resumen-subida-masiva {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    flex-wrap: wrap;
-    margin: var(--space-4) 0;
-}
-
-.lista-items-subida-masiva {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-.item-subida-masiva {
-    border: var(--border-default);
-    border-radius: var(--radius-md);
-    background-color: var(--color-surface);
-    padding: var(--space-3);
-}
-
-.item-subida-masiva-fila {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-}
-
-.miniatura-subida-masiva {
-    width: 56px;
-    height: 72px;
-    object-fit: cover;
-    border-radius: var(--radius-sm);
-    border: var(--border-default);
-    flex-shrink: 0;
-}
-
-.miniatura-subida-masiva-vacia {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--color-text-muted);
-    background-color: var(--color-surface-hover);
-}
-
-.item-subida-masiva-info {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    flex: 1;
-    min-width: 0;
-}
-
-.item-subida-masiva-nombre {
-    font-weight: 600;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.item-subida-masiva-badges {
-    display: flex;
-    gap: var(--space-2);
-    flex-wrap: wrap;
-}
-
-.item-subida-masiva-error {
-    color: var(--color-danger-700);
-    font: var(--font-body-sm);
-}
-
-.item-subida-masiva-acciones {
-    display: flex;
-    gap: var(--space-2);
-    flex-shrink: 0;
-}
-
-.item-subida-masiva-confirmacion {
-    margin-top: var(--space-3);
-    padding-top: var(--space-3);
-    border-top: var(--border-default);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-}
-
-.item-subida-masiva-formulario {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    max-width: 480px;
-}
+.subida-masiva { display: flex; flex-direction: column; gap: var(--space-5); max-width: 1320px; }
+.miga-subida-masiva { display: flex; gap: var(--space-2); color: var(--color-text-muted); font: var(--font-caption); }
+.miga-subida-masiva a { font-weight: 600; }
+.zona-subida-masiva { align-items: center; background: var(--color-primary-50); border: 2px dashed var(--color-primary-500); border-radius: var(--radius-lg); display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-8); text-align: center; }
+.zona-subida-masiva h2 { font: var(--font-h4); margin: 0; }
+.zona-subida-masiva p, .aviso-memoria-subida { color: var(--color-text-muted); font: var(--font-body-md); margin: 0; }
+.aviso-memoria-subida { font: var(--font-caption); }
+.progreso-subida-masiva { display: flex; flex-direction: column; gap: var(--space-3); }
+.progreso-subida-masiva-cabecera, .resumen-subida-masiva { align-items: center; display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.progreso-subida-masiva-cabecera span, .ayuda-auto-creacion { color: var(--color-text-muted); font: var(--font-caption); }
+.progreso-subida-masiva-cabecera span { margin-left: auto; }
+.barra-progreso-subida { background: var(--color-surface-subtle); border-radius: var(--radius-full); height: 6px; overflow: hidden; }
+.barra-progreso-subida span { background: var(--color-primary-500); display: block; height: 100%; transition: width .2s ease; }
+.ayuda-auto-creacion { flex: 1 1 18rem; }
+.panel-lote-subida-masiva { background: var(--color-surface); border: var(--border-default); border-radius: var(--radius-lg); overflow: hidden; }
+.panel-lote-subida-masiva > header { align-items: center; background: var(--color-surface-hover); border-bottom: var(--border-default); display: flex; flex-wrap: wrap; gap: var(--space-2); padding: var(--space-3) var(--space-5); }
+.panel-lote-subida-masiva > header > span { color: var(--color-text-muted); flex: 1; font: var(--font-caption); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.filtro-lote { background: var(--color-surface); border: var(--border-default); border-radius: var(--radius-full); color: var(--color-text-muted); cursor: pointer; font: var(--font-caption); min-height: 32px; padding: 0 12px; }
+.filtro-lote.activo { background: var(--color-primary-50); border-color: var(--color-primary-500); color: var(--color-primary-500); }
+.lista-items-subida-masiva { display: flex; flex-direction: column; list-style: none; margin: 0; padding: 0; }
+.item-subida-masiva { border-bottom: var(--border-default); padding: var(--space-4) var(--space-5); }
+.item-subida-masiva:last-child { border-bottom: 0; }
+.item-subida-masiva-fila { align-items: center; display: flex; gap: var(--space-3); }
+.miniatura-subida-masiva { border: var(--border-default); border-radius: var(--radius-sm); flex: 0 0 auto; height: 56px; object-fit: cover; width: 44px; }
+.miniatura-subida-masiva-vacia { align-items: center; background: var(--color-surface-hover); color: var(--color-text-muted); display: flex; justify-content: center; }
+.item-subida-masiva-info { display: flex; flex: 1; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.item-subida-masiva-nombre { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item-subida-masiva-badges, .item-subida-masiva-acciones { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.item-subida-masiva-acciones { flex: 0 0 auto; }
+.item-subida-masiva-error { color: var(--color-danger-700); font: var(--font-caption); }
+.item-subida-masiva-confirmacion { border-top: var(--border-default); display: grid; gap: var(--space-4); grid-template-columns: minmax(240px, 1fr) minmax(280px, 1fr); margin-top: var(--space-4); padding-top: var(--space-4); }
+.previsualizacion-documento { border: var(--border-default); border-radius: var(--radius-md); height: 360px; width: 100%; }
+.item-subida-masiva-formulario { display: flex; flex-direction: column; gap: var(--space-3); }
+.acciones-formulario { display: flex; justify-content: flex-end; }
+.estado-vacio-lote, .esqueleto-lote-subida-masiva { align-items: center; display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-8); text-align: center; }
+.estado-vacio-lote h2, .estado-vacio-lote p { margin: 0; }
+.estado-vacio-lote p { color: var(--color-text-muted); }
+.esqueleto-lote-subida-masiva { align-items: stretch; background: var(--color-surface); border: var(--border-default); border-radius: var(--radius-lg); }
+.esqueleto-lote-subida-masiva > span { color: var(--color-text-muted); font: var(--font-caption); }
+.esqueleto-lote-subida-masiva > div { background: linear-gradient(90deg, var(--color-surface-subtle), var(--color-border), var(--color-surface-subtle)); border-radius: var(--radius-sm); height: 48px; }
+@media (max-width: 720px) { .zona-subida-masiva, .item-subida-masiva { padding: var(--space-4); } .item-subida-masiva-fila { align-items: flex-start; flex-wrap: wrap; } .item-subida-masiva-acciones { width: 100%; } .item-subida-masiva-confirmacion { grid-template-columns: 1fr; } .progreso-subida-masiva-cabecera span { margin-left: 0; width: 100%; } }
