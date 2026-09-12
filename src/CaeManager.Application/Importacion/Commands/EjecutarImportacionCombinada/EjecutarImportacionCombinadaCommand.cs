@@ -124,6 +124,24 @@ public class EjecutarImportacionCombinadaCommandHandler(
                     existente.ActualizarComoCliente(fila.RazonSocial, fila.Cif, fila.EsCritico, existente.Notas);
                     clientesActualizados++;
                 }
+                else if (!reemplazar && existente.EsCritico is null)
+                {
+                    // El CIF es la clave natural de esta hoja, así que emparejar
+                    // por él puede dar con una Empresa que todavía no es Cliente
+                    // empresarial (una Subcontrata, típicamente: desde F3 ambas
+                    // condiciones viven en la misma Empresa y no son
+                    // excluyentes). Fusionar es "rellenar lo que está vacío sin
+                    // sobrescribir nada" y la fila declara justamente eso, así
+                    // que se fija EsCritico y NO se renombra. Sin esto, la
+                    // Empresa quedaba indexada abajo como cliente sin serlo —
+                    // la misma semántica "tener CIF es ser Cliente" que este
+                    // handler dejó de usar— y sus Relaciones Empresariales
+                    // nacían invisibles para `asociacionesActuales`, que filtra
+                    // por EsCritico != null: ninguna importación posterior
+                    // podía volver a cerrarlas.
+                    existente.ActualizarComoCliente(existente.RazonSocial, fila.Cif, fila.EsCritico, existente.Notas);
+                    clientesActualizados++;
+                }
 
                 clientesIdPorRazonSocial[fila.RazonSocial] = existente.Id;
                 continue;

@@ -159,6 +159,59 @@ public class PlantillaCombinadaAlineacionAnalisisEjecucionTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// La otra puerta por la que "tener CIF" se colaba como si fuera el rol: la
+    /// hoja "Clientes" empareja por CIF —clave natural ahí— y puede dar con una
+    /// Empresa que todavía no es Cliente empresarial. El análisis ya la cuenta
+    /// como fusión (<c>YaExiste</c>, porque el CIF existe) y deja que sus
+    /// Centros y asociaciones se resuelvan por nombre; la escritura, en modo
+    /// fusionar, la indexaba sin fijar <c>EsCritico</c>, de modo que acababa
+    /// con Centros y Relaciones Empresariales colgando de una Empresa que
+    /// ninguna consulta reconoce como cliente — y esas relaciones quedaban
+    /// además invisibles para <c>asociacionesActuales</c> (filtra por
+    /// <c>EsCritico != null</c>), así que ninguna importación posterior podía
+    /// volver a cerrarlas.
+    ///
+    /// Fusionar es "rellenar lo que está vacío sin sobrescribir nada": la fila
+    /// declara que esa Empresa es Cliente empresarial y <c>EsCritico</c> está
+    /// vacío, así que se rellena. La razón social existente no se toca, y la
+    /// condición de Subcontrata (<c>NivelServicio</c>) tampoco se pierde: desde
+    /// F3 ambas viven en la misma Empresa y no son excluyentes.
+    /// </summary>
+    [Fact]
+    public async Task Fila_de_Clientes_cuyo_CIF_ya_es_de_una_Subcontrata_la_convierte_en_Cliente_empresarial_al_fusionar()
+    {
+        const string razonSocial = "Empresa Mixta S.L.";
+        const string cif = "B12345674";
+
+        await SembrarAsync(
+            Empresa.CrearComoSubcontrata(razonSocial, cif, nivelServicio: "Estándar"),
+            new Empresa(EmpresaProveedora));
+
+        var libro = NuevoLibroBase();
+        var hojaClientes = libro.Worksheets.Worksheet("Clientes");
+        hojaClientes.Cell(2, 1).Value = razonSocial;
+        hojaClientes.Cell(2, 2).Value = cif;
+        EscribirCentro(libro, razonSocial, EmpresaProveedora);
+
+        var plan = await AnalizarAsync(libro);
+
+        plan.Omitidos.Should().BeEmpty();
+        plan.Clientes.Should().ContainSingle().Which.YaExiste.Should().BeTrue("el CIF ya existe: el análisis lo cuenta como fusión");
+        plan.Centros.Should().ContainSingle();
+
+        var resultado = await EjecutarAsync(plan);
+
+        resultado.ClientesActualizados.Should().Be(1);
+        resultado.CentrosCreados.Should().Be(1);
+
+        await using var verificacion = CrearContexto();
+        var empresa = await verificacion.Empresas.SingleAsync(e => e.RazonSocial == razonSocial);
+        empresa.EsCritico.Should().NotBeNull("la fila de la hoja \"Clientes\" declara que esta Empresa es Cliente empresarial");
+        empresa.NivelServicio.Should().Be("Estándar", "fusionar rellena lo vacío, no borra lo que ya había");
+        (await verificacion.Centros.CountAsync(c => c.ClienteId == empresa.Id)).Should().Be(1);
+    }
+
+    /// <summary>
     /// Cliente empresarial creado como tal y luego editado sin CIF
     /// (<see cref="Empresa.Actualizar"/> admite <c>cif</c> nulo y no toca
     /// <c>EsCritico</c>): queda con <c>EsCritico != null</c> y <c>Cif == null</c>.
