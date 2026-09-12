@@ -14,7 +14,7 @@ namespace CaeManager.Web.Features.Comunicaciones.Pages;
 /// de <see cref="Bandeja"/>, que muestra <c>Conversacion</c> ya
 /// ingeridas (solo Inbox, desde que se conectó el buzón), esta pantalla
 /// consulta Graph en vivo: carpetas y mensajes que nunca pasaron por el
-/// webhook (Enviados, Archivo, carpetas propias del cliente, historial
+/// webhook (Enviados, Archivo, carpetas propias del Cliente empresarial, historial
 /// anterior a la conexión). Cierra "consultar la estructura de carpetas" y
 /// "consultar cadena de correos antigua sin usar Outlook" del pedido del
 /// usuario. Deliberadamente no muestra el cuerpo completo de un mensaje
@@ -24,7 +24,7 @@ namespace CaeManager.Web.Features.Comunicaciones.Pages;
 /// construye; el usuario puede seguir abriendo el mensaje real en Outlook
 /// si necesita el cuerpo completo de un hilo que no está en Hydra todavía.
 /// </summary>
-public partial class Buzon : ComponentBase
+public partial class Buzon : ComponentBase, IDisposable
 {
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private ILogger<Buzon> Logger { get; set; } = default!;
@@ -32,16 +32,23 @@ public partial class Buzon : ComponentBase
     private IReadOnlyList<ConexionIntegracionListaDto> _conexiones = [];
     private Guid? _conexionSeleccionadaId;
     private bool _cargandoConexiones = true;
+    private CancellationTokenSource? _cicloConexiones;
+    private long _generacionConexiones;
 
     private IReadOnlyList<CarpetaGraphDto> _carpetas = [];
     private string? _carpetaSeleccionadaId;
     private bool _cargandoCarpetas;
     private string? _errorCarpetas;
+    private CancellationTokenSource? _cicloCarpetas;
+    private long _generacionCarpetas;
 
     private IReadOnlyList<MensajeResumenGraphDto> _mensajes = [];
     private int _pagina = 1;
     private bool _cargandoMensajes;
     private string? _errorMensajes;
+    private bool _sinMasMensajes;
+    private CancellationTokenSource? _cicloMensajes;
+    private long _generacionMensajes;
 
     private bool _redactarVisible;
     private string _redactarDestinatarios = string.Empty;
@@ -53,13 +60,17 @@ public partial class Buzon : ComponentBase
 
     protected override async Task OnInitializedAsync()
     {
+        var (generacion, token) = IniciarCargaConexiones();
         try
         {
-            _conexiones = await Mediator.Send(new ObtenerConexionesIntegracionQuery(SoloPropiasYGenerales: true));
+            var conexiones = await Mediator.Send(new ObtenerConexionesIntegracionQuery(SoloPropiasYGenerales: true), token);
+            if (EsCargaConexionesVigente(generacion, token))
+                _conexiones = conexiones;
         }
         finally
         {
-            _cargandoConexiones = false;
+            if (EsCargaConexionesVigente(generacion, token))
+                _cargandoConexiones = false;
         }
     }
 
@@ -69,16 +80,22 @@ public partial class Buzon : ComponentBase
         _carpetas = [];
         _carpetaSeleccionadaId = null;
         _mensajes = [];
+        _sinMasMensajes = false;
         _errorCarpetas = null;
+        CancelarCargaCarpetas();
+        CancelarCargaMensajes();
 
         if (_conexionSeleccionadaId is null) return;
 
+        var (generacion, token) = IniciarCargaCarpetas();
+        var conexionId = _conexionSeleccionadaId.Value;
         _cargandoCarpetas = true;
         StateHasChanged();
 
         try
         {
-            var resultado = await Mediator.Send(new ObtenerEstructuraBuzonQuery(_conexionSeleccionadaId.Value));
+            var resultado = await Mediator.Send(new ObtenerEstructuraBuzonQuery(conexionId), token);
+            if (!EsCargaCarpetasVigente(generacion, token)) return;
             if (resultado.EsFallido)
             {
                 _errorCarpetas = resultado.Error.Mensaje;
@@ -89,13 +106,17 @@ public partial class Buzon : ComponentBase
         }
         catch (Exception ex)
         {
+            if (!EsCargaCarpetasVigente(generacion, token)) return;
             Logger.LogError(ex, "Error al cargar la estructura de carpetas de la conexión {ConexionId}.", _conexionSeleccionadaId);
             _errorCarpetas = "No pudimos leer las carpetas de este buzón.";
         }
         finally
         {
-            _cargandoCarpetas = false;
-            StateHasChanged();
+            if (EsCargaCarpetasVigente(generacion, token))
+            {
+                _cargandoCarpetas = false;
+                StateHasChanged();
+            }
         }
     }
 
@@ -103,6 +124,8 @@ public partial class Buzon : ComponentBase
     {
         _carpetaSeleccionadaId = carpetaId;
         _pagina = 1;
+        _sinMasMensajes = false;
+        CancelarCargaMensajes();
         return CargarMensajesAsync();
     }
 
@@ -110,13 +133,18 @@ public partial class Buzon : ComponentBase
     {
         if (_conexionSeleccionadaId is null || _carpetaSeleccionadaId is null) return;
 
+        var conexionId = _conexionSeleccionadaId.Value;
+        var carpetaIdSeleccionada = _carpetaSeleccionadaId;
+        var pagina = _pagina;
+        var (generacion, token) = IniciarCargaMensajes();
         _cargandoMensajes = true;
         _errorMensajes = null;
         StateHasChanged();
 
         try
         {
-            var resultado = await Mediator.Send(new ObtenerMensajesCarpetaQuery(_conexionSeleccionadaId.Value, _carpetaSeleccionadaId, _pagina));
+            var resultado = await Mediator.Send(new ObtenerMensajesCarpetaQuery(conexionId, carpetaIdSeleccionada, pagina), token);
+            if (!EsCargaMensajesVigente(generacion, token)) return;
             if (resultado.EsFallido)
             {
                 _errorMensajes = resultado.Error.Mensaje;
@@ -124,16 +152,21 @@ public partial class Buzon : ComponentBase
             }
 
             _mensajes = resultado.Valor;
+            _sinMasMensajes = _mensajes.Count == 0 && pagina > 1;
         }
         catch (Exception ex)
         {
+            if (!EsCargaMensajesVigente(generacion, token)) return;
             Logger.LogError(ex, "Error al cargar mensajes de la carpeta {CarpetaId}.", _carpetaSeleccionadaId);
             _errorMensajes = "No pudimos leer el historial de esta carpeta.";
         }
         finally
         {
-            _cargandoMensajes = false;
-            StateHasChanged();
+            if (EsCargaMensajesVigente(generacion, token))
+            {
+                _cargandoMensajes = false;
+                StateHasChanged();
+            }
         }
     }
 
@@ -177,7 +210,7 @@ public partial class Buzon : ComponentBase
 
     private async Task EnviarMensajeNuevoAsync()
     {
-        if (_conexionSeleccionadaId is null) return;
+        if (_conexionSeleccionadaId is null || _enviandoRedaccion) return;
 
         var destinatarios = _redactarDestinatarios
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -218,4 +251,64 @@ public partial class Buzon : ComponentBase
     }
 
     private static string FormatearFecha(DateTime fechaUtc) => fechaUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+
+    private static string TextoConexion(ConexionIntegracionListaDto conexion) =>
+        $"{conexion.Nombre} ({conexion.BuzonEmail})" + (conexion.ClienteNombre is null ? string.Empty : $" — {conexion.ClienteNombre}");
+
+    private (long Generacion, CancellationToken Token) IniciarCargaConexiones()
+    {
+        _cicloConexiones?.Cancel();
+        _cicloConexiones?.Dispose();
+        _cicloConexiones = new CancellationTokenSource();
+        return (++_generacionConexiones, _cicloConexiones.Token);
+    }
+
+    private (long Generacion, CancellationToken Token) IniciarCargaCarpetas()
+    {
+        CancelarCargaCarpetas();
+        _cicloCarpetas = new CancellationTokenSource();
+        return (++_generacionCarpetas, _cicloCarpetas.Token);
+    }
+
+    private (long Generacion, CancellationToken Token) IniciarCargaMensajes()
+    {
+        CancelarCargaMensajes();
+        _cicloMensajes = new CancellationTokenSource();
+        return (++_generacionMensajes, _cicloMensajes.Token);
+    }
+
+    private bool EsCargaConexionesVigente(long generacion, CancellationToken token) =>
+        generacion == _generacionConexiones && !token.IsCancellationRequested;
+
+    private bool EsCargaCarpetasVigente(long generacion, CancellationToken token) =>
+        generacion == _generacionCarpetas && !token.IsCancellationRequested;
+
+    private bool EsCargaMensajesVigente(long generacion, CancellationToken token) =>
+        generacion == _generacionMensajes && !token.IsCancellationRequested;
+
+    private void CancelarCargaCarpetas()
+    {
+        _cicloCarpetas?.Cancel();
+        _cicloCarpetas?.Dispose();
+        _cicloCarpetas = null;
+        _generacionCarpetas++;
+        _cargandoCarpetas = false;
+    }
+
+    private void CancelarCargaMensajes()
+    {
+        _cicloMensajes?.Cancel();
+        _cicloMensajes?.Dispose();
+        _cicloMensajes = null;
+        _generacionMensajes++;
+        _cargandoMensajes = false;
+    }
+
+    public void Dispose()
+    {
+        _cicloConexiones?.Cancel();
+        _cicloConexiones?.Dispose();
+        CancelarCargaCarpetas();
+        CancelarCargaMensajes();
+    }
 }

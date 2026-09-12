@@ -11,8 +11,8 @@
 <div class="contenedor-pagina buzon-contenedor">
     <CabeceraPagina Titulo="Buzón" Kicker="Operación">
         <Descripcion>
-            Estructura de carpetas e historial reales del buzón conectado — incluye Enviados, Archivo y todo lo
-            anterior a que se conectara a Hydra. Para responder a un hilo concreto ya gestionado en Comunicaciones,
+            Estructura de carpetas e historial del buzón conectado — incluye Enviados, Archivo y todo lo
+            anterior a que se conectara a TALVEG. Para responder a un hilo concreto ya gestionado en Comunicaciones,
             usa la <a href="/comunicaciones">Bandeja</a>.
         </Descripcion>
         <Acciones>
@@ -25,12 +25,11 @@
     </CabeceraPagina>
 
     <div class="campo buzon-selector-conexion">
-        <label>Buzón conectado</label>
-        <CampoSelect Valor="@(_conexionSeleccionadaId?.ToString() ?? string.Empty)" ValorChanged="SeleccionarConexionAsync">
+        <CampoSelect Etiqueta="Buzón conectado" Valor="@(_conexionSeleccionadaId?.ToString() ?? string.Empty)" ValorChanged="SeleccionarConexionAsync">
             <option value="">Selecciona un buzón…</option>
             @foreach (var conexion in _conexiones)
             {
-                <option value="@conexion.Id">@conexion.Nombre (@conexion.BuzonEmail)@(conexion.ClienteNombre is not null ? $" — {conexion.ClienteNombre}" : "")</option>
+                <option value="@conexion.Id">@TextoConexion(conexion)</option>
             }
         </CampoSelect>
     </div>
@@ -41,7 +40,11 @@
     }
     else if (_conexiones.Count == 0)
     {
-        <EstadoVacio Titulo="Sin buzones conectados" Descripcion="Conecta un buzón de Microsoft 365 en Conexiones de integración para poder navegarlo aquí." />
+        <EstadoVacio Titulo="Sin buzones conectados" Descripcion="Conecta un buzón de Microsoft 365 en Conexiones de integración para poder navegarlo aquí.">
+            <Accion>
+                <Boton Href="/integraciones">Ir a Conexiones</Boton>
+            </Accion>
+        </EstadoVacio>
     }
     else if (_conexionSeleccionadaId is not null)
     {
@@ -111,19 +114,20 @@
                         </Accion>
                     </EstadoVacio>
                 }
-                else if (_mensajes.Count == 0)
+                else if (_mensajes.Count == 0 && !_sinMasMensajes)
                 {
                     <EstadoVacio Titulo="Carpeta vacía" Descripcion="No hay mensajes en esta carpeta." />
                 }
                 else
                 {
-                    <table class="tabla-datos">
+                    <div class="buzon-tabla-contenedor">
+                    <table class="tabla-datos buzon-tabla">
                         <thead>
                             <tr>
                                 <th>De</th>
                                 <th>Asunto</th>
                                 <th>Fecha</th>
-                                <th></th>
+                                <th aria-label="Adjuntos"></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -143,11 +147,12 @@
                             }
                         </tbody>
                     </table>
+                    </div>
 
                     <div class="buzon-paginador">
                         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_pagina <= 1" OnClick="PaginaAnteriorAsync">Anterior</Boton>
                         <span class="buzon-pagina-actual">Página @_pagina</span>
-                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_mensajes.Count == 0" OnClick="PaginaSiguienteAsync">Siguiente</Boton>
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_sinMasMensajes" OnClick="PaginaSiguienteAsync">Siguiente</Boton>
                     </div>
                 }
             </section>
@@ -162,7 +167,7 @@
             <div class="alerta-formulario" role="alert">@_redactarError</div>
         }
 
-        <CampoTexto Etiqueta="Para (separados por coma)" Valor="@_redactarDestinatarios" ValorChanged="v => _redactarDestinatarios = v" Placeholder="contacto@cliente.com" />
+        <CampoTexto Etiqueta="Para (separados por coma)" Valor="@_redactarDestinatarios" ValorChanged="v => _redactarDestinatarios = v" Placeholder="contacto@empresa.example" />
         <CampoTexto Etiqueta="Asunto" Valor="@_redactarAsunto" ValorChanged="v => _redactarAsunto = v" />
         <CampoTextarea Etiqueta="Mensaje" Valor="@_redactarCuerpo" ValorChanged="v => _redactarCuerpo = v" Filas="6" />
 
