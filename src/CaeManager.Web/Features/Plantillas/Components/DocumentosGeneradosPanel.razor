@@ -1,37 +1,47 @@
-﻿@*
-    Contenido de "Documentos generados" — extraído de la antigua página
-    dedicada (Plantillas TALVEG.dc.html pide una pestaña "Generados" dentro
-    de la propia pantalla de Plantillas, no una página aparte). La página
-    /plantillas/documentos-generados se conserva tal cual apuntando a este
-    mismo panel, por si algo enlaza directo a esa URL — no se ha encontrado
-    ningún enlace externo, pero borrar la ruta no aporta nada y sí arriesga
-    romper un marcador guardado.
+@*
+    Contenido de "Documentos generados" (Documentos Generados TALVEG.dc.html).
+    Vive en dos sitios: la pestaña «Generados» de PlantillasTab (en /plantillas
+    y embebida en /documentos) y la página /plantillas/documentos-generados,
+    que se conserva para marcadores guardados. Por eso el panel no pinta
+    cabecera: la pone quien lo aloja.
 *@
 @using CaeManager.Domain.Plantillas
 @using MediatR
 @inject IMediator Mediator
+@inject NavigationManager Navigation
 
-<div class="barra-filtros">
-    <CampoSelect Etiqueta="Plantilla" Valor="@(_plantillaFiltro?.ToString() ?? "")" ValorChanged="CambiarPlantillaFiltroAsync">
-        <option value="">Todas las plantillas</option>
-        @foreach (var plantilla in _plantillasDisponibles)
-        {
-            <option value="@plantilla.Id">@plantilla.Nombre</option>
-        }
-    </CampoSelect>
+<div class="filtros-generados">
+    <div class="barra-filtros">
+        <CampoSelect Etiqueta="Plantilla" Valor="@(_plantillaFiltro?.ToString() ?? "")" ValorChanged="CambiarPlantillaFiltroAsync">
+            <option value="">Todas las plantillas</option>
+            @foreach (var plantilla in _plantillasDisponibles)
+            {
+                <option value="@plantilla.Id">@plantilla.Nombre</option>
+            }
+        </CampoSelect>
 
-    <CampoSelect Etiqueta="Trabajador" Valor="@(_trabajadorFiltro?.ToString() ?? "")" ValorChanged="CambiarTrabajadorFiltroAsync">
-        <option value="">Todos los trabajadores</option>
-        @foreach (var trabajador in _trabajadoresDisponibles)
-        {
-            <option value="@trabajador.Id">@trabajador.NombreCompleto (@trabajador.Dni)</option>
-        }
-    </CampoSelect>
+        <CampoSelect Etiqueta="Trabajador" Valor="@(_trabajadorFiltro?.ToString() ?? "")" ValorChanged="CambiarTrabajadorFiltroAsync">
+            <option value="">Todos los trabajadores</option>
+            @foreach (var trabajador in _trabajadoresDisponibles)
+            {
+                <option value="@trabajador.Id">@trabajador.NombreCompleto (@trabajador.Dni)</option>
+            }
+        </CampoSelect>
+    </div>
+
+    @* El mockup escribe «N de M documentos» con filtro. No se copia el «de M»:
+       el filtrado es de servidor y la consulta solo devuelve el total ya
+       filtrado. Sin filtro la cifra sí es el total (la consulta no pagina). *@
+    @if (HayFilas)
+    {
+        <span class="resumen-generados" title="@TituloResumen">@TextoResumen</span>
+    }
 </div>
 
 @if (_errorCarga)
 {
-    <EstadoVacio Titulo="No pudimos cargar los documentos generados" Descripcion="Intenta nuevamente en unos segundos.">
+    <EstadoVacio Titulo="No pudimos cargar los documentos generados" Descripcion="Intenta nuevamente en unos segundos."
+                 NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">
         <Accion>
             <Boton OnClick="CargarAsync">Reintentar</Boton>
         </Accion>
@@ -47,10 +57,11 @@ else if (_documentosGenerados.Count == 0 && HayFiltrosActivos)
        trabajador elegido, esa frase manda a generar de nuevo un documento que
        probablemente ya existe para otro trabajador u otra plantilla.
 
-       La copia no afirma cuántos hay: el filtrado es de servidor y la consulta
-       devuelve solo el total ya filtrado. *@
-    <EstadoVacio NombreIcono="vacio" Titulo="Ningún documento con estos filtros"
-                 Descripcion="Ninguno corresponde a la plantilla ni al trabajador seleccionado.">
+       La copia no afirma cuántos hay —el mockup dice «Sí hay documentos
+       generados»—: el filtrado es de servidor y la consulta devuelve solo el
+       total ya filtrado, así que ese «sí hay» no se puede sostener. *@
+    <EstadoVacio NombreIcono="filtro" Titulo="Ningún documento generado con este filtro"
+                 Descripcion="@DescripcionVacioPorFiltro">
         <Accion>
             <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar los filtros</Boton>
         </Accion>
@@ -58,60 +69,92 @@ else if (_documentosGenerados.Count == 0 && HayFiltrosActivos)
 }
 else if (_documentosGenerados.Count == 0)
 {
-    <EstadoVacio Titulo="Todavía no se ha generado ningún documento" Descripcion="Genera uno individual o en lote desde una plantilla confirmada." />
+    <EstadoVacio NombreIcono="vacio" Titulo="Todavía no se ha generado ningún documento" Descripcion="Genera uno individual o en lote desde una plantilla confirmada.">
+        <Accion>
+            <Boton Href="/plantillas">Ir al catálogo de plantillas</Boton>
+        </Accion>
+    </EstadoVacio>
 }
 else
 {
-    <table class="tabla-datos">
-        <thead>
-            <tr>
-                <th>Plantilla</th>
-                <th>Trabajador</th>
-                <th>Empresa</th>
-                <th>Generado el</th>
-                <th>Estado</th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var generado in _documentosGenerados)
-            {
+    @* j/k recorre la lista y Enter abre la ficha del documento enfocado, igual
+       que su «Gestionar». Sin «x»: la lista no tiene selección múltiple. *@
+    <AtajosListaTeclado OnAtajo="ManejarAtajo" />
+
+    @* Tabla con ancho mínimo dentro de un marco que se desplaza en horizontal:
+       como región con nombre y foco, también se desplaza con teclado. *@
+    <div class="marco-lista-generados" role="region" aria-label="Documentos generados" tabindex="0">
+        <table class="tabla-datos">
+            <thead>
                 <tr>
-                    <td>
-                        @if (_versionActualPorPlantilla.TryGetValue(generado.PlantillaDocumentoId, out var versionId))
-                        {
-                            <a class="enlace-exportar" href="@($"/plantillas/{versionId}/editar")" title="Ir a configurar los campos de esta plantilla">@generado.PlantillaNombre</a>
-                        }
-                        else
-                        {
-                            @generado.PlantillaNombre
-                        }
-                    </td>
-                    <td>@(generado.TrabajadorNombreCompleto ?? "—")</td>
-                    <td>@(generado.EmpresaRazonSocial ?? "—")</td>
-                    <td>@generado.GeneradoEnUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
-                    <td>
-                        @if (generado.Estado == EstadoDocumentoGenerado.Generado)
-                        {
-                            <Badge Tono="TonoBadge.Exito">Generado</Badge>
-                        }
-                        else if (generado.Estado == EstadoDocumentoGenerado.GeneradoConAvisos)
-                        {
-                            @* El documento existe; algún obligatorio quedó vacío (DEC-5) y/o algún valor no fue reconocido por su campo (DEC-32, REC-115). *@
-                            <Badge Tono="TonoBadge.Advertencia" title="Revisa este documento: algún dato quedó sin rellenar o con un valor que su campo no reconoció">Generado con avisos</Badge>
-                        }
-                        else
-                        {
-                            <Badge>@generado.Estado</Badge>
-                        }
-                    </td>
-                    <td>
-                        <a class="enlace-exportar" href="@($"/documentos/{generado.DocumentoId}/archivo")" target="_blank" title="Abre el PDF generado en una pestaña nueva">Ver PDF</a>
-                        &nbsp;·&nbsp;
-                        <a class="enlace-exportar" href="@($"/documentos?documentoId={generado.DocumentoId}")" title="Abre la ficha del documento en el módulo de Documentos">Gestionar</a>
-                    </td>
+                    <th>Plantilla</th>
+                    <th>Trabajador</th>
+                    <th>Empresa</th>
+                    <th>Generado el</th>
+                    <th>Estado</th>
+                    @* La columna de acciones se rotula para quien navega la tabla con
+                       lector de pantalla; a la vista sigue sin encabezado. *@
+                    <th><span class="encabezado-acciones-generados">Acciones</span></th>
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @foreach (var generado in _documentosGenerados)
+                {
+                    var generadoEn = generado.GeneradoEnUtc.ToLocalTime();
+                    <tr @key="generado.DocumentoGeneradoId" class="@(generado.DocumentoGeneradoId == _idEnfocado ? "fila-enfocada" : null)">
+                        <td class="nombre-generado">
+                            @if (_versionActualPorPlantilla.TryGetValue(generado.PlantillaDocumentoId, out var versionId))
+                            {
+                                <a href="@($"/plantillas/{versionId}/editar")" title="Ir a configurar los campos de esta plantilla">@generado.PlantillaNombre</a>
+                            }
+                            else
+                            {
+                                @generado.PlantillaNombre
+                            }
+                        </td>
+                        <td class="dato-generado">@(generado.TrabajadorNombreCompleto ?? "—")</td>
+                        <td class="dato-generado">@(generado.EmpresaRazonSocial ?? "—")</td>
+                        <td class="dato-generado">
+                            <TextoFechaCopiable Fecha="DateOnly.FromDateTime(generadoEn)">@generadoEn.ToString("dd/MM/yyyy HH:mm")</TextoFechaCopiable>
+                        </td>
+                        <td>
+                            @if (generado.Estado == EstadoDocumentoGenerado.Generado)
+                            {
+                                <Badge Tono="TonoBadge.Exito" Tamano="TamanoBadge.Pequeno" title="Sin avisos: los obligatorios tienen dato y todos los valores se reconocieron">Generado</Badge>
+                            }
+                            else if (generado.Estado == EstadoDocumentoGenerado.GeneradoConAvisos)
+                            {
+                                @* El documento existe; algún obligatorio quedó vacío (DEC-5) y/o algún valor no fue reconocido por su campo (DEC-32, REC-115). *@
+                                <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno" title="Revisa este documento: algún dato quedó sin rellenar o con un valor que su campo no reconoció">Generado con avisos</Badge>
+                            }
+                            else
+                            {
+                                <Badge Tamano="TamanoBadge.Pequeno">@generado.Estado</Badge>
+                            }
+                        </td>
+                        <td>
+                            @* Enlaces y no botones: el PDF lo sirve /documentos/{id}/archivo,
+                               que es quien aplica la autorización; aquí solo se enlaza. El
+                               nombre accesible añade la plantilla y el trabajador: hay un
+                               enlace igual en cada fila. *@
+                            <div class="acciones-generado">
+                                <a href="@($"/documentos/{generado.DocumentoId}/archivo")" target="_blank"
+                                   title="Abre el PDF generado en una pestaña nueva"
+                                   aria-label="@($"Ver PDF de {DescribirFila(generado)}")">Ver PDF</a>
+                                <span class="separador-acciones-generado" aria-hidden="true">·</span>
+                                <a href="@($"/documentos?documentoId={generado.DocumentoId}")"
+                                   title="Abre la ficha del documento en el módulo de Documentos"
+                                   aria-label="@($"Gestionar {DescribirFila(generado)}")">Gestionar</a>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <p class="aviso-generados-con-avisos">
+        <Icono Nombre="advertencia" />
+        <span>«Generado con avisos» no es un fallo: el documento existe. Significa que algún campo obligatorio quedó sin dato, o que un valor presente no fue reconocido por su campo. Se marca para poder revisar por la mañana un lote procesado de noche, sin romper el lote entero por un campo.</span>
+    </p>
 }

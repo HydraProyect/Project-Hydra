@@ -1,0 +1,105 @@
+/*
+  Documentos generados (Documentos Generados TALVEG.dc.html).
+
+  Sigue siendo una <table>: la fila no se despliega, así que la semántica de
+  tabla es la correcta y un lector de pantalla puede recorrerla por celdas. Del
+  mockup se traslada el marco: una tarjeta con desplazamiento horizontal
+  propio, para que en una ventana estrecha se desplace la lista y no la página.
+*/
+/* La barra de filtros compartida tiene ancho máximo y no envuelve: el resumen
+   va a su lado, dentro de un contenedor propio que sí envuelve. */
+.filtros-generados {
+    display: flex;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    column-gap: var(--space-4);
+}
+
+.resumen-generados {
+    margin-bottom: var(--space-4);
+    padding-bottom: var(--space-3);
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+.marco-lista-generados {
+    overflow-x: auto;
+    background: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+}
+
+/* El borde y el radio los pone el marco: la tabla dentro no los repite. */
+.marco-lista-generados .tabla-datos {
+    min-width: 940px;
+    border: 0;
+    border-radius: 0;
+}
+
+/* Densidad del mockup: cabecera de 40 px y filas de 52 px. */
+.marco-lista-generados .tabla-datos th {
+    padding: var(--space-3) var(--space-5);
+}
+
+.marco-lista-generados .tabla-datos td {
+    padding: var(--space-2) var(--space-5);
+}
+
+.nombre-generado {
+    font-weight: 600;
+}
+
+.dato-generado {
+    color: var(--color-text-muted);
+}
+
+.acciones-generado {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    font: var(--font-label-md);
+}
+
+.separador-acciones-generado {
+    color: var(--color-border-strong);
+}
+
+/* Aviso en línea bajo la lista: qué significa «Generado con avisos». */
+.aviso-generados-con-avisos {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    margin: var(--space-6) 0 0;
+    padding: var(--space-4) var(--space-5);
+    background: var(--color-warning-50);
+    border: 1px solid var(--color-warning-500);
+    border-radius: var(--radius-lg);
+    color: var(--color-warning-700);
+    font: var(--font-body-md);
+    max-width: 100%;
+}
+
+.aviso-generados-con-avisos > span {
+    max-width: 90ch;
+}
+
+.aviso-generados-con-avisos ::deep .icono {
+    flex: none;
+}
+
+/* Rótulo de la columna de acciones: lo leen los lectores de pantalla y no
+   ocupa sitio. No se reutiliza .solo-lectores de TiposDocumento: es CSS
+   aislado de aquel componente y el trinquete prohíbe usarlo desde otro. */
+.encabezado-acciones-generados {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}

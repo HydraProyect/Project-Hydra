@@ -4,6 +4,7 @@ using CaeManager.Application.Plantillas.Queries.ObtenerPlantillasDocumento;
 using CaeManager.Application.Plantillas.Queries.ObtenerTotalDocumentosGeneradosConAvisos;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Domain.Plantillas;
+using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Plantillas.Components;
 using FluentAssertions;
 using MediatR;
@@ -27,6 +28,13 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class DocumentosGeneradosPanelAvisosTests : BunitContext
 {
+    /// <summary>Con filas, el panel monta AtajosListaTeclado y TextoFechaCopiable: importan módulos JS y avisan por toast.</summary>
+    public DocumentosGeneradosPanelAvisosTests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddScoped<ToastService>();
+    }
+
     /// <summary>El panel lanza tres consultas distintas por el mismo IMediator — responde por tipo, no una única respuesta para todas.</summary>
     private sealed class MediatorPorTipo : IMediator
     {
