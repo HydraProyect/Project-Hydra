@@ -106,8 +106,10 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         // otro tipo (Vencido) debe ocultarla, confirmando que el filtro de
         // verdad reduce la lista y no solo decora. Chips en vez de <select>
         // desde el rediseño (mockup "Mi trabajo TALVEG"): cada chip es un
-        // <button> con su propio nombre accesible ("Urgente (N)"), único por
-        // texto exacto entre los ocho tipos — sustituye al SelectOptionAsync
+        // <button> con su propio nombre accesible ("Urgente N" — el recuento
+        // perdió los paréntesis al pasar el chip a píldora, y su explicación
+        // vive ahora en el title, que no entra en el nombre accesible), único
+        // por texto exacto entre los diez tipos — sustituye al SelectOptionAsync
         // por Value que usaba el <select> anterior.
         // Acotado a .bandeja-chip (no GetByRole a secas): la agrupación por
         // cola (GrupoCola.razor) añade cabeceras de grupo cuyo nombre

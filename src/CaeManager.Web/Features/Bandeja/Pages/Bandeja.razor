@@ -16,8 +16,7 @@
    Rediseño (mockup "Mi trabajo TALVEG"): agrupada "por situación" — misma
    ObtenerBandejaAgrupadaQuery + GrupoCola que ya usa Inicio ("/"), en vez
    de la pared plana de PanelResolverItem de antes (hallazgo P-03). Filtro
-   por chips en vez de <select> y orden Impacto/Fecha son traducción directa
-   del mockup.
+   por chips y orden Impacto/Fecha límite son traducción directa del mockup.
 
    Estado medido del resto del mockup (2026-09-03, sobre #413 — no de
    memoria, ver DEC-22): "Reclamar en lote" (SelectorLoteDocumental +
@@ -31,36 +30,41 @@
    Empresas/Trabajadores/Clientes/Documentos la usan al eliminar — pero
    ningún flujo de Bandeja la dispara). "Posponer" se descartó como
    capacidad aprobada el 2026-09-02 (DEC-22): no es trabajo pendiente, la
-   idea queda en el registro histórico. *@
+   idea queda en el registro histórico. La selección múltiple con barra
+   flotante "Reclamar todo" del mockup está marcada MEJORA ahí mismo y
+   tampoco está construida: hoy el lote se arma en el Drawer, no marcando
+   grupos.
+
+   Las teclas "e" (plegar), "r" (resolver) y "p" (posponer) del mockup NO
+   están: son propuesta de esa pantalla, no del CatalogoAtajos, y
+   atajos-lista.js solo reparte j/k/x/Enter a TODAS las listas — añadirlas
+   ahí sería cambiarlas en todas, no solo aquí. La leyenda de abajo solo
+   promete las que el código sirve de verdad. *@
 <PageTitle>Mi trabajo — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <CabeceraPagina Titulo="Mi trabajo" Kicker="Cola priorizada">
+    <CabeceraPagina Titulo="Mi trabajo" Kicker="Control">
         <Acciones>
+            <div class="bandeja-orden">
+                <label class="bandeja-orden-etiqueta" for="bandeja-orden">Ordenar por</label>
+                <select id="bandeja-orden" class="bandeja-orden-select" value="@_orden" @onchange="CambiarOrdenAsync">
+                    <option value="@nameof(OrdenBandeja.Impacto)">Impacto</option>
+                    <option value="@nameof(OrdenBandeja.Fecha)">Fecha límite</option>
+                </select>
+            </div>
             <Boton Variante="VarianteBoton.Secundario" OnClick="AbrirReclamacionLoteAsync">Reclamar en lote</Boton>
         </Acciones>
     </CabeceraPagina>
 
-    <div class="bandeja-barra">
-        <div class="bandeja-chips" role="group" aria-label="Filtrar por tipo">
-            @foreach (var chip in Chips)
-            {
-                <button type="button" class="@("bandeja-chip" + (chip.Tipo == _tipoFiltro ? " bandeja-chip-activo" : ""))"
-                        aria-pressed="@(chip.Tipo == _tipoFiltro ? "true" : "false")"
-                        @onclick="() => CambiarFiltroAsync(chip.Tipo)">
-                    @chip.Etiqueta <span class="bandeja-chip-cuenta">(@chip.Cantidad)</span>
-                </button>
-            }
-        </div>
-        <div class="bandeja-orden">
-            <span class="bandeja-orden-etiqueta">Orden</span>
-            <div class="bandeja-orden-grupo" role="group" aria-label="Ordenar por">
-                <button type="button" class="@("bandeja-orden-boton" + (_orden == OrdenBandeja.Impacto ? " bandeja-orden-boton-activo" : ""))"
-                        @onclick='() => CambiarOrdenAsync(OrdenBandeja.Impacto)'>Impacto</button>
-                <button type="button" class="@("bandeja-orden-boton" + (_orden == OrdenBandeja.Fecha ? " bandeja-orden-boton-activo" : ""))"
-                        @onclick='() => CambiarOrdenAsync(OrdenBandeja.Fecha)'>Fecha</button>
-            </div>
-        </div>
+    <div class="bandeja-chips" role="group" aria-label="Filtrar por tipo">
+        @foreach (var chip in Chips)
+        {
+            <button type="button" class="@("bandeja-chip" + (chip.Tipo == _tipoFiltro ? " bandeja-chip-activo" : ""))"
+                    aria-pressed="@(chip.Tipo == _tipoFiltro ? "true" : "false")"
+                    @onclick="() => CambiarFiltroAsync(chip.Tipo)">
+                @chip.Etiqueta <span class="bandeja-chip-cuenta" title="@chip.Titulo">@chip.Cantidad</span>
+            </button>
+        }
     </div>
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
@@ -77,16 +81,34 @@
     {
         <EstadoCargando Filas="6" />
     }
+    else if (ItemsFiltrados.Count == 0 && HayFiltrosActivos)
+    {
+        <EstadoVacio NombreIcono="filtro" Titulo="Nada con este filtro"
+                     Descripcion="Prueba con otro tipo o vuelve a «Todos» para ver la cola entera.">
+            <Accion>
+                <Boton OnClick="QuitarFiltrosAsync">Quitar el filtro</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
     else if (ItemsFiltrados.Count == 0)
     {
-        <EstadoVacio Titulo="Nada pendiente" Descripcion="No hay documentos vencidos, urgentes, faltantes, revisiones IA ni requisitos bloqueados." />
+        <EstadoVacio NombreIcono="exito-circulo" AcentoIcono="var(--color-success-500)" FondoIcono="var(--color-success-50)"
+                     Titulo="La cola está vacía"
+                     Descripcion="No queda nada pendiente en tu cartera: ni documentos vencidos, urgentes o faltantes, ni revisiones de IA, ni requisitos que bloqueen un Centro." />
     }
     else
     {
+        <div class="bandeja-resumen">
+            <span class="bandeja-resumen-cuenta">@ResumenVisible</span>
+            <span class="bandeja-atajos">
+                Atajos: <kbd>j</kbd> / <kbd>k</kbd> mover · <kbd>Enter</kbd> abrir
+            </span>
+        </div>
+
         <div class="lista-bandeja">
             @foreach (var grupo in GruposOrdenados)
             {
-                <GrupoCola @key="grupo.GrupoId" Grupo="grupo" ExpandidaPorDefecto="true" AgruparPorEmpresa="_agruparPorEmpresa" IdEnfocado="@_idEnfocado" OnReclamar="AbrirReclamacionDeItemAsync" PaginarPorGrupo="true" />
+                <GrupoCola @key="grupo.GrupoId" Grupo="grupo" ExpandidaPorDefecto="true" AgruparPorEmpresa="_agruparPorEmpresa" IdEnfocado="@_idEnfocado" OnReclamar="AbrirReclamacionDeItemAsync" PaginarPorGrupo="true" MarcarBloqueo="true" />
             }
             @foreach (var item in _bandeja!.SinGrupo.Where(i => CoincideFiltro(i, _tipoFiltro)))
             {
