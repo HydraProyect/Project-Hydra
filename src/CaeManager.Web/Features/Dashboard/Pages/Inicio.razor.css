@@ -1,0 +1,122 @@
+/*
+  Inicio ("/") Gen 2 — piezas que solo existen en esta pantalla.
+
+  Lo que ya compartía con los otros dos dashboards (.dashboard-subtitulo,
+  .dashboard-resumen, .dashboard-pulso, .dashboard-lista-unificada…) se queda
+  en wwwroot/css/dashboard.css: es global a propósito, porque
+  DashboardEjecutivo y Visión de cartera lo usan y el aislamiento de CSS de
+  Blazor no cruza entre componentes. Aquí solo entra lo que nadie más pinta.
+*/
+
+/*
+  Cabecera: fecha de hoy + hora de la lectura, a la derecha del saludo (mockup
+  "Inicio TALVEG"). Va dentro del slot Acciones de CabeceraPagina, que es una
+  fila; esto es texto, no botones, así que se alinea al final de esa fila.
+*/
+.inicio-cabecera-meta {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    font: var(--font-body-md);
+    color: var(--color-text-muted);
+}
+
+.inicio-fecha {
+    white-space: nowrap;
+}
+
+.inicio-separador {
+    color: var(--color-border-strong);
+}
+
+/*
+  Indicador de sistema (02 § 3.1): lo que hace la plataforma por su cuenta —
+  aquí, cuándo leyó los datos— se marca en cian, no en el azul de las acciones
+  del usuario. --color-system-text para el texto (5,16:1 sobre Surface) y
+  --color-system-indicator para el punto, que no es texto y le basta 3:1.
+*/
+.inicio-indicador-sistema {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    white-space: nowrap;
+    color: var(--color-system-text);
+}
+
+.inicio-punto-sistema {
+    width: 6px;
+    height: 6px;
+    flex: none;
+    border-radius: var(--radius-full);
+    background: var(--color-system-indicator);
+}
+
+/*
+  Cabecera de sección: el <h2> a la izquierda y, a su lado, el recuento que
+  explica lo que se está viendo ("5 grupos · 2 bloquean acceso") o la salida al
+  listado completo. El margen superior sale del propio .dashboard-subtitulo, que
+  sigue siendo quien separa las secciones; este contenedor solo los pone en la
+  misma línea. Alineación por la línea base para que el título y el recuento se
+  apoyen en la misma, pese a tener tamaños distintos.
+*/
+.inicio-seccion-cabecera {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+.inicio-seccion-meta {
+    font: var(--font-label-md);
+    color: var(--color-text-muted);
+}
+
+.inicio-seccion-enlace {
+    margin-left: auto;
+    font: var(--font-label-md);
+    font-size: 0.8125rem;
+}
+
+/*
+  Cierre de "Requiere atención": la única buena noticia de la pantalla. Tarjeta
+  de una fila con marca de éxito y salida al Calendario (mockup), en vez del
+  párrafo suelto que llevaba — el mismo ritmo de fila que .fila-plataforma.
+*/
+.inicio-cierre {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+    padding: var(--space-5) var(--space-5);
+    background: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+}
+
+.inicio-cierre-marca {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-full);
+    background: var(--color-success-50);
+    border: 1px solid var(--color-success-500);
+    color: var(--color-success-700);
+}
+
+.inicio-cierre-texto {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    font: var(--font-body-lg);
+    color: var(--color-text);
+}
+
+.inicio-cierre-enlace {
+    margin-left: auto;
+    font: var(--font-label-md);
+    font-size: 0.8125rem;
+}

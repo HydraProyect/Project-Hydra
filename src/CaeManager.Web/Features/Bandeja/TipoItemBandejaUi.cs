@@ -1,3 +1,4 @@
+using CaeManager.Application.Bandeja.Queries.ObtenerBandejaAgrupada;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 using CaeManager.Web.Components.DesignSystem;
 
@@ -90,4 +91,25 @@ public static class TipoItemBandejaUi
         item.Tipo is TipoItemBandeja.Faltante or TipoItemBandeja.Vencido or TipoItemBandeja.Urgente
         && item.TrabajadorId is not null
         && item.TipoDocumentoId is not null;
+
+    /// <summary>
+    /// «Bloquea acceso» solo cuando de verdad bloquea.
+    /// <see cref="GrupoColaDto.BloqueaAcceso"/> significa «el grupo tiene algún
+    /// RequisitoPendiente», y un requisito de ALTA NUEVA no es un bloqueo que
+    /// corregir sino un alta sin completar (mismo criterio que
+    /// <see cref="Tono(ItemBandejaDto)"/>, que ya le da otro tono). Pintar la
+    /// banda, el badge o contarlo en «N bloquean acceso» por él le dice al
+    /// Gestor CAE que un Centro está cerrado cuando no lo está.
+    ///
+    /// <para>
+    /// Vive aquí, y no en <c>GrupoCola</c>, porque tiene ya dos lectores que no
+    /// pueden divergir: la tarjeta del grupo (badge y banda, en «Mi trabajo» y
+    /// en Inicio) y el recuento «N grupos · M bloquean acceso» de la cabecera
+    /// de «Requiere atención» en Inicio. Un grupo marcado en la tarjeta y no
+    /// contado arriba —o al revés— sería peor que no decir nada.
+    /// </para>
+    /// </summary>
+    public static bool BloqueaAccesoDeVerdad(GrupoColaDto grupo) =>
+        grupo.BloqueaAcceso
+        && grupo.Items.Any(i => i.Tipo == TipoItemBandeja.RequisitoPendiente && !i.EsAltaNueva);
 }

@@ -125,16 +125,12 @@
     private bool _expandida;
 
     /// <summary>
-    /// «Bloquea acceso» solo cuando de verdad bloquea.
-    /// <see cref="GrupoColaDto.BloqueaAcceso"/> significa «el grupo tiene algún
-    /// RequisitoPendiente», y un requisito de ALTA NUEVA no es un bloqueo que
-    /// corregir sino un alta sin completar (mismo criterio que
-    /// <see cref="TipoItemBandejaUi.Tono(ItemBandejaDto)"/>, que ya le da otro
-    /// tono). Pintar la banda y el badge por él le dice al Gestor CAE que un
-    /// Centro está cerrado cuando no lo está.
+    /// «Bloquea acceso» solo cuando de verdad bloquea — el criterio vive en
+    /// <see cref="TipoItemBandejaUi.BloqueaAccesoDeVerdad"/> porque el recuento
+    /// «M bloquean acceso» de la cabecera de Inicio tiene que decir lo mismo
+    /// que estas tarjetas.
     /// </summary>
-    private bool BloqueaDeVerdad =>
-        Grupo.BloqueaAcceso && Grupo.Items.Any(i => i.Tipo == TipoItemBandeja.RequisitoPendiente && !i.EsAltaNueva);
+    private bool BloqueaDeVerdad => TipoItemBandejaUi.BloqueaAccesoDeVerdad(Grupo);
 
     [Parameter, EditorRequired] public GrupoColaDto Grupo { get; set; } = default!;
 
