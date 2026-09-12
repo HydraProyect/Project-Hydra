@@ -18,13 +18,18 @@ namespace CaeManager.E2ETests;
 /// determinista, sin depender de que una IA real acierte. El test cubre por
 /// tanto la rama de confirmación manual, que es la única alcanzable aquí.
 ///
-/// SubidaMasiva.razor no declara [Authorize(Roles=...)] — a diferencia de
-/// "Importar documentos" (Administrador-only, envuelto en AuthorizeView en
-/// Documentos.razor), el enlace "Subida múltiple" se muestra a cualquier
-/// rol autenticado y CrearDocumentoCommandHandler tampoco comprueba rol. El
-/// segundo test de esta clase confirma con un usuario real que no es
-/// Administrador que la pantalla es alcanzable — no es una suposición leída
-/// del código, es el comportamiento real.
+/// SubidaMasiva.razor sí declara [Authorize(Roles=...)]: Administrador,
+/// DireccionCae, CoordinadorCae, GestorCae y Consulta pueden abrir la
+/// pantalla — a diferencia de "Importar documentos" (Administrador-only,
+/// envuelto en AuthorizeView en Documentos.razor), no es de un solo rol. La
+/// escritura real no la decide ese atributo: la bloquea
+/// AutorizacionEscrituraBehavior sobre CrearDocumentoCommand, cuya lista
+/// blanca no incluye Consulta (recibe Autorizacion.SoloLectura antes de que
+/// el handler llegue a ejecutarse — ver
+/// CrearDocumentoCommandBloqueadoParaConsultaTests, que compone el mediador
+/// real para probarlo). El segundo test de esta clase confirma con un
+/// usuario real que no es Administrador que la pantalla es alcanzable — no
+/// es una suposición leída del código, es el comportamiento real.
 /// </summary>
 [Collection("AppCollection")]
 public class SubidaMasivaTests(WebAppFixture fixture)
@@ -114,11 +119,12 @@ public class SubidaMasivaTests(WebAppFixture fixture)
     }
 
     /// <summary>
-    /// SubidaMasiva.razor no restringe por rol (a diferencia de "Importar
-    /// documentos", Administrador-only) pero tampoco es Cliente-only: sigue
-    /// alcanzable por cualquiera de los cuatro roles internos con capacidad
-    /// de escritura más Consulta — este test comprueba GestorCae como
-    /// representante de "no Administrador-only", no el único caso posible.
+    /// SubidaMasiva.razor restringe por rol (a diferencia de "Importar
+    /// documentos", Administrador-only) pero no es Administrador-only:
+    /// sigue alcanzable por cualquiera de los cuatro roles internos con
+    /// capacidad de escritura más Consulta — este test comprueba GestorCae
+    /// como representante de "no Administrador-only", no el único caso
+    /// posible.
     /// </summary>
     [Fact]
     public async Task Subida_multiple_es_alcanzable_por_un_rol_interno_que_no_es_Administrador()
