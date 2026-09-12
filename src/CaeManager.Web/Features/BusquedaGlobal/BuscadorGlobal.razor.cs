@@ -239,7 +239,7 @@ public partial class BuscadorGlobal : ComponentBase
                         RecienteComoItem(r),
                         r.Tipo,
                         IconoParaTipo(r.Tipo),
-                        r.Subtitulo ?? string.Empty,
+                        SubtituloDeReciente(r),
                         r.Tipo == "Accion" ? "ejecutar" : "abrir ficha"))]));
                 }
 
@@ -304,6 +304,31 @@ public partial class BuscadorGlobal : ComponentBase
             return inicios;
         }
     }
+
+    /// <summary>
+    /// Un reciente guardado lleva el subtítulo tal y como lo emitió el
+    /// handler, y para la contraparte de una Relación Empresarial ese literal
+    /// es «Cliente» a secas. Pasa por la misma neutralización que los
+    /// resultados directos: si no, abrir un Cliente empresarial y reabrir el
+    /// palette lo devolvía escrito mal en «Recientes». Vale también para lo ya
+    /// guardado, que no se reescribe.
+    /// </summary>
+    private static string SubtituloDeReciente(ItemRecienteDto r) =>
+        EtiquetaVisibleDeTipo(r.Tipo) is { } etiqueta
+            ? ComponerSubtitulo(etiqueta, r.Subtitulo)
+            : r.Subtitulo ?? string.Empty;
+
+    /// <summary>Etiqueta canónica de cada tipo de entidad; null para los que no son entidad (una acción no lleva etiqueta de tipo).</summary>
+    private static string? EtiquetaVisibleDeTipo(string tipo) => tipo switch
+    {
+        "Cliente" => "Cliente empresarial",
+        "Empresa" => "Empresa",
+        "Subcontrata" => "Subcontrata",
+        "Centro" => "Centro",
+        "Trabajador" => "Trabajador",
+        "Documento" => "Documento",
+        _ => null
+    };
 
     private static ItemBusquedaDto RecienteComoItem(ItemRecienteDto r) =>
         new(r.EntidadId ?? Guid.Empty, r.Titulo, r.Subtitulo, r.UrlDestino);
@@ -433,18 +458,31 @@ public partial class BuscadorGlobal : ComponentBase
         var token = TokenDeCicloDeVida();
         if (token is null) return;
 
-        if (_modulo is not null)
+        // El módulo se captura en una local: entre esta comprobación y su
+        // uso hay un await, y DisposeAsync puede haberlo liberado y puesto a
+        // null en ese hueco. Tras reanudar se vuelve a mirar el token, que es
+        // la señal de que el componente se retiró.
+        var modulo = _modulo;
+        if (modulo is not null)
         {
             // Espera al siguiente render para que el <input> ya esté en el DOM antes de enfocarlo.
             await Task.Yield();
-            await _modulo.InvokeVoidAsync("enfocarElemento", _inputElemento);
+
+            if (token.Value.IsCancellationRequested) return;
+
+            await modulo.InvokeVoidAsync("enfocarElemento", _inputElemento);
 
             // Se re-registra en cada apertura: el <input> es un elemento del
             // DOM nuevo cada vez (vive dentro del @if (_visible)), así que el
             // listener de la apertura anterior ya se perdió con él.
-            if (_suscripcionTab is not null)
-                await _suscripcionTab.DisposeAsync();
-            _suscripcionTab = await _modulo.InvokeAsync<IJSObjectReference>("registrarSaltoDeGrupo", _inputElemento, _referenciaDotNet);
+            var suscripcionAnterior = _suscripcionTab;
+            _suscripcionTab = null;
+            if (suscripcionAnterior is not null)
+                await suscripcionAnterior.DisposeAsync();
+
+            if (token.Value.IsCancellationRequested) return;
+
+            _suscripcionTab = await modulo.InvokeAsync<IJSObjectReference>("registrarSaltoDeGrupo", _inputElemento, _referenciaDotNet);
         }
 
         try
@@ -601,19 +639,25 @@ public partial class BuscadorGlobal : ComponentBase
         if (tipo is null) return;
 
         // Fire-and-forget deliberado: el registro de recientes es
-        // best-effort, nunca puede bloquear, cancelar ni alterar la
-        // navegación del usuario. Se lanza sin esperar y navega/cierra de
-        // inmediato; cualquier fallo (incluida la pérdida del evento si el
-        // circuito se destruye antes de completar) se descarta en silencio.
+        // best-effort y nunca puede bloquear ni alterar la navegación del
+        // usuario. Se lanza sin esperar y se navega/cierra de inmediato;
+        // cualquier fallo se descarta en silencio. Lo que NO es opcional es
+        // que viaje el token del ciclo: sin él, esta era la única llamada al
+        // mediador que seguía trabajando para un componente ya retirado, en
+        // contra de lo que promete el comentario de la clase.
         _ = RegistrarUsoRecienteSilenciosamenteAsync(tipo, item);
     }
 
     private async Task RegistrarUsoRecienteSilenciosamenteAsync(string tipo, ItemBusquedaDto item)
     {
+        // El token se lee ANTES del await, como en el resto del componente.
+        var token = TokenDeCicloDeVida();
+        if (token is null) return;
+
         try
         {
             await Mediator.Send(new RegistrarUsoRecienteCommand(
-                tipo, item.Id == Guid.Empty ? null : item.Id, item.Titulo, item.Subtitulo, item.UrlDestino));
+                tipo, item.Id == Guid.Empty ? null : item.Id, item.Titulo, item.Subtitulo, item.UrlDestino), token.Value);
         }
         catch
         {
@@ -722,28 +766,41 @@ public partial class BuscadorGlobal : ComponentBase
         // H5 (docs/ux-audit/16-transversales.md): mismo motivo que
         // AtajosListaTeclado.razor — el circuito puede desconectarse antes
         // de que corra este Dispose.
+        // Cada referencia se anula ANTES de liberarla, igual que el CTS de
+        // arriba: sin esto, una segunda destrucción volvía a invocar «dispose»
+        // sobre las mismas referencias ya liberadas — justo lo que el
+        // comentario de arriba promete que no ocurre.
+        var suscripcionAtajo = _suscripcionAtajo;
+        var suscripcionTab = _suscripcionTab;
+        var modulo = _modulo;
+        var referencia = _referenciaDotNet;
+        _suscripcionAtajo = null;
+        _suscripcionTab = null;
+        _modulo = null;
+        _referenciaDotNet = null;
+
         try
         {
-            if (_suscripcionAtajo is not null)
+            if (suscripcionAtajo is not null)
             {
-                await _suscripcionAtajo.InvokeVoidAsync("dispose");
-                await _suscripcionAtajo.DisposeAsync();
+                await suscripcionAtajo.InvokeVoidAsync("dispose");
+                await suscripcionAtajo.DisposeAsync();
             }
 
-            if (_suscripcionTab is not null)
+            if (suscripcionTab is not null)
             {
-                await _suscripcionTab.InvokeVoidAsync("dispose");
-                await _suscripcionTab.DisposeAsync();
+                await suscripcionTab.InvokeVoidAsync("dispose");
+                await suscripcionTab.DisposeAsync();
             }
 
-            if (_modulo is not null)
-                await _modulo.DisposeAsync();
+            if (modulo is not null)
+                await modulo.DisposeAsync();
         }
         catch (JSDisconnectedException)
         {
         }
 
-        _referenciaDotNet?.Dispose();
+        referencia?.Dispose();
         debounce?.Dispose();
         ciclo?.Dispose();
     }

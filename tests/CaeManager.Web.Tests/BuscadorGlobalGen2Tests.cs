@@ -153,6 +153,10 @@ public class BuscadorGlobalGen2Tests : BunitContext
 
     private static Teclado Input(IRenderedComponent<BuscadorGlobal> cut) => new(cut);
 
+    /// <summary>El sangrado del .razor mete saltos de línea dentro del texto; la frase es lo que se lee, no su maquetación.</summary>
+    private static string SinEspaciosDeMas(string texto) =>
+        string.Join(' ', texto.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
     /// <summary>
     /// Espera a que el mediador registre una petición. No sirve
     /// <c>WaitForState</c> de bUnit: reevalúa su predicado en cada render del
@@ -711,5 +715,54 @@ public class BuscadorGlobalGen2Tests : BunitContext
 
         await Input(cut).EscribirAsync("refri");
         cut.FindAll("a.buscador-item").Should().NotBeEmpty();
+    }
+
+    // ------------------ Hallazgos de la revisión de Codex sobre esta rama
+
+    /// <summary>
+    /// El registro de «recientes» era la ÚNICA llamada al mediador sin el token
+    /// del ciclo de vida, justo lo contrario de lo que promete el comentario de
+    /// la clase. Al elegir una fila y navegar, seguía trabajando para un
+    /// componente que ya podía estar retirado. El caso que vigilaba los tokens
+    /// no llegaba a ejercitarlo: solo miraba la búsqueda y la carga inicial.
+    /// </summary>
+    [Fact]
+    public async Task El_registro_del_reciente_al_elegir_una_fila_tambien_viaja_con_el_token_del_ciclo()
+    {
+        var mediador = new MediadorControlado { Resultado = UnClienteEmpresarial };
+        var cut = await RenderizarYAbrir(mediador);
+        await Input(cut).EscribirAsync("refri");
+        await Input(cut).TeclaAsync("ArrowDown");
+        await Input(cut).TeclaAsync("Enter");
+
+        await EsperarA(() => mediador.Enviados.OfType<RegistrarUsoRecienteCommand>().Any(),
+            "que el registro del reciente llegase al mediador");
+
+        mediador.TokensRecibidos.Should().OnlyContain(t => t.CanBeCanceled,
+            "un CancellationToken.None significa que esa llamada no se cancela nunca, ni siquiera al destruirse el componente");
+    }
+
+    /// <summary>
+    /// La neutralización terminológica solo alcanzaba a los resultados
+    /// directos. Un reciente guardado lleva el subtítulo tal y como lo emitió
+    /// el handler —para la contraparte de una Relación Empresarial, «Cliente» a
+    /// secas—, así que abrir un Cliente empresarial y reabrir el palette lo
+    /// devolvía escrito mal.
+    /// </summary>
+    [Fact]
+    public async Task Un_reciente_de_contraparte_se_lee_como_Cliente_empresarial_y_no_como_cliente_a_secas()
+    {
+        var mediador = new MediadorControlado
+        {
+            Recientes = [new ItemRecienteDto("Cliente", IdCliente, "Refrielectric S.A.", "Cliente", "/clientes?q=Refrielectric")]
+        };
+
+        var cut = await RenderizarYAbrir(mediador);
+        await EsperarA(() => mediador.Enviados.OfType<ObtenerRecientesQuery>().Any(), "que los recientes llegasen al mediador");
+        cut.WaitForAssertion(() => cut.FindAll("a.buscador-item").Should().NotBeEmpty(
+            "control del instrumento: sin filas, las aserciones de abajo se cumplirían solas"));
+
+        SinEspaciosDeMas(cut.Find("a.buscador-item").TextContent).Should().Contain("Cliente empresarial",
+            "el literal «Cliente» que emite el handler no puede llegar tal cual a la pantalla");
     }
 }
