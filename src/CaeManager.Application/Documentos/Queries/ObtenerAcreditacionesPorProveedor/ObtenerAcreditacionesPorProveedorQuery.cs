@@ -30,12 +30,21 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesPorProv
 /// UI de drill-down no pedía (<see cref="AcreditacionDrillDownDto.CanalGestionDocumentalId"/>
 /// para el Incremento 3, y <see cref="AcreditacionDrillDownDto.TrabajadorDni"/>
 /// para el emparejamiento de identidad de la propia extensión).
+///
+/// <see cref="ProveedorAcreditacionesDto.ProveedorActivo"/> (MVP2, § 14.5): el
+/// *kill switch* remoto de la extensión. Deliberadamente NO se filtran aquí
+/// los proveedores inactivos — la cartera pendiente sigue existiendo en Hydra
+/// aunque el conector de la extensión esté apagado; es la extensión quien
+/// decide, con este dato, si ofrece o no el botón "Subir" (ver
+/// <c>extension/popup.js</c>). Bloquear la injección en sí no puede vivir en
+/// esta query: ocurre enteramente en el navegador del gestor, fuera del
+/// alcance de cualquier respuesta HTTP.
 /// </summary>
 public record ObtenerAcreditacionesPorProveedorQuery : IRequest<IReadOnlyList<ProveedorAcreditacionesDto>>;
 
 public record ProveedorAcreditacionesDto(
     Guid ProveedorPlataformaCaeId, string ProveedorNombre, string ProveedorCodigo,
-    IReadOnlyList<ClienteAcreditacionesDto> Clientes);
+    IReadOnlyList<ClienteAcreditacionesDto> Clientes, bool ProveedorActivo = true);
 
 public record ClienteAcreditacionesDto(Guid ClienteId, string ClienteNombre, IReadOnlyList<AcreditacionDrillDownDto> Documentos);
 
@@ -90,7 +99,7 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
         var proveedorIds = filas.Where(f => f.ProveedorId is not null).Select(f => f.ProveedorId!.Value).Distinct().ToList();
         var proveedores = await proveedoresContext.ProveedoresPlataformaCae
             .Where(p => proveedorIds.Contains(p.Id))
-            .ToDictionaryAsync(p => p.Id, p => (p.Nombre, p.Codigo), cancellationToken);
+            .ToDictionaryAsync(p => p.Id, p => (p.Nombre, p.Codigo, p.Activo), cancellationToken);
 
         // Centro.ClienteId ya apunta a Empresas (F3): el "Cliente" dueño del Centro
         // se resuelve contra Empresas, no contra la tabla Clientes congelada.
@@ -135,7 +144,7 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
             .GroupBy(f => f.ProveedorId!.Value)
             .Select(porProveedor =>
             {
-                var (nombreProveedor, codigoProveedor) = proveedores.GetValueOrDefault(porProveedor.Key, ("Plataforma", ""));
+                var (nombreProveedor, codigoProveedor, proveedorActivo) = proveedores.GetValueOrDefault(porProveedor.Key, ("Plataforma", "", true));
                 var porCliente = porProveedor
                     .GroupBy(f => f.ClienteId)
                     .Select(g => new ClienteAcreditacionesDto(
@@ -151,7 +160,7 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
                     .OrderBy(c => c.ClienteNombre)
                     .ToList();
 
-                return new ProveedorAcreditacionesDto(porProveedor.Key, nombreProveedor, codigoProveedor, porCliente);
+                return new ProveedorAcreditacionesDto(porProveedor.Key, nombreProveedor, codigoProveedor, porCliente, proveedorActivo);
             })
             .OrderByDescending(p => p.Clientes.Sum(c => c.Documentos.Count(d => d.Estado == EstadoAcreditacion.PendienteDeSubir)))
             .ToList();

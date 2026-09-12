@@ -28,15 +28,25 @@ public static class MarcarAcreditacionSubidaEndpoints
         endpoints.MapPost("/extension/acreditaciones/{id:guid}/subida", async (
             Guid id, IMediator mediator, CancellationToken cancellationToken) =>
         {
-            var resultado = await mediator.Send(new MarcarAcreditacionSubidaCommand(id), cancellationToken);
+            // ExigirProveedorActivo: true — solo este llamante (la extensión),
+            // nunca PlataformaTab.razor (ver el comentario del propio Command,
+            // MVP2 § 14.5, kill switch remoto).
+            var resultado = await mediator.Send(
+                new MarcarAcreditacionSubidaCommand(id, ExigirProveedorActivo: true), cancellationToken);
 
-            // "Acreditacion.NoEncontrada" es hoy el único código de fallo de
-            // este Command, y cubre a la vez "no existe" y "fuera de cartera"
-            // -- a propósito, para no filtrar por enumeración cuál de las dos
-            // es (mismo criterio que el resto de Commands de Documentos).
-            return resultado.EsFallido
-                ? Results.Problem(resultado.Error.Mensaje, statusCode: StatusCodes.Status404NotFound)
-                : Results.NoContent();
+            // "Acreditacion.NoEncontrada" y "Acreditacion.ConectorInactivo" son
+            // hoy los códigos de fallo de este Command; el primero cubre a la
+            // vez "no existe" y "fuera de cartera" -- a propósito, para no
+            // filtrar por enumeración cuál de las dos es (mismo criterio que
+            // el resto de Commands de Documentos). El segundo sí se distingue:
+            // la extensión necesita mostrar "conector desactivado", no un 404
+            // genérico que el gestor confundiría con un documento inexistente.
+            if (!resultado.EsFallido) return Results.NoContent();
+
+            var statusCode = resultado.Error.Codigo == "Acreditacion.ConectorInactivo"
+                ? StatusCodes.Status409Conflict
+                : StatusCodes.Status404NotFound;
+            return Results.Problem(resultado.Error.Mensaje, statusCode: statusCode);
         })
         // Misma política que el resto de /extension/*: sesión interactiva o
         // token de extensión, nunca clave de API de tenant.

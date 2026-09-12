@@ -12,8 +12,8 @@
     <p class="descripcion-delegaciones">
         Genera un token para conectar la extensión de @Marca.Nombre en tu navegador y subir
         documentos a las plataformas CAE externas directamente desde aquí, sin descargarlos antes
-        a tu disco. Pégalo en la extensión cuando lo abras por primera vez, o cuando caduque —
-        dura 8 horas y no se renueva solo.
+        a tu disco. La extensión se conecta sola en cuanto generas el token — no hace falta
+        copiarlo ni pegarlo en ningún sitio. Dura 8 horas y no se renueva solo.
     </p>
 
     @if (_token is null)
@@ -22,6 +22,19 @@
     }
     else
     {
+        @if (_extensionConectada == true)
+        {
+            <p class="aviso-exito">
+                Extensión conectada automáticamente@(_versionExtension is not null ? $" (v{_versionExtension})" : "").
+            </p>
+        }
+        else if (_extensionConectada == false)
+        {
+            <p class="aviso-error">
+                @_errorExtension Instala o actualiza la extensión y vuelve a generar el token.
+            </p>
+        }
+
         <CampoTexto Etiqueta="Token" Valor="@_token" ValorChanged="_ => { }" Deshabilitado="true" />
 
         @if (_expiraEnUtc is not null)
