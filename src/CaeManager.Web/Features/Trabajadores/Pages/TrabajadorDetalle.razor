@@ -352,7 +352,7 @@
     Visible="_confirmarBajaTrabajadorVisible"
     VisibleChanged="v => _confirmarBajaTrabajadorVisible = v"
     Titulo="@($"¿Dar de baja a {NombreCompleto}?")"
-    Mensaje="Se ocultará de las listas activas. Podrás deshacerlo desde el aviso que aparecerá."
+    Mensaje="Se ocultará de las listas activas y se cerrarán sus asignaciones vigentes. Podrás deshacerlo desde el aviso, pero las asignaciones cerradas no se reabren."
     TextoBotonConfirmar="Dar de baja"
     EnProgreso="_dandoDeBajaTrabajador"
     OnConfirmar="ConfirmarDarDeBajaTrabajadorAsync" />

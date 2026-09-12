@@ -6,6 +6,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Gestiones.Queries.ObtenerGestiones;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Trabajadores.Commands.EliminarTrabajador;
+using CaeManager.Application.Trabajadores.Commands.RestaurarTrabajador;
 using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId;
 using CaeManager.Domain.Common;
@@ -65,7 +66,11 @@ public class Trabajador360Gen2Tests : BunitContext
         public Dictionary<Guid, List<GestionListaDto>> Gestiones { get; } = [];
         public List<TipoDocumentoListaDto> Tipos { get; } = [];
         public Result ResultadoEliminarTrabajador { get; set; } = Result.Exito();
-        public Result ResultadoDarDeBajaAsignacion { get; set; } = Result.Exito();
+        public Result ResultadoRestaurarTrabajador { get; set; } = Result.Exito();
+
+        /// <summary>El comando dice cuántas bajas hizo y qué errores hubo: un éxito pelado no distingue «dada de baja» de «no se dio de baja ninguna».</summary>
+        public Result<ResultadoBajaLoteDto> ResultadoDarDeBajaAsignacion { get; set; } =
+            Result.Exito(new ResultadoBajaLoteDto(1, []));
 
         /// <summary>Si devuelve una tarea, la respuesta espera a que se complete.</summary>
         public Func<object, Task?>? Retener { get; set; }
@@ -92,6 +97,7 @@ public class Trabajador360Gen2Tests : BunitContext
             ObtenerGestionesQuery q => Paginar(q),
             ObtenerTiposDocumentoQuery => (IReadOnlyList<TipoDocumentoListaDto>)Tipos,
             EliminarTrabajadorCommand => ResultadoEliminarTrabajador,
+            RestaurarTrabajadorCommand => ResultadoRestaurarTrabajador,
             DarDeBajaAsignacionesCommand => ResultadoDarDeBajaAsignacion,
             _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
         };
@@ -362,8 +368,11 @@ public class Trabajador360Gen2Tests : BunitContext
             .ClickAsync(new MouseEventArgs());
 
         var dialogo = cut.Find(".modal-contenido");
-        dialogo.TextContent.Should().Contain("¿Dar de baja a Javier Salas Moreno?")
-            .And.Contain("Podrás deshacerlo desde el aviso que aparecerá");
+        SinEspaciosDeMas(dialogo.TextContent).Should().Contain("¿Dar de baja a Javier Salas Moreno?")
+            .And.Contain("se cerrarán sus asignaciones vigentes",
+                "el comando cierra las asignaciones activas y el diálogo no puede callarlo")
+            .And.Contain("las asignaciones cerradas no se reabren",
+                "restaurar devuelve al trabajador a las listas, pero no reabre lo que se cerró");
         mediador.Enviadas.OfType<EliminarTrabajadorCommand>().Should().BeEmpty("todavía no se ha confirmado");
 
         await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Dar de baja")
@@ -515,5 +524,140 @@ public class Trabajador360Gen2Tests : BunitContext
 
         cut.Markup.Should().Contain("No pudimos cargar este trabajador").And.Contain("Reintentar");
         cut.FindAll(".trabajador360-cabecera").Should().BeEmpty();
+    }
+
+    // --------------- Hallazgos de la revisión de Codex sobre esta pantalla
+
+    private ToastService Avisos => Services.GetRequiredService<ToastService>();
+
+    private const string BotonBajaAsignacion = "[aria-label='Asignaciones activas'] .columna-accion button";
+
+    private static async Task AbrirDialogoDeBajaAsync(IRenderedComponent<TrabajadorDetalle> cut)
+    {
+        await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Dar de baja")
+            .ClickAsync(new MouseEventArgs());
+    }
+
+    private MediatorFalso ConTrabajador(Guid id, string nombre = "Javier", string apellidos = "Salas Moreno")
+    {
+        var mediador = Registrar(new MediatorFalso());
+        var (norte, berriz) = Escena();
+        mediador.Detalles[id] = Detalle(id, nombre, apellidos);
+        mediador.Centros[id] = [norte, berriz];
+        return mediador;
+    }
+
+    /// <summary>
+    /// Las modales se pintan fuera del bloque de la página y su estado no se
+    /// tocaba al cambiar de ruta: abrir «Dar de baja» para uno, abrir la ficha
+    /// de otro y confirmar daba de baja AL SEGUNDO. Lo preparado para un
+    /// trabajador no puede ejecutarse sobre otro.
+    /// </summary>
+    [Fact]
+    public async Task Una_modal_abierta_para_un_trabajador_no_sobrevive_al_abrir_la_ficha_de_otro()
+    {
+        var primero = Guid.NewGuid();
+        var segundo = Guid.NewGuid();
+        var mediador = ConTrabajador(primero);
+        mediador.Detalles[segundo] = Detalle(segundo, "Eider", "Lasa Arrieta");
+        mediador.Centros[segundo] = mediador.Centros[primero];
+
+        var cut = Renderizar(primero);
+        await AbrirDialogoDeBajaAsync(cut);
+        cut.FindAll(".modal-contenido").Should().ContainSingle("el diálogo está abierto para el primero");
+
+        cut.Render(p => p.Add(x => x.TrabajadorId, segundo));
+        cut.Find(".trabajador360-cabecera h1").TextContent.Trim().Should().StartWith("Eider Lasa Arrieta");
+
+        cut.FindAll(".modal-contenido").Should().BeEmpty(
+            "el diálogo preguntaba por el primero y en pantalla ya está el segundo");
+        mediador.Enviadas.OfType<EliminarTrabajadorCommand>().Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// El comando devuelve éxito aunque no haya dado de baja ninguna
+    /// asignación (ya cerrada, o fuera de alcance). Decir «Asignación dada de
+    /// baja» entonces afirma un efecto que no ocurrió.
+    /// </summary>
+    [Fact]
+    public async Task Una_baja_de_asignacion_que_no_dio_ninguna_no_se_anuncia_como_hecha()
+    {
+        var id = Guid.NewGuid();
+        var mediador = ConTrabajador(id);
+        mediador.ResultadoDarDeBajaAsignacion = Result.Exito(
+            new ResultadoBajaLoteDto(0, ["La asignación ya estaba cerrada."]));
+
+        var cut = Renderizar(id);
+        await cut.Find(BotonBajaAsignacion).ClickAsync(new MouseEventArgs());
+
+        Avisos.Mensajes.Select(m => (m.Mensaje, m.Tono)).Should().Equal(
+            [("La asignación ya estaba cerrada.", TonoToast.Error)]);
+    }
+
+    /// <summary>Control positivo del anterior: con una baja real, el aviso sí dice que se hizo.</summary>
+    [Fact]
+    public async Task Una_baja_de_asignacion_que_si_ocurrio_se_anuncia_como_hecha()
+    {
+        var id = Guid.NewGuid();
+        ConTrabajador(id);
+
+        var cut = Renderizar(id);
+        await cut.Find(BotonBajaAsignacion).ClickAsync(new MouseEventArgs());
+
+        Avisos.Mensajes.Select(m => (m.Mensaje, m.Tono)).Should().Equal(
+            [("Asignación dada de baja.", TonoToast.Exito)]);
+    }
+
+    /// <summary>
+    /// El botón de la fila nunca se deshabilita, así que un segundo evento
+    /// llegaba mientras el primero esperaba al servidor y mandaba otra baja.
+    /// El clic NO se espera antes de soltar la puerta: su manejador está
+    /// detenido en la respuesta retenida y esperarlo colgaría el caso.
+    /// </summary>
+    [Fact]
+    public async Task Dos_eventos_seguidos_sobre_la_misma_asignacion_no_mandan_dos_bajas()
+    {
+        var id = Guid.NewGuid();
+        var puerta = new TaskCompletionSource();
+        var mediador = ConTrabajador(id);
+        mediador.Retener = p => p is DarDeBajaAsignacionesCommand ? puerta.Task : null;
+
+        var cut = Renderizar(id);
+        var primera = cut.Find(BotonBajaAsignacion).ClickAsync(new MouseEventArgs());
+        var segunda = cut.Find(BotonBajaAsignacion).ClickAsync(new MouseEventArgs());
+
+        mediador.Retener = null;
+        await cut.InvokeAsync(puerta.SetResult);
+        await primera;
+        await segunda;
+
+        mediador.Enviadas.OfType<DarDeBajaAsignacionesCommand>().Should().ContainSingle(
+            "la guarda de reentrada impide que el segundo evento mande otra baja");
+    }
+
+    /// <summary>
+    /// El diálogo promete deshacerlo desde el aviso. El aviso de esta página no
+    /// traía acción —y además la página navega—, así que la promesa se perdía.
+    /// </summary>
+    [Fact]
+    public async Task El_aviso_de_la_baja_cumple_el_Deshacer_que_el_dialogo_promete()
+    {
+        var id = Guid.NewGuid();
+        var mediador = ConTrabajador(id);
+
+        var cut = Renderizar(id);
+        await AbrirDialogoDeBajaAsync(cut);
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Dar de baja")
+            .ClickAsync(new MouseEventArgs());
+
+        var aviso = Avisos.Mensajes.Should().ContainSingle().Subject;
+        aviso.Mensaje.Should().Be("Trabajador dado de baja.");
+        aviso.TextoAccion.Should().Be("Deshacer");
+
+        await cut.InvokeAsync(() => aviso.OnAccion!());
+
+        mediador.Enviadas.OfType<RestaurarTrabajadorCommand>().Should().ContainSingle()
+            .Which.Id.Should().Be(id, "se restaura al trabajador que se acaba de dar de baja");
     }
 }

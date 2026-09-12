@@ -9,6 +9,7 @@ using CaeManager.Application.Gestiones.Queries.ObtenerGestiones;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Trabajadores.Commands.EliminarTrabajador;
+using CaeManager.Application.Trabajadores.Commands.RestaurarTrabajador;
 using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId;
 using CaeManager.Domain.Documentos;
@@ -87,6 +88,13 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
     private IReadOnlyList<GestionListaDto> _gestionesPendientes = [];
     private bool _cargandoGestiones = true;
     private readonly HashSet<Guid> _completandoGestion = [];
+    private readonly HashSet<Guid> _dandoDeBajaAsignacion = [];
+
+    /// <summary>Trabajador cuya ficha se está pintando: al cambiar, lo que quedara preparado en una modal deja de valer.</summary>
+    private Guid _trabajadorEnPantalla;
+
+    /// <summary>Guarda del «Deshacer» del aviso: dos pulsaciones no mandan dos restauraciones.</summary>
+    private readonly HashSet<Guid> _restaurando = [];
 
     /// <summary>
     /// Se cancela al retirarse la página: las consultas en curso dejan de
@@ -171,6 +179,16 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
         // Todo lo que define la pregunta se lee ANTES del await.
         var carga = ++_cargaVigente;
         var trabajadorId = TrabajadorId;
+
+        // Las modales se pintan fuera del bloque de la página, así que
+        // sobrevivían al cambio de ruta: abrir «Dar de baja» para A, navegar a
+        // B y confirmar daba de baja a B. Cambiar de trabajador las cierra y
+        // tira lo que habían preparado.
+        if (_trabajadorEnPantalla != trabajadorId)
+        {
+            _trabajadorEnPantalla = trabajadorId;
+            CerrarModalesPendientes();
+        }
 
         _cargando = true;
         _error = false;
@@ -309,15 +327,40 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
 
     private async Task DarDeBajaAsignacionAsync(Guid asignacionId)
     {
-        var resultado = await Mediator.Send(new DarDeBajaAsignacionesCommand([asignacionId], DateOnly.FromDateTime(DateTime.UtcNow)));
-        if (resultado.EsFallido)
-        {
-            ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
-            return;
-        }
+        // Guarda de reentrada por asignación, como en CompletarGestionAsync:
+        // dos eventos seguidos mandaban dos bajas.
+        if (!_dandoDeBajaAsignacion.Add(asignacionId)) return;
 
-        ToastService.Mostrar("Asignación dada de baja.", TonoToast.Exito);
-        await CargarAsync();
+        try
+        {
+            var resultado = await Mediator.Send(new DarDeBajaAsignacionesCommand([asignacionId], DateOnly.FromDateTime(DateTime.UtcNow)));
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            // El comando devuelve éxito aunque no haya dado de baja ninguna
+            // (asignación ya cerrada, o fuera de alcance): decir «hecho»
+            // entonces es mentir sobre lo que pasó.
+            var (dadasDeBaja, errores) = (resultado.Valor.DadasDeBaja, resultado.Valor.Errores);
+            if (dadasDeBaja == 0)
+            {
+                ToastService.Mostrar(
+                    errores.Count > 0 ? errores[0] : "No se dio de baja la asignación.",
+                    TonoToast.Error);
+            }
+            else if (errores.Count > 0)
+                ToastService.Mostrar($"Asignación dada de baja, con avisos: {string.Join("; ", errores)}", TonoToast.Advertencia);
+            else
+                ToastService.Mostrar("Asignación dada de baja.", TonoToast.Exito);
+
+            await CargarAsync();
+        }
+        finally
+        {
+            _dandoDeBajaAsignacion.Remove(asignacionId);
+        }
     }
 
     /// <summary>
@@ -377,6 +420,8 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
     /// </summary>
     private async Task EnviarReclamacionAClientesAsync(IReadOnlyList<ClienteReclamableDto> clientes)
     {
+        if (_reclamandoFaltantes) return;
+
         _reclamandoFaltantes = true;
         try
         {
@@ -423,6 +468,7 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
 
     private async Task ConfirmarCrearGestionAsync()
     {
+        if (_creandoGestion) return;
         if (!Guid.TryParse(_tipoDocumentoParaGestion, out var tipoDocumentoId)) return;
 
         _creandoGestion = true;
@@ -467,17 +513,25 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
 
     private async Task ConfirmarDarDeBajaTrabajadorAsync()
     {
+        if (_dandoDeBajaTrabajador) return;
+
+        // El trabajador que se está viendo AHORA, leído antes del await.
+        var trabajadorId = TrabajadorId;
+
         _dandoDeBajaTrabajador = true;
         try
         {
-            var resultado = await Mediator.Send(new EliminarTrabajadorCommand(TrabajadorId));
+            var resultado = await Mediator.Send(new EliminarTrabajadorCommand(trabajadorId));
             if (resultado.EsFallido)
             {
                 ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
                 return;
             }
 
-            ToastService.Mostrar("Trabajador dado de baja.", TonoToast.Exito);
+            // El diálogo promete deshacerlo desde el aviso: aquí se cumple,
+            // como en la lista de Trabajadores. Antes el aviso no traía acción
+            // y, además, esta página navegaba: la promesa se perdía.
+            ToastService.Mostrar("Trabajador dado de baja.", TonoToast.Exito, "Deshacer", () => DeshacerBajaTrabajadorAsync(trabajadorId));
             NavigationManager.NavigateTo("/trabajadores");
         }
         finally
@@ -485,5 +539,34 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
             _dandoDeBajaTrabajador = false;
             _confirmarBajaTrabajadorVisible = false;
         }
+    }
+
+    /// <summary>
+    /// Acción del aviso tras la baja. No toca estado de la página: para cuando
+    /// alguien la pulsa, esta ya navegó a la lista y se retiró. La guarda evita
+    /// que dos pulsaciones manden dos restauraciones, igual que en la lista.
+    /// </summary>
+    private async Task DeshacerBajaTrabajadorAsync(Guid trabajadorId)
+    {
+        if (!_restaurando.Add(trabajadorId)) return;
+
+        var resultado = await Mediator.Send(new RestaurarTrabajadorCommand(trabajadorId));
+        ToastService.Mostrar(
+            resultado.EsExitoso ? "Trabajador restaurado." : resultado.Error.Mensaje,
+            resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
+    }
+
+    /// <summary>
+    /// Cierra las modales y tira lo que tuvieran preparado. Se llama al cambiar
+    /// de trabajador: lo elegido para uno no puede ejecutarse sobre otro.
+    /// </summary>
+    private void CerrarModalesPendientes()
+    {
+        _crearGestionVisible = false;
+        _tipoDocumentoParaGestion = string.Empty;
+        _reclamarFaltantesVisible = false;
+        _clientesReclamables = [];
+        _clientesSeleccionadosReclamar.Clear();
+        _confirmarBajaTrabajadorVisible = false;
     }
 }
