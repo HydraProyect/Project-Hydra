@@ -38,6 +38,7 @@ using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Infrastructure.Autorizacion;
+using FluentValidation;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.Extensions.Options;
@@ -165,6 +166,28 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
 
     private IDisposable? _suscripcionTiempoReal;
 
+    /// <summary>
+    /// Ciclo de vida de la pantalla: se cancela al retirarse el componente y
+    /// su token viaja en TODAS las consultas y comandos de esta página. Sin
+    /// él, una consulta lanzada justo antes de navegar seguía viva y volvía a
+    /// escribir sobre un componente que ya no está en el árbol.
+    /// </summary>
+    private readonly CancellationTokenSource _ciclo = new();
+
+    /// <summary>
+    /// Guarda de carga vigente para la lista (lista de clientes o buzón
+    /// personal, que comparten <c>_cargandoLista</c> y su hueco de error).
+    /// Se captura ANTES del await y se compara después: una respuesta de una
+    /// carga que ya no es la vigente —cambiar de vista, cambiar de filtro,
+    /// pasar de página— se descarta en vez de pintar la lista anterior sobre
+    /// la actual. Comparar el filtro no bastaría: dos cargas del MISMO filtro
+    /// (refresco en tiempo real, reintento) también pueden cruzarse.
+    /// </summary>
+    private int _cargaListaVigente;
+
+    /// <summary>Lo mismo para el detalle del hilo abierto — ver <see cref="CargarDetalleAsync"/>.</summary>
+    private int _cargaDetalleVigente;
+
     private bool VentanaAbierta =>
         _detalle?.Canal == CanalConversacion.WhatsApp &&
         _detalle.FechaUltimoMensajeEntranteUtc is { } ultimo &&
@@ -207,7 +230,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
         // docs/business/MATURITY_REVIEW.md).
         SincronizarFiltrosDesdeUrl();
 
-        _clientesSelector = await Mediator.Send(new ObtenerClientesParaSelectorQuery());
+        _clientesSelector = await Mediator.Send(new ObtenerClientesParaSelectorQuery(), _ciclo.Token);
 
         // Acotado al tenant activo: GetUsersInRoleAsync devuelve los gestores
         // de todas las organizaciones (AspNetUsers no tiene filtro global),
@@ -234,8 +257,25 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
     {
         _suscripcionTiempoReal?.Dispose();
 
+        // Antes de soltar nada más: cancelar lo que siga en vuelo. Cancelar y
+        // liberar aquí es el equivalente asíncrono del IDisposable del patrón
+        // — el componente ya implementa IAsyncDisposable, que es el que Blazor
+        // llama, y añadir además IDisposable lo liberaría dos veces.
+        await _ciclo.CancelAsync();
+        _ciclo.Dispose();
+
         if (_moduloClipboard is not null)
-            await _moduloClipboard.DisposeAsync();
+        {
+            // El circuito puede estar ya cerrado: soltar un módulo JS entonces
+            // lanza, y una excepción aquí tumba la retirada del componente.
+            try
+            {
+                await _moduloClipboard.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
     }
 
     /// <summary>Llega desde el hilo del job de fondo — todo lo que toque estado del componente va dentro de InvokeAsync.</summary>
@@ -318,28 +358,42 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
 
     private async Task CargarBuzonPersonalAsync()
     {
+        var carga = ++_cargaListaVigente;
         _cargandoLista = true;
         _errorCargaLista = false;
         StateHasChanged();
 
         try
         {
-            _mensajesBuzonPersonal = await Mediator.Send(new ObtenerMensajesBuzonPersonalQuery());
+            var mensajes = await Mediator.Send(new ObtenerMensajesBuzonPersonalQuery(), _ciclo.Token);
+            if (carga != _cargaListaVigente) return;
+
+            _mensajesBuzonPersonal = mensajes;
+        }
+        catch (OperationCanceledException)
+        {
+            // Retirada de la pantalla: no hay nada que contar al usuario.
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error al cargar el buzón personal dentro de Comunicaciones.");
+            if (carga != _cargaListaVigente) return;
+
             _errorCargaLista = true;
         }
         finally
         {
-            _cargandoLista = false;
-            StateHasChanged();
+            if (carga == _cargaListaVigente)
+            {
+                _cargandoLista = false;
+                StateHasChanged();
+            }
         }
     }
 
     private async Task CargarListaAsync()
     {
+        var carga = ++_cargaListaVigente;
         _cargandoLista = true;
         _errorCargaLista = false;
         StateHasChanged();
@@ -367,11 +421,20 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
                 SoloEsperandoCliente: _soloEsperandoCliente,
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
                 Pagina: _pagina,
-                TamanoPagina: TamanoPaginaBandeja));
+                TamanoPagina: TamanoPaginaBandeja), _ciclo.Token);
+
+            // Guarda de carga vigente: si mientras esta consulta viajaba se
+            // pidió otra —otro filtro, otra página, la otra vista—, lo que
+            // vuelve aquí ya no es la lista que el gestor está mirando.
+            if (carga != _cargaListaVigente) return;
+
             // Sin filtro de Canal a propósito (docs/COMUNICACIONES.md § 10.2):
             // el gestor ve conversaciones, no "correo" o "WhatsApp" por separado.
             _conversaciones = resultado.Elementos;
             _totalConversaciones = resultado.TotalElementos;
+        }
+        catch (OperationCanceledException)
+        {
         }
         catch (Exception ex)
         {
@@ -379,12 +442,17 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
             // fallo al cargar la bandeja no deja ningún rastro que permita
             // diagnosticarlo después.
             Logger.LogError(ex, "Error al cargar la lista de conversaciones de la bandeja.");
+            if (carga != _cargaListaVigente) return;
+
             _errorCargaLista = true;
         }
         finally
         {
-            _cargandoLista = false;
-            StateHasChanged();
+            if (carga == _cargaListaVigente)
+            {
+                _cargandoLista = false;
+                StateHasChanged();
+            }
         }
     }
 
@@ -483,6 +551,24 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
     private IReadOnlyList<ConversacionListaDto> ConversacionesTriage() =>
         _conversaciones.Where(c => c.ClienteId is null).OrderByDescending(c => c.FechaUltimoMensajeUtc).ToList();
 
+    /// <summary>
+    /// Desglose del grupo para el <c>title</c> de su cabecera (el
+    /// <c>countTitulo</c> del mockup): el recuento dice cuántas hay, esto dice
+    /// cuáles — útil justo cuando el grupo está plegado y no se ve ninguna.
+    /// Se recorta a las diez primeras: un tooltip con sesenta líneas no se lee.
+    /// </summary>
+    private static string DesgloseGrupo(IReadOnlyList<ConversacionListaDto> conversaciones)
+    {
+        const int maximo = 10;
+        var listadas = conversaciones.Take(maximo)
+            .Select(c => $"{c.RemitentePrincipal}: {c.Asunto}");
+        var desglose = string.Join(" · ", listadas);
+
+        return conversaciones.Count > maximo
+            ? $"{conversaciones.Count} conversaciones — {desglose} …"
+            : $"{conversaciones.Count} conversaciones — {desglose}";
+    }
+
     private void AlternarGrupo(string clave)
     {
         if (!_gruposColapsados.Add(clave))
@@ -526,12 +612,21 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
     {
         if (_conversacionSeleccionadaId is not { } id) return;
 
+        var carga = ++_cargaDetalleVigente;
         _cargandoDetalle = true;
         StateHasChanged();
 
         try
         {
-            _detalle = await Mediator.Send(new ObtenerConversacionPorIdQuery(id));
+            var detalle = await Mediator.Send(new ObtenerConversacionPorIdQuery(id), _ciclo.Token);
+
+            // Guarda de carga vigente: el detalle de un hilo que el gestor ya
+            // no tiene abierto no puede sobrescribir el que sí. Sin esto, abrir
+            // dos hilos seguidos dejaba en pantalla el que respondiera último,
+            // que no es necesariamente el elegido.
+            if (carga != _cargaDetalleVigente) return;
+
+            _detalle = detalle;
 
             // Enlace corrupto o conversación fuera de alcance (borrada, de
             // otro tenant, sin visibilidad): mismo criterio que
@@ -545,13 +640,18 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
                 return;
             }
 
-            _ejecutivoSeleccionado = _detalle?.EjecutivoAsignadoId?.ToString() ?? string.Empty;
+            _ejecutivoSeleccionado = _detalle.EjecutivoAsignadoId?.ToString() ?? string.Empty;
 
-            if (_detalle?.ClienteId is not null)
+            if (_detalle.ClienteId is not null)
             {
-                _clienteActivo = await Mediator.Send(new ObtenerClientePorIdQuery(_detalle.ClienteId.Value));
-                _macrosDisponibles = await Mediator.Send(new ObtenerMacrosQuery(_detalle.ClienteId));
-                _centrosClienteActivo = await Mediator.Send(new ObtenerCentrosParaSelectorQuery(ClienteId: _detalle.ClienteId));
+                var clienteActivo = await Mediator.Send(new ObtenerClientePorIdQuery(_detalle.ClienteId.Value), _ciclo.Token);
+                var macros = await Mediator.Send(new ObtenerMacrosQuery(_detalle.ClienteId), _ciclo.Token);
+                var centros = await Mediator.Send(new ObtenerCentrosParaSelectorQuery(ClienteId: _detalle.ClienteId), _ciclo.Token);
+                if (carga != _cargaDetalleVigente) return;
+
+                _clienteActivo = clienteActivo;
+                _macrosDisponibles = macros;
+                _centrosClienteActivo = centros;
             }
             else
             {
@@ -566,18 +666,30 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
             // gestión puede necesitarlos antes de que el gestor toque ese
             // otro flujo. Sin filtro de Cliente — mismo catálogo general que
             // ya usa ese modal.
-            _tiposDocumentoSelector = await Mediator.Send(new ObtenerTiposDocumentoQuery());
-            _trabajadoresSelector = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
+            var tiposDocumento = await Mediator.Send(new ObtenerTiposDocumentoQuery(), _ciclo.Token);
+            var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(), _ciclo.Token);
+            if (carga != _cargaDetalleVigente) return;
+
+            _tiposDocumentoSelector = tiposDocumento;
+            _trabajadoresSelector = trabajadores;
+        }
+        catch (OperationCanceledException)
+        {
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error al abrir la conversación {ConversacionId}.", id);
+            if (carga != _cargaDetalleVigente) return;
+
             ToastService.Mostrar("No pudimos abrir esta conversación. Intenta nuevamente.", TonoToast.Error);
         }
         finally
         {
-            _cargandoDetalle = false;
-            StateHasChanged();
+            if (carga == _cargaDetalleVigente)
+            {
+                _cargandoDetalle = false;
+                StateHasChanged();
+            }
         }
     }
 
@@ -600,7 +712,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
 
         try
         {
-            var formatos = await Mediator.Send(new ObtenerFormatosRequeridosCentroQuery(centroId));
+            var formatos = await Mediator.Send(new ObtenerFormatosRequeridosCentroQuery(centroId), _ciclo.Token);
             if (formatos is null)
             {
                 ToastService.Mostrar("Este centro no tiene requisitos documentales configurados.", TonoToast.Info);
@@ -654,6 +766,12 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
     /// </summary>
     private async Task EnviarAsync()
     {
+        // A prueba de doble clic: el segundo clic llega mientras el primero
+        // espera al servidor y, hasta que ese await devuelva, el botón todavía
+        // no se ha vuelto a pintar deshabilitado. Sin esta guarda salen DOS
+        // correos idénticos al mismo destinatario, y un correo enviado no se
+        // deshace.
+        if (_enviando) return;
         if (_conversacionSeleccionadaId is null || string.IsNullOrWhiteSpace(_textoRespuesta)) return;
         if (_detalle?.Canal == CanalConversacion.Correo && _errorAdjuntos is not null) return;
 
@@ -661,12 +779,15 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
         try
         {
             var resultado = _detalle?.Canal == CanalConversacion.WhatsApp
-                ? await Mediator.Send(new ResponderConversacionWhatsAppCommand(_conversacionSeleccionadaId.Value, _textoRespuesta.Trim()))
+                ? await Mediator.Send(new ResponderConversacionWhatsAppCommand(_conversacionSeleccionadaId.Value, _textoRespuesta.Trim()), _ciclo.Token)
                 : await Mediator.Send(new ResponderConversacionCommand(
-                    _conversacionSeleccionadaId.Value, _textoRespuesta, _adjuntosPendientes.Count > 0 ? _adjuntosPendientes.ToList() : null));
+                    _conversacionSeleccionadaId.Value, _textoRespuesta, _adjuntosPendientes.Count > 0 ? _adjuntosPendientes.ToList() : null), _ciclo.Token);
 
             if (resultado.EsFallido)
             {
+                // Fallo de negocio: se dice cuál, y NO se toca lo escrito ni
+                // los adjuntos — el gestor corrige y vuelve a darle a Enviar
+                // sin reescribir la respuesta entera.
                 ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
                 return;
             }
@@ -679,6 +800,17 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
             await RegistrarAccionMedidaAsync();
             await CargarDetalleAsync();
             await CargarListaAsync();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (ValidationException ex)
+        {
+            // Desenlace distinto del fallo genérico: aquí el servidor SÍ dice
+            // qué está mal (el tope de los adjuntos, el cuerpo vacío…), así que
+            // se enseña su mensaje en vez de "intenta nuevamente", que invita a
+            // repetir lo mismo y volver a fallar igual.
+            ToastService.Mostrar(string.Join(" ", ex.Errors.Select(e => e.ErrorMessage).Distinct()), TonoToast.Error);
         }
         catch (Exception ex)
         {
@@ -694,6 +826,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
     /// <summary>Fallback de canal (§ 16.5): WhatsApp con la ventana de 24h cerrada continúa el MISMO hilo por correo.</summary>
     private async Task EnviarFallbackCorreoAsync()
     {
+        if (_enviando) return;
         if (_conversacionSeleccionadaId is null || string.IsNullOrWhiteSpace(_textoRespuesta) || string.IsNullOrWhiteSpace(_emailFallback))
             return;
 
@@ -701,7 +834,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
         try
         {
             var resultado = await Mediator.Send(new MigrarConversacionACorreoCommand(
-                _conversacionSeleccionadaId.Value, _emailFallback.Trim(), _textoRespuesta));
+                _conversacionSeleccionadaId.Value, _emailFallback.Trim(), _textoRespuesta), _ciclo.Token);
             if (resultado.EsFallido)
             {
                 ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
@@ -714,6 +847,13 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
 
             await CargarDetalleAsync();
             await CargarListaAsync();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (ValidationException ex)
+        {
+            ToastService.Mostrar(string.Join(" ", ex.Errors.Select(e => e.ErrorMessage).Distinct()), TonoToast.Error);
         }
         catch (Exception ex)
         {
@@ -770,7 +910,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
         _cambiandoEstado = true;
         try
         {
-            var resultado = await Mediator.Send(new CambiarEstadoConversacionCommand(_conversacionSeleccionadaId.Value, nuevoEstado));
+            var resultado = await Mediator.Send(new CambiarEstadoConversacionCommand(_conversacionSeleccionadaId.Value, nuevoEstado), _ciclo.Token);
             if (resultado.EsFallido)
             {
                 ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
@@ -796,7 +936,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
         try
         {
             var ejecutivoId = Guid.TryParse(ejecutivoIdTexto, out var id) ? id : (Guid?)null;
-            var resultado = await Mediator.Send(new AsignarEjecutivoConversacionCommand(_conversacionSeleccionadaId.Value, ejecutivoId));
+            var resultado = await Mediator.Send(new AsignarEjecutivoConversacionCommand(_conversacionSeleccionadaId.Value, ejecutivoId), _ciclo.Token);
             if (resultado.EsFallido)
             {
                 ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
@@ -818,7 +958,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
         _asignandoCliente = true;
         try
         {
-            var resultado = await Mediator.Send(new AsignarClienteConversacionCommand(_conversacionSeleccionadaId.Value, clienteId));
+            var resultado = await Mediator.Send(new AsignarClienteConversacionCommand(_conversacionSeleccionadaId.Value, clienteId), _ciclo.Token);
             if (resultado.EsFallido)
             {
                 ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
@@ -855,7 +995,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
     {
         try
         {
-            var resultado = await Mediator.Send(new DescartarSugerenciaVisitaCorreoCommand(sugerenciaId));
+            var resultado = await Mediator.Send(new DescartarSugerenciaVisitaCorreoCommand(sugerenciaId), _ciclo.Token);
             if (resultado.EsFallido)
             {
                 ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
@@ -883,7 +1023,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
     {
         try
         {
-            var resultado = await Mediator.Send(new CrearGestionesParaTrabajadorCommand(trabajadorId, tipoDocumentoId, sugerenciaId));
+            var resultado = await Mediator.Send(new CrearGestionesParaTrabajadorCommand(trabajadorId, tipoDocumentoId, sugerenciaId), _ciclo.Token);
             if (resultado.EsFallido)
             {
                 ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
@@ -914,7 +1054,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
 
         try
         {
-            var resultado = await Mediator.Send(new VincularConversacionCommand(conversacionOrigenId, conversacionDestinoId));
+            var resultado = await Mediator.Send(new VincularConversacionCommand(conversacionOrigenId, conversacionDestinoId), _ciclo.Token);
             if (resultado.EsFallido)
             {
                 ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
@@ -937,7 +1077,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
     {
         try
         {
-            var resultado = await Mediator.Send(new ConfirmarClasificacionRuidoMensajeCommand(mensajeId));
+            var resultado = await Mediator.Send(new ConfirmarClasificacionRuidoMensajeCommand(mensajeId), _ciclo.Token);
             if (resultado.EsFallido)
             {
                 ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
@@ -958,7 +1098,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
     {
         try
         {
-            var resultado = await Mediator.Send(new DescartarSugerenciaGestionCorreoCommand(sugerenciaId));
+            var resultado = await Mediator.Send(new DescartarSugerenciaGestionCorreoCommand(sugerenciaId), _ciclo.Token);
             if (resultado.EsFallido)
             {
                 ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
@@ -1001,11 +1141,11 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
 
         try
         {
-            _tiposDocumentoSelector = await Mediator.Send(new ObtenerTiposDocumentoQuery());
-            _trabajadoresSelector = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
-            _empresasSelector = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery(_detalle?.ClienteId));
+            _tiposDocumentoSelector = await Mediator.Send(new ObtenerTiposDocumentoQuery(), _ciclo.Token);
+            _trabajadoresSelector = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(), _ciclo.Token);
+            _empresasSelector = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery(_detalle?.ClienteId), _ciclo.Token);
 
-            var deteccion = await Mediator.Send(new DetectarActualizacionDocumentoDesdeAdjuntoQuery(adjuntoId));
+            var deteccion = await Mediator.Send(new DetectarActualizacionDocumentoDesdeAdjuntoQuery(adjuntoId), _ciclo.Token);
             if (deteccion.EsFallido)
             {
                 _errorActualizarDocumento = deteccion.Error.Mensaje;
@@ -1067,7 +1207,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
         {
             var resultado = await Mediator.Send(new ActualizarDocumentoDesdeAdjuntoCommand(
                 _adjuntoParaActualizarDocumentoId, tipoDocumentoId, trabajadorId, empresaId, fechaEmision, fechaVencimientoManual,
-                string.IsNullOrWhiteSpace(_comentariosDocumentoFormulario) ? null : _comentariosDocumentoFormulario));
+                string.IsNullOrWhiteSpace(_comentariosDocumentoFormulario) ? null : _comentariosDocumentoFormulario), _ciclo.Token);
 
             if (resultado.EsFallido)
             {
@@ -1139,7 +1279,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
         _redactarCuerpo = string.Empty;
         _redactarError = null;
 
-        var conexiones = await Mediator.Send(new ObtenerConexionesIntegracionQuery());
+        var conexiones = await Mediator.Send(new ObtenerConexionesIntegracionQuery(), _ciclo.Token);
         _conexionesRedactar = conexiones
             .Where(c => c.Estado == EstadoConexionIntegracion.Habilitada && c.GestorPropietarioId == null)
             .ToList();
@@ -1176,7 +1316,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
 
         try
         {
-            var resultado = await Mediator.Send(new ObtenerBorradorPedirPrioridadQuery(centroId));
+            var resultado = await Mediator.Send(new ObtenerBorradorPedirPrioridadQuery(centroId), _ciclo.Token);
             if (resultado.EsFallido)
             {
                 _mensajeErrorPrioridad = resultado.Error.Mensaje;
@@ -1201,6 +1341,8 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
 
     private async Task EnviarPrioridadAsync()
     {
+        // Ver EnviarAsync: dos clics no pueden pedir prioridad dos veces.
+        if (_enviandoPrioridad) return;
         if (!Guid.TryParse(_centroFormatosSeleccionado, out var centroId)) return;
 
         var destinatarios = _destinatarioPrioridad
@@ -1219,7 +1361,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
         try
         {
             var resultado = await Mediator.Send(
-                new PedirPrioridadValidacionCommand(centroId, destinatarios, _asuntoPrioridad, _cuerpoPrioridad));
+                new PedirPrioridadValidacionCommand(centroId, destinatarios, _asuntoPrioridad, _cuerpoPrioridad), _ciclo.Token);
 
             if (resultado.EsFallido)
             {
@@ -1230,6 +1372,13 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
             ToastService.Mostrar("Solicitud de prioridad enviada.", TonoToast.Exito);
             _drawerPrioridadVisible = false;
         }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (ValidationException ex)
+        {
+            _mensajeErrorPrioridad = string.Join(" ", ex.Errors.Select(e => e.ErrorMessage).Distinct());
+        }
         finally
         {
             _enviandoPrioridad = false;
@@ -1238,6 +1387,11 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
 
     private async Task EnviarMensajeNuevoDesdeRedactarAsync()
     {
+        // Ver EnviarAsync: mismo motivo, y aquí el doble envío es aún más
+        // visible porque el destinatario recibe dos correos nuevos, no dos
+        // mensajes dentro de un hilo que ya conocía.
+        if (_enviandoRedaccion) return;
+
         if (_conexionRedactarId is null)
         {
             _redactarError = "Selecciona desde qué buzón enviarlo.";
@@ -1259,10 +1413,12 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
         try
         {
             var resultado = await Mediator.Send(new EnviarMensajeNuevoCommand(
-                _conexionRedactarId.Value, destinatarios, _redactarAsunto, _redactarCuerpo));
+                _conexionRedactarId.Value, destinatarios, _redactarAsunto, _redactarCuerpo), _ciclo.Token);
 
             if (resultado.EsFallido)
             {
+                // El formulario NO se cierra: destinatarios, asunto y cuerpo
+                // siguen ahí para corregir y reintentar.
                 _redactarError = resultado.Error.Mensaje;
                 return;
             }
@@ -1270,6 +1426,16 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
             ToastService.Mostrar("Mensaje enviado.", TonoToast.Exito);
             _redactarVisible = false;
             await AplicarFiltrosAsync();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (ValidationException ex)
+        {
+            // Tercer desenlace: el servidor dice qué campo está mal. Decirlo
+            // tal cual, y no "intenta nuevamente" — que aquí sería falso: el
+            // mismo intento volvería a fallar igual.
+            _redactarError = string.Join(" ", ex.Errors.Select(e => e.ErrorMessage).Distinct());
         }
         catch (Exception ex)
         {

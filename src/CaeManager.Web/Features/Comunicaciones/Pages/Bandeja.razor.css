@@ -31,53 +31,18 @@
     gap: var(--space-4);
 }
 
-/* --- Toolbar global del workspace (docs/COMUNICACIONES.md § 11) --- */
+/* --- Layout de tres columnas (Inbox / Conversation / Context) ---
 
-.bandeja-toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-4);
-    padding-bottom: var(--space-4);
-    margin-bottom: var(--space-4);
-    border-bottom: var(--border-default);
-}
-
-.bandeja-toolbar-titulo {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    margin: 0;
-    font: var(--font-heading-md);
-    color: var(--color-text);
-}
-
-.bandeja-toolbar-icono {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    border-radius: var(--radius-md);
-    background-color: var(--color-primary-50);
-    color: var(--color-primary-500);
-    flex-shrink: 0;
-}
-
-.bandeja-toolbar-acciones {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-}
-
-/* --- Layout de tres columnas (Inbox / Conversation / Context) --- */
+   Gen 2: el título de la pantalla bajó a la cabecera de la columna de la
+   lista, así que ya no hay banda de cabecera por encima del layout y las
+   tres columnas recuperan ese alto. */
 
 .bandeja-layout {
     display: grid;
     grid-template-columns: 320px minmax(0, 1fr);
     gap: var(--space-5);
     align-items: start;
-    height: calc(100vh - 190px);
+    height: calc(100vh - 120px);
     min-height: 480px;
 }
 
@@ -109,12 +74,28 @@
     border-bottom: var(--border-default);
 }
 
+/* Cabecera de la columna de la lista (Gen 2): título de la pantalla y
+   "Redactar", como en el mockup. */
+.bandeja-lista-cabecera {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-4) 0;
+}
+
+.bandeja-lista-titulo {
+    margin: 0;
+    font: var(--font-heading-sm);
+    color: var(--color-text);
+}
+
 /* Toggle "Clientes | Mi buzón personal" — siempre visible encima de los
    filtros, que solo aplican a la vista de Clientes. */
 .bandeja-vista-toggle {
     display: flex;
     gap: var(--space-2);
-    padding: var(--space-4) var(--space-4) 0;
+    padding: var(--space-3) var(--space-4) 0;
 }
 
 .bandeja-vista-personal-descripcion {
@@ -193,19 +174,41 @@
     width: 100%;
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: var(--space-2);
     padding: var(--space-3) var(--space-4);
     background: none;
     border: none;
     cursor: pointer;
     font: var(--font-label-md);
-    color: var(--color-text);
+    color: var(--color-text-muted);
     text-align: left;
 }
 
 .bandeja-grupo-cabecera:hover {
     background-color: var(--color-surface-hover);
+}
+
+/* Triage es el grupo que reclama atención: el mockup lo pinta en ámbar.
+   No es la única señal — su rótulo ya dice "Sin cliente asignado". */
+.bandeja-grupo-urgente {
+    color: var(--color-warning-700);
+}
+
+.bandeja-grupo-titulo {
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.bandeja-grupo-caret {
+    display: inline-flex;
+    flex-shrink: 0;
+    transition: transform var(--motion-fast) var(--ease-standard);
+}
+
+/* El caret apunta hacia abajo abierto y a la derecha cerrado; el estado lo
+   manda aria-expanded, no una clase aparte. */
+.bandeja-grupo-cabecera[aria-expanded="false"] .bandeja-grupo-caret {
+    transform: rotate(-90deg);
 }
 
 .bandeja-grupo-filas {

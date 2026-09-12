@@ -21,43 +21,51 @@
 <PageTitle>Comunicaciones — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina bandeja-contenedor">
-    <div class="bandeja-toolbar">
-        <h1 class="bandeja-toolbar-titulo">
-            <span class="bandeja-toolbar-icono" aria-hidden="true"><Icono Nombre="chat" /></span>
-            Comunicaciones
-        </h1>
-        @* "Buzón completo" (explorador técnico de carpetas M365, /comunicaciones/buzon)
-           y "Macros" (CRUD de plantillas, /comunicaciones/macros) se retiran de esta
-           barra de trabajo diaria (H-5): el modelo aprobado es conversation-first, no
-           M365-folder-first. El Buzón sigue existiendo como diagnóstico técnico — su
-           punto de entrada pasa a Integraciones (propiedad de esa sesión, no de esta
-           página). Usar macros al redactar sigue siendo contextual — ver el enlace
-           "Administrar macros" en ComposerBar, que apunta a /comunicaciones/macros
-           (su ruta propia, [Authorize(Roles=RolesComunicaciones.Gestion)]) y NO a
-           /configuracion/macros: esa segunda URL pasa por el hub de Configuración,
-           gateado solo a Administrador, y dejaría fuera a los otros cuatro roles de
-           Comunicaciones que sí pueden ver esta página. El hub sigue listando
-           "macros" como entrada para quien navega desde Configuración — ambas rutas
-           llegan a la misma pantalla, cada una con su propio contrato de acceso. *@
-        <div class="bandeja-toolbar-acciones">
-            <Boton Tamano="TamanoBoton.Pequeno" OnClick="AbrirRedactarAsync">Redactar</Boton>
-        </div>
-    </div>
-
     <div class="bandeja-layout">
         <aside class="bandeja-columna bandeja-filtros">
+            @* Gen 2 («Comunicaciones TALVEG.dc.html»): el título de la pantalla
+               y "Redactar" viven en la cabecera de la columna de la lista, no en
+               una banda de cabecera sobre las tres columnas. Por eso esta página
+               NO usa CabeceraPagina como el resto del programa Gen 2: su mockup
+               es un maestro-detalle a pantalla completa y una banda superior le
+               robaría alto a las tres columnas.
+
+               "Buzón completo" (explorador técnico de carpetas M365, /comunicaciones/buzon)
+               y "Macros" (CRUD de plantillas, /comunicaciones/macros) se retiran de esta
+               barra de trabajo diaria (H-5): el modelo aprobado es conversation-first, no
+               M365-folder-first. El Buzón sigue existiendo como diagnóstico técnico — su
+               punto de entrada pasa a Integraciones (propiedad de esa sesión, no de esta
+               página). Usar macros al redactar sigue siendo contextual — ver el enlace
+               "Administrar macros" en ComposerBar, que apunta a /comunicaciones/macros
+               (su ruta propia, [Authorize(Roles=RolesComunicaciones.Gestion)]) y NO a
+               /configuracion/macros: esa segunda URL pasa por el hub de Configuración,
+               gateado solo a Administrador, y dejaría fuera a los otros cuatro roles de
+               Comunicaciones que sí pueden ver esta página. El hub sigue listando
+               "macros" como entrada para quien navega desde Configuración — ambas rutas
+               llegan a la misma pantalla, cada una con su propio contrato de acceso. *@
+            <div class="bandeja-lista-cabecera">
+                <h1 class="bandeja-lista-titulo">Comunicaciones</h1>
+                <Boton Tamano="TamanoBoton.Pequeno" OnClick="AbrirRedactarAsync">Redactar</Boton>
+            </div>
+
             @* Toggle "Clientes | Mi buzón personal" (rediseño acordado, ver
                memoria hydra-buzon-personal-rediseno-pendiente): sustituye a
                /comunicaciones/buzon-personal como página aislada — el buzón
                personal del gestor ahora vive dentro del mismo maestro-detalle,
                solo que de solo lectura (sin Composer ni Action Center, ver más
                abajo), porque hoy no existe ningún comando de "responder" para
-               un mensaje del buzón personal. *@
-            <div class="bandeja-vista-toggle">
-                <button type="button" class="bandeja-toggle @(_vista == "clientes" ? "bandeja-toggle-activo" : null)" @onclick='() => CambiarVistaAsync("clientes")'>
+               un mensaje del buzón personal. Es la anotación del mockup: «el
+               toggle Clientes / Mi buzón vive dentro de la bandeja, no en una
+               página aparte». /comunicaciones/buzon es OTRA pantalla —
+               explorador de carpetas de Microsoft 365— y no es lo que este
+               toggle abre. *@
+            <div class="bandeja-vista-toggle" role="tablist" aria-label="Ámbito de la bandeja">
+                <button type="button" role="tab" aria-selected="@(_vista == "clientes" ? "true" : "false")"
+                        class="bandeja-toggle @(_vista == "clientes" ? "bandeja-toggle-activo" : null)" @onclick='() => CambiarVistaAsync("clientes")'>
                     Clientes
                 </button>
-                <button type="button" class="bandeja-toggle @(_vista == "personal" ? "bandeja-toggle-activo" : null)" @onclick='() => CambiarVistaAsync("personal")'>
+                <button type="button" role="tab" aria-selected="@(_vista == "personal" ? "true" : "false")"
+                        class="bandeja-toggle @(_vista == "personal" ? "bandeja-toggle-activo" : null)" @onclick='() => CambiarVistaAsync("personal")'>
                     Mi buzón personal
                 </button>
             </div>
@@ -145,9 +153,16 @@
                         @if (triage.Count > 0)
                         {
                             <div class="bandeja-grupo">
-                                <button type="button" class="bandeja-grupo-cabecera" @onclick='() => AlternarGrupo("triage")'>
-                                    <span>Sin cliente asignado (Triage)</span>
-                                    <Badge Tono="TonoBadge.Info">@triage.Count</Badge>
+                                @* Gen 2: cabecera de grupo con caret, rótulo en versalitas y
+                                   el recuento entre paréntesis, y el desglose en el title —
+                                   lo que el mockup llama countTitulo. El caret gira con
+                                   aria-expanded, así que la clase no dice nada que el estado
+                                   accesible no diga también. *@
+                                <button type="button" class="bandeja-grupo-cabecera bandeja-grupo-urgente"
+                                        aria-expanded="@(GrupoColapsado("triage") ? "false" : "true")" title="@DesgloseGrupo(triage)"
+                                        @onclick='() => AlternarGrupo("triage")'>
+                                    <span class="bandeja-grupo-caret" aria-hidden="true"><Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" /></span>
+                                    <span class="bandeja-grupo-titulo">Sin cliente asignado (Triage) (@triage.Count)</span>
                                 </button>
                                 @if (!GrupoColapsado("triage"))
                                 {
@@ -164,16 +179,19 @@
                         @foreach (var grupo in GruposPorCliente())
                         {
                             var clave = grupo.Key.ToString();
-                            var nombreCliente = grupo.First().ClienteRazonSocial ?? "Cliente";
+                            var conversacionesCliente = grupo.OrderByDescending(c => c.FechaUltimoMensajeUtc).ToList();
+                            var nombreCliente = conversacionesCliente[0].ClienteRazonSocial ?? "Cliente empresarial";
                             <div class="bandeja-grupo">
-                                <button type="button" class="bandeja-grupo-cabecera" @onclick="() => AlternarGrupo(clave)">
-                                    <span>@nombreCliente</span>
-                                    <Badge>@grupo.Count()</Badge>
+                                <button type="button" class="bandeja-grupo-cabecera"
+                                        aria-expanded="@(GrupoColapsado(clave) ? "false" : "true")" title="@DesgloseGrupo(conversacionesCliente)"
+                                        @onclick="() => AlternarGrupo(clave)">
+                                    <span class="bandeja-grupo-caret" aria-hidden="true"><Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" /></span>
+                                    <span class="bandeja-grupo-titulo">@nombreCliente (@conversacionesCliente.Count)</span>
                                 </button>
                                 @if (!GrupoColapsado(clave))
                                 {
                                     <ul class="bandeja-grupo-filas">
-                                        @foreach (var conversacion in grupo.OrderByDescending(c => c.FechaUltimoMensajeUtc))
+                                        @foreach (var conversacion in conversacionesCliente)
                                         {
                                             <FilaConversacion Conversacion="conversacion" Activa="@(conversacion.Id == _conversacionSeleccionadaId)" OnSeleccionar="SeleccionarConversacionAsync" />
                                         }
