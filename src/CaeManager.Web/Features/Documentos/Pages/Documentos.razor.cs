@@ -440,7 +440,15 @@ public partial class Documentos : ComponentBase, IDisposable
         // intermedio lo hubiera desechado, y la lectura lanzaría
         // ObjectDisposedException en una continuación que nadie observa.
         var carga = ++_cargaVigente;
-        var token = _ciclo.Token;
+
+        // Dos motivos para cancelar, no uno: que la pantalla se retire (el
+        // ciclo) y que la rejilla pida otra página, otro orden u otro filtro
+        // (QuickGrid). Antes solo viajaba el del ciclo, así que la consulta ya
+        // sustituida seguía trabajando en el servidor hasta terminar; su
+        // resultado no se pintaba —de eso se encarga _cargaVigente— pero el
+        // trabajo se hacía igual.
+        using var cancelacion = CancellationTokenSource.CreateLinkedTokenSource(_ciclo.Token, request.CancellationToken);
+        var token = cancelacion.Token;
 
         _cargando = true;
         _errorCarga = false;
@@ -613,9 +621,19 @@ public partial class Documentos : ComponentBase, IDisposable
             }
             else
             {
+                // El aviso se da siempre: el documento se eliminó de verdad y
+                // quien lo pidió tiene que poder deshacerlo. Lo que no puede
+                // hacerse es tocar la pantalla si ya es otra —cerrar una modal
+                // que abrió otra operación, o recargar una lista que ya no es
+                // esta—: el contexto se comprueba DESPUÉS del await, no solo en
+                // el finally.
                 ToastService.Mostrar("Documento eliminado correctamente.", TonoToast.Exito, "Deshacer", () => DeshacerEliminarAsync(idEliminado));
-                _confirmarEliminarVisible = false;
-                await RecargarAsync();
+
+                if (ContextoSigueSiendo(contexto))
+                {
+                    _confirmarEliminarVisible = false;
+                    await RecargarAsync();
+                }
             }
         }
         catch (Exception)
@@ -734,9 +752,15 @@ public partial class Documentos : ComponentBase, IDisposable
                         : $"{dto.Eliminados} de {pedidos.Count} eliminado(s); el resto sigue en la lista.{DetalleDeErrores(dto.Errores)}",
                 completo ? TonoToast.Exito : dto.Eliminados == 0 ? TonoToast.Error : TonoToast.Advertencia);
 
-            _seleccionados.Clear();
-            _confirmarEliminarLoteVisible = false;
-            await RecargarAsync();
+            // Ver el comentario del borrado individual. Aquí además se
+            // vaciaba la selección, que al cambiar de contexto ya es la que
+            // acaba de hacer quien está mirando ahora.
+            if (ContextoSigueSiendo(contexto))
+            {
+                _seleccionados.Clear();
+                _confirmarEliminarLoteVisible = false;
+                await RecargarAsync();
+            }
         }
         catch (Exception)
         {
@@ -855,10 +879,17 @@ public partial class Documentos : ComponentBase, IDisposable
                 return;
             }
 
-            _filtrosGuardados = await Mediator.Send(new ObtenerFiltrosGuardadosQuery(PantallasConFiltrosGuardados.Documentos), token);
-            _mostrarGuardarFiltro = false;
-            _nombreFiltroNuevo = string.Empty;
+            var guardados = await Mediator.Send(new ObtenerFiltrosGuardadosQuery(PantallasConFiltrosGuardados.Documentos), token);
             ToastService.Mostrar("Filtro guardado.", TonoToast.Exito);
+
+            // Ver el comentario del borrado individual. El nombre a medio
+            // escribir y la modal abierta pueden ser ya de otra operación.
+            if (ContextoSigueSiendo(contexto))
+            {
+                _filtrosGuardados = guardados;
+                _mostrarGuardarFiltro = false;
+                _nombreFiltroNuevo = string.Empty;
+            }
         }
         finally
         {

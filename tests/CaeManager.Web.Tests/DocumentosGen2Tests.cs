@@ -236,6 +236,21 @@ public class DocumentosGen2Tests : BunitContext
         casillas.Count.Should().BeGreaterThanOrEqualTo(cuantas, "sin filas que marcar no hay lote que probar");
     }
 
+    /// <summary>
+    /// Marca la primera fila encendiendo el modo de selección solo si hace
+    /// falta: «Selección múltiple» es un interruptor, y volver a pulsarlo
+    /// cuando ya está encendido lo apaga y deja la tabla sin casillas.
+    /// </summary>
+    private static async Task MarcarPrimeraFila(IRenderedComponent<PaginaDocumentos> cut)
+    {
+        if (cut.FindAll(".tabla-datos tbody input[type=checkbox]").Count == 0)
+            await BotonPorTexto(cut, ".barra-herramientas-lista button", "Selección múltiple").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".tabla-datos tbody input[type=checkbox]").Should().NotBeEmpty(
+            "sin casillas no hay lote que preparar, y el caso se quedaría sin observar nada");
+        await cut.FindAll(".tabla-datos tbody input[type=checkbox]")[0].ChangeAsync(new ChangeEventArgs { Value = true });
+    }
+
     private static Task AbrirConfirmacionDeLote(IRenderedComponent<PaginaDocumentos> cut) =>
         BotonPorTexto(cut, ".barra-acciones-lote button", "Eliminar seleccionados").ClickAsync(new MouseEventArgs());
 
@@ -421,25 +436,45 @@ public class DocumentosGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// Toda consulta de la página viaja con el token del ciclo de vida, y
-    /// retirar la página lo cancela. Sin lo primero, lo segundo no sirve de
-    /// nada: un <c>CancellationToken.None</c> no se entera de que la página se
-    /// fue.
+    /// Toda consulta de la página viaja con un token cancelable, y retirar la
+    /// página corta la que siga en vuelo. Sin lo primero, lo segundo no sirve
+    /// de nada: un <c>CancellationToken.None</c> no se entera de que la página
+    /// se fue.
+    ///
+    /// La comprobación se hace sobre una consulta <b>todavía en vuelo</b>, no
+    /// sobre los tokens de las ya terminadas. El de la rejilla es un token
+    /// enlazado —ciclo de vida y QuickGrid— cuya fuente se desecha al terminar
+    /// la consulta, así que un token guardado post mortem no dice nada de nada;
+    /// lo que el contrato promete es cortar el trabajo que sigue abierto.
     /// </summary>
     [Fact]
-    public void Las_consultas_viajan_con_el_token_del_ciclo_y_retirar_la_pagina_lo_cancela()
+    public async Task Las_consultas_viajan_con_un_token_cancelable_y_retirar_la_pagina_corta_la_que_sigue_en_vuelo()
     {
-        var (cut, mediador) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")));
+        var enVuelo = new TaskCompletionSource<object?>();
+        var mediador = ConDocumentos(Documento("Reconocimiento médico"));
+        var (cut, _) = Renderizar(mediador);
 
         mediador.Tokens.Should().NotBeEmpty("es el punto de partida de este caso");
         mediador.Tokens.Should().OnlyContain(t => t.CanBeCanceled,
             "una consulta con CancellationToken.None sigue trabajando para una página que ya no existe");
         mediador.Tokens.Should().OnlyContain(t => !t.IsCancellationRequested);
 
+        // Una consulta que se queda esperando: es la que de verdad hay que cortar.
+        mediador.Interceptar = p => p is ObtenerDocumentosQuery ? enVuelo.Task : null;
+        var recarga = cut.FindAll(".barra-filtros select")[1]
+            .ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vencido) });
+
+        var tokenEnVuelo = mediador.Tokens[^1];
+        tokenEnVuelo.IsCancellationRequested.Should().BeFalse("todavía no se ha retirado nada");
+
         cut.Instance.Dispose();
 
-        mediador.Tokens.Should().OnlyContain(t => t.IsCancellationRequested,
-            "retirar la página cancela lo que quedara en vuelo");
+        tokenEnVuelo.IsCancellationRequested.Should().BeTrue(
+            "retirar la página corta la consulta que seguía trabajando para ella");
+
+        mediador.Interceptar = null;
+        enVuelo.SetResult(mediador.Pagina(new ObtenerDocumentosQuery(null, null, null, EstadoDocumento.Vencido)));
+        await recarga;
     }
 
     /// <summary>
@@ -636,5 +671,45 @@ public class DocumentosGen2Tests : BunitContext
         aviso.Tono.Should().Be(TonoToast.Error);
         aviso.Mensaje.Should().Be("No hay identidad con la que borrar.",
             "el servidor dice qué está mal: repetirlo es útil, «intenta nuevamente» invita a fallar otra vez igual");
+    }
+
+    /// <summary>
+    /// El hueco que el autor dejó declarado y que la revisión de Codex
+    /// confirmó: la comprobación de contexto solo protegía la liberación de la
+    /// bandera en el <c>finally</c>, no el cuerpo posterior al <c>await</c>. Un
+    /// borrado en lote iniciado en un contexto y terminado en otro cerraba el
+    /// diálogo que hubiera abierto ahora, le vaciaba la selección y le
+    /// recargaba la lista por debajo.
+    /// </summary>
+    [Fact]
+    public async Task Un_lote_que_termina_tras_cambiar_de_contexto_no_cierra_lo_que_se_haya_preparado_despues()
+    {
+        var enVuelo = new TaskCompletionSource<object?>();
+        var mediador = ConDocumentos(Documento("Reconocimiento médico"), Documento("Formación PRL"));
+        mediador.Interceptar = p => p is EliminarDocumentosCommand ? enVuelo.Task : null;
+        var (cut, _) = Renderizar(mediador);
+
+        await SeleccionarFilas(cut, 2);
+        await AbrirConfirmacionDeLote(cut);
+        // Sin await: el comando queda retenido y su continuación, pendiente.
+        var loteDelPrimerContexto = ConfirmarDialogo(cut);
+
+        // Cambia lo que hay en pantalla, dos veces, y se prepara otro lote.
+        await Pestana(cut, "Preventivo").ClickAsync(new MouseEventArgs());
+        await Pestana(cut, "Estado").ClickAsync(new MouseEventArgs());
+        await MarcarPrimeraFila(cut);
+        await AbrirConfirmacionDeLote(cut);
+        cut.Markup.Should().Contain("Se ocultarán de las listas activas", "es el punto de partida de este caso");
+
+        // Ahora termina el borrado del contexto anterior.
+        await cut.InvokeAsync(() => enVuelo.SetResult(Result.Exito(new ResultadoEliminacionLoteDto(2, []))));
+        await loteDelPrimerContexto;
+
+        cut.Markup.Should().Contain("Se ocultarán de las listas activas",
+            "lo que terminó pertenecía a otro contexto: no puede cerrar el diálogo que se acaba de abrir");
+        cut.FindAll(".barra-acciones-lote").Should().NotBeEmpty(
+            "ni vaciar la selección que se acaba de hacer");
+        Toasts().Select(t => t.Mensaje).Should().ContainMatch("*documento(s) eliminado(s)*",
+            "el aviso sí se da: los documentos se eliminaron de verdad");
     }
 }
