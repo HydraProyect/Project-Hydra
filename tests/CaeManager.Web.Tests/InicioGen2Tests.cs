@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Reflection;
+using System.Security.Claims;
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaAgrupada;
@@ -19,6 +20,7 @@ using CaeManager.Web.Services;
 using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using static CaeManager.Web.Tests.BandejaDatosDePrueba;
@@ -363,7 +365,8 @@ public class InicioGen2Tests : BunitContext
 
     // ---------------------------------------------------------------- ayudas
 
-    private IRenderedComponent<Inicio> Renderizar(MediadorDeInicio mediador, ActividadUsuarioService? actividad = null)
+    private IRenderedComponent<Inicio> Renderizar(MediadorDeInicio mediador, ActividadUsuarioService? actividad = null,
+        AuthenticationStateProvider? autenticacion = null)
     {
         // La aplicación fija es-ES en Program.cs; aquí se fija en el flujo del
         // propio test, que es donde renderiza bUnit.
@@ -383,6 +386,13 @@ public class InicioGen2Tests : BunitContext
         // Cualquier rol menos Cliente: «Requiere atención» reutiliza la cola del
         // Gestor CAE y el rol Cliente no la ve.
         AddAuthorization().SetAuthorized("marta").SetRoles(Roles.GestorCae);
+
+        // Registrado DESPUÉS de AddAuthorization para ganarle el registro: el de
+        // bUnit responde con una tarea ya completa, así que con él no existe la
+        // ventana entre «esperar a la autenticación» y «leer el token» que este
+        // arnés necesita abrir.
+        if (autenticacion is not null)
+            Services.AddScoped(_ => autenticacion);
 
         // La pantalla consulta RendererInfo.IsInteractive para no consumir la
         // ausencia durante el prerenderizado (ver ActividadUsuarioService). Sin
@@ -404,6 +414,41 @@ public class InicioGen2Tests : BunitContext
         (Task)typeof(Inicio)
             .GetMethod("CargarAsync", BindingFlags.Instance | BindingFlags.NonPublic)!
             .Invoke(cut.Instance, null)!;
+
+    /// <summary>
+    /// Dispara el saludo por el mismo camino que el renderizador —
+    /// <c>OnAfterRenderAsync(firstRender: true)</c>—, que es protegido, sin
+    /// esperarlo: el caso necesita la tarea en vuelo. Mismo recurso que
+    /// <see cref="Recargar"/>.
+    /// </summary>
+    private static Task ResolverSaludo(IRenderedComponent<Inicio> cut) =>
+        (Task)typeof(Inicio)
+            .GetMethod("OnAfterRenderAsync", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(cut.Instance, [true])!;
+
+    /// <summary>
+    /// Devuelve siempre el mismo usuario, pero puede quedarse retenida a
+    /// voluntad para abrir la ventana entre el await y lo que venga después.
+    /// </summary>
+    private sealed class AutenticacionRetenible : AuthenticationStateProvider
+    {
+        private readonly AuthenticationState _estado = new(new ClaimsPrincipal(
+            new ClaimsIdentity([new Claim(ClaimTypes.Name, "marta"), new Claim(ClaimTypes.Role, Roles.GestorCae)], "Arnes")));
+
+        private TaskCompletionSource? _retencion;
+
+        public void Retener() => _retencion = new TaskCompletionSource();
+
+        public void Soltar() => _retencion!.SetResult();
+
+        public override async Task<AuthenticationState> GetAuthenticationStateAsync()
+        {
+            if (_retencion is { } retencion)
+                await retencion.Task;
+
+            return _estado;
+        }
+    }
 
     private static string FechaEsperada()
     {
@@ -555,5 +600,30 @@ public class InicioGen2Tests : BunitContext
         public Task SetNormalizedUserNameAsync(ApplicationUser user, string? normalizedName, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task SetUserNameAsync(ApplicationUser user, string? userName, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task<IdentityResult> UpdateAsync(ApplicationUser user, CancellationToken cancellationToken) => throw new NotSupportedException();
+    }
+
+    /// <summary>
+    /// El token de cancelación se leía DESPUÉS de esperar a la autenticación.
+    /// Si la pantalla se retiraba en esa ventana, <c>Dispose</c> ya había
+    /// desechado el <c>CancellationTokenSource</c>, y leer su <c>Token</c>
+    /// lanzaba <c>ObjectDisposedException</c> dentro de un
+    /// <c>OnAfterRenderAsync</c> que no recoge nada: salir de Inicio mientras
+    /// se resolvía el saludo dejaba un error en el circuito.
+    /// </summary>
+    [Fact]
+    public async Task Salir_de_Inicio_mientras_se_resuelve_el_saludo_no_deja_una_excepcion_suelta()
+    {
+        var autenticacion = new AutenticacionRetenible();
+        var cut = Renderizar(new MediadorDeInicio(), autenticacion: autenticacion);
+
+        autenticacion.Retener();
+        var saludo = ResolverSaludo(cut);
+
+        await cut.InvokeAsync(cut.Instance.Dispose);
+        autenticacion.Soltar();
+
+        var esperar = async () => await saludo;
+        await esperar.Should().NotThrowAsync(
+            "la pantalla se retiró mientras se resolvía el saludo: eso se abandona, no se rompe");
     }
 }

@@ -132,6 +132,29 @@ public partial class Inicio : ComponentBase, IDisposable
     {
         if (!firstRender || _desechado) return;
 
+        // El token se lee ANTES del await, como en CargarAsync. Si la pantalla
+        // se retira mientras se resuelve la autenticación, Dispose ya desechó
+        // el CancellationTokenSource y leer _ciclo.Token después lanzaría
+        // ObjectDisposedException, que aquí no recoge nadie: salir de Inicio
+        // durante la carga del saludo dejaba un error en el circuito. Cancel()
+        // corre antes que Dispose(), así que el token capturado llega ya
+        // cancelado y la puerta corta sola.
+        var token = _ciclo.Token;
+
+        try
+        {
+            await ResolverSaludoAsync(token);
+        }
+        catch (OperationCanceledException)
+        {
+            // La pantalla se retiró mientras se resolvía el saludo. No hay nada
+            // que pintar ni nada que avisar: el saludo sin nombre de pila es un
+            // estado válido, no un fallo.
+        }
+    }
+
+    private async Task ResolverSaludoAsync(CancellationToken token)
+    {
         var estadoAutenticacion = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         var nombrePila = await PuertaAccesoDatos.EjecutarAsync(async () =>
         {
@@ -146,7 +169,7 @@ public partial class Inicio : ComponentBase, IDisposable
             return usuario?.NombreCompleto is { Length: > 0 } nombreCompleto
                 ? nombreCompleto.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()
                 : null;
-        }, _ciclo.Token);
+        }, token);
 
         if (_desechado)
             return;

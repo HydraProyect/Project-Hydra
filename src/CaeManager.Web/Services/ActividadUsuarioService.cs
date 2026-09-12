@@ -21,9 +21,17 @@ public class ActividadUsuarioService(
     private static readonly TimeSpan UmbralAusencia = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan ThrottleEscritura = TimeSpan.FromMinutes(1);
 
-    private bool _resuelto;
-    private bool _ausente;
-    private DateTime? _ultimaActividadAnteriorUtc;
+    /// <summary>
+    /// Se cachea la TAREA de la resolución, no un booleano de «ya resuelto».
+    /// Con la bandera, la segunda llamada que entraba mientras la primera
+    /// seguía esperando a la base se encontraba la bandera puesta y devolvía
+    /// los campos todavía vacíos —(false, null)—, concluyendo que no hubo
+    /// ausencia. Y la carrera no es rara: MainLayout e Inicio comparten este
+    /// servicio con ámbito de circuito y los dos lo invocan en la misma carga.
+    /// Una tarea cancelada o fallida no se conserva: la siguiente llamada
+    /// vuelve a intentarlo.
+    /// </summary>
+    private Task<(bool Ausente, DateTime? DesdeParaResumen)>? _resolucion;
 
     /// <summary>
     /// Registra la actividad de ahora (con throttle de un minuto) y devuelve si el usuario
@@ -46,15 +54,23 @@ public class ActividadUsuarioService(
     /// Identity), y montar ese aparato para decidir si el resumen «qué llegó sin
     /// ver» aparece haría que el andamio tapara lo que el caso mide.
     /// </remarks>
-    public virtual async Task<(bool Ausente, DateTime? DesdeParaResumen)> RegistrarYEvaluarAsync(bool interactivo, CancellationToken cancellationToken = default)
+    public virtual Task<(bool Ausente, DateTime? DesdeParaResumen)> RegistrarYEvaluarAsync(bool interactivo, CancellationToken cancellationToken = default)
     {
-        if (_resuelto) return (_ausente, _ultimaActividadAnteriorUtc);
-        if (!interactivo) return (false, null);
+        // Una resolución ya hecha —o en vuelo— vale para cualquier llamada,
+        // incluida la del prerenderizado: el orden de estas dos guardas es el
+        // de siempre.
+        if (_resolucion is { IsCanceled: false, IsFaulted: false }) return _resolucion;
+        if (!interactivo) return Task.FromResult<(bool, DateTime?)>((false, null));
 
-        _resuelto = true;
+        return _resolucion = ResolverAsync(cancellationToken);
+    }
 
+    private async Task<(bool Ausente, DateTime? DesdeParaResumen)> ResolverAsync(CancellationToken cancellationToken)
+    {
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
         if (usuarioId is null) return (false, null);
+
+        var resultado = (Ausente: false, DesdeParaResumen: (DateTime?)null);
 
         await puertaAccesoDatos.EjecutarAsync(async () =>
         {
@@ -65,8 +81,7 @@ public class ActividadUsuarioService(
             var ahora = DateTime.UtcNow;
             var (ausente, debeEscribir) = Evaluar(anterior, ahora);
 
-            _ultimaActividadAnteriorUtc = anterior;
-            _ausente = ausente;
+            resultado = (ausente, anterior);
 
             if (debeEscribir)
             {
@@ -75,7 +90,7 @@ public class ActividadUsuarioService(
             }
         }, cancellationToken);
 
-        return (_ausente, _ultimaActividadAnteriorUtc);
+        return resultado;
     }
 
     /// <summary>
