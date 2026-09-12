@@ -93,7 +93,10 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
         await drawer.GetByLabel("Nombre completo").FillAsync($"Portal {razonSocialCliente}");
         await drawer.GetByLabel("Rol").SelectOptionAsync(new SelectOptionValue { Value = "Cliente" });
 
-        var campoCif = drawer.GetByLabel("CIF del cliente a vincular");
+        // "Empresa", no "cliente": lo que se busca en Usuarios.razor es una
+        // Empresa del catálogo (BuscarEmpresaPorCifQuery) y la etiqueta lo dice
+        // así desde el rediseño Gen 2 de la pantalla.
+        var campoCif = drawer.GetByLabel("CIF de la empresa a vincular");
         await campoCif.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
         // Busca por CIF exacto, no por razón social — el mismo CIF generado
         // para el Cliente real de arriba.
