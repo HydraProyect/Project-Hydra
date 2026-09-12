@@ -40,11 +40,14 @@ namespace CaeManager.E2ETests;
 /// <b>El hueco real, medido igual de directo.</b> Dos pestañas (o dos
 /// contextos de navegador) distintas SÍ producen dos POST reales: cada una
 /// tiene su propio documento, su propia recarga, su propio guion — nada las
-/// serializa entre sí. El segundo test de abajo lo deja documentado como
-/// hueco conocido, aceptado por el propietario para estas tres pantallas
-/// (Órden de trabajo del 2026-09-12: solo LoginCon2fa lleva cerrojo de
-/// servidor, por el coste real de un doble intento sobre el contador de
-/// bloqueo de la cuenta).
+/// serializa entre sí. Si cerrarlo con un cerrojo de servidor para estas tres
+/// pantallas (en vez de solo LoginCon2fa, que sí lo lleva aparte por el coste
+/// real de un doble intento sobre el contador de bloqueo de la cuenta) es
+/// **pendiente de decisión del propietario, no decidido todavía** — el
+/// tercer test de abajo deja constancia del hueco tal cual existe hoy sin
+/// afirmar que esté aceptado, y por eso está marcado <c>Skip</c> en vez de
+/// aserción en verde: un test verde que dice "hueco conocido y aceptado" se
+/// cita después como si la decisión ya estuviera tomada, y no lo está.
 /// </para>
 /// </summary>
 [Collection("AppCollection")]
@@ -136,14 +139,22 @@ public class DobleEnvioAccesoTests(WebAppFixture fixture)
     /// <summary>
     /// Documenta el hueco real: dos pestañas no comparten ningún estado de
     /// JavaScript, así que ninguna guarda de cliente puede serializarlas.
-    /// Este test no es una regresión que deba mantenerse en verde a toda
-    /// costa — es la constancia de que el hueco existe hoy y de por qué (§
-    /// GAP en el PR de <c>acceso-doble-envio.js</c>). Si algún día se cierra
-    /// con un cerrojo de servidor para estas tres pantallas, este test pasa a
-    /// documentar lo contrario y hay que actualizarlo, no borrarlo en
-    /// silencio.
+    ///
+    /// Marcado <c>Skip</c> a propósito, no <c>[Fact]</c> en verde: una
+    /// aserción que pasa hoy porque el hueco sigue abierto es exactamente el
+    /// patrón que CLAUDE.md § 6 desaconseja — un test verde que codifica
+    /// deliberadamente el contrato que no se quiere, y que además alguien
+    /// podría citar más tarde como si "dos POST reales" fuera un
+    /// comportamiento aceptado, cuando es una decisión PENDIENTE del
+    /// propietario, no tomada. El código queda aquí, ejecutable a mano o
+    /// quitando el <c>Skip</c>, para cuando haya que volver a medir esto —
+    /// pero no corre en CI dando una falsa sensación de cobertura verde sobre
+    /// algo que no está resuelto.
     /// </summary>
-    [Fact]
+    [Fact(Skip = "Hueco conocido, pendiente de decisión del propietario (¿cerrojo de servidor también para " +
+        "OlvideContrasena/RestablecerContrasena/CambiarContrasena, o se acepta el riesgo?). No convertir en " +
+        "aserción en verde hasta que exista esa decisión: ver acceso-doble-envio.js y el PR que introdujo " +
+        "este fichero.")]
     public async Task Dos_pestanas_distintas_SI_producen_dos_peticiones_POST_hueco_conocido_sin_resolver()
     {
         await using var contexto1 = await fixture.Browser.NewContextAsync();
@@ -176,9 +187,9 @@ public class DobleEnvioAccesoTests(WebAppFixture fixture)
         await Assertions.Expect(page2.GetByText("Revisa tu correo")).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
 
         Assert.True(peticiones.Count == 2,
-            "Hueco conocido y aceptado (no resuelto en este incremento): dos pestañas distintas no "
-            + $"comparten guarda de cliente. Se esperaban 2 peticiones POST reales; se registraron "
-            + $"{peticiones.Count}. Si esto baja a 1, algo empezó a serializarlas — actualizar este test y "
-            + "el comentario de la clase, no borrarlo.");
+            "Hueco conocido, pendiente de decisión del propietario (no resuelto en este incremento): dos "
+            + "pestañas distintas no comparten guarda de cliente. Se esperaban 2 peticiones POST reales; se "
+            + $"registraron {peticiones.Count}. Si esto baja a 1, algo empezó a serializarlas — actualizar "
+            + "este test y el comentario de la clase, no borrarlo.");
     }
 }
