@@ -31,7 +31,6 @@ public partial class RestablecerContrasena : ComponentBase
     private string? _correoCuenta;
     private bool _enlaceInvalido;
     private bool _completado;
-    private bool _guardando;
     private string? _mensajeError;
 
     private string? ExplicacionCuenta => _correoCuenta is null ? null : $"Para la cuenta {_correoCuenta}.";
@@ -103,58 +102,49 @@ public partial class RestablecerContrasena : ComponentBase
             return;
         }
 
-        _guardando = true;
         _mensajeError = null;
-        StateHasChanged();
 
-        try
+        var resultado = await UserManager.ResetPasswordAsync(_usuario, _token, Entrada.ContrasenaNueva);
+        var logger = LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog);
+
+        if (!resultado.Succeeded)
         {
-            var resultado = await UserManager.ResetPasswordAsync(_usuario, _token, Entrada.ContrasenaNueva);
-            var logger = LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog);
-
-            if (!resultado.Succeeded)
+            // Un token caducado o ya usado cae aquí igual que un fallo de
+            // política de contraseña — no se distingue el motivo exacto
+            // en el mensaje (mismo criterio de no-enumeración que
+            // Login.razor), pero si el problema es el token se ofrece
+            // directamente pedir uno nuevo.
+            if (resultado.Errors.Any(e => e.Code is "InvalidToken"))
             {
-                // Un token caducado o ya usado cae aquí igual que un fallo de
-                // política de contraseña — no se distingue el motivo exacto
-                // en el mensaje (mismo criterio de no-enumeración que
-                // Login.razor), pero si el problema es el token se ofrece
-                // directamente pedir uno nuevo.
-                if (resultado.Errors.Any(e => e.Code is "InvalidToken"))
-                {
-                    logger.LogWarning("Restablecimiento de contraseña rechazado (token inválido o caducado): {UsuarioId}", _usuario.Id);
-                    _enlaceInvalido = true;
-                    return;
-                }
-
-                _mensajeError = string.Join(" ", resultado.Errors.Select(e => e.Description));
+                logger.LogWarning("Restablecimiento de contraseña rechazado (token inválido o caducado): {UsuarioId}", _usuario.Id);
+                _enlaceInvalido = true;
                 return;
             }
 
-            _usuario.DebeCambiarContrasena = false;
-            var actualizacion = await UserManager.UpdateAsync(_usuario);
-            if (!actualizacion.Succeeded)
-            {
-                // La contraseña ya cambió (ResetPasswordAsync tuvo éxito arriba);
-                // lo que falló es persistir el fin del cambio obligatorio. No se
-                // anuncia éxito ni se cierra sesión: un reintento con el mismo
-                // enlace encontrará el token ya invalidado (la contraseña cambió,
-                // el security stamp rotó) y caerá en _enlaceInvalido, que ya
-                // ofrece pedir uno nuevo.
-                logger.LogError("Restablecimiento de contraseña: la contraseña cambió pero no se pudo persistir el usuario {UsuarioId}: {Errores}",
-                    _usuario.Id, string.Join(" ", actualizacion.Errors.Select(e => e.Description)));
-                _mensajeError = string.Join(" ", actualizacion.Errors.Select(e => e.Description));
-                return;
-            }
-
-            logger.LogInformation("Restablecimiento de contraseña correcto: {UsuarioId}", _usuario.Id);
-
-            await SignInManager.SignOutAsync();
-            _completado = true;
+            _mensajeError = string.Join(" ", resultado.Errors.Select(e => e.Description));
+            return;
         }
-        finally
+
+        _usuario.DebeCambiarContrasena = false;
+        var actualizacion = await UserManager.UpdateAsync(_usuario);
+        if (!actualizacion.Succeeded)
         {
-            _guardando = false;
+            // La contraseña ya cambió (ResetPasswordAsync tuvo éxito arriba);
+            // lo que falló es persistir el fin del cambio obligatorio. No se
+            // anuncia éxito ni se cierra sesión: un reintento con el mismo
+            // enlace encontrará el token ya invalidado (la contraseña cambió,
+            // el security stamp rotó) y caerá en _enlaceInvalido, que ya
+            // ofrece pedir uno nuevo.
+            logger.LogError("Restablecimiento de contraseña: la contraseña cambió pero no se pudo persistir el usuario {UsuarioId}: {Errores}",
+                _usuario.Id, string.Join(" ", actualizacion.Errors.Select(e => e.Description)));
+            _mensajeError = string.Join(" ", actualizacion.Errors.Select(e => e.Description));
+            return;
         }
+
+        logger.LogInformation("Restablecimiento de contraseña correcto: {UsuarioId}", _usuario.Id);
+
+        await SignInManager.SignOutAsync();
+        _completado = true;
     }
 
     private sealed class DatosEntrada

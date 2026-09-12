@@ -21,7 +21,6 @@ public partial class OlvideContrasena : ComponentBase
     [SupplyParameterFromForm]
     private DatosEntrada? Entrada { get; set; }
 
-    private bool _enviando;
     private bool _enviado;
     private bool _error;
 
@@ -46,44 +45,35 @@ public partial class OlvideContrasena : ComponentBase
     {
         if (Entrada is null) return;
 
-        _enviando = true;
         _error = false;
-        StateHasChanged();
 
-        try
+        var usuario = await UserManager.FindByEmailAsync(Entrada.Email);
+        if (usuario is not null)
         {
-            var usuario = await UserManager.FindByEmailAsync(Entrada.Email);
-            if (usuario is not null)
+            var token = await UserManager.GeneratePasswordResetTokenAsync(usuario);
+            var tokenCodificado = WebEncoders.Base64UrlEncode(System.Text.Encoding.UTF8.GetBytes(token));
+            var enlace = Navigation.ToAbsoluteUri(
+                $"/cuenta/restablecer-contrasena?userId={usuario.Id}&code={tokenCodificado}").ToString();
+
+            var cuerpo = $"""
+                <p>Recibimos una solicitud para restablecer la contraseña de tu cuenta en {Marca.Nombre}.</p>
+                <p><a href="{System.Net.WebUtility.HtmlEncode(enlace)}">Restablecer mi contraseña</a></p>
+                <p>Este enlace caduca en {MinutosCaducidad} minutos. Si no fuiste tú, puedes ignorar este correo — tu contraseña actual sigue siendo válida.</p>
+                """;
+
+            var resultado = await EmailService.EnviarAsync(
+                usuario.Email!, $"Restablece tu contraseña — {Marca.Nombre}", cuerpo);
+
+            if (resultado.EsFallido)
             {
-                var token = await UserManager.GeneratePasswordResetTokenAsync(usuario);
-                var tokenCodificado = WebEncoders.Base64UrlEncode(System.Text.Encoding.UTF8.GetBytes(token));
-                var enlace = Navigation.ToAbsoluteUri(
-                    $"/cuenta/restablecer-contrasena?userId={usuario.Id}&code={tokenCodificado}").ToString();
-
-                var cuerpo = $"""
-                    <p>Recibimos una solicitud para restablecer la contraseña de tu cuenta en {Marca.Nombre}.</p>
-                    <p><a href="{System.Net.WebUtility.HtmlEncode(enlace)}">Restablecer mi contraseña</a></p>
-                    <p>Este enlace caduca en {MinutosCaducidad} minutos. Si no fuiste tú, puedes ignorar este correo — tu contraseña actual sigue siendo válida.</p>
-                    """;
-
-                var resultado = await EmailService.EnviarAsync(
-                    usuario.Email!, $"Restablece tu contraseña — {Marca.Nombre}", cuerpo);
-
-                if (resultado.EsFallido)
-                {
-                    LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
-                        .LogWarning("No se pudo enviar el correo de restablecimiento de contraseña a {UsuarioId}.", usuario.Id);
-                    _error = true;
-                    return;
-                }
+                LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
+                    .LogWarning("No se pudo enviar el correo de restablecimiento de contraseña a {UsuarioId}.", usuario.Id);
+                _error = true;
+                return;
             }
+        }
 
-            _enviado = true;
-        }
-        finally
-        {
-            _enviando = false;
-        }
+        _enviado = true;
     }
 
     private sealed class DatosEntrada
