@@ -189,6 +189,41 @@
 
     private const int TrabajadoresPorPagina = MaximoTrabajadoresVisibles;
 
+    /// <summary>
+    /// j/k (Bandeja.razor.cs, ManejarAtajoAsync) recorren TODOS los
+    /// ItemsFiltrados sin saber que PaginarPorGrupo solo pinta los primeros
+    /// <see cref="TrabajadoresPorPagina"/> trabajadores de cada Empresa: el
+    /// foco podía caer en una fila que esta tarjeta nunca pintaba (defecto
+    /// medido leyendo código, 2026-09-12). Cuando IdEnfocado cambia y su
+    /// trabajador vive en una página distinta, esta tarjeta salta a
+    /// mostrarla — pero solo en ese instante: si el gestor CAE pagina a mano
+    /// después sin volver a tocar j/k, IdEnfocado no ha cambiado y no se
+    /// fuerza nada, así que el clic manual no se revierte solo en el
+    /// siguiente render.
+    /// </summary>
+    private string? _idEnfocadoSeguido;
+
+    protected override void OnParametersSet()
+    {
+        if (!PaginarPorGrupo || IdEnfocado is null || IdEnfocado == _idEnfocadoSeguido)
+        {
+            _idEnfocadoSeguido = IdEnfocado;
+            return;
+        }
+
+        _idEnfocadoSeguido = IdEnfocado;
+
+        foreach (var empresa in GruposAnidados)
+        {
+            for (var indice = 0; indice < empresa.Trabajadores.Count; indice++)
+            {
+                if (!empresa.Trabajadores[indice].Items.Any(i => i.Id == IdEnfocado)) continue;
+                _paginaPorEmpresa[ClaveEmpresa(empresa)] = indice / TrabajadoresPorPagina + 1;
+                return;
+            }
+        }
+    }
+
     private static string ClaveEmpresa(GrupoEmpresaItems empresa) => empresa.EmpresaId?.ToString() ?? string.Empty;
 
     private int PaginaActualDe(GrupoEmpresaItems empresa) =>
