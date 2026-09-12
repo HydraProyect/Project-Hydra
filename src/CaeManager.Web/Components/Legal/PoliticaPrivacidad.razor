@@ -9,13 +9,30 @@
 
 <PageTitle>Política de Privacidad — @Marca.Nombre</PageTitle>
 
-<div class="documento-legal">
-    <h1>Política de Privacidad</h1>
+<main class="documento-legal" aria-labelledby="titulo-privacidad">
+    <header class="documento-legal-cabecera">
+        <p class="documento-legal-eyebrow">Legal</p>
+        <h1 id="titulo-privacidad">Política de Privacidad</h1>
+    </header>
+
+    <div class="documento-legal-disposicion">
+        <nav class="documento-legal-indice" aria-label="Índice del documento">
+            <a href="#como-leer">Cómo leer este documento</a>
+            <a href="#privacidad-responsable">1. Responsable del tratamiento (ámbito web)</a>
+            <a href="#privacidad-captacion">2. Tratamiento como responsable — por canal de captación</a>
+            <a href="#privacidad-destinatarios">3. Destinatarios y transferencias internacionales</a>
+            <a href="#privacidad-derechos">4. Derechos de las personas interesadas (ámbito web)</a>
+            <a href="#privacidad-encargado">5. Tratamiento como encargado (ámbito plataforma)</a>
+            <a href="#privacidad-menores">6. Menores</a>
+            <a href="#privacidad-modificaciones">7. Modificaciones de esta política</a>
+        </nav>
+
+        <article class="documento-legal-contenido">
     <p class="documento-legal-aviso">
         Versión @CaeManager.Domain.Cumplimiento.VersionTerminos.Actual — borrador operativo, pendiente de revisión legal final.
     </p>
 
-    <h2>Cómo leer este documento</h2>
+    <h2 id="como-leer">Cómo leer este documento</h2>
     <p>Hydra trata datos personales en dos papeles distintos:</p>
     <ul>
         <li><strong>Como responsable del tratamiento</strong>, cuando gestiona el propio sitio web y la relación comercial con quien lo visita o contrata.</li>
@@ -27,10 +44,10 @@
         no Hydra</strong> — Hydra actúa por instrucción suya.
     </p>
 
-    <h2>1. Responsable del tratamiento (ámbito web)</h2>
+    <h2 id="privacidad-responsable">1. Responsable del tratamiento (ámbito web)</h2>
     <p class="documento-legal-pendiente">Pendiente de confirmar: razón social, contacto de privacidad y si el volumen de datos tratados obliga a designar un Delegado de Protección de Datos (DPO).</p>
 
-    <h2>2. Tratamiento como responsable — por canal de captación</h2>
+    <h2 id="privacidad-captacion">2. Tratamiento como responsable — por canal de captación</h2>
     <table class="documento-legal-tabla">
         <thead>
             <tr><th>Canal</th><th>Finalidad</th><th>Categorías de datos</th><th>Legitimación</th></tr>
@@ -43,13 +60,13 @@
         </tbody>
     </table>
 
-    <h2>3. Destinatarios y transferencias internacionales</h2>
+    <h2 id="privacidad-destinatarios">3. Destinatarios y transferencias internacionales</h2>
     <p>
         <strong>Compromiso adoptado: sin transferencias de datos personales fuera del Espacio Económico Europeo.</strong>
         Los datos recogidos por el sitio web y por la plataforma se alojan y procesan íntegramente dentro del EEE.
     </p>
 
-    <h2>4. Derechos de las personas interesadas (ámbito web)</h2>
+    <h2 id="privacidad-derechos">4. Derechos de las personas interesadas (ámbito web)</h2>
     <p>Cualquier persona cuyos datos trate Hydra como responsable puede ejercer, en los términos previstos por el RGPD:</p>
     <ul>
         <li>Derecho de acceso, rectificación y supresión.</li>
@@ -63,7 +80,7 @@
         que el tratamiento no se ajusta a la normativa.
     </p>
 
-    <h2>5. Tratamiento como encargado (ámbito plataforma)</h2>
+    <h2 id="privacidad-encargado">5. Tratamiento como encargado (ámbito plataforma)</h2>
     <p>
         Cuando una organización contrata Hydra como plataforma SaaS, <strong>Hydra actúa como encargado del
         tratamiento</strong> de los datos que esa organización (el tenant) introduce en la plataforma.
@@ -75,14 +92,18 @@
     </ul>
     <p class="documento-legal-pendiente">Pendiente de confirmar: la posición de una Consultora de PRL que opera un Delegated Workspace en nombre de un Cliente Delegante, sujeta a calificación legal.</p>
 
-    <h2>6. Menores</h2>
+    <h2 id="privacidad-menores">6. Menores</h2>
     <p>El Sitio y la plataforma están dirigidos exclusivamente a un uso profesional B2B y no están destinados a menores de edad.</p>
 
-    <h2>7. Modificaciones de esta política</h2>
+    <h2 id="privacidad-modificaciones">7. Modificaciones de esta política</h2>
     <p>
         Hydra podrá modificar esta política para adaptarla a novedades legislativas o cambios en las finalidades del
         tratamiento. Los cambios sustanciales se comunicarán con antelación razonable.
     </p>
 
-    <p class="documento-legal-enlace"><a href="/legal/terminos">← Ver Términos y Condiciones</a></p>
-</div>
+            <footer class="documento-legal-pie">
+                <a class="documento-legal-enlace" href="/legal/terminos">← Ver Términos y Condiciones</a>
+            </footer>
+        </article>
+    </div>
+</main>
