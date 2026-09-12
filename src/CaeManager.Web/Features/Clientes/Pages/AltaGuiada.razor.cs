@@ -43,7 +43,7 @@ public partial class AltaGuiada : ComponentBase
     private static readonly IReadOnlyList<PasoDefinicion> Pasos =
     [
         new("empresa", "Empresa"),
-        new("cliente", "Cliente"),
+        new("cliente", "Cliente empresarial"),
         new("centro", "Centro"),
         new("trabajadores", "Trabajadores")
     ];
@@ -107,6 +107,15 @@ public partial class AltaGuiada : ComponentBase
     private Guid? _clienteId;
     private string _clienteNombre = string.Empty;
 
+    /// <summary>
+    /// El Cliente empresarial ya está creado (<see cref="_clienteId"/> no es
+    /// null) pero la vinculación con la Empresa falló y sigue sin resolverse
+    /// — ver <see cref="CrearClienteNuevoAsync"/> y
+    /// <see cref="ReintentarVinculacionClienteAsync"/>. Nunca se vuelve a
+    /// invitar a crear el Cliente: eso chocaría contra el registro ya persistido.
+    /// </summary>
+    private bool _vinculacionEmpresaClientePendiente;
+
     // Paso 3: Centro — Cliente y Empresa viajan fijos (nunca se editan aquí);
     // "Guardar centro" se puede pulsar varias veces sin salir del paso.
     private string _nombreCentro = string.Empty;
@@ -134,8 +143,17 @@ public partial class AltaGuiada : ComponentBase
     private string? _mensajeErrorTrabajador;
     private Dictionary<string, string> _erroresTrabajador = new();
 
+    private Guid? _ultimoTrabajadorId;
     private string _ultimoTrabajadorNombre = string.Empty;
     private int _trabajadoresCreados;
+
+    /// <summary>
+    /// Si la asignación del último Trabajador creado al Centro sigue sin
+    /// resolverse — ver <see cref="AsignarTrabajadorRecienCreadoAsync"/>. El
+    /// resumen del paso (AltaGuiada.razor) lo lee para no anunciar "asignado
+    /// al centro" cuando esa segunda escritura todavía no ocurrió.
+    /// </summary>
+    private bool _ultimoTrabajadorAsignacionPendiente;
 
     protected override async Task OnInitializedAsync()
     {
@@ -193,7 +211,7 @@ public partial class AltaGuiada : ComponentBase
     }
 
     private static readonly IReadOnlyList<BreadcrumbElemento> MigueroEstatico =
-        [new BreadcrumbElemento("Clientes"), new BreadcrumbElemento("Alta guiada")];
+        [new BreadcrumbElemento("Clientes empresariales"), new BreadcrumbElemento("Alta guiada")];
 
     private IReadOnlyList<BreadcrumbElemento> Miguero => MigueroEstatico;
 
@@ -205,6 +223,12 @@ public partial class AltaGuiada : ComponentBase
 
     private async Task GuardarEmpresaAsync()
     {
+        // Guarda de reentrada del método, no del botón: Boton conserva su
+        // @onclick enganchado aunque esté disabled, y un segundo clic ya
+        // viajaba cuando el primero puso "Cargando" — mismo patrón que
+        // AcordeonAsignacionesCentro.ConfirmarBajaLoteAsync.
+        if (_guardandoEmpresa) return;
+
         _guardandoEmpresa = true;
         _mensajeErrorEmpresa = null;
         _erroresEmpresa = new Dictionary<string, string>();
@@ -294,6 +318,9 @@ public partial class AltaGuiada : ComponentBase
 
     private async Task GuardarClienteAsync()
     {
+        // Guarda de reentrada del método, no del botón — ver GuardarEmpresaAsync.
+        if (_guardandoCliente) return;
+
         _guardandoCliente = true;
         _mensajeErrorCliente = null;
         _erroresCliente = new Dictionary<string, string>();
@@ -323,7 +350,7 @@ public partial class AltaGuiada : ComponentBase
     {
         if (!Guid.TryParse(_clienteExistenteId, out var clienteId))
         {
-            _mensajeErrorCliente = "Selecciona un cliente.";
+            _mensajeErrorCliente = "Selecciona un Cliente empresarial.";
             return;
         }
 
@@ -334,7 +361,7 @@ public partial class AltaGuiada : ComponentBase
         _clienteNombre = _clientesCatalogo.First(c => c.Id == clienteId).RazonSocial;
         _pasosCompletados.Add("cliente");
         _pasoActual = "centro";
-        ToastService.Mostrar("Empresa vinculada al cliente.", TonoToast.Exito);
+        ToastService.Mostrar("Empresa vinculada al Cliente empresarial.", TonoToast.Exito);
     }
 
     private async Task CrearClienteNuevoAsync()
@@ -351,14 +378,60 @@ public partial class AltaGuiada : ComponentBase
 
         var clienteId = resultado.Valor;
 
-        await VincularEmpresaAClienteAsync(clienteId);
-        if (_mensajeErrorCliente is not null) return;
-
+        // El Cliente empresarial YA está persistido a partir de aquí: son dos
+        // escrituras (CrearClienteCommand y, a continuación,
+        // EditarEmpresaCommand para la vinculación), no una transacción — si
+        // la segunda falla, el registro del Cliente sigue existiendo y no hay
+        // vuelta atrás honesta. Por eso _clienteId se fija YA: un reintento de
+        // la vinculación no puede volver a crear el Cliente, y este panel deja
+        // de invitar a repetir el alta (ver el bloque "_clienteId is null" de
+        // AltaGuiada.razor).
         _clienteId = clienteId;
         _clienteNombre = _razonSocialCliente;
         _pasosCompletados.Add("cliente");
+
+        await VincularEmpresaAClienteAsync(clienteId);
+
+        if (_mensajeErrorCliente is not null)
+        {
+            _vinculacionEmpresaClientePendiente = true;
+            var mensajeVinculacion = _mensajeErrorCliente;
+            _mensajeErrorCliente = null;
+            ToastService.Mostrar(
+                $"Cliente empresarial «{_clienteNombre}» creado, pero no se pudo vincular con la Empresa: {mensajeVinculacion}",
+                TonoToast.Advertencia, "Reintentar vinculación", () => ReintentarVinculacionClienteAsync(clienteId));
+            return;
+        }
+
         _pasoActual = "centro";
-        ToastService.Mostrar("Cliente creado correctamente.", TonoToast.Exito);
+        ToastService.Mostrar("Cliente empresarial creado correctamente.", TonoToast.Exito);
+    }
+
+    /// <summary>
+    /// Reintento manual de la vinculación tras un fallo parcial: el Cliente
+    /// empresarial ya existe (se creó en <see cref="CrearClienteNuevoAsync"/>),
+    /// esto solo repite <see cref="VincularEmpresaAClienteAsync"/> — nunca
+    /// vuelve a crear el Cliente. Se llama desde el botón "Reintentar
+    /// vinculación" del resumen y desde la acción del propio toast de aviso.
+    /// </summary>
+    private async Task ReintentarVinculacionClienteAsync(Guid clienteId)
+    {
+        await VincularEmpresaAClienteAsync(clienteId);
+
+        if (_mensajeErrorCliente is not null)
+        {
+            var mensajeVinculacion = _mensajeErrorCliente;
+            _mensajeErrorCliente = null;
+            ToastService.Mostrar(
+                $"Sigue sin poder vincularse: {mensajeVinculacion}",
+                TonoToast.Advertencia, "Reintentar vinculación", () => ReintentarVinculacionClienteAsync(clienteId));
+            StateHasChanged();
+            return;
+        }
+
+        _vinculacionEmpresaClientePendiente = false;
+        ToastService.Mostrar("Empresa vinculada al Cliente empresarial.", TonoToast.Exito);
+        StateHasChanged();
     }
 
     /// <summary>
@@ -394,6 +467,8 @@ public partial class AltaGuiada : ComponentBase
     private async Task GuardarCentroAsync()
     {
         if (_clienteId is null || _empresaId is null) return;
+        // Guarda de reentrada del método, no del botón — ver GuardarEmpresaAsync.
+        if (_guardandoCentro) return;
 
         _guardandoCentro = true;
         _mensajeErrorCentro = null;
@@ -449,6 +524,8 @@ public partial class AltaGuiada : ComponentBase
     private async Task GuardarTrabajadorAsync()
     {
         if (_empresaId is null) return;
+        // Guarda de reentrada del método, no del botón — ver GuardarEmpresaAsync.
+        if (_guardandoTrabajador) return;
 
         _guardandoTrabajador = true;
         _mensajeErrorTrabajador = null;
@@ -468,34 +545,34 @@ public partial class AltaGuiada : ComponentBase
             }
 
             var trabajadorId = resultado.Valor;
+            var trabajadorNombre = $"{_nombreTrabajador} {_apellidosTrabajador}";
 
-            // El centro es el que se acaba de crear (o el que llegó por query
-            // string en una rama que entró ya con él resuelto) — asignar de
-            // inmediato es lo que cierra "dar de alta a los trabajadores en
-            // la empresa que ya se creó y poder asignarlos a los centros a
-            // los que ingresan" sin salir del asistente.
-            if (_ultimoCentroId is { } centroId)
-            {
-                var resultadoAsignacion = await Mediator.Send(
-                    new CrearAsignacionCommand(trabajadorId, centroId, DateOnly.FromDateTime(DateTime.Today)));
-
-                if (resultadoAsignacion.EsFallido)
-                {
-                    _mensajeErrorTrabajador = resultadoAsignacion.Error.Mensaje;
-                    return;
-                }
-            }
-
+            // El Trabajador YA está persistido a partir de aquí: la
+            // asignación al centro (segundo Command, CrearAsignacionCommand)
+            // es una escritura aparte que puede fallar por su cuenta. Se
+            // cuenta como creado, se limpia el formulario para el siguiente
+            // (evita chocar contra este mismo DNI si alguien reintenta) y
+            // cualquier fallo de la asignación se avisa y se ofrece
+            // reintentar sobre ESTE trabajador — nunca crea uno nuevo.
             _pasosCompletados.Add("trabajadores");
-            _ultimoTrabajadorNombre = $"{_nombreTrabajador} {_apellidosTrabajador}";
+            _ultimoTrabajadorId = trabajadorId;
+            _ultimoTrabajadorNombre = trabajadorNombre;
             _trabajadoresCreados++;
-            ToastService.Mostrar("Trabajador creado y asignado correctamente.", TonoToast.Exito);
 
             _nombreTrabajador = string.Empty;
             _apellidosTrabajador = string.Empty;
             _dniTrabajador = string.Empty;
             _emailTrabajador = string.Empty;
             _puestoTrabajador = string.Empty;
+
+            if (_ultimoCentroId is not { } centroId)
+            {
+                ToastService.Mostrar($"{trabajadorNombre} creado correctamente.", TonoToast.Exito);
+                return;
+            }
+
+            _ultimoTrabajadorAsignacionPendiente = true;
+            await AsignarTrabajadorRecienCreadoAsync(trabajadorId, trabajadorNombre, centroId);
         }
         catch (ValidationException ex)
         {
@@ -509,6 +586,54 @@ public partial class AltaGuiada : ComponentBase
         {
             _guardandoTrabajador = false;
         }
+    }
+
+    /// <summary>
+    /// Asigna al Trabajador recién creado (ya persistido, ver
+    /// <see cref="GuardarTrabajadorAsync"/>) al centro de este asistente. Un
+    /// fallo aquí —de red, de autorización, lo que sea— no deshace ni oculta
+    /// la creación: se avisa con el nombre del Trabajador y se ofrece
+    /// reintentar la asignación sola, sobre el mismo <paramref name="trabajadorId"/>.
+    /// </summary>
+    private async Task AsignarTrabajadorRecienCreadoAsync(Guid trabajadorId, string trabajadorNombre, Guid centroId)
+    {
+        try
+        {
+            var resultadoAsignacion = await Mediator.Send(
+                new CrearAsignacionCommand(trabajadorId, centroId, DateOnly.FromDateTime(DateTime.Today)));
+
+            if (resultadoAsignacion.EsFallido)
+            {
+                ToastService.Mostrar(
+                    $"{trabajadorNombre} se creó, pero no se pudo asignar a {_ultimoCentroNombre}: {resultadoAsignacion.Error.Mensaje}",
+                    TonoToast.Advertencia, "Reintentar asignación",
+                    () => AsignarTrabajadorRecienCreadoAsync(trabajadorId, trabajadorNombre, centroId));
+                return;
+            }
+
+            _ultimoTrabajadorAsignacionPendiente = false;
+            ToastService.Mostrar($"{trabajadorNombre} creado y asignado correctamente.", TonoToast.Exito);
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(
+                $"{trabajadorNombre} se creó, pero no pudimos asignarlo. Intenta nuevamente en unos segundos.",
+                TonoToast.Advertencia, "Reintentar asignación",
+                () => AsignarTrabajadorRecienCreadoAsync(trabajadorId, trabajadorNombre, centroId));
+        }
+        finally
+        {
+            // Necesario para el reintento: se llama desde la acción de un
+            // toast, fuera del ciclo normal de eventos de este componente, y
+            // sin esto el resumen del paso no reflejaría el nuevo estado.
+            StateHasChanged();
+        }
+    }
+
+    private string SufijoAsignacionUltimoTrabajador()
+    {
+        if (_ultimoCentroId is null) return "";
+        return _ultimoTrabajadorAsignacionPendiente ? "" : " y asignado al centro";
     }
 
     private Task VerClienteAsync() =>
