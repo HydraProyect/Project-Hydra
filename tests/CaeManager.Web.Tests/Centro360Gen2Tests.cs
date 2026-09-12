@@ -828,4 +828,40 @@ public class Centro360Gen2Tests : BunitContext
         await enB;
         await otroEnB;
     }
+
+    /// <summary>
+    /// Los dos filtros de la barra de trabajo viajan en la URL para que un
+    /// centro filtrado se pueda enlazar, y quitarlos también los quita de ahí:
+    /// una pantalla sin filtro cuya URL siga llevándolos los repone en cuanto
+    /// alguien recarga o comparte el enlace. El autor lo dejó declarado como
+    /// hueco —comportamiento nuevo sin test—, así que esto lo cierra.
+    /// </summary>
+    [Fact]
+    public async Task El_filtro_de_estado_viaja_a_la_URL_y_limpiar_filtros_lo_quita()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        mediador.Asignaciones[id] =
+        [
+            Asignado("Juan Pérez", EstadoDocumento.Vencido, Documento("Formación PRL", EstadoDocumento.Vencido)),
+            Asignado("Marco Vila", EstadoDocumento.Vigente, Documento("Formación PRL", EstadoDocumento.Vigente))
+        ];
+
+        var cut = Renderizar(id);
+        var navegador = Services.GetRequiredService<NavigationManager>();
+
+        await cut.Find(".barra-filtros select").ChangeAsync(
+            new ChangeEventArgs { Value = nameof(EstadoDocumento.Vencido) });
+
+        navegador.Uri.Should().Contain($"estado={nameof(EstadoDocumento.Vencido)}",
+            "un centro filtrado tiene que poder enlazarse");
+
+        await Boton(cut, "Limpiar filtros").ClickAsync(new MouseEventArgs());
+
+        navegador.Uri.Should().NotContain("estado=",
+            "una pantalla sin filtro cuya URL siga llevándolo lo repone al recargar");
+        cut.FindAll(".barra-filtros button").Where(b => b.TextContent.Trim() == "Limpiar filtros")
+            .Should().BeEmpty("sin filtros puestos no hay nada que limpiar");
+    }
 }
