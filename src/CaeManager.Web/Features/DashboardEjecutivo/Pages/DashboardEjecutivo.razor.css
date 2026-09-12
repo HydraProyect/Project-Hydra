@@ -1,6 +1,6 @@
 /* Espaciado propio de esta página (aislado por Blazor CSS scoping) — sin
-   Tarjeta envolviendo ya el "Personalizar" (H6, docs/ux-audit/01-dashboards.md),
-   hace falta separar la cabecera colapsable del bloque de KPIs siguiente. */
+   Tarjeta envolviendo ya el "Personalizar", hace falta separar la cabecera
+   colapsable del bloque de KPIs siguiente. */
 ::deep .seccion-colapsable {
     margin-bottom: var(--space-5);
 }
@@ -28,33 +28,262 @@
     cursor: pointer;
 }
 
-/*
-  Tema del DS en ApexCharts (H5, docs/ux-audit/01-dashboards.md): la
-  librería pinta la leyenda del donut y las etiquetas de los ejes con sus
-  colores por defecto (gris oscuro fijo), ilegibles sobre el fondo oscuro —
-  DashboardEjecutivo.razor no le pasaba ninguna opción de tema. ApexCharts
-  fija esos colores inline al renderizar (JS, no Razor), así que `!important`
-  es la única forma de que los tokens del DS ganen sin reescribir el motor
-  de temas de la librería. `::deep` porque ese DOM lo inserta ApexCharts.js
-  dentro del contenedor, no el propio árbol de Razor con el scope de Blazor.
-*/
-::deep .apexcharts-legend-text {
-    color: var(--color-text) !important;
+/* Resumen "N de M KPI mostrados" en la cabecera del colapsable, y el aviso de
+   que lo marcado todavía no está guardado junto al botón que lo guarda: es ahí
+   donde se decide pulsarlo. */
+.resumen-seleccion {
+    font: var(--font-label);
+    color: var(--color-text-muted);
 }
 
-::deep .apexcharts-text,
-::deep .apexcharts-yaxis-label tspan,
-::deep .apexcharts-xaxis-label tspan,
-::deep .apexcharts-datalabel-label,
-::deep .apexcharts-datalabel-value {
-    fill: var(--color-text) !important;
+.acciones-personalizar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+}
+
+/* Sección de tiles: título a la izquierda, periodo y alcance a la derecha. */
+.seccion-kpis {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-bottom: var(--space-6);
+}
+
+.cabecera-seccion-kpis {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+}
+
+.titulo-seccion-kpis {
+    margin: 0;
+    font: var(--font-heading-md);
+}
+
+.periodo-texto {
+    font: var(--font-label);
+    color: var(--color-text-muted);
+}
+
+/* Descripción del KPI, a la derecha de su título dentro de la tarjeta. Vive en
+   .tarjeta-acciones, que pinta Tarjeta.razor, pero el <span> es de esta página
+   y por tanto lleva su atributo de ámbito: la regla sí casa. */
+.descripcion-kpi {
+    display: inline-block;
+    max-width: 32rem;
+    text-align: right;
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.tarjeta-kpi {
+    margin-bottom: var(--space-5);
+}
+
+/* Alcance distinto del resto del panel: la consulta que alimenta este KPI no
+   recorre las demás organizaciones. */
+.aviso-alcance-kpi {
+    margin: 0 0 var(--space-3);
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+/* ------------------------------------------------------------------ donut */
+
+.grafico-donut {
+    display: flex;
+    align-items: center;
+    gap: var(--space-8);
+    flex-wrap: wrap;
+}
+
+.donut {
+    width: 180px;
+    height: 180px;
+    flex: none;
+}
+
+.donut-fondo {
+    fill: none;
+    stroke: var(--color-border);
+}
+
+.donut-arco {
+    fill: none;
+}
+
+.donut-total {
+    fill: var(--color-text);
+    font-size: 26px;
+    font-weight: 700;
+}
+
+.leyenda-donut {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-width: 14rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.leyenda-donut-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 24px;
+    font: var(--font-body-md);
+}
+
+.leyenda-donut-punto {
+    width: 10px;
+    height: 10px;
+    flex: none;
+    border-radius: 2px;
+}
+
+.leyenda-donut-etiqueta {
+    flex: 1;
+}
+
+.leyenda-donut-valor {
+    font-weight: 600;
+}
+
+.grafico-total {
+    margin: var(--space-3) 0 0;
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+/* ------------------------------------------------------------------ barras */
+
+.barras-kpi {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.barra-kpi {
+    display: grid;
+    grid-template-columns: minmax(0, 18rem) 1fr auto;
+    align-items: center;
+    gap: var(--space-4);
+    min-height: 32px;
+}
+
+.barra-kpi-etiqueta {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+.barra-kpi-carril {
+    display: block;
+    height: 18px;
+    border-radius: var(--radius-sm);
+    background-color: var(--color-surface-subtle);
+    overflow: hidden;
+}
+
+.barra-kpi-relleno {
+    display: block;
+    height: 100%;
+    border-radius: var(--radius-sm);
+}
+
+.barra-kpi-valor {
+    font: var(--font-body-md);
+    font-weight: 600;
+    text-align: right;
+    min-width: 3.5rem;
+}
+
+/* Sin barra y con motivo: un 0% dibujado sería indistinguible de una ausencia. */
+.barra-kpi-sin-dato {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+    text-align: right;
+}
+
+/* Tonos compartidos por los arcos del donut (stroke) y los rellenos de las
+   barras (background): el mismo semáforo documental del resto del producto. */
+.donut-arco.segmento-exito {
+    stroke: var(--color-success-500);
+}
+
+.donut-arco.segmento-advertencia {
+    stroke: var(--color-warning-500);
+}
+
+.donut-arco.segmento-advertencia-fuerte {
+    stroke: var(--color-warning-700);
+}
+
+.donut-arco.segmento-peligro {
+    stroke: var(--color-danger-500);
+}
+
+.donut-arco.segmento-neutro {
+    stroke: var(--color-primary-500);
+}
+
+.leyenda-donut-punto.segmento-exito,
+.barra-kpi-relleno.segmento-exito {
+    background-color: var(--color-success-500);
+}
+
+.leyenda-donut-punto.segmento-advertencia,
+.barra-kpi-relleno.segmento-advertencia {
+    background-color: var(--color-warning-500);
+}
+
+.leyenda-donut-punto.segmento-advertencia-fuerte,
+.barra-kpi-relleno.segmento-advertencia-fuerte {
+    background-color: var(--color-warning-700);
+}
+
+.leyenda-donut-punto.segmento-peligro,
+.barra-kpi-relleno.segmento-peligro {
+    background-color: var(--color-danger-500);
+}
+
+.leyenda-donut-punto.segmento-neutro,
+.barra-kpi-relleno.segmento-neutro {
+    background-color: var(--color-primary-500);
+}
+
+/* ------------------------------------------------------------------ tablas */
+
+.nombre-empresa-riesgo {
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.nombre-empresa-riesgo:hover,
+.nombre-empresa-riesgo:focus-visible {
+    color: var(--color-primary-500);
+}
+
+.reparto-horas {
+    font-weight: 600;
 }
 
 /*
   Barra comparativa "gestiones automáticas vs manuales" — dos segmentos
   proporcionales al %, sin librería de gráficos. Migrada desde el Dashboard
-  actual (docs/blueprints/OPERATIONAL-HOME.md § 7): el aislamiento de CSS de
-  Blazor no cruza entre componentes, así que el estilo viaja con el markup.
+  actual: el aislamiento de CSS de Blazor no cruza entre componentes, así que
+  el estilo viaja con el markup.
 */
 .barra-comparativa {
     display: flex;
@@ -107,6 +336,64 @@
     height: 10px;
     border-radius: var(--radius-full);
     flex-shrink: 0;
+}
+
+/* ------------------------------------------------------------------ pulso */
+
+.pulso-negocio {
+    display: flex;
+    align-items: center;
+    gap: var(--space-8);
+    flex-wrap: wrap;
+    padding: var(--space-6);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.pulso-negocio-titular {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.pulso-negocio-kicker {
+    font: var(--font-caption);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-text-muted);
+}
+
+.pulso-negocio-frase {
+    font: var(--font-heading-sm);
+}
+
+.pulso-negocio-cifras {
+    display: flex;
+    gap: var(--space-6);
+    flex-wrap: wrap;
+    padding-left: var(--space-8);
+    border-left: 1px solid var(--color-border);
+}
+
+.pulso-negocio-cifra {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.pulso-negocio-etiqueta {
+    font: var(--font-body-md);
+    color: var(--color-text-muted);
+}
+
+.pulso-negocio-valor {
+    font: var(--font-heading-sm);
+}
+
+.enlace-facturacion {
+    margin-left: auto;
+    font: var(--font-label);
 }
 
 /* Selector de periodo: en línea con la cabecera en escritorio, apilado en móvil.
