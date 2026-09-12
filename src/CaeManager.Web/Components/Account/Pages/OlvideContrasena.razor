@@ -13,6 +13,11 @@
     {
         <CabeceraAcceso Titulo="¿Has olvidado la contraseña?" Explicacion="@ExplicacionFormulario" />
 
+        @if (_error)
+        {
+            <div class="acceso-alerta" role="alert">No pudimos procesar tu solicitud. Inténtalo de nuevo en unos minutos.</div>
+        }
+
         @if (Entrada is not null)
         {
             <EditForm Model="Entrada" method="post" OnValidSubmit="EnviarAsync" FormName="olvide-contrasena" novalidate>

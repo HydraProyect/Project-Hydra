@@ -4,6 +4,7 @@
 @using System.ComponentModel.DataAnnotations
 @using System.Security.Claims
 @using CaeManager.Infrastructure.Identity
+@using CaeManager.Web.Components.Account
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Identity
@@ -13,6 +14,7 @@
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
 @inject IOptions<IdentityOptions> OpcionesIdentity
+@inject ILoggerFactory LoggerFactory
 
 <PageTitle>Cambiar contraseña — @Marca.Nombre</PageTitle>
 
@@ -96,7 +98,20 @@
         }
 
         usuario.DebeCambiarContrasena = false;
-        await UserManager.UpdateAsync(usuario);
+        var actualizacion = await UserManager.UpdateAsync(usuario);
+        if (!actualizacion.Succeeded)
+        {
+            // La contraseña ya cambió (ChangePasswordAsync tuvo éxito arriba);
+            // lo que falló es persistir el fin del cambio obligatorio. No se
+            // refresca la sesión ni se navega: el guard de MainLayout volverá
+            // a traer a esta misma pantalla en la siguiente navegación, con
+            // DebeCambiarContrasena todavía en true.
+            LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
+                .LogError("Cambio de contraseña obligatorio: la contraseña cambió pero no se pudo persistir el usuario {UsuarioId}: {Errores}",
+                    usuario.Id, string.Join(" ", actualizacion.Errors.Select(e => e.Description)));
+            mensajeError = string.Join(" ", actualizacion.Errors.Select(e => e.Description));
+            return;
+        }
 
         // Reemite la cookie de autenticación tras el cambio de credencial —
         // práctica estándar de Identity (rota el security stamp) aunque el

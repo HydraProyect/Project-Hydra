@@ -131,7 +131,20 @@ public partial class RestablecerContrasena : ComponentBase
             }
 
             _usuario.DebeCambiarContrasena = false;
-            await UserManager.UpdateAsync(_usuario);
+            var actualizacion = await UserManager.UpdateAsync(_usuario);
+            if (!actualizacion.Succeeded)
+            {
+                // La contraseña ya cambió (ResetPasswordAsync tuvo éxito arriba);
+                // lo que falló es persistir el fin del cambio obligatorio. No se
+                // anuncia éxito ni se cierra sesión: un reintento con el mismo
+                // enlace encontrará el token ya invalidado (la contraseña cambió,
+                // el security stamp rotó) y caerá en _enlaceInvalido, que ya
+                // ofrece pedir uno nuevo.
+                logger.LogError("Restablecimiento de contraseña: la contraseña cambió pero no se pudo persistir el usuario {UsuarioId}: {Errores}",
+                    _usuario.Id, string.Join(" ", actualizacion.Errors.Select(e => e.Description)));
+                _mensajeError = string.Join(" ", actualizacion.Errors.Select(e => e.Description));
+                return;
+            }
 
             logger.LogInformation("Restablecimiento de contraseña correcto: {UsuarioId}", _usuario.Id);
 
