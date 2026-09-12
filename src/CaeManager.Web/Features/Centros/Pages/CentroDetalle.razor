@@ -32,23 +32,27 @@
     }
     else if (_detalle is not null)
     {
-        <div class="centro360-cabecera">
-            <AnilloCumplimiento Porcentaje="_resumen?.CumplimientoPorcentaje" Tamano="TamanoAnillo.Cabecera"
-                                 Etiqueta="@($"{_resumen?.CumplimientoPorcentaje}% de cumplimiento — documentos al día / requeridos entre los trabajadores de este centro")" />
-            <div class="centro360-identidad">
-                <h1 class="centro360-titulo">@_detalle.Nombre</h1>
-                <p class="centro360-meta">
-                    Cliente: <button type="button" class="enlace-nombre-fila" @onclick="AbrirCliente">@_detalle.ClienteRazonSocial</button>
-                    · Empresa: <button type="button" class="enlace-nombre-fila" @onclick="AbrirEmpresa">@_detalle.EmpresaRazonSocial</button>
-                    @if (_visitas.Count > 0)
-                    {
-                        var proxima = _visitas[0];
-                        <text> · Próxima visita: <b>@proxima.FechaInicio.ToString("dd/MM")–@proxima.FechaFin.ToString("dd/MM")</b></text>
-                    }
-                </p>
+        @*
+            Cabecera de entidad con la primitiva única de Gen 2
+            (CabeceraPagina): el título, lo que califica al centro «junto al
+            título», la identidad de sus contrapartes como entradilla, y a la
+            derecha el anillo con la acción principal y el resto en un menú,
+            igual que el mockup.
+        *@
+        <CabeceraPagina Titulo="@_detalle.Nombre">
+            <Descripcion>
+                Cliente empresarial: <button type="button" class="enlace-nombre-fila" @onclick="AbrirCliente">@_detalle.ClienteRazonSocial</button>
+                · Empresa: <button type="button" class="enlace-nombre-fila" @onclick="AbrirEmpresa">@_detalle.EmpresaRazonSocial</button>
+                @if (_visitas.Count > 0)
+                {
+                    var proxima = _visitas[0];
+                    <text> · Próxima visita: <b>@proxima.FechaInicio.ToString("dd/MM")–@proxima.FechaFin.ToString("dd/MM")</b></text>
+                }
+            </Descripcion>
+            <JuntoAlTitulo>
                 @if (_resumen is not null)
                 {
-                    <div class="centro360-indicadores">
+                    <span class="centro360-indicadores">
                         @if (_resumen.Estado == EstadoCentro.Bloqueado)
                         {
                             <Badge Tono="TonoBadge.Peligro">Acceso bloqueado</Badge>
@@ -83,25 +87,47 @@
                                 </Detalle>
                             </VentanaContexto>
                         }
-                    </div>
+                    </span>
                 }
-            </div>
-            <div class="centro360-acciones">
+            </JuntoAlTitulo>
+            <Acciones>
+                <span class="centro360-acciones">
+                <AnilloCumplimiento Porcentaje="_resumen?.CumplimientoPorcentaje" Tamano="TamanoAnillo.Cabecera"
+                                     Etiqueta="@($"{_resumen?.CumplimientoPorcentaje}% de cumplimiento — documentos al día / requeridos entre los trabajadores de este centro")" />
                 <Boton OnClick="ProgramarVisita">Programar visita</Boton>
-                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="AbrirInformacion">Editar centro</Boton>
-                @* Remite al panel a propósito (ver doc de la clase): el drawer de
-                   confirmación vive allí y ese segundo paso es deliberado
-                   (COMUNICACIONES.md § 16.3, "siempre confirmar"). Lo que sí se
-                   decide aquí es SI hay algo que reclamar, para no ofrecer una
-                   acción sin objeto. *@
-                @if (_documentosPorReclamar > 0)
-                {
-                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="AbrirInformacion">
-                        Reclamar documentación (@_documentosPorReclamar)
-                    </Boton>
-                }
-                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="GenerarInformeDelCentro">Generar informe del centro</Boton>
-            </div>
+                @*
+                    El resto de acciones, en el menú «⋯» del mockup. «Reclamar
+                    documentación» remite al panel a propósito (ver doc de la
+                    clase): el drawer de confirmación vive allí y ese segundo
+                    paso es deliberado (COMUNICACIONES.md § 16.3, "siempre
+                    confirmar"). Lo que sí se decide aquí es SI hay algo que
+                    reclamar, para no ofrecer una acción sin objeto.
+                *@
+                <MenuAcciones>
+                    <ItemMenuAccion OnClick="AbrirInformacion">Editar centro</ItemMenuAccion>
+                    @if (_documentosPorReclamar > 0)
+                    {
+                        <ItemMenuAccion OnClick="AbrirInformacion">Reclamar documentación (@_documentosPorReclamar)</ItemMenuAccion>
+                    }
+                    <ItemMenuAccion OnClick="GenerarInformeDelCentro">Generar informe del centro</ItemMenuAccion>
+                </MenuAcciones>
+                </span>
+            </Acciones>
+        </CabeceraPagina>
+
+        @*
+            Barra de trabajo del mockup (data-workbar). Filtra client-side lo
+            que el acordeón ya cargó —ninguna consulta nueva— y los dos filtros
+            viajan en la URL para que un centro filtrado se pueda enlazar.
+        *@
+        <div class="barra-filtros">
+            <CampoTexto Placeholder="Buscar trabajador en este centro…" Valor="@_busqueda" ValorChanged="Buscar" />
+            <FiltroEstado Etiqueta="Estado" TextoTodos="Todos" Valor="@_estadoFiltro" ValorChanged="CambiarEstado"
+                          Opciones="AcordeonAsignacionesCentro.OpcionesEstadoDocumental" />
+            @if (HayFiltrosActivos)
+            {
+                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="LimpiarFiltros">Limpiar filtros</Boton>
+            }
         </div>
 
         <div class="centro360-cuerpo">
@@ -112,6 +138,8 @@
                                               EmpresaId="_detalle.EmpresaId" EmpresaNombre="@_detalle.EmpresaRazonSocial"
                                               IncidenciasEmpresa="IncidenciasEmpresaHeader"
                                               SoloIncidencias="false"
+                                              FiltroTexto="@_busqueda" FiltroEstado="@_estadoFiltro"
+                                              MostrarTotales="true"
                                               OnCambio="CargarAsync" />
             </div>
 
@@ -153,6 +181,27 @@
                                             </Badge>
                                         }
                                     </span>
+                                    @*
+                                        Copiar lo que el canal sirve para pegar en otra
+                                        parte (el mockup: «Copiar dirección»). La
+                                        contraseña NO: este DTO no la trae, y DEC-53/DEC-62
+                                        exige que solo viaje tras una acción explícita en la
+                                        pantalla que la gobierna.
+                                    *@
+                                    @if (!string.IsNullOrWhiteSpace(canal.EmailsDestinatarios))
+                                    {
+                                        <span class="centro360-canal-detalle">
+                                            @canal.EmailsDestinatarios
+                                            <BotonCopiar Valor="@canal.EmailsDestinatarios" Etiqueta="la dirección de este canal" />
+                                        </span>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(canal.UrlAcceso))
+                                    {
+                                        <span class="centro360-canal-detalle">
+                                            @canal.UrlAcceso
+                                            <BotonCopiar Valor="@canal.UrlAcceso" Etiqueta="la dirección del portal" />
+                                        </span>
+                                    }
                                 </li>
                             }
                         </ul>

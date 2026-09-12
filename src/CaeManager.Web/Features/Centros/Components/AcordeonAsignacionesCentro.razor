@@ -173,7 +173,13 @@ else
     }
     else
     {
-        @if (TrabajadoresAMostrar.Count > 1)
+        @*
+            El buscador propio solo aparece cuando nadie lo gobierna desde
+            fuera: en Centro 360 la búsqueda vive en la barra de trabajo del
+            mockup y viaja en la URL, y pintarla también aquí serían dos
+            campos que dicen lo mismo sobre la misma lista.
+        *@
+        @if (!BusquedaGobernadaFuera && TrabajadoresAMostrar.Count > 1)
         {
             <div class="acordeon-asignaciones-busqueda">
                 <CampoTexto Placeholder="Buscar trabajador…" Valor="@_busquedaTrabajador" ValorChanged="v => _busquedaTrabajador = v" />
@@ -181,11 +187,15 @@ else
         }
         @if (TrabajadoresFiltrados.Count == 0)
         {
-            <EstadoVacio Titulo="Sin coincidencias" Descripcion="@($"Ningún trabajador coincide con «{_busquedaTrabajador}».")">
+            @* Vacío POR FILTRO, distinto del vacío por no haber trabajadores: dice cuál de los dos filtros no encontró nada. *@
+            <EstadoVacio Titulo="Sin coincidencias" Descripcion="@DescripcionSinCoincidencias">
                 <Accion>
-                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => _busquedaTrabajador = string.Empty">
-                        Limpiar búsqueda
-                    </Boton>
+                    @if (!BusquedaGobernadaFuera)
+                    {
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => _busquedaTrabajador = string.Empty">
+                            Limpiar búsqueda
+                        </Boton>
+                    }
                 </Accion>
             </EstadoVacio>
         }
@@ -406,6 +416,23 @@ else
                 </div>
             }
         </div>
+        }
+        @*
+            Pie de totales («Totales del centro» del mockup). Cuenta la lista
+            COMPLETA cargada, no la filtrada: es el denominador del centro, no
+            un recuento de lo que se ve. Y habla de los trabajadores, no «del
+            centro» a secas — la documentación de la Empresa va en su propio
+            bloque y no entra en esta suma.
+        *@
+        @if (MostrarTotales && TotalesDocumentales.Exigidos > 0)
+        {
+            <div class="nota-trabajadores-ocultos" data-totales-documentales>
+                <span>
+                    Documentación de los trabajadores de este centro:
+                    @TotalesDocumentales.Exigidos exigidos · @TotalesDocumentales.AlDia al día ·
+                    @TotalesDocumentales.Vencidos vencidos · @TotalesDocumentales.Faltantes faltantes
+                </span>
+            </div>
         }
         @if (TrabajadoresOcultosAlDia > 0)
         {
