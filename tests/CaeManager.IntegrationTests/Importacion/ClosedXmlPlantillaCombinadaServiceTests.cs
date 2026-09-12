@@ -13,10 +13,13 @@ namespace CaeManager.IntegrationTests.Importacion;
 /// auditada por REC-129. Las cuatro hojas comparten el salto silencioso de
 /// la fila de ejemplo (probado una vez por hoja); "Contrato vigente hasta"
 /// y "Fecha de nacimiento" son las dos pérdidas de dato reales que
-/// encontró la medición: antes de este incremento, una fecha presente pero
-/// ilegible se colapsaba en <c>null</c> exactamente igual que una celda
-/// vacía, sin ningún registro — la fila se importaba igual, pero el dato
-/// desaparecía sin traza.
+/// encontró la medición: una fecha presente pero ilegible llegó a colapsarse
+/// en <c>null</c> exactamente igual que una celda vacía, sin ningún registro
+/// — la fila se importaba igual, pero el dato desaparecía sin traza. Quedan
+/// registradas en <c>Advertencias</c> y no en <c>Omitidos</c>: la fila entra,
+/// solo se pierde la fecha, y Omitidos es la lista de lo que no se importó
+/// (lo que /importacion rotula "se omitirán"). Los dos tests comprueban las
+/// dos mitades — el aviso aparece y Omitidos sigue vacío.
 /// </summary>
 public class ClosedXmlPlantillaCombinadaServiceTests
 {
@@ -84,7 +87,7 @@ public class ClosedXmlPlantillaCombinadaServiceTests
     }
 
     [Fact]
-    public async Task Contrato_vigente_hasta_ilegible_no_bloquea_el_centro_pero_queda_omitido_nombrando_el_valor_bruto()
+    public async Task Contrato_vigente_hasta_ilegible_no_bloquea_el_centro_y_queda_como_advertencia_nombrando_el_valor_bruto()
     {
         var libro = NuevoLibroBase();
         EscribirClienteValido(libro, fila: 2, razonSocial: "Cliente Norte S.A.");
@@ -100,9 +103,10 @@ public class ClosedXmlPlantillaCombinadaServiceTests
         var centro = plan.Centros.Should().ContainSingle().Subject;
         centro.ContratoVigenteHasta.Should().BeNull();
 
-        var omitido = plan.Omitidos.Should().ContainSingle(o => o.Hoja == "Centros").Subject;
-        omitido.Fila.Should().Be(2);
-        omitido.Motivo.Should().Be("La fecha «sin determinar» en \"Contrato vigente hasta\" no se pudo interpretar; el centro se importó sin ese dato.");
+        var advertencia = plan.Advertencias.Should().ContainSingle(a => a.Hoja == "Centros").Subject;
+        advertencia.Fila.Should().Be(2);
+        advertencia.Motivo.Should().Be("La fecha «sin determinar» en \"Contrato vigente hasta\" no se pudo interpretar; el centro se importó sin ese dato.");
+        plan.Omitidos.Should().BeEmpty("el centro sí se importa: Omitidos es la lista de lo que no entró");
     }
 
     [Fact]
@@ -120,12 +124,13 @@ public class ClosedXmlPlantillaCombinadaServiceTests
         var plan = await AnalizarAsync(libro);
 
         plan.Omitidos.Should().BeEmpty();
+        plan.Advertencias.Should().BeEmpty();
         var centro = plan.Centros.Should().ContainSingle().Subject;
         centro.ContratoVigenteHasta.Should().BeNull();
     }
 
     [Fact]
-    public async Task Fecha_de_nacimiento_ilegible_no_bloquea_al_trabajador_pero_queda_omitida_nombrando_el_valor_bruto()
+    public async Task Fecha_de_nacimiento_ilegible_no_bloquea_al_trabajador_y_queda_como_advertencia_nombrando_el_valor_bruto()
     {
         var libro = NuevoLibroBase();
         EscribirEmpresaValida(libro, fila: 2, razonSocial: "Empresa Sur S.L.");
@@ -141,9 +146,10 @@ public class ClosedXmlPlantillaCombinadaServiceTests
         var trabajador = plan.Trabajadores.Should().ContainSingle().Subject;
         trabajador.FechaNacimiento.Should().BeNull();
 
-        var omitido = plan.Omitidos.Should().ContainSingle(o => o.Hoja == "Trabajadores").Subject;
-        omitido.Fila.Should().Be(2);
-        omitido.Motivo.Should().Be("La fecha de nacimiento «hace treinta años» no se pudo interpretar; el trabajador se importó sin ese dato.");
+        var advertencia = plan.Advertencias.Should().ContainSingle(a => a.Hoja == "Trabajadores").Subject;
+        advertencia.Fila.Should().Be(2);
+        advertencia.Motivo.Should().Be("La fecha de nacimiento «hace treinta años» no se pudo interpretar; el trabajador se importó sin ese dato.");
+        plan.Omitidos.Should().BeEmpty("el trabajador sí se importa: Omitidos es la lista de lo que no entró");
     }
 
     [Fact]
@@ -161,6 +167,7 @@ public class ClosedXmlPlantillaCombinadaServiceTests
         var plan = await AnalizarAsync(libro);
 
         plan.Omitidos.Should().BeEmpty();
+        plan.Advertencias.Should().BeEmpty();
         var trabajador = plan.Trabajadores.Should().ContainSingle().Subject;
         trabajador.FechaNacimiento.Should().BeNull();
     }

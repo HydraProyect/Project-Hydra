@@ -27,9 +27,12 @@ namespace CaeManager.Infrastructure.Importacion;
 /// importa: si la celda está vacía, la fila se crea sin ese dato, legítimo y
 /// silencioso; si trae un valor que no se pudo interpretar, la fila se crea
 /// igual (éxito parcial, DCR-12 B) pero la pérdida del dato concreto queda
-/// en <see cref="PlanImportacionDto.Omitidos"/> nombrando el valor bruto
-/// (antes ambas colapsaban el estado ilegible en <c>null</c> igual que el
-/// vacío, sin ningún registro).
+/// en <see cref="PlanImportacionCombinadaDto.Advertencias"/> nombrando el
+/// valor bruto (antes ambas colapsaban el estado ilegible en <c>null</c>
+/// igual que el vacío, sin ningún registro).
+/// Advertencia y no Omitido porque la fila sí entra: Omitidos es lo que no se
+/// importó (la interfaz lo rotula "se omitirán"), mismo criterio que la hoja
+/// Empresas con una asociación a cliente inexistente.
 /// </summary>
 public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext) : IPlantillaCombinadaService
 {
@@ -151,8 +154,8 @@ public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosCont
         var empresas = AnalizarEmpresas(libro, nombresEmpresasExistentes, nombresClientesDisponibles, advertencias, omitidos);
         foreach (var e in empresas) nombresEmpresasDisponibles.Add(e.RazonSocial);
 
-        var centros = AnalizarCentros(libro, nombresClientesDisponibles, nombresEmpresasDisponibles, centrosExistentes, omitidos);
-        var trabajadores = AnalizarTrabajadores(libro, nombresEmpresasDisponibles, dnisExistentes, omitidos);
+        var centros = AnalizarCentros(libro, nombresClientesDisponibles, nombresEmpresasDisponibles, centrosExistentes, advertencias, omitidos);
+        var trabajadores = AnalizarTrabajadores(libro, nombresEmpresasDisponibles, dnisExistentes, advertencias, omitidos);
 
         return new PlanImportacionCombinadaDto(clientes, empresas, centros, trabajadores, advertencias, omitidos);
     }
@@ -265,6 +268,7 @@ public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosCont
         HashSet<string> nombresClientesDisponibles,
         HashSet<string> nombresEmpresasDisponibles,
         HashSet<string> centrosExistentes,
+        List<ItemImportacionDto> advertencias,
         List<ItemImportacionDto> omitidos)
     {
         var resultado = new List<CentroImportadoDto>();
@@ -320,7 +324,7 @@ public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosCont
             var resultadoContrato = FechaCeldaAyudante.Leer(hoja.Cell(fila, 7));
             if (resultadoContrato.Estado == EstadoCeldaFecha.Ilegible)
             {
-                omitidos.Add(new ItemImportacionDto(
+                advertencias.Add(new ItemImportacionDto(
                     HojaCentros, fila, nombre,
                     $"La fecha «{resultadoContrato.ValorBruto}» en \"Contrato vigente hasta\" no se pudo interpretar; el centro se importó sin ese dato."));
             }
@@ -336,6 +340,7 @@ public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosCont
         XLWorkbook libro,
         HashSet<string> nombresEmpresasDisponibles,
         HashSet<string> dnisExistentes,
+        List<ItemImportacionDto> advertencias,
         List<ItemImportacionDto> omitidos)
     {
         var resultado = new List<TrabajadorImportadoDto>();
@@ -388,7 +393,7 @@ public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosCont
             var resultadoNacimiento = FechaCeldaAyudante.Leer(hoja.Cell(fila, 5));
             if (resultadoNacimiento.Estado == EstadoCeldaFecha.Ilegible)
             {
-                omitidos.Add(new ItemImportacionDto(
+                advertencias.Add(new ItemImportacionDto(
                     HojaTrabajadores, fila, $"{nombre} {apellidos} ({dni})",
                     $"La fecha de nacimiento «{resultadoNacimiento.ValorBruto}» no se pudo interpretar; el trabajador se importó sin ese dato."));
             }
