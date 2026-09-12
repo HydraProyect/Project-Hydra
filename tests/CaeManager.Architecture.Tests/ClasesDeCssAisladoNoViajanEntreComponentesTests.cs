@@ -77,7 +77,6 @@ public class ClasesDeCssAisladoNoViajanEntreComponentesTests
     /// </summary>
     private static readonly Dictionary<string, string> DeudaCongelada = new()
     {
-        ["ClavesApi.razor::aviso-error"] = "aviso de error copiado de Facturacion/Proyectos; le corresponde una primitiva de aviso",
         ["ConectarExtension.razor::aviso-error"] = "aviso de error copiado de Facturacion/Proyectos; le corresponde una primitiva de aviso",
         ["ConectoresCae.razor::aviso-error"] = "aviso de error copiado de Facturacion/Proyectos; le corresponde una primitiva de aviso",
         ["ClavesApi.razor::aviso-revocacion"] = "aviso copiado de Delegaciones; la misma primitiva de aviso, pendiente",
