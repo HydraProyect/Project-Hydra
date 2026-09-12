@@ -22,6 +22,7 @@
 @using CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionesEnviadas
 @using CaeManager.Domain.Documentos
 @using MediatR
+@implements IDisposable
 @inject IMediator Mediator
 @inject ToastService ToastService
 @inject NavigationManager NavigationManager
@@ -252,6 +253,51 @@ else
     private bool _altaContactoVisible;
     private Guid _clienteAltaContacto;
 
+    // --- Ciclo de vida ---------------------------------------------------
+
+    /// <summary>
+    /// Se cancela al retirarse la pestaña: las consultas en curso dejan de
+    /// trabajar para nadie y ninguna respuesta tardía repinta un componente ya
+    /// desechado. Mismo patrón que <c>Documentos.razor.cs</c>.
+    ///
+    /// <para>
+    /// Su <c>Token</c> se lee SIEMPRE antes del primer <c>await</c> del método
+    /// que lo usa. Leerlo después deja que un <see cref="Dispose"/> intermedio
+    /// lo haya desechado, y la lectura lanzaría <see cref="ObjectDisposedException"/>
+    /// en una continuación donde nadie la recoge.
+    /// </para>
+    /// </summary>
+    private readonly CancellationTokenSource _ciclo = new();
+    private bool _desechado;
+
+    /// <summary>
+    /// Número de la última carga del historial. Cada carga captura el suyo
+    /// ANTES del <c>await</c> y, al volver, solo escribe estado si sigue
+    /// siendo la vigente: sin esto, la respuesta de una página ya abandonada
+    /// (paginar rápido, o un reenvío que recarga al terminar) podía pisar la
+    /// lista y el total de la pregunta que sí se está mirando.
+    /// </summary>
+    private int _cargaHistorialVigente;
+
+    /// <summary>Misma idea que <see cref="_cargaHistorialVigente"/>, para la vista de componer/enviar.</summary>
+    private int _cargaLotesVigente;
+
+    public void Dispose()
+    {
+        if (_desechado)
+            return;
+
+        _desechado = true;
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+    }
+
+    /// <summary>La respuesta del historial es de la pregunta vigente y la pestaña sigue viva.</summary>
+    private bool EsVigenteHistorial(int carga) => !_desechado && carga == _cargaHistorialVigente;
+
+    /// <summary>La respuesta de los lotes es de la pregunta vigente y la pestaña sigue viva.</summary>
+    private bool EsVigenteLotes(int carga) => !_desechado && carga == _cargaLotesVigente;
+
     protected override Task OnInitializedAsync() => CargarHistorialAsync();
 
     /// <summary>La vista de componer/enviar carga sus lotes (recorre todos los clientes del tenant) solo la primera vez que se entra a ella, no en cada carga de la pestaña.</summary>
@@ -268,15 +314,33 @@ else
 
     private async Task CargarHistorialAsync()
     {
+        // El número de carga y el token se leen ANTES del await: leer
+        // _ciclo.Token después dejaría que un Dispose intermedio lo hubiera
+        // desechado, y la lectura lanzaría ObjectDisposedException en una
+        // continuación que nadie observa.
+        var carga = ++_cargaHistorialVigente;
+        var token = _ciclo.Token;
+
         _cargandoHistorial = true;
         _errorHistorial = false;
         StateHasChanged();
 
         try
         {
-            var resultado = await Mediator.Send(new ObtenerReclamacionesEnviadasQuery(_paginaHistorial, _tamanoPaginaHistorial));
+            var resultado = await Mediator.Send(new ObtenerReclamacionesEnviadasQuery(_paginaHistorial, _tamanoPaginaHistorial), token);
+
+            // La respuesta de una página ya abandonada no puede pisar la
+            // lista ni el total de la pregunta que sí se está mirando.
+            if (!EsVigenteHistorial(carga))
+                return;
+
             _historial = resultado.Elementos;
             _totalHistorial = resultado.TotalElementos;
+        }
+        catch (Exception) when (!EsVigenteHistorial(carga))
+        {
+            // Una carga superada que falla (incluida la cancelación al
+            // desecharse la pestaña) no es un error de la vigente.
         }
         catch (Exception)
         {
@@ -284,7 +348,8 @@ else
         }
         finally
         {
-            _cargandoHistorial = false;
+            if (EsVigenteHistorial(carga))
+                _cargandoHistorial = false;
         }
     }
 
@@ -303,6 +368,13 @@ else
 
     private async Task ReclamarDeNuevoAsync(ReclamacionEnviadaDto reclamacion)
     {
+        // La guarda se comprueba AL ENTRAR, no al salir: el botón deshabilitado
+        // no basta porque el segundo clic ya viajaba cuando se deshabilitó.
+        if (_reenviandoId is not null || _desechado)
+            return;
+
+        // El token se lee antes del primer await, igual que en CargarHistorialAsync.
+        var token = _ciclo.Token;
         _reenviandoId = reclamacion.Id;
         try
         {
@@ -312,8 +384,14 @@ else
             // buscaría documentos de Trabajador de un Cliente que no existe y
             // fallaría con "ninguno sigue siendo reclamable".
             var resultado = reclamacion.AmbitoTitular == AmbitoAplicacion.Empresa
-                ? await Mediator.Send(new EnviarReclamacionEmpresaCommand(reclamacion.TitularId, reclamacion.DocumentoIds))
-                : await Mediator.Send(new EnviarReclamacionCommand(reclamacion.TitularId, reclamacion.DocumentoIds));
+                ? await Mediator.Send(new EnviarReclamacionEmpresaCommand(reclamacion.TitularId, reclamacion.DocumentoIds), token)
+                : await Mediator.Send(new EnviarReclamacionCommand(reclamacion.TitularId, reclamacion.DocumentoIds), token);
+
+            // La pestaña pudo desecharse mientras el comando estaba en vuelo:
+            // ni el toast ni la recarga pertenecen a un componente ya retirado.
+            if (_desechado)
+                return;
+
             if (resultado.EsFallido)
             {
                 ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
@@ -331,13 +409,23 @@ else
 
     private async Task CargarAsync()
     {
+        var carga = ++_cargaLotesVigente;
+        var token = _ciclo.Token;
+
         _cargando = true;
         _error = false;
         StateHasChanged();
 
         try
         {
-            _lotes = await Mediator.Send(new ObtenerLoteReclamacionQuery());
+            var lotes = await Mediator.Send(new ObtenerLoteReclamacionQuery(), token);
+
+            // La respuesta de una recarga ya abandonada no puede pisar los
+            // lotes ni la selección de la pregunta que sí se está mirando.
+            if (!EsVigenteLotes(carga))
+                return;
+
+            _lotes = lotes;
             _seleccionPorCliente.Clear();
             _contactosPorCliente.Clear();
             foreach (var lote in _lotes)
@@ -347,13 +435,19 @@ else
                     (lote.Destinatarios ?? []).Select(d => d.ContactoId).ToHashSet();
             }
         }
+        catch (Exception) when (!EsVigenteLotes(carga))
+        {
+            // Una carga superada que falla (incluida la cancelación al
+            // desecharse la pestaña) no es un error de la vigente.
+        }
         catch (Exception)
         {
             _error = true;
         }
         finally
         {
-            _cargando = false;
+            if (EsVigenteLotes(carga))
+                _cargando = false;
         }
     }
 
@@ -384,17 +478,30 @@ else
 
     private async Task EnviarAsync(LoteReclamacionClienteDto lote)
     {
+        // La guarda se comprueba AL ENTRAR, no al salir: el botón deshabilitado
+        // no basta porque el segundo clic ya viajaba cuando se deshabilitó.
+        if (_enviandoClienteId is not null || _desechado)
+            return;
+
         var documentoIds = _seleccionPorCliente[lote.ClienteId].ToList();
         if (documentoIds.Count == 0) return;
 
         var contactoIds = ContactosMarcados(lote.ClienteId).ToList();
         if (contactoIds.Count == 0) return;
 
+        // El token se lee antes del primer await, igual que en CargarAsync.
+        var token = _ciclo.Token;
         _enviandoClienteId = lote.ClienteId;
         try
         {
             var resultado = await Mediator.Send(new EnviarReclamacionCommand(
-                lote.ClienteId, documentoIds, CentroId: null, ContactoIdsSeleccionados: contactoIds));
+                lote.ClienteId, documentoIds, CentroId: null, ContactoIdsSeleccionados: contactoIds), token);
+
+            // La pestaña pudo desecharse mientras el comando estaba en vuelo:
+            // ni el toast ni la recarga pertenecen a un componente ya retirado.
+            if (_desechado)
+                return;
+
             if (resultado.EsFallido)
             {
                 ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
