@@ -122,6 +122,10 @@
                                    rompe el foco. role/tabindex/teclado dan lo que el button daría. *@
                                 <div class="editor-plantilla-caja @(seleccionado ? "editor-plantilla-caja-seleccionada" : null) @(elemento.Tipo == TipoElementoPlantilla.Firma ? "editor-plantilla-caja-firma" : null)"
                                      data-id-local="@elemento.IdLocal"
+                                     @* Una versión confirmada es inmutable: sin esta marca, editorPlantilla.js
+                                        dejaba arrastrar y redimensionar sus cajas en pantalla, contradiciendo
+                                        el «Solo lectura» que la propia pantalla anuncia. *@
+                                     data-editable="@(PuedeEditar ? "true" : "false")"
                                      role="@(PuedeEditar ? "button" : null)"
                                      tabindex="@(PuedeEditar ? "0" : null)"
                                      aria-pressed="@(PuedeEditar ? (seleccionado ? "true" : "false") : null)"

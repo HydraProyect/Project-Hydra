@@ -413,6 +413,7 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
         _estadoConfiguracion = estadoConfiguracion;
         _elementos = elementosExistentes;
         _idLocalSeleccionado = null;
+        ReiniciarEstadoDeGeneracion();
 
         _paginas = await RasterizarPaginasAsync(contenidoPdf);
 
@@ -420,10 +421,30 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
             await EjecutarDeteccionInicialAsync(carga, formatoOrigen, contenidoPdf);
 
         if (estadoConfiguracion == EstadoConfiguracionPlantilla.Confirmada && EsVigente(carga))
-            await CargarOpcionesGeneracionAsync();
+            await CargarOpcionesGeneracionAsync(carga);
     }
 
-    private async Task CargarOpcionesGeneracionAsync()
+    /// <summary>
+    /// Lo que se genera pertenece a UNA versión. Al cargar otra en la misma
+    /// instancia (navegación mejorada entre /plantillas/{id}/editar) quedaban
+    /// aquí el documento generado antes, sus avisos y las opciones del ámbito
+    /// anterior: la versión nueva enseñaba el enlace y los avisos de la vieja.
+    /// </summary>
+    private void ReiniciarEstadoDeGeneracion()
+    {
+        _opcionesGeneracionCargadas = false;
+        _documentoGeneradoId = null;
+        _camposObligatoriosVacios = [];
+        _valoresNoReconocidos = [];
+        _ownerIdGeneracion = null;
+        _centroIdGeneracion = null;
+        _trabajadoresDisponibles = [];
+        _empresasDisponibles = [];
+        _valoresManualesPorIdReal.Clear();
+        _trabajadoresSeleccionadosLote.Clear();
+    }
+
+    private async Task CargarOpcionesGeneracionAsync(int carga)
     {
         if (_opcionesGeneracionCargadas) return;
         _opcionesGeneracionCargadas = true;
@@ -431,10 +452,14 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
         switch (_ambitoAplicacion)
         {
             case AmbitoAplicacion.Trabajador:
-                _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
+                var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(), _ciclo.Token);
+                if (!EsVigente(carga)) return;
+                _trabajadoresDisponibles = trabajadores;
                 break;
             case AmbitoAplicacion.Empresa:
-                _empresasDisponibles = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
+                var empresas = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery(), _ciclo.Token);
+                if (!EsVigente(carga)) return;
+                _empresasDisponibles = empresas;
                 break;
                 // Cliente reutiliza _clientesDisponibles, ya cargado en OnInitializedAsync.
         }
@@ -678,7 +703,10 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
     [JSInvokable]
     public void ActualizarPosicionAsync(int idLocal, double x, double y, double ancho, double alto)
     {
-        if (_desechado) return;
+        // Una versión confirmada es inmutable: aunque llegue la invocación, no
+        // se mueve nada. El JS ya no la lanza (data-editable), pero la guarda
+        // vive aquí porque esta es la puerta de entrada.
+        if (_desechado || !PuedeEditar) return;
 
         var elemento = _elementos.FirstOrDefault(e => e.IdLocal == idLocal);
         if (elemento is null) return;
@@ -838,6 +866,12 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
     {
         if (_desechado || _versionIdActual is not { } versionId || _confirmando || _guardando) return;
 
+        // La carga vigente al empezar. Comprobar solo _desechado no bastaba: si
+        // durante el guardado se navega a otra versión (la página sigue viva,
+        // solo cambia el parámetro de ruta), se confirmaba la versión vieja y
+        // se navegaba al catálogo desde la nueva, que el usuario estaba viendo.
+        var carga = _cargaVigente;
+
         _confirmando = true;
         StateHasChanged();
 
@@ -846,8 +880,10 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
             if (!await GuardarElementosAsync(avisarExito: false, avisarFallo: true))
                 return;
 
+            if (!EsVigente(carga)) return;
+
             var resultado = await Mediator.Send(new ConfirmarPlantillaDocumentoVersionCommand(versionId), _ciclo.Token);
-            if (_desechado) return;
+            if (!EsVigente(carga)) return;
 
             if (resultado.EsFallido)
             {

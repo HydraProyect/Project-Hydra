@@ -519,4 +519,112 @@ public class ConfigurarPlantillaEditorGen2Tests : BunitContext
         cut.FindAll("[role='alert']").Should().BeEmpty("la carga superada tampoco puede dejar la pantalla en error");
         BotonOpcional(cut, "Reintentar").Should().BeNull();
     }
+
+    // ------------------------------ Revisión de Codex sobre esta misma rama
+
+    /// <summary>
+    /// Confirmar A y abrir B mientras el guardado sigue en vuelo: antes se
+    /// confirmaba A igualmente y, peor, se navegaba al catálogo desde B, que es
+    /// lo que el usuario estaba viendo. Comprobar solo <c>_desechado</c> no
+    /// basta: la página sigue viva, lo que cambia es el parámetro de ruta.
+    /// </summary>
+    [Fact]
+    public async Task Confirmar_una_version_y_abrir_otra_mientras_tanto_ni_confirma_ni_saca_de_la_nueva()
+    {
+        var guardado = new TaskCompletionSource<object>();
+        var otraVersionId = Guid.NewGuid();
+        var mediador = new MediatorFalso { Version = Result.Exito(Detalle(_versionId)) };
+        var cut = Renderizar(mediador);
+
+        await Boton(cut, "Confirmar plantilla").ClickAsync(new MouseEventArgs());
+
+        // El clic NO se espera aquí: su manejador queda detenido en el guardado
+        // retenido, y esperarlo colgaría el test.
+        mediador.Retener = p => p is GuardarElementosPlantillaCommand ? guardado.Task : null;
+        var confirmando = Boton(cut, "Sí, confirmar").ClickAsync(new MouseEventArgs());
+
+        mediador.Retener = null;
+        mediador.Version = Result.Exito(Detalle(otraVersionId, "Acta de coordinación"));
+        cut.Render(p => p.Add(c => c.PlantillaDocumentoVersionId, otraVersionId));
+        cut.WaitForAssertion(() => cut.Find("h1.titulo-pagina").TextContent.Trim().Should().Be("Acta de coordinación"));
+        var urlEnLaNueva = Navegacion.Uri;
+
+        await cut.InvokeAsync(() => guardado.SetResult(Result.Exito()));
+        await confirmando;
+
+        mediador.Veces<ConfirmarPlantillaDocumentoVersionCommand>().Should().Be(
+            0, "la versión que se estaba confirmando ya no es la que se está viendo");
+        Navegacion.Uri.Should().Be(urlEnLaNueva, "confirmar una versión no puede sacar al usuario de otra");
+        cut.Find("h1.titulo-pagina").TextContent.Trim().Should().Be("Acta de coordinación");
+    }
+
+    /// <summary>
+    /// Una versión confirmada se anuncia «Solo lectura» y es inmutable, pero
+    /// sus cajas se dejaban arrastrar y redimensionar en pantalla. La marca
+    /// <c>data-editable</c> corta el arrastre en el JS y la guarda de
+    /// <c>ActualizarPosicionAsync</c> corta la invocación.
+    /// </summary>
+    [Fact]
+    public async Task Una_version_confirmada_no_deja_mover_sus_cajas_ni_por_la_invocacion_del_editor()
+    {
+        var mediador = new MediatorFalso
+        {
+            Version = Result.Exito(Detalle(_versionId, estado: EstadoConfiguracionPlantilla.Confirmada))
+        };
+        var cut = Renderizar(mediador);
+
+        var caja = CajaDe(cut, "Razón social");
+        caja.GetAttribute("data-editable").Should().Be("false", "el JS no engancha el arrastre en las cajas no editables");
+        var estiloAntes = caja.GetAttribute("style");
+        var idLocal = int.Parse(caja.GetAttribute("data-id-local")!);
+
+        await cut.InvokeAsync(() => cut.Instance.ActualizarPosicionAsync(idLocal, 10, 20, 30, 40));
+
+        CajaDe(cut, "Razón social").GetAttribute("style").Should().Be(
+            estiloAntes, "una versión confirmada es inmutable: la caja no se mueve");
+    }
+
+    /// <summary>Control positivo del test anterior: si la versión se puede editar, esa misma invocación SÍ mueve la caja.</summary>
+    [Fact]
+    public async Task En_una_version_editable_la_invocacion_del_editor_si_mueve_la_caja()
+    {
+        var mediador = new MediatorFalso { Version = Result.Exito(Detalle(_versionId)) };
+        var cut = Renderizar(mediador);
+
+        var caja = CajaDe(cut, "Razón social");
+        caja.GetAttribute("data-editable").Should().Be("true");
+        var estiloAntes = caja.GetAttribute("style");
+        var idLocal = int.Parse(caja.GetAttribute("data-id-local")!);
+
+        await cut.InvokeAsync(() => cut.Instance.ActualizarPosicionAsync(idLocal, 10, 20, 30, 40));
+
+        CajaDe(cut, "Razón social").GetAttribute("style").Should().NotBe(
+            estiloAntes, "sin este control, el test de la versión confirmada podría pasar sin observar nada");
+    }
+
+    /// <summary>
+    /// Lo que se genera pertenece a UNA versión. Al abrir otra en la misma
+    /// instancia quedaban las opciones del ámbito anterior, así que el panel de
+    /// generación ofrecía los destinatarios de la versión que ya no se ve.
+    /// </summary>
+    [Fact]
+    public void Abrir_otra_version_confirmada_carga_las_opciones_de_su_propio_ambito()
+    {
+        var mediador = new MediatorFalso
+        {
+            Version = Result.Exito(Detalle(
+                _versionId, estado: EstadoConfiguracionPlantilla.Confirmada, ambito: AmbitoAplicacion.Trabajador))
+        };
+        var cut = Renderizar(mediador);
+        mediador.Veces<ObtenerTrabajadoresParaSelectorQuery>().Should().Be(1, "la versión de ámbito Trabajador carga sus trabajadores");
+
+        var otraVersionId = Guid.NewGuid();
+        mediador.Version = Result.Exito(Detalle(
+            otraVersionId, "Acta de coordinación", EstadoConfiguracionPlantilla.Confirmada, AmbitoAplicacion.Empresa));
+        cut.Render(p => p.Add(c => c.PlantillaDocumentoVersionId, otraVersionId));
+        cut.WaitForAssertion(() => cut.Find("h1.titulo-pagina").TextContent.Trim().Should().Be("Acta de coordinación"));
+
+        mediador.Veces<ObtenerEmpresasParaSelectorQuery>().Should().Be(
+            1, "cada versión carga las opciones de SU ámbito, no se queda con las de la anterior");
+    }
 }
