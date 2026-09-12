@@ -299,4 +299,74 @@ public class BandejaGen2Tests : BunitContext
 
     private static AngleSharp.Dom.IElement Cuenta(IRenderedComponent<Bandeja> cut, string etiqueta) =>
         Chip(cut, etiqueta).QuerySelector(".bandeja-chip-cuenta")!;
+
+    // ------------------------- Revisión de Codex sobre esta misma rama
+
+    /// <summary>
+    /// Un requisito de ALTA NUEVA no bloquea nada: es un alta que no se
+    /// completó. Antes, cualquier RequisitoPendiente encendía la banda y el
+    /// badge, así que un grupo sin un solo bloqueo real decía que cerraba el
+    /// acceso a un Centro. El segundo grupo es el control positivo: con un
+    /// requisito que NO es alta nueva, la banda sí aparece.
+    /// </summary>
+    [Fact]
+    public void Un_grupo_cuyos_requisitos_son_altas_nuevas_no_dice_que_bloquea_el_acceso()
+    {
+        var (cut, _) = Renderizar(
+            Item("a1", TipoItemBandeja.RequisitoPendiente, Refrielectric, "Refrielectric S.A.") with { EsAltaNueva = true },
+            Item("b1", TipoItemBandeja.RequisitoPendiente, MontajesEbro, "Montajes Ebro"));
+
+        var grupos = cut.FindComponents<GrupoCola>();
+        var deAltas = grupos.Single(g => g.Markup.Contains("Refrielectric S.A.", StringComparison.Ordinal));
+        var deBloqueo = grupos.Single(g => g.Markup.Contains("Montajes Ebro", StringComparison.Ordinal));
+
+        deAltas.Markup.Should().NotContain("Bloquea acceso", "un alta sin completar no cierra ningún Centro");
+        deAltas.Markup.Should().NotContain("grupo-cola-bloquea");
+        deBloqueo.Markup.Should().Contain("Bloquea acceso", "control: un requisito que no es alta nueva sí bloquea");
+        deBloqueo.Markup.Should().Contain("grupo-cola-bloquea");
+
+        // El chip cuenta los dos (filtra por tipo), así que su explicación no
+        // puede decir que los dos impiden el acceso.
+        cut.Markup.Should().Contain("requisitos de acceso a un Centro: lo bloquean, o son altas sin completar");
+        cut.Markup.Should().NotContain("impiden el acceso a un Centro");
+    }
+
+    /// <summary>
+    /// La otra mitad de la carrera: la carga superada no llega tarde con datos,
+    /// sino con un fallo. No puede encender el error de una carga que fue bien.
+    ///
+    /// <para>
+    /// Barrera: tras provocar el fallo se encola un paso vacío en el mismo
+    /// despachador del renderizador. Como atiende por orden de llegada, cuando
+    /// ese paso termina, la continuación del fallo ya se ejecutó — sin él, esto
+    /// sería una ausencia sin comprobar que el instrumento podía observarla.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task El_fallo_tardio_de_una_carga_superada_no_tapa_la_cola_que_pinto_la_vigente()
+    {
+        var mediator = new MediatorDeLaBandeja(Item("v1", TipoItemBandeja.Vencido, Refrielectric, "Refrielectric S.A."));
+        var inicial = new TaskCompletionSource<IReadOnlyList<ItemBandejaDto>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var recarga = new TaskCompletionSource<IReadOnlyList<ItemBandejaDto>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        mediator.Retenidas[1] = inicial;
+        mediator.Retenidas[2] = recarga;
+
+        var (cut, _) = Renderizar(mediator);
+
+        var drawer = cut.FindComponent<DrawerReclamacionLote>();
+        var segunda = cut.InvokeAsync(() => drawer.Instance.OnReclamacionEnviada.InvokeAsync());
+        cut.WaitForState(() => mediator.Cargas == 2);
+
+        recarga.SetResult([Item("v9", TipoItemBandeja.Vencido, MontajesEbro, "Montajes Ebro")]);
+        await segunda;
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Montajes Ebro"));
+
+        inicial.SetException(new InvalidOperationException("la carga superada falla cuando ya no es la vigente"));
+        await cut.InvokeAsync(() => Task.CompletedTask);
+
+        cut.Markup.Should().Contain("Montajes Ebro", "la cola vigente sigue en pie");
+        cut.Markup.Should().NotContain("No pudimos cargar la bandeja",
+            "el fallo de una carga superada no es un error de la que sí fue bien");
+        cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Reintentar");
+    }
 }

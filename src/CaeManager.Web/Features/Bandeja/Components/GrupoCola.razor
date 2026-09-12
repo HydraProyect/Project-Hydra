@@ -18,7 +18,7 @@
 @inject Microsoft.AspNetCore.Components.NavigationManager NavigationManager
 @inject CaeManager.Web.Components.Workspace.ContextWorkspaceService WorkspaceService
 
-<div class="@("grupo-cola" + (MarcarBloqueo && Grupo.BloqueaAcceso ? " grupo-cola-bloquea" : ""))">
+<div class="@("grupo-cola" + (MarcarBloqueo && BloqueaDeVerdad ? " grupo-cola-bloquea" : ""))">
     <button type="button"
             class="grupo-cola-cabecera"
             aria-expanded="@(_expandida ? "true" : "false")"
@@ -32,7 +32,7 @@
             <span class="grupo-cola-resumen">@Resumen</span>
         </span>
         <span class="grupo-cola-badges">
-            @if (Grupo.BloqueaAcceso)
+            @if (BloqueaDeVerdad)
             {
                 <Badge Tono="TonoBadge.Peligro">Bloquea acceso</Badge>
             }
@@ -123,6 +123,18 @@
 
     private readonly string _panelId = $"grupo-cola-{Guid.NewGuid():N}";
     private bool _expandida;
+
+    /// <summary>
+    /// «Bloquea acceso» solo cuando de verdad bloquea.
+    /// <see cref="GrupoColaDto.BloqueaAcceso"/> significa «el grupo tiene algún
+    /// RequisitoPendiente», y un requisito de ALTA NUEVA no es un bloqueo que
+    /// corregir sino un alta sin completar (mismo criterio que
+    /// <see cref="TipoItemBandejaUi.Tono(ItemBandejaDto)"/>, que ya le da otro
+    /// tono). Pintar la banda y el badge por él le dice al Gestor CAE que un
+    /// Centro está cerrado cuando no lo está.
+    /// </summary>
+    private bool BloqueaDeVerdad =>
+        Grupo.BloqueaAcceso && Grupo.Items.Any(i => i.Tipo == TipoItemBandeja.RequisitoPendiente && !i.EsAltaNueva);
 
     [Parameter, EditorRequired] public GrupoColaDto Grupo { get; set; } = default!;
 
