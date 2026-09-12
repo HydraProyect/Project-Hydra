@@ -199,6 +199,13 @@ Anclas que aplican siempre, aunque la skill no se haya activado sola:
   `protocolo-hydra-contratos` antes de editar (§ 6).
 - **Todo cambio de comportamiento exige buscar** el contrato, el documento o el comentario normativo
   que describa la regla anterior y corregirlo en el mismo incremento (§ 16).
+- **Al abrir cualquier PR**, pásale sus metadatos en la misma llamada:
+  `gh pr create --label "Type: …" --label "Priority: …" --milestone "…"`. El check
+  «Gobernanza — metadatos de PR» exige, leído por API en el momento de evaluar, un
+  milestone y al menos una etiqueta `Type:` y una `Priority:` — añadirlos después de
+  crear la PR obliga a relanzar ese check y gasta una segunda ejecución de CI que
+  la primera llamada ya podía evitar. Milestones vigentes:
+  `gh api repos/HydraProyect/Project-Hydra/milestones --jq '.[].title'` (§ 22).
 
 **Si la sesión no tiene la skill** (en la nube o en otra máquina), no reconstruyas su contenido de
 memoria. Puedes descubrir en solo lectura, pero antes de editar, abrir una PR, dar por buena una
