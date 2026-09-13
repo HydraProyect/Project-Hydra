@@ -6,61 +6,102 @@ using Microsoft.AspNetCore.Components;
 
 namespace CaeManager.Web.Features.Clientes.Pages;
 
-public partial class ConfiguracionIaCliente : ComponentBase
+public partial class ConfiguracionIaCliente : ComponentBase, IDisposable
 {
     [Parameter] public Guid ClienteId { get; set; }
-
+    private CancellationTokenSource? _cicloCarga;
     private ClienteDetalleDto? _cliente;
     private IReadOnlyList<ConfiguracionIaTipoDocumentoDto> _configuracion = [];
     private bool _cargando = true;
     private bool _errorCarga;
     private Guid? _actualizandoId;
+    private Guid _entidadCargada;
+    private bool _entidadInicializada;
+    private int _versionCarga;
+    private int _versionOperacion;
+    private bool _desechado;
 
-    protected override Task OnInitializedAsync() => CargarAsync();
+    private string ResumenNivelUno => $"{_configuracion.Count(tipo => tipo.GlobalActiva)} de {_configuracion.Count} activos";
+
+    protected override Task OnParametersSetAsync()
+    {
+        if (_entidadInicializada && _entidadCargada == ClienteId) return Task.CompletedTask;
+        _entidadInicializada = true;
+        _entidadCargada = ClienteId;
+        _versionOperacion++;
+        _actualizandoId = null;
+        _cliente = null;
+        _configuracion = [];
+        return CargarAsync();
+    }
+
+    public void Dispose()
+    {
+        _desechado = true;
+        _versionCarga++;
+        _versionOperacion++;
+        _cicloCarga?.Cancel();
+        _cicloCarga?.Dispose();
+    }
+
+    private bool EsVigente(int version, Guid clienteId) => !_desechado && version == _versionCarga && clienteId == ClienteId;
+    private bool EsOperacionVigente(int version, Guid clienteId) => !_desechado && version == _versionOperacion && clienteId == ClienteId;
 
     private async Task CargarAsync()
     {
+        var version = ++_versionCarga;
+        var clienteId = ClienteId;
+        _cicloCarga?.Cancel();
+        _cicloCarga?.Dispose();
+        var cicloCarga = new CancellationTokenSource();
+        _cicloCarga = cicloCarga;
+        var token = cicloCarga.Token;
         _cargando = true;
         _errorCarga = false;
         StateHasChanged();
-
         try
         {
-            _cliente = await Mediator.Send(new ObtenerClientePorIdQuery(ClienteId));
-            _configuracion = await Mediator.Send(new ObtenerConfiguracionIaPorClienteQuery(ClienteId));
-
-            if (_cliente is null)
-                _errorCarga = true;
+            var cliente = Mediator.Send(new ObtenerClientePorIdQuery(clienteId), token);
+            var configuracion = Mediator.Send(new ObtenerConfiguracionIaPorClienteQuery(clienteId), token);
+            await Task.WhenAll(cliente, configuracion);
+            if (!EsVigente(version, clienteId)) return;
+            _cliente = await cliente;
+            _configuracion = await configuracion;
+            _errorCarga = _cliente is null;
         }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception)
         {
-            _errorCarga = true;
+            if (EsVigente(version, clienteId)) _errorCarga = true;
         }
         finally
         {
-            _cargando = false;
+            if (EsVigente(version, clienteId)) _cargando = false;
         }
     }
 
     private async Task AlternarAsync(Guid tipoDocumentoId, bool activa)
     {
+        if (_actualizandoId is not null || !_configuracion.Any(tipo => tipo.TipoDocumentoId == tipoDocumentoId && tipo.GlobalActiva)) return;
+        var clienteId = ClienteId;
+        var version = _versionOperacion;
         _actualizandoId = tipoDocumentoId;
         StateHasChanged();
-
         try
         {
-            var resultado = await Mediator.Send(new ActualizarLecturaIaClienteCommand(ClienteId, tipoDocumentoId, activa));
+            var resultado = await Mediator.Send(new ActualizarLecturaIaClienteCommand(clienteId, tipoDocumentoId, activa));
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                if (EsOperacionVigente(version, clienteId) && _actualizandoId == tipoDocumentoId)
+                    ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
                 return;
             }
-
+            if (!EsOperacionVigente(version, clienteId) || _actualizandoId != tipoDocumentoId) return;
             await CargarAsync();
         }
         finally
         {
-            _actualizandoId = null;
+            if (EsOperacionVigente(version, clienteId) && _actualizandoId == tipoDocumentoId) _actualizandoId = null;
         }
     }
 }
