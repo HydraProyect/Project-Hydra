@@ -383,6 +383,7 @@ public partial class Visitas : ComponentBase
         _sugerenciaVisitaResumen = sugerencia.Resumen;
 
         _centroId = Guid.TryParse(CentroIdOverride, out var centroIdCorregido)
+            && _centrosDisponibles.Any(c => c.Id == centroIdCorregido)
             ? centroIdCorregido.ToString()
             : sugerencia.CentroId?.ToString() ?? string.Empty;
 
@@ -400,7 +401,7 @@ public partial class Visitas : ComponentBase
     /// <summary>Variante de AbrirCrearAsync para "Programar visita" desde Centro 360: mismo drawer, con el Centro ya elegido en el CampoSelect — el Gestor solo pone fechas y trabajadores.</summary>
     private async Task AbrirCrearParaCentroAsync(Guid centroId)
     {
-        if (await PrepararCrearAsync())
+        if (await PrepararCrearAsync() && _centrosDisponibles.Any(c => c.Id == centroId))
             _centroId = centroId.ToString();
     }
 
