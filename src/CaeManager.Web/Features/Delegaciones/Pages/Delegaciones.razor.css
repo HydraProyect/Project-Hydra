@@ -1,49 +1,124 @@
-
-
-.tarjeta-delegacion {
-    margin-bottom: var(--space-4);
+.delegaciones-pantalla {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
 }
 
-.delegacion-cabecera {
+.delegaciones-aviso-ajeno {
+    background: var(--color-warning-50);
+    border: 1px solid var(--color-warning-500);
+    border-radius: var(--radius-md);
+    color: var(--color-warning-700);
+    font: var(--font-body-md);
+    padding: var(--space-3) var(--space-4);
+}
+
+.delegaciones-lista {
+    display: grid;
+    gap: var(--space-4);
+}
+
+.delegaciones-tarjeta {
+    margin: 0;
+    overflow: hidden;
+}
+
+.delegaciones-tarjeta-cabecera {
+    align-items: flex-start;
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-3);
-    align-items: flex-start;
+    gap: var(--space-4);
     justify-content: space-between;
-    margin-bottom: var(--space-4);
+    padding: var(--space-5);
 }
 
-.delegacion-titulo {
-    margin: 0;
-    font: var(--font-heading-sm);
-}
-
-.delegacion-fecha {
-    color: var(--color-text-muted);
-    font: var(--font-body-sm);
-}
-
-.delegacion-acciones {
-    display: flex;
-    gap: var(--space-3);
+.delegaciones-etiquetas,
+.delegaciones-acciones {
     align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
 }
 
-.delegacion-sin-operadores {
+.delegaciones-titulo {
+    font: var(--font-heading-sm);
+    margin: var(--space-3) 0 var(--space-1);
+}
+
+.delegaciones-fecha,
+.delegaciones-nota,
+.delegaciones-sin-personas,
+.delegaciones-actividad-cabecera {
     color: var(--color-text-muted);
+    font: var(--font-body-sm);
+    margin: 0;
+}
+
+.delegaciones-ventana {
+    background: var(--color-warning-50);
+    border: 1px solid var(--color-warning-500);
+    border-radius: var(--radius-md);
+    color: var(--color-warning-700);
+    display: flex;
+    flex-direction: column;
+    font: var(--font-body-sm);
+    gap: var(--space-1);
+    padding: var(--space-2) var(--space-3);
+}
+
+.delegaciones-motivo,
+.delegaciones-nota,
+.delegaciones-sin-personas {
+    margin: 0 var(--space-5) var(--space-4);
+}
+
+.delegaciones-motivo {
+    border-left: 3px solid var(--color-primary-500);
+    color: var(--color-text);
+    font: var(--font-body-md);
+    padding-left: var(--space-3);
+}
+
+.delegaciones-tabla-marco {
+    overflow-x: auto;
+}
+
+.delegaciones-tabla {
+    margin: 0;
+    width: 100%;
+}
+
+.delegaciones-persona-no-resuelta {
+    color: var(--color-text-muted);
+}
+
+.delegaciones-pie {
+    align-items: center;
+    border-top: 1px solid var(--color-border);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    justify-content: space-between;
+    padding: var(--space-3) var(--space-5);
+}
+
+.delegaciones-error {
+    color: var(--color-danger-700);
     font: var(--font-body-sm);
 }
 
-.aviso-workspace-ajeno {
-    padding: var(--space-3) var(--space-4);
-    margin-bottom: var(--space-4);
-    border-left: 3px solid var(--color-warning-500);
-    background: var(--color-surface-hover);
-    color: var(--color-text-muted);
-    font: var(--font-body-sm);
-}
+@media (max-width: 640px) {
+    .delegaciones-tarjeta-cabecera {
+        padding: var(--space-4);
+    }
 
-.aviso-revocacion {
-    color: var(--color-text-muted);
-    font: var(--font-body-sm);
+    .delegaciones-pie {
+        align-items: stretch;
+        flex-direction: column;
+        padding: var(--space-3) var(--space-4);
+    }
+
+    .delegaciones-acciones {
+        justify-content: flex-end;
+    }
 }
