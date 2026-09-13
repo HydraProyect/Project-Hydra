@@ -2,6 +2,7 @@ using System.Security.Claims;
 using CaeManager.Infrastructure.Identity;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Logging;
 using Microsoft.JSInterop;
 
 namespace CaeManager.Web.Components.Layout;
@@ -32,6 +33,8 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
     /// interfaz.
     /// </summary>
     [Inject] private CaeManager.Application.Common.IDesenganchadorDeEntidadesRastreadas Desenganchador { get; set; } = default!;
+
+    [Inject] private ILogger<SelectorTema> Logger { get; set; } = default!;
 
     private IJSObjectReference? _modulo;
     private ApplicationUser? _usuario;
@@ -126,7 +129,10 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
         if (resultado.Succeeded) return;
 
         if (!resultado.Errors.Any(error => error.Code == nameof(IdentityErrorDescriber.ConcurrencyFailure)))
+        {
+            LogFalloAlGuardar(resultado);
             return;
+        }
 
         var usuarioFresco = await PuertaAccesoDatos.EjecutarAsync(async () =>
         {
@@ -137,12 +143,25 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
             Desenganchador.Desenganchar(_usuario);
             return await UserManager.FindByIdAsync(_usuario.Id.ToString());
         });
-        if (usuarioFresco is null) return;
+        if (usuarioFresco is null)
+        {
+            Logger.LogWarning(
+                "No se pudo recargar la cuenta {UsuarioId} tras un conflicto de concurrencia al guardar el tema.",
+                _usuario.Id);
+            return;
+        }
 
         _usuario = usuarioFresco;
         _usuario.Tema = TextoATema(texto);
-        await PuertaAccesoDatos.EjecutarAsync(() => UserManager.UpdateAsync(_usuario));
+        var resultadoReintento = await PuertaAccesoDatos.EjecutarAsync(() => UserManager.UpdateAsync(_usuario));
+        if (!resultadoReintento.Succeeded)
+            LogFalloAlGuardar(resultadoReintento);
     }
+
+    private void LogFalloAlGuardar(IdentityResult resultado) =>
+        Logger.LogWarning(
+            "No se pudo guardar el tema elegido para {UsuarioId}: {Errores}",
+            _usuario!.Id, string.Join(" ", resultado.Errors.Select(e => e.Description)));
 
     private static string TemaATexto(TemaPreferido tema) => tema switch
     {

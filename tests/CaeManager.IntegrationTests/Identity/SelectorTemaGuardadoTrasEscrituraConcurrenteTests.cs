@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace CaeManager.IntegrationTests.Identity;
@@ -132,6 +133,7 @@ public class SelectorTemaGuardadoTrasEscrituraConcurrenteTests : IAsyncLifetime
         EscribirPropiedadInyectada(selectorTema, "UserManager", servicios.GetRequiredService<UserManager<ApplicationUser>>());
         EscribirPropiedadInyectada(selectorTema, "PuertaAccesoDatos", servicios.GetRequiredService<PuertaAccesoDatos>());
         EscribirPropiedadInyectada(selectorTema, "Desenganchador", servicios.GetRequiredService<IDesenganchadorDeEntidadesRastreadas>());
+        EscribirPropiedadInyectada(selectorTema, "Logger", servicios.GetRequiredService<ILogger<SelectorTema>>());
         EscribirPropiedadInyectada(selectorTema, "AuthenticationStateProvider", new AutenticacionFalsa(usuarioId));
 
         return selectorTema;
