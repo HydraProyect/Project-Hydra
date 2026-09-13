@@ -1,24 +1,23 @@
 .buzon-contenedor {
     max-width: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
 }
 
 .buzon-selector-conexion {
-    max-width: 480px;
-    margin-bottom: var(--space-4);
+    max-width: 520px;
+    margin: 0;
 }
 
 .buzon-layout {
     display: grid;
     grid-template-columns: 260px minmax(0, 1fr);
-    gap: var(--space-6);
+    gap: var(--space-5);
     align-items: start;
-    height: calc(100vh - 320px);
-    min-height: 420px;
 }
 
 .buzon-columna {
-    height: 100%;
-    overflow-y: auto;
     border: var(--border-default);
     border-radius: var(--radius-lg);
     background-color: var(--color-surface);
@@ -29,8 +28,10 @@
 }
 
 .buzon-mensajes {
-    padding: var(--space-4);
-    overflow-x: auto;
+    min-height: 320px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
 .buzon-lista-carpetas {
@@ -53,8 +54,9 @@
     align-items: center;
     justify-content: space-between;
     gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    border: none;
+    min-height: 36px;
+    padding: 0 var(--space-3);
+    border: 1px solid transparent;
     border-radius: var(--radius-md);
     background: none;
     color: var(--color-text);
@@ -70,6 +72,7 @@
 
 .buzon-carpeta-activa {
     background-color: var(--color-primary-50);
+    border-color: var(--color-primary-100);
     color: var(--color-primary-500);
     font-weight: 600;
 }
@@ -77,9 +80,31 @@
 .buzon-paginador {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-end;
     gap: var(--space-3);
-    margin-top: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    margin: 0;
+}
+
+.buzon-tabla-contenedor {
+    overflow-x: auto;
+}
+
+.buzon-tabla {
+    margin: 0;
+}
+
+.buzon-tabla th {
+    height: 40px;
+    background-color: var(--color-surface-hover);
+    font-size: 0.6875rem;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+.buzon-tabla th,
+.buzon-tabla td {
+    padding: var(--space-3) var(--space-4);
 }
 
 .buzon-pagina-actual {
@@ -90,12 +115,10 @@
 @media (max-width: 1000px) {
     .buzon-layout {
         grid-template-columns: 1fr;
-        height: auto;
     }
 
     .buzon-columna {
-        height: auto;
-        max-height: 60vh;
+        min-height: auto;
     }
 }
 
