@@ -13,6 +13,13 @@ export async function copiarAlPortapapeles(texto) {
     areaTexto.style.opacity = '0';
     document.body.appendChild(areaTexto);
     areaTexto.select();
-    document.execCommand('copy');
+    const copiado = document.execCommand('copy');
     document.body.removeChild(areaTexto);
+
+    // execCommand devuelve false sin lanzar cuando el navegador deniega la
+    // copia (permisos, política del documento) — sin este chequeo la
+    // promesa resolvía igual y el llamador anunciaba un éxito que no ocurrió.
+    if (!copiado) {
+        throw new Error('document.execCommand("copy") devolvió false.');
+    }
 }
