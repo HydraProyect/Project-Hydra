@@ -226,7 +226,7 @@ public class TerminologiaCanonicaTests
     {
         ["Hydra"] = 53,
         ["EjecutivoUsuarioId"] = 48,
-        ["Delegacion"] = 290,
+        ["Delegacion"] = 289,
         ["ClienteActivo"] = 68,
     };
 

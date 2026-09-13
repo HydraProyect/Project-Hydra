@@ -4,6 +4,7 @@
 @using CaeManager.Domain.Documentos
 @using FluentValidation
 @using MediatR
+@implements IDisposable
 @inject IMediator Mediator
 @inject ToastService ToastService
 
@@ -94,6 +95,22 @@ else
     private Guid _idCargado;
 
     /// <summary>
+    /// Se incrementa al cambiar de Vehículo. Toda continuación que la
+    /// compruebe tras un await sabe si sigue perteneciendo a la ficha que la
+    /// pidió — mismo patrón que <c>EmpresaWorkspacePanel.razor</c>.
+    /// </summary>
+    private int _generacion;
+    private int _cargaCabecera;
+
+    /// <summary>
+    /// Se cancela al retirar el panel (Dispose). Su Token se lee SIEMPRE
+    /// antes del primer await del método que lo usa: leerlo después dejaría
+    /// que un Dispose intermedio lo hubiera desechado.
+    /// </summary>
+    private readonly CancellationTokenSource _ciclo = new();
+    private CancellationToken _cancelacion;
+
+    /// <summary>
     /// Edición in situ de "Información" (Centro 360, PLAN-EJECUCION-UX.md
     /// § 0.10) — sustituye al Drawer de "Editar" de <c>/vehiculos</c>,
     /// retirado. Empleador no entra: no forma parte de
@@ -107,32 +124,45 @@ else
     private string? _mensajeErrorInformacion;
     private Dictionary<string, string> _erroresInformacion = new();
 
+    protected override void OnInitialized() => _cancelacion = _ciclo.Token;
+
     protected override async Task OnParametersSetAsync()
     {
         if (EntidadId == _idCargado)
             return;
 
+        _generacion++;
         _idCargado = EntidadId;
         _editandoInformacion = false;
+        _guardandoInformacion = false;
         await CargarCabeceraAsync();
     }
 
     private async Task CargarCabeceraAsync()
     {
+        var cancelacion = _cancelacion;
+        var generacion = _generacion;
+        var carga = ++_cargaCabecera;
+        var id = EntidadId;
         _cargando = true;
         _error = false;
 
         try
         {
-            _detalle = await Mediator.Send(new ObtenerVehiculoPorIdQuery(EntidadId));
+            var detalle = await Mediator.Send(new ObtenerVehiculoPorIdQuery(id), cancelacion);
+            if (generacion != _generacion || carga != _cargaCabecera) return;
+            _detalle = detalle;
         }
+        catch (OperationCanceledException) when (cancelacion.IsCancellationRequested) { }
         catch (Exception)
         {
-            _error = true;
+            if (generacion == _generacion && carga == _cargaCabecera)
+                _error = true;
         }
         finally
         {
-            _cargando = false;
+            if (generacion == _generacion && carga == _cargaCabecera)
+                _cargando = false;
         }
     }
 
@@ -154,8 +184,10 @@ else
 
     private async Task GuardarInformacionAsync()
     {
-        if (_detalle is null) return;
+        if (_detalle is null || _guardandoInformacion) return;
 
+        var generacion = _generacion;
+        var detalle = _detalle;
         _guardandoInformacion = true;
         _mensajeErrorInformacion = null;
         _erroresInformacion = new Dictionary<string, string>();
@@ -163,13 +195,18 @@ else
         try
         {
             var resultado = await Mediator.Send(new EditarVehiculoCommand(
-                _detalle.Id, _nombreInfo, _modeloInfo, _numeroPlacaInfo, _detalle.Version));
+                detalle.Id, _nombreInfo, _modeloInfo, _numeroPlacaInfo, detalle.Version));
 
             if (resultado.EsFallido)
             {
-                _mensajeErrorInformacion = resultado.Error.Mensaje;
+                if (generacion == _generacion)
+                    _mensajeErrorInformacion = resultado.Error.Mensaje;
+                else
+                    ToastService.Mostrar($"{detalle.Nombre}: {resultado.Error.Mensaje}", TonoToast.Error);
                 return;
             }
+
+            if (generacion != _generacion) return;
 
             ToastService.Mostrar("Vehículo actualizado correctamente.", TonoToast.Exito);
             _editandoInformacion = false;
@@ -177,17 +214,31 @@ else
         }
         catch (ValidationException ex)
         {
-            _erroresInformacion = ex.Errors
-                .GroupBy(e => e.PropertyName)
-                .ToDictionary(g => g.Key, g => g.First().ErrorMessage);
+            if (generacion == _generacion)
+                _erroresInformacion = ex.Errors
+                    .GroupBy(e => e.PropertyName)
+                    .ToDictionary(g => g.Key, g => g.First().ErrorMessage);
+            else
+                ToastService.Mostrar($"No pudimos guardar los cambios de {detalle.Nombre}. Intenta nuevamente en unos segundos.", TonoToast.Error);
         }
         catch (Exception)
         {
-            _mensajeErrorInformacion = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
+            if (generacion == _generacion)
+                _mensajeErrorInformacion = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
+            else
+                ToastService.Mostrar($"No pudimos guardar los cambios de {detalle.Nombre}. Intenta nuevamente en unos segundos.", TonoToast.Error);
         }
         finally
         {
-            _guardandoInformacion = false;
+            if (generacion == _generacion)
+                _guardandoInformacion = false;
         }
+    }
+
+    public void Dispose()
+    {
+        _generacion++;
+        _ciclo.Cancel();
+        _ciclo.Dispose();
     }
 }

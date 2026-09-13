@@ -16,7 +16,7 @@ using Microsoft.AspNetCore.Components.QuickGrid;
 
 namespace CaeManager.Web.Features.Vehiculos.Pages;
 
-public partial class Vehiculos : ComponentBase
+public partial class Vehiculos : ComponentBase, IDisposable
 {
     private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
 
@@ -125,6 +125,37 @@ public partial class Vehiculos : ComponentBase
 
     private GridItemsProvider<VehiculoListaDto>? _proveedorElementos;
 
+    /// <summary>
+    /// Se cancela al retirarse la página: las consultas en curso dejan de
+    /// trabajar para nadie y ninguna respuesta tardía repinta un componente ya
+    /// desechado. Mismo patrón que <c>Documentos.razor.cs</c>. Su Token se lee
+    /// SIEMPRE antes del primer await del método que lo usa.
+    /// </summary>
+    private readonly CancellationTokenSource _ciclo = new();
+    private bool _desechado;
+
+    /// <summary>
+    /// Número de la última carga de la rejilla. Cada carga captura el suyo
+    /// ANTES del await y, al volver, solo escribe estado si sigue siendo la
+    /// vigente: sin esto, la respuesta de una búsqueda ya abandonada podía
+    /// pisar el total, las filas, la selección o el foco de la pregunta que sí
+    /// se está mirando.
+    /// </summary>
+    private int _cargaVigente;
+
+    /// <summary>La respuesta es de la pregunta vigente y la página sigue viva.</summary>
+    private bool EsVigente(int carga) => !_desechado && carga == _cargaVigente;
+
+    public void Dispose()
+    {
+        if (_desechado)
+            return;
+
+        _desechado = true;
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+    }
+
     protected override async Task OnInitializedAsync()
     {
         // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
@@ -163,6 +194,19 @@ public partial class Vehiculos : ComponentBase
     private async ValueTask<GridItemsProviderResult<VehiculoListaDto>> ProveerElementosAsync(
         GridItemsProviderRequest<VehiculoListaDto> request)
     {
+        if (_desechado)
+            return GridItemsProviderResult.From(new List<VehiculoListaDto>(), 0);
+
+        // Todo lo que define la pregunta —el número de carga y el token— se lee
+        // ANTES del await. Leer _ciclo.Token después dejaría que un Dispose
+        // intermedio lo hubiera desechado.
+        var carga = ++_cargaVigente;
+
+        // Dos motivos para cancelar: que la página se retire (el ciclo) y que
+        // la rejilla pida otra página, otro orden u otro filtro (QuickGrid).
+        using var cancelacion = CancellationTokenSource.CreateLinkedTokenSource(_ciclo.Token, request.CancellationToken);
+        var token = cancelacion.Token;
+
         _cargando = true;
         _errorCarga = false;
 
@@ -179,7 +223,14 @@ public partial class Vehiculos : ComponentBase
                 TamanoPagina: _paginacion.ItemsPerPage,
                 OrdenarPor: ordenarPor,
                 Descendente: descendente,
-                EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro));
+                EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro), token);
+
+            // La respuesta de una búsqueda ya abandonada no puede pisar el
+            // total, las filas ni la selección de la pregunta que sí se está
+            // mirando. QuickGrid descarta por su cuenta el resultado de un
+            // provider superado, pero el estado de la página lo escribimos aquí.
+            if (!EsVigente(carga))
+                return GridItemsProviderResult.From(new List<VehiculoListaDto>(), 0);
 
             _totalElementos = resultado.TotalElementos;
 
@@ -190,6 +241,13 @@ public partial class Vehiculos : ComponentBase
 
             return GridItemsProviderResult.From(elementos, resultado.TotalElementos);
         }
+        catch (Exception) when (!EsVigente(carga))
+        {
+            // Una carga superada que falla no es un error de la vigente: no
+            // puede tapar su resultado con el estado de error de una pregunta
+            // que ya nadie hace.
+            return GridItemsProviderResult.From(new List<VehiculoListaDto>(), 0);
+        }
         catch (Exception)
         {
             _errorCarga = true;
@@ -197,8 +255,11 @@ public partial class Vehiculos : ComponentBase
         }
         finally
         {
-            _cargando = false;
-            StateHasChanged();
+            if (EsVigente(carga))
+            {
+                _cargando = false;
+                StateHasChanged();
+            }
         }
     }
 
@@ -411,6 +472,9 @@ public partial class Vehiculos : ComponentBase
 
     private async Task ConfirmarEliminarAsync()
     {
+        // Guarda de doble clic sobre «Eliminar» del diálogo: mandaría el
+        // comando dos veces y el segundo fallaría con un error que no es real.
+        if (_eliminando) return;
         _eliminando = true;
 
         try
@@ -457,6 +521,7 @@ public partial class Vehiculos : ComponentBase
 
     private async Task ConfirmarEliminarLoteAsync()
     {
+        if (_eliminandoLote) return;
         _eliminandoLote = true;
 
         try

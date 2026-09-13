@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace CaeManager.Web.Features.Vehiculos.Components;
 
-public partial class VehiculoPreviewDrawer : ComponentBase
+public partial class VehiculoPreviewDrawer : ComponentBase, IDisposable
 {
     [Inject] private IMediator Mediator { get; set; } = default!;
 
@@ -19,6 +19,20 @@ public partial class VehiculoPreviewDrawer : ComponentBase
     private VehiculoDetalleDto? _detalle;
     private bool _cargando;
 
+    /// <summary>
+    /// Se incrementa cada vez que se abre un Vehículo distinto. La respuesta
+    /// tardía de A (fila A todavía en vuelo cuando se abre la fila B sin
+    /// cerrar el drawer) comprueba esto antes de escribir <see cref="_detalle"/>:
+    /// sin ello, A podía pintarse bajo la vista previa de B. Mismo patrón que
+    /// <c>EmpresaWorkspacePanel.razor</c>.
+    /// </summary>
+    private int _generacion;
+
+    private readonly CancellationTokenSource _ciclo = new();
+    private CancellationToken _cancelacion;
+
+    protected override void OnInitialized() => _cancelacion = _ciclo.Token;
+
     // Reabrir sobre un Vehículo distinto (fila B tras fila A sin cerrar el
     // drawer) debe recargar todo desde cero — por eso se compara VehiculoId
     // aquí en vez de solo mirar Visible. Documentación/Historial no
@@ -28,6 +42,7 @@ public partial class VehiculoPreviewDrawer : ComponentBase
     {
         if (Visible && VehiculoId is { } id && _idCargado != id)
         {
+            _generacion++;
             _idCargado = id;
             _pestanaActiva = "informacion";
             _detalle = null;
@@ -48,12 +63,26 @@ public partial class VehiculoPreviewDrawer : ComponentBase
 
     private async Task CargarInformacionAsync(Guid vehiculoId)
     {
+        var cancelacion = _cancelacion;
+        var generacion = _generacion;
         _cargando = true;
         StateHasChanged();
 
-        _detalle = await Mediator.Send(new ObtenerVehiculoPorIdQuery(vehiculoId));
-        _cargando = false;
-        StateHasChanged();
+        try
+        {
+            var detalle = await Mediator.Send(new ObtenerVehiculoPorIdQuery(vehiculoId), cancelacion);
+            if (generacion != _generacion) return;
+            _detalle = detalle;
+        }
+        catch (OperationCanceledException) when (cancelacion.IsCancellationRequested) { }
+        finally
+        {
+            if (generacion == _generacion)
+            {
+                _cargando = false;
+                StateHasChanged();
+            }
+        }
     }
 
     private Task Cerrar() => VisibleChanged.InvokeAsync(false);
@@ -63,5 +92,12 @@ public partial class VehiculoPreviewDrawer : ComponentBase
         if (VehiculoId is not { } id) return;
         await VisibleChanged.InvokeAsync(false);
         await OnOperar.InvokeAsync((id, pestana));
+    }
+
+    public void Dispose()
+    {
+        _generacion++;
+        _ciclo.Cancel();
+        _ciclo.Dispose();
     }
 }
