@@ -1,127 +1,256 @@
 @page "/configuracion/plataforma"
 @rendermode InteractiveServer
 @attribute [Authorize]
-@* Sin gate de rol: esta puerta es exclusiva de la IDENTIDAD RAÍZ designada por
-   el despliegue, y eso no es lo mismo que el rol Administrador de Identity ni
-   que tener AdminPlataforma —la capacidad es lo que se obtiene al cruzarla.
-   La página no reproduce ninguna regla: pregunta a la consulta de
-   descubrimiento y despacha el comando, que es la autoridad final. *@
-@using CaeManager.Application.Plataforma.Queries.PuedeInicializarPlataforma
-@using CaeManager.Application.Plataforma.Queries.ObtenerSesionPrivilegiadaPorId
 @using CaeManager.Application.Plataforma.Commands.AutoConcederPrivilegio
+@using CaeManager.Application.Plataforma.Queries.ObtenerSesionPrivilegiadaPorId
+@using CaeManager.Application.Plataforma.Queries.PuedeInicializarPlataforma
 @using CaeManager.Domain.Plataforma
 @using MediatR
 @using Microsoft.AspNetCore.Components.Forms
 @inject IMediator Mediator
 @inject AntiforgeryStateProvider AntiforgeryStateProvider
+@implements IDisposable
 
-<PageTitle>Plataforma — @Marca.Nombre</PageTitle>
+<PageTitle>Administración global — @Marca.Nombre</PageTitle>
 
-<div class="contenedor-pagina">
-    <a href="/configuracion" class="enlace-volver-configuracion">← Configuración</a>
+<div class="contenedor-pagina administracion-global">
+    <a href="/configuracion" class="enlace-volver-configuracion">
+        <Icono Nombre="volver" Tamano="TamanoIcono.Pequeno" /> Configuración
+    </a>
 
-    <h1 class="titulo-pagina">Administración de plataforma</h1>
+    <header class="administracion-global-cabecera">
+        <span class="administracion-global-ceja">Administración global</span>
+        <h1 class="titulo-pagina">Administración global</h1>
+    </header>
 
-    @* ── Cierre de la sesión de soporte (B1.3) ─────────────────────────────
-       Se llega aquí desde /cuenta/soporte/salir, que borra la cookie de contexto
-       y trae el id en la URL. El cierre NO se despacha desde el circuito: va por
-       un <form> normal al endpoint, igual que el selector de workspace y por el
-       mismo motivo —escribe estado de servidor y necesita token antiforgery—.
+    <section class="administracion-global-contexto" aria-label="Contexto de administración global">
+        <span class="administracion-global-contexto-icono" aria-hidden="true">
+            <Icono Nombre="seguridad" />
+        </span>
+        <div>
+            <h2>Estás operando en el plano global</h2>
+            <p>
+                Las acciones de esta pantalla se validan con la identidad de la sesión. La capacidad se obtiene al
+                completar el acto fundacional; no depende de un rol de negocio.
+            </p>
+            <div class="administracion-global-etiquetas">
+                <span>Plano global</span>
+                <span>Sin rol de negocio</span>
+                <span>Autoría conservada</span>
+            </div>
+        </div>
+    </section>
 
-       Y hay un motivo más, propio de esta pantalla: dentro de un circuito no hay
-       HttpContext, así que ni la selección ni la sesión privilegiada se resuelven
-       (SeleccionSinHttpContextTests). Un botón que despachara el comando desde
-       aquí no podría comprobar si el técnico sigue dentro del tenant visitado; el
-       endpoint sí. *@
+    <section class="administracion-global-seccion" aria-labelledby="acto-fundacional">
+        <h2 id="acto-fundacional">Acto fundacional</h2>
+        @if (_cargando)
+        {
+            <EstadoCargando Filas="3" />
+        }
+        else if (_errorCarga)
+        {
+            <div class="administracion-global-error" role="alert">
+                <Icono Nombre="error-circulo" />
+                <div>
+                    <strong>No pudimos comprobar el estado de la administración global</strong>
+                    <span>No se pudo comprobar el estado. No se ha ejecutado ninguna acción.</span>
+                </div>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">Reintentar</Boton>
+            </div>
+        }
+        else if (_puedeInicializar)
+        {
+            <div class="administracion-global-tarjeta">
+                <div class="administracion-global-tarjeta-cuerpo">
+                    <h3>La administración global todavía no está inicializada</h3>
+                    <p>
+                        Al confirmar te concedes a ti mismo la capacidad de administración global. El beneficiario no
+                        es un parámetro: esta acción no permite concederla a otra persona.
+                    </p>
+                    <ul class="administracion-global-consecuencias">
+                        <li>
+                            <Icono Nombre="check" Tamano="TamanoIcono.Pequeno" />La concesión es global: no lleva
+                            una organización objetivo.
+                        </li>
+                        <li>
+                            <Icono Nombre="check" Tamano="TamanoIcono.Pequeno" />El acto se consume en el mismo
+                            guardado que crea la concesión.
+                        </li>
+                        <li>
+                            <Icono Nombre="check" Tamano="TamanoIcono.Pequeno" />La autoría queda registrada.
+                        </li>
+                    </ul>
+                    <p class="administracion-global-advertencia">
+                        <Icono Nombre="advertencia" Tamano="TamanoIcono.Pequeno" />Este paso se ejecuta una sola
+                        vez y no vuelve a estar disponible, aunque la concesión se revoque después.
+                    </p>
+                </div>
+                @if (_error is not null)
+                {
+                    <p class="administracion-global-error-comando" role="alert">@_error</p>
+                }
+                <div class="administracion-global-acciones">
+                    <Boton OnClick="AbrirConfirmacion">Inicializar administración global</Boton>
+                    <span>Se pide confirmación antes de ejecutar.</span>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="administracion-global-tarjeta administracion-global-estado-consumido">
+                <span class="administracion-global-contexto-icono" aria-hidden="true">
+                    <Icono Nombre="check" />
+                </span>
+                <div>
+                    <h3>No hay nada que inicializar aquí</h3>
+                    <p>El acto fundacional ya se consumió. No se reabre aunque la concesión se revoque o caduque.</p>
+                </div>
+            </div>
+        }
+    </section>
+
     @if (SesionCerrada)
     {
-        <p role="status" class="alerta-info">Sesión de soporte cerrada.</p>
+        <section class="administracion-global-seccion" aria-labelledby="sesion-soporte">
+            <h2 id="sesion-soporte">Sesión de soporte</h2>
+            <p class="administracion-global-exito" role="status">
+                <Icono Nombre="exito-circulo" Tamano="TamanoIcono.Pequeno" />Sesión de soporte cerrada.
+            </p>
+        </section>
     }
     else if (ErrorCierre is not null)
     {
-        <p role="alert" class="mensaje-error">@TextoDeErrorDeCierre(ErrorCierre)</p>
+        <section class="administracion-global-seccion" aria-labelledby="sesion-soporte">
+            <h2 id="sesion-soporte">Sesión de soporte</h2>
+            <p class="administracion-global-error-comando" role="alert">@TextoDeErrorDeCierre(ErrorCierre)</p>
+        </section>
     }
     else if (SesionParaCerrar is { } sesion)
     {
-        <p class="texto-descriptivo">
-            Has salido del cliente visitado, pero la sesión de soporte sigue abierta y lo
-            estará hasta que venza su ventana. Ciérrala ahora para que conste cuándo
-            terminó la visita.
-        </p>
-
-        @* Observación con TTL (DEC-2): qué se va a cerrar, exactamente, antes de
-           cerrarlo. Búsqueda puntual por el Id que ya trae la URL — no un listado,
-           ver el comentario normativo de ObtenerSesionPrivilegiadaPorIdQuery. *@
-        @if (_detalleSesion is { } detalle)
-        {
-            <dl class="detalle-sesion-soporte">
-                <dt>Tenant</dt>
-                <dd>@detalle.TenantObjetivoId</dd>
-                <dt>Capacidad</dt>
-                <dd>@detalle.Capacidad</dd>
-                <dt>Motivo</dt>
-                <dd>@detalle.Motivo</dd>
-                <dt>Abierta</dt>
-                <dd>@detalle.InicioEnUtc.ToLocalTime()</dd>
-                <dt>Expira</dt>
-                <dd>@detalle.ExpiraEnUtc.ToLocalTime()</dd>
-            </dl>
-        }
-
-        <form method="post" action="/cuenta/soporte/cerrar">
-            @if (_token is not null)
-            {
-                <input type="hidden" name="@_token.FormFieldName" value="@_token.Value" />
-            }
-            <input type="hidden" name="sesionPrivilegiadaId" value="@sesion" />
-
-            <button type="submit" class="boton boton-primario">Cerrar la sesión de soporte</button>
-        </form>
+        <section class="administracion-global-seccion" aria-labelledby="sesion-soporte">
+            <h2 id="sesion-soporte">Sesión de soporte</h2>
+            <div class="administracion-global-sesion">
+                <p>
+                    Has salido de la organización visitada, pero la sesión de soporte sigue abierta. Ciérrala ahora para
+                    que conste cuándo terminó la visita.
+                </p>
+                @if (_detalleSesion is { } detalle)
+                {
+                    <dl class="administracion-global-detalle-sesion">
+                        <div>
+                            <dt>Organización</dt>
+                            <dd>@detalle.TenantObjetivoId</dd>
+                        </div>
+                        <div>
+                            <dt>Capacidad</dt>
+                            <dd>@detalle.Capacidad</dd>
+                        </div>
+                        <div>
+                            <dt>Motivo</dt>
+                            <dd>@detalle.Motivo</dd>
+                        </div>
+                        <div>
+                            <dt>Abierta</dt>
+                            <dd>@detalle.InicioEnUtc.ToLocalTime()</dd>
+                        </div>
+                        <div>
+                            <dt>Expira</dt>
+                            <dd>@detalle.ExpiraEnUtc.ToLocalTime()</dd>
+                        </div>
+                    </dl>
+                }
+                <form method="post" action="/cuenta/soporte/cerrar">
+                    @if (_token is not null)
+                    {
+                        <input type="hidden" name="@_token.FormFieldName" value="@_token.Value" />
+                    }
+                    <input type="hidden" name="sesionPrivilegiadaId" value="@sesion" />
+                    <Boton Type="submit">Cerrar la sesión de soporte</Boton>
+                </form>
+            </div>
+        </section>
     }
 
-    @if (_cargando)
-    {
-        <p>Comprobando el estado de la plataforma…</p>
-    }
-    else if (_puedeInicializar)
-    {
-        <p class="texto-descriptivo">
-            Esta plataforma todavía no tiene administración inicializada. Al confirmar te concedes la
-            capacidad de administración de plataforma, y este paso <strong>no vuelve a estar
-            disponible</strong>: se ejecuta una sola vez y no se reabre aunque después se revoque la
-            concesión.
-        </p>
-
-        @if (_error is not null)
-        {
-            <p role="alert" class="mensaje-error">@_error</p>
-        }
-
-        <button class="boton boton-primario" disabled="@_ejecutando" @onclick="InicializarAsync">
-            Inicializar administración de plataforma
-        </button>
-    }
-    else
-    {
-        <p class="texto-descriptivo">
-            No hay nada que inicializar aquí.
-        </p>
-    }
+    <section class="administracion-global-seccion" aria-labelledby="registro-global">
+        <h2 id="registro-global">Qué queda registrado</h2>
+        <div class="administracion-global-registro">
+            <div>
+                <strong>Actor real</strong>
+                <span>Quién ejecuta la acción.</span>
+            </div>
+            <div>
+                <strong>Vía de acceso</strong>
+                <span>Desde dónde se opera.</span>
+            </div>
+            <div>
+                <strong>Identificador de la vía</strong>
+                <span>La asignación o sesión concreta que ampara el acceso.</span>
+            </div>
+        </div>
+        <a href="/auditoria" class="administracion-global-enlace-auditoria">Ver el registro de auditoría →</a>
+    </section>
+    <section class="administracion-global-seccion" aria-labelledby="otras-pantallas-globales">
+        <h2 id="otras-pantallas-globales">Otras pantallas del plano global</h2>
+        <div class="administracion-global-enlaces">
+            <a href="/delegaciones">
+                <Icono Nombre="cartera" Tamano="TamanoIcono.Pequeno" />
+                <span>
+                    <strong>Organizaciones externas</strong>
+                    <small>Qué organización externa opera otra organización y con qué vigencia.</small>
+                </span>
+            </a>
+            <a href="/configuracion/comercial">
+                <Icono Nombre="cartera" Tamano="TamanoIcono.Pequeno" />
+                <span>
+                    <strong>Estado comercial</strong>
+                    <small>Producto contratado, pagador y vigencia por organización beneficiaria.</small>
+                </span>
+            </a>
+        </div>
+    </section>
 </div>
 
+<Modal Visible="_confirmacionVisible"
+       VisibleChanged="(bool visible) => CerrarConfirmacion(visible)"
+       Titulo="Confirmar el acto fundacional"
+       CerrarAlHacerClicFuera="!_ejecutando">
+    <ChildContent>
+        <p>
+            Vas a concederte la capacidad de administración global con vigencia indefinida. El acto se consume en la
+            misma transacción y no se reabre.
+        </p>
+        <label class="administracion-global-confirmacion">
+            <input type="checkbox" checked="@_confirmacionAceptada" @onchange="CambiarAceptacion" />
+            <span>Entiendo que este paso se ejecuta una sola vez y no vuelve a estar disponible.</span>
+        </label>
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario"
+               Deshabilitado="_ejecutando"
+               OnClick="() => CerrarConfirmacion(false)">
+            Cancelar
+        </Boton>
+        <Boton Cargando="_ejecutando"
+               Deshabilitado="!_confirmacionAceptada"
+               OnClick="InicializarAsync">
+            Sí, inicializar
+        </Boton>
+    </Pie>
+</Modal>
+
 @code {
+    private CancellationTokenSource? _ciclo;
+    private long _generacion;
     private bool _cargando = true;
+    private bool _errorCarga;
     private bool _puedeInicializar;
     private bool _ejecutando;
+    private bool _confirmacionVisible;
+    private bool _confirmacionAceptada;
     private string? _error;
     private AntiforgeryRequestToken? _token;
+    private SesionPrivilegiadaDetalleDto? _detalleSesion;
 
-    /// <summary>
-    /// El id que trae <c>/cuenta/soporte/salir</c> en la redirección. No es
-    /// autoridad: quien decide si esa sesión se puede cerrar es el comando, y
-    /// debajo de él la política RLS <c>privilegio_del_usuario</c>, que solo
-    /// entrega las sesiones que cuelgan de una concesión del usuario actual.
-    /// </summary>
     [SupplyParameterFromQuery(Name = "sesionParaCerrar")]
     public Guid? SesionParaCerrar { get; set; }
 
@@ -132,22 +261,130 @@
     public string? Cerrada { get; set; }
 
     private bool SesionCerrada => Cerrada == "1";
-    private SesionPrivilegiadaDetalleDto? _detalleSesion;
 
     protected override async Task OnInitializedAsync()
     {
         _token = AntiforgeryStateProvider.GetAntiforgeryToken();
-        _puedeInicializar = await Mediator.Send(new PuedeInicializarPlataformaQuery());
-        _cargando = false;
-
-        if (SesionParaCerrar is { } sesion)
-            _detalleSesion = await Mediator.Send(new ObtenerSesionPrivilegiadaPorIdQuery(sesion));
+        await CargarAsync();
     }
 
-    /// <summary>
-    /// Traduce el código que viaja en la URL. Se traduce aquí y no se muestra
-    /// crudo porque el endpoint manda un código, nunca texto de excepción.
-    /// </summary>
+    private async Task CargarAsync()
+    {
+        var generacion = Interlocked.Increment(ref _generacion);
+        var ciclo = new CancellationTokenSource();
+        var anterior = Interlocked.Exchange(ref _ciclo, ciclo);
+        anterior?.Cancel();
+        anterior?.Dispose();
+        var cancellationToken = ciclo.Token;
+        _cargando = true;
+        _errorCarga = false;
+        _detalleSesion = null;
+
+        try
+        {
+            var puedeInicializar = await Mediator.Send(new PuedeInicializarPlataformaQuery(), cancellationToken);
+            SesionPrivilegiadaDetalleDto? detalle = null;
+
+            if (SesionParaCerrar is { } sesion)
+            {
+                detalle = await Mediator.Send(new ObtenerSesionPrivilegiadaPorIdQuery(sesion), cancellationToken);
+            }
+
+            if (generacion != _generacion)
+            {
+                return;
+            }
+
+            _puedeInicializar = puedeInicializar;
+            _detalleSesion = detalle;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch
+        {
+            if (generacion != _generacion)
+            {
+                return;
+            }
+
+            _errorCarga = true;
+        }
+        finally
+        {
+            if (generacion == _generacion)
+            {
+                _cargando = false;
+            }
+        }
+    }
+
+    private void AbrirConfirmacion()
+    {
+        _error = null;
+        _confirmacionAceptada = false;
+        _confirmacionVisible = true;
+    }
+
+    private void CerrarConfirmacion(bool visible)
+    {
+        if (visible || _ejecutando)
+        {
+            return;
+        }
+
+        _confirmacionVisible = false;
+        _confirmacionAceptada = false;
+    }
+
+    private void CambiarAceptacion(ChangeEventArgs args)
+        => _confirmacionAceptada = args.Value is bool aceptada && aceptada;
+
+    private async Task InicializarAsync()
+    {
+        if (_ejecutando || !_confirmacionAceptada)
+        {
+            return;
+        }
+
+        var generacion = Volatile.Read(ref _generacion);
+        _ejecutando = true;
+        _error = null;
+
+        try
+        {
+            var resultado = await Mediator.Send(
+                new AutoConcederPrivilegioCommand(
+                    Guid.Empty,
+                    CapacidadPrivilegio.AdminPlataforma,
+                    DiasDeVigencia: 1));
+            var esFallido = resultado.EsFallido;
+            var mensajeError = esFallido ? resultado.Error.Mensaje : null;
+
+            if (generacion != Volatile.Read(ref _generacion))
+            {
+                return;
+            }
+
+            if (esFallido)
+            {
+                _error = mensajeError;
+                return;
+            }
+
+            _puedeInicializar = false;
+            _confirmacionVisible = false;
+            _confirmacionAceptada = false;
+        }
+        finally
+        {
+            if (generacion == Volatile.Read(ref _generacion))
+            {
+                _ejecutando = false;
+            }
+        }
+    }
+
     private static string TextoDeErrorDeCierre(string codigo) => codigo switch
     {
         "SesionPrivilegiada.YaCerrada" => "Esa sesión de soporte ya estaba cerrada.",
@@ -155,26 +392,11 @@
         _ => "No se pudo cerrar la sesión de soporte.",
     };
 
-    private async Task InicializarAsync()
+    public void Dispose()
     {
-        _ejecutando = true;
-        _error = null;
-
-        // El comando es la autoridad final. Que la consulta haya dicho que sí no
-        // basta: entre una cosa y otra el bootstrap puede haberse consumido, y
-        // aquí se vuelve a comprobar —con su token de concurrencia detrás—.
-        var resultado = await Mediator.Send(
-            new AutoConcederPrivilegioCommand(Guid.Empty, CapacidadPrivilegio.AdminPlataforma, DiasDeVigencia: 1));
-
-        if (resultado.EsFallido)
-        {
-            _error = resultado.Error.Mensaje;
-            _ejecutando = false;
-            return;
-        }
-
-        // Consumido: la puerta desaparece.
-        _puedeInicializar = false;
-        _ejecutando = false;
+        Interlocked.Increment(ref _generacion);
+        var ciclo = Interlocked.Exchange(ref _ciclo, null);
+        ciclo?.Cancel();
+        ciclo?.Dispose();
     }
 }

@@ -29,7 +29,7 @@ public class FlujoAltaYRevocacionDelegacionTests(WebAppFixture fixture)
         // Desde A3 el alta de Cliente Delegante la autoriza AdminPlataforma, y
         // esa capacidad no la siembra ningún seeder: la única forma de obtenerla
         // es que la identidad raíz designada por el despliegue cruce esta puerta.
-        // Este test hace lo que haría un operador en el primer arranque real;
+        // Este test hace lo que haría la identidad raíz en el primer arranque real;
         // insertar la concesión directamente en la base de datos daría el mismo
         // verde sin ejercitar el único camino que la produce.
         //
@@ -38,17 +38,25 @@ public class FlujoAltaYRevocacionDelegacionTests(WebAppFixture fixture)
         // nada — si la puerta dejara de producir la capacidad, la espera de
         // "Nueva delegación" seguiría fallando igual unas líneas más abajo.
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/configuracion/plataforma");
-        var puerta = page.GetByText("Inicializar administración de plataforma");
-        var yaInicializada = page.GetByText("No hay nada que inicializar aquí");
+        var puerta = page.GetByRole(AriaRole.Button,
+            new PageGetByRoleOptions { Name = "Inicializar administración global" });
+        var yaInicializada = page.GetByRole(AriaRole.Heading,
+            new PageGetByRoleOptions { Name = "No hay nada que inicializar aquí" });
         await puerta.Or(yaInicializada).First.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         if (await puerta.CountAsync() > 0)
         {
             await puerta.ClickAsync();
+            var confirmacion = page.GetByRole(AriaRole.Dialog,
+                new PageGetByRoleOptions { Name = "Confirmar el acto fundacional" });
+            await confirmacion.GetByLabel(
+                "Entiendo que este paso se ejecuta una sola vez y no vuelve a estar disponible.").CheckAsync();
+            await confirmacion.GetByRole(AriaRole.Button,
+                new LocatorGetByRoleOptions { Name = "Sí, inicializar" }).ClickAsync();
 
-            // Aserción positiva, no "el botón desapareció": si el comando
-            // fallara, la página conserva el botón y pinta el error, y esto lo
-            // delata en vez de dejarlo pasar.
+            // Aserción positiva del resultado, no "el diálogo desapareció":
+            // si el comando fallara, la página conserva la puerta y pinta el
+            // error, y esto lo delata en vez de dejarlo pasar.
             await Expect(yaInicializada).ToBeVisibleAsync(
                 new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
         }
