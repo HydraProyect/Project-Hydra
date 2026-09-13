@@ -57,4 +57,28 @@ public class ReactivarConexionCommandHandlerTests
         conexion.Estado.Should().Be(EstadoConexionIntegracion.ConError, "un cliente fuera de la cartera visible no debe poder tocar la conexión");
         unitOfWork.VecesGuardado.Should().Be(0);
     }
+
+    [Fact]
+    public async Task No_reactiva_el_buzon_personal_de_otro_gestor_aunque_se_le_pase_su_Id()
+    {
+        // Mismo hallazgo que EnviarMensajeNuevoCommandHandlerTests: un buzón
+        // personal tiene ClienteId null, igual que el genérico del tenant —
+        // sin ConexionIntegracionVisibleAsync, la cartera de Cliente no lo
+        // protege de un tercero que conozca/adivine su Id.
+        var conexionPersonal = new ConexionIntegracion(
+            "gestor.otro@ejemplo.local", "Buzón personal", gestorPropietarioId: Guid.NewGuid());
+        conexionPersonal.MarcarConError("fallo");
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexionPersonal);
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = new ReactivarConexionCommandHandler(
+            conexionRepositorio, new AlcanceDatosServiceFalso(conexionIntegracionVisible: false), unitOfWork);
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexionPersonal.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("ConexionIntegracion.NoEncontrada");
+        conexionPersonal.Estado.Should().Be(EstadoConexionIntegracion.ConError);
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
 }
