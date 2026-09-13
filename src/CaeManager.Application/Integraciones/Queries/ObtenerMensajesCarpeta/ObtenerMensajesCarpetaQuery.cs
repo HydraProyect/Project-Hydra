@@ -24,6 +24,13 @@ public class ObtenerMensajesCarpetaQueryHandler(
             return Result.Fallo<IReadOnlyList<MensajeResumenGraphDto>>(
                 Error.Crear("ConexionIntegracion.NoEncontrada", "No encontramos esta conexión."));
 
+        // Un buzón personal de OTRO gestor no se resuelve por cartera de
+        // Cliente (tiene ClienteId null, igual que el genérico del tenant) —
+        // mismo hallazgo y mismo fix que EnviarMensajeNuevoCommandHandler.
+        if (!await alcanceDatos.ConexionIntegracionVisibleAsync(conexion.Id, cancellationToken))
+            return Result.Fallo<IReadOnlyList<MensajeResumenGraphDto>>(
+                Error.Crear("ConexionIntegracion.NoEncontrada", "No encontramos esta conexión."));
+
         if (conexion.Estado != EstadoConexionIntegracion.Habilitada)
             return Result.Fallo<IReadOnlyList<MensajeResumenGraphDto>>(
                 Error.Crear("ConexionIntegracion.NoDisponible", "Este buzón no está disponible."));

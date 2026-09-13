@@ -33,6 +33,12 @@ public class DesconectarBuzonCommandHandler(
         if (conexion is null || !await alcanceDatos.ClienteOpcionalVisibleAsync(conexion.ClienteId, cancellationToken))
             return Result.Fallo(Error.Crear("ConexionIntegracion.NoEncontrada", "No encontramos esta conexión."));
 
+        // Un buzón personal de OTRO gestor no se resuelve por cartera de
+        // Cliente (tiene ClienteId null, igual que el genérico del tenant) —
+        // mismo hallazgo y mismo fix que EnviarMensajeNuevoCommandHandler.
+        if (!await alcanceDatos.ConexionIntegracionVisibleAsync(conexion.Id, cancellationToken))
+            return Result.Fallo(Error.Crear("ConexionIntegracion.NoEncontrada", "No encontramos esta conexión."));
+
         var suscripcion = await suscripcionRepositorio.ObtenerPorConexionAsync(conexion.Id, cancellationToken);
         if (suscripcion is not null)
         {
