@@ -2,6 +2,7 @@ using System.Security.Claims;
 using CaeManager.Infrastructure.Identity;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Logging;
 using Microsoft.JSInterop;
 
 namespace CaeManager.Web.Components.Layout;
@@ -20,6 +21,20 @@ namespace CaeManager.Web.Components.Layout;
 public partial class SelectorTema : ComponentBase, IAsyncDisposable
 {
     [Inject] private CaeManager.Application.Common.PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
+
+    /// <summary>
+    /// Solo para <see cref="GuardarTemaAsync"/>: <c>UserManager.FindByIdAsync</c>
+    /// no sirve para recargar tras un conflicto de concurrencia porque
+    /// devuelve la MISMA instancia obsoleta que ya está trackeada en el
+    /// DbContext scoped de este circuito (mapa de identidad de EF) — no
+    /// repite el viaje a la base. Hace falta desengancharla primero; Web no
+    /// resuelve el DbContext concreto (ver
+    /// <c>CaeManager.Architecture.Tests.FronterasDeCapaTests</c>), de ahí la
+    /// interfaz.
+    /// </summary>
+    [Inject] private CaeManager.Application.Common.IDesenganchadorDeEntidadesRastreadas Desenganchador { get; set; } = default!;
+
+    [Inject] private ILogger<SelectorTema> Logger { get; set; } = default!;
 
     private IJSObjectReference? _modulo;
     private ApplicationUser? _usuario;
@@ -88,11 +103,65 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
             await _modulo.InvokeVoidAsync("aplicarTema", texto);
 
         if (_usuario is not null)
-        {
-            _usuario.Tema = TextoATema(texto);
-            await PuertaAccesoDatos.EjecutarAsync(() => UserManager.UpdateAsync(_usuario));
-        }
+            await GuardarTemaAsync(texto);
     }
+
+    /// <summary>
+    /// <c>_usuario</c> se cargó una sola vez en <see cref="OnInitializedAsync"/>
+    /// y puede llevar horas en memoria cuando el usuario por fin toca el
+    /// selector: cualquier otra escritura sobre esta misma cuenta entre medias
+    /// —<c>ActividadUsuarioService</c> toca <c>UltimaActividadUtc</c> en cada
+    /// carga de página, con su propio <c>UserManager.UpdateAsync</c>— renueva
+    /// <c>ConcurrencyStamp</c> en la base y deja este <c>_usuario</c> obsoleto.
+    /// <c>UserManager.UpdateAsync</c> con una entidad obsoleta no lanza: el
+    /// <c>UserStore</c> de Identity atrapa <c>DbUpdateConcurrencyException</c> y
+    /// devuelve un <see cref="IdentityResult"/> fallido — descartarlo, como
+    /// hacía la versión anterior, perdía la preferencia en silencio (mismo
+    /// defecto mudo que el que arregló <see cref="OnAfterRenderAsync"/>, esta
+    /// vez en el guardado y no en la aplicación). Se recarga la fila fresca y
+    /// se reintenta una sola vez: no hay conflicto que fusionar, el tema
+    /// elegido ahora mismo siempre debe ganar.
+    /// </summary>
+    private async Task GuardarTemaAsync(string texto)
+    {
+        _usuario!.Tema = TextoATema(texto);
+        var resultado = await PuertaAccesoDatos.EjecutarAsync(() => UserManager.UpdateAsync(_usuario));
+        if (resultado.Succeeded) return;
+
+        if (!resultado.Errors.Any(error => error.Code == nameof(IdentityErrorDescriber.ConcurrencyFailure)))
+        {
+            LogFalloAlGuardar(resultado);
+            return;
+        }
+
+        var usuarioFresco = await PuertaAccesoDatos.EjecutarAsync(async () =>
+        {
+            // Desengancha la instancia obsoleta del change tracker: mientras
+            // siga trackeada, FindByIdAsync devuelve exactamente el mismo
+            // objeto (mapa de identidad de EF) en vez de repetir la consulta,
+            // así que "recargar" no recargaría nada.
+            Desenganchador.Desenganchar(_usuario);
+            return await UserManager.FindByIdAsync(_usuario.Id.ToString());
+        });
+        if (usuarioFresco is null)
+        {
+            Logger.LogWarning(
+                "No se pudo recargar la cuenta {UsuarioId} tras un conflicto de concurrencia al guardar el tema.",
+                _usuario.Id);
+            return;
+        }
+
+        _usuario = usuarioFresco;
+        _usuario.Tema = TextoATema(texto);
+        var resultadoReintento = await PuertaAccesoDatos.EjecutarAsync(() => UserManager.UpdateAsync(_usuario));
+        if (!resultadoReintento.Succeeded)
+            LogFalloAlGuardar(resultadoReintento);
+    }
+
+    private void LogFalloAlGuardar(IdentityResult resultado) =>
+        Logger.LogWarning(
+            "No se pudo guardar el tema elegido para {UsuarioId}: {Errores}",
+            _usuario!.Id, string.Join(" ", resultado.Errors.Select(e => e.Description)));
 
     private static string TemaATexto(TemaPreferido tema) => tema switch
     {
