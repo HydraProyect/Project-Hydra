@@ -2,33 +2,21 @@
 @rendermode InteractiveServer
 @attribute [Authorize]
 @inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
-@* El alta de Cliente Delegante la autoriza AdminPlataforma (A3), no el rol Administrador de Identity.
-   Mantener el rol crearía un AND que no forma parte del contrato de la
-   capacidad — y desde F2b-2 el claim de rol se retira bajo sesión
-   privilegiada, así que la UI dependería de una autoridad que el plano 3
-   deliberadamente no conserva.
-
-   La página no es el enforcement: ese vive en el comando. Que alguien vea
-   la ruta y el comando la rechace no es una vulnerabilidad. *@
 
 @if (!IntegradaEnConfiguracion)
 {
     <PageTitle>Delegaciones — @Marca.Nombre</PageTitle>
 }
 
-<div class="@ClaseContenedorPagina">
+<div class="@ClaseContenedorPagina delegaciones-pantalla">
     <CabeceraPagina Titulo="Delegaciones" Integrada="@IntegradaEnConfiguracion">
         <Descripcion>
-            Una delegación autoriza a una consultora a gestionar la CAE de un cliente sin ser dueña de
-            sus datos. Revocarla corta el acceso de inmediato y no borra ni mueve ninguna información:
-            los datos nunca dejaron de ser del cliente. Se conserva el registro de la delegación
-            revocada para saber quién operó y cuándo, y para poder reactivarla.
+            Autoriza a una organización a prestar servicio CAE sobre otra sin transferir la propiedad de sus datos.
+            Revocar corta el acceso y conserva el historial para poder reactivarla cuando corresponda.
         </Descripcion>
         <Acciones>
-            @if (_esAdministradorPlataforma && !OperandoWorkspaceAjeno)
+            @if (PuedeGestionar)
             {
-                @* v1 de ADR-004 § 12.2: solo el administrador de la plataforma
-                   puede iniciar una delegación nueva. *@
                 <Boton OnClick="AbrirFormularioNuevaDelegacion">Nueva delegación</Boton>
             }
         </Acciones>
@@ -36,19 +24,15 @@
 
     @if (OperandoWorkspaceAjeno)
     {
-        @* Sin esto, los botones se veían y fallaban con "tu rol no permite…",
-           que no explica el motivo real: las delegaciones se gestionan desde
-           la propia organización porque los comandos deciden con el tenant de
-           origen. *@
-        <div class="aviso-workspace-ajeno">
-            Estás viendo esta pantalla mientras operas el cliente activo de otra organización.
-            Para gestionar delegaciones, vuelve a tu organización desde el selector de la cabecera.
+        <div class="delegaciones-aviso-ajeno" role="note">
+            Estás consultando una organización ajena. Las delegaciones se gestionan desde la organización de origen.
         </div>
     }
 
     @if (_error)
     {
-        <EstadoVacio Titulo="No pudimos cargar las delegaciones" Descripcion="Intenta nuevamente en unos segundos.">
+        <EstadoVacio Titulo="No pudimos cargar las delegaciones"
+                     Descripcion="Intenta nuevamente en unos segundos.">
             <Accion>
                 <Boton OnClick="CargarAsync">Reintentar</Boton>
             </Accion>
@@ -61,152 +45,159 @@
     else if (_delegaciones.Count == 0)
     {
         <EstadoVacio Titulo="No hay ninguna delegación"
-                     Descripcion="Tu organización no gestiona la CAE de otra ni ha delegado la suya en nadie." />
+                     Descripcion="Esta organización no presta ni recibe servicio CAE delegado." />
     }
     else
     {
-        @foreach (var delegacion in _delegaciones)
-        {
-            <Tarjeta Class="tarjeta-delegacion">
-                <div class="delegacion-cabecera">
-                    <div>
-                        <h2 class="delegacion-titulo">
-                            @if (delegacion.SomosLaConsultora)
-                            {
-                                <text>Gestionamos a @delegacion.ClienteNombre</text>
-                            }
-                            else
-                            {
-                                <text>@delegacion.ConsultoraNombre nos gestiona</text>
-                            }
-                        </h2>
-                        <span class="delegacion-fecha">Desde @delegacion.CreadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy")</span>
-
+        <div class="delegaciones-lista" aria-label="Delegaciones">
+            @foreach (var delegacion in _delegaciones)
+            {
+                <Tarjeta Class="delegaciones-tarjeta">
+                    <div class="delegaciones-tarjeta-cabecera">
+                        <div>
+                            <div class="delegaciones-etiquetas">
+                                <Badge Tono="@(delegacion.EsSoporte ? TonoBadge.Info : TonoBadge.Neutro)">
+                                    @(delegacion.EsSoporte ? "Soporte" : "Comercial")
+                                </Badge>
+                                <Badge Tono="@TonoEstado(delegacion.EsSoporte, delegacion.AccesoVigente, delegacion.VentanaCaducada, delegacion.Activa)">
+                                    @TextoEstado(delegacion.EsSoporte, delegacion.AccesoVigente, delegacion.VentanaCaducada, delegacion.Activa)
+                                </Badge>
+                            </div>
+                            <h2 class="delegaciones-titulo">
+                                @TituloDe(delegacion.SomosLaConsultora, delegacion.ClienteNombre, delegacion.ConsultoraNombre)
+                            </h2>
+                            <p class="delegaciones-fecha">
+                                Desde @delegacion.CreadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy")
+                            </p>
+                        </div>
                         @if (delegacion.EsSoporte && delegacion.AccesoVigente)
                         {
-                            <p class="delegacion-motivo">
-                                <strong>Motivo:</strong> @delegacion.MotivoActivacion
+                            <div class="delegaciones-ventana">
+                                <span>Ventana abierta</span>
                                 @if (delegacion.ExpiraEnUtc is { } expira)
                                 {
-                                    <text> · hasta el @expira.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</text>
+                                    <strong>Hasta @expira.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</strong>
                                 }
-                            </p>
+                            </div>
                         }
                     </div>
 
-                    <div class="delegacion-acciones">
-                        @if (OperandoWorkspaceAjeno)
-                        {
-                            @* Solo lectura: las acciones viven en la organización propia. *@
-                            <Badge Tono="TonoBadge.Neutro">@(delegacion.EsSoporte ? "Soporte" : "Comercial")</Badge>
-                            <Badge Tono="@(delegacion.AccesoVigente ? TonoBadge.Exito : TonoBadge.Neutro)">
-                                @(delegacion.AccesoVigente ? "Acceso abierto" : "Sin acceso")
-                            </Badge>
-                        }
-                        else if (delegacion.EsSoporte)
-                        {
-                            @* Una delegación de soporte apagada no está "revocada":
-                               está aprovisionada y sin abrir, que es su estado normal
-                               en reposo. Y se abre con motivo y ventana, nunca con el
-                               "Reactivar" de una comercial. *@
-                            <Badge Tono="TonoBadge.Neutro">Soporte</Badge>
+                    @if (delegacion.EsSoporte && delegacion.AccesoVigente)
+                    {
+                        <p class="delegaciones-motivo"><strong>Motivo registrado:</strong> @delegacion.MotivoActivacion</p>
+                    }
+                    else if (delegacion.EsSoporte)
+                    {
+                        <p class="delegaciones-nota">@(delegacion.VentanaCaducada ? "La última ventana de soporte terminó." : "No hay una ventana de soporte abierta.")</p>
+                    }
+                    else if (!delegacion.Activa)
+                    {
+                        <p class="delegaciones-nota">El acceso está retirado. Los datos se conservan y la delegación puede reactivarse.</p>
+                    }
 
-                            @if (delegacion.AccesoVigente)
-                            {
-                                <Badge Tono="TonoBadge.Advertencia">Acceso abierto</Badge>
-                                <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Destructivo"
-                                       OnClick="() => CerrarAccesoSoporteAsync(delegacion)"
-                                       Cargando="@(_procesandoId == delegacion.Id)">
-                                    Cerrar acceso
-                                </Boton>
-                            }
-                            else
-                            {
-                                <Badge Tono="TonoBadge.Neutro">@(delegacion.VentanaCaducada ? "Ventana caducada" : "Sin abrir")</Badge>
-                                <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario"
-                                       OnClick="() => AbrirFormularioSoporte(delegacion)">
-                                    Abrir acceso
-                                </Boton>
-                            }
-                        }
-                        else
-                        {
-                            <Badge Tono="@(delegacion.Activa ? TonoBadge.Exito : TonoBadge.Neutro)">
-                                @(delegacion.Activa ? "Activa" : "Revocada")
-                            </Badge>
-
-                            @if (delegacion.Activa)
-                            {
-                                <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Destructivo"
-                                       OnClick="() => _delegacionARevocar = delegacion">
-                                    Revocar acceso
-                                </Boton>
-                            }
-                            else
-                            {
-                                <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario"
-                                       OnClick="() => ReactivarAsync(delegacion)" Cargando="@(_procesandoId == delegacion.Id)">
-                                    Reactivar
-                                </Boton>
-                            }
-                        }
-                    </div>
-                </div>
-
-                @if (delegacion.EsSoporte)
-                {
-                    @* Disponible también para el cliente visitado, no solo para
-                       Hydra: el registro es suyo y la transparencia es el
-                       sentido de tenerlo. *@
-                    <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Fantasma"
-                           OnClick="() => VerActividadAsync(delegacion)">
-                        Ver actividad registrada
-                    </Boton>
-                }
-
-                @if (delegacion.Operadores.Count == 0)
-                {
-                    <p class="delegacion-sin-operadores">Sin operadores autorizados todavía.</p>
-                }
-                else
-                {
-                    <table class="tabla-datos">
-                        <thead>
-                            <tr>
-                                <th>Operador</th>
-                                <th>Rol en este cliente</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var operador in delegacion.Operadores)
-                            {
-                                <tr>
-                                    <td>@NombreDeUsuario(operador.UsuarioId)</td>
-                                    <td>@CaeManager.Infrastructure.Identity.Roles.NombreVisible(operador.Rol)</td>
-                                    <td>
-                                        @* Igual que el resto de acciones: retirar a un operador
-                                           se decide desde la organización propia. *@
-                                        @if (!OperandoWorkspaceAjeno)
+                    @if (delegacion.Operadores.Count == 0)
+                    {
+                        <p class="delegaciones-sin-personas">Sin personas autorizadas todavía.</p>
+                    }
+                    else
+                    {
+                        <div class="delegaciones-tabla-marco"
+                             role="region"
+                             aria-label="Personas autorizadas">
+                            <table class="tabla-datos delegaciones-tabla">
+                                <thead>
+                                    <tr>
+                                        <th>Persona</th>
+                                        <th>Rol CAE</th>
+                                        @if (PuedeGestionar)
                                         {
-                                            <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Fantasma"
-                                                   OnClick="() => RetirarOperadorAsync(operador)"
-                                                   Cargando="@(_procesandoId == operador.AsignacionId)">
-                                                Retirar
-                                            </Boton>
+                                            <th>Acción</th>
                                         }
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                }
-            </Tarjeta>
-        }
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var operador in delegacion.Operadores)
+                                    {
+                                        <tr>
+                                            <td class="@(EsUsuarioNoResuelto(operador.UsuarioId) ? "delegaciones-persona-no-resuelta" : null)">
+                                                @NombreDeUsuario(operador.UsuarioId)
+                                            </td>
+                                            <td>@NombreRol(operador.Rol)</td>
+                                            @if (PuedeGestionar)
+                                            {
+                                                <td>
+                                                    <Boton Tamano="TamanoBoton.Pequeno"
+                                                           Variante="VarianteBoton.Fantasma"
+                                                           OnClick="() => RetirarOperadorAsync(delegacion.Id, operador)"
+                                                           Cargando="@EstaProcesando(operador.AsignacionId)">
+                                                        Retirar
+                                                    </Boton>
+                                                </td>
+                                            }
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+
+                    <div class="delegaciones-pie">
+                        @if (delegacion.EsSoporte)
+                        {
+                            <Boton Tamano="TamanoBoton.Pequeno"
+                                   Variante="VarianteBoton.Fantasma"
+                                   OnClick="() => VerActividadAsync(delegacion)">
+                                Ver actividad registrada
+                            </Boton>
+                        }
+                        @if (PuedeGestionar)
+                        {
+                            <div class="delegaciones-acciones">
+                                @if (delegacion.EsSoporte && delegacion.AccesoVigente)
+                                {
+                                    <Boton Tamano="TamanoBoton.Pequeno"
+                                           Variante="VarianteBoton.Destructivo"
+                                           OnClick="() => CerrarAccesoSoporteAsync(delegacion)"
+                                           Cargando="@EstaProcesando(delegacion.Id)">
+                                        Cerrar acceso
+                                    </Boton>
+                                }
+                                else if (delegacion.EsSoporte)
+                                {
+                                    <Boton Tamano="TamanoBoton.Pequeno"
+                                           Variante="VarianteBoton.Secundario"
+                                           OnClick="() => AbrirFormularioSoporte(delegacion)">
+                                        Abrir acceso
+                                    </Boton>
+                                }
+                                else if (delegacion.Activa)
+                                {
+                                    <Boton Tamano="TamanoBoton.Pequeno"
+                                           Variante="VarianteBoton.Destructivo"
+                                           OnClick="() => { if (!EstaProcesando(delegacion.Id)) { PrepararEntidad(delegacion.Id); _delegacionARevocar = delegacion; } }">
+                                        Revocar acceso
+                                    </Boton>
+                                }
+                                else
+                                {
+                                    <Boton Tamano="TamanoBoton.Pequeno"
+                                           Variante="VarianteBoton.Secundario"
+                                           OnClick="() => ReactivarAsync(delegacion)"
+                                           Cargando="@EstaProcesando(delegacion.Id)">
+                                        Reactivar
+                                    </Boton>
+                                }
+                            </div>
+                        }
+                    </div>
+                </Tarjeta>
+            }
+        </div>
     }
 </div>
 
-<Drawer Visible="_verActividadDe is not null" VisibleChanged="v => { if (!v) _verActividadDe = null; }"
+<Drawer Visible="_verActividadDe is not null"
+        VisibleChanged="v => CerrarActividad(v)"
         Titulo="Actividad de soporte registrada">
     @if (_cargandoActividad)
     {
@@ -215,11 +206,12 @@
     else if (_actividad.Count == 0)
     {
         <EstadoVacio Titulo="Sin actividad registrada"
-                     Descripcion="No se ha abierto ningún acceso de soporte sobre esta organización todavía." />
+                     Descripcion="No hay actividad disponible para esta delegación." />
     }
     else
     {
-        <table class="tabla-datos">
+        <div class="delegaciones-actividad-cabecera">Soporte · @_verActividadDe?.ClienteNombre</div>
+        <table class="tabla-datos delegaciones-tabla">
             <thead>
                 <tr>
                     <th>Cuándo</th>
@@ -231,9 +223,9 @@
                 @foreach (var registro in _actividad)
                 {
                     <tr>
-                        <td class="celda-momento">@registro.OcurridaEnUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</td>
+                        <td>@registro.OcurridaEnUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</td>
                         <td>@DescribirTipo(registro.Tipo)</td>
-                        <td class="celda-detalle">@registro.Detalle</td>
+                        <td>@registro.Detalle</td>
                     </tr>
                 }
             </tbody>
@@ -241,95 +233,77 @@
     }
 </Drawer>
 
-@* Abrir acceso de soporte: motivo y ventana son obligatorios porque es Hydra
-   entrando en datos de los que responde el cliente. Ese par es lo que permite
-   responder después "entramos del día X al Y por la incidencia Z". *@
-<Modal Visible="_delegacionSoporteAAbrir is not null" VisibleChanged="v => { if (!v) _delegacionSoporteAAbrir = null; }"
-       Titulo="Abrir acceso de soporte" CerrarAlHacerClicFuera="!_abriendoSoporte">
+<Modal Visible="_delegacionSoporteAAbrir is not null"
+       VisibleChanged="v => CerrarFormularioSoporte(v)"
+       Titulo="Abrir acceso de soporte"
+       CerrarAlHacerClicFuera="!EstaProcesando(_delegacionSoporteAAbrir?.Id)">
     <ChildContent>
         @if (_delegacionSoporteAAbrir is not null)
         {
-            <p>
-                Vas a poder entrar en los datos de <strong>@_delegacionSoporteAAbrir.ClienteNombre</strong>.
-                Queda registrado en su propio historial: el cliente puede consultar qué se hizo.
-            </p>
-
-            <CampoTexto Etiqueta="Motivo" Valor="@_motivoSoporte" ValorChanged="v => _motivoSoporte = v"
-                        Placeholder="Incidencia #442: no carga el listado de documentos" />
-
-            <CampoTexto Etiqueta="Horas de acceso (máximo 4)" Type="number" Valor="@_horasSoporte"
+            <p>El acceso a <strong>@_delegacionSoporteAAbrir.ClienteNombre</strong> queda registrado en su actividad.</p>
+            <CampoTexto Etiqueta="Motivo"
+                        Valor="@_motivoSoporte"
+                        ValorChanged="v => _motivoSoporte = v"
+                        Placeholder="Incidencia o petición que justifica la entrada" />
+            <CampoTexto Etiqueta="Horas de acceso (máximo 4)"
+                        Type="number"
+                        Valor="@_horasSoporte"
                         ValorChanged="v => _horasSoporte = v" />
-
-            @* Solo lectura por defecto: basta para reproducir casi cualquier
-               incidencia y es lo que menos expone. Escribir en datos reales de
-               un cliente para diagnosticar es una decisión aparte. *@
-            <CampoSelect Etiqueta="Permisos" Valor="@_rolSoporte" ValorChanged="v => _rolSoporte = v">
+            <CampoSelect Etiqueta="Permisos"
+                         Valor="@_rolSoporte"
+                         ValorChanged="v => _rolSoporte = v">
                 <option value="Consulta">Solo lectura</option>
-                <option value="GestorCae">Gestor CAE (puede modificar)</option>
-                <option value="CoordinadorCae">Coordinador CAE (puede modificar)</option>
+                <option value="GestorCae">Acceso con modificación</option>
+                <option value="CoordinadorCae">Acceso con modificación avanzado</option>
             </CampoSelect>
-
             @if (_errorSoporte is not null)
             {
-                <p class="aviso-error">@_errorSoporte</p>
+                <p class="delegaciones-error" role="alert">@_errorSoporte</p>
             }
         }
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_abriendoSoporte"
-               OnClick="() => _delegacionSoporteAAbrir = null">Cancelar</Boton>
-        <Boton Cargando="_abriendoSoporte" OnClick="AbrirAccesoSoporteAsync">Abrir acceso</Boton>
+        <Boton Variante="VarianteBoton.Secundario"
+               Deshabilitado="@EstaProcesando(_delegacionSoporteAAbrir?.Id)"
+               OnClick="() => CerrarFormularioSoporte(false)">
+            Cancelar
+        </Boton>
+        <Boton Cargando="@EstaProcesando(_delegacionSoporteAAbrir?.Id)"
+               OnClick="AbrirAccesoSoporteAsync">
+            Abrir acceso
+        </Boton>
     </Pie>
 </Modal>
 
-<Modal Visible="_delegacionARevocar is not null" VisibleChanged="v => { if (!v) _delegacionARevocar = null; }"
-       Titulo="Revocar el acceso" CerrarAlHacerClicFuera="!_revocando">
+<DialogoConfirmacion Visible="@(_delegacionARevocar is not null)"
+                     VisibleChanged="CerrarRevocacion"
+                     Titulo="Revocar el acceso"
+                     Mensaje="@MensajeRevocacion"
+                     TextoBotonConfirmar="Revocar acceso"
+                     EnProgreso="@EstaProcesando(_delegacionARevocar?.Id)"
+                     OnConfirmar="RevocarAsync" />
+
+<Modal Visible="_mostrarNuevaDelegacion"
+       VisibleChanged="v => CerrarFormularioNueva(v)"
+       Titulo="Nueva delegación"
+       CerrarAlHacerClicFuera="!_creandoDelegacion">
     <ChildContent>
-        @if (_delegacionARevocar is not null)
-        {
-            <p>
-                @if (_delegacionARevocar.SomosLaConsultora)
-                {
-                    <text>Dejaréis de poder acceder a los datos de <strong>@_delegacionARevocar.ClienteNombre</strong>.</text>
-                }
-                else
-                {
-                    <text><strong>@_delegacionARevocar.ConsultoraNombre</strong> dejará de poder acceder a vuestros datos.</text>
-                }
-            </p>
-            <p class="aviso-revocacion">
-                No se borra ningún dato y la delegación se puede reactivar más adelante.
-            </p>
-        }
-    </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_revocando" OnClick="() => _delegacionARevocar = null">Cancelar</Boton>
-        <Boton Variante="VarianteBoton.Destructivo" Cargando="_revocando" OnClick="RevocarAsync">Revocar acceso</Boton>
-    </Pie>
-</Modal>
-
-@* Alta de un Cliente Delegante: crea el tenant, la delegación activa y te
-   asigna como Operador Delegado en el mismo paso — sin esto la delegación
-   quedaría creada pero inservible. *@
-<Modal Visible="_mostrarNuevaDelegacion" VisibleChanged="v => { if (!v) _mostrarNuevaDelegacion = v; }"
-       Titulo="Nueva delegación" CerrarAlHacerClicFuera="!_creandoDelegacion">
-    <ChildContent>
-        <p>
-            Se creará una organización nueva y quedará delegada a la tuya de inmediato: podrás
-            gestionar su CAE en cuanto la crees.
-        </p>
-
-        <CampoTexto Etiqueta="Nombre del Cliente Delegante" Valor="@_nombreClienteNuevo"
-                    ValorChanged="v => _nombreClienteNuevo = v" Placeholder="Constructora Ejemplo S.L." />
-
+        <p>Se creará una organización nueva y quedará delegada a la tuya de inmediato.</p>
+        <CampoTexto Etiqueta="Nombre de la organización"
+                    Valor="@_nombreClienteNuevo"
+                    ValorChanged="v => _nombreClienteNuevo = v"
+                    Placeholder="Constructora Ejemplo S.L." />
         @if (_errorNuevaDelegacion is not null)
         {
-            <p class="aviso-error">@_errorNuevaDelegacion</p>
+            <p class="delegaciones-error" role="alert">@_errorNuevaDelegacion</p>
         }
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_creandoDelegacion"
-               OnClick="() => _mostrarNuevaDelegacion = false">Cancelar</Boton>
+        <Boton Variante="VarianteBoton.Secundario"
+               Deshabilitado="_creandoDelegacion"
+               OnClick="() => CerrarFormularioNueva(false)">
+            Cancelar
+        </Boton>
         <Boton Cargando="_creandoDelegacion" OnClick="CrearDelegacionAsync">Crear</Boton>
     </Pie>
 </Modal>

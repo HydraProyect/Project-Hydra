@@ -62,9 +62,9 @@ public class FlujoSoporteTests(WebAppFixtureParaSoporte fixture)
     /// que hace falta desambiguar por el badge "Soporte" que solo lleva esa.
     /// </summary>
     private static ILocator TarjetaSoporte(IPage page, string nombreCliente) =>
-        page.Locator(".tarjeta-delegacion")
+        page.Locator(".delegaciones-tarjeta")
             .Filter(new LocatorFilterOptions { HasText = nombreCliente })
-            .Filter(new LocatorFilterOptions { Has = page.Locator(".badge", new PageLocatorOptions { HasText = "Soporte" }) });
+            .Filter(new LocatorFilterOptions { Has = page.GetByText("Soporte", new PageGetByTextOptions { Exact = true }) });
 
     [Fact]
     public async Task Abrir_acceso_de_soporte_lo_registra_en_la_actividad_y_se_puede_cerrar()
@@ -79,19 +79,19 @@ public class FlujoSoporteTests(WebAppFixtureParaSoporte fixture)
         await tarjeta.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         // --- Abrir acceso ---
-        await tarjeta.GetByText("Abrir acceso").ClickAsync();
+        await tarjeta.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Abrir acceso", Exact = true }).ClickAsync();
 
-        var modalAbrir = page.Locator(".modal-contenido").Filter(new LocatorFilterOptions { HasText = "Abrir acceso de soporte" });
+        var modalAbrir = page.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "Abrir acceso de soporte", Exact = true });
         await modalAbrir.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
-        await modalAbrir.GetByLabel("Motivo").FillAsync("E2E: verificación del flujo de soporte (P1-19)");
+        await modalAbrir.GetByLabel("Motivo", new LocatorGetByLabelOptions { Exact = true }).FillAsync("E2E: verificación del flujo de soporte (P1-19)");
         // Horas de acceso y Permisos se dejan con su valor por defecto (4 horas, Solo lectura).
-        await modalAbrir.Locator(".modal-pie").GetByText("Abrir acceso").ClickAsync();
+        await modalAbrir.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Abrir acceso", Exact = true }).ClickAsync();
 
         await modalAbrir.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 10_000 });
 
         // La tarjeta pasa a "Acceso abierto" y el botón a "Cerrar acceso".
-        await tarjeta.GetByText("Acceso abierto").WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
-        await tarjeta.GetByText("Cerrar acceso").WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
+        await tarjeta.GetByText("Acceso abierto", new LocatorGetByTextOptions { Exact = true }).WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
+        await tarjeta.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Cerrar acceso", Exact = true }).WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
 
         // --- Operar el workspace delegado de verdad: TrazaSoporteService solo
         // escribe mientras el Cliente Delegante está seleccionado como
@@ -148,9 +148,9 @@ public class FlujoSoporteTests(WebAppFixtureParaSoporte fixture)
 
         // --- La actividad registrada incluye la concesión del acceso y la
         // navegación real, no solo el evento de apertura ---
-        await tarjeta.GetByText("Ver actividad registrada").ClickAsync();
+        await tarjeta.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Ver actividad registrada", Exact = true }).ClickAsync();
 
-        var drawer = page.Locator(".drawer-panel").Filter(new LocatorFilterOptions { HasText = "Actividad de soporte registrada" });
+        var drawer = page.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "Actividad de soporte registrada", Exact = true });
         await drawer.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
 
         var tabla = drawer.Locator(".tabla-datos");
@@ -165,16 +165,16 @@ public class FlujoSoporteTests(WebAppFixtureParaSoporte fixture)
         // Cerrar el drawer para poder interactuar de nuevo con la tarjeta —
         // el botón explícito, no Escape: no depende de que dialogo-foco.js
         // ya haya movido el foco dentro del drawer.
-        await drawer.Locator(".drawer-cerrar").ClickAsync();
+        await drawer.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Cerrar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 10_000 });
 
         // --- Cerrar acceso ---
-        await tarjeta.GetByText("Cerrar acceso").ClickAsync();
+        await tarjeta.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Cerrar acceso", Exact = true }).ClickAsync();
 
-        await tarjeta.GetByText("Abrir acceso").WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
+        await tarjeta.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Abrir acceso", Exact = true }).WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
 
         // La actividad registrada ahora incluye también el cierre.
-        await tarjeta.GetByText("Ver actividad registrada").ClickAsync();
+        await tarjeta.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Ver actividad registrada", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
         Assert.Contains("Acceso cerrado", await tabla.InnerTextAsync());
     }

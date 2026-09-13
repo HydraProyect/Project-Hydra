@@ -64,19 +64,19 @@ public class FlujoAltaYRevocacionDelegacionTests(WebAppFixture fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/delegaciones");
 
         // --- Alta: crea el tenant + delegación activa + operador en un solo paso ---
-        await page.GetByText("Nueva delegación").ClickAsync();
-        var modalNueva = page.GetByRole(AriaRole.Dialog).Filter(new LocatorFilterOptions { HasText = "Nueva delegación" });
-        await modalNueva.GetByLabel("Nombre del Cliente Delegante").FillAsync(nombreClienteDelegante);
+        await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Nueva delegación", Exact = true }).ClickAsync();
+        var modalNueva = page.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "Nueva delegación", Exact = true });
+        await modalNueva.GetByLabel("Nombre de la organización", new LocatorGetByLabelOptions { Exact = true }).FillAsync(nombreClienteDelegante);
         // Exact: true -- sin esto, GetByText hace match por substring y
         // también resuelve el párrafo "Se creará una organización..." (que
         // contiene "creará", que empieza igual que "Crear").
-        await modalNueva.GetByText("Crear", new LocatorGetByTextOptions { Exact = true }).ClickAsync();
+        await modalNueva.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Crear", Exact = true }).ClickAsync();
         await modalNueva.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
-        var tarjeta = page.Locator(".tarjeta-delegacion", new PageLocatorOptions { HasText = nombreClienteDelegante });
+        var tarjeta = page.Locator(".delegaciones-tarjeta", new PageLocatorOptions { HasText = nombreClienteDelegante });
         await tarjeta.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         await Expect(tarjeta).ToContainTextAsync("Activa");
-        await Expect(tarjeta.GetByText("Revocar acceso")).ToBeVisibleAsync();
+        await Expect(tarjeta.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Revocar acceso", Exact = true })).ToBeVisibleAsync();
 
         // --- Operar el Delegated Workspace recién creado ---
         // SelectorClienteActivo (en el layout) solo carga _clientes en
@@ -135,16 +135,16 @@ public class FlujoAltaYRevocacionDelegacionTests(WebAppFixture fixture)
 
         // --- Revocación ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/delegaciones");
-        var tarjetaTrasVolver = page.Locator(".tarjeta-delegacion", new PageLocatorOptions { HasText = nombreClienteDelegante });
-        await tarjetaTrasVolver.GetByText("Revocar acceso").ClickAsync();
+        var tarjetaTrasVolver = page.Locator(".delegaciones-tarjeta", new PageLocatorOptions { HasText = nombreClienteDelegante });
+        await tarjetaTrasVolver.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Revocar acceso", Exact = true }).ClickAsync();
 
-        var modalRevocar = page.GetByRole(AriaRole.Dialog).Filter(new LocatorFilterOptions { HasText = "Revocar el acceso" });
+        var modalRevocar = page.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "Revocar el acceso", Exact = true });
         await modalRevocar.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
-        await modalRevocar.GetByText("Revocar acceso").ClickAsync();
+        await modalRevocar.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Revocar acceso", Exact = true }).ClickAsync();
         await modalRevocar.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         await Expect(tarjetaTrasVolver).ToContainTextAsync("Revocada");
-        await Expect(tarjetaTrasVolver.GetByText("Reactivar")).ToBeVisibleAsync();
+        await Expect(tarjetaTrasVolver.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Reactivar", Exact = true })).ToBeVisibleAsync();
     }
 
     private static ILocatorAssertions Expect(ILocator locator) => Assertions.Expect(locator);

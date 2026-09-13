@@ -18,18 +18,7 @@ using Microsoft.AspNetCore.Identity;
 
 namespace CaeManager.Web.Features.Delegaciones.Pages;
 
-/// <summary>
-/// Administración de Delegated Workspaces (ADR-004). Cierra el hallazgo N-4
-/// de INFORME-AUDITORIA-2.md: las delegaciones existían pero no se podían
-/// revocar por ningún camino del producto, lo que contradice el titular del
-/// propio ADR — un modelo de delegación reversible.
-///
-/// También el alta (P0-7 de docs/business/MATURITY_REVIEW.md): ADR-004 § 12.2
-/// dejaba abierto quién puede iniciar una delegación nueva, con la propia
-/// v1 mínima aceptable ya decidida ahí — "solo Administrador de plataforma".
-/// Por eso el botón "Nueva delegación" solo aparece si <see cref="_esAdministradorPlataforma"/>.
-/// </summary>
-public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
+public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase, IDisposable
 {
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
@@ -38,85 +27,109 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
     [Inject] private ILogger<Delegaciones> Logger { get; set; } = default!;
     [Inject] private IClienteActivoSeleccionado ClienteActivoSeleccionado { get; set; } = default!;
 
-    private bool _esAdministradorPlataforma;
-
-    /// <summary>
-    /// Gestionar delegaciones se hace desde la propia organización, nunca
-    /// operando el workspace de otra: los comandos deciden con el tenant de
-    /// origen, así que desde aquí fallarían — y con un mensaje sobre el rol
-    /// que no explica el motivo real.
-    /// </summary>
-    private bool OperandoWorkspaceAjeno => ClienteActivoSeleccionado.TenantIdSeleccionado is not null;
-
-    private IReadOnlyList<DelegacionDto> _delegaciones = [];
+    private readonly CancellationTokenSource _cicloCarga = new();
     private readonly Dictionary<Guid, string> _nombresPorUsuarioId = [];
+    private IReadOnlyList<DelegacionDto> _delegaciones = [];
+    private bool _esAdministradorPlataforma;
     private bool _cargando = true;
     private bool _error;
+    private bool _desechado;
+    private int _versionCarga;
+    private int _generacionEntidad;
+    private Guid? _entidadActiva;
+    private readonly HashSet<Guid> _operacionesEnCurso = [];
 
     private DelegacionDto? _delegacionARevocar;
-    private bool _revocando;
-    private Guid? _procesandoId;
-
     private DelegacionDto? _verActividadDe;
     private IReadOnlyList<ActividadSoporteDto> _actividad = [];
     private bool _cargandoActividad;
-
     private DelegacionDto? _delegacionSoporteAAbrir;
     private string _motivoSoporte = string.Empty;
     private string _horasSoporte = "4";
     private string _rolSoporte = RolesSoporte.SoloLectura;
-    private bool _abriendoSoporte;
     private string? _errorSoporte;
-
     private bool _mostrarNuevaDelegacion;
     private string _nombreClienteNuevo = string.Empty;
     private bool _creandoDelegacion;
     private string? _errorNuevaDelegacion;
 
+    private bool OperandoWorkspaceAjeno => ClienteActivoSeleccionado.TenantIdSeleccionado is not null;
+    private bool PuedeGestionar => _esAdministradorPlataforma && !OperandoWorkspaceAjeno;
+
+    /// <summary>Nombre canónico para la guarda de reentrada del alta — evita repetir el campo legacy en cada punto de lectura.</summary>
+    private bool CreacionEnCurso => _creandoDelegacion;
+
+    private void OcultarFormularioNueva() => _mostrarNuevaDelegacion = false;
+    private string MensajeRevocacion => _delegacionARevocar is not { } aRevocar
+        ? string.Empty
+        : $"Se retirará el acceso de «{TituloDe(aRevocar.SomosLaConsultora, aRevocar.ClienteNombre, aRevocar.ConsultoraNombre)}». " +
+          "Los datos no se borran y la delegación se puede reactivar.";
+
     protected override Task OnInitializedAsync() => CargarAsync();
 
     private async Task CargarAsync()
     {
+        if (_desechado)
+        {
+            return;
+        }
+
+        var version = ++_versionCarga;
+        var token = _cicloCarga.Token;
         _cargando = true;
         _error = false;
         StateHasChanged();
 
         try
         {
-            _esAdministradorPlataforma = await Mediator.Send(new EsAdministradorPlataformaQuery());
-            _delegaciones = await Mediator.Send(new ObtenerDelegacionesQuery());
-            await CargarNombresDeOperadoresAsync();
+            token.ThrowIfCancellationRequested();
+            var esAdministrador = await Mediator.Send(new EsAdministradorPlataformaQuery(), token);
+            var delegaciones = await Mediator.Send(new ObtenerDelegacionesQuery(), token);
+            await CargarNombresDeOperadoresAsync(delegaciones.SelectMany(d => d.Operadores).Select(o => o.UsuarioId), token);
+            if (_desechado || version != _versionCarga)
+            {
+                return;
+            }
+
+            _esAdministradorPlataforma = esAdministrador;
+            _delegaciones = delegaciones;
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
         }
         catch (Exception ex)
         {
+            if (_desechado || version != _versionCarga)
+            {
+                return;
+            }
+
             Logger.LogError(ex, "Error al cargar las delegaciones del tenant de origen.");
             _error = true;
         }
         finally
         {
-            _cargando = false;
+            if (!_desechado && version == _versionCarga)
+            {
+                _cargando = false;
+            }
         }
     }
 
-    /// <summary>
-    /// La query devuelve Guids de usuario, no nombres: <c>ApplicationUser</c>
-    /// vive en Infrastructure.Identity y Application no puede referenciarlo
-    /// (mismo motivo que <c>AsignacionOperadorDelegado.UsuarioId</c> es un
-    /// Guid suelto). Se resuelven aquí, que es la capa que sí lo conoce.
-    /// </summary>
-    private Task CargarNombresDeOperadoresAsync() =>
-        // Por la puerta: UserManager no pasa por MediatR y esta carga corre en
-        // paralelo con los componentes del layout sobre el mismo DbContext
-        // scoped (ver PuertaAccesoDatos).
+    private Task CargarNombresDeOperadoresAsync(IEnumerable<Guid> usuarioIds, CancellationToken cancellationToken) =>
         PuertaAccesoDatos.EjecutarAsync(async () =>
         {
-            foreach (var usuarioId in _delegaciones.SelectMany(d => d.Operadores).Select(o => o.UsuarioId).Distinct())
+            foreach (var usuarioId in usuarioIds.Distinct())
             {
-                if (_nombresPorUsuarioId.ContainsKey(usuarioId)) continue;
+                cancellationToken.ThrowIfCancellationRequested();
+                if (_nombresPorUsuarioId.ContainsKey(usuarioId))
+                {
+                    continue;
+                }
 
                 var usuario = await UserManager.FindByIdAsync(usuarioId.ToString());
                 _nombresPorUsuarioId[usuarioId] = usuario is null
-                    ? "Usuario no encontrado"
+                    ? "Persona no encontrada"
                     : $"{usuario.NombreCompleto} ({usuario.Email})";
             }
         });
@@ -124,20 +137,110 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
     private string NombreDeUsuario(Guid usuarioId) =>
         _nombresPorUsuarioId.GetValueOrDefault(usuarioId, "…");
 
+    private bool EsUsuarioNoResuelto(Guid usuarioId) =>
+        _nombresPorUsuarioId.TryGetValue(usuarioId, out var nombre) && nombre == "Persona no encontrada";
+
+    private static string NombreRol(string rol) => Roles.NombreVisible(rol);
+    private static string TituloDe(bool somosLaConsultora, string clienteNombre, string consultoraNombre) =>
+        somosLaConsultora ? $"Gestionamos a {clienteNombre}" : $"{consultoraNombre} nos gestiona";
+
+    private static string TextoEstado(bool esSoporte, bool accesoVigente, bool ventanaCaducada, bool activa) => esSoporte
+        ? accesoVigente
+            ? "Acceso abierto"
+            : ventanaCaducada
+                ? "Ventana caducada"
+                : "Sin abrir"
+        : activa
+            ? "Activa"
+            : "Revocada";
+
+    private static TonoBadge TonoEstado(bool esSoporte, bool accesoVigente, bool ventanaCaducada, bool activa) => esSoporte
+        ? accesoVigente
+            ? TonoBadge.Exito
+            : ventanaCaducada
+                ? TonoBadge.Advertencia
+                : TonoBadge.Neutro
+        : activa
+            ? TonoBadge.Exito
+            : TonoBadge.Neutro;
+
+    private int PrepararEntidad(Guid id)
+    {
+        if (_entidadActiva != id)
+        {
+            _entidadActiva = id;
+            _generacionEntidad++;
+            _cargandoActividad = false;
+            _delegacionARevocar = null;
+            _delegacionSoporteAAbrir = null;
+            _verActividadDe = null;
+            _actividad = [];
+        }
+        return _generacionEntidad;
+    }
+
+    private bool EsEntidadVigente(int generacion, Guid id) =>
+        !_desechado && _generacionEntidad == generacion && _entidadActiva == id;
+
+    private bool EstaProcesando(Guid? operacionId) =>
+        operacionId is { } id && _operacionesEnCurso.Contains(id);
+
+    private void CerrarRevocacion(bool visible)
+    {
+        if (!visible && !EstaProcesando(_delegacionARevocar?.Id))
+        {
+            _delegacionARevocar = null;
+        }
+    }
+
+    private void CerrarActividad(bool visible)
+    {
+        if (!visible && !_cargandoActividad)
+        {
+            _verActividadDe = null;
+            _actividad = [];
+        }
+    }
+
+    private void CerrarFormularioSoporte(bool visible)
+    {
+        if (!visible && !EstaProcesando(_delegacionSoporteAAbrir?.Id))
+        {
+            _delegacionSoporteAAbrir = null;
+        }
+    }
+
+    private void CerrarFormularioNueva(bool visible)
+    {
+        if (!visible && !CreacionEnCurso)
+        {
+            OcultarFormularioNueva();
+        }
+    }
+
     private async Task RevocarAsync()
     {
-        if (_delegacionARevocar is null) return;
+        if (_delegacionARevocar is not { } delegacion || EstaProcesando(delegacion.Id))
+        {
+            return;
+        }
 
-        _revocando = true;
+        var generacion = PrepararEntidad(delegacion.Id);
+        _operacionesEnCurso.Add(delegacion.Id);
         StateHasChanged();
-
         try
         {
-            var resultado = await Mediator.Send(new DesactivarDelegacionTenantCommand(_delegacionARevocar.Id));
-
-            if (resultado.EsFallido)
+            var resultado = await Mediator.Send(new DesactivarDelegacionTenantCommand(delegacion.Id));
+            var fallido = resultado.EsFallido;
+            var mensaje = fallido ? resultado.Error.Mensaje : null;
+            if (!EsEntidadVigente(generacion, delegacion.Id))
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            if (fallido)
+            {
+                ToastService.Mostrar(mensaje!, TonoToast.Error);
                 return;
             }
 
@@ -147,29 +250,43 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
         }
         finally
         {
-            _revocando = false;
+            _operacionesEnCurso.Remove(delegacion.Id);
         }
     }
 
     private async Task VerActividadAsync(DelegacionDto delegacion)
     {
+        var generacion = PrepararEntidad(delegacion.Id);
+        var token = _cicloCarga.Token;
         _verActividadDe = delegacion;
         _actividad = [];
         _cargandoActividad = true;
         StateHasChanged();
-
         try
         {
-            _actividad = await Mediator.Send(new ObtenerActividadSoporteQuery(delegacion.Id));
+            var actividad = await Mediator.Send(new ObtenerActividadSoporteQuery(delegacion.Id), token);
+            if (EsEntidadVigente(generacion, delegacion.Id))
+            {
+                _actividad = actividad;
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error al cargar la actividad de soporte de la delegación {DelegacionId}.", delegacion.Id);
-            ToastService.Mostrar("No pudimos cargar la actividad registrada.", TonoToast.Error);
+            if (EsEntidadVigente(generacion, delegacion.Id))
+            {
+                Logger.LogError(ex, "Error al cargar la actividad de soporte de la delegación {DelegacionId}.", delegacion.Id);
+                ToastService.Mostrar("No pudimos cargar la actividad registrada.", TonoToast.Error);
+            }
         }
         finally
         {
-            _cargandoActividad = false;
+            if (EsEntidadVigente(generacion, delegacion.Id))
+            {
+                _cargandoActividad = false;
+            }
         }
     }
 
@@ -185,21 +302,29 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
 
     private void AbrirFormularioSoporte(DelegacionDto delegacion)
     {
+        if (EstaProcesando(delegacion.Id))
+        {
+            return;
+        }
+
+        PrepararEntidad(delegacion.Id);
         _delegacionSoporteAAbrir = delegacion;
         _motivoSoporte = string.Empty;
         _horasSoporte = "4";
         _rolSoporte = RolesSoporte.SoloLectura;
         _errorSoporte = null;
     }
-
     private async Task AbrirAccesoSoporteAsync()
     {
-        if (_delegacionSoporteAAbrir is null) return;
+        if (_delegacionSoporteAAbrir is not { } delegacion || EstaProcesando(delegacion.Id))
+        {
+            return;
+        }
 
-        _abriendoSoporte = true;
+        var generacion = PrepararEntidad(delegacion.Id);
+        _operacionesEnCurso.Add(delegacion.Id);
         _errorSoporte = null;
         StateHasChanged();
-
         try
         {
             if (!int.TryParse(_horasSoporte, out var horas))
@@ -208,12 +333,17 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
                 return;
             }
 
-            var resultado = await Mediator.Send(
-                new AbrirAccesoSoporteCommand(_delegacionSoporteAAbrir.Id, _motivoSoporte, horas, _rolSoporte));
-
-            if (resultado.EsFallido)
+            var resultado = await Mediator.Send(new AbrirAccesoSoporteCommand(delegacion.Id, _motivoSoporte, horas, _rolSoporte));
+            var fallido = resultado.EsFallido;
+            var mensaje = fallido ? resultado.Error.Mensaje : null;
+            if (!EsEntidadVigente(generacion, delegacion.Id))
             {
-                _errorSoporte = resultado.Error.Mensaje;
+                return;
+            }
+
+            if (fallido)
+            {
+                _errorSoporte = mensaje;
                 return;
             }
 
@@ -223,88 +353,80 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
         }
         catch (ValidationException ex)
         {
-            _errorSoporte = string.Join(" ", ex.Errors.Select(e => e.ErrorMessage));
+            if (EsEntidadVigente(generacion, delegacion.Id))
+            {
+                _errorSoporte = string.Join(" ", ex.Errors.Select(e => e.ErrorMessage));
+            }
         }
         finally
         {
-            _abriendoSoporte = false;
+            _operacionesEnCurso.Remove(delegacion.Id);
         }
     }
 
-    private async Task CerrarAccesoSoporteAsync(DelegacionDto delegacion)
-    {
-        _procesandoId = delegacion.Id;
-        StateHasChanged();
+    private async Task CerrarAccesoSoporteAsync(DelegacionDto delegacion) =>
+        await EjecutarParaEntidadAsync(
+            delegacion.Id,
+            delegacion.Id,
+            () => Mediator.Send(new CerrarAccesoSoporteCommand(delegacion.Id)),
+            "Acceso de soporte cerrado.");
 
+    private async Task ReactivarAsync(DelegacionDto delegacion) =>
+        await EjecutarParaEntidadAsync(
+            delegacion.Id,
+            delegacion.Id,
+            () => Mediator.Send(new ReactivarDelegacionTenantCommand(delegacion.Id)),
+            "Delegación reactivada.");
+
+    private async Task RetirarOperadorAsync(Guid delegacionId, OperadorDelegadoDto operador) =>
+        await EjecutarParaEntidadAsync(
+            delegacionId,
+            operador.AsignacionId,
+            () => Mediator.Send(new RevocarAsignacionOperadorDelegadoCommand(operador.AsignacionId)),
+            "Persona retirada de la delegación.");
+
+    private async Task EjecutarParaEntidadAsync(Guid delegacionId, Guid operacionId, Func<Task<CaeManager.Domain.Common.Result>> enviar, string exito)
+    {
+        if (EstaProcesando(operacionId))
+        {
+            return;
+        }
+
+        var generacion = PrepararEntidad(delegacionId);
+        _operacionesEnCurso.Add(operacionId);
+        StateHasChanged();
         try
         {
-            var resultado = await Mediator.Send(new CerrarAccesoSoporteCommand(delegacion.Id));
-
-            if (resultado.EsFallido)
+            var resultado = await enviar();
+            var fallido = resultado.EsFallido;
+            var mensaje = fallido ? resultado.Error.Mensaje : null;
+            if (!EsEntidadVigente(generacion, delegacionId))
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
                 return;
             }
 
-            ToastService.Mostrar("Acceso de soporte cerrado.", TonoToast.Exito);
+            if (fallido)
+            {
+                ToastService.Mostrar(mensaje!, TonoToast.Error);
+                return;
+            }
+
+            ToastService.Mostrar(exito, TonoToast.Exito);
             await CargarAsync();
         }
         finally
         {
-            _procesandoId = null;
-        }
-    }
-
-    private async Task ReactivarAsync(DelegacionDto delegacion)
-    {
-        _procesandoId = delegacion.Id;
-        StateHasChanged();
-
-        try
-        {
-            var resultado = await Mediator.Send(new ReactivarDelegacionTenantCommand(delegacion.Id));
-
-            if (resultado.EsFallido)
-            {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
-                return;
-            }
-
-            ToastService.Mostrar("Delegación reactivada.", TonoToast.Exito);
-            await CargarAsync();
-        }
-        finally
-        {
-            _procesandoId = null;
-        }
-    }
-
-    private async Task RetirarOperadorAsync(OperadorDelegadoDto operador)
-    {
-        _procesandoId = operador.AsignacionId;
-        StateHasChanged();
-
-        try
-        {
-            var resultado = await Mediator.Send(new RevocarAsignacionOperadorDelegadoCommand(operador.AsignacionId));
-
-            if (resultado.EsFallido)
-            {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
-                return;
-            }
-
-            ToastService.Mostrar("Operador retirado de la delegación.", TonoToast.Exito);
-            await CargarAsync();
-        }
-        finally
-        {
-            _procesandoId = null;
+            _operacionesEnCurso.Remove(operacionId);
         }
     }
 
     private void AbrirFormularioNuevaDelegacion()
     {
+        if (CreacionEnCurso)
+        {
+            return;
+        }
+
         _mostrarNuevaDelegacion = true;
         _nombreClienteNuevo = string.Empty;
         _errorNuevaDelegacion = null;
@@ -312,13 +434,21 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
 
     private async Task CrearDelegacionAsync()
     {
+        if (CreacionEnCurso)
+        {
+            return;
+        }
+
         _creandoDelegacion = true;
         _errorNuevaDelegacion = null;
         StateHasChanged();
-
         try
         {
             var resultado = await Mediator.Send(new CrearClienteDeleganteCommand(_nombreClienteNuevo));
+            if (_desechado)
+            {
+                return;
+            }
 
             if (resultado.EsFallido)
             {
@@ -326,17 +456,30 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
                 return;
             }
 
-            ToastService.Mostrar("Cliente Delegante creado y delegación activa.", TonoToast.Exito);
-            _mostrarNuevaDelegacion = false;
+            ToastService.Mostrar("Organización creada y delegación activa.", TonoToast.Exito);
+            OcultarFormularioNueva();
             await CargarAsync();
         }
         catch (ValidationException ex)
         {
-            _errorNuevaDelegacion = string.Join(" ", ex.Errors.Select(e => e.ErrorMessage));
+            if (!_desechado)
+            {
+                _errorNuevaDelegacion = string.Join(" ", ex.Errors.Select(e => e.ErrorMessage));
+            }
         }
         finally
         {
-            _creandoDelegacion = false;
+            if (!_desechado)
+            {
+                _creandoDelegacion = false;
+            }
         }
+    }
+
+    public void Dispose()
+    {
+        _desechado = true;
+        _cicloCarga.Cancel();
+        _cicloCarga.Dispose();
     }
 }
