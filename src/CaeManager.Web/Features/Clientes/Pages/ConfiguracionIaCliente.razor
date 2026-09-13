@@ -9,72 +9,112 @@
 @inject IMediator Mediator
 @inject ToastService ToastService
 
-<PageTitle>Lectura IA — @(_cliente?.RazonSocial ?? "Cliente") — @Marca.Nombre</PageTitle>
+<PageTitle>Lectura IA — @(_cliente?.RazonSocial ?? "Cliente empresarial") — @Marca.Nombre</PageTitle>
 
-<div class="contenedor-pagina">
-    @* Única salida de esta pantalla: se llega desde el selector del hub
-       (/configuracion/lectura-ia), que al navegar aquí deja de mostrar su
-       propia subnavegación — sin este enlace la única vuelta era el botón
-       atrás del navegador. *@
-    <a href="/configuracion/lectura-ia" class="enlace-volver-configuracion">← Lectura IA por cliente</a>
+<div class="contenedor-pagina lectura-ia-cliente">
+    <div class="lectura-ia-rastro">
+        <a href="/configuracion/lectura-ia" class="enlace-volver-configuracion">← Lectura IA por Cliente empresarial</a>
+        <span aria-hidden="true">Configuración → Catálogos y datos → Lectura IA por Cliente empresarial</span>
+    </div>
 
     <CabeceraPagina Titulo="@($"Lectura automática por IA — {_cliente?.RazonSocial ?? "…"}")">
         <Descripcion>
-            Activa o desactiva la extracción automática por IA para cada tipo de documento, solo para
-            este cliente. Un tipo de documento desactivado por el Administrador para todos los
-            clientes (columna "Nivel 1") no se puede reactivar aquí.
+            Activa o desactiva la extracción automática por IA para cada tipo de documento, solo para este Cliente empresarial.
+            Un tipo de documento desactivado en la configuración general (Nivel 1) no se puede reactivar aquí.
         </Descripcion>
     </CabeceraPagina>
 
+    <section class="lectura-ia-niveles" aria-labelledby="lectura-ia-niveles-titulo">
+        <div class="lectura-ia-niveles-titulo">
+            <span class="indicador-sistema" aria-hidden="true"></span>
+            <h2 id="lectura-ia-niveles-titulo">Esta pantalla no decide sola: es el último de tres niveles y solo puede restringir</h2>
+        </div>
+        <div class="lectura-ia-niveles-lista">
+            <div class="lectura-ia-nivel">
+                <div class="lectura-ia-nivel-cabecera"><strong>Nivel 0 · Tratamiento con IA</strong><Badge Tono="TonoBadge.Neutro">Estado no disponible</Badge></div>
+                <span>Instrucción documentada de tratamiento con IA del tenant propietario.</span>
+                <span>Sin una instrucción vigente no se lee ningún documento.</span>
+            </div>
+            <div class="lectura-ia-nivel">
+                <div class="lectura-ia-nivel-cabecera"><strong>Nivel 1 · Configuración general</strong><Badge Tono="TonoBadge.Neutro">@ResumenNivelUno</Badge></div>
+                <span>Por tipo de documento, para todos los Clientes empresariales.</span>
+                <span>Lo que se desactiva aquí no se puede reactivar abajo.</span>
+            </div>
+            <div class="lectura-ia-nivel lectura-ia-nivel-actual">
+                <div class="lectura-ia-nivel-cabecera"><strong>Nivel 2 · Este Cliente empresarial</strong><Badge Tono="TonoBadge.Info">Estás aquí</Badge></div>
+                <span>Solo puede restringir dentro de lo que permite el Nivel 1.</span>
+            </div>
+        </div>
+    </section>
+
     @if (_errorCarga)
     {
-        <EstadoVacio Titulo="No pudimos cargar la configuración" Descripcion="Intenta nuevamente en unos segundos, o puede que no tengas acceso a este cliente.">
-            <Accion>
-                <Boton OnClick="CargarAsync">Reintentar</Boton>
-            </Accion>
+        <EstadoVacio Titulo="No pudimos cargar la configuración" Descripcion="Intenta nuevamente en unos segundos, o puede que no tengas acceso a este Cliente empresarial.">
+            <Accion><Boton OnClick="CargarAsync">Reintentar</Boton></Accion>
         </EstadoVacio>
     }
     else if (_cargando)
     {
         <EstadoCargando Filas="6" />
     }
+    else if (_configuracion.Count == 0)
+    {
+        <EstadoVacio Titulo="No hay tipos de documento en el catálogo" Descripcion="El catálogo de tipos de documento está vacío. Se define una sola vez para todo el tenant, en Tipos de documento.">
+            <Accion><Boton Href="/configuracion/tipos">Ir a Tipos de documento</Boton></Accion>
+        </EstadoVacio>
+    }
     else
     {
-        <table class="tabla-datos">
-            <thead>
-                <tr>
-                    <th>Tipo de documento</th>
-                    <th>Nivel 1 (Administrador)</th>
-                    <th>Nivel 2 (este cliente)</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var tipo in _configuracion)
-                {
-                    <tr>
-                        <td>@tipo.Nombre</td>
-                        <td>
-                            @if (tipo.GlobalActiva)
-                            {
-                                <Badge Tono="TonoBadge.Exito">Activa</Badge>
-                            }
-                            else
-                            {
-                                <Badge Tono="TonoBadge.Peligro">Desactivada para todos</Badge>
-                            }
-                        </td>
-                        <td>
-                            <label class="campo-checkbox">
-                                <input type="checkbox"
-                                       checked="@tipo.EfectivaActiva"
-                                       disabled="@(!tipo.GlobalActiva || _actualizandoId == tipo.TipoDocumentoId)"
-                                       @onchange="e => AlternarAsync(tipo.TipoDocumentoId, e.Value is bool activa && activa)" />
-                                @(tipo.EfectivaActiva ? "Activa" : "Desactivada")
-                            </label>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+        <div class="lectura-ia-tabla-contenedor">
+            <table class="tabla-datos lectura-ia-tabla">
+                <thead><tr>
+                    <th scope="col">Tipo de documento</th>
+                    <th scope="col">Nivel 1 (configuración general)</th>
+                    <th scope="col">Nivel 2 (este Cliente empresarial)</th>
+                    <th scope="col">De dónde sale el valor</th>
+                    <th scope="col">Efecto real</th>
+                </tr></thead>
+                <tbody>
+                    @foreach (var tipo in _configuracion)
+                    {
+                        <tr>
+                            <td><strong>@tipo.Nombre</strong></td>
+                            <td>
+                                @if (tipo.GlobalActiva) { <Badge Tono="TonoBadge.Exito">Activa</Badge> }
+                                else { <Badge Tono="TonoBadge.Peligro">Desactivada para todos</Badge> }
+                            </td>
+                            <td>
+                                <label class="campo-checkbox">
+                                    <input type="checkbox" checked="@tipo.EfectivaActiva"
+                                           disabled="@(!tipo.GlobalActiva || _actualizandoId == tipo.TipoDocumentoId)"
+                                           @onchange="e => AlternarAsync(tipo.TipoDocumentoId, e.Value is bool activa && activa)" />
+                                    @(tipo.EfectivaActiva ? "Activa" : "Desactivada")
+                                    @if (_actualizandoId == tipo.TipoDocumentoId) { <span class="lectura-ia-guardando" aria-label="Guardando"></span> }
+                                </label>
+                            </td>
+                            <td>
+                                @if (!tipo.GlobalActiva) { <Badge Tono="TonoBadge.Neutro">Manda el Nivel 1</Badge> }
+                                else if (tipo.OverrideActiva is null) { <Badge Tono="TonoBadge.Neutro">Heredado del Nivel 1</Badge> }
+                                else if (tipo.OverrideActiva.Value) { <Badge Tono="TonoBadge.Info">Sobrescrito · activo</Badge> }
+                                else { <Badge Tono="TonoBadge.Info">Sobrescrito · desactivado</Badge> }
+                            </td>
+                            <td><Badge Tono="@(tipo.EfectivaActiva ? TonoBadge.Exito : TonoBadge.Neutro)">@(tipo.EfectivaActiva ? "Se lee por IA" : "No se lee")</Badge></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <aside class="lectura-ia-aviso" aria-label="Información sobre la configuración">
+            <strong>El origen del valor se conserva al reactivar</strong>
+            <span>Reactivar un tipo sobrescrito lo deja activo, pero no lo restablece al valor heredado del Nivel 1.</span>
+        </aside>
+        <aside class="lectura-ia-aviso lectura-ia-aviso-informacion" aria-label="Consecuencia de la lectura por IA">
+            <strong>Consecuencia que esta pantalla no muestra</strong>
+            <span>Desactivar un tipo puede afectar a automatizaciones que dependan de su lectura por IA.</span>
+        </aside>
+        <aside class="lectura-ia-aviso lectura-ia-aviso-mejora" aria-label="Límite de la configuración">
+            <strong>El umbral de confianza no se configura aquí</strong>
+            <span>Esta pantalla solo permite activar o desactivar la lectura por tipo de documento; no muestra un selector que no se puede guardar.</span>
+        </aside>
     }
 </div>
