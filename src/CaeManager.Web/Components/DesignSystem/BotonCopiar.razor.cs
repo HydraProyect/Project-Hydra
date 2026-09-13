@@ -52,7 +52,13 @@ public partial class BotonCopiar : ComponentBase, IAsyncDisposable
         }
         catch (Exception)
         {
-            ToastService.Mostrar("No pudimos copiar al portapapeles.", TonoToast.Error);
+            // ValorAsync es el caso de un dato que nunca se precarga (la
+            // contraseña, DEC-53/DEC-62) — no hay nada visible que ofrecer
+            // para copiar a mano. Con Valor, en cambio, todo llamador actual
+            // ya lo pinta en pantalla (un <code>, un <p>, un CampoTexto), así
+            // que sí es honesto sugerir la selección manual.
+            var sugerencia = ValorAsync is null ? " Selecciónalo y cópialo a mano." : string.Empty;
+            ToastService.Mostrar($"No se pudo copiar {Etiqueta}.{sugerencia}", TonoToast.Error);
         }
     }
 
