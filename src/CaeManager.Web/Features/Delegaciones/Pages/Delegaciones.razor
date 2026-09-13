@@ -109,7 +109,7 @@
                                     <tr>
                                         <th>Persona</th>
                                         <th>Rol CAE</th>
-                                        @if (PuedeGestionar)
+                                        @if (!OperandoWorkspaceAjeno)
                                         {
                                             <th>Acción</th>
                                         }
@@ -123,7 +123,7 @@
                                                 @NombreDeUsuario(operador.UsuarioId)
                                             </td>
                                             <td>@NombreRol(operador.Rol)</td>
-                                            @if (PuedeGestionar)
+                                            @if (!OperandoWorkspaceAjeno)
                                             {
                                                 <td>
                                                     <Boton Tamano="TamanoBoton.Pequeno"
@@ -150,7 +150,7 @@
                                 Ver actividad registrada
                             </Boton>
                         }
-                        @if (PuedeGestionar)
+                        @if (!OperandoWorkspaceAjeno)
                         {
                             <div class="delegaciones-acciones">
                                 @if (delegacion.EsSoporte && delegacion.AccesoVigente)
