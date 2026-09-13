@@ -1,0 +1,2 @@
+.acciones-extension { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.aviso-error { color: var(--color-danger-700); font: var(--font-body-md); margin: var(--space-3) 0 0; }

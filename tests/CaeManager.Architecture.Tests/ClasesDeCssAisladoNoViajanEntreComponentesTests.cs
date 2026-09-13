@@ -77,14 +77,9 @@ public class ClasesDeCssAisladoNoViajanEntreComponentesTests
     /// </summary>
     private static readonly Dictionary<string, string> DeudaCongelada = new()
     {
-        ["ConectarExtension.razor::aviso-error"] = "aviso de error copiado de Facturacion/Proyectos; le corresponde una primitiva de aviso",
-        ["ConectoresCae.razor::aviso-error"] = "aviso de error copiado de Facturacion/Proyectos; le corresponde una primitiva de aviso",
         ["ClavesApi.razor::aviso-revocacion"] = "aviso copiado de Delegaciones; la misma primitiva de aviso, pendiente",
         ["CentroWorkspacePanel.razor::workspace-lista-entidades"] = "lista de entidades relacionadas de los siete workspaces; la regla vive en FilaEntidadRelacionada.razor.css y le corresponde a workspace.css",
         ["ClienteWorkspacePanel.razor::workspace-lista-entidades"] = "lista de entidades relacionadas de los siete workspaces; la regla vive en FilaEntidadRelacionada.razor.css y le corresponde a workspace.css",
-        ["Conexiones.razor::boton"] = "markup de boton a pelo en vez del componente Boton",
-        ["Conexiones.razor::boton-medio"] = "markup de boton a pelo en vez del componente Boton",
-        ["Conexiones.razor::boton-primario"] = "markup de boton a pelo en vez del componente Boton",
         ["Delegaciones.razor::aviso-error"] = "aviso de error copiado de Facturacion/Proyectos; le corresponde una primitiva de aviso",
         ["EmpresaWorkspacePanel.razor::workspace-lista-entidades"] = "lista de entidades relacionadas de los siete workspaces; la regla vive en FilaEntidadRelacionada.razor.css y le corresponde a workspace.css",
         ["Empresas.razor::workspace-lista-entidades"] = "lista de entidades relacionadas de los siete workspaces; la regla vive en FilaEntidadRelacionada.razor.css y le corresponde a workspace.css",

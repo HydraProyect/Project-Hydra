@@ -15,7 +15,7 @@ using Microsoft.AspNetCore.Components;
 namespace CaeManager.Web.Features.Integraciones.Pages;
 
 /// <summary>Administración de conexiones de Microsoft 365 (P3-33) y líneas WhatsApp — solo Administrador.</summary>
-public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
+public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase, IDisposable
 {
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
@@ -49,10 +49,17 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
     private readonly HashSet<Guid> _lineaMiembros = [];
     private Guid? _lineaClienteId;
     private string _lineaMensajeAutoTriage = string.Empty;
+    private long _generacionOperacionLinea;
 
     private ConexionIntegracionListaDto? _conexionADesconectar;
     private bool _desconectando;
+    private long _generacionDesconexion;
     private Guid? _procesandoId;
+    private readonly CancellationTokenSource _cancelacionCarga = new();
+    private CancellationTokenSource? _cicloCarga;
+    private long _generacionCarga;
+    private long _generacionInicializacion;
+    private bool _dispuesto;
 
     private string UrlConectar
     {
@@ -86,48 +93,79 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
         else if (!string.IsNullOrWhiteSpace(Error))
             ToastService.Mostrar(MensajeError(Error), TonoToast.Error);
 
+        var generacion = Interlocked.Increment(ref _generacionInicializacion);
+        var token = _cancelacionCarga.Token;
         try
         {
-            _clientes = await Mediator.Send(new ObtenerClientesParaSelectorQuery());
+            var clientes = await Mediator.Send(new ObtenerClientesParaSelectorQuery(), token);
 
-            var gestores = await DirectorioUsuarios.ObtenerVisiblesEnRolAsync(Roles.GestorCae);
+            var gestores = await DirectorioUsuarios.ObtenerVisiblesEnRolAsync(Roles.GestorCae, token);
+            if (generacion != _generacionInicializacion || token.IsCancellationRequested) return;
+            _clientes = clientes;
             _gestores = gestores.Select(u => new GestorSelectorDto(u.Id, u.NombreCompleto)).ToList();
 
-            await CargarConexionesAsync();
+            await CargarConexionesAsync(token);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error al cargar las conexiones de integración.");
-            ToastService.Mostrar("No pudimos cargar las conexiones.", TonoToast.Error);
+            if (generacion == _generacionInicializacion)
+            {
+                Logger.LogError(ex, "Error al cargar las conexiones de integración.");
+                ToastService.Mostrar("No pudimos cargar las conexiones.", TonoToast.Error);
+            }
         }
         finally
         {
-            _cargando = false;
+            if (generacion == _generacionInicializacion && !_dispuesto)
+                _cargando = false;
         }
     }
 
-    private async Task CargarConexionesAsync()
+    private async Task CargarConexionesAsync(CancellationToken cancellationToken = default)
     {
-        _conexiones = await Mediator.Send(new ObtenerConexionesIntegracionQuery());
-        _lineas = await Mediator.Send(new ObtenerLineasWhatsAppQuery());
+        var generacion = Interlocked.Increment(ref _generacionCarga);
+        var ciclo = CancellationTokenSource.CreateLinkedTokenSource(_cancelacionCarga.Token, cancellationToken);
+        var cicloAnterior = Interlocked.Exchange(ref _cicloCarga, ciclo);
+        cicloAnterior?.Cancel();
+        var token = ciclo.Token;
+        try
+        {
+            var conexiones = await Mediator.Send(new ObtenerConexionesIntegracionQuery(), token);
+            var lineas = await Mediator.Send(new ObtenerLineasWhatsAppQuery(), token);
+            if (generacion != _generacionCarga || token.IsCancellationRequested) return;
+            _conexiones = conexiones;
+            _lineas = lineas;
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            Interlocked.CompareExchange(ref _cicloCarga, null, ciclo);
+            ciclo.Dispose();
+        }
     }
 
     private string DescribirPropietario(ConexionIntegracionListaDto conexion) => conexion switch
     {
         { GestorPropietarioId: { } gestorId } => $"Personal de {_gestores.FirstOrDefault(g => g.Id == gestorId)?.NombreCompleto ?? "—"}",
         { ClienteNombre: { } clienteNombre } => clienteNombre,
-        _ => "Tenant propio"
+        _ => "Organización propia"
     };
 
     private string DescribirAsignacion(LineaWhatsAppListaDto linea) => linea.Modo switch
     {
         ModoAsignacionLinea.GestorFijo =>
-            $"Gestor fijo: {_gestores.FirstOrDefault(g => g.Id == linea.ComercialAsignadoId)?.NombreCompleto ?? "—"}",
-        _ => $"Pool inbound ({linea.MiembrosPool.Count} gestores)",
+            $"Gestor CAE fijo: {_gestores.FirstOrDefault(g => g.Id == linea.ComercialAsignadoId)?.NombreCompleto ?? "—"}",
+        _ => $"Pool inbound ({linea.MiembrosPool.Count} gestores CAE)",
     };
 
     private void AbrirAltaLinea()
     {
+        if (_guardandoLinea) return;
         _lineaEnEdicion = null;
         _lineaNombre = _lineaNumero = _lineaPhoneNumberId = _lineaWabaId = _lineaToken = string.Empty;
         _lineaModo = ModoAsignacionLinea.GestorFijo;
@@ -140,6 +178,7 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
 
     private void AbrirEdicionLinea(LineaWhatsAppListaDto linea)
     {
+        if (_guardandoLinea) return;
         _lineaEnEdicion = linea;
         _lineaToken = string.Empty;
         _lineaModo = linea.Modo;
@@ -150,11 +189,14 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
         _modalLineaVisible = true;
     }
 
-    private void CerrarModalLinea()
+    private Task CerrarModalLinea() => CerrarModalLinea(false);
+
+    private Task CerrarModalLinea(bool visible)
     {
-        if (_guardandoLinea) return;
+        if (visible || _guardandoLinea) return Task.CompletedTask;
         _modalLineaVisible = false;
         _lineaEnEdicion = null;
+        return Task.CompletedTask;
     }
 
     private void AlternarMiembroPool(Guid usuarioId, bool marcado)
@@ -165,22 +207,27 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
 
     private async Task GuardarLineaAsync()
     {
+        if (_guardandoLinea) return;
         _guardandoLinea = true;
+        var generacion = Interlocked.Increment(ref _generacionOperacionLinea);
+        var lineaEnEdicion = _lineaEnEdicion;
         StateHasChanged();
 
         try
         {
             var mensajeAutoTriage = string.IsNullOrWhiteSpace(_lineaMensajeAutoTriage) ? null : _lineaMensajeAutoTriage;
-            var resultadoError = _lineaEnEdicion is null
+            var resultadoError = lineaEnEdicion is null
                 ? (await Mediator.Send(new CrearLineaWhatsAppCommand(
                     _lineaNombre, _lineaNumero, _lineaPhoneNumberId, _lineaWabaId, _lineaToken, _lineaModo,
                     _lineaComercialId, _lineaMiembros.ToList(), _lineaClienteId, mensajeAutoTriage)))
                     is { EsFallido: true } fallosAlta ? fallosAlta.Error : null
                 : (await Mediator.Send(new ActualizarLineaWhatsAppCommand(
-                    _lineaEnEdicion.LineaId, _lineaEnEdicion.Version,
+                    lineaEnEdicion.LineaId, lineaEnEdicion.Version,
                     string.IsNullOrWhiteSpace(_lineaToken) ? null : _lineaToken, _lineaModo,
                     _lineaComercialId, _lineaMiembros.ToList(), mensajeAutoTriage)))
                     is { EsFallido: true } fallosEdicion ? fallosEdicion.Error : null;
+
+            if (generacion != _generacionOperacionLinea) return;
 
             if (resultadoError is not null)
             {
@@ -188,33 +235,56 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
                 return;
             }
 
-            ToastService.Mostrar(_lineaEnEdicion is null ? "Línea creada." : "Línea actualizada.", TonoToast.Exito);
+            ToastService.Mostrar(lineaEnEdicion is null ? "Línea creada." : "Línea actualizada.", TonoToast.Exito);
             _modalLineaVisible = false;
             _lineaEnEdicion = null;
             await CargarConexionesAsync();
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error al guardar la línea de WhatsApp.");
-            ToastService.Mostrar("No pudimos guardar la línea.", TonoToast.Error);
+            if (generacion == _generacionOperacionLinea)
+            {
+                Logger.LogError(ex, "Error al guardar la línea de WhatsApp.");
+                ToastService.Mostrar("No pudimos guardar la línea.", TonoToast.Error);
+            }
         }
         finally
         {
-            _guardandoLinea = false;
+            if (generacion == _generacionOperacionLinea)
+                _guardandoLinea = false;
         }
+    }
+
+    private void AbrirDesconexion(ConexionIntegracionListaDto conexion)
+    {
+        if (_procesandoId is not null || _desconectando) return;
+        _conexionADesconectar = conexion;
+    }
+
+    private Task CerrarModalDesconexion() => CerrarModalDesconexion(false);
+
+    private Task CerrarModalDesconexion(bool visible)
+    {
+        if (visible || _desconectando) return Task.CompletedTask;
+        _conexionADesconectar = null;
+        return Task.CompletedTask;
     }
 
     private async Task DesconectarAsync()
     {
-        if (_conexionADesconectar is null) return;
+        if (_conexionADesconectar is null || _desconectando) return;
 
+        var conexion = _conexionADesconectar;
         _desconectando = true;
-        _procesandoId = _conexionADesconectar.Id;
+        var generacion = Interlocked.Increment(ref _generacionDesconexion);
+        _procesandoId = conexion.Id;
         StateHasChanged();
 
         try
         {
-            var resultado = await Mediator.Send(new DesconectarBuzonCommand(_conexionADesconectar.Id));
+            var resultado = await Mediator.Send(new DesconectarBuzonCommand(conexion.Id));
+
+            if (generacion != _generacionDesconexion || _conexionADesconectar?.Id != conexion.Id) return;
 
             if (resultado.EsFallido)
             {
@@ -228,13 +298,17 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
         }
         finally
         {
-            _desconectando = false;
-            _procesandoId = null;
+            if (generacion == _generacionDesconexion)
+            {
+                _desconectando = false;
+                _procesandoId = null;
+            }
         }
     }
 
     private async Task ReactivarAsync(ConexionIntegracionListaDto conexion)
     {
+        if (_procesandoId is not null) return;
         _procesandoId = conexion.Id;
         StateHasChanged();
 
@@ -277,4 +351,12 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
         "suscripcion" => "El buzón se autenticó pero no pudimos activar las notificaciones. Inténtalo de nuevo.",
         _ => "No pudimos completar la conexión."
     };
+
+    public void Dispose()
+    {
+        _dispuesto = true;
+        _cancelacionCarga.Cancel();
+        Interlocked.Exchange(ref _cicloCarga, null)?.Cancel();
+        _cancelacionCarga.Dispose();
+    }
 }
