@@ -147,6 +147,9 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
     [SupplyParameterFromQuery(Name = "plantilla")]
     private string? PlantillaInicial { get; set; }
 
+    [SupplyParameterFromQuery(Name = "flujo")]
+    private string? FlujoInicial { get; set; }
+
     private int _step = 1;
     private int _pasoMaximoAlcanzado = 1;
     private string _plantillaId = "cae";
@@ -180,6 +183,15 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
 
     protected override void OnInitialized()
     {
+        if (EsImportacionDocumentos)
+        {
+            _plantillaId = "documentos";
+            _step = 2;
+            _pasoMaximoAlcanzado = 2;
+            _pasoEnfocado = 2;
+            return;
+        }
+
         if (PlantillaInicial is not null && Plantillas.Any(p => p.Id == PlantillaInicial))
             _plantillaId = PlantillaInicial;
 
@@ -190,6 +202,12 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
     private bool EsPlantillaClientes => _plantillaId == IdPlantillaClientes;
 
     private bool EsPlantillaCombinada => _plantillaId == IdPlantillaCombinada;
+
+    // La entrada explícita de /documentos/importar abre el flujo documental
+    // directamente en el paso de archivo. ?plantilla=documentos conserva el
+    // paso 1 con la plantilla preseleccionada, igual que las demás plantillas.
+    private bool EsImportacionDocumentos => !IntegradaEnConfiguracion &&
+        PlantillaInicial == "documentos" && FlujoInicial == "documentos";
 
     /// <summary>
     /// Entradilla del mockup «Importar Combinado», con el apellido que el
@@ -216,7 +234,8 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
     private bool EsCombinadaDesdeClientes => _plantillaDesdeClientes == IdPlantillaCombinada && _plantillaId == IdPlantillaCombinada;
 
     private string TituloPagina =>
-        _plantillaDesdeClientes is not null && _plantillaDesdeClientes == _plantillaId
+        EsImportacionDocumentos ? "Importar documentos"
+        : _plantillaDesdeClientes is not null && _plantillaDesdeClientes == _plantillaId
             ? _plantillaId == IdPlantillaClientes ? "Importar clientes" : "Importación combinada"
             : "Importar datos";
 
@@ -740,15 +759,18 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
                 if (resultado.EsFallido)
                 {
                     await RegistrarFalloAsync(plantilla, nombreArchivo, resultado.Error.Mensaje);
-                    _mensajeError = resultado.Error.Mensaje;
+                    if (!_desechada)
+                        _mensajeError = resultado.Error.Mensaje;
                     return;
                 }
 
-                _resultadoSimple = resultado.Valor;
+                var resultadoSimple = resultado.Valor;
                 await RegistrarExitoAsync(plantilla, nombreArchivo,
-                    _resultadoSimple.ClientesCreados + _resultadoSimple.CentrosCreados + _resultadoSimple.EmpresasCreadas
-                        + _resultadoSimple.TrabajadoresCreados + _resultadoSimple.DocumentosCreados + _resultadoSimple.AsignacionesCreadas,
-                    _resultadoSimple.Advertencias.Count, _resultadoSimple.Omitidos.Count);
+                    resultadoSimple.ClientesCreados + resultadoSimple.CentrosCreados + resultadoSimple.EmpresasCreadas
+                        + resultadoSimple.TrabajadoresCreados + resultadoSimple.DocumentosCreados + resultadoSimple.AsignacionesCreadas,
+                    resultadoSimple.Advertencias.Count, resultadoSimple.Omitidos.Count);
+                if (_desechada) return;
+                _resultadoSimple = resultadoSimple;
             }
             else if (planCombinada is not null)
             {
@@ -756,17 +778,21 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
                 if (resultado.EsFallido)
                 {
                     await RegistrarFalloAsync(plantilla, nombreArchivo, resultado.Error.Mensaje);
-                    _mensajeError = resultado.Error.Mensaje;
+                    if (!_desechada)
+                        _mensajeError = resultado.Error.Mensaje;
                     return;
                 }
 
-                _resultadoCombinada = resultado.Valor;
+                var resultadoCombinada = resultado.Valor;
                 await RegistrarExitoAsync(plantilla, nombreArchivo,
-                    _resultadoCombinada.ClientesCreados + _resultadoCombinada.EmpresasCreadas
-                        + _resultadoCombinada.CentrosCreados + _resultadoCombinada.TrabajadoresCreados,
-                    _resultadoCombinada.Advertencias.Count, _resultadoCombinada.Omitidos.Count);
+                    resultadoCombinada.ClientesCreados + resultadoCombinada.EmpresasCreadas
+                        + resultadoCombinada.CentrosCreados + resultadoCombinada.TrabajadoresCreados,
+                    resultadoCombinada.Advertencias.Count, resultadoCombinada.Omitidos.Count);
+                if (_desechada) return;
+                _resultadoCombinada = resultadoCombinada;
             }
 
+            if (_desechada) return;
             ToastService.Mostrar("Importación completada.", TonoToast.Exito);
             _step = 5;
             _pasoMaximoAlcanzado = Math.Max(_pasoMaximoAlcanzado, 5);
@@ -776,12 +802,16 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         {
             Logger.LogError(ex, "Excepción no controlada al importar el archivo {NombreArchivo} con la plantilla {PlantillaId}.", nombreArchivo, plantilla.Id);
             await RegistrarFalloAsync(plantilla, nombreArchivo, "Excepción no controlada durante la importación.");
-            _mensajeError = "No pudimos completar la importación. Intenta nuevamente en unos segundos.";
+            if (!_desechada)
+                _mensajeError = "No pudimos completar la importación. Intenta nuevamente en unos segundos.";
         }
         finally
         {
-            _importando = false;
-            _mostrarDialogoImportar = false;
+            if (!_desechada)
+            {
+                _importando = false;
+                _mostrarDialogoImportar = false;
+            }
         }
     }
 
