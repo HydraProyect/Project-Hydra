@@ -33,6 +33,7 @@ public class DelegacionesGen2Tests : BunitContext
         public IReadOnlyList<DelegacionDto> Delegaciones { get; set; } = [];
         public TaskCompletionSource? EsperaRevocacion { get; set; }
         public TaskCompletionSource? EsperaCreacion { get; set; }
+        public bool EsAdministradorPlataforma { get; set; } = true;
 
         public async Task<T> Send<T>(IRequest<T> request, CancellationToken cancellationToken = default)
         {
@@ -43,7 +44,7 @@ public class DelegacionesGen2Tests : BunitContext
                 await EsperaCreacion.Task.WaitAsync(TimeSpan.FromSeconds(10));
             object respuesta = request switch
             {
-                EsAdministradorPlataformaQuery => true,
+                EsAdministradorPlataformaQuery => EsAdministradorPlataforma,
                 ObtenerDelegacionesQuery => Delegaciones,
                 ObtenerActividadSoporteQuery => Array.Empty<ActividadSoporteDto>(),
                 DesactivarDelegacionTenantCommand => Result.Exito(),
@@ -91,9 +92,13 @@ public class DelegacionesGen2Tests : BunitContext
         soporte && activa ? "Incidencia de importación" : null,
         soporte && activa ? DateTime.UtcNow.AddHours(2) : null);
 
-    private (IRenderedComponent<Delegaciones> Cut, Mediador Mediador, ToastService Toasts) Renderizar(params DelegacionDto[] delegaciones)
+    private (IRenderedComponent<Delegaciones> Cut, Mediador Mediador, ToastService Toasts) Renderizar(params DelegacionDto[] delegaciones) =>
+        Renderizar(esAdministradorPlataforma: true, delegaciones);
+
+    private (IRenderedComponent<Delegaciones> Cut, Mediador Mediador, ToastService Toasts) Renderizar(
+        bool esAdministradorPlataforma, params DelegacionDto[] delegaciones)
     {
-        var mediador = new Mediador { Delegaciones = delegaciones };
+        var mediador = new Mediador { Delegaciones = delegaciones, EsAdministradorPlataforma = esAdministradorPlataforma };
         var toasts = new ToastService();
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped(_ => toasts);
@@ -217,5 +222,27 @@ public class DelegacionesGen2Tests : BunitContext
             mediador.EsperaCreacion.TrySetResult();
             if (creacion is not null) await creacion.WaitAsync(TimeSpan.FromSeconds(10));
         }
+    }
+
+    /// <summary>
+    /// AbrirAccesoSoporteCommand/CerrarAccesoSoporteCommand autorizan por
+    /// Tenant.EsPlataforma del tenant de origen, no por la concesión global
+    /// AdminPlataforma que gobierna PuedeGestionar (ver el doc-comment de
+    /// EsAdministradorPlataformaQuery: "ya no hay paridad con él"). Sin este
+    /// control, un cambio que volviera a fusionar el gate de soporte con
+    /// PuedeGestionar escondería "Abrir acceso" a cualquier Administrador
+    /// inicial que no hubiera cruzado el acto fundacional de
+    /// /configuracion/plataforma — regresión real medida en CI (PR #651,
+    /// FlujoSoporteTests, 3/3 intentos con base de datos limpia).
+    /// </summary>
+    [Fact]
+    public void Abrir_acceso_de_soporte_no_depende_de_la_concesion_admin_plataforma()
+    {
+        var (cut, _, _) = Renderizar(esAdministradorPlataforma: false, Delegacion(soporte: true, activa: false));
+
+        cut.FindAll("button").Should().Contain(b => b.TextContent.Trim() == "Abrir acceso",
+            "el comando real lo autoriza por Tenant.EsPlataforma, no por la concesión AdminPlataforma");
+        cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Nueva delegación",
+            "control negativo: sin la concesión, las acciones comerciales sí siguen ocultas");
     }
 }
