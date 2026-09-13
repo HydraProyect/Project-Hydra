@@ -6,78 +6,99 @@ using Microsoft.AspNetCore.Components;
 
 namespace CaeManager.Web.Features.Documentos.Components;
 
-public partial class RevisionIaTab : ComponentBase
+public partial class RevisionIaTab : ComponentBase, IDisposable
 {
-    /// <summary>
-    /// Umbral de confirmación masiva (04 § 8.2, DDL-065): 95 — la misma frontera que el sistema
-    /// usa en todas partes para <b>actuar sin revisión humana</b> (banda verde de
-    /// <see cref="TonoConfianza"/>, Issue #19; auto-creación de SubidaMasiva).
-    /// Estuvo en 85 desde la Fase D, con un comentario que afirmaba seguir el badge verde: no era
-    /// cierto, el verde empieza en 95, y esta acción <b>renueva el Documento</b> — no descarta un
-    /// aviso. Confirmaba en bloque revisiones que su propio badge marcaba en ámbar (OD-32).
-    /// </summary>
     private const int UmbralConfianzaLote = 95;
 
     private IReadOnlyList<RevisionIaDocumentoDto> _revisiones = [];
     private bool _cargando = true;
     private bool _errorCarga;
-    private Guid? _procesandoId;
     private bool _confirmandoLote;
-
-    private IReadOnlyList<RevisionIaDocumentoDto> RevisionesConfirmablesEnLote =>
-        _revisiones.Where(r => r.ConfianzaGeneral >= UmbralConfianzaLote && r.FechaEmisionDetectada is not null).ToList();
-
-    /// <summary>Como mucho un documento a la vez — evita cargar N iframes de PDF si el usuario despliega varias filas seguidas.</summary>
+    private bool _operacionEnCurso;
+    private bool _confirmacionLoteVisible;
+    private bool _confirmacionDescartarVisible;
+    private bool _dispose;
+    private Guid? _procesandoId;
+    private Guid? _revisionIdSeleccionada;
     private Guid? _documentoIdExpandido;
+    private FiltroRevision _filtro;
+    private CancellationTokenSource? _cargaCts;
+    private int _generacionCarga;
+    private int _generacionEntidad;
+
+    private enum FiltroRevision
+    {
+        Todas,
+        Confirmables,
+        Manuales,
+        SinFecha
+    }
+
+    private static IReadOnlyList<FiltroRevision> Filtros { get; } =
+    [
+        FiltroRevision.Todas,
+        FiltroRevision.Confirmables,
+        FiltroRevision.Manuales,
+        FiltroRevision.SinFecha
+    ];
+
+    private IReadOnlyList<RevisionIaDocumentoDto> RevisionesVisibles => _revisiones.Where(CumpleFiltro).ToList();
+    private IReadOnlyList<RevisionIaDocumentoDto> RevisionesConfirmablesEnLote => _revisiones.Where(EsConfirmable).ToList();
+    private RevisionIaDocumentoDto? RevisionSeleccionada => _revisiones.FirstOrDefault(r => r.Id == _revisionIdSeleccionada);
 
     protected override Task OnInitializedAsync() => CargarAsync();
 
     private async Task CargarAsync()
     {
+        _cargaCts?.Cancel();
+        _cargaCts?.Dispose();
+        var cts = _cargaCts = new CancellationTokenSource();
+        var generacion = ++_generacionCarga;
+        var token = cts.Token;
         _cargando = true;
         _errorCarga = false;
         StateHasChanged();
 
         try
         {
-            _revisiones = await Mediator.Send(new ObtenerRevisionesIaPendientesQuery());
-        }
-        catch (Exception)
-        {
-            _errorCarga = true;
-        }
-        finally
-        {
-            _cargando = false;
-        }
-    }
-
-    private async Task ResolverAsync(Guid revisionId)
-    {
-        _procesandoId = revisionId;
-        StateHasChanged();
-
-        try
-        {
-            var resultado = await Mediator.Send(new ResolverRevisionIaDocumentoCommand(revisionId));
-            if (resultado.EsFallido)
+            var revisiones = await Mediator.Send(new ObtenerRevisionesIaPendientesQuery(), token);
+            if (_dispose || generacion != _generacionCarga)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
                 return;
             }
 
-            ToastService.Mostrar("Revisión marcada como hecha.", TonoToast.Exito);
-            await CargarAsync();
+            _revisiones = revisiones;
+            SeleccionarPrimeraVisible();
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+        }
+        catch (Exception)
+        {
+            if (!_dispose && generacion == _generacionCarga)
+            {
+                _errorCarga = true;
+            }
         }
         finally
         {
-            _procesandoId = null;
+            if (!_dispose && generacion == _generacionCarga)
+            {
+                _cargando = false;
+                StateHasChanged();
+            }
         }
     }
 
-    /// <summary>Fase D ("Aceptar lo detectado por la IA") — renueva el Documento con la fecha detectada, en vez de obligar a corregirlo a mano en /documentos.</summary>
     private async Task AceptarDeteccionAsync(Guid revisionId)
     {
+        if (_operacionEnCurso)
+        {
+            return;
+        }
+
+        var generacionEntidad = _generacionEntidad;
+        _operacionEnCurso = true;
         _procesandoId = revisionId;
         StateHasChanged();
 
@@ -86,7 +107,16 @@ public partial class RevisionIaTab : ComponentBase
             var resultado = await Mediator.Send(new AplicarDeteccionIaDocumentoCommand(revisionId));
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                if (!_dispose && generacionEntidad == _generacionEntidad)
+                {
+                    ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                }
+
+                return;
+            }
+
+            if (_dispose || generacionEntidad != _generacionEntidad)
+            {
                 return;
             }
 
@@ -95,46 +125,184 @@ public partial class RevisionIaTab : ComponentBase
         }
         finally
         {
-            _procesandoId = null;
+            if (!_dispose && generacionEntidad == _generacionEntidad)
+            {
+                _procesandoId = null;
+            }
+
+            _operacionEnCurso = false;
         }
     }
 
-    /// <summary>
-    /// Secuencial a propósito, no en paralelo: el DbContext scoped al
-    /// circuito no admite dos llamadas EF concurrentes sobre la misma
-    /// instancia (mismo motivo documentado en ObtenerDashboardEjecutivoQueryHandler).
-    /// </summary>
-    private async Task ConfirmarLoteAsync()
+    private async Task ResolverSeleccionadaAsync()
     {
-        _confirmandoLote = true;
+        if (_revisionIdSeleccionada is not { } revisionId || _operacionEnCurso)
+        {
+            return;
+        }
+
+        var generacionEntidad = _generacionEntidad;
+        _operacionEnCurso = true;
+        _procesandoId = revisionId;
         StateHasChanged();
 
         try
         {
-            var revisionIds = RevisionesConfirmablesEnLote.Select(r => r.Id).ToList();
+            var resultado = await Mediator.Send(new ResolverRevisionIaDocumentoCommand(revisionId));
+            if (resultado.EsFallido)
+            {
+                if (!_dispose && generacionEntidad == _generacionEntidad)
+                {
+                    ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                }
+
+                return;
+            }
+
+            if (_dispose || generacionEntidad != _generacionEntidad)
+            {
+                return;
+            }
+
+            ToastService.Mostrar("Lectura descartada; el documento no se ha modificado.", TonoToast.Exito);
+            _confirmacionDescartarVisible = false;
+            await CargarAsync();
+        }
+        finally
+        {
+            if (!_dispose && generacionEntidad == _generacionEntidad)
+            {
+                _procesandoId = null;
+            }
+
+            _operacionEnCurso = false;
+        }
+    }
+
+    private async Task ConfirmarLoteAsync()
+    {
+        if (_confirmandoLote || _operacionEnCurso)
+        {
+            return;
+        }
+
+        var revisionIds = RevisionesConfirmablesEnLote.Select(r => r.Id).ToList();
+        if (revisionIds.Count == 0)
+        {
+            return;
+        }
+
+        _confirmandoLote = true;
+        _operacionEnCurso = true;
+        StateHasChanged();
+
+        try
+        {
             var confirmadas = 0;
             var errores = 0;
-
             foreach (var revisionId in revisionIds)
             {
                 var resultado = await Mediator.Send(new AplicarDeteccionIaDocumentoCommand(revisionId));
-                if (resultado.EsExitoso) confirmadas++;
-                else errores++;
+                if (resultado.EsExitoso)
+                {
+                    confirmadas++;
+                }
+                else
+                {
+                    errores++;
+                }
             }
 
-            var resumen = $"{confirmadas} revisión(es) confirmada(s)" + (errores > 0 ? $", {errores} no se pudieron aplicar." : ".");
-            ToastService.Mostrar(resumen, errores == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+            if (_dispose)
+            {
+                return;
+            }
 
+            ToastService.Mostrar(
+                ResumenLote(confirmadas, revisionIds.Count, errores),
+                confirmadas == revisionIds.Count ? TonoToast.Exito : TonoToast.Advertencia);
+            _confirmacionLoteVisible = false;
             await CargarAsync();
         }
         finally
         {
             _confirmandoLote = false;
+            _operacionEnCurso = false;
         }
     }
 
-    private void AlternarPrevisualizacion(Guid documentoId) =>
-        _documentoIdExpandido = _documentoIdExpandido == documentoId ? null : documentoId;
+    private void CambiarFiltro(FiltroRevision filtro)
+    {
+        _filtro = filtro;
+        _confirmacionLoteVisible = false;
+        _confirmacionDescartarVisible = false;
+        SeleccionarPrimeraVisible();
+    }
+
+    private void QuitarFiltro() => CambiarFiltro(FiltroRevision.Todas);
+
+    private void SeleccionarRevision(Guid revisionId)
+    {
+        if (_revisionIdSeleccionada == revisionId)
+        {
+            return;
+        }
+
+        _revisionIdSeleccionada = revisionId;
+        ReiniciarOperacionPorCambioDeEntidad();
+    }
+
+    private void SeleccionarPrimeraVisible()
+    {
+        if (RevisionSeleccionada is not null && RevisionesVisibles.Any(r => r.Id == _revisionIdSeleccionada))
+        {
+            return;
+        }
+
+        _revisionIdSeleccionada = RevisionesVisibles.FirstOrDefault()?.Id;
+        ReiniciarOperacionPorCambioDeEntidad();
+    }
+
+    private void ReiniciarOperacionPorCambioDeEntidad()
+    {
+        _generacionEntidad++;
+        _documentoIdExpandido = null;
+        _confirmacionDescartarVisible = false;
+        _procesandoId = null;
+    }
+
+    private void PrepararConfirmacionLote() => _confirmacionLoteVisible = RevisionesConfirmablesEnLote.Count > 0;
+    private void PrepararDescartar() => _confirmacionDescartarVisible = RevisionSeleccionada is not null;
+    private void AlternarPrevisualizacion(Guid documentoId) => _documentoIdExpandido = _documentoIdExpandido == documentoId ? null : documentoId;
+
+    private bool CumpleFiltro(RevisionIaDocumentoDto revision) => _filtro switch
+    {
+        FiltroRevision.Confirmables => EsConfirmable(revision),
+        FiltroRevision.Manuales => revision.FechaEmisionDetectada is not null && !EsConfirmable(revision),
+        FiltroRevision.SinFecha => revision.FechaEmisionDetectada is null,
+        _ => true
+    };
+
+    private static bool EsConfirmable(RevisionIaDocumentoDto revision) => revision.ConfianzaGeneral >= UmbralConfianzaLote && revision.FechaEmisionDetectada is not null;
+
+    private static string TextoFiltro(FiltroRevision f) => f switch
+    {
+        FiltroRevision.Confirmables => "Confirmables",
+        FiltroRevision.Manuales => "Manual",
+        FiltroRevision.SinFecha => "Sin fecha",
+        _ => "Todas"
+    };
+
+    private string ClaseFiltro(FiltroRevision f) => _filtro == f ? "revision-ia-filtro activo" : "revision-ia-filtro";
+    private string ClaseRevision(RevisionIaDocumentoDto r) => RevisionSeleccionada?.Id == r.Id ? "revision-ia-fila activa" : "revision-ia-fila";
+    private static string Ambito(RevisionIaDocumentoDto r) => r.TrabajadorId is null ? "Empresa" : "Trabajador";
+    private static string EtiquetaTratamiento(RevisionIaDocumentoDto r) => EsConfirmable(r)
+        ? "Confirmable en lote"
+        : r.FechaEmisionDetectada is null ? "Sin fecha" : "Revisión manual";
+
+    private static string ResumenLote(int confirmadas, int solicitadas, int errores) => confirmadas == solicitadas
+        ? $"{confirmadas} revisión(es) confirmada(s)."
+        : $"Se aplicaron {confirmadas} de {solicitadas} revisiones; {errores} no se pudieron aplicar.";
 
     private static TonoBadge TonoConfianza(int confianza) => confianza switch
     {
@@ -142,4 +310,12 @@ public partial class RevisionIaTab : ComponentBase
         >= 70 => TonoBadge.Advertencia,
         _ => TonoBadge.Peligro
     };
+
+    public void Dispose()
+    {
+        _dispose = true;
+        _cargaCts?.Cancel();
+        _cargaCts?.Dispose();
+        _cargaCts = null;
+    }
 }

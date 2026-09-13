@@ -85,7 +85,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         // POST /_blazor/disconnect llegaba a los ~50 ms. Cuando perdía esa
         // carrera, el tipo se quedaba con VerificacionIaActiva=false,
         // CrearDocumentoCommand no encolaba ningún TrabajoAnalisisDocumento y
-        // la fila de /documentos/revision-ia NO LLEGABA A EXISTIR — no llegaba
+        // el botón de la cola de /documentos/revision-ia NO LLEGABA A EXISTIR — no llegaba
         // tarde. Por eso subir el presupuesto de espera no arreglaba nada (con
         // 300 s tampoco aparecía) y por eso el fallo parecía mudo: el comando
         // revienta en un circuito ya cerrado, así que no llega a ninguna capa
@@ -184,24 +184,38 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         // aparte, sondeando cada 5s (ver ese archivo), así que hay que
         // recargar la página en bucle hasta que aparezca, no basta con
         // esperar sobre el DOM ya cargado.
-        var filaRevision = await EsperarFilaRevisionIaAsync(page, fixture.BaseUrl, apellidosTrabajador);
+        var botonRevision = await EsperarBotonRevisionIaAsync(page, fixture.BaseUrl, apellidosTrabajador);
 
         // Confirma que la extracción determinista de ProveedorFalsoDocumentAI
         // llegó de verdad hasta la UI, a través de todo el router
         // (clasificación → OCR/estructuración → RevisionIaDocumento): 50%
-        // de confianza y el motivo que ComputarMotivos genera para ese caso.
-        await Expect(filaRevision).ToContainTextAsync("50%");
-        await Expect(filaRevision).ToContainTextAsync("Confianza baja (50%)");
+        // de confianza en la cola y el motivo que ComputarMotivos genera para
+        // ese caso en el detalle de la revisión seleccionada.
+        await Expect(botonRevision).ToContainTextAsync("Confianza 50 %");
+        await botonRevision.ClickAsync();
+
+        var detalleRevision = page.Locator(".revision-ia-detalle");
+        await detalleRevision.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        await Expect(detalleRevision.Locator(".revision-ia-motivo"))
+            .ToContainTextAsync("Confianza baja (50%)");
 
         // Segunda comprobación: TrabajoAnalisisDocumento.MarcarCompletado() y
         // la NotificacionUsuario se guardan en un SaveChangesAsync posterior
         // al que ya creó la RevisionIaDocumento (ver
         // ProcesadorAnalisisDocumentoHostedService.ProcesarPendientesDelTenantAsync)
-        // — la fila de arriba puede encontrarse un instante antes de que la
+        // — el botón de la cola de arriba puede encontrarse un instante antes de que la
         // notificación exista todavía.
         await DescartarNotificacionPendienteSiApareceAsync(page);
-        await filaRevision.GetByText("Marcar como revisado").ClickAsync();
-        await filaRevision.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
+        await detalleRevision.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Descartar la lectura" }).ClickAsync();
+
+        // El detalle y DialogoConfirmacion comparten el texto del botón de
+        // descarte. Modal expone role="dialog" y toma su nombre accesible del
+        // h2 con el título, por lo que este ámbito pulsa la confirmación y no
+        // vuelve a pulsar el botón que abrió el diálogo.
+        var dialogoDescartar = page.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "Descartar la lectura de la IA" });
+        await dialogoDescartar.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        await dialogoDescartar.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Descartar la lectura" }).ClickAsync();
+        await botonRevision.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         // --- Paso 6 (Reclamación): asignar el Trabajador a su Centro, añadir
         // un contacto de agenda y enviar la reclamación ---
@@ -331,7 +345,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
     /// <summary>
     /// /documentos/revision-ia no se actualiza sola cuando termina un
     /// análisis en segundo plano (ver el comentario del Paso 5 más arriba) —
-    /// se recarga en bucle hasta encontrar la fila o agotar el presupuesto
+    /// se recarga en bucle hasta encontrar el botón de la cola o agotar el presupuesto
     /// de tiempo. 90s cubre con margen el sondeo de 5s de
     /// ProcesadorAnalisisDocumentoHostedService más la elección de líder y
     /// el resto de la tubería (clasificación, extracción, guardado): medido
@@ -348,7 +362,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
     /// (App_Data/logs/log-*.txt del directorio de CaeManager.Web, sink de
     /// archivo de Serilog), no en la salida del test.
     /// </summary>
-    private static async Task<ILocator> EsperarFilaRevisionIaAsync(IPage page, string baseUrl, string apellidosTrabajador)
+    private static async Task<ILocator> EsperarBotonRevisionIaAsync(IPage page, string baseUrl, string apellidosTrabajador)
     {
         var presupuesto = TimeSpan.FromSeconds(90);
         var limite = DateTime.UtcNow + presupuesto;
@@ -357,9 +371,11 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         {
             await Ayudas.NavegarYEsperarAsync(page, $"{baseUrl}/documentos/revision-ia");
             await DescartarNotificacionPendienteSiApareceAsync(page);
-            var fila = page.Locator("tr", new PageLocatorOptions { HasText = apellidosTrabajador });
-            if (await fila.CountAsync() > 0)
-                return fila;
+            var boton = page.Locator(".revision-ia-cola").GetByRole(
+                AriaRole.Button,
+                new LocatorGetByRoleOptions { Name = apellidosTrabajador });
+            if (await boton.CountAsync() > 0)
+                return boton;
 
             if (DateTime.UtcNow >= limite)
                 throw new TimeoutException(
