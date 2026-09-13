@@ -1,4 +1,5 @@
 using Bunit;
+using CaeManager.Infrastructure.Coordinacion;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.Account;
 using CaeManager.Web.Components.Account.Pages;
@@ -36,6 +37,7 @@ public class VerificacionDosPasosBloqueoTests : BunitContext
     {
         Services.AddSingleton<SignInManager<ApplicationUser>>(_signIn);
         Services.AddSingleton<ILoggerFactory>(new LoggerFactory([_registro]));
+        Services.AddSingleton<IEleccionLiderService>(new CerrojoSiempreConcedidoFalso());
     }
 
     [Fact]
@@ -77,6 +79,50 @@ public class VerificacionDosPasosBloqueoTests : BunitContext
         _signIn.SesionCerrada.Should().BeFalse("sin bloqueo el paso de 2FA sigue abierto para reintentar");
     }
 
+    /// <summary>
+    /// La propiedad que demuestra que el cerrojo protege de verdad el
+    /// contador de bloqueo: cuando ya hay una verificación en curso para el
+    /// mismo usuario, <c>SignInManager</c> no debe tocarse en absoluto — ni
+    /// una sola llamada — porque cada llamada a
+    /// <c>TwoFactorAuthenticatorSignInAsync</c> con un código, válido o no,
+    /// cuenta como un intento real para Identity.
+    ///
+    /// Que el cerrojo mismo excluya a un competidor concurrente ya está
+    /// probado contra PostgreSQL real en
+    /// <c>EleccionLiderPostgresServiceTests.Solo_una_replica_gana_el_liderazgo_para_la_misma_clave</c>
+    /// (con <c>TaskCompletionSource</c> forzando el solape de verdad — un E2E
+    /// con dos POST HTTP "concurrentes" no lo logra de forma fiable: medido,
+    /// con el cerrojo retirado del todo, <c>AccessFailedCount</c> seguía
+    /// subiendo solo 1 en las tres repeticiones que se probaron, no 2 —
+    /// probablemente por el token de concurrencia de Identity absorbiendo la
+    /// segunda escritura antes de que el segundo POST llegue a solaparse de
+    /// verdad con el primero. Ese test se descartó por no ser sensible: daba
+    /// verde con o sin cerrojo). Lo que falta demostrar, y es lo único que
+    /// puede fallar por un error de cableado en <c>LoginCon2fa</c>, es que la
+    /// página respeta el "false" del cerrojo y no llama a Identity de todos
+    /// modos — eso es exactamente lo que prueba este test, sin depender de
+    /// ganar ninguna carrera.
+    /// </summary>
+    [Fact]
+    public async Task Con_el_cerrojo_ocupado_no_se_llama_a_SignInManager_y_se_avisa_al_usuario()
+    {
+        var cerrojo = new CerrojoQueRechazaFalso();
+        Services.AddSingleton<IEleccionLiderService>(cerrojo);
+        var cut = Render<LoginCon2fa>();
+
+        await EnviarCodigoAsync(cut);
+
+        _signIn.LlamadasVerificacion.Should().Be(0,
+            "el segundo envío se rechaza ANTES de tocar SignInManager — no cuenta como intento fallido");
+        var alerta = cut.Find("[role=alert]");
+        alerta.TextContent.Should().Contain("Ya se está verificando");
+        alerta.TextContent.Should().NotContain(TextoCodigoNoValido,
+            "no hubo ningún código evaluado: el rechazo es del cerrojo, no de Identity");
+        cut.FindAll("#codigo").Should().ContainSingle("el rechazo del cerrojo no cierra el paso de 2FA");
+        _registro.Mensajes.Should().Contain(m => m.Contains("ya había una en curso"),
+            "el rechazo se audita distinto de un código incorrecto");
+    }
+
     private static async Task EnviarCodigoAsync(IRenderedComponent<LoginCon2fa> cut)
     {
         await cut.Find("#codigo").ChangeAsync(new ChangeEventArgs { Value = "123456" });
@@ -109,6 +155,8 @@ public class VerificacionDosPasosBloqueoTests : BunitContext
 
         public bool SesionCerrada { get; private set; }
 
+        public int LlamadasVerificacion { get; private set; }
+
         public override Task SignOutAsync()
         {
             SesionCerrada = true;
@@ -118,8 +166,40 @@ public class VerificacionDosPasosBloqueoTests : BunitContext
         public override Task<ApplicationUser?> GetTwoFactorAuthenticationUserAsync() =>
             Task.FromResult<ApplicationUser?>(_pendiente);
 
-        public override Task<SignInResult> TwoFactorAuthenticatorSignInAsync(string code, bool isPersistent, bool rememberClient) =>
-            Task.FromResult(Resultado);
+        public override Task<SignInResult> TwoFactorAuthenticatorSignInAsync(string code, bool isPersistent, bool rememberClient)
+        {
+            LlamadasVerificacion++;
+            return Task.FromResult(Resultado);
+        }
+    }
+
+    /// <summary>
+    /// Cerrojo de prueba que siempre rechaza, como si otra petición ya
+    /// estuviera dentro: nunca ejecuta <c>trabajo</c>, así que si
+    /// <c>LoginCon2fa</c> llamara a <c>SignInManager</c> de todos modos sería
+    /// un error de cableado en la página, no del cerrojo.
+    /// </summary>
+    private sealed class CerrojoQueRechazaFalso : IEleccionLiderService
+    {
+        public Task<bool> IntentarEjecutarComoLiderAsync(
+            string clave, Func<CancellationToken, Task> trabajo, CancellationToken cancellationToken) =>
+            Task.FromResult(false);
+    }
+
+    /// <summary>
+    /// Cerrojo de prueba que siempre concede: una sola instancia de bUnit
+    /// entre los dos envíos no compite consigo misma, así que el cerrojo real
+    /// (Postgres) no aporta nada aquí — ejecuta el trabajo directamente, para
+    /// no depender de una base de datos en un test de renderizado.
+    /// </summary>
+    private sealed class CerrojoSiempreConcedidoFalso : IEleccionLiderService
+    {
+        public async Task<bool> IntentarEjecutarComoLiderAsync(
+            string clave, Func<CancellationToken, Task> trabajo, CancellationToken cancellationToken)
+        {
+            await trabajo(cancellationToken);
+            return true;
+        }
     }
 
     /// <summary>El UserManager solo existe para construir el SignInManager; no se consulta.</summary>

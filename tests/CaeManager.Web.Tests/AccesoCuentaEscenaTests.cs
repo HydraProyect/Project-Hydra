@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
+using CaeManager.Infrastructure.Coordinacion;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.Account;
 using CaeManager.Web.Components.Account.Pages;
@@ -43,6 +44,7 @@ public class AccesoCuentaEscenaTests : BunitContext
         Services.AddSingleton<IOptions<IdentityOptions>>(Opciones.Create(PoliticaDeLaApp()));
         Services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         Services.AddSingleton<IEmailService>(new EmailQueNoDebeUsarse());
+        Services.AddSingleton<IEleccionLiderService>(new CerrojoSiempreConcedidoFalso());
         AddAuthorization();
     }
 
@@ -401,6 +403,22 @@ public class AccesoCuentaEscenaTests : BunitContext
     {
         public Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("con una cuenta que no existe no se envía ningún correo");
+    }
+
+    /// <summary>
+    /// Cerrojo de prueba que siempre concede: una sola instancia de bUnit
+    /// entre los dos envíos no compite consigo misma, así que el cerrojo real
+    /// (Postgres) no aporta nada aquí — ejecuta el trabajo directamente, para
+    /// no depender de una base de datos en un test de renderizado.
+    /// </summary>
+    private sealed class CerrojoSiempreConcedidoFalso : IEleccionLiderService
+    {
+        public async Task<bool> IntentarEjecutarComoLiderAsync(
+            string clave, Func<CancellationToken, Task> trabajo, CancellationToken cancellationToken)
+        {
+            await trabajo(cancellationToken);
+            return true;
+        }
     }
 
     /// <summary>Devuelve siempre el mismo <see cref="Result"/>, para simular un envío que sí se intenta.</summary>

@@ -2,11 +2,13 @@
 @layout CaeManager.Web.Components.Layout.AccesoLayout
 @attribute [AllowAnonymous]
 @using System.ComponentModel.DataAnnotations
+@using CaeManager.Infrastructure.Coordinacion
 @using CaeManager.Infrastructure.Identity
 @using CaeManager.Web.Components.Account
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Identity
 @inject SignInManager<ApplicationUser> SignInManager
+@inject IEleccionLiderService CerrojoVerificacion
 @inject NavigationManager Navigation
 @inject ILoggerFactory LoggerFactory
 
@@ -73,9 +75,41 @@
     {
         if (Entrada is null || _usuarioPendiente is null) return;
 
-        var resultado = await SignInManager.TwoFactorAuthenticatorSignInAsync(
-            Entrada.Codigo, isPersistent: true, rememberClient: false);
         var logger = LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog);
+
+        // Cerrojo no bloqueante por usuario pendiente de 2FA — necesario
+        // porque esta página es SSR estática (sin @rendermode): cada POST
+        // reconstruye la instancia del componente, así que ninguna bandera de
+        // instancia puede ver una segunda petición concurrente (medido con
+        // una sonda propia: dos POST concurrentes con "if (_enviando) return"
+        // producen dos instancias, ambas ejecutan el manejador, cero
+        // bloqueos). Sin este cerrojo, dos envíos del mismo código gastarían
+        // DOS intentos del contador de bloqueo de Identity por una sola
+        // acción del usuario. El segundo envío se rechaza aquí, ANTES de
+        // tocar SignInManager: no cuenta como intento fallido, no toca el
+        // contador. Réplicas contempladas (ver EleccionLiderPostgresService):
+        // por eso es un advisory lock de PostgreSQL, no un semáforo en
+        // proceso, que no se excluiría entre réplicas distintas.
+        SignInResult? resultadoObtenido = null;
+        var ejecutado = await CerrojoVerificacion.IntentarEjecutarComoLiderAsync(
+            $"verificar-2fa:{_usuarioPendiente.Id}",
+            async _ => resultadoObtenido = await SignInManager.TwoFactorAuthenticatorSignInAsync(
+                Entrada.Codigo, isPersistent: true, rememberClient: false),
+            CancellationToken.None);
+
+        if (!ejecutado)
+        {
+            // Ni éxito ni fallo de verificación: no hay nada que auditar como
+            // intento de 2FA, porque Identity no llegó a ver este código.
+            logger.LogWarning(
+                "Verificación 2FA rechazada, ya había una en curso para el mismo usuario: {UsuarioId}",
+                _usuarioPendiente.Id);
+            mensajeError = "Ya se está verificando un código para esta cuenta. Espera un momento e inténtalo de nuevo.";
+            return;
+        }
+
+        // ejecutado == true garantiza que el delegado corrió y asignó el resultado.
+        var resultado = resultadoObtenido!;
 
         if (resultado.Succeeded)
         {
