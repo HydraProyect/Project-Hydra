@@ -13,25 +13,29 @@
     <CabeceraPagina Titulo="Conexiones de integración" Integrada="@IntegradaEnConfiguracion">
         <Descripcion>
             Buzones de Microsoft 365 conectados para la bandeja de correo compartida (Comunicaciones).
-            Cada conexión pertenece a un Cliente Delegante concreto, o al propio Tenant si se deja en blanco.
+            Cada conexión pertenece a una empresa sin rol CAE concreta, a la organización propia si se deja en blanco
+            o al buzón personal de un Gestor CAE.
             Para investigar una conexión en concreto —carpetas, mensajes en Graph que aún no llegaron por
             webhook—, usa el <a href="/comunicaciones/buzon">explorador técnico del buzón (diagnóstico)</a>.
         </Descripcion>
     </CabeceraPagina>
 
-    <div class="acciones-claves-api">
-        <CampoSelect Etiqueta="Cliente (opcional)" Valor="@(_clienteSeleccionadoId?.ToString() ?? string.Empty)"
-                     ValorChanged="v => SeleccionarCliente(v)">
-            <option value="">Buzón del propio tenant</option>
+    <section class="seccion-conexiones" aria-labelledby="titulo-buzones-microsoft365">
+    <h2 id="titulo-buzones-microsoft365" class="titulo-bloque-conexiones">Buzones de Microsoft 365</h2>
+
+    <div class="acciones-conexion-buzon">
+        <CampoSelect Etiqueta="Empresa sin rol CAE (opcional)" Valor="@(_clienteSeleccionadoId?.ToString() ?? string.Empty)"
+                     ValorChanged="SeleccionarCliente" Deshabilitado="@(_gestorPropietarioSeleccionadoId is not null)">
+            <option value="">Buzón de la organización propia</option>
             @foreach (var cliente in _clientes)
             {
                 <option value="@cliente.Id">@cliente.RazonSocial</option>
             }
         </CampoSelect>
 
-        <CampoSelect Etiqueta="Buzón personal de un gestor (opcional)"
+        <CampoSelect Etiqueta="Buzón personal de un Gestor CAE (opcional)"
                      Valor="@(_gestorPropietarioSeleccionadoId?.ToString() ?? string.Empty)"
-                     ValorChanged="v => SeleccionarGestorPropietario(v)">
+                     ValorChanged="SeleccionarGestorPropietario" Deshabilitado="@(_clienteSeleccionadoId is not null)">
             <option value="">—</option>
             @foreach (var gestor in _gestores)
             {
@@ -39,7 +43,7 @@
             }
         </CampoSelect>
 
-        <a class="boton boton-primario boton-medio" href="@UrlConectar">Conectar buzón de Microsoft 365</a>
+        <a class="enlace-conectar-microsoft" href="@UrlConectar">Conectar buzón de Microsoft 365 <span aria-hidden="true">↗</span></a>
     </div>
 
     @if (_cargando)
@@ -56,10 +60,10 @@
             <thead>
                 <tr>
                     <th>Buzón</th>
-                    <th>Cliente</th>
+                    <th>Empresa sin rol CAE</th>
                     <th>Estado</th>
                     <th>Conectada</th>
-                    <th></th>
+                    <th><span class="solo-lector">Acciones</span></th>
                 </tr>
             </thead>
             <tbody>
@@ -80,14 +84,14 @@
                             @if (conexion.Estado == EstadoConexionIntegracion.ConError)
                             {
                                 <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario"
-                                       OnClick="() => ReactivarAsync(conexion)" Cargando="@(_procesandoId == conexion.Id)">
+                                       Deshabilitado="@(_procesandoId is not null)" OnClick="() => ReactivarAsync(conexion)" Cargando="@(_procesandoId == conexion.Id)">
                                     Reactivar
                                 </Boton>
                             }
                             @if (conexion.Estado != EstadoConexionIntegracion.Deshabilitada)
                             {
                                 <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Destructivo"
-                                       OnClick="() => _conexionADesconectar = conexion" Cargando="@(_procesandoId == conexion.Id)">
+                                       Deshabilitado="@(_procesandoId is not null)" OnClick="() => AbrirDesconexion(conexion)" Cargando="@(_procesandoId == conexion.Id)">
                                     Desconectar
                                 </Boton>
                             }
@@ -97,16 +101,18 @@
             </tbody>
         </table>
     }
+    </section>
 
-    <h2 class="titulo-seccion-lineas">Líneas de WhatsApp</h2>
+    <section class="seccion-conexiones seccion-lineas-whatsapp" aria-labelledby="titulo-lineas-whatsapp">
+    <h2 id="titulo-lineas-whatsapp" class="titulo-bloque-conexiones">Líneas de WhatsApp</h2>
 
     <p class="texto-descriptivo">
-        Líneas oficiales de WhatsApp Cloud API (Meta). Cada línea enruta sus conversaciones nuevas a su gestor
-        dueño (modo gestor fijo) o las reparte equitativamente entre un grupo (modo pool inbound).
+        Líneas oficiales de WhatsApp Cloud API (Meta). Cada línea enruta sus conversaciones nuevas a su Gestor CAE
+        dueño (modo Gestor CAE fijo) o las reparte equitativamente entre un grupo (modo pool inbound).
     </p>
 
-    <div class="acciones-claves-api">
-        <Boton Variante="VarianteBoton.Primario" OnClick="AbrirAltaLinea">Nueva línea WhatsApp</Boton>
+    <div class="acciones-lineas-whatsapp">
+        <Boton Variante="VarianteBoton.Primario" Deshabilitado="_guardandoLinea" OnClick="AbrirAltaLinea">Nueva línea WhatsApp</Boton>
     </div>
 
     @if (_cargando)
@@ -124,10 +130,10 @@
                 <tr>
                     <th>Línea</th>
                     <th>Phone Number ID</th>
-                    <th>Cliente</th>
+                    <th>Empresa sin rol CAE</th>
                     <th>Asignación</th>
                     <th>Estado</th>
-                    <th></th>
+                    <th><span class="solo-lector">Acciones</span></th>
                 </tr>
             </thead>
             <tbody>
@@ -136,7 +142,7 @@
                     <tr>
                         <td>@linea.Nombre<br /><span class="texto-secundario">@linea.NumeroTelefono</span></td>
                         <td>@linea.PhoneNumberId</td>
-                        <td>@(linea.ClienteNombre ?? "Tenant propio")</td>
+                        <td>@(linea.ClienteNombre ?? "Organización propia")</td>
                         <td>@DescribirAsignacion(linea)</td>
                         <td>
                             <Badge Tono="@ObtenerTonoEstado(linea.Estado)">@ObtenerEtiquetaEstado(linea.Estado)</Badge>
@@ -146,7 +152,7 @@
                             }
                         </td>
                         <td>
-                            <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" OnClick="() => AbrirEdicionLinea(linea)">
+                            <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoLinea" OnClick="() => AbrirEdicionLinea(linea)">
                                 Editar
                             </Boton>
                         </td>
@@ -155,28 +161,29 @@
             </tbody>
         </table>
     }
+    </section>
 </div>
 
-<Modal Visible="_conexionADesconectar is not null" VisibleChanged="v => { if (!v) _conexionADesconectar = null; }"
-       Titulo="Desconectar el buzón" CerrarAlHacerClicFuera="!_desconectando">
+<Modal Visible="_conexionADesconectar is not null" VisibleChanged="(bool visible) => CerrarModalDesconexion(visible)"
+       Titulo="Desconectar el buzón" CerrarAlHacerClicFuera="!_desconectando" Bloqueante="_desconectando">
     <ChildContent>
         @if (_conexionADesconectar is not null)
         {
             <p>
-                <strong>@_conexionADesconectar.BuzonEmail</strong> dejará de recibir/enviar correo desde Hydra.
-                Los hilos ya ingeridos se conservan.
+                <strong>@_conexionADesconectar.BuzonEmail</strong> dejará de recibir y enviar correo desde TALVEG.
+                Los hilos ya ingeridos se conservan; solo se detiene la ingesta de nuevos correos.
             </p>
         }
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_desconectando" OnClick="() => _conexionADesconectar = null">Cancelar</Boton>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_desconectando" OnClick="() => CerrarModalDesconexion()">Cancelar</Boton>
         <Boton Variante="VarianteBoton.Destructivo" Cargando="_desconectando" OnClick="DesconectarAsync">Desconectar</Boton>
     </Pie>
 </Modal>
 
-<Modal Visible="_modalLineaVisible" VisibleChanged="v => { if (!v) CerrarModalLinea(); }"
+<Modal Visible="_modalLineaVisible" VisibleChanged="(bool visible) => CerrarModalLinea(visible)"
        Titulo="@(_lineaEnEdicion is null ? "Nueva línea WhatsApp" : "Editar línea WhatsApp")"
-       CerrarAlHacerClicFuera="!_guardandoLinea">
+       CerrarAlHacerClicFuera="!_guardandoLinea" Bloqueante="_guardandoLinea">
     <ChildContent>
         @if (_lineaEnEdicion is null)
         {
@@ -187,9 +194,9 @@
             <CampoTexto Etiqueta="Phone Number ID (Meta)" Valor="@_lineaPhoneNumberId" ValorChanged="v => _lineaPhoneNumberId = v" />
             <CampoTexto Etiqueta="WABA ID (Meta)" Valor="@_lineaWabaId" ValorChanged="v => _lineaWabaId = v" />
 
-            <CampoSelect Etiqueta="Cliente (opcional)" Valor="@(_lineaClienteId?.ToString() ?? string.Empty)"
+            <CampoSelect Etiqueta="Empresa sin rol CAE (opcional)" Valor="@(_lineaClienteId?.ToString() ?? string.Empty)"
                          ValorChanged="v => _lineaClienteId = Guid.TryParse(v, out var id) ? id : null">
-                <option value="">Tenant propio</option>
+                <option value="">Organización propia</option>
                 @foreach (var cliente in _clientes)
                 {
                     <option value="@cliente.Id">@cliente.RazonSocial</option>
@@ -202,15 +209,15 @@
 
         <CampoSelect Etiqueta="Modo de asignación" Valor="@_lineaModo.ToString()"
                      ValorChanged="v => _lineaModo = Enum.Parse<ModoAsignacionLinea>(v)">
-            <option value="@ModoAsignacionLinea.GestorFijo">Gestor fijo (línea de un comercial)</option>
+            <option value="@ModoAsignacionLinea.GestorFijo">Gestor CAE fijo (línea de una persona)</option>
             <option value="@ModoAsignacionLinea.PoolInbound">Pool inbound (reparto equitativo)</option>
         </CampoSelect>
 
         @if (_lineaModo == ModoAsignacionLinea.GestorFijo)
         {
-            <CampoSelect Etiqueta="Comercial dueño" Valor="@(_lineaComercialId?.ToString() ?? string.Empty)"
+            <CampoSelect Etiqueta="Gestor CAE dueño" Valor="@(_lineaComercialId?.ToString() ?? string.Empty)"
                          ValorChanged="v => _lineaComercialId = Guid.TryParse(v, out var id) ? id : null">
-                <option value="">Elegir gestor…</option>
+                <option value="">Elegir Gestor CAE…</option>
                 @foreach (var gestor in _gestores)
                 {
                     <option value="@gestor.Id">@gestor.NombreCompleto</option>
@@ -220,7 +227,7 @@
         else
         {
             <div class="campo">
-                <label>Gestores del pool</label>
+                <label>Gestores CAE del pool</label>
                 @foreach (var gestor in _gestores)
                 {
                     <label class="opcion-pool-linea">
@@ -237,7 +244,7 @@
                        Placeholder="¡Hola! Para atenderte mejor, dinos de qué empresa nos escribes y en qué podemos ayudarte." />
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoLinea" OnClick="CerrarModalLinea">Cancelar</Boton>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoLinea" OnClick="() => CerrarModalLinea()">Cancelar</Boton>
         <Boton Variante="VarianteBoton.Primario" Cargando="_guardandoLinea" OnClick="GuardarLineaAsync">
             @(_lineaEnEdicion is null ? "Crear línea" : "Guardar cambios")
         </Boton>
