@@ -202,10 +202,11 @@ Anclas que aplican siempre, aunque la skill no se haya activado sola:
 - **Al abrir cualquier PR**, pásale sus metadatos en la misma llamada:
   `gh pr create --label "Type: …" --label "Priority: …" --milestone "…"`. El check
   «Gobernanza — metadatos de PR» exige, leído por API en el momento de evaluar, un
-  milestone y al menos una etiqueta `Type:` y una `Priority:` — añadirlos después de
-  crear la PR obliga a relanzar ese check y gasta una segunda ejecución de CI que
-  la primera llamada ya podía evitar. Milestones vigentes:
-  `gh api repos/HydraProyect/Project-Hydra/milestones --jq '.[].title'` (§ 22).
+  milestone y al menos una etiqueta `Type:` y una `Priority:`; el propio workflow se
+  reevalúa solo cuando se añaden después (dispara también con `labeled`/`milestoned`),
+  pero mientras tanto la PR queda en rojo y bloqueada, y hace falta que alguien se dé
+  cuenta y los añada — evitable poniéndolos al crearla. Milestones vigentes:
+  `gh api repos/HydraProyect/Project-Hydra/milestones --jq '.[].title'`.
 
 **Si la sesión no tiene la skill** (en la nube o en otra máquina), no reconstruyas su contenido de
 memoria. Puedes descubrir en solo lectura, pero antes de editar, abrir una PR, dar por buena una
