@@ -154,7 +154,7 @@
                     <div class="@ClaseRejilla("tarjeta-fila-acordeon-cabecera")">
                         @if (_seleccionMultiple)
                         {
-                            <input type="checkbox" checked="@_seleccionados.Contains(subcontrata.Id)" @onchange="e => AlternarSeleccion(subcontrata.Id, (bool)e.Value!)" />
+                            <input type="checkbox" aria-label="@($"Seleccionar la empresa {subcontrata.RazonSocial}")" checked="@_seleccionados.Contains(subcontrata.Id)" @onchange="e => AlternarSeleccion(subcontrata.Id, (bool)e.Value!)" />
                         }
                         <button type="button" class="@("boton-expandir-fila" + (expandido ? " boton-expandir-fila-abierta" : ""))"
                                 aria-expanded="@(expandido ? "true" : "false")"

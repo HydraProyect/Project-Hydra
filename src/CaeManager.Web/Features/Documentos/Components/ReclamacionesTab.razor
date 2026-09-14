@@ -209,7 +209,7 @@ else
                         {
                             <tr @key="documento.DocumentoId">
                                 <td>
-                                    <input type="checkbox" checked="@seleccionados.Contains(documento.DocumentoId)"
+                                    <input type="checkbox" aria-label="@($"Incluir {documento.TipoDocumentoNombre} de {documento.TrabajadorNombre}, vencimiento {documento.FechaVencimiento:dd/MM/yyyy}, en la reclamación")" checked="@seleccionados.Contains(documento.DocumentoId)"
                                            @onchange="e => AlternarSeleccion(lote.ClienteId, documento.DocumentoId, (bool)e.Value!)" />
                                 </td>
                                 <td>@documento.TrabajadorNombre</td>

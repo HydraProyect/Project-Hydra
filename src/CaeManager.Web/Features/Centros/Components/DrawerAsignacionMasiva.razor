@@ -74,7 +74,7 @@
                                             var t = trabajador.Id;
                                             var c = centro.Id;
                                             <td>
-                                                <input type="checkbox"
+                                                <input type="checkbox" aria-label="@($"Asignar a {trabajador.NombreCompleto} al centro {centro.Nombre}")"
                                                        checked="@(!_celdasExcluidas.Contains((t, c)))"
                                                        @onchange="e => AlternarCeldaMatriz(t, c, e.Value is bool marcado && marcado)" />
                                             </td>

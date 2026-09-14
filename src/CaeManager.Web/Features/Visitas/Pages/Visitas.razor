@@ -97,10 +97,10 @@
                 {
                     <TemplateColumn Title="" Align="Align.Center">
                         <HeaderTemplate Context="columna">
-                            <input type="checkbox" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
+                            <input type="checkbox" aria-label="Seleccionar las visitas de esta página" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
                         </HeaderTemplate>
                         <ChildContent>
-                            <input type="checkbox" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
+                            <input type="checkbox" aria-label="@($"Seleccionar la visita de {context.EmpresaRazonSocial} a {context.CentroNombre}, {TextoFechas(context.FechaInicio, context.FechaFin)}")" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
                         </ChildContent>
                     </TemplateColumn>
                 }

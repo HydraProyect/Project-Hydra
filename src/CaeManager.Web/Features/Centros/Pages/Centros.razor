@@ -147,7 +147,7 @@
                     <div class="tarjeta-fila-acordeon-cabecera">
                         @if (_seleccionMultiple)
                         {
-                            <input type="checkbox" checked="@_seleccionados.Contains(centro.Id)" @onchange="e => AlternarSeleccion(centro.Id, (bool)e.Value!)" />
+                            <input type="checkbox" aria-label="@($"Seleccionar el centro {centro.Nombre}")" checked="@_seleccionados.Contains(centro.Id)" @onchange="e => AlternarSeleccion(centro.Id, (bool)e.Value!)" />
                         }
                         <button type="button" class="@("boton-expandir-fila" + (expandido ? " boton-expandir-fila-abierta" : ""))"
                                 aria-expanded="@(expandido ? "true" : "false")"
