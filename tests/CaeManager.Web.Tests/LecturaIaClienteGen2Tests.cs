@@ -77,14 +77,16 @@ public class LecturaIaClienteGen2Tests : BunitContext
     private static int Consultas<T>(MediadorControlado mediador) => mediador.Enviados.Count(e => e.Peticion is T);
 
     [Fact]
-    public void Pinta_origen_y_efecto_desde_el_override_y_el_estado_efectivo_del_DTO()
+    public void Pinta_el_permiso_de_configuracion_sin_prometer_que_el_documento_se_leera()
     {
         var (cut, _, _) = Renderizar(new Escenario());
 
         Filas(cut).Should().HaveCount(3, "el control positivo prueba que la tabla contiene las tres filas del doble");
-        Filas(cut).Select(f => f.TextContent).Should().ContainSingle(t => t.Contains("Certificado médico") && t.Contains("Heredado del Nivel 1") && t.Contains("Se lee por IA"));
-        Filas(cut).Select(f => f.TextContent).Should().ContainSingle(t => t.Contains("Formación PRL") && t.Contains("Sobrescrito · desactivado") && t.Contains("No se lee"));
-        Filas(cut).Select(f => f.TextContent).Should().ContainSingle(t => t.Contains("Seguro RC") && t.Contains("Manda el Nivel 1") && t.Contains("No se lee"));
+        Filas(cut).Select(f => f.TextContent).Should().ContainSingle(t => t.Contains("Certificado médico") && t.Contains("Heredado del Nivel 1") && t.Contains("Permitida por esta configuración"));
+        Filas(cut).Select(f => f.TextContent).Should().ContainSingle(t => t.Contains("Formación PRL") && t.Contains("Sobrescrito · desactivado") && t.Contains("Bloqueada por esta configuración"));
+        Filas(cut).Select(f => f.TextContent).Should().ContainSingle(t => t.Contains("Seguro RC") && t.Contains("Manda el Nivel 1") && t.Contains("Bloqueada por esta configuración"));
+        cut.Find(".lectura-ia-tabla").TextContent.Should().NotContain("Se lee por IA").And.NotContain("Efecto real");
+        cut.Find("p.texto-ayuda").TextContent.Should().Contain("cuyo estado no está disponible aquí");
     }
 
     [Fact]

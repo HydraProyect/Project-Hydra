@@ -72,7 +72,7 @@
                     <th scope="col">Nivel 1 (configuración general)</th>
                     <th scope="col">Nivel 2 (este Cliente empresarial)</th>
                     <th scope="col">De dónde sale el valor</th>
-                    <th scope="col">Efecto real</th>
+                    <th scope="col">Permiso de los niveles 1 y 2</th>
                 </tr></thead>
                 <tbody>
                     @foreach (var tipo in _configuracion)
@@ -98,12 +98,13 @@
                                 else if (tipo.OverrideActiva.Value) { <Badge Tono="TonoBadge.Info">Sobrescrito · activo</Badge> }
                                 else { <Badge Tono="TonoBadge.Info">Sobrescrito · desactivado</Badge> }
                             </td>
-                            <td><Badge Tono="@(tipo.EfectivaActiva ? TonoBadge.Exito : TonoBadge.Neutro)">@(tipo.EfectivaActiva ? "Se lee por IA" : "No se lee")</Badge></td>
+                            <td><Badge Tono="@(tipo.EfectivaActiva ? TonoBadge.Info : TonoBadge.Neutro)">@(tipo.EfectivaActiva ? "Permitida por esta configuración" : "Bloqueada por esta configuración")</Badge></td>
                         </tr>
                     }
                 </tbody>
             </table>
         </div>
+        <p class="texto-ayuda">Que esta configuración permita la lectura no confirma que se vaya a realizar. También requiere una instrucción vigente de tratamiento con IA (Nivel 0), cuyo estado no está disponible aquí, y que se cumplan las condiciones del documento y del servicio de lectura.</p>
         <aside class="lectura-ia-aviso" aria-label="Información sobre la configuración">
             <strong>El origen del valor se conserva al reactivar</strong>
             <span>Reactivar un tipo sobrescrito lo deja activo, pero no lo restablece al valor heredado del Nivel 1.</span>
