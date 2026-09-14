@@ -3,6 +3,8 @@
 // sin interop porque el foco puede estar en cualquier elemento. Se ignora
 // el evento si el foco está en un campo de texto/contenteditable, para no
 // interceptar "j"/"k" mientras el usuario escribe en un filtro.
+import { hayDialogoModalAbierto } from './atajos-contexto.js';
+
 const TECLAS_ADMITIDAS = ['j', 'k', 'x', 'Enter'];
 
 // <input> cuyo type NO consume texto libre (checkbox, radio, los distintos
@@ -39,6 +41,8 @@ const SELECTOR_FILA_ENFOCADA = '.fila-enfocada, .panel-resolver-item-enfocado';
 // normal — la propia fila no tiene por qué ser alcanzable con Tab, la
 // navegación entre filas ya la hacen j/k.
 function enfocarFilaActiva(intentosRestantes = 10) {
+    // El diálogo puede haberse abierto mientras terminaba el callback de C#.
+    if (hayDialogoModalAbierto()) return;
     const fila = document.querySelector(SELECTOR_FILA_ENFOCADA);
     if (fila) {
         if (!fila.hasAttribute('tabindex')) fila.tabIndex = -1;
@@ -56,10 +60,12 @@ function enfocarFilaActiva(intentosRestantes = 10) {
 export function registrarAtajosLista(dotNetRef) {
     const manejador = async (evento) => {
         if (!TECLAS_ADMITIDAS.includes(evento.key)) return;
+        if (evento.defaultPrevented || evento.isComposing || evento.ctrlKey || evento.metaKey || evento.altKey) return;
+        if (hayDialogoModalAbierto()) return;
 
         const activo = document.activeElement;
         const enCampoEditable = activo && (
-            activo.tagName === 'TEXTAREA' || activo.isContentEditable ||
+            activo.tagName === 'TEXTAREA' || activo.tagName === 'SELECT' || activo.isContentEditable ||
             (activo.tagName === 'INPUT' && !TIPOS_INPUT_NO_TEXTO.has(activo.type))
         );
         if (enCampoEditable) return;
