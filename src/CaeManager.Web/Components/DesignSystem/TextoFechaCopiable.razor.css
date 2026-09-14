@@ -1,6 +1,6 @@
 /* Reset de botón: se ve y se comporta como el texto que envuelve, con la
-   única señal de que es interactivo un subrayado punteado al pasar el
-   cursor — no un botón visible, la fecha sigue siendo el protagonista. */
+   señal de interacción es un subrayado punteado al pasar el cursor o al
+   recibir foco; cuando ofrece emisión con Alt/Option, permanece visible. */
 .texto-fecha-copiable {
     background: none;
     border: none;
@@ -16,8 +16,25 @@
 }
 
 .texto-fecha-copiable:hover,
+.texto-fecha-copiable[data-copiar-alt],
 .texto-fecha-copiable:focus-visible {
     text-decoration-color: currentColor;
+}
+
+.copia-fecha-manual {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.copia-fecha-manual input {
+    width: 12ch;
+    max-width: 100%;
+    font: inherit;
+    color: var(--color-text);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
 }
 
 .texto-fecha-copiable:focus-visible {

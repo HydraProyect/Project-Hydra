@@ -340,6 +340,16 @@ public class DocumentosGen2Tests : BunitContext
             .Should().Contain("2").And.Contain("documentos");
     }
 
+    [Fact]
+    public void La_fecha_copiable_recibe_el_vencimiento_y_la_emision_del_documento()
+    {
+        var documento = Documento("Reconocimiento médico");
+        var (cut, _) = Renderizar(ConDocumentos(documento));
+        var fecha = cut.FindComponent<TextoFechaCopiable>().Instance;
+        fecha.Fecha.Should().Be(documento.FechaVencimiento);
+        fecha.FechaEmision.Should().Be(documento.FechaEmision);
+    }
+
     /// <summary>
     /// La glosa de la píldora es lo único que convierte «1» en algo legible sin
     /// ver el color, y va en singular cuando toca.

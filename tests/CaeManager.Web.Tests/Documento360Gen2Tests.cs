@@ -88,6 +88,9 @@ public class Documento360Gen2Tests : BunitContext
         celdas.Select(c => c.TextContent.Trim()).Should().Contain("PropietarioMontajes Ebro S.L.").And.Contain("ArchivoVer PDF");
         cut.FindAll("[role=tab]").Should().HaveCount(4);
         cut.FindAll(".pestanas-contador").Should().BeEmpty("ninguna lista la carga este panel");
+        var fecha = cut.FindComponent<TextoFechaCopiable>().Instance;
+        fecha.Fecha.Should().Be(mediador.Detalles[id].FechaVencimiento);
+        fecha.FechaEmision.Should().Be(mediador.Detalles[id].FechaEmision);
     }
 
     [Fact]

@@ -2,6 +2,7 @@ using Bunit;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Application.Documentos.Queries.ObtenerValidacionOficialDocumento;
 using CaeManager.Domain.Documentos;
+using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Documentos.Components;
 using FluentAssertions;
 using MediatR;
@@ -70,6 +71,7 @@ public class DocumentoWorkspacePanelTests : BunitContext
 
     private IRenderedComponent<DocumentoWorkspacePanel> Renderizar(DocumentoDetalleDto detalle, string pestanaActiva)
     {
+        Services.AddScoped<ToastService>();
         Services.AddScoped<IMediator>(_ => new MediatorDocumento { Detalle = detalle });
         return Render<DocumentoWorkspacePanel>(parametros => parametros
             .Add(p => p.EntidadId, detalle.Id)
