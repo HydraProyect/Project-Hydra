@@ -143,7 +143,7 @@
                         <PropertyColumn Property="@(d => d.TipoDocumentoNombre)" Title="Tipo de documento" Sortable="true" />
                         <PropertyColumn Property="@(d => d.FechaEmision)" Format="dd/MM/yyyy" Title="Emisión" Sortable="true" />
                         <TemplateColumn Title="Vencimiento" Sortable="true" SortBy="@(GridSort<DocumentoListaDto>.ByAscending(d => d.FechaVencimiento))">
-                            @(context.FechaVencimiento is null ? "—" : context.FechaVencimiento.Value.ToString("dd/MM/yyyy"))
+                            <TextoFechaCopiable Fecha="context.FechaVencimiento" FechaEmision="context.FechaEmision">@(context.FechaVencimiento is null ? "—" : context.FechaVencimiento.Value.ToString("dd/MM/yyyy"))</TextoFechaCopiable>
                         </TemplateColumn>
                         <TemplateColumn Title="Estado" Sortable="true" SortBy="@(GridSort<DocumentoListaDto>.ByAscending(d => d.Estado))">
                             <Badge Tono="EstadoDocumentoUi.Tono(context.Estado)" ConIcono>@EstadoDocumentoUi.Texto(context.Estado)</Badge>

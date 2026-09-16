@@ -67,7 +67,7 @@ else
                         <div class="celda-info-documento-360"><span>Propietario</span><strong>@_detalle.PropietarioNombre</strong></div>
                         <div class="celda-info-documento-360"><span>Tipo de documento</span><strong>@_detalle.TipoDocumentoNombre</strong></div>
                         <div class="celda-info-documento-360"><span>Fecha de emisión</span><strong>@_detalle.FechaEmision.ToString("dd/MM/yyyy")</strong></div>
-                        <div class="celda-info-documento-360"><span>Fecha de vencimiento</span><strong>@(_detalle.FechaVencimiento?.ToString("dd/MM/yyyy") ?? (_detalle.TipoDocumentoAplicaVencimientoAutomatico ? "—" : "Sin caducidad"))</strong></div>
+                        <div class="celda-info-documento-360"><span>Fecha de vencimiento</span><strong><TextoFechaCopiable Fecha="_detalle.FechaVencimiento" FechaEmision="_detalle.FechaEmision">@(_detalle.FechaVencimiento?.ToString("dd/MM/yyyy") ?? (_detalle.TipoDocumentoAplicaVencimientoAutomatico ? "—" : "Sin caducidad"))</TextoFechaCopiable></strong></div>
                         <div class="celda-info-documento-360 celda-info-documento-360-ancha"><span>Comentarios</span><strong>@(_detalle.Comentarios ?? "—")</strong></div>
                         <div class="celda-info-documento-360 celda-info-documento-360-ancha">
                             <span>Archivo</span>

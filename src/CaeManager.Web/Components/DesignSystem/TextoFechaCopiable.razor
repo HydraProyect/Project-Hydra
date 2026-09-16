@@ -7,6 +7,8 @@
     sin cursor de clic ni interacción.
 *@
 @implements IAsyncDisposable
+@using System.Globalization
+@using Microsoft.AspNetCore.Components.Web
 @inject IJSRuntime JsRuntime
 @inject ToastService ToastService
 
@@ -16,37 +18,80 @@
 }
 else
 {
-    <button type="button" class="@($"texto-fecha-copiable {Class}")" @onclick="CopiarAsync" title="Copiar fecha">
+    <button type="button" class="@($"texto-fecha-copiable {Class}")" @onclick="CopiarAsync" title="@EtiquetaCopia" aria-label="@EtiquetaCopia" data-copiar-alt="@(FechaEmision?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture))">
         @ChildContent
     </button>
+    @if (_copiaManual is not null)
+    {
+        <span class="copia-fecha-manual">
+            <input @ref="_campoManual" readonly value="@_copiaManual" aria-label="Fecha completa para copiar manualmente" />
+            <span role="status">No se pudo copiar. Selecciona la fecha y pulsa Ctrl/Cmd + C.</span>
+        </span>
+    }
 }
 
 @code {
     [Parameter] public DateOnly? Fecha { get; set; }
+    [Parameter] public DateOnly? FechaEmision { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
     [Parameter] public string? Class { get; set; }
 
     private IJSObjectReference? _modulo;
+    private string? _copiaManual;
+    private ElementReference _campoManual;
+    private bool _seleccionarManual;
+    private bool _copiando;
+    private (DateOnly?, DateOnly?) _fechasAnteriores;
+
+    private string EtiquetaCopia => FechaEmision is not null
+        ? $"Copiar vencimiento ({Fecha?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)}). Alt/Option + clic: copiar emisión ({FechaEmision?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)})"
+        : $"Copiar fecha ({Fecha?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)})";
+
+    protected override void OnParametersSet()
+    {
+        if (_fechasAnteriores == (Fecha, FechaEmision)) return;
+        _fechasAnteriores = (Fecha, FechaEmision);
+        _copiaManual = null;
+        _seleccionarManual = false;
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender)
-            _modulo = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/clipboard.js");
+        if (!_seleccionarManual || _modulo is null) return;
+        _seleccionarManual = false;
+        try
+        {
+            await _modulo.InvokeVoidAsync("seleccionarFechaParaCopiaManual", _campoManual);
+        }
+        catch (JSException) { }
+        catch (JSDisconnectedException) { }
     }
 
-    private async Task CopiarAsync()
+    private async Task CopiarAsync(MouseEventArgs evento)
     {
-        if (Fecha is not { } fecha || _modulo is null) return;
+        if (Fecha is not { } principal || _copiando) return;
+        var fechas = (Fecha, FechaEmision);
+        var fecha = evento.AltKey && FechaEmision is { } emision ? emision : principal;
+        var texto = fecha.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
+        _copiando = true;
+        _copiaManual = null;
+        _seleccionarManual = false;
 
         try
         {
-            await _modulo.InvokeVoidAsync("copiarAlPortapapeles", fecha.ToString("dd/MM/yyyy"));
+            _modulo ??= await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/clipboard.js");
+            await _modulo.InvokeVoidAsync("copiarAlPortapapeles", texto);
             ToastService.Mostrar("Fecha copiada", TonoToast.Exito);
         }
         catch (Exception)
         {
-            ToastService.Mostrar("No pudimos copiar la fecha.", TonoToast.Error);
+            if (fechas == (Fecha, FechaEmision))
+            {
+                _copiaManual = texto;
+                _seleccionarManual = true;
+            }
         }
+        finally { _copiando = false; }
     }
 
     public async ValueTask DisposeAsync()
