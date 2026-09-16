@@ -42,10 +42,45 @@ liberar() {
     echo "  (simulado: no se ejecuta docker)"
     return 0
   fi
-  # Se conserva la cache reciente: acelera el build de hoy y no es la que
-  # llena el disco. Lo que se retira es lo viejo, que no lo usa nadie.
+  # Cache de build: se conserva la reciente (acelera el build de hoy), se
+  # retira la de mas de 24h.
   docker builder prune -af --filter until=24h || true
-  docker image prune -af --filter until=168h || true
+
+  # Imagenes: NUNCA por antiguedad. El incidente del 2026-09-13 fue esto
+  # exacto: 88 imagenes/26GB acumuladas porque `--filter until=168h` solo
+  # libera lo que tiene mas de 7 dias, y con despliegues mas frecuentes que
+  # eso una imagen sin uso nunca llega a envejecer lo bastante para calificar
+  # — se acumulan indefinidamente sin que este guion las vea nunca.
+  #
+  # `-a` sin filtro de edad ya implica "sin usar": Docker nunca deja que
+  # `image prune` borre una imagen referenciada por un contenedor (parado o
+  # corriendo), y este guion corre SIEMPRE antes de `docker compose build`
+  # (ver ci-deploy.sh) — el contenedor que sigue sirviendo trafico ahora
+  # mismo sigue apuntando a la imagen actual, que por tanto esta en uso y
+  # queda protegida sin que este guion tenga que llevar la cuenta de cual es.
+  #
+  # No hay ninguna imagen vieja que el rollback necesite conservar: F3
+  # (tecnico/f3-analisis-pipeline-y-rollback-2026-08-25.md, repositorio de
+  # negocio) deja escrito que no existe rollback automatico de aplicacion —
+  # "volver a una version anterior" es volver a desplegar un SHA anterior,
+  # que reconstruye la imagen desde el Dockerfile de ese commit, no reutiliza
+  # una imagen local ya construida. Ademas Compose no genera un tag por
+  # version (build sin `image:` propio): cada build sustituye el mismo tag,
+  # asi que no hay forma de identificar "las N anteriores" por nombre — solo
+  # existirian como IDs sueltos, sin ninguna referencia que las use.
+  #
+  # Tradeoff aceptado, revisado por Codex: el Dockerfile es multi-stage
+  # (`AS build` / `AS final`) y el build corre con DOCKER_BUILDKIT=0 (ver
+  # ci-deploy.sh) — con el builder clasico, la imagen intermedia de la etapa
+  # `build` queda sin tag (dangling) igual que las imagenes viejas de verdad,
+  # asi que esta poda tambien se la lleva por delante cuando corre. Es
+  # exactamente la misma cache que `docker builder prune` no toca (esa orden
+  # gestiona la cache de BuildKit, vacia aqui porque el build no lo usa). El
+  # siguiente build pierde ese calentamiento y tarda mas — no es un problema
+  # de correccion ni de rollback, y solo ocurre cuando el disco ya cruzo el
+  # umbral: en ese momento, un build mas lento es preferible a repetir el
+  # incidente de disco.
+  docker image prune -af || true
 }
 
 uso=$(uso_actual)
