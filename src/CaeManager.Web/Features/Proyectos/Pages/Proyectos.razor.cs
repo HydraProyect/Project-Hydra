@@ -412,11 +412,11 @@ public partial class Proyectos : ComponentBase
                 }
                 break;
 
-            // "x" no tiene efecto en Proyectos y es deliberado: la pantalla no
-            // tiene selección múltiple —ni casillas, ni BarraAccionesLote—, así
-            // que no hay nada que marcar. Darle un significado nuevo sería una
-            // decisión de producto, no la reparación de este hueco (mismo caso
-            // que I-12 en Estado Comercial).
+                // "x" no tiene efecto en Proyectos y es deliberado: la pantalla no
+                // tiene selección múltiple —ni casillas, ni BarraAccionesLote—, así
+                // que no hay nada que marcar. Darle un significado nuevo sería una
+                // decisión de producto, no la reparación de este hueco (mismo caso
+                // que I-12 en Estado Comercial).
         }
 
         StateHasChanged();
