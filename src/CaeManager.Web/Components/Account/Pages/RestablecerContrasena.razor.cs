@@ -108,6 +108,24 @@ public partial class RestablecerContrasena : ComponentBase
 
         var logger = LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog);
 
+        // Prevalidación del token ANTES de competir por el cerrojo: un token
+        // inventado con un userId real (el userId viaja en la URL sin cifrar)
+        // no debe poder ocupar el cerrojo, ni siquiera brevemente, mientras el
+        // titular real de la cuenta intenta restablecer su propia contraseña.
+        // Mismo criterio de verificación que usa ResetPasswordAsync por
+        // dentro — se duplica aquí solo para decidir ANTES del cerrojo, no en
+        // vez de la comprobación de dentro: ResetPasswordAsync la repite y
+        // sigue siendo la que de verdad autoriza el cambio.
+        var tokenValido = await UserManager.VerifyUserTokenAsync(
+            _usuario, UserManager.Options.Tokens.PasswordResetTokenProvider,
+            UserManager<ApplicationUser>.ResetPasswordTokenPurpose, _token);
+        if (!tokenValido)
+        {
+            logger.LogWarning("Restablecimiento de contraseña rechazado (token inválido o caducado, prevalidación): {UsuarioId}", _usuario.Id);
+            _enlaceInvalido = true;
+            return;
+        }
+
         // Cerrojo no bloqueante compartido con CambiarContrasena.razor bajo la
         // misma clave `credencial:{userId}` — las dos pantallas mutan la
         // misma credencial de Identity, así que un restablecimiento y un
@@ -133,8 +151,8 @@ public partial class RestablecerContrasena : ComponentBase
                 // parcial: si fallaba, la contraseña ya había cambiado pero
                 // DebeCambiarContrasena seguía en true. Si ResetPasswordAsync
                 // falla (token inválido, política de contraseña), no se
-                // persiste nada — ni la contraseña ni esta bandera en
-                // memoria — porque Identity no llega a guardar.
+                // persiste en base de datos ni la contraseña ni esta bandera
+                // — porque Identity no llega a guardar.
                 _usuario.DebeCambiarContrasena = false;
                 resultadoObtenido = await UserManager.ResetPasswordAsync(_usuario, _token, Entrada.ContrasenaNueva);
             },
