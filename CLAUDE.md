@@ -225,7 +225,7 @@ ausente: <nombre>»**.
 | `protocolo-hydra-sesiones-paralelas` | 21, 22 | vayas a tocar código, cortar ramas, abrir PRs, coordinar sesiones o ante un fallo transversal de CI |
 | `protocolo-hydra-contratos` | 6, 7, 16 | cambies un contrato, migres un lector, cortes un incremento o el código cambie una regla documentada |
 | `protocolo-hydra-dependencias` | 23 | actualices paquetes, revises Dependabot o toques secretos de CI |
-| `protocolo-hydra-multimodelo` | 24 | vayas a abrir una PR (Codex refuta antes), toques autorización/RLS/multi-tenancy/criptografía/auditoría, necesites leer más de ~50.000 tokens (Gemini vía `agy`), prepares un turno nocturno o invoques `codex` o `agy` |
+| `protocolo-hydra-multimodelo` | 24 | necesites leer más de ~50.000 tokens (Gemini vía `agy`), prepares un turno nocturno o vayas a invocar `agy` (la revisión con Codex antes de PR no la requiere: ver regla de arriba) |
 
 Mínimo que aplica siempre aunque no cargues nada: **la primera orden de cualquier sesión que vaya a
 tocar código es `bash scripts/estado-ramas.sh`**, y toda rama se corta de `origin/main`.
