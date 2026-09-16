@@ -1,5 +1,7 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Importacion;
 using CaeManager.Application.Importacion.Commands.EjecutarImportacionCombinada;
+using CaeManager.Application.Plataforma;
 using CaeManager.Domain.RelacionesEmpresariales;
 using FluentAssertions;
 using Xunit;
@@ -17,19 +19,34 @@ namespace CaeManager.Application.Tests.Importacion;
 /// antes de tocar ningún repositorio de escritura, así que
 /// <see cref="RelacionEmpresarialRepositorioNoUsado"/> nunca llega a
 /// invocarse — solo existe para completar la firma del handler.
+///
+/// Usa la implementación REAL de <see cref="IAutorizacionEscrituraEfectiva"/>,
+/// no un doble — ver <c>RegistrarHistorialImportacionCommandAutorizacionTests</c>.
 /// </summary>
 public class EjecutarImportacionCombinadaCommandAutorizacionTests
 {
-    private static EjecutarImportacionCombinadaCommandHandler Handler(string? rol) => new(
-        new ClientesFalsos.EmpresaRepositorioFalso(),
-        new RelacionEmpresarialRepositorioNoUsado(),
-        new CentrosFalsos.CentroRepositorioFalso(),
-        new TrabajadoresFalsos.TrabajadorRepositorioFalso(),
-        new PlantillasFalsas.CentrosQueryContextFalso(),
-        new DocumentosFalsos.EmpresasQueryContextFalso(),
-        new PlantillasFalsas.TrabajadoresQueryContextFalso(),
-        new ClientesFalsos.UnitOfWorkFalso(),
-        new CurrentUserServiceFalso(Guid.NewGuid(), rol));
+    private static EjecutarImportacionCombinadaCommandHandler Handler(string? rol)
+    {
+        var currentUser = new CurrentUserServiceFalso(Guid.NewGuid(), rol);
+        var autorizacion = new AutorizacionEscrituraEfectiva(
+            currentUser, new SesionPrivilegiadaAusente(), new TenantActualFalso());
+
+        return new(
+            new ClientesFalsos.EmpresaRepositorioFalso(),
+            new RelacionEmpresarialRepositorioNoUsado(),
+            new CentrosFalsos.CentroRepositorioFalso(),
+            new TrabajadoresFalsos.TrabajadorRepositorioFalso(),
+            new PlantillasFalsas.CentrosQueryContextFalso(),
+            new DocumentosFalsos.EmpresasQueryContextFalso(),
+            new PlantillasFalsas.TrabajadoresQueryContextFalso(),
+            new ClientesFalsos.UnitOfWorkFalso(),
+            autorizacion);
+    }
+
+    private sealed class TenantActualFalso : ITenantActual
+    {
+        public Guid? TenantId => null;
+    }
 
     private static PlanImportacionCombinadaDto PlanVacio() => new([], [], [], [], [], []);
 

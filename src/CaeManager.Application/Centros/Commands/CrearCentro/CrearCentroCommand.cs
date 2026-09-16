@@ -10,6 +10,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Centros.Commands.CrearCentro;
 
+/// <summary>
+/// <see cref="IComandoDeAprovisionamiento" /> (PD-A3): forma parte del alta
+/// planificada de contenido CAE en un tenant durante su aprovisionamiento
+/// inicial — ver <c>AutorizacionEscrituraBehavior</c>.
+/// </summary>
 public record CrearCentroCommand(
     Guid ClienteId,
     Guid EmpresaId,
@@ -17,7 +22,7 @@ public record CrearCentroCommand(
     string? CodigoCentro,
     string? Direccion,
     string? Contacto,
-    DateOnly? ContratoVigenteHasta) : ICommand<Guid>;
+    DateOnly? ContratoVigenteHasta) : ICommand<Guid>, IComandoDeAprovisionamiento;
 
 public class CrearCentroCommandValidator : AbstractValidator<CrearCentroCommand>
 {

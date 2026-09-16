@@ -83,6 +83,17 @@ public class ConexionesFueraDelInterceptorTests
         // services, así que el aviso de aquella no llegaba a emitirse nunca.
         // Lo que sí se conservó de su diseño es el aviso ruidoso al degradar,
         // ahora en Program.cs.)
+
+        // PD-A3: NO abre una conexión nueva al margen de EF — usa
+        // contexto.Database.GetDbConnection(), la MISMA conexión que EF ya
+        // abrió a través de TenantRlsConnectionInterceptor y que ya lleva
+        // app.tenant_id fijado. Lo único que ejecuta aquí es SET ROLE, para
+        // mover esa conexión entre cae_app_soporte y cae_app_aprovisionamiento
+        // dentro de un AmbitoEscrituraPrivilegiada ya abierto — el mismo SET
+        // ROLE que el propio interceptor ejecuta en su ciclo normal de
+        // apertura, solo que aquí puede hacer falta a mitad de request si la
+        // conexión ya estaba abierta cuando el ámbito se establece.
+        "src/CaeManager.Infrastructure/Plataforma/ElevacionEscrituraPrivilegiada.cs",
     ];
 
     [Fact]

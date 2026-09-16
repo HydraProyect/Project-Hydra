@@ -98,6 +98,13 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // identidad efectiva de la sesión de PostgreSQL.
         [("src/CaeManager.Infrastructure/Persistence/VerificacionIdentidadDeRuntime.cs", "await using var comando = conexion.CreateCommand();")] = 1,
 
+        // PD-A3: SET ROLE sobre la conexión que TenantRlsConnectionInterceptor
+        // ya preparó (contexto.Database.GetDbConnection(), no una conexión
+        // nueva) — mismo motivo que el interceptor: SET ROLE no tiene forma
+        // parametrizada ni sentido en EF, es el mecanismo de mover el rol de
+        // escritura acotada de Postgres, no un atajo alrededor de EF.
+        [("src/CaeManager.Infrastructure/Plataforma/ElevacionEscrituraPrivilegiada.cs", "await using var comando = conexion.CreateCommand();")] = 1,
+
         // Segunda línea de defensa RLS (TenantRlsConnectionInterceptor): fija
         // la variable de sesión de Postgres app.tenant_id en cada apertura de
         // conexión con un comando parametrizado (set_config(...)), no SQL

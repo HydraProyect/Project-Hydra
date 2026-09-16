@@ -441,6 +441,12 @@ public static class InfrastructureServiceCollectionExtensions
         // depende de la sesión: es del alcance del usuario, no del proceso.
         services.AddScoped<CaeManager.Application.Plataforma.ISesionPrivilegiadaActual,
             CaeManager.Infrastructure.Plataforma.SesionPrivilegiadaActual>();
+        // PD-A3: abre el ámbito de elevación y, con él, mueve el rol Postgres
+        // de la conexión de este ámbito de DI entre cae_app_soporte y
+        // cae_app_aprovisionamiento. Scoped: depende de la conexión de ESTE
+        // CaeManagerDbContext, no del proceso.
+        services.AddScoped<CaeManager.Application.Plataforma.IElevacionEscrituraPrivilegiada,
+            CaeManager.Infrastructure.Plataforma.ElevacionEscrituraPrivilegiada>();
         // Raíz de confianza de bootstrap, y nada más: crear la PRIMERA
         // concesión, cuando todavía no hay ninguna de la que derivar autoridad.
         // Abrir una sesión ya no pasa por aquí — lo autoriza la concesión.

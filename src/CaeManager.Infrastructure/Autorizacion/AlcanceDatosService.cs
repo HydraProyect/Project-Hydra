@@ -93,13 +93,18 @@ public class AlcanceDatosService(
             // — el privilegio cambia por qué se autoriza abrir el contexto,
             // nunca si los filtros aplican).
             //
-            // Y solo estas dos capacidades. AdminPlataforma queda fuera a
+            // Y solo estas tres capacidades. AdminPlataforma queda fuera a
             // propósito: administrar tenants, facturación y configuración
             // global no incluye leer el contenido documental de nadie, y
             // meterlo aquí reintroduciría el rol monolítico que la matriz por
             // capacidades elimina (§ 4bis.2). Impersonacion también queda
             // fuera: su alcance es el del usuario simulado, no un alcance
             // total, y resolverlo es trabajo de su propia fase.
+            //
+            // Aprovisionamiento (PD-A3) entra junto a SoporteLectura y
+            // BreakGlass: sin acceso total al catálogo del tenant objetivo, el
+            // alta de contenido CAE no vería las Empresas/Centros/Trabajadores
+            // ya creados en la misma operación para deduplicar contra ellos.
             //
             // Las dos acaban igual: sin acceso total, y con el reparto por
             // cliente saliendo de la rama de rol, que sin rol devuelve lista
@@ -114,7 +119,9 @@ public class AlcanceDatosService(
             // #571 con el rol— heredaría "acceso total" en cada tenant
             // visitado a partir de una sesión abierta para uno solo.
             accesoTotal = sesion.TenantObjetivoId == tenantActual.TenantId
-                          && (sesion.Capacidad is CapacidadPrivilegio.SoporteLectura or CapacidadPrivilegio.BreakGlass);
+                          && (sesion.Capacidad is CapacidadPrivilegio.SoporteLectura
+                              or CapacidadPrivilegio.BreakGlass
+                              or CapacidadPrivilegio.Aprovisionamiento);
         }
         else
         {

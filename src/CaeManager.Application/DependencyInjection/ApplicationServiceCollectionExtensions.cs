@@ -54,6 +54,13 @@ public static class ApplicationServiceCollectionExtensions
         // por qué este valor por defecto no debilita la autorización.
         services.TryAddScoped<CaeManager.Application.Plataforma.ISesionPrivilegiadaActual,
             CaeManager.Application.Plataforma.SesionPrivilegiadaAusente>();
+        // Mismo patrón: la implementación real (Infrastructure) mueve el rol
+        // de PostgreSQL además de abrir el ámbito; este valor por defecto solo
+        // abre el ámbito, correcto para los fixtures mínimos de
+        // CaeManager.IntegrationTests que no tienen conexión que elevar.
+        services.TryAddScoped<CaeManager.Application.Plataforma.IElevacionEscrituraPrivilegiada,
+            CaeManager.Application.Plataforma.ElevacionEscrituraPrivilegiadaInerte>();
+        services.AddScoped<IAutorizacionEscrituraEfectiva, AutorizacionEscrituraEfectiva>();
         // Orden importa. LoggingBehavior va el primero de todos: mide lo que
         // el usuario espera de verdad, incluido el tiempo en la cola de
         // acceso a datos, y su ámbito de log correlaciona todo lo que
@@ -81,6 +88,11 @@ public static class ApplicationServiceCollectionExtensions
         // Queries, que aquel deja pasar por definición.
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(AutorizacionSecretosDeTenantBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+        // El ÚLTIMO de todos, a propósito (PD-A3): es el único que abre el rol
+        // de escritura acotada de PostgreSQL, y reduce esa ventana al handler
+        // solo — nada más externo en este pipeline debe correr elevado.
+        services.AddTransient(
+            typeof(MediatR.IPipelineBehavior<,>), typeof(ElevacionEscrituraAprovisionamientoBehavior<,>));
 
         // Orquestador puro (solo depende de contratos de Application, ver
         // DeteccionTrabajadoresService) — se registra aquí y no en

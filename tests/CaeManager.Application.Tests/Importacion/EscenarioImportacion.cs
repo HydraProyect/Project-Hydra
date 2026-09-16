@@ -1,5 +1,7 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Importacion;
 using CaeManager.Application.Importacion.Commands.EjecutarImportacion;
+using CaeManager.Application.Plataforma;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
@@ -134,7 +136,15 @@ internal sealed class EscenarioImportacion
         OperacionImportacionRepositorio,
         AsignacionesContexto, CentrosContexto, DocumentosContexto, EmpresasContexto,
         TiposDocumentoContexto, TrabajadoresContexto,
-        new CurrentUserServiceFalso(Guid.NewGuid(), rol));
+        // Implementación REAL de IAutorizacionEscrituraEfectiva, no un doble —
+        // ver RegistrarHistorialImportacionCommandAutorizacionTests.
+        new AutorizacionEscrituraEfectiva(
+            new CurrentUserServiceFalso(Guid.NewGuid(), rol), new SesionPrivilegiadaAusente(), new TenantActualFalso()));
+
+    private sealed class TenantActualFalso : ITenantActual
+    {
+        public Guid? TenantId => null;
+    }
 
     public async Task<ResultadoImportacionDto> EjecutarAsync(PlanImportacionDto plan, string? rol = "Administrador")
     {
