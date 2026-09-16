@@ -27,6 +27,20 @@ namespace CaeManager.Application.Common;
 /// memo de este ámbito de DI, así que esta segunda llamada no vuelve a tocar
 /// la base—, y es más barato y más legible que inventar un canal para pasar
 /// la decisión de un behavior a otro.
+///
+/// <b>Este behavior abre el <see cref="AmbitoEscrituraPrivilegiada"/> él
+/// mismo, con una llamada SÍNCRONA</b> — nunca a través de un método
+/// <c>async</c> de <see cref="IElevacionEscrituraPrivilegiada"/> (revisión 5,
+/// Codex): <c>AmbitoEscrituraPrivilegiada.Establecer</c> muta un
+/// <c>AsyncLocal</c>, y esa mutación solo sobrevive de vuelta en ESTE método
+/// si ocurre directamente en su propio cuerpo. Delegarla a un método
+/// <c>async</c> ajeno que completa de forma síncrona (el caso más común: la
+/// conexión ya está cerrada) pierde la mutación en cuanto ese método
+/// retorna, y el interceptor de la siguiente apertura de conexión no ve
+/// ningún ámbito abierto — adopta <c>cae_app_soporte</c> en vez de
+/// <c>cae_app_aprovisionamiento</c>, y la importación revienta con 42501.
+/// <see cref="IElevacionEscrituraPrivilegiada"/> ahora solo mueve el rol de
+/// Postgres; el ámbito lo abre y cierra este código.
 /// </summary>
 public class ElevacionEscrituraAprovisionamientoBehavior<TRequest, TResponse>(
     ISesionPrivilegiadaActual sesionPrivilegiadaActual,
@@ -46,9 +60,23 @@ public class ElevacionEscrituraAprovisionamientoBehavior<TRequest, TResponse>(
         if (sesion is not { TieneCaminoDeEscritura: true } s || tenantActual.TenantId != s.TenantObjetivoId)
             return await next(cancellationToken);
 
-        await using var ambito = await elevacionEscrituraPrivilegiada.EstablecerAsync(
-            s.SesionId, s.TenantObjetivoId, cancellationToken);
-
-        return await next(cancellationToken);
+        // Llamada síncrona, a propósito — ver el comentario de esta clase.
+        var ambito = AmbitoEscrituraPrivilegiada.Establecer(s.SesionId, s.TenantObjetivoId);
+        await elevacionEscrituraPrivilegiada.ElevarSiConexionAbiertaAsync(cancellationToken);
+        try
+        {
+            return await next(cancellationToken);
+        }
+        finally
+        {
+            // Orden normativo: limpiar el AsyncLocal ANTES del SET ROLE de
+            // vuelta, para que el caso habitual —SaveChangesAsync ya cerró la
+            // conexión antes de llegar aquí— también quede seguro sin
+            // depender de que el SET ROLE llegue a ejecutarse: sin ámbito
+            // abierto, la próxima apertura cae en cae_app_soporte por la
+            // rama normal del interceptor.
+            ambito.Dispose();
+            await elevacionEscrituraPrivilegiada.DevolverSiConexionAbiertaAsync(cancellationToken);
+        }
     }
 }

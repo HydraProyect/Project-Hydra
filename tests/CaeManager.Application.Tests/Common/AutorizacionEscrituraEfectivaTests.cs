@@ -70,6 +70,33 @@ public class AutorizacionEscrituraEfectivaTests
             "SoporteLectura es de solo lectura sin excepción implícita, aunque el tenant coincida");
     }
 
+    /// <summary>
+    /// Hallazgo de revisión (Codex, previo a este PR): este servicio se invoca
+    /// SIEMPRE desde dentro de un handler ya elevado a <c>cae_app_aprovisionamiento</c>,
+    /// rol que NO tiene GRANT sobre las tablas de plataforma que
+    /// <c>RevalidarAsync</c> consulta — una tercera revalidación fresca aquí
+    /// habría fallado con 42501 y roto la importación bajo Aprovisionamiento
+    /// por completo. Este test blinda la corrección: <c>ObtenerAsync</c>
+    /// (memoizado, sin tocar la base) es el único método que
+    /// <c>EsActoDeAdministradorAsync</c> puede llamar.
+    /// </summary>
+    [Fact]
+    public async Task Solo_llama_a_ObtenerAsync_memoizado_nunca_a_RevalidarAsync()
+    {
+        var tenant = Guid.NewGuid();
+        var sesionInstrumentada = new SesionPrivilegiadaActualInstrumentada(
+            SesionCon(CapacidadPrivilegio.Aprovisionamiento, tenant));
+        var servicio = new AutorizacionEscrituraEfectiva(
+            new CurrentUserServiceFalso(Guid.NewGuid(), null), sesionInstrumentada, new TenantActualFalso(tenant));
+
+        (await servicio.EsActoDeAdministradorAsync()).Should().BeTrue();
+
+        sesionInstrumentada.VecesObtenerAsync.Should().Be(1);
+        sesionInstrumentada.VecesRevalidarAsync.Should().Be(0,
+            "una consulta a RevalidarAsync aquí fallaría por permisos bajo el rol de escritura acotada — " +
+            "la memo que deja ElevacionEscrituraAprovisionamientoBehavior en ESTE MISMO comando ya basta");
+    }
+
     private sealed class TenantActualFalso(Guid? tenantId) : ITenantActual
     {
         public Guid? TenantId => tenantId;
@@ -82,5 +109,23 @@ public class AutorizacionEscrituraEfectivaTests
 
         public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(sesion);
+    }
+
+    private sealed class SesionPrivilegiadaActualInstrumentada(SesionPrivilegiadaActiva? sesion) : ISesionPrivilegiadaActual
+    {
+        public int VecesObtenerAsync { get; private set; }
+        public int VecesRevalidarAsync { get; private set; }
+
+        public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default)
+        {
+            VecesObtenerAsync++;
+            return Task.FromResult(sesion);
+        }
+
+        public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default)
+        {
+            VecesRevalidarAsync++;
+            return Task.FromResult(sesion);
+        }
     }
 }

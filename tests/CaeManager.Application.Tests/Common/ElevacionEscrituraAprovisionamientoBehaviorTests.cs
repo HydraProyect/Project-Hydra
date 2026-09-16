@@ -27,7 +27,7 @@ public class ElevacionEscrituraAprovisionamientoBehaviorTests
             new FalsoComandoSinMarcador(), _ => Task.FromResult("ok"), CancellationToken.None);
 
         resultado.Should().Be("ok");
-        elevacion.SeEstablecio.Should().BeFalse();
+        elevacion.SeElevo.Should().BeFalse();
     }
 
     [Fact]
@@ -41,7 +41,7 @@ public class ElevacionEscrituraAprovisionamientoBehaviorTests
             new FalsoComandoDeAprovisionamiento(), _ => Task.FromResult("ok"), CancellationToken.None);
 
         resultado.Should().Be("ok");
-        elevacion.SeEstablecio.Should().BeFalse();
+        elevacion.SeElevo.Should().BeFalse();
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public class ElevacionEscrituraAprovisionamientoBehaviorTests
             new FalsoComandoDeAprovisionamiento(), _ => Task.FromResult("ok"), CancellationToken.None);
 
         resultado.Should().Be("ok");
-        elevacion.SeEstablecio.Should().BeFalse();
+        elevacion.SeElevo.Should().BeFalse();
     }
 
     [Fact]
@@ -73,9 +73,25 @@ public class ElevacionEscrituraAprovisionamientoBehaviorTests
             new FalsoComandoDeAprovisionamiento(), _ => Task.FromResult("ok"), CancellationToken.None);
 
         resultado.Should().Be("ok");
-        elevacion.SeEstablecio.Should().BeFalse();
+        elevacion.SeElevo.Should().BeFalse();
     }
 
+    /// <summary>
+    /// Hallazgo de composición completa (Codex, revisión previa a este PR):
+    /// <c>AmbitoEscrituraPrivilegiada.Establecer</c> tiene que llamarse
+    /// SÍNCRONAMENTE dentro de <c>Handle</c>, no a través de un método
+    /// <c>async</c> de <see cref="IElevacionEscrituraPrivilegiada"/> — ese
+    /// método puede completar de forma síncrona (conexión cerrada, el caso
+    /// más común) y en ese caso la mutación del <c>AsyncLocal</c> no
+    /// sobrevive de vuelta en el llamador. Este test comprueba justo eso:
+    /// que el ámbito está REALMENTE abierto (vía <c>AmbitoEscrituraPrivilegiada.Actual</c>,
+    /// no solo un booleano del doble) mientras corre el handler, y cerrado
+    /// después — con un doble cuya implementación de
+    /// <see cref="IElevacionEscrituraPrivilegiada"/> es <c>async</c> y no
+    /// hace nada más (como <c>ElevacionEscrituraPrivilegiadaInerte</c>), para
+    /// que una regresión que vuelva a delegar la apertura del ámbito a un
+    /// método async ajeno no pueda dar falso verde aquí.
+    /// </summary>
     [Fact]
     public async Task Comando_marcado_mas_sesion_de_Aprovisionamiento_sobre_el_mismo_tenant_eleva_y_cierra()
     {
@@ -85,19 +101,19 @@ public class ElevacionEscrituraAprovisionamientoBehaviorTests
         var behavior = new ElevacionEscrituraAprovisionamientoBehavior<FalsoComandoDeAprovisionamiento, string>(
             new SesionPrivilegiadaActualFalsa(sesion), new TenantActualFalso(tenant), elevacion);
 
-        var siEstabaElevadoDentroDelHandler = false;
+        (Guid SesionId, Guid TenantObjetivoId)? ambitoDentroDelHandler = null;
         var resultado = await behavior.Handle(new FalsoComandoDeAprovisionamiento(), _ =>
         {
-            siEstabaElevadoDentroDelHandler = elevacion.SeEstablecio && !elevacion.SeCerro;
+            ambitoDentroDelHandler = AmbitoEscrituraPrivilegiada.Actual;
             return Task.FromResult("ok");
         }, CancellationToken.None);
 
         resultado.Should().Be("ok");
-        elevacion.SeEstablecio.Should().BeTrue();
-        elevacion.SesionIdRecibida.Should().Be(sesion.SesionId);
-        elevacion.TenantObjetivoIdRecibido.Should().Be(sesion.TenantObjetivoId);
-        siEstabaElevadoDentroDelHandler.Should().BeTrue("el ámbito tiene que estar abierto MIENTRAS corre el handler");
-        elevacion.SeCerro.Should().BeTrue("el ámbito se cierra al salir de next, vía el using del propio behavior");
+        elevacion.SeElevo.Should().BeTrue();
+        elevacion.SeDevolvio.Should().BeTrue();
+        ambitoDentroDelHandler.Should().Be((sesion.SesionId, sesion.TenantObjetivoId),
+            "el ámbito tiene que estar abierto MIENTRAS corre el handler, visible vía el AsyncLocal real");
+        AmbitoEscrituraPrivilegiada.Actual.Should().BeNull("el ámbito se cierra al salir de next");
     }
 
     private sealed class TenantActualFalso(Guid? tenantId) : ITenantActual
@@ -114,29 +130,26 @@ public class ElevacionEscrituraAprovisionamientoBehaviorTests
             Task.FromResult(sesion);
     }
 
+    /// <summary>
+    /// Async a propósito, como la implementación real: no vale un doble
+    /// síncrono aquí, precisamente porque el hallazgo que blinda este archivo
+    /// era específico de métodos <c>async</c> que completan sin suspenderse.
+    /// </summary>
     private sealed class ElevacionEscrituraPrivilegiadaFalsa : IElevacionEscrituraPrivilegiada
     {
-        public bool SeEstablecio { get; private set; }
-        public bool SeCerro { get; private set; }
-        public Guid? SesionIdRecibida { get; private set; }
-        public Guid? TenantObjetivoIdRecibido { get; private set; }
+        public bool SeElevo { get; private set; }
+        public bool SeDevolvio { get; private set; }
 
-        public Task<IAsyncDisposable> EstablecerAsync(
-            Guid sesionId, Guid tenantObjetivoId, CancellationToken cancellationToken = default)
+        public async Task ElevarSiConexionAbiertaAsync(CancellationToken cancellationToken = default)
         {
-            SeEstablecio = true;
-            SesionIdRecibida = sesionId;
-            TenantObjetivoIdRecibido = tenantObjetivoId;
-            return Task.FromResult<IAsyncDisposable>(new Cierre(this));
+            SeElevo = true;
+            await Task.CompletedTask;
         }
 
-        private sealed class Cierre(ElevacionEscrituraPrivilegiadaFalsa duenio) : IAsyncDisposable
+        public async Task DevolverSiConexionAbiertaAsync(CancellationToken cancellationToken = default)
         {
-            public ValueTask DisposeAsync()
-            {
-                duenio.SeCerro = true;
-                return ValueTask.CompletedTask;
-            }
+            SeDevolvio = true;
+            await Task.CompletedTask;
         }
     }
 }
