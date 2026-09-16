@@ -4,6 +4,8 @@ public interface IAuditoriaExtraccionIaRepository
 {
     void Agregar(AuditoriaExtraccionIa auditoria);
 
+    Task<AuditoriaExtraccionIa?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// La auditoría más reciente ligada a este Documento que todavía no
     /// tiene decisión humana registrada — usada para cerrar el ciclo

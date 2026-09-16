@@ -74,17 +74,14 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         await filaB.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         // --- Atajos de teclado: j/k mueven el foco, x alterna selección ---
-        // Tab, no clic en el h1: un encabezado no es focable (sin
-        // tabindex), así que un clic ahí no mueve el foco de verdad y el
-        // campo de búsqueda se lo queda — atajos-lista.js ignora
-        // j/k/x/Enter mientras el foco está en un <input>/<textarea>. Causa
-        // raíz real confirmada en CI con un diagnóstico temporal: el Tab sí
-        // movía el foco, pero a "Solo críticos" (el siguiente <input> en el
-        // DOM) — un checkbox, que también es tagName INPUT, así que
-        // atajos-lista.js lo trataba igual que un campo de texto y
-        // descartaba la primera "j" en silencio. Corregido en
-        // wwwroot/js/atajos-lista.js distinguiendo por type, no por tagName.
+        // El primer Tab llega al selector de Gestor CAE, que conserva sus
+        // teclas nativas. Comprobamos el destino antes de situar el foco
+        // en la casilla: allí j/k sí deben recorrer la lista. No suponemos
+        // que la casilla sea el siguiente control tras el buscador.
         await page.Keyboard.PressAsync("Tab");
+        await Expect(page.Locator(".barra-filtros select").First).ToBeFocusedAsync();
+        await page.GetByLabel("Solo críticos", new PageGetByLabelOptions { Exact = true }).FocusAsync();
+        await Expect(page.GetByLabel("Solo críticos", new PageGetByLabelOptions { Exact = true })).ToBeFocusedAsync();
 
         // Salir del buscador dispara ManejarBlurAsync (CampoTexto.razor),
         // que reinvoca ValorChanged aunque el valor no haya cambiado — eso
@@ -139,18 +136,12 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         await previewDrawer.GetByText("Operar →").ClickAsync();
         var workspacePanel = page.Locator(".workspace-panel");
         await workspacePanel.GetByText(razonSocialA).First.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        // La apertura renderiza el panel antes de que su interop coloque el
+        // foco. Escape se procesa dentro del panel: esperamos esa condición
+        // observable, sin enfocar desde el test ni añadir una pausa fija.
+        await Expect(page.Locator(".workspace-panel:focus-within")).ToBeVisibleAsync();
         await page.Keyboard.PressAsync("Escape");
-        // 15s: el cierre pasa por ContextWorkspace -> actualizar la URL (?ctx=)
-        // -> LocationChanged -> reconciliar estado. La causa real del cuelgue
-        // intermitente (visto en CI en #209/#211) era otra: OnAfterRenderAsync
-        // podía invocarse dos veces para la misma apertura (Blazor puede
-        // volver a renderizar mientras el primer FocusAsync seguía en vuelo,
-        // vía el propio NavigateTo de ManejarCambio) y, bajo carga real, la
-        // segunda llamada a FocusAsync podía caer sobre una referencia ya
-        // obsoleta del <aside> — el foco del navegador nunca llegaba a él, así
-        // que el Escape del test no tenía ningún @onkeydown que lo recogiera.
-        // Corregido marcando la transición como consumida antes del await en
-        // OnAfterRenderAsync (ver ese método).
+        // El cierre actualiza ?ctx= y reconcilia el estado mediante LocationChanged.
         await workspacePanel.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         // --- Selección múltiple visible + segunda fila por checkbox, y borrado en lote ---

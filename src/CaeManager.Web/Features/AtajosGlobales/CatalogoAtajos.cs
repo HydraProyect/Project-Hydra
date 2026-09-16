@@ -78,7 +78,7 @@ public static class CatalogoAtajos
     [
         new("n", "Nuevo aquí (en Clientes, Empresas, Centros, Trabajadores o Documentos)"),
         new("Ctrl/Cmd + K", "Buscador global"),
-        new("?", "Mostrar/ocultar esta ayuda")
+        new("?", "Mostrar esta ayuda (Esc para cerrar)")
     ];
 
     public static readonly IReadOnlyList<DefinicionAtajo> Lista =

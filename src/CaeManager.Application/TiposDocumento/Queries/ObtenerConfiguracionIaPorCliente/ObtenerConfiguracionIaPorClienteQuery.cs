@@ -5,7 +5,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.TiposDocumento.Queries.ObtenerConfiguracionIaPorCliente;
 
-public record ConfiguracionIaTipoDocumentoDto(Guid TipoDocumentoId, string Nombre, bool GlobalActiva, bool? OverrideActiva)
+public record ConfiguracionIaTipoDocumentoDto(
+    Guid TipoDocumentoId,
+    string Nombre,
+    bool GlobalActiva,
+    bool? OverrideActiva,
+    bool DeteccionTrabajadoresActiva)
 {
     /// <summary>Estado real aplicado: el nivel 1 (global) manda si está desactivado; si no, manda el override del nivel 2 (o el default activo si no hay override).</summary>
     public bool EfectivaActiva => GlobalActiva && (OverrideActiva ?? true);
@@ -23,7 +28,7 @@ public class ObtenerConfiguracionIaPorClienteQueryHandler(ITiposDocumentoQueryCo
 
         var tipos = await dbContext.TiposDocumento
             .OrderBy(t => t.Orden)
-            .Select(t => new { t.Id, t.Nombre, t.LecturaIaActiva })
+            .Select(t => new { t.Id, t.Nombre, t.LecturaIaActiva, t.DeteccionTrabajadoresActiva })
             .ToListAsync(cancellationToken);
 
         var overrides = await dbContext.ConfiguracionesIaDocumentoCliente
@@ -32,7 +37,8 @@ public class ObtenerConfiguracionIaPorClienteQueryHandler(ITiposDocumentoQueryCo
 
         return tipos
             .Select(t => new ConfiguracionIaTipoDocumentoDto(
-                t.Id, t.Nombre, t.LecturaIaActiva, overrides.TryGetValue(t.Id, out var activa) ? activa : null))
+                t.Id, t.Nombre, t.LecturaIaActiva, overrides.TryGetValue(t.Id, out var activa) ? activa : null,
+                t.DeteccionTrabajadoresActiva))
             .ToList();
     }
 }
