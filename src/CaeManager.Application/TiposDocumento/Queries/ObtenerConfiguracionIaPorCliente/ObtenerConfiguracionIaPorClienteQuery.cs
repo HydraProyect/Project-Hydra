@@ -12,7 +12,7 @@ public record ConfiguracionIaTipoDocumentoDto(
     bool? OverrideActiva,
     bool DeteccionTrabajadoresActiva)
 {
-    /// <summary>Estado real aplicado: el nivel 1 (global) manda si está desactivado; si no, manda el override del nivel 2 (o el default activo si no hay override).</summary>
+    /// <summary>Permiso combinado de los niveles 1 y 2: el nivel 1 manda si está desactivado; si no, se aplica el valor del nivel 2 (activo si no hay valor propio). No incluye la instrucción de tratamiento del Nivel 0 ni las condiciones del documento o del servicio de lectura.</summary>
     public bool EfectivaActiva => GlobalActiva && (OverrideActiva ?? true);
 }
 
