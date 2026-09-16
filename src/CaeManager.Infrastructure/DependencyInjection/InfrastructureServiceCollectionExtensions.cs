@@ -690,21 +690,14 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<StripeOptions>(configuration.GetSection(StripeOptions.SeccionConfiguracion));
         services.AddScoped<IPaymentProvider, StripePaymentProvider>();
 
-        // Graph SendMail no es idempotente: un reintento tras un 5xx/timeout
-        // transitorio podría duplicar el correo si el envío ya se había
-        // procesado del lado de Microsoft antes de que la respuesta se
-        // perdiera. Riesgo aceptado (igual que en cualquier integración
-        // estándar de este tipo) frente al beneficio de no fallar todo el
-        // envío por un fallo de red puntual — no hay deduplicación aquí,
-        // sería sobre-ingeniería para P1-16.
-        services.Configure<GraphEmailOptions>(configuration.GetSection(GraphEmailOptions.SeccionConfiguracion));
-        services.AddHttpClient<IEmailService, GraphEmailService>(
-                cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
-            .AplicarResilienciaHttp(TimeSpan.FromSeconds(30));
+        // Buzón de dinahosting (info@talveg.es) por SMTP — no Microsoft Graph:
+        // el MX de talveg.es resuelve a mail.talveg.es, no a Exchange Online.
+        services.Configure<SmtpEmailOptions>(configuration.GetSection(SmtpEmailOptions.SeccionConfiguracion));
+        services.AddScoped<IEmailService, SmtpEmailService>();
 
         // Resumen diario de alertas de vencimiento por correo (Issue #2):
         // apagado por defecto — ver AlertasPorCorreoOptions. Independiente
-        // de si Graph:* está configurado (IEmailService ya degrada solo si
+        // de si Smtp:* está configurado (IEmailService ya degrada solo si
         // no lo está); este interruptor decide si el job en sí corre.
         var opcionesAlertasPorCorreo = new AlertasPorCorreoOptions();
         configuration.GetSection(AlertasPorCorreoOptions.SeccionConfiguracion).Bind(opcionesAlertasPorCorreo);
