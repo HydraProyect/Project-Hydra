@@ -211,7 +211,7 @@ else
                 <div class="fila-trabajador-acordeon" @key="trabajador.AsignacionId">
                     @if (SeleccionMultiple)
                     {
-                        <input type="checkbox" checked="@_seleccionados.Contains(trabajador.AsignacionId)"
+                        <input type="checkbox" aria-label="@($"Seleccionar a {trabajador.TrabajadorNombre} en el centro {CentroNombre}")" checked="@_seleccionados.Contains(trabajador.AsignacionId)"
                                @onchange="e => AlternarSeleccion(trabajador.AsignacionId, (bool)e.Value!)" />
                     }
                     <div class="fila-trabajador-acordeon-cuerpo">
