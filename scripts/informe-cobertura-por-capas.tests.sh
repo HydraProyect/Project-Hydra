@@ -211,9 +211,35 @@ cat >"$SOLO_DOMAIN" <<'XML'
 </CoverageReport>
 XML
 SALIDA_VACIA="$("${GUION[@]}" --nucleo "$SOLO_DOMAIN")"
-assert_contiene "sin --web, la sección Web declara el hueco" "no se recibió \`--web\`" "$SALIDA_VACIA"
+assert_contiene "sin --web, la sección Web declara el hueco" "Web: sin datos — no se recibió su argumento" "$SALIDA_VACIA"
 assert_contiene "zona autorizacion en cero clases, no se calla" "| autorizacion | 0 | 0 | 0 |" "$SALIDA_VACIA"
 assert_contiene "el aviso de zona vacía aparece" "no encontraron nada" "$SALIDA_VACIA"
+
+echo
+echo "=== Un --web que se pidió pero no se pudo leer no debe tumbar el informe entero ==="
+# Hallazgo de Codex sobre la primera versión de este guion: pasar --web con
+# una ruta rota (el paso previo de reportgenerator falló) reventaba con
+# FileNotFoundError ANTES de imprimir una sola línea — se perdía también el
+# informe del núcleo, que sí estaba disponible. RED antes del fix: esta
+# misma prueba, contra el guion sin el try/except, sale con una traza de
+# Python en vez de las líneas de abajo.
+RUTA_WEB_ROTA="$TMP_ROOT/web-no-existe.xml"
+set +e
+SALIDA_PARCIAL="$("${GUION[@]}" --nucleo "$NUCLEO_XML" --web "$RUTA_WEB_ROTA" 2>/tmp/stderr-parcial.$$)"
+CODIGO_PARCIAL=$?
+set -e
+PRUEBAS=$((PRUEBAS + 1))
+if [[ "$CODIGO_PARCIAL" == "1" ]]; then
+  echo "OK: un --web ilegible sale en código 1 (hueco detectado, no confundido con éxito)"
+else
+  echo "FALLO: código esperado 1, obtenido $CODIGO_PARCIAL" >&2
+  FALLOS=$((FALLOS + 1))
+fi
+assert_contiene "el núcleo (SÍ disponible) se imprime igual" \
+  "| CaeManager.Domain | 60 | 100 | 60.0 % |" "$SALIDA_PARCIAL"
+assert_contiene "la Web declara el hueco con el motivo, no en silencio" \
+  "no se pudo leer" "$SALIDA_PARCIAL"
+rm -f "/tmp/stderr-parcial.$$"
 
 echo
 echo "=== Sin ningún argumento, falla en vez de imprimir un informe vacío ==="

@@ -208,31 +208,56 @@ def main() -> int:
 
     salida = ["## Cobertura por capas y por zona de riesgo (REC-210)", ""]
     todas_las_clases_riesgo: list[Ensamblado] = []
+    huecos = 0  # --nucleo/--web SÍ recibidos pero el fichero falta o no se pudo leer.
 
-    if args.nucleo:
-        nucleo = cargar_xml_summary(args.nucleo)
+    def intentar(ruta: str | None, etiqueta: str) -> list[Ensamblado] | None:
+        """Carga un Summary.xml o devuelve None dejando el hueco declarado en `salida`.
+
+        Un `--nucleo`/`--web` que no se recibió y un `--nucleo`/`--web` que SÍ se
+        recibió pero cuyo fichero no existe o no se puede parsear (p. ej. el
+        paso de reportgenerator de arriba falló) son huecos DISTINTOS: el
+        primero es una llamada parcial a propósito, el segundo es un fallo
+        del paso anterior que este informe no debe esconder ni, sobre todo,
+        dejar que le impida mostrar la otra mitad que sí llegó bien —
+        Codex, revisión de esta PR: sin este try/except un --web roto
+        tumbaba con FileNotFoundError antes de imprimir una sola línea,
+        perdiendo también el informe del núcleo aunque ese sí estuviera bien.
+        """
+        nonlocal huecos
+        if not ruta:
+            salida.append(f"### {etiqueta}: sin datos — no se recibió su argumento (hueco declarado)")
+            salida.append("")
+            return None
+        try:
+            return cargar_xml_summary(ruta)
+        except (FileNotFoundError, ET.ParseError) as exc:
+            huecos += 1
+            salida.append(f"### {etiqueta}: sin datos — no se pudo leer `{ruta}` ({exc})")
+            salida.append("")
+            print(f"::warning::No se pudo leer el Summary.xml de {etiqueta} ({ruta}): {exc}", file=sys.stderr)
+            return None
+
+    nucleo = intentar(args.nucleo, "Núcleo")
+    if nucleo is not None:
         salida.append(tabla_por_ensamblado("Núcleo (Domain + Application + Infrastructure)", ENSAMBLADOS_NUCLEO, nucleo))
         salida.append("")
         salida.append(peores_clases(nucleo, args.peores))
         salida.append("")
         todas_las_clases_riesgo.extend(nucleo)
-    else:
-        salida.append("### Núcleo: sin datos — no se recibió `--nucleo` (hueco declarado)")
-        salida.append("")
 
-    if args.web:
-        web = cargar_xml_summary(args.web)
+    web = intentar(args.web, "Web")
+    if web is not None:
         salida.append(tabla_por_ensamblado("Web (bUnit)", ENSAMBLADOS_WEB, web))
         salida.append("")
         todas_las_clases_riesgo.extend(web)
-    else:
-        salida.append("### Web: sin datos — no se recibió `--web` (hueco declarado)")
-        salida.append("")
 
     salida.append(tabla_por_zona_de_riesgo(todas_las_clases_riesgo))
 
     print("\n".join(salida))
-    return 0
+    # Huecos != 0 se informa (avisos ya emitidos arriba) pero no revienta el
+    # paso: continue-on-error ya lo cubre en ci.yml, y esta salida sigue
+    # siendo el mejor informe posible con lo que SÍ se pudo leer.
+    return 1 if huecos else 0
 
 
 if __name__ == "__main__":
