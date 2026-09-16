@@ -399,6 +399,12 @@ public partial class ImportarClientesGen2Tests : BunitContext
             ?? throw new InvalidOperationException($"Importacion ya no tiene el campo {nombre}: el test ha dejado de observar lo que dice."))
         .GetValue(instancia)!;
 
+    /// <summary>Invoca un método privado sin parámetros de <see cref="PaginaImportacion"/> por reflexión, para simular una llamada tardía que ningún botón dispara ya.</summary>
+    private static Task InvocarAsync(PaginaImportacion instancia, string nombre) =>
+        (Task)(typeof(PaginaImportacion).GetMethod(nombre, BindingFlags.Instance | BindingFlags.NonPublic, null, Type.EmptyTypes, null)
+            ?? throw new InvalidOperationException($"Importacion ya no tiene el método {nombre}: el test ha dejado de observar lo que dice."))
+        .Invoke(instancia, null)!;
+
     private static ClienteCentroImportadoDto Fila(string nombre, bool yaExisteCliente = false, bool yaExisteCentro = false) =>
         new(nombre, false, null, null, yaExisteCliente, yaExisteCentro);
 
@@ -909,6 +915,76 @@ public partial class ImportarClientesGen2Tests : BunitContext
 
         _usuarios.Buscados.Should().ContainSingle("tras retirar la página no empieza la búsqueda del segundo usuario");
         Campo<bool>(instancia, "_desechada").Should().BeTrue();
+    }
+
+    /// <summary>
+    /// PR #653 dejó declarado como hueco que ninguna prueba ejercita la guarda
+    /// <c>_desechada</c> de <c>ManejarArchivoSeleccionadoAsync</c> tras
+    /// <c>Dispose</c>. El riesgo real no es que una respuesta en vuelo llegue
+    /// tarde —eso ya lo protege <c>_versionAnalisis</c> en
+    /// <see cref="Retirar_la_pagina_cancela_el_analisis_en_vuelo_y_no_aplica_su_respuesta"/>—
+    /// sino que el propio <c>OnChange</c> del <c>InputFile</c> se dispare DE
+    /// NUEVO cuando la página ya se retiró: la instancia del componente sigue
+    /// viva en memoria (nada del runtime la destruye), así que nada impide esa
+    /// llamada salvo la guarda. Sin ella, el método seguiría hasta
+    /// <c>_ciclo.Token</c> — ya desechado por <c>Dispose</c> — y lanzaría
+    /// <see cref="ObjectDisposedException"/>.
+    /// </summary>
+    [Fact]
+    public async Task Un_OnChange_del_InputFile_que_llega_tras_Dispose_no_toca_nada()
+    {
+        var (cut, mediador) = Renderizar(new Escenario());
+        await Pulsar(cut, "Continuar con Plantilla de Clientes");
+        // La instancia REAL del InputFile se toma ANTES de Dispose: después,
+        // el propio wrapper de bUnit (RenderedComponent<T>.Instance) lanza
+        // ComponentDisposedException al pedirla de nuevo — pero el objeto en
+        // sí sigue vivo y su delegado OnChange sigue apuntando al método de la
+        // página ya retirada, que es justo el riesgo que prueba este test.
+        var inputFile = cut.FindComponent<InputFile>().Instance;
+        var instancia = cut.Instance;
+        var enviadasAntes = mediador.Recibidas.Count;
+
+        await DisposeComponentsAsync();
+
+        // Mismo patrón que las respuestas tardías: se marshalla al Dispatcher
+        // del renderer en vez de invocar directamente, para que una excepción
+        // no controlada quede visible en Renderer.UnhandledException.
+        Func<Task> llegaTarde = () => Renderer.Dispatcher.InvokeAsync(() =>
+            inputFile.OnChange.InvokeAsync(new InputFileChangeEventArgs([new ArchivoFalso("tardio.xlsx", Encoding.UTF8.GetBytes("Z"))])));
+        await llegaTarde.Should().NotThrowAsync(
+            "la guarda _desechada tiene que volver antes de tocar _ciclo.Token, ya desechado por Dispose");
+
+        Renderer.UnhandledException.IsCompleted.Should().BeFalse("un OnChange tardío no debe salir como excepción no controlada");
+        mediador.Recibidas.Should().HaveCount(enviadasAntes, "la guarda vuelve antes de pedir ningún análisis al mediador");
+        Campo<bool>(instancia, "_analizando").Should().BeFalse("la guarda vuelve antes de marcar un análisis en curso");
+        Campo<string?>(instancia, "_nombreArchivo").Should().BeNull("la guarda vuelve antes de fijar el nombre del archivo tardío");
+        Campo<PlanImportacionDto?>(instancia, "_planSimple").Should().BeNull("la guarda vuelve antes de que exista ningún plan que pintar");
+    }
+
+    /// <summary>
+    /// Mismo riesgo que el OnChange tardío, para <c>CargarHistorialAsync</c>:
+    /// hoy solo la llaman <c>OnInitializedAsync</c> (antes de que exista
+    /// Dispose) y <c>ConfirmarImportacionAsync</c> (que ya comprueba
+    /// <c>_desechada</c> antes de llamarla), así que su propia guarda de
+    /// entrada no tiene hoy un punto de llamada real que la dispare — pero es
+    /// la que sostiene el invariante si apareciera un tercero, y sin ella la
+    /// llamada tardía llegaría igual hasta <c>_ciclo.Token</c> ya desechado.
+    /// </summary>
+    [Fact]
+    public async Task Una_recarga_tardia_del_historial_tras_Dispose_no_lo_toca()
+    {
+        var (cut, mediador) = Renderizar(new Escenario());
+        var instancia = cut.Instance;
+        var enviadasAntes = mediador.Recibidas.Count;
+
+        await DisposeComponentsAsync();
+
+        Func<Task> llegaTarde = () => Renderer.Dispatcher.InvokeAsync(() => InvocarAsync(instancia, "CargarHistorialAsync"));
+        await llegaTarde.Should().NotThrowAsync(
+            "la guarda _desechada tiene que volver antes de tocar _ciclo.Token, ya desechado por Dispose");
+
+        Renderer.UnhandledException.IsCompleted.Should().BeFalse("una recarga tardía no debe salir como excepción no controlada");
+        mediador.Recibidas.Should().HaveCount(enviadasAntes, "la guarda vuelve antes de pedir el historial otra vez");
     }
 
     // ---------------------------------------------------------------- tamaño del archivo
