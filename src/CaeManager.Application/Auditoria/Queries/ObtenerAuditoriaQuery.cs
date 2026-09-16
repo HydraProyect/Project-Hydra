@@ -1,4 +1,3 @@
-using System.Text.Json;
 using CaeManager.Application.Auditoria;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
@@ -91,12 +90,19 @@ public class ObtenerAuditoriaQueryHandler(
 
         var total = await consulta.CountAsync(cancellationToken);
 
-        // DatosAntes/DatosDespues se traen aquí solo para calcular los dos
-        // booleanos de abajo — no salen de este método. El listado (esta
-        // página, o el lote de la exportación) no necesita retener el
-        // snapshot JSON completo de cada fila, solo si hay archivo anterior o
-        // si el borrado es reversible.
-        var filas = await consulta
+        // Antes se traía DatosAntes/DatosDespues —el snapshot JSON completo—
+        // de cada fila de la página (o del lote de exportación) solo para
+        // calcular los dos booleanos de abajo y descartar el resto (hallazgo
+        // Módulo 8/9). Los dos se traducen aquí a un substring determinista
+        // sobre el TEXT ya almacenado, sin traer la columna entera: ambas
+        // claves ("EstaEliminado", "ArchivoUrl") son nombres de propiedad del
+        // CLR y AuditoriaInterceptor.SerializarValores serializa con
+        // System.Text.Json por defecto — compacto, sin indentar, sin
+        // reescribir mayúsculas — así que el marcador es exacto y no un
+        // parseo aproximado. AuditoriaProyeccionSqlTests compara este
+        // resultado contra JsonDocument.Parse para que las dos definiciones
+        // no diverjan en silencio si el interceptor cambia de formato.
+        var candidatosPagina = await consulta
             .OrderByDescending(r => r.FechaUtc)
             .Skip((request.Pagina - 1) * request.TamanoPagina)
             .Take(request.TamanoPagina)
@@ -108,8 +114,12 @@ public class ObtenerAuditoriaQueryHandler(
                 r.Accion,
                 r.UsuarioId,
                 r.FechaUtc,
-                r.DatosAntes,
-                r.DatosDespues
+                EsCandidataARestaurar =
+                    EntidadesRestaurables.Contains(r.EntidadTipo) && r.Accion == "Modificado"
+                    && r.DatosDespues != null && r.DatosDespues.Contains("\"EstaEliminado\":true"),
+                TieneArchivoAnteriorCandidato =
+                    r.EntidadTipo == "Documento" && r.Accion == "Modificado"
+                    && r.DatosAntes != null && r.DatosAntes.Contains("\"ArchivoUrl\":\"")
             })
             .ToListAsync(cancellationToken);
 
@@ -123,54 +133,23 @@ public class ObtenerAuditoriaQueryHandler(
         // única consulta por lote y por tabla (evita N+1 en TamanoPagina
         // filas) y siempre acotada a TenantId — la misma frontera de
         // aislamiento que exige cualquier IgnoreQueryFilters() nuevo.
-        var candidatos = filas
-            .Where(r => EsCandidataHistoricaARestaurar(r.EntidadTipo, r.Accion, r.DatosDespues))
+        var candidatos = candidatosPagina
+            .Where(r => r.EsCandidataARestaurar)
             .Select(r => (r.EntidadTipo, r.EntidadId))
             .ToList();
 
         var siguenEliminadasHoy = await ObtenerEliminadasActualmenteAsync(candidatos, cancellationToken);
 
-        var elementos = filas
+        var elementos = candidatosPagina
             .Select(r => new RegistroAuditoriaListaDto(
                 r.Id, r.EntidadTipo, r.EntidadId, r.Accion, r.UsuarioId, r.FechaUtc,
-                EsCandidataHistoricaARestaurar(r.EntidadTipo, r.Accion, r.DatosDespues)
+                r.EsCandidataARestaurar
                     && siguenEliminadasHoy.TryGetValue(r.EntidadTipo, out var idsEliminados)
                     && idsEliminados.Contains(r.EntidadId),
-                TieneArchivoAnterior(r.EntidadTipo, r.Accion, r.DatosAntes)))
+                r.TieneArchivoAnteriorCandidato))
             .ToList();
 
         return new ResultadoPaginado<RegistroAuditoriaListaDto>(elementos, total, request.Pagina, request.TamanoPagina);
-    }
-
-    /// <summary>
-    /// H1 (docs/ux-audit/14-administracion.md): esto es lo que hace real la
-    /// promesa "Podrás recuperarlas desde Auditoría" del borrado en lote de
-    /// Cliente/Empresa/Centro/Trabajador/Documento. El borrado es lógico
-    /// (<c>MarcarComoEliminado()</c> solo cambia un flag), así que
-    /// <c>AuditoriaInterceptor</c> lo registra como "Modificado" — "Eliminado"
-    /// en <c>Accion</c> solo existe para un borrado físico que este dominio no
-    /// hace — por eso hay que mirar el JSON de <c>DatosDespues</c>, igual que
-    /// <see cref="TieneArchivoAnterior"/> con <c>DatosAntes</c>.
-    ///
-    /// Es solo el hecho histórico: "este cambio marcó EstaEliminado=true".
-    /// No dice si la entidad sigue eliminada hoy — eso lo resuelve
-    /// <see cref="ObtenerEliminadasActualmenteAsync"/> contra el estado
-    /// actual, porque una restauración posterior no reescribe esta fila.
-    /// </summary>
-    private static bool EsCandidataHistoricaARestaurar(string entidadTipo, string accion, string? datosDespues)
-    {
-        if (!EntidadesRestaurables.Contains(entidadTipo) || accion != "Modificado" || datosDespues is null)
-            return false;
-
-        try
-        {
-            using var documento = JsonDocument.Parse(datosDespues);
-            return documento.RootElement.TryGetProperty("EstaEliminado", out var valor) && valor.ValueKind == JsonValueKind.True;
-        }
-        catch (JsonException)
-        {
-            return false;
-        }
     }
 
     /// <summary>
@@ -245,26 +224,5 @@ public class ObtenerAuditoriaQueryHandler(
         }
 
         return resultado;
-    }
-
-    /// <summary>
-    /// El interceptor de auditoría ya guarda el ArchivoUrl anterior en el
-    /// JSON de DatosAntes de cada Modificado de Documento — esto solo
-    /// comprueba si hay uno para decidir si mostrar el enlace.
-    /// </summary>
-    private static bool TieneArchivoAnterior(string entidadTipo, string accion, string? datosAntes)
-    {
-        if (entidadTipo != "Documento" || accion != "Modificado" || datosAntes is null)
-            return false;
-
-        try
-        {
-            using var documento = JsonDocument.Parse(datosAntes);
-            return documento.RootElement.TryGetProperty("ArchivoUrl", out var valor) && valor.ValueKind == JsonValueKind.String;
-        }
-        catch (JsonException)
-        {
-            return false;
-        }
     }
 }

@@ -1,0 +1,149 @@
+using System.Text.Json;
+using CaeManager.Application.Auditoria.Queries;
+using CaeManager.Domain.Auditoria;
+using CaeManager.Infrastructure.MultiTenancy;
+using CaeManager.Infrastructure.Persistence;
+using FluentAssertions;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.EntityFrameworkCore;
+using Xunit;
+
+namespace CaeManager.IntegrationTests.Auditoria;
+
+/// <summary>
+/// Módulo 8 § 4.1: el listado de Auditoría traía <c>DatosAntes</c>/<c>DatosDespues</c>
+/// —el snapshot JSON completo— de cada fila de la página solo para calcular
+/// <c>PuedeRestaurar</c>/<c>TieneArchivoAnterior</c> con
+/// <c>JsonDocument.Parse</c>, y descartaba el resto.
+/// <see cref="ObtenerAuditoriaQueryHandler"/> ahora traduce esos dos booleanos
+/// a un <c>Contains</c> de C# sobre el TEXT (que EF Core empuja a SQL como
+/// <c>LIKE</c>/<c>strpos</c>), sin traer la columna completa.
+///
+/// <see cref="ObtenerAuditoriaQueryListadoMinimizadoTests"/> ya fija el
+/// resultado observable con una decena de casos concretos. Este archivo prueba
+/// la propiedad de fondo que ese substring podría romper en silencio: que
+/// coincide con <c>JsonDocument.Parse</c> —la fuente de verdad real de "qué
+/// dice el JSON"— para una muestra amplia y variada de payloads, incluidos los
+/// que un <c>Contains</c> ingenuo podría confundir (propiedades con nombre
+/// parecido, JSON anidado, valores en otras posiciones).
+/// </summary>
+public class AuditoriaProyeccionSqlTests : IAsyncLifetime
+{
+    private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
+    private readonly Guid _tenant = Guid.NewGuid();
+
+    public async Task InitializeAsync()
+    {
+        await using var contexto = CrearContexto();
+        await contexto.Database.MigrateAsync();
+    }
+
+    public Task DisposeAsync() => BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
+
+#pragma warning disable CS8625 // null literal en object[] — DatosAntes/DatosDespues son legítimamente null en varios casos.
+    public static IEnumerable<object[]> Casos()
+    {
+        // (EntidadTipo, Accion, DatosAntes, DatosDespues)
+        yield return ["Documento", "Modificado", """{"ArchivoUrl":"a/b.pdf","Comentarios":"nota"}""", """{"ArchivoUrl":"a/c.pdf"}"""];
+        yield return ["Documento", "Modificado", """{"Comentarios":"sin url"}""", null];
+        // Otra propiedad que CONTIENE la palabra "ArchivoUrl" en el valor, no
+        // en la clave — un Contains descuidado sobre el texto entero (en vez
+        // de sobre el patrón "clave":" ) podría confundirlo con la propiedad real.
+        yield return ["Documento", "Modificado", """{"Comentarios":"referencia a ArchivoUrl en texto libre"}""", null];
+        // "EstaEliminado" con valor false: no debe contar como candidato.
+        yield return ["Cliente", "Modificado", """{"EstaEliminado":true}""", """{"EstaEliminado":false}"""];
+        // Un prefijo de propiedad que casi coincide ("EstaEliminadoPorLote")
+        // no debe confundirse con "EstaEliminado" a secas.
+        yield return ["Empresa", "Modificado", null, """{"EstaEliminadoPorLote":true}"""];
+        yield return ["Empresa", "Modificado", null, """{"Otro":1,"EstaEliminado":true,"Mas":"x"}"""];
+        yield return ["Centro", "Modificado", null, """{"EstaEliminado":true}"""];
+        yield return ["TipoDocumento", "Modificado", null, """{"EstaEliminado":true}"""]; // no restaurable
+        yield return ["Trabajador", "Creado", null, """{"EstaEliminado":true}"""]; // no es Modificado
+        yield return ["Trabajador", "Modificado", null, null];
+        yield return ["Documento", "Modificado", "esto no es JSON", "tampoco esto"];
+        yield return ["Vehiculo", "Modificado", null, """{"EstaEliminado":true}"""]; // no restaurable
+    }
+#pragma warning restore CS8625
+
+    [Theory]
+    [MemberData(nameof(Casos))]
+    public async Task El_booleano_calculado_en_SQL_coincide_con_JsonDocument_Parse(
+        string entidadTipo, string accion, string? datosAntes, string? datosDespues)
+    {
+        var entidadId = Guid.NewGuid();
+        await using (var contextoEscritura = CrearContexto())
+        {
+            contextoEscritura.RegistrosAuditoria.Add(new RegistroAuditoria(
+                entidadTipo, entidadId, accion, datosAntes, datosDespues, usuarioId: null));
+            await contextoEscritura.SaveChangesAsync();
+        }
+
+        await using var contextoLectura = CrearContexto();
+        var handler = new ObtenerAuditoriaQueryHandler(
+            contextoLectura, contextoLectura, contextoLectura, contextoLectura, contextoLectura,
+            new TenantActualAmbiental { TenantId = _tenant });
+
+        var resultado = await handler.Handle(
+            new ObtenerAuditoriaQuery(EntidadTipo: entidadTipo, UsuarioId: null, Pagina: 1, TamanoPagina: 10),
+            CancellationToken.None);
+
+        var fila = resultado.Elementos.Single(r => r.EntidadId == entidadId);
+
+        fila.TieneArchivoAnterior.Should().Be(
+            TieneArchivoAnteriorOraculo(entidadTipo, accion, datosAntes),
+            "TieneArchivoAnterior calculado en SQL debe coincidir con JsonDocument.Parse");
+
+        // PuedeRestaurar además cruza con el estado ACTUAL (ObtenerEliminadasActualmenteAsync,
+        // sin tocar en este incremento); aquí no hay ninguna entidad real
+        // creada, así que el oráculo puro de "candidato histórico" solo puede
+        // dar un resultado observable cuando es FALSE (si fuera candidato,
+        // PuedeRestaurar seguiría siendo false porque la entidad referenciada
+        // no existe y por tanto nunca "sigue eliminada hoy").
+        var esCandidatoHistorico = EsCandidataHistoricaOraculo(entidadTipo, accion, datosDespues);
+        if (!esCandidatoHistorico)
+            fila.PuedeRestaurar.Should().BeFalse();
+    }
+
+    private static readonly HashSet<string> EntidadesRestaurables = ["Cliente", "Empresa", "Centro", "Trabajador", "Documento"];
+
+    private static bool EsCandidataHistoricaOraculo(string entidadTipo, string accion, string? datosDespues)
+    {
+        if (!EntidadesRestaurables.Contains(entidadTipo) || accion != "Modificado" || datosDespues is null)
+            return false;
+        try
+        {
+            using var documento = JsonDocument.Parse(datosDespues);
+            return documento.RootElement.TryGetProperty("EstaEliminado", out var valor) && valor.ValueKind == JsonValueKind.True;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    private static bool TieneArchivoAnteriorOraculo(string entidadTipo, string accion, string? datosAntes)
+    {
+        if (entidadTipo != "Documento" || accion != "Modificado" || datosAntes is null)
+            return false;
+        try
+        {
+            using var documento = JsonDocument.Parse(datosAntes);
+            return documento.RootElement.TryGetProperty("ArchivoUrl", out var valor) && valor.ValueKind == JsonValueKind.String;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    private CaeManagerDbContext CrearContexto()
+    {
+        var tenantActual = new TenantActualAmbiental { TenantId = _tenant };
+        var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
+            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
+            .Options;
+
+        return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
+    }
+}
