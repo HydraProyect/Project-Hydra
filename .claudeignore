@@ -1,0 +1,12 @@
+**/bin/
+**/obj/
+**/node_modules/
+**/.vs/
+**/App_Data/
+**/TestResults/
+**/*.db
+**/*.db-shm
+**/*.db-wal
+*.dll
+*.pdb
+*.exe
