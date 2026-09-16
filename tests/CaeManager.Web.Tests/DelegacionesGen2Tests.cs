@@ -7,7 +7,9 @@ using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Commands.CrearClienteDelegante;
 using CaeManager.Application.Tenants.Commands.DesactivarDelegacionTenant;
+using CaeManager.Application.Tenants.Commands.ReactivarDelegacionTenant;
 using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma;
+using CaeManager.Application.Tenants.Queries.EsTenantOrigenPlataforma;
 using CaeManager.Application.Tenants.Queries.ObtenerActividadSoporte;
 using CaeManager.Application.Tenants.Queries.ObtenerDelegaciones;
 using CaeManager.Domain.Common;
@@ -35,6 +37,18 @@ public class DelegacionesGen2Tests : BunitContext
         public TaskCompletionSource? EsperaCreacion { get; set; }
         public bool EsAdministradorPlataforma { get; set; } = true;
 
+        /// <summary>
+        /// Mitad del criterio real de Abrir/Cerrar acceso de soporte que no viaja en el
+        /// DTO — ver <see cref="CaeManager.Application.Tenants.AutorizacionAccesoSoporte"/>.
+        /// </summary>
+        public bool EsTenantOrigenPlataforma { get; set; } = true;
+
+        /// <summary>
+        /// Criterio real de Reactivar por Cliente Delegante — por defecto autoriza a
+        /// cualquiera para no obligar a los tests que no lo ejercitan a fijarlo.
+        /// </summary>
+        public Func<Guid, bool> PuedeReactivar { get; set; } = _ => true;
+
         public async Task<T> Send<T>(IRequest<T> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add((request, cancellationToken));
@@ -45,10 +59,12 @@ public class DelegacionesGen2Tests : BunitContext
             object respuesta = request switch
             {
                 EsAdministradorPlataformaQuery => EsAdministradorPlataforma,
+                EsTenantOrigenPlataformaQuery => EsTenantOrigenPlataforma,
                 ObtenerDelegacionesQuery => Delegaciones,
                 ObtenerActividadSoporteQuery => Array.Empty<ActividadSoporteDto>(),
                 DesactivarDelegacionTenantCommand => Result.Exito(),
                 CrearClienteDeleganteCommand => Result.Exito(Guid.NewGuid()),
+                PuedeReactivarQuery q => PuedeReactivar(q.TenantClienteId),
                 _ => throw new NotSupportedException(request.GetType().Name)
             };
             return (T)respuesta;
@@ -85,8 +101,9 @@ public class DelegacionesGen2Tests : BunitContext
         public Guid? SesionPrivilegiadaIdSeleccionada => null;
     }
 
-    private static DelegacionDto Delegacion(bool soporte = false, bool activa = true, string rol = "GestorCae") => new(
-        Guid.NewGuid(), Guid.NewGuid(), "TALVEG", Guid.NewGuid(), "Organización Norte", activa, true, DateTime.UtcNow,
+    private static DelegacionDto Delegacion(
+        bool soporte = false, bool activa = true, string rol = "GestorCae", bool somosLaConsultora = true, Guid? tenantClienteId = null) => new(
+        Guid.NewGuid(), Guid.NewGuid(), "TALVEG", tenantClienteId ?? Guid.NewGuid(), "Organización Norte", activa, somosLaConsultora, DateTime.UtcNow,
         [new OperadorDelegadoDto(Guid.NewGuid(), Guid.NewGuid(), rol)],
         soporte ? PropositoDelegacion.Soporte : PropositoDelegacion.Comercial,
         soporte && activa ? "Incidencia de importación" : null,
@@ -96,9 +113,28 @@ public class DelegacionesGen2Tests : BunitContext
         Renderizar(esAdministradorPlataforma: true, delegaciones);
 
     private (IRenderedComponent<Delegaciones> Cut, Mediador Mediador, ToastService Toasts) Renderizar(
-        bool esAdministradorPlataforma, params DelegacionDto[] delegaciones)
+        bool esAdministradorPlataforma, params DelegacionDto[] delegaciones) =>
+        Renderizar(esAdministradorPlataforma, esTenantOrigenPlataforma: true, delegaciones);
+
+    private (IRenderedComponent<Delegaciones> Cut, Mediador Mediador, ToastService Toasts) Renderizar(
+        bool esAdministradorPlataforma, bool esTenantOrigenPlataforma, params DelegacionDto[] delegaciones) =>
+        Renderizar(esAdministradorPlataforma, esTenantOrigenPlataforma, puedeReactivar: null, delegaciones);
+
+    /// <summary>Única sobrecarga con el criterio real de "Reactivar" configurable.</summary>
+    private (IRenderedComponent<Delegaciones> Cut, Mediador Mediador, ToastService Toasts) Renderizar(
+        bool esAdministradorPlataforma, bool esTenantOrigenPlataforma, Func<Guid, bool>? puedeReactivar, params DelegacionDto[] delegaciones)
     {
-        var mediador = new Mediador { Delegaciones = delegaciones, EsAdministradorPlataforma = esAdministradorPlataforma };
+        var mediador = new Mediador
+        {
+            Delegaciones = delegaciones,
+            EsAdministradorPlataforma = esAdministradorPlataforma,
+            EsTenantOrigenPlataforma = esTenantOrigenPlataforma,
+        };
+        if (puedeReactivar is not null)
+        {
+            mediador.PuedeReactivar = puedeReactivar;
+        }
+
         var toasts = new ToastService();
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped(_ => toasts);
@@ -244,5 +280,99 @@ public class DelegacionesGen2Tests : BunitContext
             "el comando real lo autoriza por Tenant.EsPlataforma, no por la concesión AdminPlataforma");
         cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Nueva delegación",
             "control negativo: sin la concesión, las acciones comerciales sí siguen ocultas");
+    }
+
+    /// <summary>
+    /// Hueco declarado en PR #651: la visibilidad de "Abrir acceso"/"Cerrar acceso" no se
+    /// contrastaba con la mitad real del criterio de AbrirAccesoSoporteCommand/
+    /// CerrarAccesoSoporteCommand que exige Tenant.EsPlataforma del tenant de ORIGEN
+    /// (ver AutorizacionAccesoSoporte). Antes de este cambio la única guarda era
+    /// !OperandoWorkspaceAjeno, así que un usuario cuyo tenant de origen no fuera la
+    /// organización TALVEG veía el botón y el comando lo rechazaba igualmente.
+    /// Falsación: invertir el booleano de este test (asumir EsTenantOrigenPlataforma en
+    /// vez de negarlo) hace que ambas aserciones exijan lo contrario y el test caiga.
+    /// </summary>
+    [Fact]
+    public void Abrir_y_cerrar_acceso_de_soporte_se_ocultan_si_el_tenant_de_origen_no_es_plataforma()
+    {
+        var (cut, _, _) = Renderizar(
+            esAdministradorPlataforma: true, esTenantOrigenPlataforma: false, puedeReactivar: null,
+            Delegacion(soporte: true, activa: false), Delegacion(soporte: true, activa: true));
+
+        cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Abrir acceso",
+            "el comando exige Tenant.EsPlataforma del tenant de origen; mostrar el botón sin él mentiría sobre lo que el comando permite");
+        cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Cerrar acceso",
+            "mismo criterio que abrir — ver AutorizacionAccesoSoporte");
+    }
+
+    /// <summary>
+    /// La otra mitad del mismo criterio: aunque el tenant de origen SÍ sea plataforma,
+    /// AbrirAccesoSoporteCommand también exige que sea la Consultora de ESTA delegación
+    /// (<c>delegacion.TenantConsultoraId == tenantOrigenId</c>). El Cliente Delegante que
+    /// mira su propia fila (SomosLaConsultora=false) nunca puede abrir o cerrar su propio
+    /// acceso de soporte — solo TALVEG, del lado consultora, puede.
+    /// </summary>
+    [Fact]
+    public void Abrir_y_cerrar_acceso_de_soporte_se_ocultan_para_quien_no_es_la_consultora_de_esa_delegacion()
+    {
+        var (cut, _, _) = Renderizar(
+            esAdministradorPlataforma: true, esTenantOrigenPlataforma: true, puedeReactivar: null,
+            Delegacion(soporte: true, activa: false, somosLaConsultora: false),
+            Delegacion(soporte: true, activa: true, somosLaConsultora: false));
+
+        cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Abrir acceso",
+            "SomosLaConsultora=false: es el Cliente Delegante viendo su propia fila, no TALVEG");
+        cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Cerrar acceso",
+            "mismo criterio que abrir");
+    }
+
+    /// <summary>
+    /// Hueco declarado en PR #651, mitad de Reactivar: ReactivarDelegacionTenantCommand
+    /// exige ser Administrador del Cliente Delegante (IAutorizacionDelegacionTenant,
+    /// asimetría documentada en su propio Handle) — NO basta con !OperandoWorkspaceAjeno,
+    /// que era la única guarda antes de este cambio. Falsación: invertir el resultado de
+    /// PuedeReactivar hace que la aserción exija lo contrario y el test caiga.
+    /// </summary>
+    [Fact]
+    public void Reactivar_se_oculta_si_el_usuario_no_puede_gestionar_las_delegaciones_del_cliente()
+    {
+        var (cut, _, _) = Renderizar(
+            esAdministradorPlataforma: true, esTenantOrigenPlataforma: true, puedeReactivar: _ => false,
+            Delegacion(activa: false));
+
+        cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Reactivar",
+            "PuedeGestionarDelegacionesAsync devolvió false: mostrar el botón mentiría sobre lo que el comando permite");
+    }
+
+    [Fact]
+    public void Reactivar_se_muestra_si_el_usuario_puede_gestionar_las_delegaciones_del_cliente()
+    {
+        var (cut, _, _) = Renderizar(
+            esAdministradorPlataforma: true, esTenantOrigenPlataforma: true, puedeReactivar: _ => true,
+            Delegacion(activa: false));
+
+        cut.FindAll("button").Should().Contain(b => b.TextContent.Trim() == "Reactivar",
+            "control positivo: el mismo predicado, invertido, es lo que falsa el test anterior");
+    }
+
+    /// <summary>
+    /// PuedeReactivarQuery recibe el TenantClienteId de CADA fila, no un booleano global:
+    /// con dos delegaciones inactivas de clientes distintos, una autorizada y otra no,
+    /// deben distinguirse por fila y no compartir un único resultado.
+    /// </summary>
+    [Fact]
+    public void Reactivar_se_evalua_por_TenantClienteId_de_cada_fila_y_no_de_forma_global()
+    {
+        var clienteAutorizado = Guid.NewGuid();
+        var clienteSinAutorizar = Guid.NewGuid();
+        var (cut, _, _) = Renderizar(
+            esAdministradorPlataforma: true, esTenantOrigenPlataforma: true,
+            puedeReactivar: tenantClienteId => tenantClienteId == clienteAutorizado,
+            Delegacion(activa: false, tenantClienteId: clienteAutorizado),
+            Delegacion(activa: false, tenantClienteId: clienteSinAutorizar));
+
+        cut.FindAll("button").Count(b => b.TextContent.Trim() == "Reactivar").Should().Be(1,
+            "solo la fila del cliente autorizado debe mostrar el botón; compartir un único resultado " +
+            "global habría mostrado 0 o 2, nunca exactamente 1");
     }
 }

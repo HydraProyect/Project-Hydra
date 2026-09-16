@@ -5,7 +5,6 @@ using CaeManager.Domain.Soporte;
 using CaeManager.Domain.Tenants;
 using FluentValidation;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Tenants.Commands.AbrirAccesoSoporte;
 
@@ -100,9 +99,12 @@ public class AbrirAccesoSoporteCommandHandler(
         // tenant de ORIGEN, nunca contra ITenantActual: ese refleja el
         // Delegated Workspace activo, así que alguien operando ya un tenant
         // ajeno no puede usarlo para abrirse acceso a otros.
+        //
+        // Predicado compartido con CerrarAccesoSoporteCommand y con
+        // EsTenantOrigenPlataformaQuery (que expone esta misma mitad del
+        // criterio a Delegaciones.razor) — ver AutorizacionAccesoSoporte.
         var tenantOrigenId = await currentUserService.ObtenerTenantOrigenIdAsync();
-        var esPlataforma = tenantOrigenId is not null && await dbContext.Tenants
-            .AnyAsync(t => t.Id == tenantOrigenId.Value && t.EsPlataforma, cancellationToken);
+        var esPlataforma = await AutorizacionAccesoSoporte.EsTenantOrigenPlataformaAsync(tenantOrigenId, dbContext, cancellationToken);
 
         if (!esPlataforma || delegacion.TenantConsultoraId != tenantOrigenId!.Value)
             return Result.Fallo(Error.Crear("DelegacionTenant.NoEncontrada", "No encontramos esa delegación de soporte."));

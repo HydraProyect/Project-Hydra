@@ -155,20 +155,26 @@
                             <div class="delegaciones-acciones">
                                 @if (delegacion.EsSoporte && delegacion.AccesoVigente)
                                 {
-                                    <Boton Tamano="TamanoBoton.Pequeno"
-                                           Variante="VarianteBoton.Destructivo"
-                                           OnClick="() => CerrarAccesoSoporteAsync(delegacion)"
-                                           Cargando="@EstaProcesando(delegacion.Id)">
-                                        Cerrar acceso
-                                    </Boton>
+                                    @if (PuedeAdministrarAccesoSoporte(delegacion.SomosLaConsultora))
+                                    {
+                                        <Boton Tamano="TamanoBoton.Pequeno"
+                                               Variante="VarianteBoton.Destructivo"
+                                               OnClick="() => CerrarAccesoSoporteAsync(delegacion)"
+                                               Cargando="@EstaProcesando(delegacion.Id)">
+                                            Cerrar acceso
+                                        </Boton>
+                                    }
                                 }
                                 else if (delegacion.EsSoporte)
                                 {
-                                    <Boton Tamano="TamanoBoton.Pequeno"
-                                           Variante="VarianteBoton.Secundario"
-                                           OnClick="() => AbrirFormularioSoporte(delegacion)">
-                                        Abrir acceso
-                                    </Boton>
+                                    @if (PuedeAdministrarAccesoSoporte(delegacion.SomosLaConsultora))
+                                    {
+                                        <Boton Tamano="TamanoBoton.Pequeno"
+                                               Variante="VarianteBoton.Secundario"
+                                               OnClick="() => AbrirFormularioSoporte(delegacion)">
+                                            Abrir acceso
+                                        </Boton>
+                                    }
                                 }
                                 else if (delegacion.Activa)
                                 {
@@ -178,7 +184,7 @@
                                         Revocar acceso
                                     </Boton>
                                 }
-                                else
+                                else if (PuedeReactivar(delegacion.Id))
                                 {
                                     <Boton Tamano="TamanoBoton.Pequeno"
                                            Variante="VarianteBoton.Secundario"
