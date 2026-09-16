@@ -156,6 +156,13 @@ public class VerificacionIaDocumentoService(
             extraido.FechaEmisionDetectada, extraido.FechaVencimientoDetectada, extraido.TieneFirma,
             string.Join("; ", motivos));
 
+        // La auditoría se escribió al terminar esta extracción. Se guarda su Id
+        // en la revisión para que lecturas y decisiones posteriores nunca
+        // sustituyan una extracción por otra del mismo documento.
+        var auditoria = await auditoriaRepositorio.ObtenerUltimaSinDecisionPorDocumentoAsync(documentoId, cancellationToken);
+        if (auditoria is not null)
+            revision.VincularAuditoriaExtraccionIa(auditoria.Id);
+
         revisionRepositorio.Agregar(revision);
         await unitOfWork.SaveChangesAsync(cancellationToken);
     }

@@ -1,4 +1,5 @@
 using CaeManager.Application.Documentos.Commands.AplicarDeteccionIaDocumento;
+using CaeManager.Application.Documentos.Commands.CorregirRevisionIaDocumento;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Empresas;
@@ -64,6 +65,12 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
             _dbContext, new AlcanceDatosServiceFalso(trabajadorIds: trabajadorIds ?? [_trabajador.Id]), _dbContext,
             new CurrentUserServiceFalso(usuarioId: _usuarioId), new PublisherFalso(), _dbContext);
 
+    private CorregirRevisionIaDocumentoCommandHandler CrearHandlerCorreccion(IReadOnlyList<Guid>? trabajadorIds = null) =>
+        new(new RevisionIaDocumentoRepository(_dbContext), new DocumentoRepository(_dbContext), new AprobacionDocumentoRepository(_dbContext),
+            new AuditoriaExtraccionIaRepository(_dbContext), _dbContext,
+            new AlcanceDatosServiceFalso(trabajadorIds: trabajadorIds ?? [_trabajador.Id]), _dbContext,
+            new CurrentUserServiceFalso(usuarioId: _usuarioId), new PublisherFalso(), _dbContext);
+
     [Fact]
     public async Task Renueva_el_documento_con_la_fecha_detectada_y_recalcula_el_vencimiento_automatico()
     {
@@ -107,6 +114,7 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
 
         var revision = RevisionIaDocumento.Crear(
             documento.Id, 92, "Apto médico", fechaDetectada, fechaDetectada.AddMonths(6), true, "Confianza baja");
+        revision.VincularAuditoriaExtraccionIa(auditoria.Id);
         _dbContext.RevisionesIaDocumento.Add(revision);
         await _dbContext.SaveChangesAsync();
 
@@ -191,5 +199,24 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("RevisionIa.NoEncontrada");
+    }
+
+    [Fact]
+    public async Task Corregir_a_mano_falla_como_no_encontrada_fuera_del_alcance_y_no_persiste_mutaciones()
+    {
+        var fechaOriginal = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-1);
+        var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoAutomatico.Id, fechaOriginal, null);
+        _dbContext.Documentos.Add(documento);
+        var revision = RevisionIaDocumento.Crear(documento.Id, 92, "Apto médico", fechaOriginal, null, true, "Confianza baja");
+        _dbContext.RevisionesIaDocumento.Add(revision);
+        await _dbContext.SaveChangesAsync();
+
+        var resultado = await CrearHandlerCorreccion(trabajadorIds: [Guid.NewGuid()])
+            .Handle(new CorregirRevisionIaDocumentoCommand(revision.Id, DateOnly.FromDateTime(DateTime.UtcNow)), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("RevisionIa.NoEncontrada");
+        (await _dbContext.RevisionesIaDocumento.SingleAsync(r => r.Id == revision.Id)).Resuelta.Should().BeFalse();
+        (await _dbContext.Documentos.SingleAsync(d => d.Id == documento.Id)).FechaEmision.Should().Be(fechaOriginal);
+        (await _dbContext.AprobacionesDocumento.CountAsync(a => a.DocumentoId == documento.Id)).Should().Be(0);
     }
 }
