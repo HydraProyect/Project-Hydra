@@ -547,16 +547,65 @@ jobs:
       # verdad es el paso siguiente, que si no encuentra Summary.json falla
       # por su cuenta (ver su comentario) — el fallo del informe no queda
       # silenciado, solo no duplica el mensaje de error.
+      # XmlSummary (ademas de MarkdownSummaryGithub y JsonSummary) porque es
+      # el unico reporttype de reportgenerator que trae el desglose POR CLASE
+      # en un fichero unico y manejable (515 KB en la muestra del
+      # 2026-09-16, frente a un fichero por clase con -reporttypes:Xml).
+      # JsonSummary solo da el agregado por ensamblado (el campo "classes" de
+      # cada ensamblado es un CONTADOR, no una lista) — no sirve para el
+      # informe de zonas de riesgo de mas abajo. No sustituye a JsonSummary:
+      # el gate de "Umbral de cobertura" de este mismo job sigue leyendo
+      # coveragereport/Summary.json y coveragereport-web/Summary.json, sin
+      # tocar.
       - name: Informe de cobertura
         if: always()
         continue-on-error: true
         run: |
-          dotnet reportgenerator -reports:"coverage/**/coverage.cobertura.xml" -targetdir:coveragereport -reporttypes:"MarkdownSummaryGithub;JsonSummary"
+          dotnet reportgenerator -reports:"coverage/**/coverage.cobertura.xml" -targetdir:coveragereport -reporttypes:"MarkdownSummaryGithub;JsonSummary;XmlSummary"
           echo "## Núcleo (Domain + Application + Infrastructure)" >> "$GITHUB_STEP_SUMMARY"
           cat coveragereport/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
-          dotnet reportgenerator -reports:"coverage-web/**/coverage.cobertura.xml" -targetdir:coveragereport-web -reporttypes:"MarkdownSummaryGithub;JsonSummary"
+          dotnet reportgenerator -reports:"coverage-web/**/coverage.cobertura.xml" -targetdir:coveragereport-web -reporttypes:"MarkdownSummaryGithub;JsonSummary;XmlSummary"
           echo "## Web (bUnit, CaeManager.Web)" >> "$GITHUB_STEP_SUMMARY"
           cat coveragereport-web/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
+
+      # Informe de cobertura por capas y por zona de riesgo (REC-210,
+      # tecnico/reconciliacion/REGISTRO-REC.md en el repositorio de negocio):
+      # el agregado de arriba (37,0 % -> hoy dos trinquetes) nunca dijo QUE
+      # capas ni QUE riesgo hay detras del numero. Este paso lee los dos
+      # Summary.xml de arriba y desglosa por ensamblado y por zona de riesgo
+      # (autorizacion, aislamiento de tenant/RLS, importacion) — ver la
+      # cabecera de scripts/informe-cobertura-por-capas.py para el metodo
+      # (heuristica por nombre de clase, declarada como tal) y sus limites.
+      #
+      # if: always() + continue-on-error: true, mismo motivo que el paso de
+      # arriba: es visibilidad nueva, no reemplaza ningun gate existente, y
+      # un fallo aqui no debe tumbar un job cuyos tests ya pasaron.
+      - name: Informe de cobertura por capas y por zona de riesgo (REC-210)
+        if: always()
+        continue-on-error: true
+        run: |
+          python3 scripts/informe-cobertura-por-capas.py \
+            --nucleo coveragereport/Summary.xml \
+            --web coveragereport-web/Summary.xml \
+            > informe-cobertura-por-capas.md
+          cat informe-cobertura-por-capas.md >> "$GITHUB_STEP_SUMMARY"
+
+      # Artefacto aparte del step summary: el summary de un run desaparece de
+      # la vista principal en cuanto hay uno mas reciente y no es diffable
+      # entre commits. El artefacto sí lo es (descargar dos runs y `diff`).
+      # 90 dias (el maximo por defecto de GitHub, y el unico de este fichero
+      # con ese valor — el resto son 1 o 7) a proposito: sirve para comparar
+      # varias ejecuciones sobre el MISMO commit antes de activar un
+      # trinquete por capa (REC-210), y eso exige que el artefacto de una
+      # ejecucion de hace semanas siga descargable cuando llegue la segunda.
+      - name: Publicar el informe de cobertura por capas
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: informe-cobertura-por-capas
+          path: informe-cobertura-por-capas.md
+          retention-days: 90
+          if-no-files-found: warn
 
       # Ratchet de cobertura (§ 8 del plan de negocio, Horizonte transversal):
       #
