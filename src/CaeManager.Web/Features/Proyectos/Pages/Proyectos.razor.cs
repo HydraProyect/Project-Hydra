@@ -196,6 +196,13 @@ public partial class Proyectos : ComponentBase
         var estadoDeLaUrl = OpcionesEstado.Any(o => o.Valor == EstadoInicial) ? EstadoInicial! : string.Empty;
         if (estadoDeLaUrl != _estadoFiltro)
             _estadoFiltro = estadoDeLaUrl;
+
+        // Los dos filtros cambian navegando, así que este es el único punto por
+        // el que pasan todos: si la fila enfocada deja de estar visible, el
+        // foco se descarta aquí. Conservarlo escondido lo haría reaparecer al
+        // quitar el filtro, sobre una fila que el usuario ya no tenía delante.
+        if (_idEnfocado is { } idEnfocado && !_proyectos.Any(p => p.Id == idEnfocado && CumpleFiltros(p)))
+            _idEnfocado = null;
     }
 
     private bool HayFiltrosActivos =>
@@ -371,8 +378,9 @@ public partial class Proyectos : ComponentBase
         for (var i = 0; i < visibles.Count; i++)
             if (visibles[i].Id == _idEnfocado) return i;
 
-        // La fila enfocada ya no pasa los filtros: se trata como si no
-        // hubiera foco, en vez de dejarlo apuntando a algo que no se ve.
+        // Red de seguridad: el foco de una fila que ya no se ve se descarta en
+        // OnParametersSet, pero si por cualquier camino sobreviviera, aquí se
+        // trata como si no hubiera foco en vez de apuntar a algo invisible.
         return -1;
     }
 

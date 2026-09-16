@@ -820,12 +820,14 @@ public class ProyectosGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// Si la fila enfocada deja de pasar los filtros, el foco no se queda
-    /// apuntando a algo que no se ve: la siguiente "j" empieza por la primera
-    /// fila visible.
+    /// Si la fila enfocada deja de pasar los filtros, el foco se descarta: la
+    /// siguiente "j" empieza por la primera fila visible y, sobre todo,
+    /// quitar el filtro NO devuelve el foco a la fila de antes — hallazgo de
+    /// la revisión de Codex sobre este mismo incremento, donde el foco
+    /// escondido sobrevivía y reaparecía al levantar el filtro.
     /// </summary>
     [Fact]
-    public async Task El_foco_de_una_fila_que_el_filtro_esconde_no_sobrevive()
+    public async Task El_foco_de_una_fila_que_el_filtro_esconde_no_sobrevive_ni_reaparece()
     {
         _mediator.Proyectos = [ProyectoAbierto, ProyectoCerrado];
         var cut = await RenderizarConClienteAsync();
@@ -833,11 +835,19 @@ public class ProyectosGen2Tests : BunitContext
         await Atajo(cut, "j");
         FilasEnfocadas(cut).Should().Equal([ProyectoCerrado.Nombre]);
 
-        await cut.FindAll("select").Single(s => s.TextContent.Contains("Abiertos"))
-            .ChangeAsync(new ChangeEventArgs { Value = "abiertos" });
+        await SelectorDeEstado(cut).ChangeAsync(new ChangeEventArgs { Value = "abiertos" });
 
         FilasEnfocadas(cut).Should().BeEmpty();
+
+        await SelectorDeEstado(cut).ChangeAsync(new ChangeEventArgs { Value = "" });
+
+        NombresEnLaTabla(cut).Should().HaveCount(2, "el filtro ya no esconde nada");
+        FilasEnfocadas(cut).Should().BeEmpty("el foco se descartó al esconderse su fila, no se guardó");
+
         await Atajo(cut, "j");
         FilasEnfocadas(cut).Should().Equal([ProyectoAbierto.Nombre]);
     }
+
+    private static IElement SelectorDeEstado(IRenderedComponent<Proyectos> cut) =>
+        cut.FindAll("select").Single(s => s.TextContent.Contains("Abiertos"));
 }
