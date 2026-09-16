@@ -169,6 +169,32 @@ public class AutorizacionEscrituraBehaviorTests
         resultado.Error.Codigo.Should().Be("Autorizacion.BreakGlassSinCaminoDeEscritura");
     }
 
+    /// <summary>
+    /// PD-A3, commit 3: <c>Aprovisionamiento</c> ya tiene camino de escritura
+    /// construido (<see cref="SesionPrivilegiadaActiva.TieneCaminoDeEscritura"/>),
+    /// pero este behavior TODAVÍA no lo consulta — eso llega en el commit 4
+    /// junto con <c>IComandoDeAprovisionamiento</c> y el ámbito de elevación.
+    /// Hasta entonces, toda sesión privilegiada sigue denegando TODO command,
+    /// Aprovisionamiento incluido: el rol Postgres existe pero nadie lo adopta
+    /// todavía. El código de error es el de BreakGlass —comparten la misma
+    /// rama en <c>ErrorDeSesionPrivilegiada</c> porque las dos PERMITEN
+    /// escribir en el modelo (<c>PermiteEscritura</c>)— y eso es exacto: esto
+    /// es "permite pero le falta la fase", igual que BreakGlass hoy.
+    /// </summary>
+    [Fact]
+    public async Task Aprovisionamiento_tambien_bloquea_mientras_el_behavior_no_conoce_su_camino_de_escritura()
+    {
+        var behavior = new AutorizacionEscrituraBehavior<FalsoCommand, Result>(
+            new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador"),
+            new SesionPrivilegiadaActualFalsa(SesionCon(CapacidadPrivilegio.Aprovisionamiento)));
+
+        var resultado = await behavior.Handle(
+            new FalsoCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Autorizacion.BreakGlassSinCaminoDeEscritura");
+    }
+
     [Fact]
     public async Task Una_sesion_privilegiada_no_bloquea_las_queries()
     {

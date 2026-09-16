@@ -31,9 +31,24 @@ public readonly record struct SesionPrivilegiadaActiva(
     Guid? UsuarioSimuladoId)
 {
     /// <summary>
-    /// Si esta sesión permite escribir. Solo <c>BreakGlass</c>: la inspección
-    /// de soporte es de solo lectura sin excepción implícita, y administrar la
-    /// plataforma no es tocar los datos de un cliente.
+    /// Si esta capacidad permite escribir <b>en el modelo</b> — <c>BreakGlass</c>
+    /// (acceso de emergencia) y <c>Aprovisionamiento</c> (PD-A3): la inspección
+    /// de soporte y la administración de plataforma no tocan datos de un
+    /// cliente, así que <c>SoporteLectura</c>, <c>AdminPlataforma</c> e
+    /// <c>Impersonacion</c> quedan fuera.
+    ///
+    /// Esto es la capacidad en abstracto, no si hoy existe un camino que la
+    /// ejecute — eso es <see cref="TieneCaminoDeEscritura"/>.
     /// </summary>
-    public bool PermiteEscritura => Capacidad == CapacidadPrivilegio.BreakGlass;
+    public bool PermiteEscritura =>
+        Capacidad is CapacidadPrivilegio.BreakGlass or CapacidadPrivilegio.Aprovisionamiento;
+
+    /// <summary>
+    /// Si esta sesión tiene, HOY, un camino de escritura realmente construido
+    /// (ver <see cref="CapacidadesConCaminoDeEscritura"/>). <c>BreakGlass</c>
+    /// permite escribir en el modelo pero no tiene camino todavía — por eso
+    /// esta propiedad puede ser <c>false</c> mientras <see cref="PermiteEscritura"/>
+    /// es <c>true</c>, nunca al revés.
+    /// </summary>
+    public bool TieneCaminoDeEscritura => CapacidadesConCaminoDeEscritura.Admite(Capacidad);
 }
