@@ -199,9 +199,12 @@ Anclas que aplican siempre, aunque la skill no se haya activado sola:
   `protocolo-hydra-contratos` antes de editar (§ 6).
 - **Todo cambio de comportamiento exige buscar** el contrato, el documento o el comentario normativo
   que describa la regla anterior y corregirlo en el mismo incremento (§ 16).
-- **Antes de abrir cualquier PR**, Codex revisa el incremento pidiéndole refutar (obligatorio si toca
-  autorización, RLS, multi-tenancy, criptografía o auditoría), y lo que devuelva otro modelo —Codex o
-  Gemini— es material de revisión, no evidencia: carga `protocolo-hydra-multimodelo` (§ 24).
+- **Antes de abrir cualquier PR**, Codex revisa el incremento pidiéndole refutar
+  (`codex review --base origin/main`; obligatorio si toca autorización, RLS, multi-tenancy,
+  criptografía o auditoría). Lo que devuelva otro modelo —Codex o Gemini— es material de revisión,
+  no evidencia. Esta regla basta por sí sola para la revisión con Codex; el detalle, y la receta para
+  delegar lecturas masivas en Gemini, están en `protocolo-hydra-multimodelo` (§ 24). **Sin esa skill
+  no se invoca `agy`**, pero la revisión con Codex y la PR siguen adelante.
 - **Al abrir cualquier PR**, pásale sus metadatos en la misma llamada:
   `gh pr create --label "Type: …" --label "Priority: …" --milestone "…"`. El check
   «Gobernanza — metadatos de PR» exige, leído por API en el momento de evaluar, un
