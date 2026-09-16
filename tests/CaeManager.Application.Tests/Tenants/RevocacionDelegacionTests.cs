@@ -114,6 +114,44 @@ public class RevocacionDelegacionTests
         delegacion.Activa.Should().BeTrue();
     }
 
+    /// <summary>
+    /// Hueco declarado en PR #651: Delegaciones.razor solo ocultaba "Reactivar" con
+    /// !OperandoWorkspaceAjeno, que no es el criterio real del comando. PuedeReactivarQuery
+    /// tiene que devolver EXACTAMENTE lo mismo que el propio comando aplicaría — se
+    /// comparte el mismo handler y el mismo campo <c>autorizacion</c> a propósito (ver el
+    /// doc-comment de <c>PuedeReactivarQuery</c>), así que este test ejercita el mismo
+    /// camino de código que <see cref="Reactivar_devuelve_el_acceso_sin_perder_los_operadores"/>.
+    /// </summary>
+    [Fact]
+    public async Task PuedeReactivarQuery_autoriza_exactamente_a_quien_el_comando_autoriza()
+    {
+        var (delegacion, repositorio, unitOfWork) = Preparar();
+        var handler = new ReactivarDelegacionTenantCommandHandler(
+            repositorio, AutorizacionDelegacionFalsa.AdministradorDe(ClienteDelegante),
+            new CurrentUserServiceFalso(Guid.NewGuid()), new AsignacionesOperativasWriterFalso(), unitOfWork);
+
+        var autorizado = await handler.Handle(new PuedeReactivarQuery(ClienteDelegante), CancellationToken.None);
+        var noAutorizado = await handler.Handle(new PuedeReactivarQuery(Consultora), CancellationToken.None);
+
+        autorizado.Should().BeTrue("es Administrador del Cliente Delegante — mismo predicado que autoriza al comando");
+        noAutorizado.Should().BeFalse(
+            "el Administrador de la Consultora tiene el mismo rol y CERO autoridad aquí — confundirlos es " +
+            "exactamente la fuga que este predicado existe para evitar (ver AutorizacionDelegacionFalsa)");
+    }
+
+    [Fact]
+    public async Task PuedeReactivarQuery_sin_usuario_identificado_no_autoriza()
+    {
+        var (delegacion, repositorio, unitOfWork) = Preparar();
+        var handler = new ReactivarDelegacionTenantCommandHandler(
+            repositorio, AutorizacionDelegacionFalsa.AdministradorDe(ClienteDelegante),
+            new CurrentUserServiceFalso(), new AsignacionesOperativasWriterFalso(), unitOfWork);
+
+        var resultado = await handler.Handle(new PuedeReactivarQuery(ClienteDelegante), CancellationToken.None);
+
+        resultado.Should().BeFalse("fallo cerrado: fuera de un circuito autenticado no hay usuario a quien autorizar");
+    }
+
     [Fact]
     public async Task Se_puede_retirar_un_operador_sin_revocar_la_delegacion_entera()
     {

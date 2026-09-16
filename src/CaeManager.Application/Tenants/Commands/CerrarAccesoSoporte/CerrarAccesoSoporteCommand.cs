@@ -5,7 +5,6 @@ using CaeManager.Domain.Soporte;
 using CaeManager.Domain.Tenants;
 using FluentValidation;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Tenants.Commands.CerrarAccesoSoporte;
 
@@ -40,10 +39,9 @@ public class CerrarAccesoSoporteCommandHandler(
         if (delegacion is null || delegacion.Proposito is not PropositoDelegacion.Soporte)
             return Result.Fallo(Error.Crear("DelegacionTenant.NoEncontrada", "No encontramos esa delegación de soporte."));
 
-        // Mismo criterio de autorización que abrir — ver ese handler.
+        // Mismo criterio de autorización que abrir — ver AutorizacionAccesoSoporte.
         var tenantOrigenId = await currentUserService.ObtenerTenantOrigenIdAsync();
-        var esPlataforma = tenantOrigenId is not null && await dbContext.Tenants
-            .AnyAsync(t => t.Id == tenantOrigenId.Value && t.EsPlataforma, cancellationToken);
+        var esPlataforma = await AutorizacionAccesoSoporte.EsTenantOrigenPlataformaAsync(tenantOrigenId, dbContext, cancellationToken);
 
         if (!esPlataforma || delegacion.TenantConsultoraId != tenantOrigenId!.Value)
             return Result.Fallo(Error.Crear("DelegacionTenant.NoEncontrada", "No encontramos esa delegación de soporte."));

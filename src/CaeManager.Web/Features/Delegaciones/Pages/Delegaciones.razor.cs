@@ -6,6 +6,7 @@ using CaeManager.Application.Tenants.Commands.DesactivarDelegacionTenant;
 using CaeManager.Application.Tenants.Commands.ReactivarDelegacionTenant;
 using CaeManager.Application.Tenants.Commands.RevocarAsignacionOperadorDelegado;
 using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma;
+using CaeManager.Application.Tenants.Queries.EsTenantOrigenPlataforma;
 using CaeManager.Application.Tenants.Queries.ObtenerActividadSoporte;
 using CaeManager.Application.Tenants.Queries.ObtenerDelegaciones;
 using CaeManager.Domain.Soporte;
@@ -31,6 +32,23 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
     private readonly Dictionary<Guid, string> _nombresPorUsuarioId = [];
     private IReadOnlyList<DelegacionDto> _delegaciones = [];
     private bool _esAdministradorPlataforma;
+
+    /// <summary>
+    /// Mitad del criterio real de <c>AbrirAccesoSoporteCommand</c>/
+    /// <c>CerrarAccesoSoporteCommand</c> que no viaja en <see cref="DelegacionDto"/>
+    /// (la otra mitad es <c>SomosLaConsultora</c>) — ver <see cref="PuedeAdministrarAccesoSoporte"/>.
+    /// </summary>
+    private bool _esTenantOrigenPlataforma;
+
+    /// <summary>
+    /// Por delegación con criterio de reactivación cargado: ¿puede el usuario
+    /// actual reactivarla? EXACTAMENTE el predicado de <c>ReactivarDelegacionTenantCommand</c>
+    /// (vía <c>PuedeReactivarQuery</c>) — nunca <see cref="OperandoWorkspaceAjeno"/>, que
+    /// aquí no basta: reactivar exige ser Administrador del Cliente Delegante,
+    /// no solo operar desde el tenant de origen correcto.
+    /// </summary>
+    private readonly Dictionary<Guid, bool> _puedeReactivarPorEntidad = [];
+
     private bool _cargando = true;
     private bool _error;
     private bool _desechado;
@@ -84,14 +102,18 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
         {
             token.ThrowIfCancellationRequested();
             var esAdministrador = await Mediator.Send(new EsAdministradorPlataformaQuery(), token);
+            var esTenantOrigenPlataforma = await Mediator.Send(new EsTenantOrigenPlataformaQuery(), token);
             var delegaciones = await Mediator.Send(new ObtenerDelegacionesQuery(), token);
             await CargarNombresDeOperadoresAsync(delegaciones.SelectMany(d => d.Operadores).Select(o => o.UsuarioId), token);
+            await CargarCriteriosDeReactivacionAsync(
+                delegaciones.Where(e => !e.EsSoporte && !e.Activa).Select(e => (e.Id, e.TenantClienteId)), token);
             if (_desechado || version != _versionCarga)
             {
                 return;
             }
 
             _esAdministradorPlataforma = esAdministrador;
+            _esTenantOrigenPlataforma = esTenantOrigenPlataforma;
             _delegaciones = delegaciones;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -133,6 +155,30 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
                     : $"{usuario.NombreCompleto} ({usuario.Email})";
             }
         });
+
+    /// <summary>
+    /// Solo para las entidades con botón "Reactivar" visible hoy (no vigentes
+    /// de soporte quedan fuera del cálculo: usan otro criterio, ver
+    /// <see cref="_esTenantOrigenPlataforma"/>). Fallo cerrado: una entidad sin
+    /// entrada en <see cref="_puedeReactivarPorEntidad"/> se trata como "no
+    /// autorizado" en <see cref="PuedeReactivar"/>, nunca como "sí".
+    /// </summary>
+    private Task CargarCriteriosDeReactivacionAsync(IEnumerable<(Guid Id, Guid TenantClienteId)> entidades, CancellationToken token) =>
+        PuertaAccesoDatos.EjecutarAsync(async () =>
+        {
+            foreach (var (id, tenantClienteId) in entidades)
+            {
+                token.ThrowIfCancellationRequested();
+                _puedeReactivarPorEntidad[id] = await Mediator.Send(new PuedeReactivarQuery(tenantClienteId), token);
+            }
+        });
+
+    /// <summary>Ver el doc-comment de <see cref="_esTenantOrigenPlataforma"/>.</summary>
+    private bool PuedeAdministrarAccesoSoporte(bool somosLaConsultora) =>
+        _esTenantOrigenPlataforma && somosLaConsultora;
+
+    private bool PuedeReactivar(Guid entidadId) =>
+        _puedeReactivarPorEntidad.GetValueOrDefault(entidadId);
 
     private string NombreDeUsuario(Guid usuarioId) =>
         _nombresPorUsuarioId.GetValueOrDefault(usuarioId, "…");

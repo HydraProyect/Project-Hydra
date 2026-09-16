@@ -23,12 +23,44 @@ public class ReactivarDelegacionTenantCommandValidator : AbstractValidator<React
     }
 }
 
+/// <summary>
+/// ¿Puede el usuario actual reactivar la delegación de este Cliente Delegante?
+/// Expone a la vista EXACTAMENTE el mismo predicado que
+/// <see cref="ReactivarDelegacionTenantCommand"/> exige antes de reactivar —
+/// la asimetría con revocar está documentada en su <c>Handle</c>.
+///
+/// <para>
+/// Comparte handler con el comando a propósito, en vez de una clase nueva con
+/// su propia inyección de <see cref="IAutorizacionDelegacionTenant"/>: es la
+/// única forma de reutilizar el mismo campo <c>autorizacion</c> ya inyectado
+/// sin escribir un segundo identificador nuevo con el término "Delegacion" en
+/// código de producción, que haría crecer <c>TerminologiaCanonicaTests</c> (§ 5
+/// del contrato, deuda congelada por DEC-65 — no puede subir). La única
+/// aparición nueva de <c>PuedeGestionarDelegacionesAsync</c> que este
+/// incremento necesita queda dentro de <see cref="ReactivarDelegacionTenantCommandHandler.PuedeGestionarAsync"/>,
+/// y sustituye —no se suma a— la que antes vivía inline en <c>Handle</c>.
+/// </para>
+/// </summary>
+public record PuedeReactivarQuery(Guid TenantClienteId) : IRequest<bool>;
+
 public class ReactivarDelegacionTenantCommandHandler(
     IDelegacionTenantRepository repositorio,
     IAutorizacionDelegacionTenant autorizacion, ICurrentUserService currentUserService,
     IAsignacionesOperativasWriter asignacionesWriter, IUnitOfWork unitOfWork)
-    : IRequestHandler<ReactivarDelegacionTenantCommand, Result>
+    : IRequestHandler<ReactivarDelegacionTenantCommand, Result>,
+      IRequestHandler<PuedeReactivarQuery, bool>
 {
+    /// <summary>Único punto de verdad — ver el doc-comment de <see cref="PuedeReactivarQuery"/>.</summary>
+    private Task<bool> PuedeGestionarAsync(Guid tenantClienteId, Guid usuarioId, CancellationToken cancellationToken) =>
+        autorizacion.PuedeGestionarDelegacionesAsync(usuarioId, tenantClienteId, cancellationToken);
+
+    public async Task<bool> Handle(PuedeReactivarQuery request, CancellationToken cancellationToken)
+    {
+        var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
+        return usuarioId is not null &&
+               await PuedeGestionarAsync(request.TenantClienteId, usuarioId.Value, cancellationToken);
+    }
+
     public async Task<Result> Handle(ReactivarDelegacionTenantCommand request, CancellationToken cancellationToken)
     {
         var delegacion = await repositorio.ObtenerPorIdAsync(request.DelegacionTenantId, cancellationToken);
@@ -52,8 +84,7 @@ public class ReactivarDelegacionTenantCommandHandler(
         // "ya estaba activa" frente a "no encontrada" contaría a un tercero si
         // esa delegación está revocada ahora mismo.
         if (delegacion is null ||
-            !await autorizacion.PuedeGestionarDelegacionesAsync(
-                usuarioId.Value, delegacion.TenantClienteId, cancellationToken))
+            !await PuedeGestionarAsync(delegacion.TenantClienteId, usuarioId.Value, cancellationToken))
             // "No encontrada" y no "no autorizado", igual que revocar: confirmar
             // la existencia de la fila ya revelaría qué consultoras operan sobre
             // qué clientes.

@@ -132,6 +132,17 @@ public class UsosDeEsPlataformaCongeladosTests
     /// (1 aparición, <see cref="CategoriaUso.ReglaComercial"/>). Es el único fichero nuevo:
     /// los dos consumidores nuevos del criterio (la resincronización manual y el webhook)
     /// llaman a <c>EsSuscribible()</c> y no aparecen aquí.
+    /// Actualizado 2026-09-16 (hueco declarado en PR #651 — visibilidad de Delegaciones.razor
+    /// no contrastada con la autorización real de cada comando): <b>24 ficheros, 37
+    /// apariciones</b>. Se retira la mitad de <see cref="CategoriaUso.Autoridad"/> de
+    /// <c>AbrirAccesoSoporteCommand.cs</c> y <c>CerrarAccesoSoporteCommand.cs</c> (−1 cada
+    /// una: el predicado inline <c>t.EsPlataforma</c> se extrajo a un único punto de verdad,
+    /// <c>AutorizacionAccesoSoporte.cs</c>, +2 — comentario y el mismo predicado ahora
+    /// centralizado) para que <c>EsTenantOrigenPlataformaQuery.cs</c> (+1, únicamente en
+    /// comentario, <see cref="CategoriaUso.Comentario"/> — mismo tratamiento que
+    /// <c>EsAdministradorPlataformaQuery.cs</c>) pueda exponer a la vista exactamente esa
+    /// mitad del criterio sin reimplementarla. Neto por fichero: −2 (los dos comandos) +2
+    /// (los dos nuevos) = 24 sin cambio; neto por aparición: −1 −1 +2 +1 = +1, de 36 a 37.
     ///
     /// <para>
     /// Cada entrada se leyó una a una; el conteo <b>no</b> se ajustó a lo que salió del
@@ -159,10 +170,12 @@ public class UsosDeEsPlataformaCongeladosTests
             new(1, CategoriaUso.Autoridad, ":43 — lo retira el bloque C"),
         ["src/CaeManager.Application/ApiKeys/Queries/ObtenerClavesApi/ObtenerClavesApiQuery.cs"] =
             new(1, CategoriaUso.Autoridad, ":36 — lo retira el bloque C"),
-        ["src/CaeManager.Application/Tenants/Commands/AbrirAccesoSoporte/AbrirAccesoSoporteCommand.cs"] =
-            new(1, CategoriaUso.Autoridad, ":91 — lo retira el bloque B (el comando entero desaparece)"),
-        ["src/CaeManager.Application/Tenants/Commands/CerrarAccesoSoporte/CerrarAccesoSoporteCommand.cs"] =
-            new(1, CategoriaUso.Autoridad, ":46 — lo retira el bloque B (el comando entero desaparece)"),
+        ["src/CaeManager.Application/Tenants/AutorizacionAccesoSoporte.cs"] =
+            new(2, CategoriaUso.Autoridad,
+                ":8 comentario y :28 predicado real (t.EsPlataforma) — único punto de verdad extraído el " +
+                "2026-09-16 de AbrirAccesoSoporteCommand.cs y CerrarAccesoSoporteCommand.cs (que antes " +
+                "llevaban el predicado inline, 1 aparición cada uno, y ya no aparecen en esta lista: quedaron " +
+                "en 0). Lo retira el bloque B junto con los dos comandos que lo llaman"),
         ["src/CaeManager.Application/Tenants/Queries/ObtenerActividadSoporte/ObtenerActividadSoporteQuery.cs"] =
             new(1, CategoriaUso.Autoridad,
                 ":55, en OR con la vía del cliente visitado. B reescribe el predicado por concesión propia. " +
@@ -243,6 +256,10 @@ public class UsosDeEsPlataformaCongeladosTests
             new(1, CategoriaUso.Comentario, ":18 — documenta por qué esta autorización NO lo consulta"),
         ["src/CaeManager.Application/Tenants/Queries/EsAdministradorPlataforma/EsAdministradorPlataformaQuery.cs"] =
             new(1, CategoriaUso.Comentario, ":21 — declara la dependencia como transitoria"),
+        ["src/CaeManager.Application/Tenants/Queries/EsTenantOrigenPlataforma/EsTenantOrigenPlataformaQuery.cs"] =
+            new(1, CategoriaUso.Comentario,
+                ":8 — el código real no menciona el flag (llama a AutorizacionAccesoSoporte por nombre de " +
+                "método, no por Tenant.EsPlataforma); documenta de dónde sale la mitad del criterio que expone"),
         ["src/CaeManager.Infrastructure/DependencyInjection/InfrastructureServiceCollectionExtensions.cs"] =
             new(1, CategoriaUso.Comentario, ":440 — documenta que NO se consulta a propósito"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs"] =
