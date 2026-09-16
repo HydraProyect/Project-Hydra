@@ -1,5 +1,4 @@
 using CaeManager.Application.Common;
-using CaeManager.Application.Documentos;
 using CaeManager.Application.Documentos.Eventos;
 using CaeManager.Application.Proyectos;
 using CaeManager.Application.TiposDocumento;
@@ -9,31 +8,18 @@ using CaeManager.Domain.DocumentosIa;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
-namespace CaeManager.Application.Documentos.Commands.AplicarDeteccionIaDocumento;
+namespace CaeManager.Application.Documentos.Commands.CorregirRevisionIaDocumento;
 
 /// <summary>
-/// Fase D ("Aceptar lo detectado por la IA"): a diferencia de
-/// <see cref="Documentos.Commands.ResolverRevisionIaDocumento.ResolverRevisionIaDocumentoCommand"/>
-/// (que deliberadamente nunca toca el Documento — ver Issue #19), este
-/// Command sí lo renueva con lo que detectó la IA, para el caso contrario:
-/// el gestor revisa el aviso y está de acuerdo con lo que la IA leyó, así
-/// que aceptarlo no debería obligar a abrir el Drawer de Documento y
-/// escribir la misma fecha a mano.
-///
-/// Reutiliza exactamente la regla de <c>RenovarDocumentoCommandHandler</c>
-/// para el vencimiento: si el TipoDocumento calcula la vigencia
-/// automáticamente, se recalcula desde la fecha de emisión detectada (la
-/// fecha de vencimiento es siempre un cálculo, nunca un dato de entrada —
-/// ver DATABASE.md); solo si no aplica cálculo automático se usa la fecha de
-/// vencimiento que detectó la IA.
-///
-/// Si hay una AuditoriaExtraccionIa ligada al Documento sin decisión
-/// todavía, queda registrada como <see cref="DecisionHumanaIa.ConfirmadaManual"/>
-/// (MACRO_PLAN § 6.6, "¿qué hizo la IA y quién lo confirmó?").
+/// Corrige manualmente la fecha de emisión de un Documento y resuelve su
+/// revisión IA en el mismo <see cref="IUnitOfWork"/>. No modifica el archivo ni
+/// convierte la firma detectada en una firma: esos datos no los produce este
+/// flujo. Usa la misma autorización por <see cref="ICommand"/> que
+/// AplicarDeteccionIaDocumentoCommand.
 /// </summary>
-public record AplicarDeteccionIaDocumentoCommand(Guid RevisionId) : ICommand;
+public record CorregirRevisionIaDocumentoCommand(Guid RevisionId, DateOnly FechaEmision) : ICommand;
 
-public class AplicarDeteccionIaDocumentoCommandHandler(
+public class CorregirRevisionIaDocumentoCommandHandler(
     IRevisionIaDocumentoRepository revisionRepositorio,
     IDocumentoRepository documentoRepositorio,
     IAprobacionDocumentoRepository aprobacionRepositorio,
@@ -42,10 +28,11 @@ public class AplicarDeteccionIaDocumentoCommandHandler(
     IAlcanceDatosService alcanceDatos,
     IProyectosQueryContext proyectosContext,
     ICurrentUserService currentUserService,
-    IPublisher publisher, IUnitOfWork unitOfWork)
-    : IRequestHandler<AplicarDeteccionIaDocumentoCommand, Result>
+    IPublisher publisher,
+    IUnitOfWork unitOfWork)
+    : IRequestHandler<CorregirRevisionIaDocumentoCommand, Result>
 {
-    public async Task<Result> Handle(AplicarDeteccionIaDocumentoCommand request, CancellationToken cancellationToken)
+    public async Task<Result> Handle(CorregirRevisionIaDocumentoCommand request, CancellationToken cancellationToken)
     {
         var revision = await revisionRepositorio.ObtenerPorIdAsync(request.RevisionId, cancellationToken);
         if (revision is null)
@@ -53,10 +40,6 @@ public class AplicarDeteccionIaDocumentoCommandHandler(
 
         if (revision.Resuelta)
             return Result.Fallo(Error.Crear("RevisionIa.YaResuelta", "Esta revisión ya fue gestionada."));
-
-        if (revision.FechaEmisionDetectada is null)
-            return Result.Fallo(Error.Crear(
-                "RevisionIa.SinFechaDetectada", "La IA no detectó una fecha de emisión que aplicar — corrige el documento a mano."));
 
         var documento = await documentoRepositorio.ObtenerPorIdAsync(revision.DocumentoId, cancellationToken);
         if (documento is null || !await alcanceDatos.DocumentoVisibleAsync(documento, proyectosContext, cancellationToken))
@@ -69,26 +52,24 @@ public class AplicarDeteccionIaDocumentoCommandHandler(
 
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
         if (usuarioId is null)
-            return Result.Fallo(Error.Crear("RevisionIa.SinUsuario", "No pudimos identificar quién acepta esta revisión."));
+            return Result.Fallo(Error.Crear("RevisionIa.SinUsuario", "No pudimos identificar quién corrige esta revisión."));
 
-        var fechaEmision = revision.FechaEmisionDetectada.Value;
         var fechaVencimiento = tipoDocumento.AplicaVencimientoAutomatico
-            ? CalculadoraEstadoDocumento.CalcularFechaVencimiento(fechaEmision, tipoDocumento.VigenciaMeses)
-            : revision.FechaVencimientoDetectada;
+            ? CalculadoraEstadoDocumento.CalcularFechaVencimiento(request.FechaEmision, tipoDocumento.VigenciaMeses)
+            : documento.FechaVencimiento;
 
-        documento.Renovar(fechaEmision, fechaVencimiento);
+        documento.Renovar(request.FechaEmision, fechaVencimiento);
         revision.Resolver();
         aprobacionRepositorio.Agregar(AprobacionDocumento.CrearManual(revision.DocumentoId, revision.ConfianzaGeneral, usuarioId.Value));
 
-        // Solo se decide sobre la auditoría que generó la revisión, nunca
-        // sobre la última extracción que comparta documento.
+        // Las revisiones históricas sin vínculo no eligen una auditoría por
+        // fecha: sería atribuirles otra extracción del mismo documento.
         var auditoria = revision.AuditoriaExtraccionIaId is { } auditoriaId
             ? await auditoriaRepositorio.ObtenerPorIdAsync(auditoriaId, cancellationToken)
             : null;
-        auditoria?.RegistrarDecisionHumana(DecisionHumanaIa.ConfirmadaManual, usuarioId.Value);
+        auditoria?.RegistrarDecisionHumana(DecisionHumanaIa.DescartadaManual, usuarioId.Value);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
-
         await publisher.Publish(new DocumentacionCambiadaEvent(revision.DocumentoId), cancellationToken);
 
         return Result.Exito();

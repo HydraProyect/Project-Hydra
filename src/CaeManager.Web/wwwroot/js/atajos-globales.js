@@ -6,6 +6,8 @@
 // Debe coincidir exactamente con las claves de CatalogoAtajos.DestinosNavegacion
 // (C# no puede leer este array ni viceversa — CatalogoAtajosSincronizadoConJsTests
 // vigila el emparejamiento leyendo este fichero como texto).
+import { hayDialogoModalAbierto } from './atajos-contexto.js';
+
 const TECLAS_DESTINO = ['c', 'e', 't', 'd', 'a', 'b', 'p', 'i'];
 const VENTANA_PREFIJO_MS = 900;
 
@@ -22,9 +24,13 @@ export function registrarAtajosGlobales(dotNetRef) {
     };
 
     const manejador = (evento) => {
+        if (evento.defaultPrevented || evento.isComposing || hayDialogoModalAbierto()) {
+            limpiarPrefijo();
+            return;
+        }
         const activo = document.activeElement;
         const enCampoEditable = activo && (
-            activo.tagName === 'INPUT' || activo.tagName === 'TEXTAREA' || activo.isContentEditable
+            activo.tagName === 'INPUT' || activo.tagName === 'TEXTAREA' || activo.tagName === 'SELECT' || activo.isContentEditable
         );
         if (enCampoEditable) {
             limpiarPrefijo();

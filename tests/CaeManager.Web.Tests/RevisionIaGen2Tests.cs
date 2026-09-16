@@ -1,6 +1,7 @@
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Documentos.Commands.AplicarDeteccionIaDocumento;
+using CaeManager.Application.Documentos.Commands.CorregirRevisionIaDocumento;
 using CaeManager.Application.Documentos.Commands.ResolverRevisionIaDocumento;
 using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes;
 using CaeManager.Domain.Common;
@@ -27,6 +28,7 @@ public class RevisionIaGen2Tests : BunitContext
         public Func<object, Task?>? Retener { get; set; }
         public Func<AplicarDeteccionIaDocumentoCommand, Result>? AlAplicar { get; set; }
         public Func<ResolverRevisionIaDocumentoCommand, Result>? AlResolver { get; set; }
+        public Func<CorregirRevisionIaDocumentoCommand, Result>? AlCorregir { get; set; }
 
         public async Task<T> Send<T>(IRequest<T> request, CancellationToken cancellationToken = default)
         {
@@ -41,6 +43,7 @@ public class RevisionIaGen2Tests : BunitContext
                 ObtenerRevisionesIaPendientesQuery => Revisiones,
                 AplicarDeteccionIaDocumentoCommand c => AlAplicar?.Invoke(c) ?? Result.Exito(),
                 ResolverRevisionIaDocumentoCommand c => AlResolver?.Invoke(c) ?? Result.Exito(),
+                CorregirRevisionIaDocumentoCommand c => AlCorregir?.Invoke(c) ?? Result.Exito(),
                 _ => throw new NotSupportedException(request.GetType().Name)
             };
             return (T)respuesta!;
@@ -88,7 +91,103 @@ public class RevisionIaGen2Tests : BunitContext
         filas.Select(f => f.TextContent).Should().OnlyContain(t => t.Contains("Formación PRL"), "cada fila expone el tipo que trae el DTO");
         cut.Markup.Should().Contain("Montajes Norte").And.Contain("Empresa");
         cut.Markup.Should().Contain("Ana Ríos").And.Contain("Trabajador");
-        cut.Markup.Should().NotContain("Corregir a mano", "no existe un comando que actualice manualmente la fecha y cierre la revisión");
+        Boton(cut, "Corregir a mano…").Should().NotBeNull("la corrección manual existe para la revisión seleccionada");
+    }
+
+    [Fact]
+    public void El_detalle_compara_todo_lo_leido_con_lo_introducido_y_expone_los_datos_persistidos()
+    {
+        var fechaIntroducida = new DateOnly(2026, 9, 1);
+        var revision = Revision("Ana Ríos", 80, new DateOnly(2026, 8, 1), Guid.NewGuid()) with
+        {
+            FechaVencimientoDetectada = new DateOnly(2027, 8, 1),
+            TieneFirmaDetectada = true,
+            FechaEmisionIntroducida = fechaIntroducida,
+            FechaVencimientoIntroducida = new DateOnly(2027, 9, 1),
+            NumeroPaginas = 3
+        };
+        var cut = Renderizar(new MediadorFalso { Revisiones = [revision] });
+
+        var filas = cut.FindAll(".revision-ia-fila").ToList();
+        filas.Should().ContainSingle("control positivo: hay una revisión seleccionable");
+        var detalle = cut.Find(".revision-ia-detalle").TextContent;
+        detalle.Should().Contain("Introducida: 01/09/2026").And.Contain("Leída: 01/08/2026")
+            .And.Contain("Introducida: 01/09/2027").And.Contain("Leída: 01/08/2027")
+            .And.Contain("Leída: Detectada").And.Contain("Páginas del documento").And.Contain("3")
+            .And.Contain("Región de firma").And.Contain("No disponible en la extracción actual");
+    }
+
+    [Fact]
+    public async Task Corregir_a_mano_envia_un_solo_command_con_la_fecha_y_cierra_la_revision()
+    {
+        var revision = Revision("A corregir", 80, new DateOnly(2026, 8, 1)) with
+        {
+            FechaEmisionIntroducida = new DateOnly(2026, 9, 1)
+        };
+        var mediador = new MediadorFalso { Revisiones = [revision] };
+        var cut = Renderizar(mediador);
+
+        await Boton(cut, "Corregir a mano…").ClickAsync(new MouseEventArgs());
+        cut.FindComponents<Drawer>().Should().ContainSingle(d => d.Instance.Visible);
+        await Boton(cut, "Guardar y cerrar el aviso").ClickAsync(new MouseEventArgs());
+
+        var enviada = mediador.Enviadas.OfType<CorregirRevisionIaDocumentoCommand>()
+            .Should().ContainSingle("control positivo: guardar la corrección alcanza el nuevo command").Subject;
+        enviada.RevisionId.Should().Be(revision.Id);
+        enviada.FechaEmision.Should().Be(new DateOnly(2026, 9, 1));
+        cut.FindComponents<Drawer>().Should().ContainSingle(d => !d.Instance.Visible, "el éxito cierra el drawer");
+        Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle(m => m.Tono == TonoToast.Exito && m.Mensaje.Contains("corregido"));
+        mediador.Enviadas.OfType<ObtenerRevisionesIaPendientesQuery>().Should().HaveCount(2, "el éxito recarga la cola");
+    }
+
+    [Fact]
+    public async Task Corregir_a_mano_fallido_mantiene_el_drawer_abierto_muestra_error_y_no_recarga()
+    {
+        var revision = Revision("A corregir", 80, new DateOnly(2026, 8, 1)) with
+        {
+            FechaEmisionIntroducida = new DateOnly(2026, 9, 1)
+        };
+        var mediador = new MediadorFalso
+        {
+            Revisiones = [revision],
+            AlCorregir = _ => Result.Fallo(Error.Crear("RevisionIa.Fallo", "No se pudo corregir."))
+        };
+        var cut = Renderizar(mediador);
+
+        await Boton(cut, "Corregir a mano…").ClickAsync(new MouseEventArgs());
+        await Boton(cut, "Guardar y cerrar el aviso").ClickAsync(new MouseEventArgs());
+
+        cut.FindComponents<Drawer>().Should().ContainSingle(d => d.Instance.Visible, "un fallo conserva el contexto de corrección");
+        Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle(m => m.Tono == TonoToast.Error && m.Mensaje.Contains("No se pudo corregir."));
+        mediador.Enviadas.OfType<ObtenerRevisionesIaPendientesQuery>().Should().ContainSingle("control positivo: el fallo no recarga la cola");
+    }
+
+    [Fact]
+    public async Task La_guarda_del_panel_bloquea_la_segunda_correccion_manual()
+    {
+        var inicio = new TaskCompletionSource();
+        var espera = new TaskCompletionSource();
+        var revision = Revision("Corrección concurrente", 80, new DateOnly(2026, 8, 1)) with
+        {
+            FechaEmisionIntroducida = new DateOnly(2026, 9, 1)
+        };
+        var mediador = new MediadorFalso
+        {
+            Revisiones = [revision],
+            Retener = r => r is CorregirRevisionIaDocumentoCommand ? EsperarComandoAsync(inicio, espera) : null
+        };
+        var cut = Renderizar(mediador);
+        await Boton(cut, "Corregir a mano…").ClickAsync(new MouseEventArgs());
+
+        var primera = InvocarPrivadoAsync(cut, "CorregirSeleccionadaAsync");
+        await inicio.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var segunda = InvocarPrivadoAsync(cut, "CorregirSeleccionadaAsync");
+        mediador.Enviadas.OfType<CorregirRevisionIaDocumentoCommand>().Should().ContainSingle(
+            "control positivo: la primera corrección alcanzó el command");
+
+        espera.SetResult();
+        await primera.WaitAsync(TimeSpan.FromSeconds(10));
+        await segunda.WaitAsync(TimeSpan.FromSeconds(10));
     }
 
     [Fact]

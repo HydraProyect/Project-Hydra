@@ -76,13 +76,50 @@ public class RevisionIaDocumentoTests : IAsyncLifetime
         var alcance = new AlcanceDatosServiceFalso(trabajadorIds: [_trabajadorVisible.Id]);
         var handler = new ObtenerRevisionesIaPendientesQueryHandler(
             _dbContext, _dbContext, _dbContext, _dbContext,
-            new ResolverClientePrincipalService(_dbContext, _dbContext, _dbContext), alcance);
+            new ResolverClientePrincipalService(_dbContext, _dbContext, _dbContext), alcance, _dbContext);
 
         var resultado = await handler.Handle(new ObtenerRevisionesIaPendientesQuery(), CancellationToken.None);
 
         resultado.Should().ContainSingle();
         resultado[0].Id.Should().Be(_revisionVisible.Id);
         resultado[0].PropietarioNombre.Should().Contain(_trabajadorVisible.Nombre);
+    }
+
+    [Fact]
+    public async Task La_query_proyecta_las_paginas_de_la_auditoria_ligada_expresamente_a_la_revision()
+    {
+        var auditoria = AuditoriaExtraccionIa.Crear(
+            new string('b', AuditoriaExtraccionIa.LongitudHash), "Apto médico", "anthropic", 700,
+            null, 0.01m, 4, _revisionVisible.ConfianzaGeneral, null, _revisionVisible.DocumentoId);
+        _dbContext.AuditoriasExtraccionIa.Add(auditoria);
+        _revisionVisible.VincularAuditoriaExtraccionIa(auditoria.Id);
+        await _dbContext.SaveChangesAsync();
+        var alcance = new AlcanceDatosServiceFalso(trabajadorIds: [_trabajadorVisible.Id]);
+        var handler = new ObtenerRevisionesIaPendientesQueryHandler(
+            _dbContext, _dbContext, _dbContext, _dbContext,
+            new ResolverClientePrincipalService(_dbContext, _dbContext, _dbContext), alcance, _dbContext);
+
+        var resultado = await handler.Handle(new ObtenerRevisionesIaPendientesQuery(), CancellationToken.None);
+
+        resultado.Should().ContainSingle("control positivo: el alcance entrega la revisión visible");
+        resultado[0].NumeroPaginas.Should().Be(4);
+    }
+
+    [Fact]
+    public async Task La_query_no_atribuye_las_paginas_de_otra_extraccion_del_mismo_documento()
+    {
+        var auditoriaDeRevision = AuditoriaExtraccionIa.Crear(new string('c', AuditoriaExtraccionIa.LongitudHash), "Apto médico", "anthropic", 700, null, 0.01m, 4, 62, null, _revisionVisible.DocumentoId);
+        var auditoriaPosterior = AuditoriaExtraccionIa.Crear(new string('d', AuditoriaExtraccionIa.LongitudHash), "Apto médico", "anthropic", 700, null, 0.01m, 9, 62, null, _revisionVisible.DocumentoId);
+        _revisionVisible.VincularAuditoriaExtraccionIa(auditoriaDeRevision.Id);
+        _dbContext.AuditoriasExtraccionIa.AddRange(auditoriaDeRevision, auditoriaPosterior);
+        await _dbContext.SaveChangesAsync();
+        var handler = new ObtenerRevisionesIaPendientesQueryHandler(_dbContext, _dbContext, _dbContext, _dbContext,
+            new ResolverClientePrincipalService(_dbContext, _dbContext, _dbContext), new AlcanceDatosServiceFalso(trabajadorIds: [_trabajadorVisible.Id]), _dbContext);
+
+        var resultado = await handler.Handle(new ObtenerRevisionesIaPendientesQuery(), CancellationToken.None);
+
+        resultado.Should().ContainSingle("control positivo: el alcance entrega la revisión visible");
+        resultado[0].NumeroPaginas.Should().Be(4, "la revisión usa su auditoría explícita, no la extracción más reciente del documento");
     }
 
     [Fact]
@@ -112,6 +149,7 @@ public class RevisionIaDocumentoTests : IAsyncLifetime
             new string('a', AuditoriaExtraccionIa.LongitudHash), "Apto médico", "anthropic", 700,
             null, 0.01m, 1, _revisionVisible.ConfianzaGeneral, null, _revisionVisible.DocumentoId);
         _dbContext.AuditoriasExtraccionIa.Add(auditoria);
+        _revisionVisible.VincularAuditoriaExtraccionIa(auditoria.Id);
         await _dbContext.SaveChangesAsync();
 
         var alcance = new AlcanceDatosServiceFalso(trabajadorIds: [_trabajadorVisible.Id]);
