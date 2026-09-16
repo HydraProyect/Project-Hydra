@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Reflection;
 using System.Security.Claims;
 using System.Text;
@@ -15,6 +16,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -56,6 +58,8 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
 {
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private ServiceProvider _servicios = null!;
+    private InterceptorConteoGuardadosAspNetUsers _interceptorUpdates = null!;
+    private InterceptorConteoUpdatesRealesAspNetUsers _interceptorSql = null!;
 
     public async Task InitializeAsync()
     {
@@ -68,8 +72,11 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
         // entidades — ninguno de los caminos bajo prueba la consulta.
         servicios.AddSingleton<ITenantActual>(new SinTenantActual());
 
+        _interceptorUpdates = new InterceptorConteoGuardadosAspNetUsers();
+        _interceptorSql = new InterceptorConteoUpdatesRealesAspNetUsers();
         servicios.AddDbContext<CaeManagerDbContext>(opciones => opciones
-            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL")));
+            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            .AddInterceptors(_interceptorUpdates, _interceptorSql));
 
         servicios.AddScoped<PuertaAccesoDatos>();
         servicios.AddScoped<IDesenganchadorDeEntidadesRastreadas>(sp => sp.GetRequiredService<CaeManagerDbContext>());
@@ -83,6 +90,8 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
         using var ambito = _servicios.CreateScope();
         var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
         await contexto.Database.MigrateAsync();
+        _interceptorUpdates.Reiniciar();
+        _interceptorSql.Reiniciar();
     }
 
     public Task DisposeAsync() => BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
@@ -127,6 +136,8 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
             InvocarSync(pagina1, "OnInitialized");
             await InvocarAsync(pagina1, "OnInitializedAsync");
             RellenarEntrada(pagina1, ContrasenaNuevaPrimerIntento);
+            _interceptorUpdates.Reiniciar();
+            _interceptorSql.Reiniciar();
             await InvocarAsync(pagina1, "GuardarAsync");
 
             LeerCampo<bool>(pagina1, "_enlaceInvalido").Should().BeFalse(
@@ -135,6 +146,25 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
         }
         cerrojo1.ClaveRecibida.Should().Be($"credencial:{usuario.Id}",
             "la clave compartida con CambiarContrasena — y explícitamente NO con verificar-2fa:{userId}");
+
+        // HUECO B (revisión de #657): la consolidación de DebeCambiarContrasena
+        // tiene que dejar UNA sola escritura de AspNetUsers por éxito. Sensible
+        // a la regresión que reintroduce un UpdateAsync separado para la
+        // bandera: ese estado parcial dejaría 2 comandos en vez de 1.
+        _interceptorUpdates.Rondas.Should().HaveCount(1,
+            "el éxito tiene que persistir la contraseña y DebeCambiarContrasena en la MISMA actualización, " +
+            "no en dos UpdateAsync separados");
+        _interceptorUpdates.Rondas[0].PasswordHashModificado.Should().BeTrue();
+        _interceptorUpdates.Rondas[0].DebeCambiarContrasenaModificado.Should().BeTrue(
+            "esa única ronda tiene que incluir a la vez el hash de contraseña y la bandera consolidada");
+        // Complemento pedido por Codex al revisar este incremento: el SaveChangesInterceptor
+        // de arriba demuestra la RONDA planificada por el ChangeTracker, no la ejecución SQL
+        // física — Npgsql EF Core 10.0.3 no usa DbBatch para este flujo (NpgsqlModificationCommandBatch
+        // hereda de ReaderModificationCommandBatch y ejecuta el lote con ExecuteReaderAsync, no
+        // ExecuteNonQueryAsync), así que el UPDATE real se observa en ReaderExecuted[Async].
+        _interceptorSql.Conteo.Should().Be(1,
+            "tiene que haber exactamente un UPDATE real de AspNetUsers ejecutado contra Postgres, " +
+            "no uno por la contraseña y otro separado por DebeCambiarContrasena");
 
         string securityStampTrasExito;
         using (var ambitoVerificacion1 = _servicios.CreateScope())
@@ -236,6 +266,8 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
             var pagina1 = CrearCambiar(ambito1.ServiceProvider, usuario.Id, cerrojo1);
             InvocarSync(pagina1, "OnInitialized");
             RellenarEntradaCambio(pagina1, ContrasenaActual, ContrasenaNuevaPrimerIntento);
+            _interceptorUpdates.Reiniciar();
+            _interceptorSql.Reiniciar();
             await InvocarAsync(pagina1, "CambiarContrasenaAsync");
 
             LeerCampo<string?>(pagina1, "mensajeError").Should().BeNull(
@@ -243,6 +275,19 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
         }
         cerrojo1.ClaveRecibida.Should().Be($"credencial:{usuario.Id}",
             "la clave compartida con RestablecerContrasena — y explícitamente NO con verificar-2fa:{userId}");
+
+        // HUECO B (revisión de #657): mismo razonamiento que en Restablecer —
+        // una sola escritura de AspNetUsers por éxito.
+        _interceptorUpdates.Rondas.Should().HaveCount(1,
+            "el éxito tiene que persistir la contraseña y DebeCambiarContrasena en la MISMA actualización, " +
+            "no en dos UpdateAsync separados");
+        _interceptorUpdates.Rondas[0].PasswordHashModificado.Should().BeTrue();
+        _interceptorUpdates.Rondas[0].DebeCambiarContrasenaModificado.Should().BeTrue(
+            "esa única ronda tiene que incluir a la vez el hash de contraseña y la bandera consolidada");
+        // Complemento pedido por Codex al revisar este incremento — mismo razonamiento que en Restablecer.
+        _interceptorSql.Conteo.Should().Be(1,
+            "tiene que haber exactamente un UPDATE real de AspNetUsers ejecutado contra Postgres, " +
+            "no uno por la contraseña y otro separado por DebeCambiarContrasena");
 
         string securityStampTrasExito;
         using (var ambitoVerificacion1 = _servicios.CreateScope())
@@ -293,6 +338,54 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
         usuarioFinal!.SecurityStamp.Should().Be(securityStampTrasExito,
             "un intento rechazado por PasswordMismatch no llega a persistir nada: el SecurityStamp no puede rotar de nuevo");
         usuarioFinal.DebeCambiarContrasena.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// HUECO A (revisión de #657, Codex): el <c>userId</c> viaja sin cifrar en
+    /// la URL del enlace, así que cualquiera puede construir uno con un
+    /// <c>userId</c> real y un <c>code</c> inventado. Antes de este arreglo el
+    /// cerrojo <c>credencial:{userId}</c> se adquiría ANTES de que
+    /// <c>ResetPasswordAsync</c> decidiera que el token no era válido — una
+    /// interferencia momentánea contra el titular real. La prevalidación con
+    /// <c>VerifyUserTokenAsync</c> tiene que rechazar el token sin haber
+    /// intentado adquirir el cerrojo ni una sola vez.
+    ///
+    /// <para>
+    /// <b>Sensibilidad</b> (verificada a mano: verde → mutación → rojo por el
+    /// motivo esperado → revertir): quitar el bloque de prevalidación de
+    /// <c>RestablecerContrasena.razor.cs</c> (dejando que <c>GuardarAsync</c>
+    /// pase directo al cerrojo) hace que <c>cerrojo.Invocaciones</c> pase de 0
+    /// a 1 — <c>ResetPasswordAsync</c> seguiría rechazando el token dentro del
+    /// cerrojo y el desenlace visible (<c>_enlaceInvalido == true</c>) no
+    /// cambia, así que solo el conteo de invocaciones detecta la regresión.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task Restablecer_con_token_invalido_y_userId_real_no_intenta_adquirir_el_cerrojo()
+    {
+        using var ambitoSiembra = _servicios.CreateScope();
+        var usuario = await CrearUsuarioAsync(ambitoSiembra.ServiceProvider);
+
+        // Token inventado: no es un token de Identity real para este usuario
+        // (ni de otro), solo bytes cualesquiera codificados como espera el
+        // parámetro `code` de la URL.
+        var codigoInventado = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes("no-es-un-token-real"));
+
+        var cerrojo = new CerrojoSiempreConcedidoFalso();
+        using var ambito = _servicios.CreateScope();
+        var pagina = CrearRestablecer(ambito.ServiceProvider, usuario.Id, codigoInventado, cerrojo);
+        InvocarSync(pagina, "OnInitialized");
+        await InvocarAsync(pagina, "OnInitializedAsync");
+        RellenarEntrada(pagina, "Passw0rd!Nueva1");
+        await InvocarAsync(pagina, "GuardarAsync");
+
+        LeerCampo<bool>(pagina, "_enlaceInvalido").Should().BeTrue(
+            "un token inventado tiene que caer en el mismo desenlace que un enlace inválido — sin distinguir " +
+            "el motivo exacto, mismo criterio de no-enumeración que el resto de la página");
+        LeerCampo<bool>(pagina, "_completado").Should().BeFalse();
+        cerrojo.Invocaciones.Should().Be(0,
+            "HUECO A: el token se rechaza en la prevalidación, ANTES de competir por el cerrojo — un token " +
+            "inventado con un userId real no debe poder ocupar `credencial:{userId}` ni brevemente");
     }
 
     private static async Task<ApplicationUser> CrearUsuarioAsync(IServiceProvider servicios)
@@ -426,12 +519,127 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
         /// </summary>
         public string? ClaveRecibida { get; private set; }
 
+        /// <summary>Cuántas veces se intentó adquirir el cerrojo — HUECO A: debe quedarse en 0 ante un token inválido.</summary>
+        public int Invocaciones { get; private set; }
+
         public async Task<bool> IntentarEjecutarComoLiderAsync(
             string clave, Func<CancellationToken, Task> trabajo, CancellationToken cancellationToken)
         {
             ClaveRecibida = clave;
+            Invocaciones++;
             await trabajo(cancellationToken);
             return true;
+        }
+    }
+
+    /// <summary>
+    /// Cuenta las rondas de <c>SaveChanges[Async]</c> que EF ejecuta con un
+    /// <c>ApplicationUser</c> en estado <c>Modified</c> — HUECO B (revisión de
+    /// #657): comprueba que la consolidación de <c>DebeCambiarContrasena</c>
+    /// deja EXACTAMENTE una ronda por éxito, con las dos propiedades
+    /// modificadas a la vez, no la contraseña en un <c>UpdateAsync</c> y la
+    /// bandera en otro separado.
+    ///
+    /// <para>
+    /// Mide en el nivel del <c>ChangeTracker</c> (qué propiedades EF decide
+    /// persistir), no el SQL ejecutado — eso lo complementa
+    /// <see cref="InterceptorConteoUpdatesRealesAspNetUsers"/> más abajo, que sí
+    /// cuenta el <c>UPDATE</c> físico. Esta clase demuestra la mitad
+    /// "qué se decidió guardar"; la otra, "qué se ejecutó de verdad" — hacen
+    /// falta las dos para que la consolidación quede probada de extremo a
+    /// extremo.
+    /// </para>
+    ///
+    /// Solo cuenta a partir de <see cref="Reiniciar"/>: <c>InitializeAsync</c>
+    /// también dispara guardados (migraciones, siembra) que no son los que
+    /// este contrato mide.
+    /// </summary>
+    private sealed class InterceptorConteoGuardadosAspNetUsers : SaveChangesInterceptor
+    {
+        private readonly List<RondaGuardado> _rondas = [];
+
+        public IReadOnlyList<RondaGuardado> Rondas => _rondas;
+
+        public void Reiniciar() => _rondas.Clear();
+
+        public override InterceptionResult<int> SavingChanges(DbContextEventData eventData, InterceptionResult<int> result)
+        {
+            Registrar(eventData.Context);
+            return base.SavingChanges(eventData, result);
+        }
+
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            Registrar(eventData.Context);
+            return base.SavingChangesAsync(eventData, result, cancellationToken);
+        }
+
+        private void Registrar(DbContext? contexto)
+        {
+            if (contexto is null) return;
+            foreach (var entrada in contexto.ChangeTracker.Entries<ApplicationUser>())
+            {
+                if (entrada.State != EntityState.Modified) continue;
+                _rondas.Add(new RondaGuardado(
+                    entrada.Property(nameof(ApplicationUser.PasswordHash)).IsModified,
+                    entrada.Property(nameof(ApplicationUser.DebeCambiarContrasena)).IsModified));
+            }
+        }
+    }
+
+    private sealed record RondaGuardado(bool PasswordHashModificado, bool DebeCambiarContrasenaModificado);
+
+    /// <summary>
+    /// Cuenta los <c>UPDATE "AspNetUsers"</c> que Postgres ejecuta de verdad —
+    /// el complemento de <see cref="InterceptorConteoGuardadosAspNetUsers"/>
+    /// que faltaba (hallazgo de Codex al revisar este incremento): el
+    /// <c>ChangeTracker</c> demuestra qué se decidió guardar, no que la
+    /// escritura física ocurriera una sola vez.
+    ///
+    /// <para>
+    /// Engancha en <c>ReaderExecuted[Async]</c>, no en
+    /// <c>NonQueryExecuting[Async]</c>: Npgsql EF Core 10.0.3 no usa
+    /// <c>DbBatch</c> para este flujo — <c>NpgsqlModificationCommandBatch</c>
+    /// hereda de <c>ReaderModificationCommandBatch</c> y ejecuta el lote de
+    /// modificación con <c>ExecuteReaderAsync</c>, no con
+    /// <c>ExecuteNonQueryAsync</c>. Un interceptor enganchado en
+    /// <c>NonQueryExecuting[Async]</c> (probado primero) capturaba 0 comandos
+    /// con una escritura real ejecutándose — no porque EF batchee distinto,
+    /// sino porque ese era el callback equivocado para este proveedor.
+    /// </para>
+    ///
+    /// Solo cuenta a partir de <see cref="Reiniciar"/>, mismo motivo que
+    /// <see cref="InterceptorConteoGuardadosAspNetUsers"/>.
+    /// </summary>
+    private sealed class InterceptorConteoUpdatesRealesAspNetUsers : DbCommandInterceptor
+    {
+        private int _conteo;
+
+        public int Conteo => _conteo;
+
+        public void Reiniciar() => _conteo = 0;
+
+        public override DbDataReader ReaderExecuted(DbCommand command, CommandExecutedEventData eventData, DbDataReader result)
+        {
+            Registrar(command);
+            return base.ReaderExecuted(command, eventData, result);
+        }
+
+        public override ValueTask<DbDataReader> ReaderExecutedAsync(
+            DbCommand command, CommandExecutedEventData eventData, DbDataReader result,
+            CancellationToken cancellationToken = default)
+        {
+            Registrar(command);
+            return base.ReaderExecutedAsync(command, eventData, result, cancellationToken);
+        }
+
+        private void Registrar(DbCommand command)
+        {
+            if (command.CommandText.Contains("UPDATE \"AspNetUsers\"", StringComparison.Ordinal))
+            {
+                _conteo++;
+            }
         }
     }
 
