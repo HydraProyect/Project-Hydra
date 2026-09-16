@@ -1,4 +1,5 @@
 @using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes
+@using CaeManager.Application.Documentos.Commands.CorregirRevisionIaDocumento
 @using CaeManager.Web.Components.DesignSystem
 @using MediatR
 @inject IMediator Mediator
@@ -142,12 +143,31 @@
                             <dl>
                                 <div>
                                     <dt>Tipo de documento</dt>
-                                    <dd>@seleccionada.TipoDocumentoNombre</dd>
-                                    <dd>@(seleccionada.TipoDetectado ?? "No determinado")</dd>
+                                    <dd>Introducido: @seleccionada.TipoDocumentoNombre</dd>
+                                    <dd>Leído: @(seleccionada.TipoDetectado ?? "No determinado")</dd>
                                 </div>
                                 <div>
-                                    <dt>Fecha de emisión detectada</dt>
-                                    <dd>@(seleccionada.FechaEmisionDetectada?.ToString("dd/MM/yyyy") ?? "No detectada")</dd>
+                                    <dt>Fecha de emisión</dt>
+                                    <dd>Introducida: @Fecha(seleccionada.FechaEmisionIntroducida)</dd>
+                                    <dd>Leída: @Fecha(seleccionada.FechaEmisionDetectada)</dd>
+                                </div>
+                                <div>
+                                    <dt>Fecha de vencimiento</dt>
+                                    <dd>Introducida: @Fecha(seleccionada.FechaVencimientoIntroducida)</dd>
+                                    <dd>Leída: @Fecha(seleccionada.FechaVencimientoDetectada)</dd>
+                                </div>
+                                <div>
+                                    <dt>Firma</dt>
+                                    <dd>Introducida: No se solicita al subir</dd>
+                                    <dd>Leída: @Firma(seleccionada.TieneFirmaDetectada)</dd>
+                                </div>
+                                <div>
+                                    <dt>Páginas del documento</dt>
+                                    <dd>@(seleccionada.NumeroPaginas?.ToString() ?? "No disponibles")</dd>
+                                </div>
+                                <div>
+                                    <dt>Región de firma</dt>
+                                    <dd>No disponible en la extracción actual</dd>
                                 </div>
                             </dl>
                             @if (seleccionada.FechaEmisionDetectada is not null)
@@ -172,6 +192,12 @@
                                 <Boton
                                     Variante="VarianteBoton.Secundario"
                                     Cargando="@(_procesandoId == seleccionada.Id)"
+                                    OnClick="PrepararCorreccionManual">
+                                    Corregir a mano…
+                                </Boton>
+                                <Boton
+                                    Variante="VarianteBoton.Secundario"
+                                    Cargando="@(_procesandoId == seleccionada.Id)"
                                     OnClick="PrepararDescartar">
                                     Descartar la lectura
                                 </Boton>
@@ -183,6 +209,21 @@
         </div>
     }
 </section>
+<Drawer Visible="_correccionManualVisible" VisibleChanged="v => _correccionManualVisible = v" Titulo="Corregir a mano" CerrarAlHacerClicFuera="@(!_operacionEnCurso)">
+    <ChildContent>
+        @if (RevisionSeleccionada is { } seleccionada)
+        {
+            <p>@seleccionada.PropietarioNombre · @seleccionada.TipoDocumentoNombre</p>
+            <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@_fechaEmisionManual" ValorChanged="v => _fechaEmisionManual = v" MensajeError="@_errorFechaManual" />
+            <p class="revision-ia-consecuencia">La IA leyó: @Fecha(seleccionada.FechaEmisionDetectada)</p>
+            <p class="revision-ia-consecuencia">Guardar corrige la fecha y cierra el aviso en una sola operación. El vencimiento se recalcula solo cuando el tipo lo hace automáticamente.</p>
+        }
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_operacionEnCurso" OnClick="CerrarCorreccionManual">Cancelar</Boton>
+        <Boton Cargando="@(_procesandoId == _revisionIdSeleccionada)" OnClick="CorregirSeleccionadaAsync">Guardar y cerrar el aviso</Boton>
+    </Pie>
+</Drawer>
 <DialogoConfirmacion
     Visible="_confirmacionLoteVisible"
     VisibleChanged="v => _confirmacionLoteVisible = v"

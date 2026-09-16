@@ -15,5 +15,6 @@ public class RevisionIaDocumentoConfiguration : IEntityTypeConfiguration<Revisio
         builder.Property(r => r.Motivo).IsRequired().HasMaxLength(RevisionIaDocumento.LongitudMaximaMotivo);
 
         builder.HasIndex(r => new { r.DocumentoId, r.Resuelta });
+        builder.HasIndex(r => r.AuditoriaExtraccionIaId).IsUnique();
     }
 }
