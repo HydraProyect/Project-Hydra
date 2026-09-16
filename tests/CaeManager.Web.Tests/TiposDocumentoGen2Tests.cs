@@ -1245,4 +1245,37 @@ public class TiposDocumentoGen2Tests : BunitContext
         cut.FindAll("table.tabla-tipos tbody input[type=checkbox]:not([role=switch])").Should().BeEmpty();
         cut.FindAll(".drawer-panel").Should().BeEmpty();
     }
+
+    /// <summary>
+    /// Hallazgo de Codex sobre este incremento, RECHAZADO con este test: durante
+    /// una recarga por filtro la tabla anterior sigue pintada (aria-busy) y con
+    /// ella su botón "Editar", así que "Enter" sobre la fila enfocada abre
+    /// exactamente lo mismo que un clic en esa fila visible. Descartar el foco
+    /// mientras la fila se sigue viendo haría al teclado menos capaz que al
+    /// ratón sobre la misma pantalla. Lo que el test fija es esa equivalencia.
+    /// </summary>
+    [Fact]
+    public async Task Durante_una_recarga_Enter_abre_lo_mismo_que_pulsar_Editar_en_la_fila_visible()
+    {
+        var listaB = new TaskCompletionSource<object?>();
+        var escenario = EscenarioConTresTipos();
+        escenario.Interceptar = p => p is ObtenerTiposDocumentoQuery { ClienteId: var c } && c == ClienteB ? listaB.Task : null;
+        var (cut, _) = Renderizar(escenario);
+
+        await Atajo(cut, "j");
+        await Atajo(cut, "j");
+        NombresEnfocados(cut).Should().Equal(["Seguro de responsabilidad civil"]);
+
+        var eleccionB = ElegirCliente(cut, ClienteB);
+        NombresPintados(cut).Should().Contain("Seguro de responsabilidad civil", "la tabla anterior sigue a la vista mientras se recarga");
+
+        await Atajo(cut, "Enter");
+
+        cut.Find(".drawer-panel").TextContent.Should().Contain("Editar tipo de documento");
+        ControlDelDrawer(cut, "Nombre").GetAttribute("value").Should().Be("Seguro de responsabilidad civil",
+            "es la fila que la persona tiene delante y cuyo botón Editar sigue pulsable");
+
+        await cut.InvokeAsync(() => listaB.SetResult(new List<TipoDocumentoListaDto>()));
+        await eleccionB;
+    }
 }
