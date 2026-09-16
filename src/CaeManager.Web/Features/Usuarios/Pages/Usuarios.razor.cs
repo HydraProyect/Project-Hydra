@@ -218,6 +218,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     {
         _busqueda = valor;
         _pagina = 1;
+        _idEnfocado = null;
         return Task.CompletedTask;
     }
 
@@ -225,6 +226,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     {
         _rolFiltro = valor;
         _pagina = 1;
+        _idEnfocado = null;
         return Task.CompletedTask;
     }
 
@@ -232,6 +234,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     {
         _activacionFiltro = valor;
         _pagina = 1;
+        _idEnfocado = null;
         return Task.CompletedTask;
     }
 
@@ -241,12 +244,14 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         _rolFiltro = string.Empty;
         _activacionFiltro = string.Empty;
         _pagina = 1;
+        _idEnfocado = null;
         return Task.CompletedTask;
     }
 
     private Task IrAPaginaAsync(int pagina)
     {
         _pagina = pagina;
+        _idEnfocado = null;
         return Task.CompletedTask;
     }
 
@@ -255,7 +260,55 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     {
         _tamanoPagina = tamano;
         _pagina = 1;
+        _idEnfocado = null;
         return Task.CompletedTask;
+    }
+
+    // ---- Atajos de lista j/k/Enter (I-13 de AUDITORIA-USUARIO-AVANZADO-POST-GEN2) ----
+
+    /// <summary>
+    /// Fila enfocada por teclado, dentro de la página visible. Todo cambio de
+    /// vista —filtro o paginación— lo descarta: conservarlo devolvería el foco
+    /// a una fila que el usuario ya no tiene delante.
+    /// </summary>
+    private Guid? _idEnfocado;
+
+    private string ClaseFila(Guid id) => _idEnfocado == id ? "fila-enfocada" : string.Empty;
+
+    /// <summary>
+    /// "j"/"k" recorren la página visible y "Enter" abre la edición del usuario
+    /// enfocado — la misma acción que "Editar" en su menú. "x" no tiene efecto:
+    /// la pantalla no tiene selección múltiple, así que no hay nada que marcar,
+    /// y dársela sería una decisión de producto, no la reparación de este hueco.
+    /// </summary>
+    private async Task ManejarAtajoAsync(string tecla)
+    {
+        var visibles = UsuariosDePagina;
+        if (visibles.Count == 0) return;
+
+        var indice = -1;
+        if (_idEnfocado is not null)
+            for (var i = 0; i < visibles.Count; i++)
+                if (visibles[i].Id == _idEnfocado) indice = i;
+
+        switch (tecla)
+        {
+            case "j":
+                _idEnfocado = visibles[Math.Min(indice + 1, visibles.Count - 1)].Id;
+                break;
+            case "k":
+                _idEnfocado = visibles[indice <= 0 ? 0 : indice - 1].Id;
+                break;
+            case "Enter":
+                if (indice >= 0)
+                {
+                    await AbrirEditarAsync(visibles[indice].Id);
+                    return;
+                }
+                break;
+        }
+
+        StateHasChanged();
     }
 
     private bool _drawerVisible;

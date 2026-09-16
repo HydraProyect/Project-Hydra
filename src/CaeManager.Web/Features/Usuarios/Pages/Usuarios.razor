@@ -75,6 +75,8 @@
     }
     else
     {
+        <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
+
         <table class="tabla-datos">
             <thead>
                 <tr>
@@ -93,7 +95,7 @@
             <tbody>
                 @foreach (var usuario in UsuariosDePagina)
                 {
-                    <tr>
+                    <tr class="@ClaseFila(usuario.Id)">
                         <td>
                             @usuario.Email
                             @if (usuario.Id == _usuarioActualId)

@@ -103,6 +103,8 @@
     }
     else
     {
+        <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
+
         <div class="tabla-tipos-marco" aria-busy="@(_cargando ? "true" : "false")">
             <table class="tabla-datos tabla-tipos">
                 <thead>
@@ -127,7 +129,7 @@
                 <tbody>
                     @foreach (var tipo in TiposDePagina)
                     {
-                        <tr @key="tipo.Id">
+                        <tr @key="tipo.Id" class="@ClaseFila(tipo.Id)">
                             <td class="celda-orden">@tipo.Orden</td>
                             <td>
                                 <span class="nombre-tipo">@tipo.Nombre</span>

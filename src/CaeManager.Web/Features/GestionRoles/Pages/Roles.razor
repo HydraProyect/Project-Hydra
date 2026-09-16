@@ -124,6 +124,8 @@
                 }
                 else
                 {
+                    <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
+
                     <div class="tabla-pendientes">
                         <table class="tabla-datos">
                             <thead>
@@ -138,7 +140,7 @@
                             <tbody>
                                 @foreach (var pendiente in _usuariosPendientes)
                                 {
-                                    <tr>
+                                    <tr class="@ClaseFila(pendiente.Id)">
                                         <td>@pendiente.Email</td>
                                         <td class="celda-nombre">@pendiente.NombreCompleto</td>
                                         <td class="celda-solicitado">@pendiente.FechaCreacion.ToString("dd/MM/yyyy HH:mm")</td>

@@ -13,6 +13,7 @@ using CaeManager.Infrastructure.Persistence;
 using CaeManager.Web.Components.DesignSystem;
 using FluentAssertions;
 using MediatR;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
@@ -1252,5 +1253,126 @@ public class UsuariosGen2Tests : BunitContext
         ayuda.Should().Contain(t => t.Contains("los roles Administrador y Dirección CAE"),
             "quien ve la cartera se nombra por su rol, no por una palabra suelta");
         ayuda.Should().NotContain(t => t.Contains("solo Administrador y Dirección CAE ven"));
+    }
+
+    // -------------------------------------- atajos de lista (I-13)
+
+    private static Task Atajo(IRenderedComponent<UsuariosControlados> cut, string tecla) =>
+        cut.InvokeAsync(() => cut.FindComponent<AtajosListaTeclado>().Instance.RecibirAtajo(tecla));
+
+    private static List<string> CorreosEnfocados(IRenderedComponent<UsuariosControlados> cut) =>
+        cut.FindAll("tbody tr.fila-enfocada")
+            .Select(f => f.QuerySelectorAll("td")[0].TextContent.Trim())
+            .ToList();
+
+    private void SembrarTres() => Sembrar(
+        (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+        (Cuenta(JonId, "j.ibarra@talveg.es", "Jon Ibarra"), RolesIdentidad.DireccionCae),
+        (Cuenta(IkerId, "i.mendieta@talveg.es", "Iker Mendieta"), RolesIdentidad.GestorCae));
+
+    /// <summary>
+    /// I-13: el grupo de Administración nunca tuvo recorrido por teclado —hueco
+    /// preexistente, no regresión de Gen2—. "j"/"k" recorren la página visible
+    /// sin abrir nada.
+    /// </summary>
+    [Fact]
+    public async Task j_y_k_recorren_las_filas_sin_abrir_el_cajon()
+    {
+        SembrarTres();
+        var cut = Renderizar();
+
+        CorreosEnfocados(cut).Should().BeEmpty();
+
+        await Atajo(cut, "j");
+        CorreosEnfocados(cut).Should().ContainSingle().Which.Should().Contain("marta.r@talveg.es");
+
+        await Atajo(cut, "j");
+        CorreosEnfocados(cut).Should().ContainSingle().Which.Should().Contain("j.ibarra@talveg.es");
+
+        await Atajo(cut, "k");
+        CorreosEnfocados(cut).Should().ContainSingle().Which.Should().Contain("marta.r@talveg.es");
+
+        cut.FindAll(".drawer-panel").Should().BeEmpty("recorrer no abre la edición");
+    }
+
+    [Fact]
+    public async Task j_y_k_no_se_salen_de_la_lista_de_usuarios()
+    {
+        SembrarTres();
+        var cut = Renderizar();
+
+        await Atajo(cut, "k");
+        CorreosEnfocados(cut).Should().ContainSingle().Which.Should().Contain("marta.r@talveg.es");
+
+        for (var i = 0; i < 5; i++) await Atajo(cut, "j");
+        CorreosEnfocados(cut).Should().ContainSingle().Which.Should().Contain("i.mendieta@talveg.es");
+    }
+
+    /// <summary>"Enter" abre la edición del usuario ENFOCADO, no la del primero de la lista.</summary>
+    [Fact]
+    public async Task Enter_abre_la_edicion_del_usuario_enfocado()
+    {
+        SembrarTres();
+        var cut = Renderizar();
+
+        await Atajo(cut, "j");
+        await Atajo(cut, "j");
+        await Atajo(cut, "Enter");
+
+        cut.WaitForAssertion(() => cut.Find(".drawer-panel").TextContent.Should().Contain("Editar usuario"));
+        CampoPorEtiqueta(cut, "Correo").GetAttribute("value").Should().Be("j.ibarra@talveg.es",
+            "el cajón edita al usuario enfocado, no al primero de la lista");
+    }
+
+    [Fact]
+    public async Task Enter_sin_fila_enfocada_no_abre_nada_en_usuarios()
+    {
+        SembrarTres();
+        var cut = Renderizar();
+
+        await Atajo(cut, "Enter");
+
+        cut.FindAll(".drawer-panel").Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// "x" no marca nada: la pantalla no tiene selección múltiple. Lo que se
+    /// exige es que tampoco mueva el foco ni abra el cajón.
+    /// </summary>
+    [Fact]
+    public async Task x_no_tiene_efecto_en_usuarios()
+    {
+        SembrarTres();
+        var cut = Renderizar();
+        await Atajo(cut, "j");
+
+        await Atajo(cut, "x");
+
+        CorreosEnfocados(cut).Should().ContainSingle().Which.Should().Contain("marta.r@talveg.es");
+        cut.FindAll("tbody input[type=checkbox]").Should().BeEmpty();
+        cut.FindAll(".drawer-panel").Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Filtrar descarta el foco: si se conservara, quitar el filtro devolvería
+    /// el foco a una fila que el usuario ya no tenía delante.
+    /// </summary>
+    [Fact]
+    public async Task Filtrar_descarta_el_foco_y_quitar_el_filtro_no_lo_devuelve()
+    {
+        SembrarTres();
+        var cut = Renderizar();
+        await Atajo(cut, "j");
+        await Atajo(cut, "j");
+        CorreosEnfocados(cut).Should().ContainSingle().Which.Should().Contain("j.ibarra@talveg.es");
+
+        var buscador = cut.Find("input[placeholder='Buscar por nombre o correo…']");
+        await buscador.InputAsync(new ChangeEventArgs { Value = "iker" });
+        CorreosEnfocados(cut).Should().BeEmpty();
+
+        await buscador.InputAsync(new ChangeEventArgs { Value = string.Empty });
+
+        Filas(cut).Should().HaveCount(3);
+        CorreosEnfocados(cut).Should().BeEmpty("el foco se descartó al filtrar, no se guardó");
     }
 }
