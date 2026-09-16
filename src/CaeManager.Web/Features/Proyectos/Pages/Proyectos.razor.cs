@@ -343,6 +343,77 @@ public partial class Proyectos : ComponentBase
         }
     }
 
+    // ---- Atajos de lista j/k/Enter (I-8 de AUDITORIA-USUARIO-AVANZADO-POST-GEN2) ----
+
+    /// <summary>
+    /// Fila enfocada por teclado. Es distinta de
+    /// <see cref="_proyectoSeleccionadoId"/>: el foco recorre la lista sin
+    /// abrir nada, y solo <c>Enter</c> lo convierte en selección.
+    /// </summary>
+    private Guid? _idEnfocado;
+
+    private string ClaseFila(ProyectoListaDto proyecto)
+    {
+        var seleccionada = _proyectoSeleccionadoId == proyecto.Id;
+        var enfocada = _idEnfocado == proyecto.Id;
+        return (seleccionada, enfocada) switch
+        {
+            (true, true) => "fila-seleccionada fila-enfocada",
+            (true, false) => "fila-seleccionada",
+            (false, true) => "fila-enfocada",
+            _ => string.Empty
+        };
+    }
+
+    private int IndiceEnfocado(IReadOnlyList<ProyectoListaDto> visibles)
+    {
+        if (_idEnfocado is null) return -1;
+        for (var i = 0; i < visibles.Count; i++)
+            if (visibles[i].Id == _idEnfocado) return i;
+
+        // La fila enfocada ya no pasa los filtros: se trata como si no
+        // hubiera foco, en vez de dejarlo apuntando a algo que no se ve.
+        return -1;
+    }
+
+    private async Task ManejarAtajoAsync(string tecla)
+    {
+        var visibles = ProyectosVisibles;
+        if (visibles.Count == 0) return;
+
+        switch (tecla)
+        {
+            case "j":
+                _idEnfocado = visibles[Math.Min(IndiceEnfocado(visibles) + 1, visibles.Count - 1)].Id;
+                break;
+            case "k":
+                {
+                    var indice = IndiceEnfocado(visibles);
+                    _idEnfocado = visibles[indice <= 0 ? 0 : indice - 1].Id;
+                    break;
+                }
+            case "Enter":
+                // § 6.1 quater del contrato: abrir es lo que hace el botón con
+                // el nombre del proyecto, no el enlace de la celda "Centro" —
+                // aquí se llama al mismo método que ese botón, así que el bug
+                // histórico del enlace equivocado no puede reaparecer.
+                if (_idEnfocado is { } idAbrir && IndiceEnfocado(visibles) >= 0)
+                {
+                    await SeleccionarProyectoAsync(idAbrir);
+                    return;
+                }
+                break;
+
+            // "x" no tiene efecto en Proyectos y es deliberado: la pantalla no
+            // tiene selección múltiple —ni casillas, ni BarraAccionesLote—, así
+            // que no hay nada que marcar. Darle un significado nuevo sería una
+            // decisión de producto, no la reparación de este hueco (mismo caso
+            // que I-12 en Estado Comercial).
+        }
+
+        StateHasChanged();
+    }
+
     // ---- Detalle de proyecto (panel lateral: Información, Técnicos, Documentos) ----
 
     private Guid? _proyectoSeleccionadoId;
