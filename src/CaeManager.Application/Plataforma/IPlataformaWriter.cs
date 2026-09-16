@@ -15,13 +15,9 @@ namespace CaeManager.Application.Plataforma;
 /// <c>SaveChangesAsync</c> del comando la confirme — mismo patrón que
 /// <c>IAsignacionesOperativasWriter</c>.
 ///
-/// Ojo con lo que <b>no</b> hay aquí: no existe un método para crear
-/// concesiones. Es deliberado. Una concesión nace de un acto explícito de
-/// concesión, y ese acto —quién puede conceder, a quién, qué capacidad, bajo qué
-/// autorización— es un contrato propio que todavía no está fijado. Mientras
-/// tanto, el <c>WITH CHECK</c> de RLS (F2b-5) solo admite filas que nombren al
-/// propio usuario de la sesión, así que la auto-concesión que el ADR § 4bis.7.7
-/// acepta con equipo unipersonal es lo único representable.
+/// <see cref="AnadirConcesion"/> no es un método genérico de "conceder
+/// cualquier capacidad a cualquiera": los dos únicos invocantes legítimos, y
+/// por qué cada uno puede escribir aquí, se documentan en ese método.
 /// </summary>
 public interface IPlataformaWriter
 {

@@ -41,6 +41,14 @@ namespace CaeManager.Application.Common;
 /// <c>cae_app_aprovisionamiento</c>, y la importación revienta con 42501.
 /// <see cref="IElevacionEscrituraPrivilegiada"/> ahora solo mueve el rol de
 /// Postgres; el ámbito lo abre y cierra este código.
+///
+/// <b>El propio <c>SET ROLE</c> de elevación corre DENTRO del <c>try</c>, y
+/// el de vuelta con <c>CancellationToken.None</c></b> — segunda revisión de
+/// Codex sobre este mismo commit: un <c>SET ROLE</c> que fallara o se
+/// cancelara a medio camino tenía que disparar igual el <c>finally</c>, y el
+/// <c>finally</c> no puede depender de un token que puede llegar YA
+/// cancelado — devolver el rol con ese mismo token podría impedir el propio
+/// <c>SET ROLE cae_app_soporte</c> de vuelta y dejar la conexión elevada.
 /// </summary>
 public class ElevacionEscrituraAprovisionamientoBehavior<TRequest, TResponse>(
     ISesionPrivilegiadaActual sesionPrivilegiadaActual,
@@ -62,9 +70,14 @@ public class ElevacionEscrituraAprovisionamientoBehavior<TRequest, TResponse>(
 
         // Llamada síncrona, a propósito — ver el comentario de esta clase.
         var ambito = AmbitoEscrituraPrivilegiada.Establecer(s.SesionId, s.TenantObjetivoId);
-        await elevacionEscrituraPrivilegiada.ElevarSiConexionAbiertaAsync(cancellationToken);
         try
         {
+            // DENTRO del try (revisión de Codex, previa a este PR): si el
+            // propio SET ROLE de elevación falla o se cancela a medio
+            // ejecutar en PostgreSQL, el finally tiene que correr igual para
+            // devolver la conexión a cae_app_soporte — dejarlo fuera del try
+            // habría dejado el rol elevado sin ningún camino de vuelta.
+            await elevacionEscrituraPrivilegiada.ElevarSiConexionAbiertaAsync(cancellationToken);
             return await next(cancellationToken);
         }
         finally
@@ -76,7 +89,16 @@ public class ElevacionEscrituraAprovisionamientoBehavior<TRequest, TResponse>(
             // abierto, la próxima apertura cae en cae_app_soporte por la
             // rama normal del interceptor.
             ambito.Dispose();
-            await elevacionEscrituraPrivilegiada.DevolverSiConexionAbiertaAsync(cancellationToken);
+
+            // CancellationToken.None a propósito (revisión de Codex): este
+            // cierre corre en un finally que puede dispararse precisamente
+            // porque la petición se canceló — devolver el rol con el MISMO
+            // token cancelado podría impedir el propio SET ROLE de vuelta
+            // (ExecuteNonQueryAsync lo observaría cancelado) y dejar la
+            // conexión con escritura elevada hasta que el interceptor la
+            // corrija en su próxima apertura, que puede no llegar si la
+            // conexión sigue abierta el resto de la request.
+            await elevacionEscrituraPrivilegiada.DevolverSiConexionAbiertaAsync(CancellationToken.None);
         }
     }
 }

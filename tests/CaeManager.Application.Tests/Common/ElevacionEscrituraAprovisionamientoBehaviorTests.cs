@@ -116,6 +116,37 @@ public class ElevacionEscrituraAprovisionamientoBehaviorTests
         AmbitoEscrituraPrivilegiada.Actual.Should().BeNull("el ámbito se cierra al salir de next");
     }
 
+    /// <summary>
+    /// Segundo hallazgo de Codex sobre este mismo commit: si el propio
+    /// <c>SET ROLE</c> de elevación falla o se cancela a medio ejecutar en
+    /// PostgreSQL, el <c>finally</c> tiene que correr igual (cerrar el
+    /// ámbito y devolver el rol) — y el cierre no puede usar el mismo token
+    /// que puede llegar YA cancelado, o el propio <c>SET ROLE</c> de vuelta
+    /// no se ejecutaría, dejando la conexión con escritura elevada.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_elevacion_falla_el_finally_cierra_el_ambito_y_devuelve_el_rol_sin_cancelacion()
+    {
+        var elevacion = new ElevacionEscrituraPrivilegiadaQueFallaAlElevar();
+        var tenant = Guid.NewGuid();
+        var sesion = SesionCon(CapacidadPrivilegio.Aprovisionamiento, tenant);
+        var behavior = new ElevacionEscrituraAprovisionamientoBehavior<FalsoComandoDeAprovisionamiento, string>(
+            new SesionPrivilegiadaActualFalsa(sesion), new TenantActualFalso(tenant), elevacion);
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var accion = () => behavior.Handle(
+            new FalsoComandoDeAprovisionamiento(), _ => Task.FromResult("no debería llegar aquí"), cts.Token);
+
+        await accion.Should().ThrowAsync<InvalidOperationException>("el fallo del SET ROLE de elevación debe propagarse");
+        elevacion.SeDevolvio.Should().BeTrue(
+            "el finally tiene que devolver el rol aunque la elevación haya fallado");
+        elevacion.TokenRecibidoAlDevolver.Should().Be(CancellationToken.None,
+            "el cierre no puede depender del token de la petición, que puede llegar ya cancelado");
+        AmbitoEscrituraPrivilegiada.Actual.Should().BeNull("el ámbito se cierra aunque la elevación falle");
+    }
+
     private sealed class TenantActualFalso(Guid? tenantId) : ITenantActual
     {
         public Guid? TenantId => tenantId;
@@ -149,6 +180,23 @@ public class ElevacionEscrituraAprovisionamientoBehaviorTests
         public async Task DevolverSiConexionAbiertaAsync(CancellationToken cancellationToken = default)
         {
             SeDevolvio = true;
+            await Task.CompletedTask;
+        }
+    }
+
+    /// <summary>Simula un <c>SET ROLE</c> de elevación que revienta en PostgreSQL.</summary>
+    private sealed class ElevacionEscrituraPrivilegiadaQueFallaAlElevar : IElevacionEscrituraPrivilegiada
+    {
+        public bool SeDevolvio { get; private set; }
+        public CancellationToken? TokenRecibidoAlDevolver { get; private set; }
+
+        public Task ElevarSiConexionAbiertaAsync(CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("SET ROLE cae_app_aprovisionamiento falló (simulado)");
+
+        public async Task DevolverSiConexionAbiertaAsync(CancellationToken cancellationToken = default)
+        {
+            SeDevolvio = true;
+            TokenRecibidoAlDevolver = cancellationToken;
             await Task.CompletedTask;
         }
     }
