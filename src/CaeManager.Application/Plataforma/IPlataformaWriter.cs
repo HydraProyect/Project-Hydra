@@ -36,12 +36,16 @@ public interface IPlataformaWriter
     /// Añade una concesión ya construida. Igual que arriba: recibe el agregado,
     /// no sus campos.
     ///
-    /// El único invocante legítimo es la auto-concesión, y un test de
-    /// arquitectura mantiene esa lista en uno. No existe aquí una operación
-    /// genérica de conceder a terceros: eso exige un contrato propio —quién
-    /// concede, a quién, qué capacidad, sobre qué tenants, cómo se revoca y cómo
-    /// se audita— y relajar el <c>WITH CHECK</c> de RLS, que hoy solo admite
-    /// filas que nombren al propio usuario de la sesión.
+    /// Dos invocantes legítimos, y un test de arquitectura
+    /// (<c>ConcesionesSoloPorActoExplicitoTests</c>) mantiene esa lista
+    /// exacta: <c>AutoConcederPrivilegioCommand</c> (yo → yo, sin
+    /// beneficiario como parámetro) y <c>ConcederPrivilegioCommand</c> (un
+    /// AdminPlataforma → un tercero, solo capacidad Aprovisionamiento, PD-A3).
+    /// El segundo exigió relajar el <c>WITH CHECK</c> de RLS
+    /// (<c>RlsConcesionPorAdminDePlataforma</c>), que hasta entonces solo
+    /// admitía filas que nombraran al propio usuario de la sesión — no hay
+    /// operación genérica de "conceder cualquier capacidad a cualquiera": eso
+    /// sigue exigiendo su propio contrato el día que haga falta.
     /// </summary>
     void AnadirConcesion(ConcesionPrivilegio concesion);
 }
