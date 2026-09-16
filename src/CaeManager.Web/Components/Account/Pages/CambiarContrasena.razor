@@ -3,6 +3,7 @@
 @attribute [Authorize]
 @using System.ComponentModel.DataAnnotations
 @using System.Security.Claims
+@using CaeManager.Infrastructure.Coordinacion
 @using CaeManager.Infrastructure.Identity
 @using CaeManager.Web.Components.Account
 @using Microsoft.AspNetCore.Authorization
@@ -15,6 +16,7 @@
 @inject NavigationManager Navigation
 @inject IOptions<IdentityOptions> OpcionesIdentity
 @inject ILoggerFactory LoggerFactory
+@inject IEleccionLiderService CerrojoCredencial
 
 <PageTitle>Cambiar contraseña — @Marca.Nombre</PageTitle>
 
@@ -90,26 +92,52 @@
             return;
         }
 
-        var resultado = await UserManager.ChangePasswordAsync(usuario, Entrada.ContrasenaActual, Entrada.ContrasenaNueva);
-        if (!resultado.Succeeded)
+        var logger = LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog);
+
+        // Cerrojo no bloqueante compartido con RestablecerContrasena.razor.cs
+        // bajo la misma clave `credencial:{userId}` — las dos pantallas mutan
+        // la misma credencial de Identity, así que un cambio autenticado y un
+        // restablecimiento que coincidan en el tiempo para el mismo usuario
+        // también deben excluirse entre sí. NO comparte clave con
+        // `verificar-2fa:{userId}` (cerrojo distinto, en LoginCon2fa): son
+        // operaciones distintas y no hay motivo para que una bloquee a la
+        // otra.
+        //
+        // Se adquiere ANTES de tocar ChangePasswordAsync: el competidor se
+        // rechaza sin gastar ningún intento contra Identity.
+        IdentityResult? resultadoObtenido = null;
+        var ejecutado = await CerrojoCredencial.IntentarEjecutarComoLiderAsync(
+            $"credencial:{usuario.Id}",
+            async _ =>
+            {
+                // Se fija ANTES de ChangePasswordAsync, sobre la misma
+                // instancia de usuario que la operación va a actualizar: así
+                // Identity persiste el fin del cambio obligatorio en la MISMA
+                // actualización que la contraseña, sin un UpdateAsync
+                // posterior separado. Ese segundo UpdateAsync era el estado
+                // parcial: si fallaba, la contraseña ya había cambiado pero
+                // DebeCambiarContrasena seguía en true. Si ChangePasswordAsync
+                // falla (contraseña actual incorrecta, política de
+                // contraseña), no se persiste nada — ni la contraseña ni esta
+                // bandera en memoria — porque Identity no llega a guardar.
+                usuario.DebeCambiarContrasena = false;
+                resultadoObtenido = await UserManager.ChangePasswordAsync(usuario, Entrada.ContrasenaActual, Entrada.ContrasenaNueva);
+            },
+            CancellationToken.None);
+
+        if (!ejecutado)
         {
-            mensajeError = string.Join(" ", resultado.Errors.Select(e => e.Description));
+            logger.LogWarning(
+                "Cambio de contraseña rechazado, ya había una operación de credencial en curso: {UsuarioId}", usuario.Id);
+            mensajeError = "Ya hay una operación sobre esta cuenta en curso. Espera un momento e inténtalo de nuevo.";
             return;
         }
 
-        usuario.DebeCambiarContrasena = false;
-        var actualizacion = await UserManager.UpdateAsync(usuario);
-        if (!actualizacion.Succeeded)
+        // ejecutado == true garantiza que el delegado corrió y asignó el resultado.
+        var resultado = resultadoObtenido!;
+        if (!resultado.Succeeded)
         {
-            // La contraseña ya cambió (ChangePasswordAsync tuvo éxito arriba);
-            // lo que falló es persistir el fin del cambio obligatorio. No se
-            // refresca la sesión ni se navega: el guard de MainLayout volverá
-            // a traer a esta misma pantalla en la siguiente navegación, con
-            // DebeCambiarContrasena todavía en true.
-            LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
-                .LogError("Cambio de contraseña obligatorio: la contraseña cambió pero no se pudo persistir el usuario {UsuarioId}: {Errores}",
-                    usuario.Id, string.Join(" ", actualizacion.Errors.Select(e => e.Description)));
-            mensajeError = string.Join(" ", actualizacion.Errors.Select(e => e.Description));
+            mensajeError = string.Join(" ", resultado.Errors.Select(e => e.Description));
             return;
         }
 

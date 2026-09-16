@@ -254,12 +254,16 @@ public class AccesoCuentaEscenaTests : BunitContext
     }
 
     /// <summary>
-    /// <see cref="UserManager{TUser}.ResetPasswordAsync"/> tuvo éxito (la
-    /// contraseña ya cambió), pero el <c>UpdateAsync</c> que persiste el fin del
-    /// cambio obligatorio falla. Antes el resultado se descartaba y la pantalla
-    /// anunciaba «Restablecimiento de contraseña correcto» igual; ahora tiene que
-    /// enseñar el motivo de Identity y no anunciar el proceso como terminado
-    /// (ni cerrar sesión).
+    /// DECISIÓN D: <c>DebeCambiarContrasena=false</c> se fija ANTES de
+    /// <c>ResetPasswordAsync</c>, sobre la misma instancia — así Identity la
+    /// persiste en la MISMA actualización que la contraseña, sin un
+    /// <c>UpdateAsync</c> posterior separado. Si esa única actualización
+    /// falla (aquí, vía <see cref="AlmacenFalso.ResultadoUpdate"/>), la
+    /// operación entera falla: no hay ya un escenario donde "la contraseña
+    /// cambió pero la bandera no se persistió" — ese estado parcial es
+    /// justo lo que la consolidación elimina. La pantalla tiene que enseñar
+    /// el motivo de Identity y no anunciar el proceso como terminado (ni
+    /// cerrar sesión).
     /// </summary>
     [Fact]
     public async Task Restablecer_contrasena_si_falla_persistir_el_usuario_no_dice_correcto()
@@ -283,10 +287,11 @@ public class AccesoCuentaEscenaTests : BunitContext
     }
 
     /// <summary>
-    /// Mismo defecto que arriba, en la pantalla de cambio obligatorio ya
-    /// autenticado: si <c>UpdateAsync</c> falla tras un
-    /// <c>ChangePasswordAsync</c> correcto, no se refresca la sesión ni se
-    /// navega a "/" como si el cambio hubiera terminado del todo.
+    /// Mismo razonamiento que arriba, en la pantalla de cambio obligatorio ya
+    /// autenticado: la bandera se fija antes de <c>ChangePasswordAsync</c>, así
+    /// que si la única actualización falla, <c>ChangePasswordAsync</c> falla
+    /// entero y no se refresca la sesión ni se navega a "/" como si el cambio
+    /// hubiera terminado.
     /// </summary>
     [Fact]
     public async Task Cambiar_contrasena_si_falla_persistir_el_usuario_no_navega_ni_refresca_sesion()
@@ -311,6 +316,77 @@ public class AccesoCuentaEscenaTests : BunitContext
 
         cut.Find(".acceso-alerta").TextContent.Should().Be("No se pudo guardar el usuario.");
         navegacion.Uri.Should().Be(uriDePartida, "un UpdateAsync fallido no puede terminar en NavigateTo(\"/\") como si el cambio hubiera terminado");
+    }
+
+    /// <summary>
+    /// DECISIÓN D: cerrojo no bloqueante compartido <c>credencial:{userId}</c>,
+    /// adquirido ANTES de <c>ResetPasswordAsync</c>. Con el cerrojo ocupado, el
+    /// rechazo tiene que pasar ANTES de tocar Identity — cero llamadas, ni un
+    /// intento fallido ni uno con éxito. Mismo patrón que
+    /// <c>VerificacionDosPasosBloqueoTests.Con_el_cerrojo_ocupado_no_se_llama_a_SignInManager_y_se_avisa_al_usuario</c>.
+    /// </summary>
+    [Fact]
+    public async Task Restablecer_contrasena_con_el_cerrojo_ocupado_no_llama_a_ResetPasswordAsync()
+    {
+        var usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta.ruiz@consultora.es", DebeCambiarContrasena = true };
+        _almacen.Usuario = usuario;
+        var usuariosContador = new UsuariosContador(_almacen, PoliticaDeLaApp());
+        var token = await usuariosContador.GeneratePasswordResetTokenAsync(usuario);
+        var codigo = WebEncoders.Base64UrlEncode(System.Text.Encoding.UTF8.GetBytes(token));
+
+        var cerrojo = new CerrojoQueRechazaFalso();
+        Services.AddSingleton<UserManager<ApplicationUser>>(usuariosContador);
+        Services.AddSingleton<IEleccionLiderService>(cerrojo);
+        Services.GetRequiredService<NavigationManager>()
+            .NavigateTo($"/cuenta/restablecer-contrasena?userId={usuario.Id}&code={codigo}");
+
+        var cut = Render<RestablecerContrasena>();
+        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghi1" });
+        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghi1" });
+        await cut.Find("form").SubmitAsync();
+
+        usuariosContador.LlamadasReset.Should().Be(0, "el rechazo del cerrojo pasa ANTES de tocar Identity");
+        cut.Find(".acceso-alerta").TextContent.Should().Be(
+            "Ya hay una operación sobre esta cuenta en curso. Espera un momento e inténtalo de nuevo.");
+        usuario.DebeCambiarContrasena.Should().BeTrue(
+            "con el cerrojo ocupado no se ejecuta el delegado: ni siquiera se toca la bandera en memoria");
+        cerrojo.ClaveRecibida.Should().Be($"credencial:{usuario.Id}",
+            "la clave compartida con CambiarContrasena — y explícitamente NO con verificar-2fa:{userId}");
+    }
+
+    /// <summary>Mismo cerrojo compartido <c>credencial:{userId}</c>, en la pantalla de cambio ya autenticado.</summary>
+    [Fact]
+    public async Task Cambiar_contrasena_con_el_cerrojo_ocupado_no_llama_a_ChangePasswordAsync()
+    {
+        var usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta.ruiz@consultora.es", DebeCambiarContrasena = true };
+        var contrasenaActual = "Abcdefghi1";
+        _almacen.Usuario = usuario;
+        _almacen.HashContrasena = new PasswordHasher<ApplicationUser>().HashPassword(usuario, contrasenaActual);
+        var usuariosContador = new UsuariosContador(_almacen, PoliticaDeLaApp());
+        var cerrojo = new CerrojoQueRechazaFalso();
+        Services.AddSingleton<UserManager<ApplicationUser>>(usuariosContador);
+        Services.AddSingleton<IEleccionLiderService>(cerrojo);
+
+        AddAuthorization().SetAuthorized("marta.ruiz@consultora.es")
+            .SetClaims(new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()));
+
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        var uriDePartida = navegacion.Uri;
+
+        var cut = Render<CambiarContrasena>();
+        await cut.Find("#password-actual").ChangeAsync(new ChangeEventArgs { Value = contrasenaActual });
+        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvuts2Z" });
+        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvuts2Z" });
+        await cut.Find("form").SubmitAsync();
+
+        usuariosContador.LlamadasCambio.Should().Be(0, "el rechazo del cerrojo pasa ANTES de tocar Identity");
+        cut.Find(".acceso-alerta").TextContent.Should().Be(
+            "Ya hay una operación sobre esta cuenta en curso. Espera un momento e inténtalo de nuevo.");
+        navegacion.Uri.Should().Be(uriDePartida, "sin ejecutar el delegado no hay ni refresco de sesión ni navegación");
+        cerrojo.ClaveRecibida.Should().Be($"credencial:{usuario.Id}",
+            "la clave compartida con RestablecerContrasena — y explícitamente NO con verificar-2fa:{userId}");
+        usuario.DebeCambiarContrasena.Should().BeTrue(
+            "con el cerrojo ocupado no se ejecuta el delegado: ni siquiera se toca la bandera en memoria");
     }
 
     private static readonly Dictionary<string, string> ClavePorCodigo = new()
@@ -421,6 +497,67 @@ public class AccesoCuentaEscenaTests : BunitContext
         }
     }
 
+    /// <summary>
+    /// Cerrojo de prueba que siempre rechaza, como si otra petición ya
+    /// estuviera dentro: nunca ejecuta <c>trabajo</c>, así que si la página
+    /// llamara a Identity de todos modos sería un error de cableado en la
+    /// página, no del cerrojo. Mismo patrón que
+    /// <c>VerificacionDosPasosBloqueoTests.CerrojoQueRechazaFalso</c>. Guarda
+    /// la <see cref="ClaveRecibida"/> para comprobar que las dos pantallas
+    /// usan la MISMA clave compartida <c>credencial:{userId}</c> — hallazgo de
+    /// revisión (Codex): sin esto, el test pasa igual aunque cada pantalla
+    /// usara un prefijo distinto.
+    /// </summary>
+    private sealed class CerrojoQueRechazaFalso : IEleccionLiderService
+    {
+        public string? ClaveRecibida { get; private set; }
+
+        public Task<bool> IntentarEjecutarComoLiderAsync(
+            string clave, Func<CancellationToken, Task> trabajo, CancellationToken cancellationToken)
+        {
+            ClaveRecibida = clave;
+            return Task.FromResult(false);
+        }
+    }
+
+    /// <summary>
+    /// <see cref="UserManager{TUser}.ResetPasswordAsync"/> y
+    /// <see cref="UserManager{TUser}.ChangePasswordAsync"/> son virtuales;
+    /// contar las llamadas reales es la única forma de demostrar que, con el
+    /// cerrojo ocupado, la página rechaza ANTES de tocar Identity — no basta
+    /// con observar el mensaje de error, que también podría salir de un
+    /// camino que sí llamó y descartó el resultado.
+    /// </summary>
+    private sealed class UsuariosContador : UserManager<ApplicationUser>
+    {
+        public UsuariosContador(IUserStore<ApplicationUser> almacen, IdentityOptions opciones) : base(
+            almacen, Opciones.Create(opciones), new PasswordHasher<ApplicationUser>(),
+            [], [], new UpperInvariantLookupNormalizer(), new IdentityErrorDescriber(), null!,
+            NullLogger<UserManager<ApplicationUser>>.Instance)
+        {
+            RegisterTokenProvider(TokenOptions.DefaultProvider,
+                new DataProtectorTokenProvider<ApplicationUser>(
+                    new EphemeralDataProtectionProvider(),
+                    Opciones.Create(new DataProtectionTokenProviderOptions()),
+                    NullLogger<DataProtectorTokenProvider<ApplicationUser>>.Instance));
+        }
+
+        public int LlamadasReset { get; private set; }
+        public int LlamadasCambio { get; private set; }
+
+        public override Task<IdentityResult> ResetPasswordAsync(ApplicationUser user, string token, string newPassword)
+        {
+            LlamadasReset++;
+            return base.ResetPasswordAsync(user, token, newPassword);
+        }
+
+        public override Task<IdentityResult> ChangePasswordAsync(ApplicationUser user, string currentPassword, string newPassword)
+        {
+            LlamadasCambio++;
+            return base.ChangePasswordAsync(user, currentPassword, newPassword);
+        }
+    }
+
     /// <summary>Devuelve siempre el mismo <see cref="Result"/>, para simular un envío que sí se intenta.</summary>
     private sealed class EmailServiceConfigurable(Result resultado) : IEmailService
     {
@@ -466,15 +603,15 @@ public class AccesoCuentaEscenaTests : BunitContext
         public Task<IdentityResult> CreateAsync(ApplicationUser user, CancellationToken ct) => throw new NotSupportedException();
 
         /// <summary>
-        /// Identity ya llama a esto por su cuenta dentro de
-        /// ResetPasswordAsync/ChangePasswordAsync, para guardar el hash nuevo y el
-        /// security stamp rotado — con <c>DebeCambiarContrasena</c> todavía en su
-        /// valor de partida (true en estos tests). Esa llamada siempre tiene
-        /// éxito: lo que <see cref="ResultadoUpdate"/> gobierna es solo la
-        /// escritura explícita de la página, la que pone el campo a false.
+        /// Identity ya llama a esto por su cuenta, UNA sola vez, dentro de
+        /// ResetPasswordAsync/ChangePasswordAsync — DECISIÓN D consolidó ahí
+        /// la persistencia de <c>DebeCambiarContrasena</c> (la página la fija
+        /// ANTES de llamar, sobre la misma instancia), así que ya no hay una
+        /// segunda escritura explícita separada. <see cref="ResultadoUpdate"/>
+        /// gobierna esa única llamada.
         /// </summary>
         public Task<IdentityResult> UpdateAsync(ApplicationUser user, CancellationToken ct) =>
-            Task.FromResult(user.DebeCambiarContrasena ? IdentityResult.Success : ResultadoUpdate);
+            Task.FromResult(ResultadoUpdate);
 
         public Task<IdentityResult> DeleteAsync(ApplicationUser user, CancellationToken ct) => throw new NotSupportedException();
         public Task<ApplicationUser?> FindByNameAsync(string normalizedUserName, CancellationToken ct) => throw new NotSupportedException();

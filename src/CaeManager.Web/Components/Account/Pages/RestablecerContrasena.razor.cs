@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text;
+using CaeManager.Infrastructure.Coordinacion;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.Account;
 using Microsoft.AspNetCore.Components;
@@ -16,6 +17,7 @@ public partial class RestablecerContrasena : ComponentBase
     [Inject] private IOptions<IdentityOptions> OpcionesIdentity { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private ILoggerFactory LoggerFactory { get; set; } = default!;
+    [Inject] private IEleccionLiderService CerrojoCredencial { get; set; } = default!;
 
     [SupplyParameterFromQuery(Name = "userId")]
     private string? UserId { get; set; }
@@ -104,8 +106,51 @@ public partial class RestablecerContrasena : ComponentBase
 
         _mensajeError = null;
 
-        var resultado = await UserManager.ResetPasswordAsync(_usuario, _token, Entrada.ContrasenaNueva);
         var logger = LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog);
+
+        // Cerrojo no bloqueante compartido con CambiarContrasena.razor bajo la
+        // misma clave `credencial:{userId}` — las dos pantallas mutan la
+        // misma credencial de Identity, así que un restablecimiento y un
+        // cambio autenticado que coincidan en el tiempo para el mismo usuario
+        // también deben excluirse entre sí, no solo dos restablecimientos
+        // entre sí. NO comparte clave con `verificar-2fa:{userId}` (cerrojo
+        // distinto, en LoginCon2fa): son operaciones distintas y no hay
+        // motivo para que una bloquee a la otra.
+        //
+        // Se adquiere DESPUÉS de resolver el usuario y el token (arriba, en
+        // OnInitializedAsync) y ANTES de tocar ResetPasswordAsync: el
+        // competidor se rechaza sin gastar ningún intento contra Identity.
+        IdentityResult? resultadoObtenido = null;
+        var ejecutado = await CerrojoCredencial.IntentarEjecutarComoLiderAsync(
+            $"credencial:{_usuario.Id}",
+            async _ =>
+            {
+                // Se fija ANTES de ResetPasswordAsync, sobre la misma
+                // instancia de _usuario que la operación va a actualizar:
+                // así Identity persiste el fin del cambio obligatorio en la
+                // MISMA actualización que la contraseña, sin un UpdateAsync
+                // posterior separado. Ese segundo UpdateAsync era el estado
+                // parcial: si fallaba, la contraseña ya había cambiado pero
+                // DebeCambiarContrasena seguía en true. Si ResetPasswordAsync
+                // falla (token inválido, política de contraseña), no se
+                // persiste nada — ni la contraseña ni esta bandera en
+                // memoria — porque Identity no llega a guardar.
+                _usuario.DebeCambiarContrasena = false;
+                resultadoObtenido = await UserManager.ResetPasswordAsync(_usuario, _token, Entrada.ContrasenaNueva);
+            },
+            CancellationToken.None);
+
+        if (!ejecutado)
+        {
+            logger.LogWarning(
+                "Restablecimiento de contraseña rechazado, ya había una operación de credencial en curso: {UsuarioId}",
+                _usuario.Id);
+            _mensajeError = "Ya hay una operación sobre esta cuenta en curso. Espera un momento e inténtalo de nuevo.";
+            return;
+        }
+
+        // ejecutado == true garantiza que el delegado corrió y asignó el resultado.
+        var resultado = resultadoObtenido!;
 
         if (!resultado.Succeeded)
         {
@@ -122,22 +167,6 @@ public partial class RestablecerContrasena : ComponentBase
             }
 
             _mensajeError = string.Join(" ", resultado.Errors.Select(e => e.Description));
-            return;
-        }
-
-        _usuario.DebeCambiarContrasena = false;
-        var actualizacion = await UserManager.UpdateAsync(_usuario);
-        if (!actualizacion.Succeeded)
-        {
-            // La contraseña ya cambió (ResetPasswordAsync tuvo éxito arriba);
-            // lo que falló es persistir el fin del cambio obligatorio. No se
-            // anuncia éxito ni se cierra sesión: un reintento con el mismo
-            // enlace encontrará el token ya invalidado (la contraseña cambió,
-            // el security stamp rotó) y caerá en _enlaceInvalido, que ya
-            // ofrece pedir uno nuevo.
-            logger.LogError("Restablecimiento de contraseña: la contraseña cambió pero no se pudo persistir el usuario {UsuarioId}: {Errores}",
-                _usuario.Id, string.Join(" ", actualizacion.Errors.Select(e => e.Description)));
-            _mensajeError = string.Join(" ", actualizacion.Errors.Select(e => e.Description));
             return;
         }
 
