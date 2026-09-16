@@ -8,6 +8,9 @@ public class AuditoriaExtraccionIaRepositorioFalso : IAuditoriaExtraccionIaRepos
 
     public void Agregar(AuditoriaExtraccionIa auditoria) => Auditorias.Add(auditoria);
 
+    public Task<AuditoriaExtraccionIa?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Auditorias.FirstOrDefault(a => a.Id == id));
+
     public Task<AuditoriaExtraccionIa?> ObtenerUltimaSinDecisionPorDocumentoAsync(Guid documentoId, CancellationToken cancellationToken = default) =>
         Task.FromResult(Auditorias
             .Where(a => a.DocumentoId == documentoId && a.DecisionHumana is null)

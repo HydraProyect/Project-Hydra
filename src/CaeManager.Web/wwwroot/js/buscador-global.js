@@ -1,10 +1,13 @@
 // Atajo de teclado global (Ctrl/Cmd+K) para el buscador global — ver
 // UX_PATTERNS.md, "Buscar". Blazor no puede capturar keydown a nivel de
 // document sin interop porque el foco puede estar en cualquier elemento.
+import { hayDialogoModalAbierto } from './atajos-contexto.js';
+
 export function registrarAtajoBuscador(dotNetRef) {
     const manejador = (evento) => {
         const esAtajo = (evento.ctrlKey || evento.metaKey) && evento.key.toLowerCase() === 'k';
         if (!esAtajo) return;
+        if (evento.defaultPrevented || evento.isComposing || hayDialogoModalAbierto()) return;
 
         evento.preventDefault();
         dotNetRef.invokeMethodAsync('AbrirDesdeJs');
