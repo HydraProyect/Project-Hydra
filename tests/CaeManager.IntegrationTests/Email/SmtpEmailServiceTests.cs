@@ -1,3 +1,6 @@
+using System.Net.Security;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using CaeManager.Infrastructure.Email;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
@@ -49,6 +52,80 @@ public class SmtpEmailServiceTests
 
         resultado.EsFallido.Should().BeTrue();
         logger.Errores.Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// Reproduce en aislado el defecto real de dinahosting: el certificado del
+    /// servidor es un comodín compartido (<c>*.correoseguro.dinaserver.com</c>)
+    /// que nunca coincide con <c>mail.talveg.es</c>, el único host que resuelve
+    /// por DNS. Sin esta validación por SAN, <c>System.Net.Mail.SmtpClient</c>
+    /// (la implementación anterior) rechaza el certificado y el envío falla
+    /// siempre, en producción incluida — verificado en vivo el 2026-09-16 con
+    /// un handshake TLS real contra mail.talveg.es.
+    /// </summary>
+    [Fact]
+    public void Certificado_con_SAN_distinto_del_host_pero_igual_al_nombre_configurado_se_acepta()
+    {
+        var config = new SmtpEmailOptions
+        {
+            Host = "mail.talveg.es",
+            NombreCertificadoTls = "correoseguro.dinaserver.com",
+        };
+
+        using var certificado = CrearCertificadoConSan("correoseguro.dinaserver.com");
+
+        var aceptado = SmtpEmailService.ValidarCertificadoServidor(
+            config, certificado, cadena: null, SslPolicyErrors.RemoteCertificateNameMismatch);
+
+        aceptado.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Certificado_cuyo_SAN_no_coincide_con_ningun_nombre_esperado_se_rechaza()
+    {
+        var config = new SmtpEmailOptions
+        {
+            Host = "mail.talveg.es",
+            NombreCertificadoTls = "correoseguro.dinaserver.com",
+        };
+
+        using var certificado = CrearCertificadoConSan("otro-servidor.example.com");
+
+        var aceptado = SmtpEmailService.ValidarCertificadoServidor(
+            config, certificado, cadena: null, SslPolicyErrors.RemoteCertificateNameMismatch);
+
+        aceptado.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Un_error_de_cadena_de_confianza_se_rechaza_aunque_el_nombre_coincida()
+    {
+        var config = new SmtpEmailOptions
+        {
+            Host = "mail.talveg.es",
+            NombreCertificadoTls = "correoseguro.dinaserver.com",
+        };
+
+        using var certificado = CrearCertificadoConSan("correoseguro.dinaserver.com");
+
+        var aceptado = SmtpEmailService.ValidarCertificadoServidor(
+            config, certificado, cadena: null,
+            SslPolicyErrors.RemoteCertificateNameMismatch | SslPolicyErrors.RemoteCertificateChainErrors);
+
+        aceptado.Should().BeFalse(
+            "relajar la comprobación de nombre no puede convertirse en aceptar cualquier cadena de confianza rota");
+    }
+
+    private static X509Certificate2 CrearCertificadoConSan(string nombreSan)
+    {
+        using var rsa = RSA.Create(2048);
+        var solicitud = new CertificateRequest($"CN={nombreSan}", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+
+        var constructorSan = new SubjectAlternativeNameBuilder();
+        constructorSan.AddDnsName(nombreSan);
+        solicitud.CertificateExtensions.Add(constructorSan.Build());
+
+        return solicitud.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
     }
 
     private sealed class LoggerEspia : ILogger<SmtpEmailService>

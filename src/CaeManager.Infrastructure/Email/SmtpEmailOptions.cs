@@ -24,6 +24,17 @@ public class SmtpEmailOptions
     /// <summary>Dirección que envía el correo (ej. info@talveg.es).</summary>
     public string? BuzonRemitente { get; set; }
 
+    /// <summary>
+    /// Nombre contra el que se valida el certificado TLS del servidor,
+    /// cuando difiere de <see cref="Host"/> — el caso de dinahosting, cuyo
+    /// certificado es un comodín compartido entre clientes
+    /// (<c>*.correoseguro.dinaserver.com</c>) que nunca coincide con
+    /// <c>mail.talveg.es</c>, el único nombre que resuelve por DNS. Si se
+    /// deja vacío, se valida contra <see cref="Host"/> (comportamiento
+    /// estándar).
+    /// </summary>
+    public string? NombreCertificadoTls { get; set; }
+
     public bool EstaConfigurado =>
         !string.IsNullOrWhiteSpace(Host)
         && !string.IsNullOrWhiteSpace(Usuario)

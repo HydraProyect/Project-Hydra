@@ -17,6 +17,14 @@
     <PackageReference Include="AWSSDK.S3" Version="4.0.102.5" />
     <PackageReference Include="ClosedXML" Version="0.105.*" />
     <PackageReference Include="HtmlSanitizer" Version="9.2.1039" />
+    <!-- Sustituye a System.Net.Mail.SmtpClient (obsoleto) en SmtpEmailService:
+         necesitamos validar el certificado TLS del servidor por su SAN real
+         (correoseguro.dinaserver.com, nombre compartido de dinahosting), no
+         por el host al que nos conectamos (mail.talveg.es) — SmtpClient no
+         permite esa validación por instancia, solo el callback estático y
+         global de ServicePointManager. Licencia MIT (verificada en el tag del
+         paquete publicado). -->
+    <PackageReference Include="MailKit" Version="4.18.0" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.*" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="10.*" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.*">
