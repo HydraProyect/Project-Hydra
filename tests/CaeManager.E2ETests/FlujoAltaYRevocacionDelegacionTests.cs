@@ -144,7 +144,19 @@ public class FlujoAltaYRevocacionDelegacionTests(WebAppFixture fixture)
         await modalRevocar.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         await Expect(tarjetaTrasVolver).ToContainTextAsync("Revocada");
-        await Expect(tarjetaTrasVolver.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Reactivar", Exact = true })).ToBeVisibleAsync();
+
+        // NO "Reactivar" visible aquí: quien opera este test es el admin de la
+        // CONSULTORA (Ayudas.EmailAdministrador, quien dio de alta la
+        // delegación) y ReactivarDelegacionTenantCommand exige ser
+        // Administrador del CLIENTE DELEGANTE — asimetría deliberada frente a
+        // revocar (ADR-004 § 12.2, documentada en el propio comando: "un
+        // Administrador de la Consultora tiene el rol pero es la parte que
+        // RECIBE el acceso"). Antes del hueco cerrado en esta misma PR el
+        // botón se mostraba igualmente porque la vista solo comprobaba
+        // !OperandoWorkspaceAjeno, sin contrastar la autorización real — esta
+        // aserción es la que ese hueco dejaba sin cubrir.
+        await Expect(tarjetaTrasVolver.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Reactivar", Exact = true }))
+            .Not.ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
     }
 
     private static ILocatorAssertions Expect(ILocator locator) => Assertions.Expect(locator);
