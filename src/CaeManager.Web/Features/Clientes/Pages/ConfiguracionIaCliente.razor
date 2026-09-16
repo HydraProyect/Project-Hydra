@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
 @using CaeManager.Application.Clientes.Queries.ObtenerClientePorId
+@using CaeManager.Application.Cumplimiento.Queries.ObtenerEstadoTratamientoIaActual
 @using CaeManager.Application.TiposDocumento.Commands.ActualizarLecturaIaCliente
 @using CaeManager.Application.TiposDocumento.Queries.ObtenerConfiguracionIaPorCliente
 @using MediatR
@@ -31,7 +32,7 @@
         </div>
         <div class="lectura-ia-niveles-lista">
             <div class="lectura-ia-nivel">
-                <div class="lectura-ia-nivel-cabecera"><strong>Nivel 0 · Tratamiento con IA</strong><Badge Tono="TonoBadge.Neutro">Estado no disponible</Badge></div>
+                <div class="lectura-ia-nivel-cabecera"><strong>Nivel 0 · Tratamiento con IA</strong><Badge Tono="@(_tratamientoIa.InstruccionVigente ? TonoBadge.Exito : TonoBadge.Peligro)">@(_tratamientoIa.InstruccionVigente ? "Instrucción vigente" : "Sin instrucción vigente")</Badge></div>
                 <span>Instrucción documentada de tratamiento con IA del tenant propietario.</span>
                 <span>Sin una instrucción vigente no se lee ningún documento.</span>
             </div>
@@ -78,7 +79,13 @@
                     @foreach (var tipo in _configuracion)
                     {
                         <tr>
-                            <td><strong>@tipo.Nombre</strong></td>
+                            <td>
+                                <strong>@tipo.Nombre</strong>
+                                @if (tipo.DeteccionTrabajadoresActiva)
+                                {
+                                    <Badge Tono="TonoBadge.Neutro">También detecta personal</Badge>
+                                }
+                            </td>
                             <td>
                                 @if (tipo.GlobalActiva) { <Badge Tono="TonoBadge.Exito">Activa</Badge> }
                                 else { <Badge Tono="TonoBadge.Peligro">Desactivada para todos</Badge> }
@@ -110,7 +117,7 @@
         </aside>
         <aside class="lectura-ia-aviso lectura-ia-aviso-informacion" aria-label="Consecuencia de la lectura por IA">
             <strong>Consecuencia que esta pantalla no muestra</strong>
-            <span>Desactivar un tipo puede afectar a automatizaciones que dependan de su lectura por IA.</span>
+            <span>Cuando el tipo también detecta personal, la detección solo se detiene si todos los Clientes empresariales vinculados lo tienen desactivado.</span>
         </aside>
         <aside class="lectura-ia-aviso lectura-ia-aviso-mejora" aria-label="Límite de la configuración">
             <strong>El umbral de confianza no se configura aquí</strong>
