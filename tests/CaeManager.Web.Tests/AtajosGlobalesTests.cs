@@ -106,6 +106,58 @@ public class AtajosGlobalesTests : BunitContext
         navegacion.Uri.Should().Be(uriOriginal);
     }
 
+    /// <summary>
+    /// I-1 (AUDITORIA-USUARIO-AVANZADO-POST-GEN2-2026-09-16): "n" comparaba
+    /// solo el primer segmento de la ruta, así que dentro de un flujo propio
+    /// anidado bajo una base con creación rápida sacaba al usuario de él
+    /// (Alta Cliente y Detección Trabajadores, confirmados con efecto real) o
+    /// abría un alta sin relación con la ficha abierta (los 360). Las rutas de
+    /// esta teoría son las ocho enumeradas por la auditoría.
+    /// </summary>
+    [Theory]
+    [InlineData("clientes/alta-guiada")]
+    [InlineData("clientes/11111111-1111-1111-1111-111111111111/lectura-ia")]
+    [InlineData("empresas/11111111-1111-1111-1111-111111111111/deteccion-trabajadores")]
+    [InlineData("centros/11111111-1111-1111-1111-111111111111")]
+    [InlineData("trabajadores/11111111-1111-1111-1111-111111111111")]
+    [InlineData("documentos/revision-ia")]
+    [InlineData("documentos/subida-masiva")]
+    [InlineData("documentos/importar")]
+    public void CrearAqui_no_hace_nada_en_una_subruta_de_una_base_con_creacion_rapida(string ruta)
+    {
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        navegacion.NavigateTo(ruta);
+        var cut = Render<AtajosGlobales>();
+        var uriOriginal = navegacion.Uri;
+
+        cut.Instance.CrearAqui();
+
+        navegacion.Uri.Should().Be(uriOriginal);
+    }
+
+    /// <summary>
+    /// La otra mitad del contrato de I-1: sobre la lista misma "n" sigue
+    /// disparando, también con filtros en la URL o con barra final — si este
+    /// caso no estuviera, un <c>CrearAqui</c> que no hiciera nunca nada
+    /// pasaría la teoría de arriba entera.
+    /// </summary>
+    [Theory]
+    [InlineData("clientes", "/clientes?accion=crear")]
+    [InlineData("empresas/", "/empresas?accion=crear")]
+    [InlineData("centros?q=nave&estado=Activo", "/centros?accion=crear")]
+    [InlineData("trabajadores", "/trabajadores?accion=crear")]
+    [InlineData("documentos", "/documentos?accion=crear")]
+    public void CrearAqui_sigue_disparando_sobre_la_base_exacta(string ruta, string esperado)
+    {
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        navegacion.NavigateTo(ruta);
+        var cut = Render<AtajosGlobales>();
+
+        cut.Instance.CrearAqui();
+
+        navegacion.Uri.Should().EndWith(esperado);
+    }
+
     [Fact]
     public async Task AlternarAyuda_muestra_y_oculta_el_chuleta()
     {

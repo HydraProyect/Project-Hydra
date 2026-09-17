@@ -681,4 +681,173 @@ public class ProyectosGen2Tests : BunitContext
 
         NombresEnLaTabla(cut).Should().Equal([ProyectoDeB.Nombre], "la recarga era de A y el cliente vigente es B");
     }
+
+    // ------------------------------------------------------------------ atajos de lista (I-8)
+
+    private static Task Atajo(IRenderedComponent<Proyectos> cut, string tecla) =>
+        cut.InvokeAsync(() => cut.FindComponent<AtajosListaTeclado>().Instance.RecibirAtajo(tecla));
+
+    private static List<string> FilasEnfocadas(IRenderedComponent<Proyectos> cut) =>
+        cut.FindAll("tbody tr.fila-enfocada")
+            .Select(f => f.QuerySelector(".nombre-proyecto")!.TextContent.Trim())
+            .ToList();
+
+    /// <summary>
+    /// I-8: Proyectos nunca tuvo <c>AtajosListaTeclado</c> —no es una regresión
+    /// de Gen2, es un hueco que no se cerró—. "j" y "k" recorren las filas
+    /// visibles sin abrir nada: el foco de teclado es distinto de la selección
+    /// del panel, y el panel sigue cerrado mientras solo se navega.
+    /// </summary>
+    [Fact]
+    public async Task j_y_k_recorren_las_filas_sin_abrir_el_panel()
+    {
+        _mediator.Proyectos = [ProyectoAbierto, ProyectoAbierto2, ProyectoCerrado];
+        var cut = await RenderizarConClienteAsync();
+
+        FilasEnfocadas(cut).Should().BeEmpty("sin pulsar nada no hay fila enfocada");
+
+        await Atajo(cut, "j");
+        FilasEnfocadas(cut).Should().Equal([ProyectoAbierto.Nombre]);
+
+        await Atajo(cut, "j");
+        FilasEnfocadas(cut).Should().Equal([ProyectoAbierto2.Nombre]);
+
+        await Atajo(cut, "k");
+        FilasEnfocadas(cut).Should().Equal([ProyectoAbierto.Nombre]);
+
+        cut.FindAll("aside.panel-proyecto").Should().BeEmpty("recorrer no abre el detalle");
+        _mediator.Enviados.OfType<ObtenerProyectoPorIdQuery>().Should().BeEmpty();
+    }
+
+    /// <summary>"j" en la última fila y "k" en la primera se quedan donde están.</summary>
+    [Fact]
+    public async Task j_y_k_no_se_salen_de_la_lista()
+    {
+        _mediator.Proyectos = [ProyectoAbierto, ProyectoAbierto2];
+        var cut = await RenderizarConClienteAsync();
+
+        await Atajo(cut, "k");
+        FilasEnfocadas(cut).Should().Equal([ProyectoAbierto.Nombre], "sin foco previo, \"k\" empieza por la primera");
+
+        await Atajo(cut, "k");
+        FilasEnfocadas(cut).Should().Equal([ProyectoAbierto.Nombre]);
+
+        await Atajo(cut, "j");
+        await Atajo(cut, "j");
+        await Atajo(cut, "j");
+        FilasEnfocadas(cut).Should().Equal([ProyectoAbierto2.Nombre]);
+    }
+
+    /// <summary>
+    /// El caso que el contrato (§ 6.1 quater) documenta como bug histórico de
+    /// esta misma pantalla: "Enter" debe abrir el proyecto enfocado, no seguir
+    /// el enlace de la celda "Centro". Se comprueba con cambio de estado —qué
+    /// proyecto pide el panel— y no con una ausencia de navegación.
+    /// </summary>
+    [Fact]
+    public async Task Enter_abre_el_proyecto_enfocado_y_no_el_primero_de_la_lista()
+    {
+        _mediator.Proyectos = [ProyectoAbierto, ProyectoAbierto2, ProyectoCerrado];
+        var cut = await RenderizarConClienteAsync();
+
+        await Atajo(cut, "j");
+        await Atajo(cut, "j");
+        await Atajo(cut, "j");
+        await Atajo(cut, "Enter");
+
+        cut.Find("aside.panel-proyecto").TextContent.Should().Contain(ProyectoCerrado.Nombre);
+        _mediator.Enviados.OfType<ObtenerProyectoPorIdQuery>().Should().ContainSingle()
+            .Which.Id.Should().Be(CerradoId);
+    }
+
+    /// <summary>Sin fila enfocada, "Enter" no abre nada: no hay "el primero por defecto".</summary>
+    [Fact]
+    public async Task Enter_sin_fila_enfocada_no_abre_nada()
+    {
+        _mediator.Proyectos = [ProyectoAbierto, ProyectoAbierto2];
+        var cut = await RenderizarConClienteAsync();
+
+        await Atajo(cut, "Enter");
+
+        cut.FindAll("aside.panel-proyecto").Should().BeEmpty();
+        _mediator.Enviados.OfType<ObtenerProyectoPorIdQuery>().Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// "x" no marca nada y es deliberado: Proyectos no tiene selección múltiple
+    /// —ni casillas ni barra de acciones de lote—, así que no hay nada que
+    /// marcar y darle significado sería una decisión de producto (el mismo
+    /// caso que I-12 en Estado Comercial). Lo que sí se exige es que no mueva
+    /// el foco ni abra el panel.
+    /// </summary>
+    [Fact]
+    public async Task x_no_tiene_efecto_porque_la_pantalla_no_tiene_seleccion_multiple()
+    {
+        _mediator.Proyectos = [ProyectoAbierto, ProyectoAbierto2];
+        var cut = await RenderizarConClienteAsync();
+        await Atajo(cut, "j");
+
+        await Atajo(cut, "x");
+
+        FilasEnfocadas(cut).Should().Equal([ProyectoAbierto.Nombre]);
+        cut.FindAll("tbody input[type=checkbox]").Should().BeEmpty();
+        cut.FindAll("aside.panel-proyecto").Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Guarda P3-31, mitad observable desde bUnit: escribir en el buscador no
+    /// mueve el foco de fila. La otra mitad —que con un campo de texto
+    /// enfocado la tecla ni siquiera llega a C#— la decide
+    /// <c>atajos-lista.js</c> y se prueba donde se puede observar de verdad,
+    /// con teclado real, en <c>AtajosSuperficiesTests</c>
+    /// (<c>La_edicion_y_los_selectores_conservan_sus_teclas</c>): este test no
+    /// la demuestra y no pretende sustituirla.
+    /// </summary>
+    [Fact]
+    public async Task Escribir_en_el_buscador_no_mueve_el_foco_de_fila()
+    {
+        _mediator.Proyectos = [ProyectoAbierto, ProyectoAbierto2];
+        var cut = await RenderizarConClienteAsync();
+        await Atajo(cut, "j");
+
+        // "a" mantiene visibles las dos filas: si el término las escondiera, un
+        // foco perdido y un foco movido serían indistinguibles.
+        await cut.Find("input[aria-label='Buscar proyecto']")
+            .InputAsync(new ChangeEventArgs { Value = "a" });
+
+        NombresEnLaTabla(cut).Should().HaveCount(2);
+        FilasEnfocadas(cut).Should().Equal([ProyectoAbierto.Nombre]);
+    }
+
+    /// <summary>
+    /// Si la fila enfocada deja de pasar los filtros, el foco se descarta: la
+    /// siguiente "j" empieza por la primera fila visible y, sobre todo,
+    /// quitar el filtro NO devuelve el foco a la fila de antes — hallazgo de
+    /// la revisión de Codex sobre este mismo incremento, donde el foco
+    /// escondido sobrevivía y reaparecía al levantar el filtro.
+    /// </summary>
+    [Fact]
+    public async Task El_foco_de_una_fila_que_el_filtro_esconde_no_sobrevive_ni_reaparece()
+    {
+        _mediator.Proyectos = [ProyectoAbierto, ProyectoCerrado];
+        var cut = await RenderizarConClienteAsync();
+        await Atajo(cut, "j");
+        await Atajo(cut, "j");
+        FilasEnfocadas(cut).Should().Equal([ProyectoCerrado.Nombre]);
+
+        await SelectorDeEstado(cut).ChangeAsync(new ChangeEventArgs { Value = "abiertos" });
+
+        FilasEnfocadas(cut).Should().BeEmpty();
+
+        await SelectorDeEstado(cut).ChangeAsync(new ChangeEventArgs { Value = "" });
+
+        NombresEnLaTabla(cut).Should().HaveCount(2, "el filtro ya no esconde nada");
+        FilasEnfocadas(cut).Should().BeEmpty("el foco se descartó al esconderse su fila, no se guardó");
+
+        await Atajo(cut, "j");
+        FilasEnfocadas(cut).Should().Equal([ProyectoAbierto.Nombre]);
+    }
+
+    private static IElement SelectorDeEstado(IRenderedComponent<Proyectos> cut) =>
+        cut.FindAll("select").Single(s => s.TextContent.Contains("Abiertos"));
 }
