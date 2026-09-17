@@ -359,4 +359,62 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
         Interlocked.Exchange(ref _cicloCarga, null)?.Cancel();
         _cancelacionCarga.Dispose();
     }
+
+    // ---- Atajos de lista j/k (I-13 c de AUDITORIA-USUARIO-AVANZADO-POST-GEN2, decisión del
+    // propietario 2026-09-17, opción C) ----
+
+    /// <summary>Tabla que recorren "j"/"k". Una sola instancia de AtajosListaTeclado para toda la
+    /// página (dos no conviven, medido por Codex): el destino de cada tecla depende de cuál de las
+    /// dos tablas tiene el foco, no de dónde esté el cursor del ratón.</summary>
+    private enum TablaConexiones { Buzones, Lineas }
+
+    /// <summary>Sin foco previo, la tabla activa es Buzones de Microsoft 365 — la primera de la
+    /// página, ninguna decisión que tomar al entrar.</summary>
+    private TablaConexiones _tablaActiva = TablaConexiones.Buzones;
+    private Guid? _idBuzonEnfocado;
+    private Guid? _idLineaEnfocado;
+
+    /// <summary>Cambia la tabla activa: la dispara el clic en una tabla o el foco real de teclado
+    /// (Tab) aterrizando en cualquiera de sus controles — botones de fila incluidos.</summary>
+    private void ActivarTabla(TablaConexiones tabla) => _tablaActiva = tabla;
+
+    private string ClaseFilaBuzon(Guid id) =>
+        _tablaActiva == TablaConexiones.Buzones && _idBuzonEnfocado == id ? "fila-enfocada" : string.Empty;
+
+    private string ClaseFilaLinea(Guid id) =>
+        _tablaActiva == TablaConexiones.Lineas && _idLineaEnfocado == id ? "fila-enfocada" : string.Empty;
+
+    /// <summary>
+    /// Solo "j"/"k", y solo sobre la tabla con foco. "x" y "Enter" sobre una fila no hacen nada —
+    /// deliberado: no hay selección múltiple en ninguna de las dos tablas, y Enter solo podría
+    /// desconectar, reactivar o editar, y un atajo de fila no dispara escrituras. El Enter nativo
+    /// sobre un botón (Reactivar/Desconectar/Editar) lo sigue respetando atajos-lista.js sin pasar
+    /// por aquí.
+    /// </summary>
+    private Task ManejarAtajoAsync(string tecla)
+    {
+        if (tecla != "j" && tecla != "k") return Task.CompletedTask;
+
+        if (_tablaActiva == TablaConexiones.Buzones)
+            _idBuzonEnfocado = SiguienteId(_conexiones.Select(c => c.Id).ToList(), _idBuzonEnfocado, tecla);
+        else
+            _idLineaEnfocado = SiguienteId(_lineas.Select(l => l.LineaId).ToList(), _idLineaEnfocado, tecla);
+
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private static Guid? SiguienteId(IReadOnlyList<Guid> ids, Guid? actual, string tecla)
+    {
+        if (ids.Count == 0) return null;
+
+        var indice = -1;
+        if (actual is not null)
+            for (var i = 0; i < ids.Count; i++)
+                if (ids[i] == actual) indice = i;
+
+        return tecla == "j"
+            ? ids[Math.Min(indice + 1, ids.Count - 1)]
+            : ids[indice <= 0 ? 0 : indice - 1];
+    }
 }

@@ -20,7 +20,10 @@
         </Descripcion>
     </CabeceraPagina>
 
-    <section class="seccion-conexiones" aria-labelledby="titulo-buzones-microsoft365">
+    <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
+
+    <section class="seccion-conexiones" aria-labelledby="titulo-buzones-microsoft365"
+              @onclick="() => ActivarTabla(TablaConexiones.Buzones)" @onfocusin="() => ActivarTabla(TablaConexiones.Buzones)">
     <h2 id="titulo-buzones-microsoft365" class="titulo-bloque-conexiones">Buzones de Microsoft 365</h2>
 
     <div class="acciones-conexion-buzon">
@@ -69,7 +72,7 @@
             <tbody>
                 @foreach (var conexion in _conexiones)
                 {
-                    <tr>
+                    <tr class="@ClaseFilaBuzon(conexion.Id)">
                         <td>@conexion.BuzonEmail</td>
                         <td>@DescribirPropietario(conexion)</td>
                         <td>
@@ -103,7 +106,8 @@
     }
     </section>
 
-    <section class="seccion-conexiones seccion-lineas-whatsapp" aria-labelledby="titulo-lineas-whatsapp">
+    <section class="seccion-conexiones seccion-lineas-whatsapp" aria-labelledby="titulo-lineas-whatsapp"
+              @onclick="() => ActivarTabla(TablaConexiones.Lineas)" @onfocusin="() => ActivarTabla(TablaConexiones.Lineas)">
     <h2 id="titulo-lineas-whatsapp" class="titulo-bloque-conexiones">Líneas de WhatsApp</h2>
 
     <p class="texto-descriptivo">
@@ -139,7 +143,7 @@
             <tbody>
                 @foreach (var linea in _lineas)
                 {
-                    <tr>
+                    <tr class="@ClaseFilaLinea(linea.LineaId)">
                         <td>@linea.Nombre<br /><span class="texto-secundario">@linea.NumeroTelefono</span></td>
                         <td>@linea.PhoneNumberId</td>
                         <td>@(linea.ClienteNombre ?? "Organización propia")</td>
