@@ -301,5 +301,57 @@ else
 fi
 
 echo
+echo "=== 2ª pasada de Codex (2026-09-17), P2: HEAD sustituido en la ventana estrecha ENTRE leer los checks y declarar VERDE ==="
+nueva_fixture_dir
+# Llamada 1 (global, antes de entrar en fase_checks): AAA.
+fixture PR_VIEW 1 "OPEN	AAA	CLEAN		"
+# Llamada 2 (inicio de la 1ª vuelta del bucle): SIGUE en AAA — coincide con
+# head_vigilado, así que el bucle NO detecta ningún cambio todavía y sigue
+# adelante a leer los checks como si AAA fuera a estar vigente.
+fixture PR_VIEW 2 "OPEN	AAA	CLEAN		"
+# Llamada 3: la relectura que este arreglo añade JUSTO ANTES de declarar
+# VERDE. Aquí, y solo aquí, aparece el push nuevo (BBB) — la ventana estrecha
+# que Codex señaló entre "los checks ya dieron pass" y "se declara VERDE".
+fixture PR_VIEW 3 "OPEN	BBB	CLEAN		"
+# Llamada 4 (inicio de la 2ª vuelta, ya con head_vigilado=BBB) y llamada 5
+# (relectura previa al VERDE de esa vuelta): ambas confirman BBB.
+fixture PR_VIEW 4 "OPEN	BBB	CLEAN		"
+fixture PR_VIEW 5 "OPEN	BBB	CLEAN		"
+fixture_branch_protection 1
+fixture_branch_protection 2
+fixture PR_CHECKS 1 $'Check A\tpass' $'Check B\tpass' $'Check C\tpass'
+fixture PR_CHECKS 2 $'Check A\tpass' $'Check B\tpass' $'Check C\tpass'
+ejecutar 116 --hasta checks
+assert_veredicto "el VERDE final habla del HEAD BBB, no del AAA ya sustituido" VERDE 0 "BBB"
+PRUEBAS=$((PRUEBAS + 1))
+if [[ "$SALIDA" != *"VEREDICTO: VERDE"*"AAA"* ]]; then
+  echo "OK: no se coló el HEAD viejo (AAA) en el veredicto"
+else
+  echo "FALLO: el veredicto sigue mencionando el HEAD ya sustituido (AAA)" >&2
+  FALLOS=$((FALLOS + 1))
+fi
+
+echo
+echo "=== 2ª pasada de Codex (2026-09-17), P2: fallo de GraphQL en la cola NO se confunde con TIMEOUT ==="
+nueva_fixture_dir
+fixture PR_VIEW 1 "OPEN	AAA	CLEAN		"
+fixture_branch_protection 1
+fixture PR_CHECKS 1 $'Check A\tpass' $'Check B\tpass' $'Check C\tpass'
+fixture PR_VIEW 2 "OPEN	AAA	CLEAN		"
+fixture PR_VIEW 3 "OPEN	AAA	CLEAN		"
+fixture PR_VIEW 4 "OPEN	AAA	CLEAN		"
+fixture MERGE_QUEUE 1 "MOCK_ERROR"
+fixture MERGE_QUEUE 2 "MOCK_ERROR"
+fixture MERGE_QUEUE 3 "MOCK_ERROR"
+TIMEOUT_S_PRUEBA=600 ejecutar 117 --hasta merge
+PRUEBAS=$((PRUEBAS + 1))
+if [[ "$CODIGO" == "64" ]] && ! printf '%s\n' "$SALIDA" | grep -q '^VEREDICTO:'; then
+  echo "OK: fallo de GraphQL en la cola -> error de entorno (64), no un VEREDICTO: TIMEOUT disfrazado"
+else
+  echo "FALLO: se esperaba código 64 sin línea VEREDICTO — obtenido código=$CODIGO salida='$SALIDA'" >&2
+  FALLOS=$((FALLOS + 1))
+fi
+
+echo
 echo "Pruebas: $PRUEBAS · Fallos: $FALLOS"
 (( FALLOS == 0 )) || exit 1

@@ -374,8 +374,20 @@ fase_checks() {
     done
 
     if [[ ${#esperados[@]} -gt 0 && ${#faltan[@]} -eq 0 && ${#pendientes[@]} -eq 0 ]]; then
-      log "fase checks: los ${#esperados[@]} checks obligatorios están en verde sobre $head_vigilado"
-      return 0
+      # Releer el HEAD justo antes de declarar VERDE (Codex, P2, 2026-09-17):
+      # `gh pr checks` refleja el HEAD en el momento EN QUE SE LLAMÓ, no el
+      # que se leyó al principio de esta vuelta. Un push llegado entre medias
+      # dejaría este VERDE hablando de un commit que ya no es el HEAD.
+      leer_pr
+      if [[ "$PR_HEAD" != "$head_vigilado" ]]; then
+        log "fase checks: el HEAD cambió a $PR_HEAD justo antes de declarar VERDE sobre $head_vigilado — descartado, se repite la vuelta sobre el HEAD nuevo"
+        head_vigilado="$PR_HEAD"
+      elif [[ "$PR_ESTADO" == "CLOSED" ]]; then
+        salir_rojo "PR #$PR cerrada sin fusionar"
+      else
+        log "fase checks: los ${#esperados[@]} checks obligatorios están en verde sobre $head_vigilado"
+        return 0
+      fi
     fi
 
     local detalle=""
@@ -413,6 +425,7 @@ fase_merge() {
   inicio_fase="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   log "fase merge: esperando entrada en la cola de fusión (no auto-merge) y fusión real"
 
+  local fallos_graphql=0
   while true; do
     leer_pr
     if [[ "$PR_ESTADO" == "CLOSED" ]]; then
@@ -424,10 +437,24 @@ fase_merge() {
       return 0
     fi
 
+    # Igual que con branch protection (Codex, P2, 2026-09-17): un fallo real
+    # de la consulta GraphQL (permisos, rate limit, red) NUNCA se propaga
+    # como "sigue esperando" indefinidamente — tras reintentos acotados es un
+    # error de ENTORNO (64), no un VEREDICTO: TIMEOUT que ocultaría la causa.
     local linea_cola
-    linea_cola="$(merge_queue_entry_tsv)"
+    if ! linea_cola="$(merge_queue_entry_tsv)"; then
+      fallos_graphql=$((fallos_graphql + 1))
+      log "fase merge: ERROR consultando la cola de fusión (GraphQL) — intento $fallos_graphql de 3"
+      if [[ "$fallos_graphql" -ge 3 ]]; then
+        echo "$PROG: no se pudo consultar la cola de fusión (GraphQL) tras $fallos_graphql intentos — es un fallo de entorno/permisos, no un TIMEOUT de CI" >&2
+        exit 64
+      fi
+      sleep "$INTERVALO_S"
+      continue
+    fi
+    fallos_graphql=0
     if [[ -z "$linea_cola" ]]; then
-      log "fase merge: no se pudo consultar la cola de fusión (GraphQL); reintentando"
+      log "fase merge: la cola de fusión devolvió una respuesta vacía inesperada; reintentando"
     elif [[ "$linea_cola" == "NULL" ]]; then
       local linea_expulsion
       linea_expulsion="$(ultima_expulsion_cola_tsv)"
