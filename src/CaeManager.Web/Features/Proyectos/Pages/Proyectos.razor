@@ -123,6 +123,8 @@
         {
             <p class="conteo-proyectos">@TextoConteo</p>
 
+            <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
+
             <div class="contenedor-tabla-proyectos">
                 <table class="tabla-datos tabla-proyectos">
                     <thead>
@@ -138,7 +140,7 @@
                     <tbody>
                         @foreach (var proyecto in ProyectosVisibles)
                         {
-                            <tr class="@(_proyectoSeleccionadoId == proyecto.Id ? "fila-seleccionada" : "")">
+                            <tr class="@ClaseFila(proyecto)">
                                 <td>
                                     <button type="button" class="enlace-nombre-fila nombre-proyecto" @onclick="() => SeleccionarProyectoAsync(proyecto.Id)">@proyecto.Nombre</button>
                                 </td>
