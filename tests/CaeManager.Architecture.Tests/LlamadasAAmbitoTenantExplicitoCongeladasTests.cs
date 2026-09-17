@@ -111,6 +111,41 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
     /// llamada más en <c>DatosPruebaSeeder.cs</c> (de 1 a 2): siembra la
     /// instrucción de Nivel 0 solo para el tenant #1, mismo patrón
     /// <see cref="Categoria.BootstrapOSiembra"/> que ya tenía.
+    ///
+    /// <para>
+    /// Actualizado 2026-09-18 (REC-212, auditoría de los 42 usos fuera de
+    /// Application frente al patrón de envenenamiento de REC-195): esta
+    /// tabla ya congelaba la PROCEDENCIA del <c>Guid</c> de cada sitio, pero
+    /// no decía nada sobre si REUTILIZAR la misma instancia de scope/DbContext
+    /// para varios tenants sin <c>CreateScope()</c> entre vueltas podía
+    /// envenenar algo — la pregunta de REC-195, no la de este ratchet. Medido
+    /// uno a uno sobre <c>origin/main</c> <c>0ec6c37b</c>:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>Los 9 ficheros de <see cref="Categoria.JobDeFondoSobreEnumeracionPropia"/>
+    /// llaman <c>ambitoFactory.CreateScope()</c> justo antes de cada <c>Establecer</c>: cada
+    /// tenant obtiene su propia instancia, inmune por construcción.</description></item>
+    /// <item><description>Los 2 de <see cref="Categoria.ServicioDePlataformaConGuardaPropia"/> y
+    /// 2 de los 3 de <see cref="Categoria.CredencialVerificadaInmediatamenteAntes"/>
+    /// (<c>ApiKeyAuthenticationHandler</c>, <c>WebhookMicrosoft365Endpoints</c>) nunca visitan más
+    /// de un tenant por instancia — un circuito Blazor, un proceso CLI o una petición HTTP no
+    /// pueden aportar una "vuelta siguiente" que envenenar.</description></item>
+    /// <item><description>Los 6 de <see cref="Categoria.BootstrapOSiembra"/> SÍ visitan varios
+    /// tenants con la misma instancia de <c>DbContext</c> (sin <c>CreateScope</c> entre ellos),
+    /// pero ninguno resuelve <c>IAlcanceDatosService</c> ni pasa por <c>IMediator</c> (comprobado
+    /// por grep, cero apariciones ejecutables) — la precondición del mecanismo de REC-195 no se
+    /// da.</description></item>
+    /// <item><description><b>El único candidato real</b>: <c>WebhookWhatsAppEndpoints.cs</c> —
+    /// el <c>foreach</c> sobre los fragmentos de un mismo payload de Meta puede resolver
+    /// tenants distintos por vuelta, con el mismo <c>eventoRepositorio</c>/<c>unitOfWork</c>
+    /// (mismo <c>CaeManagerDbContext</c>) inyectados una sola vez por petición. Reproducido antes
+    /// de concluir nada (no solo leído): <c>WebhookLoopSinCreateScopeEntreTenantsTests</c>
+    /// (<c>tests/CaeManager.IntegrationTests/MultiTenancy/</c>) confirma con Postgres real que, sin
+    /// transacción explícita, cada <c>SaveChangesAsync</c> reabre físicamente la conexión y
+    /// <c>TenantRlsConnectionInterceptor</c> refresca <c>app.tenant_id</c> al tenant vigente en
+    /// cada vuelta — y su control positivo demuestra que el MISMO instrumento SÍ detecta el
+    /// patrón peligroso (conexión mantenida abierta a mano entre vueltas) cuando existe.</description></item>
+    /// </list>
     /// </summary>
     private static readonly Dictionary<string, EntradaBlanca> Autorizados = new()
     {
@@ -269,6 +304,60 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             encontrados[fichero].Should().Be(esperado,
                 $"{fichero} tenía {esperado} llamada(s) a Establecer verificadas una a una; un número " +
                 "distinto significa que se añadió o quitó una sin actualizar esta lista");
+        }
+    }
+
+    /// <summary>
+    /// REC-212: sitios fuera de Application que reutilizan la MISMA instancia
+    /// de scope/<c>DbContext</c> para <b>más de un tenant</b> sin
+    /// <c>CreateScope()</c> entre vueltas — la forma exacta del defecto de
+    /// REC-195, aunque aquí ninguno resuelva <c>IAlcanceDatosService</c> (ver
+    /// el doc-comment de la clase). Lista cerrada y verificada uno a uno, no
+    /// derivada de <see cref="Autorizados"/> por regex: "varias vueltas en el
+    /// mismo scope" no se detecta con un patrón de texto sin dar falsos
+    /// positivos (un <c>foreach</c> de un seeder que sí crea su propio
+    /// contexto por vuelta, por ejemplo).
+    ///
+    /// Cada entrada exige su propio test de integración que reproduzca —no
+    /// solo lea— que la reutilización no envenena nada, igual que
+    /// <c>AlcanceMemoizadoPorTenantEnFanOutTests</c> para el fan-out de
+    /// Application. Añadir un fichero nuevo a este conjunto sin su test
+    /// deja la afirmación sin comprobar; por eso el test de abajo compara
+    /// por igualdad, no solo comprueba que la lista no esté vacía.
+    /// </summary>
+    private static readonly Dictionary<string, string> SitiosConVariosTenantsPorInstancia = new()
+    {
+        ["src/CaeManager.Web/Api/Integraciones/WebhookWhatsAppEndpoints.cs"] =
+            "CaeManager.IntegrationTests.MultiTenancy.WebhookLoopSinCreateScopeEntreTenantsTests",
+    };
+
+    [Fact]
+    public void Los_sitios_con_varios_tenants_por_instancia_tienen_su_test_de_reproduccion()
+    {
+        SitiosConVariosTenantsPorInstancia.Keys.Should().BeSubsetOf(Autorizados.Keys,
+            "esta lista es un recorte de la lista blanca de arriba, nunca puede nombrar un fichero que no esté allí");
+
+        var raiz = RaizDelRepositorio();
+
+        foreach (var (fichero, test) in SitiosConVariosTenantsPorInstancia)
+        {
+            var rutaFichero = Path.Combine(raiz, fichero);
+            File.Exists(rutaFichero).Should().BeTrue(
+                $"{fichero} tiene que seguir existiendo — si se movió o se borró, esta entrada quedó huérfana");
+
+            // Una sola aparición SINTÁCTICA de "Establecer(" no contradice que
+            // se ejecute varias veces en tiempo de ejecución — aquí es
+            // exactamente eso: UN único using dentro de un foreach sobre los
+            // fragmentos del payload, no varias llamadas de texto distintas
+            // como en un seeder. Por eso esta lista no se deriva del recuento
+            // de Autorizados y hace falta el test de reproducción nombrado
+            // arriba, no una comprobación estática, para demostrar que la
+            // reutilización del scope entre vueltas no envenena nada.
+            LlamadaAEstablecer.IsMatch(File.ReadAllText(rutaFichero)).Should().BeTrue(
+                $"{fichero} tiene que seguir llamando a AmbitoTenantExplicito.Establecer — si ya no lo hace, " +
+                "esta entrada quedó huérfana");
+
+            _ = test; // el nombre del test vive en el diccionario para que quien lea esta lista sepa dónde mirar
         }
     }
 
