@@ -19,13 +19,26 @@
 #   scripts/verificar-gobernanza-pr.sh <fichero-cuerpo> <fichero-ficheros>
 #
 # <fichero-cuerpo>: el cuerpo de la PR tal cual (UTF-8, un fichero).
-# <fichero-ficheros>: un path por línea, los ficheros que toca la PR
-#   (`gh api .../pulls/N/files --paginate --jq '.[].filename'`).
+# <fichero-ficheros>: un path por línea, los ficheros que toca la PR. Debe
+#   incluir tanto `.filename` como `.previous_filename` de cada entrada
+#   (`gh api .../pulls/N/files --paginate --jq '.[] | .filename,
+#   (.previous_filename // empty)'`) — si no, un rename que saque el fichero
+#   vigilado de su ruta escapa de la regla sin que este guion pueda verlo:
+#   solo mira lo que le llega, y la ruta anterior no está en `.filename`.
 #
 # Ver scripts/verificar-gobernanza-pr.tests.sh para la prueba sin red.
 set -euo pipefail
 
 FICHERO_ROLES_CLUSTER="deploy/bootstrap/roles-de-cluster.sql"
+
+# La API de PRs de GitHub trunca la respuesta de /files en 3000 entradas,
+# pagine lo que pagine (documentado, no un límite nuestro): con una PR de ese
+# tamaño el guion podría no ver el fichero vigilado aunque esté en el diff
+# real, y "no toca el fichero" sería un falso negativo, no una ausencia
+# comprobada (§3 del protocolo de verificación: un instrumento que no puede
+# observar la propiedad no cuenta como evidencia). Falla cerrado en vez de
+# dar un OK que no puede respaldar.
+LIMITE_PAGINACION_GH=3000
 
 CUERPO="${1:-}"
 FICHEROS="${2:-}"
@@ -35,15 +48,19 @@ if [[ -z "$CUERPO" || ! -f "$CUERPO" || -z "$FICHEROS" || ! -f "$FICHEROS" ]]; t
   exit 2
 fi
 
-# Extrae el contenido de la sección "## <titulo>" hasta el siguiente "## " o
-# el final del cuerpo. Compara por igualdad de texto (no regex) para no tener
-# que escapar tildes ni caracteres especiales del título.
+# Extrae el contenido de la sección "## <titulo>" hasta el siguiente
+# encabezado de nivel 2 o el final del cuerpo. Un encabezado siguiente se
+# reconoce como "##" solo, o "##" seguido de espacio o tabulador (CommonMark
+# admite ambos) — "## " a secas no cortaba "##\tOtra sección", y esa sección
+# vacía podía heredar en silencio el contenido de la que viene después. El
+# título objetivo se compara por igualdad de texto (no regex) para no tener
+# que escapar tildes ni caracteres especiales.
 extraer_seccion() {
   local fichero="$1" titulo="$2"
   awk -v titulo="$titulo" '
     { linea = $0; sub(/[[:space:]]+$/, "", linea) }
     !encontrada && linea == titulo { encontrada = 1; next }
-    encontrada && index($0, "## ") == 1 { exit }
+    encontrada && $0 ~ /^##([ \t]|$)/ { exit }
     encontrada { print }
   ' "$fichero"
 }
@@ -54,7 +71,13 @@ seccion_no_vacia() {
 
 PROBLEMAS=0
 
-if grep -qxF "$FICHERO_ROLES_CLUSTER" "$FICHEROS"; then
+NUM_FICHEROS=$(grep -c . "$FICHEROS" || true)
+if (( NUM_FICHEROS >= LIMITE_PAGINACION_GH )); then
+  echo "PROBLEMA  Esta PR toca $NUM_FICHEROS ficheros o más — la API de GitHub trunca" \
+       "/pulls/N/files en $LIMITE_PAGINACION_GH y no se puede confirmar si toca o no" \
+       "$FICHERO_ROLES_CLUSTER. Revisar el diff a mano."
+  PROBLEMAS=$((PROBLEMAS + 1))
+elif grep -qxF "$FICHERO_ROLES_CLUSTER" "$FICHEROS"; then
   SECCION="$(extraer_seccion "$CUERPO" "## Paso operativo en servidores")"
   if ! seccion_no_vacia "$SECCION"; then
     echo "PROBLEMA  Esta PR toca $FICHERO_ROLES_CLUSTER pero el cuerpo no tiene la sección" \

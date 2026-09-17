@@ -143,8 +143,14 @@ jobs:
           CUERPO="$(mktemp)"
           echo "$datos" | jq -r '.body // ""' >"$CUERPO"
 
+          # .previous_filename además de .filename: si el fichero vigilado se
+          # renombra dentro de la misma PR, la entrada de esa API lo lleva en
+          # previous_filename, no en filename — sin las dos, un rename lo
+          # saca de la ruta vigilada sin que el guion pueda verlo (hallazgo
+          # de Codex, ver "## Revisión Codex" de esta PR).
           FICHEROS="$(mktemp)"
-          gh api "repos/${REPO}/pulls/${NUMERO}/files" --paginate --jq '.[].filename' >"$FICHEROS"
+          gh api "repos/${REPO}/pulls/${NUMERO}/files" --paginate \
+            --jq '.[] | .filename, (.previous_filename // empty)' >"$FICHEROS"
 
           bash scripts/verificar-gobernanza-pr.sh "$CUERPO" "$FICHEROS"
 

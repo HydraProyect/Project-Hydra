@@ -122,5 +122,44 @@ assert_codigo "fichero de nombre parecido no dispara la regla" 0 \
   "$(ficheros "deploy/bootstrap/roles-de-cluster-otro.sql")"
 
 echo
+echo "=== Hallazgos de Codex (PR1): rename, límite de paginación, tabulador ==="
+
+# Rename dentro de la misma PR: el fichero vigilado sale por
+# previous_filename, no por filename (así lo emite el jq de gobernanza-pr.yml:
+# '.[] | .filename, (.previous_filename // empty)'). Sin mirar
+# previous_filename, esto escapaba la regla en silencio.
+assert_codigo "rename de roles-de-cluster.sql (visto por previous_filename) sí dispara" 1 \
+  "$(cuerpo "## Resumen" "Renombra el fichero de roles.")" \
+  "$(ficheros "deploy/bootstrap/roles-de-cluster-2027.sql" "deploy/bootstrap/roles-de-cluster.sql")"
+
+# Límite de paginación de la API de GitHub (3000 ficheros): con ese volumen
+# no se puede confirmar si toca o no el fichero vigilado — falla cerrado en
+# vez de dar un OK que el instrumento no puede respaldar.
+generar_muchos_ficheros() {
+  local n="$1" ruta="$TMP_ROOT/muchos-$RANDOM.txt"
+  for ((i = 0; i < n; i++)); do echo "src/Archivo$i.cs"; done >"$ruta"
+  printf '%s' "$ruta"
+}
+assert_codigo "3000 ficheros o más: falla cerrado aunque no se vea el fichero vigilado" 1 \
+  "$(cuerpo "## Resumen" "PR enorme.")" \
+  "$(generar_muchos_ficheros 3000)"
+assert_menciona "y explica el motivo (límite de paginación)" "trunca" \
+  "$(cuerpo "## Resumen" "PR enorme.")" \
+  "$(generar_muchos_ficheros 3000)"
+assert_codigo "2999 ficheros: no dispara el límite (queda por debajo)" 0 \
+  "$(cuerpo "## Resumen" "PR grande pero no al límite.")" \
+  "$(generar_muchos_ficheros 2999)"
+
+# Encabezado "##\tOtra sección" (tabulador, válido en CommonMark) debe cerrar
+# la sección igual que "## Otra sección" — si no, una sección objetivo vacía
+# hereda en silencio el contenido de la siguiente.
+SECCION_CON_TAB="$TMP_ROOT/cuerpo-tab.md"
+printf '## Paso operativo en servidores\n##\tOtra sección\nAplicar en staging y en producción.\n' \
+  >"$SECCION_CON_TAB"
+assert_codigo "'##<TAB>Otra sección' cierra la sección objetivo (queda vacía): falla" 1 \
+  "$SECCION_CON_TAB" \
+  "$(ficheros "deploy/bootstrap/roles-de-cluster.sql")"
+
+echo
 echo "Pruebas: $PRUEBAS · Fallos: $FALLOS"
 (( FALLOS == 0 )) || exit 1
