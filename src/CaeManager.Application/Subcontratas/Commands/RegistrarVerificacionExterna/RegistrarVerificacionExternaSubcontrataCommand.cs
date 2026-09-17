@@ -76,7 +76,7 @@ public class RegistrarVerificacionExternaSubcontrataCommandHandler(
         RegistrarVerificacionExternaSubcontrataCommand request, CancellationToken cancellationToken)
     {
         var subcontrata = await subcontrataRepositorio.ObtenerPorIdAsync(request.SubcontrataId, cancellationToken);
-        if (subcontrata is null || !await alcanceDatos.SubcontrataVisibleAsync(subcontrata.Id, cancellationToken))
+        if (subcontrata is null || !await alcanceDatos.SubcontrataParaGestionVisibleAsync(subcontrata.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Subcontrata.NoEncontrada", "No encontramos esta subcontrata."));
 
         // Ids ajenos bajo el filtro de tenant = no encontrados (regla global del repo).
