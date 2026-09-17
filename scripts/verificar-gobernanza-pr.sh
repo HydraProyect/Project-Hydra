@@ -79,7 +79,14 @@ extraer_seccion() {
 }
 
 seccion_no_vacia() {
-  printf '%s' "$1" | grep -qE '[^[:space:]]'
+  # Quita comentarios HTML de una sola línea antes de mirar si queda
+  # contenido visible: "<!-- -->" no es texto real, y GitHub lo renderiza
+  # como nada — sin este filtro, una sección "rellena" solo con un
+  # comentario pasaba como si tuviera contenido (hallazgo de Codex sobre
+  # esta misma PR). No cubre comentarios HTML repartidos en varias líneas:
+  # ese caso queda como hueco aceptado, no vale la complejidad para un check
+  # que no es `required`.
+  printf '%s' "$1" | sed -E 's/<!--.*-->//g' | grep -qE '[^[:space:]]'
 }
 
 PROBLEMAS=0
@@ -122,14 +129,14 @@ else
          "hallazgos aceptados o rechazados, o 'sin hallazgos' si no tocaba superficie" \
          "sensible."
     PROBLEMAS=$((PROBLEMAS + 1))
-  elif printf '%s' "$SECCION" | grep -qiE 'resultado[[:space:]]+abajo'; then
+  elif printf '%s' "$SECCION" | grep -qiE 'resultados?[[:space:]-]+abajo'; then
     echo "PROBLEMA  La sección 'Revisión Codex' tiene el marcador provisional 'resultado abajo'" \
          "(el mismo que #673 dejó sin rellenar)."
     PROBLEMAS=$((PROBLEMAS + 1))
   elif printf '%s' "$SECCION" | grep -qiE '\bpendiente'; then
     echo "PROBLEMA  La sección 'Revisión Codex' tiene el marcador provisional 'pendiente'."
     PROBLEMAS=$((PROBLEMAS + 1))
-  elif printf '%s' "$SECCION" | grep -qE '\bTODO\b'; then
+  elif printf '%s' "$SECCION" | grep -qE '\bTODOs?\b'; then
     echo "PROBLEMA  La sección 'Revisión Codex' tiene el marcador provisional 'TODO'."
     PROBLEMAS=$((PROBLEMAS + 1))
   else

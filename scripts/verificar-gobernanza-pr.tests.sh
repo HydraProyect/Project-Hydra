@@ -258,11 +258,66 @@ assert_codigo "un bot con nombre parecido no exime ('dependabot' sin '[bot]')" 1
   "dependabot"
 
 echo
+echo "=== Hallazgos de Codex (PR2): comentario HTML, plurales ==="
+
+# Un comentario HTML no es contenido real — GitHub lo renderiza como nada.
+# Sin filtrarlo, "<!-- -->" contaba como sección rellena.
+assert_codigo "sección con solo un comentario HTML: falla (no es contenido real)" 1 \
+  "$(cuerpo "## Revisión Codex" "<!-- -->")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+# Con contenido real ADEMÁS del comentario, sí pasa — el comentario no debe
+# contaminar el contenido legítimo que lo acompaña.
+assert_codigo "comentario HTML junto a contenido real: pasa" 0 \
+  "$(cuerpo "## Revisión Codex" "<!-- nota interna -->sin hallazgos")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+
+# Plural de los marcadores: "TODOs" y "resultados abajo" son variantes
+# naturales de los mismos marcadores singulares ya cubiertos.
+assert_codigo "marcador 'TODOs' (plural): falla" 1 \
+  "$(cuerpo "## Revisión Codex" "TODOs: repasar con Codex")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+assert_codigo "marcador 'resultados abajo' (plural): falla" 1 \
+  "$(cuerpo "## Revisión Codex" "2ª pasada — resultados abajo")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+assert_codigo "marcador 'resultado-abajo' (con guion): falla" 1 \
+  "$(cuerpo "## Revisión Codex" "resultado-abajo")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+
+# "Todo" con solo la inicial en mayúscula, a secas, NO es un marcador —
+# hacer el marcador TODO insensible a mayúsculas volvería a disparar con el
+# español normal ("Todo el equipo revisó esto."), que es exactamente el
+# falso positivo que el marcador en mayúsculas evita a propósito.
+assert_codigo "'Todo' con solo la inicial en mayúscula no es un marcador" 0 \
+  "$(cuerpo "## Revisión Codex" "Todo el equipo revisó esto, sin hallazgos.")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+
+echo
 echo "=== Combinación de las dos reglas ==="
 
-# PR que toca roles-de-cluster.sql Y no tiene revisión Codex: dos problemas,
-# un solo fallo (exit 1), y el mensaje cubre ambos.
+# PR que toca roles-de-cluster.sql Y no tiene revisión Codex: dos problemas
+# (no uno), y el mensaje cubre las dos secciones — no solo que falle, sino
+# que falle por las DOS razones (si una regresión dejara de evaluar la regla
+# 2 tras fallar la regla 1, esto lo cazaría; el "Problemas: 2" del contador
+# también, ver assert_menciona de abajo).
 assert_codigo "faltan las dos secciones a la vez: falla" 1 \
+  "$(cuerpo "## Resumen" "Cambio grande.")" \
+  "$(ficheros "deploy/bootstrap/roles-de-cluster.sql")" \
+  ""
+assert_menciona "...y el diagnóstico de roles de clúster aparece" "Paso operativo en servidores" \
+  "$(cuerpo "## Resumen" "Cambio grande.")" \
+  "$(ficheros "deploy/bootstrap/roles-de-cluster.sql")" \
+  ""
+assert_menciona "...y el diagnóstico de revisión Codex aparece" "Revisión Codex" \
+  "$(cuerpo "## Resumen" "Cambio grande.")" \
+  "$(ficheros "deploy/bootstrap/roles-de-cluster.sql")" \
+  ""
+assert_menciona "...y el contador de problemas es 2, no 1" "Problemas: 2" \
   "$(cuerpo "## Resumen" "Cambio grande.")" \
   "$(ficheros "deploy/bootstrap/roles-de-cluster.sql")" \
   ""
