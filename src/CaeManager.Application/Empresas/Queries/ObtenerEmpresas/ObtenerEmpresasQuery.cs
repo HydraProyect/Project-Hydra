@@ -1,6 +1,7 @@
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Trabajadores;
@@ -40,6 +41,7 @@ public record EmpresaListaDto(
 public class ObtenerEmpresasQueryHandler(
     IEmpresasQueryContext dbContext, IAlcanceDatosService alcanceDatos,
     ICalculoEstadoDocumentalService calculoEstadoDocumental,
+    IDocumentosQueryContext documentosContext, IConfiguracionQueryContext configuracionContext,
     IAsignacionesQueryContext asignacionesContext, ITrabajadoresQueryContext trabajadoresContext,
     ICalculoEstadoCentroService calculoEstadoCentro)
     : IRequestHandler<ObtenerEmpresasQuery, ResultadoPaginado<EmpresaListaDto>>
@@ -58,43 +60,100 @@ public class ObtenerEmpresasQueryHandler(
             consulta = consulta.Where(e => e.RazonSocial.ToUpper().Contains(busqueda));
         }
 
-        // Filtrar u ordenar por el estado documental obliga a conocerlo de
-        // todas las filas antes de paginar — ver ObtenerCentrosQuery.
+        // Filtrar u ordenar por el estado documental obliga a conocer, de cada
+        // Empresa visible, el peor vencimiento de sus Documentos — pero ese
+        // agregado (MIN por propietario) se pide a SQL con una subconsulta
+        // correlacionada en vez de materializar todas las Empresas visibles
+        // (hallazgo Módulo 8, PR #389 § 4.1), igual que ObtenerTrabajadoresQuery
+        // y que ObtenerDocumentosQuery traduce su filtro de Estado a fechas.
         var necesitaEstadoCompleto =
             !string.IsNullOrWhiteSpace(request.EstadoDocumental) ||
             string.Equals(request.OrdenarPor, nameof(EmpresaListaDto.EstadoDocumental), StringComparison.Ordinal);
 
         if (necesitaEstadoCompleto)
         {
-            var todas = await consulta
-                .Select(e => new EmpresaListaDto(e.Id, e.RazonSocial, e.Cif, e.CreadoEnUtc))
+            if (request.EstadoDocumental == EstadoDocumentalFiltro.SinDocumentos)
+            {
+                // Ninguna Empresa de este listado llega a EstadoDocumental
+                // null (CalculoEstadoDocumentalService.GetValueOrDefault cae a
+                // SinCaducidad, nunca a null) — "sin documentos" nunca
+                // coincide, igual que EstadoDocumentalFiltro.Coincide.
+                return new ResultadoPaginado<EmpresaListaDto>([], 0, request.Pagina, request.TamanoPagina);
+            }
+
+            var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
+            var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+            var limiteRojo = hoy.AddDays(parametros.UmbralRojoDias);
+            var limiteAmbar = hoy.AddDays(parametros.UmbralAmbarDias);
+
+            var conFecha =
+                from e in consulta
+                select new
+                {
+                    e.Id,
+                    e.RazonSocial,
+                    e.Cif,
+                    e.CreadoEnUtc,
+                    PeorFecha = documentosContext.Documentos
+                        .Where(d => d.EmpresaId == e.Id)
+                        .Min(d => (DateOnly?)d.FechaVencimiento)
+                };
+
+            if (!string.IsNullOrWhiteSpace(request.EstadoDocumental))
+            {
+                // Si no parsea, no se filtra — igual que EstadoDocumentalFiltro.Coincide
+                // (su `: true` final). Pero si parsea a un valor que este
+                // listado nunca produce (p. ej. Faltante, que solo emiten las
+                // Alertas), el resultado tiene que ser "ninguna fila" — no
+                // "sin filtro" (hallazgo de Codex sobre el primer intento).
+                if (Enum.TryParse<EstadoDocumento>(request.EstadoDocumental, out var estadoFiltro))
+                {
+                    conFecha = estadoFiltro switch
+                    {
+                        EstadoDocumento.SinCaducidad => conFecha.Where(e => e.PeorFecha == null),
+                        EstadoDocumento.Vencido => conFecha.Where(e => e.PeorFecha != null && e.PeorFecha < hoy),
+                        EstadoDocumento.Urgente => conFecha.Where(e => e.PeorFecha != null && e.PeorFecha >= hoy && e.PeorFecha <= limiteRojo),
+                        EstadoDocumento.Proximo => conFecha.Where(e => e.PeorFecha != null && e.PeorFecha > limiteRojo && e.PeorFecha <= limiteAmbar),
+                        EstadoDocumento.Vigente => conFecha.Where(e => e.PeorFecha != null && e.PeorFecha > limiteAmbar),
+                        _ => conFecha.Where(e => false)
+                    };
+                }
+            }
+
+            var totalConEstado = await conFecha.CountAsync(cancellationToken);
+
+            var ordenadaConEstado = request.Descendente
+                ? conFecha.OrderByDescending(e =>
+                    e.PeorFecha == null ? 4
+                    : e.PeorFecha < hoy ? 0
+                    : e.PeorFecha <= limiteRojo ? 1
+                    : e.PeorFecha <= limiteAmbar ? 2
+                    : 3)
+                : conFecha.OrderBy(e =>
+                    e.PeorFecha == null ? 4
+                    : e.PeorFecha < hoy ? 0
+                    : e.PeorFecha <= limiteRojo ? 1
+                    : e.PeorFecha <= limiteAmbar ? 2
+                    : 3);
+            var ordenadaFinal = ordenadaConEstado.ThenBy(e => e.RazonSocial).ThenBy(e => e.Id);
+
+            var paginaConEstado = await ordenadaFinal
+                .Skip((request.Pagina - 1) * request.TamanoPagina)
+                .Take(request.TamanoPagina)
                 .ToListAsync(cancellationToken);
 
-            var estadosTodas = await calculoEstadoDocumental.CalcularPeorEstadoAsync(
-                AmbitoAplicacion.Empresa, todas.Select(e => e.Id).ToList(), cancellationToken);
-
-            var conEstado = todas
-                .Select(e => e with { EstadoDocumental = estadosTodas.GetValueOrDefault(e.Id) })
-                .Where(e => EstadoDocumentalFiltro.Coincide(e.EstadoDocumental, request.EstadoDocumental));
-
-            var ordenadas = (request.Descendente
-                    ? conEstado.OrderByDescending(e => EstadoDocumentalFiltro.ClaveOrden(e.EstadoDocumental))
-                    : conEstado.OrderBy(e => EstadoDocumentalFiltro.ClaveOrden(e.EstadoDocumental)))
-                .ThenBy(e => e.RazonSocial).ThenBy(e => e.Id)
-                .ToList();
-
-            var paginaConEstado = ordenadas.Skip((request.Pagina - 1) * request.TamanoPagina).Take(request.TamanoPagina).ToList();
             var idsPaginaConEstado = paginaConEstado.Select(e => e.Id).ToList();
             var cumplimientoConEstado = await CalcularCumplimientoPorEmpresaAsync(idsPaginaConEstado, cancellationToken);
             var deteccionesConEstado = await ContarDeteccionesPendientesPorEmpresaAsync(idsPaginaConEstado, cancellationToken);
 
             return new ResultadoPaginado<EmpresaListaDto>(
-                paginaConEstado.Select(e => e with
-                {
-                    CumplimientoPorcentaje = cumplimientoConEstado.GetValueOrDefault(e.Id),
-                    DeteccionesPendientes = deteccionesConEstado.GetValueOrDefault(e.Id)
-                }).ToList(),
-                ordenadas.Count, request.Pagina, request.TamanoPagina);
+                paginaConEstado.Select(e => new EmpresaListaDto(
+                    e.Id, e.RazonSocial, e.Cif, e.CreadoEnUtc,
+                    CalculadoraEstadoDocumento.Calcular(e.PeorFecha, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias),
+                    cumplimientoConEstado.GetValueOrDefault(e.Id),
+                    deteccionesConEstado.GetValueOrDefault(e.Id)))
+                    .ToList(),
+                totalConEstado, request.Pagina, request.TamanoPagina);
         }
 
         var total = await consulta.CountAsync(cancellationToken);

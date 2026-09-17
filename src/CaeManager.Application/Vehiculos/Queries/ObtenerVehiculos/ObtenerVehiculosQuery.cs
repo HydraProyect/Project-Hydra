@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Vehiculos;
@@ -25,6 +26,7 @@ public record VehiculoListaDto(
 public class ObtenerVehiculosQueryHandler(
     IEmpresasQueryContext empresasContext,
     IVehiculosQueryContext vehiculosContext, IAlcanceDatosService alcanceDatos,
+    IDocumentosQueryContext documentosContext, IConfiguracionQueryContext configuracionContext,
     ICalculoEstadoDocumentalService calculoEstadoDocumental)
     : IRequestHandler<ObtenerVehiculosQuery, ResultadoPaginado<VehiculoListaDto>>
 {
@@ -60,35 +62,94 @@ public class ObtenerVehiculosQueryHandler(
         if (request.SubcontrataId is not null)
             consulta = consulta.Where(x => x.vehiculo.SubcontrataId == request.SubcontrataId);
 
-        // Filtrar u ordenar por el estado documental obliga a conocerlo de
-        // todas las filas antes de paginar — ver ObtenerCentrosQuery.
+        // Filtrar u ordenar por el estado documental obliga a conocer, de cada
+        // Vehículo visible, el peor vencimiento de sus Documentos — pero ese
+        // agregado (MIN por propietario) se pide a SQL con una subconsulta
+        // correlacionada en vez de materializar todos los Vehículos visibles
+        // (hallazgo Módulo 8, PR #389 § 4.1), igual que ObtenerTrabajadoresQuery.
         var necesitaEstadoCompleto =
             !string.IsNullOrWhiteSpace(request.EstadoDocumental) ||
             string.Equals(request.OrdenarPor, nameof(VehiculoListaDto.EstadoDocumental), StringComparison.Ordinal);
 
         if (necesitaEstadoCompleto)
         {
-            var todos = await consulta
-                .Select(x => new VehiculoListaDto(
-                    x.vehiculo.Id, x.vehiculo.Nombre, x.vehiculo.Modelo, x.vehiculo.NumeroPlaca, x.EmpleadorNombre))
+            if (request.EstadoDocumental == EstadoDocumentalFiltro.SinDocumentos)
+            {
+                // Ningún Vehículo de este listado llega a EstadoDocumental
+                // null (CalculoEstadoDocumentalService.GetValueOrDefault cae a
+                // SinCaducidad, nunca a null) — "sin documentos" nunca
+                // coincide, igual que EstadoDocumentalFiltro.Coincide.
+                return new ResultadoPaginado<VehiculoListaDto>([], 0, request.Pagina, request.TamanoPagina);
+            }
+
+            var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
+            var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+            var limiteRojo = hoy.AddDays(parametros.UmbralRojoDias);
+            var limiteAmbar = hoy.AddDays(parametros.UmbralAmbarDias);
+
+            var conFecha =
+                from x in consulta
+                select new
+                {
+                    x.vehiculo.Id,
+                    x.vehiculo.Nombre,
+                    x.vehiculo.Modelo,
+                    x.vehiculo.NumeroPlaca,
+                    x.EmpleadorNombre,
+                    PeorFecha = documentosContext.Documentos
+                        .Where(d => d.VehiculoId == x.vehiculo.Id)
+                        .Min(d => (DateOnly?)d.FechaVencimiento)
+                };
+
+            if (!string.IsNullOrWhiteSpace(request.EstadoDocumental))
+            {
+                // Si no parsea, no se filtra — igual que EstadoDocumentalFiltro.Coincide
+                // (su `: true` final). Pero si parsea a un valor que este
+                // listado nunca produce (p. ej. Faltante, que solo emiten las
+                // Alertas), el resultado tiene que ser "ninguna fila" — no
+                // "sin filtro" (hallazgo de Codex sobre el primer intento).
+                if (Enum.TryParse<EstadoDocumento>(request.EstadoDocumental, out var estadoFiltro))
+                {
+                    conFecha = estadoFiltro switch
+                    {
+                        EstadoDocumento.SinCaducidad => conFecha.Where(x => x.PeorFecha == null),
+                        EstadoDocumento.Vencido => conFecha.Where(x => x.PeorFecha != null && x.PeorFecha < hoy),
+                        EstadoDocumento.Urgente => conFecha.Where(x => x.PeorFecha != null && x.PeorFecha >= hoy && x.PeorFecha <= limiteRojo),
+                        EstadoDocumento.Proximo => conFecha.Where(x => x.PeorFecha != null && x.PeorFecha > limiteRojo && x.PeorFecha <= limiteAmbar),
+                        EstadoDocumento.Vigente => conFecha.Where(x => x.PeorFecha != null && x.PeorFecha > limiteAmbar),
+                        _ => conFecha.Where(x => false)
+                    };
+                }
+            }
+
+            var totalConEstado = await conFecha.CountAsync(cancellationToken);
+
+            var ordenadaConEstado = request.Descendente
+                ? conFecha.OrderByDescending(x =>
+                    x.PeorFecha == null ? 4
+                    : x.PeorFecha < hoy ? 0
+                    : x.PeorFecha <= limiteRojo ? 1
+                    : x.PeorFecha <= limiteAmbar ? 2
+                    : 3)
+                : conFecha.OrderBy(x =>
+                    x.PeorFecha == null ? 4
+                    : x.PeorFecha < hoy ? 0
+                    : x.PeorFecha <= limiteRojo ? 1
+                    : x.PeorFecha <= limiteAmbar ? 2
+                    : 3);
+            var ordenadaFinal = ordenadaConEstado.ThenBy(x => x.Nombre).ThenBy(x => x.Id);
+
+            var paginaConEstado = await ordenadaFinal
+                .Skip((request.Pagina - 1) * request.TamanoPagina)
+                .Take(request.TamanoPagina)
                 .ToListAsync(cancellationToken);
 
-            var estadosTodos = await calculoEstadoDocumental.CalcularPeorEstadoAsync(
-                AmbitoAplicacion.Vehiculo, todos.Select(v => v.Id).ToList(), cancellationToken);
-
-            var conEstado = todos
-                .Select(v => v with { EstadoDocumental = estadosTodos.GetValueOrDefault(v.Id) })
-                .Where(v => EstadoDocumentalFiltro.Coincide(v.EstadoDocumental, request.EstadoDocumental));
-
-            var ordenados = (request.Descendente
-                    ? conEstado.OrderByDescending(v => EstadoDocumentalFiltro.ClaveOrden(v.EstadoDocumental))
-                    : conEstado.OrderBy(v => EstadoDocumentalFiltro.ClaveOrden(v.EstadoDocumental)))
-                .ThenBy(v => v.Nombre).ThenBy(v => v.Id)
-                .ToList();
-
             return new ResultadoPaginado<VehiculoListaDto>(
-                ordenados.Skip((request.Pagina - 1) * request.TamanoPagina).Take(request.TamanoPagina).ToList(),
-                ordenados.Count, request.Pagina, request.TamanoPagina);
+                paginaConEstado.Select(x => new VehiculoListaDto(
+                    x.Id, x.Nombre, x.Modelo, x.NumeroPlaca, x.EmpleadorNombre,
+                    CalculadoraEstadoDocumento.Calcular(x.PeorFecha, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)))
+                    .ToList(),
+                totalConEstado, request.Pagina, request.TamanoPagina);
         }
 
         var total = await consulta.CountAsync(cancellationToken);

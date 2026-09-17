@@ -374,6 +374,12 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Empresas.ObtenerCumplimientoEmpresaQueryHandler", "IAsignacionesQueryContext"),
         ("Empresas.ObtenerCumplimientoEmpresaQueryHandler", "ITrabajadoresQueryContext"),
         ("Empresas.ObtenerEmpresasQueryHandler", "IAsignacionesQueryContext"),
+        // Módulo 8 § 4.1 (2026-09-17): filtrar/ordenar por EstadoDocumental
+        // pasa de materializar todas las Empresas visibles a una subconsulta
+        // correlacionada (MIN por propietario) contra Documentos, con los
+        // umbrales de ParametroSistema — mismo patrón que ObtenerDocumentosQuery.
+        ("Empresas.ObtenerEmpresasQueryHandler", "IConfiguracionQueryContext"),
+        ("Empresas.ObtenerEmpresasQueryHandler", "IDocumentosQueryContext"),
         ("Empresas.ObtenerEmpresasQueryHandler", "ITrabajadoresQueryContext"),
         ("Facturacion.CrearTarifaClienteCommandHandler", "IClientesQueryContext"),
         ("Facturacion.ObtenerResumenFacturacionQueryHandler", "IAsignacionesQueryContext"),
@@ -541,6 +547,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Trabajadores.ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler", "IConfiguracionQueryContext"),
         ("Trabajadores.ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler", "IDocumentosQueryContext"),
         ("Trabajadores.ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler", "ITiposDocumentoQueryContext"),
+        // Módulo 8 § 4.1 (2026-09-17): mismo motivo que Empresas.ObtenerEmpresasQueryHandler arriba.
+        ("Trabajadores.ObtenerTrabajadoresQueryHandler", "IConfiguracionQueryContext"),
+        ("Trabajadores.ObtenerTrabajadoresQueryHandler", "IDocumentosQueryContext"),
         ("Trabajadores.ObtenerTrabajadoresQueryHandler", "IEmpresasQueryContext"),
         ("Trabajadores.ObtenerTrabajadoresQueryHandler", "ISubcontratasQueryContext"),
         ("Trabajadores.ObtenerTrabajadorPorIdQueryHandler", "IEmpresasQueryContext"),
@@ -549,6 +558,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Vehiculos.CrearVehiculoCommandHandler", "ISubcontratasQueryContext"),
         ("Vehiculos.ObtenerVehiculoPorIdQueryHandler", "IEmpresasQueryContext"),
         ("Vehiculos.ObtenerVehiculoPorIdQueryHandler", "ISubcontratasQueryContext"),
+        // Módulo 8 § 4.1 (2026-09-17): mismo motivo que Empresas.ObtenerEmpresasQueryHandler arriba.
+        ("Vehiculos.ObtenerVehiculosQueryHandler", "IConfiguracionQueryContext"),
+        ("Vehiculos.ObtenerVehiculosQueryHandler", "IDocumentosQueryContext"),
         ("Vehiculos.ObtenerVehiculosQueryHandler", "IEmpresasQueryContext"),
         ("Vehiculos.ObtenerVehiculosQueryHandler", "ISubcontratasQueryContext"),
         ("Visitas.CrearVisitaCommandHandler", "ICentrosQueryContext"),
