@@ -22,9 +22,10 @@ on:
       - unlabeled
       - milestoned # REC-140: ni al asignar el milestone después de abrir la PR
       - demilestoned
-      - edited # turno 2026-09-18 (T3): la sección "Paso operativo en
-      # servidores" vive en el CUERPO de la PR, no en sus etiquetas — sin este
-      # disparador, rellenarla tras abrir la PR no revalida el check.
+      - edited # turno 2026-09-18 (T3): las secciones "Paso operativo en
+      # servidores" y "Revisión Codex" viven en el CUERPO de la PR, no en sus
+      # etiquetas — sin este disparador, rellenarlas tras abrir la PR (el
+      # caso normal: Codex revisa después de abrir) no revalida el check.
 
 # Deliberadamente SIN `merge_group` ni `push`: la convención (§ 5 de
 # tecnico/CONVENCION-METADATOS-PR.md) nunca aplicó a esos dos eventos — en
@@ -113,24 +114,31 @@ jobs:
           fi
           echo "OK — milestone: '$MILESTONE'; etiquetas Type:/Priority: presentes (leído por API, PR #${NUMERO})."
 
-      # Turno 2026-09-18 (T3), registro PROTOCOLO-TURNO-NOCTURNO.md § 8: #674
-      # añadió el rol cae_app_aprovisionamiento a
-      # deploy/bootstrap/roles-de-cluster.sql sin que ningún adaptador de
-      # despliegue lo ejecutara -> staging roto (42704) hasta que alguien lo
-      # aplicó a mano. Regla nueva: toda PR que TOQUE ese fichero lleva en el
-      # cuerpo una sección "## Paso operativo en servidores" que nombre
-      # staging y producción.
+      # Turno 2026-09-18 (T3), registro PROTOCOLO-TURNO-NOCTURNO.md § 8:
       #
-      # Igual que el paso de arriba (DEC-66): el cuerpo y los ficheros se leen
-      # por API en el momento de evaluar, nunca del payload del evento — un
-      # `synchronize` o un `edited` pueden cambiar cualquiera de los dos tras
-      # abrir la PR (rellenar la sección después de abrir es el caso normal).
-      # La lógica vive en scripts/verificar-gobernanza-pr.sh (con su prueba
-      # sin red, verificar-gobernanza-pr.tests.sh, en el job
-      # gobernanza-pr-tests de este mismo workflow) para no escribir awk/grep
-      # dentro de YAML dentro de shell — mismo motivo que separó
-      # scripts/repartir-clases-de-test.sh.
-      - name: "Exigir sección de paso operativo para roles de clúster"
+      #   - #674 añadió el rol cae_app_aprovisionamiento a
+      #     deploy/bootstrap/roles-de-cluster.sql sin que ningún adaptador de
+      #     despliegue lo ejecutara -> staging roto (42704) hasta que alguien
+      #     lo aplicó a mano (PR #683). Regla: toda PR que TOQUE ese fichero
+      #     lleva en el cuerpo una sección "## Paso operativo en servidores"
+      #     que nombre staging y producción.
+      #   - #678 se abrió sin pasar por Codex; #673 dejó un marcador
+      #     provisional ("2ª pasada — (resultado abajo)") sin rellenar. Regla:
+      #     toda PR (salvo dependabot[bot]) lleva una sección
+      #     "## Revisión Codex" con contenido real — hallazgos aceptados o
+      #     rechazados, o "sin hallazgos" — y sin marcadores provisionales.
+      #
+      # Igual que el paso de arriba (DEC-66): el cuerpo, los ficheros y el
+      # autor se leen por API en el momento de evaluar, nunca del payload del
+      # evento — un `synchronize` o un `edited` pueden cambiar cualquiera de
+      # los dos primeros tras abrir la PR (rellenar las secciones después de
+      # abrir es el caso normal: Codex revisa sobre el incremento ya
+      # empujado). La lógica de las dos reglas vive en
+      # scripts/verificar-gobernanza-pr.sh (con su prueba sin red,
+      # verificar-gobernanza-pr.tests.sh, en el job gobernanza-pr-tests de
+      # este mismo workflow) para no escribir awk/grep dentro de YAML dentro
+      # de shell — mismo motivo que separó scripts/repartir-clases-de-test.sh.
+      - name: "Exigir sección de paso operativo (roles de clúster) y de revisión Codex"
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -139,6 +147,7 @@ jobs:
           set -euo pipefail
 
           datos=$(gh api "repos/${REPO}/pulls/${NUMERO}")
+          AUTOR=$(echo "$datos" | jq -r '.user.login // ""')
 
           CUERPO="$(mktemp)"
           echo "$datos" | jq -r '.body // ""' >"$CUERPO"
@@ -147,12 +156,12 @@ jobs:
           # renombra dentro de la misma PR, la entrada de esa API lo lleva en
           # previous_filename, no en filename — sin las dos, un rename lo
           # saca de la ruta vigilada sin que el guion pueda verlo (hallazgo
-          # de Codex, ver "## Revisión Codex" de esta PR).
+          # de Codex sobre la PR #683, ver su "## Revisión Codex").
           FICHEROS="$(mktemp)"
           gh api "repos/${REPO}/pulls/${NUMERO}/files" --paginate \
             --jq '.[] | .filename, (.previous_filename // empty)' >"$FICHEROS"
 
-          bash scripts/verificar-gobernanza-pr.sh "$CUERPO" "$FICHEROS"
+          bash scripts/verificar-gobernanza-pr.sh "$CUERPO" "$FICHEROS" "$AUTOR"
 
   gobernanza-pr-tests:
     # Prueba sin red de scripts/verificar-gobernanza-pr.sh (el guion que usa
