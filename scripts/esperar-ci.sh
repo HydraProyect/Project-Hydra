@@ -307,6 +307,7 @@ fi
 # =========================================================================
 fase_checks() {
   local head_vigilado="$PR_HEAD"
+  local fallos_branch_protection=0
   log "fase checks: vigilando HEAD $head_vigilado"
 
   while true; do
@@ -323,10 +324,31 @@ fase_checks() {
       head_vigilado="$PR_HEAD"
     fi
 
-    mapfile -t esperados < <(checks_requeridos_esperados)
-    if [[ ${#esperados[@]} -eq 0 ]]; then
-      log "fase checks: no se pudo leer la lista de checks obligatorios de main (branch protection); reintentando"
+    # Distinguir "gh falló al leer branch protection" (error de entorno: 403,
+    # rate limit, permisos) de "todavía no hay checks obligatorios que ver"
+    # (Codex, P2, 2026-09-17): con el `2>/dev/null` de la función, ambos
+    # daban antes una lista vacía indistinguible, y el guion agotaba el
+    # timeout entero sin decir que el problema real era leer la API, no
+    # esperar a CI.
+    local esperados_texto
+    if ! esperados_texto="$(checks_requeridos_esperados)"; then
+      fallos_branch_protection=$((fallos_branch_protection + 1))
+      log "fase checks: ERROR leyendo la protección de main (branch protection) — intento $fallos_branch_protection de 3"
+      if [[ "$fallos_branch_protection" -ge 3 ]]; then
+        echo "$PROG: no se pudo leer la protección de main (branch protection) tras $fallos_branch_protection intentos — es un fallo de entorno/permisos, no un TIMEOUT de CI" >&2
+        exit 64
+      fi
+      sleep "$INTERVALO_S"
+      continue
     fi
+    fallos_branch_protection=0
+    mapfile -t esperados <<<"$esperados_texto"
+    # Filtrar la línea vacía que deja `mapfile` cuando $esperados_texto es "".
+    local esperados_filtrados=() nombre_esperado
+    for nombre_esperado in "${esperados[@]}"; do
+      [[ -n "$nombre_esperado" ]] && esperados_filtrados+=("$nombre_esperado")
+    done
+    esperados=("${esperados_filtrados[@]}")
 
     declare -A vistos=()
     local rojo=""
@@ -445,6 +467,7 @@ fi
 # =========================================================================
 fase_despliegue() {
   log "fase despliegue: buscando el run de 'Desplegar' para $SHA_FUSION"
+  local fallos_lectura_jobs=0
   while true; do
     local linea_run
     linea_run="$(run_desplegar_para_sha_tsv "$SHA_FUSION")"
@@ -453,43 +476,54 @@ fase_despliegue() {
     else
       local run_id run_status run_conclusion run_creado
       IFS=$'\t' read -r run_id run_status run_conclusion run_creado <<<"$linea_run"
-      if [[ "$run_status" != "completed" ]]; then
-        log "fase despliegue: run $run_id en curso (status=$run_status)"
-      else
-        log "fase despliegue: run $run_id completado, conclusion=$run_conclusion"
+      log "fase despliegue: run $run_id (status=$run_status conclusion=${run_conclusion:-<ninguna>})"
 
-        mapfile -t jobs < <(run_jobs_tsv "$run_id")
-        local detalle_jobs=""
-        for j in "${jobs[@]}"; do
-          [[ -z "$j" ]] && continue
-          detalle_jobs+="${j%%$'\t'*}:${j##*$'\t'}; "
-        done
+      # Se consultan los jobs SIEMPRE, aunque el run entero siga "in_progress":
+      # "Desplegar a staging" puede haber concluido ya mientras el run global
+      # sigue vivo esperando la aprobación humana de producción (Codex, P1,
+      # 2026-09-17) — si solo se mirara tras `status==completed`, el modo por
+      # defecto esperaría esa aprobación sin límite razonable.
+      local jobs_ok=1
+      local jobs_tsv
+      if ! jobs_tsv="$(run_jobs_tsv "$run_id")"; then
+        jobs_ok=0
+      fi
+      mapfile -t jobs <<<"$jobs_tsv"
 
-        if [[ "$run_conclusion" == "failure" ]] && run_es_obsoleto "$run_id"; then
+      local job_staging_estado="" job_staging_conclusion="" detalle_jobs=""
+      local j nombre estado conclusion
+      for j in "${jobs[@]}"; do
+        [[ -z "$j" ]] && continue
+        IFS=$'\t' read -r nombre estado conclusion <<<"$j"
+        detalle_jobs+="$nombre:$estado/${conclusion:-<pendiente>}; "
+        if [[ "$nombre" == "Desplegar a staging" ]]; then
+          job_staging_estado="$estado"
+          job_staging_conclusion="$conclusion"
+        fi
+      done
+
+      if [[ "$jobs_ok" -eq 0 || ${#jobs[@]} -eq 0 ]]; then
+        # No se pudieron leer los jobs (fallo transitorio de `gh run view`).
+        # NUNCA se infiere el resultado de staging desde la conclusión
+        # agregada del run (Codex, P1, 2026-09-17): un run puede concluir
+        # "success" con staging OMITIDO si el CI de main no fue verde, así
+        # que ese atajo daría un VERDE sin despliegue real. Se trata como
+        # fallo de lectura transitorio: reintentar, y si persiste, es el
+        # propio timeout el que lo saca a la luz con el último estado.
+        fallos_lectura_jobs=$((fallos_lectura_jobs + 1))
+        log "fase despliegue: no se pudieron leer los jobs del run $run_id (intento $fallos_lectura_jobs) — reintentando, sin inferir nada de la conclusión agregada"
+      elif [[ -n "$job_staging_estado" && "$job_staging_estado" == "completed" ]]; then
+        fallos_lectura_jobs=0
+        if [[ "$job_staging_conclusion" == "failure" ]] && run_es_obsoleto "$run_id"; then
           salir_obsoleto "run=$run_id sha=$SHA_FUSION ya no era la punta de main al desplegar"
+        elif [[ "$job_staging_conclusion" == "success" ]]; then
+          salir_verde "PR #$PR desplegada a staging (run=$run_id, $detalle_jobs)"
+        else
+          salir_rojo "job 'Desplegar a staging' (run=$run_id) concluyó '$job_staging_conclusion' — $detalle_jobs"
         fi
-
-        local job_staging=""
-        for j in "${jobs[@]}"; do
-          [[ "$j" == "Desplegar a staging"$'\t'* ]] && job_staging="$j"
-        done
-
-        if [[ -n "$job_staging" ]]; then
-          local staging_conclusion="${job_staging##*$'\t'}"
-          if [[ "$staging_conclusion" == "success" ]]; then
-            salir_verde "PR #$PR desplegada a staging (run=$run_id, $detalle_jobs)"
-          else
-            salir_rojo "job 'Desplegar a staging' (run=$run_id) concluyó '$staging_conclusion' — $detalle_jobs"
-          fi
-        elif [[ "$run_conclusion" == "success" || "$run_conclusion" == "failure" ]]; then
-          # El run terminó pero no se pudo leer el detalle de sus jobs
-          # (gh run view falló); reportar sobre la conclusion agregada.
-          if [[ "$run_conclusion" == "success" ]]; then
-            salir_verde "PR #$PR — run de despliegue $run_id en verde (jobs sin detalle)"
-          else
-            salir_rojo "run de despliegue $run_id en rojo (jobs sin detalle)"
-          fi
-        fi
+      else
+        fallos_lectura_jobs=0
+        log "fase despliegue: 'Desplegar a staging' aún no concluye (job=${job_staging_estado:-<sin crear>}) — $detalle_jobs"
       fi
     fi
 

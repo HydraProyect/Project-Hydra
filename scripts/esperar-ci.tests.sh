@@ -245,5 +245,61 @@ ejecutar 112 --hasta despliegue
 assert_veredicto "sin run tras agotar el tiempo -> TIMEOUT con el último estado" TIMEOUT 3 "SHALENTO"
 
 echo
+echo "=== Revisión Codex (2026-09-17), P1: staging concluye mientras el run global sigue 'in_progress' ==="
+echo "    esperando la aprobación humana de producción — no debe dar TIMEOUT por eso ==="
+nueva_fixture_dir
+fixture PR_VIEW 1 "MERGED	AAA	MERGED	SHASTAGINGOK	2026-09-17T10:00:00Z"
+fixture RUN_LIST 1 $'995\tin_progress\t\t2026-09-17T10:05:00Z'
+fixture RUN_LIST 2 $'995\tin_progress\t\t2026-09-17T10:05:00Z'
+# El run global sigue "in_progress" (esperando el job de aprobación) en TODAS
+# las vueltas de RUN_LIST de este escenario, pero el job de staging ya
+# concluyó en la primera consulta de jobs.
+fixture RUN_VIEW_JOBS 1 $'Desplegar a staging\tcompleted\tsuccess' $'Aprobar despliegue a producción\tin_progress\t'
+TIMEOUT_S_PRUEBA=6 ejecutar 113 --hasta despliegue
+assert_veredicto "staging ya en verde aunque el run siga esperando aprobación -> VERDE, no TIMEOUT" VERDE 0 "995"
+
+echo
+echo "=== Revisión Codex (2026-09-17), P1: un fallo transitorio leyendo los jobs NO se infiere de la conclusión agregada ==="
+nueva_fixture_dir
+fixture PR_VIEW 1 "MERGED	AAA	MERGED	SHAJOBSFALLAN	2026-09-17T10:00:00Z"
+fixture RUN_LIST 1 $'994\tcompleted\tsuccess\t2026-09-17T10:05:00Z'
+fixture RUN_LIST 2 $'994\tcompleted\tsuccess\t2026-09-17T10:05:00Z'
+# `gh run view --json jobs` falla la primera vez (mock: MOCK_ERROR) aunque la
+# conclusión AGREGADA del run ya diga "success" — un guion que se fiara de esa
+# agregada daría VERDE sin haber visto que staging de verdad pasó. Solo tras
+# poder leer los jobs de verdad (segunda vuelta) debe decidir.
+fixture RUN_VIEW_JOBS 1 "MOCK_ERROR"
+fixture RUN_VIEW_JOBS 2 $'Desplegar a staging\tcompleted\tsuccess'
+TIMEOUT_S_PRUEBA=6 ejecutar 114 --hasta despliegue
+assert_veredicto "fallo de lectura de jobs no se disfraza de VERDE por la agregada" VERDE 0 "994"
+PRUEBAS=$((PRUEBAS + 1))
+if grep -q "sin inferir nada de la conclusión agregada" "$TMP_ROOT/ultimo-stderr.log"; then
+  echo "OK: el fallo de lectura de jobs quedó registrado como tal, no como 'sigue corriendo'"
+else
+  echo "FALLO: no se registró el fallo de lectura de jobs" >&2
+  FALLOS=$((FALLOS + 1))
+fi
+
+echo
+echo "=== Revisión Codex (2026-09-17), P2: un fallo de API leyendo branch protection NO se confunde con 'cero checks obligatorios' ==="
+nueva_fixture_dir
+fixture PR_VIEW 1 "OPEN	AAA	CLEAN		"
+# Las tres primeras consultas a branch protection fallan (403/rate-limit
+# simulados); a la cuarta ya se habría agotado el margen de reintentos (3) y
+# el guion debe salir con el código de error de ENTORNO (64), nunca con
+# VEREDICTO: TIMEOUT — que dejaría pensar que el problema fue esperar a CI.
+fixture BRANCH_PROTECTION 1 "MOCK_ERROR"
+fixture BRANCH_PROTECTION 2 "MOCK_ERROR"
+fixture BRANCH_PROTECTION 3 "MOCK_ERROR"
+TIMEOUT_S_PRUEBA=600 ejecutar 115 --hasta checks
+PRUEBAS=$((PRUEBAS + 1))
+if [[ "$CODIGO" == "64" ]] && ! printf '%s\n' "$SALIDA" | grep -q '^VEREDICTO:'; then
+  echo "OK: fallo de API en branch protection -> error de entorno (64), no un VEREDICTO: TIMEOUT disfrazado"
+else
+  echo "FALLO: se esperaba código 64 sin línea VEREDICTO — obtenido código=$CODIGO salida='$SALIDA'" >&2
+  FALLOS=$((FALLOS + 1))
+fi
+
+echo
 echo "Pruebas: $PRUEBAS · Fallos: $FALLOS"
 (( FALLOS == 0 )) || exit 1

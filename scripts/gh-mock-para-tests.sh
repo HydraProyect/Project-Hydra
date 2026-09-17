@@ -32,6 +32,14 @@ siguiente() {
     echo "MOCK gh: no hay fixture para '$endpoint' (llamada nº $n) — args: $*" >&2
     return 1
   fi
+  # Sentinela: una fixture cuya PRIMERA línea es exactamente "MOCK_ERROR"
+  # simula que la llamada real a `gh` falló (403, rate limit, red) — nada en
+  # stdout, exit distinto de cero. Sirve para probar que el guion real
+  # DISTINGUE ese fallo de "la respuesta legítima está vacía".
+  if [[ "$(head -n1 "$archivo")" == "MOCK_ERROR" ]]; then
+    echo "MOCK gh: fallo simulado para '$endpoint' (llamada nº $n)" >&2
+    return 1
+  fi
   cat "$archivo"
 }
 
@@ -41,34 +49,34 @@ todo="$*"
 case "${args[0]:-}" in
   pr)
     case "${args[1]:-}" in
-      view)   siguiente "PR_VIEW";   exit 0 ;;
-      checks) siguiente "PR_CHECKS"; exit 0 ;;
+      view)   siguiente "PR_VIEW";   exit $? ;;
+      checks) siguiente "PR_CHECKS"; exit $? ;;
     esac
     ;;
   api)
     case "${args[1]:-}" in
       graphql)
         if [[ "$todo" == *mergeQueueEntry* ]]; then
-          siguiente "MERGE_QUEUE"; exit 0
+          siguiente "MERGE_QUEUE"; exit $?
         elif [[ "$todo" == *timelineItems* ]]; then
-          siguiente "TIMELINE"; exit 0
+          siguiente "TIMELINE"; exit $?
         fi
         echo "MOCK gh: graphql no reconocido: $todo" >&2
         exit 1
         ;;
       *branches/main/protection*)
-        siguiente "BRANCH_PROTECTION"; exit 0
+        siguiente "BRANCH_PROTECTION"; exit $?
         ;;
     esac
     ;;
   run)
     case "${args[1]:-}" in
-      list) siguiente "RUN_LIST"; exit 0 ;;
+      list) siguiente "RUN_LIST"; exit $? ;;
       view)
         if [[ "$todo" == *--log-failed* ]]; then
-          siguiente "RUN_LOG_FAILED"; exit 0
+          siguiente "RUN_LOG_FAILED"; exit $?
         else
-          siguiente "RUN_VIEW_JOBS"; exit 0
+          siguiente "RUN_VIEW_JOBS"; exit $?
         fi
         ;;
     esac
