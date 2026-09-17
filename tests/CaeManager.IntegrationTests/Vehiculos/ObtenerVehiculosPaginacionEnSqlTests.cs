@@ -92,6 +92,23 @@ public class ObtenerVehiculosPaginacionEnSqlTests : IAsyncLifetime
             "el total debe salir de un agregado en SQL, no de List.Count sobre lo materializado");
     }
 
+    /// <summary>Mismo hallazgo de Codex que ObtenerTrabajadoresPaginacionEnSqlTests.</summary>
+    [Fact]
+    public async Task Un_estado_valido_pero_no_aplicable_no_devuelve_ningun_vehiculo()
+    {
+        await using var contexto = CrearContexto();
+        var handler = new ObtenerVehiculosQueryHandler(
+            contexto, contexto, new AlcanceDatosServiceFalso(), contexto, contexto,
+            new CalculoEstadoDocumentalService(contexto, contexto));
+
+        var resultado = await handler.Handle(
+            new ObtenerVehiculosQuery(null, Pagina: 1, TamanoPagina: 50, EstadoDocumental: nameof(EstadoDocumento.Faltante)),
+            CancellationToken.None);
+
+        resultado.TotalElementos.Should().Be(0);
+        resultado.Elementos.Should().BeEmpty();
+    }
+
     private CaeManagerDbContext CrearContexto(Action<string>? capturarSql = null)
     {
         var tenantActual = new TenantActualAmbiental { TenantId = _tenant };

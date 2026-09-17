@@ -114,6 +114,32 @@ public class ObtenerTrabajadoresPaginacionEnSqlTests : IAsyncLifetime
             "el total debe salir de un agregado en SQL, no de List.Count sobre lo materializado");
     }
 
+    /// <summary>
+    /// Hallazgo de Codex (revisión previa a esta PR): el primer intento
+    /// colapsaba "el filtro no parsea" (no filtrar) y "el filtro parsea a un
+    /// valor que este listado nunca produce" (p. ej. <c>Faltante</c>, que solo
+    /// emiten las Alertas) en la misma rama <c>_</c> del switch, así que un
+    /// filtro válido pero no aplicable devolvía TODOS los Trabajadores en vez
+    /// de ninguno — justo lo contrario de <c>EstadoDocumentalFiltro.Coincide</c>,
+    /// que nunca hace coincidir un estado que un Trabajador no puede tener.
+    /// </summary>
+    [Fact]
+    public async Task Un_estado_valido_pero_no_aplicable_no_devuelve_ningun_trabajador()
+    {
+        await using var contexto = CrearContexto();
+        var handler = new ObtenerTrabajadoresQueryHandler(
+            contexto, contexto, contexto, contexto,
+            new AlcanceDatosServiceFalso(), new CalculoEstadoDocumentalService(contexto, contexto));
+
+        var resultado = await handler.Handle(
+            new ObtenerTrabajadoresQuery(
+                null, Pagina: 1, TamanoPagina: 50, EstadoDocumental: nameof(EstadoDocumento.Faltante)),
+            CancellationToken.None);
+
+        resultado.TotalElementos.Should().Be(0);
+        resultado.Elementos.Should().BeEmpty();
+    }
+
     [Fact]
     public async Task Ordenar_por_estado_documental_tambien_pagina_en_SQL()
     {

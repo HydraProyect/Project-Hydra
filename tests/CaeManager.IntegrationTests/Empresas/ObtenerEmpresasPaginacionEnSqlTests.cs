@@ -89,6 +89,19 @@ public class ObtenerEmpresasPaginacionEnSqlTests : IAsyncLifetime
             "el total debe salir de un agregado en SQL, no de List.Count sobre lo materializado");
     }
 
+    /// <summary>Mismo hallazgo de Codex que ObtenerTrabajadoresPaginacionEnSqlTests.</summary>
+    [Fact]
+    public async Task Un_estado_valido_pero_no_aplicable_no_devuelve_ninguna_empresa()
+    {
+        await using var contexto = CrearContexto();
+        var resultado = await CrearHandler(contexto).Handle(
+            new ObtenerEmpresasQuery(null, Pagina: 1, TamanoPagina: 50, EstadoDocumental: nameof(EstadoDocumento.Faltante)),
+            CancellationToken.None);
+
+        resultado.TotalElementos.Should().Be(0);
+        resultado.Elementos.Should().BeEmpty();
+    }
+
     private static ObtenerEmpresasQueryHandler CrearHandler(CaeManagerDbContext contexto) =>
         new(contexto, new AlcanceDatosServiceFalso(),
             new CalculoEstadoDocumentalService(contexto, contexto),

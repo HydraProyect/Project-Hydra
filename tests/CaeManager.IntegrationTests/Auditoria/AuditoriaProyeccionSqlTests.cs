@@ -1,6 +1,7 @@
 using System.Text.Json;
 using CaeManager.Application.Auditoria.Queries;
 using CaeManager.Domain.Auditoria;
+using CaeManager.Domain.Empresas;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using FluentAssertions;
@@ -62,6 +63,12 @@ public class AuditoriaProyeccionSqlTests : IAsyncLifetime
         yield return ["Trabajador", "Modificado", null, null];
         yield return ["Documento", "Modificado", "esto no es JSON", "tampoco esto"];
         yield return ["Vehiculo", "Modificado", null, """{"EstaEliminado":true}"""]; // no restaurable
+        // Hallazgo de Codex (revisión previa a esta PR): un TEXT corrupto que
+        // ni siquiera empieza por "{" pero contiene el marcador en texto
+        // libre. JsonDocument.Parse lo rechaza (no es JSON); el StartsWith("{")
+        // añadido tras el hallazgo también lo rechaza — antes de esa
+        // corrección, un Contains puro lo habría marcado candidato.
+        yield return ["Cliente", "Modificado", null, """ruido antes {"EstaEliminado":true} ruido después"""];
     }
 #pragma warning restore CS8625
 
@@ -102,6 +109,59 @@ public class AuditoriaProyeccionSqlTests : IAsyncLifetime
         var esCandidatoHistorico = EsCandidataHistoricaOraculo(entidadTipo, accion, datosDespues);
         if (!esCandidatoHistorico)
             fila.PuedeRestaurar.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Hueco residual DECLARADO (hallazgo de Codex, revisión previa a esta
+    /// PR): <c>StartsWith("{")</c> descarta un TEXT que ni siquiera empieza
+    /// como JSON, pero no valida el resto — un TEXT truncado que empieza por
+    /// "{" y contiene el marcador sigue dando positivo aquí, mientras que
+    /// <c>JsonDocument.Parse</c> lo habría rechazado por JSON inválido.
+    /// Cerrarlo del todo exigiría traer la columna completa a la aplicación,
+    /// justo lo que este incremento evita, y esta columna solo la escribe
+    /// <c>AuditoriaInterceptor</c> (JSON válido siempre) — el caso solo se da
+    /// ante corrupción manual de la base. Este test fija el comportamiento
+    /// ACEPTADO (no lo esconde): si algún día deja de ser aceptable, aquí es
+    /// donde hay que mirar.
+    /// </summary>
+    [Fact]
+    public async Task Hueco_declarado_JSON_truncado_que_empieza_por_llave_con_el_marcador_sigue_dando_falso_positivo()
+    {
+        const string datosDespues = """{"EstaEliminado":true""" ; // sin cerrar — JSON inválido a propósito
+        EsCandidataHistoricaOraculo("Cliente", "Modificado", datosDespues).Should().BeFalse(
+            "JsonDocument.Parse rechaza el JSON sin cerrar — este es el comportamiento que ya NO se reproduce en SQL");
+
+        // Empresa real y eliminada HOY, para que el falso positivo del
+        // candidato interno se vuelva observable en PuedeRestaurar (si no
+        // existiera, ObtenerEliminadasActualmenteAsync no la encontraría y
+        // PuedeRestaurar daría false de todos modos, ocultando el hueco).
+        Guid empresaId;
+        await using (var contextoEscritura = CrearContexto())
+        {
+            var empresa = new Empresa("Empresa de prueba SL");
+            empresa.MarcarComoEliminado(Guid.NewGuid());
+            contextoEscritura.Empresas.Add(empresa);
+            await contextoEscritura.SaveChangesAsync();
+            empresaId = empresa.Id;
+
+            contextoEscritura.RegistrosAuditoria.Add(new RegistroAuditoria(
+                "Cliente", empresaId, "Modificado", datosAntes: null, datosDespues, usuarioId: null));
+            await contextoEscritura.SaveChangesAsync();
+        }
+
+        await using var contextoLectura = CrearContexto();
+        var handler = new ObtenerAuditoriaQueryHandler(
+            contextoLectura, contextoLectura, contextoLectura, contextoLectura, contextoLectura,
+            new TenantActualAmbiental { TenantId = _tenant });
+
+        var resultado = await handler.Handle(
+            new ObtenerAuditoriaQuery(EntidadTipo: "Cliente", UsuarioId: null, Pagina: 1, TamanoPagina: 10),
+            CancellationToken.None);
+
+        resultado.Elementos.Single(r => r.EntidadId == empresaId).PuedeRestaurar.Should().BeTrue(
+            "hueco declarado: StartsWith(\"{\")+Contains no valida el JSON entero, así que un TEXT truncado " +
+            "que empiece por \"{\" y contenga el marcador sigue marcando PuedeRestaurar, aunque " +
+            "JsonDocument.Parse lo habría rechazado por inválido");
     }
 
     private static readonly HashSet<string> EntidadesRestaurables = ["Cliente", "Empresa", "Centro", "Trabajador", "Documento"];

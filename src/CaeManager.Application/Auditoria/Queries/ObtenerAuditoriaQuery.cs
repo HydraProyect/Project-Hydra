@@ -102,6 +102,20 @@ public class ObtenerAuditoriaQueryHandler(
         // parseo aproximado. AuditoriaProyeccionSqlTests compara este
         // resultado contra JsonDocument.Parse para que las dos definiciones
         // no diverjan en silencio si el interceptor cambia de formato.
+        //
+        // StartsWith("{") es la única validación de forma que se puede pedir
+        // a SQL sin traer la columna completa (hallazgo de Codex: el JSON
+        // histórico anterior trataba cualquier texto no parseable como "no
+        // candidato", y un substring puro no distingue eso de un TEXT
+        // corrupto que por casualidad contenga el marcador). Sigue habiendo
+        // un hueco residual frente a JsonDocument.Parse — un TEXT corrupto
+        // que empiece por "{" y además contenga el marcador seguiría dando
+        // un falso positivo — aceptado a propósito porque cerrarlo del todo
+        // exige traer la columna entera, que es exactamente lo que este
+        // cambio evita, y porque esta columna solo la escribe
+        // AuditoriaInterceptor (JSON válido siempre): el caso solo se da ante
+        // corrupción manual de la base, no ante datos que la aplicación
+        // pueda producir.
         var candidatosPagina = await consulta
             .OrderByDescending(r => r.FechaUtc)
             .Skip((request.Pagina - 1) * request.TamanoPagina)
@@ -116,10 +130,12 @@ public class ObtenerAuditoriaQueryHandler(
                 r.FechaUtc,
                 EsCandidataARestaurar =
                     EntidadesRestaurables.Contains(r.EntidadTipo) && r.Accion == "Modificado"
-                    && r.DatosDespues != null && r.DatosDespues.Contains("\"EstaEliminado\":true"),
+                    && r.DatosDespues != null && r.DatosDespues.StartsWith("{")
+                    && r.DatosDespues.Contains("\"EstaEliminado\":true"),
                 TieneArchivoAnteriorCandidato =
                     r.EntidadTipo == "Documento" && r.Accion == "Modificado"
-                    && r.DatosAntes != null && r.DatosAntes.Contains("\"ArchivoUrl\":\"")
+                    && r.DatosAntes != null && r.DatosAntes.StartsWith("{")
+                    && r.DatosAntes.Contains("\"ArchivoUrl\":\"")
             })
             .ToListAsync(cancellationToken);
 

@@ -139,20 +139,29 @@ public class ObtenerTrabajadoresQueryHandler(
                         .Min(d => (DateOnly?)d.FechaVencimiento)
                 };
 
-            if (!string.IsNullOrWhiteSpace(request.EstadoDocumental)
-                && Enum.TryParse<EstadoDocumento>(request.EstadoDocumental, out var estadoFiltro))
+            if (!string.IsNullOrWhiteSpace(request.EstadoDocumental))
             {
-                conFecha = estadoFiltro switch
+                // Si no parsea, no se filtra — igual que EstadoDocumentalFiltro.Coincide
+                // (su `: true` final). Pero si parsea a un valor que este
+                // listado nunca produce (p. ej. Faltante, que solo emiten las
+                // Alertas), el resultado tiene que ser "ninguna fila" — no
+                // "sin filtro". Codex (revisión previa a esta PR) encontró que
+                // el primer intento colapsaba los dos casos en el mismo `_`,
+                // así que un filtro válido pero no aplicable devolvía TODO en
+                // vez de nada.
+                if (Enum.TryParse<EstadoDocumento>(request.EstadoDocumental, out var estadoFiltro))
                 {
-                    EstadoDocumento.SinCaducidad => conFecha.Where(x => x.PeorFecha == null),
-                    EstadoDocumento.Vencido => conFecha.Where(x => x.PeorFecha != null && x.PeorFecha < hoy),
-                    EstadoDocumento.Urgente => conFecha.Where(x => x.PeorFecha != null && x.PeorFecha >= hoy && x.PeorFecha <= limiteRojo),
-                    EstadoDocumento.Proximo => conFecha.Where(x => x.PeorFecha != null && x.PeorFecha > limiteRojo && x.PeorFecha <= limiteAmbar),
-                    EstadoDocumento.Vigente => conFecha.Where(x => x.PeorFecha != null && x.PeorFecha > limiteAmbar),
-                    _ => conFecha
-                };
+                    conFecha = estadoFiltro switch
+                    {
+                        EstadoDocumento.SinCaducidad => conFecha.Where(x => x.PeorFecha == null),
+                        EstadoDocumento.Vencido => conFecha.Where(x => x.PeorFecha != null && x.PeorFecha < hoy),
+                        EstadoDocumento.Urgente => conFecha.Where(x => x.PeorFecha != null && x.PeorFecha >= hoy && x.PeorFecha <= limiteRojo),
+                        EstadoDocumento.Proximo => conFecha.Where(x => x.PeorFecha != null && x.PeorFecha > limiteRojo && x.PeorFecha <= limiteAmbar),
+                        EstadoDocumento.Vigente => conFecha.Where(x => x.PeorFecha != null && x.PeorFecha > limiteAmbar),
+                        _ => conFecha.Where(x => false)
+                    };
+                }
             }
-            // Si no parsea, no se filtra — igual que EstadoDocumentalFiltro.Coincide.
 
             var totalConEstado = await conFecha.CountAsync(cancellationToken);
 
