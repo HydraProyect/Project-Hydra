@@ -218,7 +218,8 @@ public class AlcanceMemoizadoPorTenantEnFanOutTests : IAsyncLifetime
     [Fact]
     public async Task Orden_Alfa_luego_Beta_suma_las_dos_carteras_sin_envenenar_a_beta()
     {
-        var (resultado, alcance) = await EjecutarDashboardEjecutivoAsync(EnEsteOrden: [_tenantAlfa, _tenantBeta]);
+        var (resultado, alcance, proveedor) = await EjecutarDashboardEjecutivoAsync(EnEsteOrden: [_tenantAlfa, _tenantBeta]);
+        await using var _ = proveedor;
 
         resultado.TotalTenants.Should().Be(2, "el fan-out procesó los dos Tenants beneficiarios");
         resultado.Centros.Should().Be(3, "Alfa aporta su único Centro en cartera y Beta sus 2 propios, sin que la cartera de Alfa la envenene");
@@ -238,7 +239,8 @@ public class AlcanceMemoizadoPorTenantEnFanOutTests : IAsyncLifetime
     [Fact]
     public async Task Orden_Beta_luego_Alfa_da_la_misma_suma_el_orden_ya_no_importa()
     {
-        var (resultado, alcance) = await EjecutarDashboardEjecutivoAsync(EnEsteOrden: [_tenantBeta, _tenantAlfa]);
+        var (resultado, alcance, proveedor) = await EjecutarDashboardEjecutivoAsync(EnEsteOrden: [_tenantBeta, _tenantAlfa]);
+        await using var _ = proveedor;
 
         resultado.TotalTenants.Should().Be(2);
         resultado.Centros.Should().Be(3, "misma suma que en el orden Alfa→Beta: el orden ya no determina qué mitad de los datos queda envenenada");
@@ -259,15 +261,21 @@ public class AlcanceMemoizadoPorTenantEnFanOutTests : IAsyncLifetime
     [Fact]
     public async Task Linea_base_cada_tenant_en_solitario_resuelve_su_propia_cartera_sin_envenenar_nada()
     {
-        var (soloAlfa, _) = await EjecutarDashboardEjecutivoAsync(EnEsteOrden: [_tenantAlfa]);
-        soloAlfa.TotalTenants.Should().Be(1);
-        soloAlfa.Centros.Should().Be(1, "en solitario, Alfa ve su único Centro en cartera (Centro A1)");
-        soloAlfa.TrabajadoresActivos.Should().Be(2, "en solitario, Alfa ve sus 2 trabajadores de Centro A1, no los 5 de A1+A2");
+        var (soloAlfa, _, proveedorAlfa) = await EjecutarDashboardEjecutivoAsync(EnEsteOrden: [_tenantAlfa]);
+        await using (proveedorAlfa)
+        {
+            soloAlfa.TotalTenants.Should().Be(1);
+            soloAlfa.Centros.Should().Be(1, "en solitario, Alfa ve su único Centro en cartera (Centro A1)");
+            soloAlfa.TrabajadoresActivos.Should().Be(2, "en solitario, Alfa ve sus 2 trabajadores de Centro A1, no los 5 de A1+A2");
+        }
 
-        var (soloBeta, _) = await EjecutarDashboardEjecutivoAsync(EnEsteOrden: [_tenantBeta]);
-        soloBeta.TotalTenants.Should().Be(1);
-        soloBeta.Centros.Should().Be(2, "en solitario, Beta ve sus 2 Centros (cartera universal)");
-        soloBeta.TrabajadoresActivos.Should().Be(9, "en solitario, Beta ve sus 9 trabajadores (4+5)");
+        var (soloBeta, _, proveedorBeta) = await EjecutarDashboardEjecutivoAsync(EnEsteOrden: [_tenantBeta]);
+        await using (proveedorBeta)
+        {
+            soloBeta.TotalTenants.Should().Be(1);
+            soloBeta.Centros.Should().Be(2, "en solitario, Beta ve sus 2 Centros (cartera universal)");
+            soloBeta.TrabajadoresActivos.Should().Be(9, "en solitario, Beta ve sus 9 trabajadores (4+5)");
+        }
     }
 
     /// <summary>
@@ -279,8 +287,10 @@ public class AlcanceMemoizadoPorTenantEnFanOutTests : IAsyncLifetime
     [Fact]
     public async Task Control_instrumento_invertir_el_orden_no_cambia_la_suma_fusionada()
     {
-        var (ordenAlfaBeta, _) = await EjecutarDashboardEjecutivoAsync(EnEsteOrden: [_tenantAlfa, _tenantBeta]);
-        var (ordenBetaAlfa, _) = await EjecutarDashboardEjecutivoAsync(EnEsteOrden: [_tenantBeta, _tenantAlfa]);
+        var (ordenAlfaBeta, _, proveedorAlfaBeta) = await EjecutarDashboardEjecutivoAsync(EnEsteOrden: [_tenantAlfa, _tenantBeta]);
+        await using var _1 = proveedorAlfaBeta;
+        var (ordenBetaAlfa, _, proveedorBetaAlfa) = await EjecutarDashboardEjecutivoAsync(EnEsteOrden: [_tenantBeta, _tenantAlfa]);
+        await using var _2 = proveedorBetaAlfa;
 
         ordenAlfaBeta.Centros.Should().Be(ordenBetaAlfa.Centros,
             "el orden de los Tenants beneficiarios no puede cambiar cuál cartera se resuelve para cada uno");
@@ -299,6 +309,14 @@ public class AlcanceMemoizadoPorTenantEnFanOutTests : IAsyncLifetime
     /// suyo propio, esto lo detecta — es exactamente la propiedad que la
     /// mutación de este incremento revierte a propósito para comprobar que
     /// el test la ve.
+    ///
+    /// El llamador mantiene vivo el <c>ServiceProvider</c>/<c>scope</c> de
+    /// <see cref="EjecutarDashboardEjecutivoAsync"/> mientras dura esta
+    /// comprobación (revisión de Codex, 2026-09-17): <c>AlcanceDatosService</c>
+    /// no implementa <c>IDisposable</c> hoy, así que interrogarlo tras
+    /// disponer su scope no falla, pero no demuestra la propiedad DENTRO del
+    /// ciclo de vida que el fan-out real usa — una futura pieza inyectada que
+    /// sí se disponga rompería esto en silencio.
     /// </summary>
     private async Task VerificarSinEnvenenamientoTrasElBucleAsync(IAlcanceDatosService alcance)
     {
@@ -320,7 +338,19 @@ public class AlcanceMemoizadoPorTenantEnFanOutTests : IAsyncLifetime
             "Beta sigue resolviendo su propia cartera universal con la misma instancia scoped, sin importar el orden del fan-out");
     }
 
-    private async Task<(DashboardEjecutivoDto Resultado, IAlcanceDatosService Alcance)> EjecutarDashboardEjecutivoAsync(
+    /// <summary>
+    /// Devuelve también el <c>ServiceProvider</c> (revisión de Codex,
+    /// 2026-09-17): antes se disponía aquí mismo con <c>await using</c>/
+    /// <c>using</c> antes de retornar, y el llamador interrogaba
+    /// <c>Alcance</c> ya con el scope disuelto — funcionaba hoy porque
+    /// <c>AlcanceDatosService</c> no implementa <c>IDisposable</c>, pero no
+    /// demostraba la propiedad dentro del ciclo de vida real del fan-out. El
+    /// llamador dispone el proveedor con <c>await using</c> tras terminar de
+    /// interrogar <c>Alcance</c> — disponer el proveedor raíz dispone
+    /// también el scope hijo que creó (comportamiento documentado del
+    /// contenedor por defecto de Microsoft.Extensions.DependencyInjection).
+    /// </summary>
+    private async Task<(DashboardEjecutivoDto Resultado, IAlcanceDatosService Alcance, ServiceProvider Proveedor)> EjecutarDashboardEjecutivoAsync(
         IReadOnlyList<Guid> EnEsteOrden)
     {
         var servicios = new ServiceCollection();
@@ -378,17 +408,19 @@ public class AlcanceMemoizadoPorTenantEnFanOutTests : IAsyncLifetime
         servicios.AddSingleton<IRequestHandler<ObtenerClientesAutorizadosQuery, IReadOnlyList<ClienteAutorizadoDto>>>(
             new ObtenerClientesAutorizadosQueryHandlerFalso(clientesEnOrden));
 
-        await using var proveedor = servicios.BuildServiceProvider();
-        using var scope = proveedor.CreateScope();
+        var proveedor = servicios.BuildServiceProvider();
+        var scope = proveedor.CreateScope();
 
         var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
         var resultado = await mediator.Send(new ObtenerDashboardEjecutivoQuery(PeriodoKpi.MesActual(DateTime.UtcNow)));
 
         // Misma instancia scoped que usó el fan-out: si su memoización
-        // sobrevive envenenada, esto es lo que hay que interrogar después.
+        // sobrevive envenenada, esto es lo que hay que interrogar después,
+        // con el proveedor y su scope todavía vivos (el llamador los
+        // dispone al terminar).
         var alcance = scope.ServiceProvider.GetRequiredService<IAlcanceDatosService>();
 
-        return (resultado, alcance);
+        return (resultado, alcance, proveedor);
     }
 
     private static string GenerarDni(int numero)
