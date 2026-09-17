@@ -673,6 +673,20 @@ jobs:
       # Umbrales: se fijan tras remedir cada universo en varias ejecuciones
       # sobre el mismo commit, con el mismo patrón que el rebaseline de
       # arriba (lo medido menos 0,2). Ninguno se relaja por el camino.
+      #
+      # TERCER CAMBIO — SUBIDA DEL UMBRAL WEB (2026-09-17, decisión explícita
+      # del propietario): el informe por capas de REC-210 (ver DEC 2026-09-11,
+      # actualización 2026-09-16) midió la Web al 61,4 % con el umbral aún en
+      # 21,4 % — 40 puntos de margen, consecuencia prevista de que cada
+      # pantalla Gen 2 trae sus bUnit. Antes de subir, se tomaron cuatro
+      # muestras más sobre commits sucesivos de main sin tocar código de test
+      # deliberadamente: 61,3 % (049ca346), 61,3 % (4bff7ecb), 61,4 %
+      # (9ab89928), 61,4 % (bc9dfa3a, run 35169698302) — mismo patrón que el
+      # rebaseline del núcleo del 2026-09-09 (varias ejecuciones antes de
+      # fijar). El 61,4 % no es ruido de una muestra: es una tendencia
+      # sostenida de crecimiento real. Umbral nuevo: 61,2 % (61,4 % del último
+      # commit medido, main@bc9dfa3a — menos 0,2, igual criterio que el resto
+      # de este fichero). El núcleo no se toca en este cambio.
       - name: Umbral de cobertura del núcleo (ratchet)
         run: |
           cobertura=$(jq -r '.summary.linecoverage' coveragereport/Summary.json)
@@ -687,7 +701,7 @@ jobs:
         if: always()
         run: |
           cobertura=$(jq -r '.summary.linecoverage' coveragereport-web/Summary.json)
-          umbral="21.4"  # Web: 21,6 % medido (run 34547527082) − 0,2
+          umbral="61.2"  # Web: 61,4 % medido (run 35169698302, main@bc9dfa3a) − 0,2
           echo "Cobertura de línea de la WEB (bUnit sobre CaeManager.Web): ${cobertura}% — umbral ratchet: ${umbral}%"
           if ! python3 -c "import sys; sys.exit(0 if float('${cobertura}') >= float('${umbral}') else 1)"; then
             echo "::error::La cobertura de línea de la Web (${cobertura}%) cayó por debajo del umbral ratchet (${umbral}%). Sube el umbral solo cuando la cobertura real mejore de forma sostenida — nunca lo bajes para que pase este PR."
