@@ -679,14 +679,22 @@ jobs:
       # actualización 2026-09-16) midió la Web al 61,4 % con el umbral aún en
       # 21,4 % — 40 puntos de margen, consecuencia prevista de que cada
       # pantalla Gen 2 trae sus bUnit. Antes de subir, se tomaron cuatro
-      # muestras más sobre commits sucesivos de main sin tocar código de test
-      # deliberadamente: 61,3 % (049ca346), 61,3 % (4bff7ecb), 61,4 %
-      # (9ab89928), 61,4 % (bc9dfa3a, run 35169698302) — mismo patrón que el
-      # rebaseline del núcleo del 2026-09-09 (varias ejecuciones antes de
-      # fijar). El 61,4 % no es ruido de una muestra: es una tendencia
-      # sostenida de crecimiento real. Umbral nuevo: 61,2 % (61,4 % del último
-      # commit medido, main@bc9dfa3a — menos 0,2, igual criterio que el resto
-      # de este fichero). El núcleo no se toca en este cambio.
+      # muestras más sobre cuatro commits sucesivos y ordinarios de main (no
+      # instrumentados para esta medición; dos de ellos sí tocan ficheros de
+      # test, como cualquier commit normal con bUnit): 61,3 % (049ca346),
+      # 61,3 % (4bff7ecb), 61,4 % (9ab89928), 61,4 % (bc9dfa3a, run
+      # 35169698302) — descargando el artefacto cobertura-web ya generado por
+      # CI y regenerando Summary.json en local con la misma versión de
+      # reportgenerator fijada en .config/dotnet-tools.json (5.5.11), sin
+      # re-ejecutar CI. Mismo patrón que el rebaseline del núcleo del
+      # 2026-09-09 (varias ejecuciones antes de fijar). El 61,4 % no es ruido
+      # de una muestra: es una tendencia sostenida de crecimiento real (el
+      # campo linecoverage de reportgenerator trunca a un decimal, no
+      # redondea — de ahí que 21035/34266 salga 61,3 % aquí y se citara como
+      # 61,4 % en el DEC original; incidencia del instrumento, no del dato).
+      # Umbral nuevo: 61,2 % (61,4 % del último commit medido, main@bc9dfa3a
+      # — menos 0,2, igual criterio que el resto de este fichero). El núcleo
+      # no se toca en este cambio.
       - name: Umbral de cobertura del núcleo (ratchet)
         run: |
           cobertura=$(jq -r '.summary.linecoverage' coveragereport/Summary.json)
