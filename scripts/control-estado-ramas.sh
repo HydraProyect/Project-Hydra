@@ -200,6 +200,52 @@ awk '/^  sed -n .s\/\^M \/\/p/ {saltar=1} saltar && /^  fi$/ {saltar=0; next} !s
 S=$( cd "$T3" && bash "$MUT2" --sin-fetch --todas 2>&1 )
 comprobar "MUTACIÓN: sin el diff de las ramas con merge, F se pierde" no "^F$" "$S"
 
+# ── Caso 4: un fichero con acentos llega por las dos vías ────────────────────
+# Los ficheros salen de dos sitios: el log del grafo y, para las ramas con
+# merge, el diff completo. Si uno escribe año.md y el otro "a\303\261o.md",
+# son dos nombres distintos y el solape se pierde. Ocurre con la configuración
+# por defecto de git, y este repositorio está lleno de ficheros con acentos.
+cuatro="$RAIZ/cuatro"
+mkdir -p "$cuatro"; ( cd "$cuatro" && git init --bare -q remoto.git && git init -q trabajo ) || exit 1
+T4="$cuatro/trabajo"
+(
+  cd "$T4"
+  git config user.name control; git config user.email control@example.com
+  git remote add origin ../remoto.git
+  fecha 01
+  echo base > F0; echo v1 > "año.md"; git add .; git commit -qm c0
+  git branch -M main; git push -q -u origin main
+
+  # con-merge llega al fichero por la vía del DIFF: no lo toca en un commit
+  # propio, pero al integrar main conserva su versión heredada.
+  fecha 02; git checkout -qb con-merge origin/main
+  echo mio > F0; git commit -qam "con-merge toca F0"
+  fecha 03; git checkout -q main
+  echo v2 > "año.md"; git commit -qam "main cambia el fichero con acento"
+  git push -q origin main
+  fecha 04; git checkout -q con-merge
+  git merge --no-commit --no-ff main >/dev/null 2>&1
+  echo v1 > "año.md"; git add "año.md"; git commit -qm "merge conservando su version"
+
+  # rival llega al mismo fichero por la vía del LOG.
+  fecha 05; git checkout -qb rival origin/main
+  echo rival > "año.md"; git commit -qam "rival toca el fichero con acento"
+  git checkout -q main
+  git fetch -q origin
+) >/dev/null 2>&1 || { echo "no pude construir el caso 4" >&2; exit 1; }
+
+S=$(informe "$T4")
+comprobar "las dos vías escriben igual un nombre con acentos" si "^año\.md$"        "$S"
+comprobar "  y el solape aparece con las dos ramas"           si "<- con-merge"     "$S"
+comprobar "  sin dejar la grafía escapada suelta"             no 'a.303.261o'       "$S"
+
+# Mutación 5: sin core.quotePath=false en el diff, las dos grafías no se cruzan
+# y el solape desaparece.
+MUT3="$RAIZ/estado-ramas-con-quotepath.sh"
+sed 's/git -c core.quotePath=false diff --name-only/git diff --name-only/' "$GUION" > "$MUT3"
+S=$( cd "$T4" && bash "$MUT3" --sin-fetch --todas 2>&1 )
+comprobar "MUTACIÓN: sin quotePath=false, el solape se pierde" no "<- con-merge"    "$S"
+
 echo
 if [ $FALLOS -eq 0 ]; then
   echo "Todas las comprobaciones pasaron."

@@ -318,7 +318,12 @@ if [ "$TOTAL" -gt 0 ]; then
     # el total de 61 s a 56 s. No compensa el ruido de xargs para un 8 %.
     while read -r i; do
       [ -z "$i" ] && continue
-      git diff --name-only "$BASE...${VIVAS[$i]}" 2>/dev/null | sed "s|^|$i |"
+      # core.quotePath=false, igual que el log de arriba: por defecto git
+      # escribe "a\303\261o.md" en vez de año.md, y las dos grafías del mismo
+      # fichero no se cruzarían, perdiendo el solape justo en los ficheros con
+      # acentos, que aquí son muchos.
+      git -c core.quotePath=false diff --name-only "$BASE...${VIVAS[$i]}" 2>/dev/null \
+        | sed "s|^|$i |"
     done < "$TMP/conmerge" >> "$TMP/ficheros"
     sort -u "$TMP/ficheros" -o "$TMP/ficheros"
   fi
