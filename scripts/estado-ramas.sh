@@ -231,14 +231,13 @@ if [ "$TOTAL" -gt 0 ]; then
     printf '%s\t%s\n' "$i" "${PUNTA_DE[${VIVAS[$i]}]}"
   done > "$TMP/puntas"
 
-  # --diff-merges=combined: sin ella, `git log --name-only` NO emite ningún
-  # fichero para un commit de merge, y un fichero creado o modificado solo en
-  # la resolución del merge desaparecía del informe. Medido en el repositorio
-  # de control: el guion anterior lo listaba y esta versión, sin la opción, no.
-  # "combined" muestra justo lo que difiere de TODOS los padres —la
-  # resolución— sin arrastrar todo lo que el merge trae de main.
+  # `git log --name-only` no emite los ficheros de un commit de merge. Eso se
+  # corrige más abajo con el diff completo de las ramas que contengan alguno, y
+  # no con --diff-merges, que sigue dejando fuera las resoluciones cuyo
+  # resultado coincide con un padre. Los dos casos están medidos en
+  # scripts/control-estado-ramas.sh.
   { echo "^$BASE"; cut -f2 "$TMP/puntas"; } \
-    | git -c core.quotePath=false log --stdin --diff-merges=combined \
+    | git -c core.quotePath=false log --stdin \
         --format='%x01%H %P' --name-only \
       > "$TMP/grafo" 2>/dev/null
 
@@ -278,9 +277,11 @@ if [ "$TOTAL" -gt 0 ]; then
           for (q=1; q<=k; q++) if (ff[q] != "") fs[ff[q]]=1
         }
         k=split(PAD[c], ps, " ")
+        if (k >= 2) merge=1                # la rama contiene un commit de merge
         for (q=1; q<=k; q++) { n++; pila[n]=ps[q] }
       }
       for (f in fs) print "F", idx, f
+      if (merge) { print "M", idx; merge=0 }
       IDX_DE_PUNTA[sha]=idx
     }
     END {
@@ -302,6 +303,25 @@ if [ "$TOTAL" -gt 0 ]; then
   ' "$TMP/grafo" FS='\t' "$TMP/puntas" > "$TMP/analisis"
 
   sed -n 's/^F //p' "$TMP/analisis" > "$TMP/ficheros"
+
+  # Las ramas que contienen un commit de merge se comparan ADEMÁS con el diff
+  # completo contra origin/main. Dos fallos medidos, cada uno con su control:
+  # un fichero creado solo al resolver el merge no lo emite `log --name-only`,
+  # y uno cuya resolución conserva la versión del primer padre tampoco lo emite
+  # --diff-merges, porque el resultado coincide con un padre. El diff de tres
+  # puntos ve los dos. Se paga una llamada por rama SOLO para esas —aquí, un
+  # puñado: 19 commits de merge fuera de origin/main— en vez de para las 233
+  # líneas vivas, que es lo que costaba diez minutos.
+  sed -n 's/^M //p' "$TMP/analisis" | sort -u > "$TMP/conmerge"
+  if [ -s "$TMP/conmerge" ]; then
+    # En serie a propósito: medido, paralelizar estos diffs con 8 procesos bajó
+    # el total de 61 s a 56 s. No compensa el ruido de xargs para un 8 %.
+    while read -r i; do
+      [ -z "$i" ] && continue
+      git diff --name-only "$BASE...${VIVAS[$i]}" 2>/dev/null | sed "s|^|$i |"
+    done < "$TMP/conmerge" >> "$TMP/ficheros"
+    sort -u "$TMP/ficheros" -o "$TMP/ficheros"
+  fi
   sed -n 's/^P //p' "$TMP/analisis" | sort -n -k1,1 -k2,2 > "$TMP/pares"
   sed -n 's/^C //p' "$TMP/analisis" > "$TMP/contenidas"
 

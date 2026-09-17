@@ -146,12 +146,59 @@ fi
 S=$(informe "$T2")
 comprobar "sección 4 ve el fichero creado al resolver un merge" si "^FX$" "$S"
 
-# Mutación 3: el mismo guion sin la opción que pide el diff de los merges. Debe
-# perder FX; si no lo pierde, el caso no estaba probando la opción.
-MUTADO="$RAIZ/estado-ramas-mutado.sh"
-sed 's/--diff-merges=combined //' "$GUION" > "$MUTADO"
+# Mutación 3: el mismo guion sin el diff extra de las ramas con merge. Debe
+# perder FX; si no lo pierde, este caso no estaba probando nada.
+MUTADO="$RAIZ/estado-ramas-sin-diff-merge.sh"
+awk '/^  sed -n .s\/\^M \/\/p/ {saltar=1} saltar && /^  fi$/ {saltar=0; next} !saltar'   "$GUION" > "$MUTADO"
 S=$( cd "$T2" && bash "$MUTADO" --sin-fetch --todas 2>&1 )
-comprobar "MUTACIÓN: sin --diff-merges, FX se pierde" no "^FX$" "$S"
+comprobar "MUTACIÓN: sin el diff de las ramas con merge, FX se pierde" no "^FX$" "$S"
+
+# ── Caso 3: resolución de merge que conserva la versión del primer padre ──────
+# La rama nunca toca F en un commit propio; main sí lo cambia; la rama integra
+# main y al resolver conserva su F heredado. El árbol de la rama difiere
+# entonces de origin/main en F, pero ningún --diff-merges lo emite (el
+# resultado coincide con un padre) ni hay commit propio que lo toque.
+tres="$RAIZ/tres"
+mkdir -p "$tres"; ( cd "$tres" && git init --bare -q remoto.git && git init -q trabajo ) || exit 1
+T3="$tres/trabajo"
+(
+  cd "$T3"
+  git config user.name control; git config user.email control@example.com
+  git remote add origin ../remoto.git
+  fecha 01
+  echo v1 > F; echo x > OTRO; git add .; git commit -qm c0
+  git branch -M main; git push -q -u origin main
+
+  fecha 02; git checkout -qb rama origin/main
+  echo r > OTRO; git commit -qam "rama toca OTRO, nunca F"
+
+  fecha 03; git checkout -q main
+  echo v2 > F; git commit -qam "main pasa F a v2"; git push -q origin main
+
+  fecha 04; git checkout -q rama
+  git merge --no-commit --no-ff main >/dev/null 2>&1
+  echo v1 > F; git add F; git commit -qm "merge conservando F=v1"
+
+  # Otra rama toca F: el solape con "rama" DEBE aparecer.
+  fecha 05; git checkout -qb rival origin/main
+  echo rival > F; git commit -qam "rival toca F"
+  git checkout -q main
+  git fetch -q origin
+) >/dev/null 2>&1 || { echo "no pude construir el caso 3" >&2; exit 1; }
+
+# El caso solo prueba algo si el árbol de la rama difiere de origin/main en F.
+( cd "$T3" && git diff --name-only origin/main...rama | grep -qx F ) || {
+  echo "FALLO el caso 3 no dejó F distinto de origin/main: no prueba nada"
+  FALLOS=$((FALLOS+1)); }
+S=$(informe "$T3")
+comprobar "sección 4 ve el fichero que solo el diff completo revela" si "^F$" "$S"
+
+# Mutación 4: sin el diff extra de las ramas con merge, F debe perderse.
+MUT2="$RAIZ/estado-ramas-sin-diff-merge.sh"
+awk '/^  sed -n .s\/\^M \/\/p/ {saltar=1} saltar && /^  fi$/ {saltar=0; next} !saltar' \
+  "$GUION" > "$MUT2"
+S=$( cd "$T3" && bash "$MUT2" --sin-fetch --todas 2>&1 )
+comprobar "MUTACIÓN: sin el diff de las ramas con merge, F se pierde" no "^F$" "$S"
 
 echo
 if [ $FALLOS -eq 0 ]; then
