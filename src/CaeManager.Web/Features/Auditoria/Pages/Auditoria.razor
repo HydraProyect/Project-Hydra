@@ -80,6 +80,8 @@
     }
     else
     {
+        <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
+
         <table class="tabla-datos">
             <thead>
                 <tr>
@@ -99,7 +101,7 @@
             <tbody>
                 @foreach (var registro in Resultado.Elementos)
                 {
-                    <tr>
+                    <tr class="@ClaseFila(registro.Id)">
                         <td>@registro.FechaUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
                         <td>@registro.EntidadTipo</td>
                         <td>

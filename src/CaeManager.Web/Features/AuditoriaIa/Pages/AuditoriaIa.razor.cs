@@ -105,6 +105,7 @@ public partial class AuditoriaIa : CaeManager.Web.Components.PaginaIntegrableCon
 
         if (!fallo)
             _resultado = resultado;
+        _idEnfocado = null;
         _error = fallo;
         _cargando = false;
     }
@@ -215,4 +216,59 @@ public partial class AuditoriaIa : CaeManager.Web.Components.PaginaIntegrableCon
         DecisionHumanaIa.DescartadaManual => TonoBadge.Advertencia,
         _ => TonoBadge.Info
     };
+
+    // ---- Atajos de lista j/k/Enter (I-13 de AUDITORIA-USUARIO-AVANZADO-POST-GEN2) ----
+
+    /// <summary>Fila enfocada por teclado; cada carga de página descarta el foco.</summary>
+    private Guid? _idEnfocado;
+
+    /// <summary>
+    /// La clase de la fila junta las dos señales, que son independientes: la
+    /// enfocada es donde está el cursor de teclado, la abierta es la que tiene
+    /// su detalle desplegado.
+    /// </summary>
+    private string ClaseFila(Guid id, bool abierto)
+    {
+        var enfocada = _idEnfocado == id;
+        return (abierto, enfocada) switch
+        {
+            (true, true) => "fila-abierta-auditoria-ia fila-enfocada",
+            (true, false) => "fila-abierta-auditoria-ia",
+            (false, true) => "fila-enfocada",
+            _ => string.Empty
+        };
+    }
+
+    /// <summary>
+    /// "j"/"k" recorren la página visible; "Enter" despliega o pliega el
+    /// detalle de la fila enfocada, que es lo único que esta pantalla abre —la
+    /// misma acción que su botón "Detalle"—. "x" no tiene efecto: no hay
+    /// selección múltiple, así que no hay nada que marcar.
+    /// </summary>
+    private Task ManejarAtajoAsync(string tecla)
+    {
+        var visibles = Resultado.Elementos;
+        if (visibles.Count == 0) return Task.CompletedTask;
+
+        var indice = -1;
+        if (_idEnfocado is not null)
+            for (var i = 0; i < visibles.Count; i++)
+                if (visibles[i].Id == _idEnfocado) indice = i;
+
+        switch (tecla)
+        {
+            case "j":
+                _idEnfocado = visibles[Math.Min(indice + 1, visibles.Count - 1)].Id;
+                break;
+            case "k":
+                _idEnfocado = visibles[indice <= 0 ? 0 : indice - 1].Id;
+                break;
+            case "Enter":
+                if (indice >= 0) AlternarDetalle(visibles[indice].Id);
+                break;
+        }
+
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
 }

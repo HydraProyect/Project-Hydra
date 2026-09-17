@@ -38,6 +38,12 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class AuditoriaPantallaTests : BunitContext
 {
+    /// <summary>
+    /// La pagina monta AtajosListaTeclado (I-13), que importa
+    /// ./js/atajos-lista.js; el recorrido por teclado se prueba aparte.
+    /// </summary>
+    public AuditoriaPantallaTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+
     private sealed class MediatorAuditoria : IMediator
     {
         public List<ObtenerAuditoriaQuery> Consultas { get; } = [];
@@ -392,5 +398,64 @@ public class AuditoriaPantallaTests : BunitContext
         celdaDesaparecido.QuerySelector(".usuario-no-resuelto").Should().NotBeNull();
 
         FilaDe(cut, "Centro").QuerySelectorAll("td")[3].TextContent.Should().Be("Sistema");
+    }
+
+    // ------------------------------------------------ atajos de lista (I-13)
+
+    private static Task Atajo(IRenderedComponent<Features.Auditoria.Pages.Auditoria> cut, string tecla) =>
+        cut.InvokeAsync(() => cut.FindComponent<AtajosListaTeclado>().Instance.RecibirAtajo(tecla));
+
+    private static List<string> EntidadesEnfocadas(IRenderedComponent<Features.Auditoria.Pages.Auditoria> cut) =>
+        cut.FindAll("table.tabla-datos tbody tr.fila-enfocada")
+            .Select(tr => tr.QuerySelectorAll("td")[1].TextContent).ToList();
+
+    /// <summary>
+    /// I-13: el registro de auditoría nunca tuvo recorrido por teclado. "j" y
+    /// "k" recorren la página visible, con tope en las dos puntas.
+    /// </summary>
+    [Fact]
+    public async Task j_y_k_recorren_el_registro_de_auditoria()
+    {
+        _mediador.Filas.AddRange([Fila("Trabajador", "Creado"), Fila("Documento", "Creado")]);
+        var cut = Renderizar();
+
+        EntidadesEnfocadas(cut).Should().BeEmpty();
+
+        await Atajo(cut, "j");
+        EntidadesEnfocadas(cut).Should().Equal(["Trabajador"]);
+
+        await Atajo(cut, "j");
+        EntidadesEnfocadas(cut).Should().Equal(["Documento"]);
+
+        await Atajo(cut, "j");
+        EntidadesEnfocadas(cut).Should().Equal(["Documento"], "la última fila es el tope");
+
+        await Atajo(cut, "k");
+        EntidadesEnfocadas(cut).Should().Equal(["Trabajador"]);
+
+        await Atajo(cut, "k");
+        EntidadesEnfocadas(cut).Should().Equal(["Trabajador"], "la primera fila es el otro tope");
+    }
+
+    /// <summary>
+    /// Hueco declarado: aquí NO hay "Enter" ni "x". La mitad de las filas no
+    /// tiene acción y la otra ofrece "Restaurar", que deshace una baja lógica:
+    /// atar "Enter" a eso convertiría la tecla de abrir en una de revertir
+    /// datos. El test fija que ninguna de las dos hace nada.
+    /// </summary>
+    [Theory]
+    [InlineData("Enter")]
+    [InlineData("x")]
+    public async Task Ni_Enter_ni_x_hacen_nada_en_auditoria(string tecla)
+    {
+        _mediador.Filas.AddRange([Fila("Trabajador", "Eliminado", puedeRestaurar: true), Fila("Documento", "Creado")]);
+        var cut = Renderizar();
+        await Atajo(cut, "j");
+        var enviadasAntes = _mediador.Consultas.Count;
+
+        await Atajo(cut, tecla);
+
+        EntidadesEnfocadas(cut).Should().Equal(["Trabajador"], "el foco no se mueve");
+        _mediador.Consultas.Count.Should().Be(enviadasAntes, "no se envía ninguna petición: ni restaurar, ni nada");
     }
 }

@@ -17,6 +17,12 @@ namespace CaeManager.Web.Tests;
 
 public class LecturaIaClienteGen2Tests : BunitContext
 {
+    /// <summary>
+    /// La pagina monta AtajosListaTeclado (I-13), que importa
+    /// ./js/atajos-lista.js; el recorrido por teclado se prueba aparte.
+    /// </summary>
+    public LecturaIaClienteGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
+
     private static readonly Guid ClienteA = Guid.Parse("d1d1d1d1-0000-0000-0000-000000000001");
     private static readonly Guid ClienteB = Guid.Parse("d2d2d2d2-0000-0000-0000-000000000002");
     private static readonly Guid TipoA = Guid.Parse("e1e1e1e1-0000-0000-0000-000000000001");
@@ -293,5 +299,60 @@ public class LecturaIaClienteGen2Tests : BunitContext
         await DisposeComponentsAsync();
 
         tokensCarga.Should().OnlyContain(token => token.IsCancellationRequested, "Dispose cancela el ciclo de carga antes de liberar sus recursos");
+    }
+
+    // ------------------------------------------------ atajos de lista (I-13)
+
+    private static Task Atajo(IRenderedComponent<ConfiguracionIaCliente> cut, string tecla) =>
+        cut.InvokeAsync(() => cut.FindComponent<AtajosListaTeclado>().Instance.RecibirAtajo(tecla));
+
+    private static List<string> TiposEnfocados(IRenderedComponent<ConfiguracionIaCliente> cut) =>
+        cut.FindAll("tbody tr.fila-enfocada")
+            // La celda lleva, además del nombre, la marca "También detecta
+            // personal" cuando aplica: se compara solo el nombre del tipo.
+            .Select(tr => tr.QuerySelectorAll("td")[0].ChildNodes[0].TextContent.Trim()).ToList();
+
+    /// <summary>I-13: "j" y "k" recorren los tipos de documento de la tabla.</summary>
+    [Fact]
+    public async Task j_y_k_recorren_los_tipos_de_documento()
+    {
+        var (cut, _, _) = Renderizar(new Escenario());
+
+        TiposEnfocados(cut).Should().BeEmpty();
+
+        await Atajo(cut, "j");
+        TiposEnfocados(cut).Should().Equal(["Certificado médico"]);
+
+        await Atajo(cut, "j");
+        TiposEnfocados(cut).Should().Equal(["Formación PRL"]);
+
+        await Atajo(cut, "k");
+        TiposEnfocados(cut).Should().Equal(["Certificado médico"]);
+
+        await Atajo(cut, "k");
+        TiposEnfocados(cut).Should().Equal(["Certificado médico"], "la primera fila es el tope");
+    }
+
+    /// <summary>
+    /// "x" NO toca la casilla de la fila, y es lo importante aqui: esa casilla
+    /// no es de seleccion, es el interruptor de nivel 2, y marcarla cambiaria
+    /// la configuracion del Cliente empresarial. Tampoco hay ficha que abrir
+    /// con "Enter".
+    /// </summary>
+    [Theory]
+    [InlineData("Enter")]
+    [InlineData("x")]
+    public async Task Ni_Enter_ni_x_tocan_el_interruptor_de_nivel_2(string tecla)
+    {
+        var (cut, mediador, _) = Renderizar(new Escenario());
+        await Atajo(cut, "j");
+        var marcadasAntes = cut.FindAll("tbody input[type=checkbox]").Count(c => c.HasAttribute("checked"));
+        var enviadasAntes = mediador.Enviados.Count;
+
+        await Atajo(cut, tecla);
+
+        TiposEnfocados(cut).Should().HaveCount(1, "el foco no se mueve ni desaparece");
+        cut.FindAll("tbody input[type=checkbox]").Count(c => c.HasAttribute("checked")).Should().Be(marcadasAntes);
+        mediador.Enviados.Count.Should().Be(enviadasAntes, "no se envia ningun cambio de configuracion");
     }
 }

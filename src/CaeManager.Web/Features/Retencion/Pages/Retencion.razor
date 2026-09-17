@@ -106,6 +106,8 @@
     }
     else
     {
+        <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
+
         <table class="tabla-datos">
             <thead>
                 <tr>
@@ -119,7 +121,7 @@
             <tbody>
                 @foreach (var solicitud in _solicitudes)
                 {
-                    <tr class="@(solicitud.EstaResuelta ? "fila-resuelta" : null)">
+                    <tr class="@ClaseFila(solicitud.Id, solicitud.EstaResuelta)">
                         <td class="purga-tipo">@DescribirTipo(solicitud.TipoDato)</td>
                         <td class="purga-numero">@solicitud.RegistrosAfectados</td>
                         <td class="purga-fecha">@solicitud.FechaCorte.ToString("dd/MM/yyyy")</td>

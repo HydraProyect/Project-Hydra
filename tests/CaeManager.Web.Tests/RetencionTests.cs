@@ -426,4 +426,59 @@ public class RetencionTests : BunitContext
         fila.QuerySelector(".sin-acciones")!.TextContent.Should().Be("—");
         fila.TextContent.Should().Contain("Ejecutada el");
     }
+
+    // ------------------------------------------------ atajos de lista (I-13)
+
+    private static Task Atajo(IRenderedComponent<RetencionPage> cut, string tecla) =>
+        cut.InvokeAsync(() => cut.FindComponent<AtajosListaTeclado>().Instance.RecibirAtajo(tecla));
+
+    private static List<string> QueEnfocado(IRenderedComponent<RetencionPage> cut) =>
+        cut.FindAll("tbody tr.fila-enfocada").Select(tr => tr.QuerySelector(".purga-tipo")!.TextContent.Trim()).ToList();
+
+    /// <summary>I-13: "j" y "k" recorren las solicitudes de purga.</summary>
+    [Fact]
+    public async Task j_y_k_recorren_las_solicitudes_de_purga()
+    {
+        var (cut, _) = Renderizar(politicaActiva: true,
+            solicitudes: [ListaParaEjecutar(TipoDatoPurgable.Documentos), Ejecutada()]);
+
+        QueEnfocado(cut).Should().BeEmpty();
+
+        await Atajo(cut, "j");
+        var primera = QueEnfocado(cut);
+        primera.Should().HaveCount(1);
+
+        await Atajo(cut, "j");
+        QueEnfocado(cut).Should().HaveCount(1);
+
+        await Atajo(cut, "k");
+        QueEnfocado(cut).Should().Equal(primera);
+
+        await Atajo(cut, "k");
+        QueEnfocado(cut).Should().Equal(primera, "la primera fila es el tope");
+    }
+
+    /// <summary>
+    /// Hueco declarado: aqui NO hay "Enter" ni "x". Las acciones de la fila son
+    /// avisar, programar o purgar (escrituras, y una de ellas irreversible),
+    /// asi que ninguna puede colgar de una tecla que significa "abrir". El test
+    /// fija que no se envia ningun comando ni se abre ninguna confirmacion.
+    /// </summary>
+    [Theory]
+    [InlineData("Enter")]
+    [InlineData("x")]
+    public async Task Ni_Enter_ni_x_hacen_nada_en_retencion(string tecla)
+    {
+        var (cut, mediator) = Renderizar(politicaActiva: true,
+            solicitudes: [ListaParaEjecutar(TipoDatoPurgable.Documentos), Ejecutada()]);
+        await Atajo(cut, "j");
+        var enfocadaAntes = QueEnfocado(cut);
+
+        await Atajo(cut, tecla);
+
+        QueEnfocado(cut).Should().Equal(enfocadaAntes, "el foco no se mueve");
+        cut.FindAll("[role=dialog]").Should().BeEmpty("ninguna de las dos abre una confirmacion");
+        mediator.Enviados.OfType<EjecutarPurgaCommand>().Should().BeEmpty();
+        mediator.Enviados.OfType<ProgramarPurgaCommand>().Should().BeEmpty();
+    }
 }

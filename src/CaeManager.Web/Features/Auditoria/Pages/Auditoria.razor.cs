@@ -139,6 +139,7 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
                 return;
 
             _resultado = resultado;
+            _idEnfocado = null;
         }
         catch (Exception)
         {
@@ -238,5 +239,37 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
             await CargarAsync();
         else
             StateHasChanged();
+    }
+
+    // ---- Atajos de lista j/k (I-13 de AUDITORIA-USUARIO-AVANZADO-POST-GEN2) ----
+
+    /// <summary>Fila enfocada por teclado; cada carga de página descarta el foco.</summary>
+    private Guid? _idEnfocado;
+
+    private string ClaseFila(Guid id) => _idEnfocado == id ? "fila-enfocada" : string.Empty;
+
+    /// <summary>
+    /// Solo "j"/"k": recorren la página visible del registro. Aquí NO hay
+    /// "Enter" ni "x" y es deliberado — la mitad de las filas no tiene acción
+    /// y la otra mitad ofrece "Restaurar", que deshace una baja lógica. Atar
+    /// "Enter" a una restauración convertiría la tecla de "abrir" en una de
+    /// revertir datos; qué gesto merece, si alguno, es decisión de producto.
+    /// </summary>
+    private Task ManejarAtajoAsync(string tecla)
+    {
+        var visibles = Resultado.Elementos;
+        if (visibles.Count == 0 || (tecla != "j" && tecla != "k")) return Task.CompletedTask;
+
+        var indice = -1;
+        if (_idEnfocado is not null)
+            for (var i = 0; i < visibles.Count; i++)
+                if (visibles[i].Id == _idEnfocado) indice = i;
+
+        _idEnfocado = tecla == "j"
+            ? visibles[Math.Min(indice + 1, visibles.Count - 1)].Id
+            : visibles[indice <= 0 ? 0 : indice - 1].Id;
+
+        StateHasChanged();
+        return Task.CompletedTask;
     }
 }

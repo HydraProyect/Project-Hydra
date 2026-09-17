@@ -71,6 +71,8 @@
     }
     else
     {
+        <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
+
         <div class="tabla-auditoria-ia-desplazable">
             <table class="tabla-datos">
                 <thead>
@@ -92,7 +94,7 @@
                     @foreach (var registro in Resultado.Elementos)
                     {
                         var abierto = _registroAbierto == registro.Id;
-                        <tr class="@(abierto ? "fila-abierta-auditoria-ia" : null)">
+                        <tr class="@ClaseFila(registro.Id, abierto)">
                             <td>@FormatearFecha(registro.CreadaEnUtc)</td>
                             <td>@registro.TipoEsperado</td>
                             <td>

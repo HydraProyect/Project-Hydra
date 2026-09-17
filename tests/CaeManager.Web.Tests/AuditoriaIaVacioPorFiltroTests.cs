@@ -17,6 +17,12 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class AuditoriaIaVacioPorFiltroTests : BunitContext
 {
+    /// <summary>
+    /// La pagina monta AtajosListaTeclado (I-13), que importa
+    /// ./js/atajos-lista.js; el recorrido por teclado se prueba aparte.
+    /// </summary>
+    public AuditoriaIaVacioPorFiltroTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+
     private sealed class MediatorConRegistros(IReadOnlyList<RegistroAuditoriaIaDto> registros) : IMediator
     {
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>

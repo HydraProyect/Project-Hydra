@@ -139,6 +139,7 @@ public partial class AccesosDocumentosSensibles : CaeManager.Web.Components.Pagi
                 return;
 
             _accesos = resultado.Elementos;
+            _idEnfocado = null;
             _totalPaginas = resultado.TotalPaginas;
             _totalElementos = resultado.TotalElementos;
         }
@@ -212,4 +213,33 @@ public partial class AccesosDocumentosSensibles : CaeManager.Web.Components.Pagi
 
     private static TonoBadge TonoContexto(AccesoDocumentoSensibleDto acceso) =>
         acceso.EsPrivilegiado ? TonoBadge.Advertencia : TonoBadge.Neutro;
+
+    // ---- Atajos de lista j/k (I-13 de AUDITORIA-USUARIO-AVANZADO-POST-GEN2) ----
+
+    /// <summary>Fila enfocada por teclado; cada carga descarta el foco.</summary>
+    private Guid? _idEnfocado;
+
+    private string ClaseFila(Guid id) => _idEnfocado == id ? "fila-enfocada" : string.Empty;
+
+    /// <summary>
+    /// Solo "j"/"k". La pantalla no ofrece ninguna acción de fila —solo leer—,
+    /// así que no hay nada que "Enter" pueda abrir ni que "x" pueda marcar.
+    /// </summary>
+    private Task ManejarAtajoAsync(string tecla)
+    {
+        var visibles = _accesos;
+        if (visibles.Count == 0 || (tecla != "j" && tecla != "k")) return Task.CompletedTask;
+
+        var indice = -1;
+        if (_idEnfocado is not null)
+            for (var i = 0; i < visibles.Count; i++)
+                if (visibles[i].Id == _idEnfocado) indice = i;
+
+        _idEnfocado = tecla == "j"
+            ? visibles[Math.Min(indice + 1, visibles.Count - 1)].Id
+            : visibles[indice <= 0 ? 0 : indice - 1].Id;
+
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
 }
