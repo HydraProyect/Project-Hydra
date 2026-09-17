@@ -22,6 +22,9 @@ on:
       - unlabeled
       - milestoned # REC-140: ni al asignar el milestone después de abrir la PR
       - demilestoned
+      - edited # turno 2026-09-18 (T3): la sección "Paso operativo en
+      # servidores" vive en el CUERPO de la PR, no en sus etiquetas — sin este
+      # disparador, rellenarla tras abrir la PR no revalida el check.
 
 # Deliberadamente SIN `merge_group` ni `push`: la convención (§ 5 de
 # tecnico/CONVENCION-METADATOS-PR.md) nunca aplicó a esos dos eventos — en
@@ -53,7 +56,12 @@ jobs:
     timeout-minutes: 3
     permissions:
       pull-requests: read
+      contents: read # turno 2026-09-18 (T3): el paso nuevo hace checkout para
+      # correr scripts/verificar-gobernanza-pr.sh y lista los ficheros de la
+      # PR con GET /pulls/{n}/files, que documenta ese mismo permiso.
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
       # REC-162, revertido a propósito. El job original en ci.yml leía
       # milestone y etiquetas de `github.event.pull_request.*` — el payload
       # del evento. Su comentario (ci.yml, antes de este cambio, ~líneas
@@ -104,3 +112,60 @@ jobs:
             exit 1
           fi
           echo "OK — milestone: '$MILESTONE'; etiquetas Type:/Priority: presentes (leído por API, PR #${NUMERO})."
+
+      # Turno 2026-09-18 (T3), registro PROTOCOLO-TURNO-NOCTURNO.md § 8: #674
+      # añadió el rol cae_app_aprovisionamiento a
+      # deploy/bootstrap/roles-de-cluster.sql sin que ningún adaptador de
+      # despliegue lo ejecutara -> staging roto (42704) hasta que alguien lo
+      # aplicó a mano. Regla nueva: toda PR que TOQUE ese fichero lleva en el
+      # cuerpo una sección "## Paso operativo en servidores" que nombre
+      # staging y producción.
+      #
+      # Igual que el paso de arriba (DEC-66): el cuerpo y los ficheros se leen
+      # por API en el momento de evaluar, nunca del payload del evento — un
+      # `synchronize` o un `edited` pueden cambiar cualquiera de los dos tras
+      # abrir la PR (rellenar la sección después de abrir es el caso normal).
+      # La lógica vive en scripts/verificar-gobernanza-pr.sh (con su prueba
+      # sin red, verificar-gobernanza-pr.tests.sh, en el job
+      # gobernanza-pr-tests de este mismo workflow) para no escribir awk/grep
+      # dentro de YAML dentro de shell — mismo motivo que separó
+      # scripts/repartir-clases-de-test.sh.
+      - name: "Exigir sección de paso operativo para roles de clúster"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUMERO: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          datos=$(gh api "repos/${REPO}/pulls/${NUMERO}")
+
+          CUERPO="$(mktemp)"
+          echo "$datos" | jq -r '.body // ""' >"$CUERPO"
+
+          FICHEROS="$(mktemp)"
+          gh api "repos/${REPO}/pulls/${NUMERO}/files" --paginate --jq '.[].filename' >"$FICHEROS"
+
+          bash scripts/verificar-gobernanza-pr.sh "$CUERPO" "$FICHEROS"
+
+  gobernanza-pr-tests:
+    # Prueba sin red de scripts/verificar-gobernanza-pr.sh (el guion que usa
+    # el job de arriba). El patrón ya existente para este tipo de prueba de
+    # shell es el job deploy-script-tests de ci.yml (ver
+    # scripts/verificar-licencias-nuget.tests.sh, scripts/repartir-clases-de-
+    # test.tests.sh) — pero el alcance de la misión que introdujo este job
+    # (T3, turno 2026-09-18) prohíbe expresamente tocar ci.yml. Este workflow,
+    # que ya es dueño de scripts/verificar-gobernanza-pr.sh, es el sitio más
+    # cercano a ese patrón sin cruzar esa frontera: corre en cada evento de
+    # `pull_request` que dispara este fichero (arriba), sin depender del
+    # contenido de la PR concreta que lo disparó — prueba el guion, no esa PR.
+    name: "Gobernanza — prueba del verificador (sin red)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read # solo para actions/checkout; el resto del job no llama a la API.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: scripts/verificar-gobernanza-pr.tests.sh
+        run: bash scripts/verificar-gobernanza-pr.tests.sh
