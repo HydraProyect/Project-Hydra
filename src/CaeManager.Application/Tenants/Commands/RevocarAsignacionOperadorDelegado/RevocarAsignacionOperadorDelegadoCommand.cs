@@ -53,7 +53,7 @@ public class RevocarAsignacionOperadorDelegadoCommandHandler(
         // La fila antigua se borra; la cartera se CIERRA. La diferencia es
         // deliberada: el modelo nuevo conserva el rastro de quién operó qué y
         // hasta cuándo, y borrarla perdería exactamente eso.
-        if (delegacion.Proposito == PropositoDelegacion.Comercial)
+        if (delegacion.Proposito == PropositoDelegacion.OperadorExterno)
             await asignacionesWriter.CerrarCarteraOperadorAsync(
                 delegacion.TenantClienteId, delegacion.TenantConsultoraId,
                 asignacion.UsuarioId, MotivoCierreAsignacion.Revocada, cancellationToken);

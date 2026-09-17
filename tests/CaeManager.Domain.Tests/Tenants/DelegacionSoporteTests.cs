@@ -37,7 +37,7 @@ public class DelegacionSoporteTests
         // delegaciones de negocio que ya existían.
         var delegacion = new DelegacionTenant(Plataforma, Cliente);
 
-        delegacion.Proposito.Should().Be(PropositoDelegacion.Comercial);
+        delegacion.Proposito.Should().Be(PropositoDelegacion.OperadorExterno);
         delegacion.Activa.Should().BeTrue();
         delegacion.EstaVigente(Ahora).Should().BeTrue();
         delegacion.ExpiraEnUtc.Should().BeNull();

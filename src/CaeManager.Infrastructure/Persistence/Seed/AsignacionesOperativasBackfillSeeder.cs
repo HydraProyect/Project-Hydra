@@ -90,7 +90,7 @@ public static class AsignacionesOperativasBackfillSeeder
         // resultado del backfill dependería del orden en que Postgres
         // devuelva las filas.
         var delegacionesComerciales = await dbContext.DelegacionesTenant
-            .Where(d => d.Proposito == PropositoDelegacion.Comercial)
+            .Where(d => d.Proposito == PropositoDelegacion.OperadorExterno)
             .OrderBy(d => d.CreadoEnUtc)
             .ToListAsync(cancellationToken);
 

@@ -57,7 +57,7 @@
                         <div>
                             <div class="delegaciones-etiquetas">
                                 <Badge Tono="@(delegacion.EsSoporte ? TonoBadge.Info : TonoBadge.Neutro)">
-                                    @(delegacion.EsSoporte ? "Soporte" : "Comercial")
+                                    @(delegacion.EsSoporte ? "Soporte" : "Operador externo")
                                 </Badge>
                                 <Badge Tono="@TonoEstado(delegacion.EsSoporte, delegacion.AccesoVigente, delegacion.VentanaCaducada, delegacion.Activa)">
                                     @TextoEstado(delegacion.EsSoporte, delegacion.AccesoVigente, delegacion.VentanaCaducada, delegacion.Activa)

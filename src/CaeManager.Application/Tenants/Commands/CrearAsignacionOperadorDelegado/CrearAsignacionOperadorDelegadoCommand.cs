@@ -100,7 +100,7 @@ public class CrearAsignacionOperadorDelegadoCommandHandler(
         var asignacion = new AsignacionOperadorDelegado(request.DelegacionTenantId, request.UsuarioId, request.Rol);
         repositorio.Agregar(asignacion);
 
-        if (delegacion.Proposito == PropositoDelegacion.Comercial)
+        if (delegacion.Proposito == PropositoDelegacion.OperadorExterno)
             await asignacionesWriter.AbrirCarteraOperadorAsync(
                 delegacion.TenantClienteId, delegacion.TenantConsultoraId,
                 request.UsuarioId, request.Rol, cancellationToken);

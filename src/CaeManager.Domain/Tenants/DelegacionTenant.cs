@@ -27,7 +27,7 @@ public class DelegacionTenant : Entity
     public bool Activa { get; private set; }
     public DateTime CreadoEnUtc { get; private set; } = DateTime.UtcNow;
 
-    /// <summary>Comercial (una consultora presta servicio) o Soporte (Hydra entra a revisar una incidencia).</summary>
+    /// <summary>OperadorExterno (una consultora presta servicio) o Soporte (Hydra entra a revisar una incidencia).</summary>
     public PropositoDelegacion Proposito { get; private set; }
 
     /// <summary>
