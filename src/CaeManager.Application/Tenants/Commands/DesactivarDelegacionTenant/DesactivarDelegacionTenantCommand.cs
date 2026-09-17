@@ -48,10 +48,10 @@ public class DesactivarDelegacionTenantCommandHandler(
 
         delegacion.Desactivar();
 
-        // Solo las comerciales tienen operación que cerrar: las de Soporte son
-        // plano 3 y conservan su mecánica propia hasta su fase (ADR-011 § 8.6).
-        // Cerrar la operación arrastra sus carteras.
-        if (delegacion.Proposito == PropositoDelegacion.Comercial)
+        // Solo las de Operador externo tienen operación que cerrar: las de
+        // Soporte son plano 3 y conservan su mecánica propia hasta su fase
+        // (ADR-011 § 8.6). Cerrar la operación arrastra sus carteras.
+        if (delegacion.Proposito == PropositoDelegacion.OperadorExterno)
             await asignacionesWriter.CerrarOperacionDelegadaAsync(
                 delegacion.TenantClienteId, delegacion.TenantConsultoraId,
                 MotivoCierreAsignacion.Revocada, cancellationToken);

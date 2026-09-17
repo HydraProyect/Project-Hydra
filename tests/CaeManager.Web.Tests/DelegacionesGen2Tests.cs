@@ -105,7 +105,7 @@ public class DelegacionesGen2Tests : BunitContext
         bool soporte = false, bool activa = true, string rol = "GestorCae", bool somosLaConsultora = true, Guid? tenantClienteId = null) => new(
         Guid.NewGuid(), Guid.NewGuid(), "TALVEG", tenantClienteId ?? Guid.NewGuid(), "Organización Norte", activa, somosLaConsultora, DateTime.UtcNow,
         [new OperadorDelegadoDto(Guid.NewGuid(), Guid.NewGuid(), rol)],
-        soporte ? PropositoDelegacion.Soporte : PropositoDelegacion.Comercial,
+        soporte ? PropositoDelegacion.Soporte : PropositoDelegacion.OperadorExterno,
         soporte && activa ? "Incidencia de importación" : null,
         soporte && activa ? DateTime.UtcNow.AddHours(2) : null);
 

@@ -419,10 +419,10 @@ public static class DelegacionDemoSeeder
 
         var delegacionDemo1 = await dbContext.DelegacionesTenant.FirstOrDefaultAsync(
             d => d.TenantConsultoraId == tenantConsultoraId && d.TenantClienteId == tenantClienteDemo1Id
-                 && d.Proposito == PropositoDelegacion.Comercial, cancellationToken);
+                 && d.Proposito == PropositoDelegacion.OperadorExterno, cancellationToken);
         var delegacionDemo2 = await dbContext.DelegacionesTenant.FirstOrDefaultAsync(
             d => d.TenantConsultoraId == tenantConsultoraId && d.TenantClienteId == tenantClienteDemo2Id
-                 && d.Proposito == PropositoDelegacion.Comercial, cancellationToken);
+                 && d.Proposito == PropositoDelegacion.OperadorExterno, cancellationToken);
 
         using (AmbitoTenantExplicito.Establecer(tenantConsultoraId))
         {

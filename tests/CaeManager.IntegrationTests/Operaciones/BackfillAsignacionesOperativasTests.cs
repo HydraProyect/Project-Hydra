@@ -215,7 +215,7 @@ public class BackfillAsignacionesOperativasTests : IAsyncLifetime
         await using (var contextoPreparacion = CrearContexto(_clienteDelegante))
         {
             var delegacion = await contextoPreparacion.DelegacionesTenant
-                .FirstAsync(d => d.Proposito == PropositoDelegacion.Comercial);
+                .FirstAsync(d => d.Proposito == PropositoDelegacion.OperadorExterno);
 
             contextoPreparacion.AsignacionesOperadorDelegado.Add(
                 new AsignacionOperadorDelegado(delegacion.Id, _gestorInterno, Roles.GestorCae));

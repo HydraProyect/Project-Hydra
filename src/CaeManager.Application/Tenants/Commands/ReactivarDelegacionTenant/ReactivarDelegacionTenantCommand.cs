@@ -98,7 +98,7 @@ public class ReactivarDelegacionTenantCommandHandler(
         // Append-only: no se reabre la operación cerrada, se abre una nueva.
         // El histórico conserva las dos etapas por separado, que es lo que
         // permite responder quién operaba en cada momento.
-        if (delegacion.Proposito == PropositoDelegacion.Comercial)
+        if (delegacion.Proposito == PropositoDelegacion.OperadorExterno)
         {
             var operacion = await asignacionesWriter.AbrirOperacionDelegadaAsync(
                 delegacion.TenantClienteId, delegacion.TenantConsultoraId,
