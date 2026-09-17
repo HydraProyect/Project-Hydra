@@ -20,11 +20,13 @@ namespace CaeManager.Application.Plataforma;
 /// </para>
 ///
 /// <para>
-/// <b>Por qué hoy solo <c>SoporteLectura</c>.</b> No es una elección de diseño:
-/// es el conjunto actual verificable. La auto-concesión —único camino de
-/// creación que existe— solo emite esa capacidad, así que ninguna otra puede
-/// materializarse en una fila. Poner aquí más sería afirmar algo que el sistema
-/// no sabe honrar todavía.
+/// <b>Por qué hoy <c>SoporteLectura</c> y <c>Aprovisionamiento</c>.</b> No es una
+/// elección de diseño ampliada a la ligera: son los dos caminos de creación que
+/// existen. La auto-concesión solo emite <c>SoporteLectura</c>; PD-A3 añadió
+/// <c>ConcederPrivilegioCommand</c>, que solo emite <c>Aprovisionamiento</c>
+/// (<c>ConcesionesSoloPorActoExplicitoTests</c> mantiene esa lista cerrada).
+/// Ninguna otra capacidad puede materializarse en una fila hoy, así que poner
+/// más aquí seguiría afirmando algo que el sistema no sabe honrar.
 /// </para>
 ///
 /// <para>
@@ -37,7 +39,8 @@ namespace CaeManager.Application.Plataforma;
 /// </summary>
 public static class CapacidadesQuePuedenAbrirSesion
 {
-    private static readonly HashSet<CapacidadPrivilegio> Admitidas = [CapacidadPrivilegio.SoporteLectura];
+    private static readonly HashSet<CapacidadPrivilegio> Admitidas =
+        [CapacidadPrivilegio.SoporteLectura, CapacidadPrivilegio.Aprovisionamiento];
 
     public static bool Admite(CapacidadPrivilegio capacidad) => Admitidas.Contains(capacidad);
 }

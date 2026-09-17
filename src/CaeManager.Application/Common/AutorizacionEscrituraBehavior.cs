@@ -33,7 +33,7 @@ namespace CaeManager.Application.Common;
 /// Se registra antes que ValidationBehavior: un Command bloqueado por rol
 /// ni siquiera llega a validarse.
 ///
-/// <b>Sesiones privilegiadas de plataforma (ADR-011 § 4bis): denegación
+/// <b>Sesiones privilegiadas de plataforma (ADR-011 § 4bis): decisión
 /// explícita, y antes que el rol.</b> Hoy una sesión de plano 3 acabaría con
 /// rol efectivo <c>null</c> y la lista blanca la bloquearía igual — pero eso es
 /// una consecuencia de cómo se resuelve el rol, no una decisión tomada aquí. Un
@@ -43,14 +43,26 @@ namespace CaeManager.Application.Common;
 /// de soporte es de solo lectura, sin excepción implícita— se escribe aquí y se
 /// prueba aquí.
 ///
+/// <b>PD-A3 abre la única excepción, y con tres condiciones a la vez, no una.</b>
+/// Una sesión con <c>TieneCaminoDeEscritura</c> (hoy solo <c>Aprovisionamiento</c>
+/// — <c>BreakGlass</c> permite escribir en el modelo pero su fase todavía no
+/// existe) deja pasar el comando solo si además es
+/// <see cref="IComandoDeAprovisionamiento"/> Y el tenant actual coincide con el
+/// <c>TenantObjetivoId</c> de la sesión. Cualquiera de las tres que falle
+/// deniega, con un código de error distinto por condición — mismo principio de
+/// "cada precondición prueba su propia desaparición" que el resto de este
+/// archivo. Este behavior NO abre el rol de escritura de PostgreSQL: eso es
+/// <c>ElevacionEscrituraAprovisionamientoBehavior</c>, registrado más adentro
+/// del pipeline, para que la ventana de rol elevado sea solo el handler.
+///
 /// Y cubre el hueco del circuito, que la revalidación por petición no puede
 /// cubrir: <c>RevalidacionClienteActivoMiddleware</c> solo corre en peticiones
 /// HTTP, y un circuito de Blazor ya establecido puede seguir interactuando por
-/// SignalR sin generar ninguna. Aquí la denegación no depende de que esa
+/// SignalR sin generar ninguna. Aquí la decisión no depende de que esa
 /// revalidación haya llegado a correr — y no depende tampoco de que la sesión
-/// resuelva: si resuelve, se deniega por vía de acceso; si no resuelve, el rol
-/// efectivo de un contexto privilegiado es <c>null</c> y se deniega por lista
-/// blanca. Las dos ramas acaban en no.
+/// resuelva: si resuelve, se decide por vía de acceso y capacidad; si no
+/// resuelve, el rol efectivo de un contexto privilegiado es <c>null</c> y se
+/// deniega por lista blanca.
 ///
 /// <b>La escritura sí exige inmediatez (REC-067, DEC-44).</b> La resolución de
 /// sesión se memoiza por ámbito de DI —petición en HTTP, circuito entero en
@@ -76,7 +88,8 @@ namespace CaeManager.Application.Common;
 /// </summary>
 public class AutorizacionEscrituraBehavior<TRequest, TResponse>(
     ICurrentUserService currentUserService,
-    ISesionPrivilegiadaActual sesionPrivilegiadaActual)
+    ISesionPrivilegiadaActual sesionPrivilegiadaActual,
+    ITenantActual tenantActual)
     : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
 {
@@ -92,7 +105,29 @@ public class AutorizacionEscrituraBehavior<TRequest, TResponse>(
             return await next(cancellationToken);
 
         if (await sesionPrivilegiadaActual.RevalidarAsync(cancellationToken) is { } sesion)
-            return CrearRespuestaFallo<TResponse>(ErrorDeSesionPrivilegiada(sesion));
+        {
+            // PD-A3: una sesión con camino de escritura construido (hoy solo
+            // Aprovisionamiento — ver TieneCaminoDeEscritura) puede seguir
+            // adelante, pero solo si las tres condiciones se cumplen A LA VEZ.
+            // No abre el ámbito de elevación aquí: eso lo hace
+            // ElevacionEscrituraAprovisionamientoBehavior, registrado más
+            // adentro del pipeline, para que la ventana de rol elevado sea
+            // solo el handler.
+            if (!sesion.TieneCaminoDeEscritura)
+                return CrearRespuestaFallo<TResponse>(ErrorDeSesionPrivilegiada(sesion));
+
+            if (request is not IComandoDeAprovisionamiento)
+                return CrearRespuestaFallo<TResponse>(Error.Crear(
+                    "Autorizacion.ComandoFueraDelAprovisionamiento",
+                    "Esta sesión de aprovisionamiento no habilita esta operación."));
+
+            if (tenantActual.TenantId != sesion.TenantObjetivoId)
+                return CrearRespuestaFallo<TResponse>(Error.Crear(
+                    "Autorizacion.AprovisionamientoFueraDelTenantObjetivo",
+                    "Esta sesión de aprovisionamiento solo puede escribir en el tenant objetivo."));
+
+            return await next(cancellationToken);
+        }
 
         var rol = await currentUserService.ObtenerRolActualAsync();
 

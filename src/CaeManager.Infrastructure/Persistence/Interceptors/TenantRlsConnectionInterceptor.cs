@@ -47,11 +47,13 @@ namespace CaeManager.Infrastructure.Persistence.Interceptors;
 /// </description>
 /// </item>
 /// <item>
-/// <term>B — restricción de capacidad de la sesión de soporte</term>
+/// <term>B — restricción de capacidad de la sesión privilegiada</term>
 /// <description>
-/// <c>SET ROLE cae_app_soporte</c>. Responde "¿esta conexión puede escribir?".
-/// Aplica solo cuando la petición viene por una sesión privilegiada de
-/// plataforma.
+/// <c>SET ROLE cae_app_soporte</c> (solo lectura) o, dentro de un ámbito de
+/// elevación de Aprovisionamiento (PD-A3), <c>SET ROLE cae_app_aprovisionamiento</c>
+/// (escritura acotada por GRANT explícito). Responde "¿esta conexión puede
+/// escribir, y qué?". Aplica solo cuando la petición viene por una sesión
+/// privilegiada de plataforma.
 /// </description>
 /// </list>
 /// <para>
@@ -79,6 +81,14 @@ public class TenantRlsConnectionInterceptor(
     /// de desactivar el control por despiste.
     /// </summary>
     private const string RolSoporte = "cae_app_soporte";
+
+    /// <summary>
+    /// Rol de escritura acotada al tenant objetivo del plano 3 (PD-A3, ver la
+    /// migración <c>RolAprovisionamientoEscrituraAcotada</c>). Solo se adopta
+    /// dentro de un <see cref="AmbitoEscrituraPrivilegiada"/> abierto — nunca
+    /// por la sola presencia del token.
+    /// </summary>
+    private const string RolAprovisionamiento = "cae_app_aprovisionamiento";
 
     public override async Task ConnectionOpenedAsync(
         DbConnection connection,
@@ -109,9 +119,26 @@ public class TenantRlsConnectionInterceptor(
     {
         await FijarVariablesDeSesionAsync(connection, cancellationToken);
 
-        if (clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is not null)
-            await AdoptarRolDeSoporteAsync(connection, cancellationToken);
+        if (DebeAdoptarRolDeAprovisionamiento())
+            await AdoptarRolAsync(connection, RolAprovisionamiento, cancellationToken);
+        else if (clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is not null)
+            await AdoptarRolAsync(connection, RolSoporte, cancellationToken);
     }
+
+    /// <summary>
+    /// PD-A3: la ÚNICA condición que puede elevar el rol de escritura, y las
+    /// tres partes tienen que coincidir a la vez. El <c>AsyncLocal</c> por sí
+    /// solo no basta —invariante central del diseño, la cookie nunca decide el
+    /// rol de escritura— así que se compara TANTO contra la sesión que el
+    /// token nombra COMO contra el tenant que <see cref="ITenantActual"/>
+    /// resuelve en este instante: un ámbito abierto que sobreviviera a un
+    /// cambio de selección de tenant a mitad de circuito, o que se filtrara a
+    /// una conexión de otra sesión del mismo proceso, no eleva nada.
+    /// </summary>
+    private bool DebeAdoptarRolDeAprovisionamiento() =>
+        CaeManager.Application.Plataforma.AmbitoEscrituraPrivilegiada.Actual is { } ambito
+        && clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada == ambito.SesionId
+        && tenantActual.TenantId == ambito.TenantObjetivoId;
 
     /// <summary>
     /// Las tres coordenadas de sesión (mejora 🟠 #1 de la auditoría del Módulo 1,
@@ -220,19 +247,32 @@ public class TenantRlsConnectionInterceptor(
     }
 
     /// <summary>
-    /// Enforcement de solo lectura del plano 3 en la capa de datos (ADR-011
-    /// § 4bis.7.4): mientras la petición venga por una sesión privilegiada, la
-    /// conexión adopta un rol que no tiene <c>INSERT</c>, <c>UPDATE</c> ni
-    /// <c>DELETE</c> sobre nada. Deja de importar por dónde intente escribir el
-    /// código — MediatR, un repositorio suelto, SQL crudo: falla en Postgres.
+    /// Enforcement del plano 3 en la capa de datos (ADR-011 § 4bis.7.4):
+    /// mientras la petición venga por una sesión privilegiada, la conexión
+    /// adopta un rol acotado — <c>cae_app_soporte</c> (sin <c>INSERT</c>,
+    /// <c>UPDATE</c> ni <c>DELETE</c> sobre nada) o, dentro de un ámbito de
+    /// elevación de Aprovisionamiento, <c>cae_app_aprovisionamiento</c> (GRANT
+    /// explícito por tabla, PD-A3). Deja de importar por dónde intente
+    /// escribir el código — MediatR, un repositorio suelto, SQL crudo: lo que
+    /// esté fuera del GRANT del rol falla en Postgres.
     ///
-    /// <b>Se decide con el token, sin consultar la base</b>, y aquí no es una
-    /// concesión sino la única opción correcta. Consultar la sesión
-    /// privilegiada exigiría una consulta... sobre la conexión que se está
-    /// abriendo en este mismo momento, que es reentrante. Y no hace falta: esta
-    /// decisión solo <i>quita</i> capacidad. Un token que mienta al declarar
-    /// sesión no gana nada — se queda con una conexión de solo lectura. Quien
-    /// decide si la sesión vale de verdad sigue siendo
+    /// <b>La rama de soporte se decide con el token, sin consultar la base</b>
+    /// —consultar la sesión privilegiada exigiría una consulta sobre la
+    /// conexión que se está abriendo en este mismo momento, que es
+    /// reentrante—, y ahí sigue siendo la única opción correcta porque esa
+    /// decisión solo <i>quita</i> capacidad: un token que mienta al declarar
+    /// sesión no gana nada, se queda con una conexión de solo lectura.
+    ///
+    /// <b>La rama de Aprovisionamiento NO se decide con el token</b> —ese es
+    /// justo el invariante que PD-A3 no relaja—: <see cref="DebeAdoptarRolDeAprovisionamiento"/>
+    /// exige además un <see cref="AmbitoEscrituraPrivilegiada"/> abierto, que
+    /// solo <c>ElevacionEscrituraAprovisionamientoBehavior</c> establece, y
+    /// solo después de que <c>AutorizacionEscrituraBehavior</c> revalidó la
+    /// sesión contra base de datos en ese mismo comando. Un token que mienta
+    /// aquí no consigue nada: sin ámbito abierto, cae en la rama de soporte o
+    /// en ninguna.
+    ///
+    /// En las dos ramas, quien decide si la sesión vale de verdad sigue siendo
     /// <c>ISesionPrivilegiadaActual</c>, que revalida contra la base; si no
     /// vale, la revalidación por petición tumba la selección entera y el
     /// contexto cae al tenant propio del usuario.
@@ -241,18 +281,19 @@ public class TenantRlsConnectionInterceptor(
     /// propagar la excepción de Postgres a propósito. Un entorno que no haya
     /// concedido la membresía (<c>GRANT cae_app_soporte TO &lt;rol de
     /// login&gt;</c>) verá fallar las peticiones de soporte, que es ruidoso y
-    /// arreglable; tragarse el error dejaría la sesión de soporte corriendo con
-    /// permisos de escritura completos y sin que nada lo dijera. De las dos
-    /// formas de equivocarse, solo una es reversible.
+    /// arreglable; tragarse el error dejaría la sesión corriendo con permisos
+    /// de escritura completos y sin que nada lo dijera. De las dos formas de
+    /// equivocarse, solo una es reversible.
     ///
     /// El rol se devuelve al cerrar (ver <see cref="ConnectionClosingAsync"/>).
     /// </summary>
-    private static async Task AdoptarRolDeSoporteAsync(NpgsqlConnection connection, CancellationToken cancellationToken)
+    private static async Task AdoptarRolAsync(NpgsqlConnection connection, string rol, CancellationToken cancellationToken)
     {
         await using var comando = connection.CreateCommand();
-        // Identificador fijo del código, no un valor de entrada: no hay
-        // parámetro que valga para SET ROLE y tampoco hace falta ninguno.
-        comando.CommandText = $"SET ROLE {RolSoporte};";
+        // Identificador fijo del código (uno de los dos roles literales de
+        // esta clase), no un valor de entrada: no hay parámetro que valga
+        // para SET ROLE y tampoco hace falta ninguno.
+        comando.CommandText = $"SET ROLE {rol};";
         await comando.ExecuteNonQueryAsync(cancellationToken);
     }
 }

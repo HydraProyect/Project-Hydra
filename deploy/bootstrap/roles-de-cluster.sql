@@ -64,8 +64,8 @@
 -- objeto que se toca?".
 --
 -- Tampoco es un cajón de "roles varios": un test de arquitectura fija
--- que este fichero contiene exactamente los dos principales del contrato
--- y ningún tercero.
+-- que este fichero contiene exactamente los tres principales del contrato
+-- y ningún cuarto.
 -- =====================================================================
 
 
@@ -119,6 +119,24 @@ END $$;
 ALTER ROLE cae_app_soporte WITH NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
 
 
+-- cae_app_aprovisionamiento — escritura ACOTADA para la capacidad
+-- Aprovisionamiento (PD-A3, ADR-011 § 8.2 extendido). El interceptor solo lo
+-- adopta bajo un ámbito de elevación abierto DESPUÉS de que la sesión
+-- privilegiada se revalidó contra base de datos en el comando — nunca por la
+-- cookie. NOBYPASSRLS sigue siendo el invariante que no se negocia: este rol
+-- escribe dentro de las políticas RLS existentes, nunca por fuera de ellas.
+-- Qué tablas puede tocar (lista literal, sin ALL TABLES) lo fija la migración
+-- RolAprovisionamientoEscrituraAcotada, porque esos privilegios son por base.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'cae_app_aprovisionamiento') THEN
+        CREATE ROLE cae_app_aprovisionamiento NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+    END IF;
+END $$;
+
+ALTER ROLE cae_app_aprovisionamiento WITH NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+
+
 -- La MEMBRESÍA que hace utilizable todo lo anterior.
 --
 -- Sin ella, el SET ROLE del interceptor falla: cae_app_runtime no puede adoptar
@@ -132,13 +150,15 @@ ALTER ROLE cae_app_soporte WITH NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBY
 -- este fichero de lo de las migraciones por base.
 --
 -- WITH INHERIT FALSE (PostgreSQL 16+; CI usa 17 y el despliegue 18) es
--- deliberado: cae_app_runtime podrá ADOPTAR el rol de soporte, pero no hereda
--- sus privilegios de forma pasiva. La diferencia importa hacia el futuro — si
--- algún día cae_app_soporte recibiera un privilegio que runtime no debe tener,
--- la herencia se lo daría en silencio. Adoptar es un acto; heredar, un efecto.
+-- deliberado: cae_app_runtime podrá ADOPTAR el rol de soporte o de
+-- aprovisionamiento, pero no hereda sus privilegios de forma pasiva. La
+-- diferencia importa hacia el futuro — si alguno de los dos recibiera un
+-- privilegio que runtime no debe tener, la herencia se lo daría en silencio.
+-- Adoptar es un acto; heredar, un efecto.
 --
 -- Idempotente: repetir el GRANT no falla, solo reafirma la opción.
 GRANT cae_app_soporte TO cae_app_runtime WITH INHERIT FALSE;
+GRANT cae_app_aprovisionamiento TO cae_app_runtime WITH INHERIT FALSE;
 
 
 -- ---------------------------------------------------------------------
@@ -159,7 +179,7 @@ BEGIN
     -- desviación que haya que corregir.
     SELECT string_agg(esperado.rol, ', ' ORDER BY esperado.rol)
     INTO incumplen
-    FROM (VALUES ('cae_app_runtime'), ('cae_app_soporte')) AS esperado(rol)
+    FROM (VALUES ('cae_app_runtime'), ('cae_app_soporte'), ('cae_app_aprovisionamiento')) AS esperado(rol)
     WHERE NOT EXISTS (
         SELECT 1
         FROM pg_roles r
@@ -184,9 +204,17 @@ BEGIN
             'cae_app_soporte tiene LOGIN: solo debe adoptarse con SET ROLE desde una sesión ya autenticada, nunca conectarse';
     END IF;
 
-    -- La membresía. Sin ella los dos roles existen, cumplen todos sus atributos
-    -- de seguridad, y el soporte no funciona: cae_app_runtime no puede adoptar
-    -- un rol del que no es miembro. Es el caso exacto en el que un bootstrap
+    SELECT r.rolcanlogin INTO soporte_conecta
+    FROM pg_roles r WHERE r.rolname = 'cae_app_aprovisionamiento';
+
+    IF soporte_conecta THEN
+        RAISE EXCEPTION
+            'cae_app_aprovisionamiento tiene LOGIN: solo debe adoptarse con SET ROLE desde una sesión ya autenticada, nunca conectarse';
+    END IF;
+
+    -- La membresía. Sin ella los roles existen, cumplen todos sus atributos
+    -- de seguridad, y no funcionan: cae_app_runtime no puede adoptar un rol
+    -- del que no es miembro. Es el caso exacto en el que un bootstrap
     -- "correcto" deja el sistema roto, así que se comprueba en vez de suponerse.
     IF NOT EXISTS (
         SELECT 1
@@ -198,5 +226,17 @@ BEGIN
     THEN
         RAISE EXCEPTION
             'cae_app_runtime no es miembro de cae_app_soporte: el SET ROLE del interceptor fallaría y las sesiones de soporte no podrían abrirse';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_auth_members m
+        JOIN pg_roles concedido ON concedido.oid = m.roleid
+        JOIN pg_roles miembro   ON miembro.oid = m.member
+        WHERE concedido.rolname = 'cae_app_aprovisionamiento'
+          AND miembro.rolname = 'cae_app_runtime')
+    THEN
+        RAISE EXCEPTION
+            'cae_app_runtime no es miembro de cae_app_aprovisionamiento: el SET ROLE del interceptor fallaría y las sesiones de aprovisionamiento no podrían abrirse';
     END IF;
 END $$;

@@ -143,7 +143,7 @@ public class RolesDeClusterFueraDeLasMigracionesTests
             .OrderBy(n => n)
             .ToList();
 
-        declarados.Should().BeEquivalentTo(["cae_app_runtime", "cae_app_soporte"]);
+        declarados.Should().BeEquivalentTo(["cae_app_runtime", "cae_app_soporte", "cae_app_aprovisionamiento"]);
     }
 
     /// <summary>
@@ -182,8 +182,8 @@ public class RolesDeClusterFueraDeLasMigracionesTests
         // encontrar las convergencias haría que todo lo de abajo pasara sobre un
         // conjunto vacío, y el test afirmaría algo que no ha observado.
         convergencias.Select(c => c.Rol).Should().BeEquivalentTo(
-            ["cae_app_runtime", "cae_app_soporte"],
-            "el guion converge exactamente los dos principales del contrato; si esto cambia, las " +
+            ["cae_app_runtime", "cae_app_soporte", "cae_app_aprovisionamiento"],
+            "el guion converge exactamente los tres principales del contrato; si esto cambia, las " +
             "aserciones siguientes dejan de medir lo que dicen medir");
 
         convergencias.Single(c => c.Rol == "cae_app_runtime").Atributos
@@ -197,6 +197,12 @@ public class RolesDeClusterFueraDeLasMigracionesTests
             .Should().Contain("NOLOGIN",
                 "en cae_app_soporte NOLOGIN sí es un atributo de seguridad: nunca debe ser una identidad " +
                 "de conexión, solo se adopta con SET ROLE desde una sesión ya autenticada");
+
+        convergencias.Single(c => c.Rol == "cae_app_aprovisionamiento").Atributos
+            .Should().Contain("NOLOGIN",
+                "en cae_app_aprovisionamiento NOLOGIN también es un atributo de seguridad, por el mismo " +
+                "motivo que en cae_app_soporte: solo se adopta con SET ROLE tras revalidar la sesión, " +
+                "nunca es una identidad de conexión");
 
         foreach (var (rol, atributos) in convergencias)
         {

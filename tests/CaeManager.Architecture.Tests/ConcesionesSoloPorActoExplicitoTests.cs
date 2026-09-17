@@ -110,6 +110,16 @@ public class ConcesionesSoloPorActoExplicitoTests
         // concesión, solo persistir la que le den.
         ["src/CaeManager.Infrastructure/Plataforma/PlataformaWriter.cs"] =
             "persiste el agregado que le entregan; no lo construye.",
+
+        ["src/CaeManager.Application/Plataforma/Commands/ConcederPrivilegio/ConcederPrivilegioCommand.cs"] =
+            "PD-A3: segunda vía de concesión, deliberadamente distinta de la autoconcesión — aquí el " +
+            "beneficiario SÍ es un parámetro. Exige AdminPlataforma vigente del concedente SOBRE EL " +
+            "TENANT OBJETIVO (IAutorizacionAdminPlataforma.PuedeSobreTenantAsync), 2FA, " +
+            "beneficiario != concedente, y el tenant objetivo ajeno al del concedente. Solo puede emitir " +
+            "CapacidadPrivilegio.Aprovisionamiento — la matriz de auto-concesión no se toca y sigue " +
+            "rechazando esa capacidad para cualquiera. Autorizado por la migración " +
+            "RlsConcesionPorAdminDePlataforma, que amplía el WITH CHECK de RLS para admitir exactamente " +
+            "esta forma.",
     };
 
     [Fact]

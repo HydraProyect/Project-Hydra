@@ -13,25 +13,33 @@ namespace CaeManager.Application.Importacion.Commands.RegistrarHistorialImportac
 /// el concepto de "plantilla" (nombre libre del wizard) ni necesitan
 /// conocerlo — la Web dispara este comando aparte justo después de recibir
 /// su resultado, sin tocar su lógica de escritura.
+///
+/// <see cref="IComandoDeAprovisionamiento" /> (PD-A3), y NO es opcional: los
+/// dos comandos de importación arriba ya llevan el marcador, y
+/// <c>Importacion.razor.cs</c> dispara este comando en TODOS sus caminos
+/// —éxito y fallo— justo después de aquellos. Sin el marcador aquí, una
+/// importación bajo sesión de Aprovisionamiento quedaría hecha con su
+/// historial sin registrar.
 /// </summary>
 public record RegistrarHistorialImportacionCommand(
     string Plantilla, string NombreArchivo, bool Exitosa,
-    int TotalCreados, int TotalAdvertencias, int TotalOmitidos, string? MensajeError) : ICommand;
+    int TotalCreados, int TotalAdvertencias, int TotalOmitidos, string? MensajeError)
+    : ICommand, IComandoDeAprovisionamiento;
 
 public class RegistrarHistorialImportacionCommandHandler(
-    IHistorialImportacionRepository repositorio, IUnitOfWork unitOfWork, ICurrentUserService usuarioActual)
+    IHistorialImportacionRepository repositorio, IUnitOfWork unitOfWork, ICurrentUserService usuarioActual,
+    IAutorizacionEscrituraEfectiva autorizacionEscrituraEfectiva)
     : IRequestHandler<RegistrarHistorialImportacionCommand, Result>
 {
-    // Application no puede referenciar Infrastructure.Identity.Roles — mismo motivo que en AutorizacionEscrituraBehavior.
     // Aunque este comando "solo" escribe una fila de historial, es alcanzable por MediatR con cualquier rol de
     // escritura: sin este guard, un rol no-Administrador podría inyectar un registro de historial fabricado
     // (éxito, totales) sin haber ejecutado ninguna importación real — corrompe el rastro de auditoría del propio
     // flujo que este comando existe para dejar por escrito.
-    private const string RolAdministrador = "Administrador";
-
+    // IAutorizacionEscrituraEfectiva, no el literal "Administrador" — ver EjecutarImportacionCommand: bajo una
+    // sesión de Aprovisionamiento el rol de negocio es null, y ObtenerRolActualAsync ya lo devuelve así.
     public async Task<Result> Handle(RegistrarHistorialImportacionCommand request, CancellationToken cancellationToken)
     {
-        if (await usuarioActual.ObtenerRolActualAsync() != RolAdministrador)
+        if (!await autorizacionEscrituraEfectiva.EsActoDeAdministradorAsync(cancellationToken))
             return Result.Fallo(Error.Crear(
                 "Importacion.SoloAdministrador", "Solo Administrador puede registrar el historial de una importación."));
 

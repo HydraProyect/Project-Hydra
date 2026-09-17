@@ -76,7 +76,7 @@ public class CorregirRevisionIaDocumentoCommandHandlerTests
     public async Task El_command_recibe_la_misma_denegacion_de_escritura_que_aplicar_deteccion()
     {
         var behavior = new AutorizacionEscrituraBehavior<CorregirRevisionIaDocumentoCommand, Result>(
-            new CurrentUserServiceFalso(Guid.NewGuid(), "Consulta"), new SinSesionPrivilegiada());
+            new CurrentUserServiceFalso(Guid.NewGuid(), "Consulta"), new SinSesionPrivilegiada(), new TenantActualFalso());
         var siguienteFueLlamado = false;
 
         var resultado = await behavior.Handle(new CorregirRevisionIaDocumentoCommand(Guid.NewGuid(), new DateOnly(2026, 2, 10)), _ =>
@@ -136,5 +136,10 @@ public class CorregirRevisionIaDocumentoCommandHandlerTests
     {
         public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default) => Task.FromResult<SesionPrivilegiadaActiva?>(null);
         public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) => Task.FromResult<SesionPrivilegiadaActiva?>(null);
+    }
+
+    private sealed class TenantActualFalso(Guid? tenantId = null) : ITenantActual
+    {
+        public Guid? TenantId => tenantId;
     }
 }

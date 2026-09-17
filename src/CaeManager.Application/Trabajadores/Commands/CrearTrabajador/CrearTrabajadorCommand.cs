@@ -12,6 +12,10 @@ namespace CaeManager.Application.Trabajadores.Commands.CrearTrabajador;
 /// Un trabajador pertenece a una Empresa o a una Subcontrata, nunca ambas
 /// (ver <see cref="Trabajador.DeEmpresa"/>/<see cref="Trabajador.DeSubcontrata"/>) —
 /// exactamente uno de EmpresaId/SubcontrataId debe venir informado.
+///
+/// <see cref="IComandoDeAprovisionamiento" /> (PD-A3): forma parte del alta
+/// planificada de contenido CAE en un tenant durante su aprovisionamiento
+/// inicial — ver <c>AutorizacionEscrituraBehavior</c>.
 /// </summary>
 public record CrearTrabajadorCommand(
     Guid? EmpresaId,
@@ -24,7 +28,7 @@ public record CrearTrabajadorCommand(
     string? Observaciones,
     string? Alias = null,
     string? Telefono = null,
-    string? Puesto = null) : ICommand<Guid>;
+    string? Puesto = null) : ICommand<Guid>, IComandoDeAprovisionamiento;
 
 public class CrearTrabajadorCommandValidator : AbstractValidator<CrearTrabajadorCommand>
 {

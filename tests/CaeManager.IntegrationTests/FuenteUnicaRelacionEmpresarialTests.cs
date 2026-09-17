@@ -467,7 +467,7 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
             new CentroRepository(contexto),
             new TrabajadorRepository(contexto),
             contexto, contexto, contexto, contexto,
-            new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador"));
+            new AutorizacionEscrituraEfectivaFalsa());
 
         var resultado = await handler.Handle(new EjecutarImportacionCombinadaCommand(plan, ReemplazarExistentes: false), CancellationToken.None);
         return resultado.Valor;

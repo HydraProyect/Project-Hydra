@@ -42,7 +42,13 @@ namespace CaeManager.Application.Importacion.Commands.EjecutarImportacion;
 /// operación completa antes de comprometer nada, "cada entrada como máximo
 /// una vez" se cumple sin necesidad de perseguir cada fila por separado.
 /// </summary>
-public record EjecutarImportacionCommand(PlanImportacionDto Plan) : ICommand<ResultadoImportacionDto>;
+/// <summary>
+/// <see cref="IComandoDeAprovisionamiento" /> (PD-A3): forma parte del alta
+/// planificada de contenido CAE en un tenant durante su aprovisionamiento
+/// inicial — ver <c>AutorizacionEscrituraBehavior</c>.
+/// </summary>
+public record EjecutarImportacionCommand(PlanImportacionDto Plan)
+    : ICommand<ResultadoImportacionDto>, IComandoDeAprovisionamiento;
 
 public record ResultadoImportacionDto(
     int ClientesCreados,
@@ -95,17 +101,18 @@ public class EjecutarImportacionCommandHandler(
     IAsignacionRepository asignacionRepositorio,
     IOperacionImportacionRepository operacionImportacionRepositorio,
     IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext,
-    ICurrentUserService currentUserService)
+    IAutorizacionEscrituraEfectiva autorizacionEscrituraEfectiva)
     : IRequestHandler<EjecutarImportacionCommand, Result<ResultadoImportacionDto>>
 {
-    // Application no puede referenciar Infrastructure.Identity.Roles — mismo motivo que en AutorizacionEscrituraBehavior.
     // Restaura en Application el límite que ya exponen las 4 páginas de importación (@attribute [Authorize(Roles = Administrador)]):
     // sin este guard, cualquier llamador de MediatR que no sea esa página exacta podía importar como DireccionCae/CoordinadorCae/GestorCae.
-    private const string RolAdministrador = "Administrador";
-
+    // IAutorizacionEscrituraEfectiva, no el literal "Administrador": bajo una
+    // sesión de Aprovisionamiento (PD-A3) el rol de negocio es null, así que
+    // la comparación literal bloquearía también el alta de tenant que PD-A3
+    // acaba de abrir. Ver IAutorizacionEscrituraEfectiva para las dos ramas.
     public async Task<Result<ResultadoImportacionDto>> Handle(EjecutarImportacionCommand request, CancellationToken cancellationToken)
     {
-        if (await currentUserService.ObtenerRolActualAsync() != RolAdministrador)
+        if (!await autorizacionEscrituraEfectiva.EsActoDeAdministradorAsync(cancellationToken))
             return Result.Fallo<ResultadoImportacionDto>(Error.Crear(
                 "Importacion.SoloAdministrador", "Solo Administrador puede ejecutar una importación."));
 

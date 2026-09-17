@@ -21,9 +21,13 @@ namespace CaeManager.Application.Importacion.Commands.EjecutarImportacionCombina
 /// venga en el archivo); <c>false</c> (por defecto, el modo seguro) solo
 /// rellena lo que esté vacío en el registro existente y solo AÑADE
 /// asociaciones nuevas, nunca quita ni sobrescribe un dato ya presente.
+///
+/// <see cref="IComandoDeAprovisionamiento" /> (PD-A3): forma parte del alta
+/// planificada de contenido CAE en un tenant durante su aprovisionamiento
+/// inicial — ver <c>AutorizacionEscrituraBehavior</c>.
 /// </summary>
 public record EjecutarImportacionCombinadaCommand(PlanImportacionCombinadaDto Plan, bool ReemplazarExistentes)
-    : ICommand<ResultadoImportacionCombinadaDto>;
+    : ICommand<ResultadoImportacionCombinadaDto>, IComandoDeAprovisionamiento;
 
 public record ResultadoImportacionCombinadaDto(
     int ClientesCreados,
@@ -61,21 +65,19 @@ public class EjecutarImportacionCombinadaCommandHandler(
     ITrabajadorRepository trabajadorRepositorio,
     ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext,
     IUnitOfWork unitOfWork,
-    ICurrentUserService currentUserService)
+    IAutorizacionEscrituraEfectiva autorizacionEscrituraEfectiva)
     : IRequestHandler<EjecutarImportacionCombinadaCommand, Result<ResultadoImportacionCombinadaDto>>
 {
     /// <summary>Par vigente Empresa propia→Cliente, en memoria durante la importación — value equality para poder hacer Remove.</summary>
     private sealed record ParEmpresaCliente(Guid EmpresaId, Guid ClienteId);
 
-    // Application no puede referenciar Infrastructure.Identity.Roles — mismo motivo que en AutorizacionEscrituraBehavior.
     // Restaura en Application el límite que ya expone ImportarCombinado.razor (@attribute [Authorize(Roles = Administrador)]):
     // sin este guard, cualquier llamador de MediatR que no sea esa página exacta podía importar como DireccionCae/CoordinadorCae/GestorCae.
-    private const string RolAdministrador = "Administrador";
-
+    // IAutorizacionEscrituraEfectiva, no el literal "Administrador" — ver EjecutarImportacionCommand.
     public async Task<Result<ResultadoImportacionCombinadaDto>> Handle(
         EjecutarImportacionCombinadaCommand request, CancellationToken cancellationToken)
     {
-        if (await currentUserService.ObtenerRolActualAsync() != RolAdministrador)
+        if (!await autorizacionEscrituraEfectiva.EsActoDeAdministradorAsync(cancellationToken))
             return Result.Fallo<ResultadoImportacionCombinadaDto>(Error.Crear(
                 "Importacion.SoloAdministrador", "Solo Administrador puede ejecutar una importación combinada."));
 

@@ -41,5 +41,18 @@ public enum CapacidadPrivilegio
     /// <b>No implica leer el contenido documental de ningún tenant</b>: para
     /// eso hace falta <see cref="SoporteLectura"/>, concedida aparte.
     /// </summary>
-    AdminPlataforma = 3
+    AdminPlataforma = 3,
+
+    /// <summary>
+    /// Alta planificada de contenido CAE en un tenant durante su
+    /// aprovisionamiento inicial. Mismo régimen que <see cref="BreakGlass"/>
+    /// —motivo, ventana, auditoría, revisión, nunca por defecto ni deducida—
+    /// pero semántica distinta: esto no es un incidente, es un alta acordada.
+    /// Se separan para que las métricas de uso de <see cref="BreakGlass"/>
+    /// sigan midiendo excepciones y no altas comerciales. La escritura que
+    /// habilita queda acotada al tenant objetivo de la sesión y a los
+    /// comandos marcados <c>IComandoDeAprovisionamiento</c> — ver
+    /// <c>AutorizacionEscrituraBehavior</c>.
+    /// </summary>
+    Aprovisionamiento = 4
 }

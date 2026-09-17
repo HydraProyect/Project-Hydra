@@ -24,12 +24,17 @@ public class AutorizacionEscrituraBehaviorTests
     // red de seguridad es ese test de arquitectura, no el behavior.
     private record FalsoSinInterfazCommand : IRequest<Result>;
 
+    // PD-A3: comando marcado, para distinguir de FalsoCommand en las pruebas
+    // de la tercera condición.
+    private record FalsoComandoDeAprovisionamiento : ICommand, IComandoDeAprovisionamiento;
+
     [Theory]
     [InlineData("Consulta")]
     [InlineData("Cliente")]
     public async Task Bloquea_un_command_con_resultado_simple_para_roles_de_solo_lectura(string rol)
     {
-        var behavior = new AutorizacionEscrituraBehavior<FalsoCommand, Result>(new CurrentUserServiceFalso(Guid.NewGuid(), rol), SinSesionPrivilegiada);
+        var behavior = new AutorizacionEscrituraBehavior<FalsoCommand, Result>(
+            new CurrentUserServiceFalso(Guid.NewGuid(), rol), SinSesionPrivilegiada, SinTenant);
         var siguienteFueLlamado = false;
 
         var resultado = await behavior.Handle(new FalsoCommand(), _ =>
@@ -48,7 +53,8 @@ public class AutorizacionEscrituraBehaviorTests
     [InlineData("Cliente")]
     public async Task Bloquea_un_command_con_resultado_generico_para_roles_de_solo_lectura(string rol)
     {
-        var behavior = new AutorizacionEscrituraBehavior<FalsoConValorCommand, Result<Guid>>(new CurrentUserServiceFalso(Guid.NewGuid(), rol), SinSesionPrivilegiada);
+        var behavior = new AutorizacionEscrituraBehavior<FalsoConValorCommand, Result<Guid>>(
+            new CurrentUserServiceFalso(Guid.NewGuid(), rol), SinSesionPrivilegiada, SinTenant);
 
         var resultado = await behavior.Handle(
             new FalsoConValorCommand(), _ => Task.FromResult(Result.Exito(Guid.NewGuid())), CancellationToken.None);
@@ -64,7 +70,8 @@ public class AutorizacionEscrituraBehaviorTests
     [InlineData("DireccionCae")]
     public async Task Deja_pasar_un_command_para_roles_con_permiso_de_escritura(string rol)
     {
-        var behavior = new AutorizacionEscrituraBehavior<FalsoCommand, Result>(new CurrentUserServiceFalso(Guid.NewGuid(), rol), SinSesionPrivilegiada);
+        var behavior = new AutorizacionEscrituraBehavior<FalsoCommand, Result>(
+            new CurrentUserServiceFalso(Guid.NewGuid(), rol), SinSesionPrivilegiada, SinTenant);
 
         var resultado = await behavior.Handle(new FalsoCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
 
@@ -82,7 +89,8 @@ public class AutorizacionEscrituraBehaviorTests
         // tiene asignado, y un Operador Delegado cuya delegación se revocó
         // mientras su token de selección seguía vigente — ahí
         // ObtenerRolActualAsync devuelve null a propósito.
-        var behavior = new AutorizacionEscrituraBehavior<FalsoCommand, Result>(new CurrentUserServiceFalso(Guid.NewGuid(), rol), SinSesionPrivilegiada);
+        var behavior = new AutorizacionEscrituraBehavior<FalsoCommand, Result>(
+            new CurrentUserServiceFalso(Guid.NewGuid(), rol), SinSesionPrivilegiada, SinTenant);
         var siguienteFueLlamado = false;
 
         var resultado = await behavior.Handle(new FalsoCommand(), _ =>
@@ -99,7 +107,8 @@ public class AutorizacionEscrituraBehaviorTests
     [Fact]
     public async Task No_bloquea_una_query_ni_siquiera_para_roles_de_solo_lectura()
     {
-        var behavior = new AutorizacionEscrituraBehavior<FalsaQuery, string>(new CurrentUserServiceFalso(Guid.NewGuid(), "Consulta"), SinSesionPrivilegiada);
+        var behavior = new AutorizacionEscrituraBehavior<FalsaQuery, string>(
+            new CurrentUserServiceFalso(Guid.NewGuid(), "Consulta"), SinSesionPrivilegiada, SinTenant);
 
         var resultado = await behavior.Handle(new FalsaQuery(), _ => Task.FromResult("ok"), CancellationToken.None);
 
@@ -113,7 +122,7 @@ public class AutorizacionEscrituraBehaviorTests
         // behavior ya no mira nombres. Quien impide que esto exista en el
         // código de producción es ArquitecturaCommandsTests.
         var behavior = new AutorizacionEscrituraBehavior<FalsoSinInterfazCommand, Result>(
-            new CurrentUserServiceFalso(Guid.NewGuid(), "Consulta"), SinSesionPrivilegiada);
+            new CurrentUserServiceFalso(Guid.NewGuid(), "Consulta"), SinSesionPrivilegiada, SinTenant);
 
         var resultado = await behavior.Handle(
             new FalsoSinInterfazCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
@@ -136,7 +145,7 @@ public class AutorizacionEscrituraBehaviorTests
         // largo; depende de la vía de acceso, que es lo correcto.
         var behavior = new AutorizacionEscrituraBehavior<FalsoCommand, Result>(
             new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador"),
-            new SesionPrivilegiadaActualFalsa(SesionCon(capacidad)));
+            new SesionPrivilegiadaActualFalsa(SesionCon(capacidad)), SinTenant);
 
         var siguienteFueLlamado = false;
         var resultado = await behavior.Handle(new FalsoCommand(), _ =>
@@ -160,13 +169,66 @@ public class AutorizacionEscrituraBehaviorTests
         // es una fase pendiente y no la regla permanente de solo lectura.
         var behavior = new AutorizacionEscrituraBehavior<FalsoCommand, Result>(
             new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador"),
-            new SesionPrivilegiadaActualFalsa(SesionCon(CapacidadPrivilegio.BreakGlass)));
+            new SesionPrivilegiadaActualFalsa(SesionCon(CapacidadPrivilegio.BreakGlass)), SinTenant);
 
         var resultado = await behavior.Handle(
             new FalsoCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Autorizacion.BreakGlassSinCaminoDeEscritura");
+    }
+
+    // ── PD-A3, commit 4: las tres condiciones de Aprovisionamiento ─────────
+
+    [Fact]
+    public async Task Aprovisionamiento_deja_pasar_un_comando_marcado_dentro_del_tenant_objetivo()
+    {
+        var tenantObjetivo = Guid.NewGuid();
+        var sesion = SesionCon(CapacidadPrivilegio.Aprovisionamiento, tenantObjetivo);
+        var behavior = new AutorizacionEscrituraBehavior<FalsoComandoDeAprovisionamiento, Result>(
+            new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador"),
+            new SesionPrivilegiadaActualFalsa(sesion), new TenantActualFalso(tenantObjetivo));
+
+        var resultado = await behavior.Handle(
+            new FalsoComandoDeAprovisionamiento(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Aprovisionamiento_bloquea_un_comando_no_marcado()
+    {
+        var tenantObjetivo = Guid.NewGuid();
+        var sesion = SesionCon(CapacidadPrivilegio.Aprovisionamiento, tenantObjetivo);
+        var behavior = new AutorizacionEscrituraBehavior<FalsoCommand, Result>(
+            new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador"),
+            new SesionPrivilegiadaActualFalsa(sesion), new TenantActualFalso(tenantObjetivo));
+
+        var resultado = await behavior.Handle(new FalsoCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Autorizacion.ComandoFueraDelAprovisionamiento",
+            "un comando fuera de la lista explícita no se beneficia de la escritura acotada, aunque el " +
+            "resto de condiciones se cumplan");
+    }
+
+    [Fact]
+    public async Task Aprovisionamiento_bloquea_un_comando_marcado_fuera_del_tenant_objetivo()
+    {
+        var tenantObjetivo = Guid.NewGuid();
+        var otroTenant = Guid.NewGuid();
+        var sesion = SesionCon(CapacidadPrivilegio.Aprovisionamiento, tenantObjetivo);
+        var behavior = new AutorizacionEscrituraBehavior<FalsoComandoDeAprovisionamiento, Result>(
+            new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador"),
+            new SesionPrivilegiadaActualFalsa(sesion), new TenantActualFalso(otroTenant));
+
+        var resultado = await behavior.Handle(
+            new FalsoComandoDeAprovisionamiento(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Autorizacion.AprovisionamientoFueraDelTenantObjetivo",
+            "aunque el comando esté marcado, la sesión de aprovisionamiento no puede escribir fuera del " +
+            "tenant que la ampara — ni siquiera en el tenant donde el técnico esté navegando de más");
     }
 
     [Fact]
@@ -176,7 +238,7 @@ public class AutorizacionEscrituraBehaviorTests
         // capacidad SoporteLectura no serviría para lo único que existe.
         var behavior = new AutorizacionEscrituraBehavior<FalsaQuery, string>(
             new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador"),
-            new SesionPrivilegiadaActualFalsa(SesionCon(CapacidadPrivilegio.SoporteLectura)));
+            new SesionPrivilegiadaActualFalsa(SesionCon(CapacidadPrivilegio.SoporteLectura)), SinTenant);
 
         var resultado = await behavior.Handle(new FalsaQuery(), _ => Task.FromResult("ok"), CancellationToken.None);
 
@@ -196,9 +258,8 @@ public class AutorizacionEscrituraBehaviorTests
     /// rol de siempre — que deniega igual, pero por el motivo correcto: no hay
     /// sesión privilegiada que lo impida, es que un plano 3 no tiene rol de
     /// negocio (mismo resultado final, procedencia distinta, y es esa
-    /// procedencia la que hay que revalidar antes de que un capacidad futura
-    /// con camino de escritura —BreakGlass, el día que lo tenga— dependa de
-    /// esta misma comprobación).
+    /// procedencia la que hay que revalidar antes de que una escritura de
+    /// Aprovisionamiento dependa de esta misma comprobación).
     /// </summary>
     [Fact]
     public async Task Revoca_la_concesion_entre_dos_escrituras_del_mismo_circuito_y_la_segunda_revalida_fresca()
@@ -206,14 +267,14 @@ public class AutorizacionEscrituraBehaviorTests
         var resolutor = new SesionPrivilegiadaConMemoDeCircuito(SesionCon(CapacidadPrivilegio.SoporteLectura));
         var currentUser = new CurrentUserServiceFalso(Guid.NewGuid(), null);
 
-        var primeraEscritura = await new AutorizacionEscrituraBehavior<FalsoCommand, Result>(currentUser, resolutor)
+        var primeraEscritura = await new AutorizacionEscrituraBehavior<FalsoCommand, Result>(currentUser, resolutor, SinTenant)
             .Handle(new FalsoCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
 
         primeraEscritura.Error.Codigo.Should().Be("Autorizacion.SesionPrivilegiadaSoloLectura");
 
         resolutor.Revocar();
 
-        var segundaEscritura = await new AutorizacionEscrituraBehavior<FalsoCommand, Result>(currentUser, resolutor)
+        var segundaEscritura = await new AutorizacionEscrituraBehavior<FalsoCommand, Result>(currentUser, resolutor, SinTenant)
             .Handle(new FalsoCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
 
         segundaEscritura.EsFallido.Should().BeTrue();
@@ -229,7 +290,7 @@ public class AutorizacionEscrituraBehaviorTests
         // Guarda de no regresión: la comprobación nueva no puede cambiar el
         // camino de los usuarios normales, que son todos los de hoy.
         var behavior = new AutorizacionEscrituraBehavior<FalsoCommand, Result>(
-            new CurrentUserServiceFalso(Guid.NewGuid(), "GestorCae"), SinSesionPrivilegiada);
+            new CurrentUserServiceFalso(Guid.NewGuid(), "GestorCae"), SinSesionPrivilegiada, SinTenant);
 
         var resultado = await behavior.Handle(
             new FalsoCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
@@ -237,11 +298,18 @@ public class AutorizacionEscrituraBehaviorTests
         resultado.EsExitoso.Should().BeTrue();
     }
 
-    private static SesionPrivilegiadaActiva SesionCon(CapacidadPrivilegio capacidad) =>
-        new(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), capacidad, null);
+    private static SesionPrivilegiadaActiva SesionCon(CapacidadPrivilegio capacidad, Guid? tenantObjetivoId = null) =>
+        new(Guid.NewGuid(), Guid.NewGuid(), tenantObjetivoId ?? Guid.NewGuid(), capacidad, null);
 
     private static readonly ISesionPrivilegiadaActual SinSesionPrivilegiada =
         new SesionPrivilegiadaActualFalsa(null);
+
+    private static readonly ITenantActual SinTenant = new TenantActualFalso(null);
+
+    private sealed class TenantActualFalso(Guid? tenantId) : ITenantActual
+    {
+        public Guid? TenantId => tenantId;
+    }
 
     private sealed class SesionPrivilegiadaActualFalsa(SesionPrivilegiadaActiva? sesion) : ISesionPrivilegiadaActual
     {

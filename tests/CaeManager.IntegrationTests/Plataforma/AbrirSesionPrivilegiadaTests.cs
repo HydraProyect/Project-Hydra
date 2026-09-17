@@ -81,6 +81,34 @@ public class AbrirSesionPrivilegiadaTests : IAsyncLifetime
         sesion.EstaAbierta.Should().BeTrue();
     }
 
+    /// <summary>
+    /// PD-A3, commit 3: <c>Aprovisionamiento</c> entra en
+    /// <c>CapacidadesQuePuedenAbrirSesion</c> junto a <c>SoporteLectura</c> —
+    /// la sesión se abre igual. Lo que este commit NO demuestra —porque no lo
+    /// cambia— es que la sesión pueda escribir: eso sigue denegado por
+    /// <c>AutorizacionEscrituraBehavior</c> hasta el commit 4.
+    /// </summary>
+    [Fact]
+    public async Task Una_concesion_de_Aprovisionamiento_tambien_abre_la_sesion()
+    {
+        Guid concesionAprovisionamiento;
+        await using (var contexto = CrearContexto())
+        {
+            var ahora = DateTime.UtcNow;
+            var concesion = ConcesionPrivilegio.SobreTenants(
+                _tecnico, CapacidadPrivilegio.Aprovisionamiento, [_tenantVisitado],
+                vigenciaDesde: ahora.AddMinutes(-10), vigenciaHasta: ahora.AddHours(4));
+
+            contexto.ConcesionesPrivilegio.Add(concesion);
+            await contexto.SaveChangesAsync();
+            concesionAprovisionamiento = concesion.Id;
+        }
+
+        var resultado = await EjecutarAsync(_tenantVisitado, concesionId: concesionAprovisionamiento);
+
+        resultado.EsExitoso.Should().BeTrue();
+    }
+
     // ── Precondición 1: autoridad para abrir ───────────────────────────────
 
     /// <summary>

@@ -8,13 +8,18 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Empresas.Commands.CrearEmpresa;
 
+/// <summary>
+/// <see cref="IComandoDeAprovisionamiento" /> (PD-A3): forma parte del alta
+/// planificada de contenido CAE en un tenant durante su aprovisionamiento
+/// inicial — ver <c>AutorizacionEscrituraBehavior</c>.
+/// </summary>
 public record CrearEmpresaCommand(
     string RazonSocial,
     string? Cif,
     IReadOnlyList<Guid> ClienteIds,
     string? Cnae = null,
     string? ConvenioAplicable = null,
-    bool EsActividadAnexoI = false) : ICommand<Guid>;
+    bool EsActividadAnexoI = false) : ICommand<Guid>, IComandoDeAprovisionamiento;
 
 public class CrearEmpresaCommandValidator : AbstractValidator<CrearEmpresaCommand>
 {
