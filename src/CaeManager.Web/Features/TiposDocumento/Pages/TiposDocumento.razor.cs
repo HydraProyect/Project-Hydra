@@ -148,7 +148,56 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
     private Task IrAPaginaAsync(int pagina)
     {
         _pagina = pagina;
+        _idEnfocado = null;
         return Task.CompletedTask;
+    }
+
+    // ---- Atajos de lista j/k/Enter (I-13 de AUDITORIA-USUARIO-AVANZADO-POST-GEN2) ----
+
+    /// <summary>
+    /// Fila enfocada por teclado, dentro de la página visible. Cada carga de la
+    /// lista —los cuatro filtros pasan por ella— y cada cambio de página lo
+    /// descartan: conservarlo devolvería el foco a una fila que el usuario ya
+    /// no tiene delante.
+    /// </summary>
+    private Guid? _idEnfocado;
+
+    private string ClaseFila(Guid id) => _idEnfocado == id ? "fila-enfocada" : string.Empty;
+
+    /// <summary>
+    /// "j"/"k" recorren la página visible y "Enter" abre la edición del tipo
+    /// enfocado — la misma acción que su botón "Editar". "x" no tiene efecto:
+    /// la pantalla no tiene selección múltiple, así que no hay nada que marcar,
+    /// y dársela sería una decisión de producto, no la reparación de este hueco.
+    /// </summary>
+    private async Task ManejarAtajoAsync(string tecla)
+    {
+        var visibles = TiposDePagina;
+        if (visibles.Count == 0) return;
+
+        var indice = -1;
+        if (_idEnfocado is not null)
+            for (var i = 0; i < visibles.Count; i++)
+                if (visibles[i].Id == _idEnfocado) indice = i;
+
+        switch (tecla)
+        {
+            case "j":
+                _idEnfocado = visibles[Math.Min(indice + 1, visibles.Count - 1)].Id;
+                break;
+            case "k":
+                _idEnfocado = visibles[indice <= 0 ? 0 : indice - 1].Id;
+                break;
+            case "Enter":
+                if (indice >= 0)
+                {
+                    await AbrirEditarAsync(visibles[indice].Id);
+                    return;
+                }
+                break;
+        }
+
+        StateHasChanged();
     }
 
     // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
@@ -156,6 +205,7 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
     {
         _tamanoPagina = tamano;
         _pagina = 1;
+        _idEnfocado = null;
         return Task.CompletedTask;
     }
 
@@ -213,6 +263,7 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
 
             _tipos = tipos;
             _pagina = 1;
+            _idEnfocado = null;
             _listaPintada = true;
             _cargando = false;
             return;

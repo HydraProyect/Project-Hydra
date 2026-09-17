@@ -30,13 +30,15 @@
                 else if (_claves.Count == 0) { <EstadoVacio Titulo="Sin claves emitidas" Descripcion="Esta organización todavía no tiene ninguna clave de la API pública." /> }
                 else
                 {
+                    <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
+
                     <div class="claves-api-tabla-contenedor">
                         <table class="tabla-datos claves-api-tabla">
                             <thead><tr><th>Nombre</th><th>Prefijo</th><th>Creada</th><th>Último uso</th><th>Estado</th><th><span class="solo-lector">Acciones</span></th></tr></thead>
                             <tbody>
                             @foreach (var clave in _claves)
                             {
-                                <tr>
+                                <tr class="@ClaseFila(clave.Id)">
                                     <td class="claves-api-nombre">@clave.NombreDescriptivo</td><td><code title="Prefijo visible de la clave">@clave.PrefijoVisible…</code></td>
                                     <td>@clave.CreadaEnUtc.ToLocalTime().ToString("dd/MM/yyyy")</td><td>@(clave.UltimoUsoUtc?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "Nunca")</td>
                                     <td><Badge Tono="@(clave.EstaActiva ? TonoBadge.Exito : TonoBadge.Neutro)">@(clave.EstaActiva ? "Activa" : "Revocada")</Badge></td>

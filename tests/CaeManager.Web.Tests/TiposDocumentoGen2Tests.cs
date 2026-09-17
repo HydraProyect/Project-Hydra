@@ -1150,4 +1150,132 @@ public class TiposDocumentoGen2Tests : BunitContext
         cut.FindAll(".drawer-panel label[for]").Select(Texto).Should().NotContain("Ámbito de aplicación",
             "EditarTipoDocumentoCommand no lleva ámbito: un selector ahí prometería un cambio que no se guarda");
     }
+
+    // ---------------------------------------------------------------- atajos de lista (I-13)
+
+    private static Task Atajo(IRenderedComponent<TiposDocumentoPagina> cut, string tecla) =>
+        cut.InvokeAsync(() => cut.FindComponent<AtajosListaTeclado>().Instance.RecibirAtajo(tecla));
+
+    private static List<string> NombresEnfocados(IRenderedComponent<TiposDocumentoPagina> cut) =>
+        cut.FindAll("table.tabla-tipos tbody tr.fila-enfocada")
+            .Select(f => Texto(f.QuerySelector(".nombre-tipo")!)).ToList();
+
+    private static Escenario EscenarioConTresTipos()
+    {
+        var escenario = new Escenario();
+        escenario.Tipos.Add(Tipo("Evaluación de riesgos", orden: 1));
+        escenario.Tipos.Add(Tipo("Seguro de responsabilidad civil", orden: 2));
+        escenario.Tipos.Add(Tipo("Certificado de formación", orden: 3));
+        return escenario;
+    }
+
+    /// <summary>
+    /// I-13: el grupo de Administración nunca tuvo recorrido por teclado. "j" y
+    /// "k" recorren la página visible sin abrir el cajón de edición.
+    /// </summary>
+    [Fact]
+    public async Task j_y_k_recorren_los_tipos_sin_abrir_el_cajon()
+    {
+        var (cut, _) = Renderizar(EscenarioConTresTipos());
+
+        NombresEnfocados(cut).Should().BeEmpty();
+
+        await Atajo(cut, "j");
+        NombresEnfocados(cut).Should().Equal(["Evaluación de riesgos"]);
+
+        await Atajo(cut, "j");
+        NombresEnfocados(cut).Should().Equal(["Seguro de responsabilidad civil"]);
+
+        await Atajo(cut, "k");
+        NombresEnfocados(cut).Should().Equal(["Evaluación de riesgos"]);
+
+        cut.FindAll(".drawer-panel").Should().BeEmpty("recorrer no abre la edición");
+    }
+
+    [Fact]
+    public async Task j_y_k_no_se_salen_de_la_lista_de_tipos()
+    {
+        var (cut, _) = Renderizar(EscenarioConTresTipos());
+
+        await Atajo(cut, "k");
+        NombresEnfocados(cut).Should().Equal(["Evaluación de riesgos"]);
+
+        for (var i = 0; i < 5; i++) await Atajo(cut, "j");
+        NombresEnfocados(cut).Should().Equal(["Certificado de formación"]);
+    }
+
+    /// <summary>"Enter" abre la edición del tipo ENFOCADO, no la del primero.</summary>
+    [Fact]
+    public async Task Enter_abre_la_edicion_del_tipo_enfocado()
+    {
+        var (cut, _) = Renderizar(EscenarioConTresTipos());
+
+        await Atajo(cut, "j");
+        await Atajo(cut, "j");
+        await Atajo(cut, "Enter");
+
+        cut.Find(".drawer-panel").TextContent.Should().Contain("Editar tipo de documento");
+        ControlDelDrawer(cut, "Nombre").GetAttribute("value").Should().Be("Seguro de responsabilidad civil");
+    }
+
+    [Fact]
+    public async Task Enter_sin_fila_enfocada_no_abre_nada_en_tipos()
+    {
+        var (cut, _) = Renderizar(EscenarioConTresTipos());
+
+        await Atajo(cut, "Enter");
+
+        cut.FindAll(".drawer-panel").Should().BeEmpty();
+    }
+
+    /// <summary>"x" no marca nada: la pantalla no tiene selección múltiple.</summary>
+    [Fact]
+    public async Task x_no_tiene_efecto_en_tipos_de_documento()
+    {
+        var (cut, _) = Renderizar(EscenarioConTresTipos());
+        await Atajo(cut, "j");
+
+        await Atajo(cut, "x");
+
+        NombresEnfocados(cut).Should().Equal(["Evaluación de riesgos"]);
+        // Las casillas que sí hay en la fila son interruptores de ajuste
+        // (role=switch: Lectura IA, verificación…), no casillas de selección:
+        // marcar una CAMBIA la configuración del tipo, así que "x" no puede
+        // tocarlas.
+        cut.FindAll("table.tabla-tipos tbody input[type=checkbox]:not([role=switch])").Should().BeEmpty();
+        cut.FindAll(".drawer-panel").Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Hallazgo de Codex sobre este incremento, RECHAZADO con este test: durante
+    /// una recarga por filtro la tabla anterior sigue pintada (aria-busy) y con
+    /// ella su botón "Editar", así que "Enter" sobre la fila enfocada abre
+    /// exactamente lo mismo que un clic en esa fila visible. Descartar el foco
+    /// mientras la fila se sigue viendo haría al teclado menos capaz que al
+    /// ratón sobre la misma pantalla. Lo que el test fija es esa equivalencia.
+    /// </summary>
+    [Fact]
+    public async Task Durante_una_recarga_Enter_abre_lo_mismo_que_pulsar_Editar_en_la_fila_visible()
+    {
+        var listaB = new TaskCompletionSource<object?>();
+        var escenario = EscenarioConTresTipos();
+        escenario.Interceptar = p => p is ObtenerTiposDocumentoQuery { ClienteId: var c } && c == ClienteB ? listaB.Task : null;
+        var (cut, _) = Renderizar(escenario);
+
+        await Atajo(cut, "j");
+        await Atajo(cut, "j");
+        NombresEnfocados(cut).Should().Equal(["Seguro de responsabilidad civil"]);
+
+        var eleccionB = ElegirCliente(cut, ClienteB);
+        NombresPintados(cut).Should().Contain("Seguro de responsabilidad civil", "la tabla anterior sigue a la vista mientras se recarga");
+
+        await Atajo(cut, "Enter");
+
+        cut.Find(".drawer-panel").TextContent.Should().Contain("Editar tipo de documento");
+        ControlDelDrawer(cut, "Nombre").GetAttribute("value").Should().Be("Seguro de responsabilidad civil",
+            "es la fila que la persona tiene delante y cuyo botón Editar sigue pulsable");
+
+        await cut.InvokeAsync(() => listaB.SetResult(new List<TipoDocumentoListaDto>()));
+        await eleccionB;
+    }
 }

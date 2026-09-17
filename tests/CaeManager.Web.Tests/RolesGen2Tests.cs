@@ -618,4 +618,65 @@ public class RolesGen2Tests : BunitContext
         _toasts.Mensajes.Should().ContainSingle(m => m.Tono == TonoToast.Exito);
         cut.Markup.Should().Contain("No hay nadie pendiente");
     }
+
+    // ---------------------------------------------------------------- atajos de lista (I-13)
+
+    private static Task Atajo(IRenderedComponent<RolesControlados> cut, string tecla) =>
+        cut.InvokeAsync(() => cut.FindComponent<AtajosListaTeclado>().Instance.RecibirAtajo(tecla));
+
+    private static List<string> CorreosEnfocados(IRenderedComponent<RolesControlados> cut) =>
+        cut.FindAll(".tabla-pendientes tbody tr.fila-enfocada")
+            .Select(f => f.QuerySelectorAll("td")[0].TextContent.Trim()).ToList();
+
+    /// <summary>
+    /// I-13: la pestaña "Pendientes" nunca tuvo recorrido por teclado. "j" y
+    /// "k" recorren las cuentas pendientes sin tocar nada más.
+    /// </summary>
+    [Fact]
+    public async Task j_y_k_recorren_las_cuentas_pendientes()
+    {
+        _fuente.Pendientes = _ => [Aitor, Miren];
+        var cut = await AbrirPendientesAsync();
+
+        CorreosEnfocados(cut).Should().BeEmpty();
+
+        await Atajo(cut, "j");
+        CorreosEnfocados(cut).Should().Equal([Aitor.Email]);
+
+        await Atajo(cut, "j");
+        CorreosEnfocados(cut).Should().Equal([Miren.Email]);
+
+        await Atajo(cut, "j");
+        CorreosEnfocados(cut).Should().Equal([Miren.Email], "la última fila es el tope");
+
+        await Atajo(cut, "k");
+        CorreosEnfocados(cut).Should().Equal([Aitor.Email]);
+
+        await Atajo(cut, "k");
+        CorreosEnfocados(cut).Should().Equal([Aitor.Email], "la primera fila es el otro tope");
+    }
+
+    /// <summary>
+    /// Hueco declarado: aquí NO hay "Enter" ni "x". La fila no tiene nada que
+    /// abrir y su única acción es asignar un rol —una escritura—, así que
+    /// ninguna de las dos teclas puede hacer nada sin convertir "abrir" en
+    /// "conceder permisos". Este test fija ese contrato: que no pasa nada, ni
+    /// se abre el diálogo de confirmación ni se envía ningún comando.
+    /// </summary>
+    [Theory]
+    [InlineData("Enter")]
+    [InlineData("x")]
+    public async Task Ni_Enter_ni_x_hacen_nada_sobre_una_cuenta_pendiente(string tecla)
+    {
+        _fuente.Pendientes = _ => [Aitor, Miren];
+        SembrarCuenta(Aitor);
+        var cut = await AbrirPendientesAsync();
+        await Atajo(cut, "j");
+
+        await Atajo(cut, tecla);
+
+        CorreosEnfocados(cut).Should().Equal([Aitor.Email], "el foco no se mueve");
+        cut.FindAll("[role=dialog]").Should().BeEmpty("ninguna de las dos teclas abre la confirmación de asignar rol");
+        _usuarios.Asignaciones.Should().BeEmpty("no se asigna ningún rol");
+    }
 }

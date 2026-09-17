@@ -51,7 +51,7 @@ public partial class ClavesApi : CaeManager.Web.Components.PaginaIntegrableConfi
 
     private void ReiniciarContexto()
     {
-        _generacionContexto++; _versionCarga++; _claves = []; _cargandoClaves = false; _mostrarFormularioGenerar = false; _nombreNuevaClave = string.Empty; _generando = false; _errorGenerar = null; _claveGenerada = null; _claveARevocar = null; _revocando = false; _procesandoId = null;
+        _generacionContexto++; _versionCarga++; _claves = []; _idEnfocado = null; _cargandoClaves = false; _mostrarFormularioGenerar = false; _nombreNuevaClave = string.Empty; _generando = false; _errorGenerar = null; _claveGenerada = null; _claveARevocar = null; _revocando = false; _procesandoId = null;
     }
 
     private bool EsContextoVigente(int generacionContexto, Guid delegacionId) => !_desechado && _generacionContexto == generacionContexto && _delegacionSeleccionadaId == delegacionId;
@@ -67,6 +67,7 @@ public partial class ClavesApi : CaeManager.Web.Components.PaginaIntegrableConfi
             var claves = await Mediator.Send(new ObtenerClavesApiQuery(delegacionId), _ciclo.Token);
             if (_desechado || version != _versionCarga || _delegacionSeleccionadaId != delegacionId) return;
             _claves = claves;
+            _idEnfocado = null;
         }
         catch (OperationCanceledException) when (_ciclo.IsCancellationRequested) { }
         catch (Exception ex)
@@ -132,4 +133,36 @@ public partial class ClavesApi : CaeManager.Web.Components.PaginaIntegrableConfi
     }
 
     public void Dispose() { _desechado = true; _claveGenerada = null; _nombreNuevaClave = null!; _claveARevocar = null; _ciclo.Cancel(); _ciclo.Dispose(); }
+
+    // ---- Atajos de lista j/k (I-13 de AUDITORIA-USUARIO-AVANZADO-POST-GEN2) ----
+
+    /// <summary>Fila enfocada por teclado; cambiar de organización o recargar las claves la descarta.</summary>
+    private Guid? _idEnfocado;
+
+    private string ClaseFila(Guid id) => _idEnfocado == id ? "fila-enfocada" : string.Empty;
+
+    /// <summary>
+    /// Solo "j"/"k": recorren las claves emitidas. Aquí NO hay "Enter" ni "x",
+    /// y es deliberado — una clave no tiene ficha que abrir y su única acción
+    /// de fila es revocarla, que es destructiva. Atar "Enter" a una revocación
+    /// sería justo lo contrario de lo que la tecla significa en el resto del
+    /// producto; el gesto que falte, si falta, es decisión de producto.
+    /// </summary>
+    private Task ManejarAtajoAsync(string tecla)
+    {
+        var visibles = _claves;
+        if (visibles.Count == 0 || (tecla != "j" && tecla != "k")) return Task.CompletedTask;
+
+        var indice = -1;
+        if (_idEnfocado is not null)
+            for (var i = 0; i < visibles.Count; i++)
+                if (visibles[i].Id == _idEnfocado) indice = i;
+
+        _idEnfocado = tecla == "j"
+            ? visibles[Math.Min(indice + 1, visibles.Count - 1)].Id
+            : visibles[indice <= 0 ? 0 : indice - 1].Id;
+
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
 }

@@ -27,6 +27,8 @@ public class ClavesApiGen2Tests : BunitContext
         public Queue<TaskCompletionSource> EsperasGeneracion { get; } = [];
         public Queue<string> ClavesGeneradas { get; } = [];
         public IReadOnlyList<DelegacionDto>? Delegaciones { get; set; }
+        /// <summary>Lista completa de claves cuando un test necesita más de una fila (atajos j/k).</summary>
+        public IReadOnlyList<ClaveApiDto>? Claves { get; set; }
         public Guid DelegacionId { get; set; }
         public Guid ClaveId { get; set; }
         public async Task<T> Send<T>(IRequest<T> request, CancellationToken cancellationToken = default)
@@ -37,7 +39,7 @@ public class ClavesApiGen2Tests : BunitContext
             object respuesta = request switch
             {
                 ObtenerDelegacionesQuery => Delegaciones ?? [Delegacion(DelegacionId)],
-                ObtenerClavesApiQuery => new[] { Clave(ClaveId) },
+                ObtenerClavesApiQuery => Claves ?? new[] { Clave(ClaveId) },
                 GenerarClaveApiCommand => Result.Exito(new ClaveApiGeneradaDto(ClaveId, ClavesGeneradas.TryDequeue(out var claveGenerada) ? claveGenerada : string.Concat("tlv_", new string('x', 32)), "tlv_xxxxxx")),
                 RevocarClaveApiCommand => Result.Exito(),
                 _ => throw new NotSupportedException()
@@ -239,5 +241,87 @@ public class ClavesApiGen2Tests : BunitContext
             if (segunda is not null) await segunda.WaitAsync(TimeSpan.FromSeconds(10));
             await DisposeComponentsAsync();
         }
+    }
+
+    // ---------------------------------------------------------------- atajos de lista (I-13)
+
+    private static Task Atajo(IRenderedComponent<ClavesApi> cut, string tecla) =>
+        cut.InvokeAsync(() => cut.FindComponent<AtajosListaTeclado>().Instance.RecibirAtajo(tecla));
+
+    private static List<string> NombresEnfocados(IRenderedComponent<ClavesApi> cut) =>
+        cut.FindAll("tbody tr.fila-enfocada").Select(f => f.QuerySelector(".claves-api-nombre")!.TextContent.Trim()).ToList();
+
+    private static ClaveApiDto ClaveLlamada(string nombre) =>
+        new(Guid.NewGuid(), nombre, "tlv_xxxxxx", DateTime.UtcNow, null, true);
+
+    /// <summary>
+    /// I-13: la tabla de claves nunca tuvo recorrido por teclado. "j" y "k" la
+    /// recorren, con tope en las dos puntas.
+    /// </summary>
+    [Fact]
+    public async Task j_y_k_recorren_las_claves_emitidas()
+    {
+        var (cut, mediator) = Renderizar(m => m.Claves = [ClaveLlamada("Integración ERP"), ClaveLlamada("Portal del cliente")]);
+        await Seleccionar(cut, mediator.DelegacionId);
+
+        NombresEnfocados(cut).Should().BeEmpty();
+
+        await Atajo(cut, "j");
+        NombresEnfocados(cut).Should().Equal(["Integración ERP"]);
+
+        await Atajo(cut, "j");
+        NombresEnfocados(cut).Should().Equal(["Portal del cliente"]);
+
+        await Atajo(cut, "j");
+        NombresEnfocados(cut).Should().Equal(["Portal del cliente"], "la última fila es el tope");
+
+        await Atajo(cut, "k");
+        NombresEnfocados(cut).Should().Equal(["Integración ERP"]);
+
+        await Atajo(cut, "k");
+        NombresEnfocados(cut).Should().Equal(["Integración ERP"], "la primera fila es el otro tope");
+    }
+
+    /// <summary>
+    /// Hueco declarado: aquí NO hay "Enter" ni "x". Una clave no tiene ficha
+    /// que abrir y su única acción de fila es revocarla, que es destructiva:
+    /// atar "Enter" a una revocación sería lo contrario de lo que la tecla
+    /// significa en el resto del producto. Este test fija que no pasa nada —ni
+    /// diálogo de revocación, ni comando enviado—.
+    /// </summary>
+    [Theory]
+    [InlineData("Enter")]
+    [InlineData("x")]
+    public async Task Ni_Enter_ni_x_hacen_nada_sobre_una_clave(string tecla)
+    {
+        var (cut, mediator) = Renderizar(m => m.Claves = [ClaveLlamada("Integración ERP"), ClaveLlamada("Portal del cliente")]);
+        await Seleccionar(cut, mediator.DelegacionId);
+        await Atajo(cut, "j");
+
+        await Atajo(cut, tecla);
+
+        NombresEnfocados(cut).Should().Equal(["Integración ERP"], "el foco no se mueve");
+        cut.FindAll("[role=dialog]").Should().BeEmpty("ninguna de las dos teclas abre la confirmación de revocar");
+        mediator.Enviadas.OfType<RevocarClaveApiCommand>().Should().BeEmpty();
+    }
+
+    /// <summary>Cambiar de organización descarta el foco: la lista que había ya no es la que se ve.</summary>
+    [Fact]
+    public async Task Cambiar_de_organizacion_descarta_el_foco()
+    {
+        var otraDelegacionId = Guid.NewGuid();
+        var (cut, mediator) = Renderizar(m =>
+        {
+            m.DelegacionId = Guid.NewGuid();
+            m.Claves = [ClaveLlamada("Integración ERP"), ClaveLlamada("Portal del cliente")];
+        });
+        mediator.Delegaciones = [Delegacion(mediator.DelegacionId), Delegacion(otraDelegacionId, "Organización Dos")];
+        await Seleccionar(cut, mediator.DelegacionId);
+        await Atajo(cut, "j");
+        NombresEnfocados(cut).Should().Equal(["Integración ERP"]);
+
+        await Seleccionar(cut, otraDelegacionId);
+
+        NombresEnfocados(cut).Should().BeEmpty();
     }
 }

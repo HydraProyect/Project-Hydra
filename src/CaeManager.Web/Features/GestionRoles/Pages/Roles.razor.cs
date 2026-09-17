@@ -177,6 +177,7 @@ public partial class Roles : CaeManager.Web.Components.PaginaIntegrableConfigura
                     cantidadesPorRol.GetValueOrDefault(nombreRol)))];
 
             _usuariosPendientes = pendientes;
+            _idEnfocado = null;
             foreach (var pendiente in pendientes)
                 _rolElegidoPorUsuario.TryAdd(pendiente.Id, CaeManager.Infrastructure.Identity.Roles.Consulta);
         }
@@ -336,5 +337,38 @@ public partial class Roles : CaeManager.Web.Components.PaginaIntegrableConfigura
         {
             Logger.LogWarning(ex, "No se pudo enviar el correo de confirmación de rol a {UsuarioId}.", usuarioId);
         }
+    }
+
+    // ---- Atajos de lista j/k (I-13 de AUDITORIA-USUARIO-AVANZADO-POST-GEN2) ----
+
+    /// <summary>Fila enfocada por teclado en la pestaña "Pendientes"; cada recarga de la lista la descarta.</summary>
+    private Guid? _idEnfocado;
+
+    private string ClaseFila(Guid id) => _idEnfocado == id ? "fila-enfocada" : string.Empty;
+
+    /// <summary>
+    /// Solo "j"/"k": recorren las cuentas pendientes. Aquí NO hay "Enter" ni
+    /// "x", y es deliberado — la fila no tiene nada que abrir (no hay ficha de
+    /// un usuario pendiente) y su única acción es asignar un rol, una
+    /// escritura. Atarla a "Enter" convertiría la tecla de "abrir" en una de
+    /// "conceder permisos"; cuál deba ser el gesto es una decisión de producto,
+    /// no la reparación de este hueco, y queda declarada como tal.
+    /// </summary>
+    private Task ManejarAtajoAsync(string tecla)
+    {
+        var visibles = _usuariosPendientes;
+        if (visibles.Count == 0 || (tecla != "j" && tecla != "k")) return Task.CompletedTask;
+
+        var indice = -1;
+        if (_idEnfocado is not null)
+            for (var i = 0; i < visibles.Count; i++)
+                if (visibles[i].Id == _idEnfocado) indice = i;
+
+        _idEnfocado = tecla == "j"
+            ? visibles[Math.Min(indice + 1, visibles.Count - 1)].Id
+            : visibles[indice <= 0 ? 0 : indice - 1].Id;
+
+        StateHasChanged();
+        return Task.CompletedTask;
     }
 }

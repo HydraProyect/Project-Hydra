@@ -33,6 +33,13 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class TiposDocumentoVacioPorFiltroTests : BunitContext
 {
+    /// <summary>
+    /// La página monta AtajosListaTeclado (I-13), que importa
+    /// ./js/atajos-lista.js; el recorrido por teclado se prueba en
+    /// TiposDocumentoGen2Tests, no aquí.
+    /// </summary>
+    public TiposDocumentoVacioPorFiltroTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+
     private static readonly ClienteSelectorDto ClienteDePrueba =
         new(Guid.NewGuid(), "Refrielectric S.A.");
 
