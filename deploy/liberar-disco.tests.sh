@@ -85,6 +85,71 @@ else
   comprobar "no contiene ninguna orden que borre volumenes" "si" "si"
 fi
 
+# La poda de imagenes no debe depender de su antiguedad — incidente
+# 2026-09-13: 88 imagenes/26GB recientes (<7 dias) que `--filter until=168h`
+# nunca llegaba a ver. Se captura la invocacion REAL de `docker` con un stub
+# en PATH (LIBERAR_DISCO_SIMULADO no sirve aqui: esa rama nunca llama a
+# docker) y se comprueba la linea de comando construida, no un mensaje.
+STUB_DIR=$(mktemp -d)
+DOCKER_LOG=$(mktemp)
+cat > "$STUB_DIR/docker" <<'EOF'
+#!/bin/bash
+echo "$@" >> "$DOCKER_LOG"
+exit 0
+EOF
+chmod +x "$STUB_DIR/docker"
+
+DOCKER_LOG="$DOCKER_LOG" USO_DISCO_FORZADO=80 PATH="$STUB_DIR:$PATH" bash "$GUION" 75 >/dev/null 2>&1
+
+if grep -q "^image prune" "$DOCKER_LOG"; then
+  linea_imagenes=$(grep "^image prune" "$DOCKER_LOG")
+  case "$linea_imagenes" in
+    *"until="*) comprobar "poda de imagenes no filtra por antiguedad" "sin filtro" "$linea_imagenes" ;;
+    *) comprobar "poda de imagenes no filtra por antiguedad" "sin filtro" "sin filtro" ;;
+  esac
+  # -a y -f se exigen por separado, token a token — no por subcadena libre
+  # sobre toda la linea. Con una sola alternativa OR (p.ej. "*--all*"), una
+  # mutacion que quite "-f" pero deje "--all" pasaba igual (hallazgo de
+  # Codex); y buscar "-f" como subcadena confundiria con el "-f" que va
+  # DENTRO de "--filter" si esa opcion reapareciera. Por eso solo se mira la
+  # letra dentro de un token de opcion corta (un solo guion) o el nombre
+  # exacto de la opcion larga.
+  tiene_opcion() {
+    local letra="$1" larga="$2" texto="$3" tok
+    for tok in $texto; do
+      case "$tok" in
+        --"$larga") return 0 ;;
+        --*) ;; # opcion larga distinta (p.ej. --filter): nunca cuenta por su letra
+        -*) case "$tok" in *"$letra"*) return 0 ;; esac ;;
+      esac
+    done
+    return 1
+  }
+  if tiene_opcion a all "$linea_imagenes" && tiene_opcion f force "$linea_imagenes"; then
+    comprobar "poda de imagenes pide -a (sin usar) y -f" "si" "si"
+  else
+    comprobar "poda de imagenes pide -a (sin usar) y -f" "si" "no ($linea_imagenes)"
+  fi
+else
+  comprobar "se invoca 'docker image prune'" "si" "no ($(cat "$DOCKER_LOG"))"
+fi
+
+# La cache de build SI sigue filtrada por antiguedad (24h): eso no es el bug
+# — se conserva la cache reciente porque acelera el build de hoy, y expira
+# sola en menos de una semana, a diferencia de las imagenes.
+if grep -q "^builder prune" "$DOCKER_LOG"; then
+  linea_cache=$(grep "^builder prune" "$DOCKER_LOG")
+  case "$linea_cache" in
+    *"until=24h"*) comprobar "cache de build sigue filtrada a 24h" "si" "si" ;;
+    *) comprobar "cache de build sigue filtrada a 24h" "si" "no ($linea_cache)" ;;
+  esac
+else
+  comprobar "se invoca 'docker builder prune'" "si" "no ($(cat "$DOCKER_LOG"))"
+fi
+
+rm -rf "$STUB_DIR"
+rm -f "$DOCKER_LOG"
+
 if [ "$fallos" -gt 0 ]; then
   echo "$fallos comprobacion(es) fallaron."
   exit 1
