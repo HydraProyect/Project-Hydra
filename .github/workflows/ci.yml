@@ -1219,6 +1219,9 @@ jobs:
           MINIMO_CLASES: ""
         run: bash scripts/repartir-clases-de-test.tests.sh
 
+      - name: scripts/informe-cobertura-por-capas.tests.sh
+        run: bash scripts/informe-cobertura-por-capas.tests.sh
+
   licencias-dependencias:
     name: Licencias de dependencias
     runs-on: ubuntu-latest
