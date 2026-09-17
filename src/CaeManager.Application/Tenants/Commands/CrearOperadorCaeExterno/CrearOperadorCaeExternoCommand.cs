@@ -80,13 +80,20 @@ public class CrearOperadorCaeExternoCommandHandler(
             return Result.Fallo<Guid>(Error.Crear(
                 "OperadorCaeExterno.SinPermiso", "Solo la administración de plataforma puede dar de alta un Operador CAE externo."));
 
-        if (await tenantRepositorio.ExisteConNombreAsync(request.NombreTenantOperador, cancellationToken))
+        // Trim antes de comprobar, no después: Tenant.EstablecerNombre recorta
+        // el nombre al construirse, así que sin este Trim aquí " ArcosSPA "
+        // pasaría la comprobación aunque ya exista "ArcosSPA" (hallazgo de
+        // Codex). No cierra la ventana de concurrencia — falta un índice único
+        // en TenantConfiguration, gap preexistente compartido con
+        // CrearClienteDeleganteCommand, fuera de alcance de este incremento.
+        var nombreNormalizado = request.NombreTenantOperador.Trim();
+        if (await tenantRepositorio.ExisteConNombreAsync(nombreNormalizado, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("OperadorCaeExterno.NombreDuplicado", "Ya existe un tenant con este nombre."));
 
         // Perfil Consultora: cómo el tenant se ve a sí mismo (lista de
         // Empresas gestionadas, no "Mi empresa" singular) — DDL-072, capa de
         // presentación pura, declarado aquí explícitamente y nunca inferido.
-        var tenantOperador = new Tenant(request.NombreTenantOperador, PerfilVocabularioTenant.Consultora);
+        var tenantOperador = new Tenant(nombreNormalizado, PerfilVocabularioTenant.Consultora);
 
         // Ámbito explícito contra su PROPIO Id — mismo mecanismo que
         // CrearClienteDeleganteCommand y DelegacionDemoSeeder.AprovisionarTenantClienteAsync
