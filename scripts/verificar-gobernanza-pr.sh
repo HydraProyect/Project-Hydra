@@ -1,35 +1,47 @@
 #!/bin/bash
-# Verifica en el CUERPO de una PR la sección de paso operativo que el check
-# "Gobernanza — metadatos de PR" no cubría hasta ahora (registro del turno
-# nocturno 2026-09-17, PROTOCOLO-TURNO-NOCTURNO.md § 8):
+# Verifica en el CUERPO de una PR las dos secciones de gobernanza que el
+# check "Gobernanza — metadatos de PR" no cubría hasta ahora (registro del
+# turno nocturno 2026-09-17, PROTOCOLO-TURNO-NOCTURNO.md § 8):
 #
-#   #674 añadió el rol `cae_app_aprovisionamiento` en
-#   deploy/bootstrap/roles-de-cluster.sql; ningún adaptador de despliegue
-#   ejecuta ese fichero, así que staging quedó roto (42704) hasta que alguien
-#   aplicó el GRANT a mano. Regla: toda PR que TOQUE
-#   deploy/bootstrap/roles-de-cluster.sql lleva en el cuerpo una sección
-#   titulada exactamente "## Paso operativo en servidores" que nombre
-#   "staging" y "producción".
+#   1. Paso operativo de roles de clúster (PR #683). #674 añadió el rol
+#      `cae_app_aprovisionamiento` en deploy/bootstrap/roles-de-cluster.sql;
+#      ningún adaptador de despliegue ejecuta ese fichero, así que staging
+#      quedó roto (42704) hasta que alguien aplicó el GRANT a mano. Regla:
+#      toda PR que TOQUE ese fichero lleva en el cuerpo una sección titulada
+#      exactamente "## Paso operativo en servidores" que nombre "staging" y
+#      "producción".
+#   2. Revisión Codex en el cuerpo. #678 se abrió sin pasar por Codex y #673
+#      dejó un marcador provisional ("2ª pasada — (resultado abajo)") sin
+#      rellenar. Regla: toda PR (salvo dependabot[bot]) lleva una sección
+#      titulada exactamente "## Revisión Codex" con contenido real: al menos
+#      una línea de hallazgos aceptados o rechazados, o "sin hallazgos" — y
+#      sin marcadores provisionales ("resultado abajo", "pendiente", "TODO").
 #
-# Qué NO hace: no interpreta si el paso operativo descrito es correcto —
-# eso lo decide una persona. Solo comprueba que la sección exista, no esté
-# vacía y nombre los dos entornos.
+# Qué NO hace: no interpreta si los hallazgos de Codex son correctos, ni si
+# el paso operativo descrito es el correcto — eso lo decide una persona. Solo
+# comprueba que la sección exista, no esté vacía y no lleve un marcador de
+# "esto se rellena luego".
 #
 # Uso:
-#   scripts/verificar-gobernanza-pr.sh <fichero-cuerpo> <fichero-ficheros>
+#   scripts/verificar-gobernanza-pr.sh <fichero-cuerpo> <fichero-ficheros> [autor]
 #
 # <fichero-cuerpo>: el cuerpo de la PR tal cual (UTF-8, un fichero).
 # <fichero-ficheros>: un path por línea, los ficheros que toca la PR. Debe
 #   incluir tanto `.filename` como `.previous_filename` de cada entrada
 #   (`gh api .../pulls/N/files --paginate --jq '.[] | .filename,
 #   (.previous_filename // empty)'`) — si no, un rename que saque el fichero
-#   vigilado de su ruta escapa de la regla sin que este guion pueda verlo:
+#   vigilado de su ruta escapa de la regla 1 sin que este guion pueda verlo:
 #   solo mira lo que le llega, y la ruta anterior no está en `.filename`.
+# [autor]: opcional, el login de quien abrió la PR (`.user.login`).
+#   "dependabot[bot]" exime de la regla 2 (§24 no le aplica: no hay diseño
+#   que refutar en un bump de versión). Cualquier otro valor, incluido
+#   vacío, exige la sección — el valor por defecto es EXIGIR, no eximir.
 #
 # Ver scripts/verificar-gobernanza-pr.tests.sh para la prueba sin red.
 set -euo pipefail
 
 FICHERO_ROLES_CLUSTER="deploy/bootstrap/roles-de-cluster.sql"
+AUTOR_EXENTO_REVISION_CODEX="dependabot[bot]"
 
 # La API de PRs de GitHub trunca la respuesta de /files en 3000 entradas,
 # pagine lo que pagine (documentado, no un límite nuestro): con una PR de ese
@@ -42,9 +54,10 @@ LIMITE_PAGINACION_GH=3000
 
 CUERPO="${1:-}"
 FICHEROS="${2:-}"
+AUTOR="${3:-}"
 
 if [[ -z "$CUERPO" || ! -f "$CUERPO" || -z "$FICHEROS" || ! -f "$FICHEROS" ]]; then
-  echo "Uso: $0 <fichero-cuerpo> <fichero-ficheros-cambiados>" >&2
+  echo "Uso: $0 <fichero-cuerpo> <fichero-ficheros-cambiados> [autor]" >&2
   exit 2
 fi
 
@@ -96,6 +109,32 @@ elif grep -qxF "$FICHERO_ROLES_CLUSTER" "$FICHEROS"; then
   fi
 else
   echo "OK        No toca $FICHERO_ROLES_CLUSTER — la regla no aplica."
+fi
+
+# --- Regla 2: revisión Codex en el cuerpo ---
+if [[ "$AUTOR" == "$AUTOR_EXENTO_REVISION_CODEX" ]]; then
+  echo "OK        Autor $AUTOR_EXENTO_REVISION_CODEX — regla de revisión Codex no aplica."
+else
+  SECCION="$(extraer_seccion "$CUERPO" "## Revisión Codex")"
+  if ! seccion_no_vacia "$SECCION"; then
+    echo "PROBLEMA  Falta la sección '## Revisión Codex' en el cuerpo (o está vacía)." \
+         "Protocolo § 24.2 / skill protocolo-hydra-multimodelo: al menos una línea de" \
+         "hallazgos aceptados o rechazados, o 'sin hallazgos' si no tocaba superficie" \
+         "sensible."
+    PROBLEMAS=$((PROBLEMAS + 1))
+  elif printf '%s' "$SECCION" | grep -qiE 'resultado[[:space:]]+abajo'; then
+    echo "PROBLEMA  La sección 'Revisión Codex' tiene el marcador provisional 'resultado abajo'" \
+         "(el mismo que #673 dejó sin rellenar)."
+    PROBLEMAS=$((PROBLEMAS + 1))
+  elif printf '%s' "$SECCION" | grep -qiE '\bpendiente'; then
+    echo "PROBLEMA  La sección 'Revisión Codex' tiene el marcador provisional 'pendiente'."
+    PROBLEMAS=$((PROBLEMAS + 1))
+  elif printf '%s' "$SECCION" | grep -qE '\bTODO\b'; then
+    echo "PROBLEMA  La sección 'Revisión Codex' tiene el marcador provisional 'TODO'."
+    PROBLEMAS=$((PROBLEMAS + 1))
+  else
+    echo "OK        Sección 'Revisión Codex' presente, con contenido y sin marcadores provisionales."
+  fi
 fi
 
 echo
