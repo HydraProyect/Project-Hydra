@@ -29,7 +29,8 @@
 #
 # Uso:  bash scripts/estado-ramas.sh [--sin-fetch] [--todas]
 #       --sin-fetch  no actualiza referencias remotas (el informe puede estar viejo)
-#       --todas      lista también las ramas sin cambios de contenido sobre origin/main
+#       --todas      no omite nada: lista también las ramas ya mergeadas y los
+#                    ficheros disputados que no tocan tu rama
 
 set -uo pipefail
 
@@ -39,7 +40,7 @@ for arg in "$@"; do
   case "$arg" in
     --sin-fetch) SIN_FETCH=1 ;;
     --todas) TODAS=1 ;;
-    -h|--help) sed -n '31,34p' "$0"; exit 0 ;;
+    -h|--help) sed -n '/^# Uso:/,/^$/p' "$0" | sed 's/^#\( \|$\)//'; exit 0 ;;
     *) echo "Opción desconocida: $arg" >&2; exit 2 ;;
   esac
 done
@@ -169,13 +170,15 @@ while IFS=$'\x1f' read -r refname sha up ab track fecha; do
   BEHIND_DE["$ref"]=$behind
   UP_DE["$ref"]=$up
   FECHA_DE["$ref"]=$fecha
-  # GitHub borra la rama remota al mergear su PR. Una rama LOCAL cuyo upstream
-  # existía y ha desaparecido es, por tanto, trabajo ya integrado: no hay
-  # ninguna sesión detrás con la que chocar. Aquí eran 163 de 279, y listarlas
-  # enterraba las líneas de trabajo de verdad. Se omiten de la tabla y de los
-  # ficheros disputados, pero NO de la sección 3: una rama así es justamente la
-  # madre posible de otra que se cortó de ella (el caso #228), que es lo que
-  # este guion existe para cazar.
+  # GitHub borra la rama remota al mergear su PR, así que una rama LOCAL cuyo
+  # upstream existía y ha desaparecido casi siempre es trabajo ya integrado:
+  # aquí, 163 de 279, y listarlas enterraba las líneas de trabajo de verdad.
+  # Pero es una señal, no una prueba: una remota borrada a mano, o commits
+  # locales añadidos después del merge, dan lo mismo. Por eso solo se omiten de
+  # la TABLA, nunca la rama actual ni una con worktree encima, y ni la sección 3
+  # ni la 4 las excluyen: en la 3 una rama así es justamente la madre posible de
+  # otra cortada de ella (el caso #228), y en la 4 ocultar un solape por una
+  # señal que no demuestra nada sería cambiar un aviso por una conjetura.
   [ "$track" = "gone" ] && MUERTA["$ref"]=1
 done < "$TMP/refs"
 
@@ -228,8 +231,15 @@ if [ "$TOTAL" -gt 0 ]; then
     printf '%s\t%s\n' "$i" "${PUNTA_DE[${VIVAS[$i]}]}"
   done > "$TMP/puntas"
 
+  # --diff-merges=combined: sin ella, `git log --name-only` NO emite ningún
+  # fichero para un commit de merge, y un fichero creado o modificado solo en
+  # la resolución del merge desaparecía del informe. Medido en el repositorio
+  # de control: el guion anterior lo listaba y esta versión, sin la opción, no.
+  # "combined" muestra justo lo que difiere de TODOS los padres —la
+  # resolución— sin arrastrar todo lo que el merge trae de main.
   { echo "^$BASE"; cut -f2 "$TMP/puntas"; } \
-    | git -c core.quotePath=false log --stdin --format='%x01%H %P' --name-only \
+    | git -c core.quotePath=false log --stdin --diff-merges=combined \
+        --format='%x01%H %P' --name-only \
       > "$TMP/grafo" 2>/dev/null
 
   # Un grafo vacío habiendo líneas vivas declaradas significa que el log falló:
@@ -365,7 +375,7 @@ else
     # Una rama cuyo remoto borró GitHub al mergear, o cuyos commits no tocan
     # ningún fichero, no es una línea de trabajo con la que nadie vaya a
     # chocar. Un worktree encima manda sobre ambas cosas: ahí hay una sesión.
-    if [ $TODAS -eq 0 ] && [ -z "${WT_DE[$r]:-}" ] \
+    if [ $TODAS -eq 0 ] && [ -z "${WT_DE[$r]:-}" ] && [ "$r" != "$RAMA_ACTUAL" ] \
        && { [ -n "${MUERTA[$r]:-}" ] || [ "$F" -eq 0 ]; }; then
       OMITIDAS=$((OMITIDAS+1))
       continue
@@ -386,10 +396,13 @@ else
   gris
   if [ "$OMITIDAS" -gt 0 ]; then
     echo "$OMITIDAS rama(s) ya mergeadas (su rama remota fue borrada) o sin"
-    echo "             ficheros propios: omitidas de la tabla y de la sección 4."
-    echo "             Siguen contando en la sección 3. Con --todas se listan."
+    echo "             ficheros propios: omitidas SOLO de esta tabla. Siguen"
+    echo "             contando en las secciones 3 y 4. Con --todas se listan."
   fi
-  echo "MERGEADA: su upstream ya no existe; GitHub lo borró al mergear el PR."
+  echo "MERGEADA: su upstream ya no existe, que es lo que hace GitHub al mergear"
+  echo "          el PR. No lo demuestra: una remota borrada a mano, o commits"
+  echo "          locales posteriores, salen igual. Por eso nunca se oculta la"
+  echo "          rama actual ni una con worktree, y la sección 4 no las excluye."
   echo "SIN-EMPUJAR: el trabajo solo existe en este disco (CLAUDE.md § 21)."
   echo "             Se comprueba por commit, no por upstream: una rama puede"
   echo "             estar publicada en el remoto bajo otro nombre."
@@ -430,33 +443,54 @@ fi
 echo
 echo "════ 4. FICHEROS DISPUTADOS ════"
 if [ "$TOTAL" -gt 0 ] && [ -s "$TMP/ficheros" ]; then
-  # Nombres de las líneas que cuentan aquí: las mergeadas no tienen sesión
-  # detrás, así que su solape no es un aviso, es ruido (aquí, 539 ficheros
-  # "disputados" entre ramas ya integradas).
+  # Aquí NO se descarta ninguna línea viva: ocultar un solape por creer que una
+  # rama está mergeada sería cambiar un aviso de conflicto por una heurística, y
+  # "upstream gone" no demuestra que el trabajo esté integrado. Lo que se acota
+  # es la SALIDA, y por relevancia declarada: se muestran los ficheros que tocan
+  # tu rama o una rama con worktree —es decir, aquellas en las que hay una
+  # sesión con la que hablar—, y el resto se cuenta. Con --todas salen todos.
   for ((i=0; i<TOTAL; i++)); do
     r="${VIVAS[$i]}"
-    if [ $TODAS -eq 0 ] && [ -n "${MUERTA[$r]:-}" ] && [ -z "${WT_DE[$r]:-}" ]; then
-      printf '\n'
-    else
-      printf '%s\n' "$r"
-    fi
+    rel=0
+    { [ "$r" = "$RAMA_ACTUAL" ] || [ -n "${WT_DE[$r]:-}" ]; } && rel=1
+    printf '%s\t%s\n' "$r" "$rel"
   done > "$TMP/nombres"
-  awk -v OFS='\t' 'FILENAME==ARGV[1] { nombre[FNR-1]=$0; next }
-                   { i=$1; sub(/^[0-9]+ /, ""); if (nombre[i] != "") print nombre[i], $0 }' \
+  awk -v OFS='\t' '
+    FILENAME==ARGV[1] { split($0, a, "\t"); nombre[FNR-1]=a[1]; rel[FNR-1]=a[2]; next }
+    { i=$1; sub(/^[0-9]+ /, ""); print nombre[i], $0, rel[i] }' \
     "$TMP/nombres" "$TMP/ficheros" > "$TMP/todos"
   cut -f2 "$TMP/todos" | sort | uniq -d > "$TMP/dup"
   if [ -s "$TMP/dup" ]; then
     # Un solo awk para todos los ficheros: invocarlo una vez por fichero
     # disputado eran 539 procesos y ~730 s del total medido.
-    awk -F'\t' -v amb="$AMB" -v off="$OFF" '
+    awk -F'\t' -v amb="$AMB" -v off="$OFF" -v todas="$TODAS" -v cuenta="$TMP/otros" '
       FILENAME==ARGV[1] { dup[$0]=1; orden[++k]=$0; next }   # ya viene ordenado
-      $2 in dup { linea[$2] = linea[$2] "    <- " $1 "\n" }
-      END { for (i=1; i<=k; i++) { f=orden[i]; printf "%s%s%s\n%s", amb, f, off, linea[f] } }
+      $2 in dup {
+        linea[$2] = linea[$2] "    <- " $1 "\n"
+        if ($3 == 1) tuyo[$2]=1
+      }
+      END {
+        otros=0
+        for (i=1; i<=k; i++) {
+          f=orden[i]
+          if (todas == 1 || (f in tuyo)) printf "%s%s%s\n%s", amb, f, off, linea[f]
+          else otros++
+        }
+        print otros+0 > cuenta
+      }
     ' "$TMP/dup" "$TMP/todos"
+    OTROS=$(cat "$TMP/otros" 2>/dev/null || echo 0)
+    TUYOS=$(( $(grep -c '' < "$TMP/dup") - OTROS ))
     echo
     gris
-    echo "Dos líneas vivas editan estos ficheros. Habla con la otra sesión antes"
-    echo "de seguir, o te espera un conflicto o un retrabajo."
+    if [ "$TUYOS" -gt 0 ]; then
+      echo "Dos líneas vivas editan estos ficheros. Habla con la otra sesión antes"
+      echo "de seguir, o te espera un conflicto o un retrabajo."
+    fi
+    if [ "$OTROS" -gt 0 ]; then
+      echo "$OTROS fichero(s) más se disputan entre ramas sin worktree ni sesión"
+      echo "visible, y no tocan la tuya: no se listan. Con --todas salen."
+    fi
     fin
   else
     verde; echo "OK  ninguna línea viva pisa ficheros de otra."; fin
