@@ -90,6 +90,8 @@
         @* Sin acciones de fila: la pantalla no ofrece nada que hacer, solo leer. *@
         @* El marco se desplaza en horizontal en pantallas estrechas: como región
            con nombre y foco, con teclado también se puede desplazar. *@
+        <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
+
         <div class="accesos-sensibles-marco-tabla" role="region" aria-label="Registro de accesos a documentos sensibles" tabindex="0">
             <table class="tabla-datos accesos-sensibles-tabla">
                 <thead>
@@ -105,7 +107,7 @@
                 <tbody>
                     @foreach (var acceso in _accesos)
                     {
-                        <tr @key="acceso.Id">
+                        <tr @key="acceso.Id" class="@ClaseFila(acceso.Id)">
                             <td class="accesos-sensibles-cuando">@Cuando(acceso.OcurridoEnUtc)</td>
                             <td><span class="@ClaseQuien(acceso.UsuarioId)">@NombreDe(acceso.UsuarioId)</span></td>
                             <td><span class="accesos-sensibles-documento" translate="no" title="Identificador del documento">@acceso.DocumentoId</span></td>

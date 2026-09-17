@@ -39,6 +39,12 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class AccesosDocumentosSensiblesGen2Tests : BunitContext
 {
+    /// <summary>
+    /// La pagina monta AtajosListaTeclado (I-13), que importa
+    /// ./js/atajos-lista.js; el recorrido por teclado se prueba aparte.
+    /// </summary>
+    public AccesosDocumentosSensiblesGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
+
     private sealed class MediatorAccesos : IMediator
     {
         public List<AccesoDocumentoSensibleDto> Almacen { get; } = [];
@@ -447,5 +453,59 @@ public class AccesosDocumentosSensiblesGen2Tests : BunitContext
         token.IsCancellationRequested.Should().BeTrue("salir de la página cancela la consulta en curso");
         var llegaTarde = () => respuesta.SetResult(_mediador.Paginar(new ObtenerAccesosDocumentosSensiblesQuery()));
         llegaTarde.Should().NotThrow("la respuesta tardía no repinta un componente retirado");
+    }
+
+    // ------------------------------------------------ atajos de lista (I-13)
+
+    private static Task Atajo(IRenderedComponent<AccesosDocumentosSensibles> cut, string tecla) =>
+        cut.InvokeAsync(() => cut.FindComponent<AtajosListaTeclado>().Instance.RecibirAtajo(tecla));
+
+    private static List<string> QuienEnfocado(IRenderedComponent<AccesosDocumentosSensibles> cut) =>
+        cut.FindAll("tbody tr.fila-enfocada").Select(tr => Texto(tr.QuerySelectorAll("td")[1])).ToList();
+
+    /// <summary>
+    /// I-13: "j" y "k" recorren la pagina visible. Es la pantalla mas
+    /// claramente de lectura del bloque: no ofrece ninguna accion de fila, asi
+    /// que el recorrido es todo lo que el teclado puede hacer aqui, y por eso
+    /// mismo "Enter" y "x" no tienen nada que hacer.
+    /// </summary>
+    [Fact]
+    public async Task j_y_k_recorren_los_accesos_registrados()
+    {
+        var ane = Usuario("Ane Lasa", "ane@talveg.es");
+        var jon = Usuario("Jon Ibarra", "jon@talveg.es");
+        _mediador.Almacen.AddRange([Acceso(usuarioId: ane), Acceso(usuarioId: jon, ocurrido: Base.AddMinutes(-5))]);
+        var cut = Renderizar();
+
+        QuienEnfocado(cut).Should().BeEmpty();
+
+        await Atajo(cut, "j");
+        QuienEnfocado(cut).Should().Equal(["Ane Lasa"]);
+
+        await Atajo(cut, "j");
+        QuienEnfocado(cut).Should().Equal(["Jon Ibarra"]);
+
+        await Atajo(cut, "j");
+        QuienEnfocado(cut).Should().Equal(["Jon Ibarra"], "la ultima fila es el tope");
+
+        await Atajo(cut, "k");
+        QuienEnfocado(cut).Should().Equal(["Ane Lasa"]);
+    }
+
+    [Theory]
+    [InlineData("Enter")]
+    [InlineData("x")]
+    public async Task Ni_Enter_ni_x_hacen_nada_en_los_accesos(string tecla)
+    {
+        var ane = Usuario("Ane Lasa", "ane@talveg.es");
+        _mediador.Almacen.AddRange([Acceso(usuarioId: ane), Acceso(ocurrido: Base.AddMinutes(-5))]);
+        var cut = Renderizar();
+        await Atajo(cut, "j");
+        var consultasAntes = _mediador.Consultas.Count;
+
+        await Atajo(cut, tecla);
+
+        QuienEnfocado(cut).Should().Equal(["Ane Lasa"], "el foco no se mueve");
+        _mediador.Consultas.Count.Should().Be(consultasAntes);
     }
 }

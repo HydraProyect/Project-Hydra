@@ -66,6 +66,8 @@
     }
     else
     {
+        <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
+
         <div class="lectura-ia-tabla-contenedor">
             <table class="tabla-datos lectura-ia-tabla">
                 <thead><tr>
@@ -78,7 +80,7 @@
                 <tbody>
                     @foreach (var tipo in _configuracion)
                     {
-                        <tr>
+                        <tr class="@ClaseFila(tipo.TipoDocumentoId)">
                             <td>
                                 <strong>@tipo.Nombre</strong>
                                 @if (tipo.DeteccionTrabajadoresActiva)

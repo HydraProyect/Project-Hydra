@@ -71,6 +71,7 @@ public partial class ConfiguracionIaCliente : ComponentBase, IDisposable
             if (!EsVigente(version, clienteId)) return;
             _cliente = await cliente;
             _configuracion = await configuracion;
+            _idEnfocado = null;
             _tratamientoIa = await tratamientoIa;
             _errorCarga = _cliente is null;
         }
@@ -108,5 +109,36 @@ public partial class ConfiguracionIaCliente : ComponentBase, IDisposable
         {
             if (EsOperacionVigente(version, clienteId) && _actualizandoId == tipoDocumentoId) _actualizandoId = null;
         }
+    }
+
+    // ---- Atajos de lista j/k (I-13 de AUDITORIA-USUARIO-AVANZADO-POST-GEN2) ----
+
+    /// <summary>Fila enfocada por teclado; cada carga de la configuración descarta el foco.</summary>
+    private Guid? _idEnfocado;
+
+    private string ClaseFila(Guid id) => _idEnfocado == id ? "fila-enfocada" : string.Empty;
+
+    /// <summary>
+    /// Solo "j"/"k": recorren los tipos de documento. La casilla de la fila no
+    /// es de selección sino el interruptor de nivel 2 —marcarla CAMBIA la
+    /// configuración del Cliente empresarial—, así que "x" no puede tocarla, y
+    /// no hay ficha que "Enter" pueda abrir.
+    /// </summary>
+    private Task ManejarAtajoAsync(string tecla)
+    {
+        var visibles = _configuracion;
+        if (visibles.Count == 0 || (tecla != "j" && tecla != "k")) return Task.CompletedTask;
+
+        var indice = -1;
+        if (_idEnfocado is not null)
+            for (var i = 0; i < visibles.Count; i++)
+                if (visibles[i].TipoDocumentoId == _idEnfocado) indice = i;
+
+        _idEnfocado = tecla == "j"
+            ? visibles[Math.Min(indice + 1, visibles.Count - 1)].TipoDocumentoId
+            : visibles[indice <= 0 ? 0 : indice - 1].TipoDocumentoId;
+
+        StateHasChanged();
+        return Task.CompletedTask;
     }
 }

@@ -424,4 +424,76 @@ public class AuditoriaIaPantallaTests : BunitContext
             .Which.TextContent.Should().Contain("TC2");
         cut.FindAll(".fila-detalle-auditoria-ia").Should().BeEmpty();
     }
+
+    // ------------------------------------------------ atajos de lista (I-13)
+
+    private static Task Atajo(IRenderedComponent<Features.AuditoriaIa.Pages.AuditoriaIa> cut, string tecla) =>
+        cut.InvokeAsync(() => cut.FindComponent<AtajosListaTeclado>().Instance.RecibirAtajo(tecla));
+
+    private static List<string> TiposEnfocados(IRenderedComponent<Features.AuditoriaIa.Pages.AuditoriaIa> cut) =>
+        cut.FindAll("table.tabla-datos tbody tr.fila-enfocada")
+            .Select(tr => tr.QuerySelectorAll("td")[1].TextContent).ToList();
+
+    /// <summary>I-13: "j" y "k" recorren la página visible sin desplegar nada.</summary>
+    [Fact]
+    public async Task j_y_k_recorren_el_registro_de_auditoria_ia()
+    {
+        _mediador.Filas.AddRange([Fila("Certificado", "anthropic"), Fila("TC2", "gemini")]);
+        var cut = Renderizar();
+
+        TiposEnfocados(cut).Should().BeEmpty();
+
+        await Atajo(cut, "j");
+        TiposEnfocados(cut).Should().Equal(["Certificado"]);
+
+        await Atajo(cut, "j");
+        TiposEnfocados(cut).Should().Equal(["TC2"]);
+
+        await Atajo(cut, "j");
+        TiposEnfocados(cut).Should().Equal(["TC2"], "la última fila es el tope");
+
+        await Atajo(cut, "k");
+        TiposEnfocados(cut).Should().Equal(["Certificado"]);
+
+        cut.FindAll("tr.fila-detalle-auditoria-ia").Should().BeEmpty("recorrer no despliega ningún detalle");
+    }
+
+    /// <summary>
+    /// Aquí "Enter" SÍ tiene qué abrir: despliega y pliega el detalle de la
+    /// fila enfocada, la misma acción que su botón "Detalle". Es la única de
+    /// las cinco pantallas de este bloque con algo que abrir.
+    /// </summary>
+    [Fact]
+    public async Task Enter_despliega_y_pliega_el_detalle_de_la_fila_enfocada()
+    {
+        _mediador.Filas.AddRange([Fila("Certificado", "anthropic"), Fila("TC2", "gemini")]);
+        var cut = Renderizar();
+
+        await Atajo(cut, "j");
+        await Atajo(cut, "j");
+        await Atajo(cut, "Enter");
+
+        cut.FindAll("tr.fila-detalle-auditoria-ia").Should().ContainSingle();
+        FilaDe(cut, "TC2").ClassList.Should().Contain("fila-abierta-auditoria-ia",
+            "el detalle desplegado es el de la fila enfocada, no el del primero de la lista");
+
+        await Atajo(cut, "Enter");
+
+        cut.FindAll("tr.fila-detalle-auditoria-ia").Should().BeEmpty("la segunda pulsación lo pliega");
+    }
+
+    /// <summary>"x" no marca nada: la pantalla no tiene selección múltiple.</summary>
+    [Fact]
+    public async Task x_no_tiene_efecto_en_auditoria_ia()
+    {
+        _mediador.Filas.AddRange([Fila("Certificado", "anthropic"), Fila("TC2", "gemini")]);
+        var cut = Renderizar();
+        await Atajo(cut, "j");
+
+        await Atajo(cut, "x");
+
+        TiposEnfocados(cut).Should().Equal(["Certificado"]);
+        cut.FindAll("table.tabla-datos tbody input[type=checkbox]").Should().BeEmpty();
+        cut.FindAll("tr.fila-detalle-auditoria-ia").Should().BeEmpty();
+    }
 }
