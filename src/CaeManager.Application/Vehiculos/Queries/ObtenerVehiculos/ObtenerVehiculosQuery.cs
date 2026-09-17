@@ -91,7 +91,10 @@ public class ObtenerVehiculosQueryHandler(
                 from x in consulta
                 select new
                 {
-                    x.vehiculo.Id, x.vehiculo.Nombre, x.vehiculo.Modelo, x.vehiculo.NumeroPlaca,
+                    x.vehiculo.Id,
+                    x.vehiculo.Nombre,
+                    x.vehiculo.Modelo,
+                    x.vehiculo.NumeroPlaca,
                     x.EmpleadorNombre,
                     PeorFecha = documentosContext.Documentos
                         .Where(d => d.VehiculoId == x.vehiculo.Id)

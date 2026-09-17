@@ -132,7 +132,10 @@ public class ObtenerTrabajadoresQueryHandler(
                 from x in consulta
                 select new
                 {
-                    x.trabajador.Id, x.trabajador.Nombre, x.trabajador.Apellidos, x.trabajador.Dni,
+                    x.trabajador.Id,
+                    x.trabajador.Nombre,
+                    x.trabajador.Apellidos,
+                    x.trabajador.Dni,
                     x.EmpleadorNombre,
                     PeorFecha = documentosContext.Documentos
                         .Where(d => d.TrabajadorId == x.trabajador.Id)

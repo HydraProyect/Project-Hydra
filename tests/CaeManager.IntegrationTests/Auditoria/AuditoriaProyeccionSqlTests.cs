@@ -127,7 +127,7 @@ public class AuditoriaProyeccionSqlTests : IAsyncLifetime
     [Fact]
     public async Task Hueco_declarado_JSON_truncado_que_empieza_por_llave_con_el_marcador_sigue_dando_falso_positivo()
     {
-        const string datosDespues = """{"EstaEliminado":true""" ; // sin cerrar — JSON inválido a propósito
+        const string datosDespues = """{"EstaEliminado":true"""; // sin cerrar — JSON inválido a propósito
         EsCandidataHistoricaOraculo("Cliente", "Modificado", datosDespues).Should().BeFalse(
             "JsonDocument.Parse rechaza el JSON sin cerrar — este es el comportamiento que ya NO se reproduce en SQL");
 

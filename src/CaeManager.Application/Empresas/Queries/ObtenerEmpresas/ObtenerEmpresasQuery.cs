@@ -90,7 +90,10 @@ public class ObtenerEmpresasQueryHandler(
                 from e in consulta
                 select new
                 {
-                    e.Id, e.RazonSocial, e.Cif, e.CreadoEnUtc,
+                    e.Id,
+                    e.RazonSocial,
+                    e.Cif,
+                    e.CreadoEnUtc,
                     PeorFecha = documentosContext.Documentos
                         .Where(d => d.EmpresaId == e.Id)
                         .Min(d => (DateOnly?)d.FechaVencimiento)
