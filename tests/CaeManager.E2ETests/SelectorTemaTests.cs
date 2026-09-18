@@ -105,7 +105,21 @@ public class SelectorTemaTests(WebAppFixture fixture)
             "data-theme", "oscuro", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
 
         // Devuelve la cuenta a su estado inicial: la fixture es compartida.
-        await selectorTema.SelectOptionAsync("sistema");
+        // Recarga completa antes de tocar el selector — no reutiliza el que
+        // ya tiene la página: el clic de arriba (navegación "enhanced")
+        // puede haber recreado el componente SelectorTema (mismo remontado
+        // que documenta SeleccionSobreviveAlCircuitoTests), con su interop
+        // de JS (_modulo) todavía importándose en vuelo. Elegir "sistema"
+        // contra ese componente a medio inicializar cae en la guarda `if
+        // (_modulo is not null)` de CambiarTemaAsync: GuardarTemaAsync sí
+        // persiste el cambio en la cuenta, pero el DOM no se actualiza — un
+        // fallo real medido en CI (2026-09-18, PR #710) que no tiene nada
+        // que ver con lo que este test mide, solo con la limpieza.
+        await Ayudas.NavegarYEsperarAsync(page, fixture.BaseUrl);
+        var selectorTemaTrasRecarga = page.Locator("select.selector-tema");
+        await Assertions.Expect(selectorTemaTrasRecarga).ToBeVisibleAsync(
+            new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        await selectorTemaTrasRecarga.SelectOptionAsync("sistema");
         await Assertions.Expect(page.Locator("html")).Not.ToHaveAttributeAsync(
             "data-theme", "oscuro", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
     }
