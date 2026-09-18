@@ -510,8 +510,8 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         DirectorioUsuarios.ObtenerIdsConLoginExternoAsync(usuarioIds, cancellationToken);
 
     /// <inheritdoc cref="ObtenerRolesDelegadosAsync"/>
-    protected virtual Task<bool> TieneCarteraVigenteAsync(Guid usuarioId, CancellationToken cancellationToken) =>
-        DirectorioUsuarios.TieneAlgunaCarteraVigenteAsync(usuarioId, cancellationToken);
+    protected virtual Task<bool> TieneVinculoOperativoAsync(Guid usuarioId, CancellationToken cancellationToken) =>
+        DirectorioUsuarios.TieneVinculoOperativoAsync(usuarioId, cancellationToken);
 
     /// <summary>
     /// Si la cuenta pertenece al tenant activo — propiedad, no visibilidad:
@@ -1175,7 +1175,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                 // de aceptar la invitación; borrar la cuenta de Identity dejaría
                 // esa asignación — y el Empresa.EjecutivoUsuarioId que dependa de
                 // ella — apuntando a un GUID sin cuenta resoluble.
-                if (await TieneCarteraVigenteAsync(usuarioLista.Id, token))
+                if (await TieneVinculoOperativoAsync(usuarioLista.Id, token))
                     return ResultadoActivacionUsuario.TieneCarteraVigente;
 
                 var borrado = await UserManager.DeleteAsync(usuario);

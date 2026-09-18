@@ -67,29 +67,49 @@ public class DirectorioUsuariosTenant(
                 .FirstOrDefaultAsync(cancellationToken));
 
     /// <summary>
-    /// Si este usuario tiene alguna Asignación de Cartera vigente, en
-    /// cualquier posición y de cualquier tenant. Sin filtro de posición a
-    /// propósito —igual que <see cref="ObtenerTenantDeUsuarioAsync"/>—: la
-    /// pregunta que responde es "¿es seguro borrar esta cuenta de Identity?",
+    /// Si borrar este usuario dejaría algún vínculo operativo apuntando a un
+    /// GUID sin cuenta: una Asignación de Cartera vigente, o una Asignación de
+    /// Operador Delegado (aunque su <see cref="Tenants.DelegacionTenant"/> esté
+    /// desactivada hoy — <c>ReabrirCarterasDeOperadoresAsync</c> la reconstruye
+    /// al reactivarla, para un usuario que ya no existiría). Sin filtro de
+    /// posición a propósito —igual que <see cref="ObtenerTenantDeUsuarioAsync"/>—:
+    /// la pregunta que responde es "¿es seguro borrar esta cuenta de Identity?",
     /// no "¿qué carteras ve el tenant activo?".
     ///
-    /// Revisión de Codex (2026-09-18) sobre la primera versión de este
-    /// guardián: acotar por <c>PropietarioTenantId == tenant activo</c> (como
-    /// hace <see cref="ObtenerCarterasVigentesAsync"/> para pintar la lista)
-    /// dejaba invisible la Asignación de Cartera EXTERNA de un usuario del
-    /// Tenant operador sobre OTRO Tenant propietario — se borraba la cuenta
-    /// igual, y esa cartera (y la Asignación de Operador Delegado paralela)
-    /// quedaba apuntando a un GUID sin <c>ApplicationUser</c> resoluble.
+    /// Revisión de Codex (2026-09-18) sobre las dos versiones anteriores de
+    /// este guardián:
+    /// <list type="bullet">
+    /// <item>acotar por <c>PropietarioTenantId == tenant activo</c> (como hace
+    /// <see cref="ObtenerCarterasVigentesAsync"/> para pintar la lista) dejaba
+    /// invisible la Asignación de Cartera EXTERNA de un usuario del Tenant
+    /// operador sobre OTRO Tenant propietario;</item>
+    /// <item>mirar solo la cartera VIGENTE dejaba pasar una delegación
+    /// desactivada —sus carteras se cierran, pero la asignación persiste— que
+    /// vuelve a generar cartera para este usuario en cuanto alguien la
+    /// reactiva.</item>
+    /// </list>
     ///
-    /// No revela ninguna fila ni de qué tenant es la cartera: solo un booleano
-    /// de existencia sobre un usuario que el llamante ya identificó.
+    /// No revela ninguna fila ni de qué tenant es cada vínculo: solo un
+    /// booleano de existencia sobre un usuario que el llamante ya identificó.
+    ///
+    /// <para>
+    /// <b>Hueco conocido, no cerrado por esta guarda</b>: la comprobación y el
+    /// <c>DeleteAsync</c> no son atómicas entre sí — no hay una FK real hacia
+    /// <c>ApplicationUser</c> ni una transacción que abarque ambas
+    /// operaciones. Si otro circuito crea una Asignación de Cartera para este
+    /// usuario en la ventana entre esta lectura y el borrado, la referencia
+    /// queda huérfana igual. Cerrarlo de raíz exige una restricción de
+    /// integridad a nivel de base de datos (fuera del alcance de este
+    /// incremento de UI: toca el esquema del catálogo global de asignaciones,
+    /// ver <c>IOperacionesQueryContext</c>).
+    /// </para>
     /// </summary>
-    public Task<bool> TieneAlgunaCarteraVigenteAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
+    public Task<bool> TieneVinculoOperativoAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
         puertaAccesoDatos.EjecutarAsync(async () =>
         {
             var ahora = DateTime.UtcNow;
 
-            return await (
+            var tieneCarteraVigente = await (
                 from cartera in identidad.AsignacionesCartera
                 where cartera.UsuarioId == usuarioId
                       && cartera.Estado == EstadoAsignacion.Vigente
@@ -102,6 +122,11 @@ public class DirectorioUsuariosTenant(
                       && (operacion.VigenciaHasta == null || ahora < operacion.VigenciaHasta)
                 select cartera.Id)
                 .AnyAsync(cancellationToken);
+
+            if (tieneCarteraVigente) return true;
+
+            return await dbContext.AsignacionesOperadorDelegado
+                .AnyAsync(a => a.UsuarioId == usuarioId, cancellationToken);
         }, cancellationToken);
 
     /// <summary>
