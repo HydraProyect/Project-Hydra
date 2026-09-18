@@ -183,7 +183,8 @@ public class EnvioAlertasVencimientoHostedService(
         var errores = new List<string>();
         foreach (var destinatario in destinatarios)
         {
-            var resultado = await emailService.EnviarAsync(destinatario.Email!, asunto, cuerpo, stoppingToken);
+            var resultado = await emailService.EnviarAsync(
+                destinatario.Email!, asunto, cuerpo, stoppingToken, TipoAvisoCorreo.Informativo);
             if (resultado.EsFallido)
             {
                 errores.Add($"{destinatario.Email}: {resultado.Error.Mensaje}");

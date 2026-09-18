@@ -255,7 +255,7 @@ public class UsuariosGen2Tests : BunitContext
         public List<(string Destinatario, string Cuerpo)> Enviados { get; } = [];
         public Result? ResultadoForzado { get; set; }
 
-        public Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, CancellationToken cancellationToken = default)
+        public Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, CancellationToken cancellationToken = default, TipoAvisoCorreo tipo = TipoAvisoCorreo.Transaccional)
         {
             Enviados.Add((destinatarioEmail, cuerpoHtml));
             return Task.FromResult(ResultadoForzado ?? Result.Exito());

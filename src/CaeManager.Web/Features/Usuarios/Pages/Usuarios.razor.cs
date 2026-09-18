@@ -1054,7 +1054,8 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             <p>El enlace caduca en {MinutosCaducidadActivacion} minutos y solo puede usarse una vez. Si caduca, pide a quien te dio de alta que te envíe uno nuevo.</p>
             """;
 
-        var resultado = await EmailService.EnviarAsync(email, $"Activa tu acceso a {Marca.Nombre}", cuerpo);
+        var resultado = await EmailService.EnviarAsync(
+            email, $"Activa tu acceso a {Marca.Nombre}", cuerpo, tipo: TipoAvisoCorreo.Seguridad);
         if (resultado.EsFallido)
             Logger.LogWarning("No se pudo enviar el correo de activación a {UsuarioId}.", usuarioId);
         return resultado;
