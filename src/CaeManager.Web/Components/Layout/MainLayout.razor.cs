@@ -5,6 +5,7 @@ using CaeManager.Web.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Web.Components.Layout;
 
@@ -15,6 +16,7 @@ public partial class MainLayout
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private ActividadUsuarioService ActividadUsuario { get; set; } = default!;
+    [Inject] private ILogger<ExcepcionDeCircuitoDesconectado> Logger { get; set; } = default!;
 
     /// <summary>
     /// Forzar el cambio de contraseña en el primer login (ver
@@ -81,24 +83,26 @@ public partial class MainLayout
                     Navigation.NavigateTo("/cuenta/configurar-2fa", forceLoad: true);
             });
         }
-        catch (Exception ex) when (ex is ObjectDisposedException or ArgumentOutOfRangeException)
+        catch (Exception ex) when (ExcepcionDeCircuitoDesconectado.Es(ex))
         {
             // El circuito de Blazor puede desconectarse (y con él el
             // CaeManagerDbContext scoped que UserManager usa por debajo)
             // mientras este guard todavía está en vuelo — reproducido en
             // producción dos veces, en el mismo sitio (Sentry DOTNET-6:
             // ObjectDisposedException sobre CaeManagerDbContext; DOTNET-3:
-            // ArgumentOutOfRangeException dentro de NpgsqlDataReader — misma
-            // carrera, forma distinta según en qué punto exacto del socket
-            // la sorprenda la desconexión; ver
-            // Project-Hydra-Negocio/tecnico/d8-vps-evidence.md). No es un
+            // ArgumentOutOfRangeException dentro de NpgsqlDataReader) y
+            // ampliado en ExcepcionDeCircuitoDesconectado (REC-166: la misma
+            // carrera también puede llegar como una NpgsqlException cruda de
+            // desincronización de protocolo). No es un
             // PuertaAccesoDatos.EjecutarAsync — la puerta ya se defiende de
             // su propio semáforo en Dispose (LiberarSiSigueViva); esto es el
             // paso anterior: la propia conexión/DbContext muere DENTRO de la
             // operación envuelta, no en el cleanup. No queda nadie al otro
             // lado esperando una redirección — el circuito ya se fue — así
             // que no hay nada que hacer salvo no dejar la excepción sin
-            // observar.
+            // observar, y sí dejar constancia de que ocurrió.
+            Logger.LogWarning(ex, "MainLayout descartó una excepción de desconexión de circuito: {TipoExcepcion} — {Mensaje}",
+                ex.GetType().Name, ex.Message);
         }
     }
 }
