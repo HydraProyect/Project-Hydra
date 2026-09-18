@@ -131,18 +131,18 @@ public class MainLayoutFallaCerradoTests : BunitContext
     }
 
     /// <summary>
-    /// El caso SSR: <c>EstadoDelCircuito.Cerrado</c> en <c>false</c> no
-    /// significa siempre "hay un circuito vivo que podría haberse ido" — en el
-    /// prerenderizado de <c>@rendermode InteractiveServer</c> (o en cualquier
-    /// página sin ningún descendiente interactivo) MainLayout se ejecuta antes
-    /// de que exista un circuito real, así que <c>Cerrado</c> nunca ha tenido
-    /// ocasión de pasar a <c>true</c> — no porque el circuito se fuera, sino
-    /// porque no lo hay. Ver el <c>remarks</c> de
-    /// <see cref="EstadoDelCircuito.Cerrado"/>: aquí no hay carrera de
-    /// desconexión que perdonar, así que una excepción del guard sigue siendo
-    /// un fallo real y se redirige igual que con el circuito vivo — el mismo
-    /// resultado que <see cref="Con_el_circuito_vivo_una_excepcion_en_el_guard_retira_el_contenido"/>,
-    /// por un motivo distinto.
+    /// El caso SSR — medido con un E2E real como el que se ejercita en
+    /// producción todo el tiempo (ver el <c>remarks</c> de
+    /// <see cref="EstadoDelCircuito"/>): <c>RendererInfo.IsInteractive</c> es
+    /// <c>false</c> en cada invocación observada de
+    /// <c>MainLayout.OnParametersSetAsync</c>, tanto en recarga completa como
+    /// en navegación por enlace interno. <c>EstadoDelCircuito.Cerrado</c> en
+    /// <c>false</c> no significa siempre "hay un circuito vivo que podría
+    /// haberse ido" — aquí no hay carrera de desconexión que perdonar, así que
+    /// una excepción del guard sigue siendo un fallo real y se redirige igual
+    /// que en <see cref="Con_el_circuito_vivo_una_excepcion_en_el_guard_retira_el_contenido"/>,
+    /// por un motivo distinto: no porque el circuito se fuera, sino porque
+    /// este camino nunca tuvo uno propio.
     /// </summary>
     [Fact]
     public void Durante_el_prerenderizado_sin_circuito_una_excepcion_tambien_retira_el_contenido()
