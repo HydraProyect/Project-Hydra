@@ -1,5 +1,7 @@
 using System.Text.RegularExpressions;
 using FluentAssertions;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace CaeManager.Architecture.Tests;
 
@@ -242,17 +244,44 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
     private static readonly Regex LlamadaAEstablecer = new(
         @"AmbitoTenantExplicito\.Establecer\(", RegexOptions.Compiled);
 
-    /// <summary>
-    /// <c>[Fact]</c> solo en su propia línea (con espacio en blanco delante,
-    /// nada más) — usada por <see cref="Los_sitios_con_varios_tenants_por_instancia_tienen_su_test_de_reproduccion"/>
-    /// para no confundir un atributo real con "[Fact]" dentro de un
-    /// comentario <c>//</c> o de una cadena literal (revisión de Codex,
-    /// 2026-09-18: un <c>Contains</c> simple aceptaba las dos cosas).
-    /// </summary>
-    private static readonly Regex AtributoFactEnSuPropiaLinea = new(
-        @"^[ \t]*\[Fact\][ \t]*$", RegexOptions.Compiled | RegexOptions.Multiline);
-
     private static readonly string[] DirectoriosVigilados = ["src"];
+
+    /// <summary>
+    /// Analiza el árbol sintáctico (igual que <c>TerminologiaCanonicaTests</c>,
+    /// DEC-65/REC-178: "instrumentación léxica/sintáctica, no una regex más
+    /// sofisticada") para comprobar que <paramref name="textoFuente"/> declara
+    /// al menos un método con el atributo <c>[Fact]</c> aplicado de verdad —
+    /// no que la cadena <c>"[Fact]"</c> aparezca en algún sitio del fichero.
+    ///
+    /// <para>
+    /// Reemplaza dos intentos con regex, los dos rechazados por Codex
+    /// (2026-09-18): un <c>Contains</c> simple aceptaba <c>// [Fact]</c> en
+    /// un comentario o la cadena literal en un mensaje de aserción; anclar la
+    /// regex a "sola en su línea" seguía aceptando un comentario de BLOQUE
+    /// (<c>/* [Fact] */</c> repartido en varias líneas) o un literal
+    /// raw/verbatim multilínea que contuviera esa línea — ninguna regex sobre
+    /// texto puede distinguir "dentro de un comentario" de "aplicado a un
+    /// método real" sin analizar la sintaxis.
+    /// </para>
+    /// </summary>
+    private static bool DeclaraAlMenosUnMetodoConFact(string textoFuente)
+    {
+        var root = CSharpSyntaxTree.ParseText(textoFuente).GetRoot();
+
+        return root.DescendantNodes()
+            .OfType<MethodDeclarationSyntax>()
+            .Any(metodo => metodo.AttributeLists
+                .SelectMany(lista => lista.Attributes)
+                .Any(atributo => EsAtributoFact(atributo.Name.ToString())));
+    }
+
+    /// <summary>
+    /// <c>Fact</c>/<c>FactAttribute</c>, con o sin el prefijo de espacio de
+    /// nombres <c>Xunit.</c> — las cuatro formas válidas de escribir el
+    /// atributo en C#.
+    /// </summary>
+    private static bool EsAtributoFact(string nombre) =>
+        nombre is "Fact" or "FactAttribute" or "Xunit.Fact" or "Xunit.FactAttribute";
 
     private static Dictionary<string, int> LlamadasPorFichero()
     {
@@ -398,17 +427,14 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
                 $"{ficheroTest} tiene que existir — es el test de reproducción que demuestra que {ficheroProduccion} " +
                 "no envenena nada; si se borró o se movió sin actualizar esta entrada, la afirmación queda sin comprobar");
 
-            // Ancla a "[Fact] solo en su línea, sin nada antes salvo espacio
-            // en blanco" (revisión de Codex, 2026-09-18: un simple Contains
-            // habría aceptado "// [Fact]" en un comentario o la cadena
-            // literal "[Fact]" en un mensaje de aserción, sin que el fichero
-            // declarara ningún test real). No es un parser de C# — sigue sin
-            // detectar un atributo comentado con /* */ en la misma línea—,
-            // pero excluye los dos falsos positivos con los que se puede
-            // "aprobar" este Fact sin escribir un test de verdad.
-            AtributoFactEnSuPropiaLinea.IsMatch(File.ReadAllText(rutaTest)).Should().BeTrue(
-                $"{ficheroTest} tiene que declarar al menos un [Fact] — vaciarlo o convertirlo en una clase sin " +
-                "tests pasaría la comprobación de existencia sin demostrar nada");
+            // Análisis sintáctico, no regex (2ª corrección tras Codex,
+            // 2026-09-18 — ver el doc-comment de DeclaraAlMenosUnMetodoConFact):
+            // exige un FactAttribute aplicado de verdad a un método, no la
+            // cadena "[Fact]" en un comentario, una cadena literal o un
+            // comentario de bloque multilínea.
+            DeclaraAlMenosUnMetodoConFact(File.ReadAllText(rutaTest)).Should().BeTrue(
+                $"{ficheroTest} tiene que declarar al menos un método con [Fact] — vaciarlo o convertirlo en una " +
+                "clase sin tests pasaría la comprobación de existencia sin demostrar nada");
         }
     }
 

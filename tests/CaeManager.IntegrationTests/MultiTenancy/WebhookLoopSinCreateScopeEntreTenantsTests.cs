@@ -73,6 +73,24 @@ namespace CaeManager.IntegrationTests.MultiTenancy;
 /// seguro" de "el test no podía ver el defecto aunque existiera".
 ///
 /// <para>
+/// <b>Verificado también con la transacción REAL, no solo con la conexión
+/// mantenida abierta a mano</b> (pregunta de la sesión coordinadora,
+/// 2026-09-18: la inmunidad de hoy depende de que nadie envuelva el foreach
+/// de <c>WebhookWhatsAppEndpoints.cs</c> en una transacción explícita —
+/// ¿es eso un accidente de implementación que el test no vigila, o el
+/// invariante que el test protege?). Mutación aplicada y revertida:
+/// <c>await dbContext.Database.BeginTransactionAsync()</c> dentro del
+/// primer <c>using</c>, viva hasta el final del método (no un
+/// <c>using</c> por vuelta) — reproduce exactamente lo que produciría
+/// envolver el <c>foreach</c> real en una transacción. Resultado: el primer
+/// test se pone en rojo por el motivo previsto (<c>aperturasDuranteB</c>
+/// vacío — cero aperturas físicas nuevas durante la escritura de B, la
+/// misma causa raíz que mide <see cref="Control_positivo_con_conexion_mantenida_abierta_no_se_registra_ninguna_apertura_para_b"/>).
+/// El test SÍ protege el invariante hacia delante, no solo describe el
+/// estado de hoy.
+/// </para>
+///
+/// <para>
 /// <b>Lo que este fichero NO demuestra</b> (revisión de Codex, 2026-09-18):
 /// <see cref="BaseDatosPostgresDePruebas"/> conecta con el rol propietario
 /// de la cadena de test (<c>postgres</c>), y RLS no restringe al propietario
