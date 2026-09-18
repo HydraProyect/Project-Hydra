@@ -88,6 +88,25 @@ public class AuditoriaVacioPorFiltroTests : BunitContext
         public void Dispose() { }
     }
 
+    /// <summary>Mismo criterio que <see cref="AlmacenUsuariosQueNadieDebeTocar"/>, para RoleManager.</summary>
+    private sealed class AlmacenRolesQueNadieDebeTocar : IRoleStore<IdentityRole<Guid>>
+    {
+        private static Exception NoDeberia() =>
+            new NotSupportedException("Sin filas no se consulta ningún rol; si esto salta, la página cambió de camino.");
+
+        public Task<IdentityResult> CreateAsync(IdentityRole<Guid> role, CancellationToken cancellationToken) => throw NoDeberia();
+        public Task<IdentityResult> DeleteAsync(IdentityRole<Guid> role, CancellationToken cancellationToken) => throw NoDeberia();
+        public Task<IdentityRole<Guid>?> FindByIdAsync(string roleId, CancellationToken cancellationToken) => throw NoDeberia();
+        public Task<IdentityRole<Guid>?> FindByNameAsync(string normalizedRoleName, CancellationToken cancellationToken) => throw NoDeberia();
+        public Task<string?> GetNormalizedRoleNameAsync(IdentityRole<Guid> role, CancellationToken cancellationToken) => throw NoDeberia();
+        public Task<string> GetRoleIdAsync(IdentityRole<Guid> role, CancellationToken cancellationToken) => throw NoDeberia();
+        public Task<string?> GetRoleNameAsync(IdentityRole<Guid> role, CancellationToken cancellationToken) => throw NoDeberia();
+        public Task SetNormalizedRoleNameAsync(IdentityRole<Guid> role, string? normalizedName, CancellationToken cancellationToken) => throw NoDeberia();
+        public Task SetRoleNameAsync(IdentityRole<Guid> role, string? roleName, CancellationToken cancellationToken) => throw NoDeberia();
+        public Task<IdentityResult> UpdateAsync(IdentityRole<Guid> role, CancellationToken cancellationToken) => throw NoDeberia();
+        public void Dispose() { }
+    }
+
     /// <param name="entidad">Valor del filtro que llega por la URL (?entidad=).</param>
     /// <param name="registros">Filas que devuelve la consulta, ya filtradas por el servidor.</param>
     private IRenderedComponent<Features.Auditoria.Pages.Auditoria> Renderizar(
@@ -98,6 +117,8 @@ public class AuditoriaVacioPorFiltroTests : BunitContext
         Services.AddScoped<ToastService>();
         Services.AddScoped(_ => new UserManager<ApplicationUser>(
             new AlmacenUsuariosQueNadieDebeTocar(), null!, null!, null!, null!, null!, null!, null!, null!));
+        Services.AddScoped(_ => new RoleManager<IdentityRole<Guid>>(
+            new AlmacenRolesQueNadieDebeTocar(), null!, null!, null!, null!));
 
         // El filtro es [SupplyParameterFromQuery]: no se pasa como parámetro de
         // componente —Blazor lo rechaza explícitamente— sino navegando a la URI

@@ -164,6 +164,87 @@ public class AuditoriaProyeccionSqlTests : IAsyncLifetime
             "JsonDocument.Parse lo habría rechazado por inválido");
     }
 
+    /// <summary>
+    /// Hallazgo P1 de Codex (4ª ronda, tras abrir esta PR): el listado no
+    /// exponía <c>RoleId</c>, así que no se podía distinguir una concesión de
+    /// Administrador de una de Consulta. Mismo criterio que el resto de este
+    /// archivo: probar la extracción de <c>ObtenerAuditoriaQueryHandler.ExtraerRolId</c>
+    /// contra Postgres real, con la traducción SQL del <c>CASE WHEN</c> +
+    /// <c>COALESCE</c> de <c>JsonRolDeUsuario</c> incluida — no solo el método
+    /// en aislamiento, que no observaría un fallo de traducción EF-a-SQL.
+    /// </summary>
+#pragma warning disable CS8625 // null literal en object[] — DatosAntes/DatosDespues/rolIdEsperado son legítimamente null en varios casos.
+    public static IEnumerable<object[]> CasosRolId()
+    {
+        var rolId = Guid.NewGuid();
+        // Creado (alta): el JSON va en DatosDespues, nunca en DatosAntes.
+        yield return ["Creado", null, $$"""{"UserId":"{{Guid.NewGuid()}}","RoleId":"{{rolId}}"}""", rolId];
+        // Eliminado (revocar): el JSON va en DatosAntes, DatosDespues es null.
+        yield return ["Eliminado", $$"""{"UserId":"{{Guid.NewGuid()}}","RoleId":"{{rolId}}"}""", null, rolId];
+        // Orden de propiedades invertido — el marcador no depende de la posición.
+        yield return ["Creado", null, $$"""{"RoleId":"{{rolId}}","UserId":"{{Guid.NewGuid()}}"}""", rolId];
+        // JSON sin el marcador (fila anterior a este cambio, o corrupción manual): null, no una excepción.
+        yield return ["Creado", null, """{"UserId":"11111111-1111-1111-1111-111111111111"}""", null];
+    }
+#pragma warning restore CS8625
+
+    [Theory]
+    [MemberData(nameof(CasosRolId))]
+    public async Task El_RolId_se_extrae_del_JSON_de_RolDeUsuario_vía_SQL_y_en_memoria(
+        string accion, string? datosAntes, string? datosDespues, Guid? rolIdEsperado)
+    {
+        var entidadId = Guid.NewGuid();
+        await using (var contextoEscritura = CrearContexto())
+        {
+            contextoEscritura.RegistrosAuditoria.Add(new RegistroAuditoria(
+                "RolDeUsuario", entidadId, accion, datosAntes, datosDespues, usuarioId: null));
+            await contextoEscritura.SaveChangesAsync();
+        }
+
+        await using var contextoLectura = CrearContexto();
+        var handler = new ObtenerAuditoriaQueryHandler(
+            contextoLectura, contextoLectura, contextoLectura, contextoLectura, contextoLectura,
+            new TenantActualAmbiental { TenantId = _tenant });
+
+        var resultado = await handler.Handle(
+            new ObtenerAuditoriaQuery(EntidadTipo: "RolDeUsuario", UsuarioId: null, Pagina: 1, TamanoPagina: 10),
+            CancellationToken.None);
+
+        resultado.Elementos.Single(r => r.EntidadId == entidadId).RolId.Should().Be(rolIdEsperado);
+    }
+
+    /// <summary>
+    /// Control negativo: para cualquier OTRO EntidadTipo, <c>RolId</c> es
+    /// siempre <c>null</c> aunque el JSON contenga el marcador por casualidad
+    /// — <c>JsonRolDeUsuario</c> solo se computa cuando EntidadTipo es
+    /// exactamente "RolDeUsuario" (ver su comentario en el handler).
+    /// </summary>
+    [Fact]
+    public async Task El_RolId_es_siempre_null_para_entidades_que_no_son_RolDeUsuario()
+    {
+        var entidadId = Guid.NewGuid();
+        var rolId = Guid.NewGuid();
+        await using (var contextoEscritura = CrearContexto())
+        {
+            contextoEscritura.RegistrosAuditoria.Add(new RegistroAuditoria(
+                "Usuario", entidadId, "Modificado", datosAntes: null,
+                $$"""{"RoleId":"{{rolId}}"}""", usuarioId: null));
+            await contextoEscritura.SaveChangesAsync();
+        }
+
+        await using var contextoLectura = CrearContexto();
+        var handler = new ObtenerAuditoriaQueryHandler(
+            contextoLectura, contextoLectura, contextoLectura, contextoLectura, contextoLectura,
+            new TenantActualAmbiental { TenantId = _tenant });
+
+        var resultado = await handler.Handle(
+            new ObtenerAuditoriaQuery(EntidadTipo: "Usuario", UsuarioId: null, Pagina: 1, TamanoPagina: 10),
+            CancellationToken.None);
+
+        resultado.Elementos.Single(r => r.EntidadId == entidadId).RolId.Should().BeNull(
+            "JsonRolDeUsuario solo se computa para EntidadTipo == \"RolDeUsuario\", nunca para \"Usuario\"");
+    }
+
     private static readonly HashSet<string> EntidadesRestaurables = ["Cliente", "Empresa", "Centro", "Trabajador", "Documento"];
 
     private static bool EsCandidataHistoricaOraculo(string entidadTipo, string accion, string? datosDespues)
