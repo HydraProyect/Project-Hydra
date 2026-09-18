@@ -55,16 +55,28 @@ public class SmtpEmailServiceTests
     }
 
     /// <summary>
-    /// Reproduce en aislado el defecto real de dinahosting: el certificado del
-    /// servidor es un comodín compartido (<c>*.correoseguro.dinaserver.com</c>)
-    /// que nunca coincide con <c>mail.talveg.es</c>, el único host que resuelve
-    /// por DNS. Sin esta validación por SAN, <c>System.Net.Mail.SmtpClient</c>
-    /// (la implementación anterior) rechaza el certificado y el envío falla
-    /// siempre, en producción incluida — verificado en vivo el 2026-09-16 con
-    /// un handshake TLS real contra mail.talveg.es.
+    /// Reproduce en aislado el certificado REAL de dinahosting (dos SAN: el
+    /// comodín compartido <c>*.correoseguro.dinaserver.com</c> y, además, el
+    /// nombre exacto sin comodín — confirmado con <c>openssl x509 -text</c> el
+    /// 2026-09-16), que nunca coincide con <c>mail.talveg.es</c>, el único
+    /// host que resuelve por DNS. Sin esta validación por SAN,
+    /// <c>System.Net.Mail.SmtpClient</c> (la implementación anterior) rechaza
+    /// el certificado y el envío falla siempre, en producción incluida.
+    ///
+    /// <para>
+    /// Revisión de Codex (P1): un test con un único SAN exacto no distingue
+    /// "coincide por igualdad" de "coincide por comodín", y
+    /// <see cref="SmtpEmailOptions.NombreCertificadoTls"/> configurado como
+    /// <c>correoseguro.dinaserver.com</c> (sin comodín) nunca puede
+    /// satisfacer la rama de comodín de <c>CoincideDominio</c> — un dominio
+    /// pelado jamás es "más largo" que su propio sufijo con comodín. La
+    /// aceptación real depende, hoy, de que el SAN exacto siga publicado
+    /// junto al comodín; ver el test de rechazo justo debajo, que deja
+    /// escrita esa dependencia en vez de darla por sentada.
+    /// </para>
     /// </summary>
     [Fact]
-    public void Certificado_con_SAN_distinto_del_host_pero_igual_al_nombre_configurado_se_acepta()
+    public void Certificado_real_con_comodin_y_nombre_exacto_se_acepta()
     {
         var config = new SmtpEmailOptions
         {
@@ -72,12 +84,39 @@ public class SmtpEmailServiceTests
             NombreCertificadoTls = "correoseguro.dinaserver.com",
         };
 
-        using var certificado = CrearCertificadoConSan("correoseguro.dinaserver.com");
+        using var certificado = CrearCertificadoConSan("*.correoseguro.dinaserver.com", "correoseguro.dinaserver.com");
 
         var aceptado = SmtpEmailService.ValidarCertificadoServidor(
             config, certificado, cadena: null, SslPolicyErrors.RemoteCertificateNameMismatch);
 
         aceptado.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Documenta la fragilidad que señaló la revisión: un comodín nunca
+    /// coincide con el dominio pelado que anuncia (correcto según RFC 6125 —
+    /// <c>*.dominio</c> exige al menos una etiqueta debajo, nunca cero). Si
+    /// dinahosting alguna vez publicara <b>solo</b> el comodín, sin el SAN
+    /// exacto que hoy acompaña, el envío volvería a fallar en silencio salvo
+    /// que se reconfigure <c>Smtp:NombreCertificadoTls</c> con una etiqueta
+    /// real bajo el comodín (p. ej. <c>mail.correoseguro.dinaserver.com</c>).
+    /// </summary>
+    [Fact]
+    public void Certificado_que_solo_trae_el_comodin_sin_el_nombre_exacto_se_rechaza()
+    {
+        var config = new SmtpEmailOptions
+        {
+            Host = "mail.talveg.es",
+            NombreCertificadoTls = "correoseguro.dinaserver.com",
+        };
+
+        using var certificado = CrearCertificadoConSan("*.correoseguro.dinaserver.com");
+
+        var aceptado = SmtpEmailService.ValidarCertificadoServidor(
+            config, certificado, cadena: null, SslPolicyErrors.RemoteCertificateNameMismatch);
+
+        aceptado.Should().BeFalse(
+            "un comodín no cubre el dominio pelado que anuncia — la aceptación depende del SAN exacto, no del comodín");
     }
 
     [Fact]
@@ -116,13 +155,13 @@ public class SmtpEmailServiceTests
             "relajar la comprobación de nombre no puede convertirse en aceptar cualquier cadena de confianza rota");
     }
 
-    private static X509Certificate2 CrearCertificadoConSan(string nombreSan)
+    private static X509Certificate2 CrearCertificadoConSan(params string[] nombresSan)
     {
         using var rsa = RSA.Create(2048);
-        var solicitud = new CertificateRequest($"CN={nombreSan}", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        var solicitud = new CertificateRequest($"CN={nombresSan[0]}", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
 
         var constructorSan = new SubjectAlternativeNameBuilder();
-        constructorSan.AddDnsName(nombreSan);
+        foreach (var nombreSan in nombresSan) constructorSan.AddDnsName(nombreSan);
         solicitud.CertificateExtensions.Add(constructorSan.Build());
 
         return solicitud.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));

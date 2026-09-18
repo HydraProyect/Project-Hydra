@@ -144,7 +144,17 @@
                             }
                         </td>
                         <td>
-                            @if (usuario.Activo)
+                            @if (usuario.PendienteActivacion)
+                            {
+                                @* Independiente de Activo/Desactivado: una cuenta puede estar
+                                   sin bloquear y aun así sin que nadie haya podido entrar nunca —
+                                   ver PendienteActivacion. *@
+                                <Badge Tono="TonoBadge.Advertencia"
+                                       title="Nunca se estableció una contraseña. Puede que el correo de activación no haya llegado.">
+                                    Pendiente de activación
+                                </Badge>
+                            }
+                            else if (usuario.Activo)
                             {
                                 <Badge Tono="TonoBadge.Exito">Activo</Badge>
                             }
@@ -154,13 +164,28 @@
                             }
                         </td>
                         <td class="columna-accion">
-                            @* Las dos acciones se agrupan tras "⋯" (H2 del design system):
+                            @* Las acciones se agrupan tras "⋯" (H2 del design system):
                                antes ocupaban dos botones fantasma en línea que competían
                                visualmente y estiraban la fila. *@
                             <MenuAcciones>
                                 <ItemMenuAccion OnClick="() => AbrirEditarAsync(usuario.Id)">
                                     Editar
                                 </ItemMenuAccion>
+                                @if (usuario.PendienteActivacion)
+                                {
+                                    @* Reenviar y Eliminar solo tienen sentido antes de que la
+                                       persona entre por primera vez — ver EliminarUsuarioAsync
+                                       y ReenviarCredencialesAsync. *@
+                                    @* Sin deshabilitar visualmente durante el envío: mismo criterio que
+                                       Desactivar/Reactivar — ItemMenuAccion no admite eso, la guarda
+                                       contra doble clic vive dentro de ReenviarCredencialesAsync. *@
+                                    <ItemMenuAccion OnClick="() => ReenviarCredencialesAsync(usuario)">
+                                        Reenviar correo de activación
+                                    </ItemMenuAccion>
+                                    <ItemMenuAccion Destructivo="true" OnClick="() => PedirEliminacion(usuario)">
+                                        Eliminar
+                                    </ItemMenuAccion>
+                                }
                                 @* Destructivo solo al desactivar: reactivar
                                    devuelve un acceso, no lo quita. *@
                                 <ItemMenuAccion Destructivo="usuario.Activo"
@@ -303,7 +328,7 @@
    perdido obligue a dar de alta a la persona otra vez. *@
 <Modal Visible="@(_enlaceActivacion is not null)"
        VisibleChanged="@(v => { if (!v) _enlaceActivacion = null; })"
-       Titulo="Usuario creado">
+       Titulo="@(_reenvioEnCurso ? "Correo reenviado" : "Usuario creado")">
     <ChildContent>
         <p>
             Le hemos enviado por correo un enlace para que establezca su contraseña.
@@ -318,3 +343,8 @@
         <Boton OnClick="() => _enlaceActivacion = null">Hecho</Boton>
     </Pie>
 </Modal>
+
+<DialogoConfirmacion Visible="@(_usuarioAEliminar is not null)" VisibleChanged="CerrarEliminacion"
+                      Titulo="Eliminar usuario" Mensaje="@MensajeEliminacion"
+                      TextoBotonConfirmar="Eliminar" EnProgreso="_eliminandoUsuario"
+                      OnConfirmar="EliminarUsuarioAsync" />

@@ -3,6 +3,7 @@ using System.Security.Claims;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Empresas.Queries.BuscarEmpresaPorCif;
 using CaeManager.Application.Common;
+using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Infrastructure.Autorizacion;
@@ -23,9 +24,15 @@ namespace CaeManager.Web.Features.Usuarios.Pages;
 /// una asignación de otra organización" de "este es su rol propio" — sin él,
 /// las dos filas se ven idénticas y el rol delegado parece nativo.
 /// </summary>
+/// <param name="PendienteActivacion">
+/// Sin contraseña todavía: nunca llegó a usar el enlace de activación (o el
+/// correo no llegó — ver <see cref="Usuarios.ReenviarCredencialesAsync"/>).
+/// Distinta de <paramref name="Activo"/>: una cuenta puede estar activa
+/// (sin bloquear) y aun así pendiente de que alguien complete el alta.
+/// </param>
 public record UsuarioListaDto(
     Guid Id, string Email, string NombreCompleto, string Rol, bool Activo, bool EsOperadorDelegado,
-    AlcanceUsuarioDto Alcance);
+    bool PendienteActivacion, AlcanceUsuarioDto Alcance);
 
 /// <summary>
 /// Qué alcanza una cuenta, ya resuelto a texto. Es presentación y por eso vive
@@ -414,6 +421,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
                     usuarios.Add(new UsuarioListaDto(
                         usuario.Id, usuario.Email ?? string.Empty, usuario.NombreCompleto, rol, activo, esOperadorDelegado,
+                        await EsPendienteActivacionAsync(usuario),
                         CalcularAlcance(usuario, rol, carteras, gestoresPorCoordinador)));
                 }
             }, token);
@@ -500,6 +508,18 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     /// </summary>
     protected virtual Task<bool> EsCuentaPropiaAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
         DirectorioUsuarios.EsCuentaPropiaDelTenantActualAsync(usuarioId, cancellationToken);
+
+    /// <summary>
+    /// <c>PasswordHash is null</c> no basta (hallazgo de revisión, PR de
+    /// reenvío/eliminación): una cuenta autoaprovisionada por SSO
+    /// (<c>IdentityEndpointsExtensions.cs</c>, el endpoint de callback de
+    /// Microsoft) nace igual de vacía y nunca establece una — se autentica
+    /// siempre por su <c>AspNetUserLogins</c> externo. Sin esta distinción,
+    /// "Eliminar" podía borrar una cuenta SSO en uso real, y "Pendiente de
+    /// activación" la marcaba como si nadie hubiera entrado nunca.
+    /// </summary>
+    private async Task<bool> EsPendienteActivacionAsync(ApplicationUser usuario) =>
+        string.IsNullOrEmpty(usuario.PasswordHash) && (await UserManager.GetLoginsAsync(usuario)).Count == 0;
 
     /// <summary>
     /// El rol que entra aquí es el <b>efectivo en esta organización</b>: para
@@ -936,6 +956,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
         var resultadoRol = await PuertaAccesoDatos.EjecutarAsync(() => UserManager.AddToRoleAsync(usuario, _rol));
 
+        _reenvioEnCurso = false;
         _enlaceActivacion = await GenerarEnlaceActivacionAsync(usuario);
 
         // La cuenta ya quedó creada en Identity —CreateAsync sí tuvo éxito—,
@@ -996,7 +1017,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     /// sigue visible para quien acaba de crearlo.
     /// </para>
     /// </summary>
-    private async Task EnviarCorreoActivacionAsync(Guid usuarioId, string email, string nombreCompleto, string enlaceActivacion)
+    private async Task<Result> EnviarCorreoActivacionAsync(Guid usuarioId, string email, string nombreCompleto, string enlaceActivacion)
     {
         var cuerpo = $"""
             <p>Hola {System.Net.WebUtility.HtmlEncode(nombreCompleto)},</p>
@@ -1008,6 +1029,159 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         var resultado = await EmailService.EnviarAsync(email, $"Activa tu acceso a {Marca.Nombre}", cuerpo);
         if (resultado.EsFallido)
             Logger.LogWarning("No se pudo enviar el correo de activación a {UsuarioId}.", usuarioId);
+        return resultado;
+    }
+
+    /// <summary>
+    /// Regenera el enlace (el anterior no se invalida en sí, pero uno nuevo lo
+    /// vuelve irrelevante en la práctica: <c>DataProtectorTokenProvider</c> no
+    /// tiene revocación explícita, así que no tiene sentido prometerla) y
+    /// reenvía el correo de alta. Solo tiene sentido para una cuenta
+    /// <see cref="UsuarioListaDto.PendienteActivacion"/>: si ya tiene
+    /// contraseña, esto no es el canal — es "olvidé mi contraseña".
+    /// </summary>
+    private async Task ReenviarCredencialesAsync(UsuarioListaDto usuarioLista)
+    {
+        if (_reenviandoCredencialesDe.Contains(usuarioLista.Id)) return;
+        _reenviandoCredencialesDe.Add(usuarioLista.Id);
+
+        var token = _ciclo.Token;
+        try
+        {
+            var usuario = await PuertaAccesoDatos.EjecutarAsync(
+                () => UserManager.FindByIdAsync(usuarioLista.Id.ToString()), token);
+            if (usuario is null)
+            {
+                ToastService.Mostrar("Esta cuenta ya no existe.", TonoToast.Error);
+                return;
+            }
+
+            if (!await EsCuentaPropiaAsync(usuarioLista.Id, token))
+            {
+                ToastService.Mostrar("No encontramos este usuario.", TonoToast.Error);
+                return;
+            }
+
+            // Revalida contra la cuenta recién leída, no contra el DTO con el que se pulsó el
+            // menú: si la persona completó su activación entre la carga de la lista y este clic,
+            // emitir el enlace igual mostraría a quien administra un token de restablecimiento
+            // válido para una cuenta que ya tiene contraseña (hallazgo de revisión).
+            if (!await EsPendienteActivacionAsync(usuario))
+            {
+                ToastService.Mostrar("Esta cuenta ya no está pendiente de activación; recargamos la lista.", TonoToast.Error);
+                await CargarAsync();
+                return;
+            }
+
+            var enlace = await GenerarEnlaceActivacionAsync(usuario);
+            var resultado = await EnviarCorreoActivacionAsync(usuario.Id, usuarioLista.Email, usuarioLista.NombreCompleto, enlace);
+
+            if (resultado.EsFallido)
+                ToastService.Mostrar(
+                    $"No pudimos enviar el correo: {resultado.Error.Mensaje} El enlace queda abajo para entregarlo tú mismo.",
+                    TonoToast.Error);
+            else
+                ToastService.Mostrar("Correo de activación reenviado.", TonoToast.Exito);
+
+            _reenvioEnCurso = true;
+            _enlaceActivacion = enlace;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            _reenviandoCredencialesDe.Remove(usuarioLista.Id);
+        }
+    }
+
+    private void PedirEliminacion(UsuarioListaDto usuario)
+    {
+        if (!_eliminandoUsuario) _usuarioAEliminar = usuario;
+    }
+
+    private void CerrarEliminacion(bool visible)
+    {
+        if (!visible && !_eliminandoUsuario) _usuarioAEliminar = null;
+    }
+
+    /// <summary>
+    /// Restringida a cuentas <see cref="UsuarioListaDto.PendienteActivacion"/>:
+    /// sin contraseña nunca hubo sesión, así que no hay historial de la
+    /// persona que perder. Una cuenta ya activada no se ofrece a borrar desde
+    /// aquí — eso es una decisión de producto distinta (qué pasa con lo que
+    /// ya creó, firmó o le asignaron) que esta pantalla no resuelve; para esa
+    /// sigue existiendo Desactivar. La comprobación se repite en el servidor
+    /// (nunca solo en la UI, ver EsCuentaPropiaAsync): alcance no es
+    /// autorización.
+    /// </summary>
+    private async Task EliminarUsuarioAsync()
+    {
+        if (_usuarioAEliminar is not { } usuarioLista) return;
+
+        if (usuarioLista.Id == _usuarioActualId)
+        {
+            ToastService.Mostrar("No puedes eliminar tu propia cuenta.", TonoToast.Error);
+            _usuarioAEliminar = null;
+            return;
+        }
+
+        _eliminandoUsuario = true;
+        var token = _ciclo.Token;
+        IdentityResult? falloAlEliminar = null;
+
+        try
+        {
+            var resultado = await PuertaAccesoDatos.EjecutarAsync(async () =>
+            {
+                var usuario = await UserManager.FindByIdAsync(usuarioLista.Id.ToString());
+                if (usuario is null) return ResultadoActivacionUsuario.NoEncontrado;
+                if (!await EsCuentaPropiaAsync(usuarioLista.Id, token)) return ResultadoActivacionUsuario.NoPropia;
+
+                if (!await EsPendienteActivacionAsync(usuario))
+                    return ResultadoActivacionUsuario.NoPendiente;
+
+                var borrado = await UserManager.DeleteAsync(usuario);
+                if (borrado.Succeeded) return ResultadoActivacionUsuario.Actualizado;
+
+                falloAlEliminar = borrado;
+                return ResultadoActivacionUsuario.FalloAlEliminar;
+            }, token);
+
+            switch (resultado)
+            {
+                case ResultadoActivacionUsuario.NoPropia:
+                case ResultadoActivacionUsuario.NoEncontrado:
+                    ToastService.Mostrar("No encontramos este usuario.", TonoToast.Error);
+                    break;
+                case ResultadoActivacionUsuario.NoPendiente:
+                    // No debería alcanzarse desde la UI (el botón no se ofrece) salvo que la
+                    // persona activó su cuenta justo entre la carga de la lista y este clic — el
+                    // servidor no confía en lo que la UI decidió mostrar.
+                    ToastService.Mostrar("Esta cuenta ya tiene contraseña o inicia sesión por SSO; no se puede eliminar desde aquí.", TonoToast.Error);
+                    _usuarioAEliminar = null;
+                    await CargarAsync();
+                    break;
+                case ResultadoActivacionUsuario.FalloAlEliminar:
+                    // Encontrada, propia y pendiente: la escritura en sí falló (concurrencia,
+                    // almacén). Decirlo tal cual, no "no encontramos este usuario" — la cuenta
+                    // sigue ahí y quien administra necesita el motivo real para reintentar.
+                    ToastService.Mostrar($"No pudimos eliminar esta cuenta. {DescribirErrores(falloAlEliminar!)}", TonoToast.Error);
+                    break;
+                default:
+                    ToastService.Mostrar("Usuario eliminado.", TonoToast.Exito);
+                    _usuarioAEliminar = null;
+                    await CargarAsync();
+                    break;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            _eliminandoUsuario = false;
+        }
     }
 
     private async Task EditarUsuarioAsync(Guid id)
@@ -1159,7 +1333,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         FalloAlCambiarRolSinNinguno
     }
 
-    private enum ResultadoActivacionUsuario { Actualizado, NoEncontrado, NoPropia }
+    private enum ResultadoActivacionUsuario { Actualizado, NoEncontrado, NoPropia, NoPendiente, FalloAlEliminar }
 
     /// <summary>
     /// Nada cambia en pantalla hasta que responde el servidor: la fila no se
@@ -1269,4 +1443,17 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     /// impedir desactivar a otra mientras la primera viaja.
     /// </summary>
     private readonly HashSet<Guid> _cambiandoActivacionDe = [];
+
+    /// <summary>A prueba de doble clic, mismo criterio que <see cref="_cambiandoActivacionDe"/>.</summary>
+    private readonly HashSet<Guid> _reenviandoCredencialesDe = [];
+
+    /// <summary>Distingue el modal reutilizado de "enlace de activación" entre alta y reenvío.</summary>
+    private bool _reenvioEnCurso;
+
+    private UsuarioListaDto? _usuarioAEliminar;
+    private bool _eliminandoUsuario;
+
+    private string MensajeEliminacion => _usuarioAEliminar is null
+        ? string.Empty
+        : $"Se eliminará la cuenta «{_usuarioAEliminar.Email}». Nunca llegó a tener contraseña, así que no hay sesión ni historial que perder. No se puede deshacer.";
 }
