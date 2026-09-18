@@ -18,14 +18,25 @@ on:
   # WORKFLOW YAML del commit de MERGE de la PR — una PR podía editar este
   # mismo fichero (quitar un paso, desactivar el job) y evaluarse con su
   # propia versión, sin tocar siquiera el guion. `pull_request_target` lee el
-  # YAML de la rama BASE siempre — inmune a lo que la PR declare en su propia
-  # copia. El motivo habitual para EVITAR `pull_request_target` (ejecuta
-  # código ajeno con más autoridad/secretos) no aplica aquí: ningún paso hace
-  # checkout del head de la PR ni de ninguna otra rama que no sea la base —
-  # `scripts/verificar-gobernanza-pr.sh` no lee el árbol de la PR en
-  # absoluto, recibe cuerpo/ficheros/autor por API (ver el paso de abajo). Si
-  # algún día se añade un checkout del head aquí, esa garantía desaparece —
-  # no lo hagas sin repetir el análisis de REC-213.
+  # YAML de la rama POR DEFECTO del repositorio (2ª pasada de Codex sobre
+  # esta PR: no es "siempre la rama base de la PR" en general — son la misma
+  # rama aquí porque toda PR de este repo se corta de `origin/main` y va
+  # contra `main`, que es la rama por defecto; una PR contra una base
+  # distinta de `main` rompería esa coincidencia). Inmune a lo que la PR
+  # declare en su propia copia. El motivo habitual para EVITAR
+  # `pull_request_target` (ejecuta código ajeno con más autoridad/secretos)
+  # no aplica aquí: ningún paso hace checkout del head de la PR ni de
+  # ninguna otra rama que no sea la base — `scripts/verificar-gobernanza-pr.sh`
+  # no lee el árbol de la PR en absoluto, recibe cuerpo/ficheros/autor por
+  # API (ver el paso de abajo). Si algún día se añade un checkout del head
+  # aquí, esa garantía desaparece — no lo hagas sin repetir el análisis de
+  # REC-213.
+  #
+  # Caso límite documentado por GitHub y señalado por Codex (severidad baja,
+  # no se protege activamente): una rama cuyo nombre coincide con el formato
+  # de un SHA puede no disparar `pull_request_target`. Las ramas de este
+  # repo siguen la convención `claude/<slug-legible>` (protocolo § 21) — no
+  # colisiona en el uso normal.
   #
   # Verificado en una PR real (repo privado desechable, 2026-09-18): el check
   # de un job disparado por `pull_request_target` SÍ aparece en la lista de
@@ -82,8 +93,14 @@ on:
 # propio job relevante (`if:`, más abajo) — sin separarlos por nombre de
 # evento, la llegada del segundo cancelaría el primero antes de que su job
 # terminase, aunque ninguno de los dos sea "obsoleto" respecto al otro.
+# `|| github.run_id` como último recurso: si algún evento llegara sin
+# `pull_request.number` en el payload, cada ejecución cae a su propio
+# `run_id` (nunca colisiona) en vez de compartir grupo con otra PR distinta
+# — barato de añadir, aunque `number` es un campo estándar del payload de
+# `pull_request`/`pull_request_target` y no se ha medido un caso real donde
+# falte (hallazgo de Codex sin confirmar en esta PR).
 concurrency:
-  group: gobernanza-pr-${{ github.event_name }}-${{ github.event.pull_request.number }}
+  group: gobernanza-pr-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 permissions: {}
