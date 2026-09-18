@@ -14,10 +14,13 @@ namespace CaeManager.Web.Components.Layout;
 /// dentro de <c>NpgsqlDataReader</c>, o una <see cref="NpgsqlException"/>
 /// cruda del parser de protocolo de Npgsql. Esta última NO se acepta por
 /// "cualquier <c>NpgsqlException</c> no transitoria" — eso también incluye
-/// fallos reales de autenticación de Npgsql — sino por el mensaje literal de
-/// los dos únicos sitios de Npgsql 10.0.3 que construyen esta carrera
-/// concreta: <c>"Received backend message {X} while expecting {Y}. Please
-/// file a bug."</c>.
+/// fallos reales de autenticación de Npgsql — ni por cualquier mensaje con
+/// la forma <c>"Received backend message {X} while expecting {Y}. Please
+/// file a bug."</c> — esa plantilla también la emite Npgsql ante un mensaje
+/// de protocolo inesperado con la conexión viva, sin relación con esta
+/// carrera — sino por los pares <c>{X}</c>/<c>{Y}</c> exactos medidos en
+/// esta carrera concreta. Un par nuevo, no visto todavía, debe seguir
+/// escalando en vez de tragarse en silencio.
 /// </para>
 ///
 /// <para>
@@ -41,17 +44,21 @@ public sealed class ExcepcionDeCircuitoDesconectado
 {
     private ExcepcionDeCircuitoDesconectado() { }
 
-    private const string PrefijoMensajeDesincronizacion = "Received backend message ";
-    private const string SufijoMensajeDesincronizacion = " Please file a bug.";
+    /// <summary>
+    /// Mensajes exactos medidos en CI para esta carrera concreta — no un
+    /// patrón de prefijo/sufijo, que también acepta pares de Npgsql sin
+    /// relación con ella.
+    /// </summary>
+    private static readonly string[] MensajesDeDesincronizacionDeProtocolo =
+    [
+        "Received backend message BindComplete while expecting ParseCompleteMessage. Please file a bug.",
+        "Received backend message DataRow while expecting ReadyForQuery. Please file a bug.",
+    ];
 
     public static bool Es(Exception ex) =>
         ex is ObjectDisposedException or ArgumentOutOfRangeException
         || (ex is NpgsqlException { IsTransient: false } npgsqlEx
             and not PostgresException
             and not NpgsqlOperationInProgressException
-            && EsMensajeDeDesincronizacionDeProtocolo(npgsqlEx.Message));
-
-    private static bool EsMensajeDeDesincronizacionDeProtocolo(string mensaje) =>
-        mensaje.StartsWith(PrefijoMensajeDesincronizacion, StringComparison.Ordinal)
-        && mensaje.EndsWith(SufijoMensajeDesincronizacion, StringComparison.Ordinal);
+            && MensajesDeDesincronizacionDeProtocolo.Contains(npgsqlEx.Message, StringComparer.Ordinal));
 }

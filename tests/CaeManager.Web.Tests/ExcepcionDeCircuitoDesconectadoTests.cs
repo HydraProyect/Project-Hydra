@@ -55,6 +55,19 @@ public class ExcepcionDeCircuitoDesconectadoTests
     }
 
     [Fact]
+    public void NpgsqlException_cruda_con_otro_par_recibido_esperado_no_medido_no_se_traga()
+    {
+        // Hallazgo de la tercera revisión de Codex: la plantilla "Received
+        // backend message {X} while expecting {Y}. Please file a bug."
+        // también la emite Npgsql ante cualquier mensaje de protocolo
+        // inesperado con la conexión viva — el criterio no acepta cualquier
+        // par, solo los dos exactos medidos en esta carrera concreta.
+        var ex = new NpgsqlException("Received backend message ErrorResponse while expecting AuthenticationRequest. Please file a bug.");
+
+        ExcepcionDeCircuitoDesconectado.Es(ex).Should().BeFalse();
+    }
+
+    [Fact]
     public void NpgsqlException_cruda_de_autenticacion_real_no_se_traga_aunque_no_sea_transitoria_ni_Postgres_ni_OperationInProgress()
     {
         // Hallazgo de la revisión de Codex sobre la primera versión de este
