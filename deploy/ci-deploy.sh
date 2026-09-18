@@ -1,12 +1,16 @@
 #!/bin/bash
 # Comando forzado para la clave de deploy de GitHub Actions (ver
 # /root/.ssh/authorized_keys en el VPS, entrada con "command=") — el cliente
-# SSH nunca elige el comando real que corre aquí, solo los dos tokens que
-# llegan en $SSH_ORIGINAL_COMMAND: el entorno ("staging"|"produccion") y el
-# SHA exacto a desplegar. Si esta clave privada se filtrara, el máximo que
-# permite es forzar el redeploy de un commit que YA es ancestro real de main
-# en GitHub (resolve-deploy-sha.sh lo exige) — nunca una shell arbitraria ni
-# un commit fuera de esa historia.
+# SSH nunca elige el comando real que corre aquí, solo el primer token que
+# llega en $SSH_ORIGINAL_COMMAND: "staging"/"produccion" (con el SHA exacto a
+# desplegar como segundo token) o "secretos" (sin segundo token — REC-014/P37,
+# ver la función actualizar_secretos_produccion más abajo). Si esta clave
+# privada se filtrara, el máximo que permite es forzar el redeploy de un
+# commit que YA es ancestro real de main en GitHub (resolve-deploy-sha.sh lo
+# exige) o sobrescribir en `.env` solo las claves que el propietario haya
+# cargado como secretos en el entorno `produccion` de GitHub — nunca una
+# shell arbitraria, un commit fuera de esa historia, ni la lectura de un
+# secreto ya guardado (el mecanismo solo escribe).
 #
 # El SHA es obligatorio: nunca se despliega "lo que haya en main ahora
 # mismo". Es el commit exacto que el workflow de GitHub Actions resolvió al
@@ -46,12 +50,93 @@ set -euo pipefail
 # fuerza a bash a leer hasta la llave de cierre antes de poder llamarla, así
 # que en el momento en que `main` empieza a correr el fichero ya está
 # parseado entero y da igual que cambie en disco a partir de ahí.
+
+# REC-014/P37 (transición documentada, opción "secretos de GitHub inyectados
+# en el despliegue"): actualiza en `.env` SOLO las claves que llegan por
+# stdin, dejando cualquier otra línea del fichero intacta. Vive en su propia
+# función, definida aquí y llamada desde el `case` de `main` — no toca
+# staging (fuera del alcance decidido: `.env.staging` se sigue gestionando a
+# mano mientras dure la transición) ni el flujo de build/deploy.
+#
+# Diseño obligado por cómo GitHub separa la aprobación de producción
+# (`aprobacion-produccion`, el único job de .github/workflows/deploy.yml con
+# `environment: produccion`, que es lo único que le da acceso a estos
+# secretos) del job que ejecuta el despliegue real (`produccion`, sin
+# `environment:` a propósito — ver el comentario "Por qué producción depende
+# de staging" de ese fichero). Meter los secretos en la salida de un job para
+# pasárselos al siguiente NO es seguro (GitHub: "job outputs are not masked
+# and are not encrypted"), así que quien tiene los secretos ("aprobacion-
+# produccion") es quien llama a ESTE modo, en un segundo SSH separado del que
+# dispara el build — nunca el mismo job que hace `docker compose build/up`,
+# para no reintroducir el problema que DEC-39/40 resolvió separando la
+# aprobación (cancelable) de la ejecución (no cancelable a medias).
+actualizar_secretos_produccion() {
+    # Sin bytes en stdin —el caso de hoy, mientras el propietario no cargue
+    # ningún secreto en el entorno `produccion` de GitHub— esto es un no-op
+    # exacto: ni siquiera se reescribe `.env` con el mismo contenido. Es la
+    # condición que hace que "el pipeline siga funcionando mientras los
+    # valores no estén cargados" sea literalmente cierto, no solo la
+    # intención.
+    local recibido
+    recibido="$(cat)"
+    if [ -z "$recibido" ]; then
+        echo "Sin secretos que actualizar (ninguno cargado todavía en el entorno 'produccion' de GitHub) — .env sin tocar." >&2
+        return 0
+    fi
+
+    local fichero_env="/opt/talveg/deploy/local/.env"
+    # El .env real es un prerrequisito ya documentado en docker-compose.
+    # produccion.yml ("cp .env.example .env") para cualquier despliegue que
+    # funcione; si no existe, algo más básico que este mecanismo está roto —
+    # se crea vacío para que el upsert de abajo tenga algo que leer, en vez
+    # de fallar con un error de awk que no dice nada del problema real.
+    [ -f "$fichero_env" ] || : > "$fichero_env"
+
+    local fichero_nuevo
+    fichero_nuevo="$(mktemp /opt/talveg/deploy/local/.env.nuevo.XXXXXX)"
+
+    # El "upsert" es por CLAVE, no una sustitución de texto: sustituye la
+    # línea de cada clave recibida si ya existe en el .env real, la añade al
+    # final si no existía, y deja intacta cualquier otra línea —incluida
+    # cualquier clave que el propietario siga gestionando a mano mientras
+    # dure la transición—. `index($0,"=")` corta en el PRIMER "=", no con una
+    # expresión regular, así que un valor con "=" dentro (una cadena de
+    # conexión, p. ej. ConnectionStrings__CaeManagerDbRuntime) no se trunca.
+    # Los valores nunca se imprimen fuera del propio fichero de salida.
+    awk -F= '
+        NR==FNR {
+            if ($1 != "") {
+                clave=$1
+                valor[clave]=substr($0, index($0,"=")+1)
+                vista[clave]=0
+            }
+            next
+        }
+        {
+            clave=$1
+            if (($0 ~ /^[A-Za-z_][A-Za-z0-9_]*=/) && (clave in valor)) {
+                print clave "=" valor[clave]
+                vista[clave]=1
+            } else {
+                print
+            }
+        }
+        END {
+            for (k in valor) if (!vista[k]) print k "=" valor[k]
+        }
+    ' <(printf '%s\n' "$recibido") "$fichero_env" > "$fichero_nuevo"
+
+    chmod 600 "$fichero_nuevo"
+    mv "$fichero_nuevo" "$fichero_env"
+    echo "Secretos de producción actualizados en .env (REC-014/P37) — valores no impresos en ningún log." >&2
+}
+
 main() {
 
 read -r ENTORNO SHA <<< "${SSH_ORIGINAL_COMMAND:-}"
 
 case "$ENTORNO" in
-  staging|produccion) ;;
+  staging|produccion|secretos) ;;
   *)
     echo "Entorno no permitido: '${ENTORNO:-<vacio>}'" >&2
     exit 1
@@ -79,6 +164,15 @@ exec 9>/opt/talveg/deploy/.ci-deploy.lock
 if ! flock -w 600 9; then
   echo "No se pudo obtener el cerrojo de despliegue en 10 min — otro despliegue (staging o producción) sigue en marcha sobre /opt/talveg." >&2
   exit 1
+fi
+
+# "secretos" (REC-014/P37) no construye ni despliega nada — solo actualiza
+# .env bajo el mismo cerrojo (para no pisarse con un build que lo esté
+# leyendo en ese instante) y termina. Corta aquí, antes de tocar el checkout
+# git o el disco, que son cosa de "staging"/"produccion".
+if [ "$ENTORNO" = "secretos" ]; then
+    actualizar_secretos_produccion
+    exit 0
 fi
 
 bash /opt/talveg/deploy/resolve-deploy-sha.sh /opt/talveg "${SHA:-}"

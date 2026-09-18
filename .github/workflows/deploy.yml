@@ -93,11 +93,16 @@ name: Desplegar
 # La clave SSH (secrets.VPS_SSH_KEY) es de un par dedicado, restringido en el
 # propio VPS (ver /root/.ssh/authorized_keys, entrada con "command=") a solo
 # poder ejecutar /opt/talveg/deploy/ci-deploy.sh — ese script decide, por el
-# primer token recibido ("staging" o "produccion"), cuál de los dos stacks
-# reconstruye, y usa el segundo token (el SHA) para fijar exactamente qué
-# commit despliega (ver deploy/resolve-deploy-sha.sh). Aunque este secreto se
-# filtrara, no da una shell libre en el VPS: como mucho, permite forzar el
-# redeploy de un commit que ya sea ancestro real de main en GitHub.
+# primer token recibido, qué hacer: "staging" o "produccion" reconstruyen ese
+# stack, usando el segundo token (el SHA) para fijar exactamente qué commit
+# despliega (ver deploy/resolve-deploy-sha.sh); "secretos" (sin segundo
+# token, REC-014/P37 — job "aprobacion-produccion" más abajo) actualiza en
+# `.env` solo las claves que llegan por stdin, sin construir ni desplegar
+# nada. Aunque este secreto se filtrara, no da una shell libre en el VPS:
+# como mucho, permite forzar el redeploy de un commit que ya sea ancestro
+# real de main en GitHub, o sobrescribir en `.env` las claves que el
+# propietario haya cargado como secretos del entorno `produccion` — nunca
+# leer un secreto ya guardado, que el mecanismo no expone.
 #
 # --- Por qué producción depende de staging, y por qué son dos jobs ----------
 #
@@ -365,6 +370,111 @@ jobs:
     steps:
       - name: Aprobado
         run: echo "Despliegue a produccion aprobado para $SHA_DESPLEGADO"
+
+      - name: Preparar clave SSH
+        run: |
+          install -m 600 -D /dev/null ~/.ssh/id_ed25519
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          echo "$VPS_HOST_KEY" >> ~/.ssh/known_hosts
+
+      - name: Actualizar secretos de producción (REC-014/P37)
+        # Transición documentada (REC-014, opción "secretos de GitHub
+        # inyectados en el despliegue"): mientras el propietario no cargue
+        # ningún valor abajo, este paso no cambia nada en el VPS — el `.env`
+        # real sigue siendo la única fuente, exactamente como antes de este
+        # cambio (ver deploy/ci-deploy.sh, actualizar_secretos_produccion, el
+        # no-op con stdin vacío).
+        #
+        # Corre en ESTE job — el único con `environment: produccion`, que es
+        # lo que da acceso a estos secretos — y NO en el job "produccion" de
+        # abajo. GitHub no permite pasar secretos a otro job por sus
+        # `outputs` ("job outputs are not masked and are not encrypted"), así
+        # que el SSH que los escribe tiene que salir de aquí, en un segundo
+        # comando forzado separado del que construye y despliega
+        # ("secretos", nunca "produccion $SHA") — meterlo en el mismo job que
+        # hace `docker compose build/up` reabriría el problema que DEC-39/40
+        # resolvió separando la aprobación (cancelable) de la ejecución (no
+        # cancelable a medias): este job sigue con `cancel-in-progress: true`
+        # porque escribir `.env` es idempotente y seguro de cancelar a
+        # medias (el `mv` final en el VPS es atómico), cosa que un
+        # `docker compose up` a medias no es.
+        #
+        # LISTA DE NOMBRES (única fuente de qué se inyecta hoy — para añadir
+        # un secreto más: declararlo aquí en `env:` con el MISMO nombre que
+        # usa `.env`, añadir su línea en `agregar` más abajo, y cargar el
+        # valor como "environment secret" en GitHub, Settings → Environments
+        # → produccion). Cubre hoy lo más crítico — la identidad de runtime
+        # con RLS y las credenciales de integraciones externas — no todo lo
+        # que admite `.env` (DOMINIO, ACME_EMAIL y demás configuración no
+        # sensible se sigue gestionando a mano, igual que antes).
+        env:
+          SEC_POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          SEC_CAEMANAGERDBRUNTIME: ${{ secrets.ConnectionStrings__CaeManagerDbRuntime }}
+          SEC_ADMINISTRADOR_INICIAL_CONTRASENA: ${{ secrets.AdministradorInicial__Contrasena }}
+          SEC_ANTHROPIC_APIKEY: ${{ secrets.Anthropic__ApiKey }}
+          SEC_SMTP_CONTRASENA: ${{ secrets.Smtp__Contrasena }}
+          SEC_AZUREAD_CLIENTSECRET: ${{ secrets.AzureAd__ClientSecret }}
+          SEC_MICROSOFT365_CLIENTSECRET: ${{ secrets.Integraciones__Microsoft365__ClientSecret }}
+          SEC_WHATSAPP_APPSECRET: ${{ secrets.Integraciones__WhatsApp__AppSecret }}
+          SEC_WHATSAPP_VERIFYTOKEN: ${{ secrets.Integraciones__WhatsApp__VerifyToken }}
+          SEC_SEQ_APIKEY: ${{ secrets.Serilog__Seq__ApiKey }}
+        run: |
+          set -euo pipefail
+
+          BLOB=""
+          agregar() {
+            local nombre="$1" valor="$2"
+            if [ -n "$valor" ]; then
+              case "$valor" in
+                *$'\n'*)
+                  echo "::error::el secreto $nombre trae un salto de línea — este mecanismo solo admite valores de una sola línea (formato KEY=VALOR en .env)"
+                  exit 1
+                  ;;
+              esac
+              # $'\n' explícito, nunca un salto de línea literal en el
+              # fuente: dentro de un bloque YAML `run: |`, un salto de línea
+              # "de verdad" aquí arrastraría la indentación de la línea
+              # siguiente como espacios literales dentro de BLOB, y esos
+              # espacios delante de la próxima clave le rompen a awk el
+              # patrón `^[A-Za-z_][A-Za-z0-9_]*=` — la clave deja de
+              # reconocerse, su valor no se actualiza, y queda una línea
+              # basura al final del .env. Verificado con
+              # deploy/ci-deploy-secretos.tests.sh.
+              BLOB="${BLOB}${nombre}=${valor}"$'\n'
+            fi
+          }
+          agregar "POSTGRES_PASSWORD" "$SEC_POSTGRES_PASSWORD"
+          agregar "ConnectionStrings__CaeManagerDbRuntime" "$SEC_CAEMANAGERDBRUNTIME"
+          agregar "AdministradorInicial__Contrasena" "$SEC_ADMINISTRADOR_INICIAL_CONTRASENA"
+          agregar "Anthropic__ApiKey" "$SEC_ANTHROPIC_APIKEY"
+          agregar "Smtp__Contrasena" "$SEC_SMTP_CONTRASENA"
+          agregar "AzureAd__ClientSecret" "$SEC_AZUREAD_CLIENTSECRET"
+          agregar "Integraciones__Microsoft365__ClientSecret" "$SEC_MICROSOFT365_CLIENTSECRET"
+          agregar "Integraciones__WhatsApp__AppSecret" "$SEC_WHATSAPP_APPSECRET"
+          agregar "Integraciones__WhatsApp__VerifyToken" "$SEC_WHATSAPP_VERIFYTOKEN"
+          agregar "Serilog__Seq__ApiKey" "$SEC_SEQ_APIKEY"
+
+          # LIMITACIÓN CONOCIDA compartida con ci-deploy.sh (ver su cabecera,
+          # "un cambio a ESTE fichero tarda un despliegue en surtir efecto"):
+          # el PRIMER despliegue a producción después de fusionar este PR
+          # todavía ejecuta, en el VPS, la copia de ci-deploy.sh de ANTES de
+          # este cambio — que no reconoce "secretos" y rechaza el comando con
+          # "Entorno no permitido". Sin este `if`, ese rechazo esperado
+          # tumbaría "aprobacion-produccion" y, con él, bloquearía TODO
+          # despliegue a producción (needs: aprobacion-produccion) hasta el
+          # siguiente. Se trata como aviso, no como fallo — cualquier OTRO
+          # error (SSH, fallo real de actualizar_secretos_produccion en una
+          # copia ya actualizada) sigue haciendo fallar el job.
+          SALIDA="$(ssh -i ~/.ssh/id_ed25519 "root@$VPS_HOST" "secretos" <<< "$BLOB" 2>&1)" && ESTADO=0 || ESTADO=$?
+          printf '%s\n' "$SALIDA"
+          if [ "$ESTADO" -ne 0 ]; then
+            if printf '%s' "$SALIDA" | grep -qF "Entorno no permitido: 'secretos'"; then
+              echo "::warning::el VPS todavía corre la copia de ci-deploy.sh anterior a REC-014/P37 y no reconoce 'secretos' — se actualizará sola en el próximo despliegue que traiga este cambio a /opt/talveg. No se ha escrito ningún secreto en este run; .env sigue como estaba."
+            else
+              echo "::error::fallo real al actualizar secretos de producción — ver la salida de arriba"
+              exit 1
+            fi
+          fi
 
   produccion:
     name: Desplegar a producción
