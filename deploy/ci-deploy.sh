@@ -179,10 +179,18 @@ actualizar_secretos_produccion() {
     # pareciera nombre de variable (p. ej. una contraseña generada
     # "abc$HOME123") llegaría alterado o truncado a `app`/`caddy` (los dos
     # servicios con `env_file: .env`) — no un fallo de arranque ruidoso, sino
-    # una credencial equivocada en silencio. Los caracteres especiales del
-    # propio formato dotenv con comilla simple —la comilla simple y la barra
-    # invertida— se escapan con \, que es la única secuencia que ese formato
-    # documenta para comillas simples ("Quotes can be escaped with \").
+    # una credencial equivocada en silencio.
+    #
+    # ÚNICO carácter que se escapa: la comilla simple, con \ — es la ÚNICA
+    # secuencia que ese formato documenta para comillas simples ("Quotes can
+    # be escaped with \"). Una barra invertida SUELTA se deja literal a
+    # propósito (segundo hallazgo de Codex, sobre la primera versión de este
+    # mismo cambio, que la duplicaba "por si acaso"): el propio ejemplo de la
+    # documentación, `VAR='some\tvalue' -> some\tvalue`, prueba que un valor
+    # con comillas simples NO procesa ninguna secuencia de escape salvo la de
+    # la comilla — duplicar la barra invertida universalmente escribía DOS
+    # barras donde el secreto real solo tenía una, y la credencial que llega
+    # al contenedor ya no coincide con la cargada en GitHub.
     awk -F= '
         function esc(v,   q, bs, out, i, c) {
             q = sprintf("%c", 39)
@@ -190,8 +198,7 @@ actualizar_secretos_produccion() {
             out = q
             for (i = 1; i <= length(v); i++) {
                 c = substr(v, i, 1)
-                if (c == bs) out = out bs bs
-                else if (c == q) out = out bs q
+                if (c == q) out = out bs q
                 else out = out c
             }
             return out q

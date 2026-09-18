@@ -140,4 +140,18 @@ grep -qxF "Smtp__Contrasena='abc\$HOME/raro\'con-comilla'" "$FICHERO_ENV_SECRETO
   || { echo "FALLO: el valor con '\$' y comilla no quedó entrecomillado/escapado como espera el formato dotenv" >&2; cat "$FICHERO_ENV_SECRETOS_PRODUCCION" >&2; exit 1; }
 echo "OK: valor con '\$' y comilla queda entrecomillado y escapado"
 
+echo "=== Caso 7: una barra invertida suelta no se duplica (hallazgo de Codex) ==="
+# Regresión sobre la primera versión de esc(), que duplicaba TODA barra
+# invertida "por si acaso". docs.docker.com/reference/compose-file/services/#env_file-format
+# prueba con su propio ejemplo (VAR='some\tvalue' -> some\tvalue) que un
+# valor con comillas simples no procesa ninguna secuencia de escape salvo la
+# de la comilla — duplicarla escribía dos barras donde el secreto real solo
+# tenía una, y la credencial dejaba de coincidir con la cargada en GitHub.
+export FICHERO_ENV_SECRETOS_PRODUCCION="$DIR/.env-caso7"
+: > "$FICHERO_ENV_SECRETOS_PRODUCCION"
+printf 'Smtp__Contrasena=cla\\ve\n' | actualizar_secretos_produccion
+grep -qxF "Smtp__Contrasena='cla\ve'" "$FICHERO_ENV_SECRETOS_PRODUCCION" \
+  || { echo "FALLO: la barra invertida no quedó tal cual (se duplicó o se perdió)" >&2; cat "$FICHERO_ENV_SECRETOS_PRODUCCION" >&2; exit 1; }
+echo "OK: la barra invertida queda literal, sin duplicar"
+
 echo "TODAS LAS PRUEBAS PASARON"
