@@ -97,12 +97,14 @@ name: Desplegar
 # stack, usando el segundo token (el SHA) para fijar exactamente qué commit
 # despliega (ver deploy/resolve-deploy-sha.sh); "secretos" (sin segundo
 # token, REC-014/P37 — job "aprobacion-produccion" más abajo) actualiza en
-# `.env` solo las claves que llegan por stdin, sin construir ni desplegar
+# `.env` solo las claves de la lista blanca que ci-deploy.sh define
+# (CLAVES_PERMITIDAS_SECRETOS_PRODUCCION — no incluye credenciales de
+# PostgreSQL, ver el comentario de ese fichero), sin construir ni desplegar
 # nada. Aunque este secreto se filtrara, no da una shell libre en el VPS:
 # como mucho, permite forzar el redeploy de un commit que ya sea ancestro
-# real de main en GitHub, o sobrescribir en `.env` las claves que el
-# propietario haya cargado como secretos del entorno `produccion` — nunca
-# leer un secreto ya guardado, que el mecanismo no expone.
+# real de main en GitHub, o sobrescribir en `.env` una clave de esa lista
+# blanca — nunca leer un secreto ya guardado, ni escribir una clave fuera de
+# ella (rechazo total y ruidoso, `.env` sin tocar).
 #
 # --- Por qué producción depende de staging, y por qué son dos jobs ----------
 #
@@ -401,15 +403,24 @@ jobs:
         #
         # LISTA DE NOMBRES (única fuente de qué se inyecta hoy — para añadir
         # un secreto más: declararlo aquí en `env:` con el MISMO nombre que
-        # usa `.env`, añadir su línea en `agregar` más abajo, y cargar el
-        # valor como "environment secret" en GitHub, Settings → Environments
-        # → produccion). Cubre hoy lo más crítico — la identidad de runtime
-        # con RLS y las credenciales de integraciones externas — no todo lo
-        # que admite `.env` (DOMINIO, ACME_EMAIL y demás configuración no
-        # sensible se sigue gestionando a mano, igual que antes).
+        # usa `.env`, añadir su línea en `agregar` más abajo, Y añadirlo a
+        # CLAVES_PERMITIDAS_SECRETOS_PRODUCCION en ci-deploy.sh — las dos
+        # listas tienen que coincidir, o el VPS rechaza el envío entero, ver
+        # ese fichero — y por último cargar el valor como "environment
+        # secret" en GitHub, Settings → Environments → produccion). Cubre
+        # hoy las credenciales de integraciones externas y el valor de
+        # arranque del administrador inicial — no todo lo que admite `.env`
+        # (DOMINIO, ACME_EMAIL y demás configuración no sensible se sigue
+        # gestionando a mano, igual que antes).
+        #
+        # POSTGRES_PASSWORD y ConnectionStrings__CaeManagerDbRuntime NO están
+        # aquí a propósito (hallazgo de la revisión de Codex): son
+        # contraseñas de un ROL de PostgreSQL, y este paso solo sabe escribir
+        # `.env`, nunca ejecuta el `ALTER ROLE` que las hace efectivas de
+        # verdad — ver el comentario largo en ci-deploy.sh, junto a
+        # CLAVES_PERMITIDAS_SECRETOS_PRODUCCION, sobre por qué rotarlas así
+        # deja el stack sirviendo con una contraseña que PostgreSQL rechaza.
         env:
-          SEC_POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          SEC_CAEMANAGERDBRUNTIME: ${{ secrets.ConnectionStrings__CaeManagerDbRuntime }}
           SEC_ADMINISTRADOR_INICIAL_CONTRASENA: ${{ secrets.AdministradorInicial__Contrasena }}
           SEC_ANTHROPIC_APIKEY: ${{ secrets.Anthropic__ApiKey }}
           SEC_SMTP_CONTRASENA: ${{ secrets.Smtp__Contrasena }}
@@ -443,8 +454,6 @@ jobs:
               BLOB="${BLOB}${nombre}=${valor}"$'\n'
             fi
           }
-          agregar "POSTGRES_PASSWORD" "$SEC_POSTGRES_PASSWORD"
-          agregar "ConnectionStrings__CaeManagerDbRuntime" "$SEC_CAEMANAGERDBRUNTIME"
           agregar "AdministradorInicial__Contrasena" "$SEC_ADMINISTRADOR_INICIAL_CONTRASENA"
           agregar "Anthropic__ApiKey" "$SEC_ANTHROPIC_APIKEY"
           agregar "Smtp__Contrasena" "$SEC_SMTP_CONTRASENA"

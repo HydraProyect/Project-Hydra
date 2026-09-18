@@ -7,10 +7,10 @@
 # ver la función actualizar_secretos_produccion más abajo). Si esta clave
 # privada se filtrara, el máximo que permite es forzar el redeploy de un
 # commit que YA es ancestro real de main en GitHub (resolve-deploy-sha.sh lo
-# exige) o sobrescribir en `.env` solo las claves que el propietario haya
-# cargado como secretos en el entorno `produccion` de GitHub — nunca una
-# shell arbitraria, un commit fuera de esa historia, ni la lectura de un
-# secreto ya guardado (el mecanismo solo escribe).
+# exige) o sobrescribir en `.env` solo las claves de la lista blanca
+# CLAVES_PERMITIDAS_SECRETOS_PRODUCCION (más abajo) — nunca una shell
+# arbitraria, un commit fuera de esa historia, ni la lectura de un secreto ya
+# guardado (el mecanismo solo escribe), ni una clave fuera de esa lista.
 #
 # El SHA es obligatorio: nunca se despliega "lo que haya en main ahora
 # mismo". Es el commit exacto que el workflow de GitHub Actions resolvió al
@@ -70,6 +70,48 @@ set -euo pipefail
 # dispara el build — nunca el mismo job que hace `docker compose build/up`,
 # para no reintroducir el problema que DEC-39/40 resolvió separando la
 # aprobación (cancelable) de la ejecución (no cancelable a medias).
+# Lista blanca de claves que este modo admite escribir — DEFENSA EN
+# PROFUNDIDAD frente a la clave SSH filtrada (revisión adversarial de Codex):
+# sin ella, cualquiera que consiguiera la clave privada podía mandar
+# "secretos" con `ConnectionStrings__CaeManagerDbRuntime=` (vacío) o
+# `Rls__PermitirIdentidadAdministrativaInsegura=true` y, en el siguiente
+# redeploy de un commit ya legítimo, dejar a producción sirviendo tráfico sin
+# RLS — sin que el "solo escribe" del comentario de cabecera fuera cierto de
+# verdad. Esta lista es la ÚNICA fuente de qué claves puede tocar este
+# mecanismo; debe coincidir con lo que .github/workflows/deploy.yml envía
+# (hoy no incluye ninguna credencial de PostgreSQL — ver el comentario de
+# más abajo sobre por qué).
+CLAVES_PERMITIDAS_SECRETOS_PRODUCCION="
+AdministradorInicial__Contrasena
+Anthropic__ApiKey
+Smtp__Contrasena
+AzureAd__ClientSecret
+Integraciones__Microsoft365__ClientSecret
+Integraciones__WhatsApp__AppSecret
+Integraciones__WhatsApp__VerifyToken
+Serilog__Seq__ApiKey
+"
+# POSTGRES_PASSWORD y ConnectionStrings__CaeManagerDbRuntime NO están en la
+# lista, a propósito (segundo hallazgo de la revisión de Codex): ambas son
+# contraseñas de un ROL de PostgreSQL, y este mecanismo solo sabe escribir
+# `.env` — nunca ejecuta un `ALTER ROLE` contra la base de datos. El volumen
+# de `db` persiste entre despliegues, así que `POSTGRES_PASSWORD` en el
+# compose solo inicializa la contraseña la PRIMERA vez que arranca ese
+# clúster (comportamiento de la imagen oficial de postgres, no de este
+# guion); cambiarla después en `.env` sin haber cambiado antes la del propio
+# rol en PostgreSQL deja al `app`/`migrador` del SIGUIENTE despliegue con una
+# contraseña que PostgreSQL rechaza — caída del stack entero, no solo de la
+# clave que se quiso rotar. `ConnectionStrings__CaeManagerDbRuntime` depende
+# del mismo orden (RUNBOOK-RLS.md, repositorio de negocio: primero
+# `ALTER ROLE cae_app_runtime ... PASSWORD`, luego el `.env`) y aquí, a
+# diferencia de una edición manual por SSH, la escritura en `.env` queda
+# desacoplada en el tiempo del momento en que el propietario carga el
+# secreto — puede aplicarse en un despliegue disparado por el PR de otra
+# persona, sin que nadie esté mirando ese log en concreto. Rotar cualquiera
+# de las dos con este pipeline es un incremento propio, con un paso
+# autenticado que haga el `ALTER ROLE` de forma atómica junto con la
+# escritura — no una ampliación de la lista blanca de arriba.
+
 actualizar_secretos_produccion() {
     # Sin bytes en stdin —el caso de hoy, mientras el propietario no cargue
     # ningún secreto en el entorno `produccion` de GitHub— esto es un no-op
@@ -83,6 +125,24 @@ actualizar_secretos_produccion() {
         echo "Sin secretos que actualizar (ninguno cargado todavía en el entorno 'produccion' de GitHub) — .env sin tocar." >&2
         return 0
     fi
+
+    # Rechazo TOTAL y ruidoso ante cualquier clave fuera de la lista blanca —
+    # nunca aplicar las buenas y descartar en silencio la mala: eso
+    # escondería justo el caso que importa detectar (un despliegue con la
+    # lista de deploy.yml y la de aquí ya desincronizadas, o un intento real
+    # de inyección). `.env` no se toca en absoluto si algo no encaja.
+    local linea clave
+    while IFS= read -r linea; do
+        [ -n "$linea" ] || continue
+        clave="${linea%%=*}"
+        case "$CLAVES_PERMITIDAS_SECRETOS_PRODUCCION" in
+            *$'\n'"$clave"$'\n'*) ;;
+            *)
+                echo "::error::clave no permitida en 'secretos': '$clave' — .env sin tocar. Revisa CLAVES_PERMITIDAS_SECRETOS_PRODUCCION en ci-deploy.sh." >&2
+                return 1
+                ;;
+        esac
+    done <<< "$recibido"
 
     local fichero_env="/opt/talveg/deploy/local/.env"
     # El .env real es un prerrequisito ya documentado en docker-compose.
