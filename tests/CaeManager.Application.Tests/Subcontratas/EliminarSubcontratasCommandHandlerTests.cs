@@ -68,4 +68,29 @@ public class EliminarSubcontratasCommandHandlerTests
         subcontrata.EstaEliminado.Should().BeFalse();
         unitOfWork.VecesGuardado.Should().Be(0);
     }
+
+    /// <summary>
+    /// REC-172, gemelo de REC-153/159 en Empresa: un usuario de portal tiene
+    /// la Subcontrata en su cartera de LECTURA pero no en la de GESTIÓN — el
+    /// borrado en lote debe reportarla como error, no eliminarla.
+    /// </summary>
+    [Fact]
+    public async Task Usuario_de_portal_no_puede_eliminar_en_lote_una_subcontrata_de_su_cliente()
+    {
+        var subcontrata = CrearSubcontrata("B10380210");
+        var repositorio = new EmpresaRepositorioFalso();
+        repositorio.Agregar(subcontrata);
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = new EliminarSubcontratasCommandHandler(
+            repositorio,
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, subcontrataIdsVisibles: [subcontrata.Id], subcontrataIdsParaGestion: []),
+            unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()));
+
+        var resultado = await handler.Handle(new EliminarSubcontratasCommand([subcontrata.Id]), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.Eliminados.Should().Be(0);
+        resultado.Valor.Errores.Should().ContainSingle();
+        subcontrata.EstaEliminado.Should().BeFalse();
+    }
 }

@@ -49,7 +49,7 @@ public class EditarSubcontrataCommandHandler(
     public async Task<Result> Handle(EditarSubcontrataCommand request, CancellationToken cancellationToken)
     {
         var subcontrata = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
-        if (subcontrata is null || !await alcanceDatos.SubcontrataVisibleAsync(subcontrata.Id, cancellationToken))
+        if (subcontrata is null || !await alcanceDatos.SubcontrataParaGestionVisibleAsync(subcontrata.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Subcontrata.NoEncontrada", "No encontramos esta subcontrata."));
 
         if (ConcurrenciaOptimista.Verificar(subcontrata, request.Version, "esta subcontrata") is { } conflicto)
