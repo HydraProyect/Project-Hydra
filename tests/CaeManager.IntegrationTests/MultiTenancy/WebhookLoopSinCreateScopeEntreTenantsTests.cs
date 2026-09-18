@@ -46,6 +46,21 @@ namespace CaeManager.IntegrationTests.MultiTenancy;
 /// detecta en rojo. Sin este control, un verde en el primer test no
 /// distinguiría "el mecanismo es seguro" de "el test no podía ver el
 /// defecto aunque existiera".
+///
+/// <para>
+/// <b>Lo que este fichero NO demuestra</b> (revisión de Codex, 2026-09-18):
+/// <see cref="BaseDatosPostgresDePruebas"/> conecta con el rol propietario
+/// de la cadena de test (<c>postgres</c>), y RLS no restringe al propietario
+/// ni al superusuario (mismo principio que documenta
+/// <c>TenantRlsConnectionInterceptor</c>: "mientras la conexión siga usando
+/// el rol propietario, esta variable se fija igual pero Postgres no la usa
+/// para nada"). Este test prueba que <c>app.tenant_id</c> se ASIGNA
+/// correctamente en cada apertura física de conexión — el requisito previo
+/// para que RLS pueda hacer algo con ese valor una vez el rol restringido
+/// esté activo —, no que RLS lo HAGA CUMPLIR; eso es una propiedad distinta,
+/// ya cubierta en <c>AislamientoRlsPostgresTests</c>, que este fichero no
+/// toca ni repite.
+/// </para>
 /// </summary>
 public class WebhookLoopSinCreateScopeEntreTenantsTests : IAsyncLifetime
 {
@@ -140,15 +155,22 @@ public class WebhookLoopSinCreateScopeEntreTenantsTests : IAsyncLifetime
             // sobre la MISMA instancia de DbContext, sin CreateScope entre
             // medias, el GUC vigente es el de B — no el de A, que sería el
             // síntoma exacto de REC-195 trasladado a la capa de conexión.
-            // SaveChangesAsync ya cerró su conexión (sin transacción
-            // explícita que la mantenga abierta), así que este comando
-            // dispara su propio ConnectionOpened y confirma qué GUC deja esa
-            // reapertura.
-            await using var comandoB = dbContext.Database.GetDbConnection().CreateCommand();
-            comandoB.CommandText = "SELECT current_setting('app.tenant_id', true);";
-            await dbContext.Database.OpenConnectionAsync();
-            var gucTrasEscribirB = (string?)await comandoB.ExecuteScalarAsync();
-            await dbContext.Database.CloseConnectionAsync();
+            //
+            // SqlQueryRaw, NO un comando ADO envuelto en OpenConnectionAsync/
+            // CloseConnectionAsync a mano (hallazgo de Codex, 2026-09-18):
+            // abrir la conexión manualmente AQUÍ dispara su PROPIA apertura
+            // física y fija el GUC a B por sí misma — no demuestra nada sobre
+            // la conexión que usó el SaveChangesAsync de B un momento antes,
+            // solo que una sonda nueva, abierta mientras el ámbito sigue
+            // siendo B, ve B (que sería cierto incluso si SaveChangesAsync
+            // hubiera escrito con un GUC viejo). SqlQueryRaw usa la misma
+            // gestión IMPLÍCITA de conexión que SaveChangesAsync — abre si
+            // hace falta, ejecuta, cierra si la abrió ella — así que esta
+            // lectura pasa por el MISMO ciclo que la escritura de B acaba de
+            // pasar, no por uno inventado aparte.
+            var gucTrasEscribirB = await dbContext.Database
+                .SqlQueryRaw<string>("SELECT current_setting('app.tenant_id', true) AS \"Value\"")
+                .SingleAsync();
 
             gucTrasEscribirB.Should().Be(_tenantB.ToString(),
                 "cada SaveChangesAsync abre y cierra su propia conexión (sin transacción explícita que las una), " +

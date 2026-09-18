@@ -125,16 +125,22 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
     /// <item><description>Los 9 ficheros de <see cref="Categoria.JobDeFondoSobreEnumeracionPropia"/>
     /// llaman <c>ambitoFactory.CreateScope()</c> justo antes de cada <c>Establecer</c>: cada
     /// tenant obtiene su propia instancia, inmune por construcción.</description></item>
-    /// <item><description>Los 2 de <see cref="Categoria.ServicioDePlataformaConGuardaPropia"/> y
+    /// <item><description>Los 2 de <see cref="Categoria.ServicioDePlataformaConGuardaPropia"/>,
     /// 2 de los 3 de <see cref="Categoria.CredencialVerificadaInmediatamenteAntes"/>
-    /// (<c>ApiKeyAuthenticationHandler</c>, <c>WebhookMicrosoft365Endpoints</c>) nunca visitan más
-    /// de un tenant por instancia — un circuito Blazor, un proceso CLI o una petición HTTP no
-    /// pueden aportar una "vuelta siguiente" que envenenar.</description></item>
-    /// <item><description>Los 6 de <see cref="Categoria.BootstrapOSiembra"/> SÍ visitan varios
-    /// tenants con la misma instancia de <c>DbContext</c> (sin <c>CreateScope</c> entre ellos),
-    /// pero ninguno resuelve <c>IAlcanceDatosService</c> ni pasa por <c>IMediator</c> (comprobado
-    /// por grep, cero apariciones ejecutables) — la precondición del mecanismo de REC-195 no se
-    /// da.</description></item>
+    /// (<c>ApiKeyAuthenticationHandler</c>, <c>WebhookMicrosoft365Endpoints</c>) y
+    /// <c>Program.cs</c> nunca visitan más de un tenant POR SU PROPIA llamada a
+    /// <c>Establecer</c> — un circuito Blazor, un proceso CLI, una petición HTTP o, en
+    /// <c>Program.cs</c>, el único <c>using</c> que siembra <c>TenantSeedData.IdPorDefecto</c>
+    /// (línea aparte de los seeders que invoca después, cada uno con sus propias llamadas ya
+    /// contadas por separado) no pueden aportar una "vuelta siguiente" que envenenar.</description></item>
+    /// <item><description>Los 5 seeders (<c>AsignacionesOperativasBackfillSeeder</c>,
+    /// <c>DatosPruebaSeeder</c>, <c>DelegacionDemoSeeder</c>, <c>DelegacionesSoporteSeeder</c>,
+    /// <c>SegundoTenantSeeder</c>) de <see cref="Categoria.BootstrapOSiembra"/> SÍ visitan varios
+    /// tenants con la misma instancia de <c>DbContext</c> (sin <c>CreateScope</c> entre ellos:
+    /// cada uno recibe el <c>dbContextBootstrap</c> que <c>Program.cs</c> crea una sola vez y pasa
+    /// de seeder en seeder), pero ninguno resuelve <c>IAlcanceDatosService</c> ni pasa por
+    /// <c>IMediator</c> (comprobado por grep, cero apariciones ejecutables) — la precondición del
+    /// mecanismo de REC-195 no se da.</description></item>
     /// <item><description><b>El único candidato real</b>: <c>WebhookWhatsAppEndpoints.cs</c> —
     /// el <c>foreach</c> sobre los fragmentos de un mismo payload de Meta puede resolver
     /// tenants distintos por vuelta, con el mismo <c>eventoRepositorio</c>/<c>unitOfWork</c>
@@ -323,14 +329,32 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
     /// Cada entrada exige su propio test de integración que reproduzca —no
     /// solo lea— que la reutilización no envenena nada, igual que
     /// <c>AlcanceMemoizadoPorTenantEnFanOutTests</c> para el fan-out de
-    /// Application. Añadir un fichero nuevo a este conjunto sin su test
-    /// deja la afirmación sin comprobar; por eso el test de abajo compara
-    /// por igualdad, no solo comprueba que la lista no esté vacía.
+    /// Application.
+    ///
+    /// <para>
+    /// <b>Qué comprueba el <c>Fact</c> de abajo y qué NO</b> (revisión de
+    /// Codex, 2026-09-18: la primera versión descartaba el nombre del test
+    /// con <c>_ = test;</c> sin comprobar nada de él, así que borrar,
+    /// renombrar o vaciar el test de reproducción dejaba esto en verde
+    /// igual). Ahora comprueba que el fichero de test **existe** y declara
+    /// al menos un <c>[Fact]</c> — no que ese test **pase**: eso lo exige el
+    /// gate de CI de <c>CaeManager.IntegrationTests</c>, no este proyecto,
+    /// que no referencia aquel y no puede ejecutarlo. Y comprueba por
+    /// <c>BeSubsetOf</c>, no por igualdad, contra <see cref="Autorizados"/>:
+    /// eso valida que esta lista nunca nombre un fichero que no esté en la
+    /// lista blanca de arriba, pero **no** detecta que aparezca un candidato
+    /// nuevo (un fichero recién añadido a <see cref="Autorizados"/> que
+    /// también reutilice su instancia entre varios tenants) sin que nadie lo
+    /// añada aquí — eso sigue exigiendo la misma lectura manual que
+    /// descubrió a <c>WebhookWhatsAppEndpoints.cs</c>, porque "visita varios
+    /// tenants sin <c>CreateScope</c>" no es una propiedad detectable por
+    /// regex sin falsos positivos (ver el párrafo de arriba).
+    /// </para>
     /// </summary>
     private static readonly Dictionary<string, string> SitiosConVariosTenantsPorInstancia = new()
     {
         ["src/CaeManager.Web/Api/Integraciones/WebhookWhatsAppEndpoints.cs"] =
-            "CaeManager.IntegrationTests.MultiTenancy.WebhookLoopSinCreateScopeEntreTenantsTests",
+            "tests/CaeManager.IntegrationTests/MultiTenancy/WebhookLoopSinCreateScopeEntreTenantsTests.cs",
     };
 
     [Fact]
@@ -341,11 +365,11 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
 
         var raiz = RaizDelRepositorio();
 
-        foreach (var (fichero, test) in SitiosConVariosTenantsPorInstancia)
+        foreach (var (ficheroProduccion, ficheroTest) in SitiosConVariosTenantsPorInstancia)
         {
-            var rutaFichero = Path.Combine(raiz, fichero);
-            File.Exists(rutaFichero).Should().BeTrue(
-                $"{fichero} tiene que seguir existiendo — si se movió o se borró, esta entrada quedó huérfana");
+            var rutaProduccion = Path.Combine(raiz, ficheroProduccion);
+            File.Exists(rutaProduccion).Should().BeTrue(
+                $"{ficheroProduccion} tiene que seguir existiendo — si se movió o se borró, esta entrada quedó huérfana");
 
             // Una sola aparición SINTÁCTICA de "Establecer(" no contradice que
             // se ejecute varias veces en tiempo de ejecución — aquí es
@@ -355,11 +379,18 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             // de Autorizados y hace falta el test de reproducción nombrado
             // arriba, no una comprobación estática, para demostrar que la
             // reutilización del scope entre vueltas no envenena nada.
-            LlamadaAEstablecer.IsMatch(File.ReadAllText(rutaFichero)).Should().BeTrue(
-                $"{fichero} tiene que seguir llamando a AmbitoTenantExplicito.Establecer — si ya no lo hace, " +
+            LlamadaAEstablecer.IsMatch(File.ReadAllText(rutaProduccion)).Should().BeTrue(
+                $"{ficheroProduccion} tiene que seguir llamando a AmbitoTenantExplicito.Establecer — si ya no lo hace, " +
                 "esta entrada quedó huérfana");
 
-            _ = test; // el nombre del test vive en el diccionario para que quien lea esta lista sepa dónde mirar
+            var rutaTest = Path.Combine(raiz, ficheroTest);
+            File.Exists(rutaTest).Should().BeTrue(
+                $"{ficheroTest} tiene que existir — es el test de reproducción que demuestra que {ficheroProduccion} " +
+                "no envenena nada; si se borró o se movió sin actualizar esta entrada, la afirmación queda sin comprobar");
+
+            File.ReadAllText(rutaTest).Should().Contain("[Fact]",
+                $"{ficheroTest} tiene que declarar al menos un [Fact] — vaciarlo o convertirlo en una clase sin " +
+                "tests pasaría la comprobación de existencia sin demostrar nada");
         }
     }
 
