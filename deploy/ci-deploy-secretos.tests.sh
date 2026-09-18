@@ -228,4 +228,42 @@ if [ "$CLAVES_DEPLOY_YML" != "$CLAVES_CI_DEPLOY" ]; then
 fi
 echo "OK: las dos listas coinciden exactamente ($(printf '%s\n' "$CLAVES_CI_DEPLOY" | grep -c .) claves)"
 
+echo "=== Caso 11: el trap RETURN de actualizar_secretos_produccion no rompe un 'source' posterior ==="
+# Corrección de un error de esta misma PR: la primera versión afirmaba (y
+# "demostró" con un experimento insuficiente) que `trap ... RETURN` es local
+# a la función que lo define. Es falso — persiste GLOBALMENTE tras el
+# `return`, y vuelve a dispararse en el retorno de un `source`/`.`
+# posterior en el mismo proceso (no en una llamada de función normal, que
+# fue el único caso que aquel experimento probó). En ese disparo tardío,
+# `fichero_nuevo` ya no es la variable local de la invocación que definió
+# el trap, y bajo `set -u` el proceso aborta con "unbound variable" — el
+# fix es que el propio trap se desarme con `trap - RETURN` tras ejecutarse
+# una vez (ver ci-deploy.sh). Este caso es el control positivo: falla sin
+# ese desarme (comprobado a mano quitándolo), pasa con él.
+export FICHERO_ENV_SECRETOS_PRODUCCION="$DIR/.env-caso11"
+: > "$FICHERO_ENV_SECRETOS_PRODUCCION"
+# Invocación DIRECTA, sin pipe — como hace main() en producción (línea con
+# `actualizar_secretos_produccion` a secas, heredando el stdin del propio
+# proceso de ci-deploy.sh). Con un pipe (`printf ... | actualizar_...`) el
+# lado derecho corre en su propio SUBSHELL en bash, y el trap RETURN que
+# define moriría con ese subshell sin propagarse nunca al proceso del test
+# — un primer intento de este caso usó un pipe y por eso NO detectaba la
+# ausencia de `trap - RETURN` (el "control positivo" nunca podía fallar).
+actualizar_secretos_produccion <<< "Anthropic__ApiKey=valor-caso11"
+
+# Comprobación directa (lo que Codex y el coordinador midieron con
+# `trap -p RETURN`): tras retornar, el trap debe estar desarmado. Sin esto,
+# el caso de abajo (source posterior) podía dar un falso verde si el `rm -f`
+# usara "${fichero_nuevo:-}" en vez de "$fichero_nuevo" — el operador ":-"
+# suprime el error de `set -u` y enmascara justo la regresión que este caso
+# existe para detectar (error real de la primera versión de este arreglo).
+TRAP_TRAS_RETORNO="$(trap -p RETURN)"
+[ -z "$TRAP_TRAS_RETORNO" ] || { echo "FALLO: el trap RETURN sigue instalado tras actualizar_secretos_produccion: $TRAP_TRAS_RETORNO" >&2; exit 1; }
+
+FICHERO_TRIVIAL="$DIR/trivial.sh"
+echo 'echo "fichero trivial cargado"' > "$FICHERO_TRIVIAL"
+# shellcheck disable=SC1090
+source "$FICHERO_TRIVIAL"
+echo "OK: trap RETURN desarmado tras retornar; 'source' posterior no abortó bajo set -u"
+
 echo "TODAS LAS PRUEBAS PASARON"

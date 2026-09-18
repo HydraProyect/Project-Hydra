@@ -209,7 +209,23 @@ actualizar_secretos_produccion() {
     # liberar-disco.sh a propósito (no construye ni toca el disco), así que
     # ningún otro paso del pipeline lo recoge después (hallazgo revisado
     # tras la fusión de REC-014/P37, PR #707).
-    trap 'rm -f "$fichero_nuevo"' RETURN
+    #
+    # `trap ... RETURN` en bash NO es local a esta función pese a que
+    # `fichero_nuevo` sí lo es (medido con bash 5.3.15, corrección de un
+    # hallazgo previo de esta misma PR que afirmaba lo contrario): el trap
+    # queda instalado GLOBALMENTE tras el primer `return`, y vuelve a
+    # dispararse en el retorno de cualquier función posterior que "herede"
+    # el rastreo (no ocurre con una llamada de función normal, pero SÍ con
+    # cualquier `source`/`.` posterior en el mismo proceso) — y en ese
+    # disparo tardío, `fichero_nuevo` ya no es la variable local de ESTA
+    # invocación, así que bajo `set -u` aborta con "unbound variable". Hoy
+    # nada llama a `source`/`.` después de esta función en el mismo
+    # proceso, así que no rompe nada — pero es una trampa latente si el
+    # guion evoluciona. `trap - RETURN` al final del propio trap lo
+    # desarma después de ejecutarse una vez, dejando el proceso limpio para
+    # cualquier `source` posterior. Ver deploy/ci-deploy-secretos.tests.sh,
+    # caso 11 (control positivo: falla sin el desarme).
+    trap 'rm -f "$fichero_nuevo"; trap - RETURN' RETURN
 
     # El "upsert" es por CLAVE, no una sustitución de texto: sustituye la
     # línea de cada clave recibida si ya existe en el .env real, la añade al
