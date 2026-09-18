@@ -61,4 +61,31 @@ public class EliminarVerificacionExternaSubcontrataCommandHandlerTests
         verificacion.EstaEliminado.Should().BeFalse();
         unitOfWork.VecesGuardado.Should().Be(0);
     }
+
+    /// <summary>
+    /// REC-172, gemelo de REC-153/159 en Empresa: un usuario de portal tiene
+    /// la Subcontrata dueña de la verificación en su cartera de LECTURA pero
+    /// no en la de GESTIÓN — borrar una verificación externa es un acto de
+    /// gestión, no de lectura.
+    /// </summary>
+    [Fact]
+    public async Task Usuario_de_portal_no_puede_eliminar_una_verificacion_de_su_subcontrata()
+    {
+        var subcontrataId = Guid.NewGuid();
+        var verificacion = CrearVerificacion(subcontrataId);
+        var repositorio = new VerificacionExternaSubcontrataRepositorioFalso();
+        repositorio.Agregar(verificacion);
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = new EliminarVerificacionExternaSubcontrataCommandHandler(
+            repositorio,
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, subcontrataIdsVisibles: [subcontrataId], subcontrataIdsParaGestion: []),
+            unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()));
+
+        var resultado = await handler.Handle(new EliminarVerificacionExternaSubcontrataCommand(verificacion.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("VerificacionExterna.NoEncontrada");
+        verificacion.EstaEliminado.Should().BeFalse();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
 }

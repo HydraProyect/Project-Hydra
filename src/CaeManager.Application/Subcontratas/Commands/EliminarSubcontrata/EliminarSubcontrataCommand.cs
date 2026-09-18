@@ -15,7 +15,7 @@ public class EliminarSubcontrataCommandHandler(
     public async Task<Result> Handle(EliminarSubcontrataCommand request, CancellationToken cancellationToken)
     {
         var subcontrata = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
-        if (subcontrata is null || !await alcanceDatos.SubcontrataVisibleAsync(subcontrata.Id, cancellationToken))
+        if (subcontrata is null || !await alcanceDatos.SubcontrataParaGestionVisibleAsync(subcontrata.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Subcontrata.NoEncontrada", "No encontramos esta subcontrata."));
 
         if (await repositorio.TieneTrabajadoresComoSubcontrataAsync(request.Id, cancellationToken))

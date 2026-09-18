@@ -25,7 +25,7 @@ public class EliminarVerificacionExternaSubcontrataCommandHandler(
         EliminarVerificacionExternaSubcontrataCommand request, CancellationToken cancellationToken)
     {
         var verificacion = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
-        if (verificacion is null || !await alcanceDatos.SubcontrataVisibleAsync(verificacion.SubcontrataId, cancellationToken))
+        if (verificacion is null || !await alcanceDatos.SubcontrataParaGestionVisibleAsync(verificacion.SubcontrataId, cancellationToken))
             return Result.Fallo(Error.Crear("VerificacionExterna.NoEncontrada", "No encontramos esta verificación."));
 
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();

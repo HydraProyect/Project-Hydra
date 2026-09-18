@@ -87,4 +87,33 @@ public class GuardarCredencialAccesoSubcontrataCommandTests
         resultado.EsExitoso.Should().BeTrue();
         credenciales.Credenciales.Single().Contrasena.Should().BeNull("todavía no había fila que conservar");
     }
+
+    /// <summary>
+    /// REC-172, gemelo de REC-153/159 en Empresa: un usuario de portal tiene
+    /// la Subcontrata en su cartera de LECTURA (por eso ve su documentación,
+    /// derivada de su propio Cliente) pero no en la de GESTIÓN — y guardar la
+    /// credencial de acceso a su portal es un acto de gestión, no de lectura.
+    /// </summary>
+    [Fact]
+    public async Task Usuario_de_portal_no_puede_guardar_la_credencial_de_su_contratista()
+    {
+        var subcontrata = Empresa.CrearComoSubcontrata("Contrata de mi Cliente S.L.", null, NivelServicioSubcontrata.Gestionada.ToString());
+        var subcontratas = new EmpresaRepositorioFalso();
+        subcontratas.Agregar(subcontrata);
+        var credenciales = new CredencialAccesoSubcontrataRepositorioFalso();
+        var unitOfWork = new UnitOfWorkFalso();
+
+        var handler = new GuardarCredencialAccesoSubcontrataCommandHandler(
+            subcontratas, credenciales,
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, subcontrataIdsVisibles: [subcontrata.Id], subcontrataIdsParaGestion: []),
+            unitOfWork);
+
+        var resultado = await handler.Handle(
+            new GuardarCredencialAccesoSubcontrataCommand(subcontrata.Id, "https://portal.example", null, "usuario", "contrasena"),
+            CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        credenciales.Credenciales.Should().BeEmpty();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
 }

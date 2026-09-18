@@ -45,7 +45,7 @@ public class GuardarCredencialAccesoSubcontrataCommandHandler(
     public async Task<Result> Handle(GuardarCredencialAccesoSubcontrataCommand request, CancellationToken cancellationToken)
     {
         var subcontrata = await subcontrataRepositorio.ObtenerPorIdAsync(request.SubcontrataId, cancellationToken);
-        if (subcontrata is null || !await alcanceDatos.SubcontrataVisibleAsync(subcontrata.Id, cancellationToken))
+        if (subcontrata is null || !await alcanceDatos.SubcontrataParaGestionVisibleAsync(subcontrata.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Subcontrata.NoEncontrada", "No encontramos esta subcontrata."));
 
         var credencial = await credencialRepositorio.ObtenerPorSubcontrataAsync(request.SubcontrataId, cancellationToken);

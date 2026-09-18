@@ -163,4 +163,32 @@ public class RegistrarVerificacionExternaSubcontrataCommandHandlerTests
 
         resultado.EsExitoso.Should().BeTrue();
     }
+
+    /// <summary>
+    /// REC-172, gemelo de REC-153/159 en Empresa: un usuario de portal tiene
+    /// la Subcontrata en su cartera de LECTURA pero no en la de GESTIÓN — y
+    /// registrar una verificación externa es un acto de gestión, no de
+    /// lectura.
+    /// </summary>
+    [Fact]
+    public async Task Usuario_de_portal_no_puede_registrar_una_verificacion_de_su_subcontrata()
+    {
+        var (subcontrata, _, centro, tipo, subcontratas, empresas, centros, tipos) = PrepararEscenario();
+        var verificaciones = new VerificacionExternaSubcontrataRepositorioFalso();
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = new RegistrarVerificacionExternaSubcontrataCommandHandler(
+            subcontratas, verificaciones, centros, empresas, tipos,
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, subcontrataIdsVisibles: [subcontrata.Id], subcontrataIdsParaGestion: []),
+            new CurrentUserServiceFalso(Guid.NewGuid()), new FileStorageServiceFalso(), unitOfWork);
+
+        var resultado = await handler.Handle(
+            new RegistrarVerificacionExternaSubcontrataCommand(
+                subcontrata.Id, centro.Id, tipo.Id, new DateOnly(2026, 1, 1), ResultadoVerificacionExterna.Valido, null, null),
+            CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Subcontrata.NoEncontrada");
+        verificaciones.Verificaciones.Should().BeEmpty();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
 }
