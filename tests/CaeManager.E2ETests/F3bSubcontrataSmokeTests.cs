@@ -44,7 +44,7 @@ public class F3bSubcontrataSmokeTests(WebAppFixture fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/subcontratas");
         await page.GetByText("+ Nueva subcontrata").First.ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialSubcontrata);
-        await drawer.GetByLabel("CIF", new LocatorGetByLabelOptions { Exact = true })
+        await drawer.GetByLabel("Identificación fiscal", new LocatorGetByLabelOptions { Exact = true })
             .FillAsync(Ayudas.GenerarCifValido(9_998_501));
         await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });

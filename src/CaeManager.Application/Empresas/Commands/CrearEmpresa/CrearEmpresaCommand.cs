@@ -30,24 +30,21 @@ public class CrearEmpresaCommandValidator : AbstractValidator<CrearEmpresaComman
             .MaximumLength(Empresa.LongitudMaximaRazonSocial)
             .WithMessage($"La razón social no puede superar {Empresa.LongitudMaximaRazonSocial} caracteres.");
 
-        // Obligatorio en el alta para MVP-1 (Escenario 2, tecnico/docs/MULTITENANCY.md
-        // § 2 — el tenant ES la Empresa contratista): sin CIF no se puede emitir un
-        // F-22 válido, va en cabecera y en la cláusula RGPD.
-        RuleFor(c => c.Cif).NotEmpty().WithMessage("El CIF es obligatorio.");
+        // Obligatoria en el alta para MVP-1 (Escenario 2, tecnico/docs/MULTITENANCY.md
+        // § 2 — el tenant ES la Empresa contratista): sin ella no se puede emitir un
+        // F-22 válido, va en cabecera y en la cláusula RGPD. Un autónomo la cumple
+        // con su DNI o su NIE — no se le exige un CIF que no tiene.
+        RuleFor(c => c.Cif).NotEmpty().WithMessage("La identificación fiscal es obligatoria.");
 
         RuleFor(c => c.Cif)
-            .Must(EsCifValido).WithMessage("El CIF no es válido.")
+            .Must(ValidadorIdentificacion.EsIdentificacionFiscalValida)
+            .WithMessage(Empresa.MensajeIdentificacionFiscalInvalida)
             .When(c => !string.IsNullOrWhiteSpace(c.Cif));
 
         RuleFor(c => c.Cnae).MaximumLength(Empresa.LongitudMaximaCnae);
         RuleFor(c => c.ConvenioAplicable).MaximumLength(Empresa.LongitudMaximaConvenioAplicable);
     }
 
-    private static bool EsCifValido(string? cif)
-    {
-        var resultado = ValidadorIdentificacion.Analizar(cif!);
-        return resultado.Tipo == TipoIdentificacion.NifEmpresa && resultado.EsValido;
-    }
 }
 
 public class CrearEmpresaCommandHandler(

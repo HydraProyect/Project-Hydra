@@ -117,7 +117,7 @@ else
                         <div class="alerta-formulario" role="alert">@_mensajeErrorInformacion</div>
                     }
                     <CampoTexto Etiqueta="Razón social" Valor="@_razonSocialInfo" ValorChanged="v => _razonSocialInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarSubcontrataCommand.RazonSocial))" />
-                    <CampoTexto Etiqueta="CIF" Valor="@_cifInfo" ValorChanged="v => _cifInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarSubcontrataCommand.Cif))" />
+                    <CampoTexto Etiqueta="Identificación fiscal" Placeholder="CIF, DNI o NIE" Valor="@_cifInfo" ValorChanged="v => _cifInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarSubcontrataCommand.Cif))" />
                     <SelectorMultiple Etiqueta="Clientes empresariales para los que trabaja"
                                        Elementos="@_clientesDisponiblesSelector"
                                        Seleccionados="@_clienteIdsInfo"
@@ -168,12 +168,12 @@ else
                     <div class="rejilla-info-subcontrata-360">
                         <div class="celda-info-subcontrata-360 celda-info-subcontrata-360-ancha"><span>Razón social</span><strong>@_detalle.RazonSocial</strong></div>
                         <div class="celda-info-subcontrata-360">
-                            <span>CIF</span>
+                            <span>Identificación fiscal</span>
                             <div class="valor-con-copia-subcontrata-360">
                                 <strong>@(string.IsNullOrWhiteSpace(_detalle.Cif) ? "—" : _detalle.Cif)</strong>
                                 @if (!string.IsNullOrWhiteSpace(_detalle.Cif))
                                 {
-                                    <BotonCopiar Valor="@_detalle.Cif" Etiqueta="el CIF" />
+                                    <BotonCopiar Valor="@_detalle.Cif" Etiqueta="la identificación fiscal" />
                                 }
                             </div>
                         </div>

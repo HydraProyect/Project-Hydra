@@ -307,7 +307,7 @@ public class Cliente360Gen2Tests : BunitContext
         var cut = Renderizar(id);
 
         Celda(cut, "Razón social").Should().Be("Refrielectric S.A.");
-        Celda(cut, "CIF").Should().Be("A-48.220.917");
+        Celda(cut, "Identificación fiscal").Should().Be("A-48.220.917");
         Celda(cut, "Crítico").Should().Be("Sí");
         Celda(cut, "Alta").Should().Be("04/03/2019");
 

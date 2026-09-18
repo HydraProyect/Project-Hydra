@@ -56,7 +56,7 @@ public class AislamientoMultiTenantE2ETests(WebAppFixtureConSegundoTenant fixtur
             // la cabecera como en el EstadoVacio.
             await paginaA.GetByText("+ Nueva empresa").First.ClickAsync();
             await drawer.GetByLabel("Razón social").FillAsync(razonSocialEmpresa);
-            await drawer.GetByLabel("CIF", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_999_903));
+            await drawer.GetByLabel("Identificación fiscal", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_999_903));
             await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
             await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 

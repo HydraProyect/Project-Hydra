@@ -43,7 +43,7 @@ public class FlujoCriticoTests(WebAppFixture fixture)
         // EstadoVacio — cualquiera de los dos abre el mismo drawer.
         await page.GetByText("+ Nuevo cliente").First.ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialCliente);
-        await drawer.GetByLabel("CIF", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_999_901));
+        await drawer.GetByLabel("Identificación fiscal", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_999_901));
         await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
@@ -51,7 +51,7 @@ public class FlujoCriticoTests(WebAppFixture fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
         await page.GetByText("+ Nueva empresa").First.ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialEmpresa);
-        await drawer.GetByLabel("CIF", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_999_902));
+        await drawer.GetByLabel("Identificación fiscal", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_999_902));
 
         // El selector de Clientes es una lista de checkboxes con buscador (ver
         // SelectorMultiple.razor) — se filtra por el nombre exacto que

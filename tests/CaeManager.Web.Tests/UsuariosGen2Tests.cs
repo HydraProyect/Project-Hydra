@@ -1110,7 +1110,7 @@ public class UsuariosGen2Tests : BunitContext
         await GuardarAsync(cut);
 
         cut.Find(".alerta-formulario").TextContent.Should()
-            .Contain("CIF de la empresa a vincular");
+            .Contain("identificación fiscal de la empresa a vincular");
         _identidad.Creadas.Should().BeEmpty();
     }
 
@@ -1124,11 +1124,11 @@ public class UsuariosGen2Tests : BunitContext
         await cut.Find(".acciones-cabecera button").ClickAsync(new());
         await CampoPorEtiqueta(cut, "Rol").ChangeAsync(new() { Value = RolesIdentidad.Cliente });
 
-        await EscribirAsync(cut, "CIF de la empresa a vincular", "A48220917");
+        await EscribirAsync(cut, "Identificación fiscal de la empresa a vincular", "A48220917");
         cut.WaitForAssertion(() =>
             cut.Find(".pista-documento-exito").TextContent.Should().Contain("Refrielectric S.A."));
 
-        await EscribirAsync(cut, "CIF de la empresa a vincular", "B00000000");
+        await EscribirAsync(cut, "Identificación fiscal de la empresa a vincular", "B00000000");
         cut.WaitForAssertion(() =>
             cut.Find(".pista-documento-error").TextContent.Should().Contain("No encontramos ninguna empresa"));
 
@@ -1136,7 +1136,7 @@ public class UsuariosGen2Tests : BunitContext
             ? Task.FromException<object?>(new InvalidOperationException("la consulta se cayó"))
             : null;
 
-        await EscribirAsync(cut, "CIF de la empresa a vincular", "C11111111");
+        await EscribirAsync(cut, "Identificación fiscal de la empresa a vincular", "C11111111");
         cut.WaitForAssertion(() =>
         {
             var pista = cut.Find(".pista-documento-error").TextContent;
@@ -1160,7 +1160,7 @@ public class UsuariosGen2Tests : BunitContext
         await CampoPorEtiqueta(cut, "Rol").ChangeAsync(new() { Value = RolesIdentidad.Cliente });
 
         // El primero se queda retenido; no se espera su escritura (colgaría).
-        var retenida = EscribirAsync(cut, "CIF de la empresa a vincular", "A48220917");
+        var retenida = EscribirAsync(cut, "Identificación fiscal de la empresa a vincular", "A48220917");
 
         // Hay que esperar a que la primera búsqueda SALGA de verdad: si se
         // teclea el segundo CIF antes de que venza el rebote de CampoTexto,
@@ -1169,7 +1169,7 @@ public class UsuariosGen2Tests : BunitContext
         cut.WaitForAssertion(() =>
             _mediador.Enviadas.OfType<BuscarEmpresaPorCifQuery>().Should().ContainSingle());
 
-        await EscribirAsync(cut, "CIF de la empresa a vincular", "B50331406");
+        await EscribirAsync(cut, "Identificación fiscal de la empresa a vincular", "B50331406");
 
         cut.WaitForAssertion(() =>
             cut.Find(".pista-documento-exito").TextContent.Should().Contain("Montajes Ebro S.L."));

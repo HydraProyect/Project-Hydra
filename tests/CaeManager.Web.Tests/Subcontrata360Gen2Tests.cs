@@ -498,7 +498,7 @@ public class Subcontrata360Gen2Tests : BunitContext
         Celda(cut, "Clientes empresariales para los que trabaja").Should().Be("Refrielectric S.A. y 1 más",
             "un Id cuyo nombre no llega se cuenta, no se omite ni se inventa");
         Celda(cut, "Empresas a las que presta servicio").Should().Be("Montajes Ebro S.L.");
-        Celda(cut, "CIF").Should().Be("A-48.007.615");
+        Celda(cut, "Identificación fiscal").Should().Be("A-48.007.615");
     }
 
     [Fact]
@@ -829,7 +829,7 @@ public class Subcontrata360Gen2Tests : BunitContext
         var cut = await AbrirEdicionAsync(escena);
 
         await Control(cut, "Razón social").InputAsync(new ChangeEventArgs { Value = "Pinturas Lauburu Norte S.A." });
-        await Control(cut, "CIF").InputAsync(new ChangeEventArgs { Value = "A-48.007.616" });
+        await Control(cut, "Identificación fiscal").InputAsync(new ChangeEventArgs { Value = "A-48.007.616" });
         await Casilla(cut, "Talleres Arrasate S.Coop.").ChangeAsync(new ChangeEventArgs { Value = true });
         await Casilla(cut, "Montajes Ebro S.L.").ChangeAsync(new ChangeEventArgs { Value = true });
         // Lo que devolverá la cabecera al volver a pedirla.
