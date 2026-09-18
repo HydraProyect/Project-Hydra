@@ -92,11 +92,28 @@ public class MainLayoutFallaCerradoTests : BunitContext
     /// El caso que el catch anterior daba por imposible: la excepción salta con
     /// el circuito vivo. Nadie sabe si a este usuario le tocaba cambiar la
     /// contraseña o configurar la 2FA, así que el contenido se retira.
+    ///
+    /// <para>
+    /// <see cref="OperationCanceledException"/> entra en la misma lista, a
+    /// propósito, tras un hallazgo de Codex sobre este incremento (P1): una
+    /// versión anterior la excluía del catch pensando solo en la petición
+    /// abortada, pero una dependencia del guard (p. ej. un timeout de consulta
+    /// en <c>UserManager</c>/EF Core) puede lanzarla igual con el circuito
+    /// perfectamente vivo, y desde aquí no hay forma fiable de distinguir ese
+    /// caso del de la conexión perdida sin acoplar el guard al token interno
+    /// de esa dependencia. Excluirla de forma general dejaba pasar ese caso
+    /// sin redirigir y sin registrar nada — el mismo fallo abierto que este
+    /// catch existe para cerrar. El caso realmente benigno —circuito ya
+    /// cerrado— lo sigue cubriendo <c>EstadoDelCircuito.Cerrado</c>, no un
+    /// filtro por tipo (ver
+    /// <see cref="Con_el_circuito_ya_cerrado_la_excepcion_se_descarta_sin_redirigir"/>).
+    /// </para>
     /// </summary>
     [Theory]
     [InlineData(typeof(ObjectDisposedException))]
     [InlineData(typeof(ArgumentOutOfRangeException))]
     [InlineData(typeof(InvalidOperationException))]
+    [InlineData(typeof(OperationCanceledException))]
     public void Con_el_circuito_vivo_una_excepcion_en_el_guard_retira_el_contenido(Type tipoDeExcepcion)
     {
         _almacen.Falla(tipoDeExcepcion);
@@ -111,29 +128,6 @@ public class MainLayoutFallaCerradoTests : BunitContext
             "sin la ruta de origen, /Error no tiene adónde reintentar (PaginaEstadoSistema.RutaReintentar)");
         _navegacion.ForzoLaCarga.Should().BeTrue(
             "una navegación interna conservaría el documento, y el contenido protegido seguiría a la vista");
-    }
-
-    /// <summary>
-    /// <see cref="OperationCanceledException"/> no es un fallo del guard: el
-    /// método no crea su propio <see cref="CancellationTokenSource"/>, así que
-    /// solo puede llegar por el token ambiental de la petición o del circuito
-    /// (conexión abortada). El catch la excluye a propósito, y a diferencia de
-    /// <see cref="NavigationException"/> en
-    /// <see cref="La_redireccion_del_guard_no_la_atrapa_el_catch"/> —que sí
-    /// atraviesa <c>Render</c> como una excepción visible— el propio renderer
-    /// de Blazor la trata como cancelación benigna y no la propaga: medido
-    /// aquí, sin ella este caso sería indistinguible de "no pasó nada". Nada
-    /// se redirige, que es justo lo que se busca: no hay contenido protegido
-    /// que proteger porque el otro lado de la conexión ya se fue.
-    /// </summary>
-    [Fact]
-    public void Con_el_circuito_vivo_una_cancelacion_no_redirige()
-    {
-        _almacen.Falla(typeof(OperationCanceledException));
-
-        Render<MainLayout>();
-
-        _navegacion.Destinos.Should().BeEmpty();
     }
 
     /// <summary>
