@@ -253,11 +253,12 @@ public class UsuariosGen2Tests : BunitContext
     private sealed class CorreoFalso : IEmailService
     {
         public List<(string Destinatario, string Cuerpo)> Enviados { get; } = [];
+        public Result? ResultadoForzado { get; set; }
 
         public Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, CancellationToken cancellationToken = default)
         {
             Enviados.Add((destinatarioEmail, cuerpoHtml));
-            return Task.FromResult(Result.Exito());
+            return Task.FromResult(ResultadoForzado ?? Result.Exito());
         }
     }
 
@@ -1248,6 +1249,31 @@ public class UsuariosGen2Tests : BunitContext
         _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().Be("Correo de activación reenviado.");
         cut.WaitForAssertion(() =>
             cut.Find(".modal-header h2").TextContent.Trim().Should().Be("Correo reenviado"));
+    }
+
+    /// <summary>
+    /// Revisión de Codex (2026-09-18): el toast ya decía que el envío falló,
+    /// pero el modal reutilizado seguía titulándose "Correo reenviado" y
+    /// afirmando que el correo había llegado — dos mensajes contradictorios
+    /// en la misma pantalla.
+    /// </summary>
+    [Fact]
+    public async Task Un_reenvio_cuyo_correo_falla_no_dice_que_se_envio()
+    {
+        var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia", pendienteActivacion: true);
+        Sembrar(
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (ander, RolesIdentidad.GestorCae));
+        _correo.ResultadoForzado = Result.Fallo(Error.Crear("Email.NoConfigurado", "SMTP no configurado."));
+
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Reenviar correo de activación");
+
+        _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().Contain("No pudimos enviar el correo");
+        cut.WaitForAssertion(() =>
+            cut.Find(".modal-header h2").TextContent.Trim().Should().Be("No pudimos reenviar el correo"));
+        cut.Find(".enlace-activacion").TextContent.Should().NotBeEmpty(
+            "el enlace sigue siendo la vía de entrega alternativa aunque el correo fallara");
     }
 
     [Fact]

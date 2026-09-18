@@ -1094,7 +1094,12 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             // menú: si la persona completó su activación entre la carga de la lista y este clic,
             // emitir el enlace igual mostraría a quien administra un token de restablecimiento
             // válido para una cuenta que ya tiene contraseña (hallazgo de revisión).
-            if (!await EsPendienteActivacionAsync(usuario))
+            //
+            // Por la puerta (revisión de Codex, 2026-09-18): EsPendienteActivacionAsync llama
+            // UserManager.GetLoginsAsync, que toca el mismo CaeManagerDbContext scoped que el
+            // resto de este método — sin PuertaAccesoDatos, una lectura concurrente del layout
+            // en el mismo circuito puede reventar con la excepción de operación simultánea de EF.
+            if (!await PuertaAccesoDatos.EjecutarAsync(() => EsPendienteActivacionAsync(usuario), token))
             {
                 ToastService.Mostrar("Esta cuenta ya no está pendiente de activación; recargamos la lista.", TonoToast.Error);
                 await CargarAsync();
@@ -1105,11 +1110,17 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             var resultado = await EnviarCorreoActivacionAsync(usuario.Id, usuarioLista.Email, usuarioLista.NombreCompleto, enlace);
 
             if (resultado.EsFallido)
+            {
                 ToastService.Mostrar(
                     $"No pudimos enviar el correo: {resultado.Error.Mensaje} El enlace queda abajo para entregarlo tú mismo.",
                     TonoToast.Error);
+                _reenvioFallido = true;
+            }
             else
+            {
                 ToastService.Mostrar("Correo de activación reenviado.", TonoToast.Exito);
+                _reenvioFallido = false;
+            }
 
             _reenvioEnCurso = true;
             _enlaceActivacion = enlace;
@@ -1492,6 +1503,14 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
     /// <summary>Distingue el modal reutilizado de "enlace de activación" entre alta y reenvío.</summary>
     private bool _reenvioEnCurso;
+
+    /// <summary>
+    /// Revisión de Codex (2026-09-18): el modal de reenvío no puede titularse
+    /// "Correo reenviado" ni decir que el envío ocurrió cuando
+    /// <c>EnviarCorreoActivacionAsync</c> falló — el toast de error ya lo dice,
+    /// pero el modal repetía la afirmación contraria.
+    /// </summary>
+    private bool _reenvioFallido;
 
     private UsuarioListaDto? _usuarioAEliminar;
     private bool _eliminandoUsuario;
