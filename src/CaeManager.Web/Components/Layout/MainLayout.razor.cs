@@ -121,21 +121,43 @@ public partial class MainLayout
                     Navigation.NavigateTo("/cuenta/configurar-2fa", forceLoad: true);
             });
         }
-        // Todo lo que no sea la redirección legítima del propio guard. Este
-        // proyecto fija BlazorDisableThrowNavigationException=true
-        // (CaeManager.Web.csproj), así que hoy NavigateTo no lanza
-        // NavigationException aquí, ni en SSR estático ni en interactivo
-        // (confirmado: es justo lo que esa propiedad de MSBuild existe para
-        // evitar, "What's new in ASP.NET Core .NET 10"). La exclusión es
-        // defensa en profundidad, no una ruta que se ejerza en producción hoy:
-        // si esa opción cambiara, o algún otro camino del framework volviera a
-        // lanzarla, atraparla aquí se tragaría precisamente el "cambia la
-        // contraseña" o el "configura la 2FA" que el guard acaba de decidir —
-        // el mismo fallo abierto que este catch existe para cerrar,
-        // reintroducido por su propio arreglo. Por tipo no se filtra nada
-        // más: el tipo no distingue un circuito muerto de uno vivo (ver abajo),
-        // así que como criterio no vale, ni estrecho ni ancho.
-        catch (Exception ex) when (ex is not NavigationException)
+        // Todo lo que no sea la redirección legítima del propio guard, o una
+        // cancelación por petición abortada. Este proyecto fija
+        // BlazorDisableThrowNavigationException=true (CaeManager.Web.csproj),
+        // así que hoy NavigateTo no lanza NavigationException aquí, ni en SSR
+        // estático ni en interactivo (confirmado: es justo lo que esa
+        // propiedad de MSBuild existe para evitar, "What's new in ASP.NET
+        // Core .NET 10"). La exclusión es defensa en profundidad, no una ruta
+        // que se ejerza en producción hoy: si esa opción cambiara, o algún
+        // otro camino del framework volviera a lanzarla, atraparla aquí se
+        // tragaría precisamente el "cambia la contraseña" o el "configura la
+        // 2FA" que el guard acaba de decidir — el mismo fallo abierto que
+        // este catch existe para cerrar, reintroducido por su propio arreglo.
+        //
+        // OperationCanceledException se excluye por un motivo distinto: nada
+        // en este método crea su propio CancellationTokenSource ni pasa un
+        // token explícito a UserManager/EF Core, así que la única fuente
+        // realista es el token ambiental de la petición (RequestAborted) o
+        // del circuito, propagado sin más. Ahí no hay contenido protegido que
+        // proteger — el otro lado ya se fue, literalmente, no por la carrera
+        // de desconexión de más abajo, sino porque el cliente abortó la
+        // conexión (navegó a otro sitio antes de que esto terminara, algo
+        // rutinario, no un fallo). Antes de esto, un OperationCanceledException
+        // sin capturar aquí llegaba igualmente a UseExceptionHandler("/Error"),
+        // que ASP.NET Core reconoce como cancelación de petición y no trata
+        // como un 500 real; capturarlo aquí como si fuera un fallo del guard
+        // lo convertía en un LogError (ruido en Sentry por tráfico normal, sin
+        // relación con este guard) y un intento de redirigir una conexión que
+        // ya no está — silencia la señal real de monitorización sin ganar
+        // nada. Medido en bUnit (MainLayoutFallaCerradoTests): con el circuito
+        // vivo, sin capturarla aquí, el propio renderer de Blazor la trata
+        // como cancelación benigna y no llega a redirigir ni a propagarse
+        // como excepción visible.
+        //
+        // Por tipo no se filtra nada más: el tipo no distingue un circuito
+        // muerto de uno vivo (ver abajo), así que como criterio no vale, ni
+        // estrecho ni ancho.
+        catch (Exception ex) when (ex is not NavigationException and not OperationCanceledException)
         {
             // Quién decide qué se hace aquí es el ESTADO DEL CIRCUITO, no el
             // tipo de la excepción. Hasta 2026-09-18 el catch aceptaba

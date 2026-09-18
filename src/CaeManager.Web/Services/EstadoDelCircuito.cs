@@ -41,6 +41,40 @@ namespace CaeManager.Web.Services;
 /// tratarla como tal devolvería justo el fallo abierto que esta clase existe
 /// para cerrar.
 /// </para>
+///
+/// <para>
+/// <b>¿<see cref="Components.Layout.MainLayout"/> llega a ejecutarse alguna vez
+/// dentro de un circuito vivo, si <c>App.razor</c> monta <c>&lt;Routes /&gt;</c>
+/// sin <c>@rendermode</c>?</b> Sí. Que el elemento raíz no lleve <c>@rendermode</c>
+/// solo fija el modo de la primera pasada (SSR); no impide que una página hija
+/// —la mayoría de las protegidas, como <c>Features/Dashboard/Pages/Inicio.razor</c>—
+/// declare <c>@rendermode InteractiveServer</c> en sí misma, y esa página vuelve
+/// a ejecutar todo su árbol de ascendientes, MainLayout incluido, una segunda
+/// vez dentro del circuito real una vez este se establece. La prueba no es una
+/// lectura de <c>App.razor</c>: es un hecho ya documentado en
+/// <c>ActividadUsuarioService.RegistrarYEvaluarAsync</c> — "MainLayout e Inicio
+/// comparten este servicio con ámbito de circuito y los dos lo invocan en la
+/// misma carga" — y un servicio <c>scoped</c> solo puede compartirse así si las
+/// dos llamadas caen en el mismo scope de DI, que en Blazor Server es el del
+/// circuito. El comentario de <c>MainLayout.razor</c> ("ese modo no se propaga
+/// hacia arriba al Layout") habla de otra cosa: del cableado de eventos de UI de
+/// los componentes que viven fuera de <c>@Body</c> (toasts, atajos, buscador),
+/// no de si el método C# <c>OnParametersSetAsync</c> de MainLayout se invoca
+/// dentro de un circuito vivo.
+/// </para>
+///
+/// <para>
+/// Eso sí dejar claro dos pasadas distintas, ambas con <see cref="Cerrado"/> en
+/// <c>false</c> pero por motivos distintos: el <b>prerenderizado</b> de esa
+/// misma página interactiva (antes de que el circuito real exista, en un DI
+/// scope desechable — ver el <c>remarks</c> de <c>RegistrarYEvaluarAsync</c>) y
+/// una petición realmente <b>SSR sin ningún descendiente interactivo</b> (por
+/// ejemplo, una página con <c>AuthLayout</c> en vez de este). En ambas, una
+/// excepción del guard es un fallo real de acceso a datos, no la carrera de
+/// desconexión: no hay circuito que haya podido irse, así que fallar cerrado
+/// (redirigir) es la respuesta correcta, no un efecto colateral del criterio
+/// conservador — ver <c>MainLayoutFallaCerradoTests</c>.
+/// </para>
 /// </summary>
 public sealed class EstadoDelCircuito : CircuitHandler
 {
