@@ -15,6 +15,16 @@ namespace CaeManager.Architecture.Tests;
 /// acaso" una vez ningún comando los inyecta.
 ///
 /// <para>
+/// <b>P41d (2026-09-18)</b>: <c>BuscarGlobalQuery</c> ya no tiene una rama
+/// propia de Subcontrata — Cliente y Subcontrata son papeles contextuales de
+/// una Empresa, no categorías separadas del buscador, así que las tres
+/// consultas por discriminador (Cliente/Subcontrata/sin papel) se fusionan
+/// en una sola categoría "Empresas" por <c>Empresa.Id</c>. El discriminador
+/// <c>NivelServicio != null</c> se sigue leyendo —esto no cambia lo que hace
+/// legacy read-only a Subcontrata—, solo cómo se presenta el resultado.
+/// </para>
+///
+/// <para>
 /// Mismo patrón que <see cref="EscrituraLegacyDeClienteRetiradaTests"/>. Sin
 /// este ratchet, "legacy read-only" es una promesa verbal. Con él, cualquier
 /// PR futuro que reintroduzca un escritor (a mano, con

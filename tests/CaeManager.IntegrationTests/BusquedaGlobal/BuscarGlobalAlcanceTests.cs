@@ -104,14 +104,13 @@ public class BuscarGlobalAlcanceTests : IAsyncLifetime
             subcontrataIds: [_subcontrataEnCartera],
             trabajadorIds: [_trabajadorEnCartera]));
 
-        resultado.Clientes.Should().ContainSingle().Which.Id.Should().Be(_clienteEnCartera);
-        resultado.Empresas.Should().ContainSingle().Which.Id.Should().Be(_empresaEnCartera);
-        resultado.Subcontratas.Should().ContainSingle().Which.Id.Should().Be(_subcontrataEnCartera);
+        // Empresa es una sola categoría (P41d, 2026-09-18): Cliente y
+        // Subcontrata son papeles, no categorías separadas del buscador.
+        resultado.Empresas.Select(e => e.Id).Should().BeEquivalentTo([_clienteEnCartera, _empresaEnCartera, _subcontrataEnCartera]);
         resultado.Centros.Should().ContainSingle().Which.Id.Should().Be(_centroEnCartera);
         resultado.Trabajadores.Should().ContainSingle().Which.Id.Should().Be(_trabajadorEnCartera);
 
-        var todosLosIds = resultado.Clientes
-            .Concat(resultado.Empresas).Concat(resultado.Subcontratas)
+        var todosLosIds = resultado.Empresas
             .Concat(resultado.Centros).Concat(resultado.Trabajadores)
             .Select(i => i.Id);
 
@@ -133,24 +132,52 @@ public class BuscarGlobalAlcanceTests : IAsyncLifetime
         resultado.TieneResultados.Should().BeFalse();
     }
 
+    /// <summary>
+    /// Control positivo de P41d (2026-09-18, decisión del propietario): antes
+    /// de la corrección, una Empresa con papel de Cliente y de Subcontrata a
+    /// la vez salía en tres filas distintas (Cliente/Empresa/Subcontrata) del
+    /// mismo resultado — el mismo Id repetido. Este test siembra esa Empresa
+    /// exacta (EsCritico y NivelServicio, los dos, en la misma fila) y falla
+    /// si el Id aparece más de una vez.
+    /// </summary>
+    [Fact]
+    public async Task Una_empresa_con_varios_papeles_no_sale_duplicada()
+    {
+        await using var contexto = CrearContexto();
+
+        var clienteYSubcontrata = Empresa.CrearComoCliente(
+            "Zeta Doble Papel S.L.", cif: "", esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        clienteYSubcontrata.CambiarNivelServicioComoSubcontrata("Gestionada");
+
+        contexto.Empresas.Add(clienteYSubcontrata);
+        await contexto.SaveChangesAsync();
+
+        var resultado = await BuscarAsync(new AlcanceDatosServiceFalso());
+
+        var filasDelDoblePapel = resultado.Empresas.Where(e => e.Id == clienteYSubcontrata.Id).ToList();
+
+        filasDelDoblePapel.Should().ContainSingle("una Empresa con varios papeles contextuales sigue siendo una sola Empresa");
+
+        // El DTO de Application lleva los papeles en bruto (micro-formato
+        // CSV) — la traducción a etiqueta canónica ("Cliente empresarial ·
+        // Subcontrata") es de la capa Web (BuscadorGlobal.razor.cs), no de
+        // este handler.
+        filasDelDoblePapel.Single().Subtitulo.Should().Be("Cliente,Subcontrata");
+    }
+
     [Fact]
     public async Task Sin_restriccion_de_cartera_se_sigue_viendo_todo()
     {
         var resultado = await BuscarAsync(new AlcanceDatosServiceFalso());
 
-        resultado.Clientes.Should().HaveCount(2);
-        resultado.Subcontratas.Should().HaveCount(2);
-
-        // La categoría "Empresas" no filtra por discriminador — igual que el
-        // listado /empresas al que enlaza, que tampoco lo hace. Tras F3c eso
-        // se ve: las seis filas sembradas son Empresas, y la categoría las
-        // devuelve todas hasta su límite de 5 por categoría. No es un cambio
-        // de comportamiento de F3c: en producción, toda contraparte es una
-        // fila de Empresas desde F3b — este test es el primero que puede
-        // observarlo. Que Cliente y Subcontrata aparezcan además bajo
-        // "Empresas" es una pregunta de producto abierta, no una regresión.
-        resultado.Empresas.Should().HaveCount(5);
-        resultado.Empresas.Select(e => e.Id).Should().Contain([_empresaEnCartera, _empresaFueraDeCartera]);
+        // Las seis filas sembradas (dos Cliente, dos Empresa "plana", dos
+        // Subcontrata) son Empresas distintas sin papeles compartidos, así
+        // que aparecen todas — pero como una sola categoría "Empresas"
+        // (P41d, 2026-09-18): Cliente y Subcontrata son papeles dentro de una
+        // Relación Empresarial, no tipos de Empresa ni categorías separadas
+        // del buscador.
+        resultado.Empresas.Should().HaveCount(5); // recortado por LimitePorCategoria (6 sembradas, límite 5)
+        resultado.Empresas.Select(e => e.Id).Should().OnlyHaveUniqueItems();
         resultado.Centros.Should().HaveCount(2);
         resultado.Trabajadores.Should().HaveCount(2);
     }
