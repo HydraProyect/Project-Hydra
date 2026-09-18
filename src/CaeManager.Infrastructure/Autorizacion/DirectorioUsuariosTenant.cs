@@ -67,6 +67,44 @@ public class DirectorioUsuariosTenant(
                 .FirstOrDefaultAsync(cancellationToken));
 
     /// <summary>
+    /// Si este usuario tiene alguna Asignación de Cartera vigente, en
+    /// cualquier posición y de cualquier tenant. Sin filtro de posición a
+    /// propósito —igual que <see cref="ObtenerTenantDeUsuarioAsync"/>—: la
+    /// pregunta que responde es "¿es seguro borrar esta cuenta de Identity?",
+    /// no "¿qué carteras ve el tenant activo?".
+    ///
+    /// Revisión de Codex (2026-09-18) sobre la primera versión de este
+    /// guardián: acotar por <c>PropietarioTenantId == tenant activo</c> (como
+    /// hace <see cref="ObtenerCarterasVigentesAsync"/> para pintar la lista)
+    /// dejaba invisible la Asignación de Cartera EXTERNA de un usuario del
+    /// Tenant operador sobre OTRO Tenant propietario — se borraba la cuenta
+    /// igual, y esa cartera (y la Asignación de Operador Delegado paralela)
+    /// quedaba apuntando a un GUID sin <c>ApplicationUser</c> resoluble.
+    ///
+    /// No revela ninguna fila ni de qué tenant es la cartera: solo un booleano
+    /// de existencia sobre un usuario que el llamante ya identificó.
+    /// </summary>
+    public Task<bool> TieneAlgunaCarteraVigenteAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
+        puertaAccesoDatos.EjecutarAsync(async () =>
+        {
+            var ahora = DateTime.UtcNow;
+
+            return await (
+                from cartera in identidad.AsignacionesCartera
+                where cartera.UsuarioId == usuarioId
+                      && cartera.Estado == EstadoAsignacion.Vigente
+                      && cartera.VigenciaDesde <= ahora
+                      && (cartera.VigenciaHasta == null || ahora < cartera.VigenciaHasta)
+                join operacion in identidad.AsignacionesOperacion
+                    on cartera.AsignacionOperacionId equals operacion.Id
+                where operacion.Estado == EstadoAsignacion.Vigente
+                      && operacion.VigenciaDesde <= ahora
+                      && (operacion.VigenciaHasta == null || ahora < operacion.VigenciaHasta)
+                select cartera.Id)
+                .AnyAsync(cancellationToken);
+        }, cancellationToken);
+
+    /// <summary>
     /// Qué usuarios de este lote inician sesión por SSO (tienen al menos un
     /// login externo), en una sola consulta contra <c>AspNetUserLogins</c>.
     ///

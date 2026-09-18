@@ -91,6 +91,9 @@ public class UsuariosGen2Tests : BunitContext
         /// <summary>Por defecto, ninguna cuenta del arnés inicia sesión por SSO — ver <see cref="UsuariosControlados.ObtenerIdsConLoginExternoAsync"/>.</summary>
         public Func<IReadOnlySet<Guid>> IdsConLoginExterno { get; set; } = () => new HashSet<Guid>();
 
+        /// <summary>Por defecto, ninguna cuenta del arnés tiene cartera vigente — ver <see cref="UsuariosControlados.TieneCarteraVigenteAsync"/>.</summary>
+        public Func<Guid, bool> TieneCarteraVigente { get; set; } = _ => false;
+
         /// <summary>Por defecto, toda cuenta es propia del tenant activo — ver <see cref="UsuariosControlados.EsCuentaPropiaAsync"/>.</summary>
         public Func<Guid, bool> EsPropia { get; set; } = _ => true;
 
@@ -129,6 +132,9 @@ public class UsuariosGen2Tests : BunitContext
         protected override Task<IReadOnlySet<Guid>> ObtenerIdsConLoginExternoAsync(
             IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken) =>
             Task.FromResult(Fuente.IdsConLoginExterno());
+
+        protected override Task<bool> TieneCarteraVigenteAsync(Guid usuarioId, CancellationToken cancellationToken) =>
+            Task.FromResult(Fuente.TieneCarteraVigente(usuarioId));
 
         /// <summary>
         /// Por defecto todas las cuentas son propias: los tests de esta clase
@@ -1278,10 +1284,7 @@ public class UsuariosGen2Tests : BunitContext
         Sembrar(
             (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
             (ander, RolesIdentidad.GestorCae));
-        _fuente.Carteras = _ => new Dictionary<Guid, CarteraDeUsuario>
-        {
-            [AnderId] = new(EsUniversal: true, ClienteIds: [])
-        };
+        _fuente.TieneCarteraVigente = id => id == AnderId;
 
         var cut = Renderizar(actorId: MartaId);
         await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Eliminar");
