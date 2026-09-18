@@ -114,6 +114,55 @@ public class MainLayoutFallaCerradoTests : BunitContext
     }
 
     /// <summary>
+    /// <see cref="OperationCanceledException"/> no es un fallo del guard: el
+    /// método no crea su propio <see cref="CancellationTokenSource"/>, así que
+    /// solo puede llegar por el token ambiental de la petición o del circuito
+    /// (conexión abortada). El catch la excluye a propósito, y a diferencia de
+    /// <see cref="NavigationException"/> en
+    /// <see cref="La_redireccion_del_guard_no_la_atrapa_el_catch"/> —que sí
+    /// atraviesa <c>Render</c> como una excepción visible— el propio renderer
+    /// de Blazor la trata como cancelación benigna y no la propaga: medido
+    /// aquí, sin ella este caso sería indistinguible de "no pasó nada". Nada
+    /// se redirige, que es justo lo que se busca: no hay contenido protegido
+    /// que proteger porque el otro lado de la conexión ya se fue.
+    /// </summary>
+    [Fact]
+    public void Con_el_circuito_vivo_una_cancelacion_no_redirige()
+    {
+        _almacen.Falla(typeof(OperationCanceledException));
+
+        Render<MainLayout>();
+
+        _navegacion.Destinos.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// El caso SSR: <c>EstadoDelCircuito.Cerrado</c> en <c>false</c> no
+    /// significa siempre "hay un circuito vivo que podría haberse ido" — en el
+    /// prerenderizado de <c>@rendermode InteractiveServer</c> (o en cualquier
+    /// página sin ningún descendiente interactivo) MainLayout se ejecuta antes
+    /// de que exista un circuito real, así que <c>Cerrado</c> nunca ha tenido
+    /// ocasión de pasar a <c>true</c> — no porque el circuito se fuera, sino
+    /// porque no lo hay. Ver el <c>remarks</c> de
+    /// <see cref="EstadoDelCircuito.Cerrado"/>: aquí no hay carrera de
+    /// desconexión que perdonar, así que una excepción del guard sigue siendo
+    /// un fallo real y se redirige igual que con el circuito vivo — el mismo
+    /// resultado que <see cref="Con_el_circuito_vivo_una_excepcion_en_el_guard_retira_el_contenido"/>,
+    /// por un motivo distinto.
+    /// </summary>
+    [Fact]
+    public void Durante_el_prerenderizado_sin_circuito_una_excepcion_tambien_retira_el_contenido()
+    {
+        SetRendererInfo(new RendererInfo("Static", isInteractive: false));
+        _almacen.Falla(typeof(ObjectDisposedException));
+
+        Render<MainLayout>();
+
+        var destino = _navegacion.Destinos.Should().ContainSingle().Subject;
+        SepararRutaYConsulta(destino).Ruta.Should().Be("/Error");
+    }
+
+    /// <summary>
     /// El otro lado del contrato: con el circuito ya cerrado no hay nadie
     /// mirando la página, así que redirigir no protege a nadie — y la carrera
     /// de desconexión (Sentry DOTNET-3 y DOTNET-6) no puede convertirse en un
