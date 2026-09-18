@@ -32,39 +32,23 @@
   .barra-lateral usa --color-surface, que cambia de blanco (tema claro) a
   #17212C (tema oscuro, ver tokens.css): un solo wordmark estático se
   volvería invisible en uno de los dos fondos, así que se alterna entre
-  lockup-claro.svg y lockup-oscuro.svg. Tres niveles, de menos a más
-  prioridad:
+  lockup-claro.svg y lockup-oscuro.svg.
 
-  1. Por defecto (nada de lo de abajo aplica) se ve el claro — cubre el
-     primer render, antes de que el script de SelectorTema escriba
-     data-theme en <html>, y hoy también "sistema" en el resto de la app
-     (tokens.css apagó a propósito el @media que lo seguía automáticamente).
-  2. prefers-color-scheme sigue el tema del sistema operativo cuando no hay
-     una elección explícita del usuario (data-theme ausente, o con el valor
-     literal "sistema", que no coincide con ningún selector de abajo).
-  3. data-theme='claro'/'oscuro' explícito (SelectorTema) manda siempre
-     sobre el sistema operativo: estas reglas combinan atributo + clase y
-     ganan en especificidad a la media query de arriba pase lo que pase.
+  Por defecto (sin data-theme='oscuro' explícito) se ve el claro. Cubre el
+  primer render, antes de que el script de SelectorTema escriba data-theme
+  en <html>, y también "sistema": tokens.css apaga a propósito el
+  seguimiento automático de prefers-color-scheme para sus propios tokens
+  (ver su comentario "Selector de tema manual"), así que --color-surface
+  se queda en blanco en "sistema" con independencia del sistema operativo.
+  Un @media (prefers-color-scheme: dark) aquí mostraría el wordmark claro
+  de tinta marfil/celeste sobre ese fondo blanco — casi invisible; hallazgo
+  de la revisión de Codex sobre la primera versión de este cambio, corregido
+  quitando esa media query en vez de limitarla. El día que se retome el
+  seguimiento automático del sistema (comentario de tokens.css, sección
+  ":root[data-theme='oscuro']"), esta regla necesitará el mismo tratamiento
+  para no repetir el defecto.
 */
 .marca-wordmark-oscuro {
-    display: none;
-}
-
-@media (prefers-color-scheme: dark) {
-    .marca-wordmark-claro {
-        display: none;
-    }
-
-    .marca-wordmark-oscuro {
-        display: block;
-    }
-}
-
-:root[data-theme='claro'] .marca-wordmark-claro {
-    display: block;
-}
-
-:root[data-theme='claro'] .marca-wordmark-oscuro {
     display: none;
 }
 

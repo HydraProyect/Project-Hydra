@@ -6,10 +6,11 @@
             @* Opción D elegida por el propietario (2026-09-19): wordmark oficial en vez del
                nombre en texto, con la etiqueta "CAE" al lado. Marca.Nombre NO se toca: sigue
                siendo el nombre de títulos de pestaña y correos, esto solo cambia lo que se
-               pinta aquí. lockup-claro.svg/lockup-oscuro.svg por tema, con reserva para
-               prefers-color-scheme cuando el tema es "sistema" (SelectorTema deja data-theme
-               sin valor útil en ese caso, y también en el primer render antes de que el script
-               del selector se ejecute) — ver MainLayout.razor.css. *@
+               pinta aquí. lockup-claro.svg/lockup-oscuro.svg alterna solo por data-theme='oscuro'
+               explícito (SelectorTema); en "sistema" y en el primer render, antes de que el
+               script del selector escriba data-theme, se ve el claro a propósito, porque
+               tokens.css tiene el seguimiento automático de prefers-color-scheme apagado y
+               --color-surface se queda en blanco en esos casos (ver MainLayout.razor.css). *@
             <img src="img/marca/talveg-lockup-claro.svg" alt="TALVEG" class="marca-wordmark marca-wordmark-claro" width="106" height="22" />
             <img src="img/marca/talveg-lockup-oscuro.svg" alt="TALVEG" class="marca-wordmark marca-wordmark-oscuro" width="106" height="22" />
             <span class="marca-etiqueta">CAE</span>
