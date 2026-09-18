@@ -5,11 +5,13 @@
     para las siete entidades sin duplicar la lógica de carga.
 *@
 @using CaeManager.Application.Auditoria.Queries
+@using CaeManager.Application.Common
 @using CaeManager.Infrastructure.Identity
 @using MediatR
 @using Microsoft.AspNetCore.Identity
 @inject IMediator Mediator
 @inject UserManager<ApplicationUser> UserManager
+@inject PuertaAccesoDatos PuertaAccesoDatos
 
 @if (_cargando)
 {
@@ -80,13 +82,20 @@ else
             var idsFaltantes = _registros
                 .Where(r => r.UsuarioId is not null && !_usuariosPorId.ContainsKey(r.UsuarioId.Value))
                 .Select(r => r.UsuarioId!.Value)
-                .Distinct();
+                .Distinct()
+                .ToList();
 
-            foreach (var id in idsFaltantes)
+            // Por la puerta: UserManager no pasa por MediatR y esta pestaña
+            // carga en paralelo con el resto del circuito sobre el mismo
+            // DbContext scoped (ver PuertaAccesoDatos).
+            await PuertaAccesoDatos.EjecutarAsync(async () =>
             {
-                var usuario = await UserManager.FindByIdAsync(id.ToString());
-                _usuariosPorId[id] = usuario?.NombreCompleto ?? usuario?.Email ?? "(usuario eliminado)";
-            }
+                foreach (var id in idsFaltantes)
+                {
+                    var usuario = await UserManager.FindByIdAsync(id.ToString());
+                    _usuariosPorId[id] = usuario?.NombreCompleto ?? usuario?.Email ?? "(usuario eliminado)";
+                }
+            });
         }
         catch (Exception)
         {
