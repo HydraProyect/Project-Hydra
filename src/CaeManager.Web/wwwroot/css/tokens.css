@@ -235,6 +235,16 @@
   --color-warning-50: #3a2405;
   --color-danger-50: #3a0a0a;
   --color-secondary-50: #1d2733;
+  /* Único escalón -50 que se quedó sin redefinir aquí (medido 2026-09-18):
+     el resto de la familia -50 sí tiene variante oscura, esta no, así que
+     seguía pintando #eef5ff (fondo casi blanco) en tema oscuro mientras el
+     texto que va encima sí se remapea a claro (--color-primary-700 →
+     --color-primary-100 dos líneas más abajo). Resultado: texto casi blanco
+     sobre fondo casi blanco — el defecto reportado en Configuración → Acceso
+     e identidad → Roles, y el mismo patrón en los otros 36 usos de
+     --color-primary-50 como fondo. 13,9:1 con --color-text (#e7eaee),
+     6,3:1 con --color-primary-500 remapeado (#5ca2f4) — ambos superan 4.5:1. */
+  --color-primary-50: #0e1d39;
 
   --color-primary-500: var(--color-primary-300);
   --color-primary-600: var(--color-primary-200);
@@ -266,6 +276,7 @@
   --color-warning-50: #fff8eb;
   --color-danger-50: #fef2f2;
   --color-secondary-50: #f1f4f7;
+  --color-primary-50: #eef5ff;
 
   --color-primary-500: #235bc2;
   --color-primary-600: #1e4a9e;
