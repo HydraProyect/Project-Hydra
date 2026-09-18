@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
+using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
@@ -68,16 +69,18 @@ public class DirectorioUsuariosTenant(
 
     /// <summary>
     /// Si borrar este usuario dejaría algún vínculo operativo apuntando a un
-    /// GUID sin cuenta: una Asignación de Cartera vigente, o una Asignación de
+    /// GUID sin cuenta: una Asignación de Cartera vigente, una Asignación de
     /// Operador Delegado (aunque su <see cref="Tenants.DelegacionTenant"/> esté
     /// desactivada hoy — <c>ReabrirCarterasDeOperadoresAsync</c> la reconstruye
-    /// al reactivarla, para un usuario que ya no existiría). Sin filtro de
-    /// posición a propósito —igual que <see cref="ObtenerTenantDeUsuarioAsync"/>—:
-    /// la pregunta que responde es "¿es seguro borrar esta cuenta de Identity?",
+    /// al reactivarla, para un usuario que ya no existiría), o una
+    /// configuración de <see cref="LineaWhatsApp"/> que lo nombra como gestor
+    /// fijo o miembro de su pool. Sin filtro de posición para cartera y
+    /// delegación —igual que <see cref="ObtenerTenantDeUsuarioAsync"/>—: la
+    /// pregunta que responde es "¿es seguro borrar esta cuenta de Identity?",
     /// no "¿qué carteras ve el tenant activo?".
     ///
-    /// Revisión de Codex (2026-09-18) sobre las dos versiones anteriores de
-    /// este guardián:
+    /// Revisión de Codex (2026-09-18) sobre las versiones anteriores de este
+    /// guardián:
     /// <list type="bullet">
     /// <item>acotar por <c>PropietarioTenantId == tenant activo</c> (como hace
     /// <see cref="ObtenerCarterasVigentesAsync"/> para pintar la lista) dejaba
@@ -86,22 +89,31 @@ public class DirectorioUsuariosTenant(
     /// <item>mirar solo la cartera VIGENTE dejaba pasar una delegación
     /// desactivada —sus carteras se cierran, pero la asignación persiste— que
     /// vuelve a generar cartera para este usuario en cuanto alguien la
-    /// reactiva.</item>
+    /// reactiva;</item>
+    /// <item>ninguna de las dos anteriores veía la configuración de WhatsApp:
+    /// acepta un usuario "visible" aunque su cuenta siga pendiente, y la
+    /// ingesta usa ese GUID directamente para asignar conversaciones
+    /// entrantes.</item>
     /// </list>
     ///
     /// No revela ninguna fila ni de qué tenant es cada vínculo: solo un
     /// booleano de existencia sobre un usuario que el llamante ya identificó.
     ///
     /// <para>
-    /// <b>Hueco conocido, no cerrado por esta guarda</b>: la comprobación y el
-    /// <c>DeleteAsync</c> no son atómicas entre sí — no hay una FK real hacia
-    /// <c>ApplicationUser</c> ni una transacción que abarque ambas
-    /// operaciones. Si otro circuito crea una Asignación de Cartera para este
-    /// usuario en la ventana entre esta lectura y el borrado, la referencia
-    /// queda huérfana igual. Cerrarlo de raíz exige una restricción de
-    /// integridad a nivel de base de datos (fuera del alcance de este
-    /// incremento de UI: toca el esquema del catálogo global de asignaciones,
-    /// ver <c>IOperacionesQueryContext</c>).
+    /// <b>Límite conocido y deliberado de esta guarda, no un descuido</b>:
+    /// <c>UsuarioId</c>/<c>ComercialAsignadoId</c> sin FK hacia
+    /// <c>ApplicationUser</c> es un patrón que se repite en más tablas del
+    /// modelo (p. ej. <c>Empresa.EjecutivoUsuarioId</c>,
+    /// <c>ApplicationUser.CoordinadorUsuarioId</c>) y que cada vuelta de
+    /// revisión puede seguir destapando una tabla más — enumerarlas todas a
+    /// mano no converge. Esta guarda cubre las tres relaciones operativas
+    /// confirmadas por revisión hasta la fecha; cerrarlo de raíz exige una
+    /// restricción de integridad a nivel de esquema (FK real, o un catálogo
+    /// central de "qué referencia a un usuario"), que es un incremento propio
+    /// sobre el modelo de datos, no una extensión de esta pantalla de UI.
+    /// Tampoco es atómica con el <c>DeleteAsync</c> que la sigue: no hay
+    /// transacción que abarque ambas, así que una fila creada por otro
+    /// circuito en esa ventana se cuela igual.
     /// </para>
     /// </summary>
     public Task<bool> TieneVinculoOperativoAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
@@ -125,8 +137,22 @@ public class DirectorioUsuariosTenant(
 
             if (tieneCarteraVigente) return true;
 
-            return await dbContext.AsignacionesOperadorDelegado
+            var esOperadorDelegado = await dbContext.AsignacionesOperadorDelegado
                 .AnyAsync(a => a.UsuarioId == usuarioId, cancellationToken);
+
+            if (esOperadorDelegado) return true;
+
+            // Filtro de tenant normal (sin IgnoreQueryFilters): a diferencia de
+            // cartera/operación, LineaWhatsApp y MiembroPoolLinea son
+            // EntidadConTenant y esta cuenta ya se validó como propia del
+            // tenant activo (ver EsCuentaPropiaAsync) antes de llegar aquí.
+            var esGestorFijoDeWhatsApp = await identidad.LineasWhatsApp
+                .AnyAsync(l => l.ComercialAsignadoId == usuarioId, cancellationToken);
+
+            if (esGestorFijoDeWhatsApp) return true;
+
+            return await identidad.MiembrosPoolLinea
+                .AnyAsync(m => m.UsuarioId == usuarioId, cancellationToken);
         }, cancellationToken);
 
     /// <summary>
