@@ -39,6 +39,27 @@
 name: caemanager-staging
 
 services:
+  migrador:
+    # Job de migración de vida corta (REC-017/P39) — mismo mecanismo que
+    # docker-compose.produccion.yml, ver el comentario largo de ese fichero
+    # junto a este mismo servicio.
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    container_name: caemanager-staging-migrador
+    restart: "no"
+    command: ["--migrate-only"]
+    env_file: .env.staging
+    environment:
+      ConnectionStrings__CaeManagerDb: "Host=db;Port=5432;Database=caemanager;Username=postgres;Password=${POSTGRES_PASSWORD}"
+      AlmacenamientoArchivos__Ruta: /data/documentos
+      DataProtection__RutaClaves: /data/dataprotection-keys
+    volumes:
+      - caemanager-staging-data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+
   app:
     build:
       context: ../..
@@ -71,6 +92,10 @@ services:
     # `docker stats caemanager-app` en el servidor.
     mem_limit: ${LIMITE_MEMORIA_APP:-3g}
     restart: unless-stopped
+    # REC-017/P39 — ver el comentario largo en docker-compose.produccion.yml
+    # junto al mismo apagador: las migraciones las aplica ahora el servicio
+    # "migrador" de arriba, no este contenedor.
+    #
     # Ver el comentario de docker-compose.produccion.yml sobre
     # ConnectionStrings__CaeManagerDbRuntime: se inyecta entero vía
     # `.env.staging` (env_file), nunca compuesto en este YAML.
@@ -82,6 +107,8 @@ services:
       # Sin backup real: staging es desechable por diseño (datos de prueba
       # re-sembrables con DatosPrueba__Activo=true), no vale la pena montar
       # scripts/backup-borg.sh contra un segundo repo Borg para esto.
+      # REC-017/P39 — ver el comentario de más arriba, junto a `restart:`.
+      Migraciones__AlArrancar: "false"
     volumes:
       - caemanager-staging-data:/data
     # Sin `ports` publicados — igual que producción, solo alcanzable desde
@@ -93,6 +120,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      # REC-017/P39 — ver el comentario largo junto al servicio "migrador" en
+      # docker-compose.produccion.yml.
+      migrador:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/salud"]
       interval: 30s

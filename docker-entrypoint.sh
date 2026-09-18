@@ -20,4 +20,15 @@ if [ -d /data ]; then
   fi
 fi
 
+# Job efímero (REC-017/P39, ver docker-compose.*.yml servicio "migrador"):
+# cuando el `command:` de Compose trae argumentos ($# > 0, hoy solo
+# "--migrate-only"), se reenvían tal cual en vez del arranque normal de
+# Kestrel — mismo chown y misma bajada de privilegios de arriba, porque
+# MigrarBaseDeDatosAsync (Program.cs) resuelve el mismo IDataProtectionProvider
+# que el servidor y necesita el mismo acceso a /data. El arranque normal (sin
+# `command:`, $# = 0) no cambia.
+if [ "$#" -gt 0 ]; then
+  exec gosu "$APP_UID":"$APP_UID" dotnet CaeManager.Web.dll "$@"
+fi
+
 exec gosu "$APP_UID":"$APP_UID" dotnet CaeManager.Web.dll --urls "http://+:${PORT:-8080}"

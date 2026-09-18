@@ -134,6 +134,13 @@ volcar_diagnostico_si_falla() {
     # clásico lo aplica de verdad como cgroup del contenedor de build.
     # DOCKER_BUILDKIT=0 lo fuerza explícitamente en vez de confiar en cuál
     # sea el motor por defecto de esta instalación del VPS.
+    #
+    # Desde REC-017/P39 este `build` construye DOS servicios con el mismo
+    # Dockerfile y el mismo contexto (`app` y `migrador`, ver
+    # docker-compose.*.yml): el segundo es un hit de caché de capas del
+    # builder clásico (mismo contenido de entrada, mismas instrucciones), no
+    # una segunda compilación real — el `dotnet publish` no se vuelve a
+    # ejecutar. El techo de memoria de abajo sigue acotando UN build a la vez.
     if ! DOCKER_BUILDKIT=0 docker compose "${args[@]}" build -m "$LIMITE_MEMORIA_BUILD"; then
         echo "=== Build no completó dentro del techo de memoria (LIMITE_MEMORIA_BUILD=$LIMITE_MEMORIA_BUILD) — contenido a su propio cgroup, el resto del stack sigue sirviendo ===" >&2
         exit 1
