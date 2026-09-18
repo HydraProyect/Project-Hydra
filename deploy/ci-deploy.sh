@@ -202,6 +202,30 @@ actualizar_secretos_produccion() {
 
     local fichero_nuevo
     fichero_nuevo="$(mktemp "$(dirname "$fichero_env")/.env.nuevo.XXXXXX")"
+    # Sin este trap, un fallo de awk (p. ej. disco lleno — ya pasó en este
+    # VPS el 2026-08-26 y el 2026-08-29, ver liberar-disco.sh) deja el
+    # temporal huérfano con secretos parciales en /opt/talveg/deploy/local/,
+    # y en el modo "secretos" nunca se limpia solo: esta rama corta antes de
+    # liberar-disco.sh a propósito (no construye ni toca el disco), así que
+    # ningún otro paso del pipeline lo recoge después (hallazgo revisado
+    # tras la fusión de REC-014/P37, PR #707).
+    #
+    # `trap ... RETURN` en bash NO es local a esta función pese a que
+    # `fichero_nuevo` sí lo es (medido con bash 5.3.15, corrección de un
+    # hallazgo previo de esta misma PR que afirmaba lo contrario): el trap
+    # queda instalado GLOBALMENTE tras el primer `return`, y vuelve a
+    # dispararse en el retorno de cualquier función posterior que "herede"
+    # el rastreo (no ocurre con una llamada de función normal, pero SÍ con
+    # cualquier `source`/`.` posterior en el mismo proceso) — y en ese
+    # disparo tardío, `fichero_nuevo` ya no es la variable local de ESTA
+    # invocación, así que bajo `set -u` aborta con "unbound variable". Hoy
+    # nada llama a `source`/`.` después de esta función en el mismo
+    # proceso, así que no rompe nada — pero es una trampa latente si el
+    # guion evoluciona. `trap - RETURN` al final del propio trap lo
+    # desarma después de ejecutarse una vez, dejando el proceso limpio para
+    # cualquier `source` posterior. Ver deploy/ci-deploy-secretos.tests.sh,
+    # caso 11 (control positivo: falla sin el desarme).
+    trap 'rm -f "$fichero_nuevo"; trap - RETURN' RETURN
 
     # El "upsert" es por CLAVE, no una sustitución de texto: sustituye la
     # línea de cada clave recibida si ya existe en el .env real, la añade al
@@ -255,6 +279,21 @@ actualizar_secretos_produccion() {
             for (k in valor) if (!vista[k]) print k "=" esc(valor[k])
         }
     ' <(printf '%s\n' "$recibido") "$fichero_env" > "$fichero_nuevo"
+
+    # Comprobación de cordura antes de sustituir el .env real: el upsert de
+    # arriba solo sustituye u añade líneas, nunca quita ninguna, así que el
+    # nuevo fichero nunca puede tener MENOS líneas que el original. Si las
+    # tiene, algo escribió una salida incompleta (p. ej. el disco se llenó
+    # DURANTE el propio `awk`, sin que su código de salida lo reflejara) y
+    # `set -e` no lo habría detenido — se corta aquí en vez de mover un .env
+    # truncado sobre el real.
+    local lineas_antes lineas_despues
+    lineas_antes="$(wc -l < "$fichero_env")"
+    lineas_despues="$(wc -l < "$fichero_nuevo")"
+    if [ "$lineas_despues" -lt "$lineas_antes" ]; then
+        echo "::error::el .env generado tiene menos líneas ($lineas_despues) que el original ($lineas_antes) — probable escritura incompleta. .env real sin tocar." >&2
+        return 1
+    fi
 
     chmod 600 "$fichero_nuevo"
     mv "$fichero_nuevo" "$fichero_env"
