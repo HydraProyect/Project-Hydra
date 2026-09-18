@@ -1,82 +1,31 @@
 #!/bin/bash
-# Prueba manual, aislada, de la función actualizar_secretos_produccion y de
-# la lista blanca CLAVES_PERMITIDAS_SECRETOS_PRODUCCION de ci-deploy.sh. No
-# es un arnés automatizado que ejecute el propio ci-deploy.sh (ese guion solo
-# corre de verdad como comando forzado de SSH contra el VPS, ver el
-# comentario en su cabecera) — es una COPIA de las mismas dos piezas,
-# mantenida a mano en sincronía con el original. Si tocas cualquiera de las
-# dos en ci-deploy.sh, copia el cambio aquí también, o esta prueba deja de
-# medir lo que de verdad corre en producción.
+# Prueba de CLAVES_PERMITIDAS_SECRETOS_PRODUCCION y
+# actualizar_secretos_produccion, ambas definidas y ejecutadas TAL CUAL en
+# ci-deploy.sh — sin copiar su lógica (hallazgo de Codex sobre la primera
+# versión de esta prueba: una copia mantenida a mano podía desincronizarse
+# en silencio y quedar en verde mientras el VPS corría otra cosa).
+#
+# `source` funciona sin disparar un despliegue real gracias a la guarda
+# `BASH_SOURCE[0] = $0` al final de ci-deploy.sh, y
+# FICHERO_ENV_SECRETOS_PRODUCCION (ver ese fichero) redirige la función a un
+# directorio temporal en vez de /opt/talveg/deploy/local/.env — las dos
+# existen solo para que este test pueda ejercitar la función real de forma
+# aislada, y ninguna de las dos cambia el comportamiento en el VPS (ahí
+# nunca se define esa variable).
+#
+# No sustituye probar contra un VPS real: resolve-deploy-sha.sh y
+# liberar-disco.sh siguen sin arnés por el mismo motivo — el propio comando
+# forzado de SSH no se puede ejercitar entero fuera de una sesión real.
 set -euo pipefail
 
-CLAVES_PERMITIDAS_SECRETOS_PRODUCCION="
-AdministradorInicial__Contrasena
-Anthropic__ApiKey
-Smtp__Contrasena
-AzureAd__ClientSecret
-Integraciones__Microsoft365__ClientSecret
-Integraciones__WhatsApp__AppSecret
-Integraciones__WhatsApp__VerifyToken
-Serilog__Seq__ApiKey
-"
-
-actualizar_secretos_produccion() {
-    local recibido
-    recibido="$(cat)"
-    if [ -z "$recibido" ]; then
-        echo "Sin secretos que actualizar — .env sin tocar." >&2
-        return 0
-    fi
-
-    local linea clave
-    while IFS= read -r linea; do
-        [ -n "$linea" ] || continue
-        clave="${linea%%=*}"
-        case "$CLAVES_PERMITIDAS_SECRETOS_PRODUCCION" in
-            *$'\n'"$clave"$'\n'*) ;;
-            *)
-                echo "::error::clave no permitida en 'secretos': '$clave' — .env sin tocar." >&2
-                return 1
-                ;;
-        esac
-    done <<< "$recibido"
-
-    local fichero_env="./.env"
-    [ -f "$fichero_env" ] || : > "$fichero_env"
-    local fichero_nuevo
-    fichero_nuevo="$(mktemp ./.env.nuevo.XXXXXX)"
-    awk -F= '
-        NR==FNR {
-            if ($1 != "") {
-                clave=$1
-                valor[clave]=substr($0, index($0,"=")+1)
-                vista[clave]=0
-            }
-            next
-        }
-        {
-            clave=$1
-            if (($0 ~ /^[A-Za-z_][A-Za-z0-9_]*=/) && (clave in valor)) {
-                print clave "=" valor[clave]
-                vista[clave]=1
-            } else {
-                print
-            }
-        }
-        END {
-            for (k in valor) if (!vista[k]) print k "=" valor[k]
-        }
-    ' <(printf '%s\n' "$recibido") "$fichero_env" > "$fichero_nuevo"
-    chmod 600 "$fichero_nuevo"
-    mv "$fichero_nuevo" "$fichero_env"
-    echo "Secretos actualizados." >&2
-}
+DIR_GUION="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$DIR_GUION/ci-deploy.sh"
 
 DIR="$(mktemp -d)"
 trap 'rm -rf "$DIR"' EXIT
-cd "$DIR"
+export FICHERO_ENV_SECRETOS_PRODUCCION="$DIR/.env"
 
-cat > .env <<'ENVEOF'
+cat > "$FICHERO_ENV_SECRETOS_PRODUCCION" <<'ENVEOF'
 DOMINIO=app.talveg.es
 POSTGRES_PASSWORD=viejo123
 AdministradorInicial__Email=admin@talveg.es
@@ -84,10 +33,12 @@ AdministradorInicial__Contrasena=
 DatosPrueba__Activo=true
 ENVEOF
 
+leer_env() { cat "$FICHERO_ENV_SECRETOS_PRODUCCION"; }
+
 echo "=== Caso 1: stdin vacío (no-op) ==="
-ANTES="$(cat .env)"
+ANTES="$(leer_env)"
 actualizar_secretos_produccion < /dev/null
-DESPUES="$(cat .env)"
+DESPUES="$(leer_env)"
 if [ "$ANTES" != "$DESPUES" ]; then
   echo "FALLO: .env cambió con stdin vacío" >&2
   exit 1
@@ -97,15 +48,15 @@ echo "OK: .env sin cambios"
 echo "=== Caso 2: upsert (clave existente + clave nueva + valor con '=' dentro) ==="
 printf 'AdministradorInicial__Contrasena=nuevo456\nIntegraciones__Microsoft365__ClientSecret=Host=x;Password=a=b=c\nAnthropic__ApiKey=sk-test-123\n' \
   | actualizar_secretos_produccion
-cat .env
+leer_env
 
-grep -qx 'AdministradorInicial__Contrasena=nuevo456' .env || { echo "FALLO: no sustituyó una clave existente" >&2; exit 1; }
-grep -qx 'Integraciones__Microsoft365__ClientSecret=Host=x;Password=a=b=c' .env || { echo "FALLO: valor con '=' truncado" >&2; exit 1; }
-grep -qx 'Anthropic__ApiKey=sk-test-123' .env || { echo "FALLO: no añadió clave nueva" >&2; exit 1; }
-grep -qx 'DOMINIO=app.talveg.es' .env || { echo "FALLO: perdió una clave no tocada" >&2; exit 1; }
-grep -qx 'POSTGRES_PASSWORD=viejo123' .env || { echo "FALLO: perdió otra clave no tocada" >&2; exit 1; }
-[ "$(wc -l < .env)" -eq 7 ] || { echo "FALLO: número de líneas inesperado ($(wc -l < .env))" >&2; exit 1; }
-echo "OK: upsert correcto, resto de .env intacto"
+grep -qx "AdministradorInicial__Contrasena='nuevo456'" "$FICHERO_ENV_SECRETOS_PRODUCCION" || { echo "FALLO: no sustituyó una clave existente" >&2; exit 1; }
+grep -qx "Integraciones__Microsoft365__ClientSecret='Host=x;Password=a=b=c'" "$FICHERO_ENV_SECRETOS_PRODUCCION" || { echo "FALLO: valor con '=' truncado" >&2; exit 1; }
+grep -qx "Anthropic__ApiKey='sk-test-123'" "$FICHERO_ENV_SECRETOS_PRODUCCION" || { echo "FALLO: no añadió clave nueva" >&2; exit 1; }
+grep -qx 'DOMINIO=app.talveg.es' "$FICHERO_ENV_SECRETOS_PRODUCCION" || { echo "FALLO: perdió una clave no tocada" >&2; exit 1; }
+grep -qx 'POSTGRES_PASSWORD=viejo123' "$FICHERO_ENV_SECRETOS_PRODUCCION" || { echo "FALLO: perdió otra clave no tocada" >&2; exit 1; }
+[ "$(wc -l < "$FICHERO_ENV_SECRETOS_PRODUCCION")" -eq 7 ] || { echo "FALLO: número de líneas inesperado ($(wc -l < "$FICHERO_ENV_SECRETOS_PRODUCCION"))" >&2; exit 1; }
+echo "OK: upsert correcto, entrecomillado, resto de .env intacto"
 
 echo "=== Caso 3: construcción del blob tal y como lo hace deploy.yml (regresión) ==="
 # Pin del bug real que se detectó al escribir esto: un salto de línea LITERAL
@@ -130,35 +81,35 @@ construir_blob_como_deploy_yml() {
     printf '%s' "$blob"
 }
 
-DIR2="$(mktemp -d)"
-trap 'rm -rf "$DIR" "$DIR2"' EXIT
-(
-  cd "$DIR2"
-  cat > .env <<'ENVEOF'
+export FICHERO_ENV_SECRETOS_PRODUCCION="$DIR/.env-caso3"
+cat > "$FICHERO_ENV_SECRETOS_PRODUCCION" <<'ENVEOF'
 DOMINIO=app.talveg.es
 Anthropic__ApiKey=viejo123
 ENVEOF
-  construir_blob_como_deploy_yml | actualizar_secretos_produccion
-  grep -qx 'Anthropic__ApiKey=otro789' .env || { echo "FALLO: regresión del salto de línea literal — Anthropic__ApiKey no se actualizó" >&2; exit 1; }
-  grep -qx 'Serilog__Seq__ApiKey=seq-key-xyz' .env || { echo "FALLO: regresión del salto de línea literal — clave nueva no se añadió limpia" >&2; exit 1; }
-  ! grep -q '^ ' .env || { echo "FALLO: hay líneas con espacio inicial en .env (indentación arrastrada)" >&2; exit 1; }
-)
+construir_blob_como_deploy_yml | actualizar_secretos_produccion
+grep -qx "Anthropic__ApiKey='otro789'" "$FICHERO_ENV_SECRETOS_PRODUCCION" || { echo "FALLO: regresión del salto de línea literal — Anthropic__ApiKey no se actualizó" >&2; exit 1; }
+grep -qx "Serilog__Seq__ApiKey='seq-key-xyz'" "$FICHERO_ENV_SECRETOS_PRODUCCION" || { echo "FALLO: regresión del salto de línea literal — clave nueva no se añadió limpia" >&2; exit 1; }
+! grep -q '^ ' "$FICHERO_ENV_SECRETOS_PRODUCCION" || { echo "FALLO: hay líneas con espacio inicial en .env (indentación arrastrada)" >&2; exit 1; }
 echo "OK: construcción del blob de deploy.yml no arrastra indentación"
 
 echo "=== Caso 4: clave fuera de la lista blanca — rechazo total (hallazgo de Codex) ==="
 # Escenario del hallazgo: si la clave SSH se filtrara, sin esta lista blanca
 # alguien podría mandar Rls__PermitirIdentidadAdministrativaInsegura=true (o
 # vaciar ConnectionStrings__CaeManagerDbRuntime) y, en el siguiente redeploy
-# de un commit ya legítimo, dejar producción sirviendo sin RLS. Esta prueba
-# comprueba que el intento se rechaza ENTERO, .env no se toca ni siquiera
-# para las claves buenas que venían en el mismo envío.
-ANTES4="$(cat .env)"
+# de un commit ya legítimo, dejar a producción sirviendo tráfico sin RLS.
+# Esta prueba comprueba que el intento se rechaza ENTERO, .env no se toca ni
+# siquiera para las claves buenas que venían en el mismo envío.
+export FICHERO_ENV_SECRETOS_PRODUCCION="$DIR/.env-caso4"
+cat > "$FICHERO_ENV_SECRETOS_PRODUCCION" <<'ENVEOF'
+DOMINIO=app.talveg.es
+ENVEOF
+ANTES4="$(leer_env)"
 if printf 'Anthropic__ApiKey=bueno\nRls__PermitirIdentidadAdministrativaInsegura=true\n' | actualizar_secretos_produccion 2>/tmp/caso4-stderr.txt; then
   echo "FALLO: aceptó una clave fuera de la lista blanca" >&2
   exit 1
 fi
 grep -q "clave no permitida" /tmp/caso4-stderr.txt || { echo "FALLO: no avisó por qué rechazó" >&2; cat /tmp/caso4-stderr.txt >&2; exit 1; }
-DESPUES4="$(cat .env)"
+DESPUES4="$(leer_env)"
 if [ "$ANTES4" != "$DESPUES4" ]; then
   echo "FALLO: .env cambió pese al rechazo (incluso la clave 'buena' del mismo envío se aplicó)" >&2
   exit 1
@@ -174,5 +125,19 @@ for clave_prohibida in POSTGRES_PASSWORD ConnectionStrings__CaeManagerDbRuntime;
   fi
 done
 echo "OK: las dos claves de PostgreSQL siguen fuera de la lista blanca"
+
+echo "=== Caso 6: un valor con '\$' no se interpola (hallazgo de Codex) ==="
+# docs.docker.com/reference/compose-file/services/#env_file-format: un valor
+# SIN comillas (o con comillas dobles) de un env_file sufre la misma
+# interpolación \${VAR}/\$VAR que el resto del fichero Compose; con comillas
+# simples "se usan literales". Esta prueba no invoca Compose (no hay Docker
+# en este arnés) — fija que la línea escrita queda entrecomillada de la
+# forma que el propio formato dotenv documenta como literal.
+export FICHERO_ENV_SECRETOS_PRODUCCION="$DIR/.env-caso6"
+: > "$FICHERO_ENV_SECRETOS_PRODUCCION"
+printf 'Smtp__Contrasena=abc$HOME/raro'"'"'con-comilla\n' | actualizar_secretos_produccion
+grep -qxF "Smtp__Contrasena='abc\$HOME/raro\'con-comilla'" "$FICHERO_ENV_SECRETOS_PRODUCCION" \
+  || { echo "FALLO: el valor con '\$' y comilla no quedó entrecomillado/escapado como espera el formato dotenv" >&2; cat "$FICHERO_ENV_SECRETOS_PRODUCCION" >&2; exit 1; }
+echo "OK: valor con '\$' y comilla queda entrecomillado y escapado"
 
 echo "TODAS LAS PRUEBAS PASARON"

@@ -144,7 +144,13 @@ actualizar_secretos_produccion() {
         esac
     done <<< "$recibido"
 
-    local fichero_env="/opt/talveg/deploy/local/.env"
+    # FICHERO_ENV_SECRETOS_PRODUCCION solo existe para que
+    # deploy/ci-deploy-secretos.tests.sh pueda hacer `source` de ESTE
+    # fichero y ejercitar la función real contra un directorio temporal, en
+    # vez de mantener una copia aparte que podía desincronizarse en silencio
+    # (hallazgo de Codex). En el VPS nunca se define, así que el
+    # comportamiento real no cambia: sigue siendo siempre la misma ruta fija.
+    local fichero_env="${FICHERO_ENV_SECRETOS_PRODUCCION:-/opt/talveg/deploy/local/.env}"
     # El .env real es un prerrequisito ya documentado en docker-compose.
     # produccion.yml ("cp .env.example .env") para cualquier despliegue que
     # funcione; si no existe, algo más básico que este mecanismo está roto —
@@ -153,7 +159,7 @@ actualizar_secretos_produccion() {
     [ -f "$fichero_env" ] || : > "$fichero_env"
 
     local fichero_nuevo
-    fichero_nuevo="$(mktemp /opt/talveg/deploy/local/.env.nuevo.XXXXXX)"
+    fichero_nuevo="$(mktemp "$(dirname "$fichero_env")/.env.nuevo.XXXXXX")"
 
     # El "upsert" es por CLAVE, no una sustitución de texto: sustituye la
     # línea de cada clave recibida si ya existe en el .env real, la añade al
@@ -163,7 +169,33 @@ actualizar_secretos_produccion() {
     # expresión regular, así que un valor con "=" dentro (una cadena de
     # conexión, p. ej. ConnectionStrings__CaeManagerDbRuntime) no se trunca.
     # Los valores nunca se imprimen fuera del propio fichero de salida.
+    #
+    # esc() entrecomilla SIEMPRE cada valor con comillas simples (hallazgo de
+    # Codex): docs.docker.com/reference/compose-file/services/#env_file-format
+    # dice explícitamente que un valor SIN comillas (o con comillas dobles)
+    # de un `env_file` sufre la MISMA interpolación `${VAR}`/`$VAR` que el
+    # resto del fichero Compose — con comillas simples, "se usan literales".
+    # Sin esto, un secreto que por azar contuviera un "$" seguido de algo que
+    # pareciera nombre de variable (p. ej. una contraseña generada
+    # "abc$HOME123") llegaría alterado o truncado a `app`/`caddy` (los dos
+    # servicios con `env_file: .env`) — no un fallo de arranque ruidoso, sino
+    # una credencial equivocada en silencio. Los caracteres especiales del
+    # propio formato dotenv con comilla simple —la comilla simple y la barra
+    # invertida— se escapan con \, que es la única secuencia que ese formato
+    # documenta para comillas simples ("Quotes can be escaped with \").
     awk -F= '
+        function esc(v,   q, bs, out, i, c) {
+            q = sprintf("%c", 39)
+            bs = sprintf("%c", 92)
+            out = q
+            for (i = 1; i <= length(v); i++) {
+                c = substr(v, i, 1)
+                if (c == bs) out = out bs bs
+                else if (c == q) out = out bs q
+                else out = out c
+            }
+            return out q
+        }
         NR==FNR {
             if ($1 != "") {
                 clave=$1
@@ -175,14 +207,14 @@ actualizar_secretos_produccion() {
         {
             clave=$1
             if (($0 ~ /^[A-Za-z_][A-Za-z0-9_]*=/) && (clave in valor)) {
-                print clave "=" valor[clave]
+                print clave "=" esc(valor[clave])
                 vista[clave]=1
             } else {
                 print
             }
         }
         END {
-            for (k in valor) if (!vista[k]) print k "=" valor[k]
+            for (k in valor) if (!vista[k]) print k "=" esc(valor[k])
         }
     ' <(printf '%s\n' "$recibido") "$fichero_env" > "$fichero_nuevo"
 
@@ -325,4 +357,14 @@ esac
 
 }
 
-main "$@"
+# Guarda de "source" (hallazgo de Codex sobre la primera versión de este
+# incremento): deploy/ci-deploy-secretos.tests.sh hace `source` de ESTE
+# fichero para probar CLAVES_PERMITIDAS_SECRETOS_PRODUCCION y
+# actualizar_secretos_produccion tal cual corren de verdad contra el VPS, en
+# vez de mantener una copia aparte que podía desincronizarse en silencio.
+# `${BASH_SOURCE[0]} = $0` solo es cierto cuando el fichero se EJECUTA
+# directamente (como lo invoca el comando forzado de SSH); al hacerle
+# `source`, `$0` es el del script que lo importa y `main` no se dispara solo.
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+    main "$@"
+fi
