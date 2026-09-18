@@ -119,9 +119,19 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
             if (version != _versionCarga)
                 return;
 
+            // Además del autor (UsuarioId), para "Usuario"/"RolDeUsuario"
+            // EntidadId TAMBIÉN es un Id de ApplicationUser — la cuenta
+            // afectada. Sin resolverlo aquí, una fila "RolDeUsuario /
+            // Creado" no dice a quién se le concedió el rol (hallazgo de
+            // Codex antes de abrir la PR que introdujo esta auditoría): el
+            // registro es correcto en base de datos, pero la pantalla no
+            // podía responder el caso que la auditoría existe para responder.
             var idsFaltantes = resultado.Elementos
-                .Where(r => r.UsuarioId is not null && !_usuariosPorId.ContainsKey(r.UsuarioId.Value))
-                .Select(r => r.UsuarioId!.Value)
+                .SelectMany(r => r.EntidadTipo is "Usuario" or "RolDeUsuario"
+                    ? new Guid?[] { r.UsuarioId, r.EntidadId }
+                    : new Guid?[] { r.UsuarioId })
+                .Where(id => id is not null && !_usuariosPorId.ContainsKey(id.Value))
+                .Select(id => id!.Value)
                 .Distinct()
                 .ToList();
 
@@ -211,6 +221,17 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
 
     private string NombreUsuario(Guid? usuarioId) =>
         usuarioId is null ? "Sistema" : _usuariosPorId.GetValueOrDefault(usuarioId.Value, "—");
+
+    /// <summary>
+    /// Solo para "Usuario"/"RolDeUsuario": la cuenta afectada (EntidadId es
+    /// un Id de ApplicationUser en esos dos tipos, ver
+    /// AuditoriaInterceptor.ResolverTipoEId). <c>null</c> para el resto de
+    /// entidades, que no tienen esta ambigüedad ("Cliente" ya nombra la fila
+    /// en su propio EntidadTipo visualmente, aunque tampoco resuelva un
+    /// nombre — deuda compartida, no la abre esta pantalla).
+    /// </summary>
+    private string? NombreEntidadAfectada(RegistroAuditoriaListaDto registro) =>
+        registro.EntidadTipo is "Usuario" or "RolDeUsuario" ? NombreUsuario(registro.EntidadId) : null;
 
     private string? ClaseUsuario(Guid? usuarioId) =>
         usuarioId is not null && _usuariosPorId.GetValueOrDefault(usuarioId.Value) == UsuarioNoEncontrado

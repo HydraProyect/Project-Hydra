@@ -143,8 +143,9 @@ public class AuditoriaPantallaTests : BunitContext
     private NavigationManager Navegacion => Services.GetRequiredService<NavigationManager>();
 
     private static RegistroAuditoriaListaDto Fila(
-        string entidad, string accion, Guid? usuarioId = null, bool puedeRestaurar = false, bool archivoAnterior = false) =>
-        new(Guid.NewGuid(), entidad, Guid.NewGuid(), accion, usuarioId, DateTime.UtcNow, puedeRestaurar, archivoAnterior);
+        string entidad, string accion, Guid? usuarioId = null, bool puedeRestaurar = false, bool archivoAnterior = false,
+        Guid? entidadId = null) =>
+        new(Guid.NewGuid(), entidad, entidadId ?? Guid.NewGuid(), accion, usuarioId, DateTime.UtcNow, puedeRestaurar, archivoAnterior);
 
     private static IElement FilaDe(IRenderedComponent<Features.Auditoria.Pages.Auditoria> cut, string entidad) =>
         cut.FindAll("table.tabla-datos tbody tr").Single(tr => tr.QuerySelectorAll("td")[1].TextContent == entidad);
@@ -398,6 +399,51 @@ public class AuditoriaPantallaTests : BunitContext
         celdaDesaparecido.QuerySelector(".usuario-no-resuelto").Should().NotBeNull();
 
         FilaDe(cut, "Centro").QuerySelectorAll("td")[3].TextContent.Should().Be("Sistema");
+    }
+
+    /// <summary>
+    /// Hallazgo de Codex antes de abrir la PR que introdujo la auditoría de
+    /// Identity: sin esto, una fila "RolDeUsuario / Creado" no decía a quién
+    /// se le concedió el rol — el registro era correcto en base de datos,
+    /// pero la pantalla no podía responder el caso que existe para responder
+    /// ("quién hizo Administrador a quién").
+    /// </summary>
+    [Fact]
+    public void La_cuenta_afectada_se_resuelve_para_Usuario_y_RolDeUsuario()
+    {
+        var afectado = Guid.NewGuid();
+        var autor = Guid.NewGuid();
+        _usuarios[afectado.ToString()] = new ApplicationUser { Id = afectado, NombreCompleto = "Juan Pérez" };
+        _mediador.Filas.AddRange([
+            Fila("RolDeUsuario", "Creado", usuarioId: autor, entidadId: afectado),
+            Fila("Usuario", "Modificado", usuarioId: autor, entidadId: afectado)]);
+        var cut = Renderizar();
+
+        foreach (var entidad in new[] { "RolDeUsuario", "Usuario" })
+        {
+            var celda = cut.FindAll("table.tabla-datos tbody tr")
+                .Single(tr => tr.QuerySelectorAll("td")[1].TextContent.StartsWith(entidad, StringComparison.Ordinal))
+                .QuerySelectorAll("td")[1];
+
+            celda.TextContent.Should().Be($"{entidad} — Juan Pérez");
+            celda.QuerySelector(".detalle-entidad-auditoria").Should().NotBeNull();
+        }
+    }
+
+    /// <summary>
+    /// Control negativo del test anterior: el resto de entidades no lleva la
+    /// cuenta afectada — no la necesitan (no hay ambigüedad de "a quién") y
+    /// EntidadId no es un Id de ApplicationUser para ellas.
+    /// </summary>
+    [Fact]
+    public void Las_demas_entidades_no_muestran_ninguna_cuenta_afectada()
+    {
+        _mediador.Filas.Add(Fila("Trabajador", "Creado", usuarioId: Guid.NewGuid()));
+        var cut = Renderizar();
+
+        var celda = FilaDe(cut, "Trabajador").QuerySelectorAll("td")[1];
+        celda.TextContent.Should().Be("Trabajador");
+        celda.QuerySelector(".detalle-entidad-auditoria").Should().BeNull();
     }
 
     // ------------------------------------------------ atajos de lista (I-13)

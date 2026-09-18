@@ -103,7 +103,18 @@
                 {
                     <tr class="@ClaseFila(registro.Id)">
                         <td>@registro.FechaUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
-                        <td>@registro.EntidadTipo</td>
+                        <td>
+                            @registro.EntidadTipo
+                            @* Sin esto, "RolDeUsuario / Creado" no dice a quién
+                               se le concedió el rol — el registro es correcto
+                               en base de datos, pero la pantalla no podía
+                               responder el caso que la auditoría existe para
+                               responder (hallazgo de Codex). *@
+                            @if (NombreEntidadAfectada(registro) is { } nombreAfectado)
+                            {
+                                <span class="detalle-entidad-auditoria"> — @nombreAfectado</span>
+                            }
+                        </td>
                         <td>
                             <Badge Tono="@(registro.Accion switch {
                                 "Creado" => TonoBadge.Exito,

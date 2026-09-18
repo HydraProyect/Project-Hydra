@@ -11,6 +11,12 @@
     color: var(--color-text-muted);
 }
 
+/* Cuenta afectada en una fila "Usuario"/"RolDeUsuario" — mismo tono discreto
+   que el resto de detalles secundarios de esta tabla. */
+.detalle-entidad-auditoria {
+    color: var(--color-text-muted);
+}
+
 .columna-acciones-auditoria,
 .celda-acciones-auditoria {
     text-align: right;
