@@ -46,6 +46,31 @@ public class ExcepcionDeCircuitoDesconectadoTests
     }
 
     [Fact]
+    public void NpgsqlException_cruda_del_segundo_sitio_conocido_tambien_es_la_carrera()
+    {
+        // NpgsqlConnector.cs:665 (no Statics.ThrowIfMsgWrongType) — mismo
+        // prefijo y sufijo literal, distinto punto exacto del parser.
+        var ex = new NpgsqlException("Received backend message DataRow while expecting ReadyForQuery. Please file a bug.");
+
+        ExcepcionDeCircuitoDesconectado.Es(ex).Should().BeTrue();
+    }
+
+    [Fact]
+    public void NpgsqlException_cruda_de_autenticacion_real_no_se_traga_aunque_no_sea_transitoria_ni_Postgres_ni_OperationInProgress()
+    {
+        // Hallazgo de la revisión de Codex sobre la primera versión de este
+        // predicado: "cualquier NpgsqlException no transitoria" también
+        // aceptaba más de cuarenta mensajes reales de Npgsql 10.0.3 sin
+        // relación con esta carrera — sobre todo de autenticación
+        // (NpgsqlConnector.Auth.cs). Ninguno de los tres tipos ya cubiertos
+        // (PostgresException, IsTransient, NpgsqlOperationInProgressException)
+        // los distingue: hace falta el mensaje literal.
+        var ex = new NpgsqlException("No password has been provided but the backend requires one (in cleartext)");
+
+        ExcepcionDeCircuitoDesconectado.Es(ex).Should().BeFalse();
+    }
+
+    [Fact]
     public void PostgresException_nunca_se_traga_aunque_sea_del_mismo_tipo_base()
     {
         var ex = new PostgresException("duplicate key value violates unique constraint", "ERROR", "ERROR", "23505");
