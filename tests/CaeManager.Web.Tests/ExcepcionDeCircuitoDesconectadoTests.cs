@@ -7,7 +7,6 @@ namespace CaeManager.Web.Tests;
 /// <summary>
 /// REC-166: distinguir "el circuito de Blazor se desconectó con una consulta
 /// en vuelo" de "PostgreSQL falló de verdad" o "la base es inalcanzable".
-/// Ver Project-Hydra-Negocio/tecnico/reconciliacion/informes/REC-166-caracterizacion-2026-09-18.md.
 ///
 /// <para>
 /// <b>Lo que SÍ observa:</b> el predicado puro, contra instancias reales de
