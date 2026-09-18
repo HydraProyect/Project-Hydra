@@ -1,3 +1,4 @@
+using System.Data.Common;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -6,7 +7,7 @@ using CaeManager.Infrastructure.Persistence.Interceptors;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Xunit;
 
 namespace CaeManager.IntegrationTests.MultiTenancy;
@@ -30,22 +31,46 @@ namespace CaeManager.IntegrationTests.MultiTenancy;
 /// por grep, cero apariciones ejecutables en el fichero), así que el
 /// mecanismo de REC-195 no aplica; el candidato real es este.
 ///
+/// <para>
+/// <b>Cómo se observa (2ª corrección tras dos rechazos de Codex, 2026-09-18):
+/// ni un comando ADO envuelto en <c>OpenConnectionAsync</c> manual ni
+/// <c>Database.SqlQueryRaw</c> después de <c>SaveChangesAsync</c> demuestran
+/// nada — cualquier operación POSTERIOR, si necesita abrir conexión, dispara
+/// su PROPIA apertura física con el tenant vigente EN ESE MOMENTO (que sigue
+/// siendo el correcto porque el <c>using</c> de <c>AmbitoTenantExplicito</c>
+/// todavía no se cerró), así que "leo B después de escribir B" no distingue
+/// "la escritura usó B" de "la escritura usó un GUC viejo y mi sonda lo
+/// arregló por casualidad, un instante después, sin que nadie lo note".</b>
+/// La única forma de observar la propiedad de verdad es instrumentar el
+/// PROPIO mecanismo bajo prueba, no leerlo por fuera:
+/// <see cref="RegistradorAperturasConexion"/> es un segundo
+/// <see cref="IDbConnectionInterceptor"/> —registrado JUNTO al
+/// <see cref="TenantRlsConnectionInterceptor"/> real, nunca en su lugar—
+/// que anota qué <c>TenantId</c> estaba vigente en <see cref="ITenantActual"/>
+/// cada vez que EF Core dispara <c>ConnectionOpened</c>. Como los dos
+/// interceptores reciben el MISMO evento en la MISMA apertura física, lo que
+/// el registrador anota es EXACTAMENTE lo que
+/// <c>TenantRlsConnectionInterceptor</c> habría fijado en <c>app.tenant_id</c>
+/// para esa apertura — sin ninguna operación añadida después que pueda
+/// contaminar la propia medición.
+/// </para>
+///
 /// <see cref="Sin_transaccion_explicita_cada_escritura_reabre_la_conexion_y_refresca_el_guc"/>
 /// reproduce el bucle real: sin transacción explícita, EF Core abre y cierra
 /// la conexión en cada <c>SaveChangesAsync</c> (recuento de referencias,
-/// ninguna otra operación la mantiene abierta entre vueltas), así que
-/// <c>ConnectionOpened</c> vuelve a disparar y <c>app.tenant_id</c> se
-/// refresca al tenant correcto — CERO filas de un tenant contaminadas con el
-/// GUC del anterior.
+/// ninguna otra operación la mantiene abierta entre vueltas), así que la
+/// apertura física que ocurre DURANTE la escritura de B queda registrada con
+/// B, no con A.
 ///
-/// <see cref="Control_positivo_con_conexion_mantenida_abierta_el_guc_se_queda_pegado_al_primer_tenant"/>
+/// <see cref="Control_positivo_con_conexion_mantenida_abierta_no_se_registra_ninguna_apertura_para_b"/>
 /// es el control de sensibilidad que exige el protocolo (§ 3): si un futuro
 /// cambio envolviera el bucle en una transacción explícita o en
 /// <c>Database.OpenConnectionAsync()</c> compartido entre vueltas —el único
-/// cambio que rompería el mecanismo de arriba—, este mismo instrumento lo
-/// detecta en rojo. Sin este control, un verde en el primer test no
-/// distinguiría "el mecanismo es seguro" de "el test no podía ver el
-/// defecto aunque existiera".
+/// cambio que rompería el mecanismo de arriba—, la escritura de B no
+/// dispararía ninguna apertura física nueva y el registrador se quedaría sin
+/// anotar nada para B — este mismo instrumento lo detecta en rojo. Sin este
+/// control, un verde en el primer test no distinguiría "el mecanismo es
+/// seguro" de "el test no podía ver el defecto aunque existiera".
 ///
 /// <para>
 /// <b>Lo que este fichero NO demuestra</b> (revisión de Codex, 2026-09-18):
@@ -54,7 +79,7 @@ namespace CaeManager.IntegrationTests.MultiTenancy;
 /// ni al superusuario (mismo principio que documenta
 /// <c>TenantRlsConnectionInterceptor</c>: "mientras la conexión siga usando
 /// el rol propietario, esta variable se fija igual pero Postgres no la usa
-/// para nada"). Este test prueba que <c>app.tenant_id</c> se ASIGNA
+/// para nada"). Este test prueba que <c>app.tenant_id</c> se ASIGNARÍA
 /// correctamente en cada apertura física de conexión — el requisito previo
 /// para que RLS pueda hacer algo con ese valor una vez el rol restringido
 /// esté activo —, no que RLS lo HAGA CUMPLIR; eso es una propiedad distinta,
@@ -73,7 +98,7 @@ public class WebhookLoopSinCreateScopeEntreTenantsTests : IAsyncLifetime
     public async Task InitializeAsync()
     {
         var tenantActualDeSiembra = new TenantActualPorAmbitoExplicito();
-        await using var dbContext = CrearContexto(tenantActualDeSiembra);
+        await using var dbContext = CrearContexto(tenantActualDeSiembra, new RegistradorAperturasConexion(tenantActualDeSiembra));
         await dbContext.Database.MigrateAsync();
 
         var tenantA = new Domain.Tenants.Tenant("Tenant A (webhook WhatsApp)");
@@ -103,7 +128,7 @@ public class WebhookLoopSinCreateScopeEntreTenantsTests : IAsyncLifetime
     public async Task DisposeAsync() =>
         await BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
 
-    private CaeManagerDbContext CrearContexto(ITenantActual tenantActual)
+    private CaeManagerDbContext CrearContexto(ITenantActual tenantActual, RegistradorAperturasConexion registrador)
     {
         var interceptorRls = new TenantRlsConnectionInterceptor(
             tenantActual,
@@ -112,7 +137,11 @@ public class WebhookLoopSinCreateScopeEntreTenantsTests : IAsyncLifetime
 
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
-            .AddInterceptors(new TenantSelladoInterceptor(tenantActual), interceptorRls)
+            // El registrador va JUNTO al interceptor real de RLS, nunca en su
+            // lugar: los dos reciben el mismo evento ConnectionOpened en la
+            // misma apertura física, así que lo que el registrador anota es
+            // lo que TenantRlsConnectionInterceptor habría fijado.
+            .AddInterceptors(new TenantSelladoInterceptor(tenantActual), interceptorRls, registrador)
             .Options;
 
         return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
@@ -129,13 +158,11 @@ public class WebhookLoopSinCreateScopeEntreTenantsTests : IAsyncLifetime
     public async Task Sin_transaccion_explicita_cada_escritura_reabre_la_conexion_y_refresca_el_guc()
     {
         var tenantActual = new TenantActualPorAmbitoExplicito();
-        await using var dbContext = CrearContexto(tenantActual);
+        var registrador = new RegistradorAperturasConexion(tenantActual);
+        await using var dbContext = CrearContexto(tenantActual, registrador);
 
         Guid eventoAId, eventoBId;
 
-        // La lectura del GUC ocurre DENTRO de cada using, igual que el propio
-        // SaveChangesAsync — es la MISMA vuelta del bucle real, no una
-        // comprobación después de que AmbitoTenantExplicito ya se restauró.
         using (AmbitoTenantExplicito.Establecer(_tenantA))
         {
             var eventoA = new EventoWebhook(_conexionA, "{\"tenant\":\"A\"}");
@@ -144,38 +171,37 @@ public class WebhookLoopSinCreateScopeEntreTenantsTests : IAsyncLifetime
             eventoAId = eventoA.Id;
         }
 
+        registrador.Aperturas.Should().NotBeEmpty(
+            "guarda del instrumento: si esto sigue vacío, ConnectionOpened nunca disparó y el resto del test " +
+            "compararía dos vacíos sin medir nada");
+        registrador.Aperturas.Should().OnlyContain(tenantId => tenantId == _tenantA,
+            "cada apertura física registrada durante la vuelta de A tiene que llevar el tenant de A");
+
+        var aperturasAntesDeB = registrador.Aperturas.Count;
+
         using (AmbitoTenantExplicito.Establecer(_tenantB))
         {
             var eventoB = new EventoWebhook(_conexionB, "{\"tenant\":\"B\"}");
             dbContext.EventosWebhook.Add(eventoB);
             await dbContext.SaveChangesAsync();
             eventoBId = eventoB.Id;
-
-            // La comprobación que de verdad importa: tras la vuelta de B,
-            // sobre la MISMA instancia de DbContext, sin CreateScope entre
-            // medias, el GUC vigente es el de B — no el de A, que sería el
-            // síntoma exacto de REC-195 trasladado a la capa de conexión.
-            //
-            // SqlQueryRaw, NO un comando ADO envuelto en OpenConnectionAsync/
-            // CloseConnectionAsync a mano (hallazgo de Codex, 2026-09-18):
-            // abrir la conexión manualmente AQUÍ dispara su PROPIA apertura
-            // física y fija el GUC a B por sí misma — no demuestra nada sobre
-            // la conexión que usó el SaveChangesAsync de B un momento antes,
-            // solo que una sonda nueva, abierta mientras el ámbito sigue
-            // siendo B, ve B (que sería cierto incluso si SaveChangesAsync
-            // hubiera escrito con un GUC viejo). SqlQueryRaw usa la misma
-            // gestión IMPLÍCITA de conexión que SaveChangesAsync — abre si
-            // hace falta, ejecuta, cierra si la abrió ella — así que esta
-            // lectura pasa por el MISMO ciclo que la escritura de B acaba de
-            // pasar, no por uno inventado aparte.
-            var gucTrasEscribirB = await dbContext.Database
-                .SqlQueryRaw<string>("SELECT current_setting('app.tenant_id', true) AS \"Value\"")
-                .SingleAsync();
-
-            gucTrasEscribirB.Should().Be(_tenantB.ToString(),
-                "cada SaveChangesAsync abre y cierra su propia conexión (sin transacción explícita que las una), " +
-                "así que ConnectionOpened vuelve a disparar y a fijar el tenant vigente en ESE momento");
         }
+
+        // La comprobación que de verdad importa: la escritura de B, sobre la
+        // MISMA instancia de DbContext y sin CreateScope entre medias,
+        // disparó al menos una apertura física NUEVA, y TODAS las aperturas
+        // nuevas (las que no estaban ya contadas antes de este bloque)
+        // llevan el tenant de B — no el de A, que sería el síntoma exacto de
+        // REC-195 trasladado a la capa de conexión. Esto es lo que
+        // TenantRlsConnectionInterceptor habría visto en el mismo instante,
+        // no una lectura añadida después que pudiera arreglar el dato por su
+        // cuenta.
+        var aperturasDuranteB = registrador.Aperturas.Skip(aperturasAntesDeB).ToList();
+        aperturasDuranteB.Should().NotBeEmpty(
+            "la escritura de B tiene que haber abierto físicamente la conexión al menos una vez — sin transacción " +
+            "explícita compartida, SaveChangesAsync de A ya cerró la suya y esta es una apertura nueva");
+        aperturasDuranteB.Should().OnlyContain(tenantId => tenantId == _tenantB,
+            "toda apertura física ocurrida durante la escritura de B tiene que llevar el tenant de B");
 
         // Y a nivel de fila, cada EventoWebhook quedó sellado con SU tenant,
         // no con el del otro — TenantSelladoInterceptor lee ITenantActual en
@@ -203,22 +229,24 @@ public class WebhookLoopSinCreateScopeEntreTenantsTests : IAsyncLifetime
     /// vuelta y sin cerrarla hasta el final, exactamente lo que pasaría si un
     /// futuro cambio envolviera el foreach en una transacción explícita
     /// compartida. Bajo esa condición, <c>ConnectionOpened</c> solo dispara
-    /// UNA vez (para A) y el GUC se queda pegado a A también para la
-    /// escritura de B — el defecto que demuestra que el test de arriba SÍ
-    /// puede ver el problema si existiera, y no solo que no lo vio esta vez.
+    /// UNA vez (para A) y la escritura de B no abre nada nuevo — el defecto
+    /// que demuestra que el test de arriba SÍ puede ver el problema si
+    /// existiera, y no solo que no lo vio esta vez.
     /// </summary>
     [Fact]
-    public async Task Control_positivo_con_conexion_mantenida_abierta_el_guc_se_queda_pegado_al_primer_tenant()
+    public async Task Control_positivo_con_conexion_mantenida_abierta_no_se_registra_ninguna_apertura_para_b()
     {
         var tenantActual = new TenantActualPorAmbitoExplicito();
-        await using var dbContext = CrearContexto(tenantActual);
+        var registrador = new RegistradorAperturasConexion(tenantActual);
+        await using var dbContext = CrearContexto(tenantActual, registrador);
 
         using (AmbitoTenantExplicito.Establecer(_tenantA))
         {
             // Mantiene la conexión abierta a propósito, DESDE dentro del
             // ámbito de A — simula una transacción explícita compartida
             // entre vueltas, que es la única forma real de que esto ocurra
-            // en producción. ConnectionOpened dispara aquí, con el GUC de A.
+            // en producción. ConnectionOpened dispara aquí, con el tenant de
+            // A ya registrado.
             await dbContext.Database.OpenConnectionAsync();
 
             var eventoA = new EventoWebhook(_conexionA, "{\"tenant\":\"A\"}");
@@ -226,26 +254,25 @@ public class WebhookLoopSinCreateScopeEntreTenantsTests : IAsyncLifetime
             await dbContext.SaveChangesAsync();
         }
 
+        registrador.Aperturas.Should().NotBeEmpty("guarda del instrumento, igual que en el test de arriba");
+        var aperturasAntesDeB = registrador.Aperturas.Count;
+
         using (AmbitoTenantExplicito.Establecer(_tenantB))
         {
             var eventoB = new EventoWebhook(_conexionB, "{\"tenant\":\"B\"}");
             dbContext.EventosWebhook.Add(eventoB);
             // La conexión sigue abierta desde la vuelta de A (recuento de
             // referencias > 0): este SaveChangesAsync NO dispara una nueva
-            // apertura física, así que el GUC nunca se refresca a B.
+            // apertura física, así que no se registra nada nuevo para B.
             await dbContext.SaveChangesAsync();
         }
 
-        await using var comando = dbContext.Database.GetDbConnection().CreateCommand();
-        comando.CommandText = "SELECT current_setting('app.tenant_id', true);";
-        var gucFinal = (string?)await comando.ExecuteScalarAsync();
-
         await dbContext.Database.CloseConnectionAsync();
 
-        gucFinal.Should().Be(_tenantA.ToString(),
-            "con la conexión mantenida abierta a mano, ConnectionOpened solo disparó una vez (para A) " +
-            "y el GUC nunca se refrescó a B — esto demuestra que el instrumento SÍ detecta el patrón " +
-            "peligroso cuando existe, no solo que no lo encontró en el caso real de hoy");
+        registrador.Aperturas.Skip(aperturasAntesDeB).Should().BeEmpty(
+            "con la conexión mantenida abierta a mano, la escritura de B no disparó ninguna apertura física " +
+            "nueva — esto demuestra que el instrumento SÍ detecta el patrón peligroso cuando existe, no solo " +
+            "que no lo encontró en el caso real de hoy");
     }
 
     /// <summary>Igual que <c>Web/Services/TenantActual.cs</c>: lee <see cref="AmbitoTenantExplicito"/> en vivo, sin memoizar.</summary>
@@ -259,5 +286,32 @@ public class WebhookLoopSinCreateScopeEntreTenantsTests : IAsyncLifetime
         public Guid? TenantIdSeleccionado => null;
         public Guid? AsignacionOperacionIdSeleccionada => null;
         public Guid? SesionPrivilegiadaIdSeleccionada => null;
+    }
+
+    /// <summary>
+    /// Segundo <see cref="IDbConnectionInterceptor"/>, registrado JUNTO al
+    /// <see cref="TenantRlsConnectionInterceptor"/> real (ver doc-comment de
+    /// la clase): anota qué <see cref="ITenantActual.TenantId"/> estaba
+    /// vigente en cada apertura física de conexión — exactamente lo que el
+    /// interceptor real habría fijado en <c>app.tenant_id</c> para esa
+    /// apertura, sin depender de una lectura posterior que pueda contaminar
+    /// la propia medición.
+    /// </summary>
+    private sealed class RegistradorAperturasConexion(ITenantActual tenantActual) : DbConnectionInterceptor
+    {
+        public List<Guid?> Aperturas { get; } = [];
+
+        public override async Task ConnectionOpenedAsync(
+            DbConnection connection, ConnectionEndEventData eventData, CancellationToken cancellationToken = default)
+        {
+            Aperturas.Add(tenantActual.TenantId);
+            await base.ConnectionOpenedAsync(connection, eventData, cancellationToken);
+        }
+
+        public override void ConnectionOpened(DbConnection connection, ConnectionEndEventData eventData)
+        {
+            Aperturas.Add(tenantActual.TenantId);
+            base.ConnectionOpened(connection, eventData);
+        }
     }
 }

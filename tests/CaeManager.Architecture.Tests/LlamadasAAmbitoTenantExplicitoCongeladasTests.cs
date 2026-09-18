@@ -242,6 +242,16 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
     private static readonly Regex LlamadaAEstablecer = new(
         @"AmbitoTenantExplicito\.Establecer\(", RegexOptions.Compiled);
 
+    /// <summary>
+    /// <c>[Fact]</c> solo en su propia línea (con espacio en blanco delante,
+    /// nada más) — usada por <see cref="Los_sitios_con_varios_tenants_por_instancia_tienen_su_test_de_reproduccion"/>
+    /// para no confundir un atributo real con "[Fact]" dentro de un
+    /// comentario <c>//</c> o de una cadena literal (revisión de Codex,
+    /// 2026-09-18: un <c>Contains</c> simple aceptaba las dos cosas).
+    /// </summary>
+    private static readonly Regex AtributoFactEnSuPropiaLinea = new(
+        @"^[ \t]*\[Fact\][ \t]*$", RegexOptions.Compiled | RegexOptions.Multiline);
+
     private static readonly string[] DirectoriosVigilados = ["src"];
 
     private static Dictionary<string, int> LlamadasPorFichero()
@@ -388,7 +398,15 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
                 $"{ficheroTest} tiene que existir — es el test de reproducción que demuestra que {ficheroProduccion} " +
                 "no envenena nada; si se borró o se movió sin actualizar esta entrada, la afirmación queda sin comprobar");
 
-            File.ReadAllText(rutaTest).Should().Contain("[Fact]",
+            // Ancla a "[Fact] solo en su línea, sin nada antes salvo espacio
+            // en blanco" (revisión de Codex, 2026-09-18: un simple Contains
+            // habría aceptado "// [Fact]" en un comentario o la cadena
+            // literal "[Fact]" en un mensaje de aserción, sin que el fichero
+            // declarara ningún test real). No es un parser de C# — sigue sin
+            // detectar un atributo comentado con /* */ en la misma línea—,
+            // pero excluye los dos falsos positivos con los que se puede
+            // "aprobar" este Fact sin escribir un test de verdad.
+            AtributoFactEnSuPropiaLinea.IsMatch(File.ReadAllText(rutaTest)).Should().BeTrue(
                 $"{ficheroTest} tiene que declarar al menos un [Fact] — vaciarlo o convertirlo en una clase sin " +
                 "tests pasaría la comprobación de existencia sin demostrar nada");
         }
