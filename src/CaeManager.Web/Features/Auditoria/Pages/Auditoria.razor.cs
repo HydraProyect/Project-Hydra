@@ -19,8 +19,12 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
 {
     // Catálogo fijo de agregados de dominio auditables (ver
     // AuditoriaInterceptor: EntidadTipo es el nombre simple de la clase).
+    // "Usuario" y "RolDeUsuario" no son entidades de CaeManager.Domain —
+    // son las dos excepciones de Identity que AuditoriaInterceptor.ResolverTipoEId
+    // nombra explícitamente en castellano (ver su comentario).
     private static readonly string[] TiposEntidad =
-        ["Cliente", "Empresa", "Centro", "Trabajador", "TipoDocumento", "Documento", "Asignacion", "ParametroSistema"];
+        ["Cliente", "Empresa", "Centro", "Trabajador", "TipoDocumento", "Documento", "Asignacion", "ParametroSistema",
+            "Usuario", "RolDeUsuario"];
 
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;

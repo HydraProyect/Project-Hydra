@@ -6,6 +6,8 @@ using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Subcontratas;
+using CaeManager.Infrastructure.Identity;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -14,9 +16,16 @@ namespace CaeManager.Infrastructure.Auditing;
 
 /// <summary>
 /// Registra en RegistroAuditoria cada alta/modificación/baja de una entidad
-/// de dominio (ver ARCHITECTURE.md, "Auditoría y soft delete"). Enmascara
-/// antes de serializar las propiedades de PropiedadesSensiblesPorTipo, que
-/// hoy cubre dos familias distintas:
+/// de dominio (ver ARCHITECTURE.md, "Auditoría y soft delete"), y también de
+/// las dos entidades de Identity que dejan rastro de quién gestiona a quién:
+/// <see cref="ApplicationUser"/> (alta, edición, baja, activación/desactivación
+/// de una cuenta) e <see cref="IdentityUserRole{TKey}"/> (concesión y
+/// revocación de un rol — el caso más grave, "quién hizo Administrador a
+/// quién", ver CIERRE-TURNO-NOCTURNO-2026-09-18.md § 12). Identity vive fuera
+/// del namespace CaeManager.Domain (Infrastructure.Identity), así que estas
+/// dos entran por una excepción explícita en vez de por el filtro de
+/// namespace — ver ConstruirRegistros. Enmascara antes de serializar las
+/// propiedades de PropiedadesSensiblesPorTipo, que hoy cubre estas familias:
 ///
 /// 1. Secretos cifrados por ValueConverter en CaeManagerDbContext
 ///    (CanalGestionDocumental, CredencialAccesoEmpresa,
@@ -34,6 +43,10 @@ namespace CaeManager.Infrastructure.Auditing;
 ///    SugerenciaVisitaCorreo) — DEC-37/38 extienden el criterio del punto 2:
 ///    ni el remitente en una fila distinta ni un resumen generado a partir
 ///    del correo quedan exentos por ello. Ver el comentario de esas entradas.
+/// 4. Secretos de autenticación de <see cref="ApplicationUser"/>
+///    (PasswordHash, SecurityStamp): Identity los guarda en la misma fila que
+///    los datos que sí interesa auditar (rol, activación, nombre), así que no
+///    se puede excluir la entidad entera — solo estos dos campos.
 /// </summary>
 public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesInterceptor
 {
@@ -74,7 +87,32 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
         [typeof(ContactoWhatsApp)] = [nameof(ContactoWhatsApp.Telefono), nameof(ContactoWhatsApp.Nombre)],
         [typeof(ClasificacionRelevanciaCae)] = [nameof(ClasificacionRelevanciaCae.Resumen)],
         [typeof(SugerenciaGestionCorreo)] = [nameof(SugerenciaGestionCorreo.Resumen)],
-        [typeof(SugerenciaVisitaCorreo)] = [nameof(SugerenciaVisitaCorreo.Resumen)]
+        [typeof(SugerenciaVisitaCorreo)] = [nameof(SugerenciaVisitaCorreo.Resumen)],
+
+        // Punto 4 del comentario de clase: secretos de autenticación de
+        // Identity. PasswordHash y SecurityStamp cambian en el mismo
+        // SaveChanges que un alta de cuenta o un restablecimiento de
+        // contraseña — el resto de la fila (rol, activación, nombre) sí
+        // interesa auditar, así que se enmascaran los dos campos, no se
+        // excluye la entidad.
+        [typeof(ApplicationUser)] = [nameof(ApplicationUser.PasswordHash), nameof(ApplicationUser.SecurityStamp)]
+    };
+
+    /// <summary>
+    /// Propiedades cuyo cambio, si es el ÚNICO en un <c>Modified</c>, no
+    /// genera fila de auditoría — a diferencia de PropiedadesSensiblesPorTipo,
+    /// que enmascara el VALOR pero deja la fila. Sin esta lista,
+    /// <c>ActividadUsuarioService</c> escribiría un "Modificado" de
+    /// <see cref="ApplicationUser"/> por cada usuario activo cada minuto
+    /// (throttle de <c>ActividadUsuarioService.ThrottleEscritura</c>) — ruido
+    /// que ahogaría el propio caso que esta auditoría existe para responder
+    /// ("quién hizo Administrador a quién"). Si el campo silenciado cambia
+    /// JUNTO con otro que no lo está, la fila se genera igual (con el
+    /// silenciado incluido) — la exclusión es del disparo, no del campo.
+    /// </summary>
+    private static readonly Dictionary<Type, HashSet<string>> PropiedadesSilenciosasPorTipo = new()
+    {
+        [typeof(ApplicationUser)] = [nameof(ApplicationUser.UltimaActividadUtc), nameof(ApplicationUser.ConcurrencyStamp)]
     };
 
     public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
@@ -149,7 +187,9 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
             // para acotar. Codex lo detectó antes de abrir la PR.
             if (entrada.Entity is RegistroAccesoDocumentoSensible) continue;
 
-            if (entrada.Entity.GetType().Namespace?.StartsWith("CaeManager.Domain", StringComparison.Ordinal) != true) continue;
+            var esDominio = entrada.Entity.GetType().Namespace?.StartsWith("CaeManager.Domain", StringComparison.Ordinal) == true;
+            var esIdentidadAuditada = entrada.Entity is ApplicationUser or IdentityUserRole<Guid>;
+            if (!esDominio && !esIdentidadAuditada) continue;
             if (entrada.State is not (EntityState.Added or EntityState.Modified or EntityState.Deleted)) continue;
 
             var accion = entrada.State switch
@@ -160,8 +200,9 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
                 _ => "Desconocido"
             };
 
-            var entidadId = entrada.Property("Id").CurrentValue as Guid? ?? Guid.Empty;
+            var (entidadTipo, entidadId) = ResolverTipoEId(entrada);
             var sensibles = PropiedadesSensiblesPorTipo.GetValueOrDefault(entrada.Entity.GetType());
+            var silenciosas = PropiedadesSilenciosasPorTipo.GetValueOrDefault(entrada.Entity.GetType());
 
             // En Added/Deleted no hay "propiedad modificada" que distinguir —
             // se registra la fila entera. En Modified sí: filtrar a
@@ -170,8 +211,16 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
             // campo, y reduce a la mitad el tamaño de cada fila de auditoría
             // en el caso común de una edición puntual.
             var propiedades = entrada.State == EntityState.Modified
-                ? entrada.Properties.Where(p => p.IsModified)
-                : entrada.Properties;
+                ? entrada.Properties.Where(p => p.IsModified).ToList()
+                : entrada.Properties.ToList();
+
+            // Ver PropiedadesSilenciosasPorTipo: un Modified cuyo ÚNICO
+            // cambio sea un campo silenciado no genera fila. Solo aplica a
+            // Modified — un alta o una baja siempre se registra entera,
+            // aunque el campo silenciado esté entre sus propiedades.
+            if (entrada.State == EntityState.Modified && silenciosas is not null
+                && propiedades.All(p => silenciosas.Contains(p.Metadata.Name)))
+                continue;
 
             string? datosAntes = entrada.State != EntityState.Added
                 ? SerializarValores(propiedades, sensibles, usarValorOriginal: true)
@@ -181,13 +230,32 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
                 : null;
 
             registros.Add(new RegistroAuditoria(
-                entrada.Entity.GetType().Name, entidadId, accion, datosAntes, datosDespues,
+                entidadTipo, entidadId, accion, datosAntes, datosDespues,
                 actor.UsuarioSimuladoId ?? actor.ActorRealUsuarioId,
                 actor.ActorRealUsuarioId, via, actor.ViaAccesoId));
         }
 
         return registros;
     }
+
+    /// <summary>
+    /// El nombre de tipo y el Id bajo los que se archiva la fila.
+    /// <see cref="IdentityUserRole{TKey}"/> no tiene propiedad "Id" (su clave
+    /// es el par UserId+RoleId), así que el camino genérico
+    /// (<c>entrada.Property("Id")</c>) lanzaría; se usa UserId como
+    /// EntidadId — es "a quién se le concedió o quitó el rol", que es
+    /// exactamente lo que este registro existe para responder. El nombre de
+    /// tipo de las dos entidades de Identity se sustituye por uno en
+    /// castellano ("Usuario", "RolDeUsuario") en vez del nombre de clase de
+    /// Identity — mismo criterio que el resto de EntidadTipo, que ya son
+    /// nombres de dominio en castellano (Cliente, Empresa, Trabajador...).
+    /// </summary>
+    private static (string Tipo, Guid Id) ResolverTipoEId(EntityEntry entrada) => entrada.Entity switch
+    {
+        ApplicationUser usuario => ("Usuario", usuario.Id),
+        IdentityUserRole<Guid> rol => ("RolDeUsuario", rol.UserId),
+        _ => (entrada.Entity.GetType().Name, entrada.Property("Id").CurrentValue as Guid? ?? Guid.Empty)
+    };
 
     // DEUDA CONOCIDA, no olvido: los actos sobre los catálogos globales de
     // asignación operativa (Domain.Operaciones) se auditan aquí contra el
