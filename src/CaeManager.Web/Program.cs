@@ -518,11 +518,15 @@ var app = builder.Build();
 // multi-réplica): aplica las migraciones pendientes y termina, sin levantar
 // Kestrel ni sembrar datos. Así el esquema se cierra una única vez, antes de
 // que arranque ninguna réplica del proceso web — no N réplicas compitiendo
-// por aplicar DDL a la vez en cada redeploy/reinicio. No está wireado a
-// ningún paso del pipeline de deploy actual (deploy/local, .github/workflows/
-// deploy.yml aplican las migraciones en el arranque normal, ver
-// Migraciones:AlArrancar más abajo) — queda disponible para cuando el
-// despliegue pase a multi-réplica y haga falta un pre-deploy explícito.
+// por aplicar DDL a la vez en cada redeploy/reinicio.
+//
+// Desde REC-017/P39 SÍ está wireado: es el comando del servicio "migrador" en
+// docker-compose.produccion.yml y docker-compose.staging.yml, que corre como
+// contenedor efímero antes de que "app" arranque (`depends_on: migrador:
+// condition: service_completed_successfully`) — con Migraciones:AlArrancar en
+// false en ambos, "app" ya no vuelve a aplicar migraciones por su cuenta. La
+// topología de hoy sigue siendo de una sola réplica; el pre-deploy explícito
+// para multi-réplica queda para cuando esa réplica exista de verdad.
 if (args.Contains("--migrate-only"))
 {
     using var scopeMigracion = app.Services.CreateScope();
@@ -625,14 +629,18 @@ app.UseForwardedHeaders(opcionesForwardedHeaders);
 
 using (var scope = app.Services.CreateScope())
 {
-    // Migraciones__AlArrancar=false, el día que un pre-deploy (--migrate-only
-    // de más arriba) se adopte de verdad en el pipeline — hasta entonces, por
-    // defecto (true), el arranque normal las aplica igual que siempre: con el
-    // pre-deploy sin adoptar, es la única vía que las ejecuta. Con las dos
-    // activas a la vez no hay riesgo de una sola réplica (las migraciones ya
-    // aplicadas no se repiten), pero si se escalase a varias réplicas
-    // simultáneas sí volvería la carrera que migrate-only existe para evitar
-    // — de ahí el apagador explícito en vez de dejarlo siempre encendido.
+    // Migraciones__AlArrancar=false en staging y producción desde REC-017/P39
+    // (docker-compose.*.yml, servicio "migrador"): el pre-deploy de arriba
+    // (--migrate-only) ya es quien aplica el esquema en esos dos entornos, así
+    // que este bloque no vuelve a tocarlo ahí. El valor por defecto (true)
+    // sigue en pie para cualquier entorno que NO declare la variable — el
+    // desarrollo local (docker-compose.yml, solo Postgres, sin contenedor
+    // "app") y el arnés E2E (WebAppFixture) siguen migrando aquí, en el mismo
+    // proceso que arranca. Con las dos vías activas a la vez no hay riesgo de
+    // una sola réplica (las migraciones ya aplicadas no se repiten), pero si
+    // se escalase a varias réplicas simultáneas volvería la carrera que
+    // migrate-only existe para evitar — de ahí el apagador explícito en vez
+    // de dejarlo siempre encendido.
     if (app.Configuration.GetValue("Migraciones:AlArrancar", defaultValue: true))
     {
         await MigrarBaseDeDatosAsync(app.Configuration, scope.ServiceProvider);

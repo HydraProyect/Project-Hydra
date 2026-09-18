@@ -49,6 +49,50 @@
 # ─────────────────────────────────────────────────────────────────────────
 
 services:
+  migrador:
+    # Job de migración de vida corta (REC-017/P39). Antes de este cambio, el
+    # contenedor "app" —que sirve tráfico de forma permanente— también
+    # ejecutaba las migraciones en cada arranque (Migraciones:AlArrancar,
+    # Program.cs), con la MISMA imagen y el MISMO ConnectionStrings__CaeManagerDb
+    # (el rol propietario "postgres", el único con privilegios de DDL: ver
+    # deploy/bootstrap/roles-de-cluster.sql). Eso significa que un proceso que
+    # vive indefinidamente —y que además procesa contenido subido por usuarios
+    # (parsers PDF/Office)— llevaba esa identidad de esquema cargada en su
+    # configuración durante toda su vida, no solo en el instante de migrar.
+    #
+    # Este servicio aísla esa identidad a un contenedor que solo vive lo que
+    # tarda `--migrate-only` (Program.cs, ya existía sin estar conectado a
+    # ningún paso del pipeline — este cambio es exactamente esa conexión) y
+    # sale con código 0 o no arranca nada más: ver `depends_on` de "app" más
+    # abajo, con `condition: service_completed_successfully`. `restart: "no"`
+    # a propósito — un job de un solo uso que Compose reiniciara indefinidamente
+    # ante un fallo real de migración escondería el error en vez de pararlo.
+    #
+    # No hay `deploy.replicas` en ningún servicio de este fichero (topología de
+    # una sola réplica), así que la única carrera real a evitar es la de ESTE
+    # despliegue frente a sí mismo — que `depends_on` ya serializa— y la de dos
+    # despliegues simultáneos (staging/producción) sobre el mismo /opt/talveg,
+    # que ya cierra el flock de deploy/ci-deploy.sh. Si el despliegue pasa algún
+    # día a multi-réplica, hace falta un mecanismo aparte (p. ej. un paso de
+    # pre-deploy fuera de Compose) para que N réplicas de "app" no esperen cada
+    # una a su propio "migrador" compitiendo por el mismo DDL.
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    container_name: caemanager-migrador
+    restart: "no"
+    command: ["--migrate-only"]
+    env_file: .env
+    environment:
+      ConnectionStrings__CaeManagerDb: "Host=db;Port=5432;Database=caemanager;Username=postgres;Password=${POSTGRES_PASSWORD}"
+      AlmacenamientoArchivos__Ruta: /data/documentos
+      DataProtection__RutaClaves: /data/dataprotection-keys
+    volumes:
+      - caemanager-data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+
   app:
     build:
       context: ../..
@@ -81,6 +125,16 @@ services:
     # `docker stats caemanager-app` en el servidor.
     mem_limit: ${LIMITE_MEMORIA_APP:-3g}
     restart: unless-stopped
+    # REC-017/P39: las migraciones ya no las aplica este contenedor — las
+    # aplica el servicio "migrador" de arriba, antes de que este arranque (ver
+    # su `depends_on` más abajo). Este apagador ya existía en Program.cs sin
+    # estar wireado desde ningún despliegue.
+    #
+    # ConnectionStrings__CaeManagerDb sigue configurado más abajo pese a esto:
+    # lo sigue usando el healthcheck de /salud (Program.cs, `AddNpgSql`, un
+    # `SELECT 1` de solo lectura sin relación con RLS) — quitarlo rompería esa
+    # comprobación, no las migraciones.
+    #
     # ConnectionStrings__CaeManagerDbRuntime (RUNBOOK-RLS.md, repositorio de
     # negocio) NO aparece en el bloque `environment:` de abajo a propósito:
     # es la cadena completa con la contraseña del rol restringido
@@ -97,6 +151,8 @@ services:
       ConnectionStrings__CaeManagerDb: "Host=db;Port=5432;Database=caemanager;Username=postgres;Password=${POSTGRES_PASSWORD}"
       AlmacenamientoArchivos__Ruta: /data/documentos
       DataProtection__RutaClaves: /data/dataprotection-keys
+      # REC-017/P39 — ver el comentario de más arriba, junto a `restart:`.
+      Migraciones__AlArrancar: "false"
     volumes:
       - caemanager-data:/data
     # Sin `ports` publicados: la app solo es alcanzable desde la red interna
@@ -110,6 +166,13 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      # REC-017/P39: el esquema tiene que estar migrado ANTES de que arranque
+      # el servidor — `service_completed_successfully` bloquea el `up` de este
+      # servicio hasta que "migrador" termine con código 0, y lo falla si
+      # "migrador" sale con error (ver el comentario largo junto a ese
+      # servicio, arriba).
+      migrador:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/salud"]
       interval: 30s
