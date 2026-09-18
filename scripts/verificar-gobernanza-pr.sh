@@ -13,9 +13,12 @@
 #   2. Revisión Codex en el cuerpo. #678 se abrió sin pasar por Codex y #673
 #      dejó un marcador provisional ("2ª pasada — (resultado abajo)") sin
 #      rellenar. Regla: toda PR (salvo dependabot[bot]) lleva una sección
-#      titulada exactamente "## Revisión Codex" con contenido real: al menos
-#      una línea de hallazgos aceptados o rechazados, o "sin hallazgos" — y
-#      sin marcadores provisionales ("resultado abajo", "pendiente", "TODO").
+#      titulada "## Revisión Codex" (o una de sus variantes aceptadas, ver
+#      TITULOS_REVISION_CODEX más abajo — #688 tituló la suya "## Revisión de
+#      Codex" y el check dio rojo con la revisión ya hecha) con contenido
+#      real: al menos una línea de hallazgos aceptados o rechazados, o "sin
+#      hallazgos" — y sin marcadores provisionales ("resultado abajo",
+#      "pendiente", "TODO").
 #
 # Qué NO hace: no interpreta si los hallazgos de Codex son correctos, ni si
 # el paso operativo descrito es el correcto — eso lo decide una persona. Solo
@@ -78,6 +81,43 @@ extraer_seccion() {
   ' "$fichero"
 }
 
+# Regla 2 acepta un conjunto explícito y pequeño de variantes del título —no
+# un grep laxo—, probado en verificar-gobernanza-pr.tests.sh. Nace de un caso
+# real: PR #688 (2026-09-18) tituló su sección "## Revisión de Codex" (con
+# "de", redacción tan natural como la canónica) y el check dio rojo con la
+# revisión ya hecha de verdad. Cada variante se compara con la misma igualdad
+# exacta de extraer_seccion (sin regex, sin escapar tildes) — tolerar la
+# REDACCIÓN del título no afloja la propiedad: seccion_no_vacia() y los
+# marcadores provisionales se siguen exigiendo igual sobre el contenido que
+# aparezca bajo cualquiera de las variantes.
+TITULOS_REVISION_CODEX=(
+  "## Revisión Codex"
+  "## Revisión de Codex"
+  "## Revision Codex"
+  "## Revision de Codex"
+)
+
+# Prueba cada título de la lista, en orden, y devuelve el contenido de la
+# primera variante que aparezca con contenido no vacío. Si ninguna tiene
+# contenido (ausente o vacía en todas), devuelve el resultado de la primera
+# variante de la lista — igual que extraer_seccion() cuando el título no
+# aparece — para que el mensaje de "falta/vacía" de más abajo tenga algo
+# consistente que reportar.
+extraer_seccion_variantes() {
+  local fichero="$1"
+  shift
+  local titulos=("$@")
+  local titulo resultado
+  for titulo in "${titulos[@]}"; do
+    resultado="$(extraer_seccion "$fichero" "$titulo")"
+    if [[ -n "$resultado" ]]; then
+      printf '%s' "$resultado"
+      return 0
+    fi
+  done
+  extraer_seccion "$fichero" "${titulos[0]}"
+}
+
 seccion_no_vacia() {
   # Quita comentarios HTML de una sola línea antes de mirar si queda
   # contenido visible: "<!-- -->" no es texto real, y GitHub lo renderiza
@@ -122,7 +162,7 @@ fi
 if [[ "$AUTOR" == "$AUTOR_EXENTO_REVISION_CODEX" ]]; then
   echo "OK        Autor $AUTOR_EXENTO_REVISION_CODEX — regla de revisión Codex no aplica."
 else
-  SECCION="$(extraer_seccion "$CUERPO" "## Revisión Codex")"
+  SECCION="$(extraer_seccion_variantes "$CUERPO" "${TITULOS_REVISION_CODEX[@]}")"
   if ! seccion_no_vacia "$SECCION"; then
     echo "PROBLEMA  Falta la sección '## Revisión Codex' en el cuerpo (o está vacía)." \
          "Protocolo § 24.2 / skill protocolo-hydra-multimodelo: al menos una línea de" \

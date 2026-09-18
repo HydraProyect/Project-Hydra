@@ -61,7 +61,20 @@ jobs:
       # correr scripts/verificar-gobernanza-pr.sh y lista los ficheros de la
       # PR con GET /pulls/{n}/files, que documenta ese mismo permiso.
     steps:
+      # REC-213: hace checkout del SHA de la BASE (`origin/main` en el
+      # instante del evento), nunca del código de la propia PR. El paso de
+      # abajo ejecuta `scripts/verificar-gobernanza-pr.sh` desde el árbol que
+      # este checkout trae — una PR que edite ese guion en el mismo commit
+      # (por ejemplo, para que salga 0 siempre) se evaluaría con SU PROPIA
+      # versión si el checkout usara el ref por defecto de `pull_request`
+      # (el merge de la PR sobre la base). `base.sha` identifica la base de
+      # forma estable para este evento, igual que `head.sha` identifica la
+      # PR — ninguno de los dos se mueve si la rama base avanza después.
+      # Falsado por mutación: rama con el guion saboteado para salir 0
+      # siempre sigue en rojo, porque el guion que corre es el de la base.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
 
       # REC-162, revertido a propósito. El job original en ci.yml leía
       # milestone y etiquetas de `github.event.pull_request.*` — el payload
