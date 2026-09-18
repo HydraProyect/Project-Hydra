@@ -126,15 +126,47 @@ actualizar_secretos_produccion() {
         return 0
     fi
 
-    # Rechazo TOTAL y ruidoso ante cualquier clave fuera de la lista blanca —
-    # nunca aplicar las buenas y descartar en silencio la mala: eso
-    # escondería justo el caso que importa detectar (un despliegue con la
-    # lista de deploy.yml y la de aquí ya desincronizadas, o un intento real
-    # de inyección). `.env` no se toca en absoluto si algo no encaja.
-    local linea clave
+    # Rechazo TOTAL y ruidoso ante cualquier clave fuera de la lista blanca, O
+    # ante cualquier VALOR con un carácter que el formato dotenv de Compose
+    # no representa sin ambigüedad — nunca aplicar las buenas y descartar en
+    # silencio la mala: eso escondería justo el caso que importa detectar
+    # (un despliegue con la lista de deploy.yml y la de aquí ya
+    # desincronizadas, o un intento real de inyección). `.env` no se toca en
+    # absoluto si algo no encaja.
+    #
+    # Los caracteres prohibidos, y por qué (los tres primeros, hallazgos
+    # sucesivos de la revisión de Codex sobre versiones anteriores de este
+    # mismo mecanismo — docs.docker.com/reference/compose-file/services/#env_file-format):
+    #   - ' (comilla simple): es el propio delimitador que usa esc() de abajo.
+    #   - $ : un valor SIN comillas o con comillas DOBLES sufre la misma
+    #     interpolación ${VAR}/$VAR que el resto del fichero Compose — y
+    #     escribir SIEMPRE con comillas simples (más abajo) es precisamente
+    #     lo que evita tener que decidir cuál de los dos modos aplica aquí.
+    #   - \ (barra invertida): en comillas simples NO es un carácter de
+    #     escape salvo justo delante de una comilla (`\'`) — así que un valor
+    #     que TERMINE en \ hace que esc() escriba `...\'` y el intérprete lo
+    #     lee como "comilla escapada", nunca como el cierre de la cadena: el
+    #     resto del fichero .env queda sin parsear. No hay forma de
+    #     representar una \ suelta sin esta ambigüedad con el único mecanismo
+    #     de escape que el formato documenta (dobla la barra según el hallazgo
+    #     anterior, y el problema solo se desplaza: sigue quedando una \
+    #     pegada al cierre en cuanto el número de barras finales es impar).
+    #   - " y ` : no hacen falta en ninguno de los secretos reales de la
+    #     lista blanca; se excluyen por prudencia en vez de auditar su
+    #     interacción exacta con comillas simples.
+    #   - Cualquier carácter no imprimible (control, salto de línea): ya lo
+    #     rechaza `agregar()` en deploy.yml para saltos de línea, pero aquí
+    #     se comprueba también, sin asumir que el llamante es siempre ese.
+    #
+    # Los secretos reales de la lista blanca son API keys, contraseñas y
+    # tokens generados — nada de esto les hace falta, y regenerarlos sin
+    # estos caracteres es trivial. Preferible negarse alto y claro a
+    # perseguir el siguiente caso de escape ambiguo del formato.
+    local linea clave valor
     while IFS= read -r linea; do
         [ -n "$linea" ] || continue
         clave="${linea%%=*}"
+        valor="${linea#*=}"
         case "$CLAVES_PERMITIDAS_SECRETOS_PRODUCCION" in
             *$'\n'"$clave"$'\n'*) ;;
             *)
@@ -142,6 +174,16 @@ actualizar_secretos_produccion() {
                 return 1
                 ;;
         esac
+        case "$valor" in
+            *[\'\"\`\\\$]*)
+                echo "::error::el valor de '$clave' contiene un carácter no admitido (', \", \`, \\ o \$) — .env sin tocar." >&2
+                return 1
+                ;;
+        esac
+        if [[ "$valor" =~ [^[:print:]] ]]; then
+            echo "::error::el valor de '$clave' contiene un carácter no imprimible — .env sin tocar." >&2
+            return 1
+        fi
     done <<< "$recibido"
 
     # FICHERO_ENV_SECRETOS_PRODUCCION solo existe para que
@@ -181,28 +223,17 @@ actualizar_secretos_produccion() {
     # servicios con `env_file: .env`) — no un fallo de arranque ruidoso, sino
     # una credencial equivocada en silencio.
     #
-    # ÚNICO carácter que se escapa: la comilla simple, con \ — es la ÚNICA
-    # secuencia que ese formato documenta para comillas simples ("Quotes can
-    # be escaped with \"). Una barra invertida SUELTA se deja literal a
-    # propósito (segundo hallazgo de Codex, sobre la primera versión de este
-    # mismo cambio, que la duplicaba "por si acaso"): el propio ejemplo de la
-    # documentación, `VAR='some\tvalue' -> some\tvalue`, prueba que un valor
-    # con comillas simples NO procesa ninguna secuencia de escape salvo la de
-    # la comilla — duplicar la barra invertida universalmente escribía DOS
-    # barras donde el secreto real solo tenía una, y la credencial que llega
-    # al contenedor ya no coincide con la cargada en GitHub.
+    # Sin escapado dentro de esc(), a propósito: la validación de arriba ya
+    # rechazó el envío ENTERO si algún valor llevaba comilla simple, comilla
+    # doble, acento grave, "$" o una barra invertida — precisamente los
+    # caracteres cuyo escape en el formato dotenv de comillas simples resultó
+    # ser ambiguo (dos hallazgos sucesivos de Codex: duplicar la barra
+    # invertida altera un valor real, y una barra invertida FINAL antes del
+    # cierre se confunde con "comilla escapada" y deja el resto de `.env` sin
+    # parsear). Sin esos caracteres en el valor, entrecomillar con comillas
+    # simples sin más ya es literal y no necesita ningún escape.
     awk -F= '
-        function esc(v,   q, bs, out, i, c) {
-            q = sprintf("%c", 39)
-            bs = sprintf("%c", 92)
-            out = q
-            for (i = 1; i <= length(v); i++) {
-                c = substr(v, i, 1)
-                if (c == q) out = out bs q
-                else out = out c
-            }
-            return out q
-        }
+        function esc(v) { return "'"'"'" v "'"'"'" }
         NR==FNR {
             if ($1 != "") {
                 clave=$1

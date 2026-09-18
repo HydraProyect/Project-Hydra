@@ -126,32 +126,44 @@ for clave_prohibida in POSTGRES_PASSWORD ConnectionStrings__CaeManagerDbRuntime;
 done
 echo "OK: las dos claves de PostgreSQL siguen fuera de la lista blanca"
 
-echo "=== Caso 6: un valor con '\$' no se interpola (hallazgo de Codex) ==="
-# docs.docker.com/reference/compose-file/services/#env_file-format: un valor
-# SIN comillas (o con comillas dobles) de un env_file sufre la misma
-# interpolación \${VAR}/\$VAR que el resto del fichero Compose; con comillas
-# simples "se usan literales". Esta prueba no invoca Compose (no hay Docker
-# en este arnés) — fija que la línea escrita queda entrecomillada de la
-# forma que el propio formato dotenv documenta como literal.
+echo "=== Caso 6: valor con un carácter no admitido se rechaza ENTERO (hallazgos sucesivos de Codex) ==="
+# Historia de este caso: la primera versión escapaba '$' entrecomillando con
+# comillas simples; la segunda escapaba también la comilla simple y la barra
+# invertida (\ y \'); Codex encontró que duplicar \ altera un valor real, y
+# después que un valor que TERMINA en \ hace que la comilla de cierre quede
+# leída como "comilla escapada" y deje el resto de .env sin parsear —
+# docs.docker.com/reference/compose-file/services/#env_file-format no
+# documenta ninguna forma no ambigua de representar eso con comillas
+# simples. La solución final no persigue más casos de escape: rechaza
+# ENTERO cualquier valor con ', ", `, \ o $ — ninguno de los secretos
+# reales de la lista blanca los necesita.
 export FICHERO_ENV_SECRETOS_PRODUCCION="$DIR/.env-caso6"
-: > "$FICHERO_ENV_SECRETOS_PRODUCCION"
-printf 'Smtp__Contrasena=abc$HOME/raro'"'"'con-comilla\n' | actualizar_secretos_produccion
-grep -qxF "Smtp__Contrasena='abc\$HOME/raro\'con-comilla'" "$FICHERO_ENV_SECRETOS_PRODUCCION" \
-  || { echo "FALLO: el valor con '\$' y comilla no quedó entrecomillado/escapado como espera el formato dotenv" >&2; cat "$FICHERO_ENV_SECRETOS_PRODUCCION" >&2; exit 1; }
-echo "OK: valor con '\$' y comilla queda entrecomillado y escapado"
+cat > "$FICHERO_ENV_SECRETOS_PRODUCCION" <<'ENVEOF'
+DOMINIO=app.talveg.es
+ENVEOF
+for valor_prohibido in 'abc$HOME' "con'comilla" 'con"comilla' 'con`acento' 'termina\' 'en\medio' ; do
+  ANTES6="$(leer_env)"
+  if printf 'Smtp__Contrasena=%s\n' "$valor_prohibido" | actualizar_secretos_produccion 2>/tmp/caso6-stderr.txt; then
+    echo "FALLO: aceptó un valor con carácter no admitido: '$valor_prohibido'" >&2
+    exit 1
+  fi
+  grep -q "carácter no admitido" /tmp/caso6-stderr.txt || { echo "FALLO: no avisó por qué rechazó '$valor_prohibido'" >&2; cat /tmp/caso6-stderr.txt >&2; exit 1; }
+  DESPUES6="$(leer_env)"
+  [ "$ANTES6" = "$DESPUES6" ] || { echo "FALLO: .env cambió pese al rechazo de '$valor_prohibido'" >&2; exit 1; }
+done
+rm -f /tmp/caso6-stderr.txt
+echo "OK: los seis valores con carácter no admitido se rechazaron enteros, .env intacto"
 
-echo "=== Caso 7: una barra invertida suelta no se duplica (hallazgo de Codex) ==="
-# Regresión sobre la primera versión de esc(), que duplicaba TODA barra
-# invertida "por si acaso". docs.docker.com/reference/compose-file/services/#env_file-format
-# prueba con su propio ejemplo (VAR='some\tvalue' -> some\tvalue) que un
-# valor con comillas simples no procesa ninguna secuencia de escape salvo la
-# de la comilla — duplicarla escribía dos barras donde el secreto real solo
-# tenía una, y la credencial dejaba de coincidir con la cargada en GitHub.
+echo "=== Caso 7: valor con caracteres seguros variados sí se acepta ==="
+# Contraparte del caso 6: el rechazo es del CARÁCTER concreto, no de
+# cualquier símbolo — un valor con puntuación habitual en API keys/tokens
+# (":", "/", "+", "=", "_", "-", ".", "@", espacio) se acepta y se
+# entrecomilla tal cual, sin alterarlo.
 export FICHERO_ENV_SECRETOS_PRODUCCION="$DIR/.env-caso7"
 : > "$FICHERO_ENV_SECRETOS_PRODUCCION"
-printf 'Smtp__Contrasena=cla\\ve\n' | actualizar_secretos_produccion
-grep -qxF "Smtp__Contrasena='cla\ve'" "$FICHERO_ENV_SECRETOS_PRODUCCION" \
-  || { echo "FALLO: la barra invertida no quedó tal cual (se duplicó o se perdió)" >&2; cat "$FICHERO_ENV_SECRETOS_PRODUCCION" >&2; exit 1; }
-echo "OK: la barra invertida queda literal, sin duplicar"
+printf 'Anthropic__ApiKey=sk-ant_api03.AB+cd/EF=: [email protected] con espacio\n' | actualizar_secretos_produccion
+grep -qxF "Anthropic__ApiKey='sk-ant_api03.AB+cd/EF=: [email protected] con espacio'" "$FICHERO_ENV_SECRETOS_PRODUCCION" \
+  || { echo "FALLO: un valor con caracteres seguros no se aceptó tal cual" >&2; cat "$FICHERO_ENV_SECRETOS_PRODUCCION" >&2; exit 1; }
+echo "OK: valor con puntuación segura aceptado y entrecomillado sin alterar"
 
 echo "TODAS LAS PRUEBAS PASARON"
