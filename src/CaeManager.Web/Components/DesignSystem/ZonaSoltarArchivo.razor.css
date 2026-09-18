@@ -72,7 +72,13 @@
     font: var(--font-body-sm);
     letter-spacing: 0.05em;
     text-transform: uppercase;
-    color: var(--color-neutral-400);
+    /* --color-neutral-400 (#a9b4c2) daba 1,91:1 sobre --color-primary-50, por
+       debajo del 4.5:1 exigido a texto de 12px en los dos temas (medido
+       2026-09-18, único uso de ese escalón como texto en todo el proyecto
+       Web). --color-text-muted es el token que ya existe para "texto
+       secundario legible" (criterio en tokens.css, junto a su declaración):
+       4,72:1 en claro, 5,30:1 en oscuro contra --color-primary-50. */
+    color: var(--color-text-muted);
     margin: var(--space-1) 0 0;
 }
 
