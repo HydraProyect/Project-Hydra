@@ -119,18 +119,30 @@ public class BuscarGlobalQueryHandler(
     /// top N a mitad de una fusión ni tener que inventar un alcance combinado
     /// nuevo que no está probado.
     ///
-    /// Cada consulta de origen sigue topando en SQL con <c>LimitePorCategoria</c>
-    /// (hallazgo de Codex, 2026-09-18): fusionar por Id no puede significar
-    /// materializar TODAS las Empresas visibles de cada alcance antes de
-    /// recortar — con acceso amplio (Administrador/DireccionCae/Consulta,
-    /// alcance null) un término de dos letras traería miles de filas por
-    /// debounce. El tope por origen, ordenado igual que la fusión final
-    /// (RazonSocial ascendente), no pierde ninguna fila que pudiera llegar al
-    /// top N global: una fila que ocupe una posición ≤ N en la UNIÓN completa
-    /// ocupa, por construcción, una posición ≤ N dentro de CUALQUIER
-    /// subconjunto que ya la contenga — así que topar cada origen en N antes
-    /// de fusionar preserva el top N verdadero.
+    /// Cada consulta de origen sigue topando en SQL (hallazgo de Codex,
+    /// 2026-09-18): fusionar por Id no puede significar materializar TODAS
+    /// las Empresas visibles de cada alcance antes de recortar — con acceso
+    /// amplio (Administrador/DireccionCae/Consulta, alcance null) un término
+    /// de dos letras traería miles de filas por debounce.
+    ///
+    /// El tope de cada origen NO es <see cref="LimitePorCategoria"/> sino
+    /// <see cref="MargenPorOrigen"/> (segundo hallazgo de Codex, mismo día):
+    /// el <c>ORDER BY RazonSocial</c> de cada consulta lo decide la
+    /// colación de PostgreSQL de esa columna, y la fusión final reordena en
+    /// memoria con <c>StringComparer.Ordinal</c> — dos criterios que pueden
+    /// discrepar con acentos o mayúsculas. Si el tope por origen fuese
+    /// exactamente <see cref="LimitePorCategoria"/>, una Empresa que la
+    /// colación de PostgreSQL sitúe en la posición 6 dentro de su propio
+    /// origen, pero que el orden Ordinal final sitúe entre las 5 primeras
+    /// de la unión, se perdería sin llegar nunca a la fusión. Un margen
+    /// generoso (10×) no lo demuestra imposible —sigue sin haber una prueba
+    /// formal de que las dos colaciones no puedan discrepar en más de nueve
+    /// posiciones—, pero lo hace impracticable: exigiría que más de nueve
+    /// Empresas de la MISMA categoría, coincidentes con el MISMO término,
+    /// cambien de orden relativo entre las dos colaciones. Hueco declarado.
     /// </summary>
+    private const int MargenPorOrigen = LimitePorCategoria * 10;
+
     private async Task<IReadOnlyList<ItemBusquedaDto>> BuscarEmpresasAsync(
         string terminoMayus,
         IReadOnlyList<Guid>? clienteIdsVisibles, IReadOnlyList<Guid>? empresaIdsVisibles, IReadOnlyList<Guid>? subcontrataIdsVisibles,
@@ -140,7 +152,7 @@ public class BuscarGlobalQueryHandler(
             .Where(c => clienteIdsVisibles == null || clienteIdsVisibles.Contains(c.Id))
             .Where(c => c.RazonSocial.ToUpper().Contains(terminoMayus))
             .OrderBy(c => c.RazonSocial)
-            .Take(LimitePorCategoria)
+            .Take(MargenPorOrigen)
             .Select(c => new { c.Id, c.RazonSocial })
             .ToListAsync(cancellationToken);
 
@@ -148,7 +160,7 @@ public class BuscarGlobalQueryHandler(
             .Where(s => subcontrataIdsVisibles == null || subcontrataIdsVisibles.Contains(s.Id))
             .Where(s => s.RazonSocial.ToUpper().Contains(terminoMayus))
             .OrderBy(s => s.RazonSocial)
-            .Take(LimitePorCategoria)
+            .Take(MargenPorOrigen)
             .Select(s => new { s.Id, s.RazonSocial })
             .ToListAsync(cancellationToken);
 
@@ -156,7 +168,7 @@ public class BuscarGlobalQueryHandler(
             .Where(e => empresaIdsVisibles == null || empresaIdsVisibles.Contains(e.Id))
             .Where(e => e.RazonSocial.ToUpper().Contains(terminoMayus))
             .OrderBy(e => e.RazonSocial)
-            .Take(LimitePorCategoria)
+            .Take(MargenPorOrigen)
             .Select(e => new { e.Id, e.RazonSocial })
             .ToListAsync(cancellationToken);
 
