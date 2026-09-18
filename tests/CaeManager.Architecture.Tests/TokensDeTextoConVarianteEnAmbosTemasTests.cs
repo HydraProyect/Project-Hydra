@@ -94,10 +94,12 @@ public class TokensDeTextoConVarianteEnAmbosTemasTests
             + "WCAG pide a un componente gráfico (no es texto de lectura).",
 
         ["--color-secondary-600"] =
-            "par fijo con su fondo. Sus dos usos como texto (.timeline-avatar y .bandeja-fila-avatar) van "
-            + "sobre --color-secondary-100, que tampoco cambia entre temas: 8,53:1 en claro y en oscuro. "
-            + "Darle variante oscura sin dársela al fondo lo hundiría hasta ~1:1. El defecto adyacente —un "
-            + "avatar casi blanco sobre superficie oscura— es del fondo -100 y va en su propio incremento.",
+            "par fijo con su fondo, en sus dos papeles. Como texto (.timeline-avatar y .bandeja-fila-avatar) "
+            + "va sobre --color-secondary-100, que tampoco cambia entre temas: 8,53:1 en claro y en oscuro; "
+            + "darle variante oscura sin dársela al fondo lo hundiría hasta ~1:1. Y a través de "
+            + "--color-info-600 es el fondo sólido de .toast-info bajo texto --color-neutral-0 fijo: 10,51:1 "
+            + "en los dos temas. El defecto adyacente —un avatar casi blanco sobre superficie oscura— es del "
+            + "fondo -100 y va en su propio incremento.",
 
         ["--color-neutral-300"] =
             "en oscuro NO es el defecto que este trinquete persigue: 11,78:1 sobre --color-surface. Invertirlo "
@@ -105,6 +107,30 @@ public class TokensDeTextoConVarianteEnAmbosTemasTests
             + "el tema CLARO (1,38:1 en .estado-vacio-icono), y es un gris decorativo deliberado que comparte "
             + "token con la pista de AnilloCumplimiento y el borde de TarjetaMetrica: tocarlo es una decisión "
             + "de diseño contra el mockup, no de contraste por tema.",
+    };
+
+    /// <summary>
+    /// Deuda congelada, no exenta: tokens que ya hacían de texto y de fondo en
+    /// <c>origin/main</c> antes de esta PR, con variante por tema, y que por
+    /// eso dejan el texto blanco fijo de sus fondos sólidos por debajo de
+    /// 4.5:1 en oscuro. Medido el 2026-09-18 sobre <c>ef42310c</c> con
+    /// <c>--color-neutral-0</c> encima.
+    ///
+    /// <para>
+    /// No se arreglan aquí porque el alcance de V2 son los tokens de TEXTO y
+    /// esto es un defecto de fondos sólidos que toca once componentes (Boton,
+    /// ReconnectModal, AsistenteIa, Bandeja, Calendario, Conexiones,
+    /// IndicadorPasos, ProgresoConMensajes, PaginaEstadoSistema, el stepper de
+    /// revisión y la leyenda del donut). La lista está congelada: si crece,
+    /// este test se pone en rojo.
+    /// </para>
+    /// </summary>
+    private static readonly Dictionary<string, string> DoblePapelCongelado = new(StringComparer.Ordinal)
+    {
+        ["--color-primary-500"] = "botón primario y chips activos: 6,27:1 en claro, 2,65:1 en oscuro",
+        ["--color-primary-600"] = "hover del botón primario: 8,31:1 en claro, 1,44:1 en oscuro",
+        ["--color-success-700"] = "círculo del stepper completado: 5,02:1 en claro, 1,74:1 en oscuro",
+        ["--color-warning-700"] = "punto de la leyenda del donut: 5,02:1 en claro, 1,67:1 en oscuro",
     };
 
     private sealed record UsoComoTexto(string Variable, string Fichero, int Linea);
@@ -300,6 +326,84 @@ public class TokensDeTextoConVarianteEnAmbosTemasTests
 
         Violaciones(tokensCss, ficheros).Select(v => v.Variable).Should().Equal(["--color-neutral-700"],
             "la declaración cruza cinco líneas: buscar por línea la perdería");
+    }
+
+    /// <summary>
+    /// Ningún token vigilado puede ejercer a la vez de color de texto y de
+    /// fondo, porque los dos papeles piden lo contrario al conmutar el tema y
+    /// darle variante para arreglar uno rompe el otro.
+    ///
+    /// <para>
+    /// No es una precaución teórica: la primera versión de esta PR espejó
+    /// <c>--color-info-500</c> para arreglar sus 7 usos como texto sin ver que
+    /// <c>.toast-info</c> lo usaba de fondo con <c>--color-neutral-0</c> fijo
+    /// encima, y lo dejó en 1,99:1 — lo encontró la revisión de Codex, no la
+    /// medición previa, que sí había contado ese uso y no lo miró. El arreglo
+    /// fue partirlo en dos tokens por papel (<c>--color-info-600</c> para el
+    /// fondo). Este test es lo que impide que vuelva a pasar.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void Ningun_token_vigilado_hace_de_texto_y_de_fondo_a_la_vez()
+    {
+        var ficheros = Ficheros();
+        ficheros.Should().NotBeEmpty();
+
+        var comoTexto = ficheros
+            .SelectMany(f => UsosComoTextoEn(f.Ruta, f.Contenido))
+            .Select(u => u.Variable)
+            .Where(EsEscalonVigilado)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var ambosPapeles = ficheros
+            .SelectMany(f => UsosComoFondoEn(f.Contenido).Select(v => (Variable: v, f.Ruta)))
+            .Where(u => comoTexto.Contains(u.Variable))
+            .Where(u => !DoblePapelCongelado.ContainsKey(u.Variable))
+            .Select(u => $"{u.Variable}  (fondo en {Relativa(u.Ruta)})")
+            .Distinct()
+            .OrderBy(x => x, StringComparer.Ordinal);
+
+        string.Join("\n", ambosPapeles).Should().BeEmpty(
+            "un token que hace de texto y de fondo no puede tener una variante por tema correcta para los "
+            + "dos papeles: el texto quiere aclararse en oscuro y el fondo quiere seguir oscuro. Pártelo en "
+            + "dos tokens por papel, como --color-info-500 (texto) y --color-info-600 (fondo de .toast-info)");
+    }
+
+    /// <summary>
+    /// El trinquete solo baja: una entrada congelada que ya no hace de texto y
+    /// de fondo a la vez está arreglada y tiene que salir de la lista, o la
+    /// lista deja de medir nada y se convierte en decoración.
+    /// </summary>
+    [Fact]
+    public void Ninguna_entrada_de_deuda_congelada_sobra()
+    {
+        var ficheros = Ficheros();
+        ficheros.Should().NotBeEmpty();
+
+        var comoTexto = ficheros
+            .SelectMany(f => UsosComoTextoEn(f.Ruta, f.Contenido))
+            .Select(u => u.Variable)
+            .ToHashSet(StringComparer.Ordinal);
+        var comoFondo = ficheros
+            .SelectMany(f => UsosComoFondoEn(f.Contenido))
+            .ToHashSet(StringComparer.Ordinal);
+
+        var sobrantes = DoblePapelCongelado.Keys
+            .Where(t => !comoTexto.Contains(t) || !comoFondo.Contains(t))
+            .OrderBy(x => x, StringComparer.Ordinal);
+
+        string.Join("\n", sobrantes).Should().BeEmpty(
+            "ya no ejerce los dos papeles: bórralo de DoblePapelCongelado para que el trinquete no pueda "
+            + "volver a subir hasta ahí");
+    }
+
+    private static readonly Regex PatronUsoComoFondo =
+        new(@"background(-color)?\s*:\s*[^;{}]*?var\(\s*(--color-[a-zA-Z]+-[0-9]+)\b", RegexOptions.Compiled);
+
+    private static IEnumerable<string> UsosComoFondoEn(string contenido)
+    {
+        foreach (Match m in PatronUsoComoFondo.Matches(SinComentarios(contenido)))
+            yield return m.Groups[2].Value;
     }
 
     /// <summary>

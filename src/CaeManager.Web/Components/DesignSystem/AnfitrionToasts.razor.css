@@ -47,8 +47,13 @@
     line-height: 1;
 }
 
+/* --color-info-600, no -500: el texto del toast es --color-neutral-0 fijo
+   (.toast), así que el fondo no puede aclararse en tema oscuro. El -500 sí lo
+   hace desde esta PR, porque su papel es el contrario —texto informativo sobre
+   fondo claro— y con él aquí el toast caía a 1,99:1. Con el -600: 10,51:1 en
+   los dos temas, igual que .toast-exito y .toast-error. */
 .toast-info {
-    background-color: var(--color-info-500);
+    background-color: var(--color-info-600);
 }
 
 .toast-exito {

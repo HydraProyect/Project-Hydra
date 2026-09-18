@@ -51,7 +51,18 @@
   --color-danger-500: #ef4444;
   --color-danger-700: #991b1b;
   --color-info-50: var(--color-secondary-50);
+  /* Papel: color de TEXTO informativo sobre fondo claro (badge-info,
+     badge-visita, pendiente-rol-icono, chips de Plataforma) y acento de borde.
+     Se espeja por tema a través de --color-secondary-500. */
   --color-info-500: var(--color-secondary-500);
+  /* Papel opuesto y por eso token aparte: FONDO sólido informativo con texto
+     blanco fijo encima (.toast-info), el mismo patrón que --color-success-500
+     y --color-danger-500 en los otros toasts. No se espeja —10,51:1 con
+     --color-neutral-0 en los dos temas— porque un fondo que se aclarase en
+     oscuro dejaría el texto blanco a 1,99:1. Separar los dos papeles es lo
+     que impide que arreglar el texto rompa el fondo: hallazgo de la revisión
+     de Codex sobre la primera versión de esta PR. */
+  --color-info-600: var(--color-secondary-600);
 
   /* Color — Hydra Cyan: "el sistema actuando" (02 § 3.3, DDL-027). Se nombra
      por su ROL, no por su matiz, y es asimétrico por tema: el cian brilla en
