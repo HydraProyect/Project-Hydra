@@ -356,7 +356,25 @@ public class AuditoriaDeGestionDeUsuariosTests : IAsyncLifetime
         registro.TenantId.Should().Be(tenantDestino);
     }
 
-    private static ApplicationUser NuevoUsuario(Guid id) => new()
+    /// <summary>
+    /// Por defecto, el mismo tenant que <see cref="_tenant"/> — el de la
+    /// sesión "normal" que usa la mayoría de estos tests
+    /// (<c>CrearContexto(actor)</c>). Antes del hallazgo ALTA de sesión
+    /// coordinadora (revisión de <c>8982cdc8</c>) este valor era "sin
+    /// relevancia": <c>TenantSelladoInterceptor</c> nunca lo consultaba
+    /// porque el tenant de SESIÓN siempre ganaba cuando existía. Ahora el
+    /// tenant PROPIETARIO de la cuenta manda siempre que exista (ver
+    /// <c>TenantSelladoInterceptor.SellarYValidarAsync</c>), así que un
+    /// tenant aleatorio sin relación con <c>_tenant</c> habría hecho que
+    /// <c>ObtenerRegistroAsync</c> (que lee con el filtro global aplicado)
+    /// no encontrara la fila — exactamente el fallo que destapó esta
+    /// corrección: los tests fallaban con "Sequence contains no elements",
+    /// no con un TenantId incorrecto observado, porque el filtro global la
+    /// ocultaba antes de que la aserción llegara a compararlo. Los dos tests
+    /// que SÍ necesitan un tenant propio distinto (el camino sin sesión)
+    /// sobrescriben <c>TenantId</c> explícitamente después de esta llamada.
+    /// </summary>
+    private ApplicationUser NuevoUsuario(Guid id) => new()
     {
         Id = id,
         UserName = $"{id}@ejemplo.com",
@@ -364,7 +382,7 @@ public class AuditoriaDeGestionDeUsuariosTests : IAsyncLifetime
         Email = $"{id}@ejemplo.com",
         NormalizedEmail = $"{id}@EJEMPLO.COM",
         NombreCompleto = "Usuario de prueba",
-        TenantId = Guid.NewGuid() // sin relevancia: ApplicationUser no es EntidadConTenant y no lo sella TenantSelladoInterceptor.
+        TenantId = _tenant
     };
 
     /// <summary>

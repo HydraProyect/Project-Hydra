@@ -27,6 +27,23 @@ namespace CaeManager.Architecture.Tests;
 /// son llamadas a método, no dependencias de tipo) para que una NUEVA no
 /// entre en silencio.
 /// </para>
+///
+/// <para>
+/// <b>Límite estructural declarado</b> (hallazgo M1 de sesión coordinadora,
+/// revisión de <c>8982cdc8</c>): este ratchet vigila por NOMBRE DE MÉTODO
+/// conocido (la lista de <see cref="EscrituraDeIdentityNoCubierta"/>), no
+/// exhaustivamente cualquier escritura sobre las cuatro tablas sin auditar.
+/// Una escritura directa por <c>DbSet&lt;IdentityUserToken{Guid}&gt;</c>/
+/// <c>IdentityUserClaim{Guid}</c>/etc. (sin pasar por ninguno de los métodos
+/// de alto nivel de <c>UserManager</c>/<c>RoleManager</c> listados), o un
+/// método nuevo de Identity que la próxima versión de ASP.NET Core añada,
+/// seguiría siendo invisible para este test hasta que se nombre aquí. No es
+/// una propiedad más débil de lo que el resto de esta suite promete —
+/// <see cref="ProhibicionSqlCrudoYFiltrosIgnoradosTests"/> tiene la misma
+/// limitación por el mismo motivo (grep de texto, no análisis semántico) —
+/// pero conviene decirlo explícitamente en vez de dejar que el nombre del
+/// test ("Ninguna escritura nueva... queda fuera") sugiera más de lo que mide.
+/// </para>
 /// </summary>
 public class EscritorasDeIdentitySinAuditarTests
 {
@@ -34,7 +51,7 @@ public class EscritorasDeIdentitySinAuditarTests
         @"\.(?:AddClaimAsync|AddClaimsAsync|RemoveClaimAsync|RemoveClaimsAsync|ReplaceClaimAsync|" +
         @"AddLoginAsync|RemoveLoginAsync|SetAuthenticationTokenAsync|RemoveAuthenticationTokenAsync|" +
         @"RedeemTwoFactorRecoveryCodeAsync|GenerateNewTwoFactorRecoveryCodesAsync|AddClaimToRoleAsync|" +
-        @"RemoveClaimFromRoleAsync)\s*\(",
+        @"RemoveClaimFromRoleAsync|ResetAuthenticatorKeyAsync|SetAuthenticatorKeyAsync)\s*\(",
         RegexOptions.Compiled);
 
     /// <summary>
@@ -55,6 +72,37 @@ public class EscritorasDeIdentitySinAuditarTests
         // credenciales) — registrado, no resuelto.
         [("src/CaeManager.Web/Components/Account/IdentityEndpointsExtensions.cs",
             "await userManager.AddLoginAsync(usuario, infoExterna);")] = 1,
+
+        // Hallazgo M1 de sesión coordinadora (revisión de `8982cdc8`): el
+        // secreto TOTP (AspNetUserTokens) tampoco lo audita
+        // AuditoriaInterceptor. Activar/resetear el autenticador de dos
+        // factores es una escritura de seguridad real —cambia qué código
+        // acepta el sistema como segundo factor de esa cuenta— sin rastro de
+        // quién lo hizo ni cuándo. Fuera de alcance de este incremento (la
+        // misión pedía altas, roles, baja, activación, credenciales de
+        // contraseña) — registrado, no resuelto, igual que AddLoginAsync de
+        // arriba.
+        [("src/CaeManager.Web/Components/Account/Pages/ConfigurarAutenticadorDosFactores.razor",
+            "var resultadoReset = await UserManager.ResetAuthenticatorKeyAsync(usuario);")] = 1,
+
+        // Los seis usos de SetAuthenticatorKeyAsync de abajo son SIEMBRA
+        // (IdentitySeeder, DatosPruebaSeeder, DelegacionDemoSeeder ×4,
+        // SegundoTenantSeeder): fijan la clave TOTP de cuentas demo/de
+        // prueba al arrancar, nunca en respuesta a una acción de un usuario
+        // real — mismo criterio que el resto de la siembra, que tampoco
+        // pasa por auditoría (ver AmbitoTenantExplicito). No es el mismo
+        // caso que el reset de arriba, pero comparte la misma GAP de fondo:
+        // AspNetUserTokens sin auditar.
+        [("src/CaeManager.Infrastructure/Identity/IdentitySeeder.cs",
+            "await claveStore.SetAuthenticatorKeyAsync(administrador, ClaveTotpAdministradorInicial, CancellationToken.None);")] = 1,
+        [("src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs",
+            "await claveStore.SetAuthenticatorKeyAsync(")] = 1,
+        [("src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs",
+            "await claveStore.SetAuthenticatorKeyAsync(")] = 3,
+        [("src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs",
+            "await claveStore.SetAuthenticatorKeyAsync(administrador, IdentitySeeder.ClaveTotpAdministradorInicial, cancellationToken);")] = 1,
+        [("src/CaeManager.Infrastructure/Persistence/Seed/SegundoTenantSeeder.cs",
+            "await claveStore.SetAuthenticatorKeyAsync(")] = 1,
     };
 
     private static readonly string[] CarpetasEscaneadas =

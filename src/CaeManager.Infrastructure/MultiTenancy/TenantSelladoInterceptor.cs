@@ -21,6 +21,23 @@ namespace CaeManager.Infrastructure.MultiTenancy;
 /// </summary>
 public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesInterceptor
 {
+    /// <summary>
+    /// Valor de <c>app.tenant_id</c> que había en la sesión ANTES de que este
+    /// <c>SaveChanges</c> lo pisara para sellar una fila de Identity con un
+    /// tenant distinto del de sesión (ver <see cref="SellarYValidarAsync"/>).
+    /// <c>null</c> cuando este <c>SaveChanges</c> no tocó la variable de
+    /// sesión. El interceptor es <c>AddScoped</c> (una instancia por
+    /// <c>DbContext</c>/petición, ver <c>ConfiguracionDeContexto</c>), así que
+    /// un campo de instancia es seguro: solo un <c>SaveChanges</c> está en
+    /// vuelo a la vez para esa instancia. Se restaura en
+    /// <c>SavedChanges(Async)</c>/<c>SaveChangesFailed(Async)</c> —en los DOS
+    /// caminos, éxito y fallo—, porque la conexión puede reutilizarse dentro
+    /// de la misma petición (p. ej. un reintento de <c>ExecutionStrategy</c>)
+    /// y dejarla con el tenant equivocado filtraría el resto de la petición
+    /// por el tenant que NO es.
+    /// </summary>
+    private string? _tenantDeSesionARestaurar;
+
     public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
         DbContextEventData eventData,
         InterceptionResult<int> result,
@@ -50,19 +67,70 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
         return base.SavingChanges(eventData, result);
     }
 
+    /// <summary>
+    /// Restaura <c>app.tenant_id</c> al valor de sesión que había antes de
+    /// este <c>SaveChanges</c>, si <see cref="SellarYValidarAsync"/> lo pisó.
+    /// Ver <see cref="_tenantDeSesionARestaurar"/> para el porqué de
+    /// restaurar en éxito Y en fallo.
+    /// </summary>
+    public override async ValueTask<int> SavedChangesAsync(
+        SaveChangesCompletedEventData eventData, int result, CancellationToken cancellationToken = default)
+    {
+        if (eventData.Context is DbContext context)
+            await RestaurarTenantDeSesionSiHizoFaltaAsync(context, cancellationToken);
+
+        return await base.SavedChangesAsync(eventData, result, cancellationToken);
+    }
+
+    /// <summary>Versión síncrona — ver <see cref="SavingChanges"/> para el porqué.</summary>
+    public override int SavedChanges(SaveChangesCompletedEventData eventData, int result)
+    {
+        if (eventData.Context is DbContext context)
+            RestaurarTenantDeSesionSiHizoFaltaAsync(context, CancellationToken.None).GetAwaiter().GetResult();
+
+        return base.SavedChanges(eventData, result);
+    }
+
+    public override async Task SaveChangesFailedAsync(
+        DbContextErrorEventData eventData, CancellationToken cancellationToken = default)
+    {
+        if (eventData.Context is DbContext context)
+            await RestaurarTenantDeSesionSiHizoFaltaAsync(context, cancellationToken);
+
+        await base.SaveChangesFailedAsync(eventData, cancellationToken);
+    }
+
+    /// <summary>Versión síncrona — ver <see cref="SavingChanges"/> para el porqué.</summary>
+    public override void SaveChangesFailed(DbContextErrorEventData eventData)
+    {
+        if (eventData.Context is DbContext context)
+            RestaurarTenantDeSesionSiHizoFaltaAsync(context, CancellationToken.None).GetAwaiter().GetResult();
+
+        base.SaveChangesFailed(eventData);
+    }
+
+    private async Task RestaurarTenantDeSesionSiHizoFaltaAsync(DbContext context, CancellationToken cancellationToken)
+    {
+        if (_tenantDeSesionARestaurar is null) return;
+
+        var valorARestaurar = _tenantDeSesionARestaurar;
+        _tenantDeSesionARestaurar = null;
+        await FijarTenantEnSesionRlsAsync(context, valorARestaurar, cancellationToken);
+    }
+
     private async Task SellarYValidarAsync(DbContext context, CancellationToken cancellationToken)
     {
         var tenantId = tenantActual.TenantId;
 
-        // Solo se propaga una vez por SaveChanges, y solo cuando hace falta
-        // (tenantId de sesión es null): un roundtrip extra a Postgres por
-        // cada fila auditada de Identity sin sesión sería desperdiciado si
-        // dos filas del mismo lote resuelven el mismo tenant, que es el caso
-        // único que hoy produce este código (una sola ApplicationUser por
-        // SaveChanges). Si algún día un mismo SaveChanges auditara cuentas de
-        // DOS tenants distintos sin sesión a la vez, esta variable de sesión
-        // solo reflejaría la última — no ocurre hoy (UserManager opera sobre
-        // un ApplicationUser a la vez) y queda fuera de alcance ampliarlo.
+        // Solo se propaga una vez por SaveChanges, y solo cuando hace falta:
+        // un roundtrip extra a Postgres por cada fila auditada de Identity
+        // sería desperdiciado si dos filas del mismo lote resuelven el mismo
+        // tenant, que es el caso único que hoy produce este código (una sola
+        // ApplicationUser por SaveChanges). Si algún día un mismo SaveChanges
+        // auditara cuentas de DOS tenants distintos a la vez, esta variable
+        // de sesión solo reflejaría la última — no ocurre hoy (UserManager
+        // opera sobre un ApplicationUser a la vez) y queda fuera de alcance
+        // ampliarlo sin que aparezca un caso real.
         Guid? tenantYaPropagadoARls = null;
 
         // ToList: la rama de reclasificación de abajo cambia el State de una
@@ -72,31 +140,52 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
             switch (entrada.State)
             {
                 case EntityState.Added:
-                    var tenantParaEsta = tenantId ?? ResolverTenantDeIdentidadAuditada(context, entrada.Entity);
+                    // El tenant PROPIETARIO de la cuenta auditada manda
+                    // siempre que exista (Identity, ver
+                    // ResolverTenantDeIdentidadAuditada) — nunca el tenant
+                    // del CONTEXTO/sesión. Antes este orden estaba invertido
+                    // (tenantId ?? fallback): un Gestor CAE de un Operador
+                    // CAE externo, operando en el Workspace operativo
+                    // derivado de un Tenant beneficiario
+                    // (TenantActual.TenantId = clienteActivoSeleccionado.
+                    // TenantIdSeleccionado ?? tenantId, ver TenantActual.cs),
+                    // que cambiaba su propio tema/teléfono/2FA generaba una
+                    // fila de auditoría sellada con el TenantId del
+                    // BENEFICIARIO en vez del Tenant propietario real de su
+                    // cuenta — el administrador del beneficiario veía en SU
+                    // auditoría la actividad de una cuenta ajena: mezcla del
+                    // plano de Operación con el de Propiedad (ADR-011),
+                    // hallazgo ALTA de sesión coordinadora, confirmado por
+                    // PRUEBA DIRECTA antes de corregir (ver
+                    // PropagacionTenantRlsSinSesionTests). Para el resto de
+                    // entidades (dominio), ResolverTenantDeIdentidadAuditada
+                    // siempre devuelve null, así que el comportamiento no
+                    // cambia: sigue siendo tenantId (el único caso posible).
+                    var tenantParaEsta = ResolverTenantDeIdentidadAuditada(context, entrada.Entity) ?? tenantId;
                     if (tenantParaEsta is null)
                         throw new InvalidOperationException(
                             $"No se puede crear una entidad de tipo {entrada.Entity.GetType().Name} sin un tenant resuelto (ver ITenantActual).");
 
-                    // Hallazgo P1 de Codex (5ª ronda): sin esto, el valor de
-                    // abajo queda solo en el objeto .NET — la política RLS de
+                    // Hallazgo P1 de Codex (5ª ronda) + hallazgo ALTA de
+                    // sesión coordinadora: sin esto, el valor de abajo queda
+                    // solo en el objeto .NET — la política RLS de
                     // "RegistrosAuditoria" compara contra
                     // current_setting('app.tenant_id'), que
-                    // TenantRlsConnectionInterceptor fijó vacío AL ABRIR la
-                    // conexión (antes de que hubiera sesión) y que nadie
-                    // había vuelto a tocar desde entonces. Bajo el rol
-                    // restringido cae_app_runtime (confirmado en producción,
-                    // ver hydra-rls-fallo-cerrado-prerrequisito-despliegue),
-                    // el INSERT lo rechaza Postgres con 42501 y el
-                    // SaveChanges entero se revierte — el mismo síntoma
-                    // original (login → 500) que este fallback decía haber
-                    // resuelto, verificado por PRUEBA DIRECTA contra RLS real
-                    // con ArnesDeArranqueRuntime (los tests de integración
-                    // anteriores de este fallback solo ejercitaban la lógica
-                    // en memoria, nunca RLS real — un falso verde).
-                    if (tenantId is null && tenantYaPropagadoARls != tenantParaEsta)
+                    // TenantRlsConnectionInterceptor solo fija UNA VEZ, al
+                    // abrir la conexión, con el tenant de SESIÓN (que puede
+                    // ser null —sin sesión— o distinto del propietario real
+                    // —workspace delegado—). Bajo el rol restringido
+                    // cae_app_runtime (confirmado en producción, ver
+                    // hydra-rls-fallo-cerrado-prerrequisito-despliegue), el
+                    // INSERT lo rechaza Postgres con 42501 si no coinciden.
+                    // Se restaura el valor de sesión original en
+                    // SavedChanges(Async)/SaveChangesFailed(Async) — ver
+                    // _tenantDeSesionARestaurar.
+                    if (tenantParaEsta != tenantId && tenantYaPropagadoARls != tenantParaEsta)
                     {
-                        await PropagarTenantALaSesionRlsAsync(context, tenantParaEsta.Value, cancellationToken);
+                        await FijarTenantEnSesionRlsAsync(context, tenantParaEsta.Value.ToString(), cancellationToken);
                         tenantYaPropagadoARls = tenantParaEsta;
+                        _tenantDeSesionARestaurar ??= tenantId?.ToString() ?? string.Empty;
                     }
 
                     entrada.Property(nameof(EntidadConTenant.TenantId)).CurrentValue = tenantParaEsta.Value;
@@ -142,25 +231,29 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
 
     /// <summary>
     /// Actualiza <c>app.tenant_id</c> EN LA MISMA conexión que va a ejecutar
-    /// este <c>SaveChanges</c> — <c>TenantRlsConnectionInterceptor</c> solo la
-    /// fija una vez, al abrir la conexión, con el tenant que
-    /// <see cref="ITenantActual"/> resolvía en ESE momento (aquí, vacío: por
-    /// eso se llega a este método). La política <c>aislamiento_tenant</c> de
+    /// este <c>SaveChanges</c> (o que acaba de ejecutarlo, para restaurar) —
+    /// <c>TenantRlsConnectionInterceptor</c> solo la fija una vez, al abrir la
+    /// conexión, con el tenant que <see cref="ITenantActual"/> resolvía en
+    /// ESE momento. La política <c>aislamiento_tenant</c> de
     /// "RegistrosAuditoria" (migración <c>HabilitarRlsPostgres</c>) compara el
     /// <c>TenantId</c> de la fila contra esa variable de sesión con
-    /// <c>WITH CHECK</c>; sin este paso, la fila lleva el tenant correcto pero
-    /// la sesión sigue sin tenant y Postgres rechaza el INSERT con 42501 bajo
-    /// el rol restringido <c>cae_app_runtime</c> — el propio interceptor de
-    /// aplicación (que no ve RLS) no tiene forma de saberlo por sí solo.
+    /// <c>WITH CHECK</c>; sin este paso, una fila cuyo tenant difiera del de
+    /// sesión (sin sesión, o con un Workspace operativo derivado
+    /// seleccionado) la rechaza Postgres con 42501 bajo el rol restringido
+    /// <c>cae_app_runtime</c> — el propio interceptor de aplicación (que no ve
+    /// RLS) no tiene forma de saberlo por sí solo.
     ///
     /// <c>OpenConnectionAsync</c> usa el contador de referencias de EF Core
     /// (no el <c>ConnectionState</c> crudo): es seguro llamarlo aunque la
     /// conexión ya esté abierta, y no hace falta un <c>CloseConnectionAsync</c>
-    /// simétrico aquí — el propio <c>SaveChanges</c> que sigue a este evento
-    /// ya la necesita abierta para ejecutar el INSERT, y quien la abrió
-    /// primero (esta llamada o el propio EF) es quien la cerrará al terminar.
+    /// simétrico aquí — el propio <c>SaveChanges</c> que sigue (o que ya
+    /// corrió, en la restauración) necesita la conexión abierta, y quien la
+    /// abrió primero es quien la cerrará al terminar. <c>valorTenantId</c>
+    /// acepta cadena vacía a propósito: es el mismo valor centinela que usa
+    /// <c>TenantRlsConnectionInterceptor</c> para "sin tenant" (fallo
+    /// cerrado, <c>NULLIF(..., '')::uuid</c> da <c>NULL</c>).
     /// </summary>
-    private static async Task PropagarTenantALaSesionRlsAsync(DbContext context, Guid tenantId, CancellationToken cancellationToken)
+    private static async Task FijarTenantEnSesionRlsAsync(DbContext context, string valorTenantId, CancellationToken cancellationToken)
     {
         await context.Database.OpenConnectionAsync(cancellationToken);
 
@@ -169,7 +262,7 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
         comando.CommandText = "SELECT set_config('app.tenant_id', @tenantId, false);";
         var parametro = comando.CreateParameter();
         parametro.ParameterName = "tenantId";
-        parametro.Value = tenantId.ToString();
+        parametro.Value = valorTenantId;
         comando.Parameters.Add(parametro);
         await comando.ExecuteNonQueryAsync(cancellationToken);
     }

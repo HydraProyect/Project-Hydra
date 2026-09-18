@@ -105,6 +105,14 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // escritura acotada de Postgres, no un atajo alrededor de EF.
         [("src/CaeManager.Infrastructure/Plataforma/ElevacionEscrituraPrivilegiada.cs", "await using var comando = conexion.CreateCommand();")] = 1,
 
+        // TenantSelladoInterceptor.FijarTenantEnSesionRlsAsync: mismo
+        // set_config('app.tenant_id', ...) parametrizado que
+        // TenantRlsConnectionInterceptor de abajo, pero ejecutado a mitad de
+        // SaveChanges (no al abrir la conexión) para sellar/restaurar el
+        // TenantId PROPIETARIO de una fila de auditoría de Identity cuando
+        // difiere del tenant de sesión — ver el comentario de la clase.
+        [("src/CaeManager.Infrastructure/MultiTenancy/TenantSelladoInterceptor.cs", "await using var comando = conexion.CreateCommand();")] = 1,
+
         // Segunda línea de defensa RLS (TenantRlsConnectionInterceptor): fija
         // la variable de sesión de Postgres app.tenant_id en cada apertura de
         // conexión con un comando parametrizado (set_config(...)), no SQL

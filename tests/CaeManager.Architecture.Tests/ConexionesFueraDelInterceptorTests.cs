@@ -94,6 +94,19 @@ public class ConexionesFueraDelInterceptorTests
         // apertura, solo que aquí puede hacer falta a mitad de request si la
         // conexión ya estaba abierta cuando el ámbito se establece.
         "src/CaeManager.Infrastructure/Plataforma/ElevacionEscrituraPrivilegiada.cs",
+
+        // TenantSelladoInterceptor.FijarTenantEnSesionRlsAsync: mismo patrón
+        // que ElevacionEscrituraPrivilegiada.cs de arriba — NO abre una
+        // conexión nueva, usa contexto.Database.GetDbConnection() (la MISMA
+        // conexión que TenantRlsConnectionInterceptor ya abrió) tras
+        // OpenConnectionAsync (contador de referencias de EF, no una apertura
+        // real independiente). Ejecuta set_config('app.tenant_id', ...) para
+        // sellar/restaurar la fila de auditoría de Identity con el TenantId
+        // PROPIETARIO de la cuenta cuando difiere del tenant de sesión (sin
+        // sesión, o un Workspace operativo derivado seleccionado) — el mismo
+        // valor que TenantRlsConnectionInterceptor ya fija al abrir, solo que
+        // aquí puede hacer falta a mitad de SaveChanges.
+        "src/CaeManager.Infrastructure/MultiTenancy/TenantSelladoInterceptor.cs",
     ];
 
     [Fact]

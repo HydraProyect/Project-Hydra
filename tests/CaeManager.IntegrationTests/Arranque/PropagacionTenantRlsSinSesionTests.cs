@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Persistence.Seed;
 using FluentAssertions;
@@ -96,6 +97,69 @@ public class PropagacionTenantRlsSinSesionTests
 
         await ComprobarTenantRealDelRegistroAsync(
             arnes.CadenaPropietario, "RolDeUsuario", usuario.Id, TenantSeedData.IdPorDefecto);
+    }
+
+    /// <summary>
+    /// Hallazgo ALTA de sesión coordinadora (revisión de `8982cdc8`): el orden
+    /// <c>tenantId ?? ResolverTenantDeIdentidadAuditada(...)</c> hacía ganar
+    /// siempre al tenant del CONTEXTO cuando existía sesión — pero
+    /// <c>TenantActual.TenantId</c> real (<c>TenantActual.cs:84</c>) es
+    /// <c>clienteActivoSeleccionado.TenantIdSeleccionado ?? tenantId</c>: con
+    /// un Workspace operativo derivado seleccionado, el tenant de sesión es
+    /// el del Tenant BENEFICIARIO, no el del Operador CAE externo. Un Gestor
+    /// CAE de ese operador, operando en el workspace del beneficiario, que
+    /// cambia su propio teléfono/tema/2FA, generaba una fila de auditoría
+    /// sellada con el TenantId del BENEFICIARIO — visible en la auditoría del
+    /// beneficiario, aunque la cuenta (y el cambio) sean del operador. Mezcla
+    /// el plano de Operación con el de Propiedad (ADR-011).
+    ///
+    /// <c>TenantActualFijo</c> simula el efecto NETO de esa composición sin
+    /// reproducir toda la cadena de claims: la sesión "ve" el tenant del
+    /// workspace seleccionado, sea cual sea el tenant propietario real de la
+    /// cuenta que se está modificando en ese instante.
+    /// </summary>
+    [Fact]
+    public async Task Modificar_el_propio_ApplicationUser_desde_un_workspace_delegado_sella_con_el_tenant_propietario()
+    {
+        var tenantOperador = Guid.NewGuid();
+        var tenantBeneficiario = Guid.NewGuid();
+        var tenantActualDeTest = new TenantActualFijo { TenantId = tenantOperador };
+
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(
+            datosDePruebaActivos: false, tenantActualPersonalizado: tenantActualDeTest);
+        using var ambito = arnes.Servicios.CreateScope();
+
+        var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var usuario = new ApplicationUser
+        {
+            UserName = "gestor-operador@caemanager.local",
+            Email = "gestor-operador@caemanager.local",
+            NombreCompleto = "Gestor del Operador",
+            EmailConfirmed = true,
+            TenantId = tenantOperador,
+        };
+
+        // Alta con sesión propia del operador — no es el caso que se prueba,
+        // solo el punto de partida.
+        (await userManager.CreateAsync(usuario, "Arnes#2026Seguro")).Succeeded.Should().BeTrue();
+
+        // La misma cuenta, ahora modificada mientras la sesión "ve" el
+        // tenant del WORKSPACE DELEGADO (beneficiario) — reproduce el
+        // TenantIdSeleccionado real de una sesión de Operador Delegado.
+        tenantActualDeTest.TenantId = tenantBeneficiario;
+        usuario.PhoneNumber = "600111222";
+        var resultado = await userManager.UpdateAsync(usuario);
+
+        resultado.Succeeded.Should().BeTrue(
+            "la actualización no debe fallar por RLS, sea cual sea el tenant que finalmente selle la fila — " +
+            "errores: " + string.Join(", ", resultado.Errors.Select(e => e.Code + ":" + e.Description)));
+
+        await ComprobarTenantRealDelRegistroAsync(arnes.CadenaPropietario, "Usuario", usuario.Id, tenantOperador);
+    }
+
+    private sealed class TenantActualFijo : ITenantActual
+    {
+        public Guid? TenantId { get; set; }
     }
 
     /// <summary>
