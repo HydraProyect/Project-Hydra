@@ -3,6 +3,7 @@ using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Web.Components.Layout;
 
@@ -26,6 +27,7 @@ public partial class SelectorClienteActivo : ComponentBase
     [Inject] private IClienteActivoSeleccionado ClienteActivoSeleccionado { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private AntiforgeryStateProvider AntiforgeryStateProvider { get; set; } = default!;
+    [Inject] private ILogger<ExcepcionDeCircuitoDesconectado> Logger { get; set; } = default!;
 
     private IReadOnlyList<ClienteAutorizadoDto>? _clientes;
     private Guid _tenantIdActivo;
@@ -38,21 +40,22 @@ public partial class SelectorClienteActivo : ComponentBase
         {
             _clientes = await Mediator.Send(new ObtenerClientesAutorizadosQuery());
         }
-        catch (Exception ex) when (ex is ObjectDisposedException or ArgumentOutOfRangeException)
+        catch (Exception ex) when (ExcepcionDeCircuitoDesconectado.Es(ex))
         {
             // El circuito de Blazor puede desconectarse (y con él el
             // IServiceProvider del scope, del que el pipeline de MediatR
             // resuelve sus propios behaviors, y el CaeManagerDbContext
             // scoped que hay debajo) mientras este despacho sigue en
             // vuelo — reproducido en producción (2026-08-17, mismo evento
-            // que MainLayout/SelectorTema, ver
-            // Project-Hydra-Negocio/tecnico/d8-vps-evidence.md).
-            // ArgumentOutOfRangeException dentro de NpgsqlDataReader es la
-            // misma carrera que ObjectDisposedException, solo que la
-            // desconexión sorprende a la lectura en un punto distinto del
-            // socket (ver MainLayout.razor.cs, Sentry DOTNET-3). Sin lista
-            // de clientes no hay nada más que calcular aquí, y no hay
-            // nadie al otro lado esperando el resultado de todos modos.
+            // que MainLayout/SelectorTema) y ampliado en
+            // ExcepcionDeCircuitoDesconectado (REC-166: la misma carrera
+            // también puede llegar como una NpgsqlException cruda de
+            // desincronización de protocolo). Sin lista de clientes no hay
+            // nada más que calcular aquí, y no hay nadie al otro lado
+            // esperando el resultado de todos modos — pero sí queda
+            // constancia de que ocurrió.
+            Logger.LogWarning(ex, "SelectorClienteActivo descartó una excepción de desconexión de circuito: {TipoExcepcion} — {Mensaje}",
+                ex.GetType().Name, ex.Message);
             return;
         }
 

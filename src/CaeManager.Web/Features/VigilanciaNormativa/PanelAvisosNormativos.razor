@@ -3,7 +3,9 @@
 @using CaeManager.Application.VigilanciaNormativa.Commands.MarcarAvisoRevisionNormativaRevisado
 @using CaeManager.Application.VigilanciaNormativa.Queries.ObtenerAvisosRevisionNormativa
 @using MediatR
+@using Microsoft.Extensions.Logging
 @inject IMediator Mediator
+@inject ILogger<ExcepcionDeCircuitoDesconectado> Logger
 
 @* H-3 / DEC-8: superficie de lectura difundida, no un ítem de cola — visible
    para toda la jerarquía de un tenant y, con la misma lectura, para el
@@ -74,17 +76,21 @@
         // Mismo mecanismo documentado en MainLayout.razor.cs y en
         // NotificacionesPopup.razor: el circuito de Blazor puede
         // desconectarse (y con él el CaeManagerDbContext scoped) mientras
-        // esta carga todavía está en vuelo. Sin captura aquí, la excepción
-        // quedaba sin observar y tumbaba el circuito entero. No queda nadie
-        // al otro lado esperando el panel — el circuito ya se fue — así que
-        // no hay nada que hacer salvo no dejarla sin observar.
+        // esta carga todavía está en vuelo — ver ExcepcionDeCircuitoDesconectado
+        // para las tres formas conocidas (REC-166). Sin captura aquí, la
+        // excepción quedaba sin observar y tumbaba el circuito entero. No
+        // queda nadie al otro lado esperando el panel — el circuito ya se
+        // fue — así que no hay nada que hacer salvo no dejarla sin observar,
+        // y sí dejar constancia de que ocurrió.
         try
         {
             _avisos = await Mediator.Send(new ObtenerAvisosRevisionNormativaQuery());
             _esAdministradorPlataforma = await Mediator.Send(new EsAdministradorPlataformaQuery());
         }
-        catch (Exception ex) when (ex is ObjectDisposedException or ArgumentOutOfRangeException)
+        catch (Exception ex) when (ExcepcionDeCircuitoDesconectado.Es(ex))
         {
+            Logger.LogWarning(ex, "PanelAvisosNormativos descartó una excepción de desconexión de circuito: {TipoExcepcion} — {Mensaje}",
+                ex.GetType().Name, ex.Message);
         }
     }
 

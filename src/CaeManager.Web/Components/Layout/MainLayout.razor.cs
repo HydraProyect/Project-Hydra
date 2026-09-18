@@ -90,8 +90,7 @@ public partial class MainLayout
             // ObjectDisposedException sobre CaeManagerDbContext; DOTNET-3:
             // ArgumentOutOfRangeException dentro de NpgsqlDataReader — misma
             // carrera, forma distinta según en qué punto exacto del socket
-            // la sorprenda la desconexión; ver
-            // Project-Hydra-Negocio/tecnico/d8-vps-evidence.md). No es un
+            // la sorprenda la desconexión). No es un
             // PuertaAccesoDatos.EjecutarAsync — la puerta ya se defiende de
             // su propio semáforo en Dispose (LiberarSiSigueViva); esto es el
             // paso anterior: la propia conexión/DbContext muere DENTRO de la
@@ -99,6 +98,20 @@ public partial class MainLayout
             // lado esperando una redirección — el circuito ya se fue — así
             // que no hay nada que hacer salvo no dejar la excepción sin
             // observar.
+            //
+            // A propósito NO se usa ExcepcionDeCircuitoDesconectado.Es aquí
+            // (a diferencia de los otros cuatro sitios de layout, REC-166):
+            // este try/catch envuelve el guard de seguridad del layout
+            // (cambio de contraseña forzoso, rol pendiente, 2FA obligatoria)
+            // — si el catch atrapa, el método termina sin aplicar esas
+            // comprobaciones, así que atrapar de más aquí es fallar abierto,
+            // no solo perder un dato. La variante NpgsqlException cruda de
+            // esa clase se queda fuera: su filtro por mensaje literal no
+            // prueba que el circuito esté realmente desconectado, solo que
+            // el parser de Npgsql se desincronizó — ampliar el catch con esa
+            // tercera forma también aquí ampliaría esa misma inferencia al
+            // guard de seguridad. Si se repite, debe seguir escalando como
+            // hasta ahora (ruido en Sentry), no desaparecer en silencio.
         }
     }
 }

@@ -35,6 +35,7 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
     [Inject] private CaeManager.Application.Common.IDesenganchadorDeEntidadesRastreadas Desenganchador { get; set; } = default!;
 
     [Inject] private ILogger<SelectorTema> Logger { get; set; } = default!;
+    [Inject] private ILogger<ExcepcionDeCircuitoDesconectado> LoggerDeCircuitoDesconectado { get; set; } = default!;
 
     private IJSObjectReference? _modulo;
     private ApplicationUser? _usuario;
@@ -54,16 +55,24 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
             _usuario = await PuertaAccesoDatos.EjecutarAsync(
                 () => UserManager.FindByIdAsync(usuarioId.ToString()));
         }
-        catch (ObjectDisposedException)
+        catch (Exception ex) when (ExcepcionDeCircuitoDesconectado.Es(ex))
         {
             // El circuito de Blazor puede desconectarse (y con él el
             // CaeManagerDbContext scoped) mientras esta consulta sigue en
             // vuelo — reproducido en producción (2026-08-17, mismo evento
-            // que MainLayout/SelectorClienteActivo, ver
-            // Project-Hydra-Negocio/tecnico/d8-vps-evidence.md). _usuario
-            // se queda en null, que ya es el valor que la línea de abajo
-            // trata como "sin tema guardado" — no hay nadie al otro lado
-            // esperando el resultado de todos modos.
+            // que MainLayout/SelectorClienteActivo) y ampliado en
+            // ExcepcionDeCircuitoDesconectado (REC-166: la misma carrera
+            // también puede llegar como ArgumentOutOfRangeException o como
+            // una NpgsqlException cruda de desincronización de protocolo,
+            // no solo como ObjectDisposedException — este catch solo
+            // cubría la primera hasta esta fecha, D-1a,
+            // PLAN-SESIONES-NOCTURNAS-2026-09-02.md). _usuario se queda en
+            // null, que ya es el valor que la línea de abajo trata como
+            // "sin tema guardado" — no hay nadie al otro lado esperando el
+            // resultado de todos modos, pero sí queda constancia de que
+            // ocurrió.
+            LoggerDeCircuitoDesconectado.LogWarning(ex, "SelectorTema descartó una excepción de desconexión de circuito: {TipoExcepcion} — {Mensaje}",
+                ex.GetType().Name, ex.Message);
         }
 
         _temaActual = TemaATexto(_usuario?.Tema ?? TemaPreferido.Sistema);

@@ -2,8 +2,10 @@
 @using CaeManager.Application.Notificaciones.Commands.MarcarNotificacionLeida
 @using CaeManager.Application.Notificaciones.Queries.ObtenerNotificacionesPendientes
 @using MediatR
+@using Microsoft.Extensions.Logging
 @inject IMediator Mediator
 @inject NavigationManager Navigation
+@inject ILogger<ExcepcionDeCircuitoDesconectado> Logger
 
 @if (_pendientes.Count > 0)
 {
@@ -30,19 +32,25 @@
         // El circuito de Blazor puede desconectarse (y con él el
         // CaeManagerDbContext scoped) mientras esta carga todavía está en
         // vuelo — mismo mecanismo documentado en MainLayout.razor.cs
-        // (Sentry DOTNET-3/DOTNET-6): ObjectDisposedException o
-        // ArgumentOutOfRangeException dentro de NpgsqlDataReader según en
-        // qué punto exacto del socket la sorprenda la desconexión. Sin
-        // captura aquí la excepción quedaba sin observar y tumbaba el
-        // circuito entero ("Unhandled exception rendering component"). No
-        // queda nadie al otro lado esperando el popup — el circuito ya se
-        // fue — así que no hay nada que hacer salvo no dejarla sin observar.
+        // (Sentry DOTNET-3/DOTNET-6) y ampliado en
+        // ExcepcionDeCircuitoDesconectado (REC-166: la misma carrera también
+        // puede llegar como una NpgsqlException cruda de desincronización de
+        // protocolo, no solo como ObjectDisposedException o
+        // ArgumentOutOfRangeException). Sin captura aquí la excepción quedaba
+        // sin observar y tumbaba el circuito entero ("Unhandled exception
+        // rendering component") — medido en vivo el 2026-09-16, posterior al
+        // primer arreglo de este mismo catch (PR #517). No queda nadie al
+        // otro lado esperando el popup — el circuito ya se fue — así que no
+        // hay nada que hacer salvo no dejarla sin observar, y sí dejar
+        // constancia de que ocurrió.
         try
         {
             _pendientes = await Mediator.Send(new ObtenerNotificacionesPendientesQuery());
         }
-        catch (Exception ex) when (ex is ObjectDisposedException or ArgumentOutOfRangeException)
+        catch (Exception ex) when (ExcepcionDeCircuitoDesconectado.Es(ex))
         {
+            Logger.LogWarning(ex, "NotificacionesPopup descartó una excepción de desconexión de circuito: {TipoExcepcion} — {Mensaje}",
+                ex.GetType().Name, ex.Message);
         }
     }
 
