@@ -36,6 +36,8 @@ namespace CaeManager.Architecture.Tests;
 /// <item>Solo los gestores de Identity inyectados en componentes. Un gestor
 /// pasado como argumento a otro servicio, o servicios propios que toquen el
 /// DbContext sin pasar por MediatR, quedan fuera.</item>
+/// <item>Se descartan los comentarios, no los literales de texto: una cadena
+/// que contenga la llamada a la puerta contaría como uso.</item>
 /// </list>
 /// </summary>
 public class IdentityEnComponentesPorLaPuertaDeAccesoADatosTests
@@ -67,6 +69,18 @@ public class IdentityEnComponentesPorLaPuertaDeAccesoADatosTests
     private static readonly Regex PasaPorLaPuerta = new(
         @"\bPuertaAccesoDatos\s*\.\s*EjecutarAsync\s*[<(]", RegexOptions.Compiled);
 
+    /// <summary>
+    /// Comentarios de Razor (<c>@* *@</c>) y de C# (<c>/* */</c>, <c>//</c>,
+    /// <c>///</c>). Sin quitarlos, un componente que solo NOMBRA la puerta en un
+    /// comentario —MainLayout.razor.cs lo hace— contaría como que la usa
+    /// (hallazgo de la revisión Codex, demostrado por mutación).
+    /// </summary>
+    private static readonly Regex Comentarios = new(
+        @"@\*.*?\*@|/\*.*?\*/|//[^\n]*", RegexOptions.Compiled | RegexOptions.Singleline);
+
+    private static string CodigoSinComentarios(string relativo) =>
+        Comentarios.Replace(File.ReadAllText(Absoluta(relativo)), " ");
+
     [Fact]
     public void Los_componentes_que_usan_Identity_sin_la_puerta_son_exactamente_los_congelados()
     {
@@ -77,7 +91,7 @@ public class IdentityEnComponentesPorLaPuertaDeAccesoADatosTests
             "de observar el fenómeno y la comparación de abajo pasaría en vacío");
 
         var sinPuerta = conIdentity
-            .Where(c => !FicherosDelComponente(c).Any(f => PasaPorLaPuerta.IsMatch(File.ReadAllText(Absoluta(f)))))
+            .Where(c => !FicherosDelComponente(c).Any(f => PasaPorLaPuerta.IsMatch(CodigoSinComentarios(f))))
             .ToList();
 
         sinPuerta.Should().BeEquivalentTo(SinPuertaCongelados,
@@ -96,7 +110,7 @@ public class IdentityEnComponentesPorLaPuertaDeAccesoADatosTests
             .EnumerateFiles(web, "*.razor", SearchOption.AllDirectories)
             .Where(a => !a.Contains($"{separador}obj{separador}") && !a.Contains($"{separador}bin{separador}"))
             .Select(a => Path.GetRelativePath(raiz, a).Replace(separador, '/'))
-            .Where(c => FicherosDelComponente(c).Any(f => InyectaGestorDeIdentity.IsMatch(File.ReadAllText(Absoluta(f)))))
+            .Where(c => FicherosDelComponente(c).Any(f => InyectaGestorDeIdentity.IsMatch(CodigoSinComentarios(f))))
             .OrderBy(c => c, StringComparer.Ordinal)
             .ToList();
     }
