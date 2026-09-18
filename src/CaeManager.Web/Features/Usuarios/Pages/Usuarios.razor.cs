@@ -897,7 +897,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         {
             if (_rol == Roles.Cliente && _clienteEncontrado is null)
             {
-                _mensajeErrorFormulario = "Busca y confirma el CIF de la empresa a vincular antes de guardar.";
+                _mensajeErrorFormulario = "Busca y confirma la identificación fiscal de la empresa a vincular antes de guardar.";
                 return;
             }
 

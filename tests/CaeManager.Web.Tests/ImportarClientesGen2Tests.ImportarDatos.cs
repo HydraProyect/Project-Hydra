@@ -211,7 +211,7 @@ public partial class ImportarClientesGen2Tests
                 .Be(string.Join(" · ", cabecera), $"las columnas de «{hoja.Name}» son las de la cabecera que escribe GenerarPlantilla");
         }
 
-        Texto(cut.Find("[data-hoja-combinada='Clientes'] .regla-hoja-combinada")).Should().Contain("Sin CIF válido, la fila se omite entera");
+        Texto(cut.Find("[data-hoja-combinada='Clientes'] .regla-hoja-combinada")).Should().Contain("CIF, o DNI o NIE si es un autónomo, con dígito de control válido. Sin él, la fila se omite entera");
     }
 
     [Fact]

@@ -131,7 +131,7 @@ else
                         <div class="alerta-formulario" role="alert">@_mensajeErrorIdentidad</div>
                     }
                     <CampoTexto Etiqueta="Razón social" Valor="@_razonSocialEditada" ValorChanged="v => _razonSocialEditada = v" MensajeError="@ObtenerErrorIdentidad(nameof(EditarClienteCommand.RazonSocial))" />
-                    <CampoTexto Etiqueta="CIF" Valor="@_cifEditado" ValorChanged="v => _cifEditado = v" MensajeError="@ObtenerErrorIdentidad(nameof(EditarClienteCommand.Cif))" />
+                    <CampoTexto Etiqueta="Identificación fiscal" Placeholder="CIF, DNI o NIE" Valor="@_cifEditado" ValorChanged="v => _cifEditado = v" MensajeError="@ObtenerErrorIdentidad(nameof(EditarClienteCommand.Cif))" />
                     <label class="campo-checkbox">
                         <input type="checkbox" @bind="_esCriticoEditado" /> Cliente empresarial crítico
                     </label>
@@ -145,12 +145,12 @@ else
                     <div class="rejilla-info-cliente-360">
                         <div class="celda-info-cliente-360 celda-info-cliente-360-ancha"><span>Razón social</span><strong>@_detalle.RazonSocial</strong></div>
                         <div class="celda-info-cliente-360">
-                            <span>CIF</span>
+                            <span>Identificación fiscal</span>
                             <div class="valor-con-copia-cliente-360">
                                 <strong>@(string.IsNullOrWhiteSpace(_detalle.Cif) ? "—" : _detalle.Cif)</strong>
                                 @if (!string.IsNullOrWhiteSpace(_detalle.Cif))
                                 {
-                                    <BotonCopiar Valor="@_detalle.Cif" Etiqueta="el CIF" />
+                                    <BotonCopiar Valor="@_detalle.Cif" Etiqueta="la identificación fiscal" />
                                 }
                             </div>
                         </div>

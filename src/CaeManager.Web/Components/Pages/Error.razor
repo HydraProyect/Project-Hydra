@@ -22,6 +22,22 @@
     [CascadingParameter]
     private HttpContext? HttpContext { get; set; }
 
+    // MainLayout llega aquí sin pasar por UseExceptionHandler (a propósito:
+    // ver el comentario de ConDiagnostico en MainLayout.razor.cs — reentrar
+    // en ese guard volvería a tocar la base de datos que puede estar
+    // fallando), así que para ese camino no hay IExceptionHandlerPathFeature
+    // que rellenar. Trae su propia referencia y ruta como parámetros de
+    // consulta — un GUID de correlación y la ruta relativa a la que el
+    // usuario ya estaba navegando, ninguno de los dos datos nuevos: es la
+    // misma URL que ya tenía delante.
+    [SupplyParameterFromQuery(Name = "ref")]
+    [Parameter]
+    public string? ReferenciaExterna { get; set; }
+
+    [SupplyParameterFromQuery(Name = "ruta")]
+    [Parameter]
+    public string? RutaExterna { get; set; }
+
     private string? RequestId { get; set; }
 
     // IExceptionHandlerPathFeature.Path es la ruta que UseExceptionHandler("/Error")
@@ -33,7 +49,7 @@
 
     protected override void OnInitialized()
     {
-        RequestId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
-        RutaOrigen = HttpContext?.Features.Get<IExceptionHandlerPathFeature>()?.Path;
+        RequestId = ReferenciaExterna ?? Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+        RutaOrigen = RutaExterna ?? HttpContext?.Features.Get<IExceptionHandlerPathFeature>()?.Path;
     }
 }

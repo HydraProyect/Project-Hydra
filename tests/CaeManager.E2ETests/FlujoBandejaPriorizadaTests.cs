@@ -38,14 +38,14 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
         await page.GetByText("+ Nuevo cliente").First.ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialCliente);
-        await drawer.GetByLabel("CIF", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_996_601));
+        await drawer.GetByLabel("Identificación fiscal", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_996_601));
         await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
         await page.GetByText("+ Nueva empresa").First.ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialEmpresa);
-        await drawer.GetByLabel("CIF", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_996_602));
+        await drawer.GetByLabel("Identificación fiscal", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_996_602));
         await drawer.GetByPlaceholder("Buscar…").FillAsync(razonSocialCliente);
         await drawer.GetByLabel(razonSocialCliente).CheckAsync();
         await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();

@@ -341,13 +341,17 @@ public class DocumentosGen2Tests : BunitContext
     }
 
     [Fact]
-    public void La_fecha_copiable_recibe_el_vencimiento_y_la_emision_del_documento()
+    public void La_fecha_copiable_recibe_el_vencimiento_y_no_la_emision()
     {
+        // Sin FechaEmision: fuera de Detección/Revisión IA solo la vigencia es
+        // copiable (P9, 2026-09-18) — la emisión ya tiene su propia columna,
+        // sin Alt+clic (hallazgo corregido, CAPA-USUARIO-AVANZADO-TALVEG.md
+        // § 6.1 quinquies).
         var documento = Documento("Reconocimiento médico");
         var (cut, _) = Renderizar(ConDocumentos(documento));
         var fecha = cut.FindComponent<TextoFechaCopiable>().Instance;
         fecha.Fecha.Should().Be(documento.FechaVencimiento);
-        fecha.FechaEmision.Should().Be(documento.FechaEmision);
+        fecha.FechaEmision.Should().BeNull();
     }
 
     /// <summary>

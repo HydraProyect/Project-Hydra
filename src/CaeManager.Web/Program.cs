@@ -35,7 +35,6 @@ using CaeManager.Web.Services;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.RateLimiting;
@@ -215,6 +214,7 @@ builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<IActorAuditoria, ActorAuditoriaDesdeSesion>();
 builder.Services.AddScoped<IClienteActivoSeleccionado, CaeManager.Web.Services.ClienteActivoSeleccionado>();
 builder.Services.AddScoped<CaeManager.Application.Tenants.IVistaVocabularioPreviewService, CaeManager.Web.Services.VistaVocabularioPreviewCookie>();
+builder.Services.AddScoped<CaeManager.Web.Services.TemaCookie>();
 builder.Services.AddScoped<ITenantActual, CaeManager.Web.Services.TenantActual>();
 // Scoped: cachea por circuito si la sesión es de soporte, para que registrar
 // una interacción no cueste una consulta (ver TrazaSoporteService).
@@ -426,7 +426,11 @@ builder.Services.AddRateLimiter(opciones =>
 
         // La IP real ya está resuelta: UseForwardedHeaders corre al principio
         // del pipeline (ver más abajo) y el middleware de rate limiting actúa
-        // después, por petición.
+        // después, por petición. Este es el ÚNICO sitio del sistema que lee la
+        // IP del cliente —no la registra la auditoría, ni los accesos
+        // sensibles, ni los logs—, así que es también el único alcance de lo
+        // que se perdería si esa IP fuese falsificable: ver
+        // CabecerasDeProxyDeBorde para de qué depende que sea auténtica.
         var ip = contexto.Connection.RemoteIpAddress?.ToString() ?? "desconocida";
 
         return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
@@ -494,6 +498,16 @@ builder.Services.AddSingleton<CircuitHandler, CaeManager.Web.Services.MetricasCi
 // CaeManager.Web.Services.RevalidacionCircuitoActivoHandler).
 builder.Services.AddScoped<CircuitHandler, CaeManager.Web.Services.RevalidacionCircuitoActivoHandler>();
 
+// Criterio observable de "el circuito ya se cerró", que MainLayout necesita
+// para no confundir un circuito muerto (nadie ve la página) con uno vivo (no
+// aplicar el guard sería fallar abierto). Scoped por la misma razón que el de
+// arriba: el scope de DI es el del circuito. Se registra dos veces sobre LA
+// MISMA instancia — como servicio inyectable y como CircuitHandler, que es
+// quien recibe la llamada del framework: dos AddScoped independientes darían
+// dos instancias, y el componente inyectaría la que nadie marca.
+builder.Services.AddScoped<CaeManager.Web.Services.EstadoDelCircuito>();
+builder.Services.AddScoped<CircuitHandler>(sp => sp.GetRequiredService<CaeManager.Web.Services.EstadoDelCircuito>());
+
 // Health check real (P0-5 de docs/business/MATURITY_REVIEW.md): /salud
 // respondía "ok" incondicional — con PostgreSQL caído seguía dando 200 y
 // cualquier uptime check externo veía un servicio sano que no podía servir
@@ -518,11 +532,15 @@ var app = builder.Build();
 // multi-réplica): aplica las migraciones pendientes y termina, sin levantar
 // Kestrel ni sembrar datos. Así el esquema se cierra una única vez, antes de
 // que arranque ninguna réplica del proceso web — no N réplicas compitiendo
-// por aplicar DDL a la vez en cada redeploy/reinicio. No está wireado a
-// ningún paso del pipeline de deploy actual (deploy/local, .github/workflows/
-// deploy.yml aplican las migraciones en el arranque normal, ver
-// Migraciones:AlArrancar más abajo) — queda disponible para cuando el
-// despliegue pase a multi-réplica y haga falta un pre-deploy explícito.
+// por aplicar DDL a la vez en cada redeploy/reinicio.
+//
+// Desde REC-017/P39 SÍ está wireado: es el comando del servicio "migrador" en
+// docker-compose.produccion.yml y docker-compose.staging.yml, que corre como
+// contenedor efímero antes de que "app" arranque (`depends_on: migrador:
+// condition: service_completed_successfully`) — con Migraciones:AlArrancar en
+// false en ambos, "app" ya no vuelve a aplicar migraciones por su cuenta. La
+// topología de hoy sigue siendo de una sola réplica; el pre-deploy explícito
+// para multi-réplica queda para cuando esa réplica exista de verdad.
 if (args.Contains("--migrate-only"))
 {
     using var scopeMigracion = app.Services.CreateScope();
@@ -605,34 +623,30 @@ if (args.Contains("--retirar-tenant-demo"))
 // Detrás de un proxy inverso (Caddy, ver deploy/local/Caddyfile y DEPLOY.md),
 // Kestrel solo ve tráfico HTTP interno; sin esto,
 // UseHttpsRedirection/UseHsts no reconocen la petición original como HTTPS
-// y pueden entrar en bucle de redirección. KnownProxies/KnownNetworks se
-// dejan vacíos a propósito: el proxy de entrada cambia según dónde se
-// despliegue, y este es un único servicio detrás de un solo proxy de borde,
-// no una red interna con saltos que haya que enumerar.
-var opcionesForwardedHeaders = new ForwardedHeadersOptions
-{
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
-};
-// KnownProxies/KnownIPNetworks traen loopback por defecto: un inicializador
-// `= { }` no los vacía, solo no añade nada más. Sin este Clear() explícito,
-// el middleware descarta X-Forwarded-Proto porque Caddy no habla desde
-// loopback (es un contenedor propio en la red "edge", ver docker-compose.
-// produccion.yml), y la app cree que la petición es HTTP (genera
-// Location: http:// en redirects, lo que rompe el login vía CSP form-action).
-opcionesForwardedHeaders.KnownProxies.Clear();
-opcionesForwardedHeaders.KnownIPNetworks.Clear();
-app.UseForwardedHeaders(opcionesForwardedHeaders);
+// y pueden entrar en bucle de redirección.
+//
+// La configuración vive en CabecerasDeProxyDeBorde, no aquí: acepta las
+// cabeceras de CUALQUIER origen (KnownProxies/KnownIPNetworks vacíos), así que
+// la autenticidad de la IP del cliente depende enteramente de que Caddy
+// descarte el X-Forwarded-For entrante y de que sea el único camino hasta el
+// 8080. Ese es un supuesto de seguridad, y está escrito, medido y vigilado por
+// trinquete en esa clase (REC-019) en vez de quedar aquí como un comentario.
+app.UseForwardedHeaders(CabecerasDeProxyDeBorde.Opciones());
 
 using (var scope = app.Services.CreateScope())
 {
-    // Migraciones__AlArrancar=false, el día que un pre-deploy (--migrate-only
-    // de más arriba) se adopte de verdad en el pipeline — hasta entonces, por
-    // defecto (true), el arranque normal las aplica igual que siempre: con el
-    // pre-deploy sin adoptar, es la única vía que las ejecuta. Con las dos
-    // activas a la vez no hay riesgo de una sola réplica (las migraciones ya
-    // aplicadas no se repiten), pero si se escalase a varias réplicas
-    // simultáneas sí volvería la carrera que migrate-only existe para evitar
-    // — de ahí el apagador explícito en vez de dejarlo siempre encendido.
+    // Migraciones__AlArrancar=false en staging y producción desde REC-017/P39
+    // (docker-compose.*.yml, servicio "migrador"): el pre-deploy de arriba
+    // (--migrate-only) ya es quien aplica el esquema en esos dos entornos, así
+    // que este bloque no vuelve a tocarlo ahí. El valor por defecto (true)
+    // sigue en pie para cualquier entorno que NO declare la variable — el
+    // desarrollo local (docker-compose.yml, solo Postgres, sin contenedor
+    // "app") y el arnés E2E (WebAppFixture) siguen migrando aquí, en el mismo
+    // proceso que arranca. Con las dos vías activas a la vez no hay riesgo de
+    // una sola réplica (las migraciones ya aplicadas no se repiten), pero si
+    // se escalase a varias réplicas simultáneas volvería la carrera que
+    // migrate-only existe para evitar — de ahí el apagador explícito en vez
+    // de dejarlo siempre encendido.
     if (app.Configuration.GetValue("Migraciones:AlArrancar", defaultValue: true))
     {
         await MigrarBaseDeDatosAsync(app.Configuration, scope.ServiceProvider);

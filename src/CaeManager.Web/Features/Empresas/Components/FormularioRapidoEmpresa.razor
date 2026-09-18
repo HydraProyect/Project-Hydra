@@ -18,7 +18,7 @@
 
         <CampoTexto Etiqueta="Razón social" Valor="@_razonSocial" ValorChanged="v => _razonSocial = v"
                     MensajeError="@ObtenerError(nameof(CrearEmpresaCommand.RazonSocial))" />
-        <CampoTexto Etiqueta="CIF" Valor="@_cif" ValorChanged="v => _cif = v"
+        <CampoTexto Etiqueta="Identificación fiscal" Placeholder="CIF, DNI o NIE" Valor="@_cif" ValorChanged="v => _cif = v"
                     MensajeError="@ObtenerError(nameof(CrearEmpresaCommand.Cif))" />
     </ChildContent>
     <Pie>

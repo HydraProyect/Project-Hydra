@@ -106,7 +106,7 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
     private static readonly IReadOnlyList<HojaCombinada> HojasCombinada =
     [
         new(1, "Clientes", ["Razón social", "CIF", "Crítico (C/N)"],
-            "Cada fila es un Cliente empresarial. Sin CIF válido, la fila se omite entera."),
+            "Cada fila es un Cliente empresarial. CIF, o DNI o NIE si es un autónomo, con dígito de control válido. Sin él, la fila se omite entera."),
         new(2, "Empresas", ["Razón social", "Clientes asociados (separados por ;)"],
             "Cada Cliente empresarial citado se busca en el sistema y en la hoja 1. Si no aparece, esa asociación se descarta con un aviso y la Empresa se crea igual."),
         new(3, "Centros", ["Nombre", "Cliente", "Empresa", "Código", "Dirección", "Contacto", "Contrato vigente hasta"],

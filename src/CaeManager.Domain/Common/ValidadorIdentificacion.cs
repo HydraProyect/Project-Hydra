@@ -25,9 +25,13 @@ public readonly record struct ResultadoIdentificacion(bool EsValido, TipoIdentif
 
 /// <summary>
 /// Detecta y valida (con dígito de control real) DNI, NIE y CIF/NIF de empresa
-/// españoles, según el algoritmo oficial. No fuerza un único formato — un
-/// trabajador puede ser extranjero con NIE, TIE o pasaporte, y una empresa se
-/// identifica con CIF, nunca con DNI.
+/// españoles, según el algoritmo oficial. No fuerza un único formato: un
+/// trabajador puede ser extranjero con NIE, TIE o pasaporte, y una Empresa se
+/// identifica con un CIF si es persona jurídica, pero con su DNI o su NIE si es
+/// un autónomo — quién puede usar qué lo deciden los llamadores, no
+/// <see cref="Analizar"/>, que solo dice qué es cada documento y si su dígito
+/// de control cuadra. Para la identificación fiscal de una Empresa, el criterio
+/// es <see cref="EsIdentificacionFiscalValida"/>.
 /// </summary>
 public static partial class ValidadorIdentificacion
 {
@@ -35,6 +39,43 @@ public static partial class ValidadorIdentificacion
     private const string LetrasControlEmpresa = "JABCDEFGHI";
     private const string LetrasOrganizacionDigitoNumerico = "ABEH";
     private const string LetrasOrganizacionDigitoLetra = "KPQS";
+
+    /// <summary>
+    /// Criterio único de identificación fiscal de una Empresa: DNI, NIE o NIF
+    /// de empresa, los tres con dígito de control correcto. Un autónomo se
+    /// identifica con su DNI o su NIE, así que restringirlo a
+    /// <see cref="TipoIdentificacion.NifEmpresa"/> le impedía darse de alta.
+    /// <para>
+    /// Quedan fuera <see cref="TipoIdentificacion.TieSoporte"/> y
+    /// <see cref="TipoIdentificacion.Otros"/>: el número de soporte de la TIE
+    /// no es un identificador fiscal y no lleva dígito de control calculable
+    /// —<see cref="Analizar"/> lo da por válido sin comprobar nada—, y
+    /// aceptarlo metería texto sin verificar en un campo que sirve de ancla
+    /// para reconocer a la misma organización. El identificador fiscal de un
+    /// extranjero residente es su NIE, que sí se acepta. TALVEG solo opera en
+    /// España por ahora (decisión del propietario, 2026-09-18); el día que haya
+    /// un régimen extranjero, la dimensión que falta es el país, no ensanchar
+    /// este criterio.
+    /// </para>
+    /// <para>
+    /// No vale para identificar a una <c>persona</c>: un Trabajador puede
+    /// acreditarse con pasaporte o con número de soporte de TIE, y por eso
+    /// <c>Trabajador</c> y los lectores de importación de trabajadores tienen
+    /// su propio criterio, deliberadamente más ancho que este.
+    /// </para>
+    /// </summary>
+    public static bool EsIdentificacionFiscalValida(string? documento)
+    {
+        if (string.IsNullOrWhiteSpace(documento))
+            return false;
+
+        var resultado = Analizar(documento);
+
+        return resultado.EsValido
+            && resultado.Tipo is TipoIdentificacion.Dni
+                or TipoIdentificacion.Nie
+                or TipoIdentificacion.NifEmpresa;
+    }
 
     public static ResultadoIdentificacion Analizar(string documento)
     {

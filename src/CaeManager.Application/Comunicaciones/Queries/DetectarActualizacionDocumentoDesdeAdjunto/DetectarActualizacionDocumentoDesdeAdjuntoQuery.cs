@@ -145,7 +145,15 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler(
         return trabajador is null ? (null, null) : (trabajador.Id, $"{trabajador.Nombre} {trabajador.Apellidos}");
     }
 
-    /// <summary>Análogo a DetectarTrabajadorAsync pero por CIF — sin equivalente en el ámbito Trabajador porque ahí la identidad es el DNI, aquí es el CIF de la empresa emisora/afectada.</summary>
+    /// <summary>
+    /// Análogo a DetectarTrabajadorAsync pero por la identificación fiscal de
+    /// la Empresa emisora o afectada. Los dos ámbitos pueden coincidir en el
+    /// tipo de documento y no por eso son lo mismo: la identificación fiscal
+    /// de una Empresa es su CIF, o el DNI o NIE si es un autónomo, mientras
+    /// que la de un Trabajador admite además pasaporte o número de soporte de
+    /// TIE. La comparación es por valor normalizado, así que sirve igual para
+    /// los tres documentos.
+    /// </summary>
     private async Task<(Guid? Id, string? Nombre)> DetectarEmpresaAsync(
         IReadOnlyDictionary<string, string?> campos, CancellationToken cancellationToken)
     {

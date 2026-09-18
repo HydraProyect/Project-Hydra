@@ -38,12 +38,56 @@ public class EmpresaTests
 
     [Theory]
     [InlineData("B12345670")] // formato de CIF, dígito de control incorrecto
-    [InlineData("77189989A")] // formato de DNI, no de CIF de empresa
+    [InlineData("77189989A")] // formato de DNI, letra de control incorrecta — la buena es B
+    [InlineData("X1234567A")] // formato de NIE, letra de control incorrecta
+    [InlineData("AAA123456")] // número de soporte de TIE: no es una identificación fiscal
+    [InlineData("123456789")] // pasaporte extranjero: fuera del régimen español
     public void No_permite_un_cif_invalido_si_se_proporciona(string cifInvalido)
     {
         var accion = () => new Empresa("Limpiezas del Norte S.L.", cifInvalido);
 
         accion.Should().Throw<ArgumentException>();
+    }
+
+    /// <summary>
+    /// Un autónomo es una Empresa cuya identificación fiscal es su DNI o su
+    /// NIE: exigirle un NIF de persona jurídica le impedía darse de alta.
+    /// </summary>
+    [Theory]
+    [InlineData("77189989B")] // DNI
+    [InlineData("12345678Z")] // DNI
+    [InlineData("X1234567L")] // NIE — extranjero residente
+    [InlineData("Y2345678Z")] // NIE
+    public void Crea_una_empresa_de_un_autonomo_identificada_con_su_dni_o_nie(string documento)
+    {
+        var empresa = new Empresa("Marta Ruiz Salas", documento);
+
+        empresa.Cif.Should().Be(documento);
+    }
+
+    [Fact]
+    public void Un_autonomo_tambien_puede_ser_la_contraparte_cliente()
+    {
+        var empresa = Empresa.CrearComoCliente(
+            "Marta Ruiz Salas", "77189989B", esCritico: false, notas: null, ejecutivoUsuarioId: null);
+
+        empresa.Cif.Should().Be("77189989B");
+    }
+
+    [Fact]
+    public void Un_autonomo_tambien_puede_ser_la_contraparte_subcontratista()
+    {
+        var empresa = Empresa.CrearComoSubcontrata("Marta Ruiz Salas", "X1234567L", nivelServicio: "Gestionada");
+
+        empresa.Cif.Should().Be("X1234567L");
+    }
+
+    [Fact]
+    public void Normaliza_a_mayusculas_el_dni_de_un_autonomo()
+    {
+        var empresa = new Empresa("Marta Ruiz Salas", "  77189989b  ");
+
+        empresa.Cif.Should().Be("77189989B");
     }
 
     [Fact]

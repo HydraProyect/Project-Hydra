@@ -176,7 +176,7 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
         await page.GetByText("+ Nuevo cliente").First.ClickAsync();
         var drawer = page.Locator(".drawer-panel");
         await drawer.GetByLabel("Razón social").FillAsync("Cliente bloqueado por rol Consulta");
-        await drawer.GetByLabel("CIF", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_888_801));
+        await drawer.GetByLabel("Identificación fiscal", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_888_801));
         await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
 
         // AutorizacionEscrituraBehavior bloquea cualquier Command para

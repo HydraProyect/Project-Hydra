@@ -237,6 +237,66 @@ public class ParsersDocumentoOficialTests
     public void El_cif_se_normaliza_quitando_separadores(string bruto, string esperado) =>
         ParserDocumentoOficialBase.NormalizarCif(bruto).Should().Be(esperado);
 
+    /// <summary>
+    /// Un autónomo extranjero residente puede recibir estos documentos
+    /// identificado por su NIE, no por un CIF de entidad — ya posible como
+    /// identificación fiscal de la Empresa desde el alta (P1). El prefijo
+    /// numérico pegado ("0" en el certificado de corriente) se sigue
+    /// descartando igual que con un CIF, misma rama con etiqueta.
+    /// </summary>
+    [Fact]
+    public void Tgss_extrae_un_nie_etiquetado_con_prefijo()
+    {
+        var texto = PlantillaTgssPositiva.Replace("Código de Empresario: 0B12345678", "Código de Empresario: 0X1234567L");
+
+        var extraido = new ParserCorrienteTgss().Extraer(texto);
+
+        extraido.CamposObligatoriosFaltantes.Should().BeEmpty();
+        extraido.Cif.Should().Be("X1234567L");
+    }
+
+    /// <summary>
+    /// Rama por forma (sin etiqueta cercana, documentos tabulares): admite
+    /// solo CIF de entidad, nunca NIE. Es a propósito y sigue siendo una
+    /// hipótesis prudente (sin muestra real que la confirme, ver el
+    /// comentario de <see cref="ParserDocumentoOficialBase.RegexCifComun"/>):
+    /// RNT/RLC son listados de trabajadores, y sin etiqueta que ancle el
+    /// valor a "esto es la empresa", un NIE suelto en el texto extraído
+    /// tiene más probabilidad de ser el documento de un trabajador de la
+    /// lista que el de la propia empresa — cae a revisión en vez de
+    /// arriesgar una atribución equivocada.
+    /// </summary>
+    [Fact]
+    public void Rnt_tabular_no_extrae_un_nie_sin_etiqueta_y_cae_a_revision()
+    {
+        var texto =
+            "Raz!n social C!digo cuenta cotizaci!n Periodo de liquidaci!n Calificador de la liquidaci!n " +
+            "EMPRESA EJEMPLO SL X1234567L 06/2026 Ordinaria " +
+            "Referencia Fecha Hora Huella 999 15/07/2026 08:30";
+
+        var extraido = new ParserRnt().Extraer(texto);
+
+        extraido.Cif.Should().BeNull();
+        extraido.CamposObligatoriosFaltantes.Should().Contain("CIF");
+    }
+
+    /// <summary>
+    /// El lookahead negativo <c>(?![A-Z0-9])</c> protege la alternativa NIE
+    /// igual que ya protegía CIF y DNI: un carácter alfanumérico pegado
+    /// detrás (p. ej. una huella o un CCC sin separador) invalida la
+    /// coincidencia entera, no la recorta.
+    /// </summary>
+    [Fact]
+    public void Un_nie_con_un_caracter_alfanumerico_pegado_detras_no_se_extrae()
+    {
+        var texto = "Código de Empresario: 0X1234567LZ Periodo de liquidación: 06/2026";
+
+        var extraido = new ParserRnt().Extraer(texto);
+
+        extraido.Cif.Should().BeNull();
+        extraido.CamposObligatoriosFaltantes.Should().Contain("CIF");
+    }
+
     [Theory]
     [InlineData("04/08/2026", 2026, 8, 4)]
     [InlineData("4-8-2026", 2026, 8, 4)]

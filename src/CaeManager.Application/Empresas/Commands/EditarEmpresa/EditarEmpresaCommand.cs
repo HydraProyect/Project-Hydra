@@ -30,22 +30,19 @@ public class EditarEmpresaCommandValidator : AbstractValidator<EditarEmpresaComm
             .MaximumLength(Empresa.LongitudMaximaRazonSocial)
             .WithMessage($"La razón social no puede superar {Empresa.LongitudMaximaRazonSocial} caracteres.");
 
-        // A diferencia del alta (CrearEmpresaCommand), aquí el CIF sigue
-        // siendo opcional: hay Empresas legacy sin CIF (ver Empresa.Cif) y
-        // editar otro campo no debe forzar retroactivamente su relleno.
+        // A diferencia del alta (CrearEmpresaCommand), aquí la identificación
+        // fiscal sigue siendo opcional: hay Empresas legacy sin ella (ver
+        // Empresa.Cif) y editar otro campo no debe forzar retroactivamente su
+        // relleno.
         RuleFor(c => c.Cif)
-            .Must(EsCifValido).WithMessage("El CIF no es válido.")
+            .Must(ValidadorIdentificacion.EsIdentificacionFiscalValida)
+            .WithMessage(Empresa.MensajeIdentificacionFiscalInvalida)
             .When(c => !string.IsNullOrWhiteSpace(c.Cif));
 
         RuleFor(c => c.Cnae).MaximumLength(Empresa.LongitudMaximaCnae);
         RuleFor(c => c.ConvenioAplicable).MaximumLength(Empresa.LongitudMaximaConvenioAplicable);
     }
 
-    private static bool EsCifValido(string? cif)
-    {
-        var resultado = ValidadorIdentificacion.Analizar(cif!);
-        return resultado.Tipo == TipoIdentificacion.NifEmpresa && resultado.EsValido;
-    }
 }
 
 public class EditarEmpresaCommandHandler(

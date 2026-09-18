@@ -62,4 +62,65 @@ public class SelectorTemaTests(WebAppFixture fixture)
         await Assertions.Expect(page.Locator("html")).Not.ToHaveAttributeAsync(
             "data-theme", "oscuro", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
     }
+
+    /// <summary>
+    /// tema.js dejó de escuchar 'enhancedload' (ver su comentario): con
+    /// data-theme ya prerenderizado en el HTML que la navegación "enhanced"
+    /// trae del servidor (ver <c>TemaCookie</c>, Web), el propio morph del
+    /// DOM de Blazor lo conserva en &lt;html&gt; sin que ningún JS de esta app
+    /// tenga que reaplicarlo. Este test es la comprobación de que quitar ese
+    /// listener no lo rompió — antes de quitarlo, el mismo escenario (cambiar
+    /// el tema en vivo y navegar sin recargar el documento) dependía de él.
+    /// </summary>
+    [Fact]
+    public async Task El_tema_sobrevive_a_una_navegacion_mejorada_sin_recargar_el_documento()
+    {
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await contexto.NewPageAsync();
+
+        await Ayudas.IniciarSesionAsync(
+            page, fixture.BaseUrl, Ayudas.EmailAdministradorConsultora, Ayudas.ContrasenaUsuariosPrueba);
+        await Ayudas.DescartarNotificacionesPendientesAsync(page);
+        await Ayudas.NavegarYEsperarAsync(page, fixture.BaseUrl);
+
+        var selectorTema = page.Locator("select.selector-tema");
+        await Assertions.Expect(selectorTema).ToBeVisibleAsync(
+            new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        await selectorTema.SelectOptionAsync("oscuro");
+        await Assertions.Expect(page.Locator("html")).ToHaveAttributeAsync(
+            "data-theme", "oscuro", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
+
+        // Clic de menú lateral: navegación "enhanced" (petición HTTP real,
+        // sin recargar el documento — ver el comentario de DEC-70/REC-162 en
+        // SeleccionSobreviveAlCircuitoTests), no page.GotoAsync.
+        var enlaceEmpresas = page.Locator("a.nav-item[href='empresas']").First;
+        await Assertions.Expect(enlaceEmpresas).ToBeVisibleAsync(
+            new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        await enlaceEmpresas.ClickAsync();
+
+        await Assertions.Expect(page).ToHaveURLAsync(
+            new System.Text.RegularExpressions.Regex("/empresas$"),
+            new PageAssertionsToHaveURLOptions { Timeout = 15_000 });
+        await Assertions.Expect(page.Locator("html")).ToHaveAttributeAsync(
+            "data-theme", "oscuro", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
+
+        // Devuelve la cuenta a su estado inicial: la fixture es compartida.
+        // Recarga completa antes de tocar el selector — no reutiliza el que
+        // ya tiene la página: el clic de arriba (navegación "enhanced")
+        // puede haber recreado el componente SelectorTema (mismo remontado
+        // que documenta SeleccionSobreviveAlCircuitoTests), con su interop
+        // de JS (_modulo) todavía importándose en vuelo. Elegir "sistema"
+        // contra ese componente a medio inicializar cae en la guarda `if
+        // (_modulo is not null)` de CambiarTemaAsync: GuardarTemaAsync sí
+        // persiste el cambio en la cuenta, pero el DOM no se actualiza — un
+        // fallo real medido en CI (2026-09-18, PR #710) que no tiene nada
+        // que ver con lo que este test mide, solo con la limpieza.
+        await Ayudas.NavegarYEsperarAsync(page, fixture.BaseUrl);
+        var selectorTemaTrasRecarga = page.Locator("select.selector-tema");
+        await Assertions.Expect(selectorTemaTrasRecarga).ToBeVisibleAsync(
+            new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        await selectorTemaTrasRecarga.SelectOptionAsync("sistema");
+        await Assertions.Expect(page.Locator("html")).Not.ToHaveAttributeAsync(
+            "data-theme", "oscuro", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
+    }
 }

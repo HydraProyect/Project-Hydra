@@ -45,22 +45,32 @@ public class BuscadorGlobalGen2Tests : BunitContext
     private static readonly Guid IdCliente = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid IdTrabajador = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
-    private static readonly ResultadoBusquedaGlobalDto SinNada = new([], [], [], [], [], []);
+    private static readonly ResultadoBusquedaGlobalDto SinNada = new([], [], [], []);
 
-    /// <summary>El subtítulo "Cliente" es literalmente el que produce BuscarGlobalQueryHandler para esa categoría.</summary>
+    /// <summary>
+    /// El subtítulo "Cliente" es el micro-formato en bruto (un solo papel,
+    /// sin coma) que produce BuscarGlobalQueryHandler para una Empresa con
+    /// papel de Cliente empresarial — Empresa es una única categoría desde
+    /// P41d (2026-09-18). La URL de destino sigue siendo /clientes?q=…
+    /// para este papel (hallazgo de Codex, 2026-09-18): /empresas filtra por
+    /// <c>ObtenerEmpresaIdsVisiblesAsync</c>, que para un Gestor CAE deriva de
+    /// las contratistas de su cartera y puede NO incluir a sus propios
+    /// Clientes — enviar ahí un Cliente visible solo por
+    /// <c>ObtenerClienteIdsVisiblesAsync</c> aterrizaría en un listado vacío.
+    /// </summary>
     private static readonly ResultadoBusquedaGlobalDto UnClienteEmpresarial = new(
         [new ItemBusquedaDto(IdCliente, "Refrielectric S.A.", "Cliente", "/clientes?q=Refrielectric")],
-        [], [], [], [], []);
+        [], [], []);
 
     /// <summary>Para Trabajador el handler pone el DNI en el subtítulo, no el tipo.</summary>
     private static readonly ResultadoBusquedaGlobalDto UnTrabajador = new(
-        [], [], [], [],
+        [], [],
         [new ItemBusquedaDto(IdTrabajador, "Juan Pérez", "12345678Z", "/trabajadores/22222222-2222-2222-2222-222222222222")],
         []);
 
     private static readonly ResultadoBusquedaGlobalDto DosEntidades = new(
         [new ItemBusquedaDto(IdCliente, "Refrielectric S.A.", "Cliente", "/clientes?q=Refrielectric")],
-        [], [], [],
+        [],
         [new ItemBusquedaDto(IdTrabajador, "Juan Pérez", "12345678Z", "/trabajadores/22222222-2222-2222-2222-222222222222")],
         []);
 
@@ -257,6 +267,37 @@ public class BuscadorGlobalGen2Tests : BunitContext
         await Input(cut).EscribirAsync("refri");
 
         cut.Find(".buscador-item-subtitulo").TextContent.Trim().Should().Be("Cliente empresarial");
+    }
+
+    /// <summary>
+    /// Control positivo de P41d (2026-09-18, decisión del propietario): una
+    /// Empresa con más de un papel contextual (Cliente empresarial y
+    /// Subcontrata) llega del handler como UNA fila con el micro-formato CSV
+    /// "Cliente,Subcontrata" — nunca como filas separadas por papel. La capa
+    /// Web traduce ese CSV a la etiqueta canónica combinada.
+    /// </summary>
+    [Fact]
+    public async Task Una_empresa_con_varios_papeles_pinta_una_sola_fila_con_ambos_papeles()
+    {
+        var idEmpresa = Guid.Parse("44444444-4444-4444-4444-444444444444");
+        var mediador = new MediadorControlado
+        {
+            Resultado = new ResultadoBusquedaGlobalDto(
+                [new ItemBusquedaDto(idEmpresa, "Doble Papel S.L.", "Cliente,Subcontrata", "/clientes?q=Doble+Papel")],
+                [], [], [])
+        };
+        var cut = await RenderizarYAbrir(mediador);
+
+        await Input(cut).EscribirAsync("doble");
+
+        // El fixture no siembra Centro ni Trabajador, así que junto a la
+        // Empresa aparecen además las acciones "Crear centro"/"Crear
+        // trabajador" (huecos de categoría, ver <see cref="Acciones"/>) —
+        // ninguna de las dos lleva subtítulo, así que no contamina el
+        // recuento de filas CON subtítulo, que es lo que este test mide.
+        cut.FindAll(".buscador-item-titulo").Count(t => t.TextContent.Contains("Doble Papel S.L.", StringComparison.Ordinal))
+            .Should().Be(1, "una Empresa con varios papeles contextuales sigue siendo una sola fila del buscador");
+        cut.Find(".buscador-item-subtitulo").TextContent.Trim().Should().Be("Cliente empresarial · Subcontrata");
     }
 
     /// <summary>Cuando el subtítulo del DTO aporta algo distinto del tipo (el DNI), se concatena en vez de sustituirse.</summary>

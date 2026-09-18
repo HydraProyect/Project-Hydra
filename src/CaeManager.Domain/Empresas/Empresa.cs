@@ -17,15 +17,34 @@ public class Empresa : EntidadBase
     /// <summary>Deuda transitoria de F3 — mismo límite que tenía Cliente.Notas.</summary>
     public const int LongitudMaximaNotas = 2000;
 
+    /// <summary>
+    /// Un único mensaje para los siete sitios que rechazaban la identificación
+    /// fiscal con su propia copia de "El CIF no es válido." — el dominio y los
+    /// seis validadores de Application. Nombra los tres documentos admitidos
+    /// porque si no, un autónomo que teclea su DNI correcto lee que su "CIF"
+    /// no vale y no tiene forma de saber que sí se acepta.
+    /// </summary>
+    public const string MensajeIdentificacionFiscalInvalida =
+        "La identificación fiscal no es válida: se admite el CIF de una empresa, o el DNI o NIE de un autónomo.";
+
     public string RazonSocial { get; private set; } = string.Empty;
 
     /// <summary>
-    /// A diferencia de Cliente, el CIF de Empresa es opcional — hay Empresas
-    /// ya creadas (sembradas o importadas) sin CIF, y las plantillas de
-    /// importación tampoco lo recogen todavía (ver ROADMAP.md). El alta
-    /// nueva (CrearEmpresaCommand) sí lo exige para MVP-1 (Escenario 2,
-    /// tecnico/docs/MULTITENANCY.md § 2): sin CIF no se puede emitir un F-22
-    /// válido — va en cabecera y en la cláusula RGPD.
+    /// Identificación fiscal de la Empresa. Admite el CIF de una persona
+    /// jurídica y también el DNI o el NIE de una persona física, porque un
+    /// autónomo es una Empresa sin más identificador que el suyo propio y
+    /// exigirle un CIF le impedía darse de alta. Los tres se validan con el
+    /// dígito de control español (<see cref="ValidadorIdentificacion.EsIdentificacionFiscalValida"/>);
+    /// el nombre <c>Cif</c> se conserva por sus consumidores, no porque el
+    /// campo siga siendo solo un CIF.
+    /// <para>
+    /// Sigue siendo opcional — hay Empresas ya creadas (sembradas o
+    /// importadas) sin identificación, y las plantillas de importación
+    /// tampoco la recogen todavía. El alta nueva (CrearEmpresaCommand) sí la
+    /// exige para MVP-1 (Escenario 2, tecnico/docs/MULTITENANCY.md § 2): sin
+    /// ella no se puede emitir un F-22 válido — va en cabecera y en la
+    /// cláusula RGPD.
+    /// </para>
     /// </summary>
     public string? Cif { get; private set; }
 
@@ -96,10 +115,10 @@ public class Empresa : EntidadBase
     }
 
     /// <summary>
-    /// F3b — alta de la contraparte antes llamada Cliente. <c>cif</c> exige
-    /// formato válido de NIF de empresa, igual que exigía
-    /// <c>Cliente.EstablecerCif</c> (a diferencia del constructor de arriba,
-    /// donde el CIF es opcional). <c>EsCritico</c>/<c>Notas</c>/
+    /// F3b — alta de la contraparte antes llamada Cliente. <c>cif</c> es
+    /// obligatorio aquí, a diferencia del constructor de arriba, donde es
+    /// opcional; el formato admitido es el mismo en los dos (CIF de empresa,
+    /// o DNI o NIE de autónomo). <c>EsCritico</c>/<c>Notas</c>/
     /// <c>EjecutivoUsuarioId</c> son deuda transitoria de F3 (§2 del diseño
     /// físico) — se retiran a <c>RelacionEmpresarial</c> en F4, no antes.
     /// </summary>
@@ -180,10 +199,9 @@ public class Empresa : EntidadBase
         }
 
         var normalizado = cif.Trim().ToUpperInvariant();
-        var resultado = ValidadorIdentificacion.Analizar(normalizado);
 
-        if (resultado.Tipo != TipoIdentificacion.NifEmpresa || !resultado.EsValido)
-            throw new ArgumentException("El CIF no es válido.", nameof(cif));
+        if (!ValidadorIdentificacion.EsIdentificacionFiscalValida(normalizado))
+            throw new ArgumentException(MensajeIdentificacionFiscalInvalida, nameof(cif));
 
         Cif = normalizado;
     }

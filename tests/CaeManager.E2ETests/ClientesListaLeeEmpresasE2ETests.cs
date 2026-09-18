@@ -28,7 +28,7 @@ public class ClientesListaLeeEmpresasE2ETests(WebAppFixture fixture)
 
         await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Nuevo cliente" }).First.ClickAsync();
         await page.GetByLabel("Razón social").FillAsync(razonSocial);
-        await page.GetByLabel("CIF", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_997_801));
+        await page.GetByLabel("Identificación fiscal", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_997_801));
         await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Guardar", Exact = true }).ClickAsync();
 
         // El drawer se cierra tras guardar — señal de que el comando ya

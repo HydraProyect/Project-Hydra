@@ -69,8 +69,13 @@ public class AnthropicDocumentAIProvider(
         - "nombreDocumento": el título o denominación del documento tal
           como aparece en él (p. ej. "Certificado de formación en trabajos
           en altura"), no el nombre de archivo.
-        - "nombreEmpresa"/"cifEmpresa": nombre y CIF de la empresa a la que
-          pertenece o que emite el documento, si aparece. "rolEmpresa":
+        - "nombreEmpresa"/"cifEmpresa": nombre e identificación fiscal de la
+          empresa a la que pertenece o que emite el documento, si aparece —
+          el CIF si es una sociedad, o el DNI o NIE cuando la empresa es un
+          autónomo que trabaja a su propio nombre. Un DNI o NIE va en
+          "cifEmpresa" solo si el documento presenta a esa persona como la
+          empresa; si aparece como trabajadora, va en
+          "documentoIdentidadTrabajador". "rolEmpresa":
           "principal" si el documento identifica a esa empresa como el
           cliente/contratista principal que encarga el trabajo,
           "subcontratada" si la identifica como subcontrata que presta el
