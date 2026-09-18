@@ -15,25 +15,33 @@ namespace CaeManager.Application.BusquedaGlobal.Queries.BuscarGlobal;
 /// Alimenta el Command Palette (Ctrl/Cmd+K, Parte XVI PROMPT 05) — el
 /// reemplazo directo de la hoja "Filtros" manual del Excel original. Cada
 /// resultado enlaza a la ficha de la entidad (Trabajador 360, Centro 360)
-/// cuando existe; para Cliente/Empresa/Subcontrata/Documento, que todavía
-/// no tienen una página de detalle propia, enlaza al listado del módulo
-/// con el texto ya cargado en el filtro (?q=).
+/// cuando existe; para Empresa/Documento, que todavía no tienen una página
+/// de detalle propia, enlaza al listado del módulo con el texto ya
+/// cargado en el filtro (?q=).
 /// </summary>
 public record BuscarGlobalQuery(string Termino) : IRequest<ResultadoBusquedaGlobalDto>;
 
 public record ItemBusquedaDto(Guid Id, string Titulo, string? Subtitulo, string UrlDestino);
 
+/// <param name="Empresas">
+/// Una fila por Empresa, sin importar cuántos papeles contextuales tenga
+/// (Cliente empresarial, Subcontrata) — el contrato de lenguaje (ADR-011)
+/// los trata como papeles dentro de una Relación Empresarial, nunca como
+/// tipos de Empresa, así que no pueden ser categorías separadas del
+/// buscador (P41d, 2026-09-18). <see cref="ItemBusquedaDto.Subtitulo"/>
+/// lleva aquí los papeles en bruto separados por coma ("Cliente",
+/// "Subcontrata"; vacío si no tiene ninguno) — la traducción a etiqueta
+/// canónica ("Cliente empresarial · Subcontrata") es cosa de la capa Web,
+/// igual que ya hacía para el resto de categorías.
+/// </param>
 public record ResultadoBusquedaGlobalDto(
-    IReadOnlyList<ItemBusquedaDto> Clientes,
     IReadOnlyList<ItemBusquedaDto> Empresas,
-    IReadOnlyList<ItemBusquedaDto> Subcontratas,
     IReadOnlyList<ItemBusquedaDto> Centros,
     IReadOnlyList<ItemBusquedaDto> Trabajadores,
     IReadOnlyList<ItemBusquedaDto> Documentos)
 {
     public bool TieneResultados =>
-        Clientes.Count > 0 || Empresas.Count > 0 || Subcontratas.Count > 0 || Centros.Count > 0 ||
-        Trabajadores.Count > 0 || Documentos.Count > 0;
+        Empresas.Count > 0 || Centros.Count > 0 || Trabajadores.Count > 0 || Documentos.Count > 0;
 }
 
 public class BuscarGlobalQueryHandler(
@@ -50,11 +58,11 @@ public class BuscarGlobalQueryHandler(
         var termino = request.Termino.Trim();
 
         if (termino.Length < 2)
-            return new ResultadoBusquedaGlobalDto([], [], [], [], [], []);
+            return new ResultadoBusquedaGlobalDto([], [], [], []);
 
         var terminoMayus = termino.ToUpper();
 
-        // Alcance de cartera en las cinco categorías. El buscador global es una
+        // Alcance de cartera en las cuatro categorías. El buscador global es una
         // superficie de LISTADO —cada resultado enlaza al listado del módulo con
         // el término ya cargado (?q=)—, no un selector de "elige de la base
         // general": la excepción documentada en IAlcanceDatosService para
@@ -67,41 +75,12 @@ public class BuscarGlobalQueryHandler(
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
         var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
 
-        // F3c (2026-08-28): las ramas Cliente y Subcontrata leían las tablas
-        // legacy Clientes/Subcontratas, congeladas desde F3b (PR #279/#280) —
-        // un alta posterior al freeze no aparecía nunca en Ctrl+K. Ambas son
-        // Empresas contraparte; el discriminador es el mismo que ya usan
-        // ObtenerClientesQuery (EsCritico != null) y ObtenerSubcontratasQuery
-        // (NivelServicio != null). El alcance de cartera no cambia: los Ids que
-        // devuelve IAlcanceDatosService son Empresa.Id desde el repunteo de FKs
-        // de F3b.
-        var clientes = await empresasContext.Empresas.Where(e => e.EsCritico != null)
-            .Where(c => clienteIdsVisibles == null || clienteIdsVisibles.Contains(c.Id))
-            .Where(c => c.RazonSocial.ToUpper().Contains(terminoMayus))
-            .OrderBy(c => c.RazonSocial)
-            .Take(LimitePorCategoria)
-            .Select(c => new ItemBusquedaDto(c.Id, c.RazonSocial, "Cliente", $"/clientes?q={Uri.EscapeDataString(c.RazonSocial)}"))
-            .ToListAsync(cancellationToken);
-
-        var empresas = await empresasContext.Empresas
-            .Where(e => empresaIdsVisibles == null || empresaIdsVisibles.Contains(e.Id))
-            .Where(e => e.RazonSocial.ToUpper().Contains(terminoMayus))
-            .OrderBy(e => e.RazonSocial)
-            .Take(LimitePorCategoria)
-            .Select(e => new ItemBusquedaDto(e.Id, e.RazonSocial, "Empresa", $"/empresas?q={Uri.EscapeDataString(e.RazonSocial)}"))
-            .ToListAsync(cancellationToken);
-
-        var subcontratas = await empresasContext.Empresas.Where(e => e.NivelServicio != null)
-            .Where(s => subcontrataIdsVisibles == null || subcontrataIdsVisibles.Contains(s.Id))
-            .Where(s => s.RazonSocial.ToUpper().Contains(terminoMayus))
-            .OrderBy(s => s.RazonSocial)
-            .Take(LimitePorCategoria)
-            .Select(s => new ItemBusquedaDto(s.Id, s.RazonSocial, "Subcontrata", $"/subcontratas?q={Uri.EscapeDataString(s.RazonSocial)}"))
-            .ToListAsync(cancellationToken);
+        var empresas = await BuscarEmpresasAsync(
+            terminoMayus, clienteIdsVisibles, empresaIdsVisibles, subcontrataIdsVisibles, cancellationToken);
 
         // Centro y Trabajador SÍ tienen ficha propia (Centro 360, Trabajador
-        // 360) — a diferencia de Cliente/Empresa/Subcontrata/Documento, que
-        // siguen enlazando al listado con filtro porque no la tienen todavía.
+        // 360) — a diferencia de Empresa/Documento, que siguen enlazando al
+        // listado con filtro porque no la tienen todavía.
         var centros = await centrosContext.Centros
             .Where(c => centroIdsVisibles == null || centroIdsVisibles.Contains(c.Id))
             .Where(c => c.Nombre.ToUpper().Contains(terminoMayus))
@@ -123,7 +102,117 @@ public class BuscarGlobalQueryHandler(
 
         var documentos = await BuscarDocumentosAsync(terminoMayus, cancellationToken);
 
-        return new ResultadoBusquedaGlobalDto(clientes, empresas, subcontratas, centros, trabajadores, documentos);
+        return new ResultadoBusquedaGlobalDto(empresas, centros, trabajadores, documentos);
+    }
+
+    /// <summary>
+    /// Empresa (papel neutro), Cliente empresarial y Subcontrata (F3c: mismos
+    /// discriminadores que <c>ObtenerClientesQuery</c>/<c>ObtenerSubcontratasQuery</c>,
+    /// EsCritico/NivelServicio != null) son la MISMA tabla Empresas — antes de
+    /// P41d (2026-09-18) eran tres categorías del buscador, así que una Empresa
+    /// con más de un papel contextual (o simplemente visible sin discriminador)
+    /// salía repetida. El contrato de lenguaje (ADR-011) ya lo decía: Cliente y
+    /// Subcontrata son papeles dentro de una Relación Empresarial, no tipos de
+    /// Empresa — así que aquí se consulta cada alcance por separado, EXACTAMENTE
+    /// como antes (misma cartera, mismo discriminador), y se fusiona por
+    /// Empresa.Id antes de aplicar el límite de categoría, para no cortar el
+    /// top N a mitad de una fusión ni tener que inventar un alcance combinado
+    /// nuevo que no está probado.
+    ///
+    /// Cada consulta de origen sigue topando en SQL (hallazgo de Codex,
+    /// 2026-09-18): fusionar por Id no puede significar materializar TODAS
+    /// las Empresas visibles de cada alcance antes de recortar — con acceso
+    /// amplio (Administrador/DireccionCae/Consulta, alcance null) un término
+    /// de dos letras traería miles de filas por debounce.
+    ///
+    /// El tope de cada origen NO es <see cref="LimitePorCategoria"/> sino
+    /// <see cref="MargenPorOrigen"/> (segundo hallazgo de Codex, mismo día):
+    /// el <c>ORDER BY RazonSocial</c> de cada consulta lo decide la
+    /// colación de PostgreSQL de esa columna, y la fusión final reordena en
+    /// memoria con <c>StringComparer.Ordinal</c> — dos criterios que pueden
+    /// discrepar con acentos o mayúsculas. Si el tope por origen fuese
+    /// exactamente <see cref="LimitePorCategoria"/>, una Empresa que la
+    /// colación de PostgreSQL sitúe en la posición 6 dentro de su propio
+    /// origen, pero que el orden Ordinal final sitúe entre las 5 primeras
+    /// de la unión, se perdería sin llegar nunca a la fusión. Un margen
+    /// generoso (10×) no lo demuestra imposible —sigue sin haber una prueba
+    /// formal de que las dos colaciones no puedan discrepar en más de nueve
+    /// posiciones—, pero lo hace impracticable: exigiría que más de nueve
+    /// Empresas de la MISMA categoría, coincidentes con el MISMO término,
+    /// cambien de orden relativo entre las dos colaciones. Hueco declarado.
+    /// </summary>
+    private const int MargenPorOrigen = LimitePorCategoria * 10;
+
+    private async Task<IReadOnlyList<ItemBusquedaDto>> BuscarEmpresasAsync(
+        string terminoMayus,
+        IReadOnlyList<Guid>? clienteIdsVisibles, IReadOnlyList<Guid>? empresaIdsVisibles, IReadOnlyList<Guid>? subcontrataIdsVisibles,
+        CancellationToken cancellationToken)
+    {
+        var comoClientes = await empresasContext.Empresas.Where(e => e.EsCritico != null)
+            .Where(c => clienteIdsVisibles == null || clienteIdsVisibles.Contains(c.Id))
+            .Where(c => c.RazonSocial.ToUpper().Contains(terminoMayus))
+            .OrderBy(c => c.RazonSocial)
+            .Take(MargenPorOrigen)
+            .Select(c => new { c.Id, c.RazonSocial })
+            .ToListAsync(cancellationToken);
+
+        var comoSubcontratas = await empresasContext.Empresas.Where(e => e.NivelServicio != null)
+            .Where(s => subcontrataIdsVisibles == null || subcontrataIdsVisibles.Contains(s.Id))
+            .Where(s => s.RazonSocial.ToUpper().Contains(terminoMayus))
+            .OrderBy(s => s.RazonSocial)
+            .Take(MargenPorOrigen)
+            .Select(s => new { s.Id, s.RazonSocial })
+            .ToListAsync(cancellationToken);
+
+        var comoEmpresas = await empresasContext.Empresas
+            .Where(e => empresaIdsVisibles == null || empresaIdsVisibles.Contains(e.Id))
+            .Where(e => e.RazonSocial.ToUpper().Contains(terminoMayus))
+            .OrderBy(e => e.RazonSocial)
+            .Take(MargenPorOrigen)
+            .Select(e => new { e.Id, e.RazonSocial })
+            .ToListAsync(cancellationToken);
+
+        var papelesPorEmpresa = new Dictionary<Guid, (string RazonSocial, List<string> Papeles, string UrlDestino)>();
+
+        // El destino tiene que ser un listado donde la fila SEA visible: cada
+        // listado (/clientes, /subcontratas, /empresas) filtra por su propio
+        // alcance, y los tres pueden divergir — en particular,
+        // ObtenerEmpresaIdsVisiblesAsync para un Gestor CAE deriva de las
+        // CONTRATISTAS de su cartera de Clientes, no de los Clientes mismos
+        // (ver IAlcanceDatosService), así que un Cliente visible por
+        // clienteIdsVisibles puede no estarlo por empresaIdsVisibles.
+        // Enviarlo siempre a /empresas aterrizaba en un listado vacío
+        // (hallazgo de Codex, 2026-09-18). Se registra primero (y por tanto
+        // gana el destino) el papel con nombre: Cliente, luego Subcontrata,
+        // luego la visibilidad "sin papel" — cada uno garantizado por el
+        // WHERE que ya lo trajo aquí.
+        void Registrar(IEnumerable<(Guid Id, string RazonSocial)> filas, string? papel, Func<string, string> construirUrl)
+        {
+            foreach (var (id, razonSocial) in filas)
+            {
+                if (!papelesPorEmpresa.TryGetValue(id, out var entrada))
+                {
+                    entrada = (razonSocial, [], construirUrl(razonSocial));
+                    papelesPorEmpresa[id] = entrada;
+                }
+
+                if (papel is not null && !entrada.Papeles.Contains(papel))
+                    entrada.Papeles.Add(papel);
+            }
+        }
+
+        Registrar(comoClientes.Select(c => (c.Id, c.RazonSocial)), "Cliente", rs => $"/clientes?q={Uri.EscapeDataString(rs)}");
+        Registrar(comoSubcontratas.Select(s => (s.Id, s.RazonSocial)), "Subcontrata", rs => $"/subcontratas?q={Uri.EscapeDataString(rs)}");
+        Registrar(comoEmpresas.Select(e => (e.Id, e.RazonSocial)), null, rs => $"/empresas?q={Uri.EscapeDataString(rs)}");
+
+        return papelesPorEmpresa
+            .OrderBy(kv => kv.Value.RazonSocial, StringComparer.Ordinal)
+            .Take(LimitePorCategoria)
+            .Select(kv => new ItemBusquedaDto(
+                kv.Key, kv.Value.RazonSocial,
+                kv.Value.Papeles.Count > 0 ? string.Join(",", kv.Value.Papeles) : null,
+                kv.Value.UrlDestino))
+            .ToList();
     }
 
     /// <summary>

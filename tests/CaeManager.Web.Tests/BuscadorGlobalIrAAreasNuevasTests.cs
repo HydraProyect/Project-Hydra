@@ -53,7 +53,7 @@ public class BuscadorGlobalIrAAreasNuevasTests : BunitContext
             Task.FromResult((TResponse)(request switch
             {
                 ObtenerRecientesQuery => (object)new List<ItemRecienteDto>(),
-                BuscarGlobalQuery => new ResultadoBusquedaGlobalDto([], [], [], [], [], []),
+                BuscarGlobalQuery => new ResultadoBusquedaGlobalDto([], [], [], []),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             })!);
 
