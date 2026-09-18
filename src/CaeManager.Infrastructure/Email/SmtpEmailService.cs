@@ -121,13 +121,10 @@ public class SmtpEmailService(
                  Este aviso se envía siempre por seguridad y no se puede desactivar.<br>
                  Si no has sido tú, avísanos respondiendo a <a href="mailto:{config.BuzonRemitente}">{config.BuzonRemitente}</a>. · <a href="https://talveg.es">talveg.es</a>
                  """,
-            TipoAvisoCorreo.Informativo => string.IsNullOrWhiteSpace(config.UrlBasePublica)
-                ? """
-                  Recibes este aviso por tu responsabilidad de coordinación en TALVEG. · <a href="https://talveg.es">talveg.es</a>
-                  """
-                : $"""
-                   Recibes este aviso por tu responsabilidad de coordinación en TALVEG. · <a href="{config.UrlBasePublica!.TrimEnd('/')}/configuracion">Ajustar qué recibo</a>
-                   """,
+            TipoAvisoCorreo.Informativo =>
+                """
+                Recibes este aviso por tu responsabilidad de coordinación en TALVEG. · <a href="https://talveg.es">talveg.es</a>
+                """,
             _ =>
                 """
                 Si no esperabas este correo, puedes ignorarlo. · <a href="https://talveg.es">talveg.es</a>

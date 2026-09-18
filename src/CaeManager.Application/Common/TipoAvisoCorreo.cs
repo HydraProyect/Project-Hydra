@@ -15,6 +15,6 @@ public enum TipoAvisoCorreo
     /// <summary>Relacionado con el acceso a la cuenta (restablecer contraseña, acceso de soporte). Pie fijo: se envía siempre y no se puede desactivar.</summary>
     Seguridad,
 
-    /// <summary>Resumen o notificación periódica (alertas, informes). Pie con el motivo de por qué llega y un enlace para ajustar qué se recibe.</summary>
+    /// <summary>Resumen o notificación periódica (alertas, informes). Pie con el motivo de por qué llega. No hay hoy una preferencia por destinatario para desactivarlo.</summary>
     Informativo,
 }

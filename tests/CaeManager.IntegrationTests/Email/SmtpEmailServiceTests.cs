@@ -204,23 +204,6 @@ public class SmtpEmailServiceTests
             html.Should().Contain("responsabilidad de coordinación");
         }
 
-        /// <summary>
-        /// Revisión de Codex (P2): <see cref="TipoAvisoCorreo.Informativo"/>
-        /// promete "un enlace para ajustar qué se recibe" — sin
-        /// <c>UrlBasePublica</c> no hay dónde enlazar (mismo fail-soft que la
-        /// franja de marca), pero con ella configurada el pie debe cumplir lo
-        /// que el contrato anuncia.
-        /// </summary>
-        [Fact]
-        public void El_pie_informativo_enlaza_a_preferencias_cuando_hay_UrlBasePublica()
-        {
-            var html = SmtpEmailService.EnvolverEnPlantillaDeMarca(
-                "<p>contenido</p>", TipoAvisoCorreo.Informativo,
-                new SmtpEmailOptions { UrlBasePublica = "https://app.talveg.es" });
-
-            html.Should().Contain("<a href=\"https://app.talveg.es/configuracion\">Ajustar qué recibo</a>");
-        }
-
         [Fact]
         public void El_contenido_del_llamador_llega_intacto_dentro_del_envoltorio()
         {
