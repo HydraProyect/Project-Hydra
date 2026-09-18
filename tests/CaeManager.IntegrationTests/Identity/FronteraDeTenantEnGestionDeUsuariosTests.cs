@@ -2,12 +2,14 @@ using System.Reflection;
 using System.Security.Claims;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Web.Components.DesignSystem;
 using FluentAssertions;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
@@ -84,7 +86,13 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
 
         servicios.AddIdentityCore<ApplicationUser>()
             .AddRoles<IdentityRole<Guid>>()
-            .AddEntityFrameworkStores<CaeManagerDbContext>();
+            .AddEntityFrameworkStores<CaeManagerDbContext>()
+            // Sin esto, GenerarEnlaceActivacionAsync (GeneratePasswordResetTokenAsync)
+            // lanza NotSupportedException por falta del proveedor "Default" — un
+            // fallo del arnés, no de la propiedad bajo prueba: enmascararía a
+            // ReenviarCredencialesAsync llegando a intentar el envío igual de bien
+            // que un NotSupportedException real por falta de guardián.
+            .AddDefaultTokenProviders();
 
         _servicios = servicios.BuildServiceProvider();
 
@@ -183,7 +191,7 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
 
         var filaDelegada = new UsuarioListaDto(
             _usuarioAjenoDelegado, "gestor-ajeno@x.test", "Gestor Ajeno", Roles.GestorCae,
-            Activo: true, EsOperadorDelegado: true, Alcance: null!);
+            Activo: true, EsOperadorDelegado: true, PendienteActivacion: false, Alcance: null!);
 
         await InvocarToleraRecargaSinRendererAsync(pagina, "CambiarActivacionAsync", filaDelegada);
 
@@ -194,7 +202,45 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
             "desactivar la cuenta de un Operador Delegado desde el tenant que opera sería una denegación de servicio contra otra organización");
     }
 
-    private static PaginaUsuarios CrearPagina(IServiceProvider servicios, Guid actorId, bool esAdministrador)
+    [Fact]
+    public async Task ReenviarCredencialesAsync_no_envia_correo_para_la_cuenta_de_un_operador_delegado()
+    {
+        using var ambitoTenant = AmbitoTenantExplicito.Establecer(_tenantPropio);
+        using var ambito = _servicios.CreateScope();
+        var espia = new EmailServiceEspia();
+        var pagina = CrearPagina(ambito.ServiceProvider, _actorAdministrador, esAdministrador: true, espia);
+
+        var filaDelegada = new UsuarioListaDto(
+            _usuarioAjenoDelegado, "gestor-ajeno@x.test", "Gestor Ajeno", Roles.GestorCae,
+            Activo: true, EsOperadorDelegado: true, PendienteActivacion: true, Alcance: null!);
+
+        await InvocarAsync(pagina, "ReenviarCredencialesAsync", filaDelegada);
+
+        espia.Llamadas.Should().Be(0,
+            "reenviar el correo de activación de un Operador Delegado desde el tenant que opera filtraría un enlace de un solo uso a la cuenta de otra organización");
+    }
+
+    [Fact]
+    public async Task EliminarUsuarioAsync_no_elimina_la_cuenta_de_un_operador_delegado()
+    {
+        using var ambitoTenant = AmbitoTenantExplicito.Establecer(_tenantPropio);
+        using var ambito = _servicios.CreateScope();
+        var pagina = CrearPagina(ambito.ServiceProvider, _actorAdministrador, esAdministrador: true);
+
+        var filaDelegada = new UsuarioListaDto(
+            _usuarioAjenoDelegado, "gestor-ajeno@x.test", "Gestor Ajeno", Roles.GestorCae,
+            Activo: true, EsOperadorDelegado: true, PendienteActivacion: true, Alcance: null!);
+        EscribirCampoPrivado(pagina, "_usuarioAEliminar", filaDelegada);
+
+        await InvocarToleraRecargaSinRendererAsync(pagina, "EliminarUsuarioAsync");
+
+        var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        (await userManager.FindByIdAsync(_usuarioAjenoDelegado.ToString())).Should().NotBeNull(
+            "eliminar la cuenta de un Operador Delegado desde el tenant que opera borraría un usuario real de otra organización");
+    }
+
+    private static PaginaUsuarios CrearPagina(
+        IServiceProvider servicios, Guid actorId, bool esAdministrador, EmailServiceEspia? emailService = null)
     {
         var pagina = new PaginaUsuarios();
 
@@ -204,6 +250,8 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
         EscribirPropiedadInyectada(pagina, "ToastService", new ToastService());
         EscribirPropiedadInyectada(pagina, "Logger", NullLogger<PaginaUsuarios>.Instance);
         EscribirPropiedadInyectada(pagina, "AuthenticationStateProvider", new AutenticacionFalsa(actorId, esAdministrador));
+        EscribirPropiedadInyectada(pagina, "EmailService", emailService ?? new EmailServiceEspia());
+        EscribirPropiedadInyectada(pagina, "NavigationManager", new NavigationManagerFalsa());
 
         return pagina;
     }
@@ -270,6 +318,31 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
             await InvocarAsync(instancia, metodo, argumentos);
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("render handle", StringComparison.OrdinalIgnoreCase))
+        {
+        }
+    }
+
+    /// <summary>
+    /// Cuenta cuántas veces se intentó enviar, sin tocar red de verdad: si el
+    /// ataque llegara a disparar el envío, sería la prueba de que la frontera
+    /// de tenant falló antes de la escritura, no solo antes del correo.
+    /// </summary>
+    private sealed class EmailServiceEspia : IEmailService
+    {
+        public int Llamadas { get; private set; }
+
+        public Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, CancellationToken cancellationToken = default)
+        {
+            Llamadas++;
+            return Task.FromResult(Result.Exito());
+        }
+    }
+
+    private sealed class NavigationManagerFalsa : NavigationManager
+    {
+        public NavigationManagerFalsa() => Initialize("http://localhost/", "http://localhost/");
+
+        protected override void NavigateToCore(string uri, NavigationOptions options)
         {
         }
     }

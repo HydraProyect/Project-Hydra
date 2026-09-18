@@ -88,6 +88,12 @@ public class UsuariosGen2Tests : BunitContext
 
         public Func<string, IReadOnlyList<ApplicationUser>> EnRol { get; set; } = _ => [];
 
+        /// <summary>Por defecto, ninguna cuenta del arnés inicia sesión por SSO — ver <see cref="UsuariosControlados.ObtenerIdsConLoginExternoAsync"/>.</summary>
+        public Func<IReadOnlySet<Guid>> IdsConLoginExterno { get; set; } = () => new HashSet<Guid>();
+
+        /// <summary>Por defecto, ninguna cuenta del arnés tiene vínculo operativo — ver <see cref="UsuariosControlados.TieneVinculoOperativoAsync"/>.</summary>
+        public Func<Guid, bool> TieneVinculoOperativo { get; set; } = _ => false;
+
         /// <summary>Por defecto, toda cuenta es propia del tenant activo — ver <see cref="UsuariosControlados.EsCuentaPropiaAsync"/>.</summary>
         public Func<Guid, bool> EsPropia { get; set; } = _ => true;
 
@@ -122,6 +128,13 @@ public class UsuariosGen2Tests : BunitContext
             Fuente.RolesConsultados.Add(rol);
             return Task.FromResult(Fuente.EnRol(rol));
         }
+
+        protected override Task<IReadOnlySet<Guid>> ObtenerIdsConLoginExternoAsync(
+            IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken) =>
+            Task.FromResult(Fuente.IdsConLoginExterno());
+
+        protected override Task<bool> TieneVinculoOperativoAsync(Guid usuarioId, CancellationToken cancellationToken) =>
+            Task.FromResult(Fuente.TieneVinculoOperativo(usuarioId));
 
         /// <summary>
         /// Por defecto todas las cuentas son propias: los tests de esta clase
@@ -204,6 +217,18 @@ public class UsuariosGen2Tests : BunitContext
             return Task.FromResult(IdentityResult.Success);
         }
 
+        public List<Guid> Eliminadas { get; } = [];
+        public IdentityResult ResultadoDeEliminar { get; set; } = IdentityResult.Success;
+
+        public override Task<IdentityResult> DeleteAsync(ApplicationUser user)
+        {
+            if (!ResultadoDeEliminar.Succeeded) return Task.FromResult(ResultadoDeEliminar);
+
+            Eliminadas.Add(user.Id);
+            Cuentas.Remove(user.Id);
+            return Task.FromResult(IdentityResult.Success);
+        }
+
         /// <summary>
         /// Si está puesto, la generación del token de activación se queda
         /// retenida. Es el punto del alta que va DESPUÉS de crear la cuenta y
@@ -214,16 +239,26 @@ public class UsuariosGen2Tests : BunitContext
 
         public override Task<string> GeneratePasswordResetTokenAsync(ApplicationUser user) =>
             TokenRetenido?.Task ?? Task.FromResult("token-de-prueba");
+
+        /// <summary>
+        /// Sin este override, la base pide el <see cref="IUserLoginStore{TUser}"/>
+        /// al almacén falso — que lo rechaza a propósito (<c>AlmacenQueNadieDebeTocar</c>)
+        /// — y <c>EsPendienteActivacionAsync</c> revienta al comprobarlo, tumbando
+        /// toda la carga de la lista. Ninguna cuenta de este arnés es SSO.
+        /// </summary>
+        public override Task<IList<UserLoginInfo>> GetLoginsAsync(ApplicationUser user) =>
+            Task.FromResult<IList<UserLoginInfo>>([]);
     }
 
     private sealed class CorreoFalso : IEmailService
     {
         public List<(string Destinatario, string Cuerpo)> Enviados { get; } = [];
+        public Result? ResultadoForzado { get; set; }
 
         public Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, CancellationToken cancellationToken = default)
         {
             Enviados.Add((destinatarioEmail, cuerpoHtml));
-            return Task.FromResult(Result.Exito());
+            return Task.FromResult(ResultadoForzado ?? Result.Exito());
         }
     }
 
@@ -341,14 +376,20 @@ public class UsuariosGen2Tests : BunitContext
 
     // ---------------------------------------------------------------- arnés
 
-    private static ApplicationUser Cuenta(Guid id, string email, string nombre, bool activa = true) => new()
+    private static ApplicationUser Cuenta(Guid id, string email, string nombre, bool activa = true, bool pendienteActivacion = false) => new()
     {
         Id = id,
         Email = email,
         UserName = email,
         NombreCompleto = nombre,
         TenantId = TenantDelArnes,
-        LockoutEnd = activa ? null : DateTimeOffset.MaxValue
+        LockoutEnd = activa ? null : DateTimeOffset.MaxValue,
+        // Las cuentas de este arnés representan por defecto a personas que ya
+        // entraron alguna vez, no altas recién creadas — sin esto,
+        // PendienteActivacion (que solo mira PasswordHash) las marcaría a
+        // todas como pendientes y taparía el badge "Activo"/"Desactivado" que
+        // la mayoría de estos tests verifican.
+        PasswordHash = pendienteActivacion ? null : "hash-de-prueba-en-el-arnes",
     };
 
     /// <summary>Siembra la lista y los roles de cada cuenta, que es de donde sale la columna Rol.</summary>
@@ -1171,6 +1212,113 @@ public class UsuariosGen2Tests : BunitContext
         _identidad.Cuentas[AnderId].LockoutEnd.Should().Be(DateTimeOffset.MaxValue);
         _identidad.Cuentas[AnderId].LockoutEnabled.Should().BeTrue();
         _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().Be("Usuario desactivado.");
+    }
+
+    [Fact]
+    public async Task Una_cuenta_pendiente_de_activacion_ofrece_reenviar_y_eliminar_en_vez_del_estado_normal()
+    {
+        var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia", pendienteActivacion: true);
+        Sembrar(
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (ander, RolesIdentidad.GestorCae));
+
+        var cut = Renderizar(actorId: MartaId);
+
+        Fila(cut, "a.beitia@talveg.es").TextContent.Should().Contain("Pendiente de activación")
+            .And.NotContain("Activo");
+
+        await AbrirMenuAsync(cut, "a.beitia@talveg.es");
+        var textosDelMenu = Fila(cut, "a.beitia@talveg.es").QuerySelectorAll(".menu-acciones-item")
+            .Select(b => b.TextContent.Trim()).ToList();
+
+        textosDelMenu.Should().Contain(["Reenviar correo de activación", "Eliminar"]);
+    }
+
+    [Fact]
+    public async Task Reenviar_credenciales_regenera_el_enlace_y_reenvia_el_correo()
+    {
+        var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia", pendienteActivacion: true);
+        Sembrar(
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (ander, RolesIdentidad.GestorCae));
+
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Reenviar correo de activación");
+
+        _correo.Enviados.Should().ContainSingle().Which.Destinatario.Should().Be("a.beitia@talveg.es");
+        _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().Be("Correo de activación reenviado.");
+        cut.WaitForAssertion(() =>
+            cut.Find(".modal-header h2").TextContent.Trim().Should().Be("Correo reenviado"));
+    }
+
+    /// <summary>
+    /// Revisión de Codex (2026-09-18): el toast ya decía que el envío falló,
+    /// pero el modal reutilizado seguía titulándose "Correo reenviado" y
+    /// afirmando que el correo había llegado — dos mensajes contradictorios
+    /// en la misma pantalla.
+    /// </summary>
+    [Fact]
+    public async Task Un_reenvio_cuyo_correo_falla_no_dice_que_se_envio()
+    {
+        var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia", pendienteActivacion: true);
+        Sembrar(
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (ander, RolesIdentidad.GestorCae));
+        _correo.ResultadoForzado = Result.Fallo(Error.Crear("Email.NoConfigurado", "SMTP no configurado."));
+
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Reenviar correo de activación");
+
+        _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().Contain("No pudimos enviar el correo");
+        cut.WaitForAssertion(() =>
+            cut.Find(".modal-header h2").TextContent.Trim().Should().Be("No pudimos reenviar el correo"));
+        cut.Find(".enlace-activacion").TextContent.Should().NotBeEmpty(
+            "el enlace sigue siendo la vía de entrega alternativa aunque el correo fallara");
+    }
+
+    [Fact]
+    public async Task Eliminar_una_cuenta_pendiente_la_borra_tras_confirmar()
+    {
+        var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia", pendienteActivacion: true);
+        Sembrar(
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (ander, RolesIdentidad.GestorCae));
+
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Eliminar");
+
+        cut.FindComponent<DialogoConfirmacion>().Instance.Mensaje.Should().Contain("a.beitia@talveg.es");
+        await cut.InvokeAsync(() => cut.FindComponent<DialogoConfirmacion>().Instance.OnConfirmar.InvokeAsync());
+
+        _identidad.Eliminadas.Should().ContainSingle().Which.Should().Be(AnderId);
+        _identidad.Cuentas.Should().NotContainKey(AnderId);
+        _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().Be("Usuario eliminado.");
+    }
+
+    /// <summary>
+    /// Revisión de Codex (2026-09-18): <c>AsignacionCartera.UsuarioId</c> no
+    /// lleva FK hacia <c>ApplicationUser</c>. Un Gestor CAE pendiente puede
+    /// haber recibido ya una Asignación de Cartera antes de aceptar la
+    /// invitación; borrar su cuenta de Identity dejaría esa asignación
+    /// apuntando a un GUID sin cuenta resoluble. La cuenta debe seguir ahí
+    /// hasta que la cartera se reasigne o se retire explícitamente.
+    /// </summary>
+    [Fact]
+    public async Task Eliminar_una_cuenta_pendiente_con_cartera_vigente_se_rechaza()
+    {
+        var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia", pendienteActivacion: true);
+        Sembrar(
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (ander, RolesIdentidad.GestorCae));
+        _fuente.TieneVinculoOperativo = id => id == AnderId;
+
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Eliminar");
+        await cut.InvokeAsync(() => cut.FindComponent<DialogoConfirmacion>().Instance.OnConfirmar.InvokeAsync());
+
+        _identidad.Eliminadas.Should().BeEmpty();
+        _identidad.Cuentas.Should().ContainKey(AnderId);
+        _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().Contain("Asignación de Cartera vigente");
     }
 
     [Fact]
