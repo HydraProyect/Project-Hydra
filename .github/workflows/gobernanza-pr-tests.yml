@@ -1,0 +1,74 @@
+name: Gobernanza de PR — prueba del verificador
+
+# Prueba sin red de scripts/verificar-gobernanza-pr.sh (el guion que usa el
+# job `gobernanza-pr` de gobernanza-pr.yml). El patrón ya existente para
+# este tipo de prueba de shell es el job deploy-script-tests de ci.yml (ver
+# scripts/verificar-licencias-nuget.tests.sh, scripts/repartir-clases-de-
+# test.tests.sh) — pero el alcance de la misión que introdujo este job (T3,
+# turno 2026-09-18) prohíbe expresamente tocar ci.yml. Este workflow, que ya
+# es dueño de scripts/verificar-gobernanza-pr.sh, es el sitio más cercano a
+# ese patrón sin cruzar esa frontera: corre en cada evento que dispara este
+# fichero (abajo), sin depender del contenido de la PR concreta que lo
+# disparó — prueba el guion, no esa PR.
+#
+# FICHERO SEPARADO de gobernanza-pr.yml (T4, 2026-09-18, hallazgo de la
+# sesión coordinadora sobre la PR que introdujo este split): antes los dos
+# jobs vivían en el mismo fichero con dos eventos (`pull_request_target` y
+# `pull_request`) y un `if: github.event_name == '...'` cruzado en cada uno.
+# GitHub no hace desaparecer un job cuyo `if:` no se cumple — publica un
+# check con su nombre y conclusión `skipped`. Con los dos jobs en un mismo
+# fichero, cada PR futura habría llevado, en cada uno de los dos eventos,
+# un gemelo `skipped` del job que no le tocaba — y GitHub trata `skipped`
+# como check SATISFECHO: el día que "Gobernanza — metadatos de PR" pasara a
+# ser `required`, ese gemelo lo habría satisfecho aunque el job real
+# saliera en rojo, sin que hiciera falta ninguna PR maliciosa. Separar en
+# dos ficheros, cada uno con un solo evento y un solo job, sin `if:`, evita
+# que ese job se intente siquiera cuando el evento no es el suyo — no hay
+# check que publicar, ni gemelo, ni "skipped".
+#
+# A propósito en `pull_request`, NO en `pull_request_target` (ver
+# gobernanza-pr.yml para el porqué de esa elección en el otro job): este
+# job SÍ quiere el código que trae la propia PR — es su función, probar la
+# versión del guion que la PR está proponiendo — y hacerlo bajo
+# `pull_request` es seguro porque no hay nada que proteger:
+# `permissions: contents: read` (sin escritura, sin `pull-requests`), ningún
+# secreto, y el único efecto es un `bash` local sobre datos sintéticos — el
+# guion bajo prueba no toca la red (ver su propia cabecera). Si alguna vez
+# este job necesitara escritura o secretos, ejecutar código de la PR dejaría
+# de ser seguro y habría que repensarlo (artefacto + job separado bajo
+# pull_request_target, patrón estándar para ese caso).
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      # Solo prueba el guion contra el código que trae la PR: no depende de
+      # milestone, etiquetas ni del cuerpo, así que no necesita
+      # labeled/unlabeled/milestoned/demilestoned/edited — esos tipos solo
+      # afectan a lo que evalúa gobernanza-pr.yml (pull_request_target, en
+      # su propio fichero).
+
+# Cancela una ejecución anterior de la MISMA PR ante un push más reciente —
+# no hace falta meter `github.event_name` en el grupo (T4): este fichero
+# solo escucha `pull_request`, no hay un segundo evento con el que
+# colisionar (ver gobernanza-pr.yml, que documenta por qué antes sí hacía
+# falta cuando los dos jobs compartían fichero).
+concurrency:
+  group: gobernanza-pr-tests-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  gobernanza-pr-tests:
+    name: "Gobernanza — prueba del verificador (sin red)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read # solo para actions/checkout; el resto del job no llama a la API.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: scripts/verificar-gobernanza-pr.tests.sh
+        run: bash scripts/verificar-gobernanza-pr.tests.sh

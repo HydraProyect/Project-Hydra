@@ -12,46 +12,55 @@ name: Gobernanza de PR
 # que el propietario descartó. Un fichero de workflow separado tiene su
 # propio `on:`, así que revalidarse ante un cambio de milestone o etiqueta no
 # toca ci.yml en absoluto (medido y demostrado en HO-140-01 § 9).
+#
+# REC-213 (turno 2026-09-18, T4): este fichero usa `pull_request_target`, no
+# `pull_request`. Para el evento `pull_request`, GitHub resuelve el WORKFLOW
+# YAML del commit de MERGE de la PR — una PR podía editar este mismo fichero
+# (quitar un paso, desactivar el job) y evaluarse con su propia versión, sin
+# tocar siquiera el guion. `pull_request_target` lee el YAML de la rama POR
+# DEFECTO del repositorio (2ª pasada de Codex sobre esta PR: no es "siempre
+# la rama base de la PR" en general — son la misma rama aquí porque toda PR
+# de este repo se corta de `origin/main` y va contra `main`, que es la rama
+# por defecto; una PR contra una base distinta de `main` rompería esa
+# coincidencia). Inmune a lo que la PR declare en su propia copia.
+#
+# El motivo habitual para EVITAR `pull_request_target` (ejecuta código ajeno
+# con más autoridad/secretos) no aplica aquí: ningún paso hace checkout del
+# head de la PR ni de ninguna otra rama que no sea la base —
+# `scripts/verificar-gobernanza-pr.sh` no lee el árbol de la PR en absoluto,
+# recibe cuerpo/ficheros/autor por API (ver el paso de abajo). Si algún día
+# se añade un checkout del head aquí, esa garantía desaparece — no lo hagas
+# sin repetir el análisis de REC-213.
+#
+# Caso límite documentado por GitHub y señalado por Codex (severidad baja,
+# no se protege activamente): una rama cuyo nombre coincide con el formato
+# de un SHA puede no disparar `pull_request_target`. Las ramas de este repo
+# siguen la convención `claude/<slug-legible>` (protocolo § 21) — no
+# colisiona en el uso normal.
+#
+# Verificado en una PR real (repo privado desechable, 2026-09-18): el check
+# de un job disparado por `pull_request_target` SÍ aparece en la lista de
+# checks de la PR y queda asociado al SHA de HEAD de la PR (confirmado por
+# `gh pr checks` y por `commits/{head_sha}/check-runs`), pese a que el propio
+# job se ejecuta en el contexto de la base — GitHub separa "a qué commit se
+# asocia el check" (el head de la PR) de "qué código ejecuta el job" (la
+# base). Sin esto no se puede dar el cambio por bueno: un check invisible en
+# la PR protegería menos que uno falsificable.
+#
+# FICHERO SEPARADO de gobernanza-pr-tests.yml (mismo turno T4, hallazgo de
+# la sesión coordinadora sobre esta misma PR): un job con `if:` que no
+# aplica a un evento no desaparece, se publica igual con conclusión
+# `skipped` — meterlos en el MISMO fichero (un job por evento, con `if:`
+# cruzados) habría producido, en cada PR futura, un check gemelo
+# "Gobernanza — metadatos de PR" con `skipped` cada vez que solo disparase
+# `pull_request` (y viceversa para el job de pruebas bajo
+# `pull_request_target`). GitHub trata `skipped` como check satisfecho — el
+# día que este check pase a ser `required`, ese gemelo lo satisfaría sin que
+# hiciera falta ninguna PR maliciosa, agravando el propio hueco de
+# "suplantación por nombre" que ya declara la PR. Separar en dos ficheros,
+# cada uno con un solo evento y un solo job, sin `if:`, hace que el job que
+# no aplica ni siquiera se intente — no hay gemelo que publicar.
 on:
-  # REC-213 (turno 2026-09-18, T4): `gobernanza-pr` usa `pull_request_target`,
-  # no `pull_request`. Para el evento `pull_request`, GitHub resuelve el
-  # WORKFLOW YAML del commit de MERGE de la PR — una PR podía editar este
-  # mismo fichero (quitar un paso, desactivar el job) y evaluarse con su
-  # propia versión, sin tocar siquiera el guion. `pull_request_target` lee el
-  # YAML de la rama POR DEFECTO del repositorio (2ª pasada de Codex sobre
-  # esta PR: no es "siempre la rama base de la PR" en general — son la misma
-  # rama aquí porque toda PR de este repo se corta de `origin/main` y va
-  # contra `main`, que es la rama por defecto; una PR contra una base
-  # distinta de `main` rompería esa coincidencia). Inmune a lo que la PR
-  # declare en su propia copia. El motivo habitual para EVITAR
-  # `pull_request_target` (ejecuta código ajeno con más autoridad/secretos)
-  # no aplica aquí: ningún paso hace checkout del head de la PR ni de
-  # ninguna otra rama que no sea la base — `scripts/verificar-gobernanza-pr.sh`
-  # no lee el árbol de la PR en absoluto, recibe cuerpo/ficheros/autor por
-  # API (ver el paso de abajo). Si algún día se añade un checkout del head
-  # aquí, esa garantía desaparece — no lo hagas sin repetir el análisis de
-  # REC-213.
-  #
-  # Caso límite documentado por GitHub y señalado por Codex (severidad baja,
-  # no se protege activamente): una rama cuyo nombre coincide con el formato
-  # de un SHA puede no disparar `pull_request_target`. Las ramas de este
-  # repo siguen la convención `claude/<slug-legible>` (protocolo § 21) — no
-  # colisiona en el uso normal.
-  #
-  # Verificado en una PR real (repo privado desechable, 2026-09-18): el check
-  # de un job disparado por `pull_request_target` SÍ aparece en la lista de
-  # checks de la PR y queda asociado al SHA de HEAD de la PR (confirmado por
-  # `gh pr checks` y por `commits/{head_sha}/check-runs`), pese a que el
-  # propio job se ejecuta en el contexto de la base — GitHub separa "a qué
-  # commit se asocia el check" (el head de la PR) de "qué código ejecuta el
-  # job" (la base). Sin esto no se puede dar el cambio por bueno: un check
-  # invisible en la PR protegería menos que uno falsificable.
-  #
-  # `gobernanza-pr-tests`, en cambio, sigue en `pull_request` a propósito:
-  # legítimamente prueba la versión del guion QUE TRAE LA PROPIA PR (ver su
-  # comentario más abajo) — sin secretos ni permisos de escritura
-  # (`permissions: contents: read` en ese job), así que ejecutar código de la
-  # PR ahí no reabre REC-213.
   pull_request_target:
     types:
       - opened
@@ -65,42 +74,26 @@ on:
       # servidores" y "Revisión Codex" viven en el CUERPO de la PR, no en sus
       # etiquetas — sin este disparador, rellenarlas tras abrir la PR (el
       # caso normal: Codex revisa después de abrir) no revalida el check.
-  pull_request:
-    types:
-      - opened
-      - synchronize
-      - reopened
-      # gobernanza-pr-tests solo prueba el guion contra el código que trae
-      # la PR: no depende de milestone, etiquetas ni del cuerpo, así que no
-      # necesita labeled/unlabeled/milestoned/demilestoned/edited — esos
-      # tipos solo afectan a lo que evalúa gobernanza-pr (bajo
-      # pull_request_target, arriba).
 
 # Deliberadamente SIN `merge_group` ni `push`: la convención (§ 5 de
 # tecnico/CONVENCION-METADATOS-PR.md) nunca aplicó a esos dos eventos — en
 # `push` el commit ya está fusionado y no hay nada que exigir, y en
 # `merge_group` la referencia temporal no lleva una PR en el payload que
 # resolver. Este workflow no cambia ese alcance, solo el disparador de
-# `pull_request`/`pull_request_target` y la fuente del dato. No es un
-# required status check (sigue fuera de los ocho de la protección de `main`,
-# DEC-42), así que su ausencia en la cola de fusión no la bloquea — igual
-# que antes.
+# `pull_request_target` y la fuente del dato. No es un required status
+# check (sigue fuera de los ocho de la protección de `main`, DEC-42), así
+# que su ausencia en la cola de fusión no la bloquea — igual que antes.
 #
 # Cancela una ejecución anterior de la MISMA PR: un cambio de etiqueta más
-# reciente hace obsoleta la evaluación de un cambio de etiqueta anterior. El
-# grupo incluye `github.event_name` (REC-213, T4): abrir una PR dispara
-# `pull_request` Y `pull_request_target` casi a la vez, cada uno con su
-# propio job relevante (`if:`, más abajo) — sin separarlos por nombre de
-# evento, la llegada del segundo cancelaría el primero antes de que su job
-# terminase, aunque ninguno de los dos sea "obsoleto" respecto al otro.
-# `|| github.run_id` como último recurso: si algún evento llegara sin
-# `pull_request.number` en el payload, cada ejecución cae a su propio
-# `run_id` (nunca colisiona) en vez de compartir grupo con otra PR distinta
-# — barato de añadir, aunque `number` es un campo estándar del payload de
-# `pull_request`/`pull_request_target` y no se ha medido un caso real donde
-# falte (hallazgo de Codex sin confirmar en esta PR).
+# reciente hace obsoleta la evaluación de un cambio de etiqueta anterior. Ya
+# no hace falta meter `github.event_name` en el grupo (T4, versión anterior
+# de este cambio sí lo necesitaba mientras los dos jobs compartían fichero):
+# este fichero solo escucha un evento, así que no hay un segundo evento con
+# el que colisionar. `|| github.run_id` se mantiene como último recurso, por
+# si `pull_request.number` faltara alguna vez en el payload (hallazgo de
+# Codex sin confirmar, pero barato de cubrir).
 concurrency:
-  group: gobernanza-pr-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  group: gobernanza-pr-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 permissions: {}
@@ -114,7 +107,6 @@ jobs:
     # conservarlo evita que la pestaña de checks de las PR ya abiertas
     # muestre un check nuevo sin historial en vez de continuar el mismo.
     name: "Gobernanza — metadatos de PR"
-    if: github.event_name == 'pull_request_target'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     permissions:
@@ -217,9 +209,10 @@ jobs:
       # abrir es el caso normal: Codex revisa sobre el incremento ya
       # empujado). La lógica de las dos reglas vive en
       # scripts/verificar-gobernanza-pr.sh (con su prueba sin red,
-      # verificar-gobernanza-pr.tests.sh, en el job gobernanza-pr-tests de
-      # este mismo workflow) para no escribir awk/grep dentro de YAML dentro
-      # de shell — mismo motivo que separó scripts/repartir-clases-de-test.sh.
+      # verificar-gobernanza-pr.tests.sh, en el job de
+      # gobernanza-pr-tests.yml — fichero aparte, ver su cabecera) para no
+      # escribir awk/grep dentro de YAML dentro de shell — mismo motivo que
+      # separó scripts/repartir-clases-de-test.sh.
       - name: "Exigir sección de paso operativo (roles de clúster) y de revisión Codex"
         env:
           GH_TOKEN: ${{ github.token }}
@@ -244,38 +237,3 @@ jobs:
             --jq '.[] | .filename, (.previous_filename // empty)' >"$FICHEROS"
 
           bash scripts/verificar-gobernanza-pr.sh "$CUERPO" "$FICHEROS" "$AUTOR"
-
-  gobernanza-pr-tests:
-    # Prueba sin red de scripts/verificar-gobernanza-pr.sh (el guion que usa
-    # el job de arriba). El patrón ya existente para este tipo de prueba de
-    # shell es el job deploy-script-tests de ci.yml (ver
-    # scripts/verificar-licencias-nuget.tests.sh, scripts/repartir-clases-de-
-    # test.tests.sh) — pero el alcance de la misión que introdujo este job
-    # (T3, turno 2026-09-18) prohíbe expresamente tocar ci.yml. Este workflow,
-    # que ya es dueño de scripts/verificar-gobernanza-pr.sh, es el sitio más
-    # cercano a ese patrón sin cruzar esa frontera: corre en cada evento de
-    # `pull_request` que dispara este fichero (arriba), sin depender del
-    # contenido de la PR concreta que lo disparó — prueba el guion, no esa PR.
-    #
-    # REC-213 (T4): a propósito sigue en `pull_request`, NO en
-    # `pull_request_target` — este job SÍ quiere el código que trae la
-    # propia PR (es su función: probar la versión del guion que la PR está
-    # proponiendo), y hacerlo bajo `pull_request` es seguro porque no hay
-    # nada que proteger: `permissions: contents: read` (sin escritura, sin
-    # `pull-requests`), ningún secreto, y el único efecto es un `bash` local
-    # sobre datos sintéticos — el guion bajo prueba no toca la red (ver
-    # cabecera de verificar-gobernanza-pr.tests.sh). Si alguna vez este job
-    # necesitara escritura o secretos, ejecutar código de la PR dejaría de
-    # ser seguro y habría que repensarlo (artefacto + job separado bajo
-    # pull_request_target, patrón estándar para este caso).
-    name: "Gobernanza — prueba del verificador (sin red)"
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 3
-    permissions:
-      contents: read # solo para actions/checkout; el resto del job no llama a la API.
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: scripts/verificar-gobernanza-pr.tests.sh
-        run: bash scripts/verificar-gobernanza-pr.tests.sh
