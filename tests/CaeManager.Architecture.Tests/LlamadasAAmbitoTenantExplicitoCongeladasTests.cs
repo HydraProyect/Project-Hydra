@@ -1,5 +1,7 @@
 using System.Text.RegularExpressions;
 using FluentAssertions;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace CaeManager.Architecture.Tests;
 
@@ -111,6 +113,47 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
     /// llamada más en <c>DatosPruebaSeeder.cs</c> (de 1 a 2): siembra la
     /// instrucción de Nivel 0 solo para el tenant #1, mismo patrón
     /// <see cref="Categoria.BootstrapOSiembra"/> que ya tenía.
+    ///
+    /// <para>
+    /// Actualizado 2026-09-18 (REC-212, auditoría de los 42 usos fuera de
+    /// Application frente al patrón de envenenamiento de REC-195): esta
+    /// tabla ya congelaba la PROCEDENCIA del <c>Guid</c> de cada sitio, pero
+    /// no decía nada sobre si REUTILIZAR la misma instancia de scope/DbContext
+    /// para varios tenants sin <c>CreateScope()</c> entre vueltas podía
+    /// envenenar algo — la pregunta de REC-195, no la de este ratchet. Medido
+    /// uno a uno sobre <c>origin/main</c> <c>0ec6c37b</c>:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>Los 9 ficheros de <see cref="Categoria.JobDeFondoSobreEnumeracionPropia"/>
+    /// llaman <c>ambitoFactory.CreateScope()</c> justo antes de cada <c>Establecer</c>: cada
+    /// tenant obtiene su propia instancia, inmune por construcción.</description></item>
+    /// <item><description>Los 2 de <see cref="Categoria.ServicioDePlataformaConGuardaPropia"/>,
+    /// 2 de los 3 de <see cref="Categoria.CredencialVerificadaInmediatamenteAntes"/>
+    /// (<c>ApiKeyAuthenticationHandler</c>, <c>WebhookMicrosoft365Endpoints</c>) y
+    /// <c>Program.cs</c> nunca visitan más de un tenant POR SU PROPIA llamada a
+    /// <c>Establecer</c> — un circuito Blazor, un proceso CLI, una petición HTTP o, en
+    /// <c>Program.cs</c>, el único <c>using</c> que siembra <c>TenantSeedData.IdPorDefecto</c>
+    /// (línea aparte de los seeders que invoca después, cada uno con sus propias llamadas ya
+    /// contadas por separado) no pueden aportar una "vuelta siguiente" que envenenar.</description></item>
+    /// <item><description>Los 5 seeders (<c>AsignacionesOperativasBackfillSeeder</c>,
+    /// <c>DatosPruebaSeeder</c>, <c>DelegacionDemoSeeder</c>, <c>DelegacionesSoporteSeeder</c>,
+    /// <c>SegundoTenantSeeder</c>) de <see cref="Categoria.BootstrapOSiembra"/> SÍ visitan varios
+    /// tenants con la misma instancia de <c>DbContext</c> (sin <c>CreateScope</c> entre ellos:
+    /// cada uno recibe el <c>dbContextBootstrap</c> que <c>Program.cs</c> crea una sola vez y pasa
+    /// de seeder en seeder), pero ninguno resuelve <c>IAlcanceDatosService</c> ni pasa por
+    /// <c>IMediator</c> (comprobado por grep, cero apariciones ejecutables) — la precondición del
+    /// mecanismo de REC-195 no se da.</description></item>
+    /// <item><description><b>El único candidato real</b>: <c>WebhookWhatsAppEndpoints.cs</c> —
+    /// el <c>foreach</c> sobre los fragmentos de un mismo payload de Meta puede resolver
+    /// tenants distintos por vuelta, con el mismo <c>eventoRepositorio</c>/<c>unitOfWork</c>
+    /// (mismo <c>CaeManagerDbContext</c>) inyectados una sola vez por petición. Reproducido antes
+    /// de concluir nada (no solo leído): <c>WebhookLoopSinCreateScopeEntreTenantsTests</c>
+    /// (<c>tests/CaeManager.IntegrationTests/MultiTenancy/</c>) confirma con Postgres real que, sin
+    /// transacción explícita, cada <c>SaveChangesAsync</c> reabre físicamente la conexión y
+    /// <c>TenantRlsConnectionInterceptor</c> refresca <c>app.tenant_id</c> al tenant vigente en
+    /// cada vuelta — y su control positivo demuestra que el MISMO instrumento SÍ detecta el
+    /// patrón peligroso (conexión mantenida abierta a mano entre vueltas) cuando existe.</description></item>
+    /// </list>
     /// </summary>
     private static readonly Dictionary<string, EntradaBlanca> Autorizados = new()
     {
@@ -203,6 +246,43 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
 
     private static readonly string[] DirectoriosVigilados = ["src"];
 
+    /// <summary>
+    /// Analiza el árbol sintáctico (igual que <c>TerminologiaCanonicaTests</c>,
+    /// DEC-65/REC-178: "instrumentación léxica/sintáctica, no una regex más
+    /// sofisticada") para comprobar que <paramref name="textoFuente"/> declara
+    /// al menos un método con el atributo <c>[Fact]</c> aplicado de verdad —
+    /// no que la cadena <c>"[Fact]"</c> aparezca en algún sitio del fichero.
+    ///
+    /// <para>
+    /// Reemplaza dos intentos con regex, los dos rechazados por Codex
+    /// (2026-09-18): un <c>Contains</c> simple aceptaba <c>// [Fact]</c> en
+    /// un comentario o la cadena literal en un mensaje de aserción; anclar la
+    /// regex a "sola en su línea" seguía aceptando un comentario de BLOQUE
+    /// (<c>/* [Fact] */</c> repartido en varias líneas) o un literal
+    /// raw/verbatim multilínea que contuviera esa línea — ninguna regex sobre
+    /// texto puede distinguir "dentro de un comentario" de "aplicado a un
+    /// método real" sin analizar la sintaxis.
+    /// </para>
+    /// </summary>
+    private static bool DeclaraAlMenosUnMetodoConFact(string textoFuente)
+    {
+        var root = CSharpSyntaxTree.ParseText(textoFuente).GetRoot();
+
+        return root.DescendantNodes()
+            .OfType<MethodDeclarationSyntax>()
+            .Any(metodo => metodo.AttributeLists
+                .SelectMany(lista => lista.Attributes)
+                .Any(atributo => EsAtributoFact(atributo.Name.ToString())));
+    }
+
+    /// <summary>
+    /// <c>Fact</c>/<c>FactAttribute</c>, con o sin el prefijo de espacio de
+    /// nombres <c>Xunit.</c> — las cuatro formas válidas de escribir el
+    /// atributo en C#.
+    /// </summary>
+    private static bool EsAtributoFact(string nombre) =>
+        nombre is "Fact" or "FactAttribute" or "Xunit.Fact" or "Xunit.FactAttribute";
+
     private static Dictionary<string, int> LlamadasPorFichero()
     {
         var raiz = RaizDelRepositorio();
@@ -271,6 +351,90 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             encontrados[fichero].Should().Be(esperado,
                 $"{fichero} tenía {esperado} llamada(s) a Establecer verificadas una a una; un número " +
                 "distinto significa que se añadió o quitó una sin actualizar esta lista");
+        }
+    }
+
+    /// <summary>
+    /// REC-212: sitios fuera de Application que reutilizan la MISMA instancia
+    /// de scope/<c>DbContext</c> para <b>más de un tenant</b> sin
+    /// <c>CreateScope()</c> entre vueltas — la forma exacta del defecto de
+    /// REC-195, aunque aquí ninguno resuelva <c>IAlcanceDatosService</c> (ver
+    /// el doc-comment de la clase). Lista cerrada y verificada uno a uno, no
+    /// derivada de <see cref="Autorizados"/> por regex: "varias vueltas en el
+    /// mismo scope" no se detecta con un patrón de texto sin dar falsos
+    /// positivos (un <c>foreach</c> de un seeder que sí crea su propio
+    /// contexto por vuelta, por ejemplo).
+    ///
+    /// Cada entrada exige su propio test de integración que reproduzca —no
+    /// solo lea— que la reutilización no envenena nada, igual que
+    /// <c>AlcanceMemoizadoPorTenantEnFanOutTests</c> para el fan-out de
+    /// Application.
+    ///
+    /// <para>
+    /// <b>Qué comprueba el <c>Fact</c> de abajo y qué NO</b> (revisión de
+    /// Codex, 2026-09-18: la primera versión descartaba el nombre del test
+    /// con <c>_ = test;</c> sin comprobar nada de él, así que borrar,
+    /// renombrar o vaciar el test de reproducción dejaba esto en verde
+    /// igual). Ahora comprueba que el fichero de test **existe** y declara
+    /// al menos un <c>[Fact]</c> — no que ese test **pase**: eso lo exige el
+    /// gate de CI de <c>CaeManager.IntegrationTests</c>, no este proyecto,
+    /// que no referencia aquel y no puede ejecutarlo. Y comprueba por
+    /// <c>BeSubsetOf</c>, no por igualdad, contra <see cref="Autorizados"/>:
+    /// eso valida que esta lista nunca nombre un fichero que no esté en la
+    /// lista blanca de arriba, pero **no** detecta que aparezca un candidato
+    /// nuevo (un fichero recién añadido a <see cref="Autorizados"/> que
+    /// también reutilice su instancia entre varios tenants) sin que nadie lo
+    /// añada aquí — eso sigue exigiendo la misma lectura manual que
+    /// descubrió a <c>WebhookWhatsAppEndpoints.cs</c>, porque "visita varios
+    /// tenants sin <c>CreateScope</c>" no es una propiedad detectable por
+    /// regex sin falsos positivos (ver el párrafo de arriba).
+    /// </para>
+    /// </summary>
+    private static readonly Dictionary<string, string> SitiosConVariosTenantsPorInstancia = new()
+    {
+        ["src/CaeManager.Web/Api/Integraciones/WebhookWhatsAppEndpoints.cs"] =
+            "tests/CaeManager.IntegrationTests/MultiTenancy/WebhookLoopSinCreateScopeEntreTenantsTests.cs",
+    };
+
+    [Fact]
+    public void Los_sitios_con_varios_tenants_por_instancia_tienen_su_test_de_reproduccion()
+    {
+        SitiosConVariosTenantsPorInstancia.Keys.Should().BeSubsetOf(Autorizados.Keys,
+            "esta lista es un recorte de la lista blanca de arriba, nunca puede nombrar un fichero que no esté allí");
+
+        var raiz = RaizDelRepositorio();
+
+        foreach (var (ficheroProduccion, ficheroTest) in SitiosConVariosTenantsPorInstancia)
+        {
+            var rutaProduccion = Path.Combine(raiz, ficheroProduccion);
+            File.Exists(rutaProduccion).Should().BeTrue(
+                $"{ficheroProduccion} tiene que seguir existiendo — si se movió o se borró, esta entrada quedó huérfana");
+
+            // Una sola aparición SINTÁCTICA de "Establecer(" no contradice que
+            // se ejecute varias veces en tiempo de ejecución — aquí es
+            // exactamente eso: UN único using dentro de un foreach sobre los
+            // fragmentos del payload, no varias llamadas de texto distintas
+            // como en un seeder. Por eso esta lista no se deriva del recuento
+            // de Autorizados y hace falta el test de reproducción nombrado
+            // arriba, no una comprobación estática, para demostrar que la
+            // reutilización del scope entre vueltas no envenena nada.
+            LlamadaAEstablecer.IsMatch(File.ReadAllText(rutaProduccion)).Should().BeTrue(
+                $"{ficheroProduccion} tiene que seguir llamando a AmbitoTenantExplicito.Establecer — si ya no lo hace, " +
+                "esta entrada quedó huérfana");
+
+            var rutaTest = Path.Combine(raiz, ficheroTest);
+            File.Exists(rutaTest).Should().BeTrue(
+                $"{ficheroTest} tiene que existir — es el test de reproducción que demuestra que {ficheroProduccion} " +
+                "no envenena nada; si se borró o se movió sin actualizar esta entrada, la afirmación queda sin comprobar");
+
+            // Análisis sintáctico, no regex (2ª corrección tras Codex,
+            // 2026-09-18 — ver el doc-comment de DeclaraAlMenosUnMetodoConFact):
+            // exige un FactAttribute aplicado de verdad a un método, no la
+            // cadena "[Fact]" en un comentario, una cadena literal o un
+            // comentario de bloque multilínea.
+            DeclaraAlMenosUnMetodoConFact(File.ReadAllText(rutaTest)).Should().BeTrue(
+                $"{ficheroTest} tiene que declarar al menos un método con [Fact] — vaciarlo o convertirlo en una " +
+                "clase sin tests pasaría la comprobación de existencia sin demostrar nada");
         }
     }
 
