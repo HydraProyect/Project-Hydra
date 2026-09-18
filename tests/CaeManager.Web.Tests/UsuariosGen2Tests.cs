@@ -1140,7 +1140,7 @@ public class UsuariosGen2Tests : BunitContext
         cut.WaitForAssertion(() =>
         {
             var pista = cut.Find(".pista-documento-error").TextContent;
-            pista.Should().Contain("No pudimos comprobar este CIF");
+            pista.Should().Contain("No pudimos comprobar esta identificación fiscal");
             pista.Should().NotContain("créala primero", "mandar a crear una empresa que quizá existe la duplica");
         });
     }

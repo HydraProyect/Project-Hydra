@@ -25,9 +25,13 @@ public readonly record struct ResultadoIdentificacion(bool EsValido, TipoIdentif
 
 /// <summary>
 /// Detecta y valida (con dígito de control real) DNI, NIE y CIF/NIF de empresa
-/// españoles, según el algoritmo oficial. No fuerza un único formato — un
-/// trabajador puede ser extranjero con NIE, TIE o pasaporte, y una empresa se
-/// identifica con CIF, nunca con DNI.
+/// españoles, según el algoritmo oficial. No fuerza un único formato: un
+/// trabajador puede ser extranjero con NIE, TIE o pasaporte, y una Empresa se
+/// identifica con un CIF si es persona jurídica, pero con su DNI o su NIE si es
+/// un autónomo — quién puede usar qué lo deciden los llamadores, no
+/// <see cref="Analizar"/>, que solo dice qué es cada documento y si su dígito
+/// de control cuadra. Para la identificación fiscal de una Empresa, el criterio
+/// es <see cref="EsIdentificacionFiscalValida"/>.
 /// </summary>
 public static partial class ValidadorIdentificacion
 {
