@@ -118,6 +118,18 @@ public class BuscarGlobalQueryHandler(
     /// Empresa.Id antes de aplicar el límite de categoría, para no cortar el
     /// top N a mitad de una fusión ni tener que inventar un alcance combinado
     /// nuevo que no está probado.
+    ///
+    /// Cada consulta de origen sigue topando en SQL con <c>LimitePorCategoria</c>
+    /// (hallazgo de Codex, 2026-09-18): fusionar por Id no puede significar
+    /// materializar TODAS las Empresas visibles de cada alcance antes de
+    /// recortar — con acceso amplio (Administrador/DireccionCae/Consulta,
+    /// alcance null) un término de dos letras traería miles de filas por
+    /// debounce. El tope por origen, ordenado igual que la fusión final
+    /// (RazonSocial ascendente), no pierde ninguna fila que pudiera llegar al
+    /// top N global: una fila que ocupe una posición ≤ N en la UNIÓN completa
+    /// ocupa, por construcción, una posición ≤ N dentro de CUALQUIER
+    /// subconjunto que ya la contenga — así que topar cada origen en N antes
+    /// de fusionar preserva el top N verdadero.
     /// </summary>
     private async Task<IReadOnlyList<ItemBusquedaDto>> BuscarEmpresasAsync(
         string terminoMayus,
@@ -127,30 +139,48 @@ public class BuscarGlobalQueryHandler(
         var comoClientes = await empresasContext.Empresas.Where(e => e.EsCritico != null)
             .Where(c => clienteIdsVisibles == null || clienteIdsVisibles.Contains(c.Id))
             .Where(c => c.RazonSocial.ToUpper().Contains(terminoMayus))
+            .OrderBy(c => c.RazonSocial)
+            .Take(LimitePorCategoria)
             .Select(c => new { c.Id, c.RazonSocial })
             .ToListAsync(cancellationToken);
 
         var comoSubcontratas = await empresasContext.Empresas.Where(e => e.NivelServicio != null)
             .Where(s => subcontrataIdsVisibles == null || subcontrataIdsVisibles.Contains(s.Id))
             .Where(s => s.RazonSocial.ToUpper().Contains(terminoMayus))
+            .OrderBy(s => s.RazonSocial)
+            .Take(LimitePorCategoria)
             .Select(s => new { s.Id, s.RazonSocial })
             .ToListAsync(cancellationToken);
 
         var comoEmpresas = await empresasContext.Empresas
             .Where(e => empresaIdsVisibles == null || empresaIdsVisibles.Contains(e.Id))
             .Where(e => e.RazonSocial.ToUpper().Contains(terminoMayus))
+            .OrderBy(e => e.RazonSocial)
+            .Take(LimitePorCategoria)
             .Select(e => new { e.Id, e.RazonSocial })
             .ToListAsync(cancellationToken);
 
-        var papelesPorEmpresa = new Dictionary<Guid, (string RazonSocial, List<string> Papeles)>();
+        var papelesPorEmpresa = new Dictionary<Guid, (string RazonSocial, List<string> Papeles, string UrlDestino)>();
 
-        void Registrar(IEnumerable<(Guid Id, string RazonSocial)> filas, string? papel)
+        // El destino tiene que ser un listado donde la fila SEA visible: cada
+        // listado (/clientes, /subcontratas, /empresas) filtra por su propio
+        // alcance, y los tres pueden divergir — en particular,
+        // ObtenerEmpresaIdsVisiblesAsync para un Gestor CAE deriva de las
+        // CONTRATISTAS de su cartera de Clientes, no de los Clientes mismos
+        // (ver IAlcanceDatosService), así que un Cliente visible por
+        // clienteIdsVisibles puede no estarlo por empresaIdsVisibles.
+        // Enviarlo siempre a /empresas aterrizaba en un listado vacío
+        // (hallazgo de Codex, 2026-09-18). Se registra primero (y por tanto
+        // gana el destino) el papel con nombre: Cliente, luego Subcontrata,
+        // luego la visibilidad "sin papel" — cada uno garantizado por el
+        // WHERE que ya lo trajo aquí.
+        void Registrar(IEnumerable<(Guid Id, string RazonSocial)> filas, string? papel, Func<string, string> construirUrl)
         {
             foreach (var (id, razonSocial) in filas)
             {
                 if (!papelesPorEmpresa.TryGetValue(id, out var entrada))
                 {
-                    entrada = (razonSocial, []);
+                    entrada = (razonSocial, [], construirUrl(razonSocial));
                     papelesPorEmpresa[id] = entrada;
                 }
 
@@ -159,13 +189,9 @@ public class BuscarGlobalQueryHandler(
             }
         }
 
-        // Orden de registro deliberado: primero los papeles con nombre
-        // (Cliente/Subcontrata), luego la visibilidad "sin papel" — así el
-        // subtítulo nunca pierde un papel real solo porque la fila también es
-        // visible por el alcance general de Empresa.
-        Registrar(comoClientes.Select(c => (c.Id, c.RazonSocial)), "Cliente");
-        Registrar(comoSubcontratas.Select(s => (s.Id, s.RazonSocial)), "Subcontrata");
-        Registrar(comoEmpresas.Select(e => (e.Id, e.RazonSocial)), null);
+        Registrar(comoClientes.Select(c => (c.Id, c.RazonSocial)), "Cliente", rs => $"/clientes?q={Uri.EscapeDataString(rs)}");
+        Registrar(comoSubcontratas.Select(s => (s.Id, s.RazonSocial)), "Subcontrata", rs => $"/subcontratas?q={Uri.EscapeDataString(rs)}");
+        Registrar(comoEmpresas.Select(e => (e.Id, e.RazonSocial)), null, rs => $"/empresas?q={Uri.EscapeDataString(rs)}");
 
         return papelesPorEmpresa
             .OrderBy(kv => kv.Value.RazonSocial, StringComparer.Ordinal)
@@ -173,7 +199,7 @@ public class BuscarGlobalQueryHandler(
             .Select(kv => new ItemBusquedaDto(
                 kv.Key, kv.Value.RazonSocial,
                 kv.Value.Papeles.Count > 0 ? string.Join(",", kv.Value.Papeles) : null,
-                $"/empresas?q={Uri.EscapeDataString(kv.Value.RazonSocial)}"))
+                kv.Value.UrlDestino))
             .ToList();
     }
 

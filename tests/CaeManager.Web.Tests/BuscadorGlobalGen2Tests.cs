@@ -51,11 +51,15 @@ public class BuscadorGlobalGen2Tests : BunitContext
     /// El subtítulo "Cliente" es el micro-formato en bruto (un solo papel,
     /// sin coma) que produce BuscarGlobalQueryHandler para una Empresa con
     /// papel de Cliente empresarial — Empresa es una única categoría desde
-    /// P41d (2026-09-18), y su URL de destino es siempre /empresas?q=…, sin
-    /// importar qué papeles tenga.
+    /// P41d (2026-09-18). La URL de destino sigue siendo /clientes?q=…
+    /// para este papel (hallazgo de Codex, 2026-09-18): /empresas filtra por
+    /// <c>ObtenerEmpresaIdsVisiblesAsync</c>, que para un Gestor CAE deriva de
+    /// las contratistas de su cartera y puede NO incluir a sus propios
+    /// Clientes — enviar ahí un Cliente visible solo por
+    /// <c>ObtenerClienteIdsVisiblesAsync</c> aterrizaría en un listado vacío.
     /// </summary>
     private static readonly ResultadoBusquedaGlobalDto UnClienteEmpresarial = new(
-        [new ItemBusquedaDto(IdCliente, "Refrielectric S.A.", "Cliente", "/empresas?q=Refrielectric")],
+        [new ItemBusquedaDto(IdCliente, "Refrielectric S.A.", "Cliente", "/clientes?q=Refrielectric")],
         [], [], []);
 
     /// <summary>Para Trabajador el handler pone el DNI en el subtítulo, no el tipo.</summary>
@@ -65,7 +69,7 @@ public class BuscadorGlobalGen2Tests : BunitContext
         []);
 
     private static readonly ResultadoBusquedaGlobalDto DosEntidades = new(
-        [new ItemBusquedaDto(IdCliente, "Refrielectric S.A.", "Cliente", "/empresas?q=Refrielectric")],
+        [new ItemBusquedaDto(IdCliente, "Refrielectric S.A.", "Cliente", "/clientes?q=Refrielectric")],
         [],
         [new ItemBusquedaDto(IdTrabajador, "Juan Pérez", "12345678Z", "/trabajadores/22222222-2222-2222-2222-222222222222")],
         []);
@@ -279,7 +283,7 @@ public class BuscadorGlobalGen2Tests : BunitContext
         var mediador = new MediadorControlado
         {
             Resultado = new ResultadoBusquedaGlobalDto(
-                [new ItemBusquedaDto(idEmpresa, "Doble Papel S.L.", "Cliente,Subcontrata", "/empresas?q=Doble+Papel")],
+                [new ItemBusquedaDto(idEmpresa, "Doble Papel S.L.", "Cliente,Subcontrata", "/clientes?q=Doble+Papel")],
                 [], [], [])
         };
         var cut = await RenderizarYAbrir(mediador);
@@ -392,7 +396,7 @@ public class BuscadorGlobalGen2Tests : BunitContext
         await Input(cut).TeclaAsync("Enter");
 
         Services.GetRequiredService<NavigationManager>().Uri
-            .Should().EndWith("/empresas?q=Refrielectric");
+            .Should().EndWith("/clientes?q=Refrielectric");
     }
 
     [Fact]

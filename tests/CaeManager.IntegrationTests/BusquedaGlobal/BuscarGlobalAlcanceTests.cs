@@ -110,6 +110,15 @@ public class BuscarGlobalAlcanceTests : IAsyncLifetime
         resultado.Centros.Should().ContainSingle().Which.Id.Should().Be(_centroEnCartera);
         resultado.Trabajadores.Should().ContainSingle().Which.Id.Should().Be(_trabajadorEnCartera);
 
+        // Control positivo del hallazgo de Codex (2026-09-18): cada fila
+        // enlaza a un listado donde SIGUE siendo visible con este mismo
+        // alcance — nunca todas a /empresas, cuyo alcance
+        // (ObtenerEmpresaIdsVisiblesAsync) deriva de las contratistas de la
+        // cartera de Clientes y no tiene por qué incluir al Cliente mismo.
+        resultado.Empresas.Single(e => e.Id == _clienteEnCartera).UrlDestino.Should().StartWith("/clientes?q=");
+        resultado.Empresas.Single(e => e.Id == _empresaEnCartera).UrlDestino.Should().StartWith("/empresas?q=");
+        resultado.Empresas.Single(e => e.Id == _subcontrataEnCartera).UrlDestino.Should().StartWith("/subcontratas?q=");
+
         var todosLosIds = resultado.Empresas
             .Concat(resultado.Centros).Concat(resultado.Trabajadores)
             .Select(i => i.Id);
@@ -163,6 +172,12 @@ public class BuscarGlobalAlcanceTests : IAsyncLifetime
         // Subcontrata") es de la capa Web (BuscadorGlobal.razor.cs), no de
         // este handler.
         filasDelDoblePapel.Single().Subtitulo.Should().Be("Cliente,Subcontrata");
+
+        // El destino prioriza el papel con listado propio y filtro de
+        // cartera ya probado (Cliente antes que Subcontrata) — nunca
+        // /empresas, que es el enlace que Codex encontró roto para un
+        // Cliente fuera del alcance de ObtenerEmpresaIdsVisiblesAsync.
+        filasDelDoblePapel.Single().UrlDestino.Should().StartWith("/clientes?q=");
     }
 
     [Fact]
