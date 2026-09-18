@@ -38,11 +38,12 @@ public class AltaGuiadaTests(WebAppFixture fixture)
         // --- Paso 1: Empresa (nueva, no vincular una existente) ---
         await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "1. Empresa" }).WaitForAsync();
         await page.GetByLabel("Razón social").FillAsync(razonSocialEmpresa);
-        // "CIF (opcional)", no "CIF": la asimetría es real y no un rótulo
-        // descuidado — CrearClienteCommand exige el CIF (NotEmpty + NIF de
-        // empresa válido) y CrearEmpresaCommand lo acepta nulo. El paso 2
-        // sigue pidiendo "CIF" a secas.
-        await page.GetByLabel("CIF (opcional)", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_997_702));
+        // "Identificación fiscal (opcional)", no "Identificación fiscal": la
+        // asimetría es real y no un rótulo descuidado — CrearClienteCommand la
+        // exige (NotEmpty) y CrearEmpresaCommand la acepta nula. El paso 2
+        // sigue pidiéndola a secas. Ambos admiten CIF, DNI o NIE: un autónomo
+        // se identifica con el suyo.
+        await page.GetByLabel("Identificación fiscal (opcional)", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_997_702));
         await page.GetByText("Guardar y continuar").ClickAsync();
 
         // --- Paso 2: Cliente ---
@@ -58,7 +59,7 @@ public class AltaGuiadaTests(WebAppFixture fixture)
             .ToBeVisibleAsync();
 
         await page.GetByLabel("Razón social").FillAsync(razonSocialCliente);
-        await page.GetByLabel("CIF", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_997_701));
+        await page.GetByLabel("Identificación fiscal", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_997_701));
         await page.GetByText("Guardar y continuar a Centro").ClickAsync();
 
         // --- Paso 3: Centro ---

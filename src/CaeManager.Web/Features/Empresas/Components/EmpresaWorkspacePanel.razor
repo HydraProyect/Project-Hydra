@@ -76,7 +76,7 @@ else
                         <div class="alerta-formulario" role="alert">@_mensajeErrorInformacion</div>
                     }
                     <CampoTexto Etiqueta="Razón social" Valor="@_razonSocialInfo" ValorChanged="v => _razonSocialInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarEmpresaCommand.RazonSocial))" />
-                    <CampoTexto Etiqueta="CIF" Valor="@_cifInfo" ValorChanged="v => _cifInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarEmpresaCommand.Cif))" />
+                    <CampoTexto Etiqueta="Identificación fiscal" Placeholder="CIF, DNI o NIE" Valor="@_cifInfo" ValorChanged="v => _cifInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarEmpresaCommand.Cif))" />
                     <CampoTexto Etiqueta="CNAE" Placeholder="p. ej. 4321" Valor="@_cnaeInfo" ValorChanged="v => _cnaeInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarEmpresaCommand.Cnae))" />
                     <CampoTexto Etiqueta="Convenio aplicable" Valor="@_convenioAplicableInfo" ValorChanged="v => _convenioAplicableInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarEmpresaCommand.ConvenioAplicable))" />
                     <label class="campo-checkbox">
@@ -134,7 +134,7 @@ else
                 {
                     <div class="rejilla-info-empresa-360">
                         <CampoInfo Etiqueta="Razón social" Valor="@_detalle.RazonSocial" />
-                        <CampoInfo Etiqueta="CIF" Valor="@_detalle.Cif" />
+                        <CampoInfo Etiqueta="Identificación fiscal" Valor="@_detalle.Cif" />
                         <CampoInfo Etiqueta="CNAE" Valor="@_detalle.Cnae" />
                         <CampoInfo Etiqueta="Convenio aplicable" Valor="@_detalle.ConvenioAplicable" />
                         <CampoInfo Etiqueta="Actividad del Anexo I del RSP" Valor="@(_detalle.EsActividadAnexoI ? "Sí" : "No")" />

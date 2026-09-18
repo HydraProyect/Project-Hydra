@@ -84,7 +84,7 @@
             {
                 <CampoTexto Etiqueta="Razón social" Valor="@_razonSocialEmpresa" ValorChanged="v => _razonSocialEmpresa = v"
                             OnBlur="ValidarRazonSocialEmpresaAsync" MensajeError="@ObtenerError(_erroresEmpresa, nameof(CrearEmpresaCommand.RazonSocial))" />
-                <CampoTexto Etiqueta="CIF (opcional)" Valor="@_cifEmpresa" ValorChanged="v => _cifEmpresa = v"
+                <CampoTexto Etiqueta="Identificación fiscal (opcional)" Placeholder="CIF, DNI o NIE" Valor="@_cifEmpresa" ValorChanged="v => _cifEmpresa = v"
                             OnBlur="ValidarCifEmpresaAsync" MensajeError="@ObtenerError(_erroresEmpresa, nameof(CrearEmpresaCommand.Cif))" />
             }
 
@@ -148,7 +148,7 @@
                 {
                     <CampoTexto Etiqueta="Razón social" Valor="@_razonSocialCliente" ValorChanged="v => _razonSocialCliente = v"
                                 OnBlur="ValidarRazonSocialClienteAsync" MensajeError="@ObtenerError(_erroresCliente, nameof(CrearClienteCommand.RazonSocial))" />
-                    <CampoTexto Etiqueta="CIF" Valor="@_cifCliente" ValorChanged="v => _cifCliente = v"
+                    <CampoTexto Etiqueta="Identificación fiscal" Placeholder="CIF, DNI o NIE" Valor="@_cifCliente" ValorChanged="v => _cifCliente = v"
                                 OnBlur="ValidarCifClienteAsync" MensajeError="@ObtenerError(_erroresCliente, nameof(CrearClienteCommand.Cif))" />
 
                     <label class="campo-checkbox">

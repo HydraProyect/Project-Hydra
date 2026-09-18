@@ -111,7 +111,7 @@ public class ImportarCombinadoTests(WebAppFixture fixture)
 
             var filaOmitidaEnPlan = page.Locator(".tabla-plan-importacion-envoltorio .tabla-datos tbody tr", new PageLocatorOptions { HasText = razonSocialClienteInvalido });
             await filaOmitidaEnPlan.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
-            await Expect(filaOmitidaEnPlan).ToContainTextAsync("no es válido");
+            await Expect(filaOmitidaEnPlan).ToContainTextAsync("no es válida");
 
             await page.GetByText("Continuar a confirmar").ClickAsync();
             await page.GetByText("He revisado el plan y quiero escribir estos datos").ClickAsync();

@@ -26,18 +26,14 @@ public class EditarClienteCommandValidator : AbstractValidator<EditarClienteComm
             .WithMessage($"La razón social no puede superar {Empresa.LongitudMaximaRazonSocial} caracteres.");
 
         RuleFor(c => c.Cif)
-            .NotEmpty().WithMessage("El CIF es obligatorio.")
-            .Must(EsCifValido).WithMessage("El CIF no es válido.");
+            .NotEmpty().WithMessage("La identificación fiscal es obligatoria.")
+            .Must(ValidadorIdentificacion.EsIdentificacionFiscalValida)
+            .WithMessage(Empresa.MensajeIdentificacionFiscalInvalida);
 
         RuleFor(c => c.Notas)
             .MaximumLength(Empresa.LongitudMaximaNotas).WithMessage($"Las notas no pueden superar {Empresa.LongitudMaximaNotas} caracteres.");
     }
 
-    private static bool EsCifValido(string cif)
-    {
-        var resultado = ValidadorIdentificacion.Analizar(cif);
-        return resultado.Tipo == TipoIdentificacion.NifEmpresa && resultado.EsValido;
-    }
 }
 
 /// <summary>
