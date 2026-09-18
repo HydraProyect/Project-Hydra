@@ -60,6 +60,30 @@ public class TokensDeTextoConVarianteEnAmbosTemasTests
     private static readonly Regex PatronUsoComoTexto =
         new(@"(?<![-a-zA-Z])color\s*:\s*[^;{}]*?var\(\s*(--color-[a-zA-Z]+-[0-9]+)\b", RegexOptions.Compiled);
 
+    /// <summary>
+    /// Segunda vía por la que un token llega a una propiedad de color: un
+    /// parámetro de componente en <c>.razor</c>. <c>EstadoVacio</c> recibe
+    /// <c>AcentoIcono="var(--color-danger-500)"</c>, lo mete en la variable
+    /// local <c>--estado-vacio-acento</c> y su CSS aislado la usa en
+    /// <c>color:</c> y en <c>border:</c>; <c>FondoIcono</c> hace lo propio con
+    /// <c>background:</c>.
+    ///
+    /// <para>
+    /// Mirando solo <c>*.css</c>, esa ruta era un punto ciego —un escalón
+    /// vigilado usado únicamente así habría dejado los dos detectores en
+    /// verde—. Lo señaló la revisión de Codex, y al ampliar el detector la
+    /// lista creció: aparecieron <c>--color-danger-500</c> y
+    /// <c>--color-success-500</c>, que ningún <c>.css</c> usaba como texto.
+    /// Se distingue por el nombre del parámetro, que es lo que el componente
+    /// promete: <c>Acento…</c> es primer plano, <c>Fondo…</c> es fondo.
+    /// </para>
+    /// </summary>
+    private static readonly Regex PatronParametroDePrimerPlano =
+        new(@"\bAcento[A-Za-z]*\s*=\s*""\s*var\(\s*(--color-[a-zA-Z]+-[0-9]+)\b", RegexOptions.Compiled);
+
+    private static readonly Regex PatronParametroDeFondo =
+        new(@"\bFondo[A-Za-z]*\s*=\s*""\s*var\(\s*(--color-[a-zA-Z]+-[0-9]+)\b", RegexOptions.Compiled);
+
     private static readonly Regex PatronDeclaracion =
         new(@"(--color-[a-zA-Z0-9-]+)\s*:\s*([^;]+);", RegexOptions.Compiled);
 
@@ -101,6 +125,19 @@ public class TokensDeTextoConVarianteEnAmbosTemasTests
             + "en los dos temas. El defecto adyacente —un avatar casi blanco sobre superficie oscura— es del "
             + "fondo -100 y va en su propio incremento.",
 
+        ["--color-danger-500"] =
+            "acento del icono de EstadoVacio (AcentoIcono, vía Razor) sobre --color-danger-50, que sí tiene "
+            + "variante: 3,44:1 en claro y 4,55:1 en oscuro, por encima del 3:1 de componente gráfico en los "
+            + "dos temas sin necesitar variante propia. Y es además el rojo saturado de .toast-error y "
+            + ".boton-destructivo bajo texto blanco fijo, el caso que #690 ya documentó: darle variante por "
+            + "tema no arreglaría nada y rompería ese otro papel.",
+
+        ["--color-success-500"] =
+            "mismo patrón que danger-500 pero con el defecto en el tema CLARO: como acento de EstadoVacio "
+            + "sobre --color-success-50 da 2,17:1 en claro y 6,53:1 en oscuro, así que una variante oscura no "
+            + "arregla lo que falla. Es un verde que no contrasta contra su propio fondo claro, preexistente "
+            + "en origin/main y de naturaleza de diseño (el mockup fija el par), no de tema.",
+
         ["--color-neutral-300"] =
             "en oscuro NO es el defecto que este trinquete persigue: 11,78:1 sobre --color-surface. Invertirlo "
             + "al espejo (-700) lo bajaría a 1,90:1, o sea cambiaría el tema en el que falla. Lo que falla es "
@@ -131,6 +168,8 @@ public class TokensDeTextoConVarianteEnAmbosTemasTests
         ["--color-primary-600"] = "hover del botón primario: 8,31:1 en claro, 1,44:1 en oscuro",
         ["--color-success-700"] = "círculo del stepper completado: 5,02:1 en claro, 1,74:1 en oscuro",
         ["--color-warning-700"] = "punto de la leyenda del donut: 5,02:1 en claro, 1,67:1 en oscuro",
+        ["--color-danger-500"] = "toast de error y botón destructivo: 3,76:1 en los dos temas",
+        ["--color-success-500"] = "toast de éxito: 2,28:1 en los dos temas",
     };
 
     private sealed record UsoComoTexto(string Variable, string Fichero, int Linea);
@@ -402,8 +441,46 @@ public class TokensDeTextoConVarianteEnAmbosTemasTests
 
     private static IEnumerable<string> UsosComoFondoEn(string contenido)
     {
-        foreach (Match m in PatronUsoComoFondo.Matches(SinComentarios(contenido)))
+        var texto = SinComentarios(contenido);
+
+        foreach (Match m in PatronUsoComoFondo.Matches(texto))
             yield return m.Groups[2].Value;
+
+        foreach (Match m in PatronParametroDeFondo.Matches(texto))
+            yield return m.Groups[1].Value;
+    }
+
+    /// <summary>
+    /// La vía Razor se observa de verdad: un token pasado como
+    /// <c>AcentoIcono</c> cuenta como primer plano y uno pasado como
+    /// <c>FondoIcono</c> como fondo, aunque ningún <c>.css</c> los nombre. Sin
+    /// esta prueba, ampliar <c>Ficheros()</c> a <c>*.razor</c> podría no estar
+    /// midiendo nada y los dos detectores seguirían con su punto ciego.
+    /// </summary>
+    [Fact]
+    public void El_detector_ve_los_tokens_que_llegan_por_parametro_de_componente()
+    {
+        const string tokensCss = """
+            :root {
+              --color-danger-400: #f87171;
+              --color-danger-50: #fef2f2;
+            }
+            :root[data-theme='oscuro'] {
+              --color-danger-50: #3a0a0a;
+            }
+            :root[data-theme='claro'] {
+              --color-danger-50: #fef2f2;
+            }
+            """;
+        var ficheros = new List<(string Ruta, string Contenido)>
+        {
+            ("Pagina.razor",
+             """<EstadoVacio AcentoIcono="var(--color-danger-400)" FondoIcono="var(--color-danger-50)" />"""),
+        };
+
+        Violaciones(tokensCss, ficheros).Select(v => v.Variable).Should().Equal(["--color-danger-400"],
+            "el acento llega a color: a través de --estado-vacio-acento aunque ningún .css lo nombre; el "
+            + "fondo no se marca porque -50 está fuera del alcance y además sí tiene variante");
     }
 
     /// <summary>
@@ -556,6 +633,9 @@ public class TokensDeTextoConVarianteEnAmbosTemasTests
 
         foreach (Match m in PatronUsoComoTexto.Matches(texto))
             yield return new UsoComoTexto(m.Groups[1].Value, ruta, texto[..m.Index].Count(c => c == '\n') + 1);
+
+        foreach (Match m in PatronParametroDePrimerPlano.Matches(texto))
+            yield return new UsoComoTexto(m.Groups[1].Value, ruta, texto[..m.Index].Count(c => c == '\n') + 1);
     }
 
     /// <summary>
@@ -573,7 +653,9 @@ public class TokensDeTextoConVarianteEnAmbosTemasTests
         var separador = Path.DirectorySeparatorChar;
 
         return Directory
-            .EnumerateFiles(raiz, "*.css", SearchOption.AllDirectories)
+            .EnumerateFiles(raiz, "*", SearchOption.AllDirectories)
+            .Where(f => f.EndsWith(".css", StringComparison.OrdinalIgnoreCase)
+                     || f.EndsWith(".razor", StringComparison.OrdinalIgnoreCase))
             .Where(f => !f.Contains($"{separador}obj{separador}", StringComparison.Ordinal))
             .Where(f => !f.Contains($"{separador}bin{separador}", StringComparison.Ordinal))
             .Where(f => !f.Contains($"{separador}wwwroot{separador}lib{separador}", StringComparison.Ordinal))
