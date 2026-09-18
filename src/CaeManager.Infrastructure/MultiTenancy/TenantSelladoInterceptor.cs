@@ -21,15 +21,15 @@ namespace CaeManager.Infrastructure.MultiTenancy;
 /// </summary>
 public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesInterceptor
 {
-    public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+    public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
         DbContextEventData eventData,
         InterceptionResult<int> result,
         CancellationToken cancellationToken = default)
     {
         if (eventData.Context is DbContext context)
-            SellarYValidar(context);
+            await SellarYValidarAsync(context, cancellationToken);
 
-        return base.SavingChangesAsync(eventData, result, cancellationToken);
+        return await base.SavingChangesAsync(eventData, result, cancellationToken);
     }
 
     /// <summary>
@@ -45,14 +45,25 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
         DbContextEventData eventData, InterceptionResult<int> result)
     {
         if (eventData.Context is DbContext context)
-            SellarYValidar(context);
+            SellarYValidarAsync(context, CancellationToken.None).GetAwaiter().GetResult();
 
         return base.SavingChanges(eventData, result);
     }
 
-    private void SellarYValidar(DbContext context)
+    private async Task SellarYValidarAsync(DbContext context, CancellationToken cancellationToken)
     {
         var tenantId = tenantActual.TenantId;
+
+        // Solo se propaga una vez por SaveChanges, y solo cuando hace falta
+        // (tenantId de sesión es null): un roundtrip extra a Postgres por
+        // cada fila auditada de Identity sin sesión sería desperdiciado si
+        // dos filas del mismo lote resuelven el mismo tenant, que es el caso
+        // único que hoy produce este código (una sola ApplicationUser por
+        // SaveChanges). Si algún día un mismo SaveChanges auditara cuentas de
+        // DOS tenants distintos sin sesión a la vez, esta variable de sesión
+        // solo reflejaría la última — no ocurre hoy (UserManager opera sobre
+        // un ApplicationUser a la vez) y queda fuera de alcance ampliarlo.
+        Guid? tenantYaPropagadoARls = null;
 
         // ToList: la rama de reclasificación de abajo cambia el State de una
         // entrada, y eso no puede hacerse mientras se enumera el ChangeTracker.
@@ -65,6 +76,28 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
                     if (tenantParaEsta is null)
                         throw new InvalidOperationException(
                             $"No se puede crear una entidad de tipo {entrada.Entity.GetType().Name} sin un tenant resuelto (ver ITenantActual).");
+
+                    // Hallazgo P1 de Codex (5ª ronda): sin esto, el valor de
+                    // abajo queda solo en el objeto .NET — la política RLS de
+                    // "RegistrosAuditoria" compara contra
+                    // current_setting('app.tenant_id'), que
+                    // TenantRlsConnectionInterceptor fijó vacío AL ABRIR la
+                    // conexión (antes de que hubiera sesión) y que nadie
+                    // había vuelto a tocar desde entonces. Bajo el rol
+                    // restringido cae_app_runtime (confirmado en producción,
+                    // ver hydra-rls-fallo-cerrado-prerrequisito-despliegue),
+                    // el INSERT lo rechaza Postgres con 42501 y el
+                    // SaveChanges entero se revierte — el mismo síntoma
+                    // original (login → 500) que este fallback decía haber
+                    // resuelto, verificado por PRUEBA DIRECTA contra RLS real
+                    // con ArnesDeArranqueRuntime (los tests de integración
+                    // anteriores de este fallback solo ejercitaban la lógica
+                    // en memoria, nunca RLS real — un falso verde).
+                    if (tenantId is null && tenantYaPropagadoARls != tenantParaEsta)
+                    {
+                        await PropagarTenantALaSesionRlsAsync(context, tenantParaEsta.Value, cancellationToken);
+                        tenantYaPropagadoARls = tenantParaEsta;
+                    }
 
                     entrada.Property(nameof(EntidadConTenant.TenantId)).CurrentValue = tenantParaEsta.Value;
                     break;
@@ -105,6 +138,40 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
                     break;
             }
         }
+    }
+
+    /// <summary>
+    /// Actualiza <c>app.tenant_id</c> EN LA MISMA conexión que va a ejecutar
+    /// este <c>SaveChanges</c> — <c>TenantRlsConnectionInterceptor</c> solo la
+    /// fija una vez, al abrir la conexión, con el tenant que
+    /// <see cref="ITenantActual"/> resolvía en ESE momento (aquí, vacío: por
+    /// eso se llega a este método). La política <c>aislamiento_tenant</c> de
+    /// "RegistrosAuditoria" (migración <c>HabilitarRlsPostgres</c>) compara el
+    /// <c>TenantId</c> de la fila contra esa variable de sesión con
+    /// <c>WITH CHECK</c>; sin este paso, la fila lleva el tenant correcto pero
+    /// la sesión sigue sin tenant y Postgres rechaza el INSERT con 42501 bajo
+    /// el rol restringido <c>cae_app_runtime</c> — el propio interceptor de
+    /// aplicación (que no ve RLS) no tiene forma de saberlo por sí solo.
+    ///
+    /// <c>OpenConnectionAsync</c> usa el contador de referencias de EF Core
+    /// (no el <c>ConnectionState</c> crudo): es seguro llamarlo aunque la
+    /// conexión ya esté abierta, y no hace falta un <c>CloseConnectionAsync</c>
+    /// simétrico aquí — el propio <c>SaveChanges</c> que sigue a este evento
+    /// ya la necesita abierta para ejecutar el INSERT, y quien la abrió
+    /// primero (esta llamada o el propio EF) es quien la cerrará al terminar.
+    /// </summary>
+    private static async Task PropagarTenantALaSesionRlsAsync(DbContext context, Guid tenantId, CancellationToken cancellationToken)
+    {
+        await context.Database.OpenConnectionAsync(cancellationToken);
+
+        var conexion = context.Database.GetDbConnection();
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = "SELECT set_config('app.tenant_id', @tenantId, false);";
+        var parametro = comando.CreateParameter();
+        parametro.ParameterName = "tenantId";
+        parametro.Value = tenantId.ToString();
+        comando.Parameters.Add(parametro);
+        await comando.ExecuteNonQueryAsync(cancellationToken);
     }
 
     /// <summary>
