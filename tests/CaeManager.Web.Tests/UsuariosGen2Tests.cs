@@ -88,6 +88,9 @@ public class UsuariosGen2Tests : BunitContext
 
         public Func<string, IReadOnlyList<ApplicationUser>> EnRol { get; set; } = _ => [];
 
+        /// <summary>Por defecto, ninguna cuenta del arnés inicia sesión por SSO — ver <see cref="UsuariosControlados.ObtenerIdsConLoginExternoAsync"/>.</summary>
+        public Func<IReadOnlySet<Guid>> IdsConLoginExterno { get; set; } = () => new HashSet<Guid>();
+
         /// <summary>Por defecto, toda cuenta es propia del tenant activo — ver <see cref="UsuariosControlados.EsCuentaPropiaAsync"/>.</summary>
         public Func<Guid, bool> EsPropia { get; set; } = _ => true;
 
@@ -122,6 +125,10 @@ public class UsuariosGen2Tests : BunitContext
             Fuente.RolesConsultados.Add(rol);
             return Task.FromResult(Fuente.EnRol(rol));
         }
+
+        protected override Task<IReadOnlySet<Guid>> ObtenerIdsConLoginExternoAsync(
+            IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken) =>
+            Task.FromResult(Fuente.IdsConLoginExterno());
 
         /// <summary>
         /// Por defecto todas las cuentas son propias: los tests de esta clase
@@ -1254,6 +1261,35 @@ public class UsuariosGen2Tests : BunitContext
         _identidad.Eliminadas.Should().ContainSingle().Which.Should().Be(AnderId);
         _identidad.Cuentas.Should().NotContainKey(AnderId);
         _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().Be("Usuario eliminado.");
+    }
+
+    /// <summary>
+    /// Revisión de Codex (2026-09-18): <c>AsignacionCartera.UsuarioId</c> no
+    /// lleva FK hacia <c>ApplicationUser</c>. Un Gestor CAE pendiente puede
+    /// haber recibido ya una Asignación de Cartera antes de aceptar la
+    /// invitación; borrar su cuenta de Identity dejaría esa asignación
+    /// apuntando a un GUID sin cuenta resoluble. La cuenta debe seguir ahí
+    /// hasta que la cartera se reasigne o se retire explícitamente.
+    /// </summary>
+    [Fact]
+    public async Task Eliminar_una_cuenta_pendiente_con_cartera_vigente_se_rechaza()
+    {
+        var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia", pendienteActivacion: true);
+        Sembrar(
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (ander, RolesIdentidad.GestorCae));
+        _fuente.Carteras = _ => new Dictionary<Guid, CarteraDeUsuario>
+        {
+            [AnderId] = new(EsUniversal: true, ClienteIds: [])
+        };
+
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Eliminar");
+        await cut.InvokeAsync(() => cut.FindComponent<DialogoConfirmacion>().Instance.OnConfirmar.InvokeAsync());
+
+        _identidad.Eliminadas.Should().BeEmpty();
+        _identidad.Cuentas.Should().ContainKey(AnderId);
+        _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().Contain("Asignación de Cartera vigente");
     }
 
     [Fact]

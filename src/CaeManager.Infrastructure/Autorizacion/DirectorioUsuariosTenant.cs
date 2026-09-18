@@ -66,6 +66,31 @@ public class DirectorioUsuariosTenant(
                 .Select(u => (Guid?)u.TenantId)
                 .FirstOrDefaultAsync(cancellationToken));
 
+    /// <summary>
+    /// Qué usuarios de este lote inician sesión por SSO (tienen al menos un
+    /// login externo), en una sola consulta contra <c>AspNetUserLogins</c>.
+    ///
+    /// Revisión de Codex (2026-09-18): antes de esto, distinguir una cuenta
+    /// SSO de una invitación pendiente en <c>/usuarios</c> llamaba
+    /// <c>UserManager.GetLoginsAsync</c> una vez por cada fila visible — con N
+    /// cuentas, N viajes secuenciales a base de datos, serializados además
+    /// bajo <see cref="PuertaAccesoDatos"/>.
+    /// </summary>
+    public Task<IReadOnlySet<Guid>> ObtenerIdsConLoginExternoAsync(
+        IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken = default) =>
+        puertaAccesoDatos.EjecutarAsync<IReadOnlySet<Guid>>(async () =>
+        {
+            if (usuarioIds.Count == 0) return new HashSet<Guid>();
+
+            var conLogin = await identidad.UserLogins
+                .Where(l => usuarioIds.Contains(l.UserId))
+                .Select(l => l.UserId)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            return conLogin.ToHashSet();
+        }, cancellationToken);
+
     public Task<IReadOnlyList<ApplicationUser>> ObtenerVisiblesAsync(CancellationToken cancellationToken = default) =>
         puertaAccesoDatos.EjecutarAsync<IReadOnlyList<ApplicationUser>>(async () =>
         {

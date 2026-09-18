@@ -405,6 +405,13 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                 var carteras = await ObtenerCarterasVigentesAsync(token);
                 var visibles = await ObtenerUsuariosVisiblesAsync(token);
 
+                // Tercera consulta de lote (revisión de Codex, 2026-09-18): qué
+                // cuentas de este lote inician sesión por SSO, para no repetir
+                // GetLoginsAsync una vez por fila — ver
+                // DirectorioUsuariosTenant.ObtenerIdsConLoginExternoAsync.
+                var idsConLoginExterno = await ObtenerIdsConLoginExternoAsync(
+                    visibles.Select(u => u.Id).ToList(), token);
+
                 var gestoresPorCoordinador = visibles
                     .Where(u => u.CoordinadorUsuarioId is not null)
                     .ToLookup(u => u.CoordinadorUsuarioId!.Value, u => u.Id);
@@ -421,7 +428,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
                     usuarios.Add(new UsuarioListaDto(
                         usuario.Id, usuario.Email ?? string.Empty, usuario.NombreCompleto, rol, activo, esOperadorDelegado,
-                        await EsPendienteActivacionAsync(usuario),
+                        EsPendienteActivacion(usuario, idsConLoginExterno),
                         CalcularAlcance(usuario, rol, carteras, gestoresPorCoordinador)));
                 }
             }, token);
@@ -497,6 +504,11 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     protected virtual Task<IReadOnlyList<ApplicationUser>> ObtenerVisiblesEnRolAsync(string rol, CancellationToken cancellationToken) =>
         DirectorioUsuarios.ObtenerVisiblesEnRolAsync(rol, cancellationToken);
 
+    /// <inheritdoc cref="ObtenerRolesDelegadosAsync"/>
+    protected virtual Task<IReadOnlySet<Guid>> ObtenerIdsConLoginExternoAsync(
+        IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken) =>
+        DirectorioUsuarios.ObtenerIdsConLoginExternoAsync(usuarioIds, cancellationToken);
+
     /// <summary>
     /// Si la cuenta pertenece al tenant activo — propiedad, no visibilidad:
     /// ver <c>DirectorioUsuariosTenant.EsCuentaPropiaDelTenantActualAsync</c>.
@@ -520,6 +532,18 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     /// </summary>
     private async Task<bool> EsPendienteActivacionAsync(ApplicationUser usuario) =>
         string.IsNullOrEmpty(usuario.PasswordHash) && (await UserManager.GetLoginsAsync(usuario)).Count == 0;
+
+    /// <summary>
+    /// Misma regla que <see cref="EsPendienteActivacionAsync"/>, pero contra un
+    /// conjunto de logins ya resuelto en lote (revisión de Codex, 2026-09-18):
+    /// para pintar la lista completa, N llamadas a <c>GetLoginsAsync</c> —una
+    /// por fila— serializaban N viajes a <c>AspNetUserLogins</c>. Usar
+    /// <c>GetLoginsAsync</c> sigue siendo correcto para las operaciones que
+    /// actúan sobre una sola cuenta (reenviar, eliminar): ahí no hay N+1 que
+    /// evitar.
+    /// </summary>
+    private static bool EsPendienteActivacion(ApplicationUser usuario, IReadOnlySet<Guid> idsConLoginExterno) =>
+        string.IsNullOrEmpty(usuario.PasswordHash) && !idsConLoginExterno.Contains(usuario.Id);
 
     /// <summary>
     /// El rol que entra aquí es el <b>efectivo en esta organización</b>: para
@@ -1141,6 +1165,16 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                 if (!await EsPendienteActivacionAsync(usuario))
                     return ResultadoActivacionUsuario.NoPendiente;
 
+                // Revisión de Codex: AsignacionCartera.UsuarioId no lleva FK hacia
+                // ApplicationUser. Un Gestor CAE pendiente puede haber recibido ya
+                // una Asignación de Cartera (p. ej. como operador delegado) antes
+                // de aceptar la invitación; borrar la cuenta de Identity dejaría
+                // esa asignación — y el Empresa.EjecutivoUsuarioId que dependa de
+                // ella — apuntando a un GUID sin cuenta resoluble.
+                var carteras = await ObtenerCarterasVigentesAsync(token);
+                if (carteras.ContainsKey(usuarioLista.Id))
+                    return ResultadoActivacionUsuario.TieneCarteraVigente;
+
                 var borrado = await UserManager.DeleteAsync(usuario);
                 if (borrado.Succeeded) return ResultadoActivacionUsuario.Actualizado;
 
@@ -1167,6 +1201,12 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                     // almacén). Decirlo tal cual, no "no encontramos este usuario" — la cuenta
                     // sigue ahí y quien administra necesita el motivo real para reintentar.
                     ToastService.Mostrar($"No pudimos eliminar esta cuenta. {DescribirErrores(falloAlEliminar!)}", TonoToast.Error);
+                    break;
+                case ResultadoActivacionUsuario.TieneCarteraVigente:
+                    ToastService.Mostrar(
+                        "Esta persona ya tiene una Asignación de Cartera vigente; reasígnala o retírala antes de eliminar la cuenta.",
+                        TonoToast.Error);
+                    _usuarioAEliminar = null;
                     break;
                 default:
                     ToastService.Mostrar("Usuario eliminado.", TonoToast.Exito);
@@ -1333,7 +1373,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         FalloAlCambiarRolSinNinguno
     }
 
-    private enum ResultadoActivacionUsuario { Actualizado, NoEncontrado, NoPropia, NoPendiente, FalloAlEliminar }
+    private enum ResultadoActivacionUsuario { Actualizado, NoEncontrado, NoPropia, NoPendiente, FalloAlEliminar, TieneCarteraVigente }
 
     /// <summary>
     /// Nada cambia en pantalla hasta que responde el servidor: la fila no se
