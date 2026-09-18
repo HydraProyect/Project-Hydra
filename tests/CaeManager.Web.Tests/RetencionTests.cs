@@ -38,7 +38,7 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class RetencionTests : BunitContext
 {
-    /// <summary><see cref="Modal"/> y <see cref="TextoFechaCopiable"/> importan módulos JS; quedan fuera de lo observado.</summary>
+    /// <summary><see cref="Modal"/> importa módulos JS; queda fuera de lo observado.</summary>
     public RetencionTests() => JSInterop.Mode = JSRuntimeMode.Loose;
 
     private static readonly Guid SolicitudId = Guid.Parse("99999999-9999-9999-9999-999999999999");

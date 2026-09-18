@@ -17,7 +17,18 @@
         </div>
     </div>
     <div class="panel-resolver-item-fecha">
-        <TextoFechaCopiable Fecha="Item.Fecha">@(Item.Fecha?.ToString("dd/MM/yyyy") ?? "—")</TextoFechaCopiable>
+        @* Solo copiable donde Fecha es vigencia o cae en la excepción de P9 (Revisión
+           IA) — ver TipoItemBandejaUi.EsFechaCopiable. VisitaUrgente y
+           SugerenciaVisitaUrgente llevan FechaInicio/FechaInicioSugerida, ninguna de
+           las dos cosas: texto plano. *@
+        @if (TipoItemBandejaUi.EsFechaCopiable(Item))
+        {
+            <TextoFechaCopiable Fecha="Item.Fecha">@(Item.Fecha?.ToString("dd/MM/yyyy") ?? "—")</TextoFechaCopiable>
+        }
+        else
+        {
+            <span>@(Item.Fecha?.ToString("dd/MM/yyyy") ?? "—")</span>
+        }
     </div>
     @if (TipoItemBandejaUi.EsReclamable(Item) && OnReclamar.HasDelegate)
     {

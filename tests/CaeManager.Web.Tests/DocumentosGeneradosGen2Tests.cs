@@ -29,7 +29,7 @@ public class DocumentosGeneradosGen2Tests : BunitContext
     private static readonly Guid AnexoId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid EpiId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
-    /// <summary>Con filas, el panel monta AtajosListaTeclado y TextoFechaCopiable: importan módulos JS y avisan por toast.</summary>
+    /// <summary>Con filas, el panel monta AtajosListaTeclado: importa JS y avisa por toast.</summary>
     public DocumentosGeneradosGen2Tests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -217,7 +217,7 @@ public class DocumentosGeneradosGen2Tests : BunitContext
     }
 
     [Fact]
-    public void La_lista_va_en_un_marco_propio_con_fecha_copiable_y_enlaces_con_nombre_de_su_fila()
+    public void La_lista_va_en_un_marco_propio_con_fecha_de_generacion_y_enlaces_con_nombre_de_su_fila()
     {
         var mediador = new MediatorFalso();
         var generado = Generado(AnexoId, "Anexo II", "Nuria Salas");
@@ -230,7 +230,10 @@ public class DocumentosGeneradosGen2Tests : BunitContext
         marco.GetAttribute("tabindex").Should().Be("0");
 
         var fila = cut.Find("tbody tr");
-        fila.QuerySelector("button.texto-fecha-copiable")!.TextContent.Trim()
+        // Texto plano, no TextoFechaCopiable: la fecha de generación no es vigencia
+        // ni cae en la excepción de Detección/Revisión IA (P9, 2026-09-18). Tercera
+        // celda ".dato-generado" (trabajador, empresa, fecha, en ese orden).
+        fila.QuerySelectorAll("td.dato-generado").Last().TextContent.Trim()
             .Should().Be(generado.GeneradoEnUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm"));
 
         var enlaces = fila.QuerySelectorAll(".acciones-generado a");

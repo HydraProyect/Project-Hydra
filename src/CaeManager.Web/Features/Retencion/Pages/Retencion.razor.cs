@@ -340,18 +340,6 @@ public partial class Retencion : CaeManager.Web.Components.PaginaIntegrableConfi
                 : ". No se borra ningún archivo: solo se vacían sus datos identificativos. ",
             "Esto no se puede deshacer: los datos personales dejarán de existir; el histórico se conserva sin ellos.");
 
-    /// <summary>
-    /// La fecha que el estado lleva dentro, para poder copiarla. «Lista para
-    /// ejecutar» no la muestra, así que tampoco la ofrece.
-    /// </summary>
-    private static DateOnly? FechaDelEstado(SolicitudPurgaDto solicitud) => solicitud.Estado switch
-    {
-        EstadoSolicitudPurga.Programada when !solicitud.PuedeEjecutarseHoy => solicitud.FechaEjecucionProgramada,
-        EstadoSolicitudPurga.Ejecutada when solicitud.EjecutadaEnUtc is { } ejecutada =>
-            DateOnly.FromDateTime(ejecutada.ToLocalTime()),
-        _ => null
-    };
-
     private static string DescribirTipo(TipoDatoPurgable tipo) => tipo switch
     {
         TipoDatoPurgable.Documentos => "Documentos",

@@ -114,8 +114,10 @@ else
                         </td>
                         <td class="dato-generado">@(generado.TrabajadorNombreCompleto ?? "—")</td>
                         <td class="dato-generado">@(generado.EmpresaRazonSocial ?? "—")</td>
+                        @* Sin TextoFechaCopiable: la fecha de generación no es vigencia ni cae en
+                           la excepción de Detección/Revisión IA (P9, 2026-09-18). *@
                         <td class="dato-generado">
-                            <TextoFechaCopiable Fecha="DateOnly.FromDateTime(generadoEn)">@generadoEn.ToString("dd/MM/yyyy HH:mm")</TextoFechaCopiable>
+                            @generadoEn.ToString("dd/MM/yyyy HH:mm")
                         </td>
                         <td>
                             @if (generado.Estado == EstadoDocumentoGenerado.Generado)
