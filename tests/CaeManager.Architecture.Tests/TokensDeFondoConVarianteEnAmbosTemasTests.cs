@@ -144,6 +144,44 @@ public class TokensDeFondoConVarianteEnAmbosTemasTests
     }
 
     /// <summary>
+    /// Hallazgo de la revisión de Codex (2026-09-18) sobre la primera versión:
+    /// cortar por posición de marcador en vez de por el cuerpo entre llaves
+    /// atribuía al bloque de tema cualquier declaración situada entre los dos
+    /// marcadores o después del último, aunque viviera en una regla distinta.
+    /// Aquí <c>--color-primary-50</c> se "redefine" en <c>.regla-suelta</c>,
+    /// una clase normal que cae justo entre los bloques oscuro y claro: si el
+    /// detector mirase por posición la daría por buena para oscuro y este
+    /// test pasaría en falso. Mirando el cuerpo entre llaves de cada bloque,
+    /// ni oscuro ni claro la contienen y el defecto se sigue viendo.
+    /// </summary>
+    [Fact]
+    public void El_detector_no_confunde_una_regla_ajena_entre_bloques_con_el_bloque_de_tema()
+    {
+        const string tokensConReglaSuelta = """
+            :root {
+              --color-primary-50: #eef5ff;
+              --color-primary-700: #163a7d;
+            }
+            :root[data-theme='oscuro'] {
+              --color-primary-700: #dcebff;
+            }
+            .regla-suelta {
+              --color-primary-50: #0e1d39;
+            }
+            :root[data-theme='claro'] {
+              --color-primary-700: #163a7d;
+            }
+            """;
+        var ficheros = new List<(string Ruta, string Contenido)>
+        {
+            ("Entrada.razor.css", ".entrada-activa { background-color: var(--color-primary-50); }"),
+        };
+
+        Violaciones(tokensConReglaSuelta, ficheros).Select(v => v.Variable).Should().Equal(["--color-primary-50"],
+            "la declaración vive en .regla-suelta, no en ningún bloque de tema: sigue faltando en los dos");
+    }
+
+    /// <summary>
     /// Control de alcance: un escalón que NO es -50 (aquí -500), sin variante
     /// en ningún tema pero usado como fondo, no se marca. El alcance es
     /// deliberadamente estrecho (ver el resumen de la clase) y esta prueba es
@@ -183,22 +221,41 @@ public class TokensDeFondoConVarianteEnAmbosTemasTests
             .Where(u => !oscuroSet.Contains(u.Variable) || !claroSet.Contains(u.Variable));
     }
 
+    private static readonly Regex AperturaBloqueBase = new(@":root\s*\{", RegexOptions.Compiled);
+    private static readonly Regex AperturaBloqueOscuro = new(@":root\[data-theme='oscuro'\]\s*\{", RegexOptions.Compiled);
+    private static readonly Regex AperturaBloqueClaro = new(@":root\[data-theme='claro'\]\s*\{", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Extrae el cuerpo delimitado por llaves de cada bloque de tema, no todo
+    /// lo que hay entre un marcador y el siguiente: ninguno de los tres
+    /// bloques anida llaves, así que la primera <c>}</c> tras la apertura
+    /// cierra el bloque. Cortar por posición de marcador en vez de por llave
+    /// (hallazgo de Codex, 2026-09-18) atribuiría al tema equivocado —o le
+    /// daría por buena— una declaración que en realidad vive en otra regla
+    /// entre medias o después del último bloque.
+    /// </summary>
     private static (HashSet<string> Base, HashSet<string> Oscuro, HashSet<string> Claro) BloquesDeEscalon50(
         string tokensCss)
     {
         var texto = ComentarioCss.Replace(tokensCss, m => new string(m.Value.Select(c => c == '\n' ? '\n' : ' ').ToArray()));
 
-        var oscuroInicio = texto.IndexOf(":root[data-theme='oscuro']", StringComparison.Ordinal);
-        var claroInicio = texto.IndexOf(":root[data-theme='claro']", StringComparison.Ordinal);
-
-        oscuroInicio.Should().BeGreaterThan(-1, "tokens.css debe declarar :root[data-theme='oscuro']");
-        claroInicio.Should().BeGreaterThan(-1, "tokens.css debe declarar :root[data-theme='claro']");
-
-        var baseTexto = texto[..oscuroInicio];
-        var oscuroTexto = texto[oscuroInicio..claroInicio];
-        var claroTexto = texto[claroInicio..];
+        var baseTexto = CuerpoDelBloque(texto, AperturaBloqueBase, ":root { ... }");
+        var oscuroTexto = CuerpoDelBloque(texto, AperturaBloqueOscuro, ":root[data-theme='oscuro'] { ... }");
+        var claroTexto = CuerpoDelBloque(texto, AperturaBloqueClaro, ":root[data-theme='claro'] { ... }");
 
         return (EscalonesConValorLiteralEn(baseTexto), EscalonesDeclaradosEn(oscuroTexto), EscalonesDeclaradosEn(claroTexto));
+    }
+
+    private static string CuerpoDelBloque(string texto, Regex apertura, string descripcion)
+    {
+        var m = apertura.Match(texto);
+        m.Success.Should().BeTrue($"tokens.css debe declarar {descripcion}");
+
+        var inicioCuerpo = m.Index + m.Length;
+        var finCuerpo = texto.IndexOf('}', inicioCuerpo);
+        finCuerpo.Should().BeGreaterThan(-1, $"{descripcion} no cierra con '}}'");
+
+        return texto[inicioCuerpo..finCuerpo];
     }
 
     private static HashSet<string> EscalonesDeclaradosEn(string texto)
