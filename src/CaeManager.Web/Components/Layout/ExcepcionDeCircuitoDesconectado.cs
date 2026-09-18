@@ -5,8 +5,19 @@ namespace CaeManager.Web.Components.Layout;
 
 /// <summary>
 /// Distingue la carrera "el circuito de Blazor se desconecta mientras una
-/// consulta sigue en vuelo" (ver <see cref="MainLayout"/>) de un fallo real
-/// de base de datos que sí hay que dejar pasar.
+/// consulta sigue en vuelo" de un fallo real de base de datos que sí hay que
+/// dejar pasar, en los cuatro componentes que solo se quedarían sin un dato
+/// (<c>SelectorClienteActivo</c>, <c>SelectorTema</c>, <c>NotificacionesPopup</c>
+/// y <c>PanelAvisosNormativos</c>).
+///
+/// <para>
+/// <see cref="MainLayout"/> sufre la misma carrera pero <b>no</b> usa este
+/// predicado: allí lo que está en juego es un guard de seguridad, y desde
+/// 2026-09-18 quien decide no es el tipo de la excepción sino
+/// <see cref="Services.EstadoDelCircuito"/> — el tipo no distingue un circuito
+/// muerto de uno vivo, que es la única pregunta que importa cuando terminar sin
+/// hacer nada significaría mostrar la página sin aplicar el guard.
+/// </para>
 ///
 /// <para>
 /// Se manifiesta de tres formas: <see cref="ObjectDisposedException"/> (el
@@ -33,7 +44,7 @@ namespace CaeManager.Web.Components.Layout;
 /// </para>
 ///
 /// <para>
-/// No es <c>static</c>: los cinco sitios que la usan la comparten también
+/// No es <c>static</c>: los cuatro sitios que la usan la comparten también
 /// como categoría de <see cref="ILogger{TCategoryName}"/>
 /// (<c>ILogger&lt;ExcepcionDeCircuitoDesconectado&gt;</c>), y una clase
 /// <c>static</c> no puede usarse como argumento de tipo genérico. El

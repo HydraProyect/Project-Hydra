@@ -15,6 +15,20 @@ public partial class MainLayout
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private ActividadUsuarioService ActividadUsuario { get; set; } = default!;
+    [Inject] private EstadoDelCircuito EstadoDelCircuito { get; set; } = default!;
+    [Inject] private ILogger<MainLayout> Logger { get; set; } = default!;
+
+    /// <summary>
+    /// Adonde va el usuario cuando el guard de abajo no se pudo evaluar y el
+    /// circuito sigue vivo. <c>/Error</c> ya existe, es <c>[AllowAnonymous]</c>
+    /// y usa <c>AuthLayout</c>, no este layout: no vuelve a pasar por este
+    /// guard (sin bucle de redirección) y no toca la base de datos, que es
+    /// justo lo que puede estar fallando (ver el comentario de cabecera de
+    /// Error.razor, Sentry DOTNET-8). Con <c>forceLoad</c> porque lo que hay
+    /// que retirar es el contenido ya pintado: una navegación interna
+    /// conservaría el documento, y el contenido protegido seguiría a la vista.
+    /// </summary>
+    private const string RutaErrorDelSistema = "/Error";
 
     /// <summary>
     /// Forzar el cambio de contraseña en el primer login (ver
@@ -40,15 +54,18 @@ public partial class MainLayout
         var idClaim = estadoAutenticacion.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (!Guid.TryParse(idClaim, out var id)) return;
 
-        // Se resuelve una única vez por circuito (ActividadUsuarioService) — el resultado
-        // no se usa aquí, solo se dispara para que ya esté cacheado cuando el Home lo pida.
-        _ = await ActividadUsuario.RegistrarYEvaluarAsync(RendererInfo.IsInteractive);
-
-        // Por la puerta: este guard corre en paralelo con la inicialización
-        // de los demás componentes del layout y de la página, todos sobre el
-        // mismo DbContext scoped (ver PuertaAccesoDatos).
         try
         {
+            // Se resuelve una única vez por circuito (ActividadUsuarioService) — el resultado
+            // no se usa aquí, solo se dispara para que ya esté cacheado cuando el Home lo pida.
+            // Dentro del try aunque no forme parte del guard: también toca la base por la
+            // puerta, así que sufre la misma carrera, y si se fuera por excepción el guard
+            // de abajo no llegaría a correr — el mismo fallo abierto por otra vía.
+            _ = await ActividadUsuario.RegistrarYEvaluarAsync(RendererInfo.IsInteractive);
+
+            // Por la puerta: este guard corre en paralelo con la inicialización
+            // de los demás componentes del layout y de la página, todos sobre el
+            // mismo DbContext scoped (ver PuertaAccesoDatos).
             await PuertaAccesoDatos.EjecutarAsync(async () =>
             {
                 var usuario = await UserManager.FindByIdAsync(id.ToString());
@@ -81,37 +98,64 @@ public partial class MainLayout
                     Navigation.NavigateTo("/cuenta/configurar-2fa", forceLoad: true);
             });
         }
-        catch (Exception ex) when (ex is ObjectDisposedException or ArgumentOutOfRangeException)
+        // Todo lo que no sea la redirección legítima del propio guard. En
+        // renderizado del servidor, NavigateTo señala la redirección lanzando
+        // NavigationException: atraparla aquí se tragaría precisamente el
+        // "cambia la contraseña" o el "configura la 2FA" que acaba de decidirse
+        // — el fallo abierto que este catch existe para cerrar, introducido por
+        // el propio arreglo. El resto sí entra, y por tipo no se filtra nada
+        // más: el tipo no distingue un circuito muerto de uno vivo (ver abajo),
+        // así que como criterio no vale, ni estrecho ni ancho.
+        catch (Exception ex) when (ex is not NavigationException)
         {
-            // El circuito de Blazor puede desconectarse (y con él el
-            // CaeManagerDbContext scoped que UserManager usa por debajo)
-            // mientras este guard todavía está en vuelo — reproducido en
-            // producción dos veces, en el mismo sitio (Sentry DOTNET-6:
+            // Quién decide qué se hace aquí es el ESTADO DEL CIRCUITO, no el
+            // tipo de la excepción. Hasta 2026-09-18 el catch aceptaba
+            // ObjectDisposedException y ArgumentOutOfRangeException (PR #517) y
+            // terminaba sin hacer nada, dando por supuesto que venían de la
+            // carrera de desconexión descrita más abajo. Pero esos dos tipos
+            // también los produce un fallo con el circuito perfectamente vivo,
+            // y entonces el método terminaba sin aplicar el guard y la página
+            // se mostraba igual: fallar abierto en el guard de seguridad del
+            // layout (cambio de contraseña forzoso, rol pendiente, 2FA
+            // obligatoria para Administrador).
+            if (!EstadoDelCircuito.Cerrado)
+            {
+                // Circuito vivo: hay alguien al otro lado, y del guard no
+                // sabemos el resultado — no si el usuario puede pasar. Lo
+                // único seguro es retirar el contenido con una navegación
+                // completa (ver RutaErrorDelSistema). Y se registra como error,
+                // porque lo que ocultaba este fallo era justamente que la
+                // excepción desaparecía en silencio.
+                Logger.LogError(ex, "El guard de seguridad de MainLayout no se pudo evaluar con el circuito vivo; se retira el contenido y se redirige a {Ruta}: {TipoExcepcion} — {Mensaje}",
+                    RutaErrorDelSistema, ex.GetType().Name, ex.Message);
+                Navigation.NavigateTo(RutaErrorDelSistema, forceLoad: true);
+                return;
+            }
+
+            // Circuito ya cerrado. El circuito de Blazor puede desconectarse (y
+            // con él el CaeManagerDbContext scoped que UserManager usa por
+            // debajo) mientras este guard todavía está en vuelo — reproducido
+            // en producción dos veces, en el mismo sitio (Sentry DOTNET-6:
             // ObjectDisposedException sobre CaeManagerDbContext; DOTNET-3:
             // ArgumentOutOfRangeException dentro de NpgsqlDataReader — misma
-            // carrera, forma distinta según en qué punto exacto del socket
-            // la sorprenda la desconexión). No es un
-            // PuertaAccesoDatos.EjecutarAsync — la puerta ya se defiende de
-            // su propio semáforo en Dispose (LiberarSiSigueViva); esto es el
-            // paso anterior: la propia conexión/DbContext muere DENTRO de la
-            // operación envuelta, no en el cleanup. No queda nadie al otro
-            // lado esperando una redirección — el circuito ya se fue — así
-            // que no hay nada que hacer salvo no dejar la excepción sin
-            // observar.
+            // carrera, forma distinta según en qué punto exacto del socket la
+            // sorprenda la desconexión). No es un PuertaAccesoDatos.EjecutarAsync
+            // — la puerta ya se defiende de su propio semáforo en Dispose
+            // (LiberarSiSigueViva); esto es el paso anterior: la propia
+            // conexión/DbContext muere DENTRO de la operación envuelta, no en
+            // el cleanup. Aquí sí es cierto que no queda nadie al otro lado
+            // esperando una redirección, así que no hay nada que hacer salvo no
+            // dejar la excepción sin observar.
             //
-            // A propósito NO se usa ExcepcionDeCircuitoDesconectado.Es aquí
-            // (a diferencia de los otros cuatro sitios de layout, REC-166):
-            // este try/catch envuelve el guard de seguridad del layout
-            // (cambio de contraseña forzoso, rol pendiente, 2FA obligatoria)
-            // — si el catch atrapa, el método termina sin aplicar esas
-            // comprobaciones, así que atrapar de más aquí es fallar abierto,
-            // no solo perder un dato. La variante NpgsqlException cruda de
-            // esa clase se queda fuera: su filtro por mensaje literal no
-            // prueba que el circuito esté realmente desconectado, solo que
-            // el parser de Npgsql se desincronizó — ampliar el catch con esa
-            // tercera forma también aquí ampliaría esa misma inferencia al
-            // guard de seguridad. Si se repite, debe seguir escalando como
-            // hasta ahora (ruido en Sentry), no desaparecer en silencio.
+            // Sigue sin usarse ExcepcionDeCircuitoDesconectado.Es (los otros
+            // cuatro sitios de layout sí, REC-166), pero ya no por el motivo de
+            // entonces —"atrapar de más aquí es fallar abierto"—, que este
+            // cambio deja obsoleto: con el estado del circuito decidiendo, un
+            // tipo de más no abre nada, porque el camino de circuito vivo
+            // redirige igual. Es que, con ese criterio, el predicado por tipo y
+            // por mensaje ya no distingue nada que importe.
+            Logger.LogWarning(ex, "MainLayout descartó una excepción con el circuito ya cerrado: {TipoExcepcion} — {Mensaje}",
+                ex.GetType().Name, ex.Message);
         }
     }
 }

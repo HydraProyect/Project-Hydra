@@ -494,6 +494,16 @@ builder.Services.AddSingleton<CircuitHandler, CaeManager.Web.Services.MetricasCi
 // CaeManager.Web.Services.RevalidacionCircuitoActivoHandler).
 builder.Services.AddScoped<CircuitHandler, CaeManager.Web.Services.RevalidacionCircuitoActivoHandler>();
 
+// Criterio observable de "el circuito ya se cerró", que MainLayout necesita
+// para no confundir un circuito muerto (nadie ve la página) con uno vivo (no
+// aplicar el guard sería fallar abierto). Scoped por la misma razón que el de
+// arriba: el scope de DI es el del circuito. Se registra dos veces sobre LA
+// MISMA instancia — como servicio inyectable y como CircuitHandler, que es
+// quien recibe la llamada del framework: dos AddScoped independientes darían
+// dos instancias, y el componente inyectaría la que nadie marca.
+builder.Services.AddScoped<CaeManager.Web.Services.EstadoDelCircuito>();
+builder.Services.AddScoped<CircuitHandler>(sp => sp.GetRequiredService<CaeManager.Web.Services.EstadoDelCircuito>());
+
 // Health check real (P0-5 de docs/business/MATURITY_REVIEW.md): /salud
 // respondía "ok" incondicional — con PostgreSQL caído seguía dando 200 y
 // cualquier uptime check externo veía un servicio sano que no podía servir
