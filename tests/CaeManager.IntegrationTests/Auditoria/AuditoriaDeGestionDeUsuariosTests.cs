@@ -281,6 +281,81 @@ public class AuditoriaDeGestionDeUsuariosTests : IAsyncLifetime
         registro.UsuarioId.Should().Be(administradorId);
     }
 
+    /// <summary>
+    /// Hallazgo de Codex antes de abrir la PR (P1): un intento de contraseña
+    /// fallido incrementa <see cref="ApplicationUser.AccessFailedCount"/> vía
+    /// <c>UserManager.AccessFailedAsync</c> — sin sesión de CAE Manager, así
+    /// que <see cref="ITenantActual.TenantId"/> es <c>null</c>. Antes de la
+    /// excepción en <c>TenantSelladoInterceptor.ResolverTenantDeIdentidadAuditada</c>,
+    /// el <c>RegistroAuditoria</c> nuevo de esa fila se rechazaba por "sin
+    /// tenant resuelto" y el <c>SaveChanges</c> entero se revertía: el
+    /// intento de login devolvía 500 en vez de "contraseña incorrecta", y el
+    /// contador de bloqueo por fuerza bruta (P1-2, Lockout) nunca avanzaba.
+    /// </summary>
+    [Fact]
+    public async Task Un_intento_de_contrasena_fallido_sin_sesion_no_revierte_por_falta_de_tenant()
+    {
+        var usuarioId = Guid.NewGuid();
+        var tenantDelUsuario = Guid.NewGuid();
+
+        await using (var contexto = CrearContexto(ActorAuditoria.SinResolver, tenantDelUsuario))
+        {
+            var usuario = NuevoUsuario(usuarioId);
+            usuario.TenantId = tenantDelUsuario;
+            contexto.Users.Add(usuario);
+            await contexto.SaveChangesAsync();
+        }
+
+        // Sin tenant ambiental: reproduce exactamente el intento de login
+        // anónimo — ITenantActual.TenantId es null.
+        var accion = async () =>
+        {
+            await using var contexto = CrearContexto(ActorAuditoria.SinResolver, tenantAmbiental: null);
+            var usuario = await contexto.Users.SingleAsync(u => u.Id == usuarioId);
+            usuario.AccessFailedCount += 1;
+            await contexto.SaveChangesAsync();
+        };
+
+        await accion.Should().NotThrowAsync(
+            "un intento de contraseña incorrecto no debe devolver 500 solo porque no hay sesión");
+
+        // El filtro global de tenant exige leer con el mismo tenant con el
+        // que se escribió — no con _tenant, que es el de otros tests de esta
+        // clase.
+        var registro = await ObtenerRegistroAsync("Usuario", "Modificado", tenantDelUsuario);
+        registro.TenantId.Should().Be(tenantDelUsuario,
+            "sin tenant ambiental, el sellado cae al TenantId propio del ApplicationUser auditado");
+    }
+
+    /// <summary>
+    /// Mismo hallazgo que el test anterior, para el alta (no la edición): el
+    /// auto-aprovisionamiento por SSO (<c>IdentityEndpointsExtensions</c>)
+    /// crea la cuenta ANTES de que exista sesión de CAE Manager, con el
+    /// TenantId ya resuelto por configuración (no por <c>ITenantActual</c>).
+    /// </summary>
+    [Fact]
+    public async Task Autoprovisionar_una_cuenta_sin_sesion_no_revierte_por_falta_de_tenant()
+    {
+        var usuarioId = Guid.NewGuid();
+        var tenantDestino = Guid.NewGuid();
+
+        var accion = async () =>
+        {
+            await using var contexto = CrearContexto(ActorAuditoria.SinResolver, tenantAmbiental: null);
+            var usuario = NuevoUsuario(usuarioId);
+            usuario.TenantId = tenantDestino;
+            contexto.Users.Add(usuario);
+            await contexto.SaveChangesAsync();
+        };
+
+        await accion.Should().NotThrowAsync(
+            "el alta por SSO corre antes de que exista sesión de CAE Manager");
+
+        var registro = await ObtenerRegistroAsync("Usuario", "Creado", tenantDestino);
+        registro.EntidadId.Should().Be(usuarioId);
+        registro.TenantId.Should().Be(tenantDestino);
+    }
+
     private static ApplicationUser NuevoUsuario(Guid id) => new()
     {
         Id = id,
@@ -304,9 +379,15 @@ public class AuditoriaDeGestionDeUsuariosTests : IAsyncLifetime
         return (await contexto.Roles.SingleAsync(r => r.Name == nombreRol)).Id;
     }
 
-    private async Task<RegistroAuditoria> ObtenerRegistroAsync(string entidadTipo, string accion)
+    /// <summary>
+    /// <paramref name="tenant"/> por defecto es <see cref="_tenant"/> — el
+    /// filtro global de tenant exige leer con el mismo tenant con el que se
+    /// escribió, así que los tests que sellan contra un tenant propio (sin
+    /// sesión) deben pasarlo explícitamente.
+    /// </summary>
+    private async Task<RegistroAuditoria> ObtenerRegistroAsync(string entidadTipo, string accion, Guid? tenant = null)
     {
-        await using var contexto = CrearContexto(ActorAuditoria.SinResolver);
+        await using var contexto = CrearContexto(ActorAuditoria.SinResolver, tenant ?? _tenant);
 
         return await contexto.RegistrosAuditoria
             .Where(r => r.EntidadTipo == entidadTipo && r.Accion == accion)
@@ -314,9 +395,17 @@ public class AuditoriaDeGestionDeUsuariosTests : IAsyncLifetime
             .FirstAsync();
     }
 
-    private CaeManagerDbContext CrearContexto(ActorAuditoria actor)
+    private CaeManagerDbContext CrearContexto(ActorAuditoria actor) => CrearContexto(actor, _tenant);
+
+    /// <summary>
+    /// <paramref name="tenantAmbiental"/> en <c>null</c> reproduce el camino
+    /// sin sesión (login anónimo, restablecer contraseña, auto-provisión por
+    /// SSO antes de que exista sesión de CAE Manager) — ver
+    /// <see cref="Un_intento_de_contrasena_fallido_sin_sesion_no_revierte_por_falta_de_tenant"/>.
+    /// </summary>
+    private CaeManagerDbContext CrearContexto(ActorAuditoria actor, Guid? tenantAmbiental)
     {
-        var tenantActual = new TenantActualAmbiental { TenantId = _tenant };
+        var tenantActual = new TenantActualAmbiental { TenantId = tenantAmbiental };
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
             // Mismo orden que en producción (ver InfrastructureServiceCollectionExtensions

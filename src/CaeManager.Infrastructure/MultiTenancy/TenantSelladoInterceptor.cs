@@ -1,5 +1,7 @@
 using CaeManager.Application.Common;
+using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Common;
+using CaeManager.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
@@ -59,11 +61,12 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
             switch (entrada.State)
             {
                 case EntityState.Added:
-                    if (tenantId is null)
+                    var tenantParaEsta = tenantId ?? ResolverTenantDeIdentidadAuditada(context, entrada.Entity);
+                    if (tenantParaEsta is null)
                         throw new InvalidOperationException(
                             $"No se puede crear una entidad de tipo {entrada.Entity.GetType().Name} sin un tenant resuelto (ver ITenantActual).");
 
-                    entrada.Property(nameof(EntidadConTenant.TenantId)).CurrentValue = tenantId.Value;
+                    entrada.Property(nameof(EntidadConTenant.TenantId)).CurrentValue = tenantParaEsta.Value;
                     break;
 
                 case EntityState.Modified when (Guid)entrada.Property(nameof(EntidadConTenant.TenantId)).OriginalValue! == Guid.Empty:
@@ -102,5 +105,44 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
                     break;
             }
         }
+    }
+
+    /// <summary>
+    /// Solo para <see cref="RegistroAuditoria"/> de las dos excepciones de
+    /// Identity que <c>AuditoriaInterceptor</c> audita fuera del namespace de
+    /// dominio (<c>ApplicationUser</c>, <c>IdentityUserRole{Guid}</c>, ver su
+    /// comentario de clase). A diferencia de una entidad de dominio, cuyo
+    /// TenantId solo puede venir de una sesión resuelta —nunca de la propia
+    /// entidad, que sería confiar en un dato que el llamante controla—, aquí
+    /// el tenant no es una decisión de autorización: es un hecho que ya vive
+    /// en la fila que se está auditando (<c>ApplicationUser.TenantId</c>, NOT
+    /// NULL). <c>UserManager</c> escribe esa fila en varios caminos sin
+    /// sesión ni <c>AmbitoTenantExplicito</c> —un intento de contraseña
+    /// incorrecto en <c>Login.razor</c> incrementa <c>AccessFailedCount</c>,
+    /// <c>RestablecerContrasena.razor.cs</c> escribe desde un enlace anónimo,
+    /// el alta por SSO de <c>IdentityEndpointsExtensions</c> corre antes de
+    /// que exista sesión de CAE Manager—; sin esta excepción, el fallo
+    /// cerrado de arriba revertía el <c>SaveChanges</c> entero y esos tres
+    /// caminos dejaban de funcionar (hallazgo de Codex antes de abrir la PR
+    /// que introdujo la auditoría de Identity).
+    ///
+    /// El <see cref="ApplicationUser"/> referenciado por <c>EntidadId</c>
+    /// SIEMPRE está en el mismo <c>ChangeTracker</c> que el
+    /// <c>RegistroAuditoria</c> que lo audita —es la entidad que disparó su
+    /// creación, en el mismo <c>SaveChanges</c>— así que esto no añade
+    /// ninguna consulta a base de datos ni ninguna confianza nueva: lee un
+    /// valor que la propia operación ya tenía delante. Si no se encuentra
+    /// (no debería ocurrir mientras solo <c>AuditoriaInterceptor</c> cree
+    /// estas dos filas), sigue fallando cerrado como cualquier otra entidad.
+    /// </summary>
+    private static Guid? ResolverTenantDeIdentidadAuditada(DbContext context, object entidad)
+    {
+        if (entidad is not RegistroAuditoria registro) return null;
+        if (registro.EntidadTipo is not ("Usuario" or "RolDeUsuario")) return null;
+
+        var usuario = context.ChangeTracker.Entries<ApplicationUser>()
+            .FirstOrDefault(e => e.Entity.Id == registro.EntidadId)?.Entity;
+
+        return usuario?.TenantId is { } tenantIdUsuario && tenantIdUsuario != Guid.Empty ? tenantIdUsuario : null;
     }
 }
