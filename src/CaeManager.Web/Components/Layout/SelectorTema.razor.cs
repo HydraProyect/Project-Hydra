@@ -11,12 +11,15 @@ namespace CaeManager.Web.Components.Layout;
 /// Guarda la preferencia de tema en la cuenta del usuario (ApplicationUser.Tema),
 /// no en localStorage — así viaja con la cuenta entre dispositivos, igual que
 /// cualquier otro ajuste de usuario. Se aplica sobre &lt;html data-theme&gt; vía
-/// JS interop; como esto ocurre después de que el circuito de Blazor conecta
-/// (no en el HTML servido inicialmente), un usuario con Claro u Oscuro
-/// explícito puede ver un parpadeo muy breve al tema del sistema en la
-/// primera carga — se acepta ese coste a cambio de no añadir el mecanismo de
-/// leer la cookie de sesión desde el HTML servido en frío, que ningún otro
-/// componente de la app necesita todavía.
+/// JS interop, que ocurre después de que el circuito de Blazor conecta (no en
+/// el HTML servido inicialmente) — pero <c>wwwroot/js/tema.js</c> también deja
+/// una cookie de solo lectura (ver <c>TemaCookie</c>, Web) que el propio
+/// servidor lee al prerenderizar <c>App.razor</c>, así que a partir de la
+/// SEGUNDA petición con esa cookie el HTML ya sale con el tema correcto y no
+/// hay parpadeo. Solo queda un parpadeo posible: la primera vez que este
+/// navegador ve a este usuario (cookie ausente, p. ej. tras borrar cookies o
+/// en un dispositivo nuevo) — se acepta ese coste igual que antes, a cambio
+/// de no consultar <c>ApplicationUser.Tema</c> en cada petición HTML.
 /// </summary>
 public partial class SelectorTema : ComponentBase, IAsyncDisposable
 {
