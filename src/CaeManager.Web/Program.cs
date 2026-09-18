@@ -35,7 +35,6 @@ using CaeManager.Web.Services;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.RateLimiting;
@@ -426,7 +425,11 @@ builder.Services.AddRateLimiter(opciones =>
 
         // La IP real ya está resuelta: UseForwardedHeaders corre al principio
         // del pipeline (ver más abajo) y el middleware de rate limiting actúa
-        // después, por petición.
+        // después, por petición. Este es el ÚNICO sitio del sistema que lee la
+        // IP del cliente —no la registra la auditoría, ni los accesos
+        // sensibles, ni los logs—, así que es también el único alcance de lo
+        // que se perdería si esa IP fuese falsificable: ver
+        // CabecerasDeProxyDeBorde para de qué depende que sea auténtica.
         var ip = contexto.Connection.RemoteIpAddress?.ToString() ?? "desconocida";
 
         return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
@@ -605,23 +608,15 @@ if (args.Contains("--retirar-tenant-demo"))
 // Detrás de un proxy inverso (Caddy, ver deploy/local/Caddyfile y DEPLOY.md),
 // Kestrel solo ve tráfico HTTP interno; sin esto,
 // UseHttpsRedirection/UseHsts no reconocen la petición original como HTTPS
-// y pueden entrar en bucle de redirección. KnownProxies/KnownNetworks se
-// dejan vacíos a propósito: el proxy de entrada cambia según dónde se
-// despliegue, y este es un único servicio detrás de un solo proxy de borde,
-// no una red interna con saltos que haya que enumerar.
-var opcionesForwardedHeaders = new ForwardedHeadersOptions
-{
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
-};
-// KnownProxies/KnownIPNetworks traen loopback por defecto: un inicializador
-// `= { }` no los vacía, solo no añade nada más. Sin este Clear() explícito,
-// el middleware descarta X-Forwarded-Proto porque Caddy no habla desde
-// loopback (es un contenedor propio en la red "edge", ver docker-compose.
-// produccion.yml), y la app cree que la petición es HTTP (genera
-// Location: http:// en redirects, lo que rompe el login vía CSP form-action).
-opcionesForwardedHeaders.KnownProxies.Clear();
-opcionesForwardedHeaders.KnownIPNetworks.Clear();
-app.UseForwardedHeaders(opcionesForwardedHeaders);
+// y pueden entrar en bucle de redirección.
+//
+// La configuración vive en CabecerasDeProxyDeBorde, no aquí: acepta las
+// cabeceras de CUALQUIER origen (KnownProxies/KnownIPNetworks vacíos), así que
+// la autenticidad de la IP del cliente depende enteramente de que Caddy
+// descarte el X-Forwarded-For entrante y de que sea el único camino hasta el
+// 8080. Ese es un supuesto de seguridad, y está escrito, medido y vigilado por
+// trinquete en esa clase (REC-019) en vez de quedar aquí como un comentario.
+app.UseForwardedHeaders(CabecerasDeProxyDeBorde.Opciones());
 
 using (var scope = app.Services.CreateScope())
 {
