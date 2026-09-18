@@ -75,4 +75,30 @@ public class EliminarSubcontrataCommandHandlerTests
         subcontrata.EstaEliminado.Should().BeFalse();
         unitOfWork.VecesGuardado.Should().Be(0);
     }
+
+    /// <summary>
+    /// REC-172, gemelo de REC-153/159 en Empresa: un usuario de portal tiene
+    /// la Subcontrata en su cartera de LECTURA (por eso ve su documentación,
+    /// derivada de su propio Cliente) pero no en la de GESTIÓN — y eliminarla
+    /// es un acto de gestión, no de lectura.
+    /// </summary>
+    [Fact]
+    public async Task Usuario_de_portal_no_puede_eliminar_una_subcontrata_de_su_cliente()
+    {
+        var subcontrata = Empresa.CrearComoSubcontrata("Contrata de mi Cliente S.L.", "B12345674", "Gestionada");
+        var repositorio = new EmpresaRepositorioFalso();
+        repositorio.Agregar(subcontrata);
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = new EliminarSubcontrataCommandHandler(
+            repositorio,
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, subcontrataIdsVisibles: [subcontrata.Id], subcontrataIdsParaGestion: []),
+            unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()));
+
+        var resultado = await handler.Handle(new EliminarSubcontrataCommand(subcontrata.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Subcontrata.NoEncontrada");
+        subcontrata.EstaEliminado.Should().BeFalse();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
 }

@@ -166,6 +166,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.DelegacionOClienteYaValidado, "delegacion.TenantClienteId, tras cargar y autorizar la Delegación de soporte"),
         ["src/CaeManager.Application/Tenants/Commands/CrearClienteDelegante/CrearClienteDeleganteCommand.cs"] =
             new(Categoria.DelegacionOClienteYaValidado, "tenantCliente.Id, del Tenant recién creado por el propio comando en la misma transacción"),
+        ["src/CaeManager.Application/Tenants/Commands/CrearOperadorCaeExterno/CrearOperadorCaeExternoCommand.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado, "tenantOperador.Id, del Tenant recién creado por el propio comando tras la autorización global, en la misma transacción"),
         ["src/CaeManager.Application/Tenants/Queries/ObtenerActividadSoporte/ObtenerActividadSoporteQuery.cs"] =
             new(Categoria.DelegacionOClienteYaValidado, "delegacion.TenantClienteId, en OR con la vía del cliente visitado (ver UsosDeEsPlataformaCongeladosTests)"),
 

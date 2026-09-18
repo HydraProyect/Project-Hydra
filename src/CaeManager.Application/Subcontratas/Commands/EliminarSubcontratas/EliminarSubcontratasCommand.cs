@@ -32,7 +32,7 @@ public class EliminarSubcontratasCommandHandler(
         foreach (var id in request.Ids)
         {
             var subcontrata = await repositorio.ObtenerPorIdAsync(id, cancellationToken);
-            if (subcontrata is null || !await alcanceDatos.SubcontrataVisibleAsync(subcontrata.Id, cancellationToken))
+            if (subcontrata is null || !await alcanceDatos.SubcontrataParaGestionVisibleAsync(subcontrata.Id, cancellationToken))
             {
                 errores.Add("Una subcontrata ya no existía.");
                 continue;
