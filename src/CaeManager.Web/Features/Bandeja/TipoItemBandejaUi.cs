@@ -112,4 +112,36 @@ public static class TipoItemBandejaUi
     public static bool BloqueaAccesoDeVerdad(GrupoColaDto grupo) =>
         grupo.BloqueaAcceso
         && grupo.Items.Any(i => i.Tipo == TipoItemBandeja.RequisitoPendiente && !i.EsAltaNueva);
+
+    /// <summary>
+    /// Gate del hallazgo de P9 (2026-09-18, CAPA-USUARIO-AVANZADO-TALVEG.md
+    /// § 6.1 quinquies): «solo la vigencia es copiable», con la excepción
+    /// acotada de Detección/Revisión IA para la fecha del suceso. Antes de
+    /// este gate, <c>PanelResolverItem</c> envolvía <c>Item.Fecha</c> en
+    /// <c>TextoFechaCopiable</c> para TODOS los tipos sin mirar cuál era, y el
+    /// hallazgo documentó el defecto sin corregirlo.
+    ///
+    /// <para>
+    /// <b>Medido contra <see cref="ObtenerBandejaGestorQueryHandler"/>
+    /// (2026-09-18), no asumido de la redacción del hallazgo</b> — que decía
+    /// "todos los tipos salvo RevisionIa/DeteccionPendiente" sin comprobar qué
+    /// representa <c>Fecha</c> en cada uno. La comprobación real:
+    /// </para>
+    /// <list type="bullet">
+    ///   <item><description><c>Faltante</c>/<c>Vencido</c>/<c>Urgente</c>: <c>Fecha = FechaVencimiento</c> — ES vigencia, copiable bajo la regla estricta sin necesitar la excepción de P9.</description></item>
+    ///   <item><description><c>RevisionIa</c>: <c>Fecha = FechaEmisionDetectada</c> — la excepción de P9.</description></item>
+    ///   <item><description><c>VisitaUrgente</c>: <c>Fecha = FechaInicio</c> — NI vigencia NI P9. El defecto real.</description></item>
+    ///   <item><description><c>SugerenciaVisitaUrgente</c>: <c>Fecha = FechaInicioSugerida</c> — NI vigencia NI P9. El defecto real.</description></item>
+    ///   <item><description><c>RequisitoPendiente</c>/<c>DeteccionPendiente</c>/<c>PlataformaPendiente</c>: <c>Fecha = null</c> hoy — sin fecha no hay nada que copiar, el propio componente ya lo trata como texto plano.</description></item>
+    /// </list>
+    /// <para>
+    /// Restringir a solo RevisionIa/DeteccionPendiente, como decía la
+    /// redacción literal del hallazgo, habría sido un cambio de más: le habría
+    /// quitado la copia de vigencia a Faltante/Vencido/Urgente, que es
+    /// legítima. El gate excluye únicamente los dos tipos donde <c>Fecha</c>
+    /// no es ni vigencia ni la excepción.
+    /// </para>
+    /// </summary>
+    public static bool EsFechaCopiable(ItemBandejaDto item) =>
+        item.Tipo is not (TipoItemBandeja.VisitaUrgente or TipoItemBandeja.SugerenciaVisitaUrgente);
 }

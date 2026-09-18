@@ -87,4 +87,32 @@ public class TipoItemBandejaUiTests
     {
         TipoItemBandejaUi.EsReclamable(Item(TipoItemBandeja.Vencido, Guid.NewGuid(), tipoDocumentoId: null)).Should().BeFalse();
     }
+
+    /// <summary>
+    /// P9 (2026-09-18, CAPA-USUARIO-AVANZADO-TALVEG.md § 6.1 quinquies):
+    /// «solo la vigencia es copiable», con excepción acotada de Detección/
+    /// Revisión IA. Medido contra ObtenerBandejaGestorQueryHandler qué
+    /// representa Fecha en cada tipo (ver el comentario largo de
+    /// TipoItemBandejaUi.EsFechaCopiable): solo VisitaUrgente y
+    /// SugerenciaVisitaUrgente llevan una fecha que no es ni vigencia ni la
+    /// excepción (FechaInicio/FechaInicioSugerida). Faltante/Vencido/Urgente
+    /// SÍ deben seguir siendo copiables — es vigencia real (FechaVencimiento)
+    /// — y restringir a solo RevisionIa/DeteccionPendiente, como decía la
+    /// redacción literal del hallazgo, les habría quitado la copia sin motivo.
+    /// </summary>
+    [Theory]
+    [InlineData(TipoItemBandeja.Faltante, true)]
+    [InlineData(TipoItemBandeja.Vencido, true)]
+    [InlineData(TipoItemBandeja.Urgente, true)]
+    [InlineData(TipoItemBandeja.RequisitoPendiente, true)]
+    [InlineData(TipoItemBandeja.RevisionIa, true)]
+    [InlineData(TipoItemBandeja.VisitaUrgente, false)]
+    [InlineData(TipoItemBandeja.SugerenciaVisitaUrgente, false)]
+    [InlineData(TipoItemBandeja.DeteccionPendiente, true)]
+    [InlineData(TipoItemBandeja.PlataformaPendiente, true)]
+    public void EsFechaCopiable_es_false_solo_para_VisitaUrgente_y_SugerenciaVisitaUrgente(
+        TipoItemBandeja tipo, bool esperado)
+    {
+        TipoItemBandejaUi.EsFechaCopiable(Item(tipo, Guid.NewGuid(), Guid.NewGuid())).Should().Be(esperado);
+    }
 }

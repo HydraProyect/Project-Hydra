@@ -125,10 +125,10 @@
                         <td class="purga-tipo">@DescribirTipo(solicitud.TipoDato)</td>
                         <td class="purga-numero">@solicitud.RegistrosAfectados</td>
                         <td class="purga-fecha">@solicitud.FechaCorte.ToString("dd/MM/yyyy")</td>
+                        @* Sin TextoFechaCopiable: la fecha del estado no es vigencia ni cae en la
+                           excepción de Detección/Revisión IA (P9, 2026-09-18). *@
                         <td>
-                            <TextoFechaCopiable Fecha="FechaDelEstado(solicitud)">
-                                <Badge Tono="@TonoDeEstado(solicitud)">@DescribirEstado(solicitud)</Badge>
-                            </TextoFechaCopiable>
+                            <Badge Tono="@TonoDeEstado(solicitud)">@DescribirEstado(solicitud)</Badge>
                         </td>
                         <td class="purga-acciones">
                             <div class="acciones-purga">
