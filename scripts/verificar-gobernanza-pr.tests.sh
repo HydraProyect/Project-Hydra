@@ -298,6 +298,46 @@ assert_codigo "'Todo' con solo la inicial en mayúscula no es un marcador" 0 \
   ""
 
 echo
+echo "=== Variantes del título de la Regla 2 (defecto sin ficha, turno 2026-09-18 T4) ==="
+
+# Caso real: PR #688 tituló su sección "## Revisión de Codex" (con "de") y el
+# check dio rojo con la revisión ya hecha de verdad.
+assert_codigo "'## Revisión de Codex' (con 'de'): pasa" 0 \
+  "$(cuerpo "## Revisión de Codex" "sin hallazgos")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+
+# Variantes sin tilde en "Revisión", con y sin "de" — mismo espíritu que la
+# comparación "producci" para "producción"/"produccion" de la regla 1.
+assert_codigo "'## Revision Codex' (sin tilde): pasa" 0 \
+  "$(cuerpo "## Revision Codex" "sin hallazgos")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+assert_codigo "'## Revision de Codex' (sin tilde, con 'de'): pasa" 0 \
+  "$(cuerpo "## Revision de Codex" "sin hallazgos")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+
+# Tolerar la REDACCIÓN del título no afloja la propiedad: una variante con
+# marcador provisional sigue fallando igual que la canónica.
+assert_codigo "'## Revisión de Codex' con marcador 'pendiente': sigue fallando" 1 \
+  "$(cuerpo "## Revisión de Codex" "pendiente de ejecutar")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+assert_codigo "'## Revisión de Codex' vacía: sigue fallando" 1 \
+  "$(cuerpo "## Revisión de Codex" "" "## Otra sección" "texto")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+
+# Una variante no listada (por ejemplo "por Codex") no se acepta — el
+# conjunto es explícito, no un grep laxo que aceptaría cualquier cosa que
+# contenga "Codex".
+assert_codigo "'## Revisión por Codex' (variante no aceptada): falla" 1 \
+  "$(cuerpo "## Revisión por Codex" "sin hallazgos")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+
+echo
 echo "=== Combinación de las dos reglas ==="
 
 # PR que toca roles-de-cluster.sql Y no tiene revisión Codex: dos problemas
