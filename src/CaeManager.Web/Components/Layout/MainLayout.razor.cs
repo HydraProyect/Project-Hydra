@@ -31,6 +31,25 @@ public partial class MainLayout
     private const string RutaErrorDelSistema = "/Error";
 
     /// <summary>
+    /// Antes de esta redirección, <c>Error.razor</c> solo se alcanzaba a
+    /// través de <c>UseExceptionHandler</c>, que le deja
+    /// <c>IExceptionHandlerPathFeature</c> para la referencia técnica y la
+    /// ruta de "Reintentar". Este camino no pasa por ahí — a propósito, para
+    /// no volver a tocar la base de datos que puede estar fallando — así que
+    /// sin esto la página de error se quedaría sin ninguna de las dos: sería
+    /// un hueco de diagnóstico nuevo, introducido por esta misma redirección.
+    /// Una referencia de correlación (sin datos personales) y la ruta a la
+    /// que el usuario ya estaba navegando (la misma que ya veía en la barra
+    /// de direcciones) no exponen nada que el usuario no tuviera ya delante.
+    /// </summary>
+    private string ConDiagnostico(Guid referencia) =>
+        Navigation.GetUriWithQueryParameters(RutaErrorDelSistema, new Dictionary<string, object?>
+        {
+            ["ref"] = referencia.ToString(),
+            ["ruta"] = Navigation.ToBaseRelativePath(Navigation.Uri) is { Length: > 0 } relativa ? $"/{relativa}" : "/",
+        });
+
+    /// <summary>
     /// Forzar el cambio de contraseña en el primer login (ver
     /// ApplicationUser.DebeCambiarContrasena) no sirve de nada si basta con
     /// escribir otra URL a mano para saltárselo — por eso el guard no vive
@@ -48,14 +67,18 @@ public partial class MainLayout
     /// </summary>
     protected override async Task OnParametersSetAsync()
     {
-        var estadoAutenticacion = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-        if (estadoAutenticacion.User.Identity?.IsAuthenticated != true) return;
-
-        var idClaim = estadoAutenticacion.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (!Guid.TryParse(idClaim, out var id)) return;
-
         try
         {
+            // AuthenticationStateProvider entra en el try junto con el resto:
+            // en Blazor Server también puede tocar estado atado al circuito, y
+            // dejarlo fuera reabriría el mismo fallo abierto por una puerta
+            // distinta — el guard de abajo nunca llegaría a decidir nada.
+            var estadoAutenticacion = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            if (estadoAutenticacion.User.Identity?.IsAuthenticated != true) return;
+
+            var idClaim = estadoAutenticacion.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!Guid.TryParse(idClaim, out var id)) return;
+
             // Se resuelve una única vez por circuito (ActividadUsuarioService) — el resultado
             // no se usa aquí, solo se dispara para que ya esté cacheado cuando el Home lo pida.
             // Dentro del try aunque no forme parte del guard: también toca la base por la
@@ -98,12 +121,18 @@ public partial class MainLayout
                     Navigation.NavigateTo("/cuenta/configurar-2fa", forceLoad: true);
             });
         }
-        // Todo lo que no sea la redirección legítima del propio guard. En
-        // renderizado del servidor, NavigateTo señala la redirección lanzando
-        // NavigationException: atraparla aquí se tragaría precisamente el
-        // "cambia la contraseña" o el "configura la 2FA" que acaba de decidirse
-        // — el fallo abierto que este catch existe para cerrar, introducido por
-        // el propio arreglo. El resto sí entra, y por tipo no se filtra nada
+        // Todo lo que no sea la redirección legítima del propio guard. Este
+        // proyecto fija BlazorDisableThrowNavigationException=true
+        // (CaeManager.Web.csproj), así que hoy NavigateTo no lanza
+        // NavigationException aquí, ni en SSR estático ni en interactivo
+        // (confirmado: es justo lo que esa propiedad de MSBuild existe para
+        // evitar, "What's new in ASP.NET Core .NET 10"). La exclusión es
+        // defensa en profundidad, no una ruta que se ejerza en producción hoy:
+        // si esa opción cambiara, o algún otro camino del framework volviera a
+        // lanzarla, atraparla aquí se tragaría precisamente el "cambia la
+        // contraseña" o el "configura la 2FA" que el guard acaba de decidir —
+        // el mismo fallo abierto que este catch existe para cerrar,
+        // reintroducido por su propio arreglo. Por tipo no se filtra nada
         // más: el tipo no distingue un circuito muerto de uno vivo (ver abajo),
         // así que como criterio no vale, ni estrecho ni ancho.
         catch (Exception ex) when (ex is not NavigationException)
@@ -126,9 +155,10 @@ public partial class MainLayout
                 // completa (ver RutaErrorDelSistema). Y se registra como error,
                 // porque lo que ocultaba este fallo era justamente que la
                 // excepción desaparecía en silencio.
-                Logger.LogError(ex, "El guard de seguridad de MainLayout no se pudo evaluar con el circuito vivo; se retira el contenido y se redirige a {Ruta}: {TipoExcepcion} — {Mensaje}",
-                    RutaErrorDelSistema, ex.GetType().Name, ex.Message);
-                Navigation.NavigateTo(RutaErrorDelSistema, forceLoad: true);
+                var referencia = Guid.NewGuid();
+                Logger.LogError(ex, "El guard de seguridad de MainLayout no se pudo evaluar con el circuito vivo; se retira el contenido y se redirige a {Ruta} (referencia {Referencia}): {TipoExcepcion} — {Mensaje}",
+                    RutaErrorDelSistema, referencia, ex.GetType().Name, ex.Message);
+                Navigation.NavigateTo(ConDiagnostico(referencia), forceLoad: true);
                 return;
             }
 

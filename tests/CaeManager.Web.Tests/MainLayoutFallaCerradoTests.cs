@@ -7,7 +7,9 @@ using CaeManager.Web.Components.Layout;
 using CaeManager.Web.Services;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -36,6 +38,14 @@ namespace CaeManager.Web.Tests;
 /// (<see cref="EstadoDelCircuito.OnCircuitClosedAsync"/>), no por una bandera
 /// de test.
 /// </para>
+///
+/// <para>
+/// El destino con el circuito vivo lleva una referencia de correlación y la
+/// ruta de origen como parámetros de consulta (<c>MainLayout.ConDiagnostico</c>):
+/// sin ellos, <c>/Error</c> se queda sin diagnóstico porque este camino no pasa
+/// por <c>UseExceptionHandler</c>. Las aserciones comprueban el prefijo y los
+/// parámetros, no una igualdad exacta de la URL.
+/// </para>
 /// </summary>
 public class MainLayoutFallaCerradoTests : BunitContext
 {
@@ -44,6 +54,7 @@ public class MainLayoutFallaCerradoTests : BunitContext
     private readonly EstadoDelCircuito _circuito = new();
     private readonly AlmacenConmutable _almacen = new();
     private readonly NavegacionDeBanco _navegacion = new();
+    private readonly ProveedorAutenticacionConmutable _autenticacion = new();
 
     /// <summary>
     /// Todo se registra aquí porque bUnit congela su proveedor de servicios en
@@ -65,9 +76,14 @@ public class MainLayoutFallaCerradoTests : BunitContext
         Services.AddSingleton<ActividadUsuarioService>(new ActividadUsuarioSilenciosa(usuarios));
         Services.AddSingleton<NavigationManager>(_navegacion);
 
-        var contexto = AddAuthorization();
-        contexto.SetAuthorized("gestora@refrielectric.test");
-        contexto.SetClaims(new Claim(ClaimTypes.NameIdentifier, IdUsuario.ToString()));
+        // Doble propio en vez de AddAuthorization() de bUnit: MainLayout
+        // inyecta AuthenticationStateProvider directamente (no lee un
+        // CascadingParameter de estado de autenticación) y AuthorizeView está
+        // stubbeado por TodoMenosElLayout, así que no hace falta el aparato de
+        // autorización de bUnit — y este doble, a diferencia de aquel, puede
+        // conmutarse para fallar (ver Con_la_llamada_previa_al_guard...).
+        _autenticacion.AutenticarComo(IdUsuario, "gestora@refrielectric.test");
+        Services.AddSingleton<AuthenticationStateProvider>(_autenticacion);
 
         SetRendererInfo(new RendererInfo("Server", isInteractive: true));
     }
@@ -87,7 +103,12 @@ public class MainLayoutFallaCerradoTests : BunitContext
 
         Render<MainLayout>();
 
-        _navegacion.Destinos.Should().ContainSingle().Which.Should().EndWith("/Error");
+        var destino = _navegacion.Destinos.Should().ContainSingle().Subject;
+        var (ruta, consulta) = SepararRutaYConsulta(destino);
+        ruta.Should().Be("/Error");
+        consulta.Should().ContainKey("ref").WhoseValue.Should().NotBeNullOrEmpty();
+        consulta.Should().ContainKey("ruta").WhoseValue.Should().NotBeNullOrEmpty(
+            "sin la ruta de origen, /Error no tiene adónde reintentar (PaginaEstadoSistema.RutaReintentar)");
         _navegacion.ForzoLaCarga.Should().BeTrue(
             "una navegación interna conservaría el documento, y el contenido protegido seguiría a la vista");
     }
@@ -158,6 +179,35 @@ public class MainLayoutFallaCerradoTests : BunitContext
         _navegacion.Destinos.Should().ContainSingle().Which.Should().EndWith("/cuenta/cambiar-contrasena");
     }
 
+    /// <summary>
+    /// El paso previo al guard también puede fallar con el circuito vivo: si
+    /// <c>AuthenticationStateProvider.GetAuthenticationStateAsync</c> lanza,
+    /// antes de 2026-09-18 esa excepción escapaba del método entero sin pasar
+    /// por ningún <c>catch</c> propio — el guard de contraseña/rol/2FA nunca
+    /// llegaba a evaluarse, y con ella fuera del <c>try</c> tampoco había
+    /// forma de decidir, por el estado del circuito, si tocaba retirar el
+    /// contenido. Ahora esa llamada está dentro del mismo <c>try</c> que el
+    /// resto del guard, así que sufre el mismo criterio.
+    /// </summary>
+    [Fact]
+    public void Con_la_llamada_previa_al_guard_fallando_y_el_circuito_vivo_tambien_se_retira_el_contenido()
+    {
+        _autenticacion.Falla(new InvalidOperationException("el estado de autenticación no se pudo resolver"));
+
+        Render<MainLayout>();
+
+        var (ruta, _) = SepararRutaYConsulta(_navegacion.Destinos.Should().ContainSingle().Subject);
+        ruta.Should().Be("/Error");
+    }
+
+    private static (string Ruta, Dictionary<string, string?> Consulta) SepararRutaYConsulta(string destinoAbsoluto)
+    {
+        var uri = new Uri(destinoAbsoluto);
+        var consulta = QueryHelpers.ParseQuery(uri.Query)
+            .ToDictionary(par => par.Key, par => (string?)par.Value.ToString());
+        return (uri.AbsolutePath, consulta);
+    }
+
     private static ApplicationUser UsuarioQueDebeCambiarContrasena() =>
         new() { Id = IdUsuario, UserName = "gestora@refrielectric.test", DebeCambiarContrasena = true };
 
@@ -215,6 +265,28 @@ public class MainLayoutFallaCerradoTests : BunitContext
             ForzoLaCarga = forceLoad;
             if (LanzarComoElServidor) throw new NavigationException(absoluta);
         }
+    }
+
+    /// <summary>
+    /// Autenticado como el mismo usuario para todos los tests salvo que se le
+    /// pida fallar. <c>Falla</c> hace que <see cref="GetAuthenticationStateAsync"/>
+    /// lance directamente, el paso que hasta 2026-09-18 vivía fuera del
+    /// <c>try</c> del guard.
+    /// </summary>
+    private sealed class ProveedorAutenticacionConmutable : AuthenticationStateProvider
+    {
+        private ClaimsPrincipal _principal = new(new ClaimsIdentity());
+        private Exception? _excepcion;
+
+        public void AutenticarComo(Guid id, string nombreUsuario) => _principal = new ClaimsPrincipal(
+            new ClaimsIdentity(
+                [new Claim(ClaimTypes.NameIdentifier, id.ToString()), new Claim(ClaimTypes.Name, nombreUsuario)],
+                authenticationType: "prueba"));
+
+        public void Falla(Exception excepcion) => _excepcion = excepcion;
+
+        public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
+            _excepcion is { } excepcion ? throw excepcion : Task.FromResult(new AuthenticationState(_principal));
     }
 
     /// <summary>
