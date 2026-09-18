@@ -51,6 +51,17 @@ public abstract class ParserDocumentoOficialBase : IParserDocumentoOficial
     /// </list>
     /// Los lookarounds evitan capturar dentro de un token mayor (huella,
     /// CCC, u otro carácter alfanumérico pegado al identificador).
+    /// <para>
+    /// Solo valida el <b>shape</b>, nunca el dígito de control (ni aquí ni
+    /// para CIF ni para DNI — no es una laguna nueva del NIE). No hace
+    /// falta: <see cref="ValidacionOficial.ValidacionDocumentoOficialService"/>
+    /// coteja el valor extraído por IGUALDAD exacta contra el <c>Cif</c> ya
+    /// guardado en la Empresa, que sí pasó por <c>Empresa.EstablecerCif</c>
+    /// y su checksum SÍ es válido — un identificador mal transcrito en el
+    /// documento nunca coincide letra a letra con el bueno, así que nunca se
+    /// auto-valida a ciegas: cae a discrepancia igual que cualquier CIF que
+    /// no coincide con el propietario.
+    /// </para>
     /// </summary>
     protected static readonly Regex RegexCifComun = new(
         @"(?:(?:C\.?I\.?F\.?|N\.?I\.?F\.?|C.digo\s+de\s+Empresario)\s*[:\.]?\s*\d{0,4}[\-\.\s]?(?<valor>(?:[A-HJNP-SUVW]\d{7}[0-9A-J]|\d{8}[A-Z]|[XYZ]\d{7}[A-Z]))(?![A-Z0-9]))" +
