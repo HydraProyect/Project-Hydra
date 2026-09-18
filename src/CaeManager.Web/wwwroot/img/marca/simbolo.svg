@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Talveg">
-  <!-- La ladera: perfil del valle en corte -->
-  <path d="M9 8 L32 52 L55 8" fill="none" stroke="#122A21" stroke-width="6" stroke-linejoin="miter"/>
-  <!-- El cauce: la línea de mayor profundidad, el talweg -->
-  <path d="M20.5 8 L32 30 L43.5 8" fill="none" stroke="#8FC7BC" stroke-width="6" stroke-linejoin="miter"/>
-</svg>

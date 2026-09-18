@@ -18,29 +18,79 @@
     align-items: center;
     gap: var(--space-2);
     padding: 0 var(--space-5);
-    font: var(--font-heading-sm);
-    color: var(--color-primary-500);
     border-bottom: var(--border-default);
 }
 
-.marca-simbolo {
+.marca-wordmark {
     flex-shrink: 0;
-}
-
-/* .barra-lateral usa --color-surface, que cambia de blanco (tema claro) a
-   #17212C (tema oscuro, ver tokens.css): un solo símbolo estático se volvería
-   invisible en uno de los dos fondos, así que se alternan los dos activos de
-   marca ya pensados para cada caso en vez de teñir uno con currentColor. */
-.marca-simbolo-oscuro {
-    display: none;
-}
-
-:root[data-theme='oscuro'] .marca-simbolo-claro {
-    display: none;
-}
-
-:root[data-theme='oscuro'] .marca-simbolo-oscuro {
     display: block;
+    height: 22px;
+    width: auto;
+}
+
+/*
+  .barra-lateral usa --color-surface, que cambia de blanco (tema claro) a
+  #17212C (tema oscuro, ver tokens.css): un solo wordmark estático se
+  volvería invisible en uno de los dos fondos, así que se alterna entre
+  lockup-claro.svg y lockup-oscuro.svg. Tres niveles, de menos a más
+  prioridad:
+
+  1. Por defecto (nada de lo de abajo aplica) se ve el claro — cubre el
+     primer render, antes de que el script de SelectorTema escriba
+     data-theme en <html>, y hoy también "sistema" en el resto de la app
+     (tokens.css apagó a propósito el @media que lo seguía automáticamente).
+  2. prefers-color-scheme sigue el tema del sistema operativo cuando no hay
+     una elección explícita del usuario (data-theme ausente, o con el valor
+     literal "sistema", que no coincide con ningún selector de abajo).
+  3. data-theme='claro'/'oscuro' explícito (SelectorTema) manda siempre
+     sobre el sistema operativo: estas reglas combinan atributo + clase y
+     ganan en especificidad a la media query de arriba pase lo que pase.
+*/
+.marca-wordmark-oscuro {
+    display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+    .marca-wordmark-claro {
+        display: none;
+    }
+
+    .marca-wordmark-oscuro {
+        display: block;
+    }
+}
+
+:root[data-theme='claro'] .marca-wordmark-claro {
+    display: block;
+}
+
+:root[data-theme='claro'] .marca-wordmark-oscuro {
+    display: none;
+}
+
+:root[data-theme='oscuro'] .marca-wordmark-claro {
+    display: none;
+}
+
+:root[data-theme='oscuro'] .marca-wordmark-oscuro {
+    display: block;
+}
+
+/* Etiqueta "CAE" junto al wordmark. Texto real, no una imagen, para que un
+   lector de pantalla la anuncie tal cual. 11px/letter-spacing/padding son
+   la medida exacta de la maqueta elegida (opción D): no hay token de
+   tamaño que coincida, así que van literales — igual que .badge-visita
+   (list-page.css) ya hace con su font-size cuando --font-label-md no
+   encaja. El color y el borde sí son tokens del producto, nunca hex. */
+.marca-etiqueta {
+    flex-shrink: 0;
+    font: var(--font-label-md);
+    font-size: 11px;
+    letter-spacing: .08em;
+    color: var(--color-text-muted);
+    border: var(--border-default);
+    border-radius: 4px;
+    padding: 3px 5px;
 }
 
 .area-principal {

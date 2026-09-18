@@ -18,10 +18,11 @@ using Opciones = Microsoft.Extensions.Options.Options;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// El símbolo TALVEG de la cabecera del menú lateral (petición del propietario,
-/// 2026-09-18, con capturas): va delante de <c>@Marca.Nombre</c>, no lo sustituye,
-/// y es decorativo porque el nombre justo al lado ya identifica la marca ante un
-/// lector de pantalla.
+/// Cabecera del menú lateral, opción D elegida por el propietario (2026-09-19)
+/// entre seis maquetas: el wordmark TALVEG sustituye al texto "CAE Manager", con
+/// una etiqueta "CAE" a su lado. <c>Marca.Nombre</c> no se toca (sigue siendo el
+/// nombre de títulos de pestaña y correos) — este cambio es solo lo que se pinta
+/// en <c>div.marca</c>.
 ///
 /// <para>
 /// Sin usuario autenticado, <c>MainLayout.OnParametersSetAsync</c> vuelve antes
@@ -50,24 +51,28 @@ public class MainLayoutMarcaTests : BunitContext
     }
 
     [Fact]
-    public void El_simbolo_va_delante_del_nombre_de_marca_y_es_decorativo()
+    public void El_wordmark_sustituye_al_texto_y_la_etiqueta_CAE_va_a_su_lado()
     {
         var cut = Render<MainLayout>();
 
         var marca = cut.Find("div.marca");
-        var hijos = marca.Children;
 
-        hijos.Length.Should().BeGreaterThanOrEqualTo(2);
-        hijos[0].TagName.Should().Be("IMG", "el símbolo debe pintarse antes que el nombre, no al revés");
-        hijos[0].GetAttribute("alt").Should().Be("",
-            "el nombre \"CAE Manager\" justo al lado ya identifica la marca: un lector de pantalla no debe anunciarlo dos veces");
+        marca.TextContent.Trim().Should().Be("CAE",
+            "el texto \"CAE Manager\" se sustituye por el wordmark: solo debe quedar texto real en la etiqueta");
+        marca.TextContent.Should().NotContain(Marca.PorDefecto,
+            "la opción D reemplaza el nombre en texto por el wordmark, a diferencia de la opción del símbolo");
 
-        marca.TextContent.Trim().Should().Be(Marca.PorDefecto,
-            "la petición fue añadir el símbolo delante, no sustituir el texto");
+        var wordmarks = marca.QuerySelectorAll("img.marca-wordmark");
+        wordmarks.Should().HaveCount(2);
+        wordmarks.Should().OnlyContain(img => img.GetAttribute("alt") == "TALVEG",
+            "sin un texto de marca al lado, el wordmark ya no es decorativo: debe anunciarse");
+
+        var etiqueta = cut.Find("span.marca-etiqueta");
+        etiqueta.TextContent.Should().Be("CAE", "la etiqueta es texto real, no una imagen");
     }
 
     [Fact]
-    public void Las_dos_variantes_del_simbolo_estan_presentes_para_alternar_por_tema()
+    public void Las_dos_variantes_del_wordmark_estan_presentes_para_alternar_por_tema()
     {
         var cut = Render<MainLayout>();
 
@@ -75,9 +80,9 @@ public class MainLayoutMarcaTests : BunitContext
 
         imagenes.Should().HaveCount(2, "una variante para fondo claro y otra para fondo oscuro");
         imagenes.Should().Contain(img =>
-            img.ClassList.Contains("marca-simbolo-claro") && img.GetAttribute("src") == "img/marca/simbolo.svg");
+            img.ClassList.Contains("marca-wordmark-claro") && img.GetAttribute("src") == "img/marca/talveg-lockup-claro.svg");
         imagenes.Should().Contain(img =>
-            img.ClassList.Contains("marca-simbolo-oscuro") && img.GetAttribute("src") == "img/marca/simbolo-inverso.svg");
+            img.ClassList.Contains("marca-wordmark-oscuro") && img.GetAttribute("src") == "img/marca/talveg-lockup-oscuro.svg");
     }
 
     private static UserManager<ApplicationUser> CrearUsuariosSinAlmacen() => new(
