@@ -68,16 +68,28 @@ echo "=== Caso 3: construcción del blob tal y como lo hace deploy.yml (regresi�
 # secretos de producción"); esta prueba fija ESE formato exacto de
 # construcción, no solo el resultado final.
 construir_blob_como_deploy_yml() {
+    # Recibe pares NOMBRE VALOR como argumentos — misma agregar() que
+    # .github/workflows/deploy.yml, incluida la guarda de salto de línea
+    # (hallazgo revisado tras la fusión de REC-014/P37, PR #707: la primera
+    # versión de esta prueba no la replicaba y no la habría detectado si
+    # alguien la quitaba del guion real por error).
     local blob=""
     agregar() {
         local nombre="$1" valor="$2"
         if [ -n "$valor" ]; then
+            case "$valor" in
+                *$'\n'*)
+                    echo "::error::el secreto $nombre trae un salto de línea — este mecanismo solo admite valores de una sola línea (formato KEY=VALOR en .env)" >&2
+                    exit 1
+                    ;;
+            esac
             blob="${blob}${nombre}=${valor}"$'\n'
         fi
     }
-    agregar "Serilog__Seq__ApiKey" "seq-key-xyz"
-    agregar "Anthropic__ApiKey" "otro789"
-    agregar "Smtp__Contrasena" ""
+    while [ "$#" -ge 2 ]; do
+        agregar "$1" "$2"
+        shift 2
+    done
     printf '%s' "$blob"
 }
 
@@ -86,7 +98,7 @@ cat > "$FICHERO_ENV_SECRETOS_PRODUCCION" <<'ENVEOF'
 DOMINIO=app.talveg.es
 Anthropic__ApiKey=viejo123
 ENVEOF
-construir_blob_como_deploy_yml | actualizar_secretos_produccion
+construir_blob_como_deploy_yml "Serilog__Seq__ApiKey" "seq-key-xyz" "Anthropic__ApiKey" "otro789" "Smtp__Contrasena" "" | actualizar_secretos_produccion
 grep -qx "Anthropic__ApiKey='otro789'" "$FICHERO_ENV_SECRETOS_PRODUCCION" || { echo "FALLO: regresión del salto de línea literal — Anthropic__ApiKey no se actualizó" >&2; exit 1; }
 grep -qx "Serilog__Seq__ApiKey='seq-key-xyz'" "$FICHERO_ENV_SECRETOS_PRODUCCION" || { echo "FALLO: regresión del salto de línea literal — clave nueva no se añadió limpia" >&2; exit 1; }
 ! grep -q '^ ' "$FICHERO_ENV_SECRETOS_PRODUCCION" || { echo "FALLO: hay líneas con espacio inicial en .env (indentación arrastrada)" >&2; exit 1; }
@@ -165,5 +177,55 @@ printf 'Anthropic__ApiKey=sk-ant_api03.AB+cd/EF=: [email protected] con espacio\
 grep -qxF "Anthropic__ApiKey='sk-ant_api03.AB+cd/EF=: [email protected] con espacio'" "$FICHERO_ENV_SECRETOS_PRODUCCION" \
   || { echo "FALLO: un valor con caracteres seguros no se aceptó tal cual" >&2; cat "$FICHERO_ENV_SECRETOS_PRODUCCION" >&2; exit 1; }
 echo "OK: valor con puntuación segura aceptado y entrecomillado sin alterar"
+
+echo "=== Caso 8: secreto vacío en GitHub conserva el valor YA EXISTENTE en .env ==="
+# Hueco señalado en la revisión posterior a la fusión de REC-014/P37 (#707):
+# el caso 2 solo prueba "todo vacío = no-op total"; ninguno probaba el caso
+# real de un despliegue con secretos MIXTOS — algunos rotados, otros que el
+# propietario aún no cargó en el environment de GitHub. agregar() en
+# deploy.yml omite del blob cualquier valor vacío (secreto sin definir),
+# así que esa clave nunca llega a actualizar_secretos_produccion y su línea
+# en .env debe quedar EXACTAMENTE como estaba, sin tocar ni entrecomillar.
+export FICHERO_ENV_SECRETOS_PRODUCCION="$DIR/.env-caso8"
+cat > "$FICHERO_ENV_SECRETOS_PRODUCCION" <<'ENVEOF'
+DOMINIO=app.talveg.es
+Anthropic__ApiKey=valor-preexistente-sin-comillas
+ENVEOF
+construir_blob_como_deploy_yml "Anthropic__ApiKey" "" "Serilog__Seq__ApiKey" "nuevo-valor" | actualizar_secretos_produccion
+grep -qx 'Anthropic__ApiKey=valor-preexistente-sin-comillas' "$FICHERO_ENV_SECRETOS_PRODUCCION" \
+  || { echo "FALLO: un secreto vacío no conservó el valor ya existente en .env" >&2; cat "$FICHERO_ENV_SECRETOS_PRODUCCION" >&2; exit 1; }
+grep -qx "Serilog__Seq__ApiKey='nuevo-valor'" "$FICHERO_ENV_SECRETOS_PRODUCCION" \
+  || { echo "FALLO: la clave con valor sí enviada no se actualizó" >&2; exit 1; }
+echo "OK: secreto vacío no toca la clave existente; secreto con valor sí se actualiza"
+
+echo "=== Caso 9: agregar() rechaza un valor con salto de línea interno (igual que en deploy.yml) ==="
+# Contraparte del caso 3: fija que la GUARDA de deploy.yml contra saltos de
+# línea (no el bug de formato del propio YAML, ya cubierto arriba) también
+# está presente en la copia de agregar() que usa esta prueba — si alguien la
+# quita de deploy.yml por error, este caso debe dejar de pasar.
+if SALIDA9="$(construir_blob_como_deploy_yml "Anthropic__ApiKey" "$(printf 'linea1\nlinea2')" 2>&1)"; then
+  echo "FALLO: agregar() aceptó un valor con salto de línea interno" >&2
+  exit 1
+fi
+printf '%s' "$SALIDA9" | grep -q "trae un salto de línea" || { echo "FALLO: no avisó por qué rechazó el salto de línea" >&2; printf '%s' "$SALIDA9" >&2; exit 1; }
+echo "OK: valor con salto de línea interno rechazado con aviso claro"
+
+echo "=== Caso 10: CLAVES_PERMITIDAS_SECRETOS_PRODUCCION (ci-deploy.sh) sincronizada con agregar() (deploy.yml) ==="
+# Hueco señalado en la revisión posterior a la fusión de #707: nada
+# comprobaba que las dos listas coincidieran. Si divergen, el primer secreto
+# fuera de la lista blanca hace que actualizar_secretos_produccion rechace
+# el envío ENTERO (caso 4) — y como este paso corre en el job
+# "aprobacion-produccion", del que depende "produccion", una divergencia
+# bloquearía TODOS los despliegues a producción siguientes, no solo el de
+# ese secreto, hasta que alguien lo detecte y corrija a mano.
+FICHERO_DEPLOY_YML="$DIR_GUION/../.github/workflows/deploy.yml"
+CLAVES_DEPLOY_YML="$(grep -oE '^ *agregar "[A-Za-z0-9_]+"' "$FICHERO_DEPLOY_YML" | sed -E 's/^ *agregar "//; s/"$//' | sort)"
+CLAVES_CI_DEPLOY="$(printf '%s' "$CLAVES_PERMITIDAS_SECRETOS_PRODUCCION" | sed '/^$/d' | sort)"
+if [ "$CLAVES_DEPLOY_YML" != "$CLAVES_CI_DEPLOY" ]; then
+  echo "FALLO: CLAVES_PERMITIDAS_SECRETOS_PRODUCCION (ci-deploy.sh) y las claves de agregar() en deploy.yml han divergido:" >&2
+  diff <(printf '%s\n' "$CLAVES_CI_DEPLOY") <(printf '%s\n' "$CLAVES_DEPLOY_YML") >&2 || true
+  exit 1
+fi
+echo "OK: las dos listas coinciden exactamente ($(printf '%s\n' "$CLAVES_CI_DEPLOY" | grep -c .) claves)"
 
 echo "TODAS LAS PRUEBAS PASARON"
