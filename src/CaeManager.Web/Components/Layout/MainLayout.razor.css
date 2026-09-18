@@ -23,6 +23,26 @@
     border-bottom: var(--border-default);
 }
 
+.marca-simbolo {
+    flex-shrink: 0;
+}
+
+/* .barra-lateral usa --color-surface, que cambia de blanco (tema claro) a
+   #17212C (tema oscuro, ver tokens.css): un solo símbolo estático se volvería
+   invisible en uno de los dos fondos, así que se alternan los dos activos de
+   marca ya pensados para cada caso en vez de teñir uno con currentColor. */
+.marca-simbolo-oscuro {
+    display: none;
+}
+
+:root[data-theme='oscuro'] .marca-simbolo-claro {
+    display: none;
+}
+
+:root[data-theme='oscuro'] .marca-simbolo-oscuro {
+    display: block;
+}
+
 .area-principal {
     flex: 1;
     display: flex;

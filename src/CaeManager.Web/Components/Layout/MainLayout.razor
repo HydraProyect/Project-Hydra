@@ -2,7 +2,16 @@
 
 <div class="shell">
     <aside class="barra-lateral">
-        <div class="marca">@Marca.Nombre</div>
+        <div class="marca">
+            @* Decorativo: el nombre justo al lado ya identifica la marca ante un lector de
+               pantalla. simbolo.svg (tinta verde/celeste) para fondo claro y simbolo-inverso.svg
+               (tinta marfil/celeste) para fondo oscuro — simbolo-mono.svg queda descartado porque
+               el README de marca lo reserva para reproducción física a una tinta (sello, grabado,
+               bordado), no para adaptarse a un tema de interfaz. *@
+            <img src="img/marca/simbolo.svg" alt="" class="marca-simbolo marca-simbolo-claro" width="20" height="20" />
+            <img src="img/marca/simbolo-inverso.svg" alt="" class="marca-simbolo marca-simbolo-oscuro" width="20" height="20" />
+            @Marca.Nombre
+        </div>
         <NavMenu />
     </aside>
 

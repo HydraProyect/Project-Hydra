@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="Talveg">
+  <rect width="32" height="32" rx="7" fill="#122A21"/>
+  <path d="M6 8 L16 27 L26 8" fill="none" stroke="#F2EEE1" stroke-width="3.4" stroke-linejoin="miter"/>
+  <path d="M11 8 L16 17.5 L21 8" fill="none" stroke="#8FC7BC" stroke-width="3.4" stroke-linejoin="miter"/>
+</svg>
