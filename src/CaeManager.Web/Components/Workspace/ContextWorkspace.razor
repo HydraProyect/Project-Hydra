@@ -330,7 +330,15 @@
 
         await LiberarTrampaFocoAsync();
 
-        if (_moduloClipboard is not null)
+        if (_moduloClipboard is null) return;
+
+        try
+        {
             await _moduloClipboard.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+            // El circuito ya se cerró: no hay módulo que liberar.
+        }
     }
 }
