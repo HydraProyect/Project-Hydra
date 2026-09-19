@@ -1,7 +1,24 @@
+/* Una carga que termina en menos de ~200 ms no debe enseñar nada: un esqueleto
+   que aparece y desaparece en un fotograma se lee como un fallo, no como una
+   espera. Ocupa su sitio desde el primer momento (sin salto de maquetación)
+   pero es transparente hasta pasado el retardo; si el contenido llega antes,
+   se retira sin haberse llegado a ver. Es solo CSS: el retardo corre en el
+   navegador y no depende del circuito Blazor. `prefers-reduced-motion` apaga
+   el brillo, no el retardo: aparecer con un cambio de opacidad no es movimiento. */
 .esqueleto-lista {
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
+    animation: esqueleto-aparece 0s linear 200ms both;
+}
+
+@keyframes esqueleto-aparece {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
 }
 
 .esqueleto-fila {
@@ -23,5 +40,11 @@
     }
     100% {
         background-position: 0 50%;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .esqueleto-fila {
+        animation: none;
     }
 }
