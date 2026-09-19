@@ -872,9 +872,17 @@ app.MapWebhookStripeEndpoints();
 // API pública v1 (P3-29) — solo lectura, no publicada todavía. Un único
 // grupo con la política de auth/rate-limit aplicada una vez, en vez de por
 // endpoint: ningún MapXxxApiEndpoints necesita saber que existen.
+//
+// P41c: quien llama con una ClaveApi es una integración externa, no una persona,
+// y el handler de la clave mete el Id de la clave como NameIdentifier, así que
+// sin este filtro cualquier escritura futura de este grupo se auditaría como
+// `Persona`. Hoy el grupo solo mapea GET y sus consultas no escriben (medido
+// sobre este mismo bloque y sobre las cuatro queries por Id), de modo que el
+// filtro no corrige ninguna fila: cierra la puerta a la primera que llegue.
 var apiV1 = app.MapGroup("/api/v1")
     .RequireAuthorization("ApiPublica")
-    .RequireRateLimiting("ApiPublica");
+    .RequireRateLimiting("ApiPublica")
+    .AddEndpointFilter<ActorIntegracionExternaEndpointFilter>();
 apiV1.MapClientesApiEndpoints();
 apiV1.MapCentrosApiEndpoints();
 apiV1.MapTrabajadoresApiEndpoints();

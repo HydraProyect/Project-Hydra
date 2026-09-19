@@ -115,11 +115,15 @@ public class RegistroAccesoDocumentoSensible : EntidadConTenant
     public Guid? ViaAccesoId { get; private set; }
 
     /// <summary>
-    /// Qué clase de actor accedió: una persona, la propia plataforma o un
-    /// tercero con clave de API. Eje <b>ortogonal</b> a <see cref="ViaAcceso"/>,
-    /// y el mismo enum que <see cref="RegistroAuditoria.TipoActor"/> — el acceso
-    /// a un documento con datos de salud por un barrido automático y por un
-    /// gestor son hechos distintos, y hasta este eje la tabla no los separaba.
+    /// Qué clase de actor accedió. Eje <b>ortogonal</b> a <see cref="ViaAcceso"/>,
+    /// y el mismo enum que <see cref="RegistroAuditoria.TipoActor"/>.
+    ///
+    /// Hoy lo que llega aquí es, en la práctica, <c>Persona</c>: los procesos
+    /// automáticos no se registran en esta tabla a propósito (ver el comentario
+    /// de la clase, DEC-36), así que <c>Sistema</c> no debería aparecer. El eje
+    /// existe igualmente para que, si alguna vez un tercero con clave de API o
+    /// un proceso pasa por el registro de acceso, la fila lo diga en vez de
+    /// hacerse pasar por una persona.
     ///
     /// No anulable, con <c>Desconocido</c> en las filas anteriores a esta
     /// columna.
@@ -149,10 +153,9 @@ public class RegistroAccesoDocumentoSensible : EntidadConTenant
         Guid? actorRealUsuarioId,
         TipoViaAccesoAuditoria viaAcceso,
         Guid? viaAccesoId,
-        // Opcional solo por los tests que insertan filas sintéticas, para las
-        // que Desconocido es la verdad; el único llamador de producción
-        // —RegistroAccesoDocumentoSensibleService— lo pasa siempre.
-        TipoActorAuditoria tipoActor = TipoActorAuditoria.Desconocido)
+        // Obligatorio: un defecto dejaría que un llamador nuevo escribiera
+        // `Desconocido` por olvido, sin que nada lo señalara.
+        TipoActorAuditoria tipoActor)
     {
         if (documentoId == Guid.Empty)
             throw new ArgumentException("El registro de acceso debe identificar el Documento accedido.", nameof(documentoId));

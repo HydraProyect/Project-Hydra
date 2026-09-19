@@ -1,10 +1,12 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Empresas;
+using CaeManager.Infrastructure.Autenticacion;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Seed;
 using CaeManager.IntegrationTests.Arranque;
 using FluentAssertions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
@@ -103,6 +105,93 @@ public class TipoActorDeAuditoriaBajoRuntimeTests
     /// altera, pero "no debería" y "no lo hace" son afirmaciones distintas, y
     /// esta tabla es la que ya se rompió una vez contra su propia política.
     /// </summary>
+    /// <summary>
+    /// El caso de Stripe, medido: un webhook es <c>AllowAnonymous</c>, no hay
+    /// identidad de sesión, y sin el filtro su escritura caía en
+    /// <c>Desconocido</c>. Con el filtro del grupo, la misma escritura queda como
+    /// integración externa.
+    /// </summary>
+    [Fact]
+    public async Task Un_webhook_anonimo_bajo_el_filtro_de_grupo_queda_como_IntegracionExterna()
+    {
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
+
+        await EjecutarBajoElFiltroAsync(() => EscribirEmpresaAsync(arnes, "Webhook auditado", "B12345674"));
+
+        var registro = await ObtenerRegistroDeEmpresaAsync(arnes.CadenaPropietario);
+
+        registro.TipoActor.Should().Be(TipoActorAuditoria.IntegracionExterna,
+            "lo escribe el sistema de un tercero acreditado por firma, no una persona sin identificar");
+    }
+
+    /// <summary>
+    /// El caso que el filtro previene en <c>/api/v1</c>: con clave de API el handler
+    /// mete el Id de la CLAVE como identidad, y sin ámbito declarado esa escritura
+    /// se resolvería como <c>Persona</c>. El actor resuelto es el mismo que en el
+    /// test de Persona; solo cambia el filtro, y eso es lo que hace concluyente la
+    /// comparación.
+    /// </summary>
+    [Fact]
+    public async Task Una_llamada_con_clave_de_API_bajo_el_filtro_no_pasa_por_Persona()
+    {
+        var idDeLaClave = Guid.NewGuid();
+
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(
+            datosDePruebaActivos: false,
+            actorAuditoriaPersonalizado: new ActorFijo(ActorAuditoria.Normal(idDeLaClave)));
+
+        await EjecutarBajoElFiltroAsync(() => EscribirEmpresaAsync(arnes, "Clave auditada", "B12345674"));
+
+        var registro = await ObtenerRegistroDeEmpresaAsync(arnes.CadenaPropietario);
+
+        registro.TipoActor.Should().Be(TipoActorAuditoria.IntegracionExterna,
+            "el ámbito declarado manda sobre la identidad resuelta");
+    }
+
+    /// <summary>
+    /// Lo que este test SÍ observa: durante la petición el ámbito está declarado, y
+    /// después el hilo que llamó no lo ve. Lo que NO observa —y una mutación sin
+    /// <c>using</c> en el filtro lo demostró: seguía verde— es que el <c>using</c>
+    /// del filtro libere el ámbito. No es observable desde fuera de un método
+    /// <c>async</c>: el contexto de ejecución del llamador queda aislado de lo que
+    /// el método asigne a un <c>AsyncLocal</c>, con o sin <c>using</c>. La liberación
+    /// del propio ámbito la prueba <c>AmbitoActorAuditoriaTests</c>, donde sí se
+    /// puede observar.
+    /// </summary>
+    [Fact]
+    public async Task El_filtro_declara_el_ambito_durante_la_peticion_y_no_lo_deja_en_el_hilo_que_llama()
+    {
+        AmbitoActorAuditoria.TipoActorActual.Should().BeNull("punto de partida: ningún ámbito declarado");
+
+        var filtro = new ActorIntegracionExternaEndpointFilter();
+        var contexto = new DefaultEndpointFilterInvocationContext(new DefaultHttpContext());
+
+        TipoActor? dentro = null;
+        var accion = async () => await filtro.InvokeAsync(contexto, _ =>
+        {
+            dentro = AmbitoActorAuditoria.TipoActorActual;
+            throw new InvalidOperationException("el endpoint falla");
+        });
+
+        await accion.Should().ThrowAsync<InvalidOperationException>();
+
+        dentro.Should().Be(TipoActor.IntegracionExterna, "durante la petición el ámbito está declarado");
+        AmbitoActorAuditoria.TipoActorActual.Should().BeNull(
+            "ni siquiera un endpoint que lance deja el ámbito puesto en el hilo que llamó");
+    }
+
+    private static async Task EjecutarBajoElFiltroAsync(Func<Task> endpoint)
+    {
+        var filtro = new ActorIntegracionExternaEndpointFilter();
+        var contexto = new DefaultEndpointFilterInvocationContext(new DefaultHttpContext());
+
+        await filtro.InvokeAsync(contexto, async _ =>
+        {
+            await endpoint();
+            return null;
+        });
+    }
+
     [Fact]
     public async Task La_columna_nueva_no_deja_las_dos_tablas_sin_politica_de_aislamiento()
     {

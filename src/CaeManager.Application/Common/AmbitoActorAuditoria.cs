@@ -46,10 +46,12 @@ public static class AmbitoActorAuditoria
     public static IDisposable EstablecerSistema() => Establecer(TipoActor.Sistema);
 
     /// <summary>
-    /// Declara que lo que ocurra dentro lo hace un tercero con una
-    /// <c>ClaveApi</c>. Lo establece el handler de autenticación por clave, que
-    /// es el único punto del sistema que sabe que la credencial presentada no
-    /// era la de una persona.
+    /// Declara que lo que ocurra dentro lo hace un sistema de un tercero: una
+    /// llamada con <c>ClaveApi</c> o un webhook de proveedor. Lo establecen el
+    /// handler de autenticación por clave, para su propia escritura, y
+    /// <c>ActorIntegracionExternaEndpointFilter</c>, para toda la petición de
+    /// los grupos de endpoints de tercero. Son los únicos puntos que saben que
+    /// quien llama no es una persona.
     /// </summary>
     public static IDisposable EstablecerIntegracionExterna() => Establecer(TipoActor.IntegracionExterna);
 

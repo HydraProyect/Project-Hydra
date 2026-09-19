@@ -2,6 +2,7 @@ using System.Text;
 using CaeManager.Application.Comercial.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
+using CaeManager.Infrastructure.Autenticacion;
 using CaeManager.Web.Api.Integraciones;
 using Microsoft.EntityFrameworkCore;
 
@@ -42,7 +43,13 @@ public static class WebhookStripeEndpoints
 {
     public static IEndpointRouteBuilder MapWebhookStripeEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        var grupo = endpoints.MapGroup("/api/comercial/webhooks/stripe").AllowAnonymous();
+        // P41c: el llamador es un sistema de un tercero, no una persona, y este
+        // endpoint es anónimo —no hay identidad de sesión que lo delate—. El
+        // filtro va en el GRUPO para que ningún endpoint nuevo lo olvide; sin
+        // él, cada escritura de aquí se auditaba como `Desconocido`.
+        var grupo = endpoints.MapGroup("/api/comercial/webhooks/stripe")
+            .AllowAnonymous()
+            .AddEndpointFilter<ActorIntegracionExternaEndpointFilter>();
 
         grupo.MapPost("/", async (
             HttpRequest request,

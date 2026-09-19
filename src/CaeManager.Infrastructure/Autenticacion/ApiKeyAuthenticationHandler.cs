@@ -91,14 +91,20 @@ public class ApiKeyAuthenticationHandler(
             // ClaveApi acabaría en la columna de un usuario sin que nada lo
             // distinga.
             //
-            // El ámbito cubre EXACTAMENTE esta escritura, y hoy eso basta: la
-            // política "ApiPublica" no la usa ningún endpoint todavía (medido
-            // 2026-09-19 sobre Program.cs y los Features), así que
-            // `ClaveApi.RegistrarUso` es la única escritura auditable que puede
-            // producir una petición con clave. Cuando la API v1 tenga
-            // endpoints, el ámbito tendrá que abarcar la petición entera —un
-            // middleware tras UseAuthentication— porque una lectura suya sí
-            // puede escribir en RegistrosAccesoDocumentoSensible.
+            // El ámbito cubre EXACTAMENTE esta escritura, y hace falta porque la
+            // autenticación corre ANTES que cualquier filtro de endpoint: el filtro
+            // del grupo /api/v1 (ActorIntegracionExternaEndpointFilter) no llega
+            // hasta aquí. Lo que cuelga de ese grupo lo cubre el filtro; esto es
+            // solo la escritura del propio handler.
+            //
+            // Corrección (P41c, seguimiento): en el primer incremento este
+            // comentario afirmaba que la política "ApiPublica" no la usaba
+            // ningún endpoint. Era falso: Program.cs monta /api/v1 con ella (cinco
+            // grupos de endpoints). La medición había excluido Program.cs, que es
+            // justo donde está el uso. La conclusión práctica se mantiene —el grupo
+            // solo mapea GET y sus consultas no escriben, así que
+            // `ClaveApi.RegistrarUso` sigue siendo la única escritura auditable de
+            // una petición con clave—, pero la premisa era errónea.
             using var ambitoActor = AmbitoActorAuditoria.EstablecerIntegracionExterna();
             clave.RegistrarUso();
             await unitOfWork.SaveChangesAsync(Context.RequestAborted);

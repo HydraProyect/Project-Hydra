@@ -293,8 +293,11 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
 
             registros.Add(new RegistroAuditoria(
                 entidadTipo, entidadId, accion, datosAntes, datosDespues,
-                actor.UsuarioSimuladoId ?? actor.ActorRealUsuarioId,
-                actor.ActorRealUsuarioId, via, actor.ViaAccesoId, tipoActor));
+                usuarioId: actor.UsuarioSimuladoId ?? actor.ActorRealUsuarioId,
+                tipoActor: tipoActor,
+                actorRealUsuarioId: actor.ActorRealUsuarioId,
+                viaAcceso: via,
+                viaAccesoId: actor.ViaAccesoId));
         }
 
         return registros;

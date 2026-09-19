@@ -70,15 +70,16 @@ public class RegistroAuditoria : EntidadConTenant
         string? datosAntes,
         string? datosDespues,
         Guid? usuarioId,
+        // OBLIGATORIO, y por eso va antes de los opcionales (C# no admite un
+        // parámetro requerido detrás de uno con valor por defecto). Con un
+        // defecto, un llamador nuevo que olvidara pasarlo escribiría
+        // `Desconocido` sin que nada lo señalara — justo el hueco que este eje
+        // existe para cerrar. Una fila sintética de test que de verdad no sabe
+        // quién actuó lo dice de forma explícita con `TipoActorAuditoria.Desconocido`.
+        TipoActorAuditoria tipoActor,
         Guid? actorRealUsuarioId = null,
         TipoViaAccesoAuditoria? viaAcceso = null,
-        Guid? viaAccesoId = null,
-        // Opcional por los mismos tres de arriba: hay tests que insertan filas
-        // sintéticas para probar proyecciones y aislamiento, y para ellas
-        // Desconocido es la verdad. El único llamador de producción
-        // —AuditoriaInterceptor— lo pasa siempre, y es una mutación de esa línea
-        // la que lo mantiene así.
-        TipoActorAuditoria tipoActor = TipoActorAuditoria.Desconocido)
+        Guid? viaAccesoId = null)
     {
         EntidadTipo = entidadTipo;
         EntidadId = entidadId;

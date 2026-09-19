@@ -81,7 +81,7 @@ public class AuditoriaProyeccionSqlTests : IAsyncLifetime
         await using (var contextoEscritura = CrearContexto())
         {
             contextoEscritura.RegistrosAuditoria.Add(new RegistroAuditoria(
-                entidadTipo, entidadId, accion, datosAntes, datosDespues, usuarioId: null));
+                entidadTipo, entidadId, accion, datosAntes, datosDespues, usuarioId: null, tipoActor: TipoActorAuditoria.Desconocido));
             await contextoEscritura.SaveChangesAsync();
         }
 
@@ -145,7 +145,7 @@ public class AuditoriaProyeccionSqlTests : IAsyncLifetime
             empresaId = empresa.Id;
 
             contextoEscritura.RegistrosAuditoria.Add(new RegistroAuditoria(
-                "Cliente", empresaId, "Modificado", datosAntes: null, datosDespues, usuarioId: null));
+                "Cliente", empresaId, "Modificado", datosAntes: null, datosDespues, usuarioId: null, tipoActor: TipoActorAuditoria.Desconocido));
             await contextoEscritura.SaveChangesAsync();
         }
 
@@ -223,7 +223,7 @@ public class AuditoriaProyeccionSqlTests : IAsyncLifetime
         await using (var contextoEscritura = CrearContexto())
         {
             contextoEscritura.RegistrosAuditoria.Add(new RegistroAuditoria(
-                "RolDeUsuario", entidadId, accion, datosAntes, datosDespues, usuarioId: null));
+                "RolDeUsuario", entidadId, accion, datosAntes, datosDespues, usuarioId: null, tipoActor: TipoActorAuditoria.Desconocido));
             await contextoEscritura.SaveChangesAsync();
         }
 
@@ -254,7 +254,7 @@ public class AuditoriaProyeccionSqlTests : IAsyncLifetime
         {
             contextoEscritura.RegistrosAuditoria.Add(new RegistroAuditoria(
                 "Usuario", entidadId, "Modificado", datosAntes: null,
-                $$"""{"RoleId":"{{rolId}}"}""", usuarioId: null));
+                $$"""{"RoleId":"{{rolId}}"}""", usuarioId: null, tipoActor: TipoActorAuditoria.Desconocido));
             await contextoEscritura.SaveChangesAsync();
         }
 

@@ -49,10 +49,17 @@ public enum TipoActorAuditoria
     Sistema = 2,
 
     /// <summary>
-    /// Un tercero llamando a la API pública con una <c>ClaveApi</c>. No es una
-    /// persona autenticada ni un proceso propio: es una organización externa
-    /// con una credencial, y la auditoría del tenant tiene derecho a
-    /// distinguirlo de su propio personal.
+    /// Un sistema de un tercero llamando a TALVEG: la API pública con una
+    /// <c>ClaveApi</c>, o un webhook de proveedor (Stripe, Microsoft 365,
+    /// WhatsApp) acreditado por firma o <c>clientState</c>. No es una persona
+    /// autenticada ni un proceso propio, y la auditoría del tenant tiene
+    /// derecho a distinguirlo de su propio personal.
+    ///
+    /// <para>
+    /// <b>No es</b> una persona que aún no ha iniciado sesión —quien hace login,
+    /// restablece su contraseña o vuelve del SSO—: ese humano sin identificar
+    /// sigue siendo <see cref="Desconocido"/>.
+    /// </para>
     /// </summary>
     IntegracionExterna = 3
 }
