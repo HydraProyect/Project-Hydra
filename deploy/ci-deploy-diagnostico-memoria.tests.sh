@@ -146,4 +146,47 @@ LINEA_PREVIO="$(grep -n '^    volcar_pico_memoria_previo$' "$FICHERO_FUENTE" | h
     || { echo "FALLO: la llamada (línea $LINEA_PREVIO) no está entre el inicio de volcar_diagnostico_si_falla ($LINEA_FUNC) y el build ($LINEA_BUILD) — mediría contenedores ya reemplazados" >&2; exit 1; }
 echo "OK: la llamada (línea $LINEA_PREVIO) va antes del build (línea $LINEA_BUILD)"
 
+echo "=== Caso 7: contadores del host (PSI, oom_kill) de un /proc falso ==="
+PROC_FALSO="$(mktemp -d)"
+trap 'rm -rf "$RAIZ_CGROUP" "$PROC_FALSO"' EXIT
+mkdir -p "$PROC_FALSO/pressure"
+printf '%s\n' "some avg10=0.00 avg60=0.10 avg300=0.20 total=777" "full avg10=0.00 avg60=0.00 avg300=0.00 total=55" > "$PROC_FALSO/pressure/memory"
+printf '%s\n' "nr_free_pages 1" "oom_kill 3" "pgmajfault 4242" "allocstall_normal 9" "otra_cosa 1" > "$PROC_FALSO/vmstat"
+printf '%s\n' "12345.67 9999.00" > "$PROC_FALSO/uptime"
+SALIDA7="$(RAIZ_PROC="$PROC_FALSO" volcar_contadores_memoria_host "prueba" 2>&1)"
+echo "$SALIDA7" | grep -q "Contadores de memoria del host (prueba)" \
+    || { echo "FALLO: falta la cabecera con la etapa" >&2; echo "$SALIDA7" >&2; exit 1; }
+echo "$SALIDA7" | grep -q "some avg10=0.00 avg60=0.10 avg300=0.20 total=777" \
+    || { echo "FALLO: PSI no llegó al log" >&2; echo "$SALIDA7" >&2; exit 1; }
+echo "$SALIDA7" | grep -q "oom_kill 3" \
+    || { echo "FALLO: oom_kill de /proc/vmstat no llegó al log" >&2; echo "$SALIDA7" >&2; exit 1; }
+echo "$SALIDA7" | grep -q "uptime_s: 12345.67" \
+    || { echo "FALLO: uptime no llegó al log" >&2; echo "$SALIDA7" >&2; exit 1; }
+if echo "$SALIDA7" | grep -q "otra_cosa"; then
+    echo "FALLO: se volcó un contador que no se pidió" >&2; exit 1
+fi
+echo "OK: PSI, oom_kill y uptime llegan al log"
+
+echo "=== Caso 8: sin /proc/pressure ni vmstat (kernel sin PSI) no tumba el despliegue ==="
+echo "(si el test muere en esta línea, volcar_contadores_memoria_host NO tolera la ausencia de ficheros)"
+SALIDA8="$(RAIZ_PROC="$PROC_FALSO/no-existe" volcar_contadores_memoria_host "sin psi" 2>&1)"
+echo "$SALIDA8" | grep -q "sin PSI" \
+    || { echo "FALLO: no avisa de que falta PSI" >&2; echo "$SALIDA8" >&2; exit 1; }
+rm -f "$PROC_FALSO/vmstat"
+echo "(idem con /proc/vmstat sin coincidencias)"
+printf '%s\n' "solo_otra_cosa 1" > "$PROC_FALSO/vmstat"
+SALIDA8B="$(RAIZ_PROC="$PROC_FALSO" volcar_contadores_memoria_host "sin coincidencias" 2>&1)"
+echo "OK: ausencia de PSI y grep sin coincidencias se toleran"
+
+echo "=== Caso 9: los contadores se vuelcan antes del despliegue, tras el build (antes del up) y tras el up ==="
+LINEA_TRAS_BUILD="$(grep -n 'volcar_contadores_memoria_host "tras el build"' "$FICHERO_FUENTE" | head -1 | cut -d: -f1)"
+[ -n "$LINEA_TRAS_BUILD" ] || { echo "FALLO: falta el volcado 'tras el build'" >&2; exit 1; }
+[ "$LINEA_TRAS_BUILD" -gt "$LINEA_BUILD" ] && [ "$LINEA_TRAS_BUILD" -lt "$LINEA_UP" ] \
+    || { echo "FALLO: 'tras el build' (línea $LINEA_TRAS_BUILD) no está entre el build ($LINEA_BUILD) y el up ($LINEA_UP)" >&2; exit 1; }
+grep -q 'volcar_contadores_memoria_host "antes del despliegue"' "$FICHERO_FUENTE" \
+    || { echo "FALLO: falta el volcado 'antes del despliegue'" >&2; exit 1; }
+grep -q 'volcar_contadores_memoria_host "tras el despliegue"' "$FICHERO_FUENTE" \
+    || { echo "FALLO: falta el volcado 'tras el despliegue'" >&2; exit 1; }
+echo "OK: tres puntos de lectura, el del build entre build y up"
+
 echo "TODAS LAS PRUEBAS PASARON"

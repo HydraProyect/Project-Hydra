@@ -326,6 +326,34 @@ volcar_diagnostico_memoria() {
     echo "=== Diagnóstico de memoria (REC-198/P33) ==="
     free -h
     docker stats --no-stream --format 'table {{.Name}}\t{{.MemUsage}}\t{{.MemPerc}}'
+    volcar_contadores_memoria_host "tras el despliegue"
+}
+
+# Contadores de memoria del HOST, acumulados desde el arranque: PSI
+# (/proc/pressure/memory, microsegundos de espera por memoria) y, de
+# /proc/vmstat, `oom_kill` (veces que el OOM killer actuó en la máquina,
+# sea contra el contenedor que sea) y los de recuperación directa. Se
+# vuelcan antes del despliegue, tras el build y tras el `up`: la resta entre
+# dos puntos dice si el build (que corre con el stack ya sirviendo) provocó
+# esperas o una muerte por OOM, cosa que ni `free` ni `docker stats` ven. Solo
+# lectura; RAIZ_PROC existe solo para que el test apunte a un /proc falso.
+volcar_contadores_memoria_host() {
+    local etapa="$1" raiz="${RAIZ_PROC:-/proc}"
+    echo "--- Contadores de memoria del host (${etapa}) ---"
+    if [ -r "$raiz/pressure/memory" ]; then
+        tr '\n' ' ' < "$raiz/pressure/memory" || true
+        echo
+    else
+        echo "(sin PSI en $raiz/pressure/memory)"
+    fi
+    if [ -r "$raiz/vmstat" ]; then
+        { grep -E '^(oom_kill|allocstall_normal|allocstall_movable|pgmajfault|pswpout) ' "$raiz/vmstat" | tr '\n' ' '; } || true
+        echo
+    fi
+    if [ -r "$raiz/uptime" ]; then
+        echo "uptime_s: $(cut -d' ' -f1 "$raiz/uptime" || true)"
+    fi
+    return 0
 }
 
 # Segundo volcado de solo lectura para REC-196/REC-198 (techos de memoria):
@@ -342,6 +370,7 @@ volcar_diagnostico_memoria() {
 volcar_pico_memoria_previo() {
     echo "=== Memoria ANTES del despliegue (REC-196/P33): pico de vida de los contenedores que se van a reemplazar ==="
     free -m || true
+    volcar_contadores_memoria_host "antes del despliegue"
     timeout 20 docker stats --no-stream --format 'table {{.Name}}\t{{.MemUsage}}\t{{.MemPerc}}' || true
     local contenedor
     for contenedor in $(timeout 20 docker ps --format '{{.Names}}' 2>/dev/null | grep '^caemanager-' || true); do
@@ -472,8 +501,10 @@ volcar_diagnostico_si_falla() {
     # ejecutar. El techo de memoria de abajo sigue acotando UN build a la vez.
     if ! DOCKER_BUILDKIT=0 docker compose "${args[@]}" build -m "$LIMITE_MEMORIA_BUILD"; then
         echo "=== Build no completó dentro del techo de memoria (LIMITE_MEMORIA_BUILD=$LIMITE_MEMORIA_BUILD) — contenido a su propio cgroup, el resto del stack sigue sirviendo ===" >&2
+        volcar_contadores_memoria_host "build fallido"
         exit 1
     fi
+    volcar_contadores_memoria_host "tras el build"
 
     if ! docker compose "${args[@]}" up -d --wait --wait-timeout 180; then
         echo "=== Despliegue no llego a sano — estado de los contenedores ===" >&2
