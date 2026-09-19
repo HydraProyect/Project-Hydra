@@ -172,12 +172,18 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
         // Solo se propaga una vez por SaveChanges, y solo cuando hace falta:
         // un roundtrip extra a Postgres por cada fila auditada de Identity
         // sería desperdiciado si dos filas del mismo lote resuelven el mismo
-        // tenant, que es el caso único que hoy produce este código (una sola
-        // ApplicationUser por SaveChanges). Si algún día un mismo SaveChanges
+        // tenant, que es el caso único que hoy produce este código (todas las
+        // filas de Identity de un SaveChanges pertenecen a la MISMA cuenta:
+        // UserManager opera sobre un ApplicationUser a la vez, y sus roles,
+        // logins y tokens cuelgan de él). Si algún día un mismo SaveChanges
         // auditara cuentas de DOS tenants distintos a la vez, esta variable
-        // de sesión solo reflejaría la última — no ocurre hoy (UserManager
-        // opera sobre un ApplicationUser a la vez) y queda fuera de alcance
-        // ampliarlo sin que aparezca un caso real.
+        // de sesión solo reflejaría la última y RLS rechazaría las demás con
+        // 42501 —la política compara contra un único app.tenant_id por
+        // conexión—; el lote entero se revertiría, así que sería un fallo
+        // ruidoso, no una fila sellada con el tenant equivocado. Confirmado
+        // por la revisión de Codex de la misión N6/V4, que no encontró
+        // ningún camino de producción que construya ese lote: queda fuera de
+        // alcance ampliarlo sin que aparezca un caso real.
         Guid? tenantYaPropagadoARls = null;
 
         // ToList: la rama de reclasificación de abajo cambia el State de una

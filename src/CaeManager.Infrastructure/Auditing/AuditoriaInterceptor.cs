@@ -68,6 +68,22 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
     /// nombres viven en <see cref="EntidadTipoAuditoria"/> (Domain) porque
     /// también los consumen <c>TenantSelladoInterceptor</c> y la pantalla
     /// /auditoria — ver el comentario de esa clase.
+    ///
+    /// <para>
+    /// <b>Hueco declarado, no olvido: las bajas en cascada</b> (hallazgo de la
+    /// revisión de Codex, misión N6/V4). Este interceptor solo ve lo que está
+    /// en el <c>ChangeTracker</c>, y las tres tablas de relación cuelgan de
+    /// <c>AspNetUsers</c> con <c>ON DELETE CASCADE</c> (migración
+    /// <c>LineaBase</c>). Cuando algo borra una cuenta sin cargar antes sus
+    /// roles, sus logins y sus tokens —hoy, <c>RetiradaTenantDemoService</c>—,
+    /// PostgreSQL borra esas filas sin que EF llegue a verlas: queda auditada
+    /// la baja de la cuenta ("Usuario / Eliminado") pero no la de cada fila
+    /// dependiente. No lo abre este cambio: es el mismo hueco que tiene
+    /// "RolDeUsuario" desde #704, y se acepta con el mismo criterio —
+    /// desaparecen porque desapareció la cuenta, y esa sí deja rastro. Cerrarlo
+    /// exigiría que quien borra cargue las dependientes, y eso es un cambio de
+    /// ese servicio, no de este interceptor.
+    /// </para>
     /// </summary>
     public static readonly IReadOnlyDictionary<Type, string> TiposDeIdentidadAuditados =
         new Dictionary<Type, string>
