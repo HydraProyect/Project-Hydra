@@ -4,6 +4,8 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas.Commands.CrearEmpresa;
 using CaeManager.Application.Empresas.Commands.EliminarEmpresa;
+using CaeManager.Application.Empresas.Commands.EliminarEmpresas;
+using CaeManager.Application.Clientes.Commands.EliminarClientes;
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
@@ -85,6 +87,7 @@ public class EmpresasListaGen2Tests : BunitContext
             ObtenerClientesParaSelectorQuery => (IReadOnlyList<ClienteSelectorDto>)Array.Empty<ClienteSelectorDto>(),
             CrearEmpresaCommand => Result.Exito(Guid.NewGuid()),
             EliminarEmpresaCommand => Result.Exito(),
+            EliminarEmpresasCommand lote => Result.Exito(new ResultadoEliminacionLoteDto(lote.Ids.Count, [])),
             _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
         };
 
@@ -673,5 +676,36 @@ public class EmpresasListaGen2Tests : BunitContext
 
         mediador.Enviadas.OfType<EliminarEmpresaCommand>().Should().ContainSingle("la baja se ejecutó");
         workspace.EstaAbierto.Should().BeFalse("una ficha abierta de una entidad ya dada de baja no puede seguir editable");
+    }
+
+    /// <summary>
+    /// Lo mismo con la baja en lote: la ficha se retira solo si su empresa iba
+    /// en el lote; la de otra empresa que se está mirando se queda.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Eliminar_en_lote_retira_la_ficha_abierta_solo_si_su_empresa_iba_en_el_lote(bool ibaEnElLote)
+    {
+        var elegida = Empresa("Aislamientos Nervión S.L.");
+        var otra = Empresa("Refrielectric S.A.");
+        var mediador = new MediatorFalso { Almacen = { elegida, otra } };
+        var cut = Renderizar(mediador);
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        var abierta = ibaEnElLote ? elegida : otra;
+        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Empresa, abierta.Id, abierta.RazonSocial, "informacion"));
+        workspace.EstaAbierto.Should().BeTrue("control positivo: la ficha estaba abierta");
+
+        await cut.FindAll(".barra-herramientas-lista button").Single(b => b.TextContent.Trim() == "Selección múltiple")
+            .ClickAsync(new MouseEventArgs());
+        await cut.Find("input[aria-label='Seleccionar Aislamientos Nervión S.L.']").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados")
+            .ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar")
+            .ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EliminarEmpresasCommand>().Single().Ids.Should().Equal([elegida.Id],
+            "el caso solo vale si el lote pidió esa empresa y ninguna otra");
+        workspace.EstaAbierto.Should().Be(!ibaEnElLote);
     }
 }

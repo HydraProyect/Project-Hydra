@@ -992,4 +992,30 @@ public class TrabajadoresListaGen2Tests : BunitContext
             .And.NotContainEquivalentOf("obligatori", "es configuración (se pide), no una obligación legal");
         BotonesDelPieDelDialogo(cut).Should().Contain("Asignar igualmente");
     }
+
+    /// <summary>Lo mismo con la baja en lote: solo se retira la ficha si su trabajador iba en el lote.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Eliminar_en_lote_retira_la_ficha_abierta_solo_si_su_trabajador_iba_en_el_lote(bool ibaEnElLote)
+    {
+        var ana = Trabajador("Ana", "Moreno");
+        var bea = Trabajador("Bea", "Alonso");
+        var mediador = new MediatorFalso { Almacen = { bea, ana } };
+        var cut = Renderizar(mediador);
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        var abierta = ibaEnElLote ? ana : bea;
+        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Trabajador, abierta.Dto.Id, "Ficha abierta", "operacion"));
+        workspace.EstaAbierto.Should().BeTrue("control positivo: la ficha estaba abierta");
+
+        await BotonDeLaBarra(cut, "Selección múltiple").ClickAsync(new MouseEventArgs());
+        await cut.Find("tbody input[aria-label='Seleccionar a Ana Moreno']").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados")
+            .ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EliminarTrabajadoresCommand>().Single().Ids.Should().Equal([ana.Dto.Id],
+            "el caso solo vale si el lote pidió a ese trabajador y a nadie más");
+        workspace.EstaAbierto.Should().Be(!ibaEnElLote);
+    }
 }

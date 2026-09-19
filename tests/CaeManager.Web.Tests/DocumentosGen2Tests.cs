@@ -726,4 +726,60 @@ public class DocumentosGen2Tests : BunitContext
         Toasts().Select(t => t.Mensaje).Should().ContainMatch("*documento(s) eliminado(s)*",
             "el aviso sí se da: los documentos se eliminaron de verdad");
     }
+
+    /// <summary>
+    /// El Workspace no es modal: con la ficha del documento abierta, la baja se
+    /// confirma desde la fila que queda detrás. La ficha ya no tiene baja propia
+    /// (P41b), así que la lista es quien la retira.
+    /// </summary>
+    [Fact]
+    public async Task Eliminar_el_documento_cuya_ficha_esta_abierta_retira_la_ficha()
+    {
+        var documento = Documento("Reconocimiento médico");
+        var (cut, mediador) = Renderizar(ConDocumentos(documento));
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Documento, documento.Id, "Reconocimiento médico", "informacion"));
+        workspace.EstaAbierto.Should().BeTrue("control positivo: la ficha estaba abierta");
+
+        await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+        await BotonPorTexto(cut, ".menu-acciones-item", "Eliminar").ClickAsync(new MouseEventArgs());
+        await ConfirmarDialogo(cut);
+
+        mediador.Enviadas.OfType<EliminarDocumentoCommand>().Should().ContainSingle("la baja se ejecutó");
+        workspace.EstaAbierto.Should().BeFalse("una ficha abierta de un documento ya dado de baja no puede seguir editable");
+    }
+
+    /// <summary>
+    /// Baja en lote. El DTO del lote no dice qué documentos cayeron, así que la
+    /// lista retira las fichas de TODO lo pedido en cuanto cayó alguno (decisión:
+    /// pasarse de retirar antes que dejar abierta una ficha muerta). Y no toca la
+    /// ficha de un documento que no iba en el lote.
+    /// </summary>
+    [Theory]
+    [InlineData(true, false)]  // iba en el lote, lote completo
+    [InlineData(true, true)]   // iba en el lote, lote parcial: se retira igualmente
+    [InlineData(false, false)] // no iba en el lote: se queda
+    public async Task Eliminar_en_lote_retira_la_ficha_abierta_de_lo_pedido_y_solo_de_lo_pedido(bool ibaEnElLote, bool parcial)
+    {
+        var d1 = Documento("Reconocimiento médico");
+        var d2 = Documento("Formación PRL");
+        var d3 = Documento("Certificado TGSS");
+        var mediador = ConDocumentos(d1, d2, d3);
+        mediador.AlEliminarLote = c => Result.Exito(parcial
+            ? new ResultadoEliminacionLoteDto(1, ["Uno de los documentos no pudo eliminarse."])
+            : new ResultadoEliminacionLoteDto(c.Ids.Count, []));
+        var (cut, _) = Renderizar(mediador);
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        var abierto = ibaEnElLote ? d1 : d3;
+        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Documento, abierto.Id, "Ficha abierta", "informacion"));
+        workspace.EstaAbierto.Should().BeTrue("control positivo: la ficha estaba abierta");
+
+        await SeleccionarFilas(cut, 2);
+        await AbrirConfirmacionDeLote(cut);
+        await ConfirmarDialogo(cut);
+
+        mediador.Enviadas.OfType<EliminarDocumentosCommand>().Single().Ids.Should().BeEquivalentTo([d1.Id, d2.Id],
+            "el caso solo vale si el lote pidió esos dos y ninguno más");
+        workspace.EstaAbierto.Should().Be(!ibaEnElLote);
+    }
 }

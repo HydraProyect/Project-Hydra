@@ -5,6 +5,8 @@ using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas;
 using CaeManager.Application.Subcontratas.Commands.CrearSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata;
+using CaeManager.Application.Subcontratas.Commands.EliminarSubcontratas;
+using CaeManager.Application.Clientes.Commands.EliminarClientes;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
@@ -73,6 +75,7 @@ public class SubcontratasListaGen2Tests : BunitContext
                 ObtenerEmpresasParaSelectorQuery => Empresas,
                 ObtenerClientesParaSelectorQuery => Clientes,
                 EliminarSubcontrataCommand => ResultadoEliminar,
+                EliminarSubcontratasCommand lote => Result.Exito(new ResultadoEliminacionLoteDto(lote.Ids.Count, [])),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             }));
         }
@@ -483,5 +486,56 @@ public class SubcontratasListaGen2Tests : BunitContext
         cut.FindAll("aside.drawer-preview-subcontrata").Should().ContainSingle(
             "Enter hace lo mismo que pulsar el nombre de la fila enfocada");
         Services.GetRequiredService<ContextWorkspaceService>().EstaAbierto.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// El Workspace no es modal: con la ficha de la subcontrata abierta, la baja
+    /// se confirma desde la fila que queda detrás. La ficha ya no tiene baja
+    /// propia (P41b), así que la lista es quien la retira.
+    /// </summary>
+    [Fact]
+    public async Task Eliminar_la_subcontrata_cuya_ficha_esta_abierta_retira_la_ficha()
+    {
+        var id = Guid.NewGuid();
+        var mediador = new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", id: id)] };
+        var cut = Renderizar(mediador);
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Subcontrata, id, "Andamios Bidasoa S.L.", "informacion"));
+        workspace.EstaAbierto.Should().BeTrue("control positivo: la ficha estaba abierta");
+
+        AbrirMenuYPulsar(cut, "Eliminar");
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Eliminar").Click();
+
+        mediador.Enviadas.OfType<EliminarSubcontrataCommand>().Should().ContainSingle("la baja se ejecutó");
+        workspace.EstaAbierto.Should().BeFalse("una ficha abierta de una subcontrata ya dada de baja no puede seguir editable");
+    }
+
+    /// <summary>Lo mismo con la baja en lote: solo se retira la ficha si su subcontrata iba en el lote.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Eliminar_en_lote_retira_la_ficha_abierta_solo_si_su_subcontrata_iba_en_el_lote(bool ibaEnElLote)
+    {
+        var elegida = Guid.NewGuid();
+        var otra = Guid.NewGuid();
+        var mediador = new MediatorFalso
+        {
+            Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", id: elegida), Subcontrata("Pinturas Lauburu S.A.", id: otra)]
+        };
+        var cut = Renderizar(mediador);
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        await cut.InvokeAsync(() => workspace.AbrirAsync(
+            EntidadWorkspace.Subcontrata, ibaEnElLote ? elegida : otra, "Ficha abierta", "informacion"));
+        workspace.EstaAbierto.Should().BeTrue("control positivo: la ficha estaba abierta");
+
+        cut.FindAll(".barra-herramientas-lista button").Single(b => b.TextContent.Contains("Selección múltiple")).Click();
+        await cut.Find("input[aria-label='Seleccionar la empresa Andamios Bidasoa S.L.']")
+            .ChangeAsync(new ChangeEventArgs { Value = true });
+        cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados").Click();
+        cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").Click();
+
+        mediador.Enviadas.OfType<EliminarSubcontratasCommand>().Single().Ids.Should().Equal([elegida],
+            "el caso solo vale si el lote pidió esa subcontrata y ninguna otra");
+        workspace.EstaAbierto.Should().Be(!ibaEnElLote);
     }
 }
