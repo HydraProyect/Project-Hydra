@@ -103,11 +103,12 @@ Stripe__WebhookSecret
 # siendo un no-op mientras el propietario no las cargue en el environment
 # `produccion` de GitHub (agregar() omite los valores vacíos).
 #
-# Forma exigida a cada una (forma_valida_secreto, más abajo): la clave de API
-# empieza por sk_ o rk_; el secreto de firma del webhook, por whsec_. Es defensa
+# Forma exigida a cada una (forma_valida_secreto, más abajo): la clave de API,
+# SOLO rk_live_ (decisión D9 del propietario, 2026-09-19: clave restringida de
+# solo lectura sobre Subscriptions; un sk_live_ con poder de cobro o una clave de
+# prueba no entran por aquí); el secreto de firma del webhook, whsec_. Es defensa
 # contra pegar un valor en la variable equivocada, no una comprobación de que la
-# clave sea válida ni de que sea de producción: una clave de prueba también entra,
-# para poder ensayar antes de cobrar de verdad.
+# clave sea válida ni de que tenga solo permisos de lectura (eso lo fija Stripe).
 #
 # POSTGRES_PASSWORD y ConnectionStrings__CaeManagerDbRuntime NO están en la
 # lista, a propósito (segundo hallazgo de la revisión de Codex): ambas son
@@ -138,7 +139,7 @@ forma_valida_secreto() {
     case "$clave" in
         Stripe__ApiKey)
             case "$valor" in
-                sk_live_?*|sk_test_?*|rk_live_?*|rk_test_?*) return 0 ;;
+                rk_live_?*) return 0 ;;
                 *) return 1 ;;
             esac
             ;;
@@ -227,7 +228,7 @@ actualizar_secretos_produccion() {
         # Solo se nombra la CLAVE en el error, nunca el valor: este mensaje llega
         # al log público de GitHub Actions.
         if ! forma_valida_secreto "$clave" "$valor"; then
-            echo "::error::el valor de '$clave' no tiene la forma esperada (Stripe__ApiKey: sk_/rk_…; Stripe__WebhookSecret: whsec_…) — ¿pegado en la variable equivocada? .env sin tocar." >&2
+            echo "::error::el valor de '$clave' no tiene la forma esperada (Stripe__ApiKey: rk_live_…, clave restringida de solo lectura — D9; Stripe__WebhookSecret: whsec_…) — ¿pegado en la variable equivocada? .env sin tocar." >&2
             return 1
         fi
     done <<< "$recibido"

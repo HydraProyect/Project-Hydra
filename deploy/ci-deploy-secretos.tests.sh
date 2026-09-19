@@ -407,4 +407,22 @@ printf '%s\n' "$BLOQUE_CADDY" | grep -q '^      DOMINIO: \${DOMINIO}' || { echo 
 printf '%s\n' "$BLOQUE_CADDY" | grep -q '^      ACME_EMAIL: \${ACME_EMAIL}' || { echo "FALLO: caddy no recibe ACME_EMAIL" >&2; exit 1; }
 echo "OK: caddy recibe solo DOMINIO y ACME_EMAIL; app conserva su env_file"
 
+echo "=== Caso 18: por la inyección solo entra rk_live_ (D9): ni sk_live_ ni claves de prueba ==="
+# D9: la clave de producción es una clave restringida de solo lectura. Un sk_live_
+# tiene poder de cobro; una clave de prueba en el environment `produccion` no
+# cobraría ni leería suscripciones reales. Ambas se rechazan enteras, .env intacto.
+export FICHERO_ENV_SECRETOS_PRODUCCION="$DIR/.env-caso18"
+printf 'DOMINIO=app.talveg.es\n' > "$FICHERO_ENV_SECRETOS_PRODUCCION"
+ANTES18="$(cat "$FICHERO_ENV_SECRETOS_PRODUCCION")"
+for valor in "sk_""live_""SINTETICA2222222222" "sk_""test_""SINTETICA3333333333" "rk_""test_""SINTETICA4444444444"; do
+  if SALIDA18="$(printf 'Stripe__ApiKey=%s\n' "$valor" | actualizar_secretos_produccion 2>&1)"; then
+    echo "FALLO: se aceptó una clave de prefijo ${valor%%SINTETICA*} en Stripe__ApiKey de producción" >&2
+    exit 1
+  fi
+  printf '%s' "$SALIDA18" | grep -qF "'Stripe__ApiKey' no tiene la forma esperada" || { echo "FALLO: el rechazo no fue por la forma del valor" >&2; exit 1; }
+  printf '%s' "$SALIDA18" | grep -qF "SINTETICA" && { echo "FALLO: el mensaje de error imprimió (parte de) el valor" >&2; exit 1; }
+  [ "$ANTES18" = "$(cat "$FICHERO_ENV_SECRETOS_PRODUCCION")" ] || { echo "FALLO: .env cambió pese al rechazo" >&2; exit 1; }
+done
+echo "OK: sk_live_, sk_test_ y rk_test_ rechazados; rk_live_ sigue entrando (caso 12)"
+
 echo "TODAS LAS PRUEBAS PASARON"
