@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Identity;
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
@@ -19,8 +20,16 @@ namespace CaeManager.Infrastructure.MultiTenancy;
 /// mismo principio arquitectónico que <c>AuditoriaInterceptor</c> para los
 /// campos de auditoría.
 /// </summary>
-public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesInterceptor
+public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesInterceptor, IDbCommandInterceptor, IDbTransactionInterceptor
 {
+    /// <summary>
+    /// <c>true</c> cuando un conflicto de concurrencia terminó el
+    /// <c>SaveChanges</c> sin poder restaurar <c>app.tenant_id</c> (el lector
+    /// del lote seguía abierto, ver <see cref="ThrowingConcurrencyExceptionAsync"/>)
+    /// y la restauración está pendiente hasta el primer comando posterior.
+    /// </summary>
+    private bool _restauracionDiferida;
+
     /// <summary>
     /// Valor de <c>app.tenant_id</c> que había en la sesión ANTES de que este
     /// <c>SaveChanges</c> lo pisara para sellar una fila de Identity con un
@@ -29,9 +38,14 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
     /// sesión. El interceptor es <c>AddScoped</c> (una instancia por
     /// <c>DbContext</c>/petición, ver <c>ConfiguracionDeContexto</c>), así que
     /// un campo de instancia es seguro: solo un <c>SaveChanges</c> está en
-    /// vuelo a la vez para esa instancia. Se restaura en
-    /// <c>SavedChanges(Async)</c>/<c>SaveChangesFailed(Async)</c> —en los DOS
-    /// caminos, éxito y fallo—, porque la conexión puede reutilizarse dentro
+    /// vuelo a la vez para esa instancia. Se restaura en los CUATRO finales
+    /// posibles de un <c>SaveChanges</c>: <c>SavedChanges(Async)</c> (éxito),
+    /// <c>SaveChangesFailed(Async)</c> (fallo),
+    /// <c>ThrowingConcurrencyException(Async)</c> (conflicto de concurrencia) y
+    /// <c>SaveChangesCanceled(Async)</c> (cancelación). Los dos últimos NO pasan
+    /// por <c>SaveChangesFailed</c> (medido, ver
+    /// <see cref="ThrowingConcurrencyExceptionAsync"/>). Hace falta en todos
+    /// porque la conexión puede reutilizarse dentro
     /// de la misma petición (p. ej. un reintento de <c>ExecutionStrategy</c>)
     /// y dejarla con el tenant equivocado filtraría el resto de la petición
     /// por el tenant que NO es.
@@ -125,9 +139,201 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
     }
 
     /// <summary>
+    /// <c>SaveChangesFailed</c> NO se invoca cuando EF va a lanzar un
+    /// <see cref="DbUpdateConcurrencyException"/> (0 filas afectadas por un
+    /// UPDATE o DELETE): EF avisa por su propio gancho, este, justo antes de
+    /// lanzar. Medido con una sonda en el <c>SaveChanges</c> de una fila borrada
+    /// por debajo: la única señal fue la excepción. Sin este override un lote
+    /// que ya había movido <c>app.tenant_id</c> al Tenant propietario de una
+    /// cuenta y terminaba en conflicto de concurrencia dejaba la variable —y la
+    /// apertura explícita de la conexión— en ese Tenant hasta el siguiente
+    /// <c>SaveChanges</c> del contexto. La restauración solo se hace si nadie
+    /// suprimió la excepción: si EF no va a lanzar, el lote continúa y lo cierra
+    /// <c>SavedChanges</c>.
+    ///
+    /// <para>
+    /// <b>Aquí no se puede ejecutar nada.</b> El gancho se invoca con el
+    /// lector del lote todavía abierto en la conexión: un <c>set_config</c>
+    /// desde aquí lanza <c>NpgsqlOperationInProgressException</c> y EF lo
+    /// envuelve en un <see cref="DbUpdateException"/> que sustituye al
+    /// <see cref="DbUpdateConcurrencyException"/> —lo que rompería a quien
+    /// captura la concurrencia: <c>UserStore</c>, <c>ConcurrenciaBehavior</c>—.
+    /// Medido, no supuesto. Por eso solo se marca la restauración como
+    /// diferida, y la ejecuta <see cref="RestaurarSiEstaDiferidaAsync"/> antes
+    /// del primer comando EF posterior de este contexto, cuando la conexión
+    /// ya está libre.
+    /// </para>
+    /// </summary>
+    public override ValueTask<InterceptionResult> ThrowingConcurrencyExceptionAsync(
+        ConcurrencyExceptionEventData eventData, InterceptionResult result, CancellationToken cancellationToken = default)
+    {
+        DiferirRestauracion(result);
+        return base.ThrowingConcurrencyExceptionAsync(eventData, result, cancellationToken);
+    }
+
+    /// <summary>Versión síncrona — ver <see cref="ThrowingConcurrencyExceptionAsync"/>.</summary>
+    public override InterceptionResult ThrowingConcurrencyException(
+        ConcurrencyExceptionEventData eventData, InterceptionResult result)
+    {
+        DiferirRestauracion(result);
+        return base.ThrowingConcurrencyException(eventData, result);
+    }
+
+    private void DiferirRestauracion(InterceptionResult result)
+    {
+        if (!result.IsSuppressed && _tenantDeSesionARestaurar is not null)
+            _restauracionDiferida = true;
+    }
+
+    /// <summary>
+    /// Ejecuta la restauración que <see cref="ThrowingConcurrencyExceptionAsync"/>
+    /// dejó diferida. Se invoca desde los comandos EF de este contexto (ver
+    /// <see cref="ReaderExecutingAsync"/> y hermanos) y desde el inicio del
+    /// siguiente <c>SaveChanges</c>, siempre ANTES de que el comando o el
+    /// sellado usen la conexión. Sí se ejecuta dentro de una transacción
+    /// abierta por el llamador (revisión de Codex): <c>set_config</c> es
+    /// transaccional en PostgreSQL y la variable se fijó a X DENTRO de esa
+    /// transacción, sobre el valor de sesión Y que ya tenía al abrirla. Un
+    /// <c>COMMIT</c> conserva la restauración a Y y un <c>ROLLBACK</c> devuelve
+    /// la variable a Y, así que restaurar dentro es correcto en los dos
+    /// desenlaces, y no restaurar dejaría los comandos siguientes de esa
+    /// transacción —EF revierte solo al punto de guardado del lote fallido—
+    /// ejecutándose con el Tenant de la cuenta.
+    ///
+    /// <para>
+    /// <b>Límite residual conocido</b> (revisión de Codex, aceptado): si tras
+    /// el conflicto el contexto no ejecuta ningún comando EF más, la
+    /// restauración y el cierre de la apertura explícita esperan a la
+    /// eliminación del contexto (que cierra la conexión) o a su próximo uso.
+    /// EF solo ofrece ganchos ANTES de cerrar el lector
+    /// (<c>DataReaderClosing</c>/<c>DataReaderDisposing</c>), ninguno después, y
+    /// cerrarlo del todo exigiría sobrescribir <c>SaveChanges</c> en el
+    /// contexto y localizar este interceptor entre sus opciones. Antes de esta
+    /// corrección el conflicto no restauraba NUNCA; ahora la ventana es hasta
+    /// el siguiente comando, y ningún comando EF puede ejecutarse dentro de
+    /// ella con el Tenant equivocado. No cubre comandos crudos sobre
+    /// <c>Database.GetDbConnection()</c>, que ya escapan a todos los
+    /// interceptores.
+    /// </para>
+    /// </summary>
+    private async Task RestaurarSiEstaDiferidaAsync(DbContext? context)
+    {
+        if (!_restauracionDiferida || context is null) return;
+
+        // La marca NO se borra aquí: la borra RestaurarTenantDeSesionSiHizoFaltaAsync
+        // cuando la restauración COMPLETA (revisión de Codex, P1). Si el
+        // set_config falla —un error transitorio— la marca sigue armada y el
+        // siguiente comando o SaveChanges lo reintenta, en vez de dejar la
+        // variable en el Tenant de la cuenta con la marca ya en falso. No hay
+        // recursión: el set_config es un comando crudo de ADO.NET y no pasa por
+        // los interceptores de comandos de EF.
+        await RestaurarTenantDeSesionSiHizoFaltaAsync(context, CancellationToken.None);
+    }
+
+    /// <summary>
+    /// Revisión de Codex (P1): una transacción abierta DESPUÉS del conflicto y
+    /// ANTES del primer comando arrancaría con <c>app.tenant_id</c> = X como
+    /// valor de partida; restaurar ya dentro y hacer <c>ROLLBACK</c> lo
+    /// reinstalaría, con el centinela ya limpio, y el resto del contexto
+    /// correría como X. Restaurar justo antes del <c>BEGIN</c> hace que Y sea
+    /// el valor de partida de la transacción. El propio <c>SaveChanges</c> abre
+    /// la suya con la restauración diferida ya consumida al inicio del lote, así
+    /// que aquí no interfiere con el sellado.
+    /// </summary>
+    public async ValueTask<InterceptionResult<DbTransaction>> TransactionStartingAsync(
+        DbConnection connection, TransactionStartingEventData eventData, InterceptionResult<DbTransaction> result,
+        CancellationToken cancellationToken = default)
+    {
+        await RestaurarSiEstaDiferidaAsync(eventData.Context);
+        return result;
+    }
+
+    /// <summary>Versión síncrona — ver <see cref="TransactionStartingAsync"/>.</summary>
+    public InterceptionResult<DbTransaction> TransactionStarting(
+        DbConnection connection, TransactionStartingEventData eventData, InterceptionResult<DbTransaction> result)
+    {
+        RestaurarSiEstaDiferidaAsync(eventData.Context).GetAwaiter().GetResult();
+        return result;
+    }
+
+    // Los seis puntos de entrada de un comando EF (lector, no-query y escalar,
+    // síncronos y asíncronos). Se implementa la interfaz —no se hereda de
+    // DbCommandInterceptor, porque ya se hereda de SaveChangesInterceptor— y
+    // todos convergen en RestaurarSiEstaDiferidaAsync.
+    public async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+        DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+        CancellationToken cancellationToken = default)
+    {
+        await RestaurarSiEstaDiferidaAsync(eventData.Context);
+        return result;
+    }
+
+    public InterceptionResult<DbDataReader> ReaderExecuting(
+        DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result)
+    {
+        RestaurarSiEstaDiferidaAsync(eventData.Context).GetAwaiter().GetResult();
+        return result;
+    }
+
+    public async ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+        DbCommand command, CommandEventData eventData, InterceptionResult<int> result,
+        CancellationToken cancellationToken = default)
+    {
+        await RestaurarSiEstaDiferidaAsync(eventData.Context);
+        return result;
+    }
+
+    public InterceptionResult<int> NonQueryExecuting(
+        DbCommand command, CommandEventData eventData, InterceptionResult<int> result)
+    {
+        RestaurarSiEstaDiferidaAsync(eventData.Context).GetAwaiter().GetResult();
+        return result;
+    }
+
+    public async ValueTask<InterceptionResult<object>> ScalarExecutingAsync(
+        DbCommand command, CommandEventData eventData, InterceptionResult<object> result,
+        CancellationToken cancellationToken = default)
+    {
+        await RestaurarSiEstaDiferidaAsync(eventData.Context);
+        return result;
+    }
+
+    public InterceptionResult<object> ScalarExecuting(
+        DbCommand command, CommandEventData eventData, InterceptionResult<object> result)
+    {
+        RestaurarSiEstaDiferidaAsync(eventData.Context).GetAwaiter().GetResult();
+        return result;
+    }
+
+    /// <summary>
+    /// Tampoco se invoca <c>SaveChangesFailed</c> cuando el <c>SaveChanges</c>
+    /// se cancela: EF llama a <c>SaveChangesCanceled</c>. El hallazgo P2 de
+    /// Codex de la 8ª ronda (ver
+    /// <see cref="RestaurarTenantDeSesionSiHizoFaltaAsync"/>) cubría la
+    /// restauración con el token ya cancelado, pero solo desde
+    /// <c>SaveChangesFailed</c>, que en una cancelación no llega a ejecutarse.
+    /// </summary>
+    public override async Task SaveChangesCanceledAsync(DbContextEventData eventData, CancellationToken cancellationToken = default)
+    {
+        if (eventData.Context is DbContext context)
+            await RestaurarTenantDeSesionSiHizoFaltaAsync(context, cancellationToken);
+
+        await base.SaveChangesCanceledAsync(eventData, cancellationToken);
+    }
+
+    /// <summary>Versión síncrona — ver <see cref="SaveChangesCanceledAsync"/>.</summary>
+    public override void SaveChangesCanceled(DbContextEventData eventData)
+    {
+        if (eventData.Context is DbContext context)
+            RestaurarTenantDeSesionSiHizoFaltaAsync(context, CancellationToken.None).GetAwaiter().GetResult();
+
+        base.SaveChangesCanceled(eventData);
+    }
+
+    /// <summary>
     /// El parámetro <paramref name="cancellationToken"/> recibido de
-    /// <c>SavedChanges(Async)</c>/<c>SaveChangesFailed(Async)</c> se ignora a
-    /// propósito (hallazgo P2 de Codex, 8ª ronda): si el <c>SaveChanges</c>
+    /// cualquiera de los cuatro finales de un <c>SaveChanges</c> (ver
+    /// <see cref="_tenantDeSesionARestaurar"/>) se ignora a propósito (hallazgo P2 de Codex, 8ª ronda): si el <c>SaveChanges</c>
     /// que pisó <c>app.tenant_id</c> se cancela, ese mismo token llegaría ya
     /// cancelado aquí, y una restauración que lanza <c>OperationCanceledException</c>
     /// antes de completar dejaría el tenant RLS de sesión fijado en el
@@ -149,6 +355,7 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
             // si falla, el valor original queda disponible para el próximo
             // intento (ver el ??= en SellarYValidarAsync) en vez de perderse.
             _tenantDeSesionARestaurar = null;
+            _restauracionDiferida = false;
         }
         finally
         {
@@ -167,6 +374,12 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
 
     private async Task SellarYValidarAsync(DbContext context, CancellationToken cancellationToken)
     {
+        // Antes de cualquier decisión de este lote: si el anterior terminó en
+        // conflicto de concurrencia, app.tenant_id sigue en el Tenant de la
+        // cuenta y el «no hace falta fijarlo» de más abajo (tenant de la cuenta
+        // == tenant de sesión) dejaría este lote ejecutándose con el equivocado.
+        await RestaurarSiEstaDiferidaAsync(context);
+
         var tenantId = tenantActual.TenantId;
 
         // Solo se propaga una vez por SaveChanges, y solo cuando hace falta:
@@ -180,10 +393,16 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
         // de sesión solo reflejaría la última y RLS rechazaría las demás con
         // 42501 —la política compara contra un único app.tenant_id por
         // conexión—; el lote entero se revertiría, así que sería un fallo
-        // ruidoso, no una fila sellada con el tenant equivocado. Confirmado
-        // por la revisión de Codex de la misión N6/V4, que no encontró
-        // ningún camino de producción que construya ese lote: queda fuera de
-        // alcance ampliarlo sin que aparezca un caso real.
+        // ruidoso, no una fila sellada con el tenant equivocado. Lo mismo
+        // vale para un lote que mezcle Identity de otro tenant con una
+        // escritura de dominio del tenant de sesión: se ejecuta con la
+        // variable del propietario de la cuenta y falla entero. Demostrado
+        // bajo cae_app_runtime, para INSERT, UPDATE y DELETE, con restauración
+        // de la variable, en LoteMixtoIdentidadDominioFallaCerradoTests. La
+        // revisión de Codex de la misión N6/V4 no encontró ningún camino de
+        // producción que construya el lote, y la lectura posterior (misión
+        // T5) tampoco lo encontró por diseño: queda fuera de alcance
+        // ampliarlo sin que aparezca un caso real.
         Guid? tenantYaPropagadoARls = null;
 
         // ToList: la rama de reclasificación de abajo cambia el State de una
@@ -232,8 +451,8 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
                     // hydra-rls-fallo-cerrado-prerrequisito-despliegue), el
                     // INSERT lo rechaza Postgres con 42501 si no coinciden.
                     // Se restaura el valor de sesión original en
-                    // SavedChanges(Async)/SaveChangesFailed(Async) — ver
-                    // _tenantDeSesionARestaurar.
+                    // los cuatro finales de un SaveChanges (éxito, fallo,
+                    // concurrencia, cancelación) — ver _tenantDeSesionARestaurar.
                     if (tenantParaEsta != tenantId && tenantYaPropagadoARls != tenantParaEsta)
                     {
                         await FijarTenantEnSesionRlsAsync(context, tenantParaEsta.Value.ToString(), cancellationToken);
