@@ -477,7 +477,7 @@ public class AccesoCuentaEscenaTests : BunitContext
 
     private sealed class EmailQueNoDebeUsarse : IEmailService
     {
-        public Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, CancellationToken cancellationToken = default, TipoAvisoCorreo tipo = TipoAvisoCorreo.Transaccional) =>
+        public Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo, CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("con una cuenta que no existe no se envía ningún correo");
     }
 
@@ -561,7 +561,7 @@ public class AccesoCuentaEscenaTests : BunitContext
     /// <summary>Devuelve siempre el mismo <see cref="Result"/>, para simular un envío que sí se intenta.</summary>
     private sealed class EmailServiceConfigurable(Result resultado) : IEmailService
     {
-        public Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, CancellationToken cancellationToken = default, TipoAvisoCorreo tipo = TipoAvisoCorreo.Transaccional) =>
+        public Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo, CancellationToken cancellationToken = default) =>
             Task.FromResult(resultado);
     }
 

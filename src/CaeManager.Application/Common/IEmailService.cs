@@ -17,14 +17,16 @@ namespace CaeManager.Application.Common;
 /// envuelve en la cabecera y el pie de marca antes de enviarlo, para que
 /// ningún sitio donde se compone un correo tenga que conocer ese envoltorio.
 /// <paramref name="tipo"/> decide únicamente qué pie institucional lleva —
-/// ver <see cref="TipoAvisoCorreo"/> — y tiene un valor por defecto para que
-/// los llamadores existentes seguirlo compilando sin cambios.
+/// ver <see cref="TipoAvisoCorreo"/> — y es obligatorio a propósito: con un
+/// valor por defecto, un llamador nuevo que se olvide de clasificar su
+/// correo compila igual y cae en <c>Transaccional</c> en silencio (así se
+/// coló la reclamación de documentación con un pie de "puedes ignorarlo" —
+/// ver <c>RegistroEnvioReclamacionService</c>).
 /// </para>
 /// </summary>
 public interface IEmailService
 {
     Task<Result> EnviarAsync(
-        string destinatarioEmail, string asunto, string cuerpoHtml,
-        CancellationToken cancellationToken = default,
-        TipoAvisoCorreo tipo = TipoAvisoCorreo.Transaccional);
+        string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo,
+        CancellationToken cancellationToken = default);
 }

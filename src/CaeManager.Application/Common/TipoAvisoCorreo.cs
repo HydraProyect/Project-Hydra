@@ -17,4 +17,7 @@ public enum TipoAvisoCorreo
 
     /// <summary>Resumen o notificación periódica (alertas, informes). Pie con el motivo de por qué llega. No hay hoy una preferencia por destinatario para desactivarlo.</summary>
     Informativo,
+
+    /// <summary>Reclamación de documentación a una Empresa contraparte o Cliente: la persona destinataria no lo disparó, y el correo espera una respuesta suya, no que lo ignore. Pie que dice que llega a través de TALVEG en nombre de quien reclama y cómo responder.</summary>
+    Requerimiento,
 }

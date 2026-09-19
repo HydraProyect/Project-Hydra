@@ -25,7 +25,7 @@ public class SmtpEmailServiceTests
         var logger = new LoggerEspia();
         var servicio = new SmtpEmailService(Options.Create(new SmtpEmailOptions()), logger);
 
-        var resultado = await servicio.EnviarAsync("destino@ejemplo.com", "Asunto", "<p>Cuerpo</p>");
+        var resultado = await servicio.EnviarAsync("destino@ejemplo.com", "Asunto", "<p>Cuerpo</p>", TipoAvisoCorreo.Transaccional);
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Email.NoConfigurado");
@@ -49,7 +49,7 @@ public class SmtpEmailServiceTests
         });
         var servicio = new SmtpEmailService(opciones, logger);
 
-        var resultado = await servicio.EnviarAsync("destino@ejemplo.com", "Asunto", "<p>Cuerpo</p>");
+        var resultado = await servicio.EnviarAsync("destino@ejemplo.com", "Asunto", "<p>Cuerpo</p>", TipoAvisoCorreo.Transaccional);
 
         resultado.EsFallido.Should().BeTrue();
         logger.Errores.Should().ContainSingle();

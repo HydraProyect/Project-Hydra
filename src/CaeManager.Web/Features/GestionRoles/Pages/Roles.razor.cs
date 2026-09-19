@@ -329,7 +329,7 @@ public partial class Roles : CaeManager.Web.Components.PaginaIntegrableConfigura
 
         try
         {
-            var resultado = await EmailService.EnviarAsync(email, $"Tu acceso a {Marca.Nombre} ya está activo", cuerpo);
+            var resultado = await EmailService.EnviarAsync(email, $"Tu acceso a {Marca.Nombre} ya está activo", cuerpo, TipoAvisoCorreo.Seguridad);
             if (resultado.EsFallido)
                 Logger.LogWarning("No se pudo enviar el correo de confirmación de rol a {UsuarioId}.", usuarioId);
         }

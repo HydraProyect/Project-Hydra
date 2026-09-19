@@ -33,9 +33,8 @@ public class SmtpEmailService(
     ILogger<SmtpEmailService> logger) : IEmailService
 {
     public async Task<Result> EnviarAsync(
-        string destinatarioEmail, string asunto, string cuerpoHtml,
-        CancellationToken cancellationToken = default,
-        TipoAvisoCorreo tipo = TipoAvisoCorreo.Transaccional)
+        string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo,
+        CancellationToken cancellationToken = default)
     {
         var config = opciones.Value;
 
@@ -124,6 +123,10 @@ public class SmtpEmailService(
             TipoAvisoCorreo.Informativo =>
                 """
                 Recibes este aviso por tu responsabilidad de coordinación en TALVEG. · <a href="https://talveg.es">talveg.es</a>
+                """,
+            TipoAvisoCorreo.Requerimiento =>
+                """
+                Este correo llega a través de TALVEG en nombre de quien te lo reclama. Puedes responder directamente a este correo. · <a href="https://talveg.es">talveg.es</a>
                 """,
             _ =>
                 """
