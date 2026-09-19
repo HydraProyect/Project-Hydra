@@ -197,7 +197,9 @@ public sealed class Microsoft365CertificadoDeClienteTests : IDisposable
     {
         var (cliente, handler) = CrearCliente(new Microsoft365GraphOptions
         {
-            ClientId = ClientId, ClientSecret = "secreto-de-siempre", UrlPublicaBase = "https://app.ejemplo.test",
+            ClientId = ClientId,
+            ClientSecret = "secreto-de-siempre",
+            UrlPublicaBase = "https://app.ejemplo.test",
         });
 
         var resultado = await cliente.RefrescarTokensAsync("r", CancellationToken.None);
@@ -269,7 +271,11 @@ public sealed class Microsoft365CertificadoDeClienteTests : IDisposable
     {
         var opciones = new Microsoft365GraphOptions
         {
-            ClientId = clientId, ClientSecret = secreto, CertificadoRuta = cert, ClavePrivadaRuta = clave, UrlPublicaBase = url,
+            ClientId = clientId,
+            ClientSecret = secreto,
+            CertificadoRuta = cert,
+            ClavePrivadaRuta = clave,
+            UrlPublicaBase = url,
         };
 
         opciones.EstaConfigurado.Should().Be(esperado);
