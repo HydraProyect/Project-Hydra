@@ -20,7 +20,7 @@ namespace CaeManager.Infrastructure.MultiTenancy;
 /// mismo principio arquitectónico que <c>AuditoriaInterceptor</c> para los
 /// campos de auditoría.
 /// </summary>
-public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesInterceptor, IDbCommandInterceptor
+public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesInterceptor, IDbCommandInterceptor, IDbTransactionInterceptor
 {
     /// <summary>
     /// <c>true</c> cuando un conflicto de concurrencia terminó el
@@ -222,6 +222,32 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
 
         _restauracionDiferida = false;
         await RestaurarTenantDeSesionSiHizoFaltaAsync(context, CancellationToken.None);
+    }
+
+    /// <summary>
+    /// Revisión de Codex (P1): una transacción abierta DESPUÉS del conflicto y
+    /// ANTES del primer comando arrancaría con <c>app.tenant_id</c> = X como
+    /// valor de partida; restaurar ya dentro y hacer <c>ROLLBACK</c> lo
+    /// reinstalaría, con el centinela ya limpio, y el resto del contexto
+    /// correría como X. Restaurar justo antes del <c>BEGIN</c> hace que Y sea
+    /// el valor de partida de la transacción. El propio <c>SaveChanges</c> abre
+    /// la suya con la restauración diferida ya consumida al inicio del lote, así
+    /// que aquí no interfiere con el sellado.
+    /// </summary>
+    public async ValueTask<InterceptionResult<DbTransaction>> TransactionStartingAsync(
+        DbConnection connection, TransactionStartingEventData eventData, InterceptionResult<DbTransaction> result,
+        CancellationToken cancellationToken = default)
+    {
+        await RestaurarSiEstaDiferidaAsync(eventData.Context);
+        return result;
+    }
+
+    /// <summary>Versión síncrona — ver <see cref="TransactionStartingAsync"/>.</summary>
+    public InterceptionResult<DbTransaction> TransactionStarting(
+        DbConnection connection, TransactionStartingEventData eventData, InterceptionResult<DbTransaction> result)
+    {
+        RestaurarSiEstaDiferidaAsync(eventData.Context).GetAwaiter().GetResult();
+        return result;
     }
 
     // Los seis puntos de entrada de un comando EF (lector, no-query y escalar,

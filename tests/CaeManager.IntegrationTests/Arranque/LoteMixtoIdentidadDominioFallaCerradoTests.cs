@@ -483,6 +483,35 @@ public sealed class LoteMixtoIdentidadDominioFallaCerradoTests : IAsyncLifetime
             confirmar ? "tras el COMMIT queda la restauración" : "tras el ROLLBACK la variable vuelve al valor previo a la transacción");
     }
 
+    /// <summary>
+    /// Revisión de Codex (P1): la transacción se abre DESPUÉS del conflicto y
+    /// ANTES de cualquier comando. Si la restauración ocurriera ya dentro, su
+    /// ROLLBACK devolvería la variable a X (el valor con el que la transacción
+    /// arrancó) y el centinela ya estaría limpio: el contexto seguiría como X.
+    /// </summary>
+    [Fact]
+    public async Task B_Una_transaccion_abierta_tras_el_conflicto_y_revertida_no_reinstala_el_Tenant_de_la_cuenta()
+    {
+        var (_, tenantSesion, cuentaId) = await EscenarioAsync(conParametroDeSesion: true);
+
+        await using var sesion = await AbrirSesionSoloAuditoriaDeIdentidadAsync(tenantSesion);
+        var parametro = await sesion.Contexto.ParametrosSistema.SingleAsync();
+        parametro.Actualizar(UmbralAmbarRecuperacion, UmbralRojoRecuperacion);
+        var cuenta = await sesion.Contexto.Users.SingleAsync(u => u.Id == cuentaId);
+        cuenta.PhoneNumber = "600000018";
+        (await CapturarAsync(() => sesion.Contexto.SaveChangesAsync()))
+            .Should().BeOfType<DbUpdateConcurrencyException>("precondición: el lote termina en conflicto");
+
+        await using (var transaccion = await sesion.Contexto.Database.BeginTransactionAsync())
+        {
+            (await LeerTenantDeSesionPorEfAsync(sesion.Contexto)).Should().Be(tenantSesion.ToString());
+            await transaccion.RollbackAsync();
+        }
+
+        (await LeerTenantDeSesionPorEfAsync(sesion.Contexto)).Should().Be(tenantSesion.ToString(),
+            "el ROLLBACK de una transacción abierta tras el conflicto no puede devolver la variable a X");
+    }
+
     private static async Task<string?> LeerTenantDeSesionPorEfAsync(CaeManagerDbContext contexto) =>
         (await contexto.Database
             .SqlQueryRaw<string>("SELECT current_setting('app.tenant_id', true) AS \"Value\"")
