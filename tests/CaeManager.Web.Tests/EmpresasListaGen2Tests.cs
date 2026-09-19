@@ -3,6 +3,7 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas.Commands.CrearEmpresa;
+using CaeManager.Application.Empresas.Commands.EliminarEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
@@ -83,6 +84,7 @@ public class EmpresasListaGen2Tests : BunitContext
                 : (IReadOnlyList<ClienteDeEmpresaDto>)(ClientesDe.GetValueOrDefault(c.EmpresaId) ?? []).ToList(),
             ObtenerClientesParaSelectorQuery => (IReadOnlyList<ClienteSelectorDto>)Array.Empty<ClienteSelectorDto>(),
             CrearEmpresaCommand => Result.Exito(Guid.NewGuid()),
+            EliminarEmpresaCommand => Result.Exito(),
             _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
         };
 
@@ -619,5 +621,32 @@ public class EmpresasListaGen2Tests : BunitContext
 
         cut.WaitForAssertion(() => cut.Find(".drawer-panel h2").TextContent.Trim().Should().Be("Nueva empresa"));
         cut.Find(".drawer-panel input").GetAttribute("value").Should().Be("Refrielectric");
+    }
+
+    /// <summary>
+    /// P41b (2026-09-19): la baja de la empresa solo vive aquí, en la lista; la
+    /// ficha 360 ya no la ofrece. Lo que se pierda en este menú, se pierde en
+    /// todo el producto: pide confirmación y manda el comando de ESA fila.
+    /// </summary>
+    [Fact]
+    public async Task Eliminar_desde_el_menu_pide_confirmacion_y_despues_manda_el_comando_de_esa_fila()
+    {
+        var mediador = new MediatorFalso { Almacen = { Empresa("Refrielectric S.A.") } };
+        var id = mediador.Almacen[0].Id;
+        var cut = Renderizar(mediador);
+
+        // MenuAcciones no pinta sus ítems hasta que se abre.
+        await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Eliminar")
+            .ClickAsync(new MouseEventArgs());
+
+        cut.Markup.Should().Contain("¿Eliminar a Refrielectric S.A.?", "el diálogo de confirmación es la barrera");
+        mediador.Enviadas.OfType<EliminarEmpresaCommand>().Should().BeEmpty("pulsar el menú no puede borrar sin confirmar");
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Eliminar")
+            .ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EliminarEmpresaCommand>().Select(c => c.Id).Should().Equal([id],
+            "se elimina la fila cuyo menú se abrió, y solo esa");
     }
 }
