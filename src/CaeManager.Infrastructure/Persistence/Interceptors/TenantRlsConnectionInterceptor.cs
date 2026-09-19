@@ -22,10 +22,14 @@ namespace CaeManager.Infrastructure.Persistence.Interceptors;
 /// devolviendo <c>null</c>.
 ///
 /// RLS solo restringe roles que no son propietarios de la tabla ni
-/// superusuario. Mientras la conexión de la aplicación siga usando el rol
-/// propietario (el caso de hoy, ver RUNBOOK-RLS.md), esta variable se fija
-/// igual pero Postgres no la usa para nada — queda inerte hasta que se rota
-/// la conexión de runtime al rol restringido <c>cae_app_runtime</c>.
+/// superusuario. La conexión de tráfico de la aplicación ya usa el rol
+/// restringido <c>cae_app_runtime</c> (<c>InfrastructureServiceCollectionExtensions.ResolverCadenaDeTrafico</c>,
+/// que aborta el arranque fuera de Development si falta
+/// <c>ConnectionStrings:CaeManagerDbRuntime</c>), así que esta variable no
+/// queda inerte: RLS la usa para filtrar en cada consulta. Solo la identidad
+/// administrativa del arranque (<c>FabricaContextoDeBootstrap</c>, dos
+/// seeders cross-tenant) sigue conectando como propietario a propósito, y
+/// para ella RLS no aplica — es la excepción declarada, no el caso general.
 ///
 /// <c>set_config</c> se invoca como función parametrizada (no
 /// <c>SET app.tenant_id = '...'</c> interpolado) para no construir SQL a

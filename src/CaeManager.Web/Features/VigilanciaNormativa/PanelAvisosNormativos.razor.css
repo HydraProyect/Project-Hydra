@@ -71,8 +71,15 @@
     color: var(--color-primary-600);
 }
 
+/* --color-neutral-500 (#738196) daba 3,96:1 en claro y 4,11:1 en oscuro sobre
+   --color-surface: por debajo del 4.5:1 exigido, y en los DOS temas, porque el
+   token no cambia. No se le da variante oscura como a sus vecinos -600/-700/
+   -800: el -500 es el eje del espejo neutro (su reflejo es él mismo) y además
+   alimenta --color-border-control, que a propósito no se redeclara. El token
+   semántico de "texto secundario legible" resuelve las dos cosas: 5,19:1 en
+   claro y 5,14:1 en oscuro. Mismo criterio que #693. */
 .fecha-aviso-normativo {
-    color: var(--color-neutral-500);
+    color: var(--color-text-muted);
     font: var(--font-body-md);
 }
 
@@ -102,8 +109,9 @@
     font: var(--font-body-md);
 }
 
+/* Mismo caso que .fecha-aviso-normativo: ver el comentario de arriba. */
 .estado-aviso-pendiente {
-    color: var(--color-neutral-500);
+    color: var(--color-text-muted);
     font: var(--font-body-md);
 }
 

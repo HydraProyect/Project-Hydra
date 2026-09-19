@@ -282,7 +282,7 @@
                catálogo (BuscarEmpresaPorCifQuery) y lo que se vincula es esa
                empresa a la cuenta de portal. "Cliente" a secas aquí nombraría
                a la vez el rol de la cuenta y la contraparte buscada. *@
-            <CampoTexto Etiqueta="CIF de la empresa a vincular" Placeholder="A00000000" Valor="@_clienteCif" ValorChanged="BuscarClientePorCifAsync" />
+            <CampoTexto Etiqueta="Identificación fiscal de la empresa a vincular" Placeholder="CIF, DNI o NIE" Valor="@_clienteCif" ValorChanged="BuscarClientePorCifAsync" />
             @if (_buscandoCliente)
             {
                 <p class="pista-documento pista-documento-info">Buscando…</p>
@@ -291,7 +291,7 @@
             {
                 @* No es lo mismo que "no existe": mandar a crear una empresa
                    que sí está en el catálogo la duplicaría. *@
-                <p class="pista-documento pista-documento-error">No pudimos comprobar este CIF. Vuelve a intentarlo.</p>
+                <p class="pista-documento pista-documento-error">No pudimos comprobar esta identificación fiscal. Vuelve a intentarlo.</p>
             }
             else if (!string.IsNullOrWhiteSpace(_clienteCif))
             {
@@ -301,7 +301,7 @@
                 }
                 else
                 {
-                    <p class="pista-documento pista-documento-error">✗ No encontramos ninguna empresa con este CIF — créala primero en Empresas.</p>
+                    <p class="pista-documento pista-documento-error">✗ No encontramos ninguna empresa con esta identificación fiscal — créala primero en Empresas.</p>
                 }
             }
             else

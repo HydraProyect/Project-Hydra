@@ -23,14 +23,9 @@ public class CrearSubcontrataCommandValidator : AbstractValidator<CrearSubcontra
             .WithMessage($"La razón social no puede superar {Empresa.LongitudMaximaRazonSocial} caracteres.");
 
         RuleFor(c => c.Cif)
-            .Must(EsCifValido).WithMessage("El CIF no es válido.")
+            .Must(ValidadorIdentificacion.EsIdentificacionFiscalValida)
+            .WithMessage(Empresa.MensajeIdentificacionFiscalInvalida)
             .When(c => !string.IsNullOrWhiteSpace(c.Cif));
-    }
-
-    private static bool EsCifValido(string? cif)
-    {
-        var resultado = ValidadorIdentificacion.Analizar(cif!);
-        return resultado.Tipo == TipoIdentificacion.NifEmpresa && resultado.EsValido;
     }
 }
 

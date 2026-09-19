@@ -183,20 +183,23 @@ public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosCont
 
             if (string.IsNullOrWhiteSpace(cif))
             {
-                omitidos.Add(new ItemImportacionDto(HojaClientes, fila, razonSocial, "Falta el CIF."));
+                omitidos.Add(new ItemImportacionDto(HojaClientes, fila, razonSocial, "Falta la identificación fiscal."));
                 continue;
             }
 
-            var validacion = ValidadorIdentificacion.Analizar(cif);
-            if (validacion.Tipo != TipoIdentificacion.NifEmpresa || !validacion.EsValido)
+            // Mismo criterio que el alta por pantalla (Empresa.EstablecerCif):
+            // CIF de empresa, o DNI o NIE si la contraparte es un autónomo.
+            if (!ValidadorIdentificacion.EsIdentificacionFiscalValida(cif))
             {
-                omitidos.Add(new ItemImportacionDto(HojaClientes, fila, razonSocial, $"El CIF \"{cif}\" no es válido."));
+                omitidos.Add(new ItemImportacionDto(
+                    HojaClientes, fila, razonSocial,
+                    $"La identificación fiscal \"{cif}\" no es válida (CIF, DNI o NIE)."));
                 continue;
             }
 
             if (!cifsVistos.Add(cif))
             {
-                omitidos.Add(new ItemImportacionDto(HojaClientes, fila, razonSocial, "CIF duplicado dentro del propio archivo."));
+                omitidos.Add(new ItemImportacionDto(HojaClientes, fila, razonSocial, "Identificación fiscal duplicada dentro del propio archivo."));
                 continue;
             }
 

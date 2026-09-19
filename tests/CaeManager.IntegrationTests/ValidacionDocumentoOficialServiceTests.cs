@@ -211,6 +211,74 @@ public class ValidacionDocumentoOficialServiceTests : IAsyncLifetime
         verificacion.Motivos.Should().Contain("B99999999");
     }
 
+    /// <summary>
+    /// Un autónomo extranjero residente puede recibir estos documentos
+    /// identificado por su NIE (ya posible como identificación fiscal de la
+    /// Empresa desde el alta, P1) — el pipeline completo, no solo el
+    /// parser: firma válida, cotejo de identidad y auto-validación.
+    /// </summary>
+    [Fact]
+    public async Task Un_autonomo_identificado_con_nie_se_auto_valida_igual_que_una_empresa()
+    {
+        var autonomo = new Empresa("Marta Ruiz Salas", "X1234567L");
+        _dbContext.Empresas.Add(autonomo);
+        await _dbContext.SaveChangesAsync();
+
+        var documento = Documento.DeEmpresa(autonomo.Id, _tipoCorrienteTgss.Id, new DateOnly(2026, 8, 4), null, "archivo.pdf");
+        _dbContext.Documentos.Add(documento);
+        await _dbContext.SaveChangesAsync();
+
+        var textoConNie = TextoTgssValido.Replace("0B12345674", "0X1234567L");
+        var servicio = CrearServicio(Result.Exito(FirmaSelloDeOrgano()), Result.Exito<IReadOnlyList<string>>([textoConNie]));
+
+        await servicio.ProcesarDocumentoAsync(documento.Id);
+
+        var verificacion = await _dbContext.VerificacionesDocumentoOficial.SingleAsync(v => v.DocumentoId == documento.Id);
+        verificacion.Decision.Should().Be(DecisionValidacionOficial.AutoValidado);
+        verificacion.ResultadoCotejo.Should().Be(ResultadoCotejoDocumentoOficial.Coincide);
+        verificacion.CifDetectado.Should().Be("X1234567L");
+    }
+
+    /// <summary>
+    /// Revisión de Codex (2026-09-19): esta capa nunca valida el dígito de
+    /// control del identificador extraído, solo el shape (mismo criterio ya
+    /// vigente para CIF y DNI, no una laguna nueva del NIE) — el aviso era
+    /// legítimo: sin esta prueba, nada demostraba que un NIE mal transcrito
+    /// no se coló como si fuera bueno. La respuesta no es validar el
+    /// checksum aquí (duplicaría <c>ValidadorIdentificacion</c> en una capa
+    /// que solo extrae texto y cambiaría el contrato para CIF y DNI también,
+    /// fuera de alcance de este incremento) — es que el cotejo de abajo
+    /// compara por IGUALDAD exacta contra el <c>Cif</c> ya guardado en
+    /// Empresa, que sí pasó por <c>Empresa.EstablecerCif</c> y su checksum
+    /// SÍ es válido. Un NIE mal transcrito nunca coincide letra a letra con
+    /// el bueno, así que nunca se auto-valida: cae a discrepancia, igual que
+    /// cualquier otro CIF/DNI/NIE que no coincide con el propietario.
+    /// </summary>
+    [Fact]
+    public async Task Un_nie_con_digito_de_control_incorrecto_nunca_coincide_con_el_propietario()
+    {
+        var autonomo = new Empresa("Marta Ruiz Salas", "X1234567L");
+        _dbContext.Empresas.Add(autonomo);
+        await _dbContext.SaveChangesAsync();
+
+        var documento = Documento.DeEmpresa(autonomo.Id, _tipoCorrienteTgss.Id, new DateOnly(2026, 8, 4), null, "archivo.pdf");
+        _dbContext.Documentos.Add(documento);
+        await _dbContext.SaveChangesAsync();
+
+        // El parser extrae "X1234567A" tal cual — no valida el dígito de
+        // control (letra correcta para ese número: L, no A). El cotejo de
+        // identidad es el que atrapa el error, no la extracción.
+        var textoConNieMalTranscrito = TextoTgssValido.Replace("0B12345674", "0X1234567A");
+        var servicio = CrearServicio(Result.Exito(FirmaSelloDeOrgano()), Result.Exito<IReadOnlyList<string>>([textoConNieMalTranscrito]));
+
+        await servicio.ProcesarDocumentoAsync(documento.Id);
+
+        var verificacion = await _dbContext.VerificacionesDocumentoOficial.SingleAsync(v => v.DocumentoId == documento.Id);
+        verificacion.Decision.Should().Be(DecisionValidacionOficial.RevisionRequerida);
+        verificacion.ResultadoCotejo.Should().Be(ResultadoCotejoDocumentoOficial.Discrepancia);
+        verificacion.CifDetectado.Should().Be("X1234567A", "el valor extraído se persiste tal cual para que el revisor humano vea qué leyó el sistema");
+    }
+
     [Fact]
     public async Task Sin_firma_digital_no_hay_circuito_oficial_pero_si_extraccion()
     {

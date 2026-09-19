@@ -201,12 +201,15 @@ public partial class BuscadorGlobal : ComponentBase
     /// <summary>
     /// Etiqueta de tipo de cada categoría de entidad, en terminología
     /// canónica. El subtítulo que devuelve BuscarGlobalQueryHandler para
-    /// Cliente/Empresa/Subcontrata/Centro es el literal del tipo, así que
-    /// mostrarlo tal cual repetiría la etiqueta y, en el caso de "Cliente",
-    /// incumpliría además el contrato de lenguaje: la contraparte de una
-    /// Relación Empresarial es el Cliente empresarial, nunca "cliente" a
-    /// secas. Para Trabajador (DNI) y Documento (propietario) el subtítulo
-    /// del DTO sí aporta información distinta y se concatena.
+    /// Centro es el literal del tipo, así que mostrarlo tal cual repetiría
+    /// la etiqueta. Para Trabajador (DNI) y Documento (propietario) el
+    /// subtítulo del DTO sí aporta información distinta y se concatena.
+    /// "Cliente"/"Empresa"/"Subcontrata" ya no los emite el handler para
+    /// resultados directos —Empresa tiene su propia composición, ver
+    /// <see cref="ComponerSubtituloEmpresa"/>— pero siguen aquí porque
+    /// <see cref="SubtituloDeReciente"/> los necesita para leer recientes
+    /// registrados antes de P41d (2026-09-18), que guardaron esos literales
+    /// tal cual.
     /// </summary>
     private static readonly HashSet<string> EtiquetasDeTipoDelHandler =
         new(StringComparer.OrdinalIgnoreCase) { "Cliente", "Empresa", "Subcontrata", "Centro" };
@@ -215,6 +218,37 @@ public partial class BuscadorGlobal : ComponentBase
         string.IsNullOrWhiteSpace(subtituloDto) || EtiquetasDeTipoDelHandler.Contains(subtituloDto.Trim())
             ? etiquetaTipo
             : $"{etiquetaTipo} · {subtituloDto}";
+
+    /// <summary>
+    /// Traducción de cada papel en bruto que emite el handler a su etiqueta
+    /// canónica del contrato de lenguaje — la contraparte de una Relación
+    /// Empresarial es el Cliente empresarial, nunca "cliente" a secas.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<string, string> EtiquetaPorPapel =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Cliente"] = "Cliente empresarial",
+            ["Subcontrata"] = "Subcontrata",
+        };
+
+    /// <summary>
+    /// Subtítulo de una fila de Empresa: <paramref name="papelesCsv"/> es el
+    /// micro-formato del handler ("Cliente,Subcontrata", o vacío si la
+    /// Empresa no tiene ningún papel contextual) — P41d (2026-09-18): una
+    /// Empresa aparece una sola vez en el buscador aunque tenga varios
+    /// papeles, y sus papeles se muestran aquí como dato secundario en vez
+    /// de como categorías separadas.
+    /// </summary>
+    private static string ComponerSubtituloEmpresa(string? papelesCsv)
+    {
+        if (string.IsNullOrWhiteSpace(papelesCsv)) return "Empresa";
+
+        var etiquetas = papelesCsv
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(p => EtiquetaPorPapel.GetValueOrDefault(p, p));
+
+        return string.Join(" · ", etiquetas);
+    }
 
     /// <summary>
     /// Los grupos tal y como se pintan, en orden. Es la ÚNICA fuente del
@@ -253,9 +287,7 @@ public partial class BuscadorGlobal : ComponentBase
             {
                 List<ItemPaleta> entidades =
                 [
-                    .. ComoEntidades(_resultado.Clientes, "Cliente", "Cliente empresarial", "clientes"),
-                    .. ComoEntidades(_resultado.Empresas, "Empresa", "Empresa", "empresas"),
-                    .. ComoEntidades(_resultado.Subcontratas, "Subcontrata", "Subcontrata", "subcontratas"),
+                    .. ComoEntidadesEmpresa(_resultado.Empresas),
                     .. ComoEntidades(_resultado.Centros, "Centro", "Centro", "centros"),
                     .. ComoEntidades(_resultado.Trabajadores, "Trabajador", "Trabajador", "trabajadores"),
                     .. ComoEntidades(_resultado.Documentos, "Documento", "Documento", "documentos"),
@@ -284,6 +316,9 @@ public partial class BuscadorGlobal : ComponentBase
         IReadOnlyList<ItemBusquedaDto> items, string tipoHistorial, string etiquetaTipo, string icono) =>
         items.Select(i => new ItemPaleta(i, tipoHistorial, icono, ComponerSubtitulo(etiquetaTipo, i.Subtitulo), "abrir ficha"));
 
+    private static IEnumerable<ItemPaleta> ComoEntidadesEmpresa(IReadOnlyList<ItemBusquedaDto> items) =>
+        items.Select(i => new ItemPaleta(i, "Empresa", "empresas", ComponerSubtituloEmpresa(i.Subtitulo), "abrir ficha"));
+
     /// <summary>Todas las filas en el orden en que se pintan, para navegar con ↑↓/Tab + Enter.</summary>
     private IReadOnlyList<ItemPaleta> ElementosPlanos => [.. GruposVisibles.SelectMany(g => g.Items)];
 
@@ -307,18 +342,28 @@ public partial class BuscadorGlobal : ComponentBase
 
     /// <summary>
     /// Un reciente guardado lleva el subtítulo tal y como lo emitió el
-    /// handler, y para la contraparte de una Relación Empresarial ese literal
-    /// es «Cliente» a secas. Pasa por la misma neutralización que los
-    /// resultados directos: si no, abrir un Cliente empresarial y reabrir el
-    /// palette lo devolvía escrito mal en «Recientes». Vale también para lo ya
-    /// guardado, que no se reescribe.
+    /// handler en el momento de registrarse. Para "Empresa" ese literal es
+    /// el micro-formato en bruto de papeles (<see cref="ComponerSubtituloEmpresa"/>)
+    /// — P41d, 2026-09-18 — y para el resto de tipos, el literal del tipo que
+    /// neutraliza <see cref="ComponerSubtitulo"/>. "Cliente"/"Subcontrata"
+    /// siguen resolviéndose aquí para los recientes registrados ANTES de
+    /// P41d, cuando el buscador todavía los trataba como categorías propias
+    /// — nunca se reescriben, así que sus filas ya guardadas deben seguir
+    /// leyéndose igual que siempre.
     /// </summary>
     private static string SubtituloDeReciente(ItemRecienteDto r) =>
-        EtiquetaVisibleDeTipo(r.Tipo) is { } etiqueta
-            ? ComponerSubtitulo(etiqueta, r.Subtitulo)
-            : r.Subtitulo ?? string.Empty;
+        r.Tipo == "Empresa"
+            ? ComponerSubtituloEmpresa(r.Subtitulo)
+            : EtiquetaVisibleDeTipo(r.Tipo) is { } etiqueta
+                ? ComponerSubtitulo(etiqueta, r.Subtitulo)
+                : r.Subtitulo ?? string.Empty;
 
-    /// <summary>Etiqueta canónica de cada tipo de entidad; null para los que no son entidad (una acción no lleva etiqueta de tipo).</summary>
+    /// <summary>
+    /// Etiqueta canónica de cada tipo de entidad; null para los que no son
+    /// entidad (una acción no lleva etiqueta de tipo). "Cliente"/"Subcontrata"
+    /// ya no los emite el handler (P41d, 2026-09-18) pero siguen aquí para
+    /// leer recientes registrados antes de ese cambio.
+    /// </summary>
     private static string? EtiquetaVisibleDeTipo(string tipo) => tipo switch
     {
         "Cliente" => "Cliente empresarial",

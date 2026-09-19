@@ -51,7 +51,18 @@
   --color-danger-500: #ef4444;
   --color-danger-700: #991b1b;
   --color-info-50: var(--color-secondary-50);
+  /* Papel: color de TEXTO informativo sobre fondo claro (badge-info,
+     badge-visita, pendiente-rol-icono, chips de Plataforma) y acento de borde.
+     Se espeja por tema a través de --color-secondary-500. */
   --color-info-500: var(--color-secondary-500);
+  /* Papel opuesto y por eso token aparte: FONDO sólido informativo con texto
+     blanco fijo encima (.toast-info), el mismo patrón que --color-success-500
+     y --color-danger-500 en los otros toasts. No se espeja —10,51:1 con
+     --color-neutral-0 en los dos temas— porque un fondo que se aclarase en
+     oscuro dejaría el texto blanco a 1,99:1. Separar los dos papeles es lo
+     que impide que arreglar el texto rompa el fondo: hallazgo de la revisión
+     de Codex sobre la primera versión de esta PR. */
+  --color-info-600: var(--color-secondary-600);
 
   /* Color — Hydra Cyan: "el sistema actuando" (02 § 3.3, DDL-027). Se nombra
      por su ROL, no por su matiz, y es asimétrico por tema: el cian brilla en
@@ -249,6 +260,35 @@
   --color-primary-500: var(--color-primary-300);
   --color-primary-600: var(--color-primary-200);
   --color-primary-700: var(--color-primary-100);
+
+  /* Escalones neutros usados como COLOR DE TEXTO, espejados alrededor del
+     -500 (800↔200, 700↔300, 600↔400). Hasta ahora ninguno tenía variante:
+     el texto se quedaba fijo mientras el fondo sí cambiaba de tema, y el
+     contraste se hundía en oscuro — .titulo-aviso-normativo 1,29:1,
+     .badge-neutro 2,02:1, .descripcion-avisos-normativos 2,62:1 (medido
+     2026-09-18, continuación de #690 y #693). Con el espejo: 13,82:1,
+     12,56:1 y 7,75:1.
+
+     El eje es el -500 porque es el único escalón neutro que ya funcionaba en
+     los dos temas, y por eso --color-border-control no se redeclara (ver el
+     comentario de arriba): el espejo y esa excepción dicen lo mismo.
+
+     Los tres se usan HOY exclusivamente como `color:` — medido por regla, no
+     por línea. Si alguno pasara a usarse como fondo o borde, este espejo le
+     daría un valor claro en tema oscuro, que es justo lo que se quiere de una
+     escala invertida, pero conviene volver a medirlo antes. */
+  --color-neutral-600: var(--color-neutral-400);
+  --color-neutral-700: var(--color-neutral-300);
+  --color-neutral-800: var(--color-neutral-200);
+
+  /* --color-info-500 es alias de este, y sus 7 usos como texto (.badge-info,
+     .badge-visita, .pendiente-rol-icono y cuatro reglas de Plataforma) daban
+     1,99:1 y 2,15:1 en oscuro: el alias no cambiaba de tema porque su punta
+     era literal y no tenía variante. Espejado a -300, quedan en 7,60:1 y
+     8,19:1. Se redeclara el -500 y no el alias porque --color-secondary-500
+     no tiene ningún otro consumidor (medido): arreglarlo en la punta evita
+     dos declaraciones que puedan divergir. */
+  --color-secondary-500: var(--color-secondary-300);
 
   --color-success-700: #4ade80;
   --color-warning-700: #fbbf24;

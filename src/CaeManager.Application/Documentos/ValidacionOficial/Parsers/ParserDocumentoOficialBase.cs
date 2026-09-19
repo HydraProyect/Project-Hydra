@@ -25,18 +25,46 @@ public abstract class ParserDocumentoOficialBase : IParserDocumentoOficial
     protected sealed record CampoAncla(Regex Patron, bool Obligatorio);
 
     /// <summary>
-    /// CIF/NIF de la empresa, común a todos los perfiles. Calibrado con
-    /// muestras reales y las aclaraciones del usuario: la TGSS lo presenta
-    /// como "Código de Empresario" con un prefijo numérico pegado ("90" en
-    /// ITA/RLC/RNT, "0" en el certificado de corriente) — el prefijo se
-    /// admite y NO se captura (el grupo «valor» es solo el CIF). Dos ramas:
-    /// con etiqueta (CIF/NIF/Código de Empresario, admite también NIF de
-    /// autónomo) y por forma (CIF de entidad con prefijo, para los
-    /// documentos tabulares donde la etiqueta va lejos del valor). Los
-    /// lookarounds evitan capturar dentro de un token mayor (huella, CCC).
+    /// Identificación fiscal de la Empresa, común a todos los perfiles.
+    /// Calibrado con muestras reales y las aclaraciones del usuario: la TGSS
+    /// lo presenta como "Código de Empresario" con un prefijo numérico
+    /// pegado ("90" en ITA/RLC/RNT, "0" en el certificado de corriente) — el
+    /// prefijo se admite y NO se captura (el grupo «valor» es solo el
+    /// identificador). Dos ramas:
+    /// <list type="bullet">
+    /// <item>Con etiqueta (CIF/NIF/Código de Empresario): admite CIF de
+    /// entidad, DNI o NIE — un autónomo puede recibir estos documentos
+    /// identificado por su DNI o, si es extranjero residente, por su NIE
+    /// (mismo criterio de <see cref="Domain.Common.ValidadorIdentificacion.EsIdentificacionFiscalValida"/>
+    /// que ya rige el alta de la Empresa).</item>
+    /// <item>Por forma, sin etiqueta (para los documentos tabulares donde la
+    /// etiqueta va lejos del valor): admite <b>solo</b> CIF de entidad, nunca
+    /// DNI ni NIE. Es a propósito, no una laguna: RNT y RLC son listados de
+    /// trabajadores, y sin una etiqueta cerca que ancle el valor a "esto es
+    /// la empresa", un DNI o un NIE sueltos en el texto extraído tienen más
+    /// probabilidad de ser el documento de un trabajador de la lista que el
+    /// de la propia empresa — el shape de CIF de entidad (letra de
+    /// organización inicial) es más discriminante. Sigue siendo una
+    /// <b>hipótesis prudente</b>, no una propiedad demostrada con una
+    /// muestra real de un autónomo en un documento tabular: si aparece una,
+    /// hay que recalibrar esta rama con ella, no extrapolar desde aquí.</item>
+    /// </list>
+    /// Los lookarounds evitan capturar dentro de un token mayor (huella,
+    /// CCC, u otro carácter alfanumérico pegado al identificador).
+    /// <para>
+    /// Solo valida el <b>shape</b>, nunca el dígito de control (ni aquí ni
+    /// para CIF ni para DNI — no es una laguna nueva del NIE). No hace
+    /// falta: <see cref="ValidacionOficial.ValidacionDocumentoOficialService"/>
+    /// coteja el valor extraído por IGUALDAD exacta contra el <c>Cif</c> ya
+    /// guardado en la Empresa, que sí pasó por <c>Empresa.EstablecerCif</c>
+    /// y su checksum SÍ es válido — un identificador mal transcrito en el
+    /// documento nunca coincide letra a letra con el bueno, así que nunca se
+    /// auto-valida a ciegas: cae a discrepancia igual que cualquier CIF que
+    /// no coincide con el propietario.
+    /// </para>
     /// </summary>
     protected static readonly Regex RegexCifComun = new(
-        @"(?:(?:C\.?I\.?F\.?|N\.?I\.?F\.?|C.digo\s+de\s+Empresario)\s*[:\.]?\s*\d{0,4}[\-\.\s]?(?<valor>(?:[A-HJNP-SUVW]\d{7}[0-9A-J]|\d{8}[A-Z]))(?![A-Z0-9]))" +
+        @"(?:(?:C\.?I\.?F\.?|N\.?I\.?F\.?|C.digo\s+de\s+Empresario)\s*[:\.]?\s*\d{0,4}[\-\.\s]?(?<valor>(?:[A-HJNP-SUVW]\d{7}[0-9A-J]|\d{8}[A-Z]|[XYZ]\d{7}[A-Z]))(?![A-Z0-9]))" +
         @"|(?:(?<![A-Z0-9])\d{0,4}(?<valor>[A-HJNP-SUVW]\d{7}[0-9A-J])(?![A-Z0-9]))",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
