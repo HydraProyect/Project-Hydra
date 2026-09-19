@@ -172,4 +172,128 @@ public class PuertaAccesoDatosTests
                 $"iteración {i}: la espera se canceló antes de que el ocupante liberara la puerta");
         }
     }
+
+    // ── Cierre de la puerta (CerrarAsync) ────────────────────────────────────
+    // Causa raíz de las ArgumentOutOfRangeException de NpgsqlDataReader: el
+    // circuito se cierra y el scope (con el DbContext y su conexión) se dispone
+    // con una consulta todavía en vuelo. La propiedad con base de datos real la
+    // fija CierreDeCircuitoConConsultaEnVueloTests (integración); aquí, el
+    // contrato de la puerta en aislamiento.
+
+    [Fact]
+    public async Task CerrarAsync_espera_a_la_operacion_en_vuelo()
+    {
+        var puerta = new PuertaAccesoDatos();
+        var termina = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var enVuelo = puerta.EjecutarAsync(() => termina.Task);
+
+        var cierre = puerta.CerrarAsync(TimeSpan.FromSeconds(30));
+
+        await Task.Delay(100);
+        cierre.IsCompleted.Should().BeFalse("la operación en vuelo todavía tiene la puerta");
+
+        termina.SetResult();
+        await enVuelo;
+
+        (await cierre).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Tras_CerrarAsync_una_operacion_nueva_se_cancela_sin_ejecutarse()
+    {
+        var puerta = new PuertaAccesoDatos();
+        await puerta.CerrarAsync(TimeSpan.FromSeconds(5));
+        var ejecuto = false;
+
+        var intento = () => puerta.EjecutarAsync(() => { ejecuto = true; return Task.CompletedTask; });
+
+        await intento.Should().ThrowAsync<OperationCanceledException>();
+        ejecuto.Should().BeFalse();
+        puerta.Cerrada.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Con_la_puerta_ya_cerrada_una_operacion_nueva_se_cancela_sin_esperar_a_la_que_esta_en_vuelo()
+    {
+        // Tras el cierre, el componente que llega tarde tiene que enterarse ya, no
+        // cuando termine una consulta ajena: quedaría colgado del circuito que se va.
+        var puerta = new PuertaAccesoDatos();
+        var nuncaTermina = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _ = puerta.EjecutarAsync(() => nuncaTermina.Task);
+        _ = puerta.CerrarAsync(TimeSpan.FromSeconds(30));
+
+        var tardia = puerta.EjecutarAsync(() => Task.CompletedTask);
+
+        var terminada = await Task.WhenAny(tardia, Task.Delay(TimeSpan.FromSeconds(5)));
+        terminada.Should().BeSameAs(tardia, "la puerta cerrada cancela sin encolar");
+        await FluentActions.Awaiting(() => tardia).Should().ThrowAsync<OperationCanceledException>();
+        nuncaTermina.SetResult();
+    }
+
+    [Fact]
+    public async Task Una_operacion_ya_encolada_al_cerrar_no_se_ejecuta_ni_deja_la_puerta_bloqueada()
+    {
+        var puerta = new PuertaAccesoDatos();
+        var termina = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var enVuelo = puerta.EjecutarAsync(() => termina.Task);
+        var encoladaEjecuto = false;
+        var encolada = puerta.EjecutarAsync(() => { encoladaEjecuto = true; return Task.CompletedTask; });
+        await Task.Delay(50); // que la segunda quede realmente esperando en el semáforo.
+
+        var cierre = puerta.CerrarAsync(TimeSpan.FromSeconds(30));
+        termina.SetResult();
+        await enVuelo;
+
+        // La encolada despierta, ve la puerta cerrada y cancela: no toca el contexto que se va a disponer.
+        await FluentActions.Awaiting(() => encolada).Should().ThrowAsync<OperationCanceledException>();
+        encoladaEjecuto.Should().BeFalse();
+        (await cierre).Should().BeTrue("las esperas que despertaron liberan la puerta, no la dejan tomada");
+    }
+
+    [Fact]
+    public async Task CerrarAsync_con_la_espera_agotada_devuelve_false_sin_colgarse()
+    {
+        var puerta = new PuertaAccesoDatos();
+        var nuncaTermina = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _ = puerta.EjecutarAsync(() => nuncaTermina.Task);
+
+        var cerrada = await puerta.CerrarAsync(TimeSpan.FromMilliseconds(100));
+
+        cerrada.Should().BeFalse("una consulta colgada no puede retener el cierre del circuito para siempre");
+        nuncaTermina.SetResult();
+    }
+
+    [Fact]
+    public async Task CerrarAsync_es_idempotente_y_sin_nada_en_vuelo_devuelve_true()
+    {
+        var puerta = new PuertaAccesoDatos();
+
+        (await puerta.CerrarAsync(TimeSpan.FromSeconds(5))).Should().BeTrue();
+        (await puerta.CerrarAsync(TimeSpan.FromSeconds(5))).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Una_operacion_anidada_del_flujo_que_ya_tenia_la_puerta_termina_aunque_se_cierre_a_mitad()
+    {
+        // El cierre espera a la operación en vuelo; las anidadas de su mismo flujo
+        // (un handler de MediatR que despacha otro) forman parte de esa operación
+        // y no pueden cancelarse a mitad: dejarían el handler exterior a medias.
+        var puerta = new PuertaAccesoDatos();
+        var cerrarAhora = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var yaCerrada = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var exterior = puerta.EjecutarAsync(async () =>
+        {
+            cerrarAhora.SetResult();
+            await yaCerrada.Task;
+            return await puerta.EjecutarAsync(() => Task.FromResult(7));
+        });
+
+        await cerrarAhora.Task;
+        var cierre = puerta.CerrarAsync(TimeSpan.FromSeconds(30));
+        yaCerrada.SetResult();
+
+        (await exterior).Should().Be(7);
+        (await cierre).Should().BeTrue();
+    }
 }
