@@ -2,6 +2,7 @@ using System.Reflection;
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Commands.ConfirmarDocumentoPropuestoPorIa;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
 using CaeManager.Application.Documentos.Queries.DetectarCamposDocumento;
 using CaeManager.Application.DocumentosIa.Common;
@@ -91,26 +92,107 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
         _mediador.Recibidas.Select(r => r.Token).Should().OnlyContain(t => t == token);
     }
 
+    /// <summary>
+    /// R-1 (F-04, subida múltiple): antes, confianza >= 95 con Trabajador y tipo resueltos creaba el
+    /// Documento sin que nadie mirase, con fecha de emisión "hoy". Ahora la IA solo propone.
+    /// </summary>
     [Fact]
-    public async Task Los_items_creados_por_la_IA_y_confirmados_por_una_persona_muestran_badges_distintos()
+    public async Task Una_propuesta_completa_con_confianza_maxima_no_crea_ningun_Documento_hasta_que_una_persona_confirma()
     {
+        PrepararPropuesta(confianza: 100, emision: new DateOnly(2026, 3, 1));
         var cut = Render<SubidaMasiva>();
-        var ia = AgregarItem(cut, "ia.pdf", "Procesando");
-        var confirmado = AgregarItem(cut, "confirmado.pdf", "Procesando");
-        ia.GetType().GetProperty("ContenidoPdf")!.SetValue(ia, "pdf"u8.ToArray());
-        confirmado.GetType().GetProperty("ContenidoPdf")!.SetValue(confirmado, "pdf"u8.ToArray());
-        var crear = typeof(SubidaMasiva).GetMethod("CrearDocumentoDelItemAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
 
-        await (Task)crear.Invoke(cut.Instance, [ia, Guid.NewGuid(), Guid.NewGuid(), 1, true])!;
-        await (Task)crear.Invoke(cut.Instance, [confirmado, Guid.NewGuid(), Guid.NewGuid(), 1, false])!;
-        cut.Render();
+        await ProcesarAsync(cut, "propuesta.pdf");
 
-        var badges = cut.FindAll(".item-subida-masiva-badges").Select(b => b.TextContent.Trim()).ToList();
-        badges.Should().Contain("Creado por la IA");
-        badges.Should().Contain("Creado tras confirmar");
-        cut.FindAll(".item-subida-masiva").Single(item => item.TextContent.Contains("ia.pdf")).TextContent.Should().Contain("Creado por la IA");
-        cut.FindAll(".item-subida-masiva").Single(item => item.TextContent.Contains("confirmado.pdf")).TextContent.Should().Contain("Creado tras confirmar");
+        _mediador.Recibidas.Select(r => r.Peticion).OfType<DetectarCamposDocumentoQuery>().Should().ContainSingle(
+            "control: la detección se ejecutó y devolvió una propuesta completa");
+        _mediador.Recibidas.Select(r => r.Peticion).Should().NotContain(
+            p => p is ConfirmarDocumentoPropuestoPorIaCommand || p is CrearDocumentoCommand,
+            "sin confirmación no existe el Documento, sea cual sea la confianza");
+        _almacenamiento.Guardados.Should().Be(0, "ni siquiera el archivo se guarda antes de confirmar");
+        cut.Find(".item-subida-masiva").TextContent.Should()
+            .Contain("Pendiente de confirmar").And.Contain("Persona CAE").And.Contain("Tipo CAE").And.Contain("01/03/2026");
+        cut.FindAll("button").Should().Contain(b => b.TextContent.Trim() == "Confirmar propuesta");
+        await DisposeComponentsAsync();
+    }
 
+    [Fact]
+    public async Task Tras_confirmar_existe_el_Documento_con_las_fechas_leidas_del_archivo()
+    {
+        var (trabajadorId, tipoId) = PrepararPropuesta(confianza: 100, emision: new DateOnly(2026, 3, 1));
+        var cut = Render<SubidaMasiva>();
+        await ProcesarAsync(cut, "propuesta.pdf");
+        _mediador.Recibidas.Select(r => r.Peticion).OfType<ConfirmarDocumentoPropuestoPorIaCommand>().Should().BeEmpty("control previo al clic");
+
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Confirmar propuesta").ClickAsync(new MouseEventArgs());
+
+        var comando = _mediador.Recibidas.Select(r => r.Peticion).OfType<ConfirmarDocumentoPropuestoPorIaCommand>().Should().ContainSingle().Subject;
+        comando.TrabajadorId.Should().Be(trabajadorId);
+        comando.TipoDocumentoId.Should().Be(tipoId);
+        comando.FechaEmision.Should().Be(new DateOnly(2026, 3, 1), "la fecha leída del archivo, no hoy");
+        comando.Propuesta.Should().Be(new PropuestaIaDocumento(trabajadorId, tipoId, new DateOnly(2026, 3, 1), null, 100));
+        _mediador.Recibidas.Select(r => r.Peticion).OfType<CrearDocumentoCommand>().Should().BeEmpty("la página no crea Documentos por su cuenta");
+        _almacenamiento.Guardados.Should().Be(1);
+        cut.Find(".item-subida-masiva-badges").TextContent.Should().Contain("Creado tras confirmar");
+        await DisposeComponentsAsync();
+    }
+
+    [Fact]
+    public async Task Sin_fecha_leida_no_se_pone_hoy_no_se_ofrece_confirmar_de_un_clic_y_no_se_crea_nada()
+    {
+        PrepararPropuesta(confianza: 100, emision: null);
+        var cut = Render<SubidaMasiva>();
+        await ProcesarAsync(cut, "sin-fecha.pdf");
+
+        cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Confirmar propuesta");
+        cut.Find(".item-subida-masiva").TextContent.Should().Contain("sin leer en el archivo");
+
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Confirmar…").ClickAsync(new MouseEventArgs());
+        cut.Find(".item-subida-masiva-formulario input[type=date]").GetAttribute("value").Should().BeNullOrEmpty(
+            "el campo no se rellena con la fecha de hoy");
+        cut.Find(".ayuda-fecha-subida").TextContent.Should().Contain("no leyó una fecha de emisión");
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Confirmar y crear").ClickAsync(new MouseEventArgs());
+
+        _mediador.Recibidas.Select(r => r.Peticion).OfType<ConfirmarDocumentoPropuestoPorIaCommand>().Should().BeEmpty();
+        Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(m => m.Mensaje == "Indica la fecha de emisión antes de confirmar.");
+        _almacenamiento.Guardados.Should().Be(0);
+        await DisposeComponentsAsync();
+    }
+
+    [Fact]
+    public async Task La_persona_corrige_la_fecha_y_el_Documento_nace_con_la_corregida_conservando_la_propuesta()
+    {
+        PrepararPropuesta(confianza: 96, emision: new DateOnly(2026, 3, 1));
+        var cut = Render<SubidaMasiva>();
+        await ProcesarAsync(cut, "corregir.pdf");
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Confirmar…").ClickAsync(new MouseEventArgs());
+        cut.Find(".item-subida-masiva-formulario input[type=date]").GetAttribute("value").Should().Be("2026-03-01",
+            "la fecha leída del archivo aparece en el campo para que la persona la vea");
+
+        var campo = cut.Find(".item-subida-masiva-formulario input[type=date]");
+        await campo.InputAsync(new ChangeEventArgs { Value = "2026-02-02" });
+        await campo.BlurAsync(new FocusEventArgs());
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Confirmar y crear").ClickAsync(new MouseEventArgs());
+
+        var comando = _mediador.Recibidas.Select(r => r.Peticion).OfType<ConfirmarDocumentoPropuestoPorIaCommand>().Should().ContainSingle().Subject;
+        comando.FechaEmision.Should().Be(new DateOnly(2026, 2, 2));
+        comando.Propuesta.FechaEmision.Should().Be(new DateOnly(2026, 3, 1), "la propuesta viaja intacta para dejar constancia de la corrección");
+        await DisposeComponentsAsync();
+    }
+
+    [Fact]
+    public async Task Una_fecha_de_emision_futura_no_llega_a_crear_ni_a_guardar_nada()
+    {
+        var manana = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1);
+        PrepararPropuesta(confianza: 100, emision: manana);
+        var cut = Render<SubidaMasiva>();
+        await ProcesarAsync(cut, "futura.pdf");
+
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Confirmar propuesta").ClickAsync(new MouseEventArgs());
+
+        _mediador.Recibidas.Select(r => r.Peticion).OfType<ConfirmarDocumentoPropuestoPorIaCommand>().Should().BeEmpty();
+        _almacenamiento.Guardados.Should().Be(0);
+        cut.Find(".item-subida-masiva-badges").TextContent.Should().Contain("Pendiente de confirmar", "el archivo sigue disponible para corregir la fecha");
         await DisposeComponentsAsync();
     }
 
@@ -118,7 +200,7 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
     public async Task Limpiar_resueltos_conserva_el_total_y_los_creados_acumulados_del_lote()
     {
         var cut = Render<SubidaMasiva>();
-        AgregarItem(cut, "ia.pdf", "Creado", creadoAutomaticamente: true);
+        AgregarItem(cut, "creado-1.pdf", "Creado");
         AgregarItem(cut, "confirmado.pdf", "Creado");
         AgregarItem(cut, "error.pdf", "Error");
         cut.Render();
@@ -136,32 +218,25 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
     /// sale verde (medido 2026-09-12). Esa propiedad queda sin demostrar.
     /// </summary>
     [Fact]
-    public async Task El_desenlace_automatico_tras_retirar_el_componente_emite_su_aviso()
+    public async Task El_desenlace_de_una_confirmacion_tras_retirar_el_componente_emite_su_aviso()
     {
-        var trabajadorId = Guid.NewGuid();
-        var tipoId = Guid.NewGuid();
-        _mediador.Trabajadores = [new TrabajadorSelectorDto(trabajadorId, "Persona CAE", "12345678Z", null)];
-        _mediador.Tipos = [CrearTipo(tipoId)];
-        _mediador.Deteccion = new DeteccionCamposDocumentoDto(tipoId, trabajadorId, 95);
+        PrepararPropuesta(confianza: 100, emision: new DateOnly(2026, 3, 1));
         _mediador.CrearPendiente = new(TaskCreationOptions.RunContinuationsAsynchronously);
         _mediador.ComandoCrearRecibido = new(TaskCreationOptions.RunContinuationsAsynchronously);
         var toastService = Services.GetRequiredService<ToastService>();
         var cut = Render<SubidaMasiva>();
-        var pdf = CrearPdf();
+        await ProcesarAsync(cut, "confirmar.pdf");
 
-        // En el Dispatcher del renderer: el metodo llama a StateHasChanged, y fuera de el lanza y la
-        // tarea queda Faulted sin llegar al comando (medido 2026-09-12: asi se colgaba el test).
-        var metodo = typeof(SubidaMasiva).GetMethod("ProcesarEntradaAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        var procesamiento = cut.InvokeAsync(() => (Task)metodo.Invoke(cut.Instance, [pdf, "automatico.pdf", 1, CancellationToken.None])!);
+        // Sin await: el mediador no responde hasta que el test lo libera, con el componente ya retirado.
+        var clic = cut.FindAll("button").First(b => b.TextContent.Trim() == "Confirmar propuesta").ClickAsync(new MouseEventArgs());
         // Con limite: sin el, si el comando nunca llega el test se cuelga en vez de fallar (medido 2026-09-12).
-        // Y si el procesamiento acaba antes que el comando, el item quedo en error: se ensena por que.
-        var primero = await Task.WhenAny(_mediador.ComandoCrearRecibido.Task, procesamiento).WaitAsync(TimeSpan.FromSeconds(10));
+        var primero = await Task.WhenAny(_mediador.ComandoCrearRecibido.Task, clic).WaitAsync(TimeSpan.FromSeconds(10));
         primero.Should().BeSameAs(_mediador.ComandoCrearRecibido.Task,
-            "la ruta automatica tiene que enviar CrearDocumentoCommand; excepcion: {0}", procesamiento.Exception?.GetBaseException().Message);
+            "la confirmacion tiene que enviar ConfirmarDocumentoPropuestoPorIaCommand; excepcion: {0}", clic.Exception?.GetBaseException().Message);
         await DisposeComponentsAsync();
         _mediador.CrearPendiente.SetResult(Result.Exito(Guid.NewGuid()));
 
-        await procesamiento.WaitAsync(TimeSpan.FromSeconds(10));
+        await clic.WaitAsync(TimeSpan.FromSeconds(10));
         toastService.Mensajes.Should().ContainSingle(m => m.Mensaje == "Documento creado correctamente." && m.Tono == TonoToast.Exito);
     }
 
@@ -173,19 +248,13 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
     [Fact]
     public async Task Un_documento_creado_por_la_ruta_real_cuenta_en_el_lote_y_limpiar_no_lo_resta()
     {
-        var trabajadorId = Guid.NewGuid();
-        var tipoId = Guid.NewGuid();
-        _mediador.Trabajadores = [new TrabajadorSelectorDto(trabajadorId, "Persona CAE", "12345678Z", null)];
-        _mediador.Tipos = [CrearTipo(tipoId)];
-        _mediador.Deteccion = new DeteccionCamposDocumentoDto(tipoId, trabajadorId, 95);
+        PrepararPropuesta(confianza: 100, emision: new DateOnly(2026, 3, 1));
         var cut = Render<SubidaMasiva>();
-        var metodo = typeof(SubidaMasiva).GetMethod("ProcesarEntradaAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        await ProcesarAsync(cut, "real.pdf");
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Confirmar propuesta").ClickAsync(new MouseEventArgs());
 
-        await cut.InvokeAsync(() => (Task)metodo.Invoke(cut.Instance, [CrearPdf(), "real.pdf", 1, CancellationToken.None])!)
-            .WaitAsync(TimeSpan.FromSeconds(10));
-
-        _mediador.Recibidas.Select(r => r.Peticion).OfType<CrearDocumentoCommand>().Should().ContainSingle(
-            "control: el documento se creo de verdad por la ruta automatica");
+        _mediador.Recibidas.Select(r => r.Peticion).OfType<ConfirmarDocumentoPropuestoPorIaCommand>().Should().ContainSingle(
+            "control: el documento se creo de verdad por la ruta de confirmacion");
         cut.Find(".resumen-subida-masiva").TextContent.Should().Contain("1 creados");
         // Un item en error mantiene la lista con filas tras limpiar: con la lista vacia el resumen entero no se pinta.
         AgregarItem(cut, "error.pdf", "Error");
@@ -213,16 +282,34 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
         tipoItem.GetProperty("ContenidoPdf")!.SetValue(item, CrearPdf());
         var crear = typeof(SubidaMasiva).GetMethod("CrearDocumentoDelItemAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
 
-        await cut.InvokeAsync(() => (Task)crear.Invoke(cut.Instance, [item, Guid.NewGuid(), Guid.NewGuid(), 1, false])!)
+        await cut.InvokeAsync(() => (Task)crear.Invoke(cut.Instance, [item, Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 3, 1), 1])!)
             .WaitAsync(TimeSpan.FromSeconds(10));
 
         cut.Markup.Should().Contain("Solo lectura", "control: la pantalla se abrio de verdad con el rol Consulta");
         _almacenamiento.Guardados.Should().Be(0, "sin capacidad de crear, el PDF no se escribe en almacenamiento");
-        _mediador.Recibidas.Select(r => r.Peticion).OfType<CrearDocumentoCommand>().Should().BeEmpty();
+        _mediador.Recibidas.Select(r => r.Peticion).Should().NotContain(p => p is ConfirmarDocumentoPropuestoPorIaCommand || p is CrearDocumentoCommand);
         await DisposeComponentsAsync();
     }
 
-    private static object AgregarItem<T>(IRenderedComponent<T> cut, string nombre, string estado, bool creadoAutomaticamente = false)
+    private (Guid TrabajadorId, Guid TipoId) PrepararPropuesta(int confianza, DateOnly? emision)
+    {
+        var trabajadorId = Guid.NewGuid();
+        var tipoId = Guid.NewGuid();
+        _mediador.Trabajadores = [new TrabajadorSelectorDto(trabajadorId, "Persona CAE", "12345678Z", null)];
+        _mediador.Tipos = [CrearTipo(tipoId)];
+        _mediador.Deteccion = new DeteccionCamposDocumentoDto(tipoId, trabajadorId, confianza, FechaEmisionLeida: emision);
+        return (trabajadorId, tipoId);
+    }
+
+    /// <summary>En el Dispatcher del renderer: el metodo llama a StateHasChanged, y fuera de el lanza (medido 2026-09-12).</summary>
+    private static Task ProcesarAsync(IRenderedComponent<SubidaMasiva> cut, string nombre)
+    {
+        var metodo = typeof(SubidaMasiva).GetMethod("ProcesarEntradaAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        return cut.InvokeAsync(() => (Task)metodo.Invoke(cut.Instance, [CrearPdf(), nombre, 1, CancellationToken.None])!)
+            .WaitAsync(TimeSpan.FromSeconds(10));
+    }
+
+    private static object AgregarItem<T>(IRenderedComponent<T> cut, string nombre, string estado)
         where T : IComponent
     {
         var tipoItem = typeof(SubidaMasiva).GetNestedType("ItemLote", BindingFlags.NonPublic)!;
@@ -230,7 +317,6 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
         tipoItem.GetProperty("NombreArchivo")!.SetValue(item, nombre);
         var tipoEstado = typeof(SubidaMasiva).GetNestedType("EstadoItem", BindingFlags.NonPublic)!;
         tipoItem.GetProperty("Estado")!.SetValue(item, Enum.Parse(tipoEstado, estado));
-        tipoItem.GetProperty("CreadoAutomaticamente")!.SetValue(item, creadoAutomaticamente);
         typeof(SubidaMasiva).GetMethod("AgregarItem", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(cut.Instance, [item]);
         return item;
     }
@@ -268,8 +354,8 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
                 ObtenerTrabajadoresParaSelectorQuery => Trabajadores,
                 ObtenerTiposDocumentoQuery => Tipos,
                 DetectarCamposDocumentoQuery => Result.Exito(Deteccion ?? new DeteccionCamposDocumentoDto(null, null, 0)),
-                CrearDocumentoCommand when CrearPendiente is not null => EsperarCreacion<TResponse>(),
-                CrearDocumentoCommand => Result.Exito(Guid.NewGuid()),
+                ConfirmarDocumentoPropuestoPorIaCommand when CrearPendiente is not null => EsperarCreacion<TResponse>(),
+                ConfirmarDocumentoPropuestoPorIaCommand => Result.Exito(Guid.NewGuid()),
                 _ => throw new NotSupportedException(request.GetType().Name)
             };
             if (valor is Task<TResponse> tarea)

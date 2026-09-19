@@ -1,5 +1,5 @@
 using CaeManager.Application.Common;
-using CaeManager.Application.Documentos.Commands.CrearDocumento;
+using CaeManager.Application.Documentos.Commands.ConfirmarDocumentoPropuestoPorIa;
 using CaeManager.Application.Documentos.Queries.DetectarCamposDocumento;
 using CaeManager.Application.DocumentosIa.Common;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
@@ -24,12 +24,14 @@ namespace CaeManager.Web.Features.Documentos.Pages;
 /// (empareja por DNI), y no se pidió Cliente/Empresa esta vez.
 ///
 /// Cada archivo se convierte a PDF (mismo <see cref="ConversorArchivosPdf"/>
-/// que el alta individual) y se le ejecuta la detección de la Fase 54. Si
-/// la IA resuelve Trabajador y Tipo con confianza alta (>= 95, mismo umbral
-/// "verde" que Revisión IA) se crea el Documento sin pedir nada — si no,
-/// queda en la lista de confirmación con lo que sí se haya detectado ya
-/// prellenado, para que el usuario solo tenga que completar/corregir y
-/// confirmar.
+/// que el alta individual) y se le ejecuta la detección de la Fase 54. La IA
+/// solo PROPONE —Trabajador, tipo y fechas leídas del archivo— y todo archivo
+/// queda pendiente de confirmar: el Documento no existe hasta que una persona
+/// lo confirma o lo corrige (decisión del propietario, 2026-09-19). La fecha
+/// de emisión propuesta es la leída del archivo y, si no se leyó, el campo
+/// queda vacío: nunca "hoy" por defecto. La confianza autorreportada se
+/// muestra como dato, nunca como permiso: ninguna ruta de este fichero crea
+/// un Documento sin pasar por <see cref="ConfirmarAsync"/>.
 ///
 /// Visor: miniatura (primera página rasterizada a PNG con el mismo
 /// <see cref="IRasterizadorPaginasPdfService"/> que ya usa el Caso Mixto de
@@ -41,14 +43,12 @@ namespace CaeManager.Web.Features.Documentos.Pages;
 /// todavía (evita huérfanos si se descartan, y evita abrir un endpoint que
 /// sirva un archivo por clave sin un Documento que autorizar contra él —
 /// el mismo vector IDOR que Fase 31/Issue #18 ya cerraron para el resto de
-/// la aplicación). Los archivos con Trabajador y Tipo resueltos por la IA
-/// con una confianza de al menos 95 se crean automáticamente; los demás
-/// solo se persisten tras la confirmación humana.
+/// la aplicación). Ningún archivo se persiste sin la confirmación humana.
 ///
 /// El <c>[Authorize]</c> de la página incluye <see cref="Roles.Consulta"/> —
 /// a quién se le deja abrir esta pantalla no lo decide este fichero. Pero
 /// Consulta es de solo lectura (<see cref="AutorizacionEscrituraBehavior{TRequest,TResponse}"/>
-/// no lo admite para <see cref="CrearDocumentoCommand"/>), así que aquí
+/// no lo admite para <see cref="ConfirmarDocumentoPropuestoPorIaCommand"/>), así que aquí
 /// dentro no se le pinta ningún disparador de escritura (<see cref="_esSoloLectura"/>)
 /// y <see cref="CrearDocumentoDelItemAsync"/> comprueba la capacidad ANTES
 /// de llamar a <see cref="IFileStorageService.GuardarAsync"/>: sin esto, un
@@ -61,7 +61,6 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
 {
     private const long TamanoMaximoArchivoBytes = 10 * 1024 * 1024;
     private const int MaximoArchivosPorLote = 60;
-    private const int UmbralConfianzaAutoCreacion = 95;
 
     /// <summary>
     /// Bytes descomprimidos que puede llegar a retener el circuito por lote,
@@ -101,13 +100,22 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
         public EstadoItem Estado { get; set; } = EstadoItem.Procesando;
         public string TrabajadorId { get; set; } = string.Empty;
         public string TipoDocumentoId { get; set; } = string.Empty;
-        public string FechaEmision { get; set; } = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
+
+        /// <summary>
+        /// Vacía hasta que la IA lea una del archivo o la persona la escriba:
+        /// nunca "hoy" por defecto. Un valor puesto de oficio se confirmaba con
+        /// un clic y daba un Documento vigente con una fecha que nadie leyó.
+        /// </summary>
+        public string FechaEmision { get; set; } = string.Empty;
         public string FechaVencimientoManual { get; set; } = string.Empty;
+
+        /// <summary>Lo que la IA propuso, intacto: es el término de comparación de lo que la persona confirma.</summary>
+        public PropuestaIaDocumento Propuesta { get; set; } = PropuestaIaDocumento.Vacia;
+        public string? AliasSugerido { get; set; }
         public int? Confianza { get; set; }
         public string? MensajeError { get; set; }
         public bool Expandido { get; set; }
         public bool Confirmando { get; set; }
-        public bool CreadoAutomaticamente { get; set; }
     }
 
     private readonly List<ItemLote> _items = [];
@@ -347,15 +355,17 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
         var tipoResuelto = deteccion?.TipoDocumentoId is { } tipoId && _tiposDisponibles.Any(t => t.Id == tipoId) ? tipoId : (Guid?)null;
         var trabajadorResuelto = deteccion?.TrabajadorId is { } trabId && _trabajadoresDisponibles.Any(t => t.Id == trabId) ? trabId : (Guid?)null;
 
+        // La IA propone; ni la confianza ni una coincidencia completa la
+        // habilitan para crear nada. Todo archivo queda pendiente de una
+        // persona, con la propuesta ya prellenada.
+        item.Propuesta = new PropuestaIaDocumento(
+            trabajadorResuelto, tipoResuelto, deteccion?.FechaEmisionLeida, deteccion?.FechaVencimientoLeida, deteccion?.ConfianzaGeneral ?? 0);
+        item.AliasSugerido = deteccion?.AliasSugerido;
         item.TipoDocumentoId = tipoResuelto?.ToString() ?? string.Empty;
         item.TrabajadorId = trabajadorResuelto?.ToString() ?? string.Empty;
-
-        var confianzaSuficiente = deteccion?.ConfianzaGeneral >= UmbralConfianzaAutoCreacion;
-
-        if (confianzaSuficiente && tipoResuelto is not null && trabajadorResuelto is not null)
-            await CrearDocumentoDelItemAsync(item, tipoResuelto.Value, trabajadorResuelto.Value, carga, creadoAutomaticamente: true);
-        else
-            item.Estado = EstadoItem.PendienteConfirmar;
+        item.FechaEmision = deteccion?.FechaEmisionLeida?.ToString("yyyy-MM-dd") ?? string.Empty;
+        item.FechaVencimientoManual = deteccion?.FechaVencimientoLeida?.ToString("yyyy-MM-dd") ?? string.Empty;
+        item.Estado = EstadoItem.PendienteConfirmar;
 
         // Feedback incremental: con un lote de varios archivos, esperar al
         // StateHasChanged de después del foreach entero dejaría la lista
@@ -438,12 +448,26 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
             return;
         }
 
+        // Sin valor por defecto: si no hay una fecha que la persona pueda ver
+        // en el campo, no hay Documento.
+        if (!DateOnly.TryParseExact(item.FechaEmision, "yyyy-MM-dd", out var fechaEmision))
+        {
+            ToastService.Mostrar("Indica la fecha de emisión antes de confirmar.", TonoToast.Error);
+            return;
+        }
+
+        if (fechaEmision > DateOnly.FromDateTime(DateTime.UtcNow))
+        {
+            ToastService.Mostrar("La fecha de emisión no puede ser futura.", TonoToast.Error);
+            return;
+        }
+
         item.Confirmando = true;
         StateHasChanged();
 
         try
         {
-            await CrearDocumentoDelItemAsync(item, tipoDocumentoId, trabajadorId, carga, creadoAutomaticamente: false);
+            await CrearDocumentoDelItemAsync(item, tipoDocumentoId, trabajadorId, fechaEmision, carga);
         }
         finally
         {
@@ -452,7 +476,12 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
         }
     }
 
-    private async Task CrearDocumentoDelItemAsync(ItemLote item, Guid tipoDocumentoId, Guid trabajadorId, int carga, bool creadoAutomaticamente)
+    /// <summary>
+    /// Único camino que crea el Documento, y solo lo alcanza
+    /// <see cref="ConfirmarAsync"/>: el clic de una persona sobre un archivo
+    /// concreto, con los valores que esa persona tenía a la vista.
+    /// </summary>
+    private async Task CrearDocumentoDelItemAsync(ItemLote item, Guid tipoDocumentoId, Guid trabajadorId, DateOnly fechaEmision, int carga)
     {
         if (item.ContenidoPdf is null)
         {
@@ -470,9 +499,6 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
             MarcarError(item, "Tu rol de Consulta no permite crear documentos.");
             return;
         }
-
-        if (!DateOnly.TryParse(item.FechaEmision, out var fechaEmision))
-            fechaEmision = DateOnly.FromDateTime(DateTime.UtcNow);
 
         var tipo = _tiposDisponibles.FirstOrDefault(t => t.Id == tipoDocumentoId);
         DateOnly? fechaVencimientoManual = tipo is { AplicaVencimientoAutomatico: false }
@@ -496,17 +522,13 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
             using var flujoPdf = new MemoryStream(item.ContenidoPdf);
             archivoUrl = await AlmacenamientoArchivos.GuardarAsync(flujoPdf, "documento.pdf");
 
-            var resultado = await Mediator.Send(new CrearDocumentoCommand(
+            var resultado = await Mediator.Send(new ConfirmarDocumentoPropuestoPorIaCommand(
                 TrabajadorId: trabajadorId,
-                ClienteId: null,
-                EmpresaId: null,
-                VehiculoId: null,
-                ProyectoId: null,
                 TipoDocumentoId: tipoDocumentoId,
                 FechaEmision: fechaEmision,
                 FechaVencimientoManual: fechaVencimientoManual,
                 ArchivoUrl: archivoUrl,
-                Comentarios: "Creado desde subida múltiple."));
+                Propuesta: item.Propuesta));
 
             if (resultado.EsFallido)
             {
@@ -520,7 +542,6 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
             ToastService.Mostrar("Documento creado correctamente.", TonoToast.Exito);
             if (!EsVigente(carga)) return;
             item.Estado = EstadoItem.Creado;
-            item.CreadoAutomaticamente = creadoAutomaticamente;
             _totalCreados++;
         }
         catch (Exception ex)
@@ -562,6 +583,25 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
                 archivoUrl);
         }
     }
+
+    private string? NombreTrabajadorElegido(ItemLote item) =>
+        Guid.TryParse(item.TrabajadorId, out var id) ? _trabajadoresDisponibles.FirstOrDefault(t => t.Id == id)?.NombreCompleto : null;
+
+    private string? NombreTipoElegido(ItemLote item) =>
+        Guid.TryParse(item.TipoDocumentoId, out var id) ? _tiposDisponibles.FirstOrDefault(t => t.Id == id)?.Nombre : null;
+
+    /// <summary>
+    /// Con Trabajador, tipo y una fecha de emisión ya a la vista, la propia
+    /// fila ofrece confirmar. Sigue siendo un clic por archivo sobre valores
+    /// que la fila muestra; no hay "confirmar todos".
+    /// </summary>
+    private bool PropuestaCompleta(ItemLote item) =>
+        NombreTrabajadorElegido(item) is not null
+        && NombreTipoElegido(item) is not null
+        && DateOnly.TryParseExact(item.FechaEmision, "yyyy-MM-dd", out _);
+
+    private static string FechaLegible(string fechaIso) =>
+        DateOnly.TryParseExact(fechaIso, "yyyy-MM-dd", out var fecha) ? fecha.ToString("dd/MM/yyyy") : fechaIso;
 
     private bool RequiereVencimientoManual(ItemLote item) =>
         Guid.TryParse(item.TipoDocumentoId, out var tipoId)
@@ -620,7 +660,7 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
     {
         EstadoItem.Procesando => "Procesando…",
         EstadoItem.PendienteConfirmar => "Pendiente de confirmar",
-        EstadoItem.Creado => item.CreadoAutomaticamente ? "Creado por la IA" : "Creado tras confirmar",
+        EstadoItem.Creado => "Creado tras confirmar",
         EstadoItem.Descartado => "Descartado",
         EstadoItem.Error => "Error",
         _ => string.Empty
