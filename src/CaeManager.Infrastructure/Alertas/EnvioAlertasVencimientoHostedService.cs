@@ -57,6 +57,12 @@ public class EnvioAlertasVencimientoHostedService(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // P41c: todo lo que haga este servicio de fondo lo hace la propia
+        // plataforma, y la auditoría lo conserva como tal. Se declara aquí, en el
+        // punto de entrada, y no alrededor de cada guardado: así ningún camino
+        // interno —ni uno añadido después— se queda fuera por olvido.
+        using var ambitoActor = AmbitoActorAuditoria.EstablecerSistema();
+
         using var temporizador = new PeriodicTimer(IntervaloSondeo);
 
         await EnviarATodosLosTenantsAsync(stoppingToken);
@@ -184,7 +190,8 @@ public class EnvioAlertasVencimientoHostedService(
         foreach (var destinatario in destinatarios)
         {
             var resultado = await emailService.EnviarAsync(
-                destinatario.Email!, asunto, cuerpo, TipoAvisoCorreo.Informativo, stoppingToken);
+                destinatario.Email!, asunto, cuerpo, TipoAvisoCorreo.Informativo,
+                cancellationToken: stoppingToken);
             if (resultado.EsFallido)
             {
                 errores.Add($"{destinatario.Email}: {resultado.Error.Mensaje}");

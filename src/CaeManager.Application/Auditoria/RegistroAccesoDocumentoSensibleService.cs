@@ -73,7 +73,8 @@ public class RegistroAccesoDocumentoSensibleService(
             actor.UsuarioSimuladoId ?? actor.ActorRealUsuarioId,
             actor.ActorRealUsuarioId,
             (TipoViaAccesoAuditoria)actor.Via,
-            actor.ViaAccesoId);
+            actor.ViaAccesoId,
+            (TipoActorAuditoria)actor.ResolverTipoActor());
 
         // El repositorio decide si el fallo de guardado se propaga o se
         // tolera (sesión de soporte sin privilegio de escritura) — Application

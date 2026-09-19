@@ -114,6 +114,18 @@ public class RegistroAccesoDocumentoSensible : EntidadConTenant
     /// <summary>La fila que ampara la vía — la operación delegada o la sesión privilegiada.</summary>
     public Guid? ViaAccesoId { get; private set; }
 
+    /// <summary>
+    /// Qué clase de actor accedió: una persona, la propia plataforma o un
+    /// tercero con clave de API. Eje <b>ortogonal</b> a <see cref="ViaAcceso"/>,
+    /// y el mismo enum que <see cref="RegistroAuditoria.TipoActor"/> — el acceso
+    /// a un documento con datos de salud por un barrido automático y por un
+    /// gestor son hechos distintos, y hasta este eje la tabla no los separaba.
+    ///
+    /// No anulable, con <c>Desconocido</c> en las filas anteriores a esta
+    /// columna.
+    /// </summary>
+    public TipoActorAuditoria TipoActor { get; private set; }
+
     public DateTime OcurridoEnUtc { get; private set; }
 
     /// <summary>
@@ -136,7 +148,11 @@ public class RegistroAccesoDocumentoSensible : EntidadConTenant
         Guid? usuarioId,
         Guid? actorRealUsuarioId,
         TipoViaAccesoAuditoria viaAcceso,
-        Guid? viaAccesoId)
+        Guid? viaAccesoId,
+        // Opcional solo por los tests que insertan filas sintéticas, para las
+        // que Desconocido es la verdad; el único llamador de producción
+        // —RegistroAccesoDocumentoSensibleService— lo pasa siempre.
+        TipoActorAuditoria tipoActor = TipoActorAuditoria.Desconocido)
     {
         if (documentoId == Guid.Empty)
             throw new ArgumentException("El registro de acceso debe identificar el Documento accedido.", nameof(documentoId));
@@ -148,6 +164,7 @@ public class RegistroAccesoDocumentoSensible : EntidadConTenant
         ActorRealUsuarioId = actorRealUsuarioId;
         ViaAcceso = viaAcceso;
         ViaAccesoId = viaAccesoId;
+        TipoActor = tipoActor;
         OcurridoEnUtc = DateTime.UtcNow;
     }
 }

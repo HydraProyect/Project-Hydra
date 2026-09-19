@@ -331,7 +331,7 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
     {
         public int Llamadas { get; private set; }
 
-        public Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo, CancellationToken cancellationToken = default)
+        public Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo, string? responderA = null, CancellationToken cancellationToken = default)
         {
             Llamadas++;
             return Task.FromResult(Result.Exito());

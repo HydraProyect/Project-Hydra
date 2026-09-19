@@ -18,6 +18,21 @@ public enum TipoAvisoCorreo
     /// <summary>Resumen o notificación periódica (alertas, informes). Pie con el motivo de por qué llega. No hay hoy una preferencia por destinatario para desactivarlo.</summary>
     Informativo,
 
-    /// <summary>Reclamación de documentación a una Empresa contraparte o Cliente: la persona destinataria no lo disparó, y el correo espera una respuesta suya, no que lo ignore. Pie que dice que llega a través de TALVEG en nombre de quien reclama. No invita a responder: el correo sale sin Reply-To hacia quien reclama.</summary>
+    /// <summary>
+    /// Reclamación de documentación a una Empresa contraparte o Cliente: la
+    /// persona destinataria no lo disparó, y el correo espera una respuesta
+    /// suya, no que lo ignore. Pie que dice que llega a través de TALVEG en
+    /// nombre de quien reclama.
+    ///
+    /// <para>
+    /// Invita a responder <b>solo cuando el envío lleva <c>Reply-To</c></b>
+    /// (decisión D3, 2026-09-19: la respuesta la recibe el Gestor CAE que
+    /// emite la reclamación). Sin él, calla — el correo sale del buzón de
+    /// TALVEG y una respuesta moriría ahí, que es lo que #698 corrigió
+    /// quitando la frase. Las dos mitades de la regla viven en
+    /// <c>SmtpEmailService.EnvolverEnPlantillaDeMarca</c>, cada una con su
+    /// test.
+    /// </para>
+    /// </summary>
     Requerimiento,
 }

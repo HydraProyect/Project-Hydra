@@ -701,6 +701,11 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<SmtpEmailOptions>(configuration.GetSection(SmtpEmailOptions.SeccionConfiguracion));
         services.AddScoped<IEmailService, SmtpEmailService>();
 
+        // A quién vuelve la respuesta de una reclamación enviada por SMTP
+        // (decisión D3): al Gestor CAE que la emite. Scoped porque resuelve la
+        // identidad de la sesión.
+        services.AddScoped<ICorreoDelActorReal, CorreoDelActorRealDesdeIdentity>();
+
         // Resumen diario de alertas de vencimiento por correo (Issue #2):
         // apagado por defecto — ver AlertasPorCorreoOptions. Independiente
         // de si Smtp:* está configurado (IEmailService ya degrada solo si

@@ -227,6 +227,13 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
         var registros = new List<RegistroAuditoria>();
         var via = (TipoViaAccesoAuditoria)actor.Via;
 
+        // Se resuelve UNA vez por SaveChanges, fuera del bucle: el tipo de actor
+        // es del acto, no de cada entidad que el acto toque, y
+        // ResolverTipoActor() lee un AsyncLocal. El cast entre los dos enums es
+        // el mismo patrón que la vía de arriba (Domain no referencia
+        // Application), y por eso los números de los dos espejos coinciden.
+        var tipoActor = (TipoActorAuditoria)actor.ResolverTipoActor();
+
         foreach (var entrada in context.ChangeTracker.Entries())
         {
             if (entrada.Entity is RegistroAuditoria) continue;
@@ -287,7 +294,7 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
             registros.Add(new RegistroAuditoria(
                 entidadTipo, entidadId, accion, datosAntes, datosDespues,
                 actor.UsuarioSimuladoId ?? actor.ActorRealUsuarioId,
-                actor.ActorRealUsuarioId, via, actor.ViaAccesoId));
+                actor.ActorRealUsuarioId, via, actor.ViaAccesoId, tipoActor));
         }
 
         return registros;

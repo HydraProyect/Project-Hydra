@@ -34,6 +34,7 @@ public class SmtpEmailService(
 {
     public async Task<Result> EnviarAsync(
         string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo,
+        string? responderA = null,
         CancellationToken cancellationToken = default)
     {
         var config = opciones.Value;
@@ -50,11 +51,7 @@ public class SmtpEmailService(
                 ValidarCertificadoServidor(config, certificado, cadena, erroresPolitica),
         };
 
-        var mensaje = new MimeMessage();
-        mensaje.From.Add(MailboxAddress.Parse(config.BuzonRemitente!));
-        mensaje.To.Add(MailboxAddress.Parse(destinatarioEmail));
-        mensaje.Subject = asunto;
-        mensaje.Body = new TextPart(TextFormat.Html) { Text = EnvolverEnPlantillaDeMarca(cuerpoHtml, tipo, config) };
+        var mensaje = ConstruirMensaje(destinatarioEmail, asunto, cuerpoHtml, tipo, responderA, config, logger);
 
         try
         {
@@ -82,6 +79,92 @@ public class SmtpEmailService(
     }
 
     /// <summary>
+    /// Arma el <see cref="MimeMessage"/> que sale por el hilo: es lo único
+    /// que decide qué cabeceras lleva el correo, y está separado del envío
+    /// para poder comprobarlo sin abrir una conexión SMTP — mismo criterio
+    /// que <see cref="EnvolverEnPlantillaDeMarca"/> y
+    /// <see cref="ValidarCertificadoServidor"/>.
+    ///
+    /// <para>
+    /// <b>El <c>From</c> es siempre el buzón de TALVEG, con
+    /// <paramref name="responderA"/> o sin él.</b> Es el buzón que tiene SPF
+    /// y DKIM publicados: poner ahí el correo de un Gestor CAE haría que su
+    /// dominio no autorizase a nuestro servidor, y el correo acabaría en spam
+    /// o rechazado. Lo que cambia es <c>Reply-To</c>, que no lo firma nadie.
+    /// </para>
+    ///
+    /// <para>
+    /// El <c>Reply-To</c> se valida en vez de parsearse a secas
+    /// (<see cref="EsDireccionUtilizable"/>) porque su valor viene de un
+    /// <c>ApplicationUser</c>, no de un formulario: un correo mal formado ahí
+    /// no puede tumbar el envío de la reclamación, que es la acción de
+    /// negocio. Si no vale se sigue sin <c>Reply-To</c> y el pie deja de
+    /// invitar a responder por sí solo — exactamente la misma rama que "esa
+    /// cuenta no tiene correo".
+    /// </para>
+    /// </summary>
+    internal static MimeMessage ConstruirMensaje(
+        string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo,
+        string? responderA, SmtpEmailOptions config, ILogger logger)
+    {
+        var mensaje = new MimeMessage();
+        mensaje.From.Add(MailboxAddress.Parse(config.BuzonRemitente!));
+        mensaje.To.Add(MailboxAddress.Parse(destinatarioEmail));
+
+        var buzonDeRespuesta = EsDireccionUtilizable(responderA, out var direccion) ? direccion : null;
+
+        if (buzonDeRespuesta is null && !string.IsNullOrWhiteSpace(responderA))
+            logger.LogWarning("Se pidió un Reply-To que no es una dirección válida; el correo sale sin él.");
+
+        if (buzonDeRespuesta is not null)
+            mensaje.ReplyTo.Add(buzonDeRespuesta);
+
+        mensaje.Subject = asunto;
+        mensaje.Body = new TextPart(TextFormat.Html)
+        {
+            Text = EnvolverEnPlantillaDeMarca(cuerpoHtml, tipo, config, buzonDeRespuesta?.Address),
+        };
+
+        return mensaje;
+    }
+
+    /// <summary>
+    /// Si <paramref name="valor"/> sirve de verdad como buzón de respuesta.
+    ///
+    /// <para>
+    /// <b>No basta con <c>MailboxAddress.TryParse</c>.</b> MimeKit parsea en
+    /// modo laxo por defecto y acepta una dirección sin dominio: con
+    /// <c>"no-es-un-correo"</c> devuelve <c>true</c> y construye un buzón cuyo
+    /// <c>Address</c> es esa misma cadena. Puesta en <c>Reply-To</c>, el
+    /// destinatario vería un botón de responder que no lleva a ninguna parte —
+    /// peor que no ofrecerlo, porque el pie sí le habría prometido que su
+    /// respuesta llega. Medido al escribir el test, que salió rojo con
+    /// <c>TryParse</c> a secas.
+    /// </para>
+    ///
+    /// <para>
+    /// La comprobación se queda en "hay parte local y hay dominio": no valida
+    /// que el dominio exista ni que el buzón acepte correo —eso no se puede
+    /// saber desde aquí— solo descarta lo que con seguridad no es una
+    /// dirección.
+    /// </para>
+    /// </summary>
+    internal static bool EsDireccionUtilizable(string? valor, out MailboxAddress? direccion)
+    {
+        direccion = null;
+
+        if (string.IsNullOrWhiteSpace(valor) || !MailboxAddress.TryParse(valor, out var candidata))
+            return false;
+
+        var arroba = candidata.Address.LastIndexOf('@');
+        if (arroba <= 0 || arroba == candidata.Address.Length - 1)
+            return false;
+
+        direccion = candidata;
+        return true;
+    }
+
+    /// <summary>
     /// Sistema de correo TALVEG: envuelve el contenido que ya compone cada
     /// llamador (sin tocarlo) en la cabecera y el pie de marca, para que
     /// ningún sitio donde se arma un correo tenga que conocer este
@@ -97,7 +180,17 @@ public class SmtpEmailService(
     /// bloquea imágenes.
     /// </para>
     /// </summary>
-    internal static string EnvolverEnPlantillaDeMarca(string cuerpoHtml, TipoAvisoCorreo tipo, SmtpEmailOptions config)
+    /// <param name="responderA">
+    /// La dirección que ya se ha puesto en <c>Reply-To</c>, o <c>null</c> si
+    /// el correo sale sin ella. Solo decide el pie de
+    /// <see cref="TipoAvisoCorreo.Requerimiento"/>: con <c>Reply-To</c> el pie
+    /// invita a responder y dice a quién llega la respuesta; sin él calla, que
+    /// es lo que #698 corrigió. La dirección no se escribe en el cuerpo: ya
+    /// viaja en la cabecera, y repetirla solo añade un dato personal más a un
+    /// correo que sale fuera de la organización.
+    /// </param>
+    internal static string EnvolverEnPlantillaDeMarca(
+        string cuerpoHtml, TipoAvisoCorreo tipo, SmtpEmailOptions config, string? responderA = null)
     {
         var franjaDeMarca = string.IsNullOrWhiteSpace(config.UrlBasePublica)
             ? """
@@ -123,6 +216,10 @@ public class SmtpEmailService(
             TipoAvisoCorreo.Informativo =>
                 """
                 Recibes este aviso por tu responsabilidad de coordinación en TALVEG. · <a href="https://talveg.es">talveg.es</a>
+                """,
+            TipoAvisoCorreo.Requerimiento when !string.IsNullOrWhiteSpace(responderA) =>
+                """
+                Este correo llega a través de TALVEG en nombre de quien te lo reclama. Puedes responder a este mensaje: tu respuesta le llegará directamente a esa persona. · <a href="https://talveg.es">talveg.es</a>
                 """,
             TipoAvisoCorreo.Requerimiento =>
                 """
