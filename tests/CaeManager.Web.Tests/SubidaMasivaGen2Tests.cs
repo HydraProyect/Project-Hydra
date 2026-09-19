@@ -173,6 +173,24 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
     }
 
     [Fact]
+    public async Task Una_fila_corregida_por_la_persona_ya_no_se_presenta_como_propuesta_intacta_de_la_IA()
+    {
+        PrepararPropuesta(confianza: 100, emision: new DateOnly(2026, 3, 1));
+        var cut = Render<SubidaMasiva>();
+        await ProcesarAsync(cut, "corregida.pdf");
+        cut.Find(".item-subida-masiva-propuesta").TextContent.Should().StartWith("Propuesta de la IA —", "control: sin tocar nada es la propuesta intacta");
+
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Confirmar…").ClickAsync(new MouseEventArgs());
+        var fecha = cut.FindAll("input[type=date]").First();
+        await fecha.InputAsync(new ChangeEventArgs { Value = "2026-03-05" });
+        await fecha.BlurAsync(new FocusEventArgs());
+
+        cut.Find(".item-subida-masiva-propuesta").TextContent.Should().StartWith("Propuesta de la IA con tus correcciones");
+        cut.FindAll("button").Should().Contain(b => b.TextContent.Trim() == "Confirmar con mis correcciones");
+        await DisposeComponentsAsync();
+    }
+
+    [Fact]
     public async Task Sin_fecha_leida_no_se_pone_hoy_no_se_ofrece_confirmar_de_un_clic_y_no_se_crea_nada()
     {
         PrepararPropuesta(confianza: 100, emision: null);

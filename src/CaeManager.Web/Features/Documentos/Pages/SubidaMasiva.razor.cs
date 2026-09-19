@@ -598,6 +598,26 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
         && NombreTipoElegido(item) is not null
         && DateOnly.TryParseExact(item.FechaEmision, "yyyy-MM-dd", out _);
 
+    /// <summary>
+    /// La fila muestra los valores que la persona tiene ahora en los controles,
+    /// no la propuesta intacta; si ya difieren de ella, el rótulo lo dice para no
+    /// presentar una corrección humana como si fuera lo que propuso la IA.
+    /// </summary>
+    private bool CorregidaPorPersona(ItemLote item)
+    {
+        var propuesta = item.Propuesta;
+        Guid? trabajador = Guid.TryParse(item.TrabajadorId, out var t) ? t : null;
+        Guid? tipo = Guid.TryParse(item.TipoDocumentoId, out var d) ? d : null;
+        DateOnly? emision = DateOnly.TryParseExact(item.FechaEmision, "yyyy-MM-dd", out var e) ? e : null;
+        DateOnly? vencimiento = RequiereVencimientoManual(item) && DateOnly.TryParse(item.FechaVencimientoManual, out var v) ? v : null;
+        var vencimientoPropuesto = RequiereVencimientoManual(item) ? propuesta.FechaVencimiento : null;
+
+        return trabajador != propuesta.TrabajadorId
+            || tipo != propuesta.TipoDocumentoId
+            || emision != propuesta.FechaEmision
+            || vencimiento != vencimientoPropuesto;
+    }
+
     private static string FechaLegible(string fechaIso) =>
         DateOnly.TryParseExact(fechaIso, "yyyy-MM-dd", out var fecha) ? fecha.ToString("dd/MM/yyyy") : fechaIso;
 
