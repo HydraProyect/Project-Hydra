@@ -31,6 +31,19 @@ public class WebAppFixture : IAsyncLifetime
     public IBrowser Browser { get; private set; } = null!;
 
     /// <summary>
+    /// Directorio donde el proceso de CaeManager.Web de ESTA fixture escribe su
+    /// log de Serilog (REC-216). Se resuelve desde el .dll que arrancó, no
+    /// desde la raíz del repo: es el content root real del proceso.
+    /// </summary>
+    public string DirectorioLogs { get; private set; } = string.Empty;
+
+    /// <summary>
+    /// Patrón de los ficheros de log de esta fixture (uno por día, rotación
+    /// de Serilog): <c>log-{TipoDeFixture}-AAAAMMDD.txt</c>.
+    /// </summary>
+    public string PatronFicheroLog => $"log-{GetType().Name}-*.txt";
+
+    /// <summary>
     /// Punto de extensión para subclases (ver
     /// <see cref="WebAppFixtureConSegundoTenant"/>) que necesitan variables
     /// de entorno adicionales al arrancar el proceso real de
@@ -43,11 +56,13 @@ public class WebAppFixture : IAsyncLifetime
     public async Task InitializeAsync()
     {
         var puerto = ObtenerPuertoLibre();
+        var tipoFixture = GetType().Name;
         BaseUrl = $"http://127.0.0.1:{puerto}";
 
         _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica("e2e");
 
         var rutaDll = LocalizarCaeManagerWebDll();
+        DirectorioLogs = Path.Combine(Path.GetDirectoryName(rutaDll)!, "App_Data", "logs");
 
         var infoInicio = new ProcessStartInfo
         {
@@ -93,14 +108,39 @@ public class WebAppFixture : IAsyncLifetime
         infoInicio.Environment["RateLimiting__Cuenta__LimiteAnonimo"] = "1000";
         infoInicio.Environment["RateLimiting__Cuenta__LimiteAutenticado"] = "1000";
 
+        // REC-216: un fichero de log propio por fixture. xUnit paraleliza por
+        // colección y cada colección arranca su propio proceso de
+        // CaeManager.Web; con la ruta por defecto (App_Data/logs/log-.txt)
+        // los cuatro procesos escribían en el MISMO fichero, sin puerto,
+        // PID ni nombre de test en ninguna línea — medido en el run
+        // 35402030148 de CI: cuatro arranques de servidor solapados en un
+        // único log-AAAAMMDD.txt de 11.459 líneas, imposible de atribuir a
+        // un test. Con una ruta por tipo de fixture (una instancia por
+        // colección, ver los CollectionDefinition de abajo) todas las líneas
+        // de un fichero salen de un solo proceso, y dentro de una colección
+        // los tests son secuenciales: cruzado con las horas del .trx (ver
+        // ci.yml, "Tests E2E"), cada línea cae en la ventana de UN test.
+        //
+        // El nombre empieza por "log-" y vive en el mismo directorio a
+        // propósito: Ayudas.EsperarLineaEnLogDeLaAppAsync busca "log-*.txt"
+        // sin recursión, y sigue viendo todos los ficheros. Sin puerto en el
+        // nombre: retainedFileCountLimit (Program.cs) cuenta por plantilla, y
+        // un nombre distinto en cada ejecución nunca rotaría nada en una
+        // máquina de desarrollo. La ruta es relativa al content root, igual
+        // que la ruta por defecto. Va ANTES del bucle de variables
+        // adicionales para que una subclase pueda sobrescribirla si alguna
+        // vez lo necesita.
+        infoInicio.Environment["Logging__RutaArchivo"] = $"App_Data/logs/log-{tipoFixture}-.txt";
+
         foreach (var (clave, valor) in VariablesDeEntornoAdicionales())
             infoInicio.Environment[clave] = valor;
 
         _proceso = Process.Start(infoInicio)
             ?? throw new InvalidOperationException("No se pudo arrancar el proceso de CaeManager.Web.");
 
-        // stderr se reenvía (prefijado con el puerto, para distinguir las 4
-        // fixtures que pueden estar corriendo en la misma suite) en vez de
+        // stderr se reenvía (prefijado con el tipo de fixture y el puerto, para
+        // distinguir las 4 fixtures que pueden estar corriendo en la misma
+        // suite) en vez de
         // descartarse: una excepción no controlada mientras la app ya está
         // arrancada y sirviendo peticiones no dejaba ningún rastro en el log
         // de CI — un test E2E que falla por timeout esperando contenido daba
@@ -109,9 +149,10 @@ public class WebAppFixture : IAsyncLifetime
         // forma de distinguirlos. stdout NO se reenvía aquí para no ahogar la
         // salida del runner, pero eso no significa que se pierda: Serilog
         // escribe lo mismo en su sink de archivo (ver Program.cs,
-        // "Logging:RutaArchivo"), que con el content root de estos tests cae
-        // en src/CaeManager.Web/bin/{Configuration}/net10.0/App_Data/logs/
-        // log-AAAAMMDD.txt. Ese fichero es el sitio donde mirar cuando un
+        // "Logging:RutaArchivo", fijada arriba por fixture), que con el
+        // content root de estos tests cae en
+        // src/CaeManager.Web/bin/{Configuration}/net10.0/App_Data/logs/
+        // log-{TipoDeFixture}-AAAAMMDD.txt. Ese fichero es el sitio donde mirar cuando un
         // test E2E se queda esperando algo que nunca llega: un comando que
         // revienta en un circuito de Blazor ya cerrado solo deja rastro ahí
         // (así se encontró la causa del fallo del Paso 0 de
@@ -122,7 +163,7 @@ public class WebAppFixture : IAsyncLifetime
         _proceso.ErrorDataReceived += (_, e) =>
         {
             if (!string.IsNullOrEmpty(e.Data))
-                Console.Error.WriteLine($"[CaeManager.Web:{puerto}] {e.Data}");
+                Console.Error.WriteLine($"[CaeManager.Web:{tipoFixture}:{puerto}] {e.Data}");
         };
         _proceso.BeginOutputReadLine();
         _proceso.BeginErrorReadLine();
