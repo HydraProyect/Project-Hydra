@@ -5,8 +5,6 @@ using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentaci
 using CaeManager.Application.Common;
 using CaeManager.Application.Gestiones.Queries.ObtenerGestiones;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
-using CaeManager.Application.Trabajadores.Commands.EliminarTrabajador;
-using CaeManager.Application.Trabajadores.Commands.RestaurarTrabajador;
 using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId;
 using CaeManager.Domain.Common;
@@ -65,8 +63,6 @@ public class Trabajador360Gen2Tests : BunitContext
         public Dictionary<Guid, List<CentroDocumentacionTrabajadorDto>> Centros { get; } = [];
         public Dictionary<Guid, List<GestionListaDto>> Gestiones { get; } = [];
         public List<TipoDocumentoListaDto> Tipos { get; } = [];
-        public Result ResultadoEliminarTrabajador { get; set; } = Result.Exito();
-        public Result ResultadoRestaurarTrabajador { get; set; } = Result.Exito();
 
         /// <summary>El comando dice cuántas bajas hizo y qué errores hubo: un éxito pelado no distingue «dada de baja» de «no se dio de baja ninguna».</summary>
         public Result<ResultadoBajaLoteDto> ResultadoDarDeBajaAsignacion { get; set; } =
@@ -96,8 +92,6 @@ public class Trabajador360Gen2Tests : BunitContext
                 (IReadOnlyList<CentroDocumentacionTrabajadorDto>)(Centros.GetValueOrDefault(q.TrabajadorId) ?? []),
             ObtenerGestionesQuery q => Paginar(q),
             ObtenerTiposDocumentoQuery => (IReadOnlyList<TipoDocumentoListaDto>)Tipos,
-            EliminarTrabajadorCommand => ResultadoEliminarTrabajador,
-            RestaurarTrabajadorCommand => ResultadoRestaurarTrabajador,
             DarDeBajaAsignacionesCommand => ResultadoDarDeBajaAsignacion,
             _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
         };
@@ -347,8 +341,13 @@ public class Trabajador360Gen2Tests : BunitContext
             .Which.Should().BeEquivalentTo(new { TrabajadorId = id, Estado = EstadoGestion.Pendiente });
     }
 
+    /// <summary>
+    /// P41b (decisión del propietario, 2026-09-19): «Dar de baja» del trabajador
+    /// solo vive en la lista. El menú de la ficha ya no la ofrece; las bajas de
+    /// las asignaciones vigentes, que son otra cosa, se quedan en su tabla.
+    /// </summary>
     [Fact]
-    public async Task Dar_de_baja_al_trabajador_sigue_pidiendo_confirmacion_y_solo_despues_emite_el_comando()
+    public async Task La_ficha_no_ofrece_dar_de_baja_al_trabajador()
     {
         var id = Guid.NewGuid();
         var mediador = Registrar(new MediatorFalso());
@@ -362,24 +361,9 @@ public class Trabajador360Gen2Tests : BunitContext
             "la página tiene un único menú de acciones, el de la cabecera (lo da por hecho DeepLinksTests)");
         await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
 
-        var itemsMenu = cut.FindAll("[role=menuitem]").Select(i => i.TextContent.Trim()).ToList();
-        itemsMenu.Should().Equal(["Editar", "Reclamar faltantes", "Crear gestión", "Dar de baja"]);
-        await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Dar de baja")
-            .ClickAsync(new MouseEventArgs());
-
-        var dialogo = cut.Find(".modal-contenido");
-        SinEspaciosDeMas(dialogo.TextContent).Should().Contain("¿Dar de baja a Javier Salas Moreno?")
-            .And.Contain("se cerrarán sus asignaciones vigentes",
-                "el comando cierra las asignaciones activas y el diálogo no puede callarlo")
-            .And.Contain("las asignaciones cerradas no se reabren",
-                "restaurar devuelve al trabajador a las listas, pero no reabre lo que se cerró");
-        mediador.Enviadas.OfType<EliminarTrabajadorCommand>().Should().BeEmpty("todavía no se ha confirmado");
-
-        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Dar de baja")
-            .ClickAsync(new MouseEventArgs());
-
-        mediador.Enviadas.OfType<EliminarTrabajadorCommand>().Should().ContainSingle()
-            .Which.Id.Should().Be(id);
+        cut.FindAll("[role=menuitem]").Select(i => i.TextContent.Trim())
+            .Should().Equal(["Editar", "Reclamar faltantes", "Crear gestión"]);
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
     }
 
     [Fact]
@@ -532,10 +516,10 @@ public class Trabajador360Gen2Tests : BunitContext
 
     private const string BotonBajaAsignacion = "[aria-label='Asignaciones activas'] .columna-accion button";
 
-    private static async Task AbrirDialogoDeBajaAsync(IRenderedComponent<TrabajadorDetalle> cut)
+    private static async Task AbrirModalCrearGestionAsync(IRenderedComponent<TrabajadorDetalle> cut)
     {
         await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-        await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Dar de baja")
+        await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Crear gestión")
             .ClickAsync(new MouseEventArgs());
     }
 
@@ -550,8 +534,8 @@ public class Trabajador360Gen2Tests : BunitContext
 
     /// <summary>
     /// Las modales se pintan fuera del bloque de la página y su estado no se
-    /// tocaba al cambiar de ruta: abrir «Dar de baja» para uno, abrir la ficha
-    /// de otro y confirmar daba de baja AL SEGUNDO. Lo preparado para un
+    /// tocaba al cambiar de ruta: abrir una modal para un trabajador y abrir la
+    /// ficha de otro la dejaba abierta sobre el segundo. Lo preparado para un
     /// trabajador no puede ejecutarse sobre otro.
     /// </summary>
     [Fact]
@@ -564,15 +548,14 @@ public class Trabajador360Gen2Tests : BunitContext
         mediador.Centros[segundo] = mediador.Centros[primero];
 
         var cut = Renderizar(primero);
-        await AbrirDialogoDeBajaAsync(cut);
-        cut.FindAll(".modal-contenido").Should().ContainSingle("el diálogo está abierto para el primero");
+        await AbrirModalCrearGestionAsync(cut);
+        cut.FindAll(".modal-contenido").Should().ContainSingle("la modal está abierta para el primero");
 
         cut.Render(p => p.Add(x => x.TrabajadorId, segundo));
         cut.Find(".trabajador360-cabecera h1").TextContent.Trim().Should().StartWith("Eider Lasa Arrieta");
 
         cut.FindAll(".modal-contenido").Should().BeEmpty(
-            "el diálogo preguntaba por el primero y en pantalla ya está el segundo");
-        mediador.Enviadas.OfType<EliminarTrabajadorCommand>().Should().BeEmpty();
+            "la modal preguntaba por el primero y en pantalla ya está el segundo");
     }
 
     /// <summary>
@@ -634,30 +617,5 @@ public class Trabajador360Gen2Tests : BunitContext
 
         mediador.Enviadas.OfType<DarDeBajaAsignacionesCommand>().Should().ContainSingle(
             "la guarda de reentrada impide que el segundo evento mande otra baja");
-    }
-
-    /// <summary>
-    /// El diálogo promete deshacerlo desde el aviso. El aviso de esta página no
-    /// traía acción —y además la página navega—, así que la promesa se perdía.
-    /// </summary>
-    [Fact]
-    public async Task El_aviso_de_la_baja_cumple_el_Deshacer_que_el_dialogo_promete()
-    {
-        var id = Guid.NewGuid();
-        var mediador = ConTrabajador(id);
-
-        var cut = Renderizar(id);
-        await AbrirDialogoDeBajaAsync(cut);
-        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Dar de baja")
-            .ClickAsync(new MouseEventArgs());
-
-        var aviso = Avisos.Mensajes.Should().ContainSingle().Subject;
-        aviso.Mensaje.Should().Be("Trabajador dado de baja.");
-        aviso.TextoAccion.Should().Be("Deshacer");
-
-        await cut.InvokeAsync(() => aviso.OnAccion!());
-
-        mediador.Enviadas.OfType<RestaurarTrabajadorCommand>().Should().ContainSingle()
-            .Which.Id.Should().Be(id, "se restaura al trabajador que se acaba de dar de baja");
     }
 }

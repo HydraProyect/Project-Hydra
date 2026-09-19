@@ -7,7 +7,6 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas.Commands.CambiarNivelServicioSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EditarSubcontrata;
-using CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarVerificacionExterna;
 using CaeManager.Application.Subcontratas.Commands.GuardarCredencialAccesoSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.RegistrarVerificacionExterna;
@@ -67,7 +66,6 @@ public class Subcontrata360Gen2Tests : BunitContext
         public Dictionary<Guid, CredencialAccesoSubcontrataDto> Credenciales { get; } = [];
         public List<ClienteSelectorDto> Clientes { get; } = [];
         public List<EmpresaSelectorDto> Empresas { get; } = [];
-        public Result ResultadoEliminar { get; set; } = Result.Exito();
 
         /// <summary>Catálogo de tipos de documento por ámbito: la consulta responde según el ámbito que pide.</summary>
         public Dictionary<AmbitoAplicacion, List<TipoDocumentoListaDto>> Tipos { get; } = [];
@@ -108,7 +106,6 @@ public class Subcontrata360Gen2Tests : BunitContext
             ObtenerTiposDocumentoQuery q => q.AmbitoAplicacion is { } ambito
                 ? Tipos.GetValueOrDefault(ambito) ?? []
                 : Tipos.Values.SelectMany(t => t).ToList(),
-            EliminarSubcontrataCommand => ResultadoEliminar,
             CambiarNivelServicioSubcontrataCommand => Result.Exito(),
             RegistrarVerificacionExternaSubcontrataCommand => ResultadoRegistrarVerificacion,
             EliminarVerificacionExternaSubcontrataCommand => ResultadoEliminarVerificacion,
@@ -325,58 +322,24 @@ public class Subcontrata360Gen2Tests : BunitContext
         cut.Markup.Should().NotContain("lauburu.prl").And.NotContain("Lauburu.2026");
     }
 
+    /// <summary>
+    /// P41b (decisión del propietario, 2026-09-19): «Dar de baja» de la
+    /// subcontrata solo vive en la lista. La ficha no la ofrece —ni botón, ni
+    /// diálogo— y el doble de mediador ya no responde a
+    /// <c>EliminarSubcontrataCommand</c>.
+    /// </summary>
     [Fact]
-    public async Task Dar_de_baja_pide_confirmacion_con_su_efecto_y_despues_vuelve_al_nivel_anterior_de_la_pila()
+    public void La_ficha_no_ofrece_dar_de_baja_a_la_subcontrata()
     {
         var id = Guid.NewGuid();
-        var empresa = Guid.NewGuid();
         var mediador = Registrar(new MediatorFalso());
         mediador.Detalles[id] = Detalle(id, "Pinturas Lauburu S.A.");
-        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
-        await workspace.AbrirAsync(EntidadWorkspace.Empresa, empresa, "Montajes Ebro S.L.", "informacion");
-        await workspace.NavegarAAsync(EntidadWorkspace.Subcontrata, id, "Pinturas Lauburu S.A.", "informacion");
 
         var cut = Renderizar(id);
-        await Boton(cut, "Dar de baja").ClickAsync(new MouseEventArgs());
 
-        var dialogo = cut.Find("[role=dialog]");
-        dialogo.TextContent.Should().Contain("¿Dar de baja a Pinturas Lauburu S.A.?")
-            .And.Contain("deja de aparecer en las listas").And.Contain("Si todavía tiene trabajadores no se da de baja");
-        mediador.Enviadas.OfType<EliminarSubcontrataCommand>().Should().BeEmpty("abrir el diálogo no da de baja");
-
-        await cut.Find("[role=dialog] .modal-pie").QuerySelectorAll("button")
-            .Single(b => b.TextContent.Trim() == "Dar de baja").ClickAsync(new MouseEventArgs());
-
-        mediador.Enviadas.OfType<EliminarSubcontrataCommand>().Select(c => c.Id).Should().Equal([id]);
-        workspace.Pila.Should().ContainSingle("tras la baja la ficha no tiene nada que enseñar y se vuelve al nivel anterior");
-        workspace.FrameActual!.Tipo.Should().Be(EntidadWorkspace.Empresa);
-        Services.GetRequiredService<ToastService>().Mensajes.Should()
-            .ContainSingle(m => m.Mensaje == "Pinturas Lauburu S.A. se dio de baja." && m.Tono == TonoToast.Exito);
-    }
-
-    [Fact]
-    public async Task Si_el_comando_rechaza_la_baja_se_ensena_su_motivo_y_la_ficha_sigue_abierta()
-    {
-        const string motivo = "No puedes eliminar una subcontrata con trabajadores. Da de baja a sus trabajadores primero.";
-        var id = Guid.NewGuid();
-        var mediador = Registrar(new MediatorFalso
-        {
-            ResultadoEliminar = Result.Fallo(Error.Crear("Subcontrata.TieneTrabajadores", motivo))
-        });
-        mediador.Detalles[id] = Detalle(id, "Pinturas Lauburu S.A.");
-        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
-        await workspace.AbrirAsync(EntidadWorkspace.Subcontrata, id, "Pinturas Lauburu S.A.", "informacion");
-
-        var cut = Renderizar(id);
-        await Boton(cut, "Dar de baja").ClickAsync(new MouseEventArgs());
-        await cut.Find("[role=dialog] .modal-pie").QuerySelectorAll("button")
-            .Single(b => b.TextContent.Trim() == "Dar de baja").ClickAsync(new MouseEventArgs());
-
-        Services.GetRequiredService<ToastService>().Mensajes.Should()
-            .ContainSingle(m => m.Mensaje == motivo && m.Tono == TonoToast.Error);
-        workspace.FrameActual.Should().NotBeNull("un rechazo no cierra la ficha");
-        workspace.FrameActual!.EntidadId.Should().Be(id);
-        cut.FindAll("[role=dialog]").Should().BeEmpty("el diálogo se cierra y el motivo queda en el aviso");
+        cut.FindAll("button").Should().NotContain(b => b.TextContent.Contains("Dar de baja", StringComparison.Ordinal));
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
+        cut.Markup.Should().Contain("Pinturas Lauburu S.A.", "control positivo: el panel se pintó, no está vacío");
     }
 
     /// <summary>

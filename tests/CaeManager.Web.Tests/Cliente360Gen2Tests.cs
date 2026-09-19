@@ -2,7 +2,6 @@ using System.Reflection;
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Clientes.Commands.EditarCliente;
-using CaeManager.Application.Clientes.Commands.EliminarCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerCentrosDeCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerEmpresasDeCliente;
@@ -60,7 +59,6 @@ public class Cliente360Gen2Tests : BunitContext
         public Dictionary<Guid, List<SubcontrataDeClienteDto>> Subcontratas { get; } = [];
         public Dictionary<Guid, List<CentroDeClienteDto>> Centros { get; } = [];
 
-        public Result ResultadoEliminar { get; set; } = Result.Exito();
         public Result ResultadoEditar { get; set; } = Result.Exito();
 
         /// <summary>Si devuelve una tarea, la respuesta espera a que se complete.</summary>
@@ -93,7 +91,6 @@ public class Cliente360Gen2Tests : BunitContext
             ObtenerSubcontratasDeClienteQuery q => Subcontratas.GetValueOrDefault(q.ClienteId) ?? [],
             ObtenerCentrosDeClienteQuery q => Centros.GetValueOrDefault(q.ClienteId) ?? [],
             EditarClienteCommand => ResultadoEditar,
-            EliminarClienteCommand => ResultadoEliminar,
             _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
         };
 
@@ -501,199 +498,30 @@ public class Cliente360Gen2Tests : BunitContext
             "el formulario de B no hereda el error de A");
     }
 
-    // ─────────── Dar de baja ───────────
+    // ─────────── Baja de la entidad: solo en la lista ───────────
 
+    /// <summary>
+    /// P41b (decisión del propietario, 2026-09-19): «Dar de baja» de la entidad
+    /// solo vive en la lista, donde la acción va precedida de selección
+    /// explícita. La ficha ya no la ofrece —ni botón, ni diálogo—, y el doble
+    /// de mediador no responde a <c>EliminarClienteCommand</c>: si la ficha lo
+    /// mandara, el test caería con «Consulta no prevista».
+    /// </summary>
     [Fact]
-    public async Task Dar_de_baja_pide_confirmacion_con_su_efecto_y_despues_vuelve_al_nivel_anterior_de_la_pila()
+    public void La_ficha_no_ofrece_dar_de_baja_al_Cliente_empresarial()
     {
         var id = Guid.NewGuid();
-        var centro = Guid.NewGuid();
         var mediador = Registrar(new MediatorFalso());
         mediador.Detalles[id] = Detalle(id, "Refrielectric S.A.");
         mediador.Resumenes[id] = Resumen(id, 3, 42);
-        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
-        await workspace.AbrirAsync(EntidadWorkspace.Centro, centro, "Centro Norte", "informacion");
-        await workspace.NavegarAAsync(EntidadWorkspace.Cliente, id, "Refrielectric S.A.", "informacion");
 
         var cut = Renderizar(id);
-        await Boton(cut, "Dar de baja").ClickAsync(new MouseEventArgs());
 
-        var dialogo = cut.Find("[role=dialog]");
-        dialogo.TextContent.Should().Contain("¿Dar de baja a Refrielectric S.A.?")
-            .And.Contain("deja de aparecer en las listas")
-            .And.Contain("Si todavía tiene centros activos no se da de baja");
-        mediador.Enviadas.OfType<EliminarClienteCommand>().Should().BeEmpty("abrir el diálogo no da de baja");
-
-        await cut.Find("[role=dialog] .modal-pie").QuerySelectorAll("button")
-            .Single(b => b.TextContent.Trim() == "Dar de baja").ClickAsync(new MouseEventArgs());
-
-        mediador.Enviadas.OfType<EliminarClienteCommand>().Select(c => c.Id).Should().Equal([id]);
-        workspace.Pila.Should().ContainSingle("tras la baja la ficha no tiene nada que enseñar y se vuelve al nivel anterior");
-        workspace.FrameActual!.Tipo.Should().Be(EntidadWorkspace.Centro);
-        Services.GetRequiredService<ToastService>().Mensajes.Should()
-            .ContainSingle(m => m.Mensaje == "Refrielectric S.A. se dio de baja." && m.Tono == TonoToast.Exito);
-    }
-
-    [Fact]
-    public async Task Si_el_comando_rechaza_la_baja_se_ensena_su_motivo_y_la_ficha_sigue_abierta()
-    {
-        const string motivo = "No puedes eliminar un cliente con centros activos. Da de baja sus centros primero.";
-        var id = Guid.NewGuid();
-        var mediador = Registrar(new MediatorFalso
-        {
-            ResultadoEliminar = Result.Fallo(Error.Crear("Cliente.TieneCentrosActivos", motivo))
-        });
-        mediador.Detalles[id] = Detalle(id, "Refrielectric S.A.");
-        mediador.Resumenes[id] = Resumen(id, 3, 42);
-        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
-        await workspace.AbrirAsync(EntidadWorkspace.Cliente, id, "Refrielectric S.A.", "informacion");
-
-        var cut = Renderizar(id);
-        await Boton(cut, "Dar de baja").ClickAsync(new MouseEventArgs());
-        await cut.Find("[role=dialog] .modal-pie").QuerySelectorAll("button")
-            .Single(b => b.TextContent.Trim() == "Dar de baja").ClickAsync(new MouseEventArgs());
-
-        Services.GetRequiredService<ToastService>().Mensajes.Should()
-            .ContainSingle(m => m.Mensaje == $"Refrielectric S.A.: {motivo}" && m.Tono == TonoToast.Error,
-                "el motivo va nombrado: el aviso es global y puede leerse sobre otra ficha");
-        workspace.FrameActual.Should().NotBeNull("un rechazo no cierra la ficha");
-        workspace.FrameActual!.EntidadId.Should().Be(id);
-        cut.FindAll("[role=dialog]").Should().BeEmpty("el diálogo se cierra y el motivo queda en el aviso");
-    }
-
-    /// <summary>
-    /// Una ficha relevada no puede tocar la nueva, pero su desenlace tampoco se
-    /// calla: el comando no lleva el token del ciclo —cerrar la ficha no
-    /// deshace la baja— así que la baja ocurrió de verdad y se cuenta,
-    /// nombrando de quién era. Lo que no puede hacer es cerrar la
-    /// confirmación de otro ni sacar de su ficha.
-    /// </summary>
-    [Fact]
-    public async Task La_baja_de_una_ficha_relevada_se_anuncia_nombrandola_y_no_toca_la_ficha_nueva()
-    {
-        var a = Guid.NewGuid();
-        var b = Guid.NewGuid();
-        var centro = Guid.NewGuid();
-        var bajaDeA = new TaskCompletionSource();
-        var mediador = Registrar(new MediatorFalso
-        {
-            Retener = p => p is EliminarClienteCommand c && c.Id == a ? bajaDeA.Task : null
-        });
-        mediador.Detalles[a] = Detalle(a, "Refrielectric S.A.");
-        mediador.Detalles[b] = Detalle(b, "Montajes Ebro S.L.");
-        mediador.Resumenes[a] = Resumen(a, 3, 42);
-        mediador.Resumenes[b] = Resumen(b, 2, 18);
-        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
-        await workspace.AbrirAsync(EntidadWorkspace.Centro, centro, "Centro Norte", "informacion");
-        await workspace.NavegarAAsync(EntidadWorkspace.Cliente, a, "Refrielectric S.A.", "informacion");
-
-        var cut = Renderizar(a);
-        await Boton(cut, "Dar de baja").ClickAsync(new MouseEventArgs());
-        // Sin await: el comando de A queda retenido.
-        var confirmacionDeA = cut.Find("[role=dialog] .modal-pie").QuerySelectorAll("button")
-            .Single(x => x.TextContent.Trim() == "Dar de baja").ClickAsync(new MouseEventArgs());
-
-        await workspace.NavegarAAsync(EntidadWorkspace.Cliente, b, "Montajes Ebro S.L.", "informacion");
-        cut.Render(p => p.Add(x => x.EntidadId, b).Add(x => x.PestanaActiva, "informacion"));
-        await Boton(cut, "Dar de baja").ClickAsync(new MouseEventArgs());
-        cut.Find("[role=dialog]").TextContent.Should().Contain("Montajes Ebro S.L.",
-            "la confirmación abierta ahora es la de B");
-
-        await InvokeAsync(() => bajaDeA.SetResult());
-        await confirmacionDeA;
-
-        Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle()
-            .Which.Mensaje.Should().Be("Refrielectric S.A. se dio de baja.",
-                "la baja ocurrió: se cuenta, y dice de quién era en vez de callarse por haber cambiado de ficha");
-        cut.Find("[role=dialog]").TextContent.Should().Contain("Montajes Ebro S.L.",
-            "el final de la baja de A no cierra la confirmación de B");
-        mediador.Enviadas.OfType<EliminarClienteCommand>().Select(c => c.Id).Should().Equal([a],
-            "abrir la confirmación de B no da de baja a B");
-        workspace.FrameActual!.EntidadId.Should().Be(b, "la baja de A no saca de la ficha de B");
-        workspace.Pila.Should().HaveCount(3);
-    }
-
-    [Fact]
-    public async Task Si_la_baja_de_una_ficha_relevada_falla_el_motivo_dice_de_quien_es()
-    {
-        const string motivo = "No puedes eliminar un cliente con centros activos.";
-        var a = Guid.NewGuid();
-        var b = Guid.NewGuid();
-        var bajaDeA = new TaskCompletionSource();
-        var mediador = Registrar(new MediatorFalso
-        {
-            ResultadoEliminar = Result.Fallo(Error.Crear("Cliente.TieneCentrosActivos", motivo)),
-            Retener = p => p is EliminarClienteCommand ? bajaDeA.Task : null
-        });
-        mediador.Detalles[a] = Detalle(a, "Refrielectric S.A.");
-        mediador.Detalles[b] = Detalle(b, "Montajes Ebro S.L.");
-        mediador.Resumenes[a] = Resumen(a, 3, 42);
-        mediador.Resumenes[b] = Resumen(b, 2, 18);
-
-        var cut = Renderizar(a);
-        await Boton(cut, "Dar de baja").ClickAsync(new MouseEventArgs());
-        var confirmacion = cut.Find("[role=dialog] .modal-pie").QuerySelectorAll("button")
-            .Single(x => x.TextContent.Trim() == "Dar de baja").ClickAsync(new MouseEventArgs());
-
-        cut.Render(p => p.Add(x => x.EntidadId, b).Add(x => x.PestanaActiva, "informacion"));
-
-        await InvokeAsync(() => bajaDeA.SetResult());
-        await confirmacion;
-
-        var aviso = Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle().Subject;
-        aviso.Tono.Should().Be(TonoToast.Error);
-        aviso.Mensaje.Should().Be($"Refrielectric S.A.: {motivo}",
-            "en pantalla está B: un motivo sin nombre se leería como que es B quien no se puede dar de baja");
-    }
-
-    /// <summary>
-    /// La guarda de reentrada de la baja, aislada de la del diálogo.
-    /// <see cref="DialogoConfirmacion"/> trae la suya
-    /// (<c>if (EnProgreso || _confirmando) return;</c>), así que un doble clic
-    /// del usuario NO llega dos veces a este panel y no puede demostrar nada
-    /// sobre su guarda: la del diálogo tapa la del panel. Este caso entra por
-    /// el <c>OnConfirmar</c> del hijo, que es el mismo punto por el que
-    /// entraría cualquier otro llamador —incluida una futura acción sin
-    /// diálogo—, y así observa la guarda del panel y solo la del panel.
-    ///
-    /// <para>
-    /// Queda dicho lo que esto NO es: hoy no hay camino de interfaz que mande
-    /// dos confirmaciones a la vez. La guarda no se retira porque el contrato
-    /// exige que toda escritura compruebe al entrar, y porque la guarda del
-    /// diálogo no es la de esta página — si mañana se cuelga «Dar de baja» de
-    /// un botón directo, la del diálogo deja de estar delante.
-    /// </para>
-    /// </summary>
-    [Fact]
-    public async Task Dos_confirmaciones_de_baja_a_la_vez_mandan_un_solo_comando()
-    {
-        var id = Guid.NewGuid();
-        var comando = new TaskCompletionSource();
-        var mediador = Registrar(new MediatorFalso
-        {
-            Retener = p => p is EliminarClienteCommand ? comando.Task : null
-        });
-        mediador.Detalles[id] = Detalle(id, "Refrielectric S.A.");
-        mediador.Resumenes[id] = Resumen(id, 3, 42);
-        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
-        await workspace.AbrirAsync(EntidadWorkspace.Cliente, id, "Refrielectric S.A.", "informacion");
-
-        var cut = Renderizar(id);
-        await Boton(cut, "Dar de baja").ClickAsync(new MouseEventArgs());
-        var dialogo = cut.FindComponent<DialogoConfirmacion>();
-
-        // Sin await: las dos entradas quedan dentro del método a la vez.
-        var primera = cut.InvokeAsync(() => dialogo.Instance.OnConfirmar.InvokeAsync());
-        var segunda = cut.InvokeAsync(() => dialogo.Instance.OnConfirmar.InvokeAsync());
-
-        mediador.Enviadas.OfType<EliminarClienteCommand>().Should().ContainSingle(
-            "la guarda comprueba al entrar: la segunda entrada se va sin mandar nada");
-
-        await InvokeAsync(() => comando.SetResult());
-        await primera;
-        await segunda;
-
-        mediador.Enviadas.OfType<EliminarClienteCommand>().Should().ContainSingle();
+        Boton(cut, "Editar identidad");
+        cut.FindAll(".acciones-cliente-360 button").Select(b => b.TextContent.Trim())
+            .Should().Equal(["Editar identidad"], "la ficha solo edita; dar de baja es cosa de la lista");
+        cut.FindAll("button").Should().NotContain(b => b.TextContent.Contains("Dar de baja", StringComparison.Ordinal));
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
     }
 
     // ─────────── Concurrencia y ciclo de vida ───────────
@@ -776,27 +604,6 @@ public class Cliente360Gen2Tests : BunitContext
         Boton(cut, "Editar identidad");
     }
 
-    [Fact]
-    public async Task Cambiar_de_Cliente_empresarial_cierra_el_dialogo_de_baja_abierto()
-    {
-        var a = Guid.NewGuid();
-        var b = Guid.NewGuid();
-        var mediador = Registrar(new MediatorFalso());
-        mediador.Detalles[a] = Detalle(a, "Refrielectric S.A.");
-        mediador.Detalles[b] = Detalle(b, "Montajes Ebro S.L.");
-        mediador.Resumenes[a] = Resumen(a, 3, 42);
-        mediador.Resumenes[b] = Resumen(b, 2, 18);
-
-        var cut = Renderizar(a);
-        await Boton(cut, "Dar de baja").ClickAsync(new MouseEventArgs());
-        cut.Find("[role=dialog]").TextContent.Should().Contain("Refrielectric S.A.");
-
-        cut.Render(p => p.Add(x => x.EntidadId, b).Add(x => x.PestanaActiva, "informacion"));
-
-        cut.FindAll("[role=dialog]").Should().BeEmpty(
-            "la confirmación preparada para A no puede quedar abierta sobre B, que daría de baja a otro");
-    }
-
     /// <summary>
     /// La bandera de «operación en curso» se reinicia al cambiar de entidad,
     /// así que el <c>finally</c> del guardado de A tiene que comprobar la
@@ -877,7 +684,7 @@ public class Cliente360Gen2Tests : BunitContext
         var cut = Renderizar(id, "notas");
 
         var tokensDeConsulta = mediador.Tokens
-            .Where(t => t.Peticion is not EditarClienteCommand and not EliminarClienteCommand)
+            .Where(t => t.Peticion is not EditarClienteCommand)
             .Select(t => t.Token).ToList();
         tokensDeConsulta.Should().NotBeEmpty();
         tokensDeConsulta.Should().AllSatisfy(t => t.CanBeCanceled.Should().BeTrue(

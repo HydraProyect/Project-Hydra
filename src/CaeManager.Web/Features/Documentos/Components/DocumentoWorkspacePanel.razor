@@ -1,4 +1,3 @@
-@using CaeManager.Application.Documentos.Commands.EliminarDocumento
 @using CaeManager.Application.Documentos.Commands.RenovarDocumento
 @using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId
 @using CaeManager.Application.Documentos.Queries.ObtenerValidacionOficialDocumento
@@ -86,7 +85,6 @@ else
                     </div>
                     <div class="acciones-documento-360">
                         <Boton Variante="VarianteBoton.Secundario" OnClick="IniciarEdicionInformacion">Renovar</Boton>
-                        <Boton Variante="VarianteBoton.Destructivo" OnClick="AbrirDarDeBaja">Dar de baja</Boton>
                     </div>
                 }
                 break;
@@ -144,11 +142,6 @@ else
     </Pestanas>
 }
 
-<DialogoConfirmacion Visible="_confirmarBajaVisible" VisibleChanged="v => _confirmarBajaVisible = v"
-                     Titulo="@($"¿Dar de baja {_detalle?.TipoDocumentoNombre}?")"
-                     Mensaje="El documento se marca como eliminado, deja de aparecer en las listas y se cierra esta ficha."
-                     TextoBotonConfirmar="Dar de baja" EnProgreso="_dandoDeBaja" OnConfirmar="ConfirmarDarDeBajaAsync" />
-
 @code {
     private static readonly IReadOnlyList<PestanaDefinicion> _pestanas = [new("informacion", "Información"), new("validacion", "Validación"), new("firma", "Firma"), new("historial", "Historial")];
     [Parameter, EditorRequired] public Guid EntidadId { get; set; }
@@ -159,7 +152,7 @@ else
     private CancellationToken _cancelacion;
     private DocumentoDetalleDto? _detalle;
     private ValidacionOficialDocumentoDto? _validacion;
-    private bool _cargando = true, _cargandoValidacion = true, _error, _editandoInformacion, _guardandoInformacion, _confirmarBajaVisible, _dandoDeBaja;
+    private bool _cargando = true, _cargandoValidacion = true, _error, _editandoInformacion, _guardandoInformacion;
     private string _fechaEmisionEditada = string.Empty, _fechaVencimientoEditada = string.Empty, _comentariosEditados = string.Empty;
     private string? _mensajeErrorInformacion;
     private Guid _idCargado;
@@ -182,7 +175,6 @@ else
         _generacion++; _cargaCabecera++; _cargaValidacion++;
         _detalle = null; _validacion = null; _error = false; _cargando = true; _cargandoValidacion = true;
         _editandoInformacion = false; _guardandoInformacion = false; _mensajeErrorInformacion = null;
-        _confirmarBajaVisible = false; _dandoDeBaja = false;
     }
 
     private Task ReintentarAsync() => _cargando ? Task.CompletedTask : CargarTodoAsync();
@@ -284,42 +276,6 @@ else
         finally
         {
             if (generacion == _generacion) _guardandoInformacion = false;
-        }
-    }
-
-    private void AbrirDarDeBaja() => _confirmarBajaVisible = true;
-
-    private async Task ConfirmarDarDeBajaAsync()
-    {
-        if (_detalle is null || _dandoDeBaja) return;
-        var generacion = _generacion; var detalle = _detalle;
-        _dandoDeBaja = true;
-        try
-        {
-            var resultado = await Mediator.Send(new EliminarDocumentoCommand(detalle.Id));
-            if (resultado.EsFallido)
-            {
-                Avisar($"{detalle.TipoDocumentoNombre}: {resultado.Error.Mensaje}", TonoToast.Error);
-                if (generacion == _generacion) _confirmarBajaVisible = false;
-                return;
-            }
-            Avisar($"{detalle.TipoDocumentoNombre} se dio de baja.", TonoToast.Exito);
-            if (generacion != _generacion) return;
-            _confirmarBajaVisible = false;
-            var workspace = ServiceProvider.GetService<ContextWorkspaceService>();
-            if (workspace?.FrameActual is { Tipo: EntidadWorkspace.Documento } frame && frame.EntidadId == detalle.Id)
-            {
-                if (workspace.Pila.Count > 1) await workspace.VolverAsync();
-                else await workspace.CerrarAsync();
-            }
-        }
-        catch (Exception)
-        {
-            Avisar($"No pudimos dar de baja {detalle.TipoDocumentoNombre}. Intenta nuevamente en unos segundos.", TonoToast.Error);
-        }
-        finally
-        {
-            if (generacion == _generacion) _dandoDeBaja = false;
         }
     }
 

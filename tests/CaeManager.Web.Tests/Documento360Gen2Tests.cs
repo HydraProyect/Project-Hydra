@@ -1,6 +1,5 @@
 using AngleSharp.Dom;
 using Bunit;
-using CaeManager.Application.Documentos.Commands.EliminarDocumento;
 using CaeManager.Application.Documentos.Commands.RenovarDocumento;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Application.Documentos.Queries.ObtenerValidacionOficialDocumento;
@@ -23,7 +22,6 @@ public class Documento360Gen2Tests : BunitContext
     {
         public Dictionary<Guid, DocumentoDetalleDto> Detalles { get; } = [];
         public Result ResultadoRenovar { get; set; } = Result.Exito();
-        public Result ResultadoEliminar { get; set; } = Result.Exito();
         public Func<object, Task?>? Retener { get; set; }
         public List<object> Enviadas { get; } = [];
         public List<(object Peticion, CancellationToken Token)> Tokens { get; } = [];
@@ -38,7 +36,6 @@ public class Documento360Gen2Tests : BunitContext
                 ObtenerDocumentoPorIdQuery q => Detalles.GetValueOrDefault(q.Id),
                 ObtenerValidacionOficialDocumentoQuery => null,
                 RenovarDocumentoCommand => ResultadoRenovar,
-                EliminarDocumentoCommand => ResultadoEliminar,
                 _ => throw new NotSupportedException($"Petición no prevista: {request.GetType().Name}.")
             };
             return (T)respuesta!;
@@ -139,24 +136,23 @@ public class Documento360Gen2Tests : BunitContext
         Services.GetRequiredService<ToastService>().Mensajes.Should().BeEmpty("un Result fallido no es éxito");
     }
 
+    /// <summary>
+    /// P41b (decisión del propietario, 2026-09-19): «Dar de baja» del documento
+    /// solo vive en la lista. La ficha no la ofrece —ni botón, ni diálogo— y el
+    /// doble de mediador ya no responde a <c>EliminarDocumentoCommand</c>.
+    /// </summary>
     [Fact]
-    public async Task La_guarda_de_baja_del_panel_bloquea_la_segunda_entrada_del_callback_del_hijo()
+    public void La_ficha_no_ofrece_dar_de_baja_al_documento()
     {
         var id = Guid.NewGuid();
-        var espera = new TaskCompletionSource();
-        var mediador = Registrar(new MediadorFalso { Retener = p => p is EliminarDocumentoCommand ? espera.Task : null });
+        var mediador = Registrar(new MediadorFalso());
         mediador.Detalles[id] = Detalle(id);
+
         var cut = Renderizar(id);
-        await Boton(cut, "Dar de baja").ClickAsync(new MouseEventArgs());
-        var dialogo = cut.FindComponent<DialogoConfirmacion>();
 
-        var primera = cut.InvokeAsync(() => dialogo.Instance.OnConfirmar.InvokeAsync());
-        var segunda = cut.InvokeAsync(() => dialogo.Instance.OnConfirmar.InvokeAsync());
-        mediador.Enviadas.OfType<EliminarDocumentoCommand>().Should().ContainSingle("se entra por OnConfirmar del hijo, no por su botón protegido");
-
-        await cut.InvokeAsync(() => espera.SetResult());
-        await primera;
-        await segunda;
+        Boton(cut, "Renovar");
+        cut.FindAll("button").Should().NotContain(b => b.TextContent.Contains("Dar de baja", StringComparison.Ordinal));
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
     }
 
     [Fact]
@@ -167,7 +163,7 @@ public class Documento360Gen2Tests : BunitContext
         mediador.Detalles[id] = Detalle(id);
         var cut = Renderizar(id);
 
-        var consultas = mediador.Tokens.Where(t => t.Peticion is not RenovarDocumentoCommand and not EliminarDocumentoCommand).Select(t => t.Token).ToList();
+        var consultas = mediador.Tokens.Where(t => t.Peticion is not RenovarDocumentoCommand).Select(t => t.Token).ToList();
         consultas.Should().NotBeEmpty("hay que comprobar que el instrumento vio al menos una consulta");
         consultas.Should().OnlyContain(t => t.CanBeCanceled);
         consultas.Distinct().Should().ContainSingle();
@@ -175,14 +171,6 @@ public class Documento360Gen2Tests : BunitContext
         await Boton(cut, "Renovar").ClickAsync(new MouseEventArgs());
         await Boton(cut, "Guardar fechas y comentarios (sin sustituir el archivo)").ClickAsync(new MouseEventArgs());
         mediador.Tokens.Where(t => t.Peticion is RenovarDocumentoCommand).Should().ContainSingle()
-            .Which.Token.CanBeCanceled.Should().BeFalse("cerrar la ficha no deshace una escritura ya solicitada");
-
-        await Boton(cut, "Dar de baja").ClickAsync(new MouseEventArgs());
-        var dialogo = cut.FindComponent<DialogoConfirmacion>();
-        await cut.InvokeAsync(() => dialogo.Instance.OnConfirmar.InvokeAsync());
-        mediador.Enviadas.OfType<EliminarDocumentoCommand>().Should().ContainSingle(
-            "el instrumento debe haber observado el comando antes de comprobar su token");
-        mediador.Tokens.Where(t => t.Peticion is EliminarDocumentoCommand).Should().ContainSingle()
             .Which.Token.CanBeCanceled.Should().BeFalse("cerrar la ficha no deshace una escritura ya solicitada");
 
         var token = consultas[0];

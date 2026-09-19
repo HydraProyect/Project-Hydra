@@ -80,7 +80,6 @@
                     <ItemMenuAccion OnClick="AbrirInformacion">Editar</ItemMenuAccion>
                     <ItemMenuAccion OnClick="ReclamarFaltantesAsync">Reclamar faltantes</ItemMenuAccion>
                     <ItemMenuAccion OnClick="AbrirCrearGestionAsync">Crear gestión</ItemMenuAccion>
-                    <ItemMenuAccion Destructivo="true" OnClick="() => _confirmarBajaTrabajadorVisible = true">Dar de baja</ItemMenuAccion>
                 </MenuAcciones>
             </div>
         </div>
@@ -347,15 +346,6 @@
         <Boton Cargando="_creandoGestion" Deshabilitado="string.IsNullOrEmpty(_tipoDocumentoParaGestion)" OnClick="ConfirmarCrearGestionAsync">Crear</Boton>
     </Pie>
 </Modal>
-
-<DialogoConfirmacion
-    Visible="_confirmarBajaTrabajadorVisible"
-    VisibleChanged="v => _confirmarBajaTrabajadorVisible = v"
-    Titulo="@($"¿Dar de baja a {NombreCompleto}?")"
-    Mensaje="Se ocultará de las listas activas y se cerrarán sus asignaciones vigentes. Podrás deshacerlo desde el aviso, pero las asignaciones cerradas no se reabren."
-    TextoBotonConfirmar="Dar de baja"
-    EnProgreso="_dandoDeBajaTrabajador"
-    OnConfirmar="ConfirmarDarDeBajaTrabajadorAsync" />
 
 @* Solo aparece cuando el trabajador tiene asignaciones activas en Centros de
    más de un Cliente empresarial a la vez — con uno solo, ReclamarFaltantesAsync

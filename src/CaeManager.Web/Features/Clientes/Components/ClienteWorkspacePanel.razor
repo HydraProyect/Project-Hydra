@@ -71,7 +71,6 @@
     ella). Todas comparten el DbContext del circuito.
 *@
 @using CaeManager.Application.Clientes.Commands.EditarCliente
-@using CaeManager.Application.Clientes.Commands.EliminarCliente
 @using CaeManager.Application.Clientes.Queries.ObtenerCentrosDeCliente
 @using CaeManager.Application.Clientes.Queries.ObtenerClientePorId
 @using CaeManager.Application.Clientes.Queries.ObtenerEmpresasDeCliente
@@ -160,7 +159,6 @@ else
 
                     <div class="acciones-cliente-360">
                         <Boton Variante="VarianteBoton.Secundario" OnClick="IniciarEdicionIdentidad">Editar identidad</Boton>
-                        <Boton Variante="VarianteBoton.Destructivo" OnClick="AbrirDarDeBaja">Dar de baja</Boton>
                     </div>
                 }
                 break;
@@ -285,15 +283,6 @@ else
                 break;
         }
     </Pestanas>
-
-    <DialogoConfirmacion
-        Visible="_confirmarBajaVisible"
-        VisibleChanged="v => _confirmarBajaVisible = v"
-        Titulo="@($"¿Dar de baja a {_detalle.RazonSocial}?")"
-        Mensaje="Se marca como eliminado: deja de aparecer en las listas y en los selectores, y se cierra esta ficha. Si todavía tiene centros activos no se da de baja, y se te dice por qué."
-        TextoBotonConfirmar="Dar de baja"
-        EnProgreso="_dandoDeBaja"
-        OnConfirmar="ConfirmarDarDeBajaAsync" />
 }
 
 @code {
@@ -341,7 +330,7 @@ else
     /// <see cref="Dispose"/> lo cancela: retirado el panel, lo que estaba en
     /// vuelo deja de ocupar el DbContext del circuito. Los COMANDOS no lo
     /// llevan, igual que en SubcontrataWorkspacePanel: cerrar la ficha no
-    /// deshace una baja ni un guardado que el usuario ya pidió, y cancelar a
+    /// deshace un guardado que el usuario ya pidió, y cancelar a
     /// medias una escritura es peor que dejarla terminar.
     /// El token se copia al inicializar porque leer <c>Token</c> de un
     /// <see cref="CancellationTokenSource"/> ya desechado lanza — y se lee
@@ -394,9 +383,6 @@ else
     private string _notaEditada = string.Empty;
     private bool _guardandoNota;
     private string? _mensajeErrorNota;
-
-    private bool _confirmarBajaVisible;
-    private bool _dandoDeBaja;
 
     /// <summary>
     /// Las tres pestañas cuyas listas carga este panel llevan su recuento.
@@ -455,7 +441,7 @@ else
 
     /// <summary>
     /// Nada preparado para un Cliente empresarial puede ejecutarse sobre otro:
-    /// el formulario de identidad, el borrador de la nota y el diálogo de baja
+    /// el formulario de identidad y el borrador de la nota
     /// se cierran y se tira lo que tuvieran preparado. Las banderas de
     /// «operación en curso» también se apagan aquí, y por eso cada operación
     /// comprueba su generación antes de apagar la suya en el finally: si no,
@@ -487,8 +473,6 @@ else
         _notaEditada = string.Empty;
         _guardandoNota = false;
         _mensajeErrorNota = null;
-        _confirmarBajaVisible = false;
-        _dandoDeBaja = false;
     }
 
     /// <summary>
@@ -768,7 +752,9 @@ else
 
             if (resultado.EsFallido)
             {
-                // Regla del canal (ver ConfirmarDarDeBajaAsync): si sigue
+                // Regla del canal: un desenlace que viaja por AVISO nombra la entidad,
+                // porque el aviso es global y se lee sobre cualquier ficha; uno que
+                // aterriza en el FORMULARIO va sin nombre. Si sigue
                 // siendo esta ficha, el motivo va a su formulario TAL CUAL,
                 // sin nombre —el formulario está dentro de la ficha, con su
                 // razón social encima, y repetirlo ahí sería ruido—; si ya no
@@ -805,76 +791,6 @@ else
         {
             if (generacion == _generacion)
                 _guardandoNota = false;
-        }
-    }
-
-    private void AbrirDarDeBaja() => _confirmarBajaVisible = true;
-
-    /// <summary>
-    /// Baja lógica (EliminarClienteCommand marca la Empresa como eliminada; el
-    /// comando la rechaza si tiene centros activos). Tras la baja la ficha ya
-    /// no tiene nada que enseñar: se sale de este nivel —vuelve al anterior de
-    /// la pila si lo hay, si no cierra el panel—, solo si este nivel sigue
-    /// siendo el de este Cliente empresarial.
-    /// </summary>
-    private async Task ConfirmarDarDeBajaAsync()
-    {
-        if (_detalle is null || _dandoDeBaja) return;
-
-        var generacion = _generacion;
-        var detalle = _detalle;
-        _dandoDeBaja = true;
-
-        try
-        {
-            var resultado = await Mediator.Send(new EliminarClienteCommand(detalle.Id));
-
-            // Regla de las tres escrituras del panel, y es del CANAL, no del
-            // manejador: un desenlace que viaja por AVISO nombra la entidad
-            // —el aviso es global y puede leerse sobre cualquier ficha, así que
-            // sin nombre se entendería de la que se esté viendo—; uno que
-            // aterriza en el FORMULARIO de la ficha va sin nombre, porque ese
-            // formulario solo existe mientras esa ficha está en pantalla y
-            // lleva su razón social en la cabecera, justo encima. La baja no
-            // tiene formulario: su único canal es el aviso, así que nombra
-            // siempre, en los tres caminos.
-            //
-            // Y se anuncia siempre: el comando no lleva el token del ciclo
-            // precisamente porque cerrar la ficha no deshace la baja, así que
-            // callar el resultado porque entretanto cambió la ficha sería
-            // tragarse un desenlace real —y, en el otro camino, un fallo—. Lo
-            // que no pasa de la comprobación de generación es TOCAR la
-            // pantalla: el diálogo y la navegación van detrás de ella, y la
-            // navegación además comprueba que el nivel vigente siga siendo el
-            // de esta entidad.
-            if (resultado.EsFallido)
-            {
-                ToastService.Mostrar($"{detalle.RazonSocial}: {resultado.Error.Mensaje}", TonoToast.Error);
-                if (generacion == _generacion)
-                    _confirmarBajaVisible = false;
-                return;
-            }
-
-            ToastService.Mostrar($"{detalle.RazonSocial} se dio de baja.", TonoToast.Exito);
-            if (generacion != _generacion) return;
-            _confirmarBajaVisible = false;
-
-            if (WorkspaceService.FrameActual is { Tipo: EntidadWorkspace.Cliente } frame && frame.EntidadId == detalle.Id)
-            {
-                if (WorkspaceService.Pila.Count > 1)
-                    await WorkspaceService.VolverAsync();
-                else
-                    await WorkspaceService.CerrarAsync();
-            }
-        }
-        catch (Exception)
-        {
-            ToastService.Mostrar($"No pudimos dar de baja a {detalle.RazonSocial}. Intenta nuevamente en unos segundos.", TonoToast.Error);
-        }
-        finally
-        {
-            if (generacion == _generacion)
-                _dandoDeBaja = false;
         }
     }
 

@@ -49,7 +49,6 @@
 @using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector
 @using CaeManager.Application.Subcontratas.Commands.CambiarNivelServicioSubcontrata
 @using CaeManager.Application.Subcontratas.Commands.EditarSubcontrata
-@using CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata
 @using CaeManager.Application.Subcontratas.Commands.EliminarVerificacionExterna
 @using CaeManager.Application.Subcontratas.Commands.GuardarCredencialAccesoSubcontrata
 @using CaeManager.Application.Subcontratas.Commands.RegistrarVerificacionExterna
@@ -278,7 +277,6 @@ else
                         <Boton Variante="VarianteBoton.Secundario" Cargando="_cambiandoNivel" OnClick="ConfirmarCambioNivelAsync">
                             Cambiar a @EstadoSupervisionUi.TextoNivel(NivelOpuesto)
                         </Boton>
-                        <Boton Variante="VarianteBoton.Destructivo" OnClick="AbrirDarDeBaja">Dar de baja</Boton>
                     </div>
                 }
                 break;
@@ -444,15 +442,6 @@ else
                 break;
         }
     </Pestanas>
-
-    <DialogoConfirmacion
-        Visible="_confirmarBajaVisible"
-        VisibleChanged="v => _confirmarBajaVisible = v"
-        Titulo="@($"¿Dar de baja a {_detalle.RazonSocial}?")"
-        Mensaje="Se marca como eliminada: deja de aparecer en las listas y en los selectores, y se cierra esta ficha. Si todavía tiene trabajadores no se da de baja, y se te dice por qué."
-        TextoBotonConfirmar="Dar de baja"
-        EnProgreso="_dandoDeBaja"
-        OnConfirmar="ConfirmarDarDeBajaAsync" />
 
     <DialogoConfirmacion
         Visible="_confirmarEliminarVerificacionVisible"
@@ -624,9 +613,6 @@ else
     private bool _errorCredencial;
     private bool _contrasenaVisible;
 
-    private bool _confirmarBajaVisible;
-    private bool _dandoDeBaja;
-
     private NivelServicioSubcontrata NivelOpuesto =>
         _detalle?.NivelServicio == NivelServicioSubcontrata.Supervisada
             ? NivelServicioSubcontrata.Gestionada
@@ -789,8 +775,6 @@ else
         _guardandoInformacion = false;
         _guardandoCredenciales = false;
         _cambiandoNivel = false;
-        _confirmarBajaVisible = false;
-        _dandoDeBaja = false;
         _drawerVerificacionVisible = false;
         _guardandoVerificacion = false;
         _abriendoRegistroVerificacion = false;
@@ -1207,58 +1191,6 @@ else
         {
             if (generacion == _generacion)
                 _cambiandoNivel = false;
-        }
-    }
-
-    private void AbrirDarDeBaja() => _confirmarBajaVisible = true;
-
-    /// <summary>
-    /// Baja lógica (EliminarSubcontrataCommand marca la Empresa como
-    /// eliminada; el comando la rechaza si tiene trabajadores). Tras la baja
-    /// la ficha ya no tiene nada que enseñar: se sale de este nivel —vuelve al
-    /// anterior de la pila si lo hay, si no cierra el panel—, solo si este
-    /// nivel sigue siendo el de esta subcontrata.
-    /// </summary>
-    private async Task ConfirmarDarDeBajaAsync()
-    {
-        if (_detalle is null || _dandoDeBaja) return;
-
-        var generacion = _generacion;
-        var detalle = _detalle;
-        _dandoDeBaja = true;
-
-        try
-        {
-            var resultado = await Mediator.Send(new EliminarSubcontrataCommand(detalle.Id));
-
-            if (resultado.EsFallido)
-            {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
-                if (generacion == _generacion)
-                    _confirmarBajaVisible = false;
-                return;
-            }
-
-            ToastService.Mostrar($"{detalle.RazonSocial} se dio de baja.", TonoToast.Exito);
-            if (generacion != _generacion) return;
-            _confirmarBajaVisible = false;
-
-            if (WorkspaceService.FrameActual is { Tipo: EntidadWorkspace.Subcontrata } frame && frame.EntidadId == detalle.Id)
-            {
-                if (WorkspaceService.Pila.Count > 1)
-                    await WorkspaceService.VolverAsync();
-                else
-                    await WorkspaceService.CerrarAsync();
-            }
-        }
-        catch (Exception)
-        {
-            ToastService.Mostrar("No pudimos dar de baja la subcontrata. Intenta nuevamente en unos segundos.", TonoToast.Error);
-        }
-        finally
-        {
-            if (generacion == _generacion)
-                _dandoDeBaja = false;
         }
     }
 
