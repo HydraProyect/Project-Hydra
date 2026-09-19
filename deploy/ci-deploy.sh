@@ -90,7 +90,26 @@ Integraciones__Microsoft365__ClientSecret
 Integraciones__WhatsApp__AppSecret
 Integraciones__WhatsApp__VerifyToken
 Serilog__Seq__ApiKey
+Stripe__ApiKey
+Stripe__WebhookSecret
 "
+# Stripe (P18, decisiones del 2026-09-19): hasta este cambio NINGÚN fichero de
+# deploy/ ni de .github/ nombraba Stripe, y la aplicación lee `Stripe:ApiKey` y
+# `Stripe:WebhookSecret` de la configuración (StripeOptions). Como los servicios
+# de los compose cargan `env_file: .env`, la única forma de que producción las
+# tuviera era una línea escrita a mano en el `.env` del VPS — fuera de cualquier
+# pipeline, sin rastro y sin rotación. Entran en la lista para poder sustituir
+# esa edición manual por la inyección de REC-014, igual que el resto. Siguen
+# siendo un no-op mientras el propietario no las cargue en el environment
+# `produccion` de GitHub (agregar() omite los valores vacíos).
+#
+# Forma exigida a cada una (forma_valida_secreto, más abajo): la clave de API,
+# SOLO rk_live_ (decisión D9 del propietario, 2026-09-19: clave restringida de
+# solo lectura sobre Subscriptions; un sk_live_ con poder de cobro o una clave de
+# prueba no entran por aquí); el secreto de firma del webhook, whsec_. Es defensa
+# contra pegar un valor en la variable equivocada, no una comprobación de que la
+# clave sea válida ni de que tenga solo permisos de lectura (eso lo fija Stripe).
+#
 # POSTGRES_PASSWORD y ConnectionStrings__CaeManagerDbRuntime NO están en la
 # lista, a propósito (segundo hallazgo de la revisión de Codex): ambas son
 # contraseñas de un ROL de PostgreSQL, y este mecanismo solo sabe escribir
@@ -111,6 +130,28 @@ Serilog__Seq__ApiKey
 # de las dos con este pipeline es un incremento propio, con un paso
 # autenticado que haga el `ALTER ROLE` de forma atómica junto con la
 # escritura — no una ampliación de la lista blanca de arriba.
+
+# Forma mínima de los secretos con prefijo reconocible (ver el comentario de
+# CLAVES_PERMITIDAS_SECRETOS_PRODUCCION). Devuelve 0 si la clave no tiene una
+# forma exigida. NUNCA imprime el valor: quien la llama solo nombra la clave.
+forma_valida_secreto() {
+    local clave="$1" valor="$2"
+    case "$clave" in
+        Stripe__ApiKey)
+            case "$valor" in
+                rk_live_?*) return 0 ;;
+                *) return 1 ;;
+            esac
+            ;;
+        Stripe__WebhookSecret)
+            case "$valor" in
+                whsec_?*) return 0 ;;
+                *) return 1 ;;
+            esac
+            ;;
+        *) return 0 ;;
+    esac
+}
 
 actualizar_secretos_produccion() {
     # Sin bytes en stdin —el caso de hoy, mientras el propietario no cargue
@@ -182,6 +223,12 @@ actualizar_secretos_produccion() {
         esac
         if [[ "$valor" =~ [^[:print:]] ]]; then
             echo "::error::el valor de '$clave' contiene un carácter no imprimible — .env sin tocar." >&2
+            return 1
+        fi
+        # Solo se nombra la CLAVE en el error, nunca el valor: este mensaje llega
+        # al log público de GitHub Actions.
+        if ! forma_valida_secreto "$clave" "$valor"; then
+            echo "::error::el valor de '$clave' no tiene la forma esperada (Stripe__ApiKey: rk_live_…, clave restringida de solo lectura — D9; Stripe__WebhookSecret: whsec_…) — ¿pegado en la variable equivocada? .env sin tocar." >&2
             return 1
         fi
     done <<< "$recibido"
@@ -391,6 +438,73 @@ volcar_pico_memoria_previo() {
     done
 }
 
+# Comprobación de SOLO LECTURA de las dos claves de Stripe en el `.env` del
+# entorno (P18b, decisiones del 2026-09-19): responde «¿existe y tiene la forma
+# esperada?» SIN imprimir el valor — ni entero, ni un trozo, ni su longitud. Lo
+# único que sale de aquí es una categoría (ausente / modo producción / modo
+# prueba / forma inesperada), que llega al log de GitHub Actions del paso SSH.
+#
+# Por qué vive aquí y no en un comando SSH propio: la clave SSH del pipeline es
+# de comando forzado (`staging`, `produccion <sha>`, `secretos`), no un acceso de
+# solo lectura, y ampliar ese comando exigiría editar /root/.ssh/authorized_keys,
+# cosa que esta clave no puede hacer por sí misma. Igual que
+# volcar_diagnostico_memoria, corre DENTRO del comando ya permitido, tras un
+# despliegue sano: no abre ningún acceso nuevo, no escribe nada y nunca hace
+# fallar un despliegue (siempre devuelve 0). La contrapartida: solo se ejecuta al
+# desplegar, no a demanda; y un cambio a ESTE fichero tarda un despliegue en
+# surtir efecto (ver la cabecera).
+#
+# Argumentos: fichero `.env` del entorno; etiqueta del entorno ("produccion" o
+# "staging"). En producción se espera una clave de modo producción; en staging,
+# de prueba — una clave live en staging se avisa como `::warning::`.
+verificar_secretos_de_stripe() {
+    local fichero_env="$1" entorno="$2"
+
+    if [ ! -r "$fichero_env" ]; then
+        echo "=== Stripe ($entorno): no se pudo leer $(basename "$fichero_env") — sin comprobar ===" >&2
+        return 0
+    fi
+
+    echo "=== Stripe ($entorno): presencia y forma de las claves en $(basename "$fichero_env") (valores NO impresos) ==="
+    local clave valor categoria
+    for clave in Stripe__ApiKey Stripe__WebhookSecret; do
+        # Gana la ÚLTIMA aparición, como en el formato dotenv de Compose. El valor
+        # vive solo en esta variable local; nunca se pasa a echo/printf.
+        valor="$(awk -v k="$clave" 'index($0, k "=") == 1 { v = $0; sub(/^[^=]*=/, "", v); ultimo = v; visto = 1 } END { if (visto) print ultimo }' "$fichero_env")"
+        valor="${valor%$'\r'}"
+        case "$valor" in
+            \'*\') valor="${valor#\'}"; valor="${valor%\'}" ;;
+            \"*\") valor="${valor#\"}"; valor="${valor%\"}" ;;
+        esac
+
+        categoria="forma inesperada"
+        if [ -z "$valor" ]; then
+            categoria="ausente"
+        else
+            case "$clave:$valor" in
+                Stripe__ApiKey:sk_live_?*|Stripe__ApiKey:rk_live_?*) categoria="modo producción" ;;
+                Stripe__ApiKey:sk_test_?*|Stripe__ApiKey:rk_test_?*) categoria="modo prueba" ;;
+                Stripe__WebhookSecret:whsec_?*) categoria="presente (whsec_…)" ;;
+            esac
+        fi
+        valor=""
+
+        echo "  $clave: $categoria"
+        case "$entorno:$clave:$categoria" in
+            *:*:"forma inesperada")
+                echo "::warning::$clave en el .env de $entorno tiene una forma inesperada (¿pegada en la variable equivocada?)."
+                ;;
+            produccion:Stripe__ApiKey:"modo prueba")
+                echo "::warning::Stripe__ApiKey de PRODUCCIÓN es una clave de modo prueba: no cobrará ni leerá suscripciones reales."
+                ;;
+            staging:Stripe__ApiKey:"modo producción")
+                echo "::warning::Stripe__ApiKey de STAGING es una clave de MODO PRODUCCIÓN: staging solo debe llevar claves de prueba."
+                ;;
+        esac
+    done
+    return 0
+}
+
 main() {
 
 read -r ENTORNO SHA <<< "${SSH_ORIGINAL_COMMAND:-}"
@@ -517,6 +631,14 @@ volcar_diagnostico_si_falla() {
     fi
 
     volcar_diagnostico_memoria
+
+    # Solo lectura y sin imprimir valores (P18b). `|| true`: una comprobación de
+    # diagnóstico nunca debe convertir en fallo un despliegue que ya llegó a sano
+    # (set -e está activo en este fichero).
+    case "$fichero_compose" in
+        *staging*) verificar_secretos_de_stripe "${env_file:-.env}" staging || true ;;
+        *) verificar_secretos_de_stripe "${env_file:-.env}" produccion || true ;;
+    esac
 }
 
 case "$ENTORNO" in
