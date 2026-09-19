@@ -217,7 +217,8 @@ SALIDA10="$(muestreo_memoria 60 2 2>&1)" || ESTADO10=$?
 echo "$SALIDA10" | grep -q "volcado cortado: agotado el plazo" || fallo "el volcado inicial no se cortó al agotarse el plazo: $SALIDA10"
 echo "$SALIDA10" | grep -q "volcado no iniciado: agotado el plazo" || fallo "el volcado final no respetó el plazo: $SALIDA10"
 [ "$(cat "$CONTADOR_STATS")" = "0" ] || fallo "con el plazo agotado no debía muestrear, hizo $(cat "$CONTADOR_STATS")"
-[ "$ESTADO10" -eq 0 ] || fallo "un muestreo con volcados lentos no es un error: devolvió $ESTADO10"
+[ "$ESTADO10" -eq 5 ] || fallo "un muestreo sin ninguna muestra debía devolver 5, devolvió $ESTADO10"
+echo "$SALIDA10" | grep -q "Fin del muestreo" && fallo "un muestreo sin muestras no puede cerrar con «Fin del muestreo»"
 echo "OK: los volcados de cgroup respetan el plazo total"
 
 echo "=== Caso 11: el bucle deja el tramo final (duración/10, tope 15 s) para la lectura final ==="

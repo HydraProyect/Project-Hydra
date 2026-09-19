@@ -127,6 +127,8 @@ if [ "$orden" != "muestreo-memoria 10 2" ]; then
         # Sale con 0 y SIN cerrar la ventana, pasados unos segundos (durante la recuperación).
         muere_callado) echo "=== Muestreo de memoria (REC-196/P33): $orden ==="; sleep 4; exit 0 ;;
         cierra_mal) SSH_SALIR=255 ;;
+        # Cierra la ventana con éxito pero SIN ninguna muestra (docker lento).
+        cero) echo "=== Muestreo de memoria (REC-196/P33): $orden ==="; echo "=== Fin del muestreo: 0 muestras ==="; exit 0 ;;
     esac
 fi
 case "${FAKE_SSH_MODO:-ok}" in
@@ -287,6 +289,12 @@ echo "=== B13: un muestreo que sale con 0 pero sin cerrar la ventana también es
 lanzar "FAKE_SSH_LARGO=muere_callado" "BASE_S=1" "FAKE_K6_SEGUNDOS=1" "RECUP_S=6"
 [ "$CODIGO" -eq 8 ] || fallo "muestreo sin cierre de ventana debía dar 8, dio $CODIGO: $(tail -4 "$TMP/f/stdout")"
 grep -q "INCOMPLETO" "$TMP/f/out/resumen.txt" || fallo "el resumen no marca el muestreo como incompleto"
+echo "OK"
+
+echo "=== B14: un muestreo que cierra con 0 muestras no es válido (el vigía lo ve muerto y aborta: 3) ==="
+lanzar "FAKE_SSH_LARGO=cero"
+[ "$CODIGO" -eq 3 ] || fallo "muestreo sin muestras debía dar 3, dio $CODIGO: $(tail -4 "$TMP/f/stdout")"
+grep -q "INCOMPLETO" "$TMP/f/out/resumen.txt" || fallo "el resumen no marca el muestreo sin muestras como incompleto"
 echo "OK"
 
 echo "TODAS LAS PRUEBAS PASARON"

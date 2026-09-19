@@ -516,6 +516,11 @@ muestreo_memoria() {
         echo "=== Muestreo INTERRUMPIDO tras ${muestras} muestras: empezó un despliegue ==="
         return 4
     fi
+    if [ "$muestras" -eq 0 ]; then
+        # Un muestreo sin ninguna muestra no es un muestreo: sin «Fin del muestreo».
+        echo "=== Muestreo SIN muestras: los volcados de cgroup agotaron el plazo ==="
+        return 5
+    fi
     echo "=== Fin del muestreo: ${muestras} muestras ==="
 }
 

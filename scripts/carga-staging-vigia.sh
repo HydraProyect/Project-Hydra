@@ -39,6 +39,9 @@ FALLOS_SEGUIDOS=3
 MUESTRAS_MIN_VENTANA=10
 LENTAS_MIN_VENTANA=2
 DURACION_MAX_MUESTREO=420
+# Cierre válido del muestreo: con AL MENOS una muestra. Un cierre con 0 muestras
+# (docker lento se comió todo el plazo) no trae la telemetría que se buscaba.
+CIERRE_MUESTREO="Fin del muestreo: [1-9][0-9]* muestras"
 
 # Epoch en milisegundos. `date +%s%3N` no es portable (uutils coreutils lo imprime mal).
 ahora_ms() { echo $(( $(date +%s%N) / 1000000 )); }
@@ -153,7 +156,7 @@ vigilar() {
             fi
             # Sin muestreo del VPS la carga no sirve para lo que se lanzó y solo
             # arriesga producción: si el proceso SSH murió sin cerrar la ventana, se para.
-            if [ -n "${PID_SSH:-}" ] && ! kill -0 "$PID_SSH" 2>/dev/null && ! grep -q "Fin del muestreo" "$DIR_SALIDA/muestreo.log" 2>/dev/null; then
+            if [ -n "${PID_SSH:-}" ] && ! kill -0 "$PID_SSH" 2>/dev/null && ! grep -q "$CIERRE_MUESTREO" "$DIR_SALIDA/muestreo.log" 2>/dev/null; then
                 MOTIVO_ABORTO="ABORTAR: el muestreo de memoria del VPS se ha perdido (el proceso SSH terminó sin cerrar la ventana)"; return 1
             fi
         fi
@@ -236,7 +239,7 @@ main() {
     if printf '%s' "$salida_pre" | grep -q "Hay un despliegue en curso"; then
         echo "El VPS reporta un despliegue en curso. No se carga nada." >&2; return 6
     fi
-    if ! printf '%s' "$salida_pre" | grep -q "Fin del muestreo"; then
+    if ! printf '%s' "$salida_pre" | grep -q "$CIERRE_MUESTREO"; then
         echo "El VPS no ofrece el modo muestreo-memoria (¿aún corre un ci-deploy.sh anterior? hacen falta dos despliegues tras fusionar la PR que lo añadió). Salida:" >&2
         printf '%s\n' "$salida_pre" | head -5 >&2; return 5
     fi
@@ -277,7 +280,7 @@ main() {
     [ -n "$SSH_ESTADO" ] || SSH_ESTADO="código $SSH_CODIGO"
     # Completo = el proceso SSH terminó por sí solo con 0 Y cerró la ventana.
     MUESTREO_COMPLETO=1
-    if [ "$SSH_CODIGO" -ne 0 ] || [ "$SSH_ESTADO" = "no terminó en 60 s" ] || ! grep -q "Fin del muestreo" "$DIR_SALIDA/muestreo.log" 2>/dev/null; then
+    if [ "$SSH_CODIGO" -ne 0 ] || [ "$SSH_ESTADO" = "no terminó en 60 s" ] || ! grep -q "$CIERRE_MUESTREO" "$DIR_SALIDA/muestreo.log" 2>/dev/null; then
         MUESTREO_COMPLETO=0
     fi
 
