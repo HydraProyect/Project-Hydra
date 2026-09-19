@@ -70,17 +70,34 @@ echo "=== A6: la ventana solo cuenta los últimos 30 s, y no se evalúa sin cubr
 serie 20 200 1500 > "$TMP/s"   # 20 muestras, 19 s: ventana sin cubrir
 [ "$(evalua "$TMP/s")" = "OK" ] || fallo "sin la ventana cubierta no se evalúa el p95: $(evalua "$TMP/s")"
 serie 12 200 1500 > "$TMP/s"; { cat "$TMP/s"; echo "1040000,200,1500"; } > "$TMP/s2"
-[ "$(evalua "$TMP/s2")" = "OK" ] || fallo "con menos de 15 muestras no se evalúa el p95"
+[ "$(evalua "$TMP/s2")" = "OK" ] || fallo "con menos de 10 muestras en la ventana no se evalúa el p95"
 echo "OK"
 
 echo "=== A7: tras una pausa del vigía, una lenta reciente no cuenta como ventana ==="
 { serie 20 200 50; echo "1200000,200,1500"; } > "$TMP/s"   # 20 filas viejas y UNA reciente, lenta
 [ "$(evalua "$TMP/s")" = "OK" ] || fallo "con una sola muestra en los últimos 30 s no hay ventana que evaluar: $(evalua "$TMP/s")"
 # Muestras dispersas: 3 en 30 s tras una pausa larga, con 20 filas viejas. Cubren el
-# tiempo pero no llegan al mínimo de 15 muestras DENTRO de la ventana.
+# tiempo pero no llegan al mínimo de 10 muestras DENTRO de la ventana.
 { serie 20 200 50; echo "1200000,200,50"; echo "1215000,200,1500"; echo "1230000,200,1500"; } > "$TMP/s"
 [ "$(evalua "$TMP/s")" = "OK" ] || fallo "3 muestras en la ventana no bastan para evaluar el p95: $(evalua "$TMP/s")"
 echo "OK"
+
+echo "=== A8: con pocas muestras (respuestas lentas) el p95 se evalúa si hay al menos 2 lentas ==="
+# 11 sondeos espaciados 3 s (cubren 30 s), todos de 2,5 s: p95 > 1 s sostenido, y no llegan a 15.
+for ((i = 0; i < 11; i++)); do echo "$((1000000 + i * 3000)),200,2500"; done > "$TMP/s"
+evalua "$TMP/s" | grep -q "degradación sostenida" || fallo "11 sondeos de 2,5 s en 30 s debían abortar por p95: $(evalua "$TMP/s")"
+{ for ((i = 0; i < 10; i++)); do echo "$((1000000 + i * 3000)),200,50"; done; echo "1030000,200,2500"; } > "$TMP/s"
+[ "$(evalua "$TMP/s")" = "OK" ] || fallo "con pocas muestras, UNA sola lenta no debe abortar: $(evalua "$TMP/s")"
+echo "OK"
+
+echo "=== A9: la cadencia del sondeo es por reloj: no se le suma el tiempo de la respuesta ==="
+mkdir -p "$TMP/binlento" "$TMP/cad"
+printf '#!/bin/bash\nsleep 0.7; echo "200 0.700"\n' > "$TMP/binlento/curl"
+chmod +x "$TMP/binlento/curl"
+( export PATH="$TMP/binlento:$PATH"; DIR_SALIDA="$TMP/cad"; URL_PRODUCCION=https://app.example.test; SONDEO_S=1; vigilar 6 0 )
+N_CAD="$(wc -l < "$TMP/cad/salud-produccion.csv")"
+[ "$N_CAD" -ge 5 ] || fallo "6 s con respuestas de 0,7 s y cadencia de 1 s debían dar ~6 sondeos, dio $N_CAD (la espera se sumaba al sondeo)"
+echo "OK ($N_CAD sondeos)"
 
 # ============================================================================
 # B. Orquestación con ejecutables falsos

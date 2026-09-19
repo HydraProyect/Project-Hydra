@@ -14,7 +14,7 @@
 #   1. cualquier 5xx;
 #   2. cualquier respuesta que tarde más de 3 s o no llegue (timeout);
 #   3. 3 respuestas seguidas distintas de 200;
-#   4. degradación sostenida: p95 > 1 s en una ventana de 30 s (con ≥ 15
+#   4. degradación sostenida: p95 > 1 s en una ventana de 30 s (con ≥ 10
 #      muestras y la ventana cubierta; con 1 muestra/s, p95 = tolera 1 valor
 #      atípico y aborta con 2);
 #   5. (con COMPROBAR_DESPLIEGUES=1) que empiece un despliegue mientras dura, o
@@ -36,8 +36,12 @@ UMBRAL_P95_MS=1000
 VENTANA_MS=30000
 TIMEOUT_MS=3000
 FALLOS_SEGUIDOS=3
-MUESTRAS_MIN_VENTANA=15
+MUESTRAS_MIN_VENTANA=10
+LENTAS_MIN_VENTANA=2
 DURACION_MAX_MUESTREO=420
+
+# Epoch en milisegundos. `date +%s%3N` no es portable (uutils coreutils lo imprime mal).
+ahora_ms() { echo $(( $(date +%s%N) / 1000000 )); }
 
 log() { echo "[$(date -u +%H:%M:%S)] $*"; }
 
@@ -58,7 +62,7 @@ sondear_salud() {
 # las muestras desde el inicio del vigía; el 4, solo la última ventana.
 # ---------------------------------------------------------------------------
 evaluar_ventana() {
-    local fichero="$1" motivo estado primero ultimo lim valores m rango p95
+    local fichero="$1" motivo estado primero ultimo lim valores m rango p95 lentas
     [ -s "$fichero" ] || { echo "OK"; return 0; }
     motivo="$(awk -F, -v timeout_ms="$TIMEOUT_MS" -v max_seguidos="$FALLOS_SEGUIDOS" '
         { seguidos_ok = ($2 == "200") }
@@ -81,7 +85,10 @@ evaluar_ventana() {
         valores="$(awk -F, -v lim="$lim" '$1 >= lim { print $3 }' "$fichero" | sort -n)"
         rango=$(( (95 * m + 99) / 100 ))
         p95="$(printf '%s\n' "$valores" | sed -n "${rango}p")"
-        if [ "${p95:-0}" -gt "$UMBRAL_P95_MS" ]; then
+        # Con pocas muestras (las respuestas lentas espacian los sondeos) el p95 es el
+        # máximo: se exigen al menos 2 lentas para que un valor atípico no aborte.
+        lentas="$(awk -F, -v lim="$lim" -v u="$UMBRAL_P95_MS" '$1 >= lim && $3 > u { n++ } END { print n + 0 }' "$fichero")"
+        if [ "${p95:-0}" -gt "$UMBRAL_P95_MS" ] && [ "$lentas" -ge "$LENTAS_MIN_VENTANA" ]; then
             echo "ABORTAR: degradación sostenida, p95 de /salud de producción = ${p95} ms > ${UMBRAL_P95_MS} ms en los últimos $(( VENTANA_MS / 1000 )) s (${m} muestras)"
             return 1
         fi
@@ -114,18 +121,19 @@ ssh_muestreo() {
 registrar_sondeo() {
     local par
     par="$(sondear_salud "$URL_PRODUCCION")"
-    echo "$(date +%s%3N),${par% *},${par#* }" >> "$DIR_SALIDA/salud-produccion.csv"
+    echo "$(ahora_ms),${par% *},${par#* }" >> "$DIR_SALIDA/salud-produccion.csv"
 }
 
 # Vigila producción durante $1 segundos (o, con 0, mientras viva PID_K6). Con
 # $2 = 1 evalúa los criterios de aborto y devuelve 1 (MOTIVO_ABORTO) al
 # cumplirse alguno; con 0 solo registra (tramo de recuperación).
 vigilar() {
-    local segundos="$1" evalua="$2" fin veredicto vueltas=0 desconocidos=0
+    local segundos="$1" evalua="$2" fin veredicto vueltas=0 desconocidos=0 inicio_vuelta espera
     fin=$(( SECONDS + segundos ))
     while :; do
         if [ "$segundos" -gt 0 ] && [ "$SECONDS" -ge "$fin" ]; then return 0; fi
         if [ "$segundos" -eq 0 ] && ! kill -0 "$PID_K6" 2>/dev/null; then return 0; fi
+        inicio_vuelta="$(ahora_ms)"
         registrar_sondeo
         vueltas=$(( vueltas + 1 ))
         if [ "$evalua" = 1 ]; then
@@ -149,7 +157,10 @@ vigilar() {
                 MOTIVO_ABORTO="ABORTAR: el muestreo de memoria del VPS se ha perdido (el proceso SSH terminó sin cerrar la ventana)"; return 1
             fi
         fi
-        sleep "$SONDEO_S"
+        # Cadencia por reloj: el sondeo lento (hasta 3 s) cuenta dentro del intervalo,
+        # no se le suma. Si no, con respuestas de 1,5 s salen ~12 muestras cada 30 s.
+        espera="$(awk -v s="$SONDEO_S" -v ini="$inicio_vuelta" -v fin="$(ahora_ms)" 'BEGIN { r = s - (fin - ini) / 1000; if (r < 0) r = 0; if (r > s) r = s; printf "%.3f", r }')"
+        sleep "$espera"
     done
 }
 
