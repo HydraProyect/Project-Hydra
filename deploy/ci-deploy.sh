@@ -326,6 +326,69 @@ volcar_diagnostico_memoria() {
     echo "=== Diagnóstico de memoria (REC-198/P33) ==="
     free -h
     docker stats --no-stream --format 'table {{.Name}}\t{{.MemUsage}}\t{{.MemPerc}}'
+    volcar_contadores_memoria_host "tras el despliegue"
+}
+
+# Contadores de memoria del HOST, acumulados desde el arranque: PSI
+# (/proc/pressure/memory, microsegundos de espera por memoria) y, de
+# /proc/vmstat, `oom_kill` (veces que el OOM killer actuó en la máquina,
+# sea contra el contenedor que sea) y los de recuperación directa. Se
+# vuelcan antes del despliegue, tras el build y tras el `up`: la resta entre
+# dos puntos dice si el build (que corre con el stack ya sirviendo) provocó
+# esperas o una muerte por OOM, cosa que ni `free` ni `docker stats` ven. Solo
+# lectura; RAIZ_PROC existe solo para que el test apunte a un /proc falso.
+volcar_contadores_memoria_host() {
+    local etapa="$1" raiz="${RAIZ_PROC:-/proc}"
+    echo "--- Contadores de memoria del host (${etapa}) ---"
+    if [ -r "$raiz/pressure/memory" ]; then
+        tr '\n' ' ' < "$raiz/pressure/memory" || true
+        echo
+    else
+        echo "(sin PSI en $raiz/pressure/memory)"
+    fi
+    if [ -r "$raiz/vmstat" ]; then
+        { grep -E '^(oom_kill|allocstall_normal|allocstall_movable|pgmajfault|pswpout) ' "$raiz/vmstat" | tr '\n' ' '; } || true
+        echo
+    fi
+    if [ -r "$raiz/uptime" ]; then
+        echo "uptime_s: $(cut -d' ' -f1 "$raiz/uptime" || true)"
+    fi
+    return 0
+}
+
+# Segundo volcado de solo lectura para REC-196/REC-198 (techos de memoria):
+# el de arriba corre DESPUÉS del `up -d`, con el contenedor recién creado, y
+# solo mide el reposo. Este corre ANTES del build y del `up`, cuando los
+# contenedores que el despliegue va a reemplazar llevan horas sirviendo
+# tráfico real, y lee de su cgroup lo que docker stats no da: `memory.peak`
+# (o `memory.max_usage_in_bytes` en cgroup v1), el pico de TODA su vida, y
+# `memory.events` (contador `oom_kill`). Es el pico bajo la carga que de
+# verdad hubo, sin generar ninguna. No escribe nada ni toca `.env`: `docker
+# exec` solo ejecuta `cat`/`grep` dentro del contenedor. Cada lectura tiene
+# techo de tiempo y ninguna puede tumbar el despliegue (`set -e` está activo:
+# todo lleva `|| true` o equivalente).
+volcar_pico_memoria_previo() {
+    echo "=== Memoria ANTES del despliegue (REC-196/P33): pico de vida de los contenedores que se van a reemplazar ==="
+    free -m || true
+    volcar_contadores_memoria_host "antes del despliegue"
+    timeout 20 docker stats --no-stream --format 'table {{.Name}}\t{{.MemUsage}}\t{{.MemPerc}}' || true
+    local contenedor
+    for contenedor in $(timeout 20 docker ps --format '{{.Names}}' 2>/dev/null | grep '^caemanager-' || true); do
+        echo "--- ${contenedor} ---"
+        timeout 20 docker inspect --format 'iniciado={{.State.StartedAt}} reinicios={{.RestartCount}} oom_docker={{.State.OOMKilled}}' "$contenedor" 2>/dev/null || true
+        timeout 20 docker exec "$contenedor" sh -c '
+            for f in /sys/fs/cgroup/memory.peak /sys/fs/cgroup/memory.current /sys/fs/cgroup/memory.max \
+                     /sys/fs/cgroup/memory.events \
+                     /sys/fs/cgroup/memory/memory.max_usage_in_bytes /sys/fs/cgroup/memory/memory.usage_in_bytes \
+                     /sys/fs/cgroup/memory/memory.limit_in_bytes; do
+                if [ -r "$f" ]; then printf "%s: " "${f#/sys/fs/cgroup/}"; tr "\n" " " < "$f"; echo; fi
+            done
+            if [ -r /sys/fs/cgroup/memory.stat ]; then
+                grep -E "^(anon|file|shmem|file_mapped) " /sys/fs/cgroup/memory.stat | tr "\n" " "; echo
+            fi
+            true
+        ' 2>/dev/null || echo "(sin lectura de cgroup en ${contenedor})"
+    done
 }
 
 main() {
@@ -419,6 +482,10 @@ volcar_diagnostico_si_falla() {
     local args=(-f "$fichero_compose")
     [ -n "$env_file" ] && args+=(--env-file "$env_file")
 
+    # Antes de tocar nada: los contenedores actuales aún son los que llevan
+    # horas de tráfico real (ver volcar_pico_memoria_previo).
+    volcar_pico_memoria_previo
+
     # Build y arranque van en DOS pasos, no en el `up -d --build` de antes:
     # `--memory` de `docker compose build` no existe bajo BuildKit ("Not
     # supported by BuildKit", medido en su propio --help) — solo el builder
@@ -434,8 +501,10 @@ volcar_diagnostico_si_falla() {
     # ejecutar. El techo de memoria de abajo sigue acotando UN build a la vez.
     if ! DOCKER_BUILDKIT=0 docker compose "${args[@]}" build -m "$LIMITE_MEMORIA_BUILD"; then
         echo "=== Build no completó dentro del techo de memoria (LIMITE_MEMORIA_BUILD=$LIMITE_MEMORIA_BUILD) — contenido a su propio cgroup, el resto del stack sigue sirviendo ===" >&2
+        volcar_contadores_memoria_host "build fallido"
         exit 1
     fi
+    volcar_contadores_memoria_host "tras el build"
 
     if ! docker compose "${args[@]}" up -d --wait --wait-timeout 180; then
         echo "=== Despliegue no llego a sano — estado de los contenedores ===" >&2
