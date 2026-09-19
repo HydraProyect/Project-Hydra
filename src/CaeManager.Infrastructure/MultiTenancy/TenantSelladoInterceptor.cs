@@ -220,7 +220,13 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
     {
         if (!_restauracionDiferida || context is null) return;
 
-        _restauracionDiferida = false;
+        // La marca NO se borra aquí: la borra RestaurarTenantDeSesionSiHizoFaltaAsync
+        // cuando la restauración COMPLETA (revisión de Codex, P1). Si el
+        // set_config falla —un error transitorio— la marca sigue armada y el
+        // siguiente comando o SaveChanges lo reintenta, en vez de dejar la
+        // variable en el Tenant de la cuenta con la marca ya en falso. No hay
+        // recursión: el set_config es un comando crudo de ADO.NET y no pasa por
+        // los interceptores de comandos de EF.
         await RestaurarTenantDeSesionSiHizoFaltaAsync(context, CancellationToken.None);
     }
 
