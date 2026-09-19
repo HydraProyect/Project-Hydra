@@ -189,6 +189,10 @@ public partial class EstadoComercial : CaeManager.Web.Components.PaginaIntegrabl
             case "k":
                 _idEnfocado = _tenants[Math.Max(indiceActual - 1, 0)].TenantId;
                 break;
+            // "x" y "Enter" no hacen nada y es deliberado (P11, 2026-09-19): la
+            // pantalla no tiene selección múltiple ni ficha que abrir, y la única
+            // acción de fila es escribir (vincular una suscripción, cambiar el
+            // estado comercial), que un atajo de "abrir" no debe disparar.
             default:
                 return Task.CompletedTask;
         }
