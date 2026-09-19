@@ -17,14 +17,18 @@
 #   4. degradación sostenida: p95 > 1 s en una ventana de 30 s (con ≥ 15
 #      muestras y la ventana cubierta; con 1 muestra/s, p95 = tolera 1 valor
 #      atípico y aborta con 2);
-#   5. (con COMPROBAR_DESPLIEGUES=1) que empiece un despliegue mientras dura.
+#   5. (con COMPROBAR_DESPLIEGUES=1) que empiece un despliegue mientras dura, o
+#      no poder consultarlo 2 veces seguidas (falla cerrado);
+#   6. que el muestreo de memoria del VPS se pierda: sin él la carga no sirve.
 # Al abortar: se para k6 (SIGTERM), se sigue recogiendo el tramo de
 # recuperación y el resultado del job es ROJO (código 3).
 #
 # Códigos de salida: 0 carga completa sin abortar · 2 entrada no válida ·
 # 3 ABORTADA por producción · 4 verificación previa fallida (no se empezó) ·
 # 5 el VPS no ofrece el modo de muestreo (hacen falta dos despliegues tras
-# fusionar la PR que lo añadió) · 6 hay un despliegue en curso (no se empezó).
+# fusionar la PR que lo añadió) · 6 hay un despliegue en curso (no se empezó) ·
+# 7 k6 falló o se cortó por sus umbrales de STAGING (sin abortar producción) ·
+# 8 el muestreo del VPS no cubrió la ventana (la carga acabó, los datos no).
 set -uo pipefail
 
 CONFIRMACION_ESPERADA="CARGAR STAGING"
@@ -54,7 +58,7 @@ sondear_salud() {
 # las muestras desde el inicio del vigía; el 4, solo la última ventana.
 # ---------------------------------------------------------------------------
 evaluar_ventana() {
-    local fichero="$1" motivo estado n primero ultimo valores m rango p95
+    local fichero="$1" motivo estado primero ultimo lim valores m rango p95
     [ -s "$fichero" ] || { echo "OK"; return 0; }
     motivo="$(awk -F, -v timeout_ms="$TIMEOUT_MS" -v max_seguidos="$FALLOS_SEGUIDOS" '
         { seguidos_ok = ($2 == "200") }
@@ -66,12 +70,15 @@ evaluar_ventana() {
     estado=$?
     if [ "$estado" -ne 0 ]; then echo "$motivo"; return 1; fi
 
-    n="$(wc -l < "$fichero" | tr -d ' ')"
-    primero="$(head -n1 "$fichero" | cut -d, -f1)"
+    # La ventana se mide sobre las muestras de los ÚLTIMOS 30 s, no sobre todo el
+    # fichero: tras una pausa del vigía puede haber muchas filas viejas y solo
+    # una reciente, y una sola respuesta lenta no es degradación sostenida.
     ultimo="$(tail -n1 "$fichero" | cut -d, -f1)"
-    if [ "$n" -ge "$MUESTRAS_MIN_VENTANA" ] && [ $(( ultimo - primero )) -ge $(( VENTANA_MS - 1000 )) ]; then
-        valores="$(awk -F, -v lim=$(( ultimo - VENTANA_MS )) '$1 >= lim { print $3 }' "$fichero" | sort -n)"
-        m="$(printf '%s\n' "$valores" | wc -l | tr -d ' ')"
+    lim=$(( ultimo - VENTANA_MS ))
+    m="$(awk -F, -v lim="$lim" '$1 >= lim { n++ } END { print n + 0 }' "$fichero")"
+    primero="$(awk -F, -v lim="$lim" '$1 >= lim { print $1; exit }' "$fichero")"
+    if [ "$m" -ge "$MUESTRAS_MIN_VENTANA" ] && [ $(( ultimo - primero )) -ge $(( VENTANA_MS - 1000 )) ]; then
+        valores="$(awk -F, -v lim="$lim" '$1 >= lim { print $3 }' "$fichero" | sort -n)"
         rango=$(( (95 * m + 99) / 100 ))
         p95="$(printf '%s\n' "$valores" | sed -n "${rango}p")"
         if [ "${p95:-0}" -gt "$UMBRAL_P95_MS" ]; then
@@ -114,7 +121,7 @@ registrar_sondeo() {
 # $2 = 1 evalúa los criterios de aborto y devuelve 1 (MOTIVO_ABORTO) al
 # cumplirse alguno; con 0 solo registra (tramo de recuperación).
 vigilar() {
-    local segundos="$1" evalua="$2" fin veredicto vueltas=0
+    local segundos="$1" evalua="$2" fin veredicto vueltas=0 desconocidos=0
     fin=$(( SECONDS + segundos ))
     while :; do
         if [ "$segundos" -gt 0 ] && [ "$SECONDS" -ge "$fin" ]; then return 0; fi
@@ -125,7 +132,21 @@ vigilar() {
             veredicto="$(evaluar_ventana "$DIR_SALIDA/salud-produccion.csv")" || { MOTIVO_ABORTO="$veredicto"; return 1; }
             if [ "${COMPROBAR_DESPLIEGUES:-0}" = 1 ] && [ $(( vueltas % 10 )) -eq 0 ]; then
                 estado_despliegues_github
-                if [ $? -eq 1 ]; then MOTIVO_ABORTO="ABORTAR: ha empezado (o hay en cola) un despliegue mientras dura la carga"; return 1; fi
+                case $? in
+                    0) desconocidos=0 ;;
+                    1) MOTIVO_ABORTO="ABORTAR: ha empezado (o hay en cola) un despliegue mientras dura la carga"; return 1 ;;
+                    *)
+                        # Falla cerrado: sin poder saber si hay un despliegue, no se sigue
+                        # empujando el VPS compartido. Dos consultas seguidas sin respuesta
+                        # (unos 20 s) abortan; una sola se tolera como fallo transitorio.
+                        desconocidos=$(( desconocidos + 1 ))
+                        if [ "$desconocidos" -ge 2 ]; then MOTIVO_ABORTO="ABORTAR: no se puede consultar a GitHub si hay un despliegue en marcha (2 consultas seguidas sin respuesta)"; return 1; fi ;;
+                esac
+            fi
+            # Sin muestreo del VPS la carga no sirve para lo que se lanzó y solo
+            # arriesga producción: si el proceso SSH murió sin cerrar la ventana, se para.
+            if [ -n "${PID_SSH:-}" ] && ! kill -0 "$PID_SSH" 2>/dev/null && ! grep -q "Fin del muestreo" "$DIR_SALIDA/muestreo.log" 2>/dev/null; then
+                MOTIVO_ABORTO="ABORTAR: el muestreo de memoria del VPS se ha perdido (el proceso SSH terminó sin cerrar la ventana)"; return 1
             fi
         fi
         sleep "$SONDEO_S"
@@ -237,17 +258,27 @@ main() {
     log "Tramo de recuperación de ${RECUP_S} s (solo registro)."
     vigilar "$RECUP_S" 0
     for i in $(seq 1 60); do kill -0 "$PID_SSH" 2>/dev/null || break; sleep 1; done
-    kill "$PID_SSH" 2>/dev/null
-    wait "$PID_SSH" 2>/dev/null
+    SSH_ESTADO=""
+    if kill -0 "$PID_SSH" 2>/dev/null; then kill "$PID_SSH" 2>/dev/null; SSH_ESTADO="no terminó en 60 s"; fi
+    wait "$PID_SSH" 2>/dev/null; SSH_CODIGO=$?
+    [ -n "$SSH_ESTADO" ] || SSH_ESTADO="código $SSH_CODIGO"
+    # Completo = el proceso SSH terminó por sí solo con 0 Y cerró la ventana.
+    MUESTREO_COMPLETO=1
+    if [ "$SSH_CODIGO" -ne 0 ] || [ "$SSH_ESTADO" = "no terminó en 60 s" ] || ! grep -q "Fin del muestreo" "$DIR_SALIDA/muestreo.log" 2>/dev/null; then
+        MUESTREO_COMPLETO=0
+    fi
 
     # --- resumen ------------------------------------------------------------
     {
         echo "Resultado: $([ "$ABORTADO" = 1 ] && echo "ABORTADA — $MOTIVO_ABORTO" || echo "completa, sin abortar")"
-        echo "k6 (código de salida): ${K6_ESTADO:-no arrancó}"
+        echo "k6 (código de salida): ${K6_ESTADO:-no arrancó}$([ "$ABORTADO" = 0 ] && [ "${K6_ESTADO:-0}" -ne 0 ] && echo " — FALLÓ: se cortó por sus umbrales de staging o no se ejecutó bien")"
+        echo "Muestreo del VPS: $([ "$MUESTREO_COMPLETO" = 1 ] && echo "completo" || echo "INCOMPLETO (${SSH_ESTADO}): los datos de memoria no cubren toda la ventana")"
         echo "Muestras de /salud de producción: $(wc -l < "$DIR_SALIDA/salud-produccion.csv" | tr -d ' '); máximo $(cut -d, -f3 "$DIR_SALIDA/salud-produccion.csv" | sort -n | tail -n1) ms; distintas de 200: $(awk -F, '$2 != "200"' "$DIR_SALIDA/salud-produccion.csv" | wc -l | tr -d ' ')"
         resumir_muestreo "$DIR_SALIDA/muestreo.log"
     } | tee "$DIR_SALIDA/resumen.txt"
     [ "$ABORTADO" = 1 ] && return 3
+    [ "${K6_ESTADO:-0}" -ne 0 ] && return 7
+    [ "$MUESTREO_COMPLETO" = 1 ] || return 8
     return 0
 }
 

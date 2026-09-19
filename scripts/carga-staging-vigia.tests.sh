@@ -73,6 +73,15 @@ serie 12 200 1500 > "$TMP/s"; { cat "$TMP/s"; echo "1040000,200,1500"; } > "$TMP
 [ "$(evalua "$TMP/s2")" = "OK" ] || fallo "con menos de 15 muestras no se evalúa el p95"
 echo "OK"
 
+echo "=== A7: tras una pausa del vigía, una lenta reciente no cuenta como ventana ==="
+{ serie 20 200 50; echo "1200000,200,1500"; } > "$TMP/s"   # 20 filas viejas y UNA reciente, lenta
+[ "$(evalua "$TMP/s")" = "OK" ] || fallo "con una sola muestra en los últimos 30 s no hay ventana que evaluar: $(evalua "$TMP/s")"
+# Muestras dispersas: 3 en 30 s tras una pausa larga, con 20 filas viejas. Cubren el
+# tiempo pero no llegan al mínimo de 15 muestras DENTRO de la ventana.
+{ serie 20 200 50; echo "1200000,200,50"; echo "1215000,200,1500"; echo "1230000,200,1500"; } > "$TMP/s"
+[ "$(evalua "$TMP/s")" = "OK" ] || fallo "3 muestras en la ventana no bastan para evaluar el p95: $(evalua "$TMP/s")"
+echo "OK"
+
 # ============================================================================
 # B. Orquestación con ejecutables falsos
 # ============================================================================
@@ -94,6 +103,15 @@ cat > "$BIN/ssh" <<'EOF'
 #!/bin/bash
 orden="${@: -1}"
 echo "$orden" >> "$FAKE_DIR/ssh.calls"
+# El muestreo LARGO (no la verificación previa de 10 s) puede fallar de dos formas.
+if [ "$orden" != "muestreo-memoria 10 2" ]; then
+    case "${FAKE_SSH_LARGO:-ok}" in
+        muere) echo "=== Muestreo de memoria (REC-196/P33): $orden ==="; exit 255 ;;
+        # Sale con 0 y SIN cerrar la ventana, pasados unos segundos (durante la recuperación).
+        muere_callado) echo "=== Muestreo de memoria (REC-196/P33): $orden ==="; sleep 4; exit 0 ;;
+        cierra_mal) SSH_SALIR=255 ;;
+    esac
+fi
 case "${FAKE_SSH_MODO:-ok}" in
   viejo) echo "Entorno no permitido: 'muestreo-memoria'"; exit 1 ;;
   despliegue) echo "Hay un despliegue en curso (o el cerrojo no se puede leer): no se muestrea." >&2; exit 3 ;;
@@ -109,6 +127,7 @@ echo "=== Estado final de los contenedores (memory.peak = pico de TODA la vida d
 echo "--- caemanager-app ---"
 echo "memory.peak: 555555 "
 echo "=== Fin del muestreo: 2 muestras ==="
+exit "${SSH_SALIR:-0}"
 EOF
 cat > "$BIN/k6" <<'EOF'
 #!/bin/bash
@@ -116,10 +135,12 @@ echo "$@" > "$FAKE_DIR/k6.args"
 trap 'touch "$FAKE_DIR/k6.term"; exit 143' TERM
 limite="${FAKE_K6_SEGUNDOS:-30}"; inicio=$SECONDS
 while [ $((SECONDS - inicio)) -lt "$limite" ]; do sleep 0.2; done
-exit 0
+exit "${FAKE_K6_EXIT:-0}"
 EOF
 cat > "$BIN/gh" <<'EOF'
 #!/bin/bash
+n=$(cat "$FAKE_DIR/gh.n" 2>/dev/null || echo 0); n=$((n + 1)); echo "$n" > "$FAKE_DIR/gh.n"
+if [ -n "${FAKE_GH_FALLA_DESDE:-}" ] && [ "$n" -ge "$FAKE_GH_FALLA_DESDE" ]; then echo "gh: HTTP 502" >&2; exit 1; fi
 echo "${FAKE_GH_N:-0}"
 EOF
 chmod +x "$BIN"/*
@@ -213,6 +234,42 @@ lanzar "COMPROBAR_DESPLIEGUES=1" "FAKE_GH_N=1"
 ! ejecutado k6.args || fallo "k6 arrancó con un despliegue en marcha"
 lanzar "COMPROBAR_DESPLIEGUES=1" "FAKE_GH_N=0"
 [ "$CODIGO" -eq 0 ] || fallo "sin despliegues debía completar (dio $CODIGO)"
+echo "OK"
+
+echo "=== B9: si GitHub deja de responder durante la carga, aborta (falla cerrado) ==="
+# Las 2 primeras llamadas a gh son la verificación previa (in_progress + queued); a partir de la 3.ª falla.
+lanzar "COMPROBAR_DESPLIEGUES=1" "FAKE_GH_FALLA_DESDE=3" "FAKE_K6_SEGUNDOS=40"
+[ "$CODIGO" -eq 3 ] || fallo "sin respuesta de GitHub debía terminar con 3, terminó con $CODIGO: $(tail -4 "$TMP/f/stdout")"
+grep -q "no se puede consultar a GitHub" "$TMP/f/out/resumen.txt" || fallo "el resumen no recoge el motivo: $(head -3 "$TMP/f/out/resumen.txt")"
+ejecutado k6.args && { ejecutado k6.term || fallo "k6 seguía vivo tras el aborto"; }
+echo "OK"
+
+echo "=== B10: un k6 que falla sin abortar producción deja el resultado en rojo ==="
+lanzar "FAKE_K6_EXIT=99"
+[ "$CODIGO" -eq 7 ] || fallo "k6 con código 99 debía dar 7, dio $CODIGO"
+grep -q "FALLÓ" "$TMP/f/out/resumen.txt" || fallo "el resumen no marca el fallo de k6: $(cat "$TMP/f/out/resumen.txt")"
+lanzar "FAKE_K6_EXIT=0"
+[ "$CODIGO" -eq 0 ] || fallo "k6 con código 0 debía dar 0, dio $CODIGO"
+echo "OK"
+
+echo "=== B11: si el muestreo del VPS se pierde, no se carga (o se para) ==="
+lanzar "FAKE_SSH_LARGO=muere" "FAKE_K6_SEGUNDOS=40"
+[ "$CODIGO" -eq 3 ] || fallo "muestreo perdido debía terminar con 3, terminó con $CODIGO: $(tail -4 "$TMP/f/stdout")"
+grep -q "muestreo de memoria del VPS se ha perdido" "$TMP/f/out/resumen.txt" || fallo "el resumen no recoge el motivo"
+ejecutado k6.args && { ejecutado k6.term || fallo "k6 siguió vivo con el muestreo perdido"; }
+echo "OK"
+
+echo "=== B12: muestreo que cierra la ventana pero sale con error -> resultado en rojo (8) ==="
+lanzar "FAKE_SSH_LARGO=cierra_mal"
+[ "$CODIGO" -eq 8 ] || fallo "muestreo con salida 255 debía dar 8, dio $CODIGO: $(tail -4 "$TMP/f/stdout")"
+grep -q "INCOMPLETO" "$TMP/f/out/resumen.txt" || fallo "el resumen no marca el muestreo como incompleto"
+echo "OK"
+
+echo "=== B13: un muestreo que sale con 0 pero sin cerrar la ventana también es incompleto ==="
+# Muere durante el tramo de recuperación (donde el vigía ya no evalúa): solo lo ve la comprobación final.
+lanzar "FAKE_SSH_LARGO=muere_callado" "BASE_S=1" "FAKE_K6_SEGUNDOS=1" "RECUP_S=6"
+[ "$CODIGO" -eq 8 ] || fallo "muestreo sin cierre de ventana debía dar 8, dio $CODIGO: $(tail -4 "$TMP/f/stdout")"
+grep -q "INCOMPLETO" "$TMP/f/out/resumen.txt" || fallo "el resumen no marca el muestreo como incompleto"
 echo "OK"
 
 echo "TODAS LAS PRUEBAS PASARON"
