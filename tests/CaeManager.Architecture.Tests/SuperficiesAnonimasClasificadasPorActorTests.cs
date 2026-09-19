@@ -81,9 +81,18 @@ public class SuperficiesAnonimasClasificadasPorActorTests
 
     private const string Filtro = "AddEndpointFilter<ActorIntegracionExternaEndpointFilter>";
 
+    /// <summary>
+    /// Toda mención de <c>AllowAnonymous</c> en código, en cualquier forma sintáctica:
+    /// <c>.AllowAnonymous()</c>, <c>[AllowAnonymous]</c> sobre una clase o método,
+    /// <c>@attribute [AllowAnonymous]</c> y —el caso que la primera versión de este
+    /// ratchet dejaba pasar— el atributo <b>inline en un lambda</b>
+    /// (<c>MapPost("/x", [AllowAnonymous] async () =&gt; …)</c>), además de
+    /// <c>AllowAnonymousAttribute</c>. Se cuenta sobre el texto SIN comentarios y
+    /// sin líneas <c>using</c>.
+    /// </summary>
     private static readonly Regex AllowAnonymousEnCodigo = new(
-        @"\.AllowAnonymous\(\)|^\s*\[(?:Microsoft\.AspNetCore\.Authorization\.)?AllowAnonymous\]|@attribute\s*\[(?:[\w.]+\.)?AllowAnonymous\]",
-        RegexOptions.Compiled | RegexOptions.Multiline);
+        @"\bAllowAnonymous(?:Attribute)?\b",
+        RegexOptions.Compiled);
 
     [Fact]
     public void Toda_superficie_anonima_esta_clasificada()
@@ -193,8 +202,18 @@ public class SuperficiesAnonimasClasificadasPorActorTests
         @"^[ \t]*(?:(?:public|internal|sealed|private|protected|static)[ \t]+)*(?:class|record|struct)[ \t]+\w+[^{;=]*:[^{;=]*\bIResult\b",
         RegexOptions.Compiled | RegexOptions.Multiline);
 
+    /// <summary>
+    /// Quita comentarios de bloque (<c>/* */</c>, <c>@* *@</c>, <c>&lt;!-- --&gt;</c>), de línea y las
+    /// líneas <c>using</c>. La primera versión solo quitaba las líneas que EMPEZABAN por
+    /// <c>//</c>, así que un comentario de Razor entre <c>@* *@</c> que citara
+    /// <c>[AllowAnonymous]</c> contaba como superficie.
+    /// </summary>
     private static string SinComentarios(string texto)
-        => Regex.Replace(texto, @"^[ \t]*//.*$", string.Empty, RegexOptions.Multiline);
+    {
+        texto = Regex.Replace(texto, @"/\*.*?\*/|@\*.*?\*@|<!--.*?-->", string.Empty, RegexOptions.Singleline);
+        texto = Regex.Replace(texto, @"//[^\r\n]*", string.Empty);
+        return Regex.Replace(texto, @"^[ \t]*using[ \t].*$", string.Empty, RegexOptions.Multiline);
+    }
 
     /// <summary>
     /// Control positivo del instrumento: el comprobador rechaza una cadena sin filtro
@@ -224,6 +243,11 @@ public class SuperficiesAnonimasClasificadasPorActorTests
         SuperficiesAnonimas([("B.razor", "@attribute [AllowAnonymous]\n"), ("C.cs", "x.AllowAnonymous();\n")])
             .Should().BeEquivalentTo(new Dictionary<string, int> { ["B.razor"] = 1, ["C.cs"] = 1 },
                 "el atributo de Razor y la llamada de minimal API cuentan");
+        SuperficiesAnonimas([("D.cs", "endpoints.MapPost(\"/x\", [AllowAnonymous] async (HttpContext c) => Results.Ok());")])
+            .Should().BeEquivalentTo(new Dictionary<string, int> { ["D.cs"] = 1 },
+                "el atributo inline en un lambda es una superficie anónima: la primera versión no la veía");
+        SuperficiesAnonimas([("E.razor", "@* cita [AllowAnonymous] en un comentario de Razor *@\n<!-- y [AllowAnonymous] en HTML -->\n/* y en bloque AllowAnonymous */\n")])
+            .Should().BeEmpty("los comentarios de bloque tampoco cuentan");
     }
 
     private static bool CadenaDeAnonimoLlevaElFiltro(string texto)
@@ -254,16 +278,9 @@ public class SuperficiesAnonimasClasificadasPorActorTests
 
     private static Dictionary<string, int> SuperficiesAnonimas(List<(string Ruta, string Texto)> fuentes)
         => fuentes
-            .Select(f => (f.Ruta, Cuantas: AllowAnonymousEnCodigo.Matches(f.Texto).Count(m => !EnComentario(f.Texto, m.Index))))
+            .Select(f => (f.Ruta, Cuantas: AllowAnonymousEnCodigo.Matches(SinComentarios(f.Texto)).Count))
             .Where(f => f.Cuantas > 0)
             .ToDictionary(f => f.Ruta, f => f.Cuantas);
-
-    private static bool EnComentario(string texto, int posicion)
-    {
-        var inicioDeLinea = texto.LastIndexOf('\n', posicion) + 1;
-        var antes = texto[inicioDeLinea..posicion].TrimStart();
-        return antes.StartsWith("//", StringComparison.Ordinal) || antes.StartsWith('*');
-    }
 
     private static List<(string Ruta, string Texto)> FuentesDeSrc()
     {
