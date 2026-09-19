@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using Amazon;
 using Amazon.S3;
 using Amazon.S3.Model;
@@ -23,6 +24,12 @@ public class VerificacionDataProtectionS3HostedService(
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        // P41c: todo lo que haga este servicio de fondo lo hace la propia
+        // plataforma, y la auditoría lo conserva como tal. Se declara aquí, en el
+        // punto de entrada, y no alrededor de cada guardado: así ningún camino
+        // interno —ni uno añadido después— se queda fuera por olvido.
+        using var ambitoActor = AmbitoActorAuditoria.EstablecerSistema();
+
         var config = opciones.Value;
         using var cliente = new AmazonS3Client(
             config.AccessKeyId, config.SecretAccessKey, RegionEndpoint.GetBySystemName(config.Region));
