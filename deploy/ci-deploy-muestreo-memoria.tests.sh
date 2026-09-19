@@ -123,7 +123,7 @@ echo "=== Caso 4: el techo de iteraciones vale duración/intervalo + 1, con inde
 echo 0 > "$CONTADOR_STATS"
 SALIDA4="$(muestreo_memoria 20 2 2>&1)"
 [ "$(cat "$CONTADOR_STATS")" = "11" ] || fallo "20 s a 2 s debían dar 11 muestras, dieron $(cat "$CONTADOR_STATS")"
-echo "$SALIDA4" | grep -q "Fin del muestreo: 11 muestras" || fallo "falta el cierre con el número de muestras"
+echo "$SALIDA4" | grep -q "Fin del muestreo: muestras=11 stats_ok=11 t_primera=0s volcado_inicial=2/2 volcado_final=2/2" || fallo "falta el cierre con los hechos (muestras, stats_ok, t_primera, volcados): $(echo "$SALIDA4" | grep -a "Fin del muestreo")"
 echo "$SALIDA4" | grep -q "psi_some_total_us=4242 oom_kill=7" || fallo "faltan los contadores del host por muestra"
 echo "$SALIDA4" | grep -q "memory.peak: 123456" || fallo "falta la lectura de cgroup (estado inicial/final)"
 echo "$SALIDA4" | grep -q "caemanager-db" || fallo "falta el contenedor caemanager-db"
@@ -228,7 +228,7 @@ sleep() { SECONDS=$((SECONDS + $1)); }   # ahora el reloj avanza de verdad con c
 echo 0 > "$CONTADOR_STATS"
 SALIDA11="$(muestreo_memoria 100 5 2>&1)"
 [ "$(cat "$CONTADOR_STATS")" = "18" ] || fallo "100 s a 5 s con 10 s de reserva debían dar 18 muestras (t=0..85), dieron $(cat "$CONTADOR_STATS")"
-echo "$SALIDA11" | grep -q "Fin del muestreo: 18 muestras" || fallo "falta el cierre con 18 muestras"
+echo "$SALIDA11" | grep -q "Fin del muestreo: muestras=18 stats_ok=18" || fallo "falta el cierre con 18 muestras y 18 lecturas"
 sleep() { :; }
 echo "OK: 18 muestras; el tramo final queda para la lectura final"
 
@@ -245,5 +245,97 @@ muestreo_memoria 60 5 >/dev/null 2>&1   # reserva 6 s: el bucle acaba en t=54
 timeout() { shift; "$@"; }
 sleep() { :; }
 echo "OK: docker stats y la espera respetan el fin del bucle"
+
+echo "=== Caso 13: «muestras» cuenta vueltas; lo medido es stats_ok (docker stats que devolvió filas con mem=) ==="
+despliegue_en_curso() { return 1; }
+# a) docker stats siempre falla: N vueltas, 0 lecturas -> NO hay cierre válido (estado 5).
+docker() { if [ "$1" = stats ]; then return 1; fi; docker_base "$@"; }
+ESTADO13=0; SALIDA13="$(muestreo_memoria 20 2 2>&1)" || ESTADO13=$?
+[ "$ESTADO13" -eq 5 ] || fallo "con docker stats siempre fallando debía devolver 5, devolvió $ESTADO13"
+echo "$SALIDA13" | grep -q "Muestreo SIN lecturas de docker stats (muestras=11 stats_ok=0" || fallo "debía decir muestras=11 stats_ok=0: $(echo "$SALIDA13" | grep -a "Muestreo SIN")"
+echo "$SALIDA13" | grep -q "Fin del muestreo" && fallo "0 lecturas útiles no pueden cerrar con «Fin del muestreo»"
+# b) docker stats sale con 0 pero SIN filas (contenedores parados, lectura vacía): tampoco cuenta.
+docker() { if [ "$1" = stats ]; then return 0; fi; docker_base "$@"; }
+ESTADO13=0; SALIDA13="$(muestreo_memoria 20 2 2>&1)" || ESTADO13=$?
+[ "$ESTADO13" -eq 5 ] || fallo "una lectura vacía no es una lectura: debía devolver 5, devolvió $ESTADO13"
+# c) solo responde una de cada dos: stats_ok cuenta las buenas, no las vueltas.
+echo 0 > "$TMP/n13"
+docker() {
+    if [ "$1" = stats ]; then
+        local n; n=$(( $(cat "$TMP/n13") + 1 )); echo "$n" > "$TMP/n13"
+        [ $(( n % 2 )) -eq 1 ] && echo "caemanager-app mem=200MiB / 3GiB 6% cpu=1%"
+        return 0
+    fi
+    docker_base "$@"
+}
+SALIDA13="$(muestreo_memoria 20 2 2>&1)"
+echo "$SALIDA13" | grep -q "Fin del muestreo: muestras=11 stats_ok=6 " || fallo "11 vueltas con 6 buenas debían cerrar con muestras=11 stats_ok=6: $(echo "$SALIDA13" | grep -a "Fin del muestreo")"
+docker() { docker_base "$@"; }
+echo "OK: el cierre distingue vueltas de lecturas y no da por bueno lo vacío"
+
+echo "=== Caso 14: los volcados lentos se reflejan en el cierre (final incompleto, y el inicial no se come la línea base) ==="
+docker() {
+    case "$1" in
+        ps) printf '%s\n' caemanager-a caemanager-b caemanager-c caemanager-d caemanager-e caemanager-f caemanager-g ;;
+        exec) SECONDS=$((SECONDS + 2)); docker_base "$@" ;;   # cada lectura de cgroup "tarda" 2 s
+        *) docker_base "$@" ;;
+    esac
+}
+sleep() { SECONDS=$((SECONDS + $1)); }
+SALIDA14="$(muestreo_memoria 100 5 2>&1)"
+CIERRE14="$(echo "$SALIDA14" | grep -a "Fin del muestreo")"
+[ -n "$CIERRE14" ] || fallo "debía cerrar (hay lecturas de docker stats): $(echo "$SALIDA14" | tail -3)"
+echo "$CIERRE14" | grep -q "volcado_final=[0-6]/7" || fallo "con 7 contenedores y lecturas lentas el volcado final debía quedar incompleto (k/7 con k<7): $CIERRE14"
+echo "$CIERRE14" | grep -q "volcado_inicial=[0-6]/7" || fallo "el volcado inicial lento debía quedar incompleto y acotado a su presupuesto: $CIERRE14"
+T_PRIMERA14="$(echo "$CIERRE14" | sed -n 's/.* t_primera=\([0-9]*\)s.*/\1/p')"
+[ -n "$T_PRIMERA14" ] && [ "$T_PRIMERA14" -le 12 ] || fallo "la primera muestra debía caer dentro del presupuesto del volcado inicial (<= 12 s), cayó en t=${T_PRIMERA14}s: $CIERRE14"
+sleep() { :; }
+docker() { docker_base "$@"; }
+echo "OK: volcado_final incompleto visible; primera muestra en t=${T_PRIMERA14}s"
+
+echo "=== Caso 15: la cadencia descuenta lo que tarda la lectura de docker stats ==="
+CLK="$TMP/reloj"; echo 0 > "$CLK"
+reloj() { cat "$CLK"; }
+sleep() { echo $(( $(cat "$CLK") + $1 )) > "$CLK"; }
+docker() {
+    if [ "$1" = stats ]; then echo $(( $(cat "$CLK") + 2 )) > "$CLK"; echo "caemanager-app mem=200MiB / 3GiB 6% cpu=1%"; return 0; fi   # docker stats tarda 2 s
+    docker_base "$@"
+}
+SALIDA15="$(muestreo_memoria 100 5 2>&1)"
+echo "$SALIDA15" | grep -q "Fin del muestreo: muestras=18 stats_ok=18 " || fallo "100 s a 5 s con docker stats de 2 s debían dar 18 vueltas (t=0..85: 5 s cada una, no 7): $(echo "$SALIDA15" | grep -a "Fin del muestreo")"
+unset -f reloj; reloj() { echo "$SECONDS"; }
+sleep() { :; }
+docker() { docker_base "$@"; }
+echo "OK: 18 vueltas; el intervalo es de reloj, no de espera"
+
+echo "=== Caso 16: si docker ps no responde, el total es «?» y no «0» (0/? no es un volcado completo) ==="
+docker() { if [ "$1" = ps ]; then return 1; fi; docker_base "$@"; }
+SALIDA16="$(muestreo_memoria 20 2 2>&1)"
+echo "$SALIDA16" | grep -q "volcado_inicial=0/? volcado_final=0/?" || fallo "sin docker ps debía verse 0/? en ambos volcados: $(echo "$SALIDA16" | grep -a "Fin del muestreo")"
+docker() { docker_base "$@"; }
+echo "OK"
+
+echo "=== Caso 17: en la ventana larga la reserva del volcado final (tope 30 s) alcanza para 7 contenedores lentos ==="
+docker() {
+    case "$1" in
+        ps) printf '%s\n' caemanager-a caemanager-b caemanager-c caemanager-d caemanager-e caemanager-f caemanager-g ;;
+        exec) SECONDS=$((SECONDS + 3)); docker_base "$@" ;;   # 7 x 3 s = 21 s de volcado final
+        *) docker_base "$@" ;;
+    esac
+}
+sleep() { SECONDS=$((SECONDS + $1)); }
+SALIDA17="$(muestreo_memoria 420 60 2>&1)"
+echo "$SALIDA17" | grep -q "Fin del muestreo: .*volcado_final=7/7 " || fallo "con 21 s de volcado final y 30 s de reserva debían leerse los 7: $(echo "$SALIDA17" | grep -a "Fin del muestreo")"
+sleep() { :; }
+docker() { docker_base "$@"; }
+echo "OK: 7/7 en el volcado final"
+
+echo "=== Caso 18: un docker exec que falla no cuenta como contenedor leído ==="
+docker() { if [ "$1" = exec ]; then return 1; fi; docker_base "$@"; }
+SALIDA18="$(muestreo_memoria 20 2 2>&1)"
+echo "$SALIDA18" | grep -q "volcado_inicial=0/2 volcado_final=0/2" || fallo "con docker exec fallando debía verse 0/2 en ambos volcados: $(echo "$SALIDA18" | grep -a "Fin del muestreo")"
+echo "$SALIDA18" | grep -q "sin lectura de cgroup en caemanager-app" || fallo "debía avisar de la lectura perdida"
+docker() { docker_base "$@"; }
+echo "OK"
 
 echo "TODAS LAS PRUEBAS PASARON"

@@ -127,12 +127,12 @@ if [ "$orden" != "muestreo-memoria 10 2" ]; then
         # Sale con 0 y SIN cerrar la ventana, pasados unos segundos (durante la recuperación).
         muere_callado) echo "=== Muestreo de memoria (REC-196/P33): $orden ==="; sleep 4; exit 0 ;;
         cierra_mal) SSH_SALIR=255 ;;
-        # Cierra la ventana con éxito pero SIN ninguna muestra (docker lento).
-        cero) echo "=== Muestreo de memoria (REC-196/P33): $orden ==="; echo "=== Fin del muestreo: 0 muestras ==="; exit 0 ;;
     esac
 fi
 case "${FAKE_SSH_MODO:-ok}" in
   viejo) echo "Entorno no permitido: 'muestreo-memoria'"; exit 1 ;;
+  # El modo existe y arranca, pero docker va tan lento que no hay ninguna lectura.
+  lento) echo "=== Muestreo de memoria (REC-196/P33): $orden ==="; echo "=== Muestreo SIN lecturas de docker stats (muestras=5 stats_ok=0 t_primera=1s volcado_inicial=0/? volcado_final=0/? duracion=10s) ==="; exit 5 ;;
   despliegue) echo "Hay un despliegue en curso (o el cerrojo no se puede leer): no se muestrea." >&2; exit 3 ;;
 esac
 echo "=== Muestreo de memoria (REC-196/P33): $orden ==="
@@ -145,7 +145,9 @@ echo "caemanager-seq mem=250MiB / 3.7GiB 6.6% cpu=0%"
 echo "=== Estado final de los contenedores (memory.peak = pico de TODA la vida del contenedor) ==="
 echo "--- caemanager-app ---"
 echo "memory.peak: 555555 "
-echo "=== Fin del muestreo: 2 muestras ==="
+CIERRE_BUENO="=== Fin del muestreo: muestras=8 stats_ok=8 t_primera=1s volcado_inicial=2/2 volcado_final=2/2 duracion=23s ==="
+# FAKE_SSH_CIERRE solo afecta al muestreo LARGO: la prueba previa de 10 s siempre cierra bien.
+if [ "$orden" = "muestreo-memoria 10 2" ]; then echo "$CIERRE_BUENO"; else echo "${FAKE_SSH_CIERRE:-$CIERRE_BUENO}"; fi
 exit "${SSH_SALIR:-0}"
 EOF
 cat > "$BIN/k6" <<'EOF'
@@ -291,10 +293,44 @@ lanzar "FAKE_SSH_LARGO=muere_callado" "BASE_S=1" "FAKE_K6_SEGUNDOS=1" "RECUP_S=6
 grep -q "INCOMPLETO" "$TMP/f/out/resumen.txt" || fallo "el resumen no marca el muestreo como incompleto"
 echo "OK"
 
-echo "=== B14: un muestreo que cierra con 0 muestras no es válido (el vigía lo ve muerto y aborta: 3) ==="
-lanzar "FAKE_SSH_LARGO=cero"
-[ "$CODIGO" -eq 3 ] || fallo "muestreo sin muestras debía dar 3, dio $CODIGO: $(tail -4 "$TMP/f/stdout")"
-grep -q "INCOMPLETO" "$TMP/f/out/resumen.txt" || fallo "el resumen no marca el muestreo sin muestras como incompleto"
+echo "=== B14: el cierre se juzga por los HECHOS: cada muestreo inútil sale en rojo (8) con su motivo ==="
+CIERRE_OK="=== Fin del muestreo: muestras=8 stats_ok=8 t_primera=1s volcado_inicial=2/2 volcado_final=2/2 duracion=23s ==="
+while IFS='|' read -r motivo cierre; do
+    lanzar "FAKE_SSH_CIERRE=$cierre"
+    [ "$CODIGO" -eq 8 ] || fallo "[$motivo] debía dar 8, dio $CODIGO: $(tail -4 "$TMP/f/stdout")"
+    grep -q "INCOMPLETO" "$TMP/f/out/resumen.txt" || fallo "[$motivo] el resumen no marca el muestreo como incompleto"
+    grep -q "$motivo" "$TMP/f/out/resumen.txt" || fallo "[$motivo] el resumen no explica el motivo: $(grep -a 'Muestreo del VPS' "$TMP/f/out/resumen.txt")"
+done <<'EOF2'
+0 lecturas útiles|=== Fin del muestreo: muestras=21 stats_ok=0 t_primera=1s volcado_inicial=2/2 volcado_final=2/2 duracion=23s ===
+solo 1 lecturas|=== Fin del muestreo: muestras=8 stats_ok=1 t_primera=1s volcado_inicial=2/2 volcado_final=2/2 duracion=23s ===
+solo 2 lecturas|=== Fin del muestreo: muestras=21 stats_ok=2 t_primera=1s volcado_inicial=2/2 volcado_final=2/2 duracion=23s ===
+después de la línea base|=== Fin del muestreo: muestras=8 stats_ok=8 t_primera=40s volcado_inicial=0/7 volcado_final=2/2 duracion=23s ===
+volcado final incompleto (2/7)|=== Fin del muestreo: muestras=8 stats_ok=8 t_primera=1s volcado_inicial=2/2 volcado_final=2/7 duracion=23s ===
+volcado final incompleto (0/?)|=== Fin del muestreo: muestras=8 stats_ok=8 t_primera=1s volcado_inicial=2/2 volcado_final=0/? duracion=23s ===
+volcado final incompleto (0/0)|=== Fin del muestreo: muestras=8 stats_ok=8 t_primera=1s volcado_inicial=2/2 volcado_final=0/0 duracion=23s ===
+sin datos legibles|=== Fin del muestreo: 8 muestras ===
+EOF2
+lanzar "FAKE_SSH_CIERRE=$CIERRE_OK"
+[ "$CODIGO" -eq 0 ] || fallo "el cierre bueno (control positivo) debía dar 0, dio $CODIGO: $(tail -4 "$TMP/f/stdout")"
+echo "OK"
+
+echo "=== B15: la prueba previa distingue «el VPS no tiene el modo» (5) de «tiene el modo pero docker va lento» (4) ==="
+lanzar "FAKE_SSH_MODO=lento"
+[ "$CODIGO" -eq 4 ] || fallo "modo presente pero sin lecturas debía dar 4, dio $CODIGO: $(tail -4 "$TMP/f/stdout") $(cat "$TMP/f/stderr")"
+grep -q "ofrece el modo muestreo-memoria" "$TMP/f/stderr" || fallo "el mensaje debía decir que el modo existe: $(cat "$TMP/f/stderr")"
+grep -q "no hace falta desplegar de nuevo" "$TMP/f/stderr" || fallo "no debe mandar a redesplegar: $(cat "$TMP/f/stderr")"
+! ejecutado k6.args || fallo "k6 arrancó con la prueba previa fallida"
+lanzar "FAKE_SSH_MODO=viejo"
+[ "$CODIGO" -eq 5 ] || fallo "VPS sin el modo debía seguir dando 5, dio $CODIGO"
+grep -q "hacen falta dos despliegues" "$TMP/f/stderr" || fallo "el VPS viejo debía explicar los dos despliegues"
+echo "OK"
+
+echo "=== B16: el resumen no imprime una tabla vacía cuando no hay lecturas ==="
+cat > "$TMP/sinlecturas.log" <<'EOF2'
+=== Muestreo SIN lecturas de docker stats (muestras=5 stats_ok=0 t_primera=1s volcado_inicial=0/? volcado_final=0/? duracion=10s) ===
+EOF2
+SALIDA_R="$(resumir_muestreo "$TMP/sinlecturas.log")"
+echo "$SALIDA_R" | grep -q "sin ninguna lectura de docker stats" || fallo "sin lecturas debía decirlo en vez de una tabla vacía: $SALIDA_R"
 echo "OK"
 
 echo "TODAS LAS PRUEBAS PASARON"

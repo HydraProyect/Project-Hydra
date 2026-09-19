@@ -366,20 +366,32 @@ volcar_contadores_memoria_host() {
 # en $SECONDS: pasado, no se empieza otro contenedor y ninguna llamada dura más
 # de lo que queda hasta él (así el modo de muestreo no rebasa su duración).
 volcar_cgroup_contenedores() {
-    local limite="${1:-20}" plazo="${2:-0}" contenedor restante
+    local limite="${1:-20}" plazo="${2:-0}" contenedor restante lista ps_ok=0 nombres leidos=0 total
+    # Resultado para quien llama (sin subshell): cuántos contenedores se leyeron
+    # entera y cuántos había. "?" = no se pudo ni listar (docker ps sin respuesta o
+    # plazo agotado antes de empezar): NO es lo mismo que "0 de 0".
+    VOLCADO_LEIDOS=0; VOLCADO_TOTAL="?"
     _limite_restante() {
         [ "$plazo" -gt 0 ] || return 0
-        restante=$(( plazo - SECONDS ))
+        restante=$(( plazo - $(reloj) ))
         [ "$restante" -gt 0 ] || return 1
         [ "$restante" -lt "$limite" ] && limite="$restante"
         return 0
     }
     _limite_restante || { echo "(volcado no iniciado: agotado el plazo del muestreo)"; return 0; }
-    for contenedor in $(timeout "$limite" docker ps --format '{{.Names}}' 2>/dev/null | grep '^caemanager-' || true); do
+    lista="$(timeout "$limite" docker ps --format '{{.Names}}' 2>/dev/null)" && ps_ok=1
+    nombres="$(printf '%s\n' "$lista" | grep '^caemanager-' || true)"
+    if [ "$ps_ok" -eq 1 ]; then
+        total=0; [ -z "$nombres" ] || total="$(printf '%s\n' "$nombres" | wc -l | tr -d ' ')"
+        VOLCADO_TOTAL="$total"
+    else
+        echo "(docker ps sin respuesta: no se sabe qué contenedores hay)"
+    fi
+    for contenedor in $nombres; do
         _limite_restante || { echo "(volcado cortado: agotado el plazo del muestreo)"; break; }
         echo "--- ${contenedor} ---"
         timeout "$limite" docker inspect --format 'iniciado={{.State.StartedAt}} reinicios={{.RestartCount}} oom_docker={{.State.OOMKilled}}' "$contenedor" 2>/dev/null || true
-        timeout "$limite" docker exec "$contenedor" sh -c '
+        if timeout "$limite" docker exec "$contenedor" sh -c '
             for f in /sys/fs/cgroup/memory.peak /sys/fs/cgroup/memory.current /sys/fs/cgroup/memory.max \
                      /sys/fs/cgroup/memory.events \
                      /sys/fs/cgroup/memory/memory.max_usage_in_bytes /sys/fs/cgroup/memory/memory.usage_in_bytes \
@@ -390,8 +402,13 @@ volcar_cgroup_contenedores() {
                 grep -E "^(anon|file|shmem|file_mapped) " /sys/fs/cgroup/memory.stat | tr "\n" " "; echo
             fi
             true
-        ' 2>/dev/null || echo "(sin lectura de cgroup en ${contenedor})"
+        ' 2>/dev/null; then
+            leidos=$(( leidos + 1 ))
+        else
+            echo "(sin lectura de cgroup en ${contenedor})"
+        fi
     done
+    VOLCADO_LEIDOS="$leidos"
 }
 
 # Segundo volcado de solo lectura para REC-196/REC-198 (techos de memoria):
@@ -473,10 +490,22 @@ linea_contadores_muestreo() {
     echo "psi_some_total_us=${psi:-?} oom_kill=${oom:-?}"
 }
 
+# Reloj en segundos. Una función y no `$SECONDS` a pelo para que los tests
+# puedan sustituirlo por un reloj que también avance dentro de subshells.
+reloj() { echo "$SECONDS"; }
+
+# El cierre del muestreo lleva HECHOS, no un número ambiguo: `muestras` cuenta
+# vueltas del bucle (una vuelta con `docker stats` cortado también suma), y lo
+# que de verdad se midió es `stats_ok` (vueltas cuyo docker stats devolvió al
+# menos una línea con `mem=`). `t_primera` = cuándo cayó la primera muestra
+# (un volcado inicial lento se la come); `volcado_inicial|final` = contenedores
+# leídos / contenedores que había ("?" si ni se pudo listar). Quien consume
+# esa línea (scripts/carga-staging-vigia.sh) decide qué es «completo».
 muestreo_memoria() {
-    local duracion="$1" intervalo="$2" inicio muestras=0 maximo interrumpido reserva plazo fin_bucle tope espera
-    # Techo de iteraciones, independiente del reloj: aunque `sleep` o
-    # $SECONDS se comportaran de forma rara, nunca hay más muestras que estas.
+    local duracion="$1" intervalo="$2" inicio muestras=0 stats_ok=0 maximo interrumpido=0
+    local reserva presupuesto plazo fin_bucle tope espera t0 t_primera="-" salida ini_k ini_n fin_k fin_n hechos
+    # Techo de iteraciones, independiente del reloj: aunque `sleep` o el reloj
+    # se comportaran de forma rara, nunca hay más muestras que estas.
     maximo=$(( duracion / intervalo + 1 ))
     if despliegue_en_curso; then
         echo "Hay un despliegue en curso (o el cerrojo no se puede leer): no se muestrea." >&2
@@ -484,44 +513,57 @@ muestreo_memoria() {
     fi
     echo "=== Muestreo de memoria (REC-196/P33): duración=${duracion}s intervalo=${intervalo}s máx. ${maximo} muestras — solo lectura ==="
     # La duración pedida acota el comando ENTERO, lecturas de cgroup incluidas
-    # (docker lento las alargaría hasta ~170 s más): el reloj corre desde antes
-    # del primer volcado, y el tramo final se reserva para la lectura final.
-    inicio=$SECONDS
+    # (docker lento las alargaría): el reloj corre desde antes del primer
+    # volcado. El volcado inicial tiene su propio presupuesto corto (que no se
+    # coma la línea base) y el final se reserva un tramo mayor (una llamada a
+    # docker por contenedor y por dato, ~15 con 7 contenedores).
+    inicio="$(reloj)"
     plazo=$(( inicio + duracion ))
-    reserva=$(( duracion / 10 )); [ "$reserva" -le 15 ] || reserva=15
-    echo "=== Estado inicial de los contenedores ==="
+    reserva=$(( duracion / 10 )); [ "$reserva" -le 30 ] || reserva=30
+    presupuesto=$(( duracion / 10 )); [ "$presupuesto" -le 15 ] || presupuesto=15
     fin_bucle=$(( plazo - reserva ))
-    volcar_cgroup_contenedores 5 "$fin_bucle"
-    interrumpido=0
-    while [ "$muestras" -lt "$maximo" ] && [ "$SECONDS" -lt "$fin_bucle" ]; do
+    echo "=== Estado inicial de los contenedores ==="
+    volcar_cgroup_contenedores 5 $(( inicio + presupuesto ))
+    ini_k="$VOLCADO_LEIDOS"; ini_n="$VOLCADO_TOTAL"
+    while [ "$muestras" -lt "$maximo" ] && [ "$(reloj)" -lt "$fin_bucle" ]; do
         if despliegue_en_curso; then
             interrumpido=1
             break
         fi
+        t0="$(reloj)"
         muestras=$(( muestras + 1 ))
-        echo "--- muestra ${muestras} $(date -u +%Y-%m-%dT%H:%M:%SZ) t=$(( SECONDS - inicio ))s ---"
+        [ "$t_primera" != "-" ] || t_primera=$(( t0 - inicio ))
+        echo "--- muestra ${muestras} $(date -u +%Y-%m-%dT%H:%M:%SZ) t=$(( t0 - inicio ))s ---"
         { free -m | sed -n '2,3p'; } || true
         linea_contadores_muestreo
         # Ni `docker stats` ni la espera rebasan el fin del bucle: el tramo que
         # queda es de la lectura final, y el comando entero no pasa de la duración.
-        tope=$(( fin_bucle - SECONDS )); [ "$tope" -ge 1 ] || tope=1; [ "$tope" -le 15 ] || tope=15
-        timeout "$tope" docker stats --no-stream --format '{{.Name}} mem={{.MemUsage}} {{.MemPerc}} cpu={{.CPUPerc}}' || true
-        espera=$(( fin_bucle - SECONDS )); [ "$espera" -ge 0 ] || espera=0; [ "$espera" -le "$intervalo" ] || espera="$intervalo"
+        tope=$(( fin_bucle - $(reloj) )); [ "$tope" -ge 1 ] || tope=1; [ "$tope" -le 15 ] || tope=15
+        salida="$(timeout "$tope" docker stats --no-stream --format '{{.Name}} mem={{.MemUsage}} {{.MemPerc}} cpu={{.CPUPerc}}' 2>&1)" || true
+        [ -z "$salida" ] || printf '%s\n' "$salida"
+        if [[ "$salida" == *" mem="* ]]; then stats_ok=$(( stats_ok + 1 )); fi
+        # Cadencia por reloj: lo que tardó la lectura cuenta dentro del intervalo,
+        # no se le suma (si no, el muestreo se adelgaza justo cuando el servidor va lento).
+        espera=$(( intervalo - ( $(reloj) - t0 ) )); [ "$espera" -ge 0 ] || espera=0
+        [ "$espera" -le $(( fin_bucle - $(reloj) )) ] || espera=$(( fin_bucle - $(reloj) ))
+        [ "$espera" -ge 0 ] || espera=0
         sleep "$espera"
     done
     echo "=== Estado final de los contenedores (memory.peak = pico de TODA la vida del contenedor) ==="
     volcar_cgroup_contenedores 5 "$plazo"
+    fin_k="$VOLCADO_LEIDOS"; fin_n="$VOLCADO_TOTAL"
+    hechos="muestras=${muestras} stats_ok=${stats_ok} t_primera=${t_primera}s volcado_inicial=${ini_k}/${ini_n} volcado_final=${fin_k}/${fin_n} duracion=$(( $(reloj) - inicio ))s"
     if [ "$interrumpido" -eq 1 ]; then
         # Sin "Fin del muestreo": el cliente no debe tomar por completa una serie cortada.
-        echo "=== Muestreo INTERRUMPIDO tras ${muestras} muestras: empezó un despliegue ==="
+        echo "=== Muestreo INTERRUMPIDO tras ${muestras} muestras: empezó un despliegue (${hechos}) ==="
         return 4
     fi
-    if [ "$muestras" -eq 0 ]; then
-        # Un muestreo sin ninguna muestra no es un muestreo: sin «Fin del muestreo».
-        echo "=== Muestreo SIN muestras: los volcados de cgroup agotaron el plazo ==="
+    if [ "$stats_ok" -eq 0 ]; then
+        # Ninguna lectura útil de docker stats no es un muestreo: sin «Fin del muestreo».
+        echo "=== Muestreo SIN lecturas de docker stats (${hechos}) ==="
         return 5
     fi
-    echo "=== Fin del muestreo: ${muestras} muestras ==="
+    echo "=== Fin del muestreo: ${hechos} ==="
 }
 
 main() {

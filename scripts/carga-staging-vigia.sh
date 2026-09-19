@@ -24,11 +24,11 @@
 # recuperación y el resultado del job es ROJO (código 3).
 #
 # Códigos de salida: 0 carga completa sin abortar · 2 entrada no válida ·
-# 3 ABORTADA por producción · 4 verificación previa fallida (no se empezó) ·
+# 3 ABORTADA por producción · 4 verificación previa fallida, incluida la prueba de 10 s del muestreo sin lecturas (docker lento; no se empezó) ·
 # 5 el VPS no ofrece el modo de muestreo (hacen falta dos despliegues tras
 # fusionar la PR que lo añadió) · 6 hay un despliegue en curso (no se empezó) ·
 # 7 k6 falló o se cortó por sus umbrales de STAGING (sin abortar producción) ·
-# 8 el muestreo del VPS no cubrió la ventana (la carga acabó, los datos no).
+# 8 el muestreo del VPS no pasó evaluar_cierre: sus hechos (lecturas, primera muestra, volcado final) no sostienen una medición completa (la carga acabó, los datos no).
 set -uo pipefail
 
 CONFIRMACION_ESPERADA="CARGAR STAGING"
@@ -39,9 +39,18 @@ FALLOS_SEGUIDOS=3
 MUESTRAS_MIN_VENTANA=10
 LENTAS_MIN_VENTANA=2
 DURACION_MAX_MUESTREO=420
-# Cierre válido del muestreo: con AL MENOS una muestra. Un cierre con 0 muestras
-# (docker lento se comió todo el plazo) no trae la telemetría que se buscaba.
-CIERRE_MUESTREO="Fin del muestreo: [1-9][0-9]* muestras"
+# Contrato con el VPS (deploy/ci-deploy.sh, muestreo_memoria): el muestreo cierra con
+#   === Fin del muestreo: muestras=N stats_ok=M t_primera=Ts volcado_inicial=k/n volcado_final=k/n duracion=Ds ===
+# `muestras` cuenta vueltas; lo medido es `stats_ok`. Un muestreo se da por válido
+# solo si los HECHOS lo sostienen (evaluar_cierre); la ausencia de la línea, o que
+# el servidor la sustituya por «INTERRUMPIDO»/«SIN lecturas», lo invalida.
+CIERRE_MUESTREO="Fin del muestreo:"
+# stats_ok mínimo, en % de duración/intervalo. HYPOTHESIS: la mitad tolera un
+# `docker stats` más lento que el intervalo justo cuando el servidor va cargado
+# (que es cuando se mide) sin dar por bueno un muestreo casi vacío. Los hechos
+# van siempre al resumen, pase o no el umbral.
+FRACCION_MIN_PCT=50
+INTERVALO_MUESTREO_S=3
 
 # Epoch en milisegundos. `date +%s%3N` no es portable (uutils coreutils lo imprime mal).
 ahora_ms() { echo $(( $(date +%s%N) / 1000000 )); }
@@ -127,6 +136,39 @@ registrar_sondeo() {
     echo "$(ahora_ms),${par% *},${par#* }" >> "$DIR_SALIDA/salud-produccion.csv"
 }
 
+# Campo `clave=valor` de la línea de cierre (vacío si no está).
+campo_cierre() { printf '%s\n' "$1" | sed -n "s/.* $2=\([^ ]*\).*/\1/p" | head -1; }
+
+# Juzga la línea de cierre del muestreo contra los hechos que declara.
+#   $1 salida del muestreo · $2 duración pedida (s) · $3 intervalo (s)
+#   $4 t_primera máximo (s: la línea base) · $5 "pleno" o "previo"
+# Con "previo" (la prueba de 10 s) basta con que haya lecturas: comprueba que el
+# modo existe y funciona, no que cubra una ventana. Imprime los motivos y
+# devuelve 1 si no vale; devuelve 0 si vale (con "previo"/"pleno", sin imprimir).
+evaluar_cierre() {
+    local salida="$1" duracion="$2" intervalo="$3" base="$4" modo="$5"
+    local linea muestras ok t_primera fin esperado minimo motivos=""
+    linea="$(printf '%s\n' "$salida" | grep -a "$CIERRE_MUESTREO" | tail -1)"
+    [ -n "$linea" ] || { echo "el muestreo no llegó a cerrar («Fin del muestreo» ausente)"; return 1; }
+    muestras="$(campo_cierre "$linea" muestras)"; ok="$(campo_cierre "$linea" stats_ok)"
+    t_primera="$(campo_cierre "$linea" t_primera)"; t_primera="${t_primera%s}"
+    fin="$(campo_cierre "$linea" volcado_final)"
+    case "$muestras" in ''|*[!0-9]*) echo "cierre sin datos legibles (muestras): $linea"; return 1 ;; esac
+    case "$ok" in ''|*[!0-9]*) echo "cierre sin datos legibles (stats_ok): $linea"; return 1 ;; esac
+    [ "$ok" -ge 1 ] || { echo "0 lecturas útiles de docker stats en ${muestras} vueltas"; return 1; }
+    [ "$modo" = pleno ] || return 0
+    esperado=$(( duracion / intervalo )); minimo=$(( esperado * FRACCION_MIN_PCT / 100 ))
+    [ "$ok" -ge "$minimo" ] || motivos="${motivos}solo ${ok} lecturas de docker stats (mínimo ${minimo}: el ${FRACCION_MIN_PCT} % de ${esperado}); "
+    case "$t_primera" in
+        ''|*[!0-9]*) motivos="${motivos}t_primera ilegible; " ;;
+        *) [ "$t_primera" -le "$base" ] || motivos="${motivos}la primera muestra cayó en t=${t_primera}s, después de la línea base (${base}s); " ;;
+    esac
+    if [[ "$fin" =~ ^([0-9]+)/([0-9]+)$ ]] && [ "${BASH_REMATCH[2]}" -ge 1 ] && [ "${BASH_REMATCH[1]}" -eq "${BASH_REMATCH[2]}" ]; then :
+    else motivos="${motivos}volcado final incompleto (${fin:-sin dato}): falta memory.peak de algún contenedor; "; fi
+    [ -z "$motivos" ] || { echo "${motivos%; }"; return 1; }
+    return 0
+}
+
 # Vigila producción durante $1 segundos (o, con 0, mientras viva PID_K6). Con
 # $2 = 1 evalúa los criterios de aborto y devuelve 1 (MOTIVO_ABORTO) al
 # cumplirse alguno; con 0 solo registra (tramo de recuperación).
@@ -173,6 +215,9 @@ vigilar() {
 resumir_muestreo() {
     local log="$1"
     [ -s "$log" ] || { echo "(sin salida del muestreo)"; return 0; }
+    if ! grep -aq ' mem=' "$log"; then
+        echo "(sin ninguna lectura de docker stats en la ventana: no hay tabla de máximos)"
+    else
     echo "Máximo de memoria vista por docker stats en la ventana (una fila por contenedor):"
     awk '
         / mem=/ {
@@ -183,12 +228,13 @@ resumir_muestreo() {
         }
         END { for (n in max) printf "  %-28s %8.1f MiB\n", n, max[n] }
     ' "$log" | sort
+    fi
     echo "Lectura final de cgroup (memory.peak = pico de toda la vida del contenedor):"
     awk '/Estado final de los contenedores/ {dentro = 1} dentro && (/^--- / || /memory\.peak|memory\.events|memory\.max/) {print "  " $0}' "$log"
 }
 
 main() {
-    local i par url veredicto salida_pre SEGUNDOS_MUESTREO ABORTADO=0
+    local i par url veredicto salida_pre motivo_pre SEGUNDOS_MUESTREO ABORTADO=0
     DIR_SALIDA="${DIR_SALIDA:-carga-staging-out}"
     SONDEO_S="${SONDEO_S:-1}"
     K6_BIN="${K6_BIN:-k6}"
@@ -239,14 +285,19 @@ main() {
     if printf '%s' "$salida_pre" | grep -q "Hay un despliegue en curso"; then
         echo "El VPS reporta un despliegue en curso. No se carga nada." >&2; return 6
     fi
-    if ! printf '%s' "$salida_pre" | grep -q "$CIERRE_MUESTREO"; then
+    if ! motivo_pre="$(evaluar_cierre "$salida_pre" 10 2 0 previo)"; then
+        if printf '%s' "$salida_pre" | grep -q "=== Muestreo de memoria (REC-196/P33)"; then
+            # El modo existe y arrancó: lo que falla es la máquina (docker lento), no el despliegue.
+            echo "El VPS ofrece el modo muestreo-memoria pero la prueba de 10 s no dio lecturas válidas: ${motivo_pre}. No se carga nada (¿docker lento? no hace falta desplegar de nuevo). Final de la salida:" >&2
+            printf '%s\n' "$salida_pre" | tail -6 >&2; return 4
+        fi
         echo "El VPS no ofrece el modo muestreo-memoria (¿aún corre un ci-deploy.sh anterior? hacen falta dos despliegues tras fusionar la PR que lo añadió). Salida:" >&2
         printf '%s\n' "$salida_pre" | head -5 >&2; return 5
     fi
 
     # --- ejecución ----------------------------------------------------------
-    log "Arrancando el muestreo del VPS (${SEGUNDOS_MUESTREO} s, cada 3 s)."
-    ssh_muestreo "$SEGUNDOS_MUESTREO" 3 > "$DIR_SALIDA/muestreo.log" 2>&1 &
+    log "Arrancando el muestreo del VPS (${SEGUNDOS_MUESTREO} s, cada ${INTERVALO_MUESTREO_S} s)."
+    ssh_muestreo "$SEGUNDOS_MUESTREO" "$INTERVALO_MUESTREO_S" > "$DIR_SALIDA/muestreo.log" 2>&1 &
     PID_SSH=$!
 
     log "Línea base de ${BASE_S} s (solo vigilancia)."
@@ -279,8 +330,10 @@ main() {
     wait "$PID_SSH" 2>/dev/null; SSH_CODIGO=$?
     [ -n "$SSH_ESTADO" ] || SSH_ESTADO="código $SSH_CODIGO"
     # Completo = el proceso SSH terminó por sí solo con 0 Y cerró la ventana.
-    MUESTREO_COMPLETO=1
-    if [ "$SSH_CODIGO" -ne 0 ] || [ "$SSH_ESTADO" = "no terminó en 60 s" ] || ! grep -q "$CIERRE_MUESTREO" "$DIR_SALIDA/muestreo.log" 2>/dev/null; then
+    MUESTREO_COMPLETO=1; MOTIVO_MUESTREO=""
+    if [ "$SSH_CODIGO" -ne 0 ] || [ "$SSH_ESTADO" = "no terminó en 60 s" ]; then
+        MUESTREO_COMPLETO=0; MOTIVO_MUESTREO="el proceso SSH acabó mal (${SSH_ESTADO})"
+    elif ! MOTIVO_MUESTREO="$(evaluar_cierre "$(cat "$DIR_SALIDA/muestreo.log" 2>/dev/null)" "$SEGUNDOS_MUESTREO" "$INTERVALO_MUESTREO_S" "$BASE_S" pleno)"; then
         MUESTREO_COMPLETO=0
     fi
 
@@ -288,7 +341,8 @@ main() {
     {
         echo "Resultado: $([ "$ABORTADO" = 1 ] && echo "ABORTADA — $MOTIVO_ABORTO" || echo "completa, sin abortar")"
         echo "k6 (código de salida): ${K6_ESTADO:-no arrancó}$([ "$ABORTADO" = 0 ] && [ "${K6_ESTADO:-0}" -ne 0 ] && echo " — FALLÓ: se cortó por sus umbrales de staging o no se ejecutó bien")"
-        echo "Muestreo del VPS: $([ "$MUESTREO_COMPLETO" = 1 ] && echo "completo" || echo "INCOMPLETO (${SSH_ESTADO}): los datos de memoria no cubren toda la ventana")"
+        echo "Muestreo del VPS: $([ "$MUESTREO_COMPLETO" = 1 ] && echo "completo" || echo "INCOMPLETO (${SSH_ESTADO}): ${MOTIVO_MUESTREO}")"
+        echo "Cierre del muestreo (hechos): $(grep -a "$CIERRE_MUESTREO\|Muestreo INTERRUMPIDO\|Muestreo SIN" "$DIR_SALIDA/muestreo.log" 2>/dev/null | tail -1 | sed 's/^=== //; s/ ===$//')"
         echo "Muestras de /salud de producción: $(wc -l < "$DIR_SALIDA/salud-produccion.csv" | tr -d ' '); máximo $(cut -d, -f3 "$DIR_SALIDA/salud-produccion.csv" | sort -n | tail -n1) ms; distintas de 200: $(awk -F, '$2 != "200"' "$DIR_SALIDA/salud-produccion.csv" | wc -l | tr -d ' ')"
         resumir_muestreo "$DIR_SALIDA/muestreo.log"
     } | tee "$DIR_SALIDA/resumen.txt"
