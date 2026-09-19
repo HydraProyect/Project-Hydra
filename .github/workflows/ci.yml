@@ -893,8 +893,25 @@ jobs:
       - name: Instalar navegadores de Playwright
         run: pwsh tests/CaeManager.E2ETests/bin/Debug/net10.0/playwright.ps1 install --with-deps chromium
 
+      # El logger "trx" no cambia qué se ejecuta ni qué hace fallar al job:
+      # solo añade, junto al log de consola, un fichero con el nombre, el
+      # startTime y el endTime ABSOLUTOS (con zona) de cada test — medido en
+      # este repositorio antes de escribirlo. Es lo que faltaba para leer el
+      # log de Serilog del paso de abajo: ese fichero lo escriben CUATRO
+      # procesos de CaeManager.Web a la vez (una fixture por colección de
+      # xUnit, ver WebAppFixture) sobre el mismo content root, sin puerto ni
+      # identificador de test en ninguna línea, así que hasta ahora una
+      # excepción registrada ahí no se podía atribuir a ningún test — medido
+      # en el run 35402030148: 4 arranques de servidor solapados en un único
+      # log-20260918.txt. Con las ventanas del .trx, cada línea del log cae
+      # dentro del intervalo de un test conocido. La ambigüedad que queda es
+      # la de los tests de colecciones DISTINTAS que corren a la vez: se
+      # cierra separando el log por fixture, que es el otro medio arreglo y
+      # vive en el arnés (ver REC-216).
       - name: Tests E2E
-        run: dotnet test tests/CaeManager.E2ETests --no-build --logger "console;verbosity=normal"
+        run: >
+          dotnet test tests/CaeManager.E2ETests --no-build --logger "console;verbosity=normal"
+          --logger "trx;LogFileName=e2e.trx"
 
       # WebAppFixture no reenvía stdout del proceso de CaeManager.Web (ver su
       # comentario) porque Serilog ya escribe lo mismo en su sink de fichero,
@@ -927,6 +944,14 @@ jobs:
             > /tmp/diagnostico-e2e/manifiesto.txt 2>&1 \
             || echo "App_Data no existe en la ruta esperada (src/CaeManager.Web/bin/Debug/net10.0/App_Data)" \
             > /tmp/diagnostico-e2e/manifiesto.txt
+          # Mismo criterio que la línea de arriba, aplicado al .trx: sin esto,
+          # "el logger no escribió nada" y "el .trx salió en otra ruta" se ven
+          # igual desde el artefacto (ausencia), y el .trx es justo lo que
+          # permite atribuir cada línea del log a un test.
+          find tests/CaeManager.E2ETests/TestResults -maxdepth 2 \
+            >> /tmp/diagnostico-e2e/manifiesto.txt 2>&1 \
+            || echo "TestResults no existe en tests/CaeManager.E2ETests (¿el logger trx no llegó a escribir?)" \
+            >> /tmp/diagnostico-e2e/manifiesto.txt
 
       - name: Publicar logs de CaeManager.Web si el E2E falla
         if: failure()
@@ -935,6 +960,7 @@ jobs:
           name: logs-caemanager-web-e2e
           path: |
             src/CaeManager.Web/bin/Debug/net10.0/App_Data/logs/
+            tests/CaeManager.E2ETests/TestResults/e2e.trx
             /tmp/diagnostico-e2e/manifiesto.txt
           retention-days: 7
           if-no-files-found: warn
