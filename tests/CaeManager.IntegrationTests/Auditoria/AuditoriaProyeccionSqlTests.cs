@@ -173,26 +173,52 @@ public class AuditoriaProyeccionSqlTests : IAsyncLifetime
     /// <c>COALESCE</c> de <c>JsonRolDeUsuario</c> incluida — no solo el método
     /// en aislamiento, que no observaría un fallo de traducción EF-a-SQL.
     /// </summary>
-#pragma warning disable CS8625 // null literal en object[] — DatosAntes/DatosDespues/rolIdEsperado son legítimamente null en varios casos.
-    public static IEnumerable<object[]> CasosRolId()
+    /// <summary>
+    /// (Accion, DatosAntes, DatosDespues, RolIdEsperado) de cada caso,
+    /// resuelto por índice desde <see cref="ObtenerCasoRolId"/> — ver el
+    /// comentario de ese método para el porqué del índice en vez del
+    /// contenido directo como argumento del <c>Theory</c>.
+    /// </summary>
+    private static (string Accion, string? DatosAntes, string? DatosDespues, Guid? RolIdEsperado) ObtenerCasoRolId(int indice)
     {
         var rolId = Guid.NewGuid();
-        // Creado (alta): el JSON va en DatosDespues, nunca en DatosAntes.
-        yield return ["Creado", null, $$"""{"UserId":"{{Guid.NewGuid()}}","RoleId":"{{rolId}}"}""", rolId];
-        // Eliminado (revocar): el JSON va en DatosAntes, DatosDespues es null.
-        yield return ["Eliminado", $$"""{"UserId":"{{Guid.NewGuid()}}","RoleId":"{{rolId}}"}""", null, rolId];
-        // Orden de propiedades invertido — el marcador no depende de la posición.
-        yield return ["Creado", null, $$"""{"RoleId":"{{rolId}}","UserId":"{{Guid.NewGuid()}}"}""", rolId];
-        // JSON sin el marcador (fila anterior a este cambio, o corrupción manual): null, no una excepción.
-        yield return ["Creado", null, """{"UserId":"11111111-1111-1111-1111-111111111111"}""", null];
+        return indice switch
+        {
+            // Creado (alta): el JSON va en DatosDespues, nunca en DatosAntes.
+            0 => ("Creado", null, $$"""{"UserId":"{{Guid.NewGuid()}}","RoleId":"{{rolId}}"}""", rolId),
+            // Eliminado (revocar): el JSON va en DatosAntes, DatosDespues es null.
+            1 => ("Eliminado", $$"""{"UserId":"{{Guid.NewGuid()}}","RoleId":"{{rolId}}"}""", null, rolId),
+            // Orden de propiedades invertido — el marcador no depende de la posición.
+            2 => ("Creado", null, $$"""{"RoleId":"{{rolId}}","UserId":"{{Guid.NewGuid()}}"}""", rolId),
+            // JSON sin el marcador (fila anterior a este cambio, o corrupción manual): null, no una excepción.
+            3 => ("Creado", null, """{"UserId":"11111111-1111-1111-1111-111111111111"}""", null),
+            _ => throw new ArgumentOutOfRangeException(nameof(indice)),
+        };
     }
-#pragma warning restore CS8625
+
+    /// <summary>
+    /// Hallazgo de infraestructura de CI (revisión de sesión coordinadora
+    /// sobre `8982cdc8`): la versión anterior de este generador pasaba el
+    /// JSON con GUIDs aleatorios directamente como argumento del
+    /// <c>Theory</c>. <c>dotnet test --list-tests</c> deriva el nombre de
+    /// cada caso a partir de sus argumentos, y con ese JSON largo (los
+    /// backslashes de escape casi duplican su longitud aparente en el
+    /// nombre mostrado) el descubrimiento colapsaba los 4 casos en una sola
+    /// entrada genérica sin argumentos — detectado porque el check
+    /// "Build, format y tests" del CI contaba 1258 tests descubiertos frente
+    /// a 1261 realmente ejecutados por los 4 bloques, ya que
+    /// <c>scripts/repartir-clases-de-test.sh</c> usa ese mismo listado para
+    /// calcular el reparto. Pasar solo el ÍNDICE (un <c>int</c>) como
+    /// argumento del <c>Theory</c> deja el nombre corto y determinista, sin
+    /// depender de cuánto quepa en el JSON de cada caso.
+    /// </summary>
+    public static IEnumerable<object[]> CasosRolId() => [[0], [1], [2], [3]];
 
     [Theory]
     [MemberData(nameof(CasosRolId))]
-    public async Task El_RolId_se_extrae_del_JSON_de_RolDeUsuario_vía_SQL_y_en_memoria(
-        string accion, string? datosAntes, string? datosDespues, Guid? rolIdEsperado)
+    public async Task El_RolId_se_extrae_del_JSON_de_RolDeUsuario_vía_SQL_y_en_memoria(int indiceDeCaso)
     {
+        var (accion, datosAntes, datosDespues, rolIdEsperado) = ObtenerCasoRolId(indiceDeCaso);
         var entidadId = Guid.NewGuid();
         await using (var contextoEscritura = CrearContexto())
         {
