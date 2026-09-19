@@ -6,12 +6,12 @@ namespace CaeManager.Domain.Cumplimiento;
 /// mostrados en <c>/legal/terminos</c> y <c>/legal/privacidad</c>). Subir
 /// este valor obliga a todo usuario a volver a aceptar: es la única palanca
 /// que decide "hace falta re-aceptación". Se sube en el mismo cambio que
-/// edite cualquier contenido contractual de esas páginas, nunca antes ni
-/// después. Una rectificación de una afirmación inexacta que promete menos
-/// que el texto ya aceptado no es un cambio contractual y no la sube; esa
-/// decisión se anota en el DECISION_LOG (2026-09-19, P24 y D7).
+/// edite el contenido legal mostrado en esas páginas, nunca antes ni después.
+/// Vale también para una corrección de texto que parezca prometer menos: una
+/// redacción nueva sobre transferencias fuera del EEE se trata como cambio
+/// material (decisión del propietario, 2026-09-20).
 /// </summary>
 public static class VersionTerminos
 {
-    public const string Actual = "2026-08-08";
+    public const string Actual = "2026-09-20";
 }
