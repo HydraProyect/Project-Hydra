@@ -727,7 +727,7 @@ public partial class Clientes : ComponentBase
             else
             {
                 ToastService.Mostrar("Cliente eliminado correctamente.", TonoToast.Exito, "Deshacer", () => DeshacerEliminarAsync(idAEliminar));
-                await WorkspaceService.RetirarSiEstaAbiertoAsync(EntidadWorkspace.Cliente, [idAEliminar]);
+                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Cliente, [idAEliminar]);
                 _confirmarEliminarVisible = false;
                 await RecargarAsync();
             }
@@ -804,7 +804,7 @@ public partial class Clientes : ComponentBase
 
             // Solo con el lote completo: el DTO no dice qué ids cayeron si hubo errores.
             if (dto.Errores.Count == 0)
-                await WorkspaceService.RetirarSiEstaAbiertoAsync(EntidadWorkspace.Cliente, _seleccionados.ToList());
+                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Cliente, _seleccionados.ToList());
 
             _seleccionados.Clear();
             _confirmarEliminarLoteVisible = false;

@@ -20,7 +20,7 @@ public class ContextWorkspaceServiceRetirarTests
         await servicio.AbrirAsync(EntidadWorkspace.Empresa, Ebro, "Montajes Ebro S.L.", "informacion");
         servicio.EstaAbierto.Should().BeTrue("control positivo: el frame estaba abierto");
 
-        await servicio.RetirarSiEstaAbiertoAsync(EntidadWorkspace.Empresa, [Ebro]);
+        servicio.RetirarSiEstaAbierto(EntidadWorkspace.Empresa, [Ebro]);
 
         servicio.EstaAbierto.Should().BeFalse();
     }
@@ -32,9 +32,24 @@ public class ContextWorkspaceServiceRetirarTests
         await servicio.AbrirAsync(EntidadWorkspace.Cliente, Otra, "Refrielectric S.A.", "informacion");
         await servicio.NavegarAAsync(EntidadWorkspace.Empresa, Ebro, "Montajes Ebro S.L.", "informacion");
 
-        await servicio.RetirarSiEstaAbiertoAsync(EntidadWorkspace.Empresa, [Ebro]);
+        servicio.RetirarSiEstaAbierto(EntidadWorkspace.Empresa, [Ebro]);
 
         servicio.FrameActual.Should().NotBeNull().And.Match<WorkspaceFrame>(f => f.EntidadId == Otra);
+    }
+
+    [Fact]
+    public async Task Una_entidad_dada_de_baja_que_es_antecesora_tampoco_queda_alcanzable_con_Volver()
+    {
+        var servicio = new ContextWorkspaceService();
+        await servicio.AbrirAsync(EntidadWorkspace.Cliente, Otra, "Refrielectric S.A.", "informacion");
+        await servicio.NavegarAAsync(EntidadWorkspace.Empresa, Ebro, "Montajes Ebro S.L.", "informacion");
+        servicio.Pila.Should().HaveCount(2, "control positivo: hay un antecesor en la pila");
+
+        servicio.RetirarSiEstaAbierto(EntidadWorkspace.Cliente, [Otra]);
+        await servicio.VolverAsync();
+
+        servicio.Pila.Should().ContainSingle().Which.EntidadId.Should().Be(Ebro,
+            "quien mira la empresa la conserva, y el Cliente eliminado no vuelve con «Volver»");
     }
 
     [Theory]
@@ -46,9 +61,9 @@ public class ContextWorkspaceServiceRetirarTests
         await servicio.AbrirAsync(EntidadWorkspace.Empresa, Ebro, "Montajes Ebro S.L.", "informacion");
 
         if (otroTipo)
-            await servicio.RetirarSiEstaAbiertoAsync(EntidadWorkspace.Cliente, [Ebro]);
+            servicio.RetirarSiEstaAbierto(EntidadWorkspace.Cliente, [Ebro]);
         else
-            await servicio.RetirarSiEstaAbiertoAsync(EntidadWorkspace.Empresa, [Otra]);
+            servicio.RetirarSiEstaAbierto(EntidadWorkspace.Empresa, [Otra]);
 
         servicio.FrameActual.Should().NotBeNull().And.Match<WorkspaceFrame>(f => f.EntidadId == Ebro);
     }

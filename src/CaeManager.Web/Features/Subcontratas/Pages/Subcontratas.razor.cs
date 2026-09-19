@@ -404,7 +404,7 @@ public partial class Subcontratas : ComponentBase
             }
 
             ToastService.Mostrar("Subcontrata eliminada correctamente.", TonoToast.Exito);
-            await WorkspaceService.RetirarSiEstaAbiertoAsync(EntidadWorkspace.Subcontrata, [_idAEliminar]);
+            WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Subcontrata, [_idAEliminar]);
             await CargarAsync();
         }
         catch (Exception)
@@ -434,7 +434,7 @@ public partial class Subcontratas : ComponentBase
 
             // Solo con el lote completo: el DTO no dice qué ids cayeron si hubo errores.
             if (dto.Errores.Count == 0)
-                await WorkspaceService.RetirarSiEstaAbiertoAsync(EntidadWorkspace.Subcontrata, _seleccionados.ToList());
+                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Subcontrata, _seleccionados.ToList());
 
             _seleccionados.Clear();
             _confirmarEliminarLoteVisible = false;
