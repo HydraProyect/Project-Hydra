@@ -904,10 +904,12 @@ jobs:
       # excepción registrada ahí no se podía atribuir a ningún test — medido
       # en el run 35402030148: 4 arranques de servidor solapados en un único
       # log-20260918.txt. Con las ventanas del .trx, cada línea del log cae
-      # dentro del intervalo de un test conocido. La ambigüedad que queda es
-      # la de los tests de colecciones DISTINTAS que corren a la vez: se
-      # cierra separando el log por fixture, que es el otro medio arreglo y
-      # vive en el arnés (ver REC-216).
+      # dentro del intervalo de un test conocido. La otra mitad (REC-216):
+      # cada fixture escribe ya en su propio fichero,
+      # App_Data/logs/log-{TipoDeFixture}-AAAAMMDD.txt (ver WebAppFixture),
+      # así que las líneas de un fichero salen de un solo proceso y, dentro de
+      # una colección, los tests son secuenciales — cada línea cae en la
+      # ventana de UN test, no de hasta cuatro simultáneos.
       - name: Tests E2E
         run: >
           dotnet test tests/CaeManager.E2ETests --no-build --logger "console;verbosity=normal"
