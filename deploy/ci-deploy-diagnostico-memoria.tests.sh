@@ -42,14 +42,26 @@ echo "$SALIDA1" | grep -q "MEM USAGE" \
     || { echo "FALLO: la salida de 'docker stats' no llegó a stdout" >&2; exit 1; }
 echo "OK: volcar_diagnostico_memoria imprime free -h y docker stats a stdout"
 
-echo "=== Caso 2: la llamada vive DESPUÉS del exit 1 de un despliegue no sano ==="
+echo "=== Caso 2: la llamada vive DESPUÉS del exit 1 del bloque de 'up' no sano ==="
+# La función tiene DOS bloques "exit 1" con la misma indentación: el del
+# fallo de `build` y el del `up -d --wait` no sano. Un `grep | head -1`
+# ingenuo coge el de `build` (el primero) — hallazgo de Codex sobre la
+# primera versión de este caso: eso deja pasar una regresión que mueva la
+# llamada a un punto intermedio (después de `build`, pero dentro o antes
+# del bloque de `up`), que SÍ se ejecutaría con un despliegue no sano y
+# este caso no lo habría detectado. Se ancla explícitamente a la línea de
+# `up -d --wait` y se busca el `exit 1` que le sigue A ELLA, no el primero
+# del fichero.
 FICHERO_FUENTE="$DIR_GUION/ci-deploy.sh"
-LINEA_EXIT="$(grep -n '^        exit 1$' "$FICHERO_FUENTE" | head -1 | cut -d: -f1)"
+LINEA_UP="$(grep -n 'docker compose "\${args\[@\]}" up -d --wait' "$FICHERO_FUENTE" | head -1 | cut -d: -f1)"
+[ -n "$LINEA_UP" ] || { echo "FALLO: no se encontró la línea de 'docker compose ... up -d --wait' — el fichero cambió de forma inesperada" >&2; exit 1; }
+LINEA_EXIT="$(tail -n "+$LINEA_UP" "$FICHERO_FUENTE" | grep -n '^        exit 1$' | head -1 | cut -d: -f1)"
+[ -n "$LINEA_EXIT" ] || { echo "FALLO: no se encontró un 'exit 1' después de la línea de 'up -d --wait' (línea $LINEA_UP)" >&2; exit 1; }
+LINEA_EXIT=$((LINEA_UP + LINEA_EXIT - 1))
 LINEA_LLAMADA="$(grep -n '^    volcar_diagnostico_memoria$' "$FICHERO_FUENTE" | head -1 | cut -d: -f1)"
-[ -n "$LINEA_EXIT" ] || { echo "FALLO: no se encontró el 'exit 1' del despliegue no sano — el fichero cambió de forma inesperada" >&2; exit 1; }
 [ -n "$LINEA_LLAMADA" ] || { echo "FALLO: no se encontró la llamada a volcar_diagnostico_memoria" >&2; exit 1; }
 [ "$LINEA_LLAMADA" -gt "$LINEA_EXIT" ] \
-    || { echo "FALLO: volcar_diagnostico_memoria se llama en la línea $LINEA_LLAMADA, ANTES o EN el exit 1 del despliegue no sano (línea $LINEA_EXIT) — se ejecutaría con un despliegue roto" >&2; exit 1; }
-echo "OK: la llamada (línea $LINEA_LLAMADA) vive después del exit 1 del despliegue no sano (línea $LINEA_EXIT)"
+    || { echo "FALLO: volcar_diagnostico_memoria se llama en la línea $LINEA_LLAMADA, ANTES o EN el exit 1 del 'up' no sano (línea $LINEA_EXIT) — se ejecutaría con un despliegue roto" >&2; exit 1; }
+echo "OK: la llamada (línea $LINEA_LLAMADA) vive después del exit 1 del bloque de 'up' no sano (línea $LINEA_EXIT)"
 
 echo "TODAS LAS PRUEBAS PASARON"
