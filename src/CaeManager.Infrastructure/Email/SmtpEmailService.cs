@@ -107,7 +107,7 @@ public class SmtpEmailService(
               </div>
               """
             : $"""
-               <div style="background:#122A21;padding:17px 22px 14px;">
+               <div style="background:#122A21;padding:0;">
                  <img src="{config.UrlBasePublica!.TrimEnd('/')}/img/correo/franja-marca.png" width="600" alt="TALVEG — Coordinación de actividades empresariales"
                       style="display:block;width:100%;max-width:600px;height:auto;border:0;font-family:Georgia,'Times New Roman',serif;font-size:21px;color:#F2EEE1;letter-spacing:2.2px;">
                </div>
