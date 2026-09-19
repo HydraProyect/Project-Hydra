@@ -247,6 +247,17 @@ public class SmtpEmailServiceEnvolverEnPlantillaDeMarcaTests
     }
 
     [Fact]
+    public void El_pie_de_requerimiento_no_invita_a_responder_porque_el_correo_no_lleva_ReplyTo()
+    {
+        var html = SmtpEmailService.EnvolverEnPlantillaDeMarca(
+            "<p>contenido</p>", TipoAvisoCorreo.Requerimiento, new SmtpEmailOptions());
+
+        html.Should().Contain("en nombre de quien te lo reclama");
+        html.Should().NotContain("responder",
+            "el correo sale con From = buzón de TALVEG y sin Reply-To: una respuesta no llegaría a quien reclama");
+    }
+
+    [Fact]
     public void El_contenido_del_llamador_llega_intacto_dentro_del_envoltorio()
     {
         const string cuerpo = "<h3>Título</h3><p>Un párrafo con <a href=\"https://x\">enlace</a>.</p>";

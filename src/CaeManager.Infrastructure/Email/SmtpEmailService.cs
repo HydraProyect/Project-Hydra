@@ -126,7 +126,7 @@ public class SmtpEmailService(
                 """,
             TipoAvisoCorreo.Requerimiento =>
                 """
-                Este correo llega a través de TALVEG en nombre de quien te lo reclama. Puedes responder directamente a este correo. · <a href="https://talveg.es">talveg.es</a>
+                Este correo llega a través de TALVEG en nombre de quien te lo reclama. · <a href="https://talveg.es">talveg.es</a>
                 """,
             _ =>
                 """
