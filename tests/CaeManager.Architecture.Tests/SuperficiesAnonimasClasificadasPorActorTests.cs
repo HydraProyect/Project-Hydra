@@ -47,10 +47,23 @@ namespace CaeManager.Architecture.Tests;
 /// </para>
 ///
 /// <para>
-/// <b>Lo que observa y lo que no.</b> Observa TEXTO: que el filtro esté en la
-/// cadena de llamadas. No observa que el ámbito llegue al <c>SaveChanges</c> —lo
+/// <b>Lo que observa y lo que no.</b> Observa TEXTO sin comentarios: que el filtro esté en
+/// la cadena de llamadas. No observa que el ámbito llegue al <c>SaveChanges</c> —lo
 /// demuestra <c>TipoActorDeAuditoriaBajoRuntimeTests</c>— ni qué hace un
 /// endpoint que se cuelga de un grupo definido en otro fichero.
+/// </para>
+///
+/// <para>
+/// <b>Hueco con nombre (no cerrado a propósito).</b> Solo ve superficies <i>anónimas</i>
+/// y el grupo <c>/api/v1</c>. Un webhook de proveedor NO anónimo, autenticado con un
+/// esquema propio (el patrón de <c>ApiKeyAuthenticationHandler</c> y
+/// <c>ExtensionAuthenticationHandler</c> en <c>Program.cs</c>) más su propia política,
+/// no lleva ninguno de los dos marcadores: nada le exigiría el filtro, y si su handler
+/// mete un <c>NameIdentifier</c> como hace el de clave, <c>ResolverTipoActor()</c> lo
+/// resolvería como <c>Persona</c>. Hoy no existe ninguno: los dos esquemas propios son la
+/// clave de API (cubierta por su ámbito y por el filtro de <c>/api/v1</c>) y la extensión
+/// de navegador, que reconstruye el principal de una persona. Ampliar el trinquete a
+/// «superficie de tercero» agrandaría este incremento; queda anotado para cuando aparezca.
 /// </para>
 /// </summary>
 public class SuperficiesAnonimasClasificadasPorActorTests
@@ -126,7 +139,11 @@ public class SuperficiesAnonimasClasificadasPorActorTests
     [Fact]
     public void Todo_webhook_de_tercero_declara_el_actor_de_integracion_externa()
     {
-        var fuentes = FuentesDeSrc().ToDictionary(f => f.Ruta, f => f.Texto);
+        // Texto SIN comentarios: con el texto crudo, un comentario que nombrase el
+        // filtro ("falta .AddEndpointFilter<...>() aquí") caía dentro de la sentencia y
+        // el `Contains` daba verde con el filtro AUSENTE (hallazgo de la revisión previa,
+        // reproducido con esa mutación).
+        var fuentes = FuentesSinComentarios().ToDictionary(f => f.Ruta, f => f.Texto);
 
         var terceros = Clasificacion.Where(c => c.Value.Categoria == Categoria.SistemaDeTercero).Select(c => c.Key).ToList();
         terceros.Should().NotBeEmpty();
@@ -140,7 +157,9 @@ public class SuperficiesAnonimasClasificadasPorActorTests
     [Fact]
     public void El_grupo_de_la_api_publica_declara_el_actor_de_integracion_externa()
     {
-        var program = FuentesDeSrc().Single(f => f.Ruta == "CaeManager.Web/Program.cs").Texto;
+        // Sin comentarios, por lo mismo que arriba: el comentario P41c de Program.cs
+        // precede al grupo y nombra el filtro.
+        var program = FuentesSinComentarios().Single(f => f.Ruta == "CaeManager.Web/Program.cs").Texto;
 
         var inicio = program.IndexOf("RequireAuthorization(\"ApiPublica\")", StringComparison.Ordinal);
         inicio.Should().BeGreaterThan(0, "el grupo /api/v1 tiene que existir para que este test observe algo");
@@ -151,20 +170,64 @@ public class SuperficiesAnonimasClasificadasPorActorTests
     }
 
     /// <summary>
+    /// <b>La premisa de un escaneo textual.</b> Este ratchet solo ve las superficies que
+    /// escriben <c>AllowAnonymous</c>. Es válido porque <c>Program.cs</c> fija un
+    /// <c>FallbackPolicy</c> que exige usuario autenticado: sin esa política, un endpoint
+    /// que no declarase nada sería anónimo por omisión y el escaneo sería ciego de raíz.
+    /// Se comprueba en vez de suponerse.
+    /// </summary>
+    [Fact]
+    public void El_escaneo_de_AllowAnonymous_es_valido_porque_hay_un_FallbackPolicy_que_exige_sesion()
+    {
+        var program = FuentesSinComentarios().Single(f => f.Ruta == "CaeManager.Web/Program.cs").Texto;
+
+        var inicio = program.IndexOf("options.FallbackPolicy", StringComparison.Ordinal);
+        inicio.Should().BeGreaterThan(0, "Program.cs tiene que fijar un FallbackPolicy");
+
+        SentenciaQueContiene(program, inicio).Should().Contain("RequireAuthenticatedUser()",
+            "sin exigir usuario autenticado, un endpoint que no declara nada sería anónimo por omisión " +
+            "y este ratchet no lo vería");
+    }
+
+    /// <summary>
     /// <b>El filtro solo cubre el handler, no la ejecución de su resultado.</b> En las
     /// API mínimas el <c>IResult</c> que devuelve el handler se ejecuta cuando el
     /// filtro ya ha retornado y ha liberado el ámbito (medido en
     /// <c>FiltroDeActorYEjecucionDelResultadoTests</c>). Hoy no hay ninguna fila
     /// afectada porque ningún endpoint de los grupos filtrados devuelve un resultado
-    /// que escriba: solo <c>Results.Ok/NotFound/Text/StatusCode/…</c>. Este ratchet
-    /// sostiene esa premisa: en <c>Api/</c> no aparece nada cuya ejecución pueda
-    /// escribir o diferir trabajo más allá del handler, y en <c>src</c> nadie
-    /// implementa <c>IResult</c>.
+    /// que escriba: solo <c>Results.Ok/NotFound/Text/StatusCode/…</c>.
+    ///
+    /// <para>
+    /// <b>Qué mira exactamente, sin decir más.</b> Mira las construcciones que ejecutan
+    /// código DESPUÉS de que el handler retorne, en el contexto de la petición:
+    /// <c>Results.Stream/File/PushStream</c>, <c>IAsyncEnumerable</c> (que se enumera al
+    /// serializar), <c>OnCompleted</c>, <c>OnStarting</c>, <c>RegisterForDispose[Async]</c>
+    /// y, en <c>src</c>, las clases que implementan <c>IResult</c> directamente.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Qué NO mira, a propósito:</b> el trabajo que el propio handler pone en marcha.
+    /// <c>Task.Run</c> lanzado desde el handler hereda el ámbito (el
+    /// <c>ExecutionContext</c> fluye; medido en <c>FiltroDeActorYEjecucionDelResultadoTests</c>),
+    /// y una señal a un servicio de fondo (<c>senal.Despertar()</c> en el webhook de
+    /// WhatsApp) hace que escriba ese servicio bajo <c>EstablecerSistema()</c>, no el
+    /// filtro. Ninguna de las dos es «ejecución del resultado», y por eso no están en la
+    /// lista; sí cambian QUIÉN queda como actor de esas filas (ver la PR).
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Alcance de <c>ImplementaIResult</c>:</b> prohíbe la implementación directa en
+    /// TODO <c>src</c>, más allá de los grupos filtrados, porque textualmente no se puede
+    /// saber qué endpoint devuelve qué tipo. No ve herencia indirecta
+    /// (<c>class X : BaseResultado</c>). Si algún día hace falta un <c>IResult</c> propio
+    /// legítimo, se añade a <see cref="ResultadosPermitidos"/> tras comprobar que su
+    /// <c>ExecuteAsync</c> no escribe nada auditable; no se debilita la expresión regular.
+    /// </para>
     /// </summary>
     [Fact]
     public void Los_grupos_filtrados_no_devuelven_resultados_cuya_ejecucion_escriba()
     {
-        var fuentes = FuentesDeSrc();
+        var fuentes = FuentesSinComentarios();
 
         var api = fuentes.Where(f => f.Ruta.StartsWith("CaeManager.Web/Api/", StringComparison.Ordinal)
                                      && f.Ruta.EndsWith(".cs", StringComparison.Ordinal)).ToList();
@@ -172,11 +235,12 @@ public class SuperficiesAnonimasClasificadasPorActorTests
             "control positivo: los tres webhooks y los ficheros de /api/v1 tienen que estar en el barrido");
 
         var infractores = api
-            .SelectMany(f => ResultadoConEjecucionDiferida.Matches(SinComentarios(f.Texto)).Select(m => $"{f.Ruta}: {m.Value.Trim()}"))
+            .SelectMany(f => ResultadoConEjecucionDiferida.Matches(f.Texto).Select(m => $"{f.Ruta}: {m.Value.Trim()}"))
             .Concat(fuentes
                 .Where(f => f.Ruta.EndsWith(".cs", StringComparison.Ordinal))
-                .Where(f => ImplementaIResult.IsMatch(SinComentarios(f.Texto)))
-                .Select(f => $"{f.Ruta}: implementa IResult"))
+                .SelectMany(f => ImplementaIResult.Matches(f.Texto).Select(m => (f.Ruta, Tipo: m.Groups["tipo"].Value)))
+                .Where(x => !ResultadosPermitidos.Contains(x.Tipo))
+                .Select(x => $"{x.Ruta}: {x.Tipo} implementa IResult"))
             .ToList();
 
         infractores.Should().BeEmpty(
@@ -188,31 +252,127 @@ public class SuperficiesAnonimasClasificadasPorActorTests
         ResultadoConEjecucionDiferida.IsMatch("return Results.Stream(x);").Should().BeTrue();
         ResultadoConEjecucionDiferida.IsMatch("IAsyncEnumerable<Foo> Listar()").Should().BeTrue();
         ResultadoConEjecucionDiferida.IsMatch("ctx.Response.OnCompleted(() => x);").Should().BeTrue();
+        ResultadoConEjecucionDiferida.IsMatch("ctx.Response.RegisterForDisposeAsync(x);").Should().BeTrue(
+            "la variante Async: la primera versión exigía el paréntesis justo tras RegisterForDispose");
+        ResultadoConEjecucionDiferida.IsMatch("ctx.Response.RegisterForDispose(x);").Should().BeTrue();
         ResultadoConEjecucionDiferida.IsMatch("return Results.Ok(x);").Should().BeFalse("un Ok(x) no escribe");
-        ImplementaIResult.IsMatch("public sealed class Mio(int a) : IResult").Should().BeTrue();
+        ResultadoConEjecucionDiferida.IsMatch("senal.Despertar(); await Task.Run(() => 1);").Should().BeFalse(
+            "el trabajo que el propio handler pone en marcha NO es ejecución del resultado: ver el resumen del test");
+        ImplementaIResult.Match("public sealed class Mio(int a) : IResult").Groups["tipo"].Value.Should().Be("Mio");
         ImplementaIResult.IsMatch("public sealed class Mio : IHttpResult, IResult").Should().BeTrue();
         ImplementaIResult.IsMatch("var r = Result.Exito(x);").Should().BeFalse("Result de dominio no es IResult");
+        ImplementaIResult.IsMatch("public class Derivado : BaseResultado").Should().BeFalse(
+            "límite conocido y declarado: no ve herencia indirecta");
     }
 
     private static readonly Regex ResultadoConEjecucionDiferida = new(
-        @"\b(?:Typed)?Results\.(?:Stream|File|PushStream)\s*\(|\bIAsyncEnumerable\s*<|\.OnCompleted\s*\(|\.OnStarting\s*\(|\bRegisterForDispose\s*\(",
+        @"\b(?:Typed)?Results\.(?:Stream|File|PushStream)\s*\(|\bIAsyncEnumerable\s*<|\.OnCompleted\s*\(|\.OnStarting\s*\(|\bRegisterForDispose(?:Async)?\s*\(",
         RegexOptions.Compiled);
 
     private static readonly Regex ImplementaIResult = new(
-        @"^[ \t]*(?:(?:public|internal|sealed|private|protected|static)[ \t]+)*(?:class|record|struct)[ \t]+\w+[^{;=]*:[^{;=]*\bIResult\b",
+        @"^[ \t]*(?:(?:public|internal|sealed|private|protected|static)[ \t]+)*(?:class|record|struct)[ \t]+(?<tipo>\w+)[^{;=]*:[^{;=]*\bIResult\b",
         RegexOptions.Compiled | RegexOptions.Multiline);
 
     /// <summary>
-    /// Quita comentarios de bloque (<c>/* */</c>, <c>@* *@</c>, <c>&lt;!-- --&gt;</c>), de línea y las
-    /// líneas <c>using</c>. La primera versión solo quitaba las líneas que EMPEZABAN por
-    /// <c>//</c>, así que un comentario de Razor entre <c>@* *@</c> que citara
-    /// <c>[AllowAnonymous]</c> contaba como superficie.
+    /// Tipos que implementan <c>IResult</c> y se han revisado: su <c>ExecuteAsync</c> no
+    /// escribe nada auditable. Vacío hoy. Añadir uno exige esa comprobación, no relajar el patrón.
     /// </summary>
-    private static string SinComentarios(string texto)
+    private static readonly HashSet<string> ResultadosPermitidos = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Quita los comentarios. En C# con un recorrido que RESPETA las cadenas (normales,
+    /// verbatim <c>@"…"</c>, interpolables, crudas <c>"""…"""</c>) y los literales de
+    /// carácter: un <c>//</c> dentro de <c>"https://…"</c> no es un comentario, y la versión
+    /// anterior lo cortaba —y con él el resto de la línea, incluido código—. En Razor:
+    /// <c>@* *@</c>, <c>&lt;!-- --&gt;</c>, <c>/* */</c> y las líneas que empiezan por <c>//</c>
+    /// (sin un recorrido de cadenas, que en el marcado se confundiría con apóstrofes y
+    /// comillas sueltas). Ya no borra las líneas <c>using</c>: no había motivo.
+    /// </summary>
+    private static string SinComentarios(string texto, bool razor = false)
     {
-        texto = Regex.Replace(texto, @"/\*.*?\*/|@\*.*?\*@|<!--.*?-->", string.Empty, RegexOptions.Singleline);
-        texto = Regex.Replace(texto, @"//[^\r\n]*", string.Empty);
-        return Regex.Replace(texto, @"^[ \t]*using[ \t].*$", string.Empty, RegexOptions.Multiline);
+        if (razor)
+        {
+            texto = Regex.Replace(texto, @"/\*.*?\*/|@\*.*?\*@|<!--.*?-->", string.Empty, RegexOptions.Singleline);
+            return Regex.Replace(texto, @"^[ \t]*//[^\r\n]*", string.Empty, RegexOptions.Multiline);
+        }
+
+        var sb = new System.Text.StringBuilder(texto.Length);
+        var i = 0;
+
+        while (i < texto.Length)
+        {
+            var c = texto[i];
+
+            if (c == '/' && i + 1 < texto.Length && texto[i + 1] == '/')
+            {
+                while (i < texto.Length && texto[i] != '\n') i++;
+                continue;
+            }
+
+            if (c == '/' && i + 1 < texto.Length && texto[i + 1] == '*')
+            {
+                var fin = texto.IndexOf("*/", i + 2, StringComparison.Ordinal);
+                i = fin < 0 ? texto.Length : fin + 2;
+                continue;
+            }
+
+            // Cadena cruda: tres o más comillas, hasta la misma cantidad.
+            if (c == '"' && i + 2 < texto.Length && texto[i + 1] == '"' && texto[i + 2] == '"')
+            {
+                var n = 0;
+                while (i + n < texto.Length && texto[i + n] == '"') n++;
+                var cierre = texto.IndexOf(new string('"', n), i + n, StringComparison.Ordinal);
+                var hasta = cierre < 0 ? texto.Length : cierre + n;
+                sb.Append(texto, i, hasta - i);
+                i = hasta;
+                continue;
+            }
+
+            // Cadena normal o verbatim, con prefijos $ y @ en cualquier orden.
+            var p = i;
+            while (p < texto.Length && (texto[p] == '$' || texto[p] == '@')) p++;
+            if (p < texto.Length && texto[p] == '"' && (p > i || c == '"'))
+            {
+                var verbatim = texto.AsSpan(i, p - i).Contains('@');
+                var j = p + 1;
+                while (j < texto.Length)
+                {
+                    if (verbatim)
+                    {
+                        if (texto[j] == '"' && j + 1 < texto.Length && texto[j + 1] == '"') { j += 2; continue; }
+                        if (texto[j] == '"') break;
+                    }
+                    else
+                    {
+                        if (texto[j] == '\\') { j += 2; continue; }
+                        if (texto[j] == '"' || texto[j] == '\n') break;
+                    }
+                    j++;
+                }
+                var hasta = Math.Min(j + 1, texto.Length);
+                sb.Append(texto, i, hasta - i);
+                i = hasta;
+                continue;
+            }
+
+            // Literal de carácter: 'x' o '\x'. Cualquier otro apóstrofe no abre nada.
+            if (c == '\'')
+            {
+                var largo = i + 3 < texto.Length && texto[i + 1] == '\\' ? texto.IndexOf('\'', i + 3) - i + 1
+                          : i + 2 < texto.Length && texto[i + 2] == '\'' ? 3 : 0;
+                if (largo > 0)
+                {
+                    sb.Append(texto, i, largo);
+                    i += largo;
+                    continue;
+                }
+            }
+
+            sb.Append(c);
+            i++;
+        }
+
+        return sb.ToString();
     }
 
     /// <summary>
@@ -236,6 +396,20 @@ public class SuperficiesAnonimasClasificadasPorActorTests
                 .AllowAnonymous()
                 .AddEndpointFilter<ActorIntegracionExternaEndpointFilter>();
             """).Should().BeTrue("la forma correcta");
+
+        // El hueco de la revisión previa: el filtro AUSENTE con un comentario que lo nombra
+        // no puede dar verde. El comprobador recibe el texto ya sin comentarios.
+        CadenaDeAnonimoLlevaElFiltro(SinComentarios("""
+            // TODO: falta .AddEndpointFilter<ActorIntegracionExternaEndpointFilter>() aquí
+            var g = app.MapGroup("/x")
+                .AllowAnonymous();
+            """)).Should().BeFalse("un comentario que nombra el filtro no es el filtro");
+        // Un `//` dentro de una cadena no es un comentario: la versión anterior cortaba la línea
+        // (y el código que la seguía).
+        SinComentarios("""var url = "https://x.example/a"; var g = app.MapGroup("/x").AllowAnonymous(); // fin""")
+            .Should().Contain(".AllowAnonymous()").And.Contain("https://x.example/a").And.NotContain("fin");
+        SinComentarios("""var r = @"C:\a//b"; var raw = "quo"; x.AllowAnonymous(); /* c */ var c = '"'; y();""")
+            .Should().Contain("x.AllowAnonymous();").And.Contain("y();").And.NotContain("c */");
 
         // Un comentario que nombra la llamada no es una superficie; una llamada real sí.
         SuperficiesAnonimas([("A.cs", "// cita: .AllowAnonymous() en prosa\n/// <c>[AllowAnonymous]</c>\n")])
@@ -278,9 +452,16 @@ public class SuperficiesAnonimasClasificadasPorActorTests
 
     private static Dictionary<string, int> SuperficiesAnonimas(List<(string Ruta, string Texto)> fuentes)
         => fuentes
-            .Select(f => (f.Ruta, Cuantas: AllowAnonymousEnCodigo.Matches(SinComentarios(f.Texto)).Count))
+            .Select(f => (f.Ruta, Cuantas: AllowAnonymousEnCodigo.Matches(
+                SinComentarios(f.Texto, f.Ruta.EndsWith(".razor", StringComparison.Ordinal))).Count))
             .Where(f => f.Cuantas > 0)
             .ToDictionary(f => f.Ruta, f => f.Cuantas);
+
+    /// <summary>Las fuentes de <c>src</c> con los comentarios ya quitados: es lo que miran todos los comprobadores de cadena.</summary>
+    private static List<(string Ruta, string Texto)> FuentesSinComentarios()
+        => FuentesDeSrc()
+            .Select(f => (f.Ruta, SinComentarios(f.Texto, f.Ruta.EndsWith(".razor", StringComparison.Ordinal))))
+            .ToList();
 
     private static List<(string Ruta, string Texto)> FuentesDeSrc()
     {

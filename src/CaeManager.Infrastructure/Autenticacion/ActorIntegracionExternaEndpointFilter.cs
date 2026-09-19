@@ -43,6 +43,18 @@ namespace CaeManager.Infrastructure.Autenticacion;
 /// </para>
 ///
 /// <para>
+/// <b>Qué filas quedan como <c>IntegracionExterna</c> y cuáles no.</b> Solo las
+/// escrituras de la propia petición, dentro del handler. Del webhook de Stripe eso es
+/// el cambio de estado comercial del Tenant. De una llamada de Meta o de Graph, la
+/// ÚNICA fila que queda como integración externa es el sobre (<c>EventoWebhook</c>):
+/// todo lo que el contenido provoca después lo hace un servicio de fondo bajo
+/// <c>EstablecerSistema()</c>, y se audita como <c>Sistema</c>. La afirmación «lo
+/// escribió un tercero» es cierta para la escritura de la petición y no para esas
+/// consecuencias; si la auditoría de un Tenant debe poder seguirlas hasta el tercero que
+/// las provocó, es una decisión de producto, no algo que este filtro resuelva.
+/// </para>
+///
+/// <para>
 /// <b>Tampoco cubre la ejecución del resultado.</b> En las API mínimas el filtro
 /// envuelve la invocación del handler; el <c>IResult</c> que este devuelve se
 /// ejecuta después, con el ámbito ya liberado (medido en

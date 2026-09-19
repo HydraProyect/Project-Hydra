@@ -40,6 +40,7 @@ public class FiltroDeActorYEjecucionDelResultadoTests
     public async Task El_handler_ve_IntegracionExterna_y_la_ejecucion_del_resultado_no_ve_ambito()
     {
         TipoActor? enElHandler = null;
+        TipoActor? enTaskRunDelHandler = null;
         TipoActor? enLaEjecucionDelResultado = null;
         var ejecutado = false;
 
@@ -50,9 +51,11 @@ public class FiltroDeActorYEjecucionDelResultadoTests
 
         app.MapGroup("/grupo")
             .AddEndpointFilter<ActorIntegracionExternaEndpointFilter>()
-            .MapGet("/x", () =>
+            .MapGet("/x", async () =>
             {
                 enElHandler = AmbitoActorAuditoria.TipoActorActual;
+                // Trabajo que el PROPIO handler lanza: el ExecutionContext fluye, hereda el ámbito.
+                enTaskRunDelHandler = await Task.Run(() => AmbitoActorAuditoria.TipoActorActual);
                 return new ResultadoQueObserva(() =>
                 {
                     ejecutado = true;
@@ -81,6 +84,9 @@ public class FiltroDeActorYEjecucionDelResultadoTests
             "podría ser 'no llegó a observarse' y no 'no había ámbito'");
         enElHandler.Should().Be(TipoActor.IntegracionExterna,
             "el handler corre dentro del filtro");
+        enTaskRunDelHandler.Should().Be(TipoActor.IntegracionExterna,
+            "el trabajo que el propio handler lanza con Task.Run hereda el ámbito: por eso el ratchet " +
+            "no lo trata como «ejecución del resultado»");
         enLaEjecucionDelResultado.Should().BeNull(
             "el resultado se ejecuta después de que el filtro retorne: una escritura auditable hecha " +
             "ahí saldría como Desconocido. Hoy ningún grupo filtrado la hace, y eso lo sostiene el " +
