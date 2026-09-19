@@ -199,6 +199,22 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
     /// desenlaces, y no restaurar dejaría los comandos siguientes de esa
     /// transacción —EF revierte solo al punto de guardado del lote fallido—
     /// ejecutándose con el Tenant de la cuenta.
+    ///
+    /// <para>
+    /// <b>Límite residual conocido</b> (revisión de Codex, aceptado): si tras
+    /// el conflicto el contexto no ejecuta ningún comando EF más, la
+    /// restauración y el cierre de la apertura explícita esperan a la
+    /// eliminación del contexto (que cierra la conexión) o a su próximo uso.
+    /// EF solo ofrece ganchos ANTES de cerrar el lector
+    /// (<c>DataReaderClosing</c>/<c>DataReaderDisposing</c>), ninguno después, y
+    /// cerrarlo del todo exigiría sobrescribir <c>SaveChanges</c> en el
+    /// contexto y localizar este interceptor entre sus opciones. Antes de esta
+    /// corrección el conflicto no restauraba NUNCA; ahora la ventana es hasta
+    /// el siguiente comando, y ningún comando EF puede ejecutarse dentro de
+    /// ella con el Tenant equivocado. No cubre comandos crudos sobre
+    /// <c>Database.GetDbConnection()</c>, que ya escapan a todos los
+    /// interceptores.
+    /// </para>
     /// </summary>
     private async Task RestaurarSiEstaDiferidaAsync(DbContext? context)
     {
