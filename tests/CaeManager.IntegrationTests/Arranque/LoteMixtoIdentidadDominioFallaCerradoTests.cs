@@ -756,7 +756,7 @@ WHERE ""EntidadId"" = @id ORDER BY ""FechaUtc"" DESC LIMIT 1;";
         {
             var filas = contexto.ChangeTracker.Entries<ApplicationUser>()
                 .Where(e => e.State is EntityState.Modified or EntityState.Added)
-                .Select(e => new RegistroAuditoria(EntidadTipoAuditoria.Usuario, e.Entity.Id, e.State == EntityState.Added ? "Creado" : "Modificado", null, null, null))
+                .Select(e => new RegistroAuditoria(EntidadTipoAuditoria.Usuario, e.Entity.Id, e.State == EntityState.Added ? "Creado" : "Modificado", null, null, null, tipoActor: TipoActorAuditoria.Desconocido))
                 .ToList();
             contexto.Set<RegistroAuditoria>().AddRange(filas);
         }
