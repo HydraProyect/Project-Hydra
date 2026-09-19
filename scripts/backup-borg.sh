@@ -7,7 +7,8 @@
 # de la BD y dataprotection-keys/ van SIEMPRE en el mismo archivo de backup
 # (restaurar la BD con claves de otro momento deja las credenciales cifradas
 # de Empresa/Subcontrata irrecuperables) — y añade lo que el servicio antiguo
-# no cubría: los PDFs de /data/documentos.
+# no cubría: los PDFs de /data/documentos y el .env de producción (archivo
+# env-produccion, 0600, cifrado por Borg; ver el bloque correspondiente).
 #
 # Requisitos: borg en el host, el repo Borg ya inicializado
 # (`borg init --encryption=repokey-blake2 "$BORG_REPO"`) y los contenedores
@@ -73,10 +74,34 @@ ls "$DIR_TRABAJO/dataprotection-keys"/*.xml >/dev/null 2>&1 \
 docker cp caemanager-app:/data/documentos "$DIR_TRABAJO/documentos" 2>/dev/null \
     || mkdir "$DIR_TRABAJO/documentos"
 
+# El .env de producción (contraseña de PostgreSQL, la del rol cae_app_runtime,
+# DSN de Sentry, claves de IA y demás secretos) entra en el MISMO archivo Borg
+# (decisión del propietario, continuidad n.º 26): sin él, perder el disco del
+# servidor obliga a regenerar todos los secretos a mano y entra en el RTO. Va
+# cifrado por Borg (repokey-blake2), como el resto del archivo. El contenido
+# NUNCA se imprime ni pasa por argumentos: solo se copia con permisos 0600.
+# Si falta o está vacío el backup FALLA (avisa con /fail) en vez de omitirlo en
+# silencio: un backup que parece bueno y no lleva el .env es un falso verde.
+# Salida deliberada: BACKUP_SIN_ENV=1.
+if [ "${BACKUP_SIN_ENV:-0}" = "1" ]; then
+    echo "AVISO: BACKUP_SIN_ENV=1 — este archivo NO incluye el .env; restaurar el servidor exigirá regenerar todos los secretos a mano."
+else
+    ENV_ORIGEN="${ENV_PRODUCCION:-$(cd "$(dirname "$0")/.." && pwd)/deploy/local/.env}"
+    if [ ! -s "$ENV_ORIGEN" ]; then
+        echo "ERROR: no hay .env de producción (o está vacío) en $ENV_ORIGEN."
+        echo "       Indica su ruta con ENV_PRODUCCION, o BACKUP_SIN_ENV=1 para omitirlo a sabiendas."
+        exit 1
+    fi
+    install -m 600 "$ENV_ORIGEN" "$DIR_TRABAJO/env-produccion"
+    echo "    .env de producción incluido como env-produccion ($(wc -c < "$DIR_TRABAJO/env-produccion") bytes; el contenido no se muestra)"
+fi
+
 ARCHIVO="caemanager-$(date -u +%Y-%m-%dT%H-%M-%S)"
 echo "==> 3/4 borg create ::$ARCHIVO ..."
+CONTENIDO=(CaeManager.dump dataprotection-keys documentos)
+[ -f "$DIR_TRABAJO/env-produccion" ] && CONTENIDO+=(env-produccion)
 (cd "$DIR_TRABAJO" && borg create --stats --compression zstd \
-    "::$ARCHIVO" CaeManager.dump dataprotection-keys documentos)
+    "::$ARCHIVO" "${CONTENIDO[@]}")
 
 echo "==> 4/4 borg prune (7 diarios / 4 semanales / 6 mensuales) + compact..."
 borg prune --glob-archives 'caemanager-*' \

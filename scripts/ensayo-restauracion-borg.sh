@@ -255,6 +255,15 @@ echo "    dataprotection-keys/: $CLAVES archivo(s) de clave"
 PDFS=$(find "$DIR_TRABAJO/documentos" -type f 2>/dev/null | wc -l)
 echo "    documentos/: $PDFS archivo(s) restaurado(s)"
 registrar OK "claves y documentos en el mismo archivo" "$CLAVES clave(s) XML, $PDFS documento(s)"
+# El .env de producción viaja en el mismo archivo (decisión de continuidad n.º 26).
+# Aquí solo se comprueba que ESTÁ; nunca se muestra ni se le pasa a la app del
+# ensayo (que arranca con su propio entorno de ensayo). Se borra con el resto del
+# directorio de trabajo al salir.
+if [ -s "$DIR_TRABAJO/env-produccion" ]; then
+    registrar OK ".env de producción en el archivo" "env-produccion, $(wc -c < "$DIR_TRABAJO/env-produccion") bytes; no se usa ni se muestra"
+else
+    registrar OMITIDO ".env de producción en el archivo" "el archivo no lo trae (¿anterior a la decisión n.º 26, o hecho con BACKUP_SIN_ENV=1?)"
+fi
 fase_hecha "verificaciones de BD"
 
 # ── 3. La app contra la copia ────────────────────────────────────────────
