@@ -328,6 +328,40 @@ volcar_diagnostico_memoria() {
     docker stats --no-stream --format 'table {{.Name}}\t{{.MemUsage}}\t{{.MemPerc}}'
 }
 
+# Segundo volcado de solo lectura para REC-196/REC-198 (techos de memoria):
+# el de arriba corre DESPUÉS del `up -d`, con el contenedor recién creado, y
+# solo mide el reposo. Este corre ANTES del build y del `up`, cuando los
+# contenedores que el despliegue va a reemplazar llevan horas sirviendo
+# tráfico real, y lee de su cgroup lo que docker stats no da: `memory.peak`
+# (o `memory.max_usage_in_bytes` en cgroup v1), el pico de TODA su vida, y
+# `memory.events` (contador `oom_kill`). Es el pico bajo la carga que de
+# verdad hubo, sin generar ninguna. No escribe nada ni toca `.env`: `docker
+# exec` solo ejecuta `cat`/`grep` dentro del contenedor. Cada lectura tiene
+# techo de tiempo y ninguna puede tumbar el despliegue (`set -e` está activo:
+# todo lleva `|| true` o equivalente).
+volcar_pico_memoria_previo() {
+    echo "=== Memoria ANTES del despliegue (REC-196/P33): pico de vida de los contenedores que se van a reemplazar ==="
+    free -m || true
+    timeout 20 docker stats --no-stream --format 'table {{.Name}}\t{{.MemUsage}}\t{{.MemPerc}}' || true
+    local contenedor
+    for contenedor in $(timeout 20 docker ps --format '{{.Names}}' 2>/dev/null | grep '^caemanager-' || true); do
+        echo "--- ${contenedor} ---"
+        timeout 20 docker inspect --format 'iniciado={{.State.StartedAt}} reinicios={{.RestartCount}} oom_docker={{.State.OOMKilled}}' "$contenedor" 2>/dev/null || true
+        timeout 20 docker exec "$contenedor" sh -c '
+            for f in /sys/fs/cgroup/memory.peak /sys/fs/cgroup/memory.current /sys/fs/cgroup/memory.max \
+                     /sys/fs/cgroup/memory.events \
+                     /sys/fs/cgroup/memory/memory.max_usage_in_bytes /sys/fs/cgroup/memory/memory.usage_in_bytes \
+                     /sys/fs/cgroup/memory/memory.limit_in_bytes; do
+                if [ -r "$f" ]; then printf "%s: " "${f#/sys/fs/cgroup/}"; tr "\n" " " < "$f"; echo; fi
+            done
+            if [ -r /sys/fs/cgroup/memory.stat ]; then
+                grep -E "^(anon|file|shmem|file_mapped) " /sys/fs/cgroup/memory.stat | tr "\n" " "; echo
+            fi
+            true
+        ' 2>/dev/null || echo "(sin lectura de cgroup en ${contenedor})"
+    done
+}
+
 main() {
 
 read -r ENTORNO SHA <<< "${SSH_ORIGINAL_COMMAND:-}"
@@ -418,6 +452,10 @@ volcar_diagnostico_si_falla() {
     local fichero_compose="$1" env_file="${2:-}"
     local args=(-f "$fichero_compose")
     [ -n "$env_file" ] && args+=(--env-file "$env_file")
+
+    # Antes de tocar nada: los contenedores actuales aún son los que llevan
+    # horas de tráfico real (ver volcar_pico_memoria_previo).
+    volcar_pico_memoria_previo
 
     # Build y arranque van en DOS pasos, no en el `up -d --build` de antes:
     # `--memory` de `docker compose build` no existe bajo BuildKit ("Not
