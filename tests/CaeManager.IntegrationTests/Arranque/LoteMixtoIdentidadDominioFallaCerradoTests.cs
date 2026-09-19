@@ -447,6 +447,42 @@ public sealed class LoteMixtoIdentidadDominioFallaCerradoTests : IAsyncLifetime
         (await TenantDeLaUltimaAuditoriaAsync(nueva.Id)).Should().Be(tenantSesion);
     }
 
+    /// <summary>
+    /// Revisión de Codex: el llamador captura el conflicto de concurrencia
+    /// DENTRO de una transacción explícita y sigue usando el contexto. EF revierte
+    /// solo al punto de guardado del lote fallido, así que la variable, fijada a X
+    /// después de abrir la transacción, seguiría en X para los comandos siguientes
+    /// si la restauración diferida esperara a que la transacción terminara. Se
+    /// comprueba dentro de la transacción y también tras cada desenlace.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task B_Un_conflicto_de_concurrencia_dentro_de_una_transaccion_del_llamador_restaura_la_sesion_dentro_y_tras_el_desenlace(bool confirmar)
+    {
+        var (_, tenantSesion, cuentaId) = await EscenarioAsync(conParametroDeSesion: true);
+
+        await using var sesion = await AbrirSesionSoloAuditoriaDeIdentidadAsync(tenantSesion);
+        await using (var transaccion = await sesion.Contexto.Database.BeginTransactionAsync())
+        {
+            var parametro = await sesion.Contexto.ParametrosSistema.SingleAsync();
+            parametro.Actualizar(UmbralAmbarRecuperacion, UmbralRojoRecuperacion);
+            var cuenta = await sesion.Contexto.Users.SingleAsync(u => u.Id == cuentaId);
+            cuenta.PhoneNumber = "600000017";
+            (await CapturarAsync(() => sesion.Contexto.SaveChangesAsync()))
+                .Should().BeOfType<DbUpdateConcurrencyException>("precondición: el lote termina en conflicto");
+
+            (await LeerTenantDeSesionPorEfAsync(sesion.Contexto)).Should().Be(tenantSesion.ToString(),
+                "dentro de la misma transacción, el primer comando posterior ya corre con el Tenant de sesión");
+
+            if (confirmar) await transaccion.CommitAsync();
+            else await transaccion.RollbackAsync();
+        }
+
+        (await LeerTenantDeSesionPorEfAsync(sesion.Contexto)).Should().Be(tenantSesion.ToString(),
+            confirmar ? "tras el COMMIT queda la restauración" : "tras el ROLLBACK la variable vuelve al valor previo a la transacción");
+    }
+
     private static async Task<string?> LeerTenantDeSesionPorEfAsync(CaeManagerDbContext contexto) =>
         (await contexto.Database
             .SqlQueryRaw<string>("SELECT current_setting('app.tenant_id', true) AS \"Value\"")

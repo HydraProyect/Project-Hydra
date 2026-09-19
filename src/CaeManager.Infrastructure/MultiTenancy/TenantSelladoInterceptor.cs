@@ -190,15 +190,19 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
     /// dejó diferida. Se invoca desde los comandos EF de este contexto (ver
     /// <see cref="ReaderExecutingAsync"/> y hermanos) y desde el inicio del
     /// siguiente <c>SaveChanges</c>, siempre ANTES de que el comando o el
-    /// sellado usen la conexión. No se ejecuta dentro de una transacción
-    /// abierta: <c>set_config</c> es transaccional en PostgreSQL y un
-    /// <c>ROLLBACK</c> posterior devolvería la variable al Tenant equivocado;
-    /// en ese caso la marca se conserva para el primer comando fuera de ella.
+    /// sellado usen la conexión. Sí se ejecuta dentro de una transacción
+    /// abierta por el llamador (revisión de Codex): <c>set_config</c> es
+    /// transaccional en PostgreSQL y la variable se fijó a X DENTRO de esa
+    /// transacción, sobre el valor de sesión Y que ya tenía al abrirla. Un
+    /// <c>COMMIT</c> conserva la restauración a Y y un <c>ROLLBACK</c> devuelve
+    /// la variable a Y, así que restaurar dentro es correcto en los dos
+    /// desenlaces, y no restaurar dejaría los comandos siguientes de esa
+    /// transacción —EF revierte solo al punto de guardado del lote fallido—
+    /// ejecutándose con el Tenant de la cuenta.
     /// </summary>
     private async Task RestaurarSiEstaDiferidaAsync(DbContext? context)
     {
         if (!_restauracionDiferida || context is null) return;
-        if (context.Database.CurrentTransaction is not null) return;
 
         _restauracionDiferida = false;
         await RestaurarTenantDeSesionSiHizoFaltaAsync(context, CancellationToken.None);
