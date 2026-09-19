@@ -19,6 +19,7 @@ using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace CaeManager.IntegrationTests.Reclamaciones;
@@ -442,12 +443,14 @@ public class ReclamacionEmpresaTests : IAsyncLifetime
         CrearCommandHandler(contexto, mediator, new AlcanceDatosServiceFalso());
 
     private static EnviarReclamacionEmpresaCommandHandler CrearCommandHandler(
-        CaeManagerDbContext contexto, IMediator mediator, IAlcanceDatosService alcanceDatos) =>
+        CaeManagerDbContext contexto, IMediator mediator, IAlcanceDatosService alcanceDatos,
+        IEmailService? emailService = null, string? correoDeQuienReclama = null) =>
         new(contexto, contexto, contexto, alcanceDatos,
             new ResolucionDestinatariosAgendaService(contexto, contexto),
             new RegistroEnvioReclamacionService(
-                contexto, new EmailServiceFalso(), new ReclamacionDocumentalRepository(contexto),
-                new CurrentUserServiceFalso(Guid.NewGuid()), mediator, contexto));
+                contexto, emailService ?? new EmailServiceFalso(), new ReclamacionDocumentalRepository(contexto),
+                new CurrentUserServiceFalso(Guid.NewGuid()), new CorreoDelActorRealFalso(correoDeQuienReclama),
+                mediator, NullLogger<RegistroEnvioReclamacionService>.Instance, contexto));
 
     private CaeManagerDbContext CrearContexto()
     {
@@ -462,8 +465,23 @@ public class ReclamacionEmpresaTests : IAsyncLifetime
 
     private sealed class EmailServiceFalso : IEmailService
     {
-        public Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo, CancellationToken cancellationToken = default) =>
-            Task.FromResult(Result.Exito());
+        public List<(string Destinatario, TipoAvisoCorreo Tipo, string? ResponderA)> Enviados { get; } = [];
+
+        public Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo, string? responderA = null, CancellationToken cancellationToken = default)
+        {
+            Enviados.Add((destinatarioEmail, tipo, responderA));
+            return Task.FromResult(Result.Exito());
+        }
+    }
+
+    /// <summary>
+    /// El correo del Gestor CAE que emite la reclamación (decisión D3), o
+    /// <c>null</c> para el caso de la cuenta sin correo.
+    /// </summary>
+    private sealed class CorreoDelActorRealFalso(string? correo) : ICorreoDelActorReal
+    {
+        public Task<string?> ObtenerAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(correo);
     }
 
     /// <summary>

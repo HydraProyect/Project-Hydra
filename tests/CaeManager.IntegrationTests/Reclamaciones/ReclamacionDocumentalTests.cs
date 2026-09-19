@@ -31,6 +31,7 @@ using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using System.Data.Common;
 using Xunit;
@@ -693,9 +694,21 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     /// justo la parte cuyo comportamiento estos tests comprueban.
     /// </summary>
     private static RegistroEnvioReclamacionService CrearRegistroEnvio(
-        CaeManagerDbContext contexto, IEmailService emailService, IMediator mediator) =>
+        CaeManagerDbContext contexto, IEmailService emailService, IMediator mediator,
+        string? correoDeQuienReclama = null) =>
         new(contexto, emailService, new ReclamacionDocumentalRepository(contexto),
-            new CurrentUserServiceFalso(Guid.NewGuid()), mediator, contexto);
+            new CurrentUserServiceFalso(Guid.NewGuid()), new CorreoDelActorRealFalso(correoDeQuienReclama),
+            mediator, NullLogger<RegistroEnvioReclamacionService>.Instance, contexto);
+
+    /// <summary>
+    /// El correo del Gestor CAE que emite la reclamación (decisión D3), o
+    /// <c>null</c> cuando su cuenta no tiene ninguno.
+    /// </summary>
+    private sealed class CorreoDelActorRealFalso(string? correo) : ICorreoDelActorReal
+    {
+        public Task<string?> ObtenerAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(correo);
+    }
 
     /// <summary>Contacto predeterminado de la agenda del Cliente — el que recibe lo que no tiene dueño explícito.</summary>
     private async Task SembrarContactoPredeterminadoAsync(params string[] emails)
@@ -725,7 +738,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     {
         public List<(string Destinatario, string Asunto)> Enviados { get; } = [];
 
-        public Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo, CancellationToken cancellationToken = default)
+        public Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo, string? responderA = null, CancellationToken cancellationToken = default)
         {
             Enviados.Add((destinatarioEmail, asunto));
             return Task.FromResult(Result.Exito());
