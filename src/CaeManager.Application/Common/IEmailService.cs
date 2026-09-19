@@ -26,7 +26,27 @@ namespace CaeManager.Application.Common;
 /// </summary>
 public interface IEmailService
 {
+    /// <param name="responderA">
+    /// Buzón al que debe volver la respuesta del destinatario, o <c>null</c>
+    /// para que no haya ninguno. Va en la cabecera <c>Reply-To</c> y
+    /// <b>nunca</b> sustituye al <c>From</c>: el remitente sigue siendo el
+    /// buzón de TALVEG, que es el que tiene SPF y DKIM publicados — cambiar
+    /// el <c>From</c> por el correo de una persona haría que su dominio no
+    /// autorizase a nuestro servidor y el correo acabaría en spam o
+    /// rechazado.
+    ///
+    /// <para>
+    /// Existe por la decisión D3 (2026-09-19): la respuesta a una reclamación
+    /// de documentación la recibe el Gestor CAE que la emite. Antes de esto,
+    /// una reclamación enviada sin Conexión salía del buzón de TALVEG sin
+    /// <c>Reply-To</c> y la respuesta de la Empresa contraparte se perdía ahí
+    /// — por eso #698 quitó del pie de <see cref="TipoAvisoCorreo.Requerimiento"/>
+    /// la invitación a responder. Con un <c>Reply-To</c> presente esa
+    /// invitación vuelve, y solo entonces.
+    /// </para>
+    /// </param>
     Task<Result> EnviarAsync(
         string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo,
+        string? responderA = null,
         CancellationToken cancellationToken = default);
 }

@@ -8,6 +8,7 @@ using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Reclamaciones;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 
@@ -51,7 +52,9 @@ public class RegistroEnvioReclamacionService(
     IEmailService emailService,
     IReclamacionDocumentalRepository repositorio,
     ICurrentUserService currentUserService,
+    ICorreoDelActorReal correoDelActorReal,
     IMediator mediator,
+    ILogger<RegistroEnvioReclamacionService> logger,
     IUnitOfWork unitOfWork) : IRegistroEnvioReclamacionService
 {
     public async Task<Result> EnviarYRegistrarAsync(
@@ -106,8 +109,35 @@ public class RegistroEnvioReclamacionService(
         }
         else
         {
+            // Decisión D3 (2026-09-19): la respuesta la recibe el Gestor CAE
+            // que emite la reclamación. Por aquí el correo sale del buzón de
+            // TALVEG —el From no se toca, ver IEmailService—, así que sin
+            // Reply-To la respuesta de la Empresa contraparte moría en ese
+            // buzón; era el hueco que dejó #698 al quitar del pie la
+            // invitación a responder.
+            //
+            // El correo sale del actor REAL, nunca de un usuario simulado: es
+            // lo que garantiza ICorreoDelActorReal por el carril de auditoría.
+            // Hoy, además, ninguna Sesión Privilegiada de soporte llega hasta
+            // aquí — AutorizacionEscrituraBehavior deniega toda escritura que
+            // no sea de aprovisionamiento antes del handler.
+            var responderA = await correoDelActorReal.ObtenerAsync(cancellationToken);
+
+            if (responderA is null)
+            {
+                // Se envía igual: la reclamación es la acción de negocio y no
+                // puede depender de que la cuenta tenga correo. Pero queda
+                // escrito, porque el destinatario recibirá un correo al que no
+                // puede responder — y el pie, sin Reply-To, deja de invitarle
+                // a hacerlo.
+                logger.LogWarning(
+                    "Reclamación enviada por SMTP sin Reply-To: no pudimos resolver el correo de quien la emite. " +
+                    "La respuesta del destinatario no llegará a nadie.");
+            }
+
             foreach (var destinatario in destinatarios)
-                await emailService.EnviarAsync(destinatario, asunto, cuerpoHtml, TipoAvisoCorreo.Requerimiento, cancellationToken);
+                await emailService.EnviarAsync(
+                    destinatario, asunto, cuerpoHtml, TipoAvisoCorreo.Requerimiento, responderA, cancellationToken);
         }
 
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
