@@ -11,7 +11,6 @@
 @using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector
 @using CaeManager.Application.Empresas.Commands.BorrarCredencialAccesoEmpresaContrasena
 @using CaeManager.Application.Empresas.Commands.EditarEmpresa
-@using CaeManager.Application.Empresas.Commands.EliminarEmpresa
 @using CaeManager.Application.Empresas.Commands.GuardarCredencialAccesoEmpresa
 @using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa
 @using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresa
@@ -143,7 +142,6 @@ else
                     </div>
                     <div class="acciones-empresa-360">
                         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="IniciarEdicionInformacionAsync">Editar identidad</Boton>
-                        <Boton Variante="VarianteBoton.Destructivo" Tamano="TamanoBoton.Pequeno" OnClick="AbrirDarDeBaja">Dar de baja</Boton>
                     </div>
                 }
                 break;
@@ -205,14 +203,6 @@ else
         Mensaje="La URL, el usuario y las notas de la credencial no se tocan — solo se borra la contraseña."
         EnProgreso="_borrandoContrasena"
         OnConfirmar="ConfirmarBorrarContrasenaAsync" />
-
-    <DialogoConfirmacion
-        Visible="_confirmarBajaVisible"
-        VisibleChanged="v => _confirmarBajaVisible = v"
-        Titulo="¿Dar de baja esta empresa?"
-        Mensaje="La baja no se puede deshacer desde esta ficha. Si tiene trabajadores, la operación se rechazará."
-        EnProgreso="_dandoDeBaja"
-        OnConfirmar="ConfirmarDarDeBajaAsync" />
 }
 
 @code {
@@ -285,8 +275,6 @@ else
     private string? _mensajeErrorCredenciales;
     private bool _confirmarBorrarContrasenaVisible;
     private bool _borrandoContrasena;
-    private bool _confirmarBajaVisible;
-    private bool _dandoDeBaja;
 
     // El recuento se limita a la pestaña que representa; la cabecera solo lo muestra allí.
     private IReadOnlyList<PestanaDefinicion> PestanasConRecuento =>
@@ -306,11 +294,9 @@ else
             _errorClientes = false;
             _cumplimiento = null;
             _editandoInformacion = false;
-            _confirmarBajaVisible = false;
             _guardandoInformacion = false;
             _guardandoCredenciales = false;
             _borrandoContrasena = false;
-            _dandoDeBaja = false;
             await CargarCabeceraAsync();
         }
 
@@ -596,44 +582,6 @@ else
         {
             if (generacion == _generacion)
                 _borrandoContrasena = false;
-        }
-    }
-
-    private void AbrirDarDeBaja() => _confirmarBajaVisible = true;
-
-    private async Task ConfirmarDarDeBajaAsync()
-    {
-        if (_detalle is null || _dandoDeBaja) return;
-
-        var generacion = _generacion;
-        var detalle = _detalle;
-        _dandoDeBaja = true;
-        try
-        {
-            var resultado = await Mediator.Send(new EliminarEmpresaCommand(detalle.Id));
-            if (resultado.EsFallido)
-            {
-                ToastService.Mostrar($"{detalle.RazonSocial}: {resultado.Error.Mensaje}", TonoToast.Error);
-                if (generacion == _generacion) _confirmarBajaVisible = false;
-                return;
-            }
-
-            ToastService.Mostrar($"{detalle.RazonSocial} se dio de baja.", TonoToast.Exito);
-            if (generacion != _generacion) return;
-            _confirmarBajaVisible = false;
-            if (WorkspaceService.FrameActual is { Tipo: EntidadWorkspace.Empresa } frame && frame.EntidadId == detalle.Id)
-            {
-                if (WorkspaceService.Pila.Count > 1) await WorkspaceService.VolverAsync();
-                else await WorkspaceService.CerrarAsync();
-            }
-        }
-        catch (Exception)
-        {
-            ToastService.Mostrar($"No pudimos dar de baja {detalle.RazonSocial}. Intenta nuevamente en unos segundos.", TonoToast.Error);
-        }
-        finally
-        {
-            if (generacion == _generacion) _dandoDeBaja = false;
         }
     }
 

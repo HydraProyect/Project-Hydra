@@ -72,6 +72,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
     private sealed class MediatorFalso : IMediator
     {
         public List<Fila> Almacen { get; } = [];
+        public int? EliminadosForzados { get; set; }
         private readonly List<Fila> _papelera = [];
         public List<object> Enviadas { get; } = [];
 
@@ -133,7 +134,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
                     return Result.Exito();
                 case EliminarTrabajadoresCommand c:
                     var borrados = Almacen.RemoveAll(f => c.Ids.Contains(f.Dto.Id));
-                    return Result.Exito(new ResultadoEliminacionLoteDto(borrados, []));
+                    return Result.Exito(new ResultadoEliminacionLoteDto(EliminadosForzados ?? borrados, []));
                 default:
                     throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.");
             }
@@ -754,6 +755,28 @@ public class TrabajadoresListaGen2Tests : BunitContext
         cut.WaitForAssertion(() => Columna(cut, 0).Should().Equal("Alonso", "Moreno"));
     }
 
+
+    /// <summary>
+    /// El Workspace no es modal: con la ficha del trabajador abierta, la baja se
+    /// confirma desde la fila que queda detrás. La ficha ya no tiene baja propia
+    /// (P41b), así que la lista es quien la retira (hallazgo de Codex).
+    /// </summary>
+    [Fact]
+    public async Task Eliminar_al_trabajador_cuya_ficha_esta_abierta_retira_la_ficha()
+    {
+        var ana = Trabajador("Ana", "Moreno");
+        var mediador = new MediatorFalso { Almacen = { Trabajador("Bea", "Alonso"), ana } };
+        var cut = Renderizar(mediador);
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Trabajador, ana.Dto.Id, "Ana Moreno", "operacion"));
+        workspace.EstaAbierto.Should().BeTrue("control positivo: la ficha estaba abierta");
+
+        await PulsarEnElMenuDeLaFila(cut, 1, "Eliminar");
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EliminarTrabajadorCommand>().Should().ContainSingle("la baja se ejecutó");
+        workspace.EstaAbierto.Should().BeFalse("una ficha abierta de un trabajador ya dado de baja no puede seguir editable");
+    }
     [Fact]
     public async Task Abrir_Trabajador_360_desde_el_menu_navega_a_la_ficha_de_esa_fila()
     {
@@ -969,5 +992,50 @@ public class TrabajadoresListaGen2Tests : BunitContext
             .And.NotContain("quedarán sin", "la consulta previa no sabe qué quedará al confirmar")
             .And.NotContainEquivalentOf("obligatori", "es configuración (se pide), no una obligación legal");
         BotonesDelPieDelDialogo(cut).Should().Contain("Asignar igualmente");
+    }
+
+    /// <summary>Lo mismo con la baja en lote: solo se retira la ficha si su trabajador iba en el lote.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Eliminar_en_lote_retira_la_ficha_abierta_solo_si_su_trabajador_iba_en_el_lote(bool ibaEnElLote)
+    {
+        var ana = Trabajador("Ana", "Moreno");
+        var bea = Trabajador("Bea", "Alonso");
+        var mediador = new MediatorFalso { Almacen = { bea, ana } };
+        var cut = Renderizar(mediador);
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        var abierta = ibaEnElLote ? ana : bea;
+        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Trabajador, abierta.Dto.Id, "Ficha abierta", "operacion"));
+        workspace.EstaAbierto.Should().BeTrue("control positivo: la ficha estaba abierta");
+
+        await BotonDeLaBarra(cut, "Selección múltiple").ClickAsync(new MouseEventArgs());
+        await cut.Find("tbody input[aria-label='Seleccionar a Ana Moreno']").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados")
+            .ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EliminarTrabajadoresCommand>().Single().Ids.Should().Equal([ana.Dto.Id],
+            "el caso solo vale si el lote pidió a ese trabajador y a nadie más");
+        workspace.EstaAbierto.Should().Be(!ibaEnElLote);
+    }
+
+    /// <summary>La guarda de la retirada: un lote que no eliminó NADA no toca la ficha abierta de un trabajador que iba en él.</summary>
+    [Fact]
+    public async Task Un_lote_que_no_elimina_nada_no_retira_la_ficha_abierta()
+    {
+        var ana = Trabajador("Ana", "Moreno");
+        var mediador = new MediatorFalso { Almacen = { Trabajador("Bea", "Alonso"), ana }, EliminadosForzados = 0 };
+        var cut = Renderizar(mediador);
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Trabajador, ana.Dto.Id, "Ana Moreno", "operacion"));
+
+        await BotonDeLaBarra(cut, "Selección múltiple").ClickAsync(new MouseEventArgs());
+        await cut.Find("tbody input[aria-label='Seleccionar a Ana Moreno']").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EliminarTrabajadoresCommand>().Single().Ids.Should().Equal([ana.Dto.Id], "el caso solo vale si el lote pidió a ese trabajador");
+        workspace.EstaAbierto.Should().BeTrue("no cayó nada: no hay nada muerto que retirar");
     }
 }

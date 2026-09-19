@@ -3,6 +3,9 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas.Commands.CrearEmpresa;
+using CaeManager.Application.Empresas.Commands.EliminarEmpresa;
+using CaeManager.Application.Empresas.Commands.EliminarEmpresas;
+using CaeManager.Application.Clientes.Commands.EliminarClientes;
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
@@ -50,6 +53,7 @@ public class EmpresasListaGen2Tests : BunitContext
     private sealed class MediatorFalso : IMediator
     {
         public List<EmpresaListaDto> Almacen { get; } = [];
+        public int? EliminadosForzados { get; set; }
         public Dictionary<Guid, List<ClienteDeEmpresaDto>> ClientesDe { get; } = [];
         public HashSet<Guid> ClientesQueFallan { get; } = [];
         public PerfilVocabularioTenant Perfil { get; set; } = PerfilVocabularioTenant.Consultora;
@@ -83,6 +87,8 @@ public class EmpresasListaGen2Tests : BunitContext
                 : (IReadOnlyList<ClienteDeEmpresaDto>)(ClientesDe.GetValueOrDefault(c.EmpresaId) ?? []).ToList(),
             ObtenerClientesParaSelectorQuery => (IReadOnlyList<ClienteSelectorDto>)Array.Empty<ClienteSelectorDto>(),
             CrearEmpresaCommand => Result.Exito(Guid.NewGuid()),
+            EliminarEmpresaCommand => Result.Exito(),
+            EliminarEmpresasCommand lote => Result.Exito(new ResultadoEliminacionLoteDto(EliminadosForzados ?? lote.Ids.Count, [])),
             _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
         };
 
@@ -619,5 +625,171 @@ public class EmpresasListaGen2Tests : BunitContext
 
         cut.WaitForAssertion(() => cut.Find(".drawer-panel h2").TextContent.Trim().Should().Be("Nueva empresa"));
         cut.Find(".drawer-panel input").GetAttribute("value").Should().Be("Refrielectric");
+    }
+
+    /// <summary>
+    /// P41b (2026-09-19): la baja de la empresa solo vive aquí, en la lista; la
+    /// ficha 360 ya no la ofrece. Lo que se pierda en este menú, se pierde en
+    /// todo el producto: pide confirmación y manda el comando de ESA fila.
+    /// </summary>
+    [Fact]
+    public async Task Eliminar_desde_el_menu_pide_confirmacion_y_despues_manda_el_comando_de_esa_fila()
+    {
+        var mediador = new MediatorFalso { Almacen = { Empresa("Refrielectric S.A.") } };
+        var id = mediador.Almacen[0].Id;
+        var cut = Renderizar(mediador);
+
+        // MenuAcciones no pinta sus ítems hasta que se abre.
+        await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Eliminar")
+            .ClickAsync(new MouseEventArgs());
+
+        cut.Markup.Should().Contain("¿Eliminar a Refrielectric S.A.?", "el diálogo de confirmación es la barrera");
+        mediador.Enviadas.OfType<EliminarEmpresaCommand>().Should().BeEmpty("pulsar el menú no puede borrar sin confirmar");
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Eliminar")
+            .ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EliminarEmpresaCommand>().Select(c => c.Id).Should().Equal([id],
+            "se elimina la fila cuyo menú se abrió, y solo esa");
+    }
+
+    /// <summary>
+    /// El Workspace no es modal: con la ficha de la empresa abierta, la baja se
+    /// confirma desde la fila que queda detrás. La ficha ya no tiene baja
+    /// propia (P41b), así que la lista es quien la retira.
+    /// </summary>
+    [Fact]
+    public async Task Eliminar_la_empresa_cuya_ficha_esta_abierta_retira_la_ficha()
+    {
+        var mediador = new MediatorFalso { Almacen = { Empresa("Refrielectric S.A.") } };
+        var id = mediador.Almacen[0].Id;
+        var cut = Renderizar(mediador);
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Empresa, id, "Refrielectric S.A.", "informacion"));
+        workspace.EstaAbierto.Should().BeTrue("control positivo: la ficha estaba abierta");
+
+        await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Eliminar")
+            .ClickAsync(new MouseEventArgs());
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Eliminar")
+            .ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EliminarEmpresaCommand>().Should().ContainSingle("la baja se ejecutó");
+        workspace.EstaAbierto.Should().BeFalse("una ficha abierta de una entidad ya dada de baja no puede seguir editable");
+    }
+
+    /// <summary>
+    /// Lo mismo con la baja en lote: la ficha se retira solo si su empresa iba
+    /// en el lote; la de otra empresa que se está mirando se queda.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Eliminar_en_lote_retira_la_ficha_abierta_solo_si_su_empresa_iba_en_el_lote(bool ibaEnElLote)
+    {
+        var elegida = Empresa("Aislamientos Nervión S.L.");
+        var otra = Empresa("Refrielectric S.A.");
+        var mediador = new MediatorFalso { Almacen = { elegida, otra } };
+        var cut = Renderizar(mediador);
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        var abierta = ibaEnElLote ? elegida : otra;
+        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Empresa, abierta.Id, abierta.RazonSocial, "informacion"));
+        workspace.EstaAbierto.Should().BeTrue("control positivo: la ficha estaba abierta");
+
+        await cut.FindAll(".barra-herramientas-lista button").Single(b => b.TextContent.Trim() == "Selección múltiple")
+            .ClickAsync(new MouseEventArgs());
+        await cut.Find("input[aria-label='Seleccionar Aislamientos Nervión S.L.']").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados")
+            .ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar")
+            .ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EliminarEmpresasCommand>().Single().Ids.Should().Equal([elegida.Id],
+            "el caso solo vale si el lote pidió esa empresa y ninguna otra");
+        workspace.EstaAbierto.Should().Be(!ibaEnElLote);
+    }
+
+    /// <summary>
+    /// La guarda de la retirada: si el lote no eliminó NADA, la ficha abierta de
+    /// una empresa que iba en él sigue viva (sin esta prueba, quitar el «if» de la
+    /// lista dejaría los demás tests en verde).
+    /// </summary>
+    [Fact]
+    public async Task Un_lote_que_no_elimina_nada_no_retira_la_ficha_abierta()
+    {
+        var elegida = Empresa("Aislamientos Nervión S.L.");
+        var mediador = new MediatorFalso { Almacen = { elegida, Empresa("Refrielectric S.A.") }, EliminadosForzados = 0 };
+        var cut = Renderizar(mediador);
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Empresa, elegida.Id, elegida.RazonSocial, "informacion"));
+
+        await cut.FindAll(".barra-herramientas-lista button").Single(b => b.TextContent.Trim() == "Selección múltiple")
+            .ClickAsync(new MouseEventArgs());
+        await cut.Find("input[aria-label='Seleccionar Aislamientos Nervión S.L.']").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados")
+            .ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EliminarEmpresasCommand>().Single().Ids.Should().Equal([elegida.Id],
+            "el caso solo vale si el lote pidió esa empresa");
+        workspace.EstaAbierto.Should().BeTrue("no cayó nada: no hay nada muerto que retirar");
+    }
+
+    /// <summary>
+    /// Cliente empresarial, Empresa y Subcontrata son tres fichas del MISMO agregado
+    /// y del mismo Guid: la ficha del Cliente empresarial abierta desde la fila de
+    /// esta Empresa contraparte (IrAlCliente) se retira al eliminarla desde aquí,
+    /// aunque el frame sea de tipo Cliente y el borrado, de tipo Empresa.
+    /// </summary>
+    [Fact]
+    public async Task Eliminar_la_empresa_retira_tambien_su_ficha_abierta_como_cliente_empresarial()
+    {
+        var empresa = Empresa("Refrielectric S.A.");
+        var mediador = new MediatorFalso { Almacen = { empresa } };
+        var cut = Renderizar(mediador);
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Cliente, empresa.Id, empresa.RazonSocial, "informacion"));
+        workspace.FrameActual!.Tipo.Should().Be(EntidadWorkspace.Cliente, "control positivo: el frame es de tipo Cliente");
+
+        await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EliminarEmpresaCommand>().Should().ContainSingle("la baja se ejecutó");
+        workspace.EstaAbierto.Should().BeFalse("es la misma fila: la ficha del Cliente empresarial quedaría viva sobre algo eliminado");
+    }
+
+    /// <summary>
+    /// Ficha hija cuyo padre se elimina: Cliente empresarial → (clic en su Empresa)
+    /// Empresa. Al eliminar el Cliente empresarial desde la lista, el breadcrumb no
+    /// puede afirmar una ruta que ya no existe: queda solo la Empresa y «Volver»
+    /// no resucita al padre.
+    /// </summary>
+    [Fact]
+    public async Task Eliminar_el_padre_de_una_ficha_abierta_deja_la_hija_sin_resucitar_al_padre()
+    {
+        var padre = Empresa("Refrielectric S.A.");
+        var hija = Empresa("Montajes Ebro S.L.");
+        var mediador = new MediatorFalso { Almacen = { padre, hija } };
+        var cut = Renderizar(mediador);
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        await cut.InvokeAsync(async () =>
+        {
+            await workspace.AbrirAsync(EntidadWorkspace.Cliente, padre.Id, padre.RazonSocial, "informacion");
+            await workspace.NavegarAAsync(EntidadWorkspace.Empresa, hija.Id, hija.RazonSocial, "informacion");
+        });
+        workspace.Pila.Should().HaveCount(2, "control positivo: hay un padre y una hija");
+
+        await cut.FindAll(".barra-herramientas-lista button").Single(b => b.TextContent.Trim() == "Selección múltiple")
+            .ClickAsync(new MouseEventArgs());
+        await cut.Find("input[aria-label='Seleccionar Refrielectric S.A.']").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados")
+            .ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
+        await cut.InvokeAsync(() => workspace.VolverAsync());
+
+        workspace.Pila.Should().ContainSingle().Which.EntidadId.Should().Be(hija.Id,
+            "la hija se conserva y el padre eliminado no vuelve con «Volver»");
     }
 }

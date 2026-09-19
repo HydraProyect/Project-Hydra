@@ -2,7 +2,6 @@ using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Empresas.Commands.EditarEmpresa;
-using CaeManager.Application.Empresas.Commands.EliminarEmpresa;
 using CaeManager.Application.Empresas.Commands.GuardarCredencialAccesoEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresaSinContrasena;
@@ -30,7 +29,6 @@ public class Empresa360Gen2Tests : BunitContext
         public Dictionary<Guid, EmpresaDetalleDto?> Detalles { get; } = [];
         public Dictionary<Guid, int?> Cumplimientos { get; } = [];
         public Dictionary<Guid, IReadOnlyList<ClienteDeEmpresaDto>> Clientes { get; } = [];
-        public Result Baja { get; set; } = Result.Exito();
         public Result Edicion { get; set; } = Result.Exito();
         public Result Credenciales { get; set; } = Result.Exito();
         public Func<object, Task?>? Retener { get; set; }
@@ -52,7 +50,6 @@ public class Empresa360Gen2Tests : BunitContext
                 ObtenerClientesDeEmpresaQuery q => Clientes.GetValueOrDefault(q.EmpresaId) ?? [],
                 ObtenerClientesParaSelectorQuery => (IReadOnlyList<ClienteSelectorDto>)[],
                 ObtenerCredencialAccesoEmpresaSinContrasenaQuery => null,
-                EliminarEmpresaCommand => Baja,
                 EditarEmpresaCommand => Edicion,
                 GuardarCredencialAccesoEmpresaCommand => Credenciales,
                 _ => throw new NotSupportedException(request.GetType().Name)
@@ -71,8 +68,6 @@ public class Empresa360Gen2Tests : BunitContext
     private MediadorFalso Registrar(MediadorFalso m) { Services.AddScoped<IMediator>(_ => m); Services.AddScoped<ToastService>(); Services.AddScoped<ContextWorkspaceService>(); return m; }
     private IRenderedComponent<EmpresaWorkspacePanel> Renderizar(Guid id, string pestana = "informacion") => Render<EmpresaWorkspacePanel>(p => p.Add(x => x.EntidadId, id).Add(x => x.PestanaActiva, pestana).Add(x => x.PestanaActivaChanged, EventCallback.Factory.Create<string>(this, _ => { })));
     private static IElement Boton(IRenderedComponent<EmpresaWorkspacePanel> cut, string texto) => cut.FindAll("button").Where(x => x.TextContent.Trim() == texto).Should().ContainSingle().Subject;
-    private static IElement ConfirmarBaja(IRenderedComponent<EmpresaWorkspacePanel> cut) => cut.Find("[role=dialog] .modal-pie").QuerySelectorAll("button").Where(x => x.TextContent.Trim() == "Eliminar").Should().ContainSingle().Subject;
-    private static DialogoConfirmacion DialogoBaja(IRenderedComponent<EmpresaWorkspacePanel> cut) => cut.FindComponents<DialogoConfirmacion>().Single(x => x.Instance.Titulo.EndsWith("esta empresa?")).Instance;
     private static IElement Control(IRenderedComponent<EmpresaWorkspacePanel> cut, string etiqueta) { var id = cut.FindAll("label").Where(x => x.TextContent.Trim() == etiqueta).Should().ContainSingle().Subject.GetAttribute("for"); return cut.Find($"#{id}"); }
     private IReadOnlyList<ToastMensaje> Toasts => Services.GetRequiredService<ToastService>().Mensajes;
 
@@ -125,37 +120,6 @@ public class Empresa360Gen2Tests : BunitContext
         m.Tokens.Should().HaveCount(2).And.OnlyContain(x => x.CanBeCanceled && !x.IsCancellationRequested);
         await DisposeComponentsAsync();
         m.Tokens.Should().OnlyContain(x => x.IsCancellationRequested, "DisposeComponentsAsync retira el panel y cancela su ciclo");
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task La_baja_tardia_anuncia_siempre_la_empresa_original_incluso_si_falla(bool falla)
-    {
-        const string aNombre = "Montajes Ebro S.L."; const string bNombre = "Ibertec S.A."; const string motivo = "Todavía tiene trabajadores.";
-        var a = Guid.NewGuid(); var b = Guid.NewGuid(); var espera = new TaskCompletionSource();
-        var m = Registrar(new MediadorFalso { Retener = x => x is EliminarEmpresaCommand ? espera.Task : null, Baja = falla ? Result.Fallo(Error.Crear("Empresa.TieneTrabajadores", motivo)) : Result.Exito() });
-        m.Detalles[a] = Detalle(a, aNombre); m.Detalles[b] = Detalle(b, bNombre); m.Cumplimientos[a] = m.Cumplimientos[b] = 80;
-        var cut = Renderizar(a); await Boton(cut, "Dar de baja").ClickAsync(new MouseEventArgs());
-        var confirmar = ConfirmarBaja(cut).ClickAsync(new MouseEventArgs());
-        cut.Render(p => p.Add(x => x.EntidadId, b).Add(x => x.PestanaActiva, "informacion"));
-        cut.Find(".titulo-empresa-360").TextContent.Trim().Should().Be(bNombre, "la ficha ya es B");
-        await cut.InvokeAsync(espera.SetResult); await confirmar;
-        var toast = Toasts.Should().ContainSingle().Subject;
-        toast.Mensaje.Should().Contain(aNombre).And.NotContain(bNombre); toast.Tono.Should().Be(falla ? TonoToast.Error : TonoToast.Exito);
-        if (falla) toast.Mensaje.Should().Contain(motivo);
-    }
-
-    [Fact]
-    public async Task Dos_invocaciones_del_OnConfirmar_del_hijo_mandan_una_sola_baja()
-    {
-        var id = Guid.NewGuid(); var espera = new TaskCompletionSource(); var m = Registrar(new MediadorFalso { Retener = x => x is EliminarEmpresaCommand ? espera.Task : null });
-        m.Detalles[id] = Detalle(id, "Montajes Ebro S.L."); m.Cumplimientos[id] = 80; var cut = Renderizar(id);
-        await Boton(cut, "Dar de baja").ClickAsync(new MouseEventArgs()); var dialogo = DialogoBaja(cut);
-        var primero = cut.InvokeAsync(() => dialogo.OnConfirmar.InvokeAsync()); var segundo = cut.InvokeAsync(() => dialogo.OnConfirmar.InvokeAsync());
-        m.Enviadas.OfType<EliminarEmpresaCommand>().Should().ContainSingle("la guarda del panel también cubre llamadores que no son el botón del diálogo");
-        await cut.InvokeAsync(espera.SetResult); await primero; await segundo;
-        m.Enviadas.OfType<EliminarEmpresaCommand>().Should().ContainSingle();
     }
 
     [Theory]
@@ -249,15 +213,29 @@ public class Empresa360Gen2Tests : BunitContext
     }
 
     [Fact]
-    public async Task Cambiar_de_empresa_cierra_la_confirmacion_y_el_formulario_que_pertenecian_a_la_anterior()
+    public async Task Cambiar_de_empresa_cierra_el_formulario_que_pertenecia_a_la_anterior()
     {
         var a = Guid.NewGuid(); var b = Guid.NewGuid(); var m = Registrar(new MediadorFalso());
         m.Detalles[a] = Detalle(a, "Montajes Ebro S.L."); m.Detalles[b] = Detalle(b, "Ibertec S.A."); m.Cumplimientos[a] = m.Cumplimientos[b] = 80;
-        var cut = Renderizar(a); await Boton(cut, "Dar de baja").ClickAsync(new MouseEventArgs()); cut.FindAll("[role=dialog]").Should().ContainSingle("la confirmación se preparó para A");
-        cut.Render(p => p.Add(x => x.EntidadId, b).Add(x => x.PestanaActiva, "informacion")); cut.FindAll("[role=dialog]").Should().BeEmpty("una confirmación de A no puede quedar sobre B");
-        cut.Render(p => p.Add(x => x.EntidadId, a).Add(x => x.PestanaActiva, "informacion")); await Boton(cut, "Editar identidad").ClickAsync(new MouseEventArgs()); Control(cut, "Razón social");
+        var cut = Renderizar(a); await Boton(cut, "Editar identidad").ClickAsync(new MouseEventArgs()); Control(cut, "Razón social");
         cut.Render(p => p.Add(x => x.EntidadId, b).Add(x => x.PestanaActiva, "informacion"));
-        cut.Find(".titulo-empresa-360").TextContent.Trim().Should().Be("Ibertec S.A."); cut.FindAll("input").Should().BeEmpty("el formulario de A no puede editar B"); m.Enviadas.OfType<EliminarEmpresaCommand>().Should().BeEmpty();
+        cut.Find(".titulo-empresa-360").TextContent.Trim().Should().Be("Ibertec S.A."); cut.FindAll("input").Should().BeEmpty("el formulario de A no puede editar B");
+    }
+
+    /// <summary>
+    /// P41b (decisión del propietario, 2026-09-19): «Dar de baja» de la entidad
+    /// solo vive en la lista. La ficha no la ofrece —ni botón, ni diálogo— y el
+    /// doble de mediador ya no responde a <c>EliminarEmpresaCommand</c>.
+    /// </summary>
+    [Fact]
+    public void La_ficha_no_ofrece_dar_de_baja_a_la_empresa()
+    {
+        var id = Guid.NewGuid(); var m = Registrar(new MediadorFalso());
+        m.Detalles[id] = Detalle(id, "Montajes Ebro S.L."); m.Cumplimientos[id] = 80;
+        var cut = Renderizar(id);
+        Boton(cut, "Editar identidad");
+        cut.FindAll("button").Should().NotContain(b => b.TextContent.Contains("Dar de baja", StringComparison.Ordinal));
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
     }
 
     [Fact]

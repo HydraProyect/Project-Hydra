@@ -479,7 +479,8 @@ public partial class Vehiculos : ComponentBase, IDisposable
 
         try
         {
-            var resultado = await Mediator.Send(new EliminarVehiculoCommand(_idAEliminar));
+            var idEliminado = _idAEliminar;
+            var resultado = await Mediator.Send(new EliminarVehiculoCommand(idEliminado));
 
             if (resultado.EsFallido)
             {
@@ -488,6 +489,7 @@ public partial class Vehiculos : ComponentBase, IDisposable
             else
             {
                 ToastService.Mostrar("Vehículo eliminado correctamente.", TonoToast.Exito);
+                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Vehiculo, [idEliminado]);
                 _confirmarEliminarVisible = false;
                 await RecargarAsync();
             }
@@ -526,7 +528,8 @@ public partial class Vehiculos : ComponentBase, IDisposable
 
         try
         {
-            var resultado = await Mediator.Send(new EliminarVehiculosCommand(_seleccionados.ToList()));
+            var idsPedidos = _seleccionados.ToList();
+            var resultado = await Mediator.Send(new EliminarVehiculosCommand(idsPedidos));
             var dto = resultado.Valor;
 
             ToastService.Mostrar(
@@ -534,6 +537,12 @@ public partial class Vehiculos : ComponentBase, IDisposable
                     ? $"{dto.Eliminados} vehículo(s) eliminado(s)."
                     : $"{dto.Eliminados} eliminado(s). {dto.Errores.Count} no se pudieron borrar: {string.Join(" ", dto.Errores)}",
                 dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+
+            // El DTO del lote solo trae el recuento (limitación del DTO: el handler sí sabe qué ids cayeron):
+            // si cayó alguno, se retiran las fichas de todos los pedidos, también la de un superviviente
+            // (con su edición sin guardar, si la tenía). Se prefiere pasarse de retirar a dejar abierta una ficha muerta.
+            if (dto.Eliminados > 0)
+                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Vehiculo, idsPedidos);
 
             _seleccionados.Clear();
             _confirmarEliminarLoteVisible = false;
