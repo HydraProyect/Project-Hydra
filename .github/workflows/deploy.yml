@@ -106,6 +106,32 @@ name: Desplegar
 # blanca — nunca leer un secreto ya guardado, ni escribir una clave fuera de
 # ella (rechazo total y ruidoso, `.env` sin tocar).
 #
+# --- Las claves SSH (D6, 2026-09-19): una por capacidad ----------------------
+#
+# Con UNA clave de repositorio, la aprobación de `environment: produccion` no
+# protegía la clave: cualquier workflow de main podía leerla y lanzar
+# `produccion <SHA>`. D6 la parte en dos, y lo que cada una puede hacer lo fija
+# el servidor (argumento del comando forzado en authorized_keys, ver
+# deploy/ci-deploy.sh), no lo que pida el cliente:
+#
+#   - VPS_SSH_KEY_STAGING (secreto de REPOSITORIO): `--clave staging`, solo
+#     `staging` y `muestreo-memoria`. La leen el job `staging` y la carga de
+#     staging (carga-staging.yml, si está en main).
+#   - VPS_SSH_KEY_PRODUCCION (secreto del ENVIRONMENT `produccion`, ninguno
+#     de repositorio): `--clave produccion`, solo `produccion` y `secretos`.
+#     Solo la puede leer un job que declare `environment: produccion`, es
+#     decir, tras la aprobación.
+#
+# TRANSICIÓN SIN CORTE: mientras un secreto nuevo no exista, su job usa
+# VPS_SSH_KEY (la clave única de antes, que sin argumentos en el comando forzado
+# admite los cuatro modos). Cada job imprime qué clave usó. La clave antigua y
+# ese modo de compatibilidad se retiran juntos, al final de
+# RUNBOOK-CLAVES-SSH-D6-P32-2026-09.md (repositorio de negocio).
+#
+# LO QUE ESTO NO CIERRA TODAVÍA: el job `produccion` (el que lanza
+# `produccion <SHA>`) no declara `environment:`, así que sigue con la clave
+# antigua. Ver el comentario de su paso "Preparar clave SSH".
+#
 # --- Por qué producción depende de staging, y por qué son dos jobs ----------
 #
 # `aprobacion-produccion` depende de `staging` (needs:) por una razón que no
@@ -343,9 +369,22 @@ jobs:
           echo "Punta de main confirmada: $SHA_DESPLEGADO"
 
       - name: Preparar clave SSH
+        # D6: clave PROPIA de staging (`--clave staging` en authorized_keys:
+        # solo staging y muestreo-memoria, nunca producción), secreto de
+        # repositorio. Mientras VPS_SSH_KEY_STAGING no exista se usa la clave
+        # antigua, para no cortar el despliegue (ver "Las claves SSH").
+        env:
+          CLAVE_NUEVA: ${{ secrets.VPS_SSH_KEY_STAGING }}
+          CLAVE_ANTIGUA: ${{ secrets.VPS_SSH_KEY }}
         run: |
           install -m 600 -D /dev/null ~/.ssh/id_ed25519
-          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          if [ -n "$CLAVE_NUEVA" ]; then
+            printf '%s\n' "$CLAVE_NUEVA" > ~/.ssh/id_ed25519
+            echo "Clave SSH usada: VPS_SSH_KEY_STAGING"
+          else
+            printf '%s\n' "$CLAVE_ANTIGUA" > ~/.ssh/id_ed25519
+            echo "::warning::VPS_SSH_KEY_STAGING no está cargado: se usa VPS_SSH_KEY (transición D6, ver RUNBOOK-CLAVES-SSH-D6-P32)"
+          fi
           # Clave de host FIJADA, no aprendida. `ssh-keyscan` en cada ejecucion
           # confia en la primera clave que le contesten: si alguien se interpone
           # una sola vez, el despliegue le entrega la sesion sin distinguirlo de
@@ -374,9 +413,23 @@ jobs:
         run: echo "Despliegue a produccion aprobado para $SHA_DESPLEGADO"
 
       - name: Preparar clave SSH
+        # D6: clave PROPIA de producción (`--clave produccion` en
+        # authorized_keys: solo produccion y secretos), secreto del
+        # environment `produccion` — solo este job, por declarar ese
+        # environment, puede leerla. Mientras VPS_SSH_KEY_PRODUCCION no
+        # exista se usa la clave antigua (ver "Las claves SSH").
+        env:
+          CLAVE_NUEVA: ${{ secrets.VPS_SSH_KEY_PRODUCCION }}
+          CLAVE_ANTIGUA: ${{ secrets.VPS_SSH_KEY }}
         run: |
           install -m 600 -D /dev/null ~/.ssh/id_ed25519
-          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          if [ -n "$CLAVE_NUEVA" ]; then
+            printf '%s\n' "$CLAVE_NUEVA" > ~/.ssh/id_ed25519
+            echo "Clave SSH usada: VPS_SSH_KEY_PRODUCCION"
+          else
+            printf '%s\n' "$CLAVE_ANTIGUA" > ~/.ssh/id_ed25519
+            echo "::warning::VPS_SSH_KEY_PRODUCCION no está cargado: se usa VPS_SSH_KEY (transición D6, ver RUNBOOK-CLAVES-SSH-D6-P32)"
+          fi
           echo "$VPS_HOST_KEY" >> ~/.ssh/known_hosts
 
       - name: Actualizar secretos de producción (REC-014/P37)
@@ -498,6 +551,17 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Preparar clave SSH
+        # D6 — PENDIENTE DE DECISIÓN, no un olvido: este job NO declara
+        # `environment:` (ver "Por qué producción depende de staging"), así que
+        # NO puede leer un secreto del environment `produccion`. Sigue con la
+        # clave antigua, de repositorio, y mientras sea así la clave que lanza
+        # `produccion <SHA>` no está detrás de la aprobación: el hueco de D6
+        # sigue abierto para ESTE paso, y VPS_SSH_KEY no se puede retirar.
+        # Cerrarlo exige que este job declare `environment: produccion` (una
+        # segunda aprobación por despliegue) o fundirlo con
+        # `aprobacion-produccion` (que pierde la cancelación automática de
+        # aprobaciones obsoletas, DEC-39/40). Ver DECISIÓN NECESARIA en
+        # RUNBOOK-CLAVES-SSH-D6-P32-2026-09.md, § «Lo que este cambio no cierra».
         run: |
           install -m 600 -D /dev/null ~/.ssh/id_ed25519
           printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519

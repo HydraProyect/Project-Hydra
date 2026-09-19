@@ -1234,6 +1234,12 @@ jobs:
       - name: deploy/ci-deploy-secretos.tests.sh
         run: bash deploy/ci-deploy-secretos.tests.sh
 
+      # D6: capacidad por clave SSH (`--clave staging|produccion`) y su
+      # prueba de sensibilidad (una mutación por guarda, en rojo por el caso
+      # esperado). Necesita que /opt/talveg NO exista: es el runner.
+      - name: deploy/ci-deploy-claves.tests.sh
+        run: bash deploy/ci-deploy-claves.tests.sh
+
       - name: deploy/ci-deploy-diagnostico-memoria.tests.sh
         run: bash deploy/ci-deploy-diagnostico-memoria.tests.sh
 
