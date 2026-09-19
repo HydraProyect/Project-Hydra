@@ -103,10 +103,22 @@ public class ContextWorkspaceService
     /// «Volver» o desde el breadcrumb. Las demás fichas se conservan, de modo
     /// que quien está mirando otra entidad no la pierde; si no queda ninguna,
     /// el Workspace se cierra.
+    ///
+    /// El tipo no basta para identificar la fila: Cliente empresarial, Empresa
+    /// y Subcontrata son tres fichas del MISMO agregado <c>Empresa</c> y del
+    /// mismo Guid (los tres comandos de baja cargan la misma fila), así que una
+    /// baja por cualquiera de ellos retira las fichas de los tres tipos
+    /// (<see cref="SonLaMismaFila"/>).
     /// </summary>
     public void RetirarSiEstaAbierto(EntidadWorkspace tipo, IReadOnlyCollection<Guid> idsEliminados)
     {
-        if (_pila.RemoveAll(f => f.Tipo == tipo && idsEliminados.Contains(f.EntidadId)) > 0)
+        if (_pila.RemoveAll(f => SonLaMismaFila(f.Tipo, tipo) && idsEliminados.Contains(f.EntidadId)) > 0)
             OnCambio?.Invoke();
     }
+
+    private static bool SonLaMismaFila(EntidadWorkspace a, EntidadWorkspace b) =>
+        a == b || (EsFichaDeEmpresa(a) && EsFichaDeEmpresa(b));
+
+    private static bool EsFichaDeEmpresa(EntidadWorkspace tipo) =>
+        tipo is EntidadWorkspace.Cliente or EntidadWorkspace.Empresa or EntidadWorkspace.Subcontrata;
 }

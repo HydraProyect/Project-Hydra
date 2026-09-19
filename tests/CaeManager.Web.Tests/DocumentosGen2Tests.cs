@@ -782,4 +782,23 @@ public class DocumentosGen2Tests : BunitContext
             "el caso solo vale si el lote pidió esos dos y ninguno más");
         workspace.EstaAbierto.Should().Be(!ibaEnElLote);
     }
+
+    /// <summary>La guarda de la retirada: un lote que no eliminó NADA no toca la ficha abierta de un documento que iba en él.</summary>
+    [Fact]
+    public async Task Un_lote_que_no_elimina_nada_no_retira_la_ficha_abierta()
+    {
+        var d1 = Documento("Reconocimiento médico");
+        var mediador = ConDocumentos(d1, Documento("Formación PRL"), Documento("Certificado TGSS"));
+        mediador.AlEliminarLote = _ => Result.Exito(new ResultadoEliminacionLoteDto(0, ["Ninguno pudo eliminarse."]));
+        var (cut, _) = Renderizar(mediador);
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Documento, d1.Id, "Reconocimiento médico", "informacion"));
+
+        await SeleccionarFilas(cut, 2);
+        await AbrirConfirmacionDeLote(cut);
+        await ConfirmarDialogo(cut);
+
+        mediador.Enviadas.OfType<EliminarDocumentosCommand>().Single().Ids.Should().Contain(d1.Id, "el caso solo vale si el lote pidió ese documento");
+        workspace.EstaAbierto.Should().BeTrue("no cayó nada: no hay nada muerto que retirar");
+    }
 }

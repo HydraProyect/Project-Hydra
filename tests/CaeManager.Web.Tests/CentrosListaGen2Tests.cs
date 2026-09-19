@@ -1,10 +1,13 @@
 using Bunit;
 using CaeManager.Application.Centros.Commands.CrearCentro;
+using CaeManager.Application.Centros.Commands.EliminarCentros;
+using CaeManager.Application.Clientes.Commands.EliminarClientes;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
 using CaeManager.Application.Visitas.Queries.ObtenerProximaVisitaPorCentro;
 using CaeManager.Domain.Centros;
+using CaeManager.Domain.Common;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Centros.Components;
@@ -43,16 +46,25 @@ public class CentrosListaGen2Tests : BunitContext
     private sealed class MediatorPorTipo : IMediator
     {
         public required IReadOnlyList<CentroListaDto> Centros { get; init; }
+        public List<object> Enviadas { get; } = [];
+        public int? EliminadosDelLote { get; set; }
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
-            Task.FromResult((TResponse)(object)(request switch
+            Task.FromResult((TResponse)(object)(Registrar(request) switch
             {
                 ObtenerClientesParaSelectorQuery => (object)Array.Empty<ClienteSelectorDto>(),
+                EliminarCentrosCommand lote => Result.Exito(new ResultadoEliminacionLoteDto(EliminadosDelLote ?? lote.Ids.Count, [])),
                 ObtenerProximaVisitaPorCentroQuery => (IReadOnlyDictionary<Guid, IReadOnlyList<VisitaResumenDto>>)new Dictionary<Guid, IReadOnlyList<VisitaResumenDto>>(),
                 ObtenerCentrosQuery q => new ResultadoPaginado<CentroListaDto>(
                     Centros, Centros.Count, q.Pagina, q.TamanoPagina),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             }));
+
+        private object Registrar(object peticion)
+        {
+            Enviadas.Add(peticion);
+            return peticion;
+        }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
             Task.CompletedTask;
@@ -85,9 +97,12 @@ public class CentrosListaGen2Tests : BunitContext
         Guid.NewGuid(), "Montajes Ebro S.L.", estado,
         CumplimientoPorcentaje: 100, RecuentosCentroDto.Vacio);
 
+    private MediatorPorTipo _mediador = null!;
+
     private IRenderedComponent<Centros> Renderizar(params CentroListaDto[] centros)
     {
-        Services.AddScoped<IMediator>(_ => new MediatorPorTipo { Centros = centros });
+        _mediador = new MediatorPorTipo { Centros = centros };
+        Services.AddScoped<IMediator>(_ => _mediador);
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
@@ -143,5 +158,38 @@ public class CentrosListaGen2Tests : BunitContext
         cut.FindAll("a.acordeon-centro-enlace-360")
             .Select(a => a.GetAttribute("href"))
             .Should().Equal($"/centros/{bloqueado.Id}", $"/centros/{vigente.Id}");
+    }
+
+    /// <summary>
+    /// El Workspace no es modal: con la ficha del centro abierta, la baja en lote
+    /// se confirma desde la lista que queda detrás. La lista retira la ficha si su
+    /// centro iba en el lote y cayó alguno; no la toca si era de otro centro ni si
+    /// el lote no eliminó nada (la guarda «Eliminados > 0»).
+    /// </summary>
+    [Theory]
+    [InlineData(true, null, false)]  // iba en el lote, cayó: se retira
+    [InlineData(false, null, true)]  // no iba en el lote: se queda
+    [InlineData(true, 0, true)]      // iba en el lote pero no cayó nada: se queda
+    public async Task Eliminar_en_lote_retira_la_ficha_abierta_solo_si_su_centro_iba_y_cayo_alguno(
+        bool ibaEnElLote, int? eliminados, bool seQuedaAbierta)
+    {
+        var elegido = Centro("Centro Logístico Norte");
+        var otro = Centro("Centro Logístico Sur");
+        var cut = Renderizar(elegido, otro);
+        _mediador.EliminadosDelLote = eliminados;
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        var abierto = ibaEnElLote ? elegido : otro;
+        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Centro, abierto.Id, abierto.Nombre, "informacion"));
+        workspace.EstaAbierto.Should().BeTrue("control positivo: la ficha estaba abierta");
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Selección múltiple").ClickAsync(new MouseEventArgs());
+        await cut.Find("input[aria-label='Seleccionar el centro Centro Logístico Norte']").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados")
+            .ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
+
+        _mediador.Enviadas.OfType<EliminarCentrosCommand>().Single().Ids.Should().Equal([elegido.Id],
+            "el caso solo vale si el lote pidió ese centro y ninguno más");
+        workspace.EstaAbierto.Should().Be(seQuedaAbierta);
     }
 }

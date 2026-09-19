@@ -6,7 +6,9 @@ namespace CaeManager.Web.Tests;
 /// <summary>
 /// P41b: la baja de la entidad solo vive en las listas y el Workspace no es
 /// modal, así que la lista tiene que retirar la ficha de lo que acaba de dar de
-/// baja (hallazgo de Codex sobre la PR). Solo actúa sobre el frame ACTUAL.
+/// baja (hallazgo de Codex sobre la PR). Quita esa fila de CUALQUIER nivel de la
+/// pila, no solo del frame actual; y Cliente empresarial, Empresa y Subcontrata,
+/// que son fichas del mismo agregado y del mismo Guid, cuentan como la misma fila.
 /// </summary>
 public class ContextWorkspaceServiceRetirarTests
 {
@@ -54,17 +56,57 @@ public class ContextWorkspaceServiceRetirarTests
 
     [Theory]
     [InlineData(false)] // mismo tipo, otro id
-    [InlineData(true)]  // mismo id, otro tipo
+    [InlineData(true)]  // mismo id, otro tipo que NO es la misma fila (Trabajador)
     public async Task No_toca_una_ficha_que_no_es_la_dada_de_baja(bool otroTipo)
     {
         var servicio = new ContextWorkspaceService();
         await servicio.AbrirAsync(EntidadWorkspace.Empresa, Ebro, "Montajes Ebro S.L.", "informacion");
 
         if (otroTipo)
-            servicio.RetirarSiEstaAbierto(EntidadWorkspace.Cliente, [Ebro]);
+            servicio.RetirarSiEstaAbierto(EntidadWorkspace.Trabajador, [Ebro]);
         else
             servicio.RetirarSiEstaAbierto(EntidadWorkspace.Empresa, [Otra]);
 
         servicio.FrameActual.Should().NotBeNull().And.Match<WorkspaceFrame>(f => f.EntidadId == Ebro);
+    }
+
+    /// <summary>
+    /// Cliente empresarial, Empresa y Subcontrata son tres fichas de la misma fila
+    /// (los tres comandos de baja cargan el mismo agregado Empresa por el mismo
+    /// Guid): la baja por cualquiera retira la ficha abierta como cualquiera de los
+    /// tres. Sin esto, abrir la ficha del Cliente empresarial desde la fila de una
+    /// Empresa y eliminar esa Empresa dejaba la ficha viva sobre algo eliminado.
+    /// </summary>
+    [Theory]
+    [InlineData(EntidadWorkspace.Cliente, EntidadWorkspace.Empresa)]
+    [InlineData(EntidadWorkspace.Cliente, EntidadWorkspace.Subcontrata)]
+    [InlineData(EntidadWorkspace.Empresa, EntidadWorkspace.Cliente)]
+    [InlineData(EntidadWorkspace.Empresa, EntidadWorkspace.Subcontrata)]
+    [InlineData(EntidadWorkspace.Subcontrata, EntidadWorkspace.Cliente)]
+    [InlineData(EntidadWorkspace.Subcontrata, EntidadWorkspace.Empresa)]
+    public async Task Cliente_empresarial_Empresa_y_Subcontrata_son_la_misma_fila(EntidadWorkspace abierta, EntidadWorkspace dadaDeBaja)
+    {
+        var servicio = new ContextWorkspaceService();
+        await servicio.AbrirAsync(abierta, Ebro, "Montajes Ebro S.L.", "informacion");
+        servicio.EstaAbierto.Should().BeTrue("control positivo: la ficha estaba abierta");
+
+        servicio.RetirarSiEstaAbierto(dadaDeBaja, [Ebro]);
+
+        servicio.EstaAbierto.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(EntidadWorkspace.Centro)]
+    [InlineData(EntidadWorkspace.Trabajador)]
+    [InlineData(EntidadWorkspace.Vehiculo)]
+    [InlineData(EntidadWorkspace.Documento)]
+    public async Task Las_demas_entidades_no_comparten_fila_con_la_empresa(EntidadWorkspace otra)
+    {
+        var servicio = new ContextWorkspaceService();
+        await servicio.AbrirAsync(otra, Ebro, "Otra entidad con el mismo Guid", "informacion");
+
+        servicio.RetirarSiEstaAbierto(EntidadWorkspace.Empresa, [Ebro]);
+
+        servicio.EstaAbierto.Should().BeTrue("un Centro, Trabajador, Vehículo o Documento no es la fila Empresa");
     }
 }

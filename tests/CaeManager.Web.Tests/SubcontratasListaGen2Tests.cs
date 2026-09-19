@@ -47,6 +47,7 @@ public class SubcontratasListaGen2Tests : BunitContext
     private sealed class MediatorFalso : IMediator
     {
         public IReadOnlyList<SubcontrataListaDto> Subcontratas { get; init; } = [];
+        public int? EliminadosForzados { get; set; }
         public SubcontrataDetalleDto? Detalle { get; init; }
 
         /// <summary>
@@ -75,7 +76,7 @@ public class SubcontratasListaGen2Tests : BunitContext
                 ObtenerEmpresasParaSelectorQuery => Empresas,
                 ObtenerClientesParaSelectorQuery => Clientes,
                 EliminarSubcontrataCommand => ResultadoEliminar,
-                EliminarSubcontratasCommand lote => Result.Exito(new ResultadoEliminacionLoteDto(lote.Ids.Count, [])),
+                EliminarSubcontratasCommand lote => Result.Exito(new ResultadoEliminacionLoteDto(EliminadosForzados ?? lote.Ids.Count, [])),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             }));
         }
@@ -537,5 +538,28 @@ public class SubcontratasListaGen2Tests : BunitContext
         mediador.Enviadas.OfType<EliminarSubcontratasCommand>().Single().Ids.Should().Equal([elegida],
             "el caso solo vale si el lote pidió esa subcontrata y ninguna otra");
         workspace.EstaAbierto.Should().Be(!ibaEnElLote);
+    }
+
+    /// <summary>La guarda de la retirada: un lote que no eliminó NADA no toca la ficha abierta de una subcontrata que iba en él.</summary>
+    [Fact]
+    public async Task Un_lote_que_no_elimina_nada_no_retira_la_ficha_abierta()
+    {
+        var elegida = Guid.NewGuid();
+        var mediador = new MediatorFalso
+        {
+            Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", id: elegida), Subcontrata("Pinturas Lauburu S.A.")],
+            EliminadosForzados = 0
+        };
+        var cut = Renderizar(mediador);
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Subcontrata, elegida, "Andamios Bidasoa S.L.", "informacion"));
+
+        cut.FindAll(".barra-herramientas-lista button").Single(b => b.TextContent.Contains("Selección múltiple")).Click();
+        await cut.Find("input[aria-label='Seleccionar la empresa Andamios Bidasoa S.L.']").ChangeAsync(new ChangeEventArgs { Value = true });
+        cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados").Click();
+        cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").Click();
+
+        mediador.Enviadas.OfType<EliminarSubcontratasCommand>().Single().Ids.Should().Equal([elegida], "el caso solo vale si el lote pidió esa subcontrata");
+        workspace.EstaAbierto.Should().BeTrue("no cayó nada: no hay nada muerto que retirar");
     }
 }

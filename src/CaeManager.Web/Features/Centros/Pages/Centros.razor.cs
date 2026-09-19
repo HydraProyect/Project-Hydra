@@ -549,7 +549,8 @@ public partial class Centros : ComponentBase
 
         try
         {
-            var resultado = await Mediator.Send(new EliminarCentrosCommand(_seleccionados.ToList()));
+            var idsPedidos = _seleccionados.ToList();
+            var resultado = await Mediator.Send(new EliminarCentrosCommand(idsPedidos));
             var dto = resultado.Valor;
 
             ToastService.Mostrar(
@@ -557,6 +558,12 @@ public partial class Centros : ComponentBase
                     ? $"{dto.Eliminados} centro(s) eliminado(s)."
                     : $"{dto.Eliminados} eliminado(s). {dto.Errores.Count} no se pudieron borrar: {string.Join(" ", dto.Errores)}",
                 dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+
+            // El DTO del lote solo trae el recuento (limitación del DTO: el handler sí sabe qué ids cayeron):
+            // si cayó alguno, se retiran las fichas de todos los pedidos, también la de un superviviente
+            // (con su edición sin guardar, si la tenía). Se prefiere pasarse de retirar a dejar abierta una ficha muerta.
+            if (dto.Eliminados > 0)
+                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Centro, idsPedidos);
 
             _seleccionados.Clear();
             _confirmarEliminarLoteVisible = false;

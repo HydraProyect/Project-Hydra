@@ -75,6 +75,7 @@ public class ClientesListaGen2Tests : BunitContext
     {
         public List<ClienteListaDto> Almacen { get; } = [];
         public List<string> ErroresDeLote { get; } = [];
+        public int? EliminadosForzados { get; set; }
 
         /// <summary>
         /// Estados presentes por Cliente, para el filtro de estado documental:
@@ -143,7 +144,7 @@ public class ClientesListaGen2Tests : BunitContext
 
                 case EliminarClientesCommand lote:
                     var borrados = Almacen.RemoveAll(c => lote.Ids.Contains(c.Id));
-                    return Result.Exito(new ResultadoEliminacionLoteDto(borrados, ErroresDeLote));
+                    return Result.Exito(new ResultadoEliminacionLoteDto(EliminadosForzados ?? borrados, ErroresDeLote));
 
                 case RestaurarClienteCommand:
                     return Result.Exito();
@@ -1406,5 +1407,25 @@ public class ClientesListaGen2Tests : BunitContext
         mediador.Enviadas.OfType<EliminarClientesCommand>().Single().Ids.Should().Equal([pedido.Id],
             "el caso solo vale si el lote pidió a ese cliente y a nadie más");
         workspace.EstaAbierto.Should().Be(!ibaEnElLote);
+    }
+
+    /// <summary>La guarda de la retirada: un lote que no eliminó NADA no toca la ficha abierta de un cliente que iba en él.</summary>
+    [Fact]
+    public async Task Un_lote_que_no_elimina_nada_no_retira_la_ficha_abierta()
+    {
+        var pedido = Cliente("Aislamientos Nervión S.L.");
+        var mediador = new MediatorFalso { Almacen = { pedido, Cliente("Refrielectric S.A.") }, EliminadosForzados = 0 };
+        mediador.ErroresDeLote.Add("Un cliente con centros activos no puede eliminarse.");
+        var cut = Renderizar(mediador);
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Cliente, pedido.Id, pedido.RazonSocial, "informacion"));
+
+        await cut.FindAll(".barra-herramientas-lista button").Single(x => x.TextContent.Trim() == "Selección múltiple").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("tbody input[type=checkbox]")[0].ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.FindAll(".barra-acciones-lote button").Single(x => x.TextContent.Trim() == "Eliminar seleccionados").ClickAsync(new MouseEventArgs());
+        await BotonDelDialogo(cut, "Eliminar").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EliminarClientesCommand>().Single().Ids.Should().Equal([pedido.Id], "el caso solo vale si el lote pidió a ese cliente");
+        workspace.EstaAbierto.Should().BeTrue("no cayó nada: no hay nada muerto que retirar");
     }
 }

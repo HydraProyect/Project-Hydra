@@ -753,8 +753,9 @@ public partial class Documentos : ComponentBase, IDisposable
                         : $"{dto.Eliminados} de {pedidos.Count} eliminado(s); el resto sigue en la lista.{DetalleDeErrores(dto.Errores)}",
                 completo ? TonoToast.Exito : dto.Eliminados == 0 ? TonoToast.Error : TonoToast.Advertencia);
 
-            // El DTO no dice qué documentos cayeron: si cayó alguno, se retiran las fichas de todos los pedidos
-            // (cerrar una ficha de más es un fastidio; dejar abierta una eliminada, un fallo).
+            // El DTO del lote solo trae el recuento (limitación del DTO: el handler sí sabe qué ids cayeron):
+            // si cayó alguno, se retiran las fichas de todos los pedidos, también la de un superviviente
+            // (con su edición sin guardar, si la tenía). Se prefiere pasarse de retirar a dejar abierta una ficha muerta.
             if (dto.Eliminados > 0)
                 WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Documento, pedidos);
 

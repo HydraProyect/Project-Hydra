@@ -186,4 +186,54 @@ public class VehiculosConcurrenciaTests : BunitContext
         cut.Find(".paginador-texto").TextContent.Should().Contain("1 vehículo(s)", "el total vigente es el de 'camion'")
             .And.NotContain("99 vehículo(s)", "la respuesta tardía de 'furgo' ya no es la carga vigente");
     }
+
+    /// <summary>
+    /// El Workspace no es modal: con la ficha del vehículo abierta, la baja se
+    /// confirma desde la fila que queda detrás, y la lista es quien la retira.
+    /// </summary>
+    [Fact]
+    public async Task Eliminar_el_vehiculo_cuya_ficha_esta_abierta_retira_la_ficha()
+    {
+        var furgoneta = Vehiculo("Furgoneta de obra");
+        var (cut, m) = Renderizar(furgoneta);
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Vehiculo, furgoneta.Id, "Furgoneta de obra", "informacion"));
+        workspace.EstaAbierto.Should().BeTrue("control positivo: la ficha estaba abierta");
+
+        await PulsarEnElMenuDeLaFila(cut, 0, "Eliminar");
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
+
+        m.Enviadas.OfType<EliminarVehiculoCommand>().Should().ContainSingle("la baja se ejecutó");
+        workspace.EstaAbierto.Should().BeFalse("una ficha abierta de un vehículo ya dado de baja no puede seguir editable");
+    }
+
+    /// <summary>
+    /// Baja en lote: se retira la ficha si su vehículo iba en el lote y cayó
+    /// alguno; no se toca si era de otro vehículo ni si el lote no eliminó nada.
+    /// </summary>
+    [Theory]
+    [InlineData(true, 1, false)]  // iba en el lote, cayó: se retira
+    [InlineData(false, 1, true)]  // no iba en el lote: se queda
+    [InlineData(true, 0, true)]   // iba en el lote pero no cayó nada: se queda
+    public async Task Eliminar_en_lote_retira_la_ficha_abierta_solo_si_su_vehiculo_iba_y_cayo_alguno(
+        bool ibaEnElLote, int eliminados, bool seQuedaAbierta)
+    {
+        var elegido = Vehiculo("Furgoneta de obra");
+        var otro = Vehiculo("Camión grúa");
+        var (cut, m) = Renderizar(elegido, otro);
+        m.BajaLote = Result.Exito(new ResultadoEliminacionLoteDto(eliminados, []));
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        var abierto = ibaEnElLote ? elegido : otro;
+        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Vehiculo, abierto.Id, "Ficha abierta", "informacion"));
+        workspace.EstaAbierto.Should().BeTrue("control positivo: la ficha estaba abierta");
+
+        await Boton(cut, "Selección múltiple").ClickAsync(new MouseEventArgs());
+        await cut.Find("input[aria-label^='Seleccionar el vehículo Furgoneta de obra']").ChangeAsync(new ChangeEventArgs { Value = true });
+        await Boton(cut, "Eliminar seleccionados").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
+
+        m.Enviadas.OfType<EliminarVehiculosCommand>().Single().Ids.Should().Equal([elegido.Id],
+            "el caso solo vale si el lote pidió ese vehículo y ninguno más");
+        workspace.EstaAbierto.Should().Be(seQuedaAbierta);
+    }
 }
