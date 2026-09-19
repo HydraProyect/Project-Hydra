@@ -389,6 +389,19 @@
             <polyline points="15 7 21 7 21 13" />
         </g>,
 
+        // ——— Vistas 360 ———
+
+        // Ficha 360 de una entidad (Cliente, Empresa, Centro, Trabajador…): dos
+        // arcos abiertos enfrentados y un punto. A propósito no es una
+        // circunferencia cerrada (se leería "recargar"), ni una flecha circular
+        // ("sincronizar"), ni lleva rectángulo central (chocaría con "documentos").
+        // Geometría idéntica a icon360() de los mockups .dc.html (P41a).
+        "360" => @<g>
+            <path d="M8.5 4.8A8.2 8.2 0 0 0 8.5 19.2" />
+            <path d="M15.5 4.8A8.2 8.2 0 0 1 15.5 19.2" />
+            <circle cx="12" cy="12" r="1.9" />
+        </g>,
+
         _ => @<g></g>
     };
 }
