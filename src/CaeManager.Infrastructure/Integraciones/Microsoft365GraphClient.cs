@@ -95,6 +95,15 @@ public class Microsoft365GraphClient(
         var config = opciones.Value;
         contenido["client_id"] = config.ClientId!;
 
+        // Migración a medias: no se cae en silencio al secreto aunque alguien invoque
+        // el cliente sin pasar por EstaConfigurado.
+        if (config.CertificadoIncompleto)
+        {
+            logger.LogError("Certificado de cliente de Microsoft 365 incompleto: hay que informar CertificadoRuta y ClavePrivadaRuta a la vez.");
+            return Result.Fallo(Error.Crear(
+                "Integraciones.Microsoft365.ErrorAutenticacion", "No pudimos autenticar con Microsoft."));
+        }
+
         if (!config.UsaCertificado)
         {
             contenido["client_secret"] = config.ClientSecret!;

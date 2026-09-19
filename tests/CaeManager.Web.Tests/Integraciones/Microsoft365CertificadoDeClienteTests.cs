@@ -237,6 +237,24 @@ public sealed class Microsoft365CertificadoDeClienteTests : IDisposable
     }
 
     [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Un_certificado_a_medias_no_cae_al_secreto_ni_llama_a_Microsoft(bool faltaLaClave)
+    {
+        var opciones = ConCertificado();
+        opciones.ClientSecret = "secreto-de-transicion";
+        if (faltaLaClave) opciones.ClavePrivadaRuta = null; else opciones.CertificadoRuta = null;
+        var (cliente, handler) = CrearCliente(opciones);
+
+        var canje = await cliente.IntercambiarCodigoPorTokensAsync("c", "https://app.ejemplo.test/cb", CancellationToken.None);
+        var refresco = await cliente.RefrescarTokensAsync("r", CancellationToken.None);
+
+        canje.EsFallido.Should().BeTrue();
+        refresco.EsFallido.Should().BeTrue();
+        handler.Cuerpos.Should().BeEmpty("un certificado a medias no debe degradar al secreto");
+    }
+
+    [Theory]
     [InlineData("id", "secreto", null, null, "https://x", true)]        // secreto solo: como hoy
     [InlineData("id", null, "c.pem", "k.pem", "https://x", true)]       // certificado solo: nuevo
     [InlineData("id", "secreto", "c.pem", "k.pem", "https://x", true)]  // los dos: manda el certificado
