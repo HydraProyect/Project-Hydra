@@ -21,7 +21,7 @@ namespace CaeManager.Web.Tests.Comercial;
 /// Se salta a sí misma, DECLARÁNDOLO, si <c>Stripe__ApiKey</c> no está en el
 /// entorno (mismo mecanismo que <c>TheorySiHayClaveIaAttribute</c>). La clave
 /// solo la aporta el workflow integraciones-con-clave.yml, disparado por la
-/// cola de fusión o a mano — nunca por un PR (ver scripts/verificar-secretos-de-ci.sh).
+/// push a main o a mano — nunca por un PR (ver scripts/verificar-secretos-de-ci.sh).
 ///
 /// Ninguna prueba de aquí escribe en Stripe ni crea objetos: solo lecturas de
 /// una suscripción que no existe.
@@ -132,7 +132,7 @@ public sealed class FactSiHayClaveStripeAttribute : FactAttribute
         if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("Stripe__ApiKey")))
         {
             Skip = "Requiere una clave de Stripe en MODO PRUEBA en la variable de entorno \"Stripe__ApiKey\" — no configurada " +
-                   "en este entorno. Solo la aporta el workflow integraciones-con-clave.yml (cola de fusión o a mano).";
+                   "en este entorno. Solo la aporta el workflow integraciones-con-clave.yml (push a main o a mano).";
         }
     }
 }

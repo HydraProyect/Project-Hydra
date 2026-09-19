@@ -102,6 +102,8 @@ jobs:
         id: clave
         env:
           CLAVE: ${{ secrets.CI_ANTHROPIC_API_KEY }}
+          EVENTO: ${{ github.event_name }}
+          RAMA: ${{ github.ref_name }}
         run: |
           if [ -z "${CLAVE:-}" ]; then
             echo "hay_clave=false" >> "$GITHUB_OUTPUT"
@@ -109,7 +111,7 @@ jobs:
             {
               echo "### 🟡 Regresión de prompts de IA — NO ejecutada"
               echo ""
-              echo "El secreto \`CI_ANTHROPIC_API_KEY\` del environment \`ci-integraciones\` no está definido (o no llega a este disparador/rama: \`${{ github.event_name }}\` en \`${{ github.ref_name }}\`)."
+              echo "El secreto \`CI_ANTHROPIC_API_KEY\` del environment \`ci-integraciones\` no está definido (o no llega a este disparador/rama: \`${EVENTO}\` en \`${RAMA}\`)."
               echo "Los tests de \`RegresionPromptsIaTests\` no se han ejecutado; **este verde no es cobertura**."
             } >> "$GITHUB_STEP_SUMMARY"
             exit 0
@@ -194,6 +196,8 @@ jobs:
         id: clave
         env:
           CLAVE: ${{ secrets.CI_STRIPE_TEST_API_KEY }}
+          EVENTO: ${{ github.event_name }}
+          RAMA: ${{ github.ref_name }}
         run: |
           if [ -z "${CLAVE:-}" ]; then
             echo "hay_clave=false" >> "$GITHUB_OUTPUT"
@@ -201,7 +205,7 @@ jobs:
             {
               echo "### 🟡 Stripe en modo prueba — NO ejecutado"
               echo ""
-              echo "El secreto \`CI_STRIPE_TEST_API_KEY\` del environment \`ci-integraciones\` no está definido (o no llega a este disparador/rama: \`${{ github.event_name }}\` en \`${{ github.ref_name }}\`)."
+              echo "El secreto \`CI_STRIPE_TEST_API_KEY\` del environment \`ci-integraciones\` no está definido (o no llega a este disparador/rama: \`${EVENTO}\` en \`${RAMA}\`)."
               echo "Los tests contra la API de Stripe no se han ejecutado; **este verde no es cobertura**."
             } >> "$GITHUB_STEP_SUMMARY"
             exit 0
