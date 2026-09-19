@@ -300,6 +300,34 @@ actualizar_secretos_produccion() {
     echo "Secretos de producción actualizados en .env (REC-014/P37) — valores no impresos en ningún log." >&2
 }
 
+# Diagnóstico de solo lectura para REC-198/P33 (techo de memoria): ambos
+# docker-compose.*.yml solo fijan `mem_limit` en el servicio "app" —
+# db/caddy/seq van sin techo en los dos stacks, 8 contenedores compartiendo
+# la misma máquina de 4 GB entre staging y producción — y decidir un límite
+# sin medir el consumo real puede fijarlo demasiado bajo y provocar un OOM
+# del propio contenedor en producción. La clave SSH de CI solo puede
+# ejecutar el comando forzado ya permitido ("staging"/"produccion $SHA");
+# ampliar ese comando forzado a un modo nuevo de solo lectura exigiría
+# editar /root/.ssh/authorized_keys en el VPS — un cambio a la configuración
+# de acceso del servidor que esta clave no puede hacer por sí misma. En vez
+# de eso, este diagnóstico vive DENTRO del comando ya permitido, se llama
+# desde volcar_diagnostico_si_falla (dentro de main(), más abajo) tras un
+# despliegue sano, y corre automáticamente en cada despliegue real (nunca
+# en un modo aparte): no escribe nada, no toca `.env`, no cambia ningún
+# contenedor — solo imprime a stdout, que ya llega tal cual al log de
+# GitHub Actions del paso SSH. Definida en el ámbito global (no dentro de
+# main(), pese a que solo se llama desde ahí) para que
+# ci-deploy-diagnostico-memoria.tests.sh pueda invocarla tras un `source`
+# simple, igual que actualizar_secretos_produccion — main() nunca se
+# invoca al hacer `source` (ver la guarda de BASH_SOURCE al final de este
+# fichero), así que una función anidada dentro de main() no sería visible
+# para un test que no ejecute main() entero.
+volcar_diagnostico_memoria() {
+    echo "=== Diagnóstico de memoria (REC-198/P33) ==="
+    free -h
+    docker stats --no-stream --format 'table {{.Name}}\t{{.MemUsage}}\t{{.MemPerc}}'
+}
+
 main() {
 
 read -r ENTORNO SHA <<< "${SSH_ORIGINAL_COMMAND:-}"
@@ -418,6 +446,8 @@ volcar_diagnostico_si_falla() {
         done
         exit 1
     fi
+
+    volcar_diagnostico_memoria
 }
 
 case "$ENTORNO" in
