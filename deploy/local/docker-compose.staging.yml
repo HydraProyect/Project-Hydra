@@ -111,6 +111,9 @@ services:
       Migraciones__AlArrancar: "false"
     volumes:
       - caemanager-staging-data:/data
+      # P44b — certificado de cliente del conector de Microsoft 365 (PEM); ver el
+      # comentario equivalente de docker-compose.produccion.yml.
+      - "${SECRETOS_DIR:-/opt/talveg-secretos/staging}:/run/secretos:ro"
     # Sin `ports` publicados — igual que producción, solo alcanzable desde
     # dentro de la red del compose. La única entrada de fuera es el Caddy de
     # producción, vía la red "edge" de abajo.

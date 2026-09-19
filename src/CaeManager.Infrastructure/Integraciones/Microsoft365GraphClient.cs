@@ -53,13 +53,15 @@ public class Microsoft365GraphClient(
     {
         var contenido = new Dictionary<string, string>
         {
-            ["client_id"] = opciones.Value.ClientId!,
-            ["client_secret"] = opciones.Value.ClientSecret!,
             ["grant_type"] = "authorization_code",
             ["code"] = code,
             ["redirect_uri"] = redirectUri,
             ["scope"] = ScopesDelegados,
         };
+
+        var credencial = AgregarCredencialDeCliente(contenido);
+        if (credencial.EsFallido)
+            return Result.Fallo<TokensGraphDto>(credencial.Error);
 
         return await PedirTokensAsync(contenido, cancellationToken);
     }
@@ -68,14 +70,58 @@ public class Microsoft365GraphClient(
     {
         var contenido = new Dictionary<string, string>
         {
-            ["client_id"] = opciones.Value.ClientId!,
-            ["client_secret"] = opciones.Value.ClientSecret!,
             ["grant_type"] = "refresh_token",
             ["refresh_token"] = refreshToken,
             ["scope"] = ScopesDelegados,
         };
 
+        var credencial = AgregarCredencialDeCliente(contenido);
+        if (credencial.EsFallido)
+            return Result.Fallo<TokensGraphDto>(credencial.Error);
+
         return await PedirTokensAsync(contenido, cancellationToken);
+    }
+
+    /// <summary>
+    /// Añade al cuerpo del canje la credencial con la que el App Registration se
+    /// autentica: un aserto firmado con certificado (P44b) si hay certificado
+    /// configurado, o el <c>client_secret</c> de siempre si no. Nunca las dos a la
+    /// vez: con certificado, el secreto no se envía aunque también esté configurado.
+    /// Se genera un aserto NUEVO en cada llamada (<c>jti</c> único): Entra rechaza la
+    /// reutilización de un mismo aserto.
+    /// </summary>
+    private Result AgregarCredencialDeCliente(Dictionary<string, string> contenido)
+    {
+        var config = opciones.Value;
+        contenido["client_id"] = config.ClientId!;
+
+        // Migración a medias: no se cae en silencio al secreto aunque alguien invoque
+        // el cliente sin pasar por EstaConfigurado.
+        if (config.CertificadoIncompleto)
+        {
+            logger.LogError("Certificado de cliente de Microsoft 365 incompleto: hay que informar CertificadoRuta y ClavePrivadaRuta a la vez.");
+            return Result.Fallo(Error.Crear(
+                "Integraciones.Microsoft365.ErrorAutenticacion", "No pudimos autenticar con Microsoft."));
+        }
+
+        if (!config.UsaCertificado)
+        {
+            contenido["client_secret"] = config.ClientSecret!;
+            return Result.Exito();
+        }
+
+        var aserto = AsertoClienteMicrosoft365.Crear(
+            config.ClientId!, EndpointToken, config.CertificadoRuta!, config.ClavePrivadaRuta!, DateTimeOffset.UtcNow);
+        if (aserto.EsFallido)
+        {
+            logger.LogError("No se pudo generar el aserto de cliente de Microsoft 365 con el certificado configurado: {Codigo}.", aserto.Error.Codigo);
+            return Result.Fallo(Error.Crear(
+                "Integraciones.Microsoft365.ErrorAutenticacion", "No pudimos autenticar con Microsoft."));
+        }
+
+        contenido["client_assertion_type"] = AsertoClienteMicrosoft365.TipoAserto;
+        contenido["client_assertion"] = aserto.Valor;
+        return Result.Exito();
     }
 
     private async Task<Result<TokensGraphDto>> PedirTokensAsync(
