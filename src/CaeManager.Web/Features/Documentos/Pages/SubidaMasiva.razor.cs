@@ -111,7 +111,6 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
 
         /// <summary>Lo que la IA propuso, intacto: es el término de comparación de lo que la persona confirma.</summary>
         public PropuestaIaDocumento Propuesta { get; set; } = PropuestaIaDocumento.Vacia;
-        public string? AliasSugerido { get; set; }
         public int? Confianza { get; set; }
         public string? MensajeError { get; set; }
         public bool Expandido { get; set; }
@@ -360,7 +359,6 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
         // persona, con la propuesta ya prellenada.
         item.Propuesta = new PropuestaIaDocumento(
             trabajadorResuelto, tipoResuelto, deteccion?.FechaEmisionLeida, deteccion?.FechaVencimientoLeida, deteccion?.ConfianzaGeneral ?? 0);
-        item.AliasSugerido = deteccion?.AliasSugerido;
         item.TipoDocumentoId = tipoResuelto?.ToString() ?? string.Empty;
         item.TrabajadorId = trabajadorResuelto?.ToString() ?? string.Empty;
         item.FechaEmision = deteccion?.FechaEmisionLeida?.ToString("yyyy-MM-dd") ?? string.Empty;
