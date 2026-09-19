@@ -266,4 +266,145 @@ echo 'echo "fichero trivial cargado"' > "$FICHERO_TRIVIAL"
 source "$FICHERO_TRIVIAL"
 echo "OK: trap RETURN desarmado tras retornar; 'source' posterior no abortó bajo set -u"
 
+echo "=== Caso 12: Stripe entra por la inyección (forma válida) y queda entrecomillada ==="
+# P18b: hasta este cambio Stripe no estaba en la lista blanca y solo podía llegar a
+# producción por una edición manual del .env. Los valores sintéticos se arman por
+# concatenación para que este fichero no contenga nada con forma de clave real.
+CLAVE_STRIPE_LIVE="rk_""live_""SINTETICA0000000000"
+SECRETO_WEBHOOK="whsec_""SINTETICO0000000000"
+export FICHERO_ENV_SECRETOS_PRODUCCION="$DIR/.env-caso12"
+printf 'DOMINIO=app.talveg.es\n' > "$FICHERO_ENV_SECRETOS_PRODUCCION"
+printf 'Stripe__ApiKey=%s\nStripe__WebhookSecret=%s\n' "$CLAVE_STRIPE_LIVE" "$SECRETO_WEBHOOK" \
+  | actualizar_secretos_produccion 2>/dev/null
+grep -qx "Stripe__ApiKey='$CLAVE_STRIPE_LIVE'" "$FICHERO_ENV_SECRETOS_PRODUCCION" || { echo "FALLO: Stripe__ApiKey no se escribió" >&2; exit 1; }
+grep -qx "Stripe__WebhookSecret='$SECRETO_WEBHOOK'" "$FICHERO_ENV_SECRETOS_PRODUCCION" || { echo "FALLO: Stripe__WebhookSecret no se escribió" >&2; exit 1; }
+grep -qx 'DOMINIO=app.talveg.es' "$FICHERO_ENV_SECRETOS_PRODUCCION" || { echo "FALLO: perdió una clave no tocada" >&2; exit 1; }
+echo "OK: las dos claves de Stripe se escriben; el resto del .env queda intacto"
+
+echo "=== Caso 13: un valor en la variable equivocada se rechaza ENTERO, sin imprimirlo ==="
+# Mutación del caso 12 que cambia UNA cosa: el secreto de firma (whsec_) va a
+# Stripe__ApiKey. Debe rechazarse el envío completo (.env sin tocar, también la
+# clave buena que venía con él) y el mensaje nombra la CLAVE, nunca el valor.
+export FICHERO_ENV_SECRETOS_PRODUCCION="$DIR/.env-caso13"
+printf 'DOMINIO=app.talveg.es\n' > "$FICHERO_ENV_SECRETOS_PRODUCCION"
+ANTES13="$(cat "$FICHERO_ENV_SECRETOS_PRODUCCION")"
+if SALIDA13="$(printf 'Anthropic__ApiKey=sk-buena-123\nStripe__ApiKey=%s\n' "$SECRETO_WEBHOOK" | actualizar_secretos_produccion 2>&1)"; then
+  echo "FALLO: se aceptó un whsec_ en Stripe__ApiKey" >&2
+  exit 1
+fi
+printf '%s' "$SALIDA13" | grep -qF "'Stripe__ApiKey' no tiene la forma esperada" || { echo "FALLO: el rechazo no fue por la forma del valor" >&2; printf '%s\n' "$SALIDA13" >&2; exit 1; }
+printf '%s' "$SALIDA13" | grep -qF "SINTETICO" && { echo "FALLO: el mensaje de error imprimió (parte de) el valor" >&2; exit 1; }
+[ "$ANTES13" = "$(cat "$FICHERO_ENV_SECRETOS_PRODUCCION")" ] || { echo "FALLO: .env cambió pese al rechazo" >&2; exit 1; }
+echo "OK: rechazo entero, .env intacto, el mensaje no contiene el valor"
+
+echo "=== Caso 14: la clave de API tampoco vale como secreto de webhook ==="
+export FICHERO_ENV_SECRETOS_PRODUCCION="$DIR/.env-caso14"
+printf 'DOMINIO=app.talveg.es\n' > "$FICHERO_ENV_SECRETOS_PRODUCCION"
+if SALIDA14="$(printf 'Stripe__WebhookSecret=%s\n' "$CLAVE_STRIPE_LIVE" | actualizar_secretos_produccion 2>&1)"; then
+  echo "FALLO: se aceptó una clave rk_ en Stripe__WebhookSecret" >&2
+  exit 1
+fi
+printf '%s' "$SALIDA14" | grep -qF "'Stripe__WebhookSecret' no tiene la forma esperada" || { echo "FALLO: el rechazo no fue por la forma del valor" >&2; exit 1; }
+printf '%s' "$SALIDA14" | grep -qF "SINTETICA" && { echo "FALLO: el mensaje de error imprimió (parte de) el valor" >&2; exit 1; }
+echo "OK: whsec_ solo vale como secreto de webhook"
+
+echo "=== Caso 15: verificar_secretos_de_stripe informa de presencia y forma, y NUNCA del valor ==="
+# El requisito duro de P18b: comprobar que la clave existe y tiene el prefijo
+# esperado sin imprimirla. El control positivo de cada categoría es la salida
+# esperada; el negativo, que ningún fragmento del valor aparece en NINGUNA salida.
+CLAVE_STRIPE_PRUEBA="sk_""test_""SINTETICA1111111111"
+PRUEBA_FICHERO="$DIR/.env-caso15"
+
+comprobar() {  # <etiqueta> <entorno> <fragmento-esperado> ; el .env ya está en $PRUEBA_FICHERO
+  local etiqueta="$1" entorno="$2" esperado="$3" salida
+  salida="$(verificar_secretos_de_stripe "$PRUEBA_FICHERO" "$entorno" 2>&1)" || { echo "FALLO [$etiqueta]: la comprobación devolvió error" >&2; exit 1; }
+  printf '%s' "$salida" | grep -qF -- "$esperado" || { echo "FALLO [$etiqueta]: falta '$esperado' en:" >&2; printf '%s\n' "$salida" >&2; exit 1; }
+  for fragmento in SINTETICA SINTETICO 1111111 0000000; do
+    printf '%s' "$salida" | grep -qF -- "$fragmento" && { echo "FALLO [$etiqueta]: la salida contiene un fragmento del valor ($fragmento)" >&2; exit 1; }
+  done
+  echo "OK   [$etiqueta]"
+}
+
+printf "Stripe__ApiKey='%s'\nStripe__WebhookSecret='%s'\n" "$CLAVE_STRIPE_LIVE" "$SECRETO_WEBHOOK" > "$PRUEBA_FICHERO"
+comprobar "producción con clave live entrecomillada" produccion "Stripe__ApiKey: modo producción"
+comprobar "webhook presente" produccion "Stripe__WebhookSecret: presente (whsec_…)"
+
+printf 'Stripe__ApiKey=%s\n' "$CLAVE_STRIPE_LIVE" > "$PRUEBA_FICHERO"
+comprobar "sin comillas" produccion "Stripe__ApiKey: modo producción"
+comprobar "webhook ausente si no está la línea" produccion "Stripe__WebhookSecret: ausente"
+
+printf 'Stripe__ApiKey="%s"\r\n' "$CLAVE_STRIPE_LIVE" > "$PRUEBA_FICHERO"
+comprobar "comillas dobles y CRLF" produccion "Stripe__ApiKey: modo producción"
+
+printf 'Stripe__ApiKey=%s\nStripe__ApiKey=%s\n' "$CLAVE_STRIPE_LIVE" "$CLAVE_STRIPE_PRUEBA" > "$PRUEBA_FICHERO"
+comprobar "gana la última aparición (prueba tras live)" produccion "Stripe__ApiKey: modo prueba"
+comprobar "producción con clave de prueba avisa" produccion "::warning::Stripe__ApiKey de PRODUCCIÓN es una clave de modo prueba"
+
+printf 'Stripe__ApiKey=\nOtra=cosa\n' > "$PRUEBA_FICHERO"
+comprobar "clave vacía = ausente" produccion "Stripe__ApiKey: ausente"
+
+printf 'Stripe__ApiKey=%s\n' "$SECRETO_WEBHOOK" > "$PRUEBA_FICHERO"
+comprobar "valor de otra variable = forma inesperada" produccion "Stripe__ApiKey: forma inesperada"
+comprobar "…con aviso" produccion "::warning::Stripe__ApiKey en el .env de produccion tiene una forma inesperada"
+
+printf 'Stripe__ApiKey=%s\n' "$CLAVE_STRIPE_LIVE" > "$PRUEBA_FICHERO"
+comprobar "staging con clave live avisa" staging "::warning::Stripe__ApiKey de STAGING es una clave de MODO PRODUCCIÓN"
+
+printf 'Stripe__ApiKey=%s\n' "$CLAVE_STRIPE_PRUEBA" > "$PRUEBA_FICHERO"
+comprobar "staging con clave de prueba: sin aviso de producción" staging "Stripe__ApiKey: modo prueba"
+if verificar_secretos_de_stripe "$PRUEBA_FICHERO" staging 2>&1 | grep -qF "::warning::"; then
+  echo "FALLO: staging con clave de prueba no debe avisar" >&2
+  exit 1
+fi
+
+# Un prefijo parecido pero distinto no cuenta (`Stripe__ApiKeyX=` no es `Stripe__ApiKey=`).
+printf 'Stripe__ApiKeyX=%s\n' "$CLAVE_STRIPE_LIVE" > "$PRUEBA_FICHERO"
+comprobar "clave con sufijo distinto no cuenta" produccion "Stripe__ApiKey: ausente"
+
+# Fichero ilegible: informa y sigue (nunca aborta con set -e).
+SALIDA15="$(verificar_secretos_de_stripe "$DIR/no-existe" produccion 2>&1)" || { echo "FALLO: falló con un fichero inexistente" >&2; exit 1; }
+printf '%s' "$SALIDA15" | grep -qF "no se pudo leer" || { echo "FALLO: no avisó de que no pudo leer el fichero" >&2; exit 1; }
+echo "OK: fichero inexistente se informa y no aborta"
+
+echo "=== Caso 16: la llamada está cableada DESPUÉS del despliegue sano y no puede tumbarlo ==="
+# volcar_diagnostico_si_falla vive dentro de main() y no se ejecuta al hacer
+# `source` (ver ci-deploy-diagnostico-memoria.tests.sh, caso 2): se comprueba por
+# lectura del fuente, anclando al `exit 1` del `up -d --wait` no sano.
+FUENTE_CI_DEPLOY="$DIR_GUION/ci-deploy.sh"
+LINEA_UP16="$(grep -n 'docker compose "\${args\[@\]}" up -d --wait' "$FUENTE_CI_DEPLOY" | head -1 | cut -d: -f1)"
+[ -n "$LINEA_UP16" ] || { echo "FALLO: no se encontró la línea de 'up -d --wait'" >&2; exit 1; }
+LINEA_EXIT16="$(tail -n "+$LINEA_UP16" "$FUENTE_CI_DEPLOY" | grep -n '^        exit 1$' | head -1 | cut -d: -f1)"
+LINEA_EXIT16=$((LINEA_UP16 + LINEA_EXIT16 - 1))
+mapfile -t LLAMADAS16 < <(grep -n '^        \*staging\*) verificar_secretos_de_stripe\|^        \*) verificar_secretos_de_stripe' "$FUENTE_CI_DEPLOY" | cut -d: -f1)
+[ "${#LLAMADAS16[@]}" -eq 2 ] || { echo "FALLO: se esperaban 2 llamadas (staging y producción), hay ${#LLAMADAS16[@]}" >&2; exit 1; }
+for linea in "${LLAMADAS16[@]}"; do
+  [ "$linea" -gt "$LINEA_EXIT16" ] || { echo "FALLO: una llamada (línea $linea) está antes del exit 1 del despliegue no sano (línea $LINEA_EXIT16)" >&2; exit 1; }
+done
+grep -q 'verificar_secretos_de_stripe "\${env_file:-.env}" staging || true' "$FUENTE_CI_DEPLOY" \
+  && grep -q 'verificar_secretos_de_stripe "\${env_file:-.env}" produccion || true' "$FUENTE_CI_DEPLOY" \
+  || { echo "FALLO: falta el '|| true' que impide que la comprobación tumbe un despliegue sano (set -e)" >&2; exit 1; }
+echo "OK: las dos llamadas están tras el despliegue sano y protegidas con '|| true'"
+
+echo "=== Caso 17: Caddy (único servicio con puertos públicos) NO carga el .env entero ==="
+# Hallazgo de la revisión de Codex de P18b: el servicio caddy cargaba `env_file: .env`
+# y recibía TODOS los secretos del stack sin usar ninguno; su Caddyfile solo
+# interpola DOMINIO y ACME_EMAIL. Un secreto más en `.env` (Stripe, en este caso)
+# ampliaba a un contenedor expuesto a Internet quién podía leerlo.
+COMPOSE_PRODUCCION="$DIR_GUION/local/docker-compose.produccion.yml"
+bloque_de_servicio() {  # <servicio>: imprime el bloque `  servicio:` hasta el siguiente servicio
+  awk -v s="$1" '$0 == "  " s ":" { f = 1; next } f && /^  [A-Za-z0-9_-]+:/ { f = 0 } f' "$COMPOSE_PRODUCCION"
+}
+# Control positivo del extractor: en `app` SÍ debe verse env_file (si no lo viera, el
+# «Caddy no lo tiene» de abajo no significaría nada).
+bloque_de_servicio app | grep -q '^    env_file: \.env' || { echo "FALLO: el extractor no ve el env_file de 'app' — el caso no observa lo que dice observar" >&2; exit 1; }
+BLOQUE_CADDY="$(bloque_de_servicio caddy)"
+[ -n "$BLOQUE_CADDY" ] || { echo "FALLO: no se encontró el bloque del servicio caddy" >&2; exit 1; }
+if printf '%s\n' "$BLOQUE_CADDY" | grep -q '^    env_file:'; then
+  echo "FALLO: el servicio caddy vuelve a cargar un env_file entero" >&2
+  exit 1
+fi
+printf '%s\n' "$BLOQUE_CADDY" | grep -q '^      DOMINIO: \${DOMINIO}' || { echo "FALLO: caddy no recibe DOMINIO" >&2; exit 1; }
+printf '%s\n' "$BLOQUE_CADDY" | grep -q '^      ACME_EMAIL: \${ACME_EMAIL}' || { echo "FALLO: caddy no recibe ACME_EMAIL" >&2; exit 1; }
+echo "OK: caddy recibe solo DOMINIO y ACME_EMAIL; app conserva su env_file"
+
 echo "TODAS LAS PRUEBAS PASARON"

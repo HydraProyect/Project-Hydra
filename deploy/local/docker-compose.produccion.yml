@@ -225,7 +225,18 @@ services:
     image: caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
     container_name: caemanager-caddy
     restart: unless-stopped
-    env_file: .env
+    # Solo las dos variables que el Caddyfile interpola ({$DOMINIO}, {$ACME_EMAIL}).
+    # Antes este servicio —el único con puertos publicados al exterior— cargaba el
+    # `.env` ENTERO (`env_file: .env`) y recibía la contraseña de PostgreSQL, la
+    # cadena de conexión de runtime, la clave de Anthropic, la contraseña SMTP, el
+    # secreto de cliente de Microsoft 365, las claves de Stripe... sin usar ninguna
+    # (hallazgo de la revisión de Codex de P18b). Compose interpola `${VAR}` desde
+    # el mismo `.env` del directorio de proyecto, como ya hace `db` con
+    # `${POSTGRES_PASSWORD}`. Contrato vigilado por
+    # deploy/ci-deploy-secretos.tests.sh (caso 17).
+    environment:
+      DOMINIO: ${DOMINIO}
+      ACME_EMAIL: ${ACME_EMAIL}
     ports:
       # Estos dos sí van al exterior: es el único servicio con superficie
       # pública del stack. Requiere que el 80/443 de la máquina/VPS estén
