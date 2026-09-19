@@ -124,23 +124,44 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
         base.SaveChangesFailed(eventData);
     }
 
+    /// <summary>
+    /// El parámetro <paramref name="cancellationToken"/> recibido de
+    /// <c>SavedChanges(Async)</c>/<c>SaveChangesFailed(Async)</c> se ignora a
+    /// propósito (hallazgo P2 de Codex, 8ª ronda): si el <c>SaveChanges</c>
+    /// que pisó <c>app.tenant_id</c> se cancela, ese mismo token llegaría ya
+    /// cancelado aquí, y una restauración que lanza <c>OperationCanceledException</c>
+    /// antes de completar dejaría el tenant RLS de sesión fijado en el
+    /// temporal (el propietario de la cuenta auditada) para el resto de
+    /// peticiones de este mismo <c>DbContext</c> —de vida larga, un circuito
+    /// Blazor Server—, filtrándolas contra el tenant equivocado. Restaurar es
+    /// limpieza, no trabajo cancelable: siempre corre con
+    /// <see cref="CancellationToken.None"/>.
+    /// </summary>
     private async Task RestaurarTenantDeSesionSiHizoFaltaAsync(DbContext context, CancellationToken cancellationToken)
     {
         if (_tenantDeSesionARestaurar is null) return;
 
         var valorARestaurar = _tenantDeSesionARestaurar;
-        _tenantDeSesionARestaurar = null;
-        await FijarTenantEnSesionRlsAsync(context, valorARestaurar, cancellationToken);
-
-        // Este SaveChanges ya no tiene ningún comando pendiente (acabamos de
-        // ejecutar el último, la restauración) — es el único momento seguro
-        // para devolver al contador de EF exactamente las aperturas
-        // explícitas que le sumamos, sin arriesgarnos a cerrar una conexión
-        // que el guardado real todavía necesitara.
-        while (_aperturasRlsPendientes > 0)
+        try
         {
-            await context.Database.CloseConnectionAsync();
-            _aperturasRlsPendientes--;
+            await FijarTenantEnSesionRlsAsync(context, valorARestaurar, CancellationToken.None);
+            // Solo se borra el centinela cuando la restauración YA completó:
+            // si falla, el valor original queda disponible para el próximo
+            // intento (ver el ??= en SellarYValidarAsync) en vez de perderse.
+            _tenantDeSesionARestaurar = null;
+        }
+        finally
+        {
+            // En un finally no cancelable: si FijarTenantEnSesionRlsAsync de
+            // arriba lanzó, las aperturas explícitas de conexión que ya
+            // acumulamos (sellar + este intento de restaurar) no deben
+            // quedar sin cerrar — sería el mismo leak del hallazgo P2 de la
+            // 7ª ronda, ahora por la ruta de fallo.
+            while (_aperturasRlsPendientes > 0)
+            {
+                await context.Database.CloseConnectionAsync();
+                _aperturasRlsPendientes--;
+            }
         }
     }
 
