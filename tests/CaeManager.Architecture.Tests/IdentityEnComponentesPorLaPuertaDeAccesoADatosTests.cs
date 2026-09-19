@@ -56,10 +56,10 @@ public class IdentityEnComponentesPorLaPuertaDeAccesoADatosTests
         "src/CaeManager.Web/Components/Account/Pages/LoginCon2fa.razor",
         "src/CaeManager.Web/Components/Account/Pages/OlvideContrasena.razor",
         "src/CaeManager.Web/Components/Account/Pages/RestablecerContrasena.razor",
-        // Interactivo, pero el acceso solo corre al pulsar «Conectar» (pasa el
-        // UserManager a EmisorTokenExtension.EmitirAsync): riesgo bajo, deuda
-        // registrada, no aceptada como correcta.
-        "src/CaeManager.Web/Features/Extension/Pages/ConectarExtension.razor",
+        // ConectarExtension.razor salió de esta lista en la misión N6/V4
+        // (2026-09-19): era el único componente INTERACTIVO congelado aquí —
+        // los demás son SSR estático— y su acceso (EmisorTokenExtension.
+        // EmitirAsync, que lee con UserManager) ya pasa por la puerta.
     ];
 
     private static readonly Regex InyectaGestorDeIdentity = new(
