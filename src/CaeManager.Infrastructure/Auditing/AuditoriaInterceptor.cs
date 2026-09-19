@@ -17,14 +17,17 @@ namespace CaeManager.Infrastructure.Auditing;
 /// <summary>
 /// Registra en RegistroAuditoria cada alta/modificación/baja de una entidad
 /// de dominio (ver ARCHITECTURE.md, "Auditoría y soft delete"), y también de
-/// las dos entidades de Identity que dejan rastro de quién gestiona a quién:
-/// <see cref="ApplicationUser"/> (alta, edición, baja, activación/desactivación
-/// de una cuenta) e <see cref="IdentityUserRole{TKey}"/> (concesión y
-/// revocación de un rol — el caso más grave, "quién hizo Administrador a
-/// quién", ver CIERRE-TURNO-NOCTURNO-2026-09-18.md § 12). Identity vive fuera
-/// del namespace CaeManager.Domain (Infrastructure.Identity), así que estas
-/// dos entran por una excepción explícita en vez de por el filtro de
-/// namespace — ver ConstruirRegistros. Enmascara antes de serializar las
+/// las cuatro entidades de Identity que dejan rastro de quién gestiona a
+/// quién y de cómo se entra a una cuenta: <see cref="ApplicationUser"/> (alta,
+/// edición, baja, activación/desactivación de una cuenta),
+/// <see cref="IdentityUserRole{TKey}"/> (concesión y revocación de un rol — el
+/// caso más grave, "quién hizo Administrador a quién", ver
+/// CIERRE-TURNO-NOCTURNO-2026-09-18.md § 12), <see cref="IdentityUserLogin{TKey}"/>
+/// (vinculación de un login externo/SSO) e <see cref="IdentityUserToken{TKey}"/>
+/// (el secreto del segundo factor). Identity vive fuera del namespace
+/// CaeManager.Domain (Infrastructure.Identity), así que estas cuatro entran
+/// por una excepción explícita en vez de por el filtro de namespace — ver
+/// <see cref="TiposDeIdentidadAuditados"/> y ConstruirRegistros. Enmascara antes de serializar las
 /// propiedades de PropiedadesSensiblesPorTipo, que hoy cubre estas familias:
 ///
 /// 1. Secretos cifrados por ValueConverter en CaeManagerDbContext
@@ -44,12 +47,53 @@ namespace CaeManager.Infrastructure.Auditing;
 ///    ni el remitente en una fila distinta ni un resumen generado a partir
 ///    del correo quedan exentos por ello. Ver el comentario de esas entradas.
 /// 4. Secretos de autenticación de <see cref="ApplicationUser"/>
-///    (PasswordHash, SecurityStamp): Identity los guarda en la misma fila que
-///    los datos que sí interesa auditar (rol, activación, nombre), así que no
-///    se puede excluir la entidad entera — solo estos dos campos.
+///    (PasswordHash, SecurityStamp) y de <see cref="IdentityUserToken{TKey}"/>
+///    (Value — el secreto TOTP del segundo factor, y las claves de
+///    recuperación): Identity los guarda en la misma fila que los datos que
+///    sí interesa auditar (rol, activación, nombre, qué proveedor y qué
+///    token), así que no se puede excluir la entidad entera — solo estos
+///    campos. Un registro de auditoría que copiara el secreto TOTP sería una
+///    segunda vía de suplantar el segundo factor, legible por el rol
+///    Administrador desde /auditoria.
 /// </summary>
 public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesInterceptor
 {
+    /// <summary>
+    /// Las entidades de Identity que se auditan pese a vivir fuera del
+    /// namespace de dominio, y el <c>EntidadTipo</c> en castellano con el que
+    /// se archiva cada una. Es la ÚNICA fuente de ese conjunto: la usan
+    /// <see cref="ConstruirRegistros"/> para decidir si una entrada entra,
+    /// <see cref="ResolverTipoEId"/> para nombrarla, y el trinquete
+    /// <c>EscritorasDeIdentitySinAuditarTests</c> para congelarla. Los
+    /// nombres viven en <see cref="EntidadTipoAuditoria"/> (Domain) porque
+    /// también los consumen <c>TenantSelladoInterceptor</c> y la pantalla
+    /// /auditoria — ver el comentario de esa clase.
+    ///
+    /// <para>
+    /// <b>Hueco declarado, no olvido: las bajas en cascada</b> (hallazgo de la
+    /// revisión de Codex, misión N6/V4). Este interceptor solo ve lo que está
+    /// en el <c>ChangeTracker</c>, y las tres tablas de relación cuelgan de
+    /// <c>AspNetUsers</c> con <c>ON DELETE CASCADE</c> (migración
+    /// <c>LineaBase</c>). Cuando algo borra una cuenta sin cargar antes sus
+    /// roles, sus logins y sus tokens —hoy, <c>RetiradaTenantDemoService</c>—,
+    /// PostgreSQL borra esas filas sin que EF llegue a verlas: queda auditada
+    /// la baja de la cuenta ("Usuario / Eliminado") pero no la de cada fila
+    /// dependiente. No lo abre este cambio: es el mismo hueco que tiene
+    /// "RolDeUsuario" desde #704, y se acepta con el mismo criterio —
+    /// desaparecen porque desapareció la cuenta, y esa sí deja rastro. Cerrarlo
+    /// exigiría que quien borra cargue las dependientes, y eso es un cambio de
+    /// ese servicio, no de este interceptor.
+    /// </para>
+    /// </summary>
+    public static readonly IReadOnlyDictionary<Type, string> TiposDeIdentidadAuditados =
+        new Dictionary<Type, string>
+        {
+            [typeof(ApplicationUser)] = EntidadTipoAuditoria.Usuario,
+            [typeof(IdentityUserRole<Guid>)] = EntidadTipoAuditoria.RolDeUsuario,
+            [typeof(IdentityUserLogin<Guid>)] = EntidadTipoAuditoria.LoginExterno,
+            [typeof(IdentityUserToken<Guid>)] = EntidadTipoAuditoria.TokenDeUsuario,
+        };
+
     private static readonly Dictionary<Type, HashSet<string>> PropiedadesSensiblesPorTipo = new()
     {
         [typeof(CanalGestionDocumental)] = [nameof(CanalGestionDocumental.Usuario), nameof(CanalGestionDocumental.Contrasena)],
@@ -95,7 +139,18 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
         // contraseña — el resto de la fila (rol, activación, nombre) sí
         // interesa auditar, así que se enmascaran los dos campos, no se
         // excluye la entidad.
-        [typeof(ApplicationUser)] = [nameof(ApplicationUser.PasswordHash), nameof(ApplicationUser.SecurityStamp)]
+        [typeof(ApplicationUser)] = [nameof(ApplicationUser.PasswordHash), nameof(ApplicationUser.SecurityStamp)],
+
+        // Mismo punto 4: el VALOR del token es el secreto. En
+        // AspNetUserTokens ese valor es, para el proveedor
+        // "[AspNetUserStore]" / nombre "AuthenticatorKey", la clave TOTP en
+        // claro (Identity no la cifra en reposo) — copiarla al historial la
+        // pondría al alcance de /auditoria, que lee el rol Administrador. Lo
+        // que SÍ queda es qué proveedor y qué token cambiaron, y en qué
+        // cuenta, que es lo que el registro existe para responder. Las claves
+        // de recuperación de dos factores comparten tabla y quedan
+        // enmascaradas por el mismo camino.
+        [typeof(IdentityUserToken<Guid>)] = [nameof(IdentityUserToken<Guid>.Value)]
     };
 
     /// <summary>
@@ -188,7 +243,7 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
             if (entrada.Entity is RegistroAccesoDocumentoSensible) continue;
 
             var esDominio = entrada.Entity.GetType().Namespace?.StartsWith("CaeManager.Domain", StringComparison.Ordinal) == true;
-            var esIdentidadAuditada = entrada.Entity is ApplicationUser or IdentityUserRole<Guid>;
+            var esIdentidadAuditada = TiposDeIdentidadAuditados.ContainsKey(entrada.Entity.GetType());
             if (!esDominio && !esIdentidadAuditada) continue;
             if (entrada.State is not (EntityState.Added or EntityState.Modified or EntityState.Deleted)) continue;
 
@@ -239,21 +294,25 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
     }
 
     /// <summary>
-    /// El nombre de tipo y el Id bajo los que se archiva la fila.
-    /// <see cref="IdentityUserRole{TKey}"/> no tiene propiedad "Id" (su clave
-    /// es el par UserId+RoleId), así que el camino genérico
-    /// (<c>entrada.Property("Id")</c>) lanzaría; se usa UserId como
-    /// EntidadId — es "a quién se le concedió o quitó el rol", que es
-    /// exactamente lo que este registro existe para responder. El nombre de
-    /// tipo de las dos entidades de Identity se sustituye por uno en
-    /// castellano ("Usuario", "RolDeUsuario") en vez del nombre de clase de
+    /// El nombre de tipo y el Id bajo los que se archiva la fila. Las tres
+    /// tablas de relación de Identity no tienen propiedad "Id" (su clave es
+    /// compuesta: UserId+RoleId, LoginProvider+ProviderKey,
+    /// UserId+LoginProvider+Name), así que el camino genérico
+    /// (<c>entrada.Property("Id")</c>) lanzaría; en las tres se usa UserId
+    /// como EntidadId — es "a quién le pasó esto", que es exactamente lo que
+    /// estos registros existen para responder, y lo que la pantalla
+    /// /auditoria resuelve a un nombre de cuenta. El nombre de tipo de las
+    /// cuatro entidades de Identity se sustituye por uno en castellano (ver
+    /// <see cref="TiposDeIdentidadAuditados"/>) en vez del nombre de clase de
     /// Identity — mismo criterio que el resto de EntidadTipo, que ya son
     /// nombres de dominio en castellano (Cliente, Empresa, Trabajador...).
     /// </summary>
     private static (string Tipo, Guid Id) ResolverTipoEId(EntityEntry entrada) => entrada.Entity switch
     {
-        ApplicationUser usuario => ("Usuario", usuario.Id),
-        IdentityUserRole<Guid> rol => ("RolDeUsuario", rol.UserId),
+        ApplicationUser usuario => (EntidadTipoAuditoria.Usuario, usuario.Id),
+        IdentityUserRole<Guid> rol => (EntidadTipoAuditoria.RolDeUsuario, rol.UserId),
+        IdentityUserLogin<Guid> login => (EntidadTipoAuditoria.LoginExterno, login.UserId),
+        IdentityUserToken<Guid> token => (EntidadTipoAuditoria.TokenDeUsuario, token.UserId),
         _ => (entrada.Entity.GetType().Name, entrada.Property("Id").CurrentValue as Guid? ?? Guid.Empty)
     };
 

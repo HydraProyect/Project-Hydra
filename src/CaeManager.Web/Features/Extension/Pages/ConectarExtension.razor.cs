@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Json.Serialization;
+using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Autenticacion;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
@@ -40,6 +41,7 @@ public partial class ConectarExtension : ComponentBase, IAsyncDisposable
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private IDataProtectionProvider DataProtectionProvider { get; set; } = default!;
+    [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
     [Inject] private IConfiguration Configuracion { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
@@ -80,7 +82,17 @@ public partial class ConectarExtension : ComponentBase, IAsyncDisposable
                 return;
             }
 
-            var resultado = await EmisorTokenExtension.EmitirAsync(usuarioId, UserManager, DataProtectionProvider);
+            // Por la puerta: UserManager no pasa por MediatR, así que nada
+            // serializa su acceso al CaeManagerDbContext scoped del circuito
+            // (ver PuertaAccesoDatos). Esta página es interactiva y el
+            // DbContext lo comparte con el layout: pulsar "Generar token"
+            // mientras MainLayout todavía resuelve su propia carga —o
+            // mientras ActividadUsuarioService escribe— es exactamente la
+            // carrera de "A second operation was started on this context
+            // instance" que la puerta existe para evitar. Antes era deuda
+            // registrada en IdentityEnComponentesPorLaPuertaDeAccesoADatosTests.
+            var resultado = await PuertaAccesoDatos.EjecutarAsync(() =>
+                EmisorTokenExtension.EmitirAsync(usuarioId, UserManager, DataProtectionProvider));
             if (resultado.EsFallido)
             {
                 _error = resultado.Error.Mensaje;

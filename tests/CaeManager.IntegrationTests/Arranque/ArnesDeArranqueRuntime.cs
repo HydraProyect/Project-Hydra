@@ -55,7 +55,10 @@ internal sealed class ArnesDeArranqueRuntime : IAsyncDisposable
     /// apuntando a la identidad de tráfico.
     /// </summary>
     internal static async Task<ArnesDeArranqueRuntime> CrearAsync(
-        bool datosDePruebaActivos, bool segundoTenantActivo = false, ITenantActual? tenantActualPersonalizado = null)
+        bool datosDePruebaActivos,
+        bool segundoTenantActivo = false,
+        ITenantActual? tenantActualPersonalizado = null,
+        IActorAuditoria? actorAuditoriaPersonalizado = null)
     {
         var cadenaPropietario = BaseDatosPostgresDePruebas.CadenaConexionUnica();
 
@@ -112,7 +115,13 @@ internal sealed class ArnesDeArranqueRuntime : IAsyncDisposable
         // moria con 42501 contra su propia politica. El sintoma apuntaba a RLS y
         // la causa era el arnes: exactamente el fallo que la regla "el arnes debe
         // reproducir el cableado de produccion" existe para evitar.
-        servicios.AddSingleton<IActorAuditoria>(new ActorDeArranque());
+        // El arranque no tiene sesión, pero un test que mida QUÉ AUTORÍA
+        // queda escrita —la separación entre Actor real y Usuario simulado de
+        // una Sesión Privilegiada, ADR-011 § 8.5— necesita un actor resuelto:
+        // mismo patrón que tenantActualPersonalizado, y por el mismo motivo
+        // (reproducir una condición real que el arranque no tiene, sin
+        // desmontar el resto del cableado de producción).
+        servicios.AddSingleton<IActorAuditoria>(actorAuditoriaPersonalizado ?? new ActorDeArranque());
         servicios.AddScoped<AuditoriaInterceptor>();
         servicios.AddScoped<TenantSelladoInterceptor>();
         servicios.AddScoped<TenantRlsConnectionInterceptor>();

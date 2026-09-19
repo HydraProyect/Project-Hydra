@@ -172,12 +172,18 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
         // Solo se propaga una vez por SaveChanges, y solo cuando hace falta:
         // un roundtrip extra a Postgres por cada fila auditada de Identity
         // sería desperdiciado si dos filas del mismo lote resuelven el mismo
-        // tenant, que es el caso único que hoy produce este código (una sola
-        // ApplicationUser por SaveChanges). Si algún día un mismo SaveChanges
+        // tenant, que es el caso único que hoy produce este código (todas las
+        // filas de Identity de un SaveChanges pertenecen a la MISMA cuenta:
+        // UserManager opera sobre un ApplicationUser a la vez, y sus roles,
+        // logins y tokens cuelgan de él). Si algún día un mismo SaveChanges
         // auditara cuentas de DOS tenants distintos a la vez, esta variable
-        // de sesión solo reflejaría la última — no ocurre hoy (UserManager
-        // opera sobre un ApplicationUser a la vez) y queda fuera de alcance
-        // ampliarlo sin que aparezca un caso real.
+        // de sesión solo reflejaría la última y RLS rechazaría las demás con
+        // 42501 —la política compara contra un único app.tenant_id por
+        // conexión—; el lote entero se revertiría, así que sería un fallo
+        // ruidoso, no una fila sellada con el tenant equivocado. Confirmado
+        // por la revisión de Codex de la misión N6/V4, que no encontró
+        // ningún camino de producción que construya ese lote: queda fuera de
+        // alcance ampliarlo sin que aparezca un caso real.
         Guid? tenantYaPropagadoARls = null;
 
         // ToList: la rama de reclasificación de abajo cambia el State de una
@@ -323,10 +329,12 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
     }
 
     /// <summary>
-    /// Solo para <see cref="RegistroAuditoria"/> de las dos excepciones de
+    /// Solo para <see cref="RegistroAuditoria"/> de las excepciones de
     /// Identity que <c>AuditoriaInterceptor</c> audita fuera del namespace de
-    /// dominio (<c>ApplicationUser</c>, <c>IdentityUserRole{Guid}</c>, ver su
-    /// comentario de clase). A diferencia de una entidad de dominio, cuyo
+    /// dominio (<c>ApplicationUser</c>, <c>IdentityUserRole{Guid}</c>,
+    /// <c>IdentityUserLogin{Guid}</c>, <c>IdentityUserToken{Guid}</c> — ver
+    /// <c>EntidadTipoAuditoria</c>, la única fuente de esos nombres). A
+    /// diferencia de una entidad de dominio, cuyo
     /// TenantId solo puede venir de una sesión resuelta —nunca de la propia
     /// entidad, que sería confiar en un dato que el llamante controla—, aquí
     /// el tenant no es una decisión de autorización: es un hecho que ya vive
@@ -342,18 +350,25 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
     /// que introdujo la auditoría de Identity).
     ///
     /// El <see cref="ApplicationUser"/> referenciado por <c>EntidadId</c>
-    /// SIEMPRE está en el mismo <c>ChangeTracker</c> que el
-    /// <c>RegistroAuditoria</c> que lo audita —es la entidad que disparó su
-    /// creación, en el mismo <c>SaveChanges</c>— así que esto no añade
-    /// ninguna consulta a base de datos ni ninguna confianza nueva: lee un
-    /// valor que la propia operación ya tenía delante. Si no se encuentra
-    /// (no debería ocurrir mientras solo <c>AuditoriaInterceptor</c> cree
-    /// estas dos filas), sigue fallando cerrado como cualquier otra entidad.
+    /// está en el mismo <c>DbContext</c> que el <c>RegistroAuditoria</c> que
+    /// lo audita: o es la entidad que disparó su creación (alta/edición de la
+    /// cuenta), o es el usuario que <c>UserManager</c> recibió como argumento
+    /// y que este mismo contexto cargó antes de escribir su rol, su login
+    /// externo o su token (<c>UserStore</c> opera sobre el
+    /// <c>CaeManagerDbContext</c> del scope, ver
+    /// <c>AddEntityFrameworkStores</c>). Por eso basta con buscarlo entre las
+    /// entradas del <c>ChangeTracker</c> —incluidas las <c>Unchanged</c>, que
+    /// es como queda un usuario recién cargado por <c>FindByIdAsync</c>—: no
+    /// añade una consulta a base de datos ni ninguna confianza nueva, lee un
+    /// valor que la propia operación ya tenía delante. Si no se
+    /// encuentra, sigue fallando cerrado como cualquier otra entidad: el
+    /// tenant lo pondrá la sesión, o no habrá tenant y el <c>SaveChanges</c>
+    /// se rechazará en vez de escribir una fila que no se sabe de quién es.
     /// </summary>
     private static Guid? ResolverTenantDeIdentidadAuditada(DbContext context, object entidad)
     {
         if (entidad is not RegistroAuditoria registro) return null;
-        if (registro.EntidadTipo is not ("Usuario" or "RolDeUsuario")) return null;
+        if (!EntidadTipoAuditoria.TodosLosDeIdentidad.Contains(registro.EntidadTipo)) return null;
 
         var usuario = context.ChangeTracker.Entries<ApplicationUser>()
             .FirstOrDefault(e => e.Entity.Id == registro.EntidadId)?.Entity;

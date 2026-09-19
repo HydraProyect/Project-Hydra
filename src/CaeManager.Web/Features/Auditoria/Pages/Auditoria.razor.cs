@@ -5,6 +5,7 @@ using CaeManager.Application.Clientes.Commands.RestaurarCliente;
 using CaeManager.Application.Documentos.Commands.RestaurarDocumento;
 using CaeManager.Application.Empresas.Commands.RestaurarEmpresa;
 using CaeManager.Application.Trabajadores.Commands.RestaurarTrabajador;
+using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components;
@@ -18,13 +19,15 @@ namespace CaeManager.Web.Features.Auditoria.Pages;
 public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 {
     // Catálogo fijo de agregados de dominio auditables (ver
-    // AuditoriaInterceptor: EntidadTipo es el nombre simple de la clase).
-    // "Usuario" y "RolDeUsuario" no son entidades de CaeManager.Domain —
-    // son las dos excepciones de Identity que AuditoriaInterceptor.ResolverTipoEId
-    // nombra explícitamente en castellano (ver su comentario).
+    // AuditoriaInterceptor: EntidadTipo es el nombre simple de la clase), más
+    // las excepciones de Identity, que no son entidades de CaeManager.Domain
+    // — AuditoriaInterceptor.ResolverTipoEId las nombra explícitamente en
+    // castellano (ver EntidadTipoAuditoria, la única fuente de esos nombres:
+    // así el filtro crece con el interceptor en vez de quedarse atrás y
+    // esconder del desplegable un tipo que sí se está registrando).
     private static readonly string[] TiposEntidad =
-        ["Cliente", "Empresa", "Centro", "Trabajador", "TipoDocumento", "Documento", "Asignacion", "ParametroSistema",
-            "Usuario", "RolDeUsuario"];
+        [.. new[] { "Cliente", "Empresa", "Centro", "Trabajador", "TipoDocumento", "Documento", "Asignacion", "ParametroSistema" },
+            .. EntidadTipoAuditoria.TodosLosDeIdentidad];
 
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
@@ -130,7 +133,7 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
             if (version != _versionCarga)
                 return;
 
-            // Además del autor (UsuarioId), para "Usuario"/"RolDeUsuario"
+            // Además del autor (UsuarioId), para los tipos de Identity
             // EntidadId TAMBIÉN es un Id de ApplicationUser — la cuenta
             // afectada. Sin resolverlo aquí, una fila "RolDeUsuario /
             // Creado" no dice a quién se le concedió el rol (hallazgo de
@@ -138,7 +141,7 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
             // registro es correcto en base de datos, pero la pantalla no
             // podía responder el caso que la auditoría existe para responder.
             var idsFaltantes = resultado.Elementos
-                .SelectMany(r => r.EntidadTipo is "Usuario" or "RolDeUsuario"
+                .SelectMany(r => EntidadTipoAuditoria.TodosLosDeIdentidad.Contains(r.EntidadTipo)
                     ? new Guid?[] { r.UsuarioId, r.EntidadId }
                     : new Guid?[] { r.UsuarioId })
                 .Where(id => id is not null && !_usuariosPorId.ContainsKey(id.Value))
@@ -253,15 +256,17 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
         usuarioId is null ? "Sistema" : _usuariosPorId.GetValueOrDefault(usuarioId.Value, "—");
 
     /// <summary>
-    /// Solo para "Usuario"/"RolDeUsuario": la cuenta afectada (EntidadId es
-    /// un Id de ApplicationUser en esos dos tipos, ver
+    /// Solo para los tipos de Identity: la cuenta afectada (EntidadId es
+    /// un Id de ApplicationUser en todos ellos, ver
     /// AuditoriaInterceptor.ResolverTipoEId). <c>null</c> para el resto de
     /// entidades, que no tienen esta ambigüedad ("Cliente" ya nombra la fila
     /// en su propio EntidadTipo visualmente, aunque tampoco resuelva un
     /// nombre — deuda compartida, no la abre esta pantalla).
     /// </summary>
     private string? NombreEntidadAfectada(RegistroAuditoriaListaDto registro) =>
-        registro.EntidadTipo is "Usuario" or "RolDeUsuario" ? NombreUsuario(registro.EntidadId) : null;
+        EntidadTipoAuditoria.TodosLosDeIdentidad.Contains(registro.EntidadTipo)
+            ? NombreUsuario(registro.EntidadId)
+            : null;
 
     /// <summary>
     /// Solo para "RolDeUsuario" con <see cref="RegistroAuditoriaListaDto.RolId"/>
