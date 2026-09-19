@@ -64,7 +64,15 @@ public partial class BotonCopiar : ComponentBase, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        if (_modulo is not null)
+        if (_modulo is null) return;
+
+        try
+        {
             await _modulo.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+            // El circuito ya se cerró: no hay módulo que liberar.
+        }
     }
 }
