@@ -34,7 +34,9 @@ public sealed class TheorySiHayClaveIaAttribute : TheoryAttribute
         {
             Skip = $"Requiere una clave real de {seccionConfiguracion} en la variable de entorno " +
                    $"\"{variableEntorno}\" — no configurada en este entorno. Ver MACRO_PLAN § 6.6 " +
-                   "y docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.1.";
+                   "y docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.1. En CI la clave de Anthropic solo la aporta el workflow " +
+                   "integraciones-con-clave.yml (secreto CI_ANTHROPIC_API_KEY, push a main o a mano): en los bloques de " +
+                   "ci.yml este test se OMITE por diseño, y un verde con este aviso no es cobertura de la regresión de prompts.";
         }
     }
 }

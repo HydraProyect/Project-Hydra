@@ -1,0 +1,267 @@
+name: Integraciones con clave de CI (IA y Stripe modo prueba)
+
+# Ejecuta los tests que necesitan una clave REAL de un proveedor externo y que
+# hasta ahora se saltaban en silencio (D-4 / REC-013): la regresión de prompts
+# de IA documental (Anthropic) y el salto del SDK de Stripe contra la API en
+# modo prueba.
+#
+# DÓNDE VIVEN LOS SECRETOS, Y POR QUÉ ASÍ (decisiones P13/P18 del 2026-09-19;
+# la primera versión de este workflow, con secretos de repositorio y disparo
+# por la cola de fusión, fue refutada por la revisión de Codex).
+# Un secreto de Actions se entrega según QUIÉN dispara el workflow, y en un
+# repositorio público el workflow que corre es el de la RAMA que lo dispara:
+#   - PR de fork y PR de Dependabot: GitHub NO les pasa los secretos del
+#     repositorio (los de Dependabot viven en otro almacén, que aquí no se usa).
+#   - Rama de la propia organización (PR, `push` o `workflow_dispatch --ref`): SÍ
+#     los recibe, y quien tiene escritura puede subir una rama con un workflow
+#     que los imprima. Un guion de CI no lo impide: el guion también viaja en la
+#     rama.
+# La única barrera que una rama no puede reescribir es un ENVIRONMENT con
+# política de ramas: sus secretos solo se entregan a un job que lo declara Y
+# cuya rama esa política admite. Por eso:
+#   - las dos claves son secretos del ENVIRONMENT `ci-integraciones` (Settings →
+#     Environments), con «Deployment branches: Selected branches → main»; NUNCA
+#     secretos de repositorio ni de organización;
+#   - cada job que las cita declara `environment: ci-integraciones`;
+#   - el disparo es `push` a `main` (una ejecución por fusión, que además acota
+#     el gasto) o `workflow_dispatch` — que solo sirve sobre `main`, porque la
+#     política deniega cualquier otra rama. Un `merge_group` se descartó a
+#     propósito: no se ha podido comprobar cómo trata la política de ramas del
+#     environment a las ramas temporales de la cola de fusión, y un `main` a
+#     secas no deja esa duda;
+#   - NO hay `pull_request` ni `pull_request_target`.
+# scripts/verificar-secretos-de-ci.sh (job deploy-script-tests de ci.yml) hace
+# fallar el CI si un cambio de buena fe rompe esta disposición. Es una red contra
+# accidentes; contra un adversario con escritura, la barrera real es la política
+# del environment, que solo el propietario puede tocar.
+#
+# ESTE WORKFLOW NO ES UN CHECK OBLIGATORIO de la protección de `main`: en rojo
+# se ve pero no bloquea la cola. Convertirlo en obligatorio es una decisión del
+# propietario (un proveedor caído bloquearía todas las fusiones). Como corre
+# DESPUÉS de fusionar, detecta una regresión de prompts, no la impide.
+#
+# SIN CLAVE: los jobs terminan en verde pero DECLARAN, con un aviso (`::warning`)
+# y un resumen en la ejecución, que los tests NO se ejecutaron. Un verde con esa
+# declaración no es cobertura. Con clave, un test que se salte igualmente
+# (variable mal nombrada, filtro que no casa) hace fallar el job: se cuenta
+# sobre el .trx, no sobre el código de salida de `dotnet test`.
+#
+# NOMBRES DE SECRETO (secretos del environment `ci-integraciones`; los crea el
+# propietario — guía paso a paso en Project-Hydra-Negocio/tecnico/
+# ACCIONES-PROPIETARIO-SECRETOS-CI-2026-09-19.md):
+#   CI_ANTHROPIC_API_KEY     — clave de la API de Anthropic EXCLUSIVA de CI,
+#                              distinta de la de producción (`Anthropic__ApiKey`,
+#                              environment `produccion`).
+#   CI_STRIPE_TEST_API_KEY   — clave de Stripe en MODO PRUEBA (sk_test_/rk_test_).
+#                              Una clave de producción hace fallar el job.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Ninguna de las dos claves necesita escribir en el repositorio.
+permissions:
+  contents: read
+
+concurrency:
+  group: integraciones-con-clave-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  regresion-prompts-ia:
+    name: Regresión de prompts de IA (Anthropic, clave de CI)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: ci-integraciones
+    # El ensamblado de IntegrationTests toca PostgreSQL al cargarse (inicializador
+    # de módulo del bootstrap de clúster): sin base, xUnit ni siquiera descubre
+    # bien los tests (ver el comentario de ci.yml, "Repartir las clases").
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # La clave entra en el paso SOLO por `env:` y solo se mide su forma; nunca
+      # se imprime, ni completa ni en parte. GitHub la enmascara en los logs, pero
+      # no se confía en eso: ningún comando de este job la escribe.
+      - name: Comprobar la clave de Anthropic de CI
+        id: clave
+        env:
+          CLAVE: ${{ secrets.CI_ANTHROPIC_API_KEY }}
+          EVENTO: ${{ github.event_name }}
+          RAMA: ${{ github.ref_name }}
+        run: |
+          if [ -z "${CLAVE:-}" ]; then
+            echo "hay_clave=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Regresión de prompts de IA NO ejecutada::El secreto CI_ANTHROPIC_API_KEY no existe en el environment ci-integraciones o no llega a esta rama. Los tests de RegresionPromptsIaTests NO se han ejecutado: este verde no es cobertura."
+            {
+              echo "### 🟡 Regresión de prompts de IA — NO ejecutada"
+              echo ""
+              echo "El secreto \`CI_ANTHROPIC_API_KEY\` del environment \`ci-integraciones\` no está definido (o no llega a este disparador/rama: \`${EVENTO}\` en \`${RAMA}\`)."
+              echo "Los tests de \`RegresionPromptsIaTests\` no se han ejecutado; **este verde no es cobertura**."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # Una clave de administración de Anthropic puede crear y borrar claves
+          # y ver la facturación: no es «privilegio mínimo». Las de uso de la API
+          # empiezan por sk-ant-api.
+          case "$CLAVE" in
+            sk-ant-admin*)
+              echo "::error title=Clave de administración::CI_ANTHROPIC_API_KEY es una clave de ADMINISTRACIÓN de Anthropic (sk-ant-admin…). Usa una clave de la API de un workspace acotado, sin privilegios de administración."
+              exit 1
+              ;;
+            sk-ant-api*) ;;
+            *)
+              echo "::error title=Formato de clave inesperado::CI_ANTHROPIC_API_KEY no empieza por sk-ant-api. No se ejecuta nada con una clave que no se reconoce."
+              exit 1
+              ;;
+          esac
+          echo "hay_clave=true" >> "$GITHUB_OUTPUT"
+
+      - name: Instalar .NET SDK
+        if: steps.clave.outputs.hay_clave == 'true'
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: "10.0.3xx"
+
+      - name: Restaurar y compilar los tests de integración
+        if: steps.clave.outputs.hay_clave == 'true'
+        run: |
+          dotnet restore CaeManager.slnx
+          dotnet build tests/CaeManager.IntegrationTests --no-restore -warnaserror
+
+      - name: Bootstrap de roles de clúster
+        if: steps.clave.outputs.hay_clave == 'true'
+        env:
+          PGPASSWORD: postgres
+        run: >
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1
+          -f deploy/bootstrap/roles-de-cluster.sql
+
+      # Solo los tests de Anthropic: Gemini y Mistral siguen sin clave y siguen
+      # declarándose omitidos en los bloques de ci.yml. La variable lleva el
+      # nombre que espera la aplicación (`Anthropic__ApiKey`), tomada del secreto
+      # DE CI: en este paso y solo en este.
+      - name: Ejecutar la regresión de prompts (Anthropic)
+        if: steps.clave.outputs.hay_clave == 'true'
+        env:
+          Anthropic__ApiKey: ${{ secrets.CI_ANTHROPIC_API_KEY }}
+        run: >
+          dotnet test tests/CaeManager.IntegrationTests --no-build
+          --filter "FullyQualifiedName~RegresionPromptsIaTests.Anthropic_"
+          --logger "trx;LogFileName=regresion-ia.trx" --results-directory ./resultados-ia
+
+      - name: Comprobar que los tests se ejecutaron de verdad
+        if: steps.clave.outputs.hay_clave == 'true'
+        run: |
+          trx=$(find resultados-ia -name "regresion-ia.trx" | head -1)
+          if [ -z "$trx" ]; then
+            echo "::error::No se generó ningún .trx: no hay prueba de que se ejecutara nada."
+            exit 1
+          fi
+          pasados=$(grep -o 'outcome="Passed"' "$trx" | wc -l)
+          omitidos=$(grep -o 'outcome="NotExecuted"' "$trx" | wc -l)
+          echo "Regresión de prompts de IA — pasados: $pasados, omitidos: $omitidos"
+          if [ "$omitidos" -gt 0 ] || [ "$pasados" -eq 0 ]; then
+            echo "::error::Con clave configurada, ningún test de Anthropic puede quedar omitido y al menos uno debe haber pasado (pasados=$pasados, omitidos=$omitidos). Verde falso descartado."
+            exit 1
+          fi
+          {
+            echo "### ✅ Regresión de prompts de IA (Anthropic) — $pasados casos ejecutados, 0 omitidos"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  stripe-modo-prueba:
+    name: Stripe en modo prueba (clave de CI)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: ci-integraciones
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Comprobar la clave de Stripe de CI
+        id: clave
+        env:
+          CLAVE: ${{ secrets.CI_STRIPE_TEST_API_KEY }}
+          EVENTO: ${{ github.event_name }}
+          RAMA: ${{ github.ref_name }}
+        run: |
+          if [ -z "${CLAVE:-}" ]; then
+            echo "hay_clave=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Stripe modo prueba NO ejecutado::El secreto CI_STRIPE_TEST_API_KEY no existe en el environment ci-integraciones o no llega a esta rama. Los tests de StripeModoPruebaTests que usan la API real NO se han ejecutado: este verde no es cobertura."
+            {
+              echo "### 🟡 Stripe en modo prueba — NO ejecutado"
+              echo ""
+              echo "El secreto \`CI_STRIPE_TEST_API_KEY\` del environment \`ci-integraciones\` no está definido (o no llega a este disparador/rama: \`${EVENTO}\` en \`${RAMA}\`)."
+              echo "Los tests contra la API de Stripe no se han ejecutado; **este verde no es cobertura**."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # Rechazo de producción ANTES de que ningún paso posterior use la clave.
+          # No hay ningún camino de esta ejecución en el que una clave live salga
+          # del runner.
+          case "$CLAVE" in
+            sk_live_*|rk_live_*)
+              echo "::error title=Clave de PRODUCCIÓN de Stripe en CI::CI_STRIPE_TEST_API_KEY es una clave de producción (sk_live_/rk_live_). En GitHub solo se admiten claves de modo prueba (decisión P18, 2026-09-19). Retírala del secreto y revócala en el panel de Stripe: se ha expuesto a este workflow."
+              exit 1
+              ;;
+            sk_test_*|rk_test_*) ;;
+            *)
+              echo "::error title=Formato de clave inesperado::CI_STRIPE_TEST_API_KEY no empieza por sk_test_ ni rk_test_. No se ejecuta nada con una clave que no se reconoce."
+              exit 1
+              ;;
+          esac
+          echo "hay_clave=true" >> "$GITHUB_OUTPUT"
+
+      - name: Instalar .NET SDK
+        if: steps.clave.outputs.hay_clave == 'true'
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: "10.0.3xx"
+
+      - name: Restaurar y compilar los tests de la Web
+        if: steps.clave.outputs.hay_clave == 'true'
+        run: |
+          dotnet restore CaeManager.slnx
+          dotnet build tests/CaeManager.Web.Tests --no-restore -warnaserror
+
+      - name: Ejecutar los tests de Stripe en modo prueba
+        if: steps.clave.outputs.hay_clave == 'true'
+        env:
+          Stripe__ApiKey: ${{ secrets.CI_STRIPE_TEST_API_KEY }}
+        run: >
+          dotnet test tests/CaeManager.Web.Tests --no-build
+          --filter "FullyQualifiedName~StripeModoPruebaTests"
+          --logger "trx;LogFileName=stripe-prueba.trx" --results-directory ./resultados-stripe
+
+      - name: Comprobar que los tests de la API real se ejecutaron
+        if: steps.clave.outputs.hay_clave == 'true'
+        run: |
+          trx=$(find resultados-stripe -name "stripe-prueba.trx" | head -1)
+          if [ -z "$trx" ]; then
+            echo "::error::No se generó ningún .trx: no hay prueba de que se ejecutara nada."
+            exit 1
+          fi
+          omitidos=$(grep -o 'outcome="NotExecuted"' "$trx" | wc -l)
+          # Los dos tests que usan la clave, por nombre: que pasen es lo que
+          # distingue «la clave llegó y autenticó» de «solo corrió el detector».
+          vivos=$(grep -E 'testName="[^"]*(La_clave_de_prueba_autentica|El_proveedor_real_devuelve)[^"]*"' "$trx" | grep -c 'outcome="Passed"' || true)
+          echo "Stripe modo prueba — tests de la API real pasados: $vivos de 2, omitidos: $omitidos"
+          if [ "$omitidos" -gt 0 ] || [ "$vivos" -ne 2 ]; then
+            echo "::error::Con clave configurada, los dos tests de la API real deben pasar y ninguno omitirse (pasados=$vivos, omitidos=$omitidos). Verde falso descartado."
+            exit 1
+          fi
+          echo "### ✅ Stripe en modo prueba — 2 tests de la API real ejecutados y pasados" >> "$GITHUB_STEP_SUMMARY"
