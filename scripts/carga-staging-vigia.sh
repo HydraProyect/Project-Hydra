@@ -181,6 +181,8 @@ main() {
     BASE_S="${BASE_S:-30}"
     CARGA_S="${CARGA_S:-300}"
     RECUP_S="${RECUP_S:-60}"
+    # Margen para lo que k6 añade a las etapas (gracefulRampDown 5 s + gracefulStop 5 s) y su arranque.
+    MARGEN_S="${MARGEN_S:-15}"
     VUS_MAX="${VUS_MAX:-20}"
     MOTIVO_ABORTO=""
     PID_K6=""
@@ -194,7 +196,7 @@ main() {
     case "$URL_PRODUCCION" in *staging*) echo "URL_PRODUCCION no puede ser staging: $URL_PRODUCCION" >&2; return 2 ;; https://*) ;; *) echo "URL_PRODUCCION debe ser https://…" >&2; return 2 ;; esac
     case "$VUS_MAX" in ''|*[!0-9]*) echo "VUS_MAX debe ser un entero." >&2; return 2 ;; esac
     if [ "$VUS_MAX" -lt 5 ] || [ "$VUS_MAX" -gt 60 ]; then echo "VUS_MAX fuera de 5..60: $VUS_MAX" >&2; return 2; fi
-    SEGUNDOS_MUESTREO=$(( BASE_S + CARGA_S + RECUP_S ))
+    SEGUNDOS_MUESTREO=$(( BASE_S + CARGA_S + MARGEN_S + RECUP_S ))
     if [ "$SEGUNDOS_MUESTREO" -gt "$DURACION_MAX_MUESTREO" ]; then
         echo "La ventana de muestreo (${SEGUNDOS_MUESTREO} s) supera el techo de ${DURACION_MAX_MUESTREO} s del VPS." >&2; return 2
     fi

@@ -174,7 +174,7 @@ lanzar "URL_PRODUCCION=http://app.example.test";         [ "$CODIGO" -eq 2 ] || 
 lanzar "VUS_MAX=61";                                     [ "$CODIGO" -eq 2 ] || fallo "VUS_MAX=61 debía dar 2 (dio $CODIGO)"
 lanzar "VUS_MAX=4";                                      [ "$CODIGO" -eq 2 ] || fallo "VUS_MAX=4 debía dar 2 (dio $CODIGO)"
 lanzar "VUS_MAX=20; id";                                 [ "$CODIGO" -eq 2 ] || fallo "VUS_MAX con inyección debía dar 2 (dio $CODIGO)"
-lanzar "BASE_S=30" "CARGA_S=300" "RECUP_S=91";           [ "$CODIGO" -eq 2 ] || fallo "ventana de muestreo de 421 s debía dar 2 (dio $CODIGO)"
+lanzar "BASE_S=30" "CARGA_S=300" "RECUP_S=76";           [ "$CODIGO" -eq 2 ] || fallo "ventana de muestreo de 421 s debía dar 2 (dio $CODIGO)"
 echo "OK"
 
 echo "=== B3: ejecución completa sin abortar ==="
@@ -184,7 +184,7 @@ grep -q "BASE_URL=https://staging.example.test" "$TMP/f/k6.args" || fallo "k6 no
 grep -q "VUS_MAX=20" "$TMP/f/k6.args" || fallo "k6 no recibió VUS_MAX"
 ! grep -q "app.example.test" "$TMP/f/k6.args" || fallo "k6 recibió la URL de producción"
 [ "$(sed -n 1p "$TMP/f/ssh.calls")" = "muestreo-memoria 10 2" ] || fallo "la verificación previa del muestreo debía ser 'muestreo-memoria 10 2': $(sed -n 1p "$TMP/f/ssh.calls")"
-[ "$(sed -n 2p "$TMP/f/ssh.calls")" = "muestreo-memoria 8 3" ] || fallo "el muestreo largo debía ser BASE+CARGA+RECUP = 8 s cada 3: $(sed -n 2p "$TMP/f/ssh.calls")"
+[ "$(sed -n 2p "$TMP/f/ssh.calls")" = "muestreo-memoria 23 3" ] || fallo "el muestreo largo debía ser BASE+CARGA+MARGEN+RECUP = 2+5+15+1 = 23 s cada 3: $(sed -n 2p "$TMP/f/ssh.calls")"
 grep -q "completa, sin abortar" "$TMP/f/out/resumen.txt" || fallo "el resumen no dice que fue completa"
 grep -Eq "caemanager-app +320.0 MiB" "$TMP/f/out/resumen.txt" || fallo "el resumen no da el máximo de app (320 MiB): $(cat "$TMP/f/out/resumen.txt")"
 grep -Eq "caemanager-seq +256.0 MiB" "$TMP/f/out/resumen.txt" || fallo "el resumen no convierte GiB a MiB (0.25GiB = 256): $(cat "$TMP/f/out/resumen.txt")"

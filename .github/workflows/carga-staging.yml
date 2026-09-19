@@ -14,7 +14,7 @@
 #      marcha, y que el VPS ofrezca el modo `muestreo-memoria` de solo lectura
 #      de deploy/ci-deploy.sh (si no, no empieza);
 #   2. muestrea la memoria del VPS por SSH durante toda la ventana
-#      (30 s de línea base + 300 s de carga + 60 s de recuperación = 390 s;
+#      (30 s de línea base + 300 s de carga + 60 s de recuperación = 405 s con 15 s de margen para k6;
 #      el VPS no admite más de 420 s);
 #   3. lanza k6 (scripts/carga-staging.k6.js) contra staging;
 #   4. sondea /salud de PRODUCCIÓN cada segundo y aborta la carga si hay un
@@ -72,7 +72,7 @@ jobs:
     # desde otra rama ejecutaría el YAML de esa rama con el secreto.
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    # Verificación (~15 s) + 390 s de ventana + hasta 60 s de espera del
+    # Verificación (~15 s) + 405 s de ventana + hasta 60 s de espera del
     # muestreo, con holgura.
     timeout-minutes: 15
     steps:

@@ -463,7 +463,7 @@ linea_contadores_muestreo() {
 }
 
 muestreo_memoria() {
-    local duracion="$1" intervalo="$2" inicio muestras=0 maximo
+    local duracion="$1" intervalo="$2" inicio muestras=0 maximo interrumpido
     # Techo de iteraciones, independiente del reloj: aunque `sleep` o
     # $SECONDS se comportaran de forma rara, nunca hay más muestras que estas.
     maximo=$(( duracion / intervalo + 1 ))
@@ -475,9 +475,10 @@ muestreo_memoria() {
     echo "=== Estado inicial de los contenedores ==="
     volcar_cgroup_contenedores 5
     inicio=$SECONDS
+    interrumpido=0
     while [ "$muestras" -lt "$maximo" ] && [ $(( SECONDS - inicio )) -lt "$duracion" ]; do
         if despliegue_en_curso; then
-            echo "=== Ha empezado un despliegue: se corta el muestreo ==="
+            interrumpido=1
             break
         fi
         muestras=$(( muestras + 1 ))
@@ -489,6 +490,11 @@ muestreo_memoria() {
     done
     echo "=== Estado final de los contenedores (memory.peak = pico de TODA la vida del contenedor) ==="
     volcar_cgroup_contenedores 5
+    if [ "$interrumpido" -eq 1 ]; then
+        # Sin "Fin del muestreo": el cliente no debe tomar por completa una serie cortada.
+        echo "=== Muestreo INTERRUMPIDO tras ${muestras} muestras: empezó un despliegue ==="
+        return 4
+    fi
     echo "=== Fin del muestreo: ${muestras} muestras ==="
 }
 

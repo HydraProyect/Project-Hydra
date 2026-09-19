@@ -166,11 +166,14 @@ echo "=== Caso 8: si empieza un despliegue durante el muestreo, corta ==="
 echo 0 > "$CONTADOR_STATS"
 LLAMADAS_PROBE=0
 despliegue_en_curso() { LLAMADAS_PROBE=$((LLAMADAS_PROBE + 1)); [ "$LLAMADAS_PROBE" -gt 4 ]; }
-SALIDA8="$(muestreo_memoria 60 2 2>&1)"
-echo "$SALIDA8" | grep -q "Ha empezado un despliegue" || fallo "no avisó del corte"
+ESTADO8=0
+SALIDA8="$(muestreo_memoria 60 2 2>&1)" || ESTADO8=$?
+[ "$ESTADO8" -eq 4 ] || fallo "un muestreo cortado por un despliegue debe devolver 4, devolvió $ESTADO8"
+echo "$SALIDA8" | grep -q "Muestreo INTERRUMPIDO tras 3 muestras" || fallo "no avisó del corte"
+echo "$SALIDA8" | grep -q "Fin del muestreo" && fallo "un muestreo cortado no puede cerrar con «Fin del muestreo»"
 [ "$(cat "$CONTADOR_STATS")" = "3" ] || fallo "debía cortar tras 3 muestras (la sonda 5 ya ve el despliegue), hizo $(cat "$CONTADOR_STATS")"
 echo "$SALIDA8" | grep -q "Estado final de los contenedores" || fallo "tras el corte sigue faltando la lectura final"
-echo "OK: corta tras 3 muestras y aun así deja la lectura final"
+echo "OK: corta tras 3 muestras, devuelve 4, no cierra como completo y deja la lectura final"
 
 echo "=== Caso 9: main() despacha el modo antes del cerrojo y rechaza lo no válido sin tocar nada ==="
 L_DESPACHO="$(grep -n '^if \[ "\$ENTORNO" = "muestreo-memoria" \]; then$' "$FICHERO_FUENTE" | head -1 | cut -d: -f1)"
