@@ -1254,6 +1254,17 @@ jobs:
       - name: scripts/informe-cobertura-por-capas.tests.sh
         run: bash scripts/informe-cobertura-por-capas.tests.sh
 
+      # Guarda de los secretos de CI con clave de proveedor externo (P13/P18,
+      # 2026-09-19): la prueba del guion Y el guion contra los workflows reales
+      # de este árbol. La segunda línea es la que falla el día que alguien
+      # enchufe CI_ANTHROPIC_API_KEY / CI_STRIPE_TEST_API_KEY a `pull_request`,
+      # o pegue una clave sk_live_ en un workflow.
+      - name: scripts/verificar-secretos-de-ci.tests.sh
+        run: bash scripts/verificar-secretos-de-ci.tests.sh
+
+      - name: scripts/verificar-secretos-de-ci.sh (workflows reales)
+        run: bash scripts/verificar-secretos-de-ci.sh
+
   licencias-dependencias:
     name: Licencias de dependencias
     runs-on: ubuntu-latest
