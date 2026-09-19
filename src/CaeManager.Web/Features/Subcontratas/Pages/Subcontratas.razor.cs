@@ -404,6 +404,7 @@ public partial class Subcontratas : ComponentBase
             }
 
             ToastService.Mostrar("Subcontrata eliminada correctamente.", TonoToast.Exito);
+            await WorkspaceService.RetirarSiEstaAbiertoAsync(EntidadWorkspace.Subcontrata, [_idAEliminar]);
             await CargarAsync();
         }
         catch (Exception)
@@ -430,6 +431,10 @@ public partial class Subcontratas : ComponentBase
                     ? $"{dto.Eliminados} subcontrata(s) eliminada(s)."
                     : $"{dto.Eliminados} eliminada(s). {dto.Errores.Count} no se pudieron borrar: {string.Join(" ", dto.Errores)}",
                 dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+
+            // Solo con el lote completo: el DTO no dice qué ids cayeron si hubo errores.
+            if (dto.Errores.Count == 0)
+                await WorkspaceService.RetirarSiEstaAbiertoAsync(EntidadWorkspace.Subcontrata, _seleccionados.ToList());
 
             _seleccionados.Clear();
             _confirmarEliminarLoteVisible = false;

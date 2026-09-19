@@ -628,6 +628,7 @@ public partial class Documentos : ComponentBase, IDisposable
                 // esta—: el contexto se comprueba DESPUÉS del await, no solo en
                 // el finally.
                 ToastService.Mostrar("Documento eliminado correctamente.", TonoToast.Exito, "Deshacer", () => DeshacerEliminarAsync(idEliminado));
+                await WorkspaceService.RetirarSiEstaAbiertoAsync(EntidadWorkspace.Documento, [idEliminado]);
 
                 if (ContextoSigueSiendo(contexto))
                 {
@@ -751,6 +752,10 @@ public partial class Documentos : ComponentBase, IDisposable
                         ? $"No se eliminó ningún documento de los {pedidos.Count} seleccionados.{DetalleDeErrores(dto.Errores)}"
                         : $"{dto.Eliminados} de {pedidos.Count} eliminado(s); el resto sigue en la lista.{DetalleDeErrores(dto.Errores)}",
                 completo ? TonoToast.Exito : dto.Eliminados == 0 ? TonoToast.Error : TonoToast.Advertencia);
+
+            // Solo con el lote completo: el DTO no dice qué documentos cayeron si no lo fue.
+            if (completo)
+                await WorkspaceService.RetirarSiEstaAbiertoAsync(EntidadWorkspace.Documento, pedidos);
 
             // Ver el comentario del borrado individual. Aquí además se
             // vaciaba la selección, que al cambiar de contexto ya es la que

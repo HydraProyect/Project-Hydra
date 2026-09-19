@@ -575,6 +575,7 @@ public partial class Empresas : ComponentBase, IDisposable
             {
                 var idEliminado = _idAEliminar;
                 ToastService.Mostrar("Empresa eliminada correctamente.", TonoToast.Exito, "Deshacer", () => DeshacerEliminarAsync(idEliminado));
+                await WorkspaceService.RetirarSiEstaAbiertoAsync(EntidadWorkspace.Empresa, [idEliminado]);
                 _confirmarEliminarVisible = false;
                 await CargarAsync();
             }
@@ -706,6 +707,10 @@ public partial class Empresas : ComponentBase, IDisposable
                     ? $"{dto.Eliminados} empresa(s) eliminada(s)."
                     : $"{dto.Eliminados} eliminada(s). {dto.Errores.Count} no se pudieron borrar: {string.Join(" ", dto.Errores)}",
                 dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+
+            // Solo con el lote completo: el DTO no dice qué ids cayeron si hubo errores.
+            if (dto.Errores.Count == 0)
+                await WorkspaceService.RetirarSiEstaAbiertoAsync(EntidadWorkspace.Empresa, _seleccionados.ToList());
 
             _seleccionados.Clear();
             _confirmarEliminarLoteVisible = false;

@@ -649,4 +649,29 @@ public class EmpresasListaGen2Tests : BunitContext
         mediador.Enviadas.OfType<EliminarEmpresaCommand>().Select(c => c.Id).Should().Equal([id],
             "se elimina la fila cuyo menú se abrió, y solo esa");
     }
+
+    /// <summary>
+    /// El Workspace no es modal: con la ficha de la empresa abierta, la baja se
+    /// confirma desde la fila que queda detrás. La ficha ya no tiene baja
+    /// propia (P41b), así que la lista es quien la retira.
+    /// </summary>
+    [Fact]
+    public async Task Eliminar_la_empresa_cuya_ficha_esta_abierta_retira_la_ficha()
+    {
+        var mediador = new MediatorFalso { Almacen = { Empresa("Refrielectric S.A.") } };
+        var id = mediador.Almacen[0].Id;
+        var cut = Renderizar(mediador);
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Empresa, id, "Refrielectric S.A.", "informacion"));
+        workspace.EstaAbierto.Should().BeTrue("control positivo: la ficha estaba abierta");
+
+        await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Eliminar")
+            .ClickAsync(new MouseEventArgs());
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Eliminar")
+            .ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EliminarEmpresaCommand>().Should().ContainSingle("la baja se ejecutó");
+        workspace.EstaAbierto.Should().BeFalse("una ficha abierta de una entidad ya dada de baja no puede seguir editable");
+    }
 }

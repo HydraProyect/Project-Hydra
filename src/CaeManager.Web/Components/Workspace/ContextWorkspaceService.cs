@@ -93,4 +93,22 @@ public class ContextWorkspaceService
         OnCambio?.Invoke();
         return Task.CompletedTask;
     }
+
+    /// <summary>
+    /// Retira del Workspace la ficha de una entidad que acaba de darse de baja.
+    /// El Workspace no es modal: la baja se confirma desde la lista que queda
+    /// detrás, y sin esto la ficha seguiría enseñando (y dejando editar) algo
+    /// ya eliminado. Solo actúa si el frame ACTUAL es esa entidad; si hay
+    /// historial vuelve al nivel anterior, y si no, cierra.
+    /// </summary>
+    public async Task RetirarSiEstaAbiertoAsync(EntidadWorkspace tipo, IReadOnlyCollection<Guid> idsEliminados)
+    {
+        if (FrameActual is not { } frame || frame.Tipo != tipo || !idsEliminados.Contains(frame.EntidadId))
+            return;
+
+        if (_pila.Count > 1)
+            await VolverAsync();
+        else
+            await CerrarAsync();
+    }
 }
