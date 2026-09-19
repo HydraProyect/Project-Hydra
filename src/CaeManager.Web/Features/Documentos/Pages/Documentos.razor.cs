@@ -753,8 +753,9 @@ public partial class Documentos : ComponentBase, IDisposable
                         : $"{dto.Eliminados} de {pedidos.Count} eliminado(s); el resto sigue en la lista.{DetalleDeErrores(dto.Errores)}",
                 completo ? TonoToast.Exito : dto.Eliminados == 0 ? TonoToast.Error : TonoToast.Advertencia);
 
-            // Solo con el lote completo: el DTO no dice qué documentos cayeron si no lo fue.
-            if (completo)
+            // El DTO no dice qué documentos cayeron: si cayó alguno, se retiran las fichas de todos los pedidos
+            // (cerrar una ficha de más es un fastidio; dejar abierta una eliminada, un fallo).
+            if (dto.Eliminados > 0)
                 WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Documento, pedidos);
 
             // Ver el comentario del borrado individual. Aquí además se

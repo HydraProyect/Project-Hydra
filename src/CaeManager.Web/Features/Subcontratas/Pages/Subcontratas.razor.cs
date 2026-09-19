@@ -394,7 +394,8 @@ public partial class Subcontratas : ComponentBase
 
         try
         {
-            var resultado = await Mediator.Send(new EliminarSubcontrataCommand(_idAEliminar));
+            var idEliminada = _idAEliminar;
+            var resultado = await Mediator.Send(new EliminarSubcontrataCommand(idEliminada));
             _confirmarEliminarVisible = false;
 
             if (resultado.EsFallido)
@@ -404,7 +405,7 @@ public partial class Subcontratas : ComponentBase
             }
 
             ToastService.Mostrar("Subcontrata eliminada correctamente.", TonoToast.Exito);
-            WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Subcontrata, [_idAEliminar]);
+            WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Subcontrata, [idEliminada]);
             await CargarAsync();
         }
         catch (Exception)
@@ -423,7 +424,8 @@ public partial class Subcontratas : ComponentBase
 
         try
         {
-            var resultado = await Mediator.Send(new EliminarSubcontratasCommand(_seleccionados.ToList()));
+            var idsPedidos = _seleccionados.ToList();
+            var resultado = await Mediator.Send(new EliminarSubcontratasCommand(idsPedidos));
             var dto = resultado.Valor;
 
             ToastService.Mostrar(
@@ -432,9 +434,10 @@ public partial class Subcontratas : ComponentBase
                     : $"{dto.Eliminados} eliminada(s). {dto.Errores.Count} no se pudieron borrar: {string.Join(" ", dto.Errores)}",
                 dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
 
-            // Solo con el lote completo: el DTO no dice qué ids cayeron si hubo errores.
-            if (dto.Errores.Count == 0)
-                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Subcontrata, _seleccionados.ToList());
+            // El DTO no dice qué ids cayeron: si cayó alguno, se retiran las fichas de todos los pedidos
+            // (cerrar una ficha de más es un fastidio; dejar abierta una eliminada, un fallo).
+            if (dto.Eliminados > 0)
+                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Subcontrata, idsPedidos);
 
             _seleccionados.Clear();
             _confirmarEliminarLoteVisible = false;
