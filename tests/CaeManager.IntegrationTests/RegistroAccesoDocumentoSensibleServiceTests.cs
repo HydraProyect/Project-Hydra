@@ -155,6 +155,42 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// P41c: el acceso a un documento con datos de salud también conserva QUÉ
+    /// CLASE de actor lo abrió. Eje ortogonal a la vía — un barrido automático y
+    /// un Gestor CAE pueden entrar los dos por vía normal, y hasta este eje la
+    /// tabla no los separaba.
+    /// </summary>
+    [Fact]
+    public async Task Registra_al_actor_como_Persona_o_como_Sistema_segun_quien_accede()
+    {
+        var tipo = await TipoConSensibilidadAsync(SensibilidadDocumental.CategoriaEspecialSalud);
+
+        var deLaPersona = CrearDocumentoDeEmpresa(tipo.Id);
+        var delBarrido = CrearDocumentoDeEmpresa(tipo.Id);
+        _dbContext.Documentos.AddRange(deLaPersona, delBarrido);
+        await _dbContext.SaveChangesAsync();
+
+        // El MISMO actor con identidad resuelta en los dos: lo único que cambia
+        // es el ámbito declarado, así que un resultado igual en ambos no podría
+        // explicarse por "el barrido no traía usuario".
+        var servicio = CrearServicio(ActorAuditoria.Normal(Guid.NewGuid()));
+
+        await servicio.RegistrarSiSensibleAsync(deLaPersona.Id, TipoAccesoDocumentoSensible.Apertura);
+
+        using (AmbitoActorAuditoria.EstablecerSistema())
+        {
+            await servicio.RegistrarSiSensibleAsync(delBarrido.Id, TipoAccesoDocumentoSensible.Apertura);
+        }
+
+        (await _dbContext.RegistrosAccesoDocumentoSensible.SingleAsync(r => r.DocumentoId == deLaPersona.Id))
+            .TipoActor.Should().Be(TipoActorAuditoria.Persona);
+
+        (await _dbContext.RegistrosAccesoDocumentoSensible.SingleAsync(r => r.DocumentoId == delBarrido.Id))
+            .TipoActor.Should().Be(TipoActorAuditoria.Sistema,
+                "el ámbito declarado manda sobre la identidad que hubiera resuelta");
+    }
+
+    /// <summary>
     /// RLS (HO-099-01 § 9): un tenant distinto no ve las filas del primero.
     ///
     /// <para>

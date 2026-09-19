@@ -30,6 +30,12 @@ public class RedaccionPayloadWebhookHostedService(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // P41c: todo lo que haga este servicio de fondo lo hace la propia
+        // plataforma, y la auditoría lo conserva como tal. Se declara aquí, en el
+        // punto de entrada, y no alrededor de cada guardado: así ningún camino
+        // interno —ni uno añadido después— se queda fuera por olvido.
+        using var ambitoActor = AmbitoActorAuditoria.EstablecerSistema();
+
         if (!opciones.Value.Activa)
         {
             logger.LogInformation("Redacción de payload de webhook desactivada (RetencionEventosWebhook:Activa=false) — no se ejecuta.");
