@@ -371,6 +371,41 @@ public class EstadoComercialGen2Tests : BunitContext
         Enfocada().Should().Be(TenantArbeko.ToString());
     }
 
+    /// <summary>
+    /// P11 (decisión del propietario, 2026-09-19; cierra I-12): la pantalla no
+    /// tiene selección múltiple ni ficha que abrir, y lo único que hace una fila
+    /// es escribir (vincular una suscripción, cambiar el estado comercial), así
+    /// que ni <c>x</c> ni <c>Enter</c> hacen nada, ni con una fila enfocada ni sin
+    /// ella. Lo que se exige es que no muevan el foco, no abran un diálogo y no
+    /// envíen ningún comando.
+    /// </summary>
+    [Theory]
+    [InlineData("x", false)]
+    [InlineData("Enter", false)]
+    [InlineData("x", true)]
+    [InlineData("Enter", true)]
+    public async Task x_y_Enter_no_hacen_nada_con_o_sin_fila_enfocada(string tecla, bool conFilaEnfocada)
+    {
+        var (cut, mediador, _) = Montar(new Escenario());
+        var atajos = cut.FindComponent<AtajosListaTeclado>();
+        if (conFilaEnfocada)
+            await cut.InvokeAsync(() => atajos.Instance.RecibirAtajo("j"));
+        var enfocadaAntes = cut.FindAll("tbody tr.fila-enfocada").SingleOrDefault()?.GetAttribute("data-tenant-id");
+        var enviadosAntes = mediador.Enviados.Count;
+        enfocadaAntes.Should().Be(conFilaEnfocada ? TenantBeitia.ToString() : null, "precondición del caso");
+
+        await cut.InvokeAsync(() => atajos.Instance.RecibirAtajo(tecla));
+
+        // Sin "?." delante de Should(): con una fila que desaparece, el "?." se
+        // saltaba la aserción entera y el test daba verde.
+        var enfocadaDespues = cut.FindAll("tbody tr.fila-enfocada").SingleOrDefault()?.GetAttribute("data-tenant-id");
+        enfocadaDespues.Should().Be(enfocadaAntes);
+        cut.FindAll(".modal-contenido").Should().BeEmpty();
+        cut.FindAll("tbody input[type=checkbox]").Should().BeEmpty();
+        mediador.Enviados.Count.Should().Be(enviadosAntes, "un atajo de fila no dispara consultas ni escrituras");
+        Toasts().Should().BeEmpty();
+    }
+
     [Fact]
     public async Task Un_clic_en_el_id_de_suscripcion_lo_copia_tal_cual()
     {
