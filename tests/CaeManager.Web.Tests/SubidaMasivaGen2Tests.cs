@@ -138,6 +138,41 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
     }
 
     [Fact]
+    public async Task Con_un_tipo_de_vencimiento_manual_la_fila_muestra_el_vencimiento_propuesto_y_el_comando_lo_lleva()
+    {
+        var (trabajadorId, tipoId) = PrepararPropuesta(confianza: 100, emision: new DateOnly(2026, 3, 1));
+        _mediador.Tipos = [CrearTipo(tipoId) with { AplicaVencimientoAutomatico = false }];
+        _mediador.Deteccion = new DeteccionCamposDocumentoDto(tipoId, trabajadorId, 100, FechaEmisionLeida: new DateOnly(2026, 3, 1), FechaVencimientoPropuesta: new DateOnly(2028, 3, 1));
+        var cut = Render<SubidaMasiva>();
+        await ProcesarAsync(cut, "manual.pdf");
+
+        cut.Find(".item-subida-masiva-propuesta").TextContent.Should().Contain("vencimiento: 01/03/2028", "el botón de un clic no puede persistir una fecha que la fila no muestra");
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Confirmar propuesta").ClickAsync(new MouseEventArgs());
+
+        var comando = _mediador.Recibidas.Select(r => r.Peticion).OfType<ConfirmarDocumentoPropuestoPorIaCommand>().Should().ContainSingle().Subject;
+        comando.FechaVencimientoManual.Should().Be(new DateOnly(2028, 3, 1));
+        comando.Propuesta.FechaVencimiento.Should().Be(new DateOnly(2028, 3, 1));
+        await DisposeComponentsAsync();
+    }
+
+    [Fact]
+    public async Task Con_un_tipo_de_vencimiento_automatico_el_vencimiento_propuesto_no_cuenta_como_correccion()
+    {
+        var (trabajadorId, tipoId) = PrepararPropuesta(confianza: 100, emision: new DateOnly(2026, 3, 1));
+        _mediador.Deteccion = new DeteccionCamposDocumentoDto(tipoId, trabajadorId, 100, FechaEmisionLeida: new DateOnly(2026, 3, 1), FechaVencimientoPropuesta: new DateOnly(2028, 3, 1));
+        var cut = Render<SubidaMasiva>();
+        await ProcesarAsync(cut, "automatico.pdf");
+
+        cut.Find(".item-subida-masiva-propuesta").TextContent.Should().NotContain("vencimiento");
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Confirmar propuesta").ClickAsync(new MouseEventArgs());
+
+        var comando = _mediador.Recibidas.Select(r => r.Peticion).OfType<ConfirmarDocumentoPropuestoPorIaCommand>().Should().ContainSingle().Subject;
+        comando.FechaVencimientoManual.Should().BeNull();
+        comando.Propuesta.FechaVencimiento.Should().BeNull("el campo no existe en este tipo: su ausencia no es una corrección de la persona");
+        await DisposeComponentsAsync();
+    }
+
+    [Fact]
     public async Task Sin_fecha_leida_no_se_pone_hoy_no_se_ofrece_confirmar_de_un_clic_y_no_se_crea_nada()
     {
         PrepararPropuesta(confianza: 100, emision: null);

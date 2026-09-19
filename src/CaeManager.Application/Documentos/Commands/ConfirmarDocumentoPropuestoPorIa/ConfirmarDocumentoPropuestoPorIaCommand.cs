@@ -100,7 +100,7 @@ public class ConfirmarDocumentoPropuestoPorIaCommandHandler(IMediator mediator, 
         if (propuesta.TrabajadorId != request.TrabajadorId) corregidos.Add("trabajador");
         if (propuesta.TipoDocumentoId != request.TipoDocumentoId) corregidos.Add("tipo");
         if (propuesta.FechaEmision != request.FechaEmision) corregidos.Add("fecha de emisión");
-        if (request.FechaVencimientoManual is not null && propuesta.FechaVencimiento != request.FechaVencimientoManual)
+        if (propuesta.FechaVencimiento != request.FechaVencimientoManual)
             corregidos.Add("fecha de vencimiento");
 
         var origen = $"Propuesta de la IA ({propuesta.Confianza} % de confianza)";

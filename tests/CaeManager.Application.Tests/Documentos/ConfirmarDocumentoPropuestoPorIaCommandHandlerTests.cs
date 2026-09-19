@@ -52,6 +52,29 @@ public class ConfirmarDocumentoPropuestoPorIaCommandHandlerTests
     }
 
     [Fact]
+    public async Task Si_la_persona_borra_el_vencimiento_propuesto_o_lo_cambia_el_Documento_lo_dice()
+    {
+        var vencimientoPropuesto = Emision.AddYears(2);
+        var propuesta = new PropuestaIaDocumento(Trabajador, Tipo, Emision, vencimientoPropuesto, 90);
+
+        foreach (var (manual, esperado) in new (DateOnly?, string)[]
+        {
+            (null, "corregida por una persona: fecha de vencimiento."),
+            (vencimientoPropuesto.AddDays(-5), "corregida por una persona: fecha de vencimiento."),
+            (vencimientoPropuesto, "confirmada por una persona."),
+        })
+        {
+            var mediador = MediadorQueCreaDocumento(out _);
+            var handler = new ConfirmarDocumentoPropuestoPorIaCommandHandler(mediador, ActorPersona());
+
+            await handler.Handle(Comando(propuesta) with { FechaVencimientoManual = manual }, CancellationToken.None);
+
+            mediador.Enviados.Should().ContainSingle().Which.Should().BeOfType<CrearDocumentoCommand>()
+                .Which.Comentarios.Should().EndWith(esperado);
+        }
+    }
+
+    [Fact]
     public async Task Sin_propuesta_de_la_IA_el_Documento_dice_que_los_datos_los_indico_una_persona()
     {
         var mediador = MediadorQueCreaDocumento(out _);

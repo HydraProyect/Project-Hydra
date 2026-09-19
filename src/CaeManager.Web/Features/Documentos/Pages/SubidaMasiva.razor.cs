@@ -358,11 +358,11 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
         // habilitan para crear nada. Todo archivo queda pendiente de una
         // persona, con la propuesta ya prellenada.
         item.Propuesta = new PropuestaIaDocumento(
-            trabajadorResuelto, tipoResuelto, deteccion?.FechaEmisionLeida, deteccion?.FechaVencimientoLeida, deteccion?.ConfianzaGeneral ?? 0);
+            trabajadorResuelto, tipoResuelto, deteccion?.FechaEmisionLeida, deteccion?.FechaVencimientoPropuesta, deteccion?.ConfianzaGeneral ?? 0);
         item.TipoDocumentoId = tipoResuelto?.ToString() ?? string.Empty;
         item.TrabajadorId = trabajadorResuelto?.ToString() ?? string.Empty;
         item.FechaEmision = deteccion?.FechaEmisionLeida?.ToString("yyyy-MM-dd") ?? string.Empty;
-        item.FechaVencimientoManual = deteccion?.FechaVencimientoLeida?.ToString("yyyy-MM-dd") ?? string.Empty;
+        item.FechaVencimientoManual = deteccion?.FechaVencimientoPropuesta?.ToString("yyyy-MM-dd") ?? string.Empty;
         item.Estado = EstadoItem.PendienteConfirmar;
 
         // Feedback incremental: con un lote de varios archivos, esperar al
@@ -526,7 +526,7 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
                 FechaEmision: fechaEmision,
                 FechaVencimientoManual: fechaVencimientoManual,
                 ArchivoUrl: archivoUrl,
-                Propuesta: item.Propuesta));
+                Propuesta: PropuestaParaConfirmar(item)));
 
             if (resultado.EsFallido)
             {
@@ -600,6 +600,14 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
 
     private static string FechaLegible(string fechaIso) =>
         DateOnly.TryParseExact(fechaIso, "yyyy-MM-dd", out var fecha) ? fecha.ToString("dd/MM/yyyy") : fechaIso;
+
+    /// <summary>
+    /// El vencimiento propuesto solo se compara con lo que la persona confirma
+    /// cuando el tipo lo pide a mano; en un tipo de vencimiento automático el
+    /// campo no existe y su ausencia no es una corrección.
+    /// </summary>
+    private PropuestaIaDocumento PropuestaParaConfirmar(ItemLote item) =>
+        RequiereVencimientoManual(item) ? item.Propuesta : item.Propuesta with { FechaVencimiento = null };
 
     private bool RequiereVencimientoManual(ItemLote item) =>
         Guid.TryParse(item.TipoDocumentoId, out var tipoId)

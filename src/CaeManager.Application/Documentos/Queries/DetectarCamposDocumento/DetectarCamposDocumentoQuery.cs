@@ -25,16 +25,17 @@ public record DetectarCamposDocumentoQuery(byte[] Contenido, string NombreArchiv
     : IRequest<Result<DeteccionCamposDocumentoDto>>;
 
 /// <summary>
-/// <see cref="FechaEmisionLeida"/> y <see cref="FechaVencimientoLeida"/> son lo que
-/// el proveedor leyó DEL ARCHIVO, no un valor calculado ni un valor por
-/// defecto: null significa "no se leyó". Solo alimentan una propuesta que una
-/// persona confirma o corrige antes de que exista el Documento (decisión del
-/// propietario, 2026-09-19); ninguna ruta puede convertirlas en un Documento
-/// por sí sola.
+/// <see cref="FechaEmisionLeida"/> es lo que el proveedor leyó DEL ARCHIVO: null
+/// significa "no se leyó", nunca un valor por defecto. <see cref="FechaVencimientoPropuesta"/>
+/// es distinta: el modelo puede haberla CALCULADO desde una vigencia ("válido
+/// por 2 años") en lugar de leerla, así que se muestra como propuesta y no
+/// como dato leído. Ambas solo alimentan una propuesta que una persona confirma
+/// o corrige antes de que exista el Documento (decisión del propietario,
+/// 2026-09-19); ninguna ruta puede convertirlas en un Documento por sí sola.
 /// </summary>
 public record DeteccionCamposDocumentoDto(
     Guid? TipoDocumentoId, Guid? TrabajadorId, int ConfianzaGeneral, string? AliasSugerido = null,
-    DateOnly? FechaEmisionLeida = null, DateOnly? FechaVencimientoLeida = null);
+    DateOnly? FechaEmisionLeida = null, DateOnly? FechaVencimientoPropuesta = null);
 
 public class DetectarCamposDocumentoQueryHandler(
     IDocumentAIRouterService router,

@@ -82,7 +82,7 @@ public class DetectarCamposDocumentoQueryHandlerTests
         var resultado = await DetectarConAsync(new Dictionary<string, string?> { ["fechaEmision"] = leida, ["fechaVencimiento"] = "2027-03-01" }, confianza: 90);
 
         resultado.Valor.FechaEmisionLeida.Should().Be(new DateOnly(2026, 3, 1));
-        resultado.Valor.FechaVencimientoLeida.Should().Be(new DateOnly(2027, 3, 1));
+        resultado.Valor.FechaVencimientoPropuesta.Should().Be(new DateOnly(2027, 3, 1));
     }
 
     [Theory]
@@ -96,7 +96,7 @@ public class DetectarCamposDocumentoQueryHandlerTests
         resultado.EsExitoso.Should().BeTrue("control: la detección respondió");
         resultado.Valor.ConfianzaGeneral.Should().Be(90);
         resultado.Valor.FechaEmisionLeida.Should().BeNull();
-        resultado.Valor.FechaVencimientoLeida.Should().BeNull();
+        resultado.Valor.FechaVencimientoPropuesta.Should().BeNull();
     }
 
     [Fact]
