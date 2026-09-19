@@ -38,6 +38,21 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
     /// </summary>
     private string? _tenantDeSesionARestaurar;
 
+    /// <summary>
+    /// Cuántas veces esta ejecución de <c>SaveChanges</c> abrió explícitamente
+    /// la conexión vía <see cref="FijarTenantEnSesionRlsAsync"/> sin cerrarla
+    /// todavía (hallazgo P2 de Codex, 7ª ronda). Cada apertura explícita
+    /// incrementa el contador de referencia interno de EF Core
+    /// (<c>RelationalConnection</c>); si no se empareja con el mismo número de
+    /// cierres, ese contador nunca vuelve a 0 y la conexión física de Npgsql
+    /// queda retenida fuera del pool durante toda la vida del
+    /// <c>DbContext</c> —que en Blazor Server es la vida del circuito, no de
+    /// la petición—. Se cierra tantas veces como se abrió en
+    /// <see cref="RestaurarTenantDeSesionSiHizoFaltaAsync"/>, el único punto
+    /// donde ya no queda ningún comando pendiente de este <c>SaveChanges</c>.
+    /// </summary>
+    private int _aperturasRlsPendientes;
+
     public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
         DbContextEventData eventData,
         InterceptionResult<int> result,
@@ -116,6 +131,17 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
         var valorARestaurar = _tenantDeSesionARestaurar;
         _tenantDeSesionARestaurar = null;
         await FijarTenantEnSesionRlsAsync(context, valorARestaurar, cancellationToken);
+
+        // Este SaveChanges ya no tiene ningún comando pendiente (acabamos de
+        // ejecutar el último, la restauración) — es el único momento seguro
+        // para devolver al contador de EF exactamente las aperturas
+        // explícitas que le sumamos, sin arriesgarnos a cerrar una conexión
+        // que el guardado real todavía necesitara.
+        while (_aperturasRlsPendientes > 0)
+        {
+            await context.Database.CloseConnectionAsync();
+            _aperturasRlsPendientes--;
+        }
     }
 
     private async Task SellarYValidarAsync(DbContext context, CancellationToken cancellationToken)
@@ -245,17 +271,25 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
     ///
     /// <c>OpenConnectionAsync</c> usa el contador de referencias de EF Core
     /// (no el <c>ConnectionState</c> crudo): es seguro llamarlo aunque la
-    /// conexión ya esté abierta, y no hace falta un <c>CloseConnectionAsync</c>
-    /// simétrico aquí — el propio <c>SaveChanges</c> que sigue (o que ya
-    /// corrió, en la restauración) necesita la conexión abierta, y quien la
-    /// abrió primero es quien la cerrará al terminar. <c>valorTenantId</c>
-    /// acepta cadena vacía a propósito: es el mismo valor centinela que usa
-    /// <c>TenantRlsConnectionInterceptor</c> para "sin tenant" (fallo
-    /// cerrado, <c>NULLIF(..., '')::uuid</c> da <c>NULL</c>).
+    /// conexión ya esté abierta. A diferencia de lo que afirmaba una versión
+    /// anterior de este comentario, SÍ hace falta un <c>CloseConnectionAsync</c>
+    /// simétrico —hallazgo P2 de Codex (7ª ronda)—: con un <c>DbContext</c>
+    /// de vida larga (un circuito Blazor Server, no solo una petición), no
+    /// cerrar cada apertura explícita deja el contador de referencia sin
+    /// volver nunca a 0, y la conexión física de Npgsql queda retenida fuera
+    /// del pool indefinidamente. Este método solo incrementa el contador
+    /// propio (<see cref="_aperturasRlsPendientes"/>); quien cierra es
+    /// <see cref="RestaurarTenantDeSesionSiHizoFaltaAsync"/>, el único punto
+    /// donde ya no queda ningún comando pendiente de este <c>SaveChanges</c>.
+    /// <c>valorTenantId</c> acepta cadena vacía a propósito: es el mismo
+    /// valor centinela que usa <c>TenantRlsConnectionInterceptor</c> para
+    /// "sin tenant" (fallo cerrado, <c>NULLIF(..., '')::uuid</c> da
+    /// <c>NULL</c>).
     /// </summary>
-    private static async Task FijarTenantEnSesionRlsAsync(DbContext context, string valorTenantId, CancellationToken cancellationToken)
+    private async Task FijarTenantEnSesionRlsAsync(DbContext context, string valorTenantId, CancellationToken cancellationToken)
     {
         await context.Database.OpenConnectionAsync(cancellationToken);
+        _aperturasRlsPendientes++;
 
         var conexion = context.Database.GetDbConnection();
         await using var comando = conexion.CreateCommand();
