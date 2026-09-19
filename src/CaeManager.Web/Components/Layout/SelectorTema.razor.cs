@@ -41,25 +41,44 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
     [Inject] private ILogger<ExcepcionDeCircuitoDesconectado> LoggerDeCircuitoDesconectado { get; set; } = default!;
 
     /// <summary>
-    /// La TAREA de importación, no el módulo ya resuelto — a propósito
-    /// (2026-09-19, PR de seguimiento a #710). Con un campo
-    /// <c>IJSObjectReference? _modulo</c> asignado solo tras el <c>await</c>,
-    /// la guarda de <see cref="OnAfterRenderAsync"/> (<c>_modulo is not
-    /// null</c>) no distingue "todavía no se ha pedido importar" de "la
-    /// importación sigue en vuelo": cualquier render de más mientras la
-    /// primera importación no ha resuelto —Blazor dispara uno automáticamente
-    /// tras el evento de <see cref="CambiarTemaAsync"/>, por ejemplo— volvía a
-    /// entrar y pedía un SEGUNDO <c>import()</c>. Medido con un test que sí
-    /// simula ese segundo render (revisión de Codex sobre la primera versión
-    /// de este arreglo, que no lo hacía): con el campo antiguo,
-    /// <c>VecesImportado</c> llegaba a 2. La referencia del primer
-    /// <c>import()</c> además quedaba sin liberar nunca (la sobrescribía la
-    /// segunda). Guardar la <c>Task</c> en vez del resultado dejar que
-    /// cualquier llamador — este método o <see cref="CambiarTemaAsync"/> —
-    /// espere la MISMA importación en vuelo, sin repetirla.
+    /// Solo para DEDUPLICAR el <c>import()</c> en <see cref="OnAfterRenderAsync"/>
+    /// — no lo usa nadie más (2026-09-19, PR de seguimiento a #710, tras dos
+    /// rondas de revisión de Codex; ver <see cref="_modulo"/> para el módulo
+    /// en sí, que sigue siendo lo único que <see cref="CambiarTemaAsync"/> y
+    /// <see cref="DisposeAsync"/> consultan). Con solo <c>IJSObjectReference?
+    /// _modulo</c>, asignado únicamente tras el <c>await</c>, la guarda de
+    /// <c>OnAfterRenderAsync</c> (<c>_modulo is not null</c>) no distingue
+    /// "todavía no se ha pedido importar" de "la importación sigue en
+    /// vuelo": cualquier render de más mientras la primera importación no ha
+    /// resuelto —Blazor dispara uno automáticamente tras el evento de
+    /// <c>CambiarTemaAsync</c>, por ejemplo— volvía a entrar y pedía un
+    /// SEGUNDO <c>import()</c> (medido: <c>VecesImportado</c> llegaba a 2,
+    /// incluso a 3 con varios cambios apilados; la referencia del primer
+    /// <c>import()</c> además quedaba sin liberar nunca, la sobrescribía la
+    /// segunda).
+    ///
+    /// <para>
+    /// La primera versión de este arreglo hacía que <c>CambiarTemaAsync</c>
+    /// también esperara esta tarea antes de aplicar el tema en vivo — Codex
+    /// lo refutó con tres hallazgos reales: (1) bloquear el guardado en
+    /// <c>ApplicationUser</c> hasta que el módulo importe pierde la
+    /// preferencia si el circuito se cierra entre medias (la versión base NO
+    /// dependía de eso); (2) con varias continuaciones esperando la MISMA
+    /// tarea, el orden de reanudación no está garantizado, así que un
+    /// cambio anterior podía "ganar" y dejar el DOM en un tema obsoleto; (3)
+    /// esperar esta tarea en <see cref="DisposeAsync"/> puede colgarse si el
+    /// circuito se desconecta a mitad de la propia llamada a <c>import()</c>
+    /// (nadie completa nunca esa tarea). Por eso <c>CambiarTemaAsync</c> y
+    /// <c>DisposeAsync</c> no tocan este campo en absoluto: siguen mirando
+    /// solo <see cref="_modulo"/>, exactamente como antes de este arreglo, y
+    /// se apoyan en que la continuación pendiente de <c>OnAfterRenderAsync</c>
+    /// —hay como mucho una— aplica el <c>_temaActual</c> VIGENTE (lo lee en
+    /// el momento, no capturado) en cuanto el módulo esté listo.
+    /// </para>
     /// </summary>
     private Task<IJSObjectReference>? _moduloTask;
 
+    private IJSObjectReference? _modulo;
     private ApplicationUser? _usuario;
     private string? _temaActual;
 
@@ -122,8 +141,8 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
         if (_temaActual is null || _moduloTask is not null) return;
 
         _moduloTask = JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/tema.js").AsTask();
-        var modulo = await _moduloTask;
-        await modulo.InvokeVoidAsync("aplicarTema", _temaActual);
+        _modulo = await _moduloTask;
+        await _modulo.InvokeVoidAsync("aplicarTema", _temaActual);
     }
 
     private async Task CambiarTemaAsync(ChangeEventArgs e)
@@ -131,16 +150,8 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
         var texto = e.Value?.ToString() ?? "sistema";
         _temaActual = texto;
 
-        // Si la importación sigue en vuelo (arrancada por OnAfterRenderAsync
-        // tras un remontado reciente), se espera la MISMA tarea en vez de
-        // comprobar si ya terminó — así el tema recién elegido llega al DOM
-        // en cuanto el módulo esté listo, sin perderse ni disparar una
-        // segunda importación.
-        if (_moduloTask is not null)
-        {
-            var modulo = await _moduloTask;
-            await modulo.InvokeVoidAsync("aplicarTema", texto);
-        }
+        if (_modulo is not null)
+            await _modulo.InvokeVoidAsync("aplicarTema", texto);
 
         if (_usuario is not null)
             await GuardarTemaAsync(texto);
@@ -219,19 +230,21 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        if (_moduloTask is null) return;
+        // Sobre _modulo, no _moduloTask: si la importación sigue en vuelo
+        // cuando el componente se retira, _modulo todavía es null y no hay
+        // nada que liberar todavía — esperar aquí a que _moduloTask resuelva
+        // podría colgar este DisposeAsync si el circuito se desconectó a
+        // mitad de la propia llamada a import() (nadie va a completar esa
+        // tarea nunca). Ver el comentario de _moduloTask.
+        if (_modulo is null) return;
 
         try
         {
-            var modulo = await _moduloTask;
-            await modulo.DisposeAsync();
+            await _modulo.DisposeAsync();
         }
         catch (JSDisconnectedException)
         {
-            // El circuito ya se cerró: no hay módulo que liberar (cubre
-            // tanto una importación que sigue en vuelo cuando el componente
-            // se retira como el DisposeAsync del propio módulo ya
-            // resuelto).
+            // El circuito ya se cerró: no hay módulo que liberar.
         }
     }
 }

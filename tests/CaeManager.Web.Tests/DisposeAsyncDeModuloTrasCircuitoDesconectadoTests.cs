@@ -32,7 +32,7 @@ public class DisposeAsyncDeModuloTrasCircuitoDesconectadoTests
     public async Task SelectorTema_no_lanza_si_el_circuito_ya_se_desconecto_al_liberar_el_modulo()
     {
         var selectorTema = new SelectorTema();
-        EscribirCampoPrivado(selectorTema, "_moduloTask", Task.FromResult<IJSObjectReference>(new ModuloQueLanzaAlDesconectar()));
+        EscribirCampoPrivado(selectorTema, "_modulo", new ModuloQueLanzaAlDesconectar());
 
         var accion = async () => await selectorTema.DisposeAsync();
 

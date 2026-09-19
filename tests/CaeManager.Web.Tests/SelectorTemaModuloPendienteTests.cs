@@ -15,111 +15,81 @@ namespace CaeManager.Web.Tests;
 /// run 35402030148).
 ///
 /// <para>
-/// <b>Lo que NO era el defecto.</b> La primera versión de este test solo
-/// simulaba una importación en vuelo y comprobaba que el tema elegido
-/// mientras tanto llegaba al DOM al resolver — y con eso solo, el código
-/// YA se autocorregía: <c>_temaActual</c> se lee en vivo, no capturado, así
-/// que la continuación pendiente de <c>OnAfterRenderAsync</c> aplicaba el
-/// valor correcto sin ayuda. Verificado con una mutación (capturar el tema
-/// en una variable local antes del <c>await</c> en vez de leer el campo):
-/// ese test SÍ se pone en rojo con esa mutación, así que no es un test
-/// ciego — simplemente el código sin mutar no tenía ese defecto concreto.
+/// <b>Historia de esta investigación</b> (las dos vueltas anteriores quedan
+/// documentadas porque las dos descartaron un diseño, no porque el fichero
+/// las use):
 /// </para>
-///
+/// <list type="number">
+/// <item>La hipótesis original de #710 ("<c>CambiarTemaAsync</c> pierde el
+/// cambio si el módulo aún no existe") NO se reprodujo: <c>_temaActual</c>
+/// se lee en vivo al resolver la importación pendiente, así que el código
+/// ya se autocorregía. Verificado con una mutación (capturar el tema en una
+/// variable local antes del <c>await</c>): esa mutación SÍ pone el test en
+/// rojo, así que no era un test ciego.</item>
+/// <item>Revisión de Codex sobre esa conclusión: el primer test tampoco
+/// simulaba el SEGUNDO render que Blazor dispara automáticamente al
+/// terminar el manejador de <c>@onchange</c> — y ese segundo render SÍ
+/// importa. Con <c>_modulo</c> asignado solo tras el <c>await</c>, la
+/// guarda de <c>OnAfterRenderAsync</c> no distinguía "no se ha pedido
+/// importar" de "la importación sigue en vuelo": ese segundo render
+/// arrancaba un SEGUNDO <c>import()</c> (medido: <c>VecesImportado</c>
+/// llegaba a 2, hasta 3 con varios cambios apilados).</item>
+/// <item>Primer intento de arreglo: que <c>CambiarTemaAsync</c> también
+/// esperase la importación compartida. Segunda revisión de Codex lo
+/// refutó con tres hallazgos reales — bloquear <c>GuardarTemaAsync</c>
+/// pierde la preferencia si el circuito se cierra antes de que el módulo
+/// importe; varias continuaciones sobre la misma tarea no tienen orden de
+/// reanudación garantizado; y esperar esa tarea en <c>DisposeAsync</c>
+/// puede colgarse si el circuito muere a mitad de la llamada a
+/// <c>import()</c>. Descartado.</item>
+/// </list>
 /// <para>
-/// <b>Lo que SÍ era el defecto</b> (hallazgo de revisión, Codex, sobre la
-/// primera versión de este arreglo): el primer test tampoco simulaba el
-/// SEGUNDO render que Blazor dispara automáticamente al terminar el
-/// manejador de <c>@onchange</c> de <see cref="SelectorTema"/> — y ese
-/// segundo render SÍ importa. Con el campo antiguo
-/// (<c>IJSObjectReference? _modulo</c>, asignado solo tras el <c>await</c>),
-/// la guarda <c>_modulo is not null</c> de <c>OnAfterRenderAsync</c> no
-/// distingue "no se ha pedido importar todavía" de "la importación sigue en
-/// vuelo": ese segundo render, con la primera importación aún sin resolver,
-/// arrancaba un SEGUNDO <c>import()</c> — medido aquí como
-/// <c>VecesImportado == 2</c> antes del arreglo. La referencia de la
-/// primera importación además quedaba sin liberar nunca (la sobrescribía la
-/// segunda). El arreglo guarda la <c>Task</c> de importación
-/// (<c>_moduloTask</c>) en vez del resultado, para que cualquier llamador
-/// —este método o <c>CambiarTemaAsync</c>— espere la MISMA importación en
-/// vuelo sin repetirla.
+/// <b>Diseño final</b>: un campo NUEVO, <c>_moduloTask</c>, que solo sirve
+/// para deduplicar el <c>import()</c> en <c>OnAfterRenderAsync</c> —
+/// asignado SÍNCRONAMENTE antes del <c>await</c>, así que un segundo render
+/// mientras el primero sigue en vuelo lo ve no-nulo y no pide otra
+/// importación. <c>CambiarTemaAsync</c> y <c>DisposeAsync</c> no lo tocan:
+/// siguen mirando solo <c>_modulo</c> (el módulo YA resuelto), exactamente
+/// como antes de esta PR — <c>GuardarTemaAsync</c> nunca depende de JS
+/// interop, y la única continuación pendiente durante una importación en
+/// vuelo (la de <c>OnAfterRenderAsync</c>) aplica el <c>_temaActual</c>
+/// VIGENTE al resolver, sin ayuda de nadie más.
 /// </para>
 /// </summary>
 public class SelectorTemaModuloPendienteTests
 {
     [Fact]
-    public async Task Cambiar_el_tema_mientras_el_modulo_aun_se_importa_no_pierde_la_eleccion()
+    public async Task Un_render_de_mas_mientras_el_modulo_se_importa_no_dispara_una_segunda_importacion()
     {
         var jsRuntime = new JsRuntimeFalso();
         var selectorTema = CrearSelectorTema(jsRuntime);
         EscribirCampoPrivado(selectorTema, "_temaActual", "oscuro");
 
-        // Arranca la importación del módulo (simula el remontado tras una
-        // navegación "enhanced") SIN esperarla — se queda en vuelo a
-        // propósito, como en la carrera real.
+        // Arranca la importación (simula el remontado tras una navegación
+        // "enhanced") SIN esperarla — se queda en vuelo a propósito.
         var tareaOnAfterRender = InvocarOnAfterRenderAsync(selectorTema, firstRender: true);
         jsRuntime.VecesImportado.Should().Be(1,
-            "OnAfterRenderAsync debe haber arrancado ya la importación antes de que el usuario pueda tocar nada");
+            "OnAfterRenderAsync debe haber arrancado ya la importación en su primer render");
 
-        // El usuario cambia el tema MIENTRAS el módulo sigue importándose —
-        // TAMPOCO se espera: CambiarTemaAsync ahora espera esa MISMA
-        // importación (el arreglo), así que awaitarla aquí bloquearía el
-        // test hasta CompletarImportacion() más abajo. Fiel a la carrera
-        // real: en un circuito de verdad, el evento se despacha y el
-        // manejador sigue en vuelo sin que nada más se detenga a esperarlo.
-        var tareaCambiarTema = InvocarCambiarTemaAsync(selectorTema, "sistema");
-
-        // El render automático que Blazor dispara al terminar el manejador
-        // del evento — SIN esto, el test no cubre nada: es justo el render
-        // que arrancaba una segunda importación (hallazgo de revisión,
-        // Codex, sobre la primera versión de este test). TAMPOCO se espera
-        // aquí: con el código sin arreglar también suspende (arranca su
-        // propio import, igual de pendiente), y esperarlo antes de resolver
-        // la importación compartida abajo dejaría el test colgado contra
-        // ESE código — el control positivo de esta misma prueba.
+        // El render automático que Blazor dispara tras cualquier evento del
+        // circuito mientras la importación sigue en vuelo — el defecto real
+        // (medido en CI): esto arrancaba un SEGUNDO import().
+        // Sin await hasta completar la importación: con el defecto, este
+        // render se queda esperando su propio import() y el test colgaría
+        // en vez de fallar por el motivo real (VecesImportado).
         var tareaSegundoRender = InvocarOnAfterRenderAsync(selectorTema, firstRender: false);
 
-        // Ahora se resuelve la importación que estaba en vuelo — libera a
-        // las tres continuaciones que la esperaban (el OnAfterRenderAsync
-        // inicial, el segundo render si llegó a pedir otra importación, y
-        // CambiarTemaAsync).
         jsRuntime.CompletarImportacion();
-        await tareaOnAfterRender;
-        await tareaCambiarTema;
-        await tareaSegundoRender;
+        await Task.WhenAll(tareaOnAfterRender, tareaSegundoRender).WaitAsync(TimeSpan.FromSeconds(5));
 
-        // "sistema" puede aparecer más de una vez — lo aplica tanto la
-        // continuación de OnAfterRenderAsync (lee _temaActual, ya "sistema"
-        // en ese momento) como la de CambiarTemaAsync (su propio texto local,
-        // también "sistema"): redundante pero inofensivo, las dos escriben
-        // el mismo valor. Lo que NO puede pasar es que el tema elegido no
-        // llegue nunca, o que llegue uno distinto.
-        jsRuntime.Modulo.TemasAplicados.Should().OnlyContain(tema => tema == "sistema",
-            "el tema elegido mientras el módulo se importaba tiene que llegar al DOM en cuanto el módulo esté " +
-            "listo, no perderse silenciosamente ni sustituirse por otro");
         jsRuntime.VecesImportado.Should().Be(1,
             "un segundo import() en vuelo no es gratis: dos continuaciones compitiendo por asignar _modulo, y " +
-            "la referencia de la primera importación sin liberar nunca — el defecto real medido en CI");
+            "la referencia del primero sin liberar nunca — el defecto real medido en CI (PR de seguimiento a #710)");
+        jsRuntime.Modulo.TemasAplicados.Should().Equal(["oscuro"]);
     }
 
-    /// <summary>
-    /// Con VARIOS cambios apilados mientras la misma importación sigue en
-    /// vuelo, cada <c>CambiarTemaAsync</c> aplica SU PROPIO tema (variable
-    /// local, no el campo) en cuanto la importación compartida resuelve —
-    /// así que valores intermedios ("claro") pueden llegar a aplicarse antes
-    /// de que "sistema" gane, en un orden que este diseño no garantiza (las
-    /// continuaciones de varias tareas esperando la misma <c>Task</c> no
-    /// tienen un orden de reanudación fijado por el lenguaje). Ese matiz
-    /// —de qué orden exacto pinta el DOM durante una ráfaga de cambios
-    /// imposible de producir a mano (exige varias selecciones dentro de la
-    /// misma importación de un módulo, unos pocos milisegundos)— queda fuera
-    /// de lo que este test exige. Lo que SÍ tiene que sostenerse siempre,
-    /// pase lo que pase con el orden, es lo medible y lo que de verdad
-    /// importa: <c>import()</c> una sola vez, y ningún valor ajeno a los
-    /// elegidos.
-    /// </summary>
     [Fact]
-    public async Task Varios_cambios_mientras_el_modulo_se_importa_no_disparan_una_segunda_importacion()
+    public async Task Cambiar_el_tema_mientras_el_modulo_se_importa_no_lo_pierde()
     {
         var jsRuntime = new JsRuntimeFalso();
         var selectorTema = CrearSelectorTema(jsRuntime);
@@ -127,30 +97,52 @@ public class SelectorTemaModuloPendienteTests
 
         var tareaOnAfterRender = InvocarOnAfterRenderAsync(selectorTema, firstRender: true);
 
-        // Ninguna se espera todavía — las cinco suspenden en la misma
-        // importación pendiente (o, contra el código sin arreglar, en
-        // importaciones pendientes propias): awaitar cualquiera antes de
-        // CompletarImportacion() colgaría el test.
-        var tareaClaro = InvocarCambiarTemaAsync(selectorTema, "claro");
-        var tareaRenderTrasClaro = InvocarOnAfterRenderAsync(selectorTema, firstRender: false);
-        var tareaSistema = InvocarCambiarTemaAsync(selectorTema, "sistema");
-        var tareaRenderTrasSistema = InvocarOnAfterRenderAsync(selectorTema, firstRender: false);
+        // Con la importación aún en vuelo, _modulo sigue null: CambiarTemaAsync
+        // no lo aplica en vivo aquí (ver _moduloTask, comentario de diseño),
+        // pero TAMPOCO bloquea — completa sin esperar a que el módulo importe,
+        // así que awaitarlo directamente no cuelga el test (a diferencia de
+        // los diseños descartados, ver el comentario de la clase).
+        await InvocarCambiarTemaAsync(selectorTema, "sistema");
 
         jsRuntime.CompletarImportacion();
-        await tareaOnAfterRender;
-        await tareaClaro;
-        await tareaRenderTrasClaro;
-        await tareaSistema;
-        await tareaRenderTrasSistema;
+        await tareaOnAfterRender.WaitAsync(TimeSpan.FromSeconds(5));
 
-        jsRuntime.Modulo.TemasAplicados.Should().NotBeEmpty()
-            .And.OnlyContain(tema => tema == "claro" || tema == "sistema",
-                "ningún valor aplicado puede ser distinto de los que el usuario eligió realmente");
-        jsRuntime.Modulo.TemasAplicados.Should().Contain("sistema",
-            "el último tema elegido tiene que llegar a aplicarse, aunque no sea necesariamente el último en el orden");
+        // La única continuación pendiente (la de OnAfterRenderAsync) lee
+        // _temaActual EN VIVO al resolver, no un valor capturado — por eso
+        // aplica "sistema" sin que CambiarTemaAsync haya tenido que esperar
+        // nada.
+        jsRuntime.Modulo.TemasAplicados.Should().Equal(["sistema"],
+            "el tema elegido mientras el módulo se importaba tiene que llegar al DOM en cuanto el módulo esté " +
+            "listo, no perderse silenciosamente");
+        jsRuntime.VecesImportado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Varios_cambios_mientras_el_modulo_se_importa_no_bloquean_ni_repiten_la_importacion()
+    {
+        var jsRuntime = new JsRuntimeFalso();
+        var selectorTema = CrearSelectorTema(jsRuntime);
+        EscribirCampoPrivado(selectorTema, "_temaActual", "oscuro");
+
+        var tareaOnAfterRender = InvocarOnAfterRenderAsync(selectorTema, firstRender: true);
+
+        // Los renders de más no se esperan hasta completar la importación:
+        // con el defecto cada uno pediría su propio import() y colgaría el
+        // test en vez de dejarlo fallar por VecesImportado.
+        await InvocarCambiarTemaAsync(selectorTema, "claro");
+        var render2 = InvocarOnAfterRenderAsync(selectorTema, firstRender: false);
+        await InvocarCambiarTemaAsync(selectorTema, "sistema");
+        var render3 = InvocarOnAfterRenderAsync(selectorTema, firstRender: false);
+
+        jsRuntime.CompletarImportacion();
+        await Task.WhenAll(tareaOnAfterRender, render2, render3).WaitAsync(TimeSpan.FromSeconds(5));
+
+        jsRuntime.Modulo.TemasAplicados.Should().Equal(["sistema"],
+            "solo el último tema vigente se aplica, en cuanto el módulo esté listo — los intermedios se " +
+            "descartan porque nadie los aplicó en vivo mientras la importación seguía en vuelo");
         jsRuntime.VecesImportado.Should().Be(1,
             "tres renders con la importación aún en vuelo (uno por cada cambio, más el inicial) no deben " +
-            "disparar más de un import() — el defecto real medido en CI");
+            "disparar más de un import()");
     }
 
     private static SelectorTema CrearSelectorTema(IJSRuntime jsRuntime)
