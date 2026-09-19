@@ -55,7 +55,7 @@ internal sealed class ArnesDeArranqueRuntime : IAsyncDisposable
     /// apuntando a la identidad de tráfico.
     /// </summary>
     internal static async Task<ArnesDeArranqueRuntime> CrearAsync(
-        bool datosDePruebaActivos, bool segundoTenantActivo = false)
+        bool datosDePruebaActivos, bool segundoTenantActivo = false, ITenantActual? tenantActualPersonalizado = null)
     {
         var cadenaPropietario = BaseDatosPostgresDePruebas.CadenaConexionUnica();
 
@@ -98,8 +98,12 @@ internal sealed class ArnesDeArranqueRuntime : IAsyncDisposable
             .Build());
 
         // Las tres dependencias del interceptor. Sin sesión de usuario ni
-        // workspace: es el arranque, no una petición.
-        servicios.AddSingleton<ITenantActual, TenantActualDeArranque>();
+        // workspace: es el arranque, no una petición — salvo que el
+        // llamante pase un ITenantActual propio para simular justo eso (ver
+        // PropagacionTenantRlsSinSesionTests: un Workspace operativo
+        // derivado seleccionado devuelve un tenant DISTINTO del propietario
+        // real de la cuenta de Identity que se está auditando).
+        servicios.AddSingleton<ITenantActual>(tenantActualPersonalizado ?? new TenantActualDeArranque());
         servicios.AddSingleton<IClienteActivoSeleccionado>(new SinClienteActivo());
         servicios.AddSingleton<ICurrentUserService>(new CurrentUserServiceFalso());
         // LOS CUATRO interceptores de produccion, no solo el de sesion. Montar

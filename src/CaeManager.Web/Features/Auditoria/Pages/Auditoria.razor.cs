@@ -19,11 +19,16 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
 {
     // Catálogo fijo de agregados de dominio auditables (ver
     // AuditoriaInterceptor: EntidadTipo es el nombre simple de la clase).
+    // "Usuario" y "RolDeUsuario" no son entidades de CaeManager.Domain —
+    // son las dos excepciones de Identity que AuditoriaInterceptor.ResolverTipoEId
+    // nombra explícitamente en castellano (ver su comentario).
     private static readonly string[] TiposEntidad =
-        ["Cliente", "Empresa", "Centro", "Trabajador", "TipoDocumento", "Documento", "Asignacion", "ParametroSistema"];
+        ["Cliente", "Empresa", "Centro", "Trabajador", "TipoDocumento", "Documento", "Asignacion", "ParametroSistema",
+            "Usuario", "RolDeUsuario"];
 
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
+    [Inject] private RoleManager<IdentityRole<Guid>> RoleManager { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
@@ -33,6 +38,7 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
 
     private ResultadoPaginado<RegistroAuditoriaListaDto>? _resultado;
     private Dictionary<Guid, string> _usuariosPorId = new();
+    private Dictionary<Guid, string> _rolesPorId = new();
     private bool _cargando = true;
     private bool _error;
     private string? _filtroEntidadTipo;
@@ -48,6 +54,15 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
     /// tenant, así que no es un usuario de otro tenant oculto: no existe.
     /// </summary>
     private const string UsuarioNoEncontrado = "(usuario eliminado)";
+
+    /// <summary>
+    /// Los 6 roles de <see cref="Roles.Todos"/> son fijos y seedeados en la
+    /// migración base — este mensaje es una guarda defensiva, no un caso
+    /// esperado en producción (mismo criterio que <see cref="UsuarioNoEncontrado"/>).
+    /// Sin paréntesis propios, a diferencia de <see cref="UsuarioNoEncontrado"/>:
+    /// el marcado ya envuelve <see cref="NombreRolAfectado"/> entre paréntesis.
+    /// </summary>
+    private const string RolNoEncontrado = "rol eliminado";
 
     protected override Task OnInitializedAsync()
     {
@@ -115,21 +130,50 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
             if (version != _versionCarga)
                 return;
 
+            // Además del autor (UsuarioId), para "Usuario"/"RolDeUsuario"
+            // EntidadId TAMBIÉN es un Id de ApplicationUser — la cuenta
+            // afectada. Sin resolverlo aquí, una fila "RolDeUsuario /
+            // Creado" no dice a quién se le concedió el rol (hallazgo de
+            // Codex antes de abrir la PR que introdujo esta auditoría): el
+            // registro es correcto en base de datos, pero la pantalla no
+            // podía responder el caso que la auditoría existe para responder.
             var idsFaltantes = resultado.Elementos
-                .Where(r => r.UsuarioId is not null && !_usuariosPorId.ContainsKey(r.UsuarioId.Value))
-                .Select(r => r.UsuarioId!.Value)
+                .SelectMany(r => r.EntidadTipo is "Usuario" or "RolDeUsuario"
+                    ? new Guid?[] { r.UsuarioId, r.EntidadId }
+                    : new Guid?[] { r.UsuarioId })
+                .Where(id => id is not null && !_usuariosPorId.ContainsKey(id.Value))
+                .Select(id => id!.Value)
                 .Distinct()
                 .ToList();
 
-            // Por la puerta: UserManager no pasa por MediatR y esta carga
-            // corre en paralelo con los componentes del layout sobre el mismo
-            // DbContext scoped (ver PuertaAccesoDatos).
+            // Hallazgo P1 de Codex (4ª ronda): sin esto, "RolDeUsuario /
+            // Creado" decía A QUIÉN se le concedió un rol pero no CUÁL —no se
+            // podía distinguir una concesión de Administrador de una de
+            // Consulta, justo el caso más grave que esta auditoría existe
+            // para responder. RolId ya viaja resuelto desde Application (ver
+            // RegistroAuditoriaListaDto.RolId); aquí solo falta el nombre.
+            var rolesFaltantes = resultado.Elementos
+                .Select(r => r.RolId)
+                .Where(id => id is not null && !_rolesPorId.ContainsKey(id.Value))
+                .Select(id => id!.Value)
+                .Distinct()
+                .ToList();
+
+            // Por la puerta: UserManager/RoleManager no pasan por MediatR y
+            // esta carga corre en paralelo con los componentes del layout
+            // sobre el mismo DbContext scoped (ver PuertaAccesoDatos).
             await PuertaAccesoDatos.EjecutarAsync(async () =>
             {
                 foreach (var id in idsFaltantes)
                 {
                     var usuario = await UserManager.FindByIdAsync(id.ToString());
                     _usuariosPorId[id] = usuario?.NombreCompleto ?? usuario?.Email ?? UsuarioNoEncontrado;
+                }
+
+                foreach (var id in rolesFaltantes)
+                {
+                    var rol = await RoleManager.FindByIdAsync(id.ToString());
+                    _rolesPorId[id] = rol?.Name is { } codigo ? Roles.NombreVisible(codigo) : RolNoEncontrado;
                 }
             });
 
@@ -207,6 +251,29 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
 
     private string NombreUsuario(Guid? usuarioId) =>
         usuarioId is null ? "Sistema" : _usuariosPorId.GetValueOrDefault(usuarioId.Value, "—");
+
+    /// <summary>
+    /// Solo para "Usuario"/"RolDeUsuario": la cuenta afectada (EntidadId es
+    /// un Id de ApplicationUser en esos dos tipos, ver
+    /// AuditoriaInterceptor.ResolverTipoEId). <c>null</c> para el resto de
+    /// entidades, que no tienen esta ambigüedad ("Cliente" ya nombra la fila
+    /// en su propio EntidadTipo visualmente, aunque tampoco resuelva un
+    /// nombre — deuda compartida, no la abre esta pantalla).
+    /// </summary>
+    private string? NombreEntidadAfectada(RegistroAuditoriaListaDto registro) =>
+        registro.EntidadTipo is "Usuario" or "RolDeUsuario" ? NombreUsuario(registro.EntidadId) : null;
+
+    /// <summary>
+    /// Solo para "RolDeUsuario" con <see cref="RegistroAuditoriaListaDto.RolId"/>
+    /// resuelto (hallazgo P1 de Codex, 4ª ronda): qué rol concreto se
+    /// concedió o revocó, para mostrarlo junto a la cuenta afectada.
+    /// <c>null</c> cuando el marcador no se pudo extraer del JSON histórico
+    /// (fila anterior a este cambio, o el hueco residual documentado en
+    /// <c>ObtenerAuditoriaQueryHandler.ExtraerRolId</c>) — la fila sigue
+    /// mostrando la cuenta afectada sin el rol, no un error.
+    /// </summary>
+    private string? NombreRolAfectado(RegistroAuditoriaListaDto registro) =>
+        registro.RolId is { } rolId ? _rolesPorId.GetValueOrDefault(rolId, "—") : null;
 
     private string? ClaseUsuario(Guid? usuarioId) =>
         usuarioId is not null && _usuariosPorId.GetValueOrDefault(usuarioId.Value) == UsuarioNoEncontrado

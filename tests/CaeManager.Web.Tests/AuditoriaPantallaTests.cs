@@ -122,8 +122,29 @@ public class AuditoriaPantallaTests : BunitContext
         public void Dispose() { }
     }
 
+    /// <summary>Solo responde a <c>FindByIdAsync</c>, que es lo único que la página pide.</summary>
+    private sealed class AlmacenRoles(Dictionary<string, IdentityRole<Guid>> roles) : IRoleStore<IdentityRole<Guid>>
+    {
+        private static Exception NoPrevisto() => new NotSupportedException("La página solo busca roles por Id.");
+
+        public Task<IdentityRole<Guid>?> FindByIdAsync(string roleId, CancellationToken cancellationToken) =>
+            Task.FromResult(roles.GetValueOrDefault(roleId));
+
+        public Task<IdentityResult> CreateAsync(IdentityRole<Guid> role, CancellationToken cancellationToken) => throw NoPrevisto();
+        public Task<IdentityResult> DeleteAsync(IdentityRole<Guid> role, CancellationToken cancellationToken) => throw NoPrevisto();
+        public Task<IdentityRole<Guid>?> FindByNameAsync(string normalizedRoleName, CancellationToken cancellationToken) => throw NoPrevisto();
+        public Task<string?> GetNormalizedRoleNameAsync(IdentityRole<Guid> role, CancellationToken cancellationToken) => throw NoPrevisto();
+        public Task<string> GetRoleIdAsync(IdentityRole<Guid> role, CancellationToken cancellationToken) => throw NoPrevisto();
+        public Task<string?> GetRoleNameAsync(IdentityRole<Guid> role, CancellationToken cancellationToken) => throw NoPrevisto();
+        public Task SetNormalizedRoleNameAsync(IdentityRole<Guid> role, string? normalizedName, CancellationToken cancellationToken) => throw NoPrevisto();
+        public Task SetRoleNameAsync(IdentityRole<Guid> role, string? roleName, CancellationToken cancellationToken) => throw NoPrevisto();
+        public Task<IdentityResult> UpdateAsync(IdentityRole<Guid> role, CancellationToken cancellationToken) => throw NoPrevisto();
+        public void Dispose() { }
+    }
+
     private readonly MediatorAuditoria _mediador = new();
     private readonly Dictionary<string, ApplicationUser> _usuarios = [];
+    private readonly Dictionary<string, IdentityRole<Guid>> _roles = [];
 
     private IRenderedComponent<Features.Auditoria.Pages.Auditoria> Renderizar(string? entidad = null, bool integrada = false)
     {
@@ -132,6 +153,8 @@ public class AuditoriaPantallaTests : BunitContext
         Services.AddScoped<ToastService>();
         Services.AddScoped(_ => new UserManager<ApplicationUser>(
             new AlmacenUsuarios(_usuarios), null!, null!, null!, null!, null!, null!, null!, null!));
+        Services.AddScoped(_ => new RoleManager<IdentityRole<Guid>>(
+            new AlmacenRoles(_roles), null!, null!, null!, null!));
 
         // [SupplyParameterFromQuery]: se llega navegando, igual que en el producto.
         Navegacion.NavigateTo(entidad is null ? "auditoria" : "auditoria?entidad=" + Uri.EscapeDataString(entidad));
@@ -143,8 +166,9 @@ public class AuditoriaPantallaTests : BunitContext
     private NavigationManager Navegacion => Services.GetRequiredService<NavigationManager>();
 
     private static RegistroAuditoriaListaDto Fila(
-        string entidad, string accion, Guid? usuarioId = null, bool puedeRestaurar = false, bool archivoAnterior = false) =>
-        new(Guid.NewGuid(), entidad, Guid.NewGuid(), accion, usuarioId, DateTime.UtcNow, puedeRestaurar, archivoAnterior);
+        string entidad, string accion, Guid? usuarioId = null, bool puedeRestaurar = false, bool archivoAnterior = false,
+        Guid? entidadId = null, Guid? rolId = null) =>
+        new(Guid.NewGuid(), entidad, entidadId ?? Guid.NewGuid(), accion, usuarioId, DateTime.UtcNow, puedeRestaurar, archivoAnterior, rolId);
 
     private static IElement FilaDe(IRenderedComponent<Features.Auditoria.Pages.Auditoria> cut, string entidad) =>
         cut.FindAll("table.tabla-datos tbody tr").Single(tr => tr.QuerySelectorAll("td")[1].TextContent == entidad);
@@ -398,6 +422,78 @@ public class AuditoriaPantallaTests : BunitContext
         celdaDesaparecido.QuerySelector(".usuario-no-resuelto").Should().NotBeNull();
 
         FilaDe(cut, "Centro").QuerySelectorAll("td")[3].TextContent.Should().Be("Sistema");
+    }
+
+    /// <summary>
+    /// Hallazgo de Codex antes de abrir la PR que introdujo la auditoría de
+    /// Identity: sin esto, una fila "RolDeUsuario / Creado" no decía a quién
+    /// se le concedió el rol — el registro era correcto en base de datos,
+    /// pero la pantalla no podía responder el caso que existe para responder
+    /// ("quién hizo Administrador a quién").
+    /// </summary>
+    [Fact]
+    public void La_cuenta_afectada_se_resuelve_para_Usuario_y_RolDeUsuario()
+    {
+        var afectado = Guid.NewGuid();
+        var autor = Guid.NewGuid();
+        _usuarios[afectado.ToString()] = new ApplicationUser { Id = afectado, NombreCompleto = "Juan Pérez" };
+        _mediador.Filas.AddRange([
+            Fila("RolDeUsuario", "Creado", usuarioId: autor, entidadId: afectado),
+            Fila("Usuario", "Modificado", usuarioId: autor, entidadId: afectado)]);
+        var cut = Renderizar();
+
+        foreach (var entidad in new[] { "RolDeUsuario", "Usuario" })
+        {
+            var celda = cut.FindAll("table.tabla-datos tbody tr")
+                .Single(tr => tr.QuerySelectorAll("td")[1].TextContent.StartsWith(entidad, StringComparison.Ordinal))
+                .QuerySelectorAll("td")[1];
+
+            celda.TextContent.Should().Be($"{entidad} — Juan Pérez");
+            celda.QuerySelector(".detalle-entidad-auditoria").Should().NotBeNull();
+        }
+    }
+
+    /// <summary>
+    /// Control negativo del test anterior: el resto de entidades no lleva la
+    /// cuenta afectada — no la necesitan (no hay ambigüedad de "a quién") y
+    /// EntidadId no es un Id de ApplicationUser para ellas.
+    /// </summary>
+    [Fact]
+    public void Las_demas_entidades_no_muestran_ninguna_cuenta_afectada()
+    {
+        _mediador.Filas.Add(Fila("Trabajador", "Creado", usuarioId: Guid.NewGuid()));
+        var cut = Renderizar();
+
+        var celda = FilaDe(cut, "Trabajador").QuerySelectorAll("td")[1];
+        celda.TextContent.Should().Be("Trabajador");
+        celda.QuerySelector(".detalle-entidad-auditoria").Should().BeNull();
+    }
+
+    /// <summary>
+    /// Hallazgo P1 de Codex, 4ª ronda: la cuenta afectada por sí sola no
+    /// distinguía una concesión de Administrador de una de Consulta —
+    /// <c>RolId</c> ya llega resuelto desde <c>ObtenerAuditoriaQueryHandler</c>
+    /// (ver <c>ExtraerRolId</c>); aquí se comprueba que la pantalla lo resuelve
+    /// a nombre por <c>RoleManager</c> y lo muestra junto a la cuenta.
+    /// </summary>
+    [Fact]
+    public void El_rol_concedido_o_revocado_se_resuelve_y_se_muestra_junto_a_la_cuenta()
+    {
+        var afectado = Guid.NewGuid();
+        var rolAdministrador = Guid.NewGuid();
+        var rolDesaparecido = Guid.NewGuid();
+        _usuarios[afectado.ToString()] = new ApplicationUser { Id = afectado, NombreCompleto = "Juan Pérez" };
+        _roles[rolAdministrador.ToString()] = new IdentityRole<Guid> { Id = rolAdministrador, Name = Roles.Administrador };
+        _mediador.Filas.AddRange([
+            Fila("RolDeUsuario", "Creado", entidadId: afectado, rolId: rolAdministrador),
+            Fila("RolDeUsuario", "Eliminado", entidadId: afectado, rolId: rolDesaparecido)]);
+        var cut = Renderizar();
+
+        var filas = cut.FindAll("table.tabla-datos tbody tr");
+        filas[0].QuerySelectorAll("td")[1].TextContent.Should().Be("RolDeUsuario — Juan Pérez (Administrador)",
+            "el nombre visible en español, no el código interno del rol");
+        filas[1].QuerySelectorAll("td")[1].TextContent.Should().Be("RolDeUsuario — Juan Pérez (rol eliminado)",
+            "guarda defensiva: los 6 roles del sistema son fijos, pero un RolId que ya no exista no debe romper la fila");
     }
 
     // ------------------------------------------------ atajos de lista (I-13)

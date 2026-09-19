@@ -42,7 +42,19 @@ public class ArnesDeArranqueRuntimeTests
             TenantId = TenantSeedData.IdPorDefecto,
         };
 
-        var resultado = await userManager.CreateAsync(usuario, "Arnes#2026Seguro");
+        // AuditoriaInterceptor también audita ApplicationUser (CIERRE-TURNO-
+        // NOCTURNO-2026-09-18.md § 12): CreateAsync ahora escribe además un
+        // RegistroAuditoria, una EntidadConTenant que TenantSelladoInterceptor
+        // sella en fallo cerrado — hace falta el mismo ámbito explícito que
+        // ya usan los seeders (ver DelegacionDemoSeeder), aunque AspNetUsers
+        // en sí no tenga RLS. No es un relajamiento de lo que esta capa
+        // prueba: "AspNetUsers no tiene RLS" lo comprueba la aserción de
+        // abajo, no la ausencia de tenant.
+        IdentityResult resultado;
+        using (CaeManager.Application.Common.AmbitoTenantExplicito.Establecer(TenantSeedData.IdPorDefecto))
+        {
+            resultado = await userManager.CreateAsync(usuario, "Arnes#2026Seguro");
+        }
 
         resultado.Succeeded.Should().BeTrue(
             "AspNetUsers no tiene RLS, así que Identity debe funcionar igual bajo el rol restringido: " +

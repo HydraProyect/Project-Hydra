@@ -175,40 +175,50 @@ public static class DelegacionDemoSeeder
         if (existente is not null)
             return existente;
 
-        var administrador = new ApplicationUser
-        {
-            UserName = EmailAdministradorConsultora,
-            Email = EmailAdministradorConsultora,
-            NombreCompleto = "Administrador ArcoSPA",
-            EmailConfirmed = true,
-            DebeCambiarContrasena = false,
-            TenantId = tenantConsultoraId
-        };
-
-        var resultado = await userManager.CreateAsync(administrador, credenciales.Contrasena);
-        if (!resultado.Succeeded)
-        {
-            logger.LogWarning("No se pudo crear el administrador de ArcoSPA: {Errores}",
-                string.Join(", ", resultado.Errors.Select(e => e.Description)));
-            throw new InvalidOperationException("No se pudo crear el administrador de ArcoSPA.");
-        }
-
-        await userManager.AddToRoleAsync(administrador, Roles.Administrador);
-
-        if (userStore is IUserAuthenticatorKeyStore<ApplicationUser> claveStore)
-        {
-            await claveStore.SetAuthenticatorKeyAsync(
-                administrador, IdentitySeeder.ClaveTotpAdministradorInicial, cancellationToken);
-            await userManager.UpdateAsync(administrador);
-        }
-        await userManager.SetTwoFactorEnabledAsync(administrador, true);
-
+        // Todo el alta (incluida la escritura de Identity, no solo
+        // AceptacionTerminosSeedHelper de abajo) va dentro del ámbito: desde
+        // que AuditoriaInterceptor también audita ApplicationUser, el propio
+        // UserManager.CreateAsync escribe un RegistroAuditoria —una
+        // EntidadConTenant— y TenantSelladoInterceptor lo rechaza en fallo
+        // cerrado si no hay tenant resuelto (por diseño, ver el comentario de
+        // clase de AmbitoTenantExplicito). Antes de esa auditoría esta
+        // llamada nunca escribía ninguna EntidadConTenant, así que el hueco
+        // —esta creación corría sin ámbito, a diferencia de cada otro usuario
+        // sembrado en este mismo fichero— quedaba invisible.
         using (AmbitoTenantExplicito.Establecer(tenantConsultoraId))
         {
-            await AceptacionTerminosSeedHelper.AceptarParaUsuarioDeSemillaAsync(dbContext, administrador.Id, cancellationToken);
-        }
+            var administrador = new ApplicationUser
+            {
+                UserName = EmailAdministradorConsultora,
+                Email = EmailAdministradorConsultora,
+                NombreCompleto = "Administrador ArcoSPA",
+                EmailConfirmed = true,
+                DebeCambiarContrasena = false,
+                TenantId = tenantConsultoraId
+            };
 
-        return administrador;
+            var resultado = await userManager.CreateAsync(administrador, credenciales.Contrasena);
+            if (!resultado.Succeeded)
+            {
+                logger.LogWarning("No se pudo crear el administrador de ArcoSPA: {Errores}",
+                    string.Join(", ", resultado.Errors.Select(e => e.Description)));
+                throw new InvalidOperationException("No se pudo crear el administrador de ArcoSPA.");
+            }
+
+            await userManager.AddToRoleAsync(administrador, Roles.Administrador);
+
+            if (userStore is IUserAuthenticatorKeyStore<ApplicationUser> claveStore)
+            {
+                await claveStore.SetAuthenticatorKeyAsync(
+                    administrador, IdentitySeeder.ClaveTotpAdministradorInicial, cancellationToken);
+                await userManager.UpdateAsync(administrador);
+            }
+            await userManager.SetTwoFactorEnabledAsync(administrador, true);
+
+            await AceptacionTerminosSeedHelper.AceptarParaUsuarioDeSemillaAsync(dbContext, administrador.Id, cancellationToken);
+
+            return administrador;
+        }
     }
 
     /// <summary>
@@ -461,31 +471,34 @@ public static class DelegacionDemoSeeder
         if (existente is not null)
             return existente;
 
-        var usuario = new ApplicationUser
-        {
-            UserName = email,
-            Email = email,
-            NombreCompleto = nombreCompleto,
-            EmailConfirmed = true,
-            DebeCambiarContrasena = false,
-            TenantId = tenantConsultoraId
-        };
-
-        var resultado = await userManager.CreateAsync(usuario, credenciales.Contrasena);
-        if (!resultado.Succeeded)
-        {
-            logger.LogWarning("No se pudo crear el operador de consultora {Email}: {Errores}",
-                email, string.Join(", ", resultado.Errors.Select(e => e.Description)));
-            return null;
-        }
-
-        await userManager.AddToRoleAsync(usuario, rol);
+        // Mismo motivo que CrearAdministradorConsultoraAsync: el alta
+        // entera va dentro del ámbito, no solo AceptacionTerminosSeedHelper —
+        // UserManager.CreateAsync ahora también escribe RegistroAuditoria.
         using (AmbitoTenantExplicito.Establecer(tenantConsultoraId))
         {
-            await AceptacionTerminosSeedHelper.AceptarParaUsuarioDeSemillaAsync(dbContext, usuario.Id, cancellationToken);
-        }
+            var usuario = new ApplicationUser
+            {
+                UserName = email,
+                Email = email,
+                NombreCompleto = nombreCompleto,
+                EmailConfirmed = true,
+                DebeCambiarContrasena = false,
+                TenantId = tenantConsultoraId
+            };
 
-        return usuario;
+            var resultado = await userManager.CreateAsync(usuario, credenciales.Contrasena);
+            if (!resultado.Succeeded)
+            {
+                logger.LogWarning("No se pudo crear el operador de consultora {Email}: {Errores}",
+                    email, string.Join(", ", resultado.Errors.Select(e => e.Description)));
+                return null;
+            }
+
+            await userManager.AddToRoleAsync(usuario, rol);
+            await AceptacionTerminosSeedHelper.AceptarParaUsuarioDeSemillaAsync(dbContext, usuario.Id, cancellationToken);
+
+            return usuario;
+        }
     }
 
     /// <summary>

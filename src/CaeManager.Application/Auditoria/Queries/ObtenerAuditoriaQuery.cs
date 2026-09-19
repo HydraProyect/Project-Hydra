@@ -29,11 +29,22 @@ public record ObtenerAuditoriaQuery(
 /// snapshot JSON completo de la entidad en cada una de las filas cargadas
 /// (hasta 30 en pantalla, o el lote entero de <c>PaginadorExportacion</c> en
 /// la exportación), cuando lo único que la UI necesita de ese JSON son estos
-/// dos booleanos. El detalle completo —usado solo por
+/// dos booleanos (y, desde el hallazgo P1 de Codex sobre la 4ª ronda de esta
+/// PR, <see cref="RolId"/>). El detalle completo —usado solo por
 /// <c>/auditoria/{id}/archivo-anterior</c>, un registro a la vez— sigue
 /// viviendo en <see cref="RegistroAuditoriaDto"/> vía
 /// <c>ObtenerRegistroAuditoriaPorIdQuery</c>, sin tocar.
 /// </summary>
+/// <param name="RolId">
+/// Solo para <c>EntidadTipo == "RolDeUsuario"</c> (null en el resto): el
+/// <c>RoleId</c> de <see cref="Microsoft.AspNetCore.Identity.IdentityUserRole{TKey}"/>
+/// que <c>AuditoriaInterceptor</c> ya serializaba dentro de
+/// <c>DatosAntes</c>/<c>DatosDespues</c>, pero que este listado descartaba —
+/// sin él, una fila "RolDeUsuario / Creado" decía A QUIÉN se le concedió un
+/// rol pero no CUÁL, y no se podía distinguir una concesión de Administrador
+/// de una de Consulta. Application sigue sin conocer Identity/RoleManager
+/// (vive en Infrastructure): expone el Id crudo, Web lo resuelve a nombre.
+/// </param>
 public record RegistroAuditoriaListaDto(
     Guid Id,
     string EntidadTipo,
@@ -42,7 +53,8 @@ public record RegistroAuditoriaListaDto(
     Guid? UsuarioId,
     DateTime FechaUtc,
     bool PuedeRestaurar,
-    bool TieneArchivoAnterior);
+    bool TieneArchivoAnterior,
+    Guid? RolId = null);
 
 /// <summary>
 /// Detalle completo de una fila de auditoría, con el snapshot JSON —usado
@@ -74,6 +86,14 @@ public class ObtenerAuditoriaQueryHandler(
     // puede ofrecer una restauración real (H1, docs/ux-audit/14-administracion.md).
     private static readonly HashSet<string> EntidadesRestaurables =
         ["Cliente", "Empresa", "Centro", "Trabajador", "Documento"];
+
+    // AuditoriaInterceptor.SerializarValores escribe "RoleId" tal cual (nombre
+    // de propiedad del CLR de IdentityUserRole<Guid>) — ver su comentario
+    // sobre por qué EntidadId usa UserId y no RoleId. Marcador de texto, no
+    // parseo de JSON, por el mismo motivo que EsCandidataARestaurar de abajo:
+    // extraer 36 caracteres server-side es justo lo que Módulo 8/9 permite,
+    // traer la columna entera para 30 filas es justo lo que evita.
+    private const string MarcadorRoleId = "\"RoleId\":\"";
 
     public async Task<ResultadoPaginado<RegistroAuditoriaListaDto>> Handle(ObtenerAuditoriaQuery request, CancellationToken cancellationToken)
     {
@@ -135,7 +155,16 @@ public class ObtenerAuditoriaQueryHandler(
                 TieneArchivoAnteriorCandidato =
                     r.EntidadTipo == "Documento" && r.Accion == "Modificado"
                     && r.DatosAntes != null && r.DatosAntes.StartsWith("{")
-                    && r.DatosAntes.Contains("\"ArchivoUrl\":\"")
+                    && r.DatosAntes.Contains("\"ArchivoUrl\":\""),
+                // Solo para "RolDeUsuario": Creado trae el JSON en
+                // DatosDespues, Eliminado (revocar) en DatosAntes — nunca los
+                // dos ni ninguno (IdentityUserRole<Guid> solo se da de alta o
+                // de baja, jamás Modified: su clave es UserId+RoleId sin
+                // campos editables). Para cualquier OTRO EntidadTipo esto es
+                // null, así que el resto de filas nunca paga el coste de leer
+                // su columna JSON, que es justo lo que evita el resto de este
+                // método.
+                JsonRolDeUsuario = r.EntidadTipo == "RolDeUsuario" ? (r.DatosDespues ?? r.DatosAntes) : null
             })
             .ToListAsync(cancellationToken);
 
@@ -162,7 +191,8 @@ public class ObtenerAuditoriaQueryHandler(
                 r.EsCandidataARestaurar
                     && siguenEliminadasHoy.TryGetValue(r.EntidadTipo, out var idsEliminados)
                     && idsEliminados.Contains(r.EntidadId),
-                r.TieneArchivoAnteriorCandidato))
+                r.TieneArchivoAnteriorCandidato,
+                ExtraerRolId(r.JsonRolDeUsuario)))
             .ToList();
 
         return new ResultadoPaginado<RegistroAuditoriaListaDto>(elementos, total, request.Pagina, request.TamanoPagina);
@@ -240,5 +270,23 @@ public class ObtenerAuditoriaQueryHandler(
         }
 
         return resultado;
+    }
+
+    /// <summary>
+    /// Extracción en memoria (tras <c>ToListAsync</c>), no traducida a SQL: el
+    /// texto ya llegó (solo para filas "RolDeUsuario", ver
+    /// <c>JsonRolDeUsuario</c> arriba) y aquí basta <c>string.IndexOf</c>/
+    /// <c>Substring</c> corrientes. El formato de <c>Guid</c> por defecto de
+    /// <c>System.Text.Json</c> es siempre el hyphenated de 36 caracteres —
+    /// mismo supuesto que <c>AuditoriaProyeccionSqlTests</c> ya verifica para
+    /// el resto de marcadores de este fichero.
+    /// </summary>
+    private static Guid? ExtraerRolId(string? json)
+    {
+        if (json is null) return null;
+        var inicio = json.IndexOf(MarcadorRoleId, StringComparison.Ordinal);
+        if (inicio < 0) return null;
+        inicio += MarcadorRoleId.Length;
+        return inicio + 36 <= json.Length && Guid.TryParse(json.Substring(inicio, 36), out var rolId) ? rolId : null;
     }
 }

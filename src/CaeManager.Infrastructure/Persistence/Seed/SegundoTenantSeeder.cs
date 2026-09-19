@@ -89,9 +89,10 @@ public static class SegundoTenantSeeder
             return tenantId;
 
         // Este usuario pertenece al segundo tenant — el ámbito explícito
-        // asegura que, si alguna vez este alta empezara a escribir entidades
-        // de dominio (hoy solo crea el ApplicationUser, que no pasa por el
-        // interceptor), quedarían selladas al tenant correcto.
+        // asegura que tanto las entidades de dominio que este alta pueda
+        // escribir como el propio ApplicationUser (AuditoriaInterceptor
+        // también lo audita desde CIERRE-TURNO-NOCTURNO-2026-09-18.md § 12)
+        // queden selladas al tenant correcto.
         using (AmbitoTenantExplicito.Establecer(tenantId))
         {
             var administrador = new ApplicationUser
