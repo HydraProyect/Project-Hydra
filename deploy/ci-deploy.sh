@@ -474,7 +474,7 @@ linea_contadores_muestreo() {
 }
 
 muestreo_memoria() {
-    local duracion="$1" intervalo="$2" inicio muestras=0 maximo interrumpido reserva plazo
+    local duracion="$1" intervalo="$2" inicio muestras=0 maximo interrumpido reserva plazo fin_bucle tope espera
     # Techo de iteraciones, independiente del reloj: aunque `sleep` o
     # $SECONDS se comportaran de forma rara, nunca hay más muestras que estas.
     maximo=$(( duracion / intervalo + 1 ))
@@ -490,9 +490,10 @@ muestreo_memoria() {
     plazo=$(( inicio + duracion ))
     reserva=$(( duracion / 10 )); [ "$reserva" -le 15 ] || reserva=15
     echo "=== Estado inicial de los contenedores ==="
-    volcar_cgroup_contenedores 5 $(( plazo - reserva ))
+    fin_bucle=$(( plazo - reserva ))
+    volcar_cgroup_contenedores 5 "$fin_bucle"
     interrumpido=0
-    while [ "$muestras" -lt "$maximo" ] && [ $(( SECONDS - inicio )) -lt $(( duracion - reserva )) ]; do
+    while [ "$muestras" -lt "$maximo" ] && [ "$SECONDS" -lt "$fin_bucle" ]; do
         if despliegue_en_curso; then
             interrumpido=1
             break
@@ -501,8 +502,12 @@ muestreo_memoria() {
         echo "--- muestra ${muestras} $(date -u +%Y-%m-%dT%H:%M:%SZ) t=$(( SECONDS - inicio ))s ---"
         { free -m | sed -n '2,3p'; } || true
         linea_contadores_muestreo
-        timeout 15 docker stats --no-stream --format '{{.Name}} mem={{.MemUsage}} {{.MemPerc}} cpu={{.CPUPerc}}' || true
-        sleep "$intervalo"
+        # Ni `docker stats` ni la espera rebasan el fin del bucle: el tramo que
+        # queda es de la lectura final, y el comando entero no pasa de la duración.
+        tope=$(( fin_bucle - SECONDS )); [ "$tope" -ge 1 ] || tope=1; [ "$tope" -le 15 ] || tope=15
+        timeout "$tope" docker stats --no-stream --format '{{.Name}} mem={{.MemUsage}} {{.MemPerc}} cpu={{.CPUPerc}}' || true
+        espera=$(( fin_bucle - SECONDS )); [ "$espera" -ge 0 ] || espera=0; [ "$espera" -le "$intervalo" ] || espera="$intervalo"
+        sleep "$espera"
     done
     echo "=== Estado final de los contenedores (memory.peak = pico de TODA la vida del contenedor) ==="
     volcar_cgroup_contenedores 5 "$plazo"

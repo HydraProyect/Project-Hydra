@@ -231,4 +231,18 @@ echo "$SALIDA11" | grep -q "Fin del muestreo: 18 muestras" || fallo "falta el ci
 sleep() { :; }
 echo "OK: 18 muestras; el tramo final queda para la lectura final"
 
+echo "=== Caso 12: la última muestra y su espera no rebasan el fin del bucle ==="
+LIMITES="$TMP/limites-stats"; ESPERAS="$TMP/esperas"; : > "$LIMITES"; : > "$ESPERAS"
+timeout() { if [ "$2" = docker ] && [ "$3" = stats ]; then echo "$1" >> "$LIMITES"; fi; shift; "$@"; }
+sleep() { echo "$1" >> "$ESPERAS"; SECONDS=$((SECONDS + $1)); }
+echo 0 > "$CONTADOR_STATS"
+muestreo_memoria 60 5 >/dev/null 2>&1   # reserva 6 s: el bucle acaba en t=54
+[ "$(sort -n "$LIMITES" | head -1)" -le 4 ] || fallo "el docker stats de la última muestra debía tener techo <= 4 s (quedan 4 s de bucle), sus techos: $(tr '\n' ' ' < "$LIMITES")"
+[ "$(tail -1 "$LIMITES")" -le 4 ] || fallo "el techo del último docker stats debía acotarse al tiempo que queda: $(tail -1 "$LIMITES")"
+[ "$(tail -1 "$ESPERAS")" -le 4 ] || fallo "la última espera debía acotarse al tiempo que queda de bucle: $(tail -1 "$ESPERAS")"
+[ "$(head -1 "$LIMITES")" = "15" ] || fallo "con tiempo de sobra el techo de docker stats es 15 s: $(head -1 "$LIMITES")"
+timeout() { shift; "$@"; }
+sleep() { :; }
+echo "OK: docker stats y la espera respetan el fin del bucle"
+
 echo "TODAS LAS PRUEBAS PASARON"
