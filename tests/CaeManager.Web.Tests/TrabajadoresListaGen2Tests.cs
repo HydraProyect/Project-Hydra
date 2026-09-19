@@ -754,6 +754,28 @@ public class TrabajadoresListaGen2Tests : BunitContext
         cut.WaitForAssertion(() => Columna(cut, 0).Should().Equal("Alonso", "Moreno"));
     }
 
+
+    /// <summary>
+    /// El Workspace no es modal: con la ficha del trabajador abierta, la baja se
+    /// confirma desde la fila que queda detrás. La ficha ya no tiene baja propia
+    /// (P41b), así que la lista es quien la retira (hallazgo de Codex).
+    /// </summary>
+    [Fact]
+    public async Task Eliminar_al_trabajador_cuya_ficha_esta_abierta_retira_la_ficha()
+    {
+        var ana = Trabajador("Ana", "Moreno");
+        var mediador = new MediatorFalso { Almacen = { Trabajador("Bea", "Alonso"), ana } };
+        var cut = Renderizar(mediador);
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Trabajador, ana.Dto.Id, "Ana Moreno", "operacion"));
+        workspace.EstaAbierto.Should().BeTrue("control positivo: la ficha estaba abierta");
+
+        await PulsarEnElMenuDeLaFila(cut, 1, "Eliminar");
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EliminarTrabajadorCommand>().Should().ContainSingle("la baja se ejecutó");
+        workspace.EstaAbierto.Should().BeFalse("una ficha abierta de un trabajador ya dado de baja no puede seguir editable");
+    }
     [Fact]
     public async Task Abrir_Trabajador_360_desde_el_menu_navega_a_la_ficha_de_esa_fila()
     {

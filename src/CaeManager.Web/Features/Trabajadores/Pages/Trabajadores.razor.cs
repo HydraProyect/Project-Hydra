@@ -635,6 +635,7 @@ public partial class Trabajadores : ComponentBase
             else
             {
                 ToastService.Mostrar("Trabajador eliminado correctamente.", TonoToast.Exito, "Deshacer", () => DeshacerEliminarAsync(idEliminado));
+                await WorkspaceService.RetirarSiEstaAbiertoAsync(EntidadWorkspace.Trabajador, [idEliminado]);
                 _confirmarEliminarVisible = false;
                 await RecargarAsync();
             }
@@ -709,6 +710,10 @@ public partial class Trabajadores : ComponentBase
                     ? $"{dto.Eliminados} trabajador(es) eliminado(s)."
                     : $"{dto.Eliminados} eliminado(s). {dto.Errores.Count} no se pudieron borrar: {string.Join(" ", dto.Errores)}",
                 dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+
+            // Solo con el lote completo: el DTO no dice qué ids cayeron si hubo errores.
+            if (dto.Errores.Count == 0)
+                await WorkspaceService.RetirarSiEstaAbiertoAsync(EntidadWorkspace.Trabajador, _seleccionados.ToList());
 
             _seleccionados.Clear();
             _confirmarEliminarLoteVisible = false;
