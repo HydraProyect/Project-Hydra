@@ -82,6 +82,24 @@ public class ApiKeyAuthenticationHandler(
         try
         {
             using var _ = AmbitoTenantExplicito.Establecer(clave.TenantId);
+
+            // P41c: quien está detrás no es una persona, es una organización
+            // externa con una credencial. Hace falta declararlo porque el
+            // claim de identidad NO lo delata: este handler mete `clave.Id`
+            // como NameIdentifier (ver más arriba), así que sin esta línea la
+            // auditoría resolvería el tipo de actor como Persona y el Id de una
+            // ClaveApi acabaría en la columna de un usuario sin que nada lo
+            // distinga.
+            //
+            // El ámbito cubre EXACTAMENTE esta escritura, y hoy eso basta: la
+            // política "ApiPublica" no la usa ningún endpoint todavía (medido
+            // 2026-09-19 sobre Program.cs y los Features), así que
+            // `ClaveApi.RegistrarUso` es la única escritura auditable que puede
+            // producir una petición con clave. Cuando la API v1 tenga
+            // endpoints, el ámbito tendrá que abarcar la petición entera —un
+            // middleware tras UseAuthentication— porque una lectura suya sí
+            // puede escribir en RegistrosAccesoDocumentoSensible.
+            using var ambitoActor = AmbitoActorAuditoria.EstablecerIntegracionExterna();
             clave.RegistrarUso();
             await unitOfWork.SaveChangesAsync(Context.RequestAborted);
         }

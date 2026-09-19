@@ -15,6 +15,16 @@ public class RegistroAccesoDocumentoSensibleConfiguration : IEntityTypeConfigura
         builder.Property(r => r.Sensibilidad).IsRequired().HasConversion<string>().HasMaxLength(30);
         builder.Property(r => r.TipoAcceso).IsRequired().HasConversion<string>().HasMaxLength(20);
         builder.Property(r => r.ViaAcceso).IsRequired().HasConversion<string>().HasMaxLength(30);
+
+        // Nombre y no número, mismo criterio que las cuatro de arriba: un valor
+        // intercalado en el futuro no debe reinterpretar filas existentes.
+        // `HasDefaultValue` deja el defecto también en la BD, no solo en el
+        // modelo: un INSERT que no nombre la columna —una siembra por SQL, un
+        // arreglo manual— cae en Desconocido en vez de fallar o en vez de
+        // heredar el primer valor del enum por casualidad.
+        builder.Property(r => r.TipoActor).IsRequired().HasConversion<string>().HasMaxLength(30)
+            .HasDefaultValue(TipoActorAuditoria.Desconocido);
+
         builder.Property(r => r.OcurridoEnUtc).IsRequired();
 
         // La consulta que importa: "enséñame los accesos a este Documento" y

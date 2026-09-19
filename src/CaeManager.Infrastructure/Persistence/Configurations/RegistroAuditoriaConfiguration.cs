@@ -22,6 +22,15 @@ public class RegistroAuditoriaConfiguration : IEntityTypeConfiguration<RegistroA
         // normal en uno privilegiado.
         builder.Property(r => r.ViaAcceso).HasConversion<string>().HasMaxLength(20);
 
+        // Mismo criterio de nombre-y-no-número para el eje ortogonal de P41c, y
+        // con defecto también en la base: las filas anteriores a esta columna, y
+        // cualquier INSERT que no la nombre, quedan en Desconocido — el único
+        // valor que no afirma ni persona ni máquina. A diferencia de ViaAcceso,
+        // esta columna NO es anulable: "no lo sé" ya tiene su propio valor, así
+        // que un NULL solo añadiría un segundo modo de decir lo mismo.
+        builder.Property(r => r.TipoActor).IsRequired().HasConversion<string>().HasMaxLength(30)
+            .HasDefaultValue(TipoActorAuditoria.Desconocido);
+
         // Con TenantId primero en los cuatro: el filtro global de EF Core
         // (RegistroAuditoria es EntidadConTenant) añade WHERE TenantId = ...
         // a TODA consulta real contra esta tabla, aunque ningún .Where() lo

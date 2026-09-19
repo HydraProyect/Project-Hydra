@@ -34,11 +34,19 @@ public enum TipoViaAcceso
 
     /// <summary>
     /// No se pudo resolver la vía. Existe para que el agujero sea
-    /// <b>visible</b> en vez de silencioso: hoy solo lo produce el guardado
-    /// síncrono cuando los claims aún no están resueltos y bloquear
-    /// arriesgaría un interbloqueo del circuito. Una fila así dice "no lo sé",
-    /// que es honesto; lo que no puede hacer es disfrazarse de
+    /// <b>visible</b> en vez de silencioso: lo produce el guardado síncrono
+    /// cuando los claims aún no están resueltos y bloquear arriesgaría un
+    /// interbloqueo del circuito, y también todo trabajo sin sesión —servicios
+    /// de fondo, siembra—, que no opera por ninguna vía. Una fila así dice "no
+    /// lo sé", que es honesto; lo que no puede hacer es disfrazarse de
     /// <see cref="Normal"/>.
+    ///
+    /// <para>
+    /// Lo que esta vía <b>no</b> distingue, y por eso existe
+    /// <see cref="TipoActor"/> (P41c): si detrás había una persona que no se
+    /// pudo identificar o una máquina que no tiene a quién identificar. Las dos
+    /// llegan aquí, y son hechos distintos.
+    /// </para>
     /// </summary>
     Desconocida = 3
 }
