@@ -8,6 +8,7 @@ using CaeManager.Web.Services;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -48,6 +49,11 @@ public class MainLayoutMarcaTests : BunitContext
         Services.AddSingleton(usuarios);
         Services.AddSingleton(new ActividadUsuarioService(null!, usuarios, new PuertaAccesoDatos()));
         Services.AddSingleton<AuthenticationStateProvider>(new ProveedorAnonimo());
+
+        // Solo para que MainLayout resuelva la inyección: con un usuario
+        // anónimo OnParametersSetAsync vuelve antes de llegar al catch que lo
+        // usa (ver MainLayoutFallaCerradoTests para ese camino).
+        Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor());
     }
 
     [Fact]

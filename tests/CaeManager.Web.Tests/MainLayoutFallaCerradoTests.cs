@@ -8,6 +8,7 @@ using CaeManager.Web.Services;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
@@ -55,6 +56,7 @@ public class MainLayoutFallaCerradoTests : BunitContext
     private readonly AlmacenConmutable _almacen = new();
     private readonly NavegacionDeBanco _navegacion = new();
     private readonly ProveedorAutenticacionConmutable _autenticacion = new();
+    private readonly AccesoHttpContextConmutable _httpContextAccessor = new();
 
     /// <summary>
     /// Todo se registra aquí porque bUnit congela su proveedor de servicios en
@@ -75,6 +77,7 @@ public class MainLayoutFallaCerradoTests : BunitContext
         Services.AddSingleton(usuarios);
         Services.AddSingleton<ActividadUsuarioService>(new ActividadUsuarioSilenciosa(usuarios));
         Services.AddSingleton<NavigationManager>(_navegacion);
+        Services.AddSingleton<IHttpContextAccessor>(_httpContextAccessor);
 
         // Doble propio en vez de AddAuthorization() de bUnit: MainLayout
         // inyecta AuthenticationStateProvider directamente (no lee un
@@ -92,11 +95,30 @@ public class MainLayoutFallaCerradoTests : BunitContext
     /// El caso que el catch anterior daba por imposible: la excepción salta con
     /// el circuito vivo. Nadie sabe si a este usuario le tocaba cambiar la
     /// contraseña o configurar la 2FA, así que el contenido se retira.
+    ///
+    /// <para>
+    /// <see cref="OperationCanceledException"/> entra en la misma lista, a
+    /// propósito, tras un hallazgo de Codex sobre este incremento (P1): una
+    /// versión anterior la excluía del catch por tipo pensando solo en la
+    /// petición abortada, pero una dependencia del guard (p. ej. un timeout de
+    /// consulta en <c>UserManager</c>/EF Core) puede lanzarla igual con el
+    /// cliente todavía conectado, y excluirla de forma general dejaba pasar
+    /// ese caso sin redirigir y sin registrar nada — el mismo fallo abierto
+    /// que este catch existe para cerrar. Este caso (el doble de
+    /// <c>IHttpContextAccessor</c> arranca con <c>RequestAborted</c> sin
+    /// cancelar) representa exactamente esa distinción: el cliente sigue ahí,
+    /// así que se redirige igual que cualquier otra excepción. El caso
+    /// realmente benigno —petición abortada de verdad— lo cubre
+    /// <see cref="Con_una_cancelacion_por_peticion_realmente_abortada_no_se_redirige"/>,
+    /// y el de circuito ya cerrado,
+    /// <see cref="Con_el_circuito_ya_cerrado_la_excepcion_se_descarta_sin_redirigir"/>.
+    /// </para>
     /// </summary>
     [Theory]
     [InlineData(typeof(ObjectDisposedException))]
     [InlineData(typeof(ArgumentOutOfRangeException))]
     [InlineData(typeof(InvalidOperationException))]
+    [InlineData(typeof(OperationCanceledException))]
     public void Con_el_circuito_vivo_una_excepcion_en_el_guard_retira_el_contenido(Type tipoDeExcepcion)
     {
         _almacen.Falla(tipoDeExcepcion);
@@ -111,6 +133,56 @@ public class MainLayoutFallaCerradoTests : BunitContext
             "sin la ruta de origen, /Error no tiene adónde reintentar (PaginaEstadoSistema.RutaReintentar)");
         _navegacion.ForzoLaCarga.Should().BeTrue(
             "una navegación interna conservaría el documento, y el contenido protegido seguiría a la vista");
+    }
+
+    /// <summary>
+    /// El caso realmente benigno: el cliente cerró la conexión (navegó a otro
+    /// sitio, cerró la pestaña) mientras el guard todavía esperaba a
+    /// UserManager, y eso se propaga como <see cref="OperationCanceledException"/>.
+    /// No hay nadie a quien redirigir — forzarlo sería una navegación al
+    /// vacío— y registrar un error sería ruido de monitorización sobre
+    /// tráfico normal (la preocupación original que motivó revisar este
+    /// catch). Medible de forma fiable porque MainLayout se ejecuta siempre en
+    /// SSR (ver el <c>remarks</c> de <see cref="EstadoDelCircuito"/>, medido
+    /// con un E2E real), así que <c>HttpContext.RequestAborted</c> está
+    /// disponible — a diferencia de <c>EstadoDelCircuito.Cerrado</c>, que este
+    /// camino no puede usar como discriminante (no hay circuito que cerrar).
+    /// </summary>
+    [Fact]
+    public void Con_una_cancelacion_por_peticion_realmente_abortada_no_se_redirige()
+    {
+        _almacen.Falla(typeof(OperationCanceledException));
+        _httpContextAccessor.AbortarPeticion();
+
+        Render<MainLayout>();
+
+        _navegacion.Destinos.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// El caso SSR — medido con un E2E real como el que se ejercita en
+    /// producción todo el tiempo (ver el <c>remarks</c> de
+    /// <see cref="EstadoDelCircuito"/>): <c>RendererInfo.IsInteractive</c> es
+    /// <c>false</c> en cada invocación observada de
+    /// <c>MainLayout.OnParametersSetAsync</c>, tanto en recarga completa como
+    /// en navegación por enlace interno. <c>EstadoDelCircuito.Cerrado</c> en
+    /// <c>false</c> no significa siempre "hay un circuito vivo que podría
+    /// haberse ido" — aquí no hay carrera de desconexión que perdonar, así que
+    /// una excepción del guard sigue siendo un fallo real y se redirige igual
+    /// que en <see cref="Con_el_circuito_vivo_una_excepcion_en_el_guard_retira_el_contenido"/>,
+    /// por un motivo distinto: no porque el circuito se fuera, sino porque
+    /// este camino nunca tuvo uno propio.
+    /// </summary>
+    [Fact]
+    public void Durante_el_prerenderizado_sin_circuito_una_excepcion_tambien_retira_el_contenido()
+    {
+        SetRendererInfo(new RendererInfo("Static", isInteractive: false));
+        _almacen.Falla(typeof(ObjectDisposedException));
+
+        Render<MainLayout>();
+
+        var destino = _navegacion.Destinos.Should().ContainSingle().Subject;
+        SepararRutaYConsulta(destino).Ruta.Should().Be("/Error");
     }
 
     /// <summary>
@@ -287,6 +359,25 @@ public class MainLayoutFallaCerradoTests : BunitContext
 
         public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
             _excepcion is { } excepcion ? throw excepcion : Task.FromResult(new AuthenticationState(_principal));
+    }
+
+    /// <summary>
+    /// <c>DefaultHttpContext</c> real, no un mock: <c>RequestAborted</c> tiene
+    /// setter público justo para poder sustituirlo por un token controlable,
+    /// que es lo único que este doble necesita conmutar.
+    /// <c>AbortarPeticion</c> cancela el token, igual que ASP.NET Core cuando
+    /// el cliente cierra la conexión.
+    /// </summary>
+    private sealed class AccesoHttpContextConmutable : IHttpContextAccessor
+    {
+        private readonly CancellationTokenSource _fuentePeticionAbortada = new();
+
+        public AccesoHttpContextConmutable() =>
+            HttpContext = new DefaultHttpContext { RequestAborted = _fuentePeticionAbortada.Token };
+
+        public HttpContext? HttpContext { get; set; }
+
+        public void AbortarPeticion() => _fuentePeticionAbortada.Cancel();
     }
 
     /// <summary>

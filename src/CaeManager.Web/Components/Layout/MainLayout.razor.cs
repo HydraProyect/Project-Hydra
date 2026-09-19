@@ -4,6 +4,7 @@ using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 
 namespace CaeManager.Web.Components.Layout;
@@ -17,6 +18,20 @@ public partial class MainLayout
     [Inject] private ActividadUsuarioService ActividadUsuario { get; set; } = default!;
     [Inject] private EstadoDelCircuito EstadoDelCircuito { get; set; } = default!;
     [Inject] private ILogger<MainLayout> Logger { get; set; } = default!;
+
+    /// <summary>
+    /// Medido, no asumido: <c>ActividadUsuarioService.RegistrarYEvaluarAsync</c>
+    /// documenta que <c>IHttpContextAccessor</c> no sirve para distinguir la
+    /// pasada de prerenderizado de la del circuito real interactivo — pero esa
+    /// nota es sobre <c>Inicio.razor</c>, que sí llega a ejecutarse en las dos.
+    /// MainLayout no: el <c>remarks</c> de <see cref="EstadoDelCircuito"/>
+    /// documenta, con un E2E real, que <c>OnParametersSetAsync</c> de
+    /// MainLayout se ejecuta siempre en SSR (<c>RendererInfo.IsInteractive</c>
+    /// nunca fue <c>true</c> en la medición), y en esa pasada el
+    /// <c>HttpContext</c> de la petición sí está disponible y con
+    /// <c>RequestAborted</c> operativo — confirmado con el mismo E2E.
+    /// </summary>
+    [Inject] private IHttpContextAccessor HttpContextAccessor { get; set; } = default!;
 
     /// <summary>
     /// Adonde va el usuario cuando el guard de abajo no se pudo evaluar y el
@@ -132,11 +147,43 @@ public partial class MainLayout
         // lanzarla, atraparla aquí se tragaría precisamente el "cambia la
         // contraseña" o el "configura la 2FA" que el guard acaba de decidir —
         // el mismo fallo abierto que este catch existe para cerrar,
-        // reintroducido por su propio arreglo. Por tipo no se filtra nada
-        // más: el tipo no distingue un circuito muerto de uno vivo (ver abajo),
-        // así que como criterio no vale, ni estrecho ni ancho.
+        // reintroducido por su propio arreglo.
+        //
+        // OperationCanceledException NO se excluye por TIPO, aunque parezca
+        // tentador: una versión anterior de este incremento la excluía del
+        // catch de forma general pensando solo en la petición abortada, y
+        // Codex encontró el hueco (hallazgo P1, revisión sobre este mismo
+        // incremento): una dependencia del guard puede lanzarla igual con el
+        // circuito perfectamente vivo (p. ej. un timeout de UserManager/EF
+        // Core), y ese camino saltaba el catch entero sin redirigir ni
+        // registrar nada — el propio renderer de Blazor trata la tarea de
+        // ciclo de vida cancelada como benigna. El criterio correcto para
+        // distinguir "el otro lado se fue" de "una dependencia canceló
+        // internamente con el cliente todavía ahí" no es el tipo de la
+        // excepción: es HttpContext.RequestAborted, comprobado más abajo,
+        // dentro del catch — solo posible porque MainLayout se ejecuta
+        // siempre en SSR (ver el remarks de EstadoDelCircuito, medido con un
+        // E2E real), así que HttpContext siempre está disponible aquí.
+        //
+        // Por tipo no se filtra nada más: el tipo no distingue un circuito
+        // muerto de uno vivo (ver abajo), así que como criterio no vale, ni
+        // estrecho ni ancho.
         catch (Exception ex) when (ex is not NavigationException)
         {
+            // Petición realmente abortada (el cliente cerró la conexión antes
+            // de que esto terminara — navegó a otro sitio, cerró la pestaña):
+            // nadie va a ver una redirección a /Error, así que forzarla no
+            // protege a nadie y el LogError sería puro ruido de monitorización
+            // sobre tráfico normal (el motivo original por el que se revisó
+            // este catch). Solo se trata así OperationCanceledException — el
+            // resto de tipos con la petición abortada siguen siendo un fallo
+            // real del guard, no una cancelación, y se redirigen igual.
+            if (ex is OperationCanceledException && HttpContextAccessor.HttpContext is { RequestAborted.IsCancellationRequested: true })
+            {
+                Logger.LogInformation(ex, "El guard de seguridad de MainLayout se canceló porque la petición se abortó (cliente desconectado); no hay nadie a quien redirigir");
+                return;
+            }
+
             // Quién decide qué se hace aquí es el ESTADO DEL CIRCUITO, no el
             // tipo de la excepción. Hasta 2026-09-18 el catch aceptaba
             // ObjectDisposedException y ArgumentOutOfRangeException (PR #517) y
