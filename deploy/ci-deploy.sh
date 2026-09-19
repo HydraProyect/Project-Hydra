@@ -362,10 +362,21 @@ volcar_contadores_memoria_host() {
 # (arranque, reinicios, `memory.peak`/`memory.current`/`memory.events`...),
 # compartida por el volcado previo al despliegue y por el modo
 # "muestreo-memoria". El primer argumento es el techo, en segundos, de CADA
-# llamada a docker (20 por defecto).
+# llamada a docker (20 por defecto). El segundo, opcional, es un plazo absoluto
+# en $SECONDS: pasado, no se empieza otro contenedor y ninguna llamada dura más
+# de lo que queda hasta él (así el modo de muestreo no rebasa su duración).
 volcar_cgroup_contenedores() {
-    local limite="${1:-20}" contenedor
+    local limite="${1:-20}" plazo="${2:-0}" contenedor restante
+    _limite_restante() {
+        [ "$plazo" -gt 0 ] || return 0
+        restante=$(( plazo - SECONDS ))
+        [ "$restante" -gt 0 ] || return 1
+        [ "$restante" -lt "$limite" ] && limite="$restante"
+        return 0
+    }
+    _limite_restante || { echo "(volcado no iniciado: agotado el plazo del muestreo)"; return 0; }
     for contenedor in $(timeout "$limite" docker ps --format '{{.Names}}' 2>/dev/null | grep '^caemanager-' || true); do
+        _limite_restante || { echo "(volcado cortado: agotado el plazo del muestreo)"; break; }
         echo "--- ${contenedor} ---"
         timeout "$limite" docker inspect --format 'iniciado={{.State.StartedAt}} reinicios={{.RestartCount}} oom_docker={{.State.OOMKilled}}' "$contenedor" 2>/dev/null || true
         timeout "$limite" docker exec "$contenedor" sh -c '
@@ -463,7 +474,7 @@ linea_contadores_muestreo() {
 }
 
 muestreo_memoria() {
-    local duracion="$1" intervalo="$2" inicio muestras=0 maximo interrumpido
+    local duracion="$1" intervalo="$2" inicio muestras=0 maximo interrumpido reserva plazo
     # Techo de iteraciones, independiente del reloj: aunque `sleep` o
     # $SECONDS se comportaran de forma rara, nunca hay más muestras que estas.
     maximo=$(( duracion / intervalo + 1 ))
@@ -472,11 +483,16 @@ muestreo_memoria() {
         return 3
     fi
     echo "=== Muestreo de memoria (REC-196/P33): duración=${duracion}s intervalo=${intervalo}s máx. ${maximo} muestras — solo lectura ==="
-    echo "=== Estado inicial de los contenedores ==="
-    volcar_cgroup_contenedores 5
+    # La duración pedida acota el comando ENTERO, lecturas de cgroup incluidas
+    # (docker lento las alargaría hasta ~170 s más): el reloj corre desde antes
+    # del primer volcado, y el tramo final se reserva para la lectura final.
     inicio=$SECONDS
+    plazo=$(( inicio + duracion ))
+    reserva=$(( duracion / 10 )); [ "$reserva" -le 15 ] || reserva=15
+    echo "=== Estado inicial de los contenedores ==="
+    volcar_cgroup_contenedores 5 $(( plazo - reserva ))
     interrumpido=0
-    while [ "$muestras" -lt "$maximo" ] && [ $(( SECONDS - inicio )) -lt "$duracion" ]; do
+    while [ "$muestras" -lt "$maximo" ] && [ $(( SECONDS - inicio )) -lt $(( duracion - reserva )) ]; do
         if despliegue_en_curso; then
             interrumpido=1
             break
@@ -489,7 +505,7 @@ muestreo_memoria() {
         sleep "$intervalo"
     done
     echo "=== Estado final de los contenedores (memory.peak = pico de TODA la vida del contenedor) ==="
-    volcar_cgroup_contenedores 5
+    volcar_cgroup_contenedores 5 "$plazo"
     if [ "$interrumpido" -eq 1 ]; then
         # Sin "Fin del muestreo": el cliente no debe tomar por completa una serie cortada.
         echo "=== Muestreo INTERRUMPIDO tras ${muestras} muestras: empezó un despliegue ==="

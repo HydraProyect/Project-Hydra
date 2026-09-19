@@ -201,4 +201,34 @@ done
 [ ! -e "$TMP/docker-real.log" ] || fallo "se llamó a docker con una orden no válida"
 echo "OK: despacho anterior al cerrojo; las órdenes hostiles salen con 1 sin tocar docker ni ejecutar nada"
 
+echo "=== Caso 10: la duración pedida acota el comando entero, aunque docker sea lento en las lecturas de cgroup ==="
+eval "$(declare -f docker | sed '1s/^docker/docker_base/')"
+INSPECCIONES="$TMP/inspecciones"; : > "$INSPECCIONES"
+docker() {
+    # Cada `inspect` "tarda" 100 s de reloj: mucho más que los 60 s pedidos.
+    if [ "$1" = inspect ]; then echo x >> "$INSPECCIONES"; SECONDS=$((SECONDS + 100)); fi
+    docker_base "$@"
+}
+echo 0 > "$CONTADOR_STATS"
+ESTADO10=0
+SALIDA10="$(muestreo_memoria 60 2 2>&1)" || ESTADO10=$?
+# El subshell de $(...) no propaga SECONDS al padre, pero dentro de él la cuenta es coherente.
+[ "$(wc -l < "$INSPECCIONES")" -eq 1 ] || fallo "con el plazo agotado tras el primer inspect no debía haber más: hubo $(wc -l < "$INSPECCIONES")"
+echo "$SALIDA10" | grep -q "volcado cortado: agotado el plazo" || fallo "el volcado inicial no se cortó al agotarse el plazo: $SALIDA10"
+echo "$SALIDA10" | grep -q "volcado no iniciado: agotado el plazo" || fallo "el volcado final no respetó el plazo: $SALIDA10"
+[ "$(cat "$CONTADOR_STATS")" = "0" ] || fallo "con el plazo agotado no debía muestrear, hizo $(cat "$CONTADOR_STATS")"
+[ "$ESTADO10" -eq 0 ] || fallo "un muestreo con volcados lentos no es un error: devolvió $ESTADO10"
+echo "OK: los volcados de cgroup respetan el plazo total"
+
+echo "=== Caso 11: el bucle deja el tramo final (duración/10, tope 15 s) para la lectura final ==="
+docker() { docker_base "$@"; }
+despliegue_en_curso() { return 1; }   # el caso 8 la dejó redefinida
+sleep() { SECONDS=$((SECONDS + $1)); }   # ahora el reloj avanza de verdad con cada intervalo
+echo 0 > "$CONTADOR_STATS"
+SALIDA11="$(muestreo_memoria 100 5 2>&1)"
+[ "$(cat "$CONTADOR_STATS")" = "18" ] || fallo "100 s a 5 s con 10 s de reserva debían dar 18 muestras (t=0..85), dieron $(cat "$CONTADOR_STATS")"
+echo "$SALIDA11" | grep -q "Fin del muestreo: 18 muestras" || fallo "falta el cierre con 18 muestras"
+sleep() { :; }
+echo "OK: 18 muestras; el tramo final queda para la lectura final"
+
 echo "TODAS LAS PRUEBAS PASARON"
