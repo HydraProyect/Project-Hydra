@@ -1254,6 +1254,18 @@ jobs:
       - name: scripts/informe-cobertura-por-capas.tests.sh
         run: bash scripts/informe-cobertura-por-capas.tests.sh
 
+      # Latido del backup (P36): sin Docker ni Borg ni red, con dobles en el PATH.
+      - name: scripts/backup-borg.tests.sh
+        run: bash scripts/backup-borg.tests.sh
+
+      # Copia cifrada de las claves de Data Protection (P38): esta prueba usa
+      # `age` REAL (el cifrado no se puede simular) y NO da verde sin él.
+      - name: scripts/dataprotection-copia-cifrada.tests.sh
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends age
+          bash scripts/dataprotection-copia-cifrada.tests.sh
+
   licencias-dependencias:
     name: Licencias de dependencias
     runs-on: ubuntu-latest

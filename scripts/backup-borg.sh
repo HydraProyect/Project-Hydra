@@ -22,7 +22,9 @@
 # BETTERSTACK_HEARTBEAT_URL es opcional (Horizonte 2.4 del plan macro,
 # dead man's switch): sin ella el script funciona exactamente igual que
 # antes, solo que nadie externo nota si el cron deja de ejecutarse (ver
-# el bloque al final del script).
+# el bloque al final del script). Con ella, además del ping de éxito, un
+# fallo del propio script avisa al momento con `<url>/fail` en vez de esperar a
+# que venza la ventana del monitor (P36).
 set -euo pipefail
 
 : "${BORG_REPO:?Define BORG_REPO (ssh://uXXXXXX@uXXXXXX.your-storagebox.de:23/./backups/caemanager)}"
@@ -30,7 +32,24 @@ set -euo pipefail
 export BORG_REPO BORG_PASSPHRASE
 
 DIR_TRABAJO="$(mktemp -d)"
-trap 'rm -rf "$DIR_TRABAJO"' EXIT
+
+# Un único manejador de salida: limpia el directorio de trabajo y, si el
+# script termina con error (dump vacío, sin claves, borg roto, `exit 1` de
+# cualquiera de las guardas), avisa al heartbeat con `/fail` para que el
+# incidente se abra ya y no cuando venza la ventana de espera. Es un AVISO
+# ADICIONAL: la señal que no se puede perder sigue siendo la AUSENCIA del ping
+# de éxito (un host caído no puede llamar a nadie), que cubre lo que este
+# manejador no puede — que el propio script ni llegue a arrancar.
+al_salir() {
+    local codigo=$?
+    rm -rf "$DIR_TRABAJO"
+    if [ "$codigo" -ne 0 ] && [ -n "${BETTERSTACK_HEARTBEAT_URL:-}" ]; then
+        curl -fsS -m 10 --retry 2 --retry-delay 3 "${BETTERSTACK_HEARTBEAT_URL%/}/fail" >/dev/null 2>&1 \
+            || echo "AVISO: el backup FALLÓ y tampoco se pudo avisar al heartbeat (/fail) — la ausencia del ping de éxito lo avisará igualmente."
+    fi
+    return "$codigo"
+}
+trap al_salir EXIT
 
 echo "==> 1/4 Volcando PostgreSQL (pg_dump --format=custom, dentro del contenedor db)..."
 docker exec caemanager-db pg_dump -U postgres --format=custom caemanager \
