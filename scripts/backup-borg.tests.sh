@@ -159,17 +159,27 @@ comprobar "termina distinto de 0" '[ "$CODIGO" -ne 0 ]'
 comprobar "el contenido NO sale en la salida" '! printf "%s" "$SALIDA" | grep -q "$SENTINELA"'
 comprobar "ni en los logs de curl / borg / docker" '! cat "$LOG_CURL" "$LOG_BORG" "$LOG_DOCKER" | grep -q "$SENTINELA"'
 
-echo "== sin .env (ruta inexistente): el backup FALLA y avisa /fail; no llega a borg create"
+echo "== sin .env (ruta inexistente): la BD SE RESPALDA igualmente; el guion sale con error y avisa /fail"
 ejecutar sinenv BETTERSTACK_HEARTBEAT_URL="$URL" ENV_PRODUCCION="$TMP_ROOT/no-existe"
 comprobar "termina distinto de 0" '[ "$CODIGO" -ne 0 ]'
 comprobar "dice qué falta y cómo salir" 'printf "%s" "$SALIDA" | grep -q "no hay .env de producción" && printf "%s" "$SALIDA" | grep -q "BACKUP_SIN_ENV=1"'
-comprobar "avisó /fail y no mandó el ping de éxito" '[ "$(llamadas_curl)" -eq 1 ] && grep -q "$URL/fail" "$LOG_CURL"'
-comprobar "no llegó a borg create" '! grep -q "^borg create" "$LOG_BORG"'
+comprobar "se creó el archivo Borg" 'grep -q "^borg create" "$LOG_BORG"'
+comprobar "el archivo lleva la BD, las claves y los documentos" '[ -s "$LOG_BORG.archivo/CaeManager.dump" ] && [ -f "$LOG_BORG.archivo/dataprotection-keys/key-x.xml" ] && [ -f "$LOG_BORG.archivo/documentos/a.pdf" ]'
+comprobar "y no lleva env-produccion" '[ ! -e "$LOG_BORG.archivo/env-produccion" ]'
+comprobar "prune y compact también corrieron (la retención no se salta)" 'grep -q "^borg prune" "$LOG_BORG" && grep -q "^borg compact" "$LOG_BORG"'
+comprobar "avisó /fail y no mandó el ping de éxito (un único curl)" '[ "$(llamadas_curl)" -eq 1 ] && grep -q "$URL/fail" "$LOG_CURL"'
+comprobar "la salida dice que la BD quedó respaldada sin el .env" 'printf "%s" "$SALIDA" | grep -q "BACKUP DE LA BD COMPLETADO" && ! printf "%s" "$SALIDA" | grep -q "^BACKUP COMPLETADO"'
 
-echo "== .env vacío: también falla (no se acepta un archivo vacío como .env)"
+echo "== .env vacío: igual (archivo con la BD, exit != 0, /fail)"
 : > "$TMP_ROOT/env-vacio"
-ejecutar envvacio ENV_PRODUCCION="$TMP_ROOT/env-vacio"
+ejecutar envvacio BETTERSTACK_HEARTBEAT_URL="$URL" ENV_PRODUCCION="$TMP_ROOT/env-vacio"
 comprobar "termina distinto de 0" '[ "$CODIGO" -ne 0 ]'
+comprobar "hay archivo con la BD" '[ -s "$LOG_BORG.archivo/CaeManager.dump" ]'
+comprobar "solo el aviso /fail" '[ "$(llamadas_curl)" -eq 1 ] && grep -q "$URL/fail" "$LOG_CURL"'
+
+echo "== sin .env y sin heartbeat configurado: sigue saliendo con error y con el archivo hecho"
+ejecutar sinenv-sinurl ENV_PRODUCCION="$TMP_ROOT/no-existe"
+comprobar "termina distinto de 0, con la BD respaldada, sin llamadas de red" '[ "$CODIGO" -ne 0 ] && [ -s "$LOG_BORG.archivo/CaeManager.dump" ] && [ "$(llamadas_curl)" -eq 0 ]'
 
 echo "== BACKUP_SIN_ENV=1: se omite a sabiendas, con aviso"
 ejecutar sinenv-explicito ENV_PRODUCCION="$TMP_ROOT/no-existe" BACKUP_SIN_ENV=1

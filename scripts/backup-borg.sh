@@ -80,9 +80,14 @@ docker cp caemanager-app:/data/documentos "$DIR_TRABAJO/documentos" 2>/dev/null 
 # servidor obliga a regenerar todos los secretos a mano y entra en el RTO. Va
 # cifrado por Borg (repokey-blake2), como el resto del archivo. El contenido
 # NUNCA se imprime ni pasa por argumentos: solo se copia con permisos 0600.
-# Si falta o está vacío el backup FALLA (avisa con /fail) en vez de omitirlo en
-# silencio: un backup que parece bueno y no lleva el .env es un falso verde.
+# Si falta o está vacío NO se aborta: el archivo Borg se crea igualmente con el
+# volcado de la BD, las claves y los documentos (la ausencia de un secreto no puede
+# costar el backup de la base de datos de esa noche). La ausencia se registra y el
+# guion termina con código distinto de 0 AL FINAL, sin ping de éxito, para que salte
+# /fail: ruidoso, pero sin perder el backup. Omitirlo en silencio sería un falso
+# verde (un backup que parece bueno y no lleva el .env).
 # Salida deliberada: BACKUP_SIN_ENV=1.
+ENV_FALTA=0
 if [ "${BACKUP_SIN_ENV:-0}" = "1" ]; then
     echo "AVISO: BACKUP_SIN_ENV=1 — este archivo NO incluye el .env; restaurar el servidor exigirá regenerar todos los secretos a mano."
 else
@@ -90,10 +95,11 @@ else
     if [ ! -s "$ENV_ORIGEN" ]; then
         echo "ERROR: no hay .env de producción (o está vacío) en $ENV_ORIGEN."
         echo "       Indica su ruta con ENV_PRODUCCION, o BACKUP_SIN_ENV=1 para omitirlo a sabiendas."
-        exit 1
+        ENV_FALTA=1
+    else
+        install -m 600 "$ENV_ORIGEN" "$DIR_TRABAJO/env-produccion"
+        echo "    .env de producción incluido como env-produccion ($(wc -c < "$DIR_TRABAJO/env-produccion") bytes; el contenido no se muestra)"
     fi
-    install -m 600 "$ENV_ORIGEN" "$DIR_TRABAJO/env-produccion"
-    echo "    .env de producción incluido como env-produccion ($(wc -c < "$DIR_TRABAJO/env-produccion") bytes; el contenido no se muestra)"
 fi
 
 ARCHIVO="caemanager-$(date -u +%Y-%m-%dT%H-%M-%S)"
@@ -112,6 +118,15 @@ borg compact
 if [ "${1:-}" = "--check" ]; then
     echo "==> borg check..."
     borg check
+fi
+
+# El archivo con la BD ya existe (borg create, prune y compact hechos). Si faltó
+# el .env se termina AHORA con error: al_salir avisa con /fail y no se manda el
+# ping de éxito. La BD no se pierde; el aviso es ruidoso a propósito.
+if [ "$ENV_FALTA" -eq 1 ]; then
+    echo "BACKUP DE LA BD COMPLETADO: $ARCHIVO — PERO SIN el .env de producción (ver el ERROR de arriba)."
+    echo "El guion termina con error a propósito: avisa con /fail y no manda el ping de éxito."
+    exit 1
 fi
 
 echo "BACKUP COMPLETADO: $ARCHIVO"
