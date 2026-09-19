@@ -429,6 +429,8 @@ jobs:
           SEC_WHATSAPP_APPSECRET: ${{ secrets.Integraciones__WhatsApp__AppSecret }}
           SEC_WHATSAPP_VERIFYTOKEN: ${{ secrets.Integraciones__WhatsApp__VerifyToken }}
           SEC_SEQ_APIKEY: ${{ secrets.Serilog__Seq__ApiKey }}
+          SEC_STRIPE_APIKEY: ${{ secrets.Stripe__ApiKey }}
+          SEC_STRIPE_WEBHOOKSECRET: ${{ secrets.Stripe__WebhookSecret }}
         run: |
           set -euo pipefail
 
@@ -462,6 +464,8 @@ jobs:
           agregar "Integraciones__WhatsApp__AppSecret" "$SEC_WHATSAPP_APPSECRET"
           agregar "Integraciones__WhatsApp__VerifyToken" "$SEC_WHATSAPP_VERIFYTOKEN"
           agregar "Serilog__Seq__ApiKey" "$SEC_SEQ_APIKEY"
+          agregar "Stripe__ApiKey" "$SEC_STRIPE_APIKEY"
+          agregar "Stripe__WebhookSecret" "$SEC_STRIPE_WEBHOOKSECRET"
 
           # LIMITACIÓN CONOCIDA compartida con ci-deploy.sh (ver su cabecera,
           # "un cambio a ESTE fichero tarda un despliegue en surtir efecto"):
