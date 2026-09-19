@@ -96,8 +96,13 @@ else
         echo "ERROR: no hay .env de producción (o está vacío) en $ENV_ORIGEN."
         echo "       Indica su ruta con ENV_PRODUCCION, o BACKUP_SIN_ENV=1 para omitirlo a sabiendas."
         ENV_FALTA=1
+    elif ! install -m 600 "$ENV_ORIGEN" "$DIR_TRABAJO/env-produccion" 2>/dev/null; then
+        # Existe pero no se puede copiar (p. ej. 0600 de otro usuario): tampoco
+        # cuesta el backup de la BD (hallazgo de Codex). Se borra lo que haya quedado.
+        rm -f "$DIR_TRABAJO/env-produccion"
+        echo "ERROR: el .env de producción existe en $ENV_ORIGEN pero no se pudo copiar (¿permisos? ¿lo lee el usuario del cron?)."
+        ENV_FALTA=1
     else
-        install -m 600 "$ENV_ORIGEN" "$DIR_TRABAJO/env-produccion"
         echo "    .env de producción incluido como env-produccion ($(wc -c < "$DIR_TRABAJO/env-produccion") bytes; el contenido no se muestra)"
     fi
 fi

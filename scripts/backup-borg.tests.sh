@@ -181,6 +181,16 @@ echo "== sin .env y sin heartbeat configurado: sigue saliendo con error y con el
 ejecutar sinenv-sinurl ENV_PRODUCCION="$TMP_ROOT/no-existe"
 comprobar "termina distinto de 0, con la BD respaldada, sin llamadas de red" '[ "$CODIGO" -ne 0 ] && [ -s "$LOG_BORG.archivo/CaeManager.dump" ] && [ "$(llamadas_curl)" -eq 0 ]'
 
+echo "== .env que existe pero no se puede copiar (hallazgo de Codex): la BD se respalda igual"
+# Un directorio pasa `-s` (tiene tamaño) y hace fallar `install` con cualquier usuario,
+# root incluido: reproduce «existe pero no se puede leer» sin depender de permisos.
+mkdir -p "$TMP_ROOT/env-directorio"
+ejecutar envilegible BETTERSTACK_HEARTBEAT_URL="$URL" ENV_PRODUCCION="$TMP_ROOT/env-directorio"
+comprobar "termina distinto de 0" '[ "$CODIGO" -ne 0 ]'
+comprobar "dice que existe pero no se pudo copiar" 'printf "%s" "$SALIDA" | grep -q "no se pudo copiar"'
+comprobar "se creó el archivo Borg con la BD" '[ -s "$LOG_BORG.archivo/CaeManager.dump" ] && [ ! -e "$LOG_BORG.archivo/env-produccion" ]'
+comprobar "avisó /fail y no mandó el ping de éxito" '[ "$(llamadas_curl)" -eq 1 ] && grep -q "$URL/fail" "$LOG_CURL"'
+
 echo "== BACKUP_SIN_ENV=1: se omite a sabiendas, con aviso"
 ejecutar sinenv-explicito ENV_PRODUCCION="$TMP_ROOT/no-existe" BACKUP_SIN_ENV=1
 comprobar "termina con 0" '[ "$CODIGO" -eq 0 ]'
