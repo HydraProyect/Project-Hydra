@@ -155,6 +155,12 @@ services:
       Migraciones__AlArrancar: "false"
     volumes:
       - caemanager-data:/data
+      # P44b — certificado de cliente del conector de Microsoft 365 (PEM). Fuera del
+      # checkout y de los volúmenes con nombre; solo lectura. Si el directorio no
+      # existe, Docker lo crea vacío y no tiene efecto mientras no se configuren
+      # CertificadoRuta y ClavePrivadaRuta. Guía: Project-Hydra-Negocio/tecnico/
+      # ACCIONES-PROPIETARIO-SECRETOS-CI-2026-09-19.md
+      - "${SECRETOS_DIR:-/opt/talveg-secretos/produccion}:/run/secretos:ro"
     # Sin `ports` publicados: la app solo es alcanzable desde la red interna
     # del compose (Caddy la referencia como "caemanager-app:8080", el
     # container_name — no el nombre de servicio "app", que en la red "edge"
