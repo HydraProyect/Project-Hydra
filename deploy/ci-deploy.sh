@@ -70,6 +70,11 @@ set -euo pipefail
 # modos_permitidos_por_clave, y un `ci-deploy.sh` sin `--clave` pasa a
 # rechazarse. Cualquier otra forma de argumentos se rechaza (falla cerrado):
 # una errata en authorized_keys nunca amplía los permisos de la clave.
+# `muestreo-memoria` lo implementa #741 (REC-196/P33); mientras esa PR no esté en
+# main, el `case` de main() lo rechaza con «Entorno no permitido» aunque la
+# guarda lo deje pasar, así que no hay capacidad real que abusar. Se declara ya
+# aquí para que #741 no tenga que tocar esta lista de seguridad al entrar
+# (revisión de Codex: aceptada la observación, mantenida la lista).
 MODOS_CLAVE_STAGING="staging muestreo-memoria"
 MODOS_CLAVE_PRODUCCION="produccion secretos"
 MODOS_SIN_ARGUMENTO="staging produccion secretos muestreo-memoria"
