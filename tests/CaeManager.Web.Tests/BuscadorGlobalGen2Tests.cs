@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.BusquedaGlobal.Commands.RegistrarUsoReciente;
@@ -86,8 +87,13 @@ public class BuscadorGlobalGen2Tests : BunitContext
     {
         private readonly List<(Func<object, bool> Criterio, TaskCompletionSource<object> Fuente)> _retenciones = [];
 
-        public List<object> Enviados { get; } = [];
-        public List<CancellationToken> TokensRecibidos { get; } = [];
+        // Cola concurrente, no List<T>: el debounce reanuda en el hilo del
+        // renderer (SynchronizationContext de Blazor) mientras EsperarA lo
+        // sondea desde el hilo de continuación del test — dos hilos reales.
+        // Con List<T> eso lanzaba "Collection was modified" de forma
+        // intermitente (~1/400 runs de CI, medido en REC-215).
+        public ConcurrentQueue<object> Enviados { get; } = [];
+        public ConcurrentQueue<CancellationToken> TokensRecibidos { get; } = [];
         public ResultadoBusquedaGlobalDto Resultado { get; set; } = SinNada;
         public IReadOnlyList<ItemRecienteDto> Recientes { get; set; } = [];
         public Exception? FalloDeBusqueda { get; set; }
@@ -101,8 +107,8 @@ public class BuscadorGlobalGen2Tests : BunitContext
 
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
-            Enviados.Add(request!);
-            TokensRecibidos.Add(cancellationToken);
+            Enviados.Enqueue(request!);
+            TokensRecibidos.Enqueue(cancellationToken);
 
             var retencion = _retenciones.FirstOrDefault(r => r.Criterio(request!));
             if (retencion.Fuente is not null)
@@ -124,14 +130,14 @@ public class BuscadorGlobalGen2Tests : BunitContext
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest
         {
-            Enviados.Add(request!);
-            TokensRecibidos.Add(cancellationToken);
+            Enviados.Enqueue(request!);
+            TokensRecibidos.Enqueue(cancellationToken);
             return Task.CompletedTask;
         }
 
         public Task<object?> Send(object request, CancellationToken cancellationToken = default)
         {
-            Enviados.Add(request);
+            Enviados.Enqueue(request);
             return Task.FromResult<object?>(null);
         }
 
