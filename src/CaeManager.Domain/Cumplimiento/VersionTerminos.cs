@@ -10,5 +10,5 @@ namespace CaeManager.Domain.Cumplimiento;
 /// </summary>
 public static class VersionTerminos
 {
-    public const string Actual = "2026-08-08";
+    public const string Actual = "2026-09-19";
 }
