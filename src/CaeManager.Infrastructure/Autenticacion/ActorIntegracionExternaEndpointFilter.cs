@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Http;
 namespace CaeManager.Infrastructure.Autenticacion;
 
 /// <summary>
-/// Declara, para toda la petición, que quien actúa es una <b>integración
+/// Declara, mientras corre el handler del endpoint, que quien actúa es una <b>integración
 /// externa</b> (P41c): un sistema de un tercero que llama a TALVEG, no una
 /// persona. Se aplica al <i>grupo</i> de endpoints y no a cada handler, para
 /// que un endpoint nuevo del grupo no pueda olvidarlo.
@@ -40,6 +40,18 @@ namespace CaeManager.Infrastructure.Autenticacion;
 /// callback SSO—: ahí actúa un humano todavía sin identificar, no una
 /// integración, y etiquetarlo así sería falso. Esos siguen en
 /// <c>Desconocido</c> hasta que el propietario decida qué valor les corresponde.
+/// </para>
+///
+/// <para>
+/// <b>Tampoco cubre la ejecución del resultado.</b> En las API mínimas el filtro
+/// envuelve la invocación del handler; el <c>IResult</c> que este devuelve se
+/// ejecuta después, con el ámbito ya liberado (medido en
+/// <c>FiltroDeActorYEjecucionDelResultadoTests</c>). Una escritura auditable hecha
+/// dentro de <c>ExecuteAsync</c> de un resultado saldría como <c>Desconocido</c>.
+/// Hoy no ocurre porque ningún endpoint de estos grupos devuelve un resultado que
+/// escriba —lo sostiene <c>SuperficiesAnonimasClasificadasPorActorTests</c>—; si
+/// alguna vez hiciera falta, el ámbito tendría que declararse en un middleware que
+/// envuelva el endpoint entero.
 /// </para>
 ///
 /// <para>

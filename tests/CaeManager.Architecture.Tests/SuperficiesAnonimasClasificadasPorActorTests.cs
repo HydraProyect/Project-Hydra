@@ -142,6 +142,61 @@ public class SuperficiesAnonimasClasificadasPorActorTests
     }
 
     /// <summary>
+    /// <b>El filtro solo cubre el handler, no la ejecución de su resultado.</b> En las
+    /// API mínimas el <c>IResult</c> que devuelve el handler se ejecuta cuando el
+    /// filtro ya ha retornado y ha liberado el ámbito (medido en
+    /// <c>FiltroDeActorYEjecucionDelResultadoTests</c>). Hoy no hay ninguna fila
+    /// afectada porque ningún endpoint de los grupos filtrados devuelve un resultado
+    /// que escriba: solo <c>Results.Ok/NotFound/Text/StatusCode/…</c>. Este ratchet
+    /// sostiene esa premisa: en <c>Api/</c> no aparece nada cuya ejecución pueda
+    /// escribir o diferir trabajo más allá del handler, y en <c>src</c> nadie
+    /// implementa <c>IResult</c>.
+    /// </summary>
+    [Fact]
+    public void Los_grupos_filtrados_no_devuelven_resultados_cuya_ejecucion_escriba()
+    {
+        var fuentes = FuentesDeSrc();
+
+        var api = fuentes.Where(f => f.Ruta.StartsWith("CaeManager.Web/Api/", StringComparison.Ordinal)
+                                     && f.Ruta.EndsWith(".cs", StringComparison.Ordinal)).ToList();
+        api.Count.Should().BeGreaterThanOrEqualTo(8,
+            "control positivo: los tres webhooks y los ficheros de /api/v1 tienen que estar en el barrido");
+
+        var infractores = api
+            .SelectMany(f => ResultadoConEjecucionDiferida.Matches(SinComentarios(f.Texto)).Select(m => $"{f.Ruta}: {m.Value.Trim()}"))
+            .Concat(fuentes
+                .Where(f => f.Ruta.EndsWith(".cs", StringComparison.Ordinal))
+                .Where(f => ImplementaIResult.IsMatch(SinComentarios(f.Texto)))
+                .Select(f => $"{f.Ruta}: implementa IResult"))
+            .ToList();
+
+        infractores.Should().BeEmpty(
+            "un resultado que escribe al ejecutarse lo haría fuera del ámbito de actor: esa fila se " +
+            "auditaría como Desconocido. Si hace falta, declara el ámbito en un middleware que envuelva " +
+            "el endpoint entero y cambia este ratchet");
+
+        // Control positivo del patrón.
+        ResultadoConEjecucionDiferida.IsMatch("return Results.Stream(x);").Should().BeTrue();
+        ResultadoConEjecucionDiferida.IsMatch("IAsyncEnumerable<Foo> Listar()").Should().BeTrue();
+        ResultadoConEjecucionDiferida.IsMatch("ctx.Response.OnCompleted(() => x);").Should().BeTrue();
+        ResultadoConEjecucionDiferida.IsMatch("return Results.Ok(x);").Should().BeFalse("un Ok(x) no escribe");
+        ImplementaIResult.IsMatch("public sealed class Mio(int a) : IResult").Should().BeTrue();
+        ImplementaIResult.IsMatch("public sealed class Mio : IHttpResult, IResult").Should().BeTrue();
+        ImplementaIResult.IsMatch("var r = Result.Exito(x);").Should().BeFalse("Result de dominio no es IResult");
+    }
+
+    private static readonly Regex ResultadoConEjecucionDiferida = new(
+        @"\b(?:Typed)?Results\.(?:Stream|File|PushStream)\s*\(|\bIAsyncEnumerable\s*<|\.OnCompleted\s*\(|\.OnStarting\s*\(|\bRegisterForDispose\s*\(",
+        RegexOptions.Compiled);
+
+    private static readonly Regex ImplementaIResult = new(
+        @"^[ \t]*(?:(?:public|internal|sealed|private|protected|static)[ \t]+)*(?:class|record|struct)[ \t]+\w+[^{;=]*:[^{;=]*\bIResult\b",
+        RegexOptions.Compiled | RegexOptions.Multiline);
+
+    private static string SinComentarios(string texto)
+        => Regex.Replace(texto, @"^[ \t]*//.*$", string.Empty, RegexOptions.Multiline);
+
+    /// <summary>
     /// Control positivo del instrumento: el comprobador rechaza una cadena sin filtro
     /// y una en la que el filtro está en otra sentencia, y acepta la buena.
     /// </summary>

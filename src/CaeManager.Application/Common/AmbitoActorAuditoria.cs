@@ -49,8 +49,8 @@ public static class AmbitoActorAuditoria
     /// Declara que lo que ocurra dentro lo hace un sistema de un tercero: una
     /// llamada con <c>ClaveApi</c> o un webhook de proveedor. Lo establecen el
     /// handler de autenticación por clave, para su propia escritura, y
-    /// <c>ActorIntegracionExternaEndpointFilter</c>, para toda la petición de
-    /// los grupos de endpoints de tercero. Son los únicos puntos que saben que
+    /// <c>ActorIntegracionExternaEndpointFilter</c>, para el handler de cada endpoint de
+    /// los grupos de tercero. Son los únicos puntos que saben que
     /// quien llama no es una persona.
     /// </summary>
     public static IDisposable EstablecerIntegracionExterna() => Establecer(TipoActor.IntegracionExterna);
