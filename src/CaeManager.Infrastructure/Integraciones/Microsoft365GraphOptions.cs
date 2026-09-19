@@ -23,7 +23,25 @@ public class Microsoft365GraphOptions
 
     public string? ClientId { get; set; }
 
+    /// <summary>
+    /// Secreto de cliente del App Registration. Sigue admitido como transición,
+    /// pero el destino decidido por el propietario (P44b, 2026-09-19) es el
+    /// <b>certificado</b>: un secreto de cliente es una credencial permanente y
+    /// transportable como texto; con certificado, la clave privada no sale del
+    /// servidor y a Entra solo se le sube la parte pública.
+    /// </summary>
     public string? ClientSecret { get; set; }
+
+    /// <summary>
+    /// Ruta (dentro del contenedor) del certificado en PEM — solo la parte pública.
+    /// Junto con <see cref="ClavePrivadaRuta"/> sustituye a <see cref="ClientSecret"/>:
+    /// si ambas están informadas, el canje de tokens se autentica con un aserto de
+    /// cliente firmado (RFC 7523) y <c>client_secret</c> no se envía.
+    /// </summary>
+    public string? CertificadoRuta { get; set; }
+
+    /// <summary>Ruta (dentro del contenedor) de la clave privada RSA del certificado, en PEM.</summary>
+    public string? ClavePrivadaRuta { get; set; }
 
     /// <summary>
     /// URL pública canónica de la aplicación (ej. https://app.talveg.es),
@@ -36,6 +54,20 @@ public class Microsoft365GraphOptions
     /// </summary>
     public string? UrlPublicaBase { get; set; }
 
+    /// <summary>Las dos rutas del certificado están informadas: se autentica con certificado.</summary>
+    public bool UsaCertificado =>
+        !string.IsNullOrWhiteSpace(CertificadoRuta) && !string.IsNullOrWhiteSpace(ClavePrivadaRuta);
+
+    /// <summary>
+    /// Solo una de las dos rutas está informada. Es una configuración a medias, y
+    /// se trata como error (la integración queda apagada) en vez de caer en
+    /// silencio a <see cref="ClientSecret"/>: quien empezó la migración a
+    /// certificado y olvidó una ruta no debe seguir usando el secreto sin saberlo.
+    /// </summary>
+    public bool CertificadoIncompleto =>
+        string.IsNullOrWhiteSpace(CertificadoRuta) != string.IsNullOrWhiteSpace(ClavePrivadaRuta);
+
     public bool EstaConfigurado =>
-        !string.IsNullOrWhiteSpace(ClientId) && !string.IsNullOrWhiteSpace(ClientSecret) && !string.IsNullOrWhiteSpace(UrlPublicaBase);
+        !string.IsNullOrWhiteSpace(ClientId) && !string.IsNullOrWhiteSpace(UrlPublicaBase)
+        && !CertificadoIncompleto && (UsaCertificado || !string.IsNullOrWhiteSpace(ClientSecret));
 }
