@@ -40,7 +40,26 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
     [Inject] private ILogger<SelectorTema> Logger { get; set; } = default!;
     [Inject] private ILogger<ExcepcionDeCircuitoDesconectado> LoggerDeCircuitoDesconectado { get; set; } = default!;
 
-    private IJSObjectReference? _modulo;
+    /// <summary>
+    /// La TAREA de importación, no el módulo ya resuelto — a propósito
+    /// (2026-09-19, PR de seguimiento a #710). Con un campo
+    /// <c>IJSObjectReference? _modulo</c> asignado solo tras el <c>await</c>,
+    /// la guarda de <see cref="OnAfterRenderAsync"/> (<c>_modulo is not
+    /// null</c>) no distingue "todavía no se ha pedido importar" de "la
+    /// importación sigue en vuelo": cualquier render de más mientras la
+    /// primera importación no ha resuelto —Blazor dispara uno automáticamente
+    /// tras el evento de <see cref="CambiarTemaAsync"/>, por ejemplo— volvía a
+    /// entrar y pedía un SEGUNDO <c>import()</c>. Medido con un test que sí
+    /// simula ese segundo render (revisión de Codex sobre la primera versión
+    /// de este arreglo, que no lo hacía): con el campo antiguo,
+    /// <c>VecesImportado</c> llegaba a 2. La referencia del primer
+    /// <c>import()</c> además quedaba sin liberar nunca (la sobrescribía la
+    /// segunda). Guardar la <c>Task</c> en vez del resultado dejar que
+    /// cualquier llamador — este método o <see cref="CambiarTemaAsync"/> —
+    /// espere la MISMA importación en vuelo, sin repetirla.
+    /// </summary>
+    private Task<IJSObjectReference>? _moduloTask;
+
     private ApplicationUser? _usuario;
     private string? _temaActual;
 
@@ -100,10 +119,11 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
     /// </summary>
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_temaActual is null || _modulo is not null) return;
+        if (_temaActual is null || _moduloTask is not null) return;
 
-        _modulo = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/tema.js");
-        await _modulo.InvokeVoidAsync("aplicarTema", _temaActual);
+        _moduloTask = JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/tema.js").AsTask();
+        var modulo = await _moduloTask;
+        await modulo.InvokeVoidAsync("aplicarTema", _temaActual);
     }
 
     private async Task CambiarTemaAsync(ChangeEventArgs e)
@@ -111,8 +131,16 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
         var texto = e.Value?.ToString() ?? "sistema";
         _temaActual = texto;
 
-        if (_modulo is not null)
-            await _modulo.InvokeVoidAsync("aplicarTema", texto);
+        // Si la importación sigue en vuelo (arrancada por OnAfterRenderAsync
+        // tras un remontado reciente), se espera la MISMA tarea en vez de
+        // comprobar si ya terminó — así el tema recién elegido llega al DOM
+        // en cuanto el módulo esté listo, sin perderse ni disparar una
+        // segunda importación.
+        if (_moduloTask is not null)
+        {
+            var modulo = await _moduloTask;
+            await modulo.InvokeVoidAsync("aplicarTema", texto);
+        }
 
         if (_usuario is not null)
             await GuardarTemaAsync(texto);
@@ -191,15 +219,19 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        if (_modulo is null) return;
+        if (_moduloTask is null) return;
 
         try
         {
-            await _modulo.DisposeAsync();
+            var modulo = await _moduloTask;
+            await modulo.DisposeAsync();
         }
         catch (JSDisconnectedException)
         {
-            // El circuito ya se cerró: no hay módulo que liberar.
+            // El circuito ya se cerró: no hay módulo que liberar (cubre
+            // tanto una importación que sigue en vuelo cuando el componente
+            // se retira como el DisposeAsync del propio módulo ya
+            // resuelto).
         }
     }
 }
