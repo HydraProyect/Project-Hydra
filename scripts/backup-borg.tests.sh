@@ -51,6 +51,9 @@ EOF
 cat > "$MOCK_BIN/curl" <<'EOF'
 #!/bin/bash
 echo "curl $*" >> "$LOG_CURL"
+# `-K -`: la configuración (la URL) llega por stdin; se registra aparte para poder
+# comprobar que NO viaja en los argumentos.
+case " $* " in *" -K - "*) echo "cfg $(cat)" >> "$LOG_CURL" ;; esac
 [ "${ESC_CURL_FALLA:-0}" = "1" ] && exit 22
 exit 0
 EOF
@@ -85,7 +88,8 @@ echo "== éxito con heartbeat: un solo ping, a la URL sin /fail"
 ejecutar exito BETTERSTACK_HEARTBEAT_URL="$URL"
 comprobar "termina con 0" '[ "$CODIGO" -eq 0 ]'
 comprobar "un único curl" '[ "$(llamadas_curl)" -eq 1 ]'
-comprobar "el curl va a la URL exacta" 'grep -q " $URL\$" "$LOG_CURL"'
+comprobar "el curl va a la URL exacta (por stdin)" 'grep -q "^cfg url = \"$URL\"\$" "$LOG_CURL"'
+comprobar "la URL NO viaja en los argumentos de curl (saldría en ps)" '! grep "^curl" "$LOG_CURL" | grep -q "$URL"'
 comprobar "no se avisó de fallo" '! grep -q "/fail" "$LOG_CURL"'
 
 echo "== sin URL de heartbeat: cero llamadas de red"

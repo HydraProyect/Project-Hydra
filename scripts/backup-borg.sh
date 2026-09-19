@@ -33,6 +33,14 @@ export BORG_REPO BORG_PASSPHRASE
 
 DIR_TRABAJO="$(mktemp -d)"
 
+# La URL del heartbeat es un secreto (quien la conozca puede fingir que el backup
+# corrió): va por stdin con `curl -K -`, no como argumento, para que no salga en
+# `ps` ni en /proc/<pid>/cmdline.
+llamar_heartbeat() {   # llamar_heartbeat URL [opciones de curl]
+    local url="$1"; shift
+    printf 'url = "%s"\n' "$url" | curl -fsS -m 10 "$@" -K -
+}
+
 # Un único manejador de salida: limpia el directorio de trabajo y, si el
 # script termina con error (dump vacío, sin claves, borg roto, `exit 1` de
 # cualquiera de las guardas), avisa al heartbeat con `/fail` para que el
@@ -44,7 +52,7 @@ al_salir() {
     local codigo=$?
     rm -rf "$DIR_TRABAJO"
     if [ "$codigo" -ne 0 ] && [ -n "${BETTERSTACK_HEARTBEAT_URL:-}" ]; then
-        curl -fsS -m 10 --retry 2 --retry-delay 3 "${BETTERSTACK_HEARTBEAT_URL%/}/fail" >/dev/null 2>&1 \
+        llamar_heartbeat "${BETTERSTACK_HEARTBEAT_URL%/}/fail" --retry 2 --retry-delay 3 >/dev/null 2>&1 \
             || echo "AVISO: el backup FALLÓ y tampoco se pudo avisar al heartbeat (/fail) — la ausencia del ping de éxito lo avisará igualmente."
     fi
     return "$codigo"
@@ -109,6 +117,6 @@ echo "Ensayo de restauración periódico: scripts/ensayo-restauracion-borg.sh (a
 # BETTERSTACK_HEARTBEAT_URL no se hace ninguna llamada de red.
 if [ -n "${BETTERSTACK_HEARTBEAT_URL:-}" ]; then
     echo "==> Avisando al heartbeat de Better Stack..."
-    curl -fsS -m 10 --retry 3 --retry-delay 5 "$BETTERSTACK_HEARTBEAT_URL" >/dev/null \
+    llamar_heartbeat "$BETTERSTACK_HEARTBEAT_URL" --retry 3 --retry-delay 5 >/dev/null \
         || echo "AVISO: el backup terminó bien pero el ping a Better Stack falló (red caída, URL mal puesta) — revisar a mano; si se repite mañana, Better Stack alertará igualmente por la ausencia."
 fi

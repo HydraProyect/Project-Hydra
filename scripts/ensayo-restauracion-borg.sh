@@ -246,8 +246,8 @@ else
 fi
 # LOGIN es configuración de despliegue (RUNBOOK-RLS): en la copia se le da una
 # contraseña desechable, igual que se hace en el servidor real.
-docker exec "$PG" psql -U postgres -d postgres -v ON_ERROR_STOP=1 \
-    -c "ALTER ROLE cae_app_runtime WITH LOGIN PASSWORD '$CLAVE_RUNTIME';" >/dev/null
+printf "ALTER ROLE cae_app_runtime WITH LOGIN PASSWORD '%s';\n" "$CLAVE_RUNTIME" \
+    | docker exec -i "$PG" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q >/dev/null
 
 CLAVES=$(ls "$DIR_TRABAJO/dataprotection-keys"/*.xml 2>/dev/null | wc -l)
 echo "    dataprotection-keys/: $CLAVES archivo(s) de clave"
@@ -285,18 +285,24 @@ else
         docker rm "$cargador" >/dev/null
     }
 
-    entorno_app=(
-        -e "ConnectionStrings__CaeManagerDb=$CADENA_OWNER"
-        -e "ConnectionStrings__CaeManagerDbRuntime=$CADENA_RUNTIME"
-        -e "AlmacenamientoArchivos__Ruta=/data/documentos"
-        -e "DataProtection__RutaClaves=/data/dataprotection-keys"
-        -e "Migraciones__AlArrancar=false"
-        -e "DatosPrueba__Activo=false"
+    # Entorno de la app en un fichero 0600 dentro del directorio temporal (que el
+    # guion borra al salir) y `--env-file`, no `-e VAR=valor`: así ningún valor
+    # (cadenas de conexión, contraseña del administrador de ensayo) queda en el
+    # argv del cliente docker, visible en `ps` a cualquier usuario de la máquina.
+    ENV_APP="$DIR_TRABAJO/app.env"
+    ( umask 077
+      {
+        echo "ConnectionStrings__CaeManagerDb=$CADENA_OWNER"
+        echo "ConnectionStrings__CaeManagerDbRuntime=$CADENA_RUNTIME"
+        echo "AlmacenamientoArchivos__Ruta=/data/documentos"
+        echo "DataProtection__RutaClaves=/data/dataprotection-keys"
+        echo "Migraciones__AlArrancar=false"
+        echo "DatosPrueba__Activo=false"
         # En Producción el arranque exige un administrador inicial (IdentitySeeder):
         # un valor desechable de esta copia, nunca el de verdad.
-        -e "AdministradorInicial__Email=ensayo-admin@ensayo.invalid"
-        -e "AdministradorInicial__Contrasena=$CLAVE_ADMIN_ENSAYO"
-    )
+        echo "AdministradorInicial__Email=ensayo-admin@ensayo.invalid"
+        echo "AdministradorInicial__Contrasena=$CLAVE_ADMIN_ENSAYO"
+      } > "$ENV_APP" )
 
     # Migraciones y arranque + login + documento, una vez por origen de claves.
     verificar_app() {   # verificar_app ETIQUETA DIR_CLAVES
@@ -311,7 +317,7 @@ else
         # compatible con el código de este árbol.
         local antes despues
         antes=$(consulta "SELECT COUNT(*) FROM \"__EFMigrationsHistory\";")
-        if docker run --rm --network "$RED" -v "$vol":/data "${entorno_app[@]}" "$IMAGEN_APP" --migrate-only \
+        if docker run --rm --network "$RED" -v "$vol":/data --env-file "$ENV_APP" "$IMAGEN_APP" --migrate-only \
                 >"$DIR_TRABAJO/migrador-$etiqueta.log" 2>&1; then
             despues=$(consulta "SELECT COUNT(*) FROM \"__EFMigrationsHistory\";")
             registrar OK "migrador [$etiqueta]" "exit 0; migraciones aplicadas en la BD: $antes -> $despues"
@@ -322,7 +328,7 @@ else
         fi
         fase_hecha "migrador [$etiqueta]"
 
-        docker run -d --name "$app" --network "$RED" -v "$vol":/data "${entorno_app[@]}" "$IMAGEN_APP" >/dev/null
+        docker run -d --name "$app" --network "$RED" -v "$vol":/data --env-file "$ENV_APP" "$IMAGEN_APP" >/dev/null
         local listo=0 i
         for i in $(seq 1 90); do
             if docker exec "$app" curl -fsS http://localhost:8080/salud >/dev/null 2>&1; then listo=1; break; fi
@@ -380,13 +386,19 @@ else
             return 0
         fi
         local codigo
-        # Cuenta y contraseña entran por variables del contenedor, no por argumentos.
-        codigo=$(docker exec -e ENSAYO_CUENTA_LOGIN="$CUENTA_LOGIN" -e ENSAYO_CLAVE_LOGIN="$CLAVE_LOGIN" "$app" sh -c '
+        # La contraseña NUNCA va en un argumento: `docker exec -e VAR=valor` la
+        # dejaría en el argv del cliente docker y `sh -c` la volvería a expandir
+        # en el de curl, visible en `ps` (ENSAYO_CLAVE puede ser una contraseña
+        # real, válida también en producción). Entra por stdin y curl la lee con
+        # `Entrada.Password@-`; el correo y los tokens antiforgery de un solo uso
+        # no son secretos.
+        codigo=$(printf '%s' "$CLAVE_LOGIN" | ENSAYO_CUENTA_LOGIN="$CUENTA_LOGIN" \
+            docker exec -i -e ENSAYO_CUENTA_LOGIN "$app" sh -c '
             curl -sS -o /dev/null -w "%{http_code}" -b /tmp/jar -c /tmp/jar -H "X-Forwarded-Proto: https" \
                 --data-urlencode "_handler='"$handler"'" \
                 --data-urlencode "__RequestVerificationToken='"$token"'" \
                 --data-urlencode "Entrada.Email=$ENSAYO_CUENTA_LOGIN" \
-                --data-urlencode "Entrada.Password=$ENSAYO_CLAVE_LOGIN" \
+                --data-urlencode "Entrada.Password@-" \
                 http://localhost:8080/cuenta/iniciar-sesion')
         if docker exec "$app" grep -q '\.AspNetCore\.Identity\.Application' /tmp/jar; then
             registrar OK "login [$etiqueta]" "HTTP $codigo, cookie de sesión emitida (${ORIGEN_CUENTA})"
@@ -456,14 +468,17 @@ else
         if [ -z "$cuenta" ]; then MOTIVO_SIN_CUENTA="el tenant con archivos no tiene usuarios"; return 0; fi
         local clave hash
         clave="Ea1!$(openssl rand -hex 12)"
-        hash=$(python3 - "$clave" <<'PY'
-import base64, hashlib, os, struct, sys
+        # La contraseña entra a python por entorno, no por argv (visible en `ps`).
+        hash=$(CLAVE_ENSAYO="$clave" python3 - <<'PY'
+import base64, hashlib, os, struct
 sal = os.urandom(16)
-subclave = hashlib.pbkdf2_hmac('sha512', sys.argv[1].encode(), sal, 100000, 32)
+subclave = hashlib.pbkdf2_hmac('sha512', os.environ['CLAVE_ENSAYO'].encode(), sal, 100000, 32)
 print(base64.b64encode(bytes([1]) + struct.pack('>III', 2, 100000, 16) + sal + subclave).decode())
 PY
 )
-        consulta "UPDATE \"AspNetUsers\" SET \"PasswordHash\" = '$hash', \"TwoFactorEnabled\" = false, \"EmailConfirmed\" = true, \"DebeCambiarContrasena\" = false, \"LockoutEnd\" = NULL, \"AccessFailedCount\" = 0 WHERE \"Email\" = '$cuenta';" >/dev/null
+        # El hash por stdin: es derivado de una contraseña desechable, pero no hay motivo para mostrarlo en argv.
+        printf 'UPDATE "AspNetUsers" SET "PasswordHash" = '"'%s'"', "TwoFactorEnabled" = false, "EmailConfirmed" = true, "DebeCambiarContrasena" = false, "LockoutEnd" = NULL, "AccessFailedCount" = 0 WHERE "Email" = '"'%s'"';\n' "$hash" "$cuenta" \
+            | docker exec -i "$PG" psql -U postgres -d caemanager -v ON_ERROR_STOP=1 -q >/dev/null
         CUENTA_LOGIN="$cuenta"; CLAVE_LOGIN="$clave"
         ORIGEN_CUENTA="credencial de ensayo preparada en la copia para un usuario del tenant ${TENANT_LOGIN:0:8}…"
     }
