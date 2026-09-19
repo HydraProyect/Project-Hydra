@@ -10,8 +10,23 @@ namespace CaeManager.Application.Common;
 /// nunca debe impedir la acción de negocio que lo dispara (crear un usuario
 /// pendiente, asignarle un rol) — de ahí que devuelva Result en vez de
 /// lanzar, para que el llamador decida solo si lo registra o lo ignora.
+///
+/// <para>
+/// Sistema de correo TALVEG: <c>cuerpoHtml</c> sigue siendo solo el contenido
+/// interior (lo que hoy ya componen los llamadores); la implementación lo
+/// envuelve en la cabecera y el pie de marca antes de enviarlo, para que
+/// ningún sitio donde se compone un correo tenga que conocer ese envoltorio.
+/// <paramref name="tipo"/> decide únicamente qué pie institucional lleva —
+/// ver <see cref="TipoAvisoCorreo"/> — y es obligatorio a propósito: con un
+/// valor por defecto, un llamador nuevo que se olvide de clasificar su
+/// correo compila igual y cae en <c>Transaccional</c> en silencio (así se
+/// coló la reclamación de documentación con un pie de "puedes ignorarlo" —
+/// ver <c>RegistroEnvioReclamacionService</c>).
+/// </para>
 /// </summary>
 public interface IEmailService
 {
-    Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, CancellationToken cancellationToken = default);
+    Task<Result> EnviarAsync(
+        string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo,
+        CancellationToken cancellationToken = default);
 }

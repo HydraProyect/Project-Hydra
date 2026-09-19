@@ -1,6 +1,7 @@
 using System.Net.Security;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Email;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
@@ -24,7 +25,7 @@ public class SmtpEmailServiceTests
         var logger = new LoggerEspia();
         var servicio = new SmtpEmailService(Options.Create(new SmtpEmailOptions()), logger);
 
-        var resultado = await servicio.EnviarAsync("destino@ejemplo.com", "Asunto", "<p>Cuerpo</p>");
+        var resultado = await servicio.EnviarAsync("destino@ejemplo.com", "Asunto", "<p>Cuerpo</p>", TipoAvisoCorreo.Transaccional);
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Email.NoConfigurado");
@@ -48,7 +49,7 @@ public class SmtpEmailServiceTests
         });
         var servicio = new SmtpEmailService(opciones, logger);
 
-        var resultado = await servicio.EnviarAsync("destino@ejemplo.com", "Asunto", "<p>Cuerpo</p>");
+        var resultado = await servicio.EnviarAsync("destino@ejemplo.com", "Asunto", "<p>Cuerpo</p>", TipoAvisoCorreo.Transaccional);
 
         resultado.EsFallido.Should().BeTrue();
         logger.Errores.Should().ContainSingle();
@@ -184,5 +185,85 @@ public class SmtpEmailServiceTests
         {
             if (logLevel == LogLevel.Error) Errores.Add(formatter(state, exception));
         }
+    }
+}
+
+/// <summary>
+/// Sistema de correo TALVEG: el envoltorio de marca lo aplica
+/// <c>SmtpEmailService</c>, no cada llamador — estos tests fijan el
+/// contrato de <c>EnvolverEnPlantillaDeMarca</c> para que un cambio futuro
+/// no lo rompa en silencio.
+///
+/// <para>
+/// Clase de nivel superior, no anidada en <see cref="SmtpEmailServiceTests"/>:
+/// <c>scripts/repartir-clases-de-test.sh</c> reparte los bloques de CI
+/// descubriendo clases por su <c>FullyQualifiedName</c>, y una clase anidada
+/// aparece ahí como <c>Externa+Anidada</c> — el <c>+</c> rompe el regex de
+/// reparto, que la confunde con el namespace y duplica la ejecución de la
+/// clase externa en dos bloques (CI del PR #698, "Los bloques ejecutaron
+/// 1241 tests de 1235").
+/// </para>
+/// </summary>
+public class SmtpEmailServiceEnvolverEnPlantillaDeMarcaTests
+{
+    [Fact]
+    public void Sin_UrlBasePublica_la_franja_de_marca_es_texto_no_imagen()
+    {
+        var html = SmtpEmailService.EnvolverEnPlantillaDeMarca(
+            "<p>contenido</p>", TipoAvisoCorreo.Transaccional, new SmtpEmailOptions());
+
+        html.Should().NotContain("<img", "sin URL pública configurada no hay dónde alojar la imagen");
+        html.Should().Contain("TALVEG");
+    }
+
+    [Fact]
+    public void Con_UrlBasePublica_la_franja_de_marca_es_una_imagen_servida_por_esa_url()
+    {
+        var html = SmtpEmailService.EnvolverEnPlantillaDeMarca(
+            "<p>contenido</p>", TipoAvisoCorreo.Transaccional,
+            new SmtpEmailOptions { UrlBasePublica = "https://app.talveg.es" });
+
+        html.Should().Contain("<img src=\"https://app.talveg.es/img/correo/franja-marca.png\"");
+    }
+
+    [Fact]
+    public void El_pie_de_seguridad_dice_que_no_se_puede_desactivar()
+    {
+        var html = SmtpEmailService.EnvolverEnPlantillaDeMarca(
+            "<p>contenido</p>", TipoAvisoCorreo.Seguridad,
+            new SmtpEmailOptions { BuzonRemitente = "info@talveg.es" });
+
+        html.Should().Contain("no se puede desactivar");
+        html.Should().Contain("mailto:info@talveg.es");
+    }
+
+    [Fact]
+    public void El_pie_informativo_explica_el_motivo_de_recibirlo()
+    {
+        var html = SmtpEmailService.EnvolverEnPlantillaDeMarca(
+            "<p>contenido</p>", TipoAvisoCorreo.Informativo, new SmtpEmailOptions());
+
+        html.Should().Contain("responsabilidad de coordinación");
+    }
+
+    [Fact]
+    public void El_pie_de_requerimiento_no_invita_a_responder_porque_el_correo_no_lleva_ReplyTo()
+    {
+        var html = SmtpEmailService.EnvolverEnPlantillaDeMarca(
+            "<p>contenido</p>", TipoAvisoCorreo.Requerimiento, new SmtpEmailOptions());
+
+        html.Should().Contain("en nombre de quien te lo reclama");
+        html.Should().NotContain("responder",
+            "el correo sale con From = buzón de TALVEG y sin Reply-To: una respuesta no llegaría a quien reclama");
+    }
+
+    [Fact]
+    public void El_contenido_del_llamador_llega_intacto_dentro_del_envoltorio()
+    {
+        const string cuerpo = "<h3>Título</h3><p>Un párrafo con <a href=\"https://x\">enlace</a>.</p>";
+
+        var html = SmtpEmailService.EnvolverEnPlantillaDeMarca(cuerpo, TipoAvisoCorreo.Transaccional, new SmtpEmailOptions());
+
+        html.Should().Contain(cuerpo, "el envoltorio no debe alterar lo que ya compone cada llamador");
     }
 }

@@ -133,7 +133,7 @@ public class RolesGen2Tests : BunitContext
         public List<string> Destinatarios { get; } = [];
         public Exception? Lanza { get; set; }
 
-        public Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, CancellationToken cancellationToken = default)
+        public Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo, CancellationToken cancellationToken = default)
         {
             if (Lanza is not null) throw Lanza;
             Destinatarios.Add(destinatarioEmail);

@@ -62,7 +62,7 @@ public partial class OlvideContrasena : ComponentBase
                 """;
 
             var resultado = await EmailService.EnviarAsync(
-                usuario.Email!, $"Restablece tu contraseña — {Marca.Nombre}", cuerpo);
+                usuario.Email!, $"Restablece tu contraseña — {Marca.Nombre}", cuerpo, tipo: TipoAvisoCorreo.Seguridad);
 
             if (resultado.EsFallido)
             {

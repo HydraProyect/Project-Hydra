@@ -195,7 +195,7 @@ public static class IdentityEndpointsExtensions
             if (string.IsNullOrWhiteSpace(administrador.Email)) continue;
 
             var resultado = await emailService.EnviarAsync(
-                administrador.Email, $"Nuevo usuario pendiente de asignar rol — {Marca.Nombre}", cuerpo);
+                administrador.Email, $"Nuevo usuario pendiente de asignar rol — {Marca.Nombre}", cuerpo, TipoAvisoCorreo.Informativo);
             if (resultado.EsFallido)
                 logger.LogWarning("No se pudo notificar a {UsuarioId} sobre un usuario pendiente de rol.", administrador.Id);
         }

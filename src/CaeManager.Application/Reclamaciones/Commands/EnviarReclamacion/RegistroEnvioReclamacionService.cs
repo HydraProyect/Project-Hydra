@@ -107,7 +107,7 @@ public class RegistroEnvioReclamacionService(
         else
         {
             foreach (var destinatario in destinatarios)
-                await emailService.EnviarAsync(destinatario, asunto, cuerpoHtml, cancellationToken);
+                await emailService.EnviarAsync(destinatario, asunto, cuerpoHtml, TipoAvisoCorreo.Requerimiento, cancellationToken);
         }
 
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();

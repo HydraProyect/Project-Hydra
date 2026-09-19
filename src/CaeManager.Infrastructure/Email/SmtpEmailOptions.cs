@@ -35,6 +35,16 @@ public class SmtpEmailOptions
     /// </summary>
     public string? NombreCertificadoTls { get; set; }
 
+    /// <summary>
+    /// URL pública de la aplicación (ej. https://app.talveg.es), para servir
+    /// la franja de marca del sistema de correo como imagen (los clientes de
+    /// correo la descargan por HTTP, no la reciben incrustada). Sin
+    /// configurar, el correo se envía igual, con el nombre "TALVEG" como
+    /// texto en vez de imagen — mismo patrón de fail-soft que
+    /// AlertasPorCorreoOptions.UrlBase.
+    /// </summary>
+    public string? UrlBasePublica { get; set; }
+
     public bool EstaConfigurado =>
         !string.IsNullOrWhiteSpace(Host)
         && !string.IsNullOrWhiteSpace(Usuario)

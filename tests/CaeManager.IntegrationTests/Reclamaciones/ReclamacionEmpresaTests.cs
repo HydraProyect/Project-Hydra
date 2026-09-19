@@ -462,7 +462,7 @@ public class ReclamacionEmpresaTests : IAsyncLifetime
 
     private sealed class EmailServiceFalso : IEmailService
     {
-        public Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, CancellationToken cancellationToken = default) =>
+        public Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo, CancellationToken cancellationToken = default) =>
             Task.FromResult(Result.Exito());
     }
 
