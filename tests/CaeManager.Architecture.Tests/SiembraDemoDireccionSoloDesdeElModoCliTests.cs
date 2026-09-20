@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using FluentAssertions;
 using Xunit;
 
@@ -70,8 +71,8 @@ public class SiembraDemoDireccionSoloDesdeElModoCliTests
         bloque.Should().Contain(Siembra + ".SembrarAsync(", "la llamada va DENTRO del modo de CLI");
         bloque.TrimEnd().Should().EndWith("return;",
             "el modo de CLI termina el proceso con return; sin levantar la aplicación: si faltara, la siembra seguiría al arranque normal");
-        program.IndexOf(Siembra + ".SembrarAsync(", StringComparison.Ordinal).Should().BeInRange(apertura, cierre,
-            "y no hay otra llamada fuera del bloque");
+        Regex.Count(program, Regex.Escape(Siembra + ".SembrarAsync(")).Should().Be(1,
+            "una sola llamada en Program.cs, y es la del bloque: una segunda fuera del modo de CLI sembraría en el arranque normal");
         cierre.Should().BeLessThan(primeraSiembraDeArranque, "el modo de CLI cierra antes de cualquier siembra del arranque normal");
     }
 
