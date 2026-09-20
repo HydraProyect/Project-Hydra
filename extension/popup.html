@@ -12,9 +12,20 @@
 
   <section id="seccion-conectar" hidden>
     <p>
-      Abre <strong>Conectar extensión</strong> dentro de Hydra (menú Documentos) y genera un
-      token — esta extensión se conecta sola en cuanto lo hagas, sin copiar ni pegar nada aquí.
+      Abre <strong>Conectar extensión</strong> dentro de Hydra y genera un token: lo normal es que
+      esta extensión se conecte sola, sin copiar ni pegar nada.
     </p>
+
+    <details id="detalle-manual">
+      <summary>Conectar a mano</summary>
+      <p class="ayuda">
+        Si no se conectó sola, esa misma pantalla te da un <strong>código de conexión</strong>.
+        Pégalo aquí.
+      </p>
+      <textarea id="codigo-manual" rows="4" placeholder="Pega aquí el código de conexión"></textarea>
+      <button id="boton-conectar-manual" type="button">Conectar</button>
+      <p id="error-manual" class="error" hidden></p>
+    </details>
   </section>
 
   <section id="seccion-conectado" hidden>

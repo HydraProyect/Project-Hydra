@@ -12,8 +12,9 @@
     <p class="descripcion-delegaciones">
         Genera un token para conectar la extensión de @Marca.Nombre en tu navegador y subir
         documentos a las plataformas CAE externas directamente desde aquí, sin descargarlos antes
-        a tu disco. La extensión se conecta sola en cuanto generas el token — no hace falta
-        copiarlo ni pegarlo en ningún sitio. Dura 8 horas y no se renueva solo.
+        a tu disco. Lo normal es que la extensión se conecte sola en cuanto generas el token; si no
+        lo hace, aquí abajo te decimos por qué y cómo conectarla a mano. Dura 8 horas y no se
+        renueva solo.
     </p>
 
     @if (_token is null)
@@ -22,20 +23,54 @@
     }
     else
     {
-        @if (_extensionConectada == true)
+        @switch (_enlace)
         {
-            <p class="aviso-exito">
-                Extensión conectada automáticamente@(_versionExtension is not null ? $" (v{_versionExtension})" : "").
-            </p>
-        }
-        else if (_extensionConectada == false)
-        {
-            <p class="aviso-error">
-                @_errorExtension Instala o actualiza la extensión y vuelve a generar el token.
-            </p>
+            case ResultadoEnlace.Conectado:
+                <p class="aviso-exito">
+                    Extensión conectada@(_versionExtension is not null ? $" (v{_versionExtension})" : "").
+                    Ya puedes cerrar esta página.
+                </p>
+                break;
+
+            case ResultadoEnlace.PuenteNoConfigurado:
+                <p class="aviso-error">
+                    Este entorno no tiene configurado el enlace automático, así que ni se ha
+                    intentado. No es cosa de tu navegador y no se arregla reinstalando nada:
+                    conéctala a mano con el código de aquí abajo.
+                </p>
+                break;
+
+            case ResultadoEnlace.NoDetectada:
+                <p class="aviso-error">
+                    No hemos detectado la extensión en este navegador. O no está instalada, o es
+                    anterior al enlace automático. Si ya la tienes puesta, conéctala a mano con el
+                    código de aquí abajo.
+                </p>
+                break;
+
+            case ResultadoEnlace.Rechazado:
+                <p class="aviso-error">
+                    La extensión@(_versionExtension is not null ? $" (v{_versionExtension})" : "")
+                    rechazó el enlace: @_errorExtension También puedes conectarla a mano con el
+                    código de aquí abajo.
+                </p>
+                break;
         }
 
-        <CampoTexto Etiqueta="Token" Valor="@_token" ValorChanged="_ => { }" Deshabilitado="true" />
+        @if (_enlace != ResultadoEnlace.Conectado)
+        {
+            <p class="descripcion-delegaciones">
+                Abre la ventana de la extensión, despliega <strong>Conectar a mano</strong> y pega
+                ahí este código. Lleva dentro el token, así que trátalo igual: no lo reenvíes ni lo
+                dejes escrito en ningún sitio.
+            </p>
+
+            <CampoTexto Etiqueta="Código de conexión" Valor="@_codigoConexion" ValorChanged="_ => { }" Deshabilitado="true" />
+
+            <div class="acciones-extension">
+                <BotonCopiar Valor="@_codigoConexion" Etiqueta="el código de conexión" />
+            </div>
+        }
 
         @if (_expiraEnUtc is not null)
         {
@@ -45,7 +80,6 @@
         }
 
         <div class="acciones-extension">
-            <BotonCopiar Valor="@_token" Etiqueta="el token" />
             <Boton Variante="VarianteBoton.Secundario" Cargando="_generando" OnClick="GenerarAsync">Generar otro</Boton>
         </div>
     }

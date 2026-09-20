@@ -58,6 +58,56 @@ async function desconectar() {
   return { ok: true };
 }
 
+// Salida cuando el enlace automático no está disponible: ni el entorno tiene
+// configurado `Extension:IdChromeStore`, ni Chrome expone `chrome.runtime` a
+// la página (origen no declarado en `externally_connectable`). Sin esto, el
+// gestor se queda mirando un popup que dice "se conecta sola" mientras no se
+// conecta, sin ningún sitio donde pegar nada — que es exactamente lo que pasó.
+//
+// El código lleva los TRES datos porque `obtenerConexion` considera "no
+// conectado" todo lo que no traiga caducidad: un token pegado a secas no
+// serviría. Formato: base64 de {u, t, e} — contrato con
+// CodigoConexionExtension.cs del lado de Hydra, NO es cifrado ni ofuscación.
+function leerCodigoConexion(codigo) {
+  if (typeof codigo !== "string" || !codigo.trim()) return null;
+
+  let carga;
+  try {
+    carga = JSON.parse(atob(codigo.trim()));
+  } catch {
+    return null;
+  }
+
+  const { u: hydraUrl, t: token, e: expiraEnUtc } = carga ?? {};
+  if (typeof hydraUrl !== "string" || typeof token !== "string" || typeof expiraEnUtc !== "string") return null;
+  if (Number.isNaN(Date.parse(expiraEnUtc))) return null;
+
+  return { hydraUrl, token, expiraEnUtc };
+}
+
+async function conectarManual({ codigo }) {
+  const carga = leerCodigoConexion(codigo);
+  if (!carga) return { ok: false, error: "Ese código no es válido. Cópialo entero desde Hydra." };
+
+  if (new Date(carga.expiraEnUtc) <= new Date())
+    return { ok: false, error: "Ese código ya caducó. Genera otro en Hydra." };
+
+  const conexion = await conectar(carga.hydraUrl, carga.token, carga.expiraEnUtc);
+  if (!conexion.ok) return conexion;
+
+  // Se comprueba contra Hydra ANTES de dar la conexión por buena: guardar el
+  // token y decir "conectado" sin haberlo usado convierte un código erróneo en
+  // un fallo más tarde, en otra pantalla, sin relación aparente con lo que se
+  // acaba de pegar.
+  const prueba = await listarPendientes();
+  if (!prueba.ok) {
+    await desconectar();
+    return { ok: false, error: prueba.error };
+  }
+
+  return { ok: true };
+}
+
 async function peticionAutenticada(ruta, opciones = {}) {
   const { hydraUrl, token, conectado } = await obtenerConexion();
   if (!conectado) return { ok: false, error: "No hay una conexión activa con Hydra. Vuelve a conectar." };
@@ -174,6 +224,7 @@ chrome.runtime.onMessage.addListener((mensaje, _remitente, enviarRespuesta) => {
   const manejadores = {
     obtenerConexion: () => obtenerConexion(),
     conectar: (m) => conectar(m.hydraUrl, m.token, m.expiraEnUtc),
+    conectarManual: (m) => conectarManual(m),
     desconectar: () => desconectar(),
     listarPendientes: () => listarPendientes(),
     subirDocumento: (m) => subirDocumento(m),
