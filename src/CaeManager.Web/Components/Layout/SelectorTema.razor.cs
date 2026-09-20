@@ -145,16 +145,93 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
         await _modulo.InvokeVoidAsync("aplicarTema", _temaActual);
     }
 
+    /// <summary>
+    /// El guardado va <b>antes</b> de aplicar, y ese orden es la corrección de
+    /// un defecto real, no una preferencia de estilo: <c>tema.js</c> no solo
+    /// pinta <c>data-theme</c> sobre el documento actual — en la misma llamada
+    /// escribe la cookie que <see cref="Services.TemaCookie"/> lee al
+    /// prerenderizar <c>App.razor</c>. Esa cookie es un compromiso hacia la
+    /// SIGUIENTE petición, así que no puede adelantarse a la fila que esa
+    /// petición va a leer.
+    ///
+    /// <para>
+    /// Con el orden anterior (aplicar y luego guardar) una navegación que
+    /// llegara mientras el <c>UPDATE</c> seguía en vuelo servía el HTML con el
+    /// tema nuevo —desde la cookie ya escrita— y acto seguido el circuito de
+    /// esa página, que había leído <c>ApplicationUser.Tema</c> todavía sin
+    /// actualizar, aplicaba el tema ANTERIOR: quitaba <c>data-theme</c> y
+    /// borraba la cookie. El usuario veía revertida la elección que acababa de
+    /// hacer, sin una sola excepción en ningún registro —las dos mitades
+    /// funcionaban, solo estaban en el orden equivocado—. Es el fallo que
+    /// expulsó a la PR #756 de la cola de fusión el 2026-09-20 (run
+    /// 35512763740) y, antes, a otras tres PRs correctas los días 12 y 13 de
+    /// septiembre con una causa distinta en la misma línea de guardado (ver
+    /// <see cref="GuardarTemaAsync"/>). La invariante queda fijada, en la capa
+    /// que la garantiza, por
+    /// <c>SelectorTemaGuardadoTrasEscrituraConcurrenteTests.El_tema_no_llega_al_navegador_antes_de_estar_guardado_en_la_cuenta</c>
+    /// (IntegrationTests).
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Guardado confirmado, no solo intentado</b> (primera revisión de
+    /// Codex, 2026-09-20): la primera versión de este orden solo garantizaba
+    /// «guardar intentado antes de aplicar», porque <see cref="GuardarTemaAsync"/>
+    /// sale con normalidad —tras registrar el fallo— cuando el resultado de
+    /// Identity es un error no concurrente, cuando la recarga tras un
+    /// conflicto no encuentra la cuenta o cuando el reintento también falla.
+    /// En esos tres caminos la cuenta se queda con el tema anterior, y aplicar
+    /// igualmente escribía la cookie del nuevo: la misma carrera de arriba,
+    /// con otra causa. Por eso <see cref="GuardarTemaAsync"/> devuelve si
+    /// persistió y solo entonces se aplica.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Lo que cuesta</b>: el tema tarda ahora en verse lo que tarde el
+    /// <c>UPDATE</c> por clave primaria (más, en el camino de conflicto, una
+    /// recarga y un segundo intento). Es el precio de que lo que se ve sea lo
+    /// que está guardado. Si el guardado falla —por excepción o por resultado
+    /// fallido— el DOM y la cookie se quedan como estaban, y queda un
+    /// desajuste que <b>no se resuelve aquí</b>: el <c>&lt;select&gt;</c>
+    /// conserva la opción elegida (<c>_temaActual</c>) mientras la cuenta y el
+    /// documento siguen en la anterior, sin aviso al usuario más que el
+    /// <c>LogWarning</c>. Es preferible a lo de antes —que pintaba el tema y
+    /// dejaba una cookie apuntando a una preferencia inexistente—, pero sigue
+    /// siendo un fallo visible solo en el registro. Y con dos cambios
+    /// solapados, el primero se descarta al cuajar si ya no es el vigente: lo
+    /// aplica el segundo cuando termine su propio guardado.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Hueco conocido, deliberadamente no cerrado aquí</b>: mientras el
+    /// <c>import()</c> de <see cref="OnAfterRenderAsync"/> sigue en vuelo
+    /// —<c>_modulo</c> todavía null, solo los primeros instantes del
+    /// circuito— es esa continuación, y no este método, la que aplica el
+    /// <c>_temaActual</c> vigente en cuanto el módulo resuelve; puede hacerlo
+    /// antes de que este guardado cuaje, y volver a adelantar la cookie.
+    /// Cerrarlo exigiría coordinar ambas continuaciones, que es exactamente el
+    /// diseño que Codex refutó dos veces (ver <see cref="_moduloTask"/>): su
+    /// remedio pierde la preferencia si el circuito muere entre medias, y
+    /// puede colgar <see cref="DisposeAsync"/>. Se prefiere una ventana
+    /// estrecha y descrita a una sincronización con modos de fallo peores.
+    /// </para>
+    /// </summary>
     private async Task CambiarTemaAsync(ChangeEventArgs e)
     {
         var texto = e.Value?.ToString() ?? "sistema";
         _temaActual = texto;
 
+        if (_usuario is not null && !await GuardarTemaAsync(texto))
+            return;
+
+        // Otro cambio se hizo mientras este esperaba su guardado: ese es el
+        // vigente y se aplicará cuando el suyo cuaje. Aplicar este ahora lo
+        // pintaría un instante y adelantaría la cookie a un guardado que
+        // todavía no ha terminado (revisión de Codex, 2026-09-20).
+        if (texto != _temaActual)
+            return;
+
         if (_modulo is not null)
             await _modulo.InvokeVoidAsync("aplicarTema", texto);
-
-        if (_usuario is not null)
-            await GuardarTemaAsync(texto);
     }
 
     /// <summary>
@@ -172,17 +249,23 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
     /// vez en el guardado y no en la aplicación). Se recarga la fila fresca y
     /// se reintenta una sola vez: no hay conflicto que fusionar, el tema
     /// elegido ahora mismo siempre debe ganar.
+    ///
+    /// <para>
+    /// Devuelve <c>true</c> solo si la preferencia quedó persistida: el
+    /// llamador aplica el tema en el navegador —y con él escribe la cookie— a
+    /// partir de ese valor, no de que el guardado «haya terminado».
+    /// </para>
     /// </summary>
-    private async Task GuardarTemaAsync(string texto)
+    private async Task<bool> GuardarTemaAsync(string texto)
     {
         _usuario!.Tema = TextoATema(texto);
         var resultado = await PuertaAccesoDatos.EjecutarAsync(() => UserManager.UpdateAsync(_usuario));
-        if (resultado.Succeeded) return;
+        if (resultado.Succeeded) return true;
 
         if (!resultado.Errors.Any(error => error.Code == nameof(IdentityErrorDescriber.ConcurrencyFailure)))
         {
             LogFalloAlGuardar(resultado);
-            return;
+            return false;
         }
 
         var usuarioFresco = await PuertaAccesoDatos.EjecutarAsync(async () =>
@@ -199,14 +282,16 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
             Logger.LogWarning(
                 "No se pudo recargar la cuenta {UsuarioId} tras un conflicto de concurrencia al guardar el tema.",
                 _usuario.Id);
-            return;
+            return false;
         }
 
         _usuario = usuarioFresco;
         _usuario.Tema = TextoATema(texto);
         var resultadoReintento = await PuertaAccesoDatos.EjecutarAsync(() => UserManager.UpdateAsync(_usuario));
-        if (!resultadoReintento.Succeeded)
-            LogFalloAlGuardar(resultadoReintento);
+        if (resultadoReintento.Succeeded) return true;
+
+        LogFalloAlGuardar(resultadoReintento);
+        return false;
     }
 
     private void LogFalloAlGuardar(IdentityResult resultado) =>
