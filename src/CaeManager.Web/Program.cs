@@ -218,6 +218,13 @@ builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<IActorAuditoria, ActorAuditoriaDesdeSesion>();
 builder.Services.AddScoped<IClienteActivoSeleccionado, CaeManager.Web.Services.ClienteActivoSeleccionado>();
 builder.Services.AddScoped<CaeManager.Application.Tenants.IVistaVocabularioPreviewService, CaeManager.Web.Services.VistaVocabularioPreviewCookie>();
+// Lente de demo (selector Dirección / Coordinador CAE / Gestor CAE): APAGADA por defecto y solo
+// para cuentas y Tenants de demo. Vive aqui y no en AddInfrastructure a proposito: un host sin la
+// cookie de Web (worker, herramientas) no tiene lente, y AlcanceDatosService la trata como opcional.
+builder.Services.Configure<CaeManager.Infrastructure.Autorizacion.VistaDemoOptions>(
+    builder.Configuration.GetSection(CaeManager.Infrastructure.Autorizacion.VistaDemoOptions.SeccionConfiguracion));
+builder.Services.AddScoped<CaeManager.Application.VistaDemo.ISolicitudVistaDemo, CaeManager.Web.Services.VistaDemoCookie>();
+builder.Services.AddScoped<CaeManager.Application.VistaDemo.IVistaDemoActual, CaeManager.Infrastructure.Autorizacion.VistaDemoActual>();
 builder.Services.AddScoped<CaeManager.Web.Services.TemaCookie>();
 builder.Services.AddScoped<ITenantActual, CaeManager.Web.Services.TenantActual>();
 // Scoped: cachea por circuito si la sesión es de soporte, para que registrar
@@ -874,6 +881,7 @@ app.MapExtensionTokenEndpoints();
 app.MapAcreditacionesPendientesEndpoints();
 app.MapMarcarAcreditacionSubidaEndpoints();
 app.MapVistaVocabularioPreviewEndpoints();
+app.MapVistaDemoEndpoints();
 app.MapConectarMicrosoft365Endpoints();
 app.MapWebhookMicrosoft365Endpoints();
 app.MapWebhookWhatsAppEndpoints();

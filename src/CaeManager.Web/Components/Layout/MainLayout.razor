@@ -27,6 +27,7 @@
                     <div class="menu-usuario">
                         <SelectorClienteActivo @rendermode="InteractiveServer" />
                         <SelectorVistaVocabulario @rendermode="InteractiveServer" />
+                        <SelectorVistaDemo @rendermode="InteractiveServer" />
                         <SelectorTema @rendermode="InteractiveServer" />
                         <a href="/mi-firma" class="menu-usuario-nombre" title="Mi firma">@context.User.Identity?.Name</a>
                         <form method="post" action="/cuenta/cerrar-sesion">

@@ -31,6 +31,7 @@
     2026-09-01 § 6) no se pisa con un "abierto" forzado en el primer render.
 *@
 @using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma
+@using CaeManager.Application.VistaDemo
 @using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual
 @using CaeManager.Domain.Tenants
 @using CaeManager.Infrastructure.Comunicaciones
@@ -38,6 +39,7 @@
 @using Microsoft.Extensions.Options
 @inject IOptions<ComunicacionesOptions> OpcionesComunicaciones
 @inject IMediator Mediator
+@inject IServiceProvider Servicios
 <nav class="nav-principal">
     <AuthorizeView Roles="@RolesConMenuCompleto">
         @* Dashboard / Visión de cartera / Dashboard Ejecutivo son tres
@@ -264,7 +266,7 @@
                 <NavLink class="nav-item" href="usuarios">
                     <Icono Nombre="usuarios" /> Usuarios
                 </NavLink>
-                <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador" Context="authAdminSolo">
+                <AuthorizeView Roles="@RolSoloAdministrador" Context="authAdminSolo">
                     <NavLink class="nav-item" href="configuracion">
                         <Icono Nombre="configuracion" /> Configuración
                     </NavLink>
@@ -298,7 +300,7 @@
        ocurría cuando vivía dentro del hub. *@
     <AuthorizeView Context="authPlataforma">
         <Authorized>
-            @if (authPlataforma.User.IsInRole(CaeManager.Infrastructure.Identity.Roles.Administrador) || _esAdministradorPlataforma)
+            @if ((authPlataforma.User.IsInRole(CaeManager.Infrastructure.Identity.Roles.Administrador) && RolSoloAdministrador != MenuPorVista.RolInexistente) || _esAdministradorPlataforma)
             {
                 <details class="nav-grupo-detalle" data-grupo="plataforma" open>
                     <summary class="nav-grupo-titulo">
@@ -323,12 +325,12 @@
 </nav>
 
 @code {
-    private const string RolesConMenuCompleto =
+    private const string RolesConMenuCompletoBase =
         $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae}," +
         $"{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}," +
         $"{CaeManager.Infrastructure.Identity.Roles.Consulta}";
 
-    private const string RolesDeAdministracionAmpliada =
+    private const string RolesDeAdministracionAmpliadaBase =
         $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae}";
 
     /// <summary>
@@ -338,11 +340,11 @@
     /// § 7) no debía perder esa visibilidad. No se añade Consulta al rol de administración
     /// ampliada porque ese también gatea Facturación y Administración, que Consulta no debe ver.
     /// </summary>
-    private const string RolesDeDashboardEjecutivo =
+    private const string RolesDeDashboardEjecutivoBase =
         $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae}," +
         $"{CaeManager.Infrastructure.Identity.Roles.Consulta}";
 
-    private const string RolesDeCartera =
+    private const string RolesDeCarteraBase =
         $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae}," +
         $"{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae}";
 
@@ -363,11 +365,24 @@
     // aparece para alguien sin el rol Administrador.
     private bool _esAdministradorPlataforma;
 
+    // Lente de demo (ver MenuPorVista): solo puede ocultar entradas, nunca mostrar una que la
+    // autorización real de la cuenta no mostraría.
+    private VistaDemo? _vistaDemo;
+
+    private string RolesConMenuCompleto => MenuPorVista.Acotar(_vistaDemo, RolesConMenuCompletoBase);
+    private string RolesDeAdministracionAmpliada => MenuPorVista.Acotar(_vistaDemo, RolesDeAdministracionAmpliadaBase);
+    private string RolesDeDashboardEjecutivo => MenuPorVista.Acotar(_vistaDemo, RolesDeDashboardEjecutivoBase);
+    private string RolesDeCartera => MenuPorVista.Acotar(_vistaDemo, RolesDeCarteraBase);
+    private string RolSoloAdministrador => MenuPorVista.Acotar(_vistaDemo, CaeManager.Infrastructure.Identity.Roles.Administrador);
+
     protected override async Task OnInitializedAsync()
     {
         var perfil = await Mediator.Send(new ObtenerPerfilVocabularioActualQuery());
         EtiquetaEmpresas = perfil == PerfilVocabularioTenant.ClienteDirecto ? "Mi empresa" : "Empresas";
         EtiquetaTrabajadores = perfil == PerfilVocabularioTenant.ClienteDirecto ? "Mis trabajadores" : "Trabajadores";
+        // Opcional a propósito: sin la lente registrada (otro host, tests) el menú es el real.
+        if (Servicios.GetService<IVistaDemoActual>() is { } vistaDemoActual)
+            _vistaDemo = (await vistaDemoActual.ObtenerEfectivaAsync())?.Vista;
         _esAdministradorPlataforma = await Mediator.Send(new EsAdministradorPlataformaQuery());
     }
 }

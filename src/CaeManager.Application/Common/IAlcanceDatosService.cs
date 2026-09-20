@@ -13,6 +13,13 @@ namespace CaeManager.Application.Common;
 /// visible todavía devuelve una lista VACÍA, nunca null, para que un
 /// filtro `Contains` sobre una lista vacía no deje pasar nada por accidente.
 ///
+/// Lente de demo (<see cref="CaeManager.Application.VistaDemo.IVistaDemoActual"/>): en un entorno
+/// de demo con la función activada, una cuenta Administrador/DireccionCae de un Tenant de demo
+/// puede pedir la vista «Gestor CAE» de un Gestor concreto. Entonces el alcance devuelto es el
+/// real ∩ la cartera de ese Gestor (y <c>TieneAccesoTotalAsync</c> pasa a false). La lente solo
+/// ESTRECHA —nunca amplía— y, como estos métodos también los consultan los comandos, un comando
+/// ve el mismo alcance estrechado que un Gestor real: solo puede ser más estricto, jamás menos.
+///
 /// Solo se aplica a las consultas de LISTADO (tablas, Dashboard, Alertas,
 /// Reportes) — los selectores de "elige de la base general" (Trabajador,
 /// Vehículo: ver ObtenerTrabajadoresParaSelectorQuery/

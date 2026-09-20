@@ -1,0 +1,40 @@
+@*
+    Selector de VISTA DE DEMO (Dirección / Coordinador CAE / Gestor CAE), solo para cuentas y Tenants
+    de demo y apagado por defecto (VistaDemo:Activo). Es una LENTE PRESENTACIONAL: solo estrecha lo que
+    la cuenta ya tiene autorizado, nunca concede nada (ver IVistaDemoActual). Mismo patrón que
+    SelectorVistaVocabulario.razor y el selector de contexto de la cabecera: <form> POST con token antiforgery,
+    no @onchange de Blazor — la vista se guarda en una cookie y necesita recarga completa para que el
+    alcance, memoizado por circuito, se recalcule.
+
+    Vive en la cabecera (MainLayout), fuera de @Body, y su disponibilidad depende solo de la identidad
+    real de la cuenta: ninguna vista puede esconderlo. Plegable: cerrado es una etiqueta compacta;
+    "Dirección" es siempre la salida (borra la cookie: autorización real, sin acotar).
+
+    Aprovecha <details> nativo (como los grupos de NavMenu): plegar no necesita circuito ni JS.
+*@
+@if (_disponible)
+{
+    <details class="selector-vista-demo" data-testid="selector-vista-demo">
+        <summary class="selector-vista-demo-resumen" title="Vista de demo">Vista: @_etiquetaActual</summary>
+        <form method="post" action="/cuenta/vista-demo" class="selector-vista-demo-panel">
+            @if (_token is not null)
+            {
+                <input type="hidden" name="@_token.FormFieldName" value="@_token.Value" />
+            }
+            <input type="hidden" name="returnUrl" value="@_returnUrl" />
+
+            <select class="selector-vista-demo-select" name="opcion"
+                    data-enviar-al-cambiar aria-label="Vista de demo">
+                <option value="direccion" selected="@(_opcionActual == "direccion")">Dirección</option>
+                <option value="coordinador" selected="@(_opcionActual == "coordinador")">Coordinador CAE</option>
+                @foreach (var gestor in _gestores)
+                {
+                    var valor = $"gestor:{gestor.UsuarioId:N}";
+                    <option value="@valor" selected="@(_opcionActual == valor)">Gestor CAE: @gestor.Nombre</option>
+                }
+            </select>
+
+            <noscript><button type="submit">Cambiar</button></noscript>
+        </form>
+    </details>
+}
