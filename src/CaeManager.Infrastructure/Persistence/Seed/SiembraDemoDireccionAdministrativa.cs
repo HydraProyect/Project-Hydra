@@ -266,13 +266,12 @@ public static partial class SiembraDemoDireccionAdministrativa
         // contraseña se perdería.
         var rutaFichero = Path.Combine(
             opciones.DirectorioCredenciales, $"credenciales-demo-direccion-{DateTime.UtcNow:yyyyMMddTHHmmssfffZ}.json");
-        await using var fichero = new FileStream(rutaFichero, new FileStreamOptions
-        {
-            Mode = FileMode.CreateNew,
-            Access = FileAccess.Write,
-            Share = FileShare.None,
-            UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite,
-        });
+        var opcionesDeFichero = new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write, Share = FileShare.None };
+        // Windows no admite modos Unix (lanza): solo se usa en máquinas de desarrollo; el entorno real es Linux
+        // (ValidarPrecondiciones lo exige), donde el fichero nace ya con 0600.
+        if (!OperatingSystem.IsWindows())
+            opcionesDeFichero.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+        await using var fichero = new FileStream(rutaFichero, opcionesDeFichero);
 
         var dominio = opciones.DominioCorreo;
         var emails = EmailsDe(dominio);
