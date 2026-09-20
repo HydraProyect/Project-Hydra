@@ -50,18 +50,29 @@ public class SiembraDemoDireccionSoloDesdeElModoCliTests
         var program = File.ReadAllText(Path.Combine(RaizDelRepositorio(), "src", "CaeManager.Web", "Program.cs"));
 
         var modo = program.IndexOf(Modo, StringComparison.Ordinal);
-        var llamada = program.IndexOf(Siembra + ".SembrarAsync(", StringComparison.Ordinal);
-        var retorno = modo < 0 ? -1 : program.IndexOf("return;", modo, StringComparison.Ordinal);
         var primeraSiembraDeArranque = program.IndexOf("IdentitySeeder.SeedAsync(", StringComparison.Ordinal);
 
         modo.Should().BeGreaterThan(-1, "control positivo: el modo de CLI existe con esa forma");
-        llamada.Should().BeGreaterThan(-1, "control positivo: Program.cs invoca la siembra");
         primeraSiembraDeArranque.Should().BeGreaterThan(-1, "control positivo: el instrumento ve la siembra de arranque");
-        retorno.Should().BeGreaterThan(-1, "el modo de CLI termina con return; sin levantar la aplicación");
 
-        llamada.Should().BeGreaterThan(modo, "la llamada va DENTRO del modo de CLI, no antes");
-        llamada.Should().BeLessThan(retorno, "y antes del return; que lo cierra: si quedara después, ya no estaría en el modo");
-        retorno.Should().BeLessThan(primeraSiembraDeArranque, "el modo de CLI termina el proceso antes de cualquier siembra del arranque normal");
+        var apertura = program.IndexOf('{', modo);
+        var profundidad = 0;
+        var cierre = -1;
+        for (var i = apertura; i < program.Length; i++)
+        {
+            if (program[i] == '{') profundidad++;
+            else if (program[i] == '}' && --profundidad == 0) { cierre = i; break; }
+        }
+
+        cierre.Should().BeGreaterThan(apertura, "el bloque del modo de CLI está delimitado por llaves balanceadas");
+        var bloque = program[(apertura + 1)..cierre];
+
+        bloque.Should().Contain(Siembra + ".SembrarAsync(", "la llamada va DENTRO del modo de CLI");
+        bloque.TrimEnd().Should().EndWith("return;",
+            "el modo de CLI termina el proceso con return; sin levantar la aplicación: si faltara, la siembra seguiría al arranque normal");
+        program.IndexOf(Siembra + ".SembrarAsync(", StringComparison.Ordinal).Should().BeInRange(apertura, cierre,
+            "y no hay otra llamada fuera del bloque");
+        cierre.Should().BeLessThan(primeraSiembraDeArranque, "el modo de CLI cierra antes de cualquier siembra del arranque normal");
     }
 
     [Fact]
