@@ -1,8 +1,10 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants;
 using CaeManager.Application.Tenants.Commands.CrearTenantPropietarioDeOperadorCaeExterno;
 using CaeManager.Application.Tenants.Queries.ObtenerOperadoresCaeExternos;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Plataforma;
+using CaeManager.Domain.Soporte;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -69,14 +71,14 @@ public class CrearTenantPropietarioDeOperadorCaeExternoTests : IAsyncLifetime
     }
 
     private CrearTenantPropietarioDeOperadorCaeExternoCommandHandler CrearHandler(
-        CaeManagerDbContext contexto, Guid? usuarioId, IUnitOfWork? unitOfWork = null) =>
-        CrearHandlerConUnidad(contexto, usuarioId, unitOfWork ?? contexto);
+        CaeManagerDbContext contexto, Guid? usuarioId, IUnitOfWork? unitOfWork = null, ITenantsQueryContext? tenantsContext = null) =>
+        CrearHandlerConUnidad(contexto, usuarioId, unitOfWork ?? contexto, tenantsContext ?? contexto);
 
     private CrearTenantPropietarioDeOperadorCaeExternoCommandHandler CrearHandlerConUnidad(
-        CaeManagerDbContext contexto, Guid? usuarioId, IUnitOfWork unitOfWork) =>
+        CaeManagerDbContext contexto, Guid? usuarioId, IUnitOfWork unitOfWork, ITenantsQueryContext tenantsContext) =>
         new(
             new TenantRepository(contexto),
-            contexto,
+            tenantsContext,
             new DelegacionTenantRepository(contexto),
             new ParametroSistemaRepository(contexto),
             new AutorizacionAdminPlataformaPorConcesion(contexto),
@@ -263,7 +265,7 @@ public class CrearTenantPropietarioDeOperadorCaeExternoTests : IAsyncLifetime
         await SembrarTenantAsync(contexto, PerfilVocabularioTenant.Consultora, "ArcoSPA");
 
         var consulta = new ObtenerOperadoresCaeExternosQueryHandler(
-            contexto, new AutorizacionAdminPlataformaPorConcesion(contexto), new CurrentUserServiceFalso(Guid.NewGuid()));
+            new ContextoQueNoDebeLeerse(), new AutorizacionAdminPlataformaPorConcesion(contexto), new CurrentUserServiceFalso(Guid.NewGuid()));
 
         (await consulta.Handle(new ObtenerOperadoresCaeExternosQuery(), CancellationToken.None)).Should().BeEmpty();
     }
@@ -304,13 +306,27 @@ public class CrearTenantPropietarioDeOperadorCaeExternoTests : IAsyncLifetime
         var operadorReal = await SembrarTenantAsync(contexto, PerfilVocabularioTenant.Consultora, "ArcoSPA");
         var sinConcesion = Guid.NewGuid();
 
-        var real = await CrearHandler(contexto, sinConcesion).Handle(
+        var real = await CrearHandler(contexto, sinConcesion, tenantsContext: new ContextoQueNoDebeLeerse()).Handle(
             new CrearTenantPropietarioDeOperadorCaeExternoCommand(operadorReal, "Hostelería Krusty Krab"), CancellationToken.None);
-        var inexistente = await CrearHandler(contexto, sinConcesion).Handle(
+        var inexistente = await CrearHandler(contexto, sinConcesion, tenantsContext: new ContextoQueNoDebeLeerse()).Handle(
             new CrearTenantPropietarioDeOperadorCaeExternoCommand(Guid.NewGuid(), "Hostelería Krusty Krab"), CancellationToken.None);
 
         real.Error.Should().Be(inexistente.Error);
         real.Error.Codigo.Should().Be("TenantPropietarioDeOperador.SinPermiso");
+    }
+
+    /// <summary>
+    /// Lanza si alguien lee un catálogo transversal: sin concesión, la autorización tiene que
+    /// cortar ANTES de cualquier lectura (Codex, pasada 2: comparar solo el error final no
+    /// distinguía mover la consulta del Operador antes de la guarda).
+    /// </summary>
+    private sealed class ContextoQueNoDebeLeerse : ITenantsQueryContext
+    {
+        private static IQueryable<T> Prohibido<T>() => throw new InvalidOperationException("Lectura transversal antes de autorizar.");
+        public IQueryable<Tenant> Tenants => Prohibido<Tenant>();
+        public IQueryable<DelegacionTenant> DelegacionesTenant => Prohibido<DelegacionTenant>();
+        public IQueryable<AsignacionOperadorDelegado> AsignacionesOperadorDelegado => Prohibido<AsignacionOperadorDelegado>();
+        public IQueryable<RegistroActividadSoporte> RegistrosActividadSoporte => Prohibido<RegistroActividadSoporte>();
     }
 
     private sealed class UnidadDeTrabajoContadora(IUnitOfWork interna) : IUnitOfWork
