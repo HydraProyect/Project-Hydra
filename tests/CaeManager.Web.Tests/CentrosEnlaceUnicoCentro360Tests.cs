@@ -45,7 +45,11 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class CentrosEnlaceUnicoCentro360Tests : BunitContext
 {
-    public CentrosEnlaceUnicoCentro360Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public CentrosEnlaceUnicoCentro360Tests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.ConRolDeEscritura();
+    }
 
     public enum Escenario
     {

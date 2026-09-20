@@ -28,7 +28,11 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class VehiculosConcurrenciaTests : BunitContext
 {
-    public VehiculosConcurrenciaTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public VehiculosConcurrenciaTests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.ConRolDeEscritura();
+    }
 
     private sealed class MediadorFalso : IMediator
     {

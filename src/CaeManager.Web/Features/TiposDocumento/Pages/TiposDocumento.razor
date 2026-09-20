@@ -27,7 +27,7 @@
             <a href="@RutaLecturaIaPorCliente">Lectura IA por cliente</a>.
         </Descripcion>
         <Acciones>
-            <Boton OnClick="AbrirCrearAsync">+ Nuevo tipo</Boton>
+            <SoloConEscritura><Boton OnClick="AbrirCrearAsync">+ Nuevo tipo</Boton></SoloConEscritura>
         </Acciones>
     </CabeceraPagina>
 
@@ -97,7 +97,7 @@
         <EstadoVacio NombreIcono="tipos-documento" Titulo="Aún no hay tipos de documento"
                      Descripcion="Crea el primero para empezar a construir el catálogo.">
             <Accion>
-                <Boton OnClick="AbrirCrearAsync">+ Nuevo tipo</Boton>
+                <SoloConEscritura><Boton OnClick="AbrirCrearAsync">+ Nuevo tipo</Boton></SoloConEscritura>
             </Accion>
         </EstadoVacio>
     }

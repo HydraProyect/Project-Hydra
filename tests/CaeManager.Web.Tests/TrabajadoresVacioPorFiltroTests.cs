@@ -34,7 +34,11 @@ namespace CaeManager.Web.Tests;
 public class TrabajadoresVacioPorFiltroTests : BunitContext
 {
     /// <summary>La página importa ./js/atajos-lista.js; ese módulo queda fuera de lo que se observa aquí.</summary>
-    public TrabajadoresVacioPorFiltroTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public TrabajadoresVacioPorFiltroTests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.ConRolDeEscritura();
+    }
 
     private static readonly Guid EmpresaId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid SubcontrataId = Guid.Parse("22222222-2222-2222-2222-222222222222");

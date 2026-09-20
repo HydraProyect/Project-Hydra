@@ -32,10 +32,12 @@
            OnClick='() => CambiarVistaAsync("historial")' aria-pressed="@(_vista == "historial" ? "true" : "false")">
         Enviadas
     </Boton>
-    <Boton Variante="@(_vista == "componer" ? VarianteBoton.Secundario : VarianteBoton.Fantasma)" Tamano="TamanoBoton.Pequeno"
-           OnClick='() => CambiarVistaAsync("componer")' aria-pressed="@(_vista == "componer" ? "true" : "false")">
-        + Nueva reclamación
-    </Boton>
+    <SoloConEscritura>
+        <Boton Variante="@(_vista == "componer" ? VarianteBoton.Secundario : VarianteBoton.Fantasma)" Tamano="TamanoBoton.Pequeno"
+               OnClick='() => CambiarVistaAsync("componer")' aria-pressed="@(_vista == "componer" ? "true" : "false")">
+            + Nueva reclamación
+        </Boton>
+    </SoloConEscritura>
 </div>
 
 @if (_vista == "historial")
@@ -136,10 +138,10 @@ else
 
         <Tarjeta @key="lote.ClienteId" Titulo="@lote.RazonSocialCliente" Class="tarjeta-reclamacion">
             <AccionesHeader>
-                <Boton Tamano="TamanoBoton.Pequeno" Deshabilitado="@(seleccionados.Count == 0 || ContactosMarcados(lote.ClienteId).Count == 0)"
+                <SoloConEscritura><Boton Tamano="TamanoBoton.Pequeno" Deshabilitado="@(seleccionados.Count == 0 || ContactosMarcados(lote.ClienteId).Count == 0)"
                        Cargando="enviando" OnClick="() => EnviarAsync(lote)">
                     Enviar reclamación (@seleccionados.Count)
-                </Boton>
+                </Boton></SoloConEscritura>
             </AccionesHeader>
 
             <ChildContent>
@@ -167,10 +169,12 @@ else
                 {
                     <div class="alerta-formulario" role="alert">
                         No hay ningún contacto en la agenda al que reclamar esta documentación.
-                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
-                               OnClick="() => AbrirAltaContacto(lote.ClienteId)">
-                            <Icono Nombre="contacto" Tamano="TamanoIcono.Pequeno" /> Añadir contacto
-                        </Boton>
+                        <SoloConEscritura>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                   OnClick="() => AbrirAltaContacto(lote.ClienteId)">
+                                <Icono Nombre="contacto" Tamano="TamanoIcono.Pequeno" /> Añadir contacto
+                            </Boton>
+                        </SoloConEscritura>
                     </div>
                 }
                 else
@@ -187,10 +191,12 @@ else
                                 <span class="reclamacion-motivo">@string.Join(", ", destinatario.MotivoTipos)</span>
                             </label>
                         }
-                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
-                               OnClick="() => AbrirAltaContacto(lote.ClienteId)">
-                            <Icono Nombre="contacto" Tamano="TamanoIcono.Pequeno" /> Añadir contacto
-                        </Boton>
+                        <SoloConEscritura>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                   OnClick="() => AbrirAltaContacto(lote.ClienteId)">
+                                <Icono Nombre="contacto" Tamano="TamanoIcono.Pequeno" /> Añadir contacto
+                            </Boton>
+                        </SoloConEscritura>
                     </fieldset>
                 }
 

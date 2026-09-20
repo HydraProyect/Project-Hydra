@@ -47,7 +47,11 @@ namespace CaeManager.Web.Tests;
 public class MacrosGen2Tests : BunitContext
 {
     /// <summary><see cref="Drawer"/> y <see cref="Modal"/> importan dialogo-foco.js, y <see cref="BotonCopiar"/> clipboard.js.</summary>
-    public MacrosGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public MacrosGen2Tests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.ConRolDeEscritura();
+    }
 
     private static readonly ClienteSelectorDto ClienteA = new(Guid.Parse("a1a1a1a1-0000-0000-0000-000000000001"), "Refrielectric S.A.");
     private static readonly ClienteSelectorDto ClienteB = new(Guid.Parse("b2b2b2b2-0000-0000-0000-000000000002"), "Montajes Ebro S.L.");

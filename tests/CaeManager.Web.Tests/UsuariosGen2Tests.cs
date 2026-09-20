@@ -51,7 +51,11 @@ namespace CaeManager.Web.Tests;
 public class UsuariosGen2Tests : BunitContext
 {
     /// <summary><see cref="Modal"/> y <see cref="MenuAcciones"/> mueven el foco por JS al abrirse.</summary>
-    public UsuariosGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public UsuariosGen2Tests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.ConRolDeEscritura();
+    }
 
     private static readonly Guid TenantDelArnes = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     private static readonly Guid MartaId = Guid.Parse("11111111-1111-1111-1111-111111111111");

@@ -26,7 +26,11 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class VisitasCentroIdAlcanceTests : BunitContext
 {
-    public VisitasCentroIdAlcanceTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public VisitasCentroIdAlcanceTests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.ConRolDeEscritura();
+    }
 
     private sealed class MediatorDeAlcance : IMediator
     {

@@ -296,6 +296,27 @@ public partial class Inicio : ComponentBase, IDisposable
         : _kpis.DocumentosVencidos + _kpis.DocumentosUrgentes + _kpis.DocumentosProximos;
 
     /// <summary>
+    /// Todo lo que el panel resume está a cero <b>y</b> nada espera en las colas:
+    /// ni trabajadores, centros, documentos ni visitas, ni cola de atención, ni
+    /// plataformas pendientes, ni reclamaciones sin respuesta. Solo entonces se
+    /// cambia el panel por una explicación; si cualquiera de esas fuentes trae
+    /// algo, el panel se pinta entero aunque el resto sea cero — decir «no hay
+    /// datos» sobre un contexto que sí los tiene sería peor que los ceros.
+    /// Es lo que ve, p. ej., un Operador CAE en su propio Tenant, donde todo el
+    /// contenido vive en los Tenants propietarios que opera por delegación.
+    /// </summary>
+    private bool SinNingunDatoEnEsteContexto =>
+        _kpis is { } k
+        && k.TrabajadoresActivos == 0 && k.Centros == 0
+        && k.DocumentosVigentes == 0 && k.DocumentosVencidos == 0
+        && k.DocumentosUrgentes == 0 && k.DocumentosProximos == 0
+        && k.VisitasProgramadas == 0 && k.VisitasUrgentes == 0
+        && _queLlegoSinVer.Count == 0 && _pendientePorPlataforma.Count == 0
+        && _sinRespuesta.Count == 0 && _proximamente.Count == 0
+        && (_bandejaAgrupada is null
+            || (_bandejaAgrupada.Grupos.Count == 0 && _bandejaAgrupada.SinGrupo.Count == 0));
+
+    /// <summary>
     /// Centros distintos con al menos un requisito de acceso que de verdad los
     /// bloquea, en la cola ya cargada — sin query nueva, es el mismo dato que ya
     /// pinta "Requiere atención". Un RequisitoPendiente de ALTA NUEVA queda

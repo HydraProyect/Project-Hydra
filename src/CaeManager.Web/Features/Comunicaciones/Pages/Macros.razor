@@ -30,7 +30,7 @@
         </Descripcion>
         <Acciones>
             <a class="enlace-volver-bandeja" href="/comunicaciones">Volver a la bandeja</a>
-            <Boton OnClick="AbrirCrear">+ Nueva macro</Boton>
+            <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nueva macro</Boton></SoloConEscritura>
         </Acciones>
     </CabeceraPagina>
 
@@ -84,7 +84,7 @@
         <EstadoVacio NombreIcono="vacio" Titulo="Ni macros genéricas ni de este cliente"
                      Descripcion="Este cliente no tiene plantillas propias, y tampoco hay ninguna genérica que aplicarle.">
             <Accion>
-                <Boton OnClick="AbrirCrear">+ Nueva macro</Boton>
+                <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nueva macro</Boton></SoloConEscritura>
             </Accion>
         </EstadoVacio>
     }
@@ -97,7 +97,7 @@
         <EstadoVacio Titulo="No hay macros genéricas"
                      Descripcion="Crea la primera plantilla de respuesta, o elige un cliente arriba para ver las suyas.">
             <Accion>
-                <Boton OnClick="AbrirCrear">+ Nueva macro</Boton>
+                <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nueva macro</Boton></SoloConEscritura>
             </Accion>
         </EstadoVacio>
     }

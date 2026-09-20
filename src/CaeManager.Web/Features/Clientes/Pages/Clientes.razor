@@ -37,8 +37,8 @@
                 <a class="enlace-exportar" href="/importacion?plantilla=clientes">Importar clientes</a>
                 <a class="enlace-exportar" href="/importacion?plantilla=combinada">Importación combinada</a>
             </AuthorizeView>
-            <a class="enlace-exportar" href="/clientes/alta-guiada">Alta guiada</a>
-            <Boton OnClick="AbrirCrear">+ Nuevo cliente</Boton>
+            <SoloConEscritura><a class="enlace-exportar" href="/clientes/alta-guiada">Alta guiada</a></SoloConEscritura>
+            <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nuevo cliente</Boton></SoloConEscritura>
         </Acciones>
     </CabeceraPagina>
 
@@ -266,12 +266,12 @@
                         <ItemMenuAccion OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.Id, context.RazonSocial, "informacion")'>
                             Abrir Cliente 360
                         </ItemMenuAccion>
-                        <ItemMenuAccion OnClick="() => AbrirEditarAsync(context.Id)">
+                        <SoloConEscritura><ItemMenuAccion OnClick="() => AbrirEditarAsync(context.Id)">
                             Editar
-                        </ItemMenuAccion>
-                        <ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, context.RazonSocial)">
+                        </ItemMenuAccion></SoloConEscritura>
+                        <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, context.RazonSocial)">
                             Eliminar
-                        </ItemMenuAccion>
+                        </ItemMenuAccion></SoloConEscritura>
                     </MenuAcciones>
                 </TemplateColumn>
             </QuickGrid>
@@ -301,7 +301,7 @@
         {
             <EstadoVacio NombreIcono="clientes" Titulo="Aún no hay clientes" Descripcion="Crea el primero para empezar a organizar tus centros de trabajo.">
                 <Accion>
-                    <Boton OnClick="AbrirCrear">+ Nuevo cliente</Boton>
+                    <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nuevo cliente</Boton></SoloConEscritura>
                     <Boton Variante="VarianteBoton.Secundario" OnClick='() => NavigationManager.NavigateTo("/clientes/alta-guiada")'>
                         Alta guiada (Cliente + Empresa + Centro)
                     </Boton>

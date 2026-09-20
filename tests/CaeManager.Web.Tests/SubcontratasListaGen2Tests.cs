@@ -42,7 +42,11 @@ namespace CaeManager.Web.Tests;
 public class SubcontratasListaGen2Tests : BunitContext
 {
     /// <summary>La página monta AtajosListaTeclado, que importa ./js/atajos-lista.js.</summary>
-    public SubcontratasListaGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public SubcontratasListaGen2Tests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.ConRolDeEscritura();
+    }
 
     private sealed class MediatorFalso : IMediator
     {

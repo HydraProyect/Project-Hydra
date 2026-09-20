@@ -45,7 +45,7 @@
                llegan a la misma pantalla, cada una con su propio contrato de acceso. *@
             <div class="bandeja-lista-cabecera">
                 <h1 class="bandeja-lista-titulo">Comunicaciones</h1>
-                <Boton Tamano="TamanoBoton.Pequeno" OnClick="AbrirRedactarAsync">Redactar</Boton>
+                <SoloConEscritura><Boton Tamano="TamanoBoton.Pequeno" OnClick="AbrirRedactarAsync">Redactar</Boton></SoloConEscritura>
             </div>
 
             @* Toggle "Clientes | Mi buzón personal" (rediseño acordado, ver
@@ -287,6 +287,7 @@
 
                         @if (_vista == "clientes")
                         {
+                          <SoloConEscritura>
                             @if (_detalle.ClienteId is null)
                             {
                                 <CampoSelect Valor="@_clienteTriageSeleccionado" ValorChanged="v => _clienteTriageSeleccionado = v">
@@ -320,6 +321,7 @@
                             {
                                 <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" Cargando="_cambiandoEstado" OnClick="() => CambiarEstadoAsync(EstadoConversacion.Abierta)">Reabrir</Boton>
                             }
+                          </SoloConEscritura>
                         }
                     </div>
                 </div>
@@ -329,6 +331,7 @@
 
                 @if (_vista == "clientes")
                 {
+                  <SoloConEscritura>
                     <ComposerBar Canal="_detalle.Canal" VentanaAbierta="VentanaAbierta" CierreVentanaLocal="@CierreVentanaLocal"
                                  Texto="@_textoRespuesta" TextoChanged="v => _textoRespuesta = v" Enviando="_enviando" OnEnviar="EnviarAsync"
                                  Macros="_macrosDisponibles" MacroSeleccionadaId="@_macroSeleccionadaId" OnAplicarMacro="AplicarMacro"
@@ -355,6 +358,7 @@
                             </Boton>
                         </div>
                     }
+                  </SoloConEscritura>
                 }
                 else
                 {

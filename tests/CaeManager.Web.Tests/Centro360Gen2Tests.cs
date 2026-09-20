@@ -52,7 +52,11 @@ namespace CaeManager.Web.Tests;
 public class Centro360Gen2Tests : BunitContext
 {
     /// <summary>BotonCopiar importa ./js/clipboard.js; MenuAcciones no usa interop.</summary>
-    public Centro360Gen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public Centro360Gen2Tests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.ConRolDeEscritura();
+    }
 
     /// <summary>
     /// Responde según los parámetros de cada consulta —el Id del centro, el de

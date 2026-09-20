@@ -24,7 +24,7 @@
 <div class="contenedor-pagina">
     <div class="cabecera-pagina">
         <h1 class="titulo-pagina">Vehículos</h1>
-        <Boton OnClick="AbrirCrearAsync">+ Nuevo vehículo</Boton>
+        <SoloConEscritura><Boton OnClick="AbrirCrearAsync">+ Nuevo vehículo</Boton></SoloConEscritura>
     </div>
 
     <div class="barra-filtros">
@@ -96,9 +96,9 @@
                         <ItemMenuAccion OnClick='() => AbrirPreview(context.Id)'>
                             Ver
                         </ItemMenuAccion>
-                        <ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, context.Nombre)">
+                        <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, context.Nombre)">
                             Eliminar
-                        </ItemMenuAccion>
+                        </ItemMenuAccion></SoloConEscritura>
                     </MenuAcciones>
                 </TemplateColumn>
             </QuickGrid>
@@ -129,7 +129,7 @@
         {
             <EstadoVacio NombreIcono="vehiculos" Titulo="Aún no hay vehículos" Descripcion="Crea el primero para empezar a gestionar su documentación.">
                 <Accion>
-                    <Boton OnClick="AbrirCrearAsync">+ Nuevo vehículo</Boton>
+                    <SoloConEscritura><Boton OnClick="AbrirCrearAsync">+ Nuevo vehículo</Boton></SoloConEscritura>
                 </Accion>
             </EstadoVacio>
         }

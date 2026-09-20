@@ -75,11 +75,11 @@
                 </div>
             </div>
             <div class="trabajador360-acciones">
-                <Boton Deshabilitado="DocumentoMasUrgente is null" OnClick="SubirDocumentoMasUrgenteAsync">Subir documento</Boton>
+                <SoloConEscritura><Boton Deshabilitado="DocumentoMasUrgente is null" OnClick="SubirDocumentoMasUrgenteAsync">Subir documento</Boton></SoloConEscritura>
                 <MenuAcciones>
-                    <ItemMenuAccion OnClick="AbrirInformacion">Editar</ItemMenuAccion>
-                    <ItemMenuAccion OnClick="ReclamarFaltantesAsync">Reclamar faltantes</ItemMenuAccion>
-                    <ItemMenuAccion OnClick="AbrirCrearGestionAsync">Crear gestión</ItemMenuAccion>
+                    <SoloConEscritura><ItemMenuAccion OnClick="AbrirInformacion">Editar</ItemMenuAccion></SoloConEscritura>
+                    <SoloConEscritura><ItemMenuAccion OnClick="ReclamarFaltantesAsync">Reclamar faltantes</ItemMenuAccion></SoloConEscritura>
+                    <SoloConEscritura><ItemMenuAccion OnClick="AbrirCrearGestionAsync">Crear gestión</ItemMenuAccion></SoloConEscritura>
                 </MenuAcciones>
             </div>
         </div>

@@ -38,7 +38,11 @@ namespace CaeManager.Web.Tests;
 public class SubcontratasVacioPorFiltroTests : BunitContext
 {
     /// <summary>La página monta AtajosListaTeclado, que importa ./js/atajos-lista.js.</summary>
-    public SubcontratasVacioPorFiltroTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public SubcontratasVacioPorFiltroTests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.ConRolDeEscritura();
+    }
 
     private sealed class MediatorPorTipo : IMediator
     {

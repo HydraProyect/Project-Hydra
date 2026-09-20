@@ -26,7 +26,11 @@ namespace CaeManager.Web.Tests;
 public class IncidenciasGen2Tests : BunitContext
 {
     /// <summary>La página importa ./js/atajos-lista.js y el Drawer ./js/dialogo-foco.js; quedan fuera de lo que se observa.</summary>
-    public IncidenciasGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public IncidenciasGen2Tests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.ConRolDeEscritura();
+    }
 
     private static readonly Guid IdAlfa = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000001");
     private static readonly Guid IdBeta = Guid.Parse("bbbbbbbb-0000-0000-0000-000000000002");

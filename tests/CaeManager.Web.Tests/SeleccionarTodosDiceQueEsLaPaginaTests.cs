@@ -28,7 +28,11 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class SeleccionarTodosDiceQueEsLaPaginaTests : BunitContext
 {
-    public SeleccionarTodosDiceQueEsLaPaginaTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public SeleccionarTodosDiceQueEsLaPaginaTests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.ConRolDeEscritura();
+    }
 
     private sealed class MediatorPorTipo : IMediator
     {

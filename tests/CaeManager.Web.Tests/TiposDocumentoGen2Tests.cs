@@ -56,7 +56,11 @@ namespace CaeManager.Web.Tests;
 public class TiposDocumentoGen2Tests : BunitContext
 {
     /// <summary><see cref="Modal"/> y <see cref="Drawer"/> importan dialogo-foco.js.</summary>
-    public TiposDocumentoGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public TiposDocumentoGen2Tests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.ConRolDeEscritura();
+    }
 
     private static readonly Guid ClienteA = Guid.Parse("a1a1a1a1-0000-0000-0000-000000000001");
     private static readonly Guid ClienteB = Guid.Parse("b2b2b2b2-0000-0000-0000-000000000002");

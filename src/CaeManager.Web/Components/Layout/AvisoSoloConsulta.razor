@@ -1,0 +1,18 @@
+@*
+    Franja que explica, una vez y en todas las pantallas, por qué no hay botones
+    de crear, editar o eliminar: el rol efectivo es de solo consulta. Es el
+    contrapunto de SoloConEscritura, que oculta esos botones; sin este aviso la
+    ausencia sería muda y parecería una pantalla incompleta.
+
+    Solo para Consulta, que es el rol al que se le enseña y se le deja ver todo.
+    No para Cliente (su portal ya es de consulta por diseño y no tiene esas
+    pantallas) ni para una sesión privilegiada de plataforma (sin rol de negocio:
+    la anuncia TrazaSoporte). Evaluado contra el rol efectivo del workspace
+    delegado, así que una Dirección CAE que opera un Tenant propietario como
+    Consulta lo ve dentro de ese Tenant y no en el suyo.
+*@
+<AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Consulta" Context="autorizacionConsulta">
+    <div class="aviso-solo-consulta" role="status">
+        Modo solo consulta — tu rol en este espacio de trabajo permite ver la información, pero no crear, editar ni eliminar.
+    </div>
+</AuthorizeView>
