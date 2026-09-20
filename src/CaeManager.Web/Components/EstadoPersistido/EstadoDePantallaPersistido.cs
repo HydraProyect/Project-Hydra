@@ -130,6 +130,22 @@ public readonly record struct ConsultaEnCurso(object? Emisor, int Version, strin
 /// huella cubre las coordenadas de la sesión, no el contenido de la cartera.
 /// Cualquier acción del usuario después de eso consulta de nuevo.
 /// </para>
+///
+/// <para>
+/// <b>Qué filtra las filas y qué se salta la restauración.</b> El filtrado por
+/// autorización (<c>IAlcanceDatosService</c>: cartera, Asignación de Operación)
+/// y el aislamiento por Tenant (RLS) ocurren <i>dentro de la consulta</i>; el
+/// render solo pinta lo que recibe y no vuelve a comprobar nada. Restaurar
+/// desde el estado persistido se salta ese filtrado durante la vigencia. La
+/// dirección que importa es la de la <b>pérdida</b> de permisos: una
+/// Asignación de Operación retirada o una Asignación de Cartera que se estrecha
+/// entre el prerender y el circuito no se refleja durante hasta 60 s, y el
+/// circuito puede enseñar una vez filas que la autorización vigente ya no
+/// permite. Nada de lo que viaja con la sesión (claims, cookie de workspace)
+/// cambia cuando cambia una cartera, así que la huella no puede cerrar esa
+/// ventana sin una consulta.
+/// </para>
+/// </summary>
 /// </summary>
 public sealed class EstadoDePantallaPersistido<TInstantanea> : IDisposable
     where TInstantanea : class
