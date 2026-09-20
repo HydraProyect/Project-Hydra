@@ -119,14 +119,15 @@ public static class InfrastructureServiceCollectionExtensions
                 // tropieza con su gestor de contraseñas. La desactivación
                 // manual de usuarios (LockoutEnd = MaxValue, Usuarios.razor)
                 // sigue funcionando igual: es el mismo mecanismo con ventana
-                // indefinida.
+                // indefinida, y además corta las sesiones ya abiertas
+                // (SignInManagerCuentaDesactivada; un bloqueo temporal, no).
                 opciones.Lockout.MaxFailedAccessAttempts = 5;
                 opciones.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
                 opciones.Lockout.AllowedForNewUsers = true;
             })
             .AddRoles<IdentityRole<Guid>>()
             .AddEntityFrameworkStores<CaeManagerDbContext>()
-            .AddSignInManager<SignInManager<ApplicationUser>>()
+            .AddSignInManager<SignInManagerCuentaDesactivada>()
             .AddClaimsPrincipalFactory<TenantClaimsPrincipalFactory>()
             .AddDefaultTokenProviders();
 

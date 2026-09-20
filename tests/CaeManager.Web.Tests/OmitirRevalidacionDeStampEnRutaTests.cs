@@ -41,6 +41,31 @@ public class OmitirRevalidacionDeStampEnRutaTests
     }
 
     [Fact]
+    public async Task La_ruta_omitida_no_renueva_la_cookie_y_las_demas_conservan_la_decision_del_handler()
+    {
+        // Auditoría de seguridad 2026-09-20: el handler decide la renovación
+        // deslizante antes de OnValidatePrincipal; sin validar el stamp, renovar
+        // en /Error re-emitía la cookie de una cuenta desactivada. Control
+        // positivo: en cualquier otra ruta la decisión del handler (renovar) se respeta.
+        var opciones = new CookieAuthenticationOptions
+        {
+            Events = new CookieAuthenticationEvents { OnValidatePrincipal = _ => Task.CompletedTask },
+        };
+        OmitirRevalidacionDeStampEnRuta.Configurar(opciones, "/Error");
+
+        var enError = ContextoPara("/Error");
+        enError.ShouldRenew = true;
+        await opciones.Events.OnValidatePrincipal(enError);
+
+        var enOtraRuta = ContextoPara("/documentos");
+        enOtraRuta.ShouldRenew = true;
+        await opciones.Events.OnValidatePrincipal(enOtraRuta);
+
+        enError.ShouldRenew.Should().BeFalse("en /Error no se valida el stamp, así que no se renueva la cookie");
+        enOtraRuta.ShouldRenew.Should().BeTrue("fuera de la ruta omitida el envoltorio no toca la decisión de renovar");
+    }
+
+    [Fact]
     public async Task Cualquier_otra_ruta_conserva_la_revalidacion_normal()
     {
         // Control positivo: la ceguera tiene que quedar acotada a la ruta

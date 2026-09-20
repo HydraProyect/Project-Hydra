@@ -130,6 +130,18 @@ public static class IdentityEndpointsExtensions
                 }
             }
 
+            // SignInWithClaimsAsync no comprueba bloqueo (a diferencia de
+            // PasswordSignInAsync): sin esto, una cuenta desactivada volvía a
+            // entrar por Microsoft sin necesitar su contraseña (auditoría de
+            // seguridad 2026-09-20). Mismo mensaje genérico que el resto de
+            // rechazos: no se confirma a un tercero que la cuenta existe.
+            if (usuario.EstaDesactivada(DateTimeOffset.UtcNow))
+            {
+                logger.LogWarning("Login de Microsoft rechazado: la cuenta {UsuarioId} está desactivada.", usuario.Id);
+                await signInManager.SignOutAsync();
+                return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
+            }
+
             var yaVinculado = (await userManager.GetLoginsAsync(usuario))
                 .Any(l => l.LoginProvider == infoExterna.LoginProvider && l.ProviderKey == infoExterna.ProviderKey);
             if (!yaVinculado)
