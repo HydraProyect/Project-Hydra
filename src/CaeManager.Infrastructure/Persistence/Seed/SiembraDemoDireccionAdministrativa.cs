@@ -59,7 +59,10 @@ public static partial class SiembraDemoDireccionAdministrativa
     /// <summary>
     /// Nombre de cada Tenant en el lote real. Los cuatro heredados de la demo
     /// (con su sufijo «… demo») se sirven con nombre limpio, que es el que la
-    /// dirección ve en pantalla; Duff y Pizza Planet ya lo son.
+    /// dirección ve en pantalla. Duff y Pizza Planet llevan además un nombre PROPIO del
+    /// lote: con el de la demo local, una siembra local previa (que también marca sus
+    /// Tenants) las dejaría pasar la guarda de nombres y esta siembra las reutilizaría
+    /// —y <c>--retirar-demo-direccion</c> las borraría— (hallazgo de la revisión Codex).
     /// </summary>
     private static readonly Dictionary<string, string> NombreLimpio = new()
     {
@@ -67,6 +70,8 @@ public static partial class SiembraDemoDireccionAdministrativa
         [DelegacionDemoSeeder.NombreTenantClienteDemo] = "Laboratorios Dexter S.L.",
         [DelegacionDemoSeeder.NombreTenantClienteDemo2] = "Transportes Planet Express S.A.",
         [DelegacionDemoSeeder.NombreTenantClienteDemo3] = "Hostelería Krusty Krab S.L.",
+        [CatalogoEscenariosDireccionDemo.NombreTenantDuff] = "Cervezas Duff Ibérica S.A.",
+        [CatalogoEscenariosDireccionDemo.NombreTenantPizzaPlanet] = "Pizza Planet Restauración S.L.",
     };
 
     /// <summary>Las seis ramas del lote real: el mismo catálogo que la demo local, con los nombres del lote.</summary>
@@ -224,11 +229,12 @@ public static partial class SiembraDemoDireccionAdministrativa
     /// <see cref="DelegacionDemoSeeder.AprovisionarTenantAsync"/> lo devolvería
     /// por nombre y sembraría demo dentro de él. Se niega antes de escribir.
     /// </summary>
-    internal static async Task VerificarNombresLibresAsync(CaeManagerDbContext dbContext, CancellationToken cancellationToken)
+    internal static async Task<IReadOnlyDictionary<string, Guid>> VerificarNombresLibresAsync(
+        CaeManagerDbContext dbContext, CancellationToken cancellationToken)
     {
         var existentes = await dbContext.Tenants.IgnoreQueryFilters()
             .Where(t => NombresTenantsDelLote.Contains(t.Nombre))
-            .Select(t => new { t.Nombre, t.DatosDemoCompletadosEnUtc })
+            .Select(t => new { t.Id, t.Nombre, t.DatosDemoCompletadosEnUtc })
             .ToListAsync(cancellationToken);
 
         var sinMarcador = existentes.Where(t => t.DatosDemoCompletadosEnUtc is null).Select(t => t.Nombre).ToList();
@@ -236,6 +242,40 @@ public static partial class SiembraDemoDireccionAdministrativa
             throw new InvalidOperationException(
                 $"Ya existe un Tenant con el nombre de un Tenant del lote SIN el marcador de datos de demo: {string.Join(", ", sinMarcador)}. " +
                 "Podría ser un Tenant real: no se siembra nada en él.");
+
+        return existentes.ToDictionary(t => t.Nombre, t => t.Id);
+    }
+
+    /// <summary>
+    /// Una cuenta del lote que ya existe solo se reutiliza si es del Tenant del Operador CAE
+    /// DEL LOTE (una re-ejecución). Si el correo pertenece a otro Tenant —o el Operador CAE
+    /// del lote aún no existe—, <c>CrearUsuarioConsultoraAsync</c> la devolvería sin
+    /// mirar su Tenant y la siembra la haría Administradora o Gestora CAE del lote y
+    /// cambiaría su cartera. Se niega antes de escribir (hallazgo de la revisión Codex).
+    /// Devuelve los correos de las cuentas que hay que CREAR.
+    /// </summary>
+    internal static async Task<HashSet<string>> VerificarCuentasReutilizablesAsync(
+        UserManager<ApplicationUser> userManager, IEnumerable<string> emails,
+        IReadOnlyDictionary<string, Guid> tenantsExistentes, CancellationToken cancellationToken)
+    {
+        var nuevas = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var ajenas = new List<string>();
+        tenantsExistentes.TryGetValue(NombreTenantOperador, out var operadorExistente);
+
+        foreach (var email in emails)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var existente = await userManager.FindByEmailAsync(email);
+            if (existente is null) nuevas.Add(email);
+            else if (operadorExistente == Guid.Empty || existente.TenantId != operadorExistente) ajenas.Add(email);
+        }
+
+        if (ajenas.Count > 0)
+            throw new InvalidOperationException(
+                $"Ya existen cuentas con el correo de la demo que NO pertenecen al Operador CAE del lote: {string.Join(", ", ajenas)}. " +
+                "Podrían ser cuentas reales: no se siembra nada.");
+
+        return nuevas;
     }
 
     public static async Task<Resultado> SembrarAsync(
@@ -259,7 +299,11 @@ public static partial class SiembraDemoDireccionAdministrativa
         CaeManagerDbContext dbContext, UserManager<ApplicationUser> userManager,
         IHostEnvironment entorno, Opciones opciones, ILogger logger, CancellationToken cancellationToken)
     {
-        await VerificarNombresLibresAsync(dbContext, cancellationToken);
+        var tenantsExistentes = await VerificarNombresLibresAsync(dbContext, cancellationToken);
+        var dominio = opciones.DominioCorreo;
+        var emails = EmailsDe(dominio);
+        var correos = new[] { EmailAdministrador(dominio), emails.Coordinador, emails.GestorPrimero, emails.GestorSegundo };
+        var correosNuevos = await VerificarCuentasReutilizablesAsync(userManager, correos, tenantsExistentes, cancellationToken);
 
         // El fichero se abre —con permisos 0600 DESDE su creación, no después— antes
         // de crear ninguna cuenta: si no se puede escribir, no se crea nada cuya
@@ -273,13 +317,10 @@ public static partial class SiembraDemoDireccionAdministrativa
             opcionesDeFichero.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
         await using var fichero = new FileStream(rutaFichero, opcionesDeFichero);
 
-        var dominio = opciones.DominioCorreo;
-        var emails = EmailsDe(dominio);
-        // Una contraseña distinta por cuenta NUEVA; las que ya existen no se tocan.
+        // Una contraseña distinta por cuenta NUEVA; las que ya existen (del propio lote) no se tocan.
         var contrasenas = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var email in new[] { EmailAdministrador(dominio), emails.Coordinador, emails.GestorPrimero, emails.GestorSegundo })
-            if (await userManager.FindByEmailAsync(email) is null)
-                contrasenas[email] = GenerarContrasena();
+        foreach (var email in correosNuevos)
+            contrasenas[email] = GenerarContrasena();
 
         CredencialesDemo CredencialDe(string email) =>
             new(contrasenas.GetValueOrDefault(email, string.Empty), string.Empty, string.Empty);

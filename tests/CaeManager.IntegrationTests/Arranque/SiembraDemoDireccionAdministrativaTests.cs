@@ -340,6 +340,121 @@ public class SiembraDemoDireccionAdministrativaSobreBaseTests
     }
 
     [Fact]
+    public void Los_nombres_del_lote_no_coinciden_con_ninguno_de_la_demo_local()
+    {
+        // Hallazgo de la revisión Codex: con Duff y Pizza Planet iguales que en local, una siembra local
+        // previa (que también las marca) las dejaba pasar la guarda y esta siembra las reutilizaba.
+        string[] locales =
+        [
+            DelegacionDemoSeeder.NombreTenantConsultora, DelegacionDemoSeeder.NombreTenantRefrielectric,
+            DelegacionDemoSeeder.NombreTenantClienteDemo, DelegacionDemoSeeder.NombreTenantClienteDemo2,
+            DelegacionDemoSeeder.NombreTenantClienteDemo3, SegundoTenantSeeder.NombreSegundoTenant,
+            .. CatalogoEscenariosDireccionDemo.Ramas.Select(r => r.NombreTenant)
+        ];
+
+        SiembraDemoDireccionAdministrativa.NombresTenantsDelLote.Intersect(locales).Should().BeEmpty(
+            "MEDIDO: ningún Tenant del lote administrativo puede llamarse como uno de la demo local");
+    }
+
+    [Fact]
+    public async Task Las_ramas_de_una_siembra_local_previa_no_se_reutilizan_ni_las_borra_la_retirada_del_lote()
+    {
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
+        var directorio = Directorio();
+        try
+        {
+            var locales = new List<Guid>();
+            using (var ambito = arnes.Servicios.CreateScope())
+            {
+                var db = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+                foreach (var nombre in new[] { CatalogoEscenariosDireccionDemo.NombreTenantDuff, CatalogoEscenariosDireccionDemo.NombreTenantPizzaPlanet })
+                {
+                    var local = new Tenant(nombre, PerfilVocabularioTenant.ClienteDirecto);
+                    using (CaeManager.Application.Common.AmbitoTenantExplicito.Establecer(local.Id))
+                    {
+                        db.Tenants.Add(local);
+                        await db.SaveChangesAsync();
+                    }
+
+                    await SiembraDemoDireccionAdministrativa.MarcarComoDemoAsync(db, local.Id, CancellationToken.None);
+                    locales.Add(local.Id);
+                }
+            }
+
+            var (resultado, _) = await SembrarAsync(arnes, directorio);
+
+            resultado.Tenants.Select(t => t.Id).Should().NotIntersectWith(locales,
+                "MEDIDO: el lote creó sus propios Tenants; no adoptó los de la demo local");
+
+            // Misma limitación conocida del arnés que en la retirada del lote (canales cifrados).
+            await using (var limpieza = arnes.Servicios.GetRequiredService<FabricaContextoDeBootstrap>().Crear())
+                await limpieza.CanalesGestionDocumental.IgnoreQueryFilters().ExecuteDeleteAsync();
+
+            using (var ambito = arnes.Servicios.CreateScope())
+            {
+                var sp = ambito.ServiceProvider;
+                var retirados = await SiembraDemoDireccionAdministrativa.RetirarLoteAsync(
+                    sp.GetRequiredService<CaeManagerDbContext>(),
+                    () => sp.GetRequiredService<FabricaContextoDeBootstrap>().Crear(), new LoggerDeCaptura());
+                retirados.Should().HaveCount(SiembraDemoDireccionAdministrativa.NombresTenantsDelLote.Count);
+            }
+
+            await using var bootstrap = arnes.Servicios.GetRequiredService<FabricaContextoDeBootstrap>().Crear();
+            (await bootstrap.Tenants.CountAsync(t => locales.Contains(t.Id))).Should().Be(2,
+                "MEDIDO: la retirada del lote administrativo no toca los Tenants de la demo local");
+        }
+        finally
+        {
+            Directory.Delete(directorio, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Una_cuenta_con_el_correo_de_la_demo_que_pertenece_a_otro_Tenant_no_se_reutiliza()
+    {
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
+        var directorio = Directorio();
+        try
+        {
+            var correoAjeno = SiembraDemoDireccionAdministrativa.EmailsDe(Dominio).GestorPrimero;
+            Guid idCuenta;
+            using (var ambito = arnes.Servicios.CreateScope())
+            {
+                var sp = ambito.ServiceProvider;
+                var db = sp.GetRequiredService<CaeManagerDbContext>();
+                var otro = new Tenant("Empresa Ajena de Prueba S.L.", PerfilVocabularioTenant.ClienteDirecto);
+                using (CaeManager.Application.Common.AmbitoTenantExplicito.Establecer(otro.Id))
+                {
+                    db.Tenants.Add(otro);
+                    await db.SaveChangesAsync();
+
+                    var cuenta = new ApplicationUser
+                    {
+                        UserName = correoAjeno, Email = correoAjeno, NombreCompleto = "Cuenta ajena",
+                        EmailConfirmed = true, TenantId = otro.Id
+                    };
+                    (await sp.GetRequiredService<UserManager<ApplicationUser>>().CreateAsync(cuenta, "Xk7#prueba-No-Real-2026")).Succeeded.Should().BeTrue();
+                    idCuenta = cuenta.Id;
+                }
+            }
+
+            var siembra = () => SembrarAsync(arnes, directorio);
+            await siembra.Should().ThrowAsync<InvalidOperationException>().WithMessage("*NO pertenecen al Operador CAE del lote*",
+                "MEDIDO: una cuenta de otro Tenant no se hace Gestora CAE del lote ni se le asigna cartera");
+
+            await using var bootstrap = arnes.Servicios.GetRequiredService<FabricaContextoDeBootstrap>().Crear();
+            (await bootstrap.Tenants.CountAsync(t => SiembraDemoDireccionAdministrativa.NombresTenantsDelLote.Contains(t.Nombre)))
+                .Should().Be(0, "MEDIDO: la negativa fue previa a escribir: ningún Tenant del lote, ninguna cuenta nueva");
+            Directory.GetFiles(directorio).Should().BeEmpty("MEDIDO: ni siquiera se abrió el fichero de credenciales");
+            (await bootstrap.Users.SingleAsync(u => u.Id == idCuenta)).TenantId.Should().NotBe(Guid.Empty);
+        }
+        finally
+        {
+            Directory.Delete(directorio, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task La_retirada_del_lote_lo_borra_entero_con_sus_cuentas_y_es_repetible()
     {
         await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
