@@ -195,6 +195,12 @@ public class AccesoRestringidoACatalogosDeAsignacionTests
         // el mismo filtro de posición que exige esta política, aplicado al
         // tenant en vez de al usuario.
         "src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs",
+
+        // Lente del selector de vista de demo: lista los Gestores CAE elegibles y los Tenants
+        // propietarios de la cartera de uno, acotado a mano por OperadorTenantId == el tenant de
+        // ORIGEN de la cuenta (ya validado como Tenant de demo) y por vigencia. Solo lectura y solo
+        // para ESTRECHAR un alcance que AlcanceDatosService ya calcula con la autorización real.
+        "src/CaeManager.Infrastructure/Autorizacion/VistaDemoActual.cs",
     ];
 
     [Fact]

@@ -224,6 +224,14 @@ public class UsosDeEsPlataformaCongeladosTests
                 "independiente (allowlist de nombres de demo). Entró en d4114d22 (#312), DESPUÉS de que el " +
                 "informe de readiness levantara su inventario — es el consumidor que justifica este ratchet"),
 
+        ["src/CaeManager.Infrastructure/Autorizacion/VistaDemoActual.cs"] =
+            new(1, CategoriaUso.Guarda,
+                ":231 excluye al tenant de plataforma del conjunto de tenants de demo donde puede actuar " +
+                "la lente del selector de vista de demo. No concede capacidad a nadie —la lente solo " +
+                "estrecha— y es la mitad negativa de un fallo cerrado, con la allowlist exacta de nombres " +
+                "de RetiradaTenantDemoService como segunda barrera independiente: un tenant de plataforma " +
+                "bautizado por casualidad como uno de demo nunca activa la lente"),
+
         // ── BOOTSTRAP ─────────────────────────────────────────────────────────────
         ["src/CaeManager.Infrastructure/Persistence/Configurations/TenantConfiguration.cs"] =
             new(3, CategoriaUso.Bootstrap,

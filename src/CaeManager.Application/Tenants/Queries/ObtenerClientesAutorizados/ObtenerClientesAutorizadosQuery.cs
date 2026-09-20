@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.VistaDemo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,7 +19,8 @@ public record ObtenerClientesAutorizadosQuery : IRequest<IReadOnlyList<ClienteAu
 
 public record ClienteAutorizadoDto(Guid TenantId, string Nombre, bool EsOrigen);
 
-public class ObtenerClientesAutorizadosQueryHandler(ITenantsQueryContext dbContext, ICurrentUserService currentUserService)
+public class ObtenerClientesAutorizadosQueryHandler(
+    ITenantsQueryContext dbContext, ICurrentUserService currentUserService, IVistaDemoActual? vistaDemo = null)
     : IRequestHandler<ObtenerClientesAutorizadosQuery, IReadOnlyList<ClienteAutorizadoDto>>
 {
     public async Task<IReadOnlyList<ClienteAutorizadoDto>> Handle(
@@ -67,6 +69,14 @@ public class ObtenerClientesAutorizadosQueryHandler(ITenantsQueryContext dbConte
         // el conjunto es minúsculo (delegaciones de un único usuario), así
         // que deduplicar tras materializar es correcto y no cuesta nada.
         resultado.AddRange(delegados.Distinct().OrderBy(c => c.Nombre));
+
+        // Lente de demo Gestor: la lista multi-Tenant de ESE Gestor CAE son los Tenants donde tiene
+        // cartera vigente (más el propio, que siempre está autorizado sobre sí mismo). Solo QUITA
+        // entradas de la lista real — nunca añade un Tenant que la cuenta no alcanzara ya —, y
+        // el endpoint de cambio de Tenant activo sigue autorizando contra las carteras reales.
+        if (vistaDemo is not null && await vistaDemo.ObtenerTenantIdsAcotadosAsync(cancellationToken) is { } acotados)
+            resultado.RemoveAll(c => !c.EsOrigen && !acotados.Contains(c.TenantId));
+
         return resultado;
     }
 }

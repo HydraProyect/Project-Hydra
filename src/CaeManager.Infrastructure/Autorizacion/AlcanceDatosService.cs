@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.VistaDemo;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Plataforma;
 using CaeManager.Infrastructure.Identity;
@@ -52,7 +53,8 @@ public class AlcanceDatosService(
     CaeManagerDbContext dbContext,
     ICurrentUserService currentUserService,
     ITenantActual tenantActual,
-    ISesionPrivilegiadaActual sesionPrivilegiadaActual)
+    ISesionPrivilegiadaActual sesionPrivilegiadaActual,
+    IVistaDemoActual? vistaDemo = null)
     : IAlcanceDatosService
 {
     // Dictionary<TKey,TValue> exige TKey : notnull, y tenantActual.TenantId es
@@ -73,7 +75,27 @@ public class AlcanceDatosService(
 
     private static Guid ClaveTenant(Guid? tenantId) => tenantId ?? Guid.Empty;
 
-    public async Task<bool> TieneAccesoTotalAsync(CancellationToken cancellationToken = default)
+    /// <summary>
+    /// La lente de demo Gestor que aplica AHORA, o null. Es solo una coordenada de contexto que
+    /// ESTRECHA: todo lo que la usa intersecta con el resultado real, nunca lo sustituye, así
+    /// que ni una lente equivocada puede ampliar un alcance. Sin <c>IVistaDemoActual</c>
+    /// registrado (producción normal) no hay lente.
+    /// </summary>
+    private async Task<Guid?> ObtenerGestorDeLenteAsync(CancellationToken cancellationToken) =>
+        vistaDemo is not null
+        && await vistaDemo.ObtenerEfectivaAsync(cancellationToken) is { Vista: VistaDemo.GestorCae, GestorUsuarioId: { } gestorId }
+            ? gestorId
+            : null;
+
+    /// <summary>
+    /// Acceso total EFECTIVO: el real, salvo que la lente de demo Gestor lo retire. La lente solo
+    /// puede pasar de true a false, nunca al revés.
+    /// </summary>
+    public async Task<bool> TieneAccesoTotalAsync(CancellationToken cancellationToken = default) =>
+        await TieneAccesoTotalRealAsync(cancellationToken)
+        && await ObtenerGestorDeLenteAsync(cancellationToken) is null;
+
+    private async Task<bool> TieneAccesoTotalRealAsync(CancellationToken cancellationToken)
     {
         var tenant = ClaveTenant(tenantActual.TenantId);
         if (_accesoTotal.TryGetValue(tenant, out var cacheado)) return cacheado;
@@ -138,11 +160,26 @@ public class AlcanceDatosService(
         var tenant = ClaveTenant(tenantActual.TenantId);
         if (_clienteIds.TryGetValue(tenant, out var cacheado)) return cacheado;
 
-        if (await TieneAccesoTotalAsync(cancellationToken))
+        var real = await ObtenerClienteIdsRealesAsync(cancellationToken);
+
+        // Lente de demo Gestor: los Clientes de la Asignación de Cartera de ESE Gestor CAE,
+        // calculados con el mismo camino que su propia sesión (ObtenerClienteIdsDeCarteraAsync),
+        // e INTERSECADOS con lo que la cuenta ya alcanzaba. null (todo) ∩ cartera = cartera;
+        // nunca sale nada que el resultado real no contuviera.
+        var resultado = real;
+        if (await ObtenerGestorDeLenteAsync(cancellationToken) is { } gestorLente)
         {
-            _clienteIds[tenant] = null;
-            return null;
+            var deLente = await ObtenerClienteIdsDeCarteraAsync([gestorLente], cancellationToken);
+            resultado = real is null ? deLente : real.Intersect(deLente).ToList();
         }
+
+        _clienteIds[tenant] = resultado;
+        return resultado;
+    }
+
+    private async Task<IReadOnlyList<Guid>?> ObtenerClienteIdsRealesAsync(CancellationToken cancellationToken)
+    {
+        if (await TieneAccesoTotalRealAsync(cancellationToken)) return null;
 
         var rol = await currentUserService.ObtenerRolActualAsync();
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
@@ -154,7 +191,6 @@ public class AlcanceDatosService(
             (Roles.CoordinadorCae, { } id) => await ObtenerClienteIdsParaCoordinadorAsync(id, cancellationToken),
             _ => (IReadOnlyList<Guid>)[]
         };
-        _clienteIds[tenant] = resultado;
 
         return resultado;
     }
