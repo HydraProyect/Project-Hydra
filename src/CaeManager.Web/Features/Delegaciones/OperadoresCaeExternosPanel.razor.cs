@@ -30,7 +30,7 @@ public partial class OperadoresCaeExternosPanel : ComponentBase, IDisposable
 
     private string TituloModal => _modal is ModalActivo.Operador ? "Nuevo Operador CAE externo" : "Nuevo Tenant propietario";
     private string EtiquetaNombre => _modal is ModalActivo.Operador ? "Nombre del Operador CAE externo" : "Nombre del Tenant propietario";
-    private string PlaceholderNombre => _modal is ModalActivo.Operador ? "ArcoSPA" : "Refrielectric";
+    private string PlaceholderNombre => _modal is ModalActivo.Operador ? "ArcoSPA" : "Laboratorios Dexter";
 
     protected override Task OnInitializedAsync() => CargarAsync();
 

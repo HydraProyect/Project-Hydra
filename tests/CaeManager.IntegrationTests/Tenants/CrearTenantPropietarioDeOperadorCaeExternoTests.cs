@@ -96,7 +96,7 @@ public class CrearTenantPropietarioDeOperadorCaeExternoTests : IAsyncLifetime
         var operadorId = await SembrarTenantAsync(contexto, PerfilVocabularioTenant.Consultora, "ArcoSPA");
 
         var resultado = await CrearHandler(contexto, admin).Handle(
-            new CrearTenantPropietarioDeOperadorCaeExternoCommand(operadorId, $" Refrielectric {Guid.NewGuid():N} "),
+            new CrearTenantPropietarioDeOperadorCaeExternoCommand(operadorId, $" Laboratorios Dexter {Guid.NewGuid():N} "),
             CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
@@ -201,7 +201,7 @@ public class CrearTenantPropietarioDeOperadorCaeExternoTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var admin = Guid.NewGuid();
         await SembrarAdminPlataformaGlobalAsync(contexto, admin);
-        var propietarioNoOperadorId = await SembrarTenantAsync(contexto, PerfilVocabularioTenant.ClienteDirecto, "Refrielectric");
+        var propietarioNoOperadorId = await SembrarTenantAsync(contexto, PerfilVocabularioTenant.ClienteDirecto, "Laboratorios Dexter");
         var handler = CrearHandler(contexto, admin);
 
         var comoOperador = await handler.Handle(

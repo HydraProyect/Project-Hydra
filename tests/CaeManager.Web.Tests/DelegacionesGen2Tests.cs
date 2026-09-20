@@ -387,7 +387,7 @@ public class DelegacionesGen2Tests : BunitContext
     }
 
     private static OperadorCaeExternoDto OperadorArcoSpa(Guid id) =>
-        new(id, "ArcoSPA", DateTime.UtcNow, [new TenantPropietarioOperadoDto(Guid.NewGuid(), "Refrielectric")]);
+        new(id, "ArcoSPA", DateTime.UtcNow, [new TenantPropietarioOperadoDto(Guid.NewGuid(), "Laboratorios Dexter")]);
 
     /// <summary>
     /// El panel de alta de Operadores CAE externos es del Actor de Plataforma TALVEG:
@@ -401,7 +401,7 @@ public class DelegacionesGen2Tests : BunitContext
         _operadoresIniciales = [OperadorArcoSpa(Guid.NewGuid())];
         var (conConcesion, _, _) = Renderizar(esAdministradorPlataforma: true);
         conConcesion.FindAll("button").Should().Contain(b => b.TextContent.Trim() == "Nuevo Operador CAE externo");
-        conConcesion.Markup.Should().Contain("ArcoSPA").And.Contain("Refrielectric",
+        conConcesion.Markup.Should().Contain("ArcoSPA").And.Contain("Laboratorios Dexter",
             "control positivo: el panel pinta el Operador y su Tenant propietario que devuelve la consulta");
     }
 
@@ -445,13 +445,13 @@ public class DelegacionesGen2Tests : BunitContext
         botones.Should().HaveCount(2, "control positivo: una acción por Operador");
         await botones[1].ClickAsync(new MouseEventArgs());
         var campo = cut.Find("input");
-        await campo.InputAsync(new ChangeEventArgs { Value = "Laboratorios Dexter" });
+        await campo.InputAsync(new ChangeEventArgs { Value = "Transportes Planet Express" });
         await campo.BlurAsync(new FocusEventArgs());
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Crear").ClickAsync(new MouseEventArgs());
 
         var comando = mediador.Enviadas.Select(x => x.Peticion).OfType<CrearTenantPropietarioDeOperadorCaeExternoCommand>().Should().ContainSingle().Subject;
         comando.TenantOperadorId.Should().Be(segundo);
-        comando.NombreTenantPropietario.Should().Be("Laboratorios Dexter");
+        comando.NombreTenantPropietario.Should().Be("Transportes Planet Express");
         mediador.Enviadas.Should().NotContain(x => x.Peticion is CrearOperadorCaeExternoCommand);
     }
 }
