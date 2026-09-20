@@ -135,9 +135,21 @@ public class RegistroEnvioReclamacionService(
                     "La respuesta del destinatario no llegará a nadie.");
             }
 
+            // «Qué debes hacer» depende de si hay Reply-To, y eso solo se sabe aquí: por el
+            // canal de Microsoft 365 la respuesta ya vive en el hilo del propio Gestor CAE.
+            // Un Reply-To que luego no valga (EsDireccionUtilizable, en SmtpEmailService) cambia
+            // solo el pie; la caja se decide aquí con lo que se tiene, que es lo mejor disponible.
+            var hayReplyTo = !string.IsNullOrWhiteSpace(responderA);
+            var cuerpoSmtp = cuerpoHtml + CuerpoDeReclamacion.QueDebesHacer(hayReplyTo);
+            var encabezado = new EncabezadoCorreo(
+                AccionEsperada.Respuesta, "Documentación",
+                hayReplyTo
+                    ? "Responde a este correo: tu respuesta llega a quien te lo reclama."
+                    : "Hay documentos próximos a vencer o ya vencidos.");
+
             foreach (var destinatario in destinatarios)
                 await emailService.EnviarAsync(
-                    destinatario, asunto, cuerpoHtml, TipoAvisoCorreo.Requerimiento, responderA, cancellationToken);
+                    destinatario, asunto, cuerpoSmtp, TipoAvisoCorreo.Requerimiento, encabezado, responderA, cancellationToken);
         }
 
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();

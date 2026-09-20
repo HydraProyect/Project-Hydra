@@ -2,6 +2,7 @@ using System.Net.Security;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using CaeManager.Application.Common;
+using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Infrastructure.Email;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
@@ -28,7 +29,7 @@ public class SmtpEmailServiceTests
         var logger = new LoggerEspia();
         var servicio = new SmtpEmailService(Options.Create(new SmtpEmailOptions()), logger);
 
-        var resultado = await servicio.EnviarAsync("destino@ejemplo.com", "Asunto", "<p>Cuerpo</p>", TipoAvisoCorreo.Transaccional);
+        var resultado = await servicio.EnviarAsync("destino@ejemplo.com", "Asunto", "<p>Cuerpo</p>", TipoAvisoCorreo.Transaccional, new EncabezadoCorreo(AccionEsperada.Ninguna, "Prueba", "Vista previa"));
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Email.NoConfigurado");
@@ -52,7 +53,7 @@ public class SmtpEmailServiceTests
         });
         var servicio = new SmtpEmailService(opciones, logger);
 
-        var resultado = await servicio.EnviarAsync("destino@ejemplo.com", "Asunto", "<p>Cuerpo</p>", TipoAvisoCorreo.Transaccional);
+        var resultado = await servicio.EnviarAsync("destino@ejemplo.com", "Asunto", "<p>Cuerpo</p>", TipoAvisoCorreo.Transaccional, new EncabezadoCorreo(AccionEsperada.Ninguna, "Prueba", "Vista previa"));
 
         resultado.EsFallido.Should().BeTrue();
         logger.Errores.Should().ContainSingle();
@@ -209,11 +210,13 @@ public class SmtpEmailServiceTests
 /// </summary>
 public class SmtpEmailServiceEnvolverEnPlantillaDeMarcaTests
 {
+    private static readonly EncabezadoCorreo Enc = new(AccionEsperada.Ninguna, "Prueba", "Vista previa");
+
     [Fact]
     public void Sin_UrlBasePublica_la_franja_de_marca_es_texto_no_imagen()
     {
         var html = SmtpEmailService.EnvolverEnPlantillaDeMarca(
-            "<p>contenido</p>", TipoAvisoCorreo.Transaccional, new SmtpEmailOptions());
+            "<p>contenido</p>", TipoAvisoCorreo.Transaccional, Enc, new SmtpEmailOptions());
 
         html.Should().NotContain("<img", "sin URL pública configurada no hay dónde alojar la imagen");
         html.Should().Contain("TALVEG");
@@ -223,7 +226,7 @@ public class SmtpEmailServiceEnvolverEnPlantillaDeMarcaTests
     public void Con_UrlBasePublica_la_franja_de_marca_es_una_imagen_servida_por_esa_url()
     {
         var html = SmtpEmailService.EnvolverEnPlantillaDeMarca(
-            "<p>contenido</p>", TipoAvisoCorreo.Transaccional,
+            "<p>contenido</p>", TipoAvisoCorreo.Transaccional, Enc,
             new SmtpEmailOptions { UrlBasePublica = "https://app.talveg.es" });
 
         html.Should().Contain("<img src=\"https://app.talveg.es/img/correo/franja-marca.png\"");
@@ -233,7 +236,7 @@ public class SmtpEmailServiceEnvolverEnPlantillaDeMarcaTests
     public void El_pie_de_seguridad_dice_que_no_se_puede_desactivar()
     {
         var html = SmtpEmailService.EnvolverEnPlantillaDeMarca(
-            "<p>contenido</p>", TipoAvisoCorreo.Seguridad,
+            "<p>contenido</p>", TipoAvisoCorreo.Seguridad, Enc,
             new SmtpEmailOptions { BuzonRemitente = "info@talveg.es" });
 
         html.Should().Contain("no se puede desactivar");
@@ -244,7 +247,7 @@ public class SmtpEmailServiceEnvolverEnPlantillaDeMarcaTests
     public void El_pie_informativo_explica_el_motivo_de_recibirlo()
     {
         var html = SmtpEmailService.EnvolverEnPlantillaDeMarca(
-            "<p>contenido</p>", TipoAvisoCorreo.Informativo, new SmtpEmailOptions());
+            "<p>contenido</p>", TipoAvisoCorreo.Informativo, Enc, new SmtpEmailOptions());
 
         html.Should().Contain("responsabilidad de coordinación");
     }
@@ -253,7 +256,7 @@ public class SmtpEmailServiceEnvolverEnPlantillaDeMarcaTests
     public void El_pie_de_requerimiento_no_invita_a_responder_porque_el_correo_no_lleva_ReplyTo()
     {
         var html = SmtpEmailService.EnvolverEnPlantillaDeMarca(
-            "<p>contenido</p>", TipoAvisoCorreo.Requerimiento, new SmtpEmailOptions());
+            "<p>contenido</p>", TipoAvisoCorreo.Requerimiento, Enc, new SmtpEmailOptions());
 
         html.Should().Contain("en nombre de quien te lo reclama");
         html.Should().NotContain("responder",
@@ -270,7 +273,7 @@ public class SmtpEmailServiceEnvolverEnPlantillaDeMarcaTests
     public void El_pie_de_requerimiento_invita_a_responder_cuando_hay_ReplyTo()
     {
         var html = SmtpEmailService.EnvolverEnPlantillaDeMarca(
-            "<p>contenido</p>", TipoAvisoCorreo.Requerimiento, new SmtpEmailOptions(),
+            "<p>contenido</p>", TipoAvisoCorreo.Requerimiento, Enc, new SmtpEmailOptions(),
             responderA: "marta@arcosspa.example");
 
         html.Should().Contain("en nombre de quien te lo reclama");
@@ -281,7 +284,7 @@ public class SmtpEmailServiceEnvolverEnPlantillaDeMarcaTests
     public void El_pie_de_requerimiento_no_escribe_la_direccion_de_respuesta_en_el_cuerpo()
     {
         var html = SmtpEmailService.EnvolverEnPlantillaDeMarca(
-            "<p>contenido</p>", TipoAvisoCorreo.Requerimiento, new SmtpEmailOptions(),
+            "<p>contenido</p>", TipoAvisoCorreo.Requerimiento, Enc, new SmtpEmailOptions(),
             responderA: "marta@arcosspa.example");
 
         html.Should().NotContain(
@@ -300,9 +303,9 @@ public class SmtpEmailServiceEnvolverEnPlantillaDeMarcaTests
     [InlineData(TipoAvisoCorreo.Transaccional)]
     public void Un_ReplyTo_no_cambia_el_pie_de_los_demas_tipos_de_aviso(TipoAvisoCorreo tipo)
     {
-        var sinReplyTo = SmtpEmailService.EnvolverEnPlantillaDeMarca("<p>contenido</p>", tipo, new SmtpEmailOptions());
+        var sinReplyTo = SmtpEmailService.EnvolverEnPlantillaDeMarca("<p>contenido</p>", tipo, Enc, new SmtpEmailOptions());
         var conReplyTo = SmtpEmailService.EnvolverEnPlantillaDeMarca(
-            "<p>contenido</p>", tipo, new SmtpEmailOptions(), responderA: "marta@arcosspa.example");
+            "<p>contenido</p>", tipo, Enc, new SmtpEmailOptions(), responderA: "marta@arcosspa.example");
 
         conReplyTo.Should().Be(sinReplyTo);
     }
@@ -312,9 +315,119 @@ public class SmtpEmailServiceEnvolverEnPlantillaDeMarcaTests
     {
         const string cuerpo = "<h3>Título</h3><p>Un párrafo con <a href=\"https://x\">enlace</a>.</p>";
 
-        var html = SmtpEmailService.EnvolverEnPlantillaDeMarca(cuerpo, TipoAvisoCorreo.Transaccional, new SmtpEmailOptions());
+        var html = SmtpEmailService.EnvolverEnPlantillaDeMarca(cuerpo, TipoAvisoCorreo.Transaccional, Enc, new SmtpEmailOptions());
 
         html.Should().Contain(cuerpo, "el envoltorio no debe alterar lo que ya compone cada llamador");
+    }
+
+    [Theory]
+    [InlineData(TipoAvisoCorreo.Seguridad, AccionEsperada.Accion, "Seguridad · Acción requerida")]
+    [InlineData(TipoAvisoCorreo.Seguridad, AccionEsperada.Ninguna, "Seguridad · No requiere acción")]
+    [InlineData(TipoAvisoCorreo.Informativo, AccionEsperada.Revision, "Aviso · Requiere revisión")]
+    [InlineData(TipoAvisoCorreo.Requerimiento, AccionEsperada.Respuesta, "Requerimiento · Respuesta necesaria")]
+    public void La_franja_de_tipo_dice_la_clase_del_aviso_y_si_hay_que_hacer_algo_con_texto(
+        TipoAvisoCorreo tipo, AccionEsperada accion, string esperado)
+    {
+        var html = SmtpEmailService.EnvolverEnPlantillaDeMarca(
+            "<p>x</p>", tipo, new EncabezadoCorreo(accion, "Tu cuenta", "vista previa"), new SmtpEmailOptions());
+
+        html.Should().Contain(esperado, "el receptor tiene que saber qué es el correo y si le toca hacer algo, sin depender del color");
+        html.Should().Contain(">Tu cuenta<", "el ámbito va en la misma franja");
+    }
+
+    [Fact]
+    public void El_preheader_va_oculto_y_codificado()
+    {
+        var html = SmtpEmailService.EnvolverEnPlantillaDeMarca(
+            "<p>x</p>", TipoAvisoCorreo.Informativo,
+            new EncabezadoCorreo(AccionEsperada.Ninguna, "Documentación", "3 <vencidos> & 2 urgentes"), new SmtpEmailOptions());
+
+        html.Should().Contain("display:none");
+        html.Should().Contain("3 &lt;vencidos&gt; &amp; 2 urgentes", "el texto de vista previa no puede inyectar HTML");
+    }
+
+    [Fact]
+    public void El_modo_noche_es_una_mejora_y_el_diseno_base_no_depende_de_ella()
+    {
+        var html = SmtpEmailService.EnvolverEnPlantillaDeMarca(
+            "<p>x</p>", TipoAvisoCorreo.Seguridad, Enc, new SmtpEmailOptions { UrlBasePublica = "https://app.talveg.es" });
+
+        html.Should().Contain("prefers-color-scheme: dark");
+        html.Should().Contain("name=\"color-scheme\"");
+        // El fondo va en bgcolor Y en style: si el cliente descarta la hoja <style> (o invierte por su cuenta),
+        // el bloque conserva su color propio y el lockup no queda crema sobre blanco.
+        html.Should().Contain("bgcolor=\"#122A21\" style=\"background:#122A21;");
+        html.Should().Contain("bgcolor=\"#FBFAF6\"");
+    }
+}
+
+/// <summary>
+/// Piezas de HTML que componen los llamadores (<c>CorreoHtml</c>). Clase de
+/// nivel superior por el mismo motivo que las anteriores.
+/// </summary>
+public class CorreoHtmlTests
+{
+    [Fact]
+    public void El_boton_lleva_fondo_borde_y_ancho_completo_explicitos()
+    {
+        var html = CorreoHtml.BotonCta("Establecer mi contraseña", "https://app.talveg.es/x?a=1&b=2");
+
+        html.Should().Contain("bgcolor=\"#122A21\"");
+        html.Should().Contain("border:2px solid #8FC7BC", "el borde celeste es lo que salva el botón cuando el cliente invierte colores");
+        html.Should().Contain("width=\"100%\"");
+        html.Should().Contain("href=\"https://app.talveg.es/x?a=1&amp;b=2\"", "la URL se codifica");
+    }
+
+    [Theory]
+    [InlineData(CorreoHtml.EstadoVisual.Vencido, "Vencido")]
+    [InlineData(CorreoHtml.EstadoVisual.Urgente, "Urgente")]
+    [InlineData(CorreoHtml.EstadoVisual.Proximo, "Próximo")]
+    [InlineData(CorreoHtml.EstadoVisual.SinSubir, "Sin subir")]
+    public void Un_estado_lleva_palabra_y_nunca_verde_ni_celeste_de_marca(CorreoHtml.EstadoVisual estado, string palabra)
+    {
+        var html = CorreoHtml.Estado(estado);
+
+        html.Should().Contain(palabra, "el significado no puede depender solo del color ni del símbolo");
+        html.Should().NotContain("#122A21").And.NotContain("#8FC7BC",
+            "dentro de la app el verde es «Vigente»: usarlo aquí para un estado sería una trampa");
+    }
+
+    [Fact]
+    public void El_cuerpo_de_la_reclamacion_marca_vencido_o_proximo_con_palabra_y_no_lleva_boton()
+    {
+        var ayer = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1);
+        var manana = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1);
+
+        var html = CuerpoDeReclamacion.Construir(
+            "Refrielectric <S.L.>", [((string?)"Juan", "Seguro RC", ayer), ("Ana", "Formación PRL", manana)]);
+
+        html.Should().Contain("Vencido").And.Contain("Próximo");
+        html.Should().Contain("Refrielectric &lt;S.L.&gt;", "la razón social viene de datos y se codifica");
+        html.Should().NotContain("cta-a", "no hay enlace de subida: la acción es responder, no un botón inventado");
+    }
+
+    [Fact]
+    public void La_reclamacion_de_empresa_no_lleva_la_columna_Trabajador()
+    {
+        var html = CuerpoDeReclamacion.Construir(
+            "Refrielectric", [((string?)null, "Seguro RC", new DateOnly(2026, 9, 3))]);
+
+        html.Should().NotContain("Trabajador");
+    }
+
+    [Fact]
+    public void Que_debes_hacer_pide_responder_solo_si_hay_ReplyTo()
+    {
+        CuerpoDeReclamacion.QueDebesHacer(true).Should().Contain("responde a este correo");
+        CuerpoDeReclamacion.QueDebesHacer(false).Should().NotContain("responde",
+            "sin Reply-To la respuesta no llegaría a quien reclama: no se promete");
+    }
+
+    [Fact]
+    public void Titulo_y_texto_del_boton_se_codifican()
+    {
+        CorreoHtml.Titulo("<b>x</b>").Should().Contain("&lt;b&gt;x&lt;/b&gt;");
+        CorreoHtml.BotonCta("<i>", "https://x").Should().Contain("&lt;i&gt;");
     }
 }
 
@@ -333,6 +446,8 @@ public class SmtpEmailServiceEnvolverEnPlantillaDeMarcaTests
 /// </summary>
 public class SmtpEmailServiceConstruirMensajeTests
 {
+    private static readonly EncabezadoCorreo Enc = new(AccionEsperada.Ninguna, "Prueba", "Vista previa");
+
     private static SmtpEmailOptions Opciones() => new()
     {
         Host = "mail.talveg.es",
@@ -347,7 +462,7 @@ public class SmtpEmailServiceConstruirMensajeTests
     {
         var mensaje = SmtpEmailService.ConstruirMensaje(
             "contacto@refrielectric.example", "Documentación pendiente", "<p>Nos faltan los EPI.</p>",
-            TipoAvisoCorreo.Requerimiento, "marta@arcosspa.example", Opciones(), NullLogger.Instance);
+            TipoAvisoCorreo.Requerimiento, Enc, "marta@arcosspa.example", Opciones(), NullLogger.Instance);
 
         mensaje.ReplyTo.Mailboxes.Should().ContainSingle()
             .Which.Address.Should().Be("marta@arcosspa.example");
@@ -358,7 +473,7 @@ public class SmtpEmailServiceConstruirMensajeTests
     {
         var mensaje = SmtpEmailService.ConstruirMensaje(
             "contacto@refrielectric.example", "Documentación pendiente", "<p>Nos faltan los EPI.</p>",
-            TipoAvisoCorreo.Requerimiento, "marta@arcosspa.example", Opciones(), NullLogger.Instance);
+            TipoAvisoCorreo.Requerimiento, Enc, "marta@arcosspa.example", Opciones(), NullLogger.Instance);
 
         mensaje.From.Mailboxes.Should().ContainSingle()
             .Which.Address.Should().Be(
@@ -372,7 +487,7 @@ public class SmtpEmailServiceConstruirMensajeTests
     {
         var mensaje = SmtpEmailService.ConstruirMensaje(
             "contacto@refrielectric.example", "Documentación pendiente", "<p>Nos faltan los EPI.</p>",
-            TipoAvisoCorreo.Requerimiento, null, Opciones(), NullLogger.Instance);
+            TipoAvisoCorreo.Requerimiento, Enc, null, Opciones(), NullLogger.Instance);
 
         mensaje.ReplyTo.Mailboxes.Should().BeEmpty();
         mensaje.From.Mailboxes.Should().ContainSingle().Which.Address.Should().Be("info@talveg.es");
@@ -394,7 +509,7 @@ public class SmtpEmailServiceConstruirMensajeTests
     {
         var mensaje = SmtpEmailService.ConstruirMensaje(
             "contacto@refrielectric.example", "Documentación pendiente", "<p>Nos faltan los EPI.</p>",
-            TipoAvisoCorreo.Requerimiento, responderA, Opciones(), NullLogger.Instance);
+            TipoAvisoCorreo.Requerimiento, Enc, responderA, Opciones(), NullLogger.Instance);
 
         mensaje.ReplyTo.Mailboxes.Should().BeEmpty();
         Assert.IsType<TextPart>(mensaje.Body).Text.Should().NotContain(
@@ -407,7 +522,7 @@ public class SmtpEmailServiceConstruirMensajeTests
     {
         var mensaje = SmtpEmailService.ConstruirMensaje(
             "contacto@refrielectric.example", "Documentación pendiente", "<p>Nos faltan los EPI.</p>",
-            TipoAvisoCorreo.Requerimiento, "marta@arcosspa.example", Opciones(), NullLogger.Instance);
+            TipoAvisoCorreo.Requerimiento, Enc, "marta@arcosspa.example", Opciones(), NullLogger.Instance);
 
         var cuerpo = Assert.IsType<TextPart>(mensaje.Body);
         cuerpo.Text.Should().Contain("Puedes responder a este mensaje: tu respuesta le llegará directamente a esa persona");

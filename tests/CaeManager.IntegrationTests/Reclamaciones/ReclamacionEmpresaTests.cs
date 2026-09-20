@@ -467,7 +467,7 @@ public class ReclamacionEmpresaTests : IAsyncLifetime
     {
         public List<(string Destinatario, TipoAvisoCorreo Tipo, string? ResponderA)> Enviados { get; } = [];
 
-        public Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo, string? responderA = null, CancellationToken cancellationToken = default)
+        public Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo, EncabezadoCorreo encabezado, string? responderA = null, CancellationToken cancellationToken = default)
         {
             Enviados.Add((destinatarioEmail, tipo, responderA));
             return Task.FromResult(Result.Exito());

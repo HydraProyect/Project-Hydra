@@ -321,15 +321,20 @@ public partial class Roles : CaeManager.Web.Components.PaginaIntegrableConfigura
         // envío no debe deshacer la asignación de rol, que ya se guardó — ni
         // tampoco hacerla pasar por fallida, que es lo que ocurría si el
         // servicio de correo lanzaba en vez de devolver un resultado fallido.
-        var cuerpo = $"""
-            <p>Hola {System.Net.WebUtility.HtmlEncode(nombreCompleto)},</p>
-            <p>Tu acceso a {Marca.Nombre} ya está activo, con el rol <strong>{System.Net.WebUtility.HtmlEncode(CaeManager.Infrastructure.Identity.Roles.NombreVisible(rol))}</strong>.</p>
-            <p>Ya puedes iniciar sesión con tu cuenta de Microsoft.</p>
-            """;
+        // Sin botón: es una confirmación que no pide nada (el diseño v3 deja un
+        // «Entrar» opcional, que aquí no se emite porque este componente no
+        // conoce la URL pública absoluta y no vale la pena inventarla).
+        var nombreRol = CaeManager.Infrastructure.Identity.Roles.NombreVisible(rol);
+        var cuerpo =
+            CorreoHtml.Titulo($"Tu acceso a {Marca.Nombre} ya está activo") +
+            CorreoHtml.Parrafo($"Hola {System.Net.WebUtility.HtmlEncode(nombreCompleto)}, ya puedes entrar en {Marca.Nombre} con tu cuenta de Microsoft. Tu rol asignado es <b>{System.Net.WebUtility.HtmlEncode(nombreRol)}</b>.") +
+            CorreoHtml.Parrafo("No tienes que hacer nada para conservar el acceso: este correo es solo una confirmación.");
 
         try
         {
-            var resultado = await EmailService.EnviarAsync(email, $"Tu acceso a {Marca.Nombre} ya está activo", cuerpo, TipoAvisoCorreo.Seguridad);
+            var resultado = await EmailService.EnviarAsync(
+                email, $"{Marca.Nombre} · Tu acceso ya está activo", cuerpo, TipoAvisoCorreo.Seguridad,
+                new EncabezadoCorreo(AccionEsperada.Ninguna, "Tu cuenta", $"Rol asignado: {nombreRol}. No tienes que hacer nada."));
             if (resultado.EsFallido)
                 Logger.LogWarning("No se pudo enviar el correo de confirmación de rol a {UsuarioId}.", usuarioId);
         }

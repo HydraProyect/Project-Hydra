@@ -55,14 +55,18 @@ public partial class OlvideContrasena : ComponentBase
             var enlace = Navigation.ToAbsoluteUri(
                 $"/cuenta/restablecer-contrasena?userId={usuario.Id}&code={tokenCodificado}").ToString();
 
-            var cuerpo = $"""
-                <p>Recibimos una solicitud para restablecer la contraseña de tu cuenta en {Marca.Nombre}.</p>
-                <p><a href="{System.Net.WebUtility.HtmlEncode(enlace)}">Restablecer mi contraseña</a></p>
-                <p>Este enlace caduca en {MinutosCaducidad} minutos. Si no fuiste tú, puedes ignorar este correo — tu contraseña actual sigue siendo válida.</p>
-                """;
+            var cuerpo =
+                CorreoHtml.Titulo("Restablece tu contraseña") +
+                CorreoHtml.Parrafo($"Recibimos una solicitud para restablecer la contraseña de tu cuenta en {Marca.Nombre}.") +
+                CorreoHtml.BotonCta("Restablecer mi contraseña", enlace) +
+                CorreoHtml.EnlaceDeRespaldo(enlace) +
+                CorreoHtml.CajaAcento($"<b class=\"tit\" style=\"color:#122A21\">Caduca en {MinutosCaducidad} minutos.</b> Si no fuiste tú, ignora este correo: tu contraseña actual sigue siendo válida.");
 
             var resultado = await EmailService.EnviarAsync(
-                usuario.Email!, $"Restablece tu contraseña — {Marca.Nombre}", cuerpo, tipo: TipoAvisoCorreo.Seguridad);
+                usuario.Email!, $"{Marca.Nombre} · Restablece tu contraseña", cuerpo, tipo: TipoAvisoCorreo.Seguridad,
+                encabezado: new EncabezadoCorreo(
+                    AccionEsperada.Accion, "Tu cuenta",
+                    "Si no has sido tú, ignora este correo: tu contraseña actual sigue siendo válida."));
 
             if (resultado.EsFallido)
             {

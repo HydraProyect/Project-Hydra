@@ -263,7 +263,7 @@ public class ReplyToDeLaReclamacionPorSmtpTests
 
         public Task<Result> EnviarAsync(
             string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo,
-            string? responderA = null, CancellationToken cancellationToken = default)
+            EncabezadoCorreo encabezado, string? responderA = null, CancellationToken cancellationToken = default)
         {
             Enviados.Add((destinatarioEmail, tipo, responderA));
             return Task.FromResult(Result.Exito());

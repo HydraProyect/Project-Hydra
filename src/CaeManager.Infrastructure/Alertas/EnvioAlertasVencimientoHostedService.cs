@@ -179,7 +179,7 @@ public class EnvioAlertasVencimientoHostedService(
         if (destinatarios.Count == 0) return (null, alertas.Count);
 
         var emailService = ambito.ServiceProvider.GetRequiredService<IEmailService>();
-        var (asunto, cuerpo) = ConstruirCorreo(alertas, opciones.Value.UrlBase);
+        var (asunto, cuerpo, encabezado) = ConstruirCorreo(alertas, opciones.Value.UrlBase);
 
         // REC-126: un fallo de envío individual (Result fallido, sin lanzar
         // excepción) marcaba la ejecución como no exitosa pero sin ningún
@@ -190,7 +190,7 @@ public class EnvioAlertasVencimientoHostedService(
         foreach (var destinatario in destinatarios)
         {
             var resultado = await emailService.EnviarAsync(
-                destinatario.Email!, asunto, cuerpo, TipoAvisoCorreo.Informativo,
+                destinatario.Email!, asunto, cuerpo, TipoAvisoCorreo.Informativo, encabezado,
                 cancellationToken: stoppingToken);
             if (resultado.EsFallido)
             {
@@ -205,30 +205,42 @@ public class EnvioAlertasVencimientoHostedService(
         return (mensajeError, alertas.Count);
     }
 
-    private static (string Asunto, string CuerpoHtml) ConstruirCorreo(IReadOnlyList<AlertaDto> alertas, string? urlBase)
+    private static (string Asunto, string CuerpoHtml, EncabezadoCorreo Encabezado) ConstruirCorreo(IReadOnlyList<AlertaDto> alertas, string? urlBase)
     {
         var vencidos = alertas.Count(a => a.Estado == EstadoDocumento.Vencido);
         var urgentes = alertas.Count(a => a.Estado == EstadoDocumento.Urgente);
         var proximos = alertas.Count(a => a.Estado == EstadoDocumento.Proximo);
         var faltantes = alertas.Count(a => a.Estado == EstadoDocumento.Faltante);
 
-        var asunto = $"{Marca.Nombre} — {alertas.Count} alerta(s) de documentación pendientes de revisión";
+        var asunto = $"{Marca.Nombre} · {alertas.Count} alerta(s) de documentación";
+
+        // Las cuatro cifras se escanean en un segundo: número grande, estado con
+        // palabra y símbolo (nunca solo color) y la descripción. Es el correo más frecuente.
+        static string Fila(int n, string estado, string descripcion) =>
+            $"""<tr><td class="txt" style="padding:12px 0;border-bottom:1px solid #E0E3DE;width:60px;font-family:Georgia,'Times New Roman',serif;font-size:30px;line-height:1;color:#122A21">{n}</td><td style="padding:12px 8px 12px 0;border-bottom:1px solid #E0E3DE;width:120px;font-family:Arial,Helvetica,sans-serif;font-size:12px;text-transform:uppercase;letter-spacing:.6px">{estado}</td><td class="txt" style="padding:12px 0;border-bottom:1px solid #E0E3DE;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.4;color:#2A322E">{descripcion}</td></tr>""";
+
+        var cifras =
+            """<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:4px 0 22px">""" +
+            Fila(vencidos, CorreoHtml.Estado(CorreoHtml.EstadoVisual.Vencido), "documento(s) vencido(s)") +
+            Fila(urgentes, CorreoHtml.Estado(CorreoHtml.EstadoVisual.Urgente), "próximo(s) a vencer (urgente)") +
+            Fila(proximos, CorreoHtml.Estado(CorreoHtml.EstadoVisual.Proximo), "próximo(s) a vencer") +
+            Fila(faltantes, CorreoHtml.Estado(CorreoHtml.EstadoVisual.SinSubir), "documento(s) obligatorio(s) sin subir") +
+            "</table>";
 
         var enlace = string.IsNullOrWhiteSpace(urlBase)
             ? string.Empty
-            : $"""<p><a href="{WebUtility.HtmlEncode(urlBase.TrimEnd('/'))}/alertas">Ver el detalle en Alertas</a></p>""";
+            : CorreoHtml.BotonCta("Ver el detalle en Alertas", $"{urlBase.TrimEnd('/')}/alertas");
 
-        var cuerpo = $"""
-            <p>Resumen diario de documentación pendiente en {Marca.Nombre}:</p>
-            <ul>
-                <li><strong>{vencidos}</strong> documento(s) vencido(s)</li>
-                <li><strong>{urgentes}</strong> próximo(s) a vencer (urgente)</li>
-                <li><strong>{proximos}</strong> próximo(s) a vencer</li>
-                <li><strong>{faltantes}</strong> documento(s) obligatorio(s) sin subir</li>
-            </ul>
-            {enlace}
-            """;
+        var cuerpo =
+            CorreoHtml.Titulo($"{alertas.Count} alerta(s) de documentación pendientes de revisión") +
+            CorreoHtml.Parrafo($"Resumen diario de documentación pendiente en {Marca.Nombre}:") +
+            cifras +
+            enlace;
 
-        return (asunto, cuerpo);
+        var encabezado = new EncabezadoCorreo(
+            AccionEsperada.Revision, "Documentación",
+            $"{vencidos} vencido(s), {urgentes} urgente(s), {proximos} próximo(s) a vencer y {faltantes} obligatorio(s) sin subir.");
+
+        return (asunto, cuerpo, encabezado);
     }
 }

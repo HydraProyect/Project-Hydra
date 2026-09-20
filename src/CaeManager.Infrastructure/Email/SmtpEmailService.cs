@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
 using CaeManager.Application.Common;
@@ -34,6 +35,7 @@ public class SmtpEmailService(
 {
     public async Task<Result> EnviarAsync(
         string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo,
+        EncabezadoCorreo encabezado,
         string? responderA = null,
         CancellationToken cancellationToken = default)
     {
@@ -51,7 +53,7 @@ public class SmtpEmailService(
                 ValidarCertificadoServidor(config, certificado, cadena, erroresPolitica),
         };
 
-        var mensaje = ConstruirMensaje(destinatarioEmail, asunto, cuerpoHtml, tipo, responderA, config, logger);
+        var mensaje = ConstruirMensaje(destinatarioEmail, asunto, cuerpoHtml, tipo, encabezado, responderA, config, logger);
 
         try
         {
@@ -105,7 +107,7 @@ public class SmtpEmailService(
     /// </summary>
     internal static MimeMessage ConstruirMensaje(
         string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo,
-        string? responderA, SmtpEmailOptions config, ILogger logger)
+        EncabezadoCorreo encabezado, string? responderA, SmtpEmailOptions config, ILogger logger)
     {
         var mensaje = new MimeMessage();
         mensaje.From.Add(MailboxAddress.Parse(config.BuzonRemitente!));
@@ -122,7 +124,7 @@ public class SmtpEmailService(
         mensaje.Subject = asunto;
         mensaje.Body = new TextPart(TextFormat.Html)
         {
-            Text = EnvolverEnPlantillaDeMarca(cuerpoHtml, tipo, config, buzonDeRespuesta?.Address),
+            Text = EnvolverEnPlantillaDeMarca(cuerpoHtml, tipo, encabezado, config, buzonDeRespuesta?.Address),
         };
 
         return mensaje;
@@ -190,28 +192,51 @@ public class SmtpEmailService(
     /// correo que sale fuera de la organización.
     /// </param>
     internal static string EnvolverEnPlantillaDeMarca(
-        string cuerpoHtml, TipoAvisoCorreo tipo, SmtpEmailOptions config, string? responderA = null)
+        string cuerpoHtml, TipoAvisoCorreo tipo, EncabezadoCorreo encabezado, SmtpEmailOptions config,
+        string? responderA = null)
     {
-        var franjaDeMarca = string.IsNullOrWhiteSpace(config.UrlBasePublica)
+        // La celda lleva bgcolor verde además del PNG (que trae su propio verde):
+        // con las imágenes bloqueadas queda el alt en crema sobre verde, y si el
+        // cliente invierte colores por su cuenta el lockup no queda crema sobre blanco.
+        var celdaDeMarca = string.IsNullOrWhiteSpace(config.UrlBasePublica)
             ? """
-              <div style="background:#122A21;padding:17px 22px 14px;font-family:Georgia,'Times New Roman',serif;">
-                <div style="font-size:21px;color:#F2EEE1;letter-spacing:2.2px;">TALVEG</div>
-                <p style="font-family:Arial,Helvetica,sans-serif;font-size:10.5px;color:#7E9C90;margin:6px 0 0;letter-spacing:.3px;">Coordinación de actividades empresariales</p>
-              </div>
+              <div style="padding:20px 24px;font-family:Georgia,'Times New Roman',serif;font-size:21px;line-height:1.35;color:#F2EEE1;letter-spacing:2.2px;">TALVEG<br><span style="font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:.3px;color:#F2EEE1;">Coordinación de actividades empresariales</span></div>
               """
             : $"""
-               <div style="background:#122A21;padding:0;">
-                 <img src="{config.UrlBasePublica!.TrimEnd('/')}/img/correo/franja-marca.png" width="600" alt="TALVEG — Coordinación de actividades empresariales"
-                      style="display:block;width:100%;max-width:600px;height:auto;border:0;font-family:Georgia,'Times New Roman',serif;font-size:21px;color:#F2EEE1;letter-spacing:2.2px;">
-               </div>
+               <a href="https://talveg.es" style="text-decoration:none"><img src="{config.UrlBasePublica!.TrimEnd('/')}/img/correo/franja-marca.png" width="600" alt="TALVEG · Coordinación de actividades empresariales" style="display:block;width:100%;max-width:600px;height:auto;border:0;background:#122A21;font-family:Georgia,'Times New Roman',serif;font-size:18px;line-height:1.35;color:#F2EEE1"></a>
                """;
+
+        var clase = tipo switch
+        {
+            TipoAvisoCorreo.Seguridad => "Seguridad",
+            TipoAvisoCorreo.Requerimiento => "Requerimiento",
+            _ => "Aviso",
+        };
+        var accion = encabezado.Accion switch
+        {
+            AccionEsperada.Accion => "Acción requerida",
+            AccionEsperada.Revision => "Requiere revisión",
+            AccionEsperada.Respuesta => "Respuesta necesaria",
+            _ => "No requiere acción",
+        };
+        // Requerimiento va en verde de marca con crema (también en noche, ligeramente más oscuro);
+        // el resto en la caja de acento celeste. Es lo que distingue "me reclaman algo" de "me avisan".
+        var claseFranja = tipo == TipoAvisoCorreo.Requerimiento ? "franja-req" : "franja";
+        var fondoFranja = tipo == TipoAvisoCorreo.Requerimiento ? "#122A21" : "#E9F3F0";
+        var colorFranja = tipo == TipoAvisoCorreo.Requerimiento ? "#F2EEE1" : "#122A21";
+        var bordeFranja = tipo == TipoAvisoCorreo.Requerimiento ? "#122A21" : "#E0E3DE";
+        var estiloFranja =
+            $"background:{fondoFranja};border-bottom:1px solid {bordeFranja};padding:11px 28px;font-family:Arial,Helvetica,sans-serif;color:{colorFranja};";
+        var preheader = CorreoHtml.Codificar(encabezado.Preheader);
+        var textoClase = CorreoHtml.Codificar($"{clase} · {accion}");
+        var textoAmbito = CorreoHtml.Codificar(encabezado.Ambito);
 
         var pie = tipo switch
         {
             TipoAvisoCorreo.Seguridad =>
                 $"""
                  Este aviso se envía siempre por seguridad y no se puede desactivar.<br>
-                 Si no has sido tú, avísanos respondiendo a <a href="mailto:{config.BuzonRemitente}">{config.BuzonRemitente}</a>. · <a href="https://talveg.es">talveg.es</a>
+                 Si no has sido tú, avísanos en <a href="mailto:{config.BuzonRemitente}">{config.BuzonRemitente}</a>. · <a href="https://talveg.es">talveg.es</a>
                  """,
             TipoAvisoCorreo.Informativo =>
                 """
@@ -231,35 +256,61 @@ public class SmtpEmailService(
                 """,
         };
 
+        // Los enlaces del pie llevan el color en línea: la hoja <style> solo aporta el modo noche.
+        pie = pie.Replace("<a href=", "<a class=\"lnk\" style=\"color:#122A21\" href=", StringComparison.Ordinal);
+
         return $$"""
                  <!doctype html>
-                 <html>
+                 <html lang="es">
                  <head>
                  <meta charset="utf-8">
                  <meta name="viewport" content="width=device-width,initial-scale=1">
+                 <meta name="color-scheme" content="light dark">
+                 <meta name="supported-color-schemes" content="light dark">
+                 <title>TALVEG</title>
                  <style>
-                   body{margin:0;padding:0;background:#EDEDEB;}
-                   .correo{max-width:600px;margin:0 auto;background:#FFFFFF;border:1px solid #E0E0DC;font-family:Arial,Helvetica,sans-serif;}
-                   .cuerpo{padding:24px 22px 20px;font-size:14px;color:#2A322E;line-height:1.55;}
-                   .cuerpo h3{font-family:Georgia,'Times New Roman',serif;font-weight:400;font-size:19px;color:#122A21;margin:0 0 10px;}
-                   .cuerpo p{margin:0 0 13px;}
-                   .cuerpo a{color:#122A21;}
-                   .cuerpo table{width:100%;border-collapse:collapse;margin:4px 0 18px;}
-                   .cuerpo td{padding:9px 0;border-bottom:1px solid #EDEEE9;font-size:13.5px;}
-                   .pie{border-top:1px solid #EDEEE9;padding:14px 22px 18px;font-size:10.5px;color:#8A948E;line-height:1.55;}
-                   .pie a{color:#8A948E;}
+                   :root { color-scheme: light dark; supported-color-schemes: light dark; }
+                   @media only screen and (max-width:480px) {
+                     .fx { display:block !important; width:100% !important; text-align:left !important; }
+                     .pad { padding-left:18px !important; padding-right:18px !important; }
+                     .tit { font-size:22px !important; }
+                   }
+                   @media (prefers-color-scheme: dark) {
+                     .pagina { background:#0E1512 !important; }
+                     .sup    { background:#18221E !important; }
+                     .txt    { color:#DDE5E0 !important; }
+                     .tit    { color:#F2EEE1 !important; }
+                     .suave  { color:#9DAEA5 !important; }
+                     .caja   { background:#1E3129 !important; color:#DDE5E0 !important; }
+                     .franja { background:#1E3129 !important; border-color:#27362F !important; color:#8FC7BC !important; }
+                     .franja-req { background:#0B1410 !important; border-color:#0B1410 !important; }
+                     .cta-td { background:#8FC7BC !important; border-color:#F2EEE1 !important; }
+                     .cta-a  { color:#0D1F18 !important; }
+                     .pie    { background:#101815 !important; border-color:#27362F !important; color:#9DAEA5 !important; }
+                     .lnk    { color:#8FC7BC !important; }
+                     .venc   { color:#FF8A80 !important; }
+                     .urg    { color:#F2C265 !important; }
+                     .aviso  { background:#3A2F0D !important; border-color:#F2C265 !important; color:#F7D488 !important; }
+                   }
+                   /* Outlook.com con inversión propia: al menos el botón conserva su forma */
+                   [data-ogsc] .cta-td { background:#122A21 !important; border-color:#8FC7BC !important; }
+                   [data-ogsc] .cta-a  { color:#F2EEE1 !important; }
                  </style>
                  </head>
-                 <body>
-                 <div class="correo">
-                   {{franjaDeMarca}}
-                   <div class="cuerpo">
-                     {{cuerpoHtml}}
-                   </div>
-                   <div class="pie">
-                     {{pie}}
-                   </div>
-                 </div>
+                 <body style="margin:0;padding:0;background:#E7E9E5">
+                 <div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:#E7E9E5;opacity:0">{{preheader}}</div>
+                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#E7E9E5" class="pagina" style="background:#E7E9E5;border-collapse:collapse"><tr><td align="center" style="padding:14px">
+                 <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="#FBFAF6" class="sup" style="width:100%;max-width:600px;border-collapse:collapse;background:#FBFAF6">
+                 <tr><td colspan="2" bgcolor="#122A21" style="background:#122A21;font-size:0;line-height:0">{{celdaDeMarca}}</td></tr>
+                 <tr><td colspan="2" bgcolor="#8FC7BC" style="background:#8FC7BC;height:4px;line-height:4px;font-size:0">&nbsp;</td></tr>
+                 <tr>
+                   <td class="{{claseFranja}} fx" bgcolor="{{fondoFranja}}" style="{{estiloFranja}}font-size:11.5px;font-weight:bold;letter-spacing:1.2px;text-transform:uppercase">{{textoClase}}</td>
+                   <td class="{{claseFranja}} fx" align="right" bgcolor="{{fondoFranja}}" style="{{estiloFranja}}font-size:12px">{{textoAmbito}}</td>
+                 </tr>
+                 <tr><td colspan="2" class="pad" style="padding:30px 28px 10px">{{cuerpoHtml}}</td></tr>
+                 <tr><td colspan="2" class="pie pad" bgcolor="#F1F2EE" style="background:#F1F2EE;border-top:1px solid #E0E3DE;padding:16px 28px 22px;font-family:Arial,Helvetica,sans-serif;font-size:11.5px;line-height:1.6;color:#4F5C56">{{pie}}</td></tr>
+                 </table>
+                 </td></tr></table>
                  </body>
                  </html>
                  """;

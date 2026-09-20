@@ -165,8 +165,9 @@ public class EnviarReclamacionCommandHandler(
 
         var documentoIds = filas.Select(f => f.DocumentoId).Distinct().ToList();
         var destinatarios = resueltos.Select(d => d.Email).Distinct().ToList();
-        var asunto = $"{Marca.Nombre} — documentación pendiente de {cliente.RazonSocial}";
-        var cuerpoHtml = ConstruirCuerpoHtml(cliente.RazonSocial, filas.Select(f => (f.TrabajadorNombre, f.TipoDocumentoNombre, f.FechaVencimiento!.Value)));
+        var asunto = $"{Marca.Nombre} · Documentación a renovar";
+        var cuerpoHtml = CuerpoDeReclamacion.Construir(
+            cliente.RazonSocial, filas.Select(f => ((string?)f.TrabajadorNombre, f.TipoDocumentoNombre, f.FechaVencimiento!.Value)));
 
         var envio = await registroEnvio.EnviarYRegistrarAsync(
             new TitularReclamacion(request.ClienteId, cliente.RazonSocial, AmbitoAplicacion.Cliente),
@@ -175,30 +176,5 @@ public class EnviarReclamacionCommandHandler(
         return envio.EsFallido
             ? Result.Fallo<EnvioReclamacionResultado>(envio.Error)
             : Result.Exito(new EnvioReclamacionResultado(documentoIds, destinatarios));
-    }
-
-    private static string ConstruirCuerpoHtml(string razonSocialCliente, IEnumerable<(string TrabajadorNombre, string TipoDocumentoNombre, DateOnly FechaVencimiento)> documentos)
-    {
-        var builder = new StringBuilder();
-        builder.Append("<p>Estimado/a ").Append(System.Net.WebUtility.HtmlEncode(razonSocialCliente)).Append(",</p>");
-        builder.Append("<p>Los siguientes documentos de coordinación de actividades empresariales están próximos a vencer o ya han vencido. Por favor, gestiona su renovación lo antes posible:</p>");
-        builder.Append("<table style=\"border-collapse:collapse;width:100%\"><thead><tr>")
-            .Append("<th style=\"text-align:left;border-bottom:1px solid #ccc;padding:4px\">Trabajador</th>")
-            .Append("<th style=\"text-align:left;border-bottom:1px solid #ccc;padding:4px\">Documento</th>")
-            .Append("<th style=\"text-align:left;border-bottom:1px solid #ccc;padding:4px\">Vencimiento</th>")
-            .Append("</tr></thead><tbody>");
-
-        foreach (var (trabajadorNombre, tipoDocumentoNombre, fechaVencimiento) in documentos.OrderBy(d => d.FechaVencimiento))
-        {
-            builder.Append("<tr>")
-                .Append("<td style=\"padding:4px\">").Append(System.Net.WebUtility.HtmlEncode(trabajadorNombre)).Append("</td>")
-                .Append("<td style=\"padding:4px\">").Append(System.Net.WebUtility.HtmlEncode(tipoDocumentoNombre)).Append("</td>")
-                .Append("<td style=\"padding:4px\">").Append(fechaVencimiento.ToString("dd/MM/yyyy")).Append("</td>")
-                .Append("</tr>");
-        }
-
-        builder.Append("</tbody></table>");
-        builder.Append("<p>Gracias por tu colaboración.</p>");
-        return builder.ToString();
     }
 }

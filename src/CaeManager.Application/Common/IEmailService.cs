@@ -22,6 +22,10 @@ namespace CaeManager.Application.Common;
 /// correo compila igual y cae en <c>Transaccional</c> en silencio (así se
 /// coló la reclamación de documentación con un pie de "puedes ignorarlo" —
 /// ver <c>RegistroEnvioReclamacionService</c>).
+/// <paramref name="encabezado"/> completa la franja de tipo (si el destinatario
+/// tiene que hacer algo y de qué ámbito viene) y el texto de vista previa, y es
+/// obligatorio por el mismo motivo. El contenido interior se compone con
+/// <see cref="CorreoHtml"/>.
 /// </para>
 /// </summary>
 public interface IEmailService
@@ -47,6 +51,7 @@ public interface IEmailService
     /// </param>
     Task<Result> EnviarAsync(
         string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo,
+        EncabezadoCorreo encabezado,
         string? responderA = null,
         CancellationToken cancellationToken = default);
 }

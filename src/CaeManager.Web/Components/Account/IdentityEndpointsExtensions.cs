@@ -64,6 +64,7 @@ public static class IdentityEndpointsExtensions
             ILogger<Program> logger,
             ILoggerFactory loggerFactory,
             Microsoft.Extensions.Options.IOptions<AzureAdOptions> opcionesAzureAd,
+            HttpContext httpContext,
             string? returnUrl) =>
         {
             var infoExterna = await signInManager.GetExternalLoginInfoAsync();
@@ -149,7 +150,9 @@ public static class IdentityEndpointsExtensions
                 // no generar correo repetido. Best-effort: un fallo de envío
                 // nunca debe impedir que el usuario entre a la sala de espera.
                 if (esUsuarioNuevo)
-                    await NotificarAdministradoresUsuarioPendienteAsync(userManager, emailService, logger, usuario);
+                    await NotificarAdministradoresUsuarioPendienteAsync(
+                        userManager, emailService, logger, usuario,
+                        $"{httpContext.Request.Scheme}://{httpContext.Request.Host}/roles");
 
                 return Results.LocalRedirect("/cuenta/pendiente-de-rol");
             }
@@ -180,22 +183,28 @@ public static class IdentityEndpointsExtensions
     /// </para>
     /// </summary>
     private static async Task NotificarAdministradoresUsuarioPendienteAsync(
-        UserManager<ApplicationUser> userManager, IEmailService emailService, ILogger logger, ApplicationUser usuarioPendiente)
+        UserManager<ApplicationUser> userManager, IEmailService emailService, ILogger logger, ApplicationUser usuarioPendiente,
+        string urlRoles)
     {
         var administradores = (await userManager.GetUsersInRoleAsync(Roles.Administrador))
             .Where(a => a.TenantId == usuarioPendiente.TenantId)
             .ToList();
-        var cuerpo = $"""
-            <p>{System.Net.WebUtility.HtmlEncode(usuarioPendiente.NombreCompleto)} ({System.Net.WebUtility.HtmlEncode(usuarioPendiente.Email)}) inició sesión con su cuenta de Microsoft y está a la espera de que le asignes un rol.</p>
-            <p>Puedes hacerlo desde la pestaña "Pendientes de asignar" en Roles.</p>
-            """;
+        var nombre = System.Net.WebUtility.HtmlEncode(usuarioPendiente.NombreCompleto);
+        var cuerpo =
+            CorreoHtml.Titulo("Un usuario espera que le asignes un rol") +
+            CorreoHtml.Parrafo($"<b>{nombre}</b> ({System.Net.WebUtility.HtmlEncode(usuarioPendiente.Email)}) ha iniciado sesión con Microsoft y está a la espera de rol. Sin rol no puede ver ningún dato.") +
+            CorreoHtml.BotonCta("Asignar un rol", urlRoles) +
+            CorreoHtml.Parrafo("La encontrarás en <b>Roles → Pendientes de asignar</b>.");
+        var encabezado = new EncabezadoCorreo(
+            AccionEsperada.Accion, "Gestión de usuarios",
+            $"{usuarioPendiente.NombreCompleto} inició sesión y está pendiente de asignación en Roles.");
 
         foreach (var administrador in administradores)
         {
             if (string.IsNullOrWhiteSpace(administrador.Email)) continue;
 
             var resultado = await emailService.EnviarAsync(
-                administrador.Email, $"Nuevo usuario pendiente de asignar rol — {Marca.Nombre}", cuerpo, TipoAvisoCorreo.Informativo);
+                administrador.Email, $"{Marca.Nombre} · Un usuario espera rol", cuerpo, TipoAvisoCorreo.Informativo, encabezado);
             if (resultado.EsFallido)
                 logger.LogWarning("No se pudo notificar a {UsuarioId} sobre un usuario pendiente de rol.", administrador.Id);
         }

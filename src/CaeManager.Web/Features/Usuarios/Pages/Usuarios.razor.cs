@@ -1047,15 +1047,17 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     /// </summary>
     private async Task<Result> EnviarCorreoActivacionAsync(Guid usuarioId, string email, string nombreCompleto, string enlaceActivacion)
     {
-        var cuerpo = $"""
-            <p>Hola {System.Net.WebUtility.HtmlEncode(nombreCompleto)},</p>
-            <p>Se ha creado tu acceso a {Marca.Nombre}. Para entrar, establece tu contraseña:</p>
-            <p><a href="{System.Net.WebUtility.HtmlEncode(enlaceActivacion)}">Establecer mi contraseña</a></p>
-            <p>El enlace caduca en {MinutosCaducidadActivacion} minutos y solo puede usarse una vez. Si caduca, pide a quien te dio de alta que te envíe uno nuevo.</p>
-            """;
+        var caducidad = $"El enlace caduca en {MinutosCaducidadActivacion} minutos y solo puede usarse una vez.";
+        var cuerpo =
+            CorreoHtml.Titulo($"Crea tu contraseña para entrar en {Marca.Nombre}") +
+            CorreoHtml.Parrafo($"Hola {System.Net.WebUtility.HtmlEncode(nombreCompleto)}, se ha creado tu acceso a {Marca.Nombre}. Solo falta un paso: establecer tu contraseña.") +
+            CorreoHtml.BotonCta("Establecer mi contraseña", enlaceActivacion) +
+            CorreoHtml.EnlaceDeRespaldo(enlaceActivacion) +
+            CorreoHtml.CajaAcento($"<b class=\"tit\" style=\"color:#122A21\">Caduca en {MinutosCaducidadActivacion} minutos</b> y solo puede usarse una vez. Si caduca, pide a quien te dio de alta que te envíe uno nuevo.");
 
         var resultado = await EmailService.EnviarAsync(
-            email, $"Activa tu acceso a {Marca.Nombre}", cuerpo, tipo: TipoAvisoCorreo.Seguridad);
+            email, $"{Marca.Nombre} · Activa tu cuenta y crea tu contraseña", cuerpo, tipo: TipoAvisoCorreo.Seguridad,
+            encabezado: new EncabezadoCorreo(AccionEsperada.Accion, "Tu cuenta", caducidad));
         if (resultado.EsFallido)
             Logger.LogWarning("No se pudo enviar el correo de activación a {UsuarioId}.", usuarioId);
         return resultado;
