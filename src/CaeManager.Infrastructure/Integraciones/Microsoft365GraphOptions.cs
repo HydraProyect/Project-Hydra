@@ -1,3 +1,5 @@
+using CaeManager.Infrastructure.Configuracion;
+
 namespace CaeManager.Infrastructure.Integraciones;
 
 /// <summary>
@@ -17,7 +19,7 @@ namespace CaeManager.Infrastructure.Integraciones;
 /// el botón "Conectar" pero el flujo falla con un aviso explícito en vez de
 /// arrancar el proceso de arranque roto.
 /// </summary>
-public class Microsoft365GraphOptions
+public class Microsoft365GraphOptions : IOpcionesConGate
 {
     public const string SeccionConfiguracion = "Integraciones:Microsoft365";
 

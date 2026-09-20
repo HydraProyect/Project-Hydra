@@ -11,7 +11,11 @@ namespace CaeManager.Infrastructure.Configuracion;
 /// </summary>
 public interface IOpcionesConGate
 {
-    /// <summary>Si la pieza se registra. Debe salir de <see cref="GateDeConfiguracion.Evaluar"/>.</summary>
+    /// <summary>
+    /// Si la pieza se registra. Las secciones que son una conjunción de claves lo sacan de
+    /// <see cref="GateDeConfiguracion.Evaluar"/>; una de credencial alternativa (Microsoft 365: certificado O secreto)
+    /// implementa su propio veredicto, y su prueba de rejilla fija que este y <see cref="ProblemasDeConfiguracion"/> no discrepen.
+    /// </summary>
     bool EstaConfigurado { get; }
 
     /// <summary>
