@@ -13,6 +13,20 @@ namespace CaeManager.Web.Components.EstadoPersistido;
 /// el workspace—, así que un estado persistido solo vale para la MISMA
 /// combinación. <c>null</c> si no hay usuario resuelto: sin identidad no se
 /// persiste ni se restaura nada (falla cerrado hacia «consultar otra vez»).
+///
+/// <para>
+/// <b>No toca la base de datos.</b> La huella se resuelve al empezar la
+/// pantalla, mientras otros componentes del mismo ámbito de DI (el selector de
+/// workspace del layout) hacen sus consultas sobre el mismo <c>DbContext</c>,
+/// que no admite dos operaciones a la vez. <c>ObtenerRolActualAsync</c>
+/// consulta la cartera cuando hay un workspace delegado seleccionado, así que
+/// en ese caso el rol no se pregunta: lo identifican el Tenant seleccionado y la
+/// autorización de operación (<c>a=</c>), que ya van en la huella. Consecuencia
+/// declarada: si el rol de esa autorización cambia dentro de la vigencia
+/// (60 s), el circuito muestra la instantánea del prerender — la misma clase de
+/// hueco que la revocación (el circuito no revalida). Con un ámbito de Tenant
+/// explícito (fan-out) no se persiste nada.
+/// </para>
 /// </summary>
 public sealed class HuellaDeSesion(
     ICurrentUserService usuarioActual,
@@ -21,12 +35,17 @@ public sealed class HuellaDeSesion(
 {
     public async Task<string?> ObtenerAsync()
     {
+        if (AmbitoTenantExplicito.TenantIdActual is not null)
+            return null;
+
         var usuarioId = await usuarioActual.ObtenerUsuarioActualIdAsync();
         var tenantId = tenantActual.TenantId;
         if (usuarioId is null || tenantId is null)
             return null;
 
-        var rol = await usuarioActual.ObtenerRolActualAsync();
+        var rol = clienteActivo.TenantIdSeleccionado is { } seleccionado
+            ? $"@{seleccionado}"
+            : await usuarioActual.ObtenerRolActualAsync();
         var tenantOrigenId = await usuarioActual.ObtenerTenantOrigenIdAsync();
 
         return string.Join('|',

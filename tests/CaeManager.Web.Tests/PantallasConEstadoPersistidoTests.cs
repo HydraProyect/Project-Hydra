@@ -115,7 +115,8 @@ public class PantallasConEstadoPersistidoTests
     {
         var ctx = new BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
-        var contador = new MediatorContador(responder);        mediador = contador;
+        var contador = new MediatorContador(responder);
+        mediador = contador;
         ctx.Services.AddScoped<IMediator>(_ => contador);
         ctx.Services.AddScoped<ToastService>();
         ctx.Services.AddScoped<ContextWorkspaceService>();

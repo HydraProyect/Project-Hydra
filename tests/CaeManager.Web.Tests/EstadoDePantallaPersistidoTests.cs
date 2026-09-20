@@ -25,7 +25,8 @@ public class EstadoDePantallaPersistidoTests
 
     public sealed record Sesion(
         Guid? UsuarioId, Guid? TenantActual, Guid? TenantOrigen, string? Rol,
-        Guid? AsignacionOperacion = null, Guid? SesionPrivilegiada = null)
+        Guid? AsignacionOperacion = null, Guid? SesionPrivilegiada = null,
+        Guid? TenantSeleccionado = null)
     {
         public static readonly Guid Usuario = Guid.Parse("00000000-0000-0000-0000-0000000000a1");
         public static readonly Guid TenantX = Guid.Parse("00000000-0000-0000-0000-0000000000b1");
@@ -58,11 +59,17 @@ public class EstadoDePantallaPersistidoTests
     {
         private Sesion Sesion => sesionActual();
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult(Sesion.UsuarioId);
-        public Task<string?> ObtenerRolActualAsync() => Task.FromResult(Sesion.Rol);
+        // Con un workspace seleccionado el rol real sale de una consulta a la
+        // cartera sobre el DbContext del ámbito, que la huella no puede lanzar
+        // mientras el selector del layout usa el mismo: aquí, si se pregunta,
+        // el test lo dice.
+        public Task<string?> ObtenerRolActualAsync() => Sesion.TenantSeleccionado is null
+            ? Task.FromResult(Sesion.Rol)
+            : throw new InvalidOperationException("La huella no debe preguntar el rol con un workspace seleccionado (consulta la base).");
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult(Sesion.TenantOrigen);
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(false);
         public Guid? TenantId => Sesion.TenantActual;
-        public Guid? TenantIdSeleccionado => Sesion.TenantActual;
+        public Guid? TenantIdSeleccionado => Sesion.TenantSeleccionado;
         public Guid? AsignacionOperacionIdSeleccionada => Sesion.AsignacionOperacion;
         public Guid? SesionPrivilegiadaIdSeleccionada => Sesion.SesionPrivilegiada;
     }
@@ -136,6 +143,7 @@ public class EstadoDePantallaPersistidoTests
         { "otro Tenant propietario en el workspace activo", Sesion.Base with { TenantActual = Sesion.TenantY } },
         { "otro Tenant de origen", Sesion.Base with { TenantOrigen = Sesion.TenantY } },
         { "otro rol", Sesion.Base with { Rol = "Consulta" } },
+        { "otro workspace seleccionado", Sesion.Base with { TenantSeleccionado = Sesion.TenantY } },
         { "otra autorización de operación", Sesion.Base with { AsignacionOperacion = Guid.NewGuid() } },
         { "otra sesión privilegiada", Sesion.Base with { SesionPrivilegiada = Guid.NewGuid() } },
     };
@@ -150,6 +158,40 @@ public class EstadoDePantallaPersistidoTests
         var recogida = await CircuitoAsync(almacen, delCircuito, reloj);
 
         recogida.Should().BeNull($"«{caso}»: el estado del prerender no vale para otra sesión");
+    }
+
+    [Fact]
+    public async Task Con_un_workspace_seleccionado_la_huella_no_consulta_el_rol_y_recoge_con_la_misma_seleccion()
+    {
+        // Regresión medida en CI (E2E SeleccionSobreviveAlCircuito y
+        // FlujoSoporte): con un workspace delegado, ObtenerRolActualAsync
+        // consulta la cartera sobre el DbContext del ámbito, en paralelo con el
+        // selector de workspace del layout: «A second operation was started on
+        // this context instance». La SesionFalsa lanza si se le pregunta el rol.
+        var reloj = new Reloj();
+        var delegado = Sesion.Base with
+        {
+            TenantActual = Sesion.TenantY,
+            TenantSeleccionado = Sesion.TenantY,
+            AsignacionOperacion = Guid.NewGuid(),
+        };
+        var almacen = await PrerenderAsync(delegado, reloj, new Instantanea("filas del workspace delegado Y", 5));
+
+        almacen.Contenido.Should().NotBeEmpty("el prerender bajo un workspace delegado sigue persistiendo");
+        (await CircuitoAsync(almacen, delegado, reloj)).Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Con_un_ambito_de_tenant_explicito_no_se_persiste_ni_se_recoge()
+    {
+        var reloj = new Reloj();
+        var almacen = await PrerenderAsync(Sesion.Base, reloj, new Instantanea("filas", 1));
+
+        using (AmbitoTenantExplicito.Establecer(Sesion.TenantY))
+        {
+            (await Huella(Sesion.Base).ObtenerAsync()).Should().BeNull();
+            (await CircuitoAsync(almacen, Sesion.Base, reloj)).Should().BeNull();
+        }
     }
 
     [Fact]
@@ -334,7 +376,7 @@ public class EstadoDePantallaPersistidoTests
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Sesion.TenantX);
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(false);
         public Guid? TenantId => Sesion.TenantX;
-        public Guid? TenantIdSeleccionado => Sesion.TenantX;
+        public Guid? TenantIdSeleccionado => null;
         public Guid? AsignacionOperacionIdSeleccionada => null;
         public Guid? SesionPrivilegiadaIdSeleccionada => null;
     }
