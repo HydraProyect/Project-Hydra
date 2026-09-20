@@ -220,6 +220,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.BootstrapOSiembra, "3 llamadas — Ids del tenant de plataforma y de tenants de demo, todos resueltos por el propio seeder"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs"] =
             new(Categoria.BootstrapOSiembra, "3 llamadas — Ids del tenant del Operador CAE de la demo y de cada tenant propietario, todos aprovisionados o localizados por el propio seeder por nombre"),
+        ["src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs"] =
+            new(Categoria.BootstrapOSiembra, "1 llamada — marcador de datos de demo sobre el Tenant que la propia siembra acaba de crear, localizado por nombre; solo se alcanza desde el modo de CLI (ver SiembraDemoDireccionSoloDesdeElModoCliTests)"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/SegundoTenantSeeder.cs"] =
             new(Categoria.BootstrapOSiembra, "2 llamadas — tenantId del segundo tenant que el propio seeder crea"),
         ["src/CaeManager.Web/Program.cs"] =
@@ -345,6 +347,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionesSoporteSeeder.cs"] = 3,
             ["src/CaeManager.Infrastructure/Persistence/Seed/SegundoTenantSeeder.cs"] = 2,
             ["src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs"] = 3,
+            ["src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs"] = 1,
             ["src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs"] = 2,
         };
 

@@ -175,6 +175,18 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs", "await dbContext.Set<TEntidad>().IgnoreQueryFilters().Where(e => e.TenantId == tenantId).ToListAsync(cancellationToken);")] = 1,
         [("src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs", "var tenant = await dbContext.Tenants.IgnoreQueryFilters()")] = 1,
 
+        // Siembra administrativa de la demo a dirección (modo de CLI, nunca el
+        // arranque normal): las tres lecturas buscan Tenants por su nombre EXACTO
+        // del lote de demo (NombresTenantsDelLote), que es justo lo que el filtro
+        // global de borrado lógico excluiría si alguno estuviera eliminado. Dos
+        // sirven de guarda (falla cerrado si un Tenant del lote ya existe sin
+        // marcador de demo; la retirada valida el lote entero con identidad no
+        // privilegiada antes de elevar) y la tercera fija el marcador sobre el
+        // Tenant que la propia siembra acaba de crear, por Id.
+        [("src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs", "var existentes = await dbContext.Tenants.IgnoreQueryFilters()")] = 1,
+        [("src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs", "var id = await dbContextNoPrivilegiado.Tenants.IgnoreQueryFilters()")] = 1,
+        [("src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs", "var tenant = await dbContext.Tenants.IgnoreQueryFilters().SingleAsync(t => t.Id == tenantId, cancellationToken);")] = 1,
+
         // Reclamo atómico de la cola de análisis IA y de la cola de webhooks
         // (auditoría de colas, 2026-08-30, hallazgo crítico #1): FOR UPDATE
         // SKIP LOCKED no tiene equivalente en LINQ/EF Core, así que el SELECT

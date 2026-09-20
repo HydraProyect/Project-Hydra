@@ -236,12 +236,23 @@ public class TerminologiaCanonicaTests
     /// aumento sea el mínimo inevitable. La cifra baja con la retirada de <c>DelegacionDemoSeeder</c>
     /// y con la migración de <c>DelegacionTenant</c> (D-2/D-3/D-7), no antes.
     /// </para>
+    ///
+    /// <para>
+    /// <b><c>Delegacion</c> 303 → 312 (siembra administrativa de la demo a dirección,
+    /// 2026-09-20): +9, todo referencia a <c>DelegacionDemoSeeder</c>, ningún nombre propio
+    /// nuevo.</b> <c>SiembraDemoDireccionAdministrativa.cs</c> reutiliza sus cuatro constantes de
+    /// nombre de Tenant y sus tres métodos (<c>AprovisionarTenantAsync</c>,
+    /// <c>CrearUsuarioConsultoraAsync</c>, <c>CrearDelegacionAsync</c>) porque ese es el único
+    /// código que sabe abrir la operación externa de un Operador CAE sobre un Tenant propietario;
+    /// duplicarlo crearía un segundo camino con el mismo mecanismo legacy. Baja con la retirada de
+    /// <c>DelegacionDemoSeeder</c>, no antes.
+    /// </para>
     /// </summary>
     private static readonly Dictionary<string, int> Congelado = new()
     {
         ["Hydra"] = 49,
         ["EjecutivoUsuarioId"] = 48,
-        ["Delegacion"] = 303,
+        ["Delegacion"] = 312,
         ["ClienteActivo"] = 68,
     };
 
