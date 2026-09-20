@@ -35,10 +35,19 @@ public class EstadoDePantallaPersistidoTests
         public static Sesion Base => new(Usuario, TenantX, TenantX, "GestorCae");
     }
 
+    /// <summary>
+    /// Reloj de pared y monótono a la vez, movidos juntos con <see cref="Ahora"/>
+    /// (la marca es la propia hora en ticks). Para simular un reloj de pared
+    /// desfasado entre dos procesos hay <see cref="Desfase"/>: mueve solo la
+    /// hora de pared, no la marca monótona.
+    /// </summary>
     private sealed class Reloj : TimeProvider
     {
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
         public DateTimeOffset Ahora { get; set; } = new(2026, 9, 20, 12, 0, 0, TimeSpan.Zero);
-        public override DateTimeOffset GetUtcNow() => Ahora;
+        public TimeSpan Desfase { get; set; }
+        public override DateTimeOffset GetUtcNow() => Ahora + Desfase;
+        public override long GetTimestamp() => Ahora.UtcTicks;
     }
 
     private sealed class AlmacenEnMemoria : IPersistentComponentStateStore
@@ -82,6 +91,12 @@ public class EstadoDePantallaPersistidoTests
         return new HuellaDeSesion(falsa, falsa, falsa);
     }
 
+    private static FabricaEstadoDePantallaPersistido Fabrica(
+        PersistentComponentState estado, HuellaDeSesion huella, TimeProvider reloj, Guid? instancia) =>
+        instancia is { } otra
+            ? new FabricaEstadoDePantallaPersistido(estado, huella, reloj) { Instancia = otra }
+            : new FabricaEstadoDePantallaPersistido(estado, huella, reloj);
+
     private const string Clave = "pantalla";
     private const string HuellaConsulta = "b=|e=|p=1|n=20";
 
@@ -91,11 +106,12 @@ public class EstadoDePantallaPersistidoTests
     /// que es lo que viajaría al navegador y volvería al circuito.
     /// </summary>
     private static async Task<AlmacenEnMemoria> PrerenderAsync(
-        Sesion delPrerender, Reloj reloj, Instantanea? instantanea = null, string huellaConsulta = HuellaConsulta)
+        Sesion delPrerender, Reloj reloj, Instantanea? instantanea = null, string huellaConsulta = HuellaConsulta,
+        Guid? instancia = null)
     {
         using var contexto = new BunitContext();
         var gestor = new ComponentStatePersistenceManager(NullLogger<ComponentStatePersistenceManager>.Instance);
-        var fabrica = new FabricaEstadoDePantallaPersistido(gestor.State, Huella(delPrerender), reloj);
+        var fabrica = Fabrica(gestor.State, Huella(delPrerender), reloj, instancia);
         using var estado = fabrica.Crear<Instantanea>(Clave);
         if (instantanea is not null)
             await estado.GuardarAsync(await estado.EmpezarConsultaAsync(sePersiste: true), huellaConsulta, instantanea);
@@ -106,11 +122,12 @@ public class EstadoDePantallaPersistidoTests
     }
 
     private static async Task<Instantanea?> CircuitoAsync(
-        AlmacenEnMemoria almacen, Sesion delCircuito, Reloj reloj, string huellaConsulta = HuellaConsulta)
+        AlmacenEnMemoria almacen, Sesion delCircuito, Reloj reloj, string huellaConsulta = HuellaConsulta,
+        Guid? instancia = null)
     {
         var gestor = new ComponentStatePersistenceManager(NullLogger<ComponentStatePersistenceManager>.Instance);
         await gestor.RestoreStateAsync(almacen);
-        var fabrica = new FabricaEstadoDePantallaPersistido(gestor.State, Huella(delCircuito), reloj);
+        var fabrica = Fabrica(gestor.State, Huella(delCircuito), reloj, instancia);
         using var estado = fabrica.Crear<Instantanea>(Clave);
         return await estado.TomarAsync(huellaConsulta);
     }
@@ -510,6 +527,37 @@ public class EstadoDePantallaPersistidoTests
         (await CircuitoAsync(almacen, Sesion.Base, reloj)).Should().NotBeNull();
     }
 
+    [Fact]
+    public async Task Un_estado_sellado_por_otra_instancia_no_se_recoge_aunque_su_hora_de_pared_pareciera_reciente()
+    {
+        // Codex (2026-09-20): con dos réplicas, la hora de pared de cada una
+        // puede ir desfasada, y la marca monótona de un proceso no significa
+        // nada en otro. El estado lleva el proceso que lo selló y solo ese lo
+        // recoge.
+        var reloj = new Reloj();
+        var instanciaA = Guid.NewGuid();
+        var almacen = await PrerenderAsync(Sesion.Base, reloj, new Instantanea("filas", 3), instancia: instanciaA);
+
+        (await CircuitoAsync(almacen, Sesion.Base, reloj, instancia: Guid.NewGuid())).Should().BeNull();
+        (await CircuitoAsync(almacen, Sesion.Base, reloj, instancia: instanciaA)).Should().NotBeNull(
+            "control positivo: la misma instancia sí lo recoge");
+    }
+
+    [Fact]
+    public async Task La_edad_se_mide_con_el_reloj_monotono_un_salto_de_la_hora_de_pared_no_la_acorta()
+    {
+        // Pasan 30 s de verdad (marca monótona), pero la hora de pared se
+        // atrasa 25 s (salto de NTP): medida con la hora de pared la edad
+        // sería 5 s y el estado, vigente. Con el reloj monótono sigue siendo
+        // 30 s y vencido.
+        var reloj = new Reloj();
+        var almacen = await PrerenderAsync(Sesion.Base, reloj, new Instantanea("filas", 3));
+        reloj.Ahora += TimeSpan.FromSeconds(30);
+        reloj.Desfase = TimeSpan.FromSeconds(-25);
+
+        (await CircuitoAsync(almacen, Sesion.Base, reloj)).Should().BeNull();
+    }
+
     [Theory]
     [InlineData(1234, "vigente")]
     [InlineData(11_000, "vencido")]
@@ -600,7 +648,7 @@ public class EstadoDePantallaPersistidoTests
     // ── Qué viaja ───────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Solo_viaja_la_instantanea_guardada_con_su_huella_y_su_instante()
+    public async Task Solo_viaja_la_instantanea_guardada_con_su_huella_su_marca_y_su_instancia()
     {
         var reloj = new Reloj();
         var almacen = await PrerenderAsync(Sesion.Base, reloj, new Instantanea("solo-esto", 7));
@@ -610,7 +658,7 @@ public class EstadoDePantallaPersistidoTests
 
         // El serializador del estado persistido escribe en camelCase.
         json.RootElement.EnumerateObject().Select(p => p.Name.ToLowerInvariant())
-            .Should().BeEquivalentTo(["huelladesesion", "huellaconsulta", "persistidoen", "datos"]);
+            .Should().BeEquivalentTo(["huelladesesion", "huellaconsulta", "instancia", "marca", "datos"]);
         json.RootElement.GetProperty("datos").GetRawText().Should().Contain("solo-esto");
     }
 }
