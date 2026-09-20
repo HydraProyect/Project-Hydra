@@ -72,6 +72,14 @@ public class Tenant : Entity
     /// que algo faltaba. Esta marca es deliberada y explícita, no inferida
     /// del volumen de datos: solo <see cref="MarcarDatosDemoCompletados"/>,
     /// llamado al FINAL de una siembra completa, la establece.
+    /// <para>
+    /// Excepción deliberada: <c>SiembraDemoDireccionAdministrativa</c> (la demo a
+    /// dirección en un entorno real) la pone AL CREAR el Tenant, no al final, porque ahí
+    /// el marcador cumple otro papel —es lo que permite retirar el lote aunque la siembra
+    /// se corte a medias y lo que distingue un Tenant de demo de uno real con el mismo
+    /// nombre—; <c>DatosPruebaSeeder</c> no interviene en esos Tenants (la siembra se niega
+    /// con <c>DatosPrueba:Activo</c> activo).
+    /// </para>
     /// </summary>
     public DateTime? DatosDemoCompletadosEnUtc { get; private set; }
 

@@ -106,7 +106,21 @@ public static class RetiradaTenantDemoService
         CatalogoEscenariosDireccionDemo.NombreTenantDuff,
         CatalogoEscenariosDireccionDemo.NombreTenantPizzaPlanet,
         SegundoTenantSeeder.NombreSegundoTenant,
+        // El lote de la siembra administrativa de la demo a dirección (nombres limpios,
+        // Operador CAE incluido). Ver ExigenMarcador.
+        ..SiembraDemoDireccionAdministrativa.NombresTenantsDelLote,
     ];
+
+    /// <summary>
+    /// Los nombres que se pueden dar en un Tenant real (un nombre de cliente sin sufijo
+    /// «demo»): para retirarlos no basta el nombre, hace falta además el marcador
+    /// <see cref="Tenant.DatosDemoCompletadosEnUtc"/>, que solo ponen las siembras de
+    /// demo. Los heredados llevan un sufijo «(… demo)» que ningún Tenant real tiene y
+    /// siguen retirándose por nombre.
+    /// </summary>
+    private static bool ExigenMarcador(string nombre) =>
+        SiembraDemoDireccionAdministrativa.NombresTenantsDelLote.Contains(nombre) ||
+        nombre is CatalogoEscenariosDireccionDemo.NombreTenantDuff or CatalogoEscenariosDireccionDemo.NombreTenantPizzaPlanet;
 
     private static readonly MethodInfo MetodoCargarFilasDeTenant =
         typeof(RetiradaTenantDemoService).GetMethod(nameof(CargarFilasDeTenantAsync), BindingFlags.NonPublic | BindingFlags.Static)!;
@@ -147,6 +161,11 @@ public static class RetiradaTenantDemoService
                 $"'{tenant.Nombre}' no está en la lista de tenants de demo conocidos " +
                 $"({string.Join(", ", NombresTenantsDeDemo)}) — la retirada se niega por diseño: solo borra " +
                 "tenants cuyo nombre coincide EXACTAMENTE con uno de los que siembran DelegacionDemoSeeder o SegundoTenantSeeder.");
+
+        if (ExigenMarcador(tenant.Nombre) && tenant.DatosDemoCompletadosEnUtc is null)
+            throw new InvalidOperationException(
+                $"'{tenant.Nombre}' tiene el nombre de un Tenant de demo pero NO lleva el marcador de datos de demo " +
+                "(DatosDemoCompletadosEnUtc): podría ser un Tenant real, y la retirada se niega por diseño.");
     }
 
     /// <summary>

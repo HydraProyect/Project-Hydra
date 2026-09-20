@@ -640,6 +640,71 @@ if (args.Contains("--retirar-tenant-demo"))
     return;
 }
 
+// Siembra administrativa de la demo a dirección en un entorno real: SOLO desde
+// este modo de CLI, nunca en el arranque normal (SiembraDemoDireccionSoloDesdeElModoCliTests
+// lo vigila). Falla cerrada antes de escribir (ver SiembraDemoDireccionAdministrativa):
+// exige el entorno confirmado a mano, un dominio de correo propio y un directorio
+// de credenciales en tmpfs. NO imprime ni registra contraseñas: van solo al fichero.
+if (args.Contains(SiembraDemoDireccionAdministrativa.ArgumentoSembrar))
+{
+    using var scopeSiembra = app.Services.CreateScope();
+    var loggerSiembra = scopeSiembra.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+    try
+    {
+        var resultadoSiembra = await SiembraDemoDireccionAdministrativa.SembrarAsync(
+            scopeSiembra.ServiceProvider.GetRequiredService<CaeManagerDbContext>(),
+            scopeSiembra.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(),
+            app.Configuration, app.Environment,
+            SiembraDemoDireccionAdministrativa.LeerOpciones(app.Configuration), loggerSiembra);
+
+        Console.WriteLine($"Sembrado en {app.Environment.EnvironmentName}: {resultadoSiembra.Tenants.Count} Tenants.");
+        foreach (var (nombreTenant, idTenant) in resultadoSiembra.Tenants)
+            Console.WriteLine($"  Tenant {idTenant}  {nombreTenant}");
+        foreach (var cuenta in resultadoSiembra.Cuentas)
+            Console.WriteLine($"  Cuenta {cuenta.Id}  {cuenta.Email}  {cuenta.Rol}  contraseña en el fichero: {(cuenta.ContrasenaEntregada ? "sí" : "no (ya existía)")}");
+        Console.WriteLine($"Credenciales: {resultadoSiembra.FicheroCredenciales} (entregar y destruir).");
+    }
+    catch (InvalidOperationException ex)
+    {
+        Console.Error.WriteLine($"Siembra rechazada: {ex.Message}");
+        Environment.ExitCode = 1;
+    }
+
+    return;
+}
+
+// Retirada completa del lote de la siembra administrativa (los siete Tenants, con
+// su marcador de demo): mismo patrón de dos pasos que --retirar-tenant-demo
+// (valida TODO con identidad no privilegiada, eleva solo después).
+if (args.Contains(SiembraDemoDireccionAdministrativa.ArgumentoRetirar))
+{
+    using var scopeRetiradaLote = app.Services.CreateScope();
+    var loggerRetiradaLote = scopeRetiradaLote.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+    try
+    {
+        var retirados = await SiembraDemoDireccionAdministrativa.RetirarLoteAsync(
+            scopeRetiradaLote.ServiceProvider.GetRequiredService<CaeManagerDbContext>(),
+            () => scopeRetiradaLote.ServiceProvider
+                .GetRequiredService<CaeManager.Infrastructure.Persistence.FabricaContextoDeBootstrap>().Crear(),
+            loggerRetiradaLote);
+
+        foreach (var retirado in retirados)
+            Console.WriteLine(
+                $"Retirado: '{retirado.NombreTenant}' ({retirado.TenantId}) — " +
+                $"{retirado.FilasBorradas} filas tenant-scoped, {retirado.UsuariosBorrados} usuarios.");
+        if (retirados.Count == 0) Console.WriteLine("No hay ningún Tenant del lote: nada que retirar.");
+    }
+    catch (InvalidOperationException ex)
+    {
+        Console.Error.WriteLine($"Retirada rechazada: {ex.Message}");
+        Environment.ExitCode = 1;
+    }
+
+    return;
+}
+
 // Detrás de un proxy inverso (Caddy, ver deploy/local/Caddyfile y DEPLOY.md),
 // Kestrel solo ve tráfico HTTP interno; sin esto,
 // UseHttpsRedirection/UseHsts no reconocen la petición original como HTTPS
