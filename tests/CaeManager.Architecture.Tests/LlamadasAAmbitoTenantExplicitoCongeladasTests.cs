@@ -221,7 +221,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         ["src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs"] =
             new(Categoria.BootstrapOSiembra, "3 llamadas — Ids del tenant del Operador CAE de la demo y de cada tenant propietario, todos aprovisionados o localizados por el propio seeder por nombre"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs"] =
-            new(Categoria.BootstrapOSiembra, "1 llamada — marcador de datos de demo sobre el Tenant que la propia siembra acaba de crear, localizado por nombre; solo se alcanza desde el modo de CLI (ver SiembraDemoDireccionSoloDesdeElModoCliTests)"),
+            new(Categoria.BootstrapOSiembra, "2 llamadas — marcador de datos de demo sobre el Tenant que la propia siembra acaba de crear, localizado por nombre, y el Tenant propietario de cada rama al sembrar su historial de Comunicaciones y su ciclo documental (su Id lo devuelve la propia siembra); solo se alcanza desde el modo de CLI (ver SiembraDemoDireccionSoloDesdeElModoCliTests)"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/SegundoTenantSeeder.cs"] =
             new(Categoria.BootstrapOSiembra, "2 llamadas — tenantId del segundo tenant que el propio seeder crea"),
         ["src/CaeManager.Web/Program.cs"] =
@@ -347,7 +347,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionesSoporteSeeder.cs"] = 3,
             ["src/CaeManager.Infrastructure/Persistence/Seed/SegundoTenantSeeder.cs"] = 2,
             ["src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs"] = 3,
-            ["src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs"] = 1,
+            ["src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs"] = 2,
             ["src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs"] = 2,
         };
 

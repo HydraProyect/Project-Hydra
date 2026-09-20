@@ -122,14 +122,19 @@ public static class EscenariosDireccionDemoSeeder
         }
     }
 
-    /// <summary>El Gestor CAE que lleva más carteras, el segundo y el Coordinador CAE del Operador CAE externo.</summary>
-    internal sealed record EquipoOperador(ApplicationUser GestorPrimero, ApplicationUser GestorSegundo, ApplicationUser Coordinador)
+    /// <summary>
+    /// El Gestor CAE que lleva más carteras, el segundo y el Coordinador CAE del Operador CAE externo; y, solo en la
+    /// siembra administrativa, la persona de Dirección CAE (no delegable como tal: ver <see cref="AbrirOperacionExternaDeLaRamaAsync"/>).
+    /// </summary>
+    internal sealed record EquipoOperador(
+        ApplicationUser GestorPrimero, ApplicationUser GestorSegundo, ApplicationUser Coordinador,
+        ApplicationUser? Direccion = null)
     {
         public ApplicationUser De(GestorDemo gestor) => gestor == GestorDemo.Primero ? GestorPrimero : GestorSegundo;
     }
 
-    /// <summary>Las tres direcciones del equipo: las de la demo local, o las de un dominio propio en la siembra administrativa.</summary>
-    internal sealed record EmailsEquipo(string Coordinador, string GestorPrimero, string GestorSegundo)
+    /// <summary>Las direcciones del equipo: las de la demo local, o las de un dominio propio en la siembra administrativa (que añade la de Dirección CAE).</summary>
+    internal sealed record EmailsEquipo(string Coordinador, string GestorPrimero, string GestorSegundo, string? Direccion = null)
     {
         public static EmailsEquipo Local { get; } = new(EmailCoordinador, EmailGestorPrimero, EmailGestorSegundo);
     }
@@ -147,6 +152,9 @@ public static class EscenariosDireccionDemoSeeder
         var coordinador = await CrearAsync(emails.Coordinador, "Elena Robles (Coordinadora CAE)", Roles.CoordinadorCae);
         var primero = await CrearAsync(emails.GestorPrimero, "Marta Villalba (Gestora CAE)", Roles.GestorCae);
         var segundo = await CrearAsync(emails.GestorSegundo, "Iván Cortés (Gestor CAE)", Roles.GestorCae);
+        var direccion = emails.Direccion is null
+            ? null
+            : await CrearAsync(emails.Direccion, "Carmen Ibáñez (Dirección CAE)", Roles.DireccionCae);
 
         // El alcance del Coordinador CAE sale de quién le tiene como
         // coordinador (AlcanceDatosService.ObtenerClienteIdsParaCoordinadorAsync),
@@ -165,7 +173,7 @@ public static class EscenariosDireccionDemoSeeder
             }
         }
 
-        return new EquipoOperador(primero, segundo, coordinador);
+        return new EquipoOperador(primero, segundo, coordinador, direccion);
     }
 
     /// <summary>
@@ -244,6 +252,12 @@ public static class EscenariosDireccionDemoSeeder
             var asignaciones = new List<(ApplicationUser Usuario, string Rol)> { (equipo.Coordinador, Roles.CoordinadorCae) };
             if (rama.Clientes.Any(c => c.Gestor == GestorDemo.Primero)) asignaciones.Add((equipo.GestorPrimero, Roles.GestorCae));
             if (rama.Clientes.Any(c => c.Gestor == GestorDemo.Segundo)) asignaciones.Add((equipo.GestorSegundo, Roles.GestorCae));
+
+            // Dirección CAE no es un rol delegable (CrearAsignacionOperadorDelegadoCommand: un operador delegado nunca
+            // lleva privilegios de administración del Tenant propietario). Entra en cada Tenant como Consulta, que ve
+            // todo el Tenant sin poder escribir: es lo que la autorización vigente permite y lo que se mide en las
+            // pruebas; no se ha tocado el alcance para darle más.
+            if (equipo.Direccion is not null) asignaciones.Add((equipo.Direccion, Roles.Consulta));
 
             foreach (var (usuario, rol) in asignaciones)
             {

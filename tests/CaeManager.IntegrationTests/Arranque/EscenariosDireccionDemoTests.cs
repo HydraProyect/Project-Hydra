@@ -116,7 +116,7 @@ public class EscenariosDireccionDemoTests(EscenariosDireccionDemoFixture fixture
     /// Lo que cada escenario tiene que dar en sus tres centros, ordenados por
     /// código. Escrito a mano y aparte del sembrador (ver el comentario de clase).
     /// </summary>
-    private static readonly Dictionary<EscenarioClienteDemo, EstadoCentro[]> EstadosEsperados = new()
+    internal static readonly Dictionary<EscenarioClienteDemo, EstadoCentro[]> EstadosEsperados = new()
     {
         [EscenarioClienteDemo.Completo] = [EstadoCentro.Vigente, EstadoCentro.Vigente, EstadoCentro.Vigente],
         [EscenarioClienteDemo.CasiCompleto] = [EstadoCentro.Vigente, EstadoCentro.Vigente, EstadoCentro.Proximo],

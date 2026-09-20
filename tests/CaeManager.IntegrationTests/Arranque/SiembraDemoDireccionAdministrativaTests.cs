@@ -1,4 +1,6 @@
 using System.Text.Json;
+using CaeManager.Application.Centros;
+using CaeManager.Domain.Centros;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -211,7 +213,7 @@ public class SiembraDemoDireccionAdministrativaSobreBaseTests
     private static string Directorio() => Directory.CreateTempSubdirectory("demo-direccion-").FullName;
 
     [Fact]
-    public async Task Siembra_siete_tenants_marcados_y_cuatro_cuentas_con_contrasena_unica_que_no_llega_a_ningun_log()
+    public async Task Siembra_siete_tenants_marcados_y_cinco_cuentas_con_contrasena_unica_que_no_llega_a_ningun_log()
     {
         await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
         var directorio = Directorio();
@@ -232,8 +234,8 @@ public class SiembraDemoDireccionAdministrativaSobreBaseTests
                 .Select(c => (Email: c.GetProperty("email").GetString()!, Contrasena: c.GetProperty("contrasena").GetString()!))
                 .ToList();
 
-            credenciales.Should().HaveCount(4);
-            credenciales.Select(c => c.Contrasena).Distinct().Should().HaveCount(4, "MEDIDO: una contraseña distinta por cuenta");
+            credenciales.Should().HaveCount(5, "MEDIDO: administrador, coordinador, dos Gestores CAE y Dirección CAE");
+            credenciales.Select(c => c.Contrasena).Distinct().Should().HaveCount(5, "MEDIDO: una contraseña distinta por cuenta");
             credenciales.Should().OnlyContain(c => c.Email.EndsWith("@" + Dominio) && !c.Email.EndsWith("@caemanager.local"));
             credenciales.Should().NotContain(c => c.Contrasena == CredencialesDemo.ContrasenaPorDefecto, "nunca la contraseña compartida");
 
@@ -252,6 +254,181 @@ public class SiembraDemoDireccionAdministrativaSobreBaseTests
             registrado.Should().NotBeEmpty("control positivo: el instrumento sí recoge lo que se registra");
             foreach (var (_, contrasena) in credenciales)
                 registrado.Should().NotContain(contrasena, "MEDIDO: ninguna contraseña llega a un log");
+        }
+        finally
+        {
+            Directory.Delete(directorio, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Cada_Tenant_propietario_recibe_su_historial_de_Comunicaciones_sin_ningun_canal_conectado()
+    {
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
+        var directorio = Directorio();
+        try
+        {
+            await SembrarAsync(arnes, directorio);
+
+            await using var bootstrap = arnes.Servicios.GetRequiredService<FabricaContextoDeBootstrap>().Crear();
+            var tenantsPorNombre = await bootstrap.Tenants.ToDictionaryAsync(t => t.Nombre, t => t.Id);
+            var conversaciones = await bootstrap.Conversaciones.IgnoreQueryFilters().GroupBy(c => c.TenantId)
+                .Select(g => new { TenantId = g.Key, Total = g.Count() }).ToListAsync();
+
+            foreach (var rama in SiembraDemoDireccionAdministrativa.Ramas)
+                conversaciones.Single(c => c.TenantId == tenantsPorNombre[rama.NombreTenant]).Total
+                    .Should().Be(14, $"MEDIDO ({rama.NombreTenant}): el historial de piloto, no el de la demo local (38)");
+            conversaciones.Should().NotContain(c => c.TenantId == tenantsPorNombre[SiembraDemoDireccionAdministrativa.NombreTenantOperador],
+                "el Tenant del Operador CAE no tiene Clientes empresariales: sin cartera propia no hay historial");
+
+            // Ningún canal conectado: ni buzón Microsoft 365, ni línea de WhatsApp, ni adjunto sin contenido.
+            (await bootstrap.ConexionesIntegracion.IgnoreQueryFilters().CountAsync()).Should().Be(0, "sin buzón real no se siembra ninguna conexión");
+            (await bootstrap.LineasWhatsApp.IgnoreQueryFilters().CountAsync()).Should().Be(0);
+            (await bootstrap.AdjuntosMensaje.IgnoreQueryFilters().CountAsync()).Should().Be(0, "un adjunto sin contenido falla al descargarlo");
+            (await bootstrap.Conversaciones.IgnoreQueryFilters().CountAsync(c => c.Canal != Domain.Comunicaciones.CanalConversacion.Correo))
+                .Should().Be(0);
+
+            // Direcciones de contacto en el dominio reservado, nunca uno que pueda existir.
+            var contactos = await bootstrap.Conversaciones.IgnoreQueryFilters()
+                .SelectMany(c => c.Participantes).Select(p => p.Email).Distinct().ToListAsync();
+            contactos.Should().NotBeEmpty("control positivo: hay participantes que medir");
+            contactos.Where(e => !e.EndsWith(".local")).Should().OnlyContain(e => e.EndsWith(".example"),
+                "MEDIDO: los contactos simulados van en .example (RFC 2606) o .local");
+
+            // Cada conversación asignada lo está a un Gestor CAE que lleva cartera en ese Tenant.
+            var asignadas = await bootstrap.Conversaciones.IgnoreQueryFilters().Where(c => c.EjecutivoAsignadoId != null)
+                .Select(c => new { c.TenantId, Usuario = c.EjecutivoAsignadoId!.Value }).Distinct().ToListAsync();
+            asignadas.Should().NotBeEmpty();
+            foreach (var rama in SiembraDemoDireccionAdministrativa.Ramas)
+            {
+                var email1 = SiembraDemoDireccionAdministrativa.EmailsDe(Dominio).GestorPrimero;
+                var email2 = SiembraDemoDireccionAdministrativa.EmailsDe(Dominio).GestorSegundo;
+                var permitidos = new List<string>();
+                if (rama.Clientes.Any(c => c.Gestor == GestorDemo.Primero)) permitidos.Add(email1);
+                if (rama.Clientes.Any(c => c.Gestor == GestorDemo.Segundo)) permitidos.Add(email2);
+                var idsPermitidos = await bootstrap.Users.Where(u => permitidos.Contains(u.Email!)).Select(u => u.Id).ToListAsync();
+                asignadas.Where(a => a.TenantId == tenantsPorNombre[rama.NombreTenant]).Select(a => a.Usuario)
+                    .Should().OnlyContain(u => idsPermitidos.Contains(u), $"MEDIDO ({rama.NombreTenant}): solo Gestores CAE con cartera en el Tenant");
+            }
+        }
+        finally
+        {
+            Directory.Delete(directorio, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Cada_Tenant_propietario_recibe_su_ciclo_documental_firmado_por_Gestores_CAE_del_lote()
+    {
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
+        var directorio = Directorio();
+        try
+        {
+            await SembrarAsync(arnes, directorio);
+
+            await using var bootstrap = arnes.Servicios.GetRequiredService<FabricaContextoDeBootstrap>().Crear();
+            var tenantsPorNombre = await bootstrap.Tenants.ToDictionaryAsync(t => t.Nombre, t => t.Id);
+            var revisiones = await bootstrap.RevisionesIaDocumento.IgnoreQueryFilters().GroupBy(r => r.TenantId)
+                .Select(g => new { TenantId = g.Key, Total = g.Count() }).ToListAsync();
+            var plantillas = await bootstrap.PlantillasDocumento.IgnoreQueryFilters().GroupBy(p => p.TenantId)
+                .Select(g => new { TenantId = g.Key, Total = g.Count() }).ToListAsync();
+            var generados = await bootstrap.DocumentosGenerados.IgnoreQueryFilters().GroupBy(p => p.TenantId)
+                .Select(g => new { TenantId = g.Key, Total = g.Count() }).ToListAsync();
+
+            foreach (var rama in SiembraDemoDireccionAdministrativa.Ramas)
+            {
+                var id = tenantsPorNombre[rama.NombreTenant];
+                revisiones.Single(r => r.TenantId == id).Total.Should().Be(5, $"MEDIDO ({rama.NombreTenant}): tres pendientes y dos resueltas");
+                plantillas.Single(p => p.TenantId == id).Total.Should().Be(2, $"MEDIDO ({rama.NombreTenant}): una confirmada y una en borrador");
+                generados.Single(g => g.TenantId == id).Total.Should().Be(2, $"MEDIDO ({rama.NombreTenant}): con y sin avisos");
+            }
+
+            // Aprobaciones manuales firmadas por un Gestor CAE del Tenant, no por «el primero de la base».
+            var firmantes = await bootstrap.AprobacionesDocumento.IgnoreQueryFilters().Where(a => a.UsuarioId != null)
+                .Select(a => a.UsuarioId!.Value).Distinct().ToListAsync();
+            var gestores = await bootstrap.Users
+                .Where(u => u.Email == SiembraDemoDireccionAdministrativa.EmailsDe(Dominio).GestorPrimero
+                            || u.Email == SiembraDemoDireccionAdministrativa.EmailsDe(Dominio).GestorSegundo)
+                .Select(u => u.Id).ToListAsync();
+            firmantes.Should().NotBeEmpty("control positivo: hay aprobaciones manuales que medir");
+            firmantes.Should().OnlyContain(f => gestores.Contains(f));
+        }
+        finally
+        {
+            Directory.Delete(directorio, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task El_ciclo_documental_y_las_comunicaciones_no_cambian_el_estado_de_ningun_centro_de_la_matriz()
+    {
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
+        var directorio = Directorio();
+        try
+        {
+            await SembrarAsync(arnes, directorio);
+
+            Dictionary<string, Guid> tenants;
+            await using (var bootstrap = arnes.Servicios.GetRequiredService<FabricaContextoDeBootstrap>().Crear())
+                tenants = await bootstrap.Tenants.ToDictionaryAsync(t => t.Nombre, t => t.Id);
+
+            var medidos = 0;
+            foreach (var rama in SiembraDemoDireccionAdministrativa.Ramas)
+            {
+                using var ambito = arnes.Servicios.CreateScope();
+                var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+                using (Application.Common.AmbitoTenantExplicito.Establecer(tenants[rama.NombreTenant]))
+                {
+                    foreach (var cliente in rama.Clientes)
+                    {
+                        var clienteId = await contexto.Empresas
+                            .Where(e => e.EsCritico != null && e.RazonSocial == cliente.RazonSocial).Select(e => e.Id).SingleAsync();
+                        var centros = await contexto.Centros.Where(c => c.ClienteId == clienteId).OrderBy(c => c.CodigoCentro).ToListAsync();
+                        var servicio = new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto);
+                        var resultado = await servicio.CalcularAsync(centros.Select(c => c.Id).ToList(), CancellationToken.None);
+
+                        centros.Select(c => resultado[c.Id].Estado).Should().Equal(
+                            EscenariosDireccionDemoTests.EstadosEsperados[cliente.Escenario],
+                            $"MEDIDO ({cliente.RazonSocial}, {cliente.Escenario}): la matriz de estados sigue intacta tras sembrar el ciclo documental");
+                        medidos++;
+                    }
+                }
+            }
+
+            medidos.Should().Be(SiembraDemoDireccionAdministrativa.Ramas.Sum(r => r.Clientes.Count), "control positivo: se midieron todos los Clientes empresariales");
+        }
+        finally
+        {
+            Directory.Delete(directorio, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Direccion_CAE_entra_en_cada_Tenant_propietario_solo_como_Consulta_delegada()
+    {
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
+        var directorio = Directorio();
+        try
+        {
+            await SembrarAsync(arnes, directorio);
+
+            await using var bootstrap = arnes.Servicios.GetRequiredService<FabricaContextoDeBootstrap>().Crear();
+            var direccion = await bootstrap.Users.SingleAsync(u => u.Email == SiembraDemoDireccionAdministrativa.EmailsDe(Dominio).Direccion);
+            var tenantsPorNombre = await bootstrap.Tenants.ToDictionaryAsync(t => t.Nombre, t => t.Id);
+            var operadorId = tenantsPorNombre[SiembraDemoDireccionAdministrativa.NombreTenantOperador];
+
+            direccion.TenantId.Should().Be(operadorId, "MEDIDO: Dirección CAE pertenece al Tenant del Operador CAE");
+            (await bootstrap.UserRoles.Where(r => r.UserId == direccion.Id).Join(bootstrap.Roles, r => r.RoleId, r => r.Id, (_, r) => r.Name).ToListAsync())
+                .Should().Equal(Roles.DireccionCae);
+
+            var asignaciones = await bootstrap.AsignacionesOperadorDelegado.Where(a => a.UsuarioId == direccion.Id).ToListAsync();
+            asignaciones.Should().HaveCount(SiembraDemoDireccionAdministrativa.Ramas.Count, "MEDIDO: una por Tenant propietario");
+            asignaciones.Should().OnlyContain(a => a.Rol == Roles.Consulta,
+                "MEDIDO: DireccionCae no es un rol delegable, y la autorización no se ha ampliado para darle escritura");
+
+            var delegaciones = await bootstrap.DelegacionesTenant.Where(d => asignaciones.Select(a => a.DelegacionTenantId).Contains(d.Id)).ToListAsync();
+            delegaciones.Select(d => d.TenantClienteId).Should().BeEquivalentTo(
+                SiembraDemoDireccionAdministrativa.Ramas.Select(r => tenantsPorNombre[r.NombreTenant]));
         }
         finally
         {
@@ -491,7 +668,7 @@ public class SiembraDemoDireccionAdministrativaSobreBaseTests
             var fichero = Directory.GetFiles(directorio).Should().ContainSingle().Subject;
             using var json = JsonDocument.Parse(await File.ReadAllTextAsync(fichero));
             var cuentas = json.RootElement.GetProperty("cuentas").EnumerateArray().ToList();
-            cuentas.Should().HaveCount(4);
+            cuentas.Should().HaveCount(5);
 
             using var otro = arnes.Servicios.CreateScope();
             var userManager = otro.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
