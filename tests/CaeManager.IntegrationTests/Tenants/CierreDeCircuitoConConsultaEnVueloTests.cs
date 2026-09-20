@@ -41,14 +41,46 @@ namespace CaeManager.IntegrationTests.Tenants;
 /// <c>Program.cs</c> para esta propiedad—, así que quitar el handler o vaciarlo
 /// deja el test en rojo.
 /// </para>
+///
+/// <para>
+/// <b>La consulta en vuelo no se espera: se retiene.</b> La versión anterior
+/// lanzaba <c>pg_sleep(0.4)</c> y sondeaba <c>pg_stat_activity</c> hasta verla —
+/// pero la única ventana observable era la de la propia consulta (0,4 s), y el
+/// observador abría una conexión nueva DENTRO de esa ventana. Medido el
+/// 2026-09-21 con carga de CPU: la apertura tardaba 430–640 ms, más que la
+/// consulta, y el test moría con «La consulta lenta no llegó a estar en vuelo en
+/// el servidor» sin haber llegado a comprobar nada (consulta ya terminada, en
+/// <c>RanToCompletion</c>; así salió la PR #766 de la cola de fusión, run
+/// 35540032594). Ahora la consulta bloquea en el servidor sobre un
+/// <c>pg_advisory_xact_lock</c> cuya llave tiene tomada el propio test desde
+/// otra conexión: está en vuelo hasta que el test decide soltarla, el estado que
+/// se sondea (una petición de bloqueo sin conceder en <c>pg_locks</c>) es
+/// persistente y no puede perderse, y la observación no depende de lo que tarde
+/// nada. Mismo patrón que
+/// <c>SelectorTemaGuardadoTrasEscrituraConcurrenteTests</c>: el test controla el
+/// momento en que se suelta lo retenido.
+/// </para>
+///
+/// <para>
+/// La propiedad se comprueba por ORDEN, no por tiempo: una sonda registrada en el
+/// scope anota si la llave ya estaba soltada cuando el contenedor la dispuso. Si
+/// el cierre no espera a la consulta, la sonda se dispone con la llave todavía
+/// tomada y el rojo sale por esa aserción, no por un plazo.
+/// </para>
 /// </summary>
 public class CierreDeCircuitoConConsultaEnVueloTests : IAsyncLifetime
 {
     private const int Vueltas = 8;
 
+    // Llave del bloqueo consultivo que retiene la consulta (par de int4: objsubid = 2 en
+    // pg_locks). Aleatoria: el bloqueo es de la base y esa base la comparten otros tests.
+    private readonly int _llaveA = Random.Shared.Next(1, int.MaxValue);
+    private readonly int _llaveB = Random.Shared.Next(1, int.MaxValue);
+    private readonly MarcaDeLiberacion _marca = new();
     private readonly string _nombreAplicacion = $"cierre-circuito-{Guid.NewGuid():N}";
     private readonly string _cadenaDeTrafico;
-    private readonly string _cadenaDeObservacion;
+    private readonly string _cadenaDeControl;
+    private NpgsqlConnection _control = default!;
     private ServiceProvider _servicios = default!;
 
     public CierreDeCircuitoConConsultaEnVueloTests()
@@ -68,12 +100,17 @@ public class CierreDeCircuitoConConsultaEnVueloTests : IAsyncLifetime
         _cadenaDeTrafico = constructor.ConnectionString;
 
         constructor.Pooling = false;
-        constructor.ApplicationName = _nombreAplicacion + "-observador";
-        _cadenaDeObservacion = constructor.ConnectionString;
+        constructor.ApplicationName = _nombreAplicacion + "-control";
+        _cadenaDeControl = constructor.ConnectionString;
     }
 
-    public Task InitializeAsync()
+    public async Task InitializeAsync()
     {
+        // La conexión de control se abre AQUÍ, antes de cualquier consulta: abrirla dentro del
+        // test —tras lanzar la consulta— era lo que perdía la carrera contra su ventana.
+        _control = new NpgsqlConnection(_cadenaDeControl);
+        await _control.OpenAsync();
+
         var servicios = new ServiceCollection();
         servicios.AddSingleton<IDataProtectionProvider>(new EphemeralDataProtectionProvider());
         servicios.AddSingleton<ITenantActual>(new TenantActualAmbiental { TenantId = Guid.NewGuid() });
@@ -84,13 +121,17 @@ public class CierreDeCircuitoConConsultaEnVueloTests : IAsyncLifetime
             _cadenaDeTrafico, npgsql => npgsql.EnableRetryOnFailure(6, TimeSpan.FromSeconds(30), null)));
         // Igual que Program.cs.
         servicios.AddScoped<CircuitHandler, LiberacionDeAccesoADatosAlCerrarCircuito>();
+        servicios.AddSingleton(_marca);
+        servicios.AddScoped<SondaDeDisposicion>();
 
         _servicios = servicios.BuildServiceProvider();
-        return Task.CompletedTask;
     }
 
     public async Task DisposeAsync()
     {
+        // Cerrar la conexión de control suelta el bloqueo si el test murió reteniéndolo.
+        await _control.DisposeAsync();
+
         // Acotado: si el escenario dejó una conexión rota, que la limpieza no cuelgue la suite.
         await Task.WhenAny(_servicios.DisposeAsync().AsTask(), Task.Delay(TimeSpan.FromSeconds(20)));
         NpgsqlConnection.ClearPool(new NpgsqlConnection(_cadenaDeTrafico));
@@ -101,21 +142,54 @@ public class CierreDeCircuitoConConsultaEnVueloTests : IAsyncLifetime
     {
         for (var vuelta = 0; vuelta < Vueltas; vuelta++)
         {
+            // La llave, en poder del test ANTES de lanzar la consulta: en cuanto la consulta
+            // llegue al servidor se queda esperándola.
+            await EjecutarEnControlAsync($"select pg_advisory_lock({_llaveA}, {_llaveB})");
+            _marca.Liberada = false;
+
             var scope = _servicios.CreateAsyncScope();
             var puerta = scope.ServiceProvider.GetRequiredService<PuertaAccesoDatos>();
             var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            // Se resuelve DESPUÉS del contexto: el contenedor dispone en orden inverso, así que
+            // la sonda se dispone antes que el DbContext y anota si la llave ya se soltó.
+            var sonda = scope.ServiceProvider.GetRequiredService<SondaDeDisposicion>();
 
             // Como un componente que se inicializa: la consulta entra por la puerta.
             var consulta = Task.Run(() => puerta.EjecutarAsync(() => contexto.Database
-                .SqlQueryRaw<int>("select 1 as \"Value\" from pg_sleep(0.4)")
+                .SqlQueryRaw<int>($"select 1 as \"Value\" from pg_advisory_xact_lock({_llaveA}, {_llaveB})")
                 .ToListAsync()));
 
-            await EsperarConsultaEnVueloAsync();
+            await EsperarConsultaRetenidaEnElServidorAsync(consulta, vuelta);
 
-            await ConTope(CerrarCircuitoComoElFrameworkAsync(scope), "el cierre del circuito (disposición del scope)", vuelta);
+            // El cierre arranca con la consulta retenida —en vuelo— y sin poder terminar. Va en
+            // su propia tarea: si una versión rota dispusiera el contexto bloqueándose, no debe
+            // bloquear también al test.
+            var cierre = Task.Run(() => CerrarCircuitoComoElFrameworkAsync(scope));
 
-            var resultado = await ConTope(consulta, "la consulta en vuelo", vuelta);
-            resultado.Should().BeEquivalentTo(new[] { 1 },
+            // Barrera: o el cierre ya cerró la puerta (y queda esperando a la consulta), o ya
+            // dispuso el scope (una versión que no espera). Ambos estados son definitivos.
+            await EsperarAsync(() => puerta.Cerrada || sonda.Eliminada,
+                "que el cierre del circuito cerrara la puerta o dispusiera el scope", vuelta);
+
+            _marca.Liberada = true;
+            await EjecutarEnControlAsync($"select pg_advisory_unlock({_llaveA}, {_llaveB})");
+
+            // Sin lanzar aquí: una versión rota puede colgar o romper cierre y consulta, y el rojo
+            // tiene que salir por las aserciones de abajo, no por un tiempo agotado.
+            await Task.WhenAny(Task.WhenAll(cierre, consulta), Task.Delay(TimeSpan.FromSeconds(30)));
+
+            sonda.LiberadaAlDisponerse.Should().BeTrue(
+                "el scope —y con él el DbContext y su conexión— se dispuso con la consulta todavía retenida en " +
+                $"el servidor: el cierre del circuito NO esperó a la consulta en vuelo (vuelta {vuelta})");
+            sonda.Eliminada.Should().BeTrue(
+                $"con la consulta ya liberada el cierre tiene que haber terminado disponiendo el scope (vuelta {vuelta})");
+            cierre.IsCompletedSuccessfully.Should().BeTrue(
+                $"el cierre termina cuando la consulta termina (vuelta {vuelta}); estado: {cierre.Status}, " +
+                cierre.Exception?.GetBaseException().Message);
+            consulta.IsCompletedSuccessfully.Should().BeTrue(
+                $"la consulta ya estaba en vuelo al cerrar el circuito y tenía que terminar (vuelta {vuelta}); " +
+                $"estado: {consulta.Status}, {consulta.Exception?.GetBaseException().Message}");
+            consulta.Result.Should().BeEquivalentTo(new[] { 1 },
                 $"la consulta ya estaba en vuelo al cerrar el circuito y tenía que terminar (vuelta {vuelta})");
 
             // El pool no ha recibido una conexión desincronizada: el circuito siguiente
@@ -146,28 +220,48 @@ public class CierreDeCircuitoConConsultaEnVueloTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Espera a que el servidor vea la consulta lenta ejecutándose: sin esto, el
-    /// cierre podría llegar antes de que la consulta arrancara y el test no
-    /// probaría nada.
+    /// Espera a que la consulta esté EN VUELO en el servidor: una petición de
+    /// <c>pg_advisory_xact_lock</c> sin conceder en <c>pg_locks</c>, que solo puede
+    /// existir con la consulta ya ejecutándose y bloqueada. Es un estado persistente
+    /// —la consulta no avanza hasta que el test suelta la llave—, así que sondearlo no
+    /// puede llegar tarde; el plazo solo acota un fallo real (la consulta nunca llega).
+    /// Si la consulta termina o falla antes de quedar retenida, el fallo es ese, no un tiempo.
     /// </summary>
-    private async Task EsperarConsultaEnVueloAsync()
+    private async Task EsperarConsultaRetenidaEnElServidorAsync(Task consulta, int vuelta)
+    {
+        var sql = "select count(*) from pg_locks where locktype = 'advisory' and not granted " +
+                  $"and classid::bigint = {_llaveA} and objid::bigint = {_llaveB} and objsubid = 2";
+
+        await EsperarAsync(() =>
+        {
+            if (consulta.IsCompleted)
+                throw new InvalidOperationException(
+                    $"La consulta terminó sin haber quedado retenida en el servidor (vuelta {vuelta}); estado: " +
+                    $"{consulta.Status}, {consulta.Exception?.GetBaseException().Message}");
+
+            using var comando = _control.CreateCommand();
+            comando.CommandText = sql;
+            return (long)comando.ExecuteScalar()! > 0;
+        }, "que la consulta quedara retenida en el servidor", vuelta);
+    }
+
+    private async Task EjecutarEnControlAsync(string sql)
+    {
+        await using var comando = _control.CreateCommand();
+        comando.CommandText = sql;
+        await comando.ExecuteNonQueryAsync();
+    }
+
+    private static async Task EsperarAsync(Func<bool> condicion, string que, int vuelta)
     {
         var cronometro = Stopwatch.StartNew();
-        await using var conexion = new NpgsqlConnection(_cadenaDeObservacion);
-        await conexion.OpenAsync();
-
         while (cronometro.Elapsed < TimeSpan.FromSeconds(10))
         {
-            await using var comando = conexion.CreateCommand();
-            comando.CommandText =
-                "select count(*) from pg_stat_activity where application_name = @app and state = 'active' and query like '%pg_sleep%'";
-            comando.Parameters.AddWithValue("app", _nombreAplicacion);
-            if ((long)(await comando.ExecuteScalarAsync())! > 0) return;
-
+            if (condicion()) return;
             await Task.Delay(10);
         }
 
-        throw new TimeoutException("La consulta lenta no llegó a estar en vuelo en el servidor.");
+        throw new TimeoutException($"No se llegó a observar {que} (vuelta {vuelta}).");
     }
 
     /// <summary>
@@ -176,16 +270,38 @@ public class CierreDeCircuitoConConsultaEnVueloTests : IAsyncLifetime
     /// </summary>
     private static async Task<T> ConTope<T>(Task<T> tarea, string que, int vuelta)
     {
-        await ConTope((Task)tarea, que, vuelta);
-        return await tarea;
-    }
-
-    private static async Task ConTope(Task tarea, string que, int vuelta)
-    {
         var terminada = await Task.WhenAny(tarea, Task.Delay(TimeSpan.FromSeconds(30)));
         if (terminada != tarea)
             throw new TimeoutException($"{que} se quedó colgada más de 30 s (vuelta {vuelta}).");
 
-        await tarea;
+        return await tarea;
+    }
+
+    /// <summary>Si la llave ya se soltó: lo lee la sonda al disponerse el scope.</summary>
+    private sealed class MarcaDeLiberacion
+    {
+        public volatile bool Liberada;
+    }
+
+    /// <summary>
+    /// Servicio del scope que anota CUÁNDO se dispone el scope respecto a la llave.
+    /// Un test que solo mirase el resultado de la consulta no vería que el scope se
+    /// dispuso con ella en vuelo cuando la consulta acaba bien de todos modos.
+    /// </summary>
+    private sealed class SondaDeDisposicion(MarcaDeLiberacion marca) : IAsyncDisposable
+    {
+        private volatile bool _eliminada;
+        private volatile bool _liberadaAlDisponerse;
+
+        public bool Eliminada => _eliminada;
+
+        public bool LiberadaAlDisponerse => _liberadaAlDisponerse;
+
+        public ValueTask DisposeAsync()
+        {
+            _liberadaAlDisponerse = marca.Liberada;
+            _eliminada = true;
+            return ValueTask.CompletedTask;
+        }
     }
 }
