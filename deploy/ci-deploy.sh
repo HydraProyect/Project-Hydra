@@ -51,6 +51,79 @@ set -euo pipefail
 # que en el momento en que `main` empieza a correr el fichero ya está
 # parseado entero y da igual que cambie en disco a partir de ahí.
 
+# D6 (decisión del propietario, 2026-09-19): una capacidad por clave SSH, fijada
+# del lado del servidor. Hasta ahora había UNA clave (secreto de repositorio) que
+# aceptaba los cuatro modos: la aprobación de `environment: produccion` no
+# protegía la clave, y cualquier workflow de main podía desplegar a producción.
+# Ahora cada clave lleva en /root/.ssh/authorized_keys su propio argumento en el
+# comando forzado, y ESE argumento —que el cliente SSH no controla— decide qué
+# modos admite esta invocación:
+#
+#   command="/opt/talveg/deploy/ci-deploy.sh --clave staging"     -> staging, muestreo-memoria
+#   command="/opt/talveg/deploy/ci-deploy.sh --clave produccion"  -> produccion, secretos
+#
+# Sin argumentos (la clave única de hoy) se comporta como siempre: es el MODO DE
+# COMPATIBILIDAD que mantiene vivo el despliegue mientras las dos claves nuevas
+# no están instaladas. Se retira cuando la clave antigua deja de estar en
+# authorized_keys y VPS_SSH_KEY sale de GitHub (RUNBOOK-CLAVES-SSH-D6-P32, último
+# paso): entonces se borra MODOS_SIN_ARGUMENTO y la rama `0)` de
+# modos_permitidos_por_clave, y un `ci-deploy.sh` sin `--clave` pasa a
+# rechazarse. Cualquier otra forma de argumentos se rechaza (falla cerrado):
+# una errata en authorized_keys nunca amplía los permisos de la clave.
+# `muestreo-memoria` lo implementa #741 (REC-196/P33); mientras esa PR no esté en
+# main, el `case` de main() lo rechaza con «Entorno no permitido» aunque la
+# guarda lo deje pasar, así que no hay capacidad real que abusar. Se declara ya
+# aquí para que #741 no tenga que tocar esta lista de seguridad al entrar
+# (revisión de Codex: aceptada la observación, mantenida la lista).
+MODOS_CLAVE_STAGING="staging muestreo-memoria"
+MODOS_CLAVE_PRODUCCION="produccion secretos"
+MODOS_SIN_ARGUMENTO="staging produccion secretos muestreo-memoria"
+
+# Imprime la lista de modos que admite la invocación con estos argumentos
+# (los de `ci-deploy.sh`, no los del cliente SSH) o devuelve 1 si no son una
+# forma reconocida.
+modos_permitidos_por_clave() {
+    case "$#" in
+        0) echo "$MODOS_SIN_ARGUMENTO" ;;
+        2)
+            [ "$1" = "--clave" ] || return 1
+            case "$2" in
+                staging)    echo "$MODOS_CLAVE_STAGING" ;;
+                produccion) echo "$MODOS_CLAVE_PRODUCCION" ;;
+                *)          return 1 ;;
+            esac
+            ;;
+        *) return 1 ;;
+    esac
+}
+
+# Primer token de SSH_ORIGINAL_COMMAND (leído igual que main) contra la
+# capacidad de la clave. Recibe los argumentos de `ci-deploy.sh`. Devuelve 1
+# —con mensaje— si el modo no está entre los de la clave: sin efectos secundarios,
+# se llama antes del cerrojo, del checkout y de cualquier otra cosa.
+exigir_modo_permitido_para_clave() {
+    local modo permitidos candidato
+    read -r modo _ <<< "${SSH_ORIGINAL_COMMAND:-}"
+    if ! permitidos="$(modos_permitidos_por_clave "$@")"; then
+        echo "Argumentos del comando forzado no válidos ($*): se espera nada o '--clave staging|produccion' — revisa authorized_keys." >&2
+        return 1
+    fi
+    for candidato in $permitidos; do
+        if [ "$candidato" = "$modo" ]; then
+            return 0
+        fi
+    done
+    case " $MODOS_SIN_ARGUMENTO " in
+        *" $modo "*)
+            echo "Modo '$modo' no permitido para esta clave ('$*' admite: $permitidos)." >&2
+            ;;
+        *)
+            echo "Entorno no permitido: '${modo:-<vacio>}'" >&2
+            ;;
+    esac
+    return 1
+}
+
 # REC-014/P37 (transición documentada, opción "secretos de GitHub inyectados
 # en el despliegue"): actualiza en `.env` SOLO las claves que llegan por
 # stdin, dejando cualquier otra línea del fichero intacta. Vive en su propia
@@ -506,6 +579,7 @@ verificar_secretos_de_stripe() {
 }
 
 main() {
+exigir_modo_permitido_para_clave "$@" || exit 1
 
 read -r ENTORNO SHA <<< "${SSH_ORIGINAL_COMMAND:-}"
 
