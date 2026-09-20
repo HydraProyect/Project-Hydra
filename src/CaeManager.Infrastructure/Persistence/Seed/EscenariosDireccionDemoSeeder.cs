@@ -103,12 +103,15 @@ public static class EscenariosDireccionDemoSeeder
             ?? throw new InvalidOperationException(
                 "Falta el administrador del Operador CAE de la demo: esta siembra debe correr después de DelegacionDemoSeeder.");
 
-        var equipo = await SembrarEquipoAsync(dbContext, userManager, credenciales, logger, tenantOperadorId, cancellationToken);
+        var equipo = await SembrarEquipoAsync(
+            dbContext, userManager, _ => credenciales, EmailsEquipo.Local, logger, tenantOperadorId, cancellationToken);
 
         foreach (var rama in CatalogoEscenariosDireccionDemo.Ramas)
         {
             var tenantPropietarioId = await DelegacionDemoSeeder.AprovisionarTenantAsync(
                 dbContext, rama.NombreTenant, PerfilVocabularioTenant.ClienteDirecto, logger, cancellationToken);
+            // Duff y Pizza Planet llevan un nombre sin sufijo «demo»: la retirada exige además este marcador.
+            await SiembraDemoDireccionAdministrativa.MarcarComoDemoAsync(dbContext, tenantPropietarioId, cancellationToken);
 
             await DelegacionDemoSeeder.CrearDelegacionAsync(
                 dbContext, tenantOperadorId, tenantPropietarioId, administrador, logger, rama.NombreTenant, cancellationToken);
@@ -125,18 +128,25 @@ public static class EscenariosDireccionDemoSeeder
         public ApplicationUser De(GestorDemo gestor) => gestor == GestorDemo.Primero ? GestorPrimero : GestorSegundo;
     }
 
+    /// <summary>Las tres direcciones del equipo: las de la demo local, o las de un dominio propio en la siembra administrativa.</summary>
+    internal sealed record EmailsEquipo(string Coordinador, string GestorPrimero, string GestorSegundo)
+    {
+        public static EmailsEquipo Local { get; } = new(EmailCoordinador, EmailGestorPrimero, EmailGestorSegundo);
+    }
+
+    /// <param name="credencialesDe">Contraseña de cada cuenta por su email: la misma para todas en la demo local (contraseña pública por diseño), una distinta y aleatoria por cuenta en la siembra administrativa.</param>
     internal static async Task<EquipoOperador> SembrarEquipoAsync(
-        CaeManagerDbContext dbContext, UserManager<ApplicationUser> userManager, CredencialesDemo credenciales,
-        ILogger logger, Guid tenantOperadorId, CancellationToken cancellationToken)
+        CaeManagerDbContext dbContext, UserManager<ApplicationUser> userManager, Func<string, CredencialesDemo> credencialesDe,
+        EmailsEquipo emails, ILogger logger, Guid tenantOperadorId, CancellationToken cancellationToken)
     {
         async Task<ApplicationUser> CrearAsync(string email, string nombre, string rol) =>
             await DelegacionDemoSeeder.CrearUsuarioConsultoraAsync(
-                dbContext, userManager, credenciales, logger, tenantOperadorId, email, nombre, rol, cancellationToken)
+                dbContext, userManager, credencialesDe(email), logger, tenantOperadorId, email, nombre, rol, cancellationToken)
             ?? throw new InvalidOperationException($"No se pudo sembrar el usuario {email} del Operador CAE de la demo.");
 
-        var coordinador = await CrearAsync(EmailCoordinador, "Elena Robles (Coordinadora CAE)", Roles.CoordinadorCae);
-        var primero = await CrearAsync(EmailGestorPrimero, "Marta Villalba (Gestora CAE)", Roles.GestorCae);
-        var segundo = await CrearAsync(EmailGestorSegundo, "Iván Cortés (Gestor CAE)", Roles.GestorCae);
+        var coordinador = await CrearAsync(emails.Coordinador, "Elena Robles (Coordinadora CAE)", Roles.CoordinadorCae);
+        var primero = await CrearAsync(emails.GestorPrimero, "Marta Villalba (Gestora CAE)", Roles.GestorCae);
+        var segundo = await CrearAsync(emails.GestorSegundo, "Iván Cortés (Gestor CAE)", Roles.GestorCae);
 
         // El alcance del Coordinador CAE sale de quién le tiene como
         // coordinador (AlcanceDatosService.ObtenerClienteIdsParaCoordinadorAsync),
