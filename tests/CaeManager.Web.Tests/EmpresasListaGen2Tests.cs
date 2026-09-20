@@ -138,6 +138,7 @@ public class EmpresasListaGen2Tests : BunitContext
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
+        Services.AddEstadoDePantallaPersistidoParaPruebas();
         Services.AddScoped<IValidator<CrearEmpresaCommand>>(_ => new InlineValidator<CrearEmpresaCommand>());
     }
 

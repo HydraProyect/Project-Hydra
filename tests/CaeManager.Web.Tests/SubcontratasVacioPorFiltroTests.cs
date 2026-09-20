@@ -93,6 +93,7 @@ public class SubcontratasVacioPorFiltroTests : BunitContext
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
+        Services.AddEstadoDePantallaPersistidoParaPruebas();
         Services.AddScoped<IValidator<CrearSubcontrataCommand>>(_ => new InlineValidator<CrearSubcontrataCommand>());
 
         // El filtro es [SupplyParameterFromQuery]: se llega a él navegando, no

@@ -11,6 +11,7 @@ using CaeManager.Domain.Tenants;
 using CaeManager.Web.Components;
 using CaeManager.Web.Features.Documentos;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Components.EstadoPersistido;
 using CaeManager.Web.Components.Workspace;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
@@ -144,7 +145,21 @@ public partial class Empresas : ComponentBase, IDisposable
     public string? EstadoInicial { get; set; }
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject] private FabricaEstadoDePantallaPersistido FabricaEstadoPersistido { get; set; } = default!;
     [Inject] private IValidator<CrearEmpresaCommand> ValidadorCrear { get; set; } = default!;
+
+    /// <summary>
+    /// Lo que el prerender deja al circuito para que este no repita las
+    /// consultas de la pantalla (ver <see cref="EstadoDePantallaPersistido{T}"/>).
+    /// Solo lo que la pantalla ya enseña.
+    /// </summary>
+    private sealed record InstantaneaEmpresas(
+        string TituloPagina, int TotalElementos, List<EmpresaListaDto> Elementos);
+
+    private EstadoDePantallaPersistido<InstantaneaEmpresas>? _estadoPersistido;
+
+    private static string HuellaConsulta(string busqueda, string estado, int pagina, int tamanoPagina) =>
+        $"b={busqueda}|e={estado}|p={pagina}|n={tamanoPagina}";
 
     /// <summary>
     /// Acción pedida por URL: <c>crear</c> (palette "Crear empresa «nombre»",
@@ -174,6 +189,17 @@ public partial class Empresas : ComponentBase, IDisposable
     {
         _busqueda = TerminoBusquedaInicial ?? string.Empty;
         _estadoFiltro = EstadoDesdeUrl();
+
+        _estadoPersistido = FabricaEstadoPersistido.Crear<InstantaneaEmpresas>("empresas");
+        var recogida = await _estadoPersistido.TomarAsync(HuellaConsulta(_busqueda, _estadoFiltro, _pagina, _tamanoPagina));
+        if (recogida is not null)
+        {
+            _tituloPagina = recogida.TituloPagina;
+            _totalElementos = recogida.TotalElementos;
+            _elementosPagina = recogida.Elementos;
+            _cargando = false;
+            return;
+        }
 
         var perfil = await Mediator.Send(new ObtenerPerfilVocabularioActualQuery());
         _tituloPagina = perfil == PerfilVocabularioTenant.ClienteDirecto ? "Mi empresa" : "Empresas";
@@ -253,6 +279,7 @@ public partial class Empresas : ComponentBase, IDisposable
             return;
 
         _desechado = true;
+        _estadoPersistido?.Dispose();
         _ciclo.Cancel();
         _ciclo.Dispose();
     }
@@ -276,6 +303,8 @@ public partial class Empresas : ComponentBase, IDisposable
             TamanoPagina: _tamanoPagina,
             EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro);
 
+        var huellaConsulta = HuellaConsulta(_busqueda, _estadoFiltro, _pagina, _tamanoPagina);
+
         _cargando = true;
         _errorCarga = false;
         StateHasChanged();
@@ -288,6 +317,8 @@ public partial class Empresas : ComponentBase, IDisposable
 
             _totalElementos = resultado.TotalElementos;
             _elementosPagina = resultado.Elementos.ToList();
+            _estadoPersistido?.Guardar(
+                huellaConsulta, new InstantaneaEmpresas(_tituloPagina, _totalElementos, [.. _elementosPagina]));
             _seleccionados.Clear();
             _expandidos.Clear();
             _clientesPorEmpresa.Clear();

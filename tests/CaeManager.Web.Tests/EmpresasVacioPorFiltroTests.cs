@@ -88,6 +88,7 @@ public class EmpresasVacioPorFiltroTests : BunitContext
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
+        Services.AddEstadoDePantallaPersistidoParaPruebas();
         Services.AddScoped<IValidator<CrearEmpresaCommand>>(_ => new InlineValidator<CrearEmpresaCommand>());
 
         // Los filtros son [SupplyParameterFromQuery]: no se pasan como

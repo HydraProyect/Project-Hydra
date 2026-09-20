@@ -10,13 +10,14 @@ using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Tenants;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Components.EstadoPersistido;
 using CaeManager.Web.Components.Workspace;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
 
 namespace CaeManager.Web.Features.Subcontratas.Pages;
 
-public partial class Subcontratas : ComponentBase
+public partial class Subcontratas : ComponentBase, IDisposable
 {
     // Igual que Centros.razor.cs (Centro 360): QuickGrid no soporta filas
     // expandibles, así que la paginación se gestiona a mano — la Query sigue
@@ -101,11 +102,38 @@ public partial class Subcontratas : ComponentBase
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private IValidator<CrearSubcontrataCommand> ValidadorCrear { get; set; } = default!;
+    [Inject] private FabricaEstadoDePantallaPersistido FabricaEstadoPersistido { get; set; } = default!;
+
+    /// <summary>
+    /// Lo que el prerender deja al circuito para que este no repita la
+    /// consulta de la lista (ver <see cref="EstadoDePantallaPersistido{T}"/>).
+    /// Solo lo que la pantalla ya enseña.
+    /// </summary>
+    private sealed record InstantaneaSubcontratas(int TotalElementos, List<SubcontrataListaDto> Elementos);
+
+    private EstadoDePantallaPersistido<InstantaneaSubcontratas>? _estadoPersistido;
+
+    private static string HuellaConsulta(string busqueda, int pagina, int tamanoPagina) =>
+        $"b={busqueda}|p={pagina}|n={tamanoPagina}";
+
+    public void Dispose() => _estadoPersistido?.Dispose();
 
     protected override async Task OnInitializedAsync()
     {
         _busqueda = TerminoBusquedaInicial ?? string.Empty;
-        await CargarAsync();
+
+        _estadoPersistido = FabricaEstadoPersistido.Crear<InstantaneaSubcontratas>("subcontratas");
+        var recogida = await _estadoPersistido.TomarAsync(HuellaConsulta(_busqueda, _pagina, _tamanoPagina));
+        if (recogida is not null)
+        {
+            _totalElementos = recogida.TotalElementos;
+            _elementosPagina = recogida.Elementos;
+            _cargando = false;
+        }
+        else
+        {
+            await CargarAsync();
+        }
 
         if (Accion == "crear")
             await AbrirCrear();
@@ -127,6 +155,8 @@ public partial class Subcontratas : ComponentBase
         if (resetPagina)
             _pagina = 1;
 
+        var huellaConsulta = HuellaConsulta(_busqueda, _pagina, _tamanoPagina);
+
         _cargando = true;
         _errorCarga = false;
         StateHasChanged();
@@ -140,6 +170,8 @@ public partial class Subcontratas : ComponentBase
 
             _totalElementos = resultado.TotalElementos;
             _elementosPagina = resultado.Elementos.ToList();
+            _estadoPersistido?.Guardar(
+                huellaConsulta, new InstantaneaSubcontratas(_totalElementos, [.. _elementosPagina]));
             _seleccionados.Clear();
             _expandidos.Clear();
             _idEnfocado = null;
