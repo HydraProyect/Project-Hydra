@@ -1,6 +1,6 @@
 using CaeManager.Application.AsistenteIa.Ordenes;
-using CaeManager.Application.Common;
 using FluentAssertions;
+using MediatR;
 
 namespace CaeManager.Application.Tests.AsistenteIa;
 
@@ -57,12 +57,41 @@ public class CatalogoOrdenesAsistenteTests
     public void Una_orden_ejecutable_tiene_con_que_ejecutarse()
     {
         // Es la invariante que impide que el asistente prometa algo que nadie
-        // sabe hacer: o no escribe nada, o declara los Commands que lo hacen.
+        // sabe hacer. Declararse de solo lectura ya no basta para librarse: una
+        // consulta sin consulta declarada es igual de inejecutable que un alta
+        // sin Command.
         foreach (var orden in CatalogoOrdenesAsistente.Ordenes.Where(o => o.Ejecutable))
         {
-            (orden.EsSoloLectura || orden.Commands.Count > 0).Should().BeTrue(
-                "la orden {0} se declara ejecutable, así que necesita Commands o ser de solo lectura",
-                orden.Id);
+            orden.Ejecucion.Should().NotBeEmpty(
+                "la orden {0} se declara ejecutable, así que tiene que decir con qué", orden.Id);
+        }
+    }
+
+    [Fact]
+    public void Cuando_los_pasos_son_alternativas_cada_uno_dice_cuando_se_elige()
+    {
+        // Sin condición, quien despacha no puede saber cuál toca, y con dos
+        // alternativas de reclamación eso significa mandar dos correos.
+        foreach (var orden in CatalogoOrdenesAsistente.Ordenes
+                     .Where(o => o.Modo == ModoDeEjecucion.Alternativa))
+        {
+            orden.Ejecucion.Should().HaveCountGreaterThan(1,
+                "{0} se declara alternativa pero no ofrece entre qué elegir", orden.Id);
+            orden.Ejecucion.Should().OnlyContain(p => !string.IsNullOrWhiteSpace(p.Cuando),
+                "cada alternativa de {0} tiene que decir cuándo se elige", orden.Id);
+        }
+    }
+
+    [Fact]
+    public void Una_secuencia_no_declara_condiciones_por_paso()
+    {
+        // En una secuencia se ejecutan todos: una condición ahí sería una
+        // alternativa mal declarada.
+        foreach (var orden in CatalogoOrdenesAsistente.Ordenes
+                     .Where(o => o.Modo == ModoDeEjecucion.Secuencia))
+        {
+            orden.Ejecucion.Should().OnlyContain(p => string.IsNullOrEmpty(p.Cuando),
+                "{0} es una secuencia: todos sus pasos se ejecutan", orden.Id);
         }
     }
 
@@ -77,28 +106,35 @@ public class CatalogoOrdenesAsistenteTests
     }
 
     [Fact]
-    public void Una_orden_de_solo_lectura_no_declara_Commands()
+    public void Toda_operacion_declarada_es_despachable()
     {
-        foreach (var orden in CatalogoOrdenesAsistente.Ordenes.Where(o => o.EsSoloLectura))
+        // Sin esto, cualquier tipo podría colarse y el catálogo mentiría sobre lo
+        // que ejecuta. Un Command implementa ICommandBase; una Query, IRequest.
+        foreach (var orden in CatalogoOrdenesAsistente.Ordenes)
         {
-            orden.Commands.Should().BeEmpty(
-                "{0} es de solo lectura: si despacha un Command, escribe", orden.Id);
+            foreach (var paso in orden.Ejecucion)
+            {
+                var esDespachable = paso.Operacion.GetInterfaces()
+                    .Any(i => i == typeof(IBaseRequest) ||
+                              (i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequest<>)));
+
+                esDespachable.Should().BeTrue(
+                    "{0} declara {1}, que tendría que ser un Command o una Query",
+                    orden.Id, paso.Operacion.Name);
+            }
         }
     }
 
     [Fact]
-    public void Todo_Command_declarado_es_un_Command_de_verdad()
+    public void Una_orden_que_escribe_no_puede_pasar_por_solo_lectura()
     {
-        // Sin esto, cualquier tipo podría colarse en la lista y el catálogo
-        // mentiría sobre lo que ejecuta.
-        foreach (var orden in CatalogoOrdenesAsistente.Ordenes)
-        {
-            foreach (var tipo in orden.Commands)
-            {
-                typeof(ICommandBase).IsAssignableFrom(tipo).Should().BeTrue(
-                    "{0} declara {1}, que tendría que implementar ICommand", orden.Id, tipo.Name);
-            }
-        }
+        // EsSoloLectura se deriva de los pasos, así que esto comprueba que la
+        // derivación funciona y no que alguien la declaró bien.
+        var reclamar = CatalogoOrdenesAsistente.PorId(CatalogoOrdenesAsistente.ReclamarDocumentacion)!;
+        var consulta = CatalogoOrdenesAsistente.PorId(CatalogoOrdenesAsistente.ConsultaDeEstado)!;
+
+        reclamar.EsSoloLectura.Should().BeFalse();
+        consulta.EsSoloLectura.Should().BeTrue();
     }
 
     [Fact]

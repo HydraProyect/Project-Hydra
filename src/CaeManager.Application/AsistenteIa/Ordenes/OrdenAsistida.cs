@@ -1,3 +1,5 @@
+using CaeManager.Application.Common;
+
 namespace CaeManager.Application.AsistenteIa.Ordenes;
 
 /// <summary>
@@ -29,12 +31,34 @@ public enum FormaDeExtraccion
     TextoLiteral,
 }
 
+/// <summary>Cómo se combinan los pasos de ejecución de una orden.</summary>
+public enum ModoDeEjecucion
+{
+    /// <summary>
+    /// Los pasos se ejecutan todos, en el orden declarado. Un alta de trabajador
+    /// seguida de su asignación es una secuencia.
+    /// </summary>
+    Secuencia,
+
+    /// <summary>
+    /// Los pasos son excluyentes: se ejecuta exactamente uno, el que cumpla su
+    /// condición. Reclamar a un Cliente empresarial o a una Empresa son
+    /// alternativas, y ejecutar las dos mandaría dos correos.
+    /// </summary>
+    Alternativa,
+}
+
 /// <summary>Un dato que una orden necesita para poder ejecutarse.</summary>
 /// <param name="Nombre">Identificador estable del campo dentro de la orden.</param>
 /// <param name="Forma">Cómo se obtiene del texto.</param>
 /// <param name="Obligatorio">
 /// Si es obligatorio y falta, la orden no se ejecuta: queda en borrador y el
 /// asistente pregunta. Nunca se rellena con un valor inventado.
+/// <para>
+/// Un campo que el Command exige es obligatorio aquí aunque el texto casi nunca
+/// lo diga. Declararlo opcional «porque no suele venir» produce un plan que se
+/// presenta como ejecutable y muere en la validación.
+/// </para>
 /// </param>
 /// <param name="Descripcion">Qué es, en lenguaje de negocio.</param>
 public record CampoDeOrden(
@@ -42,6 +66,26 @@ public record CampoDeOrden(
     FormaDeExtraccion Forma,
     bool Obligatorio,
     string Descripcion);
+
+/// <summary>
+/// Una operación concreta con la que se ejecuta una orden: un Command si
+/// escribe, una Query si solo lee.
+/// </summary>
+/// <param name="Operacion">
+/// El tipo de la operación. Es un tipo y no un nombre para que el compilador
+/// sostenga la relación: si alguien lo renombra o lo borra, esto deja de
+/// compilar en vez de degradarse en silencio.
+/// </param>
+/// <param name="Cuando">
+/// Qué tiene que cumplirse para elegir este paso. Vacío cuando la orden es una
+/// secuencia y el paso se ejecuta siempre; obligatorio cuando los pasos son
+/// alternativas, porque si no, quien despacha no puede saber cuál toca.
+/// </param>
+public record PasoDeEjecucion(Type Operacion, string Cuando = "")
+{
+    /// <summary>Escribe. Se deriva del tipo, para que no pueda decir una cosa y hacer otra.</summary>
+    public bool Escribe => typeof(ICommandBase).IsAssignableFrom(Operacion);
+}
 
 /// <summary>
 /// Qué separa esta orden de la vecina con la que se confunde.
@@ -81,15 +125,8 @@ public record FronteraDeOrden(
 /// </param>
 /// <param name="Fronteras">Qué la separa de sus vecinas.</param>
 /// <param name="Campos">Los datos que necesita.</param>
-/// <param name="Commands">
-/// Los Commands existentes que la ejecutan, en orden. Son tipos y no nombres
-/// para que el compilador sostenga la relación: si alguien renombra o borra un
-/// Command, esto deja de compilar en vez de degradarse en silencio.
-/// </param>
-/// <param name="EsSoloLectura">
-/// La orden no escribe nada. Entonces no declara Commands y se ejecuta con una
-/// Query.
-/// </param>
+/// <param name="Modo">Si los pasos se ejecutan todos o solo uno.</param>
+/// <param name="Ejecucion">Las operaciones con las que se lleva a cabo.</param>
 /// <param name="Ejecutable">
 /// Si es falso, el asistente puede entender la orden y preparar el borrador,
 /// pero no completarla. Declararlo evita que prometa algo que nadie sabe hacer.
@@ -99,8 +136,10 @@ public record FronteraDeOrden(
 /// ninguna.
 /// </param>
 /// <param name="EnviaComunicacionExterna">
-/// La orden manda algo fuera de TALVEG —un correo a un tercero— y por tanto no
-/// es reversible deshaciendo un registro.
+/// El efecto de la orden sale de TALVEG —un correo a un tercero— y no se deshace
+/// borrando un registro. Se declara en vez de derivarse: no hay marca en los
+/// Commands que lo diga, y una lista mantenida aparte se quedaría vacía sin que
+/// nadie lo notara, haciendo pasar por interna una orden que no lo es.
 /// </param>
 /// <param name="RequiereConfirmacion">
 /// Una persona confirma el plan antes de ejecutar.
@@ -117,8 +156,8 @@ public record OrdenAsistida(
     string Criterio,
     IReadOnlyList<FronteraDeOrden> Fronteras,
     IReadOnlyList<CampoDeOrden> Campos,
-    IReadOnlyList<Type> Commands,
-    bool EsSoloLectura,
+    ModoDeEjecucion Modo,
+    IReadOnlyList<PasoDeEjecucion> Ejecucion,
     bool Ejecutable,
     string Limitacion,
     bool EnviaComunicacionExterna,
@@ -126,6 +165,12 @@ public record OrdenAsistida(
 {
     /// <summary>Los campos sin los que la orden no puede ejecutarse.</summary>
     public IEnumerable<CampoDeOrden> CamposObligatorios => Campos.Where(c => c.Obligatorio);
+
+    /// <summary>
+    /// No escribe nada. Se deriva de sus pasos en vez de declararse, para que una
+    /// orden no pueda presentarse como inocua y despachar un Command.
+    /// </summary>
+    public bool EsSoloLectura => Ejecucion.All(p => !p.Escribe);
 
     /// <summary>Alguna de sus fronteras es todavía una propuesta, no una decisión.</summary>
     public bool TieneFronteraSinConfirmar => Fronteras.Any(f => !f.ConfirmadaPorNegocio);
