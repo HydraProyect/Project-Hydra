@@ -355,6 +355,82 @@ public class SelectorTemaGuardadoTrasEscrituraConcurrenteTests : IAsyncLifetime
             "el guardado de 'oscuro' falló y 'sistema' ya era lo confirmado: nada que aplicar");
     }
 
+    /// <summary>
+    /// Cuarta revisión de Codex: si el guardado de «oscuro» falla mientras el
+    /// usuario elige «claro» y vuelve a «oscuro», ese último «oscuro» es una
+    /// intención POSTERIOR aunque el valor coincida con el del guardado
+    /// fallido, y tiene que intentarse. Comparar por valor abandonaba el
+    /// drenaje con la elección final sin intentar.
+    ///
+    /// <para>
+    /// Con la cuenta borrada todo guardado falla, y cada intento fallido deja
+    /// avisos en el registro: se cuentan por intento (medido antes, con un
+    /// selector aparte y un solo cambio) para observar CUÁNTOS intentos hubo.
+    /// Los dos cambios posteriores se lanzan sin esperar al primero, cuyo
+    /// guardado sigue en vuelo. Si el primer guardado terminara antes de que se
+    /// lancen, se producirían más intentos, no menos: el instrumento solo
+    /// puede dar un verde falso, nunca un rojo falso.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task Tras_un_guardado_fallido_la_eleccion_final_del_mismo_tema_tambien_se_intenta()
+    {
+        // Los dos selectores se inicializan ANTES de borrar la cuenta: con la
+        // cuenta ya borrada, OnInitializedAsync no encontraría usuario y no
+        // habría guardado que fallar.
+        var registroBase = new RegistroQueCuentaAvisos();
+        using var ambitoBase = _servicios.CreateScope();
+        var selectorBase = CrearSelectorTema(ambitoBase.ServiceProvider, _usuarioId, registroBase);
+        await InvocarOnInitializedAsync(selectorBase);
+
+        var registro = new RegistroQueCuentaAvisos();
+        using var ambito = _servicios.CreateScope();
+        var selectorTema = CrearSelectorTema(ambito.ServiceProvider, _usuarioId, registro);
+        await InvocarOnInitializedAsync(selectorTema);
+
+        await BorrarLaCuentaAsync();
+
+        await InvocarCambiarTemaAsync(selectorBase, "oscuro").WaitAsync(TimeSpan.FromSeconds(30));
+        var avisosPorIntento = registroBase.Avisos;
+        avisosPorIntento.Should().BeGreaterThan(0, "un guardado fallido tiene que dejar rastro para poder contarlo");
+
+        var primero = InvocarCambiarTemaAsync(selectorTema, "oscuro");
+        await InvocarCambiarTemaAsync(selectorTema, "claro");
+        await InvocarCambiarTemaAsync(selectorTema, "oscuro");
+        await primero.WaitAsync(TimeSpan.FromSeconds(30));
+
+        registro.Avisos.Should().BeGreaterThanOrEqualTo(2 * avisosPorIntento,
+            "el guardado de 'oscuro' falló y, mientras tanto, el usuario eligió 'claro' y volvió a 'oscuro': " +
+            "esa última elección es nueva y debe tener su propio intento, no darse por atendida porque el " +
+            "valor coincida con el del intento fallido");
+    }
+
+    private async Task BorrarLaCuentaAsync()
+    {
+        using var ambito = _servicios.CreateScope();
+        var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        (await userManager.DeleteAsync((await userManager.FindByIdAsync(_usuarioId.ToString()))!))
+            .Succeeded.Should().BeTrue();
+    }
+
+    private sealed class RegistroQueCuentaAvisos : ILogger<SelectorTema>
+    {
+        private int _avisos;
+
+        public int Avisos => Volatile.Read(ref _avisos);
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == LogLevel.Warning)
+                Interlocked.Increment(ref _avisos);
+        }
+    }
+
     private static TemaPreferido TemaDesdeTexto(string texto) => texto switch
     {
         "claro" => TemaPreferido.Claro,
@@ -369,14 +445,15 @@ public class SelectorTemaGuardadoTrasEscrituraConcurrenteTests : IAsyncLifetime
         return (await userManager.FindByIdAsync(_usuarioId.ToString()))!.Tema;
     }
 
-    private static SelectorTema CrearSelectorTema(IServiceProvider servicios, Guid usuarioId)
+    private static SelectorTema CrearSelectorTema(
+        IServiceProvider servicios, Guid usuarioId, ILogger<SelectorTema>? registro = null)
     {
         var selectorTema = new SelectorTema();
 
         EscribirPropiedadInyectada(selectorTema, "UserManager", servicios.GetRequiredService<UserManager<ApplicationUser>>());
         EscribirPropiedadInyectada(selectorTema, "PuertaAccesoDatos", servicios.GetRequiredService<PuertaAccesoDatos>());
         EscribirPropiedadInyectada(selectorTema, "Desenganchador", servicios.GetRequiredService<IDesenganchadorDeEntidadesRastreadas>());
-        EscribirPropiedadInyectada(selectorTema, "Logger", servicios.GetRequiredService<ILogger<SelectorTema>>());
+        EscribirPropiedadInyectada(selectorTema, "Logger", registro ?? servicios.GetRequiredService<ILogger<SelectorTema>>());
         EscribirPropiedadInyectada(selectorTema, "AuthenticationStateProvider", new AutenticacionFalsa(usuarioId));
 
         return selectorTema;

@@ -111,6 +111,15 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
     /// </summary>
     private bool _cambioEnCurso;
 
+    /// <summary>
+    /// Cuenta las elecciones del usuario. Distingue una elección NUEVA del
+    /// mismo tema de la anterior —comparar por valor no puede—: si el guardado
+    /// de «oscuro» falla mientras el usuario elige «claro» y vuelve a
+    /// «oscuro», el último «oscuro» es una intención posterior y merece su
+    /// propio intento (cuarta revisión de Codex).
+    /// </summary>
+    private int _generacion;
+
     protected override async Task OnInitializedAsync()
     {
         var estadoAutenticacion = await AuthenticationStateProvider.GetAuthenticationStateAsync();
@@ -260,7 +269,8 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
     /// cuyo orden de adquisición no está garantizado, y con
     /// oscuro→claro→oscuro podía dejar cuenta, documento y cookie en claro
     /// con el <c>&lt;select&gt;</c> en oscuro—; (c) si un guardado falla y
-    /// hay una intención más nueva, se intenta esa; si no la hay, el bucle
+    /// hubo después alguna elección nueva (<see cref="_generacion"/>, aunque
+    /// sea del mismo tema), se intenta la vigente; si no la hubo, el bucle
     /// termina (no reintenta sin fin), y si el usuario vuelve entonces al
     /// tema confirmado no hay nada que guardar. La comprobación y la marca de
     /// <see cref="_cambioEnCurso"/> no tienen <c>await</c> en medio: el
@@ -284,6 +294,7 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
     private async Task CambiarTemaAsync(ChangeEventArgs e)
     {
         _temaActual = e.Value?.ToString() ?? "sistema";
+        _generacion++;
 
         if (_cambioEnCurso)
             return;
@@ -294,10 +305,11 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
             while (_temaActual != _temaGuardado)
             {
                 var texto = _temaActual!;
+                var generacion = _generacion;
 
                 if (_usuario is not null && !await GuardarTemaAsync(texto))
                 {
-                    if (_temaActual == texto)
+                    if (_generacion == generacion)
                         return;
 
                     continue;
