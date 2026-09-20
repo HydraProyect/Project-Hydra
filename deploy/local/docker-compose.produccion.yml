@@ -160,6 +160,18 @@ services:
       # existe, Docker lo crea vacío y no tiene efecto mientras no se configuren
       # CertificadoRuta y ClavePrivadaRuta. Guía: Project-Hydra-Negocio/tecnico/
       # ACCIONES-PROPIETARIO-SECRETOS-CI-2026-09-19.md
+      #
+      # PROPIEDAD Y PERMISOS DEL PEM: el contenedor arranca como root, pero el
+      # entrypoint baja a APP_UID:APP_UID (1654:1654, medido en la imagen aspnet
+      # fijada en el Dockerfile) con gosu antes de ejecutar la app, y solo hace
+      # `chown -R` de /data, nunca de /run/secretos (que además va :ro). Un PEM
+      # creado con el reflejo natural para una clave privada (root:root, 600) es
+      # ILEGIBLE para la app: la configuración parece completa (el arranque NO
+      # avisa) y cada canje o renovación de tokens falla con un error
+      # CertificadoNoLegible en el log; el correo deja de entrar y las
+      # suscripciones de Graph caducan. En el host: `chown root:1654` y `chmod 640` en
+      # la clave privada (el certificado, público, puede ir 644) y `chmod 750` en
+      # el directorio; comprobar con `docker exec caemanager-app ls -ln /run/secretos`.
       - "${SECRETOS_DIR:-/opt/talveg-secretos/produccion}:/run/secretos:ro"
     # Sin `ports` publicados: la app solo es alcanzable desde la red interna
     # del compose (Caddy la referencia como "caemanager-app:8080", el

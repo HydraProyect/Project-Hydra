@@ -112,7 +112,10 @@ services:
     volumes:
       - caemanager-staging-data:/data
       # P44b — certificado de cliente del conector de Microsoft 365 (PEM); ver el
-      # comentario equivalente de docker-compose.produccion.yml.
+      # comentario equivalente de docker-compose.produccion.yml. Propiedad del PEM:
+      # la app corre como 1654:1654 y el entrypoint no toca /run/secretos, así que la
+      # clave privada necesita `chown root:1654` y `chmod 640` (con root:root 600 la
+      # app no puede leerla: cada canje o renovación falla con CertificadoNoLegible en el log).
       - "${SECRETOS_DIR:-/opt/talveg-secretos/staging}:/run/secretos:ro"
     # Sin `ports` publicados — igual que producción, solo alcanzable desde
     # dentro de la red del compose. La única entrada de fuera es el Caddy de

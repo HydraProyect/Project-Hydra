@@ -263,6 +263,13 @@ public static class InfrastructureServiceCollectionExtensions
             services.AddHostedService<IngestaWebhookHostedService>();
             services.AddHostedService<RenovacionSuscripcionWebhookHostedService>();
         }
+        else if (opcionesMicrosoft365.ProblemasDeConfiguracion().Count > 0)
+        {
+            // Configuración a medias (p. ej. una sola de las dos rutas del
+            // certificado): los dos servicios de arriba no se registran y, sin
+            // este aviso, nada lo diría — ver AvisoConfiguracionMicrosoft365HostedService.
+            services.AddHostedService<AvisoConfiguracionMicrosoft365HostedService>();
+        }
 
         // Retención del payload crudo de EventoWebhook (auditoría módulo 6):
         // registrado siempre, no solo si Microsoft365 está configurado —

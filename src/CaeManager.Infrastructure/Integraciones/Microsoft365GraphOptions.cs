@@ -70,4 +70,40 @@ public class Microsoft365GraphOptions
     public bool EstaConfigurado =>
         !string.IsNullOrWhiteSpace(ClientId) && !string.IsNullOrWhiteSpace(UrlPublicaBase)
         && !CertificadoIncompleto && (UsaCertificado || !string.IsNullOrWhiteSpace(ClientSecret));
+
+    /// <summary>
+    /// Qué falta cuando alguien ha empezado a configurar el conector y no lo ha
+    /// terminado. Vacío si está configurado del todo o si no se ha informado
+    /// NADA (apagado por defecto: eso es normal y no merece un aviso). Solo
+    /// nombra opciones, nunca sus valores ni las rutas del certificado.
+    /// Existe porque <see cref="EstaConfigurado"/> a <c>false</c> deja de
+    /// registrar la ingesta del webhook y la renovación de la suscripción sin
+    /// ningún rastro: las suscripciones de Graph ya creadas caducan a los ~3
+    /// días sin renovarse y el correo de los buzones conectados deja de entrar.
+    /// </summary>
+    public IReadOnlyList<string> ProblemasDeConfiguracion()
+    {
+        if (EstaConfigurado) return [];
+
+        var hayAlgoInformado = new[] { ClientId, ClientSecret, CertificadoRuta, ClavePrivadaRuta, UrlPublicaBase }
+            .Any(valor => !string.IsNullOrWhiteSpace(valor));
+        if (!hayAlgoInformado) return [];
+
+        var problemas = new List<string>();
+        if (string.IsNullOrWhiteSpace(ClientId)) problemas.Add("falta ClientId");
+        if (string.IsNullOrWhiteSpace(UrlPublicaBase)) problemas.Add("falta UrlPublicaBase");
+
+        if (CertificadoIncompleto)
+        {
+            problemas.Add(string.IsNullOrWhiteSpace(ClavePrivadaRuta)
+                ? "CertificadoRuta está informada pero falta ClavePrivadaRuta"
+                : "ClavePrivadaRuta está informada pero falta CertificadoRuta");
+        }
+        else if (!UsaCertificado && string.IsNullOrWhiteSpace(ClientSecret))
+        {
+            problemas.Add("falta una credencial: ni el certificado (CertificadoRuta y ClavePrivadaRuta) ni ClientSecret");
+        }
+
+        return problemas;
+    }
 }
