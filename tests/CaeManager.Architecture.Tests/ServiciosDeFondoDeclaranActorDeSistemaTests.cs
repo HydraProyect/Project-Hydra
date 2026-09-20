@@ -72,7 +72,7 @@ public class ServiciosDeFondoDeclaranActorDeSistemaTests
     /// admite constructor primario multilínea (<c>[^{;]*</c>).
     /// </summary>
     private static readonly Regex ClaseDeFondo = new(
-        @"^[ \t]*(?:(?:public|internal|sealed|partial|abstract)[ \t]+)*class[ \t]+(?<nombre>\w+)(?<cabecera>[^{;]*)\{",
+        @"^[ \t]*(?:\[(?:[^\[\]\r\n]|\[[^\[\]\r\n]*\])*\][ \t]*)*(?:(?:public|internal|private|protected|sealed|static|partial|abstract|file|unsafe|new)[ \t]+)*class[ \t]+@?(?<nombre>\w+)(?<cabecera>[^{;]*)\{",
         RegexOptions.Compiled | RegexOptions.Multiline);
 
     private static readonly Regex BaseDeFondo = new(
@@ -228,6 +228,34 @@ public class ServiciosDeFondoDeclaranActorDeSistemaTests
         ClasesDeFondo(clase).Should().BeEquivalentTo(["PurgadorNocturno"],
             "el nombre no acaba en HostedService, el constructor primario ocupa varias líneas y hay una " +
             "clase sin base de fondo, una abstracta y un comentario con la palabra class, que no deben contar");
+
+        // Formas de cabecera que una lista corta de modificadores dejaba invisibles: clase
+        // anidada privada, `file`, atributo en la misma línea (con corchetes anidados) e
+        // identificador verbatim.
+        const string formas = """
+            public class Contenedor
+            {
+                private sealed class Anidado : BackgroundService
+                {
+                }
+            }
+
+            file class SoloDelFichero : IHostedService
+            {
+            }
+
+            [Tipo(typeof(int[]))] public sealed class ConAtributo : BackgroundService
+            {
+            }
+
+            public sealed class @Verbatim : BackgroundService
+            {
+            }
+            """;
+        ClasesDeFondo(formas).Should().BeEquivalentTo(
+            ["Anidado", "SoloDelFichero", "ConAtributo", "Verbatim"],
+            "una clase de fondo no deja de serlo por ser anidada, `file`, llevar un atributo delante " +
+            "en la misma línea o usar un identificador verbatim");
     }
 
     private static IEnumerable<string> TiposRegistrados(string texto)
