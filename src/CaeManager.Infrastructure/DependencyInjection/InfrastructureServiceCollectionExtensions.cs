@@ -264,6 +264,14 @@ public static class InfrastructureServiceCollectionExtensions
             services.AddHostedService<RenovacionSuscripcionWebhookHostedService>();
         }
 
+        // Avisos de arranque del conector — ver AvisoConfiguracionMicrosoft365HostedService.
+        // Se registra (a) con configuración a medias (p. ej. una sola de las dos rutas del
+        // certificado): los dos servicios de arriba no se registran y, sin este aviso, nada
+        // lo diría; y (b) con certificado configurado, para adelantar al arranque que el PEM
+        // no se puede leer. Solo mira y avisa: no altera el registro de los dos de arriba.
+        if (opcionesMicrosoft365.UsaCertificado || opcionesMicrosoft365.ProblemasDeConfiguracion().Count > 0)
+            services.AddHostedService<AvisoConfiguracionMicrosoft365HostedService>();
+
         // Retención del payload crudo de EventoWebhook (auditoría módulo 6):
         // registrado siempre, no solo si Microsoft365 está configurado —
         // redacta eventos de cualquier proveedor (WhatsApp incluido). Apagada

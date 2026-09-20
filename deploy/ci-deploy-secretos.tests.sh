@@ -396,7 +396,10 @@ bloque_de_servicio() {  # <servicio>: imprime el bloque `  servicio:` hasta el s
 }
 # Control positivo del extractor: en `app` SÍ debe verse env_file (si no lo viera, el
 # «Caddy no lo tiene» de abajo no significaría nada).
-bloque_de_servicio app | grep -q '^    env_file: \.env' || { echo "FALLO: el extractor no ve el env_file de 'app' — el caso no observa lo que dice observar" >&2; exit 1; }
+# Se captura ANTES del grep: `awk | grep -q` bajo `pipefail` falla con SIGPIPE (141) en cuanto el
+# bloque supera un búfer de 4 KB, porque `grep -q` sale al primer acierto y `awk` aún escribe.
+BLOQUE_APP="$(bloque_de_servicio app)"
+printf '%s\n' "$BLOQUE_APP" | grep -q '^    env_file: \.env' || { echo "FALLO: el extractor no ve el env_file de 'app' — el caso no observa lo que dice observar" >&2; exit 1; }
 BLOQUE_CADDY="$(bloque_de_servicio caddy)"
 [ -n "$BLOQUE_CADDY" ] || { echo "FALLO: no se encontró el bloque del servicio caddy" >&2; exit 1; }
 if printf '%s\n' "$BLOQUE_CADDY" | grep -q '^    env_file:'; then
