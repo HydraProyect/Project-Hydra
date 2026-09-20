@@ -6,12 +6,15 @@ using System.Threading.Tasks;
 using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Commands.CrearClienteDelegante;
+using CaeManager.Application.Tenants.Commands.CrearOperadorCaeExterno;
+using CaeManager.Application.Tenants.Commands.CrearTenantPropietarioDeOperadorCaeExterno;
 using CaeManager.Application.Tenants.Commands.DesactivarDelegacionTenant;
 using CaeManager.Application.Tenants.Commands.ReactivarDelegacionTenant;
 using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma;
 using CaeManager.Application.Tenants.Queries.EsTenantOrigenPlataforma;
 using CaeManager.Application.Tenants.Queries.ObtenerActividadSoporte;
 using CaeManager.Application.Tenants.Queries.ObtenerDelegaciones;
+using CaeManager.Application.Tenants.Queries.ObtenerOperadoresCaeExternos;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Soporte;
 using CaeManager.Domain.Tenants;
@@ -36,6 +39,7 @@ public class DelegacionesGen2Tests : BunitContext
         public TaskCompletionSource? EsperaRevocacion { get; set; }
         public TaskCompletionSource? EsperaCreacion { get; set; }
         public bool EsAdministradorPlataforma { get; set; } = true;
+        public IReadOnlyList<OperadorCaeExternoDto> Operadores { get; set; } = [];
 
         /// <summary>
         /// Mitad del criterio real de Abrir/Cerrar acceso de soporte que no viaja en el
@@ -64,6 +68,9 @@ public class DelegacionesGen2Tests : BunitContext
                 ObtenerActividadSoporteQuery => Array.Empty<ActividadSoporteDto>(),
                 DesactivarDelegacionTenantCommand => Result.Exito(),
                 CrearClienteDeleganteCommand => Result.Exito(Guid.NewGuid()),
+                ObtenerOperadoresCaeExternosQuery => Operadores,
+                CrearOperadorCaeExternoCommand => Result.Exito(Guid.NewGuid()),
+                CrearTenantPropietarioDeOperadorCaeExternoCommand => Result.Exito(Guid.NewGuid()),
                 PuedeReactivarQuery q => PuedeReactivar(q.TenantClienteId),
                 _ => throw new NotSupportedException(request.GetType().Name)
             };
@@ -101,6 +108,8 @@ public class DelegacionesGen2Tests : BunitContext
         public Guid? SesionPrivilegiadaIdSeleccionada => null;
     }
 
+    private IReadOnlyList<OperadorCaeExternoDto> _operadoresIniciales = [];
+
     private static DelegacionDto Delegacion(
         bool soporte = false, bool activa = true, string rol = "GestorCae", bool somosLaConsultora = true, Guid? tenantClienteId = null) => new(
         Guid.NewGuid(), Guid.NewGuid(), "TALVEG", tenantClienteId ?? Guid.NewGuid(), "Organización Norte", activa, somosLaConsultora, DateTime.UtcNow,
@@ -127,6 +136,7 @@ public class DelegacionesGen2Tests : BunitContext
         var mediador = new Mediador
         {
             Delegaciones = delegaciones,
+            Operadores = _operadoresIniciales,
             EsAdministradorPlataforma = esAdministradorPlataforma,
             EsTenantOrigenPlataforma = esTenantOrigenPlataforma,
         };
@@ -374,5 +384,74 @@ public class DelegacionesGen2Tests : BunitContext
         cut.FindAll("button").Count(b => b.TextContent.Trim() == "Reactivar").Should().Be(1,
             "solo la fila del cliente autorizado debe mostrar el botón; compartir un único resultado " +
             "global habría mostrado 0 o 2, nunca exactamente 1");
+    }
+
+    private static OperadorCaeExternoDto OperadorArcoSpa(Guid id) =>
+        new(id, "ArcoSPA", DateTime.UtcNow, [new TenantPropietarioOperadoDto(Guid.NewGuid(), "Refrielectric")]);
+
+    /// <summary>
+    /// El panel de alta de Operadores CAE externos es del Actor de Plataforma TALVEG:
+    /// se monta con la misma condición que las demás acciones comerciales (concesión
+    /// global AdminPlataforma). La autoridad real vive en los comandos; esto es solo
+    /// presentación, pero mostrárselo a quien no puede sería una invitación al error.
+    /// </summary>
+    [Fact]
+    public void El_panel_de_Operadores_CAE_externos_se_muestra_con_la_concesion_de_plataforma()
+    {
+        _operadoresIniciales = [OperadorArcoSpa(Guid.NewGuid())];
+        var (conConcesion, _, _) = Renderizar(esAdministradorPlataforma: true);
+        conConcesion.FindAll("button").Should().Contain(b => b.TextContent.Trim() == "Nuevo Operador CAE externo");
+        conConcesion.Markup.Should().Contain("ArcoSPA").And.Contain("Refrielectric",
+            "control positivo: el panel pinta el Operador y su Tenant propietario que devuelve la consulta");
+    }
+
+    [Fact]
+    public void El_panel_de_Operadores_CAE_externos_no_se_muestra_sin_la_concesion_de_plataforma()
+    {
+        _operadoresIniciales = [OperadorArcoSpa(Guid.NewGuid())];
+        var (sinConcesion, mediador, _) = Renderizar(esAdministradorPlataforma: false);
+        sinConcesion.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Nuevo Operador CAE externo");
+        mediador.Enviadas.Should().NotContain(x => x.Peticion is ObtenerOperadoresCaeExternosQuery,
+            "sin concesión ni siquiera se lanza la consulta transversal");
+    }
+
+    [Fact]
+    public async Task Nuevo_Operador_CAE_externo_envia_el_comando_de_alta_del_Operador_con_el_nombre_tecleado()
+    {
+        var (cut, mediador, _) = Renderizar(esAdministradorPlataforma: true);
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Nuevo Operador CAE externo").ClickAsync(new MouseEventArgs());
+        var campo = cut.Find("input");
+        await campo.InputAsync(new ChangeEventArgs { Value = "ArcoSPA" });
+        await campo.BlurAsync(new FocusEventArgs());
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Crear").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.Select(x => x.Peticion).OfType<CrearOperadorCaeExternoCommand>().Should().ContainSingle()
+            .Which.NombreTenantOperador.Should().Be("ArcoSPA");
+        mediador.Enviadas.Should().NotContain(x => x.Peticion is CrearTenantPropietarioDeOperadorCaeExternoCommand);
+    }
+
+    /// <summary>
+    /// «Crear Tenant propietario» debe nombrar al Operador de la tarjeta pulsada, no a
+    /// otro: con dos Operadores el comando lleva el TenantId del segundo.
+    /// </summary>
+    [Fact]
+    public async Task Crear_Tenant_propietario_envia_el_comando_con_el_Operador_de_la_tarjeta_pulsada()
+    {
+        var primero = Guid.NewGuid(); var segundo = Guid.NewGuid();
+        _operadoresIniciales = [OperadorArcoSpa(primero), new(segundo, "Operador Sur", DateTime.UtcNow, [])];
+        var (cut, mediador, _) = Renderizar(esAdministradorPlataforma: true);
+
+        var botones = cut.FindAll("button").Where(b => b.TextContent.Trim() == "Crear Tenant propietario").ToList();
+        botones.Should().HaveCount(2, "control positivo: una acción por Operador");
+        await botones[1].ClickAsync(new MouseEventArgs());
+        var campo = cut.Find("input");
+        await campo.InputAsync(new ChangeEventArgs { Value = "Laboratorios Dexter" });
+        await campo.BlurAsync(new FocusEventArgs());
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Crear").ClickAsync(new MouseEventArgs());
+
+        var comando = mediador.Enviadas.Select(x => x.Peticion).OfType<CrearTenantPropietarioDeOperadorCaeExternoCommand>().Should().ContainSingle().Subject;
+        comando.TenantOperadorId.Should().Be(segundo);
+        comando.NombreTenantPropietario.Should().Be("Laboratorios Dexter");
+        mediador.Enviadas.Should().NotContain(x => x.Peticion is CrearOperadorCaeExternoCommand);
     }
 }
