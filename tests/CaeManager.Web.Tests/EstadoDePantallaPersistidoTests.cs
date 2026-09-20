@@ -511,9 +511,36 @@ public class EstadoDePantallaPersistidoTests
     }
 
     [Theory]
-    [InlineData(59, true)]
-    [InlineData(61, false)]
-    public async Task La_vigencia_son_60_segundos_no_una_constante_que_se_pueda_bajar_sin_que_se_note(
+    [InlineData(1234, "vigente")]
+    [InlineData(11_000, "vencido")]
+    public async Task Cada_recogida_registra_su_edad_y_el_tope_para_poder_reajustarlo_con_datos(
+        int milisegundos, string resultado)
+    {
+        // La justificación del tope está en la medición de esta edad: sin la
+        // línea de registro no se puede comprobar en CI ni en producción.
+        var reloj = new Reloj();
+        var almacen = await PrerenderAsync(Sesion.Base, reloj, new Instantanea("filas", 3));
+        reloj.Ahora += TimeSpan.FromMilliseconds(milisegundos);
+
+        var registro = new RegistroEspia<FabricaEstadoDePantallaPersistido>();
+        var gestor = new ComponentStatePersistenceManager(NullLogger<ComponentStatePersistenceManager>.Instance);
+        await gestor.RestoreStateAsync(almacen);
+        var fabrica = new FabricaEstadoDePantallaPersistido(gestor.State, Huella(Sesion.Base), reloj, registro);
+        using var estado = fabrica.Crear<Instantanea>(Clave);
+
+        await estado.TomarAsync(HuellaConsulta);
+
+        registro.Entradas.Should().ContainSingle(e =>
+            e.Nivel == Microsoft.Extensions.Logging.LogLevel.Information
+            && e.Mensaje.Contains($"edad={milisegundos} ms")
+            && e.Mensaje.Contains("tope=10000 ms")
+            && e.Mensaje.Contains(resultado));
+    }
+
+    [Theory]
+    [InlineData(9, true)]
+    [InlineData(11, false)]
+    public async Task La_vigencia_son_10_segundos_no_una_constante_que_se_pueda_mover_sin_que_se_note(
         int segundosTranscurridos, bool seRecoge)
     {
         // Los otros tests de caducidad se escriben contra la propia constante:

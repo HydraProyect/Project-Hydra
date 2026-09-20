@@ -23,7 +23,7 @@ namespace CaeManager.Web.Components.EstadoPersistido;
 /// en ese caso el rol no se pregunta: lo identifican el Tenant seleccionado y la
 /// autorización de operación (<c>a=</c>), que ya van en la huella. Consecuencia
 /// declarada: si el rol de esa autorización cambia dentro de la vigencia
-/// (60 s), el circuito muestra la instantánea del prerender — la misma clase de
+/// (<see cref="FabricaEstadoDePantallaPersistido.VigenciaMaxima"/>, 10 s), el circuito muestra la instantánea del prerender — la misma clase de
 /// hueco que la revocación (el circuito no revalida). Con un ámbito de Tenant
 /// explícito (fan-out) no se persiste nada.
 /// </para>
@@ -77,7 +77,22 @@ public sealed class FabricaEstadoDePantallaPersistido(
     /// el patrón. El instante va DENTRO del estado protegido, así que el
     /// cliente no puede alargarlo.
     /// </summary>
-    public static readonly TimeSpan VigenciaMaxima = TimeSpan.FromSeconds(60);
+    /// <remarks>
+    /// <para>
+    /// <b>De dónde sale el número.</b> El estado solo tiene que sobrevivir de la
+    /// consulta del prerender a la hidratación (respuesta, arranque de Blazor,
+    /// conexión del circuito): cada segundo de más es tiempo en el que una
+    /// pérdida de permisos no se refleja (el circuito no revalida). Medido el
+    /// 2026-09-20 en la suite E2E completa (81 pruebas, 25 recogidas, máquina de
+    /// desarrollo): edad 31–238 ms, mediana 86 ms. 10 s es ~40 veces el máximo
+    /// local, margen para un runner de CI lento y una red móvil; quedarse corto
+    /// no es un fallo de seguridad sino que el patrón deja de servir (la pantalla
+    /// consulta otra vez, como antes). Cada recogida registra su edad y el
+    /// tope (<c>Estado persistido de …: edad=… ms</c>) para verificarlo en CI y
+    /// en producción y reajustarlo con datos.
+    /// </para>
+    /// </remarks>
+    public static readonly TimeSpan VigenciaMaxima = TimeSpan.FromSeconds(10);
 
     public EstadoDePantallaPersistido<TInstantanea> Crear<TInstantanea>(string clave)
         where TInstantanea : class =>
@@ -139,13 +154,12 @@ public readonly record struct ConsultaEnCurso(object? Emisor, int Version, strin
 /// desde el estado persistido se salta ese filtrado durante la vigencia. La
 /// dirección que importa es la de la <b>pérdida</b> de permisos: una
 /// Asignación de Operación retirada o una Asignación de Cartera que se estrecha
-/// entre el prerender y el circuito no se refleja durante hasta 60 s, y el
+/// entre el prerender y el circuito no se refleja durante hasta 10 s, y el
 /// circuito puede enseñar una vez filas que la autorización vigente ya no
 /// permite. Nada de lo que viaja con la sesión (claims, cookie de workspace)
 /// cambia cuando cambia una cartera, así que la huella no puede cerrar esa
 /// ventana sin una consulta.
 /// </para>
-/// </summary>
 /// </summary>
 public sealed class EstadoDePantallaPersistido<TInstantanea> : IDisposable
     where TInstantanea : class
@@ -275,8 +289,17 @@ public sealed class EstadoDePantallaPersistido<TInstantanea> : IDisposable
         if (sobre.Datos is null || sobre.HuellaConsulta != huellaConsulta)
             return null;
 
-        if (_reloj.GetUtcNow() - sobre.PersistidoEn is var edad
-            && (edad < TimeSpan.Zero || edad > FabricaEstadoDePantallaPersistido.VigenciaMaxima))
+        // La edad es lo que tarda el camino prerender → hidratación (consulta,
+        // render, red hasta el navegador, arranque de Blazor, conexión del
+        // circuito): el tope de VigenciaMaxima sale de medir esto, y se deja
+        // en el registro para poder comprobarlo también en producción.
+        var edad = _reloj.GetUtcNow() - sobre.PersistidoEn;
+        var vigente = edad >= TimeSpan.Zero && edad <= FabricaEstadoDePantallaPersistido.VigenciaMaxima;
+        _registro?.LogInformation(
+            "Estado persistido de {Clave}: edad={EdadMs} ms, tope={TopeMs} ms, {Resultado}",
+            _clave, (long)edad.TotalMilliseconds, (long)FabricaEstadoDePantallaPersistido.VigenciaMaxima.TotalMilliseconds,
+            vigente ? "vigente" : "vencido");
+        if (!vigente)
             return null;
 
         var huellaActual = await _huellaDeSesion.ObtenerAsync();
