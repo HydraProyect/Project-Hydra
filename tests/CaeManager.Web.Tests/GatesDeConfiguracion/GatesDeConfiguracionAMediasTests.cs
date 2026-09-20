@@ -219,6 +219,41 @@ public class GatesDeConfiguracionAMediasTests
             "control positivo: la rejilla emite avisos, así que las comprobaciones de arriba miraron algo");
     }
 
+    /// <summary>
+    /// Un gate apagado a propósito no avisa: avisar de «falta configuración» donde
+    /// nadie ha pedido la pieza enseña a ignorar el aviso. Se mide de extremo a
+    /// extremo —registro real, servicio real, log real— en TODA combinación de
+    /// claves con <c>Activo=false</c>, incluido el caso en que faltan casi todas.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Casos))]
+    public async Task Con_el_interruptor_apagado_no_se_registra_ni_se_emite_ningun_aviso(Caso caso)
+    {
+        if (!caso.TieneInterruptor)
+            return;
+
+        var combinaciones = 0;
+        foreach (var claves in Combinaciones(caso.Claves.Length))
+        {
+            var opciones = caso.Construir(false, claves);
+            var (proveedor, captura) = Componer(s => s.AvisarSiConfiguracionAMedias(caso.Nombre, opciones, "Consecuencia de prueba."));
+
+            await Arrancar(proveedor);
+
+            proveedor.GetServices<IHostedService>().Should().BeEmpty($"{caso.Nombre} apagado, claves [{string.Join(",", claves)}]");
+            captura.Entradas.Should().BeEmpty($"{caso.Nombre} apagado no emite nada, claves [{string.Join(",", claves)}]");
+            combinaciones++;
+        }
+
+        combinaciones.Should().Be(1 << caso.Claves.Length, "la rejilla entera, no una muestra");
+
+        // Control positivo: el mismo gate, encendido y con una clave de menos, SÍ avisa.
+        var (proveedorEncendido, capturaEncendida) = Componer(s => s.AvisarSiConfiguracionAMedias(
+            caso.Nombre, caso.Construir(true, caso.Claves.Select(_ => false).ToArray()), "Consecuencia de prueba."));
+        await Arrancar(proveedorEncendido);
+        capturaEncendida.Entradas.Should().ContainSingle("encendido y sin nada informado, el aviso existe: el silencio de arriba no es un instrumento ciego");
+    }
+
     // ── El aviso de arranque ──────────────────────────────────────────────────
 
     private static (ServiceProvider Proveedor, CapturaDeLog Captura) Componer(Action<IServiceCollection> registrar)
