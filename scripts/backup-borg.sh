@@ -7,7 +7,8 @@
 # de la BD y dataprotection-keys/ van SIEMPRE en el mismo archivo de backup
 # (restaurar la BD con claves de otro momento deja las credenciales cifradas
 # de Empresa/Subcontrata irrecuperables) — y añade lo que el servicio antiguo
-# no cubría: los PDFs de /data/documentos.
+# no cubría: los PDFs de /data/documentos y el .env de producción (archivo
+# env-produccion, 0600, cifrado por Borg; ver el bloque correspondiente).
 #
 # Requisitos: borg en el host, el repo Borg ya inicializado
 # (`borg init --encryption=repokey-blake2 "$BORG_REPO"`) y los contenedores
@@ -33,6 +34,14 @@ export BORG_REPO BORG_PASSPHRASE
 
 DIR_TRABAJO="$(mktemp -d)"
 
+# La URL del heartbeat es un secreto (quien la conozca puede fingir que el backup
+# corrió): va por stdin con `curl -K -`, no como argumento, para que no salga en
+# `ps` ni en /proc/<pid>/cmdline.
+llamar_heartbeat() {   # llamar_heartbeat URL [opciones de curl]
+    local url="$1"; shift
+    printf 'url = "%s"\n' "$url" | curl -fsS -m 10 "$@" -K -
+}
+
 # Un único manejador de salida: limpia el directorio de trabajo y, si el
 # script termina con error (dump vacío, sin claves, borg roto, `exit 1` de
 # cualquiera de las guardas), avisa al heartbeat con `/fail` para que el
@@ -44,7 +53,7 @@ al_salir() {
     local codigo=$?
     rm -rf "$DIR_TRABAJO"
     if [ "$codigo" -ne 0 ] && [ -n "${BETTERSTACK_HEARTBEAT_URL:-}" ]; then
-        curl -fsS -m 10 --retry 2 --retry-delay 3 "${BETTERSTACK_HEARTBEAT_URL%/}/fail" >/dev/null 2>&1 \
+        llamar_heartbeat "${BETTERSTACK_HEARTBEAT_URL%/}/fail" --retry 2 --retry-delay 3 >/dev/null 2>&1 \
             || echo "AVISO: el backup FALLÓ y tampoco se pudo avisar al heartbeat (/fail) — la ausencia del ping de éxito lo avisará igualmente."
     fi
     return "$codigo"
@@ -65,10 +74,45 @@ ls "$DIR_TRABAJO/dataprotection-keys"/*.xml >/dev/null 2>&1 \
 docker cp caemanager-app:/data/documentos "$DIR_TRABAJO/documentos" 2>/dev/null \
     || mkdir "$DIR_TRABAJO/documentos"
 
+# El .env de producción (contraseña de PostgreSQL, la del rol cae_app_runtime,
+# DSN de Sentry, claves de IA y demás secretos) entra en el MISMO archivo Borg
+# (decisión del propietario, continuidad n.º 26): sin él, perder el disco del
+# servidor obliga a regenerar todos los secretos a mano y entra en el RTO. Va
+# cifrado por Borg (repokey-blake2), como el resto del archivo. El contenido
+# NUNCA se imprime ni pasa por argumentos: solo se copia con permisos 0600.
+# Si falta o está vacío NO se aborta: el archivo Borg se crea igualmente con el
+# volcado de la BD, las claves y los documentos (la ausencia de un secreto no puede
+# costar el backup de la base de datos de esa noche). La ausencia se registra y el
+# guion termina con código distinto de 0 AL FINAL, sin ping de éxito, para que salte
+# /fail: ruidoso, pero sin perder el backup. Omitirlo en silencio sería un falso
+# verde (un backup que parece bueno y no lleva el .env).
+# Salida deliberada: BACKUP_SIN_ENV=1.
+ENV_FALTA=0
+if [ "${BACKUP_SIN_ENV:-0}" = "1" ]; then
+    echo "AVISO: BACKUP_SIN_ENV=1 — este archivo NO incluye el .env; restaurar el servidor exigirá regenerar todos los secretos a mano."
+else
+    ENV_ORIGEN="${ENV_PRODUCCION:-$(cd "$(dirname "$0")/.." && pwd)/deploy/local/.env}"
+    if [ ! -s "$ENV_ORIGEN" ]; then
+        echo "ERROR: no hay .env de producción (o está vacío) en $ENV_ORIGEN."
+        echo "       Indica su ruta con ENV_PRODUCCION, o BACKUP_SIN_ENV=1 para omitirlo a sabiendas."
+        ENV_FALTA=1
+    elif ! install -m 600 "$ENV_ORIGEN" "$DIR_TRABAJO/env-produccion" 2>/dev/null; then
+        # Existe pero no se puede copiar (p. ej. 0600 de otro usuario): tampoco
+        # cuesta el backup de la BD (hallazgo de Codex). Se borra lo que haya quedado.
+        rm -f "$DIR_TRABAJO/env-produccion"
+        echo "ERROR: el .env de producción existe en $ENV_ORIGEN pero no se pudo copiar (¿permisos? ¿lo lee el usuario del cron?)."
+        ENV_FALTA=1
+    else
+        echo "    .env de producción incluido como env-produccion ($(wc -c < "$DIR_TRABAJO/env-produccion") bytes; el contenido no se muestra)"
+    fi
+fi
+
 ARCHIVO="caemanager-$(date -u +%Y-%m-%dT%H-%M-%S)"
 echo "==> 3/4 borg create ::$ARCHIVO ..."
+CONTENIDO=(CaeManager.dump dataprotection-keys documentos)
+[ -f "$DIR_TRABAJO/env-produccion" ] && CONTENIDO+=(env-produccion)
 (cd "$DIR_TRABAJO" && borg create --stats --compression zstd \
-    "::$ARCHIVO" CaeManager.dump dataprotection-keys documentos)
+    "::$ARCHIVO" "${CONTENIDO[@]}")
 
 echo "==> 4/4 borg prune (7 diarios / 4 semanales / 6 mensuales) + compact..."
 borg prune --glob-archives 'caemanager-*' \
@@ -79,6 +123,15 @@ borg compact
 if [ "${1:-}" = "--check" ]; then
     echo "==> borg check..."
     borg check
+fi
+
+# El archivo con la BD ya existe (borg create, prune y compact hechos). Si faltó
+# el .env se termina AHORA con error: al_salir avisa con /fail y no se manda el
+# ping de éxito. La BD no se pierde; el aviso es ruidoso a propósito.
+if [ "$ENV_FALTA" -eq 1 ]; then
+    echo "BACKUP DE LA BD COMPLETADO: $ARCHIVO — PERO SIN el .env de producción (ver el ERROR de arriba)."
+    echo "El guion termina con error a propósito: avisa con /fail y no manda el ping de éxito."
+    exit 1
 fi
 
 echo "BACKUP COMPLETADO: $ARCHIVO"
@@ -109,6 +162,6 @@ echo "Ensayo de restauración periódico: scripts/ensayo-restauracion-borg.sh (a
 # BETTERSTACK_HEARTBEAT_URL no se hace ninguna llamada de red.
 if [ -n "${BETTERSTACK_HEARTBEAT_URL:-}" ]; then
     echo "==> Avisando al heartbeat de Better Stack..."
-    curl -fsS -m 10 --retry 3 --retry-delay 5 "$BETTERSTACK_HEARTBEAT_URL" >/dev/null \
+    llamar_heartbeat "$BETTERSTACK_HEARTBEAT_URL" --retry 3 --retry-delay 5 >/dev/null \
         || echo "AVISO: el backup terminó bien pero el ping a Better Stack falló (red caída, URL mal puesta) — revisar a mano; si se repite mañana, Better Stack alertará igualmente por la ausencia."
 fi
