@@ -44,9 +44,6 @@ public class GatesDeConfiguracionAvisanSiEstanAMediasTests
     /// </summary>
     private static readonly Dictionary<string, string> Pendientes = new()
     {
-        ["Microsoft365GraphOptions"] =
-            "su aviso propio (ProblemasDeConfiguracion + AvisoConfiguracionMicrosoft365HostedService) vive en la rama " +
-            "claude/m365-certificado-reservas; al fusionarse, adherirlo a IOpcionesConGate es de una línea.",
         ["SmtpEmailOptions"] =
             "el gate no cierra el registro: el envío falla con un error explícito al usarlo (Email.NoConfigurado). " +
             "Un aviso de arranque es deseable pero la zona la toca la rama del correo del sistema.",
@@ -65,7 +62,7 @@ public class GatesDeConfiguracionAvisanSiEstanAMediasTests
         var adheridos = TiposConGate().Where(t => typeof(IOpcionesConGate).IsAssignableFrom(t)).Select(t => t.Name).ToList();
 
         adheridos.Should().Contain(
-            ["DataProtectionKmsOptions", "DataProtectionS3Options", "SignalRRedisOptions", "WhatsAppCloudApiOptions", "AzureAdOptions"],
+            ["DataProtectionKmsOptions", "DataProtectionS3Options", "SignalRRedisOptions", "WhatsAppCloudApiOptions", "AzureAdOptions", "Microsoft365GraphOptions"],
             "si la reflexión no ve las secciones que sabemos adheridas, no está mirando lo que dice mirar");
     }
 

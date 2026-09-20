@@ -6,20 +6,21 @@ using Microsoft.Extensions.Options;
 namespace CaeManager.Infrastructure.Integraciones;
 
 /// <summary>
-/// Adelanta al arranque las dos señales que, si no, el conector de Microsoft 365
-/// solo daría tarde y en un log que nadie mira hasta que alguien pregunta por qué
-/// no entra el correo:
-/// <list type="number">
-/// <item><b>Configuración a medias.</b> Con <see cref="Microsoft365GraphOptions.EstaConfigurado"/>
-/// a <c>false</c> no se registran la ingesta del webhook ni la renovación de la
-/// suscripción: la aplicación arranca sana, el panel dice «no configurado» y las
-/// suscripciones de Graph ya creadas caducan a los ~3 días sin renovarse.</item>
-/// <item><b>Certificado configurado pero ilegible.</b> Con las dos rutas informadas
-/// la configuración parece completa, los servicios se registran y el fallo sale en
-/// cada canje o renovación como <c>CertificadoNoLegible</c>. El caso típico es un PEM
-/// creado <c>root:root</c> con modo 600: el proceso corre sin privilegios y no puede
-/// abrirlo.</item>
-/// </list>
+/// Adelanta al arranque la señal que, si no, el conector de Microsoft 365 solo daría
+/// tarde y en un log que nadie mira hasta que alguien pregunta por qué no entra el correo:
+/// <b>certificado configurado pero ilegible.</b> Con las dos rutas informadas la
+/// configuración parece completa, los servicios se registran y el fallo sale en cada
+/// canje o renovación como <c>CertificadoNoLegible</c>. El caso típico es un PEM creado
+/// <c>root:root</c> con modo 600: el proceso corre sin privilegios y no puede abrirlo.
+///
+/// <para>
+/// La otra señal de arranque del conector, <b>la configuración a medias</b>, ya no vive
+/// aquí: la avisa el mecanismo genérico <c>AvisarSiConfiguracionAMedias</c>
+/// (<see cref="Microsoft365GraphOptions"/> implementa <c>IOpcionesConGate</c>), como el
+/// resto de gates. Este servicio solo se registra con certificado configurado; una
+/// configuración completa e inservible no es un gate «a medias» y el mecanismo genérico
+/// no sabe expresarla.
+/// </para>
 ///
 /// Reglas: (a) <b>solo legibilidad</b> — abre el fichero para leer y lo cierra; no carga
 /// el certificado ni la clave privada, así que no hay material de clave en memoria en un
@@ -46,17 +47,6 @@ public class AvisoConfiguracionMicrosoft365HostedService(
         try
         {
             var config = opciones.Value;
-
-            var problemas = config.ProblemasDeConfiguracion();
-            if (problemas.Count > 0)
-            {
-                logger.LogWarning(
-                    "Conector de Microsoft 365: la configuración de {Seccion} está a medias ({Problemas}). " +
-                    "La ingesta de correo y la renovación de la suscripción NO se han registrado: las " +
-                    "suscripciones de Graph ya creadas caducarán en unos 3 días sin renovarse y el correo " +
-                    "de los buzones conectados dejará de entrar.",
-                    Microsoft365GraphOptions.SeccionConfiguracion, string.Join("; ", problemas));
-            }
 
             if (config.UsaCertificado)
             {

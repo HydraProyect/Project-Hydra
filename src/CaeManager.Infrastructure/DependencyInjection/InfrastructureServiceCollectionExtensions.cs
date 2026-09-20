@@ -276,12 +276,18 @@ public static class InfrastructureServiceCollectionExtensions
             services.AddHostedService<RenovacionSuscripcionWebhookHostedService>();
         }
 
-        // Avisos de arranque del conector — ver AvisoConfiguracionMicrosoft365HostedService.
-        // Se registra (a) con configuración a medias (p. ej. una sola de las dos rutas del
-        // certificado): los dos servicios de arriba no se registran y, sin este aviso, nada
-        // lo diría; y (b) con certificado configurado, para adelantar al arranque que el PEM
-        // no se puede leer. Solo mira y avisa: no altera el registro de los dos de arriba.
-        if (opcionesMicrosoft365.UsaCertificado || opcionesMicrosoft365.ProblemasDeConfiguracion().Count > 0)
+        // Configuración a medias (p. ej. una sola de las dos rutas del certificado): los dos
+        // servicios de arriba no se registran y, sin este aviso, nada lo diría. Va por el
+        // mecanismo genérico, como el resto de gates; solo mira y avisa.
+        services.AvisarSiConfiguracionAMedias(Microsoft365GraphOptions.SeccionConfiguracion, opcionesMicrosoft365,
+            "La ingesta de correo y la renovación de la suscripción NO se han registrado: las suscripciones de Graph " +
+            "ya creadas caducarán en unos 3 días sin renovarse y el correo de los buzones conectados dejará de entrar.");
+
+        // Certificado configurado: adelanta al arranque que el PEM no se puede leer (configuración
+        // completa e inservible: no es un gate «a medias», por eso no va por el mecanismo genérico).
+        // Solo UsaCertificado: con la disyunción de antes, una configuración a medias registraría
+        // también este servicio y el aviso saldría dos veces.
+        if (opcionesMicrosoft365.UsaCertificado)
             services.AddHostedService<AvisoConfiguracionMicrosoft365HostedService>();
 
         // Retención del payload crudo de EventoWebhook (auditoría módulo 6):
