@@ -224,6 +224,8 @@ public class LimpiadorDeComentariosTests
             "public abstract class CentinelaResultado : IResult { }",
             "public readonly struct CentinelaResultado : IResult { }",
             "file class CentinelaResultado : IResult { }",
+            "public sealed class @CentinelaResultado : IResult { }",
+            "[Tipo(typeof(int[]))] public sealed class CentinelaResultado : IResult { }",
         ];
 
         var invisibles = new List<string>();
@@ -232,11 +234,29 @@ public class LimpiadorDeComentariosTests
             {
                 var limpio = LimpiadorDeComentarios.Quitar(f.Texto + "\n" + forma + "\n", razor: false);
                 if (!SuperficiesAnonimasClasificadasPorActorTests.ImplementaIResult.Matches(limpio)
-                        .Any(m => m.Groups["tipo"].Value == "CentinelaResultado"))
+                        .Any(m => m.Groups["tipo"].Value.TrimStart('@') == "CentinelaResultado"))
                     invisibles.Add($"{f.Ruta}: {forma}");
             }
 
         invisibles.Should().BeEmpty("un IResult declarado al final de un fichero real tiene que verse, sea cual sea el fichero");
+    }
+
+    [Fact]
+    public void Un_dos_puntos_de_primer_nivel_en_un_hueco_es_formato_y_no_un_ternario_porque_el_compilador_lo_trata_asi()
+    {
+        // Hallazgo de la pasada de Codex: `{c ? "a" : "b" /* x */}` hace que el recorrido copie el comentario
+        // (para él, tras el `:` hay un especificador de formato). Es lo que hace el compilador, así que el
+        // fragmento NO es C# válido y no puede llegar a `src`; la premisa se comprueba con Roslyn en vez de suponerse.
+        var sinParentesis = "class C { string S(bool c) => $\"{c ? \"a\" : \"b\" /* x */}\"; }";
+        var conParentesis = "class C { string S(bool c) => $\"{(c ? \"a\" : \"b\") /* x */}\"; }";
+
+        CSharpSyntaxTree.ParseText(sinParentesis).GetDiagnostics().Should().Contain(d => d.Severity == DiagnosticSeverity.Error,
+            "un ternario sin paréntesis dentro de un hueco interpolado no compila");
+        CSharpSyntaxTree.ParseText(conParentesis).GetDiagnostics().Should().NotContain(d => d.Severity == DiagnosticSeverity.Error,
+            "control positivo: con paréntesis sí compila");
+
+        // Y con paréntesis el recorrido sí ve el comentario.
+        LimpiadorDeComentarios.Quitar(conParentesis, razor: false).Should().NotContain("/* x */");
     }
 
     // ── Roslyn como oráculo (solo C#) ──────────────────────────────────────

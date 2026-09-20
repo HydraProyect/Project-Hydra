@@ -281,6 +281,10 @@ public class SuperficiesAnonimasClasificadasPorActorTests
                      "public partial record Mio(int A) : IResult",
                      "    public new sealed class Mio<T> : IResult",
                      "public ref struct Mio : IResult",
+                     // Hallazgos de la pasada de Codex: identificador verbatim y `]` dentro del atributo.
+                     "public sealed class @Resultado : IResult",
+                     "[Tipo(typeof(int[]))] public sealed class Resultado : IResult",
+                     "[Tipo(new[] { 1 }), Otro] internal partial class Resultado : IResult",
                  })
             ImplementaIResult.IsMatch(declaracion).Should().BeTrue($"«{declaracion}» es una implementación directa de IResult");
         ImplementaIResult.IsMatch("public partial class Mio : IDisposable").Should().BeFalse("control negativo: no implementa IResult");
@@ -301,7 +305,7 @@ public class SuperficiesAnonimasClasificadasPorActorTests
     /// <c>IResult</c> invisible, no una regla más laxa.
     /// </summary>
     internal static readonly Regex ImplementaIResult = new(
-        @"^[ \t]*(?:\[[^\]\r\n]*\][ \t]*)*(?:(?:public|internal|private|protected|sealed|static|partial|abstract|readonly|file|unsafe|new|ref)[ \t]+)*(?:record[ \t]+struct|record[ \t]+class|class|record|struct)[ \t]+(?<tipo>\w+)[^{;=]*:[^{;=]*\bIResult\b",
+        @"^[ \t]*(?:\[(?:[^\[\]\r\n]|\[[^\[\]\r\n]*\])*\][ \t]*)*(?:(?:public|internal|private|protected|sealed|static|partial|abstract|readonly|file|unsafe|new|ref)[ \t]+)*(?:record[ \t]+struct|record[ \t]+class|class|record|struct)[ \t]+(?<tipo>@?\w+)[^{;=]*:[^{;=]*\bIResult\b",
         RegexOptions.Compiled | RegexOptions.Multiline);
 
     /// <summary>
