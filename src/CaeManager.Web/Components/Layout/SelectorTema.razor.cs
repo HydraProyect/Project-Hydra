@@ -72,8 +72,10 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
     /// <c>DisposeAsync</c> no tocan este campo en absoluto: siguen mirando
     /// solo <see cref="_modulo"/>, exactamente como antes de este arreglo, y
     /// se apoyan en que la continuación pendiente de <c>OnAfterRenderAsync</c>
-    /// —hay como mucho una— aplica el <c>_temaActual</c> VIGENTE (lo lee en
-    /// el momento, no capturado) en cuanto el módulo esté listo.
+    /// —hay como mucho una— aplica el <c>_temaGuardado</c> CONFIRMADO (lo lee
+    /// en el momento, no capturado) en cuanto el módulo esté listo. Hasta el
+    /// 2026-09-20 leía <c>_temaActual</c>, lo elegido, y por eso podía escribir
+    /// la cookie de un guardado que todavía no había cuajado.
     /// </para>
     /// </summary>
     private Task<IJSObjectReference>? _moduloTask;
@@ -81,6 +83,32 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
     private IJSObjectReference? _modulo;
     private ApplicationUser? _usuario;
     private string? _temaActual;
+
+    /// <summary>
+    /// El último tema <b>confirmado</b> en la cuenta (o, sin cuenta, el último
+    /// elegido): lo único que puede llegar al navegador, porque <c>aplicarTema</c>
+    /// escribe la cookie que <c>TemaCookie</c> lee en la siguiente petición.
+    /// <see cref="_temaActual"/> es lo que el usuario ha elegido —lo que
+    /// muestra el <c>&lt;select&gt;</c>— y puede ir por delante mientras un
+    /// guardado sigue en vuelo, o quedarse por delante para siempre si falla.
+    /// Confundirlos es lo que hacía que <see cref="OnAfterRenderAsync"/>
+    /// adelantara la cookie a un guardado que aún no había cuajado (segunda
+    /// revisión de Codex, 2026-09-20).
+    /// </summary>
+    private string? _temaGuardado;
+
+    /// <summary>
+    /// Un solo cambio de tema a la vez: guardar y aplicar son un par que no
+    /// debe intercalarse con el de otro cambio. Sin esto, dos manejadores
+    /// solapados mutaban <c>_usuario</c> a la vez —la lambda diferida de
+    /// <c>PuertaAccesoDatos</c> lee el campo al cruzar la puerta, no al crear
+    /// la operación— y un guardado podía dar <c>Succeeded</c> sobre la
+    /// instancia que otro acababa de preparar con SU tema (A→B→A con el
+    /// segundo guardado fallando dejaba navegador y cookie en A frente a una
+    /// cuenta en B). Serializados, el cambio posterior espera al anterior y
+    /// cada par guardar→aplicar es atómico respecto a los demás.
+    /// </summary>
+    private readonly SemaphoreSlim _cambioEnCurso = new(1, 1);
 
     protected override async Task OnInitializedAsync()
     {
@@ -117,6 +145,7 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
         }
 
         _temaActual = TemaATexto(_usuario?.Tema ?? TemaPreferido.Sistema);
+        _temaGuardado = _temaActual;
     }
 
     /// <summary>
@@ -138,11 +167,20 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
     /// </summary>
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_temaActual is null || _moduloTask is not null) return;
+        if (_temaGuardado is null || _moduloTask is not null) return;
 
         _moduloTask = JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/tema.js").AsTask();
         _modulo = await _moduloTask;
-        await _modulo.InvokeVoidAsync("aplicarTema", _temaActual);
+
+        // El CONFIRMADO, no el elegido: si un cambio está guardándose ahora
+        // mismo, aplicar su tema aquí escribiría la cookie antes de que la
+        // cuenta lo tenga. Tampoco se pierde: ese cambio, al cuajar, ve
+        // _modulo ya asignado y lo aplica él. Ambas lecturas —asignar
+        // _modulo y leer _temaGuardado aquí; asignar _temaGuardado y leer
+        // _modulo en CambiarTemaAsync— son síncronas dentro de su
+        // continuación y el circuito las ejecuta una a una, así que sea cual
+        // sea el orden en que caigan, el último tema confirmado llega.
+        await _modulo.InvokeVoidAsync("aplicarTema", _temaGuardado);
     }
 
     /// <summary>
@@ -196,23 +234,38 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
     /// documento siguen en la anterior, sin aviso al usuario más que el
     /// <c>LogWarning</c>. Es preferible a lo de antes —que pintaba el tema y
     /// dejaba una cookie apuntando a una preferencia inexistente—, pero sigue
-    /// siendo un fallo visible solo en el registro. Y con dos cambios
-    /// solapados, el primero se descarta al cuajar si ya no es el vigente: lo
-    /// aplica el segundo cuando termine su propio guardado.
+    /// siendo un fallo visible solo en el registro. Tampoco se resuelve el
+    /// caso de que, tras un fallo, el <c>&lt;select&gt;</c> quede en una
+    /// opción distinta de la que la cuenta y el documento conservan:
+    /// revertirlo exigiría <c>StateHasChanged</c>, que este componente evita
+    /// a propósito (los tests lo invocan sin renderer, ver
+    /// <c>SelectorTemaGuardadoTrasEscrituraConcurrenteTests</c>).
     /// </para>
     ///
     /// <para>
-    /// <b>Hueco conocido, deliberadamente no cerrado aquí</b>: mientras el
-    /// <c>import()</c> de <see cref="OnAfterRenderAsync"/> sigue en vuelo
-    /// —<c>_modulo</c> todavía null, solo los primeros instantes del
-    /// circuito— es esa continuación, y no este método, la que aplica el
-    /// <c>_temaActual</c> vigente en cuanto el módulo resuelve; puede hacerlo
-    /// antes de que este guardado cuaje, y volver a adelantar la cookie.
-    /// Cerrarlo exigiría coordinar ambas continuaciones, que es exactamente el
-    /// diseño que Codex refutó dos veces (ver <see cref="_moduloTask"/>): su
-    /// remedio pierde la preferencia si el circuito muere entre medias, y
-    /// puede colgar <see cref="DisposeAsync"/>. Se prefiere una ventana
-    /// estrecha y descrita a una sincronización con modos de fallo peores.
+    /// <b>Un cambio a la vez</b> (segunda revisión de Codex): el par
+    /// guardar→aplicar va bajo <see cref="_cambioEnCurso"/>. La primera
+    /// solución para los cambios solapados —descartar el aplicado si ya no
+    /// era el vigente— tenía tres agujeros con una sola raíz: A→B→A con el
+    /// segundo guardado fallando dejaba navegador y cookie en A frente a una
+    /// cuenta en B; dos manejadores mutaban <c>_usuario</c> a la vez y un
+    /// <c>Succeeded</c> podía corresponder al tema del otro; y no cubría a
+    /// <see cref="OnAfterRenderAsync"/>. Serializando, ninguno de los tres
+    /// puede darse: cada cambio espera al anterior y ve su resultado.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>La ventana del <c>import()</c> en vuelo</b> —<c>_modulo</c> todavía
+    /// null, los primeros instantes del circuito— ya no adelanta la cookie:
+    /// <see cref="OnAfterRenderAsync"/> aplica <see cref="_temaGuardado"/>
+    /// (lo confirmado), no <see cref="_temaActual"/> (lo elegido). Si un
+    /// guardado está en vuelo, esa continuación aplica el tema anterior y el
+    /// cambio, al cuajar, ve <c>_modulo</c> ya asignado y aplica el suyo; si
+    /// cuaja antes de que el módulo resuelva, la continuación ya lee el nuevo.
+    /// No es la sincronización entre continuaciones que Codex refutó dos veces
+    /// (ver <see cref="_moduloTask"/>): nada espera a nada, cada lado lee un
+    /// valor confirmado en el momento, y por tanto no puede perder la
+    /// preferencia si el circuito muere ni colgar <see cref="DisposeAsync"/>.
     /// </para>
     /// </summary>
     private async Task CambiarTemaAsync(ChangeEventArgs e)
@@ -220,18 +273,21 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
         var texto = e.Value?.ToString() ?? "sistema";
         _temaActual = texto;
 
-        if (_usuario is not null && !await GuardarTemaAsync(texto))
-            return;
+        await _cambioEnCurso.WaitAsync();
+        try
+        {
+            if (_usuario is not null && !await GuardarTemaAsync(texto))
+                return;
 
-        // Otro cambio se hizo mientras este esperaba su guardado: ese es el
-        // vigente y se aplicará cuando el suyo cuaje. Aplicar este ahora lo
-        // pintaría un instante y adelantaría la cookie a un guardado que
-        // todavía no ha terminado (revisión de Codex, 2026-09-20).
-        if (texto != _temaActual)
-            return;
+            _temaGuardado = texto;
 
-        if (_modulo is not null)
-            await _modulo.InvokeVoidAsync("aplicarTema", texto);
+            if (_modulo is not null)
+                await _modulo.InvokeVoidAsync("aplicarTema", texto);
+        }
+        finally
+        {
+            _cambioEnCurso.Release();
+        }
     }
 
     /// <summary>

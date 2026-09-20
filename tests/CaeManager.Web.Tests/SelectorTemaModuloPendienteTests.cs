@@ -63,7 +63,7 @@ public class SelectorTemaModuloPendienteTests
     {
         var jsRuntime = new JsRuntimeFalso();
         var selectorTema = CrearSelectorTema(jsRuntime);
-        EscribirCampoPrivado(selectorTema, "_temaActual", "oscuro");
+        EscribirTemaInicial(selectorTema, "oscuro");
 
         // Arranca la importación (simula el remontado tras una navegación
         // "enhanced") SIN esperarla — se queda en vuelo a propósito.
@@ -93,7 +93,7 @@ public class SelectorTemaModuloPendienteTests
     {
         var jsRuntime = new JsRuntimeFalso();
         var selectorTema = CrearSelectorTema(jsRuntime);
-        EscribirCampoPrivado(selectorTema, "_temaActual", "oscuro");
+        EscribirTemaInicial(selectorTema, "oscuro");
 
         var tareaOnAfterRender = InvocarOnAfterRenderAsync(selectorTema, firstRender: true);
 
@@ -122,7 +122,7 @@ public class SelectorTemaModuloPendienteTests
     {
         var jsRuntime = new JsRuntimeFalso();
         var selectorTema = CrearSelectorTema(jsRuntime);
-        EscribirCampoPrivado(selectorTema, "_temaActual", "oscuro");
+        EscribirTemaInicial(selectorTema, "oscuro");
 
         var tareaOnAfterRender = InvocarOnAfterRenderAsync(selectorTema, firstRender: true);
 
@@ -145,6 +145,34 @@ public class SelectorTemaModuloPendienteTests
             "disparar más de un import()");
     }
 
+    /// <summary>
+    /// Segunda revisión de Codex (2026-09-20): <c>OnAfterRenderAsync</c> leía
+    /// <c>_temaActual</c>, lo ELEGIDO. Con la importación en vuelo y un
+    /// guardado también en vuelo, aplicaba —y con ello escribía la cookie
+    /// que <c>TemaCookie</c> lee en la siguiente petición— un tema que la
+    /// cuenta todavía no tenía; si el guardado fallaba después, la cookie
+    /// quedaba apuntando a una preferencia inexistente y el circuito de la
+    /// página siguiente la revertía. Debe aplicar <c>_temaGuardado</c>, lo
+    /// CONFIRMADO. La discrepancia entre ambos campos es exactamente el
+    /// estado «hay un guardado en vuelo».
+    /// </summary>
+    [Fact]
+    public async Task Tras_importar_el_modulo_se_aplica_el_tema_confirmado_no_el_que_aun_se_esta_guardando()
+    {
+        var jsRuntime = new JsRuntimeFalso();
+        var selectorTema = CrearSelectorTema(jsRuntime);
+        EscribirCampoPrivado(selectorTema, "_temaGuardado", "sistema");
+        EscribirCampoPrivado(selectorTema, "_temaActual", "oscuro");
+
+        var tareaOnAfterRender = InvocarOnAfterRenderAsync(selectorTema, firstRender: true);
+        jsRuntime.CompletarImportacion();
+        await tareaOnAfterRender.WaitAsync(TimeSpan.FromSeconds(5));
+
+        jsRuntime.Modulo.TemasAplicados.Should().Equal(["sistema"],
+            "el tema elegido («oscuro») aún se está guardando: aplicarlo escribiría la cookie antes de que la " +
+            "cuenta lo tenga, y un fallo posterior del guardado la dejaría apuntando a una preferencia inexistente");
+    }
+
     private static SelectorTema CrearSelectorTema(IJSRuntime jsRuntime)
     {
         var selectorTema = new SelectorTema();
@@ -156,6 +184,16 @@ public class SelectorTemaModuloPendienteTests
         (instancia.GetType().GetProperty(nombre, BindingFlags.NonPublic | BindingFlags.Instance)
             ?? throw new InvalidOperationException($"No se encontró la propiedad inyectada '{nombre}'."))
             .SetValue(instancia, valor);
+
+    /// <summary>
+    /// Estado de un componente ya inicializado: lo elegido y lo confirmado
+    /// coinciden (<c>OnInitializedAsync</c> fija los dos a la vez).
+    /// </summary>
+    private static void EscribirTemaInicial(object instancia, string tema)
+    {
+        EscribirCampoPrivado(instancia, "_temaActual", tema);
+        EscribirCampoPrivado(instancia, "_temaGuardado", tema);
+    }
 
     private static void EscribirCampoPrivado(object instancia, string nombre, object? valor) =>
         (instancia.GetType().GetField(nombre, BindingFlags.NonPublic | BindingFlags.Instance)

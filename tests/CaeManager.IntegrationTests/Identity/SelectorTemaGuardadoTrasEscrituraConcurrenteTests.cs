@@ -242,19 +242,65 @@ public class SelectorTemaGuardadoTrasEscrituraConcurrenteTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Tercera observación de la revisión de Codex: con dos cambios solapados,
-    /// el primero se aplicaba al cuajar su guardado aunque <c>_temaActual</c>
-    /// ya fuera el segundo, que seguía esperando el suyo — un estado visual
-    /// obsoleto y una cookie adelantada al guardado vigente. El solapamiento
-    /// es el del propio código: el primer <c>CambiarTemaAsync</c> cede el
-    /// control en su primer <c>await</c> con E/S real contra Postgres, y el
-    /// segundo arranca —y fija <c>_temaActual</c>— antes de que aquel
-    /// vuelva. No hay retardos ni sincronización artificial; que el orden sea
-    /// ese lo comprueba la propia aserción (si no se solaparan, se aplicarían
-    /// dos temas y la lista no sería <c>["claro"]</c>).
+    /// Segunda revisión de Codex (2026-09-20): con dos cambios solapados, el
+    /// par guardar→aplicar de uno se intercalaba con el del otro. Fijado
+    /// aquí: <b>un cambio a la vez</b>. El primero se detiene DENTRO de
+    /// <c>aplicarTema</c> (la puerta del doble no se abre hasta que el test
+    /// lo decide); el segundo se lanza entonces y, si el componente no
+    /// serializara, guardaría y aplicaría mientras el primero sigue
+    /// bloqueado. Con el semáforo, no puede avanzar hasta que el primero
+    /// termina.
+    ///
+    /// <para>
+    /// <b>Límite declarado del instrumento</b>: la ausencia de avance del
+    /// segundo se observa esperando un plazo fijo, así que un componente
+    /// sin semáforo daría verde si el segundo tardara más que ese plazo en
+    /// llegar a guardar — nunca al revés: el rojo sí prueba que no hay
+    /// serialización. Medido por mutación (quitar el semáforo): rojo.
+    /// </para>
     /// </summary>
     [Fact]
-    public async Task Con_dos_cambios_solapados_solo_se_aplica_el_vigente_cuando_cuaja_su_guardado()
+    public async Task Un_segundo_cambio_no_avanza_mientras_el_primero_esta_aplicando_su_tema()
+    {
+        using var ambitoCircuito = _servicios.CreateScope();
+        var selectorTema = CrearSelectorTema(ambitoCircuito.ServiceProvider, _usuarioId);
+        await InvocarOnInitializedAsync(selectorTema);
+
+        var modulo = new ModuloQueMiraLaCuentaAlAplicar(_servicios, _usuarioId);
+        modulo.RetenerLaPrimeraAplicacion();
+        EscribirCampoPrivado(selectorTema, "_modulo", modulo);
+
+        var primero = InvocarCambiarTemaAsync(selectorTema, "oscuro");
+        await modulo.EsperarQueLaPrimeraAplicacionEstePendienteAsync(TimeSpan.FromSeconds(30));
+
+        var segundo = InvocarCambiarTemaAsync(selectorTema, "claro");
+        await Task.Delay(TimeSpan.FromSeconds(2));
+
+        modulo.TemasAplicados.Should().Equal(["oscuro"],
+            "el segundo cambio tiene que esperar a que el primero termine su par guardar→aplicar: si avanzara, " +
+            "guardaría y aplicaría con el primero todavía a medias, que es el intercalado que producía los " +
+            "estados incoherentes de la segunda revisión de Codex");
+        (await LeerTemaDeLaCuentaAsync()).Should().Be(TemaPreferido.Oscuro,
+            "y tampoco ha guardado: su UPDATE va detrás del semáforo, no solo su aplicación");
+
+        modulo.LiberarLaPrimeraAplicacion();
+        await Task.WhenAll(primero, segundo).WaitAsync(TimeSpan.FromSeconds(30));
+
+        modulo.TemasAplicados.Should().Equal(["oscuro", "claro"]);
+        modulo.TemaEnLaCuentaAlAplicar.Should().Equal([TemaPreferido.Oscuro, TemaPreferido.Claro],
+            "cada tema se aplicó con su propio guardado ya cuajado");
+    }
+
+    /// <summary>
+    /// El escenario A→B→A de la segunda revisión de Codex, en su forma
+    /// invariante: sea cual sea el orden en que se resuelvan, <b>cada tema
+    /// que llega al navegador ya estaba en la cuenta cuando llegó</b>, y el
+    /// último aplicado es el que la cuenta conserva. No fija el orden de
+    /// llegada de los tres cambios —eso lo decide el planificador—, fija lo
+    /// que no puede romperse con ninguno.
+    /// </summary>
+    [Fact]
+    public async Task Con_tres_cambios_seguidos_lo_aplicado_siempre_esta_ya_en_la_cuenta_y_el_ultimo_es_el_final()
     {
         using var ambitoCircuito = _servicios.CreateScope();
         var selectorTema = CrearSelectorTema(ambitoCircuito.ServiceProvider, _usuarioId);
@@ -263,17 +309,30 @@ public class SelectorTemaGuardadoTrasEscrituraConcurrenteTests : IAsyncLifetime
         var modulo = new ModuloQueMiraLaCuentaAlAplicar(_servicios, _usuarioId);
         EscribirCampoPrivado(selectorTema, "_modulo", modulo);
 
-        // El segundo cambio se lanza SIN esperar al primero: así, cuando el
-        // primero termina su guardado, _temaActual ya es "claro".
-        var primero = InvocarCambiarTemaAsync(selectorTema, "oscuro");
-        var segundo = InvocarCambiarTemaAsync(selectorTema, "claro");
-        await Task.WhenAll(primero, segundo).WaitAsync(TimeSpan.FromSeconds(30));
+        var cambios = new[] { "oscuro", "claro", "oscuro" }
+            .Select(tema => InvocarCambiarTemaAsync(selectorTema, tema)).ToArray();
+        await Task.WhenAll(cambios).WaitAsync(TimeSpan.FromSeconds(60));
 
-        modulo.TemasAplicados.Should().Equal(["claro"],
-            "el primer cambio ya no era el vigente cuando su guardado cuajó: aplicarlo pintaría un tema " +
-            "obsoleto y escribiría una cookie que no es la de la elección actual");
-        modulo.TemaEnLaCuentaAlAplicar.Should().Equal([TemaPreferido.Claro],
-            "y el que sí se aplica tiene que estar ya en la cuenta");
+        modulo.TemasAplicados.Should().HaveCount(3, "los tres cambios se guardaron y ninguno se descartó");
+        modulo.TemaEnLaCuentaAlAplicar.Should().Equal(
+            modulo.TemasAplicados.Select(TemaDesdeTexto),
+            "ningún tema llegó al navegador —ni, con él, a la cookie— antes de estar guardado");
+        (await LeerTemaDeLaCuentaAsync()).Should().Be(TemaDesdeTexto(modulo.TemasAplicados[^1]),
+            "el último tema aplicado es el que la cuenta conserva");
+    }
+
+    private static TemaPreferido TemaDesdeTexto(string texto) => texto switch
+    {
+        "claro" => TemaPreferido.Claro,
+        "oscuro" => TemaPreferido.Oscuro,
+        _ => TemaPreferido.Sistema,
+    };
+
+    private async Task<TemaPreferido> LeerTemaDeLaCuentaAsync()
+    {
+        using var ambito = _servicios.CreateScope();
+        var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        return (await userManager.FindByIdAsync(_usuarioId.ToString()))!.Tema;
     }
 
     private static SelectorTema CrearSelectorTema(IServiceProvider servicios, Guid usuarioId)
@@ -350,6 +409,22 @@ public class SelectorTemaGuardadoTrasEscrituraConcurrenteTests : IAsyncLifetime
 
         public List<TemaPreferido> TemaEnLaCuentaAlAplicar { get; } = [];
 
+        private TaskCompletionSource<bool>? _puertaPrimeraAplicacion;
+        private readonly TaskCompletionSource<bool> _primeraAplicacionPendiente = new();
+
+        /// <summary>
+        /// La primera llamada a <c>aplicarTema</c> no vuelve hasta
+        /// <see cref="LiberarLaPrimeraAplicacion"/>: permite sostener un
+        /// cambio DENTRO de su aplicación mientras el test lanza otro.
+        /// </summary>
+        public void RetenerLaPrimeraAplicacion() =>
+            _puertaPrimeraAplicacion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public void LiberarLaPrimeraAplicacion() => _puertaPrimeraAplicacion!.TrySetResult(true);
+
+        public Task EsperarQueLaPrimeraAplicacionEstePendienteAsync(TimeSpan limite) =>
+            _primeraAplicacionPendiente.Task.WaitAsync(limite);
+
         public async ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args)
         {
             if (identifier == "aplicarTema")
@@ -367,6 +442,12 @@ public class SelectorTemaGuardadoTrasEscrituraConcurrenteTests : IAsyncLifetime
                 // por NRE del doble, no por «se aplicó sin guardar»).
                 if (usuario is not null)
                     TemaEnLaCuentaAlAplicar.Add(usuario.Tema);
+
+                if (TemasAplicados.Count == 1 && _puertaPrimeraAplicacion is not null)
+                {
+                    _primeraAplicacionPendiente.TrySetResult(true);
+                    await _puertaPrimeraAplicacion.Task;
+                }
             }
 
             return default!;
