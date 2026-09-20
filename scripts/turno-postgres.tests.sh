@@ -180,6 +180,20 @@ for i in $(seq 1 50); do [ ! -d "$HYDRA_TURNO_DIR/cerrojo" ] && break; sleep 0.1
 comprobar "SIGTERM: sale con 143 y el cerrojo queda liberado" "143 sin-cerrojo" "$rc $([ -d "$HYDRA_TURNO_DIR/cerrojo" ] && echo con-cerrojo || echo sin-cerrojo)"
 comprobar "SIGTERM: lo dice como INTERRUMPIDO" "1" "$(grep -c 'INTERRUMPIDO señal=15' "$CASO/o")"
 
+# 10b -----------------------------------------------------------------------
+# Hallazgo de la revisión previa: al interrumpir hay que matar el ÁRBOL (dotnet
+# test -> testhost) y esperar a que muera ANTES de liberar el cerrojo; si no, la
+# suite siguiente entra con el testhost anterior aún vivo sobre el mismo clúster.
+nuevo_caso interrupcion-mata-el-arbol
+bash "$GUION" -- bash -c "sleep 300 & echo \$! > '$CASO/pidnieto'; echo N_ini >> '$REGISTRO'; wait" > "$CASO/o" 2>&1 & pw=$!
+esperar_a "N_ini" "$REGISTRO" || true
+nieto=$(cat "$CASO/pidnieto" 2>/dev/null)
+PIDS_AJENOS+=("$nieto")
+kill -TERM "$pw" 2>/dev/null
+wait "$pw" 2>/dev/null
+# Sin sondeo: en el instante en que el guion ha terminado, el nieto ya no puede vivir.
+comprobar "SIGTERM: el descendiente del comando ha muerto cuando el guion termina" "muerto sin-cerrojo" "$(kill -0 "$nieto" 2>/dev/null && echo vivo || echo muerto) $([ -d "$HYDRA_TURNO_DIR/cerrojo" ] && echo con-cerrojo || echo sin-cerrojo)"
+
 # 11 ------------------------------------------------------------------------
 # Un turno LARGO no caduca mientras el dueño siga latiendo: sin latido, la
 # caducidad retiraría un cerrojo legítimo y dos suites correrían a la vez.

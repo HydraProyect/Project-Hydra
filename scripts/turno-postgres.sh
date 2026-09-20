@@ -232,9 +232,17 @@ iniciar_latido() {
 tomar_cerrojo() {
   mkdir "$CERROJO" 2>/dev/null || return 1
   TENGO_CERROJO=1
-  printf 'pid=%s\ninicio=%s\nworktree=%s\netiqueta=%s\ncomando=%s\n' \
-    "$YO" "$(epoca)" "$PWD" "$etiqueta" "$*" > "$CERROJO/dueno"
-  epoca > "$CERROJO/latido"
+  # Sin registro de dueño y latido válidos el cerrojo caducaría con el comando aún
+  # en marcha y otro waiter entraría a la vez: si no se pueden escribir, no se ejecuta.
+  if ! { printf 'pid=%s\ninicio=%s\nworktree=%s\netiqueta=%s\ncomando=%s\n' \
+           "$YO" "$(epoca)" "$PWD" "$etiqueta" "$*" > "$CERROJO/dueno" \
+         && epoca > "$CERROJO/latido"; } 2>/dev/null; then
+    rm -rf "$CERROJO"; TENGO_CERROJO=0; rm -f "$TICKET" "$TICKET.tmp"
+    echo "TURNO-POSTGRES: ABORTADO — NO SE EJECUTÓ EL COMANDO: no se pudo escribir el registro del cerrojo en '$CERROJO'." >&2
+    echo "TURNO-POSTGRES: ABORTADO_SIN_EJECUTAR motivo=cerrojo_sin_registro salida=$EX_INFRA" >&2
+    trap - EXIT
+    exit $EX_INFRA
+  fi
   rm -f "$TICKET" "$TICKET.tmp"
   iniciar_latido "$@"
   return 0
@@ -250,9 +258,40 @@ liberar() {
   TENGO_CERROJO=0
 }
 
+hijos_directos() {  # pgrep en Linux; `ps` de MSYS/Git Bash (columnas PID PPID ...) donde no hay pgrep
+  if command -v pgrep >/dev/null 2>&1; then pgrep -P "$1" 2>/dev/null
+  else ps 2>/dev/null | awk -v p="$1" '$2 == p { print $1 }'; fi
+}
+
+descendientes() {  # pids descendientes de $1, los más profundos primero
+  local c
+  for c in $(hijos_directos "$1"); do descendientes "$c"; echo "$c"; done
+}
+
+# Mata el comando Y a sus descendientes (dotnet test -> testhost) y espera a que el
+# hijo directo haya muerto. El cerrojo NO se libera hasta entonces: liberarlo con el
+# testhost aún vivo dejaba entrar a la suite siguiente contra el mismo clúster.
+matar_arbol() {
+  local p=$1 w lista i
+  # Los descendientes MSYS se leen ANTES de matar nada (`taskkill /T` no los
+  # alcanza: no cuelgan del padre en el árbol de Windows) y se matan al final.
+  lista=$(descendientes "$p")
+  if command -v taskkill >/dev/null 2>&1 && [ -r "/proc/$p/winpid" ]; then
+    w=$(cat "/proc/$p/winpid" 2>/dev/null)
+    [ -n "$w" ] && taskkill //T //F //PID "$w" >/dev/null 2>&1   # hijos nativos: dotnet -> testhost
+  fi
+  # shellcheck disable=SC2086
+  [ -n "$lista" ] && kill $lista 2>/dev/null
+  kill "$p" 2>/dev/null
+  for i in $(seq 1 100); do vivo "$p" || return 0; sleep 0.1; done
+  kill -9 "$p" 2>/dev/null; sleep 0.5
+  vivo "$p" && echo "TURNO-POSTGRES: AVISO: el comando (pid $p) sigue vivo tras la interrupción; se libera el cerrojo igualmente." >&2
+  return 0
+}
+
 al_interrumpir() {
   local senal=$1
-  [ -n "$HIJO" ] && { kill "$HIJO" 2>/dev/null; kill -f "$HIJO" 2>/dev/null; }
+  [ -n "$HIJO" ] && matar_arbol "$HIJO"
   local ejecutando=0; [ "$TENGO_CERROJO" = 1 ] && ejecutando=1
   liberar
   if [ "$ejecutando" = 1 ]; then
