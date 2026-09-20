@@ -62,6 +62,25 @@ public static class EscenariosDireccionDemoSeeder
     public const string EmailGestorSegundo = "gestor2.arcospa@caemanager.local";
     public const string EmailCoordinador = "coordinador1.arcospa@caemanager.local";
 
+    /// <summary>
+    /// La guarda de Producción de esta siembra, aparte de <see cref="SeedAsync"/> para que
+    /// el arranque pueda invocarla <b>antes de cualquier otra siembra</b>: con el flag
+    /// activo en Producción, el resto de seeders de demo ya habrían escrito cuando esta
+    /// llegara a lanzar, y un rechazo tiene que ser previo a toda escritura. Inerte si
+    /// el flag no está activo.
+    /// </summary>
+    public static void RechazarEnProduccion(IConfiguration configuration, IHostEnvironment entorno)
+    {
+        if (!configuration.GetValue<bool>("DatosPrueba:Activo") || !configuration.GetValue<bool>(ClaveConfiguracion))
+            return;
+
+        if (entorno.IsProduction())
+            throw new InvalidOperationException(
+                $"{ClaveConfiguracion} no puede activarse en Producción: esta siembra usa la contraseña compartida " +
+                "de la demo local (CredencialesDemo). El camino a producción es una siembra propia con " +
+                "contraseñas únicas entregadas fuera de banda.");
+    }
+
     public static async Task SeedAsync(
         CaeManagerDbContext dbContext,
         UserManager<ApplicationUser> userManager,
@@ -73,11 +92,7 @@ public static class EscenariosDireccionDemoSeeder
         if (!configuration.GetValue<bool>("DatosPrueba:Activo") || !configuration.GetValue<bool>(ClaveConfiguracion))
             return;
 
-        if (entorno.IsProduction())
-            throw new InvalidOperationException(
-                $"{ClaveConfiguracion} no puede activarse en Producción: esta siembra usa la contraseña compartida " +
-                "de la demo local (CredencialesDemo). El camino a producción es una siembra propia con " +
-                "contraseñas únicas entregadas fuera de banda.");
+        RechazarEnProduccion(configuration, entorno);
 
         var credenciales = CredencialesDemo.Resolver(configuration, entorno);
 

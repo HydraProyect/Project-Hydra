@@ -546,6 +546,47 @@ public class EscenariosDireccionDemoArranqueTests
             .Should().Be(0, "MEDIDO: el rechazo es previo a cualquier escritura");
     }
 
+    [Theory]
+    [InlineData("Production", true, true, true)]
+    [InlineData("Production", true, false, false)]
+    [InlineData("Production", false, true, false)]
+    [InlineData("Development", true, true, false)]
+    public void La_guarda_de_Produccion_rechaza_solo_con_las_dos_claves_activas_en_Produccion(
+        string entorno, bool datosPrueba, bool escenarios, bool debeLanzar)
+    {
+        var configuracion = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["DatosPrueba:Activo"] = datosPrueba.ToString(),
+            [EscenariosDireccionDemoSeeder.ClaveConfiguracion] = escenarios.ToString(),
+        }).Build();
+
+        var llamada = () => EscenariosDireccionDemoSeeder.RechazarEnProduccion(configuracion, new EntornoDePrueba(entorno));
+
+        if (debeLanzar)
+            llamada.Should().Throw<InvalidOperationException>().WithMessage("*EscenariosDireccion no puede activarse en Producción*");
+        else
+            llamada.Should().NotThrow("MEDIDO: inerte sin las dos claves, y fuera de Producción no rechaza");
+    }
+
+    [Fact]
+    public void El_arranque_rechaza_el_flag_en_Produccion_antes_de_cualquier_otra_siembra()
+    {
+        // MEDIDO en el fuente real de Program.cs: con el flag activo en Producción, DelegacionDemoSeeder
+        // (y DatosPruebaSeeder por IdentitySeeder) ya habrían escrito si el rechazo llegara después.
+        var directorio = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directorio is not null && !File.Exists(Path.Combine(directorio.FullName, "CaeManager.slnx")))
+            directorio = directorio.Parent;
+        directorio.Should().NotBeNull("el instrumento tiene que localizar la raíz del repositorio para leer Program.cs");
+
+        var programa = File.ReadAllText(Path.Combine(directorio!.FullName, "src", "CaeManager.Web", "Program.cs"));
+        var rechazo = programa.IndexOf("EscenariosDireccionDemoSeeder.RechazarEnProduccion(", StringComparison.Ordinal);
+        var primeraSiembra = programa.IndexOf("IdentitySeeder.SeedAsync(", StringComparison.Ordinal);
+
+        rechazo.Should().BeGreaterThan(-1, "el arranque tiene que invocar la guarda");
+        primeraSiembra.Should().BeGreaterThan(-1, "control positivo: el instrumento ve la primera siembra del arranque");
+        rechazo.Should().BeLessThan(primeraSiembra, "un rechazo previo a toda escritura, no posterior a la siembra de demo base");
+    }
+
     [Fact]
     public async Task Sembrar_dos_veces_no_duplica_nada()
     {
