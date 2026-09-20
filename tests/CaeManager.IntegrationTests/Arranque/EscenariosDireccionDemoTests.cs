@@ -538,7 +538,8 @@ public class EscenariosDireccionDemoArranqueTests
         var siembra = () => SembrarEscenariosAsync(arnes, configuracion, new EntornoDePrueba("Production"));
 
         await siembra.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*Producción*", "MEDIDO: esta siembra comparte la contraseña de la demo local y no puede correr en Producción");
+            .WithMessage("*EscenariosDireccion no puede activarse en Producción*",
+                "MEDIDO: la guarda es la de ESTA siembra; CredencialesDemo lanza otra excepción que también dice «Producción» y no debe bastar para dar verde");
 
         await using var bootstrap = arnes.Servicios.GetRequiredService<FabricaContextoDeBootstrap>().Crear();
         (await bootstrap.Tenants.CountAsync(t => t.Nombre == CatalogoEscenariosDireccionDemo.NombreTenantDuff))
