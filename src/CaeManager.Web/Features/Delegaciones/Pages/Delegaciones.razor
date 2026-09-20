@@ -22,6 +22,11 @@
         </Acciones>
     </CabeceraPagina>
 
+    @if (PuedeGestionar)
+    {
+        <OperadoresCaeExternosPanel />
+    }
+
     @if (OperandoWorkspaceAjeno)
     {
         <div class="delegaciones-aviso-ajeno" role="note">

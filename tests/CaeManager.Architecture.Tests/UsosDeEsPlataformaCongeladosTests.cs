@@ -217,6 +217,16 @@ public class UsosDeEsPlataformaCongeladosTests
                 "porque El_ensamblado_de_Web_no_depende_de_EsPlataforma congela esa frontera a cero"),
 
         // ── GUARDA ────────────────────────────────────────────────────────────────
+        ["src/CaeManager.Application/Tenants/Commands/CrearTenantPropietarioDeOperadorCaeExterno/CrearTenantPropietarioDeOperadorCaeExternoCommand.cs"] =
+            new(2, CategoriaUso.Guarda,
+                "la proyección del Operador y el rechazo de un Operador que sea el Tenant de plataforma: " +
+                "TALVEG no es Operador CAE por defecto (ADR-011 § 1). No concede capacidad a nadie — es la " +
+                "mitad negativa de un fallo cerrado, y va además de la guarda de perfil Consultora (el test " +
+                "de integración cambia el perfil de la plataforma a Consultora para que solo esta guarda lo rechace)"),
+        ["src/CaeManager.Application/Tenants/Queries/ObtenerOperadoresCaeExternos/ObtenerOperadoresCaeExternosQuery.cs"] =
+            new(1, CategoriaUso.Guarda,
+                "excluye el Tenant de plataforma del listado de Operadores CAE externos. Solo recorta un " +
+                "listado ya autorizado por PuedeGlobalmenteAsync; no concede nada"),
         ["src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs"] =
             new(2, CategoriaUso.Guarda,
                 ":139 rechaza retirar el tenant de plataforma, :55 lo documenta. No concede capacidad a " +
