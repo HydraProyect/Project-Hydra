@@ -102,6 +102,58 @@ public class DesactivarCortaLaSesionTests(WebAppFixtureConRevalidacionRapida fix
         Assert.Equal(HttpStatusCode.OK, await EstadoDeClientesAsync(await CabeceraCookieAsync(contextoNuevo)));
     }
 
+    /// <summary>
+    /// La orden de volver al acceso (<c>SesionDelCircuito</c>) la ejecuta el
+    /// navegador, y un cliente hostil puede ignorarla y seguir hablando con su
+    /// circuito. Aquí el navegador la ignora (se aborta la navegación al
+    /// acceso): el corte tiene que ser del servidor, y la lista de clientes
+    /// que se vuelve a pedir tras desactivar no puede servir datos. Medido al
+    /// escribirlo: sin <c>ISesionDeCircuitoInvalidable</c>, <c>TenantActual</c>
+    /// caía al <c>HttpContext</c> de la petición que abrió el circuito
+    /// (presente, autenticado, con el usuario de entonces) y la lista seguía
+    /// llegando.
+    /// </summary>
+    [Fact]
+    public async Task Un_circuito_que_ignora_la_orden_de_salir_tampoco_recibe_datos()
+    {
+        var emailVictima = Ayudas.EmailPrueba("gestorcae", 1);
+
+        await using var contextoVictima = await fixture.Browser.NewContextAsync();
+        var paginaVictima = await contextoVictima.NewPageAsync();
+        await Ayudas.IniciarSesionAsync(paginaVictima, fixture.BaseUrl, emailVictima, Ayudas.ContrasenaUsuariosPrueba);
+        await Ayudas.NavegarYEsperarAsync(paginaVictima, $"{fixture.BaseUrl}/clientes");
+        await Ayudas.DescartarNotificacionesPendientesAsync(paginaVictima);
+
+        // Control positivo: antes de desactivar, la lista trae datos.
+        var principal = paginaVictima.Locator("main");
+        await Assertions.Expect(principal).ToContainTextAsync("Acme");
+
+        // El navegador «ignora» la orden de salir: sin esto SesionDelCircuito
+        // llevaría a la víctima al acceso y no habría circuito que interrogar.
+        // Un 204 deja el documento actual donde está (abortar la petición lo
+        // sustituiría por la página de error del navegador y cerraría el circuito).
+        await paginaVictima.RouteAsync("**/cuenta/iniciar-sesion**",
+            ruta => ruta.FulfillAsync(new RouteFulfillOptions { Status = 204 }));
+
+        await CambiarActivacionAsync(emailVictima, "Desactivar", "Usuario desactivado.");
+        await Task.Delay(TimeSpan.FromSeconds(6)); // varios ciclos de 2 s
+
+        try
+        {
+            // Pide la lista otra vez por el circuito (mismo camino que un cambio de filtro o de página).
+            await paginaVictima.Locator("select").Filter(new LocatorFilterOptions { Has = paginaVictima.Locator("option[value='50']") })
+                .First.SelectOptionAsync("50");
+
+            await Assertions.Expect(principal).Not.ToContainTextAsync("Acme",
+                new LocatorAssertionsToContainTextOptions { Timeout = 10_000 });
+        }
+        finally
+        {
+            // Deja la cuenta como estaba: el resto de la suite comparte la BD.
+            await CambiarActivacionAsync(emailVictima, "Reactivar", "Usuario reactivado.");
+        }
+    }
+
     private async Task CambiarActivacionAsync(string emailUsuario, string accion, string textoToast)
     {
         await using var contextoAdmin = await fixture.Browser.NewContextAsync();

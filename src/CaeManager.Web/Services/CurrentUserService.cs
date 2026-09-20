@@ -226,6 +226,11 @@ public class CurrentUserService(
             // sin circuito de Blazor — se intenta el fallback de abajo.
         }
 
+        // Un circuito cuya sesión ya no vale NO recupera identidad por el
+        // HttpContext de la petición que lo abrió (ver ISesionDeCircuitoInvalidable).
+        if (authenticationStateProvider is ISesionDeCircuitoInvalidable { SesionInvalidada: true })
+            return null;
+
         var usuarioHttp = httpContextAccessor.HttpContext?.User;
         return usuarioHttp?.Identity?.IsAuthenticated == true ? usuarioHttp : null;
     }

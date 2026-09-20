@@ -29,7 +29,10 @@ namespace CaeManager.Web.Services;
 /// <b>Un error al validar no expulsa.</b> Si la base falla, se conserva el
 /// estado y se reintenta en el siguiente ciclo: sin base tampoco se sirve
 /// ningún dato, y expulsar a todos los circuitos en un parpadeo de la base
-/// sería un incidente peor que el hueco de un ciclo. El intervalo es el de
+/// sería un incidente peor que el hueco de un ciclo. Vale también para una
+/// cancelación que no sea la del propio ciclo (p. ej. un tiempo de espera del
+/// proveedor de base de datos): el bucle base la trataría como error y dejaría
+/// la cuenta legítima como anónima. El intervalo es el de
 /// <see cref="SecurityStampValidatorOptions.ValidationInterval"/>, el mismo
 /// de la cookie, configurable con <c>Sesion:IntervaloRevalidacionSegundos</c>.
 /// </para>
@@ -38,9 +41,12 @@ public sealed class ProveedorAutenticacionRevalidada(
     ILoggerFactory loggerFactory,
     IServiceScopeFactory scopeFactory,
     IOptions<SecurityStampValidatorOptions> opciones)
-    : RevalidatingServerAuthenticationStateProvider(loggerFactory)
+    : RevalidatingServerAuthenticationStateProvider(loggerFactory), ISesionDeCircuitoInvalidable
 {
     private readonly ILogger _logger = loggerFactory.CreateLogger<ProveedorAutenticacionRevalidada>();
+    private volatile bool _sesionInvalidada;
+
+    public bool SesionInvalidada => _sesionInvalidada;
 
     protected override TimeSpan RevalidationInterval => opciones.Value.ValidationInterval;
 
@@ -56,10 +62,13 @@ public sealed class ProveedorAutenticacionRevalidada(
         {
             await using var ambito = scopeFactory.CreateAsyncScope();
             var signInManager = ambito.ServiceProvider.GetRequiredService<SignInManager<ApplicationUser>>();
-            return await signInManager.ValidateSecurityStampAsync(authenticationState.User) is not null;
+            var vigente = await signInManager.ValidateSecurityStampAsync(authenticationState.User) is not null;
+            if (!vigente) _sesionInvalidada = true;
+            return vigente;
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            // Cancelación pedida por el propio bucle base (circuito que se cierra o ciclo nuevo).
             throw;
         }
         catch (Exception ex)
@@ -68,4 +77,19 @@ public sealed class ProveedorAutenticacionRevalidada(
             return true;
         }
     }
+}
+
+/// <summary>
+/// Un proveedor de autenticación de circuito que sabe si su sesión dejó de
+/// valer. Lo consultan <c>TenantActual</c> y <c>CurrentUserService</c> ANTES
+/// de caer a <c>IHttpContextAccessor</c>: dentro de un circuito el
+/// <c>HttpContext</c> es el de la petición que lo abrió (medido: sigue
+/// presente y autenticado, con el usuario de entonces), así que sin esto un
+/// circuito ya invalidado recuperaba su identidad por el fallback pensado para
+/// los endpoints sin circuito, y seguía sirviendo datos. Ver
+/// <see cref="ProveedorAutenticacionRevalidada"/>.
+/// </summary>
+public interface ISesionDeCircuitoInvalidable
+{
+    bool SesionInvalidada { get; }
 }

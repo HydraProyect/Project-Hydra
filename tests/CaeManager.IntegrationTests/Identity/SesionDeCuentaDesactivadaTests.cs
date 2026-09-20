@@ -150,15 +150,26 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
     {
         var activa = await CrearUsuarioAsync("activa@x.test");
         var desactivada = await CrearUsuarioAsync("desactivada@x.test");
+
+        // Cookies de ANTES de desactivar: RefreshSignInAsync solo reemite si
+        // parte de una cookie autenticada (medido: sin ella no emite nada).
+        var cookieActiva = await EmitirCookieAsync(activa.Id, refrescar: false, cookiePrevia: null);
+        var cookieDesactivada = await EmitirCookieAsync(desactivada.Id, refrescar: false, cookiePrevia: null);
+        cookieActiva.Should().NotBeEmpty("control positivo: SignInAsync sí emite cookie");
+        cookieDesactivada.Should().NotBeEmpty();
+
         await DesactivarSinRotarStampAsync(desactivada.Id);
 
-        (await EmitirCookieAsync(activa.Id)).Should().NotBeEmpty("control positivo: RefreshSignInAsync sí emite cookie");
+        (await EmitirCookieAsync(activa.Id, refrescar: true, cookiePrevia: cookieActiva))
+            .Should().NotBeEmpty("control positivo: RefreshSignInAsync con cookie previa sí reemite cookie");
 
         // Es el bypass real: dentro de la ventana antes de la primera
         // revalidación, cambiar la contraseña llama a RefreshSignInAsync y
         // devolvía una cookie nueva con el stamp nuevo.
-        (await EmitirCookieAsync(desactivada.Id)).Should().BeEmpty(
-            "una cuenta desactivada no debe obtener sesión por RefreshSignIn, SignIn ni el callback de Microsoft");
+        (await EmitirCookieAsync(desactivada.Id, refrescar: true, cookiePrevia: cookieDesactivada)).Should().BeEmpty(
+            "una cuenta desactivada no debe obtener cookie nueva por RefreshSignInAsync (cambio de contraseña)");
+        (await EmitirCookieAsync(desactivada.Id, refrescar: false, cookiePrevia: null)).Should().BeEmpty(
+            "ni por SignInAsync (contraseña, 2FA, callback de Microsoft)");
     }
 
     [Fact]
@@ -232,6 +243,7 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
             // Control positivo: el bucle corre (más de un ciclo) y no expulsa a una cuenta válida.
             await Task.Delay(TimeSpan.FromSeconds(2.5));
             (await proveedor.GetAuthenticationStateAsync()).User.Identity!.IsAuthenticated.Should().BeTrue();
+            proveedor.SesionInvalidada.Should().BeFalse("control positivo: una sesión válida no queda marcada como invalidada");
 
             await CambiarActivacionAsync(usuario.Id, activar: false);
 
@@ -242,6 +254,37 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
 
             (await proveedor.GetAuthenticationStateAsync()).User.Identity!.IsAuthenticated.Should().BeFalse(
                 "tras desactivar, el circuito abierto debe perder la autenticación en el siguiente ciclo");
+            proveedor.SesionInvalidada.Should().BeTrue(
+                "TenantActual y CurrentUserService lo consultan para no recuperar la identidad por el HttpContext heredado");
+        }
+        finally
+        {
+            ((IDisposable)proveedor).Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task Una_cancelacion_que_no_es_del_ciclo_no_expulsa_al_circuito()
+    {
+        // Un tiempo de espera del proveedor de base de datos llega como
+        // OperationCanceledException con un token que NO es el del ciclo: el
+        // bucle base la trataría como error y dejaría anónima a una cuenta
+        // legítima. Debe conservar el estado, como cualquier otro fallo de la base.
+        var usuario = await CrearUsuarioAsync("cancelacion-ajena@x.test");
+        var principal = await PrincipalDeSesionAsync(usuario);
+
+        var proveedor = new ProveedorAutenticacionRevalidada(
+            _servicios.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>(),
+            new AmbitosQueSeCancelan(),
+            _servicios.GetRequiredService<IOptions<SecurityStampValidatorOptions>>());
+        try
+        {
+            proveedor.SetAuthenticationState(Task.FromResult(new AuthenticationState(principal)));
+
+            await Task.Delay(TimeSpan.FromSeconds(3.5)); // al menos un ciclo completo con la cancelación ajena
+            (await proveedor.GetAuthenticationStateAsync()).User.Identity!.IsAuthenticated.Should().BeTrue(
+                "una cancelación ajena al ciclo es un fallo transitorio, no una sesión inválida");
+            proveedor.SesionInvalidada.Should().BeFalse();
         }
         finally
         {
@@ -380,20 +423,30 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
         return contexto.Principal is not null;
     }
 
-    /// <summary>Devuelve el valor de la cabecera Set-Cookie que produce RefreshSignInAsync, o vacío si no emitió nada.</summary>
-    private async Task<string> EmitirCookieAsync(Guid usuarioId)
+    /// <summary>Devuelve el valor de la cabecera Set-Cookie que produce RefreshSignInAsync (o SignInAsync), o vacío si no emitió nada.</summary>
+    private async Task<string> EmitirCookieAsync(Guid usuarioId, bool refrescar, string? cookiePrevia)
     {
         using var ambito = _servicios.CreateScope();
         var contexto = new DefaultHttpContext { RequestServices = ambito.ServiceProvider };
+        if (!string.IsNullOrEmpty(cookiePrevia))
+            contexto.Request.Headers.Cookie = cookiePrevia.Split(';')[0]; // «nombre=valor», sin atributos
         ambito.ServiceProvider.GetRequiredService<IHttpContextAccessor>().HttpContext = contexto;
 
         var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var signInManager = ambito.ServiceProvider.GetRequiredService<SignInManager<ApplicationUser>>();
         var usuario = await userManager.FindByIdAsync(usuarioId.ToString());
 
-        await signInManager.SignInAsync(usuario!, isPersistent: false);
+        if (refrescar)
+            await signInManager.RefreshSignInAsync(usuario!);
+        else
+            await signInManager.SignInAsync(usuario!, isPersistent: false);
 
         return contexto.Response.Headers.SetCookie.ToString();
+    }
+
+    private sealed class AmbitosQueSeCancelan : IServiceScopeFactory
+    {
+        public IServiceScope CreateScope() => throw new TaskCanceledException("tiempo de espera del proveedor");
     }
 
     private sealed class TenantActualFijo : ITenantActual

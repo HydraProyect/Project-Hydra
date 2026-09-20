@@ -50,6 +50,22 @@ public class TenantActualTests
         tenantActual.TenantId.Should().BeNull();
     }
 
+    [Fact]
+    public void Un_circuito_con_la_sesion_invalidada_no_recupera_identidad_por_el_HttpContext_que_lo_abrio()
+    {
+        // Medido en E2E: dentro de un circuito el HttpContext es el de la
+        // petición que lo abrió (presente, autenticado, usuario de entonces).
+        var httpContextAccessor = new HttpContextAccessorFalso(UsuarioAutenticadoCon(TenantIdDeEjemplo));
+
+        var vigente = new TenantActual(
+            new AuthenticationStateProviderFalso(lanzarInvalidOperationException: true), httpContextAccessor, new ClienteActivoSeleccionadoFalso());
+        var invalidado = new TenantActual(
+            new ProveedorDeCircuitoInvalidadoFalso(), httpContextAccessor, new ClienteActivoSeleccionadoFalso());
+
+        vigente.TenantId.Should().Be(TenantIdDeEjemplo, "control positivo: sin invalidar, el fallback a HttpContext sigue funcionando");
+        invalidado.TenantId.Should().BeNull("un circuito invalidado ya no tiene sesión, aunque el HttpContext heredado la conserve");
+    }
+
     /// <summary>
     /// Invariante de la que depende <c>RevalidacionCircuitoActivoHandler</c>
     /// (Módulo 9, auditoría 2026-08-30): su temporizador de fondo solo cierra
@@ -104,6 +120,14 @@ public class TenantActualTests
 
             return Task.FromResult(new AuthenticationState(_usuario ?? new ClaimsPrincipal(new ClaimsIdentity())));
         }
+    }
+
+    private sealed class ProveedorDeCircuitoInvalidadoFalso : AuthenticationStateProvider, ISesionDeCircuitoInvalidable
+    {
+        public bool SesionInvalidada => true;
+
+        public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
+            Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity())));
     }
 
     private sealed class HttpContextAccessorFalso(ClaimsPrincipal? usuario) : IHttpContextAccessor
