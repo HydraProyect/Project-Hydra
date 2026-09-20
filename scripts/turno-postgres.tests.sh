@@ -219,8 +219,22 @@ rm -f "$CASO/marca"
 HYDRA_TURNO_CADUCIDAD_S=1 HYDRA_TURNO_LATIDO_S=5 bash "$GUION" -- bash -c "touch '$CASO/marca'" > "$CASO/o" 2>&1; rc=$?
 comprobar "caducidad < latido: se rechaza con 64 y NO ejecuta" "64 no" "$rc $([ -e "$CASO/marca" ] && echo si || echo no)"
 comprobar "lo dice: ABORTADO_SIN_EJECUTAR motivo=configuracion_invalida" "1" "$(grep -c 'ABORTADO_SIN_EJECUTAR motivo=configuracion_invalida' "$CASO/o")"
-HYDRA_TURNO_CADUCIDAD_S=abc bash "$GUION" -- bash -c "touch '$CASO/marca'" > "$CASO/o" 2>&1; rc=$?
-comprobar "tiempo no numérico: se rechaza con 64" "64" "$rc"
+# Formas que una comprobación laxa (awk «c + 0») deja pasar y que luego rompen la
+# aritmética de bash: prefijo numérico, notación científica, espera no entera.
+for malo in abc 120junk 1e2 -5; do
+  rm -f "$CASO/marca"
+  HYDRA_TURNO_CADUCIDAD_S=$malo bash "$GUION" -- bash -c "touch '$CASO/marca'" > "$CASO/o" 2>&1; rc=$?
+  comprobar "HYDRA_TURNO_CADUCIDAD_S='$malo': se rechaza con 64 y no ejecuta" "64 no" "$rc $([ -e "$CASO/marca" ] && echo si || echo no)"
+done
+HYDRA_TURNO_LATIDO_S=1e-1 bash "$GUION" -- bash -c "touch '$CASO/marca'" > "$CASO/o" 2>&1; rc=$?
+comprobar "HYDRA_TURNO_LATIDO_S='1e-1': se rechaza con 64" "64" "$rc"
+for malo in abc 5s 1.5 -1; do
+  rm -f "$CASO/marca"
+  bash "$GUION" --espera-max-s "$malo" -- bash -c "touch '$CASO/marca'" > "$CASO/o" 2>&1; rc=$?
+  comprobar "--espera-max-s '$malo': se rechaza con 64 y no ejecuta" "64 no" "$rc $([ -e "$CASO/marca" ] && echo si || echo no)"
+done
+bash "$GUION" --espera-max-min x -- bash -c "touch '$CASO/marca'" > "$CASO/o" 2>&1; rc=$?
+comprobar "--espera-max-min 'x': se rechaza con 64" "64" "$rc"
 
 echo
 if [ "$fallos" -eq 0 ]; then

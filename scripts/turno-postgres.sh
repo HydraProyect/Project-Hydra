@@ -86,22 +86,13 @@ SONDEO_S=${HYDRA_TURNO_SONDEO_S:-5}
 LATIDO_S=${HYDRA_TURNO_LATIDO_S:-15}
 CADUCIDAD_S=${HYDRA_TURNO_CADUCIDAD_S:-120}
 AVISO_S=${HYDRA_TURNO_AVISO_S:-60}
-espera_max_s=$(( ${HYDRA_TURNO_ESPERA_MAX_MIN:-120} * 60 ))
+espera_max_min=${HYDRA_TURNO_ESPERA_MAX_MIN:-120}
+espera_max_s=""
 etiqueta=""
-
-# La exclusión depende de que un dueño vivo refresque su latido mucho antes de
-# que otro lo dé por caducado. Con CADUCIDAD <= LATIDO (o cifras no numéricas) un
-# dueño legítimo perdería el cerrojo y dos suites correrían a la vez: se rechaza
-# al arrancar, sin ejecutar nada, en vez de degradar la garantía en silencio.
-if ! awk -v c="$CADUCIDAD_S" -v l="$LATIDO_S" -v s="$SONDEO_S"      'BEGIN { exit !(c + 0 > 0 && l + 0 > 0 && s + 0 > 0 && c >= 3 * l) }'; then
-  echo "TURNO-POSTGRES: configuración inválida: HYDRA_TURNO_CADUCIDAD_S ($CADUCIDAD_S) debe ser >= 3 x HYDRA_TURNO_LATIDO_S ($LATIDO_S), y los tiempos positivos y numéricos." >&2
-  echo "TURNO-POSTGRES: ABORTADO_SIN_EJECUTAR motivo=configuracion_invalida salida=$EX_USO" >&2
-  exit $EX_USO
-fi
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --espera-max-min) [ $# -ge 2 ] || { uso; exit $EX_USO; }; espera_max_s=$(( $2 * 60 )); shift 2 ;;
+    --espera-max-min) [ $# -ge 2 ] || { uso; exit $EX_USO; }; espera_max_min=$2; espera_max_s=""; shift 2 ;;
     --espera-max-s)   [ $# -ge 2 ] || { uso; exit $EX_USO; }; espera_max_s=$2; shift 2 ;;
     --etiqueta)       [ $# -ge 2 ] || { uso; exit $EX_USO; }; etiqueta=$2; shift 2 ;;
     -h|--help)        uso; exit $EX_USO ;;
@@ -109,6 +100,33 @@ while [ $# -gt 0 ]; do
     *)                uso; exit $EX_USO ;;
   esac
 done
+
+# Validación ESTRICTA de todo lo numérico, en un solo sitio y antes de encolar.
+# Bash y `test` solo entienden enteros: un «120junk» o un «1e2» que pasara una
+# comprobación laxa reventaba luego la aritmética (error, no falso), con lo que la
+# espera quedaba sin tope o la retirada de huérfanos nunca ocurría. Se rechaza al
+# arrancar, sin ejecutar nada, en vez de degradar la garantía en silencio.
+config_invalida() {
+  echo "TURNO-POSTGRES: configuración inválida: $1" >&2
+  echo "TURNO-POSTGRES: ABORTADO_SIN_EJECUTAR motivo=configuracion_invalida salida=$EX_USO" >&2
+  exit $EX_USO
+}
+es_entero()  { [[ "${1:-}" =~ ^[0-9]+$ ]]; }
+es_decimal() { [[ "${1:-}" =~ ^[0-9]+([.][0-9]+)?$ ]]; }
+es_entero "$espera_max_min" || config_invalida "espera máxima en minutos '$espera_max_min': debe ser un entero >= 0."
+[ -n "$espera_max_s" ] || espera_max_s=$(( 10#$espera_max_min * 60 ))
+es_entero "$espera_max_s"   || config_invalida "espera máxima en segundos '$espera_max_s': debe ser un entero >= 0."
+es_entero "$CADUCIDAD_S"    || config_invalida "HYDRA_TURNO_CADUCIDAD_S '$CADUCIDAD_S': debe ser un entero de segundos."
+es_entero "$AVISO_S"        || config_invalida "HYDRA_TURNO_AVISO_S '$AVISO_S': debe ser un entero de segundos."
+es_decimal "$LATIDO_S"      || config_invalida "HYDRA_TURNO_LATIDO_S '$LATIDO_S': debe ser un número decimal simple (sin exponente ni sufijos)."
+es_decimal "$SONDEO_S"      || config_invalida "HYDRA_TURNO_SONDEO_S '$SONDEO_S': debe ser un número decimal simple (sin exponente ni sufijos)."
+CADUCIDAD_S=$(( 10#$CADUCIDAD_S )); AVISO_S=$(( 10#$AVISO_S )); espera_max_s=$(( 10#$espera_max_s ))
+# La exclusión depende de que un dueño vivo refresque su latido mucho antes de que
+# otro lo dé por caducado: con CADUCIDAD <= LATIDO un dueño legítimo perdería el
+# cerrojo y dos suites correrían a la vez.
+if ! awk -v c="$CADUCIDAD_S" -v l="$LATIDO_S" -v s="$SONDEO_S" 'BEGIN { exit !(c > 0 && l > 0 && s > 0 && c >= 3 * l) }'; then
+  config_invalida "HYDRA_TURNO_CADUCIDAD_S ($CADUCIDAD_S) debe ser >= 3 x HYDRA_TURNO_LATIDO_S ($LATIDO_S), y latido, sondeo y caducidad deben ser positivos."
+fi
 [ $# -ge 1 ] || { uso; exit $EX_USO; }
 
 CERROJO="$DIR/cerrojo"
