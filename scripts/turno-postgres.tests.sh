@@ -194,6 +194,17 @@ wait "$pw" 2>/dev/null
 # Sin sondeo: en el instante en que el guion ha terminado, el nieto ya no puede vivir.
 comprobar "SIGTERM: el descendiente del comando ha muerto cuando el guion termina" "muerto sin-cerrojo" "$(kill -0 "$nieto" 2>/dev/null && echo vivo || echo muerto) $([ -d "$HYDRA_TURNO_DIR/cerrojo" ] && echo con-cerrojo || echo sin-cerrojo)"
 
+# 10c -----------------------------------------------------------------------
+# Un descendiente que IGNORA SIGTERM no puede quedar vivo cuando se libera el cerrojo.
+nuevo_caso interrupcion-descendiente-rebelde
+bash "$GUION" -- bash -c "trap '' TERM; sleep 300 & echo \$! > '$CASO/pidnieto'; echo R_ini >> '$REGISTRO'; wait" > "$CASO/o" 2>&1 & pw=$!
+esperar_a "R_ini" "$REGISTRO" || true
+nieto=$(cat "$CASO/pidnieto" 2>/dev/null)
+PIDS_AJENOS+=("$nieto")
+kill -TERM "$pw" 2>/dev/null
+wait "$pw" 2>/dev/null
+comprobar "SIGTERM ignorado por el descendiente: muere igualmente antes de liberar" "muerto sin-cerrojo" "$(kill -0 "$nieto" 2>/dev/null && echo vivo || echo muerto) $([ -d "$HYDRA_TURNO_DIR/cerrojo" ] && echo con-cerrojo || echo sin-cerrojo)"
+
 # 11 ------------------------------------------------------------------------
 # Un turno LARGO no caduca mientras el dueño siga latiendo: sin latido, la
 # caducidad retiraría un cerrojo legítimo y dos suites correrían a la vez.

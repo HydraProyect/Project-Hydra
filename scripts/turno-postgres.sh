@@ -286,24 +286,31 @@ descendientes() {  # pids descendientes de $1, los más profundos primero
   for c in $(hijos_directos "$1"); do descendientes "$c"; echo "$c"; done
 }
 
-# Mata el comando Y a sus descendientes (dotnet test -> testhost) y espera a que el
-# hijo directo haya muerto. El cerrojo NO se libera hasta entonces: liberarlo con el
-# testhost aún vivo dejaba entrar a la suite siguiente contra el mismo clúster.
+alguno_vivo() { local q; for q in "$@"; do vivo "$q" && return 0; done; return 1; }
+
+# Mata el comando Y a sus descendientes (dotnet test -> testhost) y espera a que
+# TODOS hayan muerto (SIGKILL a los que ignoren SIGTERM). El cerrojo NO se libera
+# hasta entonces: liberarlo con el testhost aún vivo dejaba entrar a la suite
+# siguiente contra el mismo clúster. Solo si alguno resiste incluso al SIGKILL se
+# libera igualmente, con un AVISO explícito (no hay otra salida: el guion no puede
+# quedarse vivo para siempre).
 matar_arbol() {
-  local p=$1 w lista i
+  local p=$1 w lista todos i
   # Los descendientes MSYS se leen ANTES de matar nada (`taskkill /T` no los
   # alcanza: no cuelgan del padre en el árbol de Windows) y se matan al final.
   lista=$(descendientes "$p")
+  todos="$lista $p"
   if command -v taskkill >/dev/null 2>&1 && [ -r "/proc/$p/winpid" ]; then
     w=$(cat "/proc/$p/winpid" 2>/dev/null)
     [ -n "$w" ] && taskkill //T //F //PID "$w" >/dev/null 2>&1   # hijos nativos: dotnet -> testhost
   fi
   # shellcheck disable=SC2086
-  [ -n "$lista" ] && kill $lista 2>/dev/null
-  kill "$p" 2>/dev/null
-  for i in $(seq 1 100); do vivo "$p" || return 0; sleep 0.1; done
-  kill -9 "$p" 2>/dev/null; sleep 0.5
-  vivo "$p" && echo "TURNO-POSTGRES: AVISO: el comando (pid $p) sigue vivo tras la interrupción; se libera el cerrojo igualmente." >&2
+  kill $todos 2>/dev/null
+  for i in $(seq 1 100); do alguno_vivo $todos || return 0; sleep 0.1; done
+  # shellcheck disable=SC2086
+  kill -9 $todos 2>/dev/null
+  for i in $(seq 1 50); do alguno_vivo $todos || return 0; sleep 0.1; done
+  echo "TURNO-POSTGRES: AVISO: quedan procesos del comando vivos tras SIGKILL (pids: $todos); se libera el cerrojo igualmente." >&2
   return 0
 }
 
