@@ -52,9 +52,11 @@ public class CurrentUserServiceTests
         var httpContextAccessor = new HttpContextAccessorFalso(UsuarioAutenticadoCon(UsuarioIdDeEjemplo, "Administrador"));
 
         var vigente = CrearServicio(new AuthenticationStateProviderFalso(lanzarInvalidOperationException: true), httpContextAccessor);
+        var vigenteConInterfaz = CrearServicio(new ProveedorDeCircuitoInvalidadoFalso(sesionInvalidada: false), httpContextAccessor);
         var invalidado = CrearServicio(new ProveedorDeCircuitoInvalidadoFalso(), httpContextAccessor);
 
         (await vigente.ObtenerUsuarioActualIdAsync()).Should().Be(UsuarioIdDeEjemplo, "control positivo: sin invalidar, el fallback sigue funcionando");
+        (await vigenteConInterfaz.ObtenerUsuarioActualIdAsync()).Should().Be(UsuarioIdDeEjemplo, "el proveedor implementa la interfaz pero su sesión sigue vigente");
         (await invalidado.ObtenerUsuarioActualIdAsync()).Should().BeNull();
         (await invalidado.ObtenerRolActualAsync()).Should().BeNull();
     }
@@ -140,9 +142,10 @@ public class CurrentUserServiceTests
         }
     }
 
-    private sealed class ProveedorDeCircuitoInvalidadoFalso : AuthenticationStateProvider, ISesionDeCircuitoInvalidable
+    private sealed class ProveedorDeCircuitoInvalidadoFalso(bool sesionInvalidada = true)
+        : AuthenticationStateProvider, ISesionDeCircuitoInvalidable
     {
-        public bool SesionInvalidada => true;
+        public bool SesionInvalidada => sesionInvalidada;
 
         public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
             Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity())));

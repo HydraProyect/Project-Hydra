@@ -69,6 +69,10 @@ public sealed class ProveedorAutenticacionRevalidada(
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             // Cancelación pedida por el propio bucle base (circuito que se cierra o ciclo nuevo).
+            // Se relanza con SU token —no con el de la excepción, que puede ser ajeno—: el bucle
+            // base solo la toma por cierre normal si los tokens coinciden y, si no, deja el
+            // estado en anónimo aunque acabe de instalarse una autenticación nueva.
+            cancellationToken.ThrowIfCancellationRequested();
             throw;
         }
         catch (Exception ex)

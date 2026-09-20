@@ -293,6 +293,37 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
     }
 
     [Fact]
+    public async Task La_cancelacion_del_propio_ciclo_se_relanza_con_su_token()
+    {
+        // El bucle base solo toma por cierre normal una cancelación con SU token;
+        // con otro (p. ej. la de un tiempo de espera de la base que coincida con
+        // el relevo de estado) fuerza el estado anónimo.
+        var usuario = await CrearUsuarioAsync("cancelacion-propia@x.test");
+        var principal = await PrincipalDeSesionAsync(usuario);
+        var proveedor = new ProveedorAutenticacionRevalidada(
+            _servicios.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>(),
+            new AmbitosQueSeCancelan(),
+            _servicios.GetRequiredService<IOptions<SecurityStampValidatorOptions>>());
+        try
+        {
+            using var ciclo = new CancellationTokenSource();
+            ciclo.Cancel();
+
+            var metodo = typeof(ProveedorAutenticacionRevalidada).GetMethod(
+                "ValidateAuthenticationStateAsync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+            var tarea = (Task<bool>)metodo.Invoke(proveedor, [new AuthenticationState(principal), ciclo.Token])!;
+
+            var excepcion = await tarea.Invoking(t => t).Should().ThrowAsync<OperationCanceledException>();
+            excepcion.Which.CancellationToken.Should().Be(ciclo.Token,
+                "una cancelación pedida por el ciclo debe salir con el token del ciclo, no con el de una excepción ajena");
+        }
+        finally
+        {
+            ((IDisposable)proveedor).Dispose();
+        }
+    }
+
+    [Fact]
     public async Task Coste_de_una_revalidacion_en_consultas_a_la_base()
     {
         var usuario = await CrearUsuarioAsync("coste@x.test");

@@ -59,10 +59,13 @@ public class TenantActualTests
 
         var vigente = new TenantActual(
             new AuthenticationStateProviderFalso(lanzarInvalidOperationException: true), httpContextAccessor, new ClienteActivoSeleccionadoFalso());
+        var vigenteConInterfaz = new TenantActual(
+            new ProveedorDeCircuitoInvalidadoFalso(sesionInvalidada: false), httpContextAccessor, new ClienteActivoSeleccionadoFalso());
         var invalidado = new TenantActual(
             new ProveedorDeCircuitoInvalidadoFalso(), httpContextAccessor, new ClienteActivoSeleccionadoFalso());
 
         vigente.TenantId.Should().Be(TenantIdDeEjemplo, "control positivo: sin invalidar, el fallback a HttpContext sigue funcionando");
+        vigenteConInterfaz.TenantId.Should().Be(TenantIdDeEjemplo, "el proveedor implementa la interfaz pero su sesión sigue vigente");
         invalidado.TenantId.Should().BeNull("un circuito invalidado ya no tiene sesión, aunque el HttpContext heredado la conserve");
     }
 
@@ -122,9 +125,10 @@ public class TenantActualTests
         }
     }
 
-    private sealed class ProveedorDeCircuitoInvalidadoFalso : AuthenticationStateProvider, ISesionDeCircuitoInvalidable
+    private sealed class ProveedorDeCircuitoInvalidadoFalso(bool sesionInvalidada = true)
+        : AuthenticationStateProvider, ISesionDeCircuitoInvalidable
     {
-        public bool SesionInvalidada => true;
+        public bool SesionInvalidada => sesionInvalidada;
 
         public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
             Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity())));
