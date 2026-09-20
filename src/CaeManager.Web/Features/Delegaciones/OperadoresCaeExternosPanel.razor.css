@@ -1,0 +1,49 @@
+.operadores-cae {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.operadores-cae-cabecera {
+    align-items: flex-start;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    justify-content: space-between;
+}
+
+.operadores-cae-titulo {
+    font: var(--font-heading-sm);
+    margin: 0;
+}
+
+.operadores-cae-nota {
+    color: var(--color-text-muted);
+    font: var(--font-body-md);
+    margin: 0;
+}
+
+.operadores-cae-lista {
+    display: grid;
+    gap: var(--space-3);
+}
+
+.operadores-cae-fila {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    justify-content: space-between;
+    padding: var(--space-4) var(--space-5);
+}
+
+.operadores-cae-nombre {
+    font: var(--font-heading-sm);
+    margin: 0;
+}
+
+.operadores-cae-error {
+    color: var(--color-danger-700);
+    font: var(--font-body-sm);
+    margin: 0;
+}

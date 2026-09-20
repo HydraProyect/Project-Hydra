@@ -1,0 +1,79 @@
+@* Panel del Actor de Plataforma TALVEG: da de alta Operadores CAE externos (organización) y sus Tenants
+   propietarios. Se monta dentro de /delegaciones solo cuando el usuario tiene AdminPlataforma global; la
+   autoridad real vive en los comandos, esto es presentación. *@
+<section class="operadores-cae" aria-label="Operadores CAE externos">
+    <div class="operadores-cae-cabecera">
+        <div>
+            <h2 class="operadores-cae-titulo">Operadores CAE externos</h2>
+            <p class="operadores-cae-nota">
+                Da de alta la organización que presta servicio CAE y los Tenants propietarios que va a operar.
+                Nadie queda como Gestor CAE hasta que el Operador asigne su cartera.
+            </p>
+        </div>
+        <Boton OnClick="AbrirNuevoOperador">Nuevo Operador CAE externo</Boton>
+    </div>
+
+    @if (_error)
+    {
+        <p class="operadores-cae-error" role="alert">No pudimos cargar los Operadores CAE externos.</p>
+    }
+    else if (_cargando)
+    {
+        <EstadoCargando Filas="2" />
+    }
+    else if (_operadores.Count == 0)
+    {
+        <p class="operadores-cae-nota">Todavía no hay ningún Operador CAE externo.</p>
+    }
+    else
+    {
+        <div class="operadores-cae-lista">
+            @foreach (var operador in _operadores)
+            {
+                <Tarjeta Class="operadores-cae-tarjeta">
+                    <div class="operadores-cae-fila">
+                        <div>
+                            <h3 class="operadores-cae-nombre">@operador.Nombre</h3>
+                            <p class="operadores-cae-nota">
+                                @(operador.TenantsPropietarios.Count == 0
+                                    ? "Sin Tenants propietarios asignados."
+                                    : string.Join(" · ", operador.TenantsPropietarios.Select(t => t.Nombre)))
+                            </p>
+                        </div>
+                        <Boton Variante="VarianteBoton.Secundario" OnClick="() => AbrirNuevoTenant(operador)">
+                            Crear Tenant propietario
+                        </Boton>
+                    </div>
+                </Tarjeta>
+            }
+        </div>
+    }
+</section>
+
+<Modal Visible="_modal is not ModalActivo.Ninguno"
+       VisibleChanged="v => CerrarModal(v)"
+       Titulo="@TituloModal"
+       CerrarAlHacerClicFuera="!_enCurso">
+    <ChildContent>
+        @if (_modal is ModalActivo.Operador)
+        {
+            <p>Se creará el Tenant del Operador CAE externo. Nace sin delegaciones ni usuarios.</p>
+        }
+        else if (_operadorDestino is not null)
+        {
+            <p>Se creará un Tenant propietario nuevo, vacío, que operará «@_operadorDestino.Nombre».</p>
+        }
+        <CampoTexto Etiqueta="@EtiquetaNombre"
+                    Valor="@_nombre"
+                    ValorChanged="v => _nombre = v"
+                    Placeholder="@PlaceholderNombre" />
+        @if (_errorFormulario is not null)
+        {
+            <p class="operadores-cae-error" role="alert">@_errorFormulario</p>
+        }
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_enCurso" OnClick="() => CerrarModal(false)">Cancelar</Boton>
+        <Boton Cargando="_enCurso" OnClick="ConfirmarAsync">Crear</Boton>
+    </Pie>
+</Modal>

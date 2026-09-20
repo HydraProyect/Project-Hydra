@@ -213,6 +213,17 @@ public class TerminologiaCanonicaTests
     /// </para>
     ///
     /// <para>
+    /// <b><c>Delegacion</c> 312 → 317 (alta de Tenant propietario bajo un Operador CAE externo, 2026-09-20; +5 sobre la siembra multi-Tenant de la demo, #761; medido tras rebasar sobre <c>f537e71f</c>).</b>
+    /// Cinco identificadores reales, todos tipos o miembros ya existentes que el incremento
+    /// necesita nombrar y que no tienen alternativa canónica sin renombrarlos (renombrado que este
+    /// contrato prohíbe hacer de paso): <c>IDelegacionTenantRepository</c> y <c>DelegacionTenant</c>
+    /// en <c>CrearTenantPropietarioDeOperadorCaeExternoCommand</c>; <c>DelegacionesTenant</c> y
+    /// <c>PropositoDelegacion</c> en <c>ObtenerOperadoresCaeExternosQuery</c>; y el segmento
+    /// <c>Delegaciones</c> del espacio de nombres de <c>OperadoresCaeExternosPanel</c>, que vive junto a la
+    /// página que lo monta. Las variables locales se llamaron <c>vinculo</c>, no <c>delegacion</c>.
+    /// </para>
+    ///
+    /// <para>
     /// <b><c>Hydra</c> 54 → 53 (Estado comercial Gen 2, 2026-09-11).</b> La única
     /// aparición retirada es texto de marcado de <c>EstadoComercial.razor</c>
     /// —la entradilla antigua decía «se crea en Stripe fuera de Hydra»—, que
@@ -252,7 +263,7 @@ public class TerminologiaCanonicaTests
     {
         ["Hydra"] = 49,
         ["EjecutivoUsuarioId"] = 48,
-        ["Delegacion"] = 312,
+        ["Delegacion"] = 317,
         ["ClienteActivo"] = 68,
     };
 
