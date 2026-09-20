@@ -112,14 +112,15 @@ public class Microsoft365ConfiguracionIncompletaTests
     /// <summary>
     /// El cableado real de <c>AddInfrastructure</c>: qué servicios de fondo del conector se registran en
     /// cada caso. Fija a la vez las dos propiedades que importan: el aviso aparece SOLO con configuración a
-    /// medias, y la ingesta y la renovación siguen registrándose exactamente cuando lo hacían antes.
+    /// medias o con certificado (para comprobar su legibilidad), y la ingesta y la renovación siguen
+    /// registrándose exactamente cuando lo hacían antes.
     /// </summary>
     [Theory]
     [InlineData("nada", false, false)]
     [InlineData("a-medias", false, true)]
     [InlineData("completa-con-secreto", true, false)]
-    [InlineData("completa-con-certificado", true, false)]
-    public void El_registro_pone_el_aviso_solo_con_configuracion_a_medias_y_no_cambia_cuando_arrancan_los_otros_dos(
+    [InlineData("completa-con-certificado", true, true)]
+    public void El_registro_pone_el_aviso_con_configuracion_a_medias_o_con_certificado_y_no_cambia_cuando_arrancan_los_otros_dos(
         string caso, bool ingestaYRenovacion, bool aviso)
     {
         var valores = new Dictionary<string, string?>();
