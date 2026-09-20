@@ -442,8 +442,11 @@ public class SiembraDemoDireccionAdministrativaSobreBaseTests
 
                     var cuenta = new ApplicationUser
                     {
-                        UserName = correoAjeno, Email = correoAjeno, NombreCompleto = "Cuenta ajena",
-                        EmailConfirmed = true, TenantId = otro.Id
+                        UserName = correoAjeno,
+                        Email = correoAjeno,
+                        NombreCompleto = "Cuenta ajena",
+                        EmailConfirmed = true,
+                        TenantId = otro.Id
                     };
                     (await sp.GetRequiredService<UserManager<ApplicationUser>>().CreateAsync(cuenta, "Xk7#prueba-No-Real-2026")).Succeeded.Should().BeTrue();
                     idCuenta = cuenta.Id;
