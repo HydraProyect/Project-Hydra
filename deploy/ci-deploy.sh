@@ -4,7 +4,9 @@
 # SSH nunca elige el comando real que corre aquí, solo el primer token que
 # llega en $SSH_ORIGINAL_COMMAND: "staging"/"produccion" (con el SHA exacto a
 # desplegar como segundo token) o "secretos" (sin segundo token — REC-014/P37,
-# ver la función actualizar_secretos_produccion más abajo). Si esta clave
+# ver la función actualizar_secretos_produccion más abajo) o
+# "muestreo-memoria <segundos> <intervalo>" (solo lectura, REC-196/P33, ver
+# muestreo_memoria más abajo: no toma el cerrojo ni toca nada). Si esta clave
 # privada se filtrara, el máximo que permite es forzar el redeploy de un
 # commit que YA es ancestro real de main en GitHub (resolve-deploy-sha.sh lo
 # exige) o sobrescribir en `.env` solo las claves de la lista blanca
@@ -427,10 +429,10 @@ actualizar_secretos_produccion() {
 # sin medir el consumo real puede fijarlo demasiado bajo y provocar un OOM
 # del propio contenedor en producción. La clave SSH de CI solo puede
 # ejecutar el comando forzado ya permitido ("staging"/"produccion $SHA");
-# ampliar ese comando forzado a un modo nuevo de solo lectura exigiría
-# editar /root/.ssh/authorized_keys en el VPS — un cambio a la configuración
-# de acceso del servidor que esta clave no puede hacer por sí misma. En vez
-# de eso, este diagnóstico vive DENTRO del comando ya permitido, se llama
+# un modo nuevo de solo lectura NO exigiría tocar authorized_keys ("secretos"
+# entró así, #707: el comando forzado pasa el primer token a este guion; el
+# modo "muestreo-memoria" de más abajo lo hace), pero este diagnóstico se
+# escribió antes de comprobarlo. En vez de un modo aparte, vive DENTRO del comando ya permitido, se llama
 # desde volcar_diagnostico_si_falla (dentro de main(), más abajo) tras un
 # despliegue sano, y corre automáticamente en cada despliegue real (nunca
 # en un modo aparte): no escribe nada, no toca `.env`, no cambia ningún
@@ -476,6 +478,68 @@ volcar_contadores_memoria_host() {
     return 0
 }
 
+# Lectura de solo lectura del cgroup de cada contenedor `caemanager-*`
+# (arranque, reinicios, `memory.peak`/`memory.current`/`memory.events`...),
+# compartida por el volcado previo al despliegue y por el modo
+# "muestreo-memoria". El primer argumento es el techo, en segundos, de CADA
+# llamada a docker (20 por defecto). El segundo, opcional, es un plazo absoluto
+# en $SECONDS: pasado, no se empieza otro contenedor y ninguna llamada dura más
+# de lo que queda hasta él (así el modo de muestreo no rebasa su duración).
+volcar_cgroup_contenedores() {
+    local limite="${1:-20}" plazo="${2:-0}" contenedor restante lista ps_ok=0 nombres leidos=0 total
+    # Resultado para quien llama (sin subshell): cuántos contenedores se leyeron
+    # entera y cuántos había. "?" = no se pudo ni listar (docker ps sin respuesta o
+    # plazo agotado antes de empezar): NO es lo mismo que "0 de 0".
+    VOLCADO_LEIDOS=0; VOLCADO_TOTAL="?"
+    _limite_restante() {
+        [ "$plazo" -gt 0 ] || return 0
+        restante=$(( plazo - $(reloj) ))
+        [ "$restante" -gt 0 ] || return 1
+        [ "$restante" -lt "$limite" ] && limite="$restante"
+        return 0
+    }
+    _limite_restante || { echo "(volcado no iniciado: agotado el plazo del muestreo)"; return 0; }
+    lista="$(timeout "$limite" docker ps --format '{{.Names}}' 2>/dev/null)" && ps_ok=1
+    nombres="$(printf '%s\n' "$lista" | grep '^caemanager-' || true)"
+    if [ "$ps_ok" -eq 1 ]; then
+        total=0; [ -z "$nombres" ] || total="$(printf '%s\n' "$nombres" | wc -l | tr -d ' ')"
+        VOLCADO_TOTAL="$total"
+    else
+        echo "(docker ps sin respuesta: no se sabe qué contenedores hay)"
+    fi
+    for contenedor in $nombres; do
+        _limite_restante || { echo "(volcado cortado: agotado el plazo del muestreo)"; break; }
+        echo "--- ${contenedor} ---"
+        timeout "$limite" docker inspect --format 'iniciado={{.State.StartedAt}} reinicios={{.RestartCount}} oom_docker={{.State.OOMKilled}}' "$contenedor" 2>/dev/null || true
+        # El inspect pudo consumir el plazo: el límite del exec se recalcula.
+        _limite_restante || { echo "(volcado cortado: agotado el plazo del muestreo)"; break; }
+        # Solo cuenta como leído si el exec leyó el PICO (memory.peak en cgroup v2,
+        # memory/memory.max_usage_in_bytes en v1): terminar en 0 sin haber leído
+        # nada no es una lectura, y `volcado_final=n/n` no puede afirmarlo.
+        if timeout "$limite" docker exec "$contenedor" sh -c '
+            pico=0
+            for f in /sys/fs/cgroup/memory.peak /sys/fs/cgroup/memory.current /sys/fs/cgroup/memory.max \
+                     /sys/fs/cgroup/memory.events \
+                     /sys/fs/cgroup/memory/memory.max_usage_in_bytes /sys/fs/cgroup/memory/memory.usage_in_bytes \
+                     /sys/fs/cgroup/memory/memory.limit_in_bytes; do
+                if [ -r "$f" ]; then
+                    printf "%s: " "${f#/sys/fs/cgroup/}"; tr "\n" " " < "$f"; echo
+                    case "$f" in */memory.peak|*/memory.max_usage_in_bytes) pico=1 ;; esac
+                fi
+            done
+            if [ -r /sys/fs/cgroup/memory.stat ]; then
+                grep -E "^(anon|file|shmem|file_mapped) " /sys/fs/cgroup/memory.stat | tr "\n" " "; echo
+            fi
+            [ "$pico" = 1 ]
+        ' 2>/dev/null; then
+            leidos=$(( leidos + 1 ))
+        else
+            echo "(sin lectura de cgroup en ${contenedor}: ni memory.peak ni max_usage_in_bytes legibles, o docker exec falló)"
+        fi
+    done
+    VOLCADO_LEIDOS="$leidos"
+}
+
 # Segundo volcado de solo lectura para REC-196/REC-198 (techos de memoria):
 # el de arriba corre DESPUÉS del `up -d`, con el contenedor recién creado, y
 # solo mide el reposo. Este corre ANTES del build y del `up`, cuando los
@@ -492,23 +556,143 @@ volcar_pico_memoria_previo() {
     free -m || true
     volcar_contadores_memoria_host "antes del despliegue"
     timeout 20 docker stats --no-stream --format 'table {{.Name}}\t{{.MemUsage}}\t{{.MemPerc}}' || true
-    local contenedor
-    for contenedor in $(timeout 20 docker ps --format '{{.Names}}' 2>/dev/null | grep '^caemanager-' || true); do
-        echo "--- ${contenedor} ---"
-        timeout 20 docker inspect --format 'iniciado={{.State.StartedAt}} reinicios={{.RestartCount}} oom_docker={{.State.OOMKilled}}' "$contenedor" 2>/dev/null || true
-        timeout 20 docker exec "$contenedor" sh -c '
-            for f in /sys/fs/cgroup/memory.peak /sys/fs/cgroup/memory.current /sys/fs/cgroup/memory.max \
-                     /sys/fs/cgroup/memory.events \
-                     /sys/fs/cgroup/memory/memory.max_usage_in_bytes /sys/fs/cgroup/memory/memory.usage_in_bytes \
-                     /sys/fs/cgroup/memory/memory.limit_in_bytes; do
-                if [ -r "$f" ]; then printf "%s: " "${f#/sys/fs/cgroup/}"; tr "\n" " " < "$f"; echo; fi
-            done
-            if [ -r /sys/fs/cgroup/memory.stat ]; then
-                grep -E "^(anon|file|shmem|file_mapped) " /sys/fs/cgroup/memory.stat | tr "\n" " "; echo
-            fi
-            true
-        ' 2>/dev/null || echo "(sin lectura de cgroup en ${contenedor})"
+    volcar_cgroup_contenedores 20
+}
+
+# Modo "muestreo-memoria <segundos> <intervalo>" (REC-196/P33, decisión D2 del
+# propietario, 2026-09-19): muestrea la memoria MIENTRAS otra cosa (la carga
+# k6 contra staging del workflow carga-staging.yml) aprieta el servidor, en
+# vez de una foto por despliegue. Solo lectura por construcción: `free`,
+# `docker stats --no-stream`, `docker ps/inspect` y un `docker exec` que solo
+# hace `cat`/`grep` de ficheros del cgroup — nada de compose, build, up, ni
+# ningún argumento libre del cliente. Como el comando forzado de
+# authorized_keys pasa a este guion el primer token de SSH_ORIGINAL_COMMAND
+# (así entró "secretos", #707, sin tocar authorized_keys), no hace falta
+# cambiar el acceso al servidor: solo desplegar este fichero (y, por la
+# limitación conocida de la cabecera, tarda dos despliegues en surtir efecto).
+#
+# Límites duros, fijados aquí y no elegibles por el cliente:
+MUESTREO_DURACION_MIN=10
+MUESTREO_DURACION_MAX=420
+MUESTREO_INTERVALO_MIN=2
+MUESTREO_INTERVALO_MAX=60
+
+# Valida la orden ENTERA (no solo el primer token) contra una expresión
+# anclada y comprueba los rangos. Imprime "<duracion> <intervalo>" o devuelve
+# 1: cualquier token extra, `;`, salto de línea, signo o cero a la izquierda
+# de más no casa. `10#` evita que "08" se lea como octal.
+validar_orden_muestreo() {
+    local orden="$1" re='^muestreo-memoria ([0-9]{1,3}) ([0-9]{1,2})$' duracion intervalo
+    [[ "$orden" =~ $re ]] || return 1
+    duracion=$((10#${BASH_REMATCH[1]}))
+    intervalo=$((10#${BASH_REMATCH[2]}))
+    (( duracion >= MUESTREO_DURACION_MIN && duracion <= MUESTREO_DURACION_MAX )) || return 1
+    (( intervalo >= MUESTREO_INTERVALO_MIN && intervalo <= MUESTREO_INTERVALO_MAX )) || return 1
+    (( intervalo <= duracion )) || return 1
+    echo "$duracion $intervalo"
+}
+
+# ¿Hay un despliegue en curso? SIN tomar el cerrojo de forma que estorbe: un
+# `flock -n -s` (compartido, no bloqueante) que se suelta al instante. El
+# despliegue lo toma en exclusiva con `flock -w 600`, así que este sondeo solo
+# puede hacerle esperar microsegundos, nunca fallar. Devuelve 0 si hay un
+# despliegue en curso o si no se puede saber (falla cerrado: sin certeza, no se
+# muestrea); 1 si el cerrojo está libre o nunca ha existido.
+despliegue_en_curso() {
+    local fichero="${FICHERO_CERROJO_DESPLIEGUE:-/opt/talveg/deploy/.ci-deploy.lock}" fd estado
+    [ -e "$fichero" ] || return 1
+    exec {fd}<"$fichero" || return 0
+    estado=0
+    flock -n -s -E 200 "$fd" || estado=$?
+    exec {fd}<&-
+    [ "$estado" -eq 0 ] && return 1
+    return 0
+}
+
+# Una línea por muestra, con los contadores acumulados del host que importan
+# para saber si hubo presión: PSI `some total` (µs esperando memoria) y las
+# muertes por OOM del kernel. RAIZ_PROC solo existe para el test.
+linea_contadores_muestreo() {
+    local raiz="${RAIZ_PROC:-/proc}" psi="" oom=""
+    [ -r "$raiz/pressure/memory" ] && psi="$(sed -n 's/^some .*total=\([0-9]*\).*/\1/p' "$raiz/pressure/memory" || true)"
+    [ -r "$raiz/vmstat" ] && oom="$(sed -n 's/^oom_kill \([0-9]*\)$/\1/p' "$raiz/vmstat" || true)"
+    echo "psi_some_total_us=${psi:-?} oom_kill=${oom:-?}"
+}
+
+# Reloj en segundos. Una función y no `$SECONDS` a pelo para que los tests
+# puedan sustituirlo por un reloj que también avance dentro de subshells.
+reloj() { echo "$SECONDS"; }
+
+# El cierre del muestreo lleva HECHOS, no un número ambiguo: `muestras` cuenta
+# vueltas del bucle (una vuelta con `docker stats` cortado también suma), y lo
+# que de verdad se midió es `stats_ok` (vueltas cuyo docker stats devolvió al
+# menos una línea con `mem=`). `t_primera` = cuándo cayó la primera muestra
+# (un volcado inicial lento se la come); `volcado_inicial|final` = contenedores
+# leídos / contenedores que había ("?" si ni se pudo listar). Quien consume
+# esa línea (scripts/carga-staging-vigia.sh) decide qué es «completo».
+muestreo_memoria() {
+    local duracion="$1" intervalo="$2" inicio muestras=0 stats_ok=0 maximo interrumpido=0
+    local reserva presupuesto plazo fin_bucle tope espera t0 t_primera="-" salida ini_k ini_n fin_k fin_n hechos
+    # Techo de iteraciones, independiente del reloj: aunque `sleep` o el reloj
+    # se comportaran de forma rara, nunca hay más muestras que estas.
+    maximo=$(( duracion / intervalo + 1 ))
+    if despliegue_en_curso; then
+        echo "Hay un despliegue en curso (o el cerrojo no se puede leer): no se muestrea." >&2
+        return 3
+    fi
+    echo "=== Muestreo de memoria (REC-196/P33): duración=${duracion}s intervalo=${intervalo}s máx. ${maximo} muestras — solo lectura ==="
+    # La duración pedida acota el comando ENTERO, lecturas de cgroup incluidas
+    # (docker lento las alargaría): el reloj corre desde antes del primer
+    # volcado. El volcado inicial tiene su propio presupuesto corto (que no se
+    # coma la línea base) y el final se reserva un tramo mayor (una llamada a
+    # docker por contenedor y por dato, ~15 con 7 contenedores).
+    inicio="$(reloj)"
+    plazo=$(( inicio + duracion ))
+    reserva=$(( duracion / 10 )); [ "$reserva" -le 30 ] || reserva=30
+    presupuesto=$(( duracion / 10 )); [ "$presupuesto" -le 15 ] || presupuesto=15
+    fin_bucle=$(( plazo - reserva ))
+    echo "=== Estado inicial de los contenedores ==="
+    volcar_cgroup_contenedores 5 $(( inicio + presupuesto ))
+    ini_k="$VOLCADO_LEIDOS"; ini_n="$VOLCADO_TOTAL"
+    while [ "$muestras" -lt "$maximo" ] && [ "$(reloj)" -lt "$fin_bucle" ]; do
+        if despliegue_en_curso; then
+            interrumpido=1
+            break
+        fi
+        t0="$(reloj)"
+        muestras=$(( muestras + 1 ))
+        [ "$t_primera" != "-" ] || t_primera=$(( t0 - inicio ))
+        echo "--- muestra ${muestras} $(date -u +%Y-%m-%dT%H:%M:%SZ) t=$(( t0 - inicio ))s ---"
+        { free -m | sed -n '2,3p'; } || true
+        linea_contadores_muestreo
+        # Ni `docker stats` ni la espera rebasan el fin del bucle: el tramo que
+        # queda es de la lectura final, y el comando entero no pasa de la duración.
+        tope=$(( fin_bucle - $(reloj) )); [ "$tope" -ge 1 ] || tope=1; [ "$tope" -le 15 ] || tope=15
+        salida="$(timeout "$tope" docker stats --no-stream --format '{{.Name}} mem={{.MemUsage}} {{.MemPerc}} cpu={{.CPUPerc}}' 2>&1)" || true
+        [ -z "$salida" ] || printf '%s\n' "$salida"
+        if [[ "$salida" == *" mem="* ]]; then stats_ok=$(( stats_ok + 1 )); fi
+        # Cadencia por reloj: lo que tardó la lectura cuenta dentro del intervalo,
+        # no se le suma (si no, el muestreo se adelgaza justo cuando el servidor va lento).
+        espera=$(( intervalo - ( $(reloj) - t0 ) )); [ "$espera" -ge 0 ] || espera=0
+        [ "$espera" -le $(( fin_bucle - $(reloj) )) ] || espera=$(( fin_bucle - $(reloj) ))
+        [ "$espera" -ge 0 ] || espera=0
+        sleep "$espera"
     done
+    echo "=== Estado final de los contenedores (memory.peak = pico de TODA la vida del contenedor) ==="
+    volcar_cgroup_contenedores 5 "$plazo"
+    fin_k="$VOLCADO_LEIDOS"; fin_n="$VOLCADO_TOTAL"
+    hechos="muestras=${muestras} stats_ok=${stats_ok} t_primera=${t_primera}s volcado_inicial=${ini_k}/${ini_n} volcado_final=${fin_k}/${fin_n} duracion=$(( $(reloj) - inicio ))s"
+    if [ "$interrumpido" -eq 1 ]; then
+        # Sin "Fin del muestreo": el cliente no debe tomar por completa una serie cortada.
+        echo "=== Muestreo INTERRUMPIDO tras ${muestras} muestras: empezó un despliegue (${hechos}) ==="
+        return 4
+    fi
+    if [ "$stats_ok" -eq 0 ]; then
+        # Ninguna lectura útil de docker stats no es un muestreo: sin «Fin del muestreo».
+        echo "=== Muestreo SIN lecturas de docker stats (${hechos}) ==="
+        return 5
+    fi
+    echo "=== Fin del muestreo: ${hechos} ==="
 }
 
 # Comprobación de SOLO LECTURA de las dos claves de Stripe en el `.env` del
@@ -582,6 +766,20 @@ main() {
 exigir_modo_permitido_para_clave "$@" || exit 1
 
 read -r ENTORNO SHA <<< "${SSH_ORIGINAL_COMMAND:-}"
+
+# "muestreo-memoria" es de solo lectura y NO toma el cerrojo de despliegue:
+# se atiende aquí, antes del `case`, del cerrojo, del checkout y de cualquier
+# cosa que toque el estado (ver muestreo_memoria más arriba). La validación
+# es sobre la orden entera, no sobre el primer token.
+if [ "$ENTORNO" = "muestreo-memoria" ]; then
+    PARAMETROS_MUESTREO="$(validar_orden_muestreo "${SSH_ORIGINAL_COMMAND:-}")" || {
+        echo "Orden de muestreo no válida: se espera 'muestreo-memoria <${MUESTREO_DURACION_MIN}-${MUESTREO_DURACION_MAX} s> <${MUESTREO_INTERVALO_MIN}-${MUESTREO_INTERVALO_MAX} s>' y nada más." >&2
+        exit 1
+    }
+    read -r DURACION_MUESTREO INTERVALO_MUESTREO <<< "$PARAMETROS_MUESTREO"
+    muestreo_memoria "$DURACION_MUESTREO" "$INTERVALO_MUESTREO" || exit $?
+    exit 0
+fi
 
 case "$ENTORNO" in
   staging|produccion|secretos) ;;

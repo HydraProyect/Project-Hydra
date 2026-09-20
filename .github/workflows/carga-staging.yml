@@ -1,0 +1,120 @@
+# Carga progresiva de 5 minutos contra STAGING, con vigía de PRODUCCIÓN y
+# muestreo de memoria del VPS (REC-196/P33). Decisión D2 del propietario,
+# 2026-09-19: «carga progresiva de 5 min en staging, de madrugada, abortando
+# ante degradación sostenida o errores en producción».
+#
+# SOLO SE LANZA A MANO (workflow_dispatch) y solo desde main. No hay ningún
+# otro disparador, y esa es la garantía de que no corre sola. Lo lanza quien
+# coordina el turno, de madrugada, con staging y producción en verde y sin
+# despliegues en curso; el propio guion lo comprueba (y aborta si no).
+#
+# Qué hace (todo en scripts/carga-staging-vigia.sh, con sus pruebas en
+# scripts/carga-staging-vigia.tests.sh):
+#   1. verifica /salud de producción y de staging y que no haya despliegues en
+#      marcha, y que el VPS ofrezca el modo `muestreo-memoria` de solo lectura
+#      de deploy/ci-deploy.sh (si no, no empieza);
+#   2. muestrea la memoria del VPS por SSH durante toda la ventana
+#      (30 s de línea base + 300 s de carga + 60 s de recuperación = 405 s con 15 s de margen para k6;
+#      el VPS no admite más de 420 s);
+#   3. lanza k6 (scripts/carga-staging.k6.js) contra staging;
+#   4. sondea /salud de PRODUCCIÓN cada segundo y aborta la carga si hay un
+#      5xx, un timeout > 3 s, 3 fallos seguidos, p95 > 1 s en 30 s, o si
+#      empieza un despliegue.
+# No cambia ningún límite ni configuración del VPS: el único acceso es el modo
+# de muestreo, de solo lectura y sin cerrojo de despliegue.
+#
+# LÍMITE DE LO QUE MIDE: k6 anónimo NO abre circuitos de Blazor Server (ver la
+# cabecera de scripts/carga-staging.k6.js). El coste de memoria de los
+# circuitos, de LibreOffice y de un usuario autenticado sale de la fase 2
+# (CargaCircuitos --attach-url/--container contra staging), que necesitaría
+# credenciales del Tenant de demo de staging como secreto de GitHub y no está
+# preparada aquí.
+name: Carga contra staging (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmacion:
+        description: 'Escribe exactamente: CARGAR STAGING'
+        required: true
+        type: string
+      vus_max:
+        description: 'Usuarios virtuales en la meseta (5-60). Empezar con 20.'
+        required: true
+        default: '20'
+        type: string
+
+# `contents: read` para el checkout; `actions: read` para consultar si hay
+# despliegues en marcha (gh run list). Nada más.
+permissions:
+  contents: read
+  actions: read
+
+# Una sola carga a la vez. Grupo propio y NO el `deploy-staging` del despliegue:
+# con `cancel-in-progress: false` GitHub deja una sola ejecución en espera por
+# grupo y cancela las demás en espera, y una carga en cola no debe poder
+# cancelar un despliegue pendiente.
+concurrency:
+  group: carga-staging
+  cancel-in-progress: false
+
+env:
+  VPS_HOST: 2.29.9.79
+  # Clave pública del host (no es un secreto), fijada como en deploy.yml.
+  VPS_HOST_KEY: "2.29.9.79 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJdktXchT+yIjLV+Z7181+W+Sv7cnTuzk3hC8QwU7DsW"
+  URL_PRODUCCION: https://app.talveg.es
+  URL_STAGING: https://staging.talveg.es
+
+jobs:
+  carga:
+    name: Carga progresiva contra staging
+    # Solo desde main: el job usa VPS_SSH_KEY, y un workflow_dispatch lanzado
+    # desde otra rama ejecutaría el YAML de esa rama con el secreto.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # Verificación (~15 s) + 405 s de ventana + hasta 60 s de espera del
+    # muestreo, con holgura.
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Instalar k6
+        uses: grafana/setup-k6-action@db07bd9765aac508ef18982e52ab937fe633a065 # v1
+
+      - name: Preparar clave SSH
+        run: |
+          install -m 600 -D /dev/null ~/.ssh/id_ed25519
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          # Clave de host FIJADA, no aprendida (mismo criterio que deploy.yml).
+          echo "$VPS_HOST_KEY" >> ~/.ssh/known_hosts
+
+      - name: Carga, vigía de producción y muestreo de memoria
+        env:
+          # Por variable de entorno, nunca interpolados en el script: son
+          # entradas de quien lanza el workflow.
+          CONFIRMACION: ${{ inputs.confirmacion }}
+          VUS_MAX: ${{ inputs.vus_max }}
+          COMPROBAR_DESPLIEGUES: "1"
+          GH_TOKEN: ${{ github.token }}
+          DIR_SALIDA: carga-staging-out
+        run: bash scripts/carga-staging-vigia.sh
+
+      - name: Resumen
+        if: always()
+        run: |
+          {
+            echo "## Carga contra staging"
+            echo
+            echo '```'
+            cat carga-staging-out/resumen.txt 2>/dev/null || echo "Sin resumen: la ejecución no llegó a empezar. Mira el log del paso anterior."
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Subir datos de la carga
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: carga-staging
+          path: carga-staging-out/
+          if-no-files-found: ignore
+          retention-days: 30

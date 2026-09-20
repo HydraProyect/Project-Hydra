@@ -1245,6 +1245,17 @@ jobs:
       - name: deploy/ci-deploy-diagnostico-memoria.tests.sh
         run: bash deploy/ci-deploy-diagnostico-memoria.tests.sh
 
+      # Modo "muestreo-memoria" (REC-196/P33, D2): validación de la orden
+      # entera, techos duros, sin cerrojo, solo lectura. Necesita flock
+      # (util-linux, presente en el runner).
+      - name: deploy/ci-deploy-muestreo-memoria.tests.sh
+        run: bash deploy/ci-deploy-muestreo-memoria.tests.sh
+
+      # Vigía de producción y orquestación de la carga contra staging, con
+      # curl/ssh/k6/gh falsos: nada sale del runner.
+      - name: scripts/carga-staging-vigia.tests.sh
+        run: bash scripts/carga-staging-vigia.tests.sh
+
       # No corria en ningun sitio hasta ahora: el guion se probaba a mano.
       #
       # MINIMO_CLASES a vacio: el `env:` de nivel de workflow lo fija en 120
