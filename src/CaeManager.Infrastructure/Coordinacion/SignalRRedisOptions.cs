@@ -1,3 +1,5 @@
+using CaeManager.Infrastructure.Configuracion;
+
 namespace CaeManager.Infrastructure.Coordinacion;
 
 /// <summary>
@@ -9,7 +11,7 @@ namespace CaeManager.Infrastructure.Coordinacion;
 /// Apagado por defecto, mismo patrón que <c>DataProtection:S3</c>: sin Redis provisionado, SignalR sigue con su
 /// backplane en memoria del proceso — correcto para una sola réplica.
 /// </summary>
-public class SignalRRedisOptions
+public class SignalRRedisOptions : IOpcionesConGate
 {
     public const string SeccionConfiguracion = "SignalR:Redis";
 
@@ -17,5 +19,9 @@ public class SignalRRedisOptions
 
     public string? CadenaConexion { get; set; }
 
-    public bool EstaConfigurado => Activo && !string.IsNullOrWhiteSpace(CadenaConexion);
+    public bool EstaConfigurado => Evaluar().Completo;
+
+    public IReadOnlyList<string> ProblemasDeConfiguracion() => Evaluar().Problemas;
+
+    private EvaluacionGate Evaluar() => GateDeConfiguracion.Evaluar(Activo, (nameof(CadenaConexion), CadenaConexion));
 }

@@ -2,6 +2,7 @@ using ApexCharts;
 using CaeManager.Application.Common;
 using CaeManager.Application.DependencyInjection;
 using CaeManager.Infrastructure.Autenticacion;
+using CaeManager.Infrastructure.Configuracion;
 using CaeManager.Infrastructure.DependencyInjection;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -261,6 +262,9 @@ authenticationBuilder.AddScheme<ExtensionAuthenticationSchemeOptions, ExtensionA
 // local sigue siendo el único camino y se comporta exactamente igual que
 // hoy (mismo principio "inerte por defecto" que Sentry/Backups/Anthropic).
 var azureAd = builder.Configuration.GetSection(AzureAdOptions.SeccionConfiguracion).Get<AzureAdOptions>() ?? new AzureAdOptions();
+builder.Services.AvisarSiConfiguracionAMedias(AzureAdOptions.SeccionConfiguracion, azureAd,
+    "El login con Microsoft Entra ID NO se ha registrado: el botón «Iniciar sesión con Microsoft» no aparece y el login local es el único camino.");
+
 if (azureAd.EstaConfigurado)
 {
     authenticationBuilder.AddOpenIdConnect(IdentityEndpointsExtensions.EsquemaMicrosoft, "Microsoft (empresa)", options =>

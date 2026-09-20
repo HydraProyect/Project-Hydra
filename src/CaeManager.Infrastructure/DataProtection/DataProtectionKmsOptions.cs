@@ -1,3 +1,5 @@
+using CaeManager.Infrastructure.Configuracion;
+
 namespace CaeManager.Infrastructure.DataProtection;
 
 /// <summary>
@@ -19,7 +21,7 @@ namespace CaeManager.Infrastructure.DataProtection;
 /// despliegue que cree estar cifrando y no lo esté es peor que uno que sepa
 /// que no lo está.
 /// </summary>
-public class DataProtectionKmsOptions
+public class DataProtectionKmsOptions : IOpcionesConGate
 {
     public const string SeccionConfiguracion = "DataProtection:Kms";
 
@@ -38,10 +40,11 @@ public class DataProtectionKmsOptions
 
     public string? Region { get; set; }
 
-    public bool EstaConfigurado =>
-        Activo &&
-        !string.IsNullOrWhiteSpace(KeyId) &&
-        !string.IsNullOrWhiteSpace(AccessKeyId) &&
-        !string.IsNullOrWhiteSpace(SecretAccessKey) &&
-        !string.IsNullOrWhiteSpace(Region);
+    public bool EstaConfigurado => Evaluar().Completo;
+
+    public IReadOnlyList<string> ProblemasDeConfiguracion() => Evaluar().Problemas;
+
+    private EvaluacionGate Evaluar() => GateDeConfiguracion.Evaluar(Activo,
+        (nameof(KeyId), KeyId), (nameof(AccessKeyId), AccessKeyId),
+        (nameof(SecretAccessKey), SecretAccessKey), (nameof(Region), Region));
 }

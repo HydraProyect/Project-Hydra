@@ -30,6 +30,7 @@ using CaeManager.Infrastructure.AlertasOperativas;
 using CaeManager.Infrastructure.AsistenteIa;
 using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.Autorizacion;
+using CaeManager.Infrastructure.Configuracion;
 using Amazon;
 using Amazon.KeyManagementService;
 using Amazon.S3;
@@ -175,6 +176,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<DataProtectionKmsOptions>(
             configuration.GetSection(DataProtectionKmsOptions.SeccionConfiguracion));
 
+        services.AvisarSiConfiguracionAMedias(DataProtectionKmsOptions.SeccionConfiguracion, opcionesKms,
+            "El cifrado de las claves de Data Protection con KMS NO se ha registrado: las claves se guardan SIN CIFRAR.");
+
         if (opcionesKms.EstaConfigurado)
         {
             services.AddSingleton<IAmazonKeyManagementService>(_ => new AmazonKeyManagementServiceClient(
@@ -212,6 +216,10 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<DataProtectionS3Options>(
             configuration.GetSection(DataProtectionS3Options.SeccionConfiguracion));
 
+        services.AvisarSiConfiguracionAMedias(DataProtectionS3Options.SeccionConfiguracion, opcionesDataProtectionS3,
+            "El llavero de Data Protection NO se ha movido a S3 y sigue en el disco local de cada réplica: con más de una réplica, " +
+            "una cookie o una credencial cifrada por una no la puede descifrar otra.");
+
         if (opcionesDataProtectionS3.EstaConfigurado)
         {
             constructorDataProtection.Services.Configure<KeyManagementOptions>(opciones =>
@@ -234,6 +242,10 @@ public static class InfrastructureServiceCollectionExtensions
         configuration.GetSection(SignalRRedisOptions.SeccionConfiguracion).Bind(opcionesSignalRRedis);
         services.Configure<SignalRRedisOptions>(
             configuration.GetSection(SignalRRedisOptions.SeccionConfiguracion));
+
+        services.AvisarSiConfiguracionAMedias(SignalRRedisOptions.SeccionConfiguracion, opcionesSignalRRedis,
+            "El backplane de Redis para SignalR NO se ha registrado y sigue el de memoria del proceso: correcto con una sola réplica; " +
+            "con varias, un circuito de Blazor Server puede perderse si el balanceador cambia de réplica.");
 
         if (opcionesSignalRRedis.EstaConfigurado)
         {
@@ -285,6 +297,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddHttpClient<CaeManager.Application.Integraciones.IWhatsAppCloudApiClient, WhatsAppCloudApiClient>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttp(TimeSpan.FromSeconds(30));
+
+        services.AvisarSiConfiguracionAMedias(WhatsAppCloudApiOptions.SeccionConfiguracion, opcionesWhatsApp,
+            "La ingesta del webhook de WhatsApp NO se ha registrado y el webhook rechaza todo: los mensajes de las líneas conectadas no entran.");
 
         if (opcionesWhatsApp.EstaConfigurado)
             services.AddHostedService<IngestaWebhookWhatsAppHostedService>();

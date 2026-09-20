@@ -1,3 +1,5 @@
+using CaeManager.Infrastructure.Configuracion;
+
 namespace CaeManager.Infrastructure.Identity;
 
 /// <summary>
@@ -8,7 +10,7 @@ namespace CaeManager.Infrastructure.Identity;
 /// sigue funcionando exactamente igual que hoy — ver
 /// RestriccionLoginLocalClaimsTransformation y ARCHITECTURE.md.
 /// </summary>
-public class AzureAdOptions
+public class AzureAdOptions : IOpcionesConGate
 {
     public const string SeccionConfiguracion = "AzureAd";
 
@@ -47,6 +49,10 @@ public class AzureAdOptions
     /// </summary>
     public Guid? TenantHydraId { get; set; }
 
-    public bool EstaConfigurado =>
-        !string.IsNullOrWhiteSpace(TenantId) && !string.IsNullOrWhiteSpace(ClientId) && !string.IsNullOrWhiteSpace(ClientSecret);
+    public bool EstaConfigurado => Evaluar().Completo;
+
+    public IReadOnlyList<string> ProblemasDeConfiguracion() => Evaluar().Problemas;
+
+    private EvaluacionGate Evaluar() => GateDeConfiguracion.Evaluar(null,
+        (nameof(TenantId), TenantId), (nameof(ClientId), ClientId), (nameof(ClientSecret), ClientSecret));
 }
