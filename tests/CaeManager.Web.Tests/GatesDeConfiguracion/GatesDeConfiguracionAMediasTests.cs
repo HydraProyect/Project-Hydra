@@ -186,6 +186,39 @@ public class GatesDeConfiguracionAMediasTests
         todos.Should().NotContain(p => p.Contains(Secreto), "el aviso nombra la opción, jamás lo que contiene");
     }
 
+    /// <summary>
+    /// La propiedad que importa no es que avise, sino que al avisar no filtre una
+    /// cadena de conexión, una clave de acceso o un secreto de cliente. Se mide
+    /// sobre lo que el aviso EMITE de verdad: el servicio real, arrancado desde el
+    /// registro real, en cada combinación de claves informadas; y se mira tanto el
+    /// mensaje formateado como los valores estructurados que recibe cualquier sink
+    /// (Seq, Serilog), que es donde una fuga pasaría inadvertida en la consola.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Casos))]
+    public async Task El_aviso_emitido_jamas_contiene_un_valor_configurado(Caso caso)
+    {
+        var avisosEmitidos = 0;
+
+        foreach (var claves in Combinaciones(caso.Claves.Length))
+        {
+            var opciones = caso.Construir(true, claves);
+            var (proveedor, captura) = Componer(s => s.AvisarSiConfiguracionAMedias(caso.Nombre, opciones, "Consecuencia de prueba."));
+
+            await Arrancar(proveedor);
+
+            foreach (var entrada in captura.Entradas)
+            {
+                avisosEmitidos++;
+                entrada.Texto.Should().NotContain(Secreto, $"{caso.Nombre}, claves [{string.Join(",", claves)}]: mensaje formateado");
+                entrada.Estado.Should().NotContain(Secreto, $"{caso.Nombre}, claves [{string.Join(",", claves)}]: valores estructurados");
+            }
+        }
+
+        avisosEmitidos.Should().BeGreaterThan(0,
+            "control positivo: la rejilla emite avisos, así que las comprobaciones de arriba miraron algo");
+    }
+
     // ── El aviso de arranque ──────────────────────────────────────────────────
 
     private static (ServiceProvider Proveedor, CapturaDeLog Captura) Componer(Action<IServiceCollection> registrar)
@@ -271,7 +304,7 @@ public class GatesDeConfiguracionAMediasTests
 
     // ── Captura de log ────────────────────────────────────────────────────────
 
-    public sealed record Entrada(LogLevel Nivel, string Texto);
+    public sealed record Entrada(LogLevel Nivel, string Texto, string Estado);
 
     public sealed class CapturaDeLog : ILoggerProvider
     {
@@ -297,7 +330,8 @@ public class GatesDeConfiguracionAMediasTests
                     throw new InvalidOperationException("fallo simulado del proveedor de log");
                 }
 
-                captura.Entradas.Add(new Entrada(logLevel, formatter(state, exception)));
+                captura.Entradas.Add(new Entrada(logLevel, formatter(state, exception),
+                    state is IEnumerable<KeyValuePair<string, object?>> pares ? string.Join("|", pares.Select(p => $"{p.Key}={p.Value}")) : state?.ToString() ?? ""));
             }
         }
     }
