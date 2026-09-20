@@ -1273,6 +1273,13 @@ jobs:
       - name: scripts/informe-cobertura-por-capas.tests.sh
         run: bash scripts/informe-cobertura-por-capas.tests.sh
 
+      # Turno de uso del clúster PostgreSQL local compartido entre worktrees
+      # (exclusión mutua + cola + huérfanos). Es arnés de sesión local, no se
+      # ejecuta en CI, pero su prueba sí: dos invocaciones concurrentes, la
+      # segunda espera y se ejecuta; sin turno, salida 75 inconfundible.
+      - name: scripts/turno-postgres.tests.sh
+        run: bash scripts/turno-postgres.tests.sh
+
       # Guarda de los secretos de CI con clave de proveedor externo (P13/P18,
       # 2026-09-19): la prueba del guion Y el guion contra los workflows reales
       # de este árbol. La segunda línea es la que falla el día que alguien
