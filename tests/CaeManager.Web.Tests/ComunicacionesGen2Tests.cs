@@ -66,7 +66,11 @@ namespace CaeManager.Web.Tests;
 public class ComunicacionesGen2Tests : BunitContext
 {
     /// <summary><see cref="Drawer"/> y <see cref="Modal"/> importan dialogo-foco.js; el medidor de tiempo, su propio módulo.</summary>
-    public ComunicacionesGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public ComunicacionesGen2Tests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.ConRolDeEscritura();
+    }
 
     private static readonly Guid ClienteRefrielectricId = Guid.Parse("a1a1a1a1-0000-0000-0000-000000000001");
     private static readonly Guid ClienteEbroId = Guid.Parse("b2b2b2b2-0000-0000-0000-000000000002");

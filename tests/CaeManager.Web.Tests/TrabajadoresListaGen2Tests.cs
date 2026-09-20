@@ -60,7 +60,11 @@ namespace CaeManager.Web.Tests;
 public class TrabajadoresListaGen2Tests : BunitContext
 {
     /// <summary>QuickGrid y AtajosListaTeclado importan sus módulos JS al montarse.</summary>
-    public TrabajadoresListaGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public TrabajadoresListaGen2Tests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.ConRolDeEscritura();
+    }
 
     private static readonly Guid EmpresaEbro = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid EmpresaDexter = Guid.Parse("33333333-3333-3333-3333-333333333333");

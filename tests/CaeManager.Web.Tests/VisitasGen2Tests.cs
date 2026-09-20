@@ -38,7 +38,11 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class VisitasGen2Tests : BunitContext
 {
-    public VisitasGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public VisitasGen2Tests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.ConRolDeEscritura();
+    }
 
     private static readonly DateOnly Hoy = DateOnly.FromDateTime(DateTime.UtcNow);
 

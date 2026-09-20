@@ -39,7 +39,11 @@ namespace CaeManager.Web.Tests;
 public class GestionesListaGen2Tests : BunitContext
 {
     /// <summary>QuickGrid importa su módulo JS al montarse.</summary>
-    public GestionesListaGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public GestionesListaGen2Tests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.ConRolDeEscritura();
+    }
 
     private sealed class MediatorFalso : IMediator
     {

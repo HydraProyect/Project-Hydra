@@ -32,7 +32,7 @@
     <CabeceraPagina Titulo="@_tituloPagina" Kicker="Negocio">
         <Acciones>
             <a class="enlace-exportar" href="/empresas/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel</a>
-            <Boton OnClick="AbrirCrear">+ Nueva empresa</Boton>
+            <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nueva empresa</Boton></SoloConEscritura>
         </Acciones>
     </CabeceraPagina>
 
@@ -115,7 +115,7 @@
     {
         <EstadoVacio NombreIcono="empresas" Titulo="Aún no hay empresas" Descripcion="Crea la primera para poder dar de alta trabajadores.">
             <Accion>
-                <Boton OnClick="AbrirCrear">+ Nueva empresa</Boton>
+                <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nueva empresa</Boton></SoloConEscritura>
             </Accion>
         </EstadoVacio>
     }
@@ -250,9 +250,9 @@
                                         Detección de trabajadores
                                     </ItemMenuAccion>
                                 }
-                                <ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(empresa.Id, empresa.RazonSocial)">
+                                <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(empresa.Id, empresa.RazonSocial)">
                                     Eliminar
-                                </ItemMenuAccion>
+                                </ItemMenuAccion></SoloConEscritura>
                             </MenuAcciones>
                         </div>
                     </div>

@@ -37,7 +37,11 @@ public class EmpresasVacioPorFiltroTests : BunitContext
     /// Ese módulo queda fuera de lo que este test observa — mismo criterio que
     /// <see cref="AtajosGlobalesTests"/>.
     /// </summary>
-    public EmpresasVacioPorFiltroTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public EmpresasVacioPorFiltroTests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.ConRolDeEscritura();
+    }
 
     /// <summary>La página lanza dos consultas por el mismo IMediator: el perfil de vocabulario y la lista.</summary>
     private sealed class MediatorPorTipo : IMediator

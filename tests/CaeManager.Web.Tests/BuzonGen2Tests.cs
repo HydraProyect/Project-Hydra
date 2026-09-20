@@ -23,7 +23,11 @@ public class BuzonGen2Tests : BunitContext
 {
     private static readonly Guid ConexionAId = Guid.Parse("a1a1a1a1-0000-0000-0000-000000000001");
 
-    public BuzonGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public BuzonGen2Tests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.ConRolDeEscritura();
+    }
 
     private sealed class MediadorControlado(Func<object, CancellationToken, Task<object?>> responder) : IMediator
     {

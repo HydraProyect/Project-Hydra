@@ -31,7 +31,11 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class VisitasTresEstadosVaciosTests : BunitContext
 {
-    public VisitasTresEstadosVaciosTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public VisitasTresEstadosVaciosTests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.ConRolDeEscritura();
+    }
 
     private sealed class MediatorPorTipo : IMediator
     {

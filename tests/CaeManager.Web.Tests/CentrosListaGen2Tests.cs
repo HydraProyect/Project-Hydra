@@ -40,6 +40,7 @@ public class CentrosListaGen2Tests : BunitContext
     public CentrosListaGen2Tests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        this.ConRolDeEscritura();
         ComponentFactories.AddStub<AcordeonAsignacionesCentro>();
     }
 

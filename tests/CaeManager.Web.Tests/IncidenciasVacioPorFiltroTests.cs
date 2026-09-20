@@ -24,7 +24,11 @@ namespace CaeManager.Web.Tests;
 public class IncidenciasVacioPorFiltroTests : BunitContext
 {
     /// <summary>La página importa ./js/atajos-lista.js; ese módulo queda fuera de lo que se observa aquí.</summary>
-    public IncidenciasVacioPorFiltroTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public IncidenciasVacioPorFiltroTests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.ConRolDeEscritura();
+    }
 
     private sealed class MediatorPorTipo : IMediator
     {

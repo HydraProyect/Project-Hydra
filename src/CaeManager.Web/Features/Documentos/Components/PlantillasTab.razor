@@ -31,7 +31,7 @@
 {
     <div class="cabecera-pagina">
         <p class="texto-descriptivo">@TextoDescripcion</p>
-        <Boton OnClick='() => Navigation.NavigateTo("/plantillas/nueva")'>+ Nueva plantilla</Boton>
+        <SoloConEscritura><Boton OnClick='() => Navigation.NavigateTo("/plantillas/nueva")'>+ Nueva plantilla</Boton></SoloConEscritura>
     </div>
 }
 
@@ -58,7 +58,7 @@
                PDF sin campos AcroForm se configura a mano por posición. *@
             <EstadoVacio NombreIcono="plantilla" Titulo="Todavía no hay plantillas" Descripcion="Crea la primera a partir de un PDF que te entregue un centro.">
                 <Accion>
-                    <Boton OnClick='() => Navigation.NavigateTo("/plantillas/nueva")'>+ Nueva plantilla</Boton>
+                    <SoloConEscritura><Boton OnClick='() => Navigation.NavigateTo("/plantillas/nueva")'>+ Nueva plantilla</Boton></SoloConEscritura>
                 </Accion>
             </EstadoVacio>
         }

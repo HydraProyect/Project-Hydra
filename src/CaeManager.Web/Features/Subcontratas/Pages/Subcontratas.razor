@@ -27,7 +27,7 @@
     <CabeceraPagina Titulo="Subcontratas" Kicker="Negocio">
         <Acciones>
             <a class="enlace-exportar" href="/subcontratas/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel</a>
-            <Boton OnClick="AbrirCrear">+ Nueva subcontrata</Boton>
+            <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nueva subcontrata</Boton></SoloConEscritura>
         </Acciones>
     </CabeceraPagina>
 
@@ -89,7 +89,7 @@
     {
         <EstadoVacio NombreIcono="subcontratas" Titulo="Aún no hay subcontratas" Descripcion="Crea la primera para poder dar de alta a sus trabajadores.">
             <Accion>
-                <Boton OnClick="AbrirCrear">+ Nueva subcontrata</Boton>
+                <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nueva subcontrata</Boton></SoloConEscritura>
             </Accion>
         </EstadoVacio>
     }
@@ -236,9 +236,9 @@
                                 <ItemMenuAccion OnClick='() => AbrirDesdePreviewAsync((subcontrata.Id, "informacion"))'>
                                     Abrir Subcontrata 360
                                 </ItemMenuAccion>
-                                <ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(subcontrata.Id, subcontrata.RazonSocial)">
+                                <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(subcontrata.Id, subcontrata.RazonSocial)">
                                     Eliminar
-                                </ItemMenuAccion>
+                                </ItemMenuAccion></SoloConEscritura>
                             </MenuAcciones>
                         </div>
                     </div>

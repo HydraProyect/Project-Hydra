@@ -51,6 +51,56 @@ public class InicioGen2Tests : BunitContext
 
     public InicioGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
 
+    // ------------------------------------------------------------ contexto sin datos
+
+    private static KpisDashboardDto KpisACero() => new(
+        TrabajadoresActivos: 0, Centros: 0, DocumentosVencidos: 0, DocumentosUrgentes: 0,
+        DocumentosProximos: 0, DocumentosVigentes: 0, VisitasProgramadas: 0, TasaCumplimientoDocumental: 0);
+
+    /// <summary>
+    /// Un panel de ceros a secas —0 trabajadores, 0 centros, «0 de 0 documentos
+    /// vigentes»— parece un producto vacío en la primera pantalla de una demo. Es lo que
+    /// ve un Operador CAE en su propio Tenant, donde el contenido está en los Tenants
+    /// propietarios que opera por delegación.
+    /// </summary>
+    [Fact]
+    public void Un_contexto_sin_ningun_dato_explica_que_no_hay_nada_que_resumir_en_vez_de_pintar_ceros()
+    {
+        var cut = Renderizar(new MediadorDeInicio { Kpis = KpisACero() });
+
+        cut.Find(".estado-vacio h3").TextContent.Should().Be("Este contexto todavía no tiene datos");
+        cut.Find(".estado-vacio p").TextContent.Should().Contain("selector de la barra superior");
+        cut.FindAll(".dashboard-resumen").Should().BeEmpty("los ceros no se pintan cuando se explica que no hay nada");
+    }
+
+    [Fact]
+    public void Con_cualquier_cifra_distinta_de_cero_el_panel_se_pinta_entero_y_no_se_dice_que_no_hay_datos()
+    {
+        var cut = Renderizar(new MediadorDeInicio { Kpis = KpisACero() with { TrabajadoresActivos = 1 } });
+
+        cut.Markup.Should().NotContain("Este contexto todavía no tiene datos");
+        cut.FindAll(".dashboard-resumen").Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public void Con_cifras_a_cero_pero_una_visita_por_delante_no_se_esconde_el_panel()
+    {
+        var cut = Renderizar(new MediadorDeInicio
+        {
+            Kpis = KpisACero(),
+            Visitas =
+            [
+                new VisitaListaDto(Guid.NewGuid(), CentroNorte, "Centro Norte", Refrielectric, "Refrielectric S.A.",
+                    Guid.NewGuid(), "Montajes Ebro", new DateOnly(2026, 8, 18), new DateOnly(2026, 8, 20), 6,
+                    DocumentacionCompleta: false, NotificadoCliente: false,
+                    CaeManager.Domain.Visitas.OrigenVisita.Plataforma, CaeManager.Domain.Visitas.NivelUrgenciaVisita.Critica)
+            ]
+        });
+
+        cut.Markup.Should().NotContain("Este contexto todavía no tiene datos",
+            "decir «no hay datos» sobre un contexto que tiene una visita sería peor que los ceros");
+    }
+
     // ------------------------------------------------------------ cabecera
 
     [Fact]

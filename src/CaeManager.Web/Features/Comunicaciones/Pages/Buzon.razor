@@ -19,7 +19,7 @@
             <a class="enlace-exportar" href="/comunicaciones">Volver a Comunicaciones</a>
             @if (_conexionSeleccionadaId is not null)
             {
-                <Boton Tamano="TamanoBoton.Pequeno" OnClick="AbrirRedactar">Redactar</Boton>
+                <SoloConEscritura><Boton Tamano="TamanoBoton.Pequeno" OnClick="AbrirRedactar">Redactar</Boton></SoloConEscritura>
             }
         </Acciones>
     </CabeceraPagina>

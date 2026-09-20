@@ -38,7 +38,7 @@
 <div class="contenedor-pagina">
     <CabeceraPagina Kicker="Operación" Titulo="Visitas">
         <Acciones>
-            <Boton OnClick="AbrirCrearAsync">+ Nueva visita</Boton>
+            <SoloConEscritura><Boton OnClick="AbrirCrearAsync">+ Nueva visita</Boton></SoloConEscritura>
         </Acciones>
     </CabeceraPagina>
 
@@ -156,12 +156,12 @@
                         <ItemMenuAccion OnClick="() => AbrirDetalleAsync(context.Id)">
                             Ver
                         </ItemMenuAccion>
-                        <ItemMenuAccion OnClick="() => AbrirEditarAsync(context.Id)">
+                        <SoloConEscritura><ItemMenuAccion OnClick="() => AbrirEditarAsync(context.Id)">
                             Editar
-                        </ItemMenuAccion>
-                        <ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, context.CentroNombre)">
+                        </ItemMenuAccion></SoloConEscritura>
+                        <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, context.CentroNombre)">
                             Eliminar
-                        </ItemMenuAccion>
+                        </ItemMenuAccion></SoloConEscritura>
                     </MenuAcciones>
                 </TemplateColumn>
             </QuickGrid>
@@ -200,7 +200,7 @@
                          Descripcion="Puede haber visitas ya finalizadas: la lista llega filtrada por «Solo activas».">
                 <Accion>
                     <Boton Variante="VarianteBoton.Secundario" OnClick="VerTambienFinalizadasAsync">Ver también las finalizadas</Boton>
-                    <Boton OnClick="AbrirCrearAsync">+ Nueva visita</Boton>
+                    <SoloConEscritura><Boton OnClick="AbrirCrearAsync">+ Nueva visita</Boton></SoloConEscritura>
                 </Accion>
             </EstadoVacio>
         }
@@ -208,7 +208,7 @@
         {
             <EstadoVacio Titulo="Todavía no hay visitas programadas" Descripcion="Crea la primera visita para empezar a llevar el control de accesos programados.">
                 <Accion>
-                    <Boton OnClick="AbrirCrearAsync">+ Nueva visita</Boton>
+                    <SoloConEscritura><Boton OnClick="AbrirCrearAsync">+ Nueva visita</Boton></SoloConEscritura>
                 </Accion>
             </EstadoVacio>
         }

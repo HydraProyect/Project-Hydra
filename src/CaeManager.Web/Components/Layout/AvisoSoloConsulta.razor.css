@@ -1,0 +1,10 @@
+/* Franja informativa, más baja que la de sesión de soporte: no avisa de un
+   riesgo, explica una ausencia. */
+.aviso-solo-consulta {
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-surface-subtle);
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+    text-align: center;
+}

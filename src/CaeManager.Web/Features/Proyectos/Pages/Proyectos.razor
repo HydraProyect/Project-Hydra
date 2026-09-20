@@ -19,7 +19,7 @@
         <Acciones>
             @if (_clienteSeleccionadoId != Guid.Empty && !_cargando && !_errorCarga)
             {
-                <Boton OnClick="AbrirNuevoProyecto">+ Nuevo proyecto</Boton>
+                <SoloConEscritura><Boton OnClick="AbrirNuevoProyecto">+ Nuevo proyecto</Boton></SoloConEscritura>
             }
         </Acciones>
     </CabeceraPagina>
@@ -102,7 +102,7 @@
                aplican en memoria, así que aquí la pantalla SÍ sabe que el
                cliente no tiene ninguno — con filtro o sin él. *@
             <EstadoVacio NombreIcono="proyectos" Titulo="Sin proyectos" Descripcion="Este cliente todavía no tiene ningún proyecto de obra o instalación.">
-                <Accion><Boton OnClick="AbrirNuevoProyecto">+ Nuevo proyecto</Boton></Accion>
+                <Accion><SoloConEscritura><Boton OnClick="AbrirNuevoProyecto">+ Nuevo proyecto</Boton></SoloConEscritura></Accion>
             </EstadoVacio>
         }
         else if (ProyectosVisibles.Count == 0 && HayFiltrosActivos)
@@ -164,9 +164,9 @@
                                         <ItemMenuAccion OnClick="() => SeleccionarProyectoAsync(proyecto.Id)">Detalles</ItemMenuAccion>
                                         @if (proyecto.EstaAbierto)
                                         {
-                                            <ItemMenuAccion OnClick="() => AbrirCerrarConfirm(proyecto.Id)">Cerrar proyecto</ItemMenuAccion>
+                                            <SoloConEscritura><ItemMenuAccion OnClick="() => AbrirCerrarConfirm(proyecto.Id)">Cerrar proyecto</ItemMenuAccion></SoloConEscritura>
                                         }
-                                        <ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(proyecto.Id, proyecto.Nombre)">Eliminar</ItemMenuAccion>
+                                        <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(proyecto.Id, proyecto.Nombre)">Eliminar</ItemMenuAccion></SoloConEscritura>
                                     </MenuAcciones>
                                 </td>
                             </tr>

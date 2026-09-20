@@ -45,6 +45,15 @@
     {
         <EstadoVacio Titulo="Sin cartera asignada" Descripcion="Todavía no tienes ningún cliente asignado, así que no hay datos que mostrar. Pide a tu Coordinador o a un Administrador de la plataforma que te asigne cartera." />
     }
+    else if (SinNingunDatoEnEsteContexto)
+    {
+        @* Un panel de ceros a secas parece un producto vacío. Aquí no hay nada que resumir,
+           y decirlo —con qué salida, si esperabas ver datos— es lo que separa «no hay datos
+           en este contexto» de «esta pantalla no funciona». Mismo componente que «Sin
+           cartera asignada», la otra explicación de un panel sin nada que mostrar. *@
+        <EstadoVacio Titulo="Este contexto todavía no tiene datos"
+                     Descripcion="No hay trabajadores, centros ni documentos aquí, así que no hay nada que resumir. Si tu cuenta opera otros Tenants, cambia de contexto con el selector de la barra superior." />
+    }
     else
     {
         @if (_queLlegoSinVer.Count > 0)

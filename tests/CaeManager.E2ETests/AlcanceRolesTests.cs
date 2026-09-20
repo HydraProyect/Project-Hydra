@@ -171,23 +171,15 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
         await contador.WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
         Assert.Equal(9, ExtraerTotalElementos(await contador.InnerTextAsync()));
 
-        // .First: el botón "+ Nuevo cliente" aparece en la cabecera y, cuando
-        // la lista está vacía, también en el EstadoVacio.
-        await page.GetByText("+ Nuevo cliente").First.ClickAsync();
-        var drawer = page.Locator(".drawer-panel");
-        await drawer.GetByLabel("Razón social").FillAsync("Cliente bloqueado por rol Consulta");
-        await drawer.GetByLabel("Identificación fiscal", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_888_801));
-        await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
-
-        // AutorizacionEscrituraBehavior bloquea cualquier Command para
-        // Consulta/Cliente con el error "Autorizacion.SoloLectura" (ver esa
-        // clase en CaeManager.Application.Common) — se muestra en ".alerta-formulario".
-        var alerta = drawer.Locator(".alerta-formulario");
-        await alerta.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
-        Assert.Contains("no permite", (await alerta.InnerTextAsync()).ToLowerInvariant());
-
-        // El drawer sigue abierto: el bloqueo no debe perder lo ya escrito.
-        await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 2_000 });
+        // Desde la demo a dirección (2026-09-20) la interfaz ya no ofrece lo que el rol
+        // no puede hacer: antes «+ Nuevo cliente» se veía habilitado y fallaba al guardar
+        // con «Tu rol no permite crear, editar ni eliminar datos». Ahora ni se ofrece —ni
+        // en la cabecera ni en el EstadoVacio— y una franja dice que es modo solo consulta.
+        // La denegación de verdad (AutorizacionEscrituraBehavior, «Autorizacion.SoloLectura»)
+        // sigue siendo la que decide, y la vigila RolesConEscrituraParidadTests contra la
+        // lista que usa la interfaz.
+        await Assertions.Expect(page.GetByText("+ Nuevo cliente")).ToHaveCountAsync(0);
+        await Assertions.Expect(page.Locator(".aviso-solo-consulta")).ToBeVisibleAsync();
     }
 
     [Fact]
