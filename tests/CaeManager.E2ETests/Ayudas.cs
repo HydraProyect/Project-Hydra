@@ -93,7 +93,7 @@ public static class Ayudas
         $"prueba.{rolEnMinusculas}{numero}@caemanager.local";
 
     /// <summary>
-    /// Cambia el "Cliente activo" (ver SelectorClienteActivo.razor) al
+    /// Cambia el contexto operativo actual (rótulo accesible «Contexto operativo actual», ver SelectorClienteActivo.razor) al
     /// Cliente Delegante indicado por nombre, usando el &lt;select&gt; real de
     /// la interfaz.
     ///
