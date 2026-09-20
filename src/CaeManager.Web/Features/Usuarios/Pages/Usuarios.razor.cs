@@ -1436,9 +1436,11 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                 // recargar.
                 if (!await EsCuentaPropiaAsync(usuarioLista.Id, token)) return ResultadoActivacionUsuario.NoPropia;
 
-                usuario.LockoutEnabled = true;
-                usuario.LockoutEnd = usuarioLista.Activo ? DateTimeOffset.MaxValue : null;
-                var resultadoEscritura = await UserManager.UpdateAsync(usuario);
+                // Desactivar rota además el security stamp (ver SesionDeCuenta):
+                // sin eso, la cookie y el circuito ya abiertos seguían
+                // leyendo y escribiendo con la cuenta desactivada.
+                var resultadoEscritura = await SesionDeCuenta.CambiarActivacionAsync(
+                    UserManager, usuario, activar: !usuarioLista.Activo);
                 if (!resultadoEscritura.Succeeded)
                     motivoFallo = DescribirErrores(resultadoEscritura);
 

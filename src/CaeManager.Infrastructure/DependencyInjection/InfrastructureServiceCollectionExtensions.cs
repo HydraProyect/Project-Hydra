@@ -130,6 +130,10 @@ public static class InfrastructureServiceCollectionExtensions
             .AddClaimsPrincipalFactory<TenantClaimsPrincipalFactory>()
             .AddDefaultTokenProviders();
 
+        // La cookie deja de validar una cuenta bloqueada y revalida cada minuto,
+        // no cada 30 (auditoría 2026-09-20): ver SesionDeCuenta.
+        services.AddValidacionDeSesionDeCuenta();
+
         // Vigencia de los tokens de restablecimiento y de activación. NO es
         // cosmética: el correo de "olvidé mi contraseña" lleva desde siempre
         // escrito que el enlace "caduca en 60 minutos", y su constante decía

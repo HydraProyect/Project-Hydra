@@ -130,6 +130,20 @@ public static class IdentityEndpointsExtensions
                 }
             }
 
+            // SignInWithClaimsAsync, a diferencia de PasswordSignInAsync, no
+            // comprueba el bloqueo: una cuenta desactivada volvía a entrar por
+            // aquí sin más (auditoría 2026-09-20). Se comprueba antes de
+            // vincular el login o de firmar nada, y con el mismo mensaje
+            // genérico que el resto de rechazos de este endpoint — Login.razor
+            // no distingue «desactivada» de credenciales inválidas a propósito.
+            if (await userManager.IsLockedOutAsync(usuario))
+            {
+                loggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
+                    .LogWarning("Login SSO rechazado, cuenta bloqueada o desactivada: {UsuarioId}", usuario.Id);
+                await signInManager.SignOutAsync();
+                return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
+            }
+
             var yaVinculado = (await userManager.GetLoginsAsync(usuario))
                 .Any(l => l.LoginProvider == infoExterna.LoginProvider && l.ProviderKey == infoExterna.ProviderKey);
             if (!yaVinculado)

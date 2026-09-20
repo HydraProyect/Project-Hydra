@@ -493,6 +493,12 @@ builder.Services.AddRazorComponents()
             builder.Configuration.GetValue("Circuit:MaxBufferedUnacknowledgedRenderBatches", 10);
     });
 
+// Revalida la sesión de la cuenta mientras el circuito está abierto (stamp y
+// bloqueo). Sin él, desactivar una cuenta no cortaba el circuito ya conectado:
+// ver RevalidadorDeAutenticacionDelCircuito. Después de
+// AddInteractiveServerComponents, que registra el proveedor por defecto.
+builder.Services.AddScoped<Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider, CaeManager.Web.Services.RevalidadorDeAutenticacionDelCircuito>();
+
 // "Circuitos activos" (Horizonte 2.3, ver Observabilidad.CircuitosActivos):
 // singleton porque no guarda estado por circuito, solo cuenta — compone con
 // las CircuitOptions de arriba, es la señal real de cuándo ese ajuste deja
