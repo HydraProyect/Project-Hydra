@@ -35,34 +35,42 @@
             case ResultadoEnlace.PuenteNoConfigurado:
                 <p class="aviso-error">
                     Este entorno no tiene configurado el enlace automático, así que ni se ha
-                    intentado. No es cosa de tu navegador y no se arregla reinstalando nada:
-                    conéctala a mano con el código de aquí abajo.
+                    intentado. No es cosa de tu navegador y no se arregla reinstalando nada.
                 </p>
                 break;
 
             case ResultadoEnlace.NoDetectada:
                 <p class="aviso-error">
                     No hemos detectado la extensión en este navegador. O no está instalada, o es
-                    anterior al enlace automático. Si ya la tienes puesta, conéctala a mano con el
-                    código de aquí abajo.
+                    anterior al enlace automático.
                 </p>
                 break;
 
             case ResultadoEnlace.Rechazado:
                 <p class="aviso-error">
                     La extensión@(_versionExtension is not null ? $" (v{_versionExtension})" : "")
-                    rechazó el enlace: @_errorExtension También puedes conectarla a mano con el
-                    código de aquí abajo.
+                    rechazó el enlace: @_errorExtension
                 </p>
                 break;
         }
 
-        @if (_enlace != ResultadoEnlace.Conectado)
+        @if (DebePedirActualizar)
         {
             <p class="descripcion-delegaciones">
-                Abre la ventana de la extensión, despliega <strong>Conectar a mano</strong> y pega
-                ahí este código. Lleva dentro el token, así que trátalo igual: no lo reenvíes ni lo
-                dejes escrito en ningún sitio.
+                Tu extensión es la v@_versionExtension, y conectarla a mano necesita la
+                v@CompatibilidadExtension.VersionMinimaConexionManual o posterior. Actualízala
+                desde la página de extensiones de tu navegador y vuelve a generar el token: no te
+                damos aquí el código de conexión porque tu versión todavía no tiene dónde pegarlo.
+            </p>
+        }
+        else if (DebeOfrecerCodigo)
+        {
+            <p class="descripcion-delegaciones">
+                Con la extensión en la v@CompatibilidadExtension.VersionMinimaConexionManual o
+                posterior: abre su ventana, despliega <strong>Conectar a mano</strong> y pega ahí
+                este código. Si la tuya es anterior, actualízala primero — el control no existe en
+                las versiones antiguas. El código lleva dentro el token, así que trátalo igual: no
+                lo reenvíes ni lo dejes escrito en ningún sitio.
             </p>
 
             <CampoTexto Etiqueta="Código de conexión" Valor="@_codigoConexion" ValorChanged="_ => { }" Deshabilitado="true" />

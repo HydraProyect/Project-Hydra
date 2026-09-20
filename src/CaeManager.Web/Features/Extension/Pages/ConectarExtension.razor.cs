@@ -92,6 +92,23 @@ public partial class ConectarExtension : ComponentBase, IAsyncDisposable
         Rechazado,
     }
 
+    /// <summary>El enlace automático no llegó a buen puerto y hay algo que contar.</summary>
+    private bool HuboFallo => _enlace is not (ResultadoEnlace.NoIntentado or ResultadoEnlace.Conectado);
+
+    /// <summary>
+    /// Se ofrece el código de conexión. Cuando la extensión no respondió no hay
+    /// versión que mirar, así que se ofrece igualmente con el requisito escrito
+    /// al lado: es la única salida que le queda a quien sí la tiene instalada.
+    /// </summary>
+    private bool DebeOfrecerCodigo => HuboFallo && CompatibilidadExtension.AdmiteConexionManual(_versionExtension);
+
+    /// <summary>
+    /// La extensión respondió y su versión es anterior a la que trae «Conectar
+    /// a mano». Darle el código sería mandarla a un control que no existe en su
+    /// ventana, así que lo que toca decir es que se actualice.
+    /// </summary>
+    private bool DebePedirActualizar => HuboFallo && !CompatibilidadExtension.AdmiteConexionManual(_versionExtension);
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
