@@ -8,8 +8,18 @@
     sobre datos historicos (p. ej. 20260828171712_F3cRetiradaClientesSubcontratasLegacy,
     que aborta si encuentra filas legacy sin reconciliar). Esa comprobacion no es un bug:
     hace exactamente lo que debe. Lo que sobra es el coste de diagnosticarlo cada vez a
-    mano. Este script asume que los datos locales son de prueba y prescindibles -- nunca
-    apuntarlo a una cadena de conexion de staging o produccion.
+    mano. Este script asume que los datos locales son de prueba y prescindibles.
+
+    Tres guardas lo impiden apuntar a otra cosa que no sea una base local de desarrollo,
+    y las tres fallan cerradas (ante la duda, aborta):
+      1. El host debe ser localhost, 127.0.0.1 o ::1. No hay parametro para saltarselo.
+      2. El nombre de la base debe ser "caemanager" o "caemanager_" seguido de letras
+         minusculas, digitos o guion bajo. Asi no se puede borrar "postgres", una base de
+         otro proyecto ni una de staging con otro nombre, y el nombre nunca contiene
+         caracteres que alteren el SQL en el que se interpola.
+      3. Recrear la base exige teclear su nombre (-Confirmar o pregunta interactiva).
+         Sin terminal interactiva y sin -Confirmar, aborta. -SoloMigrar no borra nada y
+         no pide confirmacion.
 
     No parchea ninguna migracion ni la vuelve permisiva: las migraciones ya aplicadas en
     produccion son un artefacto historico y no se tocan (ver el propio comentario de F3c).
@@ -26,7 +36,7 @@
     ConnectionStrings:CaeManagerDb en appsettings.json.
 
 .PARAMETER PgHost
-    Host de PostgreSQL. Por defecto "localhost".
+    Host de PostgreSQL. Solo se admite localhost, 127.0.0.1 o ::1. Por defecto "localhost".
 
 .PARAMETER PgPort
     Puerto de PostgreSQL. Por defecto 5432.
@@ -39,6 +49,10 @@
     Contrasena del rol. Por defecto "postgres" (el valor de desarrollo en appsettings.json).
     Pasala explicita si tu entorno usa otra.
 
+.PARAMETER Confirmar
+    Nombre de la base que se va a borrar, tecleado de nuevo. Debe coincidir con -Database.
+    Si no se pasa, el script lo pregunta; sin terminal interactiva, aborta.
+
 .PARAMETER SoloMigrar
     No borra nada: solo aplica las migraciones pendientes sobre la base ya existente.
     Utilizalo primero si quieres ver si el problema es simplemente "estaba atrasada" antes
@@ -47,7 +61,7 @@
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File scripts\reiniciar-bd-local.ps1
     powershell -ExecutionPolicy Bypass -File scripts\reiniciar-bd-local.ps1 -SoloMigrar
-    powershell -ExecutionPolicy Bypass -File scripts\reiniciar-bd-local.ps1 -Database caemanager_dev2
+    powershell -ExecutionPolicy Bypass -File scripts\reiniciar-bd-local.ps1 -Database caemanager_dev2 -Confirmar caemanager_dev2
 #>
 [CmdletBinding()]
 param(
@@ -56,10 +70,29 @@ param(
     [int]$PgPort = 5432,
     [string]$PgUser = "postgres",
     [string]$PgPassword = "postgres",
+    [string]$Confirmar = "",
     [switch]$SoloMigrar
 )
 
 $ErrorActionPreference = "Stop"
+
+# Guardas de destino. Van antes de cualquier llamada a psql/dropdb: una cadena de conexion
+# de staging o produccion no debe llegar a tocarse ni para comprobar conexiones.
+if ($PgHost -notin @("localhost", "127.0.0.1", "::1")) {
+    throw "Host '$PgHost' rechazado: este script solo actua sobre PostgreSQL local (localhost, 127.0.0.1 o ::1)."
+}
+# \z y no $: en .NET, $ tambien casa antes de un salto de linea final.
+if ($Database -cnotmatch '^caemanager(_[a-z0-9_]+)?\z') {
+    throw "Base '$Database' rechazada: solo se admiten 'caemanager' o 'caemanager_<sufijo>' (minusculas, digitos y guion bajo)."
+}
+# El rol y la contrasena se interpolan en la cadena de conexion de dotnet ef: un ';' en
+# cualquiera de los dos permitiria anadir "Host=..." y el ultimo gana, saltandose la guarda.
+if ($PgUser -notmatch '^[A-Za-z0-9_]+\z') {
+    throw "Rol '$PgUser' rechazado: solo letras, digitos y guion bajo."
+}
+if ($PgPassword -match '[;\r\n]') {
+    throw "Contrasena rechazada: no puede contener ';' ni saltos de linea (romperian la cadena de conexion)."
+}
 
 function Escribir($mensaje) {
     Write-Host "[$(Get-Date -Format 'HH:mm:ss')] $mensaje"
@@ -90,6 +123,15 @@ $proyectoInicio = Join-Path $raiz "src\CaeManager.Web"
 $cadenaConexion = "Host=$PgHost;Port=$PgPort;Database=$Database;Username=$PgUser;Password=$PgPassword"
 
 if (-not $SoloMigrar) {
+    if ($Confirmar -eq "") {
+        # Read-Host falla sin terminal interactiva (agentes, CI): en ese caso aborta, que
+        # es lo que se quiere -- borrar una base exige que alguien lo haya escrito.
+        $Confirmar = Read-Host "Se va a BORRAR la base '$Database' en ${PgHost}:$PgPort. Escribe su nombre para continuar"
+    }
+    if ($Confirmar -cne $Database) {
+        throw "Confirmacion no coincide con '$Database'. No se ha tocado nada."
+    }
+
     Escribir "Comprobando conexiones activas a '$Database'..."
     # Sin 2>&1 aqui: psql escribe el aviso de contrasena por stderr aunque termine
     # bien, y con $ErrorActionPreference = "Stop" eso abortaria el script en Windows
