@@ -213,7 +213,7 @@ public class TerminologiaCanonicaTests
     /// </para>
     ///
     /// <para>
-    /// <b><c>Delegacion</c> 312 → 317 (sobre la entrada de la matriz de estados de la demo, más abajo; medido tras rebasar sobre `f93b1f93`) (alta de Tenant propietario bajo un Operador CAE externo, 2026-09-20).</b>
+    /// <b><c>Delegacion</c> 312 → 317 (alta de Tenant propietario bajo un Operador CAE externo, 2026-09-20; +5 sobre la siembra multi-Tenant de la demo, #761; medido tras rebasar sobre <c>f537e71f</c>).</b>
     /// Cinco identificadores reales, todos tipos o miembros ya existentes que el incremento
     /// necesita nombrar y que no tienen alternativa canónica sin renombrarlos (renombrado que este
     /// contrato prohíbe hacer de paso): <c>IDelegacionTenantRepository</c> y <c>DelegacionTenant</c>
