@@ -95,15 +95,25 @@ public static class CatalogoOrdenesAsistente
         "ni una Visita larga es una Asignación, ni un alta breve es una Visita.";
 
     /// <summary>
-    /// Las cuatro ramas del ingreso a un Centro, por su identificador. Se nombran
+    /// Las cinco ramas del ingreso a un Centro, por su identificador. Se nombran
     /// porque son lo que se audita cuando el asistente explica por qué propuso lo
     /// que propuso.
+    /// <para>
+    /// Son cinco y no cuatro por un hallazgo de Codex (2026-09-21): «no se sabe
+    /// el canal» parecía una rama y son dos, porque el correo que toca escribir
+    /// no es el mismo si al Cliente empresarial ya lo conocemos. Tenerlas juntas
+    /// dejaba la segunda macro escrita solo en la limitación, en prosa, donde
+    /// ningún consumidor del catálogo puede leerla: se habría propuesto siempre
+    /// el correo de presentación, incluso a quien lleva años trabajando con
+    /// nosotros.
+    /// </para>
     /// </summary>
     public const string CaminoPlataformaConAlta = "plataforma_con_alta_vigente";
 
     public const string CaminoPlataformaSinAlta = "plataforma_sin_alta";
     public const string CaminoCorreo = "centro_por_correo";
-    public const string CaminoCanalSinAveriguar = "canal_sin_averiguar";
+    public const string CaminoClienteConocidoCentroNuevo = "canal_sin_averiguar_cliente_conocido";
+    public const string CaminoClienteNuevo = "canal_sin_averiguar_cliente_nuevo";
 
     /// <summary>Las órdenes que el asistente reconoce, en orden de frecuencia esperada.</summary>
     public static IReadOnlyList<OrdenAsistida> Ordenes { get; } =
@@ -196,7 +206,10 @@ public static class CatalogoOrdenesAsistente
                 "pantalla, que solo ofrece lo visible; con una orden escrita no. Los candidatos " +
                 "tienen que filtrarse antes por lo que la persona puede ver. Y registrar la Visita " +
                 "no acredita a nadie: lo que hay que hacer después depende del canal del Centro, y " +
-                "está en los cuatro caminos de esta orden.",
+                "está en los cinco caminos de esta orden, y hoy NINGUNO de los cinco se completa " +
+                "solo: todos acaban en una acción del Gestor CAE —subir a la plataforma, pedir un " +
+                "alta, enviar un correo—. Ejecutar la orden deja la Visita registrada en TALVEG, " +
+                "que no es lo mismo que dejarla acreditada.",
             EnviaComunicacionExterna: false,
             RequiereConfirmacion: true)
         {
@@ -253,35 +266,52 @@ public static class CatalogoOrdenesAsistente
                         "cada Visita, porque el Centro no guarda un estado nuestro.",
                     Ejecucion: [new PasoDeEjecucion(typeof(CrearVisitaCommand))],
                     MacroSugerida: "",
-                    Ejecutable: true,
+                    Ejecutable: false,
                     Limitacion:
-                        "El paquete documental solo se genera hoy cuando la Visita nace de una " +
-                        "conversación de correo (CrearVisitaCommand solo lo dispara si hay " +
-                        "conversación de origen). Una Visita creada a mano en un Centro de canal " +
-                        "Email no manda nada, y eso contradice la regla de negocio: hace falta un " +
-                        "incremento propio, porque el efecto sale a un tercero."),
+                        "Registrar la Visita sí se puede; mandar la documentación, no, y en este " +
+                        "canal eso es todo el trabajo. El paquete documental solo se genera hoy " +
+                        "cuando la Visita nace de una conversación de correo (CrearVisitaCommand " +
+                        "solo lo dispara si hay conversación de origen), y esta rama no declara " +
+                        "ninguna operación que la cree. Declararla ejecutable dejaría confirmar " +
+                        "una Visita que no envía precisamente lo que el Centro exige, y el Gestor " +
+                        "CAE se enteraría al recibir la queja. Hace falta un incremento propio, y " +
+                        "va con cuidado porque el efecto sale a un tercero."),
 
                 new CaminoDeIngreso(
-                    Id: CaminoCanalSinAveriguar,
+                    Id: CaminoClienteConocidoCentroNuevo,
                     Canal: SituacionDelCanal.SinAveriguar,
-                    Cuando: "No se sabe por dónde se gestiona el Centro.",
+                    Cuando:
+                        "No se sabe por dónde se gestiona el Centro, pero el Cliente empresarial " +
+                        "ya trabaja con nosotros y lo único nuevo es el Centro.",
                     QueSeHace:
-                        "Antes de mandar ninguna documentación, se pregunta. Si el Cliente " +
-                        "empresarial ya es nuestro y lo único nuevo es el Centro, se presume el " +
-                        "mismo canal que ya usamos con él y lo que se pide es el alta de ese " +
-                        "Centro; si tampoco conocemos al Cliente, el primer correo es de " +
-                        "presentación como gestor externo.",
+                        "No hay que presentarse: se presume el mismo canal que ya usamos con ese " +
+                        "Cliente y se le pide que dé de alta el Centro nuevo ahí.",
+                    Ejecucion: [],
+                    MacroSugerida: MacrosDeMuestraAsistente.SolicitudAltaDeCentro,
+                    Ejecutable: false,
+                    Limitacion:
+                        "La macro lleva texto de muestra por decisión del propietario, y " +
+                        "MacroRespuesta.CuerpoHtml todavía no admite huecos sustituibles: el " +
+                        "nombre del Centro lo escribe el Gestor CAE antes de enviar. El asistente " +
+                        "propone la plantilla; no manda el correo."),
+
+                new CaminoDeIngreso(
+                    Id: CaminoClienteNuevo,
+                    Canal: SituacionDelCanal.SinAveriguar,
+                    Cuando:
+                        "No se sabe por dónde se gestiona el Centro y tampoco conocemos al " +
+                        "Cliente empresarial.",
+                    QueSeHace:
+                        "Antes de mandar ninguna documentación, presentarse como gestor externo " +
+                        "de la contratista y preguntar por dónde hay que acreditar.",
                     Ejecucion: [],
                     MacroSugerida: MacrosDeMuestraAsistente.PresentacionCentroDesconocido,
                     Ejecutable: false,
                     Limitacion:
-                        "Las dos macros llevan texto de muestra por decisión del propietario, y " +
+                        "La macro lleva texto de muestra por decisión del propietario, y " +
                         "MacroRespuesta.CuerpoHtml todavía no admite huecos sustituibles: el " +
-                        "nombre del Centro y el del Cliente empresarial los escribe el Gestor CAE " +
-                        "antes de enviar. El asistente propone la plantilla; no manda el correo. " +
-                        "Cuál de las dos toca depende de si el Cliente ya es nuestro, y eso TALVEG " +
-                        "lo sabe: " + MacrosDeMuestraAsistente.SolicitudAltaDeCentro +
-                        " cuando lo es, presentación cuando no."),
+                        "nombre del Centro y el de la contratista los escribe el Gestor CAE antes " +
+                        "de enviar. El asistente propone la plantilla; no manda el correo."),
             ],
         },
 

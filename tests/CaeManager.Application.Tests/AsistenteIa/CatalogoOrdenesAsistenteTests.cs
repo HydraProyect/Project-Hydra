@@ -280,7 +280,82 @@ public class CatalogoOrdenesAsistenteTests
         ]);
 
         visita.Caminos.Select(c => c.Id).Should().OnlyHaveUniqueItems();
-        visita.Caminos.Should().HaveCount(4, "plataforma se parte en dos según haya alta o no");
+        visita.Caminos.Should().HaveCount(5,
+            "plataforma se parte en dos según haya alta o no, y «no se sabe el canal» en dos " +
+            "según el Cliente empresarial ya sea nuestro o no");
+    }
+
+    [Fact]
+    public void Hoy_ningun_camino_de_ingreso_se_completa_sin_el_gestor()
+    {
+        // No es una propiedad deseable: es el estado de las cosas, y está aquí
+        // para que deje de serlo con una línea visible en un diff en vez de con
+        // un descuido. Los cinco caminos acaban en una acción del Gestor CAE
+        // —subir a la plataforma, pedir un alta, enviar un correo—, y ninguna de
+        // las tres la sabe hacer TALVEG sola.
+        //
+        // El primero que se completará será el del correo, en cuanto exista un
+        // flujo que cree la conversación de origen. Cuando llegue ese día, esta
+        // prueba se cambia a propósito, no se descubre rota: era ejecutable
+        // ANTES de que existiera el flujo y eso habría dejado confirmar Visitas
+        // que no enviaban nada (hallazgo de Codex, 2026-09-21).
+        var visita = CatalogoOrdenesAsistente.PorId(CatalogoOrdenesAsistente.VisitaPuntualACentro)!;
+
+        visita.Caminos.Should().OnlyContain(c => !c.Ejecutable);
+        visita.TieneCaminoNoEjecutable.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Toda_macro_declarada_la_propone_algun_camino()
+    {
+        // Esta prueba nace de un hallazgo de Codex (2026-09-21). Las dos macros
+        // estaban declaradas, pero una sola rama cubría «no se sabe el canal» y
+        // proponía siempre la de presentación; la otra vivía únicamente dentro
+        // del texto de la limitación, en prosa, donde ningún consumidor del
+        // catálogo puede leerla. Resultado: se habría propuesto el correo de
+        // presentación a un Cliente empresarial que lleva años con nosotros.
+        //
+        // Mira en la dirección contraria a la prueba de al lado a propósito: allí
+        // se comprueba que ninguna rama propone una macro inexistente; aquí, que
+        // ninguna macro existente se queda sin proponer. Una sola de las dos deja
+        // medio contrato sin vigilar.
+        var propuestas = CatalogoOrdenesAsistente.Ordenes
+            .SelectMany(o => o.Caminos)
+            .Select(c => c.MacroSugerida)
+            .Where(m => !string.IsNullOrEmpty(m))
+            .ToHashSet();
+
+        propuestas.Should().Contain(MacrosDeMuestraAsistente.PresentacionCentroDesconocido);
+        propuestas.Should().Contain(MacrosDeMuestraAsistente.SolicitudAltaDeCentro);
+    }
+
+    [Fact]
+    public void Dos_caminos_que_proponen_macros_distintas_no_aplican_en_lo_mismo()
+    {
+        // Si dos ramas proponen plantillas distintas, su condición tiene que
+        // distinguirlas: con la misma condición, quien consuma el catálogo no
+        // puede elegir y acabará cogiendo la primera de la lista.
+        foreach (var orden in CatalogoOrdenesAsistente.Ordenes)
+        {
+            var conMacro = orden.Caminos.Where(c => !string.IsNullOrEmpty(c.MacroSugerida)).ToList();
+
+            conMacro.Select(c => c.Cuando).Should().OnlyHaveUniqueItems(
+                "en {0} hay ramas con plantillas distintas y la misma condición", orden.Id);
+        }
+    }
+
+    [Fact]
+    public void Una_orden_con_algun_camino_sin_completar_lo_dice_en_su_limitacion()
+    {
+        // Una orden puede ser ejecutable y aun así dejar el trabajo a medias por
+        // el camino que toque. Si no lo dice, quien confirma el plan cree que ya
+        // está hecho — que es el modo exacto en que esta orden falla: la Visita
+        // queda registrada en TALVEG y sin acreditar donde importa.
+        foreach (var orden in CatalogoOrdenesAsistente.Ordenes.Where(o => o.TieneCaminoNoEjecutable))
+        {
+            orden.Limitacion.Should().NotBeNullOrWhiteSpace(
+                "{0} tiene caminos que no se completan y no lo advierte", orden.Id);
+        }
     }
 
     [Fact]
