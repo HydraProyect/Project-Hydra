@@ -98,17 +98,18 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
     private string? _temaGuardado;
 
     /// <summary>
-    /// Un solo cambio de tema a la vez: guardar y aplicar son un par que no
-    /// debe intercalarse con el de otro cambio. Sin esto, dos manejadores
-    /// solapados mutaban <c>_usuario</c> a la vez —la lambda diferida de
-    /// <c>PuertaAccesoDatos</c> lee el campo al cruzar la puerta, no al crear
-    /// la operación— y un guardado podía dar <c>Succeeded</c> sobre la
-    /// instancia que otro acababa de preparar con SU tema (A→B→A con el
-    /// segundo guardado fallando dejaba navegador y cookie en A frente a una
-    /// cuenta en B). Serializados, el cambio posterior espera al anterior y
-    /// cada par guardar→aplicar es atómico respecto a los demás.
+    /// Hay un manejador drenando cambios. <b>Un solo guardado en vuelo</b>:
+    /// dos manejadores solapados mutaban <c>_usuario</c> a la vez —la lambda
+    /// diferida de <c>PuertaAccesoDatos</c> lee el campo al cruzar la puerta,
+    /// no al crear la operación— y un guardado podía dar <c>Succeeded</c>
+    /// sobre la instancia que otro acababa de preparar con SU tema; además,
+    /// con dos <c>UPDATE</c> concurrentes gana el que termine último, no el
+    /// que se pidió último. El resto de manejadores solo anotan lo elegido en
+    /// <see cref="_temaActual"/> y salen: ver <see cref="CambiarTemaAsync"/>.
+    /// Es un indicador y no un semáforo a propósito: no hay cola de espera
+    /// cuyo orden importe, así que no depende de ninguna garantía de equidad.
     /// </summary>
-    private readonly SemaphoreSlim _cambioEnCurso = new(1, 1);
+    private bool _cambioEnCurso;
 
     protected override async Task OnInitializedAsync()
     {
@@ -243,15 +244,27 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
     /// </para>
     ///
     /// <para>
-    /// <b>Un cambio a la vez</b> (segunda revisión de Codex): el par
-    /// guardar→aplicar va bajo <see cref="_cambioEnCurso"/>. La primera
-    /// solución para los cambios solapados —descartar el aplicado si ya no
-    /// era el vigente— tenía tres agujeros con una sola raíz: A→B→A con el
-    /// segundo guardado fallando dejaba navegador y cookie en A frente a una
-    /// cuenta en B; dos manejadores mutaban <c>_usuario</c> a la vez y un
-    /// <c>Succeeded</c> podía corresponder al tema del otro; y no cubría a
-    /// <see cref="OnAfterRenderAsync"/>. Serializando, ninguno de los tres
-    /// puede darse: cada cambio espera al anterior y ve su resultado.
+    /// <b>Gana lo último que se pidió, en cualquier orden de llegada</b>
+    /// (segunda y tercera revisión de Codex). <see cref="_temaActual"/> se
+    /// asigna en el acto, síncronamente, al llegar el evento: es la
+    /// <i>intención vigente</i>. Solo un manejador a la vez —el que encuentra
+    /// <see cref="_cambioEnCurso"/> en falso— guarda y aplica, y lo hace en
+    /// bucle mientras lo pedido difiera de lo confirmado
+    /// (<see cref="_temaGuardado"/>), releyendo la intención tras cada vuelta.
+    /// Los demás manejadores solo la anotan y salen. Consecuencias: (a) no hay
+    /// dos guardados en vuelo, así que <c>_usuario</c> no se muta a la vez y
+    /// la última escritura en la cuenta es la última intención; (b) una
+    /// intención superada antes de guardarse (A→B→A, o B pisado por C) ni
+    /// siquiera se guarda: no hay «llegada tarde» posible, porque nada se
+    /// encola —la versión anterior serializaba con un <c>SemaphoreSlim</c>,
+    /// cuyo orden de adquisición no está garantizado, y con
+    /// oscuro→claro→oscuro podía dejar cuenta, documento y cookie en claro
+    /// con el <c>&lt;select&gt;</c> en oscuro—; (c) si un guardado falla y
+    /// hay una intención más nueva, se intenta esa; si no la hay, el bucle
+    /// termina (no reintenta sin fin), y si el usuario vuelve entonces al
+    /// tema confirmado no hay nada que guardar. La comprobación y la marca de
+    /// <see cref="_cambioEnCurso"/> no tienen <c>await</c> en medio: el
+    /// circuito ejecuta las continuaciones de una en una.
     /// </para>
     ///
     /// <para>
@@ -270,23 +283,35 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
     /// </summary>
     private async Task CambiarTemaAsync(ChangeEventArgs e)
     {
-        var texto = e.Value?.ToString() ?? "sistema";
-        _temaActual = texto;
+        _temaActual = e.Value?.ToString() ?? "sistema";
 
-        await _cambioEnCurso.WaitAsync();
+        if (_cambioEnCurso)
+            return;
+
+        _cambioEnCurso = true;
         try
         {
-            if (_usuario is not null && !await GuardarTemaAsync(texto))
-                return;
+            while (_temaActual != _temaGuardado)
+            {
+                var texto = _temaActual!;
 
-            _temaGuardado = texto;
+                if (_usuario is not null && !await GuardarTemaAsync(texto))
+                {
+                    if (_temaActual == texto)
+                        return;
 
-            if (_modulo is not null)
-                await _modulo.InvokeVoidAsync("aplicarTema", texto);
+                    continue;
+                }
+
+                _temaGuardado = texto;
+
+                if (_modulo is not null)
+                    await _modulo.InvokeVoidAsync("aplicarTema", texto);
+            }
         }
         finally
         {
-            _cambioEnCurso.Release();
+            _cambioEnCurso = false;
         }
     }
 
