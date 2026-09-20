@@ -46,6 +46,14 @@ public sealed class EscenariosDireccionDemoFixture : IAsyncLifetime
     internal ArnesDeArranqueRuntime Arnes { get; private set; } = null!;
     internal IConfiguration Configuracion { get; private set; } = null!;
 
+    /// <summary>
+    /// Los Clientes empresariales del catálogo que YA tenían cartera vigente
+    /// justo antes del backfill. El backfill proyecta la cartera de cualquier
+    /// Cliente con ejecutivo, así que sin esta foto previa un sembrador que se
+    /// saltara el escritor de asignaciones seguiría dando verde.
+    /// </summary>
+    public IReadOnlyList<string> ClientesConCarteraAntesDelBackfill { get; private set; } = [];
+
     public async Task InitializeAsync()
     {
         Arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: true);
@@ -64,6 +72,19 @@ public sealed class EscenariosDireccionDemoFixture : IAsyncLifetime
                 sp.GetRequiredService<CaeManagerDbContext>(),
                 sp.GetRequiredService<UserManager<ApplicationUser>>(),
                 Configuracion, EntornoDePrueba.Desarrollo, NullLogger.Instance);
+        }
+
+        await using (var antes = Arnes.Servicios.GetRequiredService<FabricaContextoDeBootstrap>().Crear())
+        {
+            var nombres = CatalogoEscenariosDireccionDemo.Ramas.SelectMany(r => r.Clientes.Select(c => c.RazonSocial)).ToList();
+            var conCartera = await antes.AsignacionesCartera
+                .Where(c => c.Estado == EstadoAsignacion.Vigente && c.AmbitoRelacionClienteId != null)
+                .Select(c => c.AmbitoRelacionClienteId!.Value)
+                .ToListAsync();
+            ClientesConCarteraAntesDelBackfill = await antes.Empresas.IgnoreQueryFilters()
+                .Where(e => e.EsCritico != null && nombres.Contains(e.RazonSocial) && conCartera.Contains(e.Id))
+                .Select(e => e.RazonSocial)
+                .ToListAsync();
         }
 
         // El backfill corre DESPUÉS en el arranque real (Program.cs): tiene que
@@ -250,6 +271,15 @@ public class EscenariosDireccionDemoTests(EscenariosDireccionDemoFixture fixture
             vigentes.Should().ContainSingle($"MEDIDO ({cliente.RazonSocial}): una sola cartera vigente")
                 .Which.UsuarioId.Should().Be(esperado, $"MEDIDO ({cliente.RazonSocial}): la cartera es de su Gestor CAE");
         }
+    }
+
+    [Fact]
+    public void La_cartera_ya_existe_antes_del_backfill_porque_la_abre_el_escritor_de_asignaciones()
+    {
+        fixture.ClientesConCarteraAntesDelBackfill.Should().BeEquivalentTo(
+            Clientes.Select(c => c.Cliente.RazonSocial),
+            "MEDIDO: el sembrador abre la cartera por el mismo escritor que la aplicación (AsignacionesOperativasWriter), " +
+            "no espera a que el backfill de arranque la proyecte desde Empresa.EjecutivoUsuarioId");
     }
 
     [Fact]
