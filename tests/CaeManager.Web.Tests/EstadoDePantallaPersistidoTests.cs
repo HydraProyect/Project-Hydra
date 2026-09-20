@@ -558,6 +558,19 @@ public class EstadoDePantallaPersistidoTests
         (await CircuitoAsync(almacen, Sesion.Base, reloj)).Should().BeNull();
     }
 
+    [Fact]
+    public async Task Una_suspension_del_host_que_el_reloj_monotono_no_cuenta_no_deja_el_estado_vigente()
+    {
+        // Codex (2ª pasada): en Unix el reloj monótono no cuenta el tiempo con
+        // el host suspendido. Aquí la marca monótona no avanza pero la hora de
+        // pared sí (5 min): la edad es la mayor de las dos → vencido.
+        var reloj = new Reloj();
+        var almacen = await PrerenderAsync(Sesion.Base, reloj, new Instantanea("filas", 3));
+        reloj.Desfase = TimeSpan.FromMinutes(5);
+
+        (await CircuitoAsync(almacen, Sesion.Base, reloj)).Should().BeNull();
+    }
+
     [Theory]
     [InlineData(1234, "vigente")]
     [InlineData(11_000, "vencido")]
@@ -658,7 +671,7 @@ public class EstadoDePantallaPersistidoTests
 
         // El serializador del estado persistido escribe en camelCase.
         json.RootElement.EnumerateObject().Select(p => p.Name.ToLowerInvariant())
-            .Should().BeEquivalentTo(["huelladesesion", "huellaconsulta", "instancia", "marca", "datos"]);
+            .Should().BeEquivalentTo(["huelladesesion", "huellaconsulta", "instancia", "marca", "persistidoen", "datos"]);
         json.RootElement.GetProperty("datos").GetRawText().Should().Contain("solo-esto");
     }
 }

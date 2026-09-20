@@ -74,13 +74,14 @@ public sealed class FabricaEstadoDePantallaPersistido(
     /// Cuánto tiempo puede pasar entre el prerender que guardó el estado y el
     /// circuito que lo recoge. Pasado ese margen el estado se descarta y la
     /// pantalla consulta como si no hubiera nada: nunca es peor que no tener
-    /// el patrón. La edad se mide con el reloj MONÓTONO del proceso que sirvió
-    /// el prerender (<c>GetTimestamp</c>, no la hora de pared) y el estado lleva
-    /// el identificador de ese proceso (<see cref="Instancia"/>): solo el mismo
-    /// proceso puede recogerlo. Una hora de pared no sirve para acotar 10 s
-    /// entre dos réplicas (relojes desfasados) ni ante un salto de NTP. Marca e
-    /// instancia van DENTRO del estado protegido, así que el cliente no puede
-    /// alargar la vigencia.
+    /// el patrón. El estado lleva el identificador del proceso que sirvió el
+    /// prerender (<see cref="Instancia"/>) y solo ese proceso puede recogerlo
+    /// (una hora de pared no acota 10 s entre dos réplicas con relojes
+    /// desfasados). La edad se mide con el reloj monótono (<c>GetTimestamp</c>:
+    /// inmune a saltos de NTP) Y con la hora de pared (que sí cuenta la
+    /// suspensión del host, que el monótono de Unix no): vale la mayor. Marca,
+    /// hora e instancia van DENTRO del estado protegido, así que el cliente no
+    /// puede alargar la vigencia.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -105,6 +106,8 @@ public sealed class FabricaEstadoDePantallaPersistido(
     /// Identifica el proceso que persiste y recoge. Un estado sellado por otra
     /// instancia (otra réplica, o este mismo servicio antes de un reinicio) no
     /// se recoge: su marca monótona no es comparable con la de este proceso.
+    /// Con varias réplicas el atajo se aplicará en una minoría de las
+    /// hidrataciones, y eso es lo correcto (ver el chequeo en <c>TomarAsync</c>).
     /// La propiedad existe para que un test pueda simular otra instancia.
     /// </summary>
     public Guid Instancia { get; init; } = ProcesoActual;
@@ -121,7 +124,8 @@ public sealed class FabricaEstadoDePantallaPersistido(
 /// emitió (<c>Emisor</c>: un token de otra pantalla no vale). <c>HuellaDeSesion</c>
 /// nula = no se persistirá el resultado.
 /// </summary>
-public readonly record struct ConsultaEnCurso(object? Emisor, int Version, string? HuellaDeSesion, long Marca);
+public readonly record struct ConsultaEnCurso(
+    object? Emisor, int Version, string? HuellaDeSesion, long Marca, DateTimeOffset Instante);
 
 /// <summary>
 /// Estado persistido de UNA pantalla. Uso:
@@ -229,8 +233,9 @@ public sealed class EstadoDePantallaPersistido<TInstantanea> : IDisposable
         Descartar();
         var version = _version;
         var marca = _reloj.GetTimestamp();
+        var instante = _reloj.GetUtcNow();
         if (!sePersiste)
-            return new ConsultaEnCurso(this, version, null, marca);
+            return new ConsultaEnCurso(this, version, null, marca, instante);
 
         string? huellaDeSesion;
         try
@@ -247,7 +252,7 @@ public sealed class EstadoDePantallaPersistido<TInstantanea> : IDisposable
             huellaDeSesion = null;
         }
 
-        return new ConsultaEnCurso(this, version, huellaDeSesion, marca);
+        return new ConsultaEnCurso(this, version, huellaDeSesion, marca, instante);
     }
 
     /// <summary>
@@ -280,7 +285,7 @@ public sealed class EstadoDePantallaPersistido<TInstantanea> : IDisposable
         if (alVolver != alPreguntar || consulta.Version != _version)
             return;
 
-        _anotado = new Anotado(instantanea, huellaConsulta, alPreguntar, consulta.Marca);
+        _anotado = new Anotado(instantanea, huellaConsulta, alPreguntar, consulta.Marca, consulta.Instante);
     }
 
     /// <summary>
@@ -306,21 +311,35 @@ public sealed class EstadoDePantallaPersistido<TInstantanea> : IDisposable
         if (sobre.Datos is null || sobre.HuellaConsulta != huellaConsulta)
             return null;
 
-        // La edad es lo que tarda el camino prerender → hidratación (consulta,
-        // render, red hasta el navegador, arranque de Blazor, conexión del
-        // circuito): el tope de VigenciaMaxima sale de medir esto, y se deja
-        // en el registro para poder comprobarlo también en producción.
+        // ESTE CHEQUEO DE INSTANCIA NO SE PUEDE QUITAR. Solo el proceso que
+        // selló el estado puede recogerlo: la marca monótona no es comparable
+        // entre procesos y la hora de pared de otra réplica puede ir desfasada,
+        // así que la edad de 10 s no valdría nada. Con dos réplicas, la mayoría
+        // de las hidrataciones caerán en otra y el atajo NO se aplicará: es lo
+        // correcto (mejor perder la optimización que reutilizar filas
+        // calculadas bajo un contexto de tenant y de autorización que no son
+        // los de este proceso). Que «la optimización no funciona en producción»
+        // con varias réplicas NO es un motivo para quitar la comprobación.
         if (sobre.Instancia != _instancia)
         {
-            // Otra réplica, o este servicio antes de un reinicio: su marca
-            // monótona no es comparable con la de este proceso.
             _registro?.LogInformation(
                 "Estado persistido de {Clave}: sellado por otra instancia, no se recoge.", _clave);
             return null;
         }
 
-        var edad = _reloj.GetElapsedTime(sobre.Marca);
-        var vigente = edad >= TimeSpan.Zero && edad <= FabricaEstadoDePantallaPersistido.VigenciaMaxima;
+        // La edad es lo que tarda el camino prerender → hidratación (consulta,
+        // render, red hasta el navegador, arranque de Blazor, conexión del
+        // circuito): el tope de VigenciaMaxima sale de medir esto, y se deja
+        // en el registro para poder comprobarlo también en producción. Se mide
+        // con DOS relojes y vale la MAYOR: el monótono no cuenta la suspensión
+        // del host en Unix (CLOCK_MONOTONIC) y la hora de pared puede saltar
+        // (NTP); como es el mismo proceso y el mismo host, la de pared no sufre
+        // el desfase entre réplicas. Cualquiera de las dos negativa → vencido.
+        var edadMonotona = _reloj.GetElapsedTime(sobre.Marca);
+        var edadDePared = _reloj.GetUtcNow() - sobre.PersistidoEn;
+        var edad = edadMonotona > edadDePared ? edadMonotona : edadDePared;
+        var vigente = edadMonotona >= TimeSpan.Zero && edadDePared >= TimeSpan.Zero
+            && edad <= FabricaEstadoDePantallaPersistido.VigenciaMaxima;
         _registro?.LogInformation(
             "Estado persistido de {Clave}: edad={EdadMs} ms, tope={TopeMs} ms, {Resultado}",
             _clave, (long)edad.TotalMilliseconds, (long)FabricaEstadoDePantallaPersistido.VigenciaMaxima.TotalMilliseconds,
@@ -340,17 +359,18 @@ public sealed class EstadoDePantallaPersistido<TInstantanea> : IDisposable
         if (_anotado is not { } a)
             return Task.CompletedTask;
 
-        _estado.PersistAsJson(_clave, new Sobre(a.HuellaDeSesion, a.HuellaConsulta, _instancia, a.Marca, a.Datos));
+        _estado.PersistAsJson(_clave, new Sobre(a.HuellaDeSesion, a.HuellaConsulta, _instancia, a.Marca, a.Instante, a.Datos));
         return Task.CompletedTask;
     }
 
     private sealed record Anotado(
-        TInstantanea Datos, string HuellaConsulta, string HuellaDeSesion, long Marca);
+        TInstantanea Datos, string HuellaConsulta, string HuellaDeSesion, long Marca, DateTimeOffset Instante);
 
     public void Dispose() => _suscripcion.Dispose();
 
     private sealed record Sobre(
-        string HuellaDeSesion, string HuellaConsulta, Guid Instancia, long Marca, TInstantanea? Datos);
+        string HuellaDeSesion, string HuellaConsulta, Guid Instancia, long Marca, DateTimeOffset PersistidoEn,
+        TInstantanea? Datos);
 }
 
 public static class EstadoPersistidoServiceCollectionExtensions
