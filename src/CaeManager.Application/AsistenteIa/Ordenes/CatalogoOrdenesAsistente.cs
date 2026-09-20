@@ -24,7 +24,18 @@ namespace CaeManager.Application.AsistenteIa.Ordenes;
 /// Los criterios de clasificación no están inventados: son los que se midieron
 /// contra un modelo real el 2026-09-20, donde clasificaron correctamente las 13
 /// órdenes operativas de una batería sintética. Cambiarlos invalida esa
-/// medición.
+/// medición, y por eso conviene decir qué se cambió después: el 2026-09-21 el
+/// propietario confirmó la frontera entre Asignación y Visita, que hasta
+/// entonces era una propuesta, y los criterios de esas dos órdenes se
+/// reescribieron con ella. <b>La medición del 20 ya no cubre esas dos</b> —
+/// justamente las que el propio informe daba por ambiguas—; el resto sigue
+/// valiendo. Volver a medirlas es trabajo pendiente, no un detalle.
+/// </para>
+/// <para>
+/// Una orden puede tener <b>caminos</b> además de pasos. Los pasos dicen con qué
+/// operaciones se ejecuta; los caminos dicen que lo que hay que hacer cambia por
+/// completo según cómo se gestione el Centro, y esa decisión la toma TALVEG con
+/// datos que ya tiene, no el modelo.
 /// </para>
 /// <para>
 /// Regla al añadir o tocar una orden: un campo que la operación exige es
@@ -59,24 +70,55 @@ public static class CatalogoOrdenesAsistente
     public const string AltaClienteEmpresarial = "alta_cliente_empresarial";
     public const string ConsultaDeEstado = "consulta_de_estado";
 
+    /// <summary>
+    /// La regla que separa Asignación de Visita, en las palabras del propietario
+    /// (2026-09-21). Se escribe una sola vez y se cita desde las dos órdenes: es
+    /// la misma regla vista desde los dos lados, y tenerla duplicada era la forma
+    /// segura de que un día dijeran cosas distintas.
+    /// <para>
+    /// Lo que corrige respecto a la versión anterior no es un matiz. Antes decía
+    /// «Asignación cuando queda adscrita, Visita cuando accede de forma acotada»,
+    /// como si fueran alternativas y hubiera que elegir una. <b>No lo son</b>: en
+    /// un Centro con plataforma, la Visita exige que el alta exista antes. Una
+    /// orden puede necesitar las dos cosas, y presentarlas como excluyentes
+    /// llevaba a pedir la entrada de alguien que no puede entrar.
+    /// </para>
+    /// </summary>
+    public const string ReglaFronteraAsignacionVisita =
+        "Confirmada por negocio (2026-09-21). La Asignación es el ALTA de la persona en el " +
+        "Centro —y en la plataforma CAE que ese Centro use—: un estado que persiste y que es " +
+        "requisito para poder entrar. La Visita es la gestión de ingreso concreta para ir a " +
+        "trabajar unos días. NO son alternativas: en un Centro gestionado por plataforma, una " +
+        "Visita exige que el alta exista antes, y si no existe hay que pedirla aportando toda la " +
+        "documentación; en un Centro gestionado por correo no se da de alta a nadie, y cada " +
+        "Visita manda por correo la documentación vigente otra vez. La duración NO decide nada: " +
+        "ni una Visita larga es una Asignación, ni un alta breve es una Visita.";
+
+    /// <summary>
+    /// Las cuatro ramas del ingreso a un Centro, por su identificador. Se nombran
+    /// porque son lo que se audita cuando el asistente explica por qué propuso lo
+    /// que propuso.
+    /// </summary>
+    public const string CaminoPlataformaConAlta = "plataforma_con_alta_vigente";
+
+    public const string CaminoPlataformaSinAlta = "plataforma_sin_alta";
+    public const string CaminoCorreo = "centro_por_correo";
+    public const string CaminoCanalSinAveriguar = "canal_sin_averiguar";
+
     /// <summary>Las órdenes que el asistente reconoce, en orden de frecuencia esperada.</summary>
     public static IReadOnlyList<OrdenAsistida> Ordenes { get; } =
     [
         new(
             Id: AltaTrabajadorYAsignacion,
             Criterio:
-                "Pide incorporar a una persona trabajadora y que acceda a un centro durante un " +
-                "periodo con fecha de inicio y de fin.",
+                "Pide incorporar a una persona trabajadora y darla de alta en un centro, de forma " +
+                "que quede acreditada allí y pueda entrar a trabajar cuando haga falta.",
             Fronteras:
             [
                 new FronteraDeOrden(
                     ConLaOrden: VisitaPuntualACentro,
-                    Regla:
-                        "Propuesta, sin decidir: es Asignación cuando la persona queda adscrita al " +
-                        "centro durante el periodo, y Visita cuando solo accede de forma acotada " +
-                        "sin quedar adscrita. La duración NO decide, porque una Visita también " +
-                        "admite fecha de inicio y de fin.",
-                    ConfirmadaPorNegocio: false),
+                    Regla: ReglaFronteraAsignacionVisita,
+                    ConfirmadaPorNegocio: true),
             ],
             Campos:
             [
@@ -107,27 +149,29 @@ public static class CatalogoOrdenesAsistente
             ],
             Ejecutable: true,
             Limitacion:
-                "La fecha de fin no se registra al ejecutar: CrearAsignacionCommand acepta " +
-                "(TrabajadorId, CentroId, FechaAlta) y no tiene fecha de fin. La vigencia se " +
-                "cierra después con DarDeBajaAsignacionCommand. Mientras eso siga así, el " +
-                "asistente debe dejar la fecha de fin como pendiente y decirlo, en lugar de dar " +
-                "por hecho que la ha guardado.",
+                "Dos cosas, y la segunda es la que más engaña. Una: la fecha de fin no se registra " +
+                "al ejecutar, porque CrearAsignacionCommand acepta (TrabajadorId, CentroId, " +
+                "FechaAlta) y no tiene fecha de fin; se cierra después con " +
+                "DarDeBajaAsignacionCommand, así que el asistente deja la fecha de fin como " +
+                "pendiente y lo dice. Dos: el Command da el alta EN TALVEG. Cuando el Centro se " +
+                "gestiona por plataforma, el alta que decide si la persona entra es la de ese " +
+                "portal, y la hace el Gestor CAE con la extensión aportando la documentación. " +
+                "Ejecutar el Command y decir «ya está de alta» sería cierto en TALVEG y falso " +
+                "donde importa.",
             EnviaComunicacionExterna: false,
             RequiereConfirmacion: true),
 
         new(
             Id: VisitaPuntualACentro,
             Criterio:
-                "Pide una entrada concreta y acotada a un centro, sin que la persona quede " +
-                "adscrita a él de forma continuada.",
+                "Pide que una o varias personas entren a trabajar a un centro unos días " +
+                "concretos. Es la gestión del ingreso, no el alta de nadie.",
             Fronteras:
             [
                 new FronteraDeOrden(
                     ConLaOrden: AltaTrabajadorYAsignacion,
-                    Regla:
-                        "Propuesta, sin decidir: ver la frontera declarada en " +
-                        "alta_trabajador_y_asignacion_a_centro. Es la misma regla vista desde el otro lado.",
-                    ConfirmadaPorNegocio: false),
+                    Regla: ReglaFronteraAsignacionVisita,
+                    ConfirmadaPorNegocio: true),
             ],
             Campos:
             [
@@ -150,9 +194,96 @@ public static class CatalogoOrdenesAsistente
                 "CrearVisitaCommand comprueba que el centro y los trabajadores existan dentro del " +
                 "Tenant, pero no comprueba alcance de cartera. Con un formulario eso lo cubre la " +
                 "pantalla, que solo ofrece lo visible; con una orden escrita no. Los candidatos " +
-                "tienen que filtrarse antes por lo que la persona puede ver.",
+                "tienen que filtrarse antes por lo que la persona puede ver. Y registrar la Visita " +
+                "no acredita a nadie: lo que hay que hacer después depende del canal del Centro, y " +
+                "está en los cuatro caminos de esta orden.",
             EnviaComunicacionExterna: false,
-            RequiereConfirmacion: true),
+            RequiereConfirmacion: true)
+        {
+            // El árbol que decide qué se hace de verdad. Las dos preguntas que lo
+            // gobiernan —por dónde se gestiona el Centro, y si la persona ya está
+            // dada de alta ahí— las contesta TALVEG con datos que ya tiene, así
+            // que la rama se elige en código. No se le pregunta al modelo: el
+            // modelo clasifica la orden, no consulta el estado del Centro.
+            Caminos =
+            [
+                new CaminoDeIngreso(
+                    Id: CaminoPlataformaConAlta,
+                    Canal: SituacionDelCanal.Plataforma,
+                    Cuando:
+                        "El Centro se gestiona por plataforma y la persona ya está dada de alta en " +
+                        "ella.",
+                    QueSeHace:
+                        "No se vuelve a aportar todo. Se mira qué documentos suyos han vencido en " +
+                        "esa plataforma y se suben solo esos.",
+                    Ejecucion: [],
+                    MacroSugerida: "",
+                    Ejecutable: false,
+                    Limitacion:
+                        "La subida al portal la hace el Gestor CAE con la extensión de navegador, " +
+                        "documento a documento, y la vigencia que reconoce la plataforma la " +
+                        "confirma él a mano después. El asistente puede preparar la lista de lo " +
+                        "vencido; no puede subirlo ni darlo por acreditado."),
+
+                new CaminoDeIngreso(
+                    Id: CaminoPlataformaSinAlta,
+                    Canal: SituacionDelCanal.Plataforma,
+                    Cuando:
+                        "El Centro se gestiona por plataforma y la persona NO está dada de alta en " +
+                        "ella.",
+                    QueSeHace:
+                        "Primero el alta, aportando toda la documentación —la de la Empresa y la de " +
+                        "la persona—; hasta que esté, no hay ingreso que gestionar.",
+                    Ejecucion: [new PasoDeEjecucion(typeof(CrearAsignacionCommand))],
+                    MacroSugerida: "",
+                    Ejecutable: false,
+                    Limitacion:
+                        "CrearAsignacionCommand registra el alta EN TALVEG, no en el portal " +
+                        "externo. El alta de verdad —la que decide si la persona entra— la hace el " +
+                        "Gestor CAE en la plataforma. Dar por acreditada la orden al ejecutar el " +
+                        "Command sería exactamente la confusión que esta rama existe para evitar."),
+
+                new CaminoDeIngreso(
+                    Id: CaminoCorreo,
+                    Canal: SituacionDelCanal.Correo,
+                    Cuando: "El Centro se gestiona por correo y ya se sabe a quién se le escribe.",
+                    QueSeHace:
+                        "No se da de alta a nadie: se manda por correo la documentación vigente, " +
+                        "una copia de cada tipo, la más reciente y de mayor vigencia. Se repite en " +
+                        "cada Visita, porque el Centro no guarda un estado nuestro.",
+                    Ejecucion: [new PasoDeEjecucion(typeof(CrearVisitaCommand))],
+                    MacroSugerida: "",
+                    Ejecutable: true,
+                    Limitacion:
+                        "El paquete documental solo se genera hoy cuando la Visita nace de una " +
+                        "conversación de correo (CrearVisitaCommand solo lo dispara si hay " +
+                        "conversación de origen). Una Visita creada a mano en un Centro de canal " +
+                        "Email no manda nada, y eso contradice la regla de negocio: hace falta un " +
+                        "incremento propio, porque el efecto sale a un tercero."),
+
+                new CaminoDeIngreso(
+                    Id: CaminoCanalSinAveriguar,
+                    Canal: SituacionDelCanal.SinAveriguar,
+                    Cuando: "No se sabe por dónde se gestiona el Centro.",
+                    QueSeHace:
+                        "Antes de mandar ninguna documentación, se pregunta. Si el Cliente " +
+                        "empresarial ya es nuestro y lo único nuevo es el Centro, se presume el " +
+                        "mismo canal que ya usamos con él y lo que se pide es el alta de ese " +
+                        "Centro; si tampoco conocemos al Cliente, el primer correo es de " +
+                        "presentación como gestor externo.",
+                    Ejecucion: [],
+                    MacroSugerida: MacrosDeMuestraAsistente.PresentacionCentroDesconocido,
+                    Ejecutable: false,
+                    Limitacion:
+                        "Las dos macros llevan texto de muestra por decisión del propietario, y " +
+                        "MacroRespuesta.CuerpoHtml todavía no admite huecos sustituibles: el " +
+                        "nombre del Centro y el del Cliente empresarial los escribe el Gestor CAE " +
+                        "antes de enviar. El asistente propone la plantilla; no manda el correo. " +
+                        "Cuál de las dos toca depende de si el Cliente ya es nuestro, y eso TALVEG " +
+                        "lo sabe: " + MacrosDeMuestraAsistente.SolicitudAltaDeCentro +
+                        " cuando lo es, presentación cuando no."),
+            ],
+        },
 
         new(
             Id: ReclamarDocumentacion,

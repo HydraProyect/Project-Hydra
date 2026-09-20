@@ -231,4 +231,139 @@ public class CatalogoOrdenesAsistenteTests
             .Should().NotBeNull();
         CatalogoOrdenesAsistente.PorId("no_existe").Should().BeNull();
     }
+
+    [Fact]
+    public void La_frontera_entre_asignacion_y_visita_esta_confirmada_y_es_la_misma_de_los_dos_lados()
+    {
+        // La regla la dio el propietario el 2026-09-21. Que esté confirmada no es
+        // burocracia: mientras fue una propuesta, el catálogo tenía que llevarlo
+        // escrito en la limitación, y el asistente presentaba las dos órdenes
+        // como alternativas. No lo son.
+        var asignacion = CatalogoOrdenesAsistente.PorId(CatalogoOrdenesAsistente.AltaTrabajadorYAsignacion)!;
+        var visita = CatalogoOrdenesAsistente.PorId(CatalogoOrdenesAsistente.VisitaPuntualACentro)!;
+
+        var desdeAsignacion = asignacion.Fronteras.Single(f => f.ConLaOrden == visita.Id);
+        var desdeVisita = visita.Fronteras.Single(f => f.ConLaOrden == asignacion.Id);
+
+        desdeAsignacion.ConfirmadaPorNegocio.Should().BeTrue();
+        desdeVisita.ConfirmadaPorNegocio.Should().BeTrue();
+
+        // Literalmente la misma regla, no dos redacciones parecidas: dos textos
+        // que dicen lo mismo hoy acaban diciendo cosas distintas cuando alguien
+        // toca uno.
+        desdeVisita.Regla.Should().Be(desdeAsignacion.Regla);
+        desdeAsignacion.Regla.Should().Be(CatalogoOrdenesAsistente.ReglaFronteraAsignacionVisita);
+    }
+
+    [Fact]
+    public void La_regla_de_la_frontera_dice_que_no_son_alternativas()
+    {
+        // El error que corrige es concreto y tiene consecuencia: presentarlas
+        // como excluyentes llevaba a tramitar la entrada de alguien que todavía
+        // no puede entrar porque no está dado de alta.
+        CatalogoOrdenesAsistente.ReglaFronteraAsignacionVisita
+            .Should().Contain("NO son alternativas");
+    }
+
+    [Fact]
+    public void El_ingreso_a_un_centro_cubre_las_tres_situaciones_de_canal()
+    {
+        var visita = CatalogoOrdenesAsistente.PorId(CatalogoOrdenesAsistente.VisitaPuntualACentro)!;
+
+        // Si falta una situación, hay órdenes reales que caen por un agujero sin
+        // que nadie lo note: el asistente propondría el camino de otra.
+        visita.Caminos.Select(c => c.Canal).Should().Contain(
+        [
+            SituacionDelCanal.Plataforma,
+            SituacionDelCanal.Correo,
+            SituacionDelCanal.SinAveriguar,
+        ]);
+
+        visita.Caminos.Select(c => c.Id).Should().OnlyHaveUniqueItems();
+        visita.Caminos.Should().HaveCount(4, "plataforma se parte en dos según haya alta o no");
+    }
+
+    [Fact]
+    public void Un_camino_que_no_se_puede_completar_dice_por_que()
+    {
+        foreach (var orden in CatalogoOrdenesAsistente.Ordenes)
+        {
+            foreach (var camino in orden.Caminos.Where(c => !c.Ejecutable))
+            {
+                camino.Limitacion.Should().NotBeNullOrWhiteSpace(
+                    "el camino {0} de {1} no se puede completar y no dice por qué", camino.Id, orden.Id);
+            }
+        }
+    }
+
+    [Fact]
+    public void Todo_camino_dice_cuando_aplica_y_que_se_hace()
+    {
+        foreach (var orden in CatalogoOrdenesAsistente.Ordenes)
+        {
+            foreach (var camino in orden.Caminos)
+            {
+                camino.Cuando.Should().NotBeNullOrWhiteSpace("{0} no dice cuándo aplica", camino.Id);
+                camino.QueSeHace.Should().NotBeNullOrWhiteSpace("{0} no dice qué se hace", camino.Id);
+            }
+        }
+    }
+
+    [Fact]
+    public void Un_camino_que_propone_una_macro_propone_una_que_existe()
+    {
+        var conocidas = new[]
+        {
+            MacrosDeMuestraAsistente.PresentacionCentroDesconocido,
+            MacrosDeMuestraAsistente.SolicitudAltaDeCentro,
+        };
+
+        var conMacro = CatalogoOrdenesAsistente.Ordenes
+            .SelectMany(o => o.Caminos)
+            .Where(c => !string.IsNullOrEmpty(c.MacroSugerida))
+            .ToList();
+
+        // Control positivo: sin esta línea, el bucle de abajo recorre una lista
+        // vacía y da verde el día que nadie proponga ninguna plantilla — que es
+        // justo cuando habría que enterarse.
+        conMacro.Should().NotBeEmpty("alguna rama tiene que proponer una plantilla de correo");
+
+        foreach (var camino in conMacro)
+        {
+            conocidas.Should().Contain(camino.MacroSugerida,
+                "el camino {0} propone una plantilla que no está declarada", camino.Id);
+        }
+    }
+
+    [Fact]
+    public void Las_dos_macros_tienen_cuerpo_de_muestra_y_no_se_confunden_entre_si()
+    {
+        MacrosDeMuestraAsistente.CuerpoDeMuestraPresentacion.Should().NotBeNullOrWhiteSpace();
+        MacrosDeMuestraAsistente.CuerpoDeMuestraSolicitudAlta.Should().NotBeNullOrWhiteSpace();
+        MacrosDeMuestraAsistente.PresentacionCentroDesconocido
+            .Should().NotBe(MacrosDeMuestraAsistente.SolicitudAltaDeCentro);
+
+        // La diferencia que las justifica: a quien ya nos conoce no se le vuelve
+        // a preguntar por el canal. Preguntárselo otra vez es la forma más rápida
+        // de que el correo se quede sin contestar.
+        MacrosDeMuestraAsistente.CuerpoDeMuestraPresentacion.Should().Contain("plataforma de coordinación");
+        MacrosDeMuestraAsistente.CuerpoDeMuestraSolicitudAlta.Should().NotContain("¿disponen de una plataforma");
+    }
+
+    [Fact]
+    public void Un_camino_que_ejecuta_algo_no_se_declara_inejecutable_sin_decirlo()
+    {
+        // Control del propio catálogo: un camino con pasos declarados y
+        // Ejecutable=false es legítimo —el Command existe pero no basta—, pero
+        // entonces la limitación tiene que explicar qué falta, porque si no
+        // parece una contradicción y se "arregla" poniéndolo a true.
+        foreach (var orden in CatalogoOrdenesAsistente.Ordenes)
+        {
+            foreach (var camino in orden.Caminos.Where(c => c.Ejecucion.Count > 0 && !c.Ejecutable))
+            {
+                camino.Limitacion.Should().NotBeNullOrWhiteSpace(
+                    "{0} declara operaciones y aun así no se puede completar", camino.Id);
+            }
+        }
+    }
 }
