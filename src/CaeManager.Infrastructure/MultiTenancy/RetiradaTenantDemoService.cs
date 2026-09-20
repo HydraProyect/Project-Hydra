@@ -188,6 +188,23 @@ public static class RetiradaTenantDemoService
 
         using (AmbitoTenantExplicito.Establecer(tenantId))
         {
+            // PlantillaDocumento.VersionActualId apunta a una versión que a su vez apunta a la plantilla
+            // (FK Restrict en ambos sentidos): borrar las dos en un mismo SaveChanges es un ciclo que EF Core
+            // no ordena. Se rompe antes, soltando la versión activa en su propio guardado. Es el único ciclo
+            // del modelo; lo destapó sembrar plantillas en el lote. La retirada sigue siendo repetible: si
+            // falla después de este paso, las plantillas quedan sin versión activa y se vuelve a lanzar.
+            var plantillas = await CargarFilasDeTenantAsync<Domain.Plantillas.PlantillaDocumento>(dbContext, tenantId, cancellationToken);
+            foreach (var plantilla in plantillas.Where(p => p.VersionActualId != null))
+                dbContext.Entry(plantilla).Property(p => p.VersionActualId).CurrentValue = null;
+            if (dbContext.ChangeTracker.HasChanges())
+                await dbContext.SaveChangesAsync(cancellationToken);
+
+            // Fuera del seguimiento todas, no solo las que tenían versión: si siguieran rastreadas, borrar antes su
+            // TipoDocumento las dejaría «cortadas» de una FK requerida. El bucle de abajo las vuelve a cargar, ya
+            // sin versión activa.
+            foreach (var plantilla in plantillas)
+                dbContext.Entry(plantilla).State = EntityState.Detached;
+
             foreach (var tipoEntidad in dbContext.Model.GetEntityTypes()
                          .Select(t => t.ClrType)
                          .Where(t => typeof(EntidadConTenant).IsAssignableFrom(t))

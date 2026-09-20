@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.DocumentosIa;
@@ -39,6 +40,27 @@ public static class CicloDocumentalDatosPruebaSeeder
         if (!configuration.GetValue<bool>("DatosPrueba:Activo"))
             return;
 
+        var gestor = (await userManager.GetUsersInRoleAsync(Roles.GestorCae))
+            .OrderBy(u => u.Email).FirstOrDefault();
+
+        await SembrarEnTenantActualAsync(dbContext, gestor, incluirAcreditaciones: true, logger, cancellationToken);
+    }
+
+    /// <summary>
+    /// El ciclo documental del Tenant en el ámbito actual. Idempotente por Tenant. Quien llama fija el ámbito
+    /// (<see cref="AmbitoTenantExplicito"/> en la siembra administrativa) y aporta el Gestor CAE que firma las
+    /// aprobaciones manuales y la plantilla: NO se busca por rol en toda la base, porque en un entorno real
+    /// «el primer GestorCae» sería el de otro Tenant.
+    /// </summary>
+    /// <param name="incluirAcreditaciones">
+    /// Falso en la siembra administrativa: las acreditaciones frente al canal de plataforma ya forman parte de la
+    /// matriz de estados de la demo a dirección (una por estado, con sus fechas), y esta segunda tanda se
+    /// solaparía con ellas sobre los mismos documentos.
+    /// </param>
+    internal static async Task SembrarEnTenantActualAsync(
+        CaeManagerDbContext dbContext, ApplicationUser? gestor, bool incluirAcreditaciones, ILogger logger,
+        CancellationToken cancellationToken)
+    {
         if (await dbContext.RevisionesIaDocumento.AnyAsync(cancellationToken))
             return;
 
@@ -55,13 +77,14 @@ public static class CicloDocumentalDatosPruebaSeeder
         }
 
         SembrarRevisionesIa(dbContext, documentosTrabajador);
-        await SembrarAprobacionesAsync(dbContext, userManager, documentosTrabajador);
+        SembrarAprobaciones(dbContext, gestor, documentosTrabajador);
         SembrarTrabajosAnalisis(dbContext, documentosTrabajador);
         SembrarAuditoriaExtraccion(dbContext);
         await SembrarValidacionOficialAsync(dbContext, cancellationToken);
         await SembrarDeteccionesTrabajadorAsync(dbContext, cancellationToken);
-        await SembrarAcreditacionesAsync(dbContext, cancellationToken);
-        await SembrarPlantillasAsync(dbContext, userManager, documentosTrabajador, cancellationToken);
+        if (incluirAcreditaciones)
+            await SembrarAcreditacionesAsync(dbContext, cancellationToken);
+        await SembrarPlantillasConGestorAsync(dbContext, gestor, documentosTrabajador, cancellationToken);
 
         await dbContext.SaveChangesAsync(cancellationToken);
         logger.LogInformation("Ciclo documental de prueba sembrado: revisiones IA, aprobaciones, trabajos de análisis, auditoría, validación oficial, detecciones y plantillas.");
@@ -102,10 +125,17 @@ public static class CicloDocumentalDatosPruebaSeeder
         CaeManagerDbContext dbContext, UserManager<ApplicationUser> userManager,
         List<Documento> documentosTrabajador, CancellationToken cancellationToken)
     {
-        var tipoPlantilla = await dbContext.TiposDocumento
-            .FirstOrDefaultAsync(t => t.Nombre == "Riesgo Eléctrico", cancellationToken);
         var gestor = (await userManager.GetUsersInRoleAsync(Roles.GestorCae))
             .OrderBy(u => u.Email).FirstOrDefault();
+        await SembrarPlantillasConGestorAsync(dbContext, gestor, documentosTrabajador, cancellationToken);
+    }
+
+    private static async Task SembrarPlantillasConGestorAsync(
+        CaeManagerDbContext dbContext, ApplicationUser? gestor,
+        List<Documento> documentosTrabajador, CancellationToken cancellationToken)
+    {
+        var tipoPlantilla = await dbContext.TiposDocumento
+            .FirstOrDefaultAsync(t => t.Nombre == "Riesgo Eléctrico", cancellationToken);
 
         // Dos Trabajador REALMENTE distintos — .Distinct() sobre los ids, no
         // por posición en la lista (ver el porqué en el comentario de arriba).
@@ -217,19 +247,15 @@ public static class CicloDocumentalDatosPruebaSeeder
         dbContext.RevisionesIaDocumento.Add(resuelta2);
     }
 
-    private static async Task SembrarAprobacionesAsync(
-        CaeManagerDbContext dbContext, UserManager<ApplicationUser> userManager, List<Documento> documentos)
+    private static void SembrarAprobaciones(
+        CaeManagerDbContext dbContext, ApplicationUser? gestor, List<Documento> documentos)
     {
         dbContext.AprobacionesDocumento.Add(AprobacionDocumento.CrearAutomatica(documentos[5].Id, 97));
         dbContext.AprobacionesDocumento.Add(AprobacionDocumento.CrearAutomatica(documentos[6].Id, 93));
         dbContext.AprobacionesDocumento.Add(AprobacionDocumento.CrearAutomatica(documentos[7].Id, 91));
         dbContext.AprobacionesDocumento.Add(AprobacionDocumento.CrearAutomatica(documentos[8].Id, 88));
 
-        // Las manuales exigen un usuario que las resolvió — el primer
-        // GestorCae de prueba, si existe (mismo criterio que la asignación
-        // de conversaciones en ComunicacionesDatosPruebaSeeder).
-        var gestor = (await userManager.GetUsersInRoleAsync(Roles.GestorCae))
-            .OrderBy(u => u.Email).FirstOrDefault();
+        // Las manuales exigen un usuario que las resolvió — el Gestor CAE que aporta quien llama.
         if (gestor is null)
             return;
 

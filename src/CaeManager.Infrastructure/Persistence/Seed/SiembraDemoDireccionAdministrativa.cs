@@ -102,7 +102,7 @@ public static partial class SiembraDemoDireccionAdministrativa
         configuration[ClaveConfirmarEntorno] ?? string.Empty);
 
     internal static EscenariosDireccionDemoSeeder.EmailsEquipo EmailsDe(string dominio) => new(
-        $"demo.coordinador@{dominio}", $"demo.gestor1@{dominio}", $"demo.gestor2@{dominio}");
+        $"demo.coordinador@{dominio}", $"demo.gestor1@{dominio}", $"demo.gestor2@{dominio}", $"demo.direccion@{dominio}");
 
     public static string EmailAdministrador(string dominio) => $"demo.administrador@{dominio}";
 
@@ -302,7 +302,7 @@ public static partial class SiembraDemoDireccionAdministrativa
         var tenantsExistentes = await VerificarNombresLibresAsync(dbContext, cancellationToken);
         var dominio = opciones.DominioCorreo;
         var emails = EmailsDe(dominio);
-        var correos = new[] { EmailAdministrador(dominio), emails.Coordinador, emails.GestorPrimero, emails.GestorSegundo };
+        var correos = new[] { EmailAdministrador(dominio), emails.Coordinador, emails.GestorPrimero, emails.GestorSegundo, emails.Direccion! };
         var correosNuevos = await VerificarCuentasReutilizablesAsync(userManager, correos, tenantsExistentes, cancellationToken);
 
         // El fichero se abre —con permisos 0600 DESDE su creación, no después— antes
@@ -330,6 +330,7 @@ public static partial class SiembraDemoDireccionAdministrativa
             [
                 (EmailAdministrador(dominio), Roles.Administrador), (emails.Coordinador, Roles.CoordinadorCae),
                 (emails.GestorPrimero, Roles.GestorCae), (emails.GestorSegundo, Roles.GestorCae),
+                (emails.Direccion!, Roles.DireccionCae),
             ],
             contrasenas, cancellationToken);
 
@@ -364,6 +365,9 @@ public static partial class SiembraDemoDireccionAdministrativa
             await EscenariosDireccionDemoSeeder.SembrarRamaAsync(
                 dbContext, rama, tenantPropietarioId, tenantOperadorId, equipo, hoy, indice, logger, cancellationToken);
 
+            await SembrarComunicacionesYCicloDocumentalAsync(
+                dbContext, rama, tenantPropietarioId, equipo, indice, logger, cancellationToken);
+
             tenants.Add((rama.NombreTenant, tenantPropietarioId));
         }
 
@@ -374,6 +378,7 @@ public static partial class SiembraDemoDireccionAdministrativa
                      (emails.Coordinador, Roles.CoordinadorCae, equipo.Coordinador),
                      (emails.GestorPrimero, Roles.GestorCae, equipo.GestorPrimero),
                      (emails.GestorSegundo, Roles.GestorCae, equipo.GestorSegundo),
+                     (emails.Direccion!, Roles.DireccionCae, equipo.Direccion!),
                  })
             cuentas.Add(new CuentaSembrada(email, nombreRol, usuario.Id, contrasenas.ContainsKey(email)));
 
@@ -383,6 +388,31 @@ public static partial class SiembraDemoDireccionAdministrativa
             entorno.EnvironmentName, tenants.Count, cuentas.Count, cuentas.Count(c => c.ContrasenaEntregada));
 
         return new Resultado(tenants, cuentas, rutaFichero);
+    }
+
+    /// <summary>
+    /// Lo que la demo enseña además de la matriz de estados: el historial de Comunicaciones del Tenant propietario
+    /// y su ciclo documental (revisiones IA, aprobaciones, análisis, validación oficial, detecciones y plantillas).
+    /// Reutiliza las siembras de la demo local pero con su alcance administrativo: sin buzón Microsoft 365 ni línea
+    /// de WhatsApp (no hay buzón real: es una acción del propietario en Azure), sin adjuntos sin contenido y sin
+    /// acreditaciones (ya están en la matriz). Las conversaciones y las aprobaciones se asignan solo a los Gestores
+    /// CAE que llevan cartera en ese Tenant.
+    /// </summary>
+    private static async Task SembrarComunicacionesYCicloDocumentalAsync(
+        CaeManagerDbContext dbContext, RamaEscenariosDemo rama, Guid tenantPropietarioId,
+        EscenariosDireccionDemoSeeder.EquipoOperador equipo, int indiceRama, ILogger logger, CancellationToken cancellationToken)
+    {
+        var gestores = rama.Clientes.Select(c => equipo.De(c.Gestor)).DistinctBy(g => g.Id).OrderBy(g => g.Email).ToList();
+
+        // Una semilla por Tenant: con la misma, todos tendrían el mismo historial.
+        var alcance = ComunicacionesDatosPruebaSeeder.AlcanceSiembraComunicaciones.Administrativa(20260730 + indiceRama * 7919);
+
+        using (AmbitoTenantExplicito.Establecer(tenantPropietarioId))
+        {
+            await ComunicacionesDatosPruebaSeeder.SembrarEnTenantActualAsync(dbContext, gestores, alcance, logger, cancellationToken);
+            await CicloDocumentalDatosPruebaSeeder.SembrarEnTenantActualAsync(
+                dbContext, gestores[0], incluirAcreditaciones: false, logger, cancellationToken);
+        }
     }
 
     /// <summary>

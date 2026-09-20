@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Empresas;
@@ -76,6 +77,40 @@ public static class ComunicacionesDatosPruebaSeeder
             return;
         }
 
+        // Postgres no garantiza orden de fila sin ORDER BY (ni Identity añade uno): ordenar en el
+        // origen cubre a todos los usos de gestoresPrueba por igual.
+        var gestoresPrueba = (await userManager.GetUsersInRoleAsync(Roles.GestorCae)).OrderBy(g => g.Email).ToList();
+
+        await SembrarEnTenantActualAsync(dbContext, gestoresPrueba, AlcanceSiembraComunicaciones.Local, logger, cancellationToken);
+    }
+
+    /// <summary>
+    /// Qué se siembra y a qué escala. <see cref="Local"/> es la siembra de siempre (la que alimenta los E2E, que
+    /// cuentan filas); <see cref="Administrativa"/> es la de la demo a dirección en un entorno real: historial
+    /// sin ningún canal conectado (ni buzón Microsoft 365 ni línea de WhatsApp: ninguna acción de la bandeja
+    /// puede intentar salir hacia un proveedor con una credencial falsa), sin adjuntos cuyo contenido no existe
+    /// en el almacén (la descarga fallaría delante del público), con dominios de contacto reservados
+    /// (<c>.example</c>, RFC 2606) y a escala de una cartera de piloto.
+    /// </summary>
+    internal sealed record AlcanceSiembraComunicaciones(
+        int Semilla, int TotalConversaciones, int ConversacionesTriage, bool CanalesConectados,
+        bool AdjuntosSinContenido, string TldContactos)
+    {
+        public static AlcanceSiembraComunicaciones Local { get; } = new(20260730, 38, 5, true, true, "com");
+
+        /// <param name="semilla">Distinta por Tenant: con la misma, todos los Tenants tendrían el mismo historial (la auditoría de la demo señala como defecto que las ramas sean copias).</param>
+        public static AlcanceSiembraComunicaciones Administrativa(int semilla) => new(semilla, 14, 2, false, false, "example");
+    }
+
+    /// <summary>
+    /// El historial de Comunicaciones del Tenant en el ámbito actual. Idempotente por Tenant: si ya hay alguna
+    /// Conversación, no vuelve a sembrar. Quien llama fija el ámbito (<see cref="AmbitoTenantExplicito"/> en la
+    /// siembra administrativa) y aporta los Gestores CAE a los que se asignan las conversaciones.
+    /// </summary>
+    internal static async Task SembrarEnTenantActualAsync(
+        CaeManagerDbContext dbContext, IReadOnlyList<ApplicationUser> gestoresPrueba, AlcanceSiembraComunicaciones alcance,
+        ILogger logger, CancellationToken cancellationToken)
+    {
         if (await dbContext.Conversaciones.AnyAsync(cancellationToken))
         {
             logger.LogInformation("Ya hay Conversaciones sembradas — se omite la siembra de Comunicaciones.");
@@ -105,18 +140,11 @@ public static class ComunicacionesDatosPruebaSeeder
             .OrderBy(e => e.RazonSocial).Take(40).ToListAsync(cancellationToken);
         var centros = await dbContext.Centros.OrderBy(c => c.CodigoCentro).Take(40).ToListAsync(cancellationToken);
 
-        // GetUsersInRoleAsync tampoco garantiza orden (Identity no añade
-        // ORDER BY): sin este OrderBy, la asignación aleatoria de conversación
-        // de la línea de abajo varía entre siembras. El resto de usos de
-        // gestoresPrueba en este fichero ya reordenaban antes de leer;
-        // ordenar aquí, en el origen, cubre a todos por igual.
-        var gestoresPrueba = (await userManager.GetUsersInRoleAsync(Roles.GestorCae)).OrderBy(g => g.Email).ToList();
-
-        var aleatorio = new Random(20260730);
+        var aleatorio = new Random(alcance.Semilla);
         var ahora = DateTime.UtcNow;
 
-        const int totalConversaciones = 38;
-        const int conversacionesTriage = 5;
+        var totalConversaciones = alcance.TotalConversaciones;
+        var conversacionesTriage = alcance.ConversacionesTriage;
 
         for (var i = 0; i < totalConversaciones; i++)
         {
@@ -129,7 +157,7 @@ public static class ComunicacionesDatosPruebaSeeder
 
             var totalMensajes = aleatorio.Next(2, 6);
             var fechaMensaje = ahora.AddDays(-aleatorio.Next(1, 45)).AddHours(-aleatorio.Next(0, 23));
-            var emailExterno = cliente is not null ? EmailSimuladoDeCliente(cliente) : "contacto@dominio-desconocido.com";
+            var emailExterno = cliente is not null ? EmailSimuladoDeCliente(cliente, alcance.TldContactos) : $"contacto@dominio-desconocido.{alcance.TldContactos}";
 
             for (var m = 0; m < totalMensajes; m++)
             {
@@ -149,7 +177,7 @@ public static class ComunicacionesDatosPruebaSeeder
             conversacion.AgregarParticipante(RemitenteSimuladoTenant, RolParticipante.Para, TipoParticipanteOrigen.Desconocido);
 
             if (aleatorio.Next(2) == 0)
-                AgregarParticipanteRelacionadoAleatorio(conversacion, aleatorio, trabajadores, empresas, subcontratas, centros);
+                AgregarParticipanteRelacionadoAleatorio(conversacion, aleatorio, trabajadores, empresas, subcontratas, centros, alcance.TldContactos);
 
             var estado = aleatorio.Next(100) switch
             {
@@ -180,10 +208,12 @@ public static class ComunicacionesDatosPruebaSeeder
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        await SembrarWhatsAppAsync(dbContext, clientes, gestoresPrueba, ahora, cancellationToken);
-        await SembrarInteligenciaBandejaAsync(dbContext, gestoresPrueba, ahora, cancellationToken);
+        if (alcance.CanalesConectados)
+            await SembrarWhatsAppAsync(dbContext, clientes, gestoresPrueba, ahora, cancellationToken);
+        await SembrarInteligenciaBandejaAsync(dbContext, gestoresPrueba, ahora, alcance.AdjuntosSinContenido, cancellationToken);
         await SembrarReduccionRuidoAsync(dbContext, cancellationToken);
-        await SembrarConexionesMicrosoft365Async(dbContext, gestoresPrueba, ahora, cancellationToken);
+        if (alcance.CanalesConectados)
+            await SembrarConexionesMicrosoft365Async(dbContext, gestoresPrueba, ahora, cancellationToken);
 
         var conversacionesConCliente = await dbContext.Conversaciones
             .Where(c => c.ClienteId != null)
@@ -587,7 +617,7 @@ public static class ComunicacionesDatosPruebaSeeder
     /// </summary>
     private static async Task SembrarInteligenciaBandejaAsync(
         CaeManagerDbContext dbContext, IReadOnlyList<ApplicationUser> gestoresPrueba,
-        DateTime ahora, CancellationToken cancellationToken)
+        DateTime ahora, bool conAdjuntos, CancellationToken cancellationToken)
     {
         var mensajesConCliente = await (
             from mensaje in dbContext.Mensajes
@@ -606,12 +636,15 @@ public static class ComunicacionesDatosPruebaSeeder
         // Adjuntos entrantes — el contenido no existe en el storage (la
         // descarga fallará limpiamente), pero la bandeja los lista y el flujo
         // "Actualizar documentación" se puede iniciar.
-        mensajesConCliente[0].Mensaje.AgregarAdjunto(
-            "apto-medico-bart-simpson.pdf", "application/pdf", 245_760, "adjuntos-demo/apto-medico-bart-simpson.pdf");
-        mensajesConCliente[0].Mensaje.AgregarAdjunto(
-            "epis-firmadas.jpg", "image/jpeg", 812_040, "adjuntos-demo/epis-firmadas.jpg");
-        mensajesConCliente[1].Mensaje.AgregarAdjunto(
-            "ita-julio.pdf", "application/pdf", 1_310_720, "adjuntos-demo/ita-julio.pdf");
+        if (conAdjuntos)
+        {
+            mensajesConCliente[0].Mensaje.AgregarAdjunto(
+                "apto-medico-bart-simpson.pdf", "application/pdf", 245_760, "adjuntos-demo/apto-medico-bart-simpson.pdf");
+            mensajesConCliente[0].Mensaje.AgregarAdjunto(
+                "epis-firmadas.jpg", "image/jpeg", 812_040, "adjuntos-demo/epis-firmadas.jpg");
+            mensajesConCliente[1].Mensaje.AgregarAdjunto(
+                "ita-julio.pdf", "application/pdf", 1_310_720, "adjuntos-demo/ita-julio.pdf");
+        }
 
         // Eventos del timeline: los tres tipos, referenciando entidades reales.
         var visitaReferencia = await dbContext.Visitas.OrderBy(v => v.CreadoEnUtc).ThenBy(v => v.Id)
@@ -684,7 +717,8 @@ public static class ComunicacionesDatosPruebaSeeder
         IReadOnlyList<Trabajador> trabajadores,
         IReadOnlyList<Empresa> empresas,
         IReadOnlyList<Empresa> subcontratas,
-        IReadOnlyList<Centro> centros)
+        IReadOnlyList<Centro> centros,
+        string tld)
     {
         switch (aleatorio.Next(4))
         {
@@ -694,11 +728,11 @@ public static class ComunicacionesDatosPruebaSeeder
                 break;
             case 1 when empresas.Count > 0:
                 var empresa = ElementoAleatorio(aleatorio, empresas);
-                conversacion.AgregarParticipante($"contacto@{Slug(empresa.RazonSocial)}.com", RolParticipante.Cc, TipoParticipanteOrigen.Empresa, empresa.Id);
+                conversacion.AgregarParticipante($"contacto@{Slug(empresa.RazonSocial)}.{tld}", RolParticipante.Cc, TipoParticipanteOrigen.Empresa, empresa.Id);
                 break;
             case 2 when subcontratas.Count > 0:
                 var subcontrata = ElementoAleatorio(aleatorio, subcontratas);
-                conversacion.AgregarParticipante($"contacto@{Slug(subcontrata.RazonSocial)}.com", RolParticipante.Cc, TipoParticipanteOrigen.Subcontrata, subcontrata.Id);
+                conversacion.AgregarParticipante($"contacto@{Slug(subcontrata.RazonSocial)}.{tld}", RolParticipante.Cc, TipoParticipanteOrigen.Subcontrata, subcontrata.Id);
                 break;
             case 3 when centros.Count > 0:
                 var centro = ElementoAleatorio(aleatorio, centros);
@@ -710,7 +744,7 @@ public static class ComunicacionesDatosPruebaSeeder
         }
     }
 
-    private static string EmailSimuladoDeCliente(Empresa cliente) => $"contacto@{Slug(cliente.RazonSocial)}.com";
+    private static string EmailSimuladoDeCliente(Empresa cliente, string tld) => $"contacto@{Slug(cliente.RazonSocial)}.{tld}";
 
     private static string Slug(string texto)
     {
