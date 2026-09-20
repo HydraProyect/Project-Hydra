@@ -456,7 +456,7 @@ public static class DelegacionDemoSeeder
         }
     }
 
-    private static async Task<ApplicationUser?> CrearUsuarioConsultoraAsync(
+    internal static async Task<ApplicationUser?> CrearUsuarioConsultoraAsync(
         CaeManagerDbContext dbContext,
         UserManager<ApplicationUser> userManager,
         CredencialesDemo credenciales,
@@ -738,7 +738,7 @@ public static class DelegacionDemoSeeder
         logger.LogInformation("Delegación comercial revocada de demo sembrada hacia {TenantCliente}.", tenantClienteId);
     }
 
-    private static async Task<Guid> AprovisionarTenantAsync(
+    internal static async Task<Guid> AprovisionarTenantAsync(
         CaeManagerDbContext dbContext, string nombreTenant, PerfilVocabularioTenant perfil, ILogger logger, CancellationToken cancellationToken)
     {
         var tenantExistente = await dbContext.Tenants
@@ -791,7 +791,7 @@ public static class DelegacionDemoSeeder
         return tenant.Id;
     }
 
-    private static async Task CrearDelegacionAsync(
+    internal static async Task CrearDelegacionAsync(
         CaeManagerDbContext dbContext,
         Guid tenantConsultoraId,
         Guid tenantClienteId,

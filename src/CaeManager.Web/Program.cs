@@ -703,6 +703,11 @@ using (var scope = app.Services.CreateScope())
             app.Environment.EnvironmentName);
     }
 
+    // La matriz de escenarios de la demo a dirección se rechaza en Producción ANTES de
+    // cualquier siembra: con el flag activo allí, el resto de seeders de demo habrían
+    // escrito ya cuando la suya lanzara. Inerte sin DatosPrueba:EscenariosDireccion.
+    EscenariosDireccionDemoSeeder.RechazarEnProduccion(app.Configuration, app.Environment);
+
     // Identidad ADMINISTRATIVA para los dos seeders que no son trafico de
     // aplicacion: IdentitySeeder escribe estado de sistema sin identidad de
     // usuario, y el backfill de asignaciones es cross-tenant por diseno.
@@ -728,6 +733,11 @@ using (var scope = app.Services.CreateScope())
     // — DelegacionDemoSeeder los siembra en un tenant Cliente Delegante
     // nuevo y establece su propio AmbitoTenantExplicito internamente.
     await DelegacionDemoSeeder.SeedAsync(dbContext, userManager, userStore, app.Configuration, app.Environment, logger);
+
+    // Matriz de estados de la demo a dirección — inerte salvo que
+    // DatosPrueba:EscenariosDireccion esté activo además de DatosPrueba:Activo,
+    // y lanza en Producción (ver EscenariosDireccionDemoSeeder).
+    await EscenariosDireccionDemoSeeder.SeedAsync(dbContext, userManager, app.Configuration, app.Environment, logger);
 
     // Segundo tenant, exclusivamente para verificación E2E multi-tenant con
     // navegador real (ver PLAN-MIGRACION-MULTITENANT.md § 6) — inerte salvo

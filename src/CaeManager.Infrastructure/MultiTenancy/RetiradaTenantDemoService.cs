@@ -103,6 +103,8 @@ public static class RetiradaTenantDemoService
         DelegacionDemoSeeder.NombreTenantClienteDemo,
         DelegacionDemoSeeder.NombreTenantClienteDemo2,
         DelegacionDemoSeeder.NombreTenantClienteDemo3,
+        CatalogoEscenariosDireccionDemo.NombreTenantDuff,
+        CatalogoEscenariosDireccionDemo.NombreTenantPizzaPlanet,
         SegundoTenantSeeder.NombreSegundoTenant,
     ];
 

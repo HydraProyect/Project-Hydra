@@ -153,7 +153,7 @@ public static class DatosPruebaSeeder
     /// La documentación estándar que el cliente fundador exige por trabajador
     /// — nombres exactos del catálogo (<see cref="TipoDocumentoSeedData"/>).
     /// </summary>
-    private static readonly string[] DocumentacionEstandarTrabajador =
+    internal static readonly string[] DocumentacionEstandarTrabajador =
     [
         "Certificado de aptitud médica",
         "Entrega de EPI",
@@ -192,7 +192,7 @@ public static class DatosPruebaSeeder
     /// visitas, incidencias, canales— sin ninguna necesidad.
     /// </para>
     /// </summary>
-    private static readonly string[] DocumentacionObligatoriaSinVencimientoTrabajador =
+    internal static readonly string[] DocumentacionObligatoriaSinVencimientoTrabajador =
     [
         "Información Art. 18",
         "Documento de identidad"
@@ -1773,7 +1773,7 @@ public static class DatosPruebaSeeder
     /// limitada) y dígito de control numérico válido, replicando el mismo
     /// algoritmo que <see cref="CaeManager.Domain.Common.ValidadorIdentificacion"/>.
     /// </summary>
-    private static string GenerarCifValido(int numero)
+    internal static string GenerarCifValido(int numero)
     {
         var digitos = numero.ToString("D7");
         var sumaPares = 0;

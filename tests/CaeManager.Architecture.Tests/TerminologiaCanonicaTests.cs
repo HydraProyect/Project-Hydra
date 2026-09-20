@@ -221,12 +221,27 @@ public class TerminologiaCanonicaTests
     /// suman. Medido con este mismo test sobre el árbol ya rebasado sobre la
     /// entrada de Subcontrata 360: 53.
     /// </para>
+    ///
+    /// <para>
+    /// <b><c>Delegacion</c> 289 → 303 (matriz de estados de la demo a dirección,
+    /// 2026-09-20): +14, todo referencia a superficie legada que la siembra tiene que
+    /// invocar, ninguno un nombre propio nuevo.</b> <c>EscenariosDireccionDemo*.cs</c>
+    /// reutiliza <c>DelegacionDemoSeeder</c> (10 referencias: sus constantes de nombre y sus
+    /// métodos de aprovisionamiento), <c>CrearDelegacionAsync</c> (1) y toca <c>DelegacionTenant</c>,
+    /// <c>DelegacionesTenant</c> y <c>DelegacionTenantId</c> (3) para reactivar la delegación
+    /// revocada y asignar al equipo: el mecanismo legacy de ADR-011 (<c>AsignacionOperadorDelegado</c>)
+    /// sigue siendo el único que sabe abrir una operación externa para
+    /// <c>ReasignarCarteraClienteAsync</c>. Medido: el método y las variables propias de la
+    /// siembra se nombraron sin el término (<c>AbrirOperacionExternaDeLaRamaAsync</c>) para que el
+    /// aumento sea el mínimo inevitable. La cifra baja con la retirada de <c>DelegacionDemoSeeder</c>
+    /// y con la migración de <c>DelegacionTenant</c> (D-2/D-3/D-7), no antes.
+    /// </para>
     /// </summary>
     private static readonly Dictionary<string, int> Congelado = new()
     {
         ["Hydra"] = 49,
         ["EjecutivoUsuarioId"] = 48,
-        ["Delegacion"] = 289,
+        ["Delegacion"] = 303,
         ["ClienteActivo"] = 68,
     };
 
