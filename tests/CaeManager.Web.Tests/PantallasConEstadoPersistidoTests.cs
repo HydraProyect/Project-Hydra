@@ -110,7 +110,8 @@ public class PantallasConEstadoPersistidoTests
 
     private static BunitContext Contexto(
         Func<object, object> responder, Guid tenant, out MediatorContador mediador,
-        out Microsoft.AspNetCore.Components.Infrastructure.ComponentStatePersistenceManager gestor)
+        out Microsoft.AspNetCore.Components.Infrastructure.ComponentStatePersistenceManager gestor,
+        bool interactivo = false)
     {
         var ctx = new BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
@@ -122,7 +123,7 @@ public class PantallasConEstadoPersistidoTests
         ctx.Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
         ctx.Services.AddScoped<IValidator<CrearEmpresaCommand>>(_ => new InlineValidator<CrearEmpresaCommand>());
         ctx.Services.AddScoped<IValidator<CrearSubcontrataCommand>>(_ => new InlineValidator<CrearSubcontrataCommand>());
-        gestor = ctx.Services.AddEstadoDePantallaPersistidoParaPruebas(conSesion: true, tenant: tenant);
+        gestor = ctx.AddEstadoDePantallaPersistidoParaPruebas(interactivo: interactivo, conSesion: true, tenant: tenant);
         return ctx;
     }
 
@@ -148,7 +149,8 @@ public class PantallasConEstadoPersistidoTests
             await gestorPrerender.PersistStateAsync(almacen, prerender.Renderer);
         }
 
-        using var circuito = Contexto(datosDelCircuito, tenantDelCircuito, out var mediadorCircuito, out var gestorCircuito);
+        using var circuito = Contexto(
+            datosDelCircuito, tenantDelCircuito, out var mediadorCircuito, out var gestorCircuito, interactivo: true);
         await gestorCircuito.RestoreStateAsync(almacen);
         circuito.Services.GetRequiredService<NavigationManager>().NavigateTo(urlCircuito);
         var cutCircuito = circuito.Render<TPagina>();
@@ -157,6 +159,46 @@ public class PantallasConEstadoPersistidoTests
             await despues(cutCircuito);
 
         return new Resultado(mediadorCircuito, cutCircuito.Markup, almacen.Contenido.Count);
+    }
+
+    // ── El circuito interactivo no persiste ─────────────────────────────────────
+
+    /// <summary>
+    /// Solo el prerender persiste. En el circuito no se paga la huella de
+    /// sesión (para un workspace delegado consulta la base) ni se anota nada.
+    /// </summary>
+    [Theory]
+    [InlineData("empresas")]
+    [InlineData("subcontratas")]
+    [InlineData("incidencias")]
+    public async Task El_circuito_interactivo_no_persiste_nada_y_el_prerender_si(string ruta)
+    {
+        foreach (var interactivo in new[] { false, true })
+        {
+            var (datos, texto) = ruta switch
+            {
+                "empresas" => (DatosEmpresas("Empresa cargada"), "Empresa cargada"),
+                "subcontratas" => (DatosSubcontratas("Sub cargada"), "Sub cargada"),
+                _ => (DatosIncidencias("Centro cargado"), "Centro cargado"),
+            };
+            using var ctx = Contexto(datos, TenantX, out _, out var gestor, interactivo);
+            ctx.Services.GetRequiredService<NavigationManager>().NavigateTo(ruta);
+            IRenderedComponent<IComponent> cut = ruta switch
+            {
+                "empresas" => ctx.Render<Empresas>(),
+                "subcontratas" => ctx.Render<Subcontratas>(),
+                _ => ctx.Render<Incidencias>(),
+            };
+            cut.WaitForState(() => cut.Markup.Contains(texto));
+
+            var almacen = new AlmacenEnMemoria();
+            await gestor.PersistStateAsync(almacen, ctx.Renderer);
+
+            if (interactivo)
+                almacen.Contenido.Should().BeEmpty($"/{ruta} en el circuito no debe persistir");
+            else
+                almacen.Contenido.Should().HaveCount(1, $"/{ruta} en el prerender sí persiste");
+        }
     }
 
     // ── Empresas ────────────────────────────────────────────────────────────────
@@ -281,6 +323,45 @@ public class PantallasConEstadoPersistidoTests
         await gestor.PersistStateAsync(almacen, ctx.Renderer);
 
         almacen.Contenido.Should().BeEmpty("la última carga falló: no hay nada verdadero que dejar al circuito");
+    }
+
+    /// <summary>
+    /// Refrescar UNA fila en sitio (tras gestionar un documento desde el
+    /// acordeón) cambia lo que la pantalla enseña sin pasar por una carga de
+    /// lista: lo anotado por la carga tendría la fila anterior.
+    /// </summary>
+    [Fact]
+    public async Task Subcontratas_refrescar_una_fila_en_sitio_descarta_lo_anotado_por_la_carga()
+    {
+        var id = Guid.NewGuid();
+        SubcontrataListaDto Fila(string razonSocial) => new(
+            id, razonSocial, "B-22222222", DateTime.UtcNow, NivelServicioSubcontrata.Gestionada, 100, RecuentosSubcontrataDto.Vacio);
+        using var ctx = Contexto(
+            peticion => peticion switch
+            {
+                ObtenerPerfilVocabularioActualQuery => PerfilVocabularioTenant.Consultora,
+                ObtenerClientesParaSelectorQuery => Array.Empty<ClienteSelectorDto>(),
+                ObtenerEmpresasParaSelectorQuery => Array.Empty<EmpresaSelectorDto>(),
+                ObtenerSubcontratasQuery { SubcontrataId: not null } q =>
+                    new ResultadoPaginado<SubcontrataListaDto>([Fila("Sub refrescada")], 1, q.Pagina, q.TamanoPagina),
+                ObtenerSubcontratasQuery q =>
+                    new ResultadoPaginado<SubcontrataListaDto>([Fila("Sub cargada")], 1, q.Pagina, q.TamanoPagina),
+                _ => throw new NotSupportedException(peticion.GetType().Name),
+            },
+            TenantX, out _, out var gestor);
+        ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("subcontratas");
+        var cut = ctx.Render<Subcontratas>();
+        cut.WaitForState(() => cut.Markup.Contains("Sub cargada"));
+
+        var refrescar = typeof(Subcontratas).GetMethod(
+            "RefrescarSubcontrataAsync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        await cut.InvokeAsync(() => (Task)refrescar.Invoke(cut.Instance, [id])!);
+        cut.Markup.Should().Contain("Sub refrescada");
+
+        var almacen = new AlmacenEnMemoria();
+        await gestor.PersistStateAsync(almacen, ctx.Renderer);
+
+        almacen.Contenido.Should().BeEmpty("lo anotado por la carga tiene la fila de antes de refrescar");
     }
 
     [Fact]

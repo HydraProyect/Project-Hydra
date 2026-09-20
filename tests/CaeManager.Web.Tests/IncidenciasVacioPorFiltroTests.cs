@@ -73,7 +73,7 @@ public class IncidenciasVacioPorFiltroTests : BunitContext
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
-        Services.AddEstadoDePantallaPersistidoParaPruebas();
+        this.AddEstadoDePantallaPersistidoParaPruebas();
 
         // El único filtro que viaja por la URL es el estado; la búsqueda vive
         // solo en el campo. Se acciona el de la URL a propósito: el buscador

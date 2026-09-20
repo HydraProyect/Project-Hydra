@@ -142,8 +142,8 @@ public class SubcontratasListaGen2Tests : BunitContext
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
-        Services.AddEstadoDePantallaPersistidoParaPruebas();
         Services.AddScoped<IValidator<CrearSubcontrataCommand>>(_ => new InlineValidator<CrearSubcontrataCommand>());
+        this.AddEstadoDePantallaPersistidoParaPruebas(); // el último: fija el modo de renderizado y cierra los registros
 
         // El filtro es [SupplyParameterFromQuery]: se llega a él navegando, no
         // pasándolo como parámetro de componente.

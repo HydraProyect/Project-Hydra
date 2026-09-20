@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Web.Components.EstadoPersistido;
 
@@ -47,7 +48,8 @@ public sealed class HuellaDeSesion(
 /// una en el prerender y otra al conectar el circuito).
 /// </summary>
 public sealed class FabricaEstadoDePantallaPersistido(
-    PersistentComponentState estadoPersistente, HuellaDeSesion huellaDeSesion, TimeProvider reloj)
+    PersistentComponentState estadoPersistente, HuellaDeSesion huellaDeSesion, TimeProvider reloj,
+    ILogger<FabricaEstadoDePantallaPersistido>? registro = null)
 {
     /// <summary>
     /// Cuánto tiempo puede pasar entre el prerender que guardó el estado y el
@@ -60,8 +62,16 @@ public sealed class FabricaEstadoDePantallaPersistido(
 
     public EstadoDePantallaPersistido<TInstantanea> Crear<TInstantanea>(string clave)
         where TInstantanea : class =>
-        new(estadoPersistente, huellaDeSesion, reloj, clave);
+        new(estadoPersistente, huellaDeSesion, reloj, clave, registro);
 }
+
+/// <summary>
+/// Lo que se fija al EMPEZAR una consulta real (ver
+/// <see cref="EstadoDePantallaPersistido{T}.EmpezarConsultaAsync"/>): su número,
+/// la huella de sesión y el instante. <c>HuellaDeSesion</c> nula = no se
+/// persistirá el resultado.
+/// </summary>
+public readonly record struct ConsultaEnCurso(int Version, string? HuellaDeSesion, DateTimeOffset Instante);
 
 /// <summary>
 /// Estado persistido de UNA pantalla. Uso:
@@ -114,9 +124,13 @@ public sealed class EstadoDePantallaPersistido<TInstantanea> : IDisposable
     private int _version;
     private DateTimeOffset _tomadaEn;
 
+    private readonly ILogger? _registro;
+
     internal EstadoDePantallaPersistido(
-        PersistentComponentState estado, HuellaDeSesion huellaDeSesion, TimeProvider reloj, string clave)
+        PersistentComponentState estado, HuellaDeSesion huellaDeSesion, TimeProvider reloj, string clave,
+        ILogger? registro = null)
     {
+        _registro = registro;
         _estado = estado;
         _huellaDeSesion = huellaDeSesion;
         _reloj = reloj;
@@ -125,48 +139,68 @@ public sealed class EstadoDePantallaPersistido<TInstantanea> : IDisposable
     }
 
     /// <summary>
-    /// Anota el resultado que el prerender debe dejar al circuito. Se llama
-    /// con lo que la pantalla acaba de consultar; el instante Y la huella de
-    /// sesión son los de la consulta, no los de la persistencia: una consulta
-    /// hecha bajo otro contexto de Tenant (p. ej. un ámbito explícito) no
-    /// puede quedar sellada con la huella de otro. Si la huella no se puede
-    /// resolver, no se guarda nada (falla cerrado hacia «consultar otra vez»).
+    /// Se llama ANTES de cada consulta real de la pantalla. Descarta lo
+    /// anotado (si esta consulta falla, lo de la anterior ya no refleja lo que
+    /// la pantalla muestra: p. ej. la fila que se acaba de eliminar) y fija el
+    /// instante y la huella de sesión de la consulta: se sellan con el
+    /// contexto en vigor al PREGUNTAR, no al volver la respuesta ni al
+    /// persistir (una consulta bajo otro contexto de Tenant no puede quedar
+    /// sellada con la huella de otro). La numeración de consultas hace que la
+    /// respuesta de una consulta superada por otra más reciente no se anote,
+    /// llegue en el orden que llegue.
     /// </summary>
-    public async Task GuardarAsync(string huellaConsulta, TInstantanea instantanea)
+    /// <param name="sePersiste">
+    /// <c>false</c> cuando esta pasada no va a persistir (el circuito
+    /// interactivo: el prerender ya pasó): así no se paga la resolución de la
+    /// huella —que para un workspace delegado consulta la base— en cada acción
+    /// del usuario. Las pantallas pasan <c>!RendererInfo.IsInteractive</c>.
+    /// </param>
+    public async Task<ConsultaEnCurso> EmpezarConsultaAsync(bool sePersiste = true)
     {
-        var instante = _reloj.GetUtcNow();
+        Descartar();
         var version = _version;
+        var instante = _reloj.GetUtcNow();
+        if (!sePersiste)
+            return new ConsultaEnCurso(version, null, instante);
+
         string? huellaDeSesion;
         try
         {
             huellaDeSesion = await _huellaDeSesion.ObtenerAsync();
         }
-        catch (Exception)
+        catch (Exception excepcion)
         {
+            // Falla cerrado: sin huella no se persiste (la pantalla consulta de
+            // nuevo en el circuito). Pero un fallo sostenido apagaría el patrón
+            // entero en silencio, así que queda dicho.
+            _registro?.LogWarning(
+                excepcion, "No se pudo resolver la huella de sesión; el estado de «{Clave}» no se persistirá.", _clave);
             huellaDeSesion = null;
         }
 
-        // Si mientras se resolvía la huella empezó otra consulta (Descartar),
-        // este resultado es de una pregunta ya superada: no se anota.
-        if (version != _version)
-            return;
-
-        if (huellaDeSesion is null)
-        {
-            Descartar();
-            return;
-        }
-
-        _pendiente = instantanea;
-        _huellaConsultaPendiente = huellaConsulta;
-        _huellaDeSesionPendiente = huellaDeSesion;
-        _tomadaEn = instante;
+        return new ConsultaEnCurso(version, huellaDeSesion, instante);
     }
 
     /// <summary>
-    /// Olvida lo anotado. Se llama al EMPEZAR cada consulta real: si la carga
-    /// falla, lo anotado de la anterior ya no refleja lo que la pantalla
-    /// muestra (p. ej. la fila que se acaba de eliminar) y no debe persistirse.
+    /// Anota el resultado que el prerender debe dejar al circuito. No anota
+    /// nada si otra consulta empezó después de <paramref name="consulta"/> (su
+    /// respuesta está superada) o si no había huella de sesión.
+    /// </summary>
+    public void Guardar(ConsultaEnCurso consulta, string huellaConsulta, TInstantanea instantanea)
+    {
+        if (consulta.Version != _version || consulta.HuellaDeSesion is null)
+            return;
+
+        _pendiente = instantanea;
+        _huellaConsultaPendiente = huellaConsulta;
+        _huellaDeSesionPendiente = consulta.HuellaDeSesion;
+        _tomadaEn = consulta.Instante;
+    }
+
+    /// <summary>
+    /// Olvida lo anotado. También lo llama cualquier ruta que cambie lo que la
+    /// pantalla muestra SIN pasar por una consulta de lista completa (p. ej.
+    /// refrescar una sola fila en sitio): lo anotado ya no lo refleja.
     /// </summary>
     public void Descartar()
     {

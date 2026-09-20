@@ -137,9 +137,10 @@ public class ConsultasPorNavegacionTests(WebAppFixtureConConsultasSql fixture)
         ".tarjeta-fila-acordeon" => Regex.Matches(html, @"class=""tarjeta-fila-acordeon""").Count,
         // Las filas del cuerpo de la tabla de datos, no cualquier <tr> del HTML
         // (un menú o un modal con una tabla las desplazaría en silencio).
+        // (todas las tablas con esa clase, como el localizador de Playwright).
         "table.tabla-datos tbody tr" => Regex.Matches(
-                Regex.Match(html, @"<table[^>]*class=""[^""]*\btabla-datos\b[^""]*""[^>]*>.*?</table>", RegexOptions.Singleline).Value,
-                "<tbody[^>]*>.*?</tbody>", RegexOptions.Singleline)
+                html, @"<table[^>]*class=""[^""]*\btabla-datos\b[^""]*""[^>]*>.*?</table>", RegexOptions.Singleline)
+            .SelectMany(tabla => Regex.Matches(tabla.Value, "<tbody[^>]*>.*?</tbody>", RegexOptions.Singleline))
             .Sum(cuerpo => Regex.Matches(cuerpo.Value, "<tr[ >]").Count),
         _ => throw new ArgumentOutOfRangeException(nameof(selector), selector, "Selector sin contador para el HTML crudo."),
     };

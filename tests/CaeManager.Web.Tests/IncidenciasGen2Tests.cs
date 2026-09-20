@@ -182,7 +182,7 @@ public class IncidenciasGen2Tests : BunitContext
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
-        Services.AddEstadoDePantallaPersistidoParaPruebas();
+        this.AddEstadoDePantallaPersistidoParaPruebas();
 
         Services.GetRequiredService<NavigationManager>()
             .NavigateTo(estado is null ? "incidencias" : "incidencias?estado=" + Uri.EscapeDataString(estado));

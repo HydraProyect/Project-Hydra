@@ -88,8 +88,8 @@ public class EmpresasVacioPorFiltroTests : BunitContext
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
-        Services.AddEstadoDePantallaPersistidoParaPruebas();
         Services.AddScoped<IValidator<CrearEmpresaCommand>>(_ => new InlineValidator<CrearEmpresaCommand>());
+        this.AddEstadoDePantallaPersistidoParaPruebas(); // el último: fija el modo de renderizado y cierra los registros
 
         // Los filtros son [SupplyParameterFromQuery]: no se pasan como
         // parámetros de componente —Blazor lo rechaza explícitamente— sino

@@ -34,6 +34,24 @@ public sealed class SesionDePruebaParaEstadoPersistido : ICurrentUserService, IT
 public static class EstadoPersistidoParaPruebas
 {
     /// <summary>
+    /// Como la sobrecarga de <see cref="IServiceCollection"/>, y además declara
+    /// el modo de renderizado del contexto: las pantallas con estado
+    /// persistido consultan <c>RendererInfo.IsInteractive</c> (el prerender
+    /// persiste; el circuito interactivo no) y bUnit lanza si no se ha
+    /// especificado. Por defecto, un prerender (no interactivo).
+    /// </summary>
+    public static ComponentStatePersistenceManager AddEstadoDePantallaPersistidoParaPruebas(
+        this Bunit.BunitContext contexto, bool interactivo = false, bool conSesion = false,
+        Guid? tenant = null, Guid? usuario = null)
+    {
+        // Primero los servicios: acceder al Renderer inicializa el proveedor
+        // y bUnit ya no admite registros después.
+        var gestor = contexto.Services.AddEstadoDePantallaPersistidoParaPruebas(conSesion, tenant, usuario);
+        contexto.Renderer.SetRendererInfo(new Microsoft.AspNetCore.Components.RendererInfo("Server", interactivo));
+        return gestor;
+    }
+
+    /// <summary>
     /// Registra lo que una pantalla con estado persistido inyecta. Devuelve el
     /// gestor de persistencia de este ámbito, para que un test pueda persistir
     /// y restaurar de verdad entre dos montajes.

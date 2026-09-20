@@ -288,9 +288,12 @@ public partial class Incidencias : ComponentBase, IDisposable
             // prerender: lo que se pide ahora es una pregunta nueva.
             _recogidaCerrada = true;
 
-            // Lo anotado de la consulta anterior ya no vale: si esta falla, la
-            // pantalla enseña el error y no debe persistirse la lista vieja.
-            _estadoPersistido?.Descartar();
+            // Lo anotado de la consulta anterior ya no vale (si esta falla, la
+            // pantalla enseña el error y no debe persistirse la lista vieja), y
+            // la huella de sesión de ESTA consulta se fija antes de preguntar.
+            var persistencia = _estadoPersistido is null
+                ? default
+                : await _estadoPersistido.EmpezarConsultaAsync(sePersiste: !RendererInfo.IsInteractive);
 
             // La consulta se construye con los filtros de ESTE instante: si
             // cambian mientras llega la respuesta, lo que se descarta es la
@@ -313,8 +316,7 @@ public partial class Incidencias : ComponentBase, IDisposable
             _elementosPagina = elementos;
             _seleccionados.Clear();
             _idEnfocado = null;
-            if (_estadoPersistido is not null)
-                await _estadoPersistido.GuardarAsync(huellaConsulta, new InstantaneaIncidencias(_totalElementos, [.. elementos]));
+            _estadoPersistido?.Guardar(persistencia, huellaConsulta, new InstantaneaIncidencias(_totalElementos, [.. elementos]));
 
             return GridItemsProviderResult.From(elementos, resultado.TotalElementos);
         }
