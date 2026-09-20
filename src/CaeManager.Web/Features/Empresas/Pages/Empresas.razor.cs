@@ -324,13 +324,18 @@ public partial class Empresas : ComponentBase, IDisposable
 
             _totalElementos = resultado.TotalElementos;
             _elementosPagina = resultado.Elementos.ToList();
-            _estadoPersistido?.Guardar(
-                persistencia, huellaConsulta, new InstantaneaEmpresas(_tituloPagina, _totalElementos, [.. _elementosPagina]));
             _seleccionados.Clear();
             _expandidos.Clear();
             _clientesPorEmpresa.Clear();
             _clientesConError.Clear();
             _idEnfocado = null;
+
+            // Al final, con la pantalla ya en su estado nuevo: cede el turno
+            // (vuelve a resolver la huella de sesión) y no debe dejar a medias
+            // lo que se pinta.
+            if (_estadoPersistido is not null)
+                await _estadoPersistido.GuardarAsync(
+                    persistencia, huellaConsulta, new InstantaneaEmpresas(_tituloPagina, _totalElementos, [.. _elementosPagina]));
         }
         catch (Exception) when (!EsVigente(carga))
         {

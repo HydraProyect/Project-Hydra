@@ -177,8 +177,6 @@ public partial class Subcontratas : ComponentBase, IDisposable
 
             _totalElementos = resultado.TotalElementos;
             _elementosPagina = resultado.Elementos.ToList();
-            _estadoPersistido?.Guardar(
-                persistencia, huellaConsulta, new InstantaneaSubcontratas(_totalElementos, [.. _elementosPagina]));
             _seleccionados.Clear();
             _expandidos.Clear();
             _idEnfocado = null;
@@ -188,6 +186,13 @@ public partial class Subcontratas : ComponentBase, IDisposable
             // tiene nada cierto que enseñar y se cierra.
             if (FilaEnVistaPrevia is null)
                 _previewVisible = false;
+
+            // Al final, con la pantalla ya en su estado nuevo: cede el turno
+            // (vuelve a resolver la huella de sesión) y no debe dejar a medias
+            // lo que se pinta.
+            if (_estadoPersistido is not null)
+                await _estadoPersistido.GuardarAsync(
+                    persistencia, huellaConsulta, new InstantaneaSubcontratas(_totalElementos, [.. _elementosPagina]));
         }
         catch (Exception)
         {
@@ -222,17 +227,16 @@ public partial class Subcontratas : ComponentBase, IDisposable
     {
         var resultado = await Mediator.Send(new ObtenerSubcontratasQuery(Busqueda: null, SubcontrataId: subcontrataId));
         var actualizada = resultado.Elementos.FirstOrDefault();
+
+        // Cualquier refresco de una fila —también el que la encuentra
+        // desaparecida— deja la pantalla distinta de lo que anotó la carga:
+        // lo anotado tendría la fila anterior.
+        _estadoPersistido?.Descartar();
         if (actualizada is null) return;
 
         var indice = _elementosPagina.FindIndex(s => s.Id == subcontrataId);
         if (indice >= 0)
-        {
             _elementosPagina[indice] = actualizada;
-
-            // La pantalla ya no muestra lo que anotó la carga: lo anotado
-            // tendría la fila anterior.
-            _estadoPersistido?.Descartar();
-        }
 
         StateHasChanged();
     }

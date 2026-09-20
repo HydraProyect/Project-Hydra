@@ -316,7 +316,8 @@ public partial class Incidencias : ComponentBase, IDisposable
             _elementosPagina = elementos;
             _seleccionados.Clear();
             _idEnfocado = null;
-            _estadoPersistido?.Guardar(persistencia, huellaConsulta, new InstantaneaIncidencias(_totalElementos, [.. elementos]));
+            if (_estadoPersistido is not null)
+                await _estadoPersistido.GuardarAsync(persistencia, huellaConsulta, new InstantaneaIncidencias(_totalElementos, [.. elementos]));
 
             return GridItemsProviderResult.From(elementos, resultado.TotalElementos);
         }

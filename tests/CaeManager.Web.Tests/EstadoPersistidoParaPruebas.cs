@@ -38,16 +38,20 @@ public static class EstadoPersistidoParaPruebas
     /// el modo de renderizado del contexto: las pantallas con estado
     /// persistido consultan <c>RendererInfo.IsInteractive</c> (el prerender
     /// persiste; el circuito interactivo no) y bUnit lanza si no se ha
-    /// especificado. Por defecto, un prerender (no interactivo).
+    /// especificado. Por defecto, un circuito interactivo: es donde ocurren en
+    /// producción los clics, la escritura y los atajos que ejercitan los
+    /// tests de comportamiento de la lista.
     /// </summary>
     public static ComponentStatePersistenceManager AddEstadoDePantallaPersistidoParaPruebas(
-        this Bunit.BunitContext contexto, bool interactivo = false, bool conSesion = false,
+        this Bunit.BunitContext contexto, bool interactivo = true, bool conSesion = false,
         Guid? tenant = null, Guid? usuario = null)
     {
         // Primero los servicios: acceder al Renderer inicializa el proveedor
         // y bUnit ya no admite registros después.
         var gestor = contexto.Services.AddEstadoDePantallaPersistidoParaPruebas(conSesion, tenant, usuario);
-        contexto.Renderer.SetRendererInfo(new Microsoft.AspNetCore.Components.RendererInfo("Server", interactivo));
+        // Como en producción: el prerender es ("Static", false); el circuito, ("Server", true).
+        contexto.Renderer.SetRendererInfo(
+            new Microsoft.AspNetCore.Components.RendererInfo(interactivo ? "Server" : "Static", interactivo));
         return gestor;
     }
 

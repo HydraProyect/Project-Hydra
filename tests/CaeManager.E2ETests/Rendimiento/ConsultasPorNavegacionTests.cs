@@ -64,7 +64,7 @@ public class ConsultasPorNavegacionTests(WebAppFixtureConConsultasSql fixture)
         var html = await respuesta.TextAsync();
         await medidor.EsperarSilencioAsync(TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(30));
         var consultasDelPrerender = MedidorConsultasSql.Contar(medidor.ComandosDesde(marcaPrerender), fragmentoSql);
-        var filasDelPrerender = ContarFilas(html, selectorFila);
+        var filasDelPrerender = await ContarFilasAsync(page, html, selectorFila);
 
         // Navegación mejorada (NavLink): prerender + circuito.
         var marcaNavegacion = medidor.MarcarAhora();
@@ -132,16 +132,14 @@ public class ConsultasPorNavegacionTests(WebAppFixtureConConsultasSql fixture)
         Assert.DoesNotContain("RazonSocial", descifrableComoTexto, StringComparison.Ordinal);
     }
 
-    private static int ContarFilas(string html, string selector) => selector switch
-    {
-        ".tarjeta-fila-acordeon" => Regex.Matches(html, @"class=""tarjeta-fila-acordeon""").Count,
-        // Las filas del cuerpo de la tabla de datos, no cualquier <tr> del HTML
-        // (un menú o un modal con una tabla las desplazaría en silencio).
-        // (todas las tablas con esa clase, como el localizador de Playwright).
-        "table.tabla-datos tbody tr" => Regex.Matches(
-                html, @"<table[^>]*class=""[^""]*\btabla-datos\b[^""]*""[^>]*>.*?</table>", RegexOptions.Singleline)
-            .SelectMany(tabla => Regex.Matches(tabla.Value, "<tbody[^>]*>.*?</tbody>", RegexOptions.Singleline))
-            .Sum(cuerpo => Regex.Matches(cuerpo.Value, "<tr[ >]").Count),
-        _ => throw new ArgumentOutOfRangeException(nameof(selector), selector, "Selector sin contador para el HTML crudo."),
-    };
+    /// <summary>
+    /// Las filas del HTML crudo del prerender, contadas con el analizador de
+    /// HTML del navegador y el MISMO selector que el localizador de Playwright
+    /// con el que luego se compara (tablas anidadas y <c>tbody</c> implícito
+    /// incluidos). <c>DOMParser</c> no ejecuta scripts ni carga recursos.
+    /// </summary>
+    private static Task<int> ContarFilasAsync(IPage page, string html, string selector) =>
+        page.EvaluateAsync<int>(
+            "([html, selector]) => new DOMParser().parseFromString(html, 'text/html').querySelectorAll(selector).length",
+            new object[] { html, selector });
 }

@@ -115,8 +115,7 @@ public class PantallasConEstadoPersistidoTests
     {
         var ctx = new BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
-        var contador = new MediatorContador(responder);
-        mediador = contador;
+        var contador = new MediatorContador(responder);        mediador = contador;
         ctx.Services.AddScoped<IMediator>(_ => contador);
         ctx.Services.AddScoped<ToastService>();
         ctx.Services.AddScoped<ContextWorkspaceService>();
@@ -330,8 +329,10 @@ public class PantallasConEstadoPersistidoTests
     /// acordeón) cambia lo que la pantalla enseña sin pasar por una carga de
     /// lista: lo anotado por la carga tendría la fila anterior.
     /// </summary>
-    [Fact]
-    public async Task Subcontratas_refrescar_una_fila_en_sitio_descarta_lo_anotado_por_la_carga()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Subcontratas_refrescar_una_fila_en_sitio_descarta_lo_anotado_por_la_carga(bool laFilaSigueExistiendo)
     {
         var id = Guid.NewGuid();
         SubcontrataListaDto Fila(string razonSocial) => new(
@@ -343,7 +344,8 @@ public class PantallasConEstadoPersistidoTests
                 ObtenerClientesParaSelectorQuery => Array.Empty<ClienteSelectorDto>(),
                 ObtenerEmpresasParaSelectorQuery => Array.Empty<EmpresaSelectorDto>(),
                 ObtenerSubcontratasQuery { SubcontrataId: not null } q =>
-                    new ResultadoPaginado<SubcontrataListaDto>([Fila("Sub refrescada")], 1, q.Pagina, q.TamanoPagina),
+                    new ResultadoPaginado<SubcontrataListaDto>(
+                        laFilaSigueExistiendo ? [Fila("Sub refrescada")] : [], laFilaSigueExistiendo ? 1 : 0, q.Pagina, q.TamanoPagina),
                 ObtenerSubcontratasQuery q =>
                     new ResultadoPaginado<SubcontrataListaDto>([Fila("Sub cargada")], 1, q.Pagina, q.TamanoPagina),
                 _ => throw new NotSupportedException(peticion.GetType().Name),
@@ -356,7 +358,8 @@ public class PantallasConEstadoPersistidoTests
         var refrescar = typeof(Subcontratas).GetMethod(
             "RefrescarSubcontrataAsync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
         await cut.InvokeAsync(() => (Task)refrescar.Invoke(cut.Instance, [id])!);
-        cut.Markup.Should().Contain("Sub refrescada");
+        if (laFilaSigueExistiendo)
+            cut.Markup.Should().Contain("Sub refrescada");
 
         var almacen = new AlmacenEnMemoria();
         await gestor.PersistStateAsync(almacen, ctx.Renderer);

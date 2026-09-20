@@ -91,7 +91,7 @@ public class EstadoDePantallaPersistidoTests
         var fabrica = new FabricaEstadoDePantallaPersistido(gestor.State, Huella(delPrerender), reloj);
         using var estado = fabrica.Crear<Instantanea>(Clave);
         if (instantanea is not null)
-            estado.Guardar(await estado.EmpezarConsultaAsync(), huellaConsulta, instantanea);
+            await estado.GuardarAsync(await estado.EmpezarConsultaAsync(sePersiste: true), huellaConsulta, instantanea);
 
         var almacen = new AlmacenEnMemoria();
         await gestor.PersistStateAsync(almacen, contexto.Renderer);
@@ -204,12 +204,13 @@ public class EstadoDePantallaPersistidoTests
     }
 
     [Fact]
-    public async Task La_huella_de_sesion_es_la_del_instante_en_que_se_pregunta_no_la_de_cuando_vuelve_la_respuesta_ni_la_de_la_persistencia()
+    public async Task Una_consulta_que_empieza_bajo_un_contexto_y_vuelve_bajo_otro_no_se_persiste_con_ninguno()
     {
-        // Una consulta hecha bajo el contexto de Tenant X cuyo contexto ya es
-        // otro cuando vuelve la respuesta (p. ej. un ámbito explícito que se
-        // cerró) no puede persistirse sellada con la huella del contexto
-        // final: el circuito del Tenant Y la recogería.
+        // Una consulta que empezó bajo el Tenant X y cuyo contexto ya es otro
+        // cuando vuelve la respuesta (p. ej. un ámbito explícito que se abrió
+        // o cerró entre medias) no se persiste: ni con la huella de X (las
+        // filas se leyeron bajo otro contexto) ni con la de Y (la pregunta
+        // se hizo bajo X). Y la misma consulta con el contexto estable, sí.
         var reloj = new Reloj();
         var sesionEnVigor = Sesion.Base;
         using var contexto = new BunitContext();
@@ -217,16 +218,84 @@ public class EstadoDePantallaPersistidoTests
         var fabrica = new FabricaEstadoDePantallaPersistido(gestor.State, Huella(() => sesionEnVigor), reloj);
         using var estado = fabrica.Crear<Instantanea>(Clave);
 
-        var consulta = await estado.EmpezarConsultaAsync();
+        var consulta = await estado.EmpezarConsultaAsync(sePersiste: true);
         sesionEnVigor = Sesion.Base with { TenantActual = Sesion.TenantY };
-        estado.Guardar(consulta, HuellaConsulta, new Instantanea("filas del Tenant X", 3));
+        await estado.GuardarAsync(consulta, HuellaConsulta, new Instantanea("filas leídas entre dos contextos", 3));
 
         var almacen = new AlmacenEnMemoria();
         await gestor.PersistStateAsync(almacen, contexto.Renderer);
+        almacen.Contenido.Should().BeEmpty();
 
-        (await CircuitoAsync(almacen, Sesion.Base with { TenantActual = Sesion.TenantY }, reloj))
-            .Should().BeNull("el estado quedó sellado con el Tenant X, el de la consulta");
-        (await CircuitoAsync(almacen, Sesion.Base, reloj)).Should().NotBeNull();
+        // Control positivo: con el contexto estable la misma secuencia persiste
+        // (un gestor nuevo: el de Blazor solo persiste una vez).
+        var estable = await PrerenderAsync(Sesion.Base, reloj, new Instantanea("filas", 3));
+        estable.Contenido.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task Una_consulta_de_otro_estado_no_se_anota_aunque_su_numero_coincida()
+    {
+        var reloj = new Reloj();
+        using var contexto = new BunitContext();
+        var gestor = new ComponentStatePersistenceManager(NullLogger<ComponentStatePersistenceManager>.Instance);
+        var fabrica = new FabricaEstadoDePantallaPersistido(gestor.State, Huella(Sesion.Base), reloj);
+        using var estadoA = fabrica.Crear<Instantanea>("lista-a");
+        using var estadoB = fabrica.Crear<Instantanea>("lista-b");
+
+        var deA = await estadoA.EmpezarConsultaAsync(sePersiste: true);
+        await estadoB.EmpezarConsultaAsync(sePersiste: true);
+        await estadoB.GuardarAsync(deA, HuellaConsulta, new Instantanea("filas de A anotadas en B", 1));
+        await estadoA.GuardarAsync(default, HuellaConsulta, new Instantanea("consulta por defecto", 1));
+
+        var almacen = new AlmacenEnMemoria();
+        await gestor.PersistStateAsync(almacen, contexto.Renderer);
+        almacen.Contenido.Should().BeEmpty();
+    }
+
+    private sealed class RegistroEspia<T> : Microsoft.Extensions.Logging.ILogger<T>
+    {
+        public List<(Microsoft.Extensions.Logging.LogLevel Nivel, string Mensaje)> Entradas { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId,
+            TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Entradas.Add((logLevel, formatter(state, exception)));
+    }
+
+    [Fact]
+    public async Task Si_la_huella_no_se_puede_resolver_queda_un_aviso_y_no_se_persiste()
+    {
+        // Un fallo sostenido apagaría el patrón entero en silencio: por eso
+        // se dice. Vale para el fallo al empezar y para el fallo al volver.
+        var reloj = new Reloj();
+        var registro = new RegistroEspia<FabricaEstadoDePantallaPersistido>();
+        var fallar = true;
+        var sesion = Huella(() => fallar ? throw new InvalidOperationException("sin contexto") : Sesion.Base);
+        using var contexto = new BunitContext();
+        var gestor = new ComponentStatePersistenceManager(NullLogger<ComponentStatePersistenceManager>.Instance);
+        var fabrica = new FabricaEstadoDePantallaPersistido(gestor.State, sesion, reloj, registro);
+        using var estado = fabrica.Crear<Instantanea>(Clave);
+
+        // Fallo al empezar.
+        var alEmpezar = await estado.EmpezarConsultaAsync(sePersiste: true);
+        await estado.GuardarAsync(alEmpezar, HuellaConsulta, new Instantanea("filas", 3));
+        registro.Entradas.Should().ContainSingle(e => e.Nivel == Microsoft.Extensions.Logging.LogLevel.Warning)
+            .Which.Mensaje.Should().Contain(Clave);
+
+        // Fallo al volver (empezó bien).
+        fallar = false;
+        var alVolver = await estado.EmpezarConsultaAsync(sePersiste: true);
+        fallar = true;
+        await estado.GuardarAsync(alVolver, HuellaConsulta, new Instantanea("filas", 3));
+        registro.Entradas.Should().HaveCount(2);
+        registro.Entradas.Should().OnlyContain(e => e.Nivel == Microsoft.Extensions.Logging.LogLevel.Warning);
+
+        var almacen = new AlmacenEnMemoria();
+        await gestor.PersistStateAsync(almacen, contexto.Renderer);
+        almacen.Contenido.Should().BeEmpty();
     }
 
     [Fact]
@@ -238,14 +307,66 @@ public class EstadoDePantallaPersistidoTests
         var fabrica = new FabricaEstadoDePantallaPersistido(gestor.State, Huella(Sesion.Base), reloj);
         using var estado = fabrica.Crear<Instantanea>(Clave);
 
-        var primera = await estado.EmpezarConsultaAsync();
-        var segunda = await estado.EmpezarConsultaAsync();
-        estado.Guardar(segunda, HuellaConsulta, new Instantanea("la reciente", 2));
-        estado.Guardar(primera, HuellaConsulta, new Instantanea("la vieja, que llega la última", 1));
+        var primera = await estado.EmpezarConsultaAsync(sePersiste: true);
+        var segunda = await estado.EmpezarConsultaAsync(sePersiste: true);
+        await estado.GuardarAsync(segunda, HuellaConsulta, new Instantanea("la reciente", 2));
+        await estado.GuardarAsync(primera, HuellaConsulta, new Instantanea("la vieja, que llega la última", 1));
 
         var almacen = new AlmacenEnMemoria();
         await gestor.PersistStateAsync(almacen, contexto.Renderer);
 
+        (await CircuitoAsync(almacen, Sesion.Base, reloj)).Should().Be(new Instantanea("la reciente", 2));
+    }
+
+    private sealed class SesionConPuerta : ICurrentUserService, ITenantActual, IClienteActivoSeleccionado
+    {
+        /// <summary>Si no es nula, resolver el usuario espera a que se abra.</summary>
+        public TaskCompletionSource? Puerta { get; set; }
+
+        public async Task<Guid?> ObtenerUsuarioActualIdAsync()
+        {
+            if (Puerta is { } puerta)
+                await puerta.Task;
+            return Sesion.Usuario;
+        }
+
+        public Task<string?> ObtenerRolActualAsync() => Task.FromResult<string?>("GestorCae");
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Sesion.TenantX);
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(false);
+        public Guid? TenantId => Sesion.TenantX;
+        public Guid? TenantIdSeleccionado => Sesion.TenantX;
+        public Guid? AsignacionOperacionIdSeleccionada => null;
+        public Guid? SesionPrivilegiadaIdSeleccionada => null;
+    }
+
+    [Fact]
+    public async Task Una_consulta_que_empieza_mientras_se_resuelve_la_huella_de_la_anterior_la_deja_sin_anotar()
+    {
+        // La consulta A vuelve y su huella tarda en resolverse; mientras
+        // tanto empieza y termina la consulta B. Cuando A por fin resuelve,
+        // su respuesta está superada y no puede pisar la de B.
+        var reloj = new Reloj();
+        var sesion = new SesionConPuerta();
+        using var contexto = new BunitContext();
+        var gestor = new ComponentStatePersistenceManager(NullLogger<ComponentStatePersistenceManager>.Instance);
+        var fabrica = new FabricaEstadoDePantallaPersistido(
+            gestor.State, new HuellaDeSesion(sesion, sesion, sesion), reloj);
+        using var estado = fabrica.Crear<Instantanea>(Clave);
+
+        var consultaA = await estado.EmpezarConsultaAsync(sePersiste: true);
+        sesion.Puerta = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var puertaDeA = sesion.Puerta;
+        var guardandoA = estado.GuardarAsync(consultaA, HuellaConsulta, new Instantanea("la vieja", 1));
+
+        sesion.Puerta = null;
+        var consultaB = await estado.EmpezarConsultaAsync(sePersiste: true);
+        await estado.GuardarAsync(consultaB, HuellaConsulta, new Instantanea("la reciente", 2));
+
+        puertaDeA.SetResult();
+        await guardandoA;
+
+        var almacen = new AlmacenEnMemoria();
+        await gestor.PersistStateAsync(almacen, contexto.Renderer);
         (await CircuitoAsync(almacen, Sesion.Base, reloj)).Should().Be(new Instantanea("la reciente", 2));
     }
 
@@ -263,7 +384,7 @@ public class EstadoDePantallaPersistidoTests
         using var estado = fabrica.Crear<Instantanea>(Clave);
 
         var consulta = await estado.EmpezarConsultaAsync(sePersiste: false);
-        estado.Guardar(consulta, HuellaConsulta, new Instantanea("filas", 3));
+        await estado.GuardarAsync(consulta, HuellaConsulta, new Instantanea("filas", 3));
 
         var almacen = new AlmacenEnMemoria();
         await gestor.PersistStateAsync(almacen, contexto.Renderer);
@@ -282,8 +403,8 @@ public class EstadoDePantallaPersistidoTests
             gestor.State, Huella(() => throw new InvalidOperationException("sin contexto")), reloj);
         using var estado = fabrica.Crear<Instantanea>(Clave);
 
-        var consulta = await estado.EmpezarConsultaAsync();
-        estado.Guardar(consulta, HuellaConsulta, new Instantanea("filas", 3));
+        var consulta = await estado.EmpezarConsultaAsync(sePersiste: true);
+        await estado.GuardarAsync(consulta, HuellaConsulta, new Instantanea("filas", 3));
 
         var almacen = new AlmacenEnMemoria();
         await gestor.PersistStateAsync(almacen, contexto.Renderer);
@@ -301,7 +422,7 @@ public class EstadoDePantallaPersistidoTests
         var gestor = new ComponentStatePersistenceManager(NullLogger<ComponentStatePersistenceManager>.Instance);
         var fabrica = new FabricaEstadoDePantallaPersistido(gestor.State, Huella(Sesion.Base), reloj);
         using var estado = fabrica.Crear<Instantanea>(Clave);
-        estado.Guardar(await estado.EmpezarConsultaAsync(), HuellaConsulta, new Instantanea("con la fila eliminada", 3));
+        await estado.GuardarAsync(await estado.EmpezarConsultaAsync(sePersiste: true), HuellaConsulta, new Instantanea("con la fila eliminada", 3));
 
         estado.Descartar();
 
@@ -391,11 +512,11 @@ public class EstadoDePantallaPersistidoTests
         var gestor = new ComponentStatePersistenceManager(NullLogger<ComponentStatePersistenceManager>.Instance);
         var fabrica = new FabricaEstadoDePantallaPersistido(gestor.State, Huella(Sesion.Base), reloj);
         using var estado = fabrica.Crear<Instantanea>(Clave);
-        var consulta = await estado.EmpezarConsultaAsync();
+        var consulta = await estado.EmpezarConsultaAsync(sePersiste: true);
 
         // La consulta tarda 30 s en responder y el render otros 15 s en persistir.
         reloj.Ahora += TimeSpan.FromSeconds(30);
-        estado.Guardar(consulta, HuellaConsulta, new Instantanea("filas", 3));
+        await estado.GuardarAsync(consulta, HuellaConsulta, new Instantanea("filas", 3));
         reloj.Ahora += TimeSpan.FromSeconds(15);
         var almacen = new AlmacenEnMemoria();
         await gestor.PersistStateAsync(almacen, contexto.Renderer);
