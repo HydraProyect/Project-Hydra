@@ -145,16 +145,13 @@ public sealed class Microsoft365LegibilidadDelCertificadoTests : IDisposable
         aviso.Texto.Should().NotContain("NO-EXISTE").And.NotContain(_dir);
     }
 
-    [Fact]
+    [FactSiElSistemaDeFicherosHonraLosModos]
     public async Task Con_el_modo_del_fichero_a_cero_avisa_y_al_devolver_el_permiso_deja_de_avisar()
     {
         // La propiedad que motivó el chequeo, contra el sistema de ficheros REAL: un PEM sin permiso de
         // lectura para el proceso. Solo tiene sentido en Unix y sin ser root (root ignora los bits de
-        // modo): en Windows o como root el caso no aplica y la prueba termina sin afirmar nada — la
-        // cobertura real de este caso la da el CI en Linux.
-        if (OperatingSystem.IsWindows() || Environment.UserName == "root")
-            return;
-
+        // modo). Donde no aplica, el atributo lo SALTA con el motivo en la salida («Skipped»): un
+        // «Passed» de este caso significa que afirmó, no que retornó sin observar nada.
         var cert = Path.Combine(_dir, "cert.pem");
         var clave = Path.Combine(_dir, "clave.pem");
         File.WriteAllText(cert, "x");
@@ -232,5 +229,21 @@ public sealed class Microsoft365LegibilidadDelCertificadoTests : IDisposable
             LogLevel logLevel, EventId eventId, TState state, Exception? exception,
             Func<TState, Exception?, string> formatter) =>
             Entradas.Add((logLevel, formatter(state, exception) + (exception is null ? string.Empty : " " + exception)));
+    }
+}
+
+/// <summary>
+/// <see cref="FactAttribute"/> que se salta a sí mismo, DECLARÁNDOLO, donde los bits de modo de un
+/// fichero no impiden leerlo: en Windows no existen y como root se ignoran. Así un «Passed» solo
+/// ocurre cuando la prueba de verdad ejerció el permiso, y un «Skipped» dice por qué no lo hizo.
+/// </summary>
+public sealed class FactSiElSistemaDeFicherosHonraLosModosAttribute : FactAttribute
+{
+    public FactSiElSistemaDeFicherosHonraLosModosAttribute()
+    {
+        if (OperatingSystem.IsWindows())
+            Skip = "Windows no tiene bits de modo Unix: el caso chmod 000 solo se ejerce en Linux (CI).";
+        else if (Environment.UserName == "root")
+            Skip = "El usuario es root: root ignora los bits de modo, así que un fichero 000 seguiría siendo legible.";
     }
 }
