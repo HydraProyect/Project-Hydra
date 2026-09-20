@@ -12,7 +12,6 @@ using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelecto
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Incidencias;
 using CaeManager.Web.Components.DesignSystem;
-using CaeManager.Web.Components.EstadoPersistido;
 using CaeManager.Web.Components.Workspace;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
@@ -20,18 +19,14 @@ using Microsoft.AspNetCore.Components.QuickGrid;
 
 namespace CaeManager.Web.Features.Incidencias.Pages;
 
-public partial class Incidencias : ComponentBase, IDisposable
+public partial class Incidencias : ComponentBase
 {
     private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
 
     // H2 (docs/ux-audit/02-clientes.md): paginador único en español, ver Clientes.razor.cs.
     private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_paginacion.ItemsPerPage));
 
-    private Task CambiarPaginaAsync(int pagina)
-    {
-        _recogidaCerrada = true;
-        return _paginacion.SetCurrentPageIndexAsync(pagina - 1);
-    }
+    private Task CambiarPaginaAsync(int pagina) => _paginacion.SetCurrentPageIndexAsync(pagina - 1);
 
     // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
     // Una sola petición: SetCurrentPageIndexAsync ya avisa a QuickGrid aunque la
@@ -39,7 +34,6 @@ public partial class Incidencias : ComponentBase, IDisposable
     // veces (ver RecargarAsync).
     private Task CambiarTamanoPaginaAsync(int tamano)
     {
-        _recogidaCerrada = true;
         _paginacion.ItemsPerPage = tamano;
         return _paginacion.SetCurrentPageIndexAsync(0);
     }
@@ -192,43 +186,8 @@ public partial class Incidencias : ComponentBase, IDisposable
     [SupplyParameterFromQuery(Name = "estado")]
     public string? EstadoInicial { get; set; }
 
-    [Inject] private FabricaEstadoDePantallaPersistido FabricaEstadoPersistido { get; set; } = default!;
-
-    /// <summary>
-    /// Lo que el prerender deja al circuito para que este no repita la
-    /// consulta de la primera página (ver <see cref="EstadoDePantallaPersistido{T}"/>).
-    /// Solo lo que la pantalla ya enseña.
-    /// </summary>
-    private sealed record InstantaneaIncidencias(int TotalElementos, List<IncidenciaListaDto> Elementos);
-
-    private EstadoDePantallaPersistido<InstantaneaIncidencias>? _estadoPersistido;
-
-    /// <summary>
-    /// Lo que dejó el prerender, pedido en la PRIMERA llamada del proveedor, y
-    /// la huella de esa llamada. QuickGrid llama al proveedor más de una vez
-    /// para la misma página (al fijar el total de elementos vuelve a
-    /// pedirla), y esas llamadas se responden con la misma instantánea. En
-    /// cuanto se ejecuta una consulta de verdad, o el usuario actúa (filtro,
-    /// página, tamaño, recarga tras guardar), se cierra
-    /// (<see cref="_recogidaCerrada"/>) y todo lo posterior pregunta a la
-    /// base: una acción del usuario nunca se contesta con estado persistido.
-    /// </summary>
-    private Task<InstantaneaIncidencias?>? _recogida;
-    private string? _huellaRecogida;
-    private bool _recogidaCerrada;
-
-    private static string HuellaConsulta(
-        string busqueda, string estado, int inicio, int tamanoPagina, string? ordenarPor, bool descendente) =>
-        $"b={busqueda}|e={estado}|i={inicio}|n={tamanoPagina}|o={ordenarPor}|d={descendente}";
-
-    public void Dispose() => _estadoPersistido?.Dispose();
-
     // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
-    protected override void OnInitialized()
-    {
-        _proveedorElementos = ProveerElementosAsync;
-        _estadoPersistido = FabricaEstadoPersistido.Crear<InstantaneaIncidencias>("incidencias");
-    }
+    protected override void OnInitialized() => _proveedorElementos = ProveerElementosAsync;
 
     /// <summary>La URL es la fuente de verdad del filtro (P1-18) — ver el resto de listados.</summary>
     protected override void OnParametersSet()
@@ -261,40 +220,6 @@ public partial class Incidencias : ComponentBase, IDisposable
 
             var (ordenarPor, descendente) = LecturaOrden.Leer(request);
 
-            var huellaConsulta = HuellaConsulta(
-                _busqueda, _estadoFiltro, request.StartIndex, _paginacion.ItemsPerPage, ordenarPor, descendente);
-
-            if (!_recogidaCerrada)
-            {
-                if (_recogida is null)
-                {
-                    _huellaRecogida = huellaConsulta;
-                    _recogida = _estadoPersistido!.TomarAsync(huellaConsulta);
-                }
-
-                var recogida = await _recogida;
-                if (recogida is not null && _huellaRecogida == huellaConsulta && !_recogidaCerrada
-                    && generacion == _generacionCarga)
-                {
-                    _totalElementos = recogida.TotalElementos;
-                    _elementosPagina = recogida.Elementos;
-                    _seleccionados.Clear();
-                    _idEnfocado = null;
-                    return GridItemsProviderResult.From(recogida.Elementos, recogida.TotalElementos);
-                }
-            }
-
-            // Desde aquí la pantalla ya no responde con lo que dejó el
-            // prerender: lo que se pide ahora es una pregunta nueva.
-            _recogidaCerrada = true;
-
-            // Lo anotado de la consulta anterior ya no vale (si esta falla, la
-            // pantalla enseña el error y no debe persistirse la lista vieja), y
-            // la huella de sesión de ESTA consulta se fija antes de preguntar.
-            var persistencia = _estadoPersistido is null
-                ? default
-                : await _estadoPersistido.EmpezarConsultaAsync(sePersiste: !RendererInfo.IsInteractive);
-
             // La consulta se construye con los filtros de ESTE instante: si
             // cambian mientras llega la respuesta, lo que se descarta es la
             // respuesta, no se reinterpreta con los filtros nuevos.
@@ -316,8 +241,6 @@ public partial class Incidencias : ComponentBase, IDisposable
             _elementosPagina = elementos;
             _seleccionados.Clear();
             _idEnfocado = null;
-            if (_estadoPersistido is not null)
-                await _estadoPersistido.GuardarAsync(persistencia, huellaConsulta, new InstantaneaIncidencias(_totalElementos, [.. elementos]));
 
             return GridItemsProviderResult.From(elementos, resultado.TotalElementos);
         }
@@ -374,7 +297,6 @@ public partial class Incidencias : ComponentBase, IDisposable
     /// </summary>
     private async Task RecargarAsync()
     {
-        _recogidaCerrada = true;
         if (_grid is not null && _paginacion.CurrentPageIndex == 0)
             await _grid.RefreshDataAsync();
         else
@@ -390,7 +312,6 @@ public partial class Incidencias : ComponentBase, IDisposable
     /// </summary>
     private async Task ReintentarAsync()
     {
-        _recogidaCerrada = true;
         _errorCarga = false;
         _cargando = true;
         _elementosPagina = [];

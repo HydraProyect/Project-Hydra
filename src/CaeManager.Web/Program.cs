@@ -219,7 +219,6 @@ builder.Services.AddScoped<IClienteActivoSeleccionado, CaeManager.Web.Services.C
 builder.Services.AddScoped<CaeManager.Application.Tenants.IVistaVocabularioPreviewService, CaeManager.Web.Services.VistaVocabularioPreviewCookie>();
 builder.Services.AddScoped<CaeManager.Web.Services.TemaCookie>();
 builder.Services.AddScoped<ITenantActual, CaeManager.Web.Services.TenantActual>();
-CaeManager.Web.Components.EstadoPersistido.EstadoPersistidoServiceCollectionExtensions.AddEstadoDePantallaPersistido(builder.Services);
 // Scoped: cachea por circuito si la sesión es de soporte, para que registrar
 // una interacción no cueste una consulta (ver TrazaSoporteService).
 builder.Services.AddScoped<CaeManager.Web.Services.TrazaSoporteService>();

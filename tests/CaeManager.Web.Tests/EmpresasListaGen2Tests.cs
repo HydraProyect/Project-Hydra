@@ -139,7 +139,6 @@ public class EmpresasListaGen2Tests : BunitContext
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
         Services.AddScoped<IValidator<CrearEmpresaCommand>>(_ => new InlineValidator<CrearEmpresaCommand>());
-        this.AddEstadoDePantallaPersistidoParaPruebas(); // el último: fija el modo de renderizado y cierra los registros
     }
 
     /// <param name="url">Ruta relativa con la que se abre la página: los filtros son [SupplyParameterFromQuery].</param>

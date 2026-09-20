@@ -80,7 +80,6 @@ public class SeleccionarTodosDiceQueEsLaPaginaTests : BunitContext
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
         Services.AddScoped<IValidator<CrearEmpresaCommand>>(_ => new InlineValidator<CrearEmpresaCommand>());
-        this.AddEstadoDePantallaPersistidoParaPruebas(); // el último: fija el modo de renderizado y cierra los registros
 
         var cut = Render<Empresas>();
 

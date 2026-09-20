@@ -11,7 +11,6 @@ using CaeManager.Domain.Tenants;
 using CaeManager.Web.Components;
 using CaeManager.Web.Features.Documentos;
 using CaeManager.Web.Components.DesignSystem;
-using CaeManager.Web.Components.EstadoPersistido;
 using CaeManager.Web.Components.Workspace;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
@@ -145,21 +144,7 @@ public partial class Empresas : ComponentBase, IDisposable
     public string? EstadoInicial { get; set; }
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
-    [Inject] private FabricaEstadoDePantallaPersistido FabricaEstadoPersistido { get; set; } = default!;
     [Inject] private IValidator<CrearEmpresaCommand> ValidadorCrear { get; set; } = default!;
-
-    /// <summary>
-    /// Lo que el prerender deja al circuito para que este no repita las
-    /// consultas de la pantalla (ver <see cref="EstadoDePantallaPersistido{T}"/>).
-    /// Solo lo que la pantalla ya enseña.
-    /// </summary>
-    private sealed record InstantaneaEmpresas(
-        string TituloPagina, int TotalElementos, List<EmpresaListaDto> Elementos);
-
-    private EstadoDePantallaPersistido<InstantaneaEmpresas>? _estadoPersistido;
-
-    private static string HuellaConsulta(string busqueda, string estado, int pagina, int tamanoPagina) =>
-        $"b={busqueda}|e={estado}|p={pagina}|n={tamanoPagina}";
 
     /// <summary>
     /// Acción pedida por URL: <c>crear</c> (palette "Crear empresa «nombre»",
@@ -189,17 +174,6 @@ public partial class Empresas : ComponentBase, IDisposable
     {
         _busqueda = TerminoBusquedaInicial ?? string.Empty;
         _estadoFiltro = EstadoDesdeUrl();
-
-        _estadoPersistido = FabricaEstadoPersistido.Crear<InstantaneaEmpresas>("empresas");
-        var recogida = await _estadoPersistido.TomarAsync(HuellaConsulta(_busqueda, _estadoFiltro, _pagina, _tamanoPagina));
-        if (recogida is not null)
-        {
-            _tituloPagina = recogida.TituloPagina;
-            _totalElementos = recogida.TotalElementos;
-            _elementosPagina = recogida.Elementos;
-            _cargando = false;
-            return;
-        }
 
         var perfil = await Mediator.Send(new ObtenerPerfilVocabularioActualQuery());
         _tituloPagina = perfil == PerfilVocabularioTenant.ClienteDirecto ? "Mi empresa" : "Empresas";
@@ -279,7 +253,6 @@ public partial class Empresas : ComponentBase, IDisposable
             return;
 
         _desechado = true;
-        _estadoPersistido?.Dispose();
         _ciclo.Cancel();
         _ciclo.Dispose();
     }
@@ -303,15 +276,6 @@ public partial class Empresas : ComponentBase, IDisposable
             TamanoPagina: _tamanoPagina,
             EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro);
 
-        var huellaConsulta = HuellaConsulta(_busqueda, _estadoFiltro, _pagina, _tamanoPagina);
-
-        // Lo anotado de la carga anterior ya no vale (si esta falla, la pantalla
-        // enseña el error y no debe persistirse la lista vieja), y la huella
-        // de sesión de ESTA consulta se fija antes de preguntar.
-        var persistencia = _estadoPersistido is null
-            ? default
-            : await _estadoPersistido.EmpezarConsultaAsync(sePersiste: !RendererInfo.IsInteractive);
-
         _cargando = true;
         _errorCarga = false;
         StateHasChanged();
@@ -329,13 +293,6 @@ public partial class Empresas : ComponentBase, IDisposable
             _clientesPorEmpresa.Clear();
             _clientesConError.Clear();
             _idEnfocado = null;
-
-            // Al final, con la pantalla ya en su estado nuevo: cede el turno
-            // (vuelve a resolver la huella de sesión) y no debe dejar a medias
-            // lo que se pinta.
-            if (_estadoPersistido is not null)
-                await _estadoPersistido.GuardarAsync(
-                    persistencia, huellaConsulta, new InstantaneaEmpresas(_tituloPagina, _totalElementos, [.. _elementosPagina]));
         }
         catch (Exception) when (!EsVigente(carga))
         {

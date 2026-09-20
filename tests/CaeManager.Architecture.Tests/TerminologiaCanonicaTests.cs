@@ -221,25 +221,13 @@ public class TerminologiaCanonicaTests
     /// suman. Medido con este mismo test sobre el árbol ya rebasado sobre la
     /// entrada de Subcontrata 360: 53.
     /// </para>
-    ///
-    /// <para>
-    /// <b><c>ClienteActivo</c> 68 → 69 (estado persistido de pantalla,
-    /// 2026-09-20).</b> <c>HuellaDeSesion</c> (<c>Components/EstadoPersistido</c>)
-    /// nombra <c>IClienteActivoSeleccionado</c> una vez, como tipo de un
-    /// parámetro: es la única fuente de la autorización de operación y de la
-    /// sesión privilegiada con las que se abrió el workspace, dos coordenadas
-    /// de las que depende lo que la lista enseña. <b>No es un identificador
-    /// nuevo del término</b> (la interfaz ya existía y este código solo la lee):
-    /// no hay canónico al que apuntar sin renombrar la interfaz, que el
-    /// contrato prohíbe hacer de paso. Neto <b>+1</b>.
-    /// </para>
     /// </summary>
     private static readonly Dictionary<string, int> Congelado = new()
     {
         ["Hydra"] = 49,
         ["EjecutivoUsuarioId"] = 48,
         ["Delegacion"] = 289,
-        ["ClienteActivo"] = 69,
+        ["ClienteActivo"] = 68,
     };
 
     [Theory]

@@ -10,14 +10,13 @@ using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Tenants;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
-using CaeManager.Web.Components.EstadoPersistido;
 using CaeManager.Web.Components.Workspace;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
 
 namespace CaeManager.Web.Features.Subcontratas.Pages;
 
-public partial class Subcontratas : ComponentBase, IDisposable
+public partial class Subcontratas : ComponentBase
 {
     // Igual que Centros.razor.cs (Centro 360): QuickGrid no soporta filas
     // expandibles, así que la paginación se gestiona a mano — la Query sigue
@@ -102,38 +101,11 @@ public partial class Subcontratas : ComponentBase, IDisposable
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private IValidator<CrearSubcontrataCommand> ValidadorCrear { get; set; } = default!;
-    [Inject] private FabricaEstadoDePantallaPersistido FabricaEstadoPersistido { get; set; } = default!;
-
-    /// <summary>
-    /// Lo que el prerender deja al circuito para que este no repita la
-    /// consulta de la lista (ver <see cref="EstadoDePantallaPersistido{T}"/>).
-    /// Solo lo que la pantalla ya enseña.
-    /// </summary>
-    private sealed record InstantaneaSubcontratas(int TotalElementos, List<SubcontrataListaDto> Elementos);
-
-    private EstadoDePantallaPersistido<InstantaneaSubcontratas>? _estadoPersistido;
-
-    private static string HuellaConsulta(string busqueda, int pagina, int tamanoPagina) =>
-        $"b={busqueda}|p={pagina}|n={tamanoPagina}";
-
-    public void Dispose() => _estadoPersistido?.Dispose();
 
     protected override async Task OnInitializedAsync()
     {
         _busqueda = TerminoBusquedaInicial ?? string.Empty;
-
-        _estadoPersistido = FabricaEstadoPersistido.Crear<InstantaneaSubcontratas>("subcontratas");
-        var recogida = await _estadoPersistido.TomarAsync(HuellaConsulta(_busqueda, _pagina, _tamanoPagina));
-        if (recogida is not null)
-        {
-            _totalElementos = recogida.TotalElementos;
-            _elementosPagina = recogida.Elementos;
-            _cargando = false;
-        }
-        else
-        {
-            await CargarAsync();
-        }
+        await CargarAsync();
 
         if (Accion == "crear")
             await AbrirCrear();
@@ -154,15 +126,6 @@ public partial class Subcontratas : ComponentBase, IDisposable
     {
         if (resetPagina)
             _pagina = 1;
-
-        var huellaConsulta = HuellaConsulta(_busqueda, _pagina, _tamanoPagina);
-
-        // Lo anotado de la carga anterior ya no vale (si esta falla, la pantalla
-        // enseña el error y no debe persistirse la lista vieja), y la huella
-        // de sesión de ESTA consulta se fija antes de preguntar.
-        var persistencia = _estadoPersistido is null
-            ? default
-            : await _estadoPersistido.EmpezarConsultaAsync(sePersiste: !RendererInfo.IsInteractive);
 
         _cargando = true;
         _errorCarga = false;
@@ -186,13 +149,6 @@ public partial class Subcontratas : ComponentBase, IDisposable
             // tiene nada cierto que enseñar y se cierra.
             if (FilaEnVistaPrevia is null)
                 _previewVisible = false;
-
-            // Al final, con la pantalla ya en su estado nuevo: cede el turno
-            // (vuelve a resolver la huella de sesión) y no debe dejar a medias
-            // lo que se pinta.
-            if (_estadoPersistido is not null)
-                await _estadoPersistido.GuardarAsync(
-                    persistencia, huellaConsulta, new InstantaneaSubcontratas(_totalElementos, [.. _elementosPagina]));
         }
         catch (Exception)
         {
@@ -227,11 +183,6 @@ public partial class Subcontratas : ComponentBase, IDisposable
     {
         var resultado = await Mediator.Send(new ObtenerSubcontratasQuery(Busqueda: null, SubcontrataId: subcontrataId));
         var actualizada = resultado.Elementos.FirstOrDefault();
-
-        // Cualquier refresco de una fila —también el que la encuentra
-        // desaparecida— deja la pantalla distinta de lo que anotó la carga:
-        // lo anotado tendría la fila anterior.
-        _estadoPersistido?.Descartar();
         if (actualizada is null) return;
 
         var indice = _elementosPagina.FindIndex(s => s.Id == subcontrataId);
