@@ -45,7 +45,11 @@ namespace CaeManager.Web.Tests;
 public class ReclamacionesTabTests : BunitContext
 {
     /// <summary>La pestaña monta ModalContactoAgenda (Modal con JS interop para el foco), aunque Visible empiece en false.</summary>
-    public ReclamacionesTabTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public ReclamacionesTabTests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.ConRolDeEscritura();
+    }
 
     // ---------------------------------------------------------------- dobles
 

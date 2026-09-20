@@ -15,7 +15,7 @@ namespace CaeManager.Architecture.Tests;
 /// <para>
 /// <b>Contrato efectivo, más estrecho que el nombre.</b> Solo mira, sobre el
 /// fuente Razor, los disparadores de <i>creación y respuesta principales</i>:
-/// <c>&lt;Boton&gt;</c> con «+ Nuevo/Nueva …», «Redactar», «Resolver», «Reabrir»
+/// <c>&lt;Boton&gt;</c> (aunque su etiqueta caiga en otra línea) con «+ Nuevo/Nueva …», «Redactar», «Resolver», «Reabrir», «Enviar reclamación»
 /// y «Añadir contacto». NO cubre los ítems de menú de fila (Editar, Eliminar),
 /// ni formularios ni checkboxes de selección múltiple, ni ningún botón con otro
 /// texto: es una alarma sobre la familia que se midió, no una garantía sobre
@@ -25,8 +25,14 @@ namespace CaeManager.Architecture.Tests;
 /// </summary>
 public class DisparadoresDeEscrituraSoloParaRolesConEscrituraTests
 {
+    // Un <Boton> entero, aunque su etiqueta caiga en otra línea que el atributo OnClick; el
+    // aserto negativo impide que un <Boton .../> autocerrado se trague al siguiente.
+    private static readonly Regex ElementoBoton = new(
+        @"<Boton\b(?:(?!<Boton\b)[\s\S])*?</Boton>",
+        RegexOptions.Compiled);
+
     private static readonly Regex Disparador = new(
-        @"<Boton\b[^\n]*(\+ Nuev[oa]\b|>\s*Redactar\s*<|>\s*Resolver\s*<|>\s*Reabrir\s*<|Añadir contacto</Boton>)",
+        @"\+ Nuev[oa]\b|>\s*(Redactar|Resolver|Reabrir|Añadir contacto|Enviar reclamación[^<]*)\s*</Boton>$",
         RegexOptions.Compiled);
 
     [Fact]
@@ -58,14 +64,23 @@ public class DisparadoresDeEscrituraSoloParaRolesConEscrituraTests
             "       <Boton OnClick=\"C\">Resolver</Boton>\n" +
             "   }\n" +
             "</SoloConEscritura>\n" +
-            "<Boton OnClick=\"D\">Redactar</Boton>\n";
+            "<Boton OnClick=\"D\">Redactar</Boton>\n" +
+            "<Boton OnClick=\"E\"\n" +
+            "       Tamano=\"P\">\n" +
+            "    Añadir contacto\n" +
+            "</Boton>\n" +
+            "<SoloConEscritura><Boton OnClick=\"F\"\n" +
+            "    Tamano=\"P\">\n" +
+            "    Añadir contacto\n" +
+            "</Boton></SoloConEscritura>\n";
 
         var (sitios, sinEnvolver) = Medir([("fuente-falsa.razor", fuente)]);
 
-        sitios.Should().Be(4);
+        sitios.Should().Be(6);
         sinEnvolver.Should().BeEquivalentTo(
             "fuente-falsa.razor:1 <Boton OnClick=\"A\">+ Nuevo cliente</Boton>",
-            "fuente-falsa.razor:9 <Boton OnClick=\"D\">Redactar</Boton>");
+            "fuente-falsa.razor:9 <Boton OnClick=\"D\">Redactar</Boton>",
+            "fuente-falsa.razor:10 <Boton OnClick=\"E\" Tamano=\"P\"> Añadir contacto </Boton>");
     }
 
     private static (int Sitios, List<string> SinEnvolver) Medir(IEnumerable<(string Ruta, string Contenido)> ficheros)
@@ -75,26 +90,20 @@ public class DisparadoresDeEscrituraSoloParaRolesConEscrituraTests
 
         foreach (var (ruta, contenido) in ficheros)
         {
-            var lineas = contenido.Split('\n');
-            var profundidad = 0;
-
-            for (var i = 0; i < lineas.Length; i++)
+            foreach (Match boton in ElementoBoton.Matches(contenido))
             {
-                var linea = lineas[i];
-                var abiertasAntes = profundidad;
-                profundidad += Regex.Matches(linea, "<SoloConEscritura>").Count
-                               - Regex.Matches(linea, "</SoloConEscritura>").Count;
-
-                if (!Disparador.IsMatch(linea)) continue;
+                if (!Disparador.IsMatch(boton.Value)) continue;
                 sitios++;
 
-                // Envuelto si hay un <SoloConEscritura> abierto al empezar la línea, o
-                // se abre en ella misma antes del botón.
-                var posicionBoton = linea.IndexOf("<Boton", StringComparison.Ordinal);
-                var envueltoEnLaLinea = linea[..posicionBoton].Contains("<SoloConEscritura>", StringComparison.Ordinal);
-                if (abiertasAntes > 0 || envueltoEnLaLinea) continue;
+                // Envuelto si al empezar el botón hay más <SoloConEscritura> abiertos que cerrados.
+                var antes = contenido[..boton.Index];
+                var abiertos = Regex.Matches(antes, "<SoloConEscritura>").Count
+                               - Regex.Matches(antes, "</SoloConEscritura>").Count;
+                if (abiertos > 0) continue;
 
-                sinEnvolver.Add($"{Path.GetFileName(ruta)}:{i + 1} {linea.Trim().TrimEnd('\r')}");
+                var linea = antes.Count(c => c == '\n') + 1;
+                var resumen = Regex.Replace(boton.Value, @"\s+", " ").Trim();
+                sinEnvolver.Add($"{Path.GetFileName(ruta)}:{linea} {resumen}");
             }
         }
 

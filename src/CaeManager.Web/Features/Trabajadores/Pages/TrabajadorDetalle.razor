@@ -75,7 +75,7 @@
                 </div>
             </div>
             <div class="trabajador360-acciones">
-                <Boton Deshabilitado="DocumentoMasUrgente is null" OnClick="SubirDocumentoMasUrgenteAsync">Subir documento</Boton>
+                <SoloConEscritura><Boton Deshabilitado="DocumentoMasUrgente is null" OnClick="SubirDocumentoMasUrgenteAsync">Subir documento</Boton></SoloConEscritura>
                 <MenuAcciones>
                     <SoloConEscritura><ItemMenuAccion OnClick="AbrirInformacion">Editar</ItemMenuAccion></SoloConEscritura>
                     <SoloConEscritura><ItemMenuAccion OnClick="ReclamarFaltantesAsync">Reclamar faltantes</ItemMenuAccion></SoloConEscritura>
