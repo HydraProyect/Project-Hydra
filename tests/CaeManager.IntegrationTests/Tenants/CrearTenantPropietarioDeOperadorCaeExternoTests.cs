@@ -1,0 +1,285 @@
+using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Commands.CrearTenantPropietarioDeOperadorCaeExterno;
+using CaeManager.Application.Tenants.Queries.ObtenerOperadoresCaeExternos;
+using CaeManager.Domain.Operaciones;
+using CaeManager.Domain.Plataforma;
+using CaeManager.Domain.Tenants;
+using CaeManager.Infrastructure.Auditing;
+using CaeManager.Infrastructure.MultiTenancy;
+using CaeManager.Infrastructure.Operaciones;
+using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Persistence.Repositories;
+using CaeManager.Infrastructure.Plataforma;
+using FluentAssertions;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.EntityFrameworkCore;
+using Xunit;
+
+namespace CaeManager.IntegrationTests.Tenants;
+
+/// <summary>
+/// Alta, por el Actor de Plataforma TALVEG, de un Tenant propietario nuevo bajo un
+/// Operador CAE externo ya existente. Contra Postgres real, con el mismo montaje que
+/// <see cref="CrearOperadorCaeExternoTests"/> y <see cref="CrearClienteDeleganteTests"/>,
+/// más el <see cref="AuditoriaInterceptor"/> real: la propiedad crítica es que la
+/// delegación cuelga del OPERADOR nombrado y no del tenant de origen de quien ejecuta
+/// (TALVEG nunca pasa a figurar como Operador CAE), y que el Actor real queda en la traza.
+/// </summary>
+public class CrearTenantPropietarioDeOperadorCaeExternoTests : IAsyncLifetime
+{
+    private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
+    private readonly ITenantActual _tenantActual = new TenantActualDesdeAmbitoExplicito();
+    private Guid _actorReal = Guid.Empty;
+
+    public async Task InitializeAsync()
+    {
+        await using var dbContext = CrearContexto();
+        await dbContext.Database.MigrateAsync();
+    }
+
+    public async Task DisposeAsync() =>
+        await BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
+
+    private CaeManagerDbContext CrearContexto()
+    {
+        var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
+            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            .AddInterceptors(
+                new TenantSelladoInterceptor(_tenantActual),
+                new AuditoriaInterceptor(new ActorAuditoriaFalso(() => _actorReal)))
+            .Options;
+
+        return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), _tenantActual);
+    }
+
+    private static async Task SembrarAdminPlataformaGlobalAsync(CaeManagerDbContext contexto, Guid usuarioId)
+    {
+        contexto.ConcesionesPrivilegio.Add(ConcesionPrivilegio.Global(
+            usuarioId, vigenciaDesde: DateTime.UtcNow.AddMinutes(-5), vigenciaHasta: null));
+        await contexto.SaveChangesAsync();
+    }
+
+    private static async Task<Guid> SembrarTenantAsync(
+        CaeManagerDbContext contexto, PerfilVocabularioTenant perfil, string prefijo)
+    {
+        var tenant = new Tenant($"{prefijo} {Guid.NewGuid():N}", perfil);
+        contexto.Tenants.Add(tenant);
+        await contexto.SaveChangesAsync();
+        return tenant.Id;
+    }
+
+    private CrearTenantPropietarioDeOperadorCaeExternoCommandHandler CrearHandler(
+        CaeManagerDbContext contexto, Guid? usuarioId) =>
+        new(
+            new TenantRepository(contexto),
+            contexto,
+            new DelegacionTenantRepository(contexto),
+            new ParametroSistemaRepository(contexto),
+            new AutorizacionAdminPlataformaPorConcesion(contexto),
+            new CurrentUserServiceFalso(usuarioId),
+            new AsignacionesOperativasWriter(contexto, _tenantActual, new CurrentUserServiceFalso(usuarioId)),
+            contexto);
+
+    [Fact]
+    public async Task El_administrador_de_plataforma_crea_un_tenant_propietario_operado_por_el_operador_nombrado()
+    {
+        await using var contexto = CrearContexto();
+        var admin = Guid.NewGuid();
+        _actorReal = admin;
+        await SembrarAdminPlataformaGlobalAsync(contexto, admin);
+        var operadorId = await SembrarTenantAsync(contexto, PerfilVocabularioTenant.Consultora, "ArcoSPA");
+
+        var resultado = await CrearHandler(contexto, admin).Handle(
+            new CrearTenantPropietarioDeOperadorCaeExternoCommand(operadorId, $" Refrielectric {Guid.NewGuid():N} "),
+            CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        var propietarioId = resultado.Valor;
+
+        var propietario = await contexto.Tenants.SingleAsync(t => t.Id == propietarioId);
+        propietario.PerfilVocabulario.Should().Be(PerfilVocabularioTenant.ClienteDirecto);
+        propietario.EsPlataforma.Should().BeFalse();
+        propietario.Nombre.Should().Be(propietario.Nombre.Trim());
+
+        var delegaciones = await contexto.DelegacionesTenant.Where(d => d.TenantClienteId == propietarioId).ToListAsync();
+        var delegacion = delegaciones.Should().ContainSingle().Subject;
+        delegacion.TenantConsultoraId.Should().Be(operadorId, "el Operador CAE lo nombra el comando, no sale del tenant de origen del ejecutor");
+        delegacion.Activa.Should().BeTrue();
+        delegacion.Proposito.Should().Be(PropositoDelegacion.OperadorExterno);
+
+        // TALVEG (el Tenant de plataforma) no figura como Operador de nada.
+        var plataformaId = (await contexto.Tenants.SingleAsync(t => t.EsPlataforma)).Id;
+        (await contexto.DelegacionesTenant.AnyAsync(d => d.TenantConsultoraId == plataformaId && d.TenantClienteId == propietarioId))
+            .Should().BeFalse();
+
+        // No se asigna a nadie como Gestor CAE: el Actor de Plataforma nunca es Gestor ni Operador.
+        (await contexto.AsignacionesOperadorDelegado.AnyAsync(a => a.DelegacionTenantId == delegacion.Id))
+            .Should().BeFalse();
+
+        // Operación raíz propia y operación delegada Operador → Tenant propietario.
+        (await contexto.AsignacionesOperacion.AnyAsync(o => o.EsRaiz && o.PropietarioTenantId == propietarioId))
+            .Should().BeTrue();
+        (await contexto.AsignacionesOperacion.AnyAsync(
+                o => !o.EsRaiz && o.PropietarioTenantId == propietarioId && o.OperadorTenantId == operadorId))
+            .Should().BeTrue();
+
+        (await contexto.ParametrosSistema.IgnoreQueryFilters().AnyAsync(p => p.TenantId == propietarioId))
+            .Should().BeTrue();
+
+        // Auditoría: el alta del Tenant y de su delegación llevan el Actor real.
+        var registros = await contexto.RegistrosAuditoria.IgnoreQueryFilters()
+            .Where(r => r.EntidadId == propietarioId || r.EntidadId == delegacion.Id)
+            .ToListAsync();
+        registros.Should().Contain(r => r.EntidadTipo == nameof(Tenant) && r.ActorRealUsuarioId == admin);
+        registros.Should().Contain(r => r.EntidadTipo == nameof(DelegacionTenant) && r.ActorRealUsuarioId == admin);
+    }
+
+    [Fact]
+    public async Task Rechaza_sin_concesion_de_administrador_de_plataforma_y_no_crea_nada()
+    {
+        await using var contexto = CrearContexto();
+        var operadorId = await SembrarTenantAsync(contexto, PerfilVocabularioTenant.Consultora, "ArcoSPA");
+        var tenantsAntes = await contexto.Tenants.CountAsync();
+
+        var resultado = await CrearHandler(contexto, Guid.NewGuid()).Handle(
+            new CrearTenantPropietarioDeOperadorCaeExternoCommand(operadorId, "Rechazado"), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("TenantPropietarioDeOperador.SinPermiso");
+        (await contexto.Tenants.CountAsync()).Should().Be(tenantsAntes);
+        (await contexto.DelegacionesTenant.AnyAsync()).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Una_concesion_acotada_a_tenants_no_basta_porque_el_alcance_es_global()
+    {
+        await using var contexto = CrearContexto();
+        var admin = Guid.NewGuid();
+        var operadorId = await SembrarTenantAsync(contexto, PerfilVocabularioTenant.Consultora, "ArcoSPA");
+        contexto.ConcesionesPrivilegio.Add(ConcesionPrivilegio.SobreTenants(
+            admin, CapacidadPrivilegio.AdminPlataforma, [operadorId],
+            vigenciaDesde: DateTime.UtcNow.AddMinutes(-5), vigenciaHasta: null));
+        await contexto.SaveChangesAsync();
+
+        var resultado = await CrearHandler(contexto, admin).Handle(
+            new CrearTenantPropietarioDeOperadorCaeExternoCommand(operadorId, "Acotado"), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("TenantPropietarioDeOperador.SinPermiso");
+    }
+
+    [Fact]
+    public async Task Rechaza_un_operador_que_es_el_tenant_de_plataforma()
+    {
+        await using var contexto = CrearContexto();
+        var admin = Guid.NewGuid();
+        await SembrarAdminPlataformaGlobalAsync(contexto, admin);
+        var plataforma = await contexto.Tenants.SingleAsync(t => t.EsPlataforma);
+        // Con perfil Consultora a propósito: así solo la guarda EsPlataforma puede rechazarlo
+        // (sin esto, la guarda de perfil lo taparía y el test no distinguiría la mutación).
+        plataforma.CambiarPerfilVocabulario(PerfilVocabularioTenant.Consultora);
+        await contexto.SaveChangesAsync();
+        var plataformaId = plataforma.Id;
+
+        var resultado = await CrearHandler(contexto, admin).Handle(
+            new CrearTenantPropietarioDeOperadorCaeExternoCommand(plataformaId, "Bajo TALVEG"), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("TenantPropietarioDeOperador.OperadorNoValido", "TALVEG no es Operador CAE por defecto");
+        (await contexto.DelegacionesTenant.AnyAsync()).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Rechaza_un_tenant_que_no_es_operador_y_un_id_inexistente()
+    {
+        await using var contexto = CrearContexto();
+        var admin = Guid.NewGuid();
+        await SembrarAdminPlataformaGlobalAsync(contexto, admin);
+        var propietarioNoOperadorId = await SembrarTenantAsync(contexto, PerfilVocabularioTenant.ClienteDirecto, "Refrielectric");
+        var handler = CrearHandler(contexto, admin);
+
+        var comoOperador = await handler.Handle(
+            new CrearTenantPropietarioDeOperadorCaeExternoCommand(propietarioNoOperadorId, "Bajo un cliente"), CancellationToken.None);
+        var inexistente = await handler.Handle(
+            new CrearTenantPropietarioDeOperadorCaeExternoCommand(Guid.NewGuid(), "Bajo nadie"), CancellationToken.None);
+
+        comoOperador.Error.Codigo.Should().Be("TenantPropietarioDeOperador.OperadorNoValido");
+        inexistente.Error.Codigo.Should().Be("TenantPropietarioDeOperador.OperadorNoValido");
+        (await contexto.DelegacionesTenant.AnyAsync()).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Rechaza_un_nombre_duplicado_aunque_difiera_en_espacios()
+    {
+        await using var contexto = CrearContexto();
+        var admin = Guid.NewGuid();
+        await SembrarAdminPlataformaGlobalAsync(contexto, admin);
+        var operadorId = await SembrarTenantAsync(contexto, PerfilVocabularioTenant.Consultora, "ArcoSPA");
+        var nombre = $"Laboratorios Dexter {Guid.NewGuid():N}";
+        contexto.Tenants.Add(new Tenant(nombre));
+        await contexto.SaveChangesAsync();
+
+        var resultado = await CrearHandler(contexto, admin).Handle(
+            new CrearTenantPropietarioDeOperadorCaeExternoCommand(operadorId, $"  {nombre}  "), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("TenantPropietarioDeOperador.NombreDuplicado");
+    }
+
+    [Fact]
+    public async Task La_consulta_lista_operadores_con_sus_tenants_y_no_cuenta_soporte_ni_revocadas()
+    {
+        await using var contexto = CrearContexto();
+        var admin = Guid.NewGuid();
+        await SembrarAdminPlataformaGlobalAsync(contexto, admin);
+        var operadorId = await SembrarTenantAsync(contexto, PerfilVocabularioTenant.Consultora, "ArcoSPA");
+        var handler = CrearHandler(contexto, admin);
+        var activo = await handler.Handle(
+            new CrearTenantPropietarioDeOperadorCaeExternoCommand(operadorId, $"Activo {Guid.NewGuid():N}"), CancellationToken.None);
+        var revocado = await handler.Handle(
+            new CrearTenantPropietarioDeOperadorCaeExternoCommand(operadorId, $"Revocado {Guid.NewGuid():N}"), CancellationToken.None);
+        var delegacionRevocada = await contexto.DelegacionesTenant.SingleAsync(d => d.TenantClienteId == revocado.Valor);
+        delegacionRevocada.Desactivar();
+        var plataformaId = (await contexto.Tenants.SingleAsync(t => t.EsPlataforma)).Id;
+        contexto.DelegacionesTenant.Add(DelegacionTenant.ParaSoporte(plataformaId, activo.Valor));
+        await contexto.SaveChangesAsync();
+
+        var consulta = new ObtenerOperadoresCaeExternosQueryHandler(
+            contexto, new AutorizacionAdminPlataformaPorConcesion(contexto), new CurrentUserServiceFalso(admin));
+        var operadores = await consulta.Handle(new ObtenerOperadoresCaeExternosQuery(), CancellationToken.None);
+
+        var operador = operadores.Should().ContainSingle(o => o.TenantId == operadorId).Subject;
+        operador.TenantsPropietarios.Select(t => t.TenantId).Should().Equal(activo.Valor);
+        operadores.Should().NotContain(o => o.TenantId == plataformaId, "el Tenant de plataforma no es un Operador CAE");
+    }
+
+    [Fact]
+    public async Task La_consulta_devuelve_vacio_a_quien_no_es_administrador_de_plataforma()
+    {
+        await using var contexto = CrearContexto();
+        await SembrarTenantAsync(contexto, PerfilVocabularioTenant.Consultora, "ArcoSPA");
+
+        var consulta = new ObtenerOperadoresCaeExternosQueryHandler(
+            contexto, new AutorizacionAdminPlataformaPorConcesion(contexto), new CurrentUserServiceFalso(Guid.NewGuid()));
+
+        (await consulta.Handle(new ObtenerOperadoresCaeExternosQuery(), CancellationToken.None)).Should().BeEmpty();
+    }
+
+    private sealed class CurrentUserServiceFalso(Guid? usuarioId) : ICurrentUserService
+    {
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult(usuarioId);
+        public Task<string?> ObtenerRolActualAsync() => Task.FromResult<string?>(null);
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
+    }
+
+    private sealed class ActorAuditoriaFalso(Func<Guid> actorReal) : IActorAuditoria
+    {
+        public Task<ActorAuditoria> ObtenerAsync() => Task.FromResult(ActorAuditoria.Normal(actorReal()));
+        public ActorAuditoria? ObtenerSiYaEstaResuelto() => ActorAuditoria.Normal(actorReal());
+    }
+
+    private sealed class TenantActualDesdeAmbitoExplicito : ITenantActual
+    {
+        public Guid? TenantId => AmbitoTenantExplicito.TenantIdActual;
+    }
+}
