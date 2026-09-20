@@ -103,9 +103,14 @@ public record FronteraDeOrden(
 /// es reversible deshaciendo un registro.
 /// </param>
 /// <param name="RequiereConfirmacion">
-/// Una persona confirma el plan antes de ejecutar. Verdadero en todas las
-/// órdenes de esta versión, incluidas las de solo lectura, para que la regla sea
-/// una sola y su excepción tenga que verse en un diff.
+/// Una persona confirma el plan antes de ejecutar.
+/// <para>
+/// Decisión del propietario del 2026-09-20: un Enter sobre el plan, sin
+/// ejecución directa, tampoco para los pasos sin ambigüedad. Es coherente con
+/// «confirmación humana siempre» (P31/F-04). Se aplica a todas las órdenes,
+/// incluidas las de solo lectura, para que la regla sea una sola y la primera
+/// excepción tenga que verse en un diff.
+/// </para>
 /// </param>
 public record OrdenAsistida(
     string Id,

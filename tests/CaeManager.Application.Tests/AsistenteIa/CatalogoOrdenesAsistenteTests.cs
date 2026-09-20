@@ -179,10 +179,12 @@ public class CatalogoOrdenesAsistenteTests
     }
 
     [Fact]
-    public void Todas_las_ordenes_requieren_confirmacion_humana_en_esta_version()
+    public void Todas_las_ordenes_requieren_confirmacion_humana()
     {
-        // Cuando alguna deje de requerirla, que sea una línea visible en un diff
-        // y no un descuido.
+        // Decisión adoptada por el propietario el 2026-09-20: un Enter sobre el
+        // plan, sin ejecución directa. No es una propiedad de esta versión: es la
+        // regla. Cuando alguna orden deje de requerirla, que sea una línea visible
+        // en un diff y no un descuido.
         CatalogoOrdenesAsistente.Ordenes.Should().OnlyContain(o => o.RequiereConfirmacion);
     }
 
