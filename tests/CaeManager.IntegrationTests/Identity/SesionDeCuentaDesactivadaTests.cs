@@ -76,9 +76,6 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
             .AddSignInManager<SignInManagerCuentaDesactivada>()
             .AddClaimsPrincipalFactory<TenantClaimsPrincipalFactory>();
 
-        // Intervalo mínimo para que el proveedor del circuito complete ciclos en el test.
-        servicios.Configure<SecurityStampValidatorOptions>(o => o.ValidationInterval = TimeSpan.FromSeconds(1));
-
         _servicios = servicios.BuildServiceProvider();
 
         using var ambito = _servicios.CreateScope();
@@ -235,7 +232,7 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
         var proveedor = new ProveedorAutenticacionRevalidada(
             _servicios.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>(),
             _servicios.GetRequiredService<IServiceScopeFactory>(),
-            _servicios.GetRequiredService<IOptions<SecurityStampValidatorOptions>>());
+            IntervaloDeUnSegundo);
         try
         {
             proveedor.SetAuthenticationState(Task.FromResult(new AuthenticationState(principal)));
@@ -276,7 +273,7 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
         var proveedor = new ProveedorAutenticacionRevalidada(
             _servicios.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>(),
             new AmbitosQueSeCancelan(),
-            _servicios.GetRequiredService<IOptions<SecurityStampValidatorOptions>>());
+            IntervaloDeUnSegundo);
         try
         {
             proveedor.SetAuthenticationState(Task.FromResult(new AuthenticationState(principal)));
@@ -303,7 +300,7 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
         var proveedor = new ProveedorAutenticacionRevalidada(
             _servicios.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>(),
             new AmbitosQueSeCancelan(),
-            _servicios.GetRequiredService<IOptions<SecurityStampValidatorOptions>>());
+            IntervaloDeUnSegundo);
         try
         {
             using var ciclo = new CancellationTokenSource();
@@ -314,6 +311,8 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
             var tarea = (Task<bool>)metodo.Invoke(proveedor, [new AuthenticationState(principal), ciclo.Token])!;
 
             var excepcion = await tarea.Invoking(t => t).Should().ThrowAsync<OperationCanceledException>();
+            excepcion.Which.Should().BeOfType<TaskCanceledException>(
+                "RevalidationLoop solo trata como cierre normal una TaskCanceledException; otra cosa cae en ForceSignOut");
             excepcion.Which.CancellationToken.Should().Be(ciclo.Token,
                 "una cancelación pedida por el ciclo debe salir con el token del ciclo, no con el de una excepción ajena");
         }
@@ -474,6 +473,17 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
 
         return contexto.Response.Headers.SetCookie.ToString();
     }
+
+    /// <summary>
+    /// Solo lo usan los proveedores de circuito, para que el bucle dé varios ciclos en
+    /// segundos. NO va en el contenedor: con un intervalo de 1 s, el validador real de la
+    /// cookie corre en cualquier <c>AuthenticateAsync</c> que tarde más de un segundo y
+    /// rechaza a la cuenta desactivada antes de llegar a <c>RefreshSignInAsync</c> (emite
+    /// una cookie de borrado, no una nueva), lo que volvía intermitente la prueba del
+    /// bypass y, peor, la dejaba sin ejercitar el freno de emisión cuando ocurría.
+    /// </summary>
+    private static readonly IOptions<SecurityStampValidatorOptions> IntervaloDeUnSegundo =
+        Options.Create(new SecurityStampValidatorOptions { ValidationInterval = TimeSpan.FromSeconds(1) });
 
     private sealed class AmbitosQueSeCancelan : IServiceScopeFactory
     {
