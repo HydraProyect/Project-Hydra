@@ -38,6 +38,9 @@
 #   VERDE               0   Lo pedido con --hasta terminó bien.
 #   ROJO                1   Un check, la cola o un job de despliegue fallaron.
 #   EXPULSADA_DE_COLA   2   La cola de fusión expulsó la PR (no un fallo de check).
+#                           Salir de la cola con motivo `merged` NO es expulsión:
+#                           es la fusión, y da VERDE. El estado real de la PR
+#                           manda; todo motivo no reconocido cuenta como expulsión.
 #   TIMEOUT             3   Se agotó --timeout-min sin ver un desenlace. La
 #                           línea lleva el ÚLTIMO ESTADO OBSERVADO, nunca un
 #                           "terminó" disfrazado (§ 3 protocolo-hydra-verificacion:
@@ -462,7 +465,30 @@ fase_merge() {
         local exp_fecha exp_motivo
         IFS=$'\t' read -r exp_fecha exp_motivo <<<"$linea_expulsion"
         if [[ "$exp_fecha" > "$inicio_fase" || "$exp_fecha" == "$inicio_fase" ]]; then
-          salir_expulsada "motivo=\"$exp_motivo\" en $exp_fecha"
+          # Salir de la cola NO es siempre un fallo: `merged` es el motivo con
+          # el que la cola despide a la PR que ACABA de fusionar (medido
+          # 2026-09-20: 413 de 470 eventos; #758 salió con motivo `merged` un
+          # segundo antes de su `mergedAt`, y esta rama la declaró expulsada).
+          # La PR se leyó al principio de la vuelta y la cola después, así que
+          # la fusión pudo caer entre las dos lecturas. Por eso, ANTES de
+          # clasificar: (1) el estado real de la PR manda, sea cual sea el
+          # motivo; (2) el motivo `merged` con la PR aún sin reflejarlo nunca
+          # es expulsión — se sigue esperando y el timeout acota el caso
+          # raro de que jamás llegue a MERGED; (3) cualquier otro motivo,
+          # conocido (`failed_checks`, `merge_conflict`, `checks_timed_out`,
+          # `manual`) o no, es EXPULSADA_DE_COLA: `reason` es un String libre
+          # de GitHub, no un enum, y ante lo desconocido se prefiere un
+          # rojo de más a un VERDE de más.
+          leer_pr
+          if [[ "$PR_ESTADO" == "MERGED" ]]; then
+            SHA_FUSION="$PR_MERGE_SHA"
+            log "fase merge: salió de la cola (motivo=\"$exp_motivo\") y la PR figura fusionada en $SHA_FUSION"
+            return 0
+          elif [[ "$exp_motivo" == "merged" ]]; then
+            log "fase merge: la cola la despidió con motivo=merged pero la PR aún no figura fusionada — sigo esperando, no es una expulsión"
+          else
+            salir_expulsada "motivo=\"$exp_motivo\" en $exp_fecha"
+          fi
         fi
       fi
       log "fase merge: la PR no está en la cola de fusión ahora mismo (ni auto-merge armado la mete sola: son mecanismos distintos)"

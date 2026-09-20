@@ -118,7 +118,7 @@ fixture_branch_protection 2
 # VERDE aquí, que sería falso.
 fixture PR_CHECKS 1 $'Check A\tpass' $'Check B\tpending' $'Check C\tpending'
 fixture PR_CHECKS 2 $'Check A\tpass' $'Check B\tpass' $'Check C\tpass'
-ejecutar 101 --hasta checks
+TIMEOUT_S_PRUEBA=20 ejecutar 101 --hasta checks
 assert_veredicto "solo tras la segunda vuelta, con los tres en pass, sale VERDE" VERDE 0 ""
 PRUEBAS=$((PRUEBAS + 1))
 if grep -q "aún no completos" "$TMP_ROOT/ultimo-stderr.log"; then
@@ -167,7 +167,7 @@ fixture PR_VIEW 2 "OPEN	AAA	CLEAN		"
 fixture PR_VIEW 3 "MERGED	AAA	MERGED	SHAFUSION	2026-09-17T10:00:00Z"
 fixture MERGE_QUEUE 1 $'QUEUED\tSINT1\tPENDING'
 fixture MERGE_QUEUE 2 $'AWAITING_CHECKS\tSINT1\tSUCCESS'
-ejecutar 105 --hasta merge
+TIMEOUT_S_PRUEBA=20 ejecutar 105 --hasta merge
 assert_veredicto "espera la fusión real, no el mergeStateStatus" VERDE 0 "SHAFUSION"
 
 echo
@@ -183,6 +183,78 @@ fixture MERGE_QUEUE 2 "NULL"
 fixture TIMELINE 1 $'2099-01-01T00:00:00Z\tfailed_checks'
 TIMEOUT_S_PRUEBA=6 ejecutar 106 --hasta merge
 assert_veredicto "expulsión detectada por el evento de timeline, no adivinada" EXPULSADA_DE_COLA 2 "failed_checks"
+
+echo
+# --- Salir de la cola con motivo `merged` es un ÉXITO (2026-09-20, PR #758) ---
+# Orden de llamadas a PR_VIEW hasta la relectura que hace fase_merge al ver la
+# cola en NULL: 1 lectura inicial, 2 vuelta de checks, 3 relectura antes del
+# VERDE de checks, 4 arranque de fase_merge, 5 cabeza de vuelta, 6 RELECTURA.
+# Las fixtures 1-5 son OPEN a propósito: la fusión "cae" entre la lectura de la
+# PR y la de la cola, que es exactamente el hueco en que #758 fue declarada
+# expulsada estando fusionada.
+PR_ABIERTA=$'OPEN\tAAA\tCLEAN\t\t'
+PR_FUSIONADA=$'MERGED\tAAA\tMERGED\tSHAFUSION\t2026-09-20T18:18:55Z'
+fixtures_carrera_fusion() {
+  # $1 = lo que devuelve la relectura (llamada 6); $2 = la llamada 7 (cabeza
+  # de la vuelta siguiente)
+  nueva_fixture_dir
+  local i
+  for i in 1 2 3 4 5; do fixture PR_VIEW "$i" "$PR_ABIERTA"; done
+  fixture PR_VIEW 6 "$1"
+  fixture PR_VIEW 7 "$2"
+  fixture_branch_protection 1
+  fixture PR_CHECKS 1 $'Check A\tpass' $'Check B\tpass' $'Check C\tpass'
+  fixture MERGE_QUEUE 1 "NULL"
+}
+
+echo "=== Salida de cola con motivo 'merged' y la PR ya MERGED: VERDE con su commit de fusión, no EXPULSADA ==="
+fixtures_carrera_fusion "$PR_FUSIONADA" "$PR_FUSIONADA"
+fixture TIMELINE 1 $'2099-01-01T00:00:00Z\tmerged'
+TIMEOUT_S_PRUEBA=20 ejecutar 120 --hasta merge
+assert_veredicto "motivo=merged + PR MERGED -> VERDE (regresión #758)" VERDE 0 "SHAFUSION"
+
+echo
+echo "=== Motivo 'merged' pero la PR aún figura OPEN: no es expulsión, se espera y acaba VERDE ==="
+fixtures_carrera_fusion "$PR_ABIERTA" "$PR_FUSIONADA"
+fixture TIMELINE 1 $'2099-01-01T00:00:00Z\tmerged'
+TIMEOUT_S_PRUEBA=30 ejecutar 121 --hasta merge
+assert_veredicto "motivo=merged con la PR aún sin reflejarlo -> espera, luego VERDE" VERDE 0 "SHAFUSION"
+
+echo
+echo "=== Motivo 'merged' y la PR NUNCA llega a MERGED: TIMEOUT acotado, por la rama prevista; nunca EXPULSADA ni VERDE ==="
+fixtures_carrera_fusion "$PR_ABIERTA" "$PR_ABIERTA"
+fixture TIMELINE 1 $'2099-01-01T00:00:00Z\tmerged'
+TIMEOUT_S_PRUEBA=8 ejecutar 122 --hasta merge
+assert_veredicto "merged sin fusión visible -> TIMEOUT, no EXPULSADA" TIMEOUT 3 ""
+PRUEBAS=$((PRUEBAS + 1))
+if grep -q 'motivo=merged pero la PR aún no figura fusionada' "$TMP_ROOT/ultimo-stderr.log"; then
+  echo "OK: el TIMEOUT pasó por la rama de 'merged' (no por otra vía)"
+else
+  echo "FALLO: el TIMEOUT no pasó por la rama de 'merged'; stderr:" >&2
+  sed 's/^/  /' "$TMP_ROOT/ultimo-stderr.log" >&2
+  FALLOS=$((FALLOS + 1))
+fi
+
+echo
+echo "=== El estado real de la PR manda sobre el motivo: MERGED con motivo 'manual' -> VERDE ==="
+fixtures_carrera_fusion "$PR_FUSIONADA" "$PR_FUSIONADA"
+fixture TIMELINE 1 $'2099-01-01T00:00:00Z\tmanual'
+TIMEOUT_S_PRUEBA=20 ejecutar 123 --hasta merge
+assert_veredicto "PR MERGED en la relectura -> VERDE aunque el motivo no sea 'merged'" VERDE 0 "SHAFUSION"
+
+echo
+echo "=== Motivos de fallo reales, y uno desconocido, siguen siendo EXPULSADA_DE_COLA (lado seguro) ==="
+# Valores medidos en 470 eventos reales del repositorio el 2026-09-20, salvo
+# `motivo_nuevo_de_github`, inventado a propósito: `reason` es un String libre,
+# no un enum, y lo que no se reconoce debe caer del lado del rojo.
+n=124
+for motivo in failed_checks merge_conflict checks_timed_out manual motivo_nuevo_de_github ""; do
+  fixtures_carrera_fusion "$PR_ABIERTA" "$PR_ABIERTA"
+  fixture TIMELINE 1 $'2099-01-01T00:00:00Z\t'"$motivo"
+  TIMEOUT_S_PRUEBA=20 ejecutar "$n" --hasta merge
+  assert_veredicto "motivo='$motivo' con la PR OPEN -> EXPULSADA_DE_COLA" EXPULSADA_DE_COLA 2 "motivo=\"$motivo\""
+  n=$((n + 1))
+done
 
 echo
 echo "=== auto-merge NO es cola: mergeQueueEntry siempre NULL, sin evento de expulsión -> TIMEOUT, nunca VERDE ni EXPULSADA ==="
@@ -233,7 +305,7 @@ fixture RUN_LIST 1 "NINGUNO"
 fixture RUN_LIST 2 "NINGUNO"
 fixture RUN_LIST 3 $'1000\tcompleted\tsuccess\t2026-09-17T10:06:00Z'
 fixture RUN_VIEW_JOBS 1 $'Desplegar a staging\tcompleted\tsuccess'
-TIMEOUT_S_PRUEBA=6 ejecutar 111 --hasta despliegue
+TIMEOUT_S_PRUEBA=20 ejecutar 111 --hasta despliegue
 assert_veredicto "espera a que el run de Desplegar exista antes de fallar u opinar" VERDE 0 "1000"
 
 echo
@@ -321,7 +393,7 @@ fixture_branch_protection 1
 fixture_branch_protection 2
 fixture PR_CHECKS 1 $'Check A\tpass' $'Check B\tpass' $'Check C\tpass'
 fixture PR_CHECKS 2 $'Check A\tpass' $'Check B\tpass' $'Check C\tpass'
-ejecutar 116 --hasta checks
+TIMEOUT_S_PRUEBA=20 ejecutar 116 --hasta checks
 assert_veredicto "el VERDE final habla del HEAD BBB, no del AAA ya sustituido" VERDE 0 "BBB"
 PRUEBAS=$((PRUEBAS + 1))
 if [[ "$SALIDA" != *"VEREDICTO: VERDE"*"AAA"* ]]; then
