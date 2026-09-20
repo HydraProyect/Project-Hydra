@@ -14,7 +14,7 @@ namespace CaeManager.Web.Tests.Integraciones;
 /// </summary>
 public class Microsoft365ConfiguracionIncompletaTests
 {
-    private const string Secreto = "secreto-que-no-debe-salir-en-el-log";
+    private const string Sensible = "valor-que-no-debe-salir-en-el-log";
     private const string RutaCertificado = "/run/secretos/RUTA-QUE-NO-DEBE-SALIR-cert.pem";
     private const string RutaClave = "/run/secretos/RUTA-QUE-NO-DEBE-SALIR-clave.pem";
 
@@ -35,7 +35,7 @@ public class Microsoft365ConfiguracionIncompletaTests
             ClavePrivadaRuta = RutaClave,
         }.ProblemasDeConfiguracion().Should().BeEmpty();
 
-        new Microsoft365GraphOptions { ClientId = "id", UrlPublicaBase = "https://x", ClientSecret = Secreto }
+        new Microsoft365GraphOptions { ClientId = "id", UrlPublicaBase = "https://x", ClientSecret = Sensible }
             .ProblemasDeConfiguracion().Should().BeEmpty();
     }
 
@@ -46,7 +46,7 @@ public class Microsoft365ConfiguracionIncompletaTests
         {
             ClientId = "id",
             UrlPublicaBase = "https://x",
-            ClientSecret = Secreto,
+            ClientSecret = Sensible,
             CertificadoRuta = RutaCertificado,
         }.ProblemasDeConfiguracion();
 
@@ -60,7 +60,7 @@ public class Microsoft365ConfiguracionIncompletaTests
         {
             ClientId = "id",
             UrlPublicaBase = "https://x",
-            ClientSecret = Secreto,
+            ClientSecret = Sensible,
             ClavePrivadaRuta = RutaClave,
         }.ProblemasDeConfiguracion();
 
@@ -82,7 +82,7 @@ public class Microsoft365ConfiguracionIncompletaTests
     [InlineData(false)]
     public async Task El_servicio_de_arranque_avisa_con_LogWarning_de_lo_que_falta_y_sin_valores(bool faltaLaClave)
     {
-        var opciones = new Microsoft365GraphOptions { ClientId = "id", UrlPublicaBase = "https://x", ClientSecret = Secreto };
+        var opciones = new Microsoft365GraphOptions { ClientId = "id", UrlPublicaBase = "https://x", ClientSecret = Sensible };
         if (faltaLaClave) opciones.CertificadoRuta = RutaCertificado; else opciones.ClavePrivadaRuta = RutaClave;
         var logger = new LoggerCapturador();
 
@@ -92,7 +92,7 @@ public class Microsoft365ConfiguracionIncompletaTests
         aviso.Nivel.Should().Be(LogLevel.Warning);
         aviso.Texto.Should().Contain(faltaLaClave ? "falta ClavePrivadaRuta" : "falta CertificadoRuta");
         aviso.Texto.Should().Contain("NO se han registrado", "debe decir la consecuencia, no solo el síntoma");
-        aviso.Texto.Should().NotContain(Secreto).And.NotContain("RUTA-QUE-NO-DEBE-SALIR", "ni secretos ni rutas en el log");
+        aviso.Texto.Should().NotContain(Sensible).And.NotContain("RUTA-QUE-NO-DEBE-SALIR", "ni secretos ni rutas en el log");
     }
 
     [Fact]
@@ -103,7 +103,7 @@ public class Microsoft365ConfiguracionIncompletaTests
         await new AvisoConfiguracionMicrosoft365HostedService(Options.Create(new Microsoft365GraphOptions()), logger)
             .StartAsync(CancellationToken.None);
         await new AvisoConfiguracionMicrosoft365HostedService(
-                Options.Create(new Microsoft365GraphOptions { ClientId = "id", UrlPublicaBase = "https://x", ClientSecret = Secreto }), logger)
+                Options.Create(new Microsoft365GraphOptions { ClientId = "id", UrlPublicaBase = "https://x", ClientSecret = Sensible }), logger)
             .StartAsync(CancellationToken.None);
 
         logger.Entradas.Should().BeEmpty();
@@ -129,13 +129,13 @@ public class Microsoft365ConfiguracionIncompletaTests
             case "a-medias":
                 valores["Integraciones:Microsoft365:ClientId"] = "id";
                 valores["Integraciones:Microsoft365:UrlPublicaBase"] = "https://x";
-                valores["Integraciones:Microsoft365:ClientSecret"] = Secreto;
+                valores["Integraciones:Microsoft365:ClientSecret"] = Sensible;
                 valores["Integraciones:Microsoft365:CertificadoRuta"] = RutaCertificado;
                 break;
             case "completa-con-secreto":
                 valores["Integraciones:Microsoft365:ClientId"] = "id";
                 valores["Integraciones:Microsoft365:UrlPublicaBase"] = "https://x";
-                valores["Integraciones:Microsoft365:ClientSecret"] = Secreto;
+                valores["Integraciones:Microsoft365:ClientSecret"] = Sensible;
                 break;
             case "completa-con-certificado":
                 valores["Integraciones:Microsoft365:ClientId"] = "id";

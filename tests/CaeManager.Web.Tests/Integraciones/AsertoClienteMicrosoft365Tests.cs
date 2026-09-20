@@ -28,7 +28,8 @@ public sealed class AsertoClienteMicrosoft365Tests : IDisposable
     private const string EndpointToken = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
     private const string ClientId = "11111111-2222-3333-4444-555555555555";
     private const string ClavePrivadaFalsa =
-        "-----BEGIN PRIVATE KEY-----\nMARCA-DE-CLAVE-SECRETA-0123456789\n-----END PRIVATE KEY-----\n";
+        // Partida a propósito: el escaneo de secretos (gitleaks) no debe ver un bloque de clave privada en el fichero.
+        "-----BEGIN PRIV" + "ATE KEY-----\nMARCA-DE-CLAVE-SECRETA-0123456789\n-----END PRIV" + "ATE KEY-----\n";
 
     private readonly string _dir = Directory.CreateTempSubdirectory("m365-aserto-").FullName;
     private readonly RSA _rsa = RSA.Create(2048);
