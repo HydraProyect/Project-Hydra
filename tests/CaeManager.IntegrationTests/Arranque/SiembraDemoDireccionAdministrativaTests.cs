@@ -177,6 +177,18 @@ internal sealed class LoggerDeCaptura : ILogger
     }
 }
 
+/// <summary>Falla (como un corte a mitad de siembra) al recibir el primer mensaje que contenga el fragmento.</summary>
+internal sealed class LoggerQueFalla(string fragmento) : ILogger
+{
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+    public bool IsEnabled(LogLevel logLevel) => true;
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+    {
+        if (formatter(state, exception).Contains(fragmento, StringComparison.Ordinal))
+            throw new InvalidOperationException("Fallo inyectado por la prueba, a mitad de la siembra.");
+    }
+}
+
 /// <summary>La siembra real sobre el arnés de runtime (RLS efectiva, interceptores de producción).</summary>
 public class SiembraDemoDireccionAdministrativaSobreBaseTests
 {
@@ -447,6 +459,46 @@ public class SiembraDemoDireccionAdministrativaSobreBaseTests
                 .Should().Be(0, "MEDIDO: la negativa fue previa a escribir: ningún Tenant del lote, ninguna cuenta nueva");
             Directory.GetFiles(directorio).Should().BeEmpty("MEDIDO: ni siquiera se abrió el fichero de credenciales");
             (await bootstrap.Users.SingleAsync(u => u.Id == idCuenta)).TenantId.Should().NotBe(Guid.Empty);
+        }
+        finally
+        {
+            Directory.Delete(directorio, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Un_fallo_despues_de_crear_las_cuentas_deja_todas_sus_contrasenas_en_el_fichero()
+    {
+        // Hallazgo de la revisión Codex: con el fichero escrito al final, un corte tras crear las cuentas las dejaba
+        // sin contraseña entregable (y la re-ejecución las tomaba por existentes).
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
+        var directorio = Directorio();
+        try
+        {
+            using (var ambito = arnes.Servicios.CreateScope())
+            {
+                var sp = ambito.ServiceProvider;
+                var siembra = () => SiembraDemoDireccionAdministrativa.EjecutarAsync(
+                    sp.GetRequiredService<CaeManagerDbContext>(), sp.GetRequiredService<UserManager<ApplicationUser>>(),
+                    new EntornoDePrueba("Production"), Opciones(directorio),
+                    new LoggerQueFalla(SiembraDemoDireccionAdministrativa.Ramas[0].NombreTenant), CancellationToken.None);
+                await siembra.Should().ThrowAsync<InvalidOperationException>().WithMessage("*Fallo inyectado*");
+            }
+
+            var fichero = Directory.GetFiles(directorio).Should().ContainSingle().Subject;
+            using var json = JsonDocument.Parse(await File.ReadAllTextAsync(fichero));
+            var cuentas = json.RootElement.GetProperty("cuentas").EnumerateArray().ToList();
+            cuentas.Should().HaveCount(4);
+
+            using var otro = arnes.Servicios.CreateScope();
+            var userManager = otro.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            foreach (var cuenta in cuentas)
+            {
+                var usuario = await userManager.FindByEmailAsync(cuenta.GetProperty("email").GetString()!);
+                usuario.Should().NotBeNull("MEDIDO: la cuenta ya se había creado cuando falló la siembra");
+                (await userManager.CheckPasswordAsync(usuario!, cuenta.GetProperty("contrasena").GetString()!))
+                    .Should().BeTrue("MEDIDO: la contraseña del fichero es la de la cuenta creada");
+            }
         }
         finally
         {

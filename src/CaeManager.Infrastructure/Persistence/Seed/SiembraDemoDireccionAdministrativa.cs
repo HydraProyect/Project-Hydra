@@ -322,6 +322,17 @@ public static partial class SiembraDemoDireccionAdministrativa
         foreach (var email in correosNuevos)
             contrasenas[email] = GenerarContrasena();
 
+        // Las contraseñas llegan al fichero ANTES de crear ninguna cuenta (hallazgo de la revisión Codex): si
+        // algo falla después, toda cuenta que exista tiene su contraseña entregable en el fichero; lo peor
+        // que puede pasar es que el fichero liste una cuenta que no llegó a crearse.
+        await EscribirCredencialesAsync(
+            fichero, entorno.EnvironmentName,
+            [
+                (EmailAdministrador(dominio), Roles.Administrador), (emails.Coordinador, Roles.CoordinadorCae),
+                (emails.GestorPrimero, Roles.GestorCae), (emails.GestorSegundo, Roles.GestorCae),
+            ],
+            contrasenas, cancellationToken);
+
         CredencialesDemo CredencialDe(string email) =>
             new(contrasenas.GetValueOrDefault(email, string.Empty), string.Empty, string.Empty);
 
@@ -366,8 +377,6 @@ public static partial class SiembraDemoDireccionAdministrativa
                  })
             cuentas.Add(new CuentaSembrada(email, nombreRol, usuario.Id, contrasenas.ContainsKey(email)));
 
-        await EscribirCredencialesAsync(fichero, entorno.EnvironmentName, cuentas, contrasenas, cancellationToken);
-
         // Solo cuentas y Tenants, nunca contraseñas: es lo que se registra.
         logger.LogInformation(
             "Demo a dirección sembrada en {Entorno}: {Tenants} Tenants, {Cuentas} cuentas ({Nuevas} nuevas).",
@@ -396,7 +405,7 @@ public static partial class SiembraDemoDireccionAdministrativa
     }
 
     private static async Task EscribirCredencialesAsync(
-        FileStream fichero, string entorno, IReadOnlyList<CuentaSembrada> cuentas,
+        FileStream fichero, string entorno, IReadOnlyList<(string Email, string Rol)> cuentas,
         IReadOnlyDictionary<string, string> contrasenas, CancellationToken cancellationToken)
     {
         var contenido = new
@@ -409,7 +418,7 @@ public static partial class SiembraDemoDireccionAdministrativa
                 email = c.Email,
                 rol = c.Rol,
                 contrasena = contrasenas.GetValueOrDefault(c.Email),
-                nota = c.ContrasenaEntregada ? null : "La cuenta ya existía: su contraseña no se ha tocado.",
+                nota = contrasenas.ContainsKey(c.Email) ? null : "La cuenta ya existía: su contraseña no se ha tocado.",
             }),
         };
 
