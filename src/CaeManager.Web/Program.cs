@@ -729,6 +729,11 @@ using (var scope = app.Services.CreateScope())
     // nuevo y establece su propio AmbitoTenantExplicito internamente.
     await DelegacionDemoSeeder.SeedAsync(dbContext, userManager, userStore, app.Configuration, app.Environment, logger);
 
+    // Matriz de estados de la demo a dirección — inerte salvo que
+    // DatosPrueba:EscenariosDireccion esté activo además de DatosPrueba:Activo,
+    // y lanza en Producción (ver EscenariosDireccionDemoSeeder).
+    await EscenariosDireccionDemoSeeder.SeedAsync(dbContext, userManager, app.Configuration, app.Environment, logger);
+
     // Segundo tenant, exclusivamente para verificación E2E multi-tenant con
     // navegador real (ver PLAN-MIGRACION-MULTITENANT.md § 6) — inerte salvo
     // que SegundoTenant:Activo esté configurado explícitamente.
