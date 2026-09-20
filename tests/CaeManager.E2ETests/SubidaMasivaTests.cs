@@ -6,9 +6,10 @@ namespace CaeManager.E2ETests;
 /// Cubre /documentos/subida-masiva (SubidaMasiva.razor) — sin ningún E2E
 /// hasta ahora. A diferencia de las otras 4 pantallas de este bloque, esta
 /// no sube un Excel: arrastra archivos (PDF/imagen/Word/.zip) y detecta
-/// Trabajador + TipoDocumento por archivo (DetectarCamposDocumentoQuery). Si
-/// la confianza es alta (>=95) se crea directo; si no, queda "Pendiente de
-/// confirmar" con lo detectado prellenado.
+/// Trabajador + TipoDocumento por archivo (DetectarCamposDocumentoQuery). La IA
+/// solo propone: todo archivo queda "Pendiente de confirmar" con lo detectado
+/// prellenado y el Documento no existe hasta que una persona lo confirma
+/// (decisión del propietario, 2026-09-19; antes, confianza >=95 lo creaba solo).
 ///
 /// DeteccionPreviaDocumentoOptions.Activa es false por defecto (mismo
 /// criterio "inerte por defecto" que el resto de integraciones de IA — ver
@@ -16,7 +17,10 @@ namespace CaeManager.E2ETests;
 /// que en este entorno de test la detección devuelve confianza 0 siempre:
 /// el archivo subido termina "Pendiente de confirmar" de forma
 /// determinista, sin depender de que una IA real acierte. El test cubre por
-/// tanto la rama de confirmación manual, que es la única alcanzable aquí.
+/// tanto la rama de confirmación manual, que es la única alcanzable aquí; la
+/// propuesta completa de la IA (y que no crea nada sin confirmar) la fijan los
+/// bUnit de SubidaMasivaGen2Tests, porque ProveedorFalsoDocumentAI devuelve
+/// confianza 50 y sin campos y no puede producir una propuesta completa.
 ///
 /// SubidaMasiva.razor sí declara [Authorize(Roles=...)]: Administrador,
 /// DireccionCae, CoordinadorCae, GestorCae y Consulta pueden abrir la
@@ -99,8 +103,16 @@ public class SubidaMasivaTests(WebAppFixture fixture)
             await page.WaitForTimeoutAsync(500);
 
             await confirmacion.GetByLabel("Tipo de documento").SelectOptionAsync(new SelectOptionValue { Label = "Certificado de aptitud médica" });
-            await confirmacion.GetByLabel("Fecha de emisión").FillAsync(DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd"));
 
+            // Sin fecha leída del archivo el campo NO se rellena con la de hoy: la persona la indica o no hay Documento.
+            await Expect(confirmacion.GetByLabel("Fecha de emisión")).ToHaveValueAsync("");
+            await confirmacion.GetByText("Confirmar y crear").ClickAsync();
+            // Barrera antes de afirmar la ausencia: sin ver el aviso, "no está Creado" podría cumplirse antes de que el clic se procese.
+            await Expect(page.GetByText("Indica la fecha de emisión antes de confirmar.")).ToBeVisibleAsync();
+            await Expect(item).ToContainTextAsync("Pendiente de confirmar");
+            await Expect(item).Not.ToContainTextAsync("Creado tras confirmar");
+
+            await confirmacion.GetByLabel("Fecha de emisión").FillAsync(DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd"));
             await confirmacion.GetByText("Confirmar y crear").ClickAsync();
 
             await Expect(item).ToContainTextAsync("Creado", new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });

@@ -10,7 +10,7 @@
         <a href="/documentos">Documentos</a><span aria-hidden="true">/</span><span aria-current="page">Subida múltiple</span>
     </nav>
     <CabeceraPagina Titulo="Subida múltiple de documentos" Kicker="Ciclo documental">
-        <Descripcion>Arrastra o selecciona varios archivos (PDF, JPG, PNG, Word) o un único .zip con varios dentro. Solo documentos de Trabajador. Detectamos automáticamente el trabajador y el tipo de documento de cada archivo; si estamos muy seguros, se crea directamente; si no, queda abajo para confirmar.</Descripcion>
+        <Descripcion>Arrastra o selecciona varios archivos (PDF, JPG, PNG, Word) o un único .zip con varios dentro. Solo documentos de Trabajador. La IA propone el trabajador, el tipo y las fechas que lee de cada archivo; el documento no existe hasta que tú confirmas o corriges cada uno.</Descripcion>
         <Acciones><a class="enlace-exportar" href="/documentos/importar">Importar desde Excel</a><a class="enlace-exportar" href="/documentos/revision-ia">Revisión IA →</a></Acciones>
     </CabeceraPagina>
 
@@ -28,7 +28,7 @@
             <h2>Arrastra aquí los documentos de trabajador</h2>
             <p>PDF · JPG · PNG · DOCX · ZIP — hasta 60 archivos, 10 MB cada uno</p>
             <ZonaSoltarArchivo Titulo="Seleccionar archivos" OnChange="ManejarArchivosSeleccionadosAsync" Multiple="true" Accept=".pdf,.jpg,.jpeg,.png,.docx,.zip" FormatosTexto="PDF · JPG · PNG · DOCX · ZIP" Cargando="_procesandoLote" />
-            <span class="aviso-memoria-subida">Nada se guarda hasta que el archivo se resuelve o lo confirmas.</span>
+            <span class="aviso-memoria-subida">Nada se guarda hasta que confirmas cada archivo.</span>
         </section>
     }
 
@@ -39,7 +39,7 @@
             <div class="barra-progreso-subida" role="progressbar" aria-valuemin="0" aria-valuemax="@TotalRecibidos" aria-valuenow="@ArchivosLeidos"><span style="width: @PorcentajeProgreso%"></span></div>
             <div class="resumen-subida-masiva">
                 <Badge Tono="TonoBadge.Exito">@TotalCreados creados</Badge><Badge Tono="TonoBadge.Advertencia">@TotalPendientes pendiente(s) por confirmar</Badge><Badge Tono="TonoBadge.Neutro">@TotalDescartados descartados</Badge><Badge Tono="TonoBadge.Peligro">@TotalErrores con error</Badge>
-                <span class="ayuda-auto-creacion">Se crean solos los que la IA resuelve con 95 % o más de confianza.</span>
+                <span class="ayuda-solo-propone">La IA solo propone: ningún documento se crea sin que confirmes ese archivo.</span>
                 <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="LimpiarResueltos">Limpiar creados y descartados</Boton>
             </div>
         </section>
@@ -56,9 +56,9 @@
                             <div class="item-subida-masiva-fila">
                                 @if (item.MiniaturaBase64 is not null) { <img class="miniatura-subida-masiva" src="@($"data:image/png;base64,{item.MiniaturaBase64}")" alt="Miniatura de @item.NombreArchivo" /> }
                                 else { <div class="miniatura-subida-masiva miniatura-subida-masiva-vacia"><Icono Nombre="documentos" /></div> }
-                                <div class="item-subida-masiva-info"><span class="item-subida-masiva-nombre">@item.NombreArchivo</span><div class="item-subida-masiva-badges"><Badge Tono="@ObtenerTonoEstado(item.Estado)">@ObtenerEtiquetaEstado(item)</Badge>@if (item.Confianza is { } confianza) { <Badge Tono="@TonoConfianza(confianza)">@confianza% confianza IA</Badge> }</div>@if (item.MensajeError is not null) { <span class="item-subida-masiva-error">@item.MensajeError</span> }</div>
+                                <div class="item-subida-masiva-info"><span class="item-subida-masiva-nombre">@item.NombreArchivo</span><div class="item-subida-masiva-badges"><Badge Tono="@ObtenerTonoEstado(item.Estado)">@ObtenerEtiquetaEstado(item)</Badge>@if (item.Confianza is { } confianza) { <Badge Tono="@TonoConfianza(confianza)">@confianza% confianza IA</Badge> }</div>@if (item.Estado == EstadoItem.PendienteConfirmar && item.Propuesta.EstaVacia) { <span class="item-subida-masiva-propuesta">La IA no propuso datos para este archivo: indícalos tú.</span> }@if (item.Estado == EstadoItem.PendienteConfirmar && !item.Propuesta.EstaVacia) { <span class="item-subida-masiva-propuesta">@(CorregidaPorPersona(item) ? "Propuesta de la IA con tus correcciones" : "Propuesta de la IA") — trabajador: @(NombreTrabajadorElegido(item) ?? "sin determinar") · tipo: @(NombreTipoElegido(item) ?? "sin determinar") · emisión: @(item.FechaEmision.Length > 0 ? FechaLegible(item.FechaEmision) : "sin leer en el archivo")@if (RequiereVencimientoManual(item)) { <text> · vencimiento: @(item.FechaVencimientoManual.Length > 0 ? FechaLegible(item.FechaVencimientoManual) : "sin indicar")</text> }</span> }@if (item.MensajeError is not null) { <span class="item-subida-masiva-error">@item.MensajeError</span> }</div>
                                 <div class="item-subida-masiva-acciones">
-                                    @if (!_esSoloLectura && item.Estado == EstadoItem.PendienteConfirmar) { <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => AlternarExpandido(item)">@(item.Expandido ? "Ocultar" : "Confirmar…")</Boton><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => Descartar(item)">Descartar</Boton> }
+                                    @if (!_esSoloLectura && item.Estado == EstadoItem.PendienteConfirmar) { @if (PropuestaCompleta(item)) { <Boton Tamano="TamanoBoton.Pequeno" Cargando="@item.Confirmando" OnClick="() => ConfirmarAsync(item)">@(CorregidaPorPersona(item) ? "Confirmar con mis correcciones" : "Confirmar propuesta")</Boton> }<Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => AlternarExpandido(item)">@(item.Expandido ? "Ocultar" : "Confirmar…")</Boton><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => Descartar(item)">Descartar</Boton> }
                                     else if (item.Estado is EstadoItem.Error or EstadoItem.Descartado) { <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => QuitarDeLaLista(item)">Quitar de la lista</Boton> }
                                 </div>
                             </div>
@@ -70,7 +70,8 @@
                                         <CampoBuscarSelect Etiqueta="Trabajador" Marcador="Escribe un nombre o DNI para buscar…" Valor="@item.TrabajadorId" ValorChanged="v => item.TrabajadorId = v" Opciones="@OpcionesTrabajadores" />
                                         <CampoSelect Etiqueta="Tipo de documento" Valor="@item.TipoDocumentoId" ValorChanged="v => item.TipoDocumentoId = v"><option value="">Selecciona un tipo de documento…</option>@foreach (var tipo in _tiposDisponibles) { <option value="@tipo.Id">@tipo.Nombre</option> }</CampoSelect>
                                         <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@item.FechaEmision" ValorChanged="v => item.FechaEmision = v" />
-                                        @if (RequiereVencimientoManual(item)) { <CampoTexto Etiqueta="Fecha de vencimiento" Type="date" Valor="@item.FechaVencimientoManual" ValorChanged="v => item.FechaVencimientoManual = v" /> }
+                                        <span class="ayuda-fecha-subida">@(item.Propuesta.FechaEmision is not null ? "Leída del archivo por la IA: compárala con el PDF antes de confirmar." : "La IA no leyó una fecha de emisión en el archivo: indícala tú.")</span>
+                                        @if (RequiereVencimientoManual(item)) { <CampoTexto Etiqueta="Fecha de vencimiento" Type="date" Valor="@item.FechaVencimientoManual" ValorChanged="v => item.FechaVencimientoManual = v" />@if (item.Propuesta.FechaVencimiento is not null) { <span class="ayuda-fecha-subida">Propuesta por la IA; puede haberla calculado a partir de la vigencia del documento en lugar de leerla. Compárala con el PDF antes de confirmar.</span> } }
                                         <div class="acciones-formulario"><Boton Cargando="@item.Confirmando" OnClick="() => ConfirmarAsync(item)">Confirmar y crear</Boton></div>
                                     </div>
                                 </div>
