@@ -165,7 +165,7 @@ public class CierreDeCircuitoConConsultaEnVueloTests : IAsyncLifetime
 
             // Como un componente que se inicializa: la consulta entra por la puerta.
             var consulta = Task.Run(() => puerta.EjecutarAsync(() => contexto.Database
-                .SqlQueryRaw<int>($"select 1 as \"Value\" from pg_advisory_xact_lock({_llaveA}, {_llaveB})")
+                .SqlQuery<int>($"select 1 as \"Value\" from pg_advisory_xact_lock({_llaveA}, {_llaveB})")
                 .ToListAsync()));
 
             await EsperarConsultaRetenidaEnElServidorAsync(consulta, vuelta);
@@ -177,7 +177,7 @@ public class CierreDeCircuitoConConsultaEnVueloTests : IAsyncLifetime
 
             // Barrera: o el cierre ya cerró la puerta (y queda esperando a la consulta), o ya
             // dispuso el scope (una versión que no espera). Ambos estados son definitivos.
-            await EsperarAsync(() => puerta.Cerrada || sonda.Eliminada,
+            await EsperarAsync(() => Task.FromResult(puerta.Cerrada || sonda.Eliminada),
                 "que el cierre del circuito cerrara la puerta o dispusiera el scope", vuelta);
 
             await EjecutarEnControlAsync($"select pg_advisory_unlock({_llaveA}, {_llaveB})");
@@ -198,7 +198,7 @@ public class CierreDeCircuitoConConsultaEnVueloTests : IAsyncLifetime
             consulta.IsCompletedSuccessfully.Should().BeTrue(
                 $"la consulta ya estaba en vuelo al cerrar el circuito y tenía que terminar (vuelta {vuelta}); " +
                 $"estado: {consulta.Status}, {consulta.Exception?.GetBaseException().Message}");
-            consulta.Result.Should().BeEquivalentTo(new[] { 1 },
+            (await consulta).Should().BeEquivalentTo(new[] { 1 },
                 $"la consulta ya estaba en vuelo al cerrar el circuito y tenía que terminar (vuelta {vuelta})");
 
             // El pool no ha recibido una conexión desincronizada: el circuito siguiente
@@ -242,16 +242,16 @@ public class CierreDeCircuitoConConsultaEnVueloTests : IAsyncLifetime
 
     private async Task EsperarConsultaRetenidaEnElServidorAsync(Task consulta, int vuelta)
     {
-        await EsperarAsync(() =>
+        await EsperarAsync(async () =>
         {
             if (consulta.IsCompleted)
                 throw new InvalidOperationException(
                     $"La consulta terminó sin haber quedado retenida en el servidor (vuelta {vuelta}); estado: " +
                     $"{consulta.Status}, {consulta.Exception?.GetBaseException().Message}");
 
-            using var comando = _control.CreateCommand();
+            await using var comando = _control.CreateCommand();
             comando.CommandText = ConsultaRetenidaSql;
-            return (long)comando.ExecuteScalar()! > 0;
+            return (long)(await comando.ExecuteScalarAsync())! > 0;
         }, "que la consulta quedara retenida en el servidor", vuelta);
     }
 
@@ -262,12 +262,12 @@ public class CierreDeCircuitoConConsultaEnVueloTests : IAsyncLifetime
         await comando.ExecuteNonQueryAsync();
     }
 
-    private static async Task EsperarAsync(Func<bool> condicion, string que, int vuelta)
+    private static async Task EsperarAsync(Func<Task<bool>> condicion, string que, int vuelta)
     {
         var cronometro = Stopwatch.StartNew();
         while (cronometro.Elapsed < TimeSpan.FromSeconds(10))
         {
-            if (condicion()) return;
+            if (await condicion()) return;
             await Task.Delay(10);
         }
 
