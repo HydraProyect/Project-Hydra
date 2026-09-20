@@ -2,6 +2,7 @@ using System.Text;
 using CaeManager.Application.Common;
 using CaeManager.Application.Integraciones;
 using CaeManager.Domain.Integraciones;
+using CaeManager.Infrastructure.Autenticacion;
 
 namespace CaeManager.Web.Api.Integraciones;
 
@@ -39,7 +40,13 @@ public static class WebhookMicrosoft365Endpoints
 {
     public static IEndpointRouteBuilder MapWebhookMicrosoft365Endpoints(this IEndpointRouteBuilder endpoints)
     {
-        var grupo = endpoints.MapGroup("/api/integraciones/webhooks/microsoft365").AllowAnonymous();
+        // P41c: el llamador es un sistema de un tercero, no una persona, y este
+        // endpoint es anónimo —no hay identidad de sesión que lo delate—. El
+        // filtro va en el GRUPO para que ningún endpoint nuevo lo olvide; sin
+        // él, cada escritura de aquí se auditaba como `Desconocido`.
+        var grupo = endpoints.MapGroup("/api/integraciones/webhooks/microsoft365")
+            .AllowAnonymous()
+            .AddEndpointFilter<ActorIntegracionExternaEndpointFilter>();
 
         grupo.MapGet("/{conexionId:guid}", (string? validationToken) =>
             string.IsNullOrWhiteSpace(validationToken)

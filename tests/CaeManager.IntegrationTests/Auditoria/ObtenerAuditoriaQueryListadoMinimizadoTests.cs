@@ -49,7 +49,7 @@ public class ObtenerAuditoriaQueryListadoMinimizadoTests : IAsyncLifetime
             "Documento", documentoId, "Modificado",
             datosAntes: """{"ArchivoUrl":"3f3e.../antiguo.pdf"}""",
             datosDespues: """{"ArchivoUrl":"3f3e.../nuevo.pdf"}""",
-            usuarioId: null));
+            usuarioId: null, tipoActor: TipoActorAuditoria.Desconocido));
 
         var fila = await ObtenerFilaAsync(documentoId);
 
@@ -65,7 +65,7 @@ public class ObtenerAuditoriaQueryListadoMinimizadoTests : IAsyncLifetime
             "Documento", documentoId, "Modificado",
             datosAntes: """{"Comentarios":"sin archivo"}""",
             datosDespues: null,
-            usuarioId: null));
+            usuarioId: null, tipoActor: TipoActorAuditoria.Desconocido));
 
         var fila = await ObtenerFilaAsync(documentoId);
 
@@ -89,7 +89,7 @@ public class ObtenerAuditoriaQueryListadoMinimizadoTests : IAsyncLifetime
             "Cliente", empresaId, "Modificado",
             datosAntes: """{"EstaEliminado":false}""",
             datosDespues: """{"EstaEliminado":true}""",
-            usuarioId: null));
+            usuarioId: null, tipoActor: TipoActorAuditoria.Desconocido));
 
         var fila = await ObtenerFilaAsync(empresaId, accion: "Modificado");
 
@@ -112,7 +112,7 @@ public class ObtenerAuditoriaQueryListadoMinimizadoTests : IAsyncLifetime
             "Empresa", empresaId, "Modificado",
             datosAntes: """{"EstaEliminado":false}""",
             datosDespues: """{"EstaEliminado":true}""",
-            usuarioId: null));
+            usuarioId: null, tipoActor: TipoActorAuditoria.Desconocido));
 
         var fila = await ObtenerFilaAsync(empresaId, accion: "Modificado");
 
@@ -136,7 +136,7 @@ public class ObtenerAuditoriaQueryListadoMinimizadoTests : IAsyncLifetime
             "Empresa", empresaIdOtroTenant, "Modificado",
             datosAntes: """{"EstaEliminado":false}""",
             datosDespues: """{"EstaEliminado":true}""",
-            usuarioId: null));
+            usuarioId: null, tipoActor: TipoActorAuditoria.Desconocido));
 
         var fila = await ObtenerFilaAsync(empresaIdOtroTenant, accion: "Modificado");
 
@@ -154,7 +154,7 @@ public class ObtenerAuditoriaQueryListadoMinimizadoTests : IAsyncLifetime
             "TipoDocumento", tipoDocumentoId, "Modificado",
             datosAntes: null,
             datosDespues: """{"EstaEliminado":true}""",
-            usuarioId: null));
+            usuarioId: null, tipoActor: TipoActorAuditoria.Desconocido));
 
         var fila = await ObtenerFilaAsync(tipoDocumentoId);
 
@@ -169,7 +169,7 @@ public class ObtenerAuditoriaQueryListadoMinimizadoTests : IAsyncLifetime
             "Cliente", clienteId, "Modificado",
             datosAntes: "esto no es JSON",
             datosDespues: "tampoco esto",
-            usuarioId: null));
+            usuarioId: null, tipoActor: TipoActorAuditoria.Desconocido));
 
         var fila = await ObtenerFilaAsync(clienteId);
 
@@ -187,7 +187,7 @@ public class ObtenerAuditoriaQueryListadoMinimizadoTests : IAsyncLifetime
             "Documento", documentoId, "Creado",
             datosAntes: null,
             datosDespues: """{"ArchivoUrl":"3f3e.../nuevo.pdf","EstaEliminado":false}""",
-            usuarioId: null));
+            usuarioId: null, tipoActor: TipoActorAuditoria.Desconocido));
 
         var fila = await ObtenerFilaAsync(documentoId);
 

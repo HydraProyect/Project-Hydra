@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using CaeManager.Application.Integraciones;
 using CaeManager.Domain.Integraciones;
+using CaeManager.Infrastructure.Autenticacion;
 using CaeManager.Infrastructure.Integraciones;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -29,7 +30,13 @@ public static class WebhookWhatsAppEndpoints
 {
     public static IEndpointRouteBuilder MapWebhookWhatsAppEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        var grupo = endpoints.MapGroup("/api/integraciones/webhooks/whatsapp").AllowAnonymous();
+        // P41c: el llamador es un sistema de un tercero, no una persona, y este
+        // endpoint es anónimo —no hay identidad de sesión que lo delate—. El
+        // filtro va en el GRUPO para que ningún endpoint nuevo lo olvide; sin
+        // él, cada escritura de aquí se auditaba como `Desconocido`.
+        var grupo = endpoints.MapGroup("/api/integraciones/webhooks/whatsapp")
+            .AllowAnonymous()
+            .AddEndpointFilter<ActorIntegracionExternaEndpointFilter>();
 
         // Handshake de verificación del callback (Meta App Dashboard):
         // hub.mode=subscribe + hub.verify_token correcto → eco del challenge.

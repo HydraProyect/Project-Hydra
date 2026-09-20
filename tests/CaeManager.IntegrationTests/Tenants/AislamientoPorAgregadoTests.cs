@@ -1,4 +1,4 @@
-﻿using CaeManager.Domain.ApiKeys;
+using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.BusquedaGlobal;
@@ -242,7 +242,7 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
 
     [Fact]
     public Task Aislamiento_RegistroAuditoria() => VerificarAislamientoAsync(
-        () => new RegistroAuditoria("Cliente", Guid.NewGuid(), "Creado", null, "{}", null));
+        () => new RegistroAuditoria("Cliente", Guid.NewGuid(), "Creado", null, "{}", null, tipoActor: TipoActorAuditoria.Desconocido));
 
     [Fact]
     public Task Aislamiento_CanalGestionDocumental()

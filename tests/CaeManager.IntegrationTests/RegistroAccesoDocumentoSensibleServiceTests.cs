@@ -156,9 +156,15 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
 
     /// <summary>
     /// P41c: el acceso a un documento con datos de salud también conserva QUÉ
-    /// CLASE de actor lo abrió. Eje ortogonal a la vía — un barrido automático y
-    /// un Gestor CAE pueden entrar los dos por vía normal, y hasta este eje la
-    /// tabla no los separaba.
+    /// CLASE de actor lo abrió. Eje ortogonal a la vía.
+    ///
+    /// <para>
+    /// Hoy los procesos automáticos no se registran en esta tabla a propósito
+    /// (DEC-36, ver la entidad), así que este test no describe un flujo real:
+    /// fija el <b>mecanismo</b> —si el ámbito declara <c>Sistema</c>, la fila lo
+    /// dice en vez de hacerse pasar por una persona— para el día en que un
+    /// proceso o un tercero con clave de API llegue a este registro.
+    /// </para>
     /// </summary>
     [Fact]
     public async Task Registra_al_actor_como_Persona_o_como_Sistema_segun_quien_accede()
@@ -332,7 +338,7 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
 
         var registro = new RegistroAccesoDocumentoSensible(
             Guid.NewGuid(), SensibilidadDocumental.CategoriaEspecialSalud, TipoAccesoDocumentoSensible.Apertura,
-            Guid.NewGuid(), Guid.NewGuid(), TipoViaAccesoAuditoria.SesionPrivilegiada, Guid.NewGuid());
+            Guid.NewGuid(), Guid.NewGuid(), TipoViaAccesoAuditoria.SesionPrivilegiada, Guid.NewGuid(), TipoActorAuditoria.Persona);
 
         var guardar = () => repositorio.GuardarAsync(registro);
 
@@ -406,7 +412,7 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
 
         var registro = new RegistroAccesoDocumentoSensible(
             documento.Id, SensibilidadDocumental.CategoriaEspecialSalud, TipoAccesoDocumentoSensible.Apertura,
-            Guid.NewGuid(), Guid.NewGuid(), TipoViaAccesoAuditoria.Normal, null);
+            Guid.NewGuid(), Guid.NewGuid(), TipoViaAccesoAuditoria.Normal, null, TipoActorAuditoria.Persona);
 
         (await repositorio.GuardarAsync(registro)).Should().BeTrue();
 

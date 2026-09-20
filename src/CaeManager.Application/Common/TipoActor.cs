@@ -26,6 +26,6 @@ public enum TipoActor
     /// <summary>La propia plataforma: hosted services, barridos, colas, siembra.</summary>
     Sistema = 2,
 
-    /// <summary>Un tercero llamando a la API pública con una <c>ClaveApi</c>.</summary>
+    /// <summary>Un sistema de un tercero: la API pública con <c>ClaveApi</c> o un webhook de proveedor. No una persona sin sesión.</summary>
     IntegracionExterna = 3
 }

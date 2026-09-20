@@ -10,14 +10,14 @@ public class RegistroAccesoDocumentoSensibleTests
     private static RegistroAccesoDocumentoSensible Crear(
         TipoViaAccesoAuditoria via = TipoViaAccesoAuditoria.Normal,
         SensibilidadDocumental sensibilidad = SensibilidadDocumental.CategoriaEspecialSalud) =>
-        new(Guid.NewGuid(), sensibilidad, TipoAccesoDocumentoSensible.Apertura, Guid.NewGuid(), Guid.NewGuid(), via, null);
+        new(Guid.NewGuid(), sensibilidad, TipoAccesoDocumentoSensible.Apertura, Guid.NewGuid(), Guid.NewGuid(), via, null, TipoActorAuditoria.Persona);
 
     [Fact]
     public void Un_documento_vacio_no_es_un_registro_valido()
     {
         var construir = () => new RegistroAccesoDocumentoSensible(
             Guid.Empty, SensibilidadDocumental.CategoriaEspecialSalud, TipoAccesoDocumentoSensible.Apertura,
-            Guid.NewGuid(), Guid.NewGuid(), TipoViaAccesoAuditoria.Normal, null);
+            Guid.NewGuid(), Guid.NewGuid(), TipoViaAccesoAuditoria.Normal, null, TipoActorAuditoria.Persona);
 
         construir.Should().Throw<ArgumentException>();
     }
