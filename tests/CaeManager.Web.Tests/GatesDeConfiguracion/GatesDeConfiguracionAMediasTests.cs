@@ -74,13 +74,13 @@ public class GatesDeConfiguracionAMediasTests
     {
         var comprobadas = 0;
         foreach (var activo in new[] { false, true })
-        foreach (var claves in Combinaciones(caso.Claves.Length))
-        {
-            caso.Construir(activo, claves).EstaConfigurado.Should().Be(
-                caso.VeredictoAnterior(activo, claves),
-                $"{caso.Nombre} con Activo={activo} y claves [{string.Join(",", claves)}]");
-            comprobadas++;
-        }
+            foreach (var claves in Combinaciones(caso.Claves.Length))
+            {
+                caso.Construir(activo, claves).EstaConfigurado.Should().Be(
+                    caso.VeredictoAnterior(activo, claves),
+                    $"{caso.Nombre} con Activo={activo} y claves [{string.Join(",", claves)}]");
+                comprobadas++;
+            }
 
         comprobadas.Should().Be(2 * (1 << caso.Claves.Length), "la rejilla entera, no una muestra");
     }
