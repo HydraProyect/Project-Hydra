@@ -511,6 +511,12 @@ builder.Services.AddScoped<CircuitHandler, CaeManager.Web.Services.RevalidacionC
 builder.Services.AddScoped<CaeManager.Web.Services.EstadoDelCircuito>();
 builder.Services.AddScoped<CircuitHandler>(sp => sp.GetRequiredService<CaeManager.Web.Services.EstadoDelCircuito>());
 
+// Cierra la PuertaAccesoDatos del circuito y espera a la consulta en vuelo
+// ANTES de que el framework disponga el scope (y con él el DbContext y su
+// conexión). Sin esto, un cierre a mitad de una consulta corrompe el protocolo
+// de la conexión y la deja en el pool: ver la clase.
+builder.Services.AddScoped<CircuitHandler, CaeManager.Web.Services.LiberacionDeAccesoADatosAlCerrarCircuito>();
+
 // Health check real (P0-5 de docs/business/MATURITY_REVIEW.md): /salud
 // respondía "ok" incondicional — con PostgreSQL caído seguía dando 200 y
 // cualquier uptime check externo veía un servicio sano que no podía servir

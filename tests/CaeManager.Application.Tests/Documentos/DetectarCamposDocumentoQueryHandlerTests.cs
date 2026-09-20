@@ -68,6 +68,67 @@ public class DetectarCamposDocumentoQueryHandlerTests
         resultado.Valor.TrabajadorId.Should().BeNull();
     }
 
+    /// <summary>
+    /// Lo que la IA leyó del archivo llega como fecha propuesta; lo que no se
+    /// pueda leer queda en null en vez de inventarse. Sin DNI ni tipo detectados
+    /// el handler no toca los contextos de base de datos, por eso van a null.
+    /// </summary>
+    [Theory]
+    [InlineData("2026-03-01")]
+    [InlineData("01/03/2026")]
+    [InlineData("1-3-2026")]
+    public async Task Las_fechas_leidas_del_archivo_se_devuelven_como_propuesta(string leida)
+    {
+        var resultado = await DetectarConAsync(new Dictionary<string, string?> { ["fechaEmision"] = leida, ["fechaVencimiento"] = "2027-03-01" }, confianza: 90);
+
+        resultado.Valor.FechaEmisionLeida.Should().Be(new DateOnly(2026, 3, 1));
+        resultado.Valor.FechaVencimientoPropuesta.Should().Be(new DateOnly(2027, 3, 1));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("ayer")]
+    [InlineData("31/02/2026")]
+    public async Task Una_fecha_ilegible_o_ausente_queda_en_null_y_nunca_es_hoy(string leida)
+    {
+        var resultado = await DetectarConAsync(new Dictionary<string, string?> { ["fechaEmision"] = leida }, confianza: 90);
+
+        resultado.EsExitoso.Should().BeTrue("control: la detección respondió");
+        resultado.Valor.ConfianzaGeneral.Should().Be(90);
+        resultado.Valor.FechaEmisionLeida.Should().BeNull();
+        resultado.Valor.FechaVencimientoPropuesta.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Con_confianza_baja_no_se_propone_ninguna_fecha()
+    {
+        var resultado = await DetectarConAsync(new Dictionary<string, string?> { ["fechaEmision"] = "2026-03-01" }, confianza: 60);
+
+        resultado.Valor.ConfianzaGeneral.Should().Be(60);
+        resultado.Valor.FechaEmisionLeida.Should().BeNull();
+    }
+
+    private static Task<Result<DeteccionCamposDocumentoDto>> DetectarConAsync(Dictionary<string, string?> campos, int confianza)
+    {
+        var extraccion = new ExtraccionEstructuradaDto(TipoDetectado: null, campos, confianza, NotasValidacion: null);
+        var handler = new DetectarCamposDocumentoQueryHandler(
+            new RouterQueDevuelve(Result.Exito(extraccion)),
+            tiposDocumentoContext: null!,
+            trabajadoresContext: null!,
+            Options.Create(new DeteccionPreviaDocumentoOptions { Activa = true }),
+            new InstruccionTratamientoIaFalsa(habilitada: true),
+            new TenantActualFalso(TenantId));
+
+        return handler.Handle(new DetectarCamposDocumentoQuery([1, 2, 3], "documento.pdf", AmbitoAplicacion.Trabajador), CancellationToken.None);
+    }
+
+    private sealed class RouterQueDevuelve(Result<ExtraccionEstructuradaDto> resultado) : IDocumentAIRouterService
+    {
+        public Task<Result<ExtraccionEstructuradaDto>> ProcesarAsync(
+            byte[] contenido, string nombreArchivo, string tipoEsperado, Guid? documentoId = null, CancellationToken cancellationToken = default) =>
+            Task.FromResult(resultado);
+    }
+
     private sealed class RouterQueLanzaSiSeInvoca : IDocumentAIRouterService
     {
         public Task<Result<ExtraccionEstructuradaDto>> ProcesarAsync(

@@ -24,8 +24,18 @@ namespace CaeManager.Application.Documentos.Queries.DetectarCamposDocumento;
 public record DetectarCamposDocumentoQuery(byte[] Contenido, string NombreArchivo, AmbitoAplicacion Ambito)
     : IRequest<Result<DeteccionCamposDocumentoDto>>;
 
+/// <summary>
+/// <see cref="FechaEmisionLeida"/> es lo que el proveedor leyó DEL ARCHIVO: null
+/// significa "no se leyó", nunca un valor por defecto. <see cref="FechaVencimientoPropuesta"/>
+/// es distinta: el modelo puede haberla CALCULADO desde una vigencia ("válido
+/// por 2 años") en lugar de leerla, así que se muestra como propuesta y no
+/// como dato leído. Ambas solo alimentan una propuesta que una persona confirma
+/// o corrige antes de que exista el Documento (decisión del propietario,
+/// 2026-09-19); ninguna ruta puede convertirlas en un Documento por sí sola.
+/// </summary>
 public record DeteccionCamposDocumentoDto(
-    Guid? TipoDocumentoId, Guid? TrabajadorId, int ConfianzaGeneral, string? AliasSugerido = null);
+    Guid? TipoDocumentoId, Guid? TrabajadorId, int ConfianzaGeneral, string? AliasSugerido = null,
+    DateOnly? FechaEmisionLeida = null, DateOnly? FechaVencimientoPropuesta = null);
 
 public class DetectarCamposDocumentoQueryHandler(
     IDocumentAIRouterService router,
@@ -71,7 +81,29 @@ public class DetectarCamposDocumentoQueryHandler(
             ? await DetectarTrabajadorAsync(extraccion.Campos, cancellationToken)
             : (null, null);
 
-        return Result.Exito(new DeteccionCamposDocumentoDto(tipoDocumentoId, trabajadorId, extraccion.ConfianzaGeneral, aliasSugerido));
+        return Result.Exito(new DeteccionCamposDocumentoDto(
+            tipoDocumentoId, trabajadorId, extraccion.ConfianzaGeneral, aliasSugerido,
+            ParsearFechaLeida(extraccion.Campos.GetValueOrDefault("fechaEmision")),
+            ParsearFechaLeida(extraccion.Campos.GetValueOrDefault("fechaVencimiento"))));
+    }
+
+    /// <summary>
+    /// ISO primero (lo que piden los prompts de los proveedores); si no, día/mes/año
+    /// a la española. Nunca la cultura del hilo: el mismo texto no debe dar dos
+    /// fechas según la configuración del servidor. Lo que no se pueda leer queda
+    /// en null — una fecha inventada sería peor que ninguna.
+    /// </summary>
+    private static DateOnly? ParsearFechaLeida(string? valor)
+    {
+        if (string.IsNullOrWhiteSpace(valor))
+            return null;
+
+        var texto = valor.Trim();
+        if (DateOnly.TryParseExact(texto, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var iso))
+            return iso;
+        if (DateOnly.TryParseExact(texto, ["dd/MM/yyyy", "d/M/yyyy", "dd-MM-yyyy", "d-M-yyyy"], System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var es))
+            return es;
+        return null;
     }
 
     /// <summary>Solo sugiere si hay una única coincidencia razonable — ante cualquier ambigüedad, mejor dejarlo en blanco que arriesgar una mala sugerencia.</summary>

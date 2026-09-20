@@ -7,11 +7,11 @@
 .aviso-memoria-subida { font: var(--font-caption); }
 .progreso-subida-masiva { display: flex; flex-direction: column; gap: var(--space-3); }
 .progreso-subida-masiva-cabecera, .resumen-subida-masiva { align-items: center; display: flex; flex-wrap: wrap; gap: var(--space-3); }
-.progreso-subida-masiva-cabecera span, .ayuda-auto-creacion { color: var(--color-text-muted); font: var(--font-caption); }
+.progreso-subida-masiva-cabecera span, .ayuda-solo-propone { color: var(--color-text-muted); font: var(--font-caption); }
 .progreso-subida-masiva-cabecera span { margin-left: auto; }
 .barra-progreso-subida { background: var(--color-surface-subtle); border-radius: var(--radius-full); height: 6px; overflow: hidden; }
 .barra-progreso-subida span { background: var(--color-primary-500); display: block; height: 100%; transition: width .2s ease; }
-.ayuda-auto-creacion { flex: 1 1 18rem; }
+.ayuda-solo-propone { flex: 1 1 18rem; }
 .panel-lote-subida-masiva { background: var(--color-surface); border: var(--border-default); border-radius: var(--radius-lg); overflow: hidden; }
 .panel-lote-subida-masiva > header { align-items: center; background: var(--color-surface-hover); border-bottom: var(--border-default); display: flex; flex-wrap: wrap; gap: var(--space-2); padding: var(--space-3) var(--space-5); }
 .panel-lote-subida-masiva > header > span { color: var(--color-text-muted); flex: 1; font: var(--font-caption); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
@@ -27,6 +27,7 @@
 .item-subida-masiva-nombre { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .item-subida-masiva-badges, .item-subida-masiva-acciones { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .item-subida-masiva-acciones { flex: 0 0 auto; }
+.item-subida-masiva-propuesta, .ayuda-fecha-subida { color: var(--color-text-muted); font: var(--font-caption); }
 .item-subida-masiva-error { color: var(--color-danger-700); font: var(--font-caption); }
 .item-subida-masiva-confirmacion { border-top: var(--border-default); display: grid; gap: var(--space-4); grid-template-columns: minmax(240px, 1fr) minmax(280px, 1fr); margin-top: var(--space-4); padding-top: var(--space-4); }
 .previsualizacion-documento { border: var(--border-default); border-radius: var(--radius-md); height: 360px; width: 100%; }

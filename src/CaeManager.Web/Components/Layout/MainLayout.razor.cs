@@ -217,10 +217,14 @@ public partial class MainLayout
             // ArgumentOutOfRangeException dentro de NpgsqlDataReader — misma
             // carrera, forma distinta según en qué punto exacto del socket la
             // sorprenda la desconexión). No es un PuertaAccesoDatos.EjecutarAsync
-            // — la puerta ya se defiende de su propio semáforo en Dispose
-            // (LiberarSiSigueViva); esto es el paso anterior: la propia
-            // conexión/DbContext muere DENTRO de la operación envuelta, no en
-            // el cleanup. Aquí sí es cierto que no queda nadie al otro lado
+            // — la puerta no se dispone (ver su comentario); esto es el paso
+            // anterior: la propia conexión/DbContext muere DENTRO de la
+            // operación envuelta. LiberacionDeAccesoADatosAlCerrarCircuito hace
+            // que el cierre del circuito espere a la operación en vuelo antes de
+            // disponer el scope del circuito (no el de la pasada SSR, que no
+            // tiene ese punto de cierre); esta rama sigue cubriendo lo que no
+            // pase por ahí y lo que supere el tope de espera.
+            // Aquí sí es cierto que no queda nadie al otro lado
             // esperando una redirección, así que no hay nada que hacer salvo no
             // dejar la excepción sin observar.
             //
