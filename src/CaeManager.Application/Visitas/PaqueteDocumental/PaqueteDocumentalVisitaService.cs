@@ -6,6 +6,7 @@ using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Comunicaciones;
+using CaeManager.Domain.Documentos;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -27,8 +28,18 @@ public class PaqueteDocumentalVisitaService(
     // escribió ninguna persona, y el hilo debe dejarlo claro.
     private const string RemitenteAutomaticoEmail = "hydra-automatico@sistema.local";
 
+    private record DocumentoCandidatoDto(
+        Guid? TrabajadorId, Guid TipoDocumentoId, string ArchivoUrl, DateOnly FechaEmision, DateOnly? FechaVencimiento);
     private record DocumentoParaZipDto(Guid? TrabajadorId, Guid TipoDocumentoId, string ArchivoUrl);
     private record TrabajadorNombreDto(string Nombre, string Apellidos);
+
+    /// <summary>
+    /// Documentos que viajan (uno por titular y tipo) y los pares (titular, tipo) que se
+    /// quedan fuera por tener solo copias vencidas.
+    /// </summary>
+    private record SeleccionPaquete(
+        IReadOnlyList<DocumentoParaZipDto> Enviar,
+        IReadOnlyList<(Guid? TrabajadorId, Guid TipoDocumentoId)> SoloVencidos);
 
     public async Task GenerarYEnviarAsync(Guid visitaId, Guid conversacionId, CancellationToken cancellationToken = default)
     {
@@ -51,14 +62,35 @@ public class PaqueteDocumentalVisitaService(
             .Select(vt => vt.TrabajadorId)
             .ToListAsync(cancellationToken);
 
-        var documentos = await documentosContext.Documentos
+        var candidatos = await documentosContext.Documentos
             .Where(d => d.ArchivoUrl != null && (d.EmpresaId == centro.EmpresaId || (d.TrabajadorId != null && trabajadorIds.Contains(d.TrabajadorId.Value))))
-            .Select(d => new DocumentoParaZipDto(d.TrabajadorId, d.TipoDocumentoId, d.ArchivoUrl!))
+            .Select(d => new DocumentoCandidatoDto(d.TrabajadorId, d.TipoDocumentoId, d.ArchivoUrl!, d.FechaEmision, d.FechaVencimiento))
             .ToListAsync(cancellationToken);
+
+        if (candidatos.Count == 0)
+        {
+            logger.LogInformation("Visita {VisitaId}: sin documentos de empresa/trabajadores disponibles, no se genera paquete documental.", visitaId);
+            return;
+        }
+
+        var seleccion = SeleccionarDocumentos(candidatos, DateOnly.FromDateTime(DateTime.UtcNow));
+        var documentos = seleccion.Enviar;
+
+        if (seleccion.SoloVencidos.Count > 0)
+        {
+            // Es una salida hacia un tercero: lo vencido no viaja, pero su ausencia no puede
+            // ser silenciosa. Solo identificadores en el log — el nombre de un trabajador es
+            // dato personal y el log no lo necesita.
+            logger.LogWarning(
+                "Visita {VisitaId}: {Cantidad} documento(s) del paquete documental no se envían porque solo existen copias vencidas (tipo/titular): {Omitidos}.",
+                visitaId,
+                seleccion.SoloVencidos.Count,
+                string.Join(", ", seleccion.SoloVencidos.Select(o => $"{o.TipoDocumentoId}/{(o.TrabajadorId is { } t ? t.ToString() : "empresa")}")));
+        }
 
         if (documentos.Count == 0)
         {
-            logger.LogInformation("Visita {VisitaId}: sin documentos de empresa/trabajadores disponibles, no se genera paquete documental.", visitaId);
+            logger.LogWarning("Visita {VisitaId}: ningún documento vigente que enviar, no se genera paquete documental.", visitaId);
             return;
         }
 
@@ -96,6 +128,55 @@ public class PaqueteDocumentalVisitaService(
 
         var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Saliente, conversacion.Canal, RemitenteAutomaticoEmail, cuerpo);
         mensaje.AgregarAdjunto(nombreZip, "application/zip", zipBytes.LongLength, archivoUrlZip);
+    }
+
+    /// <summary>
+    /// Regla del propietario (2026-09-20): al Cliente empresarial se le envían todos los
+    /// documentos vigentes, y uno de cada uno; nunca los vencidos.
+    ///
+    /// <para>
+    /// Un documento por (titular, tipo). Entre varias copias vigentes gana la de mayor
+    /// vigencia (<c>FechaVencimiento</c> más lejana; sin fecha —<see cref="EstadoDocumento.SinCaducidad"/>,
+    /// p. ej. Formación 60h— cuenta como vigencia máxima), y a igualdad la más reciente
+    /// (<c>FechaEmision</c>). Si aún empatan, el orden de la ruta del archivo: solo para
+    /// que la elección no dependa del orden en que devuelva las filas la base.
+    /// </para>
+    ///
+    /// <para>
+    /// Vencido es <c>FechaVencimiento &lt; hoy</c> (el umbral ámbar/rojo no interviene:
+    /// Próximo y Urgente siguen vigentes), evaluado con <see cref="CalculadoraEstadoDocumento"/>
+    /// para no duplicar la regla. Si de un (titular, tipo) solo hay copias vencidas no se
+    /// envía ninguna y el par se devuelve en <see cref="SeleccionPaquete.SoloVencidos"/>:
+    /// nunca se manda el vencido «por si acaso».
+    /// </para>
+    ///
+    /// <para>
+    /// Los candidatos ya vienen filtrados a los que tienen archivo: un documento sin
+    /// archivo no puede viajar y no compite por el puesto.
+    /// </para>
+    /// </summary>
+    private static SeleccionPaquete SeleccionarDocumentos(IReadOnlyList<DocumentoCandidatoDto> candidatos, DateOnly hoy)
+    {
+        var enviar = new List<DocumentoParaZipDto>();
+        var soloVencidos = new List<(Guid? TrabajadorId, Guid TipoDocumentoId)>();
+
+        foreach (var grupo in candidatos.GroupBy(d => (d.TrabajadorId, d.TipoDocumentoId)))
+        {
+            // Los umbrales no afectan a "Vencido"; 0/0 basta y evita leer ParametrosSistema.
+            var ganador = grupo
+                .Where(d => CalculadoraEstadoDocumento.Calcular(d.FechaVencimiento, hoy, 0, 0) != EstadoDocumento.Vencido)
+                .OrderByDescending(d => d.FechaVencimiento ?? DateOnly.MaxValue)
+                .ThenByDescending(d => d.FechaEmision)
+                .ThenBy(d => d.ArchivoUrl, StringComparer.Ordinal)
+                .FirstOrDefault();
+
+            if (ganador is null)
+                soloVencidos.Add(grupo.Key);
+            else
+                enviar.Add(new DocumentoParaZipDto(ganador.TrabajadorId, ganador.TipoDocumentoId, ganador.ArchivoUrl));
+        }
+
+        return new SeleccionPaquete(enviar, soloVencidos);
     }
 
     /// <summary>Devuelve null si ningún documento pudo abrirse (storage inconsistente) — mejor no adjuntar nada que adjuntar un zip vacío.</summary>
