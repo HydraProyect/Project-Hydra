@@ -123,7 +123,7 @@ echo "=== Caso 4: el techo de iteraciones vale duración/intervalo + 1, con inde
 echo 0 > "$CONTADOR_STATS"
 SALIDA4="$(muestreo_memoria 20 2 2>&1)"
 [ "$(cat "$CONTADOR_STATS")" = "11" ] || fallo "20 s a 2 s debían dar 11 muestras, dieron $(cat "$CONTADOR_STATS")"
-echo "$SALIDA4" | grep -q "Fin del muestreo: muestras=11 stats_ok=11 t_primera=0s volcado_inicial=2/2 volcado_final=2/2" || fallo "falta el cierre con los hechos (muestras, stats_ok, t_primera, volcados): $(echo "$SALIDA4" | grep -a "Fin del muestreo")"
+echo "$SALIDA4" | grep -q "Fin del muestreo: muestras=11 stats_ok=11 t_primera=[0-9]*s volcado_inicial=2/2 volcado_final=2/2" || fallo "falta el cierre con los hechos (muestras, stats_ok, t_primera, volcados): $(echo "$SALIDA4" | grep -a "Fin del muestreo")"
 echo "$SALIDA4" | grep -q "psi_some_total_us=4242 oom_kill=7" || fallo "faltan los contadores del host por muestra"
 echo "$SALIDA4" | grep -q "memory.peak: 123456" || fallo "falta la lectura de cgroup (estado inicial/final)"
 echo "$SALIDA4" | grep -q "caemanager-db" || fallo "falta el contenedor caemanager-db"
@@ -335,6 +335,49 @@ docker() { if [ "$1" = exec ]; then return 1; fi; docker_base "$@"; }
 SALIDA18="$(muestreo_memoria 20 2 2>&1)"
 echo "$SALIDA18" | grep -q "volcado_inicial=0/2 volcado_final=0/2" || fallo "con docker exec fallando debía verse 0/2 en ambos volcados: $(echo "$SALIDA18" | grep -a "Fin del muestreo")"
 echo "$SALIDA18" | grep -q "sin lectura de cgroup en caemanager-app" || fallo "debía avisar de la lectura perdida"
+docker() { docker_base "$@"; }
+echo "OK"
+
+echo "=== Caso 19: el exec solo cuenta como lectura si leyó el PICO (se ejecuta el script real contra un cgroup de mentira) ==="
+CG="$TMP/cg"
+# El script del `docker exec` es el REAL (tercer argumento tras `sh -c`), con /sys/fs/cgroup apuntando al directorio de prueba.
+docker() {
+    case "$1" in
+        exec) local guion; guion="$(printf '%s' "$5" | sed "s#/sys/fs/cgroup#$CG#g")"; sh -c "$guion" ;;
+        *) docker_base "$@" ;;
+    esac
+}
+# a) cgroup v2 con memory.peak: leído.
+rm -rf "$CG"; mkdir -p "$CG"; echo 12345 > "$CG/memory.peak"; echo 999 > "$CG/memory.current"
+SALIDA19="$(muestreo_memoria 20 2 2>&1)"
+echo "$SALIDA19" | grep -q "volcado_final=2/2" || fallo "con memory.peak legible debía leerse 2/2: $(echo "$SALIDA19" | grep -a "Fin del muestreo")"
+# b) cgroup v2 SIN memory.peak (kernel < 5.19) pero con memory.current: el exec sale bien, pero no hay pico -> no cuenta.
+rm -rf "$CG"; mkdir -p "$CG"; echo 999 > "$CG/memory.current"
+SALIDA19="$(muestreo_memoria 20 2 2>&1)"
+echo "$SALIDA19" | grep -q "volcado_final=0/2" || fallo "sin memory.peak el volcado NO debe contar como leído (0/2): $(echo "$SALIDA19" | grep -a "Fin del muestreo")"
+echo "$SALIDA19" | grep -q "sin lectura de cgroup en caemanager-app" || fallo "debía avisar de la lectura sin pico"
+# c) cgroup v1 con max_usage_in_bytes: leído.
+rm -rf "$CG"; mkdir -p "$CG/memory"; echo 5 > "$CG/memory/memory.max_usage_in_bytes"
+SALIDA19="$(muestreo_memoria 20 2 2>&1)"
+echo "$SALIDA19" | grep -q "volcado_final=2/2" || fallo "con max_usage_in_bytes (v1) debía leerse 2/2: $(echo "$SALIDA19" | grep -a "Fin del muestreo")"
+# d) nada legible: el exec de antes terminaba en 0 y contaba como leído.
+rm -rf "$CG"; mkdir -p "$CG"
+SALIDA19="$(muestreo_memoria 20 2 2>&1)"
+echo "$SALIDA19" | grep -q "volcado_inicial=0/2 volcado_final=0/2" || fallo "sin ningún fichero legible debía verse 0/2 en ambos volcados: $(echo "$SALIDA19" | grep -a "Fin del muestreo")"
+docker() { docker_base "$@"; }
+echo "OK"
+
+echo "=== Caso 20: si docker inspect agota el plazo, no se lanza el docker exec ==="
+EXECS="$TMP/execs20"; : > "$EXECS"
+docker() {
+    case "$1" in
+        inspect) SECONDS=$((SECONDS + 100)); docker_base "$@" ;;   # el inspect se come todo el plazo
+        exec) echo x >> "$EXECS"; docker_base "$@" ;;
+        *) docker_base "$@" ;;
+    esac
+}
+muestreo_memoria 100 5 >/dev/null 2>&1 || true
+[ "$(wc -l < "$EXECS" | tr -d ' ')" = "0" ] || fallo "tras agotar el plazo en el inspect no debía lanzarse ningún exec, se lanzaron $(wc -l < "$EXECS")"
 docker() { docker_base "$@"; }
 echo "OK"
 

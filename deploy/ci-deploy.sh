@@ -391,21 +391,30 @@ volcar_cgroup_contenedores() {
         _limite_restante || { echo "(volcado cortado: agotado el plazo del muestreo)"; break; }
         echo "--- ${contenedor} ---"
         timeout "$limite" docker inspect --format 'iniciado={{.State.StartedAt}} reinicios={{.RestartCount}} oom_docker={{.State.OOMKilled}}' "$contenedor" 2>/dev/null || true
+        # El inspect pudo consumir el plazo: el límite del exec se recalcula.
+        _limite_restante || { echo "(volcado cortado: agotado el plazo del muestreo)"; break; }
+        # Solo cuenta como leído si el exec leyó el PICO (memory.peak en cgroup v2,
+        # memory/memory.max_usage_in_bytes en v1): terminar en 0 sin haber leído
+        # nada no es una lectura, y `volcado_final=n/n` no puede afirmarlo.
         if timeout "$limite" docker exec "$contenedor" sh -c '
+            pico=0
             for f in /sys/fs/cgroup/memory.peak /sys/fs/cgroup/memory.current /sys/fs/cgroup/memory.max \
                      /sys/fs/cgroup/memory.events \
                      /sys/fs/cgroup/memory/memory.max_usage_in_bytes /sys/fs/cgroup/memory/memory.usage_in_bytes \
                      /sys/fs/cgroup/memory/memory.limit_in_bytes; do
-                if [ -r "$f" ]; then printf "%s: " "${f#/sys/fs/cgroup/}"; tr "\n" " " < "$f"; echo; fi
+                if [ -r "$f" ]; then
+                    printf "%s: " "${f#/sys/fs/cgroup/}"; tr "\n" " " < "$f"; echo
+                    case "$f" in */memory.peak|*/memory.max_usage_in_bytes) pico=1 ;; esac
+                fi
             done
             if [ -r /sys/fs/cgroup/memory.stat ]; then
                 grep -E "^(anon|file|shmem|file_mapped) " /sys/fs/cgroup/memory.stat | tr "\n" " "; echo
             fi
-            true
+            [ "$pico" = 1 ]
         ' 2>/dev/null; then
             leidos=$(( leidos + 1 ))
         else
-            echo "(sin lectura de cgroup en ${contenedor})"
+            echo "(sin lectura de cgroup en ${contenedor}: ni memory.peak ni max_usage_in_bytes legibles, o docker exec falló)"
         fi
     done
     VOLCADO_LEIDOS="$leidos"
