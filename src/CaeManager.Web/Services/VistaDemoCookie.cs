@@ -63,6 +63,10 @@ public class VistaDemoCookie(
             // sin circuito de Blazor — se prueba el HttpContext.
         }
 
+        // Un circuito cuya sesión ya no vale no recupera identidad por el HttpContext heredado.
+        if (authenticationStateProvider is ISesionDeCircuitoInvalidable { SesionInvalidada: true })
+            return null;
+
         var http = httpContextAccessor.HttpContext?.User;
         return http?.Identity?.IsAuthenticated == true ? http : null;
     }

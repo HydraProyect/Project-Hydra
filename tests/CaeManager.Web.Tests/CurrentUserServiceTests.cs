@@ -47,6 +47,21 @@ public class CurrentUserServiceTests
     }
 
     [Fact]
+    public async Task Un_circuito_con_la_sesion_invalidada_no_recupera_usuario_por_el_HttpContext_que_lo_abrio()
+    {
+        var httpContextAccessor = new HttpContextAccessorFalso(UsuarioAutenticadoCon(UsuarioIdDeEjemplo, "Administrador"));
+
+        var vigente = CrearServicio(new AuthenticationStateProviderFalso(lanzarInvalidOperationException: true), httpContextAccessor);
+        var vigenteConInterfaz = CrearServicio(new ProveedorDeCircuitoInvalidadoFalso(sesionInvalidada: false), httpContextAccessor);
+        var invalidado = CrearServicio(new ProveedorDeCircuitoInvalidadoFalso(), httpContextAccessor);
+
+        (await vigente.ObtenerUsuarioActualIdAsync()).Should().Be(UsuarioIdDeEjemplo, "control positivo: sin invalidar, el fallback sigue funcionando");
+        (await vigenteConInterfaz.ObtenerUsuarioActualIdAsync()).Should().Be(UsuarioIdDeEjemplo, "el proveedor implementa la interfaz pero su sesión sigue vigente");
+        (await invalidado.ObtenerUsuarioActualIdAsync()).Should().BeNull();
+        (await invalidado.ObtenerRolActualAsync()).Should().BeNull();
+    }
+
+    [Fact]
     public async Task Bajo_una_sesion_privilegiada_no_hay_rol_de_negocio_aunque_el_claim_diga_Administrador()
     {
         // El peor caso real: un tecnico de TALVEG que es Administrador en SU
@@ -125,6 +140,15 @@ public class CurrentUserServiceTests
 
             return Task.FromResult(new AuthenticationState(_usuario ?? new ClaimsPrincipal(new ClaimsIdentity())));
         }
+    }
+
+    private sealed class ProveedorDeCircuitoInvalidadoFalso(bool sesionInvalidada = true)
+        : AuthenticationStateProvider, ISesionDeCircuitoInvalidable
+    {
+        public bool SesionInvalidada => sesionInvalidada;
+
+        public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
+            Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity())));
     }
 
     private sealed class HttpContextAccessorFalso(ClaimsPrincipal? usuario) : IHttpContextAccessor

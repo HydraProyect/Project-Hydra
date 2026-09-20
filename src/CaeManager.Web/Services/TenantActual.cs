@@ -91,6 +91,11 @@ public class TenantActual(
         if (desdeCircuito is { } tenantId)
             return tenantId;
 
+        // Un circuito cuya sesión ya no vale NO recupera identidad por el
+        // HttpContext de la petición que lo abrió (ver ISesionDeCircuitoInvalidable).
+        if (authenticationStateProvider is ISesionDeCircuitoInvalidable { SesionInvalidada: true })
+            return null;
+
         var usuarioHttp = httpContextAccessor.HttpContext?.User;
         if (usuarioHttp?.Identity?.IsAuthenticated != true)
             return null;
