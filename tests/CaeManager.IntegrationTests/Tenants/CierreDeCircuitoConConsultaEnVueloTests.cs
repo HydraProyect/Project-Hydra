@@ -63,9 +63,14 @@ namespace CaeManager.IntegrationTests.Tenants;
 ///
 /// <para>
 /// La propiedad se comprueba por ORDEN, no por tiempo: una sonda registrada en el
-/// scope anota si la llave ya estaba soltada cuando el contenedor la dispuso. Si
-/// el cierre no espera a la consulta, la sonda se dispone con la llave todavía
-/// tomada y el rojo sale por esa aserción, no por un plazo.
+/// scope pregunta al SERVIDOR, en el instante en que el contenedor la dispone (con
+/// una conexión propia abierta de antemano), si la consulta sigue retenida. Si el
+/// cierre no espera a la consulta, la sonda se dispone con la consulta todavía
+/// bloqueada y el rojo sale por esa aserción, no por un plazo. Se pregunta al
+/// servidor y no a una marca del cliente porque una marca «llave soltada» puesta
+/// antes del <c>pg_advisory_unlock</c> real dejaba una ventana en la que una
+/// versión rota podía disponer el scope y pasar por buena (refutación de Codex,
+/// 2026-09-21).
 /// </para>
 /// </summary>
 public class CierreDeCircuitoConConsultaEnVueloTests : IAsyncLifetime
@@ -76,11 +81,11 @@ public class CierreDeCircuitoConConsultaEnVueloTests : IAsyncLifetime
     // pg_locks). Aleatoria: el bloqueo es de la base y esa base la comparten otros tests.
     private readonly int _llaveA = Random.Shared.Next(1, int.MaxValue);
     private readonly int _llaveB = Random.Shared.Next(1, int.MaxValue);
-    private readonly MarcaDeLiberacion _marca = new();
     private readonly string _nombreAplicacion = $"cierre-circuito-{Guid.NewGuid():N}";
     private readonly string _cadenaDeTrafico;
     private readonly string _cadenaDeControl;
     private NpgsqlConnection _control = default!;
+    private NpgsqlConnection _conexionDeLaSonda = default!;
     private ServiceProvider _servicios = default!;
 
     public CierreDeCircuitoConConsultaEnVueloTests()
@@ -110,6 +115,10 @@ public class CierreDeCircuitoConConsultaEnVueloTests : IAsyncLifetime
         // test —tras lanzar la consulta— era lo que perdía la carrera contra su ventana.
         _control = new NpgsqlConnection(_cadenaDeControl);
         await _control.OpenAsync();
+        // Conexión de uso exclusivo de la sonda, también abierta de antemano: abrirla al
+        // disponerse el scope volvería a poner una espera dentro de la ventana que se mide.
+        _conexionDeLaSonda = new NpgsqlConnection(_cadenaDeControl);
+        await _conexionDeLaSonda.OpenAsync();
 
         var servicios = new ServiceCollection();
         servicios.AddSingleton<IDataProtectionProvider>(new EphemeralDataProtectionProvider());
@@ -121,7 +130,7 @@ public class CierreDeCircuitoConConsultaEnVueloTests : IAsyncLifetime
             _cadenaDeTrafico, npgsql => npgsql.EnableRetryOnFailure(6, TimeSpan.FromSeconds(30), null)));
         // Igual que Program.cs.
         servicios.AddScoped<CircuitHandler, LiberacionDeAccesoADatosAlCerrarCircuito>();
-        servicios.AddSingleton(_marca);
+        servicios.AddSingleton(new ObservadorDeRetencion(_conexionDeLaSonda, ConsultaRetenidaSql));
         servicios.AddScoped<SondaDeDisposicion>();
 
         _servicios = servicios.BuildServiceProvider();
@@ -131,6 +140,7 @@ public class CierreDeCircuitoConConsultaEnVueloTests : IAsyncLifetime
     {
         // Cerrar la conexión de control suelta el bloqueo si el test murió reteniéndolo.
         await _control.DisposeAsync();
+        await _conexionDeLaSonda.DisposeAsync();
 
         // Acotado: si el escenario dejó una conexión rota, que la limpieza no cuelgue la suite.
         await Task.WhenAny(_servicios.DisposeAsync().AsTask(), Task.Delay(TimeSpan.FromSeconds(20)));
@@ -145,13 +155,12 @@ public class CierreDeCircuitoConConsultaEnVueloTests : IAsyncLifetime
             // La llave, en poder del test ANTES de lanzar la consulta: en cuanto la consulta
             // llegue al servidor se queda esperándola.
             await EjecutarEnControlAsync($"select pg_advisory_lock({_llaveA}, {_llaveB})");
-            _marca.Liberada = false;
 
             var scope = _servicios.CreateAsyncScope();
             var puerta = scope.ServiceProvider.GetRequiredService<PuertaAccesoDatos>();
             var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
             // Se resuelve DESPUÉS del contexto: el contenedor dispone en orden inverso, así que
-            // la sonda se dispone antes que el DbContext y anota si la llave ya se soltó.
+            // la sonda se dispone antes que el DbContext y anota si la consulta seguía retenida.
             var sonda = scope.ServiceProvider.GetRequiredService<SondaDeDisposicion>();
 
             // Como un componente que se inicializa: la consulta entra por la puerta.
@@ -171,14 +180,14 @@ public class CierreDeCircuitoConConsultaEnVueloTests : IAsyncLifetime
             await EsperarAsync(() => puerta.Cerrada || sonda.Eliminada,
                 "que el cierre del circuito cerrara la puerta o dispusiera el scope", vuelta);
 
-            _marca.Liberada = true;
             await EjecutarEnControlAsync($"select pg_advisory_unlock({_llaveA}, {_llaveB})");
 
             // Sin lanzar aquí: una versión rota puede colgar o romper cierre y consulta, y el rojo
             // tiene que salir por las aserciones de abajo, no por un tiempo agotado.
             await Task.WhenAny(Task.WhenAll(cierre, consulta), Task.Delay(TimeSpan.FromSeconds(30)));
 
-            sonda.LiberadaAlDisponerse.Should().BeTrue(
+            sonda.ErrorAlObservar.Should().BeNull("la sonda tiene que haber podido preguntar al servidor");
+            sonda.RetenidaAlDisponerse.Should().BeFalse(
                 "el scope —y con él el DbContext y su conexión— se dispuso con la consulta todavía retenida en " +
                 $"el servidor: el cierre del circuito NO esperó a la consulta en vuelo (vuelta {vuelta})");
             sonda.Eliminada.Should().BeTrue(
@@ -227,11 +236,12 @@ public class CierreDeCircuitoConConsultaEnVueloTests : IAsyncLifetime
     /// puede llegar tarde; el plazo solo acota un fallo real (la consulta nunca llega).
     /// Si la consulta termina o falla antes de quedar retenida, el fallo es ese, no un tiempo.
     /// </summary>
+    private string ConsultaRetenidaSql =>
+        "select count(*) from pg_locks where locktype = 'advisory' and not granted " +
+        $"and classid::bigint = {_llaveA} and objid::bigint = {_llaveB} and objsubid = 2";
+
     private async Task EsperarConsultaRetenidaEnElServidorAsync(Task consulta, int vuelta)
     {
-        var sql = "select count(*) from pg_locks where locktype = 'advisory' and not granted " +
-                  $"and classid::bigint = {_llaveA} and objid::bigint = {_llaveB} and objsubid = 2";
-
         await EsperarAsync(() =>
         {
             if (consulta.IsCompleted)
@@ -240,7 +250,7 @@ public class CierreDeCircuitoConConsultaEnVueloTests : IAsyncLifetime
                     $"{consulta.Status}, {consulta.Exception?.GetBaseException().Message}");
 
             using var comando = _control.CreateCommand();
-            comando.CommandText = sql;
+            comando.CommandText = ConsultaRetenidaSql;
             return (long)comando.ExecuteScalar()! > 0;
         }, "que la consulta quedara retenida en el servidor", vuelta);
     }
@@ -277,31 +287,52 @@ public class CierreDeCircuitoConConsultaEnVueloTests : IAsyncLifetime
         return await tarea;
     }
 
-    /// <summary>Si la llave ya se soltó: lo lee la sonda al disponerse el scope.</summary>
-    private sealed class MarcaDeLiberacion
+    /// <summary>
+    /// Pregunta al servidor si la consulta sigue esperando la llave. Una sola conexión, la
+    /// de la sonda: los scopes de las vueltas se disponen de uno en uno.
+    /// </summary>
+    private sealed class ObservadorDeRetencion(NpgsqlConnection conexion, string sql)
     {
-        public volatile bool Liberada;
+        public async Task<bool> HayConsultaRetenidaAsync()
+        {
+            await using var comando = conexion.CreateCommand();
+            comando.CommandText = sql;
+            return (long)(await comando.ExecuteScalarAsync())! > 0;
+        }
     }
 
     /// <summary>
-    /// Servicio del scope que anota CUÁNDO se dispone el scope respecto a la llave.
-    /// Un test que solo mirase el resultado de la consulta no vería que el scope se
-    /// dispuso con ella en vuelo cuando la consulta acaba bien de todos modos.
+    /// Servicio del scope que anota, en el instante en que el scope se dispone, si la
+    /// consulta seguía retenida en el servidor. Un test que solo mirase el resultado de la
+    /// consulta no vería que el scope se dispuso con ella en vuelo cuando la consulta acaba
+    /// bien de todos modos.
     /// </summary>
-    private sealed class SondaDeDisposicion(MarcaDeLiberacion marca) : IAsyncDisposable
+    private sealed class SondaDeDisposicion(ObservadorDeRetencion observador) : IAsyncDisposable
     {
         private volatile bool _eliminada;
-        private volatile bool _liberadaAlDisponerse;
+        private volatile bool _retenidaAlDisponerse;
+        private volatile string? _errorAlObservar;
 
         public bool Eliminada => _eliminada;
 
-        public bool LiberadaAlDisponerse => _liberadaAlDisponerse;
+        public bool RetenidaAlDisponerse => _retenidaAlDisponerse;
 
-        public ValueTask DisposeAsync()
+        public string? ErrorAlObservar => _errorAlObservar;
+
+        public async ValueTask DisposeAsync()
         {
-            _liberadaAlDisponerse = marca.Liberada;
-            _eliminada = true;
-            return ValueTask.CompletedTask;
+            try
+            {
+                _retenidaAlDisponerse = await observador.HayConsultaRetenidaAsync();
+            }
+            catch (Exception ex)
+            {
+                _errorAlObservar = ex.ToString();
+            }
+            finally
+            {
+                _eliminada = true;
+            }
         }
     }
 }
