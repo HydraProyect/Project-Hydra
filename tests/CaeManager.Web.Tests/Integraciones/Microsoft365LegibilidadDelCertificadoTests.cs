@@ -1,3 +1,4 @@
+using System.Runtime.Versioning;
 using CaeManager.Infrastructure.Integraciones;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
@@ -146,6 +147,7 @@ public sealed class Microsoft365LegibilidadDelCertificadoTests : IDisposable
     }
 
     [FactSiElSistemaDeFicherosHonraLosModos]
+    [UnsupportedOSPlatform("windows")]
     public async Task Con_el_modo_del_fichero_a_cero_avisa_y_al_devolver_el_permiso_deja_de_avisar()
     {
         // La propiedad que motivó el chequeo, contra el sistema de ficheros REAL: un PEM sin permiso de
