@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.JSInterop;
@@ -47,6 +48,7 @@ namespace CaeManager.IntegrationTests.Identity;
 public class SelectorTemaGuardadoTrasEscrituraConcurrenteTests : IAsyncLifetime
 {
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
+    private readonly RetenedorDelPrimerGuardado _retenedor = new();
     private ServiceProvider _servicios = null!;
     private Guid _usuarioId;
 
@@ -62,7 +64,8 @@ public class SelectorTemaGuardadoTrasEscrituraConcurrenteTests : IAsyncLifetime
         servicios.AddSingleton<ITenantActual>(new SinTenantActual());
 
         servicios.AddDbContext<CaeManagerDbContext>(opciones => opciones
-            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL")));
+            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            .AddInterceptors(_retenedor));
 
         servicios.AddScoped<PuertaAccesoDatos>();
         servicios.AddScoped<IDesenganchadorDeEntidadesRastreadas>(sp => sp.GetRequiredService<CaeManagerDbContext>());
@@ -366,10 +369,10 @@ public class SelectorTemaGuardadoTrasEscrituraConcurrenteTests : IAsyncLifetime
     /// Con la cuenta borrada todo guardado falla, y cada intento fallido deja
     /// avisos en el registro: se cuentan por intento (medido antes, con un
     /// selector aparte y un solo cambio) para observar CUÁNTOS intentos hubo.
-    /// Los dos cambios posteriores se lanzan sin esperar al primero, cuyo
-    /// guardado sigue en vuelo. Si el primer guardado terminara antes de que se
-    /// lancen, se producirían más intentos, no menos: el instrumento solo
-    /// puede dar un verde falso, nunca un rojo falso.
+    /// <b>La ventana es determinista</b>: el primer guardado se retiene DENTRO
+    /// de <c>SavingChangesAsync</c> (<see cref="RetenedorDelPrimerGuardado"/>)
+    /// hasta que el test ha registrado las dos elecciones posteriores, así que
+    /// no depende de lo que tarde el <c>UPDATE</c> en ninguna máquina.
     /// </para>
     /// </summary>
     [Fact]
@@ -394,9 +397,13 @@ public class SelectorTemaGuardadoTrasEscrituraConcurrenteTests : IAsyncLifetime
         var avisosPorIntento = registroBase.Avisos;
         avisosPorIntento.Should().BeGreaterThan(0, "un guardado fallido tiene que dejar rastro para poder contarlo");
 
+        _retenedor.RetenerElPrimerGuardado();
         var primero = InvocarCambiarTemaAsync(selectorTema, "oscuro");
+        await _retenedor.EsperarQueElPrimerGuardadoEstePendienteAsync(TimeSpan.FromSeconds(30));
+
         await InvocarCambiarTemaAsync(selectorTema, "claro");
         await InvocarCambiarTemaAsync(selectorTema, "oscuro");
+        _retenedor.LiberarElPrimerGuardado();
         await primero.WaitAsync(TimeSpan.FromSeconds(30));
 
         registro.Avisos.Should().BeGreaterThanOrEqualTo(2 * avisosPorIntento,
@@ -411,6 +418,37 @@ public class SelectorTemaGuardadoTrasEscrituraConcurrenteTests : IAsyncLifetime
         var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         (await userManager.DeleteAsync((await userManager.FindByIdAsync(_usuarioId.ToString()))!))
             .Succeeded.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Retiene el primer <c>SaveChanges</c> que llegue tras <see cref="RetenerElPrimerGuardado"/>
+    /// hasta <see cref="LiberarElPrimerGuardado"/>: permite sostener un
+    /// guardado EN VUELO mientras el test lanza otros cambios. Sin armar, no
+    /// hace nada. Precedente: <c>RestablecerYCambiarContrasenaTests</c>
+    /// registra interceptores propios en el mismo <c>AddDbContext</c>.
+    /// </summary>
+    private sealed class RetenedorDelPrimerGuardado : SaveChangesInterceptor
+    {
+        private volatile TaskCompletionSource<bool>? _puerta;
+        private readonly TaskCompletionSource<bool> _pendiente = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public void RetenerElPrimerGuardado() =>
+            _puerta = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public void LiberarElPrimerGuardado() => _puerta!.TrySetResult(true);
+
+        public Task EsperarQueElPrimerGuardadoEstePendienteAsync(TimeSpan limite) =>
+            _pendiente.Task.WaitAsync(limite);
+
+        public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            var puerta = _puerta;
+            if (puerta is not null && _pendiente.TrySetResult(true))
+                await puerta.Task.WaitAsync(cancellationToken);
+
+            return result;
+        }
     }
 
     private sealed class RegistroQueCuentaAvisos : ILogger<SelectorTema>
