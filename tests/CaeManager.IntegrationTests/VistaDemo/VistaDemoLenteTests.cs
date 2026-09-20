@@ -73,9 +73,12 @@ public class VistaDemoLenteTests : IAsyncLifetime
             var correo = $"{nombre}@vista-demo.test";
             var u = new ApplicationUser
             {
-                UserName = correo, NormalizedUserName = correo.ToUpperInvariant(),
-                Email = correo, NormalizedEmail = correo.ToUpperInvariant(),
-                NombreCompleto = nombre, TenantId = tenant,
+                UserName = correo,
+                NormalizedUserName = correo.ToUpperInvariant(),
+                Email = correo,
+                NormalizedEmail = correo.ToUpperInvariant(),
+                NombreCompleto = nombre,
+                TenantId = tenant,
             };
             contexto.Users.Add(u);
             contexto.UserRoles.Add(new IdentityUserRole<Guid> { UserId = u.Id, RoleId = rol });
@@ -304,12 +307,12 @@ public class VistaDemoLenteTests : IAsyncLifetime
                      Solicitud(VistaDemo.CoordinadorCae, null, Roles.Administrador),
                      Solicitud(VistaDemo.GestorCae, _g1, Roles.Administrador),
                  })
-        foreach (var tenant in new[] { _operador, _p1, _p3, _tenantReal })
-        {
-            await using var contexto = CrearContexto(tenant);
-            var vista = CrearVista(contexto, tenant, Administrador(), solicitud, Activo(true), null);
-            (await vista.EstaDisponibleAsync()).Should().BeTrue();
-        }
+            foreach (var tenant in new[] { _operador, _p1, _p3, _tenantReal })
+            {
+                await using var contexto = CrearContexto(tenant);
+                var vista = CrearVista(contexto, tenant, Administrador(), solicitud, Activo(true), null);
+                (await vista.EstaDisponibleAsync()).Should().BeTrue();
+            }
     }
 
     [Fact]
