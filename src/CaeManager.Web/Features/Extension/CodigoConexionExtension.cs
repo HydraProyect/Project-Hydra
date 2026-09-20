@@ -6,7 +6,7 @@ namespace CaeManager.Web.Features.Extension;
 
 /// <summary>
 /// Empaqueta en una sola cadena las tres cosas que la extensión necesita para
-/// conectarse a mano: el origen de Hydra, el token y su caducidad.
+/// conectarse a mano: el origen de TALVEG, el token y su caducidad.
 ///
 /// <para>
 /// <b>No cifra ni oculta nada</b> — es base64 de un JSON, y dentro viaja el
@@ -33,9 +33,9 @@ namespace CaeManager.Web.Features.Extension;
 /// </summary>
 public static class CodigoConexionExtension
 {
-    public static string Crear(string hydraUrl, string token, DateTime expiraEnUtc)
+    public static string Crear(string urlTalveg, string token, DateTime expiraEnUtc)
     {
-        var carga = new CargaCodigoConexion(hydraUrl, token, expiraEnUtc.ToString("O"));
+        var carga = new CargaCodigoConexion(urlTalveg, token, expiraEnUtc.ToString("O"));
         var json = JsonSerializer.Serialize(carga);
         return Convert.ToBase64String(Encoding.UTF8.GetBytes(json));
     }
@@ -46,6 +46,6 @@ public static class CodigoConexionExtension
 /// cada carácter de más es una oportunidad de recortarlo al seleccionar.
 /// </summary>
 public record CargaCodigoConexion(
-    [property: JsonPropertyName("u")] string HydraUrl,
+    [property: JsonPropertyName("u")] string UrlTalveg,
     [property: JsonPropertyName("t")] string Token,
     [property: JsonPropertyName("e")] string ExpiraEnUtc);

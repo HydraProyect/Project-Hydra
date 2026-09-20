@@ -21,7 +21,7 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class CodigoConexionExtensionTests
 {
-    private const string HydraUrl = "https://staging.talveg.es/";
+    private const string UrlTalveg = "https://staging.talveg.es/";
     private const string Token = "CfDJ8ejemplo-inventado.no-es-un-token-real";
     private static readonly DateTime Expira = new(2026, 9, 21, 12, 0, 0, DateTimeKind.Utc);
 
@@ -31,10 +31,10 @@ public class CodigoConexionExtensionTests
     [Fact]
     public void El_codigo_lleva_los_tres_datos_con_los_nombres_que_espera_la_extension()
     {
-        var raiz = Decodificar(CodigoConexionExtension.Crear(HydraUrl, Token, Expira));
+        var raiz = Decodificar(CodigoConexionExtension.Crear(UrlTalveg, Token, Expira));
 
         // "u", "t" y "e": los mismos nombres que desestructura conectarManual.
-        raiz.GetProperty("u").GetString().Should().Be(HydraUrl);
+        raiz.GetProperty("u").GetString().Should().Be(UrlTalveg);
         raiz.GetProperty("t").GetString().Should().Be(Token);
         raiz.GetProperty("e").GetString().Should().Be("2026-09-21T12:00:00.0000000Z");
     }
@@ -45,7 +45,7 @@ public class CodigoConexionExtensionTests
         // Sin la Z, Date.parse del navegador la interpreta como hora LOCAL y
         // la extensión se creería conectada dos horas de más o de menos. Es un
         // fallo que solo se ve cuando el token ya no vale.
-        var raiz = Decodificar(CodigoConexionExtension.Crear(HydraUrl, Token, Expira));
+        var raiz = Decodificar(CodigoConexionExtension.Crear(UrlTalveg, Token, Expira));
 
         raiz.GetProperty("e").GetString().Should().EndWith("Z");
         DateTime.Parse(raiz.GetProperty("e").GetString()!).ToUniversalTime().Should().Be(Expira);
@@ -59,7 +59,7 @@ public class CodigoConexionExtensionTests
         // el fallo aparecería como un 401 en otra pantalla.
         var conSimbolos = "aA0-_.~+/=";
 
-        Decodificar(CodigoConexionExtension.Crear(HydraUrl, conSimbolos, Expira))
+        Decodificar(CodigoConexionExtension.Crear(UrlTalveg, conSimbolos, Expira))
             .GetProperty("t").GetString().Should().Be(conSimbolos);
     }
 
@@ -69,7 +69,7 @@ public class CodigoConexionExtensionTests
         // La extensión lo descodifica con atob, que NO acepta el alfabeto
         // base64url. Esto lo deja fijado por si alguien "moderniza" el
         // empaquetado sin tocar el otro lado.
-        var codigo = CodigoConexionExtension.Crear(HydraUrl, Token, Expira);
+        var codigo = CodigoConexionExtension.Crear(UrlTalveg, Token, Expira);
 
         codigo.Should().MatchRegex("^[A-Za-z0-9+/]+={0,2}$");
     }
