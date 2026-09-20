@@ -197,6 +197,17 @@ nuevo_caso uso
 bash "$GUION" > "$CASO/o" 2>&1; rc=$?
 comprobar "sin comando: salida 64" "64" "$rc"
 
+# 13 ------------------------------------------------------------------------
+# Hallazgo de la revisión previa: caducidad por debajo del latido = un dueño
+# legítimo no puede refrescar a tiempo y se le retira el cerrojo. Se rechaza.
+nuevo_caso configuracion-invalida
+rm -f "$CASO/marca"
+HYDRA_TURNO_CADUCIDAD_S=1 HYDRA_TURNO_LATIDO_S=5 bash "$GUION" -- bash -c "touch '$CASO/marca'" > "$CASO/o" 2>&1; rc=$?
+comprobar "caducidad < latido: se rechaza con 64 y NO ejecuta" "64 no" "$rc $([ -e "$CASO/marca" ] && echo si || echo no)"
+comprobar "lo dice: ABORTADO_SIN_EJECUTAR motivo=configuracion_invalida" "1" "$(grep -c 'ABORTADO_SIN_EJECUTAR motivo=configuracion_invalida' "$CASO/o")"
+HYDRA_TURNO_CADUCIDAD_S=abc bash "$GUION" -- bash -c "touch '$CASO/marca'" > "$CASO/o" 2>&1; rc=$?
+comprobar "tiempo no numérico: se rechaza con 64" "64" "$rc"
+
 echo
 if [ "$fallos" -eq 0 ]; then
   echo "TODOS LOS CASOS EN VERDE"

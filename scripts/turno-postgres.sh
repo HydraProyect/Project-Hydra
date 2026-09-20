@@ -89,6 +89,16 @@ AVISO_S=${HYDRA_TURNO_AVISO_S:-60}
 espera_max_s=$(( ${HYDRA_TURNO_ESPERA_MAX_MIN:-120} * 60 ))
 etiqueta=""
 
+# La exclusión depende de que un dueño vivo refresque su latido mucho antes de
+# que otro lo dé por caducado. Con CADUCIDAD <= LATIDO (o cifras no numéricas) un
+# dueño legítimo perdería el cerrojo y dos suites correrían a la vez: se rechaza
+# al arrancar, sin ejecutar nada, en vez de degradar la garantía en silencio.
+if ! awk -v c="$CADUCIDAD_S" -v l="$LATIDO_S" -v s="$SONDEO_S"      'BEGIN { exit !(c + 0 > 0 && l + 0 > 0 && s + 0 > 0 && c >= 3 * l) }'; then
+  echo "TURNO-POSTGRES: configuración inválida: HYDRA_TURNO_CADUCIDAD_S ($CADUCIDAD_S) debe ser >= 3 x HYDRA_TURNO_LATIDO_S ($LATIDO_S), y los tiempos positivos y numéricos." >&2
+  echo "TURNO-POSTGRES: ABORTADO_SIN_EJECUTAR motivo=configuracion_invalida salida=$EX_USO" >&2
+  exit $EX_USO
+fi
+
 while [ $# -gt 0 ]; do
   case "$1" in
     --espera-max-min) [ $# -ge 2 ] || { uso; exit $EX_USO; }; espera_max_s=$(( $2 * 60 )); shift 2 ;;
