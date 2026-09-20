@@ -11,6 +11,13 @@ namespace CaeManager.Application.Visitas.PaqueteDocumental;
 /// introduce una entidad Ticket nueva para esto (YAGNI): <c>Visita.Origen</c>
 /// ya deja constancia de que la visita nació de un correo, y este mensaje
 /// automático es la respuesta operativa dentro de ese mismo hilo.
+///
+/// <para>
+/// El zip sale hacia el Cliente empresarial, así que solo lleva documentos
+/// <b>vigentes</b> y <b>uno por titular y tipo</b> (el de mayor vigencia): ni vencidos
+/// ni copias repetidas. Un tipo del que solo hay copias vencidas no se envía y
+/// queda registrado en el log. Detalle en <c>PaqueteDocumentalVisitaService</c>.
+/// </para>
 /// </summary>
 public interface IPaqueteDocumentalVisitaService
 {
