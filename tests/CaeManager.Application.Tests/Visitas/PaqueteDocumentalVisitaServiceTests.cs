@@ -226,6 +226,43 @@ public class PaqueteDocumentalVisitaServiceTests
         _conversacion.Mensajes.Should().ContainSingle().Which.CuerpoHtml.Should().Contain("(2 documento(s))");
     }
 
+    [Fact]
+    public async Task Si_el_archivo_de_la_mejor_copia_no_se_puede_abrir_envia_la_siguiente_vigente()
+    {
+        // Storage inconsistente: la de mayor vigencia apunta a un objeto que ya no existe.
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-10), Hoy.AddDays(400), "irrelevante", archivoInexistente: true);
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-30), Hoy.AddDays(200), "copia-de-reserva");
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-90), Hoy.AddDays(100), "otra-copia");
+
+        await GenerarAsync();
+
+        LeerZip().Should().ContainSingle("sigue siendo uno por titular y tipo").Which.Value.Should().Be("copia-de-reserva");
+    }
+
+    [Fact]
+    public async Task La_copia_de_reserva_nunca_es_una_vencida()
+    {
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-10), Hoy.AddDays(400), "irrelevante", archivoInexistente: true);
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-500), Hoy.AddDays(-3), "vencida-legible");
+        DocumentoDeTrabajador(_ana, _epi, Hoy.AddDays(-10), Hoy.AddDays(100), "epi-vigente");
+
+        await GenerarAsync();
+
+        LeerZip().Should().ContainSingle().Which.Value.Should().Be("epi-vigente");
+    }
+
+    [Fact]
+    public async Task El_correo_cuenta_lo_adjuntado_aunque_un_archivo_no_se_pueda_abrir()
+    {
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-10), Hoy.AddDays(400), "irrelevante", archivoInexistente: true);
+        DocumentoDeTrabajador(_ana, _epi, Hoy.AddDays(-10), Hoy.AddDays(100), "epi");
+        DocumentoDeEmpresa(_seguro, Hoy.AddDays(-10), Hoy.AddDays(100), "seguro");
+
+        await GenerarAsync();
+
+        _conversacion.Mensajes.Should().ContainSingle().Which.CuerpoHtml.Should().Contain("(2 documento(s))");
+    }
+
     private async Task GenerarAsync()
     {
         var servicio = new PaqueteDocumentalVisitaService(
@@ -250,8 +287,10 @@ public class PaqueteDocumentalVisitaServiceTests
         });
     }
 
-    private void DocumentoDeTrabajador(Trabajador trabajador, TipoDocumento tipo, DateOnly emision, DateOnly? vencimiento, string contenido) =>
-        _documentos.ListaDocumentos.Add(Documento.DeTrabajador(trabajador.Id, tipo.Id, emision, vencimiento, Guardar(contenido)));
+    private void DocumentoDeTrabajador(
+        Trabajador trabajador, TipoDocumento tipo, DateOnly emision, DateOnly? vencimiento, string contenido, bool archivoInexistente = false) =>
+        _documentos.ListaDocumentos.Add(Documento.DeTrabajador(
+            trabajador.Id, tipo.Id, emision, vencimiento, archivoInexistente ? "no-existe-en-almacenamiento.pdf" : Guardar(contenido)));
 
     private void DocumentoDeEmpresa(TipoDocumento tipo, DateOnly emision, DateOnly? vencimiento, string contenido) =>
         _documentos.ListaDocumentos.Add(Documento.DeEmpresa(_empresa.Id, tipo.Id, emision, vencimiento, Guardar(contenido)));
