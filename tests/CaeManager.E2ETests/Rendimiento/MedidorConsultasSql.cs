@@ -42,9 +42,9 @@ public class AppCollectionConsultasSql : ICollectionFixture<WebAppFixtureConCons
 /// </para>
 ///
 /// <para>
-/// <b>Límite conocido.</b> Solo lee el fichero más reciente del patrón: una
-/// medición que cruce la medianoche (rotación diaria de Serilog) perdería las
-/// entradas anteriores al cambio de fichero.
+/// <b>Límite conocido.</b> Lee el fichero fijado en la marca: una medición
+/// que cruce la medianoche (rotación diaria de Serilog) lanza en vez de
+/// devolver un recuento incompleto, que pasaría el «≤ prerender» por defecto.
 /// </para>
 /// </summary>
 public sealed partial class MedidorConsultasSql(WebAppFixture fixture)
@@ -102,6 +102,18 @@ public sealed partial class MedidorConsultasSql(WebAppFixture fixture)
         var fichero = marca.Fichero ?? FicheroVigente();
         if (fichero is null)
             return [];
+
+        // Si el log rotó desde la marca, lo escrito después vive en otro
+        // fichero y este recuento saldría bajo: eso daría verde por defecto.
+        // Se para en vez de medir a medias.
+        var vigente = FicheroVigente();
+        if (marca.Fichero is not null && vigente is not null
+            && !string.Equals(vigente, marca.Fichero, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"El log rotó durante la medición ({Path.GetFileName(marca.Fichero)} → {Path.GetFileName(vigente)}): " +
+                "el recuento estaría incompleto. Repite la medición.");
+        }
 
         string texto;
         using (var flujo = new FileStream(fichero, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))

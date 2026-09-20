@@ -54,21 +54,24 @@ public class EstadoDePantallaPersistidoTests
         }
     }
 
-    private sealed class SesionFalsa(Sesion sesion) : ICurrentUserService, ITenantActual, IClienteActivoSeleccionado
+    private sealed class SesionFalsa(Func<Sesion> sesionActual) : ICurrentUserService, ITenantActual, IClienteActivoSeleccionado
     {
-        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult(sesion.UsuarioId);
-        public Task<string?> ObtenerRolActualAsync() => Task.FromResult(sesion.Rol);
-        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult(sesion.TenantOrigen);
+        private Sesion Sesion => sesionActual();
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult(Sesion.UsuarioId);
+        public Task<string?> ObtenerRolActualAsync() => Task.FromResult(Sesion.Rol);
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult(Sesion.TenantOrigen);
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(false);
-        public Guid? TenantId => sesion.TenantActual;
-        public Guid? TenantIdSeleccionado => sesion.TenantActual;
-        public Guid? AsignacionOperacionIdSeleccionada => sesion.AsignacionOperacion;
-        public Guid? SesionPrivilegiadaIdSeleccionada => sesion.SesionPrivilegiada;
+        public Guid? TenantId => Sesion.TenantActual;
+        public Guid? TenantIdSeleccionado => Sesion.TenantActual;
+        public Guid? AsignacionOperacionIdSeleccionada => Sesion.AsignacionOperacion;
+        public Guid? SesionPrivilegiadaIdSeleccionada => Sesion.SesionPrivilegiada;
     }
 
-    private static HuellaDeSesion Huella(Sesion sesion)
+    private static HuellaDeSesion Huella(Sesion sesion) => Huella(() => sesion);
+
+    private static HuellaDeSesion Huella(Func<Sesion> sesionActual)
     {
-        var falsa = new SesionFalsa(sesion);
+        var falsa = new SesionFalsa(sesionActual);
         return new HuellaDeSesion(falsa, falsa, falsa);
     }
 
@@ -88,7 +91,7 @@ public class EstadoDePantallaPersistidoTests
         var fabrica = new FabricaEstadoDePantallaPersistido(gestor.State, Huella(delPrerender), reloj);
         using var estado = fabrica.Crear<Instantanea>(Clave);
         if (instantanea is not null)
-            estado.Guardar(huellaConsulta, instantanea);
+            await estado.GuardarAsync(huellaConsulta, instantanea);
 
         var almacen = new AlmacenEnMemoria();
         await gestor.PersistStateAsync(almacen, contexto.Renderer);
@@ -181,15 +184,85 @@ public class EstadoDePantallaPersistidoTests
         almacen.Contenido.Should().BeEmpty("sin identidad resuelta no se persiste nada");
     }
 
-    [Fact]
-    public async Task Si_la_sesion_del_circuito_no_tiene_identidad_no_recoge_nada()
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task Si_la_sesion_del_circuito_no_tiene_identidad_completa_no_recoge_nada(bool sinUsuario, bool sinTenant)
     {
         var reloj = new Reloj();
         var almacen = await PrerenderAsync(Sesion.Base, reloj, new Instantanea("filas", 3));
 
-        var recogida = await CircuitoAsync(almacen, Sesion.Base with { UsuarioId = null }, reloj);
+        var sinIdentidad = Sesion.Base with
+        {
+            UsuarioId = sinUsuario ? null : Sesion.Usuario,
+            TenantActual = sinTenant ? null : Sesion.TenantX,
+        };
+
+        var recogida = await CircuitoAsync(almacen, sinIdentidad, reloj);
 
         recogida.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task La_huella_de_sesion_es_la_del_instante_de_la_consulta_no_la_de_la_persistencia()
+    {
+        // Una consulta hecha bajo el contexto de Tenant X que, antes de que
+        // acabe el prerender, queda bajo otro contexto (p. ej. un ámbito
+        // explícito que ya se cerró) no puede persistirse sellada con la
+        // huella del contexto final: el circuito del Tenant Y la recogería.
+        var reloj = new Reloj();
+        var sesionEnVigor = Sesion.Base;
+        using var contexto = new BunitContext();
+        var gestor = new ComponentStatePersistenceManager(NullLogger<ComponentStatePersistenceManager>.Instance);
+        var fabrica = new FabricaEstadoDePantallaPersistido(gestor.State, Huella(() => sesionEnVigor), reloj);
+        using var estado = fabrica.Crear<Instantanea>(Clave);
+
+        await estado.GuardarAsync(HuellaConsulta, new Instantanea("filas del Tenant X", 3));
+        sesionEnVigor = Sesion.Base with { TenantActual = Sesion.TenantY };
+
+        var almacen = new AlmacenEnMemoria();
+        await gestor.PersistStateAsync(almacen, contexto.Renderer);
+
+        (await CircuitoAsync(almacen, Sesion.Base with { TenantActual = Sesion.TenantY }, reloj))
+            .Should().BeNull("el estado quedó sellado con el Tenant X, el de la consulta");
+        (await CircuitoAsync(almacen, Sesion.Base, reloj)).Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Si_la_huella_de_sesion_no_se_puede_resolver_al_guardar_no_se_persiste_nada()
+    {
+        var reloj = new Reloj();
+        using var contexto = new BunitContext();
+        var gestor = new ComponentStatePersistenceManager(NullLogger<ComponentStatePersistenceManager>.Instance);
+        var fabrica = new FabricaEstadoDePantallaPersistido(
+            gestor.State, Huella(() => throw new InvalidOperationException("sin contexto")), reloj);
+        using var estado = fabrica.Crear<Instantanea>(Clave);
+
+        await estado.GuardarAsync(HuellaConsulta, new Instantanea("filas", 3));
+
+        var almacen = new AlmacenEnMemoria();
+        await gestor.PersistStateAsync(almacen, contexto.Renderer);
+        almacen.Contenido.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Una_consulta_nueva_que_empieza_descarta_lo_anotado_de_la_anterior()
+    {
+        // Recarga tras eliminar una fila que falla: el estado que se
+        // persistiría (p. ej. al pausar el circuito) sería la lista de antes
+        // de eliminar, con la fila que ya no existe.
+        var reloj = new Reloj();
+        using var contexto = new BunitContext();
+        var gestor = new ComponentStatePersistenceManager(NullLogger<ComponentStatePersistenceManager>.Instance);
+        var fabrica = new FabricaEstadoDePantallaPersistido(gestor.State, Huella(Sesion.Base), reloj);
+        using var estado = fabrica.Crear<Instantanea>(Clave);
+        await estado.GuardarAsync(HuellaConsulta, new Instantanea("con la fila eliminada", 3));
+
+        estado.Descartar();
+
+        var almacen = new AlmacenEnMemoria();
+        await gestor.PersistStateAsync(almacen, contexto.Renderer);
+        almacen.Contenido.Should().BeEmpty();
     }
 
     // ── Consulta: otra pregunta no se contesta con la respuesta anterior ────────
@@ -229,6 +302,28 @@ public class EstadoDePantallaPersistidoTests
         (await CircuitoAsync(almacen, Sesion.Base, reloj)).Should().NotBeNull();
     }
 
+    [Theory]
+    [InlineData(59, true)]
+    [InlineData(61, false)]
+    public async Task La_vigencia_son_60_segundos_no_una_constante_que_se_pueda_bajar_sin_que_se_note(
+        int segundosTranscurridos, bool seRecoge)
+    {
+        // Los otros tests de caducidad se escriben contra la propia constante:
+        // bajarla a 1 s los dejaría verdes y volvería inerte el patrón para
+        // cualquier cliente con latencia real. Estos dos fijan el número.
+        var reloj = new Reloj();
+        var almacen = await PrerenderAsync(Sesion.Base, reloj, new Instantanea("filas", 3));
+
+        reloj.Ahora += TimeSpan.FromSeconds(segundosTranscurridos);
+
+        var recogida = await CircuitoAsync(almacen, Sesion.Base, reloj);
+
+        if (seRecoge)
+            recogida.Should().Be(new Instantanea("filas", 3));
+        else
+            recogida.Should().BeNull();
+    }
+
     [Fact]
     public async Task Un_estado_fechado_en_el_futuro_se_descarta()
     {
@@ -251,7 +346,7 @@ public class EstadoDePantallaPersistidoTests
         var gestor = new ComponentStatePersistenceManager(NullLogger<ComponentStatePersistenceManager>.Instance);
         var fabrica = new FabricaEstadoDePantallaPersistido(gestor.State, Huella(Sesion.Base), reloj);
         using var estado = fabrica.Crear<Instantanea>(Clave);
-        estado.Guardar(HuellaConsulta, new Instantanea("filas", 3));
+        await estado.GuardarAsync(HuellaConsulta, new Instantanea("filas", 3));
 
         // El render tarda: la persistencia ocurre 45 s después de consultar.
         reloj.Ahora += TimeSpan.FromSeconds(45);

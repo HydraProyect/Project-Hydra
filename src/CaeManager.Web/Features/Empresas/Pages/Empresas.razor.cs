@@ -305,6 +305,10 @@ public partial class Empresas : ComponentBase, IDisposable
 
         var huellaConsulta = HuellaConsulta(_busqueda, _estadoFiltro, _pagina, _tamanoPagina);
 
+        // Lo anotado de la carga anterior ya no vale: si esta falla, la
+        // pantalla enseña el error y no debe persistirse la lista vieja.
+        _estadoPersistido?.Descartar();
+
         _cargando = true;
         _errorCarga = false;
         StateHasChanged();
@@ -317,8 +321,9 @@ public partial class Empresas : ComponentBase, IDisposable
 
             _totalElementos = resultado.TotalElementos;
             _elementosPagina = resultado.Elementos.ToList();
-            _estadoPersistido?.Guardar(
-                huellaConsulta, new InstantaneaEmpresas(_tituloPagina, _totalElementos, [.. _elementosPagina]));
+            if (_estadoPersistido is not null)
+                await _estadoPersistido.GuardarAsync(
+                    huellaConsulta, new InstantaneaEmpresas(_tituloPagina, _totalElementos, [.. _elementosPagina]));
             _seleccionados.Clear();
             _expandidos.Clear();
             _clientesPorEmpresa.Clear();

@@ -135,7 +135,12 @@ public class ConsultasPorNavegacionTests(WebAppFixtureConConsultasSql fixture)
     private static int ContarFilas(string html, string selector) => selector switch
     {
         ".tarjeta-fila-acordeon" => Regex.Matches(html, @"class=""tarjeta-fila-acordeon""").Count,
-        "table.tabla-datos tbody tr" => Math.Max(0, Regex.Matches(html, "<tr[ >]").Count - 1),
+        // Las filas del cuerpo de la tabla de datos, no cualquier <tr> del HTML
+        // (un menú o un modal con una tabla las desplazaría en silencio).
+        "table.tabla-datos tbody tr" => Regex.Matches(
+                Regex.Match(html, @"<table[^>]*class=""[^""]*\btabla-datos\b[^""]*""[^>]*>.*?</table>", RegexOptions.Singleline).Value,
+                "<tbody[^>]*>.*?</tbody>", RegexOptions.Singleline)
+            .Sum(cuerpo => Regex.Matches(cuerpo.Value, "<tr[ >]").Count),
         _ => throw new ArgumentOutOfRangeException(nameof(selector), selector, "Selector sin contador para el HTML crudo."),
     };
 }

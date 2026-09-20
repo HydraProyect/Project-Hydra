@@ -74,8 +74,10 @@ public sealed class FabricaEstadoDePantallaPersistido(
 /// </list>
 ///
 /// <para>
-/// <b>Qué viaja al navegador.</b> Solo la instantánea que la pantalla ya
-/// enseña, más la huella de la sesión y el instante. El estado va cifrado y
+/// <b>Qué viaja al navegador.</b> Solo el resultado de lista que la pantalla
+/// ya consulta con el alcance de la sesión (el DTO de lista: puede incluir
+/// campos que la pantalla no pinta, siempre de las mismas filas), más la
+/// huella de la sesión y el instante. El estado va cifrado y
 /// firmado con Data Protection (el almacén de prerender de Blazor Server): el
 /// navegador no lo lee ni lo altera.
 /// </para>
@@ -86,6 +88,15 @@ public sealed class FabricaEstadoDePantallaPersistido(
 /// propietario, otro workspace, otro rol o sesión privilegiada); la huella de
 /// la consulta no coincide (otros filtros, página o tamaño); o pasó más de
 /// <see cref="FabricaEstadoDePantallaPersistido.VigenciaMaxima"/>.
+/// </para>
+///
+/// <para>
+/// <b>Lo que el patrón deja de hacer.</b> Mientras dura la vigencia, el
+/// circuito NO revalida contra la base: si una cartera o una sesión
+/// privilegiada se revoca entre el prerender y el circuito, el circuito enseña
+/// una vez las filas que el prerender ya pintó en la misma respuesta HTTP. La
+/// huella cubre las coordenadas de la sesión, no el contenido de la cartera.
+/// Cualquier acción del usuario después de eso consulta de nuevo.
 /// </para>
 /// </summary>
 public sealed class EstadoDePantallaPersistido<TInstantanea> : IDisposable
@@ -99,6 +110,8 @@ public sealed class EstadoDePantallaPersistido<TInstantanea> : IDisposable
 
     private TInstantanea? _pendiente;
     private string? _huellaConsultaPendiente;
+    private string? _huellaDeSesionPendiente;
+    private int _version;
     private DateTimeOffset _tomadaEn;
 
     internal EstadoDePantallaPersistido(
@@ -113,18 +126,55 @@ public sealed class EstadoDePantallaPersistido<TInstantanea> : IDisposable
 
     /// <summary>
     /// Anota el resultado que el prerender debe dejar al circuito. Se llama
-    /// con lo que la pantalla acaba de consultar; el instante es el de la
-    /// consulta, no el de la persistencia.
+    /// con lo que la pantalla acaba de consultar; el instante Y la huella de
+    /// sesión son los de la consulta, no los de la persistencia: una consulta
+    /// hecha bajo otro contexto de Tenant (p. ej. un ámbito explícito) no
+    /// puede quedar sellada con la huella de otro. Si la huella no se puede
+    /// resolver, no se guarda nada (falla cerrado hacia «consultar otra vez»).
     /// </summary>
-    public void Guardar(string huellaConsulta, TInstantanea instantanea)
+    public async Task GuardarAsync(string huellaConsulta, TInstantanea instantanea)
     {
+        var instante = _reloj.GetUtcNow();
+        var version = _version;
+        string? huellaDeSesion;
+        try
+        {
+            huellaDeSesion = await _huellaDeSesion.ObtenerAsync();
+        }
+        catch (Exception)
+        {
+            huellaDeSesion = null;
+        }
+
+        // Si mientras se resolvía la huella empezó otra consulta (Descartar),
+        // este resultado es de una pregunta ya superada: no se anota.
+        if (version != _version)
+            return;
+
+        if (huellaDeSesion is null)
+        {
+            Descartar();
+            return;
+        }
+
         _pendiente = instantanea;
         _huellaConsultaPendiente = huellaConsulta;
-        _tomadaEn = _reloj.GetUtcNow();
+        _huellaDeSesionPendiente = huellaDeSesion;
+        _tomadaEn = instante;
     }
 
-    /// <summary>Olvida lo anotado (la pantalla dejó de reflejarlo, p. ej. un error de carga).</summary>
-    public void Descartar() => _pendiente = null;
+    /// <summary>
+    /// Olvida lo anotado. Se llama al EMPEZAR cada consulta real: si la carga
+    /// falla, lo anotado de la anterior ya no refleja lo que la pantalla
+    /// muestra (p. ej. la fila que se acaba de eliminar) y no debe persistirse.
+    /// </summary>
+    public void Descartar()
+    {
+        _version++;
+        _pendiente = null;
+        _huellaConsultaPendiente = null;
+        _huellaDeSesionPendiente = null;
+    }
 
     /// <summary>
     /// La instantánea que dejó el prerender, si vale para esta sesión y esta
@@ -149,17 +199,14 @@ public sealed class EstadoDePantallaPersistido<TInstantanea> : IDisposable
         return sobre.Datos;
     }
 
-    private async Task PersistirAsync()
+    private Task PersistirAsync()
     {
-        if (_pendiente is null || _huellaConsultaPendiente is null)
-            return;
-
-        var huellaDeSesion = await _huellaDeSesion.ObtenerAsync();
-        if (huellaDeSesion is null)
-            return;
+        if (_pendiente is null || _huellaConsultaPendiente is null || _huellaDeSesionPendiente is null)
+            return Task.CompletedTask;
 
         _estado.PersistAsJson(
-            _clave, new Sobre(huellaDeSesion, _huellaConsultaPendiente, _tomadaEn, _pendiente));
+            _clave, new Sobre(_huellaDeSesionPendiente, _huellaConsultaPendiente, _tomadaEn, _pendiente));
+        return Task.CompletedTask;
     }
 
     public void Dispose() => _suscripcion.Dispose();

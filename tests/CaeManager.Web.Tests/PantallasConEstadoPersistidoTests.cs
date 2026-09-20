@@ -182,6 +182,35 @@ public class PantallasConEstadoPersistidoTests
         r.Markup.Should().Contain("Empresa del prerender").And.NotContain("Empresa del circuito");
     }
 
+    /// <summary>
+    /// Una carga que empieza y falla no puede dejar publicada la lista de la
+    /// carga anterior (p. ej. la que aún tiene la fila que se acaba de
+    /// eliminar): la pantalla enseña el error y lo único honesto que puede
+    /// persistir es nada.
+    /// </summary>
+    [Fact]
+    public async Task Empresas_una_carga_que_falla_no_deja_persistida_la_lista_de_la_carga_anterior()
+    {
+        var falla = false;
+        var datos = DatosEmpresas("Empresa buena");
+        using var ctx = Contexto(
+            peticion => falla && peticion is ObtenerEmpresasQuery ? throw new InvalidOperationException("BD caída") : datos(peticion),
+            TenantX, out _, out var gestor);
+        var navegacion = ctx.Services.GetRequiredService<NavigationManager>();
+        navegacion.NavigateTo("empresas");
+        var cut = ctx.Render<Empresas>();
+        cut.WaitForState(() => cut.Markup.Contains("Empresa buena"));
+
+        falla = true;
+        navegacion.NavigateTo("empresas?q=acme");
+        cut.WaitForState(() => !cut.Markup.Contains("Empresa buena"));
+
+        var almacen = new AlmacenEnMemoria();
+        await gestor.PersistStateAsync(almacen, ctx.Renderer);
+
+        almacen.Contenido.Should().BeEmpty("la última carga falló: no hay nada verdadero que dejar al circuito");
+    }
+
     [Fact]
     public async Task Empresas_otro_filtro_en_la_URL_del_circuito_consulta_de_nuevo()
     {
@@ -232,6 +261,29 @@ public class PantallasConEstadoPersistidoTests
     }
 
     [Fact]
+    public async Task Subcontratas_una_carga_que_falla_no_deja_persistida_la_lista_de_la_carga_anterior()
+    {
+        var falla = false;
+        var datos = DatosSubcontratas("Sub buena");
+        using var ctx = Contexto(
+            peticion => falla && peticion is ObtenerSubcontratasQuery ? throw new InvalidOperationException("BD caída") : datos(peticion),
+            TenantX, out _, out var gestor);
+        var navegacion = ctx.Services.GetRequiredService<NavigationManager>();
+        navegacion.NavigateTo("subcontratas");
+        var cut = ctx.Render<Subcontratas>();
+        cut.WaitForState(() => cut.Markup.Contains("Sub buena"));
+
+        falla = true;
+        navegacion.NavigateTo("subcontratas?q=acme");
+        cut.WaitForAssertion(() => cut.Markup.Should().NotContain("Sub buena"));
+
+        var almacen = new AlmacenEnMemoria();
+        await gestor.PersistStateAsync(almacen, ctx.Renderer);
+
+        almacen.Contenido.Should().BeEmpty("la última carga falló: no hay nada verdadero que dejar al circuito");
+    }
+
+    [Fact]
     public async Task Subcontratas_otra_busqueda_en_la_URL_del_circuito_consulta_de_nuevo()
     {
         var r = await PrerenderYCircuitoAsync<Subcontratas>(
@@ -267,6 +319,35 @@ public class PantallasConEstadoPersistidoTests
             1, q.Pagina, q.TamanoPagina),
         _ => throw new NotSupportedException(peticion.GetType().Name),
     };
+
+    /// <summary>
+    /// La recarga tras eliminar una incidencia (misma huella que la carga
+    /// anterior) que falla no puede dejar persistida la lista con la fila que
+    /// se acaba de eliminar.
+    /// </summary>
+    [Fact]
+    public async Task Incidencias_una_recarga_que_falla_tras_eliminar_no_deja_persistida_la_lista_anterior()
+    {
+        var falla = false;
+        var datos = DatosIncidencias("Centro bueno");
+        using var ctx = Contexto(
+            peticion => falla && peticion is ObtenerIncidenciasQuery ? throw new InvalidOperationException("BD caída") : datos(peticion),
+            TenantX, out _, out var gestor);
+        ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("incidencias");
+        var cut = ctx.Render<Incidencias>();
+        cut.WaitForState(() => cut.Markup.Contains("Centro bueno"));
+
+        falla = true;
+        await cut.FindAll(".menu-acciones-disparador")[0].ClickAsync(new());
+        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new());
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new());
+        cut.WaitForAssertion(() => cut.Markup.Should().NotContain("Centro bueno"));
+
+        var almacen = new AlmacenEnMemoria();
+        await gestor.PersistStateAsync(almacen, ctx.Renderer);
+
+        almacen.Contenido.Should().BeEmpty("la recarga falló: la lista anterior aún tiene la fila eliminada");
+    }
 
     [Fact]
     public async Task Incidencias_el_circuito_recoge_lo_del_prerender_sin_repetir_la_consulta()
