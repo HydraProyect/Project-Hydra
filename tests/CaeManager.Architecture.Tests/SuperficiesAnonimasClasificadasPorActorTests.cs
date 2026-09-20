@@ -47,7 +47,9 @@ namespace CaeManager.Architecture.Tests;
 /// </para>
 ///
 /// <para>
-/// <b>Lo que observa y lo que no.</b> Observa TEXTO sin comentarios: que el filtro esté en
+/// <b>Lo que observa y lo que no.</b> Observa TEXTO sin comentarios —quitados por
+/// <c>LimpiadorDeComentarios</c>, cuyo recorrido contrasta <c>LimpiadorDeComentariosTests</c> con
+/// Roslyn y con cada fuente real de <c>src</c>—: que el filtro esté en
 /// la cadena de llamadas. No observa que el ámbito llegue al <c>SaveChanges</c> —lo
 /// demuestra <c>TipoActorDeAuditoriaBajoRuntimeTests</c>— ni qué hace un
 /// endpoint que se cuelga de un grupo definido en otro fichero.
@@ -92,7 +94,7 @@ public class SuperficiesAnonimasClasificadasPorActorTests
         ["CaeManager.Web/Program.cs"] = (3, Categoria.NoEscribe),
     };
 
-    private const string Filtro = "AddEndpointFilter<ActorIntegracionExternaEndpointFilter>";
+    internal const string Filtro = "AddEndpointFilter<ActorIntegracionExternaEndpointFilter>";
 
     /// <summary>
     /// Toda mención de <c>AllowAnonymous</c> en código, en cualquier forma sintáctica:
@@ -104,7 +106,7 @@ public class SuperficiesAnonimasClasificadasPorActorTests
     /// sin líneas <c>using</c>.
     /// </summary>
     private static readonly Regex AllowAnonymousEnCodigo = new(
-        @"\bAllowAnonymous(?:Attribute)?\b",
+        @"\bI?AllowAnonymous(?:Attribute)?\b",
         RegexOptions.Compiled);
 
     [Fact]
@@ -218,8 +220,11 @@ public class SuperficiesAnonimasClasificadasPorActorTests
     /// <para>
     /// <b>Alcance de <c>ImplementaIResult</c>:</b> prohíbe la implementación directa en
     /// TODO <c>src</c>, más allá de los grupos filtrados, porque textualmente no se puede
-    /// saber qué endpoint devuelve qué tipo. No ve herencia indirecta
-    /// (<c>class X : BaseResultado</c>). Si algún día hace falta un <c>IResult</c> propio
+    /// saber qué endpoint devuelve qué tipo, con cualquier combinación de modificadores
+    /// (<c>partial</c>, <c>abstract</c>, <c>readonly</c>, <c>file</c>, <c>unsafe</c>…) y de atributos
+    /// delante. No ve herencia indirecta (<c>class X : BaseResultado</c>, ni una interfaz propia que
+    /// extienda <c>IResult</c>) ni una declaración que no empiece su línea
+    /// (<c>namespace N { class X : IResult }</c> en una sola). Si algún día hace falta un <c>IResult</c> propio
     /// legítimo, se añade a <see cref="ResultadosPermitidos"/> tras comprobar que su
     /// <c>ExecuteAsync</c> no escribe nada auditable; no se debilita la expresión regular.
     /// </para>
@@ -263,14 +268,40 @@ public class SuperficiesAnonimasClasificadasPorActorTests
         ImplementaIResult.IsMatch("var r = Result.Exito(x);").Should().BeFalse("Result de dominio no es IResult");
         ImplementaIResult.IsMatch("public class Derivado : BaseResultado").Should().BeFalse(
             "límite conocido y declarado: no ve herencia indirecta");
+        // Las formas que la lista cerrada de modificadores dejaba pasar (hallazgo P1-3).
+        foreach (var declaracion in new[]
+                 {
+                     "internal sealed partial class Mio : IResult",
+                     "public partial class Mio : IResult",
+                     "internal abstract class Mio : IResult",
+                     "public readonly struct Mio : IResult",
+                     "file class Mio : IResult",
+                     "internal unsafe class Mio : IResult",
+                     "[Foo] public record struct Mio(int A) : IResult",
+                     "public partial record Mio(int A) : IResult",
+                     "    public new sealed class Mio<T> : IResult",
+                     "public ref struct Mio : IResult",
+                 })
+            ImplementaIResult.IsMatch(declaracion).Should().BeTrue($"«{declaracion}» es una implementación directa de IResult");
+        ImplementaIResult.IsMatch("public partial class Mio : IDisposable").Should().BeFalse("control negativo: no implementa IResult");
     }
 
     private static readonly Regex ResultadoConEjecucionDiferida = new(
         @"\b(?:Typed)?Results\.(?:Stream|File|PushStream)\s*\(|\bIAsyncEnumerable\s*<|\.OnCompleted\s*\(|\.OnStarting\s*\(|\bRegisterForDispose(?:Async)?\s*\(",
         RegexOptions.Compiled);
 
-    private static readonly Regex ImplementaIResult = new(
-        @"^[ \t]*(?:(?:public|internal|sealed|private|protected|static)[ \t]+)*(?:class|record|struct)[ \t]+(?<tipo>\w+)[^{;=]*:[^{;=]*\bIResult\b",
+    /// <summary>
+    /// Declaración de tipo que lista <c>IResult</c> entre sus bases, con cualquier
+    /// combinación de modificadores (<c>partial</c>, <c>abstract</c>, <c>readonly</c>,
+    /// <c>file</c>, <c>unsafe</c>, <c>new</c>, <c>ref</c>…) y atributos delante, y con
+    /// <c>class</c>, <c>record</c>, <c>record struct</c> o <c>struct</c>. Los modificadores
+    /// se enumeran porque la lista cerrada anterior dejaba pasar <c>internal sealed partial
+    /// class</c> (hallazgo P1-3 de la revisión previa). Para el operador de los modificadores
+    /// vale lo mismo que para el resto del trinquete: un modificador que se le olvide es un
+    /// <c>IResult</c> invisible, no una regla más laxa.
+    /// </summary>
+    internal static readonly Regex ImplementaIResult = new(
+        @"^[ \t]*(?:\[[^\]\r\n]*\][ \t]*)*(?:(?:public|internal|private|protected|sealed|static|partial|abstract|readonly|file|unsafe|new|ref)[ \t]+)*(?:record[ \t]+struct|record[ \t]+class|class|record|struct)[ \t]+(?<tipo>\w+)[^{;=]*:[^{;=]*\bIResult\b",
         RegexOptions.Compiled | RegexOptions.Multiline);
 
     /// <summary>
@@ -278,102 +309,6 @@ public class SuperficiesAnonimasClasificadasPorActorTests
     /// escribe nada auditable. Vacío hoy. Añadir uno exige esa comprobación, no relajar el patrón.
     /// </summary>
     private static readonly HashSet<string> ResultadosPermitidos = new(StringComparer.Ordinal);
-
-    /// <summary>
-    /// Quita los comentarios. En C# con un recorrido que RESPETA las cadenas (normales,
-    /// verbatim <c>@"…"</c>, interpolables, crudas <c>"""…"""</c>) y los literales de
-    /// carácter: un <c>//</c> dentro de <c>"https://…"</c> no es un comentario, y la versión
-    /// anterior lo cortaba —y con él el resto de la línea, incluido código—. En Razor:
-    /// <c>@* *@</c>, <c>&lt;!-- --&gt;</c>, <c>/* */</c> y las líneas que empiezan por <c>//</c>
-    /// (sin un recorrido de cadenas, que en el marcado se confundiría con apóstrofes y
-    /// comillas sueltas). Ya no borra las líneas <c>using</c>: no había motivo.
-    /// </summary>
-    private static string SinComentarios(string texto, bool razor = false)
-    {
-        if (razor)
-        {
-            texto = Regex.Replace(texto, @"/\*.*?\*/|@\*.*?\*@|<!--.*?-->", string.Empty, RegexOptions.Singleline);
-            return Regex.Replace(texto, @"^[ \t]*//[^\r\n]*", string.Empty, RegexOptions.Multiline);
-        }
-
-        var sb = new System.Text.StringBuilder(texto.Length);
-        var i = 0;
-
-        while (i < texto.Length)
-        {
-            var c = texto[i];
-
-            if (c == '/' && i + 1 < texto.Length && texto[i + 1] == '/')
-            {
-                while (i < texto.Length && texto[i] != '\n') i++;
-                continue;
-            }
-
-            if (c == '/' && i + 1 < texto.Length && texto[i + 1] == '*')
-            {
-                var fin = texto.IndexOf("*/", i + 2, StringComparison.Ordinal);
-                i = fin < 0 ? texto.Length : fin + 2;
-                continue;
-            }
-
-            // Cadena cruda: tres o más comillas, hasta la misma cantidad.
-            if (c == '"' && i + 2 < texto.Length && texto[i + 1] == '"' && texto[i + 2] == '"')
-            {
-                var n = 0;
-                while (i + n < texto.Length && texto[i + n] == '"') n++;
-                var cierre = texto.IndexOf(new string('"', n), i + n, StringComparison.Ordinal);
-                var hasta = cierre < 0 ? texto.Length : cierre + n;
-                sb.Append(texto, i, hasta - i);
-                i = hasta;
-                continue;
-            }
-
-            // Cadena normal o verbatim, con prefijos $ y @ en cualquier orden.
-            var p = i;
-            while (p < texto.Length && (texto[p] == '$' || texto[p] == '@')) p++;
-            if (p < texto.Length && texto[p] == '"' && (p > i || c == '"'))
-            {
-                var verbatim = texto.AsSpan(i, p - i).Contains('@');
-                var j = p + 1;
-                while (j < texto.Length)
-                {
-                    if (verbatim)
-                    {
-                        if (texto[j] == '"' && j + 1 < texto.Length && texto[j + 1] == '"') { j += 2; continue; }
-                        if (texto[j] == '"') break;
-                    }
-                    else
-                    {
-                        if (texto[j] == '\\') { j += 2; continue; }
-                        if (texto[j] == '"' || texto[j] == '\n') break;
-                    }
-                    j++;
-                }
-                var hasta = Math.Min(j + 1, texto.Length);
-                sb.Append(texto, i, hasta - i);
-                i = hasta;
-                continue;
-            }
-
-            // Literal de carácter: 'x' o '\x'. Cualquier otro apóstrofe no abre nada.
-            if (c == '\'')
-            {
-                var largo = i + 3 < texto.Length && texto[i + 1] == '\\' ? texto.IndexOf('\'', i + 3) - i + 1
-                          : i + 2 < texto.Length && texto[i + 2] == '\'' ? 3 : 0;
-                if (largo > 0)
-                {
-                    sb.Append(texto, i, largo);
-                    i += largo;
-                    continue;
-                }
-            }
-
-            sb.Append(c);
-            i++;
-        }
-
-        return sb.ToString();
-    }
 
     /// <summary>
     /// Control positivo del instrumento: el comprobador rechaza una cadena sin filtro
@@ -399,16 +334,16 @@ public class SuperficiesAnonimasClasificadasPorActorTests
 
         // El hueco de la revisión previa: el filtro AUSENTE con un comentario que lo nombra
         // no puede dar verde. El comprobador recibe el texto ya sin comentarios.
-        CadenaDeAnonimoLlevaElFiltro(SinComentarios("""
+        CadenaDeAnonimoLlevaElFiltro(LimpiadorDeComentarios.Quitar("""
             // TODO: falta .AddEndpointFilter<ActorIntegracionExternaEndpointFilter>() aquí
             var g = app.MapGroup("/x")
                 .AllowAnonymous();
-            """)).Should().BeFalse("un comentario que nombra el filtro no es el filtro");
+            """, razor: false)).Should().BeFalse("un comentario que nombra el filtro no es el filtro");
         // Un `//` dentro de una cadena no es un comentario: la versión anterior cortaba la línea
         // (y el código que la seguía).
-        SinComentarios("""var url = "https://x.example/a"; var g = app.MapGroup("/x").AllowAnonymous(); // fin""")
+        LimpiadorDeComentarios.Quitar("""var url = "https://x.example/a"; var g = app.MapGroup("/x").AllowAnonymous(); // fin""", razor: false)
             .Should().Contain(".AllowAnonymous()").And.Contain("https://x.example/a").And.NotContain("fin");
-        SinComentarios("""var r = @"C:\a//b"; var raw = "quo"; x.AllowAnonymous(); /* c */ var c = '"'; y();""")
+        LimpiadorDeComentarios.Quitar("""var r = @"C:\a//b"; var raw = "quo"; x.AllowAnonymous(); /* c */ var c = '"'; y();""", razor: false)
             .Should().Contain("x.AllowAnonymous();").And.Contain("y();").And.NotContain("c */");
 
         // Un comentario que nombra la llamada no es una superficie; una llamada real sí.
@@ -417,14 +352,21 @@ public class SuperficiesAnonimasClasificadasPorActorTests
         SuperficiesAnonimas([("B.razor", "@attribute [AllowAnonymous]\n"), ("C.cs", "x.AllowAnonymous();\n")])
             .Should().BeEquivalentTo(new Dictionary<string, int> { ["B.razor"] = 1, ["C.cs"] = 1 },
                 "el atributo de Razor y la llamada de minimal API cuentan");
+        // El marcador `IAllowAnonymous` también deja un endpoint sin sesión (P2 de la revisión previa); hoy no aparece en src.
+        SuperficiesAnonimas([("G.cs", "builder.WithMetadata(new IAllowAnonymous_Marca()); class M : IAllowAnonymous { }")])
+            .Should().BeEquivalentTo(new Dictionary<string, int> { ["G.cs"] = 1 });
         SuperficiesAnonimas([("D.cs", "endpoints.MapPost(\"/x\", [AllowAnonymous] async (HttpContext c) => Results.Ok());")])
             .Should().BeEquivalentTo(new Dictionary<string, int> { ["D.cs"] = 1 },
                 "el atributo inline en un lambda es una superficie anónima: la primera versión no la veía");
-        SuperficiesAnonimas([("E.razor", "@* cita [AllowAnonymous] en un comentario de Razor *@\n<!-- y [AllowAnonymous] en HTML -->\n/* y en bloque AllowAnonymous */\n")])
-            .Should().BeEmpty("los comentarios de bloque tampoco cuentan");
+        SuperficiesAnonimas([("E.razor", "@* cita [AllowAnonymous] en un comentario de Razor *@\n<!-- y [AllowAnonymous] en HTML -->\n@code {\n    /* y en bloque de C# AllowAnonymous */\n}\n")])
+            .Should().BeEmpty("los comentarios de Razor y los de C# dentro de un bloque de código no cuentan");
+        // Un `/* */` en el MARCADO no es un comentario de Razor: la versión anterior lo quitaba y, con él, todo lo que
+        // hubiera hasta el siguiente `*/` (hallazgo P1-2). Contar de más es rojo; quitar de más es verde con la regla violada.
+        SuperficiesAnonimas([("F.razor", "/* no es un comentario en el marcado AllowAnonymous */\n")])
+            .Should().BeEquivalentTo(new Dictionary<string, int> { ["F.razor"] = 1 });
     }
 
-    private static bool CadenaDeAnonimoLlevaElFiltro(string texto)
+    internal static bool CadenaDeAnonimoLlevaElFiltro(string texto)
     {
         var indice = 0;
         var visto = false;
@@ -450,20 +392,20 @@ public class SuperficiesAnonimasClasificadasPorActorTests
         return texto[desde..hasta];
     }
 
-    private static Dictionary<string, int> SuperficiesAnonimas(List<(string Ruta, string Texto)> fuentes)
+    internal static Dictionary<string, int> SuperficiesAnonimas(List<(string Ruta, string Texto)> fuentes)
         => fuentes
             .Select(f => (f.Ruta, Cuantas: AllowAnonymousEnCodigo.Matches(
-                SinComentarios(f.Texto, f.Ruta.EndsWith(".razor", StringComparison.Ordinal))).Count))
+                LimpiadorDeComentarios.Quitar(f.Texto, f.Ruta.EndsWith(".razor", StringComparison.Ordinal))).Count))
             .Where(f => f.Cuantas > 0)
             .ToDictionary(f => f.Ruta, f => f.Cuantas);
 
     /// <summary>Las fuentes de <c>src</c> con los comentarios ya quitados: es lo que miran todos los comprobadores de cadena.</summary>
     private static List<(string Ruta, string Texto)> FuentesSinComentarios()
         => FuentesDeSrc()
-            .Select(f => (f.Ruta, SinComentarios(f.Texto, f.Ruta.EndsWith(".razor", StringComparison.Ordinal))))
+            .Select(f => (f.Ruta, LimpiadorDeComentarios.Quitar(f.Texto, f.Ruta.EndsWith(".razor", StringComparison.Ordinal))))
             .ToList();
 
-    private static List<(string Ruta, string Texto)> FuentesDeSrc()
+    internal static List<(string Ruta, string Texto)> FuentesDeSrc()
     {
         var src = Path.Combine(RaizDelRepositorio(), "src");
         var sep = Path.DirectorySeparatorChar;
