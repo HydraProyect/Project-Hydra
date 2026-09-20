@@ -36,6 +36,19 @@ namespace CaeManager.Web.Services;
 /// el circuito la corrige en cuanto conecta y reescribe la cookie — un único
 /// parpadeo posible, no uno en cada recarga.
 /// </para>
+///
+/// <para>
+/// <b>Esa corrección solo es inocua mientras la cookie no pueda adelantarse a
+/// la cuenta</b>, y esa invariante la sostiene <c>SelectorTema</c>, no este
+/// tipo: <c>CambiarTemaAsync</c> guarda <c>ApplicationUser.Tema</c> ANTES de
+/// pedirle a <c>tema.js</c> que aplique el tema —y, con ello, escriba esta
+/// cookie—. Con el orden inverso, una navegación que llegue mientras el
+/// <c>UPDATE</c> sigue en vuelo sirve el HTML con el tema nuevo desde esta
+/// cookie y el circuito de esa página lo revierte al leer la fila sin
+/// actualizar: la "corrección" pisa la elección que el usuario acaba de
+/// hacer. Es el defecto que expulsó a la PR #756 de la cola de fusión el
+/// 2026-09-20; ver el doc-comment de <c>SelectorTema.CambiarTemaAsync</c>.
+/// </para>
 /// </summary>
 public class TemaCookie(IHttpContextAccessor httpContextAccessor)
 {

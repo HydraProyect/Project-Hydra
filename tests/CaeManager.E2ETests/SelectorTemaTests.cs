@@ -52,6 +52,20 @@ public class SelectorTemaTests(WebAppFixture fixture)
 
         // (2) Tras una carga completa: la preferencia se guardó en la cuenta y
         // el componente vuelve a aplicarla en el circuito nuevo.
+        //
+        // Navegar aquí es seguro SIN ninguna espera extra, y conviene saber
+        // por qué antes de "arreglar" este punto con un sleep o un
+        // NetworkIdle de más: la aserción (1) es una barrera real del
+        // guardado, no una señal del cliente. CambiarTemaAsync persiste
+        // ApplicationUser.Tema ANTES de pedirle a tema.js que aplique el
+        // tema, así que ver data-theme en el DOM implica que el UPDATE ya
+        // cuajó. Cuando el orden era el inverso (hasta 2026-09-20) esta
+        // navegación adelantaba al guardado: el HTML salía con el tema
+        // correcto desde la cookie y el circuito de /empresas lo borraba al
+        // leer la fila sin actualizar — <html lang="en"> durante los 15 s
+        // completos, que es como este test expulsó a la PR #756 de la cola
+        // de fusión (run 35512763740). Reproducido inyectando un retardo en
+        // GuardarTemaAsync: misma línea, mismo «unexpected value null».
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
         await Assertions.Expect(page.Locator("html")).ToHaveAttributeAsync(
             "data-theme", "oscuro", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
