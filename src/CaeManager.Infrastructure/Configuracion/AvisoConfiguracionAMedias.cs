@@ -1,6 +1,4 @@
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Hosting;
 
 namespace CaeManager.Infrastructure.Configuracion;
 
@@ -25,7 +23,10 @@ public static class AvisoConfiguracionAMediasExtensions
             return services;
 
         services.AddSingleton(new AvisoConfiguracionAMedias(seccion, problemas, consecuencia));
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, AvisoConfiguracionAMediasHostedService>());
+        // AddHostedService es idempotente (TryAddEnumerable por dentro): varios gates a medias comparten un solo
+        // servicio. Se registra con AddHostedService y no con TryAddEnumerable a mano porque el trinquete de actor
+        // de sistema busca esa forma para dar por comprobada la declaración de la clase.
+        services.AddHostedService<AvisoConfiguracionAMediasHostedService>();
         return services;
     }
 }
