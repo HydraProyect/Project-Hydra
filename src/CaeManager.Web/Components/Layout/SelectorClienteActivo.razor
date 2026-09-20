@@ -23,7 +23,7 @@
            la CSP (UseCabecerasSeguridad) no admite 'unsafe-inline' en
            script-src, así que el onchange="…" que había aquí ya no correría. *@
         <select class="selector-cliente-activo" name="tenantId"
-                data-enviar-al-cambiar aria-label="Cliente activo">
+                data-enviar-al-cambiar aria-label="Contexto operativo actual">
             @foreach (var cliente in _clientes)
             {
                 <option value="@cliente.TenantId" selected="@(cliente.TenantId == _tenantIdActivo)">@cliente.Nombre</option>
