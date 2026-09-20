@@ -1,3 +1,5 @@
+using CaeManager.Infrastructure.Configuracion;
+
 namespace CaeManager.Infrastructure.Integraciones;
 
 /// <summary>
@@ -12,7 +14,7 @@ namespace CaeManager.Infrastructure.Integraciones;
 /// estas dos claves el hosted service de ingesta no se registra y el
 /// webhook responde 403/401 a todo.
 /// </summary>
-public class WhatsAppCloudApiOptions
+public class WhatsAppCloudApiOptions : IOpcionesConGate
 {
     public const string SeccionConfiguracion = "Integraciones:WhatsApp";
 
@@ -23,5 +25,10 @@ public class WhatsAppCloudApiOptions
     /// <summary>Versión de Graph API de Meta usada en todas las llamadas salientes.</summary>
     public string VersionApi { get; set; } = "v23.0";
 
-    public bool EstaConfigurado => !string.IsNullOrWhiteSpace(AppSecret) && !string.IsNullOrWhiteSpace(VerifyToken);
+    public bool EstaConfigurado => Evaluar().Completo;
+
+    public IReadOnlyList<string> ProblemasDeConfiguracion() => Evaluar().Problemas;
+
+    private EvaluacionGate Evaluar() => GateDeConfiguracion.Evaluar(null,
+        (nameof(AppSecret), AppSecret), (nameof(VerifyToken), VerifyToken));
 }

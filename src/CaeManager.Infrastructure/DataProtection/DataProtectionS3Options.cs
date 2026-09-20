@@ -1,3 +1,5 @@
+using CaeManager.Infrastructure.Configuracion;
+
 namespace CaeManager.Infrastructure.DataProtection;
 
 /// <summary>
@@ -13,7 +15,7 @@ namespace CaeManager.Infrastructure.DataProtection;
 /// para un despliegue de una sola réplica. Credenciales propias, separadas de
 /// las de Backups y KMS (ver DEPLOY.md).
 /// </summary>
-public class DataProtectionS3Options
+public class DataProtectionS3Options : IOpcionesConGate
 {
     public const string SeccionConfiguracion = "DataProtection:S3";
 
@@ -30,10 +32,11 @@ public class DataProtectionS3Options
     /// <summary>Prefijo de objeto dentro del bucket — permite compartir bucket con otros usos sin mezclar las claves con ellos.</summary>
     public string Prefijo { get; set; } = "dataprotection-keys/";
 
-    public bool EstaConfigurado =>
-        Activo &&
-        !string.IsNullOrWhiteSpace(AccessKeyId) &&
-        !string.IsNullOrWhiteSpace(SecretAccessKey) &&
-        !string.IsNullOrWhiteSpace(BucketName) &&
-        !string.IsNullOrWhiteSpace(Region);
+    public bool EstaConfigurado => Evaluar().Completo;
+
+    public IReadOnlyList<string> ProblemasDeConfiguracion() => Evaluar().Problemas;
+
+    private EvaluacionGate Evaluar() => GateDeConfiguracion.Evaluar(Activo,
+        (nameof(AccessKeyId), AccessKeyId), (nameof(SecretAccessKey), SecretAccessKey),
+        (nameof(BucketName), BucketName), (nameof(Region), Region));
 }
