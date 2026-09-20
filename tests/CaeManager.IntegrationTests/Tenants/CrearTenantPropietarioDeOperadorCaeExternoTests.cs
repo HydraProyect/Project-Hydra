@@ -69,7 +69,11 @@ public class CrearTenantPropietarioDeOperadorCaeExternoTests : IAsyncLifetime
     }
 
     private CrearTenantPropietarioDeOperadorCaeExternoCommandHandler CrearHandler(
-        CaeManagerDbContext contexto, Guid? usuarioId) =>
+        CaeManagerDbContext contexto, Guid? usuarioId, IUnitOfWork? unitOfWork = null) =>
+        CrearHandlerConUnidad(contexto, usuarioId, unitOfWork ?? contexto);
+
+    private CrearTenantPropietarioDeOperadorCaeExternoCommandHandler CrearHandlerConUnidad(
+        CaeManagerDbContext contexto, Guid? usuarioId, IUnitOfWork unitOfWork) =>
         new(
             new TenantRepository(contexto),
             contexto,
@@ -78,7 +82,7 @@ public class CrearTenantPropietarioDeOperadorCaeExternoTests : IAsyncLifetime
             new AutorizacionAdminPlataformaPorConcesion(contexto),
             new CurrentUserServiceFalso(usuarioId),
             new AsignacionesOperativasWriter(contexto, _tenantActual, new CurrentUserServiceFalso(usuarioId)),
-            contexto);
+            unitOfWork);
 
     [Fact]
     public async Task El_administrador_de_plataforma_crea_un_tenant_propietario_operado_por_el_operador_nombrado()
@@ -262,6 +266,62 @@ public class CrearTenantPropietarioDeOperadorCaeExternoTests : IAsyncLifetime
             contexto, new AutorizacionAdminPlataformaPorConcesion(contexto), new CurrentUserServiceFalso(Guid.NewGuid()));
 
         (await consulta.Handle(new ObtenerOperadoresCaeExternosQuery(), CancellationToken.None)).Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Atomicidad: el alta confirma Tenant, ParametroSistema, operación raíz, DelegacionTenant y
+    /// operación delegada en UN solo guardado (una transacción). Con dos guardados un fallo entre
+    /// ambos dejaría un Tenant propietario sin Operador CAE externo (hallazgo de Codex, pasada 1).
+    /// Falsación: volver a partir el guardado en dos hace que este contador dé 2.
+    /// </summary>
+    [Fact]
+    public async Task El_alta_se_confirma_en_un_unico_guardado()
+    {
+        await using var contexto = CrearContexto();
+        var admin = Guid.NewGuid();
+        _actorReal = admin;
+        await SembrarAdminPlataformaGlobalAsync(contexto, admin);
+        var operadorId = await SembrarTenantAsync(contexto, PerfilVocabularioTenant.Consultora, "ArcoSPA");
+        var unidad = new UnidadDeTrabajoContadora(contexto);
+
+        var resultado = await CrearHandler(contexto, admin, unidad).Handle(
+            new CrearTenantPropietarioDeOperadorCaeExternoCommand(operadorId, "Transportes Planet Express"), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        unidad.Guardados.Should().Be(1);
+        (await contexto.DelegacionesTenant.CountAsync(d => d.TenantClienteId == resultado.Valor)).Should().Be(1,
+            "control positivo: el único guardado llevó también la delegación");
+    }
+
+    /// <summary>
+    /// Quien no tiene la concesión no distingue por el mensaje qué Ids son Operadores reales:
+    /// el error es el mismo para un Operador existente y para un Id inexistente.
+    /// </summary>
+    [Fact]
+    public async Task Sin_concesion_el_error_es_identico_para_un_operador_real_y_un_id_inexistente()
+    {
+        await using var contexto = CrearContexto();
+        var operadorReal = await SembrarTenantAsync(contexto, PerfilVocabularioTenant.Consultora, "ArcoSPA");
+        var sinConcesion = Guid.NewGuid();
+
+        var real = await CrearHandler(contexto, sinConcesion).Handle(
+            new CrearTenantPropietarioDeOperadorCaeExternoCommand(operadorReal, "Hostelería Krusty Krab"), CancellationToken.None);
+        var inexistente = await CrearHandler(contexto, sinConcesion).Handle(
+            new CrearTenantPropietarioDeOperadorCaeExternoCommand(Guid.NewGuid(), "Hostelería Krusty Krab"), CancellationToken.None);
+
+        real.Error.Should().Be(inexistente.Error);
+        real.Error.Codigo.Should().Be("TenantPropietarioDeOperador.SinPermiso");
+    }
+
+    private sealed class UnidadDeTrabajoContadora(IUnitOfWork interna) : IUnitOfWork
+    {
+        public int Guardados { get; private set; }
+
+        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            Guardados++;
+            return interna.SaveChangesAsync(cancellationToken);
+        }
     }
 
     private sealed class CurrentUserServiceFalso(Guid? usuarioId) : ICurrentUserService

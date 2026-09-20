@@ -111,26 +111,28 @@ public class CrearTenantPropietarioDeOperadorCaeExternoCommandHandler(
 
         // ClienteDirecto: cómo el Tenant propietario se ve a sí mismo (una sola empresa gestionada).
         var tenantPropietario = new Tenant(nombreNormalizado, PerfilVocabularioTenant.ClienteDirecto);
-
+        // Un único SaveChanges: Tenant, ParametroSistema, operación raíz, DelegacionTenant y
+        // operación delegada se confirman en una sola transacción. Con dos guardados (como
+        // CrearClienteDeleganteCommand) un fallo o una cancelación entre ambos dejaría un
+        // Tenant propietario aprovisionado sin Operador CAE externo (hallazgo de Codex, alto).
+        //
         // Ámbito explícito contra el Id del Tenant nuevo: la fila de ParametroSistema
         // y la operación raíz se sellan con SU TenantId, no con el del ejecutor.
+        // DelegacionTenant es catálogo global: el ámbito no le afecta.
         using (AmbitoTenantExplicito.Establecer(tenantPropietario.Id))
         {
             tenantRepositorio.Agregar(tenantPropietario);
             parametroSistemaRepositorio.Agregar(new ParametroSistema(UmbralAmbarDiasPorDefecto, UmbralRojoDiasPorDefecto));
             await asignacionesWriter.AsegurarOperacionRaizAsync(
                 tenantPropietario.Id, tenantPropietario.CreadoEnUtc, cancellationToken);
+
+            var vinculo = new DelegacionTenant(request.TenantOperadorId, tenantPropietario.Id);
+            vinculosRepositorio.Agregar(vinculo);
+            await asignacionesWriter.AbrirOperacionDelegadaAsync(
+                tenantPropietario.Id, request.TenantOperadorId, vinculo.CreadoEnUtc, vigenciaHasta: null, cancellationToken);
+
             await unitOfWork.SaveChangesAsync(cancellationToken);
         }
-
-        // Catálogo global, sin ámbito explícito — igual que CrearClienteDeleganteCommand.
-        var vinculo = new DelegacionTenant(request.TenantOperadorId, tenantPropietario.Id);
-        vinculosRepositorio.Agregar(vinculo);
-
-        await asignacionesWriter.AbrirOperacionDelegadaAsync(
-            tenantPropietario.Id, request.TenantOperadorId, vinculo.CreadoEnUtc, vigenciaHasta: null, cancellationToken);
-
-        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito(tenantPropietario.Id);
     }
