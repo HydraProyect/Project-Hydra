@@ -47,7 +47,11 @@ namespace CaeManager.Web.Tests;
 public class ProyectosGen2Tests : BunitContext
 {
     /// <summary>Drawer y Modal importan dialogo-foco.js al abrirse; queda fuera de lo que se observa aquí.</summary>
-    public ProyectosGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public ProyectosGen2Tests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.ConRolDeEscritura();
+    }
 
     private static readonly Guid ClienteId = Guid.Parse("77777777-7777-7777-7777-777777777777");
     private static readonly Guid AbiertoId = Guid.Parse("11111111-1111-1111-1111-111111111111");

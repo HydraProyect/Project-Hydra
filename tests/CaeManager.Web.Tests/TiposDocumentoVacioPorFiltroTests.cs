@@ -38,7 +38,11 @@ public class TiposDocumentoVacioPorFiltroTests : BunitContext
     /// ./js/atajos-lista.js; el recorrido por teclado se prueba en
     /// TiposDocumentoGen2Tests, no aquí.
     /// </summary>
-    public TiposDocumentoVacioPorFiltroTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public TiposDocumentoVacioPorFiltroTests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.ConRolDeEscritura();
+    }
 
     private static readonly ClienteSelectorDto ClienteDePrueba =
         new(Guid.NewGuid(), "Refrielectric S.A.");

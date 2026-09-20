@@ -1,0 +1,38 @@
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@*
+    Lo que se pinta donde un AuthorizeView niega una sección entera. Sin él, el
+    hueco queda en blanco: sin mensaje, sin estado vacío y sin error de consola,
+    indistinguible de una pantalla rota (medido en la demo a dirección: las pestañas
+    Plataformas CAE, Reclamaciones, Revisión IA y Plantillas de Documentos, con una
+    Dirección CAE operando un Tenant propietario como Consulta delegada).
+
+    Es un mensaje de permiso, no un fallo: el gate deniega bien. Dice qué sección
+    es y con qué rol se está mirando, porque el rol efectivo en el workspace
+    delegado puede no ser el que la persona tiene en su propio Tenant.
+*@
+<EstadoVacio Titulo="Esta sección no está disponible para tu rol"
+             Descripcion="@Descripcion"
+             NombreIcono="seguridad" />
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    /// <summary>Nombre de la sección, tal como la ve el usuario en su pestaña o menú.</summary>
+    [Parameter, EditorRequired] public string Seccion { get; set; } = string.Empty;
+
+    private string? _rolVisible;
+
+    private string Descripcion => _rolVisible is null
+        ? $"«{Seccion}» es una sección de gestión y tu rol no la incluye. Si la necesitas, pídesela a un administrador."
+        : $"«{Seccion}» es una sección de gestión y el rol {_rolVisible} no la incluye. Puedes seguir consultando el resto de pantallas; si necesitas esta, pídesela a un administrador.";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (EstadoAutenticacion is null) return;
+
+        var usuario = (await EstadoAutenticacion).User;
+        var codigo = usuario.FindFirst(ClaimTypes.Role)?.Value;
+        _rolVisible = codigo is null ? null : CaeManager.Infrastructure.Identity.Roles.NombreVisible(codigo);
+    }
+}

@@ -44,7 +44,11 @@ namespace CaeManager.Web.Tests;
 public class AlertasGen2Tests : BunitContext
 {
     /// <summary>TextoFechaCopiable importa clipboard.js y Modal dialogo-foco.js; el JavaScript queda fuera.</summary>
-    public AlertasGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public AlertasGen2Tests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.ConRolDeEscritura();
+    }
 
     private static readonly Guid ClienteId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid EmpresaId = Guid.Parse("22222222-2222-2222-2222-222222222222");

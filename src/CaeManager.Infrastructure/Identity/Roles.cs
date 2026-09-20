@@ -25,6 +25,18 @@ public static class Roles
     public static readonly IReadOnlyList<string> Todos =
         [Administrador, DireccionCae, CoordinadorCae, GestorCae, Consulta, Cliente];
 
+    /// <summary>
+    /// Roles que pueden crear, editar y eliminar, separados por coma para un
+    /// <c>AuthorizeView Roles=</c>. La UI decide con esto qué disparadores de
+    /// escritura ofrece; quien decide de verdad es
+    /// <c>AutorizacionEscrituraBehavior</c>, que repite esta lista a propósito
+    /// (Application no puede referenciar Infrastructure.Identity). Que las dos
+    /// no diverjan lo vigila <c>RolesConEscrituraParidadTests</c>: una UI que
+    /// ofrece lo que el behavior va a denegar es justo el defecto que esta lista
+    /// existe para evitar.
+    /// </summary>
+    public const string ConEscrituraCsv = $"{Administrador},{DireccionCae},{CoordinadorCae},{GestorCae}";
+
     private static readonly IReadOnlyDictionary<string, string> NombresVisibles = new Dictionary<string, string>
     {
         [Administrador] = "Administrador",

@@ -1,0 +1,29 @@
+@*
+    Envuelve un disparador de escritura (crear, editar, eliminar, resolver,
+    redactar…) y lo pinta solo si el rol efectivo puede escribir.
+
+    Existe porque un botón que el rol no puede ejecutar y que aun así se ofrece
+    falla al pulsarlo con «Tu rol no permite crear, editar ni eliminar datos»:
+    el usuario de Consulta —p. ej. una Dirección CAE que opera un Tenant
+    propietario por delegación de solo consulta— lo ve habilitado y aprende que
+    la pantalla miente. La decisión de verdad sigue siendo de
+    AutorizacionEscrituraBehavior; esto solo evita ofrecer lo que ese behavior va a
+    denegar, con la lista de roles de Roles.ConEscrituraCsv (paridad vigilada por
+    RolesConEscrituraParidadTests).
+
+    Se oculta, no se deshabilita: es lo que ya hacen SubidaMasiva («Solo lectura» en
+    lugar de la zona de subida) y el NavMenu con los destinos que el rol no tiene. Quien
+    explica por qué falta —una vez, en todas las pantallas— es AvisoSoloConsulta, en
+    el layout; repetir un «no puedes» junto a cada botón ahogaría cada pantalla.
+
+    El rol que se evalúa es el del ClaimsPrincipal del circuito, que
+    RolEfectivoDelWorkspaceMiddleware sustituye por el del workspace delegado
+    activo: el mismo con el que las puertas [Authorize(Roles=…)] deciden.
+*@
+<AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv" Context="autorizacionEscritura">
+    @ChildContent
+</AuthorizeView>
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

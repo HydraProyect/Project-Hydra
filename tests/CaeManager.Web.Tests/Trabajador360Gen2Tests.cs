@@ -50,7 +50,11 @@ namespace CaeManager.Web.Tests;
 public class Trabajador360Gen2Tests : BunitContext
 {
     /// <summary>BotonCopiar importa ./js/clipboard.js.</summary>
-    public Trabajador360Gen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public Trabajador360Gen2Tests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.ConRolDeEscritura();
+    }
 
     /// <summary>
     /// Responde según los parámetros de cada consulta —el Id del trabajador—,

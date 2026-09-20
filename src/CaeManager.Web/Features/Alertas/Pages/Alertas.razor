@@ -114,10 +114,10 @@
                             @* Reclamar envía un mensaje a terceros: nunca de un
                                solo clic. El botón solo abre la confirmación, que
                                dice cuántos documentos y a quién. *@
-                            <Boton Tamano="TamanoBoton.Pequeno" Deshabilitado="@(seleccionados.Count == 0 || ContactosMarcados(lote.TitularId).Count == 0)"
+                            <SoloConEscritura><Boton Tamano="TamanoBoton.Pequeno" Deshabilitado="@(seleccionados.Count == 0 || ContactosMarcados(lote.TitularId).Count == 0)"
                                    Cargando="enviando" OnClick="() => PedirConfirmacionEnvio(lote)">
                                 Enviar reclamación (@seleccionados.Count)
-                            </Boton>
+                            </Boton></SoloConEscritura>
                         </AccionesHeader>
 
                         <ChildContent>
@@ -125,10 +125,10 @@
                             {
                                 <div class="alerta-formulario" role="alert">
                                     No hay ningún contacto en la agenda al que reclamar esta documentación.
-                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                    <SoloConEscritura><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
                                            OnClick="() => AbrirAltaContacto(lote)">
                                         Añadir contacto
-                                    </Boton>
+                                    </Boton></SoloConEscritura>
                                 </div>
                             }
                             else
@@ -145,10 +145,10 @@
                                             <span class="reclamacion-motivo">@string.Join(", ", destinatario.MotivoTipos)</span>
                                         </label>
                                     }
-                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                    <SoloConEscritura><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
                                            OnClick="() => AbrirAltaContacto(lote)">
                                         Añadir contacto
-                                    </Boton>
+                                    </Boton></SoloConEscritura>
                                 </fieldset>
                             }
 

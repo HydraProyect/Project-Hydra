@@ -97,6 +97,7 @@ public class MacrosVacioPorFiltroTests : BunitContext
 
     private IRenderedComponent<Macros> Renderizar(params MacroListaDto[] todas)
     {
+        this.ConRolDeEscritura();
         Services.AddScoped<IMediator>(_ => new MediatorConSemanticaDeMacros(todas));
         Services.AddScoped<ToastService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();

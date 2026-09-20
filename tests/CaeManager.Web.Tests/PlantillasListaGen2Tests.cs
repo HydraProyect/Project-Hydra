@@ -25,7 +25,11 @@ namespace CaeManager.Web.Tests;
 public class PlantillasListaGen2Tests : BunitContext
 {
     /// <summary>La lista monta AtajosListaTeclado, que importa un módulo JS.</summary>
-    public PlantillasListaGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public PlantillasListaGen2Tests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.ConRolDeEscritura();
+    }
 
     private sealed class MediatorFalso : IMediator
     {

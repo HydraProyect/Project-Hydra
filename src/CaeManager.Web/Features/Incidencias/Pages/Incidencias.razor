@@ -26,7 +26,7 @@
     <CabeceraPagina Titulo="Incidencias" Kicker="Operación">
         <Acciones>
             <a class="enlace-exportar" href="/incidencias/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel</a>
-            <Boton OnClick="AbrirCrearAsync">+ Nueva incidencia</Boton>
+            <SoloConEscritura><Boton OnClick="AbrirCrearAsync">+ Nueva incidencia</Boton></SoloConEscritura>
         </Acciones>
     </CabeceraPagina>
 
@@ -126,15 +126,15 @@
                 </TemplateColumn>
                 <TemplateColumn Title="Acciones" Align="Align.End">
                     <MenuAcciones>
-                        <ItemMenuAccion OnClick="() => CambiarResueltaAsync(context.Id, !context.Resuelta)">
+                        <SoloConEscritura><ItemMenuAccion OnClick="() => CambiarResueltaAsync(context.Id, !context.Resuelta)">
                             @(context.Resuelta ? "Reabrir" : "Marcar resuelta")
-                        </ItemMenuAccion>
-                        <ItemMenuAccion OnClick="() => AbrirEditarAsync(context.Id)">
+                        </ItemMenuAccion></SoloConEscritura>
+                        <SoloConEscritura><ItemMenuAccion OnClick="() => AbrirEditarAsync(context.Id)">
                             Editar
-                        </ItemMenuAccion>
-                        <ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, context.CentroNombre)">
+                        </ItemMenuAccion></SoloConEscritura>
+                        <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, context.CentroNombre)">
                             Eliminar
-                        </ItemMenuAccion>
+                        </ItemMenuAccion></SoloConEscritura>
                     </MenuAcciones>
                 </TemplateColumn>
             </QuickGrid>
@@ -166,7 +166,7 @@
         {
             <EstadoVacio NombreIcono="incidencias" Titulo="Todavía no hay incidencias" Descripcion="Registra la primera incidencia operativa de un centro.">
                 <Accion>
-                    <Boton OnClick="AbrirCrearAsync">+ Nueva incidencia</Boton>
+                    <SoloConEscritura><Boton OnClick="AbrirCrearAsync">+ Nueva incidencia</Boton></SoloConEscritura>
                 </Accion>
             </EstadoVacio>
         }

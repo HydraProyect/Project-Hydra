@@ -34,7 +34,7 @@
     <CabeceraPagina Titulo="@_tituloPagina">
         <Acciones>
             <a class="enlace-exportar" href="/trabajadores/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel</a>
-            <Boton OnClick="AbrirCrearAsync">+ Nuevo trabajador</Boton>
+            <SoloConEscritura><Boton OnClick="AbrirCrearAsync">+ Nuevo trabajador</Boton></SoloConEscritura>
         </Acciones>
     </CabeceraPagina>
 
@@ -191,9 +191,9 @@
                         <ItemMenuAccion OnClick='() => AbrirTrabajador360(context.Id)'>
                             Abrir Trabajador 360
                         </ItemMenuAccion>
-                        <ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, NombreCompleto(context))">
+                        <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, NombreCompleto(context))">
                             Eliminar
-                        </ItemMenuAccion>
+                        </ItemMenuAccion></SoloConEscritura>
                     </MenuAcciones>
                 </TemplateColumn>
             </QuickGrid>
@@ -224,7 +224,7 @@
         {
             <EstadoVacio NombreIcono="trabajadores" Titulo="Aún no hay trabajadores" Descripcion="Da de alta el primero para empezar a controlar su documentación.">
                 <Accion>
-                    <Boton OnClick="AbrirCrearAsync">+ Nuevo trabajador</Boton>
+                    <SoloConEscritura><Boton OnClick="AbrirCrearAsync">+ Nuevo trabajador</Boton></SoloConEscritura>
                 </Accion>
             </EstadoVacio>
         }

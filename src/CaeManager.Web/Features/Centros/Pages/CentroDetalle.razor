@@ -104,7 +104,7 @@
                     reclamar, para no ofrecer una acción sin objeto.
                 *@
                 <MenuAcciones>
-                    <ItemMenuAccion OnClick="AbrirInformacion">Editar centro</ItemMenuAccion>
+                    <SoloConEscritura><ItemMenuAccion OnClick="AbrirInformacion">Editar centro</ItemMenuAccion></SoloConEscritura>
                     @if (_documentosPorReclamar > 0)
                     {
                         <ItemMenuAccion OnClick="AbrirInformacion">Reclamar documentación (@_documentosPorReclamar)</ItemMenuAccion>

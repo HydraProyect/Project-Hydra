@@ -57,6 +57,7 @@ public class PlantillasTabTests : BunitContext
     /// <summary>Entra en la pestaña "Generados" — es donde vive <see cref="DocumentosGeneradosPanel"/>, que dispara la consulta del total de avisos.</summary>
     private IRenderedComponent<PlantillasTab> RenderizarEnGenerados(int avisosPendientes)
     {
+        this.ConRolDeEscritura();
         Services.AddScoped<IMediator>(_ => new MediatorFalso(avisosPendientes));
         Services.AddScoped<ToastService>();
 

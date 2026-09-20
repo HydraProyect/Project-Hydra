@@ -41,7 +41,7 @@
                 <a class="enlace-exportar" href="/documentos/importar">Importar documentos</a>
             </AuthorizeView>
             <a class="enlace-exportar" href="/documentos/subida-masiva">Subida múltiple</a>
-            <Boton OnClick="() => _drawerGestion.AbrirCrearAsync()">+ Nuevo documento</Boton>
+            <SoloConEscritura><Boton OnClick="() => _drawerGestion.AbrirCrearAsync()">+ Nuevo documento</Boton></SoloConEscritura>
         </Acciones>
     </CabeceraPagina>
 
@@ -49,13 +49,23 @@
         @if (_pestanaActiva == "plataforma")
         {
             <AuthorizeView Roles="@RolesDeGestionDocumental">
-                <PlataformaTab />
+                <Authorized>
+                    <PlataformaTab />
+                </Authorized>
+                <NotAuthorized>
+                    <SinPermisoEnSeccion Seccion="Plataformas CAE" />
+                </NotAuthorized>
             </AuthorizeView>
         }
         else if (_pestanaActiva == "reclamaciones")
         {
             <AuthorizeView Roles="@RolesDeGestionDocumental">
-                <ReclamacionesTab />
+                <Authorized>
+                    <ReclamacionesTab />
+                </Authorized>
+                <NotAuthorized>
+                    <SinPermisoEnSeccion Seccion="Reclamaciones" />
+                </NotAuthorized>
             </AuthorizeView>
         }
         else if (_pestanaActiva == "sugerencias")
@@ -65,13 +75,23 @@
         else if (_pestanaActiva == "revision-ia")
         {
             <AuthorizeView Roles="@RolesDeGestionDocumental">
-                <RevisionIaTab />
+                <Authorized>
+                    <RevisionIaTab />
+                </Authorized>
+                <NotAuthorized>
+                    <SinPermisoEnSeccion Seccion="Revisión IA" />
+                </NotAuthorized>
             </AuthorizeView>
         }
         else if (_pestanaActiva == "plantillas")
         {
             <AuthorizeView Roles="@RolesDeGestionDocumental">
-                <PlantillasTab />
+                <Authorized>
+                    <PlantillasTab />
+                </Authorized>
+                <NotAuthorized>
+                    <SinPermisoEnSeccion Seccion="Plantillas" />
+                </NotAuthorized>
             </AuthorizeView>
         }
         else
@@ -176,12 +196,12 @@
                                 <ItemMenuAccion OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Documento, context.Id, context.TipoDocumentoNombre, "informacion")'>
                                     Ver
                                 </ItemMenuAccion>
-                                <ItemMenuAccion OnClick="() => _drawerGestion.AbrirEditarAsync(context.Id)">
+                                <SoloConEscritura><ItemMenuAccion OnClick="() => _drawerGestion.AbrirEditarAsync(context.Id)">
                                     Renovar
-                                </ItemMenuAccion>
-                                <ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, context.PropietarioNombre, context.TipoDocumentoNombre)">
+                                </ItemMenuAccion></SoloConEscritura>
+                                <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, context.PropietarioNombre, context.TipoDocumentoNombre)">
                                     Eliminar
-                                </ItemMenuAccion>
+                                </ItemMenuAccion></SoloConEscritura>
                             </MenuAcciones>
                         </TemplateColumn>
                     </QuickGrid>
@@ -211,7 +231,7 @@
                 {
                     <EstadoVacio NombreIcono="documentos" Titulo="Aún no hay documentos" Descripcion="Sube el primero para empezar a controlar vigencias.">
                         <Accion>
-                            <Boton OnClick="() => _drawerGestion.AbrirCrearAsync()">+ Nuevo documento</Boton>
+                            <SoloConEscritura><Boton OnClick="() => _drawerGestion.AbrirCrearAsync()">+ Nuevo documento</Boton></SoloConEscritura>
                         </Accion>
                     </EstadoVacio>
                 }
