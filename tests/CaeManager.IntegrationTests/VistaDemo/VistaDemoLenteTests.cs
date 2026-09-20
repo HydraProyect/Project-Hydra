@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.VistaDemo;
@@ -43,8 +44,8 @@ public class VistaDemoLenteTests : IAsyncLifetime
 {
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
 
-    private Guid _operador, _p1, _p2, _p3, _tenantReal, _otroOperador;
-    private Guid _admin, _g1, _g2, _gSinCartera, _gCarteraFutura, _usuarioCliente, _gDeOtroOperador;
+    private Guid _operador, _p1, _p2, _p3, _tenantReal, _tenantReal2, _otroOperador;
+    private Guid _admin, _g1, _g2, _gSinCartera, _gCarteraFutura, _usuarioCliente, _gDeOtroOperador, _gSoloTenantReal;
     private Empresa _c1a = null!, _c1b = null!, _c2 = null!, _c3 = null!;
 
     public async Task InitializeAsync()
@@ -58,7 +59,9 @@ public class VistaDemoLenteTests : IAsyncLifetime
         var p3 = new Tenant(DelegacionDemoSeeder.NombreTenantClienteDemo2);
         var real = new Tenant("Cliente Real, S.L. (no es de demo)");
         var otroOperador = new Tenant("Otro Operador Real, S.L.");
-        contexto.Tenants.AddRange(operador, p1, p2, p3, real, otroOperador);
+        var real2 = new Tenant("Cliente Real 2, S.L. (no es de demo)");
+        contexto.Tenants.AddRange(operador, p1, p2, p3, real, otroOperador, real2);
+        _tenantReal2 = real2.Id;
         (_operador, _p1, _p2, _p3, _tenantReal, _otroOperador) = (operador.Id, p1.Id, p2.Id, p3.Id, real.Id, otroOperador.Id);
 
         // Roles y usuarios: la cuenta de demo (Administrador) y los Gestores CAE del Operador.
@@ -85,6 +88,7 @@ public class VistaDemoLenteTests : IAsyncLifetime
         _gCarteraFutura = Usuario("gestor-cartera-futura", _operador, rolGestor);
         _usuarioCliente = Usuario("usuario-cliente", _operador, rolCliente);
         _gDeOtroOperador = Usuario("gestor-de-otro-operador", _otroOperador, rolGestor);
+        _gSoloTenantReal = Usuario("gestor-solo-tenant-real", _operador, rolGestor);
         await contexto.SaveChangesAsync();
 
         // Datos de cada Tenant propietario, sellados con su propio Tenant.
@@ -93,6 +97,7 @@ public class VistaDemoLenteTests : IAsyncLifetime
         _c2 = await SembrarClienteAsync(_p2, "Cliente 2", "B12345674", null);
         _c3 = await SembrarClienteAsync(_p3, "Cliente 3", "B12345674", null);
         var cReal = await SembrarClienteAsync(_tenantReal, "Cliente Real", "B12345674", null);
+        var cReal2 = await SembrarClienteAsync(_tenantReal2, "Cliente Real 2", "B12345674", null);
         var c1c = await SembrarClienteAsync(_p1, "Cliente 1C", "A58818501", null);
         var c1d = await SembrarClienteAsync(_p1, "Cliente 1D", "B87654323", null);
 
@@ -108,12 +113,14 @@ public class VistaDemoLenteTests : IAsyncLifetime
         var op2 = Operacion(_p2, _operador);
         var op3 = Operacion(_p3, _operador);
         var opAjena = Operacion(_tenantReal, _otroOperador);
-        contexto.AsignacionesOperacion.AddRange(op1, op2, op3, opAjena);
+        var opRealPropia = Operacion(_tenantReal2, _operador);
+        contexto.AsignacionesOperacion.AddRange(op1, op2, op3, opAjena, opRealPropia);
         contexto.AsignacionesCartera.AddRange(
             Cartera(op1, _g1, _c1a), Cartera(op2, _g1, _c2),
             Cartera(op1, _g2, _c1b), Cartera(op3, _g2, _c3),
             Cartera(op1, _usuarioCliente, c1c),
             Cartera(opAjena, _gDeOtroOperador, cReal),
+            Cartera(opRealPropia, _gSoloTenantReal, cReal2),
             Cartera(op1, _gCarteraFutura, c1d, vigenciaDesde: ahora.AddDays(1)));
 
         // Lista multi-Tenant real de la cuenta de demo (vía heredada): los tres Tenants propietarios.
@@ -173,7 +180,7 @@ public class VistaDemoLenteTests : IAsyncLifetime
     private enum Caso
     {
         Desactivada, RolConsulta, RolCliente, SinRolDeSesion, TenantDeOrigenReal, TenantActivoReal, GestorInexistente,
-        GestorSinCartera, GestorConCarteraFutura, UsuarioConCarteraPeroRolCliente, GestorDeOtroOperador,
+        GestorSinCartera, GestorConCarteraFutura, UsuarioConCarteraPeroRolCliente, GestorDeOtroOperador, GestorSoloConCarteraEnTenantReal,
         VistaGestorSinGestor, SesionPrivilegiadaDePlataforma,
     }
 
@@ -230,6 +237,9 @@ public class VistaDemoLenteTests : IAsyncLifetime
                 break;
             case Caso.GestorDeOtroOperador:
                 solicitud = Solicitud(VistaDemo.GestorCae, _gDeOtroOperador, Roles.Administrador);
+                break;
+            case Caso.GestorSoloConCarteraEnTenantReal:
+                solicitud = Solicitud(VistaDemo.GestorCae, _gSoloTenantReal, Roles.Administrador);
                 break;
             case Caso.VistaGestorSinGestor:
                 solicitud = Solicitud(VistaDemo.GestorCae, null, Roles.Administrador);
@@ -357,7 +367,7 @@ public class VistaDemoLenteTests : IAsyncLifetime
         await using var contexto = CrearContexto(tenantActivo);
         var tenant = new TenantActualAmbiental { TenantId = tenantActivo };
         var sesionEfectiva = sesion ?? new SesionPrivilegiadaAusente();
-        var vista = new VistaDemoActual(contexto, usuario, tenant, sesionEfectiva, solicitud, opciones ?? Activo(true));
+        var vista = new VistaDemoActual(contexto, new PuertaAccesoDatos(), usuario, tenant, sesionEfectiva, solicitud, opciones ?? Activo(true));
         var servicio = new AlcanceDatosService(contexto, usuario, tenant, sesionEfectiva, vista);
 
         return new Foto(
@@ -382,7 +392,7 @@ public class VistaDemoLenteTests : IAsyncLifetime
     private static VistaDemoActual CrearVista(
         CaeManagerDbContext contexto, Guid tenantActivo, CurrentUserServiceFalso usuario, SolicitudFalsa solicitud,
         IOptions<VistaDemoOptions> opciones, ISesionPrivilegiadaActual? sesion) =>
-        new(contexto, usuario, new TenantActualAmbiental { TenantId = tenantActivo }, sesion ?? new SesionPrivilegiadaAusente(), solicitud, opciones);
+        new(contexto, new PuertaAccesoDatos(), usuario, new TenantActualAmbiental { TenantId = tenantActivo }, sesion ?? new SesionPrivilegiadaAusente(), solicitud, opciones);
 
     private CurrentUserServiceFalso Administrador(string rol = Roles.Administrador) => new(_admin, rol, _operador);
 

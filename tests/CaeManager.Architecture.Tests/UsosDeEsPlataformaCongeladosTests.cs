@@ -226,7 +226,7 @@ public class UsosDeEsPlataformaCongeladosTests
 
         ["src/CaeManager.Infrastructure/Autorizacion/VistaDemoActual.cs"] =
             new(1, CategoriaUso.Guarda,
-                ":211 excluye al tenant de plataforma del conjunto de tenants de demo donde puede actuar " +
+                ":231 excluye al tenant de plataforma del conjunto de tenants de demo donde puede actuar " +
                 "la lente del selector de vista de demo. No concede capacidad a nadie —la lente solo " +
                 "estrecha— y es la mitad negativa de un fallo cerrado, con la allowlist exacta de nombres " +
                 "de RetiradaTenantDemoService como segunda barrera independiente: un tenant de plataforma " +

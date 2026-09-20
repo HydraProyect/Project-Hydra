@@ -54,6 +54,7 @@ public class VistaDemoOptions
 /// </summary>
 public class VistaDemoActual(
     CaeManagerDbContext dbContext,
+    PuertaAccesoDatos puertaAccesoDatos,
     ICurrentUserService currentUserService,
     ITenantActual tenantActual,
     ISesionPrivilegiadaActual sesionPrivilegiadaActual,
@@ -67,7 +68,10 @@ public class VistaDemoActual(
     private readonly Dictionary<Guid, VistaDemoEfectiva?> _efectivaPorTenant = new();
     private readonly Dictionary<Guid, IReadOnlyList<Guid>?> _tenantsAcotadosPorTenant = new();
 
-    public async Task<bool> EstaDisponibleAsync(CancellationToken cancellationToken = default)
+    public Task<bool> EstaDisponibleAsync(CancellationToken cancellationToken = default) =>
+        puertaAccesoDatos.EjecutarAsync(() => EstaDisponibleSerializadoAsync(cancellationToken), cancellationToken);
+
+    private async Task<bool> EstaDisponibleSerializadoAsync(CancellationToken cancellationToken)
     {
         if (_disponible is { } cacheado) return cacheado;
 
@@ -96,7 +100,10 @@ public class VistaDemoActual(
         return true;
     }
 
-    public async Task<VistaDemoEfectiva?> ObtenerEfectivaAsync(CancellationToken cancellationToken = default)
+    public Task<VistaDemoEfectiva?> ObtenerEfectivaAsync(CancellationToken cancellationToken = default) =>
+        puertaAccesoDatos.EjecutarAsync(() => ObtenerEfectivaSerializadaAsync(cancellationToken), cancellationToken);
+
+    private async Task<VistaDemoEfectiva?> ObtenerEfectivaSerializadaAsync(CancellationToken cancellationToken)
     {
         var clave = tenantActual.TenantId ?? Guid.Empty;
         if (_efectivaPorTenant.TryGetValue(clave, out var cacheada)) return cacheada;
@@ -135,7 +142,10 @@ public class VistaDemoActual(
         }
     }
 
-    public async Task<IReadOnlyList<GestorDeVistaDemo>> ObtenerGestoresElegiblesAsync(CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<GestorDeVistaDemo>> ObtenerGestoresElegiblesAsync(CancellationToken cancellationToken = default) =>
+        puertaAccesoDatos.EjecutarAsync(() => ObtenerGestoresElegiblesSerializadoAsync(cancellationToken), cancellationToken);
+
+    private async Task<IReadOnlyList<GestorDeVistaDemo>> ObtenerGestoresElegiblesSerializadoAsync(CancellationToken cancellationToken)
     {
         if (_gestoresElegibles is not null) return _gestoresElegibles;
         if (!await EstaDisponibleAsync(cancellationToken) || _tenantOrigenId is not { } origen)
@@ -143,12 +153,17 @@ public class VistaDemoActual(
 
         var ahora = DateTime.UtcNow;
 
+        // Solo carteras sobre Tenants propietarios de demo: una Asignación de Operación del mismo
+        // Operador sobre un Tenant real no puede revelar aquí a sus Gestores CAE (fuga de metadatos).
+        var tenantsDeDemo = (await ObtenerTenantsDeDemoAsync(cancellationToken)).ToList();
+
         var conCartera = await dbContext.AsignacionesCartera
             .Where(c => c.Estado == EstadoAsignacion.Vigente
                         && c.VigenciaDesde <= ahora
                         && (c.VigenciaHasta == null || ahora < c.VigenciaHasta))
             .Join(dbContext.AsignacionesOperacion.Where(o =>
                     o.OperadorTenantId == origen
+                    && tenantsDeDemo.Contains(o.PropietarioTenantId)
                     && o.Estado == EstadoAsignacion.Vigente
                     && o.VigenciaDesde <= ahora
                     && (o.VigenciaHasta == null || ahora < o.VigenciaHasta)),
@@ -172,7 +187,10 @@ public class VistaDemoActual(
         return _gestoresElegibles = gestores.OrderBy(g => g.Nombre, StringComparer.CurrentCultureIgnoreCase).ThenBy(g => g.UsuarioId).ToList();
     }
 
-    public async Task<IReadOnlyList<Guid>?> ObtenerTenantIdsAcotadosAsync(CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<Guid>?> ObtenerTenantIdsAcotadosAsync(CancellationToken cancellationToken = default) =>
+        puertaAccesoDatos.EjecutarAsync(() => ObtenerTenantIdsAcotadosSerializadoAsync(cancellationToken), cancellationToken);
+
+    private async Task<IReadOnlyList<Guid>?> ObtenerTenantIdsAcotadosSerializadoAsync(CancellationToken cancellationToken)
     {
         var clave = tenantActual.TenantId ?? Guid.Empty;
         if (_tenantsAcotadosPorTenant.TryGetValue(clave, out var cacheado)) return cacheado;
@@ -182,6 +200,7 @@ public class VistaDemoActual(
             && _tenantOrigenId is { } origen)
         {
             var ahora = DateTime.UtcNow;
+            var tenantsDeDemo = (await ObtenerTenantsDeDemoAsync(cancellationToken)).ToList();
             resultado = await dbContext.AsignacionesCartera
                 .Where(c => c.UsuarioId == gestorId
                             && c.Estado == EstadoAsignacion.Vigente
@@ -189,6 +208,7 @@ public class VistaDemoActual(
                             && (c.VigenciaHasta == null || ahora < c.VigenciaHasta))
                 .Join(dbContext.AsignacionesOperacion.Where(o =>
                         o.OperadorTenantId == origen
+                        && tenantsDeDemo.Contains(o.PropietarioTenantId)
                         && o.Estado == EstadoAsignacion.Vigente
                         && o.VigenciaDesde <= ahora
                         && (o.VigenciaHasta == null || ahora < o.VigenciaHasta)),
