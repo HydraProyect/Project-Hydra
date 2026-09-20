@@ -153,7 +153,7 @@ public static class EscenariosDireccionDemoSeeder
         CaeManagerDbContext dbContext, RamaEscenariosDemo rama, Guid tenantPropietarioId, Guid tenantOperadorId,
         EquipoOperador equipo, DateOnly hoy, int indiceRama, ILogger logger, CancellationToken cancellationToken)
     {
-        var delegacion = await AbrirDelegacionAsync(
+        var delegacion = await AbrirOperacionExternaDeLaRamaAsync(
             dbContext, rama, tenantPropietarioId, tenantOperadorId, equipo, cancellationToken);
 
         using (AmbitoTenantExplicito.Establecer(tenantPropietarioId))
@@ -204,7 +204,7 @@ public static class EscenariosDireccionDemoSeeder
     /// reactiva, porque una rama sin delegación vigente no tendría cartera que
     /// enseñar.
     /// </summary>
-    private static async Task<DelegacionTenant> AbrirDelegacionAsync(
+    private static async Task<DelegacionTenant> AbrirOperacionExternaDeLaRamaAsync(
         CaeManagerDbContext dbContext, RamaEscenariosDemo rama, Guid tenantPropietarioId, Guid tenantOperadorId,
         EquipoOperador equipo, CancellationToken cancellationToken)
     {
