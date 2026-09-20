@@ -290,6 +290,17 @@ if (azureAd.EstaConfigurado)
     });
 }
 
+// Intervalo con el que la cookie y el circuito de Blazor vuelven a preguntar
+// a la base si la sesión sigue valiendo (stamp rotado o cuenta desactivada).
+// Antes eran los 30 minutos por defecto de Identity para la cookie y NADA para
+// el circuito: desactivar a alguien no cortaba nada (auditoría de seguridad
+// 2026-09-20). Es el tope de cuánto sobrevive una sesión a la desactivación;
+// el coste es una lectura de usuario por ventana y sesión activa.
+var intervaloRevalidacionSesion = TimeSpan.FromSeconds(
+    Math.Max(1, builder.Configuration.GetValue("Sesion:IntervaloRevalidacionSegundos", 60)));
+builder.Services.Configure<SecurityStampValidatorOptions>(
+    opciones => opciones.ValidationInterval = intervaloRevalidacionSesion);
+
 builder.Services.ConfigureApplicationCookie(options =>
 {
     options.LoginPath = "/cuenta/iniciar-sesion";
@@ -505,6 +516,12 @@ builder.Services.AddRazorComponents()
 // las CircuitOptions de arriba, es la señal real de cuándo ese ajuste deja
 // de bastar (umbral de la multi-réplica, ADR-008 § 2.1).
 builder.Services.AddSingleton<CircuitHandler, CaeManager.Web.Services.MetricasCircuitHandler>();
+
+// Sustituye al ServerAuthenticationStateProvider que registra
+// AddInteractiveServerComponents: sin él, el circuito conserva el principal de
+// cuando se conectó hasta que se cierra. Ver ProveedorAutenticacionRevalidada.
+builder.Services.AddScoped<Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider,
+    CaeManager.Web.Services.ProveedorAutenticacionRevalidada>();
 
 // Revalidación de lectura dentro de un circuito ya abierto (hallazgo del
 // Módulo 9, auditoría 2026-08-30) — Scoped a propósito, a diferencia del
@@ -1135,9 +1152,20 @@ namespace CaeManager.Web.Services
             var revalidarOriginal = options.Events.OnValidatePrincipal;
             var rutaExacta = new Microsoft.AspNetCore.Http.PathString(ruta);
             options.Events.OnValidatePrincipal = contexto =>
-                contexto.Request.Path.Equals(rutaExacta, StringComparison.OrdinalIgnoreCase)
-                    ? Task.CompletedTask
-                    : revalidarOriginal(contexto);
+            {
+                if (!contexto.Request.Path.Equals(rutaExacta, StringComparison.OrdinalIgnoreCase))
+                    return revalidarOriginal(contexto);
+
+                // Sin validar el stamp tampoco se renueva la cookie: el handler
+                // decide la renovación deslizante ANTES de este evento, y
+                // renovar aquí re-emitiría, sin comprobar nada, la cookie de
+                // una cuenta desactivada o con el stamp rotado (con un
+                // IssuedUtc nuevo que la deja pasar sin revalidar el
+                // siguiente intervalo). La renovación se hace en la primera
+                // petición que sí valida.
+                contexto.ShouldRenew = false;
+                return Task.CompletedTask;
+            };
         }
     }
 }

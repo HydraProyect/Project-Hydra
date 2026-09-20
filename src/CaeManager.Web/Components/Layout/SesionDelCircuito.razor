@@ -1,0 +1,45 @@
+@implements IDisposable
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+
+@*
+    Sin marcado: devuelve a la pantalla de acceso a quien tenía sesión y la ha
+    perdido mientras el circuito seguía abierto (cuenta desactivada o security
+    stamp rotado; ver ProveedorAutenticacionRevalidada).
+
+    Hace falta porque el Router de Routes.razor se pinta en SSR estático y su
+    AuthorizeRouteView no vive en el circuito: cuando el proveedor pasa a
+    anónimo, la página interactiva conserva lo que ya mostraba y nadie la
+    expulsa. Las lecturas y escrituras siguen fallando cerradas (sin usuario no
+    hay tenant y el filtro global deniega), pero dejar la pantalla a medias
+    parece una avería; navegar con forceLoad es lo que haría el
+    AuthorizeRouteView de un circuito completo.
+
+    Solo actúa en la transición autenticado → anónimo: la pantalla de acceso
+    también usa este layout y nace anónima.
+*@
+
+@code {
+    private bool _teniaSesion;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var estado = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _teniaSesion = estado.User.Identity?.IsAuthenticated == true;
+        AuthenticationStateProvider.AuthenticationStateChanged += AlCambiarElEstado;
+    }
+
+    private void AlCambiarElEstado(Task<AuthenticationState> tareaEstado) =>
+        _ = InvokeAsync(async () =>
+        {
+            var estado = await tareaEstado;
+            if (_teniaSesion && estado.User.Identity?.IsAuthenticated != true)
+            {
+                _teniaSesion = false;
+                NavigationManager.NavigateTo("/cuenta/iniciar-sesion", forceLoad: true);
+            }
+        });
+
+    public void Dispose() =>
+        AuthenticationStateProvider.AuthenticationStateChanged -= AlCambiarElEstado;
+}

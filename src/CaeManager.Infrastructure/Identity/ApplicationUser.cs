@@ -93,4 +93,53 @@ public class ApplicationUser : IdentityUser<Guid>
     /// autorización no dependa de una consulta a base en cada petición.
     /// </summary>
     public bool PermisoConsultarAccesoDocumentosSensibles { get; set; }
+
+    /// <summary>
+    /// «Cuenta desactivada» tal como la deja <c>Desactivar</c> en Usuarios:
+    /// <c>LockoutEnd</c> indefinido (<see cref="DateTimeOffset.MaxValue"/>). Se
+    /// decide por «más de un año en el futuro» y no por <c>IsLockedOut</c>
+    /// a secas, a propósito: el bloqueo temporal por intentos fallidos
+    /// (15 minutos, ver IdentityOptions.Lockout) también es un
+    /// <c>LockoutEnd</c> vigente, y si tumbara sesiones ya abiertas cualquiera
+    /// que conociera un correo podría expulsar a esa persona con cinco
+    /// contraseñas erróneas. Solo la desactivación deliberada corta sesiones.
+    /// </summary>
+    public bool EstaDesactivada(DateTimeOffset ahora) =>
+        LockoutEnd is { } fin && fin > ahora.Add(UmbralDeCuentaDesactivada);
+
+    /// <summary>
+    /// Lo que <see cref="Desactivar"/> escribe en <c>LockoutEnd</c>. Con
+    /// <see cref="EstaDesactivada"/> forma un par: cambiar uno sin el otro
+    /// dejaría cuentas desactivadas que ya no lo parecen.
+    /// </summary>
+    public static readonly DateTimeOffset FinDeBloqueoDeCuentaDesactivada = DateTimeOffset.MaxValue;
+
+    /// <summary>
+    /// Desactiva la cuenta: bloqueo indefinido <b>y</b> security stamp nuevo, en
+    /// la misma escritura que persista quien llame (un solo <c>UpdateAsync</c>).
+    /// El bloqueo impide entrar y, con <see cref="EstaDesactivada"/>, corta las
+    /// sesiones abiertas; el stamp es lo que impide que <see cref="Reactivar"/>
+    /// devuelva la vida a una cookie o a un token de extensión emitidos antes
+    /// (con solo el bloqueo, quitarlo resucitaba lo anterior). Juntos en un
+    /// método para que ninguna pantalla pueda hacer una mitad sin la otra.
+    /// </summary>
+    public void Desactivar()
+    {
+        LockoutEnabled = true;
+        LockoutEnd = FinDeBloqueoDeCuentaDesactivada;
+        SecurityStamp = Guid.NewGuid().ToString();
+    }
+
+    /// <summary>
+    /// Quita el bloqueo. No toca el security stamp: el que rotó en
+    /// <see cref="Desactivar"/> sigue manteniendo muertas las sesiones anteriores.
+    /// </summary>
+    public void Reactivar()
+    {
+        LockoutEnabled = true;
+        LockoutEnd = null;
+    }
+
+    /// <summary>Un bloqueo más largo que esto no es un castigo temporal: es una desactivación.</summary>
+    public static readonly TimeSpan UmbralDeCuentaDesactivada = TimeSpan.FromDays(365);
 }
