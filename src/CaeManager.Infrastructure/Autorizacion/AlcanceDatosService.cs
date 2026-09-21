@@ -310,6 +310,19 @@ public class AlcanceDatosService(
         return resultado;
     }
 
+    public async Task<IReadOnlyList<Guid>?> ObtenerCentroIdsParaGestionAsync(CancellationToken cancellationToken = default)
+    {
+        // Mismo criterio que ObtenerEmpresaIdsParaGestionAsync (REC-153): el rol
+        // Cliente es un usuario de portal y ve el estado de sus Centros, pero
+        // no opera sobre ellos. Lista vacía y no null — null significa "sin
+        // restricción", que aquí sería exactamente lo contrario de lo que toca
+        // (fallo cerrado).
+        if (await currentUserService.ObtenerRolActualAsync() == Roles.Cliente)
+            return [];
+
+        return await ObtenerCentroIdsVisiblesAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Guid>?> ObtenerEmpresaIdsParaGestionAsync(CancellationToken cancellationToken = default)
     {
         // El rol Cliente es un usuario de portal: ve la documentación de las

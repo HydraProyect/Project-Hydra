@@ -242,6 +242,59 @@ public class AlcanceDatosServiceSobreRelacionEmpresarialTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// Gemelo del caso de Empresa para Centro: el rol Cliente (usuario de
+    /// portal) ve los Centros de su propio Cliente para leer su estado, pero no
+    /// opera sobre ellos. Sin esta separación, ese usuario recibía en claro el
+    /// usuario y la contraseña del portal de la Plataforma CAE de un canal.
+    ///
+    /// Va contra el servicio REAL: la regla vive en Infrastructure (necesita el
+    /// rol), así que un test con el doble no puede observarla.
+    /// </summary>
+    [Fact]
+    public async Task El_rol_Cliente_ve_Centros_para_leer_pero_ninguno_para_gestionar()
+    {
+        Guid clienteId, centroId;
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            var cliente = Empresa.CrearComoCliente("Cliente Portal Centros S.L.", "B10380392", false, null, null);
+            var proveedora = new Empresa("Contratista del Portal Centros S.L.", "B87654331");
+            contexto.Empresas.AddRange(cliente, proveedora);
+            await contexto.SaveChangesAsync();
+
+            var centro = new Centro(cliente.Id, proveedora.Id, "Centro del portal");
+            contexto.Centros.Add(centro);
+            await contexto.SaveChangesAsync();
+            clienteId = cliente.Id;
+            centroId = centro.Id;
+        }
+
+        var usuarioPortal = Guid.NewGuid();
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            contexto.Users.Add(new ApplicationUser
+            {
+                Id = usuarioPortal,
+                UserName = $"portal-{usuarioPortal:N}@ejemplo.test",
+                Email = $"portal-{usuarioPortal:N}@ejemplo.test",
+                ClienteId = clienteId,
+                TenantId = _tenant
+            });
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var lectura = CrearContexto(_tenant);
+        var servicio = new AlcanceDatosService(
+            lectura, new CurrentUserServiceFalso(usuarioPortal, "Cliente", tenantOrigenId: _tenant),
+            new TenantActualAmbiental { TenantId = _tenant }, new SesionPrivilegiadaAusente());
+
+        (await servicio.ObtenerCentroIdsVisiblesAsync()).Should().NotBeNull().And.Contain(centroId,
+            "el portal enseña el estado de los Centros de su propio Cliente");
+
+        (await servicio.ObtenerCentroIdsParaGestionAsync()).Should().NotBeNull().And.BeEmpty(
+            "pero las credenciales de la Plataforma CAE de un canal son un artefacto interno de la gestión, no del portal");
+    }
+
+    /// <summary>
     /// REC-159, gemelo exacto del caso anterior pero en Subcontrata. El rol
     /// Cliente (usuario de portal) SÍ ve Subcontratas para leer su
     /// documentación —misma razón que con Empresa: la cartera se DERIVA de la
