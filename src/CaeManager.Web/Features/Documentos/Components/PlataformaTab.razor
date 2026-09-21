@@ -11,6 +11,7 @@
 @using CaeManager.Application.Documentos.Commands.MarcarAcreditacionRechazada
 @using CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida
 @using CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesPorProveedor
+@using CaeManager.Domain.Common
 @using CaeManager.Domain.Documentos
 @using CaeManager.Web.Components.DesignSystem
 @using MediatR
@@ -57,7 +58,11 @@ else
                                 <span class="plataforma-documento-propietario">@documento.PropietarioNombre</span>
                                 <span class="plataforma-documento-tipo">@documento.TipoDocumentoNombre</span>
                                 <span class="plataforma-documento-estado">
-                                    <Badge Tono="@(documento.Estado == EstadoAcreditacion.Rechazada ? TonoBadge.Peligro : TonoBadge.Advertencia)">
+                                    @* Tres tonos, no dos: desde que la lista incluye las
+                                       aceptadas, pintar de Advertencia todo lo que no sea un
+                                       rechazo diría que algo va mal en un documento que ya
+                                       está acreditado. *@
+                                    <Badge Tono="@TonoDeEstado(documento.Estado)">
                                         @EstadoAcreditacionUi.TextoCapitalizado(documento.Estado)
                                     </Badge>
                                     @if (documento.UltimoMotivoRechazo is { Length: > 0 } motivo)
@@ -236,6 +241,13 @@ else
         _vigenciaVisible = true;
     }
 
+    private static TonoBadge TonoDeEstado(EstadoAcreditacion estado) => estado switch
+    {
+        EstadoAcreditacion.Rechazada => TonoBadge.Peligro,
+        EstadoAcreditacion.Aceptada => TonoBadge.Exito,
+        _ => TonoBadge.Advertencia
+    };
+
     private static string TextoVigencia(AcreditacionDrillDownDto documento) => documento.EstadoVigencia switch
     {
         // El rótulo no puede decir "venció" sin mirar la fecha: ahora la lista
@@ -263,14 +275,24 @@ else
         }
 
         _confirmandoVigencia = true;
-        // Dos comandos porque son dos cosas distintas: una acredita el documento
-        // en la plataforma, la otra solo corrige un dato de una acreditación que
-        // ya estaba aceptada. Mezclarlas volvería a marcar como aceptada algo que
-        // ya lo estaba, escribiendo un hecho que no ha ocurrido.
-        var resultado = _soloVigencia
-            ? await Mediator.Send(new ConfirmarVigenciaAcreditacionCommand(_acreditacionIdVigencia, vigencia.Value))
-            : await Mediator.Send(new MarcarAcreditacionAceptadaCommand(_acreditacionIdVigencia, vigencia.Value));
-        _confirmandoVigencia = false;
+        Result resultado;
+        try
+        {
+            // Dos comandos porque son dos cosas distintas: una acredita el documento
+            // en la plataforma, la otra solo corrige un dato de una acreditación que
+            // ya estaba aceptada. Mezclarlas volvería a marcar como aceptada algo que
+            // ya lo estaba, escribiendo un hecho que no ha ocurrido.
+            resultado = _soloVigencia
+                ? await Mediator.Send(new ConfirmarVigenciaAcreditacionCommand(_acreditacionIdVigencia, vigencia.Value))
+                : await Mediator.Send(new MarcarAcreditacionAceptadaCommand(_acreditacionIdVigencia, vigencia.Value));
+        }
+        finally
+        {
+            // Sin el finally, una excepción del comando deja el modal cargando
+            // para siempre: con Cancelar deshabilitado y sin cierre al pinchar
+            // fuera, la única salida sería recargar la página.
+            _confirmandoVigencia = false;
+        }
 
         if (resultado.EsFallido)
         {
