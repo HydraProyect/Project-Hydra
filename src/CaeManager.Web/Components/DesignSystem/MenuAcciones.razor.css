@@ -40,7 +40,10 @@
     padding: var(--space-2);
 }
 
-.menu-acciones-item {
+/* Los ítems son <ItemMenuAccion>, un componente hijo declarado por la página, no
+   por MenuAcciones: el identificador de CSS aislado de este fichero no llega a su
+   <button>, y sin ::deep los ítems se pintaban con el estilo nativo del navegador. */
+.menu-acciones-panel ::deep .menu-acciones-item {
     background: none;
     border: none;
     border-radius: var(--radius-sm);
@@ -52,10 +55,10 @@
     white-space: nowrap;
 }
 
-.menu-acciones-item:hover {
+.menu-acciones-panel ::deep .menu-acciones-item:hover {
     background-color: var(--color-surface-hover);
 }
 
-.menu-acciones-item-destructivo {
+.menu-acciones-panel ::deep .menu-acciones-item-destructivo {
     color: var(--color-danger-700);
 }
