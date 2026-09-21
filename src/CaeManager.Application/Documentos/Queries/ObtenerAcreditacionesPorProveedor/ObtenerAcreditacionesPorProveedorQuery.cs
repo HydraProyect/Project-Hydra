@@ -40,7 +40,23 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesPorProv
 /// esta query: ocurre enteramente en el navegador del gestor, fuera del
 /// alcance de cualquier respuesta HTTP.
 /// </summary>
-public record ObtenerAcreditacionesPorProveedorQuery : IRequest<IReadOnlyList<ProveedorAcreditacionesDto>>;
+/// <param name="IncluirAceptadas">
+/// Por defecto la consulta devuelve solo lo que falta subir, que es lo que
+/// necesitan la Bandeja y la extensión de navegador. El drill-down por
+/// plataforma pide además las aceptadas, porque es la única pantalla desde la
+/// que se puede anotar hasta cuándo vale un documento allí.
+///
+/// <para>
+/// Se incluyen TODAS las aceptadas, no solo las que tienen la vigencia sin
+/// confirmar o vencida. Acotarlo a esas dos dejaba fuera precisamente el caso
+/// que hay que poder arreglar: una fecha futura mal tecleada, que no se podría
+/// corregir hasta que venciera. La única salida habría sido rechazar y volver a
+/// aceptar, escribiendo un rechazo que nunca ocurrió en un historial que es
+/// inmutable a propósito.
+/// </para>
+/// </param>
+public record ObtenerAcreditacionesPorProveedorQuery(bool IncluirAceptadas = false)
+    : IRequest<IReadOnlyList<ProveedorAcreditacionesDto>>;
 
 public record ProveedorAcreditacionesDto(
     Guid ProveedorPlataformaCaeId, string ProveedorNombre, string ProveedorCodigo,
@@ -52,7 +68,9 @@ public record AcreditacionDrillDownDto(
     Guid AcreditacionId, Guid DocumentoId, string PropietarioNombre, string TipoDocumentoNombre,
     EstadoAcreditacion Estado, string? UltimoMotivoRechazo,
     Guid? TrabajadorId = null, Guid? EmpresaId = null, Guid? CentroId = null, Guid? TipoDocumentoId = null,
-    Guid? CanalGestionDocumentalId = null, string? TrabajadorDni = null);
+    Guid? CanalGestionDocumentalId = null, string? TrabajadorDni = null,
+    EstadoVigenciaEnPlataforma EstadoVigencia = EstadoVigenciaEnPlataforma.SinConfirmar,
+    DateOnly? FechaVencimientoEnPlataforma = null);
 
 public class ObtenerAcreditacionesPorProveedorQueryHandler(
     IDocumentosQueryContext documentosContext, ICentrosQueryContext centrosContext,
@@ -65,6 +83,7 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
         ObtenerAcreditacionesPorProveedorQuery request, CancellationToken cancellationToken)
     {
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
+        var incluirAceptadas = request.IncluirAceptadas;
 
         var canalesQuery = centrosContext.CanalesGestionDocumental
             .Where(c => c.Tipo == TipoCanalGestion.Plataforma);
@@ -73,7 +92,9 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
 
         var filas = await (
             from acreditacion in documentosContext.AcreditacionesDocumentoPlataforma
-            where acreditacion.Estado == EstadoAcreditacion.PendienteDeSubir || acreditacion.Estado == EstadoAcreditacion.Rechazada
+            where acreditacion.Estado == EstadoAcreditacion.PendienteDeSubir
+                  || acreditacion.Estado == EstadoAcreditacion.Rechazada
+                  || (incluirAceptadas && acreditacion.Estado == EstadoAcreditacion.Aceptada)
             join canal in canalesQuery on acreditacion.CanalGestionDocumentalId equals canal.Id
             join centro in centrosContext.Centros on canal.CentroId equals centro.Id
             join documento in documentosContext.Documentos on acreditacion.DocumentoId equals documento.Id
@@ -83,6 +104,8 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
                 acreditacion.Id,
                 acreditacion.DocumentoId,
                 acreditacion.Estado,
+                acreditacion.EstadoVigencia,
+                acreditacion.FechaVencimientoEnPlataforma,
                 ProveedorId = canal.ProveedorPlataformaCaeId,
                 CanalGestionDocumentalId = canal.Id,
                 CentroId = centro.Id,
@@ -154,7 +177,8 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
                                 f.Id, f.DocumentoId, PropietarioNombre(f.TrabajadorId, f.EmpresaId), f.TipoDocumentoNombre,
                                 f.Estado, motivosPorAcreditacion.GetValueOrDefault(f.Id),
                                 f.TrabajadorId, f.EmpresaId, f.CentroId, f.TipoDocumentoId,
-                                f.CanalGestionDocumentalId, TrabajadorDni(f.TrabajadorId)))
+                                f.CanalGestionDocumentalId, TrabajadorDni(f.TrabajadorId),
+                                f.EstadoVigencia, f.FechaVencimientoEnPlataforma))
                             .OrderBy(d => d.PropietarioNombre)
                             .ToList()))
                     .OrderBy(c => c.ClienteNombre)

@@ -559,7 +559,13 @@ public static class EscenariosDireccionDemoSeeder
                     case EscenarioClienteDemo.CasiCompleto:
                     case EscenarioClienteDemo.ConAccesoSinDocumentacionPendiente:
                         acreditacion.MarcarSubida();
-                        acreditacion.MarcarAceptada();
+                        // "Casi completo" se queda sin confirmar la vigencia a
+                        // propósito: en la demo tiene que verse que eso NO es lo
+                        // mismo que no caducar, aunque el documento esté aceptado.
+                        acreditacion.MarcarAceptada(
+                            spec.Escenario == EscenarioClienteDemo.CasiCompleto
+                                ? VigenciaEnPlataforma.SinConfirmar
+                                : VigenciaEnPlataforma.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(6)));
                         break;
 
                     case EscenarioClienteDemo.AccesoPendienteDeConfirmacion:

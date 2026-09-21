@@ -294,6 +294,7 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Documentos.AplicarDeteccionIaDocumentoCommandHandler", "IAuditoriaExtraccionIaRepository"),
         ("Documentos.AplicarDeteccionIaDocumentoCommandHandler", "IProyectosQueryContext"),
         ("Documentos.AplicarDeteccionIaDocumentoCommandHandler", "ITiposDocumentoQueryContext"),
+        ("Documentos.ConfirmarVigenciaAcreditacionCommandHandler", "IProyectosQueryContext"),
         ("Documentos.CorregirRevisionIaDocumentoCommandHandler", "IAuditoriaExtraccionIaRepository"),
         ("Documentos.CorregirRevisionIaDocumentoCommandHandler", "IProyectosQueryContext"),
         ("Documentos.CorregirRevisionIaDocumentoCommandHandler", "ITiposDocumentoQueryContext"),
