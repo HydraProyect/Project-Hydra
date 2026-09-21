@@ -110,6 +110,65 @@ public record FronteraDeOrden(
     bool ConfirmadaPorNegocio);
 
 /// <summary>
+/// Por dónde se gestiona la documentación de un Centro, tal y como lo sabe el
+/// asistente cuando clasifica una orden.
+/// <para>
+/// Las dos primeras corresponden una a una con <c>TipoCanalGestion</c> del
+/// dominio. La tercera <b>no es un canal</b>: es la ausencia del dato, y existe
+/// como valor propio precisamente para no codificarla como un nulo. Un nulo aquí
+/// significaría a la vez «el Centro no tiene canal» y «todavía no hemos mirado»,
+/// y son dos situaciones con dos respuestas distintas.
+/// </para>
+/// </summary>
+public enum SituacionDelCanal
+{
+    /// <summary>El Centro exige un portal externo con acceso propio.</summary>
+    Plataforma,
+
+    /// <summary>El Centro no tiene portal: la documentación viaja por correo a un contacto suyo.</summary>
+    Correo,
+
+    /// <summary>Todavía no se sabe. Es el caso de un Centro nuevo, y tiene su propio camino.</summary>
+    SinAveriguar,
+}
+
+/// <summary>
+/// Una rama del árbol que decide qué hay que hacer para que una persona pueda
+/// entrar a trabajar en un Centro.
+/// <para>
+/// Existe porque la orden escrita —«que Juan vaya el martes a tal sitio»— es la
+/// misma en los cuatro casos, y lo que hay que hacer no se parece en nada de uno
+/// a otro. Quien decide no es el modelo: es el canal del Centro y si la persona
+/// ya está dada de alta en él. Los dos son datos que TALVEG tiene, así que la
+/// rama se elige en código y no se adivina.
+/// </para>
+/// </summary>
+/// <param name="Id">Identificador estable de la rama. Es lo que se audita.</param>
+/// <param name="Canal">En qué situación de canal aplica.</param>
+/// <param name="Cuando">La condición completa, incluida el alta cuando importa.</param>
+/// <param name="QueSeHace">Qué se hace, en lenguaje de negocio.</param>
+/// <param name="Ejecucion">Con qué operaciones, si las hay.</param>
+/// <param name="MacroSugerida">
+/// Identificador de la plantilla de correo que propone el asistente, o vacío si
+/// esta rama no manda ningún correo. El Gestor CAE siempre puede cambiarla, y es
+/// siempre él quien pulsa enviar.
+/// </param>
+/// <param name="Ejecutable">
+/// Si el asistente puede completarla hoy. Falso no significa que la rama esté
+/// mal: significa que falta una pieza, y decirlo evita prometerla.
+/// </param>
+/// <param name="Limitacion">Qué falta, o qué se hereda al ejecutarla.</param>
+public record CaminoDeIngreso(
+    string Id,
+    SituacionDelCanal Canal,
+    string Cuando,
+    string QueSeHace,
+    IReadOnlyList<PasoDeEjecucion> Ejecucion,
+    string MacroSugerida,
+    bool Ejecutable,
+    string Limitacion);
+
+/// <summary>
 /// Una clase de orden escrita que el asistente sabe reconocer.
 /// <para>
 /// Se llama «orden» y no «flujo» a propósito: en este código «flujo» ya
@@ -163,6 +222,24 @@ public record OrdenAsistida(
     bool EnviaComunicacionExterna,
     bool RequiereConfirmacion)
 {
+    /// <summary>
+    /// Las ramas por canal, cuando la orden tiene más de un camino según cómo se
+    /// gestione el Centro. Vacío en las órdenes que no dependen del canal.
+    /// <para>
+    /// Es <c>init</c> y no un parámetro posicional a propósito: las órdenes que
+    /// no ramifican no tienen que declarar una lista vacía, y añadir ramas a una
+    /// orden no obliga a tocar las otras cinco.
+    /// </para>
+    /// </summary>
+    public IReadOnlyList<CaminoDeIngreso> Caminos { get; init; } = [];
+
+    /// <summary>
+    /// Hay alguna rama que el asistente todavía no sabe completar. La orden puede
+    /// ser ejecutable en general y tener un camino que no lo sea: eso hay que
+    /// verlo antes de confirmar, no descubrirlo después.
+    /// </summary>
+    public bool TieneCaminoNoEjecutable => Caminos.Any(c => !c.Ejecutable);
+
     /// <summary>Los campos sin los que la orden no puede ejecutarse.</summary>
     public IEnumerable<CampoDeOrden> CamposObligatorios => Campos.Where(c => c.Obligatorio);
 
