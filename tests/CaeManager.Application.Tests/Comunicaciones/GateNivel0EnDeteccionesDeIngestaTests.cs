@@ -35,6 +35,16 @@ public class GateNivel0EnDeteccionesDeIngestaTests
 {
     private static readonly Guid TenantId = Guid.NewGuid();
 
+    /// <summary>
+    /// El Cliente del correo. Los dobles de los tests «sin instrucción vigente» traen
+    /// datos que casan con él a propósito: con las colecciones vacías, el servicio se
+    /// paraba por su propia regla («sin Centros no hay nada que sugerir») antes de
+    /// llegar al proveedor, de modo que al quitar el gate el rojo lo producía el
+    /// contador de consultas y no la llamada al proveedor. El test decía observar una
+    /// cosa y observaba otra.
+    /// </summary>
+    private static readonly Guid ClienteId = Guid.NewGuid();
+
     // ─────────────────────────── Relevancia CAE ───────────────────────────
 
     [Fact]
@@ -87,13 +97,16 @@ public class GateNivel0EnDeteccionesDeIngestaTests
     [Fact]
     public async Task Sin_instruccion_vigente_la_sugerencia_de_visita_no_llega_al_proveedor()
     {
-        var centros = new CentrosQueryContextEspia();
+        // Con un Centro del Cliente, quitar el gate lleva el flujo hasta
+        // DeteccionVisitaQueLanzaSiSeInvoca: el rojo de la mutación lo produce la
+        // llamada al proveedor, que es lo que este test dice observar.
+        var centros = new CentrosQueryContextEspia(CentroDelCliente());
         var registro = new LoggerRecolector<SugerenciaVisitaCorreoService>();
         var servicio = new SugerenciaVisitaCorreoService(
             centros, new DeteccionVisitaQueLanzaSiSeInvoca(), new SugerenciaVisitaRepositorioQueLanzaSiSeInvoca(),
             new InstruccionTratamientoIaFalsa(habilitada: false), new TenantActualFalso(TenantId), registro);
 
-        await servicio.ProcesarAsync(MensajeEntrante(), Guid.NewGuid(), CancellationToken.None);
+        await servicio.ProcesarAsync(MensajeEntrante(), ClienteId, CancellationToken.None);
 
         centros.Consultas.Should().Be(0, "el gate va por delante de cargar los Centros candidatos");
         registro.Mensajes.Should().ContainSingle().Which.Should().Contain("Nivel 0");
@@ -120,11 +133,20 @@ public class GateNivel0EnDeteccionesDeIngestaTests
     [Fact]
     public async Task Sin_instruccion_vigente_la_sugerencia_de_gestion_no_llega_al_proveedor()
     {
-        var centros = new CentrosQueryContextEspia();
+        // Centro + Asignación + TipoDocumento de ámbito Trabajador: lo justo para que,
+        // sin gate, el flujo recorra las cuatro consultas y llame al proveedor con los
+        // Trabajadores candidatos. Es la salida de datos personales que este gate corta,
+        // así que es la que el test tiene que poder observar.
+        var centro = CentroDelCliente();
+        var centros = new CentrosQueryContextEspia(centro);
         var registro = new LoggerRecolector<SugerenciaGestionCorreoService>();
-        var servicio = ServicioDeGestion(centros, habilitada: false, registro);
+        var servicio = ServicioDeGestion(
+            centros, habilitada: false, registro,
+            new AsignacionesQueryContextConUna(centro.Id),
+            new TrabajadoresQueryContextVacio(),
+            new TiposDocumentoQueryContextConUno());
 
-        var resultado = await servicio.ProcesarAsync(MensajeEntrante(), Guid.NewGuid(), CancellationToken.None);
+        var resultado = await servicio.ProcesarAsync(MensajeEntrante(), ClienteId, CancellationToken.None);
 
         centros.Consultas.Should().Be(0, "el gate va por delante de cargar Centros, Asignaciones y Trabajadores");
         resultado.Should().Be(ResultadoDeteccionGestionDto.Vacio);
@@ -143,11 +165,14 @@ public class GateNivel0EnDeteccionesDeIngestaTests
     }
 
     private static SugerenciaGestionCorreoService ServicioDeGestion(
-        ICentrosQueryContext centros, bool habilitada, ILogger<SugerenciaGestionCorreoService> registro) =>
+        ICentrosQueryContext centros, bool habilitada, ILogger<SugerenciaGestionCorreoService> registro,
+        IAsignacionesQueryContext? asignaciones = null,
+        ITrabajadoresQueryContext? trabajadores = null,
+        ITiposDocumentoQueryContext? tiposDocumento = null) =>
         new(centros,
-            new AsignacionesQueryContextQueLanzaSiSeInvoca(),
-            new TrabajadoresQueryContextQueLanzaSiSeInvoca(),
-            new TiposDocumentoQueryContextQueLanzaSiSeInvoca(),
+            asignaciones ?? new AsignacionesQueryContextQueLanzaSiSeInvoca(),
+            trabajadores ?? new TrabajadoresQueryContextQueLanzaSiSeInvoca(),
+            tiposDocumento ?? new TiposDocumentoQueryContextQueLanzaSiSeInvoca(),
             new DeteccionGestionQueLanzaSiSeInvoca(),
             new SugerenciaGestionRepositorioQueLanzaSiSeInvoca(),
             new InstruccionTratamientoIaFalsa(habilitada),
@@ -262,7 +287,7 @@ public class GateNivel0EnDeteccionesDeIngestaTests
     }
 
     /// <summary>Cuenta accesos y devuelve vacío: el servicio se para solo después, por su propia regla.</summary>
-    private sealed class CentrosQueryContextEspia : ICentrosQueryContext
+    private sealed class CentrosQueryContextEspia(params Centro[] centros) : ICentrosQueryContext
     {
         public int Consultas { get; private set; }
 
@@ -271,12 +296,52 @@ public class GateNivel0EnDeteccionesDeIngestaTests
             get
             {
                 Consultas++;
-                return new TestAsyncQueryable<Centro>(new List<Centro>().AsQueryable());
+                return new TestAsyncQueryable<Centro>(centros.AsQueryable());
             }
         }
 
         public IQueryable<CanalGestionDocumental> CanalesGestionDocumental =>
             new TestAsyncQueryable<CanalGestionDocumental>(new List<CanalGestionDocumental>().AsQueryable());
+    }
+
+    private static Centro CentroDelCliente() => new(ClienteId, Guid.NewGuid(), "Centro del Cliente empresarial");
+
+    /// <summary>Una asignación activa en ese Centro: sin ella el flujo de gestión se para antes del proveedor.</summary>
+    private sealed class AsignacionesQueryContextConUna(Guid centroId) : IAsignacionesQueryContext
+    {
+        public IQueryable<Asignacion> Asignaciones =>
+            new TestAsyncQueryable<Asignacion>(
+                new List<Asignacion> { new(Guid.NewGuid(), centroId, DateOnly.FromDateTime(DateTime.UtcNow)) }.AsQueryable());
+    }
+
+    /// <summary>
+    /// Sin Trabajadores: el servicio no corta por lista vacía, así que la llamada al
+    /// proveedor se produce igual y el test no necesita fabricar un Trabajador.
+    /// </summary>
+    private sealed class TrabajadoresQueryContextVacio : ITrabajadoresQueryContext
+    {
+        public IQueryable<Trabajador> Trabajadores =>
+            new TestAsyncQueryable<Trabajador>(new List<Trabajador>().AsQueryable());
+
+        public IQueryable<DeteccionTrabajador> DeteccionesTrabajador =>
+            throw new InvalidOperationException("Este flujo no lee detecciones de trabajador.");
+    }
+
+    private sealed class TiposDocumentoQueryContextConUno : ITiposDocumentoQueryContext
+    {
+        public IQueryable<TipoDocumento> TiposDocumento =>
+            new TestAsyncQueryable<TipoDocumento>(
+                new List<TipoDocumento>
+                {
+                    new("Reconocimiento médico", vigenciaMeses: 12, aplicaVencimientoAutomatico: true, orden: 1, AmbitoAplicacion.Trabajador),
+                }.AsQueryable());
+
+        public IQueryable<TipoDocumentoCentro> TiposDocumentoCentros => throw new InvalidOperationException("No se usa en este flujo.");
+
+        public IQueryable<TipoDocumentoAlias> TiposDocumentoAlias => throw new InvalidOperationException("No se usa en este flujo.");
+
+        public IQueryable<ConfiguracionIaDocumentoCliente> ConfiguracionesIaDocumentoCliente =>
+            throw new InvalidOperationException("Este flujo no mira los niveles 1 y 2.");
     }
 
     private sealed class AsignacionesQueryContextQueLanzaSiSeInvoca : IAsignacionesQueryContext

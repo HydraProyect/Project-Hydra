@@ -31,6 +31,14 @@ public class ConsumidoresDeIaConsultanLaInstruccionDeTratamientoTests
     /// Puertos de IA de Application: cada uno lo implementa en Infrastructure un cliente
     /// de un proveedor de pago (ver <see cref="ClientesDeIaConResilienciaPropiaTests"/>),
     /// salvo el router, que es el despachador común a los tres proveedores documentales.
+    ///
+    /// Los dos últimos no son puertos «de alto nivel» sino el acceso crudo a los
+    /// proveedores documentales, y estaban fuera de esta lista hasta que la revisión de
+    /// Codex lo señaló: una clase nueva que se saltara el router y pidiera
+    /// <c>IDocumentAIProviderFactory</c> llegaba a los mismos proveedores de pago sin que
+    /// el detector la viera. Al añadirlos, el conjunto detectado pasó de 10 a 11 ficheros
+    /// —comprobado antes de tocar la lista, porque un detector ampliado que no encuentra
+    /// nada nuevo suele significar que la ampliación no funciona—.
     /// </summary>
     private static readonly string[] PuertosDeIa =
     [
@@ -41,6 +49,8 @@ public class ConsumidoresDeIaConsultanLaInstruccionDeTratamientoTests
         "IDeteccionVisitaCorreoService",
         "IDeteccionGestionCorreoService",
         "IDeteccionRelevanciaCaeService",
+        "IDocumentAIProviderFactory",
+        "IDocumentAIProvider",
     ];
 
     /// <summary>
@@ -51,6 +61,13 @@ public class ConsumidoresDeIaConsultanLaInstruccionDeTratamientoTests
     /// </summary>
     private static readonly Dictionary<string, string> ExentosConMotivo = new()
     {
+        ["DocumentosIa/DocumentAIRouterService.cs"] =
+            "despachador común a los tres proveedores documentales: no tiene decisión de cumplimiento " +
+            "propia, y sus cuatro llamadores de Application los vigila este mismo ratchet, porque " +
+            "IDocumentAIRouterService está en PuertosDeIa — quien quiera usarlo tiene que recibir el " +
+            "servicio de instrucción. Cuando exista REC-104 (gateway común de IA), DEC-46 fija que la " +
+            "consulta se hace una sola vez en su punto de entrada y esta exención desaparece",
+
         ["DocumentosIa/RouterExtraccionMetadatosDocumentoIaService.cs"] =
             "adaptador de un puerto a otro: no decide nada ni tiene tenant a mano, y su único " +
             "consumidor (VerificacionIaDocumentoService) ya consulta el Nivel 0 antes de llamarlo",
