@@ -42,6 +42,32 @@ let hayConexion = false;
 // con su número; la que llega con un número caducado se descarta.
 let selloDeConexion = 0;
 
+// El token vence a una hora conocida, y ese vencimiento no genera ningún aviso:
+// si el Gestor CAE deja la pestaña abierta y no hace nada, nadie se entera. Sin
+// esto, el primer clic tras la hora se interceptaba igual y abría un panel que
+// ya no podía listar nada. Como la decisión de interceptar tiene que ser
+// síncrona (preventDefault no espera), no vale preguntar en ese momento: hay que
+// haberse apagado antes.
+let relojDeCaducidad = null;
+
+function programarCaducidad(expiraEnUtc) {
+  clearTimeout(relojDeCaducidad);
+  relojDeCaducidad = null;
+  if (!hayConexion || !expiraEnUtc) return;
+
+  const queda = Date.parse(expiraEnUtc) - Date.now();
+  if (Number.isNaN(queda)) return;
+  if (queda <= 0) {
+    hayConexion = false;
+    return;
+  }
+
+  relojDeCaducidad = setTimeout(() => {
+    hayConexion = false;
+    avisarEnPanelDeConexionPerdida();
+  }, queda);
+}
+
 async function refrescarConexionAsync() {
   const selloPropio = ++selloDeConexion;
 
@@ -49,6 +75,7 @@ async function refrescarConexionAsync() {
     const conexion = await chrome.runtime.sendMessage({ accion: "obtenerConexion" });
     if (selloPropio !== selloDeConexion) return;
     hayConexion = Boolean(conexion?.conectado);
+    programarCaducidad(conexion?.expiraEnUtc);
   } catch {
     if (selloPropio !== selloDeConexion) return;
     // El service worker puede estar dormido o recargándose. Ante la duda, no
@@ -403,6 +430,7 @@ chrome.runtime.onMessage.addListener((mensaje, _remitente, enviarRespuesta) => {
     // El aviso manda sobre cualquier consulta en vuelo: invalida su sello.
     selloDeConexion++;
     hayConexion = Boolean(mensaje.conectado);
+    programarCaducidad(mensaje.expiraEnUtc);
 
     // Al perder la conexión no se cierra el panel abierto. El clic que lo abrió
     // ya se consumió —el explorador del sistema no llegó a salir—, así que

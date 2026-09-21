@@ -50,7 +50,10 @@ function normalizarOrigen(url) {
 // Los fallos se ignoran uno a uno a propósito: la mayoría de las pestañas no
 // tienen este content script —no son portales CAE— y ahí `sendMessage` rechaza
 // siempre. No es un error, es la respuesta normal.
-async function avisarDeLaConexion(conectado) {
+// El aviso lleva la caducidad para que cada pestaña pueda apagarse sola cuando
+// llegue la hora. El vencimiento de un token no produce ningún evento por su
+// cuenta: si nadie hace una petición, nadie se entera de que pasó.
+async function avisarDeLaConexion(conectado, expiraEnUtc = null) {
   let pestanas;
   try {
     pestanas = await chrome.tabs.query({});
@@ -60,7 +63,9 @@ async function avisarDeLaConexion(conectado) {
 
   for (const pestana of pestanas) {
     if (!pestana.id) continue;
-    chrome.tabs.sendMessage(pestana.id, { accion: "conexionCambiada", conectado }).catch(() => {});
+    chrome.tabs
+      .sendMessage(pestana.id, { accion: "conexionCambiada", conectado, expiraEnUtc })
+      .catch(() => {});
   }
 }
 
@@ -74,7 +79,7 @@ async function conectar(hydraUrl, token, expiraEnUtc) {
   // llamada conserve un gesto de usuario real a través de la mensajería.
   await chrome.storage.local.set({ hydraUrl: origen });
   await chrome.storage.session.set({ token, expiraEnUtc });
-  await avisarDeLaConexion(true);
+  await avisarDeLaConexion(true, expiraEnUtc);
   return { ok: true };
 }
 
