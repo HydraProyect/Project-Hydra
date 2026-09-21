@@ -264,6 +264,11 @@ function abrirExploradorDelSistema(campo) {
 }
 
 async function cargarPendientesEnPanelAsync(cuerpo, campo) {
+  // Mismo sello que la consulta de conexión, y por el mismo motivo: esta lista
+  // tarda en llegar, y si entre medias se cae la conexión, pintarla encima del
+  // aviso le devolvería al Gestor CAE unos botones que ya no pueden terminar
+  // ninguna subida.
+  const selloPropio = selloDeConexion;
   let resultado;
   try {
     resultado = await chrome.runtime.sendMessage({ accion: "listarPendientes" });
@@ -272,6 +277,7 @@ async function cargarPendientesEnPanelAsync(cuerpo, campo) {
   }
 
   if (!anfitrionPanel) return; // lo cerraron mientras cargaba.
+  if (selloPropio !== selloDeConexion) return; // la conexión cambió mientras cargaba.
   cuerpo.replaceChildren();
 
   if (!resultado?.ok) {
