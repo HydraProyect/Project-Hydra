@@ -121,15 +121,8 @@
 }
 
 .bandeja-toggle {
-    /* Los dos conmutadores se reparten el ancho de la columna y su rótulo puede
-       ocupar dos líneas: con height fija de 32px «Clientes empresariales» se
-       salía del botón en la columna estrecha de la bandeja. */
-    flex: 1 1 0;
-    min-width: 0;
-    min-height: 32px;
-    padding: var(--space-1) var(--space-3);
-    line-height: 1.2;
-    text-align: center;
+    height: 32px;
+    padding: 0 var(--space-3);
     border-radius: var(--radius-full);
     /* Borde que identifica un control: sujeto al 3:1 de 02 § 8
        (DDL-062/063). --color-border no lo alcanza (1.18:1). */
@@ -139,6 +132,19 @@
     font: var(--font-label-md);
     cursor: pointer;
     transition: border-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard), background-color var(--motion-fast) var(--ease-standard);
+}
+
+/* Solo los dos conmutadores de ámbito (no los chips de filtro, que comparten la
+   clase): se reparten el ancho de la columna y su rótulo puede ocupar dos líneas;
+   con height fija de 32px «Clientes empresariales» se salía del botón. */
+.bandeja-vista-toggle .bandeja-toggle {
+    flex: 1 1 0;
+    min-width: 0;
+    height: auto;
+    min-height: 32px;
+    padding: var(--space-1) var(--space-3);
+    line-height: 1.2;
+    text-align: center;
 }
 
 .bandeja-toggle:hover {

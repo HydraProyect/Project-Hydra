@@ -17,8 +17,11 @@ public class ComunicacionesHojaDeEstilosTests
     [Fact]
     public void El_conmutador_de_ambito_no_tiene_altura_fija_y_se_reparte_el_ancho()
     {
-        var regla = Regla(Leer(Bandeja), @"\.bandeja-toggle");
-        regla.Should().NotMatchRegex(@"(?<![-\w])height\s*:", "su rótulo ocupa dos líneas en la columna estrecha");
+        var css = Leer(Bandeja);
+        // Los chips de filtro comparten .bandeja-toggle: no deben repartirse el ancho.
+        Regla(css, @"\.bandeja-toggle").Should().NotMatchRegex(@"flex\s*:\s*1");
+        var regla = Regla(css, @"\.bandeja-vista-toggle \.bandeja-toggle");
+        regla.Should().MatchRegex(@"height\s*:\s*auto", "su rótulo ocupa dos líneas en la columna estrecha");
         regla.Should().MatchRegex(@"min-height\s*:");
         regla.Should().MatchRegex(@"flex\s*:\s*1");
     }
