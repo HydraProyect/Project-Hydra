@@ -215,11 +215,33 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
     [Fact]
     public async Task Con_acceso_ordinario_ademas_de_la_ventana_el_circuito_no_recibe_fecha_de_fin()
     {
-        // Hallazgo de Codex: la selecciÃ³n seguirÃ­a viva por el acceso ordinario
-        // cuando la ventana vence, y avisar Â«terminÃ³Â» serÃ­a falso.
+        // Hallazgo de Codex: la selección seguiría viva por el acceso ordinario
+        // cuando la ventana vence, y avisar «terminó» sería falso.
         await AbrirVentanaDeSoporteAsync(TimeSpan.FromMinutes(30));
 
         (await ExpiracionQueVeElCircuitoAsync()).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Con_varias_ventanas_activas_manda_la_que_termina_mas_tarde()
+    {
+        await RetirarLaAsignacionOrdinariaAsync();
+        await AbrirVentanaDeSoporteAsync(TimeSpan.FromMinutes(5));
+        await AbrirVentanaDeSoporteAsync(TimeSpan.FromMinutes(30));
+
+        var expira = await ExpiracionQueVeElCircuitoAsync();
+
+        expira!.Value.Should().BeCloseTo(DateTime.UtcNow.AddMinutes(30), TimeSpan.FromMinutes(1));
+    }
+
+    [Fact]
+    public async Task Si_la_seleccion_la_sostiene_una_asignacion_de_operacion_la_ventana_no_da_fecha_de_fin()
+    {
+        // Tercera ronda de Codex: la ventana existe, pero la selección no viene de ella.
+        await RetirarLaAsignacionOrdinariaAsync();
+        await AbrirVentanaDeSoporteAsync(TimeSpan.FromMinutes(30));
+
+        (await ExpiracionQueVeElCircuitoAsync(asignacionOperacionId: Guid.NewGuid())).Should().BeNull();
     }
 
     [Fact]
@@ -228,10 +250,10 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
         (await ExpiracionQueVeElCircuitoAsync()).Should().BeNull();
     }
 
-    private async Task<DateTime?> ExpiracionQueVeElCircuitoAsync()
+    private async Task<DateTime?> ExpiracionQueVeElCircuitoAsync(Guid? asignacionOperacionId = null)
     {
         await using var contexto = CrearContexto();
-        var (_, seleccion) = PrepararPeticionConTokenValido();
+        var (_, seleccion) = PrepararPeticionConTokenValido(asignacionOperacionId);
 
         var traza = new TrazaSoporteService(
             seleccion, new CurrentUserServiceParaMiddlewareFalso(_usuario), contexto,
@@ -356,9 +378,9 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
     /// Token emitido por la propia clase de producción, no uno inventado: si
     /// el formato cambia, el test cambia con él.
     /// </summary>
-    private (DefaultHttpContext, ClienteActivoSeleccionado) PrepararPeticionConTokenValido()
+    private (DefaultHttpContext, ClienteActivoSeleccionado) PrepararPeticionConTokenValido(Guid? asignacionOperacionId = null)
     {
-        var token = ClienteActivoSeleccionado.Proteger(_protector, _usuario, _clienteDelegante, null);
+        var token = ClienteActivoSeleccionado.Proteger(_protector, _usuario, _clienteDelegante, asignacionOperacionId);
 
         var httpContext = new DefaultHttpContext { User = UsuarioAutenticado(_usuario) };
         httpContext.Request.Headers.Cookie = $"{ClienteActivoSeleccionado.NombreCookie}={token}";

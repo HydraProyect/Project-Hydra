@@ -116,16 +116,24 @@ public class TrazaSoporteService(
         }, cancellationToken);
 
         var soporte = PropositoDelegacion.Soporte;
-        var delegacion = delegaciones?.FirstOrDefault(d => d.Proposito == soporte && d.Activa);
+        // Con varias ventanas activas, la que manda es la que termina más tarde.
+        var delegacion = delegaciones?
+            .Where(d => d.Proposito == soporte && d.Activa)
+            .OrderByDescending(d => d.ExpiraEnUtc ?? DateTime.MaxValue)
+            .FirstOrDefault();
 
         if (delegacion is null) return;
 
         _delegacionSoporteId = delegacion.Id;
         _expiraEnUtc = delegacion.ExpiraEnUtc;
-        // Con otra delegaciÃ³n del usuario hacia ese tenant, la caducidad de la
-        // ventana no dice cuÃ¡ndo se acaba su acceso: la selecciÃ³n puede seguir
-        // viva por la otra vÃ­a, y avisar Â«terminÃ³Â» serÃ­a falso.
-        _soloSoporte = delegaciones!.All(d => d.Proposito == soporte);
+        // Con otra delegación del usuario hacia ese tenant, la caducidad de la
+        // ventana no dice cuándo se acaba su acceso: la selección puede seguir
+        // viva por la otra vía, y avisar «terminó» sería falso.
+        // Y solo si la selección es la heredada: una asignación de operación o una
+        // sesión privilegiada la sostienen por otra vía y la ventana no dice nada.
+        _soloSoporte = clienteActivoSeleccionado.AsignacionOperacionIdSeleccionada is null
+            && clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is null
+            && delegaciones!.All(d => d.Proposito == soporte);
         _tenantVisitadoId = tenantSeleccionado;
     }
 }
