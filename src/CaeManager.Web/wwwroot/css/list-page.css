@@ -945,8 +945,16 @@
     background-color: var(--color-surface);
     border: var(--border-default);
     border-radius: var(--radius-lg);
-    overflow: hidden;
+    /* Sin overflow: hidden: el panel de MenuAcciones (position: absolute) sale de
+       la fila y, en una lista de pocas filas, sobresale de la tabla; con el
+       recorte quedaba cortado. Las esquinas redondeadas las llevan las celdas
+       de las cuatro esquinas (reglas de abajo). */
 }
+
+.tabla-datos th:first-child { border-top-left-radius: calc(var(--radius-lg) - 1px); }
+.tabla-datos th:last-child { border-top-right-radius: calc(var(--radius-lg) - 1px); }
+.tabla-datos tr:last-child td:first-child { border-bottom-left-radius: calc(var(--radius-lg) - 1px); }
+.tabla-datos tr:last-child td:last-child { border-bottom-right-radius: calc(var(--radius-lg) - 1px); }
 
 .tabla-datos th {
     text-align: left;
