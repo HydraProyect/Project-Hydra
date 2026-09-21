@@ -22,8 +22,11 @@ namespace CaeManager.IntegrationTests.ApiKeys;
 /// lo autorice sobre ese cliente. Lo que estos tests protegen es justo lo que
 /// más fácil sería romper por accidente: que una clave del tenant A nunca
 /// resulte visible/revocable desde una delegación que no le pertenece, y que
-/// el lookup por hash (que ignora el filtro global a propósito, ver
-/// ClaveApiRepository) siga acotado a esa única operación.
+/// el lookup por hash siga acotado a esa única operación — desde 2026-09-21,
+/// resolviendo primero el tenant y leyendo la fila después dentro de él (ver
+/// ClaveApiRepository). Estos tests conectan como propietario, así que NO
+/// observan RLS: lo que la API pública hace bajo <c>cae_app_runtime</c> lo
+/// mide <see cref="ApiPublicaBajoRolRuntimeTests"/>.
 /// </summary>
 public class GestionClavesApiTests : IAsyncLifetime
 {
@@ -144,17 +147,29 @@ public class GestionClavesApiTests : IAsyncLifetime
 
         resultadoRevocar.EsExitoso.Should().BeTrue();
 
-        // El repositorio de autenticación (ignora el filtro global a propósito,
-        // ver ClaveApiRepository) debe seguir encontrando la fila pero marcada
-        // inactiva — es el handler de autenticación quien la rechaza, no la
-        // ausencia de la fila.
+        // El camino de autenticación debe seguir encontrando la fila pero
+        // marcada inactiva — es el handler quien la rechaza, no la ausencia de
+        // la fila. Son los dos pasos que hace ApiKeyAuthenticationHandler:
+        // primero de quién es la clave (sin tenant, lo único que no se puede
+        // saber de otro modo), y solo entonces la fila, ya dentro del tenant.
+        // Una clave REVOCADA sigue resolviendo su tenant a propósito: la
+        // vigencia la decide EstaActiva, no la visibilidad.
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(generada.Valor.ClaveEnClaro))).ToLowerInvariant();
         await using var contextoAuth = CrearContexto();
         var repoAuth = new ClaveApiRepository(contextoAuth);
-        var claveTrasRevocar = await repoAuth.ObtenerPorHashAsync(hash);
 
-        claveTrasRevocar.Should().NotBeNull();
-        claveTrasRevocar!.EstaActiva.Should().BeFalse();
+        var tenantDeLaClave = await repoAuth.ObtenerTenantPorHashAsync(hash);
+        tenantDeLaClave.Should().Be(_tenantClienteId,
+            "sin resolver el tenant no hay forma de leer la fila, así que un null aquí haría que la " +
+            "comprobación de abajo midiera otra cosa");
+
+        using (CaeManager.Application.Common.AmbitoTenantExplicito.Establecer(tenantDeLaClave!.Value))
+        {
+            var claveTrasRevocar = await repoAuth.ObtenerPorHashAsync(hash);
+
+            claveTrasRevocar.Should().NotBeNull();
+            claveTrasRevocar!.EstaActiva.Should().BeFalse();
+        }
     }
 
     [Fact]

@@ -31,8 +31,17 @@ namespace CaeManager.Architecture.Tests;
 /// </summary>
 public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
 {
+    /// <summary>
+    /// <c>.SqlQuery&lt;</c> se añadió al patrón con la resolución de ClaveApi
+    /// bajo RLS (2026-09-21), que introdujo el primer uso del repositorio.
+    /// Medido antes de añadirlo: cero apariciones en las tres carpetas
+    /// escaneadas, así que el detector CRECE con el uso nuevo en vez de heredar
+    /// una lista de infractores preexistentes. Es SQL crudo igual que
+    /// <c>FromSqlRaw</c> —rodea a EF y a su filtro global— y su ausencia del
+    /// patrón era un hueco: una consulta escrita así no la veía nadie.
+    /// </summary>
     private static readonly Regex PatronSospechoso = new(
-        @"\.IgnoreQueryFilters\(|\bFromSqlRaw\(|\bFromSqlInterpolated\(|\bExecuteSqlRaw\(|\bExecuteSqlInterpolated\(|\bnew\s+NpgsqlCommand\(|\bnew\s+SqlCommand\(|\.CreateCommand\(",
+        @"\.IgnoreQueryFilters\(|\bFromSqlRaw\(|\bFromSqlInterpolated\(|\bExecuteSqlRaw\(|\bExecuteSqlInterpolated\(|\.SqlQuery<|\bnew\s+NpgsqlCommand\(|\bnew\s+SqlCommand\(|\.CreateCommand\(",
         RegexOptions.Compiled);
 
     // Congelado desde el escaneo real a 2026-08-14 (Horizonte 2.5). Cada
@@ -85,10 +94,22 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Integraciones/WebhookTenantResolver.cs", ".IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Infrastructure/Integraciones/WebhookWhatsAppTenantResolver.cs", ".IgnoreQueryFilters()")] = 1,
 
-        // Autenticación de API Key: el tenant lo determina la propia clave
-        // que se está validando, así que no puede depender del filtro global
-        // de tenant (que todavía no se puede fijar sin haber leído la clave).
-        [("src/CaeManager.Infrastructure/Persistence/Repositories/ClaveApiRepository.cs", "dbContext.ClavesApi.IgnoreQueryFilters()")] = 1,
+        // Autenticación de API Key: el tenant lo determina la propia clave que
+        // se está validando, así que no puede depender del filtro global de
+        // tenant (que todavía no se puede fijar sin haber leído la clave).
+        //
+        // Hasta 2026-09-21 esto era un .IgnoreQueryFilters() sobre ClavesApi, y
+        // era insuficiente: quitaba el filtro de EF pero no la política RLS de
+        // la tabla, así que bajo cae_app_runtime —el rol del tráfico— la
+        // consulta devolvía cero filas y /api/v1 respondía 401 a toda clave.
+        // Ahora el único dato que se lee sin tenant es el TenantId, por una
+        // función SECURITY DEFINER acotada (migración
+        // 20260921155801_ResolucionDeClaveApiBajoRls); la fila entera se lee
+        // después por EF, ya dentro del AmbitoTenantExplicito de ese tenant y
+        // por tanto CON filtro global y CON política. El valor va parametrizado
+        // por EF, no concatenado.
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/ClaveApiRepository.cs",
+            """.SqlQuery<Guid?>($"SELECT app_tenant_de_clave_api({hashClave}) AS \"Value\"")""")] = 1,
 
         // Comprobación de arranque de la identidad de conexión del tráfico. No
         // consulta ninguna tabla de negocio —solo current_user, pg_roles y
