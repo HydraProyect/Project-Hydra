@@ -1,9 +1,17 @@
+/*
+  Sin `overflow: hidden`, a propósito. Los recuentos de la cabecera son
+  VentanaContexto, cuyo panel se abre hacia arriba (position: absolute; bottom:
+  100%): con el recorte, el panel del primer grupo de Inicio quedaba cortado
+  por el borde superior de la tarjeta y se veía "detrás del fondo" (detectado en
+  staging, 2026-09-21). El recorte solo servía para que el fondo de :hover de
+  la cabecera respetara las esquinas redondeadas; eso lo hace ahora la propia
+  cabecera con su radio.
+*/
 .grupo-cola {
     background: var(--color-surface);
     border: var(--border-default);
     border-radius: var(--radius-md);
     margin-bottom: var(--space-2);
-    overflow: hidden;
 }
 
 /* Mi trabajo TALVEG.dc.html: el grupo que hoy impide entrar a un Centro lleva
@@ -25,6 +33,14 @@
     cursor: pointer;
     font-family: var(--font-family);
     color: inherit;
+    /* Un píxel menos que la tarjeta: el borde de 1 px ocupa el resto. */
+    border-radius: calc(var(--radius-md) - 1px);
+}
+
+/* Abierta, el contenido cuelga de la cabecera: sus esquinas inferiores son rectas. */
+.grupo-cola-cabecera[aria-expanded="true"] {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
 }
 
 .grupo-cola-cabecera:hover {
