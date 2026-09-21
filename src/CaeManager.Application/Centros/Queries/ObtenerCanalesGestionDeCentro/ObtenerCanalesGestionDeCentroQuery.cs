@@ -16,6 +16,10 @@ namespace CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro;
 /// ARCHITECTURE.md — "el acceso a verlas está restringido por policy y queda
 /// registrado en auditoría como acceso a dato sensible", mecanismo que no
 /// existe todavía) — solo expone <see cref="CanalGestionResumenDto.TieneCredenciales"/>.
+/// La lectura de Usuario/Contrasena vive aparte, en
+/// <see cref="CaeManager.Application.Centros.Queries.ObtenerCredencialCanalGestion.ObtenerCredencialCanalGestionQuery"/>
+/// (solo tras un clic explícito, con alcance de gestión; por decisión del propietario
+/// del 2026-09-21 su lectura aún no se audita).
 ///
 /// <see cref="CanalGestionResumenDto.ProveedorPlataformaCaeNombre"/> es
 /// <c>null</c> cuando <see cref="CanalGestionResumenDto.ProveedorPlataformaCaeId"/>

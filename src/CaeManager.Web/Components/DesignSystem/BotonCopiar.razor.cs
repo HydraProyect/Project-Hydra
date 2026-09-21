@@ -21,6 +21,9 @@ public partial class BotonCopiar : ComponentBase, IAsyncDisposable
 
     [Parameter] public string Etiqueta { get; set; } = "el valor";
 
+    /// <summary>Rótulo del botón. Por defecto «Copiar»; se cambia cuando hay varios en una misma fila y hay que distinguirlos.</summary>
+    [Parameter] public string Texto { get; set; } = "Copiar";
+
     [Inject] private IJSRuntime JsRuntime { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
 
