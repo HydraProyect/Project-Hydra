@@ -37,6 +37,7 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
         Services.AddSingleton<IConversorWordPdfService>(new Conversor());
         Services.AddSingleton<IRasterizadorPaginasPdfService>(new Rasterizador());
         Services.AddSingleton<ICurrentUserService>(new UsuarioActualFalso(Roles.GestorCae));
+        Services.AddScoped<PuertaAccesoDatos>();
         Services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<SubidaMasiva>), NullLogger<SubidaMasiva>.Instance);
     }
 

@@ -137,6 +137,7 @@ public class SubidaMasivaSoloLecturaTests : BunitContext
         Services.AddScoped<IMediator>(_ => new MediadorFalso());
         Services.AddScoped<ToastService>();
         Services.AddScoped<ICurrentUserService>(_ => new UsuarioActualFalso(rol));
+        Services.AddScoped<PuertaAccesoDatos>();
         Services.AddScoped<IFileStorageService, AlmacenArchivosQueNadieDebeTocar>();
         Services.AddScoped<IConversorWordPdfService, ConversorQueNadieDebeTocar>();
         Services.AddScoped<IRasterizadorPaginasPdfService, RasterizadorQueNadieDebeTocar>();

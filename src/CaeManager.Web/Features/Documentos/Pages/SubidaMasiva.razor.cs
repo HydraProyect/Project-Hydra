@@ -88,6 +88,7 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
     [Inject] private IRasterizadorPaginasPdfService Rasterizador { get; set; } = default!;
     [Inject] private ILogger<SubidaMasiva> Logger { get; set; } = default!;
     [Inject] private ICurrentUserService CurrentUserService { get; set; } = default!;
+    [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
 
     private enum EstadoItem { Procesando, PendienteConfirmar, Creado, Descartado, Error }
 
@@ -175,7 +176,12 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
 
     protected override async Task OnInitializedAsync()
     {
-        _esSoloLectura = await CurrentUserService.ObtenerRolActualAsync() == Roles.Consulta;
+        // Por la puerta de acceso a datos: dentro de un Workspace operativo derivado el rol
+        // efectivo se resuelve contra la cartera (consulta al DbContext) y esta página se
+        // inicializa en paralelo con el layout, que comparte ese DbContext. Sin la puerta
+        // lanzaba «A second operation was started on this context instance» (HTTP 500).
+        _esSoloLectura = await PuertaAccesoDatos.EjecutarAsync(
+            () => CurrentUserService.ObtenerRolActualAsync()) == Roles.Consulta;
         var carga = ++_cargaVigente;
         var token = _ciclo.Token;
         var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(), token);
