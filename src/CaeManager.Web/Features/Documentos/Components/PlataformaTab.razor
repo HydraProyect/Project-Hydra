@@ -95,6 +95,32 @@ else
     </div>
 }
 
+<Modal Visible="_vigenciaVisible" VisibleChanged="v => _vigenciaVisible = v" Titulo="Marcar como aceptado" CerrarAlHacerClicFuera="!_confirmandoVigencia">
+    <ChildContent>
+        @* Se pregunta aquí, y no en una pantalla aparte, porque este es el
+           momento en que el Gestor CAE lo sabe: acaba de mirar la plataforma.
+           "Todavía no lo sé" es una respuesta válida y se guarda como tal: lo
+           que no puede pasar es que se confunda con "no caduca", porque
+           entonces el semáforo del Centro daría verde sin saberlo nadie. *@
+        <CampoSelect Etiqueta="¿Hasta cuándo vale en esta plataforma?" Valor="@_estadoVigencia"
+                     ValorChanged="v => _estadoVigencia = v">
+            <option value="@nameof(EstadoVigenciaEnPlataforma.VenceEnFecha)">Vence en una fecha</option>
+            <option value="@nameof(EstadoVigenciaEnPlataforma.NoVenceAqui)">Aquí no caduca</option>
+            <option value="@nameof(EstadoVigenciaEnPlataforma.SinConfirmar)">Todavía no lo sé</option>
+        </CampoSelect>
+
+        @if (_estadoVigencia == nameof(EstadoVigenciaEnPlataforma.VenceEnFecha))
+        {
+            <CampoTexto Etiqueta="Fecha de vencimiento" Type="date" Valor="@_fechaVigencia"
+                        ValorChanged="v => _fechaVigencia = v" MensajeError="@_errorVigencia" />
+        }
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_confirmandoVigencia" OnClick="() => _vigenciaVisible = false">Cancelar</Boton>
+        <Boton Cargando="_confirmandoVigencia" OnClick="ConfirmarAceptadoAsync">Marcar aceptado</Boton>
+    </Pie>
+</Modal>
+
 <Modal Visible="_rechazoVisible" VisibleChanged="v => _rechazoVisible = v" Titulo="Marcar como rechazado" CerrarAlHacerClicFuera="!_rechazando">
     <ChildContent>
         <CampoSelect Etiqueta="Causa del rechazo" Valor="@_causaRechazo" ValorChanged="v => _causaRechazo = v">
@@ -117,6 +143,13 @@ else
     private bool _error;
     private IReadOnlyList<ProveedorAcreditacionesDto> _proveedores = [];
     private Guid? _procesando;
+
+    private bool _vigenciaVisible;
+    private bool _confirmandoVigencia;
+    private Guid _acreditacionIdVigencia;
+    private string _estadoVigencia = nameof(EstadoVigenciaEnPlataforma.VenceEnFecha);
+    private string _fechaVigencia = string.Empty;
+    private string? _errorVigencia;
 
     private bool _rechazoVisible;
     private bool _rechazando;
@@ -171,13 +204,32 @@ else
         await CargarAsync();
     }
 
-    private async Task MarcarAceptadoAsync(Guid acreditacionId)
+    private void MarcarAceptadoAsync(Guid acreditacionId)
     {
-        _procesando = acreditacionId;
-        StateHasChanged();
+        _acreditacionIdVigencia = acreditacionId;
+        _estadoVigencia = nameof(EstadoVigenciaEnPlataforma.VenceEnFecha);
+        _fechaVigencia = string.Empty;
+        _errorVigencia = null;
+        _vigenciaVisible = true;
+    }
 
-        var resultado = await Mediator.Send(new MarcarAcreditacionAceptadaCommand(acreditacionId));
-        _procesando = null;
+    private async Task ConfirmarAceptadoAsync()
+    {
+        _errorVigencia = null;
+
+        var vigencia = VigenciaElegida();
+        if (vigencia is null)
+        {
+            // Sin fecha legible no se manda nada: dejar pasar el "vence en
+            // fecha" vacío lo guardaría como SinConfirmar, y el Gestor se
+            // quedaría creyendo que anotó una fecha que no está.
+            _errorVigencia = "Escribe la fecha hasta la que vale, o elige otra opción.";
+            return;
+        }
+
+        _confirmandoVigencia = true;
+        var resultado = await Mediator.Send(new MarcarAcreditacionAceptadaCommand(_acreditacionIdVigencia, vigencia.Value));
+        _confirmandoVigencia = false;
 
         if (resultado.EsFallido)
         {
@@ -185,8 +237,32 @@ else
             return;
         }
 
-        ToastService.Mostrar("Marcado como aceptado.", TonoToast.Exito);
+        _vigenciaVisible = false;
+        // El aviso dice qué se ha guardado, no solo que se guardó algo: esta
+        // pantalla lista lo que falta subir, así que en cuanto se marca aceptado
+        // la fila desaparece y el Gestor CAE no tiene dónde volver a mirarlo.
+        ToastService.Mostrar(TextoDeLoGuardado(vigencia.Value), TonoToast.Exito);
         await CargarAsync();
+    }
+
+    private static string TextoDeLoGuardado(VigenciaEnPlataforma vigencia) => vigencia.Estado switch
+    {
+        EstadoVigenciaEnPlataforma.VenceEnFecha =>
+            $"Marcado como aceptado. Vale hasta el {vigencia.FechaVencimiento:dd/MM/yyyy} en esta plataforma.",
+        EstadoVigenciaEnPlataforma.NoVenceAqui =>
+            "Marcado como aceptado. En esta plataforma no caduca.",
+        _ => "Marcado como aceptado. Queda pendiente confirmar hasta cuándo vale aquí."
+    };
+
+    private VigenciaEnPlataforma? VigenciaElegida()
+    {
+        if (_estadoVigencia == nameof(EstadoVigenciaEnPlataforma.NoVenceAqui))
+            return VigenciaEnPlataforma.NoVenceAqui;
+
+        if (_estadoVigencia == nameof(EstadoVigenciaEnPlataforma.SinConfirmar))
+            return VigenciaEnPlataforma.SinConfirmar;
+
+        return DateOnly.TryParse(_fechaVigencia, out var fecha) ? VigenciaEnPlataforma.VenceEl(fecha) : null;
     }
 
     private void AbrirRechazo(Guid acreditacionId)

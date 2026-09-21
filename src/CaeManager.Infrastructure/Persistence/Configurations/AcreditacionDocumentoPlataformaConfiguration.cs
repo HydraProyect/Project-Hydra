@@ -35,6 +35,12 @@ public class AcreditacionDocumentoPlataformaConfiguration : IEntityTypeConfigura
             .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(a => a.HistorialRechazos).UsePropertyAccessMode(PropertyAccessMode.Field);
 
+        // Vigencia en esta plataforma: dos columnas, porque son dos datos. La
+        // propiedad Vigencia que las une es una vista de solo lectura que valida
+        // la coherencia al leer, no una tercera columna.
+        builder.Property(a => a.EstadoVigencia).HasConversion<int>();
+        builder.Ignore(a => a.Vigencia);
+
         // Filtro global (soft delete + tenant) centralizado en CaeManagerDbContext.OnModelCreating.
     }
 }

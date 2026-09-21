@@ -4,6 +4,7 @@ using CaeManager.Domain.Centros;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -65,6 +66,85 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     }
 
     public async Task DisposeAsync() => await BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
+
+    // --- Vigencia en la plataforma ---------------------------------------
+    //
+    // Decisión del propietario (2026-09-21): un documento vencido EN LA
+    // PLATAFORMA pone el Centro en rojo aunque en TALVEG siga vigente. Si el
+    // portal no lo acepta, el Trabajador no entra, y el semáforo existe para
+    // decir si se puede trabajar.
+
+    [Fact]
+    public async Task Vencido_en_la_plataforma_bloquea_el_Centro_aunque_el_documento_siga_vigente_en_TALVEG()
+    {
+        await SembrarAcreditacionAsync(
+            VigenciaEnPlataforma.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1)));
+
+        var resultado = await CalcularAsync();
+
+        resultado.Estado.Should().Be(EstadoCentro.Bloqueado);
+        resultado.Causas.Should().Contain(c =>
+            c.Bloqueante && c.Descripcion.Contains("vencido en la plataforma"));
+    }
+
+    [Fact]
+    public async Task Sin_confirmar_la_vigencia_NO_bloquea_el_Centro()
+    {
+        // Mira en dirección contraria a la prueba de arriba, y es la que de
+        // verdad protege: al desplegar esto, TODAS las acreditaciones que ya
+        // existen quedan sin confirmar. Si "no lo sé" contara como vencido, el
+        // día del despliegue todos los Centros se pondrían en rojo a la vez.
+        await SembrarAcreditacionAsync(VigenciaEnPlataforma.SinConfirmar);
+
+        var resultado = await CalcularAsync();
+
+        resultado.Estado.Should().Be(EstadoCentro.Vigente);
+        resultado.Causas.Should().NotContain(c => c.Descripcion.Contains("plataforma"));
+    }
+
+    [Fact]
+    public async Task Vigente_en_la_plataforma_no_anade_ninguna_causa()
+    {
+        // Control positivo del sembrado: sin esto, las dos pruebas de arriba
+        // pasarían igual si SembrarAcreditacionAsync no escribiera nada.
+        await SembrarAcreditacionAsync(
+            VigenciaEnPlataforma.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(6)));
+
+        var resultado = await CalcularAsync();
+
+        resultado.Estado.Should().Be(EstadoCentro.Vigente);
+        resultado.Causas.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Deja el Centro con su documentación al día en TALVEG y una acreditación
+    /// de ese documento contra una plataforma, con la vigencia que se le pase.
+    /// Así lo único que cambia entre las tres pruebas de arriba es la vigencia
+    /// en la plataforma, que es la variable bajo estudio.
+    /// </summary>
+    private async Task SembrarAcreditacionAsync(VigenciaEnPlataforma vigencia)
+    {
+        await using var contexto = CrearContexto();
+
+        var documento = Documento.DeTrabajador(
+            _trabajadorId, _tipoDocumentoObligatorioId,
+            DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1));
+        contexto.Documentos.Add(documento);
+
+        var proveedor = new ProveedorPlataformaCae("PLAT-PRUEBA", "Plataforma de prueba");
+        contexto.ProveedoresPlataformaCae.Add(proveedor);
+        await contexto.SaveChangesAsync();
+
+        var canal = CanalGestionDocumental.DePlataforma(
+            _centroId, "Acceso de prueba", proveedor.Id, null, null, null);
+        contexto.CanalesGestionDocumental.Add(canal);
+        await contexto.SaveChangesAsync();
+
+        var acreditacion = new AcreditacionDocumentoPlataforma(documento.Id, canal.Id);
+        acreditacion.MarcarAceptada(vigencia);
+        contexto.AcreditacionesDocumentoPlataforma.Add(acreditacion);
+        await contexto.SaveChangesAsync();
+    }
 
     [Fact]
     public async Task Retorna_Vigente_cuando_el_unico_trabajador_tiene_su_documento_obligatorio_al_dia()

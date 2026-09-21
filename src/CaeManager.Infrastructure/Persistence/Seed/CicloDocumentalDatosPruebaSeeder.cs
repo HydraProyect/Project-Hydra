@@ -446,7 +446,9 @@ public static class CicloDocumentalDatosPruebaSeeder
 
         var aceptada = new AcreditacionDocumentoPlataforma(documentosEmpresa[2].Id, canal.Id);
         aceptada.MarcarSubida();
-        aceptada.MarcarAceptada();
+        // Aceptada y con vigencia confirmada: es el caso completo, el único
+        // desde el que se puede afirmar que el Trabajador entra.
+        aceptada.MarcarAceptada(VigenciaEnPlataforma.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(6)));
         dbContext.AcreditacionesDocumentoPlataforma.Add(aceptada);
 
         var noRequerida = new AcreditacionDocumentoPlataforma(documentosEmpresa[3].Id, canal.Id);

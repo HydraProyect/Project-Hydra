@@ -112,6 +112,7 @@ public class CalculoEstadoCentroService(
 
         await AgregarCausasDeEmpresaAsync(centroIds, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias, causasPorCentro, cancellationToken);
         await AgregarCausasDeTrabajadorAsync(centroIds, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias, causasPorCentro, cancellationToken);
+        await AgregarCausasDeVigenciaEnPlataformaAsync(centroIds, hoy, causasPorCentro, cancellationToken);
 
         return causasPorCentro.ToDictionary(
             par => par.Key,
@@ -120,6 +121,71 @@ public class CalculoEstadoCentroService(
                     par.Value.Where(c => c.Estado is not null).Select(c => c.Estado!.Value).ToList(),
                     par.Value.Any(c => c.Bloqueante)),
                 par.Value));
+    }
+
+    /// <summary>
+    /// Un documento cuya vigencia <b>en la plataforma</b> ya venció pone el
+    /// Centro en rojo, aunque en TALVEG siga vigente por su fecha de emisión.
+    /// Decisión del propietario (2026-09-21): si el portal no lo acepta, el
+    /// Trabajador no entra, y el semáforo existe para decir si se puede
+    /// trabajar — no para describir el archivo documental.
+    ///
+    /// <para>
+    /// Solo cuentan las vigencias <b>vencidas</b>, nunca las que están sin
+    /// confirmar. Meter «no lo sé» en rojo pondría en rojo todos los Centros a
+    /// la vez el día que se despliegue esto, porque las acreditaciones que ya
+    /// existen nacen sin confirmar. Eso no es lo que se decidió y no sería
+    /// información: sería ruido con el que nadie puede trabajar. Que falte por
+    /// confirmar se resuelve en su propia pantalla, no aquí.
+    /// </para>
+    ///
+    /// <para>
+    /// No se filtra por <c>EstadoAcreditacion</c> a propósito. La condición es
+    /// la fecha: si alguien anotó que aquello vence el día tal y ese día pasó,
+    /// allí ya no vale, esté la acreditación como esté. Condicionarlo además al
+    /// estado ataría esta regla a una correlación (solo las aceptadas tienen
+    /// fecha) que hoy se cumple y que un cambio futuro podría romper en
+    /// silencio.
+    /// </para>
+    /// </summary>
+    private async Task AgregarCausasDeVigenciaEnPlataformaAsync(
+        IReadOnlyList<Guid> centroIds, DateOnly hoy,
+        Dictionary<Guid, List<CausaEstadoCentro>> causasPorCentro, CancellationToken cancellationToken)
+    {
+        var vencidasEnPlataforma = await (
+            from acreditacion in documentosContext.AcreditacionesDocumentoPlataforma
+            where acreditacion.EstadoVigencia == EstadoVigenciaEnPlataforma.VenceEnFecha
+            where acreditacion.FechaVencimientoEnPlataforma != null
+                  && acreditacion.FechaVencimientoEnPlataforma < hoy
+            join canal in centrosContext.CanalesGestionDocumental
+                on acreditacion.CanalGestionDocumentalId equals canal.Id
+            where centroIds.Contains(canal.CentroId)
+            join documento in documentosContext.Documentos
+                on acreditacion.DocumentoId equals documento.Id
+            join tipoDocumento in tiposDocumentoContext.TiposDocumento
+                on documento.TipoDocumentoId equals tipoDocumento.Id
+            select new
+            {
+                canal.CentroId,
+                documento.Id,
+                documento.TipoDocumentoId,
+                documento.TrabajadorId,
+                TipoDocumentoNombre = tipoDocumento.Nombre,
+                FechaVencimientoEnPlataforma = acreditacion.FechaVencimientoEnPlataforma!.Value
+            })
+            .ToListAsync(cancellationToken);
+
+        foreach (var fila in vencidasEnPlataforma)
+        {
+            if (!causasPorCentro.TryGetValue(fila.CentroId, out var causas)) continue;
+
+            causas.Add(new CausaEstadoCentro(
+                $"{fila.TipoDocumentoNombre} — vencido en la plataforma",
+                EstadoDocumento.Vencido,
+                Bloqueante: true,
+                fila.TrabajadorId is null ? AmbitoCausa.Empresa : AmbitoCausa.Trabajador,
+                fila.Id, fila.TipoDocumentoId, fila.FechaVencimientoEnPlataforma));
+        }
     }
 
     private async Task AgregarCausasDeEmpresaAsync(

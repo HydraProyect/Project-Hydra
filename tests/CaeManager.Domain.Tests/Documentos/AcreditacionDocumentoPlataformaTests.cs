@@ -46,7 +46,7 @@ public class AcreditacionDocumentoPlataformaTests
         switch (metodo)
         {
             case nameof(AcreditacionDocumentoPlataforma.MarcarSubida): acreditacion.MarcarSubida(); break;
-            case nameof(AcreditacionDocumentoPlataforma.MarcarAceptada): acreditacion.MarcarAceptada(); break;
+            case nameof(AcreditacionDocumentoPlataforma.MarcarAceptada): acreditacion.MarcarAceptada(VigenciaEnPlataforma.SinConfirmar); break;
             case nameof(AcreditacionDocumentoPlataforma.MarcarNoRequerida): acreditacion.MarcarNoRequerida(); break;
         }
 
@@ -105,5 +105,79 @@ public class AcreditacionDocumentoPlataformaTests
 
         acreditacion.Estado.Should().Be(EstadoAcreditacion.PendienteDeSubir);
         acreditacion.HistorialRechazos.Should().ContainSingle("el historial de rechazos es un hecho pasado real, no se borra al renovar");
+    }
+    // --- Vigencia en la plataforma ---------------------------------------
+
+    [Fact]
+    public void Nace_con_la_vigencia_sin_confirmar()
+    {
+        var acreditacion = CrearAcreditacion();
+
+        acreditacion.Vigencia.Should().Be(VigenciaEnPlataforma.SinConfirmar);
+        acreditacion.Vigencia.EstaSinConfirmar.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Aceptar_anota_la_vigencia_que_confirma_el_Gestor()
+    {
+        var acreditacion = CrearAcreditacion();
+        var vence = new DateOnly(2027, 2, 1);
+
+        acreditacion.MarcarAceptada(VigenciaEnPlataforma.VenceEl(vence));
+
+        acreditacion.Estado.Should().Be(EstadoAcreditacion.Aceptada);
+        acreditacion.Vigencia.FechaVencimiento.Should().Be(vence);
+    }
+
+    [Fact]
+    public void Aceptar_sin_saber_la_vigencia_la_deja_sin_confirmar_no_sin_caducidad()
+    {
+        var acreditacion = CrearAcreditacion();
+
+        acreditacion.MarcarAceptada(VigenciaEnPlataforma.SinConfirmar);
+
+        acreditacion.Estado.Should().Be(EstadoAcreditacion.Aceptada);
+        acreditacion.Vigencia.EstaSinConfirmar.Should().BeTrue();
+        acreditacion.Vigencia.Should().NotBe(VigenciaEnPlataforma.NoVenceAqui);
+    }
+
+    [Fact]
+    public void Rechazar_borra_la_vigencia_confirmada()
+    {
+        // Lo confirmado se refería a un documento que esta plataforma ya no
+        // acepta. Conservarlo dejaría una fecha respaldando algo no acreditado.
+        var acreditacion = CrearAcreditacion();
+        acreditacion.MarcarAceptada(VigenciaEnPlataforma.VenceEl(new DateOnly(2027, 2, 1)));
+
+        acreditacion.Rechazar(CausaRechazoAcreditacion.Ilegible, "No se lee el sello.", DateTime.UtcNow);
+
+        acreditacion.Vigencia.EstaSinConfirmar.Should().BeTrue();
+        acreditacion.Vigencia.FechaVencimiento.Should().BeNull();
+    }
+
+    [Fact]
+    public void Renovar_el_documento_no_hereda_la_vigencia_de_la_version_anterior()
+    {
+        var acreditacion = CrearAcreditacion();
+        acreditacion.MarcarAceptada(VigenciaEnPlataforma.VenceEl(new DateOnly(2027, 2, 1)));
+
+        acreditacion.ReiniciarPorRenovacionDocumento();
+
+        acreditacion.Estado.Should().Be(EstadoAcreditacion.PendienteDeSubir);
+        acreditacion.Vigencia.EstaSinConfirmar.Should().BeTrue();
+    }
+
+    [Fact]
+    public void La_vigencia_se_puede_corregir_sin_tocar_el_estado()
+    {
+        // El Gestor entra en la plataforma más veces que una, y la primera vez
+        // puede no haber mirado la fecha.
+        var acreditacion = CrearAcreditacion();
+        acreditacion.MarcarAceptada(VigenciaEnPlataforma.SinConfirmar);
+
+        acreditacion.ConfirmarVigencia(VigenciaEnPlataforma.VenceEl(new DateOnly(2027, 5, 5)));
+
+        acreditacion.Estado.Should().Be(EstadoAcreditacion.Aceptada);
+        acreditacion.Vigencia.FechaVencimiento.Should().Be(new DateOnly(2027, 5, 5));
     }
 }
