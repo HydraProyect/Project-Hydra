@@ -128,6 +128,85 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
         CabeceraDeBorradoDeCookie(httpContext).Should().NotBeNull();
     }
 
+    // El aviso que ve quien pierde la selección: solo se habla de «ventana de
+    // soporte» cuando de verdad lo fue. Es información de UI (el acceso ya lo
+    // decidió la revalidación, y estos casos pasan todos por ella).
+
+    [Fact]
+    public async Task Al_caducar_una_ventana_de_soporte_el_aviso_dice_que_la_ventana_termino()
+    {
+        // Un usuario de soporte cuya única delegación hacia el tenant es la ventana.
+        await RetirarLaAsignacionOrdinariaAsync();
+        await AbrirVentanaDeSoporteCaducadaAsync();
+
+        var httpContext = await RevalidarConSeleccionAsync();
+
+        httpContext.Items[AvisoFinDeAcceso.ClaveItems].Should().Be(MotivoFinDeAcceso.VentanaDeSoporte);
+    }
+
+    [Fact]
+    public async Task Al_revocar_una_delegacion_ordinaria_el_aviso_no_habla_de_ventana_de_soporte()
+    {
+        await RevocarDelegacionAsync();
+
+        var httpContext = await RevalidarConSeleccionAsync();
+
+        httpContext.Items[AvisoFinDeAcceso.ClaveItems].Should().Be(MotivoFinDeAcceso.AccesoNoVigente);
+    }
+
+    [Fact]
+    public async Task Con_delegacion_de_soporte_y_ordinaria_a_la_vez_no_se_atribuye_la_baja_a_la_ventana()
+    {
+        // Caso del hallazgo de Codex: la selección heredada no recuerda qué
+        // delegación la abrió; con las dos presentes, «terminó la ventana»
+        // podría ser falso, así que el texto es el general.
+        await AbrirVentanaDeSoporteCaducadaAsync();
+        await RevocarDelegacionAsync();
+
+        var httpContext = await RevalidarConSeleccionAsync();
+
+        httpContext.Items[AvisoFinDeAcceso.ClaveItems].Should().Be(MotivoFinDeAcceso.AccesoNoVigente);
+    }
+
+    [Fact]
+    public async Task Con_la_seleccion_vigente_no_se_deja_aviso()
+    {
+        var httpContext = await RevalidarConSeleccionAsync();
+
+        httpContext.Items.ContainsKey(AvisoFinDeAcceso.ClaveItems).Should().BeFalse();
+    }
+
+    private async Task RetirarLaAsignacionOrdinariaAsync()
+    {
+        await using var contexto = CrearContexto();
+        var asignacion = await contexto.AsignacionesOperadorDelegado.FirstAsync(a => a.UsuarioId == _usuario);
+        contexto.AsignacionesOperadorDelegado.Remove(asignacion);
+        await contexto.SaveChangesAsync();
+    }
+
+    private async Task AbrirVentanaDeSoporteCaducadaAsync()
+    {
+        await using var contexto = CrearContexto();
+        var ahora = DateTime.UtcNow;
+
+        var ventana = DelegacionTenant.ParaSoporte(_consultora, _clienteDelegante);
+        // Abierta hace una hora y vencida hace un minuto: el paso del tiempo.
+        ventana.ActivarParaSoporte("prueba", ahora.AddMinutes(-1), ahora.AddHours(-1));
+        contexto.DelegacionesTenant.Add(ventana);
+        contexto.AsignacionesOperadorDelegado.Add(new AsignacionOperadorDelegado(ventana.Id, _usuario, "GestorCae"));
+        await contexto.SaveChangesAsync();
+    }
+
+    private async Task<DefaultHttpContext> RevalidarConSeleccionAsync()
+    {
+        await using var contexto = CrearContexto();
+        var (httpContext, seleccion) = PrepararPeticionConTokenValido();
+
+        await EjecutarMiddlewareAsync(httpContext, seleccion, contexto);
+
+        return httpContext;
+    }
+
     /// <summary>
     /// REC-136: la rama `else` de <see cref="RevalidacionClienteActivoMiddleware"/>
     /// (cookie presente, token que no resuelve a ningún tenant) borraba la cookie

@@ -196,7 +196,8 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
     /// </summary>
     /// <summary>
     /// Si la selección que se retira era una ventana de soporte: una sesión
-    /// privilegiada, o una delegación de propósito Soporte hacia ese tenant.
+    /// privilegiada, o —en la vía heredada— delegaciones del usuario hacia ese
+    /// tenant que son todas de propósito Soporte.
     /// Solo elige el texto del aviso; no interviene en la autorización.
     /// </summary>
     private static async Task<bool> EsVentanaDeSoporteAsync(
@@ -212,14 +213,22 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
         if (usuarioId is null) return false;
 
-        return await (
+        // La selección heredada no recuerda qué delegación la abrió, así que solo
+        // se afirma «ventana de soporte» cuando no cabe otra lectura: el usuario
+        // tiene delegación de Soporte hacia ese tenant y ninguna de otro
+        // propósito. Con ambas a la vez el texto general —que siempre es cierto—
+        // evita atribuir a la caducidad de Soporte lo que pudo ser otra revocación.
+        var propositos = await (
             from asignacion in dbContext.AsignacionesOperadorDelegado
             join delegacion in dbContext.DelegacionesTenant on asignacion.DelegacionTenantId equals delegacion.Id
             where asignacion.UsuarioId == usuarioId.Value
                   && delegacion.TenantClienteId == tenantSeleccionado
-                  && delegacion.Proposito == PropositoDelegacion.Soporte
-            select delegacion.Id)
-            .AnyAsync(cancellationToken);
+            select delegacion.Proposito)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        // Distinct: «exactamente un propósito y es Soporte».
+        return propositos is [PropositoDelegacion.Soporte];
     }
 
     private static async Task<bool> SigueAutorizadoPorAsignacionAsync(
