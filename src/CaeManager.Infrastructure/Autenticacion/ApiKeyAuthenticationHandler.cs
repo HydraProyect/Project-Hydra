@@ -54,6 +54,25 @@ public class ApiKeyAuthenticationHandler(
 
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(claveEnClaro))).ToLowerInvariant();
 
+        // Dos pasos, y el orden es el contrato. Primero se averigua DE QUIÉN es
+        // la clave —lo único que no se puede leer sin tenant, por una función
+        // SECURITY DEFINER acotada a ese único dato— y solo entonces se entra
+        // en el tenant que la propia clave declara. La fila real se lee ya
+        // dentro de ese ámbito, con el filtro global de EF y la política RLS
+        // de ClavesApi aplicándose: antes se leía con IgnoreQueryFilters(),
+        // que quitaba el filtro pero no la política, y bajo cae_app_runtime
+        // devolvía cero filas — 401 a toda clave, vigente o no (ver la
+        // migración 20260921155801_ResolucionDeClaveApiBajoRls).
+        var tenantId = await claveRepositorio.ObtenerTenantPorHashAsync(hash, Context.RequestAborted);
+        if (tenantId is null)
+            return AuthenticateResult.Fail("Clave inválida o revocada.");
+
+        // El ámbito cubre desde aquí hasta el final del método: la lectura de
+        // la clave y la escritura de su último uso. Antes lo establecía
+        // RegistrarUsoAsync para cubrir solo la escritura; ahora la lectura lo
+        // necesita igual, y una sola llamada cubre las dos.
+        using var ambitoTenant = AmbitoTenantExplicito.Establecer(tenantId.Value);
+
         var clave = await claveRepositorio.ObtenerPorHashAsync(hash, Context.RequestAborted);
         if (clave is null || !clave.EstaActiva)
             return AuthenticateResult.Fail("Clave inválida o revocada.");
@@ -76,13 +95,18 @@ public class ApiKeyAuthenticationHandler(
     /// <summary>
     /// Best-effort: si falla, la petición se autentica igual — perder el dato
     /// de "última vez que se usó" no debe tumbar la API pública.
+    ///
+    /// <para>
+    /// Corre dentro del <c>AmbitoTenantExplicito</c> que
+    /// <see cref="HandleAuthenticateAsync"/> abrió para poder leer la clave, no
+    /// dentro de uno propio: es el mismo tenant —el de la clave— y establecerlo
+    /// dos veces no añadiría ninguna garantía.
+    /// </para>
     /// </summary>
     private async Task RegistrarUsoAsync(ClaveApi clave)
     {
         try
         {
-            using var _ = AmbitoTenantExplicito.Establecer(clave.TenantId);
-
             // P41c: quien está detrás no es una persona, es una organización
             // externa con una credencial. Hace falta declararlo porque el
             // claim de identidad NO lo delata: este handler mete `clave.Id`
