@@ -129,7 +129,9 @@
     color: var(--color-text);
 }
 
-.composer-boton-adjuntar input[type="file"] {
+/* <InputFile> es un componente hijo: sin ::deep esta regla no llega a su <input>
+   y se veía el botón nativo «Elegir archivos» junto al rótulo «Adjuntar». */
+.composer-boton-adjuntar ::deep input[type="file"] {
     position: absolute;
     inset: 0;
     opacity: 0;
