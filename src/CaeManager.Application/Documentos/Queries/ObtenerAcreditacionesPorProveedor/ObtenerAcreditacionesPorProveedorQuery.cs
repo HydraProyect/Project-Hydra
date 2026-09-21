@@ -40,15 +40,22 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesPorProv
 /// esta query: ocurre enteramente en el navegador del gestor, fuera del
 /// alcance de cualquier respuesta HTTP.
 /// </summary>
-/// <param name="IncluirAceptadasPorConfirmar">
+/// <param name="IncluirAceptadas">
 /// Por defecto la consulta devuelve solo lo que falta subir, que es lo que
 /// necesitan la Bandeja y la extensión de navegador. El drill-down por
-/// plataforma pide además las ya aceptadas cuya vigencia está sin confirmar o
-/// ya venció: sin eso, una acreditación aceptada desaparece de todas las
-/// pantallas y su vigencia no se puede corregir nunca — que es justo el estado
-/// en que la migración deja a todas las filas que ya existían.
+/// plataforma pide además las aceptadas, porque es la única pantalla desde la
+/// que se puede anotar hasta cuándo vale un documento allí.
+///
+/// <para>
+/// Se incluyen TODAS las aceptadas, no solo las que tienen la vigencia sin
+/// confirmar o vencida. Acotarlo a esas dos dejaba fuera precisamente el caso
+/// que hay que poder arreglar: una fecha futura mal tecleada, que no se podría
+/// corregir hasta que venciera. La única salida habría sido rechazar y volver a
+/// aceptar, escribiendo un rechazo que nunca ocurrió en un historial que es
+/// inmutable a propósito.
+/// </para>
 /// </param>
-public record ObtenerAcreditacionesPorProveedorQuery(bool IncluirAceptadasPorConfirmar = false)
+public record ObtenerAcreditacionesPorProveedorQuery(bool IncluirAceptadas = false)
     : IRequest<IReadOnlyList<ProveedorAcreditacionesDto>>;
 
 public record ProveedorAcreditacionesDto(
@@ -76,8 +83,7 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
         ObtenerAcreditacionesPorProveedorQuery request, CancellationToken cancellationToken)
     {
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
-        var incluirAceptadasPorConfirmar = request.IncluirAceptadasPorConfirmar;
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var incluirAceptadas = request.IncluirAceptadas;
 
         var canalesQuery = centrosContext.CanalesGestionDocumental
             .Where(c => c.Tipo == TipoCanalGestion.Plataforma);
@@ -88,11 +94,7 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
             from acreditacion in documentosContext.AcreditacionesDocumentoPlataforma
             where acreditacion.Estado == EstadoAcreditacion.PendienteDeSubir
                   || acreditacion.Estado == EstadoAcreditacion.Rechazada
-                  || (incluirAceptadasPorConfirmar
-                      && acreditacion.Estado == EstadoAcreditacion.Aceptada
-                      && (acreditacion.EstadoVigencia == EstadoVigenciaEnPlataforma.SinConfirmar
-                          || (acreditacion.EstadoVigencia == EstadoVigenciaEnPlataforma.VenceEnFecha
-                              && acreditacion.FechaVencimientoEnPlataforma < hoy)))
+                  || (incluirAceptadas && acreditacion.Estado == EstadoAcreditacion.Aceptada)
             join canal in canalesQuery on acreditacion.CanalGestionDocumentalId equals canal.Id
             join centro in centrosContext.Centros on canal.CentroId equals centro.Id
             join documento in documentosContext.Documentos on acreditacion.DocumentoId equals documento.Id

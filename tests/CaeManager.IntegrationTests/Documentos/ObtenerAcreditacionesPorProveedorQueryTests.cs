@@ -110,6 +110,77 @@ public class ObtenerAcreditacionesPorProveedorQueryTests : IAsyncLifetime
         acreditacion.TrabajadorId.Should().Be(trabajadorId);
     }
 
+    /// <summary>
+    /// Las dos mitades del mismo contrato, en una sola prueba porque separarlas
+    /// dejaría cada lado verde por su cuenta sin garantizar que se excluyen: la
+    /// extensión de navegador y la Bandeja piden lo que falta subir y NO deben
+    /// ver las aceptadas —ofrecerían subir otra vez algo ya acreditado—,
+    /// mientras que el drill-down por plataforma sí las necesita, porque es la
+    /// única pantalla desde la que se puede anotar hasta cuándo vale un
+    /// documento allí.
+    /// </summary>
+    [Fact]
+    public async Task Una_aceptada_solo_sale_cuando_se_piden_las_aceptadas()
+    {
+        Guid acreditacionId;
+        var vence = new DateOnly(2027, 4, 30);
+
+        await using (var contexto = CrearContexto())
+        {
+            var cliente = Empresa.CrearComoCliente("Cliente Vigencia S.L.", "B10380194", false, null, null);
+            var empresa = new Empresa("Empresa Vigencia S.L.", "B10380186");
+            contexto.Empresas.Add(cliente);
+            contexto.Empresas.Add(empresa);
+            await contexto.SaveChangesAsync();
+
+            var centro = new Centro(cliente.Id, empresa.Id, "Centro Vigencia");
+            contexto.Centros.Add(centro);
+            await contexto.SaveChangesAsync();
+
+            var proveedor = await contexto.ProveedoresPlataformaCae.FirstAsync();
+            var canal = CanalGestionDocumental.DePlataforma(
+                centro.Id, "Gestión general", proveedor.Id, null, null, null);
+            contexto.CanalesGestionDocumental.Add(canal);
+
+            var tipoDocumento = new TipoDocumento("Seguro RC vigencia", 12, true, 1, AmbitoAplicacion.Empresa);
+            contexto.TiposDocumento.Add(tipoDocumento);
+            await contexto.SaveChangesAsync();
+
+            var documento = Documento.DeEmpresa(
+                empresa.Id, tipoDocumento.Id, new DateOnly(2026, 1, 1), new DateOnly(2027, 1, 1));
+            contexto.Documentos.Add(documento);
+            await contexto.SaveChangesAsync();
+
+            var acreditacion = new AcreditacionDocumentoPlataforma(documento.Id, canal.Id);
+            acreditacion.MarcarAceptada(VigenciaEnPlataforma.VenceEl(vence));
+            contexto.AcreditacionesDocumentoPlataforma.Add(acreditacion);
+            await contexto.SaveChangesAsync();
+
+            acreditacionId = acreditacion.Id;
+        }
+
+        await using var consulta = CrearContexto();
+        var handler = new ObtenerAcreditacionesPorProveedorQueryHandler(
+            consulta, consulta, consulta, consulta, consulta, consulta, new AlcanceDatosServiceFalso());
+
+        var porDefecto = await handler.Handle(
+            new ObtenerAcreditacionesPorProveedorQuery(), CancellationToken.None);
+
+        porDefecto.SelectMany(p => p.Clientes).SelectMany(c => c.Documentos)
+            .Should().NotContain(d => d.AcreditacionId == acreditacionId);
+
+        var conAceptadas = await handler.Handle(
+            new ObtenerAcreditacionesPorProveedorQuery(IncluirAceptadas: true), CancellationToken.None);
+
+        var fila = conAceptadas.SelectMany(p => p.Clientes).SelectMany(c => c.Documentos)
+            .Should().ContainSingle(d => d.AcreditacionId == acreditacionId).Subject;
+
+        // La vigencia viaja en el DTO, o la pantalla no podría decir qué hay
+        // anotado ni ofrecer corregirlo.
+        fila.EstadoVigencia.Should().Be(EstadoVigenciaEnPlataforma.VenceEnFecha);
+        fila.FechaVencimientoEnPlataforma.Should().Be(vence);
+    }
+
     [Fact]
     public async Task No_devuelve_nada_fuera_de_la_cartera_del_gestor()
     {

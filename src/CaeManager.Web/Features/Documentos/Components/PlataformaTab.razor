@@ -183,10 +183,10 @@ else
 
         try
         {
-            // Se piden además las aceptadas cuya vigencia falta por confirmar o
-            // ya venció: si no, desaparecen de aquí en cuanto se aceptan y su
-            // vigencia no se puede corregir en ninguna pantalla.
-            _proveedores = await Mediator.Send(new ObtenerAcreditacionesPorProveedorQuery(IncluirAceptadasPorConfirmar: true));
+            // Se piden también las aceptadas: esta es la única pantalla desde la
+            // que se puede anotar o corregir hasta cuándo vale un documento en
+            // una plataforma, así que dejarlas fuera las volvería ilocalizables.
+            _proveedores = await Mediator.Send(new ObtenerAcreditacionesPorProveedorQuery(IncluirAceptadas: true));
         }
         catch (Exception)
         {
@@ -238,8 +238,12 @@ else
 
     private static string TextoVigencia(AcreditacionDrillDownDto documento) => documento.EstadoVigencia switch
     {
-        EstadoVigenciaEnPlataforma.VenceEnFecha =>
+        // El rótulo no puede decir "venció" sin mirar la fecha: ahora la lista
+        // trae también las que siguen vigentes.
+        EstadoVigenciaEnPlataforma.VenceEnFecha when documento.FechaVencimientoEnPlataforma < DateOnly.FromDateTime(DateTime.UtcNow) =>
             $"Venció el {documento.FechaVencimientoEnPlataforma:dd/MM/yyyy} en esta plataforma",
+        EstadoVigenciaEnPlataforma.VenceEnFecha =>
+            $"Vale hasta el {documento.FechaVencimientoEnPlataforma:dd/MM/yyyy}",
         EstadoVigenciaEnPlataforma.NoVenceAqui => "Aquí no caduca",
         _ => "Falta confirmar hasta cuándo vale aquí"
     };
