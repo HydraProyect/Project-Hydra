@@ -1,4 +1,6 @@
 using System.Text;
+using CaeManager.Application.Common;
+using CaeManager.Application.Cumplimiento;
 using CaeManager.Domain.Comunicaciones;
 using Microsoft.Extensions.Logging;
 
@@ -15,6 +17,9 @@ namespace CaeManager.Application.Comunicaciones.Deteccion;
 /// <see cref="DebeReevaluar"/>): nunca vuelve a tratarse como informativa aunque un mensaje
 /// posterior "suene" otra vez a negociación pura. No guarda cambios — el llamador ya persiste todo
 /// el mensaje ingerido en una sola operación.
+///
+/// Consumidor de IA con gate de Nivel 0 (DEC-33, REC-035): sin instrucción de tratamiento vigente
+/// del Tenant propietario no se envía nada al proveedor y la conversación se queda sin clasificar.
 /// </summary>
 public interface IRelevanciaCaeService
 {
@@ -24,6 +29,8 @@ public interface IRelevanciaCaeService
 public class RelevanciaCaeService(
     IDeteccionRelevanciaCaeService deteccion,
     IClasificacionRelevanciaCaeRepository clasificacionRepositorio,
+    IInstruccionTratamientoIaService instruccionTratamientoIa,
+    ITenantActual tenantActual,
     ILogger<RelevanciaCaeService> logger) : IRelevanciaCaeService
 {
     // Tope defensivo, mismo criterio que el resto de servicios de detección de este módulo — un
@@ -34,6 +41,22 @@ public class RelevanciaCaeService(
 
     public async Task ProcesarAsync(Conversacion conversacion, CancellationToken cancellationToken = default)
     {
+        // Nivel 0 (DEC-33, REC-035) — ver el mismo gate en VerificacionIaDocumentoService.
+        // Aquí lo que viaja al proveedor es la transcripción completa del hilo de
+        // correo del Tenant propietario, así que el gate va por delante de todo,
+        // incluida la lectura de la clasificación previa. A diferencia de los
+        // consumidores de Documentos, este corre en un proceso de fondo
+        // (IngestaWebhookHostedService) donde nadie ve una pantalla vacía: sin log,
+        // el síntoma sería "las conversaciones no se clasifican" descubierto
+        // semanas después y sin rastro del motivo.
+        if (tenantActual.TenantId is not { } tenantId || !await instruccionTratamientoIa.EstaHabilitadaAsync(tenantId, cancellationToken))
+        {
+            logger.LogInformation(
+                "Detección de relevancia CAE omitida para la conversación {ConversacionId}: el Tenant propietario no tiene instrucción de tratamiento IA vigente (Nivel 0).",
+                conversacion.Id);
+            return;
+        }
+
         var existente = await clasificacionRepositorio.ObtenerPorConversacionIdAsync(conversacion.Id, cancellationToken);
         if (!DebeReevaluar(existente))
             return;

@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Cumplimiento;
 using CaeManager.Application.DocumentosIa;
 using CaeManager.Application.DocumentosIa.Common;
 using CaeManager.Application.Plantillas.Queries.DetectarCamposPlantilla;
@@ -12,6 +13,8 @@ namespace CaeManager.Application.Tests.Plantillas;
 
 public class DetectarCamposPlantillaQueryHandlerTests
 {
+    private static readonly Guid TenantId = Guid.NewGuid();
+
     private static PlantillasQueryContextFalso ContextoConConocimientoBasico()
     {
         var contexto = new PlantillasQueryContextFalso();
@@ -32,7 +35,8 @@ public class DetectarCamposPlantillaQueryHandlerTests
         ]);
         var handler = new DetectarCamposPlantillaQueryHandler(
             extractor, new RouterQueLanzaSiSeInvoca(), ContextoConConocimientoBasico(),
-            Options.Create(new DeteccionPreviaDocumentoOptions { Activa = false }));
+            Options.Create(new DeteccionPreviaDocumentoOptions { Activa = false }),
+            new InstruccionTratamientoIaFalsa(habilitada: true), new TenantActualFalso(TenantId));
 
         var resultado = await handler.Handle(
             new DetectarCamposPlantillaQuery([1, 2, 3], FormatoOrigenPlantilla.PdfConCampos), CancellationToken.None);
@@ -55,7 +59,8 @@ public class DetectarCamposPlantillaQueryHandlerTests
         ]);
         var handler = new DetectarCamposPlantillaQueryHandler(
             extractor, new RouterQueLanzaSiSeInvoca(), ContextoConConocimientoBasico(),
-            Options.Create(new DeteccionPreviaDocumentoOptions { Activa = false }));
+            Options.Create(new DeteccionPreviaDocumentoOptions { Activa = false }),
+            new InstruccionTratamientoIaFalsa(habilitada: true), new TenantActualFalso(TenantId));
 
         var resultado = await handler.Handle(
             new DetectarCamposPlantillaQuery([1], FormatoOrigenPlantilla.PdfConCampos), CancellationToken.None);
@@ -74,7 +79,8 @@ public class DetectarCamposPlantillaQueryHandlerTests
         ]);
         var handler = new DetectarCamposPlantillaQueryHandler(
             extractor, new RouterQueLanzaSiSeInvoca(), ContextoConConocimientoBasico(),
-            Options.Create(new DeteccionPreviaDocumentoOptions { Activa = false }));
+            Options.Create(new DeteccionPreviaDocumentoOptions { Activa = false }),
+            new InstruccionTratamientoIaFalsa(habilitada: true), new TenantActualFalso(TenantId));
 
         var resultado = await handler.Handle(
             new DetectarCamposPlantillaQuery([1], FormatoOrigenPlantilla.PdfConCampos), CancellationToken.None);
@@ -89,7 +95,8 @@ public class DetectarCamposPlantillaQueryHandlerTests
     {
         var handler = new DetectarCamposPlantillaQueryHandler(
             new ExtractorAcroFormFalso([]), new RouterQueLanzaSiSeInvoca(), ContextoConConocimientoBasico(),
-            Options.Create(new DeteccionPreviaDocumentoOptions { Activa = false }));
+            Options.Create(new DeteccionPreviaDocumentoOptions { Activa = false }),
+            new InstruccionTratamientoIaFalsa(habilitada: true), new TenantActualFalso(TenantId));
 
         var resultado = await handler.Handle(
             new DetectarCamposPlantillaQuery([1, 2, 3], FormatoOrigenPlantilla.PdfVisual), CancellationToken.None);
@@ -105,7 +112,8 @@ public class DetectarCamposPlantillaQueryHandlerTests
             "Ficha de riesgos", new Dictionary<string, string?> { ["CIF"] = "B12345674", ["Fecha"] = "01/01/2026" }, 85, null)));
         var handler = new DetectarCamposPlantillaQueryHandler(
             new ExtractorAcroFormFalso([]), router, ContextoConConocimientoBasico(),
-            Options.Create(new DeteccionPreviaDocumentoOptions { Activa = true }));
+            Options.Create(new DeteccionPreviaDocumentoOptions { Activa = true }),
+            new InstruccionTratamientoIaFalsa(habilitada: true), new TenantActualFalso(TenantId));
 
         var resultado = await handler.Handle(
             new DetectarCamposPlantillaQuery([1, 2, 3], FormatoOrigenPlantilla.PdfVisual), CancellationToken.None);
@@ -125,7 +133,8 @@ public class DetectarCamposPlantillaQueryHandlerTests
         var router = new RouterFalso(Result.Fallo<ExtraccionEstructuradaDto>(Error.Crear("Ia.Fallo", "proveedor caído")));
         var handler = new DetectarCamposPlantillaQueryHandler(
             new ExtractorAcroFormFalso([]), router, ContextoConConocimientoBasico(),
-            Options.Create(new DeteccionPreviaDocumentoOptions { Activa = true }));
+            Options.Create(new DeteccionPreviaDocumentoOptions { Activa = true }),
+            new InstruccionTratamientoIaFalsa(habilitada: true), new TenantActualFalso(TenantId));
 
         var resultado = await handler.Handle(
             new DetectarCamposPlantillaQuery([1], FormatoOrigenPlantilla.PdfVisual), CancellationToken.None);
@@ -139,12 +148,83 @@ public class DetectarCamposPlantillaQueryHandlerTests
     {
         var handler = new DetectarCamposPlantillaQueryHandler(
             new ExtractorAcroFormFalso([]), new RouterQueLanzaSiSeInvoca(), ContextoConConocimientoBasico(),
-            Options.Create(new DeteccionPreviaDocumentoOptions { Activa = false }));
+            Options.Create(new DeteccionPreviaDocumentoOptions { Activa = false }),
+            new InstruccionTratamientoIaFalsa(habilitada: true), new TenantActualFalso(TenantId));
 
         var resultado = await handler.Handle(
             new DetectarCamposPlantillaQuery([1], FormatoOrigenPlantilla.HtmlCss), CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Nivel 0 (DEC-33, REC-035): hasta este incremento esta rama enviaba el PDF de la
+    /// plantilla a un proveedor de IA mirando solo el interruptor de configuración, sin
+    /// consultar la instrucción de tratamiento del Tenant propietario.
+    /// </summary>
+    [Fact]
+    public async Task PdfVisual_sin_instruccion_de_tratamiento_vigente_no_llama_al_router_y_devuelve_vacio()
+    {
+        var handler = new DetectarCamposPlantillaQueryHandler(
+            new ExtractorAcroFormFalso([]), new RouterQueLanzaSiSeInvoca(), ContextoConConocimientoBasico(),
+            Options.Create(new DeteccionPreviaDocumentoOptions { Activa = true }),
+            new InstruccionTratamientoIaFalsa(habilitada: false), new TenantActualFalso(TenantId));
+
+        var resultado = await handler.Handle(
+            new DetectarCamposPlantillaQuery([1, 2, 3], FormatoOrigenPlantilla.PdfVisual), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task PdfVisual_sin_tenant_resuelto_falla_cerrado_y_no_llama_al_router()
+    {
+        var handler = new DetectarCamposPlantillaQueryHandler(
+            new ExtractorAcroFormFalso([]), new RouterQueLanzaSiSeInvoca(), ContextoConConocimientoBasico(),
+            Options.Create(new DeteccionPreviaDocumentoOptions { Activa = true }),
+            new InstruccionTratamientoIaFalsa(habilitada: true), new TenantActualFalso(null));
+
+        var resultado = await handler.Handle(
+            new DetectarCamposPlantillaQuery([1, 2, 3], FormatoOrigenPlantilla.PdfVisual), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Contrapeso del gate: la rama AcroForm lee los campos del propio PDF en local, sin
+    /// proveedor de por medio, así que la instrucción de tratamiento no la condiciona.
+    /// Sin este test, gatear el handler entero pasaría inadvertido.
+    /// </summary>
+    [Fact]
+    public async Task PdfConCampos_sigue_detectando_sin_instruccion_de_tratamiento_vigente()
+    {
+        var extractor = new ExtractorAcroFormFalso(
+        [
+            new CampoAcroFormDetectado("CIF", 1, 10, 20, 100, 15)
+        ]);
+        var handler = new DetectarCamposPlantillaQueryHandler(
+            extractor, new RouterQueLanzaSiSeInvoca(), ContextoConConocimientoBasico(),
+            Options.Create(new DeteccionPreviaDocumentoOptions { Activa = false }),
+            new InstruccionTratamientoIaFalsa(habilitada: false), new TenantActualFalso(TenantId));
+
+        var resultado = await handler.Handle(
+            new DetectarCamposPlantillaQuery([1, 2, 3], FormatoOrigenPlantilla.PdfConCampos), CancellationToken.None);
+
+        var candidato = resultado.Valor.Should().ContainSingle().Subject;
+        candidato.FuenteDatoSugerida.Should().Be(FuenteDatoPlantilla.EmpresaCif);
+    }
+
+    private sealed class InstruccionTratamientoIaFalsa(bool habilitada) : IInstruccionTratamientoIaService
+    {
+        public Task<bool> EstaHabilitadaAsync(Guid tenantId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(habilitada);
+    }
+
+    private sealed class TenantActualFalso(Guid? tenantId) : ITenantActual
+    {
+        public Guid? TenantId => tenantId;
     }
 
     private sealed class ExtractorAcroFormFalso(IReadOnlyList<CampoAcroFormDetectado> campos) : IExtractorCamposAcroFormService
@@ -163,6 +243,7 @@ public class DetectarCamposPlantillaQueryHandlerTests
     {
         public Task<Result<ExtraccionEstructuradaDto>> ProcesarAsync(
             byte[] contenido, string nombreArchivo, string tipoEsperado, Guid? documentoId = null, CancellationToken cancellationToken = default) =>
-            throw new InvalidOperationException("El path PdfConCampos no debería llamar nunca al router de IA.");
+            throw new InvalidOperationException(
+                "Ni el path PdfConCampos ni un PdfVisual sin Nivel 0 deberían llamar nunca al router de IA.");
     }
 }

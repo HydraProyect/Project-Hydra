@@ -1,5 +1,7 @@
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
+using CaeManager.Application.Common;
+using CaeManager.Application.Cumplimiento;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Comunicaciones;
@@ -44,6 +46,10 @@ public record ResultadoDeteccionGestionDto(SugerenciaGestionCorreo? Sugerencia, 
 /// para que otros pasos de la ingesta (ronda de reducción de ruido en
 /// Comunicaciones) puedan reutilizar la misma llamada a IA sin pagar una
 /// segunda.
+///
+/// Consumidor de IA con gate de Nivel 0 (DEC-33, REC-035): sin instrucción de
+/// tratamiento vigente del Tenant propietario no se envían al proveedor ni el cuerpo
+/// del correo ni los Trabajadores candidatos, y se devuelve el resultado vacío.
 /// </summary>
 public interface ISugerenciaGestionCorreoService
 {
@@ -57,10 +63,26 @@ public class SugerenciaGestionCorreoService(
     ITiposDocumentoQueryContext tiposDocumentoContext,
     IDeteccionGestionCorreoService deteccion,
     ISugerenciaGestionCorreoRepository sugerenciaRepositorio,
+    IInstruccionTratamientoIaService instruccionTratamientoIa,
+    ITenantActual tenantActual,
     ILogger<SugerenciaGestionCorreoService> logger) : ISugerenciaGestionCorreoService
 {
     public async Task<ResultadoDeteccionGestionDto> ProcesarAsync(Mensaje mensaje, Guid clienteId, CancellationToken cancellationToken = default)
     {
+        // Nivel 0 (DEC-33, REC-035) — ver el mismo gate en VerificacionIaDocumentoService.
+        // Esta es la detección que más datos personales envía de las tres de la
+        // ingesta: además del cuerpo del correo viajan los Trabajadores candidatos
+        // con su DNI, así que el gate va por delante de cargar nada. Vacío es el
+        // mismo resultado que "el correo no aplica" — el llamador ya sabe tratarlo,
+        // y ninguna clasificación de ruido depende de IA para existir.
+        if (tenantActual.TenantId is not { } tenantId || !await instruccionTratamientoIa.EstaHabilitadaAsync(tenantId, cancellationToken))
+        {
+            logger.LogInformation(
+                "Detección de gestión por correo omitida para el mensaje {MensajeId}: el Tenant propietario no tiene instrucción de tratamiento IA vigente (Nivel 0).",
+                mensaje.Id);
+            return ResultadoDeteccionGestionDto.Vacio;
+        }
+
         var centroIds = await centrosContext.Centros
             .Where(c => c.ClienteId == clienteId)
             .Select(c => c.Id)

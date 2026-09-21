@@ -12,6 +12,11 @@ namespace CaeManager.Application.Plantillas.Queries.DetectarCamposPlantilla;
 /// el gestor los mueva/acepte/descarte. No persiste nada: la confirmación es
 /// un Command aparte, igual que <c>DetectarCamposDocumentoQuery</c> con
 /// <c>AplicarDeteccion</c> (ADR-010 § 2.4, "la IA propone, el humano confirma").
+///
+/// La rama <see cref="FormatoOrigenPlantilla.PdfVisual"/> es consumidora de IA y lleva
+/// gate de Nivel 0 (DEC-33, REC-035): sin instrucción de tratamiento vigente del Tenant
+/// propietario devuelve la lista vacía sin enviar el PDF a ningún proveedor. La rama
+/// <see cref="FormatoOrigenPlantilla.PdfConCampos"/> no lo lleva porque no usa IA.
 /// </summary>
 public record DetectarCamposPlantillaQuery(byte[] Contenido, FormatoOrigenPlantilla Formato)
     : IRequest<Result<IReadOnlyList<PlantillaElementoCandidatoDto>>>;
