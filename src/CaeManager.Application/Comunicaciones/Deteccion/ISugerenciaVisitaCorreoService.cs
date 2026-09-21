@@ -1,4 +1,6 @@
 using CaeManager.Application.Centros;
+using CaeManager.Application.Common;
+using CaeManager.Application.Cumplimiento;
 using CaeManager.Domain.Comunicaciones;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -14,6 +16,10 @@ namespace CaeManager.Application.Comunicaciones.Deteccion;
 /// pendiente. No guarda cambios — el llamador ya persiste todo el mensaje
 /// ingerido en una sola operación (mismo patrón que el resto de
 /// IngestaWebhookService).
+///
+/// Consumidor de IA con gate de Nivel 0 (DEC-33, REC-035): sin instrucción de
+/// tratamiento vigente del Tenant propietario no se envía el cuerpo del correo
+/// al proveedor y no se propone ninguna visita.
 /// </summary>
 public interface ISugerenciaVisitaCorreoService
 {
@@ -24,10 +30,25 @@ public class SugerenciaVisitaCorreoService(
     ICentrosQueryContext centrosContext,
     IDeteccionVisitaCorreoService deteccion,
     ISugerenciaVisitaCorreoRepository sugerenciaRepositorio,
+    IInstruccionTratamientoIaService instruccionTratamientoIa,
+    ITenantActual tenantActual,
     ILogger<SugerenciaVisitaCorreoService> logger) : ISugerenciaVisitaCorreoService
 {
     public async Task ProcesarAsync(Mensaje mensaje, Guid clienteId, CancellationToken cancellationToken = default)
     {
+        // Nivel 0 (DEC-33, REC-035) — ver el mismo gate en VerificacionIaDocumentoService.
+        // El cuerpo del correo puede traer nombres y datos de contacto de personas,
+        // así que el gate va por delante incluso de cargar los Centros candidatos.
+        // Se registra el motivo porque esto corre en un proceso de fondo, sin
+        // pantalla que muestre "sin sugerencias".
+        if (tenantActual.TenantId is not { } tenantId || !await instruccionTratamientoIa.EstaHabilitadaAsync(tenantId, cancellationToken))
+        {
+            logger.LogInformation(
+                "Detección de visita por correo omitida para el mensaje {MensajeId}: el Tenant propietario no tiene instrucción de tratamiento IA vigente (Nivel 0).",
+                mensaje.Id);
+            return;
+        }
+
         var centros = await centrosContext.Centros
             .Where(c => c.ClienteId == clienteId)
             .Select(c => new CentroCandidatoVisitaDto(c.Id, c.Nombre))

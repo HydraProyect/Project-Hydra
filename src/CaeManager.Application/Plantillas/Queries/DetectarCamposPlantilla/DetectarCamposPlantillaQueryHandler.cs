@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Cumplimiento;
 using CaeManager.Application.DocumentosIa;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Plantillas;
@@ -12,7 +13,9 @@ public class DetectarCamposPlantillaQueryHandler(
     IExtractorCamposAcroFormService extractorAcroForm,
     IDocumentAIRouterService router,
     IPlantillasQueryContext plantillasContext,
-    IOptions<DeteccionPreviaDocumentoOptions> opciones)
+    IOptions<DeteccionPreviaDocumentoOptions> opciones,
+    IInstruccionTratamientoIaService instruccionTratamientoIa,
+    ITenantActual tenantActual)
     : IRequestHandler<DetectarCamposPlantillaQuery, Result<IReadOnlyList<PlantillaElementoCandidatoDto>>>
 {
     private const string TipoEsperadoPlantilla = "formulario/plantilla PRL-CAE en blanco entregado por un centro (aún no hay datos de ningún trabajador)";
@@ -90,6 +93,18 @@ public class DetectarCamposPlantillaQueryHandler(
     private async Task<Result<IReadOnlyList<PlantillaElementoCandidatoDto>>> DetectarPorTextoAsync(
         byte[] contenido, IReadOnlyDictionary<string, FuenteDatoPlantilla> conocimiento, CancellationToken cancellationToken)
     {
+        // Nivel 0 (DEC-33, REC-035), por delante del kill-switch de abajo — mismo
+        // orden que DetectarCamposDocumentoQuery. Solo esta rama lo necesita: la de
+        // AcroForm lee los campos del propio PDF en local y no habla con ningún
+        // proveedor. Que la plantilla venga en blanco no exime — quien decide si el
+        // PDF que sube el gestor lleva datos de alguien es el contenido real del
+        // archivo, no el formato que el flujo espera, y el DPA que cubre ese envío
+        // es el mismo que el del resto de consumidores. Devolver la lista vacía deja
+        // el alta de la plantilla intacta, solo sin candidatos propuestos (mismo
+        // criterio que el kill-switch).
+        if (tenantActual.TenantId is not { } tenantId || !await instruccionTratamientoIa.EstaHabilitadaAsync(tenantId, cancellationToken))
+            return Result.Exito<IReadOnlyList<PlantillaElementoCandidatoDto>>([]);
+
         // Mismo kill switch que DetectarCamposDocumentoQuery (DeteccionPreviaDocumentoOptions):
         // esta rama también envía el PDF completo a un proveedor de IA
         // externo. Aquí es una plantilla en blanco, no un documento de un
