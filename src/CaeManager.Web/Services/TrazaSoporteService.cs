@@ -35,6 +35,7 @@ public class TrazaSoporteService(
     private Guid? _tenantVisitadoId;
     private Guid? _usuarioId;
     private DateTime? _expiraEnUtc;
+    private bool _soloSoporte;
 
     public async Task RegistrarAsync(
         TipoActividadSoporte tipo, string? detalle, CancellationToken cancellationToken = default)
@@ -67,7 +68,7 @@ public class TrazaSoporteService(
     public async Task<DateTime?> ObtenerExpiracionAsync(CancellationToken cancellationToken = default)
     {
         await ResolverSesionAsync(cancellationToken);
-        return _delegacionSoporteId is null ? null : _expiraEnUtc;
+        return _delegacionSoporteId is null || !_soloSoporte ? null : _expiraEnUtc;
     }
 
     public async Task<bool> EsSesionDeSoporteAsync(CancellationToken cancellationToken = default)
@@ -98,7 +99,7 @@ public class TrazaSoporteService(
 
         // Por la puerta: la primera resolución dispara desde TrazaSoporte, que
         // se inicializa en paralelo con el resto del layout (ver PuertaAccesoDatos).
-        var delegacion = await puertaAccesoDatos.EjecutarAsync(async () =>
+        var delegaciones = await puertaAccesoDatos.EjecutarAsync(async () =>
         {
             var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
             if (usuarioId is null) return null;
@@ -110,16 +111,21 @@ public class TrazaSoporteService(
                 join delegacion in dbContext.DelegacionesTenant on asignacion.DelegacionTenantId equals delegacion.Id
                 where asignacion.UsuarioId == usuarioId.Value
                       && delegacion.TenantClienteId == tenantSeleccionado
-                      && delegacion.Proposito == PropositoDelegacion.Soporte
-                      && delegacion.Activa
-                select new { delegacion.Id, delegacion.ExpiraEnUtc })
-                .FirstOrDefaultAsync(cancellationToken);
+                select new { delegacion.Id, delegacion.ExpiraEnUtc, delegacion.Proposito, delegacion.Activa })
+                .ToListAsync(cancellationToken);
         }, cancellationToken);
+
+        var soporte = PropositoDelegacion.Soporte;
+        var delegacion = delegaciones?.FirstOrDefault(d => d.Proposito == soporte && d.Activa);
 
         if (delegacion is null) return;
 
         _delegacionSoporteId = delegacion.Id;
         _expiraEnUtc = delegacion.ExpiraEnUtc;
+        // Con otra delegaciÃ³n del usuario hacia ese tenant, la caducidad de la
+        // ventana no dice cuÃ¡ndo se acaba su acceso: la selecciÃ³n puede seguir
+        // viva por la otra vÃ­a, y avisar Â«terminÃ³Â» serÃ­a falso.
+        _soloSoporte = delegaciones!.All(d => d.Proposito == soporte);
         _tenantVisitadoId = tenantSeleccionado;
     }
 }

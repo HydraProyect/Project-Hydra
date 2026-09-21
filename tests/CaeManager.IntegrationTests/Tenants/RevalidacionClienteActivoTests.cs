@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Plataforma;
@@ -137,7 +137,7 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
     {
         // Un usuario de soporte cuya única delegación hacia el tenant es la ventana.
         await RetirarLaAsignacionOrdinariaAsync();
-        await AbrirVentanaDeSoporteCaducadaAsync();
+        await AbrirVentanaDeSoporteAsync(TimeSpan.FromMinutes(-1));
 
         var httpContext = await RevalidarConSeleccionAsync();
 
@@ -160,7 +160,7 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
         // Caso del hallazgo de Codex: la selección heredada no recuerda qué
         // delegación la abrió; con las dos presentes, «terminó la ventana»
         // podría ser falso, así que el texto es el general.
-        await AbrirVentanaDeSoporteCaducadaAsync();
+        await AbrirVentanaDeSoporteAsync(TimeSpan.FromMinutes(-1));
         await RevocarDelegacionAsync();
 
         var httpContext = await RevalidarConSeleccionAsync();
@@ -184,17 +184,60 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
         await contexto.SaveChangesAsync();
     }
 
-    private async Task AbrirVentanaDeSoporteCaducadaAsync()
+    /// <summary>Abre una ventana de soporte que termina dentro de <paramref name="hastaExpirar"/> (negativo: ya vencida).</summary>
+    private async Task AbrirVentanaDeSoporteAsync(TimeSpan hastaExpirar)
     {
         await using var contexto = CrearContexto();
         var ahora = DateTime.UtcNow;
 
         var ventana = DelegacionTenant.ParaSoporte(_consultora, _clienteDelegante);
-        // Abierta hace una hora y vencida hace un minuto: el paso del tiempo.
-        ventana.ActivarParaSoporte("prueba", ahora.AddMinutes(-1), ahora.AddHours(-1));
+        ventana.ActivarParaSoporte("prueba", ahora + hastaExpirar, ahora.AddHours(-1));
         contexto.DelegacionesTenant.Add(ventana);
         contexto.AsignacionesOperadorDelegado.Add(new AsignacionOperadorDelegado(ventana.Id, _usuario, "GestorCae"));
         await contexto.SaveChangesAsync();
+    }
+
+    // La fecha que el circuito usa para avisar de que la ventana va a terminar.
+    // Solo cuenta cuando esa ventana es todo el acceso del usuario a ese tenant.
+
+    [Fact]
+    public async Task La_expiracion_que_ve_el_circuito_es_la_de_la_ventana_si_es_su_unico_acceso()
+    {
+        await RetirarLaAsignacionOrdinariaAsync();
+        await AbrirVentanaDeSoporteAsync(TimeSpan.FromMinutes(30));
+
+        var expira = await ExpiracionQueVeElCircuitoAsync();
+
+        expira.Should().NotBeNull();
+        expira!.Value.Should().BeCloseTo(DateTime.UtcNow.AddMinutes(30), TimeSpan.FromMinutes(1));
+    }
+
+    [Fact]
+    public async Task Con_acceso_ordinario_ademas_de_la_ventana_el_circuito_no_recibe_fecha_de_fin()
+    {
+        // Hallazgo de Codex: la selecciÃ³n seguirÃ­a viva por el acceso ordinario
+        // cuando la ventana vence, y avisar Â«terminÃ³Â» serÃ­a falso.
+        await AbrirVentanaDeSoporteAsync(TimeSpan.FromMinutes(30));
+
+        (await ExpiracionQueVeElCircuitoAsync()).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Sin_ventana_de_soporte_el_circuito_no_recibe_fecha_de_fin()
+    {
+        (await ExpiracionQueVeElCircuitoAsync()).Should().BeNull();
+    }
+
+    private async Task<DateTime?> ExpiracionQueVeElCircuitoAsync()
+    {
+        await using var contexto = CrearContexto();
+        var (_, seleccion) = PrepararPeticionConTokenValido();
+
+        var traza = new TrazaSoporteService(
+            seleccion, new CurrentUserServiceParaMiddlewareFalso(_usuario), contexto,
+            repositorio: null!, unitOfWork: null!, new PuertaAccesoDatos());
+
+        return await traza.ObtenerExpiracionAsync();
     }
 
     private async Task<DefaultHttpContext> RevalidarConSeleccionAsync()

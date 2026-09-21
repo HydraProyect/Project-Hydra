@@ -43,6 +43,7 @@ else if (_minutosRestantes is { } minutos)
     private static readonly TimeSpan PeriodoDelReloj = TimeSpan.FromSeconds(15);
 
     private DateTime? _expiraEnUtc;
+    private bool _porSesionPrivilegiada;
     private bool _terminada;
     private MotivoFinDeAcceso _motivo = MotivoFinDeAcceso.AccesoNoVigente;
     private int? _minutosRestantes;
@@ -53,6 +54,7 @@ else if (_minutosRestantes is { } minutos)
     {
         if (Seleccion.TenantIdSeleccionado is null) return;
 
+        _porSesionPrivilegiada = Seleccion.SesionPrivilegiadaIdSeleccionada is not null;
         _expiraEnUtc = await Traza.ObtenerExpiracionAsync();
 
         if (Seleccion is ClienteActivoSeleccionado origen)
@@ -101,7 +103,9 @@ else if (_minutosRestantes is { } minutos)
         _ = InvokeAsync(() =>
         {
             _terminada = true;
-            _motivo = _expiraEnUtc is not null ? MotivoFinDeAcceso.VentanaDeSoporte : MotivoFinDeAcceso.AccesoNoVigente;
+            _motivo = _expiraEnUtc is not null || _porSesionPrivilegiada
+                ? MotivoFinDeAcceso.VentanaDeSoporte
+                : MotivoFinDeAcceso.AccesoNoVigente;
             _minutosRestantes = null;
             StateHasChanged();
         });
