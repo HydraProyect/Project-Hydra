@@ -496,9 +496,14 @@ let campoPrincipal;
   );
   await reposar();
 
-  // Caduca dentro de 30 ms. Se espera de verdad: lo que se mide es el reloj.
+  // Dos mensajes en vez de uno, y a propósito. El primero da una hora lejana
+  // para que la comprobación de "todavía no ha caducado" no compita con el
+  // reloj: con un margen corto, una pausa del proceso —recolección de basura,
+  // una máquina compartida— hace caducar el token antes de que se lance el
+  // clic, y el arnés acusa al producto de algo que ha provocado él. Ocurrió:
+  // 30 ms bastaban en esta máquina y fallaban en el runner de CI.
   manejadorDeMensajes(
-    { accion: "conexionCambiada", conectado: true, expiraEnUtc: new Date(Date.now() + 30).toISOString() },
+    { accion: "conexionCambiada", conectado: true, expiraEnUtc: new Date(Date.now() + 60_000).toISOString() },
     null,
     () => {}
   );
@@ -507,7 +512,15 @@ let campoPrincipal;
   const antes = new InputArchivoSimulado("antes-de-caducar");
   comprobar("antes de la hora, el clic se intercepta", lanzarClic(antes).prevenido === true);
 
-  await new Promise((r) => setTimeout(r, 80));
+  // El segundo reprograma el reloj a una hora inminente. Aquí la espera larga
+  // no estorba: una vez caducado, el estado ya no vuelve solo, así que esperar
+  // de más solo refuerza la medición.
+  manejadorDeMensajes(
+    { accion: "conexionCambiada", conectado: true, expiraEnUtc: new Date(Date.now() + 5).toISOString() },
+    null,
+    () => {}
+  );
+  await new Promise((r) => setTimeout(r, 250));
 
   const despues = new InputArchivoSimulado("despues-de-caducar");
   comprobar(
