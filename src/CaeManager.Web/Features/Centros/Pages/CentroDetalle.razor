@@ -197,9 +197,27 @@
                                     }
                                     @if (!string.IsNullOrWhiteSpace(canal.UrlAcceso))
                                     {
+                                        @*
+                                            La dirección del portal se ABRE, no se copia: el
+                                            Gestor CAE la abre en pestaña nueva y pega allí las
+                                            credenciales. Solo http(s): la URL es texto libre y
+                                            un javascript: en un href ejecutaría script. Si no
+                                            es navegable se enseña como texto, sin enlace.
+                                        *@
                                         <span class="centro360-canal-detalle">
-                                            @canal.UrlAcceso
-                                            <BotonCopiar Valor="@canal.UrlAcceso" Etiqueta="la dirección del portal" />
+                                            @if (UrlPortalCae.Normalizar(canal.UrlAcceso) is { } destino)
+                                            {
+                                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                                       Href="@destino" target="_blank" rel="noopener noreferrer"
+                                                       title="@canal.UrlAcceso"
+                                                       aria-label="@($"Abrir el portal {canal.UrlAcceso} en una pestaña nueva")">
+                                                    Abrir portal ↗
+                                                </Boton>
+                                            }
+                                            else
+                                            {
+                                                @canal.UrlAcceso
+                                            }
                                         </span>
                                     }
                                 </li>

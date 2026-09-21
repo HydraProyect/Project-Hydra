@@ -218,6 +218,54 @@ public class Centro360Gen2Tests : BunitContext
         cut.FindAll("button").Where(b => b.TextContent.Trim() == texto)
             .Should().ContainSingle($"tiene que haber exactamente un botón «{texto}»").Subject;
 
+    // ── Canal de plataforma: la dirección se abre, no se copia ────────────
+
+    private static CanalGestionResumenDto CanalPlataforma(string? url) =>
+        new(Guid.NewGuid(), TipoCanalGestion.Plataforma, "Gestión general", true, Guid.NewGuid(), "Nalanda",
+            url, null, null, null, true, Guid.NewGuid());
+
+    /// <summary>
+    /// El Gestor CAE abre el portal en pestaña nueva y pega allí las
+    /// credenciales: la dirección es un enlace que se abre, no un texto con
+    /// «Copiar». Sin <c>noopener</c> la pestaña abierta tendría acceso a
+    /// <c>window.opener</c>, la de TALVEG.
+    /// </summary>
+    [Fact]
+    public void La_direccion_del_portal_es_un_enlace_que_abre_pestana_nueva_y_no_un_boton_de_copiar()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        mediador.Resumenes[id] = Resumen(id, "Centro Norte");
+        mediador.Canales[id] = [CanalPlataforma("app.twind.io/login")];
+
+        var cut = Renderizar(id);
+
+        var enlace = cut.FindAll("a").Where(a => a.TextContent.Contains("Abrir portal"))
+            .Should().ContainSingle("hay un canal de plataforma con dirección").Subject;
+        enlace.GetAttribute("href").Should().Be("https://app.twind.io/login");
+        enlace.GetAttribute("target").Should().Be("_blank");
+        enlace.GetAttribute("rel").Should().Contain("noopener").And.Contain("noreferrer");
+        cut.FindAll(".boton-copiar").Should().BeEmpty("la dirección del portal ya no se copia");
+    }
+
+    /// <summary>La URL es texto libre: un esquema que no sea http(s) no puede llegar a un href.</summary>
+    [Fact]
+    public void Una_direccion_que_no_es_http_s_se_ensena_como_texto_y_no_como_enlace()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        mediador.Resumenes[id] = Resumen(id, "Centro Norte");
+        mediador.Canales[id] = [CanalPlataforma("javascript:alert(1)")];
+
+        var cut = Renderizar(id);
+
+        cut.Markup.Should().Contain("javascript:alert(1)", "el dato se sigue viendo, para poder corregirlo");
+        cut.FindAll("a").Should().NotContain(a => (a.GetAttribute("href") ?? "").StartsWith("javascript", StringComparison.OrdinalIgnoreCase));
+        cut.FindAll("a").Should().NotContain(a => a.TextContent.Contains("Abrir portal"));
+    }
+
     // ── El mockup ─────────────────────────────────────────────────────────
 
     /// <summary>
