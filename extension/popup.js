@@ -155,6 +155,10 @@ function renderizarDocumento(documento, proveedorActivo) {
   // invariante sin una decisión explícita nueva: cada llamada a
   // subirDocumento debe nacer de un clic real del gestor sobre UN documento
   // concreto (ver el mismo comentario en background.js, subirDocumento).
+  //
+  // Desde la 0.4.0 este no es el único sitio con ese botón: content.js abre un
+  // panel con la misma lista cuando el gestor pulsa un campo de archivo del
+  // portal. Son dos puertas a la misma regla, no dos reglas.
   const boton = document.createElement("button");
   boton.type = "button";
   boton.textContent = "Subir";

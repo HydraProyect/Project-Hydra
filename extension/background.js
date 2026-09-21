@@ -40,6 +40,35 @@ function normalizarOrigen(url) {
   }
 }
 
+// El content script de cada portal necesita saber si hay conexión ANTES de que
+// el Gestor CAE pinche un campo de archivo: la decisión de interceptar ese clic
+// tiene que ser síncrona (preventDefault no espera a nadie), así que no puede
+// preguntarlo en ese momento. Sin este aviso, quien se conecta con una pestaña
+// del portal ya abierta tendría que recargarla para que la extensión hiciera
+// algo, sin ninguna pista de por qué.
+//
+// Los fallos se ignoran uno a uno a propósito: la mayoría de las pestañas no
+// tienen este content script —no son portales CAE— y ahí `sendMessage` rechaza
+// siempre. No es un error, es la respuesta normal.
+// El aviso lleva la caducidad para que cada pestaña pueda apagarse sola cuando
+// llegue la hora. El vencimiento de un token no produce ningún evento por su
+// cuenta: si nadie hace una petición, nadie se entera de que pasó.
+async function avisarDeLaConexion(conectado, expiraEnUtc = null) {
+  let pestanas;
+  try {
+    pestanas = await chrome.tabs.query({});
+  } catch {
+    return;
+  }
+
+  for (const pestana of pestanas) {
+    if (!pestana.id) continue;
+    chrome.tabs
+      .sendMessage(pestana.id, { accion: "conexionCambiada", conectado, expiraEnUtc })
+      .catch(() => {});
+  }
+}
+
 async function conectar(hydraUrl, token, expiraEnUtc) {
   const origen = normalizarOrigen(hydraUrl);
   if (!origen) return { ok: false, error: "La URL de Hydra no es válida." };
@@ -50,11 +79,13 @@ async function conectar(hydraUrl, token, expiraEnUtc) {
   // llamada conserve un gesto de usuario real a través de la mensajería.
   await chrome.storage.local.set({ hydraUrl: origen });
   await chrome.storage.session.set({ token, expiraEnUtc });
+  await avisarDeLaConexion(true, expiraEnUtc);
   return { ok: true };
 }
 
 async function desconectar() {
   await chrome.storage.session.remove(["token", "expiraEnUtc"]);
+  await avisarDeLaConexion(false);
   return { ok: true };
 }
 
@@ -110,7 +141,15 @@ async function conectarManual({ codigo }) {
 
 async function peticionAutenticada(ruta, opciones = {}) {
   const { hydraUrl, token, conectado } = await obtenerConexion();
-  if (!conectado) return { ok: false, error: "No hay una conexión activa con Hydra. Vuelve a conectar." };
+  if (!conectado) {
+    // No basta con devolver el error: si había algo guardado y lo que pasa es
+    // que caducó, hay que limpiarlo y avisar a las pestañas. Sin esto, una
+    // pestaña del portal abierta desde antes se queda creyendo que hay conexión
+    // y sigue interceptando cada clic en un campo de archivo para abrir un
+    // panel que ya no puede listar nada.
+    await desconectar();
+    return { ok: false, error: "No hay una conexión activa con Hydra. Vuelve a conectar." };
+  }
 
   let respuesta;
   try {
@@ -162,26 +201,39 @@ function arrayBufferABase64(buffer) {
 }
 
 // Ritmo humano (MVP2 § 14.5): esta función descarga UN documento e inyecta
-// UN archivo por invocación — nunca un bucle sobre varios. La única forma
-// de llamarla es un mensaje "subirDocumento" disparado por el clic real de
-// un botón concreto en popup.js (ver el comentario gemelo ahí,
-// renderizarDocumento) — no añadas aquí ningún camino que la invoque más de
-// una vez por gesto de usuario (un "subir todos", un reintento automático
-// en bucle...): es la base del argumento "lo hace el gestor, no un bot"
-// frente a las plataformas externas.
-async function subirDocumento({ documentoId, acreditacionId, nombreArchivo }) {
+// UN archivo por invocación — nunca un bucle sobre varios. Hay DOS formas de
+// llamarla, y las dos nacen del clic real del Gestor CAE sobre un documento
+// concreto: el botón "Subir" del popup (ver el comentario gemelo en popup.js,
+// renderizarDocumento) y el botón "Poner aquí" del panel que content.js abre
+// cuando se pulsa un campo de archivo del portal (construirFila). Lo que
+// comparten no es dónde está el botón, sino cuántas veces se puede pulsar: una
+// por documento. No añadas aquí ningún camino que la invoque más de una vez
+// por gesto de usuario (un "subir todos", un reintento automático en bucle...):
+// es la base del argumento "lo hace el gestor, no un bot" frente a las
+// plataformas externas.
+async function subirDocumento({ documentoId, acreditacionId, nombreArchivo }, pestanaQueLoPidio) {
   const descarga = await peticionAutenticada(`/documentos/${documentoId}/archivo`);
   if (!descarga.ok) return descarga;
   if (!descarga.respuesta.ok) return { ok: false, error: `No pudimos descargar el PDF de Hydra (${descarga.respuesta.status}).` };
 
   const base64 = arrayBufferABase64(await descarga.respuesta.arrayBuffer());
 
-  const [pestana] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!pestana?.id) return { ok: false, error: "No hay ninguna pestaña activa donde inyectar el archivo." };
+  // Cuando la petición nace del panel del content script, el archivo va a ESA
+  // pestaña, no a la que esté activa cuando termine la descarga. El PDF tarda,
+  // y en ese rato el Gestor CAE puede cambiar de pestaña: con la pestaña activa
+  // el documento acabaría en otro portal que también tuviera un campo elegido,
+  // la respuesta sería `ok` y TALVEG marcaría la acreditación como subida. El
+  // mismo error que este incremento vino a cerrar, un nivel más arriba.
+  // El popup no tiene pestaña propia (`remitente.tab` es undefined), así que
+  // para él sigue valiendo la activa: es la que el Gestor está mirando mientras
+  // el popup está abierto.
+  const idPestana =
+    pestanaQueLoPidio ?? (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id;
+  if (!idPestana) return { ok: false, error: "No hay ninguna pestaña activa donde inyectar el archivo." };
 
   let respuestaContenido;
   try {
-    respuestaContenido = await chrome.tabs.sendMessage(pestana.id, {
+    respuestaContenido = await chrome.tabs.sendMessage(idPestana, {
       accion: "inyectarArchivo",
       base64,
       nombreArchivo: nombreArchivo || "documento.pdf",
@@ -220,14 +272,14 @@ async function subirDocumento({ documentoId, acreditacionId, nombreArchivo }) {
   return { ok: true };
 }
 
-chrome.runtime.onMessage.addListener((mensaje, _remitente, enviarRespuesta) => {
+chrome.runtime.onMessage.addListener((mensaje, remitente, enviarRespuesta) => {
   const manejadores = {
     obtenerConexion: () => obtenerConexion(),
     conectar: (m) => conectar(m.hydraUrl, m.token, m.expiraEnUtc),
     conectarManual: (m) => conectarManual(m),
     desconectar: () => desconectar(),
     listarPendientes: () => listarPendientes(),
-    subirDocumento: (m) => subirDocumento(m),
+    subirDocumento: (m) => subirDocumento(m, remitente?.tab?.id),
   };
 
   const manejador = manejadores[mensaje?.accion];
@@ -255,8 +307,11 @@ chrome.runtime.onMessage.addListener((mensaje, _remitente, enviarRespuesta) => {
 //     pero algo falló" — la tercera situación, "no instalada o versión tan
 //     vieja que ni siquiera tiene este listener", es indistinguible desde la
 //     página (chrome.runtime.sendMessage falla igual en ambos casos: no hay
-//     receptor), así que se comunican con el mismo mensaje al usuario
-//     ("instala o actualiza la extensión").
+//     receptor). La página ya NO las junta bajo "instala o actualiza la
+//     extensión": desde 2026-09-21 distingue cuatro situaciones y ofrece el
+//     código de conexión cuando no hay versión que leer (ver ResultadoEnlace y
+//     CompatibilidadExtension en el repositorio de la app). Aquí no cambia
+//     nada; se anota porque este comentario describía el mensaje de enfrente.
 //  4. Qué ID de extensión llama la página es una decisión de configuración
 //     de Hydra (Extension:IdChromeStore), no de este fichero — ver
 //     ConectarExtension.razor.cs en el repositorio de la app.

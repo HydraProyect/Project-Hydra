@@ -1,23 +1,127 @@
 // Content script inyectado en las plataformas CAE externas declaradas en
 // manifest.json (ver ARQUITECTURA-INTEGRACIONES.md § 14.1, repositorio de
-// negocio, para el mecanismo completo). Único trabajo: recibir un fichero en
-// base64 del service worker y depositarlo en el input de la plataforma —
-// nunca decide cuándo subir nada, eso lo dispara el gestor desde el popup.
+// negocio, para el mecanismo completo). Dos trabajos, y los dos nacen de un
+// gesto real del Gestor CAE:
+//
+//   1. Cuando pincha un campo de archivo del portal, ofrecerle ahí mismo los
+//      documentos que tiene pendientes en TALVEG, en vez de dejar que se abra
+//      el explorador del sistema para buscar un PDF que ni siquiera está
+//      descargado.
+//   2. Recibir del service worker el fichero elegido y depositarlo en ESE
+//      campo — el que pinchó, no otro.
+//
+// Nunca decide por su cuenta cuándo subir algo, y nunca envía el formulario.
 
-// Recuerda el último <input type="file"> que el usuario tocó en esta página:
-// con formularios de varias filas (uno por tipo de documento), asumir "el
-// primero que haya" sería casi siempre el input equivocado. Si el gestor
-// no llegó a hacer foco en ninguno, se cae al primero que exista en el DOM
-// como último recurso, documentado como limitación conocida (riesgo ya
-// registrado en el diseño: cada plataforma puede necesitar su propio
-// selector, todavía sin verificar una por una).
-let ultimoInputArchivoTocado = null;
+// EL CAMPO ELEGIDO. Antes esto era «el último input de archivo que se tocó», y
+// cuando no se había tocado ninguno se caía al primero que hubiera en el DOM.
+// Ese respaldo era silencioso y podía depositar el documento en la fila
+// equivocada de un formulario de varias filas —una por tipo de documento—, que
+// es precisamente donde más daño hace: el portal acepta el archivo, pero
+// acreditado contra otro requisito.
+//
+// Ahora hay una sola forma de que este valor se rellene: que el Gestor CAE
+// pinche un campo. Si está vacío, la subida falla diciéndolo, porque no hay
+// ninguna respuesta razonable a «¿en cuál de los seis campos lo pongo?».
+let campoElegido = null;
 
+// Si el portal abre su propio explorador (el Gestor eligió «Buscar en mi
+// equipo»), no se intercepta ese clic. Se marca el campo justo antes de
+// reenviar el clic y se limpia al recibirlo.
+let campoConPasoLibre = null;
+
+// Se consulta al arrancar y después de cada subida. Sin conexión no se
+// intercepta NADA: la extensión no tiene documentos que ofrecer, así que
+// quedarse en medio del camino solo estorbaría a quien está trabajando.
+let hayConexion = false;
+
+// Sello de generación. La consulta de arranque es asíncrona, y mientras está en
+// vuelo puede llegar el aviso de `conexionCambiada` del service worker: sin este
+// contador, la respuesta vieja —pedida ANTES de conectar— aterrizaba después y
+// dejaba `hayConexion` en false. La pestaña se quedaba dormida, sin error
+// visible, hasta que alguien la recargara. Cada escritura del estado se queda
+// con su número; la que llega con un número caducado se descarta.
+let selloDeConexion = 0;
+
+// El token vence a una hora conocida, y ese vencimiento no genera ningún aviso:
+// si el Gestor CAE deja la pestaña abierta y no hace nada, nadie se entera. Sin
+// esto, el primer clic tras la hora se interceptaba igual y abría un panel que
+// ya no podía listar nada. Como la decisión de interceptar tiene que ser
+// síncrona (preventDefault no espera), no vale preguntar en ese momento: hay que
+// haberse apagado antes.
+let relojDeCaducidad = null;
+
+function programarCaducidad(expiraEnUtc) {
+  clearTimeout(relojDeCaducidad);
+  relojDeCaducidad = null;
+  if (!hayConexion || !expiraEnUtc) return;
+
+  const queda = Date.parse(expiraEnUtc) - Date.now();
+  if (Number.isNaN(queda)) return;
+  if (queda <= 0) {
+    hayConexion = false;
+    return;
+  }
+
+  relojDeCaducidad = setTimeout(() => {
+    hayConexion = false;
+    avisarEnPanelDeConexionPerdida();
+  }, queda);
+}
+
+async function refrescarConexionAsync() {
+  const selloPropio = ++selloDeConexion;
+
+  try {
+    const conexion = await chrome.runtime.sendMessage({ accion: "obtenerConexion" });
+    if (selloPropio !== selloDeConexion) return;
+    hayConexion = Boolean(conexion?.conectado);
+    programarCaducidad(conexion?.expiraEnUtc);
+  } catch {
+    if (selloPropio !== selloDeConexion) return;
+    // El service worker puede estar dormido o recargándose. Ante la duda, no
+    // interceptar: el coste de equivocarse hacia «no hacer nada» es que el
+    // Gestor abre el explorador como siempre.
+    hayConexion = false;
+  }
+}
+
+refrescarConexionAsync();
+
+document.addEventListener(
+  "click",
+  (evento) => {
+    const campo = evento.target;
+    if (!(campo instanceof HTMLInputElement) || campo.type !== "file") return;
+
+    campoElegido = campo;
+
+    if (campo === campoConPasoLibre) {
+      campoConPasoLibre = null;
+      return; // el Gestor pidió el explorador del sistema: se deja pasar.
+    }
+
+    if (!hayConexion) return;
+
+    // Aquí es donde se evita el explorador de archivos. Tiene que ser síncrono
+    // —preventDefault no admite esperar a una respuesta asíncrona—, y por eso
+    // `hayConexion` se mantiene al día por su cuenta en vez de preguntarse en
+    // este momento.
+    evento.preventDefault();
+    evento.stopPropagation();
+    abrirPanel(campo);
+  },
+  true
+);
+
+// El foco por teclado (tabulador + Enter) no pasa por este `click` en todos los
+// navegadores, así que se recuerda igualmente cuál es el campo en juego. Esto
+// NO rellena el campo elegido para la inyección automática, solo para que un
+// Gestor que navegue con teclado no se quede sin panel.
 document.addEventListener(
   "focusin",
   (evento) => {
     if (evento.target instanceof HTMLInputElement && evento.target.type === "file")
-      ultimoInputArchivoTocado = evento.target;
+      campoElegido = evento.target;
   },
   true
 );
@@ -44,20 +148,318 @@ function inyectarEnInput(input, archivo) {
   input.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
+// --- El panel -------------------------------------------------------------
+//
+// Vive en un Shadow DOM cerrado sobre un contenedor propio: el CSS del portal
+// no puede deformarlo y el nuestro no puede romper el suyo. Son páginas de
+// terceros que no controlamos y que a veces llevan hojas de estilo agresivas.
+
+let anfitrionPanel = null;
+let raizPanel = null;
+// Se guarda para poder escribir en el panel abierto desde fuera de abrirPanel,
+// que es lo que hace falta cuando la conexión se pierde con el panel delante.
+let cuerpoPanel = null;
+
+const ESTILOS_PANEL = `
+  :host { all: initial; }
+  .fondo {
+    position: fixed; inset: 0; z-index: 2147483647;
+    background: rgba(12, 16, 18, .45);
+    display: flex; align-items: center; justify-content: center;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .panel {
+    background: #fff; color: #15191b;
+    width: min(520px, calc(100vw - 32px));
+    max-height: min(600px, calc(100vh - 64px));
+    border-radius: 10px; box-shadow: 0 12px 40px rgba(0,0,0,.3);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  header { padding: 16px 18px 12px; border-bottom: 1px solid #e3e2dc; }
+  h2 { margin: 0 0 4px; font-size: 15px; font-weight: 600; }
+  .sub { margin: 0; font-size: 12.5px; color: #5a6163; }
+  .cuerpo { overflow-y: auto; padding: 8px 0; flex: 1; }
+  .grupo { padding: 8px 18px 4px; font-size: 11px; letter-spacing: .08em;
+           text-transform: uppercase; color: #5a6163; }
+  .fila { display: flex; align-items: center; gap: 12px; padding: 8px 18px; }
+  .fila span { flex: 1; font-size: 13.5px; }
+  button {
+    font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 6px;
+    border: 1px solid #c9c8c0; background: #fff; color: #15191b; cursor: pointer;
+  }
+  button.principal { background: #1d5b57; border-color: #1d5b57; color: #fff; }
+  button:disabled { opacity: .55; cursor: default; }
+  footer { padding: 12px 18px; border-top: 1px solid #e3e2dc;
+           display: flex; gap: 10px; justify-content: space-between; }
+  .aviso { padding: 12px 18px; font-size: 13px; color: #8a4718; }
+  .vacio { padding: 16px 18px; font-size: 13px; color: #5a6163; }
+`;
+
+function cerrarPanel() {
+  anfitrionPanel?.remove();
+  anfitrionPanel = null;
+  raizPanel = null;
+  cuerpoPanel = null;
+}
+
+// La conexión se ha perdido con el panel abierto. No se cierra: el clic que lo
+// abrió ya se gastó, así que cerrarlo dejaría al Gestor CAE delante de un campo
+// que no reacciona. Se vacía la lista —esos documentos ya no se pueden bajar— y
+// se le deja escrito qué pasó, con «Buscar en mi equipo» intacto en el pie.
+function avisarEnPanelDeConexionPerdida() {
+  if (!anfitrionPanel || !cuerpoPanel) return;
+
+  cuerpoPanel.replaceChildren();
+  const aviso = document.createElement("p");
+  aviso.className = "aviso";
+  aviso.textContent =
+    "Se perdió la conexión con TALVEG. Vuelve a conectar la extensión desde su icono, " +
+    "o busca el archivo en tu equipo.";
+  cuerpoPanel.appendChild(aviso);
+}
+
+function abrirPanel(campo) {
+  cerrarPanel();
+
+  anfitrionPanel = document.createElement("div");
+  raizPanel = anfitrionPanel.attachShadow({ mode: "closed" });
+  document.documentElement.appendChild(anfitrionPanel);
+
+  const estilos = document.createElement("style");
+  estilos.textContent = ESTILOS_PANEL;
+  raizPanel.appendChild(estilos);
+
+  const fondo = document.createElement("div");
+  fondo.className = "fondo";
+  fondo.addEventListener("click", (e) => {
+    if (e.target === fondo) cerrarPanel();
+  });
+  raizPanel.appendChild(fondo);
+
+  const panel = document.createElement("div");
+  panel.className = "panel";
+  fondo.appendChild(panel);
+
+  const cabecera = document.createElement("header");
+  const titulo = document.createElement("h2");
+  titulo.textContent = "Elegir documento de TALVEG";
+  const sub = document.createElement("p");
+  sub.className = "sub";
+  sub.textContent = "Se descargará y se pondrá en el campo que acabas de pulsar. El formulario lo envías tú.";
+  cabecera.append(titulo, sub);
+  panel.appendChild(cabecera);
+
+  const cuerpo = document.createElement("div");
+  cuerpo.className = "cuerpo";
+  const cargando = document.createElement("p");
+  cargando.className = "vacio";
+  cargando.textContent = "Buscando tus documentos pendientes…";
+  cuerpo.appendChild(cargando);
+  panel.appendChild(cuerpo);
+  cuerpoPanel = cuerpo;
+
+  const pie = document.createElement("footer");
+  const botonEquipo = document.createElement("button");
+  botonEquipo.type = "button";
+  botonEquipo.textContent = "Buscar en mi equipo";
+  botonEquipo.addEventListener("click", () => abrirExploradorDelSistema(campo));
+  const botonCancelar = document.createElement("button");
+  botonCancelar.type = "button";
+  botonCancelar.textContent = "Cancelar";
+  botonCancelar.addEventListener("click", cerrarPanel);
+  pie.append(botonEquipo, botonCancelar);
+  panel.appendChild(pie);
+
+  document.addEventListener("keydown", cerrarConEscape, true);
+
+  cargarPendientesEnPanelAsync(cuerpo, campo);
+}
+
+function cerrarConEscape(evento) {
+  if (evento.key !== "Escape" || !anfitrionPanel) return;
+  document.removeEventListener("keydown", cerrarConEscape, true);
+  cerrarPanel();
+}
+
+// La salida. Sin esto, interceptar el clic convertiría la extensión en un
+// secuestro del campo de archivo: el Gestor no podría subir un documento que
+// tenga en su disco y no esté en TALVEG, que es un caso real y frecuente.
+function abrirExploradorDelSistema(campo) {
+  cerrarPanel();
+  campoConPasoLibre = campo;
+  campo.click();
+}
+
+async function cargarPendientesEnPanelAsync(cuerpo, campo) {
+  // Mismo sello que la consulta de conexión, y por el mismo motivo: esta lista
+  // tarda en llegar, y si entre medias se cae la conexión, pintarla encima del
+  // aviso le devolvería al Gestor CAE unos botones que ya no pueden terminar
+  // ninguna subida.
+  const selloPropio = selloDeConexion;
+  let resultado;
+  try {
+    resultado = await chrome.runtime.sendMessage({ accion: "listarPendientes" });
+  } catch (error) {
+    resultado = { ok: false, error: `No pudimos hablar con la extensión (${error.message}).` };
+  }
+
+  if (!anfitrionPanel) return; // lo cerraron mientras cargaba.
+  if (selloPropio !== selloDeConexion) return; // la conexión cambió mientras cargaba.
+  cuerpo.replaceChildren();
+
+  if (!resultado?.ok) {
+    const aviso = document.createElement("p");
+    aviso.className = "aviso";
+    aviso.textContent = `${resultado?.error ?? "No pudimos leer tus documentos."} Puedes buscar el archivo en tu equipo.`;
+    cuerpo.appendChild(aviso);
+    return;
+  }
+
+  const filas = aplanarDocumentos(resultado.proveedores);
+  if (filas.length === 0) {
+    const vacio = document.createElement("p");
+    vacio.className = "vacio";
+    vacio.textContent = "No tienes documentos pendientes de subir. Si el portal te pide otra cosa, búscala en tu equipo.";
+    cuerpo.appendChild(vacio);
+    return;
+  }
+
+  let grupoActual = null;
+  for (const fila of filas) {
+    if (fila.grupo !== grupoActual) {
+      grupoActual = fila.grupo;
+      const encabezado = document.createElement("p");
+      encabezado.className = "grupo";
+      encabezado.textContent = grupoActual;
+      cuerpo.appendChild(encabezado);
+    }
+
+    cuerpo.appendChild(construirFila(fila.documento, fila.proveedorActivo, campo));
+  }
+}
+
+// Aplana proveedores → clientes → documentos conservando el orden, y trae de
+// cada nivel lo que hace falta para decidir: el rótulo del grupo y si el
+// conector sigue activo (kill switch remoto, MVP2 § 14.5 — misma comprobación
+// que hace el popup, y por el mismo motivo: si TALVEG apagó ese conector, ni
+// se ofrece el botón).
+function aplanarDocumentos(proveedores) {
+  const filas = [];
+
+  for (const proveedor of proveedores ?? []) {
+    for (const cliente of proveedor.clientes ?? []) {
+      for (const documento of cliente.documentos ?? []) {
+        filas.push({
+          grupo: `${proveedor.proveedorNombre} · ${cliente.clienteNombre}`,
+          proveedorActivo: proveedor.proveedorActivo !== false,
+          documento,
+        });
+      }
+    }
+  }
+
+  return filas;
+}
+
+function construirFila(documento, proveedorActivo, campo) {
+  const fila = document.createElement("div");
+  fila.className = "fila";
+
+  const descripcion = document.createElement("span");
+  descripcion.textContent = `${documento.propietarioNombre} — ${documento.tipoDocumentoNombre}`;
+  if (documento.estado === "Rechazada") descripcion.textContent += " (rechazada antes)";
+  fila.appendChild(descripcion);
+
+  // Ritmo humano (MVP2 § 14.5): un botón por documento, un clic, una subida.
+  // Este panel es el SEGUNDO origen posible de esa acción —el primero es el
+  // popup— y respeta la misma regla: nunca una selección múltiple, nunca un
+  // «subir todos», nunca un bucle. Lo que cambia respecto al popup es solo
+  // dónde está el botón, no cuántas veces se puede pulsar.
+  const boton = document.createElement("button");
+  boton.type = "button";
+  boton.className = "principal";
+  boton.textContent = "Poner aquí";
+  boton.disabled = !proveedorActivo;
+  boton.addEventListener("click", () => elegirDocumentoAsync(documento, boton, fila, campo));
+  fila.appendChild(boton);
+
+  return fila;
+}
+
+async function elegirDocumentoAsync(documento, boton, fila, campo) {
+  boton.disabled = true;
+  boton.textContent = "Poniendo…";
+
+  // Se fija aquí, y no al abrir el panel, porque entre medias el Gestor pudo
+  // pinchar en otro sitio de la página. El campo que vale es el que originó
+  // este panel.
+  campoElegido = campo;
+
+  let resultado;
+  try {
+    resultado = await chrome.runtime.sendMessage({
+      accion: "subirDocumento",
+      documentoId: documento.documentoId,
+      acreditacionId: documento.acreditacionId,
+      nombreArchivo: `${documento.tipoDocumentoNombre}.pdf`,
+    });
+  } catch (error) {
+    resultado = { ok: false, error: `No pudimos hablar con la extensión (${error.message}).` };
+  }
+
+  if (resultado?.ok) {
+    cerrarPanel();
+    return;
+  }
+
+  boton.disabled = false;
+  boton.textContent = "Poner aquí";
+  const aviso = document.createElement("p");
+  aviso.className = "aviso";
+  aviso.textContent = resultado?.error ?? "No pudimos poner el documento en el formulario.";
+  fila.after(aviso);
+}
+
+// --- Depositar el fichero -------------------------------------------------
+
 chrome.runtime.onMessage.addListener((mensaje, _remitente, enviarRespuesta) => {
+  // El service worker avisa al conectar y al desconectar. Sin esto, quien se
+  // conecta con la pestaña del portal ya abierta tendría que recargarla para
+  // que la extensión hiciera algo, sin ninguna pista de por qué.
+  if (mensaje?.accion === "conexionCambiada") {
+    // El aviso manda sobre cualquier consulta en vuelo: invalida su sello.
+    selloDeConexion++;
+    hayConexion = Boolean(mensaje.conectado);
+    programarCaducidad(mensaje.expiraEnUtc);
+
+    // Al perder la conexión no se cierra el panel abierto. El clic que lo abrió
+    // ya se consumió —el explorador del sistema no llegó a salir—, así que
+    // cerrarlo de golpe dejaría al Gestor CAE sin panel y sin explorador,
+    // mirando un campo que no responde. Se le dice qué ha pasado y se le deja
+    // la salida «Buscar en mi equipo», que sigue en el pie.
+    if (!hayConexion) avisarEnPanelDeConexionPerdida();
+    enviarRespuesta({ ok: true });
+    return true;
+  }
+
   if (mensaje?.accion !== "inyectarArchivo") return false;
 
   try {
-    const input =
-      ultimoInputArchivoTocado ?? document.querySelector('input[type="file"]');
-
-    if (!input) {
-      enviarRespuesta({ ok: false, error: "No encontramos ningún campo de subida de archivo en esta página." });
+    // Sin respaldo al primer input de la página. Un formulario CAE tiene una
+    // fila por tipo de documento, así que «el primero que haya» es casi
+    // siempre el equivocado, y equivocarse aquí no da error: el portal acepta
+    // el archivo y lo acredita contra otro requisito. Mejor no hacer nada y
+    // decir por qué.
+    if (!campoElegido || !campoElegido.isConnected) {
+      enviarRespuesta({
+        ok: false,
+        error: "Pulsa primero el campo de archivo donde quieres el documento: la extensión lo deja exactamente ahí, y no adivina cuál es.",
+      });
       return true;
     }
 
     const archivo = base64AArchivo(mensaje.base64, mensaje.nombreArchivo, mensaje.tipoMime);
-    inyectarEnInput(input, archivo);
+    inyectarEnInput(campoElegido, archivo);
 
     enviarRespuesta({ ok: true });
   } catch (error) {
