@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Hydra CAE — Subida asistida",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Sube documentos de Hydra directamente a las plataformas CAE externas, sin descargarlos antes a tu disco.",
   "action": {
     "default_popup": "popup.html",

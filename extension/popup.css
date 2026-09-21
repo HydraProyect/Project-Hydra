@@ -49,6 +49,11 @@ button.enlace {
   margin-top: 6px;
 }
 
+.ayuda {
+  color: #555;
+  margin: 6px 0 0;
+}
+
 .estado-conexion {
   color: #555;
 }

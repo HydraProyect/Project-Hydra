@@ -49,14 +49,65 @@ public partial class ConectarExtension : ComponentBase, IAsyncDisposable
     private IJSObjectReference? _modulo;
     private bool _generando;
     private string? _token;
+    private string? _codigoConexion;
     private DateTime? _expiraEnUtc;
     private string? _error;
 
-    // null: no se ha intentado enlazar todavía (antes del primer "Generar
-    // token"). true/false: resultado del último intento de enlace automático.
-    private bool? _extensionConectada;
+    private ResultadoEnlace _enlace = ResultadoEnlace.NoIntentado;
     private string? _errorExtension;
     private string? _versionExtension;
+
+    /// <summary>
+    /// En qué quedó el último intento de enlace automático.
+    /// <para>
+    /// Antes era un <c>bool?</c>, y por eso los tres fallos salían con el mismo
+    /// mensaje: «instala o actualiza la extensión». Son tres situaciones con
+    /// tres soluciones distintas —una de ellas ni siquiera depende de quien lo
+    /// lee—, y juntarlas dejaba al gestor sin saber qué hacer. Distinguirlas es
+    /// el motivo de este tipo.
+    /// </para>
+    /// </summary>
+    private enum ResultadoEnlace
+    {
+        /// <summary>Todavía no se ha generado ningún token en esta visita.</summary>
+        NoIntentado,
+
+        Conectado,
+
+        /// <summary>
+        /// Este entorno no tiene <c>Extension:IdChromeStore</c>, así que la
+        /// página no llegó a intentarlo. No es un problema del navegador de
+        /// quien lo lee, y no se arregla reinstalando nada.
+        /// </summary>
+        PuenteNoConfigurado,
+
+        /// <summary>
+        /// La extensión no respondió. Chrome no permite distinguir «no está
+        /// instalada» de «está pero es anterior al enlace automático»: en
+        /// ambos casos no hay receptor.
+        /// </summary>
+        NoDetectada,
+
+        /// <summary>Respondió, y dijo que no. Entonces sí hay un motivo concreto que contar.</summary>
+        Rechazado,
+    }
+
+    /// <summary>El enlace automático no llegó a buen puerto y hay algo que contar.</summary>
+    private bool HuboFallo => _enlace is not (ResultadoEnlace.NoIntentado or ResultadoEnlace.Conectado);
+
+    /// <summary>
+    /// Se ofrece el código de conexión. Cuando la extensión no respondió no hay
+    /// versión que mirar, así que se ofrece igualmente con el requisito escrito
+    /// al lado: es la única salida que le queda a quien sí la tiene instalada.
+    /// </summary>
+    private bool DebeOfrecerCodigo => HuboFallo && CompatibilidadExtension.AdmiteConexionManual(_versionExtension);
+
+    /// <summary>
+    /// La extensión respondió y su versión es anterior a la que trae «Conectar
+    /// a mano». Darle el código sería mandarla a un control que no existe en su
+    /// ventana, así que lo que toca decir es que se actualice.
+    /// </summary>
+    private bool DebePedirActualizar => HuboFallo && !CompatibilidadExtension.AdmiteConexionManual(_versionExtension);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -68,8 +119,9 @@ public partial class ConectarExtension : ComponentBase, IAsyncDisposable
     {
         _generando = true;
         _error = null;
-        _extensionConectada = null;
+        _enlace = ResultadoEnlace.NoIntentado;
         _errorExtension = null;
+        _versionExtension = null;
         StateHasChanged();
 
         try
@@ -100,6 +152,7 @@ public partial class ConectarExtension : ComponentBase, IAsyncDisposable
             }
 
             (_token, _expiraEnUtc) = resultado.Valor;
+            _codigoConexion = CodigoConexionExtension.Crear(NavigationManager.BaseUri, _token, _expiraEnUtc.Value);
             await ConectarExtensionAsync();
         }
         finally
@@ -113,8 +166,10 @@ public partial class ConectarExtension : ComponentBase, IAsyncDisposable
         var idExtension = Configuracion["Extension:IdChromeStore"];
         if (string.IsNullOrWhiteSpace(idExtension) || _modulo is null || _token is null || _expiraEnUtc is null)
         {
-            _extensionConectada = false;
-            _errorExtension = "El enlace automático no está configurado en este entorno.";
+            // Sin el identificador de la extensión no hay a quién mandarle el
+            // mensaje, así que ni se intenta. Decir aquí «instala la extensión»
+            // sería mentir: el que no está configurado es el servidor.
+            _enlace = ResultadoEnlace.PuenteNoConfigurado;
             return;
         }
 
@@ -129,13 +184,15 @@ public partial class ConectarExtension : ComponentBase, IAsyncDisposable
         var respuesta = await _modulo.InvokeAsync<RespuestaConexionExtension>("conectar", idExtension, mensaje);
 
         _versionExtension = respuesta.VersionExtension;
-        _extensionConectada = respuesta is { Disponible: true, Ok: true };
-        if (_extensionConectada is not true)
+        _enlace = respuesta switch
         {
-            _errorExtension = respuesta.Disponible
-                ? respuesta.Error ?? "La extensión no pudo completar el enlace."
-                : "No detectamos la extensión instalada, o tiene una versión antigua sin enlace automático.";
-        }
+            { Disponible: true, Ok: true } => ResultadoEnlace.Conectado,
+            { Disponible: true } => ResultadoEnlace.Rechazado,
+            _ => ResultadoEnlace.NoDetectada,
+        };
+
+        if (_enlace == ResultadoEnlace.Rechazado)
+            _errorExtension = respuesta.Error ?? "La extensión no explicó por qué.";
     }
 
     public async ValueTask DisposeAsync()

@@ -1,4 +1,6 @@
 using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
 using Microsoft.Playwright;
 
 namespace CaeManager.E2ETests;
@@ -41,10 +43,17 @@ public class TokenDeExtensionSinCookieTests(WebAppFixture fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/cuenta/extension");
         await page.GetByRole(AriaRole.Button, new() { Name = "Generar token" }).ClickAsync();
 
-        var campoToken = page.Locator(".campo input");
-        await Assertions.Expect(campoToken).Not.ToHaveValueAsync(
+        // La pantalla ya no enseña el token en crudo: enseña el CÓDIGO DE
+        // CONEXIÓN, que lo lleva dentro junto al origen y la caducidad. El test
+        // hacía `page.Locator(".campo input")` —«el primer campo que haya»— y por
+        // eso al cambiar la pantalla siguió encontrando un input, leyó el código
+        // y lo mandó como si fuera un token; el servidor respondió con la página
+        // de login y el fallo no se parecía en nada a su causa. Ahora se busca
+        // por su etiqueta, que es lo que de verdad identifica al campo.
+        var campoCodigo = page.GetByLabel("Código de conexión");
+        await Assertions.Expect(campoCodigo).Not.ToHaveValueAsync(
             string.Empty, new LocatorAssertionsToHaveValueOptions { Timeout = 15_000 });
-        var token = await campoToken.InputValueAsync();
+        var token = TokenDelCodigoDeConexion(await campoCodigo.InputValueAsync());
 
         var cookiesDeLaSesion = await contexto.CookiesAsync();
         var cabeceraCookie = string.Join("; ", cookiesDeLaSesion.Select(c => $"{c.Name}={c.Value}"));
@@ -81,5 +90,44 @@ public class TokenDeExtensionSinCookieTests(WebAppFixture fixture)
         // cachear su resolución antes de que el esquema de extensión
         // autenticara, esta respuesta volvería a llegar vacía.
         Assert.Equal(cuerpoConCookie, cuerpoSinCookie);
+    }
+
+    /// <summary>
+    /// Saca el token del código de conexión: base64 de <c>{u, t, e}</c>, el mismo
+    /// contrato que lee <c>leerCodigoConexion</c> de <c>extension/background.js</c>
+    /// y que produce <c>CodigoConexionExtension</c>.
+    ///
+    /// <para>
+    /// Que este test tenga que decodificarlo no es un rodeo: es la única prueba
+    /// de la suite que comprueba que el token empaquetado <b>lo acepta el
+    /// servidor de verdad</b>. Las unitarias fijan el formato y el guion de Node
+    /// comprueba que JavaScript sabe leerlo, pero ninguna de las dos puede
+    /// distinguir un token bien empaquetado de uno bien empaquetado y caducado,
+    /// mal firmado o de otro usuario.
+    /// </para>
+    /// </summary>
+    private static string TokenDelCodigoDeConexion(string codigo)
+    {
+        var json = Encoding.UTF8.GetString(Convert.FromBase64String(codigo));
+        using var documento = JsonDocument.Parse(json);
+
+        // Si el contrato cambiara de campo, esto tiene que fallar diciendo ESO y
+        // no acabar mandando una cadena vacía como token, que daría el mismo 302
+        // a login por un motivo completamente distinto.
+        //
+        // El mensaje lleva los NOMBRES de los campos, nunca el JSON entero: ahí
+        // dentro va un token, y este repositorio es público, así que la salida de
+        // un fallo de CI también lo es. Se comprobó midiendo — la primera versión
+        // de esta línea imprimía el cuerpo completo y el token apareció entero en
+        // la consola al provocar el fallo a propósito.
+        var campos = string.Join(", ", documento.RootElement.EnumerateObject().Select(p => p.Name));
+        Assert.True(
+            documento.RootElement.TryGetProperty("t", out var token),
+            $"El código de conexión no trae el campo 't'. Campos presentes: {campos}.");
+
+        var valor = token.GetString();
+        Assert.False(string.IsNullOrWhiteSpace(valor), "El código de conexión trae 't' vacío.");
+
+        return valor!;
     }
 }

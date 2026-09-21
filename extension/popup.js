@@ -10,6 +10,9 @@ const botonActualizar = document.getElementById("boton-actualizar");
 const errorLista = document.getElementById("error-lista");
 const vacioLista = document.getElementById("vacio-lista");
 const listaProveedores = document.getElementById("lista-proveedores");
+const campoCodigoManual = document.getElementById("codigo-manual");
+const botonConectarManual = document.getElementById("boton-conectar-manual");
+const errorManual = document.getElementById("error-manual");
 
 function enviarMensaje(mensaje) {
   return chrome.runtime.sendMessage(mensaje);
@@ -35,6 +38,32 @@ async function inicializar() {
     await cargarPendientesAsync();
   }
 }
+
+// Conexión a mano: la salida para cuando el enlace automático no está
+// disponible en ese entorno o en ese navegador. El campo se vacía en cuanto
+// funciona — el código lleva dentro un credencial de 8 horas y no tiene por
+// qué quedarse escrito en una caja de texto.
+botonConectarManual.addEventListener("click", async () => {
+  mostrarError(errorManual, "");
+  botonConectarManual.disabled = true;
+
+  try {
+    const resultado = await enviarMensaje({
+      accion: "conectarManual",
+      codigo: campoCodigoManual.value,
+    });
+
+    if (!resultado.ok) {
+      mostrarError(errorManual, resultado.error);
+      return;
+    }
+
+    campoCodigoManual.value = "";
+    await inicializar();
+  } finally {
+    botonConectarManual.disabled = false;
+  }
+});
 
 botonDesconectar.addEventListener("click", async () => {
   await enviarMensaje({ accion: "desconectar" });
