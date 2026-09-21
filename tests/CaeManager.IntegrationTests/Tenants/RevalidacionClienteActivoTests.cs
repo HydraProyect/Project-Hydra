@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Plataforma;
@@ -128,6 +128,150 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
         CabeceraDeBorradoDeCookie(httpContext).Should().NotBeNull();
     }
 
+    // El aviso que ve quien pierde la selección: solo se habla de «ventana de
+    // soporte» cuando de verdad lo fue. Es información de UI (el acceso ya lo
+    // decidió la revalidación, y estos casos pasan todos por ella).
+
+    [Fact]
+    public async Task Al_caducar_una_ventana_de_soporte_el_aviso_dice_que_la_ventana_termino()
+    {
+        // Un usuario de soporte cuya única delegación hacia el tenant es la ventana.
+        await RetirarLaAsignacionOrdinariaAsync();
+        await AbrirVentanaDeSoporteAsync(TimeSpan.FromMinutes(-1));
+
+        var httpContext = await RevalidarConSeleccionAsync();
+
+        httpContext.Items[AvisoFinDeAcceso.ClaveItems].Should().Be(MotivoFinDeAcceso.VentanaDeSoporte);
+    }
+
+    [Fact]
+    public async Task Al_revocar_una_delegacion_ordinaria_el_aviso_no_habla_de_ventana_de_soporte()
+    {
+        await RevocarDelegacionAsync();
+
+        var httpContext = await RevalidarConSeleccionAsync();
+
+        httpContext.Items[AvisoFinDeAcceso.ClaveItems].Should().Be(MotivoFinDeAcceso.AccesoNoVigente);
+    }
+
+    [Fact]
+    public async Task Con_delegacion_de_soporte_y_ordinaria_a_la_vez_no_se_atribuye_la_baja_a_la_ventana()
+    {
+        // Caso del hallazgo de Codex: la selección heredada no recuerda qué
+        // delegación la abrió; con las dos presentes, «terminó la ventana»
+        // podría ser falso, así que el texto es el general.
+        await AbrirVentanaDeSoporteAsync(TimeSpan.FromMinutes(-1));
+        await RevocarDelegacionAsync();
+
+        var httpContext = await RevalidarConSeleccionAsync();
+
+        httpContext.Items[AvisoFinDeAcceso.ClaveItems].Should().Be(MotivoFinDeAcceso.AccesoNoVigente);
+    }
+
+    [Fact]
+    public async Task Con_la_seleccion_vigente_no_se_deja_aviso()
+    {
+        var httpContext = await RevalidarConSeleccionAsync();
+
+        httpContext.Items.ContainsKey(AvisoFinDeAcceso.ClaveItems).Should().BeFalse();
+    }
+
+    private async Task RetirarLaAsignacionOrdinariaAsync()
+    {
+        await using var contexto = CrearContexto();
+        var asignacion = await contexto.AsignacionesOperadorDelegado.FirstAsync(a => a.UsuarioId == _usuario);
+        contexto.AsignacionesOperadorDelegado.Remove(asignacion);
+        await contexto.SaveChangesAsync();
+    }
+
+    /// <summary>Abre una ventana de soporte que termina dentro de <paramref name="hastaExpirar"/> (negativo: ya vencida).</summary>
+    private async Task AbrirVentanaDeSoporteAsync(TimeSpan hastaExpirar)
+    {
+        await using var contexto = CrearContexto();
+        var ahora = DateTime.UtcNow;
+
+        var ventana = DelegacionTenant.ParaSoporte(_consultora, _clienteDelegante);
+        ventana.ActivarParaSoporte("prueba", ahora + hastaExpirar, ahora.AddHours(-1));
+        contexto.DelegacionesTenant.Add(ventana);
+        contexto.AsignacionesOperadorDelegado.Add(new AsignacionOperadorDelegado(ventana.Id, _usuario, "GestorCae"));
+        await contexto.SaveChangesAsync();
+    }
+
+    // La fecha que el circuito usa para avisar de que la ventana va a terminar.
+    // Solo cuenta cuando esa ventana es todo el acceso del usuario a ese tenant.
+
+    [Fact]
+    public async Task La_expiracion_que_ve_el_circuito_es_la_de_la_ventana_si_es_su_unico_acceso()
+    {
+        await RetirarLaAsignacionOrdinariaAsync();
+        await AbrirVentanaDeSoporteAsync(TimeSpan.FromMinutes(30));
+
+        var expira = await ExpiracionQueVeElCircuitoAsync();
+
+        expira.Should().NotBeNull();
+        expira!.Value.Should().BeCloseTo(DateTime.UtcNow.AddMinutes(30), TimeSpan.FromMinutes(1));
+    }
+
+    [Fact]
+    public async Task Con_acceso_ordinario_ademas_de_la_ventana_el_circuito_no_recibe_fecha_de_fin()
+    {
+        // Hallazgo de Codex: la selección seguiría viva por el acceso ordinario
+        // cuando la ventana vence, y avisar «terminó» sería falso.
+        await AbrirVentanaDeSoporteAsync(TimeSpan.FromMinutes(30));
+
+        (await ExpiracionQueVeElCircuitoAsync()).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Con_varias_ventanas_activas_manda_la_que_termina_mas_tarde()
+    {
+        await RetirarLaAsignacionOrdinariaAsync();
+        await AbrirVentanaDeSoporteAsync(TimeSpan.FromMinutes(5));
+        await AbrirVentanaDeSoporteAsync(TimeSpan.FromMinutes(30));
+
+        var expira = await ExpiracionQueVeElCircuitoAsync();
+
+        expira!.Value.Should().BeCloseTo(DateTime.UtcNow.AddMinutes(30), TimeSpan.FromMinutes(1));
+    }
+
+    [Fact]
+    public async Task Si_la_seleccion_la_sostiene_una_asignacion_de_operacion_la_ventana_no_da_fecha_de_fin()
+    {
+        // Tercera ronda de Codex: la ventana existe, pero la selección no viene de ella.
+        await RetirarLaAsignacionOrdinariaAsync();
+        await AbrirVentanaDeSoporteAsync(TimeSpan.FromMinutes(30));
+
+        (await ExpiracionQueVeElCircuitoAsync(asignacionOperacionId: Guid.NewGuid())).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Sin_ventana_de_soporte_el_circuito_no_recibe_fecha_de_fin()
+    {
+        (await ExpiracionQueVeElCircuitoAsync()).Should().BeNull();
+    }
+
+    private async Task<DateTime?> ExpiracionQueVeElCircuitoAsync(Guid? asignacionOperacionId = null)
+    {
+        await using var contexto = CrearContexto();
+        var (_, seleccion) = PrepararPeticionConTokenValido(asignacionOperacionId);
+
+        var traza = new TrazaSoporteService(
+            seleccion, new CurrentUserServiceParaMiddlewareFalso(_usuario), contexto,
+            repositorio: null!, unitOfWork: null!, new PuertaAccesoDatos());
+
+        return await traza.ObtenerExpiracionAsync();
+    }
+
+    private async Task<DefaultHttpContext> RevalidarConSeleccionAsync()
+    {
+        await using var contexto = CrearContexto();
+        var (httpContext, seleccion) = PrepararPeticionConTokenValido();
+
+        await EjecutarMiddlewareAsync(httpContext, seleccion, contexto);
+
+        return httpContext;
+    }
+
     /// <summary>
     /// REC-136: la rama `else` de <see cref="RevalidacionClienteActivoMiddleware"/>
     /// (cookie presente, token que no resuelve a ningún tenant) borraba la cookie
@@ -234,9 +378,9 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
     /// Token emitido por la propia clase de producción, no uno inventado: si
     /// el formato cambia, el test cambia con él.
     /// </summary>
-    private (DefaultHttpContext, ClienteActivoSeleccionado) PrepararPeticionConTokenValido()
+    private (DefaultHttpContext, ClienteActivoSeleccionado) PrepararPeticionConTokenValido(Guid? asignacionOperacionId = null)
     {
-        var token = ClienteActivoSeleccionado.Proteger(_protector, _usuario, _clienteDelegante, null);
+        var token = ClienteActivoSeleccionado.Proteger(_protector, _usuario, _clienteDelegante, asignacionOperacionId);
 
         var httpContext = new DefaultHttpContext { User = UsuarioAutenticado(_usuario) };
         httpContext.Request.Headers.Cookie = $"{ClienteActivoSeleccionado.NombreCookie}={token}";

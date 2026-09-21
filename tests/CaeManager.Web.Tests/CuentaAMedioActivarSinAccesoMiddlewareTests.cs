@@ -3,6 +3,8 @@ using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Services;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.StaticAssets;
 
 namespace CaeManager.Web.Tests;
 
@@ -120,6 +122,94 @@ public class CuentaAMedioActivarSinAccesoMiddlewareTests
         (await EjecutarAsync(contexto)).Should().BeTrue();
     }
 
+    [Theory]
+    [InlineData("/css/tokens.abc123.css")]
+    [InlineData("/js/acceso-contrasena.def456.js")]
+    [InlineData("/CaeManager.Web.ghi789.styles.css")]
+    [InlineData("/favicon.svg")]
+    public async Task Los_estaticos_del_propio_flujo_se_sirven_aunque_la_cuenta_este_a_medio_activar(string ruta)
+    {
+        // Antes eran un 403: la pantalla «Cambiar contraseña» salía sin estilos
+        // ni scripts porque su propio CSS/JS pasaba por este middleware. Se
+        // reconocen por el endpoint de MapStaticAssets (los nombres llevan
+        // huella y ningún prefijo de ruta los cubriría).
+        var contexto = ContextoCon(ruta, requiereActivacion: true);
+        contexto.SetEndpoint(EndpointDeEstatico(ruta));
+
+        (await EjecutarAsync(contexto)).Should().BeTrue();
+        contexto.Response.StatusCode.Should().Be(StatusCodes.Status200OK);
+    }
+
+    [Fact]
+    public async Task Una_ruta_que_parece_estatica_pero_no_lo_es_sigue_bloqueada()
+    {
+        // Control negativo: la excepción no puede ser «lo que empiece por /css/»
+        // ni «lo que tenga extensión». Sin endpoint de asset (aquí, ninguno; en
+        // producción, un endpoint de datos) se aplica la regla de siempre.
+        var contexto = ContextoCon("/css/exportacion-de-datos.csv", requiereActivacion: true);
+
+        (await EjecutarAsync(contexto)).Should().BeFalse();
+        contexto.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
+    }
+
+    [Fact]
+    public async Task Un_endpoint_que_no_es_un_asset_no_se_libra_por_su_ruta()
+    {
+        var contexto = ContextoCon("/documentos/8f3c1e2a-0000-0000-0000-000000000001/archivo", requiereActivacion: true);
+        contexto.SetEndpoint(new Endpoint(_ => Task.CompletedTask, new EndpointMetadataCollection(), "descarga"));
+
+        (await EjecutarAsync(contexto)).Should().BeFalse();
+        contexto.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
+    }
+
+    [Fact]
+    public async Task Con_solo_la_2fa_pendiente_la_navegacion_va_a_configurarla_no_a_cambiar_la_contrasena()
+    {
+        // Administrador sin 2FA y sin contraseña temporal: mandarlo a «Cambiar
+        // contraseña» le pide algo que no debe y no le dice lo que sí.
+        var contexto = ContextoCon("/documentos", requiereActivacion: true,
+            pendiente: TenantClaimsPrincipalFactory.ActivacionPendienteDosFactores);
+        contexto.Request.Method = HttpMethods.Get;
+        contexto.Request.Headers.Accept = "text/html";
+
+        await EjecutarAsync(contexto);
+
+        contexto.Response.StatusCode.Should().Be(StatusCodes.Status302Found);
+        contexto.Response.Headers.Location.ToString().Should().Be("/cuenta/configurar-2fa");
+    }
+
+    [Fact]
+    public async Task Con_la_contrasena_pendiente_la_navegacion_va_a_cambiarla()
+    {
+        var contexto = ContextoCon("/documentos", requiereActivacion: true,
+            pendiente: TenantClaimsPrincipalFactory.ActivacionPendienteContrasena);
+        contexto.Request.Method = HttpMethods.Get;
+        contexto.Request.Headers.Accept = "text/html";
+
+        await EjecutarAsync(contexto);
+
+        contexto.Response.Headers.Location.ToString().Should().Be("/cuenta/cambiar-contrasena");
+    }
+
+    [Fact]
+    public async Task Sin_la_pista_de_destino_se_mantiene_la_contrasena_de_siempre()
+    {
+        // Cookie emitida antes de existir la pista: el comportamiento previo,
+        // que se equivoca hacia seguir exigiendo, nunca hacia dejar pasar.
+        var contexto = ContextoCon("/documentos", requiereActivacion: true);
+        contexto.Request.Method = HttpMethods.Get;
+        contexto.Request.Headers.Accept = "text/html";
+
+        await EjecutarAsync(contexto);
+
+        contexto.Response.Headers.Location.ToString().Should().Be("/cuenta/cambiar-contrasena");
+    }
+
+    private static Endpoint EndpointDeEstatico(string ruta) =>
+        new(_ => Task.CompletedTask,
+            new EndpointMetadataCollection(new StaticAssetDescriptor { Route = ruta.TrimStart('/'), AssetPath = ruta.TrimStart('/') }),
+            "asset");
+
     private static async Task<bool> EjecutarAsync(HttpContext contexto)
     {
         var siguienteFueLlamado = false;
@@ -133,12 +223,16 @@ public class CuentaAMedioActivarSinAccesoMiddlewareTests
         return siguienteFueLlamado;
     }
 
-    private static DefaultHttpContext ContextoCon(string ruta, bool requiereActivacion)
+    private static DefaultHttpContext ContextoCon(
+        string ruta, bool requiereActivacion, string? pendiente = null)
     {
         List<Claim> claims = [new(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString())];
 
         if (requiereActivacion)
             claims.Add(new Claim(TenantClaimsPrincipalFactory.TipoClaimRequiereActivacion, "true"));
+
+        if (pendiente is not null)
+            claims.Add(new Claim(TenantClaimsPrincipalFactory.TipoClaimActivacionPendiente, pendiente));
 
         var contexto = new DefaultHttpContext
         {

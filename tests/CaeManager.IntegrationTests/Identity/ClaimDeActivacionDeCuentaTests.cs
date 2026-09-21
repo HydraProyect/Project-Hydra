@@ -78,6 +78,18 @@ public class ClaimDeActivacionDeCuentaTests : IAsyncLifetime
             "temporal@x.test", Roles.GestorCae, debeCambiarContrasena: true, dosFactores: false);
 
         RequiereActivacion(principal).Should().BeTrue();
+        MotivoPendiente(principal).Should().Be(TenantClaimsPrincipalFactory.ActivacionPendienteContrasena);
+    }
+
+    [Fact]
+    public async Task Una_cuenta_con_contrasena_temporal_y_sin_dos_factores_apunta_a_la_contrasena()
+    {
+        // Ambos pendientes a la vez: la contraseña va primero, igual que en
+        // MainLayout (la 2FA se configura ya con la contraseña definitiva).
+        var principal = await PrincipalDeAsync(
+            "ambos@x.test", Roles.Administrador, debeCambiarContrasena: true, dosFactores: false);
+
+        MotivoPendiente(principal).Should().Be(TenantClaimsPrincipalFactory.ActivacionPendienteContrasena);
     }
 
     [Fact]
@@ -88,6 +100,9 @@ public class ClaimDeActivacionDeCuentaTests : IAsyncLifetime
 
         RequiereActivacion(principal).Should().BeTrue(
             "la 2FA es obligatoria para el rol con más alcance del sistema (P1-13)");
+        MotivoPendiente(principal).Should().Be(
+            TenantClaimsPrincipalFactory.ActivacionPendienteDosFactores,
+            "sin contraseña temporal, lo pendiente es la 2FA: mandarlo a cambiar la contraseña engañaba");
     }
 
     [Fact]
@@ -97,6 +112,7 @@ public class ClaimDeActivacionDeCuentaTests : IAsyncLifetime
             "admin-con-2fa@x.test", Roles.Administrador, debeCambiarContrasena: false, dosFactores: true);
 
         RequiereActivacion(principal).Should().BeFalse();
+        MotivoPendiente(principal).Should().BeNull("sin activación pendiente no hay pista de destino");
     }
 
     [Fact]
@@ -121,6 +137,9 @@ public class ClaimDeActivacionDeCuentaTests : IAsyncLifetime
         principal.FindFirst(TenantClaimsPrincipalFactory.TipoClaimTenantId)!.Value
             .Should().Be(_tenant.ToString());
     }
+
+    private static string? MotivoPendiente(System.Security.Claims.ClaimsPrincipal principal) =>
+        principal.FindFirst(TenantClaimsPrincipalFactory.TipoClaimActivacionPendiente)?.Value;
 
     private static bool RequiereActivacion(System.Security.Claims.ClaimsPrincipal principal) =>
         principal.HasClaim(TenantClaimsPrincipalFactory.TipoClaimRequiereActivacion, "true");

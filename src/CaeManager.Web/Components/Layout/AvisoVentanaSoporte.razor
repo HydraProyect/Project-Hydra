@@ -1,0 +1,119 @@
+@using CaeManager.Web.Services
+@implements IDisposable
+@inject IVentanaDeSoporteActual Traza
+@inject IClienteActivoSeleccionado Seleccion
+@inject TimeProvider Tiempo
+
+@*
+    Avisa, dentro de un circuito ya abierto, de que la ventana de soporte está
+    a punto de terminar y de que ya terminó. Sin esto el circuito seguía
+    pintando datos del tenant visitado hasta que el usuario recargaba, y la
+    recarga lo devolvía a «Organización principal» sin explicación.
+
+    Solo informa. Quien cierra la ventana es la revalidación
+    (los middlewares y el handler de revalidación del circuito),
+    que sigue comprobando contra la base; ninguna decisión de acceso pasa por
+    aquí. El reloj del aviso puede ir por delante o por detrás de la
+    revalidación (hasta un ciclo de Circuit:RevalidacionIntervaloSegundos): el
+    enlace «Volver a mi organización principal» hace una carga completa, que sí
+    la ejecuta.
+
+    Con @rendermode propio por la misma razón que TrazaSoporte: el layout es
+    SSR estático y un componente sin él nunca recibiría el temporizador.
+*@
+@if (_terminada)
+{
+    <div class="aviso-ventana-soporte aviso-ventana-soporte--terminada" role="status">
+        @AvisoFinDeAcceso.Texto(_motivo)
+        <a href="/" data-enhance-nav="false" class="enlace-volver-organizacion">Volver a mi organización principal</a>
+    </div>
+}
+else if (_minutosRestantes is { } minutos)
+{
+    <div class="aviso-ventana-soporte" role="status">
+        La ventana de soporte termina en @(minutos == 1 ? "1 minuto" : minutos + " minutos").
+        Al terminar volverás a tu organización principal.
+    </div>
+}
+
+@code {
+    /// <summary>Con cuánta antelación se avisa de que la ventana va a terminar.</summary>
+    public static readonly TimeSpan Antelacion = TimeSpan.FromMinutes(10);
+
+    private static readonly TimeSpan PeriodoDelReloj = TimeSpan.FromSeconds(15);
+
+    private DateTime? _expiraEnUtc;
+    private bool _porSesionPrivilegiada;
+    private bool _terminada;
+    private MotivoFinDeAcceso _motivo = MotivoFinDeAcceso.AccesoNoVigente;
+    private int? _minutosRestantes;
+    private ITimer? _reloj;
+    private Action? _darseDeBaja;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Seleccion.TenantIdSeleccionado is null) return;
+
+        _porSesionPrivilegiada = Seleccion.SesionPrivilegiadaIdSeleccionada is not null;
+        _expiraEnUtc = await Traza.ObtenerExpiracionAsync();
+
+        if (Seleccion is ClienteActivoSeleccionado origen)
+        {
+            origen.SeleccionRetirada += AlRetirarseLaSeleccion;
+            _darseDeBaja = () => origen.SeleccionRetirada -= AlRetirarseLaSeleccion;
+        }
+
+        Recalcular();
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        // Solo corre con circuito: el prerender no llega aquí, así que no hay
+        // reloj que se quede colgado de una instancia que se descarta.
+        if (!firstRender || _expiraEnUtc is null || _reloj is not null) return;
+
+        _reloj = Tiempo.CreateTimer(
+            _ => _ = InvokeAsync(() =>
+            {
+                Recalcular();
+                StateHasChanged();
+            }),
+            state: null, dueTime: PeriodoDelReloj, period: PeriodoDelReloj);
+    }
+
+    private void Recalcular()
+    {
+        if (_terminada || _expiraEnUtc is not { } expira) return;
+
+        var restante = expira - Tiempo.GetUtcNow().UtcDateTime;
+
+        if (restante <= TimeSpan.Zero)
+        {
+            _terminada = true;
+            _motivo = MotivoFinDeAcceso.VentanaDeSoporte;
+            _minutosRestantes = null;
+        }
+        else
+        {
+            _minutosRestantes = restante <= Antelacion ? (int)Math.Ceiling(restante.TotalMinutes) : null;
+        }
+    }
+
+    private void AlRetirarseLaSeleccion() =>
+        _ = InvokeAsync(() =>
+        {
+            _terminada = true;
+            _motivo = _expiraEnUtc is not null || _porSesionPrivilegiada
+                ? MotivoFinDeAcceso.VentanaDeSoporte
+                : MotivoFinDeAcceso.AccesoNoVigente;
+            _minutosRestantes = null;
+            StateHasChanged();
+        });
+
+    public void Dispose()
+    {
+        _reloj?.Dispose();
+
+        _darseDeBaja?.Invoke();
+    }
+}

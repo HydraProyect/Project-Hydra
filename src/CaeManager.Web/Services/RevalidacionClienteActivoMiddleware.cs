@@ -3,6 +3,7 @@ using CaeManager.Application.Operaciones;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
 using CaeManager.Domain.Operaciones;
+using CaeManager.Domain.Tenants;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Web.Services;
@@ -90,6 +91,14 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
                         : clienteActivoSeleccionado.AsignacionOperacionIdSeleccionada is not null
                             ? "asignación de operación"
                             : "delegación heredada");
+
+                // Antes de Invalidar(): después ya no queda de qué vía venía. Sin
+                // esto el usuario volvía a su organización sin una palabra y
+                // «Organización principal» parecía un error de la aplicación.
+                contexto.Items[AvisoFinDeAcceso.ClaveItems] = await EsVentanaDeSoporteAsync(
+                    clienteActivoSeleccionado, currentUserService, dbContext, tenantSeleccionado, contexto.RequestAborted)
+                    ? MotivoFinDeAcceso.VentanaDeSoporte
+                    : MotivoFinDeAcceso.AccesoNoVigente;
 
                 if (clienteActivoSeleccionado is ClienteActivoSeleccionado seleccion)
                     seleccion.Invalidar();
@@ -185,6 +194,43 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
     /// habría reabierto.</item>
     /// </list>
     /// </summary>
+    /// <summary>
+    /// Si la selección que se retira era una ventana de soporte: una sesión
+    /// privilegiada, o —en la vía heredada— delegaciones del usuario hacia ese
+    /// tenant que son todas de propósito Soporte.
+    /// Solo elige el texto del aviso; no interviene en la autorización.
+    /// </summary>
+    private static async Task<bool> EsVentanaDeSoporteAsync(
+        IClienteActivoSeleccionado clienteActivoSeleccionado,
+        ICurrentUserService currentUserService,
+        ITenantsQueryContext dbContext,
+        Guid tenantSeleccionado,
+        CancellationToken cancellationToken)
+    {
+        if (clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is not null) return true;
+        if (clienteActivoSeleccionado.AsignacionOperacionIdSeleccionada is not null) return false;
+
+        var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
+        if (usuarioId is null) return false;
+
+        // La selección heredada no recuerda qué delegación la abrió, así que solo
+        // se afirma «ventana de soporte» cuando no cabe otra lectura: el usuario
+        // tiene delegación de Soporte hacia ese tenant y ninguna de otro
+        // propósito. Con ambas a la vez el texto general —que siempre es cierto—
+        // evita atribuir a la caducidad de Soporte lo que pudo ser otra revocación.
+        var propositos = await (
+            from asignacion in dbContext.AsignacionesOperadorDelegado
+            join delegacion in dbContext.DelegacionesTenant on asignacion.DelegacionTenantId equals delegacion.Id
+            where asignacion.UsuarioId == usuarioId.Value
+                  && delegacion.TenantClienteId == tenantSeleccionado
+            select delegacion.Proposito)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        // Distinct: «exactamente un propósito y es Soporte».
+        return propositos is [PropositoDelegacion.Soporte];
+    }
+
     private static async Task<bool> SigueAutorizadoPorAsignacionAsync(
         IOperacionesQueryContext operacionesContext,
         Guid usuarioId, Guid tenantSeleccionado, Guid asignacionOperacionId, CancellationToken cancellationToken)

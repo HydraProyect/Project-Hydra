@@ -49,6 +49,19 @@ public class TenantClaimsPrincipalFactory(
     public const string TipoClaimRequiereActivacion = "requiere_activacion";
 
     /// <summary>
+    /// Cuál de las dos obligaciones de <see cref="TipoClaimRequiereActivacion"/>
+    /// toca cumplir primero, para que quien corte una petición sepa a qué
+    /// pantalla mandar a la cuenta. Solo se añade junto a aquel claim. Con las
+    /// dos pendientes gana la contraseña, igual que en el guard de
+    /// <c>MainLayout</c>. Es una pista de destino, no autoridad: nada
+    /// autoriza ni deniega por su valor.
+    /// </summary>
+    public const string TipoClaimActivacionPendiente = "activacion_pendiente";
+
+    public const string ActivacionPendienteContrasena = "contrasena";
+    public const string ActivacionPendienteDosFactores = "2fa";
+
+    /// <summary>
     /// DEC-36 (REC-099): «permiso específico», no el rol Administrador a
     /// secas — ver <see cref="Policies.ConsultarAccesoDocumentosSensibles"/>.
     /// Solo se añade cuando está concedido (mismo motivo que
@@ -78,7 +91,12 @@ public class TenantClaimsPrincipalFactory(
         var esAdministrador = principal.IsInRole(Roles.Administrador);
 
         if (user.DebeCambiarContrasena || (esAdministrador && !user.TwoFactorEnabled))
+        {
             identidad.AddClaim(new Claim(TipoClaimRequiereActivacion, "true"));
+            identidad.AddClaim(new Claim(
+                TipoClaimActivacionPendiente,
+                user.DebeCambiarContrasena ? ActivacionPendienteContrasena : ActivacionPendienteDosFactores));
+        }
 
         return principal;
     }

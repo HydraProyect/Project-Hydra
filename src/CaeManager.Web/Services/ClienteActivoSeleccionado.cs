@@ -166,11 +166,25 @@ public class ClienteActivoSeleccionado(
     /// </summary>
     public void Invalidar()
     {
+        var teniaSeleccion = _tenantIdSeleccionado is not null;
+
         _tenantIdSeleccionado = null;
         _asignacionOperacionIdSeleccionada = null;
         _sesionPrivilegiadaIdSeleccionada = null;
         _leidoDeCookie = true;
+
+        if (teniaSeleccion)
+            SeleccionRetirada?.Invoke();
     }
+
+    /// <summary>
+    /// Se dispara cuando una selección que estaba viva se retira (ventana de
+    /// soporte terminada, delegación revocada, operación cerrada). Existe para
+    /// que la interfaz de un circuito ya abierto pueda decirlo: retirar la
+    /// selección cambia el tenant de las consultas siguientes, pero lo que la
+    /// pantalla ya pintó no se entera. No decide nada ni autoriza nada.
+    /// </summary>
+    public event Action? SeleccionRetirada;
 
     private (Guid? TenantId, Guid? AsignacionOperacionId, Guid? SesionPrivilegiadaId) LeerDeCookie()
     {
