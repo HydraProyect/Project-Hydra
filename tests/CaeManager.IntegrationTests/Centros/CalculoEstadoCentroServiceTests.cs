@@ -116,6 +116,29 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
         resultado.Causas.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task Un_trabajador_desvinculado_no_bloquea_el_Centro_por_su_vigencia_en_la_plataforma()
+    {
+        // Misma acreditación vencida que la primera prueba de este bloque: la
+        // única diferencia es la baja de la Asignación. La acreditación no
+        // muere con ella —sigue en la base de datos, vencida—, así que sin el
+        // filtro por asignación activa un Trabajador que ya no pisa el Centro
+        // lo bloquearía indefinidamente.
+        await SembrarAcreditacionAsync(
+            VigenciaEnPlataforma.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1)));
+
+        await using (var contexto = CrearContexto())
+        {
+            var asignacion = await contexto.Asignaciones.SingleAsync(a => a.TrabajadorId == _trabajadorId);
+            asignacion.DarDeBaja(DateOnly.FromDateTime(DateTime.UtcNow));
+            await contexto.SaveChangesAsync();
+        }
+
+        var resultado = await CalcularAsync();
+
+        resultado.Causas.Should().NotContain(c => c.Descripcion.Contains("vencido en la plataforma"));
+    }
+
     /// <summary>
     /// Deja el Centro con su documentación al día en TALVEG y una acreditación
     /// de ese documento contra una plataforma, con la vigencia que se le pase.
