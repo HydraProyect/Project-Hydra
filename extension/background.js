@@ -40,6 +40,30 @@ function normalizarOrigen(url) {
   }
 }
 
+// El content script de cada portal necesita saber si hay conexión ANTES de que
+// el Gestor CAE pinche un campo de archivo: la decisión de interceptar ese clic
+// tiene que ser síncrona (preventDefault no espera a nadie), así que no puede
+// preguntarlo en ese momento. Sin este aviso, quien se conecta con una pestaña
+// del portal ya abierta tendría que recargarla para que la extensión hiciera
+// algo, sin ninguna pista de por qué.
+//
+// Los fallos se ignoran uno a uno a propósito: la mayoría de las pestañas no
+// tienen este content script —no son portales CAE— y ahí `sendMessage` rechaza
+// siempre. No es un error, es la respuesta normal.
+async function avisarDeLaConexion(conectado) {
+  let pestanas;
+  try {
+    pestanas = await chrome.tabs.query({});
+  } catch {
+    return;
+  }
+
+  for (const pestana of pestanas) {
+    if (!pestana.id) continue;
+    chrome.tabs.sendMessage(pestana.id, { accion: "conexionCambiada", conectado }).catch(() => {});
+  }
+}
+
 async function conectar(hydraUrl, token, expiraEnUtc) {
   const origen = normalizarOrigen(hydraUrl);
   if (!origen) return { ok: false, error: "La URL de Hydra no es válida." };
@@ -50,11 +74,13 @@ async function conectar(hydraUrl, token, expiraEnUtc) {
   // llamada conserve un gesto de usuario real a través de la mensajería.
   await chrome.storage.local.set({ hydraUrl: origen });
   await chrome.storage.session.set({ token, expiraEnUtc });
+  await avisarDeLaConexion(true);
   return { ok: true };
 }
 
 async function desconectar() {
   await chrome.storage.session.remove(["token", "expiraEnUtc"]);
+  await avisarDeLaConexion(false);
   return { ok: true };
 }
 
@@ -162,13 +188,16 @@ function arrayBufferABase64(buffer) {
 }
 
 // Ritmo humano (MVP2 § 14.5): esta función descarga UN documento e inyecta
-// UN archivo por invocación — nunca un bucle sobre varios. La única forma
-// de llamarla es un mensaje "subirDocumento" disparado por el clic real de
-// un botón concreto en popup.js (ver el comentario gemelo ahí,
-// renderizarDocumento) — no añadas aquí ningún camino que la invoque más de
-// una vez por gesto de usuario (un "subir todos", un reintento automático
-// en bucle...): es la base del argumento "lo hace el gestor, no un bot"
-// frente a las plataformas externas.
+// UN archivo por invocación — nunca un bucle sobre varios. Hay DOS formas de
+// llamarla, y las dos nacen del clic real del Gestor CAE sobre un documento
+// concreto: el botón "Subir" del popup (ver el comentario gemelo en popup.js,
+// renderizarDocumento) y el botón "Poner aquí" del panel que content.js abre
+// cuando se pulsa un campo de archivo del portal (construirFila). Lo que
+// comparten no es dónde está el botón, sino cuántas veces se puede pulsar: una
+// por documento. No añadas aquí ningún camino que la invoque más de una vez
+// por gesto de usuario (un "subir todos", un reintento automático en bucle...):
+// es la base del argumento "lo hace el gestor, no un bot" frente a las
+// plataformas externas.
 async function subirDocumento({ documentoId, acreditacionId, nombreArchivo }) {
   const descarga = await peticionAutenticada(`/documentos/${documentoId}/archivo`);
   if (!descarga.ok) return descarga;
@@ -255,8 +284,11 @@ chrome.runtime.onMessage.addListener((mensaje, _remitente, enviarRespuesta) => {
 //     pero algo falló" — la tercera situación, "no instalada o versión tan
 //     vieja que ni siquiera tiene este listener", es indistinguible desde la
 //     página (chrome.runtime.sendMessage falla igual en ambos casos: no hay
-//     receptor), así que se comunican con el mismo mensaje al usuario
-//     ("instala o actualiza la extensión").
+//     receptor). La página ya NO las junta bajo "instala o actualiza la
+//     extensión": desde 2026-09-21 distingue cuatro situaciones y ofrece el
+//     código de conexión cuando no hay versión que leer (ver ResultadoEnlace y
+//     CompatibilidadExtension en el repositorio de la app). Aquí no cambia
+//     nada; se anota porque este comentario describía el mensaje de enfrente.
 //  4. Qué ID de extensión llama la página es una decisión de configuración
 //     de Hydra (Extension:IdChromeStore), no de este fichero — ver
 //     ConectarExtension.razor.cs en el repositorio de la app.
