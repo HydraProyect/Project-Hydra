@@ -1,12 +1,13 @@
 @*
     Una fila = un portal externo con acreditaciones pendientes o rechazadas
     (P-04 de la auditoría de producto 2026-08-16, "Pendiente por
-    plataforma"). Sin botón de acción a propósito: la vista agrupada de
-    Documentos por plataforma (PROMPT 03/SCREEN 03 de la especificación) es
-    su propio rediseño, todavía sin construir — un botón "Ver pendientes"
-    sin destino real sería justo el botón muerto que el informe de
-    consistencia (§ 46.3) verificó que este producto NO tiene en ningún
-    sitio. Se añade cuando exista esa pantalla.
+    plataforma"). Toda la fila es un enlace a la pestaña «Plataformas CAE» de
+    Documentos, que es el drill-down real (proveedor → Cliente empresarial →
+    documento): antes la fila no llevaba a ningún sitio porque esa pantalla
+    aún no existía, y al construirse nadie volvió a enlazarla — el propietario
+    lo detectó en staging recorriendo Inicio con demo.gestor1. La pestaña
+    lista todos los portales, no solo el pulsado: filtrar por uno sería otra
+    decisión de producto, y aquí no se inventa.
 
     El logotipo identifica la plataforma de un vistazo, que es lo que esta
     tabla resuelve: el gestor reconoce antes la marca del portal al que le
@@ -16,7 +17,7 @@
 *@
 @using CaeManager.Application.Dashboard.Queries
 
-<div class="fila-plataforma">
+<a class="fila-plataforma" href="@RutaDrillDown">
     @* Marca y nombre van juntos en un bloque: la fila reparte con
        space-between, y un tercer hijo suelto empujaría el nombre al centro. *@
     <span class="fila-plataforma-identidad">
@@ -36,8 +37,11 @@
             <span class="fila-plataforma-rechazadas">@Plataforma.Rechazadas @(Plataforma.Rechazadas == 1 ? "rechazado" : "rechazados")</span>
         }
     </span>
-</div>
+</a>
 
 @code {
+    /// <summary>Id de pestaña estable de Documentos (<c>?pestana=</c>), el mismo que usa el deep-link de Comunicaciones.</summary>
+    internal const string RutaDrillDown = "/documentos?pestana=plataforma";
+
     [Parameter, EditorRequired] public PendientePorPlataformaDto Plataforma { get; set; } = default!;
 }

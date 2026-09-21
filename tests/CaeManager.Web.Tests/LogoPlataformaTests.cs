@@ -70,6 +70,22 @@ public class LogoPlataformaTests : BunitContext
         cut.FindAll("img").Should().BeEmpty("no hay marca para este proveedor, y eso es lo habitual");
     }
 
+    /// <summary>
+    /// La fila era el único bloque de Inicio sin salida: el propietario la pulsó
+    /// en staging y no pasaba nada. Debe ser un enlace real (navegable con
+    /// teclado y con clic central) a la pestaña que ya existe.
+    /// </summary>
+    [Fact]
+    public void La_fila_de_plataforma_es_un_enlace_a_la_pestana_plataformas_cae_de_documentos()
+    {
+        var cut = Render<FilaPlataforma>(p => p.Add(c => c.Plataforma,
+            new PendientePorPlataformaDto(Guid.NewGuid(), "Nalanda", 27, 0, "nalanda")));
+
+        var fila = cut.Find(".fila-plataforma");
+        fila.TagName.Should().Be("A");
+        fila.GetAttribute("href").Should().Be("/documentos?pestana=plataforma");
+    }
+
     [Fact]
     public void Una_plataforma_con_logo_lo_pinta_sin_repetir_el_nombre_al_lector_de_pantalla()
     {
