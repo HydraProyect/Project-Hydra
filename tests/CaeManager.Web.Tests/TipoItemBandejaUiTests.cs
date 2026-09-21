@@ -45,6 +45,19 @@ public class TipoItemBandejaUiTests
         TipoItemBandejaUi.TextoAccion(Requisito(esAltaNueva: false)).Should().Be("Ver requisito");
     }
 
+    [Fact]
+    public void Una_acreditacion_rechazada_por_plataforma_es_peligro_y_ofrece_corregir_en_la_plataforma()
+    {
+        var item = new ItemBandejaDto(
+            Id: "plataforma-1", Tipo: TipoItemBandeja.PlataformaRechazada, Titulo: "Formación 60h",
+            Subtitulo: "Iker — Ilegible", Fecha: null, TrabajadorId: Guid.NewGuid(), CentroId: null,
+            DocumentoId: Guid.NewGuid(), TipoDocumentoId: Guid.NewGuid(), RequisitoId: null, ProveedorNombre: "Dokify");
+
+        TipoItemBandejaUi.Tono(item).Should().Be(TonoBadge.Peligro);
+        TipoItemBandejaUi.Texto(item).Should().Be("Rechazada por plataforma");
+        TipoItemBandejaUi.TextoAccion(item).Should().Be("Corregir en Dokify");
+    }
+
     private static ItemBandejaDto Item(TipoItemBandeja tipo, Guid? trabajadorId, Guid? tipoDocumentoId) => new(
         Id: "item-1", Tipo: tipo, Titulo: "t", Subtitulo: "s", Fecha: null,
         TrabajadorId: trabajadorId, CentroId: null, DocumentoId: null, TipoDocumentoId: tipoDocumentoId, RequisitoId: null);
@@ -66,6 +79,7 @@ public class TipoItemBandejaUiTests
     [InlineData(TipoItemBandeja.SugerenciaVisitaUrgente, false)]
     [InlineData(TipoItemBandeja.DeteccionPendiente, false)]
     [InlineData(TipoItemBandeja.PlataformaPendiente, false)]
+    [InlineData(TipoItemBandeja.PlataformaRechazada, false)]
     public void EsReclamable_solo_es_true_para_Faltante_Vencido_o_Urgente_con_trabajador_y_tipo_de_documento(
         TipoItemBandeja tipo, bool esperado)
     {
@@ -110,6 +124,7 @@ public class TipoItemBandejaUiTests
     [InlineData(TipoItemBandeja.SugerenciaVisitaUrgente, false)]
     [InlineData(TipoItemBandeja.DeteccionPendiente, true)]
     [InlineData(TipoItemBandeja.PlataformaPendiente, true)]
+    [InlineData(TipoItemBandeja.PlataformaRechazada, true)]
     public void EsFechaCopiable_es_false_solo_para_VisitaUrgente_y_SugerenciaVisitaUrgente(
         TipoItemBandeja tipo, bool esperado)
     {

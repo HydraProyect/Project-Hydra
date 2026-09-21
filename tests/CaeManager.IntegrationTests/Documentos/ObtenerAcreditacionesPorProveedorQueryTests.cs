@@ -181,6 +181,81 @@ public class ObtenerAcreditacionesPorProveedorQueryTests : IAsyncLifetime
         fila.FechaVencimientoEnPlataforma.Should().Be(vence);
     }
 
+    /// <summary>
+    /// Regresión de H-D1 (piloto Outbound): «Marcar subido» dejaba la
+    /// acreditación en <c>Subida</c> y ninguna consulta la devolvía, así que
+    /// la fila desaparecía del drill-down y no se podía anotar la respuesta de
+    /// la plataforma (aceptada o rechazada). Por defecto siguen sin salir —
+    /// la Bandeja y la extensión no la piden: no es trabajo pendiente—, y
+    /// solo el drill-down las pide con <c>IncluirSubidas</c>.
+    /// </summary>
+    [Fact]
+    public async Task Una_subida_solo_sale_cuando_se_piden_las_subidas()
+    {
+        Guid subidaId;
+        Guid rechazadaId;
+
+        await using (var contexto = CrearContexto())
+        {
+            var cliente = Empresa.CrearComoCliente("Cliente Subida S.L.", "B10380194", false, null, null);
+            var empresa = new Empresa("Empresa Subida S.L.", "B10380186");
+            contexto.Empresas.Add(cliente);
+            contexto.Empresas.Add(empresa);
+            await contexto.SaveChangesAsync();
+
+            var centro = new Centro(cliente.Id, empresa.Id, "Centro Subida");
+            contexto.Centros.Add(centro);
+            await contexto.SaveChangesAsync();
+
+            var proveedor = await contexto.ProveedoresPlataformaCae.FirstAsync();
+            var canal = CanalGestionDocumental.DePlataforma(
+                centro.Id, "Gestión general", proveedor.Id, null, null, null);
+            contexto.CanalesGestionDocumental.Add(canal);
+
+            var tipoUno = new TipoDocumento("Seguro RC subida", 12, true, 1, AmbitoAplicacion.Empresa);
+            var tipoDos = new TipoDocumento("Certificado subida", 12, true, 1, AmbitoAplicacion.Empresa);
+            contexto.TiposDocumento.Add(tipoUno);
+            contexto.TiposDocumento.Add(tipoDos);
+            await contexto.SaveChangesAsync();
+
+            var documentoUno = Documento.DeEmpresa(empresa.Id, tipoUno.Id, new DateOnly(2026, 1, 1), new DateOnly(2027, 1, 1));
+            var documentoDos = Documento.DeEmpresa(empresa.Id, tipoDos.Id, new DateOnly(2026, 1, 1), new DateOnly(2027, 1, 1));
+            contexto.Documentos.Add(documentoUno);
+            contexto.Documentos.Add(documentoDos);
+            await contexto.SaveChangesAsync();
+
+            var subida = new AcreditacionDocumentoPlataforma(documentoUno.Id, canal.Id);
+            subida.MarcarSubida();
+            var rechazada = new AcreditacionDocumentoPlataforma(documentoDos.Id, canal.Id);
+            rechazada.Rechazar(CausaRechazoAcreditacion.Otro, "Escaneo ilegible", DateTime.UtcNow);
+            contexto.AcreditacionesDocumentoPlataforma.Add(subida);
+            contexto.AcreditacionesDocumentoPlataforma.Add(rechazada);
+            await contexto.SaveChangesAsync();
+
+            subidaId = subida.Id;
+            rechazadaId = rechazada.Id;
+        }
+
+        await using var consulta = CrearContexto();
+        var handler = new ObtenerAcreditacionesPorProveedorQueryHandler(
+            consulta, consulta, consulta, consulta, consulta, consulta, new AlcanceDatosServiceFalso());
+
+        var porDefecto = (await handler.Handle(new ObtenerAcreditacionesPorProveedorQuery(), CancellationToken.None))
+            .SelectMany(p => p.Clientes).SelectMany(c => c.Documentos).ToList();
+
+        porDefecto.Should().NotContain(d => d.AcreditacionId == subidaId);
+        porDefecto.Should().ContainSingle(d => d.AcreditacionId == rechazadaId)
+            .Which.UltimoMotivoRechazo.Should().Be("Escaneo ilegible");
+
+        var conSubidas = (await handler.Handle(
+                new ObtenerAcreditacionesPorProveedorQuery(IncluirSubidas: true), CancellationToken.None))
+            .SelectMany(p => p.Clientes).SelectMany(c => c.Documentos).ToList();
+
+        conSubidas.Should().ContainSingle(d => d.AcreditacionId == subidaId)
+            .Which.Estado.Should().Be(EstadoAcreditacion.Subida);
+        conSubidas.Should().Contain(d => d.AcreditacionId == rechazadaId);
+    }
+
     [Fact]
     public async Task No_devuelve_nada_fuera_de_la_cartera_del_gestor()
     {

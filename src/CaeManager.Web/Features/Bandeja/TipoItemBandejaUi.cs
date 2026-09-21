@@ -22,6 +22,8 @@ public static class TipoItemBandejaUi
         TipoItemBandeja.SugerenciaVisitaUrgente => TonoBadge.Peligro,
         TipoItemBandeja.Faltante => TonoBadge.Peligro,
         TipoItemBandeja.Vencido => TonoBadge.Peligro,
+        // Mismo tono que EstadoAcreditacion.Rechazada en PlataformaTab.razor.
+        TipoItemBandeja.PlataformaRechazada => TonoBadge.Peligro,
         TipoItemBandeja.RequisitoPendiente => item.EsAltaNueva ? TonoBadge.Advertencia : TonoBadge.Peligro,
         TipoItemBandeja.VisitaUrgente => TonoBadge.Advertencia,
         TipoItemBandeja.Urgente => TonoBadge.Advertencia,
@@ -54,6 +56,9 @@ public static class TipoItemBandejaUi
         // falta replicarla en la plataforma del cliente — un badge "Falta"
         // sugeriría (incorrectamente) que hay que reclamarla a alguien.
         TipoItemBandeja.PlataformaPendiente => "Pendiente de envío",
+        // La plataforma ya evaluó el documento y lo devolvió: no es «falta»
+        // ni «pendiente», es una respuesta negativa que hay que atender.
+        TipoItemBandeja.PlataformaRechazada => "Rechazada por plataforma",
         _ => "—"
     };
 
@@ -74,6 +79,7 @@ public static class TipoItemBandejaUi
         TipoItemBandeja.VisitaUrgente => "Ver visita",
         TipoItemBandeja.DeteccionPendiente => "Revisar detección",
         TipoItemBandeja.PlataformaPendiente => $"Subir a {item.ProveedorNombre}",
+        TipoItemBandeja.PlataformaRechazada => $"Corregir en {item.ProveedorNombre}",
         _ => "Gestionar"
     };
 
@@ -132,7 +138,7 @@ public static class TipoItemBandejaUi
     ///   <item><description><c>RevisionIa</c>: <c>Fecha = FechaEmisionDetectada</c> — la excepción de P9.</description></item>
     ///   <item><description><c>VisitaUrgente</c>: <c>Fecha = FechaInicio</c> — NI vigencia NI P9. El defecto real.</description></item>
     ///   <item><description><c>SugerenciaVisitaUrgente</c>: <c>Fecha = FechaInicioSugerida</c> — NI vigencia NI P9. El defecto real.</description></item>
-    ///   <item><description><c>RequisitoPendiente</c>/<c>DeteccionPendiente</c>/<c>PlataformaPendiente</c>: <c>Fecha = null</c> hoy — sin fecha no hay nada que copiar, el propio componente ya lo trata como texto plano.</description></item>
+    ///   <item><description><c>RequisitoPendiente</c>/<c>DeteccionPendiente</c>/<c>PlataformaPendiente</c>/<c>PlataformaRechazada</c>: <c>Fecha = null</c> hoy — sin fecha no hay nada que copiar, el propio componente ya lo trata como texto plano.</description></item>
     /// </list>
     /// <para>
     /// Restringir a solo RevisionIa/DeteccionPendiente, como decía la

@@ -53,12 +53,22 @@ public enum TipoItemBandeja
     /// La documentación está al día en Talveg pero no se ha subido/actualizado
     /// todavía en la plataforma del cliente (Dokify, Nalanda...) —
     /// <see cref="Documentos.Queries.ObtenerAcreditacionesPorProveedor.ObtenerAcreditacionesPorProveedorQuery"/>,
-    /// solo <c>EstadoAcreditacion.PendienteDeSubir</c> (Rechazada es una
-    /// situación distinta — ya corregida antes, el portal la devolvió — no
-    /// "falta subirla por primera vez"). Distinto de Faltante: aquí no hay
-    /// nada que reclamar a nadie, solo subir un archivo que Talveg ya tiene.
+    /// solo <c>EstadoAcreditacion.PendienteDeSubir</c> (Rechazada es
+    /// <see cref="PlataformaRechazada"/>, otra situación: el portal ya la
+    /// evaluó y la devolvió, no "falta subirla por primera vez"). Distinto de
+    /// Faltante: aquí no hay nada que reclamar a nadie, solo subir un archivo
+    /// que Talveg ya tiene.
     /// </summary>
-    PlataformaPendiente
+    PlataformaPendiente,
+    /// <summary>
+    /// La plataforma del cliente evaluó el documento y lo devolvió
+    /// (<c>EstadoAcreditacion.Rechazada</c>): hay que corregirlo y volver a
+    /// subirlo, con el motivo real del rechazo a la vista. Es trabajo del
+    /// Gestor CAE —no una foto del estado que solo se mira en Documentos—, y
+    /// pesa más que <see cref="PlataformaPendiente"/>: mientras no se
+    /// corrija, la acreditación del documento en esa plataforma es negativa.
+    /// </summary>
+    PlataformaRechazada
 }
 
 /// <param name="CreadaEnUtc">
@@ -89,8 +99,9 @@ public enum TipoItemBandeja
 /// solo la clave de agrupación.
 /// </param>
 /// <param name="ProveedorNombre">
-/// Solo PlataformaPendiente — nombre de la plataforma del cliente (Dokify,
-/// Nalanda...) a la que falta subir el documento. La acción primaria de este
+/// Solo PlataformaPendiente y PlataformaRechazada — nombre de la plataforma
+/// del cliente (Dokify, Nalanda...) a la que falta subir el documento o que
+/// lo rechazó. La acción primaria de estos tipos
 /// tipo necesita el nombre concreto ("Subir a Dokify"), no un texto genérico
 /// como el resto de tipos — ver TipoItemBandejaUi.TextoAccion.
 /// </param>
@@ -278,32 +289,37 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
             CreadaEnUtc: d.CreadaEnUtc,
             EmpresaNombre: d.EmpresaRazonSocial)));
 
-        // Solo PendienteDeSubir: la documentación está al día en Talveg, lo
-        // único que falta es replicarla en la plataforma del cliente — no hay
-        // nada que reclamar. Rechazada queda fuera a propósito: el portal ya
-        // la evaluó y la devolvió, es una situación distinta ("corregir y
-        // volver a subir", con el motivo real del rechazo) que ya tiene su
-        // sitio en /documentos, pestaña Plataforma — meterla aquí con el
-        // mismo tratamiento que "nunca se subió" ocultaría el motivo del
-        // rechazo, que es la parte que de verdad importa gestionar ahí.
-        items.AddRange(pendientesPlataforma.SelectMany(proveedor => proveedor.Clientes.SelectMany(cliente => cliente.Documentos
-            .Where(d => d.Estado == EstadoAcreditacion.PendienteDeSubir)
-            .Select(d => new ItemBandejaDto(
-                Id: $"plataforma-{d.AcreditacionId}",
-                Tipo: TipoItemBandeja.PlataformaPendiente,
-                Titulo: d.TipoDocumentoNombre,
-                Subtitulo: d.PropietarioNombre,
-                Fecha: null,
-                TrabajadorId: d.TrabajadorId,
-                CentroId: d.CentroId,
-                DocumentoId: d.DocumentoId,
-                TipoDocumentoId: d.TipoDocumentoId,
-                RequisitoId: null,
-                ClienteId: cliente.ClienteId,
-                ClienteNombre: cliente.ClienteNombre,
-                EmpresaId: d.EmpresaId,
-                TrabajadorNombre: d.TrabajadorId is not null ? d.PropietarioNombre : null,
-                ProveedorNombre: proveedor.ProveedorNombre)))));
+        // PendienteDeSubir y Rechazada son dos tipos distintos porque piden dos
+        // cosas distintas. PendienteDeSubir: la documentación está al día en
+        // Talveg y solo falta replicarla en la plataforma del cliente, no hay
+        // nada que reclamar. Rechazada: el portal ya la evaluó y la devolvió,
+        // hay que corregir y volver a subir, y el motivo real del rechazo es
+        // la parte que importa gestionar — por eso va en el subtítulo. Subida
+        // no entra: está esperando la respuesta de la plataforma y no hay
+        // nada que hacer hasta que llegue (seguimiento, no cola).
+        var plataformas = pendientesPlataforma
+            .SelectMany(proveedor => proveedor.Clientes.SelectMany(cliente => cliente.Documentos
+                .Where(d => d.Estado is EstadoAcreditacion.PendienteDeSubir or EstadoAcreditacion.Rechazada)
+                .Select(d => (proveedor, cliente, d))));
+
+        items.AddRange(plataformas.Select(x => new ItemBandejaDto(
+            Id: $"plataforma-{x.d.AcreditacionId}",
+            Tipo: x.d.Estado == EstadoAcreditacion.Rechazada ? TipoItemBandeja.PlataformaRechazada : TipoItemBandeja.PlataformaPendiente,
+            Titulo: x.d.TipoDocumentoNombre,
+            Subtitulo: x.d.Estado == EstadoAcreditacion.Rechazada && !string.IsNullOrWhiteSpace(x.d.UltimoMotivoRechazo)
+                ? $"{x.d.PropietarioNombre} — {x.d.UltimoMotivoRechazo}"
+                : x.d.PropietarioNombre,
+            Fecha: null,
+            TrabajadorId: x.d.TrabajadorId,
+            CentroId: x.d.CentroId,
+            DocumentoId: x.d.DocumentoId,
+            TipoDocumentoId: x.d.TipoDocumentoId,
+            RequisitoId: null,
+            ClienteId: x.cliente.ClienteId,
+            ClienteNombre: x.cliente.ClienteNombre,
+            EmpresaId: x.d.EmpresaId,
+            TrabajadorNombre: x.d.TrabajadorId is not null ? x.d.PropietarioNombre : null,
+            ProveedorNombre: x.proveedor.ProveedorNombre)));
 
         // Una sugerencia sin confirmar pesa más que cualquier otra cosa: sin
         // confirmarla no hay ni Visita ni documentación que verificar. Entre
@@ -318,10 +334,11 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
                 TipoItemBandeja.SugerenciaVisitaUrgente => 0,
                 TipoItemBandeja.Faltante => 1,
                 TipoItemBandeja.Vencido => 2,
-                TipoItemBandeja.VisitaUrgente => 3,
-                TipoItemBandeja.RequisitoPendiente => 4,
-                TipoItemBandeja.Urgente => 5,
-                _ => 6
+                TipoItemBandeja.PlataformaRechazada => 3,
+                TipoItemBandeja.VisitaUrgente => 4,
+                TipoItemBandeja.RequisitoPendiente => 5,
+                TipoItemBandeja.Urgente => 6,
+                _ => 7
             })
             .ThenBy(i => i.Fecha)
             .ThenBy(i => i.Id)

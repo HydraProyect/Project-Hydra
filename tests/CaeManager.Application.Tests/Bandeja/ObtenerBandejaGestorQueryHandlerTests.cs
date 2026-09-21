@@ -53,13 +53,14 @@ public class ObtenerBandejaGestorQueryHandlerTests
         Tipo: tipo, NombreCompleto: "Marta Ruiz", CreadaEnUtc: DateTime.UtcNow);
 
     private static ProveedorAcreditacionesDto PendientePlataforma(
-        EstadoAcreditacion estado = EstadoAcreditacion.PendienteDeSubir, string proveedorNombre = "Dokify") => new(
+        EstadoAcreditacion estado = EstadoAcreditacion.PendienteDeSubir, string proveedorNombre = "Dokify",
+        string? motivoRechazo = null) => new(
         ProveedorPlataformaCaeId: Guid.NewGuid(), ProveedorNombre: proveedorNombre, ProveedorCodigo: "dokify",
         Clientes: [new ClienteAcreditacionesDto(
             ClienteId: Guid.NewGuid(), ClienteNombre: "Cliente Norte S.A.",
             Documentos: [new AcreditacionDrillDownDto(
                 AcreditacionId: Guid.NewGuid(), DocumentoId: Guid.NewGuid(), PropietarioNombre: "Iker Etxeberria",
-                TipoDocumentoNombre: "Formación 60h", Estado: estado, UltimoMotivoRechazo: null,
+                TipoDocumentoNombre: "Formación 60h", Estado: estado, UltimoMotivoRechazo: motivoRechazo,
                 TrabajadorId: Guid.NewGuid())]) ]);
 
     private static IReadOnlyList<ItemBandejaDto> Fusionar(
@@ -137,16 +138,57 @@ public class ObtenerBandejaGestorQueryHandlerTests
     }
 
     [Fact]
-    public void Una_acreditacion_rechazada_no_entra_en_la_bandeja()
+    public void Una_acreditacion_rechazada_entra_en_la_bandeja_como_PlataformaRechazada_con_su_motivo()
     {
-        // Rechazada ya tiene su propio sitio (Documentos > Plataforma, con el
-        // motivo del rechazo) — mezclarla aquí con "nunca se subió" perdería
-        // esa distinción.
-        var rechazada = PendientePlataforma(estado: EstadoAcreditacion.Rechazada);
+        // Decisión D-4 del piloto Outbound: una Rechazada es trabajo accionable
+        // del Gestor CAE (corregir y volver a subir), no una foto del estado
+        // que solo se mire en Documentos. Sustituye a la regla anterior, que
+        // la dejaba fuera «a propósito».
+        var rechazada = PendientePlataforma(estado: EstadoAcreditacion.Rechazada, motivoRechazo: "Certificado ilegible");
 
         var resultado = Fusionar(pendientesPlataforma: [rechazada]);
 
-        resultado.Should().BeEmpty();
+        var item = resultado.Should().ContainSingle().Subject;
+        item.Tipo.Should().Be(TipoItemBandeja.PlataformaRechazada);
+        item.Titulo.Should().Be("Formación 60h");
+        item.Subtitulo.Should().Be("Iker Etxeberria — Certificado ilegible");
+        item.ProveedorNombre.Should().Be("Dokify");
+        item.ClienteNombre.Should().Be("Cliente Norte S.A.");
+    }
+
+    [Fact]
+    public void Una_acreditacion_subida_no_entra_en_la_bandeja()
+    {
+        // Subida = enviada y esperando respuesta: no hay nada que hacer hasta
+        // que la plataforma conteste. No es cola de trabajo.
+        var subida = PendientePlataforma(estado: EstadoAcreditacion.Subida);
+
+        Fusionar(pendientesPlataforma: [subida]).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Una_acreditacion_aceptada_no_entra_en_la_bandeja()
+    {
+        Fusionar(pendientesPlataforma: [PendientePlataforma(estado: EstadoAcreditacion.Aceptada)]).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Una_rechazada_por_plataforma_pesa_mas_que_una_visita_y_menos_que_un_vencido()
+    {
+        var resultado = Fusionar(
+            alertas: [Alerta(EstadoDocumento.Vencido)],
+            visitasUrgentes: [Visita(NivelUrgenciaVisita.Urgente)],
+            pendientesPlataforma:
+            [
+                PendientePlataforma(),
+                PendientePlataforma(estado: EstadoAcreditacion.Rechazada, motivoRechazo: "Ilegible")
+            ]);
+
+        resultado.Select(i => i.Tipo).Should().Equal(
+            TipoItemBandeja.Vencido,
+            TipoItemBandeja.PlataformaRechazada,
+            TipoItemBandeja.VisitaUrgente,
+            TipoItemBandeja.PlataformaPendiente);
     }
 
     [Fact]
