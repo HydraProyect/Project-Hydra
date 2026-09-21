@@ -74,6 +74,7 @@ public class ConsultasDeSecretosMarcadasTests
         {
             "src/CaeManager.Application/Empresas/Queries/ObtenerCredencialAccesoEmpresa/ObtenerCredencialAccesoEmpresaQuery.cs",
             "src/CaeManager.Application/Subcontratas/Queries/ObtenerCredencialAccesoSubcontrata/ObtenerCredencialAccesoSubcontrataQuery.cs",
+            "src/CaeManager.Application/Centros/Queries/ObtenerCredencialCanalGestion/ObtenerCredencialCanalGestionQuery.cs",
         };
 
         var raiz = RaizDelRepositorio();

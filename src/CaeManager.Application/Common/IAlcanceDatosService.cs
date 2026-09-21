@@ -35,6 +35,19 @@ public interface IAlcanceDatosService
 
     Task<IReadOnlyList<Guid>?> ObtenerClienteIdsVisiblesAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Guid>?> ObtenerCentroIdsVisiblesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Los Centros sobre los que se <b>opera desde el lado de gestión CAE</b>:
+    /// igual que <see cref="ObtenerCentroIdsVisiblesAsync"/> salvo para el rol
+    /// Cliente (usuario de portal), que obtiene lista vacía. Mismo motivo que
+    /// <see cref="ObtenerEmpresaIdsParaGestionAsync"/> (REC-153): la cartera de
+    /// Centros se DERIVA de la de Clientes, así que a un contacto de una
+    /// empresa cliente externa le salen sus propios Centros. Para LEER su
+    /// estado eso es correcto; para un artefacto interno de gestión —el
+    /// usuario y la contraseña con los que se entra al portal de la Plataforma
+    /// CAE de un canal— no lo es.
+    /// </summary>
+    Task<IReadOnlyList<Guid>?> ObtenerCentroIdsParaGestionAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Guid>?> ObtenerEmpresaIdsVisiblesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>

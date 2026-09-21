@@ -183,11 +183,20 @@
                                     </span>
                                     @*
                                         Copiar lo que el canal sirve para pegar en otra
-                                        parte (el mockup: «Copiar dirección»). La
-                                        contraseña NO: este DTO no la trae, y DEC-53/DEC-62
-                                        exige que solo viaje tras una acción explícita en la
-                                        pantalla que la gobierna.
+                                        parte (el mockup: «Copiar dirección»). Usuario y
+                                        contraseña no vienen en este DTO: se piden al
+                                        servidor solo al pulsar (DEC-53/DEC-62) y no se
+                                        pintan. Decisión del propietario (2026-09-21):
+                                        clic explícito, como en Empresa, sin auditoría de
+                                        la lectura.
                                     *@
+                                    @if (canal.Tipo == TipoCanalGestion.Plataforma && canal.TieneCredenciales)
+                                    {
+                                        <span class="centro360-canal-detalle centro360-canal-credenciales">
+                                            <BotonCopiar ValorAsync="CopiarCredencial(canal.Id, false)" Etiqueta="el usuario" Texto="Copiar usuario" />
+                                            <BotonCopiar ValorAsync="CopiarCredencial(canal.Id, true)" Etiqueta="la contraseña" Texto="Copiar contraseña" />
+                                        </span>
+                                    }
                                     @if (!string.IsNullOrWhiteSpace(canal.EmailsDestinatarios))
                                     {
                                         <span class="centro360-canal-detalle">

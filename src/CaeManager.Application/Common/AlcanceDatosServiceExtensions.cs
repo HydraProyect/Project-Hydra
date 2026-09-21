@@ -51,6 +51,14 @@ public static class AlcanceDatosServiceExtensions
         return ids is null || ids.Contains(centroId);
     }
 
+    /// <summary>Alcance de gestión sobre un Centro concreto — ver <see cref="IAlcanceDatosService.ObtenerCentroIdsParaGestionAsync"/>.</summary>
+    public static async Task<bool> CentroParaGestionVisibleAsync(
+        this IAlcanceDatosService alcance, Guid centroId, CancellationToken cancellationToken = default)
+    {
+        var ids = await alcance.ObtenerCentroIdsParaGestionAsync(cancellationToken);
+        return ids is null || ids.Contains(centroId);
+    }
+
     public static async Task<bool> EmpresaVisibleAsync(
         this IAlcanceDatosService alcance, Guid empresaId, CancellationToken cancellationToken = default)
     {

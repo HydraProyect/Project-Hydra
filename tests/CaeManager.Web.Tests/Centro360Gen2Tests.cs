@@ -10,6 +10,7 @@ using CaeManager.Application.Asignaciones.Queries.ObtenerTrabajadoresVisitaSinAs
 using CaeManager.Application.Centros;
 using CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
+using CaeManager.Application.Centros.Queries.ObtenerCredencialCanalGestion;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
@@ -69,6 +70,8 @@ public class Centro360Gen2Tests : BunitContext
         public Dictionary<Guid, CentroListaDto> Resumenes { get; } = [];
         public Dictionary<Guid, List<VisitaResumenDto>> Visitas { get; } = [];
         public Dictionary<Guid, List<CanalGestionResumenDto>> Canales { get; } = [];
+        /// <summary>Credencial por (Centro, Canal): responde solo al par exacto, como la consulta real.</summary>
+        public Dictionary<(Guid CentroId, Guid CanalId), CredencialCanalGestionDto> Credenciales { get; } = [];
         public Dictionary<Guid, List<TrabajadorAsignacionDocumentacionDto>> Asignaciones { get; } = [];
         public Dictionary<Guid, List<TrabajadorSinAsignacionDto>> SinAsignacion { get; } = [];
         public Dictionary<Guid, List<DocumentoReclamableDto>> PorReclamar { get; } = [];
@@ -102,6 +105,7 @@ public class Centro360Gen2Tests : BunitContext
                 c => c,
                 c => (IReadOnlyList<VisitaResumenDto>)(Visitas.GetValueOrDefault(c) ?? [])),
             ObtenerCanalesGestionDeCentroQuery q => Canales.GetValueOrDefault(q.CentroId) ?? [],
+            ObtenerCredencialCanalGestionQuery q => Credenciales.GetValueOrDefault((q.CentroId, q.CanalId)),
             ObtenerLoteReclamacionQuery q => q.CentroId is { } id && PorReclamar.TryGetValue(id, out var docs)
                 ? new List<LoteReclamacionClienteDto> { new(Guid.NewGuid(), "Refrielectric S.A.", null, docs) }
                 : new List<LoteReclamacionClienteDto>(),
@@ -246,7 +250,8 @@ public class Centro360Gen2Tests : BunitContext
         enlace.GetAttribute("href").Should().Be("https://app.twind.io/login");
         enlace.GetAttribute("target").Should().Be("_blank");
         enlace.GetAttribute("rel").Should().Contain("noopener").And.Contain("noreferrer");
-        cut.FindAll(".boton-copiar").Should().BeEmpty("la dirección del portal ya no se copia");
+        cut.FindAll(".boton-copiar").Select(b => b.TextContent.Trim()).Should().BeEquivalentTo(
+            ["Copiar usuario", "Copiar contraseña"], "la dirección del portal ya no se copia: solo las credenciales");
     }
 
     /// <summary>La URL es texto libre: un esquema que no sea http(s) no puede llegar a un href.</summary>
@@ -264,6 +269,83 @@ public class Centro360Gen2Tests : BunitContext
         cut.Markup.Should().Contain("javascript:alert(1)", "el dato se sigue viendo, para poder corregirlo");
         cut.FindAll("a").Should().NotContain(a => (a.GetAttribute("href") ?? "").StartsWith("javascript", StringComparison.OrdinalIgnoreCase));
         cut.FindAll("a").Should().NotContain(a => a.TextContent.Contains("Abrir portal"));
+    }
+
+    // ── Canal de plataforma: copiar usuario y contraseña (clic explícito) ──
+
+    private (Guid CentroId, CanalGestionResumenDto Canal, MediatorFalso Mediador) CentroConCanal(CanalGestionResumenDto canal)
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        mediador.Resumenes[id] = Resumen(id, "Centro Norte");
+        mediador.Canales[id] = [canal];
+        return (id, canal, mediador);
+    }
+
+    /// <summary>DEC-53/DEC-62: abrir la pantalla no pide ni pinta la credencial; solo el clic.</summary>
+    [Fact]
+    public void Abrir_la_pantalla_no_pide_la_credencial_ni_la_pinta()
+    {
+        var (id, canal, mediador) = CentroConCanal(CanalPlataforma("app.twind.io"));
+        mediador.Credenciales[(id, canal.Id)] = new("usuario.secreto", "clave-secreta-123");
+
+        var cut = Renderizar(id);
+
+        mediador.Enviadas.OfType<ObtenerCredencialCanalGestionQuery>().Should().BeEmpty();
+        cut.Markup.Should().NotContain("usuario.secreto").And.NotContain("clave-secreta-123");
+    }
+
+    [Fact]
+    public void Un_canal_de_plataforma_sin_credenciales_no_ofrece_copiar_nada()
+    {
+        var (id, _, _) = CentroConCanal(CanalPlataforma("app.twind.io") with { TieneCredenciales = false });
+
+        Renderizar(id).FindAll(".boton-copiar").Should().BeEmpty("sin credenciales no hay nada que copiar");
+    }
+
+    [Fact]
+    public void Un_canal_de_correo_no_ofrece_copiar_usuario_ni_contrasena()
+    {
+        var correo = new CanalGestionResumenDto(Guid.NewGuid(), TipoCanalGestion.Email, "Gestión general", true, null, null,
+            null, "gestion@ejemplo.test", null, null, true, Guid.NewGuid());
+        var (id, _, _) = CentroConCanal(correo);
+
+        Renderizar(id).FindAll(".boton-copiar").Select(b => b.TextContent.Trim())
+            .Should().NotContain(["Copiar usuario", "Copiar contraseña"]);
+    }
+
+    [Theory]
+    [InlineData("Copiar usuario", "usuario.secreto")]
+    [InlineData("Copiar contraseña", "clave-secreta-123")]
+    public async Task El_clic_pide_la_credencial_del_canal_y_del_centro_y_la_manda_al_portapapeles(string boton, string esperado)
+    {
+        var (id, canal, mediador) = CentroConCanal(CanalPlataforma("app.twind.io"));
+        mediador.Credenciales[(id, canal.Id)] = new("usuario.secreto", "clave-secreta-123");
+        var modulo = JSInterop.SetupModule("./js/clipboard.js");
+        modulo.SetupVoid("copiarAlPortapapeles", _ => true).SetVoidResult();
+        var cut = Renderizar(id);
+
+        await cut.FindAll(".boton-copiar").Single(b => b.TextContent.Trim() == boton).ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<ObtenerCredencialCanalGestionQuery>().Should().ContainSingle()
+            .Which.Should().Be(new ObtenerCredencialCanalGestionQuery(id, canal.Id));
+        modulo.VerifyInvoke("copiarAlPortapapeles").Arguments.Should().Equal(esperado);
+        cut.Markup.Should().NotContain(esperado, "el valor va al portapapeles, no a la pantalla");
+    }
+
+    [Fact]
+    public async Task Sin_credencial_guardada_el_clic_avisa_y_no_copia()
+    {
+        var (id, _, mediador) = CentroConCanal(CanalPlataforma("app.twind.io"));
+        var modulo = JSInterop.SetupModule("./js/clipboard.js");
+        modulo.SetupVoid("copiarAlPortapapeles", _ => true).SetVoidResult();
+        var cut = Renderizar(id);
+
+        await cut.FindAll(".boton-copiar").Single(b => b.TextContent.Trim() == "Copiar contraseña").ClickAsync(new MouseEventArgs());
+
+        modulo.Invocations.Should().BeEmpty("no había nada que copiar");
+        Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(t => t.Mensaje.Contains("No hay ninguna contraseña"));
     }
 
     // ── El mockup ─────────────────────────────────────────────────────────

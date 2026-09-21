@@ -1,6 +1,7 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
+using CaeManager.Application.Centros.Queries.ObtenerCredencialCanalGestion;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
 using CaeManager.Application.Visitas.Queries.ObtenerProximaVisitaPorCentro;
@@ -43,6 +44,7 @@ public partial class CentroDetalle : ComponentBase, IDisposable
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ContextWorkspaceService WorkspaceService { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject] private ToastService ToastService { get; set; } = default!;
 
     private CentroDetalleDto? _detalle;
     private CentroListaDto? _resumen;
@@ -259,6 +261,28 @@ public partial class CentroDetalle : ComponentBase, IDisposable
                 _cargando = false;
         }
     }
+
+    /// <summary>
+    /// Copia de una credencial del canal (DEC-53/DEC-62): la petición al servidor
+    /// solo se hace en el momento del clic explícito, nunca al abrir la página, y
+    /// el valor no se pinta — va del servidor al portapapeles. La consulta está
+    /// marcada como de secretos y usa el alcance de GESTIÓN del Centro.
+    /// </summary>
+    private Func<Task<string?>> CopiarCredencial(Guid canalId, bool contrasena) => async () =>
+    {
+        var centroId = CentroId;
+        var credencial = await Mediator.Send(new ObtenerCredencialCanalGestionQuery(centroId, canalId), _cancelacion);
+        if (centroId != CentroId) return null;
+
+        var valor = contrasena ? credencial?.Contrasena : credencial?.Usuario;
+        if (string.IsNullOrEmpty(valor))
+        {
+            ToastService.Mostrar(contrasena ? "No hay ninguna contraseña guardada." : "No hay ningún usuario guardado.", TonoToast.Info);
+            return null;
+        }
+
+        return valor;
+    };
 
     /// <summary>Aparte del resto: "Canales de gestión" es contexto de la barra lateral, no debe bloquear el render de la cabecera ni del cuerpo si tarda o falla.</summary>
     private async Task CargarCanalesAsync()

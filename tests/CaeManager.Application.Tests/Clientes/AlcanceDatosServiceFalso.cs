@@ -6,7 +6,8 @@ public class AlcanceDatosServiceFalso(
     bool tieneAccesoTotal = true, IReadOnlyList<Guid>? clienteIdsVisibles = null, IReadOnlyList<Guid>? trabajadorIdsVisibles = null,
     bool conexionIntegracionVisible = true, IReadOnlyList<Guid>? empresaIdsVisibles = null, IReadOnlyList<Guid>? centroIdsVisibles = null,
     IReadOnlyList<Guid>? subcontrataIdsVisibles = null, IReadOnlyList<Guid>? conexionesIntegracionAjenas = null,
-    IReadOnlyList<Guid>? empresaIdsParaGestion = null, IReadOnlyList<Guid>? subcontrataIdsParaGestion = null)
+    IReadOnlyList<Guid>? empresaIdsParaGestion = null, IReadOnlyList<Guid>? subcontrataIdsParaGestion = null,
+    IReadOnlyList<Guid>? centroIdsParaGestion = null)
     : IAlcanceDatosService
 {
     public Task<bool> TieneAccesoTotalAsync(CancellationToken cancellationToken = default) => Task.FromResult(tieneAccesoTotal);
@@ -17,6 +18,10 @@ public class AlcanceDatosServiceFalso(
     /// <summary>Por defecto null (sin restricción), igual que antes de que este parámetro existiera — solo lo controla el test que lo pase explícitamente.</summary>
     public Task<IReadOnlyList<Guid>?> ObtenerCentroIdsVisiblesAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(tieneAccesoTotal ? null : centroIdsVisibles ?? []);
+
+    /// <summary>Por defecto igual que el alcance de lectura: solo el test que simule a un usuario de portal pasa <c>centroIdsParaGestion</c> vacío.</summary>
+    public Task<IReadOnlyList<Guid>?> ObtenerCentroIdsParaGestionAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(centroIdsParaGestion ?? (tieneAccesoTotal ? null : centroIdsVisibles ?? []));
 
     /// <summary>Por defecto null (sin restricción), igual que antes de que este parámetro existiera — solo lo controla el test que lo pase explícitamente.</summary>
     public Task<IReadOnlyList<Guid>?> ObtenerEmpresaIdsVisiblesAsync(CancellationToken cancellationToken = default) =>
