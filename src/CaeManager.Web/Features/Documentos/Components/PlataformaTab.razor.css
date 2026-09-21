@@ -91,6 +91,14 @@
     cursor: help;
 }
 
+/* Estado de la vigencia en la plataforma, junto al botón que lo corrige. Es
+   texto secundario: lo que se acciona es el botón, esto solo dice qué hay. */
+.plataforma-vigencia {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
 .plataforma-documento-acciones {
     flex: none;
     display: flex;

@@ -152,6 +152,20 @@ public class CalculoEstadoCentroService(
         IReadOnlyList<Guid> centroIds, DateOnly hoy,
         Dictionary<Guid, List<CausaEstadoCentro>> causasPorCentro, CancellationToken cancellationToken)
     {
+        // Un documento de Trabajador solo cuenta si ese Trabajador sigue
+        // asignado al Centro: la acreditación sobrevive a la baja, y sin este
+        // filtro una vigencia vencida bloquearía un Centro por alguien que ya
+        // no trabaja ahí. Es el mismo criterio que usa el resto del cálculo de
+        // documentos de Trabajador; los de Empresa no dependen de asignaciones.
+        var asignacionesActivas = await asignacionesContext.Asignaciones
+            .Where(a => a.FechaBaja == null && centroIds.Contains(a.CentroId))
+            .Select(a => new { a.CentroId, a.TrabajadorId })
+            .ToListAsync(cancellationToken);
+
+        var trabajadoresPorCentro = asignacionesActivas
+            .GroupBy(a => a.CentroId)
+            .ToDictionary(g => g.Key, g => g.Select(a => a.TrabajadorId).ToHashSet());
+
         var vencidasEnPlataforma = await (
             from acreditacion in documentosContext.AcreditacionesDocumentoPlataforma
             where acreditacion.EstadoVigencia == EstadoVigenciaEnPlataforma.VenceEnFecha
@@ -178,6 +192,11 @@ public class CalculoEstadoCentroService(
         foreach (var fila in vencidasEnPlataforma)
         {
             if (!causasPorCentro.TryGetValue(fila.CentroId, out var causas)) continue;
+
+            if (fila.TrabajadorId is { } trabajadorId
+                && !(trabajadoresPorCentro.TryGetValue(fila.CentroId, out var asignados)
+                     && asignados.Contains(trabajadorId)))
+                continue;
 
             causas.Add(new CausaEstadoCentro(
                 $"{fila.TipoDocumentoNombre} — vencido en la plataforma",

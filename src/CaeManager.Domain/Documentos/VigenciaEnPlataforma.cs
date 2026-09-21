@@ -57,7 +57,13 @@ public readonly record struct VigenciaEnPlataforma
             EstadoVigenciaEnPlataforma.SinConfirmar when fechaVencimiento is not null =>
                 throw new InvalidOperationException(
                     "Una vigencia 'sin confirmar' con fecha es contradictoria: si hay fecha, alguien la confirmó."),
-            _ => SinConfirmar
+            EstadoVigenciaEnPlataforma.SinConfirmar => SinConfirmar,
+            // Un entero que no es ninguno de los tres estados no es "sin
+            // confirmar": es una fila corrupta. Degradarla en silencio la haría
+            // además NO bloqueante en el semáforo del Centro, que es el peor
+            // sitio posible para tragarse un dato ininteligible.
+            _ => throw new InvalidOperationException(
+                $"Estado de vigencia en plataforma no reconocido: {(int)estado}.")
         };
 
     /// <summary>

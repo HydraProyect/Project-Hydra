@@ -6,6 +6,7 @@
     esos 14 documentos ni marcarlos — solo el recuento existía.
     Proveedor → Cliente → Documento, con las tres acciones reales del mockup.
 *@
+@using CaeManager.Application.Documentos.Commands.ConfirmarVigenciaAcreditacion
 @using CaeManager.Application.Documentos.Commands.MarcarAcreditacionAceptada
 @using CaeManager.Application.Documentos.Commands.MarcarAcreditacionRechazada
 @using CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida
@@ -72,19 +73,32 @@ else
                                     }
                                 </span>
                                 <span class="plataforma-documento-acciones">
-                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
-                                           Cargando="@(_procesando == documento.AcreditacionId)"
-                                           OnClick="() => MarcarSubidoAsync(documento.AcreditacionId)">
-                                        Marcar subido
-                                    </Boton>
-                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
-                                           Cargando="@(_procesando == documento.AcreditacionId)"
-                                           OnClick="() => MarcarAceptadoAsync(documento.AcreditacionId)">
-                                        Marcar aceptado
-                                    </Boton>
-                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirRechazo(documento.AcreditacionId)">
-                                        Marcar rechazado…
-                                    </Boton>
+                                    @* Una acreditación aceptada ya no se sube ni se
+                                       acepta otra vez: lo único que queda por hacer con
+                                       ella es decir hasta cuándo vale en la plataforma. *@
+                                    @if (documento.Estado == EstadoAcreditacion.Aceptada)
+                                    {
+                                        <span class="plataforma-vigencia">@TextoVigencia(documento)</span>
+                                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                               OnClick="() => AbrirVigencia(documento.AcreditacionId)">
+                                            Anotar vigencia…
+                                        </Boton>
+                                    }
+                                    else
+                                    {
+                                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                               Cargando="@(_procesando == documento.AcreditacionId)"
+                                               OnClick="() => MarcarSubidoAsync(documento.AcreditacionId)">
+                                            Marcar subido
+                                        </Boton>
+                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                               OnClick="() => MarcarAceptadoAsync(documento.AcreditacionId)">
+                                            Marcar aceptado
+                                        </Boton>
+                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirRechazo(documento.AcreditacionId)">
+                                            Marcar rechazado…
+                                        </Boton>
+                                    }
                                 </span>
                             </div>
                         }
@@ -95,7 +109,7 @@ else
     </div>
 }
 
-<Modal Visible="_vigenciaVisible" VisibleChanged="v => _vigenciaVisible = v" Titulo="Marcar como aceptado" CerrarAlHacerClicFuera="!_confirmandoVigencia">
+<Modal Visible="_vigenciaVisible" VisibleChanged="v => _vigenciaVisible = v" Titulo="@(_soloVigencia ? "Anotar vigencia" : "Marcar como aceptado")" CerrarAlHacerClicFuera="!_confirmandoVigencia">
     <ChildContent>
         @* Se pregunta aquí, y no en una pantalla aparte, porque este es el
            momento en que el Gestor CAE lo sabe: acaba de mirar la plataforma.
@@ -117,7 +131,7 @@ else
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_confirmandoVigencia" OnClick="() => _vigenciaVisible = false">Cancelar</Boton>
-        <Boton Cargando="_confirmandoVigencia" OnClick="ConfirmarAceptadoAsync">Marcar aceptado</Boton>
+        <Boton Cargando="_confirmandoVigencia" OnClick="ConfirmarAceptadoAsync">@(_soloVigencia ? "Guardar vigencia" : "Marcar aceptado")</Boton>
     </Pie>
 </Modal>
 
@@ -145,6 +159,7 @@ else
     private Guid? _procesando;
 
     private bool _vigenciaVisible;
+    private bool _soloVigencia;
     private bool _confirmandoVigencia;
     private Guid _acreditacionIdVigencia;
     private string _estadoVigencia = nameof(EstadoVigenciaEnPlataforma.VenceEnFecha);
@@ -168,7 +183,10 @@ else
 
         try
         {
-            _proveedores = await Mediator.Send(new ObtenerAcreditacionesPorProveedorQuery());
+            // Se piden además las aceptadas cuya vigencia falta por confirmar o
+            // ya venció: si no, desaparecen de aquí en cuanto se aceptan y su
+            // vigencia no se puede corregir en ninguna pantalla.
+            _proveedores = await Mediator.Send(new ObtenerAcreditacionesPorProveedorQuery(IncluirAceptadasPorConfirmar: true));
         }
         catch (Exception)
         {
@@ -204,14 +222,27 @@ else
         await CargarAsync();
     }
 
-    private void MarcarAceptadoAsync(Guid acreditacionId)
+    private void MarcarAceptadoAsync(Guid acreditacionId) => AbrirModalVigencia(acreditacionId, yaAceptada: false);
+
+    private void AbrirVigencia(Guid acreditacionId) => AbrirModalVigencia(acreditacionId, yaAceptada: true);
+
+    private void AbrirModalVigencia(Guid acreditacionId, bool yaAceptada)
     {
         _acreditacionIdVigencia = acreditacionId;
+        _soloVigencia = yaAceptada;
         _estadoVigencia = nameof(EstadoVigenciaEnPlataforma.VenceEnFecha);
         _fechaVigencia = string.Empty;
         _errorVigencia = null;
         _vigenciaVisible = true;
     }
+
+    private static string TextoVigencia(AcreditacionDrillDownDto documento) => documento.EstadoVigencia switch
+    {
+        EstadoVigenciaEnPlataforma.VenceEnFecha =>
+            $"Venció el {documento.FechaVencimientoEnPlataforma:dd/MM/yyyy} en esta plataforma",
+        EstadoVigenciaEnPlataforma.NoVenceAqui => "Aquí no caduca",
+        _ => "Falta confirmar hasta cuándo vale aquí"
+    };
 
     private async Task ConfirmarAceptadoAsync()
     {
@@ -228,7 +259,13 @@ else
         }
 
         _confirmandoVigencia = true;
-        var resultado = await Mediator.Send(new MarcarAcreditacionAceptadaCommand(_acreditacionIdVigencia, vigencia.Value));
+        // Dos comandos porque son dos cosas distintas: una acredita el documento
+        // en la plataforma, la otra solo corrige un dato de una acreditación que
+        // ya estaba aceptada. Mezclarlas volvería a marcar como aceptada algo que
+        // ya lo estaba, escribiendo un hecho que no ha ocurrido.
+        var resultado = _soloVigencia
+            ? await Mediator.Send(new ConfirmarVigenciaAcreditacionCommand(_acreditacionIdVigencia, vigencia.Value))
+            : await Mediator.Send(new MarcarAcreditacionAceptadaCommand(_acreditacionIdVigencia, vigencia.Value));
         _confirmandoVigencia = false;
 
         if (resultado.EsFallido)
@@ -241,18 +278,23 @@ else
         // El aviso dice qué se ha guardado, no solo que se guardó algo: esta
         // pantalla lista lo que falta subir, así que en cuanto se marca aceptado
         // la fila desaparece y el Gestor CAE no tiene dónde volver a mirarlo.
-        ToastService.Mostrar(TextoDeLoGuardado(vigencia.Value), TonoToast.Exito);
+        ToastService.Mostrar(TextoDeLoGuardado(vigencia.Value, _soloVigencia), TonoToast.Exito);
         await CargarAsync();
     }
 
-    private static string TextoDeLoGuardado(VigenciaEnPlataforma vigencia) => vigencia.Estado switch
+    private static string TextoDeLoGuardado(VigenciaEnPlataforma vigencia, bool soloVigencia)
     {
-        EstadoVigenciaEnPlataforma.VenceEnFecha =>
-            $"Marcado como aceptado. Vale hasta el {vigencia.FechaVencimiento:dd/MM/yyyy} en esta plataforma.",
-        EstadoVigenciaEnPlataforma.NoVenceAqui =>
-            "Marcado como aceptado. En esta plataforma no caduca.",
-        _ => "Marcado como aceptado. Queda pendiente confirmar hasta cuándo vale aquí."
-    };
+        var encabezado = soloVigencia ? "Vigencia anotada." : "Marcado como aceptado.";
+
+        return vigencia.Estado switch
+        {
+            EstadoVigenciaEnPlataforma.VenceEnFecha =>
+                $"{encabezado} Vale hasta el {vigencia.FechaVencimiento:dd/MM/yyyy} en esta plataforma.",
+            EstadoVigenciaEnPlataforma.NoVenceAqui =>
+                $"{encabezado} En esta plataforma no caduca.",
+            _ => $"{encabezado} Queda pendiente confirmar hasta cuándo vale aquí."
+        };
+    }
 
     private VigenciaEnPlataforma? VigenciaElegida()
     {
