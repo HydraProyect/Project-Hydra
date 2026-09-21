@@ -36,12 +36,13 @@ public class GateNivel0EnDeteccionesDeIngestaTests
     private static readonly Guid TenantId = Guid.NewGuid();
 
     /// <summary>
-    /// El Cliente del correo. Los dobles de los tests «sin instrucción vigente» traen
-    /// datos que casan con él a propósito: con las colecciones vacías, el servicio se
-    /// paraba por su propia regla («sin Centros no hay nada que sugerir») antes de
-    /// llegar al proveedor, de modo que al quitar el gate el rojo lo producía el
-    /// contador de consultas y no la llamada al proveedor. El test decía observar una
-    /// cosa y observaba otra.
+    /// El Cliente CAE del correo — <c>Centro.ClienteId</c>, rol de la Empresa contraparte
+    /// dentro de este Tenant; no el Cliente comercial TALVEG. Los dobles de los tests «sin
+    /// instrucción vigente» traen datos que casan con él a propósito: con las colecciones
+    /// vacías, el servicio se paraba por su propia regla («sin Centros no hay nada que
+    /// sugerir») antes de llegar al proveedor, de modo que al quitar el gate el rojo lo
+    /// producía el contador de consultas y no la llamada al proveedor. El test decía
+    /// observar una cosa y observaba otra.
     /// </summary>
     private static readonly Guid ClienteId = Guid.NewGuid();
 
@@ -286,7 +287,11 @@ public class GateNivel0EnDeteccionesDeIngestaTests
             throw new InvalidOperationException("Sin detección no puede crearse ninguna sugerencia.");
     }
 
-    /// <summary>Cuenta accesos y devuelve vacío: el servicio se para solo después, por su propia regla.</summary>
+    /// <summary>
+    /// Cuenta accesos y devuelve los Centros que se le pasen al construirla — vacía por
+    /// defecto en los tests que no necesitan pasar del gate, con un Centro real en los
+    /// que sí (ver <see cref="CentroDelCliente"/>).
+    /// </summary>
     private sealed class CentrosQueryContextEspia(params Centro[] centros) : ICentrosQueryContext
     {
         public int Consultas { get; private set; }
