@@ -37,6 +37,9 @@ public static class AcreditacionesPendientesEndpoints
         // relaja nada — el alcance por cartera lo sigue imponiendo
         // IAlcanceDatosService dentro de la query con el rol real de quien
         // pide, que para la extensión es el del usuario que emitió el token.
+        // Es alcance de GESTIÓN (ObtenerCentroIdsParaGestionAsync): la respuesta
+        // lleva el NIF del Trabajador, así que un rol Cliente —que sí pasa la
+        // política por ser sesión interactiva— recibe la lista vacía.
         .RequireAuthorization(Policies.SesionOExtension);
 
         return endpoints;

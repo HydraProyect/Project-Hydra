@@ -90,7 +90,13 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
     public async Task<IReadOnlyList<ProveedorAcreditacionesDto>> Handle(
         ObtenerAcreditacionesPorProveedorQuery request, CancellationToken cancellationToken)
     {
-        var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
+        // Alcance de GESTIÓN, no de lectura: esta consulta lleva el NIF del
+        // Trabajador y es el artefacto interno con el que el Gestor CAE sube a
+        // la plataforma del cliente. El alcance de lectura le daría al rol
+        // Cliente (usuario de portal) los Centros de su propio Cliente y, con
+        // ellos, el DNI de los Trabajadores de las contratistas — ver
+        // ObtenerCentroIdsParaGestionAsync (REC-153).
+        var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsParaGestionAsync(cancellationToken);
         var incluirAceptadas = request.IncluirAceptadas;
         var incluirSubidas = request.IncluirSubidas;
 
