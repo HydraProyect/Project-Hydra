@@ -367,10 +367,36 @@ jobs:
         run: dotnet format CaeManager.slnx --no-restore --verify-no-changes
 
 
+  extension-arneses:
+    name: Arneses de la extensión de navegador
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # Se usa el Node que ya trae el runner en vez de instalar uno: estos
+      # guiones no tienen dependencias, solo leen el fuente de la extensión y
+      # simulan lo justo del DOM. La versión queda en el log para que un fallo
+      # por cambio de runtime sea legible.
+      - name: Versión de Node del runner
+        run: node --version
+
+      # Cada guion lleva su propio control positivo, porque un arnés roto da
+      # todo verde: el de content.js comprueba que es capaz de ver una
+      # inyección de verdad, y el de background.js que el decodificador no
+      # devuelve null siempre.
+      - name: content.js — el documento va al campo que se pulsó
+        run: node extension/pruebas/comprobar-content-extension.mjs extension/content.js
+
+      - name: background.js — la subida se entrega a la pestaña que la pidió
+        run: node extension/pruebas/comprobar-enrutado-subida.mjs extension/background.js
+
+      - name: background.js — el código de conexión que empaqueta el C# se lee aquí
+        run: node extension/pruebas/comprobar-codigo-conexion.mjs extension/background.js
+
   build-and-test:
     name: Build, format y tests
     runs-on: ubuntu-latest
-    needs: [compilacion-y-unitarios, formato, tests-integracion, bunit-tests]
+    needs: [compilacion-y-unitarios, formato, tests-integracion, bunit-tests, extension-arneses]
     # SIEMPRE se ejecuta, incluso si sus dependencias fallan. No es un detalle:
     # un job que se salta reporta su check como "skipped", y la proteccion de
     # rama trata un check obligatorio omitido como aprobado. Sin esto, un bloque
@@ -387,10 +413,12 @@ jobs:
           compilacion="${{ needs.compilacion-y-unitarios.result }}"
           integracion="${{ needs.tests-integracion.result }}"
           formato="${{ needs.formato.result }}"
+          extension="${{ needs.extension-arneses.result }}"
           echo "Compilación y tests unitarios: $compilacion"
           echo "Tests de integración (4 bloques): $integracion"
           echo "Verificar formato: $formato"
-          if [ "$compilacion" != "success" ] || [ "$formato" != "success" ] || [ "$integracion" != "success" ]; then
+          echo "Arneses de la extensión: $extension"
+          if [ "$compilacion" != "success" ] || [ "$formato" != "success" ] || [ "$integracion" != "success" ] || [ "$extension" != "success" ]; then
             echo "::error::Una dependencia no termino en success. Este check obligatorio falla a proposito en vez de quedarse sin ejecutar, porque un check obligatorio omitido cuenta como aprobado."
             exit 1
           fi
