@@ -129,6 +129,9 @@ function inyectarEnInput(input, archivo) {
 
 let anfitrionPanel = null;
 let raizPanel = null;
+// Se guarda para poder escribir en el panel abierto desde fuera de abrirPanel,
+// que es lo que hace falta cuando la conexión se pierde con el panel delante.
+let cuerpoPanel = null;
 
 const ESTILOS_PANEL = `
   :host { all: initial; }
@@ -169,6 +172,23 @@ function cerrarPanel() {
   anfitrionPanel?.remove();
   anfitrionPanel = null;
   raizPanel = null;
+  cuerpoPanel = null;
+}
+
+// La conexión se ha perdido con el panel abierto. No se cierra: el clic que lo
+// abrió ya se gastó, así que cerrarlo dejaría al Gestor CAE delante de un campo
+// que no reacciona. Se vacía la lista —esos documentos ya no se pueden bajar— y
+// se le deja escrito qué pasó, con «Buscar en mi equipo» intacto en el pie.
+function avisarEnPanelDeConexionPerdida() {
+  if (!anfitrionPanel || !cuerpoPanel) return;
+
+  cuerpoPanel.replaceChildren();
+  const aviso = document.createElement("p");
+  aviso.className = "aviso";
+  aviso.textContent =
+    "Se perdió la conexión con TALVEG. Vuelve a conectar la extensión desde su icono, " +
+    "o busca el archivo en tu equipo.";
+  cuerpoPanel.appendChild(aviso);
 }
 
 function abrirPanel(campo) {
@@ -209,6 +229,7 @@ function abrirPanel(campo) {
   cargando.textContent = "Buscando tus documentos pendientes…";
   cuerpo.appendChild(cargando);
   panel.appendChild(cuerpo);
+  cuerpoPanel = cuerpo;
 
   const pie = document.createElement("footer");
   const botonEquipo = document.createElement("button");
@@ -376,7 +397,13 @@ chrome.runtime.onMessage.addListener((mensaje, _remitente, enviarRespuesta) => {
     // El aviso manda sobre cualquier consulta en vuelo: invalida su sello.
     selloDeConexion++;
     hayConexion = Boolean(mensaje.conectado);
-    if (!hayConexion) cerrarPanel();
+
+    // Al perder la conexión no se cierra el panel abierto. El clic que lo abrió
+    // ya se consumió —el explorador del sistema no llegó a salir—, así que
+    // cerrarlo de golpe dejaría al Gestor CAE sin panel y sin explorador,
+    // mirando un campo que no responde. Se le dice qué ha pasado y se le deja
+    // la salida «Buscar en mi equipo», que sigue en el pie.
+    if (!hayConexion) avisarEnPanelDeConexionPerdida();
     enviarRespuesta({ ok: true });
     return true;
   }

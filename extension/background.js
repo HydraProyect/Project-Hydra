@@ -136,7 +136,15 @@ async function conectarManual({ codigo }) {
 
 async function peticionAutenticada(ruta, opciones = {}) {
   const { hydraUrl, token, conectado } = await obtenerConexion();
-  if (!conectado) return { ok: false, error: "No hay una conexión activa con Hydra. Vuelve a conectar." };
+  if (!conectado) {
+    // No basta con devolver el error: si había algo guardado y lo que pasa es
+    // que caducó, hay que limpiarlo y avisar a las pestañas. Sin esto, una
+    // pestaña del portal abierta desde antes se queda creyendo que hay conexión
+    // y sigue interceptando cada clic en un campo de archivo para abrir un
+    // panel que ya no puede listar nada.
+    await desconectar();
+    return { ok: false, error: "No hay una conexión activa con Hydra. Vuelve a conectar." };
+  }
 
   let respuesta;
   try {
@@ -198,19 +206,29 @@ function arrayBufferABase64(buffer) {
 // por gesto de usuario (un "subir todos", un reintento automático en bucle...):
 // es la base del argumento "lo hace el gestor, no un bot" frente a las
 // plataformas externas.
-async function subirDocumento({ documentoId, acreditacionId, nombreArchivo }) {
+async function subirDocumento({ documentoId, acreditacionId, nombreArchivo }, pestanaQueLoPidio) {
   const descarga = await peticionAutenticada(`/documentos/${documentoId}/archivo`);
   if (!descarga.ok) return descarga;
   if (!descarga.respuesta.ok) return { ok: false, error: `No pudimos descargar el PDF de Hydra (${descarga.respuesta.status}).` };
 
   const base64 = arrayBufferABase64(await descarga.respuesta.arrayBuffer());
 
-  const [pestana] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!pestana?.id) return { ok: false, error: "No hay ninguna pestaña activa donde inyectar el archivo." };
+  // Cuando la petición nace del panel del content script, el archivo va a ESA
+  // pestaña, no a la que esté activa cuando termine la descarga. El PDF tarda,
+  // y en ese rato el Gestor CAE puede cambiar de pestaña: con la pestaña activa
+  // el documento acabaría en otro portal que también tuviera un campo elegido,
+  // la respuesta sería `ok` y TALVEG marcaría la acreditación como subida. El
+  // mismo error que este incremento vino a cerrar, un nivel más arriba.
+  // El popup no tiene pestaña propia (`remitente.tab` es undefined), así que
+  // para él sigue valiendo la activa: es la que el Gestor está mirando mientras
+  // el popup está abierto.
+  const idPestana =
+    pestanaQueLoPidio ?? (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id;
+  if (!idPestana) return { ok: false, error: "No hay ninguna pestaña activa donde inyectar el archivo." };
 
   let respuestaContenido;
   try {
-    respuestaContenido = await chrome.tabs.sendMessage(pestana.id, {
+    respuestaContenido = await chrome.tabs.sendMessage(idPestana, {
       accion: "inyectarArchivo",
       base64,
       nombreArchivo: nombreArchivo || "documento.pdf",
@@ -249,14 +267,14 @@ async function subirDocumento({ documentoId, acreditacionId, nombreArchivo }) {
   return { ok: true };
 }
 
-chrome.runtime.onMessage.addListener((mensaje, _remitente, enviarRespuesta) => {
+chrome.runtime.onMessage.addListener((mensaje, remitente, enviarRespuesta) => {
   const manejadores = {
     obtenerConexion: () => obtenerConexion(),
     conectar: (m) => conectar(m.hydraUrl, m.token, m.expiraEnUtc),
     conectarManual: (m) => conectarManual(m),
     desconectar: () => desconectar(),
     listarPendientes: () => listarPendientes(),
-    subirDocumento: (m) => subirDocumento(m),
+    subirDocumento: (m) => subirDocumento(m, remitente?.tab?.id),
   };
 
   const manejador = manejadores[mensaje?.accion];
