@@ -235,6 +235,30 @@ public class WebAppFixture : IAsyncLifetime
         }
     }
 
+    /// <summary>
+    /// Escribe directamente en la base de esta instancia, con la cadena de
+    /// conexión de la propia fixture. Solo para poner una cuenta de prueba en
+    /// un estado que la interfaz no permite fabricar (contraseña temporal sin
+    /// cambiar, Administrador sin 2FA).
+    /// </summary>
+    public async Task EjecutarSqlAsync(string sql, string parametro, string valor)
+    {
+        var filas = await EjecutarSqlAsync(sql, (parametro, valor));
+        Assert.Equal(1, filas);
+    }
+
+    /// <summary>Devuelve las filas afectadas; quien llama decide cuántas espera.</summary>
+    public async Task<int> EjecutarSqlAsync(string sql, params (string Nombre, string Valor)[] parametros)
+    {
+        await using var conexion = new Npgsql.NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = sql;
+        foreach (var (nombre, valor) in parametros)
+            comando.Parameters.AddWithValue(nombre, valor);
+        return await comando.ExecuteNonQueryAsync();
+    }
+
     public async Task DisposeAsync()
     {
         if (Browser is not null)
@@ -402,3 +426,24 @@ public class AppCollectionRetencion : ICollectionFixture<WebAppFixtureConRetenci
 public class AppCollectionSoporte : ICollectionFixture<WebAppFixtureParaSoporte>;
 
 public sealed class WebAppFixtureParaSoporte : WebAppFixture;
+
+
+/// <summary>Instancia propia: los tests de cuenta a medio activar dejan cuentas de prueba en ese estado.</summary>
+[CollectionDefinition("AppCollectionCuentaAMedioActivar")]
+public class AppCollectionCuentaAMedioActivar : ICollectionFixture<WebAppFixtureCuentaAMedioActivar>;
+
+public sealed class WebAppFixtureCuentaAMedioActivar : WebAppFixture;
+
+/// <summary>
+/// Instancia propia con la revalidación del circuito a 2 s (60 s por defecto):
+/// el aviso de «la ventana de soporte terminó» dentro de un circuito ya abierto
+/// depende de ese ciclo, y esperar un minuto por comprobación no cabe en E2E.
+/// </summary>
+[CollectionDefinition("AppCollectionVentanaSoporte")]
+public class AppCollectionVentanaSoporte : ICollectionFixture<WebAppFixtureVentanaSoporte>;
+
+public sealed class WebAppFixtureVentanaSoporte : WebAppFixture
+{
+    protected override IReadOnlyDictionary<string, string> VariablesDeEntornoAdicionales() =>
+        new Dictionary<string, string> { ["Circuit__RevalidacionIntervaloSegundos"] = "2" };
+}

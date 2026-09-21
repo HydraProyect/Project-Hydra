@@ -10,4 +10,10 @@
 
 <PageTitle>Acceso denegado — @Marca.Nombre</PageTitle>
 
+@* Recargar tras terminar una ventana de soporte cae aquí: la sección que se
+   pedía ya no es de tu rol al volver a tu organización principal. Sin esta
+   franja no había forma de saber que la causa era la ventana, no un permiso
+   quitado. Solo aparece en esa petición (ver AvisoFinDeAccesoEstatico). *@
+<AvisoFinDeAccesoEstatico />
+
 <PaginaEstadoSistema Tipo="TipoEstadoSistema.AccesoDenegado" />

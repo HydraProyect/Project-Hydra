@@ -1,0 +1,29 @@
+@using CaeManager.Web.Services
+@inject IHttpContextAccessor HttpContextAccessor
+
+@*
+    Cuenta, en la respuesta que lo provoca, que el Workspace operativo derivado
+    que tenías seleccionado se ha retirado y has vuelto a tu organización
+    principal (ventana de soporte terminada, delegación revocada...). Sin esto
+    el cambio era mudo: tras recargar, el selector volvía a «Organización
+    principal» sin una palabra.
+
+    SSR estático, sin @rendermode, a propósito: lo que lo alimenta es
+    HttpContext.Items de esta misma petición (lo deja
+    el middleware de revalidación), que un componente interactivo ya no
+    ve cuando el circuito se reinicializa. El aviso del circuito ya abierto lo
+    da AvisoVentanaSoporte.
+*@
+@if (_motivo is { } motivo)
+{
+    <div class="aviso-fin-de-acceso" role="status">
+        @AvisoFinDeAcceso.Texto(motivo)
+    </div>
+}
+
+@code {
+    private MotivoFinDeAcceso? _motivo;
+
+    protected override void OnInitialized() =>
+        _motivo = HttpContextAccessor.HttpContext?.Items[AvisoFinDeAcceso.ClaveItems] as MotivoFinDeAcceso?;
+}

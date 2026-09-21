@@ -1,0 +1,10 @@
+/* Franja de un solo uso tras perder el Workspace operativo derivado. Tono de
+   advertencia, no de error: no ha fallado nada, ha terminado un acceso. */
+.aviso-fin-de-acceso {
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-warning-500);
+    color: #1a1206;
+    font: var(--font-body-sm);
+    font-weight: 600;
+    text-align: center;
+}

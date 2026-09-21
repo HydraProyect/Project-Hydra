@@ -1,4 +1,6 @@
 using CaeManager.Infrastructure.Identity;
+using System.Security.Claims;
+using Microsoft.AspNetCore.StaticAssets;
 
 namespace CaeManager.Web.Services;
 
@@ -39,6 +41,16 @@ namespace CaeManager.Web.Services;
 /// desbloqueo es inmediato. Un claim rancio se equivoca hacia seguir exigiendo,
 /// nunca hacia dejar pasar.
 /// </para>
+///
+/// <para>
+/// <b>Qué se sirve y adónde se redirige.</b> Los estáticos de <c>wwwroot</c> no
+/// se bloquean (son los de la pantalla que hay que rellenar y ya se sirven sin
+/// sesión), y la navegación se redirige a la pantalla que resuelve lo pendiente:
+/// «Cambiar contraseña» si hay contraseña temporal, «Configurar 2FA» si solo
+/// falta la 2FA. El destino sale de <c>activacion_pendiente</c>, una pista de
+/// pantalla que no autoriza nada; la decisión de bloquear sigue siendo
+/// <c>requiere_activacion</c>.
+/// </para>
 /// </summary>
 public class CuentaAMedioActivarSinAccesoMiddleware(RequestDelegate siguiente)
 {
@@ -67,7 +79,7 @@ public class CuentaAMedioActivarSinAccesoMiddleware(RequestDelegate siguiente)
             // con un 403 seco, porque redirigir un binario produce un fichero
             // corrupto en vez de un error visible.
             if (EsNavegacion(contexto.Request))
-                contexto.Response.Redirect("/cuenta/cambiar-contrasena");
+                contexto.Response.Redirect(PantallaDeActivacion(contexto.User));
             else
                 contexto.Response.StatusCode = StatusCodes.Status403Forbidden;
 
@@ -84,6 +96,17 @@ public class CuentaAMedioActivarSinAccesoMiddleware(RequestDelegate siguiente)
         if (!contexto.User.HasClaim(TenantClaimsPrincipalFactory.TipoClaimRequiereActivacion, "true"))
             return false;
 
+        // Los CSS/JS/fuentes/imágenes de wwwroot son los de la propia pantalla
+        // que la cuenta tiene que rellenar: sin ellos «Cambiar contraseña» sale
+        // sin estilos y sin los scripts del formulario. Ya se sirven sin sesión
+        // (MapStaticAssets().AllowAnonymous(), Program.cs), así que dejarlos
+        // pasar no abre nada que un anónimo no tuviera. Se reconocen por el
+        // endpoint que los sirve, no por prefijo de ruta: MapStaticAssets
+        // publica también nombres con huella (`tokens.abc123.css`) que ningún
+        // prefijo cubre, y una ruta que no sea un asset no lo trae.
+        if (contexto.GetEndpoint()?.Metadata.GetMetadata<StaticAssetDescriptor>() is not null)
+            return false;
+
         var ruta = contexto.Request.Path;
 
         if (ruta.StartsWithSegments(PrefijoCuenta.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
@@ -92,6 +115,23 @@ public class CuentaAMedioActivarSinAccesoMiddleware(RequestDelegate siguiente)
         return !PrefijosDeInfraestructura.Any(
             p => ruta.StartsWithSegments(p, StringComparison.OrdinalIgnoreCase));
     }
+
+    /// <summary>
+    /// La pantalla que resuelve la obligación pendiente, la misma que elegiría
+    /// el guard de <c>MainLayout</c>: contraseña primero, 2FA después. Sin la
+    /// pista (cookie emitida antes de existir) se cae en la contraseña, que es
+    /// lo que se hacía siempre: un claim rancio se equivoca hacia seguir
+    /// exigiendo, nunca hacia dejar pasar.
+    /// </summary>
+    private static string PantallaDeActivacion(ClaimsPrincipal usuario) =>
+        usuario.HasClaim(
+            TenantClaimsPrincipalFactory.TipoClaimActivacionPendiente,
+            TenantClaimsPrincipalFactory.ActivacionPendienteDosFactores)
+        && !usuario.HasClaim(
+            TenantClaimsPrincipalFactory.TipoClaimActivacionPendiente,
+            TenantClaimsPrincipalFactory.ActivacionPendienteContrasena)
+            ? "/cuenta/configurar-2fa"
+            : "/cuenta/cambiar-contrasena";
 
     /// <summary>
     /// Una navegación de nivel superior del navegador, que es lo único que

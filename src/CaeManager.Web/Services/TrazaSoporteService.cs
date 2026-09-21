@@ -28,12 +28,13 @@ public class TrazaSoporteService(
     ITenantsQueryContext dbContext,
     IRegistroActividadSoporteRepository repositorio,
     IUnitOfWork unitOfWork,
-    PuertaAccesoDatos puertaAccesoDatos)
+    PuertaAccesoDatos puertaAccesoDatos) : IVentanaDeSoporteActual
 {
-    private bool _resuelto;
+    private Task? _resolucion;
     private Guid? _delegacionSoporteId;
     private Guid? _tenantVisitadoId;
     private Guid? _usuarioId;
+    private DateTime? _expiraEnUtc;
 
     public async Task RegistrarAsync(
         TipoActividadSoporte tipo, string? detalle, CancellationToken cancellationToken = default)
@@ -62,16 +63,33 @@ public class TrazaSoporteService(
     }
 
     /// <summary>Si esta sesión está operando un workspace de soporte — lo consulta la UI para avisarlo.</summary>
+    /// <inheritdoc />
+    public async Task<DateTime?> ObtenerExpiracionAsync(CancellationToken cancellationToken = default)
+    {
+        await ResolverSesionAsync(cancellationToken);
+        return _delegacionSoporteId is null ? null : _expiraEnUtc;
+    }
+
     public async Task<bool> EsSesionDeSoporteAsync(CancellationToken cancellationToken = default)
     {
         await ResolverSesionAsync(cancellationToken);
         return _delegacionSoporteId is not null;
     }
 
-    private async Task ResolverSesionAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Todos los que preguntan esperan a la <b>misma</b> resolución. Antes un
+    /// booleano se marcaba al empezar: el segundo componente del layout que
+    /// preguntaba mientras la primera consulta seguía en vuelo veía «resuelto»
+    /// y leía campos todavía vacíos, es decir, «no es sesión de soporte». La
+    /// resolución no lleva el token de quien la lanza: es compartida, y que uno
+    /// de ellos cancele no puede dejar a los demás sin respuesta.
+    /// </summary>
+    private Task ResolverSesionAsync(CancellationToken cancellationToken) =>
+        (_resolucion ??= ResolverAsync()).WaitAsync(cancellationToken);
+
+    private async Task ResolverAsync()
     {
-        if (_resuelto) return;
-        _resuelto = true;
+        var cancellationToken = CancellationToken.None;
 
         // Sin workspace ajeno seleccionado no hay sesión de soporte posible:
         // se sale sin tocar la base de datos, que es el caso de todo uso
@@ -80,10 +98,10 @@ public class TrazaSoporteService(
 
         // Por la puerta: la primera resolución dispara desde TrazaSoporte, que
         // se inicializa en paralelo con el resto del layout (ver PuertaAccesoDatos).
-        var delegacionId = await puertaAccesoDatos.EjecutarAsync(async () =>
+        var delegacion = await puertaAccesoDatos.EjecutarAsync(async () =>
         {
             var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
-            if (usuarioId is null) return (Guid?)null;
+            if (usuarioId is null) return null;
 
             _usuarioId = usuarioId;
 
@@ -94,13 +112,14 @@ public class TrazaSoporteService(
                       && delegacion.TenantClienteId == tenantSeleccionado
                       && delegacion.Proposito == PropositoDelegacion.Soporte
                       && delegacion.Activa
-                select (Guid?)delegacion.Id)
+                select new { delegacion.Id, delegacion.ExpiraEnUtc })
                 .FirstOrDefaultAsync(cancellationToken);
         }, cancellationToken);
 
-        if (delegacionId is null) return;
+        if (delegacion is null) return;
 
-        _delegacionSoporteId = delegacionId;
+        _delegacionSoporteId = delegacion.Id;
+        _expiraEnUtc = delegacion.ExpiraEnUtc;
         _tenantVisitadoId = tenantSeleccionado;
     }
 }
