@@ -459,7 +459,10 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Gestiones.IGestionesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Integraciones.IProveedoresPlataformaCaeQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Plantillas.IPlantillasQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
-        services.AddScoped<IAlcanceDatosService, AlcanceDatosService>();
+        services.AddScoped<AlcanceDatosService>();
+        services.AddScoped<IAlcanceDatosService>(sp => sp.GetRequiredService<AlcanceDatosService>());
+        // La MISMA instancia que memoiza: invalidar otra sería no invalidar nada.
+        services.AddScoped<IInvalidadorAlcance>(sp => sp.GetRequiredService<AlcanceDatosService>());
         // Eje distinto del anterior a proposito: alcance de LECTURA frente a
         // autoridad para MODIFICAR. Ver IAutoridadAsignacionesService.
         services.AddScoped<IAutoridadAsignacionesService, AutoridadAsignacionesService>();

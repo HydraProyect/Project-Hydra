@@ -55,7 +55,7 @@ public class AlcanceDatosService(
     ITenantActual tenantActual,
     ISesionPrivilegiadaActual sesionPrivilegiadaActual,
     IVistaDemoActual? vistaDemo = null)
-    : IAlcanceDatosService
+    : IAlcanceDatosService, IInvalidadorAlcance
 {
     // Dictionary<TKey,TValue> exige TKey : notnull, y tenantActual.TenantId es
     // Guid? (null cuando no hay tenant resuelto) — Guid.Empty es la clave
@@ -74,6 +74,23 @@ public class AlcanceDatosService(
     private readonly Dictionary<Guid, IReadOnlyList<Guid>?> _vehiculoIds = new();
 
     private static Guid ClaveTenant(Guid? tenantId) => tenantId ?? Guid.Empty;
+
+    /// <summary>
+    /// Descarta los siete diccionarios (todos los Tenants de esta instancia: el fan-out reutiliza la
+    /// misma). Lo invoca <see cref="InvalidacionAlcanceBehavior{TRequest,TResponse}"/> tras cada
+    /// Command. La memoización sigue siendo por instancia y por Tenant; esto solo evita que un
+    /// circuito largo conserve una visión anterior a una escritura.
+    /// </summary>
+    public void Invalidar()
+    {
+        _accesoTotal.Clear();
+        _clienteIds.Clear();
+        _centroIds.Clear();
+        _empresaIds.Clear();
+        _subcontrataIds.Clear();
+        _trabajadorIds.Clear();
+        _vehiculoIds.Clear();
+    }
 
     /// <summary>
     /// La lente de demo Gestor que aplica AHORA, o null. Es solo una coordenada de contexto que
@@ -341,6 +358,12 @@ public class AlcanceDatosService(
     /// ver f4-diseno-fisico-relacionempresarial-2026-08-26.md § 6/8ter).
     /// <c>porCentro</c> no cambia: F4 no toca <c>Centro</c> (eso es F5).
     ///
+    /// D-8 (piloto Outbound): además, un Gestor/Coordinador CAE con cartera no vacía ve las Empresas
+    /// propias del Tenant actual aunque no exista Centro ni Relación Empresarial que las una a un
+    /// Cliente de su cartera (la Empresa propia es parte estructural del contexto, no algo que
+    /// haya que fabricar con un Centro o una Relación). Sus Trabajadores NO: siguen entrando solo
+    /// por <c>Asignacion</c> sobre un Centro visible.
+    ///
     /// El filtro <c>Proveedora.EsPropia</c> repone una garantía que antes
     /// daba gratis la separación física de tablas — en la tabla unificada
     /// hay que comprobarlo explícitamente, o una relación Subcontrata→Cliente
@@ -365,7 +388,23 @@ public class AlcanceDatosService(
             .Where(r => clienteIds.Contains(r.ClienteId) && r.VigenciaHasta == null)
             .Join(dbContext.Empresas.Where(e => e.EsPropia), r => r.ProveedoraId, e => e.Id, (r, e) => e.Id);
 
-        var resultado = await porCentro.Concat(porVinculoDirecto).Distinct().ToListAsync(cancellationToken);
+        // D-8 (piloto Outbound): la Empresa propia es parte estructural del Tenant del que el Gestor
+        // tiene cartera, con o sin Centro ni Relación Empresarial. Solo los roles de cartera de
+        // Operador (Gestor/Coordinador CAE): el rol Cliente (portal) no gana estructura del Tenant,
+        // y cualquier otro rol que llegue aquí con cartera no vacía sigue sin ella (falla cerrado).
+        // dbContext ya está acotado al Tenant actual (RLS + filtro), así que no cruza Tenants.
+        var rolActual = await currentUserService.ObtenerRolActualAsync();
+        var visibles = porCentro.Concat(porVinculoDirecto);
+        // La lente de demo Gestor muestra lo mismo que vería ese Gestor con su propia cuenta, así que
+        // también la incluye (sin ella, la lente y la cuenta real mostrarían Empresas distintas). La
+        // lente solo cuenta si quien mira ya tiene alcance total real (Administrador, Consulta): la
+        // Empresa propia ya estaba a su alcance, así que la lente no amplía nada.
+        if (rolActual is Roles.GestorCae or Roles.CoordinadorCae
+            || (await ObtenerGestorDeLenteAsync(cancellationToken) is not null
+                && await TieneAccesoTotalRealAsync(cancellationToken)))
+            visibles = visibles.Concat(dbContext.Empresas.Where(e => e.EsPropia).Select(e => e.Id));
+
+        var resultado = await visibles.Distinct().ToListAsync(cancellationToken);
         _empresaIds[tenant] = resultado;
 
         return resultado;

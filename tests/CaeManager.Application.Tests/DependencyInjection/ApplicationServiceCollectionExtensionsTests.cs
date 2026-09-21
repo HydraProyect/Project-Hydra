@@ -34,6 +34,23 @@ public class ApplicationServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public void El_behavior_de_invalidacion_del_alcance_va_justo_dentro_de_la_serializacion()
+    {
+        var servicios = new ServiceCollection();
+        servicios.AddApplication();
+
+        var behaviors = servicios
+            .Where(d => d.ServiceType == typeof(MediatR.IPipelineBehavior<,>))
+            .Select(d => d.ImplementationType)
+            .ToList();
+
+        var serializacion = behaviors.IndexOf(typeof(SerializacionAccesoDatosBehavior<,>));
+        serializacion.Should().BeGreaterThanOrEqualTo(0);
+        behaviors.IndexOf(typeof(InvalidacionAlcanceBehavior<,>)).Should().Be(serializacion + 1,
+            "debe correr con la puerta de acceso a datos aún tomada, antes de soltarla");
+    }
+
+    [Fact]
     public void Una_implementacion_registrada_despues_de_AddApplication_sustituye_al_valor_inerte()
     {
         // Mismo orden que Program.cs: AddApplication() y luego AddInfrastructure()
