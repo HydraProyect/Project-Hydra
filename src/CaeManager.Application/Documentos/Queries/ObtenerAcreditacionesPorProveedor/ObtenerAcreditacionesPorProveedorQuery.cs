@@ -41,8 +41,9 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesPorProv
 /// alcance de cualquier respuesta HTTP.
 /// </summary>
 /// <param name="IncluirAceptadas">
-/// Por defecto la consulta devuelve solo lo que falta subir, que es lo que
-/// necesitan la Bandeja y la extensión de navegador. El drill-down por
+/// Por defecto la consulta devuelve solo lo que hay que trabajar —lo que
+/// falta subir y lo que la plataforma rechazó—, que es lo que necesitan la
+/// Bandeja y la extensión de navegador. El drill-down por
 /// plataforma pide además las aceptadas, porque es la única pantalla desde la
 /// que se puede anotar hasta cuándo vale un documento allí.
 ///
@@ -55,7 +56,14 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesPorProv
 /// inmutable a propósito.
 /// </para>
 /// </param>
-public record ObtenerAcreditacionesPorProveedorQuery(bool IncluirAceptadas = false)
+/// <param name="IncluirSubidas">
+/// Las acreditaciones <c>Subida</c> —ya enviadas, esperando la respuesta de la
+/// plataforma— no son trabajo pendiente, así que la Bandeja y la extensión no
+/// las piden. El drill-down por plataforma sí, porque es donde el Gestor CAE
+/// registra esa respuesta (Aceptada o Rechazada): sin ellas, marcar «subido»
+/// hacía desaparecer la fila y dejaba el estado sin salida.
+/// </param>
+public record ObtenerAcreditacionesPorProveedorQuery(bool IncluirAceptadas = false, bool IncluirSubidas = false)
     : IRequest<IReadOnlyList<ProveedorAcreditacionesDto>>;
 
 public record ProveedorAcreditacionesDto(
@@ -84,6 +92,7 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
     {
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
         var incluirAceptadas = request.IncluirAceptadas;
+        var incluirSubidas = request.IncluirSubidas;
 
         var canalesQuery = centrosContext.CanalesGestionDocumental
             .Where(c => c.Tipo == TipoCanalGestion.Plataforma);
@@ -95,6 +104,7 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
             where acreditacion.Estado == EstadoAcreditacion.PendienteDeSubir
                   || acreditacion.Estado == EstadoAcreditacion.Rechazada
                   || (incluirAceptadas && acreditacion.Estado == EstadoAcreditacion.Aceptada)
+                  || (incluirSubidas && acreditacion.Estado == EstadoAcreditacion.Subida)
             join canal in canalesQuery on acreditacion.CanalGestionDocumentalId equals canal.Id
             join centro in centrosContext.Centros on canal.CentroId equals centro.Id
             join documento in documentosContext.Documentos on acreditacion.DocumentoId equals documento.Id

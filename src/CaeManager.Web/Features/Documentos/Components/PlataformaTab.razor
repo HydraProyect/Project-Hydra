@@ -91,11 +91,19 @@ else
                                     }
                                     else
                                     {
-                                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
-                                               Cargando="@(_procesando == documento.AcreditacionId)"
-                                               OnClick="() => MarcarSubidoAsync(documento.AcreditacionId)">
-                                            Marcar subido
-                                        </Boton>
+                                        @* Una acreditación ya subida está esperando la
+                                           respuesta de la plataforma: no se «vuelve a marcar
+                                           subida», solo se anota lo que la plataforma
+                                           contestó. Sin esta rama, la fila desaparecía al
+                                           marcarla y el estado no tenía salida. *@
+                                        @if (documento.Estado != EstadoAcreditacion.Subida)
+                                        {
+                                            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                                   Cargando="@(_procesando == documento.AcreditacionId)"
+                                                   OnClick="() => MarcarSubidoAsync(documento.AcreditacionId)">
+                                                Marcar subido
+                                            </Boton>
+                                        }
                                         <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
                                                OnClick="() => MarcarAceptadoAsync(documento.AcreditacionId)">
                                             Marcar aceptado
@@ -191,7 +199,7 @@ else
             // Se piden también las aceptadas: esta es la única pantalla desde la
             // que se puede anotar o corregir hasta cuándo vale un documento en
             // una plataforma, así que dejarlas fuera las volvería ilocalizables.
-            _proveedores = await Mediator.Send(new ObtenerAcreditacionesPorProveedorQuery(IncluirAceptadas: true));
+            _proveedores = await Mediator.Send(new ObtenerAcreditacionesPorProveedorQuery(IncluirAceptadas: true, IncluirSubidas: true));
         }
         catch (Exception)
         {

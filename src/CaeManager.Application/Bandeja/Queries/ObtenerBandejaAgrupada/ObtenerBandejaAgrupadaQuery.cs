@@ -86,9 +86,10 @@ public class ObtenerBandejaAgrupadaQueryHandler(IMediator mediator) : IRequestHa
         TipoItemBandeja.SugerenciaVisitaUrgente => 0,
         TipoItemBandeja.Faltante => 1,
         TipoItemBandeja.Vencido => 2,
-        TipoItemBandeja.VisitaUrgente => 3,
-        TipoItemBandeja.RequisitoPendiente => 4,
-        TipoItemBandeja.Urgente => 5,
-        _ => 6
+        TipoItemBandeja.PlataformaRechazada => 3,
+        TipoItemBandeja.VisitaUrgente => 4,
+        TipoItemBandeja.RequisitoPendiente => 5,
+        TipoItemBandeja.Urgente => 6,
+        _ => 7
     };
 }
