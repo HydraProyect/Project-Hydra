@@ -121,8 +121,15 @@
 }
 
 .bandeja-toggle {
-    height: 32px;
-    padding: 0 var(--space-3);
+    /* Los dos conmutadores se reparten el ancho de la columna y su rótulo puede
+       ocupar dos líneas: con height fija de 32px «Clientes empresariales» se
+       salía del botón en la columna estrecha de la bandeja. */
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 32px;
+    padding: var(--space-1) var(--space-3);
+    line-height: 1.2;
+    text-align: center;
     border-radius: var(--radius-full);
     /* Borde que identifica un control: sujeto al 3:1 de 02 § 8
        (DDL-062/063). --color-border no lo alcanza (1.18:1). */
@@ -344,7 +351,15 @@
     white-space: nowrap;
 }
 
+.bandeja-lista ::deep .bandeja-fila-linea3 > :not(.bandeja-fila-preview) {
+    /* Estado y recuento de ruido (Badge): que no se partan en vertical cuando el
+       preview les quita el sitio; quien cede es el preview, que ya recorta. */
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
 .bandeja-lista ::deep .bandeja-fila-preview {
+    min-width: 0;
     font: var(--font-body-sm);
     color: var(--color-text-muted);
     overflow: hidden;
@@ -565,10 +580,13 @@
 }
 
 .bandeja-documento-citado {
+    /* En apilado: la columna de contexto mide ~280px y en una sola línea la meta
+       (propietario + nivel, flex-shrink: 0) dejaba al nombre del documento en una
+       letra. El nombre va arriba, entero, y la meta debajo. */
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2);
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-1);
     padding: var(--space-2) var(--space-3);
     border-radius: var(--radius-sm);
     background-color: var(--color-surface);
@@ -578,9 +596,8 @@
     font: var(--font-body-sm);
     color: var(--color-text);
     text-decoration: none;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 a.bandeja-documento-citado-nombre:hover {
@@ -590,9 +607,10 @@ a.bandeja-documento-citado-nombre:hover {
 
 .bandeja-documento-citado-meta {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
+    justify-content: space-between;
     gap: var(--space-2);
-    flex-shrink: 0;
 }
 
 .bandeja-documento-citado-propietario {
