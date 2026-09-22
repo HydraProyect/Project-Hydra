@@ -195,11 +195,9 @@ public class ClientesVacioPorFiltroTests : BunitContext
         Services.AddScoped<IValidator<CrearClienteCommand>>(_ => new InlineValidator<CrearClienteCommand>());
         Services.AddScoped(_ => CrearDirectorio());
 
-        // ClientePreviewDrawer, que la página monta siempre aunque esté cerrado,
-        // inyecta UserManager por su cuenta. Con la lista vacía no consulta a
-        // nadie: el almacén lanza si alguien lo toca.
-        Services.AddScoped(_ => new UserManager<ApplicationUser>(
-            new AlmacenUsuariosQueNadieDebeTocar(), null!, null!, null!, null!, null!, null!, null!, null!));
+        // Sin UserManager a propósito: lo inyectaba ClientePreviewDrawer, que la
+        // página ya no monta (la vista rápida es el panel de 520 px). Si algún
+        // componente de la lista volviera a pedirlo, el render fallaría aquí.
         Services.AddScoped<PuertaAccesoDatos>();
 
         var partes = new List<string>();

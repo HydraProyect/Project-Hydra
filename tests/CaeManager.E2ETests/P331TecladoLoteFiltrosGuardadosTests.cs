@@ -127,13 +127,11 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         await Expect(barraLote.Locator(".barra-acciones-lote-cantidad")).ToHaveTextAsync("1 seleccionado en esta página");
         await page.WaitForTimeoutAsync(300);
 
-        // --- Enter abre el drawer ligero de vista previa del Cliente enfocado;
-        // "Operar →" es lo que abre el Workspace panel completo (mismo
-        // patrón que el clic en el nombre de fila, ver ClientePreviewDrawer). ---
+        // --- Enter abre la vista rápida del Cliente enfocado: el Workspace
+        // panel de 520 px, el mismo que «Vista rápida» del menú de la fila.
+        // (Antes abría el drawer ligero ClientePreviewDrawer y había que pulsar
+        // «Operar →»; la lista ya no lo monta desde la página Cliente 360.) ---
         await page.Keyboard.PressAsync("Enter");
-        var previewDrawer = page.Locator(".drawer-preview-cliente");
-        await previewDrawer.GetByText(razonSocialA).First.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-        await previewDrawer.GetByText("Operar →").ClickAsync();
         var workspacePanel = page.Locator(".workspace-panel");
         await workspacePanel.GetByText(razonSocialA).First.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         // La apertura renderiza el panel antes de que su interop coloque el
@@ -222,7 +220,8 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         var drawer = page.Locator(".drawer-panel");
         await Expect(drawer.GetByText("Nuevo cliente", new LocatorGetByTextOptions { Exact = true }))
             .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 10_000 });
-        await Expect(page.Locator(".drawer-preview-cliente")).Not.ToBeVisibleAsync();
+        // Ni la vista rápida de ninguna fila: Enter era del botón, no de la lista.
+        await Expect(page.Locator(".workspace-panel")).Not.ToBeVisibleAsync();
     }
 
     private static Microsoft.Playwright.ILocatorAssertions Expect(ILocator locator) => Assertions.Expect(locator);

@@ -120,3 +120,14 @@
 .texto-vacio-celda {
     color: var(--color-text-muted);
 }
+
+/* El nombre de la fila es un enlace a la página Cliente 360: sin el subrayado
+   por defecto de <a>, igual que el resto de nombres de fila (list-page.css),
+   que solo subrayan al pasar por encima. */
+a.enlace-nombre-fila {
+    text-decoration: none;
+}
+
+a.enlace-nombre-fila:hover {
+    text-decoration: underline;
+}

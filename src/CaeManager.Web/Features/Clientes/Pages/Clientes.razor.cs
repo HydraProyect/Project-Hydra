@@ -109,22 +109,17 @@ public partial class Clientes : ComponentBase
     /// <summary>Restauraciones en vuelo, por Cliente: el «Deshacer» del aviso no manda dos veces la misma.</summary>
     private readonly HashSet<Guid> _restaurando = [];
 
-    // Drawer ligero (Lista Clientes TALVEG.dc.html): paso intermedio antes
-    // del Context Workspace completo — clic en el nombre de la fila y "Vista
-    // rápida" del menú abren esto primero, no el workspace directamente.
-    private Guid? _previewClienteId;
-    private bool _previewVisible;
-
-    private void AbrirPreview(Guid id)
+    /// <summary>
+    /// «Vista rápida» del menú y Enter sobre la fila enfocada: el panel de
+    /// 520 px del Cliente empresarial (Context Workspace), el mismo que abre
+    /// el botón 360 de las páginas (decisión 2026-09-22). Antes abrían el
+    /// drawer ligero ClientePreviewDrawer, que la lista ya no monta; el nombre
+    /// de la fila lleva ahora a la página /clientes/{id}.
+    /// </summary>
+    private Task AbrirPreviewAsync(Guid id)
     {
-        _previewClienteId = id;
-        _previewVisible = true;
-    }
-
-    private Task AbrirDesdePreviewAsync((Guid Id, string Pestana) destino)
-    {
-        var nombre = _elementosPagina.FirstOrDefault(e => e.Id == destino.Id)?.RazonSocial ?? string.Empty;
-        return WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, destino.Id, nombre, destino.Pestana);
+        var nombre = _elementosPagina.FirstOrDefault(e => e.Id == id)?.RazonSocial ?? string.Empty;
+        return WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, id, nombre, "informacion");
     }
 
     [SupplyParameterFromQuery(Name = "q")]
@@ -851,7 +846,7 @@ public partial class Clientes : ComponentBase
                 break;
             case "Enter":
                 if (_idEnfocado is { } idAbrir)
-                    AbrirPreview(idAbrir);
+                    await AbrirPreviewAsync(idAbrir);
                 break;
         }
 
