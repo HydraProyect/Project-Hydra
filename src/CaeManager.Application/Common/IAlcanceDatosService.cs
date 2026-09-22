@@ -89,7 +89,11 @@ public interface IAlcanceDatosService
     /// </summary>
     Task<IReadOnlyList<Guid>?> ObtenerSubcontrataIdsParaGestionAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>Trabajadores con al menos una Asignación activa a un Centro visible — usar solo en listados, no en selectores.</summary>
+    /// <summary>
+    /// Trabajadores con al menos una Asignación activa a un Centro visible y, para un Gestor o
+    /// Coordinador CAE con cartera, además toda la plantilla de la Empresa propia del Tenant aunque
+    /// no tenga ninguna Asignación — usar solo en listados, no en selectores.
+    /// </summary>
     Task<IReadOnlyList<Guid>?> ObtenerTrabajadorIdsVisiblesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Vehículos de una Empresa/Subcontrata visible — usar solo en listados, no en selectores.</summary>
