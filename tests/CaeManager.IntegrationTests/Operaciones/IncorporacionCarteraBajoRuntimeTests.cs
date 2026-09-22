@@ -193,6 +193,24 @@ public class IncorporacionCarteraBajoRuntimeTests : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public async Task El_repositorio_filtra_por_Operador_CAE_aunque_la_conexion_no_aplique_RLS()
+    {
+        var solicitudId = await SolicitarAsync();
+
+        // Conexión propietaria de la tabla: RLS no actúa. Lo que queda es el
+        // filtro del repositorio, la segunda barrera si alguna vez se consulta
+        // desde un contexto sin coordenadas (tarea de fondo, retirada de demo).
+        await using var propietario = ContextoPropietario();
+        var repositorio = new SolicitudIncorporacionCarteraRepository(propietario);
+
+        (await repositorio.ObtenerPorIdAsync(solicitudId, _operador.Id)).Should().NotBeNull("control positivo");
+        (await repositorio.ObtenerPorIdAsync(solicitudId, _otroOperador.Id)).Should().BeNull();
+
+        (await repositorio.ListarPendientesAsync(_operador.Id)).Should().ContainSingle(s => s.Id == solicitudId, "control positivo");
+        (await repositorio.ListarPendientesAsync(_otroOperador.Id)).Should().BeEmpty();
+    }
+
     // ── Concurrencia ─────────────────────────────────────────────────────
 
     [Fact]
@@ -220,6 +238,42 @@ public class IncorporacionCarteraBajoRuntimeTests : IAsyncLifetime
         segundo.ChangeTracker.Entries().Should().BeEmpty("lo que perdió la carrera no puede colarse en el siguiente guardado");
 
         await AfirmarUnaSolaIncorporacionAsync(solicitudId);
+    }
+
+    [Fact]
+    public async Task Un_rechazo_intercalado_con_una_aceptacion_deja_pasar_solo_uno()
+    {
+        var solicitudId = await SolicitarAsync();
+
+        await using var acepta = ContextoRuntime(_coordinador, _operador.Id, "CoordinadorCae");
+        await using var rechaza = ContextoRuntime(_otroCoordinador, _operador.Id, "CoordinadorCae");
+
+        // Aquí ningún índice único separa a los dos: el rechazo no crea
+        // cartera. Solo la Version de la solicitud impide que la aceptación
+        // preparada antes del rechazo se guarde encima de él.
+        var catalogoAcepta = await PrepararAceptacionAsync(acepta, _coordinador, solicitudId);
+
+        using (AmbitoTenantExplicito.Establecer(_operador.Id))
+        {
+            var solicitud = (await new SolicitudIncorporacionCarteraRepository(rechaza).ObtenerPorIdAsync(solicitudId, _operador.Id))!;
+            solicitud.Rechazar(_otroCoordinador, DateTime.UtcNow);
+            (await Catalogo(rechaza).GuardarDetectandoCarreraAsync()).Should().BeTrue();
+        }
+
+        bool ganaAceptacion;
+        using (AmbitoTenantExplicito.Establecer(_empresa.Id))
+        {
+            ganaAceptacion = await catalogoAcepta.GuardarDetectandoCarreraAsync();
+        }
+
+        ganaAceptacion.Should().BeFalse("la solicitud ya estaba rechazada cuando llegó la aceptación");
+
+        await using var propietario = ContextoPropietario();
+        (await propietario.AsignacionesCartera.CountAsync(c => c.UsuarioId == _gestor)).Should().Be(0,
+            "la cartera iba en el mismo guardado que la aceptación perdida");
+        (await propietario.AsignacionesOperadorDelegado.CountAsync(a => a.UsuarioId == _gestor)).Should().Be(0);
+        (await propietario.SolicitudesIncorporacionCartera.AsNoTracking().SingleAsync(s => s.Id == solicitudId))
+            .Estado.Should().Be(EstadoSolicitudIncorporacionCartera.Rechazada);
     }
 
     [Fact]
@@ -312,9 +366,13 @@ public class IncorporacionCarteraBajoRuntimeTests : IAsyncLifetime
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaConexion),
                 npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            // Los mismos interceptores de escritura que producción
+            // (ConfiguracionDeContexto): sin ConcurrenciaOptimistaInterceptor la
+            // Version no se renueva y la carrera solo la frenan los índices únicos.
             .AddInterceptors(
                 new TenantSelladoInterceptor(tenantActual),
-                new TenantRlsConnectionInterceptor(tenantActual, new SinTenantSeleccionado(), usuario))
+                new TenantRlsConnectionInterceptor(tenantActual, new SinTenantSeleccionado(), usuario),
+                new ConcurrenciaOptimistaInterceptor())
             .Options;
 
         var contexto = new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);

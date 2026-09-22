@@ -22,7 +22,6 @@ public class SolicitudIncorporacionCarteraConfiguration : IEntityTypeConfigurati
         builder.Property(s => s.Estado).IsRequired().HasConversion<string>().HasMaxLength(20);
         builder.Property(s => s.MotivoAnulacion).HasConversion<string>().HasMaxLength(30);
         builder.Property(s => s.CreadaEnUtc).IsRequired();
-        builder.Property(s => s.Version).IsConcurrencyToken();
 
         // La bandeja del Coordinador CAE: «¿qué tiene pendiente mi Operador CAE?».
         builder.HasIndex(s => new { s.OperadorTenantId, s.Estado });
