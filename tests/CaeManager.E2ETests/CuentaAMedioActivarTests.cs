@@ -85,7 +85,8 @@ public class CuentaAMedioActivarTests(WebAppFixtureCuentaAMedioActivar fixture, 
         Assert.Contains("/cuenta/cambiar-contrasena", pagina.Url);
 
         await CambiarContrasenaAsync(pagina);
-        await pagina.WaitForURLAsync("**/cuenta/configurar-2fa");
+        Assert.True(pagina.Url.Contains("/cuenta/configurar-2fa", StringComparison.Ordinal),
+            $"Tras cambiar la contraseña tiene que pedirse la 2FA. Secuencia: {string.Join(" → ", secuencia)}");
         await Assertions.Expect(AvisoDosFactoresObligatorio(pagina)).ToBeVisibleAsync();
 
         foreach (var ruta in new[] { "/clientes", "/" })
@@ -119,7 +120,7 @@ public class CuentaAMedioActivarTests(WebAppFixtureCuentaAMedioActivar fixture, 
         Assert.Contains("/cuenta/cambiar-contrasena", pagina.Url);
 
         await CambiarContrasenaAsync(pagina);
-        await pagina.WaitForURLAsync(u => !u.Contains("/cuenta/", StringComparison.Ordinal));
+        Assert.DoesNotContain("/cuenta/", pagina.Url);
 
         await pagina.GotoAsync($"{fixture.BaseUrl}/cuenta/configurar-2fa");
         await Assertions.Expect(pagina.GetByRole(AriaRole.Heading, new() { Name = "Autenticación en dos pasos" }))
@@ -141,13 +142,19 @@ public class CuentaAMedioActivarTests(WebAppFixtureCuentaAMedioActivar fixture, 
         return secuencia;
     }
 
+    /// <summary>
+    /// Envía el formulario y espera a la navegación que produce, sea cual sea su
+    /// destino: si el cambio no reemite el ticket, la cuenta vuelve a «Cambiar
+    /// contraseña» y el test tiene que decirlo con la URL, no con un timeout.
+    /// </summary>
     private static async Task CambiarContrasenaAsync(IPage pagina)
     {
         const string nueva = "Otra-Clave-2026-Segura";
         await pagina.GetByLabel("Contraseña actual", new() { Exact = true }).FillAsync(Ayudas.ContrasenaUsuariosPrueba);
         await pagina.GetByLabel("Contraseña nueva", new() { Exact = true }).FillAsync(nueva);
         await pagina.GetByLabel("Confirma la contraseña nueva", new() { Exact = true }).FillAsync(nueva);
-        await pagina.GetByRole(AriaRole.Button, new() { Name = "Cambiar contraseña" }).ClickAsync();
+        await pagina.RunAndWaitForNavigationAsync(
+            () => pagina.GetByRole(AriaRole.Button, new() { Name = "Cambiar contraseña" }).ClickAsync());
     }
 
     private async Task EntrarSinEsperarElMenuAsync(IPage pagina, string email)
