@@ -1,0 +1,70 @@
+/* .fila-rel y compañía, de los mockups Cliente 360 / Empresa 360. */
+.fila-relacion {
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-4);
+    border-top: var(--border-default);
+}
+
+.fila-relacion:first-child {
+    border-top: none;
+}
+
+.fila-relacion-icono {
+    flex: none;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-subtle);
+    color: var(--color-text-muted);
+}
+
+.fila-relacion-texto {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.fila-relacion-nombre {
+    font: var(--font-body-md);
+    font-weight: 600;
+    color: var(--color-text);
+    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+a.fila-relacion-nombre:hover {
+    color: var(--color-primary-500);
+    text-decoration: underline;
+}
+
+a.fila-relacion-nombre:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 1px;
+}
+
+.fila-relacion-detalle {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.fila-relacion-derecha {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}

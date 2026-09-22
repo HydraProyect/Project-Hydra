@@ -1,0 +1,14 @@
+@*
+    Lista de una tarjeta del lateral de las páginas 360: elementos separados
+    por una raya, cada uno con una etiqueta y sus líneas de detalle
+    (<ElementoListaLateral>). Es .centro360-lista-canales de Centro 360, que
+    el mockup Empresa 360 reutiliza en «Acceso a plataforma CAE».
+*@
+<ul class="lista-lateral">
+    @ChildContent
+</ul>
+
+@code {
+    /// <summary>Los <see cref="ElementoListaLateral"/> de la lista.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

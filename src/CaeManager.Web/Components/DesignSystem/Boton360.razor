@@ -1,0 +1,29 @@
+@*
+    Botón «360» de las páginas 360: abre el panel ContextWorkspace de 520 px
+    de una entidad sin salir de la página. Va junto al nombre-enlace de esa
+    entidad —el enlace navega a su página 360; este botón la consulta de un
+    vistazo— en la cabecera de Centro 360 y en cada fila de FilaRelacion.
+
+    El icono es el «360» del catálogo (geometría idéntica a icon360() de los
+    mockups). El nombre accesible nombra la entidad («Consultar Refrielectric
+    S.A. de un vistazo»): con dos o más botones iguales en la misma pantalla,
+    un «360» a secas no dice cuál abre qué. Los textos salen de TextosComunes.
+*@
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+
+<button type="button" class="boton-360"
+        aria-label="@(Comunes["Consultar360Entidad", Nombre])"
+        title="@(Comunes["Consultar360"])"
+        @onclick="OnClick">
+    <Icono Nombre="360" Tamano="TamanoIcono.Pequeno" />
+</button>
+
+@code {
+    /// <summary>Nombre visible de la entidad que abre el panel; entra en el nombre accesible.</summary>
+    [Parameter, EditorRequired] public string Nombre { get; set; } = string.Empty;
+
+    /// <summary>Abre el panel de la entidad (normalmente <c>ContextWorkspaceService.AbrirAsync</c>).</summary>
+    [Parameter] public EventCallback OnClick { get; set; }
+}

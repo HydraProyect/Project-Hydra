@@ -1,0 +1,9 @@
+.lista-relaciones {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    background: var(--color-surface);
+}

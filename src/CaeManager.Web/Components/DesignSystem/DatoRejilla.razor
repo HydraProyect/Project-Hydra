@@ -1,0 +1,37 @@
+@*
+    Un dato de <RejillaDatos>: etiqueta (dt) y valor (dd). El valor es texto
+    (Valor) o marcado (ChildContent, p. ej. el valor con un BotonCopiar al
+    lado). Sin ninguno de los dos se pinta «—», como CampoInfo: un hueco en
+    blanco no distingue «vacío» de «no ha cargado».
+*@
+<div class="dato-rejilla @(Ancho ? "dato-rejilla-ancho" : null)">
+    <dt class="dato-rejilla-etiqueta">@Etiqueta</dt>
+    <dd class="dato-rejilla-valor">
+        @if (ChildContent is not null)
+        {
+            @ChildContent
+        }
+        else if (!string.IsNullOrWhiteSpace(Valor))
+        {
+            @Valor
+        }
+        else
+        {
+            <span class="dato-rejilla-vacio">—</span>
+        }
+    </dd>
+</div>
+
+@code {
+    /// <summary>Etiqueta del dato, ya localizada por quien lo usa.</summary>
+    [Parameter, EditorRequired] public string Etiqueta { get; set; } = string.Empty;
+
+    /// <summary>Valor en texto. Se ignora si hay <see cref="ChildContent"/>.</summary>
+    [Parameter] public string? Valor { get; set; }
+
+    /// <summary>Valor como marcado (enlace, badge, valor + BotonCopiar).</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Ocupa las dos columnas de la rejilla (textos largos: convenio, actividad).</summary>
+    [Parameter] public bool Ancho { get; set; }
+}

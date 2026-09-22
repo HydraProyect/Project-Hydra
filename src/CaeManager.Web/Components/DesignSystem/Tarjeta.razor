@@ -1,4 +1,4 @@
-<div class="tarjeta @Class">
+<div class="tarjeta @(Compacta ? "tarjeta-compacta" : null) @Class">
     @if (!string.IsNullOrWhiteSpace(Titulo) || AccionesHeader is not null)
     {
         <div class="tarjeta-header">
@@ -22,6 +22,15 @@
     [Parameter] public RenderFragment? AccionesHeader { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
     [Parameter] public string? Class { get; set; }
+
+    /// <summary>
+    /// Tarjeta del lateral de una página 360 (<see cref="CuerpoConLateral"/>):
+    /// relleno de 16 px, cabecera sin separador y título más pequeño, con la
+    /// acción de la cabecera («Editar →») a la derecha. Es la
+    /// .centro360-tarjeta-lateral de Centro 360 y de los mockups Cliente 360 y
+    /// Empresa 360. Falso por defecto: ningún consumidor existente cambia.
+    /// </summary>
+    [Parameter] public bool Compacta { get; set; }
 
     /// <summary>
     /// Nivel de encabezado HTML del título (2 a 4). 2 por defecto, para no

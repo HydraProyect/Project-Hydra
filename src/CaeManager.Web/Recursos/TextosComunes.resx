@@ -30,4 +30,11 @@
   <data name="IdiomaNoCambiadoDetalle" xml:space="preserve">
     <value>Tu preferencia de idioma no se ha guardado y la interfaz sigue en el idioma anterior. Inténtalo de nuevo en unos segundos.</value>
   </data>
+  <data name="Consultar360" xml:space="preserve">
+    <value>Consultar de un vistazo</value>
+  </data>
+  <data name="Consultar360Entidad" xml:space="preserve">
+    <value>Consultar {0} de un vistazo</value>
+    <comment>{0}: nombre de la entidad (Centro, Empresa, Cliente…) que abre el panel 360.</comment>
+  </data>
 </root>

@@ -1,0 +1,66 @@
+@*
+    Fila de <ListaRelaciones> (.fila-rel de los mockups Cliente 360 y
+    Empresa 360): icono opcional, nombre de la entidad con una línea de
+    detalle debajo, y a la derecha lo que la califica (porcentaje, badge de
+    estado) y el botón 360.
+
+    Dos caminos distintos a propósito, como en la cabecera de Centro 360:
+      - el NOMBRE es un enlace real (<a href>) a la página 360 de la entidad,
+        que se puede abrir en otra pestaña o copiar;
+      - el botón 360 abre el panel ContextWorkspace de 520 px para consultarla
+        sin salir de la página.
+    Sin Href el nombre se pinta como texto; sin OnAbrir360 no hay botón.
+*@
+<li class="fila-relacion">
+    @if (!string.IsNullOrWhiteSpace(NombreIcono))
+    {
+        <span class="fila-relacion-icono"><Icono Nombre="@NombreIcono" Tamano="TamanoIcono.Pequeno" /></span>
+    }
+
+    <span class="fila-relacion-texto">
+        @if (!string.IsNullOrWhiteSpace(Href))
+        {
+            <a class="fila-relacion-nombre" href="@Href" title="@Nombre">@Nombre</a>
+        }
+        else
+        {
+            <span class="fila-relacion-nombre" title="@Nombre">@Nombre</span>
+        }
+
+        @if (Detalle is not null)
+        {
+            <span class="fila-relacion-detalle">@Detalle</span>
+        }
+    </span>
+
+    @if (Derecha is not null || OnAbrir360.HasDelegate)
+    {
+        <span class="fila-relacion-derecha">
+            @Derecha
+            @if (OnAbrir360.HasDelegate)
+            {
+                <Boton360 Nombre="@Nombre" OnClick="OnAbrir360" />
+            }
+        </span>
+    }
+</li>
+
+@code {
+    /// <summary>Nombre visible de la entidad. También da nombre accesible al botón 360.</summary>
+    [Parameter, EditorRequired] public string Nombre { get; set; } = string.Empty;
+
+    /// <summary>Ruta de la página 360 de la entidad (<c>/centros/{id}</c>, <c>/empresas/{id}</c>…).</summary>
+    [Parameter] public string? Href { get; set; }
+
+    /// <summary>Nombre de un icono del catálogo de <see cref="DesignSystem.Icono"/> para la casilla de la izquierda. Opcional.</summary>
+    [Parameter] public string? NombreIcono { get; set; }
+
+    /// <summary>Línea pequeña bajo el nombre («Empresa: Ibertec GmbH · 3 vencidos»).</summary>
+    [Parameter] public RenderFragment? Detalle { get; set; }
+
+    /// <summary>Lo que va a la derecha, antes del botón 360 (porcentaje, badge de estado).</summary>
+    [Parameter] public RenderFragment? Derecha { get; set; }
+
+    /// <summary>Abre el panel de la entidad. Sin delegado no se pinta el botón 360.</summary>
+    [Parameter] public EventCallback OnAbrir360 { get; set; }
+}
