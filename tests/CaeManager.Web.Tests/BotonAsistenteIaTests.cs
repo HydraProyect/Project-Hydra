@@ -14,6 +14,11 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class BotonAsistenteIaTests : BunitContext
 {
+    public BotonAsistenteIaTests()
+    {
+        Services.AddLocalization();
+    }
+
     [Fact]
     public void No_se_renderiza_nada_si_no_hay_ApiKey_configurada()
     {
@@ -33,6 +38,7 @@ public class BotonAsistenteIaTests : BunitContext
 
         var cut = Render<BotonAsistenteIa>();
 
-        cut.Find("button.boton-asistente-ia").Should().NotBeNull();
+        cut.Find("button.boton-asistente-ia").GetAttribute("title").Should().Be("Pregúntale a Hydra",
+            "el título sale de TextosAsistenteIa (clave «Titulo»)");
     }
 }

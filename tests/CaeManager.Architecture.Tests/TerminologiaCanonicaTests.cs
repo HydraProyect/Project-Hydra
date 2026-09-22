@@ -261,7 +261,10 @@ public class TerminologiaCanonicaTests
     /// </summary>
     private static readonly Dictionary<string, int> Congelado = new()
     {
-        ["Hydra"] = 49,
+        // 49 → 47 por la localización de AsistenteIa: el rótulo visible
+        // «Pregúntale a Hydra» salió de dos .razor a TextosAsistenteIa.resx,
+        // que este trinquete no lee. La deuda de marca sigue en pantalla.
+        ["Hydra"] = 47,
         ["EjecutivoUsuarioId"] = 48,
         ["Delegacion"] = 320,
         ["ClienteActivo"] = 71,
