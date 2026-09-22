@@ -89,7 +89,6 @@ public class TextosSinLocalizarCongeladosTests
         ["Trabajadores"] = 193,
         ["Usuarios"] = 157,
         ["Vehiculos"] = 65,
-        ["VigilanciaNormativa"] = 6,
         ["VisionCartera"] = 77,
         ["Visitas"] = 112,
         ["Web(raiz)"] = 4,
