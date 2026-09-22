@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Plantillas.Commands.AgregarVersionPlantilla;
 using CaeManager.Application.Plantillas.Queries.ObtenerPlantillasDocumento;
 using CaeManager.Domain.Documentos;
@@ -11,7 +12,6 @@ namespace CaeManager.Web.Features.Documentos.Components;
 
 public partial class PlantillasTab : ComponentBase, IDisposable
 {
-    private const long TamanoMaximoArchivoBytes = 10 * 1024 * 1024;
 
     /// <summary>
     /// Qué es una plantilla. Lo pinta la propia pestaña cuando va embebida en
@@ -233,7 +233,7 @@ public partial class PlantillasTab : ComponentBase, IDisposable
 
     private async Task ManejarArchivoNuevaVersionAsync(InputFileChangeEventArgs e)
     {
-        await using var flujo = e.File.OpenReadStream(TamanoMaximoArchivoBytes);
+        await using var flujo = e.File.OpenReadStream(LimitesArchivoSubido.TamanoMaximoBytes);
         using var memoria = new MemoryStream();
         await flujo.CopyToAsync(memoria);
         _archivoNuevaVersion = memoria.ToArray();
