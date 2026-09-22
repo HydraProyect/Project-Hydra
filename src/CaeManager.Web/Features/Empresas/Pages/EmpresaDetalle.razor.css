@@ -1,0 +1,81 @@
+/*
+    Empresa 360 — lo propio de esta página. La maquetación compartida de las
+    páginas 360 (cuerpo con lateral, tarjetas, filas de relación) vive en
+    Components/DesignSystem; aquí solo lo que no tiene primitiva.
+*/
+
+.empresa360-acciones {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+/* Segunda línea de la entradilla: los indicadores que piden atención. */
+.empresa360-indicadores {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+}
+
+/* El botón solo envuelve al badge: sin fondo ni borde propios. */
+.empresa360-indicador {
+    display: inline-flex;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    border-radius: var(--radius-full);
+}
+
+.empresa360-indicador:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 1px;
+}
+
+.empresa360-seccion {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.empresa360-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.empresa360-chip {
+    height: 30px;
+    padding: 0 10px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    font: var(--font-caption);
+    cursor: pointer;
+}
+
+.empresa360-chip:hover {
+    color: var(--color-text);
+}
+
+.empresa360-chip[aria-pressed="true"] {
+    border-color: var(--color-primary-500);
+    color: var(--color-primary-700);
+    background: var(--color-primary-50);
+}
+
+.empresa360-chip:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 1px;
+}
+
+.empresa360-pie,
+.empresa360-apoyo {
+    margin: 0;
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}

@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="TituloPestanaNavegador" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="MigaEmpresas" xml:space="preserve">
+    <value>Empreses</value>
+  </data>
+  <data name="EtiquetaMigas" xml:space="preserve">
+    <value>Ruta d'Empresa 360</value>
+  </data>
+  <data name="Kicker" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="ErrorTitulo" xml:space="preserve">
+    <value>No hem pogut carregar aquesta empresa</value>
+  </data>
+  <data name="ErrorDescripcion" xml:space="preserve">
+    <value>Potser ja no existeix o no hi tens accés.</value>
+  </data>
+  <data name="Reintentar" xml:space="preserve">
+    <value>Torna-ho a provar</value>
+  </data>
+  <data name="ErrorSeccionDescripcion" xml:space="preserve">
+    <value>Torna-ho a provar d'aquí a uns segons.</value>
+  </data>
+  <data name="MetaCif" xml:space="preserve">
+    <value>CIF {0}</value>
+  </data>
+  <data name="CopiarElCif" xml:space="preserve">
+    <value>el CIF</value>
+  </data>
+  <data name="MetaClientesUno" xml:space="preserve">
+    <value>1 client</value>
+  </data>
+  <data name="MetaClientesVarios" xml:space="preserve">
+    <value>{0} clients</value>
+  </data>
+  <data name="MetaTrabajadoresUno" xml:space="preserve">
+    <value>1 treballador</value>
+  </data>
+  <data name="MetaTrabajadoresVarios" xml:space="preserve">
+    <value>{0} treballadors</value>
+  </data>
+  <data name="IndicadorSinValidaUno" xml:space="preserve">
+    <value>1 treballador sense documentació vàlida</value>
+  </data>
+  <data name="IndicadorSinValidaVarios" xml:space="preserve">
+    <value>{0} treballadors sense documentació vàlida</value>
+  </data>
+  <data name="IndicadorVencidosUno" xml:space="preserve">
+    <value>1 amb algun document vençut</value>
+  </data>
+  <data name="IndicadorVencidosVarios" xml:space="preserve">
+    <value>{0} amb algun document vençut</value>
+  </data>
+  <data name="IndicadorFaltantesNoCuentan" xml:space="preserve">
+    <value>Els documents obligatoris que falten no entren en aquest recompte.</value>
+  </data>
+  <data name="IndicadorEtiquetaAccesible" xml:space="preserve">
+    <value>{0}: {1}. {2} Prem per veure'ls.</value>
+  </data>
+  <data name="IndicadorPorVencerUno" xml:space="preserve">
+    <value>1 treballador amb documents per vèncer</value>
+  </data>
+  <data name="IndicadorPorVencerVarios" xml:space="preserve">
+    <value>{0} treballadors amb documents per vèncer</value>
+  </data>
+  <data name="AccionDetectar" xml:space="preserve">
+    <value>Detectar altes i baixes</value>
+  </data>
+  <data name="AccionEditarEmpresa" xml:space="preserve">
+    <value>Editar l'empresa</value>
+  </data>
+  <data name="AnilloEtiqueta" xml:space="preserve">
+    <value>{0}% de compliment acumulat als centres on aquesta empresa té activitat</value>
+  </data>
+  <data name="AnilloSinDato" xml:space="preserve">
+    <value>Sense activitat en cap centre amb requisits aplicables</value>
+  </data>
+  <data name="EtiquetaGrupoPestanas" xml:space="preserve">
+    <value>Seccions de l'empresa</value>
+  </data>
+  <data name="PestanaTrabajadores" xml:space="preserve">
+    <value>Treballadors</value>
+  </data>
+  <data name="PestanaClientes" xml:space="preserve">
+    <value>Clients</value>
+  </data>
+  <data name="PestanaDocumentacion" xml:space="preserve">
+    <value>Documentació</value>
+  </data>
+  <data name="PestanaAgenda" xml:space="preserve">
+    <value>Agenda</value>
+  </data>
+  <data name="PestanaSello" xml:space="preserve">
+    <value>Segell</value>
+  </data>
+  <data name="PestanaHistorial" xml:space="preserve">
+    <value>Historial</value>
+  </data>
+  <data name="GlosaTrabajadores" xml:space="preserve">
+    <value>treballadors</value>
+  </data>
+  <data name="GlosaClientes" xml:space="preserve">
+    <value>clients</value>
+  </data>
+  <data name="EtiquetaFiltros" xml:space="preserve">
+    <value>Filtra els treballadors per estat documental</value>
+  </data>
+  <data name="ChipTodos" xml:space="preserve">
+    <value>Tots · {0}</value>
+  </data>
+  <data name="ChipSinValida" xml:space="preserve">
+    <value>Sense documentació vàlida · {0}</value>
+  </data>
+  <data name="ChipPorVencer" xml:space="preserve">
+    <value>Per vèncer · {0}</value>
+  </data>
+  <data name="ChipAlDia" xml:space="preserve">
+    <value>Al dia · {0}</value>
+  </data>
+  <data name="ListaTrabajadores" xml:space="preserve">
+    <value>Treballadors d'aquesta empresa</value>
+  </data>
+  <data name="DetalleDni" xml:space="preserve">
+    <value>DNI {0}</value>
+  </data>
+  <data name="PieOrden" xml:space="preserve">
+    <value>Ordenats del pitjor estat al millor</value>
+  </data>
+  <data name="PaginadorEtiqueta" xml:space="preserve">
+    <value>treballador(s)</value>
+  </data>
+  <data name="VacioTrabajadoresTitulo" xml:space="preserve">
+    <value>Sense treballadors</value>
+  </data>
+  <data name="VacioTrabajadoresDescripcion" xml:space="preserve">
+    <value>No hi ha treballadors d'aquesta empresa als centres que pots veure.</value>
+  </data>
+  <data name="VacioFiltroTitulo" xml:space="preserve">
+    <value>Cap treballador en aquest estat</value>
+  </data>
+  <data name="VerTodos" xml:space="preserve">
+    <value>Veure'ls tots</value>
+  </data>
+  <data name="ErrorTrabajadores" xml:space="preserve">
+    <value>No hem pogut carregar els treballadors</value>
+  </data>
+  <data name="ClientesApoyo" xml:space="preserve">
+    <value>Clients per als quals treballa aquesta empresa. Cada relació té la seva pròpia exigència documental.</value>
+  </data>
+  <data name="ListaClientes" xml:space="preserve">
+    <value>Clients d'aquesta empresa</value>
+  </data>
+  <data name="VacioClientesTitulo" xml:space="preserve">
+    <value>Sense clients</value>
+  </data>
+  <data name="VacioClientesDescripcion" xml:space="preserve">
+    <value>Aquesta empresa encara no té cap client associat.</value>
+  </data>
+  <data name="ErrorClientes" xml:space="preserve">
+    <value>No hem pogut carregar els clients</value>
+  </data>
+  <data name="EtiquetaLateral" xml:space="preserve">
+    <value>Context de l'empresa</value>
+  </data>
+  <data name="TarjetaInformacion" xml:space="preserve">
+    <value>Informació</value>
+  </data>
+  <data name="EditarFlecha" xml:space="preserve">
+    <value>Editar →</value>
+  </data>
+  <data name="DatoCnae" xml:space="preserve">
+    <value>CNAE</value>
+  </data>
+  <data name="DatoAlta" xml:space="preserve">
+    <value>Alta</value>
+  </data>
+  <data name="DatoConvenio" xml:space="preserve">
+    <value>Conveni aplicable</value>
+  </data>
+  <data name="DatoAnexoI" xml:space="preserve">
+    <value>Activitat de l'Annex I del RSP</value>
+  </data>
+  <data name="Si" xml:space="preserve">
+    <value>Sí</value>
+  </data>
+  <data name="No" xml:space="preserve">
+    <value>No</value>
+  </data>
+  <data name="TarjetaAcceso" xml:space="preserve">
+    <value>Accés a plataforma CAE</value>
+  </data>
+  <data name="SinCredenciales" xml:space="preserve">
+    <value>Sense credencials desades.</value>
+  </data>
+  <data name="ErrorAcceso" xml:space="preserve">
+    <value>No hem pogut carregar l'accés.</value>
+  </data>
+  <data name="DatoUrl" xml:space="preserve">
+    <value>URL</value>
+  </data>
+  <data name="SeAccedeComo" xml:space="preserve">
+    <value>S'hi accedeix com a</value>
+  </data>
+  <data name="Usuario" xml:space="preserve">
+    <value>Usuari</value>
+  </data>
+  <data name="CopiarUsuario" xml:space="preserve">
+    <value>Copiar l'usuari</value>
+  </data>
+  <data name="CopiarContrasena" xml:space="preserve">
+    <value>Copiar la contrasenya</value>
+  </data>
+  <data name="ElUsuario" xml:space="preserve">
+    <value>l'usuari</value>
+  </data>
+  <data name="LaContrasena" xml:space="preserve">
+    <value>la contrasenya</value>
+  </data>
+  <data name="AbrirPortal" xml:space="preserve">
+    <value>Obre el portal ↗</value>
+  </data>
+  <data name="AbrirPortalAccesible" xml:space="preserve">
+    <value>Obre el portal {0} en una pestanya nova</value>
+  </data>
+  <data name="SinContrasena" xml:space="preserve">
+    <value>No hi ha cap contrasenya desada.</value>
+  </data>
+  <data name="VistaPrevia" xml:space="preserve">
+    <value>Vista prèvia</value>
+  </data>
+</root>

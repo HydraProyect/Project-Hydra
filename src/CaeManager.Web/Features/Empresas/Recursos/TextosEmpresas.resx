@@ -1,0 +1,323 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="TituloPestanaNavegador" xml:space="preserve">
+    <value>Empresa</value>
+    <comment>Título de la pestaña del navegador mientras la Empresa no ha cargado.</comment>
+  </data>
+  <data name="MigaEmpresas" xml:space="preserve">
+    <value>Empresas</value>
+    <comment>Primera miga: vuelve a la lista de Empresas.</comment>
+  </data>
+  <data name="EtiquetaMigas" xml:space="preserve">
+    <value>Ruta de Empresa 360</value>
+    <comment>Nombre accesible de las migas.</comment>
+  </data>
+  <data name="Kicker" xml:space="preserve">
+    <value>Empresa</value>
+    <comment>Rótulo sobre el título de Empresa 360 (en pantalla, la Empresa contratista se rotula «Empresa»).</comment>
+  </data>
+  <data name="ErrorTitulo" xml:space="preserve">
+    <value>No pudimos cargar esta empresa</value>
+    <comment>La consulta devolvió null (no existe o fuera de alcance) o falló.</comment>
+  </data>
+  <data name="ErrorDescripcion" xml:space="preserve">
+    <value>Puede que ya no exista o que no tengas acceso.</value>
+    <comment>No distingue «no existe» de «sin acceso», igual que el panel.</comment>
+  </data>
+  <data name="Reintentar" xml:space="preserve">
+    <value>Reintentar</value>
+    <comment>Botón de reintento.</comment>
+  </data>
+  <data name="ErrorSeccionDescripcion" xml:space="preserve">
+    <value>Intenta nuevamente en unos segundos.</value>
+    <comment>Descripción de un error de carga de una sección.</comment>
+  </data>
+  <data name="MetaCif" xml:space="preserve">
+    <value>CIF {0}</value>
+    <comment>Identificación fiscal en la entradilla de la cabecera. {0} = CIF.</comment>
+  </data>
+  <data name="CopiarElCif" xml:space="preserve">
+    <value>el CIF</value>
+    <comment>Complemento del nombre accesible del botón Copiar («Copiar el CIF»).</comment>
+  </data>
+  <data name="MetaClientesUno" xml:space="preserve">
+    <value>1 cliente</value>
+    <comment>Recuento de Clientes empresariales (ClienteIds). En pantalla, «cliente».</comment>
+  </data>
+  <data name="MetaClientesVarios" xml:space="preserve">
+    <value>{0} clientes</value>
+    <comment>Recuento de Clientes empresariales (ClienteIds). {0} = número.</comment>
+  </data>
+  <data name="MetaTrabajadoresUno" xml:space="preserve">
+    <value>1 trabajador</value>
+    <comment>Total de trabajadores de la Empresa visibles para el usuario.</comment>
+  </data>
+  <data name="MetaTrabajadoresVarios" xml:space="preserve">
+    <value>{0} trabajadores</value>
+    <comment>Total de trabajadores de la Empresa visibles. {0} = número.</comment>
+  </data>
+  <data name="IndicadorSinValidaUno" xml:space="preserve">
+    <value>1 trabajador sin documentación válida</value>
+    <comment>Indicador de cabecera: trabajadores cuyo peor documento está vencido.</comment>
+  </data>
+  <data name="IndicadorSinValidaVarios" xml:space="preserve">
+    <value>{0} trabajadores sin documentación válida</value>
+    <comment>Indicador de cabecera. {0} = número.</comment>
+  </data>
+  <data name="IndicadorVencidosUno" xml:space="preserve">
+    <value>1 con algún documento vencido</value>
+    <comment>Línea del desglose del indicador.</comment>
+  </data>
+  <data name="IndicadorVencidosVarios" xml:space="preserve">
+    <value>{0} con algún documento vencido</value>
+    <comment>Línea del desglose del indicador. {0} = número.</comment>
+  </data>
+  <data name="IndicadorFaltantesNoCuentan" xml:space="preserve">
+    <value>Los documentos obligatorios que faltan no entran en este recuento.</value>
+    <comment>Aviso honesto: el recuento sale del peor vencimiento de los documentos existentes; un documento que falta no se ve.</comment>
+  </data>
+  <data name="IndicadorEtiquetaAccesible" xml:space="preserve">
+    <value>{0}: {1}. {2} Pulsa para verlos.</value>
+    <comment>Nombre accesible del indicador. {0} = título, {1} = desglose, {2} = aviso.</comment>
+  </data>
+  <data name="IndicadorPorVencerUno" xml:space="preserve">
+    <value>1 trabajador con documentos por vencer</value>
+    <comment>Indicador de cabecera: peor documento urgente o próximo.</comment>
+  </data>
+  <data name="IndicadorPorVencerVarios" xml:space="preserve">
+    <value>{0} trabajadores con documentos por vencer</value>
+    <comment>Indicador de cabecera. {0} = número.</comment>
+  </data>
+  <data name="AccionDetectar" xml:space="preserve">
+    <value>Detectar altas y bajas</value>
+    <comment>Acción principal: enlace a la detección de trabajadores de la Empresa.</comment>
+  </data>
+  <data name="AccionEditarEmpresa" xml:space="preserve">
+    <value>Editar empresa</value>
+    <comment>Ítem del menú de acciones: abre el panel en Información.</comment>
+  </data>
+  <data name="AnilloEtiqueta" xml:space="preserve">
+    <value>{0}% de cumplimiento acumulado en los centros donde esta empresa tiene actividad</value>
+    <comment>Nombre accesible del anillo. {0} = porcentaje.</comment>
+  </data>
+  <data name="AnilloSinDato" xml:space="preserve">
+    <value>Sin actividad en ningún centro con requisitos aplicables</value>
+    <comment>Nombre accesible del anillo cuando no hay porcentaje calculable.</comment>
+  </data>
+  <data name="EtiquetaGrupoPestanas" xml:space="preserve">
+    <value>Secciones de la empresa</value>
+    <comment>Nombre accesible del grupo de pestañas.</comment>
+  </data>
+  <data name="PestanaTrabajadores" xml:space="preserve">
+    <value>Trabajadores</value>
+    <comment>Pestaña.</comment>
+  </data>
+  <data name="PestanaClientes" xml:space="preserve">
+    <value>Clientes</value>
+    <comment>Pestaña de Clientes empresariales (en pantalla, «Clientes», contrato Gen2 § 14).</comment>
+  </data>
+  <data name="PestanaDocumentacion" xml:space="preserve">
+    <value>Documentación</value>
+    <comment>Pestaña.</comment>
+  </data>
+  <data name="PestanaAgenda" xml:space="preserve">
+    <value>Agenda</value>
+    <comment>Pestaña.</comment>
+  </data>
+  <data name="PestanaSello" xml:space="preserve">
+    <value>Sello</value>
+    <comment>Pestaña.</comment>
+  </data>
+  <data name="PestanaHistorial" xml:space="preserve">
+    <value>Historial</value>
+    <comment>Pestaña.</comment>
+  </data>
+  <data name="GlosaTrabajadores" xml:space="preserve">
+    <value>trabajadores</value>
+    <comment>Glosa accesible del contador de la pestaña Trabajadores.</comment>
+  </data>
+  <data name="GlosaClientes" xml:space="preserve">
+    <value>clientes</value>
+    <comment>Glosa accesible del contador de la pestaña Clientes.</comment>
+  </data>
+  <data name="EtiquetaFiltros" xml:space="preserve">
+    <value>Filtrar los trabajadores por estado documental</value>
+    <comment>Nombre accesible del grupo de chips.</comment>
+  </data>
+  <data name="ChipTodos" xml:space="preserve">
+    <value>Todos · {0}</value>
+    <comment>Chip de filtro. {0} = número.</comment>
+  </data>
+  <data name="ChipSinValida" xml:space="preserve">
+    <value>Sin documentación válida · {0}</value>
+    <comment>Chip de filtro: peor documento vencido. {0} = número.</comment>
+  </data>
+  <data name="ChipPorVencer" xml:space="preserve">
+    <value>Por vencer · {0}</value>
+    <comment>Chip de filtro: peor documento urgente o próximo. {0} = número.</comment>
+  </data>
+  <data name="ChipAlDia" xml:space="preserve">
+    <value>Al día · {0}</value>
+    <comment>Chip de filtro: el resto (vigente o sin caducidad). {0} = número.</comment>
+  </data>
+  <data name="ListaTrabajadores" xml:space="preserve">
+    <value>Trabajadores de esta empresa</value>
+    <comment>Nombre accesible de la lista.</comment>
+  </data>
+  <data name="DetalleDni" xml:space="preserve">
+    <value>DNI {0}</value>
+    <comment>Línea de detalle de la fila de trabajador. {0} = DNI.</comment>
+  </data>
+  <data name="PieOrden" xml:space="preserve">
+    <value>Ordenados del peor estado al mejor</value>
+    <comment>Pie de la lista de trabajadores.</comment>
+  </data>
+  <data name="PaginadorEtiqueta" xml:space="preserve">
+    <value>trabajador(es)</value>
+    <comment>Unidad del paginador.</comment>
+  </data>
+  <data name="VacioTrabajadoresTitulo" xml:space="preserve">
+    <value>Sin trabajadores</value>
+    <comment>Estado vacío de la pestaña Trabajadores.</comment>
+  </data>
+  <data name="VacioTrabajadoresDescripcion" xml:space="preserve">
+    <value>No hay trabajadores de esta empresa en los centros que puedes ver.</value>
+    <comment>El listado se acota a trabajadores con asignación activa en un centro visible.</comment>
+  </data>
+  <data name="VacioFiltroTitulo" xml:space="preserve">
+    <value>Ningún trabajador en este estado</value>
+    <comment>Estado vacío con un chip de filtro activo.</comment>
+  </data>
+  <data name="VerTodos" xml:space="preserve">
+    <value>Ver todos</value>
+    <comment>Quita el filtro de estado.</comment>
+  </data>
+  <data name="ErrorTrabajadores" xml:space="preserve">
+    <value>No pudimos cargar los trabajadores</value>
+    <comment>Error de carga de la pestaña Trabajadores.</comment>
+  </data>
+  <data name="ClientesApoyo" xml:space="preserve">
+    <value>Clientes para los que esta empresa trabaja. Cada relación tiene su propia exigencia documental.</value>
+    <comment>Texto de apoyo de la pestaña Clientes.</comment>
+  </data>
+  <data name="ListaClientes" xml:space="preserve">
+    <value>Clientes de esta empresa</value>
+    <comment>Nombre accesible de la lista.</comment>
+  </data>
+  <data name="VacioClientesTitulo" xml:space="preserve">
+    <value>Sin clientes</value>
+    <comment>Estado vacío de la pestaña Clientes.</comment>
+  </data>
+  <data name="VacioClientesDescripcion" xml:space="preserve">
+    <value>Esta empresa todavía no tiene ningún cliente asociado.</value>
+    <comment>Estado vacío de la pestaña Clientes.</comment>
+  </data>
+  <data name="ErrorClientes" xml:space="preserve">
+    <value>No pudimos cargar los clientes</value>
+    <comment>Error de carga de la pestaña Clientes.</comment>
+  </data>
+  <data name="EtiquetaLateral" xml:space="preserve">
+    <value>Contexto de la empresa</value>
+    <comment>Nombre accesible del lateral.</comment>
+  </data>
+  <data name="TarjetaInformacion" xml:space="preserve">
+    <value>Información</value>
+    <comment>Tarjeta del lateral.</comment>
+  </data>
+  <data name="EditarFlecha" xml:space="preserve">
+    <value>Editar →</value>
+    <comment>Acción de cabecera de tarjeta: abre el panel en Información.</comment>
+  </data>
+  <data name="DatoCnae" xml:space="preserve">
+    <value>CNAE</value>
+    <comment>Dato de Información.</comment>
+  </data>
+  <data name="DatoAlta" xml:space="preserve">
+    <value>Alta</value>
+    <comment>Dato de Información: fecha de alta de la Empresa.</comment>
+  </data>
+  <data name="DatoConvenio" xml:space="preserve">
+    <value>Convenio aplicable</value>
+    <comment>Dato de Información.</comment>
+  </data>
+  <data name="DatoAnexoI" xml:space="preserve">
+    <value>Actividad del Anexo I del RSP</value>
+    <comment>Dato de Información.</comment>
+  </data>
+  <data name="Si" xml:space="preserve">
+    <value>Sí</value>
+    <comment>Valor booleano.</comment>
+  </data>
+  <data name="No" xml:space="preserve">
+    <value>No</value>
+    <comment>Valor booleano.</comment>
+  </data>
+  <data name="TarjetaAcceso" xml:space="preserve">
+    <value>Acceso a plataforma CAE</value>
+    <comment>Tarjeta del lateral con la credencial de acceso de la Empresa.</comment>
+  </data>
+  <data name="SinCredenciales" xml:space="preserve">
+    <value>Sin credenciales guardadas.</value>
+    <comment>La Empresa no tiene credencial de acceso.</comment>
+  </data>
+  <data name="ErrorAcceso" xml:space="preserve">
+    <value>No pudimos cargar el acceso.</value>
+    <comment>Error de carga de la tarjeta de acceso.</comment>
+  </data>
+  <data name="DatoUrl" xml:space="preserve">
+    <value>URL</value>
+    <comment>Dirección de la plataforma CAE de la credencial.</comment>
+  </data>
+  <data name="SeAccedeComo" xml:space="preserve">
+    <value>Se accede como</value>
+    <comment>Campo Empresa / Cliente / Proveedor de la credencial.</comment>
+  </data>
+  <data name="Usuario" xml:space="preserve">
+    <value>Usuario</value>
+    <comment>Usuario de la credencial.</comment>
+  </data>
+  <data name="CopiarUsuario" xml:space="preserve">
+    <value>Copiar usuario</value>
+    <comment>Botón.</comment>
+  </data>
+  <data name="CopiarContrasena" xml:space="preserve">
+    <value>Copiar contraseña</value>
+    <comment>Botón: pide la contraseña al servidor solo al pulsar; nunca se pinta.</comment>
+  </data>
+  <data name="ElUsuario" xml:space="preserve">
+    <value>el usuario</value>
+    <comment>Complemento del nombre accesible del botón Copiar.</comment>
+  </data>
+  <data name="LaContrasena" xml:space="preserve">
+    <value>la contraseña</value>
+    <comment>Complemento del nombre accesible del botón Copiar.</comment>
+  </data>
+  <data name="AbrirPortal" xml:space="preserve">
+    <value>Abrir portal ↗</value>
+    <comment>Abre la URL de la plataforma CAE en una pestaña nueva.</comment>
+  </data>
+  <data name="AbrirPortalAccesible" xml:space="preserve">
+    <value>Abrir el portal {0} en una pestaña nueva</value>
+    <comment>Nombre accesible. {0} = URL.</comment>
+  </data>
+  <data name="SinContrasena" xml:space="preserve">
+    <value>No hay ninguna contraseña guardada.</value>
+    <comment>Aviso al pulsar Copiar contraseña sin contraseña guardada.</comment>
+  </data>
+  <data name="VistaPrevia" xml:space="preserve">
+    <value>Vista previa</value>
+    <comment>Ítem del menú de fila de la lista Empresas: abre el panel de 520 px.</comment>
+  </data>
+</root>

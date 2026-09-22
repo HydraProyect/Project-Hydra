@@ -1,0 +1,327 @@
+@*
+    Empresa 360 — página (mockup «Empresa 360 página TALVEG»). Ver el
+    comentario de cabecera del .razor.cs: mismas consultas y alcance que
+    EmpresaWorkspacePanel, y cómo se cuentan los trabajadores por estado.
+*@
+@page "/empresas/{EmpresaId:guid}"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Centros.Components
+@using CaeManager.Web.Features.Documentos
+@using CaeManager.Web.Features.Empresas.Components
+@using CaeManager.Web.Features.Empresas.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosEmpresas> Textos
+
+<PageTitle>@(_detalle?.RazonSocial ?? Textos["TituloPestanaNavegador"]) — @Marca.Nombre</PageTitle>
+
+<div class="contenedor-pagina">
+    <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="@Textos["EtiquetaMigas"]" />
+
+    @if (_error)
+    {
+        <EstadoVacio Titulo="@Textos["ErrorTitulo"]" Descripcion="@Textos["ErrorDescripcion"]">
+            <Accion>
+                <Boton OnClick="CargarAsync">@Textos["Reintentar"]</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando)
+    {
+        <EstadoCargando Filas="5" />
+    }
+    else if (_detalle is not null)
+    {
+        @*
+            Cabecera: identidad y recuentos en la entradilla, y en una segunda
+            línea los indicadores que piden atención. Un indicador en cero no
+            se pinta. Pulsarlo lleva a la pestaña Trabajadores filtrada.
+        *@
+        <CabeceraPagina Titulo="@_detalle.RazonSocial" Kicker="@Textos["Kicker"]">
+            <Descripcion>
+                @if (!string.IsNullOrWhiteSpace(_detalle.Cif))
+                {
+                    @Textos["MetaCif", _detalle.Cif]
+                    <BotonCopiar Valor="@_detalle.Cif" Etiqueta="@Textos["CopiarElCif"]" />
+                    <text> · </text>
+                }
+                @Plural(_detalle.ClienteIds.Count, "MetaClientesUno", "MetaClientesVarios")
+                @if (_recuentos is { } recuentosMeta)
+                {
+                    <text> · </text>@Plural(recuentosMeta.Total, "MetaTrabajadoresUno", "MetaTrabajadoresVarios")
+                }
+                @if (_recuentos is { } r && (r.Vencidos > 0 || r.PorVencer > 0))
+                {
+                    <span class="empresa360-indicadores">
+                        @if (r.Vencidos > 0)
+                        {
+                            var tituloSinValida = Plural(r.Vencidos, "IndicadorSinValidaUno", "IndicadorSinValidaVarios");
+                            var lineaVencidos = Plural(r.Vencidos, "IndicadorVencidosUno", "IndicadorVencidosVarios");
+                            @*
+                                La ventana da el desglose al pasar o enfocar; el
+                                botón de dentro filtra. tabindex -1 en la ventana:
+                                la parada de teclado es el botón, no dos seguidas.
+                            *@
+                            <VentanaContexto Etiqueta="@tituloSinValida" Titulo="@tituloSinValida" tabindex="-1">
+                                <Disparador>
+                                    <button type="button" class="empresa360-indicador"
+                                            aria-label="@Textos["IndicadorEtiquetaAccesible", tituloSinValida, lineaVencidos, Textos["IndicadorFaltantesNoCuentan"]]"
+                                            @onclick="() => FiltrarDesdeIndicadorAsync(FiltroTrabajadores.SinDocumentacionValida)">
+                                        <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">@tituloSinValida</Badge>
+                                    </button>
+                                </Disparador>
+                                <Detalle>
+                                    <span class="ventana-linea">@lineaVencidos</span>
+                                    <span class="ventana-linea">@Textos["IndicadorFaltantesNoCuentan"]</span>
+                                </Detalle>
+                            </VentanaContexto>
+                        }
+                        @if (r.PorVencer > 0)
+                        {
+                            <button type="button" class="empresa360-indicador"
+                                    @onclick="() => FiltrarDesdeIndicadorAsync(FiltroTrabajadores.PorVencer)">
+                                <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">@Plural(r.PorVencer, "IndicadorPorVencerUno", "IndicadorPorVencerVarios")</Badge>
+                            </button>
+                        }
+                    </span>
+                }
+            </Descripcion>
+            <Acciones>
+                <span class="empresa360-acciones">
+                    <AnilloCumplimiento Porcentaje="_cumplimiento" Tamano="TamanoAnillo.Cabecera"
+                                        Etiqueta="@(_cumplimiento is { } p ? Textos["AnilloEtiqueta", p] : Textos["AnilloSinDato"])" />
+                    <Boton Href="@($"/empresas/{_detalle.Id}/deteccion-trabajadores")">@Textos["AccionDetectar"]</Boton>
+                    @* El único ítem del menú es de escritura: sin escritura no hay menú. *@
+                    <SoloConEscritura>
+                        <MenuAcciones>
+                            <ItemMenuAccion OnClick="AbrirInformacion">@Textos["AccionEditarEmpresa"]</ItemMenuAccion>
+                        </MenuAcciones>
+                    </SoloConEscritura>
+                </span>
+            </Acciones>
+        </CabeceraPagina>
+
+        <CuerpoConLateral EtiquetaLateral="@Textos["EtiquetaLateral"]">
+            <ChildContent>
+                <Pestanas Definiciones="Pestanas" PestanaActiva="@_pestana" PestanaActivaChanged="CambiarPestanaAsync" EtiquetaGrupo="@Textos["EtiquetaGrupoPestanas"]">
+                    @switch (_pestana)
+                    {
+                        case PestanaClientes:
+                            @PestanaDeClientes
+                            break;
+                        case PestanaDocumentacion:
+                            <PestanaDocumentacion Ambito="AmbitoAplicacion.Empresa" PropietarioId="_detalle.Id" />
+                            break;
+                        case PestanaAgenda:
+                            <PestanaAgendaContactos Tipo="TipoPropietarioAgenda.Empresa" PropietarioId="_detalle.Id" />
+                            break;
+                        case PestanaSello:
+                            <PestanaSelloEmpresa EntidadId="_detalle.Id" />
+                            break;
+                        case PestanaHistorial:
+                            <PestanaHistorial EntidadTipo="Empresa" EntidadId="_detalle.Id" />
+                            break;
+                        default:
+                            @PestanaDeTrabajadores
+                            break;
+                    }
+                </Pestanas>
+            </ChildContent>
+            <Lateral>
+                <Tarjeta Titulo="@Textos["TarjetaInformacion"]" Compacta="true">
+                    <AccionesHeader>
+                        <SoloConEscritura>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirInformacion">@Textos["EditarFlecha"]</Boton>
+                        </SoloConEscritura>
+                    </AccionesHeader>
+                    <ChildContent>
+                        <RejillaDatos>
+                            <DatoRejilla Etiqueta="@Textos["DatoCnae"]" Valor="@(_detalle.Cnae ?? "—")" />
+                            <DatoRejilla Etiqueta="@Textos["DatoAlta"]" Valor="@_detalle.CreadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy")" />
+                            <DatoRejilla Etiqueta="@Textos["DatoConvenio"]" Valor="@(_detalle.ConvenioAplicable ?? "—")" Ancho="true" />
+                            <DatoRejilla Etiqueta="@Textos["DatoAnexoI"]" Valor="@(_detalle.EsActividadAnexoI ? Textos["Si"] : Textos["No"])" Ancho="true" />
+                        </RejillaDatos>
+                    </ChildContent>
+                </Tarjeta>
+
+                <Tarjeta Titulo="@Textos["TarjetaAcceso"]" Compacta="true">
+                    @if (_cargandoAcceso)
+                    {
+                        <EstadoCargando Filas="2" />
+                    }
+                    else if (_errorAcceso)
+                    {
+                        <p class="texto-vacio-seccion">@Textos["ErrorAcceso"]</p>
+                    }
+                    else if (_credencial is null)
+                    {
+                        <p class="texto-vacio-seccion">@Textos["SinCredenciales"]</p>
+                    }
+                    else
+                    {
+                        @*
+                            Solo los campos NO sensibles. La contraseña no viene en
+                            este DTO ni se pinta nunca: «Copiar contraseña» la pide
+                            al servidor en el clic (decisión del propietario
+                            2026-09-21), igual que el panel.
+                        *@
+                        <ListaLateral>
+                            @if (!string.IsNullOrWhiteSpace(_credencial.UrlAcceso))
+                            {
+                                <ElementoListaLateral>
+                                    <Etiqueta>@Textos["DatoUrl"]</Etiqueta>
+                                    <ChildContent>
+                                        @* Solo http(s): la URL es texto libre (ver UrlPortalCae). *@
+                                        @if (UrlPortalCae.Normalizar(_credencial.UrlAcceso) is { } destino)
+                                        {
+                                            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                                   Href="@destino" target="_blank" rel="noopener noreferrer"
+                                                   title="@_credencial.UrlAcceso"
+                                                   aria-label="@Textos["AbrirPortalAccesible", _credencial.UrlAcceso]">
+                                                @Textos["AbrirPortal"]
+                                            </Boton>
+                                        }
+                                        else
+                                        {
+                                            @_credencial.UrlAcceso
+                                        }
+                                    </ChildContent>
+                                </ElementoListaLateral>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(_credencial.CampoEmpresa))
+                            {
+                                <ElementoListaLateral>
+                                    <Etiqueta>@Textos["SeAccedeComo"]</Etiqueta>
+                                    <ChildContent>@_credencial.CampoEmpresa</ChildContent>
+                                </ElementoListaLateral>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(_credencial.Usuario))
+                            {
+                                <ElementoListaLateral>
+                                    <Etiqueta>@Textos["Usuario"]</Etiqueta>
+                                    <ChildContent>@_credencial.Usuario</ChildContent>
+                                </ElementoListaLateral>
+                            }
+                        </ListaLateral>
+                        <span class="empresa360-acciones">
+                            @if (!string.IsNullOrWhiteSpace(_credencial.Usuario))
+                            {
+                                <BotonCopiar Valor="@_credencial.Usuario" Etiqueta="@Textos["ElUsuario"]" Texto="@Textos["CopiarUsuario"]" />
+                            }
+                            <BotonCopiar ValorAsync="CopiarContrasenaAsync" Etiqueta="@Textos["LaContrasena"]" Texto="@Textos["CopiarContrasena"]" />
+                        </span>
+                    }
+                </Tarjeta>
+            </Lateral>
+        </CuerpoConLateral>
+    }
+</div>
+
+@code {
+    private RenderFragment PestanaDeTrabajadores => __builder =>
+    {
+        <section class="empresa360-seccion">
+            @if (_cargandoTrabajadores)
+            {
+                <EstadoCargando Filas="5" />
+            }
+            else if (_errorTrabajadores || _recuentos is null)
+            {
+                <EstadoVacio Titulo="@Textos["ErrorTrabajadores"]" Descripcion="@Textos["ErrorSeccionDescripcion"]">
+                    <Accion>
+                        <Boton OnClick="CargarTrabajadoresAsync">@Textos["Reintentar"]</Boton>
+                    </Accion>
+                </EstadoVacio>
+            }
+            else if (_recuentos.Total == 0)
+            {
+                <EstadoVacio Titulo="@Textos["VacioTrabajadoresTitulo"]" Descripcion="@Textos["VacioTrabajadoresDescripcion"]" />
+            }
+            else
+            {
+                var r = _recuentos;
+                <div class="empresa360-chips" role="group" aria-label="@Textos["EtiquetaFiltros"]">
+                    @Chip(FiltroTrabajadores.Todos, Textos["ChipTodos", r.Total])
+                    @Chip(FiltroTrabajadores.SinDocumentacionValida, Textos["ChipSinValida", r.Vencidos])
+                    @Chip(FiltroTrabajadores.PorVencer, Textos["ChipPorVencer", r.PorVencer])
+                    @Chip(FiltroTrabajadores.AlDia, Textos["ChipAlDia", r.AlDia])
+                </div>
+
+                @if (TotalDelFiltro == 0)
+                {
+                    <EstadoVacio Titulo="@Textos["VacioFiltroTitulo"]">
+                        <Accion>
+                            <Boton Variante="VarianteBoton.Secundario" OnClick="() => CambiarFiltroAsync(FiltroTrabajadores.Todos)">@Textos["VerTodos"]</Boton>
+                        </Accion>
+                    </EstadoVacio>
+                }
+                else
+                {
+                    <ListaRelaciones Etiqueta="@Textos["ListaTrabajadores"]">
+                        @foreach (var trabajador in _filas)
+                        {
+                            <FilaRelacion @key="trabajador.Id" Nombre="@NombreCompleto(trabajador)" Href="@($"/trabajadores/{trabajador.Id}")"
+                                          NombreIcono="trabajadores" OnAbrir360="() => AbrirTrabajador(trabajador)">
+                                <Detalle>@(string.IsNullOrWhiteSpace(trabajador.Dni) ? "—" : Textos["DetalleDni", trabajador.Dni])</Detalle>
+                                <Derecha>
+                                    <Badge Tono="EstadoDocumentoUi.TonoDocumental(trabajador.EstadoDocumental)" Tamano="TamanoBadge.Pequeno">
+                                        @EstadoDocumentoUi.TextoDocumental(trabajador.EstadoDocumental)
+                                    </Badge>
+                                </Derecha>
+                            </FilaRelacion>
+                        }
+                    </ListaRelaciones>
+                    <p class="empresa360-pie">@Textos["PieOrden"]</p>
+                    @if (TotalPaginas > 1)
+                    {
+                        <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="TotalDelFiltro"
+                                         Etiqueta="@Textos["PaginadorEtiqueta"]" PaginaActualChanged="CambiarPaginaAsync" />
+                    }
+                }
+            }
+        </section>
+    };
+
+    private RenderFragment Chip(FiltroTrabajadores filtro, string texto) => __builder =>
+    {
+        <button type="button" class="empresa360-chip" aria-pressed="@(_filtro == filtro ? "true" : "false")"
+                @onclick="() => CambiarFiltroAsync(filtro)">@texto</button>
+    };
+
+    private RenderFragment PestanaDeClientes => __builder =>
+    {
+        <section class="empresa360-seccion">
+            <p class="empresa360-apoyo">@Textos["ClientesApoyo"]</p>
+            @if (_errorClientes)
+            {
+                <EstadoVacio Titulo="@Textos["ErrorClientes"]" Descripcion="@Textos["ErrorSeccionDescripcion"]">
+                    <Accion>
+                        <Boton OnClick="CargarClientesAsync">@Textos["Reintentar"]</Boton>
+                    </Accion>
+                </EstadoVacio>
+            }
+            else if (_clientes is null)
+            {
+                <EstadoCargando Filas="3" />
+            }
+            else if (_clientes.Count == 0)
+            {
+                <EstadoVacio Titulo="@Textos["VacioClientesTitulo"]" Descripcion="@Textos["VacioClientesDescripcion"]" />
+            }
+            else
+            {
+                <ListaRelaciones Etiqueta="@Textos["ListaClientes"]">
+                    @foreach (var cliente in _clientes)
+                    {
+                        <FilaRelacion @key="cliente.Id" Nombre="@cliente.RazonSocial" Href="@($"/clientes/{cliente.Id}")"
+                                      NombreIcono="clientes" OnAbrir360="() => AbrirCliente(cliente)">
+                            <Detalle>@(string.IsNullOrWhiteSpace(cliente.Cif) ? "—" : Textos["MetaCif", cliente.Cif])</Detalle>
+                        </FilaRelacion>
+                    }
+                </ListaRelaciones>
+            }
+        </section>
+    };
+}
