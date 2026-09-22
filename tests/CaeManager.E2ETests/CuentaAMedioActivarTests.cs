@@ -153,8 +153,24 @@ public class CuentaAMedioActivarTests(WebAppFixtureCuentaAMedioActivar fixture, 
         await pagina.GetByLabel("Contraseña actual", new() { Exact = true }).FillAsync(Ayudas.ContrasenaUsuariosPrueba);
         await pagina.GetByLabel("Contraseña nueva", new() { Exact = true }).FillAsync(nueva);
         await pagina.GetByLabel("Confirma la contraseña nueva", new() { Exact = true }).FillAsync(nueva);
-        await pagina.RunAndWaitForNavigationAsync(
-            () => pagina.GetByRole(AriaRole.Button, new() { Name = "Cambiar contraseña" }).ClickAsync());
+        var navegada = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        void AlNavegar(object? _, IFrame marco)
+        {
+            if (marco == pagina.MainFrame) navegada.TrySetResult();
+        }
+
+        pagina.FrameNavigated += AlNavegar;
+        try
+        {
+            await pagina.GetByRole(AriaRole.Button, new() { Name = "Cambiar contraseña" }).ClickAsync();
+            await navegada.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        }
+        finally
+        {
+            pagina.FrameNavigated -= AlNavegar;
+        }
+
+        await pagina.WaitForLoadStateAsync(LoadState.Load);
     }
 
     private async Task EntrarSinEsperarElMenuAsync(IPage pagina, string email)
