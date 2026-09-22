@@ -13,7 +13,8 @@ namespace CaeManager.Application.Tests.Common;
 /// sube (<see cref="LimitesArchivoSubido.TamanoMaximoBytes"/>): hasta el
 /// 2026-09-23 cada uno tenía su propia copia de 10 MB y nada comprobaba que
 /// coincidieran. La frontera se mide en los dos lados: el tope exacto se
-/// acepta, un byte más se rechaza con el tope en el mensaje.
+/// acepta, un byte más se rechaza con el tope en el mensaje. La frontera
+/// inferior de la misma regla (evidencia vacía) también se fija aquí.
 /// </summary>
 public class LimitesArchivoSubidoEnValidadoresTests
 {
@@ -33,6 +34,16 @@ public class LimitesArchivoSubidoEnValidadoresTests
     public void Una_evidencia_de_un_byte_mas_se_rechaza_nombrando_el_tope(string validador)
     {
         var errores = Validar(validador, new byte[LimitesArchivoSubido.TamanoMaximoBytes + 1]);
+
+        errores.Should().ContainSingle()
+            .Which.Should().Be($"La evidencia no puede estar vacía ni superar los {LimitesArchivoSubido.TamanoMaximoMb} MB.");
+    }
+
+    [Theory]
+    [MemberData(nameof(Validadores))]
+    public void Una_evidencia_vacia_se_rechaza_con_el_mismo_mensaje(string validador)
+    {
+        var errores = Validar(validador, []);
 
         errores.Should().ContainSingle()
             .Which.Should().Be($"La evidencia no puede estar vacía ni superar los {LimitesArchivoSubido.TamanoMaximoMb} MB.");
