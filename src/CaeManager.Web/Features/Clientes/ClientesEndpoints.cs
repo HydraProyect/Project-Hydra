@@ -58,7 +58,7 @@ public static class ClientesEndpoints
         })
         // DEC-1 (plan de sesiones nocturnas 2026-09-02): mismos roles que
         // /clientes (RolesComunicaciones.Gestion, no RolesDeCartera de
-        // NavMenu — esa gatea "Visión de cartera", un dashboard distinto).
+        // CatalogoMenuLateral — esa gatea "Visión de cartera", un dashboard distinto).
         // Sin esto, restringir la página dejaba este endpoint como vía de
         // bypass para descargar la misma lista completa de clientes con
         // cualquier rol autenticado. Mismo patrón que /auditoria/exportar.xlsx.

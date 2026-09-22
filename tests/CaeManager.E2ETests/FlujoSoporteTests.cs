@@ -136,7 +136,7 @@ public class FlujoSoporteTests(WebAppFixtureParaSoporte fixture)
         // — visto en CI como "net::ERR_ABORTED" al navegar a /delegaciones.
         // Un clic dentro de la propia página ya cargada no compite con esa
         // navegación en curso. Delegaciones vuelve a tener botón propio en
-        // el menú (grupo "Plataforma", NavMenu.razor — resuelve la tensión
+        // el menú (grupo "Plataforma", CatalogoMenuLateral — resuelve la tensión
         // AdminPlataforma de #401/#403: su autoridad es de capacidad, no del
         // rol Administrador que gateaba el hub de Configuración donde vivía
         // antes), así que se entra directamente, sin pasar por el hub.

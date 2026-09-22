@@ -28,7 +28,7 @@ namespace CaeManager.Architecture.Tests;
 /// El fix sigue el patrón ya establecido en 33 páginas del repositorio
 /// (Alertas, Calendario, Reportes...): <c>Roles = Administrador,DireccionCae,
 /// CoordinadorCae,GestorCae,Consulta</c> — el mismo conjunto que
-/// <c>NavMenu.RolesConMenuCompleto</c>, sin Cliente.
+/// <c>CatalogoMenuLateral.RolesConMenuCompleto</c>, sin Cliente.
 /// </para>
 /// </summary>
 public class PaginasInternasExcluyenAlRolClienteTests

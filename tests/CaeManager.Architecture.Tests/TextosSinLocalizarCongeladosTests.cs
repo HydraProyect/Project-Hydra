@@ -59,7 +59,11 @@ public class TextosSinLocalizarCongeladosTests
         ["Comercial"] = 61,
         ["Components/Account"] = 95,
         ["Components/DesignSystem"] = 52,
-        ["Components/Layout"] = 92,
+        // 92 → 77 el 2026-09-23 SIN migrar nada: los rótulos del menú lateral pasaron del marcado
+        // de NavMenu.razor a literales de CatalogoMenuLateral.cs, y la heurística no ve un literal
+        // de una sola palabra («Dashboard», «Empresas»…). Siguen sin localizar; su migración a
+        // .resx es un incremento pendiente, no algo que esta cifra certifique.
+        ["Components/Layout"] = 77,
         ["Components/Legal"] = 163,
         ["Components/Pages"] = 18,
         ["Components/Workspace"] = 58,

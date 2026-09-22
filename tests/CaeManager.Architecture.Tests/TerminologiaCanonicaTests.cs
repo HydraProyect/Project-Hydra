@@ -283,12 +283,22 @@ public class TerminologiaCanonicaTests
     /// todavía ninguno de los cuatro términos, así que añadirlos al recorrido suma 0. Desde
     /// aquí, mover un texto de un <c>.razor</c> a su <c>.resx</c> deja la cifra igual.
     /// </para>
+    ///
+    /// <para>
+    /// <b><c>Delegacion</c> 320 → 314 (menú lateral como catálogo, 2026-09-23): −6, ningún
+    /// identificador retirado.</b> <c>NavMenu.razor</c> tenía 7 apariciones de «Delegaciones», todas
+    /// texto (el rótulo del enlace y comentarios <c>@* *@</c>), que en <c>.razor</c> cuentan por el
+    /// régimen crudo. El menú de los usuarios internos pasa a <c>CatalogoMenuLateral.cs</c>, donde
+    /// el rótulo es un literal y la justificación un comentario: en <c>.cs</c> ninguno de los dos
+    /// cuenta. En <c>NavMenu.razor</c> queda 1 (el comentario de <c>@code</c> que cita
+    /// <c>Delegaciones.razor</c>): 7 − 1 = −6. La deuda real de identificadores no cambia.
+    /// </para>
     /// </summary>
     private static readonly Dictionary<string, int> Congelado = new()
     {
         ["Hydra"] = 48,
         ["EjecutivoUsuarioId"] = 48,
-        ["Delegacion"] = 320,
+        ["Delegacion"] = 314,
         ["ClienteActivo"] = 71,
     };
 

@@ -58,7 +58,7 @@ public partial class Trabajadores : ComponentBase
     private IReadOnlyList<EmpresaSelectorDto> _empresasDisponibles = [];
     private IReadOnlyList<SubcontrataSelectorDto> _subcontratasDisponibles = [];
 
-    // DDL-072 (misma tabla de vocabulario que EtiquetaEmpresas de NavMenu.razor
+    // DDL-072 (misma tabla de vocabulario que el enlace «empresas» de CatalogoMenuLateral
     // y _tituloPagina de Empresas.razor.cs): "Mis trabajadores" en perfil
     // Cliente Directo, "Trabajadores" en perfil Consultora.
     private string _tituloPagina = "Trabajadores";
