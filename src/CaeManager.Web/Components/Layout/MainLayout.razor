@@ -29,6 +29,7 @@
                         <SelectorVistaVocabulario @rendermode="InteractiveServer" />
                         <SelectorVistaDemo @rendermode="InteractiveServer" />
                         <SelectorTema @rendermode="InteractiveServer" />
+                        <SelectorIdioma />
                         <a href="/mi-firma" class="menu-usuario-nombre" title="Mi firma">@context.User.Identity?.Name</a>
                         <form method="post" action="/cuenta/cerrar-sesion">
                             <AntiforgeryToken />

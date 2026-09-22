@@ -4,6 +4,7 @@
 @using System.ComponentModel.DataAnnotations
 @using CaeManager.Infrastructure.Identity
 @using CaeManager.Web.Components.Account
+@using CaeManager.Web.Services
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.Extensions.Options
@@ -76,6 +77,11 @@
 
     [SupplyParameterFromForm]
     private DatosEntrada? Entrada { get; set; }
+
+    // Página SSR estática: el HttpContext de la petición del formulario, en el
+    // que SignInManager ya escribe la cookie de autenticación.
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
 
     [SupplyParameterFromQuery]
     private string? ReturnUrl { get; set; }
@@ -158,6 +164,14 @@
             // resolverlo ya en el login evita un salto visible de "/" (o
             // ReturnUrl) a la pantalla de cambio de contraseña.
             logger.LogInformation("Login correcto: {UsuarioId}", idCuenta);
+
+            // La cookie de cultura es una proyección de ApplicationUser.Idioma
+            // (ver CulturaUsuarioCookie): se reconstruye en cada inicio de
+            // sesión, así que un navegador nuevo o sin cookies no pierde la
+            // preferencia y un usuario anterior en este navegador no la deja
+            // heredada.
+            if (cuenta is not null && HttpContext is not null)
+                CulturaUsuarioCookie.Escribir(HttpContext, cuenta.Idioma);
 
             if (cuenta is { DebeCambiarContrasena: true })
             {

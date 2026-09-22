@@ -1,0 +1,49 @@
+@using CaeManager.Infrastructure.Identity
+@using CaeManager.Web.Components.Account
+@using CaeManager.Web.Recursos
+@using CaeManager.Web.Services
+@using Microsoft.Extensions.Localization
+@inject NavigationManager NavigationManager
+@inject IStringLocalizer<TextosComunes> Textos
+
+@*
+    Idioma de la interfaz de la cuenta (ApplicationUser.Idioma). Un <form>
+    HTML que hace POST a /cuenta/idioma, no un @onchange de Blazor: el cambio
+    escribe la cookie de cultura en el servidor, necesita token antiforgery
+    (que UseAntiforgery valida, no genera: lo pone <AntiforgeryToken />) y un
+    circuito nuevo ya en la cultura elegida, que llega con la redirección.
+    Sin @rendermode: se renderiza en el SSR del layout, igual que el
+    formulario de cerrar sesión.
+
+    Los nombres de idioma van cada uno en su propio idioma (endónimos), no en
+    recursos: quien no entiende la interfaz actual tiene que poder reconocer
+    el suyo.
+*@
+<form method="post" action="@IdiomaEndpoints.Ruta" class="selector-idioma-formulario">
+    <AntiforgeryToken />
+    <input type="hidden" name="returnUrl" value="@_returnUrl" />
+    <span class="selector-idioma-envoltura">
+        <Icono Nombre="idioma" Tamano="TamanoIcono.Pequeno" />
+        @* El envío lo dispara el listener delegado de microinteracciones.js
+           (la CSP no admite onchange="…" en línea), igual que el selector de contexto operativo. *@
+        <select class="selector-idioma" name="idioma" data-enviar-al-cambiar aria-label="@Textos["IdiomaEtiqueta"]">
+            <option value="@CulturaUsuarioCookie.CulturaEspanol" lang="es" selected="@(_idiomaActual == IdiomaPreferido.Espanol)">Español</option>
+            <option value="@CulturaUsuarioCookie.CulturaCatalan" lang="ca" selected="@(_idiomaActual == IdiomaPreferido.Catalan)">Català</option>
+        </select>
+    </span>
+    <noscript><button type="submit">@Textos["IdiomaCambiar"]</button></noscript>
+</form>
+
+@code {
+    private string _returnUrl = "/";
+    private IdiomaPreferido _idiomaActual;
+
+    protected override void OnInitialized()
+    {
+        // La cultura de esta petición ya la resolvió RequestLocalization desde
+        // la cookie, que proyecta ApplicationUser.Idioma: no hace falta leer
+        // la cuenta para saber qué opción marcar.
+        _idiomaActual = CulturaUsuarioCookie.Actual();
+        _returnUrl = new Uri(NavigationManager.Uri).PathAndQuery;
+    }
+}
