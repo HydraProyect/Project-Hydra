@@ -124,6 +124,34 @@ public class NavMenuCaracterizacionTests
         cliente.Should().StartWith("suelto[\"\"@dashboard/icono icono-medio'Dashboard'<nav-item>");
     }
 
+    /// <summary>
+    /// En el cajón móvil (<c>NavegacionMovil</c>, <c>InteractiveServer</c>) el menú vive en un
+    /// circuito y la sesión puede pasar a anónima a mitad (revalidación de la cookie). La
+    /// <c>AuthorizeView</c> del marcado anterior reaccionaba al nuevo estado en cascada y ocultaba
+    /// los grupos al momento; el catálogo tiene que hacer lo mismo en vez de quedarse con el
+    /// usuario con el que se inicializó.
+    /// </summary>
+    [Fact]
+    public void Si_la_sesion_pasa_a_anonima_en_un_circuito_el_menu_oculta_los_grupos()
+    {
+        using var ctx = new BunitContext();
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        var auth = ctx.AddAuthorization();
+        auth.SetAuthorized("usuario@prueba").SetRoles(Roles.Administrador);
+        ctx.Services.AddSingleton<IOptions<ComunicacionesOptions>>(
+            Options.Create(new ComunicacionesOptions { Activo = true }));
+        ctx.Services.AddSingleton<IMediator>(new MediatorDeMenu(
+            new Combinacion(Roles.Administrador, null, true, true, PerfilVocabularioTenant.Consultora, 1)));
+
+        var cut = ctx.Render<NavMenu>();
+        cut.FindAll("details[data-grupo]").Should().NotBeEmpty("con la sesión abierta el Administrador ve sus grupos");
+
+        auth.SetNotAuthorized();
+
+        cut.WaitForAssertion(() => cut.FindAll("nav.nav-principal a").Select(a => a.GetAttribute("href")).Should().BeEmpty(
+            "sin sesión no queda ningún enlace, igual que con la AuthorizeView anterior"));
+    }
+
     private static Dictionary<string, string> CatalogoDeIconos()
     {
         using var ctx = new BunitContext();

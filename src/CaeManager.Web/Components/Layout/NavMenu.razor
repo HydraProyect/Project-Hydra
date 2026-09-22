@@ -82,13 +82,11 @@
     [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
 
     private ContextoMenuLateral? _contexto;
+    private Task<AuthenticationState>? _estadoEvaluado;
     private IReadOnlyList<CatalogoMenuLateral.GrupoVisible> _grupos = [];
 
     protected override async Task OnInitializedAsync()
     {
-        var usuario = EstadoAutenticacion is null
-            ? new ClaimsPrincipal(new ClaimsIdentity())
-            : (await EstadoAutenticacion).User;
         var perfil = await Mediator.Send(new ObtenerPerfilVocabularioActualQuery());
         // Lente de demo (ver MenuPorVista): solo puede ocultar entradas, nunca mostrar una que la
         // autorización real de la cuenta no mostraría. Opcional a propósito: sin la lente
@@ -103,8 +101,23 @@
         var organizaciones = await Mediator.Send(new ObtenerClientesAutorizadosQuery());
 
         _contexto = new ContextoMenuLateral(
-            usuario, vista, OpcionesComunicaciones.Value.Activo, esAdministradorPlataforma, perfil,
-            VariosTenants: organizaciones.Count > 1);
+            new ClaimsPrincipal(new ClaimsIdentity()), vista, OpcionesComunicaciones.Value.Activo,
+            esAdministradorPlataforma, perfil, VariosTenants: organizaciones.Count > 1);
+    }
+
+    // El usuario se relee en cada estado de autenticación en cascada, no solo al inicializar: en el
+    // cajón móvil (NavegacionMovil, InteractiveServer) el menú vive en un circuito y la sesión puede
+    // pasar a anónima a mitad, y el menú tiene que ocultarse al momento como lo hacía AuthorizeView.
+    // Las consultas de arriba no se repiten: sin sesión ya no hay ningún grupo que las necesite.
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_contexto is null || (_estadoEvaluado is not null && ReferenceEquals(_estadoEvaluado, EstadoAutenticacion)))
+            return;
+        _estadoEvaluado = EstadoAutenticacion;
+        var usuario = EstadoAutenticacion is null
+            ? new ClaimsPrincipal(new ClaimsIdentity())
+            : (await EstadoAutenticacion).User;
+        _contexto = _contexto with { Usuario = usuario };
         _grupos = CatalogoMenuLateral.Visibles(_contexto);
     }
 }
