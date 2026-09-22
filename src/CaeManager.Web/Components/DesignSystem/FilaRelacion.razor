@@ -10,6 +10,9 @@
       - el botón 360 abre el panel ContextWorkspace de 520 px para consultarla
         sin salir de la página.
     Sin Href el nombre se pinta como texto; sin OnAbrir360 no hay botón.
+    Excepción: una entidad que todavía no tiene página 360 (Subcontrata en
+    Cliente 360) pasa OnNombre en vez de Href, y su nombre es un botón que
+    abre el panel — el mismo destino que el botón 360.
 *@
 <li class="fila-relacion">
     @if (!string.IsNullOrWhiteSpace(NombreIcono))
@@ -21,6 +24,10 @@
         @if (!string.IsNullOrWhiteSpace(Href))
         {
             <a class="fila-relacion-nombre" href="@Href" title="@Nombre">@Nombre</a>
+        }
+        else if (OnNombre.HasDelegate)
+        {
+            <button type="button" class="fila-relacion-nombre fila-relacion-nombre-boton" title="@Nombre" @onclick="OnNombre">@Nombre</button>
         }
         else
         {
@@ -61,6 +68,11 @@
     /// <summary>Lo que va a la derecha, antes del botón 360 (porcentaje, badge de estado).</summary>
     [Parameter] public RenderFragment? Derecha { get; set; }
 
+    /// <summary>
+    /// Para una entidad sin página 360: el nombre se pinta como botón y lo
+    /// llama. Solo se usa cuando no hay <see cref="Href"/> (un enlace gana).
+    /// </summary>
+    [Parameter] public EventCallback OnNombre { get; set; }
     /// <summary>Abre el panel de la entidad. Sin delegado no se pinta el botón 360.</summary>
     [Parameter] public EventCallback OnAbrir360 { get; set; }
 }

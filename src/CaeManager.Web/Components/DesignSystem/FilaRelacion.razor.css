@@ -43,12 +43,25 @@
     white-space: nowrap;
 }
 
-a.fila-relacion-nombre:hover {
+/* Nombre-botón (OnNombre): el mismo aspecto que el nombre-enlace. */
+.fila-relacion-nombre-boton {
+    max-width: 100%;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    background: none;
+    text-align: left;
+    cursor: pointer;
+}
+
+a.fila-relacion-nombre:hover,
+.fila-relacion-nombre-boton:hover {
     color: var(--color-primary-500);
     text-decoration: underline;
 }
 
-a.fila-relacion-nombre:focus-visible {
+a.fila-relacion-nombre:focus-visible,
+.fila-relacion-nombre-boton:focus-visible {
     outline: var(--border-focus);
     outline-offset: 1px;
 }

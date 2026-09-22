@@ -242,4 +242,42 @@ public class MaquetacionPaginas360Tests : BunitContext
         cut.FindAll("button").Should().BeEmpty();
         cut.FindAll(".fila-relacion-derecha, .fila-relacion-icono, .fila-relacion-detalle").Should().BeEmpty();
     }
+
+    /// <summary>
+    /// Una entidad sin página 360 (Subcontrata en Cliente 360) pasa OnNombre:
+    /// su nombre es un botón que lo llama, no un enlace ni texto muerto.
+    /// </summary>
+    [Fact]
+    public void Con_OnNombre_y_sin_ruta_el_nombre_es_un_boton_que_lo_llama()
+    {
+        var pulsados = 0;
+        var cut = Render<FilaRelacion>(p => p
+            .Add(x => x.Nombre, "Andamios Cantábrico S.L.")
+            .Add(x => x.OnNombre, () => pulsados++));
+
+        cut.FindAll("a").Should().BeEmpty();
+        var nombre = cut.Find("button.fila-relacion-nombre");
+        nombre.GetAttribute("type").Should().Be("button", "dentro de un formulario no debe enviarlo");
+        nombre.TextContent.Should().Be("Andamios Cantábrico S.L.");
+
+        nombre.Click();
+
+        pulsados.Should().Be(1);
+    }
+
+    /// <summary>
+    /// Con Href y OnNombre a la vez gana el enlace: el parámetro es aditivo y
+    /// no cambia el comportamiento de las filas que ya tienen página 360.
+    /// </summary>
+    [Fact]
+    public void Con_ruta_el_enlace_gana_a_OnNombre()
+    {
+        var cut = Render<FilaRelacion>(p => p
+            .Add(x => x.Nombre, "Planta Barakaldo")
+            .Add(x => x.Href, "/centros/5")
+            .Add(x => x.OnNombre, () => { }));
+
+        cut.Find("a.fila-relacion-nombre").GetAttribute("href").Should().Be("/centros/5");
+        cut.FindAll("button.fila-relacion-nombre").Should().BeEmpty();
+    }
 }
