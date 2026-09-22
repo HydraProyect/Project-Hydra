@@ -22,7 +22,7 @@ public partial class MiTrabajo : ComponentBase, IDisposable
     private SeveridadMiTrabajo? _severidad;
     private Guid? _tenantFiltro;
     private string _busqueda = string.Empty;
-    private AgruparMiTrabajo _agrupar = AgruparMiTrabajo.Organizacion;
+    private AgruparMiTrabajo _agrupar = AgruparMiTrabajo.Tenant;
     private OrdenMiTrabajo _orden = OrdenMiTrabajo.Prioridad;
     private readonly HashSet<string> _abiertos = [];
     private readonly HashSet<Guid> _cerrados = [];
@@ -49,7 +49,7 @@ public partial class MiTrabajo : ComponentBase, IDisposable
 
     private IReadOnlyList<FilaMiTrabajo> Visibles => _vista?.Visibles(Filtro) ?? [];
 
-    /// <summary>Vacío porque no queda trabajo en la organización elegida, no porque el filtro lo esconda.</summary>
+    /// <summary>Vacío porque no queda trabajo en el Tenant elegido, no porque el filtro lo esconda.</summary>
     private bool AlDia => _vista is null || _vista.Ambito(Filtro with { Busqueda = string.Empty }).Count == 0;
 
     private FilaCarteraMiTrabajo? TenantFiltrado => _tenantFiltro is { } id ? _vista?.Cartera.FirstOrDefault(t => t.TenantId == id) : null;
@@ -212,7 +212,7 @@ public partial class MiTrabajo : ComponentBase, IDisposable
     {
         var partes = new List<string?> { MiTrabajoVista.Etiqueta(fila.Severidad) };
         if (_agrupar == AgruparMiTrabajo.Severidad) partes.Add(fila.TenantNombre);
-        if (!(_agrupar == AgruparMiTrabajo.Organizacion && _orden == OrdenMiTrabajo.Cliente)) partes.Add(fila.Item.ClienteNombre);
+        if (!(_agrupar == AgruparMiTrabajo.Tenant && _orden == OrdenMiTrabajo.Cliente)) partes.Add(fila.Item.ClienteNombre);
         return string.Join(" · ", partes.Where(p => !string.IsNullOrWhiteSpace(p)));
     }
 
@@ -224,7 +224,7 @@ public partial class MiTrabajo : ComponentBase, IDisposable
         _ => TonoBadge.Neutro
     };
 
-    private static string Organizaciones(int n) => n == 1 ? "1 organización" : $"{n} organizaciones";
+    private static string Empresas(int n) => n == 1 ? "1 empresa" : $"{n} empresas";
 
     private static string SubtituloCartera(FilaCarteraMiTrabajo tenant) => tenant.Total == 0
         ? "Sin trabajo pendiente"

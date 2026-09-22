@@ -17,7 +17,8 @@ namespace CaeManager.Web.Tests;
 /// acción tiene que entrar en el Tenant propietario de SU fila, por el POST con
 /// antiforgery de /cuenta/cliente-activo, y aterrizar en la pantalla exacta
 /// (contrato Gen2 § 8). El resto fija la gramática del mockup: pliegue de
-/// calendario, chips, carril de cartera y Tenant de origen aparte (§ 10).
+/// calendario, chips, carril de cartera, Tenant de origen fuera (§ 10) y
+/// rótulos de pantalla (§ 14).
 /// </summary>
 public class MiTrabajoGen2Tests : BunitContext
 {
@@ -144,7 +145,7 @@ public class MiTrabajoGen2Tests : BunitContext
     }
 
     [Fact]
-    public void Ninguna_accion_manda_a_la_bandeja_de_una_organizacion_para_ver_su_cola_completa()
+    public void Ninguna_accion_manda_a_la_bandeja_de_un_Tenant_para_ver_su_cola_completa()
     {
         var cut = Renderizar();
 
@@ -165,7 +166,7 @@ public class MiTrabajoGen2Tests : BunitContext
     }
 
     [Fact]
-    public void Una_busqueda_encuentra_lo_que_esta_en_una_organizacion_plegada()
+    public void Una_busqueda_encuentra_lo_que_esta_en_un_Tenant_plegado()
     {
         var cut = Renderizar();
         cut.FindAll(".mi-trabajo-grupo-cabecera-tenant").First(c => c.TextContent.Contains("Refrielectric")).Click();
@@ -207,7 +208,7 @@ public class MiTrabajoGen2Tests : BunitContext
     }
 
     [Fact]
-    public void Elegir_una_organizacion_del_carril_filtra_la_cola_a_ella()
+    public void Elegir_un_Tenant_del_carril_filtra_la_cola_a_el()
     {
         var cut = Renderizar();
 
@@ -218,7 +219,7 @@ public class MiTrabajoGen2Tests : BunitContext
     }
 
     [Fact]
-    public void Plegar_la_cabecera_de_una_organizacion_esconde_sus_filas_y_resume_lo_que_tiene()
+    public void Plegar_la_cabecera_de_un_Tenant_esconde_sus_filas_y_resume_lo_que_tiene()
     {
         var cut = Renderizar();
 
@@ -229,20 +230,22 @@ public class MiTrabajoGen2Tests : BunitContext
     }
 
     [Fact]
-    public void Abrir_una_fila_pinta_el_detalle_con_organizacion_y_cliente_empresarial_separados()
+    public void Abrir_una_fila_pinta_el_detalle_con_Tenant_y_Cliente_empresarial_separados_y_rotulados_segun_el_contrato()
     {
         var cut = Renderizar();
 
         FilaDe(cut, "Rechazado por la plataforma").Click();
 
+        // Contrato § 14: en pantalla el Tenant propietario es «Empresa» y el
+        // Cliente empresarial es «Cliente»; nunca comparten rótulo.
         var detalle = cut.Find(".mi-trabajo-detalle");
-        var datos = detalle.QuerySelectorAll("dd").Select(d => d.TextContent).ToList();
-        datos.Should().ContainInOrder("Laboratorios Dexter", "Cervezas Duff Ibérica", "Nalanda");
+        detalle.QuerySelectorAll("dt").Select(d => d.TextContent).Should().Equal("Empresa", "Cliente", "Plataforma CAE");
+        detalle.QuerySelectorAll("dd").Select(d => d.TextContent).Should().Equal("Laboratorios Dexter", "Cervezas Duff Ibérica", "Nalanda");
         Formulario(detalle).Tenant.Should().Be(TenantDexter.ToString());
     }
 
     [Fact]
-    public void Agrupar_por_severidad_pone_la_organizacion_en_el_contexto_de_cada_fila()
+    public void Agrupar_por_severidad_pone_el_Tenant_en_el_contexto_de_cada_fila()
     {
         var cut = Renderizar();
 

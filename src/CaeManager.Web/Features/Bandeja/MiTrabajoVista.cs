@@ -5,7 +5,7 @@ namespace CaeManager.Web.Features.Bandeja;
 
 public enum SeveridadMiTrabajo { Bloqueo, Actuacion, Proximo, Seguimiento }
 
-public enum AgruparMiTrabajo { Organizacion, Severidad }
+public enum AgruparMiTrabajo { Tenant, Severidad }
 
 public enum OrdenMiTrabajo { Prioridad, Cliente }
 
@@ -20,13 +20,13 @@ public sealed record FiltroMiTrabajo(
     SeveridadMiTrabajo? Severidad = null,
     Guid? TenantId = null,
     string Busqueda = "",
-    AgruparMiTrabajo Agrupar = AgruparMiTrabajo.Organizacion,
+    AgruparMiTrabajo Agrupar = AgruparMiTrabajo.Tenant,
     OrdenMiTrabajo Orden = OrdenMiTrabajo.Prioridad,
     IReadOnlySet<string>? Abiertos = null,
     IReadOnlySet<Guid>? Cerrados = null);
 
-/// <param name="Clave">TenantId en modo Organización; nombre de la severidad en modo Severidad.</param>
-/// <param name="Plegado">Solo modo Organización: el Gestor CAE plegó la cabecera del Tenant.</param>
+/// <param name="Clave">TenantId en modo Tenant; nombre de la severidad en modo Severidad.</param>
+/// <param name="Plegado">Solo modo Tenant: el Gestor CAE plegó la cabecera del Tenant.</param>
 /// <param name="ResumenCalendario">Texto del pliegue «N vencimientos y envíos en calendario»; null si no hay nada plegado.</param>
 /// <param name="ResumenCabecera">Recuento que se enseña en la cabecera cuando el grupo está plegado.</param>
 public sealed record GrupoMiTrabajo(
@@ -80,7 +80,7 @@ public sealed class MiTrabajoVista
             yield return new(tenant.TenantId, tenant.TenantNombre, orden, SeveridadMiTrabajo.Seguimiento, item);
     }
 
-    /// <summary>Organización elegida + búsqueda, nunca la severidad: base de los recuentos de los chips.</summary>
+    /// <summary>Tenant elegido + búsqueda, nunca la severidad: base de los recuentos de los chips.</summary>
     public IReadOnlyList<FilaMiTrabajo> Ambito(FiltroMiTrabajo filtro) =>
         _cartera.Where(f => (filtro.TenantId is null || f.TenantId == filtro.TenantId) && CoincideBusqueda(f, filtro.Busqueda)).ToList();
 
@@ -110,12 +110,12 @@ public sealed class MiTrabajoVista
         var buscando = BusquedaActiva(filtro);
 
         var lista = Alcance(filtro).AsEnumerable();
-        lista = filtro.Agrupar == AgruparMiTrabajo.Organizacion
+        lista = filtro.Agrupar == AgruparMiTrabajo.Tenant
             ? lista.Where(f => (buscando || !cerrados.Contains(f.TenantId)) && (!pliega || EsUrgente(f) || abiertos.Contains(f.TenantId.ToString())))
             : lista.Where(f => !pliega || EsUrgente(f) || abiertos.Contains(f.Severidad.ToString()));
 
         var porCliente = filtro.Orden == OrdenMiTrabajo.Cliente;
-        return (filtro.Agrupar == AgruparMiTrabajo.Organizacion
+        return (filtro.Agrupar == AgruparMiTrabajo.Tenant
                 ? (porCliente
                     ? lista.OrderBy(f => f.OrdenTenant).ThenBy(ClaveCliente).ThenBy(ClaveCentro).ThenBy(f => f.Severidad)
                     : lista.OrderBy(f => f.OrdenTenant).ThenBy(f => f.Severidad).ThenBy(ClaveCliente).ThenBy(ClaveCentro))
@@ -133,7 +133,7 @@ public sealed class MiTrabajoVista
         var visibles = Visibles(filtro);
         var grupos = new List<GrupoMiTrabajo>();
 
-        if (filtro.Agrupar == AgruparMiTrabajo.Organizacion)
+        if (filtro.Agrupar == AgruparMiTrabajo.Tenant)
         {
             foreach (var tenant in Cartera)
             {

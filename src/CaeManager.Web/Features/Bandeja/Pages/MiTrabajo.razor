@@ -14,8 +14,8 @@
    DEMO (andamiaje de la vista previa), la selección múltiple («x»,
    «Gestionar selección»), «Aplazar», el historial del flujo en el detalle y el
    aviso «Cartera incompleta» (hoy un Tenant que falla hace fallar la consulta
-   entera). De cara al usuario se dice «organización», nunca «tenant» ni
-   «empresa» a secas (contrato § 1 y § 11.3). *@
+   entera). Rótulos de pantalla del contrato § 14: el Tenant propietario se
+   rotula «Empresa» y el Cliente empresarial «Cliente»; nunca «tenant». *@
 <PageTitle>Mi trabajo — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina mi-trabajo">
@@ -59,14 +59,14 @@
             <aside class="mi-trabajo-cartera" aria-label="Mi cartera">
                 <div class="mi-trabajo-cartera-cabecera">
                     <h2 class="mi-trabajo-cartera-titulo">Mi cartera</h2>
-                    <span class="mi-trabajo-cartera-cuenta">@Organizaciones(_vista.Cartera.Count)</span>
+                    <span class="mi-trabajo-cartera-cuenta">@Empresas(_vista.Cartera.Count)</span>
                 </div>
                 <button type="button" class="@ClaseFilaCartera(null)" aria-pressed="@(_tenantFiltro is null ? "true" : "false")"
                         @onclick="() => CambiarTenant(null)">
                     <span class="mi-trabajo-cartera-avatar mi-trabajo-cartera-avatar-todo" aria-hidden="true">∑</span>
                     <span class="mi-trabajo-cartera-texto">
                         <span class="mi-trabajo-cartera-nombre">Toda mi cartera</span>
-                        <span class="mi-trabajo-cartera-sub">@Organizaciones(_vista.Cartera.Count) consultadas</span>
+                        <span class="mi-trabajo-cartera-sub">@Empresas(_vista.Cartera.Count) consultadas</span>
                     </span>
                     <span class="mi-trabajo-cartera-total">@_vista.TotalCartera</span>
                 </button>
@@ -88,8 +88,8 @@
                 <div class="mi-trabajo-barra">
                     <div class="mi-trabajo-barra-grupo" role="group" aria-label="Agrupar por">
                         <span class="mi-trabajo-barra-etiqueta">Agrupar por</span>
-                        <button type="button" class="@ClasePestana(_agrupar == AgruparMiTrabajo.Organizacion)" aria-pressed="@(_agrupar == AgruparMiTrabajo.Organizacion ? "true" : "false")"
-                                @onclick="() => CambiarAgrupar(AgruparMiTrabajo.Organizacion)">Organización</button>
+                        <button type="button" class="@ClasePestana(_agrupar == AgruparMiTrabajo.Tenant)" aria-pressed="@(_agrupar == AgruparMiTrabajo.Tenant ? "true" : "false")"
+                                @onclick="() => CambiarAgrupar(AgruparMiTrabajo.Tenant)">Empresa</button>
                         <button type="button" class="@ClasePestana(_agrupar == AgruparMiTrabajo.Severidad)" aria-pressed="@(_agrupar == AgruparMiTrabajo.Severidad ? "true" : "false")"
                                 @onclick="() => CambiarAgrupar(AgruparMiTrabajo.Severidad)">Severidad</button>
                     </div>
@@ -103,7 +103,7 @@
                     <div class="mi-trabajo-barra-derecha">
                         <input class="mi-trabajo-filtro" type="search" aria-label="Filtrar esta cola por trabajador, documento o centro"
                                placeholder="Filtrar en la cola…" value="@_busqueda" @oninput="CambiarBusqueda" />
-                        @if (_agrupar == AgruparMiTrabajo.Organizacion && string.IsNullOrWhiteSpace(_busqueda))
+                        @if (_agrupar == AgruparMiTrabajo.Tenant && string.IsNullOrWhiteSpace(_busqueda))
                         {
                             <button type="button" class="mi-trabajo-plegar-todas" @onclick="AlternarTodas">@(TodoPlegado ? "Expandir todas" : "Plegar todas")</button>
                         }
@@ -116,8 +116,8 @@
                     <EstadoVacio NombreIcono="exito-circulo" AcentoIcono="var(--color-success-500)" FondoIcono="var(--color-success-50)"
                                  Titulo="@(TenantFiltrado is { } t ? $"{t.Nombre}, al día" : "Cartera al día")"
                                  Descripcion="@(TenantFiltrado is { } t2
-                                     ? $"No queda ninguna gestión pendiente para los clientes empresariales de {t2.Nombre}."
-                                     : "Ninguna organización de tu cartera tiene bloqueos, documentación pendiente ni vencimientos próximos.")">
+                                     ? $"No queda ninguna gestión pendiente para los clientes de {t2.Nombre}."
+                                     : "Ninguna empresa de tu cartera tiene bloqueos, documentación pendiente ni vencimientos próximos.")">
                         <Accion>
                             @if (TenantFiltrado is not null)
                             {
@@ -165,8 +165,8 @@
                                 @{ string? clienteAnterior = null; var primera = true; }
                                 @foreach (var fila in grupo.Filas)
                                 {
-                                    var cliente = fila.Item.ClienteNombre ?? "Sin cliente empresarial";
-                                    @if (_agrupar == AgruparMiTrabajo.Organizacion && _orden == OrdenMiTrabajo.Cliente && (primera || cliente != clienteAnterior))
+                                    var cliente = fila.Item.ClienteNombre ?? "Sin cliente";
+                                    @if (_agrupar == AgruparMiTrabajo.Tenant && _orden == OrdenMiTrabajo.Cliente && (primera || cliente != clienteAnterior))
                                     {
                                         <div class="mi-trabajo-subcabecera">@cliente</div>
                                     }
@@ -228,15 +228,10 @@
                         <div class="mi-trabajo-detalle-plazo">@fechaDetalle.ToString("d 'de' MMMM 'de' yyyy", Cultura)</div>
                     }
                     <dl class="mi-trabajo-detalle-datos">
-                        <dt>Organización</dt>
+                        <dt>Empresa</dt>
                         <dd>@abierta.TenantNombre</dd>
-                        <dt>Cliente empresarial</dt>
-                        <dd>@(abierta.Item.ClienteNombre ?? "Sin cliente empresarial")</dd>
-                        @if (abierta.Item.EmpresaNombre is { Length: > 0 } empresa)
-                        {
-                            <dt>Empresa</dt>
-                            <dd>@empresa</dd>
-                        }
+                        <dt>Cliente</dt>
+                        <dd>@(abierta.Item.ClienteNombre ?? "Sin cliente")</dd>
                         @if (abierta.Item.ProveedorNombre is { Length: > 0 } plataforma)
                         {
                             <dt>Plataforma CAE</dt>
