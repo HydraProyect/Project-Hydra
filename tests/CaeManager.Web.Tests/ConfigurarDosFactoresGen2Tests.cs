@@ -43,16 +43,45 @@ public class ConfigurarDosFactoresGen2Tests : BunitContext
         Services.AddSingleton(CrearSignIn(usuarios));
         Services.AddSingleton<AuthenticationStateProvider>(new AutenticacionFalsa(_usuario.Id));
         Services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
+        Services.AddLocalization();
         // Sin AddAuthorization(): registra su propio AuthenticationStateProvider, sin autenticar,
         // y como gana el ultimo registro pisaba a AutenticacionFalsa. La pagina no encontraba la
         // claim NameIdentifier, retornaba en la primera guarda y no pintaba nada. El [Authorize]
         // de la pagina no lo necesita: bUnit solo lo aplica a traves de un AuthorizeRouteView.
     }
 
-    private IRenderedComponent<ConfigurarAutenticadorDosFactores> Renderizar(bool activa = false)
+    private IRenderedComponent<ConfigurarAutenticadorDosFactores> Renderizar(bool activa = false, string rol = Roles.GestorCae)
     {
         _almacen.Activa = activa;
+        _almacen.Rol = rol;
         return Render<ConfigurarAutenticadorDosFactores>();
+    }
+
+    /// <summary>
+    /// Un Administrador sin 2FA llega aquí redirigido y no puede usar nada más
+    /// hasta activarla: la página tiene que decírselo, o parece una opción del
+    /// perfil («bucle TOTP» de la demo de Dirección, 2026-09-21).
+    /// </summary>
+    [Fact]
+    public void Administrador_sin_2fa_ve_que_su_rol_la_exige()
+    {
+        var cut = Renderizar(rol: Roles.Administrador);
+
+        cut.Find(".dos-factores-obligatorio").TextContent.Should()
+            .StartWith("Tu rol de Administrador exige la autenticación en dos pasos.");
+    }
+
+    [Theory]
+    [InlineData(Roles.GestorCae, false)]
+    [InlineData(Roles.CoordinadorCae, false)]
+    [InlineData(Roles.Administrador, true)]
+    public void Sin_obligacion_pendiente_no_hay_aviso(string rol, bool activa)
+    {
+        var cut = Renderizar(activa: activa, rol: rol);
+
+        cut.Find("h1.titulo-pagina").TextContent.Trim().Should().Be("Autenticación en dos pasos",
+            "control del instrumento: la página se ha pintado");
+        cut.FindAll(".dos-factores-obligatorio").Should().BeEmpty();
     }
 
     /// <summary>
@@ -168,11 +197,21 @@ public class ConfigurarDosFactoresGen2Tests : BunitContext
             new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, usuarioId.ToString())], "prueba"))));
     }
 
-    private sealed class AlmacenAutenticador : IUserStore<ApplicationUser>, IUserAuthenticatorKeyStore<ApplicationUser>, IUserTwoFactorStore<ApplicationUser>
+    private sealed class AlmacenAutenticador : IUserStore<ApplicationUser>, IUserAuthenticatorKeyStore<ApplicationUser>,
+        IUserTwoFactorStore<ApplicationUser>, IUserRoleStore<ApplicationUser>
     {
         public ApplicationUser? Usuario { get; set; }
         public string? Clave { get; set; }
         public bool Activa { get; set; }
+        public string Rol { get; set; } = Roles.GestorCae;
+
+        // UserManager normaliza el nombre del rol antes de preguntar al almacén.
+        public Task<bool> IsInRoleAsync(ApplicationUser user, string normalizedRoleName, CancellationToken ct) =>
+            Task.FromResult(string.Equals(Rol, normalizedRoleName, StringComparison.OrdinalIgnoreCase));
+        public Task<IList<string>> GetRolesAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult<IList<string>>([Rol]);
+        public Task AddToRoleAsync(ApplicationUser user, string roleName, CancellationToken ct) => throw new NotSupportedException();
+        public Task RemoveFromRoleAsync(ApplicationUser user, string roleName, CancellationToken ct) => throw new NotSupportedException();
+        public Task<IList<ApplicationUser>> GetUsersInRoleAsync(string roleName, CancellationToken ct) => throw new NotSupportedException();
 
         public Task<ApplicationUser?> FindByIdAsync(string userId, CancellationToken ct) =>
             Task.FromResult(Usuario?.Id.ToString() == userId ? Usuario : null);

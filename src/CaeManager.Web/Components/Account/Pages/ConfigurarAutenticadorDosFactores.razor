@@ -7,15 +7,18 @@
 @using System.Text.Encodings.Web
 @using CaeManager.Infrastructure.Identity
 @using CaeManager.Web.Components.Account
+@using CaeManager.Web.Components.Account.Recursos
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Identity
+@using Microsoft.Extensions.Localization
 @using QRCoder
 @inject UserManager<ApplicationUser> UserManager
 @inject SignInManager<ApplicationUser> SignInManager
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject ILoggerFactory LoggerFactory
 @inject NavigationManager NavigationManager
+@inject IStringLocalizer<TextosCuenta> Textos
 
 <PageTitle>Autenticación en dos pasos — @Marca.Nombre</PageTitle>
 
@@ -48,6 +51,11 @@
     }
     else if (_claveCompartida is not null && Entrada is not null)
     {
+        @if (_dosFactoresObligatorio)
+        {
+            <p class="dos-factores-obligatorio" role="status">@Textos["DosFactoresObligatorioPorRol", Marca.Nombre]</p>
+        }
+
         <div class="dos-factores-alta">
             <aside class="tarjeta-2fa tarjeta-qr" aria-label="Código QR de configuración">
                 <img class="qr-2fa" src="@_qrCodeDataUri" alt="Código QR para configurar la aplicación autenticadora" width="220" height="220" />
@@ -100,6 +108,14 @@
     private string? _errorCarga;
     private ApplicationUser? _usuario;
 
+    // Quien llega aquí redirigido por CuentaAMedioActivarSinAccesoMiddleware o
+    // por el guard de MainLayout no puede usar nada más hasta activarla, y la
+    // página tiene que decírselo: sin el aviso parecía una opción del perfil, y
+    // la demo de Dirección (2026-09-21) lo describió como «bucle TOTP». Misma
+    // regla y mismo rol ALMACENADO que TenantClaimsPrincipalFactory y
+    // MainLayout (Administrador sin 2FA); solo decide un texto, no autoriza.
+    private bool _dosFactoresObligatorio;
+
     // Dentro de @code no hay interpolacion de Razor: el literal "@Marca.Nombre" llegaba tal cual
     // a la URI del TOTP. Y Marca.Nombre se fija desde la configuracion al arrancar, asi que se
     // lee al usarse y no al cargar el tipo.
@@ -129,7 +145,10 @@
 
         _dosFactoresActivo = await UserManager.GetTwoFactorEnabledAsync(_usuario);
         if (!_dosFactoresActivo)
+        {
+            _dosFactoresObligatorio = await UserManager.IsInRoleAsync(_usuario, Roles.Administrador);
             await CargarClaveCompartidaAsync(_usuario);
+        }
 
         _cargando = false;
     }
