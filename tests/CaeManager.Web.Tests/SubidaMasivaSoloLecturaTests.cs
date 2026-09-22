@@ -144,6 +144,7 @@ public class SubidaMasivaSoloLecturaTests : BunitContext
         Services.AddSingleton<ILogger<PaginaSubidaMasiva>>(_ => NullLogger<PaginaSubidaMasiva>.Instance);
         Services.AddScoped<AuthenticationStateProvider>(_ => new AutenticacionFalsa(rol));
         Services.AddAuthorizationCore();
+        Services.AddLocalization();
         Services.AddScoped<IAuthorizationService, AutorizacionPorRoles>();
         Services.AddCascadingAuthenticationState();
 
