@@ -73,7 +73,7 @@ public class AlcanceMemoizadoPorTenantEnFanOutTests : IAsyncLifetime
     private Guid _clienteB1;
     private Guid _clienteB2;
 
-    /// <summary>Tenant Alfa: cartera ACOTADA a un solo Cliente (ClienteA1) de los dos que tiene → 1 Centro, 2 Trabajadores.</summary>
+    /// <summary>Tenant Alfa: cartera ACOTADA a un solo Cliente (ClienteA1) de los dos que tiene → 1 Centro; 5 Trabajadores, porque «Contrata Alfa» es la Empresa propia y su plantilla entera es visible con cartera (opción A, 2026-09-22), no solo los 2 del Centro A1.</summary>
     private const string NombreAlfa = "Tenant Alfa (cartera acotada)";
 
     /// <summary>Tenant Beta: cartera UNIVERSAL (ve sus dos Clientes) → 2 Centros, 9 Trabajadores.</summary>
@@ -212,7 +212,7 @@ public class AlcanceMemoizadoPorTenantEnFanOutTests : IAsyncLifetime
     /// acotada de Alfa y aportaba CERO al fusionado. Ahora cada Tenant
     /// beneficiario resuelve su propia Asignación de Cartera sin importar
     /// cuál se procesó antes: la suma tiene que ser la de los dos —3 Centros
-    /// (1 de Alfa + 2 de Beta), 11 Trabajadores (2 de Alfa + 9 de Beta)—, no
+    /// (1 de Alfa + 2 de Beta), 14 Trabajadores (los 5 de la plantilla propia de Alfa + 9 de Beta)—, no
     /// solo la del primero.
     /// </summary>
     [Fact]
@@ -223,7 +223,7 @@ public class AlcanceMemoizadoPorTenantEnFanOutTests : IAsyncLifetime
 
         resultado.TotalTenants.Should().Be(2, "el fan-out procesó los dos Tenants beneficiarios");
         resultado.Centros.Should().Be(3, "Alfa aporta su único Centro en cartera y Beta sus 2 propios, sin que la cartera de Alfa la envenene");
-        resultado.TrabajadoresActivos.Should().Be(11, "Alfa aporta sus 2 trabajadores en cartera y Beta sus 9, sin heredar el cero del defecto de REC-195");
+        resultado.TrabajadoresActivos.Should().Be(14, "Alfa aporta los 5 de su plantilla propia y Beta sus 9, sin heredar el cero del defecto de REC-195");
 
         await VerificarSinEnvenenamientoTrasElBucleAsync(alcance);
     }
@@ -244,7 +244,7 @@ public class AlcanceMemoizadoPorTenantEnFanOutTests : IAsyncLifetime
 
         resultado.TotalTenants.Should().Be(2);
         resultado.Centros.Should().Be(3, "misma suma que en el orden Alfa→Beta: el orden ya no determina qué mitad de los datos queda envenenada");
-        resultado.TrabajadoresActivos.Should().Be(11);
+        resultado.TrabajadoresActivos.Should().Be(14);
 
         await VerificarSinEnvenenamientoTrasElBucleAsync(alcance);
     }
@@ -266,7 +266,7 @@ public class AlcanceMemoizadoPorTenantEnFanOutTests : IAsyncLifetime
         {
             soloAlfa.TotalTenants.Should().Be(1);
             soloAlfa.Centros.Should().Be(1, "en solitario, Alfa ve su único Centro en cartera (Centro A1)");
-            soloAlfa.TrabajadoresActivos.Should().Be(2, "en solitario, Alfa ve sus 2 trabajadores de Centro A1, no los 5 de A1+A2");
+            soloAlfa.TrabajadoresActivos.Should().Be(5, "en solitario, Alfa ve toda la plantilla de su Empresa propia (A1+A2): con cartera, la plantilla propia no depende de la Asignación; la cartera acotada se ve en Centros (1, no 2)");
         }
 
         var (soloBeta, _, proveedorBeta) = await EjecutarDashboardEjecutivoAsync(EnEsteOrden: [_tenantBeta]);
@@ -296,7 +296,7 @@ public class AlcanceMemoizadoPorTenantEnFanOutTests : IAsyncLifetime
             "el orden de los Tenants beneficiarios no puede cambiar cuál cartera se resuelve para cada uno");
         ordenAlfaBeta.TrabajadoresActivos.Should().Be(ordenBetaAlfa.TrabajadoresActivos);
         ordenAlfaBeta.Centros.Should().Be(3);
-        ordenAlfaBeta.TrabajadoresActivos.Should().Be(11);
+        ordenAlfaBeta.TrabajadoresActivos.Should().Be(14);
     }
 
     /// <summary>
