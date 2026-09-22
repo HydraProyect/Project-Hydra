@@ -78,6 +78,7 @@ public class AltaGuiadaCatalogoEmpresasVacioTests : BunitContext
     /// </summary>
     private IRenderedComponent<AltaGuiada> RenderizarEnPaso1ConCatalogo(params EmpresaSelectorDto[] catalogo)
     {
+        Services.AddLocalization();
         Services.AddScoped<IMediator>(_ => new MediatorPorTipo { Catalogo = catalogo });
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();

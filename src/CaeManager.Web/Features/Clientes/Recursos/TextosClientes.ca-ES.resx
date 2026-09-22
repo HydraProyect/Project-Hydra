@@ -243,4 +243,58 @@
   <data name="NotaSoloEquipo" xml:space="preserve">
     <value>Només visible per al teu equip.</value>
   </data>
+  <data name="AltaGuiadaTitulo" xml:space="preserve">
+    <value>Alta guiada de Client</value>
+  </data>
+  <data name="AltaGuiadaDescripcion" xml:space="preserve">
+    <value>Dona d'alta l'Empresa, el seu Client, el primer Centre i els seus Treballadors en un sol lloc. Cada pas es desa en confirmar-lo — si t'atures a mig camí, el que ja s'ha creat no es perd.</value>
+  </data>
+  <data name="AltaGuiadaVolver" xml:space="preserve">
+    <value>Tornar a Clients</value>
+  </data>
+  <data name="AltaGuiadaPasoCliente" xml:space="preserve">
+    <value>Client</value>
+  </data>
+  <data name="AltaGuiadaTituloPasoCliente" xml:space="preserve">
+    <value>2. Client</value>
+  </data>
+  <data name="AltaGuiadaVincularExistente" xml:space="preserve">
+    <value>Vincular a un Client que ja existeix</value>
+  </data>
+  <data name="AltaGuiadaCatalogoVacioTitulo" xml:space="preserve">
+    <value>Encara no hi ha cap Client donat d'alta</value>
+  </data>
+  <data name="AltaGuiadaCatalogoVacioDescripcion" xml:space="preserve">
+    <value>No és que el filtre no trobi res: el catàleg sencer és buit. Desmarca la casella i crea el primer Client aquí mateix.</value>
+  </data>
+  <data name="AltaGuiadaEtiquetaCliente" xml:space="preserve">
+    <value>Client</value>
+  </data>
+  <data name="AltaGuiadaOpcionSeleccionaCliente" xml:space="preserve">
+    <value>Selecciona un Client…</value>
+  </data>
+  <data name="AltaGuiadaClienteCritico" xml:space="preserve">
+    <value>Client crític</value>
+  </data>
+  <data name="AltaGuiadaNotasCliente" xml:space="preserve">
+    <value>Notes del Client</value>
+  </data>
+  <data name="AltaGuiadaVerCliente" xml:space="preserve">
+    <value>Veure el Client</value>
+  </data>
+  <data name="AltaGuiadaOtroCentro" xml:space="preserve">
+    <value>El formulari s'ha buidat: pots crear un altre centre per a aquesta mateixa Empresa i aquest mateix Client sense sortir del pas.</value>
+  </data>
+  <data name="AltaGuiadaErrorSeleccionaCliente" xml:space="preserve">
+    <value>Selecciona un Client.</value>
+  </data>
+  <data name="AltaGuiadaToastVinculada" xml:space="preserve">
+    <value>Empresa vinculada al Client.</value>
+  </data>
+  <data name="AltaGuiadaToastCreadoSinVincular" xml:space="preserve">
+    <value>Client «{0}» creat, però no s'ha pogut vincular amb l'Empresa: {1}</value>
+  </data>
+  <data name="AltaGuiadaToastCreado" xml:space="preserve">
+    <value>Client creat correctament.</value>
+  </data>
 </root>

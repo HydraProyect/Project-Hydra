@@ -8,7 +8,9 @@ namespace CaeManager.Web.Features.Clientes.Recursos;
 ///
 /// <para>
 /// La Feature no está migrada entera: entra aquí el texto nuevo o reescrito
-/// (la página Cliente 360 y el rótulo «Cliente» de su panel), y el resto sigue
+/// (la página Cliente 360, el rótulo «Cliente» de su panel y los textos del
+/// asistente de Alta guiada que nombran al Cliente empresarial, claves
+/// <c>AltaGuiada*</c>; contrato Gen2 § 14), y el resto sigue
 /// contando en <c>TextosSinLocalizarCongeladosTests</c> hasta su incremento de
 /// migración.
 /// </para>

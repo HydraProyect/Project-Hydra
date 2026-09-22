@@ -259,4 +259,64 @@
   <data name="NotaSoloEquipo" xml:space="preserve">
     <value>Solo visible para tu equipo.</value>
   </data>
+  <data name="AltaGuiadaTitulo" xml:space="preserve">
+    <value>Alta guiada de Cliente</value>
+    <comment>Alta guiada: título de la página. Contrato Gen2 § 14: el Cliente empresarial se rotula «Cliente» en todo el asistente.</comment>
+  </data>
+  <data name="AltaGuiadaDescripcion" xml:space="preserve">
+    <value>Da de alta la Empresa, su Cliente, el primer Centro y sus Trabajadores en un solo sitio. Cada paso se guarda al confirmarlo — si te detienes a mitad de camino, lo ya creado no se pierde.</value>
+  </data>
+  <data name="AltaGuiadaVolver" xml:space="preserve">
+    <value>Volver a Clientes</value>
+    <comment>Alta guiada: enlace de vuelta a la lista.</comment>
+  </data>
+  <data name="AltaGuiadaPasoCliente" xml:space="preserve">
+    <value>Cliente</value>
+    <comment>Alta guiada: rótulo del paso 2 en el indicador de pasos.</comment>
+  </data>
+  <data name="AltaGuiadaTituloPasoCliente" xml:space="preserve">
+    <value>2. Cliente</value>
+    <comment>Alta guiada: encabezado del paso 2.</comment>
+  </data>
+  <data name="AltaGuiadaVincularExistente" xml:space="preserve">
+    <value>Vincular a un Cliente que ya existe</value>
+  </data>
+  <data name="AltaGuiadaCatalogoVacioTitulo" xml:space="preserve">
+    <value>Todavía no hay ningún Cliente dado de alta</value>
+  </data>
+  <data name="AltaGuiadaCatalogoVacioDescripcion" xml:space="preserve">
+    <value>No es que el filtro no encuentre nada: el catálogo entero está vacío. Desmarca la casilla y crea el primer Cliente aquí mismo.</value>
+  </data>
+  <data name="AltaGuiadaEtiquetaCliente" xml:space="preserve">
+    <value>Cliente</value>
+    <comment>Alta guiada: etiqueta del selector y prefijo «Cliente: nombre» de los resúmenes.</comment>
+  </data>
+  <data name="AltaGuiadaOpcionSeleccionaCliente" xml:space="preserve">
+    <value>Selecciona un Cliente…</value>
+  </data>
+  <data name="AltaGuiadaClienteCritico" xml:space="preserve">
+    <value>Cliente crítico</value>
+  </data>
+  <data name="AltaGuiadaNotasCliente" xml:space="preserve">
+    <value>Notas del Cliente</value>
+  </data>
+  <data name="AltaGuiadaVerCliente" xml:space="preserve">
+    <value>Ver el Cliente</value>
+  </data>
+  <data name="AltaGuiadaOtroCentro" xml:space="preserve">
+    <value>El formulario se ha vaciado: puedes crear otro centro para esta misma Empresa y este mismo Cliente sin salir del paso.</value>
+  </data>
+  <data name="AltaGuiadaErrorSeleccionaCliente" xml:space="preserve">
+    <value>Selecciona un Cliente.</value>
+  </data>
+  <data name="AltaGuiadaToastVinculada" xml:space="preserve">
+    <value>Empresa vinculada al Cliente.</value>
+  </data>
+  <data name="AltaGuiadaToastCreadoSinVincular" xml:space="preserve">
+    <value>Cliente «{0}» creado, pero no se pudo vincular con la Empresa: {1}</value>
+    <comment>{0} razón social del Cliente; {1} motivo del fallo de la vinculación.</comment>
+  </data>
+  <data name="AltaGuiadaToastCreado" xml:space="preserve">
+    <value>Cliente creado correctamente.</value>
+  </data>
 </root>
