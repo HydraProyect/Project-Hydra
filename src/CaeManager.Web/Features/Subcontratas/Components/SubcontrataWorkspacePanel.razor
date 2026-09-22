@@ -1247,17 +1247,16 @@ else
 
     private async Task ManejarEvidenciaSeleccionadaAsync(InputFileChangeEventArgs args)
     {
-        const long tamanoMaximo = 10 * 1024 * 1024;
         var archivo = args.File;
 
-        if (archivo.Size > tamanoMaximo)
+        if (archivo.Size > LimitesArchivoSubido.TamanoMaximoBytes)
         {
             _mensajeErrorVerificacion = "La evidencia no puede superar los 10 MB.";
             return;
         }
 
         using var memoria = new MemoryStream();
-        await archivo.OpenReadStream(tamanoMaximo).CopyToAsync(memoria);
+        await archivo.OpenReadStream(LimitesArchivoSubido.TamanoMaximoBytes).CopyToAsync(memoria);
         _evidenciaContenido = memoria.ToArray();
         _evidenciaNombre = archivo.Name;
         _mensajeErrorVerificacion = null;

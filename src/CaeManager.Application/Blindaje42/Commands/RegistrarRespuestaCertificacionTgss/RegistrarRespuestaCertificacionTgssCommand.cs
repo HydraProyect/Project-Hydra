@@ -17,8 +17,6 @@ public record RegistrarRespuestaCertificacionTgssCommand(
 public class RegistrarRespuestaCertificacionTgssCommandValidator
     : AbstractValidator<RegistrarRespuestaCertificacionTgssCommand>
 {
-    public const int TamanoMaximoEvidenciaBytes = 10 * 1024 * 1024;
-
     public RegistrarRespuestaCertificacionTgssCommandValidator()
     {
         RuleFor(c => c.SolicitudId).NotEmpty();
@@ -29,8 +27,8 @@ public class RegistrarRespuestaCertificacionTgssCommandValidator
             .WithMessage("La fecha de respuesta no puede ser futura.");
 
         RuleFor(c => c.EvidenciaContenido)
-            .Must(e => e is null or { Length: > 0 and <= TamanoMaximoEvidenciaBytes })
-            .WithMessage("La evidencia no puede estar vacía ni superar los 10 MB.");
+            .Must(e => e is null or { Length: > 0 and <= LimitesArchivoSubido.TamanoMaximoBytes })
+            .WithMessage($"La evidencia no puede estar vacía ni superar los {LimitesArchivoSubido.TamanoMaximoMb} MB.");
 
         RuleFor(c => c.EvidenciaNombreArchivo)
             .NotEmpty()
