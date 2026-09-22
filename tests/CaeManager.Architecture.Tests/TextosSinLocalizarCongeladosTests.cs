@@ -80,7 +80,6 @@ public class TextosSinLocalizarCongeladosTests
         ["Importacion"] = 166,
         ["Incidencias"] = 81,
         ["Integraciones"] = 92,
-        ["Notificaciones"] = 2,
         ["Plantillas"] = 158,
         ["Plataforma"] = 74,
         ["Proyectos"] = 103,

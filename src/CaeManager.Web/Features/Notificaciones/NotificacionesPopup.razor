@@ -1,11 +1,14 @@
 @rendermode InteractiveServer
 @using CaeManager.Application.Notificaciones.Commands.MarcarNotificacionLeida
 @using CaeManager.Application.Notificaciones.Queries.ObtenerNotificacionesPendientes
+@using CaeManager.Web.Features.Notificaciones.Recursos
 @using MediatR
+@using Microsoft.Extensions.Localization
 @using Microsoft.Extensions.Logging
 @inject IMediator Mediator
 @inject NavigationManager Navigation
 @inject ILogger<ExcepcionDeCircuitoDesconectado> Logger
+@inject IStringLocalizer<TextosNotificaciones> Textos
 
 @if (_pendientes.Count > 0)
 {
@@ -15,10 +18,10 @@
             <p>@actual.Mensaje</p>
         </ChildContent>
         <Pie>
-            <Boton Variante="VarianteBoton.Secundario" OnClick="() => DescartarAsync(actual)">Omitir</Boton>
+            <Boton Variante="VarianteBoton.Secundario" OnClick="() => DescartarAsync(actual)">@Textos["BotonOmitir"]</Boton>
             @if (!string.IsNullOrWhiteSpace(actual.UrlAccion))
             {
-                <Boton OnClick="() => GestionarAsync(actual)">@(actual.TextoAccion ?? "Gestionar")</Boton>
+                <Boton OnClick="() => GestionarAsync(actual)">@(actual.TextoAccion ?? Textos["AccionPorDefecto"])</Boton>
             }
         </Pie>
     </Modal>
