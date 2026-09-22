@@ -1,0 +1,37 @@
+@*
+    Acción de una fila de Mi trabajo Gen2 (multi-Tenant) — mismo POST con
+    antiforgery a /cuenta/cliente-activo que ya usan SelectorClienteActivo y
+    VisionCartera ("Cambiar a esta organización"), con returnUrl fijado a la
+    pantalla EXACTA del ítem (AccionesBandeja.ResolverUrl — contrato
+    CONTRATO-MI-TRABAJO-GEN2-MULTI-TENANT-2026-09-22.md § 8, "pantalla
+    exacta", no un aterrizaje genérico en /bandeja).
+
+    Se usa igual para el Tenant ya activo en este circuito: el endpoint
+    /cuenta/cliente-activo revalida autorización en cada envío y, si
+    tenantId coincide con el Tenant de origen, simplemente borra la cookie
+    sin error (ClienteActivoEndpoints.cs) — un único camino para las 6
+    tarjetas de Tenant es más simple y predecible que alternar entre
+    navegación en vivo (solo segura para el Tenant activo) y este POST según
+    cuál sea el Tenant activo en cada momento.
+*@
+@using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor
+@using CaeManager.Web.Components.DesignSystem
+@using Microsoft.AspNetCore.Components.Forms
+
+<form method="post" action="/cuenta/cliente-activo" class="accion-cross-tenant">
+    @if (Token is not null)
+    {
+        <input type="hidden" name="@Token.FormFieldName" value="@Token.Value" />
+    }
+    <input type="hidden" name="tenantId" value="@TenantId" />
+    <input type="hidden" name="returnUrl" value="@(AccionesBandeja.ResolverUrl(Item) ?? "/bandeja")" />
+    <Boton Type="submit" Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno">
+        @TipoItemBandejaUi.TextoAccion(Item)
+    </Boton>
+</form>
+
+@code {
+    [Parameter, EditorRequired] public Guid TenantId { get; set; }
+    [Parameter, EditorRequired] public ItemBandejaDto Item { get; set; } = default!;
+    [Parameter] public AntiforgeryRequestToken? Token { get; set; }
+}

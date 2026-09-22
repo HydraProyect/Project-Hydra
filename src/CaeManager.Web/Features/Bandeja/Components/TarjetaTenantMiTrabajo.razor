@@ -1,0 +1,94 @@
+@*
+    Una tarjeta = un Tenant propietario en Mi trabajo Gen2 (multi-Tenant),
+    Nivel 1 del piloto Outbound (CONTRATO-MI-TRABAJO-GEN2-MULTI-TENANT-
+    2026-09-22.md). Bloqueo+Actuación reutiliza GrupoCola/PanelResolverItem
+    TAL CUAL —misma gramática que /bandeja, agrupado por Cliente empresarial
+    (Nivel B, nunca fusionado con Tenant)— con AccionPersonalizada siempre
+    puesta a AccionCrossTenant: cada fila de CADA Tenant, incluido el que hoy
+    esté activo en este circuito, pasa por el POST cross-Tenant de § 8. Un
+    único camino evita que el comportamiento cambie según cuál sea el Tenant
+    activo en cada momento (ver el comentario de AccionCrossTenant).
+
+    Próximo y Seguimiento no tienen agrupador natural en GrupoColaDto (ver
+    ObtenerMiTrabajoAgregadoQuery.MiTrabajoTenantDto) — se listan planos,
+    plegados tras un resumen "Ver N vencimientos y envíos en calendario",
+    mismo patrón que Mi trabajo.dc.html (Gen2): calendarioPlegado/abiertos.
+*@
+@using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor
+@using CaeManager.Web.Components.DesignSystem
+@using Microsoft.AspNetCore.Components.Forms
+
+<section class="tarjeta-tenant-mi-trabajo">
+    <header class="tarjeta-tenant-mi-trabajo-cabecera">
+        <div class="tarjeta-tenant-mi-trabajo-info">
+            <span class="tarjeta-tenant-mi-trabajo-titulo">@Tenant.TenantNombre</span>
+            @if (Tenant.EsOrigen)
+            {
+                <Badge Tono="TonoBadge.Neutro">Mi organización</Badge>
+            }
+        </div>
+        <span class="tarjeta-tenant-mi-trabajo-resumen">@Resumen</span>
+    </header>
+
+    @if (Tenant.BloqueoActuacion.Grupos.Count > 0 || Tenant.BloqueoActuacion.SinGrupo.Count > 0)
+    {
+        <div class="tarjeta-tenant-mi-trabajo-cuerpo">
+            @foreach (var grupo in Tenant.BloqueoActuacion.Grupos)
+            {
+                <GrupoCola @key="grupo.GrupoId" Grupo="grupo" ExpandidaPorDefecto="true"
+                           MarcarBloqueo="true" PaginarPorGrupo="true"
+                           AccionPersonalizada="RenderAccion" />
+            }
+            @foreach (var item in Tenant.BloqueoActuacion.SinGrupo)
+            {
+                <PanelResolverItem @key="item.Id" Item="item" AccionPersonalizada="RenderAccion" />
+            }
+        </div>
+    }
+
+    @if (Tenant.Proximos.Count > 0 || Tenant.Seguimiento.Count > 0)
+    {
+        var calendario = Tenant.Proximos.Concat(Tenant.Seguimiento).ToList();
+        <div class="tarjeta-tenant-mi-trabajo-calendario">
+            <button type="button" class="tarjeta-tenant-mi-trabajo-calendario-boton" @onclick="() => _calendarioAbierto = !_calendarioAbierto"
+                    aria-expanded="@(_calendarioAbierto ? "true" : "false")">
+                <span class="@("tarjeta-tenant-mi-trabajo-chevron" + (_calendarioAbierto ? " tarjeta-tenant-mi-trabajo-chevron-abierta" : ""))">
+                    <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+                </span>
+                @(calendario.Count == 1 ? "1 vencimiento o envío en calendario" : $"{calendario.Count} vencimientos y envíos en calendario")
+            </button>
+            @if (_calendarioAbierto)
+            {
+                @foreach (var item in calendario)
+                {
+                    <PanelResolverItem @key="item.Id" Item="item" AccionPersonalizada="RenderAccion" />
+                }
+            }
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public MiTrabajoTenantVista Tenant { get; set; } = default!;
+    [Parameter] public AntiforgeryRequestToken? Token { get; set; }
+
+    private bool _calendarioAbierto;
+
+    private string Resumen
+    {
+        get
+        {
+            var partes = new List<string>();
+            if (Tenant.Bloqueos > 0) partes.Add(Tenant.Bloqueos == 1 ? "1 bloqueo" : $"{Tenant.Bloqueos} bloqueos");
+            if (Tenant.Actuaciones > 0) partes.Add($"{Tenant.Actuaciones} por actuar");
+            if (Tenant.Proximos.Count > 0) partes.Add($"{Tenant.Proximos.Count} próximos");
+            if (Tenant.Seguimiento.Count > 0) partes.Add($"{Tenant.Seguimiento.Count} en seguimiento");
+            return partes.Count == 0 ? "Sin trabajo pendiente" : string.Join(" · ", partes);
+        }
+    }
+
+    private RenderFragment AccionCrossTenant(ItemBandejaDto item) => __builder =>
+    {
+        <CaeManager.Web.Features.Bandeja.Components.AccionCrossTenant TenantId="Tenant.TenantId" Item="item" Token="Token" />
+    };
+}

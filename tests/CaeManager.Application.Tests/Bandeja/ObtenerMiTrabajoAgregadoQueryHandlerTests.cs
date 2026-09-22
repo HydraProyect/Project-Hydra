@@ -1,0 +1,117 @@
+using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
+using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
+using CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
+using CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesPorProveedor;
+using CaeManager.Domain.Documentos;
+using FluentAssertions;
+using Xunit;
+
+namespace CaeManager.Application.Tests.Bandeja;
+
+/// <summary>
+/// Cubre solo lo que <see cref="ObtenerBandejaGestorQueryHandlerTests"/> no
+/// cubre ya: los dos buckets nuevos de Mi trabajo Gen2
+/// (<see cref="TipoItemBandeja.VencimientoProximo"/>,
+/// <see cref="TipoItemBandeja.EnPlataformaSeguimiento"/>) y el criterio de
+/// bloqueo duplicado de <c>TipoItemBandejaUi.Tono</c>. No repite la fusión ni
+/// el agrupado — esos ya están probados donde viven.
+/// </summary>
+public class ObtenerMiTrabajoAgregadoQueryHandlerTests
+{
+    private static AlertaDto Alerta(EstadoDocumento estado, DateOnly? fecha = null) => new(
+        DocumentoId: Guid.NewGuid(), TrabajadorId: Guid.NewGuid(), TrabajadorNombre: "Ana García",
+        TipoDocumentoId: Guid.NewGuid(), TipoDocumentoNombre: "Apto médico", FechaVencimiento: fecha,
+        Estado: estado, ArchivoUrl: null, CentroNombre: "Centro Norte");
+
+    private static ProveedorAcreditacionesDto PendientePlataforma(EstadoAcreditacion estado) => new(
+        ProveedorPlataformaCaeId: Guid.NewGuid(), ProveedorNombre: "Dokify", ProveedorCodigo: "dokify",
+        Clientes: [new ClienteAcreditacionesDto(
+            ClienteId: Guid.NewGuid(), ClienteNombre: "Cliente Norte S.A.",
+            Documentos: [new AcreditacionDrillDownDto(
+                AcreditacionId: Guid.NewGuid(), DocumentoId: Guid.NewGuid(), PropietarioNombre: "Iker Etxeberria",
+                TipoDocumentoNombre: "Formación 60h", Estado: estado, UltimoMotivoRechazo: null,
+                TrabajadorId: Guid.NewGuid())])]);
+
+    [Fact]
+    public void MapearProximos_solo_incluye_alertas_en_estado_Proximo()
+    {
+        var proximo = Alerta(EstadoDocumento.Proximo, new DateOnly(2026, 10, 1));
+
+        var resultado = ObtenerMiTrabajoAgregadoQueryHandler.MapearProximos(
+            [proximo, Alerta(EstadoDocumento.Vencido), Alerta(EstadoDocumento.Faltante)]);
+
+        var item = resultado.Should().ContainSingle().Subject;
+        item.Tipo.Should().Be(TipoItemBandeja.VencimientoProximo);
+        item.Fecha.Should().Be(new DateOnly(2026, 10, 1));
+        item.TrabajadorId.Should().Be(proximo.TrabajadorId);
+    }
+
+    [Fact]
+    public void MapearProximos_vacio_cuando_no_hay_alertas_Proximo()
+    {
+        ObtenerMiTrabajoAgregadoQueryHandler.MapearProximos([Alerta(EstadoDocumento.Vencido)]).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void MapearSeguimiento_solo_incluye_acreditaciones_Subida()
+    {
+        var subida = PendientePlataforma(EstadoAcreditacion.Subida);
+
+        var resultado = ObtenerMiTrabajoAgregadoQueryHandler.MapearSeguimiento(
+            [subida, PendientePlataforma(EstadoAcreditacion.PendienteDeSubir), PendientePlataforma(EstadoAcreditacion.Rechazada)]);
+
+        var item = resultado.Should().ContainSingle().Subject;
+        item.Tipo.Should().Be(TipoItemBandeja.EnPlataformaSeguimiento);
+        item.ProveedorNombre.Should().Be("Dokify");
+        item.ClienteNombre.Should().Be("Cliente Norte S.A.");
+        item.Titulo.Should().Be("Formación 60h");
+    }
+
+    [Fact]
+    public void MapearSeguimiento_vacio_cuando_no_hay_subidas()
+    {
+        ObtenerMiTrabajoAgregadoQueryHandler.MapearSeguimiento(
+            [PendientePlataforma(EstadoAcreditacion.PendienteDeSubir)]).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void EsBloqueo_es_falso_para_un_requisito_pendiente_de_alta_nueva()
+    {
+        var item = new ItemBandejaDto(
+            Id: "r1", Tipo: TipoItemBandeja.RequisitoPendiente, Titulo: "PSS", Subtitulo: "Centro",
+            TrabajadorId: null, CentroId: null, DocumentoId: null, TipoDocumentoId: null, RequisitoId: Guid.NewGuid(),
+            Fecha: null, EsAltaNueva: true);
+
+        ObtenerMiTrabajoAgregadoQueryHandler.EsBloqueo(item).Should().BeFalse();
+    }
+
+    [Fact]
+    public void EsBloqueo_es_verdadero_para_un_requisito_pendiente_que_no_es_alta_nueva()
+    {
+        var item = new ItemBandejaDto(
+            Id: "r2", Tipo: TipoItemBandeja.RequisitoPendiente, Titulo: "PSS", Subtitulo: "Centro",
+            TrabajadorId: null, CentroId: null, DocumentoId: null, TipoDocumentoId: null, RequisitoId: Guid.NewGuid(),
+            Fecha: null, EsAltaNueva: false);
+
+        ObtenerMiTrabajoAgregadoQueryHandler.EsBloqueo(item).Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(TipoItemBandeja.Faltante, true)]
+    [InlineData(TipoItemBandeja.Vencido, true)]
+    [InlineData(TipoItemBandeja.PlataformaRechazada, true)]
+    [InlineData(TipoItemBandeja.SugerenciaVisitaUrgente, true)]
+    [InlineData(TipoItemBandeja.Urgente, false)]
+    [InlineData(TipoItemBandeja.VisitaUrgente, false)]
+    [InlineData(TipoItemBandeja.RevisionIa, false)]
+    [InlineData(TipoItemBandeja.DeteccionPendiente, false)]
+    [InlineData(TipoItemBandeja.PlataformaPendiente, false)]
+    public void EsBloqueo_clasifica_cada_tipo_como_en_TipoItemBandejaUi_Tono(TipoItemBandeja tipo, bool esperado)
+    {
+        var item = new ItemBandejaDto(
+            Id: "x", Tipo: tipo, Titulo: "T", Subtitulo: "S",
+            TrabajadorId: null, CentroId: null, DocumentoId: null, TipoDocumentoId: null, RequisitoId: null, Fecha: null);
+
+        ObtenerMiTrabajoAgregadoQueryHandler.EsBloqueo(item).Should().Be(esperado);
+    }
+}

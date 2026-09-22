@@ -68,7 +68,30 @@ public enum TipoItemBandeja
     /// pesa más que <see cref="PlataformaPendiente"/>: mientras no se
     /// corrija, la acreditación del documento en esa plataforma es negativa.
     /// </summary>
-    PlataformaRechazada
+    PlataformaRechazada,
+    /// <summary>
+    /// <see cref="EstadoDocumento.Proximo"/> — deliberadamente FUERA de
+    /// <see cref="ObtenerBandejaGestorQueryHandler.Fusionar"/> (ver el
+    /// comentario de esa clase: es el umbral "todavía no urgente" que separa
+    /// <c>/alertas</c> de la cola de trabajo real de Nivel 0). Existe como
+    /// valor del enum solo para
+    /// <c>ObtenerMiTrabajoAgregadoQueryHandler</c> (Mi trabajo Gen2,
+    /// CONTRATO-MI-TRABAJO-GEN2-MULTI-TENANT-2026-09-22.md § 5/D-6: "el
+    /// vencimiento próximo entra en Mi trabajo" a nivel agregado, sin
+    /// cambiar qué ve <c>/bandeja</c> ni Inicio). <c>Fusionar</c> nunca
+    /// produce este valor — /bandeja e Inicio no lo verán jamás.
+    /// </summary>
+    VencimientoProximo,
+    /// <summary>
+    /// <see cref="EstadoAcreditacion.Subida"/> — documentación ya
+    /// enviada a la plataforma del cliente, a la espera de su respuesta.
+    /// Igual que <see cref="VencimientoProximo"/>, deliberadamente fuera de
+    /// <c>Fusionar</c> (ver su comentario: "Subida no entra... seguimiento,
+    /// no cola") y solo emitido por
+    /// <c>ObtenerMiTrabajoAgregadoQueryHandler</c> para el bucket
+    /// "Seguimiento" del contrato Gen2 § 5/§ 7.
+    /// </summary>
+    EnPlataformaSeguimiento
 }
 
 /// <param name="CreadaEnUtc">
