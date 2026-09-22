@@ -55,7 +55,7 @@ public class TextosSinLocalizarCongeladosTests
         ["Bandeja"] = 107,
         ["Blindaje42"] = 46,
         ["BusquedaGlobal"] = 72,
-        ["Centros"] = 314,
+        ["Centros"] = 312,
         ["Clientes"] = 278,
         ["Comercial"] = 61,
         ["Components/Account"] = 95,

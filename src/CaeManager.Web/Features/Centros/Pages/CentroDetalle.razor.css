@@ -12,6 +12,22 @@
     font: inherit;
 }
 
+/*
+  Nombre del Cliente empresarial y de la Empresa en la entradilla: enlace a
+  su página 360, en el color de enlace y sin subrayado hasta pasar por encima
+  (.centro360-meta .enlace-nombre-fila del mockup). El botón 360 de al lado
+  lo pinta Boton360.
+*/
+.centro360-contraparte {
+    font-weight: 600;
+    color: var(--color-primary-500);
+    text-decoration: none;
+}
+
+.centro360-contraparte:hover {
+    text-decoration: underline;
+}
+
 .centro360-indicadores {
     display: inline-flex;
     align-items: center;
