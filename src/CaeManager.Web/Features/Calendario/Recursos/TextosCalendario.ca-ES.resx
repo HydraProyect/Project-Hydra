@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="TituloPagina" xml:space="preserve">
+    <value>Calendario</value>
+  </data>
+  <data name="Kicker" xml:space="preserve">
+    <value>Control</value>
+  </data>
+  <data name="MesAnterior" xml:space="preserve">
+    <value>Mes anterior</value>
+  </data>
+  <data name="MesSiguiente" xml:space="preserve">
+    <value>Mes siguiente</value>
+  </data>
+  <data name="Hoy" xml:space="preserve">
+    <value>Hoy</value>
+  </data>
+  <data name="ErrorCargaTitulo" xml:space="preserve">
+    <value>No pudimos cargar el calendario</value>
+  </data>
+  <data name="ErrorCargaDetalle" xml:space="preserve">
+    <value>Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="DiaLunes" xml:space="preserve">
+    <value>Lun</value>
+  </data>
+  <data name="DiaMartes" xml:space="preserve">
+    <value>Mar</value>
+  </data>
+  <data name="DiaMiercoles" xml:space="preserve">
+    <value>Mié</value>
+  </data>
+  <data name="DiaJueves" xml:space="preserve">
+    <value>Jue</value>
+  </data>
+  <data name="DiaViernes" xml:space="preserve">
+    <value>Vie</value>
+  </data>
+  <data name="DiaSabado" xml:space="preserve">
+    <value>Sáb</value>
+  </data>
+  <data name="DiaDomingo" xml:space="preserve">
+    <value>Dom</value>
+  </data>
+  <data name="LeyendaVencidoOUrgente" xml:space="preserve">
+    <value>Algún vencido o urgente</value>
+  </data>
+  <data name="LeyendaProximo" xml:space="preserve">
+    <value>Algún próximo, ninguno peor</value>
+  </data>
+  <data name="LeyendaVigente" xml:space="preserve">
+    <value>Todo vigente</value>
+  </data>
+  <data name="LeyendaVisita" xml:space="preserve">
+    <value>Visita programada</value>
+  </data>
+  <data name="LeyendaExplicacion" xml:space="preserve">
+    <value>El número es el recuento del día; el color, su peor estado.</value>
+  </data>
+  <data name="SubtituloVencimientos" xml:space="preserve">
+    <value>Vencimientos</value>
+  </data>
+  <data name="SubtituloVisitas" xml:space="preserve">
+    <value>Visitas programadas</value>
+  </data>
+  <data name="Gestionar" xml:space="preserve">
+    <value>Gestionar</value>
+  </data>
+  <data name="IrAVisitas" xml:space="preserve">
+    <value>Ir a Visitas</value>
+  </data>
+  <data name="Notificada" xml:space="preserve">
+    <value>Notificada</value>
+  </data>
+  <data name="NotificadaDetalle" xml:space="preserve">
+    <value>La empresa titular del centro ya está avisada de la visita</value>
+  </data>
+  <data name="SinNotificar" xml:space="preserve">
+    <value>Sin notificar</value>
+  </data>
+  <data name="SinNotificarDetalle" xml:space="preserve">
+    <value>La empresa titular del centro todavía no está avisada de la visita</value>
+  </data>
+  <data name="VencimientoUno" xml:space="preserve">
+    <value>{0} vencimiento</value>
+  </data>
+  <data name="VencimientoVarios" xml:space="preserve">
+    <value>{0} vencimientos</value>
+  </data>
+  <data name="VisitaProgramadaUna" xml:space="preserve">
+    <value>{0} visita programada</value>
+  </data>
+  <data name="VisitaProgramadaVarias" xml:space="preserve">
+    <value>{0} visitas programadas</value>
+  </data>
+  <data name="VisitaUna" xml:space="preserve">
+    <value>{0} visita</value>
+  </data>
+  <data name="VisitaVarias" xml:space="preserve">
+    <value>{0} visitas</value>
+  </data>
+  <data name="TrabajadorUno" xml:space="preserve">
+    <value>{0} trabajador</value>
+  </data>
+  <data name="TrabajadorVarios" xml:space="preserve">
+    <value>{0} trabajadores</value>
+  </data>
+  <data name="EtiquetaDiaPeorEstado" xml:space="preserve">
+    <value>{0} (peor estado: {1})</value>
+  </data>
+  <data name="EtiquetaDia" xml:space="preserve">
+    <value>{0}: {1}</value>
+  </data>
+  <data name="ConjuncionY" xml:space="preserve">
+    <value>y</value>
+  </data>
+  <data name="FormatoDiaMes" xml:space="preserve">
+    <value>d MMMM</value>
+  </data>
+  <data name="FormatoFechaLarga" xml:space="preserve">
+    <value>d MMMM 'de' yyyy</value>
+  </data>
+</root>

@@ -9,7 +9,7 @@ namespace CaeManager.Web.Recursos;
 /// <para>
 /// <c>TextosComunes.resx</c> es el recurso neutral (español, la cultura por
 /// defecto) y <c>TextosComunes.ca-ES.resx</c> el catalán, con las mismas
-/// claves (lo exige <c>ParidadClavesRecursosTests</c>, Architecture.Tests).
+/// claves (lo exige <c>LocalizacionRecursosYRegistroTests</c>, Architecture.Tests).
 /// El nombre del recurso incrustado sale de este tipo (convención
 /// DependentUpon del SDK), así que su namespace tiene que seguir alineado con
 /// la carpeta.
