@@ -69,6 +69,7 @@ public class ListasDistinguenVacioPorFiltroTests
         "<FiltroEstado",                   // filtro por estado documental
         "CampoTexto Placeholder=\"Buscar", // buscador de lista (Bandeja y otras)
         "aria-label=\"Filtrar",            // grupo de chips de filtro (Mi trabajo)
+        "data-lista-con-filtros",          // marca declarada, sin texto: sobrevive a la localización
     ];
 
     /// <summary>
@@ -80,6 +81,14 @@ public class ListasDistinguenVacioPorFiltroTests
     /// habría arrastrado además a Buzón, ComposerBar y UnifiedTimeline, donde
     /// los chips no son un filtro de lista, y una alarma falsa sobre tres
     /// pantallas enseña a apagar el trinquete.
+    ///
+    /// <para>
+    /// La quinta, <c>data-lista-con-filtros</c>, entró con Mi trabajo Gen2
+    /// (<c>MiTrabajo.razor</c>, 2026-09-22): al localizar su <c>aria-label</c>
+    /// («@Textos[...]») el texto «Filtrar» dejó de estar en el fuente y la
+    /// pantalla salía del radar sin que nada se pusiera en rojo. Un atributo
+    /// sin texto no depende del idioma.
+    /// </para>
     /// </summary>
     [Fact]
     public void La_marca_del_grupo_de_chips_es_la_que_mete_a_Mi_trabajo_en_el_radar()

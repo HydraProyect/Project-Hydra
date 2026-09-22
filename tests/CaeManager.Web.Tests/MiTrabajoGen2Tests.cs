@@ -1,3 +1,4 @@
+using System.Globalization;
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaAgrupada;
@@ -89,6 +90,7 @@ public class MiTrabajoGen2Tests : BunitContext
     {
         Services.AddScoped<IMediator>(_ => new MediadorFijo(respuesta ?? Cartera));
         Services.AddScoped<AntiforgeryStateProvider, AntiforgeryFalso>();
+        Services.AddLocalization();
         return Render<MiTrabajoPagina>();
     }
 
@@ -116,6 +118,30 @@ public class MiTrabajoGen2Tests : BunitContext
         var dexter = Formulario(FilaDe(cut, "Rechazado por la plataforma"));
         dexter.Tenant.Should().Be(TenantDexter.ToString(), "la fila de otro Tenant no puede heredar el Tenant de la primera tarjeta");
         dexter.ReturnUrl.Should().Be("/documentos?pestana=plataforma");
+    }
+
+    [Theory]
+    [InlineData("es-ES", "Mi trabajo", "Todas", "1 de octubre de 2026")]
+    [InlineData("ca-ES", "La meva feina", "Totes", "octubre de 2026")]
+    public void Los_textos_y_la_fecha_siguen_la_cultura_de_la_interfaz(string cultura, string titulo, string chipTodas, string fecha)
+    {
+        var (anterior, anteriorUi) = (CultureInfo.CurrentCulture, CultureInfo.CurrentUICulture);
+        CultureInfo.CurrentCulture = CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(cultura);
+        try
+        {
+            var cut = Renderizar();
+            FilaDe(cut, "Reconocimiento médico").Click();
+
+            cut.Find("h1").TextContent.Should().Contain(titulo);
+            cut.Find(".mi-trabajo-chip").TextContent.Should().Contain(chipTodas);
+            var plazo = cut.Find(".mi-trabajo-detalle-plazo").TextContent;
+            plazo.Should().Contain(fecha);
+            plazo.Should().NotContain("de de").And.NotContain("de d’", "el nombre de mes catalán ya lleva su preposición");
+        }
+        finally
+        {
+            (CultureInfo.CurrentCulture, CultureInfo.CurrentUICulture) = (anterior, anteriorUi);
+        }
     }
 
     [Fact]

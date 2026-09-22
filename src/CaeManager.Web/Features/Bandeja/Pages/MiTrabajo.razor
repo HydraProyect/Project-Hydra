@@ -2,6 +2,9 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
 @using CaeManager.Web.Features.Bandeja.Components
+@using CaeManager.Web.Features.Bandeja.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosMiTrabajo> Textos
 
 @* Mi trabajo Gen2, Nivel 1 multi-Tenant: mockup «Cola operativa multi-Tenant»
    (Mi trabajo.dc.html) sobre CONTRATO-MI-TRABAJO-GEN2-MULTI-TENANT-2026-09-22.
@@ -16,10 +19,10 @@
    aviso «Cartera incompleta» (hoy un Tenant que falla hace fallar la consulta
    entera). Rótulos de pantalla del contrato § 14: el Tenant propietario se
    rotula «Empresa» y el Cliente empresarial «Cliente»; nunca «tenant». *@
-<PageTitle>Mi trabajo — @Marca.Nombre</PageTitle>
+<PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina mi-trabajo">
-    <CabeceraPagina Titulo="Mi trabajo" Kicker="Toda mi cartera">
+    <CabeceraPagina Titulo="@Textos["TituloPagina"]" Kicker="@Textos["TodaMiCartera"]">
         <Descripcion>
             @if (_vista is not null)
             {
@@ -30,9 +33,9 @@
 
     @if (_errorCarga)
     {
-        <EstadoVacio Titulo="No pudimos consultar tu cartera" Descripcion="Intenta nuevamente en unos segundos.">
+        <EstadoVacio Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
             <Accion>
-                <Boton OnClick="CargarAsync">Reintentar consulta</Boton>
+                <Boton OnClick="CargarAsync">@Textos["ReintentarConsulta"]</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -42,7 +45,7 @@
     }
     else
     {
-        <div class="mi-trabajo-chips" role="group" aria-label="Filtrar por severidad">
+        <div class="mi-trabajo-chips" role="group" aria-label="@Textos["FiltrarPorSeveridad"]" data-lista-con-filtros>
             @foreach (var chip in Chips)
             {
                 <button type="button" class="@("mi-trabajo-chip" + (chip.Severidad == _severidad ? " mi-trabajo-chip-activo" : ""))"
@@ -56,17 +59,17 @@
         <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
         <div class="mi-trabajo-paneles">
-            <aside class="mi-trabajo-cartera" aria-label="Mi cartera">
+            <aside class="mi-trabajo-cartera" aria-label="@Textos["MiCartera"]">
                 <div class="mi-trabajo-cartera-cabecera">
-                    <h2 class="mi-trabajo-cartera-titulo">Mi cartera</h2>
+                    <h2 class="mi-trabajo-cartera-titulo">@Textos["MiCartera"]</h2>
                     <span class="mi-trabajo-cartera-cuenta">@Empresas(_vista.Cartera.Count)</span>
                 </div>
                 <button type="button" class="@ClaseFilaCartera(null)" aria-pressed="@(_tenantFiltro is null ? "true" : "false")"
                         @onclick="() => CambiarTenant(null)">
                     <span class="mi-trabajo-cartera-avatar mi-trabajo-cartera-avatar-todo" aria-hidden="true">∑</span>
                     <span class="mi-trabajo-cartera-texto">
-                        <span class="mi-trabajo-cartera-nombre">Toda mi cartera</span>
-                        <span class="mi-trabajo-cartera-sub">@Empresas(_vista.Cartera.Count) consultadas</span>
+                        <span class="mi-trabajo-cartera-nombre">@Textos["TodaMiCartera"]</span>
+                        <span class="mi-trabajo-cartera-sub">@EmpresasConsultadas(_vista.Cartera.Count)</span>
                     </span>
                     <span class="mi-trabajo-cartera-total">@_vista.TotalCartera</span>
                 </button>
@@ -84,54 +87,54 @@
                 }
             </aside>
 
-            <section class="mi-trabajo-cola" aria-label="Cola de trabajo">
+            <section class="mi-trabajo-cola" aria-label="@Textos["ColaDeTrabajo"]">
                 <div class="mi-trabajo-barra">
-                    <div class="mi-trabajo-barra-grupo" role="group" aria-label="Agrupar por">
-                        <span class="mi-trabajo-barra-etiqueta">Agrupar por</span>
+                    <div class="mi-trabajo-barra-grupo" role="group" aria-label="@Textos["AgruparPor"]">
+                        <span class="mi-trabajo-barra-etiqueta">@Textos["AgruparPor"]</span>
                         <button type="button" class="@ClasePestana(_agrupar == AgruparMiTrabajo.Tenant)" aria-pressed="@(_agrupar == AgruparMiTrabajo.Tenant ? "true" : "false")"
-                                @onclick="() => CambiarAgrupar(AgruparMiTrabajo.Tenant)">Empresa</button>
+                                @onclick="() => CambiarAgrupar(AgruparMiTrabajo.Tenant)">@Textos["Empresa"]</button>
                         <button type="button" class="@ClasePestana(_agrupar == AgruparMiTrabajo.Severidad)" aria-pressed="@(_agrupar == AgruparMiTrabajo.Severidad ? "true" : "false")"
-                                @onclick="() => CambiarAgrupar(AgruparMiTrabajo.Severidad)">Severidad</button>
+                                @onclick="() => CambiarAgrupar(AgruparMiTrabajo.Severidad)">@Textos["Severidad"]</button>
                     </div>
-                    <div class="mi-trabajo-barra-grupo" role="group" aria-label="Ordenar">
-                        <span class="mi-trabajo-barra-etiqueta">Ordenar</span>
+                    <div class="mi-trabajo-barra-grupo" role="group" aria-label="@Textos["Ordenar"]">
+                        <span class="mi-trabajo-barra-etiqueta">@Textos["Ordenar"]</span>
                         <button type="button" class="@ClasePestana(_orden == OrdenMiTrabajo.Prioridad)" aria-pressed="@(_orden == OrdenMiTrabajo.Prioridad ? "true" : "false")"
-                                @onclick="() => CambiarOrden(OrdenMiTrabajo.Prioridad)">Prioridad</button>
+                                @onclick="() => CambiarOrden(OrdenMiTrabajo.Prioridad)">@Textos["Prioridad"]</button>
                         <button type="button" class="@ClasePestana(_orden == OrdenMiTrabajo.Cliente)" aria-pressed="@(_orden == OrdenMiTrabajo.Cliente ? "true" : "false")"
-                                @onclick="() => CambiarOrden(OrdenMiTrabajo.Cliente)">Cliente</button>
+                                @onclick="() => CambiarOrden(OrdenMiTrabajo.Cliente)">@Textos["Cliente"]</button>
                     </div>
                     <div class="mi-trabajo-barra-derecha">
-                        <input class="mi-trabajo-filtro" type="search" aria-label="Filtrar esta cola por trabajador, documento o centro"
-                               placeholder="Filtrar en la cola…" value="@_busqueda" @oninput="CambiarBusqueda" />
+                        <input class="mi-trabajo-filtro" type="search" aria-label="@Textos["FiltroEtiqueta"]"
+                               placeholder="@Textos["FiltroMarcador"]" value="@_busqueda" @oninput="CambiarBusqueda" />
                         @if (_agrupar == AgruparMiTrabajo.Tenant && string.IsNullOrWhiteSpace(_busqueda))
                         {
-                            <button type="button" class="mi-trabajo-plegar-todas" @onclick="AlternarTodas">@(TodoPlegado ? "Expandir todas" : "Plegar todas")</button>
+                            <button type="button" class="mi-trabajo-plegar-todas" @onclick="AlternarTodas">@(TodoPlegado ? Textos["ExpandirTodas"] : Textos["PlegarTodas"])</button>
                         }
-                        <span class="mi-trabajo-atajos"><kbd>j</kbd> <kbd>k</kbd> mover · <kbd>↵</kbd> abrir</span>
+                        <span class="mi-trabajo-atajos"><kbd>j</kbd> <kbd>k</kbd> @Textos["AtajoMover"] · <kbd>↵</kbd> @Textos["AtajoAbrir"]</span>
                     </div>
                 </div>
 
                 @if (Grupos.Count == 0 && AlDia)
                 {
                     <EstadoVacio NombreIcono="exito-circulo" AcentoIcono="var(--color-success-500)" FondoIcono="var(--color-success-50)"
-                                 Titulo="@(TenantFiltrado is { } t ? $"{t.Nombre}, al día" : "Cartera al día")"
+                                 Titulo="@(TenantFiltrado is { } t ? Textos["AlDiaEmpresa", t.Nombre] : Textos["AlDiaCartera"])"
                                  Descripcion="@(TenantFiltrado is { } t2
-                                     ? $"No queda ninguna gestión pendiente para los clientes de {t2.Nombre}."
-                                     : "Ninguna empresa de tu cartera tiene bloqueos, documentación pendiente ni vencimientos próximos.")">
+                                     ? Textos["AlDiaEmpresaDetalle", t2.Nombre]
+                                     : Textos["AlDiaCarteraDetalle"])">
                         <Accion>
                             @if (TenantFiltrado is not null)
                             {
-                                <Boton Variante="VarianteBoton.Secundario" OnClick="() => CambiarTenant(null)">Ver toda mi cartera</Boton>
+                                <Boton Variante="VarianteBoton.Secundario" OnClick="() => CambiarTenant(null)">@Textos["VerTodaMiCartera"]</Boton>
                             }
                         </Accion>
                     </EstadoVacio>
                 }
                 else if (Grupos.Count == 0 && HayFiltrosActivos)
                 {
-                    <EstadoVacio NombreIcono="filtro" Titulo="Sin resultados para este filtro"
-                                 Descripcion="Hay trabajo pendiente en tu cartera, pero nada que coincida con la combinación de filtros activa.">
+                    <EstadoVacio NombreIcono="filtro" Titulo="@Textos["SinResultadosTitulo"]"
+                                 Descripcion="@Textos["SinResultadosDetalle"]">
                         <Accion>
-                            <Boton OnClick="QuitarFiltros">Quitar filtros</Boton>
+                            <Boton OnClick="QuitarFiltros">@Textos["QuitarFiltros"]</Boton>
                         </Accion>
                     </EstadoVacio>
                 }
@@ -165,7 +168,7 @@
                                 @{ string? clienteAnterior = null; var primera = true; }
                                 @foreach (var fila in grupo.Filas)
                                 {
-                                    var cliente = fila.Item.ClienteNombre ?? "Sin cliente";
+                                    var cliente = fila.Item.ClienteNombre ?? Textos["SinCliente"];
                                     @if (_agrupar == AgruparMiTrabajo.Tenant && _orden == OrdenMiTrabajo.Cliente && (primera || cliente != clienteAnterior))
                                     {
                                         <div class="mi-trabajo-subcabecera">@cliente</div>
@@ -186,10 +189,10 @@
                                         <span class="mi-trabajo-fila-derecha" @onclick:stopPropagation="true">
                                             @if (fila.Item.Fecha is { } fecha)
                                             {
-                                                <span class="mi-trabajo-fila-fecha">@fecha.ToString("d MMM", Cultura)</span>
+                                                <span class="mi-trabajo-fila-fecha">@fecha.ToString(Textos["FormatoDiaMes"], Cultura)</span>
                                             }
                                             <AccionCrossTenant TenantId="fila.TenantId" Item="fila.Item" Token="_token"
-                                                               Titulo="@($"Abre {fila.TenantNombre} en la pantalla de esta tarea")" />
+                                                               Titulo="@Textos["AbreEnLaPantalla", fila.TenantNombre]" />
                                         </span>
                                     </div>
                                 }
@@ -198,7 +201,7 @@
                                 {
                                     <button type="button" class="mi-trabajo-pliegue" @onclick="() => AbrirPliegue(grupo.Clave)">
                                         <span>@resumen</span>
-                                        <span class="mi-trabajo-pliegue-cta">Ver</span>
+                                        <span class="mi-trabajo-pliegue-cta">@Textos["Ver"]</span>
                                     </button>
                                 }
                             </div>
@@ -207,14 +210,14 @@
                             <span>@Pie</span>
                             @if (_abiertos.Count > 0 || _cerrados.Count > 0)
                             {
-                                <button type="button" class="mi-trabajo-volver-plegar" @onclick="VolverAPlegar">Volver a plegar</button>
+                                <button type="button" class="mi-trabajo-volver-plegar" @onclick="VolverAPlegar">@Textos["VolverAPlegar"]</button>
                             }
                         </div>
                     </div>
                 }
             </section>
 
-            <aside class="mi-trabajo-detalle" aria-label="Detalle de la tarea">
+            <aside class="mi-trabajo-detalle" aria-label="@Textos["DetalleDeLaTarea"]">
                 @if (FilaAbierta is { } abierta)
                 {
                     <div class="mi-trabajo-detalle-cabecera">
@@ -225,28 +228,28 @@
                     <div class="mi-trabajo-detalle-sujeto">@abierta.Item.Subtitulo</div>
                     @if (abierta.Item.Fecha is { } fechaDetalle)
                     {
-                        <div class="mi-trabajo-detalle-plazo">@fechaDetalle.ToString("d 'de' MMMM 'de' yyyy", Cultura)</div>
+                        <div class="mi-trabajo-detalle-plazo">@fechaDetalle.ToString(Textos["FormatoFechaLarga"], Cultura)</div>
                     }
                     <dl class="mi-trabajo-detalle-datos">
-                        <dt>Empresa</dt>
+                        <dt>@Textos["Empresa"]</dt>
                         <dd>@abierta.TenantNombre</dd>
-                        <dt>Cliente</dt>
-                        <dd>@(abierta.Item.ClienteNombre ?? "Sin cliente")</dd>
+                        <dt>@Textos["Cliente"]</dt>
+                        <dd>@(abierta.Item.ClienteNombre ?? Textos["SinCliente"])</dd>
                         @if (abierta.Item.ProveedorNombre is { Length: > 0 } plataforma)
                         {
-                            <dt>Plataforma CAE</dt>
+                            <dt>@Textos["PlataformaCae"]</dt>
                             <dd>@plataforma</dd>
                         }
                     </dl>
                     <AccionCrossTenant TenantId="abierta.TenantId" Item="abierta.Item" Token="_token"
                                        Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Medio"
-                                       Titulo="@($"Abre {abierta.TenantNombre} en la pantalla de esta tarea")" />
+                                       Titulo="@Textos["AbreEnLaPantalla", abierta.TenantNombre]" />
                 }
                 else
                 {
                     <div class="mi-trabajo-detalle-vacio">
-                        <div class="mi-trabajo-detalle-titulo">Ninguna tarea abierta</div>
-                        <p>Selecciona una tarea de la cola, o usa <kbd>j</kbd> / <kbd>k</kbd> y <kbd>↵</kbd>.</p>
+                        <div class="mi-trabajo-detalle-titulo">@Textos["NingunaTareaAbierta"]</div>
+                        <p>@Textos["SeleccionaTarea"] <kbd>j</kbd> / <kbd>k</kbd> @Textos["Y"] <kbd>↵</kbd>.</p>
                     </div>
                 }
             </aside>

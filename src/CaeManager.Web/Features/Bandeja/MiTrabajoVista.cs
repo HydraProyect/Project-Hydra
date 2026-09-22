@@ -1,5 +1,6 @@
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 using CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
+using CaeManager.Web.Features.Bandeja.Recursos;
 
 namespace CaeManager.Web.Features.Bandeja;
 
@@ -149,7 +150,7 @@ public sealed class MiTrabajoVista
                 grupos.Add(new GrupoMiTrabajo(
                     tenant.TenantId.ToString(), tenant.Nombre, tenant.TenantId, delTenant.Count, plegado,
                     plegado ? [] : visibles.Where(f => f.TenantId == tenant.TenantId).ToList(),
-                    calendarioPlegado ? (resto == 1 ? "1 vencimiento o envío en calendario" : $"{resto} vencimientos y envíos en calendario") : null,
+                    calendarioPlegado ? Plural(resto, "CalendarioPlegadoUno", "CalendarioPlegadoVarios") : null,
                     plegado ? ResumenPlegado(bloqueos, actuaciones, resto) : null));
             }
         }
@@ -179,22 +180,20 @@ public sealed class MiTrabajoVista
     public string Titular(FiltroMiTrabajo filtro)
     {
         var bloqueos = Contar(filtro, SeveridadMiTrabajo.Bloqueo);
-        return bloqueos switch
-        {
-            0 => "Ningún bloqueo hoy",
-            1 => "1 bloqueo que resolver hoy",
-            _ => $"{bloqueos} bloqueos que resolver hoy"
-        };
+        return bloqueos == 0
+            ? TextosMiTrabajo.Texto("TitularSinBloqueos")
+            : Plural(bloqueos, "TitularBloqueosUno", "TitularBloqueosVarios");
     }
 
     public string Subtitular(FiltroMiTrabajo filtro)
     {
         var actuaciones = Contar(filtro, SeveridadMiTrabajo.Actuacion);
         var calendario = Contar(filtro, SeveridadMiTrabajo.Proximo) + Contar(filtro, SeveridadMiTrabajo.Seguimiento);
-        var ambito = filtro.TenantId is { } id ? Cartera.FirstOrDefault(t => t.TenantId == id)?.Nombre ?? "toda mi cartera" : "toda mi cartera";
+        var todaLaCartera = TextosMiTrabajo.Texto("AmbitoTodaLaCartera");
+        var ambito = filtro.TenantId is { } id ? Cartera.FirstOrDefault(t => t.TenantId == id)?.Nombre ?? todaLaCartera : todaLaCartera;
         if (filtro.Severidad is { } severidad)
             ambito += " · " + Etiqueta(severidad).ToLowerInvariant();
-        return $"{(actuaciones == 1 ? "1 acción pendiente" : $"{actuaciones} acciones pendientes")}, {calendario} en calendario · {ambito}";
+        return TextosMiTrabajo.Formato("Subtitular", Plural(actuaciones, "AccionesUna", "AccionesVarias"), calendario, ambito);
     }
 
     public static bool EsUrgente(FilaMiTrabajo fila) => EsUrgente(fila.Severidad);
@@ -204,22 +203,26 @@ public sealed class MiTrabajoVista
 
     public static string Etiqueta(SeveridadMiTrabajo severidad) => severidad switch
     {
-        SeveridadMiTrabajo.Bloqueo => "Bloqueo",
-        SeveridadMiTrabajo.Actuacion => "Requiere actuación",
-        SeveridadMiTrabajo.Proximo => "Próximo",
-        _ => "Seguimiento"
+        SeveridadMiTrabajo.Bloqueo => TextosMiTrabajo.Texto("SeveridadBloqueo"),
+        SeveridadMiTrabajo.Actuacion => TextosMiTrabajo.Texto("SeveridadActuacion"),
+        SeveridadMiTrabajo.Proximo => TextosMiTrabajo.Texto("SeveridadProximo"),
+        _ => TextosMiTrabajo.Texto("SeveridadSeguimiento")
     };
 
     private static string ResumenSeveridadPlegada(SeveridadMiTrabajo severidad, int total) => severidad == SeveridadMiTrabajo.Proximo
-        ? (total == 1 ? "1 vencimiento en los próximos 30 días" : $"{total} vencimientos en los próximos 30 días")
-        : (total == 1 ? "1 documento a la espera de la plataforma" : $"{total} documentos a la espera de la plataforma");
+        ? Plural(total, "ProximosPlegadosUno", "ProximosPlegadosVarios")
+        : Plural(total, "SeguimientoPlegadoUno", "SeguimientoPlegadoVarios");
 
     private static string ResumenPlegado(int bloqueos, int actuaciones, int resto) => string.Join(" · ", new[]
     {
-        bloqueos switch { 0 => null, 1 => "1 bloqueo", _ => $"{bloqueos} bloqueos" },
-        actuaciones == 0 ? null : $"{actuaciones} por actuar",
-        resto == 0 ? null : $"{resto} en calendario"
+        bloqueos == 0 ? null : Plural(bloqueos, "BloqueosUno", "BloqueosVarios"),
+        actuaciones == 0 ? null : TextosMiTrabajo.Formato("PorActuar", actuaciones),
+        resto == 0 ? null : TextosMiTrabajo.Formato("EnCalendario", resto)
     }.Where(p => p is not null));
+
+    /// <summary>Singular con su clave propia («1 bloqueo»), plural con el número como {0}.</summary>
+    internal static string Plural(int n, string claveUno, string claveVarios) =>
+        n == 1 ? TextosMiTrabajo.Texto(claveUno) : TextosMiTrabajo.Formato(claveVarios, n);
 
     private static bool BusquedaActiva(FiltroMiTrabajo filtro) => !string.IsNullOrWhiteSpace(filtro.Busqueda);
 

@@ -1,0 +1,252 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="TituloPagina" xml:space="preserve">
+    <value>La meva feina</value>
+  </data>
+  <data name="TodaMiCartera" xml:space="preserve">
+    <value>Tota la meva cartera</value>
+  </data>
+  <data name="ErrorCargaTitulo" xml:space="preserve">
+    <value>No hem pogut consultar la teva cartera</value>
+  </data>
+  <data name="ErrorCargaDetalle" xml:space="preserve">
+    <value>Torna-ho a provar d’aquí a uns segons.</value>
+  </data>
+  <data name="ReintentarConsulta" xml:space="preserve">
+    <value>Torna a consultar</value>
+  </data>
+  <data name="FiltrarPorSeveridad" xml:space="preserve">
+    <value>Filtra per gravetat</value>
+  </data>
+  <data name="MiCartera" xml:space="preserve">
+    <value>La meva cartera</value>
+  </data>
+  <data name="EmpresasUna" xml:space="preserve">
+    <value>1 empresa</value>
+  </data>
+  <data name="EmpresasVarias" xml:space="preserve">
+    <value>{0} empreses</value>
+  </data>
+  <data name="EmpresasConsultadasUna" xml:space="preserve">
+    <value>1 empresa consultada</value>
+  </data>
+  <data name="EmpresasConsultadasVarias" xml:space="preserve">
+    <value>{0} empreses consultades</value>
+  </data>
+  <data name="ColaDeTrabajo" xml:space="preserve">
+    <value>Cua de feina</value>
+  </data>
+  <data name="AgruparPor" xml:space="preserve">
+    <value>Agrupa per</value>
+  </data>
+  <data name="Empresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="Severidad" xml:space="preserve">
+    <value>Gravetat</value>
+  </data>
+  <data name="Ordenar" xml:space="preserve">
+    <value>Ordena</value>
+  </data>
+  <data name="Prioridad" xml:space="preserve">
+    <value>Prioritat</value>
+  </data>
+  <data name="Cliente" xml:space="preserve">
+    <value>Client</value>
+  </data>
+  <data name="FiltroEtiqueta" xml:space="preserve">
+    <value>Filtra aquesta cua per treballador, document o centre</value>
+  </data>
+  <data name="FiltroMarcador" xml:space="preserve">
+    <value>Filtra a la cua…</value>
+  </data>
+  <data name="ExpandirTodas" xml:space="preserve">
+    <value>Desplega-les totes</value>
+  </data>
+  <data name="PlegarTodas" xml:space="preserve">
+    <value>Plega-les totes</value>
+  </data>
+  <data name="AtajoMover" xml:space="preserve">
+    <value>moure</value>
+  </data>
+  <data name="AtajoAbrir" xml:space="preserve">
+    <value>obrir</value>
+  </data>
+  <data name="AlDiaEmpresa" xml:space="preserve">
+    <value>{0}, al dia</value>
+  </data>
+  <data name="AlDiaCartera" xml:space="preserve">
+    <value>Cartera al dia</value>
+  </data>
+  <data name="AlDiaEmpresaDetalle" xml:space="preserve">
+    <value>No queda cap gestió pendent per als clients de {0}.</value>
+  </data>
+  <data name="AlDiaCarteraDetalle" xml:space="preserve">
+    <value>Cap empresa de la teva cartera no té bloquejos, documentació pendent ni venciments propers.</value>
+  </data>
+  <data name="VerTodaMiCartera" xml:space="preserve">
+    <value>Mostra tota la meva cartera</value>
+  </data>
+  <data name="SinResultadosTitulo" xml:space="preserve">
+    <value>Sense resultats per a aquest filtre</value>
+  </data>
+  <data name="SinResultadosDetalle" xml:space="preserve">
+    <value>Hi ha feina pendent a la teva cartera, però res no coincideix amb la combinació de filtres activa.</value>
+  </data>
+  <data name="QuitarFiltros" xml:space="preserve">
+    <value>Treu els filtres</value>
+  </data>
+  <data name="SinCliente" xml:space="preserve">
+    <value>Sense client</value>
+  </data>
+  <data name="Ver" xml:space="preserve">
+    <value>Mostra</value>
+  </data>
+  <data name="VolverAPlegar" xml:space="preserve">
+    <value>Torna a plegar</value>
+  </data>
+  <data name="DetalleDeLaTarea" xml:space="preserve">
+    <value>Detall de la tasca</value>
+  </data>
+  <data name="PlataformaCae" xml:space="preserve">
+    <value>Plataforma CAE</value>
+  </data>
+  <data name="NingunaTareaAbierta" xml:space="preserve">
+    <value>Cap tasca oberta</value>
+  </data>
+  <data name="SeleccionaTarea" xml:space="preserve">
+    <value>Selecciona una tasca de la cua, o fes servir</value>
+  </data>
+  <data name="Y" xml:space="preserve">
+    <value>i</value>
+  </data>
+  <data name="AbreEnLaPantalla" xml:space="preserve">
+    <value>Obre {0} a la pantalla d’aquesta tasca</value>
+  </data>
+  <data name="FormatoDiaMes" xml:space="preserve">
+    <value>d MMM</value>
+  </data>
+  <data name="FormatoFechaLarga" xml:space="preserve">
+    <value>d MMMM 'de' yyyy</value>
+  </data>
+  <data name="ChipTodas" xml:space="preserve">
+    <value>Totes</value>
+  </data>
+  <data name="ChipBloqueos" xml:space="preserve">
+    <value>Bloquejos</value>
+  </data>
+  <data name="ChipActuacion" xml:space="preserve">
+    <value>Actuació</value>
+  </data>
+  <data name="SeveridadBloqueo" xml:space="preserve">
+    <value>Bloqueig</value>
+  </data>
+  <data name="SeveridadActuacion" xml:space="preserve">
+    <value>Requereix actuació</value>
+  </data>
+  <data name="SeveridadProximo" xml:space="preserve">
+    <value>Pròxim</value>
+  </data>
+  <data name="SeveridadSeguimiento" xml:space="preserve">
+    <value>Seguiment</value>
+  </data>
+  <data name="ElementosUno" xml:space="preserve">
+    <value>1 element</value>
+  </data>
+  <data name="ElementosVarios" xml:space="preserve">
+    <value>{0} elements</value>
+  </data>
+  <data name="MostradosUno" xml:space="preserve">
+    <value>1 element mostrat</value>
+  </data>
+  <data name="MostradosVarios" xml:space="preserve">
+    <value>{0} elements mostrats</value>
+  </data>
+  <data name="PlegadosUno" xml:space="preserve">
+    <value>1 plegat</value>
+  </data>
+  <data name="PlegadosVarios" xml:space="preserve">
+    <value>{0} plegats</value>
+  </data>
+  <data name="SinTrabajoPendiente" xml:space="preserve">
+    <value>Sense feina pendent</value>
+  </data>
+  <data name="SinBloqueos" xml:space="preserve">
+    <value>Sense bloquejos</value>
+  </data>
+  <data name="BloqueosUno" xml:space="preserve">
+    <value>1 bloqueig</value>
+  </data>
+  <data name="BloqueosVarios" xml:space="preserve">
+    <value>{0} bloquejos</value>
+  </data>
+  <data name="TitularSinBloqueos" xml:space="preserve">
+    <value>Cap bloqueig avui</value>
+  </data>
+  <data name="TitularBloqueosUno" xml:space="preserve">
+    <value>1 bloqueig per resoldre avui</value>
+  </data>
+  <data name="TitularBloqueosVarios" xml:space="preserve">
+    <value>{0} bloquejos per resoldre avui</value>
+  </data>
+  <data name="AmbitoTodaLaCartera" xml:space="preserve">
+    <value>tota la meva cartera</value>
+  </data>
+  <data name="AccionesUna" xml:space="preserve">
+    <value>1 acció pendent</value>
+  </data>
+  <data name="AccionesVarias" xml:space="preserve">
+    <value>{0} accions pendents</value>
+  </data>
+  <data name="Subtitular" xml:space="preserve">
+    <value>{0}, {1} al calendari · {2}</value>
+  </data>
+  <data name="CalendarioPlegadoUno" xml:space="preserve">
+    <value>1 venciment o enviament al calendari</value>
+  </data>
+  <data name="CalendarioPlegadoVarios" xml:space="preserve">
+    <value>{0} venciments i enviaments al calendari</value>
+  </data>
+  <data name="ProximosPlegadosUno" xml:space="preserve">
+    <value>1 venciment en els pròxims 30 dies</value>
+  </data>
+  <data name="ProximosPlegadosVarios" xml:space="preserve">
+    <value>{0} venciments en els pròxims 30 dies</value>
+  </data>
+  <data name="SeguimientoPlegadoUno" xml:space="preserve">
+    <value>1 document a l’espera de la plataforma</value>
+  </data>
+  <data name="SeguimientoPlegadoVarios" xml:space="preserve">
+    <value>{0} documents a l’espera de la plataforma</value>
+  </data>
+  <data name="PorActuar" xml:space="preserve">
+    <value>{0} per actuar</value>
+  </data>
+  <data name="EnCalendario" xml:space="preserve">
+    <value>{0} al calendari</value>
+  </data>
+  <data name="TipoProximo" xml:space="preserve">
+    <value>Pròxim</value>
+  </data>
+  <data name="TipoEnPlataforma" xml:space="preserve">
+    <value>A la plataforma</value>
+  </data>
+  <data name="AccionVerDocumento" xml:space="preserve">
+    <value>Mostra el document</value>
+  </data>
+  <data name="AccionVerEnPlataforma" xml:space="preserve">
+    <value>Mostra a {0}</value>
+  </data>
+</root>

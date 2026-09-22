@@ -1,6 +1,7 @@
 using System.Globalization;
 using CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Features.Bandeja.Recursos;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
@@ -9,7 +10,13 @@ namespace CaeManager.Web.Features.Bandeja.Pages;
 
 public partial class MiTrabajo : ComponentBase, IDisposable
 {
-    private static readonly CultureInfo Cultura = CultureInfo.GetCultureInfo("es-ES");
+    /// <summary>
+    /// Cultura de las fechas: catalán si la interfaz está en catalán y español en
+    /// cualquier otro caso, también con la cultura invariante del runner de CI. Los
+    /// patrones salen del recurso (<c>FormatoDiaMes</c>, <c>FormatoFechaLarga</c>).
+    /// </summary>
+    private static CultureInfo Cultura => CultureInfo.GetCultureInfo(
+        CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ca" ? "ca-ES" : "es-ES");
 
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private AntiforgeryStateProvider AntiforgeryStateProvider { get; set; } = default!;
@@ -68,11 +75,11 @@ public partial class MiTrabajo : ComponentBase, IDisposable
 
     private IReadOnlyList<ChipMiTrabajo> Chips =>
     [
-        new(null, "Todas", _vista!.Contar(Filtro, null)),
-        new(SeveridadMiTrabajo.Bloqueo, "Bloqueos", _vista.Contar(Filtro, SeveridadMiTrabajo.Bloqueo)),
-        new(SeveridadMiTrabajo.Actuacion, "Actuación", _vista.Contar(Filtro, SeveridadMiTrabajo.Actuacion)),
-        new(SeveridadMiTrabajo.Proximo, "Próximo", _vista.Contar(Filtro, SeveridadMiTrabajo.Proximo)),
-        new(SeveridadMiTrabajo.Seguimiento, "Seguimiento", _vista.Contar(Filtro, SeveridadMiTrabajo.Seguimiento)),
+        new(null, TextosMiTrabajo.Texto("ChipTodas"), _vista!.Contar(Filtro, null)),
+        new(SeveridadMiTrabajo.Bloqueo, TextosMiTrabajo.Texto("ChipBloqueos"), _vista.Contar(Filtro, SeveridadMiTrabajo.Bloqueo)),
+        new(SeveridadMiTrabajo.Actuacion, TextosMiTrabajo.Texto("ChipActuacion"), _vista.Contar(Filtro, SeveridadMiTrabajo.Actuacion)),
+        new(SeveridadMiTrabajo.Proximo, TextosMiTrabajo.Texto("SeveridadProximo"), _vista.Contar(Filtro, SeveridadMiTrabajo.Proximo)),
+        new(SeveridadMiTrabajo.Seguimiento, TextosMiTrabajo.Texto("SeveridadSeguimiento"), _vista.Contar(Filtro, SeveridadMiTrabajo.Seguimiento)),
     ];
 
     private string Pie
@@ -81,8 +88,9 @@ public partial class MiTrabajo : ComponentBase, IDisposable
         {
             var mostrados = Visibles.Count;
             var plegados = Math.Max(0, (_vista?.Alcance(Filtro).Count ?? 0) - mostrados);
-            var texto = mostrados == 1 ? "1 elemento" : $"{mostrados} elementos";
-            return plegados == 0 ? texto : $"{texto} mostrados · {plegados} {(plegados == 1 ? "plegado" : "plegados")}";
+            return plegados == 0
+                ? MiTrabajoVista.Plural(mostrados, "ElementosUno", "ElementosVarios")
+                : $"{MiTrabajoVista.Plural(mostrados, "MostradosUno", "MostradosVarios")} · {MiTrabajoVista.Plural(plegados, "PlegadosUno", "PlegadosVarios")}";
         }
     }
 
@@ -230,11 +238,15 @@ public partial class MiTrabajo : ComponentBase, IDisposable
         _ => TonoBadge.Neutro
     };
 
-    private static string Empresas(int n) => n == 1 ? "1 empresa" : $"{n} empresas";
+    private static string Empresas(int n) => MiTrabajoVista.Plural(n, "EmpresasUna", "EmpresasVarias");
+
+    private static string EmpresasConsultadas(int n) => MiTrabajoVista.Plural(n, "EmpresasConsultadasUna", "EmpresasConsultadasVarias");
 
     private static string SubtituloCartera(FilaCarteraMiTrabajo tenant) => tenant.Total == 0
-        ? "Sin trabajo pendiente"
-        : tenant.Bloqueos switch { 0 => "Sin bloqueos", 1 => "1 bloqueo", _ => $"{tenant.Bloqueos} bloqueos" };
+        ? TextosMiTrabajo.Texto("SinTrabajoPendiente")
+        : tenant.Bloqueos == 0
+            ? TextosMiTrabajo.Texto("SinBloqueos")
+            : MiTrabajoVista.Plural(tenant.Bloqueos, "BloqueosUno", "BloqueosVarios");
 
     private static string Iniciales(string nombre) => string.Concat(nombre
         .Split(' ', StringSplitOptions.RemoveEmptyEntries)
