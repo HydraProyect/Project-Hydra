@@ -1,12 +1,15 @@
+using System.Globalization;
 using Bunit;
 using CaeManager.Application.Calendario.Queries;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitasParaCalendario;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Features.Calendario.Pages;
+using CaeManager.Web.Features.Calendario.Recursos;
 using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Tests;
 
@@ -25,7 +28,11 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class CalendarioTests : BunitContext
 {
-    public CalendarioTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public CalendarioTests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
+    }
 
     private static readonly DateOnly Hoy = new(2026, 3, 15);
     private static readonly DateOnly PrimeroDelMes = new(Hoy.Year, Hoy.Month, 1);
@@ -424,5 +431,67 @@ public class CalendarioTests : BunitContext
 
         Services.GetRequiredService<NavigationManager>().Uri
             .Should().EndWith($"/documentos?documentoId={vencimiento.DocumentoId}");
+    }
+
+    /// <summary>
+    /// Los textos salen de <c>TextosCalendario</c>: el neutral para es-ES y el
+    /// satélite para ca-ES. Los patrones de fecha son la única clave cuyo valor
+    /// ya difiere entre las dos culturas, y por eso demuestran que ca-ES lee
+    /// su propio recurso y no cae al neutral.
+    /// </summary>
+    [Fact]
+    public void Los_textos_de_la_pantalla_resuelven_del_neutral_en_es_ES_y_del_satelite_en_ca_ES()
+    {
+        var textos = Services.GetRequiredService<IStringLocalizer<TextosCalendario>>();
+
+        EnCultura("es-ES", () =>
+        {
+            textos["FormatoDiaMes"].ResourceNotFound.Should().BeFalse();
+            textos["FormatoDiaMes"].Value.Should().Be("d 'de' MMMM");
+            textos["Gestionar"].Value.Should().Be("Gestionar");
+        });
+        EnCultura("ca-ES", () =>
+        {
+            textos["FormatoDiaMes"].Value.Should().Be("d MMMM");
+            textos["FormatoFechaLarga"].Value.Should().Be("d MMMM 'de' yyyy");
+            textos["Gestionar"].ResourceNotFound.Should().BeFalse();
+        });
+    }
+
+    /// <summary>
+    /// En catalán el nombre del mes en genitivo ya lleva la preposición
+    /// («d’octubre», «de març»): el patrón español copiado daría «1 de
+    /// d’octubre». Octubre, porque empieza por vocal y es el caso que elide.
+    /// </summary>
+    [Fact]
+    public Task En_catalan_las_fechas_usan_el_genitivo_del_mes_sin_duplicar_la_preposicion() =>
+        EnCulturaAsync("ca-ES", async () =>
+        {
+            var primeroDeOctubre = new DateOnly(2026, 10, 1);
+            Services.AddScoped<IMediator>(_ => new MediatorPorTipo
+            {
+                Vencimientos = [Vencimiento(primeroDeOctubre, EstadoDocumento.Proximo)],
+                Visitas = []
+            });
+            var cut = Render<Calendario>(p => p.Add(c => c.Hoy, new DateOnly(2026, 10, 15)));
+
+            cut.Find(".calendario-titulo-mes").TextContent.Should().Be("Octubre 2026");
+            var dia = cut.Find("button.calendario-celda");
+            dia.GetAttribute("aria-label").Should().StartWith("1 d’octubre:").And.NotContain("de d’");
+
+            await dia.ClickAsync(new());
+            cut.Find("[role=dialog] h2").TextContent.Should().Be("1 d’octubre de 2026");
+            cut.Find(".calendario-resumen-dia").TextContent.Should().StartWith("Dijous");
+        });
+
+    private static void EnCultura(string cultura, Action accion) =>
+        EnCulturaAsync(cultura, () => { accion(); return Task.CompletedTask; }).GetAwaiter().GetResult();
+
+    private static async Task EnCulturaAsync(string cultura, Func<Task> accion)
+    {
+        var (previa, previaUi) = (CultureInfo.CurrentCulture, CultureInfo.CurrentUICulture);
+        CultureInfo.CurrentCulture = CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(cultura);
+        try { await accion(); }
+        finally { (CultureInfo.CurrentCulture, CultureInfo.CurrentUICulture) = (previa, previaUi); }
     }
 }

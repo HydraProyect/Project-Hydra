@@ -15,6 +15,9 @@
   <data name="Volver" xml:space="preserve">
     <value>Volver</value>
   </data>
+  <data name="Reintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
   <data name="IdiomaEtiqueta" xml:space="preserve">
     <value>Idioma</value>
   </data>

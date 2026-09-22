@@ -2,19 +2,33 @@ using System.Globalization;
 using CaeManager.Application.Calendario.Queries;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitasParaCalendario;
 using CaeManager.Domain.Documentos;
+using CaeManager.Web.Features.Calendario.Recursos;
 using CaeManager.Web.Features.Documentos;
 using MediatR;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Features.Calendario.Pages;
 
 public partial class Calendario : ComponentBase
 {
-    private static readonly string[] NombresDiasSemana = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
-    private static readonly CultureInfo Espanol = new("es-ES");
+    // Rejilla en lunes: las claves van en ese orden. Los nombres salen del
+    // recurso y no de DateTimeFormat.AbbreviatedDayNames, que en es-ES da
+    // «lun.» en minúscula y con punto.
+    private static readonly string[] ClavesDiasSemana =
+        ["DiaLunes", "DiaMartes", "DiaMiercoles", "DiaJueves", "DiaViernes", "DiaSabado", "DiaDomingo"];
 
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosCalendario> Textos { get; set; } = default!;
+
+    /// <summary>
+    /// Cultura de las fechas: la de la petición o el circuito, que
+    /// RequestLocalization resuelve desde la cookie de idioma de la cuenta.
+    /// </summary>
+    private static CultureInfo Cultura => CultureInfo.CurrentCulture;
+
+    private IEnumerable<string> NombresDiasSemana => ClavesDiasSemana.Select(clave => Textos[clave].Value);
 
     /// <summary>
     /// Fecha que la pantalla toma por «hoy»: el mes con el que arranca, al que
@@ -48,7 +62,7 @@ public partial class Calendario : ComponentBase
     /// <summary>Una celda de la rejilla: los días de relleno de la primera y última semana llevan <see cref="DelMes"/> a false.</summary>
     private readonly record struct CeldaCalendario(DateOnly Fecha, bool DelMes);
 
-    private string TituloMes => Capitalizar(_mesActual.ToString("MMMM yyyy", Espanol));
+    private string TituloMes => Capitalizar(_mesActual.ToString("MMMM yyyy", Cultura));
 
     protected override Task OnInitializedAsync()
     {
@@ -154,7 +168,7 @@ public partial class Calendario : ComponentBase
     /// Nombre accesible del día: el color del recuento es su peor estado, y el
     /// color solo no puede ser la información (WCAG 1.4.1) — aquí va dicho.
     /// </summary>
-    private static string EtiquetaDia(
+    private string EtiquetaDia(
         DateOnly dia,
         IReadOnlyList<VencimientoCalendarioDto> vencimientosDelDia,
         IReadOnlyList<VisitaCalendarioDto> visitasDelDia,
@@ -162,38 +176,45 @@ public partial class Calendario : ComponentBase
     {
         var partes = new List<string>();
         if (peorEstado is not null)
-            partes.Add($"{Contar(vencimientosDelDia.Count, "vencimiento", "vencimientos")} (peor estado: {EstadoDocumentoUi.Texto(peorEstado.Value).ToLowerInvariant()})");
+            partes.Add(Textos["EtiquetaDiaPeorEstado",
+                Contar(vencimientosDelDia.Count, "VencimientoUno", "VencimientoVarios"),
+                EstadoDocumentoUi.Texto(peorEstado.Value).ToLower(Cultura)]);
         if (visitasDelDia.Count > 0)
-            partes.Add(Contar(visitasDelDia.Count, "visita programada", "visitas programadas"));
+            partes.Add(Contar(visitasDelDia.Count, "VisitaProgramadaUna", "VisitaProgramadaVarias"));
 
-        return $"{dia.ToString("d 'de' MMMM", Espanol)}: {string.Join(" y ", partes)}";
+        return Textos["EtiquetaDia", dia.ToString(Textos["FormatoDiaMes"], Cultura),
+            string.Join($" {Textos["ConjuncionY"]} ", partes)];
     }
 
-    private static string FechaLarga(DateOnly dia) => dia.ToString("d 'de' MMMM 'de' yyyy", Espanol);
+    private string FechaLarga(DateOnly dia) => dia.ToString(Textos["FormatoFechaLarga"], Cultura);
 
-    private static string ResumenDia(DateOnly dia, int vencimientos, int visitas)
+    private string ResumenDia(DateOnly dia, int vencimientos, int visitas)
     {
-        var partes = new List<string> { Capitalizar(dia.ToString("dddd", Espanol)) };
+        var partes = new List<string> { Capitalizar(dia.ToString("dddd", Cultura)) };
         if (vencimientos > 0)
-            partes.Add(Contar(vencimientos, "vencimiento", "vencimientos"));
+            partes.Add(Contar(vencimientos, "VencimientoUno", "VencimientoVarios"));
         if (visitas > 0)
-            partes.Add(Contar(visitas, "visita", "visitas"));
+            partes.Add(Contar(visitas, "VisitaUna", "VisitaVarias"));
         return string.Join(" · ", partes);
     }
 
-    private static string DetalleVisita(VisitaCalendarioDto visita)
+    private string DetalleVisita(VisitaCalendarioDto visita)
     {
         var fechas = visita.FechaInicio == visita.FechaFin
-            ? visita.FechaInicio.ToString("dd/MM", Espanol)
-            : $"{visita.FechaInicio.ToString("dd/MM", Espanol)}–{visita.FechaFin.ToString("dd/MM", Espanol)}";
-        return $"{visita.ClienteRazonSocial} · {fechas} · {Contar(visita.TotalTrabajadores, "trabajador", "trabajadores")}";
+            ? visita.FechaInicio.ToString("dd/MM", Cultura)
+            : $"{visita.FechaInicio.ToString("dd/MM", Cultura)}–{visita.FechaFin.ToString("dd/MM", Cultura)}";
+        return $"{visita.ClienteRazonSocial} · {fechas} · {Contar(visita.TotalTrabajadores, "TrabajadorUno", "TrabajadorVarios")}";
     }
 
-    private static string Contar(int cantidad, string singular, string plural) =>
-        $"{cantidad} {(cantidad == 1 ? singular : plural)}";
+    /// <summary>
+    /// Recuento con su sustantivo. Singular solo para 1: es la regla de es-ES
+    /// y de ca-ES; una cultura con más formas de plural necesitaría otra cosa.
+    /// </summary>
+    private string Contar(int cantidad, string claveSingular, string clavePlural) =>
+        Textos[cantidad == 1 ? claveSingular : clavePlural, cantidad];
 
     private static string Capitalizar(string texto) =>
-        string.IsNullOrEmpty(texto) ? texto : char.ToUpper(texto[0], Espanol) + texto[1..];
+        string.IsNullOrEmpty(texto) ? texto : char.ToUpper(texto[0], Cultura) + texto[1..];
 
     // Rejilla de semana en lunes (convención española). La primera y la
     // última semana se completan con los días del mes anterior/siguiente,

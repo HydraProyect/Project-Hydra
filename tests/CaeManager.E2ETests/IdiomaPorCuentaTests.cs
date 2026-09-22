@@ -76,6 +76,51 @@ public class IdiomaPorCuentaTests(WebAppFixture fixture)
         }
     }
 
+    /// <summary>
+    /// El circuito interactivo de Blazor formatea con la cultura de la cuenta,
+    /// no solo el prerender: pasar de mes en Calendario es un evento del
+    /// circuito, y el mes nuevo sale en catalán. Calendario es la primera
+    /// pantalla migrada a recursos y la única que ya pinta algo distinto en
+    /// ca-ES (los nombres de mes y de día de la cultura).
+    /// </summary>
+    [Fact]
+    public async Task El_circuito_interactivo_usa_la_cultura_de_la_cuenta()
+    {
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await contexto.NewPageAsync();
+        await IniciarSesionLocalAsync(page, Ayudas.EmailGestorRefrielectric, Ayudas.ContrasenaUsuariosPrueba);
+        await Ayudas.DescartarNotificacionesPendientesAsync(page);
+
+        try
+        {
+            await CambiarIdiomaAsync(page, "ca-ES");
+            await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/calendario");
+
+            // Se avanza hasta el primer mes cuyo nombre difiere entre las dos
+            // culturas: «octubre» o «abril» se escriben igual en español y en
+            // catalán, y con ellos el test pasaría aunque el circuito formateara
+            // en es-ES.
+            var catalan = System.Globalization.CultureInfo.GetCultureInfo("ca-ES");
+            var espanol = System.Globalization.CultureInfo.GetCultureInfo("es-ES");
+            var meses = 1;
+            while (DateTime.Today.AddMonths(meses).ToString("MMMM", catalan) ==
+                   DateTime.Today.AddMonths(meses).ToString("MMMM", espanol))
+                meses++;
+
+            for (var i = 1; i <= meses; i++)
+            {
+                var mes = DateTime.Today.AddMonths(i).ToString("MMMM yyyy", catalan);
+                await page.Locator("button[aria-label='Mes siguiente']").ClickAsync();
+                await Assertions.Expect(page.Locator(".calendario-titulo-mes"))
+                    .ToHaveTextAsync(char.ToUpper(mes[0], catalan) + mes[1..]);
+            }
+        }
+        finally
+        {
+            await RestaurarEspanolAsync(page, Ayudas.EmailGestorRefrielectric);
+        }
+    }
+
     [Fact]
     public async Task Dos_usuarios_consecutivos_en_el_mismo_navegador_no_heredan_el_idioma()
     {

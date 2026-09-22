@@ -3,33 +3,36 @@
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
 @using CaeManager.Application.Calendario.Queries
 @using CaeManager.Web.Features.Documentos
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
 
-<PageTitle>Calendario — @Marca.Nombre</PageTitle>
+<PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <CabeceraPagina Titulo="Calendario" Kicker="Control">
+    <CabeceraPagina Titulo="@Textos["TituloPagina"]" Kicker="@Textos["Kicker"]">
         <Acciones>
             @if (!_error)
             {
                 <div class="calendario-navegacion">
-                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="MesAnteriorAsync" aria-label="Mes anterior">
+                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="MesAnteriorAsync" aria-label="@Textos["MesAnterior"]">
                         <span class="calendario-flecha-anterior"><Icono Nombre="siguiente" Tamano="TamanoIcono.Pequeno" /></span>
                     </Boton>
                     <span class="calendario-titulo-mes" aria-live="polite">@TituloMes</span>
-                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="MesSiguienteAsync" aria-label="Mes siguiente">
+                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="MesSiguienteAsync" aria-label="@Textos["MesSiguiente"]">
                         <Icono Nombre="siguiente" Tamano="TamanoIcono.Pequeno" />
                     </Boton>
                 </div>
-                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="MesActualAsync">Hoy</Boton>
+                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="MesActualAsync">@Textos["Hoy"]</Boton>
             }
         </Acciones>
     </CabeceraPagina>
 
     @if (_error)
     {
-        <EstadoVacio Titulo="No pudimos cargar el calendario" Descripcion="Intenta nuevamente en unos segundos.">
+        <EstadoVacio Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
             <Accion>
-                <Boton OnClick="CargarAsync">Reintentar</Boton>
+                <Boton OnClick="CargarAsync">@Comunes["Reintentar"]</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -106,11 +109,11 @@
            o urgentes»; copiar esa frase afirmaría algo que esta pantalla no
            pinta. *@
         <div class="calendario-leyenda">
-            <span class="calendario-leyenda-item"><Badge Tono="TonoBadge.Peligro">n</Badge>Algún vencido o urgente</span>
-            <span class="calendario-leyenda-item"><Badge Tono="TonoBadge.Advertencia">n</Badge>Algún próximo, ninguno peor</span>
-            <span class="calendario-leyenda-item"><Badge Tono="TonoBadge.Exito">n</Badge>Todo vigente</span>
-            <span class="calendario-leyenda-item"><span class="calendario-barra-visita calendario-barra-visita-leyenda"></span>Visita programada</span>
-            <span>El número es el recuento del día; el color, su peor estado.</span>
+            <span class="calendario-leyenda-item"><Badge Tono="TonoBadge.Peligro">n</Badge>@Textos["LeyendaVencidoOUrgente"]</span>
+            <span class="calendario-leyenda-item"><Badge Tono="TonoBadge.Advertencia">n</Badge>@Textos["LeyendaProximo"]</span>
+            <span class="calendario-leyenda-item"><Badge Tono="TonoBadge.Exito">n</Badge>@Textos["LeyendaVigente"]</span>
+            <span class="calendario-leyenda-item"><span class="calendario-barra-visita calendario-barra-visita-leyenda"></span>@Textos["LeyendaVisita"]</span>
+            <span>@Textos["LeyendaExplicacion"]</span>
         </div>
     }
 </div>
@@ -128,7 +131,7 @@
         @if (vencimientosDelDiaSeleccionado.Count > 0)
         {
             <section class="calendario-seccion-modal">
-                <h3 class="calendario-subtitulo-modal">Vencimientos</h3>
+                <h3 class="calendario-subtitulo-modal">@Textos["SubtituloVencimientos"]</h3>
                 <ul class="calendario-lista-modal">
                     @foreach (var vencimiento in vencimientosDelDiaSeleccionado)
                     {
@@ -139,7 +142,7 @@
                             </span>
                             <Badge Tono="EstadoDocumentoUi.Tono(vencimiento.Estado)">@EstadoDocumentoUi.Texto(vencimiento.Estado)</Badge>
                             <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => GestionarDocumento(vencimiento.DocumentoId)">
-                                Gestionar
+                                @Textos["Gestionar"]
                             </Boton>
                         </li>
                     }
@@ -150,7 +153,7 @@
         @if (visitasDelDiaSeleccionado.Count > 0)
         {
             <section class="calendario-seccion-modal">
-                <h3 class="calendario-subtitulo-modal">Visitas programadas</h3>
+                <h3 class="calendario-subtitulo-modal">@Textos["SubtituloVisitas"]</h3>
                 <ul class="calendario-lista-modal">
                     @foreach (var visita in visitasDelDiaSeleccionado)
                     {
@@ -162,14 +165,14 @@
                             </span>
                             @if (visita.NotificadoCliente)
                             {
-                                <Badge Tono="TonoBadge.Exito" title="La empresa titular del centro ya está avisada de la visita">Notificada</Badge>
+                                <Badge Tono="TonoBadge.Exito" title="@Textos["NotificadaDetalle"]">@Textos["Notificada"]</Badge>
                             }
                             else
                             {
-                                <Badge Tono="TonoBadge.Advertencia" title="La empresa titular del centro todavía no está avisada de la visita">Sin notificar</Badge>
+                                <Badge Tono="TonoBadge.Advertencia" title="@Textos["SinNotificarDetalle"]">@Textos["SinNotificar"]</Badge>
                             }
                             <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => GestionarVisita(visita.Id)">
-                                Ir a Visitas
+                                @Textos["IrAVisitas"]
                             </Boton>
                         </li>
                     }
