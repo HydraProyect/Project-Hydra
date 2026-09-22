@@ -273,6 +273,17 @@ public class MiTrabajoGen2Tests : BunitContext
     }
 
     [Fact]
+    public void Un_chip_de_severidad_sin_coincidencias_no_se_confunde_con_una_cartera_al_dia()
+    {
+        var cut = Renderizar(() => new MiTrabajoAgregadoDto(
+            [Tenant(TenantRefri, "Refrielectric", false, [Item("r1", TipoItemBandeja.Vencido, "Reconocimiento médico", "Transportes Planet Express")])]));
+
+        cut.FindAll(".mi-trabajo-chip").Single(c => c.TextContent.Trim().StartsWith("Seguimiento")).Click();
+
+        cut.Markup.Should().Contain("Sin resultados para este filtro").And.NotContain("Cartera al día");
+    }
+
+    [Fact]
     public void La_pantalla_nunca_dice_tenant_al_usuario()
     {
         var cut = Renderizar();
