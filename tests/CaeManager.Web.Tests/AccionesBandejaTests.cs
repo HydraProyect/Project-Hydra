@@ -58,7 +58,8 @@ public class AccionesBandejaTests
     [Theory]
     [InlineData(TipoItemBandeja.PlataformaPendiente)]
     [InlineData(TipoItemBandeja.PlataformaRechazada)]
-    public void Plataforma_pendiente_o_rechazada_va_a_la_pestana_de_plataforma(TipoItemBandeja tipo)
+    [InlineData(TipoItemBandeja.EnPlataformaSeguimiento)]
+    public void Plataforma_pendiente_rechazada_o_en_seguimiento_va_a_la_pestana_de_plataforma(TipoItemBandeja tipo)
     {
         AccionesBandeja.ResolverUrl(Item(tipo)).Should().Be("/documentos?pestana=plataforma");
     }

@@ -31,6 +31,7 @@
     2026-09-01 § 6) no se pisa con un "abierto" forzado en el primer render.
 *@
 @using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma
+@using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados
 @using CaeManager.Application.VistaDemo
 @using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual
 @using CaeManager.Domain.Tenants
@@ -183,7 +184,11 @@
                    es /comunicaciones — quien buscaba su correo aterrizaba aquí,
                    en la cola de trabajo documental. La ruta /bandeja no cambia:
                    solo la etiqueta, hasta que se decida el nombre definitivo. *@
-                <NavLink class="nav-item" href="bandeja">
+                @* Con más de una organización autorizada (mismo criterio que
+                   SelectorClienteActivo), «Mi trabajo» es la cola agregada de
+                   toda la cartera (/mi-trabajo, Nivel 1); con una sola, la de
+                   siempre. *@
+                <NavLink class="nav-item" href="@_rutaMiTrabajo">
                     <Icono Nombre="alertas" /> Mi trabajo
                 </NavLink>
                 @* Alertas NO es una segunda cola de "qué hacer ahora" — esa es
@@ -365,6 +370,8 @@
     // aparece para alguien sin el rol Administrador.
     private bool _esAdministradorPlataforma;
 
+    private string _rutaMiTrabajo = "bandeja";
+
     // Lente de demo (ver MenuPorVista): solo puede ocultar entradas, nunca mostrar una que la
     // autorización real de la cuenta no mostraría.
     private VistaDemo? _vistaDemo;
@@ -384,5 +391,7 @@
         if (Servicios.GetService<IVistaDemoActual>() is { } vistaDemoActual)
             _vistaDemo = (await vistaDemoActual.ObtenerEfectivaAsync())?.Vista;
         _esAdministradorPlataforma = await Mediator.Send(new EsAdministradorPlataformaQuery());
+        var organizaciones = await Mediator.Send(new ObtenerClientesAutorizadosQuery());
+        _rutaMiTrabajo = organizaciones.Count > 1 ? "mi-trabajo" : "bandeja";
     }
 }

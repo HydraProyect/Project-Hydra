@@ -1,31 +1,26 @@
 @*
-    Acción de una fila de Mi trabajo Gen2 (multi-Tenant) — mismo POST con
-    antiforgery a /cuenta/cliente-activo que ya usan SelectorClienteActivo y
-    VisionCartera ("Cambiar a esta organización"), con returnUrl fijado a la
-    pantalla EXACTA del ítem (AccionesBandeja.ResolverUrl — contrato
-    CONTRATO-MI-TRABAJO-GEN2-MULTI-TENANT-2026-09-22.md § 8, "pantalla
-    exacta", no un aterrizaje genérico en /bandeja).
+    Acción de una fila de Mi trabajo Gen2 (multi-Tenant): el mismo POST con
+    antiforgery a /cuenta/cliente-activo que SelectorClienteActivo y
+    VisionCartera, con returnUrl = la pantalla exacta del ítem
+    (AccionesBandeja.ResolverUrl; contrato Gen2 § 8). El endpoint revalida la
+    autorización sobre ese Tenant en cada envío.
 
-    Se usa igual para el Tenant ya activo en este circuito: el endpoint
-    /cuenta/cliente-activo revalida autorización en cada envío y, si
-    tenantId coincide con el Tenant de origen, simplemente borra la cookie
-    sin error (ClienteActivoEndpoints.cs) — un único camino para las 6
-    tarjetas de Tenant es más simple y predecible que alternar entre
-    navegación en vivo (solo segura para el Tenant activo) y este POST según
-    cuál sea el Tenant activo en cada momento.
+    Se usa también para el Tenant que ya esté activo: un único camino para
+    todas las filas evita que el comportamiento dependa de cuál sea el activo.
+    RequisitoPendiente no tiene URL propia y aterriza en /bandeja del Tenant.
 *@
 @using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor
 @using CaeManager.Web.Components.DesignSystem
 @using Microsoft.AspNetCore.Components.Forms
 
-<form method="post" action="/cuenta/cliente-activo" class="accion-cross-tenant">
+<form method="post" action="/cuenta/cliente-activo" class="accion-cross-tenant" data-accion-cross-tenant>
     @if (Token is not null)
     {
         <input type="hidden" name="@Token.FormFieldName" value="@Token.Value" />
     }
     <input type="hidden" name="tenantId" value="@TenantId" />
     <input type="hidden" name="returnUrl" value="@(AccionesBandeja.ResolverUrl(Item) ?? "/bandeja")" />
-    <Boton Type="submit" Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno">
+    <Boton Type="submit" Variante="Variante" Tamano="Tamano" title="@Titulo">
         @TipoItemBandejaUi.TextoAccion(Item)
     </Boton>
 </form>
@@ -34,4 +29,7 @@
     [Parameter, EditorRequired] public Guid TenantId { get; set; }
     [Parameter, EditorRequired] public ItemBandejaDto Item { get; set; } = default!;
     [Parameter] public AntiforgeryRequestToken? Token { get; set; }
+    [Parameter] public string? Titulo { get; set; }
+    [Parameter] public VarianteBoton Variante { get; set; } = VarianteBoton.Fantasma;
+    [Parameter] public TamanoBoton Tamano { get; set; } = TamanoBoton.Pequeno;
 }

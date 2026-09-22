@@ -46,7 +46,7 @@ public static class AccionesBandeja
         // Plataforma de /documentos, no en DocumentoWorkspacePanel (el
         // fallback genérico de abajo) — ese panel no tiene ningún control de
         // acreditación por plataforma.
-        TipoItemBandeja.PlataformaPendiente or TipoItemBandeja.PlataformaRechazada => "/documentos?pestana=plataforma",
+        TipoItemBandeja.PlataformaPendiente or TipoItemBandeja.PlataformaRechazada or TipoItemBandeja.EnPlataformaSeguimiento => "/documentos?pestana=plataforma",
         _ => item.DocumentoId is { } documentoId
             ? $"/documentos?documentoId={documentoId}"
             : $"/documentos?trabajadorId={item.TrabajadorId}&tipoDocumentoId={item.TipoDocumentoId}"

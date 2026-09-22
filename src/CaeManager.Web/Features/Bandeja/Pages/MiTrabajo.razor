@@ -1,0 +1,260 @@
+@page "/mi-trabajo"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
+@using CaeManager.Web.Features.Bandeja.Components
+
+@* Mi trabajo Gen2, Nivel 1 multi-Tenant: mockup «Cola operativa multi-Tenant»
+   (Mi trabajo.dc.html) sobre CONTRATO-MI-TRABAJO-GEN2-MULTI-TENANT-2026-09-22.
+   Toda la cola de cada Tenant está aquí: lo urgente a la vista y el resto tras
+   «Ver»; una búsqueda activa anula los pliegues (contrato § 5). Cada acción
+   entra en su Tenant por el POST de /cuenta/cliente-activo (AccionCrossTenant).
+   El Tenant de origen del Operador CAE no se gestiona desde aquí (§ 10).
+
+   Sin construir, porque no hay capacidad detrás: «Añadir empresa» y los chips
+   DEMO (andamiaje de la vista previa), la selección múltiple («x»,
+   «Gestionar selección»), «Aplazar», el historial del flujo en el detalle y el
+   aviso «Cartera incompleta» (hoy un Tenant que falla hace fallar la consulta
+   entera). De cara al usuario se dice «organización», nunca «tenant» ni
+   «empresa» a secas (contrato § 1 y § 11.3). *@
+<PageTitle>Mi trabajo — @Marca.Nombre</PageTitle>
+
+<div class="contenedor-pagina mi-trabajo">
+    <CabeceraPagina Titulo="Mi trabajo" Kicker="Toda mi cartera">
+        <Descripcion>
+            @if (_vista is not null)
+            {
+                <span><strong class="mi-trabajo-titular">@_vista.Titular(Filtro)</strong> · @_vista.Subtitular(Filtro)</span>
+            }
+        </Descripcion>
+    </CabeceraPagina>
+
+    @if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No pudimos consultar tu cartera" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton OnClick="CargarAsync">Reintentar consulta</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando || _vista is null)
+    {
+        <EstadoCargando Filas="7" />
+    }
+    else
+    {
+        <div class="mi-trabajo-chips" role="group" aria-label="Filtrar por severidad">
+            @foreach (var chip in Chips)
+            {
+                <button type="button" class="@("mi-trabajo-chip" + (chip.Severidad == _severidad ? " mi-trabajo-chip-activo" : ""))"
+                        aria-pressed="@(chip.Severidad == _severidad ? "true" : "false")"
+                        @onclick="() => CambiarSeveridad(chip.Severidad)">
+                    @chip.Etiqueta <span class="mi-trabajo-chip-cuenta">@chip.Cantidad</span>
+                </button>
+            }
+        </div>
+
+        <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
+
+        <div class="mi-trabajo-paneles">
+            <aside class="mi-trabajo-cartera" aria-label="Mi cartera">
+                <div class="mi-trabajo-cartera-cabecera">
+                    <h2 class="mi-trabajo-cartera-titulo">Mi cartera</h2>
+                    <span class="mi-trabajo-cartera-cuenta">@Organizaciones(_vista.Cartera.Count)</span>
+                </div>
+                <button type="button" class="@ClaseFilaCartera(null)" aria-pressed="@(_tenantFiltro is null ? "true" : "false")"
+                        @onclick="() => CambiarTenant(null)">
+                    <span class="mi-trabajo-cartera-avatar mi-trabajo-cartera-avatar-todo" aria-hidden="true">∑</span>
+                    <span class="mi-trabajo-cartera-texto">
+                        <span class="mi-trabajo-cartera-nombre">Toda mi cartera</span>
+                        <span class="mi-trabajo-cartera-sub">@Organizaciones(_vista.Cartera.Count) consultadas</span>
+                    </span>
+                    <span class="mi-trabajo-cartera-total">@_vista.TotalCartera</span>
+                </button>
+                @foreach (var tenant in _vista.Cartera)
+                {
+                    <button type="button" class="@ClaseFilaCartera(tenant.TenantId)" aria-pressed="@(_tenantFiltro == tenant.TenantId ? "true" : "false")"
+                            @onclick="() => CambiarTenant(_tenantFiltro == tenant.TenantId ? null : tenant.TenantId)">
+                        <span class="mi-trabajo-cartera-avatar" aria-hidden="true">@Iniciales(tenant.Nombre)</span>
+                        <span class="mi-trabajo-cartera-texto">
+                            <span class="mi-trabajo-cartera-nombre">@tenant.Nombre</span>
+                            <span class="mi-trabajo-cartera-sub">@SubtituloCartera(tenant)</span>
+                        </span>
+                        <span class="mi-trabajo-cartera-total">@tenant.Total</span>
+                    </button>
+                }
+            </aside>
+
+            <section class="mi-trabajo-cola" aria-label="Cola de trabajo">
+                <div class="mi-trabajo-barra">
+                    <div class="mi-trabajo-barra-grupo" role="group" aria-label="Agrupar por">
+                        <span class="mi-trabajo-barra-etiqueta">Agrupar por</span>
+                        <button type="button" class="@ClasePestana(_agrupar == AgruparMiTrabajo.Organizacion)" aria-pressed="@(_agrupar == AgruparMiTrabajo.Organizacion ? "true" : "false")"
+                                @onclick="() => CambiarAgrupar(AgruparMiTrabajo.Organizacion)">Organización</button>
+                        <button type="button" class="@ClasePestana(_agrupar == AgruparMiTrabajo.Severidad)" aria-pressed="@(_agrupar == AgruparMiTrabajo.Severidad ? "true" : "false")"
+                                @onclick="() => CambiarAgrupar(AgruparMiTrabajo.Severidad)">Severidad</button>
+                    </div>
+                    <div class="mi-trabajo-barra-grupo" role="group" aria-label="Ordenar">
+                        <span class="mi-trabajo-barra-etiqueta">Ordenar</span>
+                        <button type="button" class="@ClasePestana(_orden == OrdenMiTrabajo.Prioridad)" aria-pressed="@(_orden == OrdenMiTrabajo.Prioridad ? "true" : "false")"
+                                @onclick="() => CambiarOrden(OrdenMiTrabajo.Prioridad)">Prioridad</button>
+                        <button type="button" class="@ClasePestana(_orden == OrdenMiTrabajo.Cliente)" aria-pressed="@(_orden == OrdenMiTrabajo.Cliente ? "true" : "false")"
+                                @onclick="() => CambiarOrden(OrdenMiTrabajo.Cliente)">Cliente</button>
+                    </div>
+                    <div class="mi-trabajo-barra-derecha">
+                        <input class="mi-trabajo-filtro" type="search" aria-label="Filtrar esta cola por trabajador, documento o centro"
+                               placeholder="Filtrar en la cola…" value="@_busqueda" @oninput="CambiarBusqueda" />
+                        @if (_agrupar == AgruparMiTrabajo.Organizacion && string.IsNullOrWhiteSpace(_busqueda))
+                        {
+                            <button type="button" class="mi-trabajo-plegar-todas" @onclick="AlternarTodas">@(TodoPlegado ? "Expandir todas" : "Plegar todas")</button>
+                        }
+                        <span class="mi-trabajo-atajos"><kbd>j</kbd> <kbd>k</kbd> mover · <kbd>↵</kbd> abrir</span>
+                    </div>
+                </div>
+
+                @if (Grupos.Count == 0 && AlDia)
+                {
+                    <EstadoVacio NombreIcono="exito-circulo" AcentoIcono="var(--color-success-500)" FondoIcono="var(--color-success-50)"
+                                 Titulo="@(TenantFiltrado is { } t ? $"{t.Nombre}, al día" : "Cartera al día")"
+                                 Descripcion="@(TenantFiltrado is { } t2
+                                     ? $"No queda ninguna gestión pendiente para los clientes empresariales de {t2.Nombre}."
+                                     : "Ninguna organización de tu cartera tiene bloqueos, documentación pendiente ni vencimientos próximos.")">
+                        <Accion>
+                            @if (TenantFiltrado is not null)
+                            {
+                                <Boton Variante="VarianteBoton.Secundario" OnClick="() => CambiarTenant(null)">Ver toda mi cartera</Boton>
+                            }
+                        </Accion>
+                    </EstadoVacio>
+                }
+                else if (Grupos.Count == 0)
+                {
+                    <EstadoVacio NombreIcono="filtro" Titulo="Sin resultados para este filtro"
+                                 Descripcion="Hay trabajo pendiente en tu cartera, pero nada que coincida con la combinación de filtros activa.">
+                        <Accion>
+                            <Boton OnClick="QuitarFiltros">Quitar filtros</Boton>
+                        </Accion>
+                    </EstadoVacio>
+                }
+                else
+                {
+                    <div class="mi-trabajo-grupos">
+                        @foreach (var grupo in Grupos)
+                        {
+                            <div class="mi-trabajo-grupo" @key="grupo.Clave">
+                                @if (grupo.TenantId is { } tenantId)
+                                {
+                                    <button type="button" class="mi-trabajo-grupo-cabecera mi-trabajo-grupo-cabecera-tenant" aria-expanded="@(grupo.Plegado ? "false" : "true")"
+                                            @onclick="() => AlternarTenant(tenantId)">
+                                        <span class="@("mi-trabajo-chevron" + (grupo.Plegado ? " mi-trabajo-chevron-plegado" : ""))"><Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" /></span>
+                                        <span class="mi-trabajo-grupo-nombre">@grupo.Etiqueta</span>
+                                        <span class="mi-trabajo-grupo-total">@grupo.Total</span>
+                                        @if (grupo.ResumenCabecera is { Length: > 0 } resumenCabecera)
+                                        {
+                                            <span class="mi-trabajo-grupo-resumen">@resumenCabecera</span>
+                                        }
+                                    </button>
+                                }
+                                else
+                                {
+                                    <div class="mi-trabajo-grupo-cabecera">
+                                        <span class="mi-trabajo-grupo-nombre">@grupo.Etiqueta</span>
+                                        <span class="mi-trabajo-grupo-total">@grupo.Total</span>
+                                    </div>
+                                }
+
+                                @{ string? clienteAnterior = null; var primera = true; }
+                                @foreach (var fila in grupo.Filas)
+                                {
+                                    var cliente = fila.Item.ClienteNombre ?? "Sin cliente empresarial";
+                                    @if (_agrupar == AgruparMiTrabajo.Organizacion && _orden == OrdenMiTrabajo.Cliente && (primera || cliente != clienteAnterior))
+                                    {
+                                        <div class="mi-trabajo-subcabecera">@cliente</div>
+                                    }
+                                    clienteAnterior = cliente;
+                                    primera = false;
+                                    <div @key="fila.Item.Id" class="@ClaseFila(fila)" role="button" tabindex="0"
+                                         aria-label="@($"{fila.Item.Titulo} · {fila.TenantNombre}")"
+                                         @onclick="() => AbrirDetalle(fila)">
+                                        <span class="mi-trabajo-fila-cuerpo">
+                                            <span class="mi-trabajo-fila-linea">
+                                                <Badge Tono="TonoSeveridad(fila.Severidad)" Tamano="TamanoBadge.Pequeno">@TipoItemBandejaUi.Texto(fila.Item)</Badge>
+                                                <span class="mi-trabajo-fila-titulo">@fila.Item.Titulo</span>
+                                                <span class="mi-trabajo-fila-sujeto">· @fila.Item.Subtitulo</span>
+                                            </span>
+                                            <span class="mi-trabajo-fila-contexto">@ContextoFila(fila)</span>
+                                        </span>
+                                        <span class="mi-trabajo-fila-derecha" @onclick:stopPropagation="true">
+                                            @if (fila.Item.Fecha is { } fecha)
+                                            {
+                                                <span class="mi-trabajo-fila-fecha">@fecha.ToString("d MMM", Cultura)</span>
+                                            }
+                                            <AccionCrossTenant TenantId="fila.TenantId" Item="fila.Item" Token="_token"
+                                                               Titulo="@($"Abre {fila.TenantNombre} en la pantalla de esta tarea")" />
+                                        </span>
+                                    </div>
+                                }
+
+                                @if (grupo.ResumenCalendario is { } resumen)
+                                {
+                                    <button type="button" class="mi-trabajo-pliegue" @onclick="() => AbrirPliegue(grupo.Clave)">
+                                        <span>@resumen</span>
+                                        <span class="mi-trabajo-pliegue-cta">Ver</span>
+                                    </button>
+                                }
+                            </div>
+                        }
+                        <div class="mi-trabajo-pie">
+                            <span>@Pie</span>
+                            @if (_abiertos.Count > 0 || _cerrados.Count > 0)
+                            {
+                                <button type="button" class="mi-trabajo-volver-plegar" @onclick="VolverAPlegar">Volver a plegar</button>
+                            }
+                        </div>
+                    </div>
+                }
+            </section>
+
+            <aside class="mi-trabajo-detalle" aria-label="Detalle de la tarea">
+                @if (FilaAbierta is { } abierta)
+                {
+                    <div class="mi-trabajo-detalle-cabecera">
+                        <Badge Tono="TonoSeveridad(abierta.Severidad)">@MiTrabajoVista.Etiqueta(abierta.Severidad)</Badge>
+                        <span class="mi-trabajo-detalle-tipo">@TipoItemBandejaUi.Texto(abierta.Item)</span>
+                    </div>
+                    <div class="mi-trabajo-detalle-titulo">@abierta.Item.Titulo</div>
+                    <div class="mi-trabajo-detalle-sujeto">@abierta.Item.Subtitulo</div>
+                    @if (abierta.Item.Fecha is { } fechaDetalle)
+                    {
+                        <div class="mi-trabajo-detalle-plazo">@fechaDetalle.ToString("d 'de' MMMM 'de' yyyy", Cultura)</div>
+                    }
+                    <dl class="mi-trabajo-detalle-datos">
+                        <dt>Organización</dt>
+                        <dd>@abierta.TenantNombre</dd>
+                        <dt>Cliente empresarial</dt>
+                        <dd>@(abierta.Item.ClienteNombre ?? "Sin cliente empresarial")</dd>
+                        @if (abierta.Item.EmpresaNombre is { Length: > 0 } empresa)
+                        {
+                            <dt>Empresa</dt>
+                            <dd>@empresa</dd>
+                        }
+                        @if (abierta.Item.ProveedorNombre is { Length: > 0 } plataforma)
+                        {
+                            <dt>Plataforma CAE</dt>
+                            <dd>@plataforma</dd>
+                        }
+                    </dl>
+                    <AccionCrossTenant TenantId="abierta.TenantId" Item="abierta.Item" Token="_token"
+                                       Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Medio"
+                                       Titulo="@($"Abre {abierta.TenantNombre} en la pantalla de esta tarea")" />
+                }
+                else
+                {
+                    <div class="mi-trabajo-detalle-vacio">
+                        <div class="mi-trabajo-detalle-titulo">Ninguna tarea abierta</div>
+                        <p>Selecciona una tarea de la cola, o usa <kbd>j</kbd> / <kbd>k</kbd> y <kbd>↵</kbd>.</p>
+                    </div>
+                }
+            </aside>
+        </div>
+    }
+</div>

@@ -1,0 +1,464 @@
+/* Mockup «Cola operativa multi-Tenant» (Mi trabajo.dc.html): tres paneles —
+   carril de cartera, cola, detalle — traducidos a tokens del sistema. */
+
+.mi-trabajo-titular {
+    color: var(--color-text);
+}
+
+.mi-trabajo-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+}
+
+.mi-trabajo-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    height: 32px;
+    padding: 0 var(--space-3);
+    border-radius: var(--radius-full);
+    border: var(--border-default);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: var(--font-label-md);
+    cursor: pointer;
+}
+
+.mi-trabajo-chip:hover {
+    border-color: var(--color-border-strong);
+}
+
+.mi-trabajo-chip-cuenta {
+    font: var(--font-body-sm);
+    font-weight: 700;
+    opacity: 0.75;
+}
+
+.mi-trabajo-chip-activo {
+    background: var(--color-primary-500);
+    border-color: var(--color-primary-500);
+    color: var(--color-neutral-0);
+}
+
+.mi-trabajo-paneles {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr) 320px;
+    gap: var(--space-4);
+    align-items: start;
+}
+
+@media (max-width: 1200px) {
+    .mi-trabajo-paneles {
+        grid-template-columns: 240px minmax(0, 1fr);
+    }
+
+    .mi-trabajo-detalle {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 768px) {
+    .mi-trabajo-paneles {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.mi-trabajo-cartera,
+.mi-trabajo-cola,
+.mi-trabajo-detalle {
+    background: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+}
+
+.mi-trabajo-cartera {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-3);
+}
+
+.mi-trabajo-cartera-cabecera {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: var(--space-1) var(--space-2) var(--space-2);
+}
+
+.mi-trabajo-cartera-titulo {
+    margin: 0;
+    font: var(--font-heading-sm);
+    color: var(--color-text);
+}
+
+.mi-trabajo-cartera-cuenta,
+.mi-trabajo-cartera-sub {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.mi-trabajo-cartera-fila {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-2);
+    border: 0;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--color-text);
+    text-align: left;
+    cursor: pointer;
+}
+
+.mi-trabajo-cartera-fila:hover {
+    background: var(--color-surface-hover);
+}
+
+.mi-trabajo-cartera-fila-activa {
+    background: var(--color-primary-50);
+}
+
+.mi-trabajo-cartera-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 32px;
+    height: 24px;
+    border: var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    font: var(--font-caption);
+    font-weight: 700;
+}
+
+.mi-trabajo-cartera-avatar-todo {
+    background: var(--color-neutral-900);
+    border-color: var(--color-neutral-900);
+    color: var(--color-neutral-0);
+}
+
+.mi-trabajo-cartera-texto {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.mi-trabajo-cartera-nombre {
+    font: var(--font-label-md);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mi-trabajo-cartera-total {
+    font: var(--font-label-md);
+    font-weight: 700;
+}
+
+.mi-trabajo-barra {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: var(--border-default);
+}
+
+.mi-trabajo-barra-grupo {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.mi-trabajo-barra-etiqueta {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+    margin-right: var(--space-1);
+}
+
+.mi-trabajo-pestana {
+    min-height: 28px;
+    padding: 0 var(--space-3);
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-text-muted);
+    font: var(--font-label-md);
+    cursor: pointer;
+}
+
+.mi-trabajo-pestana-activa {
+    background: var(--color-surface-subtle);
+    color: var(--color-text);
+}
+
+.mi-trabajo-barra-derecha {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-left: auto;
+    flex-wrap: wrap;
+}
+
+.mi-trabajo-filtro {
+    min-height: 32px;
+    min-width: 200px;
+    padding: 0 var(--space-3);
+    border: var(--border-control);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: var(--font-body-md);
+}
+
+.mi-trabajo-plegar-todas,
+.mi-trabajo-volver-plegar {
+    border: var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: var(--font-label-md);
+    min-height: 28px;
+    padding: 0 var(--space-3);
+    cursor: pointer;
+}
+
+.mi-trabajo-atajos {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+.mi-trabajo-atajos kbd,
+.mi-trabajo-detalle-vacio kbd {
+    font: var(--font-body-sm);
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+.mi-trabajo-grupo-cabecera {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    width: 100%;
+    padding: var(--space-3) var(--space-4);
+    border: 0;
+    border-bottom: var(--border-default);
+    background: var(--color-surface);
+    color: var(--color-text);
+    text-align: left;
+}
+
+.mi-trabajo-grupo-cabecera-tenant {
+    cursor: pointer;
+}
+
+.mi-trabajo-grupo-cabecera-tenant:hover {
+    background: var(--color-surface-hover);
+}
+
+.mi-trabajo-chevron {
+    display: flex;
+    color: var(--color-text-muted);
+    transition: transform 0.15s ease;
+}
+
+.mi-trabajo-chevron-plegado {
+    transform: rotate(-90deg);
+}
+
+.mi-trabajo-grupo-nombre {
+    font: var(--font-heading-sm);
+}
+
+.mi-trabajo-grupo-total {
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-full);
+    background: var(--color-surface-subtle);
+    color: var(--color-text-muted);
+    font: var(--font-caption);
+    font-weight: 600;
+}
+
+.mi-trabajo-grupo-resumen {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+.mi-trabajo-subcabecera {
+    padding: var(--space-3) var(--space-4) var(--space-1) var(--space-8);
+    font: var(--font-label-md);
+    color: var(--color-text-muted);
+}
+
+.mi-trabajo-fila {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4) var(--space-3) var(--space-8);
+    border-bottom: var(--border-default);
+    border-left: 3px solid transparent;
+    cursor: pointer;
+}
+
+.mi-trabajo-fila:hover {
+    background: var(--color-surface-hover);
+}
+
+.mi-trabajo-fila-bloqueo {
+    border-left-color: var(--color-danger-500);
+}
+
+.mi-trabajo-fila-abierta {
+    background: var(--color-primary-50);
+}
+
+.mi-trabajo-fila-enfocada {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: -2px;
+}
+
+.mi-trabajo-fila-cuerpo {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+}
+
+.mi-trabajo-fila-linea {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+}
+
+.mi-trabajo-fila-titulo {
+    font: var(--font-label-md);
+    white-space: nowrap;
+}
+
+.mi-trabajo-fila-sujeto {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mi-trabajo-fila-contexto {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.mi-trabajo-fila-derecha {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-shrink: 0;
+}
+
+.mi-trabajo-fila-fecha {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+.mi-trabajo-pliegue {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    width: 100%;
+    padding: var(--space-3) var(--space-4) var(--space-3) var(--space-8);
+    border: 0;
+    border-bottom: var(--border-default);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+    text-align: left;
+    cursor: pointer;
+}
+
+.mi-trabajo-pliegue-cta {
+    margin-left: auto;
+    font: var(--font-label-md);
+    color: var(--color-primary-500);
+}
+
+.mi-trabajo-pie {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+.mi-trabajo-volver-plegar {
+    margin-left: auto;
+}
+
+.mi-trabajo-detalle {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    position: sticky;
+    top: var(--space-4);
+}
+
+.mi-trabajo-detalle-cabecera {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.mi-trabajo-detalle-tipo,
+.mi-trabajo-detalle-sujeto,
+.mi-trabajo-detalle-plazo {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+.mi-trabajo-detalle-titulo {
+    font: var(--font-heading-sm);
+    color: var(--color-text);
+}
+
+.mi-trabajo-detalle-datos {
+    display: grid;
+    gap: var(--space-1);
+    margin: 0;
+    padding: var(--space-3) 0;
+    border-top: var(--border-default);
+    border-bottom: var(--border-default);
+}
+
+.mi-trabajo-detalle-datos dt {
+    font: var(--font-caption);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+
+.mi-trabajo-detalle-datos dd {
+    margin: 0 0 var(--space-2);
+    font: var(--font-body-md);
+    color: var(--color-text);
+}
+
+.mi-trabajo-detalle-vacio p {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+.mi-trabajo ::deep .accion-cross-tenant {
+    display: inline-flex;
+    margin: 0;
+}

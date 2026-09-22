@@ -67,6 +67,7 @@ public static class CoberturaDePaleta
         ("Ir a Calendario", "/calendario"),
         ("Ir a Comunicaciones", "/comunicaciones"),
         ("Ir a Mi trabajo", "/bandeja"),
+        ("Ir a Mi trabajo de toda la cartera", "/mi-trabajo"),
 
         // HO-190-01 (REC-190, DEC-75) — las once de "destinos de trabajo".
         ("Ir a Alertas", "/alertas"),

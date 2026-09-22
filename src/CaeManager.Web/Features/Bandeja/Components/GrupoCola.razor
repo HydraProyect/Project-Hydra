@@ -80,7 +80,7 @@
                         }
                         else
                         {
-                            <PanelResolverItem @key="item.Id" Item="@(item with { Titulo = TituloBajoTrabajador(item) })" Enfocado="@(item.Id == IdEnfocado)" OnReclamar="OnReclamar" AccionPersonalizada="AccionPersonalizada" />
+                            <PanelResolverItem @key="item.Id" Item="@(item with { Titulo = TituloBajoTrabajador(item) })" Enfocado="@(item.Id == IdEnfocado)" OnReclamar="OnReclamar" />
                         }
                     }
                 }
@@ -175,9 +175,6 @@
 
     /// <summary>U-2: se reenvía tal cual a cada PanelResolverItem completo (no aplica en modo Compacto). Ver PanelResolverItem.OnReclamar.</summary>
     [Parameter] public EventCallback<ItemBandejaDto> OnReclamar { get; set; }
-
-    /// <summary>Se reenvía tal cual a cada PanelResolverItem completo (no aplica en modo Compacto). Ver PanelResolverItem.AccionPersonalizada.</summary>
-    [Parameter] public RenderFragment<ItemBandejaDto>? AccionPersonalizada { get; set; }
 
     /// <summary>
     /// U-1: en vez de truncar a MaximoTrabajadoresVisibles con un enlace "ver

@@ -36,16 +36,9 @@
             Reclamar
         </Boton>
     }
-    @if (AccionPersonalizada is not null)
-    {
-        @AccionPersonalizada(Item)
-    }
-    else
-    {
-        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirAsync">
-            @TipoItemBandejaUi.TextoAccion(Item)
-        </Boton>
-    }
+    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirAsync">
+        @TipoItemBandejaUi.TextoAccion(Item)
+    </Boton>
 </div>
 
 @code {
@@ -54,16 +47,6 @@
 
     /// <summary>U-2: puerta terminal de reclamación uniforme — el llamador decide qué hacer al pulsar (abrir el Drawer de lote preseed a este ítem). Sin binding, no se ofrece el botón.</summary>
     [Parameter] public EventCallback<ItemBandejaDto> OnReclamar { get; set; }
-
-    /// <summary>
-    /// Sustituye el botón "Abrir" por defecto (que navega dentro del MISMO
-    /// circuito, en el Tenant hoy activo) — Mi trabajo Gen2 (multi-Tenant) lo
-    /// usa para que la fila de un Tenant que no es el activo pase por el POST
-    /// cross-Tenant de <c>AccionCrossTenant</c> en vez de navegar dentro del
-    /// Tenant equivocado. Sin binding, comportamiento sin cambios (/bandeja,
-    /// panel de /alertas).
-    /// </summary>
-    [Parameter] public RenderFragment<ItemBandejaDto>? AccionPersonalizada { get; set; }
 
     private Task AbrirAsync() => AccionesBandeja.AbrirAsync(Item, NavigationManager, WorkspaceService);
 }
