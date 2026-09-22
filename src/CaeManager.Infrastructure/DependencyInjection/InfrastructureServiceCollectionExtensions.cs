@@ -459,6 +459,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Gestiones.IGestionesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Integraciones.IProveedoresPlataformaCaeQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Plantillas.IPlantillasQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        // Cota de lectura de una revocación hecha desde otro circuito; ver CaducidadAlcanceOptions.
+        services.Configure<CaducidadAlcanceOptions>(opciones => opciones.Caducidad = TimeSpan.FromSeconds(
+            Math.Max(1, configuration.GetValue(CaducidadAlcanceOptions.ClaveConfiguracion, 60))));
         services.AddScoped<AlcanceDatosService>();
         services.AddScoped<IAlcanceDatosService>(sp => sp.GetRequiredService<AlcanceDatosService>());
         // La MISMA instancia que memoiza: invalidar otra sería no invalidar nada.

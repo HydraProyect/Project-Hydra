@@ -25,7 +25,10 @@ namespace CaeManager.Infrastructure.Autorizacion;
 /// </para> Cachea el resultado
 /// de cada método en la propia instancia (scoped por request/circuito) para
 /// no repetir la misma resolución de cartera varias veces en la misma
-/// petición cuando varios filtros de una Query la necesitan.
+/// petición cuando varios filtros de una Query la necesitan. En Blazor Server
+/// esa instancia dura lo que el circuito: por eso la memoización caduca
+/// (<see cref="CaducidadAlcanceOptions"/>, cota de lectura de una revocación
+/// hecha desde otro circuito) y se descarta antes y después de cada Command.
 ///
 /// La memoización cubre los seis alcances, no solo el de Cliente. Antes solo
 /// estaba el de Cliente y el resto se recalculaba cada vez, con el agravante
@@ -54,7 +57,9 @@ public class AlcanceDatosService(
     ICurrentUserService currentUserService,
     ITenantActual tenantActual,
     ISesionPrivilegiadaActual sesionPrivilegiadaActual,
-    IVistaDemoActual? vistaDemo = null)
+    IVistaDemoActual? vistaDemo = null,
+    TimeProvider? reloj = null,
+    Microsoft.Extensions.Options.IOptions<CaducidadAlcanceOptions>? caducidad = null)
     : IAlcanceDatosService, IInvalidadorAlcance
 {
     // Dictionary<TKey,TValue> exige TKey : notnull, y tenantActual.TenantId es
@@ -73,16 +78,77 @@ public class AlcanceDatosService(
     private readonly Dictionary<Guid, IReadOnlyList<Guid>?> _trabajadorIds = new();
     private readonly Dictionary<Guid, IReadOnlyList<Guid>?> _vehiculoIds = new();
 
+    // Marca de tiempo MONOTÓNICA (TimeProvider.GetTimestamp) del inicio de la generación memoizada
+    // de cada Tenant: un ajuste del reloj de pared no puede alargar la cota. Ver ClaveTenantVigente.
+    private readonly Dictionary<Guid, long> _inicioGeneracion = new();
+
+    // Cambia cada vez que se descarta una generación (caducidad o Invalidar). Un alcance cuya
+    // resolución empezó en una generación anterior se devuelve, pero no se memoiza: ver Memoizar.
+    private long _generacion;
+
+    private readonly TimeProvider _reloj = reloj ?? TimeProvider.System;
+    private readonly TimeSpan _caducidad = caducidad?.Value.Caducidad ?? CaducidadAlcanceOptions.CaducidadPorDefecto;
+
     private static Guid ClaveTenant(Guid? tenantId) => tenantId ?? Guid.Empty;
 
     /// <summary>
+    /// Clave del Tenant actual, tras descartar su memoización si ya caducó. Es la cota de cuánto
+    /// tarda un circuito vivo en dejar de LEER con un alcance revocado desde FUERA de él —un
+    /// Coordinador CAE que cierra la Asignación de Cartera de un Gestor CAE, o una Asignación que
+    /// llega a su <c>VigenciaHasta</c> sin que nadie escriba nada—: ninguna de las dos pasa por un
+    /// Command de ese circuito. Sin caducidad, en Blazor Server la visión se conservaba mientras
+    /// viviera el circuito (medido sobre PostgreSQL real, 2026-09-20 y 2026-09-23).
+    ///
+    /// <para>
+    /// La caducidad es por generación y por Tenant, no por diccionario: al caducar se descartan a
+    /// la vez los siete alcances del Tenant, así que cada valor memoizado se calculó después de
+    /// que empezara su generación, y una revocación deja de servirse, como mucho,
+    /// <see cref="CaducidadAlcanceOptions.Caducidad"/> después de producirse (60 s por defecto,
+    /// decisión del propietario 2026-09-23). Las escrituras no esperan a esa cota:
+    /// <see cref="InvalidacionAlcanceBehavior{TRequest,TResponse}"/> invalida ANTES de cada Command.
+    /// </para>
+    /// </summary>
+    private Guid ClaveTenantVigente()
+    {
+        var tenant = ClaveTenant(tenantActual.TenantId);
+        if (_inicioGeneracion.TryGetValue(tenant, out var inicio) && _reloj.GetElapsedTime(inicio) < _caducidad)
+            return tenant;
+
+        if (_inicioGeneracion.ContainsKey(tenant)) _generacion++;
+        _accesoTotal.Remove(tenant);
+        _clienteIds.Remove(tenant);
+        _centroIds.Remove(tenant);
+        _empresaIds.Remove(tenant);
+        _subcontrataIds.Remove(tenant);
+        _trabajadorIds.Remove(tenant);
+        _vehiculoIds.Remove(tenant);
+        _inicioGeneracion[tenant] = _reloj.GetTimestamp();
+        return tenant;
+    }
+
+    /// <summary>
+    /// Memoiza solo si ninguna generación se descartó mientras se resolvía. Los alcances se piden
+    /// en cascada (Trabajador pide Centro, Vehículo pide Empresa y Subcontrata): si la caducidad
+    /// salta a mitad, el resultado puede mezclar listas de dos generaciones. Se devuelve igual
+    /// —ninguna parte es más vieja que la cota—, pero no se guarda en la generación nueva, que
+    /// solo contiene lo resuelto entero dentro de ella.
+    /// </summary>
+    private void Memoizar<T>(Dictionary<Guid, T> memo, Guid tenant, long generacionAlEmpezar, T valor)
+    {
+        if (generacionAlEmpezar == _generacion) memo[tenant] = valor;
+    }
+
+    /// <summary>
     /// Descarta los siete diccionarios (todos los Tenants de esta instancia: el fan-out reutiliza la
-    /// misma). Lo invoca <see cref="InvalidacionAlcanceBehavior{TRequest,TResponse}"/> tras cada
-    /// Command. La memoización sigue siendo por instancia y por Tenant; esto solo evita que un
-    /// circuito largo conserve una visión anterior a una escritura.
+    /// misma). Lo invoca <see cref="InvalidacionAlcanceBehavior{TRequest,TResponse}"/> antes y
+    /// después de cada Command. La memoización sigue siendo por instancia y por Tenant; esto evita
+    /// que un Command se autorice, o que la lectura siguiente se sirva, con una visión anterior. Lo
+    /// que se revoca desde otro circuito lo acota la caducidad (<see cref="ClaveTenantVigente"/>).
     /// </summary>
     public void Invalidar()
     {
+        _generacion++;
+        _inicioGeneracion.Clear();
         _accesoTotal.Clear();
         _clienteIds.Clear();
         _centroIds.Clear();
@@ -114,7 +180,8 @@ public class AlcanceDatosService(
 
     private async Task<bool> TieneAccesoTotalRealAsync(CancellationToken cancellationToken)
     {
-        var tenant = ClaveTenant(tenantActual.TenantId);
+        var tenant = ClaveTenantVigente();
+        var generacion = _generacion;
         if (_accesoTotal.TryGetValue(tenant, out var cacheado)) return cacheado;
 
         bool accesoTotal;
@@ -168,13 +235,14 @@ public class AlcanceDatosService(
             accesoTotal = Roles.AlcanzaTodaLaOrganizacion(rol);
         }
 
-        _accesoTotal[tenant] = accesoTotal;
+        Memoizar(_accesoTotal, tenant, generacion, accesoTotal);
         return accesoTotal;
     }
 
     public async Task<IReadOnlyList<Guid>?> ObtenerClienteIdsVisiblesAsync(CancellationToken cancellationToken = default)
     {
-        var tenant = ClaveTenant(tenantActual.TenantId);
+        var tenant = ClaveTenantVigente();
+        var generacion = _generacion;
         if (_clienteIds.TryGetValue(tenant, out var cacheado)) return cacheado;
 
         var real = await ObtenerClienteIdsRealesAsync(cancellationToken);
@@ -190,7 +258,7 @@ public class AlcanceDatosService(
             resultado = real is null ? deLente : real.Intersect(deLente).ToList();
         }
 
-        _clienteIds[tenant] = resultado;
+        Memoizar(_clienteIds, tenant, generacion, resultado);
         return resultado;
     }
 
@@ -308,7 +376,8 @@ public class AlcanceDatosService(
 
     public async Task<IReadOnlyList<Guid>?> ObtenerCentroIdsVisiblesAsync(CancellationToken cancellationToken = default)
     {
-        var tenant = ClaveTenant(tenantActual.TenantId);
+        var tenant = ClaveTenantVigente();
+        var generacion = _generacion;
         if (_centroIds.TryGetValue(tenant, out var cacheado)) return cacheado;
 
         var clienteIds = await ObtenerClienteIdsVisiblesAsync(cancellationToken);
@@ -322,7 +391,7 @@ public class AlcanceDatosService(
                 .Select(c => c.Id)
                 .ToListAsync(cancellationToken)
         };
-        _centroIds[tenant] = resultado;
+        Memoizar(_centroIds, tenant, generacion, resultado);
 
         return resultado;
     }
@@ -372,7 +441,8 @@ public class AlcanceDatosService(
     /// </summary>
     public async Task<IReadOnlyList<Guid>?> ObtenerEmpresaIdsVisiblesAsync(CancellationToken cancellationToken = default)
     {
-        var tenant = ClaveTenant(tenantActual.TenantId);
+        var tenant = ClaveTenantVigente();
+        var generacion = _generacion;
         if (_empresaIds.TryGetValue(tenant, out var cacheado)) return cacheado;
 
         var clienteIds = await ObtenerClienteIdsVisiblesAsync(cancellationToken);
@@ -380,7 +450,7 @@ public class AlcanceDatosService(
         if (clienteIds is null || clienteIds.Count == 0)
         {
             var vacioOSinRestriccion = clienteIds is null ? null : (IReadOnlyList<Guid>)[];
-            _empresaIds[tenant] = vacioOSinRestriccion;
+            Memoizar(_empresaIds, tenant, generacion, vacioOSinRestriccion);
             return vacioOSinRestriccion;
         }
 
@@ -397,7 +467,7 @@ public class AlcanceDatosService(
             visibles = visibles.Concat(dbContext.Empresas.Where(e => e.EsPropia).Select(e => e.Id));
 
         var resultado = await visibles.Distinct().ToListAsync(cancellationToken);
-        _empresaIds[tenant] = resultado;
+        Memoizar(_empresaIds, tenant, generacion, resultado);
 
         return resultado;
     }
@@ -439,7 +509,8 @@ public class AlcanceDatosService(
     /// </summary>
     public async Task<IReadOnlyList<Guid>?> ObtenerSubcontrataIdsVisiblesAsync(CancellationToken cancellationToken = default)
     {
-        var tenant = ClaveTenant(tenantActual.TenantId);
+        var tenant = ClaveTenantVigente();
+        var generacion = _generacion;
         if (_subcontrataIds.TryGetValue(tenant, out var cacheado)) return cacheado;
 
         var clienteIds = await ObtenerClienteIdsVisiblesAsync(cancellationToken);
@@ -447,7 +518,7 @@ public class AlcanceDatosService(
         if (clienteIds is null || clienteIds.Count == 0)
         {
             var vacioOSinRestriccion = clienteIds is null ? null : (IReadOnlyList<Guid>)[];
-            _subcontrataIds[tenant] = vacioOSinRestriccion;
+            Memoizar(_subcontrataIds, tenant, generacion, vacioOSinRestriccion);
             return vacioOSinRestriccion;
         }
 
@@ -461,7 +532,7 @@ public class AlcanceDatosService(
         var porEmpresa = relacionesConSubcontrataComoProveedora.Where(x => empresaIds.Contains(x.ClienteId)).Select(x => x.SubcontrataId);
 
         var resultado = await porCliente.Concat(porEmpresa).Distinct().ToListAsync(cancellationToken);
-        _subcontrataIds[tenant] = resultado;
+        Memoizar(_subcontrataIds, tenant, generacion, resultado);
 
         return resultado;
     }
@@ -496,7 +567,8 @@ public class AlcanceDatosService(
     /// </summary>
     public async Task<IReadOnlyList<Guid>?> ObtenerTrabajadorIdsVisiblesAsync(CancellationToken cancellationToken = default)
     {
-        var tenant = ClaveTenant(tenantActual.TenantId);
+        var tenant = ClaveTenantVigente();
+        var generacion = _generacion;
         if (_trabajadorIds.TryGetValue(tenant, out var cacheado)) return cacheado;
 
         var clienteIds = await ObtenerClienteIdsVisiblesAsync(cancellationToken);
@@ -504,7 +576,7 @@ public class AlcanceDatosService(
         if (clienteIds is null || clienteIds.Count == 0)
         {
             var vacioOSinRestriccion = clienteIds is null ? null : (IReadOnlyList<Guid>)[];
-            _trabajadorIds[tenant] = vacioOSinRestriccion;
+            Memoizar(_trabajadorIds, tenant, generacion, vacioOSinRestriccion);
             return vacioOSinRestriccion;
         }
 
@@ -521,20 +593,21 @@ public class AlcanceDatosService(
                 .Join(dbContext.Empresas.Where(e => e.EsPropia), t => t.EmpresaId, e => (Guid?)e.Id, (t, e) => t.Id));
 
         var resultado = await visibles.Distinct().ToListAsync(cancellationToken);
-        _trabajadorIds[tenant] = resultado;
+        Memoizar(_trabajadorIds, tenant, generacion, resultado);
 
         return resultado;
     }
 
     public async Task<IReadOnlyList<Guid>?> ObtenerVehiculoIdsVisiblesAsync(CancellationToken cancellationToken = default)
     {
-        var tenant = ClaveTenant(tenantActual.TenantId);
+        var tenant = ClaveTenantVigente();
+        var generacion = _generacion;
         if (_vehiculoIds.TryGetValue(tenant, out var cacheado)) return cacheado;
 
         var empresaIds = await ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
         if (empresaIds is null)
         {
-            _vehiculoIds[tenant] = null;
+            Memoizar(_vehiculoIds, tenant, generacion, null);
             return null;
         }
 
@@ -548,7 +621,7 @@ public class AlcanceDatosService(
                     (v.SubcontrataId != null && subcontrataIds.Contains(v.SubcontrataId.Value)))
                 .Select(v => v.Id)
                 .ToListAsync(cancellationToken);
-        _vehiculoIds[tenant] = resultado;
+        Memoizar(_vehiculoIds, tenant, generacion, resultado);
 
         return resultado;
     }
