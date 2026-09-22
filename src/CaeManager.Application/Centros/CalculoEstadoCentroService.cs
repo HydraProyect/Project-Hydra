@@ -70,7 +70,9 @@ public record FraccionCumplimiento(int AlDia, int Requeridos)
 /// una página de la tabla. La lógica de "documento faltante" replica la de
 /// ObtenerAlertasQuery.ObtenerFaltantesAsync (Trabajador únicamente — los
 /// Documentos de Empresa aquí solo aportan su vigencia, sin detección de
-/// falta total, mismo alcance que esa Query).
+/// falta total, mismo alcance que esa Query). Además, dos causas bloqueantes que
+/// vienen de la plataforma del Cliente empresarial y no del archivo documental: la
+/// vigencia vencida en la plataforma y la acreditación rechazada por ella.
 /// </summary>
 public interface ICalculoEstadoCentroService
 {
@@ -113,6 +115,7 @@ public class CalculoEstadoCentroService(
         await AgregarCausasDeEmpresaAsync(centroIds, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias, causasPorCentro, cancellationToken);
         await AgregarCausasDeTrabajadorAsync(centroIds, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias, causasPorCentro, cancellationToken);
         await AgregarCausasDeVigenciaEnPlataformaAsync(centroIds, hoy, causasPorCentro, cancellationToken);
+        await AgregarCausasDeRechazoEnPlataformaAsync(centroIds, causasPorCentro, cancellationToken);
 
         return causasPorCentro.ToDictionary(
             par => par.Key,
@@ -204,6 +207,104 @@ public class CalculoEstadoCentroService(
                 Bloqueante: true,
                 fila.TrabajadorId is null ? AmbitoCausa.Empresa : AmbitoCausa.Trabajador,
                 fila.Id, fila.TipoDocumentoId, fila.FechaVencimientoEnPlataforma));
+        }
+    }
+
+    /// <summary>
+    /// Una acreditación <b>aplicable</b> que la plataforma rechazó pone el Centro
+    /// en rojo, aunque el documento siga vigente en TALVEG (D-7 del piloto
+    /// Outbound). Validez documental en TALVEG, estado de acreditación externa y
+    /// cumplimiento contextual son tres cosas distintas: el semáforo dice si se
+    /// puede trabajar, y con la acreditación rechazada en la plataforma del
+    /// Cliente empresarial no se puede, esté el archivo como esté aquí.
+    ///
+    /// <para>
+    /// «Aplicable» es exactamente el contexto de este Centro: el canal de
+    /// plataforma de ESTE Centro (una rechazada de otro Centro no cuenta), el
+    /// Trabajador aún asignado a él (la acreditación sobrevive a la baja) y un
+    /// tipo que le aplique (fila explícita del Centro o, sin ella, requerido por defecto,
+    /// como en el resto del cálculo). Es el mismo motor: no
+    /// hay un segundo cálculo ni un estado global «Apto».
+    /// </para>
+    ///
+    /// <para>
+    /// Solo <c>Rechazada</c>. Pendiente de subir y Subida (esperando respuesta)
+    /// son trabajo y seguimiento, no un «no» de la plataforma, y no bloquean.
+    /// Rechazar reinicia la vigencia en plataforma, así que esta causa y la de
+    /// vigencia vencida nunca cuentan la misma acreditación dos veces; renovar el
+    /// documento reinicia la acreditación a Pendiente y retira el bloqueo.
+    /// </para>
+    /// </summary>
+    private async Task AgregarCausasDeRechazoEnPlataformaAsync(
+        IReadOnlyList<Guid> centroIds,
+        Dictionary<Guid, List<CausaEstadoCentro>> causasPorCentro, CancellationToken cancellationToken)
+    {
+        var rechazadas = await (
+            from acreditacion in documentosContext.AcreditacionesDocumentoPlataforma
+            where acreditacion.Estado == EstadoAcreditacion.Rechazada
+            join canal in centrosContext.CanalesGestionDocumental
+                on acreditacion.CanalGestionDocumentalId equals canal.Id
+            where centroIds.Contains(canal.CentroId)
+            join documento in documentosContext.Documentos
+                on acreditacion.DocumentoId equals documento.Id
+            join tipoDocumento in tiposDocumentoContext.TiposDocumento
+                on documento.TipoDocumentoId equals tipoDocumento.Id
+            select new
+            {
+                canal.CentroId,
+                documento.Id,
+                documento.TipoDocumentoId,
+                documento.TrabajadorId,
+                TipoDocumentoNombre = tipoDocumento.Nombre,
+                CuentaParaCumplimiento = tipoDocumento.Requerido == RequisitoDocumental.Si
+            })
+            .ToListAsync(cancellationToken);
+
+        if (rechazadas.Count == 0) return;
+
+        var asignacionesActivas = await asignacionesContext.Asignaciones
+            .Where(a => a.FechaBaja == null && centroIds.Contains(a.CentroId))
+            .Select(a => new { a.CentroId, a.TrabajadorId })
+            .ToListAsync(cancellationToken);
+        var trabajadoresPorCentro = asignacionesActivas
+            .GroupBy(a => a.CentroId)
+            .ToDictionary(g => g.Key, g => g.Select(a => a.TrabajadorId).ToHashSet());
+
+        var tipoIds = rechazadas.Select(r => r.TipoDocumentoId).Distinct().ToList();
+        var filasPorPar = (await tiposDocumentoContext.TiposDocumentoCentros
+            .Where(tc => tipoIds.Contains(tc.TipoDocumentoId) && centroIds.Contains(tc.CentroId))
+            .ToListAsync(cancellationToken))
+            .ToDictionary(tc => (tc.TipoDocumentoId, tc.CentroId));
+
+        var trabajadorIds = rechazadas.Where(r => r.TrabajadorId is not null).Select(r => r.TrabajadorId!.Value).Distinct().ToList();
+        var nombres = await trabajadoresContext.Trabajadores
+            .Where(t => trabajadorIds.Contains(t.Id))
+            .ToDictionaryAsync(t => t.Id, t => t.Nombre + " " + t.Apellidos, cancellationToken);
+
+        foreach (var fila in rechazadas)
+        {
+            if (!causasPorCentro.TryGetValue(fila.CentroId, out var causas)) continue;
+
+            if (fila.TrabajadorId is { } trabajadorId
+                && !(trabajadoresPorCentro.TryGetValue(fila.CentroId, out var asignados)
+                     && asignados.Contains(trabajadorId)))
+                continue;
+
+            // Misma regla de aplicabilidad que el resto del cálculo: una fila explícita del Centro
+            // manda; sin ella, solo cuenta un tipo requerido por defecto. Un rechazo de un tipo
+            // opcional no bloquea, pero sigue visible como trabajo en la Bandeja.
+            if (!ResolucionTipoDocumentoCentro.Aplica(filasPorPar, fila.TipoDocumentoId, fila.CentroId, fila.CuentaParaCumplimiento))
+                continue;
+
+            var propietario = fila.TrabajadorId is { } id && nombres.TryGetValue(id, out var nombre)
+                ? $" — {nombre}"
+                : " — Empresa";
+            causas.Add(new CausaEstadoCentro(
+                $"{fila.TipoDocumentoNombre}{propietario} — rechazado por la plataforma",
+                Estado: null,
+                Bloqueante: true,
+                fila.TrabajadorId is null ? AmbitoCausa.Empresa : AmbitoCausa.Trabajador,
+                fila.Id, fila.TipoDocumentoId, FechaVencimiento: null));
         }
     }
 
