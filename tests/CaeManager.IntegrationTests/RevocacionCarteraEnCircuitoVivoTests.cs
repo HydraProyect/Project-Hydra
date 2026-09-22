@@ -1,6 +1,7 @@
 using CaeManager.Application.Plataforma;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
+using CaeManager.Domain.Vehiculos;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -43,8 +44,25 @@ public class RevocacionCarteraEnCircuitoVivoTests : IAsyncLifetime
         // La caducidad se mide con el reloj monotónico (GetTimestamp), no con el de pared.
         private long _ticks;
         public override long TimestampFrequency => TimeSpan.TicksPerSecond;
-        public override long GetTimestamp() => _ticks;
         public void Avanzar(TimeSpan intervalo) => _ticks += intervalo.Ticks;
+
+        // Salto programado: se aplica justo antes de la lectura número N a partir de ahora. Sirve
+        // para que la caducidad salte a MITAD de una resolución en cascada.
+        private int _lecturasHastaSalto = -1;
+        private TimeSpan _salto;
+        public bool SaltoAplicado { get; private set; }
+
+        public void SaltarEnLaLectura(int numero, TimeSpan salto) => (_lecturasHastaSalto, _salto) = (numero, salto);
+
+        public override long GetTimestamp()
+        {
+            if (_lecturasHastaSalto > 0 && --_lecturasHastaSalto == 0)
+            {
+                _ticks += _salto.Ticks;
+                SaltoAplicado = true;
+            }
+            return _ticks;
+        }
     }
 
     /// <summary>Cliente empresarial y Empresa propia; la propia es visible por cartera (D-8).</summary>
@@ -62,8 +80,13 @@ public class RevocacionCarteraEnCircuitoVivoTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto(tenant);
         var ahora = DateTime.UtcNow;
-        var raiz = AsignacionOperacion.Raiz(tenant, ServicioCae.Outbound, ahora, ahora);
-        contexto.AsignacionesOperacion.Add(raiz);
+        // Una sola raíz vigente por Tenant (IX_AsignacionesOperacion_RaizVigente): se reutiliza.
+        var raiz = await contexto.AsignacionesOperacion.FirstOrDefaultAsync();
+        if (raiz is null)
+        {
+            raiz = AsignacionOperacion.Raiz(tenant, ServicioCae.Outbound, ahora, ahora);
+            contexto.AsignacionesOperacion.Add(raiz);
+        }
         var cartera = AsignacionCartera.Interna(
             raiz, usuarioId, AmbitoAsignacion.DeRelacionCliente(clienteId), ahora, vigenciaHasta, ahora);
         contexto.AsignacionesCartera.Add(cartera);
@@ -198,11 +221,63 @@ public class RevocacionCarteraEnCircuitoVivoTests : IAsyncLifetime
             "ni siquiera tras volver a resolver B");
     }
 
+    [Fact]
+    public async Task Un_alcance_resuelto_mientras_caducaba_su_generacion_no_se_memoiza_en_la_nueva()
+    {
+        var (cliente, propia) = await SembrarTenantAsync(_tenant, "B10380186", "B10380194");
+        var gestor = Guid.NewGuid();
+        var cartera = await OtorgarCarteraAsync(_tenant, gestor, cliente);
+        Guid vehiculo;
+        await using (var escritura = CrearContexto(_tenant))
+        {
+            var v = Vehiculo.DeEmpresa(propia, "Furgoneta", "Modelo", "1234BCD");
+            escritura.Vehiculos.Add(v);
+            await escritura.SaveChangesAsync();
+            vehiculo = v.Id;
+        }
+        var reloj = new RelojManual();
+
+        await using var contextoCircuito = CrearContexto(_tenant);
+        var circuito = CrearServicio(contextoCircuito, gestor, new TenantActualAmbiental { TenantId = _tenant }, reloj);
+        (await circuito.ObtenerEmpresaIdsVisiblesAsync()).Should().Contain(propia);
+
+        await RevocarDesdeOtroCircuitoAsync(_tenant, cartera);
+
+        // Vehículo lee su generación (lectura 1), toma Empresa de la memoización vieja (lectura 2) y
+        // pide Subcontrata (lectura 3): el salto hace que la generación caduque justo ahí. El
+        // resultado mezcla la Empresa de antes de la revocación con una Subcontrata recién resuelta.
+        reloj.Avanzar(Caducidad - TimeSpan.FromSeconds(1));
+        reloj.SaltarEnLaLectura(3, TimeSpan.FromSeconds(2));
+        (await circuito.ObtenerVehiculoIdsVisiblesAsync()).Should().Contain(vehiculo,
+            "control: el Vehículo se resolvió con la Empresa memoizada antes de la revocación");
+        reloj.SaltoAplicado.Should().BeTrue("control: la caducidad saltó a mitad de la cascada");
+
+        // Dentro de la generación nueva ese resultado mezclado no puede servirse: si se hubiera
+        // memoizado en ella, duraría hasta dos ventanas desde la revocación.
+        reloj.Avanzar(Caducidad / 2);
+        (await circuito.ObtenerVehiculoIdsVisiblesAsync()).Should().NotBeNull().And.BeEmpty(
+            "un resultado resuelto mientras caducaba su generación se devuelve, pero no se memoiza");
+    }
+
     private static AlcanceDatosService CrearServicio(
         CaeManagerDbContext contexto, Guid usuarioId, TenantActualAmbiental ambitoTenant, TimeProvider reloj) =>
-        new(contexto, new CurrentUserServiceFalso(usuarioId, "GestorCae", tenantOrigenId: ambitoTenant.TenantId),
+        new(contexto, new UsuarioQueSigueAlTenant(usuarioId, ambitoTenant),
             ambitoTenant, new SesionPrivilegiadaAusente(), vistaDemo: null, reloj,
             Options.Create(new CaducidadAlcanceOptions { Caducidad = Caducidad }));
+
+    /// <summary>
+    /// Gestor CAE con cartera Interna en cada Tenant del fan-out: su operador es el Tenant
+    /// propietario, así que el tenant de origen se lee del ámbito en cada llamada (como la
+    /// coordenada de contexto real), no se fija al construir.
+    /// </summary>
+    private sealed class UsuarioQueSigueAlTenant(Guid usuarioId, TenantActualAmbiental ambito)
+        : CaeManager.Application.Common.ICurrentUserService
+    {
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(usuarioId);
+        public Task<string?> ObtenerRolActualAsync() => Task.FromResult<string?>("GestorCae");
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult(ambito.TenantId);
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
+    }
 
     private CaeManagerDbContext CrearContexto(Guid tenantId) =>
         CrearContexto(new TenantActualAmbiental { TenantId = tenantId });
