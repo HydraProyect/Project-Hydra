@@ -59,8 +59,12 @@ public class MiTrabajoGen2Tests(WebAppFixture fixture)
         var tenantDexter = await page.Locator(".selector-cliente-activo option", new PageLocatorOptions { HasText = Ayudas.NombreClienteDelegadoDemo })
             .GetAttributeAsync("value");
 
-        await page.Locator("form:has(.selector-cliente-activo) input[name=__RequestVerificationToken]")
-            .WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Attached });
+        // El token se lee con el locator, que reintenta si un re-render de
+        // Blazor desprende el nodo, y no con querySelector dentro del script:
+        // entre la espera y la evaluación, ese re-render dejaba el nodo en
+        // null (CI de #792, «Cannot read properties of null (reading 'name')»).
+        var token = await page.Locator("form:has(.selector-cliente-activo) input[name=__RequestVerificationToken]")
+            .GetAttributeAsync("value");
 
         // Mismo formulario que emite AccionCrossTenant, pero creado fuera del
         // árbol de Blazor con el token de antiforgery de la página: sobre el
@@ -69,12 +73,11 @@ public class MiTrabajoGen2Tests(WebAppFixture fixture)
         var respuesta = await page.RunAndWaitForResponseAsync(
             () => page.EvaluateAsync(
                 """
-                ([destino, tenant]) => {
-                    const token = document.querySelector("form:has(.selector-cliente-activo) input[name=__RequestVerificationToken]");
+                ([destino, tenant, token]) => {
                     const form = document.createElement("form");
                     form.method = "post";
                     form.action = "/cuenta/cliente-activo";
-                    for (const [nombre, valor] of [[token.name, token.value], ["tenantId", tenant], ["returnUrl", destino]]) {
+                    for (const [nombre, valor] of [["__RequestVerificationToken", token], ["tenantId", tenant], ["returnUrl", destino]]) {
                         const campo = document.createElement("input");
                         campo.type = "hidden";
                         campo.name = nombre;
@@ -84,7 +87,7 @@ public class MiTrabajoGen2Tests(WebAppFixture fixture)
                     document.body.appendChild(form);
                     form.submit();
                 }
-                """, new[] { destino, tenantDexter! }),
+                """, new[] { destino, tenantDexter!, token! }),
             r => r.Url.Contains("/cuenta/cliente-activo") && r.Request.Method == "POST");
         Assert.InRange(respuesta.Status, 300, 399);
         Assert.Equal(destino, respuesta.Headers.GetValueOrDefault("location"));
