@@ -104,6 +104,8 @@ namespace CaeManager.Architecture.Tests;
 /// cabecera del esquema. <b>Solo el neutral</b> (<c>TextosX.resx</c>): el satélite
 /// <c>TextosX.ca-ES.resx</c> nace como copia del neutral y contarlo duplicaría cada
 /// aparición; una traducción que conserve la marca se corrige con el neutral, no aparte.
+/// Un fichero solo es satélite si lleva segmento de cultura <b>y</b> tiene su neutral al
+/// lado (<see cref="EsResxNeutral(string)"/>): <c>Textos.Ui.resx</c> sin <c>Textos.resx</c> cuenta.
 /// Consecuencia declarada: un término que aparezca solo en el satélite no se ve.
 /// </para>
 ///
@@ -363,13 +365,23 @@ public class TerminologiaCanonicaTests
 
     /// <summary>
     /// Un <c>.resx</c> satélite lleva la cultura como segunda extensión
-    /// (<c>TextosX.ca-ES.resx</c>); el neutral no (<c>TextosX.resx</c>).
+    /// (<c>TextosX.ca-ES.resx</c>) <b>y</b> tiene al lado su neutral (<c>TextosX.resx</c>).
+    /// Exigir el hermano evita tomar por satélite un neutral cuyo nombre tenga un segmento
+    /// corto que no es cultura (<c>Textos.Ui.resx</c>): sin neutral al lado, se cuenta.
     /// </summary>
     private static readonly Regex ResxSatelite =
-        new(@"\.[a-z]{2,3}(-[A-Za-z0-9]{2,8})*\.resx$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        new(@"^(?<base>.+)\.[a-z]{2,3}(-[A-Za-z0-9]{2,8})*\.resx$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    private static bool EsResxNeutral(string archivo) =>
-        archivo.EndsWith(".resx", StringComparison.OrdinalIgnoreCase) && !ResxSatelite.IsMatch(archivo);
+    private static bool EsResxNeutral(string archivo) => EsResxNeutral(archivo, File.Exists);
+
+    private static bool EsResxNeutral(string archivo, Func<string, bool> existe)
+    {
+        if (!archivo.EndsWith(".resx", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var satelite = ResxSatelite.Match(archivo);
+        return !(satelite.Success && existe(satelite.Groups["base"].Value + ".resx"));
+    }
 
     /// <summary>
     /// Cuenta solo las apariciones de <paramref name="regex"/> que caen dentro de un
@@ -569,6 +581,18 @@ public class TerminologiaCanonicaTests
 
         archivos.Should().NotContain(a => a.EndsWith(".ca-ES.resx", StringComparison.OrdinalIgnoreCase),
             "el satélite ca-ES nace como copia del neutral: contarlo duplicaría cada aparición");
+
+        // Todo .resx de src/ que se queda fuera tiene que ser un satélite cuyo neutral sí
+        // está dentro: si no, se está perdiendo texto de interfaz sin duplicado que lo cubra.
+        var dentro = archivos.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var fuera = Directory
+            .EnumerateFiles(Path.Combine(RaizDelRepositorio(), "src"), "*.resx", SearchOption.AllDirectories)
+            .Where(a => !dentro.Contains(a))
+            .ToList();
+
+        fuera.Should().NotBeEmpty("hoy hay satélites ca-ES en src/; si no sale ninguno, el control no mira");
+        fuera.Should().OnlyContain(a => dentro.Contains(ResxSatelite.Match(a).Groups["base"].Value + ".resx"),
+            "un .resx excluido solo puede ser un satélite con su neutral contado");
     }
 
     /// <summary>
@@ -602,9 +626,14 @@ public class TerminologiaCanonicaTests
     [InlineData(@"src/Web/Recursos/TextosComunes.ca-ES.resx", false)]
     [InlineData(@"src/Web/Recursos/TextosComunes.es-ES.resx", false)]
     [InlineData(@"src/Web/Recursos/TextosComunes.en.resx", false)]
+    [InlineData(@"src/Web/Recursos/Textos.Ui.resx", true)]
     [InlineData(@"src/Web/Recursos/TextosComunes.cs", false)]
-    public void Solo_el_resx_neutral_entra_en_el_recuento(string archivo, bool entra) =>
-        EsResxNeutral(archivo).Should().Be(entra);
+    public void Solo_el_resx_neutral_entra_en_el_recuento(string archivo, bool entra)
+    {
+        // Árbol simulado: TextosComunes.resx existe; Textos.resx no (Textos.Ui.resx no es satélite).
+        var existentes = new HashSet<string> { @"src/Web/Recursos/TextosComunes.resx" };
+        EsResxNeutral(archivo, existentes.Contains).Should().Be(entra);
+    }
 
     /// <summary>
     /// <c>src/</c> completo menos migraciones, <c>obj/</c> y <c>bin/</c>. Las migraciones
