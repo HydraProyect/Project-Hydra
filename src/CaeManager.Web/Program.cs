@@ -58,9 +58,14 @@ GlobalFontSettings.FontResolver = new EmbeddedFontResolver();
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Todo el producto es en español (ver UX_PATTERNS.md) — fechas y números se
-// formatean con la cultura es-ES en toda la aplicación, no por pantalla.
-var culturaEspanola = new CultureInfo("es-ES");
+// es-ES es el fallback del proceso para toda ejecución sin una cultura de
+// petición explícita (HostedServices, workers, arranque). Dentro de cada
+// petición, RequestLocalization (más abajo) sustituye CurrentCulture y
+// CurrentUICulture por la del usuario —es-ES o ca-ES, desde la cookie que
+// proyecta ApplicationUser.Idioma, ver CulturaUsuarioCookie—. No se retira
+// este default: los procesos fuera de una petición no están auditados para
+// fijar su cultura por sí mismos, y sin él pasarían a la del contenedor.
+var culturaEspanola = new CultureInfo(CulturaUsuarioCookie.CulturaEspanol);
 CultureInfo.DefaultThreadCurrentCulture = culturaEspanola;
 CultureInfo.DefaultThreadCurrentUICulture = culturaEspanola;
 
@@ -211,6 +216,14 @@ builder.Services.AddHttpContextAccessor();
 // Cookie de antiforgery con Secure cuando la peticion es HTTPS (ver
 // AntiforgeryDeTalveg): sin esto rige CookieSecurePolicy.None.
 builder.Services.AddAntiforgery(AntiforgeryDeTalveg.Configurar);
+
+// Textos de interfaz en recursos .resx (IStringLocalizer<T>): sin esto no hay
+// IStringLocalizerFactory que resolver, aunque las culturas estén configuradas.
+builder.Services.AddLocalization();
+
+// Idioma por usuario, no por navegador: el único proveedor es la cookie de
+// cultura, que proyecta ApplicationUser.Idioma (ver CulturaUsuarioCookie).
+builder.Services.Configure<RequestLocalizationOptions>(CulturaUsuarioCookie.ConfigurarLocalizacion);
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 // Identidad de AUDITORIA, separada de la de autorizacion (ADR-011 § 8.5): hoy
 // resuelven al mismo usuario, pero solo la primera sera simulable el dia que
@@ -904,10 +917,8 @@ app.UseHttpsRedirection();
 // las cabeceras han de ir en cualquier respuesta, incluidas las de error.
 app.UseCabecerasSeguridad();
 
-app.UseRequestLocalization(new RequestLocalizationOptions()
-    .SetDefaultCulture(culturaEspanola.Name)
-    .AddSupportedCultures(culturaEspanola.Name)
-    .AddSupportedUICultures(culturaEspanola.Name));
+// Opciones registradas arriba (Configure<RequestLocalizationOptions>).
+app.UseRequestLocalization();
 
 app.UseAuthentication();
 
@@ -954,6 +965,7 @@ app.UseRevalidacionClienteActivo();
 app.MapStaticAssets().AllowAnonymous();
 app.MapHealthChecks("/salud").AllowAnonymous();
 app.MapIdentityEndpoints();
+app.MapIdiomaEndpoints();
 app.MapClientesEndpoints();
 app.MapAsignacionesEndpoints();
 app.MapEmpresasEndpoints();

@@ -1,6 +1,8 @@
 ﻿@inject CaeManager.Web.Services.TemaCookie TemaCookie
 <!DOCTYPE html>
-<html lang="en" data-theme="@TemaCookie.TemaAplicado">
+@* lang = la cultura de interfaz que RequestLocalization resolvió para esta
+   petición (es-ES o ca-ES, ver CulturaUsuarioCookie), no un valor fijo. *@
+<html lang="@System.Globalization.CultureInfo.CurrentUICulture.Name" data-theme="@TemaCookie.TemaAplicado">
 
 <head>
     <meta charset="utf-8" />

@@ -5,6 +5,7 @@
 @using CaeManager.Infrastructure.Coordinacion
 @using CaeManager.Infrastructure.Identity
 @using CaeManager.Web.Components.Account
+@using CaeManager.Web.Services
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Identity
 @inject SignInManager<ApplicationUser> SignInManager
@@ -55,6 +56,11 @@
 
     [SupplyParameterFromForm]
     private DatosEntrada? Entrada { get; set; }
+
+    // Página SSR estática: el HttpContext de la petición del formulario, en el
+    // que SignInManager ya escribe la cookie de autenticación.
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
 
     [SupplyParameterFromQuery]
     private string? ReturnUrl { get; set; }
@@ -114,6 +120,14 @@
         if (resultado.Succeeded)
         {
             logger.LogInformation("Verificación 2FA correcta: {UsuarioId}", _usuarioPendiente.Id);
+
+            // La cookie de cultura es una proyección de ApplicationUser.Idioma
+            // (ver CulturaUsuarioCookie): se reconstruye en cada inicio de
+            // sesión, así que un navegador nuevo o sin cookies no pierde la
+            // preferencia y un usuario anterior en este navegador no la deja
+            // heredada.
+            if (HttpContext is not null)
+                CulturaUsuarioCookie.Escribir(HttpContext, _usuarioPendiente.Idioma);
 
             // Mismo caso borde que en Login.razor: un Administrador creado
             // con contraseña temporal que además ya tuviera 2FA activado

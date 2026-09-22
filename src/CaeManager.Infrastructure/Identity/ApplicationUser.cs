@@ -9,6 +9,16 @@ public class ApplicationUser : IdentityUser<Guid>
     public TemaPreferido Tema { get; set; } = TemaPreferido.Sistema;
 
     /// <summary>
+    /// Idioma de la interfaz de esta cuenta: la fuente canónica de la
+    /// preferencia. La cookie de cultura (<c>.AspNetCore.Culture</c>) es solo
+    /// su proyección en un navegador concreto — se reescribe desde aquí en
+    /// cada inicio de sesión (local, 2FA y Microsoft) y al cambiarla desde el
+    /// selector, así que borrar cookies o entrar desde otro dispositivo no
+    /// pierde la preferencia. Cambiar de Tenant no la cambia.
+    /// </summary>
+    public IdiomaPreferido Idioma { get; set; } = IdiomaPreferido.Espanol;
+
+    /// <summary>
     /// Solo relevante para el rol GestorCae — el CoordinadorCae al que
     /// reporta (ver Roles.cs y IAlcanceDatosService). Un GestorCae sin
     /// coordinador asignado solo es visible para Administrador/DireccionCae
