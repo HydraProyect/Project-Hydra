@@ -24,7 +24,7 @@
   <data name="MensajeVacio" xml:space="preserve">
     <value>Escribe tu pregunta sobre PRL para empezar.</value>
   </data>
-  <data name="Pensando" xml:space="preserve">
+  <data name="IndicadorPensando" xml:space="preserve">
     <value>Pensando…</value>
   </data>
   <data name="PlaceholderPregunta" xml:space="preserve">
