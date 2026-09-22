@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="TituloPagina" xml:space="preserve">
+    <value>Sol·licituds de cartera</value>
+  </data>
+  <data name="Kicker" xml:space="preserve">
+    <value>Cartera</value>
+  </data>
+  <data name="EnlaceMenu" xml:space="preserve">
+    <value>Sol·licituds de cartera</value>
+  </data>
+  <data name="SeccionPendientes" xml:space="preserve">
+    <value>Pendents de resoldre</value>
+  </data>
+  <data name="SeccionIncorporaciones" xml:space="preserve">
+    <value>Incorporacions vigents</value>
+  </data>
+  <data name="SeccionPropias" xml:space="preserve">
+    <value>Les meves sol·licituds</value>
+  </data>
+  <data name="ColEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="ColGestor" xml:space="preserve">
+    <value>Gestor CAE</value>
+  </data>
+  <data name="ColMensaje" xml:space="preserve">
+    <value>Missatge</value>
+  </data>
+  <data name="ColFecha" xml:space="preserve">
+    <value>Data</value>
+  </data>
+  <data name="ColEstado" xml:space="preserve">
+    <value>Estat</value>
+  </data>
+  <data name="ColResolutor" xml:space="preserve">
+    <value>Resolta per</value>
+  </data>
+  <data name="ColAcciones" xml:space="preserve">
+    <value>Accions</value>
+  </data>
+  <data name="Aceptar" xml:space="preserve">
+    <value>Acceptar</value>
+  </data>
+  <data name="Rechazar" xml:space="preserve">
+    <value>Rebutjar</value>
+  </data>
+  <data name="Revocar" xml:space="preserve">
+    <value>Revocar</value>
+  </data>
+  <data name="Cancelar" xml:space="preserve">
+    <value>Cancel·lar</value>
+  </data>
+  <data name="EsTuSolicitud" xml:space="preserve">
+    <value>És la teva sol·licitud: la resol un altre Coordinador CAE.</value>
+  </data>
+  <data name="SinPendientes" xml:space="preserve">
+    <value>No hi ha sol·licituds pendents.</value>
+  </data>
+  <data name="SinIncorporaciones" xml:space="preserve">
+    <value>No hi ha incorporacions vigents.</value>
+  </data>
+  <data name="SinPropiasTitulo" xml:space="preserve">
+    <value>Encara no has demanat cap Empresa</value>
+  </data>
+  <data name="SinPropiasDetalle" xml:space="preserve">
+    <value>Demana incorporar-te a una Empresa que la teva organització ja opera.</value>
+  </data>
+  <data name="BotonSolicitar" xml:space="preserve">
+    <value>Sol·licitar incorporació</value>
+  </data>
+  <data name="EstadoPendiente" xml:space="preserve">
+    <value>Pendent</value>
+  </data>
+  <data name="EstadoAceptada" xml:space="preserve">
+    <value>Acceptada</value>
+  </data>
+  <data name="EstadoRechazada" xml:space="preserve">
+    <value>Rebutjada</value>
+  </data>
+  <data name="EstadoRevocada" xml:space="preserve">
+    <value>Revocada</value>
+  </data>
+  <data name="EstadoAnulada" xml:space="preserve">
+    <value>Anul·lada</value>
+  </data>
+  <data name="DialogoTitulo" xml:space="preserve">
+    <value>Sol·licitar incorporació a cartera</value>
+  </data>
+  <data name="DialogoEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="DialogoElegir" xml:space="preserve">
+    <value>Tria una Empresa</value>
+  </data>
+  <data name="DialogoMensaje" xml:space="preserve">
+    <value>Missatge per al Coordinador CAE</value>
+  </data>
+  <data name="DialogoContador" xml:space="preserve">
+    <value>{0} / {1} caràcters</value>
+  </data>
+  <data name="DialogoEnviar" xml:space="preserve">
+    <value>Enviar sol·licitud</value>
+  </data>
+  <data name="DialogoSinCandidatos" xml:space="preserve">
+    <value>No hi ha Empreses que puguis demanar: ja tens en cartera totes les que opera la teva organització.</value>
+  </data>
+  <data name="DialogoYaPendiente" xml:space="preserve">
+    <value>Ja tens una sol·licitud pendent per a aquesta Empresa.</value>
+  </data>
+  <data name="DialogoCargando" xml:space="preserve">
+    <value>Carregant Empreses…</value>
+  </data>
+  <data name="ToastSolicitada" xml:space="preserve">
+    <value>Sol·licitud enviada als Coordinadors CAE.</value>
+  </data>
+  <data name="ToastAceptada" xml:space="preserve">
+    <value>{0} ja té {1} a la seva cartera.</value>
+  </data>
+  <data name="ToastRechazada" xml:space="preserve">
+    <value>Sol·licitud rebutjada.</value>
+  </data>
+  <data name="ToastRevocada" xml:space="preserve">
+    <value>Incorporació revocada.</value>
+  </data>
+  <data name="ConfirmarRevocarTitulo" xml:space="preserve">
+    <value>Revocar incorporació</value>
+  </data>
+  <data name="ConfirmarRevocarMensaje" xml:space="preserve">
+    <value>{0} deixarà de tenir {1} a la seva cartera.</value>
+  </data>
+  <data name="ConfirmarRevocarPropiaMensaje" xml:space="preserve">
+    <value>Deixaràs de tenir {0} a la teva cartera.</value>
+  </data>
+  <data name="AvisoTitulo" xml:space="preserve">
+    <value>Sol·licituds de cartera</value>
+  </data>
+  <data name="AvisoResumenUna" xml:space="preserve">
+    <value>{0} sol·licitud pendent</value>
+  </data>
+  <data name="AvisoResumenVarias" xml:space="preserve">
+    <value>{0} sol·licituds pendents</value>
+  </data>
+  <data name="AvisoPide" xml:space="preserve">
+    <value>{0} demana incorporar-se a {1}</value>
+  </data>
+  <data name="AvisoVerTodas" xml:space="preserve">
+    <value>Veure-les totes</value>
+  </data>
+  <data name="AvisoMasTarde" xml:space="preserve">
+    <value>Més tard</value>
+  </data>
+  <data name="ErrorCargaTitulo" xml:space="preserve">
+    <value>No s'han pogut carregar les sol·licituds</value>
+  </data>
+  <data name="ErrorCargaDetalle" xml:space="preserve">
+    <value>Torna-ho a provar d'aquí a uns segons.</value>
+  </data>
+  <data name="ErrorGenerico" xml:space="preserve">
+    <value>No s'ha pogut completar l'acció.</value>
+  </data>
+  <data name="ErrorSinPermiso" xml:space="preserve">
+    <value>El teu rol no permet aquesta acció.</value>
+  </data>
+  <data name="ErrorSinTenantDeOrigen" xml:space="preserve">
+    <value>El teu compte no té cap organització assignada.</value>
+  </data>
+  <data name="ErrorTenantNoCandidato" xml:space="preserve">
+    <value>Aquesta Empresa ja no es pot demanar.</value>
+  </data>
+  <data name="ErrorYaPendiente" xml:space="preserve">
+    <value>Ja tens una sol·licitud pendent per a aquesta Empresa.</value>
+  </data>
+  <data name="ErrorMensajeInvalido" xml:space="preserve">
+    <value>Escriu un missatge de fins a 1000 caràcters.</value>
+  </data>
+  <data name="ErrorNoEncontrada" xml:space="preserve">
+    <value>La sol·licitud ja no existeix.</value>
+  </data>
+  <data name="ErrorYaResuelta" xml:space="preserve">
+    <value>Un altre Coordinador CAE ja l'ha resolta.</value>
+  </data>
+  <data name="ErrorPropiaSolicitud" xml:space="preserve">
+    <value>No pots resoldre la teva pròpia sol·licitud.</value>
+  </data>
+  <data name="ErrorNoRevocable" xml:space="preserve">
+    <value>Aquesta incorporació ja no és vigent.</value>
+  </data>
+  <data name="ErrorSolicitanteNoDisponible" xml:space="preserve">
+    <value>El Gestor CAE ja no és actiu: la sol·licitud s'ha anul·lat.</value>
+  </data>
+  <data name="ErrorOperacionNoVigente" xml:space="preserve">
+    <value>La teva organització ja no opera aquesta Empresa: la sol·licitud s'ha anul·lat.</value>
+  </data>
+  <data name="ErrorYaEnCartera" xml:space="preserve">
+    <value>El Gestor CAE ja tenia l'Empresa en cartera: la sol·licitud s'ha anul·lat.</value>
+  </data>
+</root>

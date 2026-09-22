@@ -99,6 +99,12 @@ public class AccesoRestringidoACatalogosDeAsignacionTests
         "src/CaeManager.Application/Operaciones/IOperacionesQueryContext.cs",
         "src/CaeManager.Infrastructure/Operaciones/AsignacionesOperativasWriter.cs",
 
+        // Solicitud de incorporación a cartera: calcula los Tenants candidatos
+        // del Gestor CAE (operación vigente de su Operador CAE que aún no tiene
+        // en cartera) y, al aceptar o revocar, escribe la cartera universal y
+        // la fila heredada. Autorización en los handlers de Application.
+        "src/CaeManager.Infrastructure/Operaciones/CatalogoIncorporacionCartera.cs",
+
         // Job de expiración de vigencias: catálogo global por naturaleza, sin
         // posición de llamante (no hay sesión en un job de fondo).
         "src/CaeManager.Infrastructure/Operaciones/ExpiracionAsignacionesHostedService.cs",

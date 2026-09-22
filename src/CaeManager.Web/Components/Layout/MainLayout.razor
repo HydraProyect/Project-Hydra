@@ -73,6 +73,9 @@
         <CaeManager.Web.Features.AsistenteIa.AsistenteIa @rendermode="InteractiveServer" />
         <CaeManager.Web.Features.Notificaciones.NotificacionesPopup />
         <CaeManager.Web.Features.VigilanciaNormativa.PanelAvisosNormativos />
+        <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.CoordinadorCae" Context="authAvisoSolicitudesCartera">
+            <CaeManager.Web.Features.IncorporacionCartera.Components.AvisoSolicitudesCartera />
+        </AuthorizeView>
         <CaeManager.Web.Components.Workspace.ContextWorkspace @rendermode="InteractiveServer" />
         <CaeManager.Web.Features.AtajosGlobales.AtajosGlobales @rendermode="InteractiveServer" />
     </Authorized>

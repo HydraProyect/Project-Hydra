@@ -2,6 +2,7 @@ using System.Security.Claims;
 using CaeManager.Application.VistaDemo;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Web.Features.IncorporacionCartera.Recursos;
 
 namespace CaeManager.Web.Components.Layout;
 
@@ -92,6 +93,10 @@ public static class CatalogoMenuLateral
 
     private const string RolesDeCartera = $"{Roles.Administrador},{Roles.DireccionCae},{Roles.CoordinadorCae}";
 
+    // Solicitudes de incorporación a cartera: el Coordinador CAE las resuelve y el Gestor CAE las
+    // pide; la Query decide qué ve cada uno.
+    private const string RolesDeSolicitudesCartera = $"{Roles.CoordinadorCae},{Roles.GestorCae}";
+
     public static IReadOnlyList<GrupoMenuLateral> Grupos { get; } =
     [
         // Dashboard / Visión de cartera / Dashboard Ejecutivo son tres Operational Home distintos
@@ -136,6 +141,10 @@ public static class CatalogoMenuLateral
         new("dashboard", "dashboards", "", "dashboard", "Dashboard", CoincidenciaExacta: true),
         new("vision-cartera", "dashboards", "vision-cartera", "cartera", "Visión de cartera",
             Condicion: c => c.TieneAlgunRol(RolesDeCartera)),
+        // Rótulo localizado (TextosIncorporacionCartera), a diferencia de sus vecinos todavía literales.
+        new("solicitudes-cartera", "dashboards", "cartera/solicitudes", "cartera", "Solicitudes de cartera",
+            Condicion: c => c.TieneAlgunRol(RolesDeSolicitudesCartera),
+            RotuloPorContexto: _ => TextosIncorporacionCartera.Texto("EnlaceMenu")),
         new("dashboard-ejecutivo", "dashboards", "dashboard-ejecutivo", "dashboard", "Dashboard Ejecutivo",
             Condicion: c => c.TieneAlgunRol(RolesDeDashboardEjecutivo)),
 

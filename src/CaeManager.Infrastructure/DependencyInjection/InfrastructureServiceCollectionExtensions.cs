@@ -384,6 +384,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Domain.VigilanciaNormativa.IAvisoRevisionNormativaRepository, CaeManager.Infrastructure.Persistence.Repositories.AvisoRevisionNormativaRepository>();
         services.AddScoped<CaeManager.Application.VigilanciaNormativa.IVigilanciaNormativaQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IAsignacionOperadorDelegadoRepository, AsignacionOperadorDelegadoRepository>();
+        services.AddScoped<CaeManager.Domain.Operaciones.ISolicitudIncorporacionCarteraRepository, SolicitudIncorporacionCarteraRepository>();
         services.AddScoped<IPreferenciaDashboardUsuarioRepository, PreferenciaDashboardUsuarioRepository>();
         services.AddScoped<IFiltroGuardadoRepository, FiltroGuardadoRepository>();
         services.AddScoped<IRegistroActividadSoporteRepository, RegistroActividadSoporteRepository>();
@@ -509,6 +510,10 @@ public static class InfrastructureServiceCollectionExtensions
         // transaccional sin transacción explícita (F1 del plan de migración).
         services.AddScoped<CaeManager.Application.Operaciones.IAsignacionesOperativasWriter,
             CaeManager.Infrastructure.Operaciones.AsignacionesOperativasWriter>();
+        // Mismo DbContext scoped y mismo motivo: la cartera, la fila heredada y
+        // la solicitud aceptada entran en un único SaveChanges.
+        services.AddScoped<CaeManager.Application.Operaciones.ICatalogoIncorporacionCartera,
+            CaeManager.Infrastructure.Operaciones.CatalogoIncorporacionCartera>();
         services.AddSingleton<ISanitizadorHtmlService, GanssSanitizadorHtmlService>();
         // Sin estado propio (abre una conexión Npgsql nueva por llamada) — una sola instancia sirve.
         services.AddSingleton<IEleccionLiderService, EleccionLiderPostgresService>();

@@ -116,6 +116,18 @@ public class DirectorioUsuariosTenant(
     /// circuito en esa ventana se cuela igual.
     /// </para>
     /// </summary>
+    public Task<bool> EsCuentaActivaConRolAsync(
+        Guid usuarioId, Guid tenantId, string rol, CancellationToken cancellationToken = default) =>
+        puertaAccesoDatos.EjecutarAsync(async () =>
+        {
+            var usuario = await userManager.Users
+                .FirstOrDefaultAsync(u => u.Id == usuarioId && u.TenantId == tenantId, cancellationToken);
+
+            return usuario is not null
+                   && !usuario.EstaDesactivada(DateTimeOffset.UtcNow)
+                   && await userManager.IsInRoleAsync(usuario, rol);
+        }, cancellationToken);
+
     public Task<bool> TieneVinculoOperativoAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
         puertaAccesoDatos.EjecutarAsync(async () =>
         {

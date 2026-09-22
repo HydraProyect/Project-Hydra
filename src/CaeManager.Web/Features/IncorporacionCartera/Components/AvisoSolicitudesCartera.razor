@@ -1,0 +1,33 @@
+@rendermode InteractiveServer
+@using CaeManager.Application.Operaciones.IncorporacionCartera
+
+@if (Visibles.Count > 0 && !EnLaBandeja)
+{
+    <section class="aviso-solicitudes" role="region" aria-live="polite" aria-labelledby="aviso-solicitudes-titulo">
+        <header class="aviso-solicitudes-cabecera">
+            <h2 id="aviso-solicitudes-titulo" class="aviso-solicitudes-titulo">@Textos["AvisoTitulo"]</h2>
+            <span class="aviso-solicitudes-resumen">
+                @(Visibles.Count == 1 ? Textos["AvisoResumenUna", 1] : Textos["AvisoResumenVarias", Visibles.Count])
+            </span>
+        </header>
+
+        <ul class="aviso-solicitudes-lista">
+            @foreach (var solicitud in Visibles.Take(MaximoEnAviso))
+            {
+                <li class="aviso-solicitudes-item" data-solicitud="@solicitud.Id">
+                    <p class="aviso-solicitudes-pide">@Textos["AvisoPide", solicitud.NombreSolicitante, solicitud.NombreEmpresa]</p>
+                    <p class="aviso-solicitudes-mensaje">@solicitud.Mensaje</p>
+                    <div class="aviso-solicitudes-acciones">
+                        <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => AceptarAsync(solicitud)" Deshabilitado="_enCurso is not null" Cargando="_enCurso == solicitud.Id">@Textos["Aceptar"]</Boton>
+                        <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" OnClick="() => RechazarAsync(solicitud)" Deshabilitado="_enCurso is not null">@Textos["Rechazar"]</Boton>
+                    </div>
+                </li>
+            }
+        </ul>
+
+        <footer class="aviso-solicitudes-pie">
+            <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Fantasma" OnClick="Posponer">@Textos["AvisoMasTarde"]</Boton>
+            <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" Href="@RutasIncorporacionCartera.Bandeja">@Textos["AvisoVerTodas"]</Boton>
+        </footer>
+    </section>
+}
