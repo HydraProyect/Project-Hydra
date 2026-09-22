@@ -131,6 +131,46 @@ public class SubidaMasivaTests(WebAppFixture fixture)
     }
 
     /// <summary>
+    /// Defecto del 2026-09-22 (sesión de la PR #795): un archivo de más de 10 MB lanzaba una
+    /// IOException sin capturar en OpenReadStream y el lote entero se perdía sin aviso, también
+    /// los archivos válidos que iban con él. Con el navegador real: el grande aparece como error
+    /// con su nombre y el límite, y el válido del mismo lote llega a "Pendiente de confirmar".
+    /// </summary>
+    [Fact]
+    public async Task Un_archivo_de_mas_de_10_MB_se_avisa_y_el_valido_del_mismo_lote_sigue_adelante()
+    {
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await contexto.NewPageAsync();
+
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos/subida-masiva");
+
+        var rutaPdf = Ayudas.GenerarPdfDePruebaEnDisco();
+        var rutaGrande = Path.Combine(Path.GetTempPath(), $"grande-{Guid.NewGuid():N}.pdf");
+        await File.WriteAllBytesAsync(rutaGrande, new byte[(10 * 1024 * 1024) + 1]);
+        try
+        {
+            await page.Locator(".zona-soltar-archivo-input").SetInputFilesAsync([rutaGrande, rutaPdf]);
+
+            var items = page.Locator(".item-subida-masiva");
+            await Expect(items).ToHaveCountAsync(2, new LocatorAssertionsToHaveCountOptions { Timeout = 15_000 });
+
+            var filaGrande = items.Filter(new LocatorFilterOptions { HasText = Path.GetFileName(rutaGrande) });
+            await Expect(filaGrande.Locator(".item-subida-masiva-error")).ToHaveTextAsync(
+                $"«{Path.GetFileName(rutaGrande)}» supera el límite de 10 MB por archivo y no se ha subido.");
+
+            var filaValida = items.Filter(new LocatorFilterOptions { HasText = Path.GetFileName(rutaPdf) });
+            await Expect(filaValida).ToContainTextAsync("Pendiente de confirmar", new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
+            await Expect(page.Locator(".resumen-subida-masiva")).ToContainTextAsync("1 con error");
+        }
+        finally
+        {
+            File.Delete(rutaPdf);
+            File.Delete(rutaGrande);
+        }
+    }
+
+    /// <summary>
     /// SubidaMasiva.razor restringe por rol (a diferencia de "Importar
     /// documentos", Administrador-only) pero no es Administrador-only:
     /// sigue alcanzable por cualquiera de los cuatro roles internos con
