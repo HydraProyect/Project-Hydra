@@ -33,6 +33,36 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class NotificacionesPopupTests : BunitContext
 {
+    public NotificacionesPopupTests()
+    {
+        Services.AddLocalization();
+    }
+
+    private sealed class MediatorConPendientes(params NotificacionDto[] pendientes) : IMediator
+    {
+        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
+            request is ObtenerNotificacionesPendientesQuery
+                ? Task.FromResult((TResponse)(object)(IReadOnlyList<NotificacionDto>)pendientes)
+                : Task.FromResult(default(TResponse)!);
+
+        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
+            Task.CompletedTask;
+
+        public Task<object?> Send(object request, CancellationToken cancellationToken = default) =>
+            Task.FromResult<object?>(null);
+
+        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task Publish(object notification, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
+            where TNotification : INotification => Task.CompletedTask;
+    }
+
     private sealed class MediatorQueFalla(Exception excepcion) : IMediator
     {
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
@@ -117,5 +147,37 @@ public class NotificacionesPopupTests : BunitContext
 
         render.Should().Throw<NpgsqlException>("una base inalcanzable no es la carrera de desconexión de circuito")
             .Which.InnerException.Should().BeOfType<IOException>();
+    }
+
+    [Fact]
+    public void Los_botones_del_popup_salen_de_los_recursos_y_la_accion_de_la_notificacion_manda()
+    {
+        // Las claves no coinciden con su texto a propósito: si el localizador
+        // no encontrara el recurso devolvería el nombre de la clave
+        // («BotonOmitir»), y el test lo vería.
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddScoped<IMediator>(_ => new MediatorConPendientes(
+            new NotificacionDto(Guid.NewGuid(), "Documento rechazado", "Revísalo.", "/documentos", null)));
+        Services.AddSingleton<ILogger<ExcepcionDeCircuitoDesconectado>>(new LoggerQueGuarda());
+
+        var popup = Render<NotificacionesPopup>();
+
+        var botones = popup.FindAll("button").Select(b => b.TextContent.Trim()).ToList();
+        botones.Should().Contain("Omitir").And.Contain("Gestionar",
+            "sin TextoAccion la notificación usa la acción por defecto de los recursos");
+    }
+
+    [Fact]
+    public void El_texto_de_accion_de_la_notificacion_es_dato_y_no_se_sustituye()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddScoped<IMediator>(_ => new MediatorConPendientes(
+            new NotificacionDto(Guid.NewGuid(), "Documento rechazado", "Revísalo.", "/documentos", "Ver documento")));
+        Services.AddSingleton<ILogger<ExcepcionDeCircuitoDesconectado>>(new LoggerQueGuarda());
+
+        var popup = Render<NotificacionesPopup>();
+
+        popup.FindAll("button").Select(b => b.TextContent.Trim()).Should()
+            .Contain("Ver documento").And.NotContain("Gestionar");
     }
 }
