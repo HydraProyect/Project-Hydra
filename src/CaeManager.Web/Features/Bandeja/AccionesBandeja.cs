@@ -11,28 +11,45 @@ namespace CaeManager.Web.Features.Bandeja;
 /// </summary>
 public static class AccionesBandeja
 {
-    public static Task AbrirAsync(ItemBandejaDto item, NavigationManager navigationManager, ContextWorkspaceService workspaceService) => item.Tipo switch
+    public static Task AbrirAsync(ItemBandejaDto item, NavigationManager navigationManager, ContextWorkspaceService workspaceService) =>
+        item.Tipo == TipoItemBandeja.RequisitoPendiente
+            ? AbrirRequisitoAsync(item, workspaceService)
+            : Navegar(navigationManager, ResolverUrl(item));
+
+    /// <summary>
+    /// La misma URL a la que <see cref="AbrirAsync"/> navegaría para este
+    /// ítem, sin navegar — la usa Mi trabajo Gen2 (multi-Tenant) para
+    /// componer el <c>returnUrl</c> exacto del POST cross-Tenant a
+    /// <c>/cuenta/cliente-activo</c> (contrato
+    /// CONTRATO-MI-TRABAJO-GEN2-MULTI-TENANT-2026-09-22.md § 8: "pantalla
+    /// exacta", no un aterrizaje genérico). <c>RequisitoPendiente</c> no
+    /// tiene URL propia — abre un <c>ContextWorkspacePanel</c> in-situ, sin
+    /// ruta por Id — <c>null</c> documenta ese hueco en vez de inventar una
+    /// URL que no lleva a ningún sitio real; el llamador cross-Tenant cae a
+    /// <c>/bandeja</c> del Tenant destino como fallback (misma decisión).
+    /// </summary>
+    public static string? ResolverUrl(ItemBandejaDto item) => item.Tipo switch
     {
         // Falta/Vencido/Urgente vienen de ObtenerAlertasQuery — mismo destino
         // que ya usa GestionarAlerta en Alertas.razor.cs.
-        TipoItemBandeja.RevisionIa => Navegar(navigationManager, "/documentos/revision-ia"),
-        TipoItemBandeja.RequisitoPendiente => AbrirRequisitoAsync(item, workspaceService),
+        TipoItemBandeja.RevisionIa => "/documentos/revision-ia",
+        TipoItemBandeja.RequisitoPendiente => null,
         // Mismo destino que ya usa el botón "Crear visita" de la Bandeja de
         // Comunicaciones — el Drawer de /visitas prellena los datos.
-        TipoItemBandeja.SugerenciaVisitaUrgente => Navegar(navigationManager, $"/visitas?sugerenciaId={item.SugerenciaVisitaId}"),
+        TipoItemBandeja.SugerenciaVisitaUrgente => $"/visitas?sugerenciaId={item.SugerenciaVisitaId}",
         // Sin deep-link a una Visita concreta todavía (el Drawer de detalle
         // es estado interno de /visitas, no hay ruta por Id) — abre la lista
         // ya filtrada por urgencia es lo más cercano disponible hoy.
-        TipoItemBandeja.VisitaUrgente => Navegar(navigationManager, "/visitas"),
-        TipoItemBandeja.DeteccionPendiente => Navegar(navigationManager, $"/empresas/{item.EmpresaId}/deteccion-trabajadores"),
+        TipoItemBandeja.VisitaUrgente => "/visitas",
+        TipoItemBandeja.DeteccionPendiente => $"/empresas/{item.EmpresaId}/deteccion-trabajadores",
         // La acción real (MarcarAcreditacionSubidaCommand) vive en la pestaña
         // Plataforma de /documentos, no en DocumentoWorkspacePanel (el
         // fallback genérico de abajo) — ese panel no tiene ningún control de
         // acreditación por plataforma.
-        TipoItemBandeja.PlataformaPendiente or TipoItemBandeja.PlataformaRechazada => Navegar(navigationManager, "/documentos?pestana=plataforma"),
-        _ => Navegar(navigationManager, item.DocumentoId is { } documentoId
+        TipoItemBandeja.PlataformaPendiente or TipoItemBandeja.PlataformaRechazada or TipoItemBandeja.EnPlataformaSeguimiento => "/documentos?pestana=plataforma",
+        _ => item.DocumentoId is { } documentoId
             ? $"/documentos?documentoId={documentoId}"
-            : $"/documentos?trabajadorId={item.TrabajadorId}&tipoDocumentoId={item.TipoDocumentoId}")
+            : $"/documentos?trabajadorId={item.TrabajadorId}&tipoDocumentoId={item.TipoDocumentoId}"
     };
 
     private static Task AbrirRequisitoAsync(ItemBandejaDto item, ContextWorkspaceService workspaceService) =>
@@ -40,9 +57,10 @@ public static class AccionesBandeja
             ? workspaceService.AbrirAsync(EntidadWorkspace.Centro, centroId, item.Subtitulo, "requisitos")
             : Task.CompletedTask;
 
-    private static Task Navegar(NavigationManager navigationManager, string url)
+    private static Task Navegar(NavigationManager navigationManager, string? url)
     {
-        navigationManager.NavigateTo(url);
+        if (url is not null)
+            navigationManager.NavigateTo(url);
         return Task.CompletedTask;
     }
 }

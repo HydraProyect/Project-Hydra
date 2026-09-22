@@ -1,3 +1,5 @@
+using CaeManager.Web.Features.BusquedaGlobal.Recursos;
+
 namespace CaeManager.Web.Features.BusquedaGlobal;
 
 /// <summary>
@@ -46,8 +48,13 @@ public static class CoberturaDePaleta
     /// "Configuración" y "Tipos de documento", que la administración SÍ es
     /// un destino buscable— y <see cref="SegmentosExcluidosDeLaPaleta"/>, que
     /// declara las cuatro excepciones de esa acta con su motivo.
+    ///
+    /// Es una propiedad y no un campo <c>static readonly</c> porque la entrada
+    /// de Mi trabajo Gen2 sale de <see cref="TextosBusquedaGlobal"/> con la
+    /// cultura de cada petición: un campo la congelaría con la del primer
+    /// acceso.
     /// </remarks>
-    public static readonly IReadOnlyList<(string Nombre, string Ruta)> DestinosNavegacion =
+    public static IReadOnlyList<(string Nombre, string Ruta)> DestinosNavegacion =>
     [
         ("Ir a Clientes", "/clientes"),
         ("Ir a Empresas", "/empresas"),
@@ -67,6 +74,7 @@ public static class CoberturaDePaleta
         ("Ir a Calendario", "/calendario"),
         ("Ir a Comunicaciones", "/comunicaciones"),
         ("Ir a Mi trabajo", "/bandeja"),
+        (TextosBusquedaGlobal.Texto("IrAMiTrabajoDeLaCartera"), "/mi-trabajo"),
 
         // HO-190-01 (REC-190, DEC-75) — las once de "destinos de trabajo".
         ("Ir a Alertas", "/alertas"),

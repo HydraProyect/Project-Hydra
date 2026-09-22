@@ -58,6 +58,33 @@ public class TipoItemBandejaUiTests
         TipoItemBandejaUi.TextoAccion(item).Should().Be("Corregir en Dokify");
     }
 
+    /// <summary>
+    /// Mi trabajo Gen2 (multi-Tenant): estos dos tipos solo los emite
+    /// ObtenerMiTrabajoAgregadoQueryHandler, nunca Nivel 0 — sin sus propios
+    /// casos aquí, caerían en el "_ =>" genérico de Tono/Texto/TextoAccion
+    /// sin que ningún test lo notara.
+    /// </summary>
+    [Fact]
+    public void Proximo_y_seguimiento_tienen_tono_neutro_y_texto_propio()
+    {
+        var proximo = new ItemBandejaDto(
+            Id: "proximo-1", Tipo: TipoItemBandeja.VencimientoProximo, Titulo: "Apto médico",
+            Subtitulo: "Ana García", Fecha: new DateOnly(2026, 10, 1), TrabajadorId: Guid.NewGuid(), CentroId: null,
+            DocumentoId: Guid.NewGuid(), TipoDocumentoId: Guid.NewGuid(), RequisitoId: null);
+        var seguimiento = new ItemBandejaDto(
+            Id: "seguimiento-1", Tipo: TipoItemBandeja.EnPlataformaSeguimiento, Titulo: "Formación 60h",
+            Subtitulo: "Iker Etxeberria", Fecha: null, TrabajadorId: Guid.NewGuid(), CentroId: null,
+            DocumentoId: Guid.NewGuid(), TipoDocumentoId: Guid.NewGuid(), RequisitoId: null, ProveedorNombre: "Dokify");
+
+        TipoItemBandejaUi.Tono(proximo).Should().Be(TonoBadge.Neutro);
+        TipoItemBandejaUi.Texto(proximo).Should().Be("Próximo");
+        TipoItemBandejaUi.TextoAccion(proximo).Should().Be("Ver documento");
+
+        TipoItemBandejaUi.Tono(seguimiento).Should().Be(TonoBadge.Neutro);
+        TipoItemBandejaUi.Texto(seguimiento).Should().Be("En plataforma");
+        TipoItemBandejaUi.TextoAccion(seguimiento).Should().Be("Ver en Dokify");
+    }
+
     private static ItemBandejaDto Item(TipoItemBandeja tipo, Guid? trabajadorId, Guid? tipoDocumentoId) => new(
         Id: "item-1", Tipo: tipo, Titulo: "t", Subtitulo: "s", Fecha: null,
         TrabajadorId: trabajadorId, CentroId: null, DocumentoId: null, TipoDocumentoId: tipoDocumentoId, RequisitoId: null);

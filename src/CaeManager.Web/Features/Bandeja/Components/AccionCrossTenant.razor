@@ -1,0 +1,35 @@
+@*
+    Acción de una fila de Mi trabajo Gen2 (multi-Tenant): el mismo POST con
+    antiforgery a /cuenta/cliente-activo que el selector de Tenant de la cabecera y
+    VisionCartera, con returnUrl = la pantalla exacta del ítem
+    (AccionesBandeja.ResolverUrl; contrato Gen2 § 8). El endpoint revalida la
+    autorización sobre ese Tenant en cada envío.
+
+    Se usa también para el Tenant que ya esté activo: un único camino para
+    todas las filas evita que el comportamiento dependa de cuál sea el activo.
+    RequisitoPendiente no tiene URL propia y aterriza en /bandeja del Tenant.
+*@
+@using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor
+@using CaeManager.Web.Components.DesignSystem
+@using Microsoft.AspNetCore.Components.Forms
+
+<form method="post" action="/cuenta/cliente-activo" class="accion-cross-tenant" data-accion-cross-tenant>
+    @if (Token is not null)
+    {
+        <input type="hidden" name="@Token.FormFieldName" value="@Token.Value" />
+    }
+    <input type="hidden" name="tenantId" value="@TenantId" />
+    <input type="hidden" name="returnUrl" value="@(AccionesBandeja.ResolverUrl(Item) ?? "/bandeja")" />
+    <Boton Type="submit" Variante="Variante" Tamano="Tamano" title="@Titulo">
+        @TipoItemBandejaUi.TextoAccion(Item)
+    </Boton>
+</form>
+
+@code {
+    [Parameter, EditorRequired] public Guid TenantId { get; set; }
+    [Parameter, EditorRequired] public ItemBandejaDto Item { get; set; } = default!;
+    [Parameter] public AntiforgeryRequestToken? Token { get; set; }
+    [Parameter] public string? Titulo { get; set; }
+    [Parameter] public VarianteBoton Variante { get; set; } = VarianteBoton.Fantasma;
+    [Parameter] public TamanoBoton Tamano { get; set; } = TamanoBoton.Pequeno;
+}

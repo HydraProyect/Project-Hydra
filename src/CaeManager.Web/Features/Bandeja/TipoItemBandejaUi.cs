@@ -1,6 +1,7 @@
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaAgrupada;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Features.Bandeja.Recursos;
 
 namespace CaeManager.Web.Features.Bandeja;
 
@@ -31,6 +32,12 @@ public static class TipoItemBandejaUi
         TipoItemBandeja.DeteccionPendiente => TonoBadge.Advertencia,
         // Mismo tono que ya usa PlataformaTab.razor para EstadoAcreditacion.PendienteDeSubir.
         TipoItemBandeja.PlataformaPendiente => TonoBadge.Advertencia,
+        // Próximo/Seguimiento (solo Mi trabajo Gen2, Nivel 0 nunca los emite):
+        // ninguno de los dos es una acción vencida ni bloqueante, son el
+        // horizonte que el Gestor CAE vigila — mismo tono neutro que el resto
+        // de estados informativos sin acción pendiente.
+        TipoItemBandeja.VencimientoProximo => TonoBadge.Neutro,
+        TipoItemBandeja.EnPlataformaSeguimiento => TonoBadge.Neutro,
         _ => TonoBadge.Neutro
     };
 
@@ -59,6 +66,8 @@ public static class TipoItemBandejaUi
         // La plataforma ya evaluó el documento y lo devolvió: no es «falta»
         // ni «pendiente», es una respuesta negativa que hay que atender.
         TipoItemBandeja.PlataformaRechazada => "Rechazada por plataforma",
+        TipoItemBandeja.VencimientoProximo => TextosMiTrabajo.Texto("TipoProximo"),
+        TipoItemBandeja.EnPlataformaSeguimiento => TextosMiTrabajo.Texto("TipoEnPlataforma"),
         _ => "—"
     };
 
@@ -80,6 +89,8 @@ public static class TipoItemBandejaUi
         TipoItemBandeja.DeteccionPendiente => "Revisar detección",
         TipoItemBandeja.PlataformaPendiente => $"Subir a {item.ProveedorNombre}",
         TipoItemBandeja.PlataformaRechazada => $"Corregir en {item.ProveedorNombre}",
+        TipoItemBandeja.VencimientoProximo => TextosMiTrabajo.Texto("AccionVerDocumento"),
+        TipoItemBandeja.EnPlataformaSeguimiento => TextosMiTrabajo.Formato("AccionVerEnPlataforma", item.ProveedorNombre ?? string.Empty),
         _ => "Gestionar"
     };
 

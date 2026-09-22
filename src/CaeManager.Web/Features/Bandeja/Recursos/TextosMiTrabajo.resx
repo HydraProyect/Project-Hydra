@@ -1,0 +1,252 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="TituloPagina" xml:space="preserve">
+    <value>Mi trabajo</value>
+  </data>
+  <data name="TodaMiCartera" xml:space="preserve">
+    <value>Toda mi cartera</value>
+  </data>
+  <data name="ErrorCargaTitulo" xml:space="preserve">
+    <value>No pudimos consultar tu cartera</value>
+  </data>
+  <data name="ErrorCargaDetalle" xml:space="preserve">
+    <value>Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="ReintentarConsulta" xml:space="preserve">
+    <value>Reintentar consulta</value>
+  </data>
+  <data name="FiltrarPorSeveridad" xml:space="preserve">
+    <value>Filtrar por severidad</value>
+  </data>
+  <data name="MiCartera" xml:space="preserve">
+    <value>Mi cartera</value>
+  </data>
+  <data name="EmpresasUna" xml:space="preserve">
+    <value>1 empresa</value>
+  </data>
+  <data name="EmpresasVarias" xml:space="preserve">
+    <value>{0} empresas</value>
+  </data>
+  <data name="EmpresasConsultadasUna" xml:space="preserve">
+    <value>1 empresa consultada</value>
+  </data>
+  <data name="EmpresasConsultadasVarias" xml:space="preserve">
+    <value>{0} empresas consultadas</value>
+  </data>
+  <data name="ColaDeTrabajo" xml:space="preserve">
+    <value>Cola de trabajo</value>
+  </data>
+  <data name="AgruparPor" xml:space="preserve">
+    <value>Agrupar por</value>
+  </data>
+  <data name="Empresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="Severidad" xml:space="preserve">
+    <value>Severidad</value>
+  </data>
+  <data name="Ordenar" xml:space="preserve">
+    <value>Ordenar</value>
+  </data>
+  <data name="Prioridad" xml:space="preserve">
+    <value>Prioridad</value>
+  </data>
+  <data name="Cliente" xml:space="preserve">
+    <value>Cliente</value>
+  </data>
+  <data name="FiltroEtiqueta" xml:space="preserve">
+    <value>Filtrar esta cola por trabajador, documento o centro</value>
+  </data>
+  <data name="FiltroMarcador" xml:space="preserve">
+    <value>Filtrar en la cola…</value>
+  </data>
+  <data name="ExpandirTodas" xml:space="preserve">
+    <value>Expandir todas</value>
+  </data>
+  <data name="PlegarTodas" xml:space="preserve">
+    <value>Plegar todas</value>
+  </data>
+  <data name="AtajoMover" xml:space="preserve">
+    <value>mover</value>
+  </data>
+  <data name="AtajoAbrir" xml:space="preserve">
+    <value>abrir</value>
+  </data>
+  <data name="AlDiaEmpresa" xml:space="preserve">
+    <value>{0}, al día</value>
+  </data>
+  <data name="AlDiaCartera" xml:space="preserve">
+    <value>Cartera al día</value>
+  </data>
+  <data name="AlDiaEmpresaDetalle" xml:space="preserve">
+    <value>No queda ninguna gestión pendiente para los clientes de {0}.</value>
+  </data>
+  <data name="AlDiaCarteraDetalle" xml:space="preserve">
+    <value>Ninguna empresa de tu cartera tiene bloqueos, documentación pendiente ni vencimientos próximos.</value>
+  </data>
+  <data name="VerTodaMiCartera" xml:space="preserve">
+    <value>Ver toda mi cartera</value>
+  </data>
+  <data name="SinResultadosTitulo" xml:space="preserve">
+    <value>Sin resultados para este filtro</value>
+  </data>
+  <data name="SinResultadosDetalle" xml:space="preserve">
+    <value>Hay trabajo pendiente en tu cartera, pero nada que coincida con la combinación de filtros activa.</value>
+  </data>
+  <data name="QuitarFiltros" xml:space="preserve">
+    <value>Quitar filtros</value>
+  </data>
+  <data name="SinCliente" xml:space="preserve">
+    <value>Sin cliente</value>
+  </data>
+  <data name="Ver" xml:space="preserve">
+    <value>Ver</value>
+  </data>
+  <data name="VolverAPlegar" xml:space="preserve">
+    <value>Volver a plegar</value>
+  </data>
+  <data name="DetalleDeLaTarea" xml:space="preserve">
+    <value>Detalle de la tarea</value>
+  </data>
+  <data name="PlataformaCae" xml:space="preserve">
+    <value>Plataforma CAE</value>
+  </data>
+  <data name="NingunaTareaAbierta" xml:space="preserve">
+    <value>Ninguna tarea abierta</value>
+  </data>
+  <data name="SeleccionaTarea" xml:space="preserve">
+    <value>Selecciona una tarea de la cola, o usa</value>
+  </data>
+  <data name="Y" xml:space="preserve">
+    <value>y</value>
+  </data>
+  <data name="AbreEnLaPantalla" xml:space="preserve">
+    <value>Abre {0} en la pantalla de esta tarea</value>
+  </data>
+  <data name="FormatoDiaMes" xml:space="preserve">
+    <value>d MMM</value>
+  </data>
+  <data name="FormatoFechaLarga" xml:space="preserve">
+    <value>d 'de' MMMM 'de' yyyy</value>
+  </data>
+  <data name="ChipTodas" xml:space="preserve">
+    <value>Todas</value>
+  </data>
+  <data name="ChipBloqueos" xml:space="preserve">
+    <value>Bloqueos</value>
+  </data>
+  <data name="ChipActuacion" xml:space="preserve">
+    <value>Actuación</value>
+  </data>
+  <data name="SeveridadBloqueo" xml:space="preserve">
+    <value>Bloqueo</value>
+  </data>
+  <data name="SeveridadActuacion" xml:space="preserve">
+    <value>Requiere actuación</value>
+  </data>
+  <data name="SeveridadProximo" xml:space="preserve">
+    <value>Próximo</value>
+  </data>
+  <data name="SeveridadSeguimiento" xml:space="preserve">
+    <value>Seguimiento</value>
+  </data>
+  <data name="ElementosUno" xml:space="preserve">
+    <value>1 elemento</value>
+  </data>
+  <data name="ElementosVarios" xml:space="preserve">
+    <value>{0} elementos</value>
+  </data>
+  <data name="MostradosUno" xml:space="preserve">
+    <value>1 elemento mostrado</value>
+  </data>
+  <data name="MostradosVarios" xml:space="preserve">
+    <value>{0} elementos mostrados</value>
+  </data>
+  <data name="PlegadosUno" xml:space="preserve">
+    <value>1 plegado</value>
+  </data>
+  <data name="PlegadosVarios" xml:space="preserve">
+    <value>{0} plegados</value>
+  </data>
+  <data name="SinTrabajoPendiente" xml:space="preserve">
+    <value>Sin trabajo pendiente</value>
+  </data>
+  <data name="SinBloqueos" xml:space="preserve">
+    <value>Sin bloqueos</value>
+  </data>
+  <data name="BloqueosUno" xml:space="preserve">
+    <value>1 bloqueo</value>
+  </data>
+  <data name="BloqueosVarios" xml:space="preserve">
+    <value>{0} bloqueos</value>
+  </data>
+  <data name="TitularSinBloqueos" xml:space="preserve">
+    <value>Ningún bloqueo hoy</value>
+  </data>
+  <data name="TitularBloqueosUno" xml:space="preserve">
+    <value>1 bloqueo que resolver hoy</value>
+  </data>
+  <data name="TitularBloqueosVarios" xml:space="preserve">
+    <value>{0} bloqueos que resolver hoy</value>
+  </data>
+  <data name="AmbitoTodaLaCartera" xml:space="preserve">
+    <value>toda mi cartera</value>
+  </data>
+  <data name="AccionesUna" xml:space="preserve">
+    <value>1 acción pendiente</value>
+  </data>
+  <data name="AccionesVarias" xml:space="preserve">
+    <value>{0} acciones pendientes</value>
+  </data>
+  <data name="Subtitular" xml:space="preserve">
+    <value>{0}, {1} en calendario · {2}</value>
+  </data>
+  <data name="CalendarioPlegadoUno" xml:space="preserve">
+    <value>1 vencimiento o envío en calendario</value>
+  </data>
+  <data name="CalendarioPlegadoVarios" xml:space="preserve">
+    <value>{0} vencimientos y envíos en calendario</value>
+  </data>
+  <data name="ProximosPlegadosUno" xml:space="preserve">
+    <value>1 vencimiento en los próximos 30 días</value>
+  </data>
+  <data name="ProximosPlegadosVarios" xml:space="preserve">
+    <value>{0} vencimientos en los próximos 30 días</value>
+  </data>
+  <data name="SeguimientoPlegadoUno" xml:space="preserve">
+    <value>1 documento a la espera de la plataforma</value>
+  </data>
+  <data name="SeguimientoPlegadoVarios" xml:space="preserve">
+    <value>{0} documentos a la espera de la plataforma</value>
+  </data>
+  <data name="PorActuar" xml:space="preserve">
+    <value>{0} por actuar</value>
+  </data>
+  <data name="EnCalendario" xml:space="preserve">
+    <value>{0} en calendario</value>
+  </data>
+  <data name="TipoProximo" xml:space="preserve">
+    <value>Próximo</value>
+  </data>
+  <data name="TipoEnPlataforma" xml:space="preserve">
+    <value>En plataforma</value>
+  </data>
+  <data name="AccionVerDocumento" xml:space="preserve">
+    <value>Ver documento</value>
+  </data>
+  <data name="AccionVerEnPlataforma" xml:space="preserve">
+    <value>Ver en {0}</value>
+  </data>
+</root>
