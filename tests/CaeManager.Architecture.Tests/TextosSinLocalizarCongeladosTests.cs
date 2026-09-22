@@ -71,7 +71,7 @@ public class TextosSinLocalizarCongeladosTests
         ["DashboardEjecutivo"] = 89,
         ["Delegaciones"] = 97,
         ["Documentos"] = 461,
-        ["Empresas"] = 204,
+        ["Empresas"] = 202,
         ["Extension"] = 29,
         ["Facturacion"] = 96,
         ["GestionRoles"] = 52,

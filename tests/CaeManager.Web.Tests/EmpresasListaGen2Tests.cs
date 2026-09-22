@@ -140,6 +140,8 @@ public class EmpresasListaGen2Tests : BunitContext
     {
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
+        // Empresas pinta con IStringLocalizer<TextosEmpresas> (la «Vista previa» del menú de fila).
+        Services.AddLocalization();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
         Services.AddScoped<IValidator<CrearEmpresaCommand>>(_ => new InlineValidator<CrearEmpresaCommand>());
@@ -383,11 +385,44 @@ public class EmpresasListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
         cut.FindAll(".fila-empresa-en-vista-previa").Should().BeEmpty("sin vista previa abierta no se marca ninguna");
 
-        await cut.FindAll(".enlace-nombre-fila")[1].ClickAsync(new MouseEventArgs());
+        // La vista previa es el panel del Context Workspace, que se abre desde
+        // «Vista previa» del menú de fila (el nombre navega a Empresa 360).
+        var fila = cut.FindAll(".tarjeta-fila-acordeon")[1];
+        fila.QuerySelector(".menu-acciones-disparador")!.Click();
+        await cut.FindAll(".tarjeta-fila-acordeon")[1].QuerySelectorAll("button")
+            .Single(b => b.TextContent.Trim() == "Vista previa").ClickAsync(new MouseEventArgs());
 
         var marcadas = cut.FindAll(".fila-empresa-en-vista-previa");
         marcadas.Should().ContainSingle();
         marcadas[0].QuerySelector(".enlace-nombre-fila")!.TextContent.Trim().Should().Be("Montajes Ebro S.L.");
+    }
+
+    [Fact]
+    public async Task El_nombre_de_la_fila_enlaza_a_Empresa_360_y_Vista_previa_abre_el_panel()
+    {
+        var empresa = Empresa("Refrielectric S.A.");
+        var mediador = new MediatorFalso
+        {
+            Almacen = { empresa },
+            Retener = p => p is ObtenerEmpresaPorIdQuery ? new TaskCompletionSource<object>().Task : null
+        };
+        var cut = Renderizar(mediador);
+
+        // Decisión del propietario 2026-09-22: el nombre es un enlace real a la
+        // página, que se puede abrir en otra pestaña; ya no abre un drawer.
+        var enlace = cut.Find(".enlace-nombre-fila");
+        enlace.TagName.Should().Be("A");
+        enlace.GetAttribute("href").Should().Be($"/empresas/{empresa.Id}");
+
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        workspace.FrameActual.Should().BeNull("punto de partida: ningún panel abierto");
+
+        cut.Find(".menu-acciones-disparador").Click();
+        cut.FindAll(".menu-acciones-item").Select(b => b.TextContent.Trim())
+            .Should().NotContain(["Detalles", "Abrir Empresa 360"], "«Vista previa» sustituye a los dos");
+        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Vista previa").ClickAsync(new MouseEventArgs());
+
+        workspace.FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Empresa, empresa.Id, "Refrielectric S.A.", "informacion"));
     }
 
     // ------------------------------------------------------- Fila desplegada
