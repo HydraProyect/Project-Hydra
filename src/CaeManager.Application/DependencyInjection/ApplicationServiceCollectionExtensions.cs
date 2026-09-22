@@ -61,6 +61,9 @@ public static class ApplicationServiceCollectionExtensions
         services.TryAddScoped<CaeManager.Application.Plataforma.IElevacionEscrituraPrivilegiada,
             CaeManager.Application.Plataforma.ElevacionEscrituraPrivilegiadaInerte>();
         services.AddScoped<IAutorizacionEscrituraEfectiva, AutorizacionEscrituraEfectiva>();
+        // Valor por defecto: la implementación real (Infrastructure) es la misma instancia scoped de
+        // AlcanceDatosService, que es quien memoiza.
+        services.TryAddScoped<IInvalidadorAlcance, InvalidadorAlcanceInerte>();
         // Orden importa. LoggingBehavior va el primero de todos: mide lo que
         // el usuario espera de verdad, incluido el tiempo en la cola de
         // acceso a datos, y su ámbito de log correlaciona todo lo que
@@ -77,6 +80,9 @@ public static class ApplicationServiceCollectionExtensions
         // vez del rol del usuario.
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(SerializacionAccesoDatosBehavior<,>));
+        // InvalidacionAlcanceBehavior, dentro de la serialización: tras cada Command descarta el
+        // alcance memoizado del scope (D-8 del piloto Outbound), antes de soltar la puerta.
+        services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(InvalidacionAlcanceBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(ConcurrenciaBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(AutorizacionEscrituraBehavior<,>));
         // GateComercialTenantBehavior va justo después: un Command ya
