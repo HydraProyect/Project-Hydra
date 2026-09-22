@@ -48,7 +48,6 @@ public class TextosSinLocalizarCongeladosTests
     {
         ["Alertas"] = 66,
         ["ApiKeys"] = 45,
-        ["Asignaciones"] = 3,
         ["AsistenteIa"] = 8,
         ["AtajosGlobales"] = 23,
         ["Auditoria"] = 73,
