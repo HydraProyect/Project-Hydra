@@ -126,7 +126,7 @@
                         </Accion>
                     </EstadoVacio>
                 }
-                else if (Grupos.Count == 0)
+                else if (Grupos.Count == 0 && HayFiltrosActivos)
                 {
                     <EstadoVacio NombreIcono="filtro" Titulo="Sin resultados para este filtro"
                                  Descripcion="Hay trabajo pendiente en tu cartera, pero nada que coincida con la combinación de filtros activa.">

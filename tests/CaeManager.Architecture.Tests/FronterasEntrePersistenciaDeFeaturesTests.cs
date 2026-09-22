@@ -95,6 +95,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Auditoria.ObtenerAuditoriaQueryHandler", "IEmpresasQueryContext"),
         ("Auditoria.ObtenerAuditoriaQueryHandler", "ITrabajadoresQueryContext"),
         ("Bandeja.ObtenerBandejaGestorQueryHandler", "IConfiguracionQueryContext"),
+        // Mismo ParametroSistema (horas de aviso de Visita) que la Bandeja de
+        // arriba, leído una vez por Tenant dentro del fan-out de Mi trabajo Gen2.
+        ("Bandeja.ObtenerMiTrabajoAgregadoQueryHandler", "IConfiguracionQueryContext"),
         ("Blindaje42.ObtenerBlindajeEmpresasDeClienteQueryHandler", "IEmpresasQueryContext"),
         ("Blindaje42.SolicitarCertificacionTgssCommandHandler", "IEmpresasQueryContext"),
         ("BusquedaGlobal.BuscarGlobalQueryHandler", "ICentrosQueryContext"),

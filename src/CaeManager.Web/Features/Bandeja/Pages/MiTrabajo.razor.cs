@@ -52,6 +52,12 @@ public partial class MiTrabajo : ComponentBase, IDisposable
     /// <summary>Vacío porque no queda trabajo en el Tenant elegido, no porque el filtro lo esconda.</summary>
     private bool AlDia => _vista is null || _vista.Ambito(Filtro with { Busqueda = string.Empty }).Count == 0;
 
+    /// <summary>
+    /// Filtros que esconden trabajo dentro del ámbito: el chip de severidad y la búsqueda. La
+    /// Empresa elegida en el carril no cuenta: acota el ámbito, y su vacío es «al día».
+    /// </summary>
+    private bool HayFiltrosActivos => _severidad is not null || !string.IsNullOrWhiteSpace(_busqueda);
+
     private FilaCarteraMiTrabajo? TenantFiltrado => _tenantFiltro is { } id ? _vista?.Cartera.FirstOrDefault(t => t.TenantId == id) : null;
 
     private FilaMiTrabajo? FilaAbierta => _idAbierto is null ? null : Visibles.FirstOrDefault(f => f.Item.Id == _idAbierto);
