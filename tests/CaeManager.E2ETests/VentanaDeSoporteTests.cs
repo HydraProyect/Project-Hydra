@@ -35,6 +35,10 @@ public class VentanaDeSoporteTests(WebAppFixtureVentanaSoporte fixture) : IAsync
         "UPDATE \"DelegacionesTenant\" SET \"ExpiraEnUtc\" = now() + interval '5 minutes' " +
         "WHERE \"Proposito\" = 'Soporte' AND \"Activa\" = true";
 
+    private const string SqlCaducarEnUnaHora =
+        "UPDATE \"DelegacionesTenant\" SET \"ExpiraEnUtc\" = now() + interval '1 hour' " +
+        "WHERE \"Proposito\" = 'Soporte' AND \"Activa\" = true";
+
     /// <summary>Abre la ventana de soporte desde la UI, como el flujo real, y devuelve la página ya sobre el tenant visitado.</summary>
     private async Task<(IBrowserContext Contexto, IPage Pagina)> AbrirVentanaYEntrarAsync(string sqlAntesDeEntrar)
     {
@@ -98,6 +102,39 @@ public class VentanaDeSoporteTests(WebAppFixtureVentanaSoporte fixture) : IAsync
 
         await Assertions.Expect(page.Locator(".aviso-ventana-soporte--terminada"))
             .ToContainTextAsync("La ventana de soporte terminó", new LocatorAssertionsToContainTextOptions { Timeout = 30_000 });
+    }
+
+    /// <summary>
+    /// /documentos/subida-masiva con carga fría dentro de una ventana de Soporte.
+    ///
+    /// <para>
+    /// Es el tercer perfil de la observación que llevó a #773 (Dirección CAE con
+    /// Consulta delegada, Administrador de otro Tenant, Soporte), y el único que
+    /// #773 no reprodujo: se suponía una Sesión Privilegiada, donde
+    /// <c>ObtenerRolActualAsync</c> devuelve <c>null</c> sin tocar la base. La
+    /// ventana de Soporte es otra cosa: una <c>DelegacionTenant</c> de propósito
+    /// Soporte, sin Sesión Privilegiada, así que el rol se resuelve por la vía
+    /// heredada contra el DbContext — el mismo que el layout usa en paralelo
+    /// durante el prerender. Sin <c>PuertaAccesoDatos</c> alrededor de esa
+    /// llamada en <c>SubidaMasiva.OnInitializedAsync</c> la respuesta es HTTP 500
+    /// («A second operation was started on this context instance»), medido
+    /// quitando la puerta.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task En_una_ventana_de_soporte_la_subida_multiple_abre_con_carga_fria_sin_500()
+    {
+        var (contexto, page) = await AbrirVentanaYEntrarAsync(SqlCaducarEnUnaHora);
+        await using var _ = contexto;
+
+        var respuesta = await page.GotoAsync($"{fixture.BaseUrl}/documentos/subida-masiva");
+
+        Assert.Equal(200, respuesta!.Status);
+        Assert.DoesNotContain("/acceso-denegado", page.Url);
+        await Assertions.Expect(page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "Subida múltiple de documentos" }))
+            .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 10_000 });
+        // Sigue dentro de la ventana: sin esto, un 200 podría venir de haber vuelto a la organización propia.
+        await Assertions.Expect(page.Locator(".aviso-sesion-soporte")).ToBeVisibleAsync();
     }
 
     [Fact]
