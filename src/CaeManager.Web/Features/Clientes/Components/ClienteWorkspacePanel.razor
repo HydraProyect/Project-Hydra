@@ -3,10 +3,11 @@
     Gen 2 («Cliente 360 TALVEG.dc.html»). «Cliente empresarial» es quien
     recibe el servicio en una Relación Empresarial: un papel, no un tipo
     permanente de Empresa — la misma Empresa puede ser contratista en otra
-    relación. De ahí que la entradilla diga «Cliente empresarial» y no
-    «Cliente» a secas como el mockup: a secas no distingue al Cliente
-    comercial TALVEG (quien contrata TALVEG) del Cliente empresarial (la
-    contraparte de la relación), que son planos distintos.
+    relación. En pantalla se rotula «Cliente» (contrato Gen2 § 14), igual que
+    la página Cliente 360 (/clientes/{id}, ClienteDetalle): página y panel no
+    pueden nombrar distinto a la misma entidad a la vez. En código y en los
+    DTO sigue siendo Cliente empresarial, que es lo que lo distingue del
+    Cliente comercial TALVEG (quien contrata TALVEG), otro plano.
 
     «Centros» es la relación directa: Centro.ClienteId es FK real (un Cliente
     empresarial es dueño de todos sus Centros, los opere la Empresa que los
@@ -82,7 +83,10 @@
 @using FluentValidation
 @using MediatR
 @implements IDisposable
+@using CaeManager.Web.Features.Clientes.Recursos
+@using Microsoft.Extensions.Localization
 @inject IMediator Mediator
+@inject IStringLocalizer<TextosClientes> Textos
 @inject ContextWorkspaceService WorkspaceService
 @inject ToastService ToastService
 
@@ -103,7 +107,7 @@ else
     <div class="cabecera-cliente-360">
         <span class="icono-cliente-360"><Icono Nombre="clientes" /></span>
         <div class="texto-cabecera-cliente-360">
-            <span class="kicker-cliente-360">Cliente empresarial</span>
+            <span class="kicker-cliente-360">@Textos["Kicker"]</span>
             <h2 class="workspace-titulo-entidad titulo-cliente-360">@_detalle.RazonSocial</h2>
             <div class="meta-cliente-360">
                 @if (_detalle.EsCritico)

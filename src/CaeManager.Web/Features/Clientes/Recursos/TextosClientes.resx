@@ -1,0 +1,262 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Kicker" xml:space="preserve">
+    <value>Cliente</value>
+    <comment>Rótulo en pantalla del Cliente empresarial (contrato Gen2 § 14): kicker de la página Cliente 360 y de su panel.</comment>
+  </data>
+  <data name="MigaClientes" xml:space="preserve">
+    <value>Clientes</value>
+    <comment>Primera miga de Cliente 360: vuelve a la lista.</comment>
+  </data>
+  <data name="RutaNavegacion" xml:space="preserve">
+    <value>Ruta de Cliente 360</value>
+    <comment>Nombre accesible de las migas.</comment>
+  </data>
+  <data name="ErrorCargaTitulo" xml:space="preserve">
+    <value>No pudimos cargar este cliente</value>
+    <comment>La consulta devolvió null (no existe o está fuera del alcance): no se distingue a propósito.</comment>
+  </data>
+  <data name="ErrorCargaDescripcion" xml:space="preserve">
+    <value>Puede que ya no exista o que no tengas acceso.</value>
+  </data>
+  <data name="Reintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="Cif" xml:space="preserve">
+    <value>CIF</value>
+    <comment>Rótulo del CIF en la entradilla.</comment>
+  </data>
+  <data name="CopiarCifEtiqueta" xml:space="preserve">
+    <value>el CIF</value>
+    <comment>Complemento del nombre accesible de BotonCopiar («Copiar el CIF»).</comment>
+  </data>
+  <data name="RecuentoCentrosUno" xml:space="preserve">
+    <value>1 centro</value>
+  </data>
+  <data name="RecuentoCentrosVarios" xml:space="preserve">
+    <value>{0} centros</value>
+  </data>
+  <data name="RecuentoTrabajadoresUno" xml:space="preserve">
+    <value>1 trabajador</value>
+  </data>
+  <data name="RecuentoTrabajadoresVarios" xml:space="preserve">
+    <value>{0} trabajadores</value>
+  </data>
+  <data name="Critico" xml:space="preserve">
+    <value>Crítico</value>
+    <comment>Cliente empresarial marcado como crítico.</comment>
+  </data>
+  <data name="IndicadorBloqueados" xml:space="preserve">
+    <value>Acceso bloqueado en {0} de {1} centros</value>
+    <comment>{0} centros con EstadoCentro.Bloqueado de los {1} centros del cliente.</comment>
+  </data>
+  <data name="IndicadorBloqueadosUnico" xml:space="preserve">
+    <value>Acceso bloqueado en su único centro</value>
+  </data>
+  <data name="VentanaBloqueadosUno" xml:space="preserve">
+    <value>1 centro con acceso bloqueado</value>
+  </data>
+  <data name="VentanaBloqueadosVarios" xml:space="preserve">
+    <value>{0} centros con acceso bloqueado</value>
+  </data>
+  <data name="IndicadorVencidosUno" xml:space="preserve">
+    <value>1 centro con vencidos</value>
+    <comment>Centros con Recuentos.Vencidas &gt; 0 (Faltante cuenta como vencido).</comment>
+  </data>
+  <data name="IndicadorVencidosVarios" xml:space="preserve">
+    <value>{0} centros con vencidos</value>
+  </data>
+  <data name="VentanaVencidosUno" xml:space="preserve">
+    <value>1 centro con documentos vencidos</value>
+  </data>
+  <data name="VentanaVencidosVarios" xml:space="preserve">
+    <value>{0} centros con documentos vencidos</value>
+  </data>
+  <data name="IndicadorProximosUno" xml:space="preserve">
+    <value>1 centro con próximos</value>
+    <comment>Centros con Recuentos.Proximas &gt; 0.</comment>
+  </data>
+  <data name="IndicadorProximosVarios" xml:space="preserve">
+    <value>{0} centros con próximos</value>
+  </data>
+  <data name="VentanaProximosUno" xml:space="preserve">
+    <value>1 centro con documentos próximos a vencer</value>
+  </data>
+  <data name="VentanaProximosVarios" xml:space="preserve">
+    <value>{0} centros con documentos próximos a vencer</value>
+  </data>
+  <data name="AriaIndicador" xml:space="preserve">
+    <value>{0}: {1}. Pulsa para ver los centros</value>
+    <comment>Nombre accesible de un indicador: el recuento, la lista de centros y qué hace al pulsarlo.</comment>
+  </data>
+  <data name="EditarCliente" xml:space="preserve">
+    <value>Editar cliente</value>
+    <comment>Menú de acciones: abre el panel en Información.</comment>
+  </data>
+  <data name="PestanaCentros" xml:space="preserve">
+    <value>Centros</value>
+  </data>
+  <data name="PestanaEmpresas" xml:space="preserve">
+    <value>Empresas</value>
+  </data>
+  <data name="PestanaSubcontratas" xml:space="preserve">
+    <value>Subcontratas</value>
+  </data>
+  <data name="PestanaBlindaje" xml:space="preserve">
+    <value>Blindaje 42.1</value>
+  </data>
+  <data name="PestanaDocumentacion" xml:space="preserve">
+    <value>Documentación</value>
+  </data>
+  <data name="PestanaAgenda" xml:space="preserve">
+    <value>Agenda</value>
+  </data>
+  <data name="PestanaHistorial" xml:space="preserve">
+    <value>Historial</value>
+  </data>
+  <data name="EtiquetaPestanas" xml:space="preserve">
+    <value>Secciones del cliente</value>
+  </data>
+  <data name="GlosaCentroUno" xml:space="preserve">
+    <value>centro</value>
+  </data>
+  <data name="GlosaCentroVarios" xml:space="preserve">
+    <value>centros</value>
+  </data>
+  <data name="GlosaEmpresaUno" xml:space="preserve">
+    <value>empresa</value>
+  </data>
+  <data name="GlosaEmpresaVarios" xml:space="preserve">
+    <value>empresas</value>
+  </data>
+  <data name="GlosaSubcontrataUno" xml:space="preserve">
+    <value>subcontrata</value>
+  </data>
+  <data name="GlosaSubcontrataVarios" xml:space="preserve">
+    <value>subcontratas</value>
+  </data>
+  <data name="ResumenCentrosUno" xml:space="preserve">
+    <value>1 centro de este cliente.</value>
+  </data>
+  <data name="ResumenCentrosVarios" xml:space="preserve">
+    <value>{0} centros de este cliente, del peor estado al mejor.</value>
+  </data>
+  <data name="ResumenCentrosTruncado" xml:space="preserve">
+    <value>Se muestran los {0} centros con peor estado de {1}.</value>
+    <comment>La lista se corta en MaximoCentros; los indicadores se cuentan sobre lo mostrado.</comment>
+  </data>
+  <data name="DetalleEmpresa" xml:space="preserve">
+    <value>Empresa: {0}</value>
+    <comment>Empresa contratista que opera el Centro.</comment>
+  </data>
+  <data name="DetalleVencidosUno" xml:space="preserve">
+    <value>1 vencido</value>
+  </data>
+  <data name="DetalleVencidosVarios" xml:space="preserve">
+    <value>{0} vencidos</value>
+  </data>
+  <data name="DetalleProximosUno" xml:space="preserve">
+    <value>1 próximo</value>
+  </data>
+  <data name="DetalleProximosVarios" xml:space="preserve">
+    <value>{0} próximos</value>
+  </data>
+  <data name="CentroSinRequisitos" xml:space="preserve">
+    <value>Sin requisitos</value>
+    <comment>El Centro no exige ningún documento: no hay porcentaje.</comment>
+  </data>
+  <data name="CumplimientoCentro" xml:space="preserve">
+    <value>Cumplimiento del centro</value>
+  </data>
+  <data name="SinCentrosTitulo" xml:space="preserve">
+    <value>Sin centros</value>
+  </data>
+  <data name="SinCentrosDescripcion" xml:space="preserve">
+    <value>Este cliente todavía no tiene ningún centro.</value>
+  </data>
+  <data name="ErrorCentrosTitulo" xml:space="preserve">
+    <value>No pudimos cargar los centros</value>
+  </data>
+  <data name="ErrorListaDescripcion" xml:space="preserve">
+    <value>Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="ResumenEmpresasUno" xml:space="preserve">
+    <value>1 empresa contratada con relación viva.</value>
+  </data>
+  <data name="ResumenEmpresasVarios" xml:space="preserve">
+    <value>{0} empresas contratadas con relación viva.</value>
+  </data>
+  <data name="SinEmpresasTitulo" xml:space="preserve">
+    <value>Sin empresas</value>
+  </data>
+  <data name="SinEmpresasDescripcion" xml:space="preserve">
+    <value>Este cliente todavía no tiene ninguna empresa contratada con relación viva.</value>
+  </data>
+  <data name="ErrorEmpresasTitulo" xml:space="preserve">
+    <value>No pudimos cargar las empresas</value>
+  </data>
+  <data name="ResumenSubcontratasUno" xml:space="preserve">
+    <value>1 subcontrata declarada.</value>
+  </data>
+  <data name="ResumenSubcontratasVarios" xml:space="preserve">
+    <value>{0} subcontratas declaradas.</value>
+  </data>
+  <data name="SinSubcontratasTitulo" xml:space="preserve">
+    <value>Sin subcontratas</value>
+  </data>
+  <data name="SinSubcontratasDescripcion" xml:space="preserve">
+    <value>Este cliente todavía no tiene ninguna subcontrata declarada.</value>
+  </data>
+  <data name="ErrorSubcontratasTitulo" xml:space="preserve">
+    <value>No pudimos cargar las subcontratas</value>
+  </data>
+  <data name="ListaCentros" xml:space="preserve">
+    <value>Centros de este cliente</value>
+  </data>
+  <data name="ListaEmpresas" xml:space="preserve">
+    <value>Empresas de este cliente</value>
+  </data>
+  <data name="ListaSubcontratas" xml:space="preserve">
+    <value>Subcontratas de este cliente</value>
+  </data>
+  <data name="EtiquetaLateral" xml:space="preserve">
+    <value>Contexto del cliente</value>
+  </data>
+  <data name="TarjetaInformacion" xml:space="preserve">
+    <value>Información</value>
+  </data>
+  <data name="DatoAlta" xml:space="preserve">
+    <value>Alta</value>
+    <comment>Fecha de alta del Cliente empresarial (CreadoEnUtc).</comment>
+  </data>
+  <data name="Si" xml:space="preserve">
+    <value>Sí</value>
+  </data>
+  <data name="No" xml:space="preserve">
+    <value>No</value>
+  </data>
+  <data name="EditarEnlace" xml:space="preserve">
+    <value>Editar →</value>
+  </data>
+  <data name="TarjetaNota" xml:space="preserve">
+    <value>Nota interna</value>
+  </data>
+  <data name="SinNota" xml:space="preserve">
+    <value>Sin nota interna.</value>
+  </data>
+  <data name="NotaSoloEquipo" xml:space="preserve">
+    <value>Solo visible para tu equipo.</value>
+  </data>
+</root>

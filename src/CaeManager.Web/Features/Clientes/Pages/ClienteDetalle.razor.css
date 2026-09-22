@@ -1,0 +1,69 @@
+/*
+  Cliente 360, página. La maquetación (cuerpo con lateral, tarjetas, listas de
+  relaciones, rejilla de datos) la ponen los componentes compartidos del
+  DesignSystem; aquí solo se estila lo que esta página mete en las ranuras de
+  CabeceraPagina y de las tarjetas. Medidas del mockup «Cliente 360 página».
+*/
+
+/* Entradilla: «CIF X [Copiar] · N centros · N trabajadores» en una línea. */
+.cliente360-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+/* Crítico + indicadores por centro, en su propia línea bajo la entradilla
+   (.centro360-indicadores del mockup). Es un span para poder vivir dentro del
+   <p> de la entradilla; display:flex lo pone en su línea. */
+.cliente360-indicadores {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    margin-top: var(--space-2);
+}
+
+/* El indicador es un botón que lleva a la pestaña Centros; se ve como el
+   badge que contiene (.badge-boton del mockup). */
+.cliente360-indicador-boton {
+    display: inline-flex;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    cursor: pointer;
+    border-radius: var(--radius-full);
+}
+
+.cliente360-indicador-boton:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+}
+
+/* «3 centros de este cliente, del peor estado al mejor.» sobre la lista. */
+.cliente360-resumen-lista {
+    margin: 0 0 var(--space-3);
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+.cliente360-cumplimiento {
+    font: var(--font-body-sm);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text-muted);
+}
+
+.cliente360-nota {
+    margin: 0;
+    font: var(--font-body-md);
+    white-space: pre-line;
+}
+
+.cliente360-nota-pie {
+    margin: var(--space-2) 0 0;
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
