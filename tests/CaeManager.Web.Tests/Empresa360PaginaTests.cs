@@ -340,6 +340,30 @@ public class Empresa360PaginaTests : BunitContext
         cut.FindAll(".paginador").Should().BeEmpty("19 caben en una página");
     }
 
+    /// <summary>
+    /// Con un chip de más de una página, cada página tiene exactamente 20 filas
+    /// de su tramo. El filtro defensivo por estado quita una fila de otro
+    /// estado que se cuele, así que un tramo desplazado en uno no cambia el
+    /// total visible: solo lo delata que la primera página se quede en 19.
+    /// </summary>
+    [Fact]
+    public async Task Un_chip_de_varias_paginas_llena_cada_pagina_con_su_tramo()
+    {
+        Registrar(Empresa([
+            .. Enumerable.Range(0, 3).Select(_ => Trabajador(EstadoDocumento.Vencido)),
+            Trabajador(EstadoDocumento.Proximo),
+            .. Enumerable.Range(0, 30).Select(_ => Trabajador(EstadoDocumento.Vigente)),
+        ]));
+        var cut = Renderizar("?estado=al-dia");
+
+        EstadosDeLasFilas(cut).Should().HaveCount(20).And.OnlyContain(e => e == "Vigente");
+        cut.Find(".paginador-texto").TextContent.Should().Contain("Página 1 de 2").And.Contain("30");
+
+        await cut.FindAll(".paginador button").Single(b => b.TextContent.Contains("Siguiente")).ClickAsync(new MouseEventArgs());
+
+        EstadosDeLasFilas(cut).Should().HaveCount(10).And.OnlyContain(e => e == "Vigente");
+    }
+
     [Fact]
     public void El_chip_de_la_url_se_adopta_al_entrar()
     {
