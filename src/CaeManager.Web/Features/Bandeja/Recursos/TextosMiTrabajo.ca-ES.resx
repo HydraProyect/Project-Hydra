@@ -249,4 +249,10 @@
   <data name="AccionVerEnPlataforma" xml:space="preserve">
     <value>Mostra a {0}</value>
   </data>
+  <data name="SujetoEmpresaPropia" xml:space="preserve">
+    <value>Documentació d’empresa</value>
+  </data>
+  <data name="SujetoSubcontrata" xml:space="preserve">
+    <value>Subcontracta · {0}</value>
+  </data>
 </root>

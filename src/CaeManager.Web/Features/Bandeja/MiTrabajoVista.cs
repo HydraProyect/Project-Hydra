@@ -220,6 +220,29 @@ public sealed class MiTrabajoVista
         resto == 0 ? null : TextosMiTrabajo.Formato("EnCalendario", resto)
     }.Where(p => p is not null));
 
+    /// <summary>
+    /// Línea de sujeto de la fila y del detalle (contrato § 14). Si el sujeto es
+    /// la Empresa propia del Tenant, «Documentación de empresa»: repetir su
+    /// nombre dentro del grupo de esa misma Empresa no dice nada. Si es una
+    /// Subcontrata, «Subcontrata · nombre», para no confundirla con el Tenant.
+    /// Solo sustituye el nombre del principio: lo que va detrás (el motivo de
+    /// un rechazo o de una revisión IA) se conserva. Sin
+    /// <see cref="ItemBandejaDto.EmpresaEsPropia"/>, o si el subtítulo no empieza
+    /// por el nombre de la Empresa, se pinta el subtítulo tal cual.
+    /// </summary>
+    public static string Sujeto(ItemBandejaDto item)
+    {
+        if (item.EmpresaEsPropia is not { } esPropia
+            || item.EmpresaNombre is not { Length: > 0 } nombre
+            || !item.Subtitulo.StartsWith(nombre, StringComparison.Ordinal))
+            return item.Subtitulo;
+
+        var rotulo = esPropia
+            ? TextosMiTrabajo.Texto("SujetoEmpresaPropia")
+            : TextosMiTrabajo.Formato("SujetoSubcontrata", nombre);
+        return rotulo + item.Subtitulo[nombre.Length..];
+    }
+
     /// <summary>Singular con su clave propia («1 bloqueo»), plural con el número como {0}.</summary>
     internal static string Plural(int n, string claveUno, string claveVarios) =>
         n == 1 ? TextosMiTrabajo.Texto(claveUno) : TextosMiTrabajo.Formato(claveVarios, n);
@@ -232,7 +255,7 @@ public sealed class MiTrabajoVista
     {
         if (string.IsNullOrWhiteSpace(busqueda)) return true;
         var item = fila.Item;
-        var texto = string.Join(' ', item.Titulo, item.Subtitulo, item.ClienteNombre, item.EmpresaNombre, item.TrabajadorNombre, item.ProveedorNombre, fila.TenantNombre);
+        var texto = string.Join(' ', item.Titulo, item.Subtitulo, Sujeto(item), item.ClienteNombre, item.EmpresaNombre, item.TrabajadorNombre, item.ProveedorNombre, fila.TenantNombre);
         return texto.Contains(busqueda.Trim(), StringComparison.CurrentCultureIgnoreCase);
     }
 
