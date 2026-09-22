@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Volver" xml:space="preserve">
+    <value>Volver</value>
+  </data>
+  <data name="IdiomaEtiqueta" xml:space="preserve">
+    <value>Idioma</value>
+  </data>
+  <data name="IdiomaCambiar" xml:space="preserve">
+    <value>Cambiar</value>
+  </data>
+  <data name="IdiomaNoCambiadoTitulo" xml:space="preserve">
+    <value>No se pudo cambiar el idioma</value>
+  </data>
+  <data name="IdiomaNoCambiadoDetalle" xml:space="preserve">
+    <value>Tu preferencia de idioma no se ha guardado y la interfaz sigue en el idioma anterior. Inténtalo de nuevo en unos segundos.</value>
+  </data>
+</root>

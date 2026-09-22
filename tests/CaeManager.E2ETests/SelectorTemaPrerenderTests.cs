@@ -51,7 +51,7 @@ public class SelectorTemaPrerenderTests(WebAppFixture fixture)
             Assert.Equal(200, respuesta.Status);
 
             var html = await respuesta.TextAsync();
-            Assert.Contains("<html lang=\"en\" data-theme=\"oscuro\">", html);
+            Assert.Contains("<html lang=\"es-ES\" data-theme=\"oscuro\">", html);
         }
         finally
         {

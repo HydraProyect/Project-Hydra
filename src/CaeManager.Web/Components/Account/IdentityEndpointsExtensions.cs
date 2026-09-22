@@ -31,6 +31,11 @@ public static class IdentityEndpointsExtensions
             // INFORME-AUDITORIA-2.md).
             httpContext.Response.Cookies.Delete(ClienteActivoSeleccionado.NombreCookie);
 
+            // Tampoco la de cultura: el siguiente que entre en este navegador
+            // no hereda el idioma de quien sale (su login la reescribe desde
+            // su propia cuenta; hasta entonces, la pantalla de acceso en es-ES).
+            CulturaUsuarioCookie.Eliminar(httpContext);
+
             return Results.LocalRedirect("/cuenta/iniciar-sesion");
         });
 
@@ -59,6 +64,7 @@ public static class IdentityEndpointsExtensions
         // local, que un usuario SSO puede no usar nunca.
         endpoints.MapGet("/cuenta/microsoft-callback", async (
             SignInManager<ApplicationUser> signInManager,
+            HttpContext httpContext,
             UserManager<ApplicationUser> userManager,
             IEmailService emailService,
             ILogger<Program> logger,
@@ -152,6 +158,12 @@ public static class IdentityEndpointsExtensions
 
             loggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
                 .LogInformation("Login SSO correcto: {UsuarioId}", usuario.Id);
+
+            // Mismo criterio que Login.razor/LoginCon2fa.razor: la cookie de
+            // cultura se reconstruye desde ApplicationUser.Idioma en cada
+            // inicio de sesión. Antes de las dos salidas (sala de espera y
+            // returnUrl).
+            CulturaUsuarioCookie.Escribir(httpContext, usuario.Idioma);
 
             var roles = await userManager.GetRolesAsync(usuario);
             if (roles.Count == 0)
