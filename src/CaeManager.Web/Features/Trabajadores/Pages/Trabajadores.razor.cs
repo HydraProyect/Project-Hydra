@@ -23,6 +23,9 @@ using CaeManager.Web.Components.Workspace;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.QuickGrid;
+using CaeManager.Web.Features.Trabajadores.Recursos;
+using CaeManager.Web.Recursos;
+using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Features.Trabajadores.Pages;
 
@@ -61,7 +64,9 @@ public partial class Trabajadores : ComponentBase
     // DDL-072 (misma tabla de vocabulario que el enlace «empresas» de CatalogoMenuLateral
     // y _tituloPagina de Empresas.razor.cs): "Mis trabajadores" en perfil
     // Cliente Directo, "Trabajadores" en perfil Consultora.
-    private string _tituloPagina = "Trabajadores";
+    private string? _tituloPagina;
+
+    private string TituloPagina => _tituloPagina ?? Textos["TituloPagina"];
 
     private bool _drawerVisible;
     private string _tipoEmpleador = "empresa";
@@ -114,6 +119,8 @@ public partial class Trabajadores : ComponentBase
     public string? EstadoInicial { get; set; }
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosTrabajadores> Textos { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosComunes> Comunes { get; set; } = default!;
     [Inject] private IValidator<CrearTrabajadorCommand> ValidadorCrear { get; set; } = default!;
 
     /// <summary>Comando del palette "Crear trabajador" / "Crear trabajador «nombre»" (P3-31): abre el Drawer, con el nombre precargado si viene del palette.</summary>
@@ -173,7 +180,9 @@ public partial class Trabajadores : ComponentBase
         _subcontratasDisponibles = await Mediator.Send(new ObtenerSubcontratasParaSelectorQuery());
 
         var perfilPagina = await Mediator.Send(new ObtenerPerfilVocabularioActualQuery());
-        _tituloPagina = perfilPagina == PerfilVocabularioTenant.ClienteDirecto ? "Mis trabajadores" : "Trabajadores";
+        _tituloPagina = perfilPagina == PerfilVocabularioTenant.ClienteDirecto
+            ? Textos["TituloPaginaClienteDirecto"].Value
+            : Textos["TituloPagina"].Value;
 
         if (Accion == "crear")
         {
@@ -349,10 +358,10 @@ public partial class Trabajadores : ComponentBase
     /// pueda quitar el filtro, y para eso no hace falta saber su nombre.
     /// </summary>
     private string EtiquetaFiltroEmpresa =>
-        _empresasDisponibles.FirstOrDefault(e => e.Id.ToString() == _filtroEmpresaId)?.RazonSocial ?? "Empresa";
+        _empresasDisponibles.FirstOrDefault(e => e.Id.ToString() == _filtroEmpresaId)?.RazonSocial ?? Textos["EtiquetaEmpresa"].Value;
 
     private string EtiquetaFiltroSubcontrata =>
-        _subcontratasDisponibles.FirstOrDefault(s => s.Id.ToString() == _filtroSubcontrataId)?.RazonSocial ?? "Subcontrata";
+        _subcontratasDisponibles.FirstOrDefault(s => s.Id.ToString() == _filtroSubcontrataId)?.RazonSocial ?? Textos["EtiquetaSubcontrata"].Value;
 
     private Task QuitarFiltroBusquedaAsync() => BuscarAsync(string.Empty);
 
@@ -493,7 +502,7 @@ public partial class Trabajadores : ComponentBase
             {
                 if (!Guid.TryParse(_empresaId, out var empresaIdValor))
                 {
-                    _mensajeErrorFormulario = "Selecciona una empresa.";
+                    _mensajeErrorFormulario = Textos["ErrorSeleccionaEmpresa"];
                     return;
                 }
                 empresaId = empresaIdValor;
@@ -502,7 +511,7 @@ public partial class Trabajadores : ComponentBase
             {
                 if (!Guid.TryParse(_subcontrataId, out var subcontrataIdValor))
                 {
-                    _mensajeErrorFormulario = "Selecciona una subcontrata.";
+                    _mensajeErrorFormulario = Textos["ErrorSeleccionaSubcontrata"];
                     return;
                 }
                 subcontrataId = subcontrataIdValor;
@@ -517,7 +526,7 @@ public partial class Trabajadores : ComponentBase
                 return;
             }
 
-            ToastService.Mostrar("Trabajador creado correctamente.", TonoToast.Exito);
+            ToastService.Mostrar(Textos["ToastCreado"], TonoToast.Exito);
             _drawerVisible = false;
             await RecargarAsync();
         }
@@ -529,7 +538,7 @@ public partial class Trabajadores : ComponentBase
         }
         catch (Exception)
         {
-            _mensajeErrorFormulario = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
+            _mensajeErrorFormulario = Textos["ErrorGuardar"];
         }
         finally
         {
@@ -588,11 +597,11 @@ public partial class Trabajadores : ComponentBase
             var resultado = ValidadorIdentificacion.Analizar(_dni);
             return resultado.Tipo switch
             {
-                TipoIdentificacion.Dni => resultado.EsValido ? "✓ DNI con formato y dígito de control correctos." : "✗ Formato de DNI, pero el dígito de control no coincide.",
-                TipoIdentificacion.Nie => resultado.EsValido ? "✓ NIE con formato y dígito de control correctos." : "✗ Formato de NIE, pero el dígito de control no coincide.",
-                TipoIdentificacion.NifEmpresa => resultado.EsValido ? "✓ Formato de CIF válido — comprueba que sea la persona y no la empresa." : "✗ Parece un CIF, pero el dígito de control no coincide.",
-                TipoIdentificacion.TieSoporte => "✓ Número de soporte TIE reconocido.",
-                _ => "ℹ Documento no español (pasaporte u otro) — se acepta sin validar dígito de control."
+                TipoIdentificacion.Dni => resultado.EsValido ? Textos["PistaDniValido"] : Textos["PistaDniInvalido"],
+                TipoIdentificacion.Nie => resultado.EsValido ? Textos["PistaNieValido"] : Textos["PistaNieInvalido"],
+                TipoIdentificacion.NifEmpresa => resultado.EsValido ? Textos["PistaCifValido"] : Textos["PistaCifInvalido"],
+                TipoIdentificacion.TieSoporte => Textos["PistaTieSoporte"],
+                _ => Textos["PistaDocumentoExtranjero"]
             };
         }
     }
@@ -634,7 +643,7 @@ public partial class Trabajadores : ComponentBase
             }
             else
             {
-                ToastService.Mostrar("Trabajador eliminado correctamente.", TonoToast.Exito, "Deshacer", () => DeshacerEliminarAsync(idEliminado));
+                ToastService.Mostrar(Textos["ToastEliminado"], TonoToast.Exito, Textos["ToastAccionDeshacer"], () => DeshacerEliminarAsync(idEliminado));
                 WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Trabajador, [idEliminado]);
                 _confirmarEliminarVisible = false;
                 await RecargarAsync();
@@ -642,7 +651,7 @@ public partial class Trabajadores : ComponentBase
         }
         catch (Exception)
         {
-            ToastService.Mostrar("No pudimos eliminar el trabajador. Intenta nuevamente en unos segundos.", TonoToast.Error);
+            ToastService.Mostrar(Textos["ErrorEliminar"], TonoToast.Error);
         }
         finally
         {
@@ -662,7 +671,7 @@ public partial class Trabajadores : ComponentBase
             var resultado = await Mediator.Send(new RestaurarTrabajadorCommand(id));
 
             ToastService.Mostrar(
-                resultado.EsExitoso ? "Trabajador restaurado." : resultado.Error.Mensaje,
+                resultado.EsExitoso ? Textos["ToastRestaurado"].Value : resultado.Error.Mensaje,
                 resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
 
             if (resultado.EsExitoso)
@@ -708,8 +717,8 @@ public partial class Trabajadores : ComponentBase
 
             ToastService.Mostrar(
                 dto.Errores.Count == 0
-                    ? $"{dto.Eliminados} trabajador(es) eliminado(s)."
-                    : $"{dto.Eliminados} eliminado(s). {dto.Errores.Count} no se pudieron borrar: {string.Join(" ", dto.Errores)}",
+                    ? Textos["ToastLoteEliminados", dto.Eliminados]
+                    : Textos["ToastLoteEliminadosConErrores", dto.Eliminados, dto.Errores.Count, string.Join(" ", dto.Errores)],
                 dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
 
             // El DTO del lote solo trae el recuento (limitación del DTO: el handler sí sabe qué ids cayeron):
@@ -724,7 +733,7 @@ public partial class Trabajadores : ComponentBase
         }
         catch (Exception)
         {
-            ToastService.Mostrar("No pudimos eliminar los trabajadores seleccionados. Intenta nuevamente.", TonoToast.Error);
+            ToastService.Mostrar(Textos["ErrorEliminarLote"], TonoToast.Error);
         }
         finally
         {
@@ -794,13 +803,13 @@ public partial class Trabajadores : ComponentBase
 
         if (!Guid.TryParse(_centroIdParaAsignar, out var centroId))
         {
-            ToastService.Mostrar("Selecciona un centro.", TonoToast.Error);
+            ToastService.Mostrar(Textos["ErrorSeleccionaCentro"], TonoToast.Error);
             return;
         }
 
         if (!DateOnly.TryParse(_fechaAltaParaAsignar, out var fechaAlta))
         {
-            ToastService.Mostrar("Introduce una fecha de alta válida.", TonoToast.Error);
+            ToastService.Mostrar(Textos["ErrorFechaAltaInvalida"], TonoToast.Error);
             return;
         }
 
@@ -817,7 +826,9 @@ public partial class Trabajadores : ComponentBase
             }
 
             var dto = resultado.Valor;
-            var resumen = $"{dto.Creadas} asignación(es) creada(s)" + (dto.YaActivas > 0 ? $", {dto.YaActivas} ya estaban activas." : ".");
+            var resumen = dto.YaActivas > 0
+                ? Textos["ToastAsignacionesCreadasConActivas", dto.Creadas, dto.YaActivas].Value
+                : Textos["ToastAsignacionesCreadas", dto.Creadas].Value;
             ToastService.Mostrar(resumen, dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
             // Sin esto, un rechazo con motivo (p. ej. Asignaciones que solapan
             // un periodo ya registrado, DEC-19) solo cambiaba el tono del
@@ -832,7 +843,7 @@ public partial class Trabajadores : ComponentBase
         }
         catch (Exception)
         {
-            ToastService.Mostrar("No pudimos asignar a los trabajadores seleccionados. Intenta nuevamente.", TonoToast.Error);
+            ToastService.Mostrar(Textos["ErrorAsignarLote"], TonoToast.Error);
         }
         finally
         {
@@ -924,7 +935,7 @@ public partial class Trabajadores : ComponentBase
             _filtrosGuardados = await Mediator.Send(new ObtenerFiltrosGuardadosQuery(PantallasConFiltrosGuardados.Trabajadores));
             _mostrarGuardarFiltro = false;
             _nombreFiltroNuevo = string.Empty;
-            ToastService.Mostrar("Filtro guardado.", TonoToast.Exito);
+            ToastService.Mostrar(Textos["ToastFiltroGuardado"], TonoToast.Exito);
         }
         finally
         {

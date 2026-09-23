@@ -37,6 +37,7 @@ public class TrabajadoresVacioPorFiltroTests : BunitContext
     public TrabajadoresVacioPorFiltroTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
         this.ConRolDeEscritura();
     }
 
