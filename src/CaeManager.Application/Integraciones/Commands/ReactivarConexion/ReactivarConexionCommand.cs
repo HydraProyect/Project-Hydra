@@ -31,7 +31,11 @@ public class ReactivarConexionCommandValidator : AbstractValidator<ReactivarCone
 }
 
 public class ReactivarConexionCommandHandler(
-    IConexionIntegracionRepository conexionRepositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+    IConexionIntegracionRepository conexionRepositorio,
+    IReclamacionBuzonIntegracionRepository reclamacionRepositorio,
+    IAlcanceDatosService alcanceDatos,
+    ITenantActual tenantActual,
+    IUnitOfWork unitOfWork)
     : IRequestHandler<ReactivarConexionCommand, Result>
 {
     public async Task<Result> Handle(ReactivarConexionCommand request, CancellationToken cancellationToken)
@@ -46,8 +50,31 @@ public class ReactivarConexionCommandHandler(
         if (!await alcanceDatos.ConexionIntegracionVisibleAsync(conexion.Id, cancellationToken))
             return Result.Fallo(Error.Crear("ConexionIntegracion.NoEncontrada", "No encontramos esta conexión."));
 
+        // Solo Deshabilitada libera la reclamación (ver DesconectarBuzonCommandHandler)
+        // — ConError nunca la libera, así que reactivar desde ConError no
+        // necesita reclamar de nuevo.
+        var necesitaReclamarBuzon = conexion.Estado == EstadoConexionIntegracion.Deshabilitada;
+
         conexion.Rehabilitar();
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        if (!necesitaReclamarBuzon)
+        {
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            return Result.Exito();
+        }
+
+        if (tenantActual.TenantId is not { } tenantId)
+            return Result.Fallo(Error.Crear("Integraciones.Microsoft365.TenantNoResuelto", "No se pudo determinar el tenant actual."));
+
+        reclamacionRepositorio.Reclamar(new ReclamacionBuzonIntegracion(conexion.BuzonEmail, tenantId, conexion.Id, DateTime.UtcNow));
+        var buzonLibre = await reclamacionRepositorio.GuardarCambiosSiBuzonLibreAsync(cancellationToken);
+        if (!buzonLibre)
+        {
+            return Result.Fallo(Error.Crear(
+                "Integraciones.Microsoft365.BuzonYaConectado",
+                "Este buzón fue conectado por otra organización mientras estaba desconectado."));
+        }
+
         return Result.Exito();
     }
 }
