@@ -127,6 +127,27 @@ public class AutorizarOperadorCaeExternoTests
         NoSeEscribioNada();
     }
 
+    /// <summary>
+    /// P11 (2026-09-23, fusionado desde <c>origin/main</c>): perfil <c>Consultora</c> ya no
+    /// basta por sí solo. <c>OperadorCaeExternoElegible.Predicado</c> exige la capacidad
+    /// explícita <see cref="Tenant.PuedeActuarComoOperadorCaeExterno"/>, igual que el alta
+    /// real (<c>CrearOperadorCaeExternoCommand</c>). Sin este test, revertir el predicado al
+    /// criterio interino por perfil pasaría en verde: los demás tests conceden ambos a la
+    /// vez y no distinguen cuál de los dos decide.
+    /// </summary>
+    [Fact]
+    public async Task Rechaza_como_operador_a_un_tenant_con_perfil_Consultora_sin_la_capacidad_explicita()
+    {
+        var consultoraSinCapacidad = new Tenant("Sin capacidad", PerfilVocabularioTenant.Consultora);
+        _tenants.ListaTenants.Add(consultoraSinCapacidad);
+
+        var resultado = await HandlerComo(AutorizacionDelegacionFalsa.AdministradorDe(_propietario.Id)).Handle(
+            new CrearDelegacionTenantCommand(consultoraSinCapacidad.Id, _propietario.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("DelegacionTenant.ConsultoraNoEncontrada");
+        NoSeEscribioNada();
+    }
+
     [Fact]
     public async Task Rechaza_como_operador_al_tenant_de_plataforma()
     {

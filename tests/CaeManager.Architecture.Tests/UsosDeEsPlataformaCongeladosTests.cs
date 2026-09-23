@@ -199,11 +199,14 @@ public class UsosDeEsPlataformaCongeladosTests
     /// <c>20260923134849_AgregarCapacidadOperadorCaeExternoATenant.cs</c> (+1 fichero, +2
     /// apariciones, <see cref="CategoriaUso.MigracionManual"/>): el backfill consulta
     /// <c>EsPlataforma</c> en el <c>WHERE</c> del <c>UPDATE</c> para no conceder la
-    /// capacidad nueva al tenant de plataforma. Ningún fichero de este incremento pierde ni
-    /// gana apariciones de <c>EsPlataforma</c> por el cambio de predicado: solo se sustituye
-    /// el término del perfil por el de la capacidad, y <c>!t.EsPlataforma</c> se conserva
-    /// igual en los cinco sitios de Guarda. Neto sobre 32/49: +1 fichero, +5 apariciones,
-    /// de 32/49 a <b>33 ficheros, 54 apariciones</b>.
+    /// capacidad nueva al tenant de plataforma. Ningún fichero de este incremento pierde
+    /// apariciones de <c>EsPlataforma</c> por el cambio de predicado —<c>!t.EsPlataforma</c>
+    /// se conserva igual en los cinco sitios de Guarda—, pero <c>OperadorCaeExternoElegible.cs</c>
+    /// gana +1: el comentario nuevo que documenta el criterio interino retirado (perfil
+    /// Consultora) lo cita entre paréntesis, y ese texto contiene el identificador vigilado.
+    /// Neto sobre 32/49: +1 fichero (la migración), +5 apariciones de P11 (Tenant.cs +3,
+    /// migración +2) y +1 aparición propia de esta fusión (el comentario citado arriba), de
+    /// 32/49 a <b>33 ficheros, 55 apariciones</b>.
     /// </para>
     ///
     /// <para>
@@ -280,11 +283,15 @@ public class UsosDeEsPlataformaCongeladosTests
 
         // ── GUARDA ────────────────────────────────────────────────────────────────
         ["src/CaeManager.Application/Tenants/OperadorCaeExternoElegible.cs"] =
-            new(1, CategoriaUso.Guarda,
-                ":27 excluye el Tenant de plataforma de los Operadores CAE externos que el Administrador de un " +
+            new(2, CategoriaUso.Guarda,
+                ":28 excluye el Tenant de plataforma de los Operadores CAE externos que el Administrador de un " +
                 "Tenant propietario puede autorizar (CrearDelegacionTenantCommand y la consulta del candidato " +
                 "del incremento 1b): TALVEG no es Operador CAE por defecto (ADR-011 § 1). No concede capacidad " +
-                "a nadie — es la mitad negativa de un fallo cerrado, junto a la guarda de perfil Consultora"),
+                "a nadie — es la mitad negativa de un fallo cerrado, junto a la guarda de la capacidad " +
+                "PuedeActuarComoOperadorCaeExterno (P11). Un comentario más (+1, al fusionar origin/main): " +
+                "documenta el criterio interino por perfil que P11 retiró, citando el nombre del identificador " +
+                "entre paréntesis — mismo tratamiento que Tenant.cs, que también sube por comentario al " +
+                "documentar el criterio sustituido"),
         ["src/CaeManager.Application/Tenants/Queries/AutorizarOperadorCaeExterno/AutorizarOperadorCaeExternoQueries.cs"] =
             new(3, CategoriaUso.Guarda,
                 "dos comentarios y :EsPlataforma real, proyectado sobre el Tenant de origen antes de devolverlo " +
