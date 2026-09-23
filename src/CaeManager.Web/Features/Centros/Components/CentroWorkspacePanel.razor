@@ -719,7 +719,6 @@ else
     private bool _guardandoDocumentacion;
     private string? _mensajeErrorDocumentacion;
 
-    private const long TamanoMaximoArchivoDocumentacionBytes = 10 * 1024 * 1024;
 
     private IReadOnlyList<TrabajadorAsignadoDto>? _trabajadores;
     private bool _cargandoTrabajadores;
@@ -982,7 +981,7 @@ else
             return;
         }
 
-        if (archivo.Size > TamanoMaximoArchivoDocumentacionBytes)
+        if (archivo.Size > LimitesArchivoSubido.TamanoMaximoBytes)
         {
             ToastService.Mostrar($"\"{archivo.Name}\" supera los 10 MB.", TonoToast.Error);
             return;
@@ -994,7 +993,7 @@ else
         try
         {
             byte[] contenido;
-            await using (var flujo = archivo.OpenReadStream(TamanoMaximoArchivoDocumentacionBytes))
+            await using (var flujo = archivo.OpenReadStream(LimitesArchivoSubido.TamanoMaximoBytes))
             using (var memoria = new MemoryStream())
             {
                 await flujo.CopyToAsync(memoria);

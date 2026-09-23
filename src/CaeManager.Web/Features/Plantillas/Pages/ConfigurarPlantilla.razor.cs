@@ -27,7 +27,6 @@ namespace CaeManager.Web.Features.Plantillas.Pages;
 
 public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
 {
-    private const long TamanoMaximoArchivoBytes = 10 * 1024 * 1024;
     private const double AnchoPorDefectoCampo = 150;
     private const double AltoPorDefectoCampo = 22;
 
@@ -345,7 +344,7 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
 
     private async Task ManejarArchivoSeleccionadoAsync(InputFileChangeEventArgs e)
     {
-        await using var flujo = e.File.OpenReadStream(TamanoMaximoArchivoBytes);
+        await using var flujo = e.File.OpenReadStream(LimitesArchivoSubido.TamanoMaximoBytes);
         using var memoria = new MemoryStream();
         await flujo.CopyToAsync(memoria);
         _archivoSeleccionado = memoria.ToArray();
@@ -603,7 +602,7 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
     /// <summary>
     /// REC-186: contenidoPdf llega de <c>ManejarArchivoSeleccionadoAsync</c>
     /// (subida directa por InputFile, hasta <see
-    /// cref="TamanoMaximoArchivoBytes"/> = 10 MB — un tope de bytes que un
+    /// cref="LimitesArchivoSubido.TamanoMaximoBytes"/> = 10 MB — un tope de bytes que un
     /// árbol de páginas compacto no toca, mismo vector que
     /// ConversorArchivosPdf/REC-176) o del blob ya guardado con esos mismos
     /// bytes (<c>CargarVersionExistenteAsync</c>). Es el único de los ocho

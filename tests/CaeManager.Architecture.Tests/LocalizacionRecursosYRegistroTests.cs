@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using FluentAssertions;
 using Xunit;
@@ -83,6 +84,85 @@ public class LocalizacionRecursosYRegistroTests
             .ToList();
 
         repetidas.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Una clave que el código pide y el <c>.resx</c> no tiene no lanza nada:
+    /// <c>IStringLocalizer</c> devuelve la propia clave y la pantalla pinta
+    /// «TituloAyuda» donde iba «Atajos de teclado». Solo la ve un test que
+    /// afirme ese texto concreto, y las revisiones de #812 y #813 encontraron
+    /// claves sin ninguno.
+    ///
+    /// <para>
+    /// Cruza cada <c>Nombre["Clave"</c> literal con las claves del recurso
+    /// del <c>IStringLocalizer&lt;TextosX&gt; Nombre</c> declarado en el mismo
+    /// componente: el <c>.razor</c> y su <c>.razor.cs</c> se leen juntos,
+    /// porque el <c>@inject</c> de uno lo usa el otro. También los ayudantes
+    /// estáticos de los recursos que no se inyectan
+    /// (<c>TextosMiTrabajo.Texto("Clave")</c>, <c>.Formato("Clave", …)</c>).
+    /// <b>No ve</b> las claves
+    /// que llegan en una variable (<c>Textos[atajo.ClaveDescripcion]</c>, un
+    /// <c>switch</c> que elige la clave): esas necesitan su propio test de
+    /// componente.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void Cada_clave_literal_que_pide_el_codigo_existe_en_su_recurso()
+    {
+        var src = Path.Combine(RaizDelRepositorio(), "src");
+        var recursos = RecursosNeutrales()
+            .GroupBy(r => Path.GetFileNameWithoutExtension(r))
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var componentes = Directory.EnumerateFiles(src, "*.razor", SearchOption.AllDirectories)
+            .Concat(Directory.EnumerateFiles(src, "*.cs", SearchOption.AllDirectories))
+            .Where(EsFuente)
+            .GroupBy(f => Regex.Replace(f, @"\.razor(\.cs)?$", string.Empty));
+
+        var usos = 0;
+        var faltan = new List<string>();
+        foreach (var componente in componentes)
+        {
+            var texto = string.Concat(componente.Select(File.ReadAllText));
+            foreach (Match declaracion in Regex.Matches(texto, @"IStringLocalizer<(\w+)>\s+(\w+)"))
+            {
+                var tipo = declaracion.Groups[1].Value;
+                var nombre = declaracion.Groups[2].Value;
+                var claves = Regex.Matches(texto, $@"\b{nombre}\[\s*""(\w+)""")
+                    .Select(m => m.Groups[1].Value)
+                    .ToHashSet();
+                if (claves.Count == 0)
+                    continue;
+
+                ComprobarClaves(componente.Key, tipo, claves);
+            }
+
+            // Recursos sin inyección (TextosMiTrabajo, TextosBusquedaGlobal):
+            // un ayudante estático recibe la clave como literal.
+            foreach (var porTipo in Regex.Matches(texto, @"\b(Textos\w+)\.(?:Texto|Formato)\(\s*""(\w+)""")
+                         .GroupBy(m => m.Groups[1].Value))
+                ComprobarClaves(componente.Key, porTipo.Key, porTipo.Select(m => m.Groups[2].Value).ToHashSet());
+        }
+
+        void ComprobarClaves(string componente, string tipo, HashSet<string> claves)
+        {
+            if (!recursos.TryGetValue(tipo, out var candidatos) || candidatos.Count != 1)
+            {
+                faltan.Add($"{Relativa(componente)}: {tipo} no tiene un único {tipo}.resx neutral " +
+                           $"({candidatos?.Count ?? 0} encontrados)");
+                return;
+            }
+
+            var existentes = Claves(candidatos[0]);
+            usos += claves.Count;
+            faltan.AddRange(claves.Where(c => !existentes.Contains(c))
+                .Select(c => $"{Relativa(componente)}: «{c}» no está en {Relativa(candidatos[0])}"));
+        }
+
+        // Control positivo: si las expresiones dejaran de casar, la lista de
+        // faltas quedaría vacía sin haber mirado nada.
+        usos.Should().BeGreaterThan(100, "el instrumento tiene que ver las claves de las Features ya migradas");
+        faltan.Should().BeEmpty();
     }
 
     [Fact]

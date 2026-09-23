@@ -42,6 +42,7 @@ public class GestionesListaGen2Tests : BunitContext
     public GestionesListaGen2Tests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
         this.ConRolDeEscritura();
     }
 
@@ -565,6 +566,26 @@ public class GestionesListaGen2Tests : BunitContext
 
         cut.Find(".conteo-gestiones").TextContent.Trim().Should().Be("2 gestiones");
         cut.FindAll(".chip-filtro").Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Las dos combinaciones del conteo que los casos de arriba no pintan
+    /// (una sin filtros, varias con filtros) y el chip de la búsqueda: cada
+    /// una es una clave propia de <c>TextosGestiones</c>.
+    /// </summary>
+    [Fact]
+    public async Task El_conteo_de_una_sin_filtros_y_de_varias_con_filtros_y_el_chip_de_busqueda()
+    {
+        var mediador = new MediatorFalso { Almacen = { Gestion("Juan Pérez Ibarra") } };
+        var cut = Renderizar(mediador);
+
+        cut.Find(".conteo-gestiones").TextContent.Trim().Should().Be("1 gestión");
+
+        mediador.Almacen.Add(Gestion("Nuria Salas Ortiz"));
+        await cut.InvokeAsync(() => cut.FindComponent<CampoTexto>().Instance.ValorChanged.InvokeAsync("a"));
+
+        cut.WaitForAssertion(() => cut.Find(".conteo-gestiones").TextContent.Trim().Should().Be("2 gestiones con estos filtros"));
+        cut.Find(".chip-filtro").TextContent.Trim().Should().Be("Búsqueda: \"a\"");
     }
 
     private static IElement CabeceraOrdenable(IRenderedComponent<Gestiones> cut, string titulo) =>

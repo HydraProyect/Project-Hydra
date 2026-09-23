@@ -32,8 +32,6 @@ public record RegistrarVerificacionExternaSubcontrataCommand(
 public class RegistrarVerificacionExternaSubcontrataCommandValidator
     : AbstractValidator<RegistrarVerificacionExternaSubcontrataCommand>
 {
-    public const int TamanoMaximoEvidenciaBytes = 10 * 1024 * 1024;
-
     public RegistrarVerificacionExternaSubcontrataCommandValidator()
     {
         RuleFor(c => c.SubcontrataId).NotEmpty();
@@ -50,8 +48,8 @@ public class RegistrarVerificacionExternaSubcontrataCommandValidator
             .WithMessage($"Las observaciones no pueden superar {VerificacionExternaSubcontrata.LongitudMaximaObservaciones} caracteres.");
 
         RuleFor(c => c.EvidenciaContenido)
-            .Must(e => e is null or { Length: > 0 and <= TamanoMaximoEvidenciaBytes })
-            .WithMessage("La evidencia no puede estar vacía ni superar los 10 MB.");
+            .Must(e => e is null or { Length: > 0 and <= LimitesArchivoSubido.TamanoMaximoBytes })
+            .WithMessage($"La evidencia no puede estar vacía ni superar los {LimitesArchivoSubido.TamanoMaximoMb} MB.");
 
         RuleFor(c => c.EvidenciaNombreArchivo)
             .NotEmpty()

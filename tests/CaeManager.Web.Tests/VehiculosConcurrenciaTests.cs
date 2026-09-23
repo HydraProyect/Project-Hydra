@@ -31,6 +31,8 @@ public class VehiculosConcurrenciaTests : BunitContext
     public VehiculosConcurrenciaTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        // Los textos de Vehículos salen de IStringLocalizer<TextosVehiculos>.
+        Services.AddLocalization();
         this.ConRolDeEscritura();
     }
 

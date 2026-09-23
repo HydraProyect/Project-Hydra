@@ -1,4 +1,5 @@
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
+using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
 using CaeManager.Application.Documentos.Commands.RenovarDocumento;
 using CaeManager.Application.Documentos.Queries.DetectarCamposDocumento;
@@ -22,7 +23,6 @@ namespace CaeManager.Web.Features.Documentos.Components;
 
 public partial class DrawerGestionDocumento : ComponentBase
 {
-    private const long TamanoMaximoArchivoBytes = 10 * 1024 * 1024;
     private const int MaximoArchivosPorSubida = 20;
 
     /// <summary>Se dispara tras crear o renovar con éxito — el host decide qué recargar (rejilla, acordeón…).</summary>
@@ -350,7 +350,7 @@ public partial class DrawerGestionDocumento : ComponentBase
                 return;
             }
 
-            if (archivo.Size > TamanoMaximoArchivoBytes)
+            if (archivo.Size > LimitesArchivoSubido.TamanoMaximoBytes)
             {
                 ToastService.Mostrar($"\"{archivo.Name}\" supera los 10 MB.", TonoToast.Error);
                 return;
@@ -365,7 +365,7 @@ public partial class DrawerGestionDocumento : ComponentBase
             var contenidos = new List<(byte[] Contenido, string NombreArchivo)>();
             foreach (var archivo in archivos)
             {
-                await using var flujo = archivo.OpenReadStream(TamanoMaximoArchivoBytes);
+                await using var flujo = archivo.OpenReadStream(LimitesArchivoSubido.TamanoMaximoBytes);
                 using var memoria = new MemoryStream();
                 await flujo.CopyToAsync(memoria);
                 contenidos.Add((memoria.ToArray(), archivo.Name));

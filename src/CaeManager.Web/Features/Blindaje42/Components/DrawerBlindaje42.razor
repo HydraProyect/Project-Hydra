@@ -138,7 +138,6 @@
     /// <summary>Avisa al padre (la lista de empresas) para que recargue los estados tras cualquier cambio.</summary>
     [Parameter] public EventCallback OnCambio { get; set; }
 
-    private const long TamanoMaximoEvidenciaBytes = 10 * 1024 * 1024;
 
     private IReadOnlyList<SolicitudCertificacionTgssDto>? _historial;
     private bool _cargando = true;
@@ -252,7 +251,7 @@
         _subiendoEvidencia = true;
         try
         {
-            await using var flujo = args.File.OpenReadStream(TamanoMaximoEvidenciaBytes);
+            await using var flujo = args.File.OpenReadStream(LimitesArchivoSubido.TamanoMaximoBytes);
             using var memoria = new MemoryStream();
             await flujo.CopyToAsync(memoria);
             _evidenciaContenido = memoria.ToArray();
