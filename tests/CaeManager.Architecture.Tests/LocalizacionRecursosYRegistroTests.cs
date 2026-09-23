@@ -97,7 +97,10 @@ public class LocalizacionRecursosYRegistroTests
     /// Cruza cada <c>Nombre["Clave"</c> literal con las claves del recurso
     /// del <c>IStringLocalizer&lt;TextosX&gt; Nombre</c> declarado en el mismo
     /// componente: el <c>.razor</c> y su <c>.razor.cs</c> se leen juntos,
-    /// porque el <c>@inject</c> de uno lo usa el otro. <b>No ve</b> las claves
+    /// porque el <c>@inject</c> de uno lo usa el otro. También los ayudantes
+    /// estáticos de los recursos que no se inyectan
+    /// (<c>TextosMiTrabajo.Texto("Clave")</c>, <c>.Formato("Clave", …)</c>).
+    /// <b>No ve</b> las claves
     /// que llegan en una variable (<c>Textos[atajo.ClaveDescripcion]</c>, un
     /// <c>switch</c> que elige la clave): esas necesitan su propio test de
     /// componente.
@@ -131,18 +134,29 @@ public class LocalizacionRecursosYRegistroTests
                 if (claves.Count == 0)
                     continue;
 
-                if (!recursos.TryGetValue(tipo, out var candidatos) || candidatos.Count != 1)
-                {
-                    faltan.Add($"{Relativa(componente.Key)}: {tipo} no tiene un único {tipo}.resx neutral " +
-                               $"({candidatos?.Count ?? 0} encontrados)");
-                    continue;
-                }
-
-                var existentes = Claves(candidatos[0]);
-                usos += claves.Count;
-                faltan.AddRange(claves.Where(c => !existentes.Contains(c))
-                    .Select(c => $"{Relativa(componente.Key)}: «{c}» no está en {Relativa(candidatos[0])}"));
+                ComprobarClaves(componente.Key, tipo, claves);
             }
+
+            // Recursos sin inyección (TextosMiTrabajo, TextosBusquedaGlobal):
+            // un ayudante estático recibe la clave como literal.
+            foreach (var porTipo in Regex.Matches(texto, @"\b(Textos\w+)\.(?:Texto|Formato)\(\s*""(\w+)""")
+                         .GroupBy(m => m.Groups[1].Value))
+                ComprobarClaves(componente.Key, porTipo.Key, porTipo.Select(m => m.Groups[2].Value).ToHashSet());
+        }
+
+        void ComprobarClaves(string componente, string tipo, HashSet<string> claves)
+        {
+            if (!recursos.TryGetValue(tipo, out var candidatos) || candidatos.Count != 1)
+            {
+                faltan.Add($"{Relativa(componente)}: {tipo} no tiene un único {tipo}.resx neutral " +
+                           $"({candidatos?.Count ?? 0} encontrados)");
+                return;
+            }
+
+            var existentes = Claves(candidatos[0]);
+            usos += claves.Count;
+            faltan.AddRange(claves.Where(c => !existentes.Contains(c))
+                .Select(c => $"{Relativa(componente)}: «{c}» no está en {Relativa(candidatos[0])}"));
         }
 
         // Control positivo: si las expresiones dejaran de casar, la lista de
