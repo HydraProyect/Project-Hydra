@@ -50,6 +50,7 @@ public class ProyectosGen2Tests : BunitContext
     public ProyectosGen2Tests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
         this.ConRolDeEscritura();
     }
 
