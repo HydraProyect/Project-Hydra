@@ -180,7 +180,7 @@
             _tiposDelAmbito = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: ambito));
 
             if (ambito == AmbitoAplicacion.Trabajador && _trabajadoresDisponibles.Count == 0)
-                _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
+                _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera));
             else if (ambito == AmbitoAplicacion.Empresa && _empresasDisponibles.Count == 0)
                 _empresasDisponibles = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
         }

@@ -111,6 +111,7 @@ public class TiposDocumentoVacioPorFiltroTests : BunitContext
         _mediator = new MediatorQueFiltraDeVerdad(tipos);
         Services.AddScoped<IMediator>(_ => _mediator);
         Services.AddScoped<ToastService>();
+        Services.AddLocalization();
 
         return Render<Features.TiposDocumento.Pages.TiposDocumento>();
     }

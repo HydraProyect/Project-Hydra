@@ -658,9 +658,11 @@ public partial class Centros : ComponentBase
     /// reflejados en esas dos ranuras (mismo criterio de bucketing que
     /// <c>ObtenerCentrosQuery.Desglosar</c>), así que repetirlos aquí era
     /// justo la redundancia que hacía desbordar la columna. Bloqueado
-    /// (el peor caso posible) y Urgente (que Desglosar no cuenta en ningún
-    /// recuento) sí necesitan la ranura; "sin incidencias" (0 y 0) también,
-    /// para que la fila no quede completamente muda.
+    /// (el peor caso posible) sí necesita la ranura. Urgente también: desde
+    /// que <c>Desglosar</c> lo cuenta, aparece en el mismo recuento de
+    /// "próximas" que Próximo, sin distinguir severidad — el Badge de Estado
+    /// es la única señal que sí la distingue. "Sin incidencias" (0 y 0)
+    /// también, para que la fila no quede completamente muda.
     /// </summary>
     private static bool MostrarEstadoEnIndicadores(CentroListaDto centro) =>
         centro.Estado is EstadoCentro.Bloqueado or EstadoCentro.Urgente

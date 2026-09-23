@@ -41,6 +41,8 @@ public class VisitasGen2Tests : BunitContext
     public VisitasGen2Tests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        // Los textos de Visitas salen de IStringLocalizer<TextosVisitas>.
+        Services.AddLocalization();
         this.ConRolDeEscritura();
     }
 

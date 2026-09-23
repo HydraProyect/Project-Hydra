@@ -1,8 +1,11 @@
 using CaeManager.Application.Incidencias.Queries.ObtenerIncidencias;
 using CaeManager.Domain.Incidencias;
 using CaeManager.Web.Exportacion;
+using CaeManager.Web.Features.Incidencias.Recursos;
 using ClosedXML.Excel;
 using MediatR;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Features.Incidencias;
 
@@ -14,17 +17,17 @@ public static class IncidenciasEndpoints
 {
     public static IEndpointRouteBuilder MapIncidenciasEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/incidencias/exportar.xlsx", async (IMediator mediator, CancellationToken cancellationToken) =>
+        endpoints.MapGet("/incidencias/exportar.xlsx", async (IMediator mediator, [FromServices] IStringLocalizer<TextosIncidencias> textos, CancellationToken cancellationToken) =>
         {
             using var libro = new XLWorkbook();
-            var hoja = libro.Worksheets.Add("Incidencias");
+            var hoja = libro.Worksheets.Add(textos["NombreHojaExportacion"]);
 
-            hoja.Cell(1, 1).Value = "Centro";
-            hoja.Cell(1, 2).Value = "Trabajador";
-            hoja.Cell(1, 3).Value = "Tipo";
-            hoja.Cell(1, 4).Value = "Gravedad";
-            hoja.Cell(1, 5).Value = "Fecha de ocurrencia";
-            hoja.Cell(1, 6).Value = "Estado";
+            hoja.Cell(1, 1).Value = textos["EtiquetaCentro"].Value;
+            hoja.Cell(1, 2).Value = textos["EtiquetaTrabajador"].Value;
+            hoja.Cell(1, 3).Value = textos["EtiquetaTipo"].Value;
+            hoja.Cell(1, 4).Value = textos["EtiquetaGravedad"].Value;
+            hoja.Cell(1, 5).Value = textos["EtiquetaFechaOcurrencia"].Value;
+            hoja.Cell(1, 6).Value = textos["EtiquetaEstado"].Value;
             hoja.Row(1).Style.Font.Bold = true;
 
             // Pagina en lotes en vez de TamanoPagina: int.MaxValue (P2.7):
@@ -37,10 +40,10 @@ public static class IncidenciasEndpoints
             {
                 hoja.Cell(fila, 1).Value = incidencia.CentroNombre;
                 hoja.Cell(fila, 2).Value = incidencia.TrabajadorNombre;
-                hoja.Cell(fila, 3).Value = TextoTipo(incidencia.Tipo);
-                hoja.Cell(fila, 4).Value = TextoGravedad(incidencia.Gravedad);
+                hoja.Cell(fila, 3).Value = TextoTipo(incidencia.Tipo, textos);
+                hoja.Cell(fila, 4).Value = TextoGravedad(incidencia.Gravedad, textos);
                 hoja.Cell(fila, 5).Value = incidencia.FechaOcurrencia.ToDateTime(TimeOnly.MinValue);
-                hoja.Cell(fila, 6).Value = incidencia.Resuelta ? "Resuelta" : "Sin resolver";
+                hoja.Cell(fila, 6).Value = incidencia.Resuelta ? textos["EstadoResuelta"].Value : textos["EstadoSinResolver"].Value;
                 fila++;
             }
 
@@ -75,18 +78,18 @@ public static class IncidenciasEndpoints
         return endpoints;
     }
 
-    private static string TextoTipo(TipoIncidencia tipo) => tipo switch
+    private static string TextoTipo(TipoIncidencia tipo, IStringLocalizer<TextosIncidencias> textos) => tipo switch
     {
-        TipoIncidencia.Accidente => "Accidente",
-        TipoIncidencia.Incumplimiento => "Incumplimiento",
+        TipoIncidencia.Accidente => textos["TipoAccidente"].Value,
+        TipoIncidencia.Incumplimiento => textos["TipoIncumplimiento"].Value,
         _ => tipo.ToString()
     };
 
-    private static string TextoGravedad(GravedadIncidencia gravedad) => gravedad switch
+    private static string TextoGravedad(GravedadIncidencia gravedad, IStringLocalizer<TextosIncidencias> textos) => gravedad switch
     {
-        GravedadIncidencia.Leve => "Leve",
-        GravedadIncidencia.Grave => "Grave",
-        GravedadIncidencia.MuyGrave => "Muy grave",
+        GravedadIncidencia.Leve => textos["GravedadLeve"].Value,
+        GravedadIncidencia.Grave => textos["GravedadGrave"].Value,
+        GravedadIncidencia.MuyGrave => textos["GravedadMuyGrave"].Value,
         _ => gravedad.ToString()
     };
 }

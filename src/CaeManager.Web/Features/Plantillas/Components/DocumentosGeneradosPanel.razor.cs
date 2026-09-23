@@ -77,7 +77,7 @@ public partial class DocumentosGeneradosPanel : ComponentBase, IDisposable
         {
             _plantillasDisponibles = await Mediator.Send(new ObtenerPlantillasDocumentoQuery(), token);
             _versionActualPorPlantilla = _plantillasDisponibles.ToDictionary(p => p.Id, p => p.UltimaVersionId);
-            _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(), token);
+            _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera), token);
 
             var avisosPendientes = await Mediator.Send(new ObtenerTotalDocumentosGeneradosConAvisosQuery(), token);
             if (_desechado)

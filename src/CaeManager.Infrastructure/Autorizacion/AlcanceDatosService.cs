@@ -25,7 +25,10 @@ namespace CaeManager.Infrastructure.Autorizacion;
 /// </para> Cachea el resultado
 /// de cada método en la propia instancia (scoped por request/circuito) para
 /// no repetir la misma resolución de cartera varias veces en la misma
-/// petición cuando varios filtros de una Query la necesitan.
+/// petición cuando varios filtros de una Query la necesitan. En Blazor Server
+/// esa instancia dura lo que el circuito: por eso la memoización caduca
+/// (<see cref="CaducidadAlcanceOptions"/>, cota de lectura de una revocación
+/// hecha desde otro circuito) y se descarta antes y después de cada Command.
 ///
 /// La memoización cubre los seis alcances, no solo el de Cliente. Antes solo
 /// estaba el de Cliente y el resto se recalculaba cada vez, con el agravante
@@ -54,7 +57,9 @@ public class AlcanceDatosService(
     ICurrentUserService currentUserService,
     ITenantActual tenantActual,
     ISesionPrivilegiadaActual sesionPrivilegiadaActual,
-    IVistaDemoActual? vistaDemo = null)
+    IVistaDemoActual? vistaDemo = null,
+    TimeProvider? reloj = null,
+    Microsoft.Extensions.Options.IOptions<CaducidadAlcanceOptions>? caducidad = null)
     : IAlcanceDatosService, IInvalidadorAlcance
 {
     // Dictionary<TKey,TValue> exige TKey : notnull, y tenantActual.TenantId es
@@ -73,16 +78,80 @@ public class AlcanceDatosService(
     private readonly Dictionary<Guid, IReadOnlyList<Guid>?> _trabajadorIds = new();
     private readonly Dictionary<Guid, IReadOnlyList<Guid>?> _vehiculoIds = new();
 
+    // Marca de tiempo MONOTÓNICA (TimeProvider.GetTimestamp) del inicio de la generación memoizada
+    // de cada Tenant: un ajuste del reloj de pared no puede alargar la cota. Ver ClaveTenantVigente.
+    private readonly Dictionary<Guid, long> _inicioGeneracion = new();
+
+    // Cambia cada vez que se descarta una generación (caducidad o Invalidar). Un alcance cuya
+    // resolución empezó en una generación anterior se devuelve, pero no se memoiza: ver Memoizar.
+    private long _generacion;
+
+    private readonly TimeProvider _reloj = reloj ?? TimeProvider.System;
+    // El techo se aplica aquí, no solo al leer la configuración: una sustitución de las opciones
+    // (otro registro, un test) tampoco puede alargar la cota más allá de 60 s.
+    private readonly TimeSpan _caducidad = CaducidadAlcanceOptions.Acotar(
+        caducidad?.Value.Caducidad ?? CaducidadAlcanceOptions.CaducidadPorDefecto);
+
     private static Guid ClaveTenant(Guid? tenantId) => tenantId ?? Guid.Empty;
 
     /// <summary>
+    /// Clave del Tenant actual, tras descartar su memoización si ya caducó. Es la cota de cuánto
+    /// tarda un circuito vivo en dejar de LEER con un alcance revocado desde FUERA de él —un
+    /// Coordinador CAE que cierra la Asignación de Cartera de un Gestor CAE, o una Asignación que
+    /// llega a su <c>VigenciaHasta</c> sin que nadie escriba nada—: ninguna de las dos pasa por un
+    /// Command de ese circuito. Sin caducidad, en Blazor Server la visión se conservaba mientras
+    /// viviera el circuito (medido sobre PostgreSQL real, 2026-09-20 y 2026-09-23).
+    ///
+    /// <para>
+    /// La caducidad es por generación y por Tenant, no por diccionario: al caducar se descartan a
+    /// la vez los siete alcances del Tenant, así que cada valor memoizado se calculó después de
+    /// que empezara su generación, y una revocación deja de servirse, como mucho,
+    /// <see cref="CaducidadAlcanceOptions.Caducidad"/> después de producirse (60 s por defecto,
+    /// decisión del propietario 2026-09-23). Las escrituras no esperan a esa cota:
+    /// <see cref="InvalidacionAlcanceBehavior{TRequest,TResponse}"/> invalida ANTES de cada Command.
+    /// </para>
+    /// </summary>
+    private Guid ClaveTenantVigente()
+    {
+        var tenant = ClaveTenant(tenantActual.TenantId);
+        if (_inicioGeneracion.TryGetValue(tenant, out var inicio) && _reloj.GetElapsedTime(inicio) < _caducidad)
+            return tenant;
+
+        if (_inicioGeneracion.ContainsKey(tenant)) _generacion++;
+        _accesoTotal.Remove(tenant);
+        _clienteIds.Remove(tenant);
+        _centroIds.Remove(tenant);
+        _empresaIds.Remove(tenant);
+        _subcontrataIds.Remove(tenant);
+        _trabajadorIds.Remove(tenant);
+        _vehiculoIds.Remove(tenant);
+        _inicioGeneracion[tenant] = _reloj.GetTimestamp();
+        return tenant;
+    }
+
+    /// <summary>
+    /// Memoiza solo si ninguna generación se descartó mientras se resolvía. Los alcances se piden
+    /// en cascada (Trabajador pide Centro, Vehículo pide Empresa y Subcontrata): si la caducidad
+    /// salta a mitad, el resultado puede mezclar listas de dos generaciones. Se devuelve igual
+    /// —ninguna parte es más vieja que la cota—, pero no se guarda en la generación nueva, que
+    /// solo contiene lo resuelto entero dentro de ella.
+    /// </summary>
+    private void Memoizar<T>(Dictionary<Guid, T> memo, Guid tenant, long generacionAlEmpezar, T valor)
+    {
+        if (generacionAlEmpezar == _generacion) memo[tenant] = valor;
+    }
+
+    /// <summary>
     /// Descarta los siete diccionarios (todos los Tenants de esta instancia: el fan-out reutiliza la
-    /// misma). Lo invoca <see cref="InvalidacionAlcanceBehavior{TRequest,TResponse}"/> tras cada
-    /// Command. La memoización sigue siendo por instancia y por Tenant; esto solo evita que un
-    /// circuito largo conserve una visión anterior a una escritura.
+    /// misma). Lo invoca <see cref="InvalidacionAlcanceBehavior{TRequest,TResponse}"/> antes y
+    /// después de cada Command. La memoización sigue siendo por instancia y por Tenant; esto evita
+    /// que un Command se autorice, o que la lectura siguiente se sirva, con una visión anterior. Lo
+    /// que se revoca desde otro circuito lo acota la caducidad (<see cref="ClaveTenantVigente"/>).
     /// </summary>
     public void Invalidar()
     {
+        _generacion++;
+        _inicioGeneracion.Clear();
         _accesoTotal.Clear();
         _clienteIds.Clear();
         _centroIds.Clear();
@@ -114,7 +183,8 @@ public class AlcanceDatosService(
 
     private async Task<bool> TieneAccesoTotalRealAsync(CancellationToken cancellationToken)
     {
-        var tenant = ClaveTenant(tenantActual.TenantId);
+        var tenant = ClaveTenantVigente();
+        var generacion = _generacion;
         if (_accesoTotal.TryGetValue(tenant, out var cacheado)) return cacheado;
 
         bool accesoTotal;
@@ -168,13 +238,14 @@ public class AlcanceDatosService(
             accesoTotal = Roles.AlcanzaTodaLaOrganizacion(rol);
         }
 
-        _accesoTotal[tenant] = accesoTotal;
+        Memoizar(_accesoTotal, tenant, generacion, accesoTotal);
         return accesoTotal;
     }
 
     public async Task<IReadOnlyList<Guid>?> ObtenerClienteIdsVisiblesAsync(CancellationToken cancellationToken = default)
     {
-        var tenant = ClaveTenant(tenantActual.TenantId);
+        var tenant = ClaveTenantVigente();
+        var generacion = _generacion;
         if (_clienteIds.TryGetValue(tenant, out var cacheado)) return cacheado;
 
         var real = await ObtenerClienteIdsRealesAsync(cancellationToken);
@@ -190,7 +261,7 @@ public class AlcanceDatosService(
             resultado = real is null ? deLente : real.Intersect(deLente).ToList();
         }
 
-        _clienteIds[tenant] = resultado;
+        Memoizar(_clienteIds, tenant, generacion, resultado);
         return resultado;
     }
 
@@ -293,10 +364,12 @@ public class AlcanceDatosService(
 
         if (carteras.Count == 0) return [];
 
-        // Ámbito universal: todos los clientes del tenant. Solo llega aquí un
-        // rol de alcance total, y esos ya salieron por TieneAccesoTotalAsync
-        // sin consultar carteras — a un rol de cartera no se le emite nunca una
-        // universal, justamente para no ensanchar su alcance.
+        // Ámbito universal: todos los clientes del tenant. Un rol de alcance
+        // total ya salió por TieneAccesoTotalAsync sin consultar carteras; a un
+        // rol de cartera solo se le emite una universal cuando un Coordinador
+        // CAE acepta su solicitud de incorporación al Tenant propietario entero
+        // (CatalogoIncorporacionCartera). Fuera de esa decisión explícita no se
+        // le emite nunca, justamente para no ensanchar su alcance en silencio.
         //
         // F3b — Empresas, no la tabla legacy Clientes: un Cliente creado tras
         // la congelación solo existe ahí (EsCritico != null lo identifica).
@@ -308,7 +381,8 @@ public class AlcanceDatosService(
 
     public async Task<IReadOnlyList<Guid>?> ObtenerCentroIdsVisiblesAsync(CancellationToken cancellationToken = default)
     {
-        var tenant = ClaveTenant(tenantActual.TenantId);
+        var tenant = ClaveTenantVigente();
+        var generacion = _generacion;
         if (_centroIds.TryGetValue(tenant, out var cacheado)) return cacheado;
 
         var clienteIds = await ObtenerClienteIdsVisiblesAsync(cancellationToken);
@@ -322,7 +396,7 @@ public class AlcanceDatosService(
                 .Select(c => c.Id)
                 .ToListAsync(cancellationToken)
         };
-        _centroIds[tenant] = resultado;
+        Memoizar(_centroIds, tenant, generacion, resultado);
 
         return resultado;
     }
@@ -361,8 +435,9 @@ public class AlcanceDatosService(
     /// D-8 (piloto Outbound): además, un Gestor/Coordinador CAE con cartera no vacía ve las Empresas
     /// propias del Tenant actual aunque no exista Centro ni Relación Empresarial que las una a un
     /// Cliente de su cartera (la Empresa propia es parte estructural del contexto, no algo que
-    /// haya que fabricar con un Centro o una Relación). Sus Trabajadores NO: siguen entrando solo
-    /// por <c>Asignacion</c> sobre un Centro visible.
+    /// haya que fabricar con un Centro o una Relación). Con el mismo criterio
+    /// (<see cref="IncluyeEstructuraPropiaAsync"/>) ve también a todos sus Trabajadores, tengan o no
+    /// Asignación: ver <see cref="ObtenerTrabajadorIdsVisiblesAsync"/>.
     ///
     /// El filtro <c>Proveedora.EsPropia</c> repone una garantía que antes
     /// daba gratis la separación física de tablas — en la tabla unificada
@@ -371,7 +446,8 @@ public class AlcanceDatosService(
     /// </summary>
     public async Task<IReadOnlyList<Guid>?> ObtenerEmpresaIdsVisiblesAsync(CancellationToken cancellationToken = default)
     {
-        var tenant = ClaveTenant(tenantActual.TenantId);
+        var tenant = ClaveTenantVigente();
+        var generacion = _generacion;
         if (_empresaIds.TryGetValue(tenant, out var cacheado)) return cacheado;
 
         var clienteIds = await ObtenerClienteIdsVisiblesAsync(cancellationToken);
@@ -379,7 +455,7 @@ public class AlcanceDatosService(
         if (clienteIds is null || clienteIds.Count == 0)
         {
             var vacioOSinRestriccion = clienteIds is null ? null : (IReadOnlyList<Guid>)[];
-            _empresaIds[tenant] = vacioOSinRestriccion;
+            Memoizar(_empresaIds, tenant, generacion, vacioOSinRestriccion);
             return vacioOSinRestriccion;
         }
 
@@ -389,26 +465,40 @@ public class AlcanceDatosService(
             .Join(dbContext.Empresas.Where(e => e.EsPropia), r => r.ProveedoraId, e => e.Id, (r, e) => e.Id);
 
         // D-8 (piloto Outbound): la Empresa propia es parte estructural del Tenant del que el Gestor
-        // tiene cartera, con o sin Centro ni Relación Empresarial. Solo los roles de cartera de
-        // Operador (Gestor/Coordinador CAE): el rol Cliente (portal) no gana estructura del Tenant,
-        // y cualquier otro rol que llegue aquí con cartera no vacía sigue sin ella (falla cerrado).
+        // tiene cartera, con o sin Centro ni Relación Empresarial.
         // dbContext ya está acotado al Tenant actual (RLS + filtro), así que no cruza Tenants.
-        var rolActual = await currentUserService.ObtenerRolActualAsync();
         var visibles = porCentro.Concat(porVinculoDirecto);
-        // La lente de demo Gestor muestra lo mismo que vería ese Gestor con su propia cuenta, así que
-        // también la incluye (sin ella, la lente y la cuenta real mostrarían Empresas distintas). La
-        // lente solo cuenta si quien mira ya tiene alcance total real (Administrador, Consulta): la
-        // Empresa propia ya estaba a su alcance, así que la lente no amplía nada.
-        if (rolActual is Roles.GestorCae or Roles.CoordinadorCae
-            || (await ObtenerGestorDeLenteAsync(cancellationToken) is not null
-                && await TieneAccesoTotalRealAsync(cancellationToken)))
+        if (await IncluyeEstructuraPropiaAsync(cancellationToken))
             visibles = visibles.Concat(dbContext.Empresas.Where(e => e.EsPropia).Select(e => e.Id));
 
         var resultado = await visibles.Distinct().ToListAsync(cancellationToken);
-        _empresaIds[tenant] = resultado;
+        Memoizar(_empresaIds, tenant, generacion, resultado);
 
         return resultado;
     }
+
+    /// <summary>
+    /// D-8 (piloto Outbound): si quien mira, con cartera no vacía en el Tenant actual, alcanza la
+    /// estructura propia del Tenant —la Empresa propia y toda su plantilla— sin que haga falta un
+    /// Centro, una Relación Empresarial ni una Asignación que la una a un Cliente de su cartera.
+    /// Criterio único para <see cref="ObtenerEmpresaIdsVisiblesAsync"/> y
+    /// <see cref="ObtenerTrabajadorIdsVisiblesAsync"/>: si divergieran, un Gestor CAE vería la
+    /// Empresa propia sin su plantilla, o al revés.
+    ///
+    /// Solo los roles de cartera de Operador (Gestor/Coordinador CAE): el rol Cliente (portal) no
+    /// gana estructura del Tenant, y cualquier otro rol que llegue aquí con cartera no vacía sigue
+    /// sin ella (falla cerrado). Consulta no pasa por aquí porque ya tiene alcance total dentro del
+    /// Tenant. La lente de demo Gestor muestra lo mismo que vería ese Gestor con su propia cuenta,
+    /// así que también la incluye (sin ella, la lente y la cuenta real mostrarían datos distintos);
+    /// solo cuenta si quien mira ya tiene alcance total real (Administrador, Consulta), para quien
+    /// la estructura propia ya estaba a su alcance: la lente no amplía nada.
+    ///
+    /// Solo decide el rol: quien llama ya ha comprobado que la cartera no está vacía.
+    /// </summary>
+    private async Task<bool> IncluyeEstructuraPropiaAsync(CancellationToken cancellationToken) =>
+        await currentUserService.ObtenerRolActualAsync() is Roles.GestorCae or Roles.CoordinadorCae
+        || (await ObtenerGestorDeLenteAsync(cancellationToken) is not null
+            && await TieneAccesoTotalRealAsync(cancellationToken));
 
     /// <summary>
     /// F4 — reescrito sobre <c>RelacionEmpresarial</c> en vez de
@@ -424,7 +514,8 @@ public class AlcanceDatosService(
     /// </summary>
     public async Task<IReadOnlyList<Guid>?> ObtenerSubcontrataIdsVisiblesAsync(CancellationToken cancellationToken = default)
     {
-        var tenant = ClaveTenant(tenantActual.TenantId);
+        var tenant = ClaveTenantVigente();
+        var generacion = _generacion;
         if (_subcontrataIds.TryGetValue(tenant, out var cacheado)) return cacheado;
 
         var clienteIds = await ObtenerClienteIdsVisiblesAsync(cancellationToken);
@@ -432,7 +523,7 @@ public class AlcanceDatosService(
         if (clienteIds is null || clienteIds.Count == 0)
         {
             var vacioOSinRestriccion = clienteIds is null ? null : (IReadOnlyList<Guid>)[];
-            _subcontrataIds[tenant] = vacioOSinRestriccion;
+            Memoizar(_subcontrataIds, tenant, generacion, vacioOSinRestriccion);
             return vacioOSinRestriccion;
         }
 
@@ -446,7 +537,7 @@ public class AlcanceDatosService(
         var porEmpresa = relacionesConSubcontrataComoProveedora.Where(x => empresaIds.Contains(x.ClienteId)).Select(x => x.SubcontrataId);
 
         var resultado = await porCliente.Concat(porEmpresa).Distinct().ToListAsync(cancellationToken);
-        _subcontrataIds[tenant] = resultado;
+        Memoizar(_subcontrataIds, tenant, generacion, resultado);
 
         return resultado;
     }
@@ -464,37 +555,64 @@ public class AlcanceDatosService(
         return await ObtenerSubcontrataIdsVisiblesAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Dos vías, unidas:
+    /// <list type="bullet">
+    /// <item>por Asignación: los Trabajadores —de cualquier empleador— con una <c>Asignacion</c>
+    /// activa en un Centro visible;</item>
+    /// <item>por estructura propia (decisión del propietario 2026-09-22, opción A): toda la
+    /// plantilla de la Empresa propia del Tenant, desde su alta y sin Asignación, para que el Gestor
+    /// CAE prepare el expediente antes de la primera. Mismo criterio que la Empresa propia en
+    /// <see cref="ObtenerEmpresaIdsVisiblesAsync"/> (<see cref="IncluyeEstructuraPropiaAsync"/>).
+    /// Solo Trabajadores de la Empresa propia: los de una Subcontrata o de otra Empresa contraparte
+    /// siguen entrando únicamente por Asignación.</item>
+    /// </list>
+    /// La condición de entrada es la cartera (Clientes visibles), no los Centros: un Gestor CAE con
+    /// cartera pero sin ningún Centro todavía ve la plantilla propia. Sin cartera, [].
+    /// </summary>
     public async Task<IReadOnlyList<Guid>?> ObtenerTrabajadorIdsVisiblesAsync(CancellationToken cancellationToken = default)
     {
-        var tenant = ClaveTenant(tenantActual.TenantId);
+        var tenant = ClaveTenantVigente();
+        var generacion = _generacion;
         if (_trabajadorIds.TryGetValue(tenant, out var cacheado)) return cacheado;
 
-        var centroIds = await ObtenerCentroIdsVisiblesAsync(cancellationToken);
+        var clienteIds = await ObtenerClienteIdsVisiblesAsync(cancellationToken);
 
-        IReadOnlyList<Guid>? resultado = centroIds switch
+        if (clienteIds is null || clienteIds.Count == 0)
         {
-            null => null,
-            { Count: 0 } => [],
-            _ => await dbContext.Asignaciones
-                .Where(a => centroIds.Contains(a.CentroId) && a.FechaBaja == null)
-                .Select(a => a.TrabajadorId)
-                .Distinct()
-                .ToListAsync(cancellationToken)
-        };
-        _trabajadorIds[tenant] = resultado;
+            var vacioOSinRestriccion = clienteIds is null ? null : (IReadOnlyList<Guid>)[];
+            Memoizar(_trabajadorIds, tenant, generacion, vacioOSinRestriccion);
+            return vacioOSinRestriccion;
+        }
+
+        var centroIds = await ObtenerCentroIdsVisiblesAsync(cancellationToken) ?? [];
+        var visibles = dbContext.Asignaciones
+            .Where(a => centroIds.Contains(a.CentroId) && a.FechaBaja == null)
+            .Select(a => a.TrabajadorId);
+
+        // dbContext ya está acotado al Tenant actual (RLS + filtro), así que no cruza Tenants. Un
+        // Trabajador de Subcontrata tiene EmpresaId null (CK_Trabajadores_EmpresaXorSubcontrata), así
+        // que el join con la Empresa propia ya lo deja fuera.
+        if (await IncluyeEstructuraPropiaAsync(cancellationToken))
+            visibles = visibles.Concat(dbContext.Trabajadores
+                .Join(dbContext.Empresas.Where(e => e.EsPropia), t => t.EmpresaId, e => (Guid?)e.Id, (t, e) => t.Id));
+
+        var resultado = await visibles.Distinct().ToListAsync(cancellationToken);
+        Memoizar(_trabajadorIds, tenant, generacion, resultado);
 
         return resultado;
     }
 
     public async Task<IReadOnlyList<Guid>?> ObtenerVehiculoIdsVisiblesAsync(CancellationToken cancellationToken = default)
     {
-        var tenant = ClaveTenant(tenantActual.TenantId);
+        var tenant = ClaveTenantVigente();
+        var generacion = _generacion;
         if (_vehiculoIds.TryGetValue(tenant, out var cacheado)) return cacheado;
 
         var empresaIds = await ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
         if (empresaIds is null)
         {
-            _vehiculoIds[tenant] = null;
+            Memoizar(_vehiculoIds, tenant, generacion, null);
             return null;
         }
 
@@ -508,7 +626,7 @@ public class AlcanceDatosService(
                     (v.SubcontrataId != null && subcontrataIds.Contains(v.SubcontrataId.Value)))
                 .Select(v => v.Id)
                 .ToListAsync(cancellationToken);
-        _vehiculoIds[tenant] = resultado;
+        Memoizar(_vehiculoIds, tenant, generacion, resultado);
 
         return resultado;
     }

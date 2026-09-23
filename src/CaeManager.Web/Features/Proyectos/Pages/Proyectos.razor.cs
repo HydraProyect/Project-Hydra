@@ -170,8 +170,9 @@ public partial class Proyectos : ComponentBase
     private const string EstadoAbiertos = "abiertos";
     private const string EstadoCerrados = "cerrados";
 
-    private static readonly IReadOnlyList<OpcionEstado> OpcionesEstado =
-        [new(EstadoAbiertos, "Abiertos"), new(EstadoCerrados, "Cerrados")];
+    // De instancia, no static: las etiquetas salen del localizador inyectado.
+    private IReadOnlyList<OpcionEstado> OpcionesEstado =>
+        [new(EstadoAbiertos, Textos["FiltroAbiertos"]), new(EstadoCerrados, Textos["FiltroCerrados"])];
 
     private string _busqueda = string.Empty;
     private string _estadoFiltro = string.Empty;
@@ -231,8 +232,8 @@ public partial class Proyectos : ComponentBase
         OpcionesEstado.FirstOrDefault(o => o.Valor == _estadoFiltro)?.Texto.ToLowerInvariant() ?? string.Empty;
 
     private string TextoConteo => HayFiltrosActivos
-        ? $"{ProyectosVisibles.Count} de {_proyectos.Count} proyecto(s) de este cliente"
-        : $"{_proyectos.Count} proyecto(s) de este cliente";
+        ? Textos["ConteoConFiltro", ProyectosVisibles.Count, _proyectos.Count].Value
+        : Textos["ConteoSinFiltro", _proyectos.Count].Value;
 
     private Task BuscarAsync(string valor)
     {
@@ -308,13 +309,13 @@ public partial class Proyectos : ComponentBase
         {
             if (!Guid.TryParse(_nuevoCentroId, out var centroId))
             {
-                _mensajeErrorFormulario = "Selecciona un centro.";
+                _mensajeErrorFormulario = Textos["ErrorFaltaCentro"];
                 return;
             }
 
             if (!DateOnly.TryParse(_nuevaFechaInicio, out var fechaInicio))
             {
-                _mensajeErrorFormulario = "Introduce una fecha de inicio válida.";
+                _mensajeErrorFormulario = Textos["ErrorFechaInicio"];
                 return;
             }
 
@@ -330,7 +331,7 @@ public partial class Proyectos : ComponentBase
                 return;
             }
 
-            ToastService.Mostrar("Proyecto creado correctamente.", TonoToast.Exito);
+            ToastService.Mostrar(Textos["ToastCreado"], TonoToast.Exito);
             _drawerVisible = false;
             await CargarProyectosAsync();
         }
@@ -342,7 +343,7 @@ public partial class Proyectos : ComponentBase
         }
         catch (Exception)
         {
-            _mensajeErrorFormulario = "No pudimos crear el proyecto. Intenta nuevamente en unos segundos.";
+            _mensajeErrorFormulario = Textos["ErrorCrear"];
         }
         finally
         {
@@ -504,17 +505,19 @@ public partial class Proyectos : ComponentBase
         return fin < inicio ? null : fin.DayNumber - inicio.DayNumber + 1;
     }
 
-    private static string TextoTecnicosActivos(int tecnicosActivos) =>
-        tecnicosActivos == 1 ? "1 técnico activo" : $"{tecnicosActivos} técnicos activos";
+    private string TextoTecnicosActivos(int tecnicosActivos) =>
+        tecnicosActivos == 1
+            ? Textos["TecnicosActivosUno", tecnicosActivos].Value
+            : Textos["TecnicosActivosVarios", tecnicosActivos].Value;
 
-    private static string MetaTecnico(TecnicoProyectoDto tecnico)
+    private string MetaTecnico(TecnicoProyectoDto tecnico)
     {
         var partes = new List<string>();
         if (!string.IsNullOrWhiteSpace(tecnico.TrabajadorDni))
             partes.Add(tecnico.TrabajadorDni);
-        partes.Add($"alta {tecnico.FechaAlta:dd/MM/yyyy}");
+        partes.Add(Textos["MetaAltaFecha", tecnico.FechaAlta]);
         if (tecnico.FechaBaja is { } baja)
-            partes.Add($"baja {baja:dd/MM/yyyy}");
+            partes.Add(Textos["MetaBajaFecha", baja]);
         return string.Join(" · ", partes);
     }
 
@@ -575,7 +578,7 @@ public partial class Proyectos : ComponentBase
                 return;
             }
 
-            ToastService.Mostrar("Proyecto actualizado correctamente.", TonoToast.Exito);
+            ToastService.Mostrar(Textos["ToastActualizado"], TonoToast.Exito);
             _editandoInfo = false;
 
             // Solo se refresca el detalle si sigue siendo el abierto: si el
@@ -593,7 +596,7 @@ public partial class Proyectos : ComponentBase
         }
         catch (Exception)
         {
-            _editError = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
+            _editError = Textos["ErrorGuardar"];
         }
         finally
         {
@@ -630,7 +633,7 @@ public partial class Proyectos : ComponentBase
 
         if (!DateOnly.TryParse(_fechaCierre, out var fechaCierre))
         {
-            _errorCierre = "Introduce una fecha de cierre válida.";
+            _errorCierre = Textos["ErrorFechaCierre"];
             return;
         }
 
@@ -647,7 +650,7 @@ public partial class Proyectos : ComponentBase
                 return;
             }
 
-            ToastService.Mostrar("Proyecto cerrado correctamente.", TonoToast.Exito);
+            ToastService.Mostrar(Textos["ToastCerrado"], TonoToast.Exito);
             _mostrarCerrarConfirm = false;
             await CargarProyectosAsync();
 
@@ -688,7 +691,7 @@ public partial class Proyectos : ComponentBase
                 return;
             }
 
-            ToastService.Mostrar("Proyecto eliminado.", TonoToast.Exito);
+            ToastService.Mostrar(Textos["ToastEliminado"], TonoToast.Exito);
             _confirmarEliminarVisible = false;
 
             if (_proyectoSeleccionadoId == _idAEliminar)
@@ -698,7 +701,7 @@ public partial class Proyectos : ComponentBase
         }
         catch (Exception)
         {
-            ToastService.Mostrar("No pudimos eliminar el proyecto. Intenta nuevamente en unos segundos.", TonoToast.Error);
+            ToastService.Mostrar(Textos["ErrorEliminar"], TonoToast.Error);
         }
         finally
         {
@@ -740,7 +743,7 @@ public partial class Proyectos : ComponentBase
     private async Task AbrirFormularioTecnicoAsync()
     {
         if (_trabajadoresDisponibles.Count == 0)
-            _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
+            _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera));
 
         _nuevoTecnicoTrabajadorId = string.Empty;
         _nuevoTecnicoFechaAlta = Hoy.ToString("yyyy-MM-dd");
@@ -754,13 +757,13 @@ public partial class Proyectos : ComponentBase
 
         if (!Guid.TryParse(_nuevoTecnicoTrabajadorId, out var trabajadorId))
         {
-            _errorTecnico = "Selecciona un técnico.";
+            _errorTecnico = Textos["ErrorFaltaTecnico"];
             return;
         }
 
         if (!DateOnly.TryParse(_nuevoTecnicoFechaAlta, out var fechaAlta))
         {
-            _errorTecnico = "Introduce una fecha de alta válida.";
+            _errorTecnico = Textos["ErrorFechaAlta"];
             return;
         }
 
@@ -777,7 +780,7 @@ public partial class Proyectos : ComponentBase
                 return;
             }
 
-            ToastService.Mostrar("Técnico asignado correctamente.", TonoToast.Exito);
+            ToastService.Mostrar(Textos["ToastTecnicoAsignado"], TonoToast.Exito);
             _mostrarFormularioTecnico = false;
             await CargarTecnicosAsync();
         }
@@ -799,12 +802,12 @@ public partial class Proyectos : ComponentBase
                 return;
             }
 
-            ToastService.Mostrar("Técnico dado de baja del proyecto.", TonoToast.Exito);
+            ToastService.Mostrar(Textos["ToastTecnicoDeBaja"], TonoToast.Exito);
             await CargarTecnicosAsync();
         }
         catch (Exception)
         {
-            ToastService.Mostrar("No pudimos dar de baja al técnico. Intenta nuevamente en unos segundos.", TonoToast.Error);
+            ToastService.Mostrar(Textos["ErrorDarDeBaja"], TonoToast.Error);
         }
     }
 }

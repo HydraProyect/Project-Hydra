@@ -19,7 +19,7 @@ public class InvalidacionAlcanceBehaviorTests
     }
 
     [Fact]
-    public async Task Un_Command_invalida_el_alcance_despues_de_ejecutarse()
+    public async Task Un_Command_invalida_el_alcance_antes_y_despues_de_ejecutarse()
     {
         var invalidador = new InvalidadorContador();
         var llamadasAlEjecutar = -1;
@@ -31,8 +31,10 @@ public class InvalidacionAlcanceBehaviorTests
             return Task.FromResult(Result.Exito());
         }, CancellationToken.None);
 
-        llamadasAlEjecutar.Should().Be(0, "se invalida DESPUÉS del handler, no antes");
-        invalidador.Llamadas.Should().Be(1);
+        llamadasAlEjecutar.Should().Be(1,
+            "el handler autoriza con IAlcanceDatosService: tiene que resolver el alcance de nuevo, " +
+            "no el que memoizó el circuito antes de una revocación hecha desde otro circuito");
+        invalidador.Llamadas.Should().Be(2, "y después, para que la lectura siguiente vea lo que el propio Command cambió");
     }
 
     [Fact]
@@ -43,7 +45,7 @@ public class InvalidacionAlcanceBehaviorTests
 
         await behavior.Handle(new FalsoConValorCommand(), _ => Task.FromResult(Result.Exito(Guid.NewGuid())), CancellationToken.None);
 
-        invalidador.Llamadas.Should().Be(1);
+        invalidador.Llamadas.Should().Be(2);
     }
 
     [Fact]
@@ -55,7 +57,7 @@ public class InvalidacionAlcanceBehaviorTests
         var accion = () => behavior.Handle(new FalsoCommand(), _ => throw new InvalidOperationException("boom"), CancellationToken.None);
 
         await accion.Should().ThrowAsync<InvalidOperationException>();
-        invalidador.Llamadas.Should().Be(1, "un guardado parcial tampoco debe dejar una visión de la que no se sabe si es cierta");
+        invalidador.Llamadas.Should().Be(2, "un guardado parcial tampoco debe dejar una visión de la que no se sabe si es cierta");
     }
 
     [Fact]

@@ -258,6 +258,7 @@ public class CaeManagerDbContext(
     IQueryable<AsignacionOperacion> IOperacionesQueryContext.AsignacionesOperacion => AsignacionesOperacion;
     public DbSet<AsignacionCartera> AsignacionesCartera => Set<AsignacionCartera>();
     IQueryable<AsignacionCartera> IOperacionesQueryContext.AsignacionesCartera => AsignacionesCartera;
+    public DbSet<SolicitudIncorporacionCartera> SolicitudesIncorporacionCartera => Set<SolicitudIncorporacionCartera>();
     public DbSet<CaeManager.Domain.Plataforma.ConcesionPrivilegio> ConcesionesPrivilegio => Set<CaeManager.Domain.Plataforma.ConcesionPrivilegio>();
     IQueryable<CaeManager.Domain.Plataforma.EstadoBootstrapPlataforma> CaeManager.Application.Plataforma.IPlataformaQueryContext.EstadoBootstrapPlataforma => EstadoBootstrapPlataforma;
 
@@ -270,6 +271,14 @@ public class CaeManagerDbContext(
     /// </summary>
     public DbSet<CaeManager.Domain.Plataforma.EstadoBootstrapPlataforma> EstadoBootstrapPlataforma
         => Set<CaeManager.Domain.Plataforma.EstadoBootstrapPlataforma>();
+
+    /// <summary>
+    /// Orden global del menú lateral (plano de Plataforma, fila única). Fuera del filtro de
+    /// tenant porque no pertenece a ninguno; su RLS propia deja leer a todos y escribir solo al
+    /// Actor de Plataforma TALVEG con concesión AdminPlataforma global.
+    /// </summary>
+    public DbSet<CaeManager.Domain.Plataforma.OrdenMenuLateral> OrdenMenuLateral
+        => Set<CaeManager.Domain.Plataforma.OrdenMenuLateral>();
 
     public DbSet<CaeManager.Domain.Plataforma.SesionPrivilegiada> SesionesPrivilegiadas => Set<CaeManager.Domain.Plataforma.SesionPrivilegiada>();
     IQueryable<CaeManager.Domain.Plataforma.SesionPrivilegiada> CaeManager.Application.Plataforma.IPlataformaQueryContext.SesionesPrivilegiadas => SesionesPrivilegiadas;
@@ -300,6 +309,8 @@ public class CaeManagerDbContext(
     IQueryable<SolicitudPrioridadDocumento> IComunicacionesQueryContext.SolicitudesPrioridadDocumento => SolicitudesPrioridadDocumento;
     public DbSet<EventoConversacion> EventosConversacion => Set<EventoConversacion>();
     IQueryable<EventoConversacion> IComunicacionesQueryContext.EventosConversacion => EventosConversacion;
+    public DbSet<NotaInternaConversacion> NotasInternasConversacion => Set<NotaInternaConversacion>();
+    IQueryable<NotaInternaConversacion> IComunicacionesQueryContext.NotasInternasConversacion => NotasInternasConversacion;
     public DbSet<ClasificacionRuidoMensaje> ClasificacionesRuidoMensaje => Set<ClasificacionRuidoMensaje>();
     IQueryable<ClasificacionRuidoMensaje> IComunicacionesQueryContext.ClasificacionesRuidoMensaje => ClasificacionesRuidoMensaje;
     public DbSet<ClasificacionRelevanciaCae> ClasificacionesRelevanciaCae => Set<ClasificacionRelevanciaCae>();

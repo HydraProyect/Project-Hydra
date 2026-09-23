@@ -180,14 +180,14 @@ public partial class Alertas : ComponentBase
     /// hoy": eso depende de cada centro y aquí no se sabe), ni nombra los días
     /// de los umbrales: son parámetros del sistema que AlertaDto no trae.
     /// </summary>
-    private static string? DescripcionSeveridad(EstadoDocumento estado) => estado switch
+    private string? DescripcionSeveridad(EstadoDocumento estado) => estado switch
     {
-        EstadoDocumento.Vencido => "El documento existe, pero su vigencia ya terminó.",
+        EstadoDocumento.Vencido => Textos["SeveridadVencidoDescripcion"].Value,
         // Dos procedencias, como el párrafo de procedencia de Alertas.razor:
         // la configuración del centro o, si no la hay, el valor general del tipo.
-        EstadoDocumento.Faltante => "Se pide en un centro al que está asignado —porque ese centro lo tiene configurado o, si el centro no dice nada, porque el tipo de documento se pide siempre— y no hay ningún documento de ese tipo.",
-        EstadoDocumento.Urgente => "Vence dentro del umbral corto de aviso.",
-        EstadoDocumento.Proximo => "Vence dentro del umbral largo de aviso: hay margen para anticiparse.",
+        EstadoDocumento.Faltante => Textos["SeveridadFaltanteDescripcion"].Value,
+        EstadoDocumento.Urgente => Textos["SeveridadUrgenteDescripcion"].Value,
+        EstadoDocumento.Proximo => Textos["SeveridadProximoDescripcion"].Value,
         _ => null
     };
 
@@ -200,7 +200,7 @@ public partial class Alertas : ComponentBase
                     Clave: $"estado:{g.Key}",
                     Titulo: EstadoDocumentoUi.Texto(g.Key),
                     Insignia: g.Count().ToString(),
-                    TituloInsignia: $"{g.Count()} alerta(s) en severidad {EstadoDocumentoUi.Texto(g.Key)}",
+                    TituloInsignia: Textos["InsigniaSeveridadTitulo", g.Count(), EstadoDocumentoUi.Texto(g.Key)],
                     Tono: EstadoDocumentoUi.Tono(g.Key),
                     Critico: g.Key is EstadoDocumento.Vencido or EstadoDocumento.Faltante,
                     Descripcion: DescripcionSeveridad(g.Key),
@@ -215,7 +215,7 @@ public partial class Alertas : ComponentBase
                         Clave: $"tipo:{g.Key}",
                         Titulo: g.First().TipoDocumentoNombre,
                         Insignia: EstadoDocumentoUi.Texto(peor),
-                        TituloInsignia: $"Peor severidad del bloque: {EstadoDocumentoUi.Texto(peor)}",
+                        TituloInsignia: Textos["InsigniaMotivoTitulo", EstadoDocumentoUi.Texto(peor)],
                         Tono: EstadoDocumentoUi.Tono(peor),
                         Critico: false,
                         Descripcion: null,
@@ -253,11 +253,11 @@ public partial class Alertas : ComponentBase
         }
     }
 
-    private static string MetaDeGrupo(GrupoAlertas grupo, int filasEnPagina)
+    private string MetaDeGrupo(GrupoAlertas grupo, int filasEnPagina)
     {
         var total = grupo.Alertas.Count;
-        var base_ = grupo.Descripcion ?? $"{total} alerta(s)";
-        return filasEnPagina < total ? $"{base_} · {filasEnPagina} en esta página" : base_;
+        var base_ = grupo.Descripcion ?? Textos["MetaGrupoTotal", total];
+        return filasEnPagina < total ? Textos["MetaGrupoEnPagina", base_, filasEnPagina] : base_;
     }
 
     private void CambiarAgrupacion(ModoAgrupacion modo)
@@ -432,7 +432,7 @@ public partial class Alertas : ComponentBase
 
     private string MensajeConfirmacionEnvio => _envioPendiente is not { } envio
         ? string.Empty
-        : $"Se reclamarán {envio.DocumentoIds.Count} documento(s) a {envio.ContactoIds.Count} contacto(s) de la agenda: {string.Join(", ", envio.NombresContactos)}.";
+        : Textos["ConfirmacionEnvioMensaje", envio.DocumentoIds.Count, envio.ContactoIds.Count, string.Join(", ", envio.NombresContactos)];
 
     private void CerrarConfirmacionEnvio(bool visible)
     {
@@ -473,12 +473,12 @@ public partial class Alertas : ComponentBase
             var enviado = resultado.Valor;
             _envioPendiente = null;
             ToastService.Mostrar(
-                $"Reclamación enviada a {envio.TitularNombre}: {enviado.DocumentoIdsEnviados.Count} documento(s) a {enviado.Destinatarios.Count} contacto(s).",
+                Textos["ToastReclamacionEnviada", envio.TitularNombre, enviado.DocumentoIdsEnviados.Count, enviado.Destinatarios.Count],
                 TonoToast.Exito);
         }
         catch (Exception)
         {
-            ToastService.Mostrar("No pudimos enviar la reclamación. Inténtalo de nuevo.", TonoToast.Error);
+            ToastService.Mostrar(Textos["ToastErrorEnvio"], TonoToast.Error);
             return;
         }
         finally
@@ -489,14 +489,18 @@ public partial class Alertas : ComponentBase
         await CargarLoteAsync();
     }
 
-    private static string FormatearHaceTiempo(DateTime fechaUtc)
+    private string TextoUltimaReclamacion(DateTime? fechaUtc) => fechaUtc is { } fecha
+        ? Textos["LoteUltimaReclamacion", FormatearHaceTiempo(fecha)]
+        : Textos["LoteNuncaReclamado"];
+
+    private string FormatearHaceTiempo(DateTime fechaUtc)
     {
         var dias = (int)(DateTime.UtcNow - fechaUtc).TotalDays;
         return dias switch
         {
-            <= 0 => "hoy",
-            1 => "hace 1 día",
-            _ => $"hace {dias} días"
+            <= 0 => Textos["HaceTiempoHoy"],
+            1 => Textos["HaceTiempoDiasUno", dias],
+            _ => Textos["HaceTiempoDiasVarios", dias]
         };
     }
 }

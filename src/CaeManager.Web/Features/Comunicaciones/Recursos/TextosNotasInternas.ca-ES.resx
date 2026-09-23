@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="EtiquetaNotaInterna" xml:space="preserve">
+    <value>Nota interna</value>
+  </data>
+  <data name="AvisoSoloEquipo" xml:space="preserve">
+    <value>Només la veu el teu equip. No s'envia al contacte.</value>
+  </data>
+  <data name="EtiquetaCampoNota" xml:space="preserve">
+    <value>Nota interna per al teu equip</value>
+  </data>
+  <data name="PlaceholderNota" xml:space="preserve">
+    <value>Escriu una nota per al teu equip…</value>
+  </data>
+  <data name="BotonGuardarNota" xml:space="preserve">
+    <value>Desa la nota interna</value>
+  </data>
+  <data name="ToastNotaGuardada" xml:space="preserve">
+    <value>Nota interna desada.</value>
+  </data>
+  <data name="ToastErrorGuardar" xml:space="preserve">
+    <value>No hem pogut desar la nota interna. Torna-ho a provar.</value>
+  </data>
+  <data name="AutorDesconocido" xml:space="preserve">
+    <value>Membre de l'equip</value>
+  </data>
+</root>

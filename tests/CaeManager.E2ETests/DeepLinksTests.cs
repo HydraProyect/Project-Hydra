@@ -1,4 +1,5 @@
-﻿using Microsoft.Playwright;
+﻿using System.Collections.Concurrent;
+using Microsoft.Playwright;
 
 namespace CaeManager.E2ETests;
 
@@ -54,19 +55,16 @@ public class DeepLinksTests(WebAppFixture fixture)
         // mismo camino que ya usa TrabajadorDetalle.razor.cs (AbrirInformacion).
         await page.Locator(".enlace-nombre-fila").First.ClickAsync();
         await page.GetByText("Ver Trabajador 360 →").ClickAsync();
-        // Ni WaitForURLAsync ni RunAndWaitForNavigationAsync sirven de guarda
-        // aquí: confirmado en vivo (captura de pantalla en el momento exacto
-        // en que ambos ya daban la navegación por completa) que page.Url
-        // puede quedar en /trabajadores/{id} mientras el DOM todavía
-        // muestra la lista de /trabajadores con el drawer de vista previa
-        // abierto — la navegación mejorada de Blazor parchea el DOM de forma
-        // asíncrona y ese parcheo no coincide con ningún evento de
-        // navegación que Playwright pueda esperar. La única guarda fiable es
-        // esperar directamente el resultado en el DOM: que quede un único
-        // ".menu-acciones-disparador" en pantalla (el de la cabecera de
-        // Trabajador 360, ver TrabajadorDetalle.razor) en vez de los 20 de
-        // cada fila de la lista.
-        await Expect(page.Locator(".menu-acciones-disparador")).ToHaveCountAsync(1, new LocatorAssertionsToHaveCountOptions { Timeout = 60_000 });
+        // "Ver Trabajador 360 →" navega con forceLoad: true
+        // (TrabajadorPreviewDrawer.AbrirTrabajador360): recarga completa, no
+        // navegación mejorada — por eso este test no cubre el «Copiar enlace»
+        // tras navegación mejorada; lo cubre el test siguiente. La guarda es
+        // el resultado en el DOM: un único ".menu-acciones-disparador" (el de
+        // la cabecera de Trabajador 360, ver TrabajadorDetalle.razor) en vez
+        // de los 20 de cada fila de la lista. Tenía 60 s de margen, que se
+        // leían como indicio de una carga lenta; medido en local el
+        // 2026-09-23, esta recarga deja un solo disparador en menos de 1 s.
+        await Expect(page.Locator(".menu-acciones-disparador")).ToHaveCountAsync(1, new LocatorAssertionsToHaveCountOptions { Timeout = 15_000 });
         // Esa cuenta confirma que el DOM ya es el de Trabajador 360, pero NO
         // que el componente sea interactivo: el botón llega con el
         // prerenderizado estático de @rendermode InteractiveServer y un clic
@@ -92,7 +90,11 @@ public class DeepLinksTests(WebAppFixture fixture)
 
         // --- La carga en frío real: pestaña nueva del mismo contexto
         // autenticado, que nunca pasó por /trabajadores en su propio
-        // circuito — nada de estado en memoria que "recordar", solo la URL. ---
+        // circuito — nada de estado en memoria que "recordar", solo la URL.
+        // Medido en local el 2026-09-23 (11 cargas de este deep-link en
+        // pestaña nueva): panel pintado en menos de 0,4 s e interactivo en
+        // 2,1 s como mucho; los plazos por defecto (30 s la navegación, 5 s
+        // el título) bastan para ponerlo en rojo si vuelve a colgarse. ---
         var paginaFria = await contexto.NewPageAsync();
         await Ayudas.NavegarYEsperarAsync(paginaFria, urlConCtx);
 
@@ -103,6 +105,72 @@ public class DeepLinksTests(WebAppFixture fixture)
         // URL en vez de dejarlo colgado.
         await paginaFria.Locator(".workspace-cerrar").ClickAsync();
         await paginaFria.WaitForURLAsync(url => !url.Contains("ctx="));
+    }
+
+    /// <summary>
+    /// Guarda de regresión del defecto registrado el 2026-08-24: «Copiar
+    /// enlace» colgado sin aviso al llegar a <c>/trabajadores/{id}</c> por
+    /// navegación mejorada de Blazor. Hoy no se reproduce; el test anterior no
+    /// podía vigilarlo porque llega con <c>forceLoad: true</c>
+    /// (TrabajadorPreviewDrawer.AbrirTrabajador360), una recarga completa.
+    /// Mutación comprobada: si la copia no termina nunca, este test se pone
+    /// en rojo esperando el aviso de éxito. Aquí se llega por el buscador global,
+    /// que navega sin forzar la recarga (BuscadorGlobal.Seleccionar), y se
+    /// comprueban las dos firmas de esa navegación: la marca puesta en
+    /// <c>window</c> sobrevive (no hubo recarga del documento) y la página
+    /// destino se pidió con <c>fetch</c> (así la pide blazor.web.js).
+    /// </summary>
+    [Fact]
+    public async Task Copiar_enlace_de_Trabajador_360_responde_tras_navegacion_mejorada()
+    {
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        await contexto.GrantPermissionsAsync(["clipboard-read", "clipboard-write"]);
+        var page = await contexto.NewPageAsync();
+
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
+        await Ayudas.DescartarNotificacionesPendientesAsync(page);
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores");
+
+        var nombre = (await page.Locator(".enlace-nombre-fila").First.TextContentAsync())!.Trim().Split(' ')[0];
+        await page.EvaluateAsync("() => { window.__sinRecarga = true; }");
+        var pedidasPorFetch = new ConcurrentQueue<string>();
+        page.Request += (_, peticion) =>
+        {
+            if (peticion.ResourceType == "fetch") pedidasPorFetch.Enqueue(new Uri(peticion.Url).AbsolutePath);
+        };
+
+        // El atajo lo registra buscador-global.js desde OnAfterRenderAsync:
+        // NetworkIdle no garantiza que ya escuche, y una tecla anterior se
+        // pierde sin aviso. Se reintenta hasta que el buscador se abre.
+        var buscador = page.Locator(".buscador-input");
+        for (var intento = 1; !await buscador.IsVisibleAsync(); intento++)
+        {
+            await page.Keyboard.PressAsync("Control+k");
+            try { await buscador.WaitForAsync(new LocatorWaitForOptions { Timeout = 2_000 }); }
+            catch (TimeoutException) when (intento < 5) { }
+        }
+        await buscador.FillAsync(nombre);
+        // Solo resultados de Trabajador (/trabajadores/{guid}); las acciones
+        // del buscador también empiezan por /trabajadores/ (exportar.xlsx).
+        const string hrefDeTrabajador = "() => [...document.querySelectorAll('a.buscador-item')].map(a => a.getAttribute('href')).find(h => new RegExp('^/trabajadores/[0-9a-f-]{36}$').test(h ?? ''))";
+        await page.WaitForFunctionAsync(hrefDeTrabajador);
+        var destino = await page.EvaluateAsync<string>(hrefDeTrabajador);
+        await page.Locator($"a.buscador-item[href='{destino}']").First.ClickAsync();
+
+        // Mismo criterio que el test anterior: un único disparador significa
+        // que el DOM ya es el de Trabajador 360, no la lista.
+        await Expect(page.Locator(".menu-acciones-disparador")).ToHaveCountAsync(1, new LocatorAssertionsToHaveCountOptions { Timeout = 15_000 });
+        Assert.True(await page.EvaluateAsync<bool>("() => window.__sinRecarga === true"),
+            "La página se recargó entera: el test ya no llega por navegación mejorada y no observa el defecto.");
+        Assert.Contains(destino, pedidasPorFetch.ToArray());
+
+        await Ayudas.PulsarAccionDeMenuAsync(page.Locator(".menu-acciones-disparador"), "Editar");
+        await page.Locator(".workspace-titulo-entidad").WaitForAsync();
+        Assert.Contains("ctx=Trabajador", page.Url);
+
+        await page.Locator(".workspace-copiar-enlace").ClickAsync();
+        await page.GetByText("Se copió el enlace a esta ficha").WaitForAsync();
+        Assert.Equal(page.Url, await page.EvaluateAsync<string>("navigator.clipboard.readText()"));
     }
 
     [Fact]

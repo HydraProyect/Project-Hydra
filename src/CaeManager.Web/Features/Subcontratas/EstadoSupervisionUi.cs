@@ -1,5 +1,7 @@
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Features.Subcontratas.Recursos;
+using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Features.Subcontratas;
 
@@ -20,27 +22,27 @@ public static class EstadoSupervisionUi
         _ => TonoBadge.Neutro
     };
 
-    public static string Texto(EstadoSupervision estado) => estado switch
+    public static string Texto(IStringLocalizer<TextosSubcontratas> textos, EstadoSupervision estado) => estado switch
     {
-        EstadoSupervision.Vigente => "Vigente",
-        EstadoSupervision.Proximo => "Próximo",
-        EstadoSupervision.Urgente => "Urgente",
-        EstadoSupervision.Vencido => "Vencido",
-        EstadoSupervision.NoValido => "No válido",
-        _ => "Sin verificar"
+        EstadoSupervision.Vigente => textos["EstadoSupervisionVigente"],
+        EstadoSupervision.Proximo => textos["EstadoSupervisionProximo"],
+        EstadoSupervision.Urgente => textos["EstadoSupervisionUrgente"],
+        EstadoSupervision.Vencido => textos["EstadoSupervisionVencido"],
+        EstadoSupervision.NoValido => textos["EstadoSupervisionNoValido"],
+        _ => textos["EstadoSupervisionSinVerificar"]
     };
 
-    public static string TextoResultado(ResultadoVerificacionExterna resultado) => resultado switch
+    public static string TextoResultado(IStringLocalizer<TextosSubcontratas> textos, ResultadoVerificacionExterna resultado) => resultado switch
     {
-        ResultadoVerificacionExterna.Valido => "Válido",
-        ResultadoVerificacionExterna.NoValido => "No válido",
-        _ => "No encontrado"
+        ResultadoVerificacionExterna.Valido => textos["ResultadoVerificacionValido"],
+        ResultadoVerificacionExterna.NoValido => textos["ResultadoVerificacionNoValido"],
+        _ => textos["ResultadoVerificacionNoEncontrado"]
     };
 
-    public static string TextoNivel(NivelServicioSubcontrata nivel) => nivel switch
+    public static string TextoNivel(IStringLocalizer<TextosSubcontratas> textos, NivelServicioSubcontrata nivel) => nivel switch
     {
-        NivelServicioSubcontrata.Supervisada => "Supervisada",
-        _ => "Gestionada"
+        NivelServicioSubcontrata.Supervisada => textos["NivelServicioSupervisada"],
+        _ => textos["NivelServicioGestionada"]
     };
 
     public static TonoBadge TonoNivel(NivelServicioSubcontrata nivel) => nivel switch

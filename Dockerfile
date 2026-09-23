@@ -43,7 +43,18 @@ COPY src/ src/
 # ya con el código fuente presente, sí lo detecta. Sigue siendo
 # framework-dependent (no self-contained), solo fuerza qué paquete de runtime
 # se resuelve.
-RUN dotnet publish src/CaeManager.Web/CaeManager.Web.csproj -c Release -o /app/publish -r linux-x64 --self-contained false -p:UseSharedCompilation=false
+#
+# -p:RunAnalyzers=false (despliegue a staging roto desde 2026-09-21): el csc
+# de CaeManager.Migrations.PostgreSQL (157 Designer.cs, ~42 MB de C#) muere
+# con exit 137 dentro del techo de memoria del build (LIMITE_MEMORIA_BUILD en
+# deploy/ci-deploy.sh) cuando además ejecuta los analizadores; el último build
+# que pasó tenía dos migraciones menos. Medido en local: pico de csc ~2,7 GB
+# con analizadores y ~2,1 GB sin ellos, y bajo un heap limitado como en el VPS
+# compila siempre sin ellos y falla por OutOfMemory en 4 de 6 con ellos. El
+# SDK lo traduce a /skipanalyzers, que conserva los source generators: los
+# binarios publicados son idénticos. Los analizadores siguen aplicándose
+# donde deciden algo, en el `dotnet build -warnaserror` de CI.
+RUN dotnet publish src/CaeManager.Web/CaeManager.Web.csproj -c Release -o /app/publish -r linux-x64 --self-contained false -p:UseSharedCompilation=false -p:RunAnalyzers=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0.12@sha256:6a94333d37514e385650a3c81a55e5350b67253dbe136e9cf17e499c35606a8c AS final
 WORKDIR /app

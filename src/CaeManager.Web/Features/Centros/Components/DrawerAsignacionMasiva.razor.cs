@@ -56,7 +56,7 @@ public partial class DrawerAsignacionMasiva : ComponentBase
     /// </summary>
     public async Task AbrirAsync(IReadOnlyCollection<Guid>? centroIdsPreseleccionados = null)
     {
-        _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
+        _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.BaseGeneralDelTenant));
         _centrosDisponibles = await Mediator.Send(new ObtenerCentrosParaSelectorQuery());
 
         _vista = "Lista";

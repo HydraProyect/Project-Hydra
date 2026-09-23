@@ -327,6 +327,7 @@
                 </div>
 
                 <UnifiedTimeline Mensajes="_detalle.Mensajes" Participantes="_detalle.Participantes" Eventos="_detalle.Eventos"
+                                  NotasInternas="_notasInternas" AutoresNotas="_autoresNotas"
                                   OnActualizarDocumentoDesdeAdjunto="AbrirActualizarDocumentoAsync" OnConfirmarRuido="ConfirmarRuidoAsync" />
 
                 @if (_vista == "clientes")
@@ -339,6 +340,8 @@
                                  AdjuntosPendientes="_adjuntosPendientes" ErrorAdjuntos="@_errorAdjuntos"
                                  OnArchivosSeleccionados="ManejarArchivosAdjuntosAsync" OnQuitarAdjunto="QuitarAdjuntoPendiente"
                                  EmailFallback="@_emailFallback" EmailFallbackChanged="v => _emailFallback = v" OnEnviarFallbackCorreo="EnviarFallbackCorreoAsync" />
+
+                    <ComposerNotaInterna @key="_detalle.Id" ConversacionId="_detalle.Id" OnNotaCreada="RecargarNotasInternasAsync" />
 
                     @*
                         "Pedir prioridad" del mockup (Parte XVI PROMPT 09), a nivel

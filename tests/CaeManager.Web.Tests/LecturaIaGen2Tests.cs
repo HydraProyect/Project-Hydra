@@ -1,6 +1,7 @@
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
+using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Configuracion.Pages;
 using FluentAssertions;
@@ -36,7 +37,11 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class LecturaIaGen2Tests : BunitContext
 {
-    public LecturaIaGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public LecturaIaGen2Tests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
+    }
 
     private static readonly ClienteSelectorDto Refrielectric = new(Guid.Parse("a1a1a1a1-0000-0000-0000-000000000001"), "Refrielectric S.L.");
     private static readonly ClienteSelectorDto MontajesEbro = new(Guid.Parse("b2b2b2b2-0000-0000-0000-000000000002"), "Montajes Ebro S.A.");
@@ -88,6 +93,8 @@ public class LecturaIaGen2Tests : BunitContext
             Interceptar(peticion) ?? Task.FromResult<object?>(peticion switch
             {
                 ObtenerClientesParaSelectorQuery => Clientes.OrderBy(c => c.RazonSocial).ToList(),
+                // El hub pregunta si quien mira es Actor de Plataforma TALVEG (entrada «Orden del menú»).
+                EsAdministradorPlataformaQuery => false,
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {peticion.GetType().Name}.")
             });
     }

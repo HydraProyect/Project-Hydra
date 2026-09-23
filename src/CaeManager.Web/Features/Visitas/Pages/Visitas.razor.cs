@@ -339,7 +339,7 @@ public partial class Visitas : ComponentBase
     {
         var carga = ++_cargaFormulario;
         var centros = await Mediator.Send(new ObtenerCentrosParaSelectorQuery());
-        var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
+        var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.BaseGeneralDelTenant));
         if (carga != _cargaFormulario)
             return false;
 
@@ -372,7 +372,7 @@ public partial class Visitas : ComponentBase
 
         if (sugerencia is null)
         {
-            ToastService.Mostrar("No encontramos esta sugerencia. Puede que ya se haya resuelto.", TonoToast.Error);
+            ToastService.Mostrar(Textos["ToastSugerenciaNoEncontrada"], TonoToast.Error);
             return;
         }
 
@@ -408,7 +408,7 @@ public partial class Visitas : ComponentBase
     private async Task AbrirEditarAsync(Guid id)
     {
         var carga = ++_cargaFormulario;
-        var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
+        var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.BaseGeneralDelTenant));
         var visita = await Mediator.Send(new ObtenerVisitaPorIdQuery(id));
 
         // Si mientras tanto se abrió otro formulario, esta respuesta ya no es
@@ -423,7 +423,7 @@ public partial class Visitas : ComponentBase
 
         if (visita is null)
         {
-            ToastService.Mostrar("No encontramos esta visita. Puede que ya se haya eliminado.", TonoToast.Error);
+            ToastService.Mostrar(Textos["ToastVisitaNoEncontrada"], TonoToast.Error);
             await RecargarAsync();
             return;
         }
@@ -472,7 +472,7 @@ public partial class Visitas : ComponentBase
             _detalle = detalle;
             if (detalle is null)
             {
-                ToastService.Mostrar("No encontramos esta visita. Puede que ya se haya eliminado.", TonoToast.Error);
+                ToastService.Mostrar(Textos["ToastVisitaNoEncontrada"], TonoToast.Error);
                 return;
             }
 
@@ -481,7 +481,7 @@ public partial class Visitas : ComponentBase
         catch (Exception)
         {
             if (carga == _cargaDetalle)
-                ToastService.Mostrar("No pudimos cargar el detalle de la visita. Intenta nuevamente.", TonoToast.Error);
+                ToastService.Mostrar(Textos["ToastErrorDetalle"], TonoToast.Error);
         }
         finally
         {
@@ -526,7 +526,7 @@ public partial class Visitas : ComponentBase
     /// «no puede entrar»: la pantalla no sabe qué decide el control de acceso
     /// del centro, solo el estado de los documentos.
     /// </summary>
-    private static string? ResumenComprobacion(DocumentacionVisitaDto documentacion)
+    private string? ResumenComprobacion(DocumentacionVisitaDto documentacion)
     {
         var total = documentacion.Trabajadores.Count;
         if (total == 0)
@@ -536,12 +536,12 @@ public partial class Visitas : ComponentBase
 
         if (pendientes == 0)
             return total == 1
-                ? "El trabajador que entra no tiene documentación pendiente para este centro."
-                : $"Ninguno de los {total} trabajadores que entran tiene documentación pendiente para este centro.";
+                ? Textos["ResumenSinPendientesUno"].Value
+                : Textos["ResumenSinPendientesVarios", total].Value;
 
         return pendientes == 1
-            ? $"1 de {total} trabajadores tiene documentación pendiente para este centro."
-            : $"{pendientes} de {total} trabajadores tienen documentación pendiente para este centro.";
+            ? Textos["ResumenPendientesUno", total].Value
+            : Textos["ResumenPendientesVarios", pendientes, total].Value;
     }
 
     private static readonly IReadOnlyDictionary<EstadoDocumento, int> SeveridadTrabajador = new Dictionary<EstadoDocumento, int>
@@ -595,7 +595,7 @@ public partial class Visitas : ComponentBase
         }
         catch (Exception)
         {
-            ToastService.Mostrar("No pudimos actualizar el estado de notificación. Intenta nuevamente.", TonoToast.Error);
+            ToastService.Mostrar(Textos["ToastErrorNotificacion"], TonoToast.Error);
             await RecargarAsync();
             if (_detalle?.Id == detalle.Id)
                 await AbrirDetalleAsync(detalle.Id);
@@ -618,11 +618,11 @@ public partial class Visitas : ComponentBase
     private static string TextoFechas(DateOnly inicio, DateOnly fin) =>
         inicio == fin ? inicio.ToString("dd/MM/yyyy") : $"{inicio:dd/MM/yyyy} – {fin:dd/MM/yyyy}";
 
-    private static string TextoOrigen(OrigenVisita origen) => origen switch
+    private string TextoOrigen(OrigenVisita origen) => origen switch
     {
-        OrigenVisita.Correo => "Correo",
-        OrigenVisita.WhatsApp => "WhatsApp",
-        _ => "Plataforma"
+        OrigenVisita.Correo => Textos["OrigenCorreo"].Value,
+        OrigenVisita.WhatsApp => Textos["OrigenWhatsApp"].Value,
+        _ => Textos["OrigenPlataforma"].Value
     };
 
     private static TonoBadge TonoOrigen(OrigenVisita origen) => origen switch
@@ -632,7 +632,9 @@ public partial class Visitas : ComponentBase
         _ => TonoBadge.Neutro
     };
 
-    private string TextoRecuento => _totalElementos == 1 ? "1 visita" : $"{_totalElementos} visitas";
+    private string TextoRecuento => _totalElementos == 1
+        ? Textos["RecuentoUno", _totalElementos].Value
+        : Textos["RecuentoVarios", _totalElementos].Value;
 
     /// <summary>
     /// Un Documento existente abre el visor inline. Un hueco "Faltante" lleva
@@ -691,7 +693,7 @@ public partial class Visitas : ComponentBase
         {
             if (!DateOnly.TryParse(_fechaInicio, out var fechaInicio) || !DateOnly.TryParse(_fechaFin, out var fechaFin))
             {
-                _mensajeErrorFormulario = "Las fechas no son válidas.";
+                _mensajeErrorFormulario = Textos["ErrorFechasNoValidas"];
                 return;
             }
 
@@ -704,7 +706,7 @@ public partial class Visitas : ComponentBase
             {
                 if (!Guid.TryParse(_centroId, out var centroId))
                 {
-                    _mensajeErrorFormulario = "Selecciona un centro.";
+                    _mensajeErrorFormulario = Textos["ErrorSeleccionaCentro"];
                     return;
                 }
 
@@ -724,7 +726,7 @@ public partial class Visitas : ComponentBase
             }
 
             ToastService.Mostrar(
-                _editandoId is null ? "Visita creada correctamente." : "Visita actualizada correctamente.",
+                _editandoId is null ? Textos["ToastCreada"].Value : Textos["ToastActualizada"].Value,
                 TonoToast.Exito);
 
             _drawerVisible = false;
@@ -738,7 +740,7 @@ public partial class Visitas : ComponentBase
         }
         catch (Exception)
         {
-            _mensajeErrorFormulario = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
+            _mensajeErrorFormulario = Textos["ErrorGuardar"];
         }
         finally
         {
@@ -767,7 +769,7 @@ public partial class Visitas : ComponentBase
         }
         catch (Exception)
         {
-            ToastService.Mostrar("No pudimos actualizar el estado de notificación. Intenta nuevamente.", TonoToast.Error);
+            ToastService.Mostrar(Textos["ToastErrorNotificacion"], TonoToast.Error);
             await RecargarAsync();
         }
         finally
@@ -797,14 +799,14 @@ public partial class Visitas : ComponentBase
             }
             else
             {
-                ToastService.Mostrar("Visita eliminada correctamente.", TonoToast.Exito);
+                ToastService.Mostrar(Textos["ToastEliminada"], TonoToast.Exito);
                 _confirmarEliminarVisible = false;
                 await RecargarAsync();
             }
         }
         catch (Exception)
         {
-            ToastService.Mostrar("No pudimos eliminar la visita. Intenta nuevamente en unos segundos.", TonoToast.Error);
+            ToastService.Mostrar(Textos["ToastErrorEliminar"], TonoToast.Error);
         }
         finally
         {
@@ -840,8 +842,8 @@ public partial class Visitas : ComponentBase
 
             ToastService.Mostrar(
                 dto.Errores.Count == 0
-                    ? $"{dto.Eliminados} visita(s) eliminada(s)."
-                    : $"{dto.Eliminados} eliminada(s). {dto.Errores.Count} no se pudieron borrar: {string.Join(" ", dto.Errores)}",
+                    ? Textos["ToastLoteEliminadas", dto.Eliminados].Value
+                    : Textos["ToastLoteParcial", dto.Eliminados, dto.Errores.Count, string.Join(" ", dto.Errores)].Value,
                 dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
 
             _seleccionados.Clear();
@@ -850,7 +852,7 @@ public partial class Visitas : ComponentBase
         }
         catch (Exception)
         {
-            ToastService.Mostrar("No pudimos eliminar las visitas seleccionadas. Intenta nuevamente.", TonoToast.Error);
+            ToastService.Mostrar(Textos["ToastErrorEliminarLote"], TonoToast.Error);
         }
         finally
         {

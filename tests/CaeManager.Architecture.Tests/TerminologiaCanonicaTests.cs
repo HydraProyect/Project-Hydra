@@ -295,10 +295,22 @@ public class TerminologiaCanonicaTests
     /// </para>
     ///
     /// <para>
-    /// <b><c>Delegacion</c> 314 → 323 (incremento 1b del aprovisionamiento — el Administrador
+    /// <b><c>Delegacion</c> 314 → 320 (solicitud de incorporación a cartera, 2026-09-22): +6,
+    /// todos en <c>CatalogoIncorporacionCartera.cs</c> y todos nombres ya existentes.</b>
+    /// <c>DelegacionesTenant</c> (3), <c>PropositoDelegacion</c> (2) y
+    /// <c>DelegacionTenantId</c> (1): el Gestor CAE solo es candidato sobre un Tenant
+    /// propietario con la operación externa viva, y al aceptar se escribe la fila
+    /// heredada <c>AsignacionOperadorDelegado</c>, que es lo que todavía leen
+    /// <c>ObtenerClientesAutorizadosQuery</c> y el rol en ámbito explícito. Las variables
+    /// locales se llamaron <c>vinculo</c>. Baja con la migración de <c>DelegacionTenant</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// <b><c>Delegacion</c> 320 → 329 (incremento 1b del aprovisionamiento — el Administrador
     /// del Tenant propietario autoriza a un Operador CAE externo, 2026-09-23; recontado tras
-    /// fusionar <c>origin/main</c> con el menú lateral de arriba): +9, todo referencia a
-    /// superficie existente, ningún nombre propio nuevo.</b> La decisión fijada (opción 1′) es
+    /// fusionar <c>origin/main</c> con el menú lateral y la solicitud de incorporación a
+    /// cartera de arriba): +9, todo referencia a superficie existente, ningún nombre propio
+    /// nuevo.</b> La decisión fijada (opción 1′) es
     /// reutilizar <c>CrearDelegacionTenantCommand</c> sin entidad nueva, así que la pantalla lo
     /// nombra (espacio de nombres y tipo, 2); el comando consulta <c>DelegacionesTenant</c> y
     /// <c>PropositoDelegacion</c> para rechazar un segundo Operador vigente (2); la consulta del
@@ -315,7 +327,7 @@ public class TerminologiaCanonicaTests
     {
         ["Hydra"] = 48,
         ["EjecutivoUsuarioId"] = 48,
-        ["Delegacion"] = 323,
+        ["Delegacion"] = 329,
         ["ClienteActivo"] = 71,
     };
 

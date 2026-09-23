@@ -1,7 +1,9 @@
 using Bunit;
+using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma;
 using CaeManager.Web.Components;
 using CaeManager.Web.Features.Configuracion.Pages;
 using FluentAssertions;
+using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Rendering;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,6 +12,38 @@ namespace CaeManager.Web.Tests;
 
 public class ConfiguracionTests : BunitContext
 {
+    public ConfiguracionTests()
+    {
+        Services.AddLocalization();
+        // El hub pregunta si quien mira es Actor de Plataforma TALVEG (entrada «Orden del menú»):
+        // aquí no lo es, así que el catálogo es el del Administrador de Tenant.
+        Services.AddScoped<IMediator>(_ => new MediadorSinPlataforma());
+    }
+
+    private sealed class MediadorSinPlataforma : IMediator
+    {
+        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
+            request is EsAdministradorPlataformaQuery
+                ? Task.FromResult((TResponse)(object)false)
+                : throw new NotSupportedException(request.GetType().Name);
+
+        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
+            throw new NotSupportedException();
+
+        public Task<object?> Send(object request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task Publish(object notification, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
+            where TNotification : INotification => Task.CompletedTask;
+    }
+
     [Fact]
     public void Subnavegacion_solo_apunta_a_rutas_internas_del_hub()
     {

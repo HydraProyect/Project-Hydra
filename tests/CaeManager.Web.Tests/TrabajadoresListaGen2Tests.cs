@@ -63,6 +63,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
     public TrabajadoresListaGen2Tests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
         this.ConRolDeEscritura();
     }
 

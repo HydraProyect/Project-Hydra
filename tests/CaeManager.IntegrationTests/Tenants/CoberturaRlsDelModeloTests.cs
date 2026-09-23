@@ -349,6 +349,53 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// Categoría 5: <b>configuración de plataforma de lectura universal</b>
+    /// (<c>OrdenMenuLateral</c>, decisión del 2026-09-23). Como el bootstrap, fila única del
+    /// sistema sin TenantId y con FORCE; al contrario que él, la LEE todo el mundo —el orden del
+    /// menú no es ni secreto ni autoridad— y la ESCRIBE solo una concesión AdminPlataforma
+    /// <b>global</b>. Tres políticas, una por verbo, y ninguna de DELETE.
+    /// </summary>
+    private static readonly string[] PoliticasDelOrdenDelMenu =
+    [
+        "orden_menu_alta_por_admin_plataforma_global",
+        "orden_menu_cambio_por_admin_plataforma_global",
+        "orden_menu_lectura_de_todos",
+    ];
+
+    [Fact]
+    public async Task El_orden_del_menu_lo_lee_todo_el_mundo_y_solo_lo_escribe_una_concesion_global()
+    {
+        var estado = await LeerEstadoRlsAsync(["OrdenMenuLateral"]);
+
+        estado.Should().ContainKey("OrdenMenuLateral");
+        var e = estado["OrdenMenuLateral"];
+
+        using var _ = new AssertionScope();
+
+        e.Habilitado.Should().BeTrue();
+        e.Forzado.Should().BeTrue("sin FORCE la política no ataría al propietario de la tabla");
+
+        e.Politicas.Select(p => p.Nombre).OrderBy(n => n).Should().BeEquivalentTo(PoliticasDelOrdenDelMenu,
+            "una por verbo y NINGUNA de DELETE: una política PERMISSIVE más se combinaría con OR y abriría " +
+            "la escritura; una de borrado dejaría vaciar la configuración de todos los Tenants");
+
+        foreach (var nombre in new[] { "orden_menu_alta_por_admin_plataforma_global", "orden_menu_cambio_por_admin_plataforma_global" })
+        {
+            var escritura = e.Politicas.FirstOrDefault(p => p.Nombre == nombre);
+            escritura.Should().NotBeNull();
+            escritura!.WithCheck.Should().NotBeNull()
+                .And.Subject.As<string>().Should().Contain("app_es_admin_plataforma_global(").And.Contain("app.usuario_id",
+                    "la escritura se ata a la concesión GLOBAL del usuario de la sesión, no a app_es_admin_plataforma, " +
+                    "que admitiría una concesión acotada a un solo Tenant");
+        }
+
+        var cambio = e.Politicas.First(p => p.Nombre == "orden_menu_cambio_por_admin_plataforma_global");
+        cambio.Using.Should().NotBeNull()
+            .And.Subject.As<string>().Should().Contain("app_es_admin_plataforma_global(",
+                "el USING del UPDATE también: sin él, cualquiera podría seleccionar la fila para cambiarla");
+    }
+
+    /// <summary>
     /// Categoría 3. Hasta F2b-5 esta lista afirmaba un hueco —"todavía sin RLS,
     /// y este es el motivo"— para que un pendiente no se quedara pendiente para
     /// siempre. Ese test cumplió su función: al implementarse la política se
@@ -394,6 +441,43 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
             politica.WithCheck.Should().NotBeNull()
                 .And.Subject.As<string>().Should().Contain("app.usuario_id",
                     "sin WITH CHECK se podría crear o reasignar una concesión a nombre de otro usuario");
+        }
+    }
+
+    /// <summary>
+    /// Categoría 5: <b>catálogo del Operador CAE</b>. Las solicitudes de
+    /// incorporación a cartera no llevan <c>TenantId</c>: nacen en el Operador
+    /// CAE del Gestor CAE que las pide, pero se aceptan en la misma transacción
+    /// que escribe la cartera, con <c>app.tenant_id</c> puesto en el Tenant
+    /// propietario (lo exige <c>posicion_en_la_asignacion</c>). Por eso su
+    /// política no mira <c>app.tenant_id</c> sino <c>app.tenant_origen_id</c>,
+    /// la organización de la cuenta, que no cambia al abrir un ámbito
+    /// explícito. Sin FORCE por el mismo motivo que los catálogos de
+    /// asignación: la retirada de un Tenant de demo corre como propietario.
+    /// </summary>
+    [Fact]
+    public async Task Las_solicitudes_de_incorporacion_se_aislan_por_el_Operador_CAE_de_origen_sin_FORCE()
+    {
+        const string tabla = "SolicitudesIncorporacionCartera";
+        var estado = await LeerEstadoRlsAsync([tabla]);
+
+        estado.Should().ContainKey(tabla, "la migración de la solicitud tiene que haber creado la tabla");
+        var (habilitado, forzado, politicas) = estado[tabla];
+
+        using var _ = new AssertionScope();
+        habilitado.Should().BeTrue("sin RLS, un Gestor CAE de otro Operador CAE leería las solicitudes ajenas");
+        forzado.Should().BeFalse("con FORCE, la retirada de un Tenant de demo no vería las solicitudes que tiene que borrar");
+        politicas.Select(p => p.Nombre).Should().Equal(["operador_de_la_solicitud"],
+            "una política PERMISSIVE adicional se combina con OR y ensancharía el acceso");
+
+        var politica = politicas.Single();
+        foreach (var expresion in new[] { politica.Using, politica.WithCheck })
+        {
+            expresion.Should().NotBeNull("USING protege la lectura y WITH CHECK la escritura; hacen falta las dos")
+                .And.Subject.As<string>().Should().Contain("OperadorTenantId")
+                .And.Contain("app.tenant_origen_id")
+                .And.NotContain("app.tenant_id'",
+                    "el Tenant activo es el propietario al aceptar; aislar por él rompería la aceptación");
         }
     }
 
