@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using FluentAssertions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -89,6 +90,23 @@ namespace CaeManager.Architecture.Tests;
 /// <c>EjecutivoUsuarioId</c>, medido el 2026-09-04) — un residuo del mismo defecto que
 /// esta versión corrige para <c>.cs</c>, y no para <c>.razor</c>, por la razón de
 /// alcance de arriba.
+/// </para>
+///
+/// <para>
+/// <b>Tercer régimen, .resx neutral (2026-09-23).</b> La localización es-ES/ca-ES mueve
+/// el texto visible de los <c>.razor</c> a <c>Recursos/TextosX.resx</c>. Sin leer esos
+/// ficheros, la cifra bajaba sin que la deuda desapareciera: la cadena solo cambiaba de
+/// fichero (caso medido en la PR #803, «Pregúntale a Hydra» a
+/// <c>TextosAsistenteIa.resx</c>). <see cref="ContarEnValoresDeRecursos"/> cuenta, con el
+/// mismo patrón de cada término, el texto de cada <c>&lt;data&gt;&lt;value&gt;</c>, que es
+/// lo que la interfaz muestra; no cuenta el atributo <c>name</c> de la clave (un
+/// identificador que no llega a la interfaz ni es C#), ni <c>&lt;comment&gt;</c>, ni la
+/// cabecera del esquema. <b>Solo el neutral</b> (<c>TextosX.resx</c>): el satélite
+/// <c>TextosX.ca-ES.resx</c> nace como copia del neutral y contarlo duplicaría cada
+/// aparición; una traducción que conserve la marca se corrige con el neutral, no aparte.
+/// Un fichero solo es satélite si lleva segmento de cultura <b>y</b> tiene su neutral al
+/// lado (<see cref="EsResxNeutral(string)"/>): <c>Textos.Ui.resx</c> sin <c>Textos.resx</c> cuenta.
+/// Consecuencia declarada: un término que aparezca solo en el satélite no se ve.
 /// </para>
 ///
 /// <para>
@@ -258,12 +276,29 @@ public class TerminologiaCanonicaTests
     /// duplicarlo crearía un segundo camino con el mismo mecanismo legacy. Baja con la retirada de
     /// <c>DelegacionDemoSeeder</c>, no antes.
     /// </para>
+    ///
+    /// <para>
+    /// <b>Régimen .resx neutral (2026-09-23): ninguna cifra cambia.</b> Medido sobre
+    /// <c>origin/main</c> <c>1f46badf</c>: ningún <c>.resx</c> neutral de <c>src/</c> contiene
+    /// todavía ninguno de los cuatro términos, así que añadirlos al recorrido suma 0. Desde
+    /// aquí, mover un texto de un <c>.razor</c> a su <c>.resx</c> deja la cifra igual.
+    /// </para>
+    ///
+    /// <para>
+    /// <b><c>Delegacion</c> 320 → 314 (menú lateral como catálogo, 2026-09-23): −6, ningún
+    /// identificador retirado.</b> <c>NavMenu.razor</c> tenía 7 apariciones de «Delegaciones», todas
+    /// texto (el rótulo del enlace y comentarios <c>@* *@</c>), que en <c>.razor</c> cuentan por el
+    /// régimen crudo. El menú de los usuarios internos pasa a <c>CatalogoMenuLateral.cs</c>, donde
+    /// el rótulo es un literal y la justificación un comentario: en <c>.cs</c> ninguno de los dos
+    /// cuenta. En <c>NavMenu.razor</c> queda 1 (el comentario de <c>@code</c> que cita
+    /// <c>Delegaciones.razor</c>): 7 − 1 = −6. La deuda real de identificadores no cambia.
+    /// </para>
     /// </summary>
     private static readonly Dictionary<string, int> Congelado = new()
     {
-        ["Hydra"] = 49,
+        ["Hydra"] = 48,
         ["EjecutivoUsuarioId"] = 48,
-        ["Delegacion"] = 320,
+        ["Delegacion"] = 314,
         ["ClienteActivo"] = 71,
     };
 
@@ -298,7 +333,9 @@ public class TerminologiaCanonicaTests
             "real del árbol sintáctico cuenta; en .razor SÍ cuenta cualquier aparición en el texto " +
             "completo del fichero (un comentario @* ... *@, una cadena o marcado visible incluidos), " +
             "porque un analizador de C# no puede parsear un .razor tal cual y este trinquete no tiene " +
-            "mandato para construir uno de Razor (régimen declarado en el doc-comment de la clase). " +
+            "mandato para construir uno de Razor; en el .resx neutral (TextosX.resx, no TextosX.ca-ES.resx) " +
+            "cuenta el texto de cada <data><value>, así que mover un texto de un .razor a su .resx no " +
+            "baja la cifra (regímenes declarados en el doc-comment de la clase). " +
             $"Ficheros con aparición que cuenta hoy, más frecuente primero:\n{listado}");
     }
 
@@ -311,9 +348,46 @@ public class TerminologiaCanonicaTests
     {
         var texto = File.ReadAllText(archivo);
 
-        return archivo.EndsWith(".razor", StringComparison.OrdinalIgnoreCase)
-            ? regex.Matches(texto).Count
-            : ContarIdentificadoresEnCodigoCSharp(texto, regex);
+        if (archivo.EndsWith(".razor", StringComparison.OrdinalIgnoreCase))
+            return regex.Matches(texto).Count;
+
+        if (archivo.EndsWith(".resx", StringComparison.OrdinalIgnoreCase))
+            return ContarEnValoresDeRecursos(texto, regex);
+
+        return ContarIdentificadoresEnCodigoCSharp(texto, regex);
+    }
+
+    /// <summary>
+    /// Cuenta las apariciones de <paramref name="regex"/> dentro del texto de cada
+    /// <c>&lt;data&gt;&lt;value&gt;</c> de un <c>.resx</c>: el texto que la interfaz
+    /// muestra. No cuenta el atributo <c>name</c> de la clave, ni <c>&lt;comment&gt;</c>,
+    /// ni la cabecera del esquema — ver el doc-comment de la clase.
+    /// </summary>
+    private static int ContarEnValoresDeRecursos(string textoResx, Regex regex) =>
+        XDocument.Parse(textoResx)
+            .Root!
+            .Elements("data")
+            .Elements("value")
+            .Sum(valor => regex.Matches(valor.Value).Count);
+
+    /// <summary>
+    /// Un <c>.resx</c> satélite lleva la cultura como segunda extensión
+    /// (<c>TextosX.ca-ES.resx</c>) <b>y</b> tiene al lado su neutral (<c>TextosX.resx</c>).
+    /// Exigir el hermano evita tomar por satélite un neutral cuyo nombre tenga un segmento
+    /// corto que no es cultura (<c>Textos.Ui.resx</c>): sin neutral al lado, se cuenta.
+    /// </summary>
+    private static readonly Regex ResxSatelite =
+        new(@"^(?<base>.+)\.[a-z]{2,3}(-[A-Za-z0-9]{2,8})*\.resx$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static bool EsResxNeutral(string archivo) => EsResxNeutral(archivo, File.Exists);
+
+    private static bool EsResxNeutral(string archivo, Func<string, bool> existe)
+    {
+        if (!archivo.EndsWith(".resx", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var satelite = ResxSatelite.Match(archivo);
+        return !(satelite.Success && existe(satelite.Groups["base"].Value + ".resx"));
     }
 
     /// <summary>
@@ -508,12 +582,71 @@ public class TerminologiaCanonicaTests
         archivos.Should().Contain(a => a.EndsWith(".razor", StringComparison.OrdinalIgnoreCase),
             "los .razor entran igual que los .cs — un bloque @code es C#, y parte de la deuda de marca " +
             "vive precisamente en texto de interfaz");
+
+        archivos.Should().Contain(a => a.EndsWith(".resx", StringComparison.OrdinalIgnoreCase),
+            "los .resx neutrales entran: la localización mueve a ellos el texto de interfaz de los .razor");
+
+        archivos.Should().NotContain(a => a.EndsWith(".ca-ES.resx", StringComparison.OrdinalIgnoreCase),
+            "el satélite ca-ES nace como copia del neutral: contarlo duplicaría cada aparición");
+
+        // Todo .resx de src/ que se queda fuera tiene que ser un satélite cuyo neutral sí
+        // está dentro: si no, se está perdiendo texto de interfaz sin duplicado que lo cubra.
+        var dentro = archivos.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var fuera = Directory
+            .EnumerateFiles(Path.Combine(RaizDelRepositorio(), "src"), "*.resx", SearchOption.AllDirectories)
+            .Where(a => !dentro.Contains(a))
+            .ToList();
+
+        fuera.Should().NotBeEmpty("hoy hay satélites ca-ES en src/; si no sale ninguno, el control no mira");
+        fuera.Should().OnlyContain(a => dentro.Contains(ResxSatelite.Match(a).Groups["base"].Value + ".resx"),
+            "un .resx excluido solo puede ser un satélite con su neutral contado");
+    }
+
+    /// <summary>
+    /// El texto de <c>&lt;value&gt;</c> cuenta; la clave (<c>name</c>) y el
+    /// <c>&lt;comment&gt;</c> con la misma cadena no.
+    /// </summary>
+    [Fact]
+    public void En_un_resx_cuenta_el_valor_y_no_la_clave_ni_el_comentario()
+    {
+        var regex = new Regex(@"(?<!Project-)Hydra", RegexOptions.Compiled);
+
+        const string resx = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <root>
+              <data name="PreguntaleAHydra" xml:space="preserve">
+                <value>Pregúntale a Hydra</value>
+                <comment>Hydra era la marca antigua</comment>
+              </data>
+              <data name="Otro" xml:space="preserve">
+                <value>Sin la marca</value>
+              </data>
+            </root>
+            """;
+
+        ContarEnValoresDeRecursos(resx, regex).Should().Be(1,
+            "solo el texto visible de <value> cuenta; la clave y el comentario no llegan a la interfaz");
+    }
+
+    [Theory]
+    [InlineData(@"src/Web/Recursos/TextosComunes.resx", true)]
+    [InlineData(@"src/Web/Recursos/TextosComunes.ca-ES.resx", false)]
+    [InlineData(@"src/Web/Recursos/TextosComunes.es-ES.resx", false)]
+    [InlineData(@"src/Web/Recursos/TextosComunes.en.resx", false)]
+    [InlineData(@"src/Web/Recursos/Textos.Ui.resx", true)]
+    [InlineData(@"src/Web/Recursos/TextosComunes.cs", false)]
+    public void Solo_el_resx_neutral_entra_en_el_recuento(string archivo, bool entra)
+    {
+        // Árbol simulado: TextosComunes.resx existe; Textos.resx no (Textos.Ui.resx no es satélite).
+        var existentes = new HashSet<string> { @"src/Web/Recursos/TextosComunes.resx" };
+        EsResxNeutral(archivo, existentes.Contains).Should().Be(entra);
     }
 
     /// <summary>
     /// <c>src/</c> completo menos migraciones, <c>obj/</c> y <c>bin/</c>. Las migraciones
     /// se excluyen aquí y no en el patrón para que la exclusión sea visible en un sitio y
-    /// no repetida en cuatro expresiones regulares.
+    /// no repetida en cuatro expresiones regulares. Entran <c>.cs</c>, <c>.razor</c> y
+    /// <c>.resx</c> neutrales (ver <see cref="EsResxNeutral"/>).
     /// </summary>
     private static IEnumerable<string> ArchivosDeCodigo()
     {
@@ -523,7 +656,8 @@ public class TerminologiaCanonicaTests
         return Directory
             .EnumerateFiles(raiz, "*", SearchOption.AllDirectories)
             .Where(a => a.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)
-                        || a.EndsWith(".razor", StringComparison.OrdinalIgnoreCase))
+                        || a.EndsWith(".razor", StringComparison.OrdinalIgnoreCase)
+                        || EsResxNeutral(a))
             .Where(a => !a.Contains($"{separador}obj{separador}")
                         && !a.Contains($"{separador}bin{separador}")
                         && !a.Contains($"{separador}Migrations{separador}"));

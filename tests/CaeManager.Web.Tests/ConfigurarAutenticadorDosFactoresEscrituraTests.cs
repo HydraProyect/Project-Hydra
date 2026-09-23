@@ -44,6 +44,7 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
         Services.AddSingleton<UserManager<ApplicationUser>>(new GestorUsuariosFallaAVoluntad(_almacen));
         Services.AddSingleton<SignInManager<ApplicationUser>>(_signIn);
         Services.AddSingleton<ILoggerFactory>(new LoggerFactory([_registro]));
+        Services.AddLocalization();
         Services.AddSingleton<AuthenticationStateProvider>(new AutenticacionFalsa(UsuarioId));
     }
 
@@ -129,6 +130,11 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
 
         public override Task<bool> VerifyTwoFactorTokenAsync(ApplicationUser user, string tokenProvider, string token) =>
             Task.FromResult(token == CodigoValido);
+
+        // La página pregunta el rol solo para decidir el aviso de 2FA obligatoria,
+        // que aquí no se mide (lo cubre ConfigurarDosFactoresGen2Tests); el
+        // almacén falso no implementa IUserRoleStore.
+        public override Task<bool> IsInRoleAsync(ApplicationUser user, string role) => Task.FromResult(false);
     }
 
     /// <summary>

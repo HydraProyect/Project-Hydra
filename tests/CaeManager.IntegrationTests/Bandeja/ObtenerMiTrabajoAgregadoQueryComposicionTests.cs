@@ -120,6 +120,62 @@ public class ObtenerMiTrabajoAgregadoQueryComposicionTests(ITestOutputHelper sal
     }
 
     /// <summary>
+    /// Contrato § 14: el sujeto de una tarea de Empresa se rotula distinto si es
+    /// la Empresa propia del Tenant o una Subcontrata, así que la Query tiene que
+    /// traer <see cref="ItemBandejaDto.EmpresaEsPropia"/>. La consulta de Empresas
+    /// corre dentro del <see cref="AmbitoTenantExplicito"/> de cada Tenant: fuera
+    /// de él, RLS no deja ver ninguna fila y el campo se quedaría en null sin
+    /// que nada fallara, que es justo lo que este test descarta.
+    /// </summary>
+    [Fact]
+    public async Task Las_tareas_de_Empresa_distinguen_la_Empresa_propia_de_una_Subcontrata()
+    {
+        using (AmbitoTenantExplicito.Establecer(_tenantDelegante))
+        {
+            var propia = await _dbContext.Empresas.SingleAsync(e => e.RazonSocial == "Delegante Empresa");
+            var subcontrata = Empresa.CrearComoSubcontrata("Delegante Subcontrata", null, "Estandar");
+            _dbContext.Empresas.Add(subcontrata);
+            var centro = await _dbContext.Centros.SingleAsync();
+            var proveedor = await _dbContext.ProveedoresPlataformaCae.FirstAsync();
+            var canal = CanalGestionDocumental.DePlataforma(centro.Id, "Gestión general", proveedor.Id, null, null, null);
+            _dbContext.CanalesGestionDocumental.Add(canal);
+            var tipo = new TipoDocumento("Seguro RC Delegante", 12, true, 1, AmbitoAplicacion.Empresa);
+            _dbContext.TiposDocumento.Add(tipo);
+            await _dbContext.SaveChangesAsync();
+
+            var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+            var documentoPropia = Documento.DeEmpresa(propia.Id, tipo.Id, hoy.AddMonths(-1), hoy.AddYears(1));
+            var documentoSubcontrata = Documento.DeEmpresa(subcontrata.Id, tipo.Id, hoy.AddMonths(-1), hoy.AddYears(1));
+            _dbContext.Documentos.AddRange(documentoPropia, documentoSubcontrata);
+            await _dbContext.SaveChangesAsync();
+
+            // La de la Empresa propia, pendiente de subir (Bloqueo+Actuación);
+            // la de la Subcontrata, ya subida (Seguimiento): cubre los dos
+            // caminos por los que llega una tarea de Empresa.
+            var subida = new AcreditacionDocumentoPlataforma(documentoSubcontrata.Id, canal.Id);
+            subida.MarcarSubida();
+            _dbContext.AcreditacionesDocumentoPlataforma.AddRange(
+                new AcreditacionDocumentoPlataforma(documentoPropia.Id, canal.Id), subida);
+            await _dbContext.SaveChangesAsync();
+        }
+
+        var resultado = await _servicios.GetRequiredService<IMediator>().Send(new ObtenerMiTrabajoAgregadoQuery());
+
+        var delegante = resultado.Tenants.Single(t => t.TenantId == _tenantDelegante);
+        var pendiente = delegante.BloqueoActuacion.Grupos.SelectMany(g => g.Items).Concat(delegante.BloqueoActuacion.SinGrupo)
+            .Should().ContainSingle(i => i.Tipo == TipoItemBandeja.PlataformaPendiente).Subject;
+        pendiente.EmpresaEsPropia.Should().BeTrue();
+        pendiente.EmpresaNombre.Should().Be("Delegante Empresa");
+
+        var seguimiento = delegante.Seguimiento.Should().ContainSingle().Subject;
+        seguimiento.EmpresaEsPropia.Should().BeFalse();
+        seguimiento.EmpresaNombre.Should().Be("Delegante Subcontrata");
+
+        // Las tareas de persona no llevan el dato: su sujeto no es una Empresa.
+        delegante.Proximos.Should().ContainSingle().Which.EmpresaEsPropia.Should().BeNull();
+    }
+
+    /// <summary>
     /// Coste real con varios Tenants — medido, no asumido (UNKNOWN del
     /// checkpoint). No se afirma un umbral de latencia como gate de CI
     /// (sería frágil e inestable en una máquina compartida); se deja el

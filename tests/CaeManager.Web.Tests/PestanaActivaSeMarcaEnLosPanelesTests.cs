@@ -68,7 +68,12 @@ public class PestanaActivaSeMarcaEnLosPanelesTests : BunitContext
     /// La celda «CIF» de Cliente 360 lleva un <c>BotonCopiar</c>, que importa
     /// ./js/clipboard.js. Sin esto, ese panel no llega ni a renderizarse.
     /// </summary>
-    public PestanaActivaSeMarcaEnLosPanelesTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public PestanaActivaSeMarcaEnLosPanelesTests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        // VehiculoWorkspacePanel pinta sus textos con IStringLocalizer<TextosVehiculos>.
+        Services.AddLocalization();
+    }
 
     /// <summary>Un responder por test: nada compartido que un panel no toca necesita fingirse.</summary>
     private sealed class MediatorFalso(Func<object, object?> responder) : IMediator

@@ -182,7 +182,7 @@
                                             <span class="mi-trabajo-fila-linea">
                                                 <Badge Tono="TonoSeveridad(fila.Severidad)" Tamano="TamanoBadge.Pequeno">@TipoItemBandejaUi.Texto(fila.Item)</Badge>
                                                 <span class="mi-trabajo-fila-titulo">@fila.Item.Titulo</span>
-                                                <span class="mi-trabajo-fila-sujeto">· @fila.Item.Subtitulo</span>
+                                                <span class="mi-trabajo-fila-sujeto">· @MiTrabajoVista.Sujeto(fila.Item)</span>
                                             </span>
                                             <span class="mi-trabajo-fila-contexto">@ContextoFila(fila)</span>
                                         </span>
@@ -225,7 +225,7 @@
                         <span class="mi-trabajo-detalle-tipo">@TipoItemBandejaUi.Texto(abierta.Item)</span>
                     </div>
                     <div class="mi-trabajo-detalle-titulo">@abierta.Item.Titulo</div>
-                    <div class="mi-trabajo-detalle-sujeto">@abierta.Item.Subtitulo</div>
+                    <div class="mi-trabajo-detalle-sujeto">@MiTrabajoVista.Sujeto(abierta.Item)</div>
                     @if (abierta.Item.Fecha is { } fechaDetalle)
                     {
                         <div class="mi-trabajo-detalle-plazo">@fechaDetalle.ToString(Textos["FormatoFechaLarga"], Cultura)</div>

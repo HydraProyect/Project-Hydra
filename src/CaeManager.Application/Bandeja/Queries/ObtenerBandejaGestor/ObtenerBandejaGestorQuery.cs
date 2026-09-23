@@ -133,6 +133,30 @@ public enum TipoItemBandeja
 /// Cambia el badge/acción (TipoItemBandejaUi) para no alarmar como "bloqueo"
 /// lo que en realidad es una alta que todavía no se ha completado.
 /// </param>
+/// <param name="EmpresaEsPropia">
+/// Solo cuando el sujeto de la tarea es una Empresa y no una persona
+/// (<paramref name="TrabajadorId"/> null, <paramref name="EmpresaId"/> no
+/// null, fuera de DeteccionPendiente): true si es la Empresa propia del
+/// Tenant propietario, false si es una Subcontrata. Lo rellena solo Mi
+/// trabajo Gen2 (<c>ObtenerMiTrabajoAgregadoQueryHandler</c>), que rotula así
+/// el sujeto (contrato de Mi trabajo Gen2, § 14). /bandeja no lo rellena: null
+/// significa «no se sabe», nunca «Subcontrata».
+/// </param>
+/// <param name="RechazoBloqueaCentro">
+/// Solo PlataformaRechazada: true si el cálculo de estado del Centro de
+/// Trabajo (<c>ICalculoEstadoCentroService</c>, D-7 del piloto Outbound)
+/// cuenta este documento como causa bloqueante de ESE Centro — la rechazada
+/// es aplicable a él (su canal, Trabajador aún asignado, tipo que le aplica).
+/// Una rechazada no aplicable sigue siendo trabajo en la cola, pero no cierra
+/// ningún Centro, y se queda en false. Lo rellena solo
+/// <c>ObtenerBandejaAgrupadaQueryHandler</c> (la cola agrupada que leen
+/// /bandeja e Inicio). Ni <see cref="ObtenerBandejaGestorQuery"/> —que también
+/// consume la vigilancia de visitas urgentes, a la que no le hace falta— ni
+/// Mi trabajo agregada, que clasifica por severidad
+/// (<c>ObtenerMiTrabajoAgregadoQueryHandler.EsBloqueo</c>) y no pinta el
+/// «bloquea acceso» del grupo, lo rellenan: allí false significa «no
+/// calculado», no «no bloquea».
+/// </param>
 public record ItemBandejaDto(
     string Id,
     TipoItemBandeja Tipo,
@@ -152,7 +176,9 @@ public record ItemBandejaDto(
     string? EmpresaNombre = null,
     string? TrabajadorNombre = null,
     string? ProveedorNombre = null,
-    bool EsAltaNueva = false);
+    bool EsAltaNueva = false,
+    bool? EmpresaEsPropia = null,
+    bool RechazoBloqueaCentro = false);
 
 public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracionQueryContext configuracionContext)
     : IRequestHandler<ObtenerBandejaGestorQuery, IReadOnlyList<ItemBandejaDto>>

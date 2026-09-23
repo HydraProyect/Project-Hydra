@@ -7,6 +7,7 @@ using CaeManager.Application.Comunicaciones.Queries.ObtenerSugerenciasVisitaCorr
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesPorProveedor;
 using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes;
+using CaeManager.Application.Empresas;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Trabajadores.Queries.ObtenerDeteccionesPendientes;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
@@ -40,9 +41,17 @@ namespace CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 /// comentarios) — se extraen de los MISMOS resultados que ya trae
 /// <see cref="ObtenerAlertasQuery"/> y
 /// <see cref="ObtenerAcreditacionesPorProveedorQuery"/> (esta última con
-/// <c>IncluirSubidas: true</c>), sin ninguna consulta adicional: por Tenant
-/// esto sigue siendo exactamente el mismo número de <see cref="IMediator.Send"/>
-/// que ya hace <see cref="ObtenerBandejaGestorQueryHandler"/> hoy.
+/// <c>IncluirSubidas: true</c>), sin ningún <see cref="IMediator.Send"/>
+/// adicional: por Tenant es el mismo número de Send que ya hace
+/// <see cref="ObtenerBandejaGestorQueryHandler"/> hoy.
+/// </para>
+///
+/// <para>
+/// Sí añade una consulta directa por Tenant, a <see cref="IEmpresasQueryContext"/>:
+/// la que rellena <see cref="ItemBandejaDto.EmpresaEsPropia"/> de las tareas
+/// cuyo sujeto es una Empresa (contrato § 14: «Documentación de empresa» o
+/// «Subcontrata · nombre»). Va dentro del mismo <see cref="AmbitoTenantExplicito"/>
+/// que el resto, así que solo ve las Empresas de ese Tenant.
 /// </para>
 /// </summary>
 public record ObtenerMiTrabajoAgregadoQuery : IRequest<MiTrabajoAgregadoDto>;
@@ -95,7 +104,8 @@ public record MiTrabajoTenantDto(
 /// </param>
 public record MiTrabajoAgregadoDto(IReadOnlyList<MiTrabajoTenantDto> Tenants);
 
-public class ObtenerMiTrabajoAgregadoQueryHandler(IMediator mediator, IConfiguracionQueryContext configuracionContext)
+public class ObtenerMiTrabajoAgregadoQueryHandler(
+    IMediator mediator, IConfiguracionQueryContext configuracionContext, IEmpresasQueryContext empresasContext)
     : IRequestHandler<ObtenerMiTrabajoAgregadoQuery, MiTrabajoAgregadoDto>
 {
     public async Task<MiTrabajoAgregadoDto> Handle(ObtenerMiTrabajoAgregadoQuery request, CancellationToken cancellationToken)
@@ -147,13 +157,18 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(IMediator mediator, IConfigura
         // EstadoDocumento.Proximo y EstadoAcreditacion.Subida (ver su
         // propio comentario) — pasarle alertas/pendientesPlataforma con esas
         // filas incluidas es seguro, no las cuela en Bloqueo/Actuación.
-        var bloqueoActuacionItems = ObtenerBandejaGestorQueryHandler.Fusionar(
+        var fusionados = ObtenerBandejaGestorQueryHandler.Fusionar(
             alertas, revisiones, requisitos, visitasUrgentes.Elementos, sugerenciasVisita, detecciones, pendientesPlataforma,
             hoy, parametros.HorasAvisoVisita, parametros.HorasCriticasVisita);
-        var bloqueoActuacion = ObtenerBandejaAgrupadaQueryHandler.Agrupar(bloqueoActuacionItems);
+        var proximosSinEmpresa = MapearProximos(alertas);
+        var seguimientoSinEmpresa = MapearSeguimiento(pendientesPlataforma);
 
-        var proximos = MapearProximos(alertas);
-        var seguimiento = MapearSeguimiento(pendientesPlataforma);
+        var empresas = await CargarEmpresasSujetoAsync(
+            fusionados.Concat(proximosSinEmpresa).Concat(seguimientoSinEmpresa), cancellationToken);
+        var bloqueoActuacionItems = MarcarEmpresaSujeto(fusionados, empresas);
+        var proximos = MarcarEmpresaSujeto(proximosSinEmpresa, empresas);
+        var seguimiento = MarcarEmpresaSujeto(seguimientoSinEmpresa, empresas);
+        var bloqueoActuacion = ObtenerBandejaAgrupadaQueryHandler.Agrupar(bloqueoActuacionItems);
 
         var bloqueos = bloqueoActuacionItems.Count(EsBloqueo);
         var resumen = new ResumenMiTrabajoTenantDto(
@@ -167,6 +182,40 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(IMediator mediator, IConfigura
         return new MiTrabajoTenantDto(
             tenant.TenantId, tenant.Nombre, tenant.EsOrigen, bloqueoActuacion, proximos, seguimiento, resumen);
     }
+
+    /// <summary>
+    /// El sujeto de la tarea es una Empresa, no una persona: documento de
+    /// Empresa (revisión IA, acreditación en plataforma). DeteccionPendiente
+    /// también lleva EmpresaId sin TrabajadorId, pero su sujeto es la persona
+    /// detectada, así que queda fuera.
+    /// </summary>
+    public static bool SujetoEsEmpresa(ItemBandejaDto item) =>
+        item.TrabajadorId is null && item.EmpresaId is not null && item.Tipo != TipoItemBandeja.DeteccionPendiente;
+
+    private async Task<Dictionary<Guid, (string RazonSocial, bool EsPropia)>> CargarEmpresasSujetoAsync(
+        IEnumerable<ItemBandejaDto> items, CancellationToken cancellationToken)
+    {
+        var ids = items.Where(SujetoEsEmpresa).Select(i => i.EmpresaId!.Value).Distinct().ToList();
+        if (ids.Count == 0) return [];
+
+        return await empresasContext.Empresas
+            .Where(e => ids.Contains(e.Id))
+            .ToDictionaryAsync(e => e.Id, e => (e.RazonSocial, e.EsPropia), cancellationToken);
+    }
+
+    /// <summary>
+    /// Rellena <see cref="ItemBandejaDto.EmpresaEsPropia"/> y, si falta,
+    /// <see cref="ItemBandejaDto.EmpresaNombre"/> en las tareas cuyo sujeto es
+    /// una Empresa. Una Empresa que no aparece (no debería: la tarea sale del
+    /// mismo Tenant) deja la tarea como estaba, con null, que la pantalla
+    /// pinta igual que hoy.
+    /// </summary>
+    public static List<ItemBandejaDto> MarcarEmpresaSujeto(
+        IEnumerable<ItemBandejaDto> items, IReadOnlyDictionary<Guid, (string RazonSocial, bool EsPropia)> empresas) => items
+        .Select(i => SujetoEsEmpresa(i) && empresas.TryGetValue(i.EmpresaId!.Value, out var empresa)
+            ? i with { EmpresaEsPropia = empresa.EsPropia, EmpresaNombre = i.EmpresaNombre ?? empresa.RazonSocial }
+            : i)
+        .ToList();
 
     /// <summary>
     /// Mismo criterio que <c>TipoItemBandejaUi.Tono == TonoBadge.Peligro</c>

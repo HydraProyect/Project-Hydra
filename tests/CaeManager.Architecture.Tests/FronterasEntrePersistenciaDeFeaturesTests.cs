@@ -98,6 +98,10 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // Mismo ParametroSistema (horas de aviso de Visita) que la Bandeja de
         // arriba, leído una vez por Tenant dentro del fan-out de Mi trabajo Gen2.
         ("Bandeja.ObtenerMiTrabajoAgregadoQueryHandler", "IConfiguracionQueryContext"),
+        // Razón social y EsPropia de la Empresa sujeto de las tareas de Mi trabajo
+        // Gen2 (contrato § 14: «Documentación de empresa» / «Subcontrata · nombre»),
+        // una consulta por Tenant dentro del mismo AmbitoTenantExplicito.
+        ("Bandeja.ObtenerMiTrabajoAgregadoQueryHandler", "IEmpresasQueryContext"),
         ("Blindaje42.ObtenerBlindajeEmpresasDeClienteQueryHandler", "IEmpresasQueryContext"),
         ("Blindaje42.SolicitarCertificacionTgssCommandHandler", "IEmpresasQueryContext"),
         ("BusquedaGlobal.BuscarGlobalQueryHandler", "ICentrosQueryContext"),

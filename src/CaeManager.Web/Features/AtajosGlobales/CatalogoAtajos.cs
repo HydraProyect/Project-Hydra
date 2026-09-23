@@ -1,11 +1,16 @@
 namespace CaeManager.Web.Features.AtajosGlobales;
 
-public record DefinicionAtajo(string Tecla, string Descripcion);
+/// <summary>
+/// Un atajo de la chuleta: la tecla, tal cual se pulsa, y la clave de su
+/// descripción en <c>TextosAtajosGlobales</c>.
+/// </summary>
+public record DefinicionAtajo(string Tecla, string ClaveDescripcion);
 
 /// <summary>
 /// Fuente de verdad única de los atajos globales (Fase D) — tanto para el
-/// destino real de "g + letra" como para el texto del chuleta ("?"), así
-/// que nunca puedan desincronizarse entre sí.
+/// destino real de "g + letra" como para la chuleta ("?"), así que nunca
+/// puedan desincronizarse entre sí. El texto de cada atajo vive en
+/// <c>TextosAtajosGlobales</c>, referenciado por su clave.
 /// </summary>
 public static class CatalogoAtajos
 {
@@ -64,27 +69,27 @@ public static class CatalogoAtajos
 
     public static readonly IReadOnlyList<DefinicionAtajo> Navegacion =
     [
-        new("g c", "Ir a Clientes"),
-        new("g e", "Ir a Empresas"),
-        new("g t", "Ir a Trabajadores"),
-        new("g d", "Ir a Documentos"),
-        new("g a", "Ir a Centros"),
-        new("g b", "Ir a la Bandeja del gestor"),
-        new("g p", "Ir a Proyectos"),
-        new("g i", "Ir a Incidencias")
+        new("g c", "IrAClientes"),
+        new("g e", "IrAEmpresas"),
+        new("g t", "IrATrabajadores"),
+        new("g d", "IrADocumentos"),
+        new("g a", "IrACentros"),
+        new("g b", "IrABandeja"),
+        new("g p", "IrAProyectos"),
+        new("g i", "IrAIncidencias")
     ];
 
     public static readonly IReadOnlyList<DefinicionAtajo> Acciones =
     [
-        new("n", "Nuevo aquí (en Clientes, Empresas, Centros, Trabajadores o Documentos)"),
-        new("Ctrl/Cmd + K", "Buscador global"),
-        new("?", "Mostrar esta ayuda (Esc para cerrar)")
+        new("n", "AccionNuevoAqui"),
+        new("Ctrl/Cmd + K", "AccionBuscadorGlobal"),
+        new("?", "AccionMostrarAyuda")
     ];
 
     public static readonly IReadOnlyList<DefinicionAtajo> Lista =
     [
-        new("j / k", "Fila siguiente / anterior"),
-        new("x", "Marcar/desmarcar la fila enfocada"),
-        new("Enter", "Abrir la fila enfocada")
+        new("j / k", "ListaFilaSiguienteAnterior"),
+        new("x", "ListaMarcarFila"),
+        new("Enter", "ListaAbrirFila")
     ];
 }

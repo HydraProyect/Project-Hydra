@@ -144,6 +144,51 @@ public class MiTrabajoGen2Tests : BunitContext
         }
     }
 
+    private static ItemBandejaDto DeEmpresa(string subtitulo, bool? esPropia, string? empresa = "Refrielectric") =>
+        Item("e1", TipoItemBandeja.PlataformaRechazada, "Seguro RC", "Transportes Planet Express") with
+        {
+            TrabajadorId = null,
+            EmpresaId = Guid.NewGuid(),
+            EmpresaNombre = empresa,
+            Subtitulo = subtitulo,
+            EmpresaEsPropia = esPropia
+        };
+
+    [Theory]
+    [InlineData("Refrielectric", true, "Documentación de empresa")]
+    [InlineData("Refrielectric — Firma caducada", true, "Documentación de empresa — Firma caducada")]
+    [InlineData("Refrielectric — Firma caducada", false, "Subcontrata · Refrielectric — Firma caducada")]
+    [InlineData("Refrielectric — Firma caducada", null, "Refrielectric — Firma caducada")]
+    [InlineData("Otra razón social", true, "Otra razón social")]
+    public void El_sujeto_de_una_tarea_de_Empresa_distingue_la_propia_de_la_Subcontrata(string subtitulo, bool? esPropia, string esperado)
+    {
+        var (anterior, anteriorUi) = (CultureInfo.CurrentCulture, CultureInfo.CurrentUICulture);
+        CultureInfo.CurrentCulture = CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("es-ES");
+        try
+        {
+            MiTrabajoVista.Sujeto(DeEmpresa(subtitulo, esPropia)).Should().Be(esperado);
+        }
+        finally
+        {
+            (CultureInfo.CurrentCulture, CultureInfo.CurrentUICulture) = (anterior, anteriorUi);
+        }
+    }
+
+    [Fact]
+    public void La_fila_y_el_detalle_de_una_tarea_de_la_Empresa_propia_la_rotulan_Documentacion_de_empresa()
+    {
+        var cartera = new MiTrabajoAgregadoDto(
+        [
+            Tenant(TenantRefri, "Refrielectric", esOrigen: false, [DeEmpresa("Refrielectric — Firma caducada", esPropia: true)]),
+        ]);
+        var cut = Renderizar(() => cartera);
+
+        var fila = FilaDe(cut, "Seguro RC");
+        fila.QuerySelector(".mi-trabajo-fila-sujeto")!.TextContent.Should().Be("· Documentación de empresa — Firma caducada");
+        fila.Click();
+        cut.Find(".mi-trabajo-detalle-sujeto").TextContent.Should().Be("Documentación de empresa — Firma caducada");
+    }
+
     [Fact]
     public void RequisitoPendiente_sin_url_propia_aterriza_en_la_bandeja_del_Tenant()
     {

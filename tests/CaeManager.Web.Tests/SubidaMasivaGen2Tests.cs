@@ -39,6 +39,7 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
         Services.AddSingleton<ICurrentUserService>(new UsuarioActualFalso(Roles.GestorCae));
         Services.AddScoped<PuertaAccesoDatos>();
         Services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<SubidaMasiva>), NullLogger<SubidaMasiva>.Instance);
+        Services.AddLocalization();
     }
 
     [Fact]
@@ -49,6 +50,8 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
         cut.FindAll(".miga-subida-masiva").Should().ContainSingle();
         cut.FindAll(".zona-subida-masiva").Should().ContainSingle();
         cut.FindAll(".zona-subida-masiva h2").Should().ContainSingle().Which.TextContent.Should().Be("Arrastra aquí los documentos de trabajador");
+        cut.Find(".zona-subida-masiva p").TextContent.Should().Be("PDF · JPG · PNG · DOCX · ZIP — hasta 60 archivos, 10 MB cada uno",
+            "la indicación sale del recurso con los límites que de verdad se aplican");
         cut.FindAll("a.enlace-exportar").Select(a => a.TextContent.Trim()).Should().HaveCount(2).And.Contain("Importar desde Excel").And.Contain("Revisión IA →");
     }
 
@@ -342,6 +345,38 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
         cut.Markup.Should().Contain("Solo lectura", "control: la pantalla se abrio de verdad con el rol Consulta");
         _almacenamiento.Guardados.Should().Be(0, "sin capacidad de crear, el PDF no se escribe en almacenamiento");
         _mediador.Recibidas.Select(r => r.Peticion).Should().NotContain(p => p is ConfirmarDocumentoPropuestoPorIaCommand || p is CrearDocumentoCommand);
+        await DisposeComponentsAsync();
+    }
+
+    /// <summary>
+    /// Defecto encontrado el 2026-09-22 (sesión de la PR #795): un archivo de más de 10 MB hacía que
+    /// <c>OpenReadStream(maxAllowedSize)</c> lanzara una <see cref="IOException"/> que nadie capturaba.
+    /// El archivo no aparecía en la lista, no había aviso, y el resto del lote se perdía con él porque
+    /// todos los archivos se leen antes de procesar el primero. Se prueba en los dos órdenes: el
+    /// grande antes y después del válido.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Un_archivo_de_mas_de_10_MB_se_avisa_con_su_nombre_y_el_limite_y_el_valido_sigue_adelante(bool grandePrimero)
+    {
+        var cut = Render<SubidaMasiva>();
+        var valido = InputFileContent.CreateFromBinary(CrearPdf(), "valido.pdf", contentType: "application/pdf");
+        var grande = InputFileContent.CreateFromBinary(new byte[(10 * 1024 * 1024) + 1], "grande.pdf", contentType: "application/pdf");
+
+        await cut.InvokeAsync(() => cut.FindComponent<InputFile>().UploadFiles(grandePrimero ? [grande, valido] : [valido, grande]));
+        cut.WaitForAssertion(() => cut.FindAll(".item-subida-masiva").Should().HaveCount(2), TimeSpan.FromSeconds(10));
+
+        var filaGrande = cut.FindAll(".item-subida-masiva").Single(f => f.QuerySelector(".item-subida-masiva-nombre")!.TextContent == "grande.pdf");
+        filaGrande.QuerySelector(".item-subida-masiva-badges")!.TextContent.Should().Contain("Error");
+        filaGrande.QuerySelector(".item-subida-masiva-error")!.TextContent.Should()
+            .Be("«grande.pdf» supera el límite de 10 MB por archivo y no se ha subido.");
+
+        var filaValida = cut.FindAll(".item-subida-masiva").Single(f => f.QuerySelector(".item-subida-masiva-nombre")!.TextContent == "valido.pdf");
+        filaValida.TextContent.Should().Contain("Pendiente de confirmar", "el archivo válido del mismo lote se procesa igual");
+        _mediador.Recibidas.Select(r => r.Peticion).OfType<DetectarCamposDocumentoQuery>().Should().ContainSingle(
+            "solo el válido llega a la detección; el grande no se lee");
+        cut.Find(".resumen-subida-masiva").TextContent.Should().Contain("1 con error").And.Contain("1 pendiente(s)");
         await DisposeComponentsAsync();
     }
 

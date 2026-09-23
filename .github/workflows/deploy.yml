@@ -139,6 +139,27 @@ name: Desplegar
 # ci-deploy.sh se retiran cuando este cambio esté verificado en un despliegue
 # real (RUNBOOK-CLAVES-SSH-D6-P32-2026-09.md, pasos 12 y 13).
 #
+# --- La conexión SSH: keepalive de aplicación (2026-09-22) -------------------
+#
+# Todo `ssh` de este fichero lleva `-o ServerAliveInterval=30
+# -o ServerAliveCountMax=20`. Sin eso, la sesión no enviaba nada mientras el
+# VPS compilaba en silencio, y del 2026-09-21 al 2026-09-22 siete despliegues
+# seguidos a staging (de c64de0a9 a 4e0cf636) murieron así: tras la línea
+# «CaeManager.Infrastructure -> …dll» no había más salida, y al cabo el job
+# terminaba con «client_loop: send disconnect: Broken pipe» y código 255.
+# El corte llegaba unos 4 min 20 s después de la última línea (en cuatro
+# runs), a los 8 min 36 s (en uno) o a las 2 h 11-13 min (en dos), que es
+# lo que tarda el keepalive TCP por defecto
+# de Linux (7200 s + 9 × 75 s): la conexión ya estaba muerta y el runner no se
+# enteraba. El silencio largo lo provoca el build en el VPS, que ahora pasa
+# minutos sin escribir (antes, como mucho unos 80 s entre dos líneas), y eso
+# no lo arregla este cambio: lo que arregla es la parte del cliente. Con el
+# keepalive la conexión nunca pasa más de 30 s callada, y si el servidor deja
+# de contestar de verdad el job falla a los 10 min (30 × 20) en vez de tener
+# la cola `deploy-staging` colgada más de dos horas. No cambia qué hace el
+# VPS ni cuándo se corta el despliegue: un build que falla sigue saliendo por
+# `ci-deploy.sh` con su propio mensaje, que ahora sí llega al log.
+#
 # --- Por qué producción depende de staging, y por qué son dos jobs ----------
 #
 # `aprobacion-produccion` depende de `staging` (needs:) por una razón que no
@@ -423,7 +444,7 @@ jobs:
       - name: Desplegar SHA exacto a staging
         run: |
           echo "Desplegando a staging el commit $SHA_DESPLEGADO"
-          ssh -i ~/.ssh/id_ed25519 "root@$VPS_HOST" "staging $SHA_DESPLEGADO"
+          ssh -i ~/.ssh/id_ed25519 -o ServerAliveInterval=30 -o ServerAliveCountMax=20 "root@$VPS_HOST" "staging $SHA_DESPLEGADO"
 
   aprobacion-produccion:
     name: Aprobar despliegue a producción
@@ -559,7 +580,7 @@ jobs:
           # siguiente. Se trata como aviso, no como fallo — cualquier OTRO
           # error (SSH, fallo real de actualizar_secretos_produccion en una
           # copia ya actualizada) sigue haciendo fallar el job.
-          SALIDA="$(ssh -i ~/.ssh/id_ed25519 "root@$VPS_HOST" "secretos" <<< "$BLOB" 2>&1)" && ESTADO=0 || ESTADO=$?
+          SALIDA="$(ssh -i ~/.ssh/id_ed25519 -o ServerAliveInterval=30 -o ServerAliveCountMax=20 "root@$VPS_HOST" "secretos" <<< "$BLOB" 2>&1)" && ESTADO=0 || ESTADO=$?
           printf '%s\n' "$SALIDA"
           if [ "$ESTADO" -ne 0 ]; then
             if printf '%s' "$SALIDA" | grep -qF "Entorno no permitido: 'secretos'"; then
@@ -612,4 +633,4 @@ jobs:
       - name: Desplegar SHA exacto a producción
         run: |
           echo "Desplegando a produccion el commit $SHA_DESPLEGADO"
-          ssh -i ~/.ssh/id_ed25519 "root@$VPS_HOST" "produccion $SHA_DESPLEGADO"
+          ssh -i ~/.ssh/id_ed25519 -o ServerAliveInterval=30 -o ServerAliveCountMax=20 "root@$VPS_HOST" "produccion $SHA_DESPLEGADO"

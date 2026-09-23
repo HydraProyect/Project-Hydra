@@ -213,6 +213,28 @@ public class BandejaGen2Tests : BunitContext
             "la banda es refuerzo: el badge sigue siendo quien dice el dato, porque el color solo no comunica");
     }
 
+    /// <summary>
+    /// P2.7: un Centro Bloqueado solo por una acreditación Rechazada (D-7) —
+    /// sin ningún RequisitoPendiente— tiene que llevar la banda y el badge en
+    /// Mi trabajo. La segunda Rechazada, que el cálculo del Centro no cuenta
+    /// como bloqueante, es el control negativo: sigue en la cola sin banda.
+    /// </summary>
+    [Fact]
+    public void Una_rechazada_que_bloquea_su_Centro_lleva_banda_y_una_que_no_bloquea_no()
+    {
+        var rechazada = Item("r1", TipoItemBandeja.PlataformaRechazada, Guid.NewGuid(), "Cervezas Duff Ibérica");
+        var bloquea = rechazada with { RechazoBloqueaCentro = true };
+        var noBloquea = Item("r2", TipoItemBandeja.PlataformaRechazada, Guid.NewGuid(), "Hamburguesas Krusty");
+
+        var (cut, _) = Renderizar(bloquea, noBloquea);
+
+        cut.FindComponents<GrupoCola>().Should().HaveCount(2);
+        var conBanda = cut.FindAll(".grupo-cola-bloquea");
+        conBanda.Should().ContainSingle();
+        conBanda[0].TextContent.Should().Contain("Cervezas Duff Ibérica");
+        conBanda[0].TextContent.Should().Contain("Bloquea acceso");
+    }
+
     // -------------------------------------------------------------- carreras
 
     /// <summary>

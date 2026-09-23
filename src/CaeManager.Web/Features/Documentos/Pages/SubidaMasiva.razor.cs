@@ -8,9 +8,11 @@ using CaeManager.Domain.Documentos;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Documentos;
+using CaeManager.Web.Features.Documentos.Recursos;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Web.Features.Documentos.Pages;
@@ -59,7 +61,6 @@ namespace CaeManager.Web.Features.Documentos.Pages;
 /// </summary>
 public partial class SubidaMasiva : ComponentBase, IDisposable
 {
-    private const long TamanoMaximoArchivoBytes = 10 * 1024 * 1024;
     private const int MaximoArchivosPorLote = 60;
 
     /// <summary>
@@ -79,7 +80,7 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
     /// proceso web en vez de en <c>byte[]</c> — pendiente de decisión, ver el
     /// informe del Módulo 2.
     /// </summary>
-    private const long PresupuestoLoteBytes = MaximoArchivosPorLote * TamanoMaximoArchivoBytes;
+    private const long PresupuestoLoteBytes = (long)MaximoArchivosPorLote * LimitesArchivoSubido.TamanoMaximoBytes;
 
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
@@ -89,6 +90,7 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
     [Inject] private ILogger<SubidaMasiva> Logger { get; set; } = default!;
     [Inject] private ICurrentUserService CurrentUserService { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosSubidaMasiva> Textos { get; set; } = default!;
 
     private enum EstadoItem { Procesando, PendienteConfirmar, Creado, Descartado, Error }
 
@@ -222,7 +224,20 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
 
             foreach (var archivo in archivosSeleccionados)
             {
-                await using var flujo = archivo.OpenReadStream(TamanoMaximoArchivoBytes);
+                // El tamaño que declara el navegador es el mismo dato que
+                // OpenReadStream compara con maxAllowedSize antes de leer nada.
+                // Sin esta comprobación lanzaba una IOException que nadie
+                // capturaba: el archivo no llegaba a la lista, no había aviso,
+                // y los válidos del mismo lote ya leídos se perdían con él
+                // (defecto del 2026-09-22). Ahora es un error de ese archivo y
+                // el lote sigue.
+                if (archivo.Size > LimitesArchivoSubido.TamanoMaximoBytes)
+                {
+                    AgregarItem(NuevoItemError(archivo.Name, TextoArchivoSuperaLimite(archivo.Name)));
+                    continue;
+                }
+
+                await using var flujo = archivo.OpenReadStream(LimitesArchivoSubido.TamanoMaximoBytes);
                 using var memoria = new MemoryStream();
                 await flujo.CopyToAsync(memoria, token);
                 if (!EsVigente(carga)) return;
@@ -246,7 +261,7 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
                             // tope, y ese recuento ya no se hace después de
                             // haberlos expandido en memoria.
                             MaximoArchivosPorLote - entradas.Count,
-                            TamanoMaximoArchivoBytes,
+                            LimitesArchivoSubido.TamanoMaximoBytes,
                             presupuestoRestante);
                     }
                     catch (InvalidDataException ex)
@@ -316,9 +331,9 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
             return;
         }
 
-        if (contenido.Length > TamanoMaximoArchivoBytes)
+        if (contenido.Length > LimitesArchivoSubido.TamanoMaximoBytes)
         {
-            AgregarItem(NuevoItemError(nombreArchivo, "Supera los 10 MB — se omitió."));
+            AgregarItem(NuevoItemError(nombreArchivo, TextoArchivoSuperaLimite(nombreArchivo)));
             StateHasChanged();
             return;
         }
@@ -377,6 +392,9 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
         if (EsVigente(carga))
             StateHasChanged();
     }
+
+    private string TextoArchivoSuperaLimite(string nombreArchivo) =>
+        Textos["ArchivoSuperaLimite", nombreArchivo, LimitesArchivoSubido.TamanoMaximoMb];
 
     private static ItemLote NuevoItemError(string nombreArchivo, string mensaje) => new()
     {

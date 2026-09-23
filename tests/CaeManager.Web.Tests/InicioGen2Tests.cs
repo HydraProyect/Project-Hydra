@@ -48,6 +48,7 @@ public class InicioGen2Tests : BunitContext
     private static readonly Guid MontajesEbro = Guid.NewGuid();
     private static readonly Guid CentroNorte = Guid.NewGuid();
     private static readonly Guid CentroSur = Guid.NewGuid();
+    private static readonly Guid CervezasDuff = Guid.NewGuid();
 
     public InicioGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
 
@@ -185,6 +186,43 @@ public class InicioGen2Tests : BunitContext
         MetaDeSeccion(cut, "Requiere atención").Should().Be("1 grupo · 1 bloquea acceso");
         cut.Markup.Should().Contain("Bloquea acceso");
         PistaDelKpi(cut, "Centros / plataformas").Should().Be("2 centros bloqueados");
+    }
+
+    /// <summary>
+    /// P2.7: una acreditación Rechazada que bloquea su Centro (D-7) es la única
+    /// causa del bloqueo — sin ningún RequisitoPendiente en la cola. Antes el
+    /// grupo salía sin badge, la cabecera no lo contaba y la pista del KPI no
+    /// veía el Centro cerrado, mientras Centro 360 decía «Acceso bloqueado».
+    /// </summary>
+    [Fact]
+    public void Una_rechazada_que_bloquea_su_Centro_cuenta_como_bloqueo_arriba_en_la_tarjeta_y_en_el_kpi()
+    {
+        var cut = Renderizar(new MediadorDeInicio(
+            Item("r1", TipoItemBandeja.PlataformaRechazada, CervezasDuff, "Cervezas Duff Ibérica")
+                with
+            { CentroId = CentroNorte, DocumentoId = Guid.NewGuid(), RechazoBloqueaCentro = true }));
+
+        MetaDeSeccion(cut, "Requiere atención").Should().Be("1 grupo · 1 bloquea acceso");
+        cut.Markup.Should().Contain("Bloquea acceso");
+        PistaDelKpi(cut, "Centros / plataformas").Should().Be("1 centro bloqueado");
+    }
+
+    /// <summary>
+    /// Control negativo del anterior: una Rechazada que el cálculo del Centro no
+    /// cuenta como bloqueante (no aplicable a ese Centro) sigue en la cola como
+    /// trabajo, pero no dice que el Centro esté cerrado.
+    /// </summary>
+    [Fact]
+    public void Una_rechazada_que_no_bloquea_su_Centro_no_cuenta_como_bloqueo()
+    {
+        var cut = Renderizar(new MediadorDeInicio(
+            Item("r1", TipoItemBandeja.PlataformaRechazada, CervezasDuff, "Cervezas Duff Ibérica")
+                with
+            { CentroId = CentroNorte, DocumentoId = Guid.NewGuid() }));
+
+        MetaDeSeccion(cut, "Requiere atención").Should().Be("1 grupo");
+        cut.Markup.Should().NotContain("Bloquea acceso");
+        PistaDelKpi(cut, "Centros / plataformas").Should().BeNull();
     }
 
     /// <summary>

@@ -13,20 +13,23 @@
 *@
 @using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculoPorId
 @using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Vehiculos.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosVehiculos> Textos
 
 @if (Visible)
 {
-    <aside class="drawer-preview-vehiculo" role="complementary" aria-label="Vista previa del vehículo">
+    <aside class="drawer-preview-vehiculo" role="complementary" aria-label="@Textos["AriaVistaPrevia"]">
         <div class="cabecera-preview-vehiculo">
             <div class="texto-cabecera-preview-vehiculo">
-                <span class="etiqueta-cabecera-preview-vehiculo">Consulta · Vehículo</span>
-                <span class="nombre-cabecera-preview-vehiculo">@(_detalle?.Nombre ?? "Cargando…")</span>
+                <span class="etiqueta-cabecera-preview-vehiculo">@Textos["EtiquetaCabeceraPreview"]</span>
+                <span class="nombre-cabecera-preview-vehiculo">@(_detalle?.Nombre ?? Textos["Cargando"].Value)</span>
             </div>
-            <button type="button" class="boton-cerrar-preview-vehiculo" aria-label="Cerrar" @onclick="Cerrar"><Icono Nombre="cerrar" /></button>
+            <button type="button" class="boton-cerrar-preview-vehiculo" aria-label="@Textos["AriaCerrar"]" @onclick="Cerrar"><Icono Nombre="cerrar" /></button>
         </div>
 
         <div class="cuerpo-preview-vehiculo">
-        <Pestanas Definiciones="Pestanas" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestanaAsync" EtiquetaGrupo="Secciones del vehículo">
+        <Pestanas Definiciones="Pestanas" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestanaAsync" EtiquetaGrupo="@Textos["EtiquetaSecciones"]">
             @if (_cargando && _pestanaActiva == "informacion")
             {
                 <EstadoCargando Filas="3" />
@@ -34,9 +37,9 @@
             else if (_pestanaActiva == "informacion" && _detalle is not null)
             {
                 <div class="rejilla-info-preview-vehiculo">
-                    <div class="celda-info-preview-vehiculo"><span>Modelo</span><strong>@_detalle.Modelo</strong></div>
-                    <div class="celda-info-preview-vehiculo"><span>Matrícula</span><strong>@_detalle.NumeroPlaca</strong></div>
-                    <div class="celda-info-preview-vehiculo"><span>Empleador</span><strong>@_detalle.EmpleadorNombre</strong></div>
+                    <div class="celda-info-preview-vehiculo"><span>@Textos["EtiquetaModelo"]</span><strong>@_detalle.Modelo</strong></div>
+                    <div class="celda-info-preview-vehiculo"><span>@Textos["EtiquetaMatricula"]</span><strong>@_detalle.NumeroPlaca</strong></div>
+                    <div class="celda-info-preview-vehiculo"><span>@Textos["EtiquetaEmpleador"]</span><strong>@_detalle.EmpleadorNombre</strong></div>
                 </div>
             }
 
@@ -44,7 +47,7 @@
             {
                 <PestanaDocumentacion Ambito="AmbitoAplicacion.Vehiculo" PropietarioId="vehiculoIdDocs" />
                 <button type="button" class="enlace-ver-todo-preview-vehiculo" @onclick='() => Operar("documentacion")'>
-                    Ver toda su documentación →
+                    @Textos["EnlaceVerDocumentacion"]
                 </button>
             }
 
@@ -56,13 +59,16 @@
         </div>
 
         <div class="pie-preview-vehiculo">
-            <Boton OnClick='() => Operar("informacion")'>Operar →</Boton>
-            <span class="nota-pie-preview-vehiculo">Abre el workspace del vehículo</span>
+            <Boton OnClick='() => Operar("informacion")'>@Textos["BotonOperar"]</Boton>
+            <span class="nota-pie-preview-vehiculo">@Textos["NotaPieOperar"]</span>
         </div>
     </aside>
 }
 
 @code {
-    private static readonly IReadOnlyList<PestanaDefinicion> Pestanas =
-        [new("informacion", "Información"), new("documentacion", "Documentación"), new("historial", "Historial")];
+    // De instancia, no static: las etiquetas salen del localizador inyectado.
+    private IReadOnlyList<PestanaDefinicion>? _pestanas;
+
+    private IReadOnlyList<PestanaDefinicion> Pestanas => _pestanas ??=
+        [new("informacion", Textos["PestanaInformacion"]), new("documentacion", Textos["EtiquetaDocumentacion"]), new("historial", Textos["PestanaHistorial"])];
 }

@@ -114,4 +114,54 @@ public class ObtenerMiTrabajoAgregadoQueryHandlerTests
 
         ObtenerMiTrabajoAgregadoQueryHandler.EsBloqueo(item).Should().Be(esperado);
     }
+
+    private static readonly Guid EmpresaPropia = Guid.NewGuid();
+    private static readonly Guid Subcontrata = Guid.NewGuid();
+
+    private static readonly Dictionary<Guid, (string RazonSocial, bool EsPropia)> Empresas = new()
+    {
+        [EmpresaPropia] = ("Refrielectric", true),
+        [Subcontrata] = ("Montajes Pérez", false),
+    };
+
+    private static ItemBandejaDto ItemDe(TipoItemBandeja tipo, Guid? empresaId, Guid? trabajadorId = null, string? empresaNombre = null) => new(
+        Id: Guid.NewGuid().ToString(), Tipo: tipo, Titulo: "Seguro RC", Subtitulo: "Sujeto",
+        TrabajadorId: trabajadorId, CentroId: null, DocumentoId: null, TipoDocumentoId: null, RequisitoId: null, Fecha: null,
+        EmpresaId: empresaId, EmpresaNombre: empresaNombre);
+
+    [Fact]
+    public void MarcarEmpresaSujeto_distingue_la_Empresa_propia_de_la_Subcontrata_y_rellena_su_nombre()
+    {
+        var marcados = ObtenerMiTrabajoAgregadoQueryHandler.MarcarEmpresaSujeto(
+            [ItemDe(TipoItemBandeja.PlataformaPendiente, EmpresaPropia), ItemDe(TipoItemBandeja.EnPlataformaSeguimiento, Subcontrata)],
+            Empresas);
+
+        marcados.Select(i => (i.EmpresaEsPropia, i.EmpresaNombre)).Should().Equal(
+            (true, "Refrielectric"), (false, "Montajes Pérez"));
+    }
+
+    [Fact]
+    public void MarcarEmpresaSujeto_no_pisa_un_nombre_de_Empresa_que_ya_venia()
+    {
+        var marcado = ObtenerMiTrabajoAgregadoQueryHandler.MarcarEmpresaSujeto(
+            [ItemDe(TipoItemBandeja.RevisionIa, EmpresaPropia, empresaNombre: "Refrielectric S.L.")], Empresas).Single();
+
+        marcado.EmpresaNombre.Should().Be("Refrielectric S.L.");
+        marcado.EmpresaEsPropia.Should().BeTrue();
+    }
+
+    [Fact]
+    public void MarcarEmpresaSujeto_deja_sin_marcar_las_tareas_cuyo_sujeto_es_una_persona()
+    {
+        var marcados = ObtenerMiTrabajoAgregadoQueryHandler.MarcarEmpresaSujeto(
+            [
+                ItemDe(TipoItemBandeja.PlataformaPendiente, EmpresaPropia, trabajadorId: Guid.NewGuid()),
+                // Alta o baja detectada: lleva EmpresaId sin TrabajadorId, pero el sujeto es la persona.
+                ItemDe(TipoItemBandeja.DeteccionPendiente, EmpresaPropia),
+                ItemDe(TipoItemBandeja.PlataformaPendiente, Guid.NewGuid()),
+            ],
+            Empresas);
+
+        marcados.Should().OnlyContain(i => i.EmpresaEsPropia == null, "ni persona, ni detección, ni Empresa desconocida");
+    }
 }
