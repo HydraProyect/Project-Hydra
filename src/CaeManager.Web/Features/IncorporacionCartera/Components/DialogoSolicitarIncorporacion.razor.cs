@@ -12,7 +12,7 @@ namespace CaeManager.Web.Features.IncorporacionCartera.Components;
 /// <summary>
 /// Diálogo con el que un Gestor CAE pide incorporarse a una Empresa (Tenant
 /// propietario) que su Operador CAE opera y que aún no tiene en cartera.
-/// Reutilizable: lo abre la bandeja de solicitudes y lo abrirá el botón
+/// Reutilizable: lo abren la bandeja de solicitudes y el botón
 /// «Añadir a mi cartera» de Mi trabajo, que puede preseleccionar la Empresa
 /// con <see cref="TenantPropietarioId"/>. Los candidatos se piden al abrir:
 /// la lista es de la organización y cambia sin que este circuito se entere.
