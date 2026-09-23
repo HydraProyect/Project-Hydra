@@ -504,12 +504,31 @@ public class Empresa360PaginaTests : BunitContext
 
     // ── Credencial de acceso ──────────────────────────────────────────────
 
-    private MediatorFalso EmpresaConCredencial(string? contrasena = "clave-secreta-123")
+    private MediatorFalso EmpresaConCredencial(string? contrasena = "clave-secreta-123", string rol = Roles.GestorCae)
     {
         var mediador = Empresa();
         mediador.Credenciales[EmpresaId] = new CredencialAccesoEmpresaDto(
             "https://app.twind.io/login", "Refrielectric S.A.", "usuario.ibertec", contrasena, "Notas internas");
-        return Registrar(mediador);
+        return Registrar(mediador, rol);
+    }
+
+    /// <summary>
+    /// «Copiar contraseña» solo se ofrece a roles con escritura (decisión del
+    /// propietario 2026-09-23). El mediador falso devuelve la credencial también
+    /// a Consulta, que en producción recibe null del servidor: así se prueba la
+    /// barrera de la página por sí sola, sin apoyarse en la de Application.
+    /// </summary>
+    [Fact]
+    public void Consulta_no_ve_copiar_contrasena()
+    {
+        var mediador = EmpresaConCredencial(rol: Roles.Consulta);
+
+        var cut = Renderizar();
+
+        // Barrera: la tarjeta pintó la credencial; si no, la ausencia de abajo sería verde vacío.
+        cut.FindAll(".boton-copiar").Select(b => b.TextContent.Trim()).Should().Contain("Copiar usuario");
+        cut.FindAll(".boton-copiar").Select(b => b.TextContent.Trim()).Should().NotContain("Copiar contraseña");
+        mediador.Enviadas.OfType<ObtenerCredencialAccesoEmpresaQuery>().Should().BeEmpty();
     }
 
     [Fact]
