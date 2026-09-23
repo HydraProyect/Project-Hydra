@@ -41,6 +41,8 @@ public class SubcontratasVacioPorFiltroTests : BunitContext
     public SubcontratasVacioPorFiltroTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        // Los textos de Subcontratas salen de IStringLocalizer<TextosSubcontratas>.
+        Services.AddLocalization();
         this.ConRolDeEscritura();
     }
 

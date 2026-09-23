@@ -3,14 +3,19 @@ using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
+using CaeManager.Web.Features.Subcontratas.Recursos;
+using CaeManager.Web.Recursos;
 using MediatR;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Features.Subcontratas.Components;
 
 public partial class SubcontrataPreviewDrawer : ComponentBase
 {
     [Inject] private IMediator Mediator { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosSubcontratas> Textos { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosComunes> Comunes { get; set; } = default!;
 
     /// <summary>
     /// La fila de la lista que se está previsualizando. Trae el cumplimiento y
@@ -128,21 +133,21 @@ public partial class SubcontrataPreviewDrawer : ComponentBase
         (_nombresPrestaServicioA.Count, _relacionesSinNombreVisible) switch
         {
             (0, 0) => "—",
-            (0, var sinNombre) => sinNombre == 1 ? "1 empresa fuera de tu cartera" : $"{sinNombre} empresas fuera de tu cartera",
+            (0, var sinNombre) => sinNombre == 1 ? Textos["EmpresasFueraDeCarteraUno"] : Textos["EmpresasFueraDeCarteraVarios", sinNombre],
             (_, 0) => string.Join(", ", _nombresPrestaServicioA),
-            (_, var sinNombre) => $"{string.Join(", ", _nombresPrestaServicioA)} y {sinNombre} más"
+            (_, var sinNombre) => Textos["ListaYMas", string.Join(", ", _nombresPrestaServicioA), sinNombre]
         };
 
     private string TextoMeta
     {
         get
         {
-            var cumplimiento = Fila?.CumplimientoPorcentaje is { } c ? $"{c}% de cumplimiento" : "sin cumplimiento calculable";
+            string cumplimiento = Fila?.CumplimientoPorcentaje is { } c ? Textos["MetaCumplimiento", c] : Textos["MetaSinCumplimiento"];
             if (_cargando || _detalle is null)
                 return cumplimiento;
 
-            var trabajadores = _totalTrabajadores == 1 ? "1 trabajador" : $"{_totalTrabajadores} trabajadores";
-            return $"{trabajadores} · {cumplimiento}";
+            string trabajadores = _totalTrabajadores == 1 ? Textos["MetaTrabajadoresUno"] : Textos["MetaTrabajadoresVarios", _totalTrabajadores];
+            return Textos["MetaTrabajadoresYCumplimiento", trabajadores, cumplimiento];
         }
     }
 

@@ -20,6 +20,7 @@ using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Subcontratas;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Subcontratas.Components;
@@ -50,7 +51,15 @@ namespace CaeManager.Web.Tests;
 public class Subcontrata360Gen2Tests : BunitContext
 {
     /// <summary>BotonCopiar importa ./js/clipboard.js.</summary>
-    public Subcontrata360Gen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public Subcontrata360Gen2Tests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        // Los textos de Subcontratas salen de IStringLocalizer<TextosSubcontratas>.
+        Services.AddLocalization();
+        // Los disparadores de escritura van en SoloConEscritura (AuthorizeView): por
+        // defecto un rol que escribe; los tests de Consulta lo sustituyen.
+        this.ConRolDeEscritura();
+    }
 
     /// <summary>
     /// Responde según los parámetros de cada consulta —el Id de la
@@ -289,6 +298,37 @@ public class Subcontrata360Gen2Tests : BunitContext
         cut.Markup.Should().NotContain("lauburu.prl", "son las credenciales de otra subcontrata")
             .And.NotContain("app.dokify.net/acceso");
         Boton(cut, "Ver credenciales");
+    }
+
+    /// <summary>
+    /// Decisión del propietario (2026-09-23): los secretos del Tenant solo los
+    /// leen los roles con escritura. Consulta no ve la tarjeta «Acceso al portal»
+    /// ni la edición (que carga las credenciales); el control positivo es el
+    /// mismo panel con un rol de gestión.
+    /// </summary>
+    [Theory]
+    [InlineData("Consulta", false)]
+    [InlineData("GestorCae", true)]
+    public void Las_credenciales_del_portal_y_su_edicion_solo_se_ofrecen_a_los_roles_con_escritura(string rol, bool seOfrecen)
+    {
+        this.ConRolDeEscritura(rol);
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Pinturas Lauburu S.A.");
+
+        var cut = Renderizar(id);
+        var botones = cut.FindAll("button").Select(b => b.TextContent.Trim()).ToList();
+
+        if (seOfrecen)
+        {
+            botones.Should().Contain(["Ver credenciales", "Editar identidad"]);
+            cut.FindAll("section[aria-label='Acceso al portal']").Should().ContainSingle();
+        }
+        else
+        {
+            botones.Should().NotContain(["Ver credenciales", "Editar identidad"]);
+            cut.FindAll("section[aria-label='Acceso al portal']").Should().BeEmpty();
+        }
     }
 
     [Fact]
@@ -682,6 +722,36 @@ public class Subcontrata360Gen2Tests : BunitContext
                 "Eliminar la verificación de Certificado TGSS en Planta Zaragoza",
             ],
             "tres botones con el mismo texto visible: el nombre accesible es lo único que los distingue, y el tipo se repite entre centros");
+    }
+
+    [Fact]
+    public void Consulta_ve_la_ficha_y_la_supervision_sin_que_se_le_ofrezca_editar_cambiar_de_nivel_ni_registrar_o_eliminar_verificaciones()
+    {
+        // Editar, cambiar de nivel, registrar y eliminar verificaciones son ICommand que
+        // AutorizacionEscrituraBehavior deniega a Consulta: ofrecerlos era enseñar botones que siempre fallan.
+        this.ConRolDeEscritura(Roles.Consulta);
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Pinturas Lauburu S.A.");
+        mediador.Supervisiones[id] = new SupervisionSubcontrataDto(
+            [CentroSupervisado("Centro Norte", TipoVerificado("Certificado TGSS", Guid.NewGuid(), new DateOnly(2026, 7, 13)))],
+            []);
+
+        var cut = Renderizar(id);
+
+        var enInformacion = cut.FindAll("button").Select(b => b.TextContent.Trim()).ToList();
+        enInformacion.Should().NotContain("Editar identidad")
+            .And.NotContain(t => t.StartsWith("Cambiar a", StringComparison.Ordinal))
+            // Las credenciales de un portal de terceros tampoco (decisión del propietario
+            // 2026-09-23, opción A): son la llave para actuar en esa plataforma, no un dato
+            // que se mira, y el servidor ya se las devuelve null a Consulta.
+            .And.NotContain("Ver credenciales");
+
+        cut.Render(p => p.Add(x => x.EntidadId, id).Add(x => x.PestanaActiva, "supervision"));
+
+        cut.Markup.Should().Contain("Certificado TGSS", "la supervisión es lectura: se ve");
+        cut.FindAll("button").Select(b => b.TextContent.Trim())
+            .Should().NotContain(["+ Registrar verificación", "Eliminar"]);
     }
 
     [Fact]

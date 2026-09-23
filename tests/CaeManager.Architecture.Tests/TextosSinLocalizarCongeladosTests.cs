@@ -70,7 +70,6 @@ public class TextosSinLocalizarCongeladosTests
         // detector, la cabecera «@for (var indice = 0; indice < Grupos.Count; …)»
         // de Configuracion.razor, que el '<' de la comparación hace pasar por texto.
         ["Configuracion"] = 1,
-        ["Cumplimiento"] = 11,
         ["Dashboard"] = 57,
         // 89 → 1 el 2026-09-23 al migrar la Feature a TextosDashboardEjecutivo.resx. El 1 que
         // queda NO es texto: es un falso positivo del detector de markup, que toma por texto lo
@@ -103,7 +102,12 @@ public class TextosSinLocalizarCongeladosTests
         ["Plantillas"] = 158,
         ["Plataforma"] = 74,
         ["Retencion"] = 85,
-        ["Subcontratas"] = 225,
+        // 225 → 1 el 2026-09-23 al migrar la Feature a TextosSubcontratas.resx (también la
+        // cabecera del Excel de exportación y los rótulos de EstadoSupervisionUi). Queda
+        // «PDF · JPG · PNG», el FormatosTexto de la zona de evidencia de Subcontrata 360: son
+        // los nombres de los formatos de fichero admitidos, iguales en cualquier idioma (no se
+        // localizan, como las siglas oficiales de TiposDocumento).
+        ["Subcontratas"] = 1,
         // 149 → 6 el 2026-09-23 al migrar la Feature a TextosTiposDocumento.resx. Quedan:
         // «ITA», «RNT» y «RLC», las siglas oficiales de las opciones de PerfilDocumentoOficial
         // (nombre propio del documento de la Administración, igual en cualquier idioma: no se
@@ -112,7 +116,18 @@ public class TextosSinLocalizarCongeladosTests
         // «ValorChanged="v => _ambito = Enum.Parse<AmbitoAplicacion>(v)"» (y los de _requerido
         // y _naturaleza). No se reescriben las lambdas para esquivar la heurística.
         ["TiposDocumento"] = 6,
-        ["Trabajadores"] = 193,
+        // 193 → 13 el 2026-09-23 al migrar la Feature a TextosTrabajadores.resx. Quedan:
+        // «DNI» y «DNI:» (sigla oficial del documento de la Administración: no se localiza; «DNI» cuenta dos
+        // veces, como atributo —Title/Etiqueta— y como markup —<span>DNI</span>—);
+        // «Documentación», cabecera de la exportación trabajadores.xlsx (contrato de datos del
+        // fichero, igual que el resto de sus columnas, que el detector no ve por no llevar tilde);
+        // y falsos positivos del detector de markup: «.ToString("dd/MM/yyyy")» tras
+        // «@gestion.CreadoEnUtc.ToLocalTime()», «d.Estado != EstadoDocumento.Vigente);» del
+        // «var incidenciasCentro = …» dentro del markup, y los trozos de los ternarios Razor
+        // partidos en varias líneas («@(incidencias == 0», «? Textos["BadgeCompleto"]»… en Trabajador 360,
+        // «0 ? Textos["BotonAsignarIgualmente"]» en Trabajadores.razor), cuyo
+        // «>» de comparación toma por texto lo que sigue. No se reformatea para esquivar la heurística.
+        ["Trabajadores"] = 13,
         ["Usuarios"] = 157,
         // 112 → 10 el 2026-09-23: Visitas.razor(.cs) migrados a TextosVisitas.resx. Los 10
         // que quedan son las etiquetas estáticas de NivelUrgenciaVisitaUi y AntelacionVisitaUi,
@@ -167,6 +182,8 @@ public class TextosSinLocalizarCongeladosTests
     [InlineData("<p>Sin resultados</p>", "Sin resultados")]
     [InlineData("<p>Hay @total documentos</p>", "Hay documentos")]
     [InlineData("<span>@(x ? \"Vigente\" : \"Caducado\")</span>", "Vigente")]
+    // La entidad se ignora solo para exigir letras: el texto de alrededor cuenta.
+    [InlineData("<p>Sin&nbsp;datos</p>", "Sin&nbsp;datos")]
     public void El_detector_ve_texto_de_interfaz_en_markup(string razor, string esperado)
     {
         DetectorTextosSinLocalizar.MedirRazor(razor).Textos().Should().Contain(esperado);
@@ -203,6 +220,8 @@ public class TextosSinLocalizarCongeladosTests
     [InlineData("<p>@T[\"Hay\"] @Model.Total</p>")]
     [InlineData("@inject IStringLocalizer<TextosComunes> Textos\n<p>@Textos[\"Volver\"]</p>")]
     [InlineData("@if (x)\n{\n<br />\n}\nelse\n{\n<br />\n}")]
+    // Una entidad HTML no es lenguaje aunque su nombre tenga letras.
+    [InlineData("<a>@Textos[\"A\"]</a>\n&nbsp;·&nbsp;\n<a>@Textos[\"B\"]</a>")]
     public void El_detector_no_cuenta_lo_que_no_es_interfaz_en_markup(string razor)
     {
         DetectorTextosSinLocalizar.MedirRazor(razor).Total.Should().Be(0);
@@ -288,6 +307,12 @@ internal static class DetectorTextosSinLocalizar
         RegexOptions.Compiled);
 
     private static readonly Regex DosLetras = new("[" + Letra + "]{2}", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Entidades HTML (<c>&amp;nbsp;</c>, <c>&amp;#160;</c>…): se borran antes de
+    /// exigir letras, porque el nombre de la entidad no es texto de interfaz.
+    /// </summary>
+    private static readonly Regex EntidadHtml = new(@"&(?:[A-Za-z]+|#\d+|#x[0-9A-Fa-f]+);", RegexOptions.Compiled);
     private static readonly Regex Espacios = new(@"\s+", RegexOptions.Compiled);
     private static readonly Regex ComentarioRazor = new(@"@\*.*?\*@", RegexOptions.Compiled | RegexOptions.Singleline);
     private static readonly Regex ComentarioHtml = new(@"<!--.*?-->", RegexOptions.Compiled | RegexOptions.Singleline);
@@ -369,7 +394,7 @@ internal static class DetectorTextosSinLocalizar
             foreach (var linea in m.Groups["t"].Value.Split('\n'))
             {
                 var texto = Espacios.Replace(ExpresionRazor.Replace(linea, " "), " ").Trim();
-                if (texto.Length > 0 && DosLetras.IsMatch(texto) && !TextoDescartado.IsMatch(texto))
+                if (texto.Length > 0 && DosLetras.IsMatch(EntidadHtml.Replace(texto, " ")) && !TextoDescartado.IsMatch(texto))
                     textos.Markup.Add(texto);
             }
         }

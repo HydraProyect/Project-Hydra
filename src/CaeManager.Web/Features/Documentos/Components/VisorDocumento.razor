@@ -18,7 +18,8 @@
         <a class="boton boton-secundario boton-medio" href="/documentos/@DocumentoId/archivo" target="_blank">
             Abrir en pestaña nueva
         </a>
-        <Boton OnClick="ActualizarDocumento">Actualizar documento</Boton>
+        @* Lleva al drawer de edición, que guarda con un ICommand denegado a Consulta. *@
+        <SoloConEscritura><Boton OnClick="ActualizarDocumento">Actualizar documento</Boton></SoloConEscritura>
     </Pie>
 </Modal>
 

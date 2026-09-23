@@ -11,27 +11,25 @@
 *@
 @using CaeManager.Application.Cumplimiento.Commands.AceptarTerminos
 @using CaeManager.Application.Cumplimiento.Queries.ObtenerEstadoAceptacionTerminos
+@using CaeManager.Web.Features.Cumplimiento.Recursos
 @using MediatR
+@using Microsoft.Extensions.Localization
 @inject IMediator Mediator
+@inject IStringLocalizer<TextosCumplimiento> Textos
 
 @if (_debeAceptar)
 {
-    <Modal Visible="true" Titulo="Términos y Condiciones" Bloqueante="true" Ancho="AnchoModal.Grande">
+    <Modal Visible="true" Titulo="@Textos["TituloModal"]" Bloqueante="true" Ancho="AnchoModal.Grande">
         <ChildContent>
+            <p class="texto-consentimiento">@Textos["TextoConsentimiento", Marca.Nombre]</p>
             <p>
-                Antes de continuar, confirma que has leído y aceptas los Términos y Condiciones de uso y la
-                Política de Privacidad de @Marca.Nombre — incluida la responsabilidad de tu organización sobre la
-                gestión y el tratamiento de los datos de sus clientes y trabajadores que introduzcas en la
-                plataforma.
-            </p>
-            <p>
-                <a href="/legal/terminos" target="_blank" rel="noopener noreferrer">Leer Términos y Condiciones completos ↗</a>
+                <a href="/legal/terminos" target="_blank" rel="noopener noreferrer">@Textos["EnlaceTerminos"]</a>
                 &nbsp;·&nbsp;
-                <a href="/legal/privacidad" target="_blank" rel="noopener noreferrer">Leer Política de Privacidad completa ↗</a>
+                <a href="/legal/privacidad" target="_blank" rel="noopener noreferrer">@Textos["EnlacePrivacidad"]</a>
             </p>
             <label class="campo-checkbox">
                 <input type="checkbox" checked="@_marcado" @onchange="e => _marcado = (bool)e.Value!" />
-                He leído y acepto los Términos y Condiciones y la Política de Privacidad.
+                @Textos["CasillaAceptacion"]
             </label>
             @if (_error is not null)
             {
@@ -39,7 +37,7 @@
             }
         </ChildContent>
         <Pie>
-            <Boton Deshabilitado="!_marcado" Cargando="_aceptando" OnClick="AceptarAsync">Aceptar y continuar</Boton>
+            <Boton Deshabilitado="!_marcado" Cargando="_aceptando" OnClick="AceptarAsync">@Textos["BotonAceptar"]</Boton>
         </Pie>
     </Modal>
 }
@@ -85,7 +83,7 @@
         }
         catch (Exception)
         {
-            _error = "No pudimos registrar tu aceptación. Intenta nuevamente.";
+            _error = Textos["ErrorRegistro"];
         }
         finally
         {

@@ -13,6 +13,7 @@ using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculosParaSelector;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Documentos;
+using CaeManager.Web.Features.Documentos.Recursos;
 using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Components;
@@ -96,10 +97,8 @@ public partial class DrawerGestionDocumento : ComponentBase
     /// pre-relleno automático siempre se verifica por DNI, nunca por este
     /// texto (ver DetectarCamposDocumentoQuery).
     /// </summary>
-    private IReadOnlyList<OpcionBuscable> OpcionesTrabajadores => _trabajadoresDisponibles
-        .Select(t => new OpcionBuscable(
-            t.Id.ToString(),
-            string.IsNullOrWhiteSpace(t.Alias) ? $"{t.NombreCompleto} ({t.Dni})" : $"{t.NombreCompleto} — {t.Alias} ({t.Dni})"))
+    private IReadOnlyList<OpcionBuscable> OpcionesTrabajadores => EtiquetasSelectorTrabajador.Construir(_trabajadoresDisponibles, aliasSiempre: true)
+        .Select(e => new OpcionBuscable(e.Id.ToString(), e.Texto))
         .ToList();
 
     /// <summary>
@@ -127,7 +126,7 @@ public partial class DrawerGestionDocumento : ComponentBase
         await DescartarArchivoSinAdoptarAsync();
 
         _ambitoAplicacion = nameof(AmbitoAplicacion.Trabajador);
-        _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
+        _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera));
         _tiposDisponibles = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: AmbitoAplicacion.Trabajador));
 
         _editandoId = null;
@@ -169,6 +168,11 @@ public partial class DrawerGestionDocumento : ComponentBase
         await AbrirCrearAsync();
         if (_trabajadoresDisponibles.Any(t => t.Id == trabajadorId))
             _trabajadorId = trabajadorId.ToString();
+        else
+            // Fuera del catálogo con alcance (la cartera del Gestor CAE, o un Id que no existe):
+            // no se preselecciona, y se dice en vez de dejar el selector vacío sin explicación.
+            // Mismo texto para los dos casos, igual que el comando: no revela si existe fuera.
+            _mensajeErrorFormulario = TextosDrawerGestionDocumento.Texto("TrabajadorPreseleccionadoNoEncontrado");
         CambiarTipoDocumento(tipoDocumentoId.ToString());
         StateHasChanged();
     }

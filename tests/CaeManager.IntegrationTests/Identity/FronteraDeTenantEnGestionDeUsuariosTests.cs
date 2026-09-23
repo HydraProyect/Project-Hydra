@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Security.Claims;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Usuarios.Queries.VerificarRolAsignable;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Autorizacion;
@@ -9,6 +10,7 @@ using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Web.Components.DesignSystem;
 using FluentAssertions;
+using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.DataProtection;
@@ -252,6 +254,11 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
         EscribirPropiedadInyectada(pagina, "AuthenticationStateProvider", new AutenticacionFalsa(actorId, esAdministrador));
         EscribirPropiedadInyectada(pagina, "EmailService", emailService ?? new EmailServiceEspia());
         EscribirPropiedadInyectada(pagina, "NavigationManager", new NavigationManagerFalsa());
+        // La regla de roles reservados al Tenant de origen tiene sus propias
+        // pruebas (AltaDeUsuarioDesdeContextWorkspaceDelegadoTests). Aquí se
+        // concede siempre, para que la frontera de tenant sea la única barrera
+        // que estos tests observan.
+        EscribirPropiedadInyectada(pagina, "Mediator", new MediatorQueConcedeRoles());
 
         return pagina;
     }
@@ -345,6 +352,31 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
         protected override void NavigateToCore(string uri, NavigationOptions options)
         {
         }
+    }
+
+    private sealed class MediatorQueConcedeRoles : IMediator
+    {
+        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
+            request is VerificarRolAsignableQuery
+                ? Task.FromResult((TResponse)(object)Result.Exito())
+                : throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.");
+
+        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
+            throw new NotSupportedException();
+
+        public Task<object?> Send(object request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task Publish(object notification, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
+            where TNotification : INotification => Task.CompletedTask;
     }
 
     private sealed class TenantActualPorAmbito : ITenantActual

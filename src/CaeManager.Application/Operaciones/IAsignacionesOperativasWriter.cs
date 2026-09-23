@@ -75,9 +75,15 @@ public interface IAsignacionesOperativasWriter
     /// <summary>
     /// Abre la cartera de un operador delegado sobre una operación externa.
     ///
-    /// <b>El ámbito lo decide el rol, no la comodidad.</b> Un rol de alcance
-    /// total (Administrador, DireccionCae, Consulta) ve todo el workspace por
-    /// su rol, así que su cartera es universal y no le añade nada. Un rol de
+    /// <b>Solo concede Coordinador CAE, Gestor CAE o Consulta</b> (decisión del
+    /// propietario, 2026-09-23). Administrador y Dirección CAE son autoridad
+    /// de Propiedad del Tenant propietario y ninguna cartera ni delegación la
+    /// concede: con cualquier otro rol lanza <see cref="UnauthorizedAccessException"/>
+    /// sin abrir nada.
+    ///
+    /// <b>El ámbito lo decide el rol, no la comodidad.</b> Consulta, el único
+    /// rol de alcance total que se puede conceder aquí, ve todo el workspace
+    /// por su rol, así que su cartera es universal y no le añade nada. Un rol de
     /// cartera (GestorCae, CoordinadorCae) ve exactamente los clientes que
     /// tenga asignados: darle una cartera universal le ensancharía el alcance
     /// respecto a lo que tiene hoy, y F1 no cambia comportamiento. Sus carteras
@@ -105,7 +111,8 @@ public interface IAsignacionesOperativasWriter
     /// Hace falta porque desactivar una delegación cierra la operación <b>y sus
     /// carteras en cascada</b>, pero no borra las filas de operador delegado:
     /// sin esto, reactivar dejaría una operación vigente con cero carteras y el
-    /// operador entraría al workspace sin ver ningún dato.
+    /// operador entraría al workspace sin ver ningún dato. Las filas heredadas
+    /// con un rol no delegable (Administrador, Dirección CAE) se omiten.
     /// </summary>
     Task ReabrirCarterasDeOperadoresAsync(
         AsignacionOperacion operacion, Guid delegacionTenantId, CancellationToken cancellationToken = default);

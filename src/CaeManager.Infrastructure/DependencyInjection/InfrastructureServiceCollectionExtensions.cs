@@ -384,6 +384,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Domain.VigilanciaNormativa.IAvisoRevisionNormativaRepository, CaeManager.Infrastructure.Persistence.Repositories.AvisoRevisionNormativaRepository>();
         services.AddScoped<CaeManager.Application.VigilanciaNormativa.IVigilanciaNormativaQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IAsignacionOperadorDelegadoRepository, AsignacionOperadorDelegadoRepository>();
+        services.AddScoped<CaeManager.Domain.Operaciones.ISolicitudIncorporacionCarteraRepository, SolicitudIncorporacionCarteraRepository>();
         services.AddScoped<IPreferenciaDashboardUsuarioRepository, PreferenciaDashboardUsuarioRepository>();
         services.AddScoped<IFiltroGuardadoRepository, FiltroGuardadoRepository>();
         services.AddScoped<IRegistroActividadSoporteRepository, RegistroActividadSoporteRepository>();
@@ -396,6 +397,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IMacroRespuestaRepository, MacroRespuestaRepository>();
         services.AddScoped<ISugerenciaVisitaCorreoRepository, SugerenciaVisitaCorreoRepository>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.IEventoConversacionRepository, EventoConversacionRepository>();
+        services.AddScoped<CaeManager.Domain.Comunicaciones.INotaInternaConversacionRepository, NotaInternaConversacionRepository>();
         services.AddScoped<CaeManager.Domain.Telemetria.IRegistroTiempoGestionRepository, RegistroTiempoGestionRepository>();
         services.AddScoped<CaeManager.Domain.Documentos.IAcreditacionDocumentoPlataformaRepository, AcreditacionDocumentoPlataformaRepository>();
         services.AddScoped<CaeManager.Domain.Cumplimiento.IAceptacionTerminosRepository, AceptacionTerminosRepository>();
@@ -415,6 +417,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Domain.Integraciones.IConexionIntegracionRepository, ConexionIntegracionRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.ICredencialIntegracionRepository, CredencialIntegracionRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.ISuscripcionWebhookRepository, SuscripcionWebhookRepository>();
+        services.AddScoped<CaeManager.Domain.Integraciones.IReclamacionBuzonIntegracionRepository, ReclamacionBuzonIntegracionRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.IEventoWebhookRepository, EventoWebhookRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.ISolicitudConexionMicrosoft365Repository, SolicitudConexionMicrosoft365Repository>();
         services.AddScoped<CaeManager.Domain.Integraciones.ILineaWhatsAppRepository, LineaWhatsAppRepository>();
@@ -512,6 +515,10 @@ public static class InfrastructureServiceCollectionExtensions
         // transaccional sin transacción explícita (F1 del plan de migración).
         services.AddScoped<CaeManager.Application.Operaciones.IAsignacionesOperativasWriter,
             CaeManager.Infrastructure.Operaciones.AsignacionesOperativasWriter>();
+        // Mismo DbContext scoped y mismo motivo: la cartera, la fila heredada y
+        // la solicitud aceptada entran en un único SaveChanges.
+        services.AddScoped<CaeManager.Application.Operaciones.ICatalogoIncorporacionCartera,
+            CaeManager.Infrastructure.Operaciones.CatalogoIncorporacionCartera>();
         services.AddSingleton<ISanitizadorHtmlService, GanssSanitizadorHtmlService>();
         // Sin estado propio (abre una conexión Npgsql nueva por llamada) — una sola instancia sirve.
         services.AddSingleton<IEleccionLiderService, EleccionLiderPostgresService>();

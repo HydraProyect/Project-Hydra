@@ -131,6 +131,35 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Un_documento_en_estado_Urgente_aparece_en_Proximas()
+    {
+        // Mismo defecto que tenía ObtenerCentrosQuery.Desglosar (D-7, piloto
+        // Outbound), ahora corregido también aquí: Urgente (dentro del
+        // umbral rojo de 15 días, sin llegar a vencer) no es una tercera
+        // casilla fuera del recuento.
+        await using (var contexto = CrearContexto())
+        {
+            var trabajador = Trabajador.DeSubcontrata(_subcontrataId, "Ines", "Urgente", "99887766P");
+            contexto.Trabajadores.Add(trabajador);
+            await contexto.SaveChangesAsync();
+
+            contexto.Asignaciones.Add(new Asignacion(trabajador.Id, _centroId, DateOnly.FromDateTime(DateTime.UtcNow)));
+            contexto.Documentos.Add(Documento.DeTrabajador(
+                trabajador.Id, _tipoObligatorioId,
+                DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-1), DateOnly.FromDateTime(DateTime.UtcNow).AddDays(10)));
+            await contexto.SaveChangesAsync();
+        }
+
+        var resultado = await EjecutarAsync();
+
+        var fila = resultado.Elementos.Should().ContainSingle().Subject;
+        fila.Recuentos.TotalProximas.Should().Be(1,
+            "Urgente es más severo que Proximo pero el documento aún no venció");
+        fila.Recuentos.TotalVencidas.Should().Be(0,
+            "el documento aún no venció: no es correcto contarlo como si lo estuviera");
+    }
+
+    [Fact]
     public async Task Un_documento_faltante_de_un_trabajador_fuera_de_cartera_no_cuenta_en_el_cumplimiento()
     {
         Guid trabajadorFueraDeCarteraId;

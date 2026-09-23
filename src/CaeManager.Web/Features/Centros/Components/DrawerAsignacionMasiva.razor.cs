@@ -34,7 +34,7 @@ public partial class DrawerAsignacionMasiva : ComponentBase
     private IReadOnlyList<DocumentoFaltanteDto> _documentosFaltantes = [];
 
     private IReadOnlyList<ElementoSeleccionable> _trabajadoresComoOpciones =>
-        _trabajadoresDisponibles.Select(t => new ElementoSeleccionable(t.Id, $"{t.NombreCompleto} ({t.Dni})")).ToList();
+        EtiquetasSelectorTrabajador.Construir(_trabajadoresDisponibles).Select(e => new ElementoSeleccionable(e.Id, e.Texto)).ToList();
 
     private IReadOnlyList<ElementoSeleccionable> _centrosComoOpciones =>
         _centrosDisponibles.Select(c => new ElementoSeleccionable(c.Id, $"{c.Nombre} ({c.ClienteRazonSocial})")).ToList();
@@ -56,7 +56,7 @@ public partial class DrawerAsignacionMasiva : ComponentBase
     /// </summary>
     public async Task AbrirAsync(IReadOnlyCollection<Guid>? centroIdsPreseleccionados = null)
     {
-        _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
+        _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.BaseGeneralDelTenant));
         _centrosDisponibles = await Mediator.Send(new ObtenerCentrosParaSelectorQuery());
 
         _vista = "Lista";

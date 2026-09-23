@@ -3,6 +3,7 @@
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
 @using CaeManager.Web.Features.Bandeja.Components
 @using CaeManager.Web.Features.Bandeja.Recursos
+@using CaeManager.Web.Features.IncorporacionCartera.Components
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosMiTrabajo> Textos
 
@@ -13,7 +14,11 @@
    entra en su Tenant por el POST de /cuenta/cliente-activo (AccionCrossTenant).
    El Tenant de origen del Operador CAE no se gestiona desde aquí (§ 10).
 
-   Sin construir, porque no hay capacidad detrás: «Añadir empresa» y los chips
+   «Añadir a mi cartera» (el «Añadir empresa» del mockup) no incorpora nada: abre
+   la solicitud al Coordinador CAE (contrato § 13), y solo aparece si el usuario
+   es Gestor CAE y su Operador CAE opera alguna Empresa que aún no tiene.
+
+   Sin construir, porque no hay capacidad detrás: los chips
    DEMO (andamiaje de la vista previa), la selección múltiple («x»,
    «Gestionar selección»), «Aplazar», el historial del flujo en el detalle y el
    aviso «Cartera incompleta» (hoy un Tenant que falla hace fallar la consulta
@@ -29,7 +34,18 @@
                 <span><strong class="mi-trabajo-titular">@_vista.Titular(Filtro)</strong> · @_vista.Subtitular(Filtro)</span>
             }
         </Descripcion>
+        <Acciones>
+            @if (_puedeAnadirACartera)
+            {
+                <Boton Variante="VarianteBoton.Secundario" OnClick="AbrirDialogoCartera">@Textos["AnadirAMiCartera"]</Boton>
+            }
+        </Acciones>
     </CabeceraPagina>
+
+    @if (_puedeAnadirACartera)
+    {
+        <DialogoSolicitarIncorporacion @bind-Visible="_dialogoCarteraVisible" OnSolicitada="_ => CargarCandidatosCarteraAsync()" />
+    }
 
     @if (_errorCarga)
     {

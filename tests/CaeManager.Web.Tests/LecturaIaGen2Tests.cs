@@ -1,6 +1,7 @@
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
+using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Configuracion.Pages;
 using FluentAssertions;
@@ -92,6 +93,8 @@ public class LecturaIaGen2Tests : BunitContext
             Interceptar(peticion) ?? Task.FromResult<object?>(peticion switch
             {
                 ObtenerClientesParaSelectorQuery => Clientes.OrderBy(c => c.RazonSocial).ToList(),
+                // El hub pregunta si quien mira es Actor de Plataforma TALVEG (entrada «Orden del menú»).
+                EsAdministradorPlataformaQuery => false,
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {peticion.GetType().Name}.")
             });
     }

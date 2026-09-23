@@ -1273,6 +1273,12 @@ jobs:
       - name: deploy/ci-deploy-diagnostico-memoria.tests.sh
         run: bash deploy/ci-deploy-diagnostico-memoria.tests.sh
 
+      # Imagen construida y firmada en CI (incidente 2026-09-22): recepción por
+      # stdin, identidad exigida a cosign, hash firmado y orden en main(), con
+      # cosign y docker falsos.
+      - name: deploy/ci-deploy-imagen.tests.sh
+        run: bash deploy/ci-deploy-imagen.tests.sh
+
       # Modo "muestreo-memoria" (REC-196/P33, D2): validación de la orden
       # entera, techos duros, sin cerrojo, solo lectura. Necesita flock
       # (util-linux, presente en el runner).

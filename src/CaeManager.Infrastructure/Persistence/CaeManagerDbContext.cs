@@ -258,6 +258,7 @@ public class CaeManagerDbContext(
     IQueryable<AsignacionOperacion> IOperacionesQueryContext.AsignacionesOperacion => AsignacionesOperacion;
     public DbSet<AsignacionCartera> AsignacionesCartera => Set<AsignacionCartera>();
     IQueryable<AsignacionCartera> IOperacionesQueryContext.AsignacionesCartera => AsignacionesCartera;
+    public DbSet<SolicitudIncorporacionCartera> SolicitudesIncorporacionCartera => Set<SolicitudIncorporacionCartera>();
     public DbSet<CaeManager.Domain.Plataforma.ConcesionPrivilegio> ConcesionesPrivilegio => Set<CaeManager.Domain.Plataforma.ConcesionPrivilegio>();
     IQueryable<CaeManager.Domain.Plataforma.EstadoBootstrapPlataforma> CaeManager.Application.Plataforma.IPlataformaQueryContext.EstadoBootstrapPlataforma => EstadoBootstrapPlataforma;
 
@@ -308,6 +309,8 @@ public class CaeManagerDbContext(
     IQueryable<SolicitudPrioridadDocumento> IComunicacionesQueryContext.SolicitudesPrioridadDocumento => SolicitudesPrioridadDocumento;
     public DbSet<EventoConversacion> EventosConversacion => Set<EventoConversacion>();
     IQueryable<EventoConversacion> IComunicacionesQueryContext.EventosConversacion => EventosConversacion;
+    public DbSet<NotaInternaConversacion> NotasInternasConversacion => Set<NotaInternaConversacion>();
+    IQueryable<NotaInternaConversacion> IComunicacionesQueryContext.NotasInternasConversacion => NotasInternasConversacion;
     public DbSet<ClasificacionRuidoMensaje> ClasificacionesRuidoMensaje => Set<ClasificacionRuidoMensaje>();
     IQueryable<ClasificacionRuidoMensaje> IComunicacionesQueryContext.ClasificacionesRuidoMensaje => ClasificacionesRuidoMensaje;
     public DbSet<ClasificacionRelevanciaCae> ClasificacionesRelevanciaCae => Set<ClasificacionRelevanciaCae>();
@@ -335,6 +338,7 @@ public class CaeManagerDbContext(
     IQueryable<ConexionIntegracion> IIntegracionesQueryContext.ConexionesIntegracion => ConexionesIntegracion;
     public DbSet<CredencialIntegracion> CredencialesIntegracion => Set<CredencialIntegracion>();
     public DbSet<SuscripcionWebhook> SuscripcionesWebhook => Set<SuscripcionWebhook>();
+    public DbSet<ReclamacionBuzonIntegracion> ReclamacionesBuzonIntegracion => Set<ReclamacionBuzonIntegracion>();
     public DbSet<EventoWebhook> EventosWebhook => Set<EventoWebhook>();
     public DbSet<SolicitudConexionMicrosoft365> SolicitudesConexionMicrosoft365 => Set<SolicitudConexionMicrosoft365>();
     public DbSet<LineaWhatsApp> LineasWhatsApp => Set<LineaWhatsApp>();

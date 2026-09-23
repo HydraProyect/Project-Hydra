@@ -1,4 +1,7 @@
 using CaeManager.Application.Common;
+using CaeManager.Web.Features.Trabajadores.Recursos;
+using CaeManager.Web.Recursos;
+using Microsoft.Extensions.Localization;
 using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
@@ -57,6 +60,8 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
     [Inject] private ContextWorkspaceService WorkspaceService { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosTrabajadores> Textos { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosComunes> Comunes { get; set; } = default!;
 
     private TrabajadorDetalleDto? _detalle;
     private IReadOnlyList<CentroDocumentacionTrabajadorDto> _centros = [];
@@ -129,24 +134,24 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
     /// </summary>
     private IReadOnlyList<PestanaDefinicion> Pestanas =>
     [
-        new("operacion", "Operación")
+        new("operacion", Textos["PestanaOperacion"])
         {
             Contador = TotalConIncidencia == 0
                 ? null
                 : new ContadorPestana(
                     TotalConIncidencia,
-                    TotalConIncidencia == 1 ? "documento con incidencia" : "documentos con incidencia",
+                    TotalConIncidencia == 1 ? Textos["ContadorIncidenciasUno"] : Textos["ContadorIncidenciasVarios"],
                     EnAlerta: true)
         },
-        new("historial", "Historial"),
-        new("contactos", "Contactos")
+        new("historial", Textos["PestanaHistorial"]),
+        new("contactos", Textos["PestanaContactos"])
     ];
 
     private int TotalConIncidencia =>
         _centros.Sum(c => c.Documentos.Count(d => d.Estado != EstadoDocumento.Vigente));
 
     private IReadOnlyList<BreadcrumbElemento> Miguero =>
-        new[] { new BreadcrumbElemento("Trabajadores"), new BreadcrumbElemento(NombreCompleto ?? "…") };
+        new[] { new BreadcrumbElemento(Textos["MigaTrabajadores"]), new BreadcrumbElemento(NombreCompleto ?? "…") };
 
     private int TotalRequeridos => _centros.Sum(c => c.Documentos.Count);
     private int TotalAlDia => _centros.Sum(c => c.Documentos.Count(d => d.Estado == EstadoDocumento.Vigente));
@@ -339,13 +344,13 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
             if (dadasDeBaja == 0)
             {
                 ToastService.Mostrar(
-                    errores.Count > 0 ? errores[0] : "No se dio de baja la asignación.",
+                    errores.Count > 0 ? errores[0] : Textos["ErrorDarDeBaja"].Value,
                     TonoToast.Error);
             }
             else if (errores.Count > 0)
-                ToastService.Mostrar($"Asignación dada de baja, con avisos: {string.Join("; ", errores)}", TonoToast.Advertencia);
+                ToastService.Mostrar(Textos["ToastBajaConAvisos", string.Join("; ", errores)], TonoToast.Advertencia);
             else
-                ToastService.Mostrar("Asignación dada de baja.", TonoToast.Exito);
+                ToastService.Mostrar(Textos["ToastBaja"], TonoToast.Exito);
 
             await CargarAsync();
         }
@@ -373,7 +378,7 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
 
         if (clientes.Count == 0)
         {
-            ToastService.Mostrar("No hay documentos pendientes que reclamar.", TonoToast.Info);
+            ToastService.Mostrar(Textos["ToastSinPendientesReclamar"], TonoToast.Info);
             return;
         }
 
@@ -430,9 +435,9 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
             }
 
             if (enviadosA.Count == 1)
-                ToastService.Mostrar($"Reclamación enviada a {enviadosA[0]}.", TonoToast.Exito);
+                ToastService.Mostrar(Textos["ToastReclamacionEnviadaUno", enviadosA[0]], TonoToast.Exito);
             else if (enviadosA.Count > 1)
-                ToastService.Mostrar($"Reclamación enviada a {enviadosA.Count} Clientes empresariales: {string.Join(", ", enviadosA)}.", TonoToast.Exito);
+                ToastService.Mostrar(Textos["ToastReclamacionEnviadaVarios", enviadosA.Count, string.Join(", ", enviadosA)], TonoToast.Exito);
 
             foreach (var mensaje in fallidos)
                 ToastService.Mostrar(mensaje, TonoToast.Error);
@@ -473,7 +478,7 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
                 return;
             }
 
-            ToastService.Mostrar($"Se creó la gestión en {resultado.Valor.Creadas} centro(s).", TonoToast.Exito);
+            ToastService.Mostrar(Textos["ToastGestionCreada", resultado.Valor.Creadas], TonoToast.Exito);
             _crearGestionVisible = false;
             await CargarGestionesAsync();
         }

@@ -235,6 +235,12 @@ public static class RetiradaTenantDemoService
             // basura huérfana. Cartera antes que Operación en el código para
             // que se lea en el orden de dependencia, aunque el único
             // SaveChangesAsync de abajo resuelve el orden real por sí solo.
+            //
+            // Las solicitudes de incorporación a cartera van delante: tienen FK
+            // Restrict hacia la operación y hacia la cartera que crearon.
+            dbContext.RemoveRange(await dbContext.SolicitudesIncorporacionCartera
+                .Where(s => s.PropietarioTenantId == tenantId || s.OperadorTenantId == tenantId)
+                .ToListAsync(cancellationToken));
             dbContext.RemoveRange(await dbContext.AsignacionesCartera
                 .Where(a => a.PropietarioTenantId == tenantId || a.OperadorTenantId == tenantId)
                 .ToListAsync(cancellationToken));

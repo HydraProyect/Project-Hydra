@@ -1,3 +1,4 @@
+using CaeManager.Infrastructure.Identity;
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Alertas;
@@ -63,6 +64,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
     public TrabajadoresListaGen2Tests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
         this.ConRolDeEscritura();
     }
 
@@ -339,6 +341,23 @@ public class TrabajadoresListaGen2Tests : BunitContext
         cut.FindAll(".barra-trabajo-trabajadores .campo label").Select(l => l.TextContent.Trim())
             .Should().Equal("Documentación", "Empresa", "Subcontrata");
         cut.Markup.Should().NotContain("Todos los centros");
+    }
+
+    [Fact]
+    public void Consulta_ve_la_lista_sin_seleccion_multiple_porque_todo_lo_del_lote_escribe()
+    {
+        // La selección solo alimenta la barra de lote —Eliminar seleccionados y Asignar a
+        // centro…, ICommand que AutorizacionEscrituraBehavior deniega a Consulta—: sin barra,
+        // las casillas no servirían para nada, así que tampoco se ofrece el modo.
+        this.ConRolDeEscritura(Roles.Consulta);
+        var cut = Renderizar(new MediatorFalso { Almacen = { Trabajador("Bea", "Alonso") } });
+
+        cut.Markup.Should().Contain("Alonso", "la lista es lectura: la fila se ve");
+        var enLaBarra = cut.FindAll(".barra-trabajo-trabajadores button").Select(b => b.TextContent.Trim()).ToList();
+        enLaBarra.Should().NotContain("Selección múltiple")
+            .And.Contain("Guardar filtro", "la barra sigue ahí: solo falta el modo de selección");
+        cut.FindAll(".barra-acciones-lote").Should().BeEmpty();
+        cut.FindAll("tbody input[type=checkbox]").Should().BeEmpty();
     }
 
     [Fact]

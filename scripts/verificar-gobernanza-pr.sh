@@ -173,7 +173,12 @@ else
     echo "PROBLEMA  La sección 'Revisión Codex' tiene el marcador provisional 'resultado abajo'" \
          "(el mismo que #673 dejó sin rellenar)."
     PROBLEMAS=$((PROBLEMAS + 1))
-  elif printf '%s' "$SECCION" | grep -qiE '\bpendiente'; then
+  # \b solo exige límite de palabra al PRINCIPIO de "pendiente": sin el \b de
+  # cierre, esto casaba con "pendientes" dentro de una frase real (PR #828,
+  # runs 35831818412 y 35832823379: "sin hallazgos nuevos pendientes de esta
+  # pasada" dio rojo sin ser un marcador de relleno). El \b de cierre limita
+  # la detección a la palabra exacta "pendiente".
+  elif printf '%s' "$SECCION" | grep -qiE '\bpendiente\b'; then
     echo "PROBLEMA  La sección 'Revisión Codex' tiene el marcador provisional 'pendiente'."
     PROBLEMAS=$((PROBLEMAS + 1))
   elif printf '%s' "$SECCION" | grep -qE '\bTODOs?\b'; then

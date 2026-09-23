@@ -1,3 +1,4 @@
+using CaeManager.Infrastructure.Identity;
 using Bunit;
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
 using CaeManager.Application.Common;
@@ -25,7 +26,15 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class AcordeonTrabajadoresSubcontrataAtribucionFaltaTests : BunitContext
 {
-    public AcordeonTrabajadoresSubcontrataAtribucionFaltaTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public AcordeonTrabajadoresSubcontrataAtribucionFaltaTests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        // Los textos de Subcontratas salen de IStringLocalizer<TextosSubcontratas>.
+        Services.AddLocalization();
+        // Los disparadores de escritura van en SoloConEscritura (AuthorizeView): por
+        // defecto un rol que escribe; los tests de Consulta lo sustituyen.
+        this.ConRolDeEscritura();
+    }
 
     private sealed class MediatorFalso : IMediator
     {
@@ -110,5 +119,29 @@ public class AcordeonTrabajadoresSubcontrataAtribucionFaltaTests : BunitContext
         texto.Should().NotContain("Al menos uno de los centros donde trabaja exige este documento",
             "esa frase atribuía la exigencia solo al centro, aunque ninguno hubiera configurado nada");
         texto.Should().NotContainEquivalentOf("obligatori", "es configuración, no una obligación legal");
+    }
+
+    [Fact]
+    public async Task Consulta_ve_los_documentos_del_trabajador_sin_que_se_le_ofrezca_gestionarlos()
+    {
+        // «Gestionar» abre DrawerGestionDocumento, que solo crea o renueva (ICommand que
+        // AutorizacionEscrituraBehavior deniega a Consulta): no tiene uso de solo lectura.
+        this.ConRolDeEscritura(Roles.Consulta);
+        var trabajador = new TrabajadorDocumentacionSubcontrataDto(
+            Guid.NewGuid(), "Ruiz Peña, Ana", "12345678A", EstadoDocumento.Faltante,
+            [new DocumentoRequeridoDto(null, Guid.NewGuid(), "Reconocimiento médico", EstadoDocumento.Faltante, null)]);
+        RegistrarServicios(new MediatorFalso { Trabajadores = [trabajador] });
+
+        var cut = Render<AcordeonTrabajadoresSubcontrata>(p => p.Add(a => a.SubcontrataId, Guid.NewGuid()));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ruiz Peña, Ana"));
+        await cut.Find("button.boton-expandir-fila").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("tabla-documentos-requeridos"));
+        cut.Find(".tabla-documentos-requeridos").TextContent.Should().Contain("Reconocimiento médico",
+            "el documento requerido y su estado son lectura: se ven");
+        cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().NotContain("Gestionar")
+            .And.Contain("Detalles", "abrir el Trabajador 360 es navegación de lectura");
+        cut.FindAll(".tabla-documentos-requeridos button.enlace-nombre-fila").Should().BeEmpty(
+            "el nombre del documento abre el mismo drawer de gestión: a Consulta se le pinta como texto");
     }
 }

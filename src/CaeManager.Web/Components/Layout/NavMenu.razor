@@ -29,6 +29,7 @@
 @using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma
 @using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados
 @using CaeManager.Application.VistaDemo
+@using CaeManager.Application.Operaciones.IncorporacionCartera.Queries
 @using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual
 @using CaeManager.Application.Plataforma.OrdenMenu
 @using CaeManager.Infrastructure.Comunicaciones
@@ -105,10 +106,14 @@
         // todos los Tenants, de una caché de proceso. Solo recoloca: la visibilidad sigue siendo la
         // de cada enlace.
         _orden = await Mediator.Send(new ObtenerOrdenMenuLateralQuery());
+        // Gestor o Coordinador CAE en su Operador CAE: IsInRole no lo sabe dentro de un Workspace
+        // operativo derivado, donde el claim es el rol de la cartera en ese Tenant propietario.
+        var participaEnIncorporacionCartera = await Mediator.Send(new ParticipaEnIncorporacionCarteraQuery());
 
         _contexto = new ContextoMenuLateral(
             new ClaimsPrincipal(new ClaimsIdentity()), vista, OpcionesComunicaciones.Value.Activo,
-            esAdministradorPlataforma, perfil, VariosTenants: organizaciones.Count > 1);
+            esAdministradorPlataforma, perfil, VariosTenants: organizaciones.Count > 1,
+            ParticipaEnIncorporacionCartera: participaEnIncorporacionCartera);
     }
 
     // El usuario se relee en cada estado de autenticación en cascada, no solo al inicializar: en el

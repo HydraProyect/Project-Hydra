@@ -85,6 +85,24 @@ public class TipoItemBandejaUiTests
         TipoItemBandejaUi.TextoAccion(seguimiento).Should().Be("Ver en Dokify");
     }
 
+    /// <summary>
+    /// P12: la acreditación vencida en plataforma es un bloqueo (rojo, como
+    /// Vencido) cuya acción es renovarla en esa plataforma, no reclamarla.
+    /// </summary>
+    [Fact]
+    public void Vencida_en_plataforma_tiene_tono_de_peligro_texto_propio_y_accion_en_la_plataforma()
+    {
+        var vencida = new ItemBandejaDto(
+            Id: "plataforma-vencida-1", Tipo: TipoItemBandeja.PlataformaVencida, Titulo: "Formación 60h",
+            Subtitulo: "Iker Etxeberria", Fecha: new DateOnly(2026, 9, 1), TrabajadorId: Guid.NewGuid(), CentroId: null,
+            DocumentoId: Guid.NewGuid(), TipoDocumentoId: Guid.NewGuid(), RequisitoId: null, ProveedorNombre: "Dokify");
+
+        TipoItemBandejaUi.Tono(vencida).Should().Be(TonoBadge.Peligro);
+        TipoItemBandejaUi.Texto(vencida).Should().Be("Vencida en plataforma");
+        TipoItemBandejaUi.TextoAccion(vencida).Should().Be("Renovar en Dokify");
+        TipoItemBandejaUi.EsReclamable(vencida).Should().BeFalse();
+    }
+
     private static ItemBandejaDto Item(TipoItemBandeja tipo, Guid? trabajadorId, Guid? tipoDocumentoId) => new(
         Id: "item-1", Tipo: tipo, Titulo: "t", Subtitulo: "s", Fecha: null,
         TrabajadorId: trabajadorId, CentroId: null, DocumentoId: null, TipoDocumentoId: tipoDocumentoId, RequisitoId: null);

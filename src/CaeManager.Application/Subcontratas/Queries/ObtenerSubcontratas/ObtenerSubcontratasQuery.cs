@@ -96,11 +96,18 @@ public class ObtenerSubcontratasQueryHandler(
         return new ResultadoPaginado<SubcontrataListaDto>(elementos, total, request.Pagina, request.TamanoPagina);
     }
 
-    /// <summary>"Faltante" cuenta como vencido — mismo criterio que ObtenerCentrosQuery.Desglosar: un requisito sin documento no está al día.</summary>
+    /// <summary>
+    /// "Faltante" cuenta como vencido, y Urgente va con "próximas" — mismo
+    /// criterio que <c>ObtenerCentrosQuery.Desglosar</c>: un requisito sin
+    /// documento no está al día, y Urgente es más severo que Próximo pero el
+    /// documento aún no venció. Antes de que <c>ObtenerCentrosQuery</c> lo
+    /// corrigiera (D-7, piloto Outbound), este comentario afirmaba paridad
+    /// mientras Urgente se descartaba en silencio aquí igual que allí.
+    /// </summary>
     private static RecuentosSubcontrataDto Desglosar(IReadOnlyList<IncidenciaSubcontrataDto> incidencias)
     {
         var vencidas = incidencias.Where(i => i.Estado is Domain.Documentos.EstadoDocumento.Vencido or Domain.Documentos.EstadoDocumento.Faltante).ToList();
-        var proximas = incidencias.Where(i => i.Estado is Domain.Documentos.EstadoDocumento.Proximo).ToList();
+        var proximas = incidencias.Where(i => i.Estado is Domain.Documentos.EstadoDocumento.Urgente or Domain.Documentos.EstadoDocumento.Proximo).ToList();
         return new RecuentosSubcontrataDto(vencidas, proximas);
     }
 }
