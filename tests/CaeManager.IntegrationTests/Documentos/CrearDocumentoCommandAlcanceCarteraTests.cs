@@ -129,6 +129,31 @@ public class CrearDocumentoCommandAlcanceCarteraTests : IAsyncLifetime
             "el propietario existe en el Tenant, pero no está en la Asignación de Cartera del Gestor CAE");
     }
 
+    /// <summary>
+    /// Pre-incorporación (D-8, #797): la plantilla de la Empresa propia es visible por cartera
+    /// aunque el Trabajador todavía no tenga ninguna Asignación, así que el Gestor CAE puede
+    /// subirle documentación antes de su primera Asignación. Sin este caso, el alcance de
+    /// CrearDocumento podría quedarse en «solo por Asignación» y nadie lo vería.
+    /// </summary>
+    [Fact]
+    public async Task Gestor_CAE_crea_el_Documento_de_un_Trabajador_de_la_Empresa_propia_sin_Asignacion()
+    {
+        Guid trabajadorSinAsignacion;
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            var trabajador = Trabajador.DeEmpresa(_a.Propia, "Leire", "Sin Asignación", "55667788Z");
+            contexto.Trabajadores.Add(trabajador);
+            await contexto.SaveChangesAsync();
+            trabajadorSinAsignacion = trabajador.Id;
+        }
+
+        var resultado = await EnviarAsync(_tenant, _gestorA, "GestorCae",
+            Command(_a, AmbitoAplicacion.Trabajador, trabajadorSinAsignacion));
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : "");
+        (await ContarDocumentosAsync(_tenant, AmbitoAplicacion.Trabajador, trabajadorSinAsignacion)).Should().Be(1);
+    }
+
     [Fact]
     public async Task Gestor_CAE_sin_cartera_no_crea_ni_el_Documento_de_la_Empresa_propia()
     {
