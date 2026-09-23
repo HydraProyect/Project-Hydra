@@ -126,6 +126,21 @@ public class AutorizarOperadorCaeExternoTests
     }
 
     [Fact]
+    public async Task Rechaza_como_cliente_delegante_al_tenant_de_plataforma_aunque_la_autorizacion_diga_que_si()
+    {
+        // Defensa en profundidad (hallazgo de Codex, alto): aunque la autorización
+        // compartida devolviera que sí por el motivo reflexivo de arriba, este comando
+        // —quien escribe de verdad— no debe crear una DelegacionTenant cuyo Cliente
+        // Delegante sea el Tenant de plataforma. No depende de que la consulta se
+        // comporte bien.
+        var resultado = await HandlerComo(AutorizacionDelegacionFalsa.AdministradorDe(_plataforma.Id)).Handle(
+            new CrearDelegacionTenantCommand(_operador.Id, _plataforma.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("DelegacionTenant.ClienteNoEncontrado");
+        NoSeEscribioNada();
+    }
+
+    [Fact]
     public async Task Rechaza_con_mensaje_si_otro_operador_ya_opera_el_tenant_propietario()
     {
         _tenants.ListaDelegacionesTenant.Add(new DelegacionTenant(_otroOperador.Id, _propietario.Id));
@@ -197,6 +212,25 @@ public class AutorizarOperadorCaeExternoTests
             .Handle(new ObtenerTenantPropietarioAutorizanteQuery(), CancellationToken.None);
 
         tenant.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task El_actor_de_plataforma_no_es_su_propio_tenant_autorizante_aunque_administre_su_tenant()
+    {
+        // Hallazgo de Codex (alto) sobre el incremento 1b: esta consulta pregunta la
+        // autoridad de forma REFLEXIVA, contra el propio tenant de origen de quien
+        // pregunta — ningún llamador anterior de PuedeGestionarDelegacionesAsync lo
+        // hacía. Si ese tenant de origen es el de plataforma, "administra su propio
+        // tenant" (AdministradorDe(_plataforma.Id) autoriza exactamente cuando le
+        // preguntan por _plataforma.Id) coincide por construcción con la respuesta que
+        // la autorización compartida daría — sin que EsPlataforma entre en juego. La
+        // guarda tiene que cortar ANTES de delegar en esa autorización.
+        var autorizacionQueSiempreDiceQueSi = AutorizacionDelegacionFalsa.AdministradorDe(_plataforma.Id);
+
+        var tenant = await ConsultasComo(autorizacionQueSiempreDiceQueSi, tenantOrigen: _plataforma.Id)
+            .Handle(new ObtenerTenantPropietarioAutorizanteQuery(), CancellationToken.None);
+
+        tenant.Should().BeNull("TALVEG nunca es Tenant propietario de un Operador CAE externo (ADR-011 § 1)");
     }
 
     // ── La consulta del candidato (preselección y buscador) ─────────────────

@@ -94,8 +94,27 @@ public class AutorizarOperadorCaeExternoQueriesHandler(
         var tenantOrigenId = await currentUserService.ObtenerTenantOrigenIdAsync();
         if (usuarioId is null || tenantOrigenId is null) return null;
 
-        return await autorizacion.PuedeGestionarDelegacionesAsync(usuarioId.Value, tenantOrigenId.Value, cancellationToken)
-            ? tenantOrigenId
-            : null;
+        // La autoridad sigue yendo primero, antes de tocar el catálogo (ver el test
+        // Sin_autoridad_la_busqueda_no_lee_el_catalogo_de_tenants: sin ella, ni por
+        // tiempos ni por errores se aprende qué Ids existen).
+        if (!await autorizacion.PuedeGestionarDelegacionesAsync(usuarioId.Value, tenantOrigenId.Value, cancellationToken))
+            return null;
+
+        // IAutorizacionDelegacionTenant no consulta EsPlataforma a propósito (ver su
+        // propio doc-comment): confía en que quien la llama nunca pase como
+        // tenantClienteDeleganteId el Tenant de origen del propio usuario. Esta consulta
+        // es la primera que sí lo hace —resuelve la autoridad de forma reflexiva, contra
+        // el propio Tenant de origen de quien pregunta—, y eso rompe esa confianza: si el
+        // usuario es el Administrador inicial de TALVEG, su TenantId coincide con
+        // tenantClienteDeleganteId por ser el mismo Tenant, y la comprobación de arriba
+        // pasa sin que EsPlataforma entre en juego (hallazgo de Codex, alto). TALVEG
+        // nunca es Tenant propietario de un Operador CAE externo (ADR-011 § 1) — se
+        // corta aquí, ya con la autoridad establecida.
+        var tenantOrigenEsPlataforma = await tenantsContext.Tenants
+            .Where(t => t.Id == tenantOrigenId.Value)
+            .Select(t => t.EsPlataforma)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        return tenantOrigenEsPlataforma ? null : tenantOrigenId;
     }
 }

@@ -91,7 +91,16 @@ public class CrearDelegacionTenantCommandHandler(
             return Result.Fallo<Guid>(Error.Crear(
                 "DelegacionTenant.ConsultoraNoEncontrada", "No encontramos ese Operador CAE externo."));
 
-        if (!await tenantsContext.Tenants.AnyAsync(t => t.Id == request.TenantClienteId, cancellationToken))
+        // El Cliente Delegante tampoco puede ser el Tenant de plataforma: TALVEG nunca
+        // es Tenant propietario que delega operación a un Operador CAE externo (ADR-011
+        // § 1). Defensa en profundidad — la consulta que resuelve el candidato
+        // (AutorizarOperadorCaeExternoQueries) ya lo excluye, pero este comando es quien
+        // escribe de verdad y no debe depender solo de que la pantalla se comporte
+        // (hallazgo de Codex, alto, sobre el incremento 1b). Mismo mensaje que "no
+        // existe": no hace falta que quien pregunta sepa que acertó el Id de plataforma.
+        if (!await tenantsContext.Tenants
+                .Where(t => t.Id == request.TenantClienteId && !t.EsPlataforma)
+                .AnyAsync(cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("DelegacionTenant.ClienteNoEncontrado", "No encontramos ese Cliente Delegante."));
 
         if (await repositorio.ExisteActivaAsync(request.TenantConsultoraId, request.TenantClienteId, cancellationToken))

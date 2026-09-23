@@ -152,6 +152,20 @@ public class UsosDeEsPlataformaCongeladosTests
     /// <see cref="CategoriaUso.Guarda"/>): el mismo criterio que ya aplica
     /// <c>CrearTenantPropietarioDeOperadorCaeExternoCommand.cs</c>, extraído a un predicado
     /// que comparten el comando de autorización y la consulta que resuelve el candidato.
+    /// Actualizado 2026-09-23 (segunda vez — hallazgo de Codex sobre el propio incremento
+    /// 1b, revisión previa a la PR #828): <b>30 ficheros, 46 apariciones</b>. La consulta
+    /// que resuelve el Tenant propietario autorizante preguntaba la autoridad de forma
+    /// reflexiva, contra el propio Tenant de origen de quien pregunta, sin excluir el
+    /// Tenant de plataforma: si el Administrador inicial de TALVEG usaba la pantalla, la
+    /// coincidencia trivial (su Tenant de origen es el mismo que el candidato) pasaba la
+    /// autorización sin que <c>EsPlataforma</c> entrara en juego. Nuevas entradas:
+    /// <c>AutorizarOperadorCaeExternoQueries.cs</c> (+3: dos comentarios y el
+    /// <c>.Select(t =&gt; t.EsPlataforma)</c> real que corta la reflexividad) y
+    /// <c>CrearDelegacionTenantCommand.cs</c> (+1: la misma exclusión repetida en el
+    /// comando, que es quien escribe de verdad — defensa en profundidad, no depender solo
+    /// de que la consulta se comporte). Neto: +2 ficheros, +4 apariciones, de 28/42 a
+    /// 30/46.
+    /// </para>
     ///
     /// <para>
     /// Cada entrada se leyó una a una; el conteo <b>no</b> se ajustó a lo que salió del
@@ -232,6 +246,24 @@ public class UsosDeEsPlataformaCongeladosTests
                 "Tenant propietario puede autorizar (CrearDelegacionTenantCommand y la consulta del candidato " +
                 "del incremento 1b): TALVEG no es Operador CAE por defecto (ADR-011 § 1). No concede capacidad " +
                 "a nadie — es la mitad negativa de un fallo cerrado, junto a la guarda de perfil Consultora"),
+        ["src/CaeManager.Application/Tenants/Queries/AutorizarOperadorCaeExterno/AutorizarOperadorCaeExternoQueries.cs"] =
+            new(3, CategoriaUso.Guarda,
+                "dos comentarios y :EsPlataforma real, proyectado sobre el Tenant de origen antes de devolverlo " +
+                "como autorizante. Hallazgo de Codex (alto) sobre el propio incremento 1b: la consulta pregunta " +
+                "la autoridad de forma REFLEXIVA, contra el propio Tenant de origen de quien pregunta — si ese " +
+                "Tenant es el de plataforma, PuedeGestionarDelegacionesAsync pasa por la coincidencia trivial " +
+                "TenantId == tenantClienteDeleganteId, sin que EsPlataforma entrara en juego. Se corta aquí, " +
+                "DESPUÉS de la autoridad (el catálogo no se toca si no hay autoridad, ver el test " +
+                "Sin_autoridad_la_busqueda_no_lee_el_catalogo_de_tenants). TALVEG nunca es Tenant propietario " +
+                "de un Operador CAE externo (ADR-011 § 1) — es la mitad negativa de un fallo cerrado, defensa " +
+                "en profundidad junto a CrearDelegacionTenantCommand.cs"),
+        ["src/CaeManager.Application/Tenants/Commands/CrearDelegacionTenant/CrearDelegacionTenantCommand.cs"] =
+            new(1, CategoriaUso.Guarda,
+                "rechaza como Cliente Delegante al Tenant de plataforma, junto a la comprobación de existencia. " +
+                "Mismo hallazgo de Codex que AutorizarOperadorCaeExternoQueries.cs: este comando es quien " +
+                "escribe de verdad y no debe depender solo de que la consulta se comporte bien. TALVEG nunca " +
+                "es Tenant propietario de un Operador CAE externo (ADR-011 § 1) — mitad negativa de un fallo " +
+                "cerrado"),
         ["src/CaeManager.Application/Tenants/Commands/CrearTenantPropietarioDeOperadorCaeExterno/CrearTenantPropietarioDeOperadorCaeExternoCommand.cs"] =
             new(2, CategoriaUso.Guarda,
                 "la proyección del Operador y el rechazo de un Operador que sea el Tenant de plataforma: " +
