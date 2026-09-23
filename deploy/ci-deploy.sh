@@ -9,10 +9,20 @@
 # muestreo_memoria más abajo: no toma el cerrojo ni toca nada). Si esta clave
 # privada se filtrara, el máximo que permite es forzar el redeploy de un
 # commit que YA es ancestro real de main en GitHub (resolve-deploy-sha.sh lo
-# exige) o sobrescribir en `.env` solo las claves de la lista blanca
-# CLAVES_PERMITIDAS_SECRETOS_PRODUCCION (más abajo) — nunca una shell
-# arbitraria, un commit fuera de esa historia, ni la lectura de un secreto ya
-# guardado (el mecanismo solo escribe), ni una clave fuera de esa lista.
+# exige) con la imagen que el workflow deploy.yml de main firmó para ESE
+# commit (verificar_firma_imagen, más abajo), o sobrescribir en `.env` solo las
+# claves de la lista blanca CLAVES_PERMITIDAS_SECRETOS_PRODUCCION (más abajo) —
+# nunca una shell arbitraria, una imagen que no salga de ese workflow, un
+# commit fuera de esa historia, ni la lectura de un secreto ya guardado (el
+# mecanismo solo escribe), ni una clave fuera de esa lista.
+#
+# Desde el incidente del 2026-09-22 el VPS NO compila: "staging"/"produccion"
+# reciben por stdin la imagen que el runner de GitHub Actions construyó y
+# firmó (ver recibir_imagen_firmada). El build en esta máquina de 4 GB, con
+# los dos stacks sirviendo, dejaba al kernel sin memoria de forma repetida
+# (csc muerto por OOM) y, en uno de esos episodios, la renovación DHCP de
+# eth0 no pudo fijar su ruta: la IPv4 caducó 24 h después y producción y
+# staging quedaron inaccesibles unas 17 h.
 #
 # El SHA es obligatorio: nunca se despliega "lo que haya en main ahora
 # mismo". Es el commit exacto que el workflow de GitHub Actions resolvió al
@@ -142,7 +152,7 @@ exigir_modo_permitido_para_clave() {
 # pasárselos al siguiente NO es seguro (GitHub: "job outputs are not masked
 # and are not encrypted"), así que quien tiene los secretos ("aprobacion-
 # produccion") es quien llama a ESTE modo, en un segundo SSH separado del que
-# dispara el build — nunca el mismo job que hace `docker compose build/up`,
+# dispara el despliegue — nunca el mismo job que hace `docker load`/`up`,
 # para no reintroducir el problema que DEC-39/40 resolvió separando la
 # aprobación (cancelable) de la ejecución (no cancelable a medias).
 # Lista blanca de claves que este modo admite escribir — DEFENSA EN
@@ -455,8 +465,8 @@ volcar_diagnostico_memoria() {
 # (/proc/pressure/memory, microsegundos de espera por memoria) y, de
 # /proc/vmstat, `oom_kill` (veces que el OOM killer actuó en la máquina,
 # sea contra el contenedor que sea) y los de recuperación directa. Se
-# vuelcan antes del despliegue, tras el build y tras el `up`: la resta entre
-# dos puntos dice si el build (que corre con el stack ya sirviendo) provocó
+# vuelcan antes del despliegue, tras cargar la imagen y tras el `up`: la resta
+# entre dos puntos dice si cargarla (con el stack ya sirviendo) provocó
 # esperas o una muerte por OOM, cosa que ni `free` ni `docker stats` ven. Solo
 # lectura; RAIZ_PROC existe solo para que el test apunte a un /proc falso.
 volcar_contadores_memoria_host() {
@@ -542,7 +552,7 @@ volcar_cgroup_contenedores() {
 
 # Segundo volcado de solo lectura para REC-196/REC-198 (techos de memoria):
 # el de arriba corre DESPUÉS del `up -d`, con el contenedor recién creado, y
-# solo mide el reposo. Este corre ANTES del build y del `up`, cuando los
+# solo mide el reposo. Este corre ANTES de cargar la imagen y del `up`, cuando los
 # contenedores que el despliegue va a reemplazar llevan horas sirviendo
 # tráfico real, y lee de su cgroup lo que docker stats no da: `memory.peak`
 # (o `memory.max_usage_in_bytes` en cgroup v1), el pico de TODA su vida, y
@@ -695,6 +705,140 @@ muestreo_memoria() {
     echo "=== Fin del muestreo: ${hechos} ==="
 }
 
+# Imagen construida en el runner, no en el VPS (incidente del 2026-09-22, ver la
+# cabecera). El cliente de "staging <sha>"/"produccion <sha>" envía por stdin,
+# en este orden:
+#
+#   línea 1: el bundle de Sigstore (cosign sign-blob) del manifiesto, en base64
+#            y sin saltos de línea;
+#   línea 2: el manifiesto, en base64 y sin saltos de línea;
+#   resto:   `docker save caemanager:<sha> | gzip`, hasta el final del stream.
+#
+# El manifiesto son exactamente dos líneas, `revision=<sha de 40>` y
+# `sha256=<hash de 64 del tarball>`. Se firma el manifiesto y no el tarball
+# porque `cosign verify-blob` carga el fichero entero en memoria (medido con
+# cosign v3.1.3: 347 MB de pico para 300 MB), justo el tipo de presión que
+# este cambio quiere quitar del VPS; `sha256sum` lee el tarball por bloques.
+#
+# La firma es "keyless": el certificado lo emite Fulcio a la identidad OIDC del
+# job de GitHub Actions, así que no hay clave de firma que custodiar ni que se
+# pueda filtrar junto a la clave SSH. Lo que se exige al certificado está fijado
+# aquí, no lo elige el cliente: el workflow deploy.yml de ESTE repositorio en
+# refs/heads/main, emitido por GitHub, y ejecutado sobre el mismo SHA que se va a
+# desplegar. Quien solo tenga la clave SSH no puede producir esa firma.
+IMAGEN_REPOSITORIO="caemanager"
+IDENTIDAD_FIRMA_IMAGEN="https://github.com/HydraProyect/Project-Hydra/.github/workflows/deploy.yml@refs/heads/main"
+EMISOR_OIDC_FIRMA_IMAGEN="https://token.actions.githubusercontent.com"
+REPOSITORIO_FIRMA_IMAGEN="HydraProyect/Project-Hydra"
+MAX_CARACTERES_LINEA_BASE64=65536
+MAX_BYTES_IMAGEN=$(( 2 * 1024 * 1024 * 1024 ))
+
+# Lee una línea de stdin de como mucho MAX_CARACTERES_LINEA_BASE64 caracteres
+# base64 y la escribe decodificada en $2. `read` y no `head -n1`: sobre una
+# tubería, bash lee de uno en uno y no consume nada después del salto de
+# línea; `head` leería por bloques y se comería el principio del tarball.
+leer_linea_base64() {
+    local nombre="$1" destino="$2" linea
+    LC_ALL=C IFS= read -r -n "$MAX_CARACTERES_LINEA_BASE64" linea || true
+    if [ -z "$linea" ]; then
+        echo "::error::no llegó $nombre por stdin — ¿el cliente es un deploy.yml anterior a la imagen construida en CI?" >&2
+        return 1
+    fi
+    if [ "${#linea}" -ge "$MAX_CARACTERES_LINEA_BASE64" ]; then
+        echo "::error::$nombre supera ${MAX_CARACTERES_LINEA_BASE64} caracteres — se rechaza." >&2
+        return 1
+    fi
+    if ! [[ "$linea" =~ ^[A-Za-z0-9+/]+=*$ ]]; then
+        echo "::error::$nombre no es base64 de una sola línea." >&2
+        return 1
+    fi
+    printf '%s' "$linea" | base64 -d > "$destino" 2>/dev/null || {
+        echo "::error::$nombre no se pudo decodificar." >&2
+        return 1
+    }
+}
+
+# Vuelca lo que llega por stdin en $1 (un directorio vacío que ya existe):
+# imagen.sigstore.json, imagen.manifiesto e imagen.tar.gz. Solo comprueba la
+# forma y el tamaño; la autenticidad es cosa de verificar_firma_imagen.
+recibir_imagen_firmada() {
+    local dir="$1" bytes
+    leer_linea_base64 "el bundle de la firma" "$dir/imagen.sigstore.json" || return 1
+    leer_linea_base64 "el manifiesto" "$dir/imagen.manifiesto" || return 1
+    head -c "$(( MAX_BYTES_IMAGEN + 1 ))" > "$dir/imagen.tar.gz"
+    bytes="$(stat -c %s "$dir/imagen.tar.gz")"
+    if [ "$bytes" -eq 0 ]; then
+        echo "::error::no llegó la imagen por stdin." >&2
+        return 1
+    fi
+    if [ "$bytes" -gt "$MAX_BYTES_IMAGEN" ]; then
+        echo "::error::la imagen supera ${MAX_BYTES_IMAGEN} bytes — se rechaza." >&2
+        return 1
+    fi
+    echo "Imagen recibida: ${bytes} bytes."
+}
+
+# Verifica, en este orden y sin atajos: la firma del manifiesto contra la
+# identidad fijada arriba y el SHA pedido; que el manifiesto sea exactamente
+# las dos líneas esperadas y nombre ese SHA; y que el tarball recibido tenga el
+# hash que el manifiesto firmado declara. Falla cerrado: sin cosign no hay
+# despliegue. COSIGN solo existe para que el test apunte a un cosign falso.
+verificar_firma_imagen() {
+    local dir="$1" sha="$2" cosign="${COSIGN:-/usr/local/bin/cosign}"
+    local re_manifiesto='^revision=([0-9a-f]{40})'$'\n''sha256=([0-9a-f]{64})$'
+    local manifiesto revision hash_firmado hash_recibido
+    if ! [[ "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+        echo "::error::SHA no válido para verificar la imagen: '$sha'" >&2
+        return 1
+    fi
+    if [ ! -x "$cosign" ]; then
+        echo "::error::cosign no está instalado en $cosign: sin él no se puede verificar la firma de la imagen y no se despliega." >&2
+        return 1
+    fi
+    if ! "$cosign" verify-blob \
+            --bundle "$dir/imagen.sigstore.json" \
+            --certificate-identity "$IDENTIDAD_FIRMA_IMAGEN" \
+            --certificate-oidc-issuer "$EMISOR_OIDC_FIRMA_IMAGEN" \
+            --certificate-github-workflow-repository "$REPOSITORIO_FIRMA_IMAGEN" \
+            --certificate-github-workflow-sha "$sha" \
+            "$dir/imagen.manifiesto"; then
+        echo "::error::la firma de la imagen NO es válida para $sha (identidad exigida: $IDENTIDAD_FIRMA_IMAGEN) — no se despliega." >&2
+        return 1
+    fi
+    manifiesto="$(cat "$dir/imagen.manifiesto")"
+    if ! [[ "$manifiesto" =~ $re_manifiesto ]]; then
+        echo "::error::el manifiesto firmado no tiene la forma esperada (revision=…, sha256=…) — no se despliega." >&2
+        return 1
+    fi
+    revision="${BASH_REMATCH[1]}"
+    hash_firmado="${BASH_REMATCH[2]}"
+    if [ "$revision" != "$sha" ]; then
+        echo "::error::el manifiesto firmado es de $revision, no de $sha — no se despliega." >&2
+        return 1
+    fi
+    hash_recibido="$(sha256sum "$dir/imagen.tar.gz" | cut -d' ' -f1)"
+    if [ "$hash_recibido" != "$hash_firmado" ]; then
+        echo "::error::el tarball recibido no coincide con el hash firmado — no se despliega." >&2
+        return 1
+    fi
+    echo "Firma de la imagen verificada: $sha, sha256 $hash_firmado."
+}
+
+# Carga en Docker el tarball YA verificado y comprueba que trae la etiqueta que
+# se va a arrancar, con la revisión que declara su etiqueta OCI.
+cargar_imagen_verificada() {
+    local dir="$1" sha="$2" revision
+    docker load -i "$dir/imagen.tar.gz" || return 1
+    revision="$(docker image inspect "${IMAGEN_REPOSITORIO}:${sha}" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" || {
+        echo "::error::el tarball no contiene ${IMAGEN_REPOSITORIO}:${sha}." >&2
+        return 1
+    }
+    if [ "$revision" != "$sha" ]; then
+        echo "::error::${IMAGEN_REPOSITORIO}:${sha} declara la revisión '$revision'." >&2
+        return 1
+    fi
+}
+
 # Comprobación de SOLO LECTURA de las dos claves de Stripe en el `.env` del
 # entorno (P18b, decisiones del 2026-09-19): responde «¿existe y tiene la forma
 # esperada?» SIN imprimir el valor — ni entero, ni un trozo, ni su longitud. Lo
@@ -800,9 +944,8 @@ esac
 # demora, ver el comentario de más abajo sobre el SHA). Sin cerrojo, dos
 # `resolve-deploy-sha.sh` concurrentes se pisan el `git checkout --detach`
 # del mismo /opt/talveg (mezcla de dos commits a medias, sin relación con la
-# memoria) y dos `docker compose build -m 2560m` concurrentes suman hasta
-# 5120m de techo en una máquina de 4 GB — exactamente el mismo problema que
-# este incremento cierra para UN build, reabierto por la suma de dos. Un
+# memoria) y dos `docker load` + `up` concurrentes se reemplazarían
+# contenedores a medias el uno al otro. Un
 # timeout de 10 min falla con un mensaje claro en vez de colgar el job de
 # GitHub Actions indefinidamente si el despliegue que tiene el cerrojo
 # nunca lo suelta.
@@ -821,14 +964,24 @@ if [ "$ENTORNO" = "secretos" ]; then
     exit 0
 fi
 
+# Lo primero, antes de que ningún otro comando pueda leer de stdin: vaciarlo en
+# un directorio temporal (ver recibir_imagen_firmada). La firma se verifica más
+# abajo, cuando resolve-deploy-sha.sh ya validó el SHA.
+DIR_IMAGEN="$(mktemp -d /var/tmp/ci-deploy-imagen.XXXXXX)"
+trap 'rm -rf "$DIR_IMAGEN"' EXIT
+recibir_imagen_firmada "$DIR_IMAGEN" || exit 1
+
 bash /opt/talveg/deploy/resolve-deploy-sha.sh /opt/talveg "${SHA:-}"
 
-# Antes de construir: mantener el disco por debajo del umbral. Un build en un
-# disco lleno no falla de forma legible —da errores de NuGet que no mencionan
-# el disco— y, peor, deja a PostgreSQL sin poder escribir, lo que tumba
-# produccion aunque nadie haya desplegado nada. Paso el 2026-08-26 y otra vez
-# el 2026-08-29, con 23 GB de cache de build sin usar acumulada porque este
-# guion no la retiraba nunca.
+verificar_firma_imagen "$DIR_IMAGEN" "$SHA" || exit 1
+
+# Antes de cargar la imagen: mantener el disco por debajo del umbral. Un
+# disco lleno deja a PostgreSQL sin poder escribir, lo que tumba produccion
+# aunque nadie haya desplegado nada. Paso el 2026-08-26 y otra vez el
+# 2026-08-29, con 23 GB de cache de build sin usar acumulada porque este
+# guion no la retiraba nunca. Va ANTES de `docker load` a propósito:
+# liberar-disco.sh hace `docker image prune -af`, que borraría la imagen
+# recién cargada mientras ningún contenedor la use todavía.
 #
 # Si tras liberar el disco sigue critico, liberar-disco.sh corta aqui: mejor
 # un despliegue que no arranca con un mensaje claro que uno que se rompe a
@@ -837,31 +990,11 @@ bash /opt/talveg/deploy/liberar-disco.sh
 
 cd /opt/talveg/deploy/local
 
-# Techo de memoria del PASO DE BUILD (REC-199, apagón de producción
-# 2026-09-04) — no confundir con LIMITE_MEMORIA_APP (compose, cgroup del
-# contenedor "app" ya corriendo): esto acota el `dotnet publish` que corre
-# DENTRO de `docker build`, sin cgroup propio hasta este cambio. Ese build
-# corre en el mismo VPS que sigue sirviendo tráfico, y el 2026-09-04 su
-# proceso de compilación (VBCSCompiler) llegó a 2,1 GB de anon-rss sin techo
-# — el kernel acabó eligiendo víctima por su cuenta (OOM: mató systemd y
-# luego VBCSCompiler) en una máquina de 4 GB. Medido en un banco de pruebas
-# capado a 2 vCPU/4 GB/sin swap (aproximación al CX23 real, REC-196): con
-# 700m el build muere limpio dentro de su propio cgroup ("csc" exit 137,
-# `docker compose build` sale con código de error) sin que el resto del
-# stack pierda un solo health-check; con 2560m el mismo build (sin tocar el
-# código) completa con normalidad. 2560m dado aquí: deja margen sobre el
-# build real y sigue muy por debajo de los ~3 GB que quedaban libres en la
-# máquina con app+db+caddy+seq ya arriba.
-#
-# Esa premisa ya no se cumple (medido 2026-09-22, en la cabecera de cada
-# despliegue fallido): MemAvailable entre 2109 y 2204 MB, por debajo del
-# propio techo. Desde que el proyecto de migraciones creció (157 Designer.cs,
-# ~42 MB de C#) el csc de CaeManager.Migrations.PostgreSQL muere con exit
-# 137 dentro de este cgroup cuando corre con analizadores; por eso el
-# Dockerfile los apaga en el publish (-p:RunAnalyzers=false; el análisis
-# sigue en el job de build de CI). Subir el techo no es arreglo: ya supera la
-# memoria disponible y un OOM fuera del cgroup lo pagaría producción.
-LIMITE_MEMORIA_BUILD="2560m"
+# Ya no hay build en el VPS, ni por tanto LIMITE_MEMORIA_BUILD (REC-199): el
+# techo de 2560m que acotaba el `dotnet publish` dejó de caber en la memoria
+# disponible (MemAvailable entre 2109 y 2204 MB medido el 2026-09-22) y csc
+# moría por OOM en cada despliegue. La imagen llega construida y firmada desde
+# el runner (ver recibir_imagen_firmada) y aquí solo se carga.
 
 # Volcar logs y estado del contenedor app si el despliegue no llega a sano —
 # auditoria de colas, 2026-08-30: un fallo de "is unhealthy" solo dejaba esa
@@ -881,27 +1014,18 @@ volcar_diagnostico_si_falla() {
     # horas de tráfico real (ver volcar_pico_memoria_previo).
     volcar_pico_memoria_previo
 
-    # Build y arranque van en DOS pasos, no en el `up -d --build` de antes:
-    # `--memory` de `docker compose build` no existe bajo BuildKit ("Not
-    # supported by BuildKit", medido en su propio --help) — solo el builder
-    # clásico lo aplica de verdad como cgroup del contenedor de build.
-    # DOCKER_BUILDKIT=0 lo fuerza explícitamente en vez de confiar en cuál
-    # sea el motor por defecto de esta instalación del VPS.
-    #
-    # Desde REC-017/P39 este `build` construye DOS servicios con el mismo
-    # Dockerfile y el mismo contexto (`app` y `migrador`, ver
-    # docker-compose.*.yml): el segundo es un hit de caché de capas del
-    # builder clásico (mismo contenido de entrada, mismas instrucciones), no
-    # una segunda compilación real — el `dotnet publish` no se vuelve a
-    # ejecutar. El techo de memoria de abajo sigue acotando UN build a la vez.
-    if ! DOCKER_BUILDKIT=0 docker compose "${args[@]}" build -m "$LIMITE_MEMORIA_BUILD"; then
-        echo "=== Build no completó dentro del techo de memoria (LIMITE_MEMORIA_BUILD=$LIMITE_MEMORIA_BUILD) — contenido a su propio cgroup, el resto del stack sigue sirviendo ===" >&2
-        volcar_contadores_memoria_host "build fallido"
+    # La imagen ya pasó verificar_firma_imagen. `app` y `migrador` usan la
+    # misma (`image: caemanager:${IMAGEN_TAG}` en docker-compose.*.yml), y
+    # `--no-build` impide que Compose vuelva a compilar en el VPS si por lo
+    # que sea la etiqueta no estuviera: en ese caso falla, no construye.
+    if ! cargar_imagen_verificada "$DIR_IMAGEN" "$SHA"; then
+        echo "=== La imagen verificada no se pudo cargar — el stack actual sigue sirviendo ===" >&2
         exit 1
     fi
-    volcar_contadores_memoria_host "tras el build"
+    volcar_contadores_memoria_host "tras cargar la imagen"
+    export IMAGEN_TAG="$SHA"
 
-    if ! docker compose "${args[@]}" up -d --wait --wait-timeout 180; then
+    if ! docker compose "${args[@]}" up -d --wait --wait-timeout 180 --no-build; then
         echo "=== Despliegue no llego a sano — estado de los contenedores ===" >&2
         docker compose "${args[@]}" ps >&2 || true
         for contenedor in $(docker compose "${args[@]}" ps --format '{{.Name}}' 2>/dev/null || true); do

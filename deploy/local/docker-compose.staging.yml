@@ -15,14 +15,12 @@
 #    eso, el contenedor `app` se une a la red externa "caemanager-edge" que
 #    crea docker-compose.produccion.yml, y el Caddyfile de producción gana un
 #    segundo bloque de sitio para este dominio (ver ese Caddyfile).
-# 3. Imagen: se compila desde código igual que producción (`build: ../..`),
-#    no se reutiliza la imagen del job "Build de la imagen de despliegue" de
-#    ci.yml — ese job compila con `push: false` (solo valida/escanea con
-#    Trivy en el runner, nunca sube la imagen a ningún registro), así que no
-#    hay artefacto publicado al que este VPS pueda apuntar. Si algún día ese
-#    job empieza a subir a un registro alcanzable desde el VPS, reutilizar esa
-#    misma imagen aquí sería más honesto (prueba justo lo que se va a
-#    desplegar) — hoy no es posible.
+# 3. Imagen: la misma que producción, `caemanager:<sha>`. En el VPS no se
+#    compila: el job `imagen` de .github/workflows/deploy.yml la construye en
+#    el runner, la firma y la envía por SSH, y deploy/ci-deploy.sh la verifica,
+#    la carga y arranca con `--no-build` (incidente del 2026-09-22: el build en
+#    el VPS lo dejaba sin memoria). `build: ../..` solo sirve para el uso local
+#    de abajo.
 #
 # Requisito previo: producción ya desplegada con la red "caemanager-edge"
 # (este mismo cambio, en docker-compose.produccion.yml) — sin ese requisito
@@ -43,6 +41,10 @@ services:
     # Job de migración de vida corta (REC-017/P39) — mismo mecanismo que
     # docker-compose.produccion.yml, ver el comentario largo de ese fichero
     # junto a este mismo servicio.
+    # En el VPS la imagen llega construida y firmada desde CI y ci-deploy.sh
+    # arranca con IMAGEN_TAG=<sha> y `--no-build`; `build:` queda para el uso
+    # local de la cabecera, donde la etiqueta es `caemanager:local`.
+    image: caemanager:${IMAGEN_TAG:-local}
     build:
       context: ../..
       dockerfile: Dockerfile
@@ -61,6 +63,10 @@ services:
         condition: service_healthy
 
   app:
+    # En el VPS la imagen llega construida y firmada desde CI y ci-deploy.sh
+    # arranca con IMAGEN_TAG=<sha> y `--no-build`; `build:` queda para el uso
+    # local de la cabecera, donde la etiqueta es `caemanager:local`.
+    image: caemanager:${IMAGEN_TAG:-local}
     build:
       context: ../..
       dockerfile: Dockerfile

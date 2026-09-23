@@ -76,6 +76,10 @@ services:
     # día a multi-réplica, hace falta un mecanismo aparte (p. ej. un paso de
     # pre-deploy fuera de Compose) para que N réplicas de "app" no esperen cada
     # una a su propio "migrador" compitiendo por el mismo DDL.
+    # En el VPS la imagen llega construida y firmada desde CI y ci-deploy.sh
+    # arranca con IMAGEN_TAG=<sha> y `--no-build`; `build:` queda para el uso
+    # local de la cabecera, donde la etiqueta es `caemanager:local`.
+    image: caemanager:${IMAGEN_TAG:-local}
     build:
       context: ../..
       dockerfile: Dockerfile
@@ -94,6 +98,10 @@ services:
         condition: service_healthy
 
   app:
+    # En el VPS la imagen llega construida y firmada desde CI y ci-deploy.sh
+    # arranca con IMAGEN_TAG=<sha> y `--no-build`; `build:` queda para el uso
+    # local de la cabecera, donde la etiqueta es `caemanager:local`.
+    image: caemanager:${IMAGEN_TAG:-local}
     build:
       context: ../..
       dockerfile: Dockerfile

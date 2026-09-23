@@ -93,9 +93,10 @@ name: Desplegar
 # La clave SSH (secrets.VPS_SSH_KEY) es de un par dedicado, restringido en el
 # propio VPS (ver /root/.ssh/authorized_keys, entrada con "command=") a solo
 # poder ejecutar /opt/talveg/deploy/ci-deploy.sh — ese script decide, por el
-# primer token recibido, qué hacer: "staging" o "produccion" reconstruyen ese
-# stack, usando el segundo token (el SHA) para fijar exactamente qué commit
-# despliega (ver deploy/resolve-deploy-sha.sh); "secretos" (sin segundo
+# primer token recibido, qué hacer: "staging" o "produccion" arrancan ese
+# stack con la imagen firmada que llega por stdin (ver "La imagen se construye
+# en el runner"), usando el segundo token (el SHA) para fijar exactamente qué
+# commit despliega (ver deploy/resolve-deploy-sha.sh); "secretos" (sin segundo
 # token, REC-014/P37 — job "aprobacion-produccion" más abajo) actualiza en
 # `.env` solo las claves de la lista blanca que ci-deploy.sh define
 # (CLAVES_PERMITIDAS_SECRETOS_PRODUCCION — no incluye credenciales de
@@ -139,6 +140,47 @@ name: Desplegar
 # ci-deploy.sh se retiran cuando este cambio esté verificado en un despliegue
 # real (RUNBOOK-CLAVES-SSH-D6-P32-2026-09.md, pasos 12 y 13).
 #
+# --- La imagen se construye en el runner, no en el VPS (2026-09-23) ---------
+#
+# Hasta este cambio `staging`/`produccion` le decían al VPS "despliega <sha>" y
+# el VPS compilaba (`docker compose build`) en la misma máquina de 4 GB que
+# sirve los dos stacks. csc moría por OOM en cada despliegue, y en uno de esos
+# episodios (2026-09-21 23:50Z) la renovación DHCP de eth0 no pudo fijar su
+# ruta: la IPv4 caducó 24 h después y producción y staging quedaron
+# inaccesibles unas 17 h.
+#
+# Ahora el job `imagen` construye `caemanager:<sha>` en el runner, la exporta
+# (`docker save | gzip`), escribe un manifiesto de dos líneas (revision=<sha>,
+# sha256=<hash del tarball>) y lo firma con cosign "keyless" (certificado de
+# Fulcio para la identidad OIDC de ESTE job, registrado en Rekor). `staging` y
+# `produccion` envían firma, manifiesto y tarball por stdin del mismo SSH de
+# siempre, y ci-deploy.sh no carga nada sin verificar antes que la firma es de
+# `deploy.yml@refs/heads/main` de este repositorio y del mismo SHA, y que el
+# tarball tiene el hash firmado (ver verificar_firma_imagen en ese fichero).
+# Por eso la clave SSH sola sigue sin bastar para ejecutar código que no haya
+# salido de main: puede reenviar una imagen firmada de un commit de main, no
+# fabricar una.
+#
+# Consecuencias:
+#
+#   - Staging y producción arrancan la MISMA imagen (el mismo artefacto del
+#     run), no dos builds distintos del mismo SHA.
+#   - El job `imagen` es el único con un permiso del GITHUB_TOKEN:
+#     `id-token: write`, sin el cual GitHub no emite el token OIDC que Fulcio
+#     certifica (ver "Permisos del GITHUB_TOKEN").
+#   - La firma queda en el registro público de transparencia de Sigstore
+#     (Rekor) con el repositorio, el workflow y el SHA. El repositorio ya es
+#     público; no se publica nada que no lo fuera.
+#   - La firma exige `refs/heads/main`: un `workflow_dispatch` lanzado sobre
+#     otra rama produce una firma que el VPS rechaza. La vía manual solo
+#     despliega commits de main lanzándola sobre main.
+#   - El artefacto dura 30 días: una aprobación de producción más vieja que
+#     eso falla al descargar y hay que relanzar el despliegue.
+#   - El primer despliegue tras fusionar este cambio NO puede hacerlo el propio
+#     workflow: el VPS aún tiene el ci-deploy.sh anterior, que ignora stdin y
+#     compila (limitación conocida de su cabecera). Antes hay que actualizar a
+#     mano el checkout de /opt/talveg e instalar cosign en el VPS.
+#
 # --- La conexión SSH: keepalive de aplicación (2026-09-22) -------------------
 #
 # Todo `ssh` de este fichero lleva `-o ServerAliveInterval=30
@@ -169,10 +211,12 @@ name: Desplegar
 # ambos jobs a la vez (si la aprobación de producción llegara rápido) y sus
 # dos `git checkout --detach <sha>` + `docker compose build` competirían por
 # el mismo árbol de ficheros en disco — pisándose entre sí y pudiendo acabar
-# construyendo cualquiera de los dos con el SHA equivocado, precisamente lo
-# que el SHA determinista de arriba quiere evitar. `needs: staging` fuerza a
-# que el build de staging termine (éxito o fallo) antes de que producción
-# empiece siquiera a esperar aprobación.
+# arrancando cualquiera de los dos con los compose del SHA equivocado,
+# precisamente lo que el SHA determinista de arriba quiere evitar. `needs:
+# staging` fuerza a que el despliegue de staging termine (éxito o fallo) antes
+# de que producción empiece siquiera a esperar aprobación. (Desde el 2026-09-23
+# el VPS ya no compila, ver "La imagen se construye en el runner", pero sigue
+# haciendo el checkout para sus guiones y sus compose.)
 #
 # La aprobación (`environment: produccion`) vive en un job propio,
 # `aprobacion-produccion`, separado del job que ejecuta el despliegue real
@@ -232,8 +276,13 @@ name: Desplegar
 # scope a un job (fuente: docs.github.com, "Using jobs" → "Assigning
 # permissions to jobs", consultado 2026-09-03: "As a good security practice,
 # you should grant the GITHUB_TOKEN the least required access"). Por eso
-# ningún job de este fichero declara `permissions:` propio: no hace falta
-# ninguno.
+# ningún job de este fichero declaraba `permissions:` propio.
+#
+# EXCEPCIÓN (2026-09-23): el job `imagen` declara `id-token: write` y nada más.
+# Es lo que GitHub exige para emitir el token OIDC con el que cosign obtiene el
+# certificado de firma (ver "La imagen se construye en el runner"). No da
+# acceso de lectura ni de escritura al repositorio: el código se sigue
+# obteniendo con un `git fetch` anónimo, igual que la comprobación de la punta.
 #
 # --- Vía manual como break-glass explícito (2026-09-03, DEC-40 / REC-121) ---
 #
@@ -241,12 +290,13 @@ name: Desplegar
 # workflow": exige dos `inputs` (docs.github.com, "Events that trigger
 # workflows" → `workflow_dispatch`, consultado 2026-09-03), `confirmar` (debe
 # coincidir EXACTAMENTE con "DESPLIEGO SIN GATE DE CI") y `motivo`
-# (obligatorio). El primer paso del job `staging` los valida antes de tocar
-# la clave SSH; si la confirmación no coincide o el motivo llega vacío
+# (obligatorio). El primer paso del job `imagen` los valida antes de construir
+# ni firmar nada; si la confirmación no coincide o el motivo llega vacío
 # (`required: true` obliga a que la API reciba el input, pero la
 # documentación no garantiza que rechace una cadena vacía), el job falla sin
-# desplegar nada — y como `aprobacion-produccion` depende de `staging`
-# (`needs:`), tampoco queda ninguna aprobación de producción pendiente. Si la
+# desplegar nada — y como `staging` depende de `imagen` y
+# `aprobacion-produccion` de `staging` (`needs:`), tampoco queda ninguna
+# aprobación de producción pendiente. Si la
 # validación pasa, el paso escribe "BREAK-GLASS: actor, SHA, motivo" en el
 # log (`::warning::`) y en `GITHUB_STEP_SUMMARY`, para que quede visible que
 # este despliegue se hizo sin pasar por el gate de CI — nunca de forma
@@ -259,8 +309,9 @@ name: Desplegar
 #
 # --- Rechazo de runs obsoletos (2026-09-03, DEC-41 / REC-122) ---------------
 #
-# Antes de desplegar por la vía automática (`workflow_run`), un paso
-# comprueba que `SHA_DESPLEGADO` sigue siendo la punta vigente de `main`
+# Antes de construir y otra vez antes de desplegar por la vía automática
+# (`workflow_run`), un paso de `imagen` y otro de `staging` comprueban que
+# `SHA_DESPLEGADO` sigue siendo la punta vigente de `main`
 # (`git ls-remote` sobre el repositorio, sin autenticar). Si `main` avanzó
 # desde que ese CI corrió — el caso típico es reejecutar ("rerun") un run de
 # CI antiguo, ver "CONSECUENCIA NUEVA" arriba — el paso falla con "run
@@ -305,47 +356,21 @@ env:
   SHA_DESPLEGADO: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
 jobs:
-  staging:
-    # EL GATE. Solo despliega si el CI que acaba de terminar terminó en verde
-    # Y corrió sobre un `push` a `main`. `failure`, `cancelled`, `timed_out`,
-    # `skipped` y `action_required` omiten el job — y con él, toda la cadena
-    # hacia producción, que cuelga de este `needs:`.
-    #
-    # Las DOS condiciones hacen falta. `branches: [main]` de arriba compara el
-    # NOMBRE de la rama en la que corrió CI, no el evento: este repositorio es
-    # público, así que cualquiera puede abrir una PR desde la rama `main` de
-    # su fork, y el run de CI de esa PR lleva `head_branch` = `main`. Sin
-    # `workflow_run.event == 'push'`, ese run verde activaría este workflow,
-    # que sí tiene acceso a `secrets.VPS_SSH_KEY` aunque el de la PR no lo
-    # tuviera — el riesgo clásico de `workflow_run`. No llegaría a desplegar
-    # nada (resolve-deploy-sha.sh rechaza un SHA que no sea ancestro real de
-    # `origin/main`), pero bastaría para hacer que el workflow contacte con el
-    # VPS y compita por el grupo `deploy-staging`. Exigir `push` cierra ese
-    # camino entero: un run de CI por `push` a `main` solo puede venir de un
-    # push a la `main` de ESTE repositorio.
-    #
-    # La vía manual se conserva aparte: en `workflow_dispatch` no hay run de
-    # CI del que leer una conclusión, y bloquearla dejaría sin forma de forzar
-    # un redeploy ni de probar el mecanismo de despliegue. Es, a propósito, un
-    # rodeo del gate operado por una persona: quien lanza el workflow a mano
-    # despliega la punta de la referencia que elija, tenga esa punta el CI en
-    # verde, en rojo o todavía corriendo. Comprobar CI también ahí es una
-    # decisión de producto pendiente, no un olvido — hoy la vía manual existe
-    # justamente para los casos en que el camino automático no sirve.
+  imagen:
+    # Construye, firma y publica como artefacto del run la imagen que staging
+    # y producción van a arrancar. Ver "La imagen se construye en el runner"
+    # en la cabecera. Mismo gate que `staging` (ver el comentario de allí).
     if: >-
       github.event_name == 'workflow_dispatch'
       || (github.event.workflow_run.event == 'push'
       && github.event.workflow_run.conclusion == 'success')
-    name: Desplegar a staging
+    name: Construir y firmar la imagen
     runs-on: ubuntu-latest
-    # Concurrencia por entorno, no por workflow entero: dos deploys de
-    # staging no deben chocar entre sí (causa real del run #47, dos runs
-    # desplegando staging a la vez), pero staging tampoco debe quedar
-    # bloqueado detrás de una aprobación de producción pendiente durante
-    # horas — son colas independientes.
-    concurrency:
-      group: deploy-staging
-      cancel-in-progress: false
+    timeout-minutes: 30
+    # Único permiso del GITHUB_TOKEN en este workflow: el token OIDC que
+    # certifica la firma. Ver "Permisos del GITHUB_TOKEN" en la cabecera.
+    permissions:
+      id-token: write
     steps:
       - name: Break-glass — validar confirmación manual
         # Ver "Vía manual como break-glass explícito" en la cabecera.
@@ -417,6 +442,141 @@ jobs:
           fi
           echo "Punta de main confirmada: $SHA_DESPLEGADO"
 
+      - name: Obtener el código del SHA exacto
+        # `git fetch` anónimo por el SHA, no actions/checkout: el GITHUB_TOKEN
+        # de este job no tiene `contents: read` (ver la cabecera) y el
+        # repositorio es público. `test` del final: lo que se construye es
+        # exactamente SHA_DESPLEGADO, no otra cosa que se llame igual.
+        run: |
+          set -euo pipefail
+          git init -q .
+          git fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}.git" "$SHA_DESPLEGADO"
+          git checkout -q --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$SHA_DESPLEGADO"
+
+      - name: Construir la imagen
+        # La etiqueta OCI de revisión la comprueba cargar_imagen_verificada
+        # en el VPS tras el `docker load`.
+        run: |
+          set -euo pipefail
+          docker build \
+            --label "org.opencontainers.image.revision=$SHA_DESPLEGADO" \
+            -t "caemanager:$SHA_DESPLEGADO" .
+
+      - name: Exportar la imagen y escribir el manifiesto
+        run: |
+          set -euo pipefail
+          mkdir -p imagen-despliegue
+          docker save "caemanager:$SHA_DESPLEGADO" | gzip -1 > imagen-despliegue/imagen.tar.gz
+          printf 'revision=%s\nsha256=%s\n' "$SHA_DESPLEGADO" \
+            "$(sha256sum imagen-despliegue/imagen.tar.gz | cut -d' ' -f1)" \
+            > imagen-despliegue/imagen.manifiesto
+          cat imagen-despliegue/imagen.manifiesto
+          ls -l imagen-despliegue
+
+      - name: Instalar cosign
+        # Versión y hash fijados: el hash es el de cosign_checksums.txt de la
+        # release v3.1.3 de sigstore/cosign. El VPS usa la misma versión.
+        run: |
+          set -euo pipefail
+          curl -sSfL -o "$RUNNER_TEMP/cosign" \
+            https://github.com/sigstore/cosign/releases/download/v3.1.3/cosign-linux-amd64
+          echo "4629c757b7618056f8ddd7e2625ae9fdd94c0372a65049520bc7d9df9efc7f71  $RUNNER_TEMP/cosign" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/cosign"
+
+      - name: Firmar el manifiesto
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/cosign" sign-blob --yes \
+            --bundle imagen-despliegue/imagen.sigstore.json \
+            imagen-despliegue/imagen.manifiesto
+
+      - name: Verificar la firma con la misma función que el VPS
+        # `source` de ci-deploy.sh (su guarda de BASH_SOURCE impide que corra
+        # main): mismas constantes de identidad y misma función que usará el
+        # VPS. Si la identidad fijada allí no casa con la real de este job, el
+        # fallo sale aquí y no a mitad de un despliegue.
+        run: |
+          set -euo pipefail
+          source deploy/ci-deploy.sh
+          COSIGN="$RUNNER_TEMP/cosign" verificar_firma_imagen imagen-despliegue "$SHA_DESPLEGADO"
+
+      - name: Publicar la imagen firmada como artefacto del run
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: imagen-despliegue
+          path: imagen-despliegue
+          retention-days: 30
+          compression-level: 0
+          if-no-files-found: error
+
+  staging:
+    # EL GATE. Solo despliega si el CI que acaba de terminar terminó en verde
+    # Y corrió sobre un `push` a `main`. `failure`, `cancelled`, `timed_out`,
+    # `skipped` y `action_required` omiten el job — y con él, toda la cadena
+    # hacia producción, que cuelga de este `needs:`.
+    #
+    # Las DOS condiciones hacen falta. `branches: [main]` de arriba compara el
+    # NOMBRE de la rama en la que corrió CI, no el evento: este repositorio es
+    # público, así que cualquiera puede abrir una PR desde la rama `main` de
+    # su fork, y el run de CI de esa PR lleva `head_branch` = `main`. Sin
+    # `workflow_run.event == 'push'`, ese run verde activaría este workflow,
+    # que sí tiene acceso a `secrets.VPS_SSH_KEY` aunque el de la PR no lo
+    # tuviera — el riesgo clásico de `workflow_run`. No llegaría a desplegar
+    # nada (resolve-deploy-sha.sh rechaza un SHA que no sea ancestro real de
+    # `origin/main`), pero bastaría para hacer que el workflow contacte con el
+    # VPS y compita por el grupo `deploy-staging`. Exigir `push` cierra ese
+    # camino entero: un run de CI por `push` a `main` solo puede venir de un
+    # push a la `main` de ESTE repositorio.
+    #
+    # La vía manual se conserva aparte: en `workflow_dispatch` no hay run de
+    # CI del que leer una conclusión, y bloquearla dejaría sin forma de forzar
+    # un redeploy ni de probar el mecanismo de despliegue. Es, a propósito, un
+    # rodeo del gate operado por una persona: quien lanza el workflow a mano
+    # despliega la punta de la referencia que elija, tenga esa punta el CI en
+    # verde, en rojo o todavía corriendo. Comprobar CI también ahí es una
+    # decisión de producto pendiente, no un olvido — hoy la vía manual existe
+    # justamente para los casos en que el camino automático no sirve.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || (github.event.workflow_run.event == 'push'
+      && github.event.workflow_run.conclusion == 'success')
+    name: Desplegar a staging
+    needs: imagen
+    runs-on: ubuntu-latest
+    # Concurrencia por entorno, no por workflow entero: dos deploys de
+    # staging no deben chocar entre sí (causa real del run #47, dos runs
+    # desplegando staging a la vez), pero staging tampoco debe quedar
+    # bloqueado detrás de una aprobación de producción pendiente durante
+    # horas — son colas independientes.
+    concurrency:
+      group: deploy-staging
+      cancel-in-progress: false
+    steps:
+      - name: Comprobar que el SHA sigue siendo la punta de main
+        # Ver "Rechazo de runs obsoletos" en la cabecera. Solo aplica a la vía
+        # automática: el break-glass manual puede desplegar deliberadamente un
+        # SHA que ya no sea la punta (rollback intencional, DEC-41).
+        if: github.event_name == 'workflow_run'
+        run: |
+          set -euo pipefail
+          PUNTA_ACTUAL="$(git ls-remote "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | cut -f1)"
+          if [ "$PUNTA_ACTUAL" != "$SHA_DESPLEGADO" ]; then
+            echo "::error::run obsoleto para despliegue — $SHA_DESPLEGADO ya no es la punta de main ($PUNTA_ACTUAL)"
+            {
+              echo "### 🛑 Despliegue omitido: run obsoleto"
+              echo ""
+              echo "El commit de este run (\`$SHA_DESPLEGADO\`) ya no es la punta de \`main\`"
+              echo "(\`$PUNTA_ACTUAL\`). Esto ocurre al reejecutar (rerun) un CI antiguo:"
+              echo "main avanzó mientras tanto. No se despliega."
+              echo ""
+              echo "Para desplegar este commit de todas formas, usa la vía manual"
+              echo "(workflow_dispatch) — break-glass explícito, con motivo."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "Punta de main confirmada: $SHA_DESPLEGADO"
+
       - name: Preparar clave SSH
         # D6: clave PROPIA de staging (`--clave staging` en authorized_keys:
         # solo staging y muestreo-memoria, nunca producción), secreto de
@@ -441,10 +601,23 @@ jobs:
           # despliegue y obliga a mirar, que es lo que debe pasar.
           echo "$VPS_HOST_KEY" >> ~/.ssh/known_hosts
 
+      - name: Descargar la imagen firmada
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: imagen-despliegue
+          path: imagen-despliegue
+
       - name: Desplegar SHA exacto a staging
+        # stdin: firma y manifiesto en base64 (una línea cada uno) y después el
+        # tarball — el formato que lee recibir_imagen_firmada en ci-deploy.sh.
         run: |
+          set -euo pipefail
           echo "Desplegando a staging el commit $SHA_DESPLEGADO"
-          ssh -i ~/.ssh/id_ed25519 -o ServerAliveInterval=30 -o ServerAliveCountMax=20 "root@$VPS_HOST" "staging $SHA_DESPLEGADO"
+          {
+            base64 -w0 imagen-despliegue/imagen.sigstore.json; echo
+            base64 -w0 imagen-despliegue/imagen.manifiesto; echo
+            cat imagen-despliegue/imagen.tar.gz
+          } | ssh -i ~/.ssh/id_ed25519 -o ServerAliveInterval=30 -o ServerAliveCountMax=20 "root@$VPS_HOST" "staging $SHA_DESPLEGADO"
 
   aprobacion-produccion:
     name: Aprobar despliegue a producción
@@ -496,7 +669,7 @@ jobs:
         # que el SSH que los escribe tiene que salir de aquí, en un segundo
         # comando forzado separado del que construye y despliega
         # ("secretos", nunca "produccion $SHA") — meterlo en el mismo job que
-        # hace `docker compose build/up` reabriría el problema que DEC-39/40
+        # hace `docker load`/`up` reabriría el problema que DEC-39/40
         # resolvió separando la aprobación (cancelable) de la ejecución (no
         # cancelable a medias): este job sigue con `cancel-in-progress: true`
         # porque escribir `.env` es idempotente y seguro de cancelar a
@@ -630,7 +803,19 @@ jobs:
           # despliegue y obliga a mirar, que es lo que debe pasar.
           echo "$VPS_HOST_KEY" >> ~/.ssh/known_hosts
 
+      - name: Descargar la imagen firmada
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: imagen-despliegue
+          path: imagen-despliegue
+
       - name: Desplegar SHA exacto a producción
+        # Misma imagen que staging (artefacto de este run), mismo formato de stdin.
         run: |
+          set -euo pipefail
           echo "Desplegando a produccion el commit $SHA_DESPLEGADO"
-          ssh -i ~/.ssh/id_ed25519 -o ServerAliveInterval=30 -o ServerAliveCountMax=20 "root@$VPS_HOST" "produccion $SHA_DESPLEGADO"
+          {
+            base64 -w0 imagen-despliegue/imagen.sigstore.json; echo
+            base64 -w0 imagen-despliegue/imagen.manifiesto; echo
+            cat imagen-despliegue/imagen.tar.gz
+          } | ssh -i ~/.ssh/id_ed25519 -o ServerAliveInterval=30 -o ServerAliveCountMax=20 "root@$VPS_HOST" "produccion $SHA_DESPLEGADO"
