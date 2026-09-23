@@ -29,7 +29,7 @@ public record ObtenerCredencialAccesoSubcontrataSinContrasenaQuery(Guid Subcontr
 public record CredencialAccesoSubcontrataSinContrasenaDto(string? UrlAcceso, string? CampoEmpresa, string? Usuario, string? Notas);
 
 public class ObtenerCredencialAccesoSubcontrataSinContrasenaQueryHandler(
-    ISubcontratasQueryContext dbContext, IAlcanceDatosService alcanceDatos)
+    ISubcontratasQueryContext dbContext, IAlcanceDatosService alcanceDatos, IRegistroAccesoDatoSensibleService registroAcceso)
     : IRequestHandler<ObtenerCredencialAccesoSubcontrataSinContrasenaQuery, CredencialAccesoSubcontrataSinContrasenaDto?>
 {
     public async Task<CredencialAccesoSubcontrataSinContrasenaDto?> Handle(
@@ -40,9 +40,17 @@ public class ObtenerCredencialAccesoSubcontrataSinContrasenaQueryHandler(
         if (!await alcanceDatos.SubcontrataParaGestionVisibleAsync(request.SubcontrataId, cancellationToken))
             return null;
 
-        return await dbContext.CredencialesAccesoSubcontrata
+        var fila = await dbContext.CredencialesAccesoSubcontrata
             .Where(c => c.SubcontrataId == request.SubcontrataId)
-            .Select(c => new CredencialAccesoSubcontrataSinContrasenaDto(c.UrlAcceso, c.CampoEmpresa, c.Usuario, c.Notas))
+            .Select(c => new { c.Id, Dto = new CredencialAccesoSubcontrataSinContrasenaDto(c.UrlAcceso, c.CampoEmpresa, c.Usuario, c.Notas) })
             .FirstOrDefaultAsync(cancellationToken);
+
+        if (fila is null)
+            return null;
+
+        // Lectura efectiva: queda en la auditoría ANTES de entregar el dato, y si
+        // no se puede registrar no se entrega (IRegistroAccesoDatoSensibleService).
+        await registroAcceso.RegistrarAsync("CredencialAccesoSubcontrata", fila.Id, cancellationToken);
+        return fila.Dto;
     }
 }

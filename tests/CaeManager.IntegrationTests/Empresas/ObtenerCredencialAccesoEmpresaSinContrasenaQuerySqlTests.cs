@@ -54,7 +54,7 @@ public class ObtenerCredencialAccesoEmpresaSinContrasenaQuerySqlTests : IAsyncLi
         await using var contextoLectura = CrearContexto(sql => sqlCapturado.Add(sql));
 
         var handler = new ObtenerCredencialAccesoEmpresaSinContrasenaQueryHandler(
-            contextoLectura, new AlcanceDatosServiceFalso());
+            contextoLectura, new AlcanceDatosServiceFalso(), new RegistroAccesoDatoSensibleFalso());
 
         var resultado = await handler.Handle(
             new ObtenerCredencialAccesoEmpresaSinContrasenaQuery(empresa.Id), CancellationToken.None);

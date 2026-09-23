@@ -26,7 +26,10 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
     // así el filtro crece con el interceptor en vez de quedarse atrás y
     // esconder del desplegable un tipo que sí se está registrando).
     private static readonly string[] TiposEntidad =
-        [.. new[] { "Cliente", "Empresa", "Centro", "Trabajador", "TipoDocumento", "Documento", "Asignacion", "ParametroSistema" },
+        [.. new[] { "Cliente", "Empresa", "Centro", "Trabajador", "TipoDocumento", "Documento", "Asignacion", "ParametroSistema",
+            // Credenciales de plataformas externas: aparecen sobre todo por sus
+            // lecturas (RegistroAuditoria.AccionAccesoDatoSensible).
+            "CanalGestionDocumental", "CredencialAccesoEmpresa", "CredencialAccesoSubcontrata" },
             .. EntidadTipoAuditoria.TodosLosDeIdentidad];
 
     [Inject] private IMediator Mediator { get; set; } = default!;

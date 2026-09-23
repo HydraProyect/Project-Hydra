@@ -181,6 +181,49 @@ public class ConsultasDeSecretosMarcadasTests
             "sesion privilegiada de plataforma, no de un Gestor CAE que conozca el Id");
     }
 
+    /// <summary>
+    /// Opción D (2026-09-23): cada lectura efectiva de un dato de credencial
+    /// queda en la auditoría como <c>AccesoDatoSensible</c>. Contrato efectivo,
+    /// igual de estrecho que el de arriba: comprueba que el handler recibe
+    /// <see cref="IRegistroAccesoDatoSensibleService"/> por constructor, no que
+    /// lo invoque ni cuándo. Que registre solo si hay dato y antes de
+    /// entregarlo lo prueban <c>RegistroDeLecturaDeCredencialesTests</c> y
+    /// <c>CredencialCanalGestionPorRolTests</c>.
+    /// </summary>
+    [Fact]
+    public void Toda_lectura_de_datos_de_credencial_se_audita()
+    {
+        var application = ReflexionArquitecturaHelper.CargarAssembly("CaeManager.Application");
+        var tipos = application.GetTypes();
+
+        var consultas = tipos
+            .Where(t => !t.IsInterface
+                        && (typeof(IConsultaDeSecretosDeTenant).IsAssignableFrom(t)
+                            || typeof(IConsultaDeDatosDeCredencial).IsAssignableFrom(t)))
+            .ToList();
+
+        consultas.Should().Contain(t => typeof(IConsultaDeDatosDeCredencial).IsAssignableFrom(t),
+            "sin precargas marcadas, la regla no observaria la lectura del usuario sin contraseña");
+
+        var sinRegistro = consultas
+            .Where(consulta => tipos
+                .Where(t => !t.IsAbstract && !t.IsInterface)
+                .Where(t => t.GetInterfaces().Any(i =>
+                    i.IsGenericType
+                    && i.GetGenericTypeDefinition() == typeof(MediatR.IRequestHandler<,>)
+                    && i.GetGenericArguments()[0] == consulta))
+                .Any(handler => !handler.GetConstructors()
+                    .SelectMany(c => c.GetParameters())
+                    .Any(p => p.ParameterType == typeof(IRegistroAccesoDatoSensibleService))))
+            .Select(t => t.Name)
+            .OrderBy(x => x)
+            .ToList();
+
+        string.Join(Environment.NewLine, sinRegistro).Should().BeEmpty(
+            "ARCHITECTURE.md § Datos sensibles: la lectura de una credencial queda registrada en auditoria " +
+            "como acceso a dato sensible; un handler sin IRegistroAccesoDatoSensibleService la entrega sin rastro");
+    }
+
     /// <summary>Guarda: si no hubiera ninguna consulta marcada, el test anterior pasaria en vacio.</summary>
     [Fact]
     public void Hay_consultas_de_secretos_que_inspeccionar()

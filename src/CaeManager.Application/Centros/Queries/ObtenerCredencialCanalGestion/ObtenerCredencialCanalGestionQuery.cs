@@ -41,7 +41,7 @@ public record ObtenerCredencialCanalGestionQuery(Guid CentroId, Guid CanalId)
 public record CredencialCanalGestionDto(string? Usuario, string? Contrasena);
 
 public class ObtenerCredencialCanalGestionQueryHandler(
-    ICentrosQueryContext dbContext, IAlcanceDatosService alcanceDatos)
+    ICentrosQueryContext dbContext, IAlcanceDatosService alcanceDatos, IRegistroAccesoDatoSensibleService registroAcceso)
     : IRequestHandler<ObtenerCredencialCanalGestionQuery, CredencialCanalGestionDto?>
 {
     public async Task<CredencialCanalGestionDto?> Handle(
@@ -57,11 +57,19 @@ public class ObtenerCredencialCanalGestionQueryHandler(
 
         // El canal se busca por su Id Y por el Centro autorizado: un Id de canal de
         // otro Centro no se resuelve aunque el Centro pedido sí esté en la cartera.
-        return await dbContext.CanalesGestionDocumental
+        var fila = await dbContext.CanalesGestionDocumental
             .Where(c => c.Id == request.CanalId
                         && c.CentroId == request.CentroId
                         && c.Tipo == TipoCanalGestion.Plataforma)
-            .Select(c => new CredencialCanalGestionDto(c.Usuario, c.Contrasena))
+            .Select(c => new { c.Id, Dto = new CredencialCanalGestionDto(c.Usuario, c.Contrasena) })
             .FirstOrDefaultAsync(cancellationToken);
+
+        if (fila is null)
+            return null;
+
+        // Lectura efectiva: queda en la auditoría ANTES de entregar el dato, y si
+        // no se puede registrar no se entrega (IRegistroAccesoDatoSensibleService).
+        await registroAcceso.RegistrarAsync(nameof(CanalGestionDocumental), fila.Id, cancellationToken);
+        return fila.Dto;
     }
 }

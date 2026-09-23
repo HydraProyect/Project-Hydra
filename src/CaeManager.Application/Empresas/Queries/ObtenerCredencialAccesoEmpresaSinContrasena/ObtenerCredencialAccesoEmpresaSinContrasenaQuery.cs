@@ -28,7 +28,7 @@ public record ObtenerCredencialAccesoEmpresaSinContrasenaQuery(Guid EmpresaId) :
 public record CredencialAccesoEmpresaSinContrasenaDto(string? UrlAcceso, string? CampoEmpresa, string? Usuario, string? Notas);
 
 public class ObtenerCredencialAccesoEmpresaSinContrasenaQueryHandler(
-    IEmpresasQueryContext dbContext, IAlcanceDatosService alcanceDatos)
+    IEmpresasQueryContext dbContext, IAlcanceDatosService alcanceDatos, IRegistroAccesoDatoSensibleService registroAcceso)
     : IRequestHandler<ObtenerCredencialAccesoEmpresaSinContrasenaQuery, CredencialAccesoEmpresaSinContrasenaDto?>
 {
     public async Task<CredencialAccesoEmpresaSinContrasenaDto?> Handle(
@@ -37,9 +37,17 @@ public class ObtenerCredencialAccesoEmpresaSinContrasenaQueryHandler(
         if (!await alcanceDatos.EmpresaParaGestionVisibleAsync(request.EmpresaId, cancellationToken))
             return null;
 
-        return await dbContext.CredencialesAccesoEmpresa
+        var fila = await dbContext.CredencialesAccesoEmpresa
             .Where(c => c.EmpresaId == request.EmpresaId)
-            .Select(c => new CredencialAccesoEmpresaSinContrasenaDto(c.UrlAcceso, c.CampoEmpresa, c.Usuario, c.Notas))
+            .Select(c => new { c.Id, Dto = new CredencialAccesoEmpresaSinContrasenaDto(c.UrlAcceso, c.CampoEmpresa, c.Usuario, c.Notas) })
             .FirstOrDefaultAsync(cancellationToken);
+
+        if (fila is null)
+            return null;
+
+        // Lectura efectiva: queda en la auditoría ANTES de entregar el dato, y si
+        // no se puede registrar no se entrega (IRegistroAccesoDatoSensibleService).
+        await registroAcceso.RegistrarAsync("CredencialAccesoEmpresa", fila.Id, cancellationToken);
+        return fila.Dto;
     }
 }

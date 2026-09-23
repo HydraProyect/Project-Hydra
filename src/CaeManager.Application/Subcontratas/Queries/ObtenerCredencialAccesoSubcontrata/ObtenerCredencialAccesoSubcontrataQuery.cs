@@ -11,7 +11,7 @@ public record ObtenerCredencialAccesoSubcontrataQuery(Guid SubcontrataId)
 public record CredencialAccesoSubcontrataDto(string? UrlAcceso, string? CampoEmpresa, string? Usuario, string? Contrasena, string? Notas);
 
 public class ObtenerCredencialAccesoSubcontrataQueryHandler(
-    ISubcontratasQueryContext dbContext, IAlcanceDatosService alcanceDatos)
+    ISubcontratasQueryContext dbContext, IAlcanceDatosService alcanceDatos, IRegistroAccesoDatoSensibleService registroAcceso)
     : IRequestHandler<ObtenerCredencialAccesoSubcontrataQuery, CredencialAccesoSubcontrataDto?>
 {
     public async Task<CredencialAccesoSubcontrataDto?> Handle(
@@ -30,9 +30,17 @@ public class ObtenerCredencialAccesoSubcontrataQueryHandler(
         if (!await alcanceDatos.SubcontrataParaGestionVisibleAsync(request.SubcontrataId, cancellationToken))
             return null;
 
-        return await dbContext.CredencialesAccesoSubcontrata
+        var fila = await dbContext.CredencialesAccesoSubcontrata
             .Where(c => c.SubcontrataId == request.SubcontrataId)
-            .Select(c => new CredencialAccesoSubcontrataDto(c.UrlAcceso, c.CampoEmpresa, c.Usuario, c.Contrasena, c.Notas))
+            .Select(c => new { c.Id, Dto = new CredencialAccesoSubcontrataDto(c.UrlAcceso, c.CampoEmpresa, c.Usuario, c.Contrasena, c.Notas) })
             .FirstOrDefaultAsync(cancellationToken);
+
+        if (fila is null)
+            return null;
+
+        // Lectura efectiva: queda en la auditoría ANTES de entregar el dato, y si
+        // no se puede registrar no se entrega (IRegistroAccesoDatoSensibleService).
+        await registroAcceso.RegistrarAsync("CredencialAccesoSubcontrata", fila.Id, cancellationToken);
+        return fila.Dto;
     }
 }

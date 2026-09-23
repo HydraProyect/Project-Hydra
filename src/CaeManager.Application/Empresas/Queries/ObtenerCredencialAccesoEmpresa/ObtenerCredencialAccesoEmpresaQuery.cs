@@ -11,7 +11,7 @@ public record ObtenerCredencialAccesoEmpresaQuery(Guid EmpresaId)
 public record CredencialAccesoEmpresaDto(string? UrlAcceso, string? CampoEmpresa, string? Usuario, string? Contrasena, string? Notas);
 
 public class ObtenerCredencialAccesoEmpresaQueryHandler(
-    IEmpresasQueryContext dbContext, IAlcanceDatosService alcanceDatos)
+    IEmpresasQueryContext dbContext, IAlcanceDatosService alcanceDatos, IRegistroAccesoDatoSensibleService registroAcceso)
     : IRequestHandler<ObtenerCredencialAccesoEmpresaQuery, CredencialAccesoEmpresaDto?>
 {
     public async Task<CredencialAccesoEmpresaDto?> Handle(
@@ -31,9 +31,17 @@ public class ObtenerCredencialAccesoEmpresaQueryHandler(
         if (!await alcanceDatos.EmpresaParaGestionVisibleAsync(request.EmpresaId, cancellationToken))
             return null;
 
-        return await dbContext.CredencialesAccesoEmpresa
+        var fila = await dbContext.CredencialesAccesoEmpresa
             .Where(c => c.EmpresaId == request.EmpresaId)
-            .Select(c => new CredencialAccesoEmpresaDto(c.UrlAcceso, c.CampoEmpresa, c.Usuario, c.Contrasena, c.Notas))
+            .Select(c => new { c.Id, Dto = new CredencialAccesoEmpresaDto(c.UrlAcceso, c.CampoEmpresa, c.Usuario, c.Contrasena, c.Notas) })
             .FirstOrDefaultAsync(cancellationToken);
+
+        if (fila is null)
+            return null;
+
+        // Lectura efectiva: queda en la auditoría ANTES de entregar el dato, y si
+        // no se puede registrar no se entrega (IRegistroAccesoDatoSensibleService).
+        await registroAcceso.RegistrarAsync("CredencialAccesoEmpresa", fila.Id, cancellationToken);
+        return fila.Dto;
     }
 }

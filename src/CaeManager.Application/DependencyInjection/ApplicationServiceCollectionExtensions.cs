@@ -125,6 +125,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Cumplimiento.IInstruccionTratamientoIaService, CaeManager.Application.Cumplimiento.InstruccionTratamientoIaService>();
         services.AddScoped<IValidacionDocumentoOficialService, ValidacionDocumentoOficialService>();
         services.AddScoped<IRegistroAccesoDocumentoSensibleService, RegistroAccesoDocumentoSensibleService>();
+        services.AddScoped<IRegistroAccesoDatoSensibleService, RegistroAccesoDatoSensibleService>();
 
         // Parsers de documento oficial: lógica pura (regex sobre texto),
         // singletons sin estado; el registry los indexa por perfil.

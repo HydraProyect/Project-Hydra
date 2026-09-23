@@ -1,15 +1,19 @@
 using CaeManager.Application.Centros.Queries.ObtenerCredencialCanalGestion;
 using CaeManager.Application.Common;
+using CaeManager.Application.Auditoria;
 using CaeManager.Application.Plataforma;
+using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace CaeManager.IntegrationTests.Centros;
@@ -123,18 +127,113 @@ public class CredencialCanalGestionPorRolTests : IAsyncLifetime
         return usuarioId;
     }
 
-    private async Task<CredencialCanalGestionDto?> ObtenerAsync(Guid usuario, string rol, Guid tenantOrigen)
+    private async Task<CredencialCanalGestionDto?> ObtenerAsync(
+        Guid usuario, string rol, Guid tenantOrigen, ActorAuditoria? actor = null)
     {
         await using var contexto = CrearContexto(_tenant);
         var usuarioActual = new CurrentUserServiceFalso(usuario, rol, tenantOrigenId: tenantOrigen);
         var sinSesion = new SesionPrivilegiadaAusente();
         var alcance = new AlcanceDatosService(
             contexto, usuarioActual, new TenantActualAmbiental { TenantId = _tenant }, sinSesion);
-        var handler = new ObtenerCredencialCanalGestionQueryHandler(contexto, alcance);
+        // Registro de la lectura REAL, contra la misma base: lo que se mide aquí
+        // es la fila que queda en la auditoría, no una llamada a un doble.
+        var registroAcceso = new RegistroAccesoDatoSensibleService(
+            new ActorFijo(actor ?? ActorAuditoria.Normal(usuario)),
+            new RegistroAccesoDatoSensibleRepository(contexto, NullLogger<RegistroAccesoDatoSensibleRepository>.Instance));
+        var handler = new ObtenerCredencialCanalGestionQueryHandler(contexto, alcance, registroAcceso);
         var behavior = new AutorizacionSecretosDeTenantBehavior<ObtenerCredencialCanalGestionQuery, CredencialCanalGestionDto?>(
             sinSesion, usuarioActual);
         var consulta = new ObtenerCredencialCanalGestionQuery(_centroId, _canalId);
         return await behavior.Handle(consulta, ct => handler.Handle(consulta, ct), CancellationToken.None);
+    }
+
+    /// <summary>
+    /// Opción D (decisión del propietario, 2026-09-23): cada lectura efectiva
+    /// deja una fila en la auditoría del Tenant propietario, con el objeto leído
+    /// y quién lo leyó, y sin el secreto.
+    /// </summary>
+    [Fact]
+    public async Task La_lectura_del_Gestor_CAE_queda_en_la_auditoria_sin_el_secreto()
+    {
+        var gestor = await OtorgarCarteraAsync(_clienteId);
+
+        (await ObtenerAsync(gestor, "GestorCae", _tenant)).Should().NotBeNull();
+
+        var registros = await LecturasDelCanalAsync();
+        registros.Should().ContainSingle();
+        var registro = registros[0];
+        registro.EntidadTipo.Should().Be(nameof(CanalGestionDocumental));
+        registro.TenantId.Should().Be(_tenant, "la fila va al Tenant propietario del dato");
+        registro.UsuarioId.Should().Be(gestor);
+        registro.ActorRealUsuarioId.Should().Be(gestor);
+        registro.ViaAcceso.Should().Be(TipoViaAccesoAuditoria.Normal);
+        registro.DatosAntes.Should().BeNull();
+        registro.DatosDespues.Should().BeNull("la auditoría nunca guarda el secreto que registra");
+    }
+
+    [Fact]
+    public async Task La_lectura_desde_una_operacion_delegada_registra_la_via_y_su_amparo()
+    {
+        var gestor = await OtorgarCarteraAsync(_clienteId);
+        var asignacionOperacionId = Guid.NewGuid();
+        var actor = new ActorAuditoria(gestor, null, TipoViaAcceso.OperacionDelegada, asignacionOperacionId);
+
+        (await ObtenerAsync(gestor, "GestorCae", _tenant, actor)).Should().NotBeNull();
+
+        var registro = (await LecturasDelCanalAsync()).Should().ContainSingle().Subject;
+        registro.ViaAcceso.Should().Be(TipoViaAccesoAuditoria.OperacionDelegada);
+        registro.ViaAccesoId.Should().Be(asignacionOperacionId);
+        registro.TenantId.Should().Be(_tenant);
+    }
+
+    [Fact]
+    public async Task Una_lectura_denegada_no_deja_fila()
+    {
+        (await ObtenerAsync(Guid.NewGuid(), "Consulta", _tenant)).Should().BeNull();
+
+        (await LecturasDelCanalAsync()).Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// El registro se guarda con el DbContext con ámbito del circuito: si otro
+    /// dejó cambios pendientes, un SaveChanges los persistiría sin que su dueño
+    /// lo decidiera. El repositorio falla cerrado — ni fila de auditoría (y por
+    /// tanto ni dato entregado) ni cambio ajeno guardado.
+    /// </summary>
+    [Fact]
+    public async Task Con_cambios_ajenos_pendientes_no_se_registra_ni_se_guarda_nada()
+    {
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            contexto.Empresas.Add(new Empresa("Pendiente Ajena S.L."));
+            var repositorio = new RegistroAccesoDatoSensibleRepository(
+                contexto, NullLogger<RegistroAccesoDatoSensibleRepository>.Instance);
+            var servicio = new RegistroAccesoDatoSensibleService(
+                new ActorFijo(ActorAuditoria.Normal(Guid.NewGuid())), repositorio);
+
+            var accion = () => servicio.RegistrarAsync(nameof(CanalGestionDocumental), _canalId);
+
+            await accion.Should().ThrowAsync<InvalidOperationException>();
+        }
+
+        (await LecturasDelCanalAsync()).Should().BeEmpty();
+        await using var verificacion = CrearContexto(_tenant);
+        (await verificacion.Empresas.AnyAsync(e => e.RazonSocial == "Pendiente Ajena S.L."))
+            .Should().BeFalse("el registro de la lectura nunca vuelca cambios que no son suyos");
+    }
+
+    private async Task<List<RegistroAuditoria>> LecturasDelCanalAsync()
+    {
+        await using var contexto = CrearContexto(_tenant);
+        return await contexto.RegistrosAuditoria
+            .Where(r => r.EntidadId == _canalId && r.Accion == RegistroAuditoria.AccionAccesoDatoSensible)
+            .ToListAsync();
+    }
+
+    private sealed class ActorFijo(ActorAuditoria actor) : IActorAuditoria
+    {
+        public Task<ActorAuditoria> ObtenerAsync() => Task.FromResult(actor);
+        public ActorAuditoria? ObtenerSiYaEstaResuelto() => actor;
     }
 
     private CaeManagerDbContext CrearContexto(Guid tenantId)

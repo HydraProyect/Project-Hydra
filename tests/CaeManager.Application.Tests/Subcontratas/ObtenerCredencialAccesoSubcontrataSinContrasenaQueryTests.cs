@@ -1,3 +1,4 @@
+using CaeManager.Application.Tests.Auditoria;
 using CaeManager.Application.Subcontratas;
 using CaeManager.Application.Subcontratas.Queries.ObtenerCredencialAccesoSubcontrataSinContrasena;
 using CaeManager.Application.Tests.Clientes;
@@ -25,7 +26,7 @@ public class ObtenerCredencialAccesoSubcontrataSinContrasenaQueryTests
             subcontrataId, "https://portal.example", "campo", "usuario", "secreta", "notas"));
 
         var handler = new ObtenerCredencialAccesoSubcontrataSinContrasenaQueryHandler(
-            contexto, new AlcanceDatosServiceFalso(tieneAccesoTotal: false, subcontrataIdsVisibles: [subcontrataId]));
+            contexto, new AlcanceDatosServiceFalso(tieneAccesoTotal: false, subcontrataIdsVisibles: [subcontrataId]), new RegistroAccesoDatoSensibleFalso());
 
         var resultado = await handler.Handle(new ObtenerCredencialAccesoSubcontrataSinContrasenaQuery(subcontrataId), CancellationToken.None);
 
@@ -41,7 +42,7 @@ public class ObtenerCredencialAccesoSubcontrataSinContrasenaQueryTests
     {
         var handler = new ObtenerCredencialAccesoSubcontrataSinContrasenaQueryHandler(
             new SubcontratasQueryContextQueExplota(),
-            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, subcontrataIdsVisibles: []));
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, subcontrataIdsVisibles: []), new RegistroAccesoDatoSensibleFalso());
 
         var resultado = await handler.Handle(
             new ObtenerCredencialAccesoSubcontrataSinContrasenaQuery(Guid.NewGuid()), CancellationToken.None);
@@ -56,7 +57,7 @@ public class ObtenerCredencialAccesoSubcontrataSinContrasenaQueryTests
         var subcontrataId = Guid.NewGuid();
         var handler = new ObtenerCredencialAccesoSubcontrataSinContrasenaQueryHandler(
             new SubcontratasQueryContextQueExplota(),
-            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, subcontrataIdsVisibles: [subcontrataId], subcontrataIdsParaGestion: []));
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, subcontrataIdsVisibles: [subcontrataId], subcontrataIdsParaGestion: []), new RegistroAccesoDatoSensibleFalso());
 
         var resultado = await handler.Handle(new ObtenerCredencialAccesoSubcontrataSinContrasenaQuery(subcontrataId), CancellationToken.None);
 
