@@ -51,6 +51,25 @@ public class ApplicationServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public void El_behavior_de_invalidacion_del_alcance_va_por_fuera_de_la_autorizacion_de_escritura()
+    {
+        var servicios = new ServiceCollection();
+        servicios.AddApplication();
+
+        var behaviors = servicios
+            .Where(d => d.ServiceType == typeof(MediatR.IPipelineBehavior<,>))
+            .Select(d => d.ImplementationType)
+            .ToList();
+
+        // Se registran de fuera hacia dentro: un índice menor envuelve a uno mayor.
+        var invalidacion = behaviors.IndexOf(typeof(InvalidacionAlcanceBehavior<,>));
+        var autorizacion = behaviors.IndexOf(typeof(AutorizacionEscrituraBehavior<,>));
+        invalidacion.Should().BeGreaterThanOrEqualTo(0);
+        autorizacion.Should().BeGreaterThan(invalidacion,
+            "la autorización de escritura tiene que resolver el alcance DESPUÉS de invalidarlo, no con el memoizado por el circuito");
+    }
+
+    [Fact]
     public void Una_implementacion_registrada_despues_de_AddApplication_sustituye_al_valor_inerte()
     {
         // Mismo orden que Program.cs: AddApplication() y luego AddInfrastructure()
