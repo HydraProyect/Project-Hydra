@@ -53,7 +53,8 @@ public class AutorizacionDeDelegacionTests
             asignaciones, delegaciones,
             new DirectorioUsuariosServiceFalso(esVisible: true, tenantDelUsuario: Consultora),
             writer,
-            new AutorizacionDelegacionFalsa(autoriza: false), new CurrentUserServiceFalso(Usuario), unitOfWork);
+            new AutorizacionDelegacionFalsa(autoriza: false), new CurrentUserServiceFalso(Usuario), unitOfWork,
+            new TenantsQueryContextFalso());
 
         var resultado = await handler.Handle(
             new CrearAsignacionOperadorDelegadoCommand(delegacion.Id, Guid.NewGuid(), "GestorCae"),
@@ -81,7 +82,8 @@ public class AutorizacionDeDelegacionTests
             asignaciones, delegaciones,
             new DirectorioUsuariosServiceFalso(esVisible: true, tenantDelUsuario: Consultora),
             new AsignacionesOperativasWriterFalso(),
-            autorizacion, new CurrentUserServiceFalso(Usuario), unitOfWork);
+            autorizacion, new CurrentUserServiceFalso(Usuario), unitOfWork,
+            new TenantsQueryContextFalso());
 
         await handler.Handle(
             new CrearAsignacionOperadorDelegadoCommand(delegacion.Id, Guid.NewGuid(), "GestorCae"),
@@ -111,7 +113,8 @@ public class AutorizacionDeDelegacionTests
             asignaciones, delegaciones,
             new DirectorioUsuariosServiceFalso(esVisible: true, tenantDelUsuario: Consultora),
             new AsignacionesOperativasWriterFalso(),
-            new AutorizacionDelegacionFalsa(autoriza: false), new CurrentUserServiceFalso(Usuario), unitOfWork);
+            new AutorizacionDelegacionFalsa(autoriza: false), new CurrentUserServiceFalso(Usuario), unitOfWork,
+            new TenantsQueryContextFalso());
 
         var resultado = await handler.Handle(
             new CrearAsignacionOperadorDelegadoCommand(delegacion.Id, Guid.NewGuid(), "GestorCae"),
@@ -130,13 +133,53 @@ public class AutorizacionDeDelegacionTests
             asignaciones, delegaciones,
             new DirectorioUsuariosServiceFalso(esVisible: true, tenantDelUsuario: Consultora),
             new AsignacionesOperativasWriterFalso(),
-            new AutorizacionDelegacionFalsa(autoriza: true), new CurrentUserServiceFalso(usuarioId: null), unitOfWork);
+            new AutorizacionDelegacionFalsa(autoriza: true), new CurrentUserServiceFalso(usuarioId: null), unitOfWork,
+            new TenantsQueryContextFalso());
 
         var resultado = await handler.Handle(
             new CrearAsignacionOperadorDelegadoCommand(delegacion.Id, Guid.NewGuid(), "GestorCae"),
             CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be("AsignacionOperadorDelegado.SinUsuario");
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Cuarto sitio del mismo hallazgo de Codex (ver ReactivarDelegacionTenant y
+    /// AutorizarOperadorCaeExternoQueries): <c>PuedeGestionarDelegacionesAsync</c> no
+    /// excluye por sí sola el Tenant de plataforma como <c>TenantClienteId</c>. Con una
+    /// <c>DelegacionTenant</c> heredada que tuviera a TALVEG como Cliente Delegante, su
+    /// Administrador inicial podría autorizar operadores sobre "datos" del propio TALVEG.
+    /// <c>AutorizacionDelegacionFalsa</c> dice que sí a propósito: lo que corta aquí es
+    /// la comprobación de <c>EsPlataforma</c>, no la autoridad.
+    /// </summary>
+    [Fact]
+    public async Task No_se_puede_asignar_un_operador_sobre_una_delegacion_heredada_con_el_tenant_de_plataforma_como_cliente()
+    {
+        var plataforma = new Tenant("TALVEG");
+        plataforma.MarcarComoPlataforma();
+        var delegacion = new DelegacionTenant(Consultora, plataforma.Id);
+        var delegaciones = new DelegacionTenantRepositorioFalso();
+        delegaciones.Agregar(delegacion);
+        var asignaciones = new AsignacionOperadorDelegadoRepositorioFalso();
+        var tenants = new TenantsQueryContextFalso();
+        tenants.ListaTenants.Add(plataforma);
+        var unitOfWork = new UnitOfWorkFalso();
+
+        var handler = new CrearAsignacionOperadorDelegadoCommandHandler(
+            asignaciones, delegaciones,
+            new DirectorioUsuariosServiceFalso(esVisible: true, tenantDelUsuario: Consultora),
+            new AsignacionesOperativasWriterFalso(),
+            new AutorizacionDelegacionFalsa(autoriza: true), new CurrentUserServiceFalso(Usuario), unitOfWork,
+            tenants);
+
+        var resultado = await handler.Handle(
+            new CrearAsignacionOperadorDelegadoCommand(delegacion.Id, Guid.NewGuid(), "GestorCae"),
+            CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue("TALVEG nunca es Tenant propietario de un Operador CAE externo (ADR-011 § 1)");
+        resultado.Error.Codigo.Should().Be("AsignacionOperadorDelegado.NoAutorizado");
+        asignaciones.Asignaciones.Should().BeEmpty();
         unitOfWork.VecesGuardado.Should().Be(0);
     }
 

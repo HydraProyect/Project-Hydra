@@ -175,6 +175,19 @@ public class UsosDeEsPlataformaCongeladosTests
     /// <c>.Select(t =&gt; t.EsPlataforma)</c> real, mismo patrón que
     /// <c>AutorizarOperadorCaeExternoQueries.cs</c>). Neto: +1 fichero, +2 apariciones, de
     /// 30/46 a 31/48.
+    /// Actualizado 2026-09-23 (cuarta vez — barrido pedido por el Orquestador Gen2 tras la
+    /// tercera aparición del mismo patrón, antes de gastar una ronda 3 de Codex en
+    /// encontrarlo): <b>32 ficheros, 49 apariciones</b>. Un cuarto sitio, mismo hallazgo:
+    /// <c>CrearAsignacionOperadorDelegadoCommand.cs</c> también llama a
+    /// <c>PuedeGestionarDelegacionesAsync</c> contra <c>delegacion.TenantClienteId</c> sin
+    /// excluir el Tenant de plataforma. Nueva entrada: <c>CrearAsignacionOperadorDelegadoCommand.cs</c>
+    /// (+1: solo el <c>.Select(t =&gt; t.EsPlataforma)</c> real — el comentario nuevo no repite
+    /// el nombre del identificador). Barridos y descartados por no aplicar: <c>DesactivarDelegacionTenantCommand.cs</c>
+    /// y <c>RevocarAsignacionOperadorDelegadoCommand.cs</c> comparten <c>DelegacionAdministrablePorElUsuarioAsync</c>,
+    /// que compara el tenant de origen directamente contra <c>TenantConsultoraId</c> o
+    /// <c>TenantClienteId</c> — sin pasar por el predicado reflexivo, y es la acción
+    /// protectora (revocar), no la que concede. Neto: +1 fichero, +1 aparición, de 31/48 a
+    /// 32/49.
     /// </para>
     ///
     /// <para>
@@ -284,6 +297,15 @@ public class UsosDeEsPlataformaCongeladosTests
                 "orden que el resto de la cadena). TALVEG nunca es Tenant propietario de un Operador CAE " +
                 "externo (ADR-011 § 1) — mitad negativa de un fallo cerrado, defensa en profundidad junto a " +
                 "CrearDelegacionTenantCommand.cs y AutorizarOperadorCaeExternoQueries.cs"),
+        ["src/CaeManager.Application/Tenants/Commands/CrearAsignacionOperadorDelegado/CrearAsignacionOperadorDelegadoCommand.cs"] =
+            new(1, CategoriaUso.Guarda,
+                ":EsPlataforma real, proyectado sobre delegacion.TenantClienteId antes de autorizar la asignación " +
+                "de un Operador Delegado. Cuarto sitio del mismo hallazgo (barrido pedido por el Orquestador " +
+                "Gen2 tras la tercera aparición): PuedeGestionarDelegacionesAsync no excluye por sí sola el " +
+                "Tenant de plataforma, así que una DelegacionTenant heredada con el Tenant de plataforma como " +
+                "Cliente Delegante podía recibir Operadores Delegados nuevos. Se corta DESPUÉS de la autoridad. " +
+                "TALVEG nunca es Tenant propietario de un Operador CAE externo (ADR-011 § 1) — mitad negativa " +
+                "de un fallo cerrado, defensa en profundidad junto a los otros tres sitios"),
         ["src/CaeManager.Application/Tenants/Commands/CrearTenantPropietarioDeOperadorCaeExterno/CrearTenantPropietarioDeOperadorCaeExternoCommand.cs"] =
             new(2, CategoriaUso.Guarda,
                 "la proyección del Operador y el rechazo de un Operador que sea el Tenant de plataforma: " +
