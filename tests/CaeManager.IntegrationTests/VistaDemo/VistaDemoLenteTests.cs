@@ -228,7 +228,7 @@ public class VistaDemoLenteTests : IAsyncLifetime
                 solicitud = Solicitud(VistaDemo.GestorCae, _g1);
                 break;
             case Caso.GestorInexistente:
-                solicitud = Solicitud(VistaDemo.GestorCae, Guid.NewGuid(), Roles.Administrador);
+                solicitud = Solicitud(VistaDemo.GestorCae, Guid.NewGuid());
                 break;
             case Caso.GestorSinCartera:
                 solicitud = Solicitud(VistaDemo.GestorCae, _gSinCartera);
