@@ -1,6 +1,7 @@
 using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaAgrupada;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
+using CaeManager.Application.Centros;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerSugerenciasVisitaCorreoPendientes;
@@ -52,6 +53,17 @@ namespace CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 /// cuyo sujeto es una Empresa (contrato § 14: «Documentación de empresa» o
 /// «Subcontrata · nombre»). Va dentro del mismo <see cref="AmbitoTenantExplicito"/>
 /// que el resto, así que solo ve las Empresas de ese Tenant.
+/// </para>
+///
+/// <para>
+/// Y, solo cuando la cola del Tenant trae alguna acreditación Rechazada, el
+/// cálculo de estado de sus Centros de Trabajo
+/// (<see cref="ICalculoEstadoCentroService.CalcularAsync"/>, vía
+/// <see cref="ObtenerBandejaAgrupadaQueryHandler.MarcarRechazosQueBloqueanAsync"/>):
+/// D-7 del piloto Outbound, una Rechazada bloquea solo si es aplicable a su
+/// Centro, y el mismo criterio que usa la cola agrupada de /bandeja e Inicio
+/// decide aquí si cuenta como Bloqueo. También corre dentro del
+/// <see cref="AmbitoTenantExplicito"/> del Tenant propietario de la cola.
 /// </para>
 /// </summary>
 public record ObtenerMiTrabajoAgregadoQuery : IRequest<MiTrabajoAgregadoDto>;
@@ -105,7 +117,8 @@ public record MiTrabajoTenantDto(
 public record MiTrabajoAgregadoDto(IReadOnlyList<MiTrabajoTenantDto> Tenants);
 
 public class ObtenerMiTrabajoAgregadoQueryHandler(
-    IMediator mediator, IConfiguracionQueryContext configuracionContext, IEmpresasQueryContext empresasContext)
+    IMediator mediator, IConfiguracionQueryContext configuracionContext, IEmpresasQueryContext empresasContext,
+    ICalculoEstadoCentroService calculoEstadoCentro)
     : IRequestHandler<ObtenerMiTrabajoAgregadoQuery, MiTrabajoAgregadoDto>
 {
     public async Task<MiTrabajoAgregadoDto> Handle(ObtenerMiTrabajoAgregadoQuery request, CancellationToken cancellationToken)
@@ -165,7 +178,12 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
 
         var empresas = await CargarEmpresasSujetoAsync(
             fusionados.Concat(proximosSinEmpresa).Concat(seguimientoSinEmpresa), cancellationToken);
-        var bloqueoActuacionItems = MarcarEmpresaSujeto(fusionados, empresas);
+        // D-7: qué Rechazada cierra de verdad su Centro de Trabajo lo decide
+        // el cálculo de estado del Centro, sobre los datos de ESTE Tenant
+        // (seguimos dentro de su AmbitoTenantExplicito). Sin esto, EsBloqueo
+        // no tendría RechazoBloqueaCentro que leer.
+        var bloqueoActuacionItems = await ObtenerBandejaAgrupadaQueryHandler.MarcarRechazosQueBloqueanAsync(
+            MarcarEmpresaSujeto(fusionados, empresas), calculoEstadoCentro, cancellationToken);
         var proximos = MarcarEmpresaSujeto(proximosSinEmpresa, empresas);
         var seguimiento = MarcarEmpresaSujeto(seguimientoSinEmpresa, empresas);
         var bloqueoActuacion = ObtenerBandejaAgrupadaQueryHandler.Agrupar(bloqueoActuacionItems);
@@ -218,20 +236,29 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
         .ToList();
 
     /// <summary>
-    /// Mismo criterio que <c>TipoItemBandejaUi.Tono == TonoBadge.Peligro</c>
-    /// (CaeManager.Web) — duplicado aquí porque Application no puede
-    /// referenciar Web. Recibe el ítem completo, no solo el tipo, por el
-    /// mismo motivo que esa función: un RequisitoPendiente con EsAltaNueva no
-    /// es un bloqueo (contrato § 5, D-4/D-6/D-7).
+    /// Severidad «Bloqueo» de Mi trabajo (contrato § 5, D-4/D-6/D-7). Faltante,
+    /// Vencido y la sugerencia de visita urgente son siempre bloqueo. Para
+    /// RequisitoPendiente y PlataformaRechazada decide
+    /// <see cref="ObtenerBandejaAgrupadaQueryHandler.BloqueaAccesoAlCentro"/>
+    /// —el mismo criterio que marca «bloquea acceso» en la cola agrupada—, así
+    /// que Mi trabajo no puede contradecir a /bandeja ni a Centro 360: un
+    /// requisito de alta nueva no bloquea, y una Rechazada solo bloquea si el
+    /// cálculo de estado de su Centro de Trabajo la cuenta como causa
+    /// bloqueante (<see cref="ItemBandejaDto.RechazoBloqueaCentro"/>). Una
+    /// Rechazada no aplicable a su Centro queda en «Requiere actuación».
+    ///
+    /// <para>
+    /// Ya no coincide con <c>TipoItemBandejaUi.Tono == TonoBadge.Peligro</c>
+    /// (CaeManager.Web): el badge de una Rechazada sigue en rojo, que describe
+    /// el estado de la acreditación, no si cierra el Centro.
+    /// </para>
     /// </summary>
     public static bool EsBloqueo(ItemBandejaDto item) => item.Tipo switch
     {
         TipoItemBandeja.SugerenciaVisitaUrgente => true,
         TipoItemBandeja.Faltante => true,
         TipoItemBandeja.Vencido => true,
-        TipoItemBandeja.PlataformaRechazada => true,
-        TipoItemBandeja.RequisitoPendiente => !item.EsAltaNueva,
-        _ => false
+        _ => ObtenerBandejaAgrupadaQueryHandler.BloqueaAccesoAlCentro(item)
     };
 
     /// <summary>Mismo mapeo de campos que la rama "alertas" de <see cref="ObtenerBandejaGestorQueryHandler.Fusionar"/>, solo que aquí SÍ se queda con Proximo en vez de descartarlo.</summary>
