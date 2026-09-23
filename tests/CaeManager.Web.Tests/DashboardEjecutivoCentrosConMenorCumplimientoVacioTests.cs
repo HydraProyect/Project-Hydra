@@ -20,7 +20,12 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class DashboardEjecutivoCentrosConMenorCumplimientoVacioTests : BunitContext
 {
-    public DashboardEjecutivoCentrosConMenorCumplimientoVacioTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public DashboardEjecutivoCentrosConMenorCumplimientoVacioTests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        // Los textos del Dashboard Ejecutivo salen de IStringLocalizer<TextosDashboardEjecutivo>.
+        Services.AddLocalization();
+    }
 
     private sealed class MediatorFalso : IMediator
     {

@@ -69,7 +69,13 @@ public class TextosSinLocalizarCongeladosTests
         ["Configuracion"] = 104,
         ["Cumplimiento"] = 11,
         ["Dashboard"] = 57,
-        ["DashboardEjecutivo"] = 89,
+        // 89 → 1 el 2026-09-23 al migrar la Feature a TextosDashboardEjecutivo.resx. El 1 que
+        // queda NO es texto: es un falso positivo del detector de markup, que toma por texto lo
+        // que hay entre el «>» de <CampoSelect …> y el «<» del genérico de
+        // «@foreach (var preset in Enum.GetValues<PresetPeriodoKpi>())». No se reescribe el
+        // bucle para esquivar la heurística; si el detector aprende a ignorar código Razor,
+        // esta entrada se retira.
+        ["DashboardEjecutivo"] = 1,
         ["Delegaciones"] = 97,
         ["Documentos"] = 459,
         ["Empresas"] = 204,

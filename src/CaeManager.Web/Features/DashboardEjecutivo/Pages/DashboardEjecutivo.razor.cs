@@ -122,13 +122,13 @@ public partial class DashboardEjecutivo : ComponentBase, IDisposable
     /// <summary>Presets del selector — los rangos que alguien pide de verdad, más uno libre.</summary>
     private enum PresetPeriodoKpi { MesActual, MesAnterior, UltimosTresMeses, AnyoActual, Personalizado }
 
-    private static string EtiquetaPreset(PresetPeriodoKpi preset) => preset switch
+    private string EtiquetaPreset(PresetPeriodoKpi preset) => preset switch
     {
-        PresetPeriodoKpi.MesAnterior => "Mes anterior",
-        PresetPeriodoKpi.UltimosTresMeses => "Últimos 3 meses",
-        PresetPeriodoKpi.AnyoActual => "Año en curso",
-        PresetPeriodoKpi.Personalizado => "Personalizado",
-        _ => "Mes en curso"
+        PresetPeriodoKpi.MesAnterior => Textos["PresetMesAnterior"].Value,
+        PresetPeriodoKpi.UltimosTresMeses => Textos["PresetUltimosTresMeses"].Value,
+        PresetPeriodoKpi.AnyoActual => Textos["PresetAnyoActual"].Value,
+        PresetPeriodoKpi.Personalizado => Textos["PresetLibre"].Value,
+        _ => Textos["PresetMesActual"].Value
     };
 
     private PeriodoKpi PeriodoSeleccionado()
@@ -256,7 +256,7 @@ public partial class DashboardEjecutivo : ComponentBase, IDisposable
     /// como mostrado.
     /// </summary>
     private string ResumenSeleccion =>
-        $"{Seleccionados.Count} de {CatalogoKpis.Todos.Count} KPI mostrados";
+        Textos["ResumenKpisMostrados", Seleccionados.Count, CatalogoKpis.Todos.Count];
 
     /// <summary>
     /// Marcar no aplica nada: hasta pulsar Guardar, lo marcado y lo guardado son
@@ -314,7 +314,7 @@ public partial class DashboardEjecutivo : ComponentBase, IDisposable
 
             // El desenlace se dice siempre: el comando se ejecutó, y de qué
             // periodo esté el panel no cambia que la preferencia se guardó.
-            ToastService.Mostrar("Selección guardada.", TonoToast.Exito);
+            ToastService.Mostrar(Textos["ToastGuardadoOk"], TonoToast.Exito);
 
             // Reflejarlo, en cambio, solo tiene sentido en la pantalla que lo
             // pidió: si entre medias hubo una carga nueva, esa ya releyó la
@@ -326,7 +326,7 @@ public partial class DashboardEjecutivo : ComponentBase, IDisposable
             // La cancelación al salir de la página no es un error que contar.
             if (_desechado) return;
             Logger.LogError(ex, "Error al guardar la selección de KPIs del Dashboard Ejecutivo.");
-            ToastService.Mostrar("No pudimos guardar la selección. Intenta nuevamente.", TonoToast.Error);
+            ToastService.Mostrar(Textos["ToastGuardadoError"], TonoToast.Error);
         }
         finally
         {
@@ -340,7 +340,9 @@ public partial class DashboardEjecutivo : ComponentBase, IDisposable
 
     private int Organizaciones => _valores?.TotalTenants ?? 0;
 
-    private string TextoOrganizaciones => Organizaciones == 1 ? "1 organización" : $"{Organizaciones} organizaciones";
+    private string TextoOrganizaciones => Organizaciones == 1
+        ? Textos["OrganizacionesUna"].Value
+        : Textos["OrganizacionesVarias", Organizaciones].Value;
 
     /// <summary>
     /// El rango del rótulo es el que viajó en la petición, y no
@@ -363,7 +365,7 @@ public partial class DashboardEjecutivo : ComponentBase, IDisposable
 
             var desde = DateOnly.FromDateTime(periodo.InicioUtc);
             var hasta = DateOnly.FromDateTime(periodo.FinUtc.AddDays(-1));
-            var rango = desde == hasta ? Fecha(desde) : $"Del {Fecha(desde)} al {Fecha(hasta)}";
+            var rango = desde == hasta ? Fecha(desde) : Textos["RangoFechas", Fecha(desde), Fecha(hasta)].Value;
             return $"{rango} · {TextoOrganizaciones}";
         }
     }
@@ -371,14 +373,14 @@ public partial class DashboardEjecutivo : ComponentBase, IDisposable
     private static string Fecha(DateOnly fecha) => fecha.ToString("d 'de' MMMM 'de' yyyy", Castellano);
 
     private string DetalleOrganizaciones =>
-        $"{TextoOrganizaciones} en el alcance: la tuya más las que os han delegado su gestión CAE. Los KPI de esta sección suman las {Organizaciones}.";
+        Textos["DetalleAlcanceOrganizaciones", TextoOrganizaciones, Organizaciones];
 
     /// <summary>
     /// Rótulo para lo que sale de una consulta que NO recorre las demás
     /// organizaciones. Nulo con una sola, donde no hay nada que distinguir.
     /// </summary>
     private string? AvisoSoloOrganizacionActiva => Organizaciones > 1
-        ? "Solo la organización activa: esta consulta no recorre las demás."
+        ? Textos["AvisoOrganizacionActivaUnica"].Value
         : null;
 
     /// <summary>
@@ -386,10 +388,10 @@ public partial class DashboardEjecutivo : ComponentBase, IDisposable
     /// La pantalla tiene un selector de periodo arriba, así que el silencio se
     /// lee como «del periodo»: solo la excepción necesita rótulo.
     /// </summary>
-    private static string? AvisoAlcanceTemporal(AlcanceTemporalKpi alcance) => alcance switch
+    private string? AvisoAlcanceTemporal(AlcanceTemporalKpi alcance) => alcance switch
     {
-        AlcanceTemporalKpi.EstadoActual => "Estado de hoy: no depende del periodo elegido.",
-        AlcanceTemporalKpi.Acumulado => "Todo lo registrado desde el principio: no depende del periodo elegido.",
+        AlcanceTemporalKpi.EstadoActual => Textos["AvisoTemporalEstadoActual"].Value,
+        AlcanceTemporalKpi.Acumulado => Textos["AvisoTemporalAcumulado"].Value,
         _ => null
     };
 
@@ -424,8 +426,8 @@ public partial class DashboardEjecutivo : ComponentBase, IDisposable
     /// si ninguno de los mostrados es foto de hoy ni acumulado.
     /// </summary>
     private string TextoFueraDelPeriodo => TilesFueraDelPeriodo.All(k => k.AlcanceTemporal == AlcanceTemporalKpi.EstadoActual)
-        ? "Foto de hoy: estas cifras no dependen del periodo elegido."
-        : "Foto de hoy y totales desde el principio: estas cifras no dependen del periodo elegido.";
+        ? Textos["FueraPeriodoSoloHoy"].Value
+        : Textos["FueraPeriodoHoyYAcumulado"].Value;
 
     // ---------------------------------------------------------------- tiles
 
@@ -438,7 +440,7 @@ public partial class DashboardEjecutivo : ComponentBase, IDisposable
         CatalogoKpis.TasaCumplimiento => $"{_valores!.TasaCumplimiento}%",
         CatalogoKpis.PorcentajeCumplimientoDocumental => _valores!.PorcentajeCumplimientoDocumental is { } p ? $"{p:F0}%" : "—",
         CatalogoKpis.IncidenciasAbiertas => _valores!.IncidenciasAbiertas.ToString(),
-        CatalogoKpis.TiempoMedioResolucionIncidencias => _valores!.TiempoMedioResolucionIncidenciasDias is { } d ? $"{d:F1} días" : "—",
+        CatalogoKpis.TiempoMedioResolucionIncidencias => _valores!.TiempoMedioResolucionIncidenciasDias is { } d ? Textos["ValorDiasMedios", d].Value : "—",
         CatalogoKpis.ConfianzaMediaIa => _valores!.ConfianzaMediaIa is { } c ? $"{c:F0}%" : "—",
         CatalogoKpis.CosteMesActualIa => $"{_valores!.CosteIaMesActual:F2} €",
         CatalogoKpis.TiempoMedioProcesamientoIa => _valores!.TiempoMedioProcesamientoIaMs is { } t ? $"{t:F0} ms" : "—",
@@ -476,17 +478,17 @@ public partial class DashboardEjecutivo : ComponentBase, IDisposable
     /// </summary>
     private string? PistaTile(string codigo) => codigo switch
     {
-        CatalogoKpis.TasaCumplimiento => "Ponderada por el volumen de documentos de cada organización",
-        CatalogoKpis.PorcentajeCumplimientoDocumental => "Ponderada por lo que se pide en cada organización",
-        CatalogoKpis.ConfianzaMediaIa => "Ponderada por las extracciones de cada organización",
-        CatalogoKpis.TiempoMedioResolucionIncidencias => "Ponderado por las incidencias resueltas de cada organización",
-        CatalogoKpis.FacturacionEstimadaMesActual => "Solo los Clientes empresariales con tarifas configuradas",
-        CatalogoKpis.FalsosAvisos => "Tono invertido: un porcentaje alto es el problema",
+        CatalogoKpis.TasaCumplimiento => Textos["PistaTasaPonderada"].Value,
+        CatalogoKpis.PorcentajeCumplimientoDocumental => Textos["PistaCumplimientoPonderado"].Value,
+        CatalogoKpis.ConfianzaMediaIa => Textos["PistaConfianzaPonderada"].Value,
+        CatalogoKpis.TiempoMedioResolucionIncidencias => Textos["PistaResolucionPonderada"].Value,
+        CatalogoKpis.FacturacionEstimadaMesActual => Textos["PistaFacturacionTarifas"].Value,
+        CatalogoKpis.FalsosAvisos => Textos["PistaTonoInvertido"].Value,
         // Vacío no distingue «todas dentro de su presupuesto» de «ninguna tiene
         // presupuesto configurado», así que sin excedidos no se afirma nada.
         CatalogoKpis.CosteMesActualIa when TenantsConPresupuestoIaExcedido.Count > 0 => TenantsConPresupuestoIaExcedido.Count == 1
-            ? "1 organización sobre su presupuesto de IA"
-            : $"{TenantsConPresupuestoIaExcedido.Count} organizaciones sobre su presupuesto de IA",
+            ? Textos["PistaPresupuestoIaUna"].Value
+            : Textos["PistaPresupuestoIaVarias", TenantsConPresupuestoIaExcedido.Count].Value,
         _ => null
     };
 
@@ -542,10 +544,10 @@ public partial class DashboardEjecutivo : ComponentBase, IDisposable
     {
         CatalogoKpis.SemaforoDocumental =>
         [
-            new("Vigente", _valores!.DocumentosVigentes, "segmento-exito"),
-            new("Próximo", _valores.DocumentosProximos, "segmento-advertencia"),
-            new("Urgente", _valores.DocumentosUrgentes, "segmento-advertencia-fuerte"),
-            new("Vencido", _valores.DocumentosVencidos, "segmento-peligro"),
+            new(Textos["SegmentoVigente"], _valores!.DocumentosVigentes, "segmento-exito"),
+            new(Textos["SegmentoProximo"], _valores.DocumentosProximos, "segmento-advertencia"),
+            new(Textos["SegmentoUrgente"], _valores.DocumentosUrgentes, "segmento-advertencia-fuerte"),
+            new(Textos["SegmentoVencido"], _valores.DocumentosVencidos, "segmento-peligro"),
         ],
         CatalogoKpis.DistribucionAntelacion => _valores!.Bpo.DistribucionAntelacion
             .Select(t => new SegmentoDonut(
@@ -555,11 +557,11 @@ public partial class DashboardEjecutivo : ComponentBase, IDisposable
     };
 
     /// <summary>Qué se está contando, para que el total del donut no sea un número desnudo.</summary>
-    private static string UnidadDonut(string codigo) => codigo switch
+    private string UnidadDonut(string codigo) => codigo switch
     {
-        CatalogoKpis.SemaforoDocumental => "documentos con vigencia",
-        CatalogoKpis.DistribucionAntelacion => "visitas con la antelación medida",
-        _ => "registros"
+        CatalogoKpis.SemaforoDocumental => Textos["UnidadDocumentosConVigencia"].Value,
+        CatalogoKpis.DistribucionAntelacion => Textos["UnidadVisitasMedidas"].Value,
+        _ => Textos["UnidadGenerica"].Value
     };
 
     /// <summary>
@@ -587,7 +589,7 @@ public partial class DashboardEjecutivo : ComponentBase, IDisposable
         return arcos;
     }
 
-    private static IReadOnlyList<LineaLeyenda> LeyendaDonut(IReadOnlyList<SegmentoDonut> segmentos, string unidad)
+    private IReadOnlyList<LineaLeyenda> LeyendaDonut(IReadOnlyList<SegmentoDonut> segmentos, string unidad)
     {
         var total = segmentos.Sum(s => s.Valor);
         return segmentos.Select(s => new LineaLeyenda(
@@ -595,8 +597,8 @@ public partial class DashboardEjecutivo : ComponentBase, IDisposable
             s.Clase,
             total == 0 ? s.Valor.ToString() : $"{s.Valor} ({Math.Round(s.Valor * 100.0 / total)}%)",
             total == 0
-                ? $"{s.Etiqueta}: {s.Valor} de 0 {unidad}."
-                : $"{s.Etiqueta}: {s.Valor} de {total} {unidad}, el {Math.Round(s.Valor * 100.0 / total)}% del total."))
+                ? Textos["LeyendaDesgloseSinTotal", s.Etiqueta, s.Valor, unidad].Value
+                : Textos["LeyendaDesgloseConTotal", s.Etiqueta, s.Valor, total, unidad, Math.Round(s.Valor * 100.0 / total)].Value))
             .ToList();
     }
 
@@ -632,7 +634,7 @@ public partial class DashboardEjecutivo : ComponentBase, IDisposable
         CatalogoKpis.OcupacionGestores => _valores!.Bpo.OcupacionPorGestor
             .Select(o => o.PorcentajeOcupacion is { } p
                 ? new BarraKpi(o.Nombre, $"{Math.Clamp(p, 0, 100)}%", Math.Clamp(p, 0, 100), ClaseTono(TonoOcupacion(p)))
-                : new BarraKpi(o.Nombre, "—", 0, "segmento-neutro", "Sin jornada mensual configurada"))
+                : new BarraKpi(o.Nombre, "—", 0, "segmento-neutro", Textos["BarraSinJornada"]))
             .ToList(),
         _ => []
     };
@@ -661,11 +663,11 @@ public partial class DashboardEjecutivo : ComponentBase, IDisposable
     /// el enum no puede llegar a pantalla («MuyGrave»). Unificarlo es un
     /// incremento con sus dos consumidores, no un efecto colateral de este.
     /// </summary>
-    private static string EtiquetaGravedad(GravedadIncidencia gravedad) => gravedad switch
+    private string EtiquetaGravedad(GravedadIncidencia gravedad) => gravedad switch
     {
-        GravedadIncidencia.Leve => "Leve",
-        GravedadIncidencia.Grave => "Grave",
-        GravedadIncidencia.MuyGrave => "Muy grave",
+        GravedadIncidencia.Leve => Textos["GravedadLeve"].Value,
+        GravedadIncidencia.Grave => Textos["GravedadGrave"].Value,
+        GravedadIncidencia.MuyGrave => Textos["GravedadMuyGrave"].Value,
         _ => gravedad.ToString()
     };
 
@@ -709,8 +711,8 @@ public partial class DashboardEjecutivo : ComponentBase, IDisposable
                 Horas(f.SegundosActivos),
                 totalMostrado == 0 ? "—" : $"{Math.Round(f.SegundosActivos * 100.0 / totalMostrado)}%",
                 totalMostrado == 0
-                    ? $"{f.ClienteNombre}: {Horas(f.SegundosActivos)} de gestión medidas."
-                    : $"{f.ClienteNombre}: {Horas(f.SegundosActivos)} de las {Horas(totalMostrado)} medidas en los {filas.Count} Clientes empresariales con más tiempo; no incluye el resto de la cartera."))
+                    ? Textos["DesgloseHorasSinTotal", f.ClienteNombre, Horas(f.SegundosActivos)].Value
+                    : Textos["DesgloseHorasConTotal", f.ClienteNombre, Horas(f.SegundosActivos), Horas(totalMostrado), filas.Count].Value))
                 .ToList();
         }
     }
@@ -723,16 +725,16 @@ public partial class DashboardEjecutivo : ComponentBase, IDisposable
     /// Vacíos distinguidos: cada uno dice exactamente la condición que deja la
     /// serie vacía, sin culpar a una configuración que puede estar bien.
     /// </summary>
-    private static string VacioDonut(string codigo) => codigo switch
+    private string VacioDonut(string codigo) => codigo switch
     {
-        CatalogoKpis.DistribucionAntelacion => "Todavía no hay visitas con la antelación medida.",
-        _ => "Todavía no hay documentos con fecha de vencimiento que repartir."
+        CatalogoKpis.DistribucionAntelacion => Textos["VacioDonutAntelacion"].Value,
+        _ => Textos["VacioDonutVigencia"].Value
     };
 
-    private static string VacioBarras(string codigo) => codigo switch
+    private string VacioBarras(string codigo) => codigo switch
     {
-        CatalogoKpis.IncidenciasPorGravedad => "No hay incidencias registradas.",
-        CatalogoKpis.AtribucionUrgencia => "Todavía no hay visitas con la antelación medida.",
+        CatalogoKpis.IncidenciasPorGravedad => Textos["VacioBarrasIncidencias"].Value,
+        CatalogoKpis.AtribucionUrgencia => Textos["VacioDonutAntelacion"].Value,
         // "Obligatoria" implicaba una norma legal; es configuración
         // (ResolucionTipoDocumentoCentro.Aplica, mismo criterio que Alertas.razor):
         // la fila del centro o, si no dice nada, el valor general del tipo.
@@ -740,8 +742,8 @@ public partial class DashboardEjecutivo : ComponentBase, IDisposable
         // tiene trabajadores asignados (CalculoEstadoCentroService cuenta cero
         // requeridos): el texto dice exactamente la condición, sin culpar a la
         // configuración de un centro que puede tenerla bien.
-        CatalogoKpis.CentrosConMenorCumplimiento => "Todavía no hay documentación de trabajador que evaluar: ningún centro con trabajadores asignados la pide.",
-        _ => "No hay tiempo de gestión registrado este mes. La medición de tiempo se activa en Configuración."
+        CatalogoKpis.CentrosConMenorCumplimiento => Textos["VacioBarrasCentros"].Value,
+        _ => Textos["VacioTiempoGestion"].Value
     };
 
     // ---------------------------------------------------------------- pulso
@@ -753,19 +755,19 @@ public partial class DashboardEjecutivo : ComponentBase, IDisposable
     /// </summary>
     private string PulsoVerificaciones => TotalAprobaciones switch
     {
-        0 => "Todavía no hay verificaciones de IA resueltas en la organización activa.",
-        1 => "1 verificación de IA resuelta en total en la organización activa.",
-        _ => $"{TotalAprobaciones} verificaciones de IA resueltas en total en la organización activa."
+        0 => Textos["PulsoVerificacionesNinguna"].Value,
+        1 => Textos["PulsoVerificacionesUna"].Value,
+        _ => Textos["PulsoVerificacionesVarias", TotalAprobaciones].Value
     };
 
     private string DetallePulsoVerificaciones => TotalAprobaciones == 0
-        ? "Ningún Documento verificado por IA en la organización activa. La consulta no recibe periodo: cuenta desde el principio."
-        : $"{TotalAprobaciones} decisiones de verificación resueltas: {_estadisticasAprobacion!.Automaticas} automáticas y {_estadisticasAprobacion.Manuales} manuales. Solo la organización activa, y desde el principio: la consulta no recibe periodo.";
+        ? Textos["DetallePulsoSinDecisiones"].Value
+        : Textos["DetallePulsoConDecisiones", TotalAprobaciones, _estadisticasAprobacion!.Automaticas, _estadisticasAprobacion.Manuales].Value;
 
     private string DetalleCosteIa => TenantsConPresupuestoIaExcedido.Count == 0
-        ? $"{_valores!.CosteIaMesActual:F2} € de coste estimado de IA documental (OCR más extracción) en el periodo consultado, sumando las {Organizaciones} del alcance."
-        : $"{_valores!.CosteIaMesActual:F2} € de coste estimado de IA documental (OCR más extracción) en el periodo consultado, sumando las {Organizaciones} del alcance; {TenantsConPresupuestoIaExcedido.Count} por encima de su presupuesto.";
+        ? Textos["DetalleCosteIaDentro", _valores!.CosteIaMesActual, Organizaciones].Value
+        : Textos["DetalleCosteIaExcedido", _valores!.CosteIaMesActual, Organizaciones, TenantsConPresupuestoIaExcedido.Count].Value;
 
     private string DetalleFacturacion =>
-        $"{_valores!.FacturacionEstimadaMesActual:F2} € de facturación estimada del periodo consultado, sumando solo los Clientes empresariales con tarifas configuradas de las {Organizaciones} del alcance.";
+        Textos["DetalleFacturacionPeriodo", _valores!.FacturacionEstimadaMesActual, Organizaciones];
 }
