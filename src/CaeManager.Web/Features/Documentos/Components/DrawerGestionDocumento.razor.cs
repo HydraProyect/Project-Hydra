@@ -13,6 +13,7 @@ using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculosParaSelector;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Documentos;
+using CaeManager.Web.Features.Documentos.Recursos;
 using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Components;
@@ -84,9 +85,6 @@ public partial class DrawerGestionDocumento : ComponentBase
     private string _comentarios = string.Empty;
     private bool _guardando;
     private string? _mensajeErrorFormulario;
-
-    private const string MensajeTrabajadorPreseleccionadoNoEncontrado =
-        "No encontramos este trabajador entre los que puedes gestionar. Elige a quién pertenece el documento.";
     private Dictionary<string, string> _erroresCampo = new();
 
     private bool _confirmarVigenciaAnteriorVisible;
@@ -176,7 +174,7 @@ public partial class DrawerGestionDocumento : ComponentBase
             // Fuera del catálogo con alcance (la cartera del Gestor CAE, o un Id que no existe):
             // no se preselecciona, y se dice en vez de dejar el selector vacío sin explicación.
             // Mismo texto para los dos casos, igual que el comando: no revela si existe fuera.
-            _mensajeErrorFormulario = MensajeTrabajadorPreseleccionadoNoEncontrado;
+            _mensajeErrorFormulario = TextosDrawerGestionDocumento.Texto("TrabajadorPreseleccionadoNoEncontrado");
         CambiarTipoDocumento(tipoDocumentoId.ToString());
         StateHasChanged();
     }
