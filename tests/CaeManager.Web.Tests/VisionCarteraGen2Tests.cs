@@ -45,7 +45,12 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class VisionCarteraGen2Tests : BunitContext
 {
-    public VisionCarteraGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public VisionCarteraGen2Tests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        // Los textos de la Visión de cartera salen de IStringLocalizer<TextosVisionCartera>.
+        Services.AddLocalization();
+    }
 
     private static readonly Guid TenantPropio = Guid.Parse("0a0a0a0a-0000-0000-0000-000000000001");
     private static readonly Guid TenantA = Guid.Parse("a1a1a1a1-0000-0000-0000-000000000001");
