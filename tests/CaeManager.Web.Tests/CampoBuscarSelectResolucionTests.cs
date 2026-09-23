@@ -1,4 +1,5 @@
 using Bunit;
+using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Web.Components.DesignSystem;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components;
@@ -39,6 +40,33 @@ public class CampoBuscarSelectResolucionTests : BunitContext
         await cut.Find("input").InputAsync(new ChangeEventArgs { Value = "Ana Ruiz" });
 
         cut.WaitForAssertion(() => _valores.Should().Equal(string.Empty));
+    }
+
+    /// <summary>
+    /// Caso adversario de la revisión Codex (ronda 1): con las etiquetas de
+    /// <see cref="EtiquetasSelectorTrabajador"/>, escribir cada una resuelve a su Trabajador, aunque
+    /// un nombre literal imite la etiqueta con Id de otro.
+    /// </summary>
+    [Fact]
+    public async Task Cada_etiqueta_de_Trabajador_resuelve_a_su_Id_aunque_un_nombre_imite_la_de_otro()
+    {
+        var idA = Guid.Parse("00000000-0000-0000-0000-00000000000a");
+        var trabajadores = new[]
+        {
+            new TrabajadorSelectorDto(idA, "Ana Ruiz", null, null),
+            new TrabajadorSelectorDto(Guid.Parse("00000000-0000-0000-0000-00000000000b"), "Ana Ruiz", null, null),
+            new TrabajadorSelectorDto(Guid.Parse("00000000-0000-0000-0000-00000000000c"), "Ana Ruiz [1]", null, null),
+            new TrabajadorSelectorDto(Guid.Parse("00000000-0000-0000-0000-00000000000d"), $"Ana Ruiz [1] [{idA:N}]", null, null),
+        };
+        var etiquetas = EtiquetasSelectorTrabajador.Construir(trabajadores);
+        var cut = Renderizar(etiquetas.Select(e => new OpcionBuscable(e.Id.ToString(), e.Texto)).ToArray());
+
+        foreach (var etiqueta in etiquetas)
+        {
+            _valores.Clear();
+            await cut.Find("input").InputAsync(new ChangeEventArgs { Value = etiqueta.Texto });
+            cut.WaitForAssertion(() => _valores.Should().Equal(etiqueta.Id.ToString()));
+        }
     }
 
     [Fact]

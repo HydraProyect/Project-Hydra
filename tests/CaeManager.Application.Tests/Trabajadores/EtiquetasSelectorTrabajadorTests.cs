@@ -88,4 +88,29 @@ public class EtiquetasSelectorTrabajadorTests
         etiquetas.Select(e => e.Texto).Should().OnlyHaveUniqueItems();
         etiquetas.Select(e => e.Id).Should().Equal([IdA, IdB, IdC], "se conserva el orden de la lista");
     }
+
+    /// <summary>
+    /// Caso adversario (revisión Codex, ronda 1): un nombre literal igual a la etiqueta que el
+    /// último recurso genera para otro Trabajador, con su Id incluido. Cada etiqueta tiene que
+    /// resolver exactamente a un Trabajador.
+    /// </summary>
+    [Fact]
+    public void Un_nombre_literal_igual_a_la_etiqueta_con_Id_de_otro_no_deja_duplicados()
+    {
+        var idD = Guid.Parse("00000000-0000-0000-0000-00000000000d");
+        var trabajadores = new[]
+        {
+            new TrabajadorSelectorDto(IdA, "Ana Ruiz", null, null),
+            new TrabajadorSelectorDto(IdB, "Ana Ruiz", null, null),
+            new TrabajadorSelectorDto(IdC, "Ana Ruiz [1]", null, null),
+            new TrabajadorSelectorDto(idD, $"Ana Ruiz [1] [{IdA:N}]", null, null),
+        };
+
+        var etiquetas = EtiquetasSelectorTrabajador.Construir(trabajadores);
+
+        etiquetas.Select(e => e.Texto).Should().OnlyHaveUniqueItems();
+        foreach (var etiqueta in etiquetas)
+            etiquetas.Where(e => e.Texto == etiqueta.Texto).Select(e => e.Id).Should().Equal([etiqueta.Id],
+                $"«{etiqueta.Texto}» tiene que resolver solo a su Trabajador");
+    }
 }

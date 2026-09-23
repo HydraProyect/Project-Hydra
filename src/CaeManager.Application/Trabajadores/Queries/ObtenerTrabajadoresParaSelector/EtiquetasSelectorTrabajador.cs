@@ -57,16 +57,30 @@ public static class EtiquetasSelectorTrabajador
                 textos[t.Id] = $"{repetidos.Key} [{++n}]";
         }
 
-        // Un sufijo podría, en teoría, coincidir con el nombre literal de otro Trabajador: entonces
-        // se desempata con el Id, que es único por construcción.
-        foreach (var repetidos in lista.GroupBy(t => textos[t.Id], StringComparer.Ordinal).Where(g => g.Count() > 1).ToList())
+        // Un sufijo podría coincidir con el nombre literal de otro Trabajador (p. ej. uno llamado
+        // «Ana [1]»): los miembros de cada grupo que aún colisione reciben su Id.
+        foreach (var repetidos in Repetidos(lista, textos))
         {
             foreach (var t in repetidos)
                 textos[t.Id] = $"{repetidos.Key} [{t.Id:N}]";
         }
 
+        // Y la etiqueta con Id también podría coincidir con un nombre literal («Ana [1] [<Id>]»).
+        // Si queda alguna colisión, TODAS las etiquetas reciben su Id: el sufijo « [<32 hex>]» tiene
+        // longitud fija y el Id es único, así que dos etiquetas no pueden coincidir. Termina en un
+        // paso, sin bucle.
+        if (Repetidos(lista, textos).Count > 0)
+        {
+            foreach (var t in lista)
+                textos[t.Id] = $"{textos[t.Id]} [{t.Id:N}]";
+        }
+
         return lista.Select(t => new EtiquetaTrabajador(t.Id, textos[t.Id])).ToList();
     }
+
+    private static List<IGrouping<string, TrabajadorSelectorDto>> Repetidos(
+        List<TrabajadorSelectorDto> lista, Dictionary<Guid, string> textos) =>
+        lista.GroupBy(t => textos[t.Id], StringComparer.Ordinal).Where(g => g.Count() > 1).ToList();
 
     private static string Base(TrabajadorSelectorDto t, bool aliasSiempre) =>
         aliasSiempre ? ConAlias(t) : t.NombreCompleto;
