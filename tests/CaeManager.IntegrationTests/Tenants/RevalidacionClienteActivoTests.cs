@@ -502,7 +502,9 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
             return Task.FromResult<Guid?>(usuarioId);
         }
 
-        public Task<string?> ObtenerRolActualAsync() => Task.FromResult<string?>("GestorCae");
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>("GestorCae");
+
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
 
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(null);
 

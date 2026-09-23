@@ -118,7 +118,7 @@ public class RolEfectivoEnDelegacionTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var servicio = CrearServicio(contexto, tenantSeleccionado: _clienteDelegante, usuarioId: usuario);
 
-        (await servicio.ObtenerRolActualAsync()).Should().BeNull();
+        (await servicio.ObtenerRolEfectivoAsync()).Should().BeNull();
     }
 
     /// <summary>
@@ -160,7 +160,7 @@ public class RolEfectivoEnDelegacionTests : IAsyncLifetime
         await using var contexto = CrearContexto(propietario);
         var servicio = CrearServicio(contexto, tenantSeleccionado: propietario, usuarioId: usuario, asignacionOperacionId: operacionId);
 
-        (await servicio.ObtenerRolActualAsync()).Should().Be(esperado);
+        (await servicio.ObtenerRolEfectivoAsync()).Should().Be(esperado);
     }
 
     private CurrentUserService CrearServicio(
