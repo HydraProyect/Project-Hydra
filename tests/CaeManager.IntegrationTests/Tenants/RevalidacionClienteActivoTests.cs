@@ -353,6 +353,162 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
         siguienteFueLlamado.Should().BeTrue();
     }
 
+    /// <summary>
+    /// REC-189bis, medido en el E2E local (log de WebAppFixture, 2026-09-22): un
+    /// cliente que se va a mitad de la revalidación (navega, cierra la pestaña, el
+    /// circuito de Blazor se desconecta) hacía que la <c>OperationCanceledException</c>
+    /// de <see cref="ITenantsQueryContext"/>/<see cref="IOperacionesQueryContext"/>
+    /// subiera cruda y se registrara como un 500 real: exactamente lo que
+    /// <c>Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddleware</c> ya evita en
+    /// producción (responde 499, no invoca el manejador de errores), pero solo cuando
+    /// <c>UseExceptionHandler</c> está registrado —es decir, nunca en Development,
+    /// que es donde corre este mismo fixture.
+    /// </summary>
+    [Fact]
+    public async Task Peticion_abortada_durante_la_revalidacion_se_registra_como_abortada_no_como_error()
+    {
+        await using var contexto = CrearContexto();
+        var (httpContext, seleccion) = PrepararPeticionConTokenValido();
+
+        // Simula el cliente que ya se fue: el único CancellationToken que llega a
+        // las consultas de la revalidación es contexto.RequestAborted (ver
+        // SigueAutorizadoAsync), así que cancelarlo de antemano es determinista —no
+        // hace falta una carrera real contra el tiempo. Hueco declarado (revisión
+        // puente, 2026-09-23): esto prueba el tipo de excepción y el guard, no la
+        // cancelación real de Npgsql a mitad de una consulta en vuelo —un token ya
+        // cancelado hace que AnyAsync falle antes de abrir el socket, un camino de
+        // código distinto del medido en el E2E real. Ese camino ya está cubierto
+        // por la investigación de decompilación citada arriba, no por este test.
+        httpContext.RequestAborted = new CancellationToken(canceled: true);
+
+        var logger = new LoggerCapturador<RevalidacionClienteActivoMiddleware>();
+        var siguienteFueLlamado = false;
+        var middleware = new RevalidacionClienteActivoMiddleware(_ =>
+        {
+            siguienteFueLlamado = true;
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(
+            httpContext, seleccion, new CurrentUserServiceParaMiddlewareFalso(_usuario),
+            contexto, (IOperacionesQueryContext)contexto, SinSesionPrivilegiada, logger);
+
+        // No es un fallo de autorización: el token seguía siendo válido, solo que el
+        // cliente no estaba para recibir la respuesta. No se borra la cookie ni se
+        // invalida la selección por algo que el cliente no decidió.
+        seleccion.TenantIdSeleccionado.Should().Be(_clienteDelegante);
+        CabeceraDeBorradoDeCookie(httpContext).Should().BeNull();
+        siguienteFueLlamado.Should().BeFalse("no hay nadie al otro lado a quien seguir sirviendo");
+        httpContext.Response.StatusCode.Should().Be(StatusCodes.Status499ClientClosedRequest);
+
+        logger.Entradas.Should().ContainSingle();
+        logger.Entradas[0].Nivel.Should().Be(LogLevel.Information,
+            "una petición abortada por el cliente no es un error del servidor, pero debe quedar registrada, no en silencio");
+    }
+
+    /// <summary>
+    /// Cierra el hueco declarado del guard: una OperationCanceledException que NO
+    /// viene de contexto.RequestAborted (p. ej. un timeout de comando, o cualquier
+    /// otra cancelación ajena al cliente) debe seguir subiendo como el error que
+    /// es, no tratarse como aborto de cliente. httpContext.RequestAborted se deja
+    /// SIN cancelar a propósito: así el "when" del guard es falso y el catch no
+    /// debe atrapar nada (revisión puente, 2026-09-23).
+    /// </summary>
+    [Fact]
+    public async Task Cancelacion_ajena_al_cliente_durante_la_revalidacion_sigue_propagando_como_error()
+    {
+        await using var contexto = CrearContexto();
+
+        var token = ClienteActivoSeleccionado.Proteger(
+            _protector, _usuario, _clienteDelegante, asignacionOperacionId: null, sesionPrivilegiadaId: Guid.NewGuid());
+        var httpContext = new DefaultHttpContext { User = UsuarioAutenticado(_usuario) };
+        httpContext.Request.Headers.Cookie = $"{ClienteActivoSeleccionado.NombreCookie}={token}";
+        var seleccion = new ClienteActivoSeleccionado(new HttpContextAccessorFalso(httpContext), _protector);
+
+        var middleware = new RevalidacionClienteActivoMiddleware(_ => Task.CompletedTask);
+
+        var accion = () => middleware.InvokeAsync(
+            httpContext, seleccion, new CurrentUserServiceParaMiddlewareFalso(_usuario),
+            contexto, (IOperacionesQueryContext)contexto, new SesionPrivilegiadaActualQueLanzaCancelacionAjena(),
+            NullLogger<RevalidacionClienteActivoMiddleware>.Instance);
+
+        await accion.Should().ThrowAsync<OperationCanceledException>(
+            "una cancelación que no es RequestAborted no es un aborto de cliente");
+    }
+
+    /// <summary>
+    /// El segundo catch del middleware —el de <c>EsVentanaDeSoporteAsync</c>— no
+    /// lo alcanzaba ningún test: el de arriba cancela el token de antemano, así
+    /// que la excepción salta ya en <c>SigueAutorizadoAsync</c>. Aquí la
+    /// revalidación termina y dice que no (delegación revocada), y el cliente se
+    /// va justo después, en la consulta que solo elige el texto del aviso. La
+    /// decisión de autorización ya está tomada: la selección tiene que quedar
+    /// invalidada y la cookie borrada en esta misma petición, no en la
+    /// siguiente (revisión puente de la PR #822, 2026-09-23).
+    /// </summary>
+    [Fact]
+    public async Task Peticion_abortada_tras_denegar_la_revalidacion_invalida_igualmente_la_seleccion()
+    {
+        await RevocarDelegacionAsync();
+
+        await using var contexto = CrearContexto();
+        var (httpContext, seleccion) = PrepararPeticionConTokenValido();
+
+        // Vía heredada: la primera lectura del usuario es la de SigueAutorizadoAsync
+        // y la segunda la de EsVentanaDeSoporteAsync, justo antes de su consulta. Se
+        // cancela ahí, y no de antemano, para que la primera consulta llegue a
+        // responder que la delegación ya no autoriza.
+        using var abortoDelCliente = new CancellationTokenSource();
+        httpContext.RequestAborted = abortoDelCliente.Token;
+        var currentUserService = new CurrentUserServiceQueCancelaEnLaLectura(_usuario, abortoDelCliente, lecturaQueCancela: 2);
+
+        var logger = new LoggerCapturador<RevalidacionClienteActivoMiddleware>();
+        var siguienteFueLlamado = false;
+        var middleware = new RevalidacionClienteActivoMiddleware(_ =>
+        {
+            siguienteFueLlamado = true;
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(
+            httpContext, seleccion, currentUserService,
+            contexto, (IOperacionesQueryContext)contexto, SinSesionPrivilegiada, logger);
+
+        currentUserService.Lecturas.Should().Be(2, "la cancelación tiene que llegar en EsVentanaDeSoporteAsync, no antes");
+        seleccion.TenantIdSeleccionado.Should().BeNull("la revalidación ya había denegado la selección");
+        CabeceraDeBorradoDeCookie(httpContext).Should().NotBeNull();
+        siguienteFueLlamado.Should().BeFalse("no hay nadie al otro lado a quien seguir sirviendo");
+        httpContext.Response.StatusCode.Should().Be(StatusCodes.Status499ClientClosedRequest);
+        httpContext.Items.Should().NotContainKey(AvisoFinDeAcceso.ClaveItems);
+
+        logger.Entradas.Select(e => e.Nivel).Should().Equal(LogLevel.Warning, LogLevel.Information);
+        logger.Entradas[1].Mensaje.Should().Contain("abortada");
+    }
+
+    /// <summary>
+    /// Cancela el token de la petición en la lectura del usuario que se le pida,
+    /// para simular un cliente que se va en un punto concreto del middleware.
+    /// </summary>
+    private sealed class CurrentUserServiceQueCancelaEnLaLectura(
+        Guid usuarioId, CancellationTokenSource abortoDelCliente, int lecturaQueCancela) : ICurrentUserService
+    {
+        public int Lecturas { get; private set; }
+
+        public Task<Guid?> ObtenerUsuarioActualIdAsync()
+        {
+            if (++Lecturas == lecturaQueCancela)
+                abortoDelCliente.Cancel();
+
+            return Task.FromResult<Guid?>(usuarioId);
+        }
+
+        public Task<string?> ObtenerRolActualAsync() => Task.FromResult<string?>("GestorCae");
+
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(null);
+
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
+    }
+
     // Estos tests son de plano 2 y de la vía heredada: ninguno abre una sesión
     // privilegiada, así que el resolutor de plano 3 devuelve null sin consultar.
     private static readonly ISesionPrivilegiadaActual SinSesionPrivilegiada = new SesionPrivilegiadaActualFalsa();
@@ -361,6 +517,20 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
     {
         public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<SesionPrivilegiadaActiva?>(null);
+
+        public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<SesionPrivilegiadaActiva?>(null);
+    }
+
+    /// <summary>
+    /// El doble de arriba nunca abre sesión; este simula una cancelación que no
+    /// tiene nada que ver con el cliente que se fue —el mismo sabor de excepción,
+    /// una fuente distinta— para probar que el guard no la confunde con la otra.
+    /// </summary>
+    private sealed class SesionPrivilegiadaActualQueLanzaCancelacionAjena : ISesionPrivilegiadaActual
+    {
+        public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default) =>
+            throw new OperationCanceledException("cancelación ajena al cliente, p. ej. un timeout de comando");
 
         public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<SesionPrivilegiadaActiva?>(null);
