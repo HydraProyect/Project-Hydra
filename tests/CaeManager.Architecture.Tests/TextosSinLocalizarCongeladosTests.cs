@@ -104,7 +104,14 @@ public class TextosSinLocalizarCongeladosTests
         ["Plataforma"] = 74,
         ["Retencion"] = 85,
         ["Subcontratas"] = 225,
-        ["TiposDocumento"] = 149,
+        // 149 → 6 el 2026-09-23 al migrar la Feature a TextosTiposDocumento.resx. Quedan:
+        // «ITA», «RNT» y «RLC», las siglas oficiales de las opciones de PerfilDocumentoOficial
+        // (nombre propio del documento de la Administración, igual en cualquier idioma: no se
+        // localizan), y 3 falsos positivos del detector de markup, que toma por texto lo que hay
+        // entre el «>» de <CampoSelect …> y el «<» del genérico de
+        // «ValorChanged="v => _ambito = Enum.Parse<AmbitoAplicacion>(v)"» (y los de _requerido
+        // y _naturaleza). No se reescriben las lambdas para esquivar la heurística.
+        ["TiposDocumento"] = 6,
         ["Trabajadores"] = 193,
         ["Usuarios"] = 157,
         // 112 → 10 el 2026-09-23: Visitas.razor(.cs) migrados a TextosVisitas.resx. Los 10

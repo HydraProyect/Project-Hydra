@@ -1,0 +1,432 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="TituloPestana" xml:space="preserve">
+    <value>Tipos de Documento</value>
+  </data>
+  <data name="TituloCabecera" xml:space="preserve">
+    <value>Tipos de documento</value>
+  </data>
+  <data name="BadgeNivelGlobal" xml:space="preserve">
+    <value>Nivel 1 · Global</value>
+  </data>
+  <data name="DescripcionAntesEnlace" xml:space="preserve">
+    <value>Catálogo maestro: qué documentos existen, a qué ámbito aplican, si se piden por defecto y cómo los procesa la lectura IA. La lectura IA de cada cliente (Nivel 2) se afina en</value>
+  </data>
+  <data name="EnlaceLecturaIaCliente" xml:space="preserve">
+    <value>Lectura IA por cliente</value>
+  </data>
+  <data name="DescripcionTrasEnlace" xml:space="preserve">
+    <value>.</value>
+  </data>
+  <data name="BotonNuevoTipo" xml:space="preserve">
+    <value>+ Nuevo tipo</value>
+  </data>
+  <data name="PlaceholderBusqueda" xml:space="preserve">
+    <value>Buscar por nombre o alias (p. ej. TC2)…</value>
+  </data>
+  <data name="AriaBusqueda" xml:space="preserve">
+    <value>Buscar por nombre o alias</value>
+  </data>
+  <data name="FiltroCliente" xml:space="preserve">
+    <value>Cliente</value>
+  </data>
+  <data name="OpcionTodosClientes" xml:space="preserve">
+    <value>Todos los clientes</value>
+  </data>
+  <data name="FiltroEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="OpcionTodasEmpresas" xml:space="preserve">
+    <value>Todas las empresas</value>
+  </data>
+  <data name="FiltroCentro" xml:space="preserve">
+    <value>Centro</value>
+  </data>
+  <data name="OpcionTodosCentros" xml:space="preserve">
+    <value>Todos los centros</value>
+  </data>
+  <data name="ErrorCargaTitulo" xml:space="preserve">
+    <value>No pudimos cargar los tipos de documento</value>
+  </data>
+  <data name="ErrorCargaDescripcion" xml:space="preserve">
+    <value>Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="VacioFiltrosTitulo" xml:space="preserve">
+    <value>Ningún tipo con estos filtros</value>
+  </data>
+  <data name="VacioFiltrosDescripcion" xml:space="preserve">
+    <value>Ninguno coincide con la búsqueda por nombre o alias ni con el ámbito de cliente, empresa o centro seleccionado.</value>
+  </data>
+  <data name="BotonQuitarFiltros" xml:space="preserve">
+    <value>Quitar los filtros</value>
+  </data>
+  <data name="VacioCatalogoTitulo" xml:space="preserve">
+    <value>Aún no hay tipos de documento</value>
+  </data>
+  <data name="VacioCatalogoDescripcion" xml:space="preserve">
+    <value>Crea el primero para empezar a construir el catálogo.</value>
+  </data>
+  <data name="ColumnaOrden" xml:space="preserve">
+    <value>Orden</value>
+  </data>
+  <data name="ColumnaNombre" xml:space="preserve">
+    <value>Nombre</value>
+  </data>
+  <data name="ColumnaAmbito" xml:space="preserve">
+    <value>Ámbito</value>
+  </data>
+  <data name="ColumnaVigencia" xml:space="preserve">
+    <value>Vigencia</value>
+  </data>
+  <data name="ColumnaVencimiento" xml:space="preserve">
+    <value>Vencimiento automático</value>
+  </data>
+  <data name="ColumnaExigencia" xml:space="preserve">
+    <value>Exigencia</value>
+  </data>
+  <data name="ColumnaLecturaIa" xml:space="preserve">
+    <value>Lectura IA</value>
+  </data>
+  <data name="ColumnaDeteccion" xml:space="preserve">
+    <value>Detecta trabajadores</value>
+  </data>
+  <data name="ColumnaVerificacion" xml:space="preserve">
+    <value>Verificación IA</value>
+  </data>
+  <data name="ColumnaOficial" xml:space="preserve">
+    <value>Documento oficial</value>
+  </data>
+  <data name="ColumnaAcciones" xml:space="preserve">
+    <value>Acciones</value>
+  </data>
+  <data name="BadgeAfirmativo" xml:space="preserve">
+    <value>Sí</value>
+  </data>
+  <data name="BadgeNegativo" xml:space="preserve">
+    <value>No</value>
+  </data>
+  <data name="NombreInterruptorLecturaIa" xml:space="preserve">
+    <value>Lectura IA</value>
+  </data>
+  <data name="NombreInterruptorDeteccion" xml:space="preserve">
+    <value>Detecta trabajadores</value>
+  </data>
+  <data name="NombreInterruptorVerificacion" xml:space="preserve">
+    <value>Verificación IA</value>
+  </data>
+  <data name="CeldaNoAplica" xml:space="preserve">
+    <value>No aplica</value>
+  </data>
+  <data name="TooltipSelectOficial" xml:space="preserve">
+    <value>Documento oficial de la Administración con validación automática: verificación criptográfica de la firma digital y cotejo de datos, sin IA</value>
+  </data>
+  <data name="AriaSelectOficial" xml:space="preserve">
+    <value>Documento oficial de {0}</value>
+  </data>
+  <data name="OpcionOficialTgss" xml:space="preserve">
+    <value>Corriente TGSS</value>
+  </data>
+  <data name="OpcionOficialAeat" xml:space="preserve">
+    <value>Corriente AEAT</value>
+  </data>
+  <data name="AriaEditar" xml:space="preserve">
+    <value>Editar {0}</value>
+  </data>
+  <data name="BotonEditar" xml:space="preserve">
+    <value>Editar</value>
+  </data>
+  <data name="EtiquetaPaginador" xml:space="preserve">
+    <value>tipo(s) de documento</value>
+  </data>
+  <data name="DrawerTituloNuevo" xml:space="preserve">
+    <value>Nuevo tipo de documento</value>
+  </data>
+  <data name="DrawerTituloEditar" xml:space="preserve">
+    <value>Editar tipo de documento</value>
+  </data>
+  <data name="NivelDrawer" xml:space="preserve">
+    <value>Nivel 1 · valor general para todos los centros</value>
+  </data>
+  <data name="EtiquetaNombre" xml:space="preserve">
+    <value>Nombre</value>
+  </data>
+  <data name="EtiquetaAlias" xml:space="preserve">
+    <value>Nombres alternativos</value>
+  </data>
+  <data name="PistaAlias" xml:space="preserve">
+    <value>(siglas, alias históricos — p. ej. "TC2")</value>
+  </data>
+  <data name="AriaAliasNuevo" xml:space="preserve">
+    <value>Alias nuevo</value>
+  </data>
+  <data name="PlaceholderAlias" xml:space="preserve">
+    <value>Escribe un alias y pulsa Añadir</value>
+  </data>
+  <data name="BotonAnadirAlias" xml:space="preserve">
+    <value>Añadir</value>
+  </data>
+  <data name="AriaQuitarAlias" xml:space="preserve">
+    <value>Quitar alias {0}</value>
+  </data>
+  <data name="EtiquetaAmbitoAplicacion" xml:space="preserve">
+    <value>Ámbito de aplicación</value>
+  </data>
+  <data name="AmbitoTrabajador" xml:space="preserve">
+    <value>Trabajador</value>
+  </data>
+  <data name="AmbitoCliente" xml:space="preserve">
+    <value>Cliente</value>
+  </data>
+  <data name="AmbitoEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="AmbitoVehiculo" xml:space="preserve">
+    <value>Vehículo</value>
+  </data>
+  <data name="AmbitoProyecto" xml:space="preserve">
+    <value>Proyecto</value>
+  </data>
+  <data name="PistaAmbitoFijo" xml:space="preserve">
+    <value>El ámbito define qué columnas y automatismos aplican; no se cambia una vez creado el tipo.</value>
+  </data>
+  <data name="CheckVencimientoAutomatico" xml:space="preserve">
+    <value>Aplica vencimiento automático</value>
+  </data>
+  <data name="EtiquetaVigenciaMeses" xml:space="preserve">
+    <value>Vigencia (meses)</value>
+  </data>
+  <data name="LeyendaExigencia" xml:space="preserve">
+    <value>Exigencia</value>
+  </data>
+  <data name="EtiquetaSePide" xml:space="preserve">
+    <value>¿Se pide?</value>
+  </data>
+  <data name="RequeridoNo" xml:space="preserve">
+    <value>No se pide</value>
+  </data>
+  <data name="RequeridoSi" xml:space="preserve">
+    <value>Sí, siempre</value>
+  </data>
+  <data name="OpcionRequeridoCondicional" xml:space="preserve">
+    <value>Solo si aplica (actividad, sector o situación)</value>
+  </data>
+  <data name="RequeridoCondicional" xml:space="preserve">
+    <value>Solo si aplica</value>
+  </data>
+  <data name="RequisitoDesconocido" xml:space="preserve">
+    <value>Requisito desconocido</value>
+  </data>
+  <data name="EtiquetaAutoridad" xml:space="preserve">
+    <value>¿Con qué autoridad?</value>
+  </data>
+  <data name="NaturalezaObligacionLegal" xml:space="preserve">
+    <value>Obligación legal</value>
+  </data>
+  <data name="NaturalezaObligacionCondicionada" xml:space="preserve">
+    <value>Obligación condicionada</value>
+  </data>
+  <data name="NaturalezaPracticaSector" xml:space="preserve">
+    <value>Práctica del sector</value>
+  </data>
+  <data name="NaturalezaRequisitoCliente" xml:space="preserve">
+    <value>Requisito de cliente</value>
+  </data>
+  <data name="OpcionNaturalezaRecomendacion" xml:space="preserve">
+    <value>Recomendación de TALVEG</value>
+  </data>
+  <data name="NaturalezaRecomendacion" xml:space="preserve">
+    <value>Recomendado por TALVEG</value>
+  </data>
+  <data name="NaturalezaDesconocida" xml:space="preserve">
+    <value>Naturaleza desconocida</value>
+  </data>
+  <data name="ExigenciaCondicional" xml:space="preserve">
+    <value>Si aplica</value>
+  </data>
+  <data name="ExigenciaOpcional" xml:space="preserve">
+    <value>Opcional</value>
+  </data>
+  <data name="VistaPreviaExigencia" xml:space="preserve">
+    <value>En la tabla se verá como</value>
+  </data>
+  <data name="EtiquetaOrden" xml:space="preserve">
+    <value>Orden</value>
+  </data>
+  <data name="EtiquetaNotas" xml:space="preserve">
+    <value>Notas</value>
+  </data>
+  <data name="EtiquetaDescripcion" xml:space="preserve">
+    <value>Descripción</value>
+  </data>
+  <data name="EtiquetaCriterios" xml:space="preserve">
+    <value>Criterios de validación</value>
+  </data>
+  <data name="PistaCriterios" xml:space="preserve">
+    <value>Pega aquí los términos de validación tal como los describe la plataforma documental del cliente (la sección de criterios/requisitos de aceptación del propio portal), sin reescribirlos: es el texto contra el que se comprueba si un documento vale, y la referencia que usará la lectura automática de documentos.</value>
+  </data>
+  <data name="EtiquetaSeSolicitaA" xml:space="preserve">
+    <value>Se solicita a</value>
+  </data>
+  <data name="EtiquetaObservaciones" xml:space="preserve">
+    <value>Observaciones</value>
+  </data>
+  <data name="EtiquetaCentrosExpresos" xml:space="preserve">
+    <value>Centros donde se pide expresamente</value>
+  </data>
+  <data name="PistaCentrosExpresos" xml:space="preserve">
+    <value>(sin marcar, cada centro sigue «¿Se pide?»)</value>
+  </data>
+  <data name="SinCentrosCreados" xml:space="preserve">
+    <value>Todavía no hay centros creados.</value>
+  </data>
+  <data name="BotonCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="BotonGuardar" xml:space="preserve">
+    <value>Guardar</value>
+  </data>
+  <data name="ConfirmacionTitulo" xml:space="preserve">
+    <value>Esto cambia lo que se pide en los centros</value>
+  </data>
+  <data name="ConfirmacionBoton" xml:space="preserve">
+    <value>Guardar y aplicar</value>
+  </data>
+  <data name="InterruptorActivo" xml:space="preserve">
+    <value>Activa</value>
+  </data>
+  <data name="InterruptorInactivo" xml:space="preserve">
+    <value>Desactivada</value>
+  </data>
+  <data name="AriaInterruptor" xml:space="preserve">
+    <value>{0} de {1}</value>
+  </data>
+  <data name="AyudaLecturaIa" xml:space="preserve">
+    <value>Lectura automática por IA para este tipo de documento, en todos los clientes</value>
+  </data>
+  <data name="AyudaDeteccionTrabajadores" xml:space="preserve">
+    <value>Detecta automáticamente altas y bajas de personal comparando este documento (p. ej. ITA, RNT) contra los trabajadores activos de la empresa</value>
+  </data>
+  <data name="AyudaVerificacionIa" xml:space="preserve">
+    <value>Verifica por IA el tipo, fecha de emisión y firma del documento contra lo introducido al subirlo, con confidence score</value>
+  </data>
+  <data name="ToastErrorClientesFiltro" xml:space="preserve">
+    <value>No pudimos cargar los clientes del filtro. La lista de tipos sí se carga.</value>
+  </data>
+  <data name="ToastErrorEmpresasFiltro" xml:space="preserve">
+    <value>No pudimos cargar las empresas de este cliente.</value>
+  </data>
+  <data name="ToastErrorCentrosFiltro" xml:space="preserve">
+    <value>No pudimos cargar los centros de esta empresa.</value>
+  </data>
+  <data name="ToastCambioNoGuardado" xml:space="preserve">
+    <value>No se pudo guardar el cambio en «{0}». Se ha restaurado el valor anterior.</value>
+  </data>
+  <data name="ToastCambioNoGuardadoMotivo" xml:space="preserve">
+    <value>No se pudo guardar el cambio en «{0}». {1} Se ha restaurado el valor anterior.</value>
+  </data>
+  <data name="AvisoEnVuelo" xml:space="preserve">
+    <value>Guardando…</value>
+  </data>
+  <data name="AvisoPersistido" xml:space="preserve">
+    <value>Guardado ✓</value>
+  </data>
+  <data name="AvisoFallido" xml:space="preserve">
+    <value>No guardado</value>
+  </data>
+  <data name="VigenciaMesesUno" xml:space="preserve">
+    <value>{0} mes</value>
+  </data>
+  <data name="VigenciaMesesVarios" xml:space="preserve">
+    <value>{0} meses</value>
+  </data>
+  <data name="AyudaExigenciaFormato" xml:space="preserve">
+    <value>¿Se pide? {0} · ¿Con qué autoridad? {1}. Es el valor general: un centro puede tener su propia configuración.</value>
+  </data>
+  <data name="PistaOrdenFiltrada" xml:space="preserve">
+    <value>Propuesto a partir de la lista filtrada: comprueba que no coincida con el de otro tipo.</value>
+  </data>
+  <data name="PistaOrdenLibre" xml:space="preserve">
+    <value>Propuesto: el siguiente libre.</value>
+  </data>
+  <data name="ResumenNingunoSePide" xml:space="preserve">
+    <value>Sin marcar ninguno, cada centro sigue el valor general («{0}») y lo pide, salvo los que lo tengan excluido en sus propios requisitos.</value>
+  </data>
+  <data name="ResumenNingunoNoSePide" xml:space="preserve">
+    <value>Sin marcar ninguno, cada centro sigue el valor general («{0}») y no lo pide por defecto.</value>
+  </data>
+  <data name="ResumenMarcadosSePide" xml:space="preserve">
+    <value>Marcado en {0} de {1} centros. Con el valor general «{2}», el resto también lo pide salvo los que lo tengan excluido.</value>
+  </data>
+  <data name="ResumenMarcadosNoSePide" xml:space="preserve">
+    <value>Se pide en los {0} centros marcados (de {1}). El resto sigue el valor general («{2}») y no lo pide por defecto.</value>
+  </data>
+  <data name="ToastErrorAbrirFormulario" xml:space="preserve">
+    <value>No pudimos abrir el formulario. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="ToastTipoNoEncontrado" xml:space="preserve">
+    <value>No encontramos este tipo de documento.</value>
+  </data>
+  <data name="NombreTipoGenerico" xml:space="preserve">
+    <value>Este tipo de documento</value>
+  </data>
+  <data name="NombreTipoCitado" xml:space="preserve">
+    <value>«{0}»</value>
+  </data>
+  <data name="EfectoTodosAlCrear" xml:space="preserve">
+    <value>{0} se pedirá en todos los centros, porque «¿Se pide?» es «Sí, siempre».</value>
+  </data>
+  <data name="EfectoPasaAPedirse" xml:space="preserve">
+    <value>{0} pasará a pedirse en todos los centros que no tengan su propia configuración para este tipo.</value>
+  </data>
+  <data name="EfectoDejaPorDefecto" xml:space="preserve">
+    <value>{0} dejará de pedirse por defecto: los centros que no tengan su propia configuración para este tipo ya no lo pedirán.</value>
+  </data>
+  <data name="EfectoEmpiezan" xml:space="preserve">
+    <value>{0} se pedirá en {1}{2}.</value>
+  </data>
+  <data name="EfectoDejan" xml:space="preserve">
+    <value>{0} dejará de pedirse en {1}{2}, {3} a seguir el valor general («{4}»).</value>
+  </data>
+  <data name="EnlaceSiguenUno" xml:space="preserve">
+    <value>que pasa</value>
+  </data>
+  <data name="EnlaceSiguenVarios" xml:space="preserve">
+    <value>que pasan</value>
+  </data>
+  <data name="CentrosMarcadosUno" xml:space="preserve">
+    <value>{0} centro marcado</value>
+  </data>
+  <data name="CentrosMarcadosVarios" xml:space="preserve">
+    <value>{0} centros marcados</value>
+  </data>
+  <data name="CentrosDesmarcadosUno" xml:space="preserve">
+    <value>{0} centro desmarcado</value>
+  </data>
+  <data name="CentrosDesmarcadosVarios" xml:space="preserve">
+    <value>{0} centros desmarcados</value>
+  </data>
+  <data name="ToastTipoCreado" xml:space="preserve">
+    <value>Tipo de documento creado correctamente.</value>
+  </data>
+  <data name="ToastTipoActualizado" xml:space="preserve">
+    <value>Tipo de documento actualizado correctamente.</value>
+  </data>
+  <data name="ErrorRevisaCampos" xml:space="preserve">
+    <value>Revisa los campos marcados.</value>
+  </data>
+  <data name="ErrorGuardarFormulario" xml:space="preserve">
+    <value>No pudimos guardar los cambios. Intenta nuevamente en unos segundos.</value>
+  </data>
+</root>
