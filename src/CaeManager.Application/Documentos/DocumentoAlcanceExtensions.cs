@@ -40,9 +40,9 @@ public static class DocumentoAlcanceExtensions
             return clienteIdDeProyecto is { } id && await alcance.ClienteVisibleAsync(id, cancellationToken);
         }
 
-        // Defensa en profundidad (REC-149): los 8 llamantes de este ayudante
-        // son todos Commands (Firmar/Eliminar/RenovarDocumento,
-        // AplicarDeteccionIaDocumento, MarcarAcreditacion×3), ya
+        // Defensa en profundidad (REC-149): todos los llamantes de este
+        // ayudante son Commands (Crear/Firmar/Eliminar/RenovarDocumento,
+        // AplicarDeteccionIaDocumento, MarcarAcreditacion×3, entre otros), ya
         // inalcanzables para el rol Cliente vía AutorizacionEscrituraBehavior;
         // alcance de gestión como segunda barrera independiente.
         return await alcance.EmpresaParaGestionVisibleAsync(documento.EmpresaId!.Value, cancellationToken);

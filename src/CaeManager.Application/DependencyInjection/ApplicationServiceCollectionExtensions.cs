@@ -82,8 +82,10 @@ public static class ApplicationServiceCollectionExtensions
         // vez del rol del usuario.
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(SerializacionAccesoDatosBehavior<,>));
-        // InvalidacionAlcanceBehavior, dentro de la serialización: tras cada Command descarta el
-        // alcance memoizado del scope (D-8 del piloto Outbound), antes de soltar la puerta.
+        // InvalidacionAlcanceBehavior, dentro de la serialización: antes y después de cada Command
+        // descarta el alcance memoizado del scope (D-8 del piloto Outbound), sin soltar la puerta.
+        // Va por fuera de AutorizacionEscrituraBehavior y del handler: ambos autorizan con el
+        // alcance recién resuelto, no con el que memoizó el circuito.
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(InvalidacionAlcanceBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(ConcurrenciaBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(AutorizacionEscrituraBehavior<,>));

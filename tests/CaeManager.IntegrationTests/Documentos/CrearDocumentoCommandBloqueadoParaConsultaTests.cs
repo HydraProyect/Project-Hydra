@@ -168,6 +168,9 @@ public class CrearDocumentoCommandBloqueadoParaConsultaTests : IAsyncLifetime
         servicios.AddSingleton<IDocumentoRepository, DocumentoRepository>();
         servicios.AddSingleton<ITrabajoAnalisisDocumentoRepository, TrabajoAnalisisDocumentoRepository>();
         servicios.AddSingleton<IAcreditacionDocumentoPlataformaRepository, AcreditacionDocumentoPlataformaRepository>();
+        // Alcance sin restricción de cartera: este test prueba el rol, no la
+        // cartera (esa la prueba CrearDocumentoCommandAlcanceCarteraTests).
+        servicios.AddSingleton<IAlcanceDatosService>(new AlcanceDatosServiceFalso());
 
         return servicios.BuildServiceProvider();
     }

@@ -116,7 +116,10 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
                 idExistente, request.FechaEmision, request.FechaVencimientoManual, archivoUrlDocumento, request.Comentarios),
                 cancellationToken);
             if (renovado.EsFallido)
+            {
+                await EliminarCopiaHuerfanaAsync(archivoUrlDocumento, cancellationToken);
                 return Result.Fallo<Guid>(renovado.Error);
+            }
 
             documentoId = idExistente;
         }
@@ -127,7 +130,10 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
                 request.TipoDocumentoId, request.FechaEmision, request.FechaVencimientoManual, archivoUrlDocumento, request.Comentarios),
                 cancellationToken);
             if (creado.EsFallido)
+            {
+                await EliminarCopiaHuerfanaAsync(archivoUrlDocumento, cancellationToken);
                 return Result.Fallo<Guid>(creado.Error);
+            }
 
             documentoId = creado.Valor;
         }
@@ -145,5 +151,22 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
         }
 
         return Result.Exito(documentoId);
+    }
+
+    // La copia se hace antes de delegar, así que si Crear/RenovarDocumento
+    // rechaza (validación, alcance de cartera, concurrencia) nadie la
+    // referencia: se borra para no dejar un blob huérfano por cada intento.
+    // Best-effort, mismo criterio que AgregarVersionPlantilla: un fallo al
+    // limpiar no debe tapar el error real que se devuelve al llamador.
+    private async Task EliminarCopiaHuerfanaAsync(string archivoUrl, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await almacenamiento.EliminarAsync(archivoUrl, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "No se pudo borrar la copia huérfana del adjunto {ArchivoUrl}.", archivoUrl);
+        }
     }
 }

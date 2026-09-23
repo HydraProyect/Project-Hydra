@@ -91,7 +91,7 @@ public class ImportacionTests(WebAppFixture fixture)
             await page.GetByText("Ver plan de importación").ClickAsync();
 
             // --- Paso 3 "Revisar plan": el plan promete las 6 altas, incluida la
-            // Asignación (Importacion.razor.cs, NombresPasos — el wizard
+            // Asignación (Importacion.razor.cs, ClavesPasos — el wizard
             // unificado de 5 pasos que sustituyó a los 4 por plantilla, tarea
             // #41, ya no usa el título "N. Revisa el plan de importación" de
             // aquellos ni tarjetas TarjetaMetrica por entidad: aquí el plan es

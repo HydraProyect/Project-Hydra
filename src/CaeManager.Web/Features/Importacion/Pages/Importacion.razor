@@ -3,6 +3,9 @@
 @attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
 @inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 @using CaeManager.Web.Features.Importacion
+@using CaeManager.Web.Features.Importacion.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosImportacion> Textos
 
 @if (!IntegradaEnConfiguracion)
 {
@@ -13,8 +16,8 @@
     @if (EsImportacionDocumentos)
     {
         <div class="ruta-importacion ruta-importacion-documentos">
-            <a class="enlace-volver-importacion" href="/documentos"><Icono Nombre="volver" Tamano="TamanoIcono.Pequeno" /> Documentos</a>
-            <span class="miga-importacion"><span aria-hidden="true">/</span> <span class="miga-importacion-actual">Importar documentos</span></span>
+            <a class="enlace-volver-importacion" href="/documentos"><Icono Nombre="volver" Tamano="TamanoIcono.Pequeno" /> @Textos["EnlaceMigaDocumentos"]</a>
+            <span class="miga-importacion"><span aria-hidden="true">/</span> <span class="miga-importacion-actual">@Textos["TituloImportarDocumentos"]</span></span>
         </div>
     }
     @* Cabecera Gen 2. Con ?plantilla=clientes o ?plantilla=combinada —los
@@ -27,27 +30,27 @@
     @if (DesdeClientes && !IntegradaEnConfiguracion)
     {
         <div class="ruta-importacion">
-            <a class="enlace-volver-importacion" href="/clientes"><Icono Nombre="volver" Tamano="TamanoIcono.Pequeno" /> Volver a Clientes</a>
+            <a class="enlace-volver-importacion" href="/clientes"><Icono Nombre="volver" Tamano="TamanoIcono.Pequeno" /> @Textos["EnlaceVolverClientes"]</a>
             <span class="miga-importacion">
-                Negocio <span class="miga-importacion-flecha" aria-hidden="true">→</span>
-                Clientes <span class="miga-importacion-flecha" aria-hidden="true">→</span>
+                @Textos["MigaNegocio"] <span class="miga-importacion-flecha" aria-hidden="true">→</span>
+                @Textos["MigaClientes"] <span class="miga-importacion-flecha" aria-hidden="true">→</span>
                 <span class="miga-importacion-actual">@TituloPagina</span>
             </span>
         </div>
     }
 
-    <CabeceraPagina Titulo="@TituloPagina" Kicker="@(IntegradaEnConfiguracion ? null : EsImportacionDocumentos ? "Ciclo documental" : "Configuración")" Integrada="IntegradaEnConfiguracion"
+    <CabeceraPagina Titulo="@TituloPagina" Kicker="@(IntegradaEnConfiguracion ? null : EsImportacionDocumentos ? Textos["KickerCicloDocumental"].Value : Textos["KickerConfiguracion"].Value)" Integrada="IntegradaEnConfiguracion"
                     Descripcion="@(EsCombinadaDesdeClientes ? EntradillaCombinada : null)" />
 
     @if (EsImportacionDocumentos)
     {
         <div class="acciones-contexto-documentos">
-            <a href="/importacion">Ver todas las plantillas</a>
+            <a href="/importacion">@Textos["EnlaceVerPlantillas"]</a>
         </div>
     }
 
-    <nav class="pasos-importacion" aria-label="Progreso de la importación">
-        @for (var i = 0; i < NombresPasos.Count; i++)
+    <nav class="pasos-importacion" aria-label="@Textos["AriaProgresoImportacion"]">
+        @for (var i = 0; i < ClavesPasos.Count; i++)
         {
             var numero = i + 1;
             var actual = numero == _step;
@@ -65,9 +68,9 @@
                         @numero
                     }
                 </span>
-                @NombresPasos[i]
+                @Textos[ClavesPasos[i]]
             </button>
-            @if (numero < NombresPasos.Count)
+            @if (numero < ClavesPasos.Count)
             {
                 <span class="paso-importacion-flecha" aria-hidden="true">→</span>
             }
@@ -78,7 +81,7 @@
     {
         <div class="rejilla-paso1">
             <div class="columna-plantillas">
-                <h2 class="titulo-seccion-importacion" id="titulo-plantillas-importacion" tabindex="-1" @ref="_tituloPaso">Elige una plantilla</h2>
+                <h2 class="titulo-seccion-importacion" id="titulo-plantillas-importacion" tabindex="-1" @ref="_tituloPaso">@Textos["TituloElegirPlantilla"]</h2>
                 @* Elegir plantilla es una elección exclusiva entre cuatro: patrón
                    radiogroup de WAI-ARIA, como la biblioteca de Reportes, y no
                    botones con aria-pressed (que anuncian conmutadores
@@ -106,32 +109,32 @@
                                     @onkeydown="e => ManejarTeclaPlantilla(e, indice)">
                                 <span class="cabecera-tarjeta-plantilla">
                                     <span class="icono-tarjeta-plantilla" aria-hidden="true"><Icono Nombre="@plantilla.NombreIcono" Tamano="TamanoIcono.Pequeno" /></span>
-                                    <span class="titulo-tarjeta-plantilla" id="@($"titulo-plantilla-{plantilla.Id}")">@plantilla.Titulo</span>
+                                    <span class="titulo-tarjeta-plantilla" id="@($"titulo-plantilla-{plantilla.Id}")">@Textos[plantilla.ClaveTitulo]</span>
                                 </span>
-                                <span class="descripcion-tarjeta-plantilla" id="@($"descripcion-plantilla-{plantilla.Id}")">@plantilla.Descripcion</span>
-                                <span class="limite-tarjeta-plantilla" id="@($"limite-plantilla-{plantilla.Id}")">.xlsx · máx. @(plantilla.TamanoMaximoBytes / (1024 * 1024)) MB</span>
+                                <span class="descripcion-tarjeta-plantilla" id="@($"descripcion-plantilla-{plantilla.Id}")">@Textos[plantilla.ClaveDescripcion]</span>
+                                <span class="limite-tarjeta-plantilla" id="@($"limite-plantilla-{plantilla.Id}")">@Textos["LimiteTamanoPlantilla", plantilla.TamanoMaximoBytes / (1024 * 1024)]</span>
                             </button>
                             @if (plantilla.RutaPlantillaBlanco is not null)
                             {
-                                <a href="@plantilla.RutaPlantillaBlanco" class="enlace-plantilla-blanco"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Descargar plantilla en blanco</a>
+                                <a href="@plantilla.RutaPlantillaBlanco" class="enlace-plantilla-blanco"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["EnlacePlantillaBlanco"]</a>
                             }
                         </div>
                     }
                 </div>
                 <div class="acciones-formulario acciones-derecha">
-                    <Boton OnClick="ContinuarAAnalizar">Continuar con @PlantillaActual.NombreCorto</Boton>
+                    <Boton OnClick="ContinuarAAnalizar">@Textos["BotonContinuarConPlantilla", Textos[PlantillaActual.ClaveNombreCorto].Value]</Boton>
                 </div>
             </div>
 
             <aside class="panel-historial-importacion">
-                <div class="cabecera-panel-historial">Historial de importaciones</div>
+                <div class="cabecera-panel-historial">@Textos["CabeceraHistorial"]</div>
                 @if (_cargandoHistorial)
                 {
                     <EstadoCargando Filas="3" />
                 }
                 else if (_historial.Count == 0)
                 {
-                    <p class="vacio-historial-importacion">Todavía no se ha ejecutado ninguna importación.</p>
+                    <p class="vacio-historial-importacion">@Textos["HistorialVacio"]</p>
                 }
                 else
                 {
@@ -146,11 +149,11 @@
                                 @NombreUsuario(item.EjecutadaPorUsuarioId) ·
                                 @if (item.Exitosa)
                                 {
-                                    <span class="resultado-exito-historial">@item.TotalCreados creados · @item.TotalAdvertencias avisos</span>
+                                    <span class="resultado-exito-historial">@Textos["HistorialResultadoExito", item.TotalCreados, item.TotalAdvertencias]</span>
                                 }
                                 else
                                 {
-                                    <span class="resultado-fallo-historial">Fallida — @item.MensajeError</span>
+                                    <span class="resultado-fallo-historial">@Textos["HistorialResultadoFallo", item.MensajeError ?? string.Empty]</span>
                                 }
                             </span>
                         </div>
@@ -162,39 +165,39 @@
     else if (_step == 2)
     {
         <div class="columna-paso-ancho">
-            <h2 class="titulo-seccion-importacion" tabindex="-1" @ref="_tituloPaso">Sube el archivo</h2>
+            <h2 class="titulo-seccion-importacion" tabindex="-1" @ref="_tituloPaso">@Textos["TituloSubeArchivo"]</h2>
 
             @if (EsImportacionDocumentos)
             {
-                <section class="contexto-plantilla-documentos" aria-label="Plantilla de Documentos">
+                <section class="contexto-plantilla-documentos" aria-label="@Textos["AriaPlantillaDocumentos"]">
                     <div>
-                        <h3>Plantilla: Documentos</h3>
-                        <p>Lote de documentos con propietario y tipo por fila. Los PDF se aportan después con subida múltiple.</p>
+                        <h3>@Textos["TituloContextoPlantillaDocumentos"]</h3>
+                        <p>@Textos["PlantillaDocumentosDescripcion"]</p>
                     </div>
-                    <a href="/documentos/plantilla.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Descargar plantilla en blanco</a>
+                    <a href="/documentos/plantilla.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["EnlacePlantillaBlanco"]</a>
                 </section>
                 <div class="rejilla-alcance-documentos">
                     <section class="tarjeta-alcance-documentos">
-                        <h3>Qué hace</h3>
+                        <h3>@Textos["TituloQueHace"]</h3>
                         <ul>
-                            <li>Crea los documentos nuevos de trabajador, con fecha de emisión y vencimiento calculado.</li>
-                            <li>Cruza el DNI con los trabajadores dados de alta y el nombre con el catálogo de tipos.</li>
-                            <li>Deja constancia de cada fila que no entra, con su motivo, en el reporte.</li>
+                            <li>@Textos["QueHaceCrea"]</li>
+                            <li>@Textos["QueHaceCruza"]</li>
+                            <li>@Textos["QueHaceConstancia"]</li>
                         </ul>
                     </section>
                     <section class="tarjeta-alcance-documentos tarjeta-alcance-documentos-limitacion">
-                        <h3>No hace</h3>
+                        <h3>@Textos["TituloNoHace"]</h3>
                         <ul>
-                            <li>No da de alta trabajadores ni tipos de documento.</li>
-                            <li>No adjunta PDF: el archivo se aporta después con subida múltiple.</li>
-                            <li>No admite fecha de vencimiento: se calcula desde la emisión y la vigencia del tipo.</li>
+                            <li>@Textos["NoHaceAltas"]</li>
+                            <li>@Textos["NoHacePdf"]</li>
+                            <li>@Textos["NoHaceVencimiento"]</li>
                         </ul>
                     </section>
                 </div>
             }
 
-            <ZonaSoltarArchivo Titulo="@($"Arrastra el archivo de {PlantillaActual.Titulo}")"
-                                FormatosTexto="@($".xlsx · máx. {PlantillaActual.TamanoMaximoBytes / (1024 * 1024)} MB · el análisis no escribe nada")"
+            <ZonaSoltarArchivo Titulo="@Textos["ZonaSoltarTitulo", Textos[PlantillaActual.ClaveTitulo].Value]"
+                                FormatosTexto="@Textos["ZonaSoltarFormatos", PlantillaActual.TamanoMaximoBytes / (1024 * 1024)]"
                                 Accept=".xlsx" Cargando="_analizando" NombreArchivoActual="@_nombreArchivo"
                                 OnChange="ManejarArchivoSeleccionadoAsync" />
 
@@ -217,14 +220,14 @@
             @if (EsPlantillaClientes)
             {
                 <section class="columnas-plantilla-importacion" aria-labelledby="columnas-plantilla-clientes-titulo">
-                    <h3 id="columnas-plantilla-clientes-titulo" class="cabecera-columnas-plantilla">Columnas que espera la hoja «Clientes»</h3>
+                    <h3 id="columnas-plantilla-clientes-titulo" class="cabecera-columnas-plantilla">@Textos["TituloColumnasHoja", NombreHojaClientes]</h3>
                     <div class="tabla-columnas-plantilla-envoltorio">
                         <table class="tabla-datos">
                             <thead>
                                 <tr>
-                                    <th scope="col">Columna</th>
-                                    <th scope="col">Ejemplo</th>
-                                    <th scope="col">Obligatoria</th>
+                                    <th scope="col">@Textos["ColumnaColumna"]</th>
+                                    <th scope="col">@Textos["ColumnaEjemplo"]</th>
+                                    <th scope="col">@Textos["ColumnaObligatoria"]</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -233,15 +236,14 @@
                                     <tr data-columna-plantilla>
                                         <td class="nombre-columna-plantilla">@columna.Nombre</td>
                                         <td class="ejemplo-columna-plantilla">@columna.Ejemplo</td>
-                                        <td><Badge Tono="@(columna.Obligatoria ? TonoBadge.Exito : TonoBadge.Neutro)">@(columna.Obligatoria ? "Sí" : "No")</Badge></td>
+                                        <td><Badge Tono="@(columna.Obligatoria ? TonoBadge.Exito : TonoBadge.Neutro)">@(columna.Obligatoria ? Textos["ValorSi"].Value : Textos["ValorNo"].Value)</Badge></td>
                                     </tr>
                                 }
                             </tbody>
                         </table>
                     </div>
                     <p class="nota-columnas-plantilla">
-                        La fila de ejemplo, la que empieza por «EJEMPLO», se ignora. La lectura termina en la primera
-                        fila sin nombre: lo que haya debajo no se lee. «Crítico» solo cuenta como sí con una C.
+                        @Textos["NotaColumnasPlantilla", MarcadorFilaEjemplo, ColumnaCriticoCorta, ValorCriticoSi]
                     </p>
                 </section>
             }
@@ -253,7 +255,7 @@
             @if (EsPlantillaCombinada)
             {
                 <section class="hojas-combinada-importacion" aria-labelledby="hojas-combinada-titulo">
-                    <h3 id="hojas-combinada-titulo" class="titulo-hojas-combinada">Las cuatro hojas, y en qué orden se leen</h3>
+                    <h3 id="hojas-combinada-titulo" class="titulo-hojas-combinada">@Textos["TituloHojasCombinada"]</h3>
                     <ol class="rejilla-hojas-combinada">
                         @foreach (var hoja in HojasCombinada)
                         {
@@ -263,13 +265,12 @@
                                     <span class="nombre-hoja-combinada">@hoja.Nombre</span>
                                 </span>
                                 <span class="columnas-hoja-combinada">@string.Join(" · ", hoja.Columnas)</span>
-                                <span class="regla-hoja-combinada">@hoja.Regla</span>
+                                <span class="regla-hoja-combinada">@Textos[hoja.ClaveRegla]</span>
                             </li>
                         }
                     </ol>
                     <p class="nota-hojas-combinada">
-                        Cada referencia se busca en lo que ya existe y en la hoja de este mismo libro que la declara: un Centro
-                        puede apuntar a un Cliente empresarial que todavía no existe si viene en la hoja Clientes.
+                        @Textos["NotaHojasCombinada", NombreHojaClientes]
                     </p>
                 </section>
             }
@@ -277,9 +278,9 @@
             <div class="acciones-formulario acciones-entre">
                 @if (!EsImportacionDocumentos)
                 {
-                    <Boton Variante="VarianteBoton.Secundario" OnClick="() => IrAPaso(1)">← Cambiar plantilla</Boton>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="() => IrAPaso(1)">@Textos["BotonCambiarPlantilla"]</Boton>
                 }
-                <Boton Deshabilitado="!TienePlan" OnClick="ContinuarARevisarPlan">Ver plan de importación</Boton>
+                <Boton Deshabilitado="!TienePlan" OnClick="ContinuarARevisarPlan">@Textos["BotonVerPlan"]</Boton>
             </div>
         </div>
     }
@@ -287,8 +288,8 @@
     {
         <div class="columna-paso-ancho">
             <div class="cabecera-revision-plan">
-                <h2 class="titulo-seccion-importacion" tabindex="-1" @ref="_tituloPaso">Revisar plan</h2>
-                <span class="detalle-revision-plan">@_nombreArchivo · nada escrito todavía</span>
+                <h2 class="titulo-seccion-importacion" tabindex="-1" @ref="_tituloPaso">@Textos["TituloRevisarPlan"]</h2>
+                <span class="detalle-revision-plan">@Textos["DetalleRevisionPlan", _nombreArchivo ?? string.Empty]</span>
             </div>
 
             @if (CombinadaSinNadaNuevo)
@@ -297,19 +298,19 @@
                    ni badges ni lista, porque no hay nada que listar. Los
                    botones de abajo siguen: el paso 4 es donde se elige
                    reemplazar para actualizar lo que ya existe. *@
-                <EstadoVacio Titulo="El archivo se leyó entero, pero no hay nada nuevo que crear"
+                <EstadoVacio Titulo="@Textos["TituloSinNadaNuevo"]"
                              Descripcion="@TextoSinNadaNuevo" NombreIcono="importar" />
             }
             else
             {
             <div class="badges-resumen-plan">
-                <Badge Tono="TonoBadgeCrear" title="@TituloBadgeCrear">@TotalACrear se crearán</Badge>
+                <Badge Tono="TonoBadgeCrear" title="@TituloBadgeCrear">@Textos["BadgeSeCrearan", TotalACrear]</Badge>
                 @if (_planCombinada is not null)
                 {
-                    <Badge Tono="TonoBadge.Neutro" title="Ya existen: no son altas ni descartes. Sin «Reemplazar» solo se completan sus campos vacíos.">@TotalReutilizados ya existen · se reutilizan</Badge>
+                    <Badge Tono="TonoBadge.Neutro" title="@Textos["TituloBadgeReutilizados"]">@Textos["BadgeReutilizados", TotalReutilizados]</Badge>
                 }
-                <Badge Tono="TonoBadge.Advertencia">@TotalAdvertencias con aviso</Badge>
-                <Badge Tono="TonoBadge.Peligro">@TotalOmitidos se omitirán</Badge>
+                <Badge Tono="TonoBadge.Advertencia">@Textos["BadgeConAviso", TotalAdvertencias]</Badge>
+                <Badge Tono="TonoBadge.Peligro">@Textos["BadgeSeOmitiran", TotalOmitidos]</Badge>
             </div>
 
             @* El mockup, en su modo «Fiel al código de hoy», pinta aquí el
@@ -325,7 +326,7 @@
                     <span class="icono-aviso-altas"><Icono Nombre="advertencia" /></span>
                     <div>
                         <p class="titulo-aviso-altas">@TituloAvisoAltas</p>
-                        <p class="detalle-aviso-altas">@TextoFilasClienteCentroQueSeOmitiran Dalos de alta a mano en Clientes y Centros.</p>
+                        <p class="detalle-aviso-altas">@TextoFilasClienteCentroQueSeOmitiran @Textos["IndicacionAltaManual"]</p>
                     </div>
                 </div>
             }
@@ -336,11 +337,11 @@
                traía, se siguen enseñando debajo en vez de desaparecer. *@
             @if (_planCombinada is not null)
             {
-                <div class="vistas-plan-importacion" role="group" aria-label="Vista del plan">
+                <div class="vistas-plan-importacion" role="group" aria-label="@Textos["AriaVistaPlan"]">
                     <button type="button" class="@ClaseVistaPlan(true)" aria-pressed="@(_vistaArbolPlan ? "true" : "false")"
-                            @onclick="() => _vistaArbolPlan = true">Árbol de lo que se va a crear</button>
+                            @onclick="() => _vistaArbolPlan = true">@Textos["BotonVistaArbol"]</button>
                     <button type="button" class="@ClaseVistaPlan(false)" aria-pressed="@(_vistaArbolPlan ? "false" : "true")"
-                            @onclick="() => _vistaArbolPlan = false">Lista plana</button>
+                            @onclick="() => _vistaArbolPlan = false">@Textos["BotonVistaLista"]</button>
                 </div>
             }
 
@@ -350,7 +351,7 @@
 
                 @if (planArbol.Advertencias.Count > 0)
                 {
-                    <h3 class="titulo-items-plan">Avisos (@planArbol.Advertencias.Count)</h3>
+                    <h3 class="titulo-items-plan">@Textos["TituloAvisosConteo", planArbol.Advertencias.Count]</h3>
                     <div class="tabla-plan-importacion-envoltorio">
                         <TablaItemsImportacion Items="planArbol.Advertencias" Tono="TonoBadge.Advertencia" />
                     </div>
@@ -358,7 +359,7 @@
 
                 @if (planArbol.Omitidos.Count > 0)
                 {
-                    <h3 class="titulo-items-plan">Omitidos (@planArbol.Omitidos.Count)</h3>
+                    <h3 class="titulo-items-plan">@Textos["TituloOmitidosConteo", planArbol.Omitidos.Count]</h3>
                     <div class="tabla-plan-importacion-envoltorio">
                         <TablaItemsImportacion Items="planArbol.Omitidos" Tono="TonoBadge.Peligro" />
                     </div>
@@ -370,9 +371,9 @@
                     <table class="tabla-datos">
                         <thead>
                             <tr>
-                                <th>Entidad</th>
-                                <th>Acción</th>
-                                <th>Motivo</th>
+                                <th>@Textos["ColumnaEntidad"]</th>
+                                <th>@Textos["ColumnaAccion"]</th>
+                                <th>@Textos["ColumnaMotivo"]</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -391,15 +392,15 @@
             }
 
             <div class="acciones-formulario acciones-entre">
-                <Boton Variante="VarianteBoton.Secundario" OnClick="() => IrAPaso(2)">← Volver al archivo</Boton>
-                <Boton OnClick="ContinuarAConfirmar">Continuar a confirmar</Boton>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="() => IrAPaso(2)">@Textos["BotonVolverArchivo"]</Boton>
+                <Boton OnClick="ContinuarAConfirmar">@Textos["BotonContinuarConfirmar"]</Boton>
             </div>
         </div>
     }
     else if (_step == 4)
     {
         <div class="columna-paso-estrecho">
-            <h2 class="titulo-seccion-importacion" tabindex="-1" @ref="_tituloPaso">Confirmar importación</h2>
+            <h2 class="titulo-seccion-importacion" tabindex="-1" @ref="_tituloPaso">@Textos["TituloConfirmarImportacion"]</h2>
 
             <div class="tarjeta-confirmacion-importacion">
                 <div class="aviso-confirmacion-importacion">
@@ -414,7 +415,7 @@
                 {
                     <label class="opcion-reemplazar-importacion">
                         <input type="checkbox" @bind="_reemplazarExistentes" />
-                        Reemplazar los campos ya rellenados de los registros existentes (por defecto solo se completa lo vacío)
+                        @Textos["OpcionReemplazar"]
                     </label>
 
                     @if (_reemplazarExistentes)
@@ -428,7 +429,7 @@
 
                 <label class="casilla-confirmacion-importacion">
                     <input type="checkbox" @bind="_confirmado" />
-                    He revisado el plan y quiero escribir estos datos
+                    @Textos["CasillaConfirmacion"]
                 </label>
             </div>
 
@@ -438,35 +439,35 @@
             }
 
             <div class="acciones-formulario acciones-entre">
-                <Boton Variante="VarianteBoton.Secundario" OnClick="() => IrAPaso(3)">← Revisar el plan</Boton>
-                <Boton Deshabilitado="!_confirmado" Cargando="_importando" OnClick="SolicitarImportacion">Importar ahora</Boton>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="() => IrAPaso(3)">@Textos["BotonRevisarElPlan"]</Boton>
+                <Boton Deshabilitado="!_confirmado" Cargando="_importando" OnClick="SolicitarImportacion">@Textos["BotonImportarAhora"]</Boton>
             </div>
         </div>
     }
     else if (_step == 5)
     {
         <div class="columna-paso-estrecho">
-            <h2 class="titulo-seccion-importacion" tabindex="-1" @ref="_tituloPaso">Reporte</h2>
+            <h2 class="titulo-seccion-importacion" tabindex="-1" @ref="_tituloPaso">@Textos["TituloReporte"]</h2>
 
             <div class="tarjeta-reporte-importacion">
                 <div class="cabecera-reporte-importacion">
                     <span class="icono-exito-reporte"><Icono Nombre="check" Tamano="TamanoIcono.Medio" /></span>
-                    <span class="titulo-reporte-importacion">Importación completada</span>
+                    <span class="titulo-reporte-importacion">@Textos["TituloImportacionCompletada"]</span>
                 </div>
 
                 <div class="rejilla-reporte-importacion">
                     @if (_resultadoSimple is { } rs)
                     {
-                        <TarjetaMetrica Etiqueta="Creados" Valor="@((rs.ClientesCreados + rs.CentrosCreados + rs.EmpresasCreadas + rs.TrabajadoresCreados + rs.DocumentosCreados + rs.AsignacionesCreadas).ToString())" Tono="TonoBadge.Exito" />
-                        <TarjetaMetrica Etiqueta="Avisos" Valor="@rs.Advertencias.Count.ToString()" Tono="TonoBadge.Advertencia" />
-                        <TarjetaMetrica Etiqueta="Omitidos" Valor="@rs.Omitidos.Count.ToString()" Tono="TonoBadge.Peligro" />
+                        <TarjetaMetrica Etiqueta="@Textos["MetricaCreados"]" Valor="@((rs.ClientesCreados + rs.CentrosCreados + rs.EmpresasCreadas + rs.TrabajadoresCreados + rs.DocumentosCreados + rs.AsignacionesCreadas).ToString())" Tono="TonoBadge.Exito" />
+                        <TarjetaMetrica Etiqueta="@Textos["MetricaAvisos"]" Valor="@rs.Advertencias.Count.ToString()" Tono="TonoBadge.Advertencia" />
+                        <TarjetaMetrica Etiqueta="@Textos["MetricaOmitidos"]" Valor="@rs.Omitidos.Count.ToString()" Tono="TonoBadge.Peligro" />
                     }
                     else if (_resultadoCombinada is { } rc)
                     {
-                        <TarjetaMetrica Etiqueta="Creados" Valor="@((rc.ClientesCreados + rc.EmpresasCreadas + rc.CentrosCreados + rc.TrabajadoresCreados).ToString())" Tono="TonoBadge.Exito" />
-                        <TarjetaMetrica Etiqueta="Actualizados" Valor="@((rc.ClientesActualizados + rc.EmpresasActualizadas + rc.CentrosActualizados + rc.TrabajadoresActualizados).ToString())" />
-                        <TarjetaMetrica Etiqueta="Avisos" Valor="@rc.Advertencias.Count.ToString()" Tono="TonoBadge.Advertencia" />
-                        <TarjetaMetrica Etiqueta="Omitidos" Valor="@rc.Omitidos.Count.ToString()" Tono="TonoBadge.Peligro" />
+                        <TarjetaMetrica Etiqueta="@Textos["MetricaCreados"]" Valor="@((rc.ClientesCreados + rc.EmpresasCreadas + rc.CentrosCreados + rc.TrabajadoresCreados).ToString())" Tono="TonoBadge.Exito" />
+                        <TarjetaMetrica Etiqueta="@Textos["MetricaActualizados"]" Valor="@((rc.ClientesActualizados + rc.EmpresasActualizadas + rc.CentrosActualizados + rc.TrabajadoresActualizados).ToString())" />
+                        <TarjetaMetrica Etiqueta="@Textos["MetricaAvisos"]" Valor="@rc.Advertencias.Count.ToString()" Tono="TonoBadge.Advertencia" />
+                        <TarjetaMetrica Etiqueta="@Textos["MetricaOmitidos"]" Valor="@rc.Omitidos.Count.ToString()" Tono="TonoBadge.Peligro" />
                     }
                 </div>
 
@@ -477,34 +478,34 @@
 
                 @if (advertenciasReporte.Count > 0)
                 {
-                    <h3 class="titulo-seccion-importacion">Avisos (@advertenciasReporte.Count)</h3>
+                    <h3 class="titulo-seccion-importacion">@Textos["TituloAvisosConteo", advertenciasReporte.Count]</h3>
                     <TablaItemsImportacion Items="advertenciasReporte" Tono="TonoBadge.Advertencia" />
                 }
 
                 @if (omitidosReporte.Count > 0)
                 {
-                    <h3 class="titulo-seccion-importacion">Omitidos (@omitidosReporte.Count)</h3>
+                    <h3 class="titulo-seccion-importacion">@Textos["TituloOmitidosConteo", omitidosReporte.Count]</h3>
                     <TablaItemsImportacion Items="omitidosReporte" Tono="TonoBadge.Peligro" />
                 }
 
-                <span class="nota-reporte-importacion">Este reporte queda guardado en el historial de importaciones (paso 1).</span>
+                <span class="nota-reporte-importacion">@Textos["NotaReporte"]</span>
 
                 <div class="acciones-formulario">
-                    <Boton OnClick="EmpezarDeNuevo">Nueva importación</Boton>
+                    <Boton OnClick="EmpezarDeNuevo">@Textos["BotonNuevaImportacion"]</Boton>
                     @* Salida del mockup: el propio motivo del handler dice
                        «créalo manualmente en Clientes» sin llevar a ninguna
                        parte. /clientes?accion=crear abre el alta de Cliente
                        empresarial de la lista (Clientes.razor.cs, Accion). *@
                     @if (EsPlantillaClientes && omitidosReporte.Count > 0)
                     {
-                        <Boton Variante="VarianteBoton.Secundario" Href="/clientes?accion=crear">Dar de alta un Cliente empresarial a mano</Boton>
+                        <Boton Variante="VarianteBoton.Secundario" Href="/clientes?accion=crear">@Textos["BotonAltaClienteManual"]</Boton>
                     }
                     @* Salida del mockup «Importar Combinado». /clientes lista las
                        Empresas con papel de Cliente empresarial (ObtenerClientesQuery,
                        EsCritico != null), que es lo que crea la hoja «Clientes». *@
                     @if (_resultadoCombinada is not null)
                     {
-                        <Boton Variante="VarianteBoton.Secundario" Href="/clientes">Ver Clientes empresariales</Boton>
+                        <Boton Variante="VarianteBoton.Secundario" Href="/clientes">@Textos["BotonVerClientesEmpresariales"]</Boton>
                     }
                 </div>
             </div>
@@ -512,6 +513,6 @@
     }
 
     <DialogoConfirmacion Visible="_mostrarDialogoImportar" VisibleChanged="CambiarVisibilidadDialogoImportar"
-                         Titulo="¿Importar este archivo?" Mensaje="@MensajeDialogoImportar"
-                         TextoBotonConfirmar="Sí, importar" EnProgreso="_importando" OnConfirmar="ConfirmarImportacionAsync" />
+                         Titulo="@Textos["DialogoTitulo"]" Mensaje="@MensajeDialogoImportar"
+                         TextoBotonConfirmar="@Textos["DialogoBotonConfirmar"]" EnProgreso="_importando" OnConfirmar="ConfirmarImportacionAsync" />
 </div>
