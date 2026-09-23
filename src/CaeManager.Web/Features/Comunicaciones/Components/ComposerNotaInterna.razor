@@ -1,0 +1,76 @@
+@*
+    Redactor de notas internas del Unified Timeline (docs/COMUNICACIONES.md
+    § 12.3). Aparte de ComposerBar a propósito: ComposerBar envía al contacto
+    por el canal del hilo, y este no envía nada — la nota se queda en el Tenant
+    propietario. Mezclar los dos en un mismo botón "Enviar" con un conmutador
+    es exactamente el error que hay que hacer imposible.
+*@
+@using CaeManager.Application.Comunicaciones.Commands.CrearNotaInternaConversacion
+@using CaeManager.Domain.Comunicaciones
+@using CaeManager.Web.Features.Comunicaciones.Recursos
+@using FluentValidation
+@using MediatR
+@using Microsoft.Extensions.Localization
+@inject IMediator Mediator
+@inject ToastService ToastService
+@inject IStringLocalizer<TextosNotasInternas> Textos
+@inject ILogger<ComposerNotaInterna> Logger
+
+<div class="composer-nota-interna">
+    <div class="composer-nota-interna-cabecera">
+        <Badge Tono="TonoBadge.Info" Tamano="TamanoBadge.Pequeno">@Textos["EtiquetaNotaInterna"]</Badge>
+        <span class="composer-nota-interna-aviso">@Textos["AvisoSoloEquipo"]</span>
+    </div>
+    <CampoTextarea Etiqueta="@Textos["EtiquetaCampoNota"]" Valor="@_texto" ValorChanged="v => _texto = v" Filas="2"
+                   Placeholder="@Textos["PlaceholderNota"]" />
+    <div class="composer-acciones">
+        <Boton Variante="VarianteBoton.Secundario" Cargando="_guardando"
+               Deshabilitado="@(string.IsNullOrWhiteSpace(_texto) || _texto.Trim().Length > NotaInternaConversacion.LongitudMaximaTexto)"
+               OnClick="GuardarAsync">
+            @Textos["BotonGuardarNota"]
+        </Boton>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Guid ConversacionId { get; set; }
+
+    /// <summary>La página recarga las notas del timeline al recibirlo.</summary>
+    [Parameter] public EventCallback OnNotaCreada { get; set; }
+
+    private string _texto = string.Empty;
+    private bool _guardando;
+
+    private async Task GuardarAsync()
+    {
+        if (_guardando || string.IsNullOrWhiteSpace(_texto)) return;
+
+        _guardando = true;
+        try
+        {
+            var resultado = await Mediator.Send(new CrearNotaInternaConversacionCommand(ConversacionId, _texto));
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            _texto = string.Empty;
+            ToastService.Mostrar(Textos["ToastNotaGuardada"], TonoToast.Exito);
+            await OnNotaCreada.InvokeAsync();
+        }
+        catch (ValidationException ex)
+        {
+            ToastService.Mostrar(string.Join(" ", ex.Errors.Select(e => e.ErrorMessage).Distinct()), TonoToast.Error);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al guardar una nota interna en la conversación {ConversacionId}.", ConversacionId);
+            ToastService.Mostrar(Textos["ToastErrorGuardar"], TonoToast.Error);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+}

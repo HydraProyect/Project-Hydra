@@ -182,6 +182,105 @@ public class ObtenerAcreditacionesPorProveedorQueryTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// P12 (2026-09-23): <c>IncluirVencidasEnPlataforma</c> trae, además de lo
+    /// pendiente, solo las aceptadas cuya vigencia en la plataforma ya pasó, y
+    /// las marca con <see cref="AcreditacionDrillDownDto.VencidaEnPlataforma"/>
+    /// usando la misma fecha con la que las eligió. La frontera se prueba aquí,
+    /// contra PostgreSQL, porque es la consulta la que compara: Mi trabajo se
+    /// fía del indicador y no vuelve a leer el reloj.
+    /// </summary>
+    [Fact]
+    public async Task Las_vencidas_en_plataforma_solo_salen_cuando_se_piden_y_llevan_el_indicador()
+    {
+        // La frontera es «hoy» UTC, que la consulta lee por su cuenta: si la
+        // prueba cruzase medianoche entre la siembra y la consulta, «vence hoy»
+        // pasaría a vencida y el resultado dependería de la hora. Cerca de la
+        // medianoche se espera a que cambie el día (a lo sumo dos minutos).
+        var ahora = DateTime.UtcNow;
+        if (ahora.TimeOfDay > new TimeSpan(23, 58, 0))
+            await Task.Delay(ahora.Date.AddDays(1).AddSeconds(1) - ahora);
+
+        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var ids = new Dictionary<string, Guid>();
+
+        await using (var contexto = CrearContexto())
+        {
+            var cliente = Empresa.CrearComoCliente("Cliente Vencidas S.L.", "B10380194", false, null, null);
+            var empresa = new Empresa("Empresa Vencidas S.L.", "B10380186");
+            contexto.Empresas.Add(cliente);
+            contexto.Empresas.Add(empresa);
+            await contexto.SaveChangesAsync();
+
+            var centro = new Centro(cliente.Id, empresa.Id, "Centro Vencidas");
+            contexto.Centros.Add(centro);
+            await contexto.SaveChangesAsync();
+
+            var proveedor = await contexto.ProveedoresPlataformaCae.FirstAsync();
+            var canal = CanalGestionDocumental.DePlataforma(
+                centro.Id, "Gestión general", proveedor.Id, null, null, null);
+            contexto.CanalesGestionDocumental.Add(canal);
+            await contexto.SaveChangesAsync();
+
+            async Task SembrarAsync(string clave, Action<AcreditacionDocumentoPlataforma> estado)
+            {
+                var tipo = new TipoDocumento($"Tipo {clave}", 12, true, 1, AmbitoAplicacion.Empresa);
+                contexto.TiposDocumento.Add(tipo);
+                await contexto.SaveChangesAsync();
+
+                var documento = Documento.DeEmpresa(
+                    empresa.Id, tipo.Id, new DateOnly(2026, 1, 1), new DateOnly(2030, 1, 1));
+                contexto.Documentos.Add(documento);
+                await contexto.SaveChangesAsync();
+
+                var acreditacion = new AcreditacionDocumentoPlataforma(documento.Id, canal.Id);
+                estado(acreditacion);
+                contexto.AcreditacionesDocumentoPlataforma.Add(acreditacion);
+                await contexto.SaveChangesAsync();
+                ids[clave] = acreditacion.Id;
+            }
+
+            await SembrarAsync("vencida", a => a.MarcarAceptada(VigenciaEnPlataforma.VenceEl(hoy.AddDays(-1))));
+            await SembrarAsync("vence-hoy", a => a.MarcarAceptada(VigenciaEnPlataforma.VenceEl(hoy)));
+            await SembrarAsync("vigente", a => a.MarcarAceptada(VigenciaEnPlataforma.VenceEl(hoy.AddDays(30))));
+            await SembrarAsync("sin-confirmar", a => a.MarcarAceptada(VigenciaEnPlataforma.SinConfirmar));
+            // Reenviada tras aceptarse: MarcarSubida no reinicia la vigencia, así
+            // que conserva la fecha pasada; sigue siendo Seguimiento, no vencida.
+            await SembrarAsync("subida-con-fecha-pasada", a =>
+            {
+                a.MarcarAceptada(VigenciaEnPlataforma.VenceEl(hoy.AddDays(-10)));
+                a.MarcarSubida();
+            });
+        }
+
+        await using var consulta = CrearContexto();
+        var handler = new ObtenerAcreditacionesPorProveedorQueryHandler(
+            consulta, consulta, consulta, consulta, consulta, consulta, new AlcanceDatosServiceFalso());
+
+        async Task<List<AcreditacionDrillDownDto>> PedirAsync(ObtenerAcreditacionesPorProveedorQuery query) =>
+            (await handler.Handle(query, CancellationToken.None))
+                .SelectMany(p => p.Clientes).SelectMany(c => c.Documentos)
+                .Where(d => ids.ContainsValue(d.AcreditacionId))
+                .ToList();
+
+        // Por defecto (extensión, /bandeja, Inicio): ninguna aceptada ni subida.
+        (await PedirAsync(new ObtenerAcreditacionesPorProveedorQuery())).Should().BeEmpty();
+
+        // Lo que pide Mi trabajo: solo la vencida, marcada.
+        var vencidas = await PedirAsync(new ObtenerAcreditacionesPorProveedorQuery(IncluirVencidasEnPlataforma: true));
+        var vencida = vencidas.Should().ContainSingle().Subject;
+        vencida.AcreditacionId.Should().Be(ids["vencida"]);
+        vencida.VencidaEnPlataforma.Should().BeTrue();
+
+        // Con todas las aceptadas (drill-down por plataforma), el indicador solo
+        // está en la vencida: la que vence hoy aún vale.
+        var aceptadas = await PedirAsync(new ObtenerAcreditacionesPorProveedorQuery(IncluirAceptadas: true));
+        aceptadas.Select(d => d.AcreditacionId).Should().BeEquivalentTo(
+            new[] { ids["vencida"], ids["vence-hoy"], ids["vigente"], ids["sin-confirmar"] });
+        aceptadas.Where(d => d.VencidaEnPlataforma).Select(d => d.AcreditacionId)
+            .Should().Equal(ids["vencida"]);
+    }
+
+    /// <summary>
     /// Regresión de H-D1 (piloto Outbound): «Marcar subido» dejaba la
     /// acreditación en <c>Subida</c> y ninguna consulta la devolvía, así que
     /// la fila desaparecía del drill-down y no se podía anotar la respuesta de
