@@ -1,3 +1,4 @@
+using CaeManager.Infrastructure.Identity;
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Common;
@@ -319,6 +320,21 @@ public class GestionesListaGen2Tests : BunitContext
         mediador.Enviadas.OfType<ObtenerGestionesQuery>().Count().Should().BeGreaterThan(consultasAntes, "tras el cambio se recarga la lista");
         cut.WaitForAssertion(() => cut.FindAll("tbody .badge").Select(b => b.TextContent.Trim())
             .Should().BeEquivalentTo(["Pendiente", "Completada"], "la fila recargada trae el estado nuevo, la otra no cambia"));
+    }
+
+    [Fact]
+    public async Task Consulta_abre_la_vista_rapida_sin_que_se_le_ofrezca_completar_ni_eliminar()
+    {
+        // Completar y eliminar son ICommand que AutorizacionEscrituraBehavior deniega a
+        // Consulta: ofrecerlos en la vista rápida era enseñar un botón que siempre falla.
+        this.ConRolDeEscritura(Roles.Consulta);
+        var cut = Renderizar(new MediatorFalso { Almacen = { Gestion("Nuria Salas Ortiz") } });
+
+        await NombreEnLaFila(cut, "Nuria Salas Ortiz").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("aside.vista-rapida-gestion button").Select(b => b.TextContent.Trim())
+            .Should().NotContain(["Marcar completada", "Reabrir gestión", "Eliminar"])
+            .And.Contain("Abrir Centro 360 →", "la navegación a los 360 sí es de lectura");
     }
 
     [Fact]
