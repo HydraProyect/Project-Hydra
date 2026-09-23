@@ -40,7 +40,12 @@ public class DisparadoresDeEscrituraSoloParaRolesConEscrituraTests
     [Fact]
     public void Todo_disparador_de_creacion_o_respuesta_esta_dentro_de_SoloConEscritura()
     {
-        var (sitios, sinEnvolver) = Medir(LeerRazor(), TextosNeutralesPorRazor());
+        var (sitios, sinEnvolver, sinResolver) = Medir(LeerRazor(), TextosNeutralesPorRazor());
+
+        // Una clave sin valor en el .resx dejaría su botón fuera de la vista del detector
+        // sin avisar: el recurso ausente también es un defecto visible en pantalla.
+        sinResolver.Should().BeEmpty(
+            "cada @Textos[\"Clave\"] dentro de un <Boton> debe resolverse en el .resx neutral de su Feature o en TextosComunes");
 
         // Control positivo: si el detector no viera nada, o casi nada, «no hay
         // ninguno sin envolver» se cumpliría por vacío.
@@ -76,7 +81,7 @@ public class DisparadoresDeEscrituraSoloParaRolesConEscrituraTests
             "    Añadir contacto\n" +
             "</Boton></SoloConEscritura>\n";
 
-        var (sitios, sinEnvolver) = Medir([("fuente-falsa.razor", fuente)]);
+        var (sitios, sinEnvolver, _) = Medir([("fuente-falsa.razor", fuente)]);
 
         sitios.Should().Be(6);
         sinEnvolver.Should().BeEquivalentTo(
@@ -102,12 +107,15 @@ public class DisparadoresDeEscrituraSoloParaRolesConEscrituraTests
             ["BotonCancelar"] = "Cancelar",
         };
 
-        var (sitios, sinEnvolver) = Medir([("fuente-falsa.razor", fuente)], _ => textos);
+        var (sitios, sinEnvolver, sinResolver) = Medir([("fuente-falsa.razor", fuente)], _ => textos);
 
         sitios.Should().Be(3);
         sinEnvolver.Should().BeEquivalentTo(
             "fuente-falsa.razor:1 <Boton OnClick=\"A\">@Textos[\"BotonCrear\"]</Boton>",
             "fuente-falsa.razor:3 <Boton OnClick=\"C\"> @Textos[\"BotonContacto\"] </Boton>");
+
+        // La clave sin valor no se ignora en silencio: se informa.
+        sinResolver.Should().BeEquivalentTo("fuente-falsa.razor:7 ClaveSinValor");
 
         // Sin resolver, el mismo fuente no enseña ningún disparador: la ceguera que se corrige.
         Medir([("fuente-falsa.razor", fuente)]).Sitios.Should().Be(0);
@@ -120,27 +128,34 @@ public class DisparadoresDeEscrituraSoloParaRolesConEscrituraTests
         @"@[A-Za-z_]\w*\[""(?<clave>[A-Za-z_]\w*)""[^\]]*\]",
         RegexOptions.Compiled);
 
-    private static (int Sitios, List<string> SinEnvolver) Medir(
+    private static (int Sitios, List<string> SinEnvolver, List<string> SinResolver) Medir(
         IEnumerable<(string Ruta, string Contenido)> ficheros,
         Func<string, IReadOnlyDictionary<string, string>>? textosDe = null)
     {
         var sitios = 0;
         var sinEnvolver = new List<string>();
+        var sinResolver = new List<string>();
 
         foreach (var (ruta, contenido) in ficheros)
         {
             var textos = textosDe?.Invoke(ruta);
             foreach (Match boton in ElementoBoton.Matches(contenido))
             {
+                var antes = contenido[..boton.Index];
                 var etiqueta = textos is null
                     ? boton.Value
                     : LlamadaLocalizador.Replace(boton.Value, m =>
-                        textos.TryGetValue(m.Groups["clave"].Value, out var valor) ? valor : m.Value);
+                    {
+                        var clave = m.Groups["clave"].Value;
+                        if (textos.TryGetValue(clave, out var valor)) return valor;
+                        var lineaClave = contenido[..(boton.Index + m.Index)].Count(c => c == '\n') + 1;
+                        sinResolver.Add($"{Path.GetFileName(ruta)}:{lineaClave} {clave}");
+                        return m.Value;
+                    });
                 if (!Disparador.IsMatch(etiqueta)) continue;
                 sitios++;
 
                 // Envuelto si al empezar el botón hay más <SoloConEscritura> abiertos que cerrados.
-                var antes = contenido[..boton.Index];
                 var abiertos = Regex.Matches(antes, "<SoloConEscritura>").Count
                                - Regex.Matches(antes, "</SoloConEscritura>").Count;
                 if (abiertos > 0) continue;
@@ -151,7 +166,7 @@ public class DisparadoresDeEscrituraSoloParaRolesConEscrituraTests
             }
         }
 
-        return (sitios, sinEnvolver);
+        return (sitios, sinEnvolver, sinResolver);
     }
 
     private static IEnumerable<(string Ruta, string Contenido)> LeerRazor()
