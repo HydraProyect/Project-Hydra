@@ -69,6 +69,14 @@ public class CurrentUserService(
     /// Cartera de su rol real ahí (hallazgo Codex 2026-09-11).
     /// </para>
     /// </summary>
+    /// <summary>
+    /// Roles que una delegación o una cartera externa pueden dar en el Tenant
+    /// propietario: solo de Operación (decisión del propietario, 2026-09-23;
+    /// misma lista que <c>AsignacionesOperativasWriter</c>). Se vuelve a
+    /// exigir al LEER porque pueden quedar filas anteriores a esa decisión.
+    /// </summary>
+    private static readonly string[] RolesDelegables = [Roles.CoordinadorCae, Roles.GestorCae, Roles.Consulta];
+
     public async Task<string?> ObtenerRolActualAsync()
     {
         var usuario = await ObtenerUsuarioAsync();
@@ -130,6 +138,12 @@ public class CurrentUserService(
                       && operacion.Estado == EstadoAsignacion.Vigente
                       && operacion.PropietarioTenantId == tenantSeleccionado
                       && (operacion.VigenciaHasta == null || ahora < operacion.VigenciaHasta)
+                      // Una cartera EXTERNA solo aporta roles de Operación
+                      // (decisión del propietario, 2026-09-23): una fila
+                      // heredada con Administrador o Dirección CAE no da ese
+                      // rol en el Tenant propietario aunque siga vigente.
+                      && (operacion.OperadorTenantId == operacion.PropietarioTenantId
+                          || (cartera.Rol != null && RolesDelegables.Contains(cartera.Rol)))
                 orderby cartera.AmbitoRelacionClienteId == null ? 0 : 1, cartera.Id
                 select cartera.Rol)
                 .FirstOrDefaultAsync();
@@ -180,6 +194,9 @@ public class CurrentUserService(
                   && delegacion.Activa
                   && (delegacion.ExpiraEnUtc == null || delegacion.ExpiraEnUtc > DateTime.UtcNow)
                   && delegacion.TenantClienteId == tenantClienteId
+                  // Misma frontera que la vía nueva: una asignación heredada
+                  // con un rol de Propiedad no concede nada (falla cerrado).
+                  && RolesDelegables.Contains(asignacion.Rol)
             select asignacion.Rol)
             .FirstOrDefaultAsync();
     }
