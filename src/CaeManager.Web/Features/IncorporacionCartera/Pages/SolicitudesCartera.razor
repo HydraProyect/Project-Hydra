@@ -1,0 +1,175 @@
+@page "/cartera/solicitudes"
+@rendermode InteractiveServer
+@* Sin Roles a propósito: dentro de un Workspace operativo derivado el claim de rol es el de la
+   cartera en ese Tenant propietario. Quién entra lo decide la Query con el rol de origen. *@
+@attribute [Authorize]
+@using CaeManager.Application.Operaciones.IncorporacionCartera.Queries
+@using CaeManager.Web.Features.IncorporacionCartera.Components
+@using CaeManager.Web.Features.IncorporacionCartera.Recursos
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+
+<PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
+
+<div class="contenedor-pagina">
+    <CabeceraPagina Titulo="@Textos["TituloPagina"]" Kicker="@Textos["Kicker"]">
+        <Acciones>
+            @if (_bandeja is { EsCoordinadorCae: false })
+            {
+                <Boton OnClick="AbrirDialogo">@Textos["BotonSolicitar"]</Boton>
+            }
+        </Acciones>
+    </CabeceraPagina>
+
+    @if (_sinAcceso)
+    {
+        <EstadoVacio Titulo="@Textos["SinAccesoTitulo"]" Descripcion="@Textos["SinAccesoDetalle"]" />
+    }
+    else if (_errorCarga)
+    {
+        <EstadoVacio Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
+            <Accion>
+                <Boton OnClick="CargarAsync">@Comunes["Reintentar"]</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_bandeja is null)
+    {
+        <EstadoCargando Filas="4" />
+    }
+    else if (_bandeja.EsCoordinadorCae)
+    {
+        <Tarjeta Titulo="@Textos["SeccionPendientes"]" NivelTitulo="2">
+            @if (_bandeja.Pendientes.Count == 0)
+            {
+                <p class="solicitudes-vacio">@Textos["SinPendientes"]</p>
+            }
+            else
+            {
+                <table class="tabla-datos">
+                    <thead>
+                        <tr>
+                            <th scope="col">@Textos["ColEmpresa"]</th>
+                            <th scope="col">@Textos["ColGestor"]</th>
+                            <th scope="col">@Textos["ColMensaje"]</th>
+                            <th scope="col">@Textos["ColFecha"]</th>
+                            <th scope="col"><span class="solicitudes-solo-lectores">@Textos["ColAcciones"]</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var solicitud in _bandeja.Pendientes)
+                        {
+                            <tr data-solicitud="@solicitud.Id">
+                                <td>@solicitud.NombreEmpresa</td>
+                                <td>@solicitud.NombreSolicitante</td>
+                                <td class="solicitudes-mensaje">@solicitud.Mensaje</td>
+                                <td>@FormatearFecha(solicitud.CreadaEnUtc)</td>
+                                <td class="solicitudes-acciones">
+                                    @if (solicitud.PuedeResolver)
+                                    {
+                                        <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => AceptarAsync(solicitud)" Deshabilitado="_enCurso is not null" Cargando="_enCurso == solicitud.Id">@Textos["Aceptar"]</Boton>
+                                        <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" OnClick="() => RechazarAsync(solicitud)" Deshabilitado="_enCurso is not null">@Textos["Rechazar"]</Boton>
+                                    }
+                                    else
+                                    {
+                                        <span class="solicitudes-nota">@Textos["EsTuSolicitud"]</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </Tarjeta>
+
+        <Tarjeta Titulo="@Textos["SeccionIncorporaciones"]" NivelTitulo="2">
+            @if (_bandeja.Incorporaciones.Count == 0)
+            {
+                <p class="solicitudes-vacio">@Textos["SinIncorporaciones"]</p>
+            }
+            else
+            {
+                <table class="tabla-datos">
+                    <thead>
+                        <tr>
+                            <th scope="col">@Textos["ColEmpresa"]</th>
+                            <th scope="col">@Textos["ColGestor"]</th>
+                            <th scope="col">@Textos["ColResolutor"]</th>
+                            <th scope="col">@Textos["ColFecha"]</th>
+                            <th scope="col"><span class="solicitudes-solo-lectores">@Textos["ColAcciones"]</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var incorporacion in _bandeja.Incorporaciones)
+                        {
+                            <tr data-solicitud="@incorporacion.Id">
+                                <td>@incorporacion.NombreEmpresa</td>
+                                <td>@incorporacion.NombreSolicitante</td>
+                                <td>@incorporacion.NombreResolutor</td>
+                                <td>@FormatearFecha(incorporacion.ResueltaEnUtc ?? incorporacion.CreadaEnUtc)</td>
+                                <td class="solicitudes-acciones">
+                                    @if (incorporacion.PuedeRevocar)
+                                    {
+                                        <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" OnClick="() => PedirRevocar(incorporacion)" Deshabilitado="_enCurso is not null">@Textos["Revocar"]</Boton>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </Tarjeta>
+    }
+    else if (_bandeja.Propias.Count == 0)
+    {
+        <EstadoVacio Titulo="@Textos["SinPropiasTitulo"]" Descripcion="@Textos["SinPropiasDetalle"]">
+            <Accion>
+                <Boton OnClick="AbrirDialogo">@Textos["BotonSolicitar"]</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else
+    {
+        <Tarjeta Titulo="@Textos["SeccionPropias"]" NivelTitulo="2">
+            <table class="tabla-datos">
+                <thead>
+                    <tr>
+                        <th scope="col">@Textos["ColEmpresa"]</th>
+                        <th scope="col">@Textos["ColMensaje"]</th>
+                        <th scope="col">@Textos["ColEstado"]</th>
+                        <th scope="col">@Textos["ColFecha"]</th>
+                        <th scope="col"><span class="solicitudes-solo-lectores">@Textos["ColAcciones"]</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var propia in _bandeja.Propias)
+                    {
+                        <tr data-solicitud="@propia.Id">
+                            <td>@propia.NombreEmpresa</td>
+                            <td class="solicitudes-mensaje">@propia.Mensaje</td>
+                            <td><Badge Tono="TonoDe(propia.Estado)">@Textos[TextosIncorporacionCartera.ClaveDeEstado(propia.Estado)]</Badge></td>
+                            <td>@FormatearFecha(propia.ResueltaEnUtc ?? propia.CreadaEnUtc)</td>
+                            <td class="solicitudes-acciones">
+                                @if (propia.PuedeRevocar)
+                                {
+                                    <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" OnClick="() => PedirRevocar(propia)" Deshabilitado="_enCurso is not null">@Textos["Revocar"]</Boton>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </Tarjeta>
+    }
+</div>
+
+<DialogoSolicitarIncorporacion @bind-Visible="_dialogoVisible" OnSolicitada="_ => CargarAsync()" />
+
+<DialogoConfirmacion Visible="_aRevocar is not null"
+                     VisibleChanged="CerrarConfirmacion"
+                     Titulo="@Textos["ConfirmarRevocarTitulo"]"
+                     Mensaje="@MensajeConfirmarRevocar"
+                     TextoBotonConfirmar="@Textos["Revocar"]"
+                     EnProgreso="_enCurso is not null"
+                     OnConfirmar="RevocarAsync" />

@@ -364,10 +364,12 @@ public class AlcanceDatosService(
 
         if (carteras.Count == 0) return [];
 
-        // Ámbito universal: todos los clientes del tenant. Solo llega aquí un
-        // rol de alcance total, y esos ya salieron por TieneAccesoTotalAsync
-        // sin consultar carteras — a un rol de cartera no se le emite nunca una
-        // universal, justamente para no ensanchar su alcance.
+        // Ámbito universal: todos los clientes del tenant. Un rol de alcance
+        // total ya salió por TieneAccesoTotalAsync sin consultar carteras; a un
+        // rol de cartera solo se le emite una universal cuando un Coordinador
+        // CAE acepta su solicitud de incorporación al Tenant propietario entero
+        // (CatalogoIncorporacionCartera). Fuera de esa decisión explícita no se
+        // le emite nunca, justamente para no ensanchar su alcance en silencio.
         //
         // F3b — Empresas, no la tabla legacy Clientes: un Cliente creado tras
         // la congelación solo existe ahí (EsCritico != null lo identifica).

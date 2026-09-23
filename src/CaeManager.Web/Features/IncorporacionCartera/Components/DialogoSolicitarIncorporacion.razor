@@ -1,0 +1,49 @@
+@using CaeManager.Domain.Operaciones
+@using CaeManager.Web.Features.IncorporacionCartera.Recursos
+@using Microsoft.Extensions.Localization
+
+<Modal Visible="Visible" VisibleChanged="CerrarAsync" Titulo="@Textos["DialogoTitulo"]">
+    <ChildContent>
+        @if (_cargando)
+        {
+            <p class="dialogo-solicitud-estado" role="status">@Textos["DialogoCargando"]</p>
+        }
+        else if (_candidatos.Count == 0)
+        {
+            <p class="dialogo-solicitud-estado">@Textos["DialogoSinCandidatos"]</p>
+        }
+        else
+        {
+            <div class="dialogo-solicitud-campos">
+                <CampoSelect Etiqueta="@Textos["DialogoEmpresa"]" Valor="@_tenantSeleccionado" ValorChanged="CambiarEmpresa" Deshabilitado="_enviando">
+                    <option value="">@Textos["DialogoElegir"]</option>
+                    @foreach (var candidato in _candidatos)
+                    {
+                        <option value="@candidato.TenantId">@candidato.Nombre</option>
+                    }
+                </CampoSelect>
+
+                @if (TienePendiente)
+                {
+                    <p class="dialogo-solicitud-aviso" role="status">@Textos["DialogoYaPendiente"]</p>
+                }
+
+                <CampoTextarea Etiqueta="@Textos["DialogoMensaje"]"
+                               @bind-Valor="_mensaje"
+                               Filas="5"
+                               Deshabilitado="_enviando || TienePendiente"
+                               MensajeError="@_error" />
+                <p class="dialogo-solicitud-contador @(MensajeDemasiadoLargo ? "dialogo-solicitud-contador-excedido" : null)" aria-live="polite">
+                    @Textos["DialogoContador", LongitudMensaje, SolicitudIncorporacionCartera.LongitudMaximaMensaje]
+                </p>
+            </div>
+        }
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" OnClick="CerrarAsync" Deshabilitado="_enviando">@Textos["Cancelar"]</Boton>
+        @if (_candidatos.Count > 0)
+        {
+            <Boton OnClick="EnviarAsync" Deshabilitado="!PuedeEnviar" Cargando="_enviando">@Textos["DialogoEnviar"]</Boton>
+        }
+    </Pie>
+</Modal>

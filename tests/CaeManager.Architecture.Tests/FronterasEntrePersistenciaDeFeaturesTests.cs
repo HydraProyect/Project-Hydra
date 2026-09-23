@@ -683,6 +683,18 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Trabajadores.ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler", "IEmpresasQueryContext"),
         ("Trabajadores.ResolverDeteccionAusenteCommandHandler", "IAsignacionRepository"),
         ("Visitas.ObtenerVisitasParaCalendarioQueryHandler", "IEmpresasQueryContext"),
+
+        // Solicitud de incorporación a cartera (2026-09-22): el Coordinador CAE
+        // y el Gestor CAE ven el Tenant propietario rotulado «Empresa» por su
+        // nombre (ITenantsQueryContext), y la resolución avisa al Gestor CAE
+        // con la misma NotificacionUsuario que ya usa ReasignarEjecutivoCliente.
+        ("Operaciones.AceptarSolicitudIncorporacionCarteraCommandHandler", "INotificacionUsuarioRepository"),
+        ("Operaciones.AceptarSolicitudIncorporacionCarteraCommandHandler", "ITenantsQueryContext"),
+        ("Operaciones.ObtenerSolicitudesIncorporacionCarteraQueryHandler", "ITenantsQueryContext"),
+        ("Operaciones.RechazarSolicitudIncorporacionCarteraCommandHandler", "INotificacionUsuarioRepository"),
+        ("Operaciones.RechazarSolicitudIncorporacionCarteraCommandHandler", "ITenantsQueryContext"),
+        ("Operaciones.RevocarIncorporacionCarteraCommandHandler", "INotificacionUsuarioRepository"),
+        ("Operaciones.RevocarIncorporacionCarteraCommandHandler", "ITenantsQueryContext"),
     };
 
     [Fact]

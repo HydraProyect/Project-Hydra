@@ -91,7 +91,18 @@ public enum TipoItemBandeja
     /// <c>ObtenerMiTrabajoAgregadoQueryHandler</c> para el bucket
     /// "Seguimiento" del contrato Gen2 § 5/§ 7.
     /// </summary>
-    EnPlataformaSeguimiento
+    EnPlataformaSeguimiento,
+    /// <summary>
+    /// Acreditación <see cref="EstadoAcreditacion.Aceptada"/> cuya vigencia
+    /// <b>en la plataforma</b> ya venció: la plataforma del Cliente empresarial
+    /// dejó de darla por buena, aunque en TALVEG el documento siga vigente
+    /// (decisión P12, 2026-09-23). Es bloqueo de prioridad alta, la misma que
+    /// <see cref="Vencido"/>, y la acción va a la acreditación en la plataforma, no al
+    /// documento. Igual que <see cref="VencimientoProximo"/>, <c>Fusionar</c>
+    /// nunca lo emite: solo
+    /// <c>ObtenerMiTrabajoAgregadoQueryHandler.MapearVencidasEnPlataforma</c>.
+    /// </summary>
+    PlataformaVencida
 }
 
 /// <param name="CreadaEnUtc">
@@ -377,20 +388,36 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
         // un Requisito bloqueante (tiene una fecha límite externa fija, el
         // Requisito no), que a su vez pesa más que un documento Urgente
         // individual o una revisión IA.
-        return items
-            .OrderBy(i => i.Tipo switch
-            {
-                TipoItemBandeja.SugerenciaVisitaUrgente => 0,
-                TipoItemBandeja.Faltante => 1,
-                TipoItemBandeja.Vencido => 2,
-                TipoItemBandeja.PlataformaRechazada => 3,
-                TipoItemBandeja.VisitaUrgente => 4,
-                TipoItemBandeja.RequisitoPendiente => 5,
-                TipoItemBandeja.Urgente => 6,
-                _ => 7
-            })
-            .ThenBy(i => i.Fecha)
-            .ThenBy(i => i.Id)
-            .ToList();
+        return Ordenar(items);
     }
+
+    /// <summary>
+    /// Orden de la cola: prioridad del tipo, luego fecha, luego Id. Público para
+    /// que Mi trabajo agregada, que añade tipos que <see cref="Fusionar"/> no emite
+    /// (<see cref="TipoItemBandeja.PlataformaVencida"/>), ordene con la misma regla.
+    /// </summary>
+    public static List<ItemBandejaDto> Ordenar(IEnumerable<ItemBandejaDto> items) => items
+        .OrderBy(i => Prioridad(i.Tipo))
+        .ThenBy(i => i.Fecha)
+        .ThenBy(i => i.Id)
+        .ToList();
+
+    /// <summary>
+    /// Prioridad de cada tipo en la cola (menor, antes). Única fuente: la usan
+    /// <see cref="Ordenar"/> y el orden de grupos de la cola agrupada. Una
+    /// acreditación vencida en la plataforma pesa lo mismo que un documento
+    /// vencido en TALVEG (D-6: «Vencida → alta»).
+    /// </summary>
+    public static int Prioridad(TipoItemBandeja tipo) => tipo switch
+    {
+        TipoItemBandeja.SugerenciaVisitaUrgente => 0,
+        TipoItemBandeja.Faltante => 1,
+        TipoItemBandeja.Vencido => 2,
+        TipoItemBandeja.PlataformaVencida => 2,
+        TipoItemBandeja.PlataformaRechazada => 3,
+        TipoItemBandeja.VisitaUrgente => 4,
+        TipoItemBandeja.RequisitoPendiente => 5,
+        TipoItemBandeja.Urgente => 6,
+        _ => 7
+    };
 }

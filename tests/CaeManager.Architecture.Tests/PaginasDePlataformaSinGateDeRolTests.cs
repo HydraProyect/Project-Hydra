@@ -48,6 +48,22 @@ public class PaginasDePlataformaSinGateDeRolTests
         // raíz designada por el despliegue, que no es el rol Administrador ni la
         // capacidad AdminPlataforma —esa es lo que se obtiene al cruzarla—.
         "src/CaeManager.Web/Features/Plataforma/Pages/Plataforma.razor",
+        // Orden global del menú lateral (2026-09-23): lo escribe el Actor de Plataforma TALVEG con
+        // concesión AdminPlataforma global (GuardarOrdenMenuLateralCommand), no el rol Administrador.
+        "src/CaeManager.Web/Features/Configuracion/Pages/OrdenMenuLateral.razor",
+    ];
+
+    /// <summary>
+    /// Páginas de Tenant que consultan <c>EsAdministradorPlataforma</c> solo para DESCUBRIR una
+    /// página de plataforma (enseñar u ocultar su enlace), sin ejercer esa autoridad. Su gate sigue
+    /// siendo su rol de Identity, y es correcto: la barrera de la página enlazada es su propio
+    /// comando. Una lista aparte, y no la de arriba, porque la de arriba prohíbe el gate por rol.
+    /// </summary>
+    private static readonly string[] PaginasQueSoloDescubrenPlataforma =
+    [
+        // El hub de Configuración ([Authorize(Roles=Administrador)]) enseña la entrada
+        // «Orden del menú» solo al Actor de Plataforma TALVEG; no escribe nada de plataforma.
+        "src/CaeManager.Web/Features/Configuracion/Pages/Configuracion.razor",
     ];
 
     /// <summary>
@@ -102,9 +118,32 @@ public class PaginasDePlataformaSinGateDeRolTests
             "si el descubrimiento no encuentra ninguna página, ha dejado de observar el fenómeno y la " +
             "comparación de abajo pasaría en vacío");
 
-        descubiertas.Should().BeEquivalentTo(PaginasDePlataforma,
+        descubiertas.Should().BeEquivalentTo(PaginasDePlataforma.Concat(PaginasQueSoloDescubrenPlataforma),
             "una página que consume autoridad de plataforma se autoriza por capacidad; añadirla a la lista " +
             "en el mismo commit es la decisión que este ratchet obliga a tomar a la vista");
+    }
+
+    /// <summary>
+    /// Una página que solo descubre no puede usar la consulta como su propia autoridad: tiene que
+    /// seguir gateada por rol y no puede enviar comandos de plataforma.
+    /// </summary>
+    [Fact]
+    public void Las_paginas_que_solo_descubren_plataforma_siguen_gateadas_por_rol_y_no_la_ejercen()
+    {
+        var raiz = RaizDelRepositorio();
+
+        foreach (var pagina in PaginasQueSoloDescubrenPlataforma)
+        {
+            var ruta = Path.Combine(raiz, pagina.Replace('/', Path.DirectorySeparatorChar));
+            File.Exists(ruta).Should().BeTrue($"{pagina} debe existir; si se movió, actualiza esta lista");
+
+            var ficheros = FicherosDelComponente(ruta).Select(File.ReadAllText).ToList();
+            ficheros.Any(GatePorRol.IsMatch).Should().BeTrue(
+                $"{pagina} solo descubre una página de plataforma; si pierde su gate por rol, su autoridad " +
+                "pasaría a ser la consulta de interfaz, y entonces pertenece a la lista de páginas de plataforma");
+            ficheros.Should().NotContain(f => Regex.IsMatch(f, @"CaeManager\.Application\.(?:Plataforma|Comercial)\b"),
+                $"{pagina} no puede ejercer autoridad de plataforma: solo consulta EsAdministradorPlataforma");
+        }
     }
 
     [Fact]
