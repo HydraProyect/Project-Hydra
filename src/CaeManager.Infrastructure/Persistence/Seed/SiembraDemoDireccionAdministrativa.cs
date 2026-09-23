@@ -338,7 +338,8 @@ public static partial class SiembraDemoDireccionAdministrativa
             new(contrasenas.GetValueOrDefault(email, string.Empty), string.Empty, string.Empty);
 
         var tenantOperadorId = await DelegacionDemoSeeder.AprovisionarTenantAsync(
-            dbContext, NombreTenantOperador, Domain.Tenants.PerfilVocabularioTenant.Consultora, logger, cancellationToken);
+            dbContext, NombreTenantOperador, Domain.Tenants.PerfilVocabularioTenant.Consultora, logger, cancellationToken,
+            esOperadorCaeExterno: true);
         await MarcarComoDemoAsync(dbContext, tenantOperadorId, cancellationToken);
 
         var administrador = await DelegacionDemoSeeder.CrearUsuarioConsultoraAsync(
@@ -356,7 +357,8 @@ public static partial class SiembraDemoDireccionAdministrativa
         {
             var rama = Ramas[indice];
             var tenantPropietarioId = await DelegacionDemoSeeder.AprovisionarTenantAsync(
-                dbContext, rama.NombreTenant, Domain.Tenants.PerfilVocabularioTenant.ClienteDirecto, logger, cancellationToken);
+                dbContext, rama.NombreTenant, Domain.Tenants.PerfilVocabularioTenant.ClienteDirecto, logger, cancellationToken,
+                esOperadorCaeExterno: false);
             await MarcarComoDemoAsync(dbContext, tenantPropietarioId, cancellationToken);
 
             await DelegacionDemoSeeder.CrearDelegacionAsync(

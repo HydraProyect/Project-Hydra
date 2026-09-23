@@ -98,13 +98,15 @@ public static class DelegacionDemoSeeder
         var credenciales = CredencialesDemo.Resolver(configuration, entorno);
 
         var tenantConsultoraId = await AprovisionarTenantAsync(
-            dbContext, NombreTenantConsultora, PerfilVocabularioTenant.Consultora, logger, cancellationToken);
+            dbContext, NombreTenantConsultora, PerfilVocabularioTenant.Consultora, logger, cancellationToken,
+            esOperadorCaeExterno: true);
         var administradorConsultora = await CrearAdministradorConsultoraAsync(
             dbContext, userManager, userStore, credenciales, logger, tenantConsultoraId, cancellationToken);
 
         // --- Refrielectric: la referencia principal de "empresa final" ---
         var refrielectricId = await AprovisionarTenantAsync(
-            dbContext, NombreTenantRefrielectric, PerfilVocabularioTenant.ClienteDirecto, logger, cancellationToken);
+            dbContext, NombreTenantRefrielectric, PerfilVocabularioTenant.ClienteDirecto, logger, cancellationToken,
+            esOperadorCaeExterno: false);
         using (AmbitoTenantExplicito.Establecer(refrielectricId))
         {
             await DatosPruebaSeeder.SembrarSoloDatosCompletosAsync(dbContext, logger, cancellationToken);
@@ -116,7 +118,8 @@ public static class DelegacionDemoSeeder
 
         // --- Laboratorios Dexter: datos + usuarios prueba.<rol>, sin cambios ---
         var tenantClienteId = await AprovisionarTenantAsync(
-            dbContext, NombreTenantClienteDemo, PerfilVocabularioTenant.ClienteDirecto, logger, cancellationToken);
+            dbContext, NombreTenantClienteDemo, PerfilVocabularioTenant.ClienteDirecto, logger, cancellationToken,
+            esOperadorCaeExterno: false);
 
         // Todos los datos operativos de prueba (clientes, empresas, centros,
         // trabajadores, documentos, usuarios prueba.<rol><n>@...) se siembran
@@ -135,7 +138,8 @@ public static class DelegacionDemoSeeder
 
         // --- Transportes Planet Express: solo datos + cartera a un único gestor ---
         var tenantCliente2Id = await AprovisionarTenantAsync(
-            dbContext, NombreTenantClienteDemo2, PerfilVocabularioTenant.ClienteDirecto, logger, cancellationToken);
+            dbContext, NombreTenantClienteDemo2, PerfilVocabularioTenant.ClienteDirecto, logger, cancellationToken,
+            esOperadorCaeExterno: false);
 
         using (AmbitoTenantExplicito.Establecer(tenantCliente2Id))
         {
@@ -147,7 +151,8 @@ public static class DelegacionDemoSeeder
 
         // --- Hosteleria Krusty Krab: sin datos, solo la delegación comercial revocada ---
         var tenantCliente3Id = await AprovisionarTenantAsync(
-            dbContext, NombreTenantClienteDemo3, PerfilVocabularioTenant.ClienteDirecto, logger, cancellationToken);
+            dbContext, NombreTenantClienteDemo3, PerfilVocabularioTenant.ClienteDirecto, logger, cancellationToken,
+            esOperadorCaeExterno: false);
         await CrearDelegacionRevocadaAsync(dbContext, tenantConsultoraId, tenantCliente3Id, logger, cancellationToken);
 
         await SembrarOperadoresConsultoraAsync(
@@ -739,17 +744,41 @@ public static class DelegacionDemoSeeder
     }
 
     internal static async Task<Guid> AprovisionarTenantAsync(
-        CaeManagerDbContext dbContext, string nombreTenant, PerfilVocabularioTenant perfil, ILogger logger, CancellationToken cancellationToken)
+        CaeManagerDbContext dbContext, string nombreTenant, PerfilVocabularioTenant perfil, ILogger logger, CancellationToken cancellationToken,
+        bool esOperadorCaeExterno)
     {
         var tenantExistente = await dbContext.Tenants
             .FirstOrDefaultAsync(t => t.Nombre == nombreTenant, cancellationToken);
         if (tenantExistente is not null)
+        {
+            // Idempotencia de la capacidad, no solo del alta: un tenant ya
+            // sembrado en una ejecución anterior del seeder (antes de que
+            // esta llamada pidiera la capacidad, o restaurado desde un
+            // estado previo al backfill de la migración) debe recibirla
+            // igual, no solo el que se crea aquí por primera vez.
+            if (esOperadorCaeExterno && !tenantExistente.PuedeActuarComoOperadorCaeExterno)
+            {
+                tenantExistente.HabilitarComoOperadorCaeExterno();
+                // El interceptor de auditoría exige un tenant resuelto para
+                // sellar el RegistroAuditoria — mismo ámbito que el resto de
+                // este método usa para su propio guardado.
+                using (AmbitoTenantExplicito.Establecer(tenantExistente.Id))
+                    await dbContext.SaveChangesAsync(cancellationToken);
+            }
+
             return tenantExistente.Id;
+        }
 
         // DDL-072: el perfil de vocabulario es del tenant que se mira a sí
         // mismo, no de quién lo administra — un Cliente Delegante se ve como
         // Cliente Directo aunque ArcoSPA (Consultora) lo opere en plural.
         var tenant = new Tenant(nombreTenant, perfil);
+
+        // Capacidad declarada aparte del perfil, igual que en
+        // CrearOperadorCaeExternoCommand: no se infiere de perfil ==
+        // Consultora, cada llamada la declara explícitamente.
+        if (esOperadorCaeExterno)
+            tenant.HabilitarComoOperadorCaeExterno();
 
         // Mismo motivo que SegundoTenantSeeder: hace falta un tenant
         // resuelto ya para este primer guardado (el interceptor de
