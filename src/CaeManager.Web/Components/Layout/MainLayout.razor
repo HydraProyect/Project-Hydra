@@ -73,6 +73,10 @@
         <CaeManager.Web.Features.AsistenteIa.AsistenteIa @rendermode="InteractiveServer" />
         <CaeManager.Web.Features.Notificaciones.NotificacionesPopup />
         <CaeManager.Web.Features.VigilanciaNormativa.PanelAvisosNormativos />
+        @* Sin puerta de rol a propósito: dentro de un Workspace operativo derivado el claim es el
+           rol de la cartera en ese Tenant propietario, no el del Coordinador CAE en su Operador
+           CAE. Lo decide la Query, con el rol de origen; el aviso se oculta si no lo es. *@
+        <CaeManager.Web.Features.IncorporacionCartera.Components.AvisoSolicitudesCartera />
         <CaeManager.Web.Components.Workspace.ContextWorkspace @rendermode="InteractiveServer" />
         <CaeManager.Web.Features.AtajosGlobales.AtajosGlobales @rendermode="InteractiveServer" />
     </Authorized>

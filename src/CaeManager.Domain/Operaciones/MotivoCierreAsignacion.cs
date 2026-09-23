@@ -34,5 +34,13 @@ public enum MotivoCierreAsignacion
     /// que la vigencia real de esa etapa es desconocida — se marca para no
     /// fingir un dato que nunca existió.
     /// </summary>
-    MigradaSinFecha = 5
+    MigradaSinFecha = 5,
+
+    /// <summary>
+    /// El Operador CAE retiró la cartera que uno de sus Gestores CAE obtuvo por
+    /// una <see cref="SolicitudIncorporacionCartera"/>: la revocó un Coordinador
+    /// CAE del mismo Operador CAE, o el propio Gestor CAE renunció a ella. No es
+    /// <see cref="Revocada"/>, que es una decisión del Tenant propietario.
+    /// </summary>
+    RetiradaPorElOperador = 6
 }
