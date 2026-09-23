@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Options;
+using Microsoft.JSInterop;
 
 namespace CaeManager.Web.Features.Configuracion.Pages;
 
@@ -95,22 +96,33 @@ public partial class OrdenMenuLateral : ComponentBase
     private Aviso _aviso;
     private Func<Task>? _ultimaAccion;
     private string _anuncio = string.Empty;
+    private bool _errorCarga;
 
     private readonly Dictionary<string, ElementReference> _asas = [];
     private string? _asaPorEnfocar;
 
     protected override async Task OnInitializedAsync()
     {
-        _esAdministradorPlataforma = await Mediator.Send(new EsAdministradorPlataformaQuery());
-        if (_esAdministradorPlataforma != true)
+        try
         {
-            _cargando = false;
-            return;
+            _esAdministradorPlataforma = await Mediator.Send(new EsAdministradorPlataformaQuery());
+            if (_esAdministradorPlataforma != true)
+            {
+                _cargando = false;
+                return;
+            }
+
+            _orden = await Mediator.Send(new ObtenerOrdenMenuLateralQuery());
+            _autorOrden = await AutorDeAsync(_orden);
+            AplicarGuardado();
+        }
+        catch (Exception excepcion)
+        {
+            // Sin esto la excepción tumba el circuito entero; la página enseña un estado de error.
+            Logger.LogError(excepcion, "Error al cargar el orden del menú lateral");
+            _errorCarga = true;
         }
 
-        _orden = await Mediator.Send(new ObtenerOrdenMenuLateralQuery());
-        _autorOrden = await AutorDeAsync(_orden);
-        AplicarGuardado();
         _cargando = false;
     }
 
@@ -128,6 +140,10 @@ public partial class OrdenMenuLateral : ComponentBase
             catch (InvalidOperationException)
             {
                 // El asa ya no está en el DOM (la lista se recargó): no hay foco que devolver.
+            }
+            catch (JSDisconnectedException)
+            {
+                // El circuito se cerró entre el render y el foco: no queda navegador que enfocar.
             }
         }
     }

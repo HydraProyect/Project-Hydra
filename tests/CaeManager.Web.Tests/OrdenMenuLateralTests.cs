@@ -72,9 +72,14 @@ public class OrdenMenuLateralTests : BunitContext
             return Task.FromResult((TResponse)respuesta);
         }
 
+        /// <summary>Si no es null, leer el orden lanza esta excepción (base caída a mitad de carga).</summary>
+        public Exception? FalloAlLeer { get; set; }
+
         private OrdenMenuLateralDto? LeerOrden()
         {
             LecturasDelOrden++;
+            if (FalloAlLeer is not null)
+                throw FalloAlLeer;
             return Orden;
         }
 
@@ -173,6 +178,18 @@ public class OrdenMenuLateralTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Solo el Actor de Plataforma TALVEG ordena el menú"));
         cut.FindAll("[data-fila]").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Si_la_carga_falla_la_pagina_muestra_un_error_y_no_tumba_el_circuito()
+    {
+        _mediador.FalloAlLeer = new InvalidOperationException("base caída");
+
+        var cut = Renderizar();
+
+        cut.Markup.Should().Contain("No se pudo cargar el orden del menú");
+        cut.FindAll("[data-fila]").Should().BeEmpty();
+        cut.FindAll("[data-accion='guardar']").Should().BeEmpty();
     }
 
     // ---------------------------------------------------------------- carga y reconciliación

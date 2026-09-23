@@ -23,7 +23,13 @@
         <p>@Textos["OrdenMenuDescripcion"]</p>
     </header>
 
-    @if (_esAdministradorPlataforma is null)
+    @if (_errorCarga)
+    {
+        <EstadoVacio NombreIcono="error-circulo"
+                     Titulo="@Textos["OrdenMenuErrorCargaTitulo"]"
+                     Descripcion="@Textos["OrdenMenuErrorCargaTexto"]" />
+    }
+    else if (_esAdministradorPlataforma is null)
     {
         <EstadoCargando />
     }

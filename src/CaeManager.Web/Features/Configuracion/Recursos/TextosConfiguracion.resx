@@ -555,4 +555,10 @@
   <data name="OrdenMenuRestablecerConfirmar" xml:space="preserve">
     <value>Restablecer</value>
   </data>
+  <data name="OrdenMenuErrorCargaTitulo" xml:space="preserve">
+    <value>No se pudo cargar el orden del menú</value>
+  </data>
+  <data name="OrdenMenuErrorCargaTexto" xml:space="preserve">
+    <value>El error ya ha quedado registrado. Recarga la página para volver a intentarlo.</value>
+  </data>
 </root>
