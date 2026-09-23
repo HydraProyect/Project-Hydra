@@ -111,12 +111,16 @@ public static class TipoItemBandejaUi
 
     /// <summary>
     /// «Bloquea acceso» solo cuando de verdad bloquea.
-    /// <see cref="GrupoColaDto.BloqueaAcceso"/> significa «el grupo tiene algún
-    /// RequisitoPendiente», y un requisito de ALTA NUEVA no es un bloqueo que
+    /// <see cref="GrupoColaDto.BloqueaAcceso"/> es la clave de orden del grupo
+    /// e incluye los RequisitoPendiente de ALTA NUEVA, que no son un bloqueo que
     /// corregir sino un alta sin completar (mismo criterio que
     /// <see cref="Tono(ItemBandejaDto)"/>, que ya le da otro tono). Pintar la
     /// banda, el badge o contarlo en «N bloquean acceso» por él le dice al
-    /// Gestor CAE que un Centro está cerrado cuando no lo está.
+    /// Gestor CAE que un Centro está cerrado cuando no lo está. Qué item bloquea
+    /// de verdad —requisito que no es alta nueva, o acreditación Rechazada que
+    /// el cálculo del Centro cuenta como bloqueante (D-7)— lo decide
+    /// <see cref="ObtenerBandejaAgrupadaQueryHandler.BloqueaAccesoAlCentro"/>,
+    /// no esta clase.
     ///
     /// <para>
     /// Vive aquí, y no en <c>GrupoCola</c>, porque tiene ya dos lectores que no
@@ -128,7 +132,7 @@ public static class TipoItemBandejaUi
     /// </summary>
     public static bool BloqueaAccesoDeVerdad(GrupoColaDto grupo) =>
         grupo.BloqueaAcceso
-        && grupo.Items.Any(i => i.Tipo == TipoItemBandeja.RequisitoPendiente && !i.EsAltaNueva);
+        && grupo.Items.Any(ObtenerBandejaAgrupadaQueryHandler.BloqueaAccesoAlCentro);
 
     /// <summary>
     /// Gate del hallazgo de P9 (2026-09-18, CAPA-USUARIO-AVANZADO-TALVEG.md
