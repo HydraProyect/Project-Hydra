@@ -1,0 +1,300 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="TituloPagina" xml:space="preserve">
+    <value>Dashboard Ejecutivo</value>
+  </data>
+  <data name="Kicker" xml:space="preserve">
+    <value>Dashboard Ejecutivo</value>
+  </data>
+  <data name="TituloCabecera" xml:space="preserve">
+    <value>Tu cartera, con los KPI que elijas</value>
+  </data>
+  <data name="EtiquetaSelectorPeriodo" xml:space="preserve">
+    <value>Periodo</value>
+  </data>
+  <data name="EtiquetaFechaInicio" xml:space="preserve">
+    <value>Desde</value>
+  </data>
+  <data name="EtiquetaFechaFin" xml:space="preserve">
+    <value>Hasta</value>
+  </data>
+  <data name="PresetMesActual" xml:space="preserve">
+    <value>Mes en curso</value>
+  </data>
+  <data name="PresetMesAnterior" xml:space="preserve">
+    <value>Mes anterior</value>
+  </data>
+  <data name="PresetUltimosTresMeses" xml:space="preserve">
+    <value>Últimos 3 meses</value>
+  </data>
+  <data name="PresetAnyoActual" xml:space="preserve">
+    <value>Año en curso</value>
+  </data>
+  <data name="PresetLibre" xml:space="preserve">
+    <value>Personalizado</value>
+  </data>
+  <data name="ErrorCargaTitulo" xml:space="preserve">
+    <value>No pudimos cargar el Dashboard Ejecutivo</value>
+  </data>
+  <data name="ErrorCargaDescripcion" xml:space="preserve">
+    <value>Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="BotonReintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="SeccionPersonalizarTitulo" xml:space="preserve">
+    <value>Personalizar</value>
+  </data>
+  <data name="ResumenKpisMostrados" xml:space="preserve">
+    <value>{0} de {1} KPI mostrados</value>
+  </data>
+  <data name="BotonGuardarKpis" xml:space="preserve">
+    <value>Guardar selección</value>
+  </data>
+  <data name="AvisoCambiosPendientes" xml:space="preserve">
+    <value>Cambios sin guardar</value>
+  </data>
+  <data name="ToastGuardadoOk" xml:space="preserve">
+    <value>Selección guardada.</value>
+  </data>
+  <data name="ToastGuardadoError" xml:space="preserve">
+    <value>No pudimos guardar la selección. Intenta nuevamente.</value>
+  </data>
+  <data name="VacioKpisTitulo" xml:space="preserve">
+    <value>Todavía no has elegido ningún KPI</value>
+  </data>
+  <data name="VacioKpisDescripcion" xml:space="preserve">
+    <value>Marca al menos uno en el panel de arriba y guarda la selección.</value>
+  </data>
+  <data name="SeccionDelPeriodo" xml:space="preserve">
+    <value>El negocio en el periodo</value>
+  </data>
+  <data name="VentanaAlcanceTitulo" xml:space="preserve">
+    <value>Alcance</value>
+  </data>
+  <data name="AlertaPresupuestoIaInicio" xml:space="preserve">
+    <value>Presupuesto de IA superado este período en:</value>
+  </data>
+  <data name="AlertaPresupuestoIaSinBloqueo" xml:space="preserve">
+    <value>No se ha bloqueado ni degradado nada — ajusta el límite en</value>
+  </data>
+  <data name="EnlaceAjustes" xml:space="preserve">
+    <value>Configuración</value>
+  </data>
+  <data name="AlertaPresupuestoIaCierre" xml:space="preserve">
+    <value>si sigue siendo el esperado.</value>
+  </data>
+  <data name="SeccionFueraDelPeriodo" xml:space="preserve">
+    <value>Al margen del periodo</value>
+  </data>
+  <data name="FueraPeriodoSoloHoy" xml:space="preserve">
+    <value>Foto de hoy: estas cifras no dependen del periodo elegido.</value>
+  </data>
+  <data name="FueraPeriodoHoyYAcumulado" xml:space="preserve">
+    <value>Foto de hoy y totales desde el principio: estas cifras no dependen del periodo elegido.</value>
+  </data>
+  <data name="OrganizacionesUna" xml:space="preserve">
+    <value>1 organización</value>
+  </data>
+  <data name="OrganizacionesVarias" xml:space="preserve">
+    <value>{0} organizaciones</value>
+  </data>
+  <data name="RangoFechas" xml:space="preserve">
+    <value>Del {0} al {1}</value>
+  </data>
+  <data name="DetalleAlcanceOrganizaciones" xml:space="preserve">
+    <value>{0} en el alcance: la tuya más las que os han delegado su gestión CAE. Los KPI de esta sección suman las {1}.</value>
+  </data>
+  <data name="AvisoOrganizacionActivaUnica" xml:space="preserve">
+    <value>Solo la organización activa: esta consulta no recorre las demás.</value>
+  </data>
+  <data name="AvisoTemporalEstadoActual" xml:space="preserve">
+    <value>Estado de hoy: no depende del periodo elegido.</value>
+  </data>
+  <data name="AvisoTemporalAcumulado" xml:space="preserve">
+    <value>Todo lo registrado desde el principio: no depende del periodo elegido.</value>
+  </data>
+  <data name="ValorDiasMedios" xml:space="preserve">
+    <value>{0:F1} días</value>
+  </data>
+  <data name="PistaTasaPonderada" xml:space="preserve">
+    <value>Ponderada por el volumen de documentos de cada organización</value>
+  </data>
+  <data name="PistaCumplimientoPonderado" xml:space="preserve">
+    <value>Ponderada por lo que se pide en cada organización</value>
+  </data>
+  <data name="PistaConfianzaPonderada" xml:space="preserve">
+    <value>Ponderada por las extracciones de cada organización</value>
+  </data>
+  <data name="PistaResolucionPonderada" xml:space="preserve">
+    <value>Ponderado por las incidencias resueltas de cada organización</value>
+  </data>
+  <data name="PistaFacturacionTarifas" xml:space="preserve">
+    <value>Solo los Clientes empresariales con tarifas configuradas</value>
+  </data>
+  <data name="PistaTonoInvertido" xml:space="preserve">
+    <value>Tono invertido: un porcentaje alto es el problema</value>
+  </data>
+  <data name="PistaPresupuestoIaUna" xml:space="preserve">
+    <value>1 organización sobre su presupuesto de IA</value>
+  </data>
+  <data name="PistaPresupuestoIaVarias" xml:space="preserve">
+    <value>{0} organizaciones sobre su presupuesto de IA</value>
+  </data>
+  <data name="SegmentoVigente" xml:space="preserve">
+    <value>Vigente</value>
+  </data>
+  <data name="SegmentoProximo" xml:space="preserve">
+    <value>Próximo</value>
+  </data>
+  <data name="SegmentoUrgente" xml:space="preserve">
+    <value>Urgente</value>
+  </data>
+  <data name="SegmentoVencido" xml:space="preserve">
+    <value>Vencido</value>
+  </data>
+  <data name="UnidadDocumentosConVigencia" xml:space="preserve">
+    <value>documentos con vigencia</value>
+  </data>
+  <data name="UnidadVisitasMedidas" xml:space="preserve">
+    <value>visitas con la antelación medida</value>
+  </data>
+  <data name="UnidadGenerica" xml:space="preserve">
+    <value>registros</value>
+  </data>
+  <data name="GraficoTotal" xml:space="preserve">
+    <value>{0} {1} en total</value>
+  </data>
+  <data name="LeyendaDesgloseSinTotal" xml:space="preserve">
+    <value>{0}: {1} de 0 {2}.</value>
+  </data>
+  <data name="LeyendaDesgloseConTotal" xml:space="preserve">
+    <value>{0}: {1} de {2} {3}, el {4}% del total.</value>
+  </data>
+  <data name="BarraSinJornada" xml:space="preserve">
+    <value>Sin jornada mensual configurada</value>
+  </data>
+  <data name="GravedadLeve" xml:space="preserve">
+    <value>Leve</value>
+  </data>
+  <data name="GravedadGrave" xml:space="preserve">
+    <value>Grave</value>
+  </data>
+  <data name="GravedadMuyGrave" xml:space="preserve">
+    <value>Muy grave</value>
+  </data>
+  <data name="VacioRiesgoEmpresas" xml:space="preserve">
+    <value>Ninguna empresa tiene documentación urgente o vencida.</value>
+  </data>
+  <data name="ColumnaEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="ColumnaVencidos" xml:space="preserve">
+    <value>Vencidos</value>
+  </data>
+  <data name="ColumnaUrgentes" xml:space="preserve">
+    <value>Urgentes</value>
+  </data>
+  <data name="TituloRecuentoVencidos" xml:space="preserve">
+    <value>{0}: {1} documentos de trabajador vencidos</value>
+  </data>
+  <data name="TituloRecuentoUrgentes" xml:space="preserve">
+    <value>{0}: {1} documentos de trabajador urgentes</value>
+  </data>
+  <data name="ColumnaReceptorServicio" xml:space="preserve">
+    <value>Cliente empresarial</value>
+  </data>
+  <data name="ColumnaHorasGestion" xml:space="preserve">
+    <value>Horas de gestión</value>
+  </data>
+  <data name="ColumnaRepartoMostrados" xml:space="preserve">
+    <value>Reparto entre los mostrados</value>
+  </data>
+  <data name="DesgloseHorasSinTotal" xml:space="preserve">
+    <value>{0}: {1} de gestión medidas.</value>
+  </data>
+  <data name="DesgloseHorasConTotal" xml:space="preserve">
+    <value>{0}: {1} de las {2} medidas en los {3} Clientes empresariales con más tiempo; no incluye el resto de la cartera.</value>
+  </data>
+  <data name="VacioAutomaticasManuales" xml:space="preserve">
+    <value>Todavía no hay documentos verificados por IA.</value>
+  </data>
+  <data name="AriaBarraComparativa" xml:space="preserve">
+    <value>{0}% de las gestiones fueron automáticas, {1}% manuales</value>
+  </data>
+  <data name="LeyendaAutomaticas" xml:space="preserve">
+    <value>Automáticas — {0} ({1}%)</value>
+  </data>
+  <data name="LeyendaManuales" xml:space="preserve">
+    <value>Manuales — {0} ({1}%)</value>
+  </data>
+  <data name="VacioDonutAntelacion" xml:space="preserve">
+    <value>Todavía no hay visitas con la antelación medida.</value>
+  </data>
+  <data name="VacioDonutVigencia" xml:space="preserve">
+    <value>Todavía no hay documentos con fecha de vencimiento que repartir.</value>
+  </data>
+  <data name="VacioBarrasIncidencias" xml:space="preserve">
+    <value>No hay incidencias registradas.</value>
+  </data>
+  <data name="VacioBarrasCentros" xml:space="preserve">
+    <value>Todavía no hay documentación de trabajador que evaluar: ningún centro con trabajadores asignados la pide.</value>
+  </data>
+  <data name="VacioTiempoGestion" xml:space="preserve">
+    <value>No hay tiempo de gestión registrado este mes. La medición de tiempo se activa en Configuración.</value>
+  </data>
+  <data name="PulsoKicker" xml:space="preserve">
+    <value>Pulso del negocio</value>
+  </data>
+  <data name="VentanaVerificacionesTitulo" xml:space="preserve">
+    <value>Verificaciones de IA</value>
+  </data>
+  <data name="PulsoVerificacionesNinguna" xml:space="preserve">
+    <value>Todavía no hay verificaciones de IA resueltas en la organización activa.</value>
+  </data>
+  <data name="PulsoVerificacionesUna" xml:space="preserve">
+    <value>1 verificación de IA resuelta en total en la organización activa.</value>
+  </data>
+  <data name="PulsoVerificacionesVarias" xml:space="preserve">
+    <value>{0} verificaciones de IA resueltas en total en la organización activa.</value>
+  </data>
+  <data name="DetallePulsoSinDecisiones" xml:space="preserve">
+    <value>Ningún Documento verificado por IA en la organización activa. La consulta no recibe periodo: cuenta desde el principio.</value>
+  </data>
+  <data name="DetallePulsoConDecisiones" xml:space="preserve">
+    <value>{0} decisiones de verificación resueltas: {1} automáticas y {2} manuales. Solo la organización activa, y desde el principio: la consulta no recibe periodo.</value>
+  </data>
+  <data name="PulsoEtiquetaCosteIa" xml:space="preserve">
+    <value>Coste IA del periodo</value>
+  </data>
+  <data name="VentanaCosteIaTitulo" xml:space="preserve">
+    <value>Coste de IA</value>
+  </data>
+  <data name="DetalleCosteIaDentro" xml:space="preserve">
+    <value>{0:F2} € de coste estimado de IA documental (OCR más extracción) en el periodo consultado, sumando las {1} del alcance.</value>
+  </data>
+  <data name="DetalleCosteIaExcedido" xml:space="preserve">
+    <value>{0:F2} € de coste estimado de IA documental (OCR más extracción) en el periodo consultado, sumando las {1} del alcance; {2} por encima de su presupuesto.</value>
+  </data>
+  <data name="PulsoEtiquetaFacturacion" xml:space="preserve">
+    <value>Facturación estimada</value>
+  </data>
+  <data name="DetalleFacturacionPeriodo" xml:space="preserve">
+    <value>{0:F2} € de facturación estimada del periodo consultado, sumando solo los Clientes empresariales con tarifas configuradas de las {1} del alcance.</value>
+  </data>
+  <data name="EnlaceVerFacturas" xml:space="preserve">
+    <value>Ver facturación →</value>
+  </data>
+</root>
