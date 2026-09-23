@@ -2,7 +2,10 @@ using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Usuarios.Queries.ObtenerRolesNoAsignables;
+using CaeManager.Application.Usuarios.Queries.VerificarRolAsignable;
 using CaeManager.Domain.Common;
+using MediatR;
 using CaeManager.Domain.Soporte;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Autorizacion;
@@ -58,6 +61,47 @@ public class RolesGen2Tests : BunitContext
 
     private readonly FuenteRolesFalsa _fuente = new();
     private readonly ToastService _toasts = new();
+    private readonly MediatorRolesFalso _mediador = new();
+
+    /// <summary>
+    /// Responde como Application a las dos consultas de roles reservados:
+    /// vacío en el Tenant de origen; en un Context Workspace cruzado, la lista
+    /// que fije el test, y el rechazo de cualquier rol de esa lista.
+    /// </summary>
+    private sealed class MediatorRolesFalso : IMediator
+    {
+        public IReadOnlyList<string> RolesNoAsignables { get; set; } = [];
+
+        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        {
+            object respuesta = request switch
+            {
+                ObtenerRolesNoAsignablesQuery => RolesNoAsignables,
+                VerificarRolAsignableQuery q => RolesNoAsignables.Contains(q.Rol)
+                    ? Result.Fallo(Error.Crear("Usuarios.RolReservadoAlTenantDeOrigen", "Rol reservado al Tenant de origen."))
+                    : Result.Exito(),
+                _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
+            };
+            return Task.FromResult((TResponse)respuesta);
+        }
+
+        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
+            throw new NotSupportedException();
+
+        public Task<object?> Send(object request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task Publish(object notification, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
+            where TNotification : INotification => Task.CompletedTask;
+    }
     private readonly CorreoFalso _correo = new();
     private readonly UserManagerFalso _usuarios = new();
 
@@ -200,6 +244,7 @@ public class RolesGen2Tests : BunitContext
         Services.AddSingleton(_fuente);
         Services.AddSingleton(_toasts);
         Services.AddSingleton<IEmailService>(_correo);
+        Services.AddSingleton<IMediator>(_mediador);
         Services.AddSingleton<UserManager<ApplicationUser>>(_usuarios);
         Services.AddScoped<PuertaAccesoDatos>();
         Services.AddScoped(_ => CrearDirectorio());
@@ -557,6 +602,51 @@ public class RolesGen2Tests : BunitContext
         _usuarios.Asignaciones.Should().BeEmpty();
         _usuarios.Busquedas.Should().BeEmpty();
         cut.FindAll(".modal-contenido").Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Decisión del propietario, 2026-09-23: en el Context Workspace de otro
+    /// Tenant, Administrador y Dirección CAE no se conceden. El selector no los
+    /// ofrece (comodidad) y, si llegan igualmente, manda la respuesta de
+    /// Application (<c>VerificarRolAsignableQuery</c>): no se escribe nada.
+    /// </summary>
+    [Fact]
+    public async Task En_un_Context_Workspace_cruzado_no_se_ofrece_ni_se_asigna_un_rol_reservado()
+    {
+        SembrarCuenta(Aitor);
+        _fuente.Pendientes = _ => [Aitor];
+        _mediador.RolesNoAsignables = [RolesIdentidad.Administrador, RolesIdentidad.DireccionCae];
+        var cut = await AbrirPendientesAsync();
+
+        var selector = cut.FindAll("tbody tr")[0].QuerySelector("select")!;
+        selector.QuerySelectorAll("option").Select(o => o.GetAttribute("value"))
+            .Should().NotContain([RolesIdentidad.Administrador, RolesIdentidad.DireccionCae])
+            .And.Contain(RolesIdentidad.GestorCae);
+
+        await selector.ChangeAsync(new ChangeEventArgs { Value = RolesIdentidad.Administrador });
+        await BotonAsignar(cut, "Aitor Zabala").ClickAsync(new MouseEventArgs());
+        await BotonDelDialogo(cut, "Asignar rol").ClickAsync(new MouseEventArgs());
+
+        _usuarios.Asignaciones.Should().BeEmpty("Application rechaza el rol reservado");
+        _toasts.Mensajes.Should().ContainSingle(m => m.Tono == TonoToast.Error && m.Mensaje.Contains("Rol reservado"));
+    }
+
+    [Fact]
+    public async Task En_el_Tenant_de_origen_se_ofrece_y_se_asigna_Administrador()
+    {
+        SembrarCuenta(Aitor);
+        _fuente.Pendientes = _ => [Aitor];
+        var cut = await AbrirPendientesAsync();
+
+        var selector = cut.FindAll("tbody tr")[0].QuerySelector("select")!;
+        selector.QuerySelectorAll("option").Select(o => o.GetAttribute("value"))
+            .Should().Contain([RolesIdentidad.Administrador, RolesIdentidad.DireccionCae]);
+
+        await selector.ChangeAsync(new ChangeEventArgs { Value = RolesIdentidad.Administrador });
+        await BotonAsignar(cut, "Aitor Zabala").ClickAsync(new MouseEventArgs());
+        await BotonDelDialogo(cut, "Asignar rol").ClickAsync(new MouseEventArgs());
+
+        _usuarios.Asignaciones.Should().Equal([(AitorId, RolesIdentidad.Administrador)]);
     }
 
     /// <summary>

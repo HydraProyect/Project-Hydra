@@ -38,8 +38,17 @@ public static class AsignacionesOperativasBackfillSeeder
     /// Roles que ven todo el workspace por su rol, sin depender del ámbito de
     /// su cartera — los únicos a los que se les emite una cartera universal.
     /// </summary>
-    private static readonly string[] RolesDeAlcanceTotal =
-        [Roles.Administrador, Roles.DireccionCae, Roles.Consulta];
+    private static readonly string[] RolesDeAlcanceTotal = [Roles.Consulta];
+
+    /// <summary>
+    /// Lo único que una cartera externa (Operación, no Propiedad) puede
+    /// conceder en el Tenant propietario — decisión del propietario,
+    /// 2026-09-23, la misma lista que <c>AsignacionesOperativasWriter</c>.
+    /// Administrador y Dirección CAE son autoridad de Propiedad: el backfill
+    /// ni los emite ni deja vivos los que ya hubiera.
+    /// </summary>
+    private static readonly string[] RolesDelegables =
+        [Roles.CoordinadorCae, Roles.GestorCae, Roles.Consulta];
 
     public static async Task SeedAsync(
         CaeManagerDbContext dbContext, ILogger logger, CancellationToken cancellationToken = default)
@@ -58,6 +67,27 @@ public static class AsignacionesOperativasBackfillSeeder
         var incidencias = new List<string>();
         var creadas = 0;
         var cerradas = 0;
+
+        // --- 0. Reconciliación: carteras externas con un rol de Propiedad ---
+        //
+        // Antes de 2026-09-23 el writer y este mismo backfill admitían
+        // Administrador y Dirección CAE en una cartera externa, y el rol
+        // efectivo del Context Workspace delegado sale de ella. Cerrarlas es la
+        // decisión del propietario aplicada a los datos que ya existen, no solo
+        // a los futuros; las internas (Tenant propio) no se tocan.
+        var operacionesExternas = operaciones.Where(o => !o.EsOperacionInterna).Select(o => o.Id).ToHashSet();
+        foreach (var prohibida in carteras.Where(c =>
+                     c.Estado == EstadoAsignacion.Vigente
+                     && operacionesExternas.Contains(c.AsignacionOperacionId)
+                     && c.Rol is not null
+                     && !RolesDelegables.Contains(c.Rol)))
+        {
+            prohibida.Cerrar(MotivoCierreAsignacion.Revocada, ahora);
+            cerradas++;
+            incidencias.Add(
+                $"Cartera externa {prohibida.Id} del usuario {prohibida.UsuarioId} con rol {prohibida.Rol}: " +
+                "Administrador y Dirección CAE no se delegan. Cerrada.");
+        }
 
         // --- 1. La operación raíz de cada tenant ---
         //
@@ -216,6 +246,14 @@ public static class AsignacionesOperativasBackfillSeeder
             // entregaría de golpe todos los clientes del tenant delegado — un
             // ensanchamiento de alcance que F1 no debe introducir. Sus carteras
             // salen del paso 4, cliente a cliente.
+            if (!RolesDelegables.Contains(operador.Rol))
+            {
+                incidencias.Add(
+                    $"Operador delegado {operador.UsuarioId} sobre la delegación {delegacion.Id}: rol {operador.Rol} " +
+                    "no delegable (solo Coordinador CAE, Gestor CAE o Consulta). No migrado.");
+                continue;
+            }
+
             if (!RolesDeAlcanceTotal.Contains(operador.Rol)) continue;
 
             var yaTiene = carteras.Any(c =>
@@ -342,6 +380,14 @@ public static class AsignacionesOperativasBackfillSeeder
                                                                              && d.TenantClienteId == cliente.TenantId
                                                                              && d.TenantConsultoraId == tenantDelEjecutivo))
                     ?.Rol ?? Roles.GestorCae;
+
+                if (!RolesDelegables.Contains(rol))
+                {
+                    incidencias.Add(
+                        $"Cliente {cliente.Id}: su ejecutivo {ejecutivoId} tiene el rol delegado {rol}, " +
+                        "que no se delega (solo Coordinador CAE, Gestor CAE o Consulta). Cartera no migrada.");
+                    continue;
+                }
 
                 nueva = AsignacionCartera.Externa(
                     externa, ejecutivoId, rol, AmbitoAsignacion.DeRelacionCliente(cliente.Id),

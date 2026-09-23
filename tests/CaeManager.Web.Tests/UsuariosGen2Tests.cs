@@ -5,6 +5,8 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas.Queries.BuscarEmpresaPorCif;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Usuarios.Queries.ObtenerRolesNoAsignables;
+using CaeManager.Application.Usuarios.Queries.VerificarRolAsignable;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Soporte;
 using CaeManager.Domain.Tenants;
@@ -271,6 +273,12 @@ public class UsuariosGen2Tests : BunitContext
         public Dictionary<string, EmpresaPorCifDto> EmpresasPorCif { get; } = [];
         public List<object> Enviadas { get; } = [];
 
+        /// <summary>
+        /// Lo que respondería Application en este Context Workspace: vacío en
+        /// el Tenant de origen; Administrador y Dirección CAE en uno cruzado.
+        /// </summary>
+        public IReadOnlyList<string> RolesNoAsignables { get; set; } = [];
+
         /// <summary>Si devuelve una tarea para la petición, esa es la respuesta: permite retenerla y resolverla fuera de orden.</summary>
         public Func<object, Task<object?>?>? Retener { get; set; }
 
@@ -292,6 +300,10 @@ public class UsuariosGen2Tests : BunitContext
         {
             BuscarEmpresaPorCifQuery q => EmpresasPorCif.GetValueOrDefault(q.Cif.Trim().ToUpperInvariant()),
             ObtenerClientePorIdQuery => null,
+            ObtenerRolesNoAsignablesQuery => RolesNoAsignables,
+            VerificarRolAsignableQuery q => RolesNoAsignables.Contains(q.Rol)
+                ? Result.Fallo(Error.Crear("Usuarios.RolReservadoAlTenantDeOrigen", "Rol reservado al Tenant de origen."))
+                : Result.Exito(),
             _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
         };
 
@@ -719,6 +731,84 @@ public class UsuariosGen2Tests : BunitContext
         await GuardarAsync(cut);
 
         _identidad.Creadas.Should().ContainSingle().Which.NombreCompleto.Should().Be("Sin Correo");
+    }
+
+    // ------------------------------------------------ roles reservados al Tenant de origen
+
+    private static IReadOnlyList<string> OpcionesDeRol(IRenderedComponent<UsuariosControlados> cut) =>
+        CampoPorEtiqueta(cut, "Rol").QuerySelectorAll("option").Select(o => o.GetAttribute("value")!).ToList();
+
+    /// <summary>
+    /// Decisión del propietario, 2026-09-23. En el Context Workspace de otro
+    /// Tenant el selector no ofrece Administrador ni Dirección CAE. Es
+    /// comodidad: la autoridad es <c>VerificarRolAsignableQuery</c> en
+    /// Application, probada en Application.Tests y contra PostgreSQL.
+    /// </summary>
+    [Fact]
+    public async Task En_un_Context_Workspace_cruzado_el_alta_no_ofrece_Administrador_ni_Direccion_CAE()
+    {
+        Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
+        _mediador.RolesNoAsignables = [RolesIdentidad.Administrador, RolesIdentidad.DireccionCae];
+
+        var cut = Renderizar();
+        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+
+        OpcionesDeRol(cut).Should().NotContain([RolesIdentidad.Administrador, RolesIdentidad.DireccionCae])
+            .And.Contain([RolesIdentidad.CoordinadorCae, RolesIdentidad.GestorCae, RolesIdentidad.Consulta]);
+    }
+
+    [Fact]
+    public async Task En_el_Tenant_de_origen_el_alta_ofrece_todos_los_roles()
+    {
+        Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
+
+        var cut = Renderizar();
+        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+
+        OpcionesDeRol(cut).Should().BeEquivalentTo(RolesIdentidad.Todos);
+    }
+
+    [Fact]
+    public async Task En_un_Context_Workspace_cruzado_editar_un_Administrador_conserva_su_rol_en_el_selector()
+    {
+        Sembrar(
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia"), RolesIdentidad.Administrador));
+        _mediador.RolesNoAsignables = [RolesIdentidad.Administrador, RolesIdentidad.DireccionCae];
+
+        var cut = Renderizar();
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Editar");
+
+        // Conservar no es conceder: sin su rol en la lista, el selector
+        // mostraría otro y un guardado de solo el nombre lo degradaría.
+        OpcionesDeRol(cut).Should().Contain(RolesIdentidad.Administrador).And.NotContain(RolesIdentidad.DireccionCae);
+
+        await EscribirAsync(cut, "Nombre completo", "Ander Beitia Zabala");
+        await GuardarAsync(cut);
+
+        _identidad.Cuentas[AnderId].NombreCompleto.Should().Be("Ander Beitia Zabala");
+        _identidad.RolesPorCuenta[AnderId].Should().Equal(RolesIdentidad.Administrador);
+    }
+
+    [Fact]
+    public async Task En_un_Context_Workspace_cruzado_no_se_promociona_a_Administrador_aunque_se_salte_el_selector()
+    {
+        var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia");
+        Sembrar(
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (ander, RolesIdentidad.Consulta));
+        _mediador.RolesNoAsignables = [RolesIdentidad.Administrador, RolesIdentidad.DireccionCae];
+
+        var cut = Renderizar();
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Editar");
+
+        // El selector no lo ofrece; se fuerza el valor como lo haría un
+        // cliente manipulado. Quien decide es la respuesta de Application.
+        await CampoPorEtiqueta(cut, "Rol").ChangeAsync(new() { Value = RolesIdentidad.Administrador });
+        await GuardarAsync(cut);
+
+        cut.Find(".alerta-formulario").TextContent.Should().Contain("Rol reservado");
+        _identidad.RolesPorCuenta[AnderId].Should().Equal(RolesIdentidad.Consulta);
     }
 
     [Fact]
