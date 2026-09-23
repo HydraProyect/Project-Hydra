@@ -128,7 +128,12 @@ builder.Host.UseSerilog((context, services, loggerConfiguration) =>
 // app.UseExceptionHandler("/Error", ...) más abajo — captura la excepción
 // real para reportarla y la deja seguir su curso normal hacia la página de
 // error genérica ya existente (ver ARCHITECTURE.md, "Excepciones reservadas
-// para errores verdaderamente inesperados").
+// para errores verdaderamente inesperados"). EXCEPCIÓN medida (2026-09-23,
+// ver RevalidacionClienteActivoMiddleware): una petición abortada por el
+// cliente (OperationCanceledException de contexto.RequestAborted) no llega
+// hasta aquí en absoluto si el propio middleware ya la capturó antes —
+// y por eso Sentry tampoco la ve, a diferencia de lo que dice el párrafo de
+// arriba para el resto de excepciones.
 builder.WebHost.UseSentry(options =>
 {
     options.Dsn = builder.Configuration["Sentry:Dsn"] ?? string.Empty;
