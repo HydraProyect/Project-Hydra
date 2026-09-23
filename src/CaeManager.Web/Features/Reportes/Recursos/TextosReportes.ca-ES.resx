@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="TituloPagina" xml:space="preserve">
+    <value>Reportes</value>
+  </data>
+  <data name="Kicker" xml:space="preserve">
+    <value>Control</value>
+  </data>
+  <data name="TituloBiblioteca" xml:space="preserve">
+    <value>Biblioteca</value>
+  </data>
+  <data name="InformeVigenciaTitulo" xml:space="preserve">
+    <value>Vigencia documental</value>
+  </data>
+  <data name="InformeVigenciaDescripcion" xml:space="preserve">
+    <value>Estado de los documentos de los trabajadores, con sus vencimientos.</value>
+  </data>
+  <data name="InformeIncidenciasTitulo" xml:space="preserve">
+    <value>Incidencias</value>
+  </data>
+  <data name="InformeIncidenciasDescripcion" xml:space="preserve">
+    <value>Solo los documentos vencidos o urgentes.</value>
+  </data>
+  <data name="InformeAsignacionesTitulo" xml:space="preserve">
+    <value>Asignaciones activas</value>
+  </data>
+  <data name="InformeAsignacionesDescripcion" xml:space="preserve">
+    <value>Quién está autorizado en cada centro y desde cuándo.</value>
+  </data>
+  <data name="EtiquetaClienteEmpresarial" xml:space="preserve">
+    <value>Cliente empresarial</value>
+  </data>
+  <data name="MarcadorBuscarClienteEmpresarial" xml:space="preserve">
+    <value>Buscar cliente empresarial…</value>
+  </data>
+  <data name="AriaQuitarFiltroCliente" xml:space="preserve">
+    <value>Quitar el filtro de cliente empresarial</value>
+  </data>
+  <data name="BotonQuitarFiltro" xml:space="preserve">
+    <value>Quitar el filtro</value>
+  </data>
+  <data name="EtiquetaCentrosIncluidos" xml:space="preserve">
+    <value>Centros incluidos</value>
+  </data>
+  <data name="OpcionTodosLosCentros" xml:space="preserve">
+    <value>Todos los centros del cliente empresarial</value>
+  </data>
+  <data name="OpcionSoloCentro" xml:space="preserve">
+    <value>Solo centro: {0}</value>
+  </data>
+  <data name="OpcionIncluirVigentes" xml:space="preserve">
+    <value>Incluir documentos vigentes</value>
+  </data>
+  <data name="OpcionIncluirVigentesDetalle" xml:space="preserve">
+    <value>Sin ellos el informe solo lista vencidos y urgentes; con ellos, la cobertura completa</value>
+  </data>
+  <data name="BotonGenerarVistaPrevia" xml:space="preserve">
+    <value>Generar vista previa</value>
+  </data>
+  <data name="BotonDescargarPdf" xml:space="preserve">
+    <value>Descargar PDF</value>
+  </data>
+  <data name="BotonDescargarExcel" xml:space="preserve">
+    <value>Descargar Excel</value>
+  </data>
+  <data name="BotonEnviarPorComunicaciones" xml:space="preserve">
+    <value>Enviar por Comunicaciones…</value>
+  </data>
+  <data name="TituloHistorial" xml:space="preserve">
+    <value>Historial</value>
+  </data>
+  <data name="AvisoErrorRegistroHistorial" xml:space="preserve">
+    <value>No pudimos anotar este informe en el historial. La vista previa y las descargas no se ven afectadas.</value>
+  </data>
+  <data name="ErrorCargaHistorial" xml:space="preserve">
+    <value>No pudimos cargar el historial.</value>
+  </data>
+  <data name="BotonReintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="HistorialVacio" xml:space="preserve">
+    <value>Todavía no se ha generado ningún informe.</value>
+  </data>
+  <data name="HistorialTodaLaCartera" xml:space="preserve">
+    <value>Toda la cartera</value>
+  </data>
+  <data name="UsuarioEliminado" xml:space="preserve">
+    <value>(usuario eliminado)</value>
+  </data>
+  <data name="AvisoSinClienteEmpresarial" xml:space="preserve">
+    <value>Sin filtrar por cliente empresarial: la vista previa abarca toda tu cartera</value>
+  </data>
+  <data name="ProgresoReuniendo" xml:space="preserve">
+    <value>Reuniendo los documentos…</value>
+  </data>
+  <data name="ProgresoCalculando" xml:space="preserve">
+    <value>Calculando estados a fecha de hoy…</value>
+  </data>
+  <data name="ProgresoComponiendo" xml:space="preserve">
+    <value>Componiendo el informe…</value>
+  </data>
+  <data name="ErrorGeneracionTitulo" xml:space="preserve">
+    <value>No pudimos generar la vista previa</value>
+  </data>
+  <data name="ErrorGeneracionDescripcion" xml:space="preserve">
+    <value>Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="SinInformeTitulo" xml:space="preserve">
+    <value>No hay informe que mostrar para ese filtro</value>
+  </data>
+  <data name="SinInformeDescripcion" xml:space="preserve">
+    <value>El cliente empresarial o el centro elegido ya no está en tu cartera. Recarga la página para actualizar la lista.</value>
+  </data>
+  <data name="AriaVistaPrevia" xml:space="preserve">
+    <value>Vista previa del informe</value>
+  </data>
+  <data name="HojaTituloAsignaciones" xml:space="preserve">
+    <value>Informe de asignaciones activas</value>
+  </data>
+  <data name="HojaTituloVigencia" xml:space="preserve">
+    <value>Informe de vigencia documental</value>
+  </data>
+  <data name="HojaTituloIncidencias" xml:space="preserve">
+    <value>Informe de incidencias</value>
+  </data>
+  <data name="HojaGeneradoEl" xml:space="preserve">
+    <value>Generado el {0} a las {1}</value>
+  </data>
+  <data name="HojaAbarca" xml:space="preserve">
+    <value>Abarca: {0}</value>
+  </data>
+  <data name="HojaIncluyeVigentes" xml:space="preserve">
+    <value>incluye los vigentes</value>
+  </data>
+  <data name="HojaSoloVencidosYUrgentes" xml:space="preserve">
+    <value>solo vencidos y urgentes</value>
+  </data>
+  <data name="ConteoDocumentosUno" xml:space="preserve">
+    <value>{0} documento</value>
+  </data>
+  <data name="ConteoDocumentosVarios" xml:space="preserve">
+    <value>{0} documentos</value>
+  </data>
+  <data name="ConteoAsignacionesActivasUno" xml:space="preserve">
+    <value>{0} asignación activa</value>
+  </data>
+  <data name="ConteoAsignacionesActivasVarios" xml:space="preserve">
+    <value>{0} asignaciones activas</value>
+  </data>
+  <data name="HojaVaciaConVigentes" xml:space="preserve">
+    <value>No hay documentos que listar con estos filtros.</value>
+  </data>
+  <data name="HojaVaciaSinVigentes" xml:space="preserve">
+    <value>Ningún documento vencido ni urgente con estos filtros.</value>
+  </data>
+  <data name="HojaVaciaAsignaciones" xml:space="preserve">
+    <value>No hay asignaciones activas con estos filtros.</value>
+  </data>
+  <data name="ColumnaTrabajador" xml:space="preserve">
+    <value>Trabajador</value>
+  </data>
+  <data name="ColumnaEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="ColumnaDocumento" xml:space="preserve">
+    <value>Documento</value>
+  </data>
+  <data name="ColumnaVence" xml:space="preserve">
+    <value>Vence</value>
+  </data>
+  <data name="ColumnaEstado" xml:space="preserve">
+    <value>Estado</value>
+  </data>
+  <data name="ColumnaCentro" xml:space="preserve">
+    <value>Centro</value>
+  </data>
+  <data name="ColumnaAsignadoDesde" xml:space="preserve">
+    <value>Asignado desde</value>
+  </data>
+  <data name="VenceNoCaduca" xml:space="preserve">
+    <value>No caduca</value>
+  </data>
+  <data name="NotaVistaPrevia" xml:space="preserve">
+    <value>Vista previa · el PDF y el Excel se generan con estos mismos filtros en el momento de descargarlos; si los datos cambiaron desde la vista previa, pueden no coincidir con ella</value>
+  </data>
+  <data name="VacioInicialTitulo" xml:space="preserve">
+    <value>Genera una vista previa</value>
+  </data>
+  <data name="VacioInicialDescripcion" xml:space="preserve">
+    <value>Elige una plantilla de informe y pulsa «Generar vista previa» para verlo aquí.</value>
+  </data>
+</root>

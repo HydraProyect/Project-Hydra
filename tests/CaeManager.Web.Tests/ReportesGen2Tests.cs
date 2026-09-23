@@ -44,7 +44,11 @@ namespace CaeManager.Web.Tests;
 public class ReportesGen2Tests : BunitContext
 {
     /// <summary><see cref="TextoFechaCopiable"/> importa clipboard.js al pintarse.</summary>
-    public ReportesGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public ReportesGen2Tests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
+    }
 
     private static readonly Guid ClienteA = Guid.Parse("a1a1a1a1-0000-0000-0000-000000000001");
     private static readonly Guid ClienteB = Guid.Parse("b2b2b2b2-0000-0000-0000-000000000002");
@@ -693,6 +697,27 @@ public class ReportesGen2Tests : BunitContext
         cut.FindAll(".tabla-hoja-informe").Should().BeEmpty();
         Texto(cut.Find(".vacio-hoja-informe")).Should().Be("Ningún documento vencido ni urgente con estos filtros.");
         cut.FindAll(".metadato-hoja-informe").Select(Texto).Last().Should().EndWith("· 0 documentos");
+    }
+
+    /// <summary>
+    /// Con exactamente una fila, la cabecera usa el singular de su recurso
+    /// (<c>ConteoDocumentosUno</c>, <c>ConteoAsignacionesActivasUno</c>); los
+    /// demás tests solo ven el plural. El cliente empresarial B tiene una sola fila
+    /// de vigencia (Laura Ortiz) y una sola asignación.
+    /// </summary>
+    [Fact]
+    public async Task Con_una_sola_fila_la_cabecera_cuenta_en_singular()
+    {
+        var (cut, _) = Renderizar(new Escenario(), $"reportes?clienteId={ClienteB}");
+
+        await Generar(cut);
+        cut.FindAll(".metadato-hoja-informe").Select(Texto).Last()
+            .Should().Be($"Abarca: {NombreB} · todo el cliente · incluye los vigentes · 1 documento");
+
+        await ElegirInforme(cut, "Asignaciones activas");
+        await Generar(cut);
+        cut.FindAll(".metadato-hoja-informe").Select(Texto).Last()
+            .Should().Be($"Abarca: {NombreB} · todo el cliente · 1 asignación activa");
     }
 
     // ---------------------------------------------------------------- historial
