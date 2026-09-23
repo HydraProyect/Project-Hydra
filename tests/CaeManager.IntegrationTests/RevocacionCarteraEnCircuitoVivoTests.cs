@@ -80,8 +80,10 @@ public class RevocacionCarteraEnCircuitoVivoTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto(tenant);
         var ahora = DateTime.UtcNow;
-        // Una sola raíz vigente por Tenant (IX_AsignacionesOperacion_RaizVigente): se reutiliza.
-        var raiz = await contexto.AsignacionesOperacion.FirstOrDefaultAsync();
+        // Una sola raíz vigente por Tenant (IX_AsignacionesOperacion_RaizVigente): se reutiliza. El
+        // filtro por Tenant propietario es explícito: AsignacionesOperacion no lleva HasQueryFilter
+        // (el Operador CAE puede ser otro Tenant).
+        var raiz = await contexto.AsignacionesOperacion.FirstOrDefaultAsync(o => o.PropietarioTenantId == tenant);
         if (raiz is null)
         {
             raiz = AsignacionOperacion.Raiz(tenant, ServicioCae.Outbound, ahora, ahora);
@@ -101,6 +103,17 @@ public class RevocacionCarteraEnCircuitoVivoTests : IAsyncLifetime
         var cartera = await contexto.AsignacionesCartera.SingleAsync(a => a.Id == carteraId);
         cartera.Cerrar(MotivoCierreAsignacion.Revocada, DateTime.UtcNow);
         await contexto.SaveChangesAsync();
+    }
+
+    [Theory]
+    [InlineData(30, 30)]
+    [InlineData(60, 60)]
+    [InlineData(3600, 60)]
+    [InlineData(0, 1)]
+    [InlineData(-5, 1)]
+    public void La_configuracion_puede_acortar_la_cota_pero_nunca_alargarla_ni_anularla(int configurado, int esperado)
+    {
+        CaducidadAlcanceOptions.DesdeSegundos(configurado).Should().Be(TimeSpan.FromSeconds(esperado));
     }
 
     [Fact]
@@ -166,9 +179,18 @@ public class RevocacionCarteraEnCircuitoVivoTests : IAsyncLifetime
     public async Task Un_Gestor_no_revocado_conserva_su_alcance_tras_la_caducidad()
     {
         var (cliente, propia) = await SembrarTenantAsync(_tenant, "B10380186", "B10380194");
+        // Un solo responsable vigente por Relación Empresarial: el revocado lleva otro Cliente.
+        Guid otroCliente;
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            var otro = Empresa.CrearComoCliente("Otro Cliente empresarial", "B10380236", false, null, null);
+            contexto.Empresas.Add(otro);
+            await contexto.SaveChangesAsync();
+            otroCliente = otro.Id;
+        }
         var revocado = Guid.NewGuid();
         var conservado = Guid.NewGuid();
-        var carteraRevocada = await OtorgarCarteraAsync(_tenant, revocado, cliente);
+        var carteraRevocada = await OtorgarCarteraAsync(_tenant, revocado, otroCliente);
         await OtorgarCarteraAsync(_tenant, conservado, cliente);
         var reloj = new RelojManual();
 
