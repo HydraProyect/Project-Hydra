@@ -271,6 +271,14 @@ public class CaeManagerDbContext(
     public DbSet<CaeManager.Domain.Plataforma.EstadoBootstrapPlataforma> EstadoBootstrapPlataforma
         => Set<CaeManager.Domain.Plataforma.EstadoBootstrapPlataforma>();
 
+    /// <summary>
+    /// Orden global del menú lateral (plano de Plataforma, fila única). Fuera del filtro de
+    /// tenant porque no pertenece a ninguno; su RLS propia deja leer a todos y escribir solo al
+    /// Actor de Plataforma TALVEG con concesión AdminPlataforma global.
+    /// </summary>
+    public DbSet<CaeManager.Domain.Plataforma.OrdenMenuLateral> OrdenMenuLateral
+        => Set<CaeManager.Domain.Plataforma.OrdenMenuLateral>();
+
     public DbSet<CaeManager.Domain.Plataforma.SesionPrivilegiada> SesionesPrivilegiadas => Set<CaeManager.Domain.Plataforma.SesionPrivilegiada>();
     IQueryable<CaeManager.Domain.Plataforma.SesionPrivilegiada> CaeManager.Application.Plataforma.IPlataformaQueryContext.SesionesPrivilegiadas => SesionesPrivilegiadas;
     public DbSet<CaeManager.Domain.Plataforma.TenantAlcanzadoPorConcesion> TenantsAlcanzadosPorConcesion => Set<CaeManager.Domain.Plataforma.TenantAlcanzadoPorConcesion>();
