@@ -17,9 +17,14 @@
 @using CaeManager.Domain.Documentos
 @using FluentValidation
 @using MediatR
+@using CaeManager.Web.Features.Trabajadores.Recursos
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
 @inject ToastService ToastService
+@inject IStringLocalizer<TextosTrabajadores> Textos
+@inject IStringLocalizer<TextosComunes> Comunes
 
 @if (_cargando)
 {
@@ -27,9 +32,9 @@
 }
 else if (_error || _detalle is null)
 {
-    <EstadoVacio Titulo="No pudimos cargar el trabajador" Descripcion="Intenta nuevamente en unos segundos.">
+    <EstadoVacio Titulo="@Textos["ErrorCargaTrabajadorTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
         <Accion>
-            <Boton OnClick="CargarCabeceraAsync">Reintentar</Boton>
+            <Boton OnClick="CargarCabeceraAsync">@Comunes["Reintentar"]</Boton>
         </Accion>
     </EstadoVacio>
 }
@@ -39,14 +44,14 @@ else
         <h2 class="workspace-titulo-entidad">@_detalle.Nombre @_detalle.Apellidos</h2>
         @if (PestanaActiva == "informacion" && !_editandoInformacion)
         {
-            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="IniciarEdicionInformacion" aria-label="Editar información del trabajador">
+            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="IniciarEdicionInformacion" aria-label="@Textos["AriaEditarInformacion"]">
                 <Icono Nombre="editar" Tamano="TamanoIcono.Pequeno" />
             </Boton>
         }
     </div>
 
     @* PestanaActiva con @: el parámetro es string, y sin @ Razor le pasa el literal "PestanaActiva" (ninguna pestaña quedaba marcada como activa). *@
-    <Pestanas Definiciones="_pestanas" PestanaActiva="@PestanaActiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="Secciones del trabajador">
+    <Pestanas Definiciones="_pestanas" PestanaActiva="@PestanaActiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="@Textos["AriaSeccionesTrabajador"]">
         @switch (PestanaActiva)
         {
             case "informacion":
@@ -58,33 +63,33 @@ else
                     }
                     <div class="workspace-grupo-campos">
                         <CampoInfo Etiqueta="DNI" Valor="@_detalle.Dni" />
-                        <CampoInfo Etiqueta="Empleador" Valor="@_detalle.EmpleadorNombre" />
-                        <CampoTexto Etiqueta="Nombre" Valor="@_nombreInfo" ValorChanged="v => _nombreInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarTrabajadorCommand.Nombre))" />
-                        <CampoTexto Etiqueta="Apellidos" Valor="@_apellidosInfo" ValorChanged="v => _apellidosInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarTrabajadorCommand.Apellidos))" />
-                        <CampoTexto Etiqueta="Alias" Valor="@_aliasInfo" ValorChanged="v => _aliasInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarTrabajadorCommand.Alias))" />
-                        <CampoTexto Etiqueta="Puesto / oficio" Valor="@_puestoInfo" ValorChanged="v => _puestoInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarTrabajadorCommand.Puesto))" />
-                        <CampoTexto Etiqueta="Email" Type="email" Valor="@_emailInfo" ValorChanged="v => _emailInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarTrabajadorCommand.Email))" />
-                        <CampoTexto Etiqueta="Teléfono (WhatsApp)" Type="tel" Placeholder="+34 600 00 00 00" Valor="@_telefonoInfo" ValorChanged="v => _telefonoInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarTrabajadorCommand.Telefono))" />
-                        <CampoTexto Etiqueta="Fecha de nacimiento" Type="date" Valor="@_fechaNacimientoInfo" ValorChanged="v => _fechaNacimientoInfo = v" />
-                        <CampoTextarea Etiqueta="Observaciones" Valor="@_observacionesInfo" ValorChanged="v => _observacionesInfo = v" Filas="3" />
+                        <CampoInfo Etiqueta="@Textos["EtiquetaEmpleador"]" Valor="@_detalle.EmpleadorNombre" />
+                        <CampoTexto Etiqueta="@Textos["EtiquetaNombre"]" Valor="@_nombreInfo" ValorChanged="v => _nombreInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarTrabajadorCommand.Nombre))" />
+                        <CampoTexto Etiqueta="@Textos["EtiquetaApellidos"]" Valor="@_apellidosInfo" ValorChanged="v => _apellidosInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarTrabajadorCommand.Apellidos))" />
+                        <CampoTexto Etiqueta="@Textos["EtiquetaAlias"]" Valor="@_aliasInfo" ValorChanged="v => _aliasInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarTrabajadorCommand.Alias))" />
+                        <CampoTexto Etiqueta="@Textos["EtiquetaPuestoOficio"]" Valor="@_puestoInfo" ValorChanged="v => _puestoInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarTrabajadorCommand.Puesto))" />
+                        <CampoTexto Etiqueta="@Textos["EtiquetaEmail"]" Type="email" Valor="@_emailInfo" ValorChanged="v => _emailInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarTrabajadorCommand.Email))" />
+                        <CampoTexto Etiqueta="@Textos["EtiquetaTelefonoWhatsapp"]" Type="tel" Placeholder="+34 600 00 00 00" Valor="@_telefonoInfo" ValorChanged="v => _telefonoInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarTrabajadorCommand.Telefono))" />
+                        <CampoTexto Etiqueta="@Textos["EtiquetaFechaNacimiento"]" Type="date" Valor="@_fechaNacimientoInfo" ValorChanged="v => _fechaNacimientoInfo = v" />
+                        <CampoTextarea Etiqueta="@Textos["EtiquetaObservaciones"]" Valor="@_observacionesInfo" ValorChanged="v => _observacionesInfo = v" Filas="3" />
                     </div>
                     <div class="workspace-acciones-edicion">
-                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_guardandoInformacion" OnClick="CancelarEdicionInformacion">Cancelar</Boton>
-                        <Boton Tamano="TamanoBoton.Pequeno" Cargando="_guardandoInformacion" OnClick="GuardarInformacionAsync">Guardar</Boton>
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_guardandoInformacion" OnClick="CancelarEdicionInformacion">@Textos["BotonCancelar"]</Boton>
+                        <Boton Tamano="TamanoBoton.Pequeno" Cargando="_guardandoInformacion" OnClick="GuardarInformacionAsync">@Textos["BotonGuardar"]</Boton>
                     </div>
                 }
                 else
                 {
                     <div class="workspace-grupo-campos">
-                        <CampoInfo Etiqueta="Nombre completo" Valor="@($"{_detalle.Nombre} {_detalle.Apellidos}")" />
-                        <CampoInfo Etiqueta="Alias" Valor="@_detalle.Alias" />
-                        <CampoInfo Etiqueta="Puesto / oficio" Valor="@_detalle.Puesto" />
+                        <CampoInfo Etiqueta="@Textos["EtiquetaNombreCompleto"]" Valor="@($"{_detalle.Nombre} {_detalle.Apellidos}")" />
+                        <CampoInfo Etiqueta="@Textos["EtiquetaAlias"]" Valor="@_detalle.Alias" />
+                        <CampoInfo Etiqueta="@Textos["EtiquetaPuestoOficio"]" Valor="@_detalle.Puesto" />
                         <CampoInfo Etiqueta="DNI" Valor="@_detalle.Dni" />
-                        <CampoInfo Etiqueta="Empleador" Valor="@_detalle.EmpleadorNombre" />
-                        <CampoInfo Etiqueta="Email" Valor="@_detalle.Email" />
-                        <CampoInfo Etiqueta="Teléfono" Valor="@_detalle.Telefono" />
-                        <CampoInfo Etiqueta="Fecha de nacimiento" Valor="@(_detalle.FechaNacimiento?.ToString("dd/MM/yyyy"))" />
-                        <CampoInfo Etiqueta="Observaciones" Valor="@_detalle.Observaciones" />
+                        <CampoInfo Etiqueta="@Textos["EtiquetaEmpleador"]" Valor="@_detalle.EmpleadorNombre" />
+                        <CampoInfo Etiqueta="@Textos["EtiquetaEmail"]" Valor="@_detalle.Email" />
+                        <CampoInfo Etiqueta="@Textos["EtiquetaTelefono"]" Valor="@_detalle.Telefono" />
+                        <CampoInfo Etiqueta="@Textos["EtiquetaFechaNacimiento"]" Valor="@(_detalle.FechaNacimiento?.ToString("dd/MM/yyyy"))" />
+                        <CampoInfo Etiqueta="@Textos["EtiquetaObservaciones"]" Valor="@_detalle.Observaciones" />
                     </div>
                 }
                 break;
@@ -100,19 +105,19 @@ else
                 }
                 else if (_errorVehiculos)
                 {
-                    <EstadoVacio Titulo="No pudimos cargar los vehículos" Descripcion="Intenta nuevamente en unos segundos.">
+                    <EstadoVacio Titulo="@Textos["ErrorCargaVehiculosTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
                         <Accion>
-                            <Boton OnClick="CargarVehiculosAsync">Reintentar</Boton>
+                            <Boton OnClick="CargarVehiculosAsync">@Comunes["Reintentar"]</Boton>
                         </Accion>
                     </EstadoVacio>
                 }
                 else if (_vehiculos is { Count: 0 })
                 {
-                    <EstadoVacio Titulo="Sin vehículos" Descripcion="El empleador de este trabajador no tiene vehículos registrados." />
+                    <EstadoVacio Titulo="@Textos["VacioVehiculosTitulo"]" Descripcion="@Textos["VacioVehiculosDescripcion"]" />
                 }
                 else if (_vehiculos is not null)
                 {
-                    <p class="workspace-nota-contextual">Vehículos disponibles de la empresa. La asignación a un trabajador concreto se realiza durante la gestión operativa cuando corresponda.</p>
+                    <p class="workspace-nota-contextual">@Textos["NotaVehiculos"]</p>
                     <ul class="workspace-lista-entidades">
                         @foreach (var vehiculo in _vehiculos)
                         {
@@ -134,12 +139,12 @@ else
 }
 
 @code {
-    private static readonly IReadOnlyList<PestanaDefinicion> _pestanas =
+    private IReadOnlyList<PestanaDefinicion> _pestanas =>
     [
-        new("informacion", "Información"),
-        new("documentacion", "Documentación"),
-        new("vehiculos", "Vehículos"),
-        new("historial", "Historial")
+        new("informacion", Textos["PestanaInformacion"]),
+        new("documentacion", Textos["EtiquetaDocumentacion"]),
+        new("vehiculos", Textos["PestanaVehiculos"]),
+        new("historial", Textos["PestanaHistorial"])
     ];
 
     [Parameter, EditorRequired] public Guid EntidadId { get; set; }
@@ -286,7 +291,7 @@ else
                 return;
             }
 
-            ToastService.Mostrar("Trabajador actualizado correctamente.", TonoToast.Exito);
+            ToastService.Mostrar(Textos["ToastActualizado"], TonoToast.Exito);
             _editandoInformacion = false;
             await CargarCabeceraAsync();
         }
@@ -298,7 +303,7 @@ else
         }
         catch (Exception)
         {
-            _mensajeErrorInformacion = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
+            _mensajeErrorInformacion = Textos["ErrorGuardar"];
         }
         finally
         {

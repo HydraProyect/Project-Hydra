@@ -14,16 +14,16 @@
 @using CaeManager.Web.Features.Documentos
 @using CaeManager.Web.Features.Documentos.Components
 
-<PageTitle>@(NombreCompleto ?? "Trabajador") — @Marca.Nombre</PageTitle>
+<PageTitle>@(NombreCompleto ?? Textos["TituloDetalleSinNombre"].Value) — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="Ruta de Trabajador 360" />
+    <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="@Textos["AriaMigas"]" />
 
     @if (_error)
     {
-        <EstadoVacio Titulo="No pudimos cargar este trabajador" Descripcion="Puede que ya no exista o que no tengas acceso.">
+        <EstadoVacio Titulo="@Textos["DetalleErrorTitulo"]" Descripcion="@Textos["DetalleErrorDescripcion"]">
             <Accion>
-                <Boton OnClick="CargarAsync">Reintentar</Boton>
+                <Boton OnClick="CargarAsync">@Comunes["Reintentar"]</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -35,7 +35,7 @@
     {
         <div class="trabajador360-cabecera">
             <AnilloCumplimiento Porcentaje="Cumplimiento" Tamano="TamanoAnillo.Cabecera"
-                                 Etiqueta="@($"{Cumplimiento}% de cumplimiento — documentos al día / exigidos entre todos los centros de este trabajador")" />
+                                 Etiqueta="@(Textos["AnilloCumplimiento", Cumplimiento?.ToString() ?? string.Empty])" />
             <div class="trabajador360-identidad">
                 <h1 class="trabajador360-titulo">
                     @_detalle.Nombre @_detalle.Apellidos
@@ -46,7 +46,7 @@
                 </h1>
                 <p class="trabajador360-meta">
                     DNI: <b>@_detalle.Dni</b>
-                    <BotonCopiar Valor="@_detalle.Dni" Etiqueta="el DNI" />
+                    <BotonCopiar Valor="@_detalle.Dni" Etiqueta="@Textos["EtiquetaCopiarDni"]" />
                     · <button type="button" class="enlace-nombre-fila" @onclick="AbrirEmpleador">@_detalle.EmpleadorNombre</button>
                 </p>
                 <div class="trabajador360-indicadores">
@@ -57,11 +57,11 @@
                     @if (CentroMasUrgente is { PeorEstado: not EstadoDocumento.Vigente } centroUrgente)
                     {
                         var incidenciasCentro = centroUrgente.Documentos.Count(d => d.Estado != EstadoDocumento.Vigente);
-                        <VentanaContexto Etiqueta="@($"{incidenciasCentro} {(incidenciasCentro == 1 ? "documento con incidencia" : "documentos con incidencia")} en {centroUrgente.CentroNombre}")"
-                                         Titulo="@($"Problema más urgente — {centroUrgente.CentroNombre}")">
+                        <VentanaContexto Etiqueta="@(incidenciasCentro == 1 ? Textos["VentanaIncidenciasUno", centroUrgente.CentroNombre] : Textos["VentanaIncidenciasVarios", incidenciasCentro, centroUrgente.CentroNombre])"
+                                         Titulo="@(Textos["VentanaProblemaUrgente", centroUrgente.CentroNombre])">
                             <Disparador>
                                 <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">
-                                    @incidenciasCentro @(incidenciasCentro == 1 ? "incidencia" : "incidencias") — @centroUrgente.CentroNombre
+                                    @(incidenciasCentro == 1 ? Textos["BadgeIncidenciasCentroUno", centroUrgente.CentroNombre] : Textos["BadgeIncidenciasCentroVarios", incidenciasCentro, centroUrgente.CentroNombre])
                                 </Badge>
                             </Disparador>
                             <Detalle>
@@ -75,16 +75,16 @@
                 </div>
             </div>
             <div class="trabajador360-acciones">
-                <SoloConEscritura><Boton Deshabilitado="DocumentoMasUrgente is null" OnClick="SubirDocumentoMasUrgenteAsync">Subir documento</Boton></SoloConEscritura>
+                <SoloConEscritura><Boton Deshabilitado="DocumentoMasUrgente is null" OnClick="SubirDocumentoMasUrgenteAsync">@Textos["BotonSubirDocumento"]</Boton></SoloConEscritura>
                 <MenuAcciones>
-                    <SoloConEscritura><ItemMenuAccion OnClick="AbrirInformacion">Editar</ItemMenuAccion></SoloConEscritura>
-                    <SoloConEscritura><ItemMenuAccion OnClick="ReclamarFaltantesAsync">Reclamar faltantes</ItemMenuAccion></SoloConEscritura>
-                    <SoloConEscritura><ItemMenuAccion OnClick="AbrirCrearGestionAsync">Crear gestión</ItemMenuAccion></SoloConEscritura>
+                    <SoloConEscritura><ItemMenuAccion OnClick="AbrirInformacion">@Textos["AccionEditar"]</ItemMenuAccion></SoloConEscritura>
+                    <SoloConEscritura><ItemMenuAccion OnClick="ReclamarFaltantesAsync">@Textos["AccionReclamarFaltantes"]</ItemMenuAccion></SoloConEscritura>
+                    <SoloConEscritura><ItemMenuAccion OnClick="AbrirCrearGestionAsync">@Textos["AccionCrearGestion"]</ItemMenuAccion></SoloConEscritura>
                 </MenuAcciones>
             </div>
         </div>
 
-        <Pestanas Definiciones="Pestanas" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="v => _pestanaActiva = v" EtiquetaGrupo="Secciones de Trabajador 360">
+        <Pestanas Definiciones="Pestanas" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="v => _pestanaActiva = v" EtiquetaGrupo="@Textos["AriaSeccionesTrabajador360"]">
             @switch (_pestanaActiva)
             {
                 case "operacion":
@@ -97,11 +97,11 @@
                     *@
                     @if (_centros.Count == 0)
                     {
-                        <EstadoVacio Titulo="Sin asignaciones activas" Descripcion="Este trabajador no tiene ninguna asignación activa a un centro." />
+                        <EstadoVacio Titulo="@Textos["VacioAsignacionesTitulo"]" Descripcion="@Textos["VacioAsignacionesDescripcion"]" />
                     }
                     else
                     {
-                        <div class="separador-ambito">Documentación por centro</div>
+                        <div class="separador-ambito">@Textos["SeparadorDocumentacionPorCentro"]</div>
                         @*
                             Mockup Gen 2 § Operación: lo primero que hay que
                             entender de esta lista es por qué el mismo
@@ -109,8 +109,7 @@
                             bloqueado en la de al lado.
                         *@
                         <p class="texto-descriptivo">
-                            La exigencia documental es por centro: el mismo trabajador puede estar completo en un centro
-                            y bloqueado en otro, porque cada centro pide cosas distintas.
+                            @Textos["TextoExigenciaPorCentro"]
                         </p>
                         <div class="trabajador360-centros">
                             @foreach (var centro in _centros)
@@ -136,19 +135,19 @@
                                                 <span class="trabajador360-centro-resumen">
                                                     @centro.ClienteRazonSocial ·
                                                     @(centro.Documentos.Count == 0
-                                                        ? "Sin documentación exigida"
-                                                        : $"{alDia} de {centro.Documentos.Count} exigidos correctos")
+                                                        ? Textos["ResumenSinExigencia"]
+                                                        : Textos["ResumenExigidosCorrectos", alDia, centro.Documentos.Count])
                                                 </span>
                                             </span>
                                         </button>
                                         <Badge Tono="EstadoDocumentoUi.Tono(centro.PeorEstado)" Tamano="TamanoBadge.Pequeno">
                                             @(incidencias == 0
-                                                ? "Completo"
-                                                : $"{incidencias} {(incidencias == 1 ? "incidencia" : "incidencias")}")
+                                                ? Textos["BadgeCompleto"]
+                                                : incidencias == 1 ? Textos["IncidenciasUno"] : Textos["IncidenciasVarios", incidencias])
                                         </Badge>
                                         <a class="trabajador360-centro-360" href="@($"/centros/{centro.CentroId}")"
-                                           title="Abrir el Centro 360"
-                                           aria-label="@($"Abrir el Centro 360 de {centro.CentroNombre}")">
+                                           title="@Textos["TituloAbrirCentro360"]"
+                                           aria-label="@(Textos["AriaAbrirCentro360", centro.CentroNombre])">
                                             <Icono Nombre="centros" Tamano="TamanoIcono.Pequeno" />
                                         </a>
                                     </div>
@@ -157,16 +156,16 @@
                                         <div class="trabajador360-centro-detalle">
                                             @if (centro.Documentos.Count == 0)
                                             {
-                                                <p class="texto-vacio-seccion">Este centro no exige documentación específica a este trabajador.</p>
+                                                <p class="texto-vacio-seccion">@Textos["TextoCentroSinExigencia"]</p>
                                             }
                                             else
                                             {
-                                                <div class="tabla-documentos-requeridos" role="table" aria-label="@($"Documentación exigida en {centro.CentroNombre}")">
+                                                <div class="tabla-documentos-requeridos" role="table" aria-label="@(Textos["AriaDocumentacionExigida", centro.CentroNombre])">
                                                     <div class="documentos-requeridos-cabecera" role="row">
-                                                        <span role="columnheader">Documento</span>
-                                                        <span role="columnheader">Estado</span>
-                                                        <span role="columnheader">Vigencia</span>
-                                                        <span role="columnheader" class="columna-accion">Acción</span>
+                                                        <span role="columnheader">@Textos["ColumnaDocumento"]</span>
+                                                        <span role="columnheader">@Textos["ColumnaEstado"]</span>
+                                                        <span role="columnheader">@Textos["ColumnaVigencia"]</span>
+                                                        <span role="columnheader" class="columna-accion">@Textos["ColumnaAccion"]</span>
                                                     </div>
                                                     @foreach (var documento in centro.Documentos)
                                                     {
@@ -189,7 +188,7 @@
                                                             <span class="columna-accion" role="cell">
                                                                 <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
                                                                        OnClick="() => GestionarDocumentoAsync(documento)">
-                                                                    @(documento.DocumentoId is null ? "Subir" : documento.Estado == EstadoDocumento.Vigente ? "Ver" : "Renovar")
+                                                                    @(documento.DocumentoId is null ? Textos["AccionSubir"] : documento.Estado == EstadoDocumento.Vigente ? Textos["AccionVer"] : Textos["AccionRenovar"])
                                                                 </Boton>
                                                             </span>
                                                         </div>
@@ -208,13 +207,13 @@
                             AsignacionId/CentroNombre/ClienteRazonSocial/FechaAlta ya
                             cargado para la Documentación por centro.
                         *@
-                        <div class="separador-ambito">Asignaciones</div>
-                        <div class="tabla-documentos-requeridos" role="table" aria-label="Asignaciones activas">
+                        <div class="separador-ambito">@Textos["SeparadorAsignaciones"]</div>
+                        <div class="tabla-documentos-requeridos" role="table" aria-label="@Textos["AriaAsignacionesActivas"]">
                             <div class="documentos-requeridos-cabecera" role="row">
-                                <span role="columnheader">Centro</span>
-                                <span role="columnheader">Cliente empresarial</span>
-                                <span role="columnheader">Desde</span>
-                                <span role="columnheader" class="columna-accion">Acción</span>
+                                <span role="columnheader">@Textos["ColumnaCentro"]</span>
+                                <span role="columnheader">@Textos["ColumnaClienteEmpresarial"]</span>
+                                <span role="columnheader">@Textos["ColumnaDesde"]</span>
+                                <span role="columnheader" class="columna-accion">@Textos["ColumnaAccion"]</span>
                             </div>
                             @foreach (var centro in _centros)
                             {
@@ -225,7 +224,7 @@
                                     <span class="columna-accion" role="cell">
                                         <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
                                                OnClick="() => DarDeBajaAsignacionAsync(centro.AsignacionId)">
-                                            Dar de baja
+                                            @Textos["AccionDarDeBaja"]
                                         </Boton>
                                     </span>
                                 </div>
@@ -241,18 +240,18 @@
                     *@
                     @if (_cargandoGestiones)
                     {
-                        <div class="separador-ambito">Gestiones pendientes</div>
+                        <div class="separador-ambito">@Textos["SeparadorGestionesPendientes"]</div>
                         <EstadoCargando Filas="2" />
                     }
                     else if (_gestionesPendientes.Count > 0)
                     {
-                        <div class="separador-ambito">Gestiones pendientes</div>
-                        <div class="tabla-documentos-requeridos" role="table" aria-label="Gestiones pendientes">
+                        <div class="separador-ambito">@Textos["SeparadorGestionesPendientes"]</div>
+                        <div class="tabla-documentos-requeridos" role="table" aria-label="@Textos["SeparadorGestionesPendientes"]">
                             <div class="documentos-requeridos-cabecera" role="row">
-                                <span role="columnheader">Gestión</span>
-                                <span role="columnheader">Centro</span>
-                                <span role="columnheader">Creada</span>
-                                <span role="columnheader" class="columna-accion">Acción</span>
+                                <span role="columnheader">@Textos["ColumnaGestion"]</span>
+                                <span role="columnheader">@Textos["ColumnaCentro"]</span>
+                                <span role="columnheader">@Textos["ColumnaCreada"]</span>
+                                <span role="columnheader" class="columna-accion">@Textos["ColumnaAccion"]</span>
                             </div>
                             @foreach (var gestion in _gestionesPendientes)
                             {
@@ -264,7 +263,7 @@
                                         <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
                                                Cargando="_completandoGestion.Contains(gestion.Id)"
                                                OnClick="() => CompletarGestionAsync(gestion.Id)">
-                                            Completar
+                                            @Textos["AccionCompletar"]
                                         </Boton>
                                     </span>
                                 </div>
@@ -289,30 +288,30 @@
                     *@
                     @if (!string.IsNullOrWhiteSpace(_detalle.Telefono) || !string.IsNullOrWhiteSpace(_detalle.Email))
                     {
-                        <div class="separador-ambito">Datos del trabajador</div>
+                        <div class="separador-ambito">@Textos["SeparadorDatosTrabajador"]</div>
                         <dl class="trabajador360-contactos">
                             @if (!string.IsNullOrWhiteSpace(_detalle.Telefono))
                             {
                                 <div class="trabajador360-contacto">
-                                    <dt class="trabajador360-contacto-clave">Teléfono</dt>
+                                    <dt class="trabajador360-contacto-clave">@Textos["EtiquetaTelefono"]</dt>
                                     <dd class="trabajador360-contacto-valor">
                                         @_detalle.Telefono
-                                        <BotonCopiar Valor="@_detalle.Telefono" Etiqueta="el teléfono" />
+                                        <BotonCopiar Valor="@_detalle.Telefono" Etiqueta="@Textos["EtiquetaCopiarTelefono"]" />
                                     </dd>
                                 </div>
                             }
                             @if (!string.IsNullOrWhiteSpace(_detalle.Email))
                             {
                                 <div class="trabajador360-contacto">
-                                    <dt class="trabajador360-contacto-clave">Correo electrónico</dt>
+                                    <dt class="trabajador360-contacto-clave">@Textos["EtiquetaCorreo"]</dt>
                                     <dd class="trabajador360-contacto-valor">
                                         @_detalle.Email
-                                        <BotonCopiar Valor="@_detalle.Email" Etiqueta="el correo electrónico" />
+                                        <BotonCopiar Valor="@_detalle.Email" Etiqueta="@Textos["EtiquetaCopiarCorreo"]" />
                                     </dd>
                                 </div>
                             }
                         </dl>
-                        <div class="separador-ambito">Agenda del empleador</div>
+                        <div class="separador-ambito">@Textos["SeparadorAgendaEmpleador"]</div>
                     }
                     @if (_detalle.EmpresaId is { } empresaIdContactos)
                     {
@@ -330,11 +329,11 @@
 
 <DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="ManejarDocumentoGuardadoAsync" />
 
-<Modal Visible="_crearGestionVisible" VisibleChanged="v => _crearGestionVisible = v" Titulo="Crear gestión" CerrarAlHacerClicFuera="!_creandoGestion">
+<Modal Visible="_crearGestionVisible" VisibleChanged="v => _crearGestionVisible = v" Titulo="@Textos["ModalCrearGestionTitulo"]" CerrarAlHacerClicFuera="!_creandoGestion">
     <ChildContent>
-        <p class="workspace-nota-contextual">Se creará una gestión pendiente en cada centro donde este trabajador tenga una asignación activa.</p>
-        <CampoSelect Etiqueta="Tipo de documento" Valor="@_tipoDocumentoParaGestion" ValorChanged="v => _tipoDocumentoParaGestion = v">
-            <option value="">Selecciona un tipo de documento…</option>
+        <p class="workspace-nota-contextual">@Textos["NotaCrearGestion"]</p>
+        <CampoSelect Etiqueta="@Textos["EtiquetaTipoDocumento"]" Valor="@_tipoDocumentoParaGestion" ValorChanged="v => _tipoDocumentoParaGestion = v">
+            <option value="">@Textos["OpcionSeleccionaTipoDocumento"]</option>
             @foreach (var tipo in _tiposDocumentoDisponibles)
             {
                 <option value="@tipo.Id">@tipo.Nombre</option>
@@ -342,8 +341,8 @@
         </CampoSelect>
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_creandoGestion" OnClick="() => _crearGestionVisible = false">Cancelar</Boton>
-        <Boton Cargando="_creandoGestion" Deshabilitado="string.IsNullOrEmpty(_tipoDocumentoParaGestion)" OnClick="ConfirmarCrearGestionAsync">Crear</Boton>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_creandoGestion" OnClick="() => _crearGestionVisible = false">@Textos["BotonCancelar"]</Boton>
+        <Boton Cargando="_creandoGestion" Deshabilitado="string.IsNullOrEmpty(_tipoDocumentoParaGestion)" OnClick="ConfirmarCrearGestionAsync">@Textos["BotonCrear"]</Boton>
     </Pie>
 </Modal>
 
@@ -351,13 +350,13 @@
    más de un Cliente empresarial a la vez — con uno solo, ReclamarFaltantesAsync
    envía directo. *@
 <Modal Visible="_reclamarFaltantesVisible" VisibleChanged="v => _reclamarFaltantesVisible = v"
-       Titulo="Reclamar documentación pendiente" CerrarAlHacerClicFuera="!_reclamandoFaltantes">
+       Titulo="@Textos["ModalReclamarTitulo"]" CerrarAlHacerClicFuera="!_reclamandoFaltantes">
     <ChildContent>
         <p class="workspace-nota-contextual">
-            @NombreCompleto tiene documentación pendiente en varios Clientes empresariales a la vez. Elige a cuáles reclamar.
+            @Textos["NotaReclamarVarios", NombreCompleto ?? string.Empty]
         </p>
         <fieldset class="reclamacion-destinatarios">
-            <legend>Clientes empresariales</legend>
+            <legend>@Textos["LeyendaClientesEmpresariales"]</legend>
             @foreach (var cliente in _clientesReclamables)
             {
                 <label class="campo-checkbox" @key="cliente.ClienteId">
@@ -365,13 +364,13 @@
                            checked="@_clientesSeleccionadosReclamar.Contains(cliente.ClienteId)"
                            @onchange="e => AlternarClienteReclamar(cliente.ClienteId, (bool)e.Value!)" />
                     <span>@cliente.ClienteRazonSocial</span>
-                    <span class="reclamacion-motivo">@cliente.DocumentoIds.Count documento@(cliente.DocumentoIds.Count == 1 ? "" : "s") pendiente@(cliente.DocumentoIds.Count == 1 ? "" : "s")</span>
+                    <span class="reclamacion-motivo">@(cliente.DocumentoIds.Count == 1 ? Textos["DocumentosPendientesUno"] : Textos["DocumentosPendientesVarios", cliente.DocumentoIds.Count])</span>
                 </label>
             }
         </fieldset>
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_reclamandoFaltantes" OnClick="() => _reclamarFaltantesVisible = false">Cancelar</Boton>
-        <Boton Cargando="_reclamandoFaltantes" Deshabilitado="_clientesSeleccionadosReclamar.Count == 0" OnClick="ConfirmarReclamarFaltantesAsync">Reclamar</Boton>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_reclamandoFaltantes" OnClick="() => _reclamarFaltantesVisible = false">@Textos["BotonCancelar"]</Boton>
+        <Boton Cargando="_reclamandoFaltantes" Deshabilitado="_clientesSeleccionadosReclamar.Count == 0" OnClick="ConfirmarReclamarFaltantesAsync">@Textos["BotonReclamar"]</Boton>
     </Pie>
 </Modal>

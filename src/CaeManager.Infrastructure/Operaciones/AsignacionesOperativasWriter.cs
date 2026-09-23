@@ -16,9 +16,11 @@ public class AsignacionesOperativasWriter(
 {
     /// <summary>
     /// Roles que ven todo el workspace por su rol, sin depender del ámbito de
-    /// su cartera. Solo a estos se les emite una cartera universal: para un rol
-    /// de cartera sería un ensanchamiento silencioso del alcance. Entre los
-    /// roles que una cartera externa puede conceder
+    /// su cartera. Solo a estos se les emite aquí una cartera universal: para
+    /// un rol de cartera sería un ensanchamiento silencioso del alcance. Un rol
+    /// de cartera solo la recibe por la aceptación explícita de una solicitud
+    /// de incorporación a cartera (CatalogoIncorporacionCartera), no por este
+    /// writer. Entre los roles que una cartera externa puede conceder
     /// (<see cref="RolesDelegadosPermitidos"/>), solo Consulta lo es:
     /// Administrador y Dirección CAE ya no llegan hasta aquí.
     /// </summary>
@@ -164,10 +166,11 @@ public class AsignacionesOperativasWriter(
                 $"El rol {rol} no se concede por Asignación de Cartera ni por delegación: " +
                 $"solo {string.Join(", ", RolesDelegadosPermitidos)}.");
 
-        // Un rol de cartera no recibe cartera universal: sus carteras nacen
-        // cliente a cliente al asignárselos. Emitirle una universal aquí le
-        // daría de golpe todos los clientes del tenant delegado, que es más de
-        // lo que tiene hoy.
+        // Un rol de cartera no recibe aquí cartera universal: sus carteras
+        // nacen cliente a cliente al asignárselos, o enteras solo cuando un
+        // Coordinador CAE acepta su solicitud de incorporación. Emitirle una
+        // universal aquí le daría de golpe todos los clientes del tenant
+        // delegado sin que nadie lo decidiera.
         if (!RolesDeAlcanceTotal.Contains(rol)) return;
 
         var ahora = DateTime.UtcNow;

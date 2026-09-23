@@ -5,54 +5,58 @@
 @using CaeManager.Application.TiposDocumento.Commands.CrearTipoDocumento
 @using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento
 @using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.TiposDocumento.Recursos
+@using CaeManager.Web.Recursos
 @using MediatR
+@using Microsoft.Extensions.Localization
 @inject IMediator Mediator
 @inject ToastService ToastService
+@inject IStringLocalizer<TextosTiposDocumento> Textos
+@inject IStringLocalizer<TextosComunes> Comunes
 
 @if (!IntegradaEnConfiguracion)
 {
-    <PageTitle>Tipos de Documento — @Marca.Nombre</PageTitle>
+    <PageTitle>@Textos["TituloPestana"] — @Marca.Nombre</PageTitle>
 }
 
 <div class="@ClaseContenedorPagina">
-    <CabeceraPagina Titulo="Tipos de documento" Integrada="@IntegradaEnConfiguracion">
+    <CabeceraPagina Titulo="@Textos["TituloCabecera"]" Integrada="@IntegradaEnConfiguracion">
         <Descripcion>
             @* El mockup remite los ajustes de Nivel 2 a «la configuración
                documental de cada cliente», una pantalla que no existe: lo único
                que se afina por cliente es la lectura IA, y lo que pide cada
                centro se decide en sus propios requisitos. *@
-            <Badge Tamano="TamanoBadge.Pequeno">Nivel 1 · Global</Badge>
-            Catálogo maestro: qué documentos existen, a qué ámbito aplican, si se piden por defecto y cómo los
-            procesa la lectura IA. La lectura IA de cada cliente (Nivel 2) se afina en
-            <a href="@RutaLecturaIaPorCliente">Lectura IA por cliente</a>.
+            <Badge Tamano="TamanoBadge.Pequeno">@Textos["BadgeNivelGlobal"]</Badge>
+            @Textos["DescripcionAntesEnlace"]
+            <a href="@RutaLecturaIaPorCliente">@Textos["EnlaceLecturaIaCliente"]</a>@Textos["DescripcionTrasEnlace"]
         </Descripcion>
         <Acciones>
-            <SoloConEscritura><Boton OnClick="AbrirCrearAsync">+ Nuevo tipo</Boton></SoloConEscritura>
+            <SoloConEscritura><Boton OnClick="AbrirCrearAsync">@Textos["BotonNuevoTipo"]</Boton></SoloConEscritura>
         </Acciones>
     </CabeceraPagina>
 
     <div class="barra-filtros barra-filtros-tipos">
-        <CampoTexto Placeholder="Buscar por nombre o alias (p. ej. TC2)…" aria-label="Buscar por nombre o alias"
+        <CampoTexto Placeholder="@Textos["PlaceholderBusqueda"]" aria-label="@Textos["AriaBusqueda"]"
                     Valor="@_terminoBusqueda" ValorChanged="BuscarAsync" />
 
-        <CampoSelect Etiqueta="Cliente" Valor="@_clienteFiltroId" ValorChanged="CambiarClienteFiltroAsync">
-            <option value="">Todos los clientes</option>
+        <CampoSelect Etiqueta="@Textos["FiltroCliente"]" Valor="@_clienteFiltroId" ValorChanged="CambiarClienteFiltroAsync">
+            <option value="">@Textos["OpcionTodosClientes"]</option>
             @foreach (var cliente in _clientesFiltroDisponibles)
             {
                 <option value="@cliente.Id">@cliente.RazonSocial</option>
             }
         </CampoSelect>
 
-        <CampoSelect Etiqueta="Empresa" Valor="@_empresaFiltroId" ValorChanged="CambiarEmpresaFiltroAsync" Deshabilitado="@string.IsNullOrEmpty(_clienteFiltroId)">
-            <option value="">Todas las empresas</option>
+        <CampoSelect Etiqueta="@Textos["FiltroEmpresa"]" Valor="@_empresaFiltroId" ValorChanged="CambiarEmpresaFiltroAsync" Deshabilitado="@string.IsNullOrEmpty(_clienteFiltroId)">
+            <option value="">@Textos["OpcionTodasEmpresas"]</option>
             @foreach (var empresa in _empresasFiltroDisponibles)
             {
                 <option value="@empresa.Id">@empresa.RazonSocial</option>
             }
         </CampoSelect>
 
-        <CampoSelect Etiqueta="Centro" Valor="@_centroFiltroId" ValorChanged="CambiarCentroFiltroAsync" Deshabilitado="@string.IsNullOrEmpty(_empresaFiltroId)">
-            <option value="">Todos los centros</option>
+        <CampoSelect Etiqueta="@Textos["FiltroCentro"]" Valor="@_centroFiltroId" ValorChanged="CambiarCentroFiltroAsync" Deshabilitado="@string.IsNullOrEmpty(_empresaFiltroId)">
+            <option value="">@Textos["OpcionTodosCentros"]</option>
             @foreach (var centro in _centrosFiltroDisponibles)
             {
                 <option value="@centro.Id">@centro.Nombre</option>
@@ -62,9 +66,9 @@
 
     @if (_errorCarga)
     {
-        <EstadoVacio Titulo="No pudimos cargar los tipos de documento" Descripcion="Intenta nuevamente en unos segundos.">
+        <EstadoVacio Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDescripcion"]">
             <Accion>
-                <Boton OnClick="ReintentarAsync">Reintentar</Boton>
+                <Boton OnClick="ReintentarAsync">@Comunes["Reintentar"]</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -85,19 +89,19 @@
 
            La copia no afirma que HAYA tipos: el filtrado es de servidor y la
            consulta devuelve solo el total ya filtrado. *@
-        <EstadoVacio NombreIcono="vacio" Titulo="Ningún tipo con estos filtros"
-                     Descripcion="Ninguno coincide con la búsqueda por nombre o alias ni con el ámbito de cliente, empresa o centro seleccionado.">
+        <EstadoVacio NombreIcono="vacio" Titulo="@Textos["VacioFiltrosTitulo"]"
+                     Descripcion="@Textos["VacioFiltrosDescripcion"]">
             <Accion>
-                <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar los filtros</Boton>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">@Textos["BotonQuitarFiltros"]</Boton>
             </Accion>
         </EstadoVacio>
     }
     else if (_tipos.Count == 0)
     {
-        <EstadoVacio NombreIcono="tipos-documento" Titulo="Aún no hay tipos de documento"
-                     Descripcion="Crea el primero para empezar a construir el catálogo.">
+        <EstadoVacio NombreIcono="tipos-documento" Titulo="@Textos["VacioCatalogoTitulo"]"
+                     Descripcion="@Textos["VacioCatalogoDescripcion"]">
             <Accion>
-                <SoloConEscritura><Boton OnClick="AbrirCrearAsync">+ Nuevo tipo</Boton></SoloConEscritura>
+                <SoloConEscritura><Boton OnClick="AbrirCrearAsync">@Textos["BotonNuevoTipo"]</Boton></SoloConEscritura>
             </Accion>
         </EstadoVacio>
     }
@@ -109,21 +113,21 @@
             <table class="tabla-datos tabla-tipos">
                 <thead>
                     <tr>
-                        <th scope="col" class="col-orden">Orden</th>
-                        <th scope="col">Nombre</th>
-                        <th scope="col" class="col-ambito">Ámbito</th>
-                        <th scope="col" class="col-vigencia">Vigencia</th>
-                        <th scope="col" class="col-vencimiento">Vencimiento automático</th>
+                        <th scope="col" class="col-orden">@Textos["ColumnaOrden"]</th>
+                        <th scope="col">@Textos["ColumnaNombre"]</th>
+                        <th scope="col" class="col-ambito">@Textos["ColumnaAmbito"]</th>
+                        <th scope="col" class="col-vigencia">@Textos["ColumnaVigencia"]</th>
+                        <th scope="col" class="col-vencimiento">@Textos["ColumnaVencimiento"]</th>
                         @* "Exigencia", no "Obligatorio": desde que EsObligatorio se
                            partió en Requerido × NaturalezaJuridica, esta celda ya no
                            responde sí/no — dice con qué autoridad se pide (obligación
                            legal, práctica del sector, requisito de cliente…). *@
-                        <th scope="col" class="col-exigencia">Exigencia</th>
-                        <th scope="col" class="col-lectura">Lectura IA</th>
-                        <th scope="col" class="col-deteccion">Detecta trabajadores</th>
-                        <th scope="col" class="col-verificacion">Verificación IA</th>
-                        <th scope="col" class="col-oficial">Documento oficial</th>
-                        <th scope="col" class="col-acciones"><span class="solo-lectores">Acciones</span></th>
+                        <th scope="col" class="col-exigencia">@Textos["ColumnaExigencia"]</th>
+                        <th scope="col" class="col-lectura">@Textos["ColumnaLecturaIa"]</th>
+                        <th scope="col" class="col-deteccion">@Textos["ColumnaDeteccion"]</th>
+                        <th scope="col" class="col-verificacion">@Textos["ColumnaVerificacion"]</th>
+                        <th scope="col" class="col-oficial">@Textos["ColumnaOficial"]</th>
+                        <th scope="col" class="col-acciones"><span class="solo-lectores">@Textos["ColumnaAcciones"]</span></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -143,11 +147,11 @@
                             <td>
                                 @if (tipo.AplicaVencimientoAutomatico)
                                 {
-                                    <Badge Tono="TonoBadge.Exito">Sí</Badge>
+                                    <Badge Tono="TonoBadge.Exito">@Textos["BadgeAfirmativo"]</Badge>
                                 }
                                 else
                                 {
-                                    <Badge>No</Badge>
+                                    <Badge>@Textos["BadgeNegativo"]</Badge>
                                 }
                             </td>
                             <td>
@@ -158,25 +162,25 @@
                                 <Badge Tono="@TonoExigencia(tipo.Requerido, tipo.Naturaleza)"
                                        title="@AyudaExigencia(tipo.Requerido, tipo.Naturaleza)">@TextoExigencia(tipo.Requerido, tipo.Naturaleza)</Badge>
                             </td>
-                            <td>@CeldaInterruptor(tipo, CampoEnLinea.LecturaIa, "Lectura IA", AyudaLecturaIa)</td>
+                            <td>@CeldaInterruptor(tipo, CampoEnLinea.LecturaIa, Textos["NombreInterruptorLecturaIa"], AyudaLecturaIa)</td>
                             <td>
                                 @if (tipo.AmbitoAplicacion == AmbitoAplicacion.Empresa)
                                 {
-                                    @CeldaInterruptor(tipo, CampoEnLinea.DeteccionTrabajadores, "Detecta trabajadores", AyudaDeteccionTrabajadores)
+                                    @CeldaInterruptor(tipo, CampoEnLinea.DeteccionTrabajadores, Textos["NombreInterruptorDeteccion"], AyudaDeteccionTrabajadores)
                                 }
                                 else
                                 {
-                                    <span class="celda-no-aplica">No aplica</span>
+                                    <span class="celda-no-aplica">@Textos["CeldaNoAplica"]</span>
                                 }
                             </td>
                             <td>
                                 @if (tipo.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
                                 {
-                                    @CeldaInterruptor(tipo, CampoEnLinea.VerificacionIa, "Verificación IA", AyudaVerificacionIa)
+                                    @CeldaInterruptor(tipo, CampoEnLinea.VerificacionIa, Textos["NombreInterruptorVerificacion"], AyudaVerificacionIa)
                                 }
                                 else
                                 {
-                                    <span class="celda-no-aplica">No aplica</span>
+                                    <span class="celda-no-aplica">@Textos["CeldaNoAplica"]</span>
                                 }
                             </td>
                             <td>
@@ -185,13 +189,13 @@
                                     var claveOficial = new ClaveCambio(tipo.Id, CampoEnLinea.DocumentoOficial);
                                     <div class="celda-oficial">
                                         <select @key="GeneracionDe(claveOficial)" class="select-oficial"
-                                                title="Documento oficial de la Administración con validación automática: verificación criptográfica de la firma digital y cotejo de datos, sin IA"
-                                                aria-label="@($"Documento oficial de {tipo.Nombre}")"
+                                                title="@Textos["TooltipSelectOficial"]"
+                                                aria-label="@Textos["AriaSelectOficial", tipo.Nombre]"
                                                 value="@tipo.PerfilDocumentoOficial" disabled="@_pendientes.Contains(claveOficial)"
                                                 @onchange="e => CambiarPerfilDocumentoOficialAsync(tipo.Id, e.Value?.ToString())">
                                             <option value="@PerfilDocumentoOficial.Ninguno">—</option>
-                                            <option value="@PerfilDocumentoOficial.CorrienteTgss">Corriente TGSS</option>
-                                            <option value="@PerfilDocumentoOficial.CorrienteAeat">Corriente AEAT</option>
+                                            <option value="@PerfilDocumentoOficial.CorrienteTgss">@Textos["OpcionOficialTgss"]</option>
+                                            <option value="@PerfilDocumentoOficial.CorrienteAeat">@Textos["OpcionOficialAeat"]</option>
                                             <option value="@PerfilDocumentoOficial.Ita">ITA</option>
                                             <option value="@PerfilDocumentoOficial.Rnt">RNT</option>
                                             <option value="@PerfilDocumentoOficial.Rlc">RLC</option>
@@ -204,13 +208,13 @@
                                 }
                                 else
                                 {
-                                    <span class="celda-no-aplica">No aplica</span>
+                                    <span class="celda-no-aplica">@Textos["CeldaNoAplica"]</span>
                                 }
                             </td>
                             <td class="celda-acciones">
                                 <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
-                                       aria-label="@($"Editar {tipo.Nombre}")" OnClick="() => AbrirEditarAsync(tipo.Id)">
-                                    Editar
+                                       aria-label="@Textos["AriaEditar", tipo.Nombre]" OnClick="() => AbrirEditarAsync(tipo.Id)">
+                                    @Textos["BotonEditar"]
                                 </Boton>
                             </td>
                         </tr>
@@ -220,33 +224,33 @@
         </div>
 
         <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_tipos.Count"
-                          Etiqueta="tipo(s) de documento" PaginaActualChanged="IrAPaginaAsync"
+                          Etiqueta="@Textos["EtiquetaPaginador"]" PaginaActualChanged="IrAPaginaAsync"
                           TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
     }
 </div>
 
-<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nuevo tipo de documento" : "Editar tipo de documento")" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
+<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? Textos["DrawerTituloNuevo"].Value : Textos["DrawerTituloEditar"].Value)" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
     <ChildContent>
-        <p class="nivel-drawer">Nivel 1 · valor general para todos los centros</p>
+        <p class="nivel-drawer">@Textos["NivelDrawer"]</p>
 
         @if (_mensajeErrorFormulario is not null)
         {
             <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
         }
 
-        <CampoTexto Etiqueta="Nombre" Valor="@_nombre" ValorChanged="v => _nombre = v" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.Nombre))" />
+        <CampoTexto Etiqueta="@Textos["EtiquetaNombre"]" Valor="@_nombre" ValorChanged="v => _nombre = v" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.Nombre))" />
 
         <div class="bloque-campo">
             @* Sin for= a propósito: los E2E piden GetByLabel("Nombre"), y un
                «Nombres alternativos» asociado al input casaría también. El input
                lleva su propio aria-label. *@
-            <span class="etiqueta-campo">Nombres alternativos <span class="etiqueta-pista">(siglas, alias históricos — p. ej. "TC2")</span></span>
+            <span class="etiqueta-campo">@Textos["EtiquetaAlias"] <span class="etiqueta-pista">@Textos["PistaAlias"]</span></span>
             <div class="fila-alias">
-                <input class="input-alias" aria-label="Alias nuevo" placeholder="Escribe un alias y pulsa Añadir"
+                <input class="input-alias" aria-label="@Textos["AriaAliasNuevo"]" placeholder="@Textos["PlaceholderAlias"]"
                        value="@_aliasNuevo" @oninput="e => _aliasNuevo = e.Value?.ToString() ?? string.Empty"
                        @onkeydown="ManejarTeclaAliasAsync" />
                 <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="AgregarAlias">
-                    Añadir
+                    @Textos["BotonAnadirAlias"]
                 </Boton>
             </div>
             @if (_aliasesSeleccionados.Count > 0)
@@ -256,7 +260,7 @@
                     {
                         <span class="chip-filtro">
                             @alias
-                            <button type="button" class="chip-filtro-quitar" @onclick="() => QuitarAlias(alias)" aria-label="@($"Quitar alias {alias}")"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
+                            <button type="button" class="chip-filtro-quitar" @onclick="() => QuitarAlias(alias)" aria-label="@Textos["AriaQuitarAlias", alias]"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
                         </span>
                     }
                 </div>
@@ -265,70 +269,69 @@
 
         @if (_editandoId is null)
         {
-            <CampoSelect Etiqueta="Ámbito de aplicación" Valor="@_ambito.ToString()" ValorChanged="v => _ambito = Enum.Parse<AmbitoAplicacion>(v)">
-                <option value="@nameof(AmbitoAplicacion.Trabajador)">Trabajador</option>
-                <option value="@nameof(AmbitoAplicacion.Cliente)">Cliente</option>
-                <option value="@nameof(AmbitoAplicacion.Empresa)">Empresa</option>
-                <option value="@nameof(AmbitoAplicacion.Vehiculo)">Vehículo</option>
-                <option value="@nameof(AmbitoAplicacion.Proyecto)">Proyecto</option>
+            <CampoSelect Etiqueta="@Textos["EtiquetaAmbitoAplicacion"]" Valor="@_ambito.ToString()" ValorChanged="v => _ambito = Enum.Parse<AmbitoAplicacion>(v)">
+                <option value="@nameof(AmbitoAplicacion.Trabajador)">@Textos["AmbitoTrabajador"]</option>
+                <option value="@nameof(AmbitoAplicacion.Cliente)">@Textos["AmbitoCliente"]</option>
+                <option value="@nameof(AmbitoAplicacion.Empresa)">@Textos["AmbitoEmpresa"]</option>
+                <option value="@nameof(AmbitoAplicacion.Vehiculo)">@Textos["AmbitoVehiculo"]</option>
+                <option value="@nameof(AmbitoAplicacion.Proyecto)">@Textos["AmbitoProyecto"]</option>
             </CampoSelect>
         }
         else
         {
             <div class="bloque-campo ambito-fijo">
-                <span class="etiqueta-campo">Ámbito de aplicación</span>
+                <span class="etiqueta-campo">@Textos["EtiquetaAmbitoAplicacion"]</span>
                 <span class="ambito-fijo-valor">@TextoAmbito(_ambito)</span>
-                <span class="pista-campo">El ámbito define qué columnas y automatismos aplican; no se cambia una vez creado el tipo.</span>
+                <span class="pista-campo">@Textos["PistaAmbitoFijo"]</span>
             </div>
         }
 
         <div class="bloque-vencimiento">
             <label class="campo-checkbox">
-                <input type="checkbox" @bind="_aplicaVencimientoAutomatico" /> Aplica vencimiento automático
+                <input type="checkbox" @bind="_aplicaVencimientoAutomatico" /> @Textos["CheckVencimientoAutomatico"]
             </label>
             @if (_aplicaVencimientoAutomatico)
             {
                 <div class="sangria-vigencia">
-                    <CampoTexto Etiqueta="Vigencia (meses)" Type="number" Valor="@_vigenciaMeses" ValorChanged="v => _vigenciaMeses = v" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.VigenciaMeses))" />
+                    <CampoTexto Etiqueta="@Textos["EtiquetaVigenciaMeses"]" Type="number" Valor="@_vigenciaMeses" ValorChanged="v => _vigenciaMeses = v" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.VigenciaMeses))" />
                 </div>
             }
         </div>
 
         <fieldset class="bloque-exigencia">
-            <legend>Exigencia</legend>
-            <CampoSelect Etiqueta="¿Se pide?" Valor="@_requerido.ToString()" ValorChanged="v => _requerido = Enum.Parse<RequisitoDocumental>(v)">
-                <option value="@nameof(RequisitoDocumental.No)">No se pide</option>
-                <option value="@nameof(RequisitoDocumental.Si)">Sí, siempre</option>
-                <option value="@nameof(RequisitoDocumental.Condicional)">Solo si aplica (actividad, sector o situación)</option>
+            <legend>@Textos["LeyendaExigencia"]</legend>
+            <CampoSelect Etiqueta="@Textos["EtiquetaSePide"]" Valor="@_requerido.ToString()" ValorChanged="v => _requerido = Enum.Parse<RequisitoDocumental>(v)">
+                <option value="@nameof(RequisitoDocumental.No)">@Textos["RequeridoNo"]</option>
+                <option value="@nameof(RequisitoDocumental.Si)">@Textos["RequeridoSi"]</option>
+                <option value="@nameof(RequisitoDocumental.Condicional)">@Textos["OpcionRequeridoCondicional"]</option>
             </CampoSelect>
-            <CampoSelect Etiqueta="¿Con qué autoridad?" Valor="@_naturaleza.ToString()" ValorChanged="v => _naturaleza = Enum.Parse<NaturalezaJuridica>(v)">
-                <option value="@nameof(NaturalezaJuridica.ObligacionLegal)">Obligación legal</option>
-                <option value="@nameof(NaturalezaJuridica.ObligacionCondicionada)">Obligación condicionada</option>
-                <option value="@nameof(NaturalezaJuridica.PracticaSector)">Práctica del sector</option>
-                <option value="@nameof(NaturalezaJuridica.RequisitoCliente)">Requisito de cliente</option>
-                <option value="@nameof(NaturalezaJuridica.Recomendacion)">Recomendación de TALVEG</option>
+            <CampoSelect Etiqueta="@Textos["EtiquetaAutoridad"]" Valor="@_naturaleza.ToString()" ValorChanged="v => _naturaleza = Enum.Parse<NaturalezaJuridica>(v)">
+                <option value="@nameof(NaturalezaJuridica.ObligacionLegal)">@Textos["NaturalezaObligacionLegal"]</option>
+                <option value="@nameof(NaturalezaJuridica.ObligacionCondicionada)">@Textos["NaturalezaObligacionCondicionada"]</option>
+                <option value="@nameof(NaturalezaJuridica.PracticaSector)">@Textos["NaturalezaPracticaSector"]</option>
+                <option value="@nameof(NaturalezaJuridica.RequisitoCliente)">@Textos["NaturalezaRequisitoCliente"]</option>
+                <option value="@nameof(NaturalezaJuridica.Recomendacion)">@Textos["OpcionNaturalezaRecomendacion"]</option>
             </CampoSelect>
             <p class="vista-previa-exigencia">
-                En la tabla se verá como
+                @Textos["VistaPreviaExigencia"]
                 <Badge Tono="@TonoExigencia(_requerido, _naturaleza)">@TextoExigencia(_requerido, _naturaleza)</Badge>
             </p>
         </fieldset>
 
-        <CampoTexto Etiqueta="Orden" Type="number" Valor="@_orden" ValorChanged="v => _orden = v" />
+        <CampoTexto Etiqueta="@Textos["EtiquetaOrden"]" Type="number" Valor="@_orden" ValorChanged="v => _orden = v" />
         @if (_editandoId is null)
         {
             <p class="pista-campo pista-orden">@PistaOrden</p>
         }
 
-        <CampoTextarea Etiqueta="Notas" Valor="@_notas" ValorChanged="v => _notas = v" Filas="3" />
-        <CampoTextarea Etiqueta="Descripción" Valor="@_descripcion" ValorChanged="v => _descripcion = v" Filas="3" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.Descripcion))" />
-        <CampoTextarea Etiqueta="Criterios de validación" Valor="@_criteriosValidacion" ValorChanged="v => _criteriosValidacion = v" Filas="4" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.CriteriosValidacion))" />
+        <CampoTextarea Etiqueta="@Textos["EtiquetaNotas"]" Valor="@_notas" ValorChanged="v => _notas = v" Filas="3" />
+        <CampoTextarea Etiqueta="@Textos["EtiquetaDescripcion"]" Valor="@_descripcion" ValorChanged="v => _descripcion = v" Filas="3" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.Descripcion))" />
+        <CampoTextarea Etiqueta="@Textos["EtiquetaCriterios"]" Valor="@_criteriosValidacion" ValorChanged="v => _criteriosValidacion = v" Filas="4" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.CriteriosValidacion))" />
         <p class="pista-campo pista-criterios">
-            Pega aquí los términos de validación tal como los describe la plataforma documental del cliente (la sección de criterios/requisitos de aceptación del propio portal),
-            sin reescribirlos: es el texto contra el que se comprueba si un documento vale, y la referencia que usará la lectura automática de documentos.
+            @Textos["PistaCriterios"]
         </p>
-        <CampoTexto Etiqueta="Se solicita a" Valor="@_seSolicitaA" ValorChanged="v => _seSolicitaA = v" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.SeSolicitaA))" />
-        <CampoTextarea Etiqueta="Observaciones" Valor="@_observaciones" ValorChanged="v => _observaciones = v" Filas="3" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.Observaciones))" />
+        <CampoTexto Etiqueta="@Textos["EtiquetaSeSolicitaA"]" Valor="@_seSolicitaA" ValorChanged="v => _seSolicitaA = v" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.SeSolicitaA))" />
+        <CampoTextarea Etiqueta="@Textos["EtiquetaObservaciones"]" Valor="@_observaciones" ValorChanged="v => _observaciones = v" Filas="3" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.Observaciones))" />
 
         @if (_ambito == AmbitoAplicacion.Trabajador)
         {
@@ -338,10 +341,10 @@
                que con «No se pide» dejarlo vacío significa que no lo pide
                ninguno. El resumen de abajo dice lo que pasa de verdad. *@
             <div class="bloque-campo bloque-centros">
-                <span class="etiqueta-campo">Centros donde se pide expresamente <span class="etiqueta-pista">(sin marcar, cada centro sigue «¿Se pide?»)</span></span>
+                <span class="etiqueta-campo">@Textos["EtiquetaCentrosExpresos"] <span class="etiqueta-pista">@Textos["PistaCentrosExpresos"]</span></span>
                 @if (_centrosDisponibles.Count == 0)
                 {
-                    <p class="texto-vacio-seccion">Todavía no hay centros creados.</p>
+                    <p class="texto-vacio-seccion">@Textos["SinCentrosCreados"]</p>
                 }
                 else
                 {
@@ -366,19 +369,19 @@
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
-            Cancelar
+            @Textos["BotonCancelar"]
         </Boton>
         <Boton Cargando="_guardando" OnClick="GuardarAsync">
-            Guardar
+            @Textos["BotonGuardar"]
         </Boton>
     </Pie>
 </Drawer>
 
 <DialogoConfirmacion Visible="_confirmacionVisible"
                      VisibleChanged="v => _confirmacionVisible = v"
-                     Titulo="Esto cambia lo que se pide en los centros"
+                     Titulo="@Textos["ConfirmacionTitulo"]"
                      Mensaje="@_mensajeConfirmacion"
-                     TextoBotonConfirmar="Guardar y aplicar"
+                     TextoBotonConfirmar="@Textos["ConfirmacionBoton"]"
                      EnProgreso="_guardando"
                      OnConfirmar="ConfirmarGuardadoAsync" />
 
@@ -399,10 +402,10 @@
         var pendiente = _pendientes.Contains(clave);
         <label class="celda-interruptor" title="@ayuda">
             <input @key="GeneracionDe(clave)" type="checkbox" role="switch" class="interruptor-tipo"
-                   aria-label="@($"{nombre} de {tipo.Nombre}")"
+                   aria-label="@Textos["AriaInterruptor", nombre, tipo.Nombre]"
                    checked="@activa" disabled="@pendiente"
                    @onchange="() => AlternarAsync(tipo.Id, campo)" />
-            <span class="@ClaseAvisoCambio(clave)">@(TextoAvisoCambio(clave) ?? (activa ? "Activa" : "Desactivada"))</span>
+            <span class="@ClaseAvisoCambio(clave)">@(TextoAvisoCambio(clave) ?? (activa ? Textos["InterruptorActivo"].Value : Textos["InterruptorInactivo"].Value))</span>
         </label>
     };
 }

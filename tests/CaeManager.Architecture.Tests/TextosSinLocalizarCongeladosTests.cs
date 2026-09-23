@@ -85,14 +85,50 @@ public class TextosSinLocalizarCongeladosTests
         ["Extension"] = 29,
         ["Facturacion"] = 96,
         ["GestionRoles"] = 52,
-        ["Importacion"] = 166,
+        // 166 → 15 el 2026-09-23 al migrar la Feature a TextosImportacion.resx. Ninguno de los 15
+        // es interfaz pendiente:
+        // - 9 son CONTRATO del archivo, no interfaz: rótulos de columna que escribe GenerarPlantilla
+        //   y lee el parser («Razón social», «Crítico (C/N)», «Dirección», «Código», «Contrato
+        //   vigente hasta», «Fecha de nacimiento», «Crítico») y la fila de ejemplo de la plantilla
+        //   de Clientes («Calle Ejemplo 1, Ciudad», «Nombre Apellidos — email@ejemplo.com»).
+        //   Localizarlos rompería la importación en ca-ES; los Web.Tests los comparan con la
+        //   plantilla generada.
+        // - 1 se persiste: «Excepción no controlada durante la importación.» va a
+        //   HistorialImportacion.MensajeError; es dato, no se localiza.
+        // - 5 son falsos positivos del detector de markup: código Razor entre «>» y «<»
+        //   («(var i = 0; i», «(numero», «.ToString("dd/MM/yy HH:mm")») y los corchetes anidados de
+        //   @Textos[ClavesPasos[i]] y @Textos["BotonContinuarConPlantilla", Textos[…].Value].
+        ["Importacion"] = 15,
         ["Integraciones"] = 92,
         ["Plantillas"] = 158,
         ["Plataforma"] = 74,
         ["Retencion"] = 85,
-        ["Subcontratas"] = 225,
-        ["TiposDocumento"] = 149,
-        ["Trabajadores"] = 193,
+        // 225 → 1 el 2026-09-23 al migrar la Feature a TextosSubcontratas.resx (también la
+        // cabecera del Excel de exportación y los rótulos de EstadoSupervisionUi). Queda
+        // «PDF · JPG · PNG», el FormatosTexto de la zona de evidencia de Subcontrata 360: son
+        // los nombres de los formatos de fichero admitidos, iguales en cualquier idioma (no se
+        // localizan, como las siglas oficiales de TiposDocumento).
+        ["Subcontratas"] = 1,
+        // 149 → 6 el 2026-09-23 al migrar la Feature a TextosTiposDocumento.resx. Quedan:
+        // «ITA», «RNT» y «RLC», las siglas oficiales de las opciones de PerfilDocumentoOficial
+        // (nombre propio del documento de la Administración, igual en cualquier idioma: no se
+        // localizan), y 3 falsos positivos del detector de markup, que toma por texto lo que hay
+        // entre el «>» de <CampoSelect …> y el «<» del genérico de
+        // «ValorChanged="v => _ambito = Enum.Parse<AmbitoAplicacion>(v)"» (y los de _requerido
+        // y _naturaleza). No se reescriben las lambdas para esquivar la heurística.
+        ["TiposDocumento"] = 6,
+        // 193 → 13 el 2026-09-23 al migrar la Feature a TextosTrabajadores.resx. Quedan:
+        // «DNI» y «DNI:» (sigla oficial del documento de la Administración: no se localiza; «DNI» cuenta dos
+        // veces, como atributo —Title/Etiqueta— y como markup —<span>DNI</span>—);
+        // «Documentación», cabecera de la exportación trabajadores.xlsx (contrato de datos del
+        // fichero, igual que el resto de sus columnas, que el detector no ve por no llevar tilde);
+        // y falsos positivos del detector de markup: «.ToString("dd/MM/yyyy")» tras
+        // «@gestion.CreadoEnUtc.ToLocalTime()», «d.Estado != EstadoDocumento.Vigente);» del
+        // «var incidenciasCentro = …» dentro del markup, y los trozos de los ternarios Razor
+        // partidos en varias líneas («@(incidencias == 0», «? Textos["BadgeCompleto"]»… en Trabajador 360,
+        // «0 ? Textos["BotonAsignarIgualmente"]» en Trabajadores.razor), cuyo
+        // «>» de comparación toma por texto lo que sigue. No se reformatea para esquivar la heurística.
+        ["Trabajadores"] = 13,
         ["Usuarios"] = 157,
         // 112 → 10 el 2026-09-23: Visitas.razor(.cs) migrados a TextosVisitas.resx. Los 10
         // que quedan son las etiquetas estáticas de NivelUrgenciaVisitaUi y AntelacionVisitaUi,

@@ -22,6 +22,7 @@ using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerFormatosRequeridosCentro;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerMacros;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerMensajesBuzonPersonal;
+using CaeManager.Application.Comunicaciones.Queries.ObtenerNotasInternasConversacion;
 using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 using CaeManager.Application.Comunicaciones.Commands.PedirPrioridadValidacion;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerBorradorPedirPrioridad;
@@ -130,6 +131,8 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
     private ClienteDetalleDto? _clienteActivo;
     private IReadOnlyList<MacroListaDto> _macrosDisponibles = [];
     private IReadOnlyList<CentroSelectorDto> _centrosClienteActivo = [];
+    private IReadOnlyList<NotaInternaDetalleDto> _notasInternas = [];
+    private IReadOnlyDictionary<Guid, string> _autoresNotas = new Dictionary<Guid, string>();
 
     // --- Composer (compartido entre Correo/WhatsApp/fallback — ver ComposerBar) ---
     private string _textoRespuesta = string.Empty;
@@ -608,6 +611,29 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
         await CargarDetalleAsync();
     }
 
+    private async Task<(IReadOnlyList<NotaInternaDetalleDto> Notas, IReadOnlyDictionary<Guid, string> Autores)> CargarNotasInternasAsync(Guid conversacionId)
+    {
+        var notas = await Mediator.Send(new ObtenerNotasInternasConversacionQuery(conversacionId), _ciclo.Token);
+        if (notas.Count == 0) return (notas, new Dictionary<Guid, string>());
+
+        var autores = await DirectorioUsuarios.ObtenerNombresVisiblesAsync(
+            notas.Select(n => n.AutorUsuarioId).Distinct().ToList(), _ciclo.Token);
+        return (notas, autores);
+    }
+
+    /// <summary>Tras guardar una nota: solo se recargan las notas, no el hilo entero ni sus selectores.</summary>
+    private async Task RecargarNotasInternasAsync()
+    {
+        if (_conversacionSeleccionadaId is not { } id) return;
+
+        var carga = _cargaDetalleVigente;
+        var (notas, autores) = await CargarNotasInternasAsync(id);
+        if (carga != _cargaDetalleVigente) return;
+
+        _notasInternas = notas;
+        _autoresNotas = autores;
+    }
+
     private async Task CargarDetalleAsync()
     {
         if (_conversacionSeleccionadaId is not { } id) return;
@@ -626,7 +652,19 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
             // que no es necesariamente el elegido.
             if (carga != _cargaDetalleVigente) return;
 
+            // Las notas internas viajan aparte del detalle (su audiencia es más
+            // estrecha: ver ObtenerNotasInternasConversacionQuery) y se asignan
+            // junto a él, bajo la misma guarda de carga vigente, para que el
+            // timeline de un hilo nunca muestre las notas de otro.
+            IReadOnlyList<NotaInternaDetalleDto> notas = [];
+            IReadOnlyDictionary<Guid, string> autores = new Dictionary<Guid, string>();
+            if (detalle is not null)
+                (notas, autores) = await CargarNotasInternasAsync(id);
+            if (carga != _cargaDetalleVigente) return;
+
             _detalle = detalle;
+            _notasInternas = notas;
+            _autoresNotas = autores;
 
             // Enlace corrupto o conversación fuera de alcance (borrada, de
             // otro tenant, sin visibilidad): mismo criterio que
@@ -664,10 +702,11 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
             // cargan aquí en vez de solo al abrir el modal de "Actualizar
             // documento" (más abajo) porque la revisión de una sugerencia de
             // gestión puede necesitarlos antes de que el gestor toque ese
-            // otro flujo. Sin filtro de Cliente — mismo catálogo general que
-            // ya usa ese modal.
+            // otro flujo. Sin filtro de Cliente, pero sí de cartera (el mismo que
+            // usa ese modal): CrearGestionesParaTrabajador rechaza un
+            // Trabajador fuera de la Asignación de Cartera del Gestor CAE.
             var tiposDocumento = await Mediator.Send(new ObtenerTiposDocumentoQuery(), _ciclo.Token);
-            var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(), _ciclo.Token);
+            var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera), _ciclo.Token);
             if (carga != _cargaDetalleVigente) return;
 
             _tiposDocumentoSelector = tiposDocumento;
@@ -1142,7 +1181,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
         try
         {
             _tiposDocumentoSelector = await Mediator.Send(new ObtenerTiposDocumentoQuery(), _ciclo.Token);
-            _trabajadoresSelector = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(), _ciclo.Token);
+            _trabajadoresSelector = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera), _ciclo.Token);
             _empresasSelector = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery(_detalle?.ClienteId), _ciclo.Token);
 
             var deteccion = await Mediator.Send(new DetectarActualizacionDocumentoDesdeAdjuntoQuery(adjuntoId), _ciclo.Token);

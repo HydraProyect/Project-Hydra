@@ -318,6 +318,7 @@ public class TiposDocumentoGen2Tests : BunitContext
         var mediador = new MediadorControlado(escenario.Responder);
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
+        Services.AddLocalization();
 
         var cut = Render<TiposDocumentoPagina>(p => p.Add(x => x.IntegradaEnConfiguracion, integrada));
         return (cut, mediador);

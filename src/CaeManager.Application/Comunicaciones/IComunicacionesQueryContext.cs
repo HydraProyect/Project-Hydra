@@ -16,6 +16,7 @@ public interface IComunicacionesQueryContext
     IQueryable<ContactoWhatsApp> ContactosWhatsApp { get; }
     IQueryable<SolicitudPrioridadDocumento> SolicitudesPrioridadDocumento { get; }
     IQueryable<EventoConversacion> EventosConversacion { get; }
+    IQueryable<NotaInternaConversacion> NotasInternasConversacion { get; }
     IQueryable<ClasificacionRuidoMensaje> ClasificacionesRuidoMensaje { get; }
     IQueryable<ClasificacionRelevanciaCae> ClasificacionesRelevanciaCae { get; }
 }

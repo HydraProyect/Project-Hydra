@@ -493,6 +493,10 @@ public class AlcanceMemoizadoPorTenantEnFanOutTests : IAsyncLifetime
             IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyDictionary<Guid, string>>(new Dictionary<Guid, string>());
 
+        public Task<bool> EsCuentaActivaConRolAsync(
+            Guid usuarioId, Guid tenantId, string rol, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
+
         public Task<Guid?> ObtenerTenantDeUsuarioAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
             Task.FromResult<Guid?>(null);
     }

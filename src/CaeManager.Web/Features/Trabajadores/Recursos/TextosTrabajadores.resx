@@ -1,0 +1,585 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="EtiquetaEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="EtiquetaSubcontrata" xml:space="preserve">
+    <value>Subcontrata</value>
+  </data>
+  <data name="EtiquetaDocumentacion" xml:space="preserve">
+    <value>Documentación</value>
+  </data>
+  <data name="EtiquetaNombre" xml:space="preserve">
+    <value>Nombre</value>
+  </data>
+  <data name="EtiquetaApellidos" xml:space="preserve">
+    <value>Apellidos</value>
+  </data>
+  <data name="EtiquetaEmail" xml:space="preserve">
+    <value>Email</value>
+  </data>
+  <data name="EtiquetaFechaNacimiento" xml:space="preserve">
+    <value>Fecha de nacimiento</value>
+  </data>
+  <data name="EtiquetaObservaciones" xml:space="preserve">
+    <value>Observaciones</value>
+  </data>
+  <data name="EtiquetaTelefonoWhatsapp" xml:space="preserve">
+    <value>Teléfono (WhatsApp)</value>
+  </data>
+  <data name="EtiquetaTelefono" xml:space="preserve">
+    <value>Teléfono</value>
+  </data>
+  <data name="EtiquetaEmpleador" xml:space="preserve">
+    <value>Empleador</value>
+  </data>
+  <data name="EtiquetaAlias" xml:space="preserve">
+    <value>Alias</value>
+  </data>
+  <data name="BotonCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="BotonGuardar" xml:space="preserve">
+    <value>Guardar</value>
+  </data>
+  <data name="ErrorCargaDetalle" xml:space="preserve">
+    <value>Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="ErrorGuardar" xml:space="preserve">
+    <value>No pudimos guardar los cambios. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="EnlaceExportarExcel" xml:space="preserve">
+    <value>Exportar a Excel</value>
+  </data>
+  <data name="BotonNuevoTrabajador" xml:space="preserve">
+    <value>+ Nuevo trabajador</value>
+  </data>
+  <data name="PlaceholderBusqueda" xml:space="preserve">
+    <value>Buscar por nombre, apellidos, alias o DNI…</value>
+  </data>
+  <data name="OpcionTodas" xml:space="preserve">
+    <value>Todas</value>
+  </data>
+  <data name="OpcionTodasEmpresas" xml:space="preserve">
+    <value>Todas las empresas</value>
+  </data>
+  <data name="OpcionTodasSubcontratas" xml:space="preserve">
+    <value>Todas las subcontratas</value>
+  </data>
+  <data name="EtiquetaFiltrosGuardados" xml:space="preserve">
+    <value>Filtros guardados</value>
+  </data>
+  <data name="OpcionAplicarFiltro" xml:space="preserve">
+    <value>Aplicar uno…</value>
+  </data>
+  <data name="BotonSeleccionMultiple" xml:space="preserve">
+    <value>Selección múltiple</value>
+  </data>
+  <data name="BotonGuardarFiltro" xml:space="preserve">
+    <value>Guardar filtro</value>
+  </data>
+  <data name="AriaQuitarFiltroBusqueda" xml:space="preserve">
+    <value>Quitar filtro de búsqueda</value>
+  </data>
+  <data name="AriaQuitarFiltroDocumentacion" xml:space="preserve">
+    <value>Quitar filtro de documentación</value>
+  </data>
+  <data name="AriaQuitarFiltroEmpresa" xml:space="preserve">
+    <value>Quitar filtro de empresa</value>
+  </data>
+  <data name="AriaQuitarFiltroSubcontrata" xml:space="preserve">
+    <value>Quitar filtro de subcontrata</value>
+  </data>
+  <data name="ErrorCargaListaTitulo" xml:space="preserve">
+    <value>No pudimos cargar los trabajadores</value>
+  </data>
+  <data name="AriaSeleccionarPagina" xml:space="preserve">
+    <value>Seleccionar los trabajadores de esta página</value>
+  </data>
+  <data name="ColumnaEmpleador" xml:space="preserve">
+    <value>Empresa / Subcontrata</value>
+  </data>
+  <data name="ColumnaAcciones" xml:space="preserve">
+    <value>Acciones</value>
+  </data>
+  <data name="AccionDetalles" xml:space="preserve">
+    <value>Detalles</value>
+  </data>
+  <data name="AccionAbrirTrabajador360" xml:space="preserve">
+    <value>Abrir Trabajador 360</value>
+  </data>
+  <data name="AccionEliminar" xml:space="preserve">
+    <value>Eliminar</value>
+  </data>
+  <data name="EtiquetaPaginador" xml:space="preserve">
+    <value>trabajador(es)</value>
+  </data>
+  <data name="VacioFiltrosTitulo" xml:space="preserve">
+    <value>Ningún trabajador con estos filtros</value>
+  </data>
+  <data name="VacioFiltrosDescripcion" xml:space="preserve">
+    <value>Ninguno coincide con la búsqueda ni con los filtros de documentación, empresa o subcontrata.</value>
+  </data>
+  <data name="BotonQuitarFiltros" xml:space="preserve">
+    <value>Quitar los filtros</value>
+  </data>
+  <data name="VacioTitulo" xml:space="preserve">
+    <value>Aún no hay trabajadores</value>
+  </data>
+  <data name="VacioDescripcion" xml:space="preserve">
+    <value>Da de alta el primero para empezar a controlar su documentación.</value>
+  </data>
+  <data name="DrawerNuevoTitulo" xml:space="preserve">
+    <value>Nuevo trabajador</value>
+  </data>
+  <data name="OpcionSeleccionaEmpresa" xml:space="preserve">
+    <value>Selecciona una empresa…</value>
+  </data>
+  <data name="OpcionSeleccionaSubcontrata" xml:space="preserve">
+    <value>Selecciona una subcontrata…</value>
+  </data>
+  <data name="EtiquetaDocumentoIdentidad" xml:space="preserve">
+    <value>Documento de identidad (DNI, NIE, TIE o pasaporte)</value>
+  </data>
+  <data name="EtiquetaAliasOpcional" xml:space="preserve">
+    <value>Alias / nombre con el que firma (opcional)</value>
+  </data>
+  <data name="PlaceholderAlias" xml:space="preserve">
+    <value>p. ej. Pancho Villa</value>
+  </data>
+  <data name="EtiquetaPuestoOpcional" xml:space="preserve">
+    <value>Puesto / oficio (opcional)</value>
+  </data>
+  <data name="PlaceholderPuesto" xml:space="preserve">
+    <value>p. ej. Soldador</value>
+  </data>
+  <data name="DialogoEliminarMensaje" xml:space="preserve">
+    <value>Se ocultará de las listas activas. Podrás deshacerlo desde el aviso que aparecerá.</value>
+  </data>
+  <data name="BotonAsignarACentro" xml:space="preserve">
+    <value>Asignar a centro…</value>
+  </data>
+  <data name="DialogoEliminarLoteMensaje" xml:space="preserve">
+    <value>Se ocultarán de las listas activas. Podrás recuperarlos desde Auditoría.</value>
+  </data>
+  <data name="EtiquetaCentro" xml:space="preserve">
+    <value>Centro</value>
+  </data>
+  <data name="PlaceholderCentro" xml:space="preserve">
+    <value>Escribe el nombre del centro…</value>
+  </data>
+  <data name="EtiquetaFechaAlta" xml:space="preserve">
+    <value>Fecha de alta</value>
+  </data>
+  <data name="PreflightFaltaban" xml:space="preserve">
+    <value>Al comprobarlo faltaban</value>
+  </data>
+  <data name="PreflightNota" xml:space="preserve">
+    <value>Asignar no crea esos documentos, y que falten no impide la asignación.</value>
+  </data>
+  <data name="ModalGuardarFiltroTitulo" xml:space="preserve">
+    <value>Guardar filtro actual</value>
+  </data>
+  <data name="PlaceholderNombreFiltro" xml:space="preserve">
+    <value>Trabajadores de Subcontrata X</value>
+  </data>
+  <data name="ChipBusqueda" xml:space="preserve">
+    <value>Búsqueda: "{0}"</value>
+  </data>
+  <data name="AriaSeleccionarTrabajador" xml:space="preserve">
+    <value>Seleccionar a {0}</value>
+  </data>
+  <data name="DialogoEliminarTitulo" xml:space="preserve">
+    <value>¿Eliminar a {0}?</value>
+  </data>
+  <data name="DialogoEliminarLoteTitulo" xml:space="preserve">
+    <value>¿Eliminar {0} trabajador(es)?</value>
+  </data>
+  <data name="ModalAsignarCentroTitulo" xml:space="preserve">
+    <value>Asignar {0} trabajador(es) a un centro</value>
+  </data>
+  <data name="PreflightDocumentosQueSePiden" xml:space="preserve">
+    <value>{0} documento(s) que se piden</value>
+  </data>
+  <data name="PreflightYMas" xml:space="preserve">
+    <value>y {0} más…</value>
+  </data>
+  <data name="BotonAsignarIgualmente" xml:space="preserve">
+    <value>Asignar igualmente</value>
+  </data>
+  <data name="BotonAsignar" xml:space="preserve">
+    <value>Asignar</value>
+  </data>
+  <data name="TituloPagina" xml:space="preserve">
+    <value>Trabajadores</value>
+  </data>
+  <data name="TituloPaginaClienteDirecto" xml:space="preserve">
+    <value>Mis trabajadores</value>
+  </data>
+  <data name="ErrorSeleccionaEmpresa" xml:space="preserve">
+    <value>Selecciona una empresa.</value>
+  </data>
+  <data name="ErrorSeleccionaSubcontrata" xml:space="preserve">
+    <value>Selecciona una subcontrata.</value>
+  </data>
+  <data name="ToastCreado" xml:space="preserve">
+    <value>Trabajador creado correctamente.</value>
+  </data>
+  <data name="PistaDniValido" xml:space="preserve">
+    <value>✓ DNI con formato y dígito de control correctos.</value>
+  </data>
+  <data name="PistaDniInvalido" xml:space="preserve">
+    <value>✗ Formato de DNI, pero el dígito de control no coincide.</value>
+  </data>
+  <data name="PistaNieValido" xml:space="preserve">
+    <value>✓ NIE con formato y dígito de control correctos.</value>
+  </data>
+  <data name="PistaNieInvalido" xml:space="preserve">
+    <value>✗ Formato de NIE, pero el dígito de control no coincide.</value>
+  </data>
+  <data name="PistaCifValido" xml:space="preserve">
+    <value>✓ Formato de CIF válido — comprueba que sea la persona y no la empresa.</value>
+  </data>
+  <data name="PistaCifInvalido" xml:space="preserve">
+    <value>✗ Parece un CIF, pero el dígito de control no coincide.</value>
+  </data>
+  <data name="PistaTieSoporte" xml:space="preserve">
+    <value>✓ Número de soporte TIE reconocido.</value>
+  </data>
+  <data name="PistaDocumentoExtranjero" xml:space="preserve">
+    <value>ℹ Documento no español (pasaporte u otro) — se acepta sin validar dígito de control.</value>
+  </data>
+  <data name="ToastEliminado" xml:space="preserve">
+    <value>Trabajador eliminado correctamente.</value>
+  </data>
+  <data name="ToastAccionDeshacer" xml:space="preserve">
+    <value>Deshacer</value>
+  </data>
+  <data name="ErrorEliminar" xml:space="preserve">
+    <value>No pudimos eliminar el trabajador. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="ToastRestaurado" xml:space="preserve">
+    <value>Trabajador restaurado.</value>
+  </data>
+  <data name="ToastLoteEliminados" xml:space="preserve">
+    <value>{0} trabajador(es) eliminado(s).</value>
+  </data>
+  <data name="ToastLoteEliminadosConErrores" xml:space="preserve">
+    <value>{0} eliminado(s). {1} no se pudieron borrar: {2}</value>
+  </data>
+  <data name="ErrorEliminarLote" xml:space="preserve">
+    <value>No pudimos eliminar los trabajadores seleccionados. Intenta nuevamente.</value>
+  </data>
+  <data name="ErrorSeleccionaCentro" xml:space="preserve">
+    <value>Selecciona un centro.</value>
+  </data>
+  <data name="ErrorFechaAltaInvalida" xml:space="preserve">
+    <value>Introduce una fecha de alta válida.</value>
+  </data>
+  <data name="ToastAsignacionesCreadas" xml:space="preserve">
+    <value>{0} asignación(es) creada(s).</value>
+  </data>
+  <data name="ToastAsignacionesCreadasConActivas" xml:space="preserve">
+    <value>{0} asignación(es) creada(s), {1} ya estaban activas.</value>
+  </data>
+  <data name="ErrorAsignarLote" xml:space="preserve">
+    <value>No pudimos asignar a los trabajadores seleccionados. Intenta nuevamente.</value>
+  </data>
+  <data name="ToastFiltroGuardado" xml:space="preserve">
+    <value>Filtro guardado.</value>
+  </data>
+  <data name="AriaMigas" xml:space="preserve">
+    <value>Ruta de Trabajador 360</value>
+  </data>
+  <data name="DetalleErrorTitulo" xml:space="preserve">
+    <value>No pudimos cargar este trabajador</value>
+  </data>
+  <data name="DetalleErrorDescripcion" xml:space="preserve">
+    <value>Puede que ya no exista o que no tengas acceso.</value>
+  </data>
+  <data name="EtiquetaCopiarDni" xml:space="preserve">
+    <value>el DNI</value>
+  </data>
+  <data name="BotonSubirDocumento" xml:space="preserve">
+    <value>Subir documento</value>
+  </data>
+  <data name="AccionEditar" xml:space="preserve">
+    <value>Editar</value>
+  </data>
+  <data name="AccionReclamarFaltantes" xml:space="preserve">
+    <value>Reclamar faltantes</value>
+  </data>
+  <data name="AccionCrearGestion" xml:space="preserve">
+    <value>Crear gestión</value>
+  </data>
+  <data name="AriaSeccionesTrabajador360" xml:space="preserve">
+    <value>Secciones de Trabajador 360</value>
+  </data>
+  <data name="VacioAsignacionesTitulo" xml:space="preserve">
+    <value>Sin asignaciones activas</value>
+  </data>
+  <data name="VacioAsignacionesDescripcion" xml:space="preserve">
+    <value>Este trabajador no tiene ninguna asignación activa a un centro.</value>
+  </data>
+  <data name="SeparadorDocumentacionPorCentro" xml:space="preserve">
+    <value>Documentación por centro</value>
+  </data>
+  <data name="TextoExigenciaPorCentro" xml:space="preserve">
+    <value>La exigencia documental es por centro: el mismo trabajador puede estar completo en un centro y bloqueado en otro, porque cada centro pide cosas distintas.</value>
+  </data>
+  <data name="TituloAbrirCentro360" xml:space="preserve">
+    <value>Abrir el Centro 360</value>
+  </data>
+  <data name="TextoCentroSinExigencia" xml:space="preserve">
+    <value>Este centro no exige documentación específica a este trabajador.</value>
+  </data>
+  <data name="ColumnaDocumento" xml:space="preserve">
+    <value>Documento</value>
+  </data>
+  <data name="ColumnaEstado" xml:space="preserve">
+    <value>Estado</value>
+  </data>
+  <data name="ColumnaVigencia" xml:space="preserve">
+    <value>Vigencia</value>
+  </data>
+  <data name="ColumnaAccion" xml:space="preserve">
+    <value>Acción</value>
+  </data>
+  <data name="ColumnaCentro" xml:space="preserve">
+    <value>Centro</value>
+  </data>
+  <data name="ColumnaClienteEmpresarial" xml:space="preserve">
+    <value>Cliente empresarial</value>
+  </data>
+  <data name="ColumnaDesde" xml:space="preserve">
+    <value>Desde</value>
+  </data>
+  <data name="ColumnaGestion" xml:space="preserve">
+    <value>Gestión</value>
+  </data>
+  <data name="ColumnaCreada" xml:space="preserve">
+    <value>Creada</value>
+  </data>
+  <data name="SeparadorAsignaciones" xml:space="preserve">
+    <value>Asignaciones</value>
+  </data>
+  <data name="AriaAsignacionesActivas" xml:space="preserve">
+    <value>Asignaciones activas</value>
+  </data>
+  <data name="AccionDarDeBaja" xml:space="preserve">
+    <value>Dar de baja</value>
+  </data>
+  <data name="SeparadorGestionesPendientes" xml:space="preserve">
+    <value>Gestiones pendientes</value>
+  </data>
+  <data name="AccionCompletar" xml:space="preserve">
+    <value>Completar</value>
+  </data>
+  <data name="SeparadorDatosTrabajador" xml:space="preserve">
+    <value>Datos del trabajador</value>
+  </data>
+  <data name="EtiquetaCopiarTelefono" xml:space="preserve">
+    <value>el teléfono</value>
+  </data>
+  <data name="EtiquetaCorreo" xml:space="preserve">
+    <value>Correo electrónico</value>
+  </data>
+  <data name="EtiquetaCopiarCorreo" xml:space="preserve">
+    <value>el correo electrónico</value>
+  </data>
+  <data name="SeparadorAgendaEmpleador" xml:space="preserve">
+    <value>Agenda del empleador</value>
+  </data>
+  <data name="ModalCrearGestionTitulo" xml:space="preserve">
+    <value>Crear gestión</value>
+  </data>
+  <data name="NotaCrearGestion" xml:space="preserve">
+    <value>Se creará una gestión pendiente en cada centro donde este trabajador tenga una asignación activa.</value>
+  </data>
+  <data name="EtiquetaTipoDocumento" xml:space="preserve">
+    <value>Tipo de documento</value>
+  </data>
+  <data name="OpcionSeleccionaTipoDocumento" xml:space="preserve">
+    <value>Selecciona un tipo de documento…</value>
+  </data>
+  <data name="BotonCrear" xml:space="preserve">
+    <value>Crear</value>
+  </data>
+  <data name="ModalReclamarTitulo" xml:space="preserve">
+    <value>Reclamar documentación pendiente</value>
+  </data>
+  <data name="LeyendaClientesEmpresariales" xml:space="preserve">
+    <value>Clientes empresariales</value>
+  </data>
+  <data name="BotonReclamar" xml:space="preserve">
+    <value>Reclamar</value>
+  </data>
+  <data name="TituloDetalleSinNombre" xml:space="preserve">
+    <value>Trabajador</value>
+  </data>
+  <data name="AnilloCumplimiento" xml:space="preserve">
+    <value>{0}% de cumplimiento — documentos al día / exigidos entre todos los centros de este trabajador</value>
+  </data>
+  <data name="VentanaIncidenciasUno" xml:space="preserve">
+    <value>1 documento con incidencia en {0}</value>
+  </data>
+  <data name="VentanaIncidenciasVarios" xml:space="preserve">
+    <value>{0} documentos con incidencia en {1}</value>
+  </data>
+  <data name="VentanaProblemaUrgente" xml:space="preserve">
+    <value>Problema más urgente — {0}</value>
+  </data>
+  <data name="BadgeIncidenciasCentroUno" xml:space="preserve">
+    <value>1 incidencia — {0}</value>
+  </data>
+  <data name="BadgeIncidenciasCentroVarios" xml:space="preserve">
+    <value>{0} incidencias — {1}</value>
+  </data>
+  <data name="ResumenSinExigencia" xml:space="preserve">
+    <value>Sin documentación exigida</value>
+  </data>
+  <data name="ResumenExigidosCorrectos" xml:space="preserve">
+    <value>{0} de {1} exigidos correctos</value>
+  </data>
+  <data name="BadgeCompleto" xml:space="preserve">
+    <value>Completo</value>
+  </data>
+  <data name="IncidenciasUno" xml:space="preserve">
+    <value>1 incidencia</value>
+  </data>
+  <data name="IncidenciasVarios" xml:space="preserve">
+    <value>{0} incidencias</value>
+  </data>
+  <data name="AriaAbrirCentro360" xml:space="preserve">
+    <value>Abrir el Centro 360 de {0}</value>
+  </data>
+  <data name="AriaDocumentacionExigida" xml:space="preserve">
+    <value>Documentación exigida en {0}</value>
+  </data>
+  <data name="AccionSubir" xml:space="preserve">
+    <value>Subir</value>
+  </data>
+  <data name="AccionVer" xml:space="preserve">
+    <value>Ver</value>
+  </data>
+  <data name="AccionRenovar" xml:space="preserve">
+    <value>Renovar</value>
+  </data>
+  <data name="NotaReclamarVarios" xml:space="preserve">
+    <value>{0} tiene documentación pendiente en varios Clientes empresariales a la vez. Elige a cuáles reclamar.</value>
+  </data>
+  <data name="DocumentosPendientesUno" xml:space="preserve">
+    <value>1 documento pendiente</value>
+  </data>
+  <data name="DocumentosPendientesVarios" xml:space="preserve">
+    <value>{0} documentos pendientes</value>
+  </data>
+  <data name="PestanaOperacion" xml:space="preserve">
+    <value>Operación</value>
+  </data>
+  <data name="ContadorIncidenciasUno" xml:space="preserve">
+    <value>documento con incidencia</value>
+  </data>
+  <data name="ContadorIncidenciasVarios" xml:space="preserve">
+    <value>documentos con incidencia</value>
+  </data>
+  <data name="PestanaHistorial" xml:space="preserve">
+    <value>Historial</value>
+  </data>
+  <data name="PestanaContactos" xml:space="preserve">
+    <value>Contactos</value>
+  </data>
+  <data name="MigaTrabajadores" xml:space="preserve">
+    <value>Trabajadores</value>
+  </data>
+  <data name="ErrorDarDeBaja" xml:space="preserve">
+    <value>No se dio de baja la asignación.</value>
+  </data>
+  <data name="ToastBajaConAvisos" xml:space="preserve">
+    <value>Asignación dada de baja, con avisos: {0}</value>
+  </data>
+  <data name="ToastBaja" xml:space="preserve">
+    <value>Asignación dada de baja.</value>
+  </data>
+  <data name="ToastSinPendientesReclamar" xml:space="preserve">
+    <value>No hay documentos pendientes que reclamar.</value>
+  </data>
+  <data name="ToastReclamacionEnviadaUno" xml:space="preserve">
+    <value>Reclamación enviada a {0}.</value>
+  </data>
+  <data name="ToastReclamacionEnviadaVarios" xml:space="preserve">
+    <value>Reclamación enviada a {0} Clientes empresariales: {1}.</value>
+  </data>
+  <data name="ToastGestionCreada" xml:space="preserve">
+    <value>Se creó la gestión en {0} centro(s).</value>
+  </data>
+  <data name="AriaVistaPrevia" xml:space="preserve">
+    <value>Vista previa del trabajador</value>
+  </data>
+  <data name="EtiquetaCabeceraPreview" xml:space="preserve">
+    <value>Consulta · Trabajador</value>
+  </data>
+  <data name="AriaCerrar" xml:space="preserve">
+    <value>Cerrar</value>
+  </data>
+  <data name="AriaSeccionesTrabajador" xml:space="preserve">
+    <value>Secciones del trabajador</value>
+  </data>
+  <data name="EtiquetaPuesto" xml:space="preserve">
+    <value>Puesto</value>
+  </data>
+  <data name="BotonVerTrabajador360" xml:space="preserve">
+    <value>Ver Trabajador 360 →</value>
+  </data>
+  <data name="NotaPiePreview" xml:space="preserve">
+    <value>Ficha completa con cumplimiento por centro</value>
+  </data>
+  <data name="TextoCargando" xml:space="preserve">
+    <value>Cargando…</value>
+  </data>
+  <data name="PestanaInformacion" xml:space="preserve">
+    <value>Información</value>
+  </data>
+  <data name="ErrorCargaTrabajadorTitulo" xml:space="preserve">
+    <value>No pudimos cargar el trabajador</value>
+  </data>
+  <data name="AriaEditarInformacion" xml:space="preserve">
+    <value>Editar información del trabajador</value>
+  </data>
+  <data name="EtiquetaPuestoOficio" xml:space="preserve">
+    <value>Puesto / oficio</value>
+  </data>
+  <data name="EtiquetaNombreCompleto" xml:space="preserve">
+    <value>Nombre completo</value>
+  </data>
+  <data name="ErrorCargaVehiculosTitulo" xml:space="preserve">
+    <value>No pudimos cargar los vehículos</value>
+  </data>
+  <data name="VacioVehiculosTitulo" xml:space="preserve">
+    <value>Sin vehículos</value>
+  </data>
+  <data name="VacioVehiculosDescripcion" xml:space="preserve">
+    <value>El empleador de este trabajador no tiene vehículos registrados.</value>
+  </data>
+  <data name="NotaVehiculos" xml:space="preserve">
+    <value>Vehículos disponibles de la empresa. La asignación a un trabajador concreto se realiza durante la gestión operativa cuando corresponda.</value>
+  </data>
+  <data name="PestanaVehiculos" xml:space="preserve">
+    <value>Vehículos</value>
+  </data>
+  <data name="ToastActualizado" xml:space="preserve">
+    <value>Trabajador actualizado correctamente.</value>
+  </data>
+</root>

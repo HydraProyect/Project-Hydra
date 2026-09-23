@@ -1,4 +1,5 @@
 using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
+using CaeManager.Application.Bandeja.Queries.ObtenerBandejaAgrupada;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 using CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 using CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesPorProveedor;
@@ -12,8 +13,9 @@ namespace CaeManager.Application.Tests.Bandeja;
 /// Cubre solo lo que <see cref="ObtenerBandejaGestorQueryHandlerTests"/> no
 /// cubre ya: los dos buckets nuevos de Mi trabajo Gen2
 /// (<see cref="TipoItemBandeja.VencimientoProximo"/>,
-/// <see cref="TipoItemBandeja.EnPlataformaSeguimiento"/>) y el criterio de
-/// bloqueo duplicado de <c>TipoItemBandejaUi.Tono</c>. No repite la fusión ni
+/// <see cref="TipoItemBandeja.EnPlataformaSeguimiento"/>) y la severidad
+/// «Bloqueo» (<c>EsBloqueo</c>, que para los tipos que dependen del Centro de
+/// Trabajo delega en <c>BloqueaAccesoAlCentro</c>). No repite la fusión ni
 /// el agrupado — esos ya están probados donde viven.
 /// </summary>
 public class ObtenerMiTrabajoAgregadoQueryHandlerTests
@@ -99,20 +101,194 @@ public class ObtenerMiTrabajoAgregadoQueryHandlerTests
     [Theory]
     [InlineData(TipoItemBandeja.Faltante, true)]
     [InlineData(TipoItemBandeja.Vencido, true)]
-    [InlineData(TipoItemBandeja.PlataformaRechazada, true)]
+    [InlineData(TipoItemBandeja.PlataformaVencida, true)]
     [InlineData(TipoItemBandeja.SugerenciaVisitaUrgente, true)]
     [InlineData(TipoItemBandeja.Urgente, false)]
     [InlineData(TipoItemBandeja.VisitaUrgente, false)]
     [InlineData(TipoItemBandeja.RevisionIa, false)]
     [InlineData(TipoItemBandeja.DeteccionPendiente, false)]
     [InlineData(TipoItemBandeja.PlataformaPendiente, false)]
-    public void EsBloqueo_clasifica_cada_tipo_como_en_TipoItemBandejaUi_Tono(TipoItemBandeja tipo, bool esperado)
+    public void EsBloqueo_clasifica_cada_tipo_sin_dependencia_del_Centro(TipoItemBandeja tipo, bool esperado)
     {
         var item = new ItemBandejaDto(
             Id: "x", Tipo: tipo, Titulo: "T", Subtitulo: "S",
             TrabajadorId: null, CentroId: null, DocumentoId: null, TipoDocumentoId: null, RequisitoId: null, Fecha: null);
 
         ObtenerMiTrabajoAgregadoQueryHandler.EsBloqueo(item).Should().Be(esperado);
+    }
+
+    private static ItemBandejaDto Rechazada(bool bloqueaCentro) => new(
+        Id: "rech", Tipo: TipoItemBandeja.PlataformaRechazada, Titulo: "Formación 60h", Subtitulo: "Iker Etxeberria",
+        TrabajadorId: Guid.NewGuid(), CentroId: Guid.NewGuid(), DocumentoId: Guid.NewGuid(), TipoDocumentoId: Guid.NewGuid(),
+        RequisitoId: null, Fecha: null, RechazoBloqueaCentro: bloqueaCentro);
+
+    /// <summary>
+    /// P2.7, residual de #809 (D-7): una Rechazada que el cálculo de estado de
+    /// su Centro de Trabajo no cuenta como causa bloqueante —otro canal,
+    /// Trabajador desvinculado, tipo que no aplica— es trabajo, no un bloqueo.
+    /// Antes, EsBloqueo contaba como bloqueo cualquier Rechazada, y Mi trabajo
+    /// contradecía a /bandeja y a Centro 360.
+    /// </summary>
+    [Fact]
+    public void EsBloqueo_es_falso_para_una_Rechazada_no_aplicable_a_su_Centro()
+    {
+        ObtenerMiTrabajoAgregadoQueryHandler.EsBloqueo(Rechazada(bloqueaCentro: false)).Should().BeFalse();
+    }
+
+    [Fact]
+    public void EsBloqueo_es_verdadero_para_una_Rechazada_que_bloquea_su_Centro()
+    {
+        ObtenerMiTrabajoAgregadoQueryHandler.EsBloqueo(Rechazada(bloqueaCentro: true)).Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Mi trabajo y la cola agrupada no pueden discrepar: para los dos tipos
+    /// que dependen del Centro, la severidad «Bloqueo» es exactamente el
+    /// «bloquea acceso» de <c>BloqueaAccesoAlCentro</c>.
+    /// </summary>
+    [Theory]
+    [InlineData(TipoItemBandeja.PlataformaRechazada, false, false)]
+    [InlineData(TipoItemBandeja.PlataformaRechazada, true, false)]
+    [InlineData(TipoItemBandeja.RequisitoPendiente, false, false)]
+    [InlineData(TipoItemBandeja.RequisitoPendiente, false, true)]
+    public void EsBloqueo_coincide_con_BloqueaAccesoAlCentro_en_los_tipos_que_dependen_del_Centro(
+        TipoItemBandeja tipo, bool rechazoBloqueaCentro, bool esAltaNueva)
+    {
+        var item = new ItemBandejaDto(
+            Id: "c", Tipo: tipo, Titulo: "T", Subtitulo: "S",
+            TrabajadorId: null, CentroId: Guid.NewGuid(), DocumentoId: Guid.NewGuid(), TipoDocumentoId: null, RequisitoId: null, Fecha: null,
+            EsAltaNueva: esAltaNueva, RechazoBloqueaCentro: rechazoBloqueaCentro);
+
+        ObtenerMiTrabajoAgregadoQueryHandler.EsBloqueo(item)
+            .Should().Be(ObtenerBandejaAgrupadaQueryHandler.BloqueaAccesoAlCentro(item));
+    }
+
+    private static readonly DateOnly Hoy = new(2026, 9, 23);
+
+    private static ProveedorAcreditacionesDto Acreditacion(
+        EstadoAcreditacion estado, EstadoVigenciaEnPlataforma vigencia, DateOnly? vence, bool vencida,
+        Guid? documentoId = null) => new(
+        ProveedorPlataformaCaeId: Guid.NewGuid(), ProveedorNombre: "Dokify", ProveedorCodigo: "dokify",
+        Clientes: [new ClienteAcreditacionesDto(
+            ClienteId: Guid.NewGuid(), ClienteNombre: "Cliente Norte S.A.",
+            Documentos: [new AcreditacionDrillDownDto(
+                AcreditacionId: Guid.NewGuid(), DocumentoId: documentoId ?? Guid.NewGuid(), PropietarioNombre: "Iker Etxeberria",
+                TipoDocumentoNombre: "Formación 60h", Estado: estado, UltimoMotivoRechazo: null,
+                TrabajadorId: Guid.NewGuid(), CentroId: Guid.NewGuid(),
+                EstadoVigencia: vigencia, FechaVencimientoEnPlataforma: vence,
+                VencidaEnPlataforma: vencida)])]);
+
+    /// <summary>
+    /// Aceptada con la vigencia vencida tal como la marca la consulta
+    /// (<see cref="AcreditacionDrillDownDto.VencidaEnPlataforma"/>). La frontera
+    /// de fecha (hoy, vigente, sin confirmar) se prueba contra PostgreSQL en
+    /// <c>ObtenerAcreditacionesPorProveedorQueryTests</c>, que es quien compara.
+    /// </summary>
+    private static ProveedorAcreditacionesDto AceptadaVencida(Guid? documentoId = null) =>
+        Acreditacion(EstadoAcreditacion.Aceptada, EstadoVigenciaEnPlataforma.VenceEnFecha, Hoy.AddDays(-1),
+            vencida: true, documentoId);
+
+    /// <summary>
+    /// P12 (2026-09-23): la acreditación aceptada cuya vigencia en la plataforma
+    /// ya venció entra en Mi trabajo como bloqueo, con su plataforma, su fecha y
+    /// el documento afectado, y la acción va a la acreditación.
+    /// </summary>
+    [Fact]
+    public void MapearVencidasEnPlataforma_incluye_la_aceptada_con_la_vigencia_vencida()
+    {
+        var vencida = AceptadaVencida();
+        var acreditacion = vencida.Clientes.Single().Documentos.Single();
+
+        var item = ObtenerMiTrabajoAgregadoQueryHandler.MapearVencidasEnPlataforma([vencida], [])
+            .Should().ContainSingle().Subject;
+
+        item.Tipo.Should().Be(TipoItemBandeja.PlataformaVencida);
+        item.Id.Should().Be($"plataforma-vencida-{acreditacion.AcreditacionId}");
+        item.DocumentoId.Should().Be(acreditacion.DocumentoId);
+        item.CentroId.Should().Be(acreditacion.CentroId);
+        item.Fecha.Should().Be(Hoy.AddDays(-1));
+        item.ProveedorNombre.Should().Be("Dokify");
+        item.ClienteNombre.Should().Be("Cliente Norte S.A.");
+        ObtenerMiTrabajoAgregadoQueryHandler.EsBloqueo(item).Should().BeTrue();
+    }
+
+    /// <summary>
+    /// El mapeador no vuelve a comparar fechas: una aceptada que la consulta no
+    /// marcó como vencida (vigente, vence hoy, sin confirmar, no vence aquí) no
+    /// entra, aunque su fecha ya haya pasado respecto al reloj de quien la lee.
+    /// </summary>
+    [Fact]
+    public void MapearVencidasEnPlataforma_excluye_la_aceptada_que_la_consulta_no_marco_vencida()
+    {
+        ObtenerMiTrabajoAgregadoQueryHandler.MapearVencidasEnPlataforma(
+            [
+                Acreditacion(EstadoAcreditacion.Aceptada, EstadoVigenciaEnPlataforma.VenceEnFecha, Hoy.AddDays(-1), vencida: false),
+                Acreditacion(EstadoAcreditacion.Aceptada, EstadoVigenciaEnPlataforma.SinConfirmar, null, vencida: false),
+                Acreditacion(EstadoAcreditacion.Aceptada, EstadoVigenciaEnPlataforma.NoVenceAqui, null, vencida: false),
+            ],
+            []).Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Una Rechazada o pendiente de subir ya tiene su propio ítem, y una Subida
+    /// sigue en Seguimiento: una acreditación no puede dar dos ítems.
+    /// </summary>
+    [Theory]
+    [InlineData(EstadoAcreditacion.Rechazada)]
+    [InlineData(EstadoAcreditacion.PendienteDeSubir)]
+    [InlineData(EstadoAcreditacion.Subida)]
+    [InlineData(EstadoAcreditacion.NoRequerida)]
+    public void MapearVencidasEnPlataforma_solo_toma_aceptadas(EstadoAcreditacion estado)
+    {
+        ObtenerMiTrabajoAgregadoQueryHandler.MapearVencidasEnPlataforma(
+            [Acreditacion(estado, EstadoVigenciaEnPlataforma.VenceEnFecha, Hoy.AddDays(-5), vencida: true)], [])
+            .Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Si el Documento ya está vencido en TALVEG, la cola ya trae ese bloqueo y
+    /// la acción es renovarlo: la acreditación vencida no se duplica. Un aviso
+    /// que no es Vencido (Urgente) no la oculta.
+    /// </summary>
+    [Fact]
+    public void MapearVencidasEnPlataforma_deduplica_con_el_vencimiento_documental()
+    {
+        var documentoVencido = Guid.NewGuid();
+        var documentoUrgente = Guid.NewGuid();
+        var alertas = new[]
+        {
+            Alerta(EstadoDocumento.Vencido) with { DocumentoId = documentoVencido },
+            Alerta(EstadoDocumento.Urgente) with { DocumentoId = documentoUrgente },
+        };
+
+        var resultado = ObtenerMiTrabajoAgregadoQueryHandler.MapearVencidasEnPlataforma(
+            [AceptadaVencida(documentoVencido), AceptadaVencida(documentoUrgente)],
+            alertas);
+
+        resultado.Should().ContainSingle().Which.DocumentoId.Should().Be(documentoUrgente);
+    }
+
+    /// <summary>
+    /// Prioridad alta, la de Vencido (D-6): por delante de una Rechazada y de
+    /// un Requisito pendiente, por detrás de un Faltante.
+    /// </summary>
+    [Fact]
+    public void Ordenar_pone_la_vencida_en_plataforma_con_la_prioridad_de_Vencido()
+    {
+        ItemBandejaDto De(TipoItemBandeja tipo, string id, DateOnly? fecha = null) => new(
+            Id: id, Tipo: tipo, Titulo: "T", Subtitulo: "S", Fecha: fecha,
+            TrabajadorId: null, CentroId: null, DocumentoId: null, TipoDocumentoId: null, RequisitoId: null);
+
+        var ordenados = ObtenerBandejaGestorQueryHandler.Ordenar(
+        [
+            De(TipoItemBandeja.RequisitoPendiente, "requisito"),
+            De(TipoItemBandeja.PlataformaRechazada, "rechazada"),
+            De(TipoItemBandeja.Vencido, "vencido", Hoy.AddDays(-1)),
+            De(TipoItemBandeja.PlataformaVencida, "plataforma-vencida", Hoy.AddDays(-3)),
+            De(TipoItemBandeja.Faltante, "faltante"),
+        ]);
+
+        ordenados.Select(i => i.Id).Should().Equal("faltante", "plataforma-vencida", "vencido", "rechazada", "requisito");
     }
 
     private static readonly Guid EmpresaPropia = Guid.NewGuid();

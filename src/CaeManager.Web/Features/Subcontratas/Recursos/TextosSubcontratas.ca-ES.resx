@@ -1,0 +1,699 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="EstadoSupervisionVigente" xml:space="preserve">
+    <value>Vigente</value>
+  </data>
+  <data name="EstadoSupervisionProximo" xml:space="preserve">
+    <value>Próximo</value>
+  </data>
+  <data name="EstadoSupervisionUrgente" xml:space="preserve">
+    <value>Urgente</value>
+  </data>
+  <data name="EstadoSupervisionVencido" xml:space="preserve">
+    <value>Vencido</value>
+  </data>
+  <data name="EstadoSupervisionNoValido" xml:space="preserve">
+    <value>No válido</value>
+  </data>
+  <data name="EstadoSupervisionSinVerificar" xml:space="preserve">
+    <value>Sin verificar</value>
+  </data>
+  <data name="ResultadoVerificacionValido" xml:space="preserve">
+    <value>Válido</value>
+  </data>
+  <data name="ResultadoVerificacionNoValido" xml:space="preserve">
+    <value>No válido</value>
+  </data>
+  <data name="ResultadoVerificacionNoEncontrado" xml:space="preserve">
+    <value>No encontrado</value>
+  </data>
+  <data name="NivelServicioSupervisada" xml:space="preserve">
+    <value>Supervisada</value>
+  </data>
+  <data name="NivelServicioGestionada" xml:space="preserve">
+    <value>Gestionada</value>
+  </data>
+  <data name="ExcelColumnaRazonSocial" xml:space="preserve">
+    <value>Razón social</value>
+  </data>
+  <data name="ExcelColumnaNivelServicio" xml:space="preserve">
+    <value>Nivel de servicio</value>
+  </data>
+  <data name="ExcelColumnaCumplimiento" xml:space="preserve">
+    <value>% Cumplimiento</value>
+  </data>
+  <data name="ExcelColumnaTotalVencidas" xml:space="preserve">
+    <value>Total vencidas</value>
+  </data>
+  <data name="ExcelColumnaTotalProximas" xml:space="preserve">
+    <value>Total próximas</value>
+  </data>
+  <data name="TituloPagina" xml:space="preserve">
+    <value>Subcontratas</value>
+  </data>
+  <data name="KickerNegocio" xml:space="preserve">
+    <value>Negocio</value>
+  </data>
+  <data name="EnlaceExportarExcel" xml:space="preserve">
+    <value>Exportar a Excel</value>
+  </data>
+  <data name="BotonNuevaSubcontrata" xml:space="preserve">
+    <value>+ Nueva subcontrata</value>
+  </data>
+  <data name="PlaceholderBusqueda" xml:space="preserve">
+    <value>Buscar por razón social o CIF…</value>
+  </data>
+  <data name="ChipBusqueda" xml:space="preserve">
+    <value>Búsqueda: "{0}"</value>
+  </data>
+  <data name="BotonQuitarBusqueda" xml:space="preserve">
+    <value>Quitar la búsqueda</value>
+  </data>
+  <data name="ErrorCargaTitulo" xml:space="preserve">
+    <value>No pudimos cargar las subcontratas</value>
+  </data>
+  <data name="ErrorIntentaNuevamente" xml:space="preserve">
+    <value>Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="VacioBusquedaTitulo" xml:space="preserve">
+    <value>Ninguna subcontrata con esta búsqueda</value>
+  </data>
+  <data name="VacioBusquedaDescripcion" xml:space="preserve">
+    <value>Ninguna coincide con el texto buscado.</value>
+  </data>
+  <data name="VacioTitulo" xml:space="preserve">
+    <value>Aún no hay subcontratas</value>
+  </data>
+  <data name="VacioDescripcion" xml:space="preserve">
+    <value>Crea la primera para poder dar de alta a sus trabajadores.</value>
+  </data>
+  <data name="SeleccionarLosDeEstaPagina" xml:space="preserve">
+    <value>Seleccionar los de esta página</value>
+  </data>
+  <data name="SeleccionHayMasEnTotal" xml:space="preserve">
+    <value> — hay {0} en total con estos filtros</value>
+  </data>
+  <data name="RotuloRazonSocial" xml:space="preserve">
+    <value>Razón social</value>
+  </data>
+  <data name="RotuloNivelServicio" xml:space="preserve">
+    <value>Nivel de servicio</value>
+  </data>
+  <data name="RotuloCumplimiento" xml:space="preserve">
+    <value>Cumplimiento</value>
+  </data>
+  <data name="ColumnaVencidos" xml:space="preserve">
+    <value>Vencidos</value>
+  </data>
+  <data name="ColumnaProximos" xml:space="preserve">
+    <value>Próximos</value>
+  </data>
+  <data name="AriaSeleccionarSubcontrata" xml:space="preserve">
+    <value>Seleccionar la empresa {0}</value>
+  </data>
+  <data name="AriaTrabajadoresDe" xml:space="preserve">
+    <value>Trabajadores de {0}</value>
+  </data>
+  <data name="SinCif" xml:space="preserve">
+    <value>Sin CIF</value>
+  </data>
+  <data name="RecuentoDocumentosVencidosUno" xml:space="preserve">
+    <value>1 documento vencido</value>
+  </data>
+  <data name="RecuentoDocumentosVencidosVarios" xml:space="preserve">
+    <value>{0} documentos vencidos</value>
+  </data>
+  <data name="RecuentoDocumentosProximosUno" xml:space="preserve">
+    <value>1 documento próximo a vencer</value>
+  </data>
+  <data name="RecuentoDocumentosProximosVarios" xml:space="preserve">
+    <value>{0} documentos próximos a vencer</value>
+  </data>
+  <data name="AriaRecuentoDocumentosProximosVarios" xml:space="preserve">
+    <value>{0} documentos próximo a vencer</value>
+  </data>
+  <data name="BadgeVencidosUno" xml:space="preserve">
+    <value>1 vencido</value>
+  </data>
+  <data name="BadgeVencidosVarios" xml:space="preserve">
+    <value>{0} vencidos</value>
+  </data>
+  <data name="BadgeProximosUno" xml:space="preserve">
+    <value>1 próximo</value>
+  </data>
+  <data name="BadgeProximosVarios" xml:space="preserve">
+    <value>{0} próximos</value>
+  </data>
+  <data name="BadgeAlCorriente" xml:space="preserve">
+    <value>Al corriente</value>
+  </data>
+  <data name="MenuDetalles" xml:space="preserve">
+    <value>Detalles</value>
+  </data>
+  <data name="MenuAbrirSubcontrata360" xml:space="preserve">
+    <value>Abrir Subcontrata 360</value>
+  </data>
+  <data name="MenuEliminar" xml:space="preserve">
+    <value>Eliminar</value>
+  </data>
+  <data name="EtiquetaPaginador" xml:space="preserve">
+    <value>subcontrata(s)</value>
+  </data>
+  <data name="TituloDrawerNueva" xml:space="preserve">
+    <value>Nueva subcontrata</value>
+  </data>
+  <data name="RotuloIdentificacionFiscal" xml:space="preserve">
+    <value>Identificación fiscal</value>
+  </data>
+  <data name="PlaceholderIdentificacionFiscal" xml:space="preserve">
+    <value>CIF, DNI o NIE</value>
+  </data>
+  <data name="EtiquetaClientesQueLaContrataron" xml:space="preserve">
+    <value>Clientes que la contrataron</value>
+  </data>
+  <data name="VacioClientesSelector" xml:space="preserve">
+    <value>Todavía no hay clientes creados.</value>
+  </data>
+  <data name="EtiquetaEmpresaPrestaServicio" xml:space="preserve">
+    <value>Empresa a la que presta servicio</value>
+  </data>
+  <data name="EtiquetaEmpresasPrestaServicio" xml:space="preserve">
+    <value>Empresas a las que presta servicio</value>
+  </data>
+  <data name="VacioEmpresasSelector" xml:space="preserve">
+    <value>Todavía no hay empresas creadas.</value>
+  </data>
+  <data name="BotonCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="BotonGuardar" xml:space="preserve">
+    <value>Guardar</value>
+  </data>
+  <data name="ConfirmarEliminarTitulo" xml:space="preserve">
+    <value>¿Eliminar a {0}?</value>
+  </data>
+  <data name="ConfirmarEliminarMensaje" xml:space="preserve">
+    <value>Se ocultará de las listas activas.</value>
+  </data>
+  <data name="ConfirmarEliminarLoteTitulo" xml:space="preserve">
+    <value>¿Eliminar {0} subcontrata(s)?</value>
+  </data>
+  <data name="ConfirmarEliminarLoteMensaje" xml:space="preserve">
+    <value>Se ocultarán de las listas activas.</value>
+  </data>
+  <data name="ConteoUno" xml:space="preserve">
+    <value>{0} de {1} subcontrata</value>
+  </data>
+  <data name="ConteoVarios" xml:space="preserve">
+    <value>{0} de {1} subcontratas</value>
+  </data>
+  <data name="ConteoUnoConBusqueda" xml:space="preserve">
+    <value>{0} de {1} subcontrata con esta búsqueda</value>
+  </data>
+  <data name="ConteoVariosConBusqueda" xml:space="preserve">
+    <value>{0} de {1} subcontratas con esta búsqueda</value>
+  </data>
+  <data name="ToastCreada" xml:space="preserve">
+    <value>Subcontrata creada correctamente.</value>
+  </data>
+  <data name="ErrorGuardarCambios" xml:space="preserve">
+    <value>No pudimos guardar los cambios. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="ToastEliminada" xml:space="preserve">
+    <value>Subcontrata eliminada correctamente.</value>
+  </data>
+  <data name="ToastErrorEliminar" xml:space="preserve">
+    <value>No pudimos eliminar la subcontrata. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="ToastLoteEliminadas" xml:space="preserve">
+    <value>{0} subcontrata(s) eliminada(s).</value>
+  </data>
+  <data name="ToastLoteEliminadasConErrores" xml:space="preserve">
+    <value>{0} eliminada(s). {1} no se pudieron borrar: {2}</value>
+  </data>
+  <data name="ToastErrorEliminarLote" xml:space="preserve">
+    <value>No pudimos eliminar las subcontratas seleccionadas. Intenta nuevamente.</value>
+  </data>
+  <data name="EtiquetaCumplimiento" xml:space="preserve">
+    <value>{0}% de cumplimiento — documentos al día / exigidos entre sus trabajadores</value>
+  </data>
+  <data name="EtiquetaCumplimientoSinUniverso" xml:space="preserve">
+    <value>Sin trabajadores con documentos exigidos por algún centro activo</value>
+  </data>
+  <data name="DescripcionNivelSupervisadaLista" xml:space="preserve">
+    <value>Supervisada: no se gestionan sus documentos — solo se audita su cumplimiento en las plataformas del titular de cada centro.</value>
+  </data>
+  <data name="DescripcionNivelGestionadaLista" xml:space="preserve">
+    <value>Gestionada: su documentación se sube y se valida en esta plataforma.</value>
+  </data>
+  <data name="AriaVistaPrevia" xml:space="preserve">
+    <value>Vista previa de la subcontrata</value>
+  </data>
+  <data name="EtiquetaCabeceraVistaPrevia" xml:space="preserve">
+    <value>Consulta · Subcontrata</value>
+  </data>
+  <data name="AriaCerrarVistaPrevia" xml:space="preserve">
+    <value>Cerrar la vista previa</value>
+  </data>
+  <data name="AriaSeccionesSubcontrata" xml:space="preserve">
+    <value>Secciones de la subcontrata</value>
+  </data>
+  <data name="ErrorCargaSubcontrataTitulo" xml:space="preserve">
+    <value>No pudimos cargar la subcontrata</value>
+  </data>
+  <data name="NoEncontradaTitulo" xml:space="preserve">
+    <value>No encontramos esta subcontrata</value>
+  </data>
+  <data name="NoEncontradaDescripcion" xml:space="preserve">
+    <value>Puede que se haya eliminado o que ya no esté en tu cartera.</value>
+  </data>
+  <data name="RotuloCif" xml:space="preserve">
+    <value>CIF</value>
+  </data>
+  <data name="RotuloTrabajadores" xml:space="preserve">
+    <value>Trabajadores</value>
+  </data>
+  <data name="RotuloProximosAVencer" xml:space="preserve">
+    <value>Próximos a vencer</value>
+  </data>
+  <data name="RotuloAlta" xml:space="preserve">
+    <value>Alta</value>
+  </data>
+  <data name="RotuloPrestaServicioA" xml:space="preserve">
+    <value>Presta servicio a</value>
+  </data>
+  <data name="DocumentacionSinIncidencias" xml:space="preserve">
+    <value>Ningún documento exigido a sus trabajadores está vencido ni próximo a vencer.</value>
+  </data>
+  <data name="AriaListaIncidencias" xml:space="preserve">
+    <value>Documentos vencidos y próximos a vencer de sus trabajadores</value>
+  </data>
+  <data name="EnlaceVerTrabajadoresYDocumentacion" xml:space="preserve">
+    <value>Ver sus trabajadores y su documentación →</value>
+  </data>
+  <data name="BotonOperar" xml:space="preserve">
+    <value>Operar →</value>
+  </data>
+  <data name="NotaAbreSubcontrata360" xml:space="preserve">
+    <value>Abre Subcontrata 360</value>
+  </data>
+  <data name="PestanaInformacion" xml:space="preserve">
+    <value>Información</value>
+  </data>
+  <data name="PestanaDocumentacion" xml:space="preserve">
+    <value>Documentación</value>
+  </data>
+  <data name="PestanaHistorial" xml:space="preserve">
+    <value>Historial</value>
+  </data>
+  <data name="EmpresasFueraDeCarteraUno" xml:space="preserve">
+    <value>1 empresa fuera de tu cartera</value>
+  </data>
+  <data name="EmpresasFueraDeCarteraVarios" xml:space="preserve">
+    <value>{0} empresas fuera de tu cartera</value>
+  </data>
+  <data name="ListaYMas" xml:space="preserve">
+    <value>{0} y {1} más</value>
+  </data>
+  <data name="MetaCumplimiento" xml:space="preserve">
+    <value>{0}% de cumplimiento</value>
+  </data>
+  <data name="MetaSinCumplimiento" xml:space="preserve">
+    <value>sin cumplimiento calculable</value>
+  </data>
+  <data name="MetaTrabajadoresUno" xml:space="preserve">
+    <value>1 trabajador</value>
+  </data>
+  <data name="MetaTrabajadoresVarios" xml:space="preserve">
+    <value>{0} trabajadores</value>
+  </data>
+  <data name="MetaTrabajadoresYCumplimiento" xml:space="preserve">
+    <value>{0} · {1}</value>
+  </data>
+  <data name="ErrorCargaTrabajadoresTitulo" xml:space="preserve">
+    <value>No pudimos cargar los trabajadores</value>
+  </data>
+  <data name="AcordeonVacioTitulo" xml:space="preserve">
+    <value>Sin trabajadores</value>
+  </data>
+  <data name="AcordeonVacioDescripcion" xml:space="preserve">
+    <value>Esta subcontrata todavía no tiene ningún trabajador dado de alta.</value>
+  </data>
+  <data name="AriaDocumentosExigidosA" xml:space="preserve">
+    <value>Documentos exigidos a {0}</value>
+  </data>
+  <data name="RecuentoDocumentosUrgentesUno" xml:space="preserve">
+    <value>1 documento urgente</value>
+  </data>
+  <data name="RecuentoDocumentosUrgentesVarios" xml:space="preserve">
+    <value>{0} documentos urgentes</value>
+  </data>
+  <data name="AriaRecuentoDocumentosUrgentesVarios" xml:space="preserve">
+    <value>{0} documentos urgente</value>
+  </data>
+  <data name="BotonDetalles" xml:space="preserve">
+    <value>Detalles</value>
+  </data>
+  <data name="TrabajadorSinDocumentacionExigida" xml:space="preserve">
+    <value>Este trabajador no está asignado a ningún centro con documentación exigida.</value>
+  </data>
+  <data name="AriaDocumentacionExigidaA" xml:space="preserve">
+    <value>Documentación exigida a {0}</value>
+  </data>
+  <data name="ColumnaDocumento" xml:space="preserve">
+    <value>Documento</value>
+  </data>
+  <data name="ColumnaEstado" xml:space="preserve">
+    <value>Estado</value>
+  </data>
+  <data name="ColumnaVigencia" xml:space="preserve">
+    <value>Vigencia</value>
+  </data>
+  <data name="ColumnaAccion" xml:space="preserve">
+    <value>Acción</value>
+  </data>
+  <data name="AriaFaltaDocumento" xml:space="preserve">
+    <value>Falta: la subcontrata no ha aportado este documento todavía</value>
+  </data>
+  <data name="BadgeFalta" xml:space="preserve">
+    <value>Falta</value>
+  </data>
+  <data name="ExplicacionFaltaDocumento" xml:space="preserve">
+    <value>Al menos uno de los centros donde trabaja se lo pide —porque ese centro lo tiene configurado o, si no dice nada, porque el tipo de documento se pide siempre— y todavía no hay ninguno subido.</value>
+  </data>
+  <data name="BotonGestionar" xml:space="preserve">
+    <value>Gestionar</value>
+  </data>
+  <data name="IncidenciaFalta" xml:space="preserve">
+    <value>{0} — falta</value>
+  </data>
+  <data name="KickerSubcontrata360" xml:space="preserve">
+    <value>Subcontrata</value>
+  </data>
+  <data name="CentrosSinVerificarUno" xml:space="preserve">
+    <value>1 centro sin verificar</value>
+  </data>
+  <data name="CentrosSinVerificarVarios" xml:space="preserve">
+    <value>{0} centros sin verificar</value>
+  </data>
+  <data name="RotuloClientesEmpresariales" xml:space="preserve">
+    <value>Clientes empresariales para los que trabaja</value>
+  </data>
+  <data name="VacioClientesEmpresarialesSelector" xml:space="preserve">
+    <value>Todavía no hay clientes empresariales creados.</value>
+  </data>
+  <data name="RotuloCredencialesPlataformaExterna" xml:space="preserve">
+    <value>Credenciales de acceso a plataforma externa</value>
+  </data>
+  <data name="RotuloUrl" xml:space="preserve">
+    <value>URL</value>
+  </data>
+  <data name="CopiarLaUrl" xml:space="preserve">
+    <value>la URL</value>
+  </data>
+  <data name="RotuloCampoEmpresa" xml:space="preserve">
+    <value>Empresa / Cliente / Proveedor</value>
+  </data>
+  <data name="CopiarEsteCampo" xml:space="preserve">
+    <value>este campo</value>
+  </data>
+  <data name="RotuloUsuario" xml:space="preserve">
+    <value>Usuario</value>
+  </data>
+  <data name="CopiarElUsuario" xml:space="preserve">
+    <value>el usuario</value>
+  </data>
+  <data name="RotuloContrasena" xml:space="preserve">
+    <value>Contraseña</value>
+  </data>
+  <data name="PlaceholderContrasenaConservar" xml:space="preserve">
+    <value>Déjalo en blanco para conservar la actual</value>
+  </data>
+  <data name="CopiarLaContrasena" xml:space="preserve">
+    <value>la contraseña</value>
+  </data>
+  <data name="RotuloNotas" xml:space="preserve">
+    <value>Notas</value>
+  </data>
+  <data name="BotonGuardarCredenciales" xml:space="preserve">
+    <value>Guardar credenciales</value>
+  </data>
+  <data name="CopiarLaIdentificacionFiscal" xml:space="preserve">
+    <value>la identificación fiscal</value>
+  </data>
+  <data name="DescripcionNivelGestionada360" xml:space="preserve">
+    <value>Gestionada: su documentación se sube y se valida aquí.</value>
+  </data>
+  <data name="DescripcionNivelSupervisada360" xml:space="preserve">
+    <value>Supervisada: no se gestionan sus documentos — solo se audita su cumplimiento en las plataformas externas de cada centro (pestaña Supervisión).</value>
+  </data>
+  <data name="TituloAccesoPortal" xml:space="preserve">
+    <value>Acceso al portal</value>
+  </data>
+  <data name="BadgeCredencialesTerceros" xml:space="preserve">
+    <value>Credenciales de terceros</value>
+  </data>
+  <data name="ErrorCredenciales" xml:space="preserve">
+    <value>No pudimos traer las credenciales. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="CredencialesNoVisibles" xml:space="preserve">
+    <value>No hay credenciales que puedas ver para esta subcontrata.</value>
+  </data>
+  <data name="CredencialesSePidenAlNecesitarlas" xml:space="preserve">
+    <value>Se piden solo cuando las necesitas, no al abrir la ficha.</value>
+  </data>
+  <data name="BotonVerCredenciales" xml:space="preserve">
+    <value>Ver credenciales</value>
+  </data>
+  <data name="BotonOcultarContrasena" xml:space="preserve">
+    <value>Ocultar</value>
+  </data>
+  <data name="BotonRevelarContrasena" xml:space="preserve">
+    <value>Revelar</value>
+  </data>
+  <data name="BotonOcultarCredenciales" xml:space="preserve">
+    <value>Ocultar credenciales</value>
+  </data>
+  <data name="BotonEditarIdentidad" xml:space="preserve">
+    <value>Editar identidad</value>
+  </data>
+  <data name="BotonCambiarNivel" xml:space="preserve">
+    <value>Cambiar a {0}</value>
+  </data>
+  <data name="TrabajadoresVacioTitulo" xml:space="preserve">
+    <value>Sin trabajadores que puedas ver</value>
+  </data>
+  <data name="TrabajadoresVacioDescripcion" xml:space="preserve">
+    <value>Si tu acceso está acotado a una cartera, solo aparecen los trabajadores con una asignación activa en uno de sus centros.</value>
+  </data>
+  <data name="DocumentacionNoModeladaTitulo" xml:space="preserve">
+    <value>Documentación no modelada a nivel de Subcontrata</value>
+  </data>
+  <data name="DocumentacionNoModeladaDescripcion" xml:space="preserve">
+    <value>El modelo de datos actual solo asocia Documentos a Trabajador, Cliente, Empresa o Vehículo — consulta la pestaña Documentación de cada Trabajador de esta subcontrata.</value>
+  </data>
+  <data name="BotonVerSusTrabajadores" xml:space="preserve">
+    <value>Ver sus trabajadores</value>
+  </data>
+  <data name="ErrorCargaSupervisionTitulo" xml:space="preserve">
+    <value>No pudimos cargar la supervisión</value>
+  </data>
+  <data name="ExplicacionSupervision" xml:space="preserve">
+    <value>Cumplimiento de la subcontrata en las plataformas externas de cada centro, según las verificaciones que se registran a mano aquí. El semáforo se calcula con la última verificación y los umbrales del sistema.</value>
+  </data>
+  <data name="BotonRegistrarVerificacion" xml:space="preserve">
+    <value>+ Registrar verificación</value>
+  </data>
+  <data name="SupervisionVacioTitulo" xml:space="preserve">
+    <value>Sin supervisión registrada</value>
+  </data>
+  <data name="SupervisionVacioSinCentros" xml:space="preserve">
+    <value>Vincula la subcontrata a un Cliente empresarial con Centros para poder verificar su cumplimiento.</value>
+  </data>
+  <data name="SupervisionVacioSinVerificaciones" xml:space="preserve">
+    <value>Registra la primera verificación para empezar a seguir su cumplimiento externo.</value>
+  </data>
+  <data name="BadgeNoExigido" xml:space="preserve">
+    <value>No exigido</value>
+  </data>
+  <data name="DetalleUltimaVerificacion" xml:space="preserve">
+    <value>{0} el {1}</value>
+  </data>
+  <data name="SufijoValidoHasta" xml:space="preserve">
+    <value> · válido hasta {0}</value>
+  </data>
+  <data name="EnlaceVerEvidencia" xml:space="preserve">
+    <value>Ver evidencia</value>
+  </data>
+  <data name="AriaEliminarVerificacion" xml:space="preserve">
+    <value>Eliminar la verificación de {0} en {1}</value>
+  </data>
+  <data name="BotonEliminarVerificacion" xml:space="preserve">
+    <value>Eliminar</value>
+  </data>
+  <data name="ErrorCargaCentrosTitulo" xml:space="preserve">
+    <value>No pudimos cargar los centros</value>
+  </data>
+  <data name="CentrosVacioTitulo" xml:space="preserve">
+    <value>Sin actividad en ningún centro</value>
+  </data>
+  <data name="CentrosVacioDescripcion" xml:space="preserve">
+    <value>Ningún trabajador de esta subcontrata tiene asignaciones activas todavía.</value>
+  </data>
+  <data name="ExplicacionCentros" xml:space="preserve">
+    <value>Centros donde esta subcontrata tiene actividad real (trabajadores con asignación activa).</value>
+  </data>
+  <data name="SubtituloCentro" xml:space="preserve">
+    <value>{0} · {1} trabajador(es)</value>
+  </data>
+  <data name="ConfirmarEliminarVerificacionTitulo" xml:space="preserve">
+    <value>¿Eliminar esta verificación?</value>
+  </data>
+  <data name="ConfirmarEliminarVerificacionMensaje" xml:space="preserve">
+    <value>El semáforo volverá a calcularse con la verificación anterior, si la hay.</value>
+  </data>
+  <data name="TituloDrawerVerificacion" xml:space="preserve">
+    <value>Registrar verificación externa</value>
+  </data>
+  <data name="RotuloCentro" xml:space="preserve">
+    <value>Centro</value>
+  </data>
+  <data name="OpcionSeleccionaCentro" xml:space="preserve">
+    <value>Selecciona un centro…</value>
+  </data>
+  <data name="RotuloTipoDocumento" xml:space="preserve">
+    <value>Tipo de documento</value>
+  </data>
+  <data name="OpcionSeleccionaTipo" xml:space="preserve">
+    <value>Selecciona un tipo…</value>
+  </data>
+  <data name="RotuloResultado" xml:space="preserve">
+    <value>Resultado</value>
+  </data>
+  <data name="RotuloFechaVerificacion" xml:space="preserve">
+    <value>Fecha de verificación</value>
+  </data>
+  <data name="RotuloValidoHasta" xml:space="preserve">
+    <value>Válido hasta (según la plataforma, opcional)</value>
+  </data>
+  <data name="RotuloObservaciones" xml:space="preserve">
+    <value>Observaciones</value>
+  </data>
+  <data name="RotuloEvidencia" xml:space="preserve">
+    <value>Evidencia (captura o justificante — PDF, PNG o JPG, máx. 10 MB, opcional)</value>
+  </data>
+  <data name="EvidenciaAdjunta" xml:space="preserve">
+    <value>Adjunto: {0}</value>
+  </data>
+  <data name="BotonRegistrar" xml:space="preserve">
+    <value>Registrar</value>
+  </data>
+  <data name="PestanaTrabajadores" xml:space="preserve">
+    <value>Trabajadores</value>
+  </data>
+  <data name="PestanaSupervision" xml:space="preserve">
+    <value>Supervisión</value>
+  </data>
+  <data name="PestanaCentros" xml:space="preserve">
+    <value>Centros</value>
+  </data>
+  <data name="PestanaAgenda" xml:space="preserve">
+    <value>Agenda</value>
+  </data>
+  <data name="MetaCentrosUno" xml:space="preserve">
+    <value>1 centro</value>
+  </data>
+  <data name="MetaCentrosVarios" xml:space="preserve">
+    <value>{0} centros</value>
+  </data>
+  <data name="ResumenTrabajadoresParcial" xml:space="preserve">
+    <value>Se muestran {0} de {1} trabajadores que puedes ver</value>
+  </data>
+  <data name="ResumenTrabajadoresUno" xml:space="preserve">
+    <value>1 trabajador que puedes ver</value>
+  </data>
+  <data name="ResumenTrabajadoresVarios" xml:space="preserve">
+    <value>{0} trabajadores que puedes ver</value>
+  </data>
+  <data name="UltimaVerificacionRegistrada" xml:space="preserve">
+    <value>Última verificación registrada el {0}</value>
+  </data>
+  <data name="SinVerificacionesRegistradas" xml:space="preserve">
+    <value>Todavía no hay verificaciones registradas</value>
+  </data>
+  <data name="RelacionesErrorNombresUno" xml:space="preserve">
+    <value>1 (no pudimos cargar su nombre)</value>
+  </data>
+  <data name="RelacionesErrorNombresVarios" xml:space="preserve">
+    <value>{0} (no pudimos cargar sus nombres)</value>
+  </data>
+  <data name="RelacionesSinNombreUno" xml:space="preserve">
+    <value>1 sin nombre visible para ti</value>
+  </data>
+  <data name="RelacionesSinNombreVarios" xml:space="preserve">
+    <value>{0} sin nombre visible para ti</value>
+  </data>
+  <data name="ToastErrorAbrirEdicion" xml:space="preserve">
+    <value>No pudimos abrir la edición. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="ToastSinContrasenaGuardada" xml:space="preserve">
+    <value>No hay ninguna contraseña guardada.</value>
+  </data>
+  <data name="ToastActualizada" xml:space="preserve">
+    <value>Subcontrata actualizada correctamente.</value>
+  </data>
+  <data name="ToastNivelCambiado" xml:space="preserve">
+    <value>Nivel de servicio cambiado a {0}.</value>
+  </data>
+  <data name="ToastErrorCambiarNivel" xml:space="preserve">
+    <value>No pudimos cambiar el nivel de servicio. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="ToastErrorPrepararVerificacion" xml:space="preserve">
+    <value>No pudimos preparar el registro de la verificación. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="ErrorEvidenciaDemasiadoGrande" xml:space="preserve">
+    <value>La evidencia no puede superar los 10 MB.</value>
+  </data>
+  <data name="ErrorSeleccionaCentro" xml:space="preserve">
+    <value>Selecciona un centro.</value>
+  </data>
+  <data name="ErrorSeleccionaTipoDocumento" xml:space="preserve">
+    <value>Selecciona un tipo de documento.</value>
+  </data>
+  <data name="ErrorIndicaFechaVerificacion" xml:space="preserve">
+    <value>Indica la fecha de verificación.</value>
+  </data>
+  <data name="ToastVerificacionRegistrada" xml:space="preserve">
+    <value>Verificación registrada.</value>
+  </data>
+  <data name="ErrorRevisaFormulario" xml:space="preserve">
+    <value>Revisa los datos del formulario.</value>
+  </data>
+  <data name="ErrorRegistrarVerificacion" xml:space="preserve">
+    <value>No pudimos registrar la verificación. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="ToastVerificacionEliminada" xml:space="preserve">
+    <value>Verificación eliminada.</value>
+  </data>
+  <data name="ToastErrorEliminarVerificacion" xml:space="preserve">
+    <value>No pudimos eliminar la verificación. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="ToastCredencialesGuardadas" xml:space="preserve">
+    <value>Credenciales guardadas correctamente.</value>
+  </data>
+  <data name="ErrorGuardarCredenciales" xml:space="preserve">
+    <value>No pudimos guardar las credenciales. Intenta nuevamente en unos segundos.</value>
+  </data>
+</root>

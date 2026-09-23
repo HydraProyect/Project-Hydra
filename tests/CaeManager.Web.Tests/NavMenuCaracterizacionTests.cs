@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using AngleSharp.Dom;
 using Bunit;
+using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using CaeManager.Application.Plataforma.OrdenMenu;
 using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
@@ -277,6 +278,8 @@ public class NavMenuCaracterizacionTests
             {
                 ObtenerPerfilVocabularioActualQuery => (object)c.Perfil,
                 EsAdministradorPlataformaQuery => c.AdminPlataforma,
+                // Sin Workspace operativo derivado, el rol de origen es el del claim.
+                ParticipaEnIncorporacionCarteraQuery => c.Rol is Roles.CoordinadorCae or Roles.GestorCae,
                 ObtenerClientesAutorizadosQuery => Enumerable.Range(0, c.Tenants)
                     .Select(i => new ClienteAutorizadoDto(Guid.NewGuid(), $"Tenant {i}", i == 0))
                     .ToList() as IReadOnlyList<ClienteAutorizadoDto>,

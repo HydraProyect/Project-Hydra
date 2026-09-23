@@ -11,8 +11,11 @@ using CaeManager.Domain.Tenants;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
+using CaeManager.Web.Features.Subcontratas.Recursos;
+using CaeManager.Web.Recursos;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Features.Subcontratas.Pages;
 
@@ -101,6 +104,8 @@ public partial class Subcontratas : ComponentBase
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private IValidator<CrearSubcontrataCommand> ValidadorCrear { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosSubcontratas> Textos { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosComunes> Comunes { get; set; } = default!;
 
     protected override async Task OnInitializedAsync()
     {
@@ -215,8 +220,13 @@ public partial class Subcontratas : ComponentBase
     /// y no promete cuántas hay sin filtro, que esta pantalla no sabe.
     /// </summary>
     private string TextoConteo =>
-        $"{_elementosPagina.Count} de {_totalElementos} {(_totalElementos == 1 ? "subcontrata" : "subcontratas")}"
-        + (HayFiltrosActivos ? " con esta búsqueda" : string.Empty);
+        (_totalElementos == 1, HayFiltrosActivos) switch
+        {
+            (true, false) => Textos["ConteoUno", _elementosPagina.Count, _totalElementos],
+            (false, false) => Textos["ConteoVarios", _elementosPagina.Count, _totalElementos],
+            (true, true) => Textos["ConteoUnoConBusqueda", _elementosPagina.Count, _totalElementos],
+            (false, true) => Textos["ConteoVariosConBusqueda", _elementosPagina.Count, _totalElementos],
+        };
 
     private string ClaseRejilla(string claseBase) =>
         $"{claseBase} rejilla-subcontratas" + (_seleccionMultiple ? " rejilla-subcontratas-seleccion" : string.Empty);
@@ -296,7 +306,7 @@ public partial class Subcontratas : ComponentBase
                 return;
             }
 
-            ToastService.Mostrar("Subcontrata creada correctamente.", TonoToast.Exito);
+            ToastService.Mostrar(Textos["ToastCreada"], TonoToast.Exito);
             _drawerVisible = false;
             await CargarAsync();
         }
@@ -308,7 +318,7 @@ public partial class Subcontratas : ComponentBase
         }
         catch (Exception)
         {
-            _mensajeErrorFormulario = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
+            _mensajeErrorFormulario = Textos["ErrorGuardarCambios"];
         }
         finally
         {
@@ -404,13 +414,13 @@ public partial class Subcontratas : ComponentBase
                 return;
             }
 
-            ToastService.Mostrar("Subcontrata eliminada correctamente.", TonoToast.Exito);
+            ToastService.Mostrar(Textos["ToastEliminada"], TonoToast.Exito);
             WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Subcontrata, [idEliminada]);
             await CargarAsync();
         }
         catch (Exception)
         {
-            ToastService.Mostrar("No pudimos eliminar la subcontrata. Intenta nuevamente en unos segundos.", TonoToast.Error);
+            ToastService.Mostrar(Textos["ToastErrorEliminar"], TonoToast.Error);
         }
         finally
         {
@@ -430,8 +440,8 @@ public partial class Subcontratas : ComponentBase
 
             ToastService.Mostrar(
                 dto.Errores.Count == 0
-                    ? $"{dto.Eliminados} subcontrata(s) eliminada(s)."
-                    : $"{dto.Eliminados} eliminada(s). {dto.Errores.Count} no se pudieron borrar: {string.Join(" ", dto.Errores)}",
+                    ? Textos["ToastLoteEliminadas", dto.Eliminados]
+                    : Textos["ToastLoteEliminadasConErrores", dto.Eliminados, dto.Errores.Count, string.Join(" ", dto.Errores)],
                 dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
 
             // El DTO del lote solo trae el recuento (limitación del DTO: el handler sí sabe qué ids cayeron):
@@ -446,7 +456,7 @@ public partial class Subcontratas : ComponentBase
         }
         catch (Exception)
         {
-            ToastService.Mostrar("No pudimos eliminar las subcontratas seleccionadas. Intenta nuevamente.", TonoToast.Error);
+            ToastService.Mostrar(Textos["ToastErrorEliminarLote"], TonoToast.Error);
         }
         finally
         {
@@ -488,15 +498,15 @@ public partial class Subcontratas : ComponentBase
         return Task.CompletedTask;
     }
 
-    /// <summary>Nombre accesible de un badge de recuento — mismo criterio que Centros.razor.cs.DescribirRecuento.</summary>
-    private static string DescribirRecuento(IReadOnlyList<IncidenciaSubcontrataDto> incidencias, string calificativo) =>
-        incidencias.Count == 1
-            ? $"1 documento {calificativo}"
-            : $"{incidencias.Count} documentos {(calificativo.EndsWith('o') ? calificativo + "s" : calificativo)}";
-
-    /// <summary>Texto visible del badge de recuento: «1 vencido», «3 próximos».</summary>
-    private static string TextoRecuento(int total, string singular, string plural) =>
-        $"{total} {(total == 1 ? singular : plural)}";
+    /// <summary>
+    /// Recuento con su plural: la clave <paramref name="claveUno"/> para 1 y
+    /// <paramref name="claveVarios"/> (con el número en {0}) para el resto. Sirve
+    /// al nombre accesible y al título de la ventana de contexto —mismo criterio
+    /// que Centros.razor.cs.DescribirRecuento— y al texto visible del badge
+    /// («1 vencido», «3 próximos»).
+    /// </summary>
+    private string DescribirRecuento(int total, string claveUno, string claveVarios) =>
+        total == 1 ? Textos[claveUno] : Textos[claveVarios, total];
 
     /// <summary>
     /// Nombre accesible del anillo. Antes se interpolaba el porcentaje sin
@@ -505,10 +515,10 @@ public partial class Subcontratas : ComponentBase
     /// significa que ningún trabajador tiene un documento exigido por un
     /// centro activo (ver <see cref="SubcontrataListaDto"/>).
     /// </summary>
-    private static string EtiquetaCumplimiento(int? porcentaje) =>
+    private string EtiquetaCumplimiento(int? porcentaje) =>
         porcentaje is { } p
-            ? $"{p}% de cumplimiento — documentos al día / exigidos entre sus trabajadores"
-            : "Sin trabajadores con documentos exigidos por algún centro activo";
+            ? Textos["EtiquetaCumplimiento", p]
+            : Textos["EtiquetaCumplimientoSinUniverso"];
 
     /// <summary>
     /// Qué significa cada nivel de servicio, con las mismas palabras que el
@@ -516,10 +526,9 @@ public partial class Subcontratas : ComponentBase
     /// documentación», y eso atribuye a la plataforma el papel de Operador
     /// CAE: quien gestiona es la organización que opera el tenant, no TALVEG.
     /// </summary>
-    private static string DescribirNivel(NivelServicioSubcontrata nivel) => nivel switch
+    private string DescribirNivel(NivelServicioSubcontrata nivel) => nivel switch
     {
-        NivelServicioSubcontrata.Supervisada =>
-            "Supervisada: no se gestionan sus documentos — solo se audita su cumplimiento en las plataformas del titular de cada centro.",
-        _ => "Gestionada: su documentación se sube y se valida en esta plataforma."
+        NivelServicioSubcontrata.Supervisada => Textos["DescripcionNivelSupervisadaLista"],
+        _ => Textos["DescripcionNivelGestionadaLista"]
     };
 }

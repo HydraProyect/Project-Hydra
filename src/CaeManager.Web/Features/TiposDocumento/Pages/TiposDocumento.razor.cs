@@ -45,11 +45,11 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
     /// <summary>Lo que dura «Guardado»/«No guardado» junto a un valor cambiado en la fila.</summary>
     private static readonly TimeSpan DuracionAvisoCambio = TimeSpan.FromMilliseconds(1200);
 
-    // Literales de siempre de esta pantalla: FlujoCicloDocumentalTests localiza
-    // el interruptor de Verificación IA por este title exacto.
-    private const string AyudaLecturaIa = "Lectura automática por IA para este tipo de documento, en todos los clientes";
-    private const string AyudaDeteccionTrabajadores = "Detecta automáticamente altas y bajas de personal comparando este documento (p. ej. ITA, RNT) contra los trabajadores activos de la empresa";
-    private const string AyudaVerificacionIa = "Verifica por IA el tipo, fecha de emisión y firma del documento contra lo introducido al subirlo, con confidence score";
+    // Textos de siempre de esta pantalla: FlujoCicloDocumentalTests localiza
+    // el interruptor de Verificación IA por este title exacto (en es-ES).
+    private string AyudaLecturaIa => Textos["AyudaLecturaIa"];
+    private string AyudaDeteccionTrabajadores => Textos["AyudaDeteccionTrabajadores"];
+    private string AyudaVerificacionIa => Textos["AyudaVerificacionIa"];
 
     /// <summary>Los valores que se cambian desde la propia fila, sin abrir el formulario.</summary>
     private enum CampoEnLinea { LecturaIa, DeteccionTrabajadores, VerificacionIa, DocumentoOficial }
@@ -130,7 +130,7 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
         catch (Exception)
         {
             // El filtro por cliente se queda sin opciones; la lista de tipos no depende de él.
-            ToastService.Mostrar("No pudimos cargar los clientes del filtro. La lista de tipos sí se carga.", TonoToast.Error);
+            ToastService.Mostrar(Textos["ToastErrorClientesFiltro"], TonoToast.Error);
         }
 
         await CargarAsync();
@@ -296,7 +296,7 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
             {
                 empresas = [];
                 if (version == _versionSelectores)
-                    ToastService.Mostrar("No pudimos cargar las empresas de este cliente.", TonoToast.Error);
+                    ToastService.Mostrar(Textos["ToastErrorEmpresasFiltro"], TonoToast.Error);
             }
 
             // Otro cambio de filtro ya tomó el relevo, y es él quien recarga.
@@ -327,7 +327,7 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
             {
                 centros = [];
                 if (version == _versionSelectores)
-                    ToastService.Mostrar("No pudimos cargar los centros de esta empresa.", TonoToast.Error);
+                    ToastService.Mostrar(Textos["ToastErrorCentrosFiltro"], TonoToast.Error);
             }
 
             if (version != _versionSelectores)
@@ -501,8 +501,8 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
         MostrarDesenlace(clave, DesenlaceCambio.NoGuardado);
         ToastService.Mostrar(
             motivo is null
-                ? $"No se pudo guardar el cambio en «{tipo.Nombre}». Se ha restaurado el valor anterior."
-                : $"No se pudo guardar el cambio en «{tipo.Nombre}». {motivo} Se ha restaurado el valor anterior.",
+                ? Textos["ToastCambioNoGuardado", tipo.Nombre].Value
+                : Textos["ToastCambioNoGuardadoMotivo", tipo.Nombre, motivo].Value,
             TonoToast.Error);
     }
 
@@ -556,10 +556,10 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
     private string? TextoAvisoCambio(ClaveCambio clave)
     {
         if (_pendientes.Contains(clave))
-            return "Guardando…";
+            return Textos["AvisoEnVuelo"];
 
         return _desenlaces.TryGetValue(clave, out var desenlace)
-            ? desenlace == DesenlaceCambio.Guardado ? "Guardado ✓" : "No guardado"
+            ? desenlace == DesenlaceCambio.Guardado ? Textos["AvisoPersistido"].Value : Textos["AvisoFallido"].Value
             : null;
     }
 
@@ -570,33 +570,33 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
 
     // ---------------------------------------------------------------- textos
 
-    private static string TextoAmbito(AmbitoAplicacion ambito) => ambito switch
+    private string TextoAmbito(AmbitoAplicacion ambito) => ambito switch
     {
-        AmbitoAplicacion.Trabajador => "Trabajador",
-        AmbitoAplicacion.Cliente => "Cliente",
-        AmbitoAplicacion.Empresa => "Empresa",
-        AmbitoAplicacion.Vehiculo => "Vehículo",
-        AmbitoAplicacion.Proyecto => "Proyecto",
+        AmbitoAplicacion.Trabajador => Textos["AmbitoTrabajador"].Value,
+        AmbitoAplicacion.Cliente => Textos["AmbitoCliente"].Value,
+        AmbitoAplicacion.Empresa => Textos["AmbitoEmpresa"].Value,
+        AmbitoAplicacion.Vehiculo => Textos["AmbitoVehiculo"].Value,
+        AmbitoAplicacion.Proyecto => Textos["AmbitoProyecto"].Value,
         _ => ambito.ToString()
     };
 
-    private static string TextoVigencia(int? meses) => meses switch
+    private string TextoVigencia(int? meses) => meses switch
     {
         null => "—",
-        1 => "1 mes",
-        _ => $"{meses} meses"
+        1 => Textos["VigenciaMesesUno", 1].Value,
+        _ => Textos["VigenciaMesesVarios", meses].Value
     };
 
-    private static string TextoRequerido(RequisitoDocumental requerido) => requerido switch
+    private string TextoRequerido(RequisitoDocumental requerido) => requerido switch
     {
-        RequisitoDocumental.No => "No se pide",
-        RequisitoDocumental.Si => "Sí, siempre",
-        RequisitoDocumental.Condicional => "Solo si aplica",
-        _ => "Requisito desconocido"
+        RequisitoDocumental.No => Textos["RequeridoNo"].Value,
+        RequisitoDocumental.Si => Textos["RequeridoSi"].Value,
+        RequisitoDocumental.Condicional => Textos["RequeridoCondicional"].Value,
+        _ => Textos["RequisitoDesconocido"].Value
     };
 
-    private static string TextoExigencia(RequisitoDocumental requerido, NaturalezaJuridica naturaleza) =>
-        requerido == RequisitoDocumental.No ? "Opcional" : RequisitoDocumentalUi.Texto(requerido, naturaleza);
+    private string TextoExigencia(RequisitoDocumental requerido, NaturalezaJuridica naturaleza) =>
+        requerido == RequisitoDocumental.No ? Textos["ExigenciaOpcional"].Value : RequisitoDocumentalUi.Texto(Textos, requerido, naturaleza);
 
     private static TonoBadge TonoExigencia(RequisitoDocumental requerido, NaturalezaJuridica naturaleza) =>
         requerido == RequisitoDocumental.No ? TonoBadge.Neutro : RequisitoDocumentalUi.Tono(naturaleza);
@@ -606,13 +606,12 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
     /// «Una norma lo exige, sin condiciones»: la pantalla no sabe qué exige
     /// ninguna norma, solo lo que alguien marcó aquí.
     /// </summary>
-    private static string AyudaExigencia(RequisitoDocumental requerido, NaturalezaJuridica naturaleza) =>
-        $"¿Se pide? {TextoRequerido(requerido)} · ¿Con qué autoridad? {RequisitoDocumentalUi.TextoNaturaleza(naturaleza)}. "
-        + "Es el valor general: un centro puede tener su propia configuración.";
+    private string AyudaExigencia(RequisitoDocumental requerido, NaturalezaJuridica naturaleza) =>
+        Textos["AyudaExigenciaFormato", TextoRequerido(requerido), RequisitoDocumentalUi.TextoNaturaleza(Textos, naturaleza)];
 
     private string PistaOrden => HayFiltrosActivos
-        ? "Propuesto a partir de la lista filtrada: comprueba que no coincida con el de otro tipo."
-        : "Propuesto: el siguiente libre.";
+        ? Textos["PistaOrdenFiltrada"].Value
+        : Textos["PistaOrdenLibre"].Value;
 
     /// <summary>
     /// Lo que de verdad pasa con los centros sin marcar: siguen el valor
@@ -631,13 +630,13 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
             if (marcados == 0)
             {
                 return sePide
-                    ? $"Sin marcar ninguno, cada centro sigue el valor general («{general}») y lo pide, salvo los que lo tengan excluido en sus propios requisitos."
-                    : $"Sin marcar ninguno, cada centro sigue el valor general («{general}») y no lo pide por defecto.";
+                    ? Textos["ResumenNingunoSePide", general].Value
+                    : Textos["ResumenNingunoNoSePide", general].Value;
             }
 
             return sePide
-                ? $"Marcado en {marcados} de {total} centros. Con el valor general «{general}», el resto también lo pide salvo los que lo tengan excluido."
-                : $"Se pide en los {marcados} centros marcados (de {total}). El resto sigue el valor general («{general}») y no lo pide por defecto.";
+                ? Textos["ResumenMarcadosSePide", marcados, total, general].Value
+                : Textos["ResumenMarcadosNoSePide", marcados, total, general].Value;
         }
     }
 
@@ -654,7 +653,7 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
         catch (Exception)
         {
             if (version == _versionDrawer)
-                ToastService.Mostrar("No pudimos abrir el formulario. Intenta nuevamente en unos segundos.", TonoToast.Error);
+                ToastService.Mostrar(Textos["ToastErrorAbrirFormulario"], TonoToast.Error);
             return;
         }
 
@@ -702,7 +701,7 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
         catch (Exception)
         {
             if (version == _versionDrawer)
-                ToastService.Mostrar("No pudimos abrir el formulario. Intenta nuevamente en unos segundos.", TonoToast.Error);
+                ToastService.Mostrar(Textos["ToastErrorAbrirFormulario"], TonoToast.Error);
             return;
         }
 
@@ -712,7 +711,7 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
 
         if (tipo is null)
         {
-            ToastService.Mostrar("No encontramos este tipo de documento.", TonoToast.Error);
+            ToastService.Mostrar(Textos["ToastTipoNoEncontrado"], TonoToast.Error);
             await CargarAsync();
             return;
         }
@@ -896,7 +895,7 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
         if (!cambio.HayCambio)
             return efectos;
 
-        var nombre = string.IsNullOrWhiteSpace(_nombre) ? "Este tipo de documento" : $"«{_nombre.Trim()}»";
+        var nombre = string.IsNullOrWhiteSpace(_nombre) ? Textos["NombreTipoGenerico"].Value : Textos["NombreTipoCitado", _nombre.Trim()].Value;
 
         if (!cambio.RestoAntes && cambio.RestoDespues)
         {
@@ -904,32 +903,32 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
             // lo piden todos, los marcados incluidos, y no hay nada más que contar.
             if (creando)
             {
-                efectos.Add($"{nombre} se pedirá en todos los centros, porque «¿Se pide?» es «Sí, siempre».");
+                efectos.Add(Textos["EfectoTodosAlCrear", nombre]);
                 return efectos;
             }
 
-            efectos.Add($"{nombre} pasará a pedirse en todos los centros que no tengan su propia configuración para este tipo.");
+            efectos.Add(Textos["EfectoPasaAPedirse", nombre]);
         }
         else if (cambio.RestoAntes && !cambio.RestoDespues)
         {
-            efectos.Add($"{nombre} dejará de pedirse por defecto: los centros que no tengan su propia configuración para este tipo ya no lo pedirán.");
+            efectos.Add(Textos["EfectoDejaPorDefecto", nombre]);
         }
 
         if (cambio.Empiezan.Count > 0)
-            efectos.Add($"{nombre} se pedirá en {CuentaCentros(cambio.Empiezan.Count, "marcado")}{ListaNombresCentros(cambio.Empiezan)}.");
+            efectos.Add(Textos["EfectoEmpiezan", nombre, CuentaCentros(cambio.Empiezan.Count, "CentrosMarcadosUno", "CentrosMarcadosVarios"), ListaNombresCentros(cambio.Empiezan)]);
 
         if (cambio.Dejan.Count > 0)
         {
-            var siguen = cambio.Dejan.Count == 1 ? "que pasa" : "que pasan";
-            efectos.Add($"{nombre} dejará de pedirse en {CuentaCentros(cambio.Dejan.Count, "desmarcado")}{ListaNombresCentros(cambio.Dejan)}, "
-                + $"{siguen} a seguir el valor general («{TextoRequerido(_requerido)}»).");
+            var siguen = cambio.Dejan.Count == 1 ? Textos["EnlaceSiguenUno"].Value : Textos["EnlaceSiguenVarios"].Value;
+            efectos.Add(Textos["EfectoDejan", nombre, CuentaCentros(cambio.Dejan.Count, "CentrosDesmarcadosUno", "CentrosDesmarcadosVarios"),
+                ListaNombresCentros(cambio.Dejan), siguen, TextoRequerido(_requerido)]);
         }
 
         return efectos;
     }
 
-    private static string CuentaCentros(int cuantos, string participio) =>
-        cuantos == 1 ? $"1 centro {participio}" : $"{cuantos} centros {participio}s";
+    private string CuentaCentros(int cuantos, string claveUno, string claveVarios) =>
+        cuantos == 1 ? Textos[claveUno, cuantos].Value : Textos[claveVarios, cuantos].Value;
 
     /// <summary>
     /// «: Planta Zaragoza, Nave logística Tudela», en el orden del selector.
@@ -999,7 +998,7 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
             }
 
             ToastService.Mostrar(
-                _editandoId is null ? "Tipo de documento creado correctamente." : "Tipo de documento actualizado correctamente.",
+                _editandoId is null ? Textos["ToastTipoCreado"].Value : Textos["ToastTipoActualizado"].Value,
                 TonoToast.Exito);
 
             _drawerVisible = false;
@@ -1010,11 +1009,11 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
             _erroresCampo = ex.Errors
                 .GroupBy(e => e.PropertyName)
                 .ToDictionary(g => g.Key, g => g.First().ErrorMessage);
-            _mensajeErrorFormulario = "Revisa los campos marcados.";
+            _mensajeErrorFormulario = Textos["ErrorRevisaCampos"];
         }
         catch (Exception)
         {
-            _mensajeErrorFormulario = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
+            _mensajeErrorFormulario = Textos["ErrorGuardarFormulario"];
         }
         finally
         {
