@@ -436,6 +436,79 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
             "una cancelación que no es RequestAborted no es un aborto de cliente");
     }
 
+    /// <summary>
+    /// El segundo catch del middleware —el de <c>EsVentanaDeSoporteAsync</c>— no
+    /// lo alcanzaba ningún test: el de arriba cancela el token de antemano, así
+    /// que la excepción salta ya en <c>SigueAutorizadoAsync</c>. Aquí la
+    /// revalidación termina y dice que no (delegación revocada), y el cliente se
+    /// va justo después, en la consulta que solo elige el texto del aviso. La
+    /// decisión de autorización ya está tomada: la selección tiene que quedar
+    /// invalidada y la cookie borrada en esta misma petición, no en la
+    /// siguiente (revisión puente de la PR #822, 2026-09-23).
+    /// </summary>
+    [Fact]
+    public async Task Peticion_abortada_tras_denegar_la_revalidacion_invalida_igualmente_la_seleccion()
+    {
+        await RevocarDelegacionAsync();
+
+        await using var contexto = CrearContexto();
+        var (httpContext, seleccion) = PrepararPeticionConTokenValido();
+
+        // Vía heredada: la primera lectura del usuario es la de SigueAutorizadoAsync
+        // y la segunda la de EsVentanaDeSoporteAsync, justo antes de su consulta. Se
+        // cancela ahí, y no de antemano, para que la primera consulta llegue a
+        // responder que la delegación ya no autoriza.
+        using var abortoDelCliente = new CancellationTokenSource();
+        httpContext.RequestAborted = abortoDelCliente.Token;
+        var currentUserService = new CurrentUserServiceQueCancelaEnLaLectura(_usuario, abortoDelCliente, lecturaQueCancela: 2);
+
+        var logger = new LoggerCapturador<RevalidacionClienteActivoMiddleware>();
+        var siguienteFueLlamado = false;
+        var middleware = new RevalidacionClienteActivoMiddleware(_ =>
+        {
+            siguienteFueLlamado = true;
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(
+            httpContext, seleccion, currentUserService,
+            contexto, (IOperacionesQueryContext)contexto, SinSesionPrivilegiada, logger);
+
+        currentUserService.Lecturas.Should().Be(2, "la cancelación tiene que llegar en EsVentanaDeSoporteAsync, no antes");
+        seleccion.TenantIdSeleccionado.Should().BeNull("la revalidación ya había denegado la selección");
+        CabeceraDeBorradoDeCookie(httpContext).Should().NotBeNull();
+        siguienteFueLlamado.Should().BeFalse("no hay nadie al otro lado a quien seguir sirviendo");
+        httpContext.Response.StatusCode.Should().Be(StatusCodes.Status499ClientClosedRequest);
+        httpContext.Items.Should().NotContainKey(AvisoFinDeAcceso.ClaveItems);
+
+        logger.Entradas.Select(e => e.Nivel).Should().Equal(LogLevel.Warning, LogLevel.Information);
+        logger.Entradas[1].Mensaje.Should().Contain("abortada");
+    }
+
+    /// <summary>
+    /// Cancela el token de la petición en la lectura del usuario que se le pida,
+    /// para simular un cliente que se va en un punto concreto del middleware.
+    /// </summary>
+    private sealed class CurrentUserServiceQueCancelaEnLaLectura(
+        Guid usuarioId, CancellationTokenSource abortoDelCliente, int lecturaQueCancela) : ICurrentUserService
+    {
+        public int Lecturas { get; private set; }
+
+        public Task<Guid?> ObtenerUsuarioActualIdAsync()
+        {
+            if (++Lecturas == lecturaQueCancela)
+                abortoDelCliente.Cancel();
+
+            return Task.FromResult<Guid?>(usuarioId);
+        }
+
+        public Task<string?> ObtenerRolActualAsync() => Task.FromResult<string?>("GestorCae");
+
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(null);
+
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
+    }
+
     // Estos tests son de plano 2 y de la vía heredada: ninguno abre una sesión
     // privilegiada, así que el resolutor de plano 3 devuelve null sin consultar.
     private static readonly ISesionPrivilegiadaActual SinSesionPrivilegiada = new SesionPrivilegiadaActualFalsa();
