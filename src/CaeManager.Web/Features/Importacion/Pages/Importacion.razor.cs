@@ -23,14 +23,20 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
     private const string IdPlantillaCombinada = "combinada";
 
     /// <param name="NombreIcono">Icono del catálogo (Icono.razor) de la tarjeta, el del mockup.</param>
-    /// <param name="NombreCorto">
-    /// Nombre de la plantilla en «Continuar con …»: el mockup lo corta en el
+    /// <param name="ClaveTitulo">Clave en <c>TextosImportacion</c> del título de la tarjeta.</param>
+    /// <param name="ClaveNombreCorto">
+    /// Clave del nombre de la plantilla en «Continuar con …»: el mockup lo corta en el
     /// primer « (» o «:» (<c>title.split(' (')[0].split(':')[0]</c>). La zona
-    /// de soltar sigue usando <see cref="DefinicionPlantilla.Titulo"/> entero,
+    /// de soltar sigue usando el título entero (<see cref="DefinicionPlantilla.ClaveTitulo"/>),
     /// como pinta el mockup «Importar Combinado».
     /// </param>
+    /// <param name="ClaveDescripcion">Clave en <c>TextosImportacion</c> de la descripción de la tarjeta.</param>
+    /// <param name="NombreHistorial">
+    /// Se persiste en HistorialImportacion.Plantilla: es dato, no interfaz, y
+    /// por eso no se localiza.
+    /// </param>
     private sealed record DefinicionPlantilla(
-        string Id, string NombreIcono, string Titulo, string NombreCorto, string Descripcion, string? RutaPlantillaBlanco,
+        string Id, string NombreIcono, string ClaveTitulo, string ClaveNombreCorto, string ClaveDescripcion, string? RutaPlantillaBlanco,
         long TamanoMaximoBytes, string NombreHistorial);
 
     /// <summary>
@@ -68,29 +74,28 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         // PlanImportacionDto sin romper el emparejamiento posicional de
         // Centros_Plataformas con Asignaciones ni la causal de Asignación
         // que exige DCR-12 (ver IMPORTACION.md § 3 bis).
-        new("cae", "importar", "Importación CAE completa (multi-hoja)", "Importación CAE completa",
-            "Clientes, empresas, centros, trabajadores y sus documentos en un solo libro (Cuadro de Control CAE) que ya existe. No da de alta ningún Cliente empresarial ni Centro nuevos — solo reutiliza los que ya existan. Para incorporar un Cliente empresarial nuevo con su estructura completa, usa Combinada.",
+        new("cae", "importar", "PlantillaCaeTitulo", "PlantillaCaeNombreCorto", "PlantillaCaeDescripcion",
             null, TamanoMaximoCaeCompletaBytes, "CAE completa"),
         // La descripción NO es la del mockup («Solo clientes con sus datos
         // fiscales y de contacto»): la plantilla no recoge CIF, que es el dato
         // fiscal, y por eso EjecutarImportacionCommandHandler omite toda fila
         // cuyo Cliente empresarial o Centro no exista ya. Se dice lo que hace.
-        new(IdPlantillaClientes, "clientes", "Plantilla de Clientes", "Plantilla de Clientes",
-            "Una fila por nombre de Cliente empresarial y Centro, con criticidad, dirección y contacto. No recoge CIF ni Empresa, así que no da de alta ninguno nuevo.",
+        new(IdPlantillaClientes, "clientes", "PlantillaClientesTitulo", "PlantillaClientesTitulo", "PlantillaClientesDescripcion",
             "/clientes/plantilla.xlsx", TamanoMaximoPlantillaBytes, "Clientes"),
         // El título conserva «Cliente» a secas: es el nombre que pinta el
         // mockup «Importar Combinado» en la zona de soltar y el que busca el
         // E2E. Es deuda terminológica (la hoja «Clientes» crea Empresas en
         // papel de Cliente empresarial), no un concepto nuevo.
-        new(IdPlantillaCombinada, "empresas", "Combinada: Cliente + Empresas + Centros + Trabajadores", "Combinada",
-            "Estructura organizativa completa sin documentos. Útil al incorporar un Cliente empresarial nuevo con su plantilla.",
+        new(IdPlantillaCombinada, "empresas", "PlantillaCombinadaTitulo", "PlantillaCombinadaNombreCorto", "PlantillaCombinadaDescripcion",
             "/clientes/plantilla-combinada.xlsx", TamanoMaximoPlantillaBytes, "Combinada"),
-        new("documentos", "documentos", "Documentos", "Documentos",
-            "Lote de documentos con propietario y tipo por fila. Los PDF se aportan después con subida múltiple.",
+        new("documentos", "documentos", "PlantillaDocumentosTitulo", "PlantillaDocumentosTitulo", "PlantillaDocumentosDescripcion",
             "/documentos/plantilla.xlsx", TamanoMaximoPlantillaBytes, "Documentos")
     ];
 
-    private sealed record HojaCombinada(int Numero, string Nombre, IReadOnlyList<string> Columnas, string Regla);
+    /// <param name="Nombre">Nombre de la hoja en el libro: contrato del archivo, no se localiza.</param>
+    /// <param name="Columnas">Rótulos de cabecera que escribe GenerarPlantilla: contrato del archivo, no se localizan.</param>
+    /// <param name="ClaveRegla">Clave en <c>TextosImportacion</c> de la regla que el lector aplica a la hoja.</param>
+    private sealed record HojaCombinada(int Numero, string Nombre, IReadOnlyList<string> Columnas, string ClaveRegla);
 
     /// <summary>
     /// Las cuatro hojas de la Combinada en el orden en que las lee
@@ -105,18 +110,24 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
     /// </summary>
     private static readonly IReadOnlyList<HojaCombinada> HojasCombinada =
     [
-        new(1, "Clientes", ["Razón social", "CIF", "Crítico (C/N)"],
-            "Cada fila es un Cliente empresarial. CIF, o DNI o NIE si es un autónomo, con dígito de control válido. Sin él, la fila se omite entera."),
-        new(2, "Empresas", ["Razón social", "Clientes asociados (separados por ;)"],
-            "Cada Cliente empresarial citado se busca en el sistema y en la hoja 1. Si no aparece, esa asociación se descarta con un aviso y la Empresa se crea igual."),
-        new(3, "Centros", ["Nombre", "Cliente", "Empresa", "Código", "Dirección", "Contacto", "Contrato vigente hasta"],
-            "Cliente y Empresa son obligatorios y tienen que existir en el sistema o en las hojas 1 y 2."),
-        new(4, "Trabajadores", ["Nombre", "Apellidos", "DNI", "Empresa", "Fecha de nacimiento", "Email"],
-            "DNI, NIE o CIF con dígito de control válido. La Empresa tiene que existir en el sistema o en la hoja 2.")
+        new(1, NombreHojaClientes, ["Razón social", "CIF", "Crítico (C/N)"], "ReglaHojaClientes"),
+        new(2, "Empresas", ["Razón social", "Clientes asociados (separados por ;)"], "ReglaHojaEmpresas"),
+        new(3, "Centros", ["Nombre", "Cliente", "Empresa", "Código", "Dirección", "Contacto", "Contrato vigente hasta"], "ReglaHojaCentros"),
+        new(4, "Trabajadores", ["Nombre", "Apellidos", "DNI", "Empresa", "Fecha de nacimiento", "Email"], "ReglaHojaTrabajadores")
     ];
 
-    private static readonly IReadOnlyList<string> NombresPasos =
-        ["Elegir plantilla", "Analizar", "Revisar plan", "Confirmar", "Reporte"];
+    /// <summary>Claves en <c>TextosImportacion</c> de los nombres de los cinco pasos, en orden.</summary>
+    private static readonly IReadOnlyList<string> ClavesPasos =
+        ["PasoElegirPlantilla", "PasoAnalizar", "PasoRevisarPlan", "PasoConfirmar", "PasoReporte"];
+
+    // Contrato del archivo, no interfaz: nombres de hoja y marcas que el lector
+    // compara con el contenido del libro. Los textos de pantalla que los citan
+    // los reciben como argumento para que una traducción no los toque.
+    private const string NombreHojaClientes = "Clientes";
+    private const string NombreHojaCentrosPlataformas = "Centros_Plataformas";
+    private const string MarcadorFilaEjemplo = "EJEMPLO";
+    private const string ColumnaCriticoCorta = "Crítico";
+    private const string ValorCriticoSi = "C";
 
     /// <summary>Fila unificada de plan, proyectada desde PlanImportacionDto o PlanImportacionCombinadaDto — ver ProyectarFilas.</summary>
     private sealed record FilaPlan(string Entidad, string Accion, TonoBadge Tono, string Motivo);
@@ -213,17 +224,14 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
     /// Entradilla del mockup «Importar Combinado», con el apellido que el
     /// mockup no pone: lo que crea la hoja «Clientes» son Clientes empresariales.
     /// </summary>
-    private static readonly RenderFragment EntradillaCombinada = builder => builder.AddContent(0,
-        "Estructura organizativa completa sin documentos: Clientes empresariales, Empresas, Centros y Trabajadores en un solo libro de cuatro hojas. Útil al incorporar un Cliente empresarial nuevo con su plantilla.");
+    private RenderFragment EntradillaCombinada => builder => builder.AddContent(0, Textos["EntradillaCombinada"].Value);
 
     private string TextoSinNadaNuevo
     {
         get
         {
             var n = TotalReutilizados;
-            var sujeto = n == 1 ? "El único registro del archivo ya existe" : $"Los {n} registros del archivo ya existen";
-            return $"{sujeto} en el sistema. No es un archivo vacío: es una importación que no añadiría nada. " +
-                "Si lo que quieres es actualizarlos, marca «Reemplazar los campos ya rellenados» en el paso siguiente.";
+            return n == 1 ? Textos["SinNadaNuevoUno"].Value : Textos["SinNadaNuevoVarios", n].Value;
         }
     }
 
@@ -234,10 +242,10 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
     private bool EsCombinadaDesdeClientes => _plantillaDesdeClientes == IdPlantillaCombinada && _plantillaId == IdPlantillaCombinada;
 
     private string TituloPagina =>
-        EsImportacionDocumentos ? "Importar documentos"
+        EsImportacionDocumentos ? Textos["TituloImportarDocumentos"].Value
         : _plantillaDesdeClientes is not null && _plantillaDesdeClientes == _plantillaId
-            ? _plantillaId == IdPlantillaClientes ? "Importar clientes" : "Importación combinada"
-            : "Importar datos";
+            ? _plantillaId == IdPlantillaClientes ? Textos["TituloImportarClientes"].Value : Textos["TituloImportacionCombinada"].Value
+            : Textos["TituloImportarDatos"].Value;
 
     // Mismas vistas del paso 3 que el mockup «Importar Combinado»: el árbol
     // de lo que se va a crear (por defecto) o la lista plana de ProyectarFilas.
@@ -275,13 +283,9 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         {
             var n = TotalReutilizados;
             if (n == 0)
-                return "Ningún registro de este archivo existe todavía, así que marcarla no cambia nada.";
+                return Textos["AvisoReemplazarNinguno"].Value;
 
-            var sujeto = n == 1 ? "el registro que ya existía toma" : $"los {n} registros que ya existían toman";
-            return $"Con esta casilla marcada, {sujeto} lo que traiga el archivo: un dato distinto sustituye al que había, " +
-                "y la razón social y la marca Crítico de cada Cliente empresarial se toman tal como vengan. En cada Empresa, " +
-                "las asociaciones con Clientes empresariales que su celda no nombre se cierran, también si la celda viene vacía. " +
-                "Un texto o una fecha que el archivo deje en blanco no borra lo que había.";
+            return n == 1 ? Textos["AvisoReemplazarUno"].Value : Textos["AvisoReemplazarVarios", n].Value;
         }
     }
 
@@ -304,8 +308,11 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
     private readonly Dictionary<Guid, string> _usuariosPorId = [];
 
     private DefinicionPlantilla PlantillaActual => Plantillas.First(p => p.Id == _plantillaId);
-    private static readonly string[] MensajesAnalizando =
-        ["Leyendo el archivo…", "Comprobando duplicados…", "Validando DNI y CIF…", "Cruzando con la cartera…"];
+    // Se resuelve una vez por página: ProgresoConMensajes recibe siempre la
+    // misma lista, como cuando era un static readonly.
+    private string[]? _mensajesAnalizando;
+    private string[] MensajesAnalizando => _mensajesAnalizando ??=
+        [Textos["AnalizandoLeyendo"].Value, Textos["AnalizandoDuplicados"].Value, Textos["AnalizandoValidando"].Value, Textos["AnalizandoCruzando"].Value];
 
     protected override Task OnInitializedAsync() => CargarHistorialAsync();
 
@@ -340,7 +347,7 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
                 foreach (var id in idsFaltantes)
                 {
                     var usuario = await UserManager.FindByIdAsync(id.ToString());
-                    _usuariosPorId[id] = usuario?.NombreCompleto ?? usuario?.Email ?? "(usuario eliminado)";
+                    _usuariosPorId[id] = usuario?.NombreCompleto ?? usuario?.Email ?? Textos["UsuarioEliminado"].Value;
                     token.ThrowIfCancellationRequested();
                 }
             }, token);
@@ -475,7 +482,7 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
 
         if (archivo.Size > plantilla.TamanoMaximoBytes)
         {
-            ToastService.Mostrar($"El archivo no puede superar los {plantilla.TamanoMaximoBytes / (1024 * 1024)} MB.", TonoToast.Error);
+            ToastService.Mostrar(Textos["ToastTamanoMaximo", plantilla.TamanoMaximoBytes / (1024 * 1024)], TonoToast.Error);
             return;
         }
 
@@ -521,7 +528,7 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         {
             if (version != _versionAnalisis) return;
             Logger.LogError(ex, "Error al analizar el archivo {NombreArchivo} con la plantilla {PlantillaId}.", archivo.Name, plantilla.Id);
-            _mensajeError = "No pudimos leer este archivo. Comprueba que sea el formato de importación de esta plantilla.";
+            _mensajeError = Textos["ErrorLecturaArchivo"];
         }
         finally
         {
@@ -581,15 +588,12 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         get
         {
             var filas = FilasClienteCentroQueSeOmitiran;
-            var sujeto = filas == 1
-                ? "La fila de Cliente empresarial o Centro con un nombre que todavía no existe se omitirá"
-                : $"Las {filas} filas de Cliente empresarial o Centro con un nombre que todavía no existe se omitirán";
-            return $"{sujeto}: esta importación no recoge el CIF que exige el alta de un Cliente empresarial ni la Empresa que exige la de un Centro.";
+            return filas == 1 ? Textos["FilasOmitiranUno"].Value : Textos["FilasOmitiranVarios", filas].Value;
         }
     }
 
     private string? TituloBadgeCrear => _planSimple is { ClientesCentros.Count: > 0 } ps
-        ? $"{ps.ClientesCentros.Count(c => !c.YaExisteCliente)} Clientes empresariales y {ps.ClientesCentros.Count(c => !c.YaExisteCentro)} Centros con nombre nuevo"
+        ? Textos["TituloBadgeCrear", ps.ClientesCentros.Count(c => !c.YaExisteCliente), ps.ClientesCentros.Count(c => !c.YaExisteCentro)].Value
         : null;
 
     /// <summary>
@@ -603,8 +607,8 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
     private TonoBadge TonoBadgeCrear => AltasClienteCentroQueNoSeHaran > 0 ? TonoBadge.Advertencia : TonoBadge.Exito;
 
     private string TituloAvisoAltas => AltasClienteCentroQueNoSeHaran == TotalACrear
-        ? "Ninguna de estas altas se hará al importar."
-        : $"{AltasClienteCentroQueNoSeHaran} de estas altas no se harán al importar.";
+        ? Textos["AvisoAltasNinguna"].Value
+        : Textos["AvisoAltasAlgunas", AltasClienteCentroQueNoSeHaran].Value;
 
     private string TituloConfirmacion
     {
@@ -612,18 +616,18 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         {
             var noSeHaran = AltasClienteCentroQueNoSeHaran;
             if (noSeHaran == 0)
-                return $"Se crearán {TotalACrear} elementos. Esta acción escribe datos reales.";
+                return Textos["ConfirmacionSinOmitir", TotalACrear];
             if (noSeHaran == TotalACrear)
-                return $"Ninguna de las {TotalACrear} altas del plan se hará.";
+                return Textos["ConfirmacionNinguna", TotalACrear];
             // «Como máximo»: la escritura aún puede omitir filas que dependían
             // de las que no se crean (una Asignación a un Centro nuevo).
-            return $"Se crearán como máximo {TotalACrear - noSeHaran} de las {TotalACrear} altas del plan. Esta acción escribe datos reales.";
+            return Textos["ConfirmacionComoMaximo", TotalACrear - noSeHaran, TotalACrear];
         }
     }
 
     private string DetalleConfirmacion => AltasClienteCentroQueNoSeHaran == 0
-        ? $"Punto de no retorno. Los {TotalOmitidos} omitidos y {TotalAdvertencias} avisos no se tocan."
-        : $"{TextoFilasClienteCentroQueSeOmitiran} Los {TotalOmitidos} omitidos y {TotalAdvertencias} avisos del análisis no se tocan.";
+        ? Textos["DetalleConfirmacionSinOmitir", TotalOmitidos, TotalAdvertencias].Value
+        : Textos["DetalleConfirmacionConOmitir", TextoFilasClienteCentroQueSeOmitiran, TotalOmitidos, TotalAdvertencias].Value;
 
     /// <summary>
     /// Efecto real de confirmar, para el diálogo: lo que se creará según el
@@ -638,9 +642,9 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
             var noSeHaran = AltasClienteCentroQueNoSeHaran;
             var partes = new List<string>
             {
-                noSeHaran == 0 ? $"Se crearán {TotalACrear} elementos."
-                    : noSeHaran == TotalACrear ? "No se creará ningún elemento."
-                    : $"Se crearán como máximo {TotalACrear - noSeHaran} elementos."
+                noSeHaran == 0 ? Textos["DialogoSeCrearan", TotalACrear].Value
+                    : noSeHaran == TotalACrear ? Textos["DialogoNingunElemento"].Value
+                    : Textos["DialogoComoMaximo", TotalACrear - noSeHaran].Value
             };
 
             if (noSeHaran > 0)
@@ -648,14 +652,14 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
 
             if (_planCombinada is not null)
                 partes.Add(_reemplazarExistentes
-                    ? "En los registros que ya existen se reemplazarán los campos ya rellenados."
-                    : "En los registros que ya existen solo se completarán los campos vacíos.");
+                    ? Textos["DialogoReemplazara"].Value
+                    : Textos["DialogoCompletara"].Value);
 
             if (TotalOmitidos > 0)
                 partes.Add(TotalOmitidos == 1
-                    ? "La fila que el análisis ya descartó no se toca."
-                    : $"Las {TotalOmitidos} filas que el análisis ya descartó no se tocan.");
-            partes.Add("Lo que se escriba no se deshace desde esta pantalla; el resultado queda en el historial de importaciones.");
+                    ? Textos["DialogoOmitidosUno"].Value
+                    : Textos["DialogoOmitidosVarios", TotalOmitidos].Value);
+            partes.Add(Textos["DialogoSinDeshacer"]);
 
             return string.Join(" ", partes);
         }
@@ -682,27 +686,29 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
             // EjecutarImportacionCommandHandler nunca creará — el análisis la
             // sigue contando en TotalACrear (REC-106), pero la fila no debe
             // pintarse como una alta ya garantizada.
-            var motivoNombreNuevo = EsPlantillaClientes ? "Nombre nuevo en la hoja «Clientes»." : "Nombre nuevo en Centros_Plataformas.";
-            filas.AddRange(ps.ClientesCentros.Where(c => !c.YaExisteCliente).Select(c => new FilaPlan(c.Nombre, "Crear cliente", TonoBadge.Advertencia, motivoNombreNuevo)));
-            filas.AddRange(ps.ClientesCentros.Where(c => !c.YaExisteCentro).Select(c => new FilaPlan(c.Nombre, "Crear centro", TonoBadge.Advertencia, motivoNombreNuevo)));
-            filas.AddRange(ps.Empresas.Where(e => !e.YaExiste).Select(e => new FilaPlan(e.RazonSocial, "Crear empresa", TonoBadge.Exito, "Razón social nueva.")));
-            filas.AddRange(ps.Trabajadores.Where(t => !t.YaExiste).Select(t => new FilaPlan($"{t.Nombre} {t.Apellidos} ({t.Dni})", "Crear trabajador", TonoBadge.Exito, $"DNI nuevo en {t.RazonSocialEmpresa}.")));
-            filas.AddRange(ps.Documentos.Where(d => !d.YaExiste).Select(d => new FilaPlan($"{d.Dni} — {d.NombreTipoDocumento}", "Crear documento", TonoBadge.Exito, $"Emitido {d.FechaEmision:dd/MM/yyyy}.")));
-            filas.AddRange(ps.Asignaciones.Where(a => !a.YaExiste).Select(a => new FilaPlan($"{a.Dni} → {a.NombreCentro}", "Crear asignación", TonoBadge.Exito, "Asignación nueva.")));
+            var motivoNombreNuevo = EsPlantillaClientes
+                ? Textos["MotivoNombreNuevoEnHoja", NombreHojaClientes].Value
+                : Textos["MotivoNombreNuevoEn", NombreHojaCentrosPlataformas].Value;
+            filas.AddRange(ps.ClientesCentros.Where(c => !c.YaExisteCliente).Select(c => new FilaPlan(c.Nombre, Textos["AccionCrearCliente"], TonoBadge.Advertencia, motivoNombreNuevo)));
+            filas.AddRange(ps.ClientesCentros.Where(c => !c.YaExisteCentro).Select(c => new FilaPlan(c.Nombre, Textos["AccionCrearCentro"], TonoBadge.Advertencia, motivoNombreNuevo)));
+            filas.AddRange(ps.Empresas.Where(e => !e.YaExiste).Select(e => new FilaPlan(e.RazonSocial, Textos["AccionCrearEmpresa"], TonoBadge.Exito, Textos["MotivoRazonSocialNueva"])));
+            filas.AddRange(ps.Trabajadores.Where(t => !t.YaExiste).Select(t => new FilaPlan($"{t.Nombre} {t.Apellidos} ({t.Dni})", Textos["AccionCrearTrabajador"], TonoBadge.Exito, Textos["MotivoDniNuevo", t.RazonSocialEmpresa])));
+            filas.AddRange(ps.Documentos.Where(d => !d.YaExiste).Select(d => new FilaPlan($"{d.Dni} — {d.NombreTipoDocumento}", Textos["AccionCrearDocumento"], TonoBadge.Exito, Textos["MotivoEmitido", d.FechaEmision.ToString("dd/MM/yyyy")])));
+            filas.AddRange(ps.Asignaciones.Where(a => !a.YaExiste).Select(a => new FilaPlan($"{a.Dni} → {a.NombreCentro}", Textos["AccionCrearAsignacion"], TonoBadge.Exito, Textos["MotivoAsignacionNueva"])));
         }
         else if (_planCombinada is { } pc)
         {
-            filas.AddRange(pc.Clientes.Where(c => !c.YaExiste).Select(c => new FilaPlan(c.RazonSocial, "Crear cliente", TonoBadge.Exito, $"CIF {c.Cif} nuevo.")));
-            filas.AddRange(pc.Empresas.Where(e => !e.YaExiste).Select(e => new FilaPlan(e.RazonSocial, "Crear empresa", TonoBadge.Exito, "Razón social nueva.")));
-            filas.AddRange(pc.Centros.Where(c => !c.YaExiste).Select(c => new FilaPlan(c.Nombre, "Crear centro", TonoBadge.Exito, $"Cliente {c.RazonSocialCliente}.")));
-            filas.AddRange(pc.Trabajadores.Where(t => !t.YaExiste).Select(t => new FilaPlan($"{t.Nombre} {t.Apellidos} ({t.Dni})", "Crear trabajador", TonoBadge.Exito, $"DNI nuevo en {t.RazonSocialEmpresa}.")));
+            filas.AddRange(pc.Clientes.Where(c => !c.YaExiste).Select(c => new FilaPlan(c.RazonSocial, Textos["AccionCrearCliente"], TonoBadge.Exito, Textos["MotivoCifNuevo", c.Cif])));
+            filas.AddRange(pc.Empresas.Where(e => !e.YaExiste).Select(e => new FilaPlan(e.RazonSocial, Textos["AccionCrearEmpresa"], TonoBadge.Exito, Textos["MotivoRazonSocialNueva"])));
+            filas.AddRange(pc.Centros.Where(c => !c.YaExiste).Select(c => new FilaPlan(c.Nombre, Textos["AccionCrearCentro"], TonoBadge.Exito, Textos["MotivoClienteDelCentro", c.RazonSocialCliente])));
+            filas.AddRange(pc.Trabajadores.Where(t => !t.YaExiste).Select(t => new FilaPlan($"{t.Nombre} {t.Apellidos} ({t.Dni})", Textos["AccionCrearTrabajador"], TonoBadge.Exito, Textos["MotivoDniNuevo", t.RazonSocialEmpresa])));
         }
 
         var advertencias = _planSimple?.Advertencias ?? _planCombinada?.Advertencias ?? [];
         var omitidos = _planSimple?.Omitidos ?? _planCombinada?.Omitidos ?? [];
 
-        filas.AddRange(advertencias.Select(a => new FilaPlan(a.Descripcion, "Aviso", TonoBadge.Advertencia, a.Motivo)));
-        filas.AddRange(omitidos.Select(o => new FilaPlan(o.Descripcion, "Omitir", TonoBadge.Peligro, o.Motivo)));
+        filas.AddRange(advertencias.Select(a => new FilaPlan(a.Descripcion, Textos["AccionAviso"], TonoBadge.Advertencia, a.Motivo)));
+        filas.AddRange(omitidos.Select(o => new FilaPlan(o.Descripcion, Textos["AccionOmitir"], TonoBadge.Peligro, o.Motivo)));
 
         return filas;
     }
@@ -793,7 +799,7 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
             }
 
             if (_desechada) return;
-            ToastService.Mostrar("Importación completada.", TonoToast.Exito);
+            ToastService.Mostrar(Textos["ToastImportacionCompletada"], TonoToast.Exito);
             _step = 5;
             _pasoMaximoAlcanzado = Math.Max(_pasoMaximoAlcanzado, 5);
             await CargarHistorialAsync();
@@ -801,9 +807,10 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         catch (Exception ex)
         {
             Logger.LogError(ex, "Excepción no controlada al importar el archivo {NombreArchivo} con la plantilla {PlantillaId}.", nombreArchivo, plantilla.Id);
+            // Se persiste en HistorialImportacion.MensajeError: es dato, no se localiza.
             await RegistrarFalloAsync(plantilla, nombreArchivo, "Excepción no controlada durante la importación.");
             if (!_desechada)
-                _mensajeError = "No pudimos completar la importación. Intenta nuevamente en unos segundos.";
+                _mensajeError = Textos["ErrorImportacion"];
         }
         finally
         {
