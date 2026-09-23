@@ -318,7 +318,8 @@ public class RevocacionCarteraEnCircuitoVivoTests : IAsyncLifetime
         : CaeManager.Application.Common.ICurrentUserService
     {
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(usuarioId);
-        public Task<string?> ObtenerRolActualAsync() => Task.FromResult<string?>("GestorCae");
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>("GestorCae");
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult(ambito.TenantId);
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }

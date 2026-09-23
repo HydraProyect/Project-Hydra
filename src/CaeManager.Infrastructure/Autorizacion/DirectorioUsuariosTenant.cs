@@ -209,7 +209,7 @@ public class DirectorioUsuariosTenant(
     /// Rol acotado (<c>AsignacionOperadorDelegado.Rol</c>) de cada Operador
     /// Delegado visible en el tenant activo — nunca su rol de origen. Un
     /// operador de soporte es <c>Administrador</c> en el tenant de plataforma,
-    /// pero <c>CurrentUserService.ObtenerRolActualAsync</c> ya lo acota a
+    /// pero <c>CurrentUserService.ObtenerRolEfectivoAsync</c> ya lo acota a
     /// Consulta/GestorCae/CoordinadorCae al operar aquí; mostrar su rol de
     /// origen en /usuarios contradice esa restricción y alarma sin motivo a
     /// quien lo ve (un "Administrador" desconocido en su propia organización).

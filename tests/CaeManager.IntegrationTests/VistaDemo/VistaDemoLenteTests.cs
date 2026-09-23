@@ -155,11 +155,11 @@ public class VistaDemoLenteTests : IAsyncLifetime
 
         // Control positivo: sin lente, la cuenta de demo lo ve TODO (null = sin restricción). Si esto no
         // fuera null, la igualdad de abajo no probaría que la lente estrecha.
-        var sinLente = await FotoAsync(tenant, Administrador(), Solicitud(null, null, Roles.Administrador));
+        var sinLente = await FotoAsync(tenant, Administrador(), Solicitud(null, null));
         sinLente.Should().Be(Foto.SinRestriccion);
 
-        var real = await FotoAsync(tenant, GestorReal(gestorId), Solicitud(null, null, Roles.GestorCae));
-        var lente = await FotoAsync(tenant, Administrador(), Solicitud(VistaDemo.GestorCae, gestorId, Roles.Administrador));
+        var real = await FotoAsync(tenant, GestorReal(gestorId), Solicitud(null, null));
+        var lente = await FotoAsync(tenant, Administrador(), Solicitud(VistaDemo.GestorCae, gestorId));
 
         lente.Should().Be(real, "la vista Gestor debe mostrar lo mismo que ese Gestor CAE con su propia cuenta");
         lente.Should().NotBe(Foto.SinRestriccion);
@@ -168,12 +168,12 @@ public class VistaDemoLenteTests : IAsyncLifetime
     [Fact]
     public async Task La_lente_Gestor_muestra_su_cartera_y_en_un_Tenant_sin_cartera_no_muestra_nada()
     {
-        var conCartera = await FotoAsync(_p1, Administrador(), Solicitud(VistaDemo.GestorCae, _g1, Roles.Administrador));
+        var conCartera = await FotoAsync(_p1, Administrador(), Solicitud(VistaDemo.GestorCae, _g1));
         conCartera.Clientes.Should().Be(Formato([_c1a.Id]), "G1 solo tiene la cartera del cliente 1A en el Tenant 1");
         conCartera.Centros.Should().NotBe(Formato([]));
         conCartera.Trabajadores.Should().NotBe(Formato([]));
 
-        var sinCartera = await FotoAsync(_p3, Administrador(), Solicitud(VistaDemo.GestorCae, _g1, Roles.Administrador));
+        var sinCartera = await FotoAsync(_p3, Administrador(), Solicitud(VistaDemo.GestorCae, _g1));
         sinCartera.Clientes.Should().Be(Formato([]), "G1 no tiene cartera en el Tenant 3: vacío, nunca null (que sería 'todo')");
         sinCartera.AccesoTotal.Should().BeFalse();
     }
@@ -182,7 +182,7 @@ public class VistaDemoLenteTests : IAsyncLifetime
 
     private enum Caso
     {
-        Desactivada, RolConsulta, RolCliente, SinRolDeSesion, TenantDeOrigenReal, TenantActivoReal, GestorInexistente,
+        Desactivada, RolConsulta, RolCliente, SinRolDeOrigen, TenantDeOrigenReal, TenantActivoReal, GestorInexistente,
         GestorSinCartera, GestorConCarteraFutura, UsuarioConCarteraPeroRolCliente, GestorDeOtroOperador, GestorSoloConCarteraEnTenantReal,
         VistaGestorSinGestor, SesionPrivilegiadaDePlataforma,
     }
@@ -205,58 +205,59 @@ public class VistaDemoLenteTests : IAsyncLifetime
         {
             case Caso.Desactivada:
                 opciones = Activo(false);
-                solicitud = Solicitud(VistaDemo.GestorCae, _g1, Roles.Administrador);
+                solicitud = Solicitud(VistaDemo.GestorCae, _g1);
                 break;
             case Caso.RolConsulta:
                 usuario = Administrador(Roles.Consulta);
-                solicitud = Solicitud(VistaDemo.GestorCae, _g1, Roles.Consulta);
+                solicitud = Solicitud(VistaDemo.GestorCae, _g1);
                 break;
             case Caso.RolCliente:
                 usuario = Administrador(Roles.Cliente);
-                solicitud = Solicitud(VistaDemo.GestorCae, _g1, Roles.Cliente);
+                solicitud = Solicitud(VistaDemo.GestorCae, _g1);
                 break;
-            case Caso.SinRolDeSesion:
-                solicitud = Solicitud(VistaDemo.GestorCae, _g1, null);
+            case Caso.SinRolDeOrigen:
+                usuario = new CurrentUserServiceFalso(_admin, null, _operador);
+                solicitud = Solicitud(VistaDemo.GestorCae, _g1);
                 break;
             case Caso.TenantDeOrigenReal:
                 usuario = new CurrentUserServiceFalso(_admin, Roles.Administrador, _tenantReal);
-                solicitud = Solicitud(VistaDemo.GestorCae, _g1, Roles.Administrador);
+                solicitud = Solicitud(VistaDemo.GestorCae, _g1);
                 break;
             case Caso.TenantActivoReal:
                 tenantActivo = _tenantReal;
-                solicitud = Solicitud(VistaDemo.GestorCae, _g1, Roles.Administrador);
+                solicitud = Solicitud(VistaDemo.GestorCae, _g1);
                 break;
             case Caso.GestorInexistente:
                 solicitud = Solicitud(VistaDemo.GestorCae, Guid.NewGuid(), Roles.Administrador);
                 break;
             case Caso.GestorSinCartera:
-                solicitud = Solicitud(VistaDemo.GestorCae, _gSinCartera, Roles.Administrador);
+                solicitud = Solicitud(VistaDemo.GestorCae, _gSinCartera);
                 break;
             case Caso.GestorConCarteraFutura:
-                solicitud = Solicitud(VistaDemo.GestorCae, _gCarteraFutura, Roles.Administrador);
+                solicitud = Solicitud(VistaDemo.GestorCae, _gCarteraFutura);
                 break;
             case Caso.UsuarioConCarteraPeroRolCliente:
-                solicitud = Solicitud(VistaDemo.GestorCae, _usuarioCliente, Roles.Administrador);
+                solicitud = Solicitud(VistaDemo.GestorCae, _usuarioCliente);
                 break;
             case Caso.GestorDeOtroOperador:
-                solicitud = Solicitud(VistaDemo.GestorCae, _gDeOtroOperador, Roles.Administrador);
+                solicitud = Solicitud(VistaDemo.GestorCae, _gDeOtroOperador);
                 break;
             case Caso.GestorSoloConCarteraEnTenantReal:
-                solicitud = Solicitud(VistaDemo.GestorCae, _gSoloTenantReal, Roles.Administrador);
+                solicitud = Solicitud(VistaDemo.GestorCae, _gSoloTenantReal);
                 break;
             case Caso.VistaGestorSinGestor:
-                solicitud = Solicitud(VistaDemo.GestorCae, null, Roles.Administrador);
+                solicitud = Solicitud(VistaDemo.GestorCae, null);
                 break;
             default:
                 sesion = new SesionFalsa(new SesionPrivilegiadaActiva(
                     Guid.NewGuid(), Guid.NewGuid(), _p1, CapacidadPrivilegio.SoporteLectura, null));
-                solicitud = Solicitud(VistaDemo.GestorCae, _g1, Roles.Administrador);
+                solicitud = Solicitud(VistaDemo.GestorCae, _g1);
                 break;
         }
 
         // Lo que la cuenta veía SIN petición en esas mismas condiciones (mismo usuario, mismo rol,
         // mismo Tenant activo, mismas opciones y sesión).
-        var sinPeticion = await FotoAsync(tenantActivo, usuario, Solicitud(null, null, solicitud.RolDelToken), opciones, sesion);
+        var sinPeticion = await FotoAsync(tenantActivo, usuario, Solicitud(null, null), opciones, sesion);
         var conPeticion = await FotoAsync(tenantActivo, usuario, solicitud, opciones, sesion);
 
         conPeticion.Should().Be(sinPeticion, "una petición inválida no puede ni estrechar ni ampliar nada");
@@ -266,12 +267,13 @@ public class VistaDemoLenteTests : IAsyncLifetime
     public async Task La_lente_solo_interseca_un_alcance_ya_restringido_y_nunca_lo_amplia()
     {
         // Contexto real de la cuenta: en este Tenant su rol efectivo es GestorCae con la cartera de G2
-        // (el caso de un workspace delegado), aunque el rol de su token de sesión sea Administrador.
-        // Pedir la vista de G1 NO puede darle la cartera de G1: ∩ de las dos = nada en el Tenant 1.
-        var realG2 = await FotoAsync(_p1, GestorReal(_g2), Solicitud(null, null, Roles.GestorCae));
+        // (el caso de un Workspace operativo derivado), aunque el rol de su organización de origen sea
+        // Administrador. Pedir la vista de G1 NO puede darle la cartera de G1: ∩ de las dos = nada en
+        // el Tenant 1.
+        var realG2 = await FotoAsync(_p1, GestorReal(_g2), Solicitud(null, null));
         var conLente = await FotoAsync(_p1,
-            new CurrentUserServiceFalso(_g2, Roles.GestorCae, _operador),
-            Solicitud(VistaDemo.GestorCae, _g1, Roles.Administrador));
+            new CurrentUserServiceFalso(_g2, Roles.GestorCae, _operador, rolOrigen: Roles.Administrador),
+            Solicitud(VistaDemo.GestorCae, _g1));
 
         realG2.Clientes.Should().Be(Formato([_c1b.Id]));
         conLente.Clientes.Should().Be(Formato([]), "cartera de G2 ∩ cartera de G1 en el Tenant 1 es vacío; nunca la de G1");
@@ -281,8 +283,8 @@ public class VistaDemoLenteTests : IAsyncLifetime
     [Fact]
     public async Task Una_cuenta_con_rol_Gestor_real_no_cambia_de_alcance_por_pedir_otra_vista()
     {
-        var real = await FotoAsync(_p1, GestorReal(_g2), Solicitud(null, null, Roles.GestorCae));
-        var pidiendoOtro = await FotoAsync(_p1, GestorReal(_g2), Solicitud(VistaDemo.GestorCae, _g1, Roles.GestorCae));
+        var real = await FotoAsync(_p1, GestorReal(_g2), Solicitud(null, null));
+        var pidiendoOtro = await FotoAsync(_p1, GestorReal(_g2), Solicitud(VistaDemo.GestorCae, _g1));
 
         pidiendoOtro.Should().Be(real, "el rol GestorCae no es el rol de demo: la petición no llega a validarse");
     }
@@ -291,7 +293,7 @@ public class VistaDemoLenteTests : IAsyncLifetime
     public async Task Las_vistas_Direccion_y_Coordinador_no_cambian_ningun_alcance()
     {
         foreach (var vista in new[] { VistaDemo.Direccion, VistaDemo.CoordinadorCae })
-            (await FotoAsync(_p1, Administrador(), Solicitud(vista, null, Roles.Administrador))).Should().Be(Foto.SinRestriccion);
+            (await FotoAsync(_p1, Administrador(), Solicitud(vista, null))).Should().Be(Foto.SinRestriccion);
     }
 
     // ---------------------------------------------------------------- Disponibilidad y Tenants
@@ -303,9 +305,9 @@ public class VistaDemoLenteTests : IAsyncLifetime
         // solo mira identidad real y Tenant de origen.
         foreach (var solicitud in new[]
                  {
-                     Solicitud(null, null, Roles.Administrador),
-                     Solicitud(VistaDemo.CoordinadorCae, null, Roles.Administrador),
-                     Solicitud(VistaDemo.GestorCae, _g1, Roles.Administrador),
+                     Solicitud(null, null),
+                     Solicitud(VistaDemo.CoordinadorCae, null),
+                     Solicitud(VistaDemo.GestorCae, _g1),
                  })
             foreach (var tenant in new[] { _operador, _p1, _p3, _tenantReal })
             {
@@ -315,15 +317,35 @@ public class VistaDemoLenteTests : IAsyncLifetime
             }
     }
 
+    /// <summary>
+    /// Decisión P7 (2026-09-23), defecto real. Con un Workspace operativo derivado seleccionado,
+    /// <c>RolEfectivoDelWorkspaceMiddleware</c> sustituye el claim de rol por el de la cartera en el
+    /// Tenant propietario — que nunca es Administrador ni DireccionCae (P8) — y <c>VistaDemoCookie</c>
+    /// leía ese claim como «rol de sesión». La cuenta de demo perdía el selector justo al entrar en un
+    /// Tenant propietario, contra el contrato de arriba: la disponibilidad depende de la identidad y
+    /// del Tenant de origen, nunca del Tenant activo.
+    /// </summary>
+    [Fact]
+    public async Task El_selector_sigue_disponible_en_un_Workspace_operativo_derivado_donde_el_rol_efectivo_es_el_de_la_cartera()
+    {
+        var enWorkspace = new CurrentUserServiceFalso(_admin, Roles.GestorCae, _operador, rolOrigen: Roles.Administrador);
+
+        await using var contexto = CrearContexto(_p1);
+        var vista = CrearVista(contexto, _p1, enWorkspace, Solicitud(null, null), Activo(true), null);
+
+        (await vista.EstaDisponibleAsync()).Should().BeTrue(
+            "el rol que decide es el de la organización de origen (Administrador), no el efectivo en el Tenant propietario");
+    }
+
     [Fact]
     public async Task El_selector_no_existe_para_una_cuenta_o_Tenant_real_ni_con_la_funcion_apagada()
     {
         await using var contexto = CrearContexto(_p1);
         var casos = new (CurrentUserServiceFalso Usuario, SolicitudFalsa Solicitud, IOptions<VistaDemoOptions> Opciones)[]
         {
-            (new CurrentUserServiceFalso(_admin, Roles.Administrador, _tenantReal), Solicitud(null, null, Roles.Administrador), Activo(true)),
-            (Administrador(), Solicitud(null, null, Roles.Administrador), Activo(false)),
-            (Administrador(Roles.Consulta), Solicitud(null, null, Roles.Consulta), Activo(true)),
+            (new CurrentUserServiceFalso(_admin, Roles.Administrador, _tenantReal), Solicitud(null, null), Activo(true)),
+            (Administrador(), Solicitud(null, null), Activo(false)),
+            (Administrador(Roles.Consulta), Solicitud(null, null), Activo(true)),
         };
 
         foreach (var caso in casos)
@@ -334,7 +356,7 @@ public class VistaDemoLenteTests : IAsyncLifetime
     public async Task Los_gestores_elegibles_son_solo_los_del_Operador_con_cartera_vigente_y_rol_Gestor()
     {
         await using var contexto = CrearContexto(_operador);
-        var elegibles = await CrearVista(contexto, _operador, Administrador(), Solicitud(null, null, Roles.Administrador), Activo(true), null)
+        var elegibles = await CrearVista(contexto, _operador, Administrador(), Solicitud(null, null), Activo(true), null)
             .ObtenerGestoresElegiblesAsync();
 
         elegibles.Select(g => g.UsuarioId).Should().BeEquivalentTo([_g1, _g2]);
@@ -343,14 +365,14 @@ public class VistaDemoLenteTests : IAsyncLifetime
     [Fact]
     public async Task La_lista_multi_Tenant_del_Gestor_se_acota_a_sus_Tenants_y_nunca_anade_uno()
     {
-        var sinLente = await ClientesAutorizadosAsync(Solicitud(null, null, Roles.Administrador));
+        var sinLente = await ClientesAutorizadosAsync(Solicitud(null, null));
         sinLente.Select(c => c.TenantId).Should().BeEquivalentTo([_operador, _p1, _p2, _p3]);
 
-        var lenteG1 = await ClientesAutorizadosAsync(Solicitud(VistaDemo.GestorCae, _g1, Roles.Administrador));
+        var lenteG1 = await ClientesAutorizadosAsync(Solicitud(VistaDemo.GestorCae, _g1));
         lenteG1.Select(c => c.TenantId).Should().BeEquivalentTo([_operador, _p1, _p2], "G1 tiene cartera en los Tenants 1 y 2, no en el 3");
         lenteG1.Should().OnlyContain(c => sinLente.Any(s => s.TenantId == c.TenantId), "la lente solo quita entradas");
 
-        var lenteG2 = await ClientesAutorizadosAsync(Solicitud(VistaDemo.GestorCae, _g2, Roles.Administrador));
+        var lenteG2 = await ClientesAutorizadosAsync(Solicitud(VistaDemo.GestorCae, _g2));
         lenteG2.Select(c => c.TenantId).Should().BeEquivalentTo([_operador, _p1, _p3]);
     }
 
@@ -403,12 +425,10 @@ public class VistaDemoLenteTests : IAsyncLifetime
 
     private static IOptions<VistaDemoOptions> Activo(bool activo) => Options.Create(new VistaDemoOptions { Activo = activo });
 
-    private static SolicitudFalsa Solicitud(VistaDemo? vista, Guid? gestor, string? rol) => new(new PeticionVistaDemo(vista, gestor, rol));
+    private static SolicitudFalsa Solicitud(VistaDemo? vista, Guid? gestor) => new(new PeticionVistaDemo(vista, gestor));
 
     private sealed class SolicitudFalsa(PeticionVistaDemo peticion) : ISolicitudVistaDemo
     {
-        public string? RolDelToken => peticion.RolDeSesion;
-
         public Task<PeticionVistaDemo> ObtenerAsync() => Task.FromResult(peticion);
     }
 

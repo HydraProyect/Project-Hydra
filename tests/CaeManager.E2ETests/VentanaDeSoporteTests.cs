@@ -111,7 +111,7 @@ public class VentanaDeSoporteTests(WebAppFixtureVentanaSoporte fixture) : IAsync
     /// Es el tercer perfil de la observación que llevó a #773 (Dirección CAE con
     /// Consulta delegada, Administrador de otro Tenant, Soporte), y el único que
     /// #773 no reprodujo: se suponía una Sesión Privilegiada, donde
-    /// <c>ObtenerRolActualAsync</c> devuelve <c>null</c> sin tocar la base. La
+    /// <c>ObtenerRolEfectivoAsync</c> devuelve <c>null</c> sin tocar la base. La
     /// ventana de Soporte es otra cosa: una <c>DelegacionTenant</c> de propósito
     /// Soporte, sin Sesión Privilegiada, así que el rol se resuelve por la vía
     /// heredada contra el DbContext — el mismo que el layout usa en paralelo

@@ -57,7 +57,7 @@ public class RolEfectivoEnDelegacionTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var servicio = CrearServicio(contexto, tenantSeleccionado: null);
 
-        (await servicio.ObtenerRolActualAsync()).Should().Be("Administrador");
+        (await servicio.ObtenerRolEfectivoAsync()).Should().Be("Administrador");
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public class RolEfectivoEnDelegacionTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var servicio = CrearServicio(contexto, tenantSeleccionado: _clienteDelegante);
 
-        (await servicio.ObtenerRolActualAsync()).Should().Be(
+        (await servicio.ObtenerRolEfectivoAsync()).Should().Be(
             "Consulta", "ser Administrador en la consultora no da privilegios sobre el cliente");
     }
 
@@ -85,7 +85,7 @@ public class RolEfectivoEnDelegacionTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var servicio = CrearServicio(contexto, tenantSeleccionado: _clienteDelegante);
 
-        (await servicio.ObtenerRolActualAsync()).Should().BeNull();
+        (await servicio.ObtenerRolEfectivoAsync()).Should().BeNull();
     }
 
     [Fact]
@@ -94,7 +94,7 @@ public class RolEfectivoEnDelegacionTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var servicio = CrearServicio(contexto, tenantSeleccionado: _clienteDelegante, usuarioId: Guid.NewGuid());
 
-        (await servicio.ObtenerRolActualAsync()).Should().BeNull();
+        (await servicio.ObtenerRolEfectivoAsync()).Should().BeNull();
     }
 
     private CurrentUserService CrearServicio(

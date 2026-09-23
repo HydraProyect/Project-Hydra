@@ -343,7 +343,8 @@ public class CrearTenantPropietarioDeOperadorCaeExternoTests : IAsyncLifetime
     private sealed class CurrentUserServiceFalso(Guid? usuarioId) : ICurrentUserService
     {
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult(usuarioId);
-        public Task<string?> ObtenerRolActualAsync() => Task.FromResult<string?>(null);
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>(null);
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }
