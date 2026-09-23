@@ -21,7 +21,12 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class Vehiculo360Gen2Tests : BunitContext
 {
-    public Vehiculo360Gen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public Vehiculo360Gen2Tests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        // Los textos de Vehículos salen de IStringLocalizer<TextosVehiculos>.
+        Services.AddLocalization();
+    }
 
     private sealed class MediadorFalso : IMediator
     {

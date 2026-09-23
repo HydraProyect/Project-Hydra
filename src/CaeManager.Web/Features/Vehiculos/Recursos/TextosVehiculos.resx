@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="TituloPagina" xml:space="preserve">
+    <value>Vehículos</value>
+  </data>
+  <data name="BotonNuevoVehiculo" xml:space="preserve">
+    <value>+ Nuevo vehículo</value>
+  </data>
+  <data name="PlaceholderBusqueda" xml:space="preserve">
+    <value>Buscar por nombre, modelo o matrícula…</value>
+  </data>
+  <data name="EtiquetaDocumentacion" xml:space="preserve">
+    <value>Documentación</value>
+  </data>
+  <data name="EtiquetaEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="OpcionTodasEmpresas" xml:space="preserve">
+    <value>Todas las empresas</value>
+  </data>
+  <data name="EtiquetaSubcontrata" xml:space="preserve">
+    <value>Subcontrata</value>
+  </data>
+  <data name="OpcionTodasSubcontratas" xml:space="preserve">
+    <value>Todas las subcontratas</value>
+  </data>
+  <data name="ErrorCargaListaTitulo" xml:space="preserve">
+    <value>No pudimos cargar los vehículos</value>
+  </data>
+  <data name="ErrorCargaDetalle" xml:space="preserve">
+    <value>Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="BotonReintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="AriaSeleccionarPagina" xml:space="preserve">
+    <value>Seleccionar los vehículos de esta página</value>
+  </data>
+  <data name="AriaSeleccionarVehiculo" xml:space="preserve">
+    <value>Seleccionar el vehículo {0}</value>
+  </data>
+  <data name="AriaSeleccionarVehiculoMatricula" xml:space="preserve">
+    <value>, matrícula {0}</value>
+  </data>
+  <data name="EtiquetaNombre" xml:space="preserve">
+    <value>Nombre</value>
+  </data>
+  <data name="EtiquetaMatricula" xml:space="preserve">
+    <value>Matrícula</value>
+  </data>
+  <data name="EtiquetaModelo" xml:space="preserve">
+    <value>Modelo</value>
+  </data>
+  <data name="EtiquetaEmpleador" xml:space="preserve">
+    <value>Empleador</value>
+  </data>
+  <data name="ColumnaEmpleador" xml:space="preserve">
+    <value>Empresa / Subcontrata</value>
+  </data>
+  <data name="ColumnaAcciones" xml:space="preserve">
+    <value>Acciones</value>
+  </data>
+  <data name="AccionVer" xml:space="preserve">
+    <value>Ver</value>
+  </data>
+  <data name="AccionEliminar" xml:space="preserve">
+    <value>Eliminar</value>
+  </data>
+  <data name="EtiquetaPaginador" xml:space="preserve">
+    <value>vehículo(s)</value>
+  </data>
+  <data name="VacioFiltrosTitulo" xml:space="preserve">
+    <value>Ningún vehículo con estos filtros</value>
+  </data>
+  <data name="VacioFiltrosDescripcion" xml:space="preserve">
+    <value>Ninguno coincide con la búsqueda ni con los filtros de documentación, empresa o subcontrata.</value>
+  </data>
+  <data name="BotonQuitarFiltros" xml:space="preserve">
+    <value>Quitar los filtros</value>
+  </data>
+  <data name="VacioTitulo" xml:space="preserve">
+    <value>Aún no hay vehículos</value>
+  </data>
+  <data name="VacioDescripcion" xml:space="preserve">
+    <value>Crea el primero para empezar a gestionar su documentación.</value>
+  </data>
+  <data name="DrawerNuevoTitulo" xml:space="preserve">
+    <value>Nuevo vehículo</value>
+  </data>
+  <data name="OpcionSeleccionaEmpresa" xml:space="preserve">
+    <value>Selecciona una empresa…</value>
+  </data>
+  <data name="OpcionSeleccionaSubcontrata" xml:space="preserve">
+    <value>Selecciona una subcontrata…</value>
+  </data>
+  <data name="BotonCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="BotonGuardar" xml:space="preserve">
+    <value>Guardar</value>
+  </data>
+  <data name="ConfirmarEliminarTitulo" xml:space="preserve">
+    <value>¿Eliminar el vehículo {0}?</value>
+  </data>
+  <data name="ConfirmarEliminarMensaje" xml:space="preserve">
+    <value>Se ocultará de las listas activas. Podrás recuperarlo desde Auditoría.</value>
+  </data>
+  <data name="ConfirmarEliminarLoteTitulo" xml:space="preserve">
+    <value>¿Eliminar {0} vehículo(s)?</value>
+  </data>
+  <data name="ConfirmarEliminarLoteMensaje" xml:space="preserve">
+    <value>Se ocultarán de las listas activas. Podrás recuperarlos desde Auditoría.</value>
+  </data>
+  <data name="ErrorSeleccionaEmpresa" xml:space="preserve">
+    <value>Selecciona una empresa.</value>
+  </data>
+  <data name="ErrorSeleccionaSubcontrata" xml:space="preserve">
+    <value>Selecciona una subcontrata.</value>
+  </data>
+  <data name="ToastCreado" xml:space="preserve">
+    <value>Vehículo creado correctamente.</value>
+  </data>
+  <data name="ErrorGuardar" xml:space="preserve">
+    <value>No pudimos guardar los cambios. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="ToastEliminado" xml:space="preserve">
+    <value>Vehículo eliminado correctamente.</value>
+  </data>
+  <data name="ErrorEliminar" xml:space="preserve">
+    <value>No pudimos eliminar el vehículo. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="ToastLoteEliminados" xml:space="preserve">
+    <value>{0} vehículo(s) eliminado(s).</value>
+  </data>
+  <data name="ToastLoteEliminadosConErrores" xml:space="preserve">
+    <value>{0} eliminado(s). {1} no se pudieron borrar: {2}</value>
+  </data>
+  <data name="ErrorEliminarLote" xml:space="preserve">
+    <value>No pudimos eliminar los vehículos seleccionados. Intenta nuevamente.</value>
+  </data>
+  <data name="ErrorCargaVehiculoTitulo" xml:space="preserve">
+    <value>No pudimos cargar el vehículo</value>
+  </data>
+  <data name="AriaEditarInformacion" xml:space="preserve">
+    <value>Editar información del vehículo</value>
+  </data>
+  <data name="EtiquetaSecciones" xml:space="preserve">
+    <value>Secciones del vehículo</value>
+  </data>
+  <data name="PestanaInformacion" xml:space="preserve">
+    <value>Información</value>
+  </data>
+  <data name="PestanaHistorial" xml:space="preserve">
+    <value>Historial</value>
+  </data>
+  <data name="ToastActualizado" xml:space="preserve">
+    <value>Vehículo actualizado correctamente.</value>
+  </data>
+  <data name="ErrorGuardarDe" xml:space="preserve">
+    <value>No pudimos guardar los cambios de {0}. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="AriaVistaPrevia" xml:space="preserve">
+    <value>Vista previa del vehículo</value>
+  </data>
+  <data name="EtiquetaCabeceraPreview" xml:space="preserve">
+    <value>Consulta · Vehículo</value>
+  </data>
+  <data name="Cargando" xml:space="preserve">
+    <value>Cargando…</value>
+  </data>
+  <data name="AriaCerrar" xml:space="preserve">
+    <value>Cerrar</value>
+  </data>
+  <data name="EnlaceVerDocumentacion" xml:space="preserve">
+    <value>Ver toda su documentación →</value>
+  </data>
+  <data name="BotonOperar" xml:space="preserve">
+    <value>Operar →</value>
+  </data>
+  <data name="NotaPieOperar" xml:space="preserve">
+    <value>Abre el workspace del vehículo</value>
+  </data>
+</root>
