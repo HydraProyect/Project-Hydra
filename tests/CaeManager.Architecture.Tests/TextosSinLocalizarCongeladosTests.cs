@@ -103,7 +103,12 @@ public class TextosSinLocalizarCongeladosTests
         ["Plantillas"] = 158,
         ["Plataforma"] = 74,
         ["Retencion"] = 85,
-        ["Subcontratas"] = 225,
+        // 225 → 1 el 2026-09-23 al migrar la Feature a TextosSubcontratas.resx (también la
+        // cabecera del Excel de exportación y los rótulos de EstadoSupervisionUi). Queda
+        // «PDF · JPG · PNG», el FormatosTexto de la zona de evidencia de Subcontrata 360: son
+        // los nombres de los formatos de fichero admitidos, iguales en cualquier idioma (no se
+        // localizan, como las siglas oficiales de TiposDocumento).
+        ["Subcontratas"] = 1,
         // 149 → 6 el 2026-09-23 al migrar la Feature a TextosTiposDocumento.resx. Quedan:
         // «ITA», «RNT» y «RLC», las siglas oficiales de las opciones de PerfilDocumentoOficial
         // (nombre propio del documento de la Administración, igual en cualquier idioma: no se

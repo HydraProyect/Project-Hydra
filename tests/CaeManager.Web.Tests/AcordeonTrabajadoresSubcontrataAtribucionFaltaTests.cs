@@ -25,7 +25,12 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class AcordeonTrabajadoresSubcontrataAtribucionFaltaTests : BunitContext
 {
-    public AcordeonTrabajadoresSubcontrataAtribucionFaltaTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public AcordeonTrabajadoresSubcontrataAtribucionFaltaTests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        // Los textos de Subcontratas salen de IStringLocalizer<TextosSubcontratas>.
+        Services.AddLocalization();
+    }
 
     private sealed class MediatorFalso : IMediator
     {

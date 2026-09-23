@@ -45,6 +45,8 @@ public class SubcontratasListaGen2Tests : BunitContext
     public SubcontratasListaGen2Tests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        // Los textos de Subcontratas salen de IStringLocalizer<TextosSubcontratas>.
+        Services.AddLocalization();
         this.ConRolDeEscritura();
     }
 

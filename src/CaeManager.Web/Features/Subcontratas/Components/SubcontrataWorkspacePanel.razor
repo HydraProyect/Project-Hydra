@@ -66,8 +66,14 @@
 @using FluentValidation
 @using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
 @using MediatR
+@using CaeManager.Web.Features.Subcontratas.Recursos
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@using System.Globalization
 @implements IDisposable
 @inject IMediator Mediator
+@inject IStringLocalizer<TextosSubcontratas> Textos
+@inject IStringLocalizer<TextosComunes> Comunes
 @inject ContextWorkspaceService WorkspaceService
 @inject ToastService ToastService
 
@@ -77,9 +83,9 @@
 }
 else if (_error || _detalle is null)
 {
-    <EstadoVacio Titulo="No pudimos cargar la subcontrata" Descripcion="Intenta nuevamente en unos segundos.">
+    <EstadoVacio Titulo="@Textos["ErrorCargaSubcontrataTitulo"]" Descripcion="@Textos["ErrorIntentaNuevamente"]">
         <Accion>
-            <Boton OnClick="ReintentarAsync">Reintentar</Boton>
+            <Boton OnClick="ReintentarAsync">@Comunes["Reintentar"]</Boton>
         </Accion>
     </EstadoVacio>
 }
@@ -88,13 +94,13 @@ else
     <div class="cabecera-subcontrata-360">
         <span class="icono-subcontrata-360"><Icono Nombre="subcontratas" /></span>
         <div class="texto-cabecera-subcontrata-360">
-            <span class="kicker-subcontrata-360">Subcontrata</span>
+            <span class="kicker-subcontrata-360">@Textos["KickerSubcontrata360"]</span>
             <h2 class="workspace-titulo-entidad titulo-subcontrata-360">@_detalle.RazonSocial</h2>
             <div class="meta-subcontrata-360">
-                <Badge Tono="EstadoSupervisionUi.TonoNivel(_detalle.NivelServicio)" Tamano="TamanoBadge.Pequeno">@EstadoSupervisionUi.TextoNivel(_detalle.NivelServicio)</Badge>
+                <Badge Tono="EstadoSupervisionUi.TonoNivel(_detalle.NivelServicio)" Tamano="TamanoBadge.Pequeno">@EstadoSupervisionUi.TextoNivel(Textos, _detalle.NivelServicio)</Badge>
                 @if (CentrosSinVerificar > 0)
                 {
-                    <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">@(CentrosSinVerificar == 1 ? "1 centro sin verificar" : $"{CentrosSinVerificar} centros sin verificar")</Badge>
+                    <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">@(CentrosSinVerificar == 1 ? Textos["CentrosSinVerificarUno"] : Textos["CentrosSinVerificarVarios", CentrosSinVerificar])</Badge>
                 }
                 @if (TextoRecuentos is { } recuentos)
                 {
@@ -105,7 +111,7 @@ else
     </div>
 
     @* PestanaActiva con @: el parámetro es string, y sin @ Razor le pasa el literal "PestanaActiva" (ninguna pestaña quedaba marcada como activa). *@
-    <Pestanas Definiciones="PestanasConRecuento" PestanaActiva="@PestanaActiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="Secciones de la subcontrata">
+    <Pestanas Definiciones="PestanasConRecuento" PestanaActiva="@PestanaActiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="@Textos["AriaSeccionesSubcontrata"]">
         @switch (PestanaActiva)
         {
             case "informacion":
@@ -115,138 +121,136 @@ else
                     {
                         <div class="alerta-formulario" role="alert">@_mensajeErrorInformacion</div>
                     }
-                    <CampoTexto Etiqueta="Razón social" Valor="@_razonSocialInfo" ValorChanged="v => _razonSocialInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarSubcontrataCommand.RazonSocial))" />
-                    <CampoTexto Etiqueta="Identificación fiscal" Placeholder="CIF, DNI o NIE" Valor="@_cifInfo" ValorChanged="v => _cifInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarSubcontrataCommand.Cif))" />
-                    <SelectorMultiple Etiqueta="Clientes empresariales para los que trabaja"
+                    <CampoTexto Etiqueta="@Textos["RotuloRazonSocial"]" Valor="@_razonSocialInfo" ValorChanged="v => _razonSocialInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarSubcontrataCommand.RazonSocial))" />
+                    <CampoTexto Etiqueta="@Textos["RotuloIdentificacionFiscal"]" Placeholder="@Textos["PlaceholderIdentificacionFiscal"]" Valor="@_cifInfo" ValorChanged="v => _cifInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarSubcontrataCommand.Cif))" />
+                    <SelectorMultiple Etiqueta="@Textos["RotuloClientesEmpresariales"]"
                                        Elementos="@_clientesDisponiblesSelector"
                                        Seleccionados="@_clienteIdsInfo"
                                        OnAlternar="args => AlternarClienteInfo(args.Id, args.Marcado)"
-                                       TextoVacio="Todavía no hay clientes empresariales creados." />
-                    <SelectorMultiple Etiqueta="Empresas a las que presta servicio"
+                                       TextoVacio="@Textos["VacioClientesEmpresarialesSelector"]" />
+                    <SelectorMultiple Etiqueta="@Textos["EtiquetaEmpresasPrestaServicio"]"
                                        Elementos="@_empresasDisponiblesSelector"
                                        Seleccionados="@_empresaIdsInfo"
                                        OnAlternar="args => AlternarEmpresaInfo(args.Id, args.Marcado)"
-                                       TextoVacio="Todavía no hay empresas creadas." />
+                                       TextoVacio="@Textos["VacioEmpresasSelector"]" />
                     <div class="workspace-acciones-edicion">
-                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_guardandoInformacion" OnClick="CancelarEdicionInformacion">Cancelar</Boton>
-                        <Boton Tamano="TamanoBoton.Pequeno" Cargando="_guardandoInformacion" OnClick="GuardarInformacionAsync">Guardar</Boton>
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_guardandoInformacion" OnClick="CancelarEdicionInformacion">@Textos["BotonCancelar"]</Boton>
+                        <Boton Tamano="TamanoBoton.Pequeno" Cargando="_guardandoInformacion" OnClick="GuardarInformacionAsync">@Textos["BotonGuardar"]</Boton>
                     </div>
 
                     <div class="campo">
-                        <label>Credenciales de acceso a plataforma externa</label>
+                        <label>@Textos["RotuloCredencialesPlataformaExterna"]</label>
                     </div>
                     @if (_mensajeErrorCredenciales is not null)
                     {
                         <div class="alerta-formulario" role="alert">@_mensajeErrorCredenciales</div>
                     }
                     <div class="campo-con-boton">
-                        <CampoTexto Etiqueta="URL" Valor="@_credencialUrl" ValorChanged="v => _credencialUrl = v" />
-                        <BotonCopiar Valor="@_credencialUrl" Etiqueta="la URL" />
+                        <CampoTexto Etiqueta="@Textos["RotuloUrl"]" Valor="@_credencialUrl" ValorChanged="v => _credencialUrl = v" />
+                        <BotonCopiar Valor="@_credencialUrl" Etiqueta="@Textos["CopiarLaUrl"]" />
                     </div>
                     <div class="campo-con-boton">
-                        <CampoTexto Etiqueta="Empresa / Cliente / Proveedor" Valor="@_credencialCampoEmpresa" ValorChanged="v => _credencialCampoEmpresa = v" />
-                        <BotonCopiar Valor="@_credencialCampoEmpresa" Etiqueta="este campo" />
+                        <CampoTexto Etiqueta="@Textos["RotuloCampoEmpresa"]" Valor="@_credencialCampoEmpresa" ValorChanged="v => _credencialCampoEmpresa = v" />
+                        <BotonCopiar Valor="@_credencialCampoEmpresa" Etiqueta="@Textos["CopiarEsteCampo"]" />
                     </div>
                     <div class="campo-con-boton">
-                        <CampoTexto Etiqueta="Usuario" Valor="@_credencialUsuario" ValorChanged="v => _credencialUsuario = v" />
-                        <BotonCopiar Valor="@_credencialUsuario" Etiqueta="el usuario" />
+                        <CampoTexto Etiqueta="@Textos["RotuloUsuario"]" Valor="@_credencialUsuario" ValorChanged="v => _credencialUsuario = v" />
+                        <BotonCopiar Valor="@_credencialUsuario" Etiqueta="@Textos["CopiarElUsuario"]" />
                     </div>
                     <div class="campo-con-boton">
-                        <CampoTexto Etiqueta="Contraseña" Type="password" Placeholder="Déjalo en blanco para conservar la actual" Valor="@_credencialContrasena" ValorChanged="v => _credencialContrasena = v" />
-                        <BotonCopiar ValorAsync="ObtenerContrasenaParaCopiarAsync" Etiqueta="la contraseña" />
+                        <CampoTexto Etiqueta="@Textos["RotuloContrasena"]" Type="password" Placeholder="@Textos["PlaceholderContrasenaConservar"]" Valor="@_credencialContrasena" ValorChanged="v => _credencialContrasena = v" />
+                        <BotonCopiar ValorAsync="ObtenerContrasenaParaCopiarAsync" Etiqueta="@Textos["CopiarLaContrasena"]" />
                     </div>
-                    <CampoTextarea Etiqueta="Notas" Valor="@_credencialNotas" ValorChanged="v => _credencialNotas = v" Filas="3" />
+                    <CampoTextarea Etiqueta="@Textos["RotuloNotas"]" Valor="@_credencialNotas" ValorChanged="v => _credencialNotas = v" Filas="3" />
                     <div class="workspace-acciones-edicion">
                         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_guardandoCredenciales" OnClick="GuardarCredencialesAsync">
-                            Guardar credenciales
+                            @Textos["BotonGuardarCredenciales"]
                         </Boton>
                     </div>
                 }
                 else
                 {
                     <div class="rejilla-info-subcontrata-360">
-                        <div class="celda-info-subcontrata-360 celda-info-subcontrata-360-ancha"><span>Razón social</span><strong>@_detalle.RazonSocial</strong></div>
+                        <div class="celda-info-subcontrata-360 celda-info-subcontrata-360-ancha"><span>@Textos["RotuloRazonSocial"]</span><strong>@_detalle.RazonSocial</strong></div>
                         <div class="celda-info-subcontrata-360">
-                            <span>Identificación fiscal</span>
+                            <span>@Textos["RotuloIdentificacionFiscal"]</span>
                             <div class="valor-con-copia-subcontrata-360">
                                 <strong>@(string.IsNullOrWhiteSpace(_detalle.Cif) ? "—" : _detalle.Cif)</strong>
                                 @if (!string.IsNullOrWhiteSpace(_detalle.Cif))
                                 {
-                                    <BotonCopiar Valor="@_detalle.Cif" Etiqueta="la identificación fiscal" />
+                                    <BotonCopiar Valor="@_detalle.Cif" Etiqueta="@Textos["CopiarLaIdentificacionFiscal"]" />
                                 }
                             </div>
                         </div>
-                        <div class="celda-info-subcontrata-360"><span>Nivel de servicio</span><strong>@EstadoSupervisionUi.TextoNivel(_detalle.NivelServicio)</strong></div>
-                        <div class="celda-info-subcontrata-360"><span>Clientes empresariales para los que trabaja</span><strong>@TextoRelaciones(_detalle.ClienteIds, _nombresClientes)</strong></div>
-                        <div class="celda-info-subcontrata-360"><span>Empresas a las que presta servicio</span><strong>@TextoRelaciones(_detalle.EmpresaIds, _nombresEmpresas)</strong></div>
-                        <div class="celda-info-subcontrata-360"><span>Alta</span><strong>@_detalle.CreadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy")</strong></div>
+                        <div class="celda-info-subcontrata-360"><span>@Textos["RotuloNivelServicio"]</span><strong>@EstadoSupervisionUi.TextoNivel(Textos, _detalle.NivelServicio)</strong></div>
+                        <div class="celda-info-subcontrata-360"><span>@Textos["RotuloClientesEmpresariales"]</span><strong>@TextoRelaciones(_detalle.ClienteIds, _nombresClientes)</strong></div>
+                        <div class="celda-info-subcontrata-360"><span>@Textos["EtiquetaEmpresasPrestaServicio"]</span><strong>@TextoRelaciones(_detalle.EmpresaIds, _nombresEmpresas)</strong></div>
+                        <div class="celda-info-subcontrata-360"><span>@Textos["RotuloAlta"]</span><strong>@(_detalle.CreadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy", CultureInfo.CurrentCulture))</strong></div>
                     </div>
 
                     <p class="workspace-nota-contextual">
-                        @(_detalle.NivelServicio == NivelServicioSubcontrata.Gestionada
-                            ? "Gestionada: su documentación se sube y se valida aquí."
-                            : "Supervisada: no se gestionan sus documentos — solo se audita su cumplimiento en las plataformas externas de cada centro (pestaña Supervisión).")
+                        @DescripcionNivel(_detalle.NivelServicio)
                     </p>
 
-                    <section class="tarjeta-acceso-subcontrata-360" aria-label="Acceso al portal">
+                    <section class="tarjeta-acceso-subcontrata-360" aria-label="@Textos["TituloAccesoPortal"]">
                         <div class="cabecera-tarjeta-acceso-subcontrata-360">
-                            <span class="titulo-tarjeta-acceso-subcontrata-360">Acceso al portal</span>
-                            <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">Credenciales de terceros</Badge>
+                            <span class="titulo-tarjeta-acceso-subcontrata-360">@Textos["TituloAccesoPortal"]</span>
+                            <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">@Textos["BadgeCredencialesTerceros"]</Badge>
                         </div>
                         <div class="cuerpo-tarjeta-acceso-subcontrata-360">
                             @if (_credencial is null)
                             {
                                 @if (_errorCredencial)
                                 {
-                                    <p class="texto-secundario" role="alert">No pudimos traer las credenciales. Intenta nuevamente en unos segundos.</p>
+                                    <p class="texto-secundario" role="alert">@Textos["ErrorCredenciales"]</p>
                                 }
                                 else if (_credencialConsultada)
                                 {
-                                    <p class="texto-secundario">No hay credenciales que puedas ver para esta subcontrata.</p>
+                                    <p class="texto-secundario">@Textos["CredencialesNoVisibles"]</p>
                                 }
                                 else
                                 {
-                                    <p class="texto-secundario">Se piden solo cuando las necesitas, no al abrir la ficha.</p>
+                                    <p class="texto-secundario">@Textos["CredencialesSePidenAlNecesitarlas"]</p>
                                 }
                                 <div>
-                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_cargandoCredencial" OnClick="MostrarCredencialAsync">Ver credenciales</Boton>
+                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_cargandoCredencial" OnClick="MostrarCredencialAsync">@Textos["BotonVerCredenciales"]</Boton>
                                 </div>
                             }
                             else
                             {
                                 <div class="rejilla-acceso-subcontrata-360">
                                     <div class="celda-info-subcontrata-360 celda-info-subcontrata-360-ancha">
-                                        <span>URL</span>
+                                        <span>@Textos["RotuloUrl"]</span>
                                         <div class="valor-con-copia-subcontrata-360">
                                             <strong>@(string.IsNullOrWhiteSpace(_credencial.UrlAcceso) ? "—" : _credencial.UrlAcceso)</strong>
                                             @if (!string.IsNullOrWhiteSpace(_credencial.UrlAcceso))
                                             {
-                                                <BotonCopiar Valor="@_credencial.UrlAcceso" Etiqueta="la URL" />
+                                                <BotonCopiar Valor="@_credencial.UrlAcceso" Etiqueta="@Textos["CopiarLaUrl"]" />
                                             }
                                         </div>
                                     </div>
                                     @if (!string.IsNullOrWhiteSpace(_credencial.CampoEmpresa))
                                     {
                                         <div class="celda-info-subcontrata-360 celda-info-subcontrata-360-ancha">
-                                            <span>Empresa / Cliente / Proveedor</span>
+                                            <span>@Textos["RotuloCampoEmpresa"]</span>
                                             <div class="valor-con-copia-subcontrata-360">
                                                 <strong>@_credencial.CampoEmpresa</strong>
-                                                <BotonCopiar Valor="@_credencial.CampoEmpresa" Etiqueta="este campo" />
+                                                <BotonCopiar Valor="@_credencial.CampoEmpresa" Etiqueta="@Textos["CopiarEsteCampo"]" />
                                             </div>
                                         </div>
                                     }
                                     <div class="celda-info-subcontrata-360">
-                                        <span>Usuario</span>
+                                        <span>@Textos["RotuloUsuario"]</span>
                                         <div class="valor-con-copia-subcontrata-360">
                                             <strong>@(string.IsNullOrWhiteSpace(_credencial.Usuario) ? "—" : _credencial.Usuario)</strong>
                                             @if (!string.IsNullOrWhiteSpace(_credencial.Usuario))
                                             {
-                                                <BotonCopiar Valor="@_credencial.Usuario" Etiqueta="el usuario" />
+                                                <BotonCopiar Valor="@_credencial.Usuario" Etiqueta="@Textos["CopiarElUsuario"]" />
                                             }
                                         </div>
                                     </div>
                                     <div class="celda-info-subcontrata-360">
-                                        <span>Contraseña</span>
+                                        <span>@Textos["RotuloContrasena"]</span>
                                         @if (string.IsNullOrEmpty(_credencial.Contrasena))
                                         {
                                             <strong>—</strong>
@@ -255,27 +259,27 @@ else
                                         {
                                             <div class="valor-con-copia-subcontrata-360">
                                                 <strong class="contrasena-subcontrata-360">@(_contrasenaVisible ? _credencial.Contrasena : "••••••••••")</strong>
-                                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" aria-pressed="@(_contrasenaVisible ? "true" : "false")" OnClick="AlternarContrasena">@(_contrasenaVisible ? "Ocultar" : "Revelar")</Boton>
-                                                <BotonCopiar Valor="@_credencial.Contrasena" Etiqueta="la contraseña" />
+                                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" aria-pressed="@(_contrasenaVisible ? "true" : "false")" OnClick="AlternarContrasena">@(_contrasenaVisible ? Textos["BotonOcultarContrasena"] : Textos["BotonRevelarContrasena"])</Boton>
+                                                <BotonCopiar Valor="@_credencial.Contrasena" Etiqueta="@Textos["CopiarLaContrasena"]" />
                                             </div>
                                         }
                                     </div>
                                     @if (!string.IsNullOrWhiteSpace(_credencial.Notas))
                                     {
-                                        <div class="celda-info-subcontrata-360 celda-info-subcontrata-360-ancha"><span>Notas</span><strong class="workspace-texto-notas">@_credencial.Notas</strong></div>
+                                        <div class="celda-info-subcontrata-360 celda-info-subcontrata-360-ancha"><span>@Textos["RotuloNotas"]</span><strong class="workspace-texto-notas">@_credencial.Notas</strong></div>
                                     }
                                 </div>
                                 <div>
-                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="OcultarCredencial">Ocultar credenciales</Boton>
+                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="OcultarCredencial">@Textos["BotonOcultarCredenciales"]</Boton>
                                 </div>
                             }
                         </div>
                     </section>
 
                     <div class="acciones-subcontrata-360">
-                        <Boton Variante="VarianteBoton.Secundario" Cargando="_abriendoEdicion" OnClick="IniciarEdicionInformacionAsync">Editar identidad</Boton>
+                        <Boton Variante="VarianteBoton.Secundario" Cargando="_abriendoEdicion" OnClick="IniciarEdicionInformacionAsync">@Textos["BotonEditarIdentidad"]</Boton>
                         <Boton Variante="VarianteBoton.Secundario" Cargando="_cambiandoNivel" OnClick="ConfirmarCambioNivelAsync">
-                            Cambiar a @EstadoSupervisionUi.TextoNivel(NivelOpuesto)
+                            @Textos["BotonCambiarNivel", EstadoSupervisionUi.TextoNivel(Textos, NivelOpuesto)]
                         </Boton>
                     </div>
                 }
@@ -288,15 +292,15 @@ else
                 }
                 else if (_errorTrabajadores)
                 {
-                    <EstadoVacio Titulo="No pudimos cargar los trabajadores" Descripcion="Intenta nuevamente en unos segundos.">
+                    <EstadoVacio Titulo="@Textos["ErrorCargaTrabajadoresTitulo"]" Descripcion="@Textos["ErrorIntentaNuevamente"]">
                         <Accion>
-                            <Boton OnClick="ReintentarTrabajadoresAsync">Reintentar</Boton>
+                            <Boton OnClick="ReintentarTrabajadoresAsync">@Comunes["Reintentar"]</Boton>
                         </Accion>
                     </EstadoVacio>
                 }
                 else if (_trabajadores is { Count: 0 })
                 {
-                    <EstadoVacio Titulo="Sin trabajadores que puedas ver" Descripcion="Si tu acceso está acotado a una cartera, solo aparecen los trabajadores con una asignación activa en uno de sus centros." />
+                    <EstadoVacio Titulo="@Textos["TrabajadoresVacioTitulo"]" Descripcion="@Textos["TrabajadoresVacioDescripcion"]" />
                 }
                 else if (_trabajadores is not null)
                 {
@@ -317,9 +321,9 @@ else
                 break;
 
             case "documentacion":
-                <EstadoVacio Titulo="Documentación no modelada a nivel de Subcontrata" Descripcion="El modelo de datos actual solo asocia Documentos a Trabajador, Cliente, Empresa o Vehículo — consulta la pestaña Documentación de cada Trabajador de esta subcontrata.">
+                <EstadoVacio Titulo="@Textos["DocumentacionNoModeladaTitulo"]" Descripcion="@Textos["DocumentacionNoModeladaDescripcion"]">
                     <Accion>
-                        <Boton Variante="VarianteBoton.Secundario" OnClick='() => PestanaActivaChanged.InvokeAsync("trabajadores")'>Ver sus trabajadores</Boton>
+                        <Boton Variante="VarianteBoton.Secundario" OnClick='() => PestanaActivaChanged.InvokeAsync("trabajadores")'>@Textos["BotonVerSusTrabajadores"]</Boton>
                     </Accion>
                 </EstadoVacio>
                 break;
@@ -331,31 +335,30 @@ else
                 }
                 else if (_errorSupervision)
                 {
-                    <EstadoVacio Titulo="No pudimos cargar la supervisión" Descripcion="Intenta nuevamente en unos segundos.">
+                    <EstadoVacio Titulo="@Textos["ErrorCargaSupervisionTitulo"]" Descripcion="@Textos["ErrorIntentaNuevamente"]">
                         <Accion>
-                            <Boton OnClick="ReintentarSupervisionAsync">Reintentar</Boton>
+                            <Boton OnClick="ReintentarSupervisionAsync">@Comunes["Reintentar"]</Boton>
                         </Accion>
                     </EstadoVacio>
                 }
                 else if (_supervision is not null)
                 {
                     <p class="texto-supervision-subcontrata-360">
-                        Cumplimiento de la subcontrata en las plataformas externas de cada centro, según las verificaciones
-                        que se registran a mano aquí. El semáforo se calcula con la última verificación y los umbrales del sistema.
+                        @Textos["ExplicacionSupervision"]
                     </p>
                     <div class="acciones-subcontrata-360">
                         <Boton Tamano="TamanoBoton.Pequeno" OnClick="AbrirRegistrarVerificacionAsync" Deshabilitado="@(_supervision.CentrosSeleccionables.Count == 0)">
-                            + Registrar verificación
+                            @Textos["BotonRegistrarVerificacion"]
                         </Boton>
                         <span class="resumen-subcontrata-360">@TextoUltimaVerificacion</span>
                     </div>
 
                     @if (_supervision.Centros.Count == 0)
                     {
-                        <EstadoVacio Titulo="Sin supervisión registrada"
+                        <EstadoVacio Titulo="@Textos["SupervisionVacioTitulo"]"
                                      Descripcion="@(_supervision.CentrosSeleccionables.Count == 0
-                                         ? "Vincula la subcontrata a un Cliente empresarial con Centros para poder verificar su cumplimiento."
-                                         : "Registra la primera verificación para empezar a seguir su cumplimiento externo.")" />
+                                         ? Textos["SupervisionVacioSinCentros"]
+                                         : Textos["SupervisionVacioSinVerificaciones"])" />
                     }
                     else
                     {
@@ -371,20 +374,20 @@ else
                                                 <span>@tipo.TipoDocumentoNombre</span>
                                                 @if (!tipo.Exigido)
                                                 {
-                                                    <Badge Tono="TonoBadge.Neutro">No exigido</Badge>
+                                                    <Badge Tono="TonoBadge.Neutro">@Textos["BadgeNoExigido"]</Badge>
                                                 }
-                                                <Badge Tono="EstadoSupervisionUi.Tono(tipo.Estado)">@EstadoSupervisionUi.Texto(tipo.Estado)</Badge>
+                                                <Badge Tono="EstadoSupervisionUi.Tono(tipo.Estado)">@EstadoSupervisionUi.Texto(Textos, tipo.Estado)</Badge>
                                             </div>
                                             @if (tipo.UltimaVerificacion is { } ultima)
                                             {
                                                 <div class="fila-supervision-detalle texto-secundario">
-                                                    @EstadoSupervisionUi.TextoResultado(ultima.Resultado) el @ultima.FechaVerificacion.ToString("dd/MM/yyyy")@(ultima.ValidoHasta is { } vh ? $" · válido hasta {vh:dd/MM/yyyy}" : string.Empty)
+                                                    @Textos["DetalleUltimaVerificacion", EstadoSupervisionUi.TextoResultado(Textos, ultima.Resultado), ultima.FechaVerificacion.ToString("dd/MM/yyyy", CultureInfo.CurrentCulture)]@(ultima.ValidoHasta is { } vh ? Textos["SufijoValidoHasta", vh.ToString("dd/MM/yyyy", CultureInfo.CurrentCulture)].Value : string.Empty)
                                                     @if (ultima.TieneEvidencia)
                                                     {
-                                                        <a href="@($"/subcontratas/verificaciones/{ultima.Id}/evidencia")" target="_blank" rel="noopener">Ver evidencia</a>
+                                                        <a href="@($"/subcontratas/verificaciones/{ultima.Id}/evidencia")" target="_blank" rel="noopener">@Textos["EnlaceVerEvidencia"]</a>
                                                     }
                                                     @* Nombre contextual: hay un «Eliminar» por verificación, y a secas un lector de pantalla no distingue cuál borra. *@
-                                                    <button type="button" class="enlace-nombre-fila" aria-label="@($"Eliminar la verificación de {tipo.TipoDocumentoNombre} en {centro.CentroNombre}")" @onclick="() => AbrirEliminarVerificacion(ultima.Id)">Eliminar</button>
+                                                    <button type="button" class="enlace-nombre-fila" aria-label="@Textos["AriaEliminarVerificacion", tipo.TipoDocumentoNombre, centro.CentroNombre]" @onclick="() => AbrirEliminarVerificacion(ultima.Id)">@Textos["BotonEliminarVerificacion"]</button>
                                                 </div>
                                                 @if (!string.IsNullOrWhiteSpace(ultima.Observaciones))
                                                 {
@@ -407,26 +410,26 @@ else
                 }
                 else if (_errorCentros)
                 {
-                    <EstadoVacio Titulo="No pudimos cargar los centros" Descripcion="Intenta nuevamente en unos segundos.">
+                    <EstadoVacio Titulo="@Textos["ErrorCargaCentrosTitulo"]" Descripcion="@Textos["ErrorIntentaNuevamente"]">
                         <Accion>
-                            <Boton OnClick="ReintentarCentrosAsync">Reintentar</Boton>
+                            <Boton OnClick="ReintentarCentrosAsync">@Comunes["Reintentar"]</Boton>
                         </Accion>
                     </EstadoVacio>
                 }
                 else if (_centros is { Count: 0 })
                 {
-                    <EstadoVacio Titulo="Sin actividad en ningún centro" Descripcion="Ningún trabajador de esta subcontrata tiene asignaciones activas todavía." />
+                    <EstadoVacio Titulo="@Textos["CentrosVacioTitulo"]" Descripcion="@Textos["CentrosVacioDescripcion"]" />
                 }
                 else if (_centros is not null)
                 {
-                    <p class="workspace-nota-contextual">Centros donde esta subcontrata tiene actividad real (trabajadores con asignación activa).</p>
+                    <p class="workspace-nota-contextual">@Textos["ExplicacionCentros"]</p>
                     <ul class="workspace-lista-entidades">
                         @foreach (var centro in _centros)
                         {
                             <FilaEntidadRelacionada
                                 @key="centro.Id"
                                 Titulo="@centro.Nombre"
-                                Subtitulo="@($"{centro.ClienteRazonSocial} · {centro.TrabajadoresAsignados} trabajador(es)")"
+                                Subtitulo="@Textos["SubtituloCentro", centro.ClienteRazonSocial, centro.TrabajadoresAsignados]"
                                 OnClic="() => AbrirCentroAsync(centro)" />
                         }
                     </ul>
@@ -446,12 +449,12 @@ else
     <DialogoConfirmacion
         Visible="_confirmarEliminarVerificacionVisible"
         VisibleChanged="v => _confirmarEliminarVerificacionVisible = v"
-        Titulo="¿Eliminar esta verificación?"
-        Mensaje="El semáforo volverá a calcularse con la verificación anterior, si la hay."
+        Titulo="@Textos["ConfirmarEliminarVerificacionTitulo"]"
+        Mensaje="@Textos["ConfirmarEliminarVerificacionMensaje"]"
         EnProgreso="_eliminandoVerificacion"
         OnConfirmar="ConfirmarEliminarVerificacionAsync" />
 
-    <Drawer Visible="_drawerVerificacionVisible" VisibleChanged="CerrarDrawerVerificacion" Titulo="Registrar verificación externa"
+    <Drawer Visible="_drawerVerificacionVisible" VisibleChanged="CerrarDrawerVerificacion" Titulo="@Textos["TituloDrawerVerificacion"]"
             CerrarAlHacerClicFuera="@(_mensajeErrorVerificacion is null && !_guardandoVerificacion)">
         <ChildContent>
             @if (_mensajeErrorVerificacion is not null)
@@ -459,34 +462,34 @@ else
                 <div class="alerta-formulario" role="alert">@_mensajeErrorVerificacion</div>
             }
 
-            <CampoSelect Etiqueta="Centro" Valor="@_verificacionCentroId" ValorChanged="v => _verificacionCentroId = v">
-                <option value="">Selecciona un centro…</option>
+            <CampoSelect Etiqueta="@Textos["RotuloCentro"]" Valor="@_verificacionCentroId" ValorChanged="v => _verificacionCentroId = v">
+                <option value="">@Textos["OpcionSeleccionaCentro"]</option>
                 @foreach (var centro in _supervision?.CentrosSeleccionables ?? [])
                 {
                     <option value="@centro.CentroId">@centro.CentroNombre (@centro.ClienteRazonSocial)</option>
                 }
             </CampoSelect>
 
-            <CampoSelect Etiqueta="Tipo de documento" Valor="@_verificacionTipoId" ValorChanged="v => _verificacionTipoId = v">
-                <option value="">Selecciona un tipo…</option>
+            <CampoSelect Etiqueta="@Textos["RotuloTipoDocumento"]" Valor="@_verificacionTipoId" ValorChanged="v => _verificacionTipoId = v">
+                <option value="">@Textos["OpcionSeleccionaTipo"]</option>
                 @foreach (var tipo in _tiposVerificables)
                 {
                     <option value="@tipo.Id">@tipo.Nombre</option>
                 }
             </CampoSelect>
 
-            <CampoSelect Etiqueta="Resultado" Valor="@_verificacionResultado" ValorChanged="v => _verificacionResultado = v">
-                <option value="@nameof(ResultadoVerificacionExterna.Valido)">Válido</option>
-                <option value="@nameof(ResultadoVerificacionExterna.NoValido)">No válido</option>
-                <option value="@nameof(ResultadoVerificacionExterna.NoEncontrado)">No encontrado</option>
+            <CampoSelect Etiqueta="@Textos["RotuloResultado"]" Valor="@_verificacionResultado" ValorChanged="v => _verificacionResultado = v">
+                <option value="@nameof(ResultadoVerificacionExterna.Valido)">@Textos["ResultadoVerificacionValido"]</option>
+                <option value="@nameof(ResultadoVerificacionExterna.NoValido)">@Textos["ResultadoVerificacionNoValido"]</option>
+                <option value="@nameof(ResultadoVerificacionExterna.NoEncontrado)">@Textos["ResultadoVerificacionNoEncontrado"]</option>
             </CampoSelect>
 
-            <CampoTexto Etiqueta="Fecha de verificación" Type="date" Valor="@_verificacionFecha" ValorChanged="v => _verificacionFecha = v" />
-            <CampoTexto Etiqueta="Válido hasta (según la plataforma, opcional)" Type="date" Valor="@_verificacionValidoHasta" ValorChanged="v => _verificacionValidoHasta = v" />
-            <CampoTextarea Etiqueta="Observaciones" Valor="@_verificacionObservaciones" ValorChanged="v => _verificacionObservaciones = v" Filas="3" />
+            <CampoTexto Etiqueta="@Textos["RotuloFechaVerificacion"]" Type="date" Valor="@_verificacionFecha" ValorChanged="v => _verificacionFecha = v" />
+            <CampoTexto Etiqueta="@Textos["RotuloValidoHasta"]" Type="date" Valor="@_verificacionValidoHasta" ValorChanged="v => _verificacionValidoHasta = v" />
+            <CampoTextarea Etiqueta="@Textos["RotuloObservaciones"]" Valor="@_verificacionObservaciones" ValorChanged="v => _verificacionObservaciones = v" Filas="3" />
 
             <div class="campo">
-                <label>Evidencia (captura o justificante — PDF, PNG o JPG, máx. 10 MB, opcional)</label>
+                <label>@Textos["RotuloEvidencia"]</label>
                 <ZonaSoltarArchivo
                     OnChange="ManejarEvidenciaSeleccionadaAsync"
                     Multiple="false"
@@ -495,31 +498,31 @@ else
                     Cargando="false" />
                 @if (_evidenciaNombre is not null)
                 {
-                    <p class="texto-secundario">Adjunto: @_evidenciaNombre</p>
+                    <p class="texto-secundario">@Textos["EvidenciaAdjunta", _evidenciaNombre]</p>
                 }
             </div>
         </ChildContent>
         <Pie>
             <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoVerificacion" OnClick="() => CerrarDrawerVerificacion(false)">
-                Cancelar
+                @Textos["BotonCancelar"]
             </Boton>
             <Boton Cargando="_guardandoVerificacion" OnClick="GuardarVerificacionAsync">
-                Registrar
+                @Textos["BotonRegistrar"]
             </Boton>
         </Pie>
     </Drawer>
 }
 
 @code {
-    private static readonly IReadOnlyList<PestanaDefinicion> _pestanas =
+    private IReadOnlyList<PestanaDefinicion> PestanasBase =>
     [
-        new("informacion", "Información"),
-        new("trabajadores", "Trabajadores"),
-        new("documentacion", "Documentación"),
-        new("supervision", "Supervisión"),
-        new("centros", "Centros"),
-        new("agenda", "Agenda"),
-        new("historial", "Historial")
+        new("informacion", Textos["PestanaInformacion"]),
+        new("trabajadores", Textos["PestanaTrabajadores"]),
+        new("documentacion", Textos["PestanaDocumentacion"]),
+        new("supervision", Textos["PestanaSupervision"]),
+        new("centros", Textos["PestanaCentros"]),
+        new("agenda", Textos["PestanaAgenda"]),
+        new("historial", Textos["PestanaHistorial"])
     ];
 
     /// <summary>Tope de la lista de la pestaña Trabajadores: si hay más, el resumen lo dice.</summary>
@@ -657,7 +660,7 @@ else
 
     /// <summary>Las pestañas con lista llevan su recuento en cuanto se conoce (mismo patrón que PlantillasTab).</summary>
     private IReadOnlyList<PestanaDefinicion> PestanasConRecuento =>
-        _pestanas.Select(p => p.Id switch
+        PestanasBase.Select(p => p.Id switch
         {
             "trabajadores" when _trabajadores is not null => p with { Etiqueta = $"{p.Etiqueta} ({_totalTrabajadores})" },
             "centros" when _centros is not null => p with { Etiqueta = $"{p.Etiqueta} ({_centros.Count})" },
@@ -672,15 +675,21 @@ else
     private int CentrosSinVerificar =>
         _supervision?.Centros.Count(c => c.Tipos.Any(t => t.Exigido && t.Estado == EstadoSupervision.SinVerificar)) ?? 0;
 
+    /// <summary>Qué significa el nivel de servicio actual, bajo la rejilla de información.</summary>
+    private string DescripcionNivel(NivelServicioSubcontrata nivel) =>
+        nivel == NivelServicioSubcontrata.Gestionada
+            ? Textos["DescripcionNivelGestionada360"]
+            : Textos["DescripcionNivelSupervisada360"];
+
     private string? TextoRecuentos
     {
         get
         {
             var partes = new List<string>(2);
             if (_trabajadores is not null)
-                partes.Add(_totalTrabajadores == 1 ? "1 trabajador" : $"{_totalTrabajadores} trabajadores");
+                partes.Add(_totalTrabajadores == 1 ? Textos["MetaTrabajadoresUno"] : Textos["MetaTrabajadoresVarios", _totalTrabajadores]);
             if (_centros is not null)
-                partes.Add(_centros.Count == 1 ? "1 centro" : $"{_centros.Count} centros");
+                partes.Add(_centros.Count == 1 ? Textos["MetaCentrosUno"] : Textos["MetaCentrosVarios", _centros.Count]);
             return partes.Count == 0 ? null : string.Join(" · ", partes);
         }
     }
@@ -691,20 +700,20 @@ else
         {
             var mostrados = _trabajadores?.Count ?? 0;
             return mostrados < _totalTrabajadores
-                ? $"Se muestran {mostrados} de {_totalTrabajadores} trabajadores que puedes ver"
-                : _totalTrabajadores == 1 ? "1 trabajador que puedes ver" : $"{_totalTrabajadores} trabajadores que puedes ver";
+                ? Textos["ResumenTrabajadoresParcial", mostrados, _totalTrabajadores]
+                : _totalTrabajadores == 1 ? Textos["ResumenTrabajadoresUno"] : Textos["ResumenTrabajadoresVarios", _totalTrabajadores];
         }
     }
 
     private string TextoUltimaVerificacion =>
         _supervision?.Centros.SelectMany(c => c.Tipos).Select(t => t.UltimaVerificacion?.FechaVerificacion).Max() is { } fecha
-            ? $"Última verificación registrada el {fecha:dd/MM/yyyy}"
-            : "Todavía no hay verificaciones registradas";
+            ? Textos["UltimaVerificacionRegistrada", fecha.ToString("dd/MM/yyyy", CultureInfo.CurrentCulture)]
+            : Textos["SinVerificacionesRegistradas"];
 
     private string TextoRelaciones(IReadOnlyList<Guid> ids, IReadOnlyDictionary<Guid, string> nombresPorId)
     {
         if (ids.Count == 0) return "—";
-        if (_errorNombres) return ids.Count == 1 ? "1 (no pudimos cargar su nombre)" : $"{ids.Count} (no pudimos cargar sus nombres)";
+        if (_errorNombres) return ids.Count == 1 ? Textos["RelacionesErrorNombresUno"] : Textos["RelacionesErrorNombresVarios", ids.Count];
         if (!_nombresCargados) return ids.Count.ToString();
 
         var nombres = ids.Where(nombresPorId.ContainsKey)
@@ -715,10 +724,10 @@ else
 
         return (nombres.Count, sinNombre) switch
         {
-            (0, 1) => "1 sin nombre visible para ti",
-            (0, var n) => $"{n} sin nombre visible para ti",
+            (0, 1) => Textos["RelacionesSinNombreUno"],
+            (0, var n) => Textos["RelacionesSinNombreVarios", n],
             (_, 0) => string.Join(", ", nombres),
-            (_, var n) => $"{string.Join(", ", nombres)} y {n} más"
+            (_, var n) => Textos["ListaYMas", string.Join(", ", nombres), n]
         };
     }
 
@@ -1051,7 +1060,7 @@ else
         catch (Exception)
         {
             if (generacion == _generacion)
-                ToastService.Mostrar("No pudimos abrir la edición. Intenta nuevamente en unos segundos.", TonoToast.Error);
+                ToastService.Mostrar(Textos["ToastErrorAbrirEdicion"], TonoToast.Error);
         }
         finally
         {
@@ -1074,7 +1083,7 @@ else
         var credencial = await Mediator.Send(new ObtenerCredencialAccesoSubcontrataQuery(_detalle.Id), _cancelacion);
         if (string.IsNullOrEmpty(credencial?.Contrasena))
         {
-            ToastService.Mostrar("No hay ninguna contraseña guardada.", TonoToast.Info);
+            ToastService.Mostrar(Textos["ToastSinContrasenaGuardada"], TonoToast.Info);
             return null;
         }
 
@@ -1124,7 +1133,7 @@ else
                 return;
             }
 
-            ToastService.Mostrar("Subcontrata actualizada correctamente.", TonoToast.Exito);
+            ToastService.Mostrar(Textos["ToastActualizada"], TonoToast.Exito);
             _editandoInformacion = false;
             await CargarCabeceraAsync();
             if (generacion != _generacion) return;
@@ -1140,7 +1149,7 @@ else
         catch (Exception)
         {
             if (generacion == _generacion)
-                _mensajeErrorInformacion = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
+                _mensajeErrorInformacion = Textos["ErrorGuardarCambios"];
         }
         finally
         {
@@ -1179,13 +1188,13 @@ else
                 return;
             }
 
-            ToastService.Mostrar($"Nivel de servicio cambiado a {EstadoSupervisionUi.TextoNivel(nivelDestino)}.", TonoToast.Exito);
+            ToastService.Mostrar(Textos["ToastNivelCambiado", EstadoSupervisionUi.TextoNivel(Textos, nivelDestino)], TonoToast.Exito);
             if (generacion != _generacion) return;
             await CargarCabeceraAsync();
         }
         catch (Exception)
         {
-            ToastService.Mostrar("No pudimos cambiar el nivel de servicio. Intenta nuevamente en unos segundos.", TonoToast.Error);
+            ToastService.Mostrar(Textos["ToastErrorCambiarNivel"], TonoToast.Error);
         }
         finally
         {
@@ -1230,7 +1239,7 @@ else
         catch (Exception)
         {
             if (generacion == _generacion)
-                ToastService.Mostrar("No pudimos preparar el registro de la verificación. Intenta nuevamente en unos segundos.", TonoToast.Error);
+                ToastService.Mostrar(Textos["ToastErrorPrepararVerificacion"], TonoToast.Error);
         }
         finally
         {
@@ -1251,7 +1260,7 @@ else
 
         if (archivo.Size > LimitesArchivoSubido.TamanoMaximoBytes)
         {
-            _mensajeErrorVerificacion = "La evidencia no puede superar los 10 MB.";
+            _mensajeErrorVerificacion = Textos["ErrorEvidenciaDemasiadoGrande"];
             return;
         }
 
@@ -1268,19 +1277,19 @@ else
 
         if (!Guid.TryParse(_verificacionCentroId, out var centroId))
         {
-            _mensajeErrorVerificacion = "Selecciona un centro.";
+            _mensajeErrorVerificacion = Textos["ErrorSeleccionaCentro"];
             return;
         }
 
         if (!Guid.TryParse(_verificacionTipoId, out var tipoId))
         {
-            _mensajeErrorVerificacion = "Selecciona un tipo de documento.";
+            _mensajeErrorVerificacion = Textos["ErrorSeleccionaTipoDocumento"];
             return;
         }
 
         if (!DateOnly.TryParse(_verificacionFecha, out var fecha))
         {
-            _mensajeErrorVerificacion = "Indica la fecha de verificación.";
+            _mensajeErrorVerificacion = Textos["ErrorIndicaFechaVerificacion"];
             return;
         }
 
@@ -1306,7 +1315,7 @@ else
                 return;
             }
 
-            ToastService.Mostrar("Verificación registrada.", TonoToast.Exito);
+            ToastService.Mostrar(Textos["ToastVerificacionRegistrada"], TonoToast.Exito);
             if (generacion != _generacion) return;
             _drawerVerificacionVisible = false;
             await CargarSupervisionAsync();
@@ -1314,12 +1323,12 @@ else
         catch (ValidationException ex)
         {
             if (generacion == _generacion)
-                _mensajeErrorVerificacion = ex.Errors.FirstOrDefault()?.ErrorMessage ?? "Revisa los datos del formulario.";
+                _mensajeErrorVerificacion = ex.Errors.FirstOrDefault()?.ErrorMessage ?? Textos["ErrorRevisaFormulario"];
         }
         catch (Exception)
         {
             if (generacion == _generacion)
-                _mensajeErrorVerificacion = "No pudimos registrar la verificación. Intenta nuevamente en unos segundos.";
+                _mensajeErrorVerificacion = Textos["ErrorRegistrarVerificacion"];
         }
         finally
         {
@@ -1351,14 +1360,14 @@ else
                 return;
             }
 
-            ToastService.Mostrar("Verificación eliminada.", TonoToast.Exito);
+            ToastService.Mostrar(Textos["ToastVerificacionEliminada"], TonoToast.Exito);
             if (generacion != _generacion) return;
             _confirmarEliminarVerificacionVisible = false;
             await CargarSupervisionAsync();
         }
         catch (Exception)
         {
-            ToastService.Mostrar("No pudimos eliminar la verificación. Intenta nuevamente en unos segundos.", TonoToast.Error);
+            ToastService.Mostrar(Textos["ToastErrorEliminarVerificacion"], TonoToast.Error);
         }
         finally
         {
@@ -1394,14 +1403,14 @@ else
                 return;
             }
 
-            ToastService.Mostrar("Credenciales guardadas correctamente.", TonoToast.Exito);
+            ToastService.Mostrar(Textos["ToastCredencialesGuardadas"], TonoToast.Exito);
             // La tarjeta de lectura tenía la versión anterior: se suelta.
             OcultarCredencial();
         }
         catch (Exception)
         {
             if (generacion == _generacion)
-                _mensajeErrorCredenciales = "No pudimos guardar las credenciales. Intenta nuevamente en unos segundos.";
+                _mensajeErrorCredenciales = Textos["ErrorGuardarCredenciales"];
         }
         finally
         {

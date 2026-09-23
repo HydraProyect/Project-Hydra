@@ -50,7 +50,12 @@ namespace CaeManager.Web.Tests;
 public class Subcontrata360Gen2Tests : BunitContext
 {
     /// <summary>BotonCopiar importa ./js/clipboard.js.</summary>
-    public Subcontrata360Gen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public Subcontrata360Gen2Tests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        // Los textos de Subcontratas salen de IStringLocalizer<TextosSubcontratas>.
+        Services.AddLocalization();
+    }
 
     /// <summary>
     /// Responde según los parámetros de cada consulta —el Id de la
