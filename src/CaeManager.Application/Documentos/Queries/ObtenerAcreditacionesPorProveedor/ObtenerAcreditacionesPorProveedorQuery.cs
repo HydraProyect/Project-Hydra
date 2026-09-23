@@ -81,13 +81,22 @@ public record ProveedorAcreditacionesDto(
 
 public record ClienteAcreditacionesDto(Guid ClienteId, string ClienteNombre, IReadOnlyList<AcreditacionDrillDownDto> Documentos);
 
+/// <param name="VencidaEnPlataforma">
+/// True si la vigencia anotada en la plataforma
+/// (<see cref="EstadoVigenciaEnPlataforma.VenceEnFecha"/>) ya pasó: vale hasta
+/// esa fecha inclusive. Se calcula en la misma consulta y con la misma fecha
+/// de hoy que usa <c>IncluirVencidasEnPlataforma</c> para elegir las filas, así
+/// que quien lo lea no necesita volver a comparar fechas ni leer el reloj por
+/// su cuenta (entre las dos lecturas podía cambiar el día).
+/// </param>
 public record AcreditacionDrillDownDto(
     Guid AcreditacionId, Guid DocumentoId, string PropietarioNombre, string TipoDocumentoNombre,
     EstadoAcreditacion Estado, string? UltimoMotivoRechazo,
     Guid? TrabajadorId = null, Guid? EmpresaId = null, Guid? CentroId = null, Guid? TipoDocumentoId = null,
     Guid? CanalGestionDocumentalId = null, string? TrabajadorDni = null,
     EstadoVigenciaEnPlataforma EstadoVigencia = EstadoVigenciaEnPlataforma.SinConfirmar,
-    DateOnly? FechaVencimientoEnPlataforma = null);
+    DateOnly? FechaVencimientoEnPlataforma = null,
+    bool VencidaEnPlataforma = false);
 
 public class ObtenerAcreditacionesPorProveedorQueryHandler(
     IDocumentosQueryContext documentosContext, ICentrosQueryContext centrosContext,
@@ -208,7 +217,9 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
                                 f.Estado, motivosPorAcreditacion.GetValueOrDefault(f.Id),
                                 f.TrabajadorId, f.EmpresaId, f.CentroId, f.TipoDocumentoId,
                                 f.CanalGestionDocumentalId, TrabajadorDni(f.TrabajadorId),
-                                f.EstadoVigencia, f.FechaVencimientoEnPlataforma))
+                                f.EstadoVigencia, f.FechaVencimientoEnPlataforma,
+                                VencidaEnPlataforma: f.EstadoVigencia == EstadoVigenciaEnPlataforma.VenceEnFecha
+                                                     && f.FechaVencimientoEnPlataforma < hoy))
                             .OrderBy(d => d.PropietarioNombre)
                             .ToList()))
                     .OrderBy(c => c.ClienteNombre)

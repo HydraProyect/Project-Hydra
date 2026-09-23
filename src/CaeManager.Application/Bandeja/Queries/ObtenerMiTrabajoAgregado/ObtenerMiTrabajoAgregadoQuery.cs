@@ -179,7 +179,7 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
             ObtenerBandejaGestorQueryHandler.Fusionar(
                     alertas, revisiones, requisitos, visitasUrgentes.Elementos, sugerenciasVisita, detecciones, pendientesPlataforma,
                     hoy, parametros.HorasAvisoVisita, parametros.HorasCriticasVisita)
-                .Concat(MapearVencidasEnPlataforma(pendientesPlataforma, alertas, hoy)));
+                .Concat(MapearVencidasEnPlataforma(pendientesPlataforma, alertas)));
         var proximosSinEmpresa = MapearProximos(alertas);
         var seguimientoSinEmpresa = MapearSeguimiento(pendientesPlataforma);
 
@@ -280,9 +280,12 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
     /// <para>
     /// Solo <see cref="EstadoAcreditacion.Aceptada"/> con
     /// <see cref="EstadoVigenciaEnPlataforma.VenceEnFecha"/> y la fecha
-    /// estrictamente anterior a <paramref name="hoy"/>: la vigencia vale hasta
-    /// esa fecha inclusive (<see cref="VigenciaEnPlataforma.EstaVencidaEl"/>), y
-    /// «sin confirmar» no es estar vencida. Una Rechazada o pendiente de subir
+    /// estrictamente anterior a hoy: la vigencia vale hasta esa fecha inclusive
+    /// (<see cref="VigenciaEnPlataforma.EstaVencidaEl"/>), y «sin confirmar» no
+    /// es estar vencida. La comparación la hace la consulta, con la misma fecha
+    /// con la que elige las filas (<see cref="AcreditacionDrillDownDto.VencidaEnPlataforma"/>):
+    /// aquí no se vuelve a leer el reloj, porque entre las dos lecturas podía
+    /// cambiar el día y perderse una vencida. Una Rechazada o pendiente de subir
     /// ya tiene su propio ítem, y rechazar o renovar reinician la vigencia, así
     /// que no hay dos ítems para la misma acreditación. Una Subida ya reenviada
     /// sigue en Seguimiento.
@@ -296,7 +299,7 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
     /// </para>
     /// </summary>
     public static List<ItemBandejaDto> MapearVencidasEnPlataforma(
-        IReadOnlyList<ProveedorAcreditacionesDto> acreditaciones, IReadOnlyList<AlertaDto> alertas, DateOnly hoy)
+        IReadOnlyList<ProveedorAcreditacionesDto> acreditaciones, IReadOnlyList<AlertaDto> alertas)
     {
         var documentosVencidos = alertas
             .Where(a => a.Estado == EstadoDocumento.Vencido && a.DocumentoId is not null)
@@ -306,8 +309,7 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
         return acreditaciones
             .SelectMany(proveedor => proveedor.Clientes.SelectMany(cliente => cliente.Documentos
                 .Where(d => d.Estado == EstadoAcreditacion.Aceptada
-                            && d.EstadoVigencia == EstadoVigenciaEnPlataforma.VenceEnFecha
-                            && d.FechaVencimientoEnPlataforma is { } fecha && fecha.DayNumber < hoy.DayNumber
+                            && d.VencidaEnPlataforma
                             && !documentosVencidos.Contains(d.DocumentoId))
                 .Select(d => new ItemBandejaDto(
                     Id: $"plataforma-vencida-{d.AcreditacionId}",

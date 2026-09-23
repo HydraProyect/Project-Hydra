@@ -166,7 +166,8 @@ public class ObtenerMiTrabajoAgregadoQueryHandlerTests
     private static readonly DateOnly Hoy = new(2026, 9, 23);
 
     private static ProveedorAcreditacionesDto Acreditacion(
-        EstadoAcreditacion estado, EstadoVigenciaEnPlataforma vigencia, DateOnly? vence, Guid? documentoId = null) => new(
+        EstadoAcreditacion estado, EstadoVigenciaEnPlataforma vigencia, DateOnly? vence, bool vencida,
+        Guid? documentoId = null) => new(
         ProveedorPlataformaCaeId: Guid.NewGuid(), ProveedorNombre: "Dokify", ProveedorCodigo: "dokify",
         Clientes: [new ClienteAcreditacionesDto(
             ClienteId: Guid.NewGuid(), ClienteNombre: "Cliente Norte S.A.",
@@ -174,10 +175,18 @@ public class ObtenerMiTrabajoAgregadoQueryHandlerTests
                 AcreditacionId: Guid.NewGuid(), DocumentoId: documentoId ?? Guid.NewGuid(), PropietarioNombre: "Iker Etxeberria",
                 TipoDocumentoNombre: "Formación 60h", Estado: estado, UltimoMotivoRechazo: null,
                 TrabajadorId: Guid.NewGuid(), CentroId: Guid.NewGuid(),
-                EstadoVigencia: vigencia, FechaVencimientoEnPlataforma: vence)])]);
+                EstadoVigencia: vigencia, FechaVencimientoEnPlataforma: vence,
+                VencidaEnPlataforma: vencida)])]);
 
-    private static ProveedorAcreditacionesDto AceptadaQueVence(DateOnly vence, Guid? documentoId = null) =>
-        Acreditacion(EstadoAcreditacion.Aceptada, EstadoVigenciaEnPlataforma.VenceEnFecha, vence, documentoId);
+    /// <summary>
+    /// Aceptada con la vigencia vencida tal como la marca la consulta
+    /// (<see cref="AcreditacionDrillDownDto.VencidaEnPlataforma"/>). La frontera
+    /// de fecha (hoy, vigente, sin confirmar) se prueba contra PostgreSQL en
+    /// <c>ObtenerAcreditacionesPorProveedorQueryTests</c>, que es quien compara.
+    /// </summary>
+    private static ProveedorAcreditacionesDto AceptadaVencida(Guid? documentoId = null) =>
+        Acreditacion(EstadoAcreditacion.Aceptada, EstadoVigenciaEnPlataforma.VenceEnFecha, Hoy.AddDays(-1),
+            vencida: true, documentoId);
 
     /// <summary>
     /// P12 (2026-09-23): la acreditación aceptada cuya vigencia en la plataforma
@@ -187,10 +196,10 @@ public class ObtenerMiTrabajoAgregadoQueryHandlerTests
     [Fact]
     public void MapearVencidasEnPlataforma_incluye_la_aceptada_con_la_vigencia_vencida()
     {
-        var vencida = AceptadaQueVence(Hoy.AddDays(-1));
+        var vencida = AceptadaVencida();
         var acreditacion = vencida.Clientes.Single().Documentos.Single();
 
-        var item = ObtenerMiTrabajoAgregadoQueryHandler.MapearVencidasEnPlataforma([vencida], [], Hoy)
+        var item = ObtenerMiTrabajoAgregadoQueryHandler.MapearVencidasEnPlataforma([vencida], [])
             .Should().ContainSingle().Subject;
 
         item.Tipo.Should().Be(TipoItemBandeja.PlataformaVencida);
@@ -203,24 +212,21 @@ public class ObtenerMiTrabajoAgregadoQueryHandlerTests
         ObtenerMiTrabajoAgregadoQueryHandler.EsBloqueo(item).Should().BeTrue();
     }
 
-    /// <summary>La vigencia vale hasta su fecha inclusive: el mismo día aún vale.</summary>
+    /// <summary>
+    /// El mapeador no vuelve a comparar fechas: una aceptada que la consulta no
+    /// marcó como vencida (vigente, vence hoy, sin confirmar, no vence aquí) no
+    /// entra, aunque su fecha ya haya pasado respecto al reloj de quien la lee.
+    /// </summary>
     [Fact]
-    public void MapearVencidasEnPlataforma_excluye_la_vigente_y_la_que_vence_hoy()
-    {
-        ObtenerMiTrabajoAgregadoQueryHandler.MapearVencidasEnPlataforma(
-            [AceptadaQueVence(Hoy.AddDays(30)), AceptadaQueVence(Hoy)], [], Hoy).Should().BeEmpty();
-    }
-
-    /// <summary>«Sin confirmar» es no saberlo, no estar vencida; «no vence aquí» no vence.</summary>
-    [Fact]
-    public void MapearVencidasEnPlataforma_excluye_la_vigencia_sin_confirmar_y_la_que_no_vence()
+    public void MapearVencidasEnPlataforma_excluye_la_aceptada_que_la_consulta_no_marco_vencida()
     {
         ObtenerMiTrabajoAgregadoQueryHandler.MapearVencidasEnPlataforma(
             [
-                Acreditacion(EstadoAcreditacion.Aceptada, EstadoVigenciaEnPlataforma.SinConfirmar, null),
-                Acreditacion(EstadoAcreditacion.Aceptada, EstadoVigenciaEnPlataforma.NoVenceAqui, null),
+                Acreditacion(EstadoAcreditacion.Aceptada, EstadoVigenciaEnPlataforma.VenceEnFecha, Hoy.AddDays(-1), vencida: false),
+                Acreditacion(EstadoAcreditacion.Aceptada, EstadoVigenciaEnPlataforma.SinConfirmar, null, vencida: false),
+                Acreditacion(EstadoAcreditacion.Aceptada, EstadoVigenciaEnPlataforma.NoVenceAqui, null, vencida: false),
             ],
-            [], Hoy).Should().BeEmpty();
+            []).Should().BeEmpty();
     }
 
     /// <summary>
@@ -235,7 +241,8 @@ public class ObtenerMiTrabajoAgregadoQueryHandlerTests
     public void MapearVencidasEnPlataforma_solo_toma_aceptadas(EstadoAcreditacion estado)
     {
         ObtenerMiTrabajoAgregadoQueryHandler.MapearVencidasEnPlataforma(
-            [Acreditacion(estado, EstadoVigenciaEnPlataforma.VenceEnFecha, Hoy.AddDays(-5))], [], Hoy).Should().BeEmpty();
+            [Acreditacion(estado, EstadoVigenciaEnPlataforma.VenceEnFecha, Hoy.AddDays(-5), vencida: true)], [])
+            .Should().BeEmpty();
     }
 
     /// <summary>
@@ -255,8 +262,8 @@ public class ObtenerMiTrabajoAgregadoQueryHandlerTests
         };
 
         var resultado = ObtenerMiTrabajoAgregadoQueryHandler.MapearVencidasEnPlataforma(
-            [AceptadaQueVence(Hoy.AddDays(-1), documentoVencido), AceptadaQueVence(Hoy.AddDays(-1), documentoUrgente)],
-            alertas, Hoy);
+            [AceptadaVencida(documentoVencido), AceptadaVencida(documentoUrgente)],
+            alertas);
 
         resultado.Should().ContainSingle().Which.DocumentoId.Should().Be(documentoUrgente);
     }
