@@ -373,7 +373,12 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
         // Simula el cliente que ya se fue: el único CancellationToken que llega a
         // las consultas de la revalidación es contexto.RequestAborted (ver
         // SigueAutorizadoAsync), así que cancelarlo de antemano es determinista —no
-        // hace falta una carrera real contra el tiempo.
+        // hace falta una carrera real contra el tiempo. Hueco declarado (revisión
+        // puente, 2026-09-23): esto prueba el tipo de excepción y el guard, no la
+        // cancelación real de Npgsql a mitad de una consulta en vuelo —un token ya
+        // cancelado hace que AnyAsync falle antes de abrir el socket, un camino de
+        // código distinto del medido en el E2E real. Ese camino ya está cubierto
+        // por la investigación de decompilación citada arriba, no por este test.
         httpContext.RequestAborted = new CancellationToken(canceled: true);
 
         var logger = new LoggerCapturador<RevalidacionClienteActivoMiddleware>();
@@ -397,8 +402,38 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
         httpContext.Response.StatusCode.Should().Be(StatusCodes.Status499ClientClosedRequest);
 
         logger.Entradas.Should().ContainSingle();
-        logger.Entradas[0].Nivel.Should().Be(LogLevel.Debug,
-            "una petición abortada por el cliente no es un error del servidor");
+        logger.Entradas[0].Nivel.Should().Be(LogLevel.Information,
+            "una petición abortada por el cliente no es un error del servidor, pero debe quedar registrada, no en silencio");
+    }
+
+    /// <summary>
+    /// Cierra el hueco declarado del guard: una OperationCanceledException que NO
+    /// viene de contexto.RequestAborted (p. ej. un timeout de comando, o cualquier
+    /// otra cancelación ajena al cliente) debe seguir subiendo como el error que
+    /// es, no tratarse como aborto de cliente. httpContext.RequestAborted se deja
+    /// SIN cancelar a propósito: así el "when" del guard es falso y el catch no
+    /// debe atrapar nada (revisión puente, 2026-09-23).
+    /// </summary>
+    [Fact]
+    public async Task Cancelacion_ajena_al_cliente_durante_la_revalidacion_sigue_propagando_como_error()
+    {
+        await using var contexto = CrearContexto();
+
+        var token = ClienteActivoSeleccionado.Proteger(
+            _protector, _usuario, _clienteDelegante, asignacionOperacionId: null, sesionPrivilegiadaId: Guid.NewGuid());
+        var httpContext = new DefaultHttpContext { User = UsuarioAutenticado(_usuario) };
+        httpContext.Request.Headers.Cookie = $"{ClienteActivoSeleccionado.NombreCookie}={token}";
+        var seleccion = new ClienteActivoSeleccionado(new HttpContextAccessorFalso(httpContext), _protector);
+
+        var middleware = new RevalidacionClienteActivoMiddleware(_ => Task.CompletedTask);
+
+        var accion = () => middleware.InvokeAsync(
+            httpContext, seleccion, new CurrentUserServiceParaMiddlewareFalso(_usuario),
+            contexto, (IOperacionesQueryContext)contexto, new SesionPrivilegiadaActualQueLanzaCancelacionAjena(),
+            NullLogger<RevalidacionClienteActivoMiddleware>.Instance);
+
+        await accion.Should().ThrowAsync<OperationCanceledException>(
+            "una cancelación que no es RequestAborted no es un aborto de cliente");
     }
 
     // Estos tests son de plano 2 y de la vía heredada: ninguno abre una sesión
@@ -409,6 +444,20 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
     {
         public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<SesionPrivilegiadaActiva?>(null);
+
+        public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<SesionPrivilegiadaActiva?>(null);
+    }
+
+    /// <summary>
+    /// El doble de arriba nunca abre sesión; este simula una cancelación que no
+    /// tiene nada que ver con el cliente que se fue —el mismo sabor de excepción,
+    /// una fuente distinta— para probar que el guard no la confunde con la otra.
+    /// </summary>
+    private sealed class SesionPrivilegiadaActualQueLanzaCancelacionAjena : ISesionPrivilegiadaActual
+    {
+        public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default) =>
+            throw new OperationCanceledException("cancelación ajena al cliente, p. ej. un timeout de comando");
 
         public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<SesionPrivilegiadaActiva?>(null);

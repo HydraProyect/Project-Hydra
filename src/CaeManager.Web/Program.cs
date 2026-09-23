@@ -130,10 +130,16 @@ builder.Host.UseSerilog((context, services, loggerConfiguration) =>
 // error genérica ya existente (ver ARCHITECTURE.md, "Excepciones reservadas
 // para errores verdaderamente inesperados"). EXCEPCIÓN medida (2026-09-23,
 // ver RevalidacionClienteActivoMiddleware): una petición abortada por el
-// cliente (OperationCanceledException de contexto.RequestAborted) no llega
-// hasta aquí en absoluto si el propio middleware ya la capturó antes —
-// y por eso Sentry tampoco la ve, a diferencia de lo que dice el párrafo de
-// arriba para el resto de excepciones.
+// cliente (OperationCanceledException de contexto.RequestAborted) nunca llega
+// hasta aquí —ese middleware la captura él mismo, en cualquier entorno,
+// antes de que se propague hasta este envoltorio de Sentry. No es un caso
+// nuevo de "Sentry no ve esto": en producción (fuera de Development) ya no
+// lo veía ANTES de que existiera ese middleware, porque
+// Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddleware trata ese mismo
+// caso a su vez (499, log a Debug de su propio logger, sin fijar
+// IExceptionHandlerFeature.Error, sin relanzar — confirmado por
+// decompilación). Lo que ese middleware nuevo cierra es Development, el
+// único entorno donde faltaba ese tratamiento y la excepción subía cruda.
 builder.WebHost.UseSentry(options =>
 {
     options.Dsn = builder.Configuration["Sentry:Dsn"] ?? string.Empty;

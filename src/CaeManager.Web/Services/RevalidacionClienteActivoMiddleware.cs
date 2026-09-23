@@ -94,7 +94,16 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
                 // abajo, así que hoy la condición siempre es cierta si el tipo de
                 // excepción coincide; se deja explícita para no tener que revisarla el
                 // día que eso deje de ser verdad.
-                logger.LogDebug(
+                //
+                // A Information, no a Debug: el objetivo pedido era que esto quedara
+                // REGISTRADO como abortada, no que desapareciera. Con
+                // Serilog:MinimumLevel:Default=Information de appsettings.json y sin
+                // override para este namespace, un LogDebug aquí no llega a ningún
+                // sink en ningún entorno real de esta app —a diferencia del
+                // ExceptionHandlerMiddleware de framework, que si loguea a Debug es
+                // porque corre bajo su propia configuración, no la de Serilog de esta
+                // app (hallazgo de la revisión puente, 2026-09-23).
+                logger.LogInformation(
                     "Revalidación de Workspace operativo derivado abortada en {Ruta}: el cliente canceló la petición.",
                     contexto.Request.Path);
 
@@ -146,12 +155,28 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
                 }
                 catch (OperationCanceledException) when (contexto.RequestAborted.IsCancellationRequested)
                 {
-                    logger.LogDebug(
+                    logger.LogInformation(
                         "Revalidación de Workspace operativo derivado abortada en {Ruta}: el cliente canceló la petición.",
                         contexto.Request.Path);
 
                     if (!contexto.Response.HasStarted)
                         contexto.Response.StatusCode = StatusCodes.Status499ClientClosedRequest;
+
+                    // A diferencia del catch de arriba: aquí !sigueAutorizado ya está
+                    // decidido —EsVentanaDeSoporteAsync solo elige el texto del aviso,
+                    // nunca la autorización—, así que invalidar no debe esperar a la
+                    // próxima petición solo porque esta se abortó a medio camino.
+                    // Es seguro hacerlo aquí y no antes de la consulta (hallazgo de la
+                    // revisión puente, 2026-09-23): EsVentanaDeSoporteAsync solo puede
+                    // cancelarse a mitad de un await, y sus dos únicas lecturas de
+                    // SesionPrivilegiadaIdSeleccionada/AsignacionOperacionIdSeleccionada son
+                    // síncronas y ocurren antes de cualquier await —si llegó a cancelarse
+                    // es porque ya pasó esas dos lecturas, así que Invalidar() no les quita
+                    // nada que aún no se hubiera consultado.
+                    if (clienteActivoSeleccionado is ClienteActivoSeleccionado seleccionAbortada)
+                        seleccionAbortada.Invalidar();
+
+                    contexto.Response.Cookies.Delete(ClienteActivoSeleccionado.NombreCookie);
 
                     return;
                 }
