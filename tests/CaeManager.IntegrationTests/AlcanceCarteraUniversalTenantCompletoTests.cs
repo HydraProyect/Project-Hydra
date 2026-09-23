@@ -139,7 +139,10 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
         a.Empresas.Should().NotBeNull().And.Contain([e.Propia, e.OtraPropia]);
         a.EmpresasGestion.Should().NotBeNull().And.Contain([e.Propia, e.OtraPropia]);
         a.Subcontratas.Should().NotBeNull().And.Contain(e.Subcontrata, "una Subcontrata sin Relación Empresarial también es del Tenant");
-        a.SubcontratasGestion.Should().NotBeNull().And.Contain(e.Subcontrata);
+        // Los Commands de Subcontrata cargan la Empresa sin comprobar su tipo: si esta lista trajera
+        // la Empresa propia o un Cliente empresarial, se podrían tratar como Subcontrata.
+        a.SubcontratasGestion.Should().NotBeNull().And.Contain(e.Subcontrata)
+            .And.NotContain([e.Propia, e.OtraPropia, e.Cliente], "solo las Empresas que son Subcontrata");
         a.Trabajadores.Should().NotBeNull().And.Contain([e.TrabajadorPropio, e.TrabajadorDeSubcontrata],
             "un Trabajador de Subcontrata sin Asignación también es del Tenant");
         a.Vehiculos.Should().NotBeNull().And.Contain([e.VehiculoPropio, e.VehiculoDeSubcontrata]);
@@ -161,6 +164,45 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
         await OtorgarCarteraAsync(_tenant, gestor, AmbitoAsignacion.Universal);
 
         DebeAlcanzarTodoElTenant(await MedirAsync(gestor, "GestorCae", _tenant), e);
+    }
+
+    [Fact]
+    public async Task Gestor_con_cartera_universal_alcanza_el_Tenant_aunque_no_tenga_ningun_Cliente_empresarial()
+    {
+        // Un Tenant Outbound recién incorporado puede tener solo su Empresa propia y Subcontratas.
+        // Que la lista de Clientes salga vacía no puede cortar las demás ramas.
+        Guid propia, subcontrata, centro, trabajadorPropio, trabajadorSub, vehiculoSub;
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            var p = new Empresa("Empresa propia sin Clientes", "B10380194");
+            var s = Empresa.CrearComoSubcontrata("Subcontrata sin Clientes", null, "Estandar");
+            contexto.Empresas.AddRange(p, s);
+            await contexto.SaveChangesAsync();
+            var c = new Centro(p.Id, p.Id, "Centro propio");
+            var tp = Trabajador.DeEmpresa(p.Id, "Nora", "Vidal", "12345678Z");
+            var ts = Trabajador.DeSubcontrata(s.Id, "Leo", "Mas", "11111111H");
+            var vs = Vehiculo.DeSubcontrata(s.Id, "Camión", "Modelo", "5678DEF");
+            contexto.Centros.Add(c);
+            contexto.Trabajadores.AddRange(tp, ts);
+            contexto.Vehiculos.Add(vs);
+            await contexto.SaveChangesAsync();
+            (propia, subcontrata, centro, trabajadorPropio, trabajadorSub, vehiculoSub) = (p.Id, s.Id, c.Id, tp.Id, ts.Id, vs.Id);
+        }
+        var gestor = Guid.NewGuid();
+        await OtorgarCarteraAsync(_tenant, gestor, AmbitoAsignacion.Universal);
+
+        var a = await MedirAsync(gestor, "GestorCae", _tenant);
+
+        using var _ = new AssertionScope();
+        a.Clientes.Should().NotBeNull().And.BeEmpty("el Tenant no tiene ningún Cliente empresarial");
+        a.Centros.Should().NotBeNull().And.Contain(centro);
+        a.CentrosGestion.Should().NotBeNull().And.Contain(centro);
+        a.Empresas.Should().NotBeNull().And.Contain(propia);
+        a.EmpresasGestion.Should().NotBeNull().And.Contain(propia);
+        a.Subcontratas.Should().NotBeNull().And.Contain(subcontrata);
+        a.SubcontratasGestion.Should().NotBeNull().And.Contain(subcontrata);
+        a.Trabajadores.Should().NotBeNull().And.Contain([trabajadorPropio, trabajadorSub]);
+        a.Vehiculos.Should().NotBeNull().And.Contain(vehiculoSub);
     }
 
     [Fact]

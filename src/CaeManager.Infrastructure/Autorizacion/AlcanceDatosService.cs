@@ -278,10 +278,12 @@ public class AlcanceDatosService(
     /// dependen de estas listas y quedan fuera— y las listas son EXPLÍCITAS, no null, porque varios
     /// consumidores leen null sin acceso total como denegación (p. ej. EnviarReclamacionCommand).
     /// Clientes: todos los Clientes empresariales del Tenant (<c>EsCritico != null</c>), como hacía
-    /// ya la cartera universal. El resto de ramas: la tabla entera del Tenant —Empresas y
-    /// Subcontratas, toda Empresa: superconjunto que filtra igual que null, porque cada lector ya
-    /// acota su propio tipo—, ya no lo que se deriva de los Clientes. El dbContext ya está acotado
-    /// al Tenant actual (RLS + filtro global), así que no cruza Tenants.
+    /// ya la cartera universal. Empresas: toda Empresa. Subcontratas: toda Empresa con
+    /// <c>NivelServicio</c>, tenga o no Relación —no un superconjunto, porque los Commands de
+    /// Subcontrata no comprueban el tipo y confían en esta lista—. Centros, Trabajadores y
+    /// Vehículos: la tabla entera. Todo ello aunque el Tenant no tenga ningún Cliente empresarial:
+    /// cada rama mira el Tenant entero antes de cortar por lista de Clientes vacía. El dbContext ya
+    /// está acotado al Tenant actual (RLS + filtro global), así que no cruza Tenants.
     /// </para>
     /// </summary>
     private async Task<bool> AlcanzaTenantEnteroPorCarteraAsync(CancellationToken cancellationToken) =>
@@ -456,9 +458,11 @@ public class AlcanceDatosService(
         IReadOnlyList<Guid>? resultado = clienteIds switch
         {
             null => null,
-            { Count: 0 } => [],
+            // Antes que el corte por lista vacía: un Tenant sin ningún Cliente empresarial sigue
+            // siendo entero para una cartera universal.
             _ when await AlcanzaTenantEnteroPorCarteraAsync(cancellationToken) =>
                 await dbContext.Centros.Select(c => c.Id).ToListAsync(cancellationToken),
+            { Count: 0 } => [],
             _ => await dbContext.Centros
                 .Where(c => clienteIds.Contains(c.ClienteId))
                 .Select(c => c.Id)
@@ -518,6 +522,15 @@ public class AlcanceDatosService(
         var generacion = _generacion;
         if (_empresaIds.TryGetValue(tenant, out var cacheado)) return cacheado;
 
+        // Antes que el corte por lista vacía: un Tenant sin ningún Cliente empresarial sigue siendo
+        // entero para una cartera universal.
+        if (await AlcanzaTenantEnteroPorCarteraAsync(cancellationToken))
+        {
+            var todas = await TodasLasEmpresasDelTenantAsync(cancellationToken);
+            Memoizar(_empresaIds, tenant, generacion, todas);
+            return todas;
+        }
+
         var clienteIds = await ObtenerClienteIdsVisiblesAsync(cancellationToken);
 
         if (clienteIds is null || clienteIds.Count == 0)
@@ -525,13 +538,6 @@ public class AlcanceDatosService(
             var vacioOSinRestriccion = clienteIds is null ? null : (IReadOnlyList<Guid>)[];
             Memoizar(_empresaIds, tenant, generacion, vacioOSinRestriccion);
             return vacioOSinRestriccion;
-        }
-
-        if (await AlcanzaTenantEnteroPorCarteraAsync(cancellationToken))
-        {
-            var todas = await TodasLasEmpresasDelTenantAsync(cancellationToken);
-            Memoizar(_empresaIds, tenant, generacion, todas);
-            return todas;
         }
 
         var porCentro = dbContext.Centros.Where(c => clienteIds.Contains(c.ClienteId)).Select(c => c.EmpresaId);
@@ -593,6 +599,19 @@ public class AlcanceDatosService(
         var generacion = _generacion;
         if (_subcontrataIds.TryGetValue(tenant, out var cacheado)) return cacheado;
 
+        // Antes que el corte por lista vacía: un Tenant sin ningún Cliente empresarial sigue siendo
+        // entero para una cartera universal.
+        // Tenant entero: toda Subcontrata (NivelServicio != null), tenga o no Relación. No todas las
+        // Empresas: los Commands de Subcontrata cargan la Empresa sin comprobar su tipo y confían en
+        // esta lista, así que con un superconjunto la Empresa propia o un Cliente empresarial
+        // podrían tratarse como Subcontrata.
+        if (await AlcanzaTenantEnteroPorCarteraAsync(cancellationToken))
+        {
+            var todas = await dbContext.Empresas.Where(e => e.NivelServicio != null).Select(e => e.Id).ToListAsync(cancellationToken);
+            Memoizar(_subcontrataIds, tenant, generacion, todas);
+            return todas;
+        }
+
         var clienteIds = await ObtenerClienteIdsVisiblesAsync(cancellationToken);
 
         if (clienteIds is null || clienteIds.Count == 0)
@@ -600,15 +619,6 @@ public class AlcanceDatosService(
             var vacioOSinRestriccion = clienteIds is null ? null : (IReadOnlyList<Guid>)[];
             Memoizar(_subcontrataIds, tenant, generacion, vacioOSinRestriccion);
             return vacioOSinRestriccion;
-        }
-
-        // Tenant entero: toda Empresa, no solo las marcadas con NivelServicio — superconjunto que
-        // filtra igual que null (ver AlcanzaTenantEnteroPorCarteraAsync).
-        if (await AlcanzaTenantEnteroPorCarteraAsync(cancellationToken))
-        {
-            var todas = await TodasLasEmpresasDelTenantAsync(cancellationToken);
-            Memoizar(_subcontrataIds, tenant, generacion, todas);
-            return todas;
         }
 
         var empresaIds = await ObtenerEmpresaIdsVisiblesAsync(cancellationToken) ?? [];
@@ -660,6 +670,15 @@ public class AlcanceDatosService(
         var generacion = _generacion;
         if (_trabajadorIds.TryGetValue(tenant, out var cacheado)) return cacheado;
 
+        // Antes que el corte por lista vacía: un Tenant sin ningún Cliente empresarial sigue siendo
+        // entero para una cartera universal.
+        if (await AlcanzaTenantEnteroPorCarteraAsync(cancellationToken))
+        {
+            var todos = await dbContext.Trabajadores.Select(t => t.Id).ToListAsync(cancellationToken);
+            Memoizar(_trabajadorIds, tenant, generacion, todos);
+            return todos;
+        }
+
         var clienteIds = await ObtenerClienteIdsVisiblesAsync(cancellationToken);
 
         if (clienteIds is null || clienteIds.Count == 0)
@@ -667,13 +686,6 @@ public class AlcanceDatosService(
             var vacioOSinRestriccion = clienteIds is null ? null : (IReadOnlyList<Guid>)[];
             Memoizar(_trabajadorIds, tenant, generacion, vacioOSinRestriccion);
             return vacioOSinRestriccion;
-        }
-
-        if (await AlcanzaTenantEnteroPorCarteraAsync(cancellationToken))
-        {
-            var todos = await dbContext.Trabajadores.Select(t => t.Id).ToListAsync(cancellationToken);
-            Memoizar(_trabajadorIds, tenant, generacion, todos);
-            return todos;
         }
 
         var centroIds = await ObtenerCentroIdsVisiblesAsync(cancellationToken) ?? [];
