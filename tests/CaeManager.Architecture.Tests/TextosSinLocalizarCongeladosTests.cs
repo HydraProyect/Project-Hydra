@@ -65,7 +65,6 @@ public class TextosSinLocalizarCongeladosTests
         ["Components/Workspace"] = 58,
         ["Comunicaciones"] = 316,
         ["Configuracion"] = 104,
-        ["Cumplimiento"] = 11,
         ["Dashboard"] = 57,
         ["DashboardEjecutivo"] = 89,
         ["Delegaciones"] = 97,
@@ -138,6 +137,8 @@ public class TextosSinLocalizarCongeladosTests
     [InlineData("<p>Sin resultados</p>", "Sin resultados")]
     [InlineData("<p>Hay @total documentos</p>", "Hay documentos")]
     [InlineData("<span>@(x ? \"Vigente\" : \"Caducado\")</span>", "Vigente")]
+    // La entidad se ignora solo para exigir letras: el texto de alrededor cuenta.
+    [InlineData("<p>Sin&nbsp;datos</p>", "Sin&nbsp;datos")]
     public void El_detector_ve_texto_de_interfaz_en_markup(string razor, string esperado)
     {
         DetectorTextosSinLocalizar.MedirRazor(razor).Textos().Should().Contain(esperado);
@@ -174,6 +175,8 @@ public class TextosSinLocalizarCongeladosTests
     [InlineData("<p>@T[\"Hay\"] @Model.Total</p>")]
     [InlineData("@inject IStringLocalizer<TextosComunes> Textos\n<p>@Textos[\"Volver\"]</p>")]
     [InlineData("@if (x)\n{\n<br />\n}\nelse\n{\n<br />\n}")]
+    // Una entidad HTML no es lenguaje aunque su nombre tenga letras.
+    [InlineData("<a>@Textos[\"A\"]</a>\n&nbsp;·&nbsp;\n<a>@Textos[\"B\"]</a>")]
     public void El_detector_no_cuenta_lo_que_no_es_interfaz_en_markup(string razor)
     {
         DetectorTextosSinLocalizar.MedirRazor(razor).Total.Should().Be(0);
@@ -259,6 +262,12 @@ internal static class DetectorTextosSinLocalizar
         RegexOptions.Compiled);
 
     private static readonly Regex DosLetras = new("[" + Letra + "]{2}", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Entidades HTML (<c>&amp;nbsp;</c>, <c>&amp;#160;</c>…): se borran antes de
+    /// exigir letras, porque el nombre de la entidad no es texto de interfaz.
+    /// </summary>
+    private static readonly Regex EntidadHtml = new(@"&(?:[A-Za-z]+|#\d+|#x[0-9A-Fa-f]+);", RegexOptions.Compiled);
     private static readonly Regex Espacios = new(@"\s+", RegexOptions.Compiled);
     private static readonly Regex ComentarioRazor = new(@"@\*.*?\*@", RegexOptions.Compiled | RegexOptions.Singleline);
     private static readonly Regex ComentarioHtml = new(@"<!--.*?-->", RegexOptions.Compiled | RegexOptions.Singleline);
@@ -340,7 +349,7 @@ internal static class DetectorTextosSinLocalizar
             foreach (var linea in m.Groups["t"].Value.Split('\n'))
             {
                 var texto = Espacios.Replace(ExpresionRazor.Replace(linea, " "), " ").Trim();
-                if (texto.Length > 0 && DosLetras.IsMatch(texto) && !TextoDescartado.IsMatch(texto))
+                if (texto.Length > 0 && DosLetras.IsMatch(EntidadHtml.Replace(texto, " ")) && !TextoDescartado.IsMatch(texto))
                     textos.Markup.Add(texto);
             }
         }

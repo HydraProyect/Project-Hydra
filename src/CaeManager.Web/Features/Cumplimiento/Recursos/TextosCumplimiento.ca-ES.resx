@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="TituloModal" xml:space="preserve">
+    <value>Términos y Condiciones</value>
+  </data>
+  <data name="TextoConsentimiento" xml:space="preserve">
+    <value>Antes de continuar, confirma que has leído y aceptas los Términos y Condiciones de uso y la Política de Privacidad de {0} — incluida la responsabilidad de tu organización sobre la gestión y el tratamiento de los datos de sus clientes y trabajadores que introduzcas en la plataforma.</value>
+  </data>
+  <data name="EnlaceTerminos" xml:space="preserve">
+    <value>Leer Términos y Condiciones completos ↗</value>
+  </data>
+  <data name="EnlacePrivacidad" xml:space="preserve">
+    <value>Leer Política de Privacidad completa ↗</value>
+  </data>
+  <data name="CasillaAceptacion" xml:space="preserve">
+    <value>He leído y acepto los Términos y Condiciones y la Política de Privacidad.</value>
+  </data>
+  <data name="BotonAceptar" xml:space="preserve">
+    <value>Aceptar y continuar</value>
+  </data>
+  <data name="ErrorRegistro" xml:space="preserve">
+    <value>No pudimos registrar tu aceptación. Intenta nuevamente.</value>
+  </data>
+</root>
