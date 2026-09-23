@@ -51,11 +51,16 @@ public partial class AvisoSolicitudesCartera : ComponentBase, IDisposable
     protected override async Task OnInitializedAsync()
     {
         Navigation.LocationChanged += AlCambiarDeRuta;
-        await CargarAsync();
-        IniciarRefresco();
+        // Se monta para toda sesión (la puerta de rol no sirve dentro de un
+        // workspace, ver MainLayout): quien no es Coordinador CAE en su
+        // Operador CAE no refresca cada minuto una Query que siempre le dirá
+        // que no.
+        if (await CargarAsync())
+            IniciarRefresco();
     }
 
-    private async Task CargarAsync()
+    /// <summary>Carga las pendientes; devuelve si quien mira es Coordinador CAE en su Operador CAE.</summary>
+    private async Task<bool> CargarAsync()
     {
         // Mismo mecanismo que NotificacionesPopup: el circuito puede
         // desconectarse con la carga en vuelo (ExcepcionDeCircuitoDesconectado,
@@ -64,16 +69,18 @@ public partial class AvisoSolicitudesCartera : ComponentBase, IDisposable
         {
             var resultado = await Mediator.Send(new ObtenerSolicitudesIncorporacionCarteraQuery(SoloPendientes: true));
 
-            // Sin permiso (otro rol en el workspace activo) o sin Operador CAE
-            // de origen: el aviso no se muestra. Falla cerrado, sin ruido.
-            _pendientes = resultado.EsExitoso && resultado.Valor.EsCoordinadorCae
-                ? resultado.Valor.Pendientes
-                : [];
+            // Sin permiso (no es Gestor ni Coordinador CAE en su Operador CAE),
+            // Gestor CAE o sin Operador CAE de origen: el aviso no se muestra.
+            // Falla cerrado, sin ruido.
+            var esCoordinadorCae = resultado.EsExitoso && resultado.Valor.EsCoordinadorCae;
+            _pendientes = esCoordinadorCae ? resultado.Valor.Pendientes : [];
+            return esCoordinadorCae;
         }
         catch (Exception ex) when (ExcepcionDeCircuitoDesconectado.Es(ex))
         {
             Logger.LogWarning(ex, "AvisoSolicitudesCartera descartó una excepción de desconexión de circuito: {TipoExcepcion} — {Mensaje}",
                 ex.GetType().Name, ex.Message);
+            return false;
         }
     }
 

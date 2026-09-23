@@ -30,7 +30,7 @@ public class AceptarSolicitudIncorporacionCarteraCommandHandler(
 {
     public async Task<Result> Handle(AceptarSolicitudIncorporacionCarteraCommand request, CancellationToken cancellationToken)
     {
-        var contexto = await ContextoOperadorCae.ResolverAsync(currentUserService);
+        var contexto = await ContextoOperadorCae.ResolverAsync(currentUserService, directorioUsuarios, cancellationToken);
         if (contexto.EsFallido) return Result.Fallo(contexto.Error);
         var ctx = contexto.Valor;
 

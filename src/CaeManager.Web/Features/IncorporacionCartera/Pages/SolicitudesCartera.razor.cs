@@ -1,4 +1,5 @@
 using System.Globalization;
+using CaeManager.Application.Operaciones.IncorporacionCartera;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Commands;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using CaeManager.Domain.Common;
@@ -26,6 +27,7 @@ public partial class SolicitudesCartera : ComponentBase
 
     private BandejaIncorporacionCarteraDto? _bandeja;
     private bool _errorCarga;
+    private bool _sinAcceso;
     private bool _dialogoVisible;
     private Guid? _enCurso;
     private SolicitudIncorporacionCarteraDto? _aRevocar;
@@ -44,7 +46,10 @@ public partial class SolicitudesCartera : ComponentBase
         var resultado = await Mediator.Send(new ObtenerSolicitudesIncorporacionCarteraQuery());
         if (resultado.EsFallido)
         {
-            _errorCarga = true;
+            // Quien no es Gestor ni Coordinador CAE en su Operador CAE no tiene
+            // nada que reintentar: se le dice, sin el botón de reintento.
+            _sinAcceso = resultado.Error.Codigo == ErroresSolicitudCartera.SinPermiso.Codigo;
+            _errorCarga = !_sinAcceso;
             return;
         }
 

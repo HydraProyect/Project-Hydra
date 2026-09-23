@@ -17,6 +17,7 @@ public record CandidatoIncorporacionCarteraDto(Guid TenantId, string Nombre, Gui
 
 public class ObtenerCandidatosIncorporacionCarteraQueryHandler(
     ICurrentUserService currentUserService,
+    IDirectorioUsuariosService directorioUsuarios,
     ICatalogoIncorporacionCartera catalogo,
     ISolicitudIncorporacionCarteraRepository repositorio)
     : IRequestHandler<ObtenerCandidatosIncorporacionCarteraQuery, Result<IReadOnlyList<CandidatoIncorporacionCarteraDto>>>
@@ -24,7 +25,7 @@ public class ObtenerCandidatosIncorporacionCarteraQueryHandler(
     public async Task<Result<IReadOnlyList<CandidatoIncorporacionCarteraDto>>> Handle(
         ObtenerCandidatosIncorporacionCarteraQuery request, CancellationToken cancellationToken)
     {
-        var contexto = await ContextoOperadorCae.ResolverAsync(currentUserService);
+        var contexto = await ContextoOperadorCae.ResolverAsync(currentUserService, directorioUsuarios, cancellationToken);
         if (contexto.EsFallido) return Result.Fallo<IReadOnlyList<CandidatoIncorporacionCarteraDto>>(contexto.Error);
         var ctx = contexto.Valor;
 

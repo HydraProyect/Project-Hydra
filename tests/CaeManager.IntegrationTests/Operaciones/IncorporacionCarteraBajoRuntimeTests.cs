@@ -301,7 +301,7 @@ public class IncorporacionCarteraBajoRuntimeTests : IAsyncLifetime
         await using var contexto = ContextoRuntime(_gestor, _operador.Id, "GestorCae");
         var usuario = UsuarioDe(contexto);
         var resultado = await new SolicitarIncorporacionCarteraCommandHandler(
-                usuario, Catalogo(contexto), new SolicitudIncorporacionCarteraRepository(contexto))
+                usuario, Directorio(), Catalogo(contexto), new SolicitudIncorporacionCarteraRepository(contexto))
             .Handle(new SolicitarIncorporacionCarteraCommand(_empresa.Id, "Llevo sus centros"), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : null);
@@ -348,13 +348,25 @@ public class IncorporacionCarteraBajoRuntimeTests : IAsyncLifetime
 
     private AceptarSolicitudIncorporacionCarteraCommandHandler Aceptar(CaeManagerDbContext contexto) =>
         new(UsuarioDe(contexto), Catalogo(contexto), new SolicitudIncorporacionCarteraRepository(contexto),
-            new DirectorioSolicitanteActivo(), new NotificacionUsuarioRepository(contexto), contexto, contexto,
+            Directorio(), new NotificacionUsuarioRepository(contexto), contexto, contexto,
             NullLogger<AceptarSolicitudIncorporacionCarteraCommandHandler>.Instance);
 
     private RevocarIncorporacionCarteraCommandHandler Revocar(CaeManagerDbContext contexto) =>
-        new(UsuarioDe(contexto), Catalogo(contexto), new SolicitudIncorporacionCarteraRepository(contexto),
+        new(UsuarioDe(contexto), Directorio(), Catalogo(contexto), new SolicitudIncorporacionCarteraRepository(contexto),
             new NotificacionUsuarioRepository(contexto), contexto, contexto,
             NullLogger<RevocarIncorporacionCarteraCommandHandler>.Instance);
+
+    /// <summary>
+    /// Rol de cada cuenta en su organización, como Identity: de aquí sale el rol de origen de
+    /// ContextoOperadorCae. El solicitante es Gestor CAE aunque su contexto no se haya creado aún.
+    /// </summary>
+    private DirectorioPorRolEnOrigen Directorio()
+    {
+        _rolesEnOrigen.TryAdd(_gestor, "GestorCae");
+        return new DirectorioPorRolEnOrigen(_rolesEnOrigen);
+    }
+
+    private readonly Dictionary<Guid, string> _rolesEnOrigen = [];
 
     /// <summary>Qué usuario lleva cada contexto de runtime, para construir sus handlers.</summary>
     private readonly Dictionary<CaeManagerDbContext, CurrentUserServicePorAmbito> _usuarios = new(ReferenceEqualityComparer.Instance);
@@ -362,6 +374,7 @@ public class IncorporacionCarteraBajoRuntimeTests : IAsyncLifetime
     private CaeManagerDbContext ContextoRuntime(Guid usuarioId, Guid origen, string rolEnOrigen)
     {
         var usuario = new CurrentUserServicePorAmbito(usuarioId, origen, rolEnOrigen);
+        _rolesEnOrigen[usuarioId] = rolEnOrigen;
         var tenantActual = new TenantSegunAmbito(origen);
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaConexion),
@@ -415,8 +428,12 @@ public class IncorporacionCarteraBajoRuntimeTests : IAsyncLifetime
         public Guid? SesionPrivilegiadaIdSeleccionada => null;
     }
 
-    /// <summary>La vigencia de la cuenta del solicitante se prueba en Application; aquí siempre está activa.</summary>
-    private sealed class DirectorioSolicitanteActivo : IDirectorioUsuariosService
+    /// <summary>
+    /// Cada cuenta, activa y con su rol de origen. La vigencia de la cuenta y el rol leído en
+    /// Identity frente al claim se prueban en Application; aquí solo hace falta que cada uno sea
+    /// quien dice ser.
+    /// </summary>
+    private sealed class DirectorioPorRolEnOrigen(IReadOnlyDictionary<Guid, string> roles) : IDirectorioUsuariosService
     {
         public Task<bool> EsVisibleEnTenantActualAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
             Task.FromResult(true);
@@ -430,6 +447,6 @@ public class IncorporacionCarteraBajoRuntimeTests : IAsyncLifetime
 
         public Task<bool> EsCuentaActivaConRolAsync(
             Guid usuarioId, Guid tenantId, string rol, CancellationToken cancellationToken = default) =>
-            Task.FromResult(true);
+            Task.FromResult(roles.TryGetValue(usuarioId, out var suyo) && suyo == rol);
     }
 }

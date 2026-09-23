@@ -15,13 +15,14 @@ public record SolicitarIncorporacionCarteraCommand(Guid TenantPropietarioId, str
 
 public class SolicitarIncorporacionCarteraCommandHandler(
     ICurrentUserService currentUserService,
+    IDirectorioUsuariosService directorioUsuarios,
     ICatalogoIncorporacionCartera catalogo,
     ISolicitudIncorporacionCarteraRepository repositorio)
     : IRequestHandler<SolicitarIncorporacionCarteraCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(SolicitarIncorporacionCarteraCommand request, CancellationToken cancellationToken)
     {
-        var contexto = await ContextoOperadorCae.ResolverAsync(currentUserService);
+        var contexto = await ContextoOperadorCae.ResolverAsync(currentUserService, directorioUsuarios, cancellationToken);
         if (contexto.EsFallido) return Result.Fallo<Guid>(contexto.Error);
         var ctx = contexto.Valor;
 

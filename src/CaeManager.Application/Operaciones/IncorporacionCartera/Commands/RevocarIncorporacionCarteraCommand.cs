@@ -28,6 +28,7 @@ public record RevocarIncorporacionCarteraCommand(Guid SolicitudId) : ICommand;
 
 public class RevocarIncorporacionCarteraCommandHandler(
     ICurrentUserService currentUserService,
+    IDirectorioUsuariosService directorioUsuarios,
     ICatalogoIncorporacionCartera catalogo,
     ISolicitudIncorporacionCarteraRepository repositorio,
     INotificacionUsuarioRepository notificaciones,
@@ -38,7 +39,7 @@ public class RevocarIncorporacionCarteraCommandHandler(
 {
     public async Task<Result> Handle(RevocarIncorporacionCarteraCommand request, CancellationToken cancellationToken)
     {
-        var contexto = await ContextoOperadorCae.ResolverAsync(currentUserService);
+        var contexto = await ContextoOperadorCae.ResolverAsync(currentUserService, directorioUsuarios, cancellationToken);
         if (contexto.EsFallido) return Result.Fallo(contexto.Error);
         var ctx = contexto.Valor;
 

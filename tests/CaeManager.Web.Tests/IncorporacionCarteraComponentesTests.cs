@@ -1,9 +1,13 @@
+using System.Reflection;
+using System.Security.Claims;
+using System.Text.RegularExpressions;
 using Bunit;
 using CaeManager.Application.Operaciones.IncorporacionCartera;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Commands;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Operaciones;
+using CaeManager.Domain.Tenants;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Layout;
 using CaeManager.Web.Features.IncorporacionCartera.Components;
@@ -11,6 +15,7 @@ using CaeManager.Web.Features.IncorporacionCartera.Pages;
 using CaeManager.Web.Features.IncorporacionCartera.Recursos;
 using FluentAssertions;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
@@ -198,6 +203,90 @@ public class IncorporacionCarteraComponentesTests : BunitContext
             .Should().Equal(Textos["Revocar"]);
         pagina.FindAll($"[data-solicitud='{rechazada.Id}'] button").Should().BeEmpty();
         pagina.Find($"[data-solicitud='{rechazada.Id}']").TextContent.Should().Contain(Textos["EstadoRechazada"]);
+    }
+
+    // ------------------------------------------------- Puertas por rol de origen
+    //
+    // Hallazgo de Codex (P1): dentro de un Workspace operativo derivado el claim de rol es el de
+    // la cartera en ese Tenant propietario. Ninguna puerta de la interfaz puede decidir por
+    // IsInRole quién participa: lo deciden ParticipaEnIncorporacionCarteraQuery y la bandeja, con
+    // el rol en el Operador CAE de origen (probado en Application.Tests).
+
+    [Fact]
+    public void La_bandeja_sin_permiso_explica_para_quien_es_y_no_ofrece_reintentar()
+    {
+        _mediator.FalloBandeja = ErroresSolicitudCartera.SinPermiso;
+
+        var pagina = Render<SolicitudesCartera>();
+
+        pagina.Markup.Should().Contain(Textos["SinAccesoTitulo"]).And.NotContain(Textos["ErrorCargaTitulo"]);
+        pagina.FindAll("button").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Otro_fallo_de_la_bandeja_sigue_siendo_un_error_de_carga()
+    {
+        _mediator.FalloBandeja = ErroresSolicitudCartera.SinTenantDeOrigen;
+
+        var pagina = Render<SolicitudesCartera>();
+
+        pagina.Markup.Should().Contain(Textos["ErrorCargaTitulo"]).And.NotContain(Textos["SinAccesoTitulo"]);
+    }
+
+    [Fact]
+    public void La_pagina_no_filtra_por_el_claim_de_rol()
+    {
+        var autorizaciones = typeof(SolicitudesCartera).GetCustomAttributes<AuthorizeAttribute>().ToList();
+
+        autorizaciones.Should().ContainSingle("la página exige sesión (control positivo)");
+        autorizaciones.Should().OnlyContain(a => a.Roles == null && a.Policy == null);
+    }
+
+    [Theory]
+    [InlineData("CoordinadorCae", false, false)]
+    [InlineData("GestorCae", false, false)]
+    [InlineData("Consulta", true, true)]
+    [InlineData("Administrador", true, true)]
+    public void El_enlace_del_menu_sigue_a_la_Query_no_al_claim(string claim, bool participa, bool visible)
+    {
+        var usuario = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Role, claim)], "Prueba"));
+        var contexto = new ContextoMenuLateral(usuario, null, true, false, PerfilVocabularioTenant.Consultora, true,
+            ParticipaEnIncorporacionCartera: participa);
+
+        var enlaces = CatalogoMenuLateral.Visibles(contexto).SelectMany(g => g.Enlaces).Select(e => e.Id).ToList();
+
+        enlaces.Should().Contain("dashboard", "el grupo del enlace debe verse para que el caso diga algo");
+        enlaces.Contains("solicitudes-cartera").Should().Be(visible);
+    }
+
+    [Fact]
+    public void El_aviso_del_layout_no_queda_tras_una_puerta_de_rol()
+    {
+        var layout = LeerWeb(Path.Combine("Components", "Layout", "MainLayout.razor"));
+        var posicion = layout.IndexOf("IncorporacionCartera.Components.AvisoSolicitudesCartera", StringComparison.Ordinal);
+        posicion.Should().BePositive("el aviso debe estar montado en el layout");
+
+        // AuthorizeView abiertos y sin cerrar antes del aviso: los que lo envuelven.
+        var abiertos = new Stack<string>();
+        foreach (Match m in Regex.Matches(layout[..posicion], @"<AuthorizeView\b[^>]*>|</AuthorizeView>"))
+        {
+            if (m.Value.StartsWith("</", StringComparison.Ordinal))
+                abiertos.Pop();
+            else
+                abiertos.Push(m.Value);
+        }
+
+        abiertos.Should().NotBeEmpty("el aviso sigue exigiendo sesión (control positivo)");
+        abiertos.Should().OnlyContain(etiqueta => !etiqueta.Contains("Roles") && !etiqueta.Contains("Policy"));
+    }
+
+    private static string LeerWeb(string relativa)
+    {
+        var dir = AppContext.BaseDirectory;
+        while (dir is not null && !File.Exists(Path.Combine(dir, "CaeManager.slnx")))
+            dir = Path.GetDirectoryName(dir);
+        dir.Should().NotBeNull("se necesita la raíz del repositorio para leer el layout");
+        return File.ReadAllText(Path.Combine(dir!, "src", "CaeManager.Web", relativa));
     }
 
     private sealed class MediatorFalso : IMediator

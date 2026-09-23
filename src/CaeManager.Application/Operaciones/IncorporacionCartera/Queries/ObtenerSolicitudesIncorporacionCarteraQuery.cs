@@ -57,11 +57,11 @@ public class ObtenerSolicitudesIncorporacionCarteraQueryHandler(
     public async Task<Result<BandejaIncorporacionCarteraDto>> Handle(
         ObtenerSolicitudesIncorporacionCarteraQuery request, CancellationToken cancellationToken)
     {
-        var contexto = await ContextoOperadorCae.ResolverAsync(currentUserService);
+        var contexto = await ContextoOperadorCae.ResolverAsync(currentUserService, directorioUsuarios, cancellationToken);
         if (contexto.EsFallido) return Result.Fallo<BandejaIncorporacionCarteraDto>(contexto.Error);
         var ctx = contexto.Valor;
 
-        if (!ctx.EsCoordinadorCae && !ctx.EsGestorCae)
+        if (!ctx.ParticipaEnIncorporacionCartera)
             return Result.Fallo<BandejaIncorporacionCarteraDto>(ErroresSolicitudCartera.SinPermiso);
 
         using (ctx.EnOrigen())

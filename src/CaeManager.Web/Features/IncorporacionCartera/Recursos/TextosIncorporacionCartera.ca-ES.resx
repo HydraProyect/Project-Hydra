@@ -168,6 +168,12 @@
   <data name="ErrorCargaDetalle" xml:space="preserve">
     <value>Torna-ho a provar d'aquí a uns segons.</value>
   </data>
+  <data name="SinAccesoTitulo" xml:space="preserve">
+    <value>Només per a Gestors CAE i Coordinadors CAE</value>
+  </data>
+  <data name="SinAccesoDetalle" xml:space="preserve">
+    <value>Les sol·licituds d'incorporació a cartera són dels Gestors CAE i els Coordinadors CAE de la teva organització.</value>
+  </data>
   <data name="ErrorGenerico" xml:space="preserve">
     <value>No s'ha pogut completar l'acció.</value>
   </data>

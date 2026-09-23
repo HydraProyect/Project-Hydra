@@ -11,13 +11,17 @@ namespace CaeManager.Web.Components.Layout;
 /// es autoridad: cada pantalla y cada comando se autorizan por su cuenta (ver
 /// <see cref="MenuPorVista"/>); esto solo decide qué pestañas se pintan.
 /// </summary>
+/// <param name="ParticipaEnIncorporacionCartera">Gestor o Coordinador CAE en su tenant de origen
+/// (ParticipaEnIncorporacionCarteraQuery). No sale de <see cref="Usuario"/>: dentro de un Workspace
+/// operativo derivado su claim de rol es el de la cartera en ese Tenant propietario.</param>
 public sealed record ContextoMenuLateral(
     ClaimsPrincipal Usuario,
     VistaDemo? Vista,
     bool ComunicacionesActivo,
     bool EsAdministradorPlataforma,
     PerfilVocabularioTenant Perfil,
-    bool VariosTenants)
+    bool VariosTenants,
+    bool ParticipaEnIncorporacionCartera = false)
 {
     /// <summary>
     /// Mismo criterio que <c>&lt;AuthorizeView Roles="…"&gt;</c>, que era como el marcado lo
@@ -93,10 +97,6 @@ public static class CatalogoMenuLateral
 
     private const string RolesDeCartera = $"{Roles.Administrador},{Roles.DireccionCae},{Roles.CoordinadorCae}";
 
-    // Solicitudes de incorporación a cartera: el Coordinador CAE las resuelve y el Gestor CAE las
-    // pide; la Query decide qué ve cada uno.
-    private const string RolesDeSolicitudesCartera = $"{Roles.CoordinadorCae},{Roles.GestorCae}";
-
     public static IReadOnlyList<GrupoMenuLateral> Grupos { get; } =
     [
         // Dashboard / Visión de cartera / Dashboard Ejecutivo son tres Operational Home distintos
@@ -144,7 +144,8 @@ public static class CatalogoMenuLateral
         // Rótulo localizado (TextosIncorporacionCartera), a diferencia de sus vecinos todavía literales:
         // lo da RotuloPorContexto, así que el Rotulo fijo queda vacío.
         new("solicitudes-cartera", "dashboards", "cartera/solicitudes", "cartera", "",
-            Condicion: c => c.TieneAlgunRol(RolesDeSolicitudesCartera),
+            // Por el rol en el tenant de origen, no por IsInRole (ver ParticipaEnIncorporacionCartera).
+            Condicion: c => c.ParticipaEnIncorporacionCartera,
             RotuloPorContexto: _ => TextosIncorporacionCartera.Texto("EnlaceMenu")),
         new("dashboard-ejecutivo", "dashboards", "dashboard-ejecutivo", "dashboard", "Dashboard Ejecutivo",
             Condicion: c => c.TieneAlgunRol(RolesDeDashboardEjecutivo)),

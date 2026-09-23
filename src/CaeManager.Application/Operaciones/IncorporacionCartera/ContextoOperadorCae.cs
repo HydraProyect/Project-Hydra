@@ -14,9 +14,24 @@ namespace CaeManager.Application.Operaciones.IncorporacionCartera;
 /// de un Tenant propietario, donde su rol efectivo es el de su cartera allí.
 /// Por eso todo se resuelve con <see cref="AmbitoTenantExplicito"/> sobre el
 /// tenant de origen —el que la selección de workspace no puede cambiar—, y
-/// nunca con el Tenant activo. Dentro de ese ámbito
-/// <see cref="ICurrentUserService.ObtenerRolActualAsync"/> devuelve el rol de
-/// la sesión en su propia organización.
+/// nunca con el Tenant activo.
+/// </para>
+///
+/// <para>
+/// <b>El rol se lee en Identity, no en el claim.</b> Dentro de un Workspace
+/// operativo derivado, <c>RolEfectivoDelWorkspaceMiddleware</c> sustituye el
+/// claim de rol por el de la Asignación de Cartera en ese Tenant propietario,
+/// y el circuito hereda el principal ya sustituido. En el ámbito del tenant de
+/// origen, <see cref="ICurrentUserService.ObtenerRolActualAsync"/> devuelve ese
+/// claim tal cual: un Coordinador CAE que opera un Tenant como Gestor CAE
+/// dejaría de ser Coordinador para su Operador CAE, y un Gestor CAE con una
+/// cartera de rol Coordinador CAE en un Tenant propietario pasaría por
+/// Coordinador CAE de su organización. Por eso el rol sale de la cuenta en su
+/// tenant de origen (<see cref="IDirectorioUsuariosService.EsCuentaActivaConRolAsync"/>),
+/// que la selección de workspace no toca y que además falla cerrado con una
+/// cuenta desactivada. <c>ObtenerRolActualAsync</c> solo se consulta para
+/// fallar cerrado cuando la sesión no tiene rol de negocio (sesión privilegiada
+/// de plataforma, delegación retirada).
 /// </para>
 ///
 /// <para>
@@ -34,13 +49,19 @@ public sealed record ContextoOperadorCae(Guid UsuarioId, Guid OperadorTenantId, 
     public bool EsGestorCae => Rol == RolGestorCae;
     public bool EsCoordinadorCae => Rol == RolCoordinadorCae;
 
+    /// <summary>Si participa en el flujo: pide (Gestor CAE) o resuelve (Coordinador CAE).</summary>
+    public bool ParticipaEnIncorporacionCartera => EsGestorCae || EsCoordinadorCae;
+
     /// <summary>
     /// Resuelve usuario, tenant de origen y rol en ese tenant. Falla con
     /// <see cref="ErroresSolicitudCartera.SinPermiso"/> si no hay usuario y con
     /// <see cref="ErroresSolicitudCartera.SinTenantDeOrigen"/> si la cuenta no
     /// declara organización.
     /// </summary>
-    public static async Task<Result<ContextoOperadorCae>> ResolverAsync(ICurrentUserService currentUserService)
+    public static async Task<Result<ContextoOperadorCae>> ResolverAsync(
+        ICurrentUserService currentUserService,
+        IDirectorioUsuariosService directorioUsuarios,
+        CancellationToken cancellationToken = default)
     {
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
         if (usuarioId is null)
@@ -52,7 +73,17 @@ public sealed record ContextoOperadorCae(Guid UsuarioId, Guid OperadorTenantId, 
 
         using (AmbitoTenantExplicito.Establecer(origen.Value))
         {
-            var rol = await currentUserService.ObtenerRolActualAsync();
+            if (await currentUserService.ObtenerRolActualAsync() is null)
+                return Result.Exito(new ContextoOperadorCae(usuarioId.Value, origen.Value, null));
+
+            var rol = await directorioUsuarios.EsCuentaActivaConRolAsync(
+                          usuarioId.Value, origen.Value, RolCoordinadorCae, cancellationToken)
+                ? RolCoordinadorCae
+                : await directorioUsuarios.EsCuentaActivaConRolAsync(
+                      usuarioId.Value, origen.Value, RolGestorCae, cancellationToken)
+                    ? RolGestorCae
+                    : null;
+
             return Result.Exito(new ContextoOperadorCae(usuarioId.Value, origen.Value, rol));
         }
     }

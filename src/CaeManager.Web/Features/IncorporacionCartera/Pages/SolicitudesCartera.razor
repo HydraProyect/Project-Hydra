@@ -1,6 +1,8 @@
 @page "/cartera/solicitudes"
 @rendermode InteractiveServer
-@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
+@* Sin Roles a propósito: dentro de un Workspace operativo derivado el claim de rol es el de la
+   cartera en ese Tenant propietario. Quién entra lo decide la Query con el rol de origen. *@
+@attribute [Authorize]
 @using CaeManager.Application.Operaciones.IncorporacionCartera.Queries
 @using CaeManager.Web.Features.IncorporacionCartera.Components
 @using CaeManager.Web.Features.IncorporacionCartera.Recursos
@@ -20,7 +22,11 @@
         </Acciones>
     </CabeceraPagina>
 
-    @if (_errorCarga)
+    @if (_sinAcceso)
+    {
+        <EstadoVacio Titulo="@Textos["SinAccesoTitulo"]" Descripcion="@Textos["SinAccesoDetalle"]" />
+    }
+    else if (_errorCarga)
     {
         <EstadoVacio Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
             <Accion>

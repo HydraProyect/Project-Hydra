@@ -7,10 +7,11 @@ namespace CaeManager.Application.Tests.Operaciones.IncorporacionCartera;
 /// <summary>
 /// <see cref="ICurrentUserService"/> cuyo rol depende del ámbito, como el real:
 /// dentro de <see cref="AmbitoTenantExplicito"/> sobre el tenant de origen
-/// devuelve el rol de la sesión; en cualquier otro sitio, el de la cartera del
-/// workspace activo. Es lo que permite probar que los handlers resuelven el
-/// rol en su propia organización y no en el Tenant que el usuario tenga
-/// abierto.
+/// devuelve el claim de rol de la sesión; en cualquier otro sitio, el de la
+/// cartera del workspace activo. Dentro de un Workspace operativo derivado ese
+/// claim ya no es el de origen (RolEfectivoDelWorkspaceMiddleware lo sustituye
+/// por el de la cartera), así que quien lo construye pasa aquí el claim tal
+/// como quedó, y el rol real de origen al <see cref="DirectorioRolesEnOrigen"/>.
 /// </summary>
 public class CurrentUserServicePorAmbito(Guid? usuarioId, Guid? tenantOrigenId, string? rolEnOrigen, string? rolFueraDelOrigen = null)
     : ICurrentUserService
@@ -152,4 +153,42 @@ public class CatalogoIncorporacionCarteraFalso : ICatalogoIncorporacionCartera
     public Task<IReadOnlySet<Guid>> FiltrarCarterasVigentesAsync(
         IReadOnlyCollection<Guid> asignacionCarteraIds, CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlySet<Guid>>(asignacionCarteraIds.Where(CarterasVigentes.Contains).ToHashSet());
+}
+
+/// <summary>
+/// Directorio con el rol de cada cuenta en su tenant, como Identity: la fuente
+/// del rol de origen de ContextoOperadorCae, que la selección de workspace no
+/// cambia. Resuelve nombres para cualquiera (no es de lo que van estos tests).
+/// </summary>
+public class DirectorioRolesEnOrigen : IDirectorioUsuariosService
+{
+    private readonly Dictionary<(Guid Usuario, Guid Tenant), string> _roles = [];
+    private readonly HashSet<Guid> _desactivadas = [];
+
+    public void Asignar(Guid usuarioId, Guid tenantId, string? rol)
+    {
+        if (rol is null)
+            _roles.Remove((usuarioId, tenantId));
+        else
+            _roles[(usuarioId, tenantId)] = rol;
+    }
+
+    public void Desactivar(Guid usuarioId) => _desactivadas.Add(usuarioId);
+
+    public Task<bool> EsVisibleEnTenantActualAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(true);
+
+    public Task<Guid?> ObtenerTenantDeUsuarioAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
+        Task.FromResult<Guid?>(null);
+
+    public Task<IReadOnlyDictionary<Guid, string>> ObtenerNombresVisiblesAsync(
+        IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyDictionary<Guid, string>>(
+            usuarioIds.ToDictionary(id => id, id => $"Usuario {id:N}"[..12]));
+
+    public Task<bool> EsCuentaActivaConRolAsync(
+        Guid usuarioId, Guid tenantId, string rol, CancellationToken cancellationToken = default) =>
+        Task.FromResult(_roles.TryGetValue((usuarioId, tenantId), out var suyo)
+                        && suyo == rol
+                        && !_desactivadas.Contains(usuarioId));
 }

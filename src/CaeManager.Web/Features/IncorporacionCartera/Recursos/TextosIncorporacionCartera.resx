@@ -168,6 +168,12 @@
   <data name="ErrorCargaDetalle" xml:space="preserve">
     <value>Vuelve a intentarlo en unos segundos.</value>
   </data>
+  <data name="SinAccesoTitulo" xml:space="preserve">
+    <value>Solo para Gestores CAE y Coordinadores CAE</value>
+  </data>
+  <data name="SinAccesoDetalle" xml:space="preserve">
+    <value>Las solicitudes de incorporación a cartera son de los Gestores CAE y los Coordinadores CAE de tu organización.</value>
+  </data>
   <data name="ErrorGenerico" xml:space="preserve">
     <value>No se pudo completar la acción.</value>
   </data>

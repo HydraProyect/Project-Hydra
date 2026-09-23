@@ -30,6 +30,7 @@ public class IncorporacionCarteraCommandsTests
     private readonly NotificacionUsuarioRepositorioFalso _notificaciones = new();
     private readonly TenantsQueryContextFalso _tenants = new();
     private readonly UnitOfWorkConAmbito _unitOfWork = new();
+    private readonly DirectorioRolesEnOrigen _directorio = new();
 
     public IncorporacionCarteraCommandsTests()
     {
@@ -38,24 +39,35 @@ public class IncorporacionCarteraCommandsTests
             DateTime.UtcNow.AddDays(-30), null, DateTime.UtcNow);
         _catalogo.RegistrarCandidato(_operador, _gestor, _operacion, _empresa.Nombre);
         _tenants.ListaTenants.Add(_empresa);
+        _directorio.Asignar(_gestor, _operador, "GestorCae");
     }
 
-    private CurrentUserServicePorAmbito Como(Guid usuario, string? rolEnOrigen, string? rolFuera = null) =>
-        new(usuario, _operador, rolEnOrigen, rolFuera);
+    // rolEnOrigen es el de la cuenta en su organización (Identity); rolFuera, el de la cartera en el
+    // Workspace operativo derivado abierto. Con uno abierto, el claim de sesión ya es rolFuera
+    // (RolEfectivoDelWorkspaceMiddleware), también dentro del ámbito de origen.
+    private CurrentUserServicePorAmbito Como(Guid usuario, string? rolEnOrigen, string? rolFuera = null)
+    {
+        _directorio.Asignar(usuario, _operador, rolEnOrigen);
+        return new(usuario, _operador, rolFuera ?? rolEnOrigen, rolFuera);
+    }
 
     private SolicitarIncorporacionCarteraCommandHandler Solicitar(CurrentUserServicePorAmbito usuario) =>
-        new(usuario, _catalogo, _repositorio);
+        new(usuario, _directorio, _catalogo, _repositorio);
 
     private AceptarSolicitudIncorporacionCarteraCommandHandler Aceptar(
-        CurrentUserServicePorAmbito usuario, bool solicitanteActivo = true) =>
-        new(usuario, _catalogo, _repositorio, new DirectorioUsuariosServiceFalso(cuentaActivaConRol: solicitanteActivo),
+        CurrentUserServicePorAmbito usuario, bool solicitanteActivo = true)
+    {
+        if (!solicitanteActivo)
+            _directorio.Desactivar(_gestor);
+        return new(usuario, _catalogo, _repositorio, _directorio,
             _notificaciones, _tenants, _unitOfWork, NullLogger<AceptarSolicitudIncorporacionCarteraCommandHandler>.Instance);
+    }
 
     private RechazarSolicitudIncorporacionCarteraCommandHandler Rechazar(CurrentUserServicePorAmbito usuario) =>
-        new(usuario, _catalogo, _repositorio, _notificaciones, _tenants);
+        new(usuario, _directorio, _catalogo, _repositorio, _notificaciones, _tenants);
 
     private RevocarIncorporacionCarteraCommandHandler Revocar(CurrentUserServicePorAmbito usuario) =>
-        new(usuario, _catalogo, _repositorio, _notificaciones, _tenants, _unitOfWork,
+        new(usuario, _directorio, _catalogo, _repositorio, _notificaciones, _tenants, _unitOfWork,
             NullLogger<RevocarIncorporacionCarteraCommandHandler>.Instance);
 
     private SolicitudIncorporacionCartera Pendiente(Guid? solicitante = null)
@@ -253,11 +265,63 @@ public class IncorporacionCarteraCommandsTests
         resultado.Error.Codigo.Should().Be("SolicitudCartera.SinPermiso");
     }
 
+    /// <summary>
+    /// Hallazgo de Codex (P1) sobre este incremento, más ancho de lo que decía: dentro de un
+    /// Workspace operativo derivado, RolEfectivoDelWorkspaceMiddleware sustituye el claim de rol
+    /// por el de la cartera en ese Tenant propietario, y ObtenerRolActualAsync lo devuelve tal cual
+    /// también en el ámbito de origen. Un Coordinador CAE que opera ese Tenant como Gestor CAE
+    /// sigue siendo Coordinador CAE de su Operador CAE: el rol sale de Identity.
+    /// </summary>
+    [Fact]
+    public async Task Un_Coordinador_CAE_que_opera_un_Tenant_como_Gestor_CAE_sigue_aceptando()
+    {
+        var solicitud = Pendiente();
+
+        var resultado = await Aceptar(Como(_coordinador, rolEnOrigen: "CoordinadorCae", rolFuera: "GestorCae"))
+            .Handle(new AceptarSolicitudIncorporacionCarteraCommand(solicitud.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : null);
+        solicitud.Estado.Should().Be(EstadoSolicitudIncorporacionCartera.Aceptada);
+    }
+
+    /// <summary>
+    /// Sesión privilegiada de plataforma o delegación retirada: la sesión no tiene rol de negocio
+    /// (ObtenerRolActualAsync da null) y no opera, aunque la cuenta sea Coordinador CAE en Identity.
+    /// </summary>
+    [Fact]
+    public async Task Sin_rol_de_negocio_en_la_sesion_no_acepta_aunque_la_cuenta_sea_Coordinador_CAE()
+    {
+        var solicitud = Pendiente();
+        _directorio.Asignar(_coordinador, _operador, "CoordinadorCae");
+
+        var resultado = await Aceptar(new CurrentUserServicePorAmbito(_coordinador, _operador, null))
+            .Handle(new AceptarSolicitudIncorporacionCarteraCommand(solicitud.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("SolicitudCartera.SinPermiso");
+        solicitud.Estado.Should().Be(EstadoSolicitudIncorporacionCartera.Pendiente);
+    }
+
+    [Fact]
+    public async Task Un_Coordinador_CAE_con_la_cuenta_desactivada_no_acepta()
+    {
+        var solicitud = Pendiente();
+        var usuario = Como(_coordinador, "CoordinadorCae");
+        _directorio.Desactivar(_coordinador);
+
+        var resultado = await Aceptar(usuario)
+            .Handle(new AceptarSolicitudIncorporacionCarteraCommand(solicitud.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("SolicitudCartera.SinPermiso");
+        solicitud.Estado.Should().Be(EstadoSolicitudIncorporacionCartera.Pendiente);
+    }
+
     [Fact]
     public async Task Un_Coordinador_CAE_de_otro_Operador_CAE_no_encuentra_la_solicitud()
     {
         var solicitud = Pendiente();
-        var ajeno = new CurrentUserServicePorAmbito(_coordinador, Guid.NewGuid(), "CoordinadorCae");
+        var otroOperador = Guid.NewGuid();
+        _directorio.Asignar(_coordinador, otroOperador, "CoordinadorCae");
+        var ajeno = new CurrentUserServicePorAmbito(_coordinador, otroOperador, "CoordinadorCae");
 
         var resultado = await Aceptar(ajeno)
             .Handle(new AceptarSolicitudIncorporacionCarteraCommand(solicitud.Id), CancellationToken.None);

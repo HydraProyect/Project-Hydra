@@ -17,6 +17,7 @@ public record RechazarSolicitudIncorporacionCarteraCommand(Guid SolicitudId) : I
 
 public class RechazarSolicitudIncorporacionCarteraCommandHandler(
     ICurrentUserService currentUserService,
+    IDirectorioUsuariosService directorioUsuarios,
     ICatalogoIncorporacionCartera catalogo,
     ISolicitudIncorporacionCarteraRepository repositorio,
     INotificacionUsuarioRepository notificaciones,
@@ -25,7 +26,7 @@ public class RechazarSolicitudIncorporacionCarteraCommandHandler(
 {
     public async Task<Result> Handle(RechazarSolicitudIncorporacionCarteraCommand request, CancellationToken cancellationToken)
     {
-        var contexto = await ContextoOperadorCae.ResolverAsync(currentUserService);
+        var contexto = await ContextoOperadorCae.ResolverAsync(currentUserService, directorioUsuarios, cancellationToken);
         if (contexto.EsFallido) return Result.Fallo(contexto.Error);
         var ctx = contexto.Valor;
 
