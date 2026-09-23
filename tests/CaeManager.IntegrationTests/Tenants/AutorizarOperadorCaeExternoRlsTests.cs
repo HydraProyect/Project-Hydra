@@ -106,6 +106,24 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
         (await PuedeAutorizarAsync(_actorPlataforma, workspaceActivo: _propietario)).Should().BeFalse();
     }
 
+    [Fact]
+    public async Task Un_administrador_desactivado_no_puede_autorizar()
+    {
+        // Hallazgo de la revisión puente del incremento 1b: sin esta guarda,
+        // una cuenta desactivada por /usuarios seguía teniendo rol Administrador
+        // y tenant correcto, y superaba la autorización mientras su cookie o
+        // token de sesión ya emitidos siguieran vivos.
+        using (var ambito = _arnes.Servicios.CreateScope())
+        {
+            var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var usuario = (await userManager.FindByIdAsync(_administradorPropietario.Id.ToString()))!;
+            usuario.Desactivar();
+            (await userManager.UpdateAsync(usuario)).Succeeded.Should().BeTrue();
+        }
+
+        (await PuedeAutorizarAsync(_administradorPropietario)).Should().BeFalse();
+    }
+
     // ── El comando completo bajo RLS ─────────────────────────────────────────
 
     [Fact]

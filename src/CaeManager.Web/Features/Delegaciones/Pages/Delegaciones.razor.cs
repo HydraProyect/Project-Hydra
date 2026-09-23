@@ -194,8 +194,14 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
 
         AbrirAutorizarOperador();
         _operadorSugerido = true;
+        var version = _versionBusquedaOperador;
         var candidato = await Mediator.Send(new BuscarOperadorCaeExternoAutorizableQuery(operadorId, null), _cicloCarga.Token);
-        if (_desechado || !_mostrarAutorizarOperador)
+        // Sin comprobar la versión, cerrar el modal y reabrirlo (o teclear una
+        // búsqueda propia) mientras esta respuesta está en vuelo dejaba que la
+        // preselección pisara lo que la persona ya había escrito — hallazgo de
+        // la revisión puente del incremento 1b. No escribe nada: es solo la
+        // pantalla mostrando el candidato equivocado.
+        if (_desechado || !_mostrarAutorizarOperador || version != _versionBusquedaOperador)
         {
             return;
         }

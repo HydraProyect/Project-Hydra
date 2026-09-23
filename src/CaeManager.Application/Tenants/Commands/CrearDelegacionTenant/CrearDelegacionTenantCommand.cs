@@ -121,6 +121,21 @@ public class CrearDelegacionTenantCommandHandler(
         await asignacionesWriter.AbrirOperacionDelegadaAsync(
             request.TenantClienteId, request.TenantConsultoraId, delegacion.CreadoEnUtc, vigenciaHasta: null, cancellationToken);
 
+        // La comprobación de OtroOperadorVigente de arriba no cierra la ventana
+        // entre dos autorizaciones concurrentes sobre el mismo Tenant
+        // propietario: el índice único IX_AsignacionesOperacion_
+        // DelegacionTotalVigente sigue siendo la barrera real, y una carrera
+        // perdedora sale como DbUpdateException sin traducir (hallazgo E de la
+        // revisión puente del incremento 1b, Baja). NO se traduce aquí a
+        // propósito: Application no puede depender de Npgsql.PostgresException
+        // para distinguir esa carrera de otro DbUpdateException real —el que
+        // lanza RLS cuando el workspace activo no es el Tenant propietario— sin
+        // cruzar la frontera de capas (FronterasDeCapaTests). Un catch (DbUpdateException)
+        // sin esa distinción tapaba ese segundo caso: Desde_el_workspace_de_otro_tenant_RLS_no_deja_escribir_la_operacion
+        // dejó de ver la excepción que RLS lanza aposta. Traducirlo bien exige
+        // mover la comprobación de ConstraintName a Infrastructure (mismo
+        // patrón que OperacionImportacionRepository/ExpiracionAsignacionesHostedService) —
+        // incremento aparte.
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito(delegacion.Id);

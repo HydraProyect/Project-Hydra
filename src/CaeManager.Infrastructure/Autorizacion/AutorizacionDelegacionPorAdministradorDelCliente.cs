@@ -51,6 +51,12 @@ public class AutorizacionDelegacionPorAdministradorDelCliente(
         // pinta nada aquí.
         if (usuario.TenantId != tenantClienteDeleganteId) return false;
 
+        // Sin esto, una cuenta desactivada podía seguir autorizando delegaciones
+        // durante la ventana de gracia de EstaDesactivada (cookie/token ya
+        // emitidos antes del Desactivar; ver su propio comentario) — hallazgo
+        // de la revisión puente del incremento 1b.
+        if (usuario.EstaDesactivada(DateTimeOffset.UtcNow)) return false;
+
         return await userManager.IsInRoleAsync(usuario, Roles.Administrador);
     }
 }
