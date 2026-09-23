@@ -8,7 +8,7 @@ namespace CaeManager.Web.Features.Empresas.Recursos;
 ///
 /// <para>
 /// La Feature no está migrada entera: entra aquí el texto nuevo o reescrito
-/// (la página Empresa 360 y la «Vista previa» del menú de fila de la lista), y
+/// (la página Empresa 360 y la «Vista rápida» del menú de fila de la lista), y
 /// el resto sigue contando en <c>TextosSinLocalizarCongeladosTests</c> hasta su
 /// incremento de migración.
 /// </para>

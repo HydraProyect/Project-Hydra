@@ -59,6 +59,10 @@ public class Cliente360PaginaTests : BunitContext
         public int? TotalCentros { get; set; }
 
         public List<EmpresaDeClienteDto> Empresas { get; } = [];
+
+        /// <summary>Respuestas por Cliente empresarial; sin entrada, las de <see cref="Empresas"/> y <see cref="Centros"/>.</summary>
+        public Dictionary<Guid, List<EmpresaDeClienteDto>> EmpresasPorCliente { get; } = [];
+        public Dictionary<Guid, List<CentroListaDto>> CentrosPorCliente { get; } = [];
         public List<SubcontrataDeClienteDto> Subcontratas { get; } = [];
         public List<object> Enviadas { get; } = [];
 
@@ -72,8 +76,11 @@ public class Cliente360PaginaTests : BunitContext
         {
             ObtenerClientePorIdQuery q => Detalles.GetValueOrDefault(q.Id),
             ObtenerResumenClienteQuery q => Resumenes.GetValueOrDefault(q.ClienteId),
+            ObtenerCentrosQuery q when q.ClienteId is { } c && CentrosPorCliente.TryGetValue(c, out var propios) =>
+                new ResultadoPaginado<CentroListaDto>(propios, propios.Count, 1, MaximoCentros),
             ObtenerCentrosQuery => new ResultadoPaginado<CentroListaDto>(
                 Centros, TotalCentros ?? Centros.Count, 1, MaximoCentros),
+            ObtenerEmpresasDeClienteQuery q when EmpresasPorCliente.TryGetValue(q.ClienteId, out var propias) => propias,
             ObtenerEmpresasDeClienteQuery => Empresas,
             ObtenerSubcontratasDeClienteQuery => Subcontratas,
             _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
@@ -235,6 +242,36 @@ public class Cliente360PaginaTests : BunitContext
         cut.WaitForAssertion(() => cut.Find(".pestanas-boton-activa").TextContent.Should().Contain("Centros"));
         new Uri(Services.GetRequiredService<NavigationManager>().Uri).Query.Should().NotContain("pestana",
             "Centros es la pestaña por defecto: no deja parámetro en la URL");
+    }
+
+    /// <summary>
+    /// Navegar de /clientes/A a /clientes/B reutiliza el componente (Blazor
+    /// solo cambia el parámetro): cabecera, centros y relaciones deben ser los
+    /// de B, sin restos de A.
+    /// </summary>
+    [Fact]
+    public void Cambiar_de_Cliente_sin_recrear_la_pagina_no_arrastra_nada_del_anterior()
+    {
+        var (idA, mediador) = ClienteBase();
+        mediador.CentrosPorCliente[idA] = [Centro("Planta Barakaldo", EstadoCentro.Bloqueado)];
+        mediador.EmpresasPorCliente[idA] = [new EmpresaDeClienteDto(Guid.NewGuid(), "Ibertec GmbH", "B-12345678")];
+        var idB = Guid.NewGuid();
+        mediador.Detalles[idB] = new ClienteDetalleDto(idB, "Aislamientos Nervión S.L.", "B-99.000.111", false, null, Alta, null, Guid.NewGuid());
+        mediador.Resumenes[idB] = new ResumenClienteDto(idB, "Aislamientos Nervión S.L.", "B-99.000.111", false, Alta, null, 1, 7);
+        mediador.CentrosPorCliente[idB] = [Centro("Nave logística Tudela", EstadoCentro.Vigente, empresa: "Montajes Ebro S.L.")];
+        mediador.EmpresasPorCliente[idB] = [new EmpresaDeClienteDto(Guid.NewGuid(), "Montajes Ebro S.L.", "B-50111222")];
+        Registrar(mediador);
+        var cut = Renderizar(idA, "?pestana=empresas");
+        cut.WaitForAssertion(() => cut.Find(".fila-relacion-nombre").TextContent.Should().Contain("Ibertec GmbH"));
+
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"clientes/{idB}?pestana=empresas");
+        cut.Render(p => p.Add(x => x.ClienteId, idB));
+
+        cut.WaitForAssertion(() => cut.Find("h1").TextContent.Should().Contain("Aislamientos Nervión S.L."));
+        cut.WaitForAssertion(() => cut.FindAll(".fila-relacion-nombre").Select(a => a.TextContent.Trim())
+            .Should().Equal(["Montajes Ebro S.L."]));
+        mediador.Enviadas.OfType<ObtenerEmpresasDeClienteQuery>().Should().Contain(new ObtenerEmpresasDeClienteQuery(idB));
+        cut.Markup.Should().NotContain("Refrielectric S.A.").And.NotContain("Ibertec GmbH").And.NotContain("Planta Barakaldo");
     }
 
     [Fact]

@@ -205,7 +205,7 @@
     <value>Accés a plataforma CAE</value>
   </data>
   <data name="SinCredenciales" xml:space="preserve">
-    <value>Sense credencials desades.</value>
+    <value>Sense credencials que puguis consultar.</value>
   </data>
   <data name="ErrorAcceso" xml:space="preserve">
     <value>No hem pogut carregar l'accés.</value>
@@ -240,7 +240,10 @@
   <data name="SinContrasena" xml:space="preserve">
     <value>No hi ha cap contrasenya desada.</value>
   </data>
-  <data name="VistaPrevia" xml:space="preserve">
-    <value>Vista prèvia</value>
+  <data name="VistaRapida" xml:space="preserve">
+    <value>Vista ràpida</value>
+  </data>
+  <data name="AbrirEmpresa360" xml:space="preserve">
+    <value>Obre Empresa 360</value>
   </data>
 </root>

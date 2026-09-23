@@ -267,6 +267,9 @@
   <data name="AltaGuiadaCatalogoVacioDescripcion" xml:space="preserve">
     <value>No és que el filtre no trobi res: el catàleg sencer és buit. Desmarca la casella i crea el primer Client aquí mateix.</value>
   </data>
+  <data name="AltaGuiadaEtiquetaEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
   <data name="AltaGuiadaEtiquetaCliente" xml:space="preserve">
     <value>Client</value>
   </data>

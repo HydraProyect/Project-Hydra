@@ -140,7 +140,7 @@ public class EmpresasListaGen2Tests : BunitContext
     {
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
-        // Empresas pinta con IStringLocalizer<TextosEmpresas> (la «Vista previa» del menú de fila).
+        // Empresas pinta con IStringLocalizer<TextosEmpresas> (la «Vista rápida» del menú de fila).
         Services.AddLocalization();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
@@ -386,11 +386,11 @@ public class EmpresasListaGen2Tests : BunitContext
         cut.FindAll(".fila-empresa-en-vista-previa").Should().BeEmpty("sin vista previa abierta no se marca ninguna");
 
         // La vista previa es el panel del Context Workspace, que se abre desde
-        // «Vista previa» del menú de fila (el nombre navega a Empresa 360).
+        // «Vista rápida» del menú de fila (el nombre navega a Empresa 360).
         var fila = cut.FindAll(".tarjeta-fila-acordeon")[1];
         fila.QuerySelector(".menu-acciones-disparador")!.Click();
         await cut.FindAll(".tarjeta-fila-acordeon")[1].QuerySelectorAll("button")
-            .Single(b => b.TextContent.Trim() == "Vista previa").ClickAsync(new MouseEventArgs());
+            .Single(b => b.TextContent.Trim() == "Vista rápida").ClickAsync(new MouseEventArgs());
 
         var marcadas = cut.FindAll(".fila-empresa-en-vista-previa");
         marcadas.Should().ContainSingle();
@@ -398,7 +398,7 @@ public class EmpresasListaGen2Tests : BunitContext
     }
 
     [Fact]
-    public async Task El_nombre_de_la_fila_enlaza_a_Empresa_360_y_Vista_previa_abre_el_panel()
+    public async Task El_nombre_de_la_fila_enlaza_a_Empresa_360_y_Vista_rapida_abre_el_panel()
     {
         var empresa = Empresa("Refrielectric S.A.");
         var mediador = new MediatorFalso
@@ -417,12 +417,45 @@ public class EmpresasListaGen2Tests : BunitContext
         var workspace = Services.GetRequiredService<ContextWorkspaceService>();
         workspace.FrameActual.Should().BeNull("punto de partida: ningún panel abierto");
 
+        // Mismo menú que la lista Clientes: «Vista rápida» abre el panel y
+        // «Abrir Empresa 360» navega a la página. «Detalles» (el drawer) ya no existe.
         cut.Find(".menu-acciones-disparador").Click();
         cut.FindAll(".menu-acciones-item").Select(b => b.TextContent.Trim())
-            .Should().NotContain(["Detalles", "Abrir Empresa 360"], "«Vista previa» sustituye a los dos");
-        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Vista previa").ClickAsync(new MouseEventArgs());
+            .Should().Contain(["Vista rápida", "Abrir Empresa 360"]).And.NotContain("Detalles");
+        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Vista rápida").ClickAsync(new MouseEventArgs());
 
         workspace.FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Empresa, empresa.Id, "Refrielectric S.A.", "informacion"));
+
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        cut.Find(".menu-acciones-disparador").Click();
+        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Abrir Empresa 360").ClickAsync(new MouseEventArgs());
+        new Uri(navegacion.Uri).AbsolutePath.Should().Be($"/empresas/{empresa.Id}");
+    }
+
+    /// <summary>
+    /// Enter sobre la fila enfocada abre el panel, igual que en la lista
+    /// Clientes y que antes de existir la página: la tecla de consulta rápida
+    /// no se lleva al usuario fuera de la lista.
+    /// </summary>
+    [Fact]
+    public async Task Enter_sobre_la_fila_enfocada_abre_el_panel_sin_salir_de_la_lista()
+    {
+        var empresa = Empresa("Refrielectric S.A.");
+        var mediador = new MediatorFalso
+        {
+            Almacen = { empresa },
+            Retener = p => p is ObtenerEmpresaPorIdQuery ? new TaskCompletionSource<object>().Task : null
+        };
+        var cut = Renderizar(mediador);
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        var rutaAntes = new Uri(navegacion.Uri).AbsolutePath;
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+
+        await cut.InvokeAsync(() => cut.FindComponent<AtajosListaTeclado>().Instance.RecibirAtajo("j"));
+        await cut.InvokeAsync(() => cut.FindComponent<AtajosListaTeclado>().Instance.RecibirAtajo("Enter"));
+
+        workspace.FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Empresa, empresa.Id, "Refrielectric S.A.", "informacion"));
+        new Uri(navegacion.Uri).AbsolutePath.Should().Be(rutaAntes, "Enter consulta de un vistazo; el nombre es el que navega");
     }
 
     // ------------------------------------------------------- Fila desplegada

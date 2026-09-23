@@ -466,6 +466,42 @@ public class Empresa360PaginaTests : BunitContext
         Workspace.FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Cliente, cliente.Id, "Refrielectric S.A.", "informacion"));
     }
 
+    /// <summary>
+    /// Navegar de /empresas/A a /empresas/B reutiliza el componente (Blazor
+    /// solo cambia el parámetro). Nada de A puede sobrevivir: la cabecera, los
+    /// trabajadores y, sobre todo, la pestaña Clientes, que se carga una sola
+    /// vez por Empresa y quedaría con los Clientes empresariales de A si el
+    /// reinicio no la vaciara.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_de_Empresa_sin_recrear_la_pagina_no_arrastra_nada_de_la_anterior()
+    {
+        var mediador = Empresa();
+        var clienteDeA = new ClienteDeEmpresaDto(Guid.NewGuid(), "Refrielectric S.A.", "A-12345678");
+        mediador.Clientes[EmpresaId] = [clienteDeA];
+        var otraId = Guid.NewGuid();
+        var clienteDeB = new ClienteDeEmpresaDto(Guid.NewGuid(), "Aislamientos Nervión S.L.", "B-87654321");
+        mediador.Detalles[otraId] = new EmpresaDetalleDto(
+            otraId, "Montajes Ebro S.L.", "B-50.111.222", new DateTime(2024, 1, 10, 9, 0, 0, DateTimeKind.Utc),
+            [clienteDeB.Id], Guid.NewGuid(), "4321", "Metal de Zaragoza", false);
+        mediador.Cumplimiento[otraId] = 90;
+        mediador.Trabajadores[otraId] = [Trabajador(EstadoDocumento.Vigente, "Gil")];
+        mediador.Clientes[otraId] = [clienteDeB];
+        Registrar(mediador);
+        var cut = Renderizar("?pestana=clientes");
+        cut.Find(".fila-relacion-nombre").TextContent.Should().Contain("Refrielectric S.A.");
+
+        Navegacion.NavigateTo($"empresas/{otraId}?pestana=clientes");
+        cut.Render(p => p.Add(x => x.EmpresaId, otraId));
+        cut.WaitForAssertion(() => cut.FindAll("[aria-busy=true]").Should().BeEmpty());
+
+        cut.Find("h1").TextContent.Should().Contain("Montajes Ebro S.L.");
+        mediador.Enviadas.OfType<ObtenerClientesDeEmpresaQuery>().Should().Contain(new ObtenerClientesDeEmpresaQuery(otraId));
+        cut.FindAll(".fila-relacion-nombre").Select(a => a.TextContent.Trim())
+            .Should().Equal(["Aislamientos Nervión S.L."], "la lista es la de B, no la que ya estaba cargada de A");
+        cut.Markup.Should().NotContain("Ibertec GmbH").And.NotContain("Refrielectric S.A.");
+    }
+
     // ── Credencial de acceso ──────────────────────────────────────────────
 
     private MediatorFalso EmpresaConCredencial(string? contrasena = "clave-secreta-123")
@@ -532,7 +568,7 @@ public class Empresa360PaginaTests : BunitContext
 
         var cut = Renderizar();
 
-        cut.Markup.Should().Contain("Sin credenciales guardadas.");
+        cut.Markup.Should().Contain("Sin credenciales que puedas consultar.");
         cut.FindAll(".boton-copiar").Select(b => b.TextContent.Trim()).Should().NotContain("Copiar contraseña");
     }
 

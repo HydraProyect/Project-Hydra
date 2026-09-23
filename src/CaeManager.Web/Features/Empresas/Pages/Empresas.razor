@@ -204,7 +204,7 @@
                            que no se copia: sería una consulta más por fila. *@
                         @* El nombre es un enlace real a Empresa 360 (decisión del propietario
                            2026-09-22: cada 360 tiene página propia); el panel de 520 px queda en
-                           «Vista previa» del menú de la fila. *@
+                           «Vista rápida» del menú de la fila, como en la lista Clientes. *@
                         <a class="enlace-nombre-fila celda-empresa" href="@($"/empresas/{empresa.Id}")">
                             @empresa.RazonSocial
                         </a>
@@ -244,8 +244,11 @@
                            siempre sería un cambio de producto que nadie ha decidido. *@
                         <div class="tarjeta-fila-acordeon-acciones">
                             <MenuAcciones>
-                                <ItemMenuAccion OnClick="() => AbrirVistaPreviaAsync(empresa.Id)">
-                                    @Textos["VistaPrevia"]
+                                <ItemMenuAccion OnClick="() => AbrirVistaRapidaAsync(empresa.Id)">
+                                    @Textos["VistaRapida"]
+                                </ItemMenuAccion>
+                                <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo($"/empresas/{empresa.Id}")'>
+                                    @Textos["AbrirEmpresa360"]
                                 </ItemMenuAccion>
                                 @if (empresa.DeteccionesPendientes > 0)
                                 {

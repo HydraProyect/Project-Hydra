@@ -109,7 +109,7 @@
                hace honesto que el botón secundario de este paso sea "Terminar
                aquí" y no "Cancelar". *@
             <p class="texto-vacio-seccion">
-                Empresa: <strong>@_empresaNombre</strong>
+                @Textos["AltaGuiadaEtiquetaEmpresa"]: <strong>@_empresaNombre</strong>
                 <Badge Tono="TonoBadge.Exito" Tamano="TamanoBadge.Pequeno">Ya creada</Badge>
             </p>
 
@@ -207,7 +207,7 @@
         {
             <h2 class="titulo-seccion-importacion">3. Centro</h2>
             <p class="texto-vacio-seccion">
-                Empresa: <strong>@_empresaNombre</strong> · @Textos["AltaGuiadaEtiquetaCliente"]: <strong>@_clienteNombre</strong>
+                @Textos["AltaGuiadaEtiquetaEmpresa"]: <strong>@_empresaNombre</strong> · @Textos["AltaGuiadaEtiquetaCliente"]: <strong>@_clienteNombre</strong>
             </p>
 
             @if (_mensajeErrorCentro is not null)
@@ -258,7 +258,7 @@
         {
             <h2 class="titulo-seccion-importacion">4. Trabajadores</h2>
             <p class="texto-vacio-seccion">
-                Empresa: <strong>@_empresaNombre</strong>
+                @Textos["AltaGuiadaEtiquetaEmpresa"]: <strong>@_empresaNombre</strong>
                 @if (_ultimoCentroId is not null)
                 {
                     <text> · Centro: <strong>@_ultimoCentroNombre</strong></text>

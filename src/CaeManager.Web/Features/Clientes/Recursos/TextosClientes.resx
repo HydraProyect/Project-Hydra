@@ -287,6 +287,10 @@
   <data name="AltaGuiadaCatalogoVacioDescripcion" xml:space="preserve">
     <value>No es que el filtro no encuentre nada: el catálogo entero está vacío. Desmarca la casilla y crea el primer Cliente aquí mismo.</value>
   </data>
+  <data name="AltaGuiadaEtiquetaEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+    <comment>Alta guiada: prefijo «Empresa: nombre» de los resúmenes (la Empresa del Tenant propietario).</comment>
+  </data>
   <data name="AltaGuiadaEtiquetaCliente" xml:space="preserve">
     <value>Cliente</value>
     <comment>Alta guiada: etiqueta del selector y prefijo «Cliente: nombre» de los resúmenes.</comment>

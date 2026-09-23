@@ -269,8 +269,8 @@
     <comment>Tarjeta del lateral con la credencial de acceso de la Empresa.</comment>
   </data>
   <data name="SinCredenciales" xml:space="preserve">
-    <value>Sin credenciales guardadas.</value>
-    <comment>La Empresa no tiene credencial de acceso.</comment>
+    <value>Sin credenciales que puedas consultar.</value>
+    <comment>La consulta devuelve null tanto si la Empresa no tiene credencial como si queda fuera del alcance de gestión del usuario (EmpresaParaGestionVisibleAsync); el texto es cierto en los dos casos y no revela cuál es.</comment>
   </data>
   <data name="ErrorAcceso" xml:space="preserve">
     <value>No pudimos cargar el acceso.</value>
@@ -316,8 +316,12 @@
     <value>No hay ninguna contraseña guardada.</value>
     <comment>Aviso al pulsar Copiar contraseña sin contraseña guardada.</comment>
   </data>
-  <data name="VistaPrevia" xml:space="preserve">
-    <value>Vista previa</value>
-    <comment>Ítem del menú de fila de la lista Empresas: abre el panel de 520 px.</comment>
+  <data name="VistaRapida" xml:space="preserve">
+    <value>Vista rápida</value>
+    <comment>Ítem del menú de fila de la lista Empresas: abre el panel de 520 px. Mismo rótulo que la lista Clientes.</comment>
+  </data>
+  <data name="AbrirEmpresa360" xml:space="preserve">
+    <value>Abrir Empresa 360</value>
+    <comment>Ítem del menú de fila de la lista Empresas: navega a la página /empresas/{id}.</comment>
   </data>
 </root>

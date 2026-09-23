@@ -68,10 +68,11 @@ public partial class Empresas : ComponentBase, IDisposable
     private bool _eliminando;
 
     // El nombre de la fila es un enlace a Empresa 360 (/empresas/{id}); la
-    // «Vista previa» del menú abre el panel de 520 px del Context Workspace,
-    // el mismo que abren los botones 360 del resto de pantallas. Antes el
-    // nombre abría EmpresaPreviewDrawer, que la lista ya no usa.
-    private Task AbrirVistaPreviaAsync(Guid id)
+    // «Vista rápida» del menú y Enter sobre la fila enfocada abren el panel de
+    // 520 px del Context Workspace, el mismo que abren los botones 360 del
+    // resto de pantallas, igual que en la lista Clientes. Antes el nombre abría
+    // EmpresaPreviewDrawer, que la lista ya no usa.
+    private Task AbrirVistaRapidaAsync(Guid id)
     {
         var nombre = _elementosPagina.FirstOrDefault(e => e.Id == id)?.RazonSocial ?? string.Empty;
         return WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, id, nombre, "informacion");
@@ -757,7 +758,7 @@ public partial class Empresas : ComponentBase, IDisposable
                 break;
             case "Enter":
                 if (_idEnfocado is { } idAbrir)
-                    NavigationManager.NavigateTo($"/empresas/{idAbrir}");
+                    await AbrirVistaRapidaAsync(idAbrir);
                 break;
         }
 
