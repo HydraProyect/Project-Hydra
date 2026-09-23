@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Resources;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Operaciones;
 using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Features.IncorporacionCartera.Recursos;
@@ -39,11 +40,29 @@ public sealed class TextosIncorporacionCartera
 
         if (error.Codigo.StartsWith(PrefijoCodigo, StringComparison.Ordinal))
         {
-            var texto = textos["Error" + error.Codigo[PrefijoCodigo.Length..]];
+            var texto = textos[ClaveDeError(error)];
             if (!texto.ResourceNotFound)
                 return texto.Value;
         }
 
         return textos["ErrorGenerico"].Value;
+    }
+
+    /// <summary>
+    /// Clave <c>EstadoX</c> de cada estado de la solicitud; compuesta, la cubre
+    /// IncorporacionCarteraRecursosTests.
+    /// </summary>
+    public static string ClaveDeEstado(EstadoSolicitudIncorporacionCartera estado) =>
+        string.Concat("Estado", estado.ToString());
+
+    /// <summary>
+    /// Clave <c>ErrorX</c> del código <c>SolicitudCartera.X</c>. Compuesta, así
+    /// que el cruce literal de claves no la ve: la cubre
+    /// IncorporacionCarteraRecursosTests, código a código.
+    /// </summary>
+    public static string ClaveDeError(Error error)
+    {
+        ArgumentNullException.ThrowIfNull(error);
+        return string.Concat("Error", error.Codigo.AsSpan(PrefijoCodigo.Length));
     }
 }

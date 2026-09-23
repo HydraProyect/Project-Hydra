@@ -141,8 +141,9 @@ public static class CatalogoMenuLateral
         new("dashboard", "dashboards", "", "dashboard", "Dashboard", CoincidenciaExacta: true),
         new("vision-cartera", "dashboards", "vision-cartera", "cartera", "Visión de cartera",
             Condicion: c => c.TieneAlgunRol(RolesDeCartera)),
-        // Rótulo localizado (TextosIncorporacionCartera), a diferencia de sus vecinos todavía literales.
-        new("solicitudes-cartera", "dashboards", "cartera/solicitudes", "cartera", "Solicitudes de cartera",
+        // Rótulo localizado (TextosIncorporacionCartera), a diferencia de sus vecinos todavía literales:
+        // lo da RotuloPorContexto, así que el Rotulo fijo queda vacío.
+        new("solicitudes-cartera", "dashboards", "cartera/solicitudes", "cartera", "",
             Condicion: c => c.TieneAlgunRol(RolesDeSolicitudesCartera),
             RotuloPorContexto: _ => TextosIncorporacionCartera.Texto("EnlaceMenu")),
         new("dashboard-ejecutivo", "dashboards", "dashboard-ejecutivo", "dashboard", "Dashboard Ejecutivo",

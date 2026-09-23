@@ -3,6 +3,7 @@
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
 @using CaeManager.Application.Operaciones.IncorporacionCartera.Queries
 @using CaeManager.Web.Features.IncorporacionCartera.Components
+@using CaeManager.Web.Features.IncorporacionCartera.Recursos
 @using CaeManager.Web.Recursos
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosComunes> Comunes
@@ -141,7 +142,7 @@
                         <tr data-solicitud="@propia.Id">
                             <td>@propia.NombreEmpresa</td>
                             <td class="solicitudes-mensaje">@propia.Mensaje</td>
-                            <td><Badge Tono="TonoDe(propia.Estado)">@Textos["Estado" + propia.Estado]</Badge></td>
+                            <td><Badge Tono="TonoDe(propia.Estado)">@Textos[TextosIncorporacionCartera.ClaveDeEstado(propia.Estado)]</Badge></td>
                             <td>@FormatearFecha(propia.ResueltaEnUtc ?? propia.CreadaEnUtc)</td>
                             <td class="solicitudes-acciones">
                                 @if (propia.PuedeRevocar)
