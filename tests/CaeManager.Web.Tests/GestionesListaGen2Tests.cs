@@ -42,6 +42,7 @@ public class GestionesListaGen2Tests : BunitContext
     public GestionesListaGen2Tests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
         this.ConRolDeEscritura();
     }
 

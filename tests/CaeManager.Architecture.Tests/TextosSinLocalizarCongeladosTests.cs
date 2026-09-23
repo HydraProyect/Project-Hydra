@@ -74,7 +74,6 @@ public class TextosSinLocalizarCongeladosTests
         ["Extension"] = 29,
         ["Facturacion"] = 96,
         ["GestionRoles"] = 52,
-        ["Gestiones"] = 48,
         ["Importacion"] = 166,
         ["Incidencias"] = 81,
         ["Integraciones"] = 92,
