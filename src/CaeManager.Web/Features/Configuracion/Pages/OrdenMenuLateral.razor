@@ -1,0 +1,269 @@
+@page "/configuracion/orden-menu"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using CaeManager.Web.Components.Layout
+
+<PageTitle>@Textos["OrdenMenuTituloDocumento"] — @Marca.Nombre</PageTitle>
+
+@* Mockup «Orden del Menu TALVEG.dc.html», aprobado por el propietario el 2026-09-23 con la
+   pantalla dentro de Configuración (grupo «Plataforma y conexiones»), no en el grupo Plataforma
+   del menú lateral. Ruta literal: gana a "/configuracion/{EntradaRuta?}" del hub. *@
+<div class="contenedor-pagina orden-menu">
+    <nav class="orden-menu-migas" aria-label="@Textos["OrdenMenuAriaMigas"]">
+        <a href="/configuracion">@Textos["OrdenMenuMigaConfiguracion"]</a>
+        <span aria-hidden="true">→</span>
+        <span>@Textos["GrupoPlataformaConexiones"]</span>
+        <span aria-hidden="true">→</span>
+        <span class="orden-menu-miga-actual" aria-current="page">@Textos["OrdenMenuTitulo"]</span>
+    </nav>
+
+    <header class="orden-menu-cabecera">
+        <span class="orden-menu-ceja">@Textos["OrdenMenuCeja"]</span>
+        <h1 class="titulo-pagina">@Textos["OrdenMenuTitulo"]</h1>
+        <p>@Textos["OrdenMenuDescripcion"]</p>
+    </header>
+
+    @if (_esAdministradorPlataforma is null)
+    {
+        <EstadoCargando />
+    }
+    else if (_esAdministradorPlataforma == false)
+    {
+        <EstadoVacio NombreIcono="seguridad"
+                     Titulo="@Textos["OrdenMenuSinAccesoTitulo"]"
+                     Descripcion="@Textos["OrdenMenuSinAccesoTexto"]" />
+    }
+    else
+    {
+        <section class="orden-menu-global" aria-labelledby="orden-menu-global-titulo">
+            <span class="orden-menu-global-icono" aria-hidden="true"><Icono Nombre="plataforma" /></span>
+            <div>
+                <span id="orden-menu-global-titulo" class="orden-menu-global-titulo">@Textos["OrdenMenuGlobalTitulo"]</span>
+                <ul>
+                    <li>@Textos["OrdenMenuGlobalTodos"]</li>
+                    <li>@Textos["OrdenMenuGlobalVisibilidad"]</li>
+                    <li>@Textos["OrdenMenuGlobalLimites"]</li>
+                </ul>
+                <div class="orden-menu-etiquetas">
+                    <span>@Textos["OrdenMenuChipPlano"]</span>
+                    <span>@Textos["OrdenMenuChipTenants"]</span>
+                    <span>@Textos["OrdenMenuChipAuditado"]</span>
+                </div>
+            </div>
+        </section>
+
+        <div aria-live="polite" class="orden-menu-avisos">
+            @if (_aviso == Aviso.Guardado)
+            {
+                <div role="status" class="orden-menu-aviso orden-menu-aviso-exito" data-aviso="guardado">
+                    <span class="orden-menu-aviso-icono" aria-hidden="true"><Icono Nombre="exito-circulo" /></span>
+                    <div><strong>@Textos["OrdenMenuAvisoGuardadoTitulo"]</strong><span>@Textos["OrdenMenuAvisoGuardadoTexto"]</span></div>
+                </div>
+            }
+            else if (_aviso == Aviso.Error)
+            {
+                <div role="alert" class="orden-menu-aviso orden-menu-aviso-error" data-aviso="error">
+                    <span class="orden-menu-aviso-icono" aria-hidden="true"><Icono Nombre="info" /></span>
+                    <div><strong>@Textos["OrdenMenuAvisoErrorTitulo"]</strong><span>@Textos["OrdenMenuAvisoErrorTexto"]</span></div>
+                    <button type="button" class="orden-menu-boton" @onclick="ReintentarAsync">@Textos["OrdenMenuReintentar"]</button>
+                </div>
+            }
+            else if (_aviso == Aviso.Conflicto)
+            {
+                <div role="alert" class="orden-menu-aviso orden-menu-aviso-conflicto" data-aviso="conflicto">
+                    <span class="orden-menu-aviso-icono" aria-hidden="true"><Icono Nombre="info" /></span>
+                    <div>
+                        <strong>@Textos["OrdenMenuAvisoConflictoTitulo"]</strong>
+                        <span>@TextoConflicto</span>
+                    </div>
+                    <button type="button" class="orden-menu-boton" @onclick="CargarOrdenActual">@Textos["OrdenMenuCargarActual"]</button>
+                </div>
+            }
+        </div>
+
+        <div class="orden-menu-columnas">
+            <section class="orden-menu-tarjeta" aria-labelledby="orden-menu-lista-titulo">
+                <div class="orden-menu-tarjeta-cabecera">
+                    <h2 id="orden-menu-lista-titulo">@Textos["OrdenMenuListaTitulo"]</h2>
+                    <span class="orden-menu-recuento-total">@Textos["OrdenMenuRecuento", _grupos.Count, CatalogoMenuLateral.Enlaces.Count]</span>
+                </div>
+                <div id="orden-menu-ayuda-teclado" class="orden-menu-ayuda">
+                    <span>@Textos["OrdenMenuAyudaCon"]</span><kbd>@Textos["OrdenMenuTeclaTab"]</kbd><span>@Textos["OrdenMenuAyudaHastaAsa"]</span><kbd>@Textos["OrdenMenuTeclaEspacio"]</kbd><span>@Textos["OrdenMenuAyudaCoger"]</span><kbd>↑</kbd><kbd>↓</kbd><span>@Textos["OrdenMenuAyudaMover"]</span><kbd>@Textos["OrdenMenuTeclaEspacio"]</kbd><span>@Textos["OrdenMenuAyudaSoltar"]</span><kbd>@Textos["OrdenMenuTeclaEsc"]</kbd><span>@Textos["OrdenMenuAyudaCancelar"]</span>
+                </div>
+
+                @if (_cargando)
+                {
+                    <div aria-busy="true" class="orden-menu-cargando">
+                        <span>@Textos["OrdenMenuCargando"]</span>
+                    </div>
+                }
+                else
+                {
+                    <ol class="orden-menu-grupos" aria-label="@Textos["OrdenMenuAriaGrupos"]">
+                        @foreach (var grupo in GruposEditables)
+                        {
+                            <li @key="grupo.Cabecera.Fila.Clave" class="orden-menu-grupo" data-grupo="@grupo.Cabecera.Fila.Id">
+                                @RenderFila(grupo.Cabecera)
+                                <ol class="orden-menu-enlaces" aria-label="@Textos["OrdenMenuAriaEnlacesDe", grupo.Cabecera.Nombre]">
+                                    @foreach (var enlace in grupo.Enlaces)
+                                    {
+                                        <li @key="enlace.Fila.Clave">@RenderFila(enlace)</li>
+                                    }
+                                </ol>
+                            </li>
+                        }
+                    </ol>
+                }
+            </section>
+
+            <aside class="orden-menu-previa" aria-labelledby="orden-menu-previa-titulo">
+                <div class="orden-menu-tarjeta">
+                    <h2 id="orden-menu-previa-titulo">@Textos["OrdenMenuVistaPrevia"]</h2>
+                    <label class="orden-menu-rol">
+                        @Textos["OrdenMenuVerComo"]
+                        <select @bind="_rol" data-rol-previa>
+                            @foreach (var (rol, clave) in RolesVistaPrevia)
+                            {
+                                <option value="@rol">@Textos[clave]</option>
+                            }
+                        </select>
+                    </label>
+                    <nav class="orden-menu-previa-menu" aria-label="@Textos["OrdenMenuAriaVistaPrevia"]">
+                        @foreach (var visible in VistaPrevia.Grupos)
+                        {
+                            <div class="orden-menu-previa-grupo" data-grupo-previa="@visible.Id">
+                                <div class="orden-menu-previa-titulo">@visible.Titulo</div>
+                                @foreach (var enlace in visible.Enlaces)
+                                {
+                                    <span class="orden-menu-previa-enlace" data-enlace-previa="@enlace.Id"><Icono Nombre="@enlace.Icono" Tamano="TamanoIcono.Pequeno" /><span>@enlace.Rotulo</span></span>
+                                }
+                            </div>
+                        }
+                    </nav>
+                    <span class="orden-menu-previa-texto" data-previa-texto>@VistaPrevia.Texto</span>
+                </div>
+            </aside>
+        </div>
+
+        <div role="region" class="orden-menu-barra" aria-label="@Textos["OrdenMenuAriaBarra"]">
+            <div class="orden-menu-barra-estado">
+                <strong data-estado-titulo>@TituloEstado</strong>
+                <span>@(CambiosSinGuardar == 0 ? Textos["OrdenMenuDetalleSinCambios"] : Textos["OrdenMenuDetalleConCambios"])</span>
+            </div>
+            <button type="button" class="orden-menu-boton-texto" data-accion="restablecer" disabled="@(_cargando || _guardando)"
+                    @onclick="() => _confirmarRestablecer = true">@Textos["OrdenMenuRestablecer"]</button>
+            <button type="button" class="orden-menu-boton" data-accion="descartar" disabled="@(CambiosSinGuardar == 0 || _guardando)"
+                    @onclick="Descartar">@Textos["OrdenMenuDescartar"]</button>
+            <button type="button" class="orden-menu-boton orden-menu-boton-primario" data-accion="guardar" disabled="@(CambiosSinGuardar == 0 || _guardando)"
+                    @onclick="GuardarAsync">@Textos["OrdenMenuGuardar"]</button>
+        </div>
+
+        <section class="orden-menu-tarjeta" aria-labelledby="orden-menu-ultimo-titulo">
+            <h2 id="orden-menu-ultimo-titulo">@Textos["OrdenMenuUltimoTitulo"]</h2>
+            @if (_orden is null)
+            {
+                <p class="orden-menu-sin-historial" data-sin-historial>@Textos["OrdenMenuSinHistorial"]</p>
+            }
+            else
+            {
+                <div class="orden-menu-historial">
+                    <div data-historial="actor">
+                        <span class="orden-menu-historial-etiqueta">@Textos["OrdenMenuActorReal"]</span>
+                        <span class="orden-menu-historial-valor">@_autorOrden</span>
+                        <span class="orden-menu-historial-pista">@Textos["OrdenMenuActorRealPista"]</span>
+                    </div>
+                    <div data-historial="fecha">
+                        <span class="orden-menu-historial-etiqueta">@Textos["OrdenMenuFecha"]</span>
+                        <span class="orden-menu-historial-valor">@Fecha(_orden.ActualizadoEnUtc)</span>
+                        <span class="orden-menu-historial-pista">@Textos["OrdenMenuFechaPista"]</span>
+                    </div>
+                    <div data-historial="cambios">
+                        <span class="orden-menu-historial-etiqueta">@Textos["OrdenMenuQueCambio"]</span>
+                        <span class="orden-menu-historial-valor">@TextoQueCambio</span>
+                        <span class="orden-menu-historial-pista">@Textos["OrdenMenuQueCambioPista"]</span>
+                    </div>
+                </div>
+            }
+        </section>
+    }
+
+    <div role="status" aria-live="assertive" class="orden-menu-anuncio" data-anuncio>@_anuncio</div>
+
+    @if (_confirmarRestablecer)
+    {
+        <div class="orden-menu-velo" @onkeydown="@(e => { if (e.Key == "Escape") _confirmarRestablecer = false; })">
+            <div role="dialog" aria-modal="true" aria-labelledby="orden-menu-dialogo-titulo" class="orden-menu-dialogo">
+                <h2 id="orden-menu-dialogo-titulo">@Textos["OrdenMenuDialogoTitulo"]</h2>
+                <p>@Textos["OrdenMenuDialogoTexto"]</p>
+                <div class="orden-menu-dialogo-acciones">
+                    <button type="button" class="orden-menu-boton" data-dialogo="cancelar" @onclick="() => _confirmarRestablecer = false">@Textos["OrdenMenuCancelar"]</button>
+                    <button type="button" class="orden-menu-boton orden-menu-boton-primario" data-dialogo="restablecer" @onclick="RestablecerAsync">@Textos["OrdenMenuRestablecerConfirmar"]</button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>Una fila reordenable: asa (teclado y arrastre), posición, nombre, distintivos y Subir/Bajar.</summary>
+    private RenderFragment RenderFila(FilaEditable editable) => __builder =>
+    {
+        var (fila, indice, total, nombre, icono, ruta, nacePlegado, esNueva, recuento) = editable;
+        <div class="orden-menu-fila @(fila.Tipo == TipoFila.Grupo ? "orden-menu-fila-grupo" : null)"
+             data-fila="@fila.Clave" data-cogida="@(EsCogida(fila) ? "true" : "false")"
+             data-arrastrando="@(_arrastre == fila ? "true" : "false")" data-destino="@(_destinoArrastre == fila.Clave ? "true" : "false")"
+             draggable="true"
+             @ondragstart="() => EmpezarArrastre(fila)"
+             @ondragenter="() => EntrarArrastre(fila)"
+             @ondragover:preventDefault="true"
+             @ondrop="() => SoltarArrastre(fila)"
+             @ondragend="TerminarArrastre">
+            <button type="button" class="orden-menu-asa" data-asa
+                    @ref="_asas[fila.Clave]"
+                    aria-pressed="@(EsCogida(fila) ? "true" : "false")"
+                    aria-label="@Textos["OrdenMenuAriaMover", nombre]"
+                    aria-describedby="orden-menu-ayuda-teclado"
+                    @onclick="() => PulsarAsa(fila)"
+                    @onkeydown="e => TeclaAsa(e, fila)"
+                    @onkeydown:preventDefault="EsCogida(fila)">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6" /><circle cx="15" cy="6" r="1.6" /><circle cx="9" cy="12" r="1.6" /><circle cx="15" cy="12" r="1.6" /><circle cx="9" cy="18" r="1.6" /><circle cx="15" cy="18" r="1.6" /></svg>
+            </button>
+            <span class="orden-menu-posicion">@(indice + 1)</span>
+            @if (fila.Tipo == TipoFila.Grupo)
+            {
+                <span class="orden-menu-nombre-grupo">@nombre</span>
+                <span class="orden-menu-distintivo" data-recuento>@Textos["OrdenMenuRecuentoEnlaces", recuento ?? 0]</span>
+                @if (nacePlegado)
+                {
+                    <span class="orden-menu-distintivo" data-nace-plegado>@Textos["OrdenMenuNacePlegado"]</span>
+                }
+                @if (esNueva)
+                {
+                    <span class="orden-menu-distintivo orden-menu-distintivo-nuevo" data-nuevo>@Textos["OrdenMenuNuevo"]</span>
+                }
+            }
+            else
+            {
+                <span class="orden-menu-nombre-enlace">
+                    <span class="orden-menu-icono-enlace" aria-hidden="true"><Icono Nombre="@(icono ?? string.Empty)" Tamano="TamanoIcono.Pequeno" /></span>
+                    <span>@nombre</span>
+                    @if (esNueva)
+                    {
+                        <span class="orden-menu-distintivo orden-menu-distintivo-nuevo" data-nuevo>@Textos["OrdenMenuNuevo"]</span>
+                    }
+                </span>
+                <span class="orden-menu-ruta" data-ruta>@ruta</span>
+            }
+            <span class="orden-menu-flechas">
+                <button type="button" class="orden-menu-flecha" data-flecha="arriba" disabled="@(indice == 0)"
+                        aria-label="@Textos["OrdenMenuAriaSubir", nombre]" @onclick="() => Mover(fila, -1)">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5" /><path d="M6 11l6-6 6 6" /></svg>
+                </button>
+                <button type="button" class="orden-menu-flecha" data-flecha="abajo" disabled="@(indice == total - 1)"
+                        aria-label="@Textos["OrdenMenuAriaBajar", nombre]" @onclick="() => Mover(fila, 1)">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="transform:rotate(180deg)"><path d="M12 19V5" /><path d="M6 11l6-6 6 6" /></svg>
+                </button>
+            </span>
+        </div>
+    };
+}

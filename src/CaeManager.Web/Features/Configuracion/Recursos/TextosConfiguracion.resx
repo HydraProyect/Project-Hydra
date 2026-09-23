@@ -306,4 +306,253 @@
   <data name="ErrorPresupuestoNoNumerico" xml:space="preserve">
     <value>El presupuesto debe ser un número.</value>
   </data>
+  <data name="EntradaOrdenMenuNombre" xml:space="preserve">
+    <value>Orden del menú</value>
+  </data>
+  <data name="EntradaOrdenMenuResumen" xml:space="preserve">
+    <value>Solo Actor de Plataforma TALVEG</value>
+  </data>
+  <data name="OrdenMenuTituloDocumento" xml:space="preserve">
+    <value>Orden del menú — Configuración</value>
+  </data>
+  <data name="OrdenMenuTitulo" xml:space="preserve">
+    <value>Orden del menú</value>
+  </data>
+  <data name="OrdenMenuAriaMigas" xml:space="preserve">
+    <value>Ruta de navegación</value>
+  </data>
+  <data name="OrdenMenuMigaConfiguracion" xml:space="preserve">
+    <value>Configuración</value>
+  </data>
+  <data name="OrdenMenuCeja" xml:space="preserve">
+    <value>Configuración · Plataforma</value>
+  </data>
+  <data name="OrdenMenuDescripcion" xml:space="preserve">
+    <value>Ordena los grupos del menú lateral y los enlaces de cada grupo. El orden es el mismo para todos los usuarios de todos los Tenants.</value>
+  </data>
+  <data name="OrdenMenuSinAccesoTitulo" xml:space="preserve">
+    <value>Solo el Actor de Plataforma TALVEG ordena el menú</value>
+  </data>
+  <data name="OrdenMenuSinAccesoTexto" xml:space="preserve">
+    <value>El orden del menú es global: lo ven todos los usuarios de todos los Tenants. Solo puede cambiarlo un Actor de Plataforma TALVEG con concesión global, y tu cuenta no la tiene.</value>
+  </data>
+  <data name="OrdenMenuGlobalTitulo" xml:space="preserve">
+    <value>El cambio es global</value>
+  </data>
+  <data name="OrdenMenuGlobalTodos" xml:space="preserve">
+    <value>Lo verán todos los usuarios de todos los Tenants la próxima vez que carguen una página.</value>
+  </data>
+  <data name="OrdenMenuGlobalVisibilidad" xml:space="preserve">
+    <value>Ordenar no muestra ni oculta nada: cada usuario sigue viendo solo los enlaces que su rol le permite.</value>
+  </data>
+  <data name="OrdenMenuGlobalLimites" xml:space="preserve">
+    <value>Un enlace no puede cambiar de grupo. El menú del portal del rol Cliente no se ordena aquí.</value>
+  </data>
+  <data name="OrdenMenuChipPlano" xml:space="preserve">
+    <value>Plano de Plataforma</value>
+  </data>
+  <data name="OrdenMenuChipTenants" xml:space="preserve">
+    <value>Todos los Tenants</value>
+  </data>
+  <data name="OrdenMenuChipAuditado" xml:space="preserve">
+    <value>Queda auditado con el Actor real</value>
+  </data>
+  <data name="OrdenMenuAvisoGuardadoTitulo" xml:space="preserve">
+    <value>Orden guardado</value>
+  </data>
+  <data name="OrdenMenuAvisoGuardadoTexto" xml:space="preserve">
+    <value>Todos los usuarios lo verán la próxima vez que carguen una página.</value>
+  </data>
+  <data name="OrdenMenuAvisoErrorTitulo" xml:space="preserve">
+    <value>No se pudo guardar el orden</value>
+  </data>
+  <data name="OrdenMenuAvisoErrorTexto" xml:space="preserve">
+    <value>Tus cambios siguen aquí. Vuelve a intentarlo; si persiste, el error ya ha quedado registrado.</value>
+  </data>
+  <data name="OrdenMenuReintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="OrdenMenuAvisoConflictoTitulo" xml:space="preserve">
+    <value>Otro Actor de Plataforma guardó un orden mientras editabas</value>
+  </data>
+  <data name="OrdenMenuAvisoConflictoTexto" xml:space="preserve">
+    <value>No se ha pisado su cambio ({0}, {1}). Carga su orden y vuelve a aplicar lo tuyo.</value>
+  </data>
+  <data name="OrdenMenuAvisoConflictoSinFila" xml:space="preserve">
+    <value>No se ha pisado su cambio: el orden guardado cambió mientras editabas. Carga el orden actual y vuelve a aplicar lo tuyo.</value>
+  </data>
+  <data name="OrdenMenuCargarActual" xml:space="preserve">
+    <value>Cargar el orden actual</value>
+  </data>
+  <data name="OrdenMenuListaTitulo" xml:space="preserve">
+    <value>Grupos y enlaces</value>
+  </data>
+  <data name="OrdenMenuRecuento" xml:space="preserve">
+    <value>{0} grupos · {1} enlaces</value>
+  </data>
+  <data name="OrdenMenuAyudaCon" xml:space="preserve">
+    <value>Con el teclado:</value>
+  </data>
+  <data name="OrdenMenuTeclaTab" xml:space="preserve">
+    <value>Tab</value>
+  </data>
+  <data name="OrdenMenuTeclaEspacio" xml:space="preserve">
+    <value>Espacio</value>
+  </data>
+  <data name="OrdenMenuTeclaEsc" xml:space="preserve">
+    <value>Esc</value>
+  </data>
+  <data name="OrdenMenuAyudaHastaAsa" xml:space="preserve">
+    <value>hasta el asa ·</value>
+  </data>
+  <data name="OrdenMenuAyudaCoger" xml:space="preserve">
+    <value>coger ·</value>
+  </data>
+  <data name="OrdenMenuAyudaMover" xml:space="preserve">
+    <value>mover ·</value>
+  </data>
+  <data name="OrdenMenuAyudaSoltar" xml:space="preserve">
+    <value>soltar ·</value>
+  </data>
+  <data name="OrdenMenuAyudaCancelar" xml:space="preserve">
+    <value>cancelar. También puedes arrastrar el asa o usar las flechas de cada fila.</value>
+  </data>
+  <data name="OrdenMenuCargando" xml:space="preserve">
+    <value>Cargando el orden guardado…</value>
+  </data>
+  <data name="OrdenMenuAriaGrupos" xml:space="preserve">
+    <value>Grupos del menú</value>
+  </data>
+  <data name="OrdenMenuAriaEnlacesDe" xml:space="preserve">
+    <value>Enlaces de {0}</value>
+  </data>
+  <data name="OrdenMenuRecuentoEnlaces" xml:space="preserve">
+    <value>{0} enlaces</value>
+  </data>
+  <data name="OrdenMenuNacePlegado" xml:space="preserve">
+    <value>Nace plegado</value>
+  </data>
+  <data name="OrdenMenuNuevo" xml:space="preserve">
+    <value>Nuevo · añadido al final</value>
+  </data>
+  <data name="OrdenMenuAriaMover" xml:space="preserve">
+    <value>Mover {0}</value>
+  </data>
+  <data name="OrdenMenuAriaSubir" xml:space="preserve">
+    <value>Subir {0}</value>
+  </data>
+  <data name="OrdenMenuAriaBajar" xml:space="preserve">
+    <value>Bajar {0}</value>
+  </data>
+  <data name="OrdenMenuAnuncioPosicion" xml:space="preserve">
+    <value>{0}, posición {1} de {2}.</value>
+  </data>
+  <data name="OrdenMenuAnuncioCogido" xml:space="preserve">
+    <value>{0} cogido. Flechas arriba y abajo para moverlo, Espacio para soltar, Escape para cancelar.</value>
+  </data>
+  <data name="OrdenMenuAnuncioSoltado" xml:space="preserve">
+    <value>{0} soltado en la posición {1} de {2}.</value>
+  </data>
+  <data name="OrdenMenuAnuncioCancelado" xml:space="preserve">
+    <value>Movimiento cancelado. {0} vuelve a su posición.</value>
+  </data>
+  <data name="OrdenMenuVistaPrevia" xml:space="preserve">
+    <value>Vista previa</value>
+  </data>
+  <data name="OrdenMenuVerComo" xml:space="preserve">
+    <value>Ver el menú como</value>
+  </data>
+  <data name="OrdenMenuRolAdministrador" xml:space="preserve">
+    <value>Administrador de Tenant</value>
+  </data>
+  <data name="OrdenMenuRolDireccionCae" xml:space="preserve">
+    <value>Dirección CAE</value>
+  </data>
+  <data name="OrdenMenuRolCoordinadorCae" xml:space="preserve">
+    <value>Coordinador CAE</value>
+  </data>
+  <data name="OrdenMenuRolGestorCae" xml:space="preserve">
+    <value>Gestor CAE</value>
+  </data>
+  <data name="OrdenMenuRolConsulta" xml:space="preserve">
+    <value>Consulta</value>
+  </data>
+  <data name="OrdenMenuAriaVistaPrevia" xml:space="preserve">
+    <value>Vista previa del menú</value>
+  </data>
+  <data name="OrdenMenuPreviaTexto" xml:space="preserve">
+    <value>Ve {0} de {1} enlaces; los demás no los ve por su rol, no por el orden.</value>
+  </data>
+  <data name="OrdenMenuAriaBarra" xml:space="preserve">
+    <value>Guardar el orden</value>
+  </data>
+  <data name="OrdenMenuSinCambios" xml:space="preserve">
+    <value>Sin cambios</value>
+  </data>
+  <data name="OrdenMenuUnCambio" xml:space="preserve">
+    <value>1 cambio sin guardar</value>
+  </data>
+  <data name="OrdenMenuCambios" xml:space="preserve">
+    <value>{0} cambios sin guardar</value>
+  </data>
+  <data name="OrdenMenuDetalleSinCambios" xml:space="preserve">
+    <value>El menú de todos los usuarios coincide con lo que ves aquí.</value>
+  </data>
+  <data name="OrdenMenuDetalleConCambios" xml:space="preserve">
+    <value>Aún no lo ve nadie. Al guardar, se aplica a todos los usuarios de todos los Tenants.</value>
+  </data>
+  <data name="OrdenMenuRestablecer" xml:space="preserve">
+    <value>Restablecer el orden por defecto</value>
+  </data>
+  <data name="OrdenMenuDescartar" xml:space="preserve">
+    <value>Descartar cambios</value>
+  </data>
+  <data name="OrdenMenuGuardar" xml:space="preserve">
+    <value>Guardar orden</value>
+  </data>
+  <data name="OrdenMenuUltimoTitulo" xml:space="preserve">
+    <value>Último cambio</value>
+  </data>
+  <data name="OrdenMenuSinHistorial" xml:space="preserve">
+    <value>Nadie ha cambiado el orden todavía: rige el orden por defecto.</value>
+  </data>
+  <data name="OrdenMenuActorReal" xml:space="preserve">
+    <value>Actor real</value>
+  </data>
+  <data name="OrdenMenuActorRealPista" xml:space="preserve">
+    <value>Quien guardó (ActorRealUsuarioId).</value>
+  </data>
+  <data name="OrdenMenuActorDesconocido" xml:space="preserve">
+    <value>Usuario no encontrado</value>
+  </data>
+  <data name="OrdenMenuFecha" xml:space="preserve">
+    <value>Fecha</value>
+  </data>
+  <data name="OrdenMenuFechaPista" xml:space="preserve">
+    <value>Hora de Madrid.</value>
+  </data>
+  <data name="OrdenMenuQueCambio" xml:space="preserve">
+    <value>Qué cambió</value>
+  </data>
+  <data name="OrdenMenuQueCambioPorDefecto" xml:space="preserve">
+    <value>Vuelve al orden por defecto</value>
+  </data>
+  <data name="OrdenMenuQueCambioPosiciones" xml:space="preserve">
+    <value>{0} posiciones distintas del orden por defecto</value>
+  </data>
+  <data name="OrdenMenuQueCambioPista" xml:space="preserve">
+    <value>Frente al orden por defecto; el orden anterior queda en la auditoría.</value>
+  </data>
+  <data name="OrdenMenuDialogoTitulo" xml:space="preserve">
+    <value>¿Restablecer el orden por defecto?</value>
+  </data>
+  <data name="OrdenMenuDialogoTexto" xml:space="preserve">
+    <value>Se vuelve al orden con el que se entrega TALVEG, para todos los usuarios de todos los Tenants. Queda auditado como cualquier otro guardado y se puede volver a ordenar después.</value>
+  </data>
+  <data name="OrdenMenuCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="OrdenMenuRestablecerConfirmar" xml:space="preserve">
+    <value>Restablecer</value>
+  </data>
 </root>

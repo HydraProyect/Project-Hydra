@@ -1,3 +1,5 @@
+using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma;
+using MediatR;
 using Microsoft.AspNetCore.Components;
 
 namespace CaeManager.Web.Features.Configuracion.Pages;
@@ -11,6 +13,18 @@ public partial class Configuracion : ComponentBase
     private string? EntradaActual { get; set; }
 
     [Inject] private NavigationManager Navigation { get; set; } = default!;
+
+    [Inject] private IMediator Mediator { get; set; } = default!;
+
+    /// <summary>
+    /// Si quien mira es Actor de Plataforma TALVEG con concesión global: decide si existen las
+    /// entradas <see cref="EntradaConfiguracion.SoloActorPlataforma"/>. Es interfaz, no barrera
+    /// (la barrera es el comando de cada pantalla); mismo predicado que usa el menú lateral.
+    /// </summary>
+    private bool _esAdministradorPlataforma;
+
+    protected override async Task OnInitializedAsync() =>
+        _esAdministradorPlataforma = await Mediator.Send(new EsAdministradorPlataformaQuery());
 
     private string EntradaEfectiva
     {
@@ -57,7 +71,8 @@ public partial class Configuracion : ComponentBase
         string Descripcion,
         Type? TipoPanel,
         bool EsPaginaIntegrable = true,
-        string? Entradilla = null);
+        string? Entradilla = null,
+        bool SoloActorPlataforma = false);
 
     private sealed record GrupoConfiguracion(string Titulo, IReadOnlyList<EntradaConfiguracion> Entradas);
 
@@ -79,7 +94,11 @@ public partial class Configuracion : ComponentBase
     /// localizan.
     /// </para>
     /// </summary>
-    private IReadOnlyList<GrupoConfiguracion> Grupos => _grupos ??= ConstruirGrupos();
+    // El catálogo completo se cachea; el filtro por Actor de Plataforma se aplica al leer, porque
+    // con OnInitializedAsync pendiente Blazor ya renderiza una vez sin conocerlo.
+    private IReadOnlyList<GrupoConfiguracion> Grupos => (_grupos ??= ConstruirGrupos())
+        .Select(g => g with { Entradas = g.Entradas.Where(e => !e.SoloActorPlataforma || _esAdministradorPlataforma).ToList() })
+        .ToList();
 
     private IReadOnlyList<GrupoConfiguracion>? _grupos;
 
@@ -126,7 +145,16 @@ public partial class Configuracion : ComponentBase
             // redirige igualmente a la ruta literal; ese acceso exige además el
             // rol Administrador del propio hub, así que no es fuga de
             // autorización.
-            new("plataforma", "PL", Textos["EntradaPlataformaNombre"], Textos["EntradaPlataformaResumen"], null, false)
+            new("plataforma", "PL", Textos["EntradaPlataformaNombre"], Textos["EntradaPlataformaResumen"], null, false),
+            // "orden-menu" es otra salida pura, por el mismo motivo que "plataforma": el orden del
+            // menú lateral es global y lo escribe solo el Actor de Plataforma TALVEG con concesión
+            // AdminPlataforma global (GuardarOrdenMenuLateralCommand), no el rol Administrador
+            // que gatea este hub. Además solo EXISTE para ese Actor (SoloActorPlataforma): un
+            // Administrador de Tenant no la ve ni la resuelve por "?entry=orden-menu" (Buscar
+            // lee Grupos ya filtrado). Decisión del propietario del 2026-09-23: la pantalla vive
+            // aquí y no en el grupo Plataforma del menú lateral.
+            new("orden-menu", "OM", Textos["EntradaOrdenMenuNombre"], Textos["EntradaOrdenMenuResumen"], null, false,
+                SoloActorPlataforma: true)
         ]),
         new(Textos["GrupoCatalogosDatos"],
         [
