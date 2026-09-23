@@ -258,12 +258,28 @@ public class TerminologiaCanonicaTests
     /// duplicarlo crearía un segundo camino con el mismo mecanismo legacy. Baja con la retirada de
     /// <c>DelegacionDemoSeeder</c>, no antes.
     /// </para>
+    ///
+    /// <para>
+    /// <b><c>Delegacion</c> 320 → 329 (incremento 1b del aprovisionamiento — el Administrador
+    /// del Tenant propietario autoriza a un Operador CAE externo, 2026-09-23): +9, todo
+    /// referencia a superficie existente, ningún nombre propio nuevo.</b> La decisión fijada
+    /// (opción 1′) es reutilizar <c>CrearDelegacionTenantCommand</c> sin entidad nueva, así que
+    /// la pantalla lo nombra (espacio de nombres y tipo, 2); el comando consulta
+    /// <c>DelegacionesTenant</c> y <c>PropositoDelegacion</c> para rechazar un segundo Operador
+    /// vigente (2); la consulta del candidato reutiliza <c>IAutorizacionDelegacionTenant</c> y
+    /// <c>PuedeGestionarDelegacionesAsync</c> para no duplicar la regla de autoridad (2); y el
+    /// recurso de textos nuevo vive en la carpeta de la funcionalidad,
+    /// <c>Features.Delegaciones.Recursos</c> (declaración y dos <c>using</c>, 3). Los tipos
+    /// nuevos se nombraron sin el término (<c>OperadorCaeExternoElegible</c>,
+    /// <c>AutorizarOperadorCaeExternoQueriesHandler</c>). Baja con la migración de
+    /// <c>DelegacionTenant</c> (D-2/D-3/D-7), no antes.
+    /// </para>
     /// </summary>
     private static readonly Dictionary<string, int> Congelado = new()
     {
         ["Hydra"] = 49,
         ["EjecutivoUsuarioId"] = 48,
-        ["Delegacion"] = 320,
+        ["Delegacion"] = 329,
         ["ClienteActivo"] = 71,
     };
 

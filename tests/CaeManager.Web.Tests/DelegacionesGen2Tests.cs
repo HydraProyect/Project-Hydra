@@ -6,10 +6,12 @@ using System.Threading.Tasks;
 using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Commands.CrearClienteDelegante;
+using CaeManager.Application.Tenants.Commands.CrearDelegacionTenant;
 using CaeManager.Application.Tenants.Commands.CrearOperadorCaeExterno;
 using CaeManager.Application.Tenants.Commands.CrearTenantPropietarioDeOperadorCaeExterno;
 using CaeManager.Application.Tenants.Commands.DesactivarDelegacionTenant;
 using CaeManager.Application.Tenants.Commands.ReactivarDelegacionTenant;
+using CaeManager.Application.Tenants.Queries.AutorizarOperadorCaeExterno;
 using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma;
 using CaeManager.Application.Tenants.Queries.EsTenantOrigenPlataforma;
 using CaeManager.Application.Tenants.Queries.ObtenerActividadSoporte;
@@ -53,6 +55,14 @@ public class DelegacionesGen2Tests : BunitContext
         /// </summary>
         public Func<Guid, bool> PuedeReactivar { get; set; } = _ => true;
 
+        /// <summary>
+        /// Respuesta de <see cref="ObtenerTenantPropietarioAutorizanteQuery"/>: por defecto
+        /// nadie administra un Tenant propietario, y el flujo del incremento 1b no se ve.
+        /// </summary>
+        public Guid? TenantPropietarioAutorizante { get; set; }
+        public Func<BuscarOperadorCaeExternoAutorizableQuery, OperadorCaeExternoAutorizableDto?> Buscar { get; set; } = _ => null;
+        public Result<Guid> ResultadoAutorizacion { get; set; } = Result.Exito(Guid.NewGuid());
+
         public async Task<T> Send<T>(IRequest<T> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add((request, cancellationToken));
@@ -60,7 +70,7 @@ public class DelegacionesGen2Tests : BunitContext
                 await EsperaRevocacion.Task.WaitAsync(TimeSpan.FromSeconds(10));
             if (request is CrearClienteDeleganteCommand && EsperaCreacion is not null)
                 await EsperaCreacion.Task.WaitAsync(TimeSpan.FromSeconds(10));
-            object respuesta = request switch
+            object? respuesta = request switch
             {
                 EsAdministradorPlataformaQuery => EsAdministradorPlataforma,
                 EsTenantOrigenPlataformaQuery => EsTenantOrigenPlataforma,
@@ -72,9 +82,12 @@ public class DelegacionesGen2Tests : BunitContext
                 CrearOperadorCaeExternoCommand => Result.Exito(Guid.NewGuid()),
                 CrearTenantPropietarioDeOperadorCaeExternoCommand => Result.Exito(Guid.NewGuid()),
                 PuedeReactivarQuery q => PuedeReactivar(q.TenantClienteId),
+                ObtenerTenantPropietarioAutorizanteQuery => TenantPropietarioAutorizante,
+                BuscarOperadorCaeExternoAutorizableQuery q => Buscar(q),
+                CrearDelegacionTenantCommand => ResultadoAutorizacion,
                 _ => throw new NotSupportedException(request.GetType().Name)
             };
-            return (T)respuesta;
+            return (T)respuesta!;
         }
 
         public Task Send<T>(T request, CancellationToken cancellationToken = default) where T : IRequest => throw new NotSupportedException();
@@ -109,6 +122,8 @@ public class DelegacionesGen2Tests : BunitContext
     }
 
     private IReadOnlyList<OperadorCaeExternoDto> _operadoresIniciales = [];
+    private Action<Mediador>? _configurarMediador;
+    private string? _urlInicial;
 
     private static DelegacionDto Delegacion(
         bool soporte = false, bool activa = true, string rol = "GestorCae", bool somosLaConsultora = true, Guid? tenantClienteId = null) => new(
@@ -145,12 +160,23 @@ public class DelegacionesGen2Tests : BunitContext
             mediador.PuedeReactivar = puedeReactivar;
         }
 
+        _configurarMediador?.Invoke(mediador);
+
         var toasts = new ToastService();
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped(_ => toasts);
         Services.AddScoped<PuertaAccesoDatos>();
         Services.AddScoped<IClienteActivoSeleccionado, Seleccion>();
         Services.AddScoped(_ => new UserManager<ApplicationUser>(new AlmacenUsuarios(), null!, null!, null!, null!, null!, null!, null!, null!));
+        Services.AddLocalization();
+        // BotonCopiar («Copiar enlace de autorización») importa clipboard.js al pintarse.
+        JSInterop.SetupModule("./js/clipboard.js");
+        if (_urlInicial is not null)
+        {
+            // [SupplyParameterFromQuery]: se llega navegando, igual que en el producto.
+            Services.GetRequiredService<NavigationManager>().NavigateTo(_urlInicial);
+        }
+
         return (Render<Delegaciones>(), mediador, toasts);
     }
 
@@ -453,5 +479,154 @@ public class DelegacionesGen2Tests : BunitContext
         comando.TenantOperadorId.Should().Be(segundo);
         comando.NombreTenantPropietario.Should().Be("Transportes Planet Express");
         mediador.Enviadas.Should().NotContain(x => x.Peticion is CrearOperadorCaeExternoCommand);
+    }
+
+    // ── Incremento 1b: el Administrador del Tenant propietario autoriza a un Operador CAE externo ──
+
+    private static readonly Guid TenantPropietarioRefrielectric = Guid.NewGuid();
+
+    private void ComoAdministradorDelTenantPropietario(Func<BuscarOperadorCaeExternoAutorizableQuery, OperadorCaeExternoAutorizableDto?>? buscar = null) =>
+        _configurarMediador = m =>
+        {
+            m.TenantPropietarioAutorizante = TenantPropietarioRefrielectric;
+            if (buscar is not null) m.Buscar = buscar;
+        };
+
+    private static AngleSharp.Dom.IElement BotonConTexto(IRenderedComponent<Delegaciones> cut, string texto) =>
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == texto);
+
+    [Fact]
+    public void Sin_ser_Administrador_de_un_Tenant_propietario_no_se_ofrece_autorizar_un_Operador()
+    {
+        var (cut, mediador, _) = Renderizar(esAdministradorPlataforma: false);
+        cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Autorizar un Operador CAE externo");
+        cut.Markup.Should().NotContain("Autorizas tú, no TALVEG");
+        mediador.Enviadas.Should().Contain(x => x.Peticion is ObtenerTenantPropietarioAutorizanteQuery,
+            "control positivo: la pantalla sí preguntó y la respuesta fue que no");
+    }
+
+    [Fact]
+    public void El_Administrador_del_Tenant_propietario_ve_la_accion_y_la_nota_de_consentimiento()
+    {
+        ComoAdministradorDelTenantPropietario();
+        var (cut, _, _) = Renderizar(esAdministradorPlataforma: false);
+        cut.FindAll("button").Should().Contain(b => b.TextContent.Trim() == "Autorizar un Operador CAE externo");
+        cut.Markup.Should().Contain("Autorizas tú, no TALVEG");
+    }
+
+    /// <summary>
+    /// El comando lleva como Tenant propietario el que devolvió la consulta de autoridad
+    /// (el Tenant de origen de quien autoriza), nunca otro, y como Operador el candidato
+    /// que la persona seleccionó. Sin seleccionar no se envía nada.
+    /// </summary>
+    [Fact]
+    public async Task Autorizar_envia_CrearDelegacionTenant_con_el_Operador_elegido_y_el_Tenant_propietario_autorizante()
+    {
+        var arcoSpa = new OperadorCaeExternoAutorizableDto(Guid.NewGuid(), "ArcoSPA");
+        ComoAdministradorDelTenantPropietario(q => q.NombreExacto == "arcospa" ? arcoSpa : null);
+        var (cut, mediador, toasts) = Renderizar(esAdministradorPlataforma: false);
+
+        await BotonConTexto(cut, "Autorizar un Operador CAE externo").ClickAsync(new MouseEventArgs());
+        var campo = cut.Find("input");
+        await campo.InputAsync(new ChangeEventArgs { Value = "arcospa" });
+        await campo.BlurAsync(new FocusEventArgs());
+
+        await BotonConTexto(cut, "Autorizar").ClickAsync(new MouseEventArgs());
+        mediador.Enviadas.Should().NotContain(x => x.Peticion is CrearDelegacionTenantCommand,
+            "encontrar un candidato no es elegirlo");
+        cut.Markup.Should().Contain("Selecciona el Operador CAE externo que quieres autorizar.");
+
+        await cut.Find("[role=option]").ClickAsync(new MouseEventArgs());
+        await BotonConTexto(cut, "Autorizar").ClickAsync(new MouseEventArgs());
+
+        var comando = mediador.Enviadas.Select(x => x.Peticion).OfType<CrearDelegacionTenantCommand>().Should().ContainSingle().Subject;
+        comando.TenantConsultoraId.Should().Be(arcoSpa.TenantId);
+        comando.TenantClienteId.Should().Be(TenantPropietarioRefrielectric);
+        toasts.Mensajes.Should().Contain(t => t.Mensaje.Contains("ArcoSPA"));
+    }
+
+    [Fact]
+    public async Task Un_nombre_que_no_es_exacto_no_encuentra_Operador_y_no_permite_autorizar()
+    {
+        ComoAdministradorDelTenantPropietario(_ => null);
+        var (cut, mediador, _) = Renderizar(esAdministradorPlataforma: false);
+
+        await BotonConTexto(cut, "Autorizar un Operador CAE externo").ClickAsync(new MouseEventArgs());
+        var campo = cut.Find("input");
+        await campo.InputAsync(new ChangeEventArgs { Value = "Arco" });
+        await campo.BlurAsync(new FocusEventArgs());
+
+        cut.Markup.Should().Contain("Ningún Operador CAE externo se llama «Arco»");
+        cut.FindAll("[role=option]").Should().BeEmpty();
+        mediador.Enviadas.Select(x => x.Peticion).OfType<BuscarOperadorCaeExternoAutorizableQuery>().Should().ContainSingle()
+            .Which.Should().Be(new BuscarOperadorCaeExternoAutorizableQuery(null, "Arco"));
+        await BotonConTexto(cut, "Autorizar").ClickAsync(new MouseEventArgs());
+        mediador.Enviadas.Should().NotContain(x => x.Peticion is CrearDelegacionTenantCommand);
+    }
+
+    [Fact]
+    public async Task El_rechazo_del_comando_se_muestra_en_el_modal()
+    {
+        var arcoSpa = new OperadorCaeExternoAutorizableDto(Guid.NewGuid(), "ArcoSPA");
+        ComoAdministradorDelTenantPropietario(_ => arcoSpa);
+        var (cut, mediador, _) = Renderizar(esAdministradorPlataforma: false);
+        mediador.ResultadoAutorizacion = Result.Fallo<Guid>(Error.Crear("DelegacionTenant.OtroOperadorVigente",
+            "Tu organización ya tiene otro Operador CAE externo activo."));
+
+        await BotonConTexto(cut, "Autorizar un Operador CAE externo").ClickAsync(new MouseEventArgs());
+        var campo = cut.Find("input");
+        await campo.InputAsync(new ChangeEventArgs { Value = "ArcoSPA" });
+        await campo.BlurAsync(new FocusEventArgs());
+        await cut.Find("[role=option]").ClickAsync(new MouseEventArgs());
+        await BotonConTexto(cut, "Autorizar").ClickAsync(new MouseEventArgs());
+
+        cut.Find("[role=alert]").TextContent.Should().Contain("ya tiene otro Operador CAE externo activo");
+    }
+
+    /// <summary>
+    /// El enlace del Actor de Plataforma TALVEG solo preselecciona: abre el modal con el
+    /// Operador resuelto por Id y no escribe nada hasta el clic del Administrador.
+    /// </summary>
+    [Fact]
+    public async Task El_enlace_de_autorizacion_preselecciona_el_Operador_sin_escribir_nada()
+    {
+        var arcoSpa = new OperadorCaeExternoAutorizableDto(Guid.NewGuid(), "ArcoSPA");
+        ComoAdministradorDelTenantPropietario(q => q.OperadorId == arcoSpa.TenantId ? arcoSpa : null);
+        _urlInicial = $"delegaciones?autorizar={arcoSpa.TenantId}";
+        var (cut, mediador, _) = Renderizar(esAdministradorPlataforma: false);
+
+        cut.WaitForAssertion(() => cut.Find("[role=option]").GetAttribute("aria-selected").Should().Be("true"));
+        cut.Markup.Should().Contain("TALVEG te sugiere este Operador CAE externo");
+        mediador.Enviadas.Select(x => x.Peticion).OfType<BuscarOperadorCaeExternoAutorizableQuery>().Should().ContainSingle()
+            .Which.OperadorId.Should().Be(arcoSpa.TenantId);
+        mediador.Enviadas.Should().NotContain(x => x.Peticion is CrearDelegacionTenantCommand, "sugerir no es autorizar");
+
+        await BotonConTexto(cut, "Autorizar").ClickAsync(new MouseEventArgs());
+        mediador.Enviadas.Select(x => x.Peticion).OfType<CrearDelegacionTenantCommand>().Should().ContainSingle()
+            .Which.Should().Be(new CrearDelegacionTenantCommand(arcoSpa.TenantId, TenantPropietarioRefrielectric));
+    }
+
+    [Fact]
+    public void El_enlace_de_autorizacion_no_hace_nada_para_quien_no_administra_el_Tenant_propietario()
+    {
+        _urlInicial = $"delegaciones?autorizar={Guid.NewGuid()}";
+        var (cut, mediador, _) = Renderizar(esAdministradorPlataforma: false);
+
+        cut.FindAll("[role=option]").Should().BeEmpty();
+        cut.Markup.Should().NotContain("TALVEG te sugiere este Operador CAE externo");
+        mediador.Enviadas.Should().NotContain(x => x.Peticion is BuscarOperadorCaeExternoAutorizableQuery,
+            "sin autoridad la pantalla ni siquiera resuelve el Id del enlace");
+    }
+
+    [Fact]
+    public void El_panel_de_Operadores_CAE_externos_ofrece_copiar_el_enlace_de_autorizacion_de_cada_Operador()
+    {
+        var operador = Guid.NewGuid();
+        _operadoresIniciales = [OperadorArcoSpa(operador)];
+        var (cut, _, _) = Renderizar(esAdministradorPlataforma: true);
+
+        var boton = cut.FindComponents<BotonCopiar>().Should().ContainSingle().Subject;
+        boton.Instance.Texto.Should().Be("Copiar enlace de autorización");
+        boton.Instance.Valor.Should().EndWith($"/delegaciones?autorizar={operador}");
     }
 }

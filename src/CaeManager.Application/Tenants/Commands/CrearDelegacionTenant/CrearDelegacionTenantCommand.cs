@@ -14,6 +14,26 @@ namespace CaeManager.Application.Tenants.Commands.CrearDelegacionTenant;
 /// <paramref name="TenantConsultoraId"/> a operar sobre el Cliente Delegante
 /// <paramref name="TenantClienteId"/> (ADR-004 § 5.3). No concede acceso a
 /// ningún usuario por sí sola — eso es <c>CrearAsignacionOperadorDelegadoCommand</c>.
+///
+/// <para>
+/// <b>Incremento 1b del aprovisionamiento</b> (decisión del propietario, 2026-09-22,
+/// opción 1′): es el comando con el que el Administrador de un Tenant propietario YA
+/// existente autoriza a un Operador CAE externo desde <c>/delegaciones</c>. El Actor de
+/// Plataforma TALVEG solo preselecciona el Operador con un enlace que no escribe nada;
+/// el clic del Administrador es la instrucción documentada (RGPD art. 28) y queda en
+/// la auditoría genérica con su propio Actor real. TALVEG no tiene camino para
+/// ejecutarlo: la autorización exige pertenecer al Tenant propietario.
+/// </para>
+///
+/// <para>
+/// La parte que recibe el acceso tiene que ser un Operador CAE externo
+/// (<see cref="OperadorCaeExternoElegible"/>), no cualquier Tenant existente: la pantalla
+/// del 1b es la primera vía de la interfaz que deja elegirlo. Y un Tenant propietario
+/// no puede tener dos Operadores CAE externos con la operación completa a la vez
+/// (índice <c>IX_AsignacionesOperacion_DelegacionTotalVigente</c>); aquí se rechaza con
+/// un mensaje en vez de dejar que la base lo corte con una excepción. Si hay que
+/// sustituir al anterior, primero se revoca su vínculo.
+/// </para>
 /// </summary>
 public record CrearDelegacionTenantCommand(Guid TenantConsultoraId, Guid TenantClienteId) : ICommand<Guid>;
 
@@ -61,8 +81,15 @@ public class CrearDelegacionTenantCommandHandler(
         // Tenant es catálogo global (Entity, no EntidadConTenant): la consulta
         // no lleva filtro de tenant a propósito, un Id de Tenant es válido
         // cross-tenant por diseño (ADR-004).
-        if (!await tenantsContext.Tenants.AnyAsync(t => t.Id == request.TenantConsultoraId, cancellationToken))
-            return Result.Fallo<Guid>(Error.Crear("DelegacionTenant.ConsultoraNoEncontrada", "No encontramos esa Consultora."));
+        //
+        // Y no basta con que exista: tiene que ser un Operador CAE externo. Un Tenant
+        // propietario cualquiera, o el Tenant de plataforma, no reciben operación
+        // delegada por esta vía (TALVEG no es Operador CAE por defecto, ADR-011 § 1).
+        if (!await tenantsContext.Tenants
+                .Where(t => t.Id == request.TenantConsultoraId)
+                .AnyAsync(OperadorCaeExternoElegible.Predicado, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear(
+                "DelegacionTenant.ConsultoraNoEncontrada", "No encontramos ese Operador CAE externo."));
 
         if (!await tenantsContext.Tenants.AnyAsync(t => t.Id == request.TenantClienteId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("DelegacionTenant.ClienteNoEncontrado", "No encontramos ese Cliente Delegante."));
@@ -70,6 +97,20 @@ public class CrearDelegacionTenantCommandHandler(
         if (await repositorio.ExisteActivaAsync(request.TenantConsultoraId, request.TenantClienteId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear(
                 "DelegacionTenant.YaActiva", "Ya existe una delegación activa entre esta Consultora y este Cliente."));
+
+        // Otro Operador CAE externo con la operación completa: la base ya lo
+        // prohíbe (una sola delegación total vigente por Tenant propietario y
+        // servicio). Se comprueba sobre el vínculo del propio Tenant propietario,
+        // que quien llega aquí ya administra: no revela nada de terceros.
+        if (await tenantsContext.DelegacionesTenant.AnyAsync(
+                d => d.TenantClienteId == request.TenantClienteId
+                     && d.TenantConsultoraId != request.TenantConsultoraId
+                     && d.Activa
+                     && d.Proposito == PropositoDelegacion.OperadorExterno,
+                cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear(
+                "DelegacionTenant.OtroOperadorVigente",
+                "Tu organización ya tiene otro Operador CAE externo activo. Revoca su acceso antes de autorizar uno nuevo."));
 
         var delegacion = new DelegacionTenant(request.TenantConsultoraId, request.TenantClienteId);
         repositorio.Agregar(delegacion);

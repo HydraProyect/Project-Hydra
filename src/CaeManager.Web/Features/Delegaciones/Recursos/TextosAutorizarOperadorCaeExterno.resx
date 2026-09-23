@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AccionAutorizar" xml:space="preserve">
+    <value>Autorizar un Operador CAE externo</value>
+  </data>
+  <data name="NotaTitulo" xml:space="preserve">
+    <value>Autorizas tú, no TALVEG</value>
+  </data>
+  <data name="NotaCuerpo" xml:space="preserve">
+    <value>Solo quien administra tu propia organización puede dar acceso a un Operador CAE externo sobre tus datos. TALVEG puede sugerirte uno, pero no puede iniciar esta relación por sí solo.</value>
+  </data>
+  <data name="Sugerencia" xml:space="preserve">
+    <value>TALVEG te sugiere este Operador CAE externo. Comprueba que es la organización que has contratado antes de autorizarla.</value>
+  </data>
+  <data name="EtiquetaOperador" xml:space="preserve">
+    <value>Operador CAE externo</value>
+  </data>
+  <data name="MarcadorBusqueda" xml:space="preserve">
+    <value>Escribe su nombre exacto…</value>
+  </data>
+  <data name="ListaCandidatos" xml:space="preserve">
+    <value>Operadores CAE externos encontrados</value>
+  </data>
+  <data name="SinResultado" xml:space="preserve">
+    <value>Ningún Operador CAE externo se llama «{0}». Comprueba el nombre exacto: TALVEG no puede crear esta organización por ti.</value>
+  </data>
+  <data name="NotaPropiedad" xml:space="preserve">
+    <value>La propiedad de tus datos no cambia: el Operador CAE externo pasa a operarlos. Nadie de su equipo queda como Gestor CAE hasta que el Operador asigne su cartera, y puedes revocar el acceso cuando quieras.</value>
+  </data>
+  <data name="Cancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="Autorizar" xml:space="preserve">
+    <value>Autorizar</value>
+  </data>
+  <data name="EnlaceNoCorresponde" xml:space="preserve">
+    <value>El enlace no corresponde a ningún Operador CAE externo que puedas autorizar. Búscalo por su nombre exacto.</value>
+  </data>
+  <data name="SeleccionaOperador" xml:space="preserve">
+    <value>Selecciona el Operador CAE externo que quieres autorizar.</value>
+  </data>
+  <data name="Autorizado" xml:space="preserve">
+    <value>Operador CAE externo autorizado: {0}.</value>
+  </data>
+  <data name="NotaEnlacePlataforma" xml:space="preserve">
+    <value>Si el Tenant propietario ya existe, copia el enlace de autorización y envíaselo a su Administrador: la autorización la da su organización, no TALVEG.</value>
+  </data>
+  <data name="CopiarEnlace" xml:space="preserve">
+    <value>Copiar enlace de autorización</value>
+  </data>
+  <data name="EtiquetaEnlace" xml:space="preserve">
+    <value>el enlace de autorización</value>
+  </data>
+</root>

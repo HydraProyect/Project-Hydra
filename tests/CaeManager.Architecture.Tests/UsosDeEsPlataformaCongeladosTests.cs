@@ -143,6 +143,15 @@ public class UsosDeEsPlataformaCongeladosTests
     /// <c>EsAdministradorPlataformaQuery.cs</c>) pueda exponer a la vista exactamente esa
     /// mitad del criterio sin reimplementarla. Neto por fichero: −2 (los dos comandos) +2
     /// (los dos nuevos) = 24 sin cambio; neto por aparición: −1 −1 +2 +1 = +1, de 36 a 37.
+    /// Actualizado 2026-09-23 (incremento 1b del aprovisionamiento — el Administrador del
+    /// Tenant propietario autoriza a un Operador CAE externo): <b>28 ficheros, 42
+    /// apariciones</b>. Recontado sobre el diccionario antes de sumar: la cifra de arriba ya
+    /// no era la suya — #759 (<c>VistaDemoActual.cs</c>) y #768 (los dos consumidores del alta
+    /// de Operadores CAE externos) añadieron entradas sin cuadrarla, y el árbol estaba en 27
+    /// ficheros y 41 apariciones. Nuevo <c>OperadorCaeExternoElegible.cs</c> (+1,
+    /// <see cref="CategoriaUso.Guarda"/>): el mismo criterio que ya aplica
+    /// <c>CrearTenantPropietarioDeOperadorCaeExternoCommand.cs</c>, extraído a un predicado
+    /// que comparten el comando de autorización y la consulta que resuelve el candidato.
     ///
     /// <para>
     /// Cada entrada se leyó una a una; el conteo <b>no</b> se ajustó a lo que salió del
@@ -217,6 +226,12 @@ public class UsosDeEsPlataformaCongeladosTests
                 "porque El_ensamblado_de_Web_no_depende_de_EsPlataforma congela esa frontera a cero"),
 
         // ── GUARDA ────────────────────────────────────────────────────────────────
+        ["src/CaeManager.Application/Tenants/OperadorCaeExternoElegible.cs"] =
+            new(1, CategoriaUso.Guarda,
+                ":27 excluye el Tenant de plataforma de los Operadores CAE externos que el Administrador de un " +
+                "Tenant propietario puede autorizar (CrearDelegacionTenantCommand y la consulta del candidato " +
+                "del incremento 1b): TALVEG no es Operador CAE por defecto (ADR-011 § 1). No concede capacidad " +
+                "a nadie — es la mitad negativa de un fallo cerrado, junto a la guarda de perfil Consultora"),
         ["src/CaeManager.Application/Tenants/Commands/CrearTenantPropietarioDeOperadorCaeExterno/CrearTenantPropietarioDeOperadorCaeExternoCommand.cs"] =
             new(2, CategoriaUso.Guarda,
                 "la proyección del Operador y el rechazo de un Operador que sea el Tenant de plataforma: " +
