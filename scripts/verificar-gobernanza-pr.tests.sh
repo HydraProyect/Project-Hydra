@@ -219,6 +219,17 @@ assert_codigo "'independiente' no dispara el marcador 'pendiente'" 0 \
   "$FICHEROS_NEUTROS" \
   ""
 
+# PR #828 real (runs 35831818412 y 35832823379): "pendientes" dentro de una
+# frase con contenido real ("sin hallazgos nuevos pendientes de esta pasada")
+# no es un marcador de relleno — es la palabra usada con normalidad. \bpendiente
+# también casaba con "pendientes" (\b solo exige límite de palabra al
+# principio, no al final), dando un falso positivo sobre una sección ya
+# rellena de verdad.
+assert_codigo "'pendientes' dentro de una frase con contenido real no es un marcador" 0 \
+  "$(cuerpo "## Revisión Codex" "Sin hallazgos nuevos pendientes de esta pasada.")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+
 # Sección presente y con contenido real: pasa, con hallazgos aceptados y
 # rechazados.
 assert_codigo "hallazgos aceptados y rechazados: pasa" 0 \
