@@ -182,12 +182,12 @@ public partial class Alertas : ComponentBase
     /// </summary>
     private string? DescripcionSeveridad(EstadoDocumento estado) => estado switch
     {
-        EstadoDocumento.Vencido => Textos["SeveridadVencidoDescripcion"],
+        EstadoDocumento.Vencido => Textos["SeveridadVencidoDescripcion"].Value,
         // Dos procedencias, como el párrafo de procedencia de Alertas.razor:
         // la configuración del centro o, si no la hay, el valor general del tipo.
-        EstadoDocumento.Faltante => Textos["SeveridadFaltanteDescripcion"],
-        EstadoDocumento.Urgente => Textos["SeveridadUrgenteDescripcion"],
-        EstadoDocumento.Proximo => Textos["SeveridadProximoDescripcion"],
+        EstadoDocumento.Faltante => Textos["SeveridadFaltanteDescripcion"].Value,
+        EstadoDocumento.Urgente => Textos["SeveridadUrgenteDescripcion"].Value,
+        EstadoDocumento.Proximo => Textos["SeveridadProximoDescripcion"].Value,
         _ => null
     };
 
