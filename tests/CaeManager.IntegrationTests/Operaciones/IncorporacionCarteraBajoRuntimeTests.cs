@@ -462,7 +462,9 @@ public class IncorporacionCarteraBajoRuntimeTests : IAsyncLifetime
     {
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(usuarioId);
 
-        public Task<string?> ObtenerRolActualAsync() =>
+        public Task<string?> ObtenerRolOrigenAsync() => Task.FromResult<string?>(rolEnOrigen);
+
+        public Task<string?> ObtenerRolEfectivoAsync() =>
             Task.FromResult(AmbitoTenantExplicito.TenantIdActual is { } ambito && ambito != origen ? null : rolEnOrigen);
 
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(origen);

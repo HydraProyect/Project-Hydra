@@ -18,7 +18,9 @@ public class CurrentUserServicePorAmbito(Guid? usuarioId, Guid? tenantOrigenId, 
 {
     public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult(usuarioId);
 
-    public Task<string?> ObtenerRolActualAsync() =>
+    public Task<string?> ObtenerRolOrigenAsync() => Task.FromResult(rolEnOrigen);
+
+    public Task<string?> ObtenerRolEfectivoAsync() =>
         Task.FromResult(AmbitoTenantExplicito.TenantIdActual is { } ambito && ambito == tenantOrigenId
             ? rolEnOrigen
             : rolFueraDelOrigen);
