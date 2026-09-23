@@ -1,7 +1,6 @@
 using CaeManager.Domain.Auditoria;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Npgsql;
 
 namespace CaeManager.Infrastructure.Persistence.Repositories;
 
@@ -31,27 +30,19 @@ public class RegistroAccesoDatoSensibleRepository(
         {
             await dbContext.SaveChangesAsync(cancellationToken);
         }
-        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "42501" })
+        catch (Exception ex)
         {
-            // Sesión privilegiada de plataforma: la conexión adopta
-            // cae_app_soporte, sin privilegio de escritura sobre ninguna tabla
-            // (mismo caso y mismo criterio que RegistroAccesoDocumentoSensibleRepository).
-            // Solo llega aquí la precarga sin contraseña
-            // (IConsultaDeDatosDeCredencial): las consultas de secretos se
-            // deniegan antes, en AutorizacionSecretosDeTenantBehavior. Hueco
-            // conocido: esa lectura del usuario queda sin rastro en la auditoría.
+            // Sin excepción para 42501 (a diferencia de
+            // RegistroAccesoDocumentoSensibleRepository): una Sesión
+            // Privilegiada no llega aquí —AutorizacionSecretosDeTenantBehavior
+            // deniega antes las dos familias de consultas—, y si algún día
+            // llegara, el registro que no se puede escribir significa que el
+            // dato no se entrega. Que el fallo tampoco deje el registro Added
+            // para el próximo SaveChanges de otro handler.
             dbContext.Entry(registro).State = EntityState.Detached;
-
             logger.LogWarning(ex,
-                "No se pudo registrar el acceso a dato sensible {EntidadTipo} {EntidadId}: la sesión no tiene " +
-                "privilegio de escritura (cae_app_soporte).",
+                "No se pudo registrar el acceso a dato sensible {EntidadTipo} {EntidadId}; el dato no se entrega.",
                 registro.EntidadTipo, registro.EntidadId);
-        }
-        catch
-        {
-            // Que un fallo no deje el registro Added para el próximo
-            // SaveChanges de otro handler.
-            dbContext.Entry(registro).State = EntityState.Detached;
             throw;
         }
     }

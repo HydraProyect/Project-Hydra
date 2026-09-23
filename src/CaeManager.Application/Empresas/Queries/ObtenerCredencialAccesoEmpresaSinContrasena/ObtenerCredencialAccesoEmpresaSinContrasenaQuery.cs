@@ -12,11 +12,10 @@ namespace CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresa
 /// el <c>IDataProtector</c> la descifra.
 ///
 /// Sí descifra el <c>Usuario</c> (cifrado en reposo igual que la contraseña,
-/// <c>CaeManagerDbContext</c>), así que solo la leen los roles con escritura:
-/// está marcada con <see cref="IConsultaDeDatosDeCredencial"/>, no con
-/// <see cref="IConsultaDeSecretosDeTenant"/>, porque el formulario guarda lo
-/// que precarga y denegarla en una Sesión Privilegiada vaciaría la
-/// credencial al guardar.
+/// <c>CaeManagerDbContext</c>), así que está marcada con
+/// <see cref="IConsultaDeDatosDeCredencial"/>: solo la leen los roles con
+/// escritura, nunca en una Sesión Privilegiada, y cada lectura queda en la
+/// auditoría como <c>AccesoDatoSensible</c>.
 ///
 /// La contraseña solo se obtiene mediante
 /// <c>ObtenerCredencialAccesoEmpresaQuery</c> (esa sí, marcada), invocada

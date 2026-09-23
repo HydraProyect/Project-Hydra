@@ -20,7 +20,10 @@ namespace CaeManager.Application.Common;
 /// La fila va al Tenant activo —el Tenant propietario del dato, también en un
 /// Context Workspace delegado— y lleva el actor dual de
 /// <see cref="IActorAuditoria"/>: quien estaba realmente detrás del teclado y,
-/// durante una impersonación, el usuario simulado.
+/// si hubiera impersonación, el usuario simulado. Hoy no la hay en este camino:
+/// la impersonación es una Sesión Privilegiada y
+/// <see cref="AutorizacionSecretosDeTenantBehavior{TRequest,TResponse}"/> deniega
+/// antes estas consultas; la separación queda por si eso cambia.
 /// </para>
 /// </summary>
 public interface IRegistroAccesoDatoSensibleService

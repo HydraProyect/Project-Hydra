@@ -11,10 +11,13 @@ namespace CaeManager.Application.Common;
 /// externo— recibe <c>null</c>. Lo aplica
 /// <see cref="AutorizacionSecretosDeTenantBehavior{TRequest,TResponse}"/>.
 ///
-/// <b>Diferencia con <see cref="IConsultaDeSecretosDeTenant"/>:</b> una Sesión
-/// Privilegiada no se deniega aquí. El formulario guarda lo que esta consulta
-/// precarga, así que un <c>null</c> por denegación a un rol que sí puede
-/// guardar se convertiría en una credencial vacía al pulsar Guardar. A un rol
-/// sin escritura no le pasa: no puede guardar.
+/// Tampoco se entrega en una Sesión Privilegiada (opción D, 2026-09-23): toda
+/// lectura efectiva queda en la auditoría, y en esa sesión la conexión adopta
+/// <c>cae_app_soporte</c>, que no puede escribir la fila — sin rastro no hay
+/// dato. El <c>null</c> no provoca un read-modify-write destructivo: el
+/// formulario guarda lo que esta consulta precarga, pero en una Sesión
+/// Privilegiada los comandos que guardan una credencial se deniegan
+/// (<see cref="AutorizacionEscrituraBehavior{TRequest,TResponse}"/>), igual que
+/// para un rol sin escritura.
 /// </summary>
 public interface IConsultaDeDatosDeCredencial;
