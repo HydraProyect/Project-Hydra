@@ -1,8 +1,10 @@
 using Bunit;
 using CaeManager.Web.Features.AtajosGlobales;
+using CaeManager.Web.Features.AtajosGlobales.Recursos;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Tests;
 
@@ -15,7 +17,11 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class AtajosGlobalesTests : BunitContext
 {
-    public AtajosGlobalesTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public AtajosGlobalesTests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
+    }
 
     [Fact]
     public void IrA_navega_al_destino_de_la_letra()
@@ -79,6 +85,40 @@ public class AtajosGlobalesTests : BunitContext
 
         cut.Markup.Should().Contain("g p").And.Contain("Ir a Proyectos");
         cut.Markup.Should().Contain("g i").And.Contain("Ir a Incidencias");
+    }
+
+    /// <summary>
+    /// El catálogo guarda la clave de cada descripción, no el texto: una clave
+    /// sin entrada en <c>TextosAtajosGlobales</c> se pintaría tal cual
+    /// («IrAProyectos») sin que nada fallara. Por eso se recorre el catálogo
+    /// entero contra el localizador, y no solo los atajos que el test pinta.
+    /// </summary>
+    [Fact]
+    public void Cada_atajo_del_catalogo_tiene_su_texto_en_los_recursos()
+    {
+        var textos = Services.GetRequiredService<IStringLocalizer<TextosAtajosGlobales>>();
+
+        var sinTexto = CatalogoAtajos.Navegacion
+            .Concat(CatalogoAtajos.Acciones)
+            .Concat(CatalogoAtajos.Lista)
+            .Where(a => textos[a.ClaveDescripcion].ResourceNotFound)
+            .Select(a => a.ClaveDescripcion);
+
+        sinTexto.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task AlternarAyuda_pinta_los_textos_y_no_las_claves()
+    {
+        var cut = Render<AtajosGlobales>();
+
+        await cut.InvokeAsync(cut.Instance.AlternarAyuda);
+
+        cut.Markup.Should().Contain("Dentro de una lista")
+            .And.Contain("Alt/Option + clic")
+            .And.Contain("Copiar emisión, cuando esté disponible")
+            .And.Contain("Marcar/desmarcar la fila enfocada");
+        cut.Markup.Should().NotContain("SeccionLista").And.NotContain("ListaMarcarFila");
     }
 
     [Fact]
