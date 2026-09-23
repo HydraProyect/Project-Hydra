@@ -40,6 +40,8 @@ public static class ApplicationServiceCollectionExtensions
         // el proceso, no reiniciarse en cada petición como el resto de
         // dependencias Scoped de este método.
         services.AddSingleton<VentanaSaludOperativa>();
+        // Orden global del menú lateral: una caché por proceso, invalidada al guardar.
+        services.AddSingleton<CaeManager.Application.Plataforma.OrdenMenu.CacheOrdenMenuLateral>();
         // TryAdd, no Add: Program.cs registra la implementación real
         // (SentryAlertaOperativa, Infrastructure) después de AddApplication()
         // y la sustituye — ver AlertaOperativaInerte para el porqué de este

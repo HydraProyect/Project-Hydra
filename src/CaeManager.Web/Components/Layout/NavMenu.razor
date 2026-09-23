@@ -30,6 +30,7 @@
 @using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados
 @using CaeManager.Application.VistaDemo
 @using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual
+@using CaeManager.Application.Plataforma.OrdenMenu
 @using CaeManager.Infrastructure.Comunicaciones
 @using MediatR
 @using Microsoft.Extensions.Options
@@ -83,6 +84,7 @@
 
     private ContextoMenuLateral? _contexto;
     private Task<AuthenticationState>? _estadoEvaluado;
+    private OrdenMenuLateralDto? _orden;
     private IReadOnlyList<CatalogoMenuLateral.GrupoVisible> _grupos = [];
 
     protected override async Task OnInitializedAsync()
@@ -99,6 +101,10 @@
         // sin el rol Administrador.
         var esAdministradorPlataforma = await Mediator.Send(new EsAdministradorPlataformaQuery());
         var organizaciones = await Mediator.Send(new ObtenerClientesAutorizadosQuery());
+        // Orden global del Actor de Plataforma TALVEG (decisión del 2026-09-23): el mismo para
+        // todos los Tenants, de una caché de proceso. Solo recoloca: la visibilidad sigue siendo la
+        // de cada enlace.
+        _orden = await Mediator.Send(new ObtenerOrdenMenuLateralQuery());
 
         _contexto = new ContextoMenuLateral(
             new ClaimsPrincipal(new ClaimsIdentity()), vista, OpcionesComunicaciones.Value.Activo,
@@ -118,6 +124,6 @@
             ? new ClaimsPrincipal(new ClaimsIdentity())
             : (await EstadoAutenticacion).User;
         _contexto = _contexto with { Usuario = usuario };
-        _grupos = CatalogoMenuLateral.Visibles(_contexto);
+        _grupos = CatalogoMenuLateral.Visibles(_contexto, _orden?.Grupos, _orden?.Enlaces);
     }
 }
