@@ -264,7 +264,7 @@ public class TerminologiaCanonicaTests
         ["Hydra"] = 49,
         ["EjecutivoUsuarioId"] = 48,
         ["Delegacion"] = 320,
-        ["ClienteActivo"] = 71,
+        ["ClienteActivo"] = 73,
     };
 
     [Theory]
