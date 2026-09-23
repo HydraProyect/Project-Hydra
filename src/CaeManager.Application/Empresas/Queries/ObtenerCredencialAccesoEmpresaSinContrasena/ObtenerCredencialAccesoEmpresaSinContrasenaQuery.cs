@@ -12,11 +12,10 @@ namespace CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresa
 /// el <c>IDataProtector</c> la descifra.
 ///
 /// Sí descifra el <c>Usuario</c> (cifrado en reposo igual que la contraseña,
-/// <c>CaeManagerDbContext</c>), así que solo la leen los roles con escritura:
-/// está marcada con <see cref="IConsultaDeDatosDeCredencial"/>, no con
-/// <see cref="IConsultaDeSecretosDeTenant"/>, porque el formulario guarda lo
-/// que precarga y denegarla en una Sesión Privilegiada vaciaría la
-/// credencial al guardar.
+/// <c>CaeManagerDbContext</c>), así que está marcada con
+/// <see cref="IConsultaDeDatosDeCredencial"/>: solo la leen los roles con
+/// escritura, nunca en una Sesión Privilegiada, y cada lectura queda en la
+/// auditoría como <c>AccesoDatoSensible</c>.
 ///
 /// La contraseña solo se obtiene mediante
 /// <c>ObtenerCredencialAccesoEmpresaQuery</c> (esa sí, marcada), invocada
@@ -28,7 +27,7 @@ public record ObtenerCredencialAccesoEmpresaSinContrasenaQuery(Guid EmpresaId) :
 public record CredencialAccesoEmpresaSinContrasenaDto(string? UrlAcceso, string? CampoEmpresa, string? Usuario, string? Notas);
 
 public class ObtenerCredencialAccesoEmpresaSinContrasenaQueryHandler(
-    IEmpresasQueryContext dbContext, IAlcanceDatosService alcanceDatos)
+    IEmpresasQueryContext dbContext, IAlcanceDatosService alcanceDatos, IRegistroAccesoDatoSensibleService registroAcceso)
     : IRequestHandler<ObtenerCredencialAccesoEmpresaSinContrasenaQuery, CredencialAccesoEmpresaSinContrasenaDto?>
 {
     public async Task<CredencialAccesoEmpresaSinContrasenaDto?> Handle(
@@ -37,9 +36,17 @@ public class ObtenerCredencialAccesoEmpresaSinContrasenaQueryHandler(
         if (!await alcanceDatos.EmpresaParaGestionVisibleAsync(request.EmpresaId, cancellationToken))
             return null;
 
-        return await dbContext.CredencialesAccesoEmpresa
+        var fila = await dbContext.CredencialesAccesoEmpresa
             .Where(c => c.EmpresaId == request.EmpresaId)
-            .Select(c => new CredencialAccesoEmpresaSinContrasenaDto(c.UrlAcceso, c.CampoEmpresa, c.Usuario, c.Notas))
+            .Select(c => new { c.Id, Dto = new CredencialAccesoEmpresaSinContrasenaDto(c.UrlAcceso, c.CampoEmpresa, c.Usuario, c.Notas) })
             .FirstOrDefaultAsync(cancellationToken);
+
+        if (fila is null)
+            return null;
+
+        // Lectura efectiva: queda en la auditoría ANTES de entregar el dato, y si
+        // no se puede registrar no se entrega (IRegistroAccesoDatoSensibleService).
+        await registroAcceso.RegistrarAsync("CredencialAccesoEmpresa", fila.Id, cancellationToken);
+        return fila.Dto;
     }
 }
