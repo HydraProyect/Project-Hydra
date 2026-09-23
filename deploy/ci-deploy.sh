@@ -791,6 +791,69 @@ exigir_espacio_para_recibir() {
     fi
 }
 
+# Tamaño del tarball de $1 una vez descomprimido, leyendo como mucho
+# MAX_BYTES_IMAGEN_EXPANDIDA + 1 bytes: nunca descomprime más de eso, así que un
+# gzip que se expanda sin límite no llena nada (solo se cuentan bytes, no se
+# escriben). Solo se llama sobre un tarball ya autenticado por
+# verificar_firma_imagen. Imprime los bytes, o falla si supera el límite o si el
+# gzip está roto.
+#
+# `head` cierra la tubería al llegar al tope y `gzip` muere por SIGPIPE (o
+# sale con error por EPIPE): eso es «demasiado grande», no «gzip roto». Por
+# eso el estado de la tubería no se usa: el de gzip se lee de PIPESTATUS y solo
+# cuenta cuando el tope NO se alcanzó. `set +o pipefail` es solo defensivo (si
+# algún día se activa inherit_errexit, que la tubería no aborte la sustitución).
+MAX_BYTES_IMAGEN_EXPANDIDA=$(( 8 * 1024 * 1024 * 1024 ))
+medir_bytes_imagen_expandida() {
+    local archivo="$1" salida bytes estado_gzip
+    salida="$(
+        set +o pipefail
+        gzip -dc -- "$archivo" 2>/dev/null | head -c "$(( MAX_BYTES_IMAGEN_EXPANDIDA + 1 ))" | wc -c
+        echo "${PIPESTATUS[0]}"
+    )"
+    bytes="$(printf '%s\n' "$salida" | sed -n 1p | tr -dc '0-9')"
+    estado_gzip="$(printf '%s\n' "$salida" | sed -n 2p | tr -dc '0-9')"
+    if [ -z "$bytes" ]; then
+        echo "::error::no se pudo medir el tamaño expandido de la imagen — no se despliega." >&2
+        return 1
+    fi
+    if [ "$bytes" -gt "$MAX_BYTES_IMAGEN_EXPANDIDA" ]; then
+        echo "::error::la imagen expandida supera ${MAX_BYTES_IMAGEN_EXPANDIDA} bytes — se rechaza." >&2
+        return 1
+    fi
+    if [ "${estado_gzip:-1}" != "0" ]; then
+        echo "::error::el tarball de la imagen no es un gzip válido — no se despliega." >&2
+        return 1
+    fi
+    printf '%s\n' "$bytes"
+}
+
+# Antes de `docker load` del tarball en $1 (ya verificado): exige libre, en el
+# directorio raíz de Docker, dos veces el tamaño expandido —las capas se
+# materializan sin comprimir en el content store y otra vez en el overlay— más
+# la misma reserva que al recibir. La recepción solo reservó el tamaño
+# COMPRIMIDO; sin esto una imagen válida podía llenar el disco de PostgreSQL al
+# cargarse (2026-08-26, 2026-08-29, 2026-09-13). Si no se puede medir, falla
+# cerrado. Va DESPUÉS de verificar_firma_imagen: descomprimir datos sin
+# autenticar abriría una bomba gzip. ESPACIO_LIBRE_DOCKER_FORZADO solo existe
+# para el test.
+exigir_espacio_para_cargar() {
+    local dir="$1" expandido raiz libre necesario
+    expandido="$(medir_bytes_imagen_expandida "$dir/imagen.tar.gz")" || return 1
+    raiz="$(docker info --format '{{.DockerRootDir}}' 2>/dev/null)" || raiz=""
+    if [ -z "$raiz" ]; then
+        echo "::error::no se pudo leer el directorio raíz de Docker para medir el espacio — no se despliega." >&2
+        return 1
+    fi
+    libre="${ESPACIO_LIBRE_DOCKER_FORZADO:-$(df --output=avail -B1 "$raiz" 2>/dev/null | tail -1 | tr -dc '0-9' || true)}"
+    necesario=$(( 2 * expandido + RESERVA_BYTES_DISCO ))
+    if [ -z "$libre" ] || [ "$libre" -lt "$necesario" ]; then
+        echo "::error::no hay espacio en $raiz para cargar la imagen (expandida: $expandido bytes; libres: ${libre:-?}; hacen falta $necesario) — no se despliega." >&2
+        return 1
+    fi
+    echo "Espacio para cargar la imagen: $libre bytes libres en $raiz, hacen falta $necesario."
+}
+
 # Verifica, en este orden y sin atajos: la firma del manifiesto contra la
 # identidad fijada arriba y el SHA pedido; que el manifiesto sea exactamente
 # las dos líneas esperadas y nombre ese SHA; y que el tarball recibido tenga el
@@ -1012,6 +1075,9 @@ DIR_IMAGEN="$(mktemp -d /var/tmp/ci-deploy-imagen.XXXXXX)"
 trap 'rm -rf "$DIR_IMAGEN"' EXIT
 recibir_imagen_firmada "$DIR_IMAGEN" || exit 1
 verificar_firma_imagen "$DIR_IMAGEN" "$SHA" || exit 1
+# Recibir solo reservó el tamaño comprimido; `docker load` materializa las
+# capas sin comprimir. Ya autenticada, se mide expandida y se exige espacio.
+exigir_espacio_para_cargar "$DIR_IMAGEN" || exit 1
 
 bash /opt/talveg/deploy/resolve-deploy-sha.sh /opt/talveg "$SHA" < /dev/null
 
