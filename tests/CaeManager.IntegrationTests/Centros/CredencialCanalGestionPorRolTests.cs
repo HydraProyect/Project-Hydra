@@ -68,8 +68,11 @@ public class CredencialCanalGestionPorRolTests : IAsyncLifetime
         {
             contexto.Users.Add(new CaeManager.Infrastructure.Identity.ApplicationUser
             {
-                Id = usuario, UserName = $"p-{usuario:N}@ejemplo.test", Email = $"p-{usuario:N}@ejemplo.test",
-                ClienteId = _clienteId, TenantId = _tenant
+                Id = usuario,
+                UserName = $"p-{usuario:N}@ejemplo.test",
+                Email = $"p-{usuario:N}@ejemplo.test",
+                ClienteId = _clienteId,
+                TenantId = _tenant
             });
             await contexto.SaveChangesAsync();
         }
