@@ -89,7 +89,6 @@ public class TextosSinLocalizarCongeladosTests
         ["Integraciones"] = 92,
         ["Plantillas"] = 158,
         ["Plataforma"] = 74,
-        ["Proyectos"] = 103,
         ["Retencion"] = 85,
         ["Subcontratas"] = 225,
         ["TiposDocumento"] = 149,
