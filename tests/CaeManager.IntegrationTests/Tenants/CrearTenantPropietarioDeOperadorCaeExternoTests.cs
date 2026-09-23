@@ -62,9 +62,14 @@ public class CrearTenantPropietarioDeOperadorCaeExternoTests : IAsyncLifetime
     }
 
     private static async Task<Guid> SembrarTenantAsync(
-        CaeManagerDbContext contexto, PerfilVocabularioTenant perfil, string prefijo)
+        CaeManagerDbContext contexto, PerfilVocabularioTenant perfil, string prefijo, bool operadorCaeExterno = false)
     {
         var tenant = new Tenant($"{prefijo} {Guid.NewGuid():N}", perfil);
+        // Capacidad declarada aparte del perfil a propósito, nunca inferida
+        // de perfil == Consultora — es justo la inferencia que P11 elimina
+        // del gate real, y este arnés no debe reintroducirla en la sombra.
+        if (operadorCaeExterno)
+            tenant.HabilitarComoOperadorCaeExterno();
         contexto.Tenants.Add(tenant);
         await contexto.SaveChangesAsync();
         return tenant.Id;
@@ -93,7 +98,7 @@ public class CrearTenantPropietarioDeOperadorCaeExternoTests : IAsyncLifetime
         var admin = Guid.NewGuid();
         _actorReal = admin;
         await SembrarAdminPlataformaGlobalAsync(contexto, admin);
-        var operadorId = await SembrarTenantAsync(contexto, PerfilVocabularioTenant.Consultora, "ArcoSPA");
+        var operadorId = await SembrarTenantAsync(contexto, PerfilVocabularioTenant.Consultora, "ArcoSPA", operadorCaeExterno: true);
 
         var resultado = await CrearHandler(contexto, admin).Handle(
             new CrearTenantPropietarioDeOperadorCaeExternoCommand(operadorId, $" Laboratorios Dexter {Guid.NewGuid():N} "),
@@ -144,7 +149,7 @@ public class CrearTenantPropietarioDeOperadorCaeExternoTests : IAsyncLifetime
     public async Task Rechaza_sin_concesion_de_administrador_de_plataforma_y_no_crea_nada()
     {
         await using var contexto = CrearContexto();
-        var operadorId = await SembrarTenantAsync(contexto, PerfilVocabularioTenant.Consultora, "ArcoSPA");
+        var operadorId = await SembrarTenantAsync(contexto, PerfilVocabularioTenant.Consultora, "ArcoSPA", operadorCaeExterno: true);
         var tenantsAntes = await contexto.Tenants.CountAsync();
 
         var resultado = await CrearHandler(contexto, Guid.NewGuid()).Handle(
@@ -161,7 +166,7 @@ public class CrearTenantPropietarioDeOperadorCaeExternoTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
         var admin = Guid.NewGuid();
-        var operadorId = await SembrarTenantAsync(contexto, PerfilVocabularioTenant.Consultora, "ArcoSPA");
+        var operadorId = await SembrarTenantAsync(contexto, PerfilVocabularioTenant.Consultora, "ArcoSPA", operadorCaeExterno: true);
         contexto.ConcesionesPrivilegio.Add(ConcesionPrivilegio.SobreTenants(
             admin, CapacidadPrivilegio.AdminPlataforma, [operadorId],
             vigenciaDesde: DateTime.UtcNow.AddMinutes(-5), vigenciaHasta: null));
@@ -181,9 +186,10 @@ public class CrearTenantPropietarioDeOperadorCaeExternoTests : IAsyncLifetime
         var admin = Guid.NewGuid();
         await SembrarAdminPlataformaGlobalAsync(contexto, admin);
         var plataforma = await contexto.Tenants.SingleAsync(t => t.EsPlataforma);
-        // Con perfil Consultora a propósito: así solo la guarda EsPlataforma puede rechazarlo
-        // (sin esto, la guarda de perfil lo taparía y el test no distinguiría la mutación).
-        plataforma.CambiarPerfilVocabulario(PerfilVocabularioTenant.Consultora);
+        // Con la capacidad concedida a propósito: así solo la guarda EsPlataforma
+        // puede rechazarlo (sin esto, la guarda de capacidad lo taparía y el
+        // test no distinguiría la mutación).
+        plataforma.HabilitarComoOperadorCaeExterno();
         await contexto.SaveChangesAsync();
         var plataformaId = plataforma.Id;
 
@@ -214,13 +220,38 @@ public class CrearTenantPropietarioDeOperadorCaeExternoTests : IAsyncLifetime
         (await contexto.DelegacionesTenant.AnyAsync()).Should().BeFalse();
     }
 
+    /// <summary>
+    /// Falsación de P11: si el gate volviera a mirar el perfil de vocabulario
+    /// en vez de la capacidad, este Tenant (perfil Consultora, sin la
+    /// capacidad concedida) pasaría el gate indebidamente. Es la mutación que
+    /// <see cref="Rechaza_un_operador_que_es_el_tenant_de_plataforma"/> no
+    /// puede detectar por sí sola, porque ese test aísla la guarda EsPlataforma.
+    /// </summary>
+    [Fact]
+    public async Task Rechaza_un_tenant_con_perfil_consultora_sin_la_capacidad_concedida()
+    {
+        await using var contexto = CrearContexto();
+        var admin = Guid.NewGuid();
+        await SembrarAdminPlataformaGlobalAsync(contexto, admin);
+        var sinCapacidadId = await SembrarTenantAsync(contexto, PerfilVocabularioTenant.Consultora, "ArcoSPA");
+
+        var resultado = await CrearHandler(contexto, admin).Handle(
+            new CrearTenantPropietarioDeOperadorCaeExternoCommand(sinCapacidadId, "Bajo un Consultora sin capacidad"),
+            CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(
+            "TenantPropietarioDeOperador.OperadorNoValido", "el perfil de vocabulario ya no es autoridad, solo la capacidad concedida");
+        (await contexto.DelegacionesTenant.AnyAsync()).Should().BeFalse();
+    }
+
     [Fact]
     public async Task Rechaza_un_nombre_duplicado_aunque_difiera_en_espacios()
     {
         await using var contexto = CrearContexto();
         var admin = Guid.NewGuid();
         await SembrarAdminPlataformaGlobalAsync(contexto, admin);
-        var operadorId = await SembrarTenantAsync(contexto, PerfilVocabularioTenant.Consultora, "ArcoSPA");
+        var operadorId = await SembrarTenantAsync(contexto, PerfilVocabularioTenant.Consultora, "ArcoSPA", operadorCaeExterno: true);
         var nombre = $"Laboratorios Dexter {Guid.NewGuid():N}";
         contexto.Tenants.Add(new Tenant(nombre));
         await contexto.SaveChangesAsync();
@@ -237,7 +268,7 @@ public class CrearTenantPropietarioDeOperadorCaeExternoTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var admin = Guid.NewGuid();
         await SembrarAdminPlataformaGlobalAsync(contexto, admin);
-        var operadorId = await SembrarTenantAsync(contexto, PerfilVocabularioTenant.Consultora, "ArcoSPA");
+        var operadorId = await SembrarTenantAsync(contexto, PerfilVocabularioTenant.Consultora, "ArcoSPA", operadorCaeExterno: true);
         var handler = CrearHandler(contexto, admin);
         var activo = await handler.Handle(
             new CrearTenantPropietarioDeOperadorCaeExternoCommand(operadorId, $"Activo {Guid.NewGuid():N}"), CancellationToken.None);
@@ -258,11 +289,32 @@ public class CrearTenantPropietarioDeOperadorCaeExternoTests : IAsyncLifetime
         operadores.Should().NotContain(o => o.TenantId == plataformaId, "el Tenant de plataforma no es un Operador CAE");
     }
 
+    /// <summary>
+    /// Falsación de P11: si el filtro de la consulta volviera a mirar el
+    /// perfil de vocabulario en vez de la capacidad, este Tenant (perfil
+    /// Consultora, sin la capacidad concedida) aparecería igualmente en
+    /// <c>/delegaciones</c> aunque nunca pasó por el alta de Operador.
+    /// </summary>
+    [Fact]
+    public async Task La_consulta_no_lista_un_tenant_con_perfil_consultora_sin_la_capacidad_concedida()
+    {
+        await using var contexto = CrearContexto();
+        var admin = Guid.NewGuid();
+        await SembrarAdminPlataformaGlobalAsync(contexto, admin);
+        var sinCapacidadId = await SembrarTenantAsync(contexto, PerfilVocabularioTenant.Consultora, "ArcoSPA");
+
+        var consulta = new ObtenerOperadoresCaeExternosQueryHandler(
+            contexto, new AutorizacionAdminPlataformaPorConcesion(contexto), new CurrentUserServiceFalso(admin));
+        var operadores = await consulta.Handle(new ObtenerOperadoresCaeExternosQuery(), CancellationToken.None);
+
+        operadores.Should().NotContain(o => o.TenantId == sinCapacidadId, "el perfil de vocabulario ya no es autoridad, solo la capacidad concedida");
+    }
+
     [Fact]
     public async Task La_consulta_devuelve_vacio_a_quien_no_es_administrador_de_plataforma()
     {
         await using var contexto = CrearContexto();
-        await SembrarTenantAsync(contexto, PerfilVocabularioTenant.Consultora, "ArcoSPA");
+        await SembrarTenantAsync(contexto, PerfilVocabularioTenant.Consultora, "ArcoSPA", operadorCaeExterno: true);
 
         var consulta = new ObtenerOperadoresCaeExternosQueryHandler(
             new ContextoQueNoDebeLeerse(), new AutorizacionAdminPlataformaPorConcesion(contexto), new CurrentUserServiceFalso(Guid.NewGuid()));
@@ -283,7 +335,7 @@ public class CrearTenantPropietarioDeOperadorCaeExternoTests : IAsyncLifetime
         var admin = Guid.NewGuid();
         _actorReal = admin;
         await SembrarAdminPlataformaGlobalAsync(contexto, admin);
-        var operadorId = await SembrarTenantAsync(contexto, PerfilVocabularioTenant.Consultora, "ArcoSPA");
+        var operadorId = await SembrarTenantAsync(contexto, PerfilVocabularioTenant.Consultora, "ArcoSPA", operadorCaeExterno: true);
         var unidad = new UnidadDeTrabajoContadora(contexto);
 
         var resultado = await CrearHandler(contexto, admin, unidad).Handle(
@@ -303,7 +355,7 @@ public class CrearTenantPropietarioDeOperadorCaeExternoTests : IAsyncLifetime
     public async Task Sin_concesion_el_error_es_identico_para_un_operador_real_y_un_id_inexistente()
     {
         await using var contexto = CrearContexto();
-        var operadorReal = await SembrarTenantAsync(contexto, PerfilVocabularioTenant.Consultora, "ArcoSPA");
+        var operadorReal = await SembrarTenantAsync(contexto, PerfilVocabularioTenant.Consultora, "ArcoSPA", operadorCaeExterno: true);
         var sinConcesion = Guid.NewGuid();
 
         var real = await CrearHandler(contexto, sinConcesion, tenantsContext: new ContextoQueNoDebeLeerse()).Handle(

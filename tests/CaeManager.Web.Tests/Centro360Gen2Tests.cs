@@ -315,6 +315,28 @@ public class Centro360Gen2Tests : BunitContext
             .Should().NotContain(["Copiar usuario", "Copiar contraseña"]);
     }
 
+    /// <summary>
+    /// Decisión del propietario (2026-09-23): los secretos del Tenant solo los
+    /// leen los roles con escritura. A Consulta el servidor le devuelve null, así
+    /// que ofrecerle «Copiar contraseña» sería un botón que no copia nada. El
+    /// control positivo es el mismo canal con un rol de gestión.
+    /// </summary>
+    [Theory]
+    [InlineData("Consulta", false)]
+    [InlineData("GestorCae", true)]
+    public void Copiar_usuario_y_contrasena_solo_se_ofrece_a_los_roles_con_escritura(string rol, bool seOfrece)
+    {
+        this.ConRolDeEscritura(rol);
+        var (id, _, _) = CentroConCanal(CanalPlataforma("app.twind.io"));
+
+        var botones = Renderizar(id).FindAll(".boton-copiar").Select(b => b.TextContent.Trim()).ToList();
+
+        if (seOfrece)
+            botones.Should().Contain(["Copiar usuario", "Copiar contraseña"]);
+        else
+            botones.Should().NotContain(["Copiar usuario", "Copiar contraseña"]);
+    }
+
     [Theory]
     [InlineData("Copiar usuario", "usuario.secreto")]
     [InlineData("Copiar contraseña", "clave-secreta-123")]

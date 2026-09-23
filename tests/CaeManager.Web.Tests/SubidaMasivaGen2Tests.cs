@@ -120,6 +120,26 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
         await DisposeComponentsAsync();
     }
 
+    /// <summary>
+    /// P4 (2026-09-23): el selector de Trabajador de alcance Cartera tampoco enseña el DNI, ni en la
+    /// propuesta ni en el buscador al corregirla. El fake siembra un DNI conocido en el origen
+    /// (<see cref="TrabajadorSelectorFalso"/>).
+    /// </summary>
+    [Fact]
+    public async Task El_selector_de_Trabajador_de_la_propuesta_no_muestra_el_DNI()
+    {
+        PrepararPropuesta(confianza: 100, emision: new DateOnly(2026, 3, 1));
+        var cut = Render<SubidaMasiva>();
+
+        await ProcesarAsync(cut, "propuesta.pdf");
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Confirmar…").ClickAsync(new MouseEventArgs());
+
+        var buscador = cut.FindComponents<CampoBuscarSelect>().Single(c => c.Instance.Etiqueta == "Trabajador");
+        buscador.Instance.Opciones.Select(o => o.Texto).Should().Equal("Persona CAE");
+        cut.Markup.Should().Contain("Persona CAE").And.NotContain(TrabajadorSelectorFalso.DniSembrado);
+        await DisposeComponentsAsync();
+    }
+
     [Fact]
     public async Task Tras_confirmar_existe_el_Documento_con_las_fechas_leidas_del_archivo()
     {
@@ -384,7 +404,7 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
     {
         var trabajadorId = Guid.NewGuid();
         var tipoId = Guid.NewGuid();
-        _mediador.Trabajadores = [new TrabajadorSelectorDto(trabajadorId, "Persona CAE", "12345678Z", null)];
+        _mediador.Trabajadores = [TrabajadorSelectorFalso.Crear(trabajadorId, "Persona CAE")];
         _mediador.Tipos = [CrearTipo(tipoId)];
         _mediador.Deteccion = new DeteccionCamposDocumentoDto(tipoId, trabajadorId, confianza, FechaEmisionLeida: emision);
         return (trabajadorId, tipoId);

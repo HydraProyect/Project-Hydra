@@ -119,6 +119,27 @@ public class TenantTests
         tenant.PerfilVocabulario.Should().Be(PerfilVocabularioTenant.Consultora);
     }
 
+    [Fact]
+    public void Un_tenant_nuevo_no_puede_actuar_como_operador_cae_externo_aunque_declare_perfil_consultora()
+    {
+        // Control positivo del incremento P11: la capacidad ya no se infiere
+        // del perfil de vocabulario (DDL-072, capa de presentación) — se
+        // concede aparte, igual que EsPlataforma.
+        var tenant = new Tenant("ArcoSPA", PerfilVocabularioTenant.Consultora);
+
+        tenant.PuedeActuarComoOperadorCaeExterno.Should().BeFalse();
+    }
+
+    [Fact]
+    public void HabilitarComoOperadorCaeExterno_concede_la_capacidad()
+    {
+        var tenant = new Tenant("ArcoSPA", PerfilVocabularioTenant.Consultora);
+
+        tenant.HabilitarComoOperadorCaeExterno();
+
+        tenant.PuedeActuarComoOperadorCaeExterno.Should().BeTrue();
+    }
+
     // Horizonte 1.7 ("Billing mínimo viable") — EstadoComercial es un campo
     // aparte de Estado (ver EstadoComercialTenant): estos tests son la
     // contrapartida de Suspender_cambia_el_estado_a_suspendido/Reactivar_revierte_la_suspension

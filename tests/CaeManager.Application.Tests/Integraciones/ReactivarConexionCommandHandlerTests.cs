@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Integraciones.Commands.ReactivarConexion;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Domain.Integraciones;
@@ -8,6 +9,14 @@ namespace CaeManager.Application.Tests.Integraciones;
 
 public class ReactivarConexionCommandHandlerTests
 {
+    private static readonly Guid TenantId = Guid.NewGuid();
+
+    private static ReactivarConexionCommandHandler CrearHandler(
+        ConexionIntegracionRepositorioFalso conexionRepositorio, AlcanceDatosServiceFalso alcanceDatos,
+        UnitOfWorkFalso unitOfWork, ReclamacionBuzonIntegracionRepositorioFalso? reclamacionRepositorio = null) =>
+        new(conexionRepositorio, reclamacionRepositorio ?? new ReclamacionBuzonIntegracionRepositorioFalso(),
+            alcanceDatos, new TenantActualFalso(TenantId), unitOfWork);
+
     [Fact]
     public async Task Rehabilita_una_conexion_con_error_y_limpia_el_ultimo_error()
     {
@@ -16,7 +25,7 @@ public class ReactivarConexionCommandHandlerTests
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
         conexionRepositorio.Agregar(conexion);
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new ReactivarConexionCommandHandler(conexionRepositorio, new AlcanceDatosServiceFalso(), unitOfWork);
+        var handler = CrearHandler(conexionRepositorio, new AlcanceDatosServiceFalso(), unitOfWork);
 
         var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
 
@@ -31,7 +40,7 @@ public class ReactivarConexionCommandHandlerTests
     {
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new ReactivarConexionCommandHandler(conexionRepositorio, new AlcanceDatosServiceFalso(), unitOfWork);
+        var handler = CrearHandler(conexionRepositorio, new AlcanceDatosServiceFalso(), unitOfWork);
 
         var resultado = await handler.Handle(new ReactivarConexionCommand(Guid.NewGuid()), CancellationToken.None);
 
@@ -48,7 +57,7 @@ public class ReactivarConexionCommandHandlerTests
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
         conexionRepositorio.Agregar(conexion);
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new ReactivarConexionCommandHandler(
+        var handler = CrearHandler(
             conexionRepositorio, new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [Guid.NewGuid()]), unitOfWork);
 
         var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
@@ -71,8 +80,7 @@ public class ReactivarConexionCommandHandlerTests
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
         conexionRepositorio.Agregar(conexionPersonal);
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new ReactivarConexionCommandHandler(
-            conexionRepositorio, new AlcanceDatosServiceFalso(conexionIntegracionVisible: false), unitOfWork);
+        var handler = CrearHandler(conexionRepositorio, new AlcanceDatosServiceFalso(conexionIntegracionVisible: false), unitOfWork);
 
         var resultado = await handler.Handle(new ReactivarConexionCommand(conexionPersonal.Id), CancellationToken.None);
 
@@ -80,5 +88,58 @@ public class ReactivarConexionCommandHandlerTests
         resultado.Error.Codigo.Should().Be("ConexionIntegracion.NoEncontrada");
         conexionPersonal.Estado.Should().Be(EstadoConexionIntegracion.ConError);
         unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Incremento 1 de PROPUESTA-BUZONES-COMPARTIDOS-M365 § 5.4: Deshabilitada
+    /// es la única transición que libera la reclamación del buzón (ver
+    /// DesconectarBuzonCommandHandlerTests), así que reactivar desde ahí debe
+    /// volver a reclamarlo — a diferencia de ConError, que nunca la liberó.
+    /// </summary>
+    [Fact]
+    public async Task Al_reactivar_desde_Deshabilitada_vuelve_a_reclamar_el_buzon()
+    {
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        conexion.Deshabilitar();
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexion);
+        var reclamacionRepositorio = new ReclamacionBuzonIntegracionRepositorioFalso();
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = CrearHandler(conexionRepositorio, new AlcanceDatosServiceFalso(), unitOfWork, reclamacionRepositorio);
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.Habilitada);
+        reclamacionRepositorio.Reclamaciones.Should().ContainSingle(
+            r => r.BuzonEmail == "cae@cliente.com" && r.TenantPropietarioId == TenantId && r.ConexionIntegracionId == conexion.Id);
+        reclamacionRepositorio.VecesGuardado.Should().Be(1);
+    }
+
+    /// <summary>
+    /// Mientras la conexión estaba Deshabilitada, otro tenant reclamó el
+    /// mismo buzón — reactivar no puede colar una segunda reclamación.
+    /// </summary>
+    [Fact]
+    public async Task Rechaza_reactivar_si_otro_tenant_reclamo_el_buzon_mientras_estaba_desconectada()
+    {
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        conexion.Deshabilitar();
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexion);
+        var reclamacionRepositorio = new ReclamacionBuzonIntegracionRepositorioFalso { BuzonYaReclamado = true };
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = CrearHandler(conexionRepositorio, new AlcanceDatosServiceFalso(), unitOfWork, reclamacionRepositorio);
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Integraciones.Microsoft365.BuzonYaConectado");
+        reclamacionRepositorio.VecesGuardado.Should().Be(0);
+    }
+
+    private sealed class TenantActualFalso(Guid? tenantId) : ITenantActual
+    {
+        public Guid? TenantId => tenantId;
     }
 }

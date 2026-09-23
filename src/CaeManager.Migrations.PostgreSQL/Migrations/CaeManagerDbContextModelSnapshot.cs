@@ -4894,6 +4894,38 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         });
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Integraciones.ReclamacionBuzonIntegracion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("BuzonEmail")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
+
+                    b.Property<Guid>("ConexionIntegracionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ReclamadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantPropietarioId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BuzonEmail")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ReclamacionesBuzonIntegracion_BuzonEmail");
+
+                    b.HasIndex("ConexionIntegracionId")
+                        .IsUnique();
+
+                    b.ToTable("ReclamacionesBuzonIntegracion", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Integraciones.SolicitudConexionMicrosoft365", b =>
                 {
                     b.Property<Guid>("Id")
@@ -6658,6 +6690,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<bool>("PuedeActuarComoOperadorCaeExterno")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("StripeCustomerId")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
@@ -6682,7 +6717,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Estado = "Activo",
                             EstadoComercial = "SinSuscripcion",
                             Nombre = "Organización principal",
-                            PerfilVocabulario = "ClienteDirecto"
+                            PerfilVocabulario = "ClienteDirecto",
+                            PuedeActuarComoOperadorCaeExterno = false
                         });
                 });
 

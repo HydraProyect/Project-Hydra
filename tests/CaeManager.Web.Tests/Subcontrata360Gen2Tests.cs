@@ -300,6 +300,37 @@ public class Subcontrata360Gen2Tests : BunitContext
         Boton(cut, "Ver credenciales");
     }
 
+    /// <summary>
+    /// Decisión del propietario (2026-09-23): los secretos del Tenant solo los
+    /// leen los roles con escritura. Consulta no ve la tarjeta «Acceso al portal»
+    /// ni la edición (que carga las credenciales); el control positivo es el
+    /// mismo panel con un rol de gestión.
+    /// </summary>
+    [Theory]
+    [InlineData("Consulta", false)]
+    [InlineData("GestorCae", true)]
+    public void Las_credenciales_del_portal_y_su_edicion_solo_se_ofrecen_a_los_roles_con_escritura(string rol, bool seOfrecen)
+    {
+        this.ConRolDeEscritura(rol);
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Pinturas Lauburu S.A.");
+
+        var cut = Renderizar(id);
+        var botones = cut.FindAll("button").Select(b => b.TextContent.Trim()).ToList();
+
+        if (seOfrecen)
+        {
+            botones.Should().Contain(["Ver credenciales", "Editar identidad"]);
+            cut.FindAll("section[aria-label='Acceso al portal']").Should().ContainSingle();
+        }
+        else
+        {
+            botones.Should().NotContain(["Ver credenciales", "Editar identidad"]);
+            cut.FindAll("section[aria-label='Acceso al portal']").Should().BeEmpty();
+        }
+    }
+
     [Fact]
     public async Task Las_credenciales_no_se_piden_al_abrir_y_la_contrasena_sale_enmascarada_hasta_revelarla()
     {
@@ -711,7 +742,10 @@ public class Subcontrata360Gen2Tests : BunitContext
         var enInformacion = cut.FindAll("button").Select(b => b.TextContent.Trim()).ToList();
         enInformacion.Should().NotContain("Editar identidad")
             .And.NotContain(t => t.StartsWith("Cambiar a", StringComparison.Ordinal))
-            .And.Contain("Ver credenciales", "consultar las credenciales es lectura");
+            // Las credenciales de un portal de terceros tampoco (decisión del propietario
+            // 2026-09-23, opción A): son la llave para actuar en esa plataforma, no un dato
+            // que se mira, y el servidor ya se las devuelve null a Consulta.
+            .And.NotContain("Ver credenciales");
 
         cut.Render(p => p.Add(x => x.EntidadId, id).Add(x => x.PestanaActiva, "supervision"));
 

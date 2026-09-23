@@ -125,6 +125,42 @@ fi
 ESPACIO_LIBRE_FORZADO=$(( MAX_BYTES_IMAGEN + RESERVA_BYTES_DISCO )) exigir_espacio_para_recibir "$TMP" || fallo "rechazó con espacio suficiente"
 echo "OK: exige MAX_BYTES_IMAGEN + reserva libres antes de recibir"
 
+echo "=== Caso 4c: espacio para la imagen EXPANDIDA antes de docker load ==="
+# gzip real: 100000 bytes de ceros se comprimen a unos cientos, así que solo
+# pasa si el guion mide lo expandido y no lo comprimido.
+EXPANDIDO=100000
+DG="$(nuevo_dir)"
+head -c "$EXPANDIDO" /dev/zero | gzip -c > "$DG/imagen.tar.gz"
+[ "$(stat -c %s "$DG/imagen.tar.gz")" -lt $(( EXPANDIDO / 10 )) ] || fallo "el control no comprime: no distinguiría comprimido de expandido"
+NECESARIO=$(( 2 * EXPANDIDO + RESERVA_BYTES_DISCO ))
+docker() {
+    case "$1" in
+        info) [ "${DOCKER_SIN_RAIZ:-0}" = "1" ] && return 1; echo "$TMP" ;;
+        *) return 0 ;;
+    esac
+}
+espera_rechazo_carga() {
+    local descripcion="$1" dir="$2" patron="$3" salida
+    if salida="$(exigir_espacio_para_cargar "$dir" 2>&1)"; then
+        fallo "$descripcion: se aceptó"
+    fi
+    printf '%s' "$salida" | grep -q "$patron" || fallo "$descripcion: mensaje inesperado: $salida"
+    echo "OK: $descripcion"
+}
+ESPACIO_LIBRE_DOCKER_FORZADO=$(( NECESARIO - 1 )) espera_rechazo_carga "un byte menos que 2 × expandido + reserva" "$DG" "no hay espacio en $TMP para cargar"
+ESPACIO_LIBRE_DOCKER_FORZADO="$NECESARIO" exigir_espacio_para_cargar "$DG" > /dev/null || fallo "rechazó con 2 × expandido + reserva libres"
+echo "OK: acepta con exactamente 2 × expandido + reserva"
+( MAX_BYTES_IMAGEN_EXPANDIDA=$(( EXPANDIDO - 1 )); ESPACIO_LIBRE_DOCKER_FORZADO=$(( 1 << 50 )) espera_rechazo_carga "expandida por encima de MAX_BYTES_IMAGEN_EXPANDIDA" "$DG" "expandida supera" )
+# Tope muy por debajo de lo expandido: `head` cierra la tubería con gzip aún
+# escribiendo (SIGPIPE). Debe salir «supera», no «gzip roto» ni un aborto.
+( MAX_BYTES_IMAGEN_EXPANDIDA=1000; ESPACIO_LIBRE_DOCKER_FORZADO=$(( 1 << 50 )) espera_rechazo_carga "tope muy por debajo (gzip cortado por SIGPIPE)" "$DG" "expandida supera" )
+( MAX_BYTES_IMAGEN_EXPANDIDA="$EXPANDIDO"; ESPACIO_LIBRE_DOCKER_FORZADO="$NECESARIO" exigir_espacio_para_cargar "$DG" > /dev/null ) || fallo "rechazó una imagen expandida justo en el límite"
+echo "OK: acepta una imagen expandida justo en MAX_BYTES_IMAGEN_EXPANDIDA"
+DR="$(nuevo_dir)"; printf 'esto no es gzip' > "$DR/imagen.tar.gz"
+ESPACIO_LIBRE_DOCKER_FORZADO=$(( 1 << 50 )) espera_rechazo_carga "tarball que no es gzip" "$DR" "no es un gzip válido"
+DOCKER_SIN_RAIZ=1 ESPACIO_LIBRE_DOCKER_FORZADO=$(( 1 << 50 )) espera_rechazo_carga "sin raíz de Docker medible (falla cerrado)" "$DG" "directorio raíz de Docker"
+unset -f docker
+
 echo "=== Caso 5: cargar_imagen_verificada comprueba etiqueta y revisión ==="
 docker() {
     case "$1" in
@@ -145,7 +181,9 @@ echo "OK: etiqueta caemanager:<sha> y revisión OCI exigidas"
 
 echo "=== Caso 6: orden en main() — SHA, disco, recibir, verificar, y solo entonces checkout, cargar y up sin build ==="
 # Anclas de línea completa: un comentario que mencione la misma orden no cuenta.
-linea() { grep -n -x -- "$1" "$FICHERO_FUENTE" | head -1 | cut -d: -f1; }
+# `|| true`: sin él, un ancla ausente abortaba en silencio por set -e/pipefail
+# en vez de llegar al `fallo` que nombra la línea que falta.
+linea() { grep -n -x -- "$1" "$FICHERO_FUENTE" | head -1 | cut -d: -f1 || true; }
 L_SHA="$(linea 'if ! \[\[ "\${SHA:-}" =~ ^\[0-9a-f\]{40}\$ \]\]; then')"
 L_LIBERAR="$(linea 'bash /opt/talveg/deploy/liberar-disco.sh < /dev/null')"
 L_ESPACIO="$(linea 'exigir_espacio_para_recibir /var/tmp || exit 1')"
@@ -153,14 +191,15 @@ L_MKTEMP="$(linea 'DIR_IMAGEN="\$(mktemp -d /var/tmp/ci-deploy-imagen.XXXXXX)"')
 L_TRAP="$(linea "trap 'rm -rf \"\\\$DIR_IMAGEN\"' EXIT")"
 L_RECIBIR="$(linea 'recibir_imagen_firmada "\$DIR_IMAGEN" || exit 1')"
 L_VERIFICAR="$(linea 'verificar_firma_imagen "\$DIR_IMAGEN" "\$SHA" || exit 1')"
+L_ESPACIO_CARGA="$(linea 'exigir_espacio_para_cargar "\$DIR_IMAGEN" || exit 1')"
 L_RESOLVER="$(linea 'bash /opt/talveg/deploy/resolve-deploy-sha.sh /opt/talveg "\$SHA" < /dev/null')"
 L_CARGAR="$(linea '    if ! cargar_imagen_verificada "\$DIR_IMAGEN" "\$SHA"; then')"
 L_EXPORT="$(linea '    export IMAGEN_TAG="\$SHA"')"
 L_UP="$(linea '    if ! docker compose "\${args\[@\]}" up -d --wait --wait-timeout 180 --no-build; then')"
-for v in L_SHA L_LIBERAR L_ESPACIO L_MKTEMP L_TRAP L_RECIBIR L_VERIFICAR L_RESOLVER L_CARGAR L_EXPORT L_UP; do
+for v in L_SHA L_LIBERAR L_ESPACIO L_MKTEMP L_TRAP L_RECIBIR L_VERIFICAR L_ESPACIO_CARGA L_RESOLVER L_CARGAR L_EXPORT L_UP; do
     [ -n "${!v}" ] || fallo "no se localizó $v (línea exacta) en ci-deploy.sh"
 done
-ordenadas=(L_SHA L_LIBERAR L_ESPACIO L_MKTEMP L_TRAP L_RECIBIR L_VERIFICAR L_RESOLVER L_CARGAR L_EXPORT L_UP)
+ordenadas=(L_SHA L_LIBERAR L_ESPACIO L_MKTEMP L_TRAP L_RECIBIR L_VERIFICAR L_ESPACIO_CARGA L_RESOLVER L_CARGAR L_EXPORT L_UP)
 for (( k=1; k<${#ordenadas[@]}; k++ )); do
     a="${ordenadas[k-1]}"; b="${ordenadas[k]}"
     [ "${!a}" -lt "${!b}" ] || fallo "$a (${!a}) no va antes que $b (${!b})"
@@ -169,7 +208,7 @@ done
 if grep -nE 'docker compose .*[[:space:]]build([[:space:]]|$)' "$FICHERO_FUENTE" | grep -v '^[0-9]*:[[:space:]]*#'; then
     fallo "ci-deploy.sh vuelve a compilar en el VPS"
 fi
-echo "OK: SHA < liberar disco < espacio < mktemp+trap < recibir < verificar < checkout < cargar < export < up --no-build; sin build en el VPS"
+echo "OK: SHA < liberar disco < espacio < mktemp+trap < recibir < verificar < espacio expandido < checkout < cargar < export < up --no-build; sin build en el VPS"
 
 echo "=== Caso 6b: el productor REAL de deploy.yml es compatible con recibir_imagen_firmada ==="
 # Se extrae de deploy.yml el bloque `{ ... } | ssh` de cada job y se ejecuta

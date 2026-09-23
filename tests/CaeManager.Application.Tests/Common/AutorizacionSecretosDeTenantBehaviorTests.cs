@@ -29,6 +29,8 @@ public class AutorizacionSecretosDeTenantBehaviorTests
 
     private record ConsultaNormalQuery : IRequest<string?>;
 
+    private record ConsultaDeDatosDeCredencialQuery : IRequest<CredencialDto?>, IConsultaDeDatosDeCredencial;
+
     private static readonly CredencialDto Secreto = new("admin@cliente", "hunter2");
 
     [Theory]
@@ -39,7 +41,7 @@ public class AutorizacionSecretosDeTenantBehaviorTests
     public async Task Ninguna_capacidad_del_plano_3_obtiene_los_secretos_del_tenant(CapacidadPrivilegio capacidad)
     {
         var behavior = new AutorizacionSecretosDeTenantBehavior<ConsultaDeCredencialQuery, CredencialDto?>(
-            SesionCon(capacidad));
+            SesionCon(capacidad), UsuarioConRol("Administrador"));
 
         var handlerFueLlamado = false;
         var resultado = await behavior.Handle(new ConsultaDeCredencialQuery(), _ =>
@@ -48,6 +50,8 @@ public class AutorizacionSecretosDeTenantBehaviorTests
             return Task.FromResult<CredencialDto?>(Secreto);
         }, CancellationToken.None);
 
+        // Con un rol que SÍ lee secretos: el null solo puede venir de la sesión
+        // privilegiada, no de la regla de roles.
         resultado.Should().BeNull();
 
         // El handler ni siquiera corre: la credencial no llega a descifrarse,
@@ -59,9 +63,9 @@ public class AutorizacionSecretosDeTenantBehaviorTests
     public async Task Sin_sesion_privilegiada_la_consulta_de_credenciales_funciona_con_normalidad()
     {
         // Guarda de no regresión: quien gestiona de verdad esas plataformas es
-        // el operador del tenant, y para él no cambia nada.
+        // el Gestor CAE del Operador CAE, y para él no cambia nada.
         var behavior = new AutorizacionSecretosDeTenantBehavior<ConsultaDeCredencialQuery, CredencialDto?>(
-            SinSesion);
+            SinSesion, UsuarioConRol("GestorCae"));
 
         var resultado = await behavior.Handle(
             new ConsultaDeCredencialQuery(), _ => Task.FromResult<CredencialDto?>(Secreto), CancellationToken.None);
@@ -76,7 +80,7 @@ public class AutorizacionSecretosDeTenantBehaviorTests
         // ve. Si esto denegara, el incremento no habría introducido una
         // capacidad de inspección sino una pantalla en blanco.
         var behavior = new AutorizacionSecretosDeTenantBehavior<ConsultaNormalQuery, string?>(
-            SesionCon(CapacidadPrivilegio.SoporteLectura));
+            SesionCon(CapacidadPrivilegio.SoporteLectura), UsuarioConRol("Administrador"));
 
         var resultado = await behavior.Handle(
             new ConsultaNormalQuery(), _ => Task.FromResult<string?>("datos del tenant"), CancellationToken.None);
@@ -92,7 +96,7 @@ public class AutorizacionSecretosDeTenantBehaviorTests
         // interpretaría como un dato. Mejor romper en el primer test que lo
         // toque que devolver un valor falso en producción.
         var behavior = new AutorizacionSecretosDeTenantBehavior<ConsultaDeCredencialQuery, int>(
-            SesionCon(CapacidadPrivilegio.SoporteLectura));
+            SesionCon(CapacidadPrivilegio.SoporteLectura), UsuarioConRol("Administrador"));
 
         var accion = async () => await behavior.Handle(
             new ConsultaDeCredencialQuery(), _ => Task.FromResult(42), CancellationToken.None);
@@ -101,11 +105,120 @@ public class AutorizacionSecretosDeTenantBehaviorTests
             .WithMessage("*tipo por valor*");
     }
 
+    /// <summary>
+    /// Decisión del propietario (2026-09-23, opción A): los secretos del Tenant
+    /// propietario solo los leen los roles con escritura. Consulta es de solo
+    /// lectura —también la Consulta delegada del Operador CAE externo, cuyo rol
+    /// llega ya resuelto por el workspace delegado— y una credencial no es un
+    /// dato que se mira, es la llave para actuar en la plataforma CAE en nombre
+    /// del Tenant propietario. Cliente (usuario de portal) y un rol sin resolver
+    /// tampoco: fallo cerrado.
+    /// </summary>
+    [Theory]
+    [InlineData("Consulta")]
+    [InlineData("Cliente")]
+    [InlineData(null)]
+    [InlineData("RolQueNoExiste")]
+    public async Task Un_rol_sin_escritura_no_obtiene_los_secretos_del_tenant(string? rol)
+    {
+        var behavior = new AutorizacionSecretosDeTenantBehavior<ConsultaDeCredencialQuery, CredencialDto?>(
+            SinSesion, UsuarioConRol(rol));
+
+        var handlerFueLlamado = false;
+        var resultado = await behavior.Handle(new ConsultaDeCredencialQuery(), _ =>
+        {
+            handlerFueLlamado = true;
+            return Task.FromResult<CredencialDto?>(Secreto);
+        }, CancellationToken.None);
+
+        resultado.Should().BeNull();
+        handlerFueLlamado.Should().BeFalse("la credencial no llega ni a descifrarse");
+    }
+
+    [Theory]
+    [InlineData("Administrador")]
+    [InlineData("DireccionCae")]
+    [InlineData("CoordinadorCae")]
+    [InlineData("GestorCae")]
+    public async Task Un_rol_con_escritura_obtiene_los_secretos_del_tenant(string rol)
+    {
+        var behavior = new AutorizacionSecretosDeTenantBehavior<ConsultaDeCredencialQuery, CredencialDto?>(
+            SinSesion, UsuarioConRol(rol));
+
+        var resultado = await behavior.Handle(
+            new ConsultaDeCredencialQuery(), _ => Task.FromResult<CredencialDto?>(Secreto), CancellationToken.None);
+
+        resultado.Should().Be(Secreto);
+    }
+
+    [Fact]
+    public async Task Una_consulta_sin_marcar_no_se_toca_para_un_rol_de_solo_lectura()
+    {
+        // Consulta sigue viendo todo lo demás del Tenant: la regla es sobre
+        // secretos, no una pantalla en blanco para el rol de lectura.
+        var behavior = new AutorizacionSecretosDeTenantBehavior<ConsultaNormalQuery, string?>(
+            SinSesion, UsuarioConRol("Consulta"));
+
+        var resultado = await behavior.Handle(
+            new ConsultaNormalQuery(), _ => Task.FromResult<string?>("datos del tenant"), CancellationToken.None);
+
+        resultado.Should().Be("datos del tenant");
+    }
+
+    /// <summary>
+    /// El usuario de una credencial sin su contraseña (la precarga del
+    /// formulario de edición) sigue la misma regla de roles: Consulta, propia o
+    /// delegada, no lo lee.
+    /// </summary>
+    [Theory]
+    [InlineData("Consulta", false)]
+    [InlineData("Cliente", false)]
+    [InlineData(null, false)]
+    [InlineData("GestorCae", true)]
+    [InlineData("Administrador", true)]
+    public async Task Los_datos_de_una_credencial_solo_los_obtiene_un_rol_con_escritura(string? rol, bool obtiene)
+    {
+        var behavior = new AutorizacionSecretosDeTenantBehavior<ConsultaDeDatosDeCredencialQuery, CredencialDto?>(
+            SinSesion, UsuarioConRol(rol));
+
+        var resultado = await behavior.Handle(
+            new ConsultaDeDatosDeCredencialQuery(), _ => Task.FromResult<CredencialDto?>(Secreto), CancellationToken.None);
+
+        resultado.Should().Be(obtiene ? Secreto : null);
+    }
+
+    /// <summary>
+    /// A diferencia de los secretos, la precarga no se deniega en una Sesión
+    /// Privilegiada: el formulario guarda lo que precarga, y un null aquí se
+    /// guardaría como credencial vacía.
+    /// </summary>
+    [Fact]
+    public async Task Los_datos_de_una_credencial_no_se_niegan_por_haber_sesion_privilegiada()
+    {
+        var behavior = new AutorizacionSecretosDeTenantBehavior<ConsultaDeDatosDeCredencialQuery, CredencialDto?>(
+            SesionCon(CapacidadPrivilegio.SoporteLectura), UsuarioConRol("Administrador"));
+
+        var resultado = await behavior.Handle(
+            new ConsultaDeDatosDeCredencialQuery(), _ => Task.FromResult<CredencialDto?>(Secreto), CancellationToken.None);
+
+        resultado.Should().Be(Secreto);
+    }
+
     private static ISesionPrivilegiadaActual SesionCon(CapacidadPrivilegio capacidad) =>
         new SesionPrivilegiadaActualFalsa(
             new SesionPrivilegiadaActiva(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), capacidad, null));
 
     private static readonly ISesionPrivilegiadaActual SinSesion = new SesionPrivilegiadaActualFalsa(null);
+
+    private static ICurrentUserService UsuarioConRol(string? rol) => new CurrentUserServiceFalso(rol);
+
+    private sealed class CurrentUserServiceFalso(string? rol) : ICurrentUserService
+    {
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<string?> ObtenerRolActualAsync() => Task.FromResult(rol);
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
+    }
 
     private sealed class SesionPrivilegiadaActualFalsa(SesionPrivilegiadaActiva? sesion) : ISesionPrivilegiadaActual
     {

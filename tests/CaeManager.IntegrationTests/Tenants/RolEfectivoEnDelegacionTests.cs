@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
 using CaeManager.Domain.Tenants;
@@ -97,8 +97,74 @@ public class RolEfectivoEnDelegacionTests : IAsyncLifetime
         (await servicio.ObtenerRolActualAsync()).Should().BeNull();
     }
 
+    /// <summary>
+    /// Decisión del propietario, 2026-09-23: una delegación solo da roles de
+    /// Operación. Una fila heredada con Administrador o Dirección CAE —anterior
+    /// a la decisión, o sembrada sin pasar por el validador— no concede ese rol
+    /// en el Tenant propietario: falla cerrado.
+    /// </summary>
+    [Theory]
+    [InlineData("Administrador")]
+    [InlineData("DireccionCae")]
+    public async Task Una_asignacion_heredada_con_rol_de_Propiedad_no_da_rol_en_el_delegante(string rol)
+    {
+        var usuario = Guid.NewGuid();
+        await using (var preparacion = CrearContexto())
+        {
+            preparacion.AsignacionesOperadorDelegado.Add(new AsignacionOperadorDelegado(_delegacionId, usuario, rol));
+            await preparacion.SaveChangesAsync();
+        }
+
+        await using var contexto = CrearContexto();
+        var servicio = CrearServicio(contexto, tenantSeleccionado: _clienteDelegante, usuarioId: usuario);
+
+        (await servicio.ObtenerRolActualAsync()).Should().BeNull();
+    }
+
+    /// <summary>
+    /// Lo mismo por la vía nueva (token de operación): una cartera externa
+    /// heredada con un rol de Propiedad no da rol; con Consulta sí (control).
+    /// </summary>
+    [Theory]
+    [InlineData("Administrador", null)]
+    [InlineData("DireccionCae", null)]
+    [InlineData("Consulta", "Consulta")]
+    public async Task Una_cartera_externa_heredada_solo_da_roles_de_Operacion(string rol, string? esperado)
+    {
+        var usuario = Guid.NewGuid();
+        Guid operacionId;
+        Guid propietario;
+        var tenantPropietario = new Tenant("Propietario", PerfilVocabularioTenant.ClienteDirecto);
+        var tenantOperador = new Tenant("Operador", PerfilVocabularioTenant.Consultora);
+        await using (var alta = CrearContexto())
+        {
+            alta.Tenants.AddRange(tenantPropietario, tenantOperador);
+            await alta.SaveChangesAsync();
+        }
+
+        await using (var preparacion = CrearContexto(tenantPropietario.Id))
+        {
+            var ahora = DateTime.UtcNow;
+            var operacion = CaeManager.Domain.Operaciones.AsignacionOperacion.Externa(
+                tenantPropietario.Id, tenantOperador.Id, CaeManager.Domain.Operaciones.ServicioCae.Outbound,
+                CaeManager.Domain.Operaciones.AmbitoAsignacion.Universal, ahora.AddDays(-1), null, ahora);
+            preparacion.AsignacionesOperacion.Add(operacion);
+            preparacion.AsignacionesCartera.Add(CaeManager.Domain.Operaciones.AsignacionCartera.Externa(
+                operacion, usuario, rol, CaeManager.Domain.Operaciones.AmbitoAsignacion.Universal,
+                ahora.AddDays(-1), null, ahora));
+            await preparacion.SaveChangesAsync();
+            operacionId = operacion.Id;
+            propietario = tenantPropietario.Id;
+        }
+
+        await using var contexto = CrearContexto(propietario);
+        var servicio = CrearServicio(contexto, tenantSeleccionado: propietario, usuarioId: usuario, asignacionOperacionId: operacionId);
+
+        (await servicio.ObtenerRolActualAsync()).Should().Be(esperado);
+    }
+
     private CurrentUserService CrearServicio(
-        ITenantsQueryContext contexto, Guid? tenantSeleccionado, Guid? usuarioId = null)
+        CaeManagerDbContext contexto, Guid? tenantSeleccionado, Guid? usuarioId = null, Guid? asignacionOperacionId = null)
     {
         var identidad = new ClaimsIdentity(
             [
@@ -111,21 +177,22 @@ public class RolEfectivoEnDelegacionTests : IAsyncLifetime
         // CurrentUserService: por constructor cerraría un ciclo de DI con
         // AuditoriaInterceptor.
         var servicios = new ServiceCollection();
-        servicios.AddSingleton(contexto);
+        servicios.AddSingleton<ITenantsQueryContext>(contexto);
+        servicios.AddSingleton<CaeManager.Application.Operaciones.IOperacionesQueryContext>(contexto);
 
         return new CurrentUserService(
             new AuthenticationStateProviderFalso(new ClaimsPrincipal(identidad)),
             new HttpContextAccessorFalso(),
-            new ClienteActivoSeleccionadoFalso(tenantSeleccionado),
+            new ClienteActivoSeleccionadoFalso(tenantSeleccionado, asignacionOperacionId),
             servicios.BuildServiceProvider());
     }
 
-    private CaeManagerDbContext CrearContexto()
+    private CaeManagerDbContext CrearContexto(Guid? tenantSellado = null)
     {
         // Sellado contra el cliente delegante: es el tenant que se estaría
         // operando. DelegacionTenant/AsignacionOperadorDelegado son catálogo
         // global sin filtro, así que se leen igual desde cualquiera.
-        var tenantActual = new TenantActualAmbiental { TenantId = _clienteDelegante };
+        var tenantActual = new TenantActualAmbiental { TenantId = tenantSellado ?? _clienteDelegante };
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
             .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
