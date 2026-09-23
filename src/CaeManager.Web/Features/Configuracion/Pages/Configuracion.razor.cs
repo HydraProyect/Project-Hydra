@@ -80,7 +80,7 @@ public partial class Configuracion : ComponentBase
             new("usuarios", "US", "Usuarios", "Cuentas y carteras asignadas", typeof(Features.Usuarios.Pages.Usuarios)),
             new("roles", "RL", "Roles", "Permisos por perfil", typeof(Features.GestionRoles.Pages.Roles))
         ]),
-        // Delegaciones y Estado comercial NO viven aquí (ver NavMenu.razor,
+        // Delegaciones y Estado comercial NO viven aquí (ver CatalogoMenuLateral,
         // grupo "Plataforma"): su autoridad real es de CAPACIDAD
         // (AdminPlataforma, F2b-6), no del rol Administrador que gatea todo
         // este hub (Configuracion.razor, [Authorize(Roles=Administrador)]) —
