@@ -9,6 +9,7 @@ using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Common;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Domain.Common;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Centros.Components;
@@ -33,7 +34,13 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class AcordeonAsignacionRapidaVisitaTests : BunitContext
 {
-    public AcordeonAsignacionRapidaVisitaTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public AcordeonAsignacionRapidaVisitaTests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        // «Asignar» va en SoloConEscritura (AuthorizeView): por defecto un rol que
+        // escribe, que es además el control positivo de los tests que lo pulsan.
+        this.ConRolDeEscritura();
+    }
 
     private static readonly Guid CentroId = Guid.NewGuid();
     private static readonly Guid VisitaId = Guid.NewGuid();
@@ -154,5 +161,20 @@ public class AcordeonAsignacionRapidaVisitaTests : BunitContext
         var toastService = Services.GetRequiredService<ToastService>();
         cut.WaitForAssertion(() => toastService.Mensajes.Should().ContainSingle());
         toastService.Mensajes.Single().Mensaje.Should().Be("Bea Alonso Ruiz asignado a Planta Zaragoza.");
+    }
+
+    /// <summary>
+    /// El aviso de la visita es lectura y Consulta lo ve; asignar (CrearAsignacionCommand,
+    /// que AutorizacionEscrituraBehavior le deniega) no se le ofrece.
+    /// </summary>
+    [Fact]
+    public void Consulta_ve_el_aviso_de_la_visita_sin_que_se_le_ofrezca_asignar()
+    {
+        this.ConRolDeEscritura(Roles.Consulta);
+        var cut = Renderizar(new MediatorFalso { Faltantes = [] });
+
+        cut.Find(".alerta-info").TextContent.Should().Contain("La próxima visita a este centro incluye")
+            .And.Contain("Bea Alonso Ruiz");
+        cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().NotContain("Asignar");
     }
 }

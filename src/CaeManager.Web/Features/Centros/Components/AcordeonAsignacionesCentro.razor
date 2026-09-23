@@ -40,12 +40,17 @@ else if (_cargando)
 }
 else
 {
-    <div class="acordeon-asignaciones-cabecera">
-        <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => _drawerAsignacion.AbrirAsync(new[] { CentroId })">+ Asignar trabajador</Boton>
-        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_seleccionados.Count == 0" OnClick="AbrirConfirmarBajaLoteAsync">
-            Dar de baja seleccionados
-        </Boton>
-    </div>
+    @* Asignar (CrearAsignacionesCommand) y dar de baja (DarDeBajaAsignacionesCommand) son
+       ICommand que AutorizacionEscrituraBehavior deniega a Consulta: la cabecera, que solo
+       los contiene, no se le pinta. *@
+    <SoloConEscritura>
+        <div class="acordeon-asignaciones-cabecera">
+            <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => _drawerAsignacion.AbrirAsync(new[] { CentroId })">+ Asignar trabajador</Boton>
+            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_seleccionados.Count == 0" OnClick="AbrirConfirmarBajaLoteAsync">
+                Dar de baja seleccionados
+            </Boton>
+        </div>
+    </SoloConEscritura>
 
     @*
         Ámbito EMPRESA (OD-13, blueprint § 3.3). Aparece solo cuando la empresa
@@ -106,9 +111,16 @@ else
             {
                 <div class="fila-documento-requerido" role="row" @key="incidencia.TipoDocumentoId">
                     <span class="celda-documento-nombre" role="cell">
-                        <button type="button" class="enlace-nombre-fila" @onclick="() => GestionarEmpresaAsync(incidencia)">
-                            @incidencia.Descripcion
-                        </button>
+                        @* El nombre abre el mismo drawer de gestión que la columna de acción, que Consulta no puede usar:
+                           a Consulta se le pinta como texto. *@
+                        <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv" Context="autorizacionNombreEmpresa">
+                            <Authorized>
+                                <button type="button" class="enlace-nombre-fila" @onclick="() => GestionarEmpresaAsync(incidencia)">
+                                    @incidencia.Descripcion
+                                </button>
+                            </Authorized>
+                            <NotAuthorized>@incidencia.Descripcion</NotAuthorized>
+                        </AuthorizeView>
                     </span>
                     @* Estado siempre presente: IncidenciasEmpresa solo contiene causas ya calculadas con un valor real. *@
                     <span role="cell">
@@ -122,10 +134,14 @@ else
                         </TextoFechaCopiable>
                     </span>
                     <span class="columna-accion" role="cell">
-                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
-                               OnClick="() => GestionarEmpresaAsync(incidencia)">
-                            Gestionar
-                        </Boton>
+                        @* DrawerGestionDocumento solo crea o renueva (CrearDocumento/RenovarDocumento,
+                           ICommand denegados a Consulta): no tiene uso de solo lectura. *@
+                        <SoloConEscritura>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                                   OnClick="() => GestionarEmpresaAsync(incidencia)">
+                                Gestionar
+                            </Boton>
+                        </SoloConEscritura>
                     </span>
                 </div>
             }
@@ -141,10 +157,13 @@ else
             {
                 <div class="fila-documento-requerido" @key="trabajador.TrabajadorId">
                     <span class="fila-documento-requerido-nombre">@trabajador.TrabajadorNombre</span>
-                    <Boton Tamano="TamanoBoton.Pequeno" Cargando="_asignandoDesdeVisita.Contains(trabajador.TrabajadorId)"
-                           OnClick="() => AsignarDesdeVisitaAsync(trabajador)">
-                        Asignar
-                    </Boton>
+                    @* El aviso es lectura y se ve siempre; asignar (CrearAsignacionCommand) no se ofrece a Consulta. *@
+                    <SoloConEscritura>
+                        <Boton Tamano="TamanoBoton.Pequeno" Cargando="_asignandoDesdeVisita.Contains(trabajador.TrabajadorId)"
+                               OnClick="() => AsignarDesdeVisitaAsync(trabajador)">
+                            Asignar
+                        </Boton>
+                    </SoloConEscritura>
                 </div>
             }
         </div>
@@ -334,9 +353,16 @@ else
                                     {
                                         <div class="fila-documento-requerido" role="row" @key="documento.TipoDocumentoId">
                                             <span class="celda-documento-nombre" role="cell">
-                                                <button type="button" class="enlace-nombre-fila" @onclick="() => GestionarAsync(trabajador.TrabajadorId, documento)">
-                                                    @documento.TipoDocumentoNombre
-                                                </button>
+                                                @* El nombre abre el mismo drawer de gestión que la columna de acción, que Consulta no puede usar:
+                                                   a Consulta se le pinta como texto. *@
+                                                <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv" Context="autorizacionNombre">
+                                                    <Authorized>
+                                                        <button type="button" class="enlace-nombre-fila" @onclick="() => GestionarAsync(trabajador.TrabajadorId, documento)">
+                                                            @documento.TipoDocumentoNombre
+                                                        </button>
+                                                    </Authorized>
+                                                    <NotAuthorized>@documento.TipoDocumentoNombre</NotAuthorized>
+                                                </AuthorizeView>
                                             </span>
                                             <span role="cell">
                                                 @if (documento.DocumentoId is null)
@@ -401,11 +427,15 @@ else
                                                     la necesita (blueprint § 3.4, 04 § 2.5) — no desaparece: un
                                                     documento al día también puede querer sustituirse.
                                                 *@
-                                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
-                                                       class="@("accion-fila-enlace" + (RequiereIntervencion(documento) ? null : " accion-atenuada"))"
-                                                       OnClick="() => GestionarAsync(trabajador.TrabajadorId, documento)">
-                                                    Gestionar
-                                                </Boton>
+                                                @* Salvo para Consulta: DrawerGestionDocumento solo crea o renueva
+                                                   (ICommand que AutorizacionEscrituraBehavior le deniega). *@
+                                                <SoloConEscritura>
+                                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                                           class="@("accion-fila-enlace" + (RequiereIntervencion(documento) ? null : " accion-atenuada"))"
+                                                           OnClick="() => GestionarAsync(trabajador.TrabajadorId, documento)">
+                                                        Gestionar
+                                                    </Boton>
+                                                </SoloConEscritura>
                                             </span>
                                         </div>
                                     }

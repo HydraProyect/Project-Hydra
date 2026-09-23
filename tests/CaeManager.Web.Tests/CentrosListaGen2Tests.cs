@@ -7,7 +7,9 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
 using CaeManager.Application.Visitas.Queries.ObtenerProximaVisitaPorCentro;
 using CaeManager.Domain.Centros;
+using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Domain.Common;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Centros.Components;
@@ -54,6 +56,7 @@ public class CentrosListaGen2Tests : BunitContext
             Task.FromResult((TResponse)(object)(Registrar(request) switch
             {
                 ObtenerClientesParaSelectorQuery => (object)Array.Empty<ClienteSelectorDto>(),
+                ObtenerEmpresasParaSelectorQuery => Array.Empty<EmpresaSelectorDto>(),
                 EliminarCentrosCommand lote => Result.Exito(new ResultadoEliminacionLoteDto(EliminadosDelLote ?? lote.Ids.Count, [])),
                 ObtenerProximaVisitaPorCentroQuery => (IReadOnlyDictionary<Guid, IReadOnlyList<VisitaResumenDto>>)new Dictionary<Guid, IReadOnlyList<VisitaResumenDto>>(),
                 ObtenerCentrosQuery q => new ResultadoPaginado<CentroListaDto>(
@@ -100,7 +103,9 @@ public class CentrosListaGen2Tests : BunitContext
 
     private MediatorPorTipo _mediador = null!;
 
-    private IRenderedComponent<Centros> Renderizar(params CentroListaDto[] centros)
+    private IRenderedComponent<Centros> Renderizar(params CentroListaDto[] centros) => RenderizarEn("centros", centros);
+
+    private IRenderedComponent<Centros> RenderizarEn(string ruta, params CentroListaDto[] centros)
     {
         _mediador = new MediatorPorTipo { Centros = centros };
         Services.AddScoped<IMediator>(_ => _mediador);
@@ -109,7 +114,7 @@ public class CentrosListaGen2Tests : BunitContext
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
         Services.AddScoped<IValidator<CrearCentroCommand>>(_ => new InlineValidator<CrearCentroCommand>());
 
-        Services.GetRequiredService<NavigationManager>().NavigateTo("centros");
+        Services.GetRequiredService<NavigationManager>().NavigateTo(ruta);
 
         return Render<Centros>();
     }
@@ -192,5 +197,52 @@ public class CentrosListaGen2Tests : BunitContext
         _mediador.Enviadas.OfType<EliminarCentrosCommand>().Single().Ids.Should().Equal([elegido.Id],
             "el caso solo vale si el lote pidió ese centro y ninguno más");
         workspace.EstaAbierto.Should().Be(seQuedaAbierta);
+    }
+
+    /// <summary>
+    /// Las acciones del lote —eliminar (EliminarCentrosCommand) y asignar
+    /// (CrearAsignacionesCommand)— son ICommand que AutorizacionEscrituraBehavior deniega
+    /// a Consulta: la barra no se le ofrece. Seleccionar no escribe, así que la palanca
+    /// «Selección múltiple» y las casillas siguen ahí. Con un rol que escribe la barra
+    /// aparece, que es el control de que la selección llegó a pintarla.
+    /// </summary>
+    [Theory]
+    [InlineData(Roles.Consulta, false)]
+    [InlineData(Roles.GestorCae, true)]
+    public async Task La_barra_de_acciones_del_lote_solo_se_ofrece_a_quien_escribe(string rol, bool seOfrece)
+    {
+        this.ConRolDeEscritura(rol);
+        var cut = Renderizar(Centro("Centro Logístico Norte"));
+
+        cut.Markup.Should().Contain("Centro Logístico Norte", "la lista es lectura: se ve con cualquier rol");
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Selección múltiple").ClickAsync(new MouseEventArgs());
+        await cut.Find("input[aria-label='Seleccionar el centro Centro Logístico Norte']").ChangeAsync(new ChangeEventArgs { Value = true });
+
+        var rotulos = cut.FindAll("button").Select(b => b.TextContent.Trim()).ToList();
+        if (seOfrece)
+            rotulos.Should().Contain(["Eliminar seleccionados", "Asignar a centros seleccionados…"]);
+        else
+            rotulos.Should().NotContain(["Eliminar seleccionados", "Asignar a centros seleccionados…"]);
+    }
+
+    /// <summary>
+    /// El enlace profundo <c>?accion=crear</c> abre el drawer de alta sin pasar por
+    /// «+ Nuevo centro»; el drawer solo crea (CrearCentroCommand, denegado a Consulta),
+    /// así que a Consulta no se le abre.
+    /// </summary>
+    [Theory]
+    [InlineData(Roles.Consulta, false)]
+    [InlineData(Roles.GestorCae, true)]
+    public void El_enlace_profundo_de_alta_solo_abre_el_drawer_a_quien_escribe(string rol, bool seAbre)
+    {
+        this.ConRolDeEscritura(rol);
+        var cut = RenderizarEn("centros?accion=crear", Centro("Centro Logístico Norte"));
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro Logístico Norte", "la lista es lectura: se ve con cualquier rol"));
+        var rotulos = cut.FindAll("button").Select(b => b.TextContent.Trim()).ToList();
+        if (seAbre)
+            rotulos.Should().Contain("Añadir otro centro");
+        else
+            rotulos.Should().NotContain(["Añadir otro centro", "+ Nuevo centro"]);
     }
 }

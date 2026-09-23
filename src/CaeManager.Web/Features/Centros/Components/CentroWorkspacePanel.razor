@@ -64,21 +64,26 @@ else
         {
             <Badge Tono="EstadoCentroUi.Tono(_estadoCentro.Estado)">@EstadoCentroUi.Texto(_estadoCentro.Estado)</Badge>
         }
-        @if (PestanaActiva == "informacion" && !_editandoInformacion)
-        {
-            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="IniciarEdicionInformacion" aria-label="Editar información del centro">
-                <Icono Nombre="editar" Tamano="TamanoIcono.Pequeno" />
+        @* Editar (EditarCentroCommand), Pedir prioridad (PedirPrioridadValidacionCommand) y
+           Reclamar documentación (EnviarReclamacionCommand) acaban en un ICommand que
+           AutorizacionEscrituraBehavior deniega a Consulta: no se le ofrecen. *@
+        <SoloConEscritura>
+            @if (PestanaActiva == "informacion" && !_editandoInformacion)
+            {
+                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="IniciarEdicionInformacion" aria-label="Editar información del centro">
+                    <Icono Nombre="editar" Tamano="TamanoIcono.Pequeno" />
+                </Boton>
+            }
+            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="AbrirPedirPrioridadAsync">
+                Pedir prioridad
             </Boton>
-        }
-        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="AbrirPedirPrioridadAsync">
-            Pedir prioridad
-        </Boton>
-        @if (_loteReclamacionCentro is { Documentos.Count: > 0 } lote)
-        {
-            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => _drawerReclamacionCentroVisible = true">
-                Reclamar documentación (@lote.Documentos.Count)
-            </Boton>
-        }
+            @if (_loteReclamacionCentro is { Documentos.Count: > 0 } lote)
+            {
+                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => _drawerReclamacionCentroVisible = true">
+                    Reclamar documentación (@lote.Documentos.Count)
+                </Boton>
+            }
+        </SoloConEscritura>
     </div>
 
     // En un local, no leyendo el campo dentro del @if: la lambda que genera
@@ -216,13 +221,17 @@ else
                                         </a>
                                     </p>
                                 }
-                                <div class="workspace-tarjeta-requisito-acciones">
-                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirConfigurarAsync(item)">Configurar</Boton>
-                                    @if (item.Incluido is not null)
-                                    {
-                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => QuitarAjusteAsync(item)">Quitar ajuste</Boton>
-                                    }
-                                </div>
+                                @* Configurar y Quitar ajuste (Establecer/EliminarDocumentacionRequeridaCentroCommand)
+                                   son ICommand denegados a Consulta: la tarjeta se lee sin ellos. *@
+                                <SoloConEscritura>
+                                    <div class="workspace-tarjeta-requisito-acciones">
+                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirConfigurarAsync(item)">Configurar</Boton>
+                                        @if (item.Incluido is not null)
+                                        {
+                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => QuitarAjusteAsync(item)">Quitar ajuste</Boton>
+                                        }
+                                    </div>
+                                </SoloConEscritura>
                             </li>
                         }
                     </ul>
@@ -366,14 +375,18 @@ else
                                             <CampoInfo Etiqueta="Notas" Valor="@canal.Notas" />
                                         </div>
                                     }
-                                    <div class="workspace-tarjeta-requisito-acciones">
-                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarCanal(canal)">Editar</Boton>
-                                        @if (!canal.EsPrincipal)
-                                        {
-                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => MarcarCanalPrincipalAsync(canal)">Marcar principal</Boton>
-                                        }
-                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => PedirConfirmacionEliminarCanal(canal)">Eliminar</Boton>
-                                    </div>
+                                    @* Editar, Marcar principal y Eliminar (Editar/MarcarPrincipal/EliminarCanalGestionCommand)
+                                       son ICommand denegados a Consulta, igual que «Añadir acceso». *@
+                                    <SoloConEscritura>
+                                        <div class="workspace-tarjeta-requisito-acciones">
+                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditarCanal(canal)">Editar</Boton>
+                                            @if (!canal.EsPrincipal)
+                                            {
+                                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => MarcarCanalPrincipalAsync(canal)">Marcar principal</Boton>
+                                            }
+                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => PedirConfirmacionEliminarCanal(canal)">Eliminar</Boton>
+                                        </div>
+                                    </SoloConEscritura>
                                 </li>
                             }
                         </ul>

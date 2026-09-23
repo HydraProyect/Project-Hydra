@@ -1,7 +1,10 @@
 using Bunit;
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
+using CaeManager.Application.Centros;
+using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Documentos;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Centros.Components;
@@ -24,7 +27,13 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
 {
-    public AcordeonAsignacionesCentroAtribucionFaltaTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public AcordeonAsignacionesCentroAtribucionFaltaTests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        // Los disparadores de escritura van en SoloConEscritura (AuthorizeView): por
+        // defecto un rol que escribe; los tests de Consulta lo sustituyen.
+        this.ConRolDeEscritura();
+    }
 
     private sealed class MediatorFalso : IMediator
     {
@@ -115,5 +124,57 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
         var disparador = cut.Find(".tabla-documentos-requeridos .ventana-contexto");
         disparador.GetAttribute("aria-label")!.Should().Contain("porque lo tiene configurado")
             .And.Contain("si no dice nada, porque el tipo se pide siempre");
+    }
+
+    /// <summary>
+    /// Asignar y dar de baja (CrearAsignaciones/DarDeBajaAsignacionesCommand) y «Gestionar»
+    /// —que abre DrawerGestionDocumento, que solo crea o renueva— acaban en ICommand que
+    /// AutorizacionEscrituraBehavior deniega a Consulta. Los nombres de los documentos abren
+    /// el mismo drawer: a Consulta se le pintan como texto. Con un rol que escribe todo se
+    /// pinta, que es el control de que el render llegó a ellos.
+    /// </summary>
+    [Theory]
+    [InlineData(Roles.Consulta, false)]
+    [InlineData(Roles.GestorCae, true)]
+    public async Task Asignar_dar_de_baja_y_gestionar_se_ofrecen_solo_a_quien_escribe(string rol, bool seOfrecen)
+    {
+        this.ConRolDeEscritura(rol);
+        var trabajador = new TrabajadorAsignacionDocumentacionDto(
+            Guid.NewGuid(), Guid.NewGuid(), "Ruiz Peña, Ana", new DateOnly(2026, 1, 15), EstadoDocumento.Faltante,
+            [new DocumentoRequeridoDto(null, Guid.NewGuid(), "Reconocimiento médico", EstadoDocumento.Faltante, null)]);
+        var incidenciaEmpresa = new IncidenciaCentroDto(
+            "Seguro de responsabilidad civil", AmbitoCausa.Empresa, EstadoDocumento.Vencido,
+            Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1));
+        RegistrarServicios(new MediatorFalso { Trabajadores = [trabajador] });
+
+        var cut = Render<AcordeonAsignacionesCentro>(p => p
+            .Add(a => a.CentroId, Guid.NewGuid())
+            .Add(a => a.CentroNombre, "Centro Logístico Norte")
+            .Add(a => a.EmpresaId, Guid.NewGuid())
+            .Add(a => a.EmpresaNombre, "Montajes Ebro S.L.")
+            .Add(a => a.IncidenciasEmpresa, [incidenciaEmpresa]));
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ruiz Peña, Ana"));
+        await cut.Find("button.boton-expandir-fila").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindAll(".tabla-documentos-requeridos").Should().HaveCount(2));
+
+        var tablas = cut.FindAll(".tabla-documentos-requeridos").Select(t => t.TextContent).ToList();
+        tablas.Should().Contain(t => t.Contains("Seguro de responsabilidad civil"), "la incidencia de la Empresa es lectura: se ve");
+        tablas.Should().Contain(t => t.Contains("Reconocimiento médico"), "el documento requerido del trabajador es lectura: se ve");
+
+        var rotulos = cut.FindAll("button").Select(b => b.TextContent.Trim()).ToList();
+        var enlacesDeNombre = cut.FindAll(".tabla-documentos-requeridos button.enlace-nombre-fila");
+        if (seOfrecen)
+        {
+            rotulos.Should().Contain(["+ Asignar trabajador", "Dar de baja seleccionados", "Gestionar"]);
+            rotulos.Count(r => r == "Gestionar").Should().Be(2, "uno por la Empresa y otro por el trabajador");
+            enlacesDeNombre.Should().HaveCount(2);
+        }
+        else
+        {
+            rotulos.Should().NotContain(["+ Asignar trabajador", "Dar de baja seleccionados", "Gestionar"]);
+            enlacesDeNombre.Should().BeEmpty("el nombre abre el mismo drawer de gestión: a Consulta se le pinta como texto");
+            cut.FindAll(".acordeon-asignaciones-cabecera").Should().BeEmpty("sin acciones no queda una cabecera vacía");
+        }
     }
 }

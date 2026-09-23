@@ -1,12 +1,16 @@
 using Bunit;
+using CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionRequeridaDeCentro;
 using CaeManager.Application.Centros.Queries.ObtenerEstadoCentro;
 using CaeManager.Application.Common;
 using CaeManager.Application.Integraciones;
+using CaeManager.Application.Integraciones.Queries.ObtenerProveedoresPlataformaCae;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerUltimaReclamacionCliente;
+using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Centros.Components;
@@ -32,21 +36,31 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class CentroWorkspacePanelDrawerRequisitoAtribucionTests : BunitContext
 {
-    public CentroWorkspacePanelDrawerRequisitoAtribucionTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public CentroWorkspacePanelDrawerRequisitoAtribucionTests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        // Los disparadores de escritura van en SoloConEscritura (AuthorizeView): por
+        // defecto un rol que escribe; los tests de Consulta lo sustituyen.
+        this.ConRolDeEscritura();
+    }
 
     private sealed class MediatorFalso : IMediator
     {
         public required CentroDetalleDto Detalle { get; init; }
         public required IReadOnlyList<DocumentacionRequeridaCentroDto> Documentacion { get; init; }
+        public IReadOnlyList<LoteReclamacionClienteDto> Lotes { get; init; } = [];
+        public IReadOnlyList<CanalGestionResumenDto> Canales { get; init; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
             Task.FromResult((TResponse)(object)(request switch
             {
                 ObtenerCentroPorIdQuery => Detalle,
                 ObtenerUltimaReclamacionClienteQuery => null,
-                ObtenerLoteReclamacionQuery => Array.Empty<LoteReclamacionClienteDto>(),
+                ObtenerLoteReclamacionQuery => Lotes,
                 ObtenerEstadoCentroQuery => null,
                 ObtenerDocumentacionRequeridaDeCentroQuery => Documentacion,
+                ObtenerCanalesGestionDeCentroQuery => Canales,
+                ObtenerProveedoresPlataformaCaeQuery => Array.Empty<ProveedorPlataformaCaeListaDto>(),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             })!);
 
@@ -136,5 +150,107 @@ public class CentroWorkspacePanelDrawerRequisitoAtribucionTests : BunitContext
         etiqueta.Should().Be("Incluido en este centro");
         etiqueta.Should().NotContain("este centro lo exige",
             "la casilla puede llegar premarcada por el valor general del tipo, no porque este centro lo haya configurado");
+    }
+
+    // ------------------------------------------------------------------ solo lectura (Consulta)
+
+    private static IReadOnlyList<string> RotulosDeBotones(IRenderedComponent<CentroWorkspacePanel> cut) =>
+        cut.FindAll("button").Select(b => b.TextContent.Trim()).ToList();
+
+    /// <summary>
+    /// Pedir prioridad (PedirPrioridadValidacionCommand), Reclamar documentación
+    /// (EnviarReclamacionCommand) y el lápiz de Editar (EditarCentroCommand) son ICommand
+    /// que AutorizacionEscrituraBehavior deniega a Consulta: no se le ofrecen. Con un rol
+    /// que escribe sí se pintan, que es el control de que el render llegó a ellos.
+    /// </summary>
+    [Theory]
+    [InlineData(Roles.Consulta, false)]
+    [InlineData(Roles.GestorCae, true)]
+    public void La_cabecera_ofrece_editar_pedir_prioridad_y_reclamar_solo_a_quien_escribe(string rol, bool seOfrecen)
+    {
+        this.ConRolDeEscritura(rol);
+        var centroId = Guid.NewGuid();
+        var lote = new LoteReclamacionClienteDto(Guid.NewGuid(), "Refrielectric S.A.", null,
+            [new DocumentoReclamableDto(Guid.NewGuid(), Guid.NewGuid(), "Ruiz Peña, Ana", Guid.NewGuid(),
+                "Reconocimiento médico", new DateOnly(2026, 1, 1), EstadoDocumento.Vencido)]);
+        RegistrarServicios(new MediatorFalso { Detalle = Centro(centroId), Documentacion = [], Lotes = [lote] });
+
+        var cut = Render<CentroWorkspacePanel>(p => p
+            .Add(c => c.EntidadId, centroId)
+            .Add(c => c.PestanaActiva, "informacion"));
+
+        cut.WaitForAssertion(() => cut.Find(".workspace-titulo-entidad").TextContent.Should().Contain("Centro Logístico Norte",
+            "la ficha del centro es lectura: se ve con cualquier rol"));
+        var rotulos = RotulosDeBotones(cut);
+        var lapiz = cut.FindAll("button").Where(b => b.GetAttribute("aria-label") == "Editar información del centro");
+        if (seOfrecen)
+        {
+            rotulos.Should().Contain(["Pedir prioridad", "Reclamar documentación (1)"]);
+            lapiz.Should().ContainSingle();
+        }
+        else
+        {
+            rotulos.Should().NotContain(r => r.StartsWith("Pedir prioridad") || r.StartsWith("Reclamar documentación"));
+            lapiz.Should().BeEmpty();
+        }
+    }
+
+    /// <summary>
+    /// Configurar y Quitar ajuste (Establecer/EliminarDocumentacionRequeridaCentroCommand)
+    /// son ICommand denegados a Consulta; el requisito en sí se sigue leyendo.
+    /// </summary>
+    [Theory]
+    [InlineData(Roles.Consulta, false)]
+    [InlineData(Roles.GestorCae, true)]
+    public void Los_requisitos_se_configuran_solo_con_un_rol_que_escribe(string rol, bool seOfrecen)
+    {
+        this.ConRolDeEscritura(rol);
+        var centroId = Guid.NewGuid();
+        var item = new DocumentacionRequeridaCentroDto(
+            Guid.NewGuid(), "Reconocimiento médico", AmbitoAplicacion.Trabajador,
+            EsObligatorioGlobal: true, Aplica: true, Incluido: true,
+            PeriodicidadEspecialMeses: null, BloqueaAcceso: false, ArchivoUrl: null, NombreArchivoOriginal: null);
+        RegistrarServicios(new MediatorFalso { Detalle = Centro(centroId), Documentacion = [item] });
+
+        var cut = Render<CentroWorkspacePanel>(p => p
+            .Add(c => c.EntidadId, centroId)
+            .Add(c => c.PestanaActiva, "requisitos"));
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Reconocimiento médico", "el requisito es lectura: se ve"));
+        var rotulos = RotulosDeBotones(cut);
+        if (seOfrecen)
+            rotulos.Should().Contain(["Configurar", "Quitar ajuste"]);
+        else
+            rotulos.Should().NotContain(["Configurar", "Quitar ajuste"]);
+    }
+
+    /// <summary>
+    /// Editar, Marcar principal y Eliminar un canal de gestión son ICommand denegados a
+    /// Consulta, igual que «Añadir acceso»; los datos del canal se siguen leyendo.
+    /// </summary>
+    [Theory]
+    [InlineData(Roles.Consulta, false)]
+    [InlineData(Roles.GestorCae, true)]
+    public void Los_canales_se_gestionan_solo_con_un_rol_que_escribe(string rol, bool seOfrecen)
+    {
+        this.ConRolDeEscritura(rol);
+        var centroId = Guid.NewGuid();
+        var canal = new CanalGestionResumenDto(
+            Guid.NewGuid(), TipoCanalGestion.Email, "Documentación del centro", EsPrincipal: false,
+            null, null, null, "documentacion@refrielectric.example", "Marta Ibáñez", null,
+            TieneCredenciales: false, Guid.NewGuid());
+        RegistrarServicios(new MediatorFalso { Detalle = Centro(centroId), Documentacion = [], Canales = [canal] });
+
+        var cut = Render<CentroWorkspacePanel>(p => p
+            .Add(c => c.EntidadId, centroId)
+            .Add(c => c.PestanaActiva, "plataforma"));
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("documentacion@refrielectric.example",
+            "el destinatario del canal es lectura: se ve"));
+        var rotulos = RotulosDeBotones(cut);
+        if (seOfrecen)
+            rotulos.Should().Contain(["Editar", "Marcar principal", "Eliminar", "Añadir acceso"]);
+        else
+            rotulos.Should().NotContain(["Editar", "Marcar principal", "Eliminar", "Añadir acceso"]);
     }
 }

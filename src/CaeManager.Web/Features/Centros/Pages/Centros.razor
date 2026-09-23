@@ -317,6 +317,9 @@
     }
 </div>
 
+@* El drawer solo crea (CrearCentroCommand, denegado a Consulta). Además de «+ Nuevo centro»,
+   lo abre el enlace profundo ?accion=crear: envolverlo aquí cubre las dos entradas. *@
+<SoloConEscritura>
 <Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="Nuevo centro" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
     <ChildContent>
         @if (_mensajeErrorFormulario is not null)
@@ -369,6 +372,7 @@
         </Boton>
     </Pie>
 </Drawer>
+</SoloConEscritura>
 
 <FormularioRapidoCliente Visible="_formularioRapidoClienteVisible" VisibleChanged="v => _formularioRapidoClienteVisible = v"
                           NombreInicial="@_nombreParaCrearCliente" OnCreado="ManejarClienteCreadoAsync" />
@@ -377,16 +381,22 @@
                           NombreInicial="@_nombreParaCrearEmpresa" ClienteIdParaVincular="@ClienteIdParaFormularioRapido"
                           OnCreado="ManejarEmpresaCreadaAsync" />
 
-<BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
-                    OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true">
-    <AccionesExtra>
-        @* Item 4 del backlog Centro 360 — funcionalidad nueva sin contrato previo,
-           mismo patrón que "Asignar a centro…" de /trabajadores (Fase B). *@
-        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _drawerAsignacion.AbrirAsync(_seleccionados)">
-            Asignar a centros seleccionados…
-        </Boton>
-    </AccionesExtra>
-</BarraAccionesLote>
+@* Las dos acciones del lote, eliminar y asignar (EliminarCentrosCommand y CrearAsignacionesCommand), son
+   ICommand que AutorizacionEscrituraBehavior deniega a Consulta: la barra no se le ofrece,
+   como en Incidencias y Documentos. La palanca «Selección múltiple» sigue visible: seleccionar
+   no escribe. *@
+<SoloConEscritura>
+    <BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
+                        OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true">
+        <AccionesExtra>
+            @* Item 4 del backlog Centro 360 — funcionalidad nueva sin contrato previo,
+               mismo patrón que "Asignar a centro…" de /trabajadores (Fase B). *@
+            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _drawerAsignacion.AbrirAsync(_seleccionados)">
+                Asignar a centros seleccionados…
+            </Boton>
+        </AccionesExtra>
+    </BarraAccionesLote>
+</SoloConEscritura>
 
 <DrawerAsignacionMasiva @ref="_drawerAsignacion" OnGuardado="ManejarAsignacionMasivaGuardadaAsync" />
 
