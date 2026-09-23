@@ -13,16 +13,17 @@ namespace CaeManager.Application.Tenants;
 ///
 /// <para>
 /// El criterio es el mismo que ya aplica el alta del incremento 1
-/// (<c>CrearTenantPropietarioDeOperadorCaeExternoCommand</c>): perfil
-/// <see cref="PerfilVocabularioTenant.Consultora"/> y nunca el Tenant de plataforma,
-/// porque TALVEG no es Operador CAE por defecto (ADR-011 § 1). No existe todavía
-/// un marcador de dominio propio de «Operador CAE externo»; el perfil de
-/// vocabulario es lo único que el alta asigna hoy a esos Tenants. Si se crea ese
-/// marcador, se cambia aquí y en el alta, no en cada consumidor.
+/// (<c>CrearTenantPropietarioDeOperadorCaeExternoCommand</c>): la capacidad explícita
+/// <see cref="Tenant.PuedeActuarComoOperadorCaeExterno"/> (P11) y nunca el Tenant de
+/// plataforma, porque TALVEG no es Operador CAE por defecto (ADR-011 § 1). Ya no
+/// se usa el criterio interino por perfil de vocabulario
+/// (<c>PerfilVocabulario == Consultora &amp;&amp; !EsPlataforma</c>), que P11 retiró de
+/// los dos consumidores existentes al fusionar <c>origin/main</c>: repetirlo aquí
+/// reabriría la divergencia que P11 cerró.
 /// </para>
 /// </summary>
 public static class OperadorCaeExternoElegible
 {
     public static readonly Expression<Func<Tenant, bool>> Predicado =
-        t => t.PerfilVocabulario == PerfilVocabularioTenant.Consultora && !t.EsPlataforma;
+        t => t.PuedeActuarComoOperadorCaeExterno && !t.EsPlataforma;
 }

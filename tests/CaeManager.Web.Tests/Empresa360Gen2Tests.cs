@@ -22,7 +22,11 @@ namespace CaeManager.Web.Tests;
 /// <summary>Las esperas retenidas se liberan desde InvokeAsync para observar su continuación.</summary>
 public class Empresa360Gen2Tests : BunitContext
 {
-    public Empresa360Gen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public Empresa360Gen2Tests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.ConRolDeEscritura();
+    }
 
     private sealed class MediadorFalso : IMediator
     {
@@ -227,6 +231,29 @@ public class Empresa360Gen2Tests : BunitContext
     /// solo vive en la lista. La ficha no la ofrece —ni botón, ni diálogo— y el
     /// doble de mediador ya no responde a <c>EliminarEmpresaCommand</c>.
     /// </summary>
+    /// <summary>
+    /// Decisión del propietario (2026-09-23): los secretos del Tenant solo los
+    /// leen los roles con escritura. La edición es la única entrada a las
+    /// credenciales de la Plataforma CAE («Copiar contraseña»), así que a
+    /// Consulta no se le ofrece ninguna de sus dos puertas; control positivo con
+    /// un rol de gestión.
+    /// </summary>
+    [Theory]
+    [InlineData("Consulta", false)]
+    [InlineData("GestorCae", true)]
+    public void La_edicion_que_lleva_a_las_credenciales_solo_se_ofrece_a_los_roles_con_escritura(string rol, bool seOfrece)
+    {
+        this.ConRolDeEscritura(rol);
+        var id = Guid.NewGuid(); var m = Registrar(new MediadorFalso());
+        m.Detalles[id] = Detalle(id, "Montajes Ebro S.L."); m.Cumplimientos[id] = 80;
+
+        var cut = Renderizar(id);
+        var puertas = cut.FindAll("button").Where(b =>
+            b.TextContent.Trim() == "Editar identidad" || b.GetAttribute("aria-label") == "Editar información de la empresa").ToList();
+
+        puertas.Should().HaveCount(seOfrece ? 2 : 0);
+    }
+
     [Fact]
     public void La_ficha_no_ofrece_dar_de_baja_a_la_empresa()
     {

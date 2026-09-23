@@ -97,10 +97,8 @@ public partial class DrawerGestionDocumento : ComponentBase
     /// pre-relleno automático siempre se verifica por DNI, nunca por este
     /// texto (ver DetectarCamposDocumentoQuery).
     /// </summary>
-    private IReadOnlyList<OpcionBuscable> OpcionesTrabajadores => _trabajadoresDisponibles
-        .Select(t => new OpcionBuscable(
-            t.Id.ToString(),
-            string.IsNullOrWhiteSpace(t.Alias) ? $"{t.NombreCompleto} ({t.Dni})" : $"{t.NombreCompleto} — {t.Alias} ({t.Dni})"))
+    private IReadOnlyList<OpcionBuscable> OpcionesTrabajadores => EtiquetasSelectorTrabajador.Construir(_trabajadoresDisponibles, aliasSiempre: true)
+        .Select(e => new OpcionBuscable(e.Id.ToString(), e.Texto))
         .ToList();
 
     /// <summary>

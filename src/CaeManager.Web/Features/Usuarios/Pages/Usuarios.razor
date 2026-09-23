@@ -224,7 +224,10 @@
            a conocerla — antes la escribía aquí el Administrador y viajaba en
            claro dentro del correo de bienvenida. *@
         <CampoSelect Etiqueta="Rol" Valor="@_rol" ValorChanged="CambiarRolAsync">
-            @foreach (var rol in Roles.Todos)
+            @* Sin Administrador ni Dirección CAE en el Context Workspace de otro
+               Tenant (ver RolesOfrecidos). Comodidad: la autoridad está en
+               Application, al guardar. *@
+            @foreach (var rol in RolesOfrecidos)
             {
                 <option value="@rol">@Roles.NombreVisible(rol)</option>
             }

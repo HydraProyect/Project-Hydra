@@ -30,8 +30,8 @@ public class AutorizarOperadorCaeExternoTests
 {
     private readonly Guid _usuario = Guid.NewGuid();
     private readonly Tenant _propietario = new("Refrielectric");
-    private readonly Tenant _operador = new("ArcoSPA", PerfilVocabularioTenant.Consultora);
-    private readonly Tenant _otroOperador = new("Prevención Norte", PerfilVocabularioTenant.Consultora);
+    private readonly Tenant _operador = CrearOperadorCaeExterno("ArcoSPA");
+    private readonly Tenant _otroOperador = CrearOperadorCaeExterno("Prevención Norte");
     private readonly Tenant _otroPropietario = new("Laboratorios Dexter");
     private readonly Tenant _plataforma = CrearPlataformaConPerfilConsultora();
 
@@ -44,12 +44,26 @@ public class AutorizarOperadorCaeExternoTests
         _tenants.ListaTenants.AddRange([_propietario, _operador, _otroOperador, _otroPropietario, _plataforma]);
 
     /// <summary>
-    /// Con perfil Consultora a propósito: así solo la guarda de plataforma puede
-    /// rechazarlo; sin esto, la de perfil lo taparía y la mutación no se vería.
+    /// Perfil Consultora ya no basta (P11): la elegibilidad exige la capacidad
+    /// explícita <see cref="Tenant.PuedeActuarComoOperadorCaeExterno"/>, igual que el
+    /// alta real (<c>CrearOperadorCaeExternoCommand</c>).
+    /// </summary>
+    private static Tenant CrearOperadorCaeExterno(string nombre)
+    {
+        var tenant = new Tenant(nombre, PerfilVocabularioTenant.Consultora);
+        tenant.HabilitarComoOperadorCaeExterno();
+        return tenant;
+    }
+
+    /// <summary>
+    /// Con perfil Consultora y la capacidad concedida a propósito: así solo la
+    /// guarda de plataforma puede rechazarlo; sin esto, el perfil o la capacidad
+    /// ausente lo taparían y la mutación que quita esa guarda no se vería.
     /// </summary>
     private static Tenant CrearPlataformaConPerfilConsultora()
     {
         var plataforma = new Tenant("TALVEG", PerfilVocabularioTenant.Consultora);
+        plataforma.HabilitarComoOperadorCaeExterno();
         plataforma.MarcarComoPlataforma();
         return plataforma;
     }

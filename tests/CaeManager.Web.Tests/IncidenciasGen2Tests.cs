@@ -1,4 +1,5 @@
 using Bunit;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Common;
 using CaeManager.Application.Incidencias.Commands.EditarIncidencia;
@@ -93,6 +94,8 @@ public class IncidenciasGen2Tests : BunitContext
 
         public Dictionary<Guid, IncidenciaDetalleDto> Detalles { get; } = [];
 
+        public IReadOnlyList<TrabajadorSelectorDto> TrabajadoresSelector { get; set; } = [];
+
         public Result RespuestaEditar { get; set; } = Result.Exito();
 
         public TaskCompletionSource<Result>? RespuestaEditarPendiente { get; set; }
@@ -141,7 +144,7 @@ public class IncidenciasGen2Tests : BunitContext
                     return Task.FromResult((TResponse)(object)Array.Empty<CentroSelectorDto>());
 
                 case ObtenerTrabajadoresParaSelectorQuery:
-                    return Task.FromResult((TResponse)(object)Array.Empty<TrabajadorSelectorDto>());
+                    return Task.FromResult((TResponse)(object)TrabajadoresSelector);
 
                 case EditarIncidenciaCommand:
                     if (RespuestaEditarPendiente is not null)
@@ -285,6 +288,29 @@ public class IncidenciasGen2Tests : BunitContext
         comando.Version.Should().Be(VersionBeta);
         comando.Descripcion.Should().Be("Andamio sin barandilla");
         comando.Gravedad.Should().Be(GravedadIncidencia.MuyGrave);
+    }
+
+    /// <summary>
+    /// P4 (2026-09-23): el selector de Trabajador de la incidencia ofrece la base general del Tenant
+    /// sin DNI. El fake siembra un DNI conocido en el origen (<see cref="TrabajadorSelectorFalso"/>).
+    /// </summary>
+    [Fact]
+    public async Task El_selector_de_trabajador_de_la_incidencia_no_muestra_el_DNI()
+    {
+        var trabajadorId = Guid.NewGuid();
+        var mediador = new MediadorControlado
+        {
+            Filas = [Fila(IdAlfa, "Centro Alfa")],
+            TrabajadoresSelector = [TrabajadorSelectorFalso.Crear(trabajadorId, "Iker Zubiri Olano")],
+        };
+        var cut = Renderizar(mediador);
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro Alfa"));
+
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "+ Nueva incidencia").ClickAsync(new());
+
+        var opcion = cut.Find($".drawer-panel option[value='{trabajadorId}']");
+        opcion.TextContent.Trim().Should().Be("Iker Zubiri Olano");
+        cut.Markup.Should().NotContain(TrabajadorSelectorFalso.DniSembrado);
     }
 
     [Fact]
@@ -455,6 +481,27 @@ public class IncidenciasGen2Tests : BunitContext
         cut.Find("input[aria-label^='Seleccionar la incidencia de Centro Alfa']").HasAttribute("checked").Should().BeTrue(
             "la fila marcada con x tiene que verse marcada, no quedar en una selección que la tabla no enseña");
         cut.Find(".barra-acciones-lote-cantidad").TextContent.Should().Contain("1 seleccionado");
+    }
+
+    [Theory]
+    [InlineData(Roles.GestorCae, true)]
+    [InlineData(Roles.Consulta, false)]
+    public async Task Eliminar_seleccionados_solo_se_ofrece_a_los_roles_con_escritura(string rol, bool seOfrece)
+    {
+        // EliminarIncidenciasCommand es ICommand que AutorizacionEscrituraBehavior deniega a
+        // Consulta. El caso con escritura es el control de que la selección llegó a hacerse.
+        this.ConRolDeEscritura(rol);
+        var mediador = new MediadorControlado { Filas = [Fila(IdAlfa, "Centro Alfa")] };
+        var cut = Renderizar(mediador);
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro Alfa"));
+
+        var atajos = cut.FindComponent<AtajosListaTeclado>();
+        await cut.InvokeAsync(() => atajos.Instance.RecibirAtajo("j"));
+        await cut.InvokeAsync(() => atajos.Instance.RecibirAtajo("x"));
+
+        cut.Find("input[aria-label^='Seleccionar la incidencia de Centro Alfa']").HasAttribute("checked").Should().BeTrue();
+        cut.FindAll(".barra-acciones-lote button").Any(b => b.TextContent.Trim() == "Eliminar seleccionados")
+            .Should().Be(seOfrece);
     }
 
     [Fact]

@@ -30,7 +30,7 @@ namespace CaeManager.Architecture.Tests;
 /// ¿qué construye el <c>Guid</c> que se pasa, un dato ya autorizado o algo que no lo
 /// está? Eso se lee una vez por fichero al añadir la entrada; contar líneas no
 /// aportaría nada que el motivo escrito no diga ya, y con 45 llamadas en 26 ficheros
-/// —varios de ellos con 2 o más, como <c>DelegacionDemoSeeder</c> con 9— sí añadiría
+/// —varios de ellos con 2 o más, como <c>DelegacionDemoSeeder</c> con 10— sí añadiría
 /// churn: cualquier <c>using</c> nuevo dentro de un fichero ya categorizado pondría
 /// esto en rojo sin que la propiedad vigilada hubiera cambiado.
 /// </para>
@@ -130,6 +130,15 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
     /// categoría nueva <see cref="Categoria.TenantDeOrigenDelUsuario"/>) y
     /// Aceptar/Revocar (1 cada uno, sobre el Tenant propietario de una solicitud
     /// ya cargada por el Operador CAE de origen).
+    /// </para>
+    ///
+    /// <para>
+    /// Actualizado 2026-09-23 (P11, marcador de elegibilidad de Operador CAE
+    /// externo): <c>DelegacionDemoSeeder.cs</c> pasa de 9 a 10 llamadas — el
+    /// reaprovisionamiento de un tenant existente que aún no tenía la
+    /// capacidad ahora la concede en su propio guardado (<c>Establecer</c>
+    /// sobre el mismo <c>tenantExistente.Id</c> que el alta nueva ya usaba),
+    /// mismo patrón <see cref="Categoria.BootstrapOSiembra"/> que ya tenía.
     /// </para>
     ///
     /// <para>
@@ -374,7 +383,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookHostedService.cs"] = 4,
             ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookWhatsAppHostedService.cs"] = 4,
             ["src/CaeManager.Infrastructure/Retencion/RetencionHostedService.cs"] = 3,
-            ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs"] = 9,
+            ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs"] = 10,
             ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionesSoporteSeeder.cs"] = 3,
             ["src/CaeManager.Infrastructure/Persistence/Seed/SegundoTenantSeeder.cs"] = 2,
             ["src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs"] = 3,

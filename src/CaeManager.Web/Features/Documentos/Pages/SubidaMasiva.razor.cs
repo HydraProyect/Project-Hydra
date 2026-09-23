@@ -153,10 +153,8 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
         ("creados", "Creados")
     ];
 
-    private IReadOnlyList<OpcionBuscable> OpcionesTrabajadores => _trabajadoresDisponibles
-        .Select(t => new OpcionBuscable(
-            t.Id.ToString(),
-            string.IsNullOrWhiteSpace(t.Alias) ? $"{t.NombreCompleto} ({t.Dni})" : $"{t.NombreCompleto} — {t.Alias} ({t.Dni})"))
+    private IReadOnlyList<OpcionBuscable> OpcionesTrabajadores => EtiquetasSelectorTrabajador.Construir(_trabajadoresDisponibles, aliasSiempre: true)
+        .Select(e => new OpcionBuscable(e.Id.ToString(), e.Texto))
         .ToList();
 
     private int TotalCreados => _totalCreados;

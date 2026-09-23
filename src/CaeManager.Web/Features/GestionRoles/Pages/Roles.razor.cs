@@ -1,5 +1,8 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Usuarios.Queries.ObtenerRolesNoAsignables;
+using CaeManager.Application.Usuarios.Queries.VerificarRolAsignable;
 using CaeManager.Infrastructure.Identity;
+using MediatR;
 using CaeManager.Web.Components.DesignSystem;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
@@ -38,6 +41,7 @@ public partial class Roles : CaeManager.Web.Components.PaginaIntegrableConfigura
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private CaeManager.Infrastructure.Autorizacion.DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
     [Inject] private IEmailService EmailService { get; set; } = default!;
+    [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private ILogger<Roles> Logger { get; set; } = default!;
 
@@ -146,6 +150,9 @@ public partial class Roles : CaeManager.Web.Components.PaginaIntegrableConfigura
         $"{_usuariosPendientes.Count} pendiente(s) de asignar: " +
         string.Join("; ", _usuariosPendientes.Select(p => $"{p.NombreCompleto} ({p.FechaCreacion:dd/MM/yyyy HH:mm})"));
 
+    /// <summary>Roles que el selector de pendientes ofrece en el Context Workspace activo.</summary>
+    private IReadOnlyList<string> _rolesOfrecidos = CaeManager.Infrastructure.Identity.Roles.Todos.ToList();
+
     // ── Carga ────────────────────────────────────────────────────────────
 
     private async Task CargarAsync()
@@ -169,6 +176,13 @@ public partial class Roles : CaeManager.Web.Components.PaginaIntegrableConfigura
 
             var pendientes = await ObtenerPendientesAsync();
             if (version != _versionCarga) return;
+
+            // Comodidad, no autoridad (la autoridad es VerificarRolAsignableQuery
+            // en AsignarRolAsync): en el Context Workspace de otro Tenant no se
+            // ofrecen Administrador ni Dirección CAE.
+            var noAsignables = await Mediator.Send(new ObtenerRolesNoAsignablesQuery()) ?? [];
+            if (version != _versionCarga) return;
+            _rolesOfrecidos = [.. CaeManager.Infrastructure.Identity.Roles.Todos.Where(r => !noAsignables.Contains(r))];
 
             _roles = [.. CaeManager.Infrastructure.Identity.Roles.Todos.Select(nombreRol =>
                 new RolInfoDto(
@@ -256,6 +270,18 @@ public partial class Roles : CaeManager.Web.Components.PaginaIntegrableConfigura
             {
                 ToastService.Mostrar("Ese rol no existe.", TonoToast.Error);
                 await CargarAsync();
+                return;
+            }
+
+            // Misma autoridad que el alta de /usuarios (decisión del
+            // propietario, 2026-09-23): la cuenta pendiente es del Context
+            // Workspace activo, así que Administrador o Dirección CAE solo se
+            // conceden si ese Context Workspace es el Tenant de origen de
+            // quien asigna. Ver RolesReservadosAlTenantDeOrigen.
+            var rolAsignable = await Mediator.Send(new VerificarRolAsignableQuery(rol));
+            if (rolAsignable.EsFallido)
+            {
+                ToastService.Mostrar(rolAsignable.Error.Mensaje, TonoToast.Error);
                 return;
             }
 

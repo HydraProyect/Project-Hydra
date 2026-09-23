@@ -62,7 +62,7 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
         await using (var propietarioDeLaBase = ContextoPropietarioDeLaBase())
         {
             _propietario = await SembrarTenantAsync(propietarioDeLaBase, "Refrielectric", PerfilVocabularioTenant.ClienteDirecto);
-            _operador = await SembrarTenantAsync(propietarioDeLaBase, "ArcoSPA", PerfilVocabularioTenant.Consultora);
+            _operador = await SembrarTenantAsync(propietarioDeLaBase, "ArcoSPA", PerfilVocabularioTenant.Consultora, operadorCaeExterno: true);
             _otroPropietario = await SembrarTenantAsync(propietarioDeLaBase, "Laboratorios Dexter", PerfilVocabularioTenant.ClienteDirecto);
             _plataforma = (await propietarioDeLaBase.Tenants.SingleAsync(t => t.EsPlataforma)).Id;
         }
@@ -194,7 +194,7 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
     {
         Guid segundoOperador;
         await using (var propietarioDeLaBase = ContextoPropietarioDeLaBase())
-            segundoOperador = await SembrarTenantAsync(propietarioDeLaBase, "Prevención Norte", PerfilVocabularioTenant.Consultora);
+            segundoOperador = await SembrarTenantAsync(propietarioDeLaBase, "Prevención Norte", PerfilVocabularioTenant.Consultora, operadorCaeExterno: true);
 
         (await EjecutarAsync(_administradorPropietario, _operador, _propietario)).EsExitoso.Should().BeTrue();
 
@@ -297,9 +297,12 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
         return usuario;
     }
 
-    private static async Task<Guid> SembrarTenantAsync(CaeManagerDbContext contexto, string prefijo, PerfilVocabularioTenant perfil)
+    private static async Task<Guid> SembrarTenantAsync(
+        CaeManagerDbContext contexto, string prefijo, PerfilVocabularioTenant perfil, bool operadorCaeExterno = false)
     {
         var tenant = new Tenant($"{prefijo} {Guid.NewGuid():N}", perfil);
+        if (operadorCaeExterno)
+            tenant.HabilitarComoOperadorCaeExterno();
         contexto.Tenants.Add(tenant);
         await contexto.SaveChangesAsync();
         return tenant.Id;

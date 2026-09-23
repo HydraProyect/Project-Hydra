@@ -188,6 +188,22 @@ public class UsosDeEsPlataformaCongeladosTests
     /// <c>TenantClienteId</c> — sin pasar por el predicado reflexivo, y es la acción
     /// protectora (revocar), no la que concede. Neto: +1 fichero, +1 aparición, de 31/48 a
     /// 32/49.
+    /// Actualizado 2026-09-23 (P11, fusionado desde <c>origin/main</c> — capacidad explícita
+    /// <c>Tenant.PuedeActuarComoOperadorCaeExterno</c>, que sustituye para TODO el sistema el
+    /// criterio interino <c>PerfilVocabulario == Consultora &amp;&amp; !EsPlataforma</c>, este
+    /// incremento incluido: <c>OperadorCaeExternoElegible.Predicado</c> pasa a comprobar la
+    /// capacidad explícita en vez del perfil). <c>Tenant.cs</c> pasa de 5 a 8 (+3, todas
+    /// <see cref="CategoriaUso.Comentario"/>: el nuevo campo documenta el criterio interino
+    /// que sustituye —menciona <c>EsPlataforma</c> dos veces— y su mutador documenta que
+    /// sigue el mismo criterio que <c>MarcarComoPlataforma</c>). Nuevo fichero,
+    /// <c>20260923134849_AgregarCapacidadOperadorCaeExternoATenant.cs</c> (+1 fichero, +2
+    /// apariciones, <see cref="CategoriaUso.MigracionManual"/>): el backfill consulta
+    /// <c>EsPlataforma</c> en el <c>WHERE</c> del <c>UPDATE</c> para no conceder la
+    /// capacidad nueva al tenant de plataforma. Ningún fichero de este incremento pierde ni
+    /// gana apariciones de <c>EsPlataforma</c> por el cambio de predicado: solo se sustituye
+    /// el término del perfil por el de la capacidad, y <c>!t.EsPlataforma</c> se conserva
+    /// igual en los cinco sitios de Guarda. Neto sobre 32/49: +1 fichero, +5 apariciones,
+    /// de 32/49 a <b>33 ficheros, 54 apariciones</b>.
     /// </para>
     ///
     /// <para>
@@ -310,8 +326,10 @@ public class UsosDeEsPlataformaCongeladosTests
             new(2, CategoriaUso.Guarda,
                 "la proyección del Operador y el rechazo de un Operador que sea el Tenant de plataforma: " +
                 "TALVEG no es Operador CAE por defecto (ADR-011 § 1). No concede capacidad a nadie — es la " +
-                "mitad negativa de un fallo cerrado, y va además de la guarda de perfil Consultora (el test " +
-                "de integración cambia el perfil de la plataforma a Consultora para que solo esta guarda lo rechace)"),
+                "mitad negativa de un fallo cerrado, y va además de la guarda de la capacidad concedida " +
+                "PuedeActuarComoOperadorCaeExterno (el test de integración concede la capacidad a la " +
+                "plataforma con HabilitarComoOperadorCaeExterno(), no cambia su perfil, para que solo esta " +
+                "guarda EsPlataforma lo rechace — actualizado en P11, 2026-09-23, ver Tenant.cs)"),
         ["src/CaeManager.Application/Tenants/Queries/ObtenerOperadoresCaeExternos/ObtenerOperadoresCaeExternosQuery.cs"] =
             new(1, CategoriaUso.Guarda,
                 "excluye el Tenant de plataforma del listado de Operadores CAE externos. Solo recorta un " +
@@ -343,12 +361,16 @@ public class UsosDeEsPlataformaCongeladosTests
 
         // ── PORTADOR ──────────────────────────────────────────────────────────────
         ["src/CaeManager.Domain/Tenants/Tenant.cs"] =
-            new(5, CategoriaUso.Portador,
-                ":35 propiedad, :87 asignación en el ctor, :93 comentario y :104 MarcarComoPlataforma, que " +
-                "aporta DOS apariciones porque el nombre del método y el del campo casan ambos. Eran 7 hasta " +
-                "A4.2: DejarDeSerPlataforma se retiró por código muerto —una sola aparición en todo el repo, " +
-                "su propia definición— y el ratchet se puso rojo con «= 5 (la lista dice 7)» hasta actualizar " +
-                "este número. Ésa es la razón de que la comparación sea de igualdad y no de umbral"),
+            new(8, CategoriaUso.Portador,
+                ":35 propiedad, :107 asignación en el ctor, :113 comentario y :124 MarcarComoPlataforma, que " +
+                "aporta DOS apariciones porque el nombre del método y el del campo casan ambos (5, el " +
+                "PORTADOR original). Eran 7 hasta A4.2: DejarDeSerPlataforma se retiró por código muerto —una " +
+                "sola aparición en todo el repo, su propia definición— y el ratchet se puso rojo con «= 5 (la " +
+                "lista dice 7)» hasta actualizar este número. Ésa es la razón de que la comparación sea de " +
+                "igualdad y no de umbral. P11 (2026-09-23) añade 3 más, las tres solo comentario: :53 y :56 " +
+                "en el nuevo campo PuedeActuarComoOperadorCaeExterno (documenta el criterio interino que " +
+                "sustituye, que mencionaba EsPlataforma, y su analogía con EsPlataforma) y :128 en su " +
+                "mutador HabilitarComoOperadorCaeExterno (mismo criterio que MarcarComoPlataforma). Total 8"),
 
         // ── COMENTARIO ────────────────────────────────────────────────────────────
         ["src/CaeManager.Application/Plataforma/IAutorizacionAdminPlataforma.cs"] =
@@ -378,6 +400,10 @@ public class UsosDeEsPlataformaCongeladosTests
         // se puede conceder autoridad en SQL crudo sin que nada lo vea.
         ["src/CaeManager.Migrations.PostgreSQL/Migrations/20260731235023_LineaBase.cs"] =
             new(2, CategoriaUso.MigracionManual, ":722 DDL de la columna, :1026 fila sembrada"),
+        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20260923134849_AgregarCapacidadOperadorCaeExternoATenant.cs"] =
+            new(2, CategoriaUso.MigracionManual,
+                "P11: :11 comentario documentando el criterio interino sustituido, :41 el backfill consulta " +
+                "EsPlataforma en el WHERE del UPDATE para no conceder la capacidad nueva al tenant de plataforma"),
     };
 
     // ══════════════════════════════════════════════════════════════════════════════
@@ -591,10 +617,12 @@ public class UsosDeEsPlataformaCongeladosTests
         "Estado",
         "EstadoComercial",
         "EstadoComercialActualizadoEnUtc",
+        "HabilitarComoOperadorCaeExterno",
         "MarcarComoPlataforma",
         "MarcarDatosDemoCompletados",
         "Nombre",
         "PerfilVocabulario",
+        "PuedeActuarComoOperadorCaeExterno",
         "Reactivar",
         "RenombrarA",
         "StripeCustomerId",

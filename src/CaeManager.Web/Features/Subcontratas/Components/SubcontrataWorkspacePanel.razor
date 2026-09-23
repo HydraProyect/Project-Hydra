@@ -192,96 +192,104 @@ else
                         @DescripcionNivel(_detalle.NivelServicio)
                     </p>
 
-                    <section class="tarjeta-acceso-subcontrata-360" aria-label="@Textos["TituloAccesoPortal"]">
-                        <div class="cabecera-tarjeta-acceso-subcontrata-360">
-                            <span class="titulo-tarjeta-acceso-subcontrata-360">@Textos["TituloAccesoPortal"]</span>
-                            <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">@Textos["BadgeCredencialesTerceros"]</Badge>
-                        </div>
-                        <div class="cuerpo-tarjeta-acceso-subcontrata-360">
-                            @if (_credencial is null)
-                            {
-                                @if (_errorCredencial)
+                    @* Las credenciales de un portal de terceros solo las leen los roles con escritura
+                       (decisión del propietario 2026-09-23): a Consulta el servidor le devuelve null. *@
+                    <SoloConEscritura>
+                        <section class="tarjeta-acceso-subcontrata-360" aria-label="@Textos["TituloAccesoPortal"]">
+                            <div class="cabecera-tarjeta-acceso-subcontrata-360">
+                                <span class="titulo-tarjeta-acceso-subcontrata-360">@Textos["TituloAccesoPortal"]</span>
+                                <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">@Textos["BadgeCredencialesTerceros"]</Badge>
+                            </div>
+                            <div class="cuerpo-tarjeta-acceso-subcontrata-360">
+                                @if (_credencial is null)
                                 {
-                                    <p class="texto-secundario" role="alert">@Textos["ErrorCredenciales"]</p>
-                                }
-                                else if (_credencialConsultada)
-                                {
-                                    <p class="texto-secundario">@Textos["CredencialesNoVisibles"]</p>
+                                    @if (_errorCredencial)
+                                    {
+                                        <p class="texto-secundario" role="alert">@Textos["ErrorCredenciales"]</p>
+                                    }
+                                    else if (_credencialConsultada)
+                                    {
+                                        <p class="texto-secundario">@Textos["CredencialesNoVisibles"]</p>
+                                    }
+                                    else
+                                    {
+                                        <p class="texto-secundario">@Textos["CredencialesSePidenAlNecesitarlas"]</p>
+                                    }
+                                    <div>
+                                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_cargandoCredencial" OnClick="MostrarCredencialAsync">@Textos["BotonVerCredenciales"]</Boton>
+                                    </div>
                                 }
                                 else
                                 {
-                                    <p class="texto-secundario">@Textos["CredencialesSePidenAlNecesitarlas"]</p>
-                                }
-                                <div>
-                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_cargandoCredencial" OnClick="MostrarCredencialAsync">@Textos["BotonVerCredenciales"]</Boton>
-                                </div>
-                            }
-                            else
-                            {
-                                <div class="rejilla-acceso-subcontrata-360">
-                                    <div class="celda-info-subcontrata-360 celda-info-subcontrata-360-ancha">
-                                        <span>@Textos["RotuloUrl"]</span>
-                                        <div class="valor-con-copia-subcontrata-360">
-                                            <strong>@(string.IsNullOrWhiteSpace(_credencial.UrlAcceso) ? "—" : _credencial.UrlAcceso)</strong>
-                                            @if (!string.IsNullOrWhiteSpace(_credencial.UrlAcceso))
-                                            {
-                                                <BotonCopiar Valor="@_credencial.UrlAcceso" Etiqueta="@Textos["CopiarLaUrl"]" />
-                                            }
-                                        </div>
-                                    </div>
-                                    @if (!string.IsNullOrWhiteSpace(_credencial.CampoEmpresa))
-                                    {
+                                    <div class="rejilla-acceso-subcontrata-360">
                                         <div class="celda-info-subcontrata-360 celda-info-subcontrata-360-ancha">
-                                            <span>@Textos["RotuloCampoEmpresa"]</span>
+                                            <span>@Textos["RotuloUrl"]</span>
                                             <div class="valor-con-copia-subcontrata-360">
-                                                <strong>@_credencial.CampoEmpresa</strong>
-                                                <BotonCopiar Valor="@_credencial.CampoEmpresa" Etiqueta="@Textos["CopiarEsteCampo"]" />
+                                                <strong>@(string.IsNullOrWhiteSpace(_credencial.UrlAcceso) ? "—" : _credencial.UrlAcceso)</strong>
+                                                @if (!string.IsNullOrWhiteSpace(_credencial.UrlAcceso))
+                                                {
+                                                    <BotonCopiar Valor="@_credencial.UrlAcceso" Etiqueta="@Textos["CopiarLaUrl"]" />
+                                                }
                                             </div>
                                         </div>
-                                    }
-                                    <div class="celda-info-subcontrata-360">
-                                        <span>@Textos["RotuloUsuario"]</span>
-                                        <div class="valor-con-copia-subcontrata-360">
-                                            <strong>@(string.IsNullOrWhiteSpace(_credencial.Usuario) ? "—" : _credencial.Usuario)</strong>
-                                            @if (!string.IsNullOrWhiteSpace(_credencial.Usuario))
+                                        @if (!string.IsNullOrWhiteSpace(_credencial.CampoEmpresa))
+                                        {
+                                            <div class="celda-info-subcontrata-360 celda-info-subcontrata-360-ancha">
+                                                <span>@Textos["RotuloCampoEmpresa"]</span>
+                                                <div class="valor-con-copia-subcontrata-360">
+                                                    <strong>@_credencial.CampoEmpresa</strong>
+                                                    <BotonCopiar Valor="@_credencial.CampoEmpresa" Etiqueta="@Textos["CopiarEsteCampo"]" />
+                                                </div>
+                                            </div>
+                                        }
+                                        <div class="celda-info-subcontrata-360">
+                                            <span>@Textos["RotuloUsuario"]</span>
+                                            <div class="valor-con-copia-subcontrata-360">
+                                                <strong>@(string.IsNullOrWhiteSpace(_credencial.Usuario) ? "—" : _credencial.Usuario)</strong>
+                                                @if (!string.IsNullOrWhiteSpace(_credencial.Usuario))
+                                                {
+                                                    <BotonCopiar Valor="@_credencial.Usuario" Etiqueta="@Textos["CopiarElUsuario"]" />
+                                                }
+                                            </div>
+                                        </div>
+                                        <div class="celda-info-subcontrata-360">
+                                            <span>@Textos["RotuloContrasena"]</span>
+                                            @if (string.IsNullOrEmpty(_credencial.Contrasena))
                                             {
-                                                <BotonCopiar Valor="@_credencial.Usuario" Etiqueta="@Textos["CopiarElUsuario"]" />
+                                                <strong>—</strong>
+                                            }
+                                            else
+                                            {
+                                                <div class="valor-con-copia-subcontrata-360">
+                                                    <strong class="contrasena-subcontrata-360">@(_contrasenaVisible ? _credencial.Contrasena : "••••••••••")</strong>
+                                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" aria-pressed="@(_contrasenaVisible ? "true" : "false")" OnClick="AlternarContrasena">@(_contrasenaVisible ? Textos["BotonOcultarContrasena"] : Textos["BotonRevelarContrasena"])</Boton>
+                                                    <BotonCopiar Valor="@_credencial.Contrasena" Etiqueta="@Textos["CopiarLaContrasena"]" />
+                                                </div>
                                             }
                                         </div>
-                                    </div>
-                                    <div class="celda-info-subcontrata-360">
-                                        <span>@Textos["RotuloContrasena"]</span>
-                                        @if (string.IsNullOrEmpty(_credencial.Contrasena))
+                                        @if (!string.IsNullOrWhiteSpace(_credencial.Notas))
                                         {
-                                            <strong>—</strong>
-                                        }
-                                        else
-                                        {
-                                            <div class="valor-con-copia-subcontrata-360">
-                                                <strong class="contrasena-subcontrata-360">@(_contrasenaVisible ? _credencial.Contrasena : "••••••••••")</strong>
-                                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" aria-pressed="@(_contrasenaVisible ? "true" : "false")" OnClick="AlternarContrasena">@(_contrasenaVisible ? Textos["BotonOcultarContrasena"] : Textos["BotonRevelarContrasena"])</Boton>
-                                                <BotonCopiar Valor="@_credencial.Contrasena" Etiqueta="@Textos["CopiarLaContrasena"]" />
-                                            </div>
+                                            <div class="celda-info-subcontrata-360 celda-info-subcontrata-360-ancha"><span>@Textos["RotuloNotas"]</span><strong class="workspace-texto-notas">@_credencial.Notas</strong></div>
                                         }
                                     </div>
-                                    @if (!string.IsNullOrWhiteSpace(_credencial.Notas))
-                                    {
-                                        <div class="celda-info-subcontrata-360 celda-info-subcontrata-360-ancha"><span>@Textos["RotuloNotas"]</span><strong class="workspace-texto-notas">@_credencial.Notas</strong></div>
-                                    }
-                                </div>
-                                <div>
-                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="OcultarCredencial">@Textos["BotonOcultarCredenciales"]</Boton>
-                                </div>
-                            }
-                        </div>
-                    </section>
+                                    <div>
+                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="OcultarCredencial">@Textos["BotonOcultarCredenciales"]</Boton>
+                                    </div>
+                                }
+                            </div>
+                        </section>
+                    </SoloConEscritura>
 
-                    <div class="acciones-subcontrata-360">
-                        <Boton Variante="VarianteBoton.Secundario" Cargando="_abriendoEdicion" OnClick="IniciarEdicionInformacionAsync">@Textos["BotonEditarIdentidad"]</Boton>
-                        <Boton Variante="VarianteBoton.Secundario" Cargando="_cambiandoNivel" OnClick="ConfirmarCambioNivelAsync">
-                            @Textos["BotonCambiarNivel", EstadoSupervisionUi.TextoNivel(Textos, NivelOpuesto)]
-                        </Boton>
-                    </div>
+                    @* Editar identidad (y credenciales) y cambiar de nivel acaban en ICommand:
+                       AutorizacionEscrituraBehavior los deniega a Consulta, así que no se le ofrecen. *@
+                    <SoloConEscritura>
+                        <div class="acciones-subcontrata-360">
+                            <Boton Variante="VarianteBoton.Secundario" Cargando="_abriendoEdicion" OnClick="IniciarEdicionInformacionAsync">@Textos["BotonEditarIdentidad"]</Boton>
+                            <Boton Variante="VarianteBoton.Secundario" Cargando="_cambiandoNivel" OnClick="ConfirmarCambioNivelAsync">
+                                @Textos["BotonCambiarNivel", EstadoSupervisionUi.TextoNivel(Textos, NivelOpuesto)]
+                            </Boton>
+                        </div>
+                    </SoloConEscritura>
                 }
                 break;
 
@@ -347,9 +355,12 @@ else
                         @Textos["ExplicacionSupervision"]
                     </p>
                     <div class="acciones-subcontrata-360">
-                        <Boton Tamano="TamanoBoton.Pequeno" OnClick="AbrirRegistrarVerificacionAsync" Deshabilitado="@(_supervision.CentrosSeleccionables.Count == 0)">
-                            @Textos["BotonRegistrarVerificacion"]
-                        </Boton>
+                        @* Registrar y eliminar verificaciones son ICommand denegados a Consulta; el resumen sí es lectura. *@
+                        <SoloConEscritura>
+                            <Boton Tamano="TamanoBoton.Pequeno" OnClick="AbrirRegistrarVerificacionAsync" Deshabilitado="@(_supervision.CentrosSeleccionables.Count == 0)">
+                                @Textos["BotonRegistrarVerificacion"]
+                            </Boton>
+                        </SoloConEscritura>
                         <span class="resumen-subcontrata-360">@TextoUltimaVerificacion</span>
                     </div>
 
@@ -387,7 +398,7 @@ else
                                                         <a href="@($"/subcontratas/verificaciones/{ultima.Id}/evidencia")" target="_blank" rel="noopener">@Textos["EnlaceVerEvidencia"]</a>
                                                     }
                                                     @* Nombre contextual: hay un «Eliminar» por verificación, y a secas un lector de pantalla no distingue cuál borra. *@
-                                                    <button type="button" class="enlace-nombre-fila" aria-label="@Textos["AriaEliminarVerificacion", tipo.TipoDocumentoNombre, centro.CentroNombre]" @onclick="() => AbrirEliminarVerificacion(ultima.Id)">@Textos["BotonEliminarVerificacion"]</button>
+                                                    <SoloConEscritura><button type="button" class="enlace-nombre-fila" aria-label="@Textos["AriaEliminarVerificacion", tipo.TipoDocumentoNombre, centro.CentroNombre]" @onclick="() => AbrirEliminarVerificacion(ultima.Id)">@Textos["BotonEliminarVerificacion"]</button></SoloConEscritura>
                                                 </div>
                                                 @if (!string.IsNullOrWhiteSpace(ultima.Observaciones))
                                                 {

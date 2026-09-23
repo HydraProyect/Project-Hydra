@@ -63,6 +63,37 @@ public class ConsultasDeSecretosMarcadasTests
     }
 
     [Fact]
+    public void Toda_Query_que_devuelve_el_usuario_de_una_credencial_esta_marcada()
+    {
+        // El usuario de un acceso a portal también se cifra en reposo y solo lo
+        // leen los roles con escritura (decisión del propietario, 2026-09-23),
+        // aunque la Query no devuelva la contraseña. Se reconoce el DTO por
+        // exponer a la vez Usuario y UrlAcceso.
+        var application = ReflexionArquitecturaHelper.CargarAssembly("CaeManager.Application");
+
+        var consultas = application.GetTypes()
+            .Where(t => t.Name.EndsWith("Query", StringComparison.Ordinal))
+            .Where(t => DevuelveUnDtoCon(t, "Usuario", "UrlAcceso"))
+            .ToList();
+
+        // Guarda del propio test: si el reconocimiento dejara de casar, el
+        // filtro de abajo daría vacío sin vigilar nada.
+        consultas.Should().Contain(t => t.Name == "ObtenerCredencialAccesoEmpresaSinContrasenaQuery");
+
+        var sinMarcar = consultas
+            .Where(t => !typeof(IConsultaDeSecretosDeTenant).IsAssignableFrom(t)
+                && !typeof(IConsultaDeDatosDeCredencial).IsAssignableFrom(t))
+            .Select(t => t.FullName!)
+            .OrderBy(x => x)
+            .ToList();
+
+        string.Join(Environment.NewLine, sinMarcar).Should().BeEmpty(
+            "una Query que devuelve el usuario descifrado de una credencial tiene que implementar " +
+            "IConsultaDeDatosDeCredencial (o IConsultaDeSecretosDeTenant si además devuelve la contraseña); " +
+            "si no, el rol Consulta lo lee");
+    }
+
+    [Fact]
     public void Ninguna_Query_lee_un_secreto_cifrado_sin_estar_en_la_lista_conocida()
     {
         // Red de seguridad del test de arriba: cubre el caso en el que la
@@ -160,7 +191,10 @@ public class ConsultasDeSecretosMarcadasTests
             .Count(t => typeof(IConsultaDeSecretosDeTenant).IsAssignableFrom(t) && !t.IsInterface)
             .Should().BeGreaterThan(0, "sin consultas marcadas, la regla de arriba no observa nada");
     }
-    private static bool DevuelveUnDtoConContrasena(Type query)
+    private static bool DevuelveUnDtoConContrasena(Type query) =>
+        DevuelveUnDtoCon(query, "Contrasena", "Usuario");
+
+    private static bool DevuelveUnDtoCon(Type query, params string[] propiedades)
     {
         var respuesta = query.GetInterfaces()
             .Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(MediatR.IRequest<>))
@@ -174,8 +208,7 @@ public class ConsultasDeSecretosMarcadasTests
             ? new[] { respuesta }.Concat(respuesta.GetGenericArguments())
             : [respuesta];
 
-        return candidatos.Any(t =>
-            t.GetProperty("Contrasena") is not null && t.GetProperty("Usuario") is not null);
+        return candidatos.Any(t => propiedades.All(p => t.GetProperty(p) is not null));
     }
 
     private static string RaizDelRepositorio()

@@ -78,10 +78,14 @@ else
                         <Badge Tono="TonoBadge.Neutro">Facturación</Badge>
                     }
                 </div>
-                <div class="agenda-contacto-acciones">
-                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirFormulario(contacto)">Editar</Boton>
-                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => PedirConfirmacionBorrado(contacto)">Quitar</Boton>
-                </div>
+                @* Editar (GuardarContactoAgendaCommand) y Quitar (EliminarContactoAgendaCommand) son
+                   ICommand denegados a Consulta, igual que «Añadir contacto». *@
+                <SoloConEscritura>
+                    <div class="agenda-contacto-acciones">
+                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirFormulario(contacto)">Editar</Boton>
+                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => PedirConfirmacionBorrado(contacto)">Quitar</Boton>
+                    </div>
+                </SoloConEscritura>
             </li>
         }
     </ul>

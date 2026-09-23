@@ -47,6 +47,18 @@ public class Tenant : Entity
     public PerfilVocabularioTenant PerfilVocabulario { get; private set; }
 
     /// <summary>
+    /// Capacidad explícita de negocio: este Tenant puede actuar como Operador
+    /// CAE externo (aparecer en el alta de Tenants propietarios y en el
+    /// listado de <c>/delegaciones</c>). Sustituye el criterio interino
+    /// <c>PerfilVocabulario == Consultora &amp;&amp; !EsPlataforma</c> — DDL-072 es
+    /// una capa de presentación (cómo el tenant se ve a sí mismo) y nunca fue
+    /// una autorización real, solo lo parecía porque hasta ahora coincidían.
+    /// Mismo criterio que <see cref="EsPlataforma"/>: se concede, no se
+    /// infiere de otro campo.
+    /// </summary>
+    public bool PuedeActuarComoOperadorCaeExterno { get; private set; }
+
+    /// <summary>
     /// Estado de la suscripción de pago (Horizonte 1.7, "Billing mínimo
     /// viable") — ver <see cref="EstadoComercialTenant"/> para por qué es un
     /// campo aparte de <see cref="Estado"/> y no una reutilización suya.
@@ -110,6 +122,16 @@ public class Tenant : Entity
     /// entrar en los datos de todos los demás.
     /// </summary>
     public void MarcarComoPlataforma() => EsPlataforma = true;
+
+    /// <summary>
+    /// Concede la capacidad de Operador CAE externo. Operación de negocio
+    /// explícita, no un setter — mismo criterio que <see cref="MarcarComoPlataforma"/>:
+    /// cambia quién puede aparecer como Operador ante el resto del sistema.
+    /// Sin método inverso todavía: nada en el dominio actual retira esta
+    /// capacidad una vez concedida (mismo comportamiento que el criterio
+    /// interino que sustituye, que tampoco se revocaba).
+    /// </summary>
+    public void HabilitarComoOperadorCaeExterno() => PuedeActuarComoOperadorCaeExterno = true;
 
     public void Suspender() => Estado = EstadoTenant.Suspendido;
 

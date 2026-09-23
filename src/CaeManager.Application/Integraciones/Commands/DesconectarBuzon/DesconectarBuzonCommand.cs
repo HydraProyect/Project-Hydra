@@ -20,6 +20,7 @@ public class DesconectarBuzonCommandValidator : AbstractValidator<DesconectarBuz
 public class DesconectarBuzonCommandHandler(
     IConexionIntegracionRepository conexionRepositorio,
     ISuscripcionWebhookRepository suscripcionRepositorio,
+    IReclamacionBuzonIntegracionRepository reclamacionRepositorio,
     IAlcanceDatosService alcanceDatos,
     IMicrosoft365GraphClient graphClient,
     AccesoGraphService accesoGraph,
@@ -59,6 +60,11 @@ public class DesconectarBuzonCommandHandler(
         }
 
         conexion.Deshabilitar();
+        // Libera el buzón para cualquier Tenant (incremento 1 de
+        // PROPUESTA-BUZONES-COMPARTIDOS-M365 § 5.4) — solo aquí, nunca en la
+        // transición automática a ConError: una conexión con error transitorio
+        // sigue siendo dueña de su buzón.
+        await reclamacionRepositorio.LiberarAsync(conexion.Id, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return Result.Exito();
     }

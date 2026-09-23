@@ -241,9 +241,9 @@
 
     private RenderFragment EditorTrabajador() => @<CampoSelect Valor="@_trabajadorEditado" ValorChanged="v => _trabajadorEditado = v">
         <option value="">Selecciona un trabajador…</option>
-        @foreach (var trabajador in TrabajadoresDisponibles)
+        @foreach (var trabajador in EtiquetasSelectorTrabajador.Construir(TrabajadoresDisponibles))
         {
-            <option value="@trabajador.Id">@trabajador.NombreCompleto</option>
+            <option value="@trabajador.Id">@trabajador.Texto</option>
         }
     </CampoSelect>;
 

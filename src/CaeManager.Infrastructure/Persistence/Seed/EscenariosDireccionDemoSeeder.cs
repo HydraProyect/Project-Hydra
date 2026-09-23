@@ -97,7 +97,8 @@ public static class EscenariosDireccionDemoSeeder
         var credenciales = CredencialesDemo.Resolver(configuration, entorno);
 
         var tenantOperadorId = await DelegacionDemoSeeder.AprovisionarTenantAsync(
-            dbContext, DelegacionDemoSeeder.NombreTenantConsultora, PerfilVocabularioTenant.Consultora, logger, cancellationToken);
+            dbContext, DelegacionDemoSeeder.NombreTenantConsultora, PerfilVocabularioTenant.Consultora, logger, cancellationToken,
+            esOperadorCaeExterno: true);
 
         var administrador = await userManager.FindByEmailAsync(DelegacionDemoSeeder.EmailAdministradorConsultora)
             ?? throw new InvalidOperationException(
@@ -109,7 +110,8 @@ public static class EscenariosDireccionDemoSeeder
         foreach (var rama in CatalogoEscenariosDireccionDemo.Ramas)
         {
             var tenantPropietarioId = await DelegacionDemoSeeder.AprovisionarTenantAsync(
-                dbContext, rama.NombreTenant, PerfilVocabularioTenant.ClienteDirecto, logger, cancellationToken);
+                dbContext, rama.NombreTenant, PerfilVocabularioTenant.ClienteDirecto, logger, cancellationToken,
+                esOperadorCaeExterno: false);
             // Duff y Pizza Planet llevan un nombre sin sufijo «demo»: la retirada exige además este marcador.
             await SiembraDemoDireccionAdministrativa.MarcarComoDemoAsync(dbContext, tenantPropietarioId, cancellationToken);
 

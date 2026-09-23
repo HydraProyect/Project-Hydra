@@ -25,19 +25,23 @@
             dure el encargo.
         </p>
 
-        <div class="workspace-grupo-campos">
-            <CampoTexto Etiqueta="Fecha de la nueva solicitud" Type="date" Valor="@_fechaSolicitud" ValorChanged="v => _fechaSolicitud = v" />
-            <CampoTextarea Etiqueta="Observaciones (opcional)" Valor="@_observacionesNueva" ValorChanged="v => _observacionesNueva = v" Filas="2" />
-            @if (_errorSolicitud is not null)
-            {
-                <span class="campo-mensaje-error" role="alert">@_errorSolicitud</span>
-            }
-            <Boton OnClick="RegistrarSolicitudAsync" Cargando="_guardandoSolicitud" Deshabilitado="_guardandoSolicitud">
-                Registrar solicitud
-            </Boton>
-        </div>
+        @* Registrar solicitud y registrar respuesta son ICommand denegados a Consulta: se le
+           ocultan los formularios enteros; el historial de abajo sí es lectura. *@
+        <SoloConEscritura>
+            <div class="workspace-grupo-campos">
+                <CampoTexto Etiqueta="Fecha de la nueva solicitud" Type="date" Valor="@_fechaSolicitud" ValorChanged="v => _fechaSolicitud = v" />
+                <CampoTextarea Etiqueta="Observaciones (opcional)" Valor="@_observacionesNueva" ValorChanged="v => _observacionesNueva = v" Filas="2" />
+                @if (_errorSolicitud is not null)
+                {
+                    <span class="campo-mensaje-error" role="alert">@_errorSolicitud</span>
+                }
+                <Boton OnClick="RegistrarSolicitudAsync" Cargando="_guardandoSolicitud" Deshabilitado="_guardandoSolicitud">
+                    Registrar solicitud
+                </Boton>
+            </div>
 
-        <hr />
+            <hr />
+        </SoloConEscritura>
 
         @if (_cargando)
         {
@@ -86,6 +90,7 @@
 
                     @if (solicitud.Resultado is null && solicitud.Id == _historial[0].Id)
                     {
+                        <SoloConEscritura>
                         @if (_respondiendoSolicitudId == solicitud.Id)
                         {
                             <div class="workspace-grupo-campos">
@@ -121,6 +126,7 @@
                                 Registrar respuesta
                             </Boton>
                         }
+                        </SoloConEscritura>
                     }
                 </div>
             }

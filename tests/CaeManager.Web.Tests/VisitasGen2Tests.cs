@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using AngleSharp.Dom;
 using Bunit;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Common;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
@@ -68,6 +69,8 @@ public class VisitasGen2Tests : BunitContext
         public List<TaskCompletionSource<DocumentacionVisitaDto>> CargasDocumentacionPendientes { get; } = [];
 
         public TramoAntelacion? Tramo { get; set; }
+
+        public IReadOnlyList<TrabajadorSelectorDto> TrabajadoresSelector { get; set; } = [];
 
         public List<object> Comandos { get; } = [];
 
@@ -155,7 +158,7 @@ public class VisitasGen2Tests : BunitContext
                     return Respuesta<TResponse>(Array.Empty<CentroSelectorDto>());
 
                 case ObtenerTrabajadoresParaSelectorQuery:
-                    return Respuesta<TResponse>(Array.Empty<TrabajadorSelectorDto>());
+                    return Respuesta<TResponse>(TrabajadoresSelector);
 
                 default:
                     throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.");
@@ -477,6 +480,49 @@ public class VisitasGen2Tests : BunitContext
     }
 
     [Fact]
+    public async Task Consulta_ve_la_marca_de_notificada_sin_que_se_le_ofrezca_cambiarla_ni_editar()
+    {
+        // MarcarNotificadoClienteCommand y EditarVisitaCommand son ICommand que
+        // AutorizacionEscrituraBehavior deniega a Consulta. El interruptor de la fila
+        // es también el dato: se le pinta deshabilitado, no se le quita.
+        this.ConRolDeEscritura(Roles.Consulta);
+        var norte = Visita("Centro Norte", notificado: true);
+        var mediator = new MediatorVisitas();
+        mediator.Visitas.Add(norte);
+        var cut = Renderizar(mediator);
+
+        Interruptor(cut, "Centro Norte").HasAttribute("checked").Should().BeTrue("el dato sigue a la vista");
+        Interruptor(cut, "Centro Norte").HasAttribute("disabled").Should().BeTrue("pero no se ofrece cambiarlo");
+
+        await ItemDeMenu(cut, "Centro Norte", "Ver").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".drawer-pie button").Select(b => b.TextContent.Trim())
+            .Should().NotContain(["Quitar la marca de notificada", "Marcar como notificada", "Editar"])
+            .And.Equal(["Cerrar"], "el pie no queda vacío");
+        mediator.Comandos.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(Roles.GestorCae, true)]
+    [InlineData(Roles.Consulta, false)]
+    public async Task Eliminar_seleccionados_solo_se_ofrece_a_los_roles_con_escritura(string rol, bool seOfrece)
+    {
+        // EliminarVisitasCommand es ICommand: a Consulta no se le ofrece la barra del
+        // lote. El caso con escritura es el control de que la selección llegó a hacerse.
+        this.ConRolDeEscritura(rol);
+        var mediator = new MediatorVisitas();
+        mediator.Visitas.Add(Visita("Centro Norte"));
+        var cut = Renderizar(mediator);
+
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Selección múltiple").ClickAsync(new MouseEventArgs());
+        await Fila(cut, "Centro Norte").QuerySelector("input[type=checkbox]:not(.visitas-interruptor)")!
+            .ChangeAsync(new ChangeEventArgs { Value = true });
+
+        cut.FindAll(".barra-acciones-lote button").Any(b => b.TextContent.Trim() == "Eliminar seleccionados")
+            .Should().Be(seOfrece);
+    }
+
+    [Fact]
     public async Task Eliminar_pide_confirmacion_y_solo_al_confirmar_borra_esa_visita()
     {
         var norte = Visita("Centro Norte");
@@ -613,6 +659,26 @@ public class VisitasGen2Tests : BunitContext
         await cut.FindAll(".acciones-cabecera button").First(b => b.TextContent.Contains("Nueva visita")).ClickAsync(new MouseEventArgs());
         cut.Markup.Should().Contain("Notificada a la empresa titular del centro", "el formulario tiene que estar abierto");
         cliente.IsMatch(cut.Markup).Should().BeFalse("en el formulario");
+    }
+
+    /// <summary>
+    /// P4 (2026-09-23): «Trabajadores que entran» ofrece la base general del Tenant sin DNI. El fake
+    /// siembra un DNI conocido en el origen (<see cref="TrabajadorSelectorFalso"/>).
+    /// </summary>
+    [Fact]
+    public async Task El_selector_de_trabajadores_que_entran_no_muestra_el_DNI()
+    {
+        var mediator = new MediatorVisitas
+        {
+            TrabajadoresSelector = [TrabajadorSelectorFalso.Crear(Guid.NewGuid(), "Iker Zubiri Olano")],
+        };
+        var cut = Renderizar(mediator);
+
+        await cut.FindAll(".acciones-cabecera button").First(b => b.TextContent.Contains("Nueva visita")).ClickAsync(new MouseEventArgs());
+
+        var selector = cut.FindComponents<SelectorMultiple>().Single();
+        selector.Instance.Elementos.Select(e => e.Nombre).Should().Equal("Iker Zubiri Olano");
+        cut.Markup.Should().Contain("Iker Zubiri Olano").And.NotContain(TrabajadorSelectorFalso.DniSembrado);
     }
 
     [Fact]
