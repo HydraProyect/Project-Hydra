@@ -66,7 +66,10 @@ public class TextosSinLocalizarCongeladosTests
         ["Components/Pages"] = 18,
         ["Components/Workspace"] = 58,
         ["Comunicaciones"] = 316,
-        ["Configuracion"] = 104,
+        // Migrada a TextosConfiguracion: el 1 restante es un falso positivo del
+        // detector, la cabecera «@for (var indice = 0; indice < Grupos.Count; …)»
+        // de Configuracion.razor, que el '<' de la comparación hace pasar por texto.
+        ["Configuracion"] = 1,
         ["Cumplimiento"] = 11,
         ["Dashboard"] = 57,
         // 89 → 1 el 2026-09-23 al migrar la Feature a TextosDashboardEjecutivo.resx. El 1 que
