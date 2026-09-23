@@ -89,7 +89,6 @@ public class TextosSinLocalizarCongeladosTests
         ["TiposDocumento"] = 149,
         ["Trabajadores"] = 193,
         ["Usuarios"] = 157,
-        ["VisionCartera"] = 77,
         ["Visitas"] = 112,
         ["Web(raiz)"] = 4,
         ["Web/Api"] = 2,
