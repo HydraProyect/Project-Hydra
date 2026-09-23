@@ -222,8 +222,8 @@ public class BandejaGen2Tests : BunitContext
     [Fact]
     public void Una_rechazada_que_bloquea_su_Centro_lleva_banda_y_una_que_no_bloquea_no()
     {
-        var bloquea = Item("r1", TipoItemBandeja.PlataformaRechazada, Guid.NewGuid(), "Cervezas Duff Ibérica")
-            with { RechazoBloqueaCentro = true };
+        var rechazada = Item("r1", TipoItemBandeja.PlataformaRechazada, Guid.NewGuid(), "Cervezas Duff Ibérica");
+        var bloquea = rechazada with { RechazoBloqueaCentro = true };
         var noBloquea = Item("r2", TipoItemBandeja.PlataformaRechazada, Guid.NewGuid(), "Hamburguesas Krusty");
 
         var (cut, _) = Renderizar(bloquea, noBloquea);
