@@ -71,6 +71,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<AuditoriaInterceptor>();
         services.AddScoped<TenantSelladoInterceptor>();
         services.AddScoped<TenantRlsConnectionInterceptor>();
+        // Singleton: la clave del contexto RLS firmado es una por proceso (P6).
+        services.AddSingleton(sp => new Persistence.ContextoRls.FirmanteContextoRls(
+            sp.GetRequiredService<IConfiguration>(), sp.GetService<TimeProvider>() ?? TimeProvider.System));
         // Sin estado y sin dependencias: una sola instancia sirve.
         services.AddSingleton<ConcurrenciaOptimistaInterceptor>();
 
