@@ -19,9 +19,10 @@ function coordenadas(canvas, evento) {
     };
 }
 
+// Devuelve si enganchó el lienzo: sin él en el DOM (aún no pintado) el llamador reintenta.
 export function iniciar(referencia, idCanvas) {
     const canvas = document.getElementById(idCanvas);
-    if (!canvas) return;
+    if (!canvas) return false;
 
     canvas.dataset.trazoAvisado = 'false';
 
@@ -54,6 +55,8 @@ export function iniciar(referencia, idCanvas) {
     canvas.addEventListener('pointerup', terminarTrazo);
     canvas.addEventListener('pointerleave', terminarTrazo);
     canvas.addEventListener('pointercancel', terminarTrazo);
+
+    return true;
 }
 
 // Firma "escrita": el nombre tecleado se dibuja con la tipografía cursiva

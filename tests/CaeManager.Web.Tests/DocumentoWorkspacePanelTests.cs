@@ -34,19 +34,21 @@ public class DocumentoWorkspacePanelTests : BunitContext
         // Firma en campo y Modal importan módulos JS; queda fuera de lo que se observa aquí.
         JSInterop.Mode = JSRuntimeMode.Loose;
         this.ConRolDeEscritura();
+        Services.AddLocalization();
     }
 
     /// <summary>El panel lanza dos consultas distintas por el mismo IMediator — responde por tipo.</summary>
     private sealed class MediatorDocumento : IMediator
     {
         public required DocumentoDetalleDto Detalle { get; init; }
+        public bool SinFirmas { get; init; }
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
             Task.FromResult((TResponse)(request switch
             {
                 ObtenerDocumentoPorIdQuery => (object?)Detalle,
                 ObtenerValidacionOficialDocumentoQuery => null,
-                ObtenerFirmasEnCampoDocumentoQuery => (IReadOnlyList<FirmaEnCampoDocumentoDto>)
+                ObtenerFirmasEnCampoDocumentoQuery => SinFirmas ? (IReadOnlyList<FirmaEnCampoDocumentoDto>)[] : (IReadOnlyList<FirmaEnCampoDocumentoDto>)
                     [new FirmaEnCampoDocumentoDto(Guid.NewGuid(), "Lucía Prieto", "GestorCae", DateTime.UtcNow, null, "hash")],
                 ObtenerFirmaGuardadaUsuarioQuery => null,
                 ObtenerSelloEmpresaQuery => null,
@@ -161,6 +163,24 @@ public class DocumentoWorkspacePanelTests : BunitContext
         cut.Markup.Should().Contain("Lucía Prieto");
         cut.FindAll("button").Any(b => b.TextContent.Trim() == "Firmar").Should().Be(seOfrece);
         cut.FindAll("canvas").Should().HaveCount(seOfrece ? 1 : 0, "sin firmar no hay lienzo en el que dibujar");
+    }
+
+    [Theory]
+    [InlineData(Roles.Consulta, true)]
+    [InlineData(Roles.GestorCae, false)]
+    public void Sin_firmas_Consulta_ve_que_no_hay_en_vez_de_una_pestana_en_blanco(string rol, bool veEstadoVacio)
+    {
+        this.ConRolDeEscritura(rol);
+        var detalle = Detalle() with { ArchivoUrl = "documentos/firmable.pdf" };
+        Services.AddScoped<ToastService>();
+        Services.AddScoped<IMediator>(_ => new MediatorDocumento { Detalle = detalle, SinFirmas = true });
+
+        var cut = Render<FirmaEnCampoTab>(p => p.Add(t => t.EntidadId, detalle.Id));
+
+        // Barrera: el render cargado pinta la firma nueva (con escritura) o el estado vacío (Consulta).
+        cut.WaitForAssertion(() => (cut.Markup.Contains("Nueva firma") || cut.Markup.Contains("Sin firmas")).Should().BeTrue());
+        cut.Markup.Contains("Sin firmas").Should().Be(veEstadoVacio);
+        cut.Markup.Should().NotContain("Firmas ya realizadas");
     }
 
     [Theory]

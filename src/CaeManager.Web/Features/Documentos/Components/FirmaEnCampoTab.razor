@@ -21,6 +21,9 @@
 @inject IMediator Mediator
 @inject ToastService Toasts
 @inject IJSRuntime JSRuntime
+@inject IStringLocalizer<TextosFirmaEnCampo> Textos
+@using CaeManager.Web.Features.Documentos.Recursos
+@using Microsoft.Extensions.Localization
 
 @if (_cargando)
 {
@@ -59,6 +62,16 @@ else
                 </CampoInfo>
             }
         </div>
+    }
+    else
+    {
+        @* Sin firmas, a Consulta no le queda nada en la pestaña (el bloque de firma nueva no se
+           le ofrece): se le dice que no hay, en vez de dejarla en blanco. *@
+        <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv" Context="autorizacionFirma">
+            <NotAuthorized>
+                <EstadoVacio Titulo="@Textos["TituloSinFirmas"]" Descripcion="@Textos["DescripcionSinFirmas"]" />
+            </NotAuthorized>
+        </AuthorizeView>
     }
 
     @* Todo lo que sigue compone una firma nueva, que envía FirmarDocumentoEnCampoCommand (ICommand
