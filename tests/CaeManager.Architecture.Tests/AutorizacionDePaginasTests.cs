@@ -77,7 +77,7 @@ public class AutorizacionDePaginasTests
     /// "Visión de cartera" (un dashboard agregado), no el acceso a la lista de
     /// Clientes. La primera versión de este test usaba esa constante por
     /// error y habría dado 403 a GestorCae sobre su propia cartera —su trabajo
-    /// diario, ver <c>AlcanceDatosService.ObtenerClienteIdsDeCarteraAsync</c>—
+    /// diario, ver <c>AlcanceDatosService.ObtenerCarteraAsync</c>—
     /// y a Consulta sobre su supervisión de solo lectura, rompiendo
     /// silenciosamente <see cref="CaeManager.E2ETests.AlcanceRolesTests"/>.
     ///

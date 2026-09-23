@@ -602,7 +602,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         {
             // Un Coordinador CAE no tiene cartera propia: alcanza la unión de
             // las de los Gestores CAE que tiene asignados (ver
-            // AlcanceDatosService.ObtenerClienteIdsParaCoordinadorAsync).
+            // AlcanceDatosService.ObtenerCarteraParaCoordinadorAsync).
             // Mirar la suya sería mirar donde nunca hay nada.
             var gestores = gestoresPorCoordinador[usuario.Id].ToList();
             if (gestores.Count == 0)

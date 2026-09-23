@@ -71,6 +71,7 @@ public class AlcanceDatosService(
     // falta un flag "resuelto" aparte por alcance como antes de indexar por
     // tenant.
     private readonly Dictionary<Guid, bool> _accesoTotal = new();
+    private readonly Dictionary<Guid, AlcanceCartera> _alcanceCartera = new();
     private readonly Dictionary<Guid, IReadOnlyList<Guid>?> _clienteIds = new();
     private readonly Dictionary<Guid, IReadOnlyList<Guid>?> _centroIds = new();
     private readonly Dictionary<Guid, IReadOnlyList<Guid>?> _empresaIds = new();
@@ -104,7 +105,7 @@ public class AlcanceDatosService(
     ///
     /// <para>
     /// La caducidad es por generación y por Tenant, no por diccionario: al caducar se descartan a
-    /// la vez los siete alcances del Tenant, así que cada valor memoizado se calculó después de
+    /// la vez todos los alcances del Tenant, así que cada valor memoizado se calculó después de
     /// que empezara su generación, y una revocación deja de servirse, como mucho,
     /// <see cref="CaducidadAlcanceOptions.Caducidad"/> después de producirse (60 s por defecto,
     /// decisión del propietario 2026-09-23). Las escrituras no esperan a esa cota:
@@ -119,6 +120,7 @@ public class AlcanceDatosService(
 
         if (_inicioGeneracion.ContainsKey(tenant)) _generacion++;
         _accesoTotal.Remove(tenant);
+        _alcanceCartera.Remove(tenant);
         _clienteIds.Remove(tenant);
         _centroIds.Remove(tenant);
         _empresaIds.Remove(tenant);
@@ -142,7 +144,7 @@ public class AlcanceDatosService(
     }
 
     /// <summary>
-    /// Descarta los siete diccionarios (todos los Tenants de esta instancia: el fan-out reutiliza la
+    /// Descarta todos los diccionarios (todos los Tenants de esta instancia: el fan-out reutiliza la
     /// misma). Lo invoca <see cref="InvalidacionAlcanceBehavior{TRequest,TResponse}"/> antes y
     /// después de cada Command. La memoización sigue siendo por instancia y por Tenant; esto evita
     /// que un Command se autorice, o que la lectura siguiente se sirva, con una visión anterior. Lo
@@ -153,6 +155,7 @@ public class AlcanceDatosService(
         _generacion++;
         _inicioGeneracion.Clear();
         _accesoTotal.Clear();
+        _alcanceCartera.Clear();
         _clienteIds.Clear();
         _centroIds.Clear();
         _empresaIds.Clear();
@@ -248,39 +251,103 @@ public class AlcanceDatosService(
         var generacion = _generacion;
         if (_clienteIds.TryGetValue(tenant, out var cacheado)) return cacheado;
 
-        var real = await ObtenerClienteIdsRealesAsync(cancellationToken);
-
-        // Lente de demo Gestor: los Clientes de la Asignación de Cartera de ESE Gestor CAE,
-        // calculados con el mismo camino que su propia sesión (ObtenerClienteIdsDeCarteraAsync),
-        // e INTERSECADOS con lo que la cuenta ya alcanzaba. null (todo) ∩ cartera = cartera;
-        // nunca sale nada que el resultado real no contuviera.
-        var resultado = real;
-        if (await ObtenerGestorDeLenteAsync(cancellationToken) is { } gestorLente)
+        var alcance = await ObtenerAlcanceDeCarteraAsync(cancellationToken);
+        var resultado = alcance switch
         {
-            var deLente = await ObtenerClienteIdsDeCarteraAsync([gestorLente], cancellationToken);
-            resultado = real is null ? deLente : real.Intersect(deLente).ToList();
-        }
+            { SinRestriccion: true } => null,
+            // F3b — Empresas, no la tabla legacy Clientes: un Cliente creado tras la congelación
+            // solo existe ahí (EsCritico != null lo identifica).
+            { TenantEntero: true } => await dbContext.Empresas.Where(e => e.EsCritico != null).Select(e => e.Id).ToListAsync(cancellationToken),
+            _ => alcance.ClienteIds
+        };
 
         Memoizar(_clienteIds, tenant, generacion, resultado);
         return resultado;
     }
 
-    private async Task<IReadOnlyList<Guid>?> ObtenerClienteIdsRealesAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Decisión del propietario 2026-09-23: una Asignación de Cartera de ámbito universal vigente
+    /// da al Gestor CAE —y al Coordinador CAE de ese Gestor— TODAS las ramas operativas del Tenant
+    /// actual, estén o no unidas a un Cliente empresarial por un Centro, una Relación Empresarial o
+    /// una Asignación: un Centro cuyo cliente no es Cliente empresarial, una Subcontrata sin
+    /// Relación, un Trabajador de Subcontrata sin Asignación, un Vehículo de Subcontrata...
+    ///
+    /// <para>
+    /// Es autoridad de Operación, nunca de Propiedad: <see cref="TieneAccesoTotalAsync"/> sigue en
+    /// false —usuarios, configuración, delegaciones y la autorización de Operadores CAE externos no
+    /// dependen de estas listas y quedan fuera— y las listas son EXPLÍCITAS, no null, porque varios
+    /// consumidores leen null sin acceso total como denegación (p. ej. EnviarReclamacionCommand).
+    /// Clientes: todos los Clientes empresariales del Tenant (<c>EsCritico != null</c>), como hacía
+    /// ya la cartera universal. El resto de ramas: la tabla entera del Tenant —Empresas y
+    /// Subcontratas, toda Empresa: superconjunto que filtra igual que null, porque cada lector ya
+    /// acota su propio tipo—, ya no lo que se deriva de los Clientes. El dbContext ya está acotado
+    /// al Tenant actual (RLS + filtro global), así que no cruza Tenants.
+    /// </para>
+    /// </summary>
+    private async Task<bool> AlcanzaTenantEnteroPorCarteraAsync(CancellationToken cancellationToken) =>
+        (await ObtenerAlcanceDeCarteraAsync(cancellationToken)).TenantEntero;
+
+    private async Task<IReadOnlyList<Guid>> TodasLasEmpresasDelTenantAsync(CancellationToken cancellationToken) =>
+        await dbContext.Empresas.Select(e => e.Id).ToListAsync(cancellationToken);
+
+    /// <summary>
+    /// Alcance de Clientes efectivo: el real, estrechado por la lente de demo Gestor si la hay.
+    /// Memoizado por Tenant junto a los demás alcances.
+    /// </summary>
+    private async Task<AlcanceCartera> ObtenerAlcanceDeCarteraAsync(CancellationToken cancellationToken)
     {
-        if (await TieneAccesoTotalRealAsync(cancellationToken)) return null;
+        var tenant = ClaveTenantVigente();
+        var generacion = _generacion;
+        if (_alcanceCartera.TryGetValue(tenant, out var cacheado)) return cacheado;
+
+        var real = await ObtenerAlcanceRealAsync(cancellationToken);
+
+        // Lente de demo Gestor: la Asignación de Cartera de ESE Gestor CAE, calculada con el mismo
+        // camino que su propia sesión (ObtenerCarteraAsync), e INTERSECADA con lo que la cuenta ya
+        // alcanzaba. Sin restricción ∩ cartera = cartera; nunca sale nada que el resultado real no
+        // contuviera.
+        var resultado = real;
+        if (await ObtenerGestorDeLenteAsync(cancellationToken) is { } gestorLente)
+            resultado = real.Intersecar(await ObtenerCarteraAsync([gestorLente], cancellationToken));
+
+        Memoizar(_alcanceCartera, tenant, generacion, resultado);
+        return resultado;
+    }
+
+    private async Task<AlcanceCartera> ObtenerAlcanceRealAsync(CancellationToken cancellationToken)
+    {
+        if (await TieneAccesoTotalRealAsync(cancellationToken)) return AlcanceCartera.Total;
 
         var rol = await currentUserService.ObtenerRolActualAsync();
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
 
-        var resultado = (rol, usuarioId) switch
+        return (rol, usuarioId) switch
         {
-            (Roles.Cliente, { } id) => await ObtenerClienteIdsParaRolClienteAsync(id, cancellationToken),
-            (Roles.GestorCae, { } id) => await ObtenerClienteIdsDeCarteraAsync([id], cancellationToken),
-            (Roles.CoordinadorCae, { } id) => await ObtenerClienteIdsParaCoordinadorAsync(id, cancellationToken),
-            _ => (IReadOnlyList<Guid>)[]
+            (Roles.Cliente, { } id) => AlcanceCartera.DeLista(await ObtenerClienteIdsParaRolClienteAsync(id, cancellationToken)),
+            (Roles.GestorCae, { } id) => await ObtenerCarteraAsync([id], cancellationToken),
+            (Roles.CoordinadorCae, { } id) => await ObtenerCarteraParaCoordinadorAsync(id, cancellationToken),
+            _ => AlcanceCartera.Ninguno
         };
+    }
 
-        return resultado;
+    /// <summary>
+    /// Alcance de Clientes resuelto: sin restricción (acceso total real), el Tenant entero por
+    /// cartera universal, o una lista explícita de Clientes empresariales (vacía = nada).
+    /// </summary>
+    private sealed record AlcanceCartera(bool SinRestriccion, bool TenantEntero, IReadOnlyList<Guid> ClienteIds)
+    {
+        public static readonly AlcanceCartera Total = new(true, false, []);
+        public static readonly AlcanceCartera Universal = new(false, true, []);
+        public static readonly AlcanceCartera Ninguno = new(false, false, []);
+        public static AlcanceCartera DeLista(IReadOnlyList<Guid> clienteIds) => new(false, false, clienteIds);
+
+        /// <summary>Intersección: solo puede estrechar. Sin restricción ⊇ Tenant entero ⊇ lista.</summary>
+        public AlcanceCartera Intersecar(AlcanceCartera otro) =>
+            SinRestriccion ? otro
+            : otro.SinRestriccion ? this
+            : TenantEntero ? otro
+            : otro.TenantEntero ? this
+            : DeLista(ClienteIds.Intersect(otro.ClienteIds).ToList());
     }
 
     /// <summary>
@@ -298,16 +365,16 @@ public class AlcanceDatosService(
         return clienteId is { } id ? [id] : [];
     }
 
-    private async Task<IReadOnlyList<Guid>> ObtenerClienteIdsParaCoordinadorAsync(Guid coordinadorUsuarioId, CancellationToken cancellationToken)
+    private async Task<AlcanceCartera> ObtenerCarteraParaCoordinadorAsync(Guid coordinadorUsuarioId, CancellationToken cancellationToken)
     {
         var gestorIds = await dbContext.Users
             .Where(u => u.CoordinadorUsuarioId == coordinadorUsuarioId)
             .Select(u => u.Id)
             .ToListAsync(cancellationToken);
 
-        if (gestorIds.Count == 0) return [];
+        if (gestorIds.Count == 0) return AlcanceCartera.Ninguno;
 
-        return await ObtenerClienteIdsDeCarteraAsync(gestorIds, cancellationToken);
+        return await ObtenerCarteraAsync(gestorIds, cancellationToken);
     }
 
     /// <summary>
@@ -327,13 +394,15 @@ public class AlcanceDatosService(
     /// operación cerrada o suspendida no concede nada, y el cierre en cascada
     /// puede no haber corrido todavía si la operación caducó por fecha.</item>
     /// </list>
-    /// Una cartera de ámbito universal sobre este tenant (el caso de un
-    /// operador delegado sin reparto interno) da acceso a todos sus clientes.
+    /// Una cartera de ámbito universal sobre este tenant da el Tenant entero
+    /// (<see cref="AlcanzaTenantEnteroPorCarteraAsync"/>), no solo sus Clientes
+    /// empresariales. Si varios usuarios aportan carteras (Coordinador CAE), basta
+    /// una universal.
     /// </summary>
-    private async Task<IReadOnlyList<Guid>> ObtenerClienteIdsDeCarteraAsync(
+    private async Task<AlcanceCartera> ObtenerCarteraAsync(
         IReadOnlyList<Guid> usuarioIds, CancellationToken cancellationToken)
     {
-        if (tenantActual.TenantId is not { } propietarioTenantId) return [];
+        if (tenantActual.TenantId is not { } propietarioTenantId) return AlcanceCartera.Ninguno;
 
         // La otra mitad de la política de posición: además de que la cartera
         // sea del tenant en el que se opera, la operación que la ampara tiene
@@ -343,7 +412,7 @@ public class AlcanceDatosService(
         // Es el tenant del claim de sesión, nunca el activo: dentro de un
         // workspace delegado el activo es el del propietario.
         var operadorTenantId = await currentUserService.ObtenerTenantOrigenIdAsync();
-        if (operadorTenantId is null) return [];
+        if (operadorTenantId is null) return AlcanceCartera.Ninguno;
 
         var ahora = DateTime.UtcNow;
 
@@ -362,21 +431,18 @@ public class AlcanceDatosService(
             .Distinct()
             .ToListAsync(cancellationToken);
 
-        if (carteras.Count == 0) return [];
+        if (carteras.Count == 0) return AlcanceCartera.Ninguno;
 
-        // Ámbito universal: todos los clientes del tenant. Un rol de alcance
-        // total ya salió por TieneAccesoTotalAsync sin consultar carteras; a un
-        // rol de cartera solo se le emite una universal cuando un Coordinador
-        // CAE acepta su solicitud de incorporación al Tenant propietario entero
-        // (CatalogoIncorporacionCartera). Fuera de esa decisión explícita no se
-        // le emite nunca, justamente para no ensanchar su alcance en silencio.
-        //
-        // F3b — Empresas, no la tabla legacy Clientes: un Cliente creado tras
-        // la congelación solo existe ahí (EsCritico != null lo identifica).
+        // Ámbito universal: el Tenant entero (decisión del propietario 2026-09-23: la cartera de un
+        // Gestor CAE es siempre sobre el Tenant entero). Las listas las materializa cada método de
+        // rama: ver AlcanzaTenantEnteroPorCarteraAsync. Un rol de alcance total ya salió por
+        // TieneAccesoTotalAsync sin consultar carteras; a un rol de cartera solo se le emite una
+        // universal cuando un Coordinador CAE acepta su solicitud de incorporación al Tenant
+        // propietario entero (CatalogoIncorporacionCartera).
         if (carteras.Any(id => id is null))
-            return await dbContext.Empresas.Where(e => e.EsCritico != null).Select(e => e.Id).ToListAsync(cancellationToken);
+            return AlcanceCartera.Universal;
 
-        return carteras.Where(id => id is not null).Select(id => id!.Value).ToList();
+        return AlcanceCartera.DeLista(carteras.Where(id => id is not null).Select(id => id!.Value).ToList());
     }
 
     public async Task<IReadOnlyList<Guid>?> ObtenerCentroIdsVisiblesAsync(CancellationToken cancellationToken = default)
@@ -391,6 +457,8 @@ public class AlcanceDatosService(
         {
             null => null,
             { Count: 0 } => [],
+            _ when await AlcanzaTenantEnteroPorCarteraAsync(cancellationToken) =>
+                await dbContext.Centros.Select(c => c.Id).ToListAsync(cancellationToken),
             _ => await dbContext.Centros
                 .Where(c => clienteIds.Contains(c.ClienteId))
                 .Select(c => c.Id)
@@ -457,6 +525,13 @@ public class AlcanceDatosService(
             var vacioOSinRestriccion = clienteIds is null ? null : (IReadOnlyList<Guid>)[];
             Memoizar(_empresaIds, tenant, generacion, vacioOSinRestriccion);
             return vacioOSinRestriccion;
+        }
+
+        if (await AlcanzaTenantEnteroPorCarteraAsync(cancellationToken))
+        {
+            var todas = await TodasLasEmpresasDelTenantAsync(cancellationToken);
+            Memoizar(_empresaIds, tenant, generacion, todas);
+            return todas;
         }
 
         var porCentro = dbContext.Centros.Where(c => clienteIds.Contains(c.ClienteId)).Select(c => c.EmpresaId);
@@ -527,6 +602,15 @@ public class AlcanceDatosService(
             return vacioOSinRestriccion;
         }
 
+        // Tenant entero: toda Empresa, no solo las marcadas con NivelServicio — superconjunto que
+        // filtra igual que null (ver AlcanzaTenantEnteroPorCarteraAsync).
+        if (await AlcanzaTenantEnteroPorCarteraAsync(cancellationToken))
+        {
+            var todas = await TodasLasEmpresasDelTenantAsync(cancellationToken);
+            Memoizar(_subcontrataIds, tenant, generacion, todas);
+            return todas;
+        }
+
         var empresaIds = await ObtenerEmpresaIdsVisiblesAsync(cancellationToken) ?? [];
 
         var relacionesConSubcontrataComoProveedora = dbContext.RelacionesEmpresariales
@@ -585,6 +669,13 @@ public class AlcanceDatosService(
             return vacioOSinRestriccion;
         }
 
+        if (await AlcanzaTenantEnteroPorCarteraAsync(cancellationToken))
+        {
+            var todos = await dbContext.Trabajadores.Select(t => t.Id).ToListAsync(cancellationToken);
+            Memoizar(_trabajadorIds, tenant, generacion, todos);
+            return todos;
+        }
+
         var centroIds = await ObtenerCentroIdsVisiblesAsync(cancellationToken) ?? [];
         var visibles = dbContext.Asignaciones
             .Where(a => centroIds.Contains(a.CentroId) && a.FechaBaja == null)
@@ -614,6 +705,13 @@ public class AlcanceDatosService(
         {
             Memoizar(_vehiculoIds, tenant, generacion, null);
             return null;
+        }
+
+        if (await AlcanzaTenantEnteroPorCarteraAsync(cancellationToken))
+        {
+            var todos = await dbContext.Vehiculos.Select(v => v.Id).ToListAsync(cancellationToken);
+            Memoizar(_vehiculoIds, tenant, generacion, todos);
+            return todos;
         }
 
         var subcontrataIds = await ObtenerSubcontrataIdsVisiblesAsync(cancellationToken) ?? [];

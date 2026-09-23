@@ -169,8 +169,8 @@ public class AsignacionesOperativasWriter(
         // Un rol de cartera no recibe aquí cartera universal: sus carteras
         // nacen cliente a cliente al asignárselos, o enteras solo cuando un
         // Coordinador CAE acepta su solicitud de incorporación. Emitirle una
-        // universal aquí le daría de golpe todos los clientes del tenant
-        // delegado sin que nadie lo decidiera.
+        // universal aquí le daría de golpe el tenant delegado entero —todas sus
+        // ramas operativas, ver AlcanceDatosService— sin que nadie lo decidiera.
         if (!RolesDeAlcanceTotal.Contains(rol)) return;
 
         var ahora = DateTime.UtcNow;
