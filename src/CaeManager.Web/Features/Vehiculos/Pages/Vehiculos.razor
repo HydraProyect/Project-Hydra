@@ -86,7 +86,7 @@
                         @context.Nombre
                     </button>
                 </TemplateColumn>
-                <PropertyColumn Property="@(v => v.Modelo)" Sortable="true" />
+                <PropertyColumn Property="@(v => v.Modelo)" Title="@Textos["EtiquetaModelo"]" Sortable="true" />
                 <PropertyColumn Property="@(v => v.NumeroPlaca)" Title="@Textos["EtiquetaMatricula"]" Sortable="true" />
                 <PropertyColumn Property="@(v => v.EmpleadorNombre)" Title="@Textos["ColumnaEmpleador"]" Sortable="true" />
                 <TemplateColumn Title="@Textos["EtiquetaDocumentacion"]" Sortable="true" SortBy="@(GridSort<VehiculoListaDto>.ByAscending(v => v.EstadoDocumental))">
