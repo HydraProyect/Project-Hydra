@@ -47,6 +47,7 @@ public class AlertasGen2Tests : BunitContext
     public AlertasGen2Tests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
         this.ConRolDeEscritura();
     }
 
@@ -313,6 +314,30 @@ public class AlertasGen2Tests : BunitContext
         cut.Find("[role=dialog] h2").TextContent.Should().Contain("Refrielectric S.A.");
         cut.Find("[role=dialog]").TextContent.Should()
             .Contain("2 documento(s)").And.Contain("Carmen Ruiz").And.Contain("Ignacio Vera");
+    }
+
+    /// <summary>
+    /// La línea «Última reclamación» tiene lógica de texto propia (hoy, un
+    /// día en singular, varios en plural, nunca) que sale de recursos
+    /// distintos: una clave cambiada o un plural cruzado se vería aquí.
+    /// </summary>
+    [Theory]
+    [InlineData(null, "Nunca reclamado.")]
+    [InlineData(0, "Última reclamación: hoy.")]
+    [InlineData(1, "Última reclamación: hace 1 día.")]
+    [InlineData(5, "Última reclamación: hace 5 días.")]
+    public async Task La_ultima_reclamacion_se_dice_en_dias_con_singular_y_plural(int? diasAtras, string esperado)
+    {
+        // Doce horas de margen: los días se cuentan truncando, y así el test
+        // no depende de cuánto tarde en llegar a pintar.
+        var lote = LoteCliente() with
+        {
+            UltimaReclamacionFechaUtc = diasAtras is { } d ? DateTime.UtcNow.AddDays(-d).AddHours(-12) : null
+        };
+        var (cut, _) = RenderizarConLote(lotes: [[lote]]);
+        await AbrirSeccionYElegirFiltro(cut);
+
+        cut.Find(".alertas-lote-ultima").TextContent.Trim().Should().Be(esperado);
     }
 
     [Fact]

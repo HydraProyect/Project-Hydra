@@ -46,7 +46,6 @@ public class TextosSinLocalizarCongeladosTests
     /// </summary>
     private static readonly Dictionary<string, int> Congelado = new(StringComparer.Ordinal)
     {
-        ["Alertas"] = 66,
         ["ApiKeys"] = 45,
         ["AtajosGlobales"] = 23,
         ["Auditoria"] = 73,
