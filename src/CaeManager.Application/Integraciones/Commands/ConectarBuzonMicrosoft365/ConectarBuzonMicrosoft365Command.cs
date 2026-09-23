@@ -1,10 +1,12 @@
 using CaeManager.Application.Common;
 using System.Security.Cryptography;
+using CaeManager.Application.Integraciones;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
 using FluentValidation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Application.Integraciones.Commands.ConectarBuzonMicrosoft365;
@@ -40,6 +42,7 @@ public class ConectarBuzonMicrosoft365CommandHandler(
     ICredencialIntegracionRepository credencialRepositorio,
     ISuscripcionWebhookRepository suscripcionRepositorio,
     IReclamacionBuzonIntegracionRepository reclamacionRepositorio,
+    IIntegracionesQueryContext queryContext,
     IEmpresaRepository empresaRepositorio,
     IAlcanceDatosService alcanceDatos,
     IDirectorioUsuariosService directorioUsuarios,
@@ -67,6 +70,17 @@ public class ConectarBuzonMicrosoft365CommandHandler(
         // buzón conectado pertenece siempre al Tenant propietario).
         if (tenantActual.TenantId is not { } tenantId)
             return Result.Fallo<Guid>(Error.Crear("Integraciones.Microsoft365.TenantNoResuelto", "No se pudo determinar el tenant actual."));
+
+        // Sin esta comprobación, repetir el flujo OAuth para un buzón que el
+        // propio Tenant ya tiene conectado chocaría contra el índice único
+        // GLOBAL de ReclamacionBuzonIntegracion (por diseño, ni siquiera
+        // reconoce a su propio dueño) y devolvería el mensaje de "otra
+        // organización" — engañoso cuando la organización es la misma.
+        var buzonNormalizado = request.BuzonEmail.Trim().ToLowerInvariant();
+        if (await queryContext.ConexionesIntegracion.AnyAsync(c => c.BuzonEmail.ToLower() == buzonNormalizado, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear(
+                "Integraciones.Microsoft365.BuzonYaConectadoEnEstaOrganizacion",
+                "Ya tienes una conexión con este buzón en esta organización. Desconéctala antes de volver a conectarla."));
 
         var conexion = new ConexionIntegracion(
             request.BuzonEmail, request.Nombre, request.ClienteId, gestorPropietarioId: request.GestorPropietarioId);

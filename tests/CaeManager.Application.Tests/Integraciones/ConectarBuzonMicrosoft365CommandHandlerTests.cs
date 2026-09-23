@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Integraciones.Commands.ConectarBuzonMicrosoft365;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Integraciones;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -20,8 +21,10 @@ public class ConectarBuzonMicrosoft365CommandHandlerTests
         EmpresaRepositorioFalso clienteRepositorio,
         AlcanceDatosServiceFalso alcanceDatos,
         Microsoft365GraphClientFalso graphClient,
-        DirectorioUsuariosServiceFalso? directorioUsuarios = null) =>
-        new(conexionRepositorio, credencialRepositorio, suscripcionRepositorio, reclamacionRepositorio, clienteRepositorio, alcanceDatos,
+        DirectorioUsuariosServiceFalso? directorioUsuarios = null,
+        IntegracionesQueryContextFalso? queryContext = null) =>
+        new(conexionRepositorio, credencialRepositorio, suscripcionRepositorio, reclamacionRepositorio,
+            queryContext ?? new IntegracionesQueryContextFalso(), clienteRepositorio, alcanceDatos,
             directorioUsuarios ?? new DirectorioUsuariosServiceFalso(), graphClient, new TenantActualFalso(TenantId),
             NullLogger<ConectarBuzonMicrosoft365CommandHandler>.Instance);
 
@@ -48,6 +51,38 @@ public class ConectarBuzonMicrosoft365CommandHandlerTests
         reclamacionRepositorio.Reclamaciones.Should().ContainSingle(
             r => r.BuzonEmail == "cae@tenant.com" && r.TenantPropietarioId == TenantId);
         reclamacionRepositorio.VecesGuardado.Should().Be(1);
+    }
+
+    /// <summary>
+    /// Hallazgo de la revisión puente (Codex sin cuota, 2026-09-23): el índice
+    /// único global de <see cref="ReclamacionBuzonIntegracion"/> no distingue
+    /// "otro Tenant" de "el mismo Tenant que ya lo tiene reclamado" — sin esta
+    /// comprobación previa, repetir el flujo OAuth para un buzón ya conectado
+    /// por uno mismo caería en el mensaje "conectado en otra organización",
+    /// que es falso.
+    /// </summary>
+    [Fact]
+    public async Task Rechaza_reconectar_un_buzon_que_el_propio_tenant_ya_tiene_activo_con_mensaje_preciso()
+    {
+        var conexionExistente = new ConexionIntegracion("CAE@Tenant.com", "Buzón CAE ya conectado");
+        var queryContext = new IntegracionesQueryContextFalso();
+        queryContext.ConexionesLista.Add(conexionExistente);
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        var reclamacionRepositorio = new ReclamacionBuzonIntegracionRepositorioFalso();
+        var handler = CrearHandler(
+            conexionRepositorio, new CredencialIntegracionRepositorioFalso(), new SuscripcionWebhookRepositorioFalso(), reclamacionRepositorio,
+            new EmpresaRepositorioFalso(), new AlcanceDatosServiceFalso(), new Microsoft365GraphClientFalso(),
+            queryContext: queryContext);
+
+        var resultado = await handler.Handle(
+            new ConectarBuzonMicrosoft365Command(
+                "cae@tenant.com", "Buzón CAE (repetido)", ClienteId: null, "access-token", "refresh-token", "https://hydra.local"),
+            CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Integraciones.Microsoft365.BuzonYaConectadoEnEstaOrganizacion");
+        conexionRepositorio.Conexiones.Should().BeEmpty("no debe crear una segunda conexión duplicada");
+        reclamacionRepositorio.VecesGuardado.Should().Be(0, "debe fallar antes de intentar la reclamación global");
     }
 
     [Fact]
