@@ -305,7 +305,7 @@
                                     <option value="">@Textos["OpcionElegirTecnico"]</option>
                                     @foreach (var trabajador in _trabajadoresDisponibles)
                                     {
-                                        <option value="@trabajador.Id">@trabajador.NombreCompleto (@trabajador.Dni)</option>
+                                        <option value="@trabajador.Id">@trabajador.NombreCompleto</option>
                                     }
                                 </CampoSelect>
                                 <CampoTexto Etiqueta="@Textos["EtiquetaFechaAlta"]" Type="date" Valor="@_nuevoTecnicoFechaAlta" ValorChanged="v => _nuevoTecnicoFechaAlta = v" />

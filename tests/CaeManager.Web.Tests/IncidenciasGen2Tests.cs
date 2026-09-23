@@ -93,6 +93,8 @@ public class IncidenciasGen2Tests : BunitContext
 
         public Dictionary<Guid, IncidenciaDetalleDto> Detalles { get; } = [];
 
+        public IReadOnlyList<TrabajadorSelectorDto> TrabajadoresSelector { get; set; } = [];
+
         public Result RespuestaEditar { get; set; } = Result.Exito();
 
         public TaskCompletionSource<Result>? RespuestaEditarPendiente { get; set; }
@@ -141,7 +143,7 @@ public class IncidenciasGen2Tests : BunitContext
                     return Task.FromResult((TResponse)(object)Array.Empty<CentroSelectorDto>());
 
                 case ObtenerTrabajadoresParaSelectorQuery:
-                    return Task.FromResult((TResponse)(object)Array.Empty<TrabajadorSelectorDto>());
+                    return Task.FromResult((TResponse)(object)TrabajadoresSelector);
 
                 case EditarIncidenciaCommand:
                     if (RespuestaEditarPendiente is not null)
@@ -285,6 +287,29 @@ public class IncidenciasGen2Tests : BunitContext
         comando.Version.Should().Be(VersionBeta);
         comando.Descripcion.Should().Be("Andamio sin barandilla");
         comando.Gravedad.Should().Be(GravedadIncidencia.MuyGrave);
+    }
+
+    /// <summary>
+    /// P4 (2026-09-23): el selector de Trabajador de la incidencia ofrece la base general del Tenant
+    /// sin DNI. El fake siembra un DNI conocido en el origen (<see cref="TrabajadorSelectorFalso"/>).
+    /// </summary>
+    [Fact]
+    public async Task El_selector_de_trabajador_de_la_incidencia_no_muestra_el_DNI()
+    {
+        var trabajadorId = Guid.NewGuid();
+        var mediador = new MediadorControlado
+        {
+            Filas = [Fila(IdAlfa, "Centro Alfa")],
+            TrabajadoresSelector = [TrabajadorSelectorFalso.Crear(trabajadorId, "Iker Zubiri Olano")],
+        };
+        var cut = Renderizar(mediador);
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro Alfa"));
+
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "+ Nueva incidencia").ClickAsync(new());
+
+        var opcion = cut.Find($".drawer-panel option[value='{trabajadorId}']");
+        opcion.TextContent.Trim().Should().Be("Iker Zubiri Olano");
+        cut.Markup.Should().NotContain(TrabajadorSelectorFalso.DniSembrado);
     }
 
     [Fact]

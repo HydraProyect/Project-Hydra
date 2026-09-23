@@ -53,7 +53,7 @@ public partial class Visitas : ComponentBase
     private IReadOnlyList<CentroSelectorDto> _centrosDisponibles = [];
     private IReadOnlyList<TrabajadorSelectorDto> _trabajadoresDisponibles = [];
     private IReadOnlyList<ElementoSeleccionable> _trabajadoresDisponiblesSelector => _trabajadoresDisponibles
-        .Select(t => new ElementoSeleccionable(t.Id, $"{t.NombreCompleto} ({t.Dni})"))
+        .Select(t => new ElementoSeleccionable(t.Id, t.NombreCompleto))
         .ToList();
 
     private bool _drawerVisible;

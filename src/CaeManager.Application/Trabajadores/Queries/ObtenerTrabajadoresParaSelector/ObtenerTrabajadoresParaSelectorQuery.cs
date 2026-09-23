@@ -22,7 +22,7 @@ public enum AlcanceSelectorTrabajadores
     /// una Gestión, un Proyecto, un documento generado, un alias— y de los filtros de listados
     /// que ya están acotados. Varios de esos comandos exigen además que el Trabajador sea visible
     /// (CrearGestionesParaTrabajador, AsignarTecnicoProyecto, GenerarDocumentoIndividual,
-    /// AsignarAliasTrabajador): ofrecer ahí a uno fuera de cartera enseña su nombre y su DNI y
+    /// AsignarAliasTrabajador): ofrecer ahí a uno fuera de cartera enseña su nombre y
     /// termina en «No encontramos este trabajador».
     /// </summary>
     Cartera,
@@ -42,7 +42,17 @@ public enum AlcanceSelectorTrabajadores
 public record ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores Alcance)
     : IRequest<IReadOnlyList<TrabajadorSelectorDto>>;
 
-public record TrabajadorSelectorDto(Guid Id, string NombreCompleto, string? Dni, string? Alias);
+/// <summary>
+/// Opción de un selector de Trabajador. Sin DNI por diseño, en los dos alcances (P4, 2026-09-23):
+/// la etiqueta de un selector no es una vista autorizada ni justificada para enseñar un dato
+/// identificativo, y la cartera de un Gestor CAE puede ser el Tenant entero, así que el alcance
+/// Cartera tampoco lo justifica. Que el tipo no tenga la propiedad hace la garantía estructural:
+/// ninguna superficie puede volver a pintarlo sin cambiar este contrato (lo fija
+/// TrabajadorSelectorDtoSinDniTests). Para distinguir homónimos solo se usa el Alias. El DNI
+/// sigue en la ficha del Trabajador y en las lecturas que lo necesitan (pre-relleno documental,
+/// que verifica la identidad por DNI en el servidor, nunca por la etiqueta).
+/// </summary>
+public record TrabajadorSelectorDto(Guid Id, string NombreCompleto, string? Alias);
 
 public class ObtenerTrabajadoresParaSelectorQueryHandler(ITrabajadoresQueryContext dbContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerTrabajadoresParaSelectorQuery, IReadOnlyList<TrabajadorSelectorDto>>
@@ -63,7 +73,7 @@ public class ObtenerTrabajadoresParaSelectorQueryHandler(ITrabajadoresQueryConte
 
         return await consulta
             .OrderBy(t => t.Apellidos).ThenBy(t => t.Nombre)
-            .Select(t => new TrabajadorSelectorDto(t.Id, t.Nombre + " " + t.Apellidos, t.Dni, t.Alias))
+            .Select(t => new TrabajadorSelectorDto(t.Id, t.Nombre + " " + t.Apellidos, t.Alias))
             .ToListAsync(cancellationToken);
     }
 }

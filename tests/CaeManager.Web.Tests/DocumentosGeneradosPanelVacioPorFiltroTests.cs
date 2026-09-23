@@ -132,8 +132,8 @@ public class DocumentosGeneradosPanelVacioPorFiltroTests : BunitContext
 
     private static readonly IReadOnlyList<TrabajadorSelectorDto> Trabajadores =
     [
-        new(TrabajadorId, "Marta Ruiz", "12345678Z", null),
-        new(OtroTrabajadorId, "Juan Pérez", "87654321X", null)
+        new(TrabajadorId, "Marta Ruiz", null),
+        new(OtroTrabajadorId, "Juan Pérez", null)
     ];
 
     private static string DescripcionDelVacio(IRenderedComponent<DocumentosGeneradosPanel> cut)

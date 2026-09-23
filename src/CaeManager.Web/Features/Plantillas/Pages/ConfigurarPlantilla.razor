@@ -289,7 +289,7 @@
                                             <label class="editor-plantilla-casilla">
                                                 <input type="checkbox" checked="@_trabajadoresSeleccionadosLote.Contains(trabajador.Id)"
                                                        @onchange="e => AlternarTrabajadorLote(trabajador.Id, e.Value is bool b && b)" />
-                                                @trabajador.NombreCompleto (@trabajador.Dni)
+                                                @trabajador.NombreCompleto
                                             </label>
                                         }
                                     </div>
@@ -301,7 +301,7 @@
                                     <option value="">— Selecciona —</option>
                                     @foreach (var trabajador in _trabajadoresDisponibles)
                                     {
-                                        <option value="@trabajador.Id">@trabajador.NombreCompleto (@trabajador.Dni)</option>
+                                        <option value="@trabajador.Id">@trabajador.NombreCompleto</option>
                                     }
                                 </CampoSelect>
                             }

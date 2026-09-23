@@ -34,7 +34,7 @@ public partial class DrawerAsignacionMasiva : ComponentBase
     private IReadOnlyList<DocumentoFaltanteDto> _documentosFaltantes = [];
 
     private IReadOnlyList<ElementoSeleccionable> _trabajadoresComoOpciones =>
-        _trabajadoresDisponibles.Select(t => new ElementoSeleccionable(t.Id, $"{t.NombreCompleto} ({t.Dni})")).ToList();
+        _trabajadoresDisponibles.Select(t => new ElementoSeleccionable(t.Id, t.NombreCompleto)).ToList();
 
     private IReadOnlyList<ElementoSeleccionable> _centrosComoOpciones =>
         _centrosDisponibles.Select(c => new ElementoSeleccionable(c.Id, $"{c.Nombre} ({c.ClienteRazonSocial})")).ToList();

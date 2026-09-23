@@ -69,6 +69,8 @@ public class VisitasGen2Tests : BunitContext
 
         public TramoAntelacion? Tramo { get; set; }
 
+        public IReadOnlyList<TrabajadorSelectorDto> TrabajadoresSelector { get; set; } = [];
+
         public List<object> Comandos { get; } = [];
 
         public int ConsultasVisitas { get; private set; }
@@ -155,7 +157,7 @@ public class VisitasGen2Tests : BunitContext
                     return Respuesta<TResponse>(Array.Empty<CentroSelectorDto>());
 
                 case ObtenerTrabajadoresParaSelectorQuery:
-                    return Respuesta<TResponse>(Array.Empty<TrabajadorSelectorDto>());
+                    return Respuesta<TResponse>(TrabajadoresSelector);
 
                 default:
                     throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.");
@@ -613,6 +615,26 @@ public class VisitasGen2Tests : BunitContext
         await cut.FindAll(".acciones-cabecera button").First(b => b.TextContent.Contains("Nueva visita")).ClickAsync(new MouseEventArgs());
         cut.Markup.Should().Contain("Notificada a la empresa titular del centro", "el formulario tiene que estar abierto");
         cliente.IsMatch(cut.Markup).Should().BeFalse("en el formulario");
+    }
+
+    /// <summary>
+    /// P4 (2026-09-23): «Trabajadores que entran» ofrece la base general del Tenant sin DNI. El fake
+    /// siembra un DNI conocido en el origen (<see cref="TrabajadorSelectorFalso"/>).
+    /// </summary>
+    [Fact]
+    public async Task El_selector_de_trabajadores_que_entran_no_muestra_el_DNI()
+    {
+        var mediator = new MediatorVisitas
+        {
+            TrabajadoresSelector = [TrabajadorSelectorFalso.Crear(Guid.NewGuid(), "Iker Zubiri Olano")],
+        };
+        var cut = Renderizar(mediator);
+
+        await cut.FindAll(".acciones-cabecera button").First(b => b.TextContent.Contains("Nueva visita")).ClickAsync(new MouseEventArgs());
+
+        var selector = cut.FindComponents<SelectorMultiple>().Single();
+        selector.Instance.Elementos.Select(e => e.Nombre).Should().Equal("Iker Zubiri Olano");
+        cut.Markup.Should().Contain("Iker Zubiri Olano").And.NotContain(TrabajadorSelectorFalso.DniSembrado);
     }
 
     [Fact]

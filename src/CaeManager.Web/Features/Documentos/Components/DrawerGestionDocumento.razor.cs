@@ -100,7 +100,7 @@ public partial class DrawerGestionDocumento : ComponentBase
     private IReadOnlyList<OpcionBuscable> OpcionesTrabajadores => _trabajadoresDisponibles
         .Select(t => new OpcionBuscable(
             t.Id.ToString(),
-            string.IsNullOrWhiteSpace(t.Alias) ? $"{t.NombreCompleto} ({t.Dni})" : $"{t.NombreCompleto} — {t.Alias} ({t.Dni})"))
+            string.IsNullOrWhiteSpace(t.Alias) ? t.NombreCompleto : $"{t.NombreCompleto} — {t.Alias}"))
         .ToList();
 
     /// <summary>

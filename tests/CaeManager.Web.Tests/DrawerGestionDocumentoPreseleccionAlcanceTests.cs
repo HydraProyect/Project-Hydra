@@ -127,7 +127,7 @@ public class DrawerGestionDocumentoPreseleccionAlcanceTests : BunitContext
     [Fact]
     public async Task Un_trabajadorId_presente_en_el_catalogo_cargado_si_se_preselecciona()
     {
-        var trabajador = new TrabajadorSelectorDto(Guid.NewGuid(), "Ruiz Peña, Ana", "12345678A", null);
+        var trabajador = new TrabajadorSelectorDto(Guid.NewGuid(), "Ruiz Peña, Ana", null);
         var cut = Renderizar(new MediatorFalso { Trabajadores = [trabajador], Empresas = [] });
 
         await cut.InvokeAsync(() => cut.Instance.AbrirCrearParaFaltanteAsync(trabajador.Id, Guid.NewGuid()));
@@ -160,7 +160,7 @@ public class DrawerGestionDocumentoPreseleccionAlcanceTests : BunitContext
     [Fact]
     public async Task Un_trabajadorId_ajeno_al_catalogo_cargado_avisa_de_que_no_lo_encontramos()
     {
-        var visible = new TrabajadorSelectorDto(Guid.NewGuid(), "Ruiz Peña, Ana", "12345678A", null);
+        var visible = new TrabajadorSelectorDto(Guid.NewGuid(), "Ruiz Peña, Ana", null);
         var cut = Renderizar(new MediatorFalso { Trabajadores = [visible], Empresas = [] });
 
         await cut.InvokeAsync(() => cut.Instance.AbrirCrearParaFaltanteAsync(Guid.NewGuid(), Guid.NewGuid()));
@@ -168,10 +168,30 @@ public class DrawerGestionDocumentoPreseleccionAlcanceTests : BunitContext
         cut.Find("[role=alert]").TextContent.Should().Contain("No encontramos este trabajador");
     }
 
+    /// <summary>
+    /// P4 (2026-09-23): el selector de Trabajador del drawer, de alcance Cartera, no enseña el DNI:
+    /// ni en las opciones del buscador ni en el texto del Trabajador preseleccionado. Los homónimos
+    /// se distinguen por el Alias. El fake siembra un DNI conocido en el origen
+    /// (<see cref="TrabajadorSelectorFalso"/>).
+    /// </summary>
+    [Fact]
+    public async Task El_selector_de_Trabajador_no_muestra_el_DNI_y_distingue_homonimos_por_alias()
+    {
+        var conAlias = TrabajadorSelectorFalso.Crear(Guid.NewGuid(), "Ana Ruiz Peña", alias: "Anita");
+        var sinAlias = TrabajadorSelectorFalso.Crear(Guid.NewGuid(), "Ana Ruiz Peña");
+        var cut = Renderizar(new MediatorFalso { Trabajadores = [conAlias, sinAlias], Empresas = [] });
+
+        await cut.InvokeAsync(() => cut.Instance.AbrirCrearParaFaltanteAsync(conAlias.Id, Guid.NewGuid()));
+
+        var buscador = cut.FindComponents<CampoBuscarSelect>().Single(c => c.Instance.Etiqueta == "Trabajador");
+        buscador.Instance.Opciones.Select(o => o.Texto).Should().Equal("Ana Ruiz Peña — Anita", "Ana Ruiz Peña");
+        cut.Markup.Should().Contain("Ana Ruiz Peña — Anita").And.NotContain(TrabajadorSelectorFalso.DniSembrado);
+    }
+
     [Fact]
     public async Task Un_trabajadorId_presente_en_el_catalogo_cargado_no_pinta_ningun_aviso()
     {
-        var trabajador = new TrabajadorSelectorDto(Guid.NewGuid(), "Ruiz Peña, Ana", "12345678A", null);
+        var trabajador = new TrabajadorSelectorDto(Guid.NewGuid(), "Ruiz Peña, Ana", null);
         var cut = Renderizar(new MediatorFalso { Trabajadores = [trabajador], Empresas = [] });
 
         await cut.InvokeAsync(() => cut.Instance.AbrirCrearParaFaltanteAsync(trabajador.Id, Guid.NewGuid()));
