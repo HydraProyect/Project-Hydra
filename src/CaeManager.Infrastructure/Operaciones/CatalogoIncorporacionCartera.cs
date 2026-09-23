@@ -184,12 +184,20 @@ public class CatalogoIncorporacionCartera(
     {
         if (asignacionCarteraIds.Count == 0) return new HashSet<Guid>();
 
+        // La cartera y la Asignación de Operación que la sostiene, las dos vigentes (mismo
+        // criterio que ObtenerOperacionVigenteAsync): una operación caducada o suspendida deja
+        // la cartera sin efecto aunque la propia cartera siga marcada como vigente.
         var ahora = DateTime.UtcNow;
-        var vigentes = await dbContext.AsignacionesCartera
-            .Where(c => asignacionCarteraIds.Contains(c.Id)
-                        && c.Estado == EstadoAsignacion.Vigente
-                        && (c.VigenciaHasta == null || ahora < c.VigenciaHasta))
-            .Select(c => c.Id)
+        var vigentes = await (
+                from c in dbContext.AsignacionesCartera
+                join o in dbContext.AsignacionesOperacion on c.AsignacionOperacionId equals o.Id
+                where asignacionCarteraIds.Contains(c.Id)
+                      && c.Estado == EstadoAsignacion.Vigente
+                      && (c.VigenciaHasta == null || ahora < c.VigenciaHasta)
+                      && o.Estado == EstadoAsignacion.Vigente
+                      && o.VigenciaDesde <= ahora
+                      && (o.VigenciaHasta == null || ahora < o.VigenciaHasta)
+                select c.Id)
             .ToListAsync(cancellationToken);
 
         return vigentes.ToHashSet();

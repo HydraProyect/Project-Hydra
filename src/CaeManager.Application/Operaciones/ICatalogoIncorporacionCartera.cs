@@ -91,7 +91,10 @@ public interface ICatalogoIncorporacionCartera
     /// </summary>
     void DescartarPendientes();
 
-    /// <summary>Ids de las carteras de la lista que siguen vigentes hoy.</summary>
+    /// <summary>
+    /// Ids de las carteras de la lista que siguen vigentes hoy, con su Asignación de
+    /// Operación también vigente: sin operación, la cartera no da acceso.
+    /// </summary>
     Task<IReadOnlySet<Guid>> FiltrarCarterasVigentesAsync(
         IReadOnlyCollection<Guid> asignacionCarteraIds, CancellationToken cancellationToken = default);
 }

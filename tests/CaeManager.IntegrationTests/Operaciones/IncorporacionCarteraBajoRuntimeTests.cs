@@ -193,6 +193,55 @@ public class IncorporacionCarteraBajoRuntimeTests : IAsyncLifetime
         }
     }
 
+    /// <summary>
+    /// Hallazgo de Codex (P2, ronda 3): una incorporación cuya Asignación de Operación caducó o se
+    /// suspendió ya no da acceso, aunque el proceso que cierra la cartera no haya pasado todavía.
+    /// La bandeja no la ofrece como vigente ni, por tanto, como revocable.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Una_cartera_cuya_operacion_ya_no_esta_vigente_no_cuenta_como_vigente(bool caducada)
+    {
+        var solicitudId = await SolicitarAsync();
+        await using (var contexto = ContextoRuntime(_coordinador, _operador.Id, "CoordinadorCae"))
+        {
+            (await Aceptar(contexto).Handle(new AceptarSolicitudIncorporacionCarteraCommand(solicitudId), CancellationToken.None))
+                .EsExitoso.Should().BeTrue();
+        }
+
+        Guid carteraId;
+        await using (var propietario = ContextoPropietario())
+        {
+            carteraId = (await propietario.SolicitudesIncorporacionCartera.AsNoTracking().SingleAsync(s => s.Id == solicitudId))
+                .AsignacionCarteraId!.Value;
+        }
+
+        await using (var contexto = ContextoRuntime(_coordinador, _operador.Id, "CoordinadorCae"))
+        using (AmbitoTenantExplicito.Establecer(_operador.Id))
+        {
+            (await Catalogo(contexto).FiltrarCarterasVigentesAsync([carteraId])).Should().Contain(carteraId, "control positivo");
+        }
+
+        await using (var propietario = ContextoPropietario())
+        {
+            var operacion = propietario.AsignacionesOperacion.Where(o => o.Id == _operacionId);
+            if (caducada)
+                await operacion.ExecuteUpdateAsync(s => s.SetProperty(o => o.VigenciaHasta, DateTime.UtcNow.AddMinutes(-1)));
+            else
+                await operacion.ExecuteUpdateAsync(s => s.SetProperty(o => o.Estado, EstadoAsignacion.Suspendida));
+
+            (await propietario.AsignacionesCartera.AsNoTracking().SingleAsync(c => c.Id == carteraId))
+                .Estado.Should().Be(EstadoAsignacion.Vigente, "la cartera sigue abierta: nadie la ha cerrado aún");
+        }
+
+        await using (var contexto = ContextoRuntime(_coordinador, _operador.Id, "CoordinadorCae"))
+        using (AmbitoTenantExplicito.Establecer(_operador.Id))
+        {
+            (await Catalogo(contexto).FiltrarCarterasVigentesAsync([carteraId])).Should().BeEmpty();
+        }
+    }
+
     [Fact]
     public async Task El_repositorio_filtra_por_Operador_CAE_aunque_la_conexion_no_aplique_RLS()
     {
