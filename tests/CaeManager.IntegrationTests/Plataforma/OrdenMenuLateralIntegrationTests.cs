@@ -125,6 +125,23 @@ public class OrdenMenuLateralIntegrationTests : IAsyncLifetime
             "cada cambio se audita con el Actor real");
     }
 
+    [Fact]
+    public async Task Dos_altas_simultaneas_de_la_primera_fila_la_segunda_es_conflicto_y_no_excepcion()
+    {
+        // Las dos sesiones leen "no hay fila" antes de que ninguna guarde.
+        await using var primera = Sesion(_actorPlataforma, _tenantPlataforma);
+        await using var segunda = Sesion(_actorPlataforma, _tenantPlataforma);
+        (await primera.Leer()).Should().BeNull();
+        (await segunda.Leer()).Should().BeNull();
+
+        (await primera.AltaDirecta(["control"])).Should().BeTrue();
+        (await segunda.AltaDirecta(["plataforma"])).Should().BeFalse(
+            "la clave canónica ya existe: el repositorio lo traduce a conflicto en vez de lanzar el 23505");
+
+        await using var lector = Sesion(_usuarioTenantA, _tenantA);
+        (await lector.Leer())!.Grupos.Should().Equal("control");
+    }
+
     // ── PostgreSQL/RLS ──────────────────────────────────────────────────────
 
     [Fact]
@@ -218,6 +235,10 @@ public class OrdenMenuLateralIntegrationTests : IAsyncLifetime
                 _contexto,
                 new CacheOrdenMenuLateral())
             .Handle(comando, CancellationToken.None);
+
+        public Task<bool> AltaDirecta(IReadOnlyList<string> grupos) =>
+            new OrdenMenuLateralRepository(_contexto).AgregarYGuardarAsync(
+                OrdenMenuLateral.Crear(grupos, [], _usuarioId, DateTime.UtcNow));
 
         // Caché nueva a propósito: se mide lo que ve cada Tenant en la base, no lo que
         // recuerda el proceso.

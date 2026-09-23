@@ -183,6 +183,19 @@ public class NavMenuCaracterizacionTests
             .And.StartWith("control");
     }
 
+    /// <summary>
+    /// La fila solo se valida al escribir: un nulo o un repetido metidos por SQL no pueden tumbar
+    /// el menú de todos los Tenants.
+    /// </summary>
+    [Fact]
+    public void La_reconciliacion_tolera_nulos_y_repetidos_de_una_fila_tocada_a_mano()
+    {
+        string[] catalogo = ["a", "b", "c"];
+
+        CatalogoMenuLateral.Reconciliar(catalogo, x => x, ["c", null!, "c", "fantasma", "a"])
+            .Should().Equal("c", "a", "b");
+    }
+
     private static IRenderedComponent<NavMenu> Pintar(Combinacion c, OrdenMenuLateralDto? orden)
     {
         var ctx = new BunitContext();

@@ -54,28 +54,44 @@ public class GuardarOrdenMenuLateralCommandHandler(
         var actorReal = (await actorAuditoria.ObtenerAsync()).ActorRealUsuarioId ?? usuarioId.Value;
         var ahora = DateTime.UtcNow;
 
-        try
+        var orden = await repositorio.ObtenerAsync(cancellationToken);
+        if (orden is null)
         {
-            var orden = await repositorio.ObtenerAsync(cancellationToken);
-            if (orden is null)
+            if (request.VersionEsperada != Guid.Empty)
+                return Result.Fallo(Conflicto());
+
+            OrdenMenuLateral nuevo;
+            try
             {
-                if (request.VersionEsperada != Guid.Empty)
-                    return Result.Fallo(Conflicto());
-                repositorio.Agregar(OrdenMenuLateral.Crear(request.Grupos, request.Enlaces, actorReal, ahora));
+                nuevo = OrdenMenuLateral.Crear(request.Grupos, request.Enlaces, actorReal, ahora);
             }
-            else
+            catch (ArgumentException ex)
             {
-                if (orden.Version != request.VersionEsperada)
-                    return Result.Fallo(Conflicto());
+                return Result.Fallo(Error.Crear("OrdenMenu.NoValido", ex.Message));
+            }
+
+            // Dos Actores de Plataforma que guardan a la vez la primera fila: el segundo choca con la
+            // clave canónica y recibe el mismo conflicto que con una versión vieja.
+            if (!await repositorio.AgregarYGuardarAsync(nuevo, cancellationToken))
+                return Result.Fallo(Conflicto());
+        }
+        else
+        {
+            if (orden.Version != request.VersionEsperada)
+                return Result.Fallo(Conflicto());
+
+            try
+            {
                 orden.Reordenar(request.Grupos, request.Enlaces, actorReal, ahora);
             }
-        }
-        catch (ArgumentException ex)
-        {
-            return Result.Fallo(Error.Crear("OrdenMenu.NoValido", ex.Message));
+            catch (ArgumentException ex)
+            {
+                return Result.Fallo(Error.Crear("OrdenMenu.NoValido", ex.Message));
+            }
+
+            await unitOfWork.SaveChangesAsync(cancellationToken);
         }
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
         cache.Invalidar();
 
         return Result.Exito();

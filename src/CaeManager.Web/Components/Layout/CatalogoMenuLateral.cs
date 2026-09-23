@@ -237,8 +237,11 @@ public static class CatalogoMenuLateral
             return catalogo;
 
         var posicion = new Dictionary<string, int>(StringComparer.Ordinal);
+        // Nulos y repetidos no los deja entrar el dominio, pero la fila solo se valida al escribir:
+        // una fila tocada por SQL no puede tumbar el menú de todos los Tenants.
         foreach (var identificador in orden)
-            posicion.TryAdd(identificador, posicion.Count);
+            if (identificador is not null)
+                posicion.TryAdd(identificador, posicion.Count);
 
         // OrderBy es estable: entre los que no están guardados se conserva el orden del catálogo.
         return catalogo

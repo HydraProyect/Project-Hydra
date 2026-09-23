@@ -32,6 +32,7 @@ public class GuardarOrdenMenuLateralCommandTests
 
         resultado.Error.Codigo.Should().Be("OrdenMenu.SinPermiso");
         _repositorio.Orden.Should().BeNull();
+        _repositorio.Altas.Should().Be(0);
         _unitOfWork.VecesGuardado.Should().Be(0);
     }
 
@@ -62,7 +63,7 @@ public class GuardarOrdenMenuLateralCommandTests
         resultado.EsExitoso.Should().BeTrue();
         _repositorio.Orden!.OrdenGrupos.Should().Equal("plataforma");
         _repositorio.Orden.ActualizadoPorUsuarioId.Should().Be(actorReal, "se registra el Actor real, no la identidad efectiva");
-        _unitOfWork.VecesGuardado.Should().Be(1);
+        _repositorio.Altas.Should().Be(1);
         _cache.IntentarObtener(out _, out _).Should().BeFalse("al guardar se invalida la caché global");
     }
 
@@ -109,14 +110,36 @@ public class GuardarOrdenMenuLateralCommandTests
             .Handle(new GuardarOrdenMenuLateralCommand(["No Valido"], [], Guid.Empty), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be("OrdenMenu.NoValido");
+        _repositorio.Altas.Should().Be(0);
         _unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Si_otro_Actor_crea_la_primera_fila_a_la_vez_es_conflicto_y_no_excepcion()
+    {
+        _repositorio.AltaConcurrente = true;
+
+        var resultado = await Handler(AutorizacionAdminPlataformaFalsa.Global())
+            .Handle(new GuardarOrdenMenuLateralCommand(["plataforma"], [], Guid.Empty), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(ConcurrenciaOptimista.CodigoConflicto);
     }
 
     private sealed class RepositorioFalso : IOrdenMenuLateralRepository
     {
         public OrdenMenuLateral? Orden { get; set; }
+        public bool AltaConcurrente { get; set; }
+        public int Altas { get; private set; }
         public Task<OrdenMenuLateral?> ObtenerAsync(CancellationToken cancellationToken = default) => Task.FromResult(Orden);
-        public void Agregar(OrdenMenuLateral orden) => Orden = orden;
+        public Task<OrdenMenuLateral?> ObtenerSinSeguimientoAsync(CancellationToken cancellationToken = default) => Task.FromResult(Orden);
+
+        public Task<bool> AgregarYGuardarAsync(OrdenMenuLateral orden, CancellationToken cancellationToken = default)
+        {
+            if (AltaConcurrente) return Task.FromResult(false);
+            Orden = orden;
+            Altas++;
+            return Task.FromResult(true);
+        }
     }
 
     private sealed class ActorAuditoriaFalso(ActorAuditoria actor) : IActorAuditoria

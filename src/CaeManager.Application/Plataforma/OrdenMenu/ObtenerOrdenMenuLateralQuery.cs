@@ -18,7 +18,7 @@ public class ObtenerOrdenMenuLateralQueryHandler(IOrdenMenuLateralRepository rep
         if (cache.IntentarObtener(out var enCache, out var generacion))
             return enCache;
 
-        var orden = await repositorio.ObtenerAsync(cancellationToken);
+        var orden = await repositorio.ObtenerSinSeguimientoAsync(cancellationToken);
         var dto = orden is null
             ? null
             : new OrdenMenuLateralDto(
