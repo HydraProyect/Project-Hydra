@@ -20,13 +20,15 @@ namespace CaeManager.Application.Common;
 /// ESTRECHA —nunca amplía— y, como estos métodos también los consultan los comandos, un comando
 /// ve el mismo alcance estrechado que un Gestor real: solo puede ser más estricto, jamás menos.
 ///
-/// Solo se aplica a las consultas de LISTADO (tablas, Dashboard, Alertas,
-/// Reportes) — los selectores de "elige de la base general" (Trabajador,
-/// Vehículo: ver ObtenerTrabajadoresParaSelectorQuery/
-/// ObtenerVehiculosParaSelectorQuery) se dejan sin restringir a propósito,
+/// Se aplica a las consultas de LISTADO (tablas, Dashboard, Alertas,
+/// Reportes) y a los selectores que cuelgan algo de una entidad ya existente
+/// (Documento, Gestión, Proyecto...). La excepción son los selectores de
+/// Trabajador que piden explícitamente la base general
+/// (AlcanceSelectorTrabajadores.BaseGeneralDelTenant, ver allí sus
+/// consumidores): el de Asignación masiva se deja sin restringir a propósito,
 /// porque un mismo Trabajador de una Subcontrata puede prestar servicio a
-/// varios Clientes de distintos Gestores CAE, y hace falta poder añadirlo
-/// a los propios Centros aunque todavía no aparezca en el listado visible.
+/// Clientes empresariales de distintos Gestores CAE, y hace falta poder crear
+/// su primera Asignación aunque todavía no aparezca en la cartera visible.
 /// </summary>
 public interface IAlcanceDatosService
 {
@@ -92,11 +94,13 @@ public interface IAlcanceDatosService
     /// <summary>
     /// Trabajadores con al menos una Asignación activa a un Centro visible y, para un Gestor o
     /// Coordinador CAE con cartera, además toda la plantilla de la Empresa propia del Tenant aunque
-    /// no tenga ninguna Asignación — usar solo en listados, no en selectores.
+    /// no tenga ninguna Asignación. Lo usan los listados y los selectores con alcance
+    /// <c>AlcanceSelectorTrabajadores.Cartera</c>; los selectores de base general del Tenant no
+    /// pasan por aquí (ver <c>AlcanceSelectorTrabajadores</c>).
     /// </summary>
     Task<IReadOnlyList<Guid>?> ObtenerTrabajadorIdsVisiblesAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>Vehículos de una Empresa/Subcontrata visible — usar solo en listados, no en selectores.</summary>
+    /// <summary>Vehículos de una Empresa/Subcontrata visible — listados y selectores.</summary>
     Task<IReadOnlyList<Guid>?> ObtenerVehiculoIdsVisiblesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>

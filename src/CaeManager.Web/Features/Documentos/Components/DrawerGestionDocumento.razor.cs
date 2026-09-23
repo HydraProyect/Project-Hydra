@@ -127,7 +127,7 @@ public partial class DrawerGestionDocumento : ComponentBase
         await DescartarArchivoSinAdoptarAsync();
 
         _ambitoAplicacion = nameof(AmbitoAplicacion.Trabajador);
-        _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
+        _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera));
         _tiposDisponibles = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: AmbitoAplicacion.Trabajador));
 
         _editandoId = null;
