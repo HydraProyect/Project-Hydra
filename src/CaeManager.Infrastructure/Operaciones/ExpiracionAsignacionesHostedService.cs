@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Infrastructure.Coordinacion;
 using CaeManager.Infrastructure.Persistence;
@@ -27,8 +28,13 @@ namespace CaeManager.Infrastructure.Operaciones;
 /// cerrando la misma fila a la vez es justo lo que el token de concurrencia
 /// convertiría en excepción.
 ///
-/// Sin ámbito de tenant: estas dos tablas son catálogo global y cruzan tenants
-/// por naturaleza.
+/// <b>Un Tenant propietario cada vez.</b> Estas dos tablas son catálogo global
+/// —cada fila enlaza un Tenant propietario con un Tenant operador—, pero el job
+/// conecta como <c>cae_app_runtime</c>, no como propietario de la base, y la
+/// política RLS <c>posicion_en_la_asignacion</c> le ata: sin ámbito de tenant
+/// vería cero filas (así estuvo hasta 2026-09-23). Se recorren los Tenants y se
+/// abre un <see cref="AmbitoTenantExplicito"/> por cada uno, igual que el resto
+/// de jobs por Tenant; nunca una identidad que se salte la RLS.
 /// </summary>
 public class ExpiracionAsignacionesHostedService(
     IServiceScopeFactory ambitoFactory,
@@ -75,8 +81,66 @@ public class ExpiracionAsignacionesHostedService(
         }
     }
 
-    private async Task ProcesarAsync(CancellationToken stoppingToken)
+    /// <summary>
+    /// Un ciclo sobre todos los Tenants, uno a uno. Interno para que el test bajo
+    /// <c>cae_app_runtime</c> ejercite exactamente este camino, interceptor
+    /// incluido, sin depender de la elección de líder ni del temporizador.
+    ///
+    /// Todos los Tenants, no solo los activos: la vigencia de una asignación no
+    /// deja de correr porque su Tenant propietario esté suspendido, y el job
+    /// original —que leía el catálogo entero— tampoco distinguía estados.
+    /// </summary>
+    internal async Task ProcesarAsync(CancellationToken stoppingToken)
     {
+        List<Guid> tenants;
+        using (var ambito = ambitoFactory.CreateScope())
+        {
+            tenants = await ambito.ServiceProvider.GetRequiredService<ITenantsQueryContext>()
+                .Tenants.Select(t => t.Id)
+                .ToListAsync(stoppingToken);
+        }
+
+        foreach (var tenantId in tenants)
+        {
+            stoppingToken.ThrowIfCancellationRequested();
+
+            // Aislado por Tenant, igual que el resto de jobs por Tenant: un fallo
+            // en uno no deja sin expirar al resto en este ciclo.
+            try
+            {
+                await ProcesarTenantPropietarioAsync(tenantId, stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex,
+                    "Falló la expiración de asignaciones del Tenant propietario {TenantId}; se continúa con el resto.",
+                    tenantId);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Un pase con <c>app.tenant_id</c> = el Tenant propietario, vía
+    /// <see cref="AmbitoTenantExplicito"/>. La política
+    /// <c>posicion_en_la_asignacion</c> deja ver y escribir sus filas, y ninguna
+    /// otra.
+    ///
+    /// <c>app.tenant_origen_id</c> se queda vacío a propósito (no hay usuario):
+    /// si se fijara al mismo Tenant, el pase vería también las asignaciones que
+    /// ese Tenant <i>opera</i> como Operador CAE externo sobre otros Tenants
+    /// propietarios, y al cerrarlas chocaría contra el <c>WITH CHECK</c>
+    /// (42501). No hace falta: cada fila tiene un solo Tenant propietario, así
+    /// que el pase de ese propietario la alcanza — también la cartera de un
+    /// Operador CAE externo, que comparte propietario con su operación por la
+    /// FK compuesta.
+    /// </summary>
+    private async Task ProcesarTenantPropietarioAsync(Guid tenantId, CancellationToken stoppingToken)
+    {
+        using var _ = AmbitoTenantExplicito.Establecer(tenantId);
         using var ambito = ambitoFactory.CreateScope();
         var dbContext = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
 
@@ -84,7 +148,12 @@ public class ExpiracionAsignacionesHostedService(
     }
 
     /// <summary>
-    /// Un ciclo completo sobre un contexto dado. Existe para que los tests
+    /// Un pase sobre un contexto dado: ve lo que la conexión de ese contexto
+    /// deja ver. En producción, las filas de un Tenant propietario (ver
+    /// <see cref="ProcesarTenantPropietarioAsync"/>); en los tests que lo llaman
+    /// con un contexto de propietario de la base, el catálogo entero — que
+    /// ejercita la lógica, no la RLS (esa la cubre
+    /// <c>ExpiracionAsignacionesBajoRlsTests</c>). Existe para que los tests
     /// puedan ejercitar la lógica —en particular la revalidación al activar una
     /// programada, que es donde vive el riesgo— sin levantar el servicio de
     /// fondo ni depender de la elección de líder.
