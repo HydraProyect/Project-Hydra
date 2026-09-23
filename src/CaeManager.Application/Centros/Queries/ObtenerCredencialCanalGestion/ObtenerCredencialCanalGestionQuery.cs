@@ -22,10 +22,10 @@ namespace CaeManager.Application.Centros.Queries.ObtenerCredencialCanalGestion;
 /// <para>
 /// Decisión del propietario (2026-09-21): copiar usuario y contraseña con un
 /// clic explícito, siguiendo el precedente de
-/// <c>ObtenerCredencialAccesoEmpresaQuery</c>, <b>sin registro de auditoría de
-/// la lectura</b>. Ese mecanismo no existe todavía; cuando exista, esta consulta
-/// entra en él. Consecuencia conocida: quien pueda leerla, la lee sin que quede
-/// rastro.
+/// <c>ObtenerCredencialAccesoEmpresaQuery</c>. Desde la del 2026-09-23 (opción
+/// D) cada lectura efectiva queda en la auditoría del Tenant propietario como
+/// <c>AccesoDatoSensible</c>, sin el secreto, antes de entregarlo; si no se
+/// puede registrar, no se entrega (<see cref="IRegistroAccesoDatoSensibleService"/>).
 /// </para>
 ///
 /// <para>
