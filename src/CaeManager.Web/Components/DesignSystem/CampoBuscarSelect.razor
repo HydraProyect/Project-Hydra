@@ -77,8 +77,11 @@
             return;
         }
 
-        var coincidencia = Opciones.FirstOrDefault(o => o.Texto == _ultimoTextoTecleado);
-        _ultimoValorNotificado = coincidencia?.Id ?? string.Empty;
+        // Solo una coincidencia exacta y única elige. Con dos opciones de mismo texto, quedarse con
+        // la primera asignaría en silencio la otra entidad (p. ej. un Documento al Trabajador
+        // homónimo): se deja sin elegir y la pantalla pide elegir, como con un texto sin coincidencia.
+        var coincidencias = Opciones.Where(o => o.Texto == _ultimoTextoTecleado).Take(2).ToList();
+        _ultimoValorNotificado = coincidencias.Count == 1 ? coincidencias[0].Id : string.Empty;
         await ValorChanged.InvokeAsync(_ultimoValorNotificado);
     }
 

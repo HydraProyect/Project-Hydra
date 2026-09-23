@@ -231,13 +231,36 @@ public class SelectoresTrabajadorVehiculoAlcanceCarteraTests : IAsyncLifetime
         desdeB.Should().BeEmpty();
     }
 
+    // ── Empleador en la etiqueta (desempate de homónimos sin DNI, P4) ─────
+
+    /// <summary>
+    /// Sin DNI, los homónimos se distinguen por el empleador: la consulta lo trae en la misma
+    /// proyección (LEFT JOIN a Empresas), tanto para un Trabajador de Empresa como para uno de
+    /// Subcontrata. Y el DTO que llega a la UI no lleva el DNI sembrado.
+    /// </summary>
+    [Fact]
+    public async Task El_selector_trae_el_empleador_de_un_Trabajador_de_Empresa_y_de_uno_de_Subcontrata()
+    {
+        await using var contexto = CrearContexto(_tenant);
+        var handler = new ObtenerTrabajadoresParaSelectorQueryHandler(contexto, contexto, CrearAlcance(contexto, _tenant, _gestorA, Roles.GestorCae));
+        var resultado = await handler.Handle(
+            new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.BaseGeneralDelTenant), CancellationToken.None);
+
+        var porId = resultado.ToDictionary(t => t.Id);
+        porId[_a.TrabajadorDentro].EmpleadorNombre.Should().Be("Empresa propia A");
+        porId[_a.TrabajadorDentro].NombreCompleto.Should().Be("Nora Dentro");
+        porId[_a.TrabajadorFuera].EmpleadorNombre.Should().Be("Subcontrata fuera A");
+        resultado.Should().NotContain(t => t.ToString().Contains("22334455Y") || t.ToString().Contains("33445566R"),
+            "el DNI sembrado no viaja en el DTO del selector");
+    }
+
     // ── Infraestructura del test ─────────────────────────────────────────
 
     private async Task<IReadOnlyList<Guid>> TrabajadoresAsync(
         Guid tenant, Guid usuarioId, string rol, AlcanceSelectorTrabajadores alcance)
     {
         await using var contexto = CrearContexto(tenant);
-        var handler = new ObtenerTrabajadoresParaSelectorQueryHandler(contexto, CrearAlcance(contexto, tenant, usuarioId, rol));
+        var handler = new ObtenerTrabajadoresParaSelectorQueryHandler(contexto, contexto, CrearAlcance(contexto, tenant, usuarioId, rol));
         var resultado = await handler.Handle(new ObtenerTrabajadoresParaSelectorQuery(alcance), CancellationToken.None);
         return resultado.Select(t => t.Id).ToList();
     }

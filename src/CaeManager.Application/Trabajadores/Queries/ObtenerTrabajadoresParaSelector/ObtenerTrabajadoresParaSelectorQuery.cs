@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas;
 using CaeManager.Application.Trabajadores;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -48,13 +49,17 @@ public record ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores A
 /// identificativo, y la cartera de un Gestor CAE puede ser el Tenant entero, así que el alcance
 /// Cartera tampoco lo justifica. Que el tipo no tenga la propiedad hace la garantía estructural:
 /// ninguna superficie puede volver a pintarlo sin cambiar este contrato (lo fija
-/// TrabajadorSelectorDtoSinDniTests). Para distinguir homónimos solo se usa el Alias. El DNI
-/// sigue en la ficha del Trabajador y en las lecturas que lo necesitan (pre-relleno documental,
-/// que verifica la identidad por DNI en el servidor, nunca por la etiqueta).
+/// TrabajadorSelectorDtoSinDniTests). Los homónimos se distinguen con datos no sensibles —el
+/// empleador (<see cref="EmpleadorNombre"/>: razón social de su Empresa o Subcontrata) y el
+/// Alias—, y la etiqueta la construye siempre <see cref="EtiquetasSelectorTrabajador"/>, que la
+/// garantiza única dentro de la lista. El DNI sigue en la ficha del Trabajador y en las lecturas
+/// que lo necesitan (pre-relleno documental, que verifica la identidad por DNI en el servidor,
+/// nunca por la etiqueta).
 /// </summary>
-public record TrabajadorSelectorDto(Guid Id, string NombreCompleto, string? Alias);
+public record TrabajadorSelectorDto(Guid Id, string NombreCompleto, string? Alias, string? EmpleadorNombre);
 
-public class ObtenerTrabajadoresParaSelectorQueryHandler(ITrabajadoresQueryContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerTrabajadoresParaSelectorQueryHandler(
+    ITrabajadoresQueryContext dbContext, IEmpresasQueryContext empresasContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerTrabajadoresParaSelectorQuery, IReadOnlyList<TrabajadorSelectorDto>>
 {
     public async Task<IReadOnlyList<TrabajadorSelectorDto>> Handle(
@@ -71,9 +76,20 @@ public class ObtenerTrabajadoresParaSelectorQueryHandler(ITrabajadoresQueryConte
                 consulta = consulta.Where(t => trabajadorIdsVisibles.Contains(t.Id));
         }
 
-        return await consulta
-            .OrderBy(t => t.Apellidos).ThenBy(t => t.Nombre)
-            .Select(t => new TrabajadorSelectorDto(t.Id, t.Nombre + " " + t.Apellidos, t.Alias))
+        // El empleador sale en la misma consulta (dos LEFT JOIN, sin N+1), igual que en
+        // ObtenerDocumentacionVisitaQuery: primero la Empresa, si no la Subcontrata.
+        return await (
+            from trabajador in consulta
+            join empresa in empresasContext.Empresas on trabajador.EmpresaId equals empresa.Id into empresasCoincidentes
+            from empresa in empresasCoincidentes.DefaultIfEmpty()
+            join subcontrata in empresasContext.Empresas on trabajador.SubcontrataId equals subcontrata.Id into subcontratasCoincidentes
+            from subcontrata in subcontratasCoincidentes.DefaultIfEmpty()
+            orderby trabajador.Apellidos, trabajador.Nombre
+            select new TrabajadorSelectorDto(
+                trabajador.Id,
+                trabajador.Nombre + " " + trabajador.Apellidos,
+                trabajador.Alias,
+                empresa != null ? empresa.RazonSocial : (subcontrata != null ? subcontrata.RazonSocial : null)))
             .ToListAsync(cancellationToken);
     }
 }

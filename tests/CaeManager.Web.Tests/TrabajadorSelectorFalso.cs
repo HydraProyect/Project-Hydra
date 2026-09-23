@@ -16,7 +16,7 @@ public static class TrabajadorSelectorFalso
 {
     public const string DniSembrado = "48291637K";
 
-    public static TrabajadorSelectorDto Crear(Guid id, string nombreCompleto, string? alias = null)
+    public static TrabajadorSelectorDto Crear(Guid id, string nombreCompleto, string? alias = null, string? empleador = null)
     {
         var constructor = typeof(TrabajadorSelectorDto)
             .GetConstructors(BindingFlags.Public | BindingFlags.Instance)
@@ -27,6 +27,7 @@ public static class TrabajadorSelectorFalso
             "Id" => (object?)id,
             "NombreCompleto" => nombreCompleto,
             "Alias" => alias,
+            "EmpleadorNombre" => empleador,
             var nombre when nombre!.Contains("Dni", StringComparison.OrdinalIgnoreCase)
                          || nombre.Contains("Nif", StringComparison.OrdinalIgnoreCase) => DniSembrado,
             _ => p.HasDefaultValue ? p.DefaultValue : null,

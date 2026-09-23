@@ -303,9 +303,9 @@
                             <div class="rejilla-formulario">
                                 <CampoSelect Etiqueta="@Textos["EtiquetaTecnico"]" Valor="@_nuevoTecnicoTrabajadorId" ValorChanged="v => _nuevoTecnicoTrabajadorId = v">
                                     <option value="">@Textos["OpcionElegirTecnico"]</option>
-                                    @foreach (var trabajador in _trabajadoresDisponibles)
+                                    @foreach (var trabajador in EtiquetasSelectorTrabajador.Construir(_trabajadoresDisponibles))
                                     {
-                                        <option value="@trabajador.Id">@trabajador.NombreCompleto</option>
+                                        <option value="@trabajador.Id">@trabajador.Texto</option>
                                     }
                                 </CampoSelect>
                                 <CampoTexto Etiqueta="@Textos["EtiquetaFechaAlta"]" Type="date" Valor="@_nuevoTecnicoFechaAlta" ValorChanged="v => _nuevoTecnicoFechaAlta = v" />

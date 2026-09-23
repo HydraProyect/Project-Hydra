@@ -8,6 +8,7 @@ using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Documentos.Components;
 using FluentAssertions;
 using MediatR;
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -127,7 +128,7 @@ public class DrawerGestionDocumentoPreseleccionAlcanceTests : BunitContext
     [Fact]
     public async Task Un_trabajadorId_presente_en_el_catalogo_cargado_si_se_preselecciona()
     {
-        var trabajador = new TrabajadorSelectorDto(Guid.NewGuid(), "Ruiz Peña, Ana", null);
+        var trabajador = new TrabajadorSelectorDto(Guid.NewGuid(), "Ruiz Peña, Ana", null, null);
         var cut = Renderizar(new MediatorFalso { Trabajadores = [trabajador], Empresas = [] });
 
         await cut.InvokeAsync(() => cut.Instance.AbrirCrearParaFaltanteAsync(trabajador.Id, Guid.NewGuid()));
@@ -160,7 +161,7 @@ public class DrawerGestionDocumentoPreseleccionAlcanceTests : BunitContext
     [Fact]
     public async Task Un_trabajadorId_ajeno_al_catalogo_cargado_avisa_de_que_no_lo_encontramos()
     {
-        var visible = new TrabajadorSelectorDto(Guid.NewGuid(), "Ruiz Peña, Ana", null);
+        var visible = new TrabajadorSelectorDto(Guid.NewGuid(), "Ruiz Peña, Ana", null, null);
         var cut = Renderizar(new MediatorFalso { Trabajadores = [visible], Empresas = [] });
 
         await cut.InvokeAsync(() => cut.Instance.AbrirCrearParaFaltanteAsync(Guid.NewGuid(), Guid.NewGuid()));
@@ -188,10 +189,32 @@ public class DrawerGestionDocumentoPreseleccionAlcanceTests : BunitContext
         cut.Markup.Should().Contain("Ana Ruiz Peña — Anita").And.NotContain(TrabajadorSelectorFalso.DniSembrado);
     }
 
+    /// <summary>
+    /// Sin DNI, dos homónimos de la cartera tienen que seguir siendo elegibles por separado: la
+    /// etiqueta los desempata por el empleador y escribir la del segundo resuelve el Id del segundo,
+    /// no el del primero.
+    /// </summary>
+    [Fact]
+    public async Task Con_dos_homonimos_elegir_la_segunda_etiqueta_resuelve_el_segundo_Trabajador()
+    {
+        var primero = TrabajadorSelectorFalso.Crear(Guid.NewGuid(), "Ana Ruiz Peña", empleador: "Montajes Ebro S.L.");
+        var segundo = TrabajadorSelectorFalso.Crear(Guid.NewGuid(), "Ana Ruiz Peña", empleador: "Instalaciones Arbeko S.L.");
+        var cut = Renderizar(new MediatorFalso { Trabajadores = [primero, segundo], Empresas = [] });
+        await cut.InvokeAsync(() => cut.Instance.AbrirCrearAsync());
+
+        var buscador = cut.FindComponents<CampoBuscarSelect>().Single(c => c.Instance.Etiqueta == "Trabajador");
+        buscador.Instance.Opciones.Select(o => o.Texto).Should().Equal(
+            "Ana Ruiz Peña (Montajes Ebro S.L.)", "Ana Ruiz Peña (Instalaciones Arbeko S.L.)");
+
+        await buscador.Find("input").InputAsync(new ChangeEventArgs { Value = "Ana Ruiz Peña (Instalaciones Arbeko S.L.)" });
+
+        cut.WaitForAssertion(() => LeerCampoPrivado(cut.Instance, "_trabajadorId").Should().Be(segundo.Id.ToString()));
+    }
+
     [Fact]
     public async Task Un_trabajadorId_presente_en_el_catalogo_cargado_no_pinta_ningun_aviso()
     {
-        var trabajador = new TrabajadorSelectorDto(Guid.NewGuid(), "Ruiz Peña, Ana", null);
+        var trabajador = new TrabajadorSelectorDto(Guid.NewGuid(), "Ruiz Peña, Ana", null, null);
         var cut = Renderizar(new MediatorFalso { Trabajadores = [trabajador], Empresas = [] });
 
         await cut.InvokeAsync(() => cut.Instance.AbrirCrearParaFaltanteAsync(trabajador.Id, Guid.NewGuid()));
