@@ -353,6 +353,54 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
         siguienteFueLlamado.Should().BeTrue();
     }
 
+    /// <summary>
+    /// REC-189bis, medido en el E2E local (log de WebAppFixture, 2026-09-22): un
+    /// cliente que se va a mitad de la revalidación (navega, cierra la pestaña, el
+    /// circuito de Blazor se desconecta) hacía que la <c>OperationCanceledException</c>
+    /// de <see cref="ITenantsQueryContext"/>/<see cref="IOperacionesQueryContext"/>
+    /// subiera cruda y se registrara como un 500 real: exactamente lo que
+    /// <c>Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddleware</c> ya evita en
+    /// producción (responde 499, no invoca el manejador de errores), pero solo cuando
+    /// <c>UseExceptionHandler</c> está registrado —es decir, nunca en Development,
+    /// que es donde corre este mismo fixture.
+    /// </summary>
+    [Fact]
+    public async Task Peticion_abortada_durante_la_revalidacion_se_registra_como_abortada_no_como_error()
+    {
+        await using var contexto = CrearContexto();
+        var (httpContext, seleccion) = PrepararPeticionConTokenValido();
+
+        // Simula el cliente que ya se fue: el único CancellationToken que llega a
+        // las consultas de la revalidación es contexto.RequestAborted (ver
+        // SigueAutorizadoAsync), así que cancelarlo de antemano es determinista —no
+        // hace falta una carrera real contra el tiempo.
+        httpContext.RequestAborted = new CancellationToken(canceled: true);
+
+        var logger = new LoggerCapturador<RevalidacionClienteActivoMiddleware>();
+        var siguienteFueLlamado = false;
+        var middleware = new RevalidacionClienteActivoMiddleware(_ =>
+        {
+            siguienteFueLlamado = true;
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(
+            httpContext, seleccion, new CurrentUserServiceParaMiddlewareFalso(_usuario),
+            contexto, (IOperacionesQueryContext)contexto, SinSesionPrivilegiada, logger);
+
+        // No es un fallo de autorización: el token seguía siendo válido, solo que el
+        // cliente no estaba para recibir la respuesta. No se borra la cookie ni se
+        // invalida la selección por algo que el cliente no decidió.
+        seleccion.TenantIdSeleccionado.Should().Be(_clienteDelegante);
+        CabeceraDeBorradoDeCookie(httpContext).Should().BeNull();
+        siguienteFueLlamado.Should().BeFalse("no hay nadie al otro lado a quien seguir sirviendo");
+        httpContext.Response.StatusCode.Should().Be(StatusCodes.Status499ClientClosedRequest);
+
+        logger.Entradas.Should().ContainSingle();
+        logger.Entradas[0].Nivel.Should().Be(LogLevel.Debug,
+            "una petición abortada por el cliente no es un error del servidor");
+    }
+
     // Estos tests son de plano 2 y de la vía heredada: ninguno abre una sesión
     // privilegiada, así que el resolutor de plano 3 devuelve null sin consultar.
     private static readonly ISesionPrivilegiadaActual SinSesionPrivilegiada = new SesionPrivilegiadaActualFalsa();
