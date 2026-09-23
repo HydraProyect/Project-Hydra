@@ -189,9 +189,7 @@ else
                     </div>
 
                     <p class="workspace-nota-contextual">
-                        @(_detalle.NivelServicio == NivelServicioSubcontrata.Gestionada
-                            ? Textos["DescripcionNivelGestionada360"]
-                            : Textos["DescripcionNivelSupervisada360"])
+                        @DescripcionNivel(_detalle.NivelServicio)
                     </p>
 
                     <section class="tarjeta-acceso-subcontrata-360" aria-label="@Textos["TituloAccesoPortal"]">
@@ -676,6 +674,12 @@ else
     /// </summary>
     private int CentrosSinVerificar =>
         _supervision?.Centros.Count(c => c.Tipos.Any(t => t.Exigido && t.Estado == EstadoSupervision.SinVerificar)) ?? 0;
+
+    /// <summary>Qué significa el nivel de servicio actual, bajo la rejilla de información.</summary>
+    private string DescripcionNivel(NivelServicioSubcontrata nivel) =>
+        nivel == NivelServicioSubcontrata.Gestionada
+            ? Textos["DescripcionNivelGestionada360"]
+            : Textos["DescripcionNivelSupervisada360"];
 
     private string? TextoRecuentos
     {
