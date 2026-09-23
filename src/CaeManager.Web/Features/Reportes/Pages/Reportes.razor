@@ -2,8 +2,11 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
 @using CaeManager.Web.Features.Documentos
+@using CaeManager.Web.Features.Reportes.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosReportes> Textos
 
-<PageTitle>Reportes — @Marca.Nombre</PageTitle>
+<PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
 @*
     Mockup: «Reportes TALVEG.dc.html» (ruta /reportes). Lo que el mockup pinta y
@@ -19,12 +22,12 @@
     - «Programar este informe…»: no existen informes programados.
 *@
 <div class="contenedor-pagina">
-    <CabeceraPagina Titulo="Reportes" Kicker="Control" />
+    <CabeceraPagina Titulo="@Textos["TituloPagina"]" Kicker="@Textos["Kicker"]" />
 
     <div class="rejilla-reportes">
         <div class="columna-reportes-filtros">
             <div class="tarjeta-biblioteca">
-                <span class="titulo-biblioteca" id="titulo-biblioteca">Biblioteca</span>
+                <span class="titulo-biblioteca" id="titulo-biblioteca">@Textos["TituloBiblioteca"]</span>
                 @* Patrón radiogroup de WAI-ARIA: una sola parada de tabulador (la
                    opción marcada lleva tabindex="0", las demás "-1") y flechas
                    arriba/abajo/izquierda/derecha circulares que MARCAN la opción
@@ -32,9 +35,8 @@
                    clic— y le mueven el foco. El foco se da en OnAfterRenderAsync,
                    cuando la opción ya lleva tabindex="0", sin JS nuevo. *@
                 <div class="lista-informes" role="radiogroup" aria-labelledby="titulo-biblioteca">
-                    @for (var i = 0; i < Informes.Count; i++)
+                    @foreach (var indice in Enumerable.Range(0, Informes.Count))
                     {
-                        var indice = i;
                         var informe = Informes[indice];
                         var seleccionado = informe.Id == _tipoInforme;
                         <button type="button" role="radio" class="@("item-informe " + (seleccionado ? "item-informe-seleccionado" : ""))"
@@ -49,8 +51,8 @@
                                 }
                             </span>
                             <span class="texto-item-informe">
-                                <span class="titulo-item-informe">@informe.Titulo</span>
-                                <span class="descripcion-item-informe">@informe.Descripcion</span>
+                                <span class="titulo-item-informe">@TituloInforme(informe.Id)</span>
+                                <span class="descripcion-item-informe">@DescripcionInforme(informe.Id)</span>
                             </span>
                         </button>
                     }
@@ -58,24 +60,24 @@
 
                 <div class="filtros-informe">
                     <div class="campo-cliente-informe">
-                        <CampoBuscarSelect Etiqueta="Cliente empresarial" Valor="@_clienteId" ValorChanged="CambiarClienteAsync"
-                                           Opciones="OpcionesCliente" Marcador="Buscar cliente empresarial…" />
+                        <CampoBuscarSelect Etiqueta="@Textos["EtiquetaClienteEmpresarial"]" Valor="@_clienteId" ValorChanged="CambiarClienteAsync"
+                                           Opciones="OpcionesCliente" Marcador="@Textos["MarcadorBuscarClienteEmpresarial"]" />
                         @if (!SinCliente)
                         {
-                            <button type="button" class="quitar-filtro-cliente" aria-label="Quitar el filtro de cliente empresarial"
+                            <button type="button" class="quitar-filtro-cliente" aria-label="@Textos["AriaQuitarFiltroCliente"]"
                                     @onclick="QuitarFiltroClienteAsync">
-                                <Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /> Quitar el filtro
+                                <Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /> @Textos["BotonQuitarFiltro"]
                             </button>
                         }
                     </div>
 
                     <div class="campo-centro-informe">
-                        <CampoSelect Etiqueta="Centros incluidos" Valor="@_centroId" ValorChanged="CambiarCentro"
+                        <CampoSelect Etiqueta="@Textos["EtiquetaCentrosIncluidos"]" Valor="@_centroId" ValorChanged="CambiarCentro"
                                      Deshabilitado="@(SinCliente || _cargandoCentros)">
-                            <option value="">Todos los centros del cliente empresarial</option>
+                            <option value="">@Textos["OpcionTodosLosCentros"]</option>
                             @foreach (var centro in _centrosDisponibles)
                             {
-                                <option value="@centro.Id">Solo centro: @centro.Nombre</option>
+                                <option value="@centro.Id">@Textos["OpcionSoloCentro", centro.Nombre]</option>
                             }
                         </CampoSelect>
                     </div>
@@ -85,41 +87,41 @@
                         <label class="opcion-checkbox-informe">
                             <input type="checkbox" @bind="_incluirVigentes" @bind:after="CambiarIncluirVigentes" />
                             <span class="texto-opcion-checkbox-informe">
-                                <span>Incluir documentos vigentes</span>
-                                <span class="detalle-opcion-checkbox-informe">Sin ellos el informe solo lista vencidos y urgentes; con ellos, la cobertura completa</span>
+                                <span>@Textos["OpcionIncluirVigentes"]</span>
+                                <span class="detalle-opcion-checkbox-informe">@Textos["OpcionIncluirVigentesDetalle"]</span>
                             </span>
                         </label>
                     }
 
-                    <Boton OnClick="GenerarVistaPreviaAsync" Cargando="_generando">Generar vista previa</Boton>
+                    <Boton OnClick="GenerarVistaPreviaAsync" Cargando="_generando">@Textos["BotonGenerarVistaPrevia"]</Boton>
 
                     <div class="acciones-exportar-informe">
                         @if (TienePlan)
                         {
-                            <a class="boton-exportar-informe" href="@EnlaceExportar("pdf")"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Descargar PDF</a>
-                            <a class="boton-exportar-informe" href="@EnlaceExportar("xlsx")"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Descargar Excel</a>
+                            <a class="boton-exportar-informe" href="@EnlaceExportar("pdf")"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["BotonDescargarPdf"]</a>
+                            <a class="boton-exportar-informe" href="@EnlaceExportar("xlsx")"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["BotonDescargarExcel"]</a>
                         }
                         else
                         {
                             @* Sin vista previa vigente no hay qué descargar: sin href, no
                                un enlace atenuado solo por CSS que siguiera funcionando
                                con el teclado. *@
-                            <span class="boton-exportar-informe boton-exportar-informe-deshabilitado" aria-disabled="true"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Descargar PDF</span>
-                            <span class="boton-exportar-informe boton-exportar-informe-deshabilitado" aria-disabled="true"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Descargar Excel</span>
+                            <span class="boton-exportar-informe boton-exportar-informe-deshabilitado" aria-disabled="true"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["BotonDescargarPdf"]</span>
+                            <span class="boton-exportar-informe boton-exportar-informe-deshabilitado" aria-disabled="true"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["BotonDescargarExcel"]</span>
                         }
                     </div>
 
                     <button type="button" class="enlace-secundario-informe" disabled="@(!TienePlan)" @onclick="AbrirEnviarPorComunicaciones">
-                        Enviar por Comunicaciones…
+                        @Textos["BotonEnviarPorComunicaciones"]
                     </button>
                 </div>
             </div>
 
             <div class="tarjeta-historial-informes">
-                <div class="cabecera-historial-informes">Historial</div>
+                <div class="cabecera-historial-informes">@Textos["TituloHistorial"]</div>
                 @if (_errorRegistroHistorial)
                 {
-                    <p class="aviso-historial-informes" role="status">No pudimos anotar este informe en el historial. La vista previa y las descargas no se ven afectadas.</p>
+                    <p class="aviso-historial-informes" role="status">@Textos["AvisoErrorRegistroHistorial"]</p>
                 }
                 @if (_cargandoHistorial)
                 {
@@ -128,13 +130,13 @@
                 else if (_errorHistorial)
                 {
                     <p class="vacio-historial-informes error-historial-informes">
-                        No pudimos cargar el historial.
-                        <button type="button" class="enlace-secundario-informe" @onclick="CargarHistorialAsync">Reintentar</button>
+                        @Textos["ErrorCargaHistorial"]
+                        <button type="button" class="enlace-secundario-informe" @onclick="CargarHistorialAsync">@Textos["BotonReintentar"]</button>
                     </p>
                 }
                 else if (_historial.Count == 0)
                 {
-                    <p class="vacio-historial-informes">Todavía no se ha generado ningún informe.</p>
+                    <p class="vacio-historial-informes">@Textos["HistorialVacio"]</p>
                 }
                 else
                 {
@@ -143,9 +145,9 @@
                         <div class="item-historial-informes">
                             <div class="fila-item-historial-informes">
                                 <span class="nombre-item-historial-informes">@item.TipoInforme</span>
-                                <span class="fecha-item-historial-informes">@item.GeneradoEnUtc.ToLocalTime().ToString("dd/MM/yy HH:mm")</span>
+                                <span class="fecha-item-historial-informes">@(item.GeneradoEnUtc.ToLocalTime().ToString("dd/MM/yy HH:mm"))</span>
                             </div>
-                            <span class="detalle-item-historial-informes">@(item.ClienteNombre ?? "Toda la cartera") · @NombreUsuario(item.GeneradoPorUsuarioId)</span>
+                            <span class="detalle-item-historial-informes">@(item.ClienteNombre ?? Textos["HistorialTodaLaCartera"].Value) · @NombreUsuario(item.GeneradoPorUsuarioId)</span>
                         </div>
                     }
                 }
@@ -157,7 +159,7 @@
             {
                 <div class="aviso-sin-cliente-informe" role="status">
                     <Icono Nombre="advertencia" Tamano="TamanoIcono.Pequeno" />
-                    <span>Sin filtrar por cliente empresarial: la vista previa abarca toda tu cartera</span>
+                    <span>@Textos["AvisoSinClienteEmpresarial"]</span>
                 </div>
             }
 
@@ -175,35 +177,35 @@
             @if (_errorGeneracion)
             {
                 <div class="error-generacion-informe" role="alert">
-                    <EstadoVacio NombreIcono="error-circulo" Titulo="No pudimos generar la vista previa"
-                                 Descripcion="Intenta nuevamente en unos segundos.">
-                        <Accion><Boton OnClick="GenerarVistaPreviaAsync">Reintentar</Boton></Accion>
+                    <EstadoVacio NombreIcono="error-circulo" Titulo="@Textos["ErrorGeneracionTitulo"]"
+                                 Descripcion="@Textos["ErrorGeneracionDescripcion"]">
+                        <Accion><Boton OnClick="GenerarVistaPreviaAsync">@Textos["BotonReintentar"]</Boton></Accion>
                     </EstadoVacio>
                 </div>
             }
             else if (_sinInforme)
             {
-                <EstadoVacio Titulo="No hay informe que mostrar para ese filtro"
-                             Descripcion="El cliente empresarial o el centro elegido ya no está en tu cartera. Recarga la página para actualizar la lista." />
+                <EstadoVacio Titulo="@Textos["SinInformeTitulo"]"
+                             Descripcion="@Textos["SinInformeDescripcion"]" />
             }
             else if (TienePlan)
             {
                 var generado = _generado!;
                 <div class="mesa-vista-previa-informe">
-                    <article class="hoja-informe" aria-label="Vista previa del informe">
+                    <article class="hoja-informe" aria-label="@Textos["AriaVistaPrevia"]">
                         <header class="cabecera-hoja-informe">
                             <h2 class="titulo-hoja-informe">@TituloGenerado@(NombreClienteGenerado is { } cliente ? $" — {cliente}" : "")</h2>
-                            <span class="metadato-hoja-informe">Generado el @generado.GeneradoEn.ToString("dd/MM/yyyy") a las @generado.GeneradoEn.ToString("HH:mm")</span>
+                            <span class="metadato-hoja-informe">@Textos["HojaGeneradoEl", generado.GeneradoEn.ToString("dd/MM/yyyy"), generado.GeneradoEn.ToString("HH:mm")]</span>
                             @if (_informeVigencia is { } cabeceraVigencia)
                             {
                                 <span class="metadato-hoja-informe">
-                                    Abarca: @cabeceraVigencia.Alcance · @(generado.IncluirVigentes ? "incluye los vigentes" : "solo vencidos y urgentes") · @ContarFilas(cabeceraVigencia.Filas.Count, "documento", "documentos")
+                                    @Textos["HojaAbarca", cabeceraVigencia.Alcance] · @(generado.IncluirVigentes ? Textos["HojaIncluyeVigentes"].Value : Textos["HojaSoloVencidosYUrgentes"].Value) · @ContarDocumentos(cabeceraVigencia.Filas.Count)
                                 </span>
                             }
                             else if (_informeAsignaciones is { } cabeceraAsignaciones)
                             {
                                 <span class="metadato-hoja-informe">
-                                    Abarca: @cabeceraAsignaciones.Alcance · @ContarFilas(cabeceraAsignaciones.Filas.Count, "asignación activa", "asignaciones activas")
+                                    @Textos["HojaAbarca", cabeceraAsignaciones.Alcance] · @ContarAsignacionesActivas(cabeceraAsignaciones.Filas.Count)
                                 </span>
                             }
                         </header>
@@ -213,9 +215,7 @@
                             @if (iv.Filas.Count == 0)
                             {
                                 <p class="vacio-hoja-informe">
-                                    @(generado.IncluirVigentes
-                                        ? "No hay documentos que listar con estos filtros."
-                                        : "Ningún documento vencido ni urgente con estos filtros.")
+                                    @(generado.IncluirVigentes ? Textos["HojaVaciaConVigentes"].Value : Textos["HojaVaciaSinVigentes"].Value)
                                 </p>
                             }
                             else
@@ -223,7 +223,7 @@
                                 <div class="tabla-vista-previa-envoltorio">
                                     <table class="tabla-datos tabla-hoja-informe">
                                         <thead>
-                                            <tr><th>Trabajador</th><th>Empresa</th><th>Documento</th><th>Vence</th><th>Estado</th></tr>
+                                            <tr><th>@Textos["ColumnaTrabajador"]</th><th>@Textos["ColumnaEmpresa"]</th><th>@Textos["ColumnaDocumento"]</th><th>@Textos["ColumnaVence"]</th><th>@Textos["ColumnaEstado"]</th></tr>
                                         </thead>
                                         <tbody>
                                             @foreach (var fila in iv.Filas)
@@ -233,7 +233,7 @@
                                                     <td>@fila.EmpresaRazonSocial</td>
                                                     <td>@fila.TipoDocumentoNombre</td>
                                                     <td class="celda-vence-informe">
-                                                        <TextoFechaCopiable Fecha="fila.FechaVencimiento">@(fila.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "No caduca")</TextoFechaCopiable>
+                                                        <TextoFechaCopiable Fecha="fila.FechaVencimiento">@(fila.FechaVencimiento?.ToString("dd/MM/yyyy") ?? Textos["VenceNoCaduca"].Value)</TextoFechaCopiable>
                                                     </td>
                                                     <td><Badge Tono="EstadoDocumentoUi.Tono(fila.Estado)">@EstadoDocumentoUi.Texto(fila.Estado)</Badge></td>
                                                 </tr>
@@ -247,14 +247,14 @@
                         {
                             @if (ia.Filas.Count == 0)
                             {
-                                <p class="vacio-hoja-informe">No hay asignaciones activas con estos filtros.</p>
+                                <p class="vacio-hoja-informe">@Textos["HojaVaciaAsignaciones"]</p>
                             }
                             else
                             {
                                 <div class="tabla-vista-previa-envoltorio">
                                     <table class="tabla-datos tabla-hoja-informe">
                                         <thead>
-                                            <tr><th>Trabajador</th><th>Centro</th><th>Asignado desde</th></tr>
+                                            <tr><th>@Textos["ColumnaTrabajador"]</th><th>@Textos["ColumnaCentro"]</th><th>@Textos["ColumnaAsignadoDesde"]</th></tr>
                                         </thead>
                                         <tbody>
                                             @foreach (var fila in ia.Filas)
@@ -274,12 +274,12 @@
                     @* Cada descarga vuelve a ejecutar su consulta con los filtros de
                        la vista previa (ReportesEndpoints): no es una instantánea
                        de estas filas, así que no se promete que coincidan. *@
-                    <span class="nota-vista-previa-informe">Vista previa · el PDF y el Excel se generan con estos mismos filtros en el momento de descargarlos; si los datos cambiaron desde la vista previa, pueden no coincidir con ella</span>
+                    <span class="nota-vista-previa-informe">@Textos["NotaVistaPrevia"]</span>
                 </div>
             }
             else if (!_generando)
             {
-                <EstadoVacio NombreIcono="reportes" Titulo="Genera una vista previa" Descripcion="Elige una plantilla de informe y pulsa «Generar vista previa» para verlo aquí." />
+                <EstadoVacio NombreIcono="reportes" Titulo="@Textos["VacioInicialTitulo"]" Descripcion="@Textos["VacioInicialDescripcion"]" />
             }
         </div>
     </div>
