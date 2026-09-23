@@ -1,9 +1,11 @@
 using CaeManager.Application.Dashboard.Queries;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Features.VisionCartera.Recursos;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Features.VisionCartera.Pages;
 
@@ -42,6 +44,7 @@ public partial class VisionCartera : ComponentBase, IDisposable
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private AntiforgeryStateProvider AntiforgeryStateProvider { get; set; } = default!;
     [Inject] private ILogger<VisionCartera> Logger { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosVisionCartera> Textos { get; set; } = default!;
 
     private KpisGlobalesDto? _kpis;
     private IReadOnlySet<Guid> _tenantsDeOrigen = new HashSet<Guid>();
@@ -138,58 +141,60 @@ public partial class VisionCartera : ComponentBase, IDisposable
             var total = Organizaciones.Count;
             var delegadas = Organizaciones.Count(o => !EsDeOrigen(o));
             return delegadas == total
-                ? $"{total} organizaciones que os han delegado su gestión CAE"
-                : $"{total} organizaciones: la tuya y {delegadas} que os {(delegadas == 1 ? "ha" : "han")} delegado su gestión CAE";
+                ? Textos["LineaAmbitoTodasDelegadas", total].Value
+                : delegadas == 1
+                    ? Textos["LineaAmbitoConPropiaUna", total, delegadas].Value
+                    : Textos["LineaAmbitoConPropiaVarias", total, delegadas].Value;
         }
     }
 
     private string LineaAlcance => SinCartera.Count == 0
-        ? "Cada organización cuenta solo lo que tu rol alcanza en ella"
-        : $"Cada organización cuenta solo lo que tu rol alcanza en ella; en {SinCartera.Count} no tienes ninguna Asignación de Cartera";
+        ? Textos["LineaAlcance"].Value
+        : Textos["LineaAlcanceConExcluidas", SinCartera.Count].Value;
 
     /// <summary>Solo cuando alguna organización llega sin Asignación de Cartera de quien mira.</summary>
     private string? AvisoSinCartera => SinCartera.Count switch
     {
         0 => null,
-        1 => $"En {SinCartera[0].Nombre} no tienes ninguna Asignación de Cartera: no cuentas ningún documento suyo y su tasa no entra en la media.",
-        _ => $"En {Enumerar(SinCartera.Select(o => o.Nombre))} no tienes ninguna Asignación de Cartera: no cuentas ningún documento suyo y sus tasas no entran en la media."
+        1 => Textos["AvisoSinCarteraUna", SinCartera[0].Nombre].Value,
+        _ => Textos["AvisoSinCarteraVarias", Enumerar(SinCartera.Select(o => o.Nombre))].Value
     };
 
     private string TextoSinRiesgo => SinCartera.Count == 0
-        ? "Ninguna organización tiene documentación vencida ni urgente."
-        : "Ninguna organización tiene documentación vencida ni urgente en lo que tu rol alcanza.";
+        ? Textos["SinRiesgoTodas"].Value
+        : Textos["SinRiesgoEnAlcance"].Value;
 
     // ---------------------------------------------------------------- cifras
 
     private string PistaVencidos => ConVencidos == 0
-        ? "En ninguna organización"
-        : $"En {ConVencidos} de {Organizaciones.Count} organizaciones";
+        ? Textos["PistaVencidosNinguna"].Value
+        : Textos["PistaVencidos", ConVencidos, Organizaciones.Count].Value;
 
     private string ValorMedia => HayMediaQueMostrar && _kpis is not null ? $"{_kpis.TasaCumplimientoDocumentalPromedio}%" : "—";
 
     private string PistaMedia => HayMediaQueMostrar
-        ? "Ponderada por volumen de documentos"
-        : "Sin Asignación de Cartera en ninguna organización";
+        ? Textos["PistaMediaPonderada"].Value
+        : Textos["PistaMediaSinCartera"].Value;
 
     private string DetalleMedia
     {
         get
         {
             var tasas = ConCartera.Select(o => o.TasaCumplimientoDocumental).OrderByDescending(t => t).ToList();
-            var media = $"Media ponderada por el volumen de documentos con vencimiento de cada organización; tasas de las {tasas.Count} que la forman: {Enumerar(tasas.Select(t => t.ToString()))}%.";
+            var media = Textos["DetalleMedia", tasas.Count, Enumerar(tasas.Select(t => t.ToString()))].Value;
             return SinCartera.Count == 0 ? media : $"{media} {DetalleExcluidas}";
         }
     }
 
     private string DetalleExcluidas => SinCartera.Count == 1
-        ? $"No entra {SinCartera[0].Nombre}: sin Asignación de Cartera tuya."
-        : $"No entran {Enumerar(SinCartera.Select(o => o.Nombre))}: sin Asignación de Cartera tuya.";
+        ? Textos["DetalleExcluidaUna", SinCartera[0].Nombre].Value
+        : Textos["DetalleExcluidasVarias", Enumerar(SinCartera.Select(o => o.Nombre))].Value;
 
     private string FrasePulso => ConVencidos switch
     {
-        0 => $"Ninguna de las {Organizaciones.Count} organizaciones tiene documentación vencida.",
-        1 => $"1 de {Organizaciones.Count} organizaciones tiene documentación vencida.",
-        _ => $"{ConVencidos} de {Organizaciones.Count} organizaciones tienen documentación vencida."
+        0 => Textos["FrasePulsoNinguna", Organizaciones.Count].Value,
+        1 => Textos["FrasePulsoUna", Organizaciones.Count].Value,
+        _ => Textos["FrasePulsoVarias", ConVencidos, Organizaciones.Count].Value
     };
 
     private string DetalleEnVerde
@@ -198,16 +203,20 @@ public partial class VisionCartera : ComponentBase, IDisposable
         {
             var enVerde = ConCartera.Where(o => o.TasaCumplimientoDocumental >= UmbralVerde)
                 .Select(o => $"{o.Nombre} {o.TasaCumplimientoDocumental}%").ToList();
-            var conCartera = SinCartera.Count == 0 ? string.Empty : " con cartera";
-            var frase = enVerde.Count == 0
-                ? $"Ninguna de las {ConCartera.Count} organizaciones{conCartera} llega al 90% de cumplimiento documental."
-                : $"{enVerde.Count} de {ConCartera.Count} organizaciones{conCartera} con el cumplimiento documental en el 90% o más: {Enumerar(enVerde)}.";
-            return SinCartera.Count == 0 ? frase : $"{frase} {DetalleExcluidas}";
+            var hayExcluidas = SinCartera.Count > 0;
+            var frase = (enVerde.Count == 0, hayExcluidas) switch
+            {
+                (true, false) => Textos["DetalleEnVerdeNinguna", ConCartera.Count].Value,
+                (true, true) => Textos["DetalleEnVerdeNingunaConCartera", ConCartera.Count].Value,
+                (false, false) => Textos["DetalleEnVerde", enVerde.Count, ConCartera.Count, Enumerar(enVerde)].Value,
+                (false, true) => Textos["DetalleEnVerdeConCartera", enVerde.Count, ConCartera.Count, Enumerar(enVerde)].Value
+            };
+            return hayExcluidas ? $"{frase} {DetalleExcluidas}" : frase;
         }
     }
 
     private string DetalleEnRiesgo => _kpis is null ? string.Empty
-        : $"{DocumentosEnRiesgo} documentos en riesgo: {_kpis.DocumentosVencidos} vencidos más {_kpis.DocumentosUrgentes} urgentes.";
+        : Textos["DetalleEnRiesgo", DocumentosEnRiesgo, _kpis.DocumentosVencidos, _kpis.DocumentosUrgentes].Value;
 
     private static TonoBadge TonoCumplimiento(int tasa) => tasa switch
     {
@@ -225,26 +234,36 @@ public partial class VisionCartera : ComponentBase, IDisposable
     // ---------------------------------------------------------------- tabla
 
     private string MetaOrganizacion(ClienteRiesgoDto organizacion) =>
-        EsDeOrigen(organizacion) ? "Tu organización" : "Os ha delegado su gestión CAE";
+        EsDeOrigen(organizacion) ? Textos["MetaTuOrganizacion"].Value : Textos["MetaDelegada"].Value;
 
-    private static string TituloVencidos(ClienteRiesgoDto o) => o.DocumentosVencidos == 0
-        ? $"{o.Nombre}: ningún documento vencido"
-        : $"{o.Nombre}: {Documentos(o.DocumentosVencidos, "vencido", "vencidos")}";
+    private string TituloVencidos(ClienteRiesgoDto o) => o.DocumentosVencidos == 0
+        ? Textos["TituloVencidosNinguno", o.Nombre].Value
+        : DocumentosVencidos(o);
 
-    private static string TituloUrgentes(ClienteRiesgoDto o) => o.DocumentosUrgentes == 0
-        ? $"{o.Nombre}: ningún documento dentro de su umbral urgente"
-        : $"{o.Nombre}: {Documentos(o.DocumentosUrgentes, "urgente", "urgentes")}, dentro de su umbral urgente";
+    private string TituloUrgentes(ClienteRiesgoDto o) => o.DocumentosUrgentes == 0
+        ? Textos["TituloUrgentesNinguno", o.Nombre].Value
+        : DocumentosUrgentes(o);
 
-    private static string TituloCumplimiento(ClienteRiesgoDto o)
+    private string TituloCumplimiento(ClienteRiesgoDto o)
     {
         if (o.SinCarteraAsignada)
-            return $"{o.Nombre}: no tienes ninguna Asignación de Cartera aquí, así que no hay cumplimiento que medir";
+            return Textos["TituloCumplimientoSinCartera", o.Nombre].Value;
 
-        var tramo = o.TasaCumplimientoDocumental >= UmbralVerde ? "en verde, 90% o más"
-            : o.TasaCumplimientoDocumental >= UmbralAmbar ? "en ámbar, entre el 70 y el 89%"
-            : "en rojo, por debajo del 70%";
-        return $"{o.Nombre}: {o.TasaCumplimientoDocumental}% de cumplimiento documental ({tramo})";
+        var tramo = o.TasaCumplimientoDocumental >= UmbralVerde ? Textos["TramoVerde"].Value
+            : o.TasaCumplimientoDocumental >= UmbralAmbar ? Textos["TramoAmbar"].Value
+            : Textos["TramoRojo"].Value;
+        return Textos["TituloCumplimiento", o.Nombre, o.TasaCumplimientoDocumental, tramo].Value;
     }
+
+    /// <summary>«X: 1 documento vencido» / «X: N documentos vencidos» (también con N = 0).</summary>
+    private string DocumentosVencidos(ClienteRiesgoDto o) => o.DocumentosVencidos == 1
+        ? Textos["TituloVencidosUno", o.Nombre].Value
+        : Textos["TituloVencidosVarios", o.Nombre, o.DocumentosVencidos].Value;
+
+    /// <summary>«X: 1 documento urgente, …» / «X: N documentos urgentes, …» (también con N = 0).</summary>
+    private string DocumentosUrgentes(ClienteRiesgoDto o) => o.DocumentosUrgentes == 1
+        ? Textos["TituloUrgentesUno", o.Nombre].Value
+        : Textos["TituloUrgentesVarios", o.Nombre, o.DocumentosUrgentes].Value;
 
     // ---------------------------------------------------------------- reparto
 
@@ -252,11 +271,9 @@ public partial class VisionCartera : ComponentBase, IDisposable
         string Nombre, string EtiquetaCorta, int X, int Centro,
         int AltoVencidos, int YVencidos, string TituloVencidos,
         int AltoUrgentes, int YUrgentes, string TituloUrgentes,
-        bool SinCartera)
+        string TextoSinBarra)
     {
         public bool SinRiesgo => AltoVencidos == 0 && AltoUrgentes == 0;
-
-        public string TextoSinBarra => SinCartera ? "sin cartera" : "sin riesgo";
     }
 
     private int AnchoGrafico => Math.Max(1, Organizaciones.Count) * AnchoPorOrganizacion;
@@ -274,9 +291,9 @@ public partial class VisionCartera : ComponentBase, IDisposable
                 var yUrgentes = BaseBarras - altoUrgentes;
                 return new BarraRiesgo(
                     o.Nombre, Acortar(o.Nombre), x, x + AnchoBarra / 2,
-                    altoVencidos, yUrgentes - altoVencidos, $"{o.Nombre}: {Documentos(o.DocumentosVencidos, "vencido", "vencidos")}",
-                    altoUrgentes, yUrgentes, $"{o.Nombre}: {Documentos(o.DocumentosUrgentes, "urgente", "urgentes")}, dentro de su umbral urgente",
-                    o.SinCarteraAsignada);
+                    altoVencidos, yUrgentes - altoVencidos, DocumentosVencidos(o),
+                    altoUrgentes, yUrgentes, DocumentosUrgentes(o),
+                    o.SinCarteraAsignada ? Textos["BarraSinCartera"].Value : Textos["BarraSinRiesgo"].Value);
             }).ToList();
         }
     }
@@ -288,18 +305,15 @@ public partial class VisionCartera : ComponentBase, IDisposable
     private static string Acortar(string nombre) =>
         nombre.Length <= LargoEtiqueta ? nombre : string.Concat(nombre.AsSpan(0, LargoEtiqueta - 1), "…");
 
-    private static string Documentos(int cantidad, string singular, string plural) =>
-        cantidad == 1 ? $"1 documento {singular}" : $"{cantidad} documentos {plural}";
-
     /// <summary>«a, b y c»: la enumeración literal que el mockup usa en sus desgloses.</summary>
-    private static string Enumerar(IEnumerable<string> partes)
+    private string Enumerar(IEnumerable<string> partes)
     {
         var lista = partes.ToList();
         return lista.Count switch
         {
             0 => string.Empty,
             1 => lista[0],
-            _ => $"{string.Join(", ", lista.Take(lista.Count - 1))} y {lista[^1]}"
+            _ => Textos["EnumeracionUltimo", string.Join(", ", lista.Take(lista.Count - 1)), lista[^1]].Value
         };
     }
 }
