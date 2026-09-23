@@ -125,10 +125,10 @@ public class DocumentosGen2Tests : BunitContext
             where TNotification : INotification => Task.CompletedTask;
     }
 
-    private sealed class UsuarioActualFalso : ICurrentUserService
+    private sealed class UsuarioActualFalso(string rol) : ICurrentUserService
     {
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
-        public Task<string?> ObtenerRolActualAsync() => Task.FromResult<string?>("Administrador");
+        public Task<string?> ObtenerRolActualAsync() => Task.FromResult<string?>(rol);
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }
@@ -172,11 +172,11 @@ public class DocumentosGen2Tests : BunitContext
             Task.FromResult(AuthorizationResult.Success());
     }
 
-    private sealed class AutenticacionFalsa : AuthenticationStateProvider
+    private sealed class AutenticacionFalsa(string rol) : AuthenticationStateProvider
     {
         public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
             Task.FromResult(new AuthenticationState(new ClaimsPrincipal(
-                new ClaimsIdentity([new Claim(ClaimTypes.Role, "Administrador")], "test"))));
+                new ClaimsIdentity([new Claim(ClaimTypes.Role, rol)], "test"))));
     }
 
     // ---------------------------------------------------------------- datos
@@ -189,18 +189,18 @@ public class DocumentosGen2Tests : BunitContext
     // ---------------------------------------------------------------- arnés
 
     private (IRenderedComponent<PaginaDocumentos> Cut, MediadorControlado Mediador) Renderizar(
-        MediadorControlado? mediador = null, string url = "documentos")
+        MediadorControlado? mediador = null, string url = "documentos", string rol = "Administrador")
     {
         mediador ??= new MediadorControlado();
 
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
-        Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
+        Services.AddScoped<ICurrentUserService>(_ => new UsuarioActualFalso(rol));
         Services.AddScoped<IFileStorageService, AlmacenArchivosQueNadieDebeTocar>();
         Services.AddScoped<IConversorWordPdfService, ConversorQueNadieDebeTocar>();
         Services.AddSingleton<ILogger<PaginaDocumentos>>(_ => NullLogger<PaginaDocumentos>.Instance);
-        Services.AddScoped<AuthenticationStateProvider, AutenticacionFalsa>();
+        Services.AddScoped<AuthenticationStateProvider>(_ => new AutenticacionFalsa(rol));
         Services.AddAuthorizationCore();
         Services.AddScoped<IAuthorizationService, AutorizacionPorRoles>();
         Services.AddCascadingAuthenticationState();
@@ -593,6 +593,23 @@ public class DocumentosGen2Tests : BunitContext
 
         mediador.Enviadas.OfType<GuardarFiltroCommand>().Should().ContainSingle(
             "el segundo envío llegó con el primero todavía en vuelo");
+    }
+
+    /// <summary>
+    /// Guardar un filtro es autoservicio: <c>GuardarFiltroCommand</c> lleva
+    /// <c>IComandoDeAutoservicio</c> y el servidor lo deja pasar a Consulta, así
+    /// que el botón no se esconde a quien solo lee. «+ Nuevo documento», que sí
+    /// escribe en el Tenant, sigue sin pintarse: es el control de que el render
+    /// corre de verdad con el rol Consulta.
+    /// </summary>
+    [Fact]
+    public void Consulta_ve_Guardar_filtro_porque_guardar_sus_filtros_es_autoservicio()
+    {
+        var (cut, _) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")), rol: "Consulta");
+
+        cut.FindAll(".barra-filtros button").Select(b => b.TextContent.Trim())
+            .Should().Contain("Guardar filtro");
+        cut.Markup.Should().NotContain("+ Nuevo documento", "Consulta no crea documentos del Tenant");
     }
 
     // ------------------------------------------------- contrato 4: desenlaces honestos

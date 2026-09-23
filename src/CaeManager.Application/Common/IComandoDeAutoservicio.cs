@@ -15,10 +15,16 @@ namespace CaeManager.Application.Common;
 /// <item>Lo que escribe es del usuario (lleva su <c>UsuarioId</c>) y nadie más lo ve
 /// ni lo usa: ni configuración del Tenant, ni datos de negocio CAE, ni métricas que
 /// lean otros (por eso <c>RegistrarTramoGestionCommand</c> y
-/// <c>RegistrarHistorialInformeCommand</c> se quedan fuera).</item>
-/// <item>Si el request trae el Id de algo, el handler comprueba que es del usuario
-/// actual y responde igual cuando no existe y cuando es de otro: un mensaje distinto
-/// revelaría que el Id existe.</item>
+/// <c>RegistrarHistorialInformeCommand</c> se quedan fuera). La traza que
+/// <c>AuditoriaInterceptor</c> deja de cualquier escritura no cuenta: registra quién
+/// hizo qué y la ve el Administrador del Tenant, pero nadie opera con ella, y en la
+/// aceptación de términos es precisamente la prueba que interesa conservar.</item>
+/// <item>Si el handler busca o modifica algo por un Id del request, comprueba que es
+/// del usuario actual y responde igual cuando no existe y cuando es de otro: un
+/// mensaje distinto revelaría que el Id existe. Un Id que solo se guarda como
+/// etiqueta en la fila propia, sin desreferenciarlo (el <c>EntidadId</c> y la
+/// <c>UrlDestino</c> de <c>RegistrarUsoRecienteCommand</c>), no abre nada: esa fila
+/// solo la lee su dueño.</item>
 /// </list>
 ///
 /// No abre nada a las sesiones privilegiadas de plataforma: el behavior las decide

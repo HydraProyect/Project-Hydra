@@ -6,7 +6,9 @@ namespace CaeManager.Application.Common;
 
 /// <summary>
 /// Pipeline behavior de MediatR: solo los roles con capacidad de escritura
-/// ejecutan Commands (ver Roles.cs en CaeManager.Infrastructure.Identity).
+/// ejecutan Commands (ver Roles.cs en CaeManager.Infrastructure.Identity),
+/// salvo los marcados <see cref="IComandoDeAutoservicio"/>, que admiten
+/// cualquier rol reconocido (ver "Autoservicio" más abajo).
 /// Los literales de rol se repiten aquí a propósito: Application no puede
 /// referenciar Infrastructure.Identity.Roles sin invertir la dependencia
 /// entre capas.
