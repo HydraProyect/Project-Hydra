@@ -283,7 +283,7 @@
                                         @if (tecnico.EstaActivo)
                                         {
                                             <Badge Tono="TonoBadge.Exito" Tamano="TamanoBadge.Pequeno">@Textos["BadgeActivo"]</Badge>
-                                            <button type="button" class="baja-tecnico-proyecto" @onclick="() => DesasignarTecnicoAsync(tecnico.Id)">@Textos["BotonDarDeBaja"]</button>
+                                            <SoloConEscritura><button type="button" class="baja-tecnico-proyecto" @onclick="() => DesasignarTecnicoAsync(tecnico.Id)">@Textos["BotonDarDeBaja"]</button></SoloConEscritura>
                                         }
                                         else
                                         {
@@ -317,9 +317,11 @@
                         }
                         else
                         {
-                            <div class="acciones-seccion">
-                                <Boton OnClick="AbrirFormularioTecnicoAsync" Variante="VarianteBoton.Secundario">@Textos["BotonAsignarTecnico"]</Boton>
-                            </div>
+                            <SoloConEscritura>
+                                <div class="acciones-seccion">
+                                    <Boton OnClick="AbrirFormularioTecnicoAsync" Variante="VarianteBoton.Secundario">@Textos["BotonAsignarTecnico"]</Boton>
+                                </div>
+                            </SoloConEscritura>
                         }
                     }
                     else
@@ -334,13 +336,17 @@
 
         @if (_detalle is not null && !_cargandoDetalle && !_editandoInfo)
         {
-            <div class="pie-panel-proyecto">
-                <Boton OnClick="IniciarEdicionInfo" Variante="VarianteBoton.Secundario">@Textos["BotonEditar"]</Boton>
-                @if (_detalle.EstaAbierto)
-                {
-                    <Boton OnClick="() => AbrirCerrarConfirm(_detalle.Id)" Variante="VarianteBoton.Secundario">@Textos["AccionCerrarProyecto"]</Boton>
-                }
-            </div>
+            @* Editar, cerrar, asignar y dar de baja técnicos son ICommand: AutorizacionEscrituraBehavior
+               los deniega a Consulta, así que no se le ofrecen (el menú de la fila ya iba envuelto). *@
+            <SoloConEscritura>
+                <div class="pie-panel-proyecto">
+                    <Boton OnClick="IniciarEdicionInfo" Variante="VarianteBoton.Secundario">@Textos["BotonEditar"]</Boton>
+                    @if (_detalle.EstaAbierto)
+                    {
+                        <Boton OnClick="() => AbrirCerrarConfirm(_detalle.Id)" Variante="VarianteBoton.Secundario">@Textos["AccionCerrarProyecto"]</Boton>
+                    }
+                </div>
+            </SoloConEscritura>
         }
     </aside>
 }
