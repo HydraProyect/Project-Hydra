@@ -44,9 +44,12 @@ else
         <h2 class="workspace-titulo-entidad">@_detalle.Nombre @_detalle.Apellidos</h2>
         @if (PestanaActiva == "informacion" && !_editandoInformacion)
         {
-            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="IniciarEdicionInformacion" aria-label="@Textos["AriaEditarInformacion"]">
-                <Icono Nombre="editar" Tamano="TamanoIcono.Pequeno" />
-            </Boton>
+            @* Editar acaba en EditarTrabajadorCommand, ICommand denegado a Consulta. *@
+            <SoloConEscritura>
+                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="IniciarEdicionInformacion" aria-label="@Textos["AriaEditarInformacion"]">
+                    <Icono Nombre="editar" Tamano="TamanoIcono.Pequeno" />
+                </Boton>
+            </SoloConEscritura>
         }
     </div>
 

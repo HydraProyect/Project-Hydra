@@ -111,9 +111,13 @@
                         }
                     </div>
 
-                    <button type="button" class="enlace-secundario-informe" disabled="@(!TienePlan)" @onclick="AbrirEnviarPorComunicaciones">
-                        @Textos["BotonEnviarPorComunicaciones"]
-                    </button>
+                    @* Abre el redactor, que envía con EnviarMensajeNuevoCommand (ICommand denegado a
+                       Consulta). Las descargas de arriba sí son lectura. *@
+                    <SoloConEscritura>
+                        <button type="button" class="enlace-secundario-informe" disabled="@(!TienePlan)" @onclick="AbrirEnviarPorComunicaciones">
+                            @Textos["BotonEnviarPorComunicaciones"]
+                        </button>
+                    </SoloConEscritura>
                 </div>
             </div>
 

@@ -186,11 +186,15 @@ else
                                             </TextoFechaCopiable>
                                         </span>
                                         <span class="columna-accion" role="cell">
-                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
-                                                   class="@("accion-fila-enlace" + (RequiereIntervencion(documento) ? null : " accion-atenuada"))"
-                                                   OnClick="() => GestionarAsync(trabajador.TrabajadorId, documento)">
-                                                @Textos["BotonGestionar"]
-                                            </Boton>
+                                            @* DrawerGestionDocumento solo crea o renueva (CrearDocumento/RenovarDocumento,
+                                               ICommand denegados a Consulta): no tiene uso de solo lectura. *@
+                                            <SoloConEscritura>
+                                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                                       class="@("accion-fila-enlace" + (RequiereIntervencion(documento) ? null : " accion-atenuada"))"
+                                                       OnClick="() => GestionarAsync(trabajador.TrabajadorId, documento)">
+                                                    @Textos["BotonGestionar"]
+                                                </Boton>
+                                            </SoloConEscritura>
                                         </span>
                                     </div>
                                 }
