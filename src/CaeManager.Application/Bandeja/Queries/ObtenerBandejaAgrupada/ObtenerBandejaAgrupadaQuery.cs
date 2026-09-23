@@ -152,15 +152,5 @@ public class ObtenerBandejaAgrupadaQueryHandler(IMediator mediator, ICalculoEsta
         _ => null
     };
 
-    private static int PrioridadTipo(ItemBandejaDto item) => item.Tipo switch
-    {
-        TipoItemBandeja.SugerenciaVisitaUrgente => 0,
-        TipoItemBandeja.Faltante => 1,
-        TipoItemBandeja.Vencido => 2,
-        TipoItemBandeja.PlataformaRechazada => 3,
-        TipoItemBandeja.VisitaUrgente => 4,
-        TipoItemBandeja.RequisitoPendiente => 5,
-        TipoItemBandeja.Urgente => 6,
-        _ => 7
-    };
+    private static int PrioridadTipo(ItemBandejaDto item) => ObtenerBandejaGestorQueryHandler.Prioridad(item.Tipo);
 }
