@@ -62,7 +62,10 @@ public class MiTrabajoGen2Tests : BunitContext
             proximos: [Item("r4", TipoItemBandeja.VencimientoProximo, "EPI por vencer", "Transportes Planet Express")],
             seguimiento: [Item("r5", TipoItemBandeja.EnPlataformaSeguimiento, "Enviado a plataforma", "Hostelería Krusty Krab", proveedor: "CTAIMA")]),
         Tenant(TenantDexter, "Laboratorios Dexter", esOrigen: false,
-            [Item("d1", TipoItemBandeja.PlataformaRechazada, "Rechazado por la plataforma", "Cervezas Duff Ibérica", documentoId: DocumentoDexter, proveedor: "Nalanda")]),
+            // Rechazada que el cálculo de su Centro de Trabajo cuenta como
+            // bloqueante (D-7): la Query la entrega ya marcada, y por eso es Bloqueo.
+            [Item("d1", TipoItemBandeja.PlataformaRechazada, "Rechazado por la plataforma", "Cervezas Duff Ibérica", documentoId: DocumentoDexter, proveedor: "Nalanda")
+                with { RechazoBloqueaCentro = true }]),
     ]);
 
     private sealed class MediadorFijo(Func<MiTrabajoAgregadoDto> respuesta) : IMediator
