@@ -63,7 +63,16 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesPorProv
 /// registra esa respuesta (Aceptada o Rechazada): sin ellas, marcar «subido»
 /// hacía desaparecer la fila y dejaba el estado sin salida.
 /// </param>
-public record ObtenerAcreditacionesPorProveedorQuery(bool IncluirAceptadas = false, bool IncluirSubidas = false)
+/// <param name="IncluirVencidasEnPlataforma">
+/// Solo las aceptadas cuya vigencia <b>en la plataforma</b> ya venció
+/// (<see cref="EstadoVigenciaEnPlataforma.VenceEnFecha"/> con la fecha pasada):
+/// la plataforma dejó de darlas por buenas y hay que renovarlas allí. Las pide
+/// Mi trabajo agregada, que las presenta como bloqueo (decisión P12,
+/// 2026-09-23). No trae el resto de aceptadas, que <paramref name="IncluirAceptadas"/>
+/// sí trae: la cola solo quiere las que ya no valen.
+/// </param>
+public record ObtenerAcreditacionesPorProveedorQuery(
+    bool IncluirAceptadas = false, bool IncluirSubidas = false, bool IncluirVencidasEnPlataforma = false)
     : IRequest<IReadOnlyList<ProveedorAcreditacionesDto>>;
 
 public record ProveedorAcreditacionesDto(
@@ -72,13 +81,22 @@ public record ProveedorAcreditacionesDto(
 
 public record ClienteAcreditacionesDto(Guid ClienteId, string ClienteNombre, IReadOnlyList<AcreditacionDrillDownDto> Documentos);
 
+/// <param name="VencidaEnPlataforma">
+/// True si la vigencia anotada en la plataforma
+/// (<see cref="EstadoVigenciaEnPlataforma.VenceEnFecha"/>) ya pasó: vale hasta
+/// esa fecha inclusive. Se calcula en la misma consulta y con la misma fecha
+/// de hoy que usa <c>IncluirVencidasEnPlataforma</c> para elegir las filas, así
+/// que quien lo lea no necesita volver a comparar fechas ni leer el reloj por
+/// su cuenta (entre las dos lecturas podía cambiar el día).
+/// </param>
 public record AcreditacionDrillDownDto(
     Guid AcreditacionId, Guid DocumentoId, string PropietarioNombre, string TipoDocumentoNombre,
     EstadoAcreditacion Estado, string? UltimoMotivoRechazo,
     Guid? TrabajadorId = null, Guid? EmpresaId = null, Guid? CentroId = null, Guid? TipoDocumentoId = null,
     Guid? CanalGestionDocumentalId = null, string? TrabajadorDni = null,
     EstadoVigenciaEnPlataforma EstadoVigencia = EstadoVigenciaEnPlataforma.SinConfirmar,
-    DateOnly? FechaVencimientoEnPlataforma = null);
+    DateOnly? FechaVencimientoEnPlataforma = null,
+    bool VencidaEnPlataforma = false);
 
 public class ObtenerAcreditacionesPorProveedorQueryHandler(
     IDocumentosQueryContext documentosContext, ICentrosQueryContext centrosContext,
@@ -99,6 +117,8 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsParaGestionAsync(cancellationToken);
         var incluirAceptadas = request.IncluirAceptadas;
         var incluirSubidas = request.IncluirSubidas;
+        var incluirVencidas = request.IncluirVencidasEnPlataforma;
+        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
 
         var canalesQuery = centrosContext.CanalesGestionDocumental
             .Where(c => c.Tipo == TipoCanalGestion.Plataforma);
@@ -111,6 +131,9 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
                   || acreditacion.Estado == EstadoAcreditacion.Rechazada
                   || (incluirAceptadas && acreditacion.Estado == EstadoAcreditacion.Aceptada)
                   || (incluirSubidas && acreditacion.Estado == EstadoAcreditacion.Subida)
+                  || (incluirVencidas && acreditacion.Estado == EstadoAcreditacion.Aceptada
+                      && acreditacion.EstadoVigencia == EstadoVigenciaEnPlataforma.VenceEnFecha
+                      && acreditacion.FechaVencimientoEnPlataforma < hoy)
             join canal in canalesQuery on acreditacion.CanalGestionDocumentalId equals canal.Id
             join centro in centrosContext.Centros on canal.CentroId equals centro.Id
             join documento in documentosContext.Documentos on acreditacion.DocumentoId equals documento.Id
@@ -194,7 +217,9 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
                                 f.Estado, motivosPorAcreditacion.GetValueOrDefault(f.Id),
                                 f.TrabajadorId, f.EmpresaId, f.CentroId, f.TipoDocumentoId,
                                 f.CanalGestionDocumentalId, TrabajadorDni(f.TrabajadorId),
-                                f.EstadoVigencia, f.FechaVencimientoEnPlataforma))
+                                f.EstadoVigencia, f.FechaVencimientoEnPlataforma,
+                                VencidaEnPlataforma: f.EstadoVigencia == EstadoVigenciaEnPlataforma.VenceEnFecha
+                                                     && f.FechaVencimientoEnPlataforma < hoy))
                             .OrderBy(d => d.PropietarioNombre)
                             .ToList()))
                     .OrderBy(c => c.ClienteNombre)

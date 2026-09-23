@@ -76,11 +76,15 @@
                 }
             </CampoSelect>
         }
-        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
-               OnClick="() => AlternarSeleccionMultiple(!_seleccionMultiple)"
-               aria-pressed="@(_seleccionMultiple ? "true" : "false")">
-            @Textos["BotonSeleccionMultiple"]
-        </Boton>
+        @* La selección solo alimenta la barra de lote (eliminar, asignar a centro), toda ella
+           escritura: sin barra para Consulta, las casillas no servirían para nada. *@
+        <SoloConEscritura>
+            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                   OnClick="() => AlternarSeleccionMultiple(!_seleccionMultiple)"
+                   aria-pressed="@(_seleccionMultiple ? "true" : "false")">
+                @Textos["BotonSeleccionMultiple"]
+            </Boton>
+        </SoloConEscritura>
         <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _mostrarGuardarFiltro = true">
             @Textos["BotonGuardarFiltro"]
         </Boton>
@@ -313,14 +317,18 @@
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
 
-<BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
-                    OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true">
-    <AccionesExtra>
-        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirAsignarCentroAsync">
-            @Textos["BotonAsignarACentro"]
-        </Boton>
-    </AccionesExtra>
-</BarraAccionesLote>
+@* Eliminar seleccionados (EliminarTrabajadoresCommand) y Asignar a centro (CrearAsignacionesCommand)
+   son ICommand denegados a Consulta; «Cancelar» sin ellos no tiene nada que cancelar. *@
+<SoloConEscritura>
+    <BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
+                        OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true">
+        <AccionesExtra>
+            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirAsignarCentroAsync">
+                @Textos["BotonAsignarACentro"]
+            </Boton>
+        </AccionesExtra>
+    </BarraAccionesLote>
+</SoloConEscritura>
 
 <DialogoConfirmacion
     Visible="_confirmarEliminarLoteVisible"

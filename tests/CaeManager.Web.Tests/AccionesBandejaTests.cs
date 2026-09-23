@@ -64,6 +64,18 @@ public class AccionesBandejaTests
         AccionesBandeja.ResolverUrl(Item(tipo)).Should().Be("/documentos?pestana=plataforma");
     }
 
+    /// <summary>
+    /// P12: la vencida en plataforma lleva DocumentoId, pero lo que hay que
+    /// renovar es la acreditación en la plataforma, no el documento de TALVEG
+    /// (que sigue vigente): no puede caer en el destino genérico por documento.
+    /// </summary>
+    [Fact]
+    public void Plataforma_vencida_va_a_la_pestana_de_plataforma_aunque_lleve_documento()
+    {
+        AccionesBandeja.ResolverUrl(Item(TipoItemBandeja.PlataformaVencida, documentoId: Guid.NewGuid()))
+            .Should().Be("/documentos?pestana=plataforma");
+    }
+
     [Fact]
     public void Con_documento_va_al_documento_concreto()
     {

@@ -151,10 +151,22 @@
                     }
                 </TemplateColumn>
                 <TemplateColumn Title="@Textos["EtiquetaNotificadaTitular"]" Align="Align.Center" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.NotificadoCliente))">
-                    <input type="checkbox" role="switch" class="visitas-interruptor" checked="@context.NotificadoCliente"
-                           aria-label="@Textos["AriaNotificadaTitular", context.CentroNombre, TextoFechas(context.FechaInicio, context.FechaFin)]"
-                           disabled="@_marcandoNotificado.Contains(context.Id)"
-                           @onchange="e => AlternarNotificadoAsync(context.Id, e.Value is bool marcado && marcado)" />
+                    @* El interruptor es a la vez el dato y el disparador de MarcarNotificadoClienteCommand
+                       (ICommand que AutorizacionEscrituraBehavior deniega a Consulta). Ocultarlo, como hace
+                       SoloConEscritura, dejaría la columna sin dato: a Consulta se le pinta deshabilitado. *@
+                    <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv" Context="autorizacionNotificada">
+                        <Authorized>
+                            <input type="checkbox" role="switch" class="visitas-interruptor" checked="@context.NotificadoCliente"
+                                   aria-label="@Textos["AriaNotificadaTitular", context.CentroNombre, TextoFechas(context.FechaInicio, context.FechaFin)]"
+                                   disabled="@_marcandoNotificado.Contains(context.Id)"
+                                   @onchange="e => AlternarNotificadoAsync(context.Id, e.Value is bool marcado && marcado)" />
+                        </Authorized>
+                        <NotAuthorized>
+                            <input type="checkbox" role="switch" class="visitas-interruptor" checked="@context.NotificadoCliente"
+                                   aria-label="@Textos["AriaNotificadaTitular", context.CentroNombre, TextoFechas(context.FechaInicio, context.FechaFin)]"
+                                   disabled />
+                        </NotAuthorized>
+                    </AuthorizeView>
                 </TemplateColumn>
                 <TemplateColumn Title="@Textos["ColumnaAcciones"]" Align="Align.End">
                     <MenuAcciones>
@@ -439,10 +451,19 @@
         {
             @* Solo cambia la marca: MarcarNotificadoClienteCommand no envía
                ningún aviso, así que el texto no puede prometer uno. *@
-            <Boton Cargando="_marcandoNotificadoDetalle" OnClick="AlternarNotificadoDesdeDetalleAsync">
-                @(_detalle.NotificadoCliente ? Textos["BotonQuitarMarcaNotificada"].Value : Textos["BotonMarcarNotificada"].Value)
-            </Boton>
-            <Boton Variante="VarianteBoton.Secundario" OnClick="EditarDesdeDetalleAsync">@Textos["AccionEditar"]</Boton>
+            @* Marcar notificada y Editar son ICommand que AutorizacionEscrituraBehavior deniega a
+               Consulta: no se le ofrecen, y el pie no queda vacío, le queda Cerrar. *@
+            <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv" Context="autorizacionPie">
+                <Authorized>
+                    <Boton Cargando="_marcandoNotificadoDetalle" OnClick="AlternarNotificadoDesdeDetalleAsync">
+                        @(_detalle.NotificadoCliente ? Textos["BotonQuitarMarcaNotificada"].Value : Textos["BotonMarcarNotificada"].Value)
+                    </Boton>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="EditarDesdeDetalleAsync">@Textos["AccionEditar"]</Boton>
+                </Authorized>
+                <NotAuthorized>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="() => _detalleVisible = false">@Textos["BotonCerrar"]</Boton>
+                </NotAuthorized>
+            </AuthorizeView>
         }
         else
         {
@@ -461,8 +482,13 @@
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
 
-<BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
-                    OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />
+@* La única acción del lote es eliminar (ICommand que AutorizacionEscrituraBehavior deniega a
+   Consulta): la barra no se le ofrece. La palanca de selección múltiple sigue visible porque
+   vive en BarraHerramientasLista, compartida y con contenido de lectura, y seleccionar no escribe. *@
+<SoloConEscritura>
+    <BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
+                        OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />
+</SoloConEscritura>
 
 <DialogoConfirmacion
     Visible="_confirmarEliminarLoteVisible"

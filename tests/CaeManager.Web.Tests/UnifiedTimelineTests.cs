@@ -1,8 +1,10 @@
 using Bunit;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
+using CaeManager.Application.Comunicaciones.Queries.ObtenerNotasInternasConversacion;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Web.Features.Comunicaciones.Components;
 using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Web.Tests;
 
@@ -14,6 +16,9 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class UnifiedTimelineTests : BunitContext
 {
+    /// <summary>Las notas internas pintan su etiqueta desde <c>IStringLocalizer&lt;TextosNotasInternas&gt;</c>.</summary>
+    public UnifiedTimelineTests() => Services.AddLocalization();
+
     private static MensajeDetalleDto CrearMensaje(
         DateTime fechaUtc, string cuerpo = "Hola", IReadOnlyList<AdjuntoDetalleDto>? adjuntos = null) => new(
         Guid.NewGuid(), DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", cuerpo, fechaUtc,
@@ -39,6 +44,29 @@ public class UnifiedTimelineTests : BunitContext
         filas[0].TextContent.Should().Contain("Primero");
         filas[1].TextContent.Should().Contain("Segundo: visita creada");
         filas[2].TextContent.Should().Contain("Tercero");
+    }
+
+    [Fact]
+    public void Una_nota_interna_se_intercala_por_fecha_con_su_autor_y_como_texto_plano()
+    {
+        var t0 = new DateTime(2026, 8, 8, 9, 0, 0, DateTimeKind.Utc);
+        var autor = Guid.NewGuid();
+        var nota = new NotaInternaDetalleDto(Guid.NewGuid(), autor, "<b>ojo</b> llamar antes", t0.AddMinutes(10));
+
+        var cut = Render<UnifiedTimeline>(parametros => parametros
+            .Add(p => p.Mensajes, [CrearMensaje(t0, "Primero"), CrearMensaje(t0.AddMinutes(20), "Tercero")])
+            .Add(p => p.Participantes, [])
+            .Add(p => p.NotasInternas, [nota])
+            .Add(p => p.AutoresNotas, new Dictionary<Guid, string> { [autor] = "Marta Gestora" }));
+
+        var filas = cut.FindAll(".timeline-mensaje-fila, .timeline-nota-interna-fila");
+        filas.Should().HaveCount(3);
+        filas[1].ClassList.Should().Contain("timeline-nota-interna-fila");
+        filas[1].TextContent.Should().Contain("Marta Gestora");
+
+        var cuerpo = cut.Find(".timeline-nota-interna-cuerpo");
+        cuerpo.TextContent.Should().Be("<b>ojo</b> llamar antes", "el texto de la nota nunca se interpreta como HTML");
+        cuerpo.QuerySelector("b").Should().BeNull();
     }
 
     [Fact]

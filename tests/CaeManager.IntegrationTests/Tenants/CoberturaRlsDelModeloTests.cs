@@ -444,6 +444,43 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
         }
     }
 
+    /// <summary>
+    /// Categoría 5: <b>catálogo del Operador CAE</b>. Las solicitudes de
+    /// incorporación a cartera no llevan <c>TenantId</c>: nacen en el Operador
+    /// CAE del Gestor CAE que las pide, pero se aceptan en la misma transacción
+    /// que escribe la cartera, con <c>app.tenant_id</c> puesto en el Tenant
+    /// propietario (lo exige <c>posicion_en_la_asignacion</c>). Por eso su
+    /// política no mira <c>app.tenant_id</c> sino <c>app.tenant_origen_id</c>,
+    /// la organización de la cuenta, que no cambia al abrir un ámbito
+    /// explícito. Sin FORCE por el mismo motivo que los catálogos de
+    /// asignación: la retirada de un Tenant de demo corre como propietario.
+    /// </summary>
+    [Fact]
+    public async Task Las_solicitudes_de_incorporacion_se_aislan_por_el_Operador_CAE_de_origen_sin_FORCE()
+    {
+        const string tabla = "SolicitudesIncorporacionCartera";
+        var estado = await LeerEstadoRlsAsync([tabla]);
+
+        estado.Should().ContainKey(tabla, "la migración de la solicitud tiene que haber creado la tabla");
+        var (habilitado, forzado, politicas) = estado[tabla];
+
+        using var _ = new AssertionScope();
+        habilitado.Should().BeTrue("sin RLS, un Gestor CAE de otro Operador CAE leería las solicitudes ajenas");
+        forzado.Should().BeFalse("con FORCE, la retirada de un Tenant de demo no vería las solicitudes que tiene que borrar");
+        politicas.Select(p => p.Nombre).Should().Equal(["operador_de_la_solicitud"],
+            "una política PERMISSIVE adicional se combina con OR y ensancharía el acceso");
+
+        var politica = politicas.Single();
+        foreach (var expresion in new[] { politica.Using, politica.WithCheck })
+        {
+            expresion.Should().NotBeNull("USING protege la lectura y WITH CHECK la escritura; hacen falta las dos")
+                .And.Subject.As<string>().Should().Contain("OperadorTenantId")
+                .And.Contain("app.tenant_origen_id")
+                .And.NotContain("app.tenant_id'",
+                    "el Tenant activo es el propietario al aceptar; aislar por él rompería la aceptación");
+        }
+    }
+
     [Fact]
     public void No_existe_ninguna_variable_de_sesion_que_afirme_privilegio_de_plataforma()
     {

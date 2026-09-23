@@ -21,6 +21,9 @@
 @inject IMediator Mediator
 @inject ToastService Toasts
 @inject IJSRuntime JSRuntime
+@inject IStringLocalizer<TextosFirmaEnCampo> Textos
+@using CaeManager.Web.Features.Documentos.Recursos
+@using Microsoft.Extensions.Localization
 
 @if (_cargando)
 {
@@ -60,7 +63,21 @@ else
             }
         </div>
     }
+    else
+    {
+        @* Sin firmas, a Consulta no le queda nada en la pestaña (el bloque de firma nueva no se
+           le ofrece): se le dice que no hay, en vez de dejarla en blanco. *@
+        <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv" Context="autorizacionFirma">
+            <NotAuthorized>
+                <EstadoVacio Titulo="@Textos["TituloSinFirmas"]" Descripcion="@Textos["DescripcionSinFirmas"]" />
+            </NotAuthorized>
+        </AuthorizeView>
+    }
 
+    @* Todo lo que sigue compone una firma nueva, que envía FirmarDocumentoEnCampoCommand (ICommand
+       que AutorizacionEscrituraBehavior deniega a Consulta): no se le ofrece. Sin el lienzo en el DOM,
+       firmaEnCampo.js iniciar() sale sin hacer nada. *@
+    <SoloConEscritura>
     <h3 class="workspace-subtitulo">Nueva firma</h3>
 
     @if (_firmaGuardada is not null && _usarFirmaGuardada)
@@ -141,4 +158,5 @@ else
         <Boton Variante="VarianteBoton.Secundario" OnClick="RepetirAsync" Deshabilitado="@(_firmando || _usarFirmaGuardada)">Repetir firma</Boton>
         <Boton OnClick="FirmarAsync" Cargando="_firmando" Deshabilitado="@(!PuedeFirmarAhora() || _firmando)">Firmar</Boton>
     </div>
+    </SoloConEscritura>
 }
