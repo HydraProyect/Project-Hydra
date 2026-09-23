@@ -330,13 +330,14 @@ name: Desplegar
 # rerun"). Por eso el paso solo corre `if: github.event_name == 'workflow_run'`
 # y nunca se aplica a `workflow_dispatch`.
 #
-# CAMBIO 2026-09-23, pendiente de ratificar contra DEC-41: con la imagen
-# firmada en CI, la vía manual ya NO sirve para volver a un commit anterior.
+# CAMBIO 2026-09-23, ratificado por el propietario el mismo día (sustituye
+# en esto a DEC-41): con la imagen firmada en CI, la vía manual ya NO sirve
+# para volver a un commit anterior.
 # Lanzarla sobre una rama o etiqueta que apunte a ese commit produce una firma
 # de `deploy.yml@refs/<otra>`, que el VPS rechaza; lanzada sobre main despliega
 # la punta. El rollback pasa a ser un revert en main (con su CI). La
 # alternativa que conservaría el rollback manual —un input `sha` firmado por
-# un run de main— queda como decisión abierta, no implementada aquí.
+# un run de main— se descartó al ratificarlo.
 on:
   workflow_run:
     workflows: [CI]
