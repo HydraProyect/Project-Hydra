@@ -77,6 +77,16 @@ public class MiTrabajoRechazadaAplicableBajoRlsTests : IAsyncLifetime
         _propietario.AsignacionesOperadorDelegado.Add(new AsignacionOperadorDelegado(delegacion.Id, _usuario, "GestorCae"));
         await _propietario.SaveChangesAsync();
 
+        // Mi trabajo también recorre el Tenant de origen del Operador CAE
+        // (ObtenerClientesAutorizadosQuery lo devuelve primero), y cada vuelta
+        // lee su ParametroSistema: sin él, la consulta falla antes de llegar
+        // al delegante.
+        using (AmbitoTenantExplicito.Establecer(_tenantOrigen))
+        {
+            _propietario.ParametrosSistema.Add(new ParametroSistema(umbralAmbarDias: 30, umbralRojoDias: 15));
+            await _propietario.SaveChangesAsync();
+        }
+
         await SembrarDeleganteAsync();
 
         // Lectura como en producción: identidad de tráfico restringida, el
