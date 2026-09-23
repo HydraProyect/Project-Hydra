@@ -5,7 +5,7 @@ using MediatR;
 
 namespace CaeManager.Application.Notificaciones.Commands.MarcarNotificacionLeida;
 
-public record MarcarNotificacionLeidaCommand(Guid Id) : ICommand;
+public record MarcarNotificacionLeidaCommand(Guid Id) : ICommand, IComandoDeAutoservicio;
 
 public class MarcarNotificacionLeidaCommandHandler(
     INotificacionUsuarioRepository repositorio, IUnitOfWork unitOfWork, ICurrentUserService currentUserService)
@@ -13,13 +13,12 @@ public class MarcarNotificacionLeidaCommandHandler(
 {
     public async Task<Result> Handle(MarcarNotificacionLeidaCommand request, CancellationToken cancellationToken)
     {
+        // Misma respuesta si no existe y si es de otro usuario: un mensaje distinto
+        // revelaría que el Id existe (condición de IComandoDeAutoservicio).
         var notificacion = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
-        if (notificacion is null)
-            return Result.Fallo(Error.Crear("Notificacion.NoEncontrada", "No encontramos esta notificación."));
-
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
-        if (notificacion.UsuarioDestinatarioId != usuarioId)
-            return Result.Fallo(Error.Crear("Notificacion.SinAcceso", "Esta notificación no es tuya."));
+        if (notificacion is null || usuarioId is null || notificacion.UsuarioDestinatarioId != usuarioId)
+            return Result.Fallo(Error.Crear("Notificacion.NoEncontrada", "No encontramos esta notificación."));
 
         notificacion.MarcarComoLeida();
         await unitOfWork.SaveChangesAsync(cancellationToken);

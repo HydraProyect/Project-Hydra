@@ -11,7 +11,7 @@ namespace CaeManager.Application.BusquedaGlobal.Commands.RegistrarUsoReciente;
 /// uso del palette, no "vistas" — nada en este diseño observa navegación
 /// directa fuera del Ctrl+K.
 /// </summary>
-public record RegistrarUsoRecienteCommand(string Tipo, Guid? EntidadId, string Titulo, string? Subtitulo, string UrlDestino) : ICommand;
+public record RegistrarUsoRecienteCommand(string Tipo, Guid? EntidadId, string Titulo, string? Subtitulo, string UrlDestino) : ICommand, IComandoDeAutoservicio;
 
 public class RegistrarUsoRecienteCommandHandler(
     IEventoRecienteUsuarioRepository repositorio, IUnitOfWork unitOfWork, ICurrentUserService usuarioActual)
