@@ -664,10 +664,11 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
             // cargan aquí en vez de solo al abrir el modal de "Actualizar
             // documento" (más abajo) porque la revisión de una sugerencia de
             // gestión puede necesitarlos antes de que el gestor toque ese
-            // otro flujo. Sin filtro de Cliente — mismo catálogo general que
-            // ya usa ese modal.
+            // otro flujo. Sin filtro de Cliente, pero sí de cartera (el mismo que
+            // usa ese modal): CrearGestionesParaTrabajador rechaza un
+            // Trabajador fuera de la Asignación de Cartera del Gestor CAE.
             var tiposDocumento = await Mediator.Send(new ObtenerTiposDocumentoQuery(), _ciclo.Token);
-            var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(), _ciclo.Token);
+            var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera), _ciclo.Token);
             if (carga != _cargaDetalleVigente) return;
 
             _tiposDocumentoSelector = tiposDocumento;
@@ -1142,7 +1143,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
         try
         {
             _tiposDocumentoSelector = await Mediator.Send(new ObtenerTiposDocumentoQuery(), _ciclo.Token);
-            _trabajadoresSelector = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(), _ciclo.Token);
+            _trabajadoresSelector = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera), _ciclo.Token);
             _empresasSelector = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery(_detalle?.ClienteId), _ciclo.Token);
 
             var deteccion = await Mediator.Send(new DetectarActualizacionDocumentoDesdeAdjuntoQuery(adjuntoId), _ciclo.Token);

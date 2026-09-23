@@ -850,8 +850,17 @@ cd /opt/talveg/deploy/local
 # `docker compose build` sale con código de error) sin que el resto del
 # stack pierda un solo health-check; con 2560m el mismo build (sin tocar el
 # código) completa con normalidad. 2560m dado aquí: deja margen sobre el
-# build real y sigue muy por debajo de los ~3 GB que quedan libres en la
+# build real y sigue muy por debajo de los ~3 GB que quedaban libres en la
 # máquina con app+db+caddy+seq ya arriba.
+#
+# Esa premisa ya no se cumple (medido 2026-09-22, en la cabecera de cada
+# despliegue fallido): MemAvailable entre 2109 y 2204 MB, por debajo del
+# propio techo. Desde que el proyecto de migraciones creció (157 Designer.cs,
+# ~42 MB de C#) el csc de CaeManager.Migrations.PostgreSQL muere con exit
+# 137 dentro de este cgroup cuando corre con analizadores; por eso el
+# Dockerfile los apaga en el publish (-p:RunAnalyzers=false; el análisis
+# sigue en el job de build de CI). Subir el techo no es arreglo: ya supera la
+# memoria disponible y un OOM fuera del cgroup lo pagaría producción.
 LIMITE_MEMORIA_BUILD="2560m"
 
 # Volcar logs y estado del contenedor app si el despliegue no llega a sano —

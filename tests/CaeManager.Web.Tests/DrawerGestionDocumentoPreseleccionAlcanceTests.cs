@@ -35,11 +35,18 @@ public class DrawerGestionDocumentoPreseleccionAlcanceTests : BunitContext
     {
         public required IReadOnlyList<TrabajadorSelectorDto> Trabajadores { get; init; }
         public required IReadOnlyList<EmpresaSelectorDto> Empresas { get; init; }
+        public List<AlcanceSelectorTrabajadores> AlcancesPedidos { get; } = [];
+
+        private IReadOnlyList<TrabajadorSelectorDto> Registrar(ObtenerTrabajadoresParaSelectorQuery consulta)
+        {
+            AlcancesPedidos.Add(consulta.Alcance);
+            return Trabajadores;
+        }
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
             Task.FromResult((TResponse)(object)(request switch
             {
-                ObtenerTrabajadoresParaSelectorQuery => Trabajadores,
+                ObtenerTrabajadoresParaSelectorQuery consulta => Registrar(consulta),
                 ObtenerEmpresasParaSelectorQuery => Empresas,
                 ObtenerTiposDocumentoQuery => (IReadOnlyList<TipoDocumentoListaDto>)[],
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
@@ -127,6 +134,49 @@ public class DrawerGestionDocumentoPreseleccionAlcanceTests : BunitContext
 
         LeerCampoPrivado(cut.Instance, "_trabajadorId").Should().Be(trabajador.Id.ToString(),
             "un Id que sí está en el catálogo cargado para este alcance debe seguir preseleccionándose, igual que antes del fix");
+    }
+
+    /// <summary>
+    /// El selector de Trabajador del drawer cuelga un Documento de un Trabajador ya existente:
+    /// pide el catálogo acotado a la cartera, nunca la base general del Tenant. Los mocks del resto
+    /// de la suite aceptan la consulta sea cual sea su alcance; este test es el que lo fija.
+    /// </summary>
+    [Fact]
+    public async Task El_drawer_pide_el_selector_de_Trabajadores_acotado_a_la_cartera()
+    {
+        var mediator = new MediatorFalso { Trabajadores = [], Empresas = [] };
+        var cut = Renderizar(mediator);
+
+        await cut.InvokeAsync(() => cut.Instance.AbrirCrearAsync());
+
+        mediator.AlcancesPedidos.Should().Equal(AlcanceSelectorTrabajadores.Cartera);
+    }
+
+    /// <summary>
+    /// Un faltante de un Trabajador fuera de la cartera (p. ej. desde Visitas, que usa la base
+    /// general) no deja el selector vacío sin explicación: el drawer lo dice, con el mismo texto
+    /// exista o no el Trabajador fuera del alcance, sin revelar su nombre ni su DNI.
+    /// </summary>
+    [Fact]
+    public async Task Un_trabajadorId_ajeno_al_catalogo_cargado_avisa_de_que_no_lo_encontramos()
+    {
+        var visible = new TrabajadorSelectorDto(Guid.NewGuid(), "Ruiz Peña, Ana", "12345678A", null);
+        var cut = Renderizar(new MediatorFalso { Trabajadores = [visible], Empresas = [] });
+
+        await cut.InvokeAsync(() => cut.Instance.AbrirCrearParaFaltanteAsync(Guid.NewGuid(), Guid.NewGuid()));
+
+        cut.Find("[role=alert]").TextContent.Should().Contain("No encontramos este trabajador");
+    }
+
+    [Fact]
+    public async Task Un_trabajadorId_presente_en_el_catalogo_cargado_no_pinta_ningun_aviso()
+    {
+        var trabajador = new TrabajadorSelectorDto(Guid.NewGuid(), "Ruiz Peña, Ana", "12345678A", null);
+        var cut = Renderizar(new MediatorFalso { Trabajadores = [trabajador], Empresas = [] });
+
+        await cut.InvokeAsync(() => cut.Instance.AbrirCrearParaFaltanteAsync(trabajador.Id, Guid.NewGuid()));
+
+        cut.FindAll("[role=alert]").Should().NotContain(a => a.TextContent.Contains("No encontramos este trabajador"));
     }
 
     [Fact]
