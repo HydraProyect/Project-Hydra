@@ -12,7 +12,9 @@ namespace CaeManager.Application.Operaciones.IncorporacionCartera.Commands;
 /// <summary>
 /// Retira la cartera que un Gestor CAE obtuvo por una solicitud aceptada. La
 /// puede revocar un Coordinador CAE del mismo Operador CAE, o el propio
-/// Gestor CAE sobre la suya; nadie más.
+/// Gestor CAE sobre la suya; nadie más. Ser el solicitante no basta: hace falta
+/// seguir siendo Gestor CAE o Coordinador CAE activo en el Operador CAE (una
+/// cuenta degradada o desactivada no revoca ni la suya).
 ///
 /// <para>
 /// En el circuito de quien revoca, el alcance se invalida al terminar
@@ -42,6 +44,8 @@ public class RevocarIncorporacionCarteraCommandHandler(
         var contexto = await ContextoOperadorCae.ResolverAsync(currentUserService, directorioUsuarios, cancellationToken);
         if (contexto.EsFallido) return Result.Fallo(contexto.Error);
         var ctx = contexto.Valor;
+        if (!ctx.ParticipaEnIncorporacionCartera)
+            return Result.Fallo(ErroresSolicitudCartera.SinPermiso);
 
         using (ctx.EnOrigen())
         {

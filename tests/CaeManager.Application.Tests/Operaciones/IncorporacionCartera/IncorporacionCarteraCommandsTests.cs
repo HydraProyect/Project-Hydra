@@ -508,6 +508,39 @@ public class IncorporacionCarteraCommandsTests
         _notificaciones.Notificaciones.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Hallazgo de Codex (P2, ronda 2): ser el solicitante no basta para revocar. Un Gestor CAE
+    /// degradado en su Operador CAE (o sin rol) no revoca ni la suya, aunque la sesión conserve rol.
+    /// </summary>
+    [Theory]
+    [InlineData("Consulta")]
+    [InlineData(null)]
+    public async Task El_solicitante_sin_rol_de_Gestor_CAE_en_su_organizacion_no_revoca_la_suya(string? rolEnOrigen)
+    {
+        var solicitud = Aceptada();
+        _directorio.Asignar(_gestor, _operador, rolEnOrigen);
+
+        var resultado = await Revocar(new CurrentUserServicePorAmbito(_gestor, _operador, "GestorCae"))
+            .Handle(new RevocarIncorporacionCarteraCommand(solicitud.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("SolicitudCartera.SinPermiso");
+        solicitud.Estado.Should().Be(EstadoSolicitudIncorporacionCartera.Aceptada);
+    }
+
+    [Fact]
+    public async Task El_solicitante_con_la_cuenta_desactivada_no_revoca_la_suya()
+    {
+        var solicitud = Aceptada();
+        var usuario = Como(_gestor, "GestorCae");
+        _directorio.Desactivar(_gestor);
+
+        var resultado = await Revocar(usuario)
+            .Handle(new RevocarIncorporacionCarteraCommand(solicitud.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("SolicitudCartera.SinPermiso");
+        solicitud.Estado.Should().Be(EstadoSolicitudIncorporacionCartera.Aceptada);
+    }
+
     [Theory]
     [InlineData("GestorCae")]
     [InlineData("DireccionCae")]
@@ -541,7 +574,9 @@ public class IncorporacionCarteraCommandsTests
     public async Task Un_Coordinador_CAE_de_otro_Operador_CAE_no_revoca()
     {
         var solicitud = Aceptada();
-        var ajeno = new CurrentUserServicePorAmbito(_coordinador, Guid.NewGuid(), "CoordinadorCae");
+        var otroOperador = Guid.NewGuid();
+        _directorio.Asignar(_coordinador, otroOperador, "CoordinadorCae");
+        var ajeno = new CurrentUserServicePorAmbito(_coordinador, otroOperador, "CoordinadorCae");
 
         var resultado = await Revocar(ajeno)
             .Handle(new RevocarIncorporacionCarteraCommand(solicitud.Id), CancellationToken.None);
