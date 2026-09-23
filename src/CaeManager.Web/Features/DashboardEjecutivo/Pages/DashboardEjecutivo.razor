@@ -31,7 +31,7 @@
     <CabeceraPagina Titulo="@Textos["TituloCabecera"]" Kicker="@Textos["Kicker"]">
         <Acciones>
             <div class="dashboard-periodo">
-                <CampoSelect Etiqueta="@Textos["EtiquetaSelectorPeriodo"]"Valor="@_preset.ToString()" ValorChanged="CambiarPresetAsync">
+                <CampoSelect Etiqueta="@Textos["EtiquetaSelectorPeriodo"]" Valor="@_preset.ToString()" ValorChanged="CambiarPresetAsync">
                     @foreach (var preset in Enum.GetValues<PresetPeriodoKpi>())
                     {
                         <option value="@preset">@EtiquetaPreset(preset)</option>
@@ -42,7 +42,7 @@
                 {
                     <CampoTexto Etiqueta="@Textos["EtiquetaFechaInicio"]" Type="date" Valor="@_desdePersonalizado"
                                 ValorChanged="v => _desdePersonalizado = v" OnBlur="AplicarRangoPersonalizadoAsync" />
-                    <CampoTexto Etiqueta="@Textos["EtiquetaFechaFin"]"Type="date" Valor="@_hastaPersonalizado"
+                    <CampoTexto Etiqueta="@Textos["EtiquetaFechaFin"]" Type="date" Valor="@_hastaPersonalizado"
                                 ValorChanged="v => _hastaPersonalizado = v" OnBlur="AplicarRangoPersonalizadoAsync" />
                 }
             </div>
@@ -64,7 +64,7 @@
     }
     else
     {
-        <SeccionColapsable Titulo="@Textos["SeccionPersonalizarTitulo"]"ExpandidaPorDefecto="@(Seleccionados.Count == 0)">
+        <SeccionColapsable Titulo="@Textos["SeccionPersonalizarTitulo"]" ExpandidaPorDefecto="@(Seleccionados.Count == 0)">
             <Encabezado>
                 <span class="resumen-seleccion">@ResumenSeleccion</span>
             </Encabezado>
