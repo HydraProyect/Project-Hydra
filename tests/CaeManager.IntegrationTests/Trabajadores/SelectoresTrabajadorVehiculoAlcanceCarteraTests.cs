@@ -5,6 +5,7 @@ using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
+using CaeManager.Domain.RelacionesEmpresariales;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Vehiculos;
@@ -55,7 +56,7 @@ public class SelectoresTrabajadorVehiculoAlcanceCarteraTests : IAsyncLifetime
 
     private sealed record Escenario(
         Guid ClienteDentro, Guid TrabajadorDentro, Guid VehiculoDentro,
-        Guid TrabajadorFuera, Guid VehiculoFuera);
+        Guid TrabajadorFuera, Guid VehiculoFuera, Guid VehiculoSubcontrataDentro);
 
     public async Task InitializeAsync()
     {
@@ -155,7 +156,33 @@ public class SelectoresTrabajadorVehiculoAlcanceCarteraTests : IAsyncLifetime
         ids.Should().BeEquivalentTo([_a.TrabajadorDentro, _a.TrabajadorFuera]);
     }
 
+    /// <summary>
+    /// Falla cerrado: un valor del enum que no es literalmente <c>BaseGeneralDelTenant</c> (aquí,
+    /// uno fuera de rango) se acota a la cartera en vez de abrir todo el Tenant.
+    /// </summary>
+    [Fact]
+    public async Task Un_alcance_fuera_de_rango_se_acota_a_la_cartera()
+    {
+        var ids = await TrabajadoresAsync(_tenant, _gestorA, Roles.GestorCae, (AlcanceSelectorTrabajadores)99);
+
+        ids.Should().Contain(_a.TrabajadorDentro, "control positivo: sigue siendo la cartera, no un selector vacío");
+        ids.Should().NotContain(_a.TrabajadorFuera);
+    }
+
     // ── Vehículos ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Control positivo que no depende de la Empresa propia (visible por D-8 para cualquier Gestor
+    /// CAE con cartera): un Vehículo de una Subcontrata que entra en la cartera por su Relación
+    /// Empresarial con el Cliente empresarial de dentro.
+    /// </summary>
+    [Fact]
+    public async Task Gestor_CAE_ve_en_el_selector_el_Vehiculo_de_una_Subcontrata_de_su_cartera()
+    {
+        var ids = await VehiculosAsync(_tenant, _gestorA, Roles.GestorCae);
+
+        ids.Should().Contain(_a.VehiculoSubcontrataDentro);
+    }
 
     [Fact]
     public async Task Gestor_CAE_ve_en_el_selector_el_Vehiculo_de_su_cartera_y_no_el_de_fuera()
@@ -191,7 +218,7 @@ public class SelectoresTrabajadorVehiculoAlcanceCarteraTests : IAsyncLifetime
     {
         var ids = await VehiculosAsync(_tenant, Guid.NewGuid(), Roles.Administrador);
 
-        ids.Should().BeEquivalentTo([_a.VehiculoDentro, _a.VehiculoFuera]);
+        ids.Should().BeEquivalentTo([_a.VehiculoDentro, _a.VehiculoFuera, _a.VehiculoSubcontrataDentro]);
     }
 
     [Fact]
@@ -235,7 +262,8 @@ public class SelectoresTrabajadorVehiculoAlcanceCarteraTests : IAsyncLifetime
         var clienteFuera = Empresa.CrearComoCliente($"Cliente empresarial fuera {sufijo}", cifs[1], false, null, null);
         var propia = new Empresa($"Empresa propia {sufijo}", cifs[2]);
         var subcontrataFuera = Empresa.CrearComoSubcontrata($"Subcontrata fuera {sufijo}", null, NivelServicioSubcontrata.Gestionada.ToString());
-        contexto.Empresas.AddRange(clienteDentro, clienteFuera, propia, subcontrataFuera);
+        var subcontrataDentro = Empresa.CrearComoSubcontrata($"Subcontrata dentro {sufijo}", null, NivelServicioSubcontrata.Gestionada.ToString());
+        contexto.Empresas.AddRange(clienteDentro, clienteFuera, propia, subcontrataFuera, subcontrataDentro);
 
         var centroDentro = new Centro(clienteDentro.Id, propia.Id, $"Centro dentro {sufijo}");
         var centroFuera = new Centro(clienteFuera.Id, subcontrataFuera.Id, $"Centro fuera {sufijo}");
@@ -247,7 +275,12 @@ public class SelectoresTrabajadorVehiculoAlcanceCarteraTests : IAsyncLifetime
 
         var vehiculoDentro = Vehiculo.DeEmpresa(propia.Id, "Furgoneta dentro", "Modelo", sufijo == "A" ? "1111BCD" : "3333BCD");
         var vehiculoFuera = Vehiculo.DeSubcontrata(subcontrataFuera.Id, "Furgoneta fuera", "Modelo", sufijo == "A" ? "2222BCD" : "4444BCD");
-        contexto.Vehiculos.AddRange(vehiculoDentro, vehiculoFuera);
+        var vehiculoSubcontrataDentro = Vehiculo.DeSubcontrata(subcontrataDentro.Id, "Furgoneta subcontrata dentro", "Modelo", sufijo == "A" ? "5555BCD" : "6666BCD");
+        contexto.Vehiculos.AddRange(vehiculoDentro, vehiculoFuera, vehiculoSubcontrataDentro);
+
+        // La Subcontrata de dentro entra en la cartera por su Relación Empresarial vigente con el
+        // Cliente empresarial de dentro, no por ser la Empresa propia.
+        contexto.RelacionesEmpresariales.Add(RelacionEmpresarial.Crear(subcontrataDentro.Id, clienteDentro.Id, DateTime.UtcNow));
 
         await contexto.SaveChangesAsync();
 
@@ -255,7 +288,7 @@ public class SelectoresTrabajadorVehiculoAlcanceCarteraTests : IAsyncLifetime
         contexto.Asignaciones.Add(new Asignacion(trabajadorFuera.Id, centroFuera.Id, new DateOnly(2026, 1, 1)));
         await contexto.SaveChangesAsync();
 
-        return new Escenario(clienteDentro.Id, trabajadorDentro.Id, vehiculoDentro.Id, trabajadorFuera.Id, vehiculoFuera.Id);
+        return new Escenario(clienteDentro.Id, trabajadorDentro.Id, vehiculoDentro.Id, trabajadorFuera.Id, vehiculoFuera.Id, vehiculoSubcontrataDentro.Id);
     }
 
     private async Task<Guid> OtorgarCarteraAsync(Guid tenant, Guid clienteId)

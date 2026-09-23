@@ -31,11 +31,18 @@ public class DrawerAsignacionMasivaFaltantesTests : BunitContext
     private sealed class MediatorFalso : IMediator
     {
         public IReadOnlyList<DocumentoFaltanteDto> Faltantes { get; set; } = [];
+        public List<AlcanceSelectorTrabajadores> AlcancesPedidos { get; } = [];
+
+        private object Registrar(ObtenerTrabajadoresParaSelectorQuery consulta)
+        {
+            AlcancesPedidos.Add(consulta.Alcance);
+            return new[] { new TrabajadorSelectorDto(TrabajadorId, "Bea Alonso Ruiz", "12345678A", null) };
+        }
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
             Task.FromResult((TResponse)(object)(request switch
             {
-                ObtenerTrabajadoresParaSelectorQuery => (object)new[] { new TrabajadorSelectorDto(TrabajadorId, "Bea Alonso Ruiz", "12345678A", null) },
+                ObtenerTrabajadoresParaSelectorQuery consulta => Registrar(consulta),
                 ObtenerCentrosParaSelectorQuery => new[] { new CentroSelectorDto(CentroId, "Planta Zaragoza", "Refrielectric S.A.", "Montajes Ebro S.L.") },
                 ObtenerDocumentosFaltantesParaAsignacionQuery => Faltantes,
                 CrearAsignacionesCommand => Result.Exito(new ResultadoAsignacionLoteDto(0, 0, 0, [])),
@@ -100,6 +107,22 @@ public class DrawerAsignacionMasivaFaltantesTests : BunitContext
             .And.NotContain("quedarán sin", "la lectura previa no sabe qué quedará al confirmar")
             .And.NotContainEquivalentOf("obligatori", "es configuración (se pide), no una obligación legal");
         cut.Find(".drawer-pie button:last-child").TextContent.Trim().Should().Be("Asignar igualmente");
+    }
+
+    /// <summary>
+    /// La Asignación masiva es el flujo de "elige de la base general": tiene que poder ofrecer un
+    /// Trabajador que todavía no está en la cartera para crear su primera Asignación. Si alguien lo
+    /// acotara a la cartera, dejaría de poder incorporar Trabajadores nuevos.
+    /// </summary>
+    [Fact]
+    public async Task Pide_el_selector_de_Trabajadores_de_la_base_general_del_Tenant()
+    {
+        var mediador = new MediatorFalso();
+        var (cut, componente) = Renderizar(mediador);
+
+        await cut.InvokeAsync(() => componente.AbrirAsync());
+
+        mediador.AlcancesPedidos.Should().Equal(AlcanceSelectorTrabajadores.BaseGeneralDelTenant);
     }
 
     [Fact]

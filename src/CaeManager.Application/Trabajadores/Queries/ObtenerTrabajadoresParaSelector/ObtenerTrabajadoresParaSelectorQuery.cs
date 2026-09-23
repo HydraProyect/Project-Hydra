@@ -6,9 +6,11 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 
 /// <summary>
-/// Qué Trabajadores ofrece un selector. No tiene valor por defecto a propósito: cada
-/// consumidor elige, y el compilador impide que uno nuevo herede la base general sin
-/// haberlo decidido.
+/// Qué Trabajadores ofrece un selector. La consulta lo exige como parámetro posicional, así
+/// que cada consumidor elige de forma explícita y el compilador impide que uno nuevo herede la
+/// base general sin haberlo decidido. <c>default</c> (0) es <see cref="Cartera"/>, y cualquier
+/// valor fuera de rango también se trata como Cartera (falla cerrado): solo
+/// <see cref="BaseGeneralDelTenant"/>, pedido literalmente, abre todo el Tenant.
 /// </summary>
 public enum AlcanceSelectorTrabajadores
 {
