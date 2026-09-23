@@ -53,6 +53,7 @@ public class Trabajador360Gen2Tests : BunitContext
     public Trabajador360Gen2Tests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
         this.ConRolDeEscritura();
     }
 

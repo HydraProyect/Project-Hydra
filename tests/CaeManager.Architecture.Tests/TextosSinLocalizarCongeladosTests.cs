@@ -112,7 +112,16 @@ public class TextosSinLocalizarCongeladosTests
         // «ValorChanged="v => _ambito = Enum.Parse<AmbitoAplicacion>(v)"» (y los de _requerido
         // y _naturaleza). No se reescriben las lambdas para esquivar la heurística.
         ["TiposDocumento"] = 6,
-        ["Trabajadores"] = 193,
+        // 193 → 13 el 2026-09-23 al migrar la Feature a TextosTrabajadores.resx. Quedan:
+        // «DNI» y «DNI:» (sigla oficial del documento de la Administración: no se localiza);
+        // «Documentación», cabecera de la exportación trabajadores.xlsx (contrato de datos del
+        // fichero, igual que el resto de sus columnas, que el detector no ve por no llevar tilde);
+        // y falsos positivos del detector de markup: «.ToString("dd/MM/yyyy")» tras
+        // «@gestion.CreadoEnUtc.ToLocalTime()», «d.Estado != EstadoDocumento.Vigente);» del
+        // «var incidenciasCentro = …» dentro del markup, y los trozos de los ternarios Razor
+        // partidos en varias líneas («@(incidencias == 0», «? Textos["BadgeCompleto"]»…), cuyo
+        // «>» de comparación toma por texto lo que sigue. No se reformatea para esquivar la heurística.
+        ["Trabajadores"] = 13,
         ["Usuarios"] = 157,
         // 112 → 10 el 2026-09-23: Visitas.razor(.cs) migrados a TextosVisitas.resx. Los 10
         // que quedan son las etiquetas estáticas de NivelUrgenciaVisitaUi y AntelacionVisitaUi,
