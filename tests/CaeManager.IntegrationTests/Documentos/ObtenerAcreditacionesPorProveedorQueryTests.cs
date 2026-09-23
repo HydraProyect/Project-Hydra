@@ -192,6 +192,14 @@ public class ObtenerAcreditacionesPorProveedorQueryTests : IAsyncLifetime
     [Fact]
     public async Task Las_vencidas_en_plataforma_solo_salen_cuando_se_piden_y_llevan_el_indicador()
     {
+        // La frontera es «hoy» UTC, que la consulta lee por su cuenta: si la
+        // prueba cruzase medianoche entre la siembra y la consulta, «vence hoy»
+        // pasaría a vencida y el resultado dependería de la hora. Cerca de la
+        // medianoche se espera a que cambie el día (a lo sumo dos minutos).
+        var ahora = DateTime.UtcNow;
+        if (ahora.TimeOfDay > new TimeSpan(23, 58, 0))
+            await Task.Delay(ahora.Date.AddDays(1).AddSeconds(1) - ahora);
+
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
         var ids = new Dictionary<string, Guid>();
 
