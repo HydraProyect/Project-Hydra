@@ -89,7 +89,11 @@ public class TextosSinLocalizarCongeladosTests
         ["Trabajadores"] = 193,
         ["Usuarios"] = 157,
         ["VisionCartera"] = 77,
-        ["Visitas"] = 112,
+        // 112 → 10 el 2026-09-23: Visitas.razor(.cs) migrados a TextosVisitas.resx. Los 10
+        // que quedan son las etiquetas estáticas de NivelUrgenciaVisitaUi y AntelacionVisitaUi,
+        // que también pintan Dashboard (Inicio) y DashboardEjecutivo: migrarlas cambia la firma
+        // de helpers compartidos entre Features y es un incremento propio.
+        ["Visitas"] = 10,
         ["Web(raiz)"] = 4,
         ["Web/Api"] = 2,
         ["Web/Reportes"] = 5,
