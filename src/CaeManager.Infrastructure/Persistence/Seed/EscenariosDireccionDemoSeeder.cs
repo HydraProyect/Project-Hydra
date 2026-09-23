@@ -110,7 +110,8 @@ public static class EscenariosDireccionDemoSeeder
         foreach (var rama in CatalogoEscenariosDireccionDemo.Ramas)
         {
             var tenantPropietarioId = await DelegacionDemoSeeder.AprovisionarTenantAsync(
-                dbContext, rama.NombreTenant, PerfilVocabularioTenant.ClienteDirecto, logger, cancellationToken);
+                dbContext, rama.NombreTenant, PerfilVocabularioTenant.ClienteDirecto, logger, cancellationToken,
+                esOperadorCaeExterno: false);
             // Duff y Pizza Planet llevan un nombre sin sufijo «demo»: la retirada exige además este marcador.
             await SiembraDemoDireccionAdministrativa.MarcarComoDemoAsync(dbContext, tenantPropietarioId, cancellationToken);
 

@@ -231,8 +231,10 @@ public class UsosDeEsPlataformaCongeladosTests
             new(2, CategoriaUso.Guarda,
                 "la proyección del Operador y el rechazo de un Operador que sea el Tenant de plataforma: " +
                 "TALVEG no es Operador CAE por defecto (ADR-011 § 1). No concede capacidad a nadie — es la " +
-                "mitad negativa de un fallo cerrado, y va además de la guarda de perfil Consultora (el test " +
-                "de integración cambia el perfil de la plataforma a Consultora para que solo esta guarda lo rechace)"),
+                "mitad negativa de un fallo cerrado, y va además de la guarda de la capacidad concedida " +
+                "PuedeActuarComoOperadorCaeExterno (el test de integración concede la capacidad a la " +
+                "plataforma con HabilitarComoOperadorCaeExterno(), no cambia su perfil, para que solo esta " +
+                "guarda EsPlataforma lo rechace — actualizado en P11, 2026-09-23, ver Tenant.cs)"),
         ["src/CaeManager.Application/Tenants/Queries/ObtenerOperadoresCaeExternos/ObtenerOperadoresCaeExternosQuery.cs"] =
             new(1, CategoriaUso.Guarda,
                 "excluye el Tenant de plataforma del listado de Operadores CAE externos. Solo recorta un " +

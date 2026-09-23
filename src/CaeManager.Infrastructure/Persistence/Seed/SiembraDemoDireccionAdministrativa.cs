@@ -357,7 +357,8 @@ public static partial class SiembraDemoDireccionAdministrativa
         {
             var rama = Ramas[indice];
             var tenantPropietarioId = await DelegacionDemoSeeder.AprovisionarTenantAsync(
-                dbContext, rama.NombreTenant, Domain.Tenants.PerfilVocabularioTenant.ClienteDirecto, logger, cancellationToken);
+                dbContext, rama.NombreTenant, Domain.Tenants.PerfilVocabularioTenant.ClienteDirecto, logger, cancellationToken,
+                esOperadorCaeExterno: false);
             await MarcarComoDemoAsync(dbContext, tenantPropietarioId, cancellationToken);
 
             await DelegacionDemoSeeder.CrearDelegacionAsync(
