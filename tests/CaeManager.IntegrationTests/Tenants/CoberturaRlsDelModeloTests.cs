@@ -349,6 +349,53 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// Categoría 5: <b>configuración de plataforma de lectura universal</b>
+    /// (<c>OrdenMenuLateral</c>, decisión del 2026-09-23). Como el bootstrap, fila única del
+    /// sistema sin TenantId y con FORCE; al contrario que él, la LEE todo el mundo —el orden del
+    /// menú no es ni secreto ni autoridad— y la ESCRIBE solo una concesión AdminPlataforma
+    /// <b>global</b>. Tres políticas, una por verbo, y ninguna de DELETE.
+    /// </summary>
+    private static readonly string[] PoliticasDelOrdenDelMenu =
+    [
+        "orden_menu_alta_por_admin_plataforma_global",
+        "orden_menu_cambio_por_admin_plataforma_global",
+        "orden_menu_lectura_de_todos",
+    ];
+
+    [Fact]
+    public async Task El_orden_del_menu_lo_lee_todo_el_mundo_y_solo_lo_escribe_una_concesion_global()
+    {
+        var estado = await LeerEstadoRlsAsync(["OrdenMenuLateral"]);
+
+        estado.Should().ContainKey("OrdenMenuLateral");
+        var e = estado["OrdenMenuLateral"];
+
+        using var _ = new AssertionScope();
+
+        e.Habilitado.Should().BeTrue();
+        e.Forzado.Should().BeTrue("sin FORCE la política no ataría al propietario de la tabla");
+
+        e.Politicas.Select(p => p.Nombre).OrderBy(n => n).Should().BeEquivalentTo(PoliticasDelOrdenDelMenu,
+            "una por verbo y NINGUNA de DELETE: una política PERMISSIVE más se combinaría con OR y abriría " +
+            "la escritura; una de borrado dejaría vaciar la configuración de todos los Tenants");
+
+        foreach (var nombre in new[] { "orden_menu_alta_por_admin_plataforma_global", "orden_menu_cambio_por_admin_plataforma_global" })
+        {
+            var escritura = e.Politicas.FirstOrDefault(p => p.Nombre == nombre);
+            escritura.Should().NotBeNull();
+            escritura!.WithCheck.Should().NotBeNull()
+                .And.Subject.As<string>().Should().Contain("app_es_admin_plataforma_global(").And.Contain("app.usuario_id",
+                    "la escritura se ata a la concesión GLOBAL del usuario de la sesión, no a app_es_admin_plataforma, " +
+                    "que admitiría una concesión acotada a un solo Tenant");
+        }
+
+        var cambio = e.Politicas.First(p => p.Nombre == "orden_menu_cambio_por_admin_plataforma_global");
+        cambio.Using.Should().NotBeNull()
+            .And.Subject.As<string>().Should().Contain("app_es_admin_plataforma_global(",
+                "el USING del UPDATE también: sin él, cualquiera podría seleccionar la fila para cambiarla");
+    }
+
+    /// <summary>
     /// Categoría 3. Hasta F2b-5 esta lista afirmaba un hueco —"todavía sin RLS,
     /// y este es el motivo"— para que un pendiente no se quedara pendiente para
     /// siempre. Ese test cumplió su función: al implementarse la política se

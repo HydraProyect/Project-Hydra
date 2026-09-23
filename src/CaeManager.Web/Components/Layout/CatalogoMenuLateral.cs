@@ -198,14 +198,51 @@ public static class CatalogoMenuLateral
     public sealed record GrupoVisible(GrupoMenuLateral Grupo, IReadOnlyList<EnlaceMenuLateral> Enlaces);
 
     /// <summary>
-    /// Los grupos y enlaces que <paramref name="contexto"/> puede ver, en el orden del catálogo.
-    /// Un enlace solo se ve si se ve su grupo y cumple su propia condición.
+    /// Los grupos y enlaces que <paramref name="contexto"/> puede ver, en el orden global guardado
+    /// por el Actor de Plataforma TALVEG (o en el del catálogo si no hay ninguno). Un enlace solo
+    /// se ve si se ve su grupo y cumple su propia condición: el orden nunca añade nada, solo
+    /// recoloca lo que el rol ya permitía ver.
     /// </summary>
-    public static IReadOnlyList<GrupoVisible> Visibles(ContextoMenuLateral contexto) =>
-        Grupos
+    public static IReadOnlyList<GrupoVisible> Visibles(
+        ContextoMenuLateral contexto,
+        IReadOnlyList<string>? ordenGrupos = null,
+        IReadOnlyList<string>? ordenEnlaces = null)
+    {
+        var enlaces = Reconciliar(Enlaces, e => e.Id, ordenEnlaces);
+
+        return Reconciliar(Grupos, g => g.Id, ordenGrupos)
             .Where(g => g.Visible(contexto))
-            .Select(g => new GrupoVisible(g, Enlaces
+            .Select(g => new GrupoVisible(g, enlaces
                 .Where(e => e.GrupoId == g.Id && (e.Condicion?.Invoke(contexto) ?? true))
                 .ToList()))
             .ToList();
+    }
+
+    /// <summary>
+    /// Reconciliación del orden guardado con el catálogo actual (decisión del 2026-09-23): lo que
+    /// está guardado va primero y en ese orden; lo que el catálogo tiene y el orden no nombra
+    /// (un grupo o enlace nuevo) va al final, en el orden por defecto; un identificador guardado
+    /// que ya no existe se ignora. Sin orden guardado, el catálogo tal cual.
+    ///
+    /// <para>
+    /// Los enlaces se reordenan como una lista plana: como cada enlace pertenece a un único grupo,
+    /// su posición relativa dentro del grupo es la que manda, y cambiar de grupo es imposible por
+    /// construcción.
+    /// </para>
+    /// </summary>
+    public static IReadOnlyList<T> Reconciliar<T>(
+        IReadOnlyList<T> catalogo, Func<T, string> id, IReadOnlyList<string>? orden)
+    {
+        if (orden is null || orden.Count == 0)
+            return catalogo;
+
+        var posicion = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var identificador in orden)
+            posicion.TryAdd(identificador, posicion.Count);
+
+        // OrderBy es estable: entre los que no están guardados se conserva el orden del catálogo.
+        return catalogo
+            .OrderBy(item => posicion.TryGetValue(id(item), out var p) ? p : int.MaxValue)
+            .ToList();
+    }
 }
