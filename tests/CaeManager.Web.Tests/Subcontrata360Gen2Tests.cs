@@ -55,6 +55,7 @@ public class Subcontrata360Gen2Tests : BunitContext
         JSInterop.Mode = JSRuntimeMode.Loose;
         // Los textos de Subcontratas salen de IStringLocalizer<TextosSubcontratas>.
         Services.AddLocalization();
+        this.ConRolDeEscritura();
     }
 
     /// <summary>
@@ -294,6 +295,37 @@ public class Subcontrata360Gen2Tests : BunitContext
         cut.Markup.Should().NotContain("lauburu.prl", "son las credenciales de otra subcontrata")
             .And.NotContain("app.dokify.net/acceso");
         Boton(cut, "Ver credenciales");
+    }
+
+    /// <summary>
+    /// Decisión del propietario (2026-09-23): los secretos del Tenant solo los
+    /// leen los roles con escritura. Consulta no ve la tarjeta «Acceso al portal»
+    /// ni la edición (que carga las credenciales); el control positivo es el
+    /// mismo panel con un rol de gestión.
+    /// </summary>
+    [Theory]
+    [InlineData("Consulta", false)]
+    [InlineData("GestorCae", true)]
+    public void Las_credenciales_del_portal_y_su_edicion_solo_se_ofrecen_a_los_roles_con_escritura(string rol, bool seOfrecen)
+    {
+        this.ConRolDeEscritura(rol);
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Pinturas Lauburu S.A.");
+
+        var cut = Renderizar(id);
+        var botones = cut.FindAll("button").Select(b => b.TextContent.Trim()).ToList();
+
+        if (seOfrecen)
+        {
+            botones.Should().Contain(["Ver credenciales", "Editar identidad"]);
+            cut.FindAll("section[aria-label='Acceso al portal']").Should().ContainSingle();
+        }
+        else
+        {
+            botones.Should().NotContain(["Ver credenciales", "Editar identidad"]);
+            cut.FindAll("section[aria-label='Acceso al portal']").Should().BeEmpty();
+        }
     }
 
     [Fact]

@@ -71,6 +71,8 @@ public class PestanaActivaSeMarcaEnLosPanelesTests : BunitContext
     public PestanaActivaSeMarcaEnLosPanelesTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        // EmpresaWorkspacePanel envuelve su edición en SoloConEscritura (un AuthorizeView).
+        this.ConRolDeEscritura();
         // VehiculoWorkspacePanel pinta sus textos con IStringLocalizer<TextosVehiculos>.
         Services.AddLocalization();
     }
