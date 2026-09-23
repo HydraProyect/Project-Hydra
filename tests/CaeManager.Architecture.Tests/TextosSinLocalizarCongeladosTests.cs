@@ -113,13 +113,15 @@ public class TextosSinLocalizarCongeladosTests
         // y _naturaleza). No se reescriben las lambdas para esquivar la heurística.
         ["TiposDocumento"] = 6,
         // 193 → 13 el 2026-09-23 al migrar la Feature a TextosTrabajadores.resx. Quedan:
-        // «DNI» y «DNI:» (sigla oficial del documento de la Administración: no se localiza);
+        // «DNI» y «DNI:» (sigla oficial del documento de la Administración: no se localiza; «DNI» cuenta dos
+        // veces, como atributo —Title/Etiqueta— y como markup —<span>DNI</span>—);
         // «Documentación», cabecera de la exportación trabajadores.xlsx (contrato de datos del
         // fichero, igual que el resto de sus columnas, que el detector no ve por no llevar tilde);
         // y falsos positivos del detector de markup: «.ToString("dd/MM/yyyy")» tras
         // «@gestion.CreadoEnUtc.ToLocalTime()», «d.Estado != EstadoDocumento.Vigente);» del
         // «var incidenciasCentro = …» dentro del markup, y los trozos de los ternarios Razor
-        // partidos en varias líneas («@(incidencias == 0», «? Textos["BadgeCompleto"]»…), cuyo
+        // partidos en varias líneas («@(incidencias == 0», «? Textos["BadgeCompleto"]»… en Trabajador 360,
+        // «0 ? Textos["BotonAsignarIgualmente"]» en Trabajadores.razor), cuyo
         // «>» de comparación toma por texto lo que sigue. No se reformatea para esquivar la heurística.
         ["Trabajadores"] = 13,
         ["Usuarios"] = 157,
