@@ -75,7 +75,7 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");
         await page.GetByText("+ Nuevo documento").First.ClickAsync();
         await drawer.GetByLabel("Trabajador", new LocatorGetByLabelOptions { Exact = true })
-            .FillAsync($"{nombreTrabajador} {apellidosTrabajador} ({dniTrabajador})");
+            .FillAsync($"{nombreTrabajador} {apellidosTrabajador}");
         await page.WaitForTimeoutAsync(500);
         await drawer.GetByLabel("Tipo de documento").SelectOptionAsync(new SelectOptionValue { Label = "Formación 60h (base convenio)" });
 

@@ -204,9 +204,9 @@
 
         <CampoSelect Etiqueta="@Textos["EtiquetaTrabajadorOpcional"]" Valor="@_trabajadorId" ValorChanged="v => _trabajadorId = v">
             <option value="">@Textos["OpcionNingunTrabajador"]</option>
-            @foreach (var trabajador in _trabajadoresDisponibles)
+            @foreach (var trabajador in EtiquetasSelectorTrabajador.Construir(_trabajadoresDisponibles))
             {
-                <option value="@trabajador.Id">@trabajador.NombreCompleto (@trabajador.Dni)</option>
+                <option value="@trabajador.Id">@trabajador.Texto</option>
             }
         </CampoSelect>
 
