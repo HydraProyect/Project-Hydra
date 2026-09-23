@@ -107,6 +107,16 @@ public class ConexionesFueraDelInterceptorTests
         // valor que TenantRlsConnectionInterceptor ya fija al abrir, solo que
         // aquí puede hacer falta a mitad de SaveChanges.
         "src/CaeManager.Infrastructure/MultiTenancy/TenantSelladoInterceptor.cs",
+
+        // P6: FirmanteContextoRls registra la clave efímera del contexto RLS
+        // firmado con la cadena PROPIETARIA (CaeManagerDb), a propósito fuera
+        // de EF y del interceptor: es la única identidad que puede escribir en
+        // app_privado.claves_contexto, y la conexión solo toca esa tabla
+        // (INSERT de la clave nueva y DELETE de las caducadas). No lee ni
+        // escribe filas de ningún Tenant, así que no hay nada que aislar; y
+        // pasar por el interceptor sería circular: el interceptor necesita la
+        // clave para firmar la conexión que abre.
+        "src/CaeManager.Infrastructure/Persistence/ContextoRls/FirmanteContextoRls.cs",
     ];
 
     [Fact]

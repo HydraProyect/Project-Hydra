@@ -261,7 +261,7 @@ public class SoloLecturaEnLaCapaDeDatosTests : IAsyncLifetime
                 new TenantRlsConnectionInterceptor(
                     tenantActual,
                     new ClienteActivoSeleccionadoFalso(tenantId, sesionPrivilegiadaId),
-                    new CurrentUserServiceFalso(Guid.NewGuid(), tenantOrigenId: tenantId)))
+                    new CurrentUserServiceFalso(Guid.NewGuid(), tenantOrigenId: tenantId), BaseDatosPostgresDePruebas.FirmanteContextoRls))
             .Options;
 
         return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);

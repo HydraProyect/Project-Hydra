@@ -1,4 +1,5 @@
 using Npgsql;
+using CaeManager.Infrastructure.Persistence.ContextoRls;
 namespace CaeManager.IntegrationTests;
 
 /// <summary>
@@ -63,6 +64,17 @@ internal static class BaseDatosPostgresDePruebas
     /// </summary>
     internal static string CadenaDeMantenimientoSinPool() =>
         $"{Servidor};Database=postgres;Pooling=false";
+
+    /// <summary>
+    /// Firmante del contexto RLS (P6) para los tests que montan
+    /// <c>TenantRlsConnectionInterceptor</c> a mano. Uno por proceso, como en
+    /// producción; registra una clave en cada base de test la primera vez que
+    /// firma una conexión de esa base. Sin pool: la conexión propietaria se usa
+    /// una vez por base y no debe quedar viva sumando a <c>max_connections</c>.
+    /// </summary>
+    internal static FirmanteContextoRls FirmanteContextoRls { get; } = new(
+        CadenaDeMantenimientoSinPool(), TimeProvider.System,
+        FirmanteContextoRls.TtlPorDefecto, FirmanteContextoRls.RotacionPorDefecto);
 
     internal static string CadenaConexionUnica() =>
         $"{Servidor};Database=caemanager_tests_{Guid.NewGuid():N};{LimitesDePool}";

@@ -195,7 +195,7 @@ public class AprovisionamientoDeExtremoAExtremoTests : IAsyncLifetime
             .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
             .AddInterceptors(
                 new TenantSelladoInterceptor(tenantActual),
-                new TenantRlsConnectionInterceptor(tenantActual, clienteActivoSeleccionado, currentUserService))
+                new TenantRlsConnectionInterceptor(tenantActual, clienteActivoSeleccionado, currentUserService, BaseDatosPostgresDePruebas.FirmanteContextoRls))
             .Options;
 
         return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);

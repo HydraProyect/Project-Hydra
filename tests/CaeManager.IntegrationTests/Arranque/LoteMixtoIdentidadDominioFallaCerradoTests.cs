@@ -629,7 +629,7 @@ public sealed class LoteMixtoIdentidadDominioFallaCerradoTests : IAsyncLifetime
         interceptores.Add(new TenantRlsConnectionInterceptor(
             _sesion,
             servicios.GetRequiredService<IClienteActivoSeleccionado>(),
-            servicios.GetRequiredService<ICurrentUserService>()));
+            servicios.GetRequiredService<ICurrentUserService>(), BaseDatosPostgresDePruebas.FirmanteContextoRls));
 
         var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(

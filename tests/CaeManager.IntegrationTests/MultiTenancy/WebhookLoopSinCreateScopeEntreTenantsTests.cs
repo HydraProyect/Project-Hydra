@@ -151,7 +151,7 @@ public class WebhookLoopSinCreateScopeEntreTenantsTests : IAsyncLifetime
         var interceptorRls = new TenantRlsConnectionInterceptor(
             tenantActual,
             new ClienteActivoSeleccionadoAusente(),
-            new CurrentUserServiceFalso());
+            new CurrentUserServiceFalso(), BaseDatosPostgresDePruebas.FirmanteContextoRls);
 
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
