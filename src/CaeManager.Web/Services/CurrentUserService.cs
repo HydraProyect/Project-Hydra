@@ -37,6 +37,14 @@ public class CurrentUserService(
     }
 
     /// <summary>
+    /// Roles que una delegación o una cartera externa pueden dar en el Tenant
+    /// propietario: solo de Operación (decisión del propietario, 2026-09-23;
+    /// misma lista que <c>AsignacionesOperativasWriter</c>). Se vuelve a
+    /// exigir al LEER porque pueden quedar filas anteriores a esa decisión.
+    /// </summary>
+    private static readonly string[] RolesDelegables = [Roles.CoordinadorCae, Roles.GestorCae, Roles.Consulta];
+
+    /// <summary>
     /// El rol <b>efectivo en el contexto actual</b>, no el del claim de
     /// sesión. Mientras se opera un Delegated Workspace manda el rol de la
     /// <c>AsignacionOperadorDelegado</c> de esa delegación, que es lo que
@@ -69,14 +77,6 @@ public class CurrentUserService(
     /// Cartera de su rol real ahí (hallazgo Codex 2026-09-11).
     /// </para>
     /// </summary>
-    /// <summary>
-    /// Roles que una delegación o una cartera externa pueden dar en el Tenant
-    /// propietario: solo de Operación (decisión del propietario, 2026-09-23;
-    /// misma lista que <c>AsignacionesOperativasWriter</c>). Se vuelve a
-    /// exigir al LEER porque pueden quedar filas anteriores a esa decisión.
-    /// </summary>
-    private static readonly string[] RolesDelegables = [Roles.CoordinadorCae, Roles.GestorCae, Roles.Consulta];
-
     public async Task<string?> ObtenerRolActualAsync()
     {
         var usuario = await ObtenerUsuarioAsync();
