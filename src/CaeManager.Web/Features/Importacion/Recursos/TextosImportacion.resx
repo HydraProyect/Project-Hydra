@@ -1,0 +1,495 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="EnlaceMigaDocumentos" xml:space="preserve">
+    <value>Documentos</value>
+  </data>
+  <data name="TituloImportarDocumentos" xml:space="preserve">
+    <value>Importar documentos</value>
+  </data>
+  <data name="TituloImportarClientes" xml:space="preserve">
+    <value>Importar clientes</value>
+  </data>
+  <data name="TituloImportacionCombinada" xml:space="preserve">
+    <value>Importación combinada</value>
+  </data>
+  <data name="TituloImportarDatos" xml:space="preserve">
+    <value>Importar datos</value>
+  </data>
+  <data name="EnlaceVolverClientes" xml:space="preserve">
+    <value>Volver a Clientes</value>
+  </data>
+  <data name="MigaNegocio" xml:space="preserve">
+    <value>Negocio</value>
+  </data>
+  <data name="MigaClientes" xml:space="preserve">
+    <value>Clientes</value>
+  </data>
+  <data name="KickerCicloDocumental" xml:space="preserve">
+    <value>Ciclo documental</value>
+  </data>
+  <data name="KickerConfiguracion" xml:space="preserve">
+    <value>Configuración</value>
+  </data>
+  <data name="EnlaceVerPlantillas" xml:space="preserve">
+    <value>Ver todas las plantillas</value>
+  </data>
+  <data name="AriaProgresoImportacion" xml:space="preserve">
+    <value>Progreso de la importación</value>
+  </data>
+  <data name="PasoElegirPlantilla" xml:space="preserve">
+    <value>Elegir plantilla</value>
+  </data>
+  <data name="PasoAnalizar" xml:space="preserve">
+    <value>Analizar</value>
+  </data>
+  <data name="PasoRevisarPlan" xml:space="preserve">
+    <value>Revisar plan</value>
+  </data>
+  <data name="PasoConfirmar" xml:space="preserve">
+    <value>Confirmar</value>
+  </data>
+  <data name="PasoReporte" xml:space="preserve">
+    <value>Reporte</value>
+  </data>
+  <data name="TituloElegirPlantilla" xml:space="preserve">
+    <value>Elige una plantilla</value>
+  </data>
+  <data name="LimiteTamanoPlantilla" xml:space="preserve">
+    <value>.xlsx · máx. {0} MB</value>
+  </data>
+  <data name="EnlacePlantillaBlanco" xml:space="preserve">
+    <value>Descargar plantilla en blanco</value>
+  </data>
+  <data name="BotonContinuarConPlantilla" xml:space="preserve">
+    <value>Continuar con {0}</value>
+  </data>
+  <data name="CabeceraHistorial" xml:space="preserve">
+    <value>Historial de importaciones</value>
+  </data>
+  <data name="HistorialVacio" xml:space="preserve">
+    <value>Todavía no se ha ejecutado ninguna importación.</value>
+  </data>
+  <data name="HistorialResultadoExito" xml:space="preserve">
+    <value>{0} creados · {1} avisos</value>
+  </data>
+  <data name="HistorialResultadoFallo" xml:space="preserve">
+    <value>Fallida — {0}</value>
+  </data>
+  <data name="UsuarioEliminado" xml:space="preserve">
+    <value>(usuario eliminado)</value>
+  </data>
+  <data name="PlantillaCaeTitulo" xml:space="preserve">
+    <value>Importación CAE completa (multi-hoja)</value>
+  </data>
+  <data name="PlantillaCaeNombreCorto" xml:space="preserve">
+    <value>Importación CAE completa</value>
+  </data>
+  <data name="PlantillaCaeDescripcion" xml:space="preserve">
+    <value>Clientes, empresas, centros, trabajadores y sus documentos en un solo libro (Cuadro de Control CAE) que ya existe. No da de alta ningún Cliente empresarial ni Centro nuevos — solo reutiliza los que ya existan. Para incorporar un Cliente empresarial nuevo con su estructura completa, usa Combinada.</value>
+  </data>
+  <data name="PlantillaClientesTitulo" xml:space="preserve">
+    <value>Plantilla de Clientes</value>
+  </data>
+  <data name="PlantillaClientesDescripcion" xml:space="preserve">
+    <value>Una fila por nombre de Cliente empresarial y Centro, con criticidad, dirección y contacto. No recoge CIF ni Empresa, así que no da de alta ninguno nuevo.</value>
+  </data>
+  <data name="PlantillaCombinadaTitulo" xml:space="preserve">
+    <value>Combinada: Cliente + Empresas + Centros + Trabajadores</value>
+  </data>
+  <data name="PlantillaCombinadaNombreCorto" xml:space="preserve">
+    <value>Combinada</value>
+  </data>
+  <data name="PlantillaCombinadaDescripcion" xml:space="preserve">
+    <value>Estructura organizativa completa sin documentos. Útil al incorporar un Cliente empresarial nuevo con su plantilla.</value>
+  </data>
+  <data name="PlantillaDocumentosTitulo" xml:space="preserve">
+    <value>Documentos</value>
+  </data>
+  <data name="PlantillaDocumentosDescripcion" xml:space="preserve">
+    <value>Lote de documentos con propietario y tipo por fila. Los PDF se aportan después con subida múltiple.</value>
+  </data>
+  <data name="EntradillaCombinada" xml:space="preserve">
+    <value>Estructura organizativa completa sin documentos: Clientes empresariales, Empresas, Centros y Trabajadores en un solo libro de cuatro hojas. Útil al incorporar un Cliente empresarial nuevo con su plantilla.</value>
+  </data>
+  <data name="TituloSubeArchivo" xml:space="preserve">
+    <value>Sube el archivo</value>
+  </data>
+  <data name="AriaPlantillaDocumentos" xml:space="preserve">
+    <value>Plantilla de Documentos</value>
+  </data>
+  <data name="TituloContextoPlantillaDocumentos" xml:space="preserve">
+    <value>Plantilla: Documentos</value>
+  </data>
+  <data name="TituloQueHace" xml:space="preserve">
+    <value>Qué hace</value>
+  </data>
+  <data name="QueHaceCrea" xml:space="preserve">
+    <value>Crea los documentos nuevos de trabajador, con fecha de emisión y vencimiento calculado.</value>
+  </data>
+  <data name="QueHaceCruza" xml:space="preserve">
+    <value>Cruza el DNI con los trabajadores dados de alta y el nombre con el catálogo de tipos.</value>
+  </data>
+  <data name="QueHaceConstancia" xml:space="preserve">
+    <value>Deja constancia de cada fila que no entra, con su motivo, en el reporte.</value>
+  </data>
+  <data name="TituloNoHace" xml:space="preserve">
+    <value>No hace</value>
+  </data>
+  <data name="NoHaceAltas" xml:space="preserve">
+    <value>No da de alta trabajadores ni tipos de documento.</value>
+  </data>
+  <data name="NoHacePdf" xml:space="preserve">
+    <value>No adjunta PDF: el archivo se aporta después con subida múltiple.</value>
+  </data>
+  <data name="NoHaceVencimiento" xml:space="preserve">
+    <value>No admite fecha de vencimiento: se calcula desde la emisión y la vigencia del tipo.</value>
+  </data>
+  <data name="ZonaSoltarTitulo" xml:space="preserve">
+    <value>Arrastra el archivo de {0}</value>
+  </data>
+  <data name="ZonaSoltarFormatos" xml:space="preserve">
+    <value>.xlsx · máx. {0} MB · el análisis no escribe nada</value>
+  </data>
+  <data name="AnalizandoLeyendo" xml:space="preserve">
+    <value>Leyendo el archivo…</value>
+  </data>
+  <data name="AnalizandoDuplicados" xml:space="preserve">
+    <value>Comprobando duplicados…</value>
+  </data>
+  <data name="AnalizandoValidando" xml:space="preserve">
+    <value>Validando DNI y CIF…</value>
+  </data>
+  <data name="AnalizandoCruzando" xml:space="preserve">
+    <value>Cruzando con la cartera…</value>
+  </data>
+  <data name="ToastTamanoMaximo" xml:space="preserve">
+    <value>El archivo no puede superar los {0} MB.</value>
+  </data>
+  <data name="ErrorLecturaArchivo" xml:space="preserve">
+    <value>No pudimos leer este archivo. Comprueba que sea el formato de importación de esta plantilla.</value>
+  </data>
+  <data name="TituloColumnasHoja" xml:space="preserve">
+    <value>Columnas que espera la hoja «{0}»</value>
+  </data>
+  <data name="ColumnaColumna" xml:space="preserve">
+    <value>Columna</value>
+  </data>
+  <data name="ColumnaEjemplo" xml:space="preserve">
+    <value>Ejemplo</value>
+  </data>
+  <data name="ColumnaObligatoria" xml:space="preserve">
+    <value>Obligatoria</value>
+  </data>
+  <data name="ValorSi" xml:space="preserve">
+    <value>Sí</value>
+  </data>
+  <data name="ValorNo" xml:space="preserve">
+    <value>No</value>
+  </data>
+  <data name="NotaColumnasPlantilla" xml:space="preserve">
+    <value>La fila de ejemplo, la que empieza por «{0}», se ignora. La lectura termina en la primera fila sin nombre: lo que haya debajo no se lee. «{1}» solo cuenta como sí con una {2}.</value>
+  </data>
+  <data name="TituloHojasCombinada" xml:space="preserve">
+    <value>Las cuatro hojas, y en qué orden se leen</value>
+  </data>
+  <data name="ReglaHojaClientes" xml:space="preserve">
+    <value>Cada fila es un Cliente empresarial. CIF, o DNI o NIE si es un autónomo, con dígito de control válido. Sin él, la fila se omite entera.</value>
+  </data>
+  <data name="ReglaHojaEmpresas" xml:space="preserve">
+    <value>Cada Cliente empresarial citado se busca en el sistema y en la hoja 1. Si no aparece, esa asociación se descarta con un aviso y la Empresa se crea igual.</value>
+  </data>
+  <data name="ReglaHojaCentros" xml:space="preserve">
+    <value>Cliente y Empresa son obligatorios y tienen que existir en el sistema o en las hojas 1 y 2.</value>
+  </data>
+  <data name="ReglaHojaTrabajadores" xml:space="preserve">
+    <value>DNI, NIE o CIF con dígito de control válido. La Empresa tiene que existir en el sistema o en la hoja 2.</value>
+  </data>
+  <data name="NotaHojasCombinada" xml:space="preserve">
+    <value>Cada referencia se busca en lo que ya existe y en la hoja de este mismo libro que la declara: un Centro puede apuntar a un Cliente empresarial que todavía no existe si viene en la hoja {0}.</value>
+  </data>
+  <data name="BotonCambiarPlantilla" xml:space="preserve">
+    <value>← Cambiar plantilla</value>
+  </data>
+  <data name="BotonVerPlan" xml:space="preserve">
+    <value>Ver plan de importación</value>
+  </data>
+  <data name="TituloRevisarPlan" xml:space="preserve">
+    <value>Revisar plan</value>
+  </data>
+  <data name="DetalleRevisionPlan" xml:space="preserve">
+    <value>{0} · nada escrito todavía</value>
+  </data>
+  <data name="TituloSinNadaNuevo" xml:space="preserve">
+    <value>El archivo se leyó entero, pero no hay nada nuevo que crear</value>
+  </data>
+  <data name="SinNadaNuevoUno" xml:space="preserve">
+    <value>El único registro del archivo ya existe en el sistema. No es un archivo vacío: es una importación que no añadiría nada. Si lo que quieres es actualizarlos, marca «Reemplazar los campos ya rellenados» en el paso siguiente.</value>
+  </data>
+  <data name="SinNadaNuevoVarios" xml:space="preserve">
+    <value>Los {0} registros del archivo ya existen en el sistema. No es un archivo vacío: es una importación que no añadiría nada. Si lo que quieres es actualizarlos, marca «Reemplazar los campos ya rellenados» en el paso siguiente.</value>
+  </data>
+  <data name="BadgeSeCrearan" xml:space="preserve">
+    <value>{0} se crearán</value>
+  </data>
+  <data name="TituloBadgeCrear" xml:space="preserve">
+    <value>{0} Clientes empresariales y {1} Centros con nombre nuevo</value>
+  </data>
+  <data name="TituloBadgeReutilizados" xml:space="preserve">
+    <value>Ya existen: no son altas ni descartes. Sin «Reemplazar» solo se completan sus campos vacíos.</value>
+  </data>
+  <data name="BadgeReutilizados" xml:space="preserve">
+    <value>{0} ya existen · se reutilizan</value>
+  </data>
+  <data name="BadgeConAviso" xml:space="preserve">
+    <value>{0} con aviso</value>
+  </data>
+  <data name="BadgeSeOmitiran" xml:space="preserve">
+    <value>{0} se omitirán</value>
+  </data>
+  <data name="AvisoAltasNinguna" xml:space="preserve">
+    <value>Ninguna de estas altas se hará al importar.</value>
+  </data>
+  <data name="AvisoAltasAlgunas" xml:space="preserve">
+    <value>{0} de estas altas no se harán al importar.</value>
+  </data>
+  <data name="IndicacionAltaManual" xml:space="preserve">
+    <value>Dalos de alta a mano en Clientes y Centros.</value>
+  </data>
+  <data name="FilasOmitiranUno" xml:space="preserve">
+    <value>La fila de Cliente empresarial o Centro con un nombre que todavía no existe se omitirá: esta importación no recoge el CIF que exige el alta de un Cliente empresarial ni la Empresa que exige la de un Centro.</value>
+  </data>
+  <data name="FilasOmitiranVarios" xml:space="preserve">
+    <value>Las {0} filas de Cliente empresarial o Centro con un nombre que todavía no existe se omitirán: esta importación no recoge el CIF que exige el alta de un Cliente empresarial ni la Empresa que exige la de un Centro.</value>
+  </data>
+  <data name="AriaVistaPlan" xml:space="preserve">
+    <value>Vista del plan</value>
+  </data>
+  <data name="BotonVistaArbol" xml:space="preserve">
+    <value>Árbol de lo que se va a crear</value>
+  </data>
+  <data name="BotonVistaLista" xml:space="preserve">
+    <value>Lista plana</value>
+  </data>
+  <data name="TituloAvisosConteo" xml:space="preserve">
+    <value>Avisos ({0})</value>
+  </data>
+  <data name="TituloOmitidosConteo" xml:space="preserve">
+    <value>Omitidos ({0})</value>
+  </data>
+  <data name="ColumnaEntidad" xml:space="preserve">
+    <value>Entidad</value>
+  </data>
+  <data name="ColumnaAccion" xml:space="preserve">
+    <value>Acción</value>
+  </data>
+  <data name="ColumnaMotivo" xml:space="preserve">
+    <value>Motivo</value>
+  </data>
+  <data name="ColumnaHoja" xml:space="preserve">
+    <value>Hoja</value>
+  </data>
+  <data name="ColumnaFila" xml:space="preserve">
+    <value>Fila</value>
+  </data>
+  <data name="ColumnaElemento" xml:space="preserve">
+    <value>Elemento</value>
+  </data>
+  <data name="AccionCrearCliente" xml:space="preserve">
+    <value>Crear cliente</value>
+  </data>
+  <data name="AccionCrearCentro" xml:space="preserve">
+    <value>Crear centro</value>
+  </data>
+  <data name="AccionCrearEmpresa" xml:space="preserve">
+    <value>Crear empresa</value>
+  </data>
+  <data name="AccionCrearTrabajador" xml:space="preserve">
+    <value>Crear trabajador</value>
+  </data>
+  <data name="AccionCrearDocumento" xml:space="preserve">
+    <value>Crear documento</value>
+  </data>
+  <data name="AccionCrearAsignacion" xml:space="preserve">
+    <value>Crear asignación</value>
+  </data>
+  <data name="AccionAviso" xml:space="preserve">
+    <value>Aviso</value>
+  </data>
+  <data name="AccionOmitir" xml:space="preserve">
+    <value>Omitir</value>
+  </data>
+  <data name="MotivoNombreNuevoEnHoja" xml:space="preserve">
+    <value>Nombre nuevo en la hoja «{0}».</value>
+  </data>
+  <data name="MotivoNombreNuevoEn" xml:space="preserve">
+    <value>Nombre nuevo en {0}.</value>
+  </data>
+  <data name="MotivoRazonSocialNueva" xml:space="preserve">
+    <value>Razón social nueva.</value>
+  </data>
+  <data name="MotivoDniNuevo" xml:space="preserve">
+    <value>DNI nuevo en {0}.</value>
+  </data>
+  <data name="MotivoEmitido" xml:space="preserve">
+    <value>Emitido {0}.</value>
+  </data>
+  <data name="MotivoAsignacionNueva" xml:space="preserve">
+    <value>Asignación nueva.</value>
+  </data>
+  <data name="MotivoCifNuevo" xml:space="preserve">
+    <value>CIF {0} nuevo.</value>
+  </data>
+  <data name="MotivoClienteDelCentro" xml:space="preserve">
+    <value>Cliente {0}.</value>
+  </data>
+  <data name="BotonVolverArchivo" xml:space="preserve">
+    <value>← Volver al archivo</value>
+  </data>
+  <data name="BotonContinuarConfirmar" xml:space="preserve">
+    <value>Continuar a confirmar</value>
+  </data>
+  <data name="TituloConfirmarImportacion" xml:space="preserve">
+    <value>Confirmar importación</value>
+  </data>
+  <data name="ConfirmacionSinOmitir" xml:space="preserve">
+    <value>Se crearán {0} elementos. Esta acción escribe datos reales.</value>
+  </data>
+  <data name="ConfirmacionNinguna" xml:space="preserve">
+    <value>Ninguna de las {0} altas del plan se hará.</value>
+  </data>
+  <data name="ConfirmacionComoMaximo" xml:space="preserve">
+    <value>Se crearán como máximo {0} de las {1} altas del plan. Esta acción escribe datos reales.</value>
+  </data>
+  <data name="DetalleConfirmacionSinOmitir" xml:space="preserve">
+    <value>Punto de no retorno. Los {0} omitidos y {1} avisos no se tocan.</value>
+  </data>
+  <data name="DetalleConfirmacionConOmitir" xml:space="preserve">
+    <value>{0} Los {1} omitidos y {2} avisos del análisis no se tocan.</value>
+  </data>
+  <data name="OpcionReemplazar" xml:space="preserve">
+    <value>Reemplazar los campos ya rellenados de los registros existentes (por defecto solo se completa lo vacío)</value>
+  </data>
+  <data name="AvisoReemplazarNinguno" xml:space="preserve">
+    <value>Ningún registro de este archivo existe todavía, así que marcarla no cambia nada.</value>
+  </data>
+  <data name="AvisoReemplazarUno" xml:space="preserve">
+    <value>Con esta casilla marcada, el registro que ya existía toma lo que traiga el archivo: un dato distinto sustituye al que había, y la razón social y la marca Crítico de cada Cliente empresarial se toman tal como vengan. En cada Empresa, las asociaciones con Clientes empresariales que su celda no nombre se cierran, también si la celda viene vacía. Un texto o una fecha que el archivo deje en blanco no borra lo que había.</value>
+  </data>
+  <data name="AvisoReemplazarVarios" xml:space="preserve">
+    <value>Con esta casilla marcada, los {0} registros que ya existían toman lo que traiga el archivo: un dato distinto sustituye al que había, y la razón social y la marca Crítico de cada Cliente empresarial se toman tal como vengan. En cada Empresa, las asociaciones con Clientes empresariales que su celda no nombre se cierran, también si la celda viene vacía. Un texto o una fecha que el archivo deje en blanco no borra lo que había.</value>
+  </data>
+  <data name="CasillaConfirmacion" xml:space="preserve">
+    <value>He revisado el plan y quiero escribir estos datos</value>
+  </data>
+  <data name="BotonRevisarElPlan" xml:space="preserve">
+    <value>← Revisar el plan</value>
+  </data>
+  <data name="BotonImportarAhora" xml:space="preserve">
+    <value>Importar ahora</value>
+  </data>
+  <data name="TituloReporte" xml:space="preserve">
+    <value>Reporte</value>
+  </data>
+  <data name="TituloImportacionCompletada" xml:space="preserve">
+    <value>Importación completada</value>
+  </data>
+  <data name="ToastImportacionCompletada" xml:space="preserve">
+    <value>Importación completada.</value>
+  </data>
+  <data name="ErrorImportacion" xml:space="preserve">
+    <value>No pudimos completar la importación. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="MetricaCreados" xml:space="preserve">
+    <value>Creados</value>
+  </data>
+  <data name="MetricaActualizados" xml:space="preserve">
+    <value>Actualizados</value>
+  </data>
+  <data name="MetricaAvisos" xml:space="preserve">
+    <value>Avisos</value>
+  </data>
+  <data name="MetricaOmitidos" xml:space="preserve">
+    <value>Omitidos</value>
+  </data>
+  <data name="NotaReporte" xml:space="preserve">
+    <value>Este reporte queda guardado en el historial de importaciones (paso 1).</value>
+  </data>
+  <data name="BotonNuevaImportacion" xml:space="preserve">
+    <value>Nueva importación</value>
+  </data>
+  <data name="BotonAltaClienteManual" xml:space="preserve">
+    <value>Dar de alta un Cliente empresarial a mano</value>
+  </data>
+  <data name="BotonVerClientesEmpresariales" xml:space="preserve">
+    <value>Ver Clientes empresariales</value>
+  </data>
+  <data name="DialogoTitulo" xml:space="preserve">
+    <value>¿Importar este archivo?</value>
+  </data>
+  <data name="DialogoBotonConfirmar" xml:space="preserve">
+    <value>Sí, importar</value>
+  </data>
+  <data name="DialogoSeCrearan" xml:space="preserve">
+    <value>Se crearán {0} elementos.</value>
+  </data>
+  <data name="DialogoNingunElemento" xml:space="preserve">
+    <value>No se creará ningún elemento.</value>
+  </data>
+  <data name="DialogoComoMaximo" xml:space="preserve">
+    <value>Se crearán como máximo {0} elementos.</value>
+  </data>
+  <data name="DialogoReemplazara" xml:space="preserve">
+    <value>En los registros que ya existen se reemplazarán los campos ya rellenados.</value>
+  </data>
+  <data name="DialogoCompletara" xml:space="preserve">
+    <value>En los registros que ya existen solo se completarán los campos vacíos.</value>
+  </data>
+  <data name="DialogoOmitidosUno" xml:space="preserve">
+    <value>La fila que el análisis ya descartó no se toca.</value>
+  </data>
+  <data name="DialogoOmitidosVarios" xml:space="preserve">
+    <value>Las {0} filas que el análisis ya descartó no se tocan.</value>
+  </data>
+  <data name="DialogoSinDeshacer" xml:space="preserve">
+    <value>Lo que se escriba no se deshace desde esta pantalla; el resultado queda en el historial de importaciones.</value>
+  </data>
+  <data name="ArbolVacio" xml:space="preserve">
+    <value>El plan no trae nada que crear ni que reutilizar.</value>
+  </data>
+  <data name="ArbolEstadoSeCreara" xml:space="preserve">
+    <value>Se creará</value>
+  </data>
+  <data name="ArbolEstadoSeReutiliza" xml:space="preserve">
+    <value>Ya existe · se reutiliza</value>
+  </data>
+  <data name="ArbolGrupoSinCliente" xml:space="preserve">
+    <value>Sin Cliente empresarial asociado</value>
+  </data>
+  <data name="ArbolMetaCif" xml:space="preserve">
+    <value>CIF {0}</value>
+  </data>
+  <data name="ArbolMetaFueraDeHoja" xml:space="preserve">
+    <value>No viene en la hoja {0}</value>
+  </data>
+  <data name="ArbolMetaCodigo" xml:space="preserve">
+    <value>Código {0}</value>
+  </data>
+  <data name="ArbolMetaContratoHasta" xml:space="preserve">
+    <value>contrato hasta {0}</value>
+  </data>
+  <data name="ArbolMetaSinCodigo" xml:space="preserve">
+    <value>Sin código</value>
+  </data>
+</root>

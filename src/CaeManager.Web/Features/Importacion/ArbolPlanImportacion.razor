@@ -1,5 +1,8 @@
 @using CaeManager.Application.Importacion
 @using CaeManager.Web.Components.DesignSystem
+@using CaeManager.Web.Features.Importacion.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosImportacion> Textos
 
 @*
     Árbol de lo que la plantilla Combinada va a crear o reutilizar (paso 3 de
@@ -25,7 +28,7 @@
 <div class="arbol-plan-importacion">
     @if (Nodos.Count == 0)
     {
-        <p class="arbol-plan-vacio">El plan no trae nada que crear ni que reutilizar.</p>
+        <p class="arbol-plan-vacio">@Textos["ArbolVacio"]</p>
     }
     else
     {
@@ -83,9 +86,9 @@
 </div>
 
 @code {
-    public const string TextoSeCreara = "Se creará";
-    public const string TextoSeReutiliza = "Ya existe · se reutiliza";
-    public const string NombreGrupoSinCliente = "Sin Cliente empresarial asociado";
+    // Nombre de la hoja del libro Combinado (contrato del archivo, no interfaz):
+    // va como argumento del texto, nunca dentro del .resx.
+    private const string NombreHojaClientes = "Clientes";
 
     [Parameter, EditorRequired] public PlanImportacionCombinadaDto Plan { get; set; } = default!;
 
@@ -103,14 +106,14 @@
 
     private static TonoBadge Tono(bool yaExiste) => yaExiste ? TonoBadge.Neutro : TonoBadge.Exito;
 
-    private static string Estado(bool yaExiste) => yaExiste ? TextoSeReutiliza : TextoSeCreara;
+    private string Estado(bool yaExiste) => yaExiste ? Textos["ArbolEstadoSeReutiliza"].Value : Textos["ArbolEstadoSeCreara"].Value;
 
     /// <summary>
     /// Compone el árbol. Los nombres se comparan sin distinguir mayúsculas,
     /// como el lector (StringComparer.OrdinalIgnoreCase en todas sus
     /// búsquedas), y se pinta el primero que aparece: el de la hoja, si viene.
     /// </summary>
-    public static IReadOnlyList<NodoCliente> Construir(PlanImportacionCombinadaDto plan)
+    public IReadOnlyList<NodoCliente> Construir(PlanImportacionCombinadaDto plan)
     {
         var comparador = StringComparer.OrdinalIgnoreCase;
         var clientesHoja = new Dictionary<string, ClienteImportadoDto>(comparador);
@@ -136,8 +139,8 @@
             empresasColocadas.UnionWith(nombresEmpresas);
 
             var (meta, yaExiste) = clientesHoja.TryGetValue(nombreCliente, out var filaCliente)
-                ? ($"CIF {filaCliente.Cif}", filaCliente.YaExiste)
-                : ("No viene en la hoja Clientes", true);
+                ? (Textos["ArbolMetaCif", filaCliente.Cif].Value, filaCliente.YaExiste)
+                : (Textos["ArbolMetaFueraDeHoja", NombreHojaClientes].Value, true);
 
             nodos.Add(new NodoCliente(nombreCliente, meta, yaExiste,
                 [.. nombresEmpresas.Select(e => Empresa(e, nombreCliente))]));
@@ -147,7 +150,7 @@
                 .Concat(plan.Trabajadores.Select(t => t.RazonSocialEmpresa)))
             .Where(e => !empresasColocadas.Contains(e)).ToList();
         if (empresasSueltas.Count > 0)
-            nodos.Add(new NodoCliente(NombreGrupoSinCliente, null, null, [.. empresasSueltas.Select(e => Empresa(e, null))]));
+            nodos.Add(new NodoCliente(Textos["ArbolGrupoSinCliente"].Value, null, null, [.. empresasSueltas.Select(e => Empresa(e, null))]));
 
         return nodos;
 
@@ -174,13 +177,13 @@
         }
     }
 
-    private static string MetaCentro(CentroImportadoDto centro)
+    private string MetaCentro(CentroImportadoDto centro)
     {
         var partes = new List<string>();
         if (!string.IsNullOrWhiteSpace(centro.CodigoCentro))
-            partes.Add($"Código {centro.CodigoCentro}");
+            partes.Add(Textos["ArbolMetaCodigo", centro.CodigoCentro].Value);
         if (centro.ContratoVigenteHasta is { } hasta)
-            partes.Add($"contrato hasta {hasta:dd/MM/yyyy}");
-        return partes.Count == 0 ? "Sin código" : string.Join(" · ", partes);
+            partes.Add(Textos["ArbolMetaContratoHasta", hasta.ToString("dd/MM/yyyy")].Value);
+        return partes.Count == 0 ? Textos["ArbolMetaSinCodigo"].Value : string.Join(" · ", partes);
     }
 }
