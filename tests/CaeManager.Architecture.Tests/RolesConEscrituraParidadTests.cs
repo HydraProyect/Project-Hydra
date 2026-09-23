@@ -34,14 +34,18 @@ namespace CaeManager.Architecture.Tests;
 public class RolesConEscrituraParidadTests
 {
     private record ComandoFalso : ICommand;
+    private record ComandoDeAutoservicioFalso : ICommand, IComandoDeAutoservicio;
 
-    private static async Task<bool> ElBehaviorDejaPasar(string? rol)
+    private static Task<bool> ElBehaviorDejaPasar(string? rol) => ElBehaviorDejaPasar(new ComandoFalso(), rol);
+
+    private static async Task<bool> ElBehaviorDejaPasar<TComando>(TComando comando, string? rol)
+        where TComando : ICommand
     {
-        var behavior = new AutorizacionEscrituraBehavior<ComandoFalso, Result>(
+        var behavior = new AutorizacionEscrituraBehavior<TComando, Result>(
             new UsuarioConRol(rol), new SinSesionPrivilegiada(), new SinTenant());
 
         var resultado = await behavior.Handle(
-            new ComandoFalso(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+            comando, _ => Task.FromResult(Result.Exito()), CancellationToken.None);
 
         return resultado.EsExitoso;
     }
@@ -62,6 +66,24 @@ public class RolesConEscrituraParidadTests
 
         pasan.Should().BeEquivalentTo(conEscrituraEnUi,
             "una UI que ofrece lo que el behavior deniega (o esconde lo que permite) es el defecto que Roles.ConEscrituraCsv existe para evitar");
+    }
+
+    /// <summary>
+    /// El behavior repite también, con literales, la lista de roles que existen: un
+    /// <see cref="IComandoDeAutoservicio"/> pasa con cualquiera de ellos. Un rol nuevo
+    /// en <see cref="Roles.Todos"/> que el behavior no conociera se quedaría sin poder
+    /// aceptar sus términos, que es justo el atasco que el marcador existe para evitar.
+    /// </summary>
+    [Fact]
+    public async Task Un_comando_de_autoservicio_pasa_con_todos_los_roles_del_sistema_y_con_ninguno_mas()
+    {
+        var pasan = new List<string>();
+        foreach (var rol in Roles.Todos)
+            if (await ElBehaviorDejaPasar(new ComandoDeAutoservicioFalso(), rol)) pasan.Add(rol);
+
+        pasan.Should().BeEquivalentTo(Roles.Todos);
+        (await ElBehaviorDejaPasar(new ComandoDeAutoservicioFalso(), null)).Should().BeFalse("sin rol no se escribe, ni lo propio");
+        (await ElBehaviorDejaPasar(new ComandoDeAutoservicioFalso(), "RolInventado")).Should().BeFalse();
     }
 
     private sealed class UsuarioConRol(string? rol) : ICurrentUserService
