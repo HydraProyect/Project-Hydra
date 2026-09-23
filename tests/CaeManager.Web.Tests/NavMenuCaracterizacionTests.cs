@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using AngleSharp.Dom;
 using Bunit;
+using CaeManager.Application.Plataforma.OrdenMenu;
 using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
@@ -152,6 +153,60 @@ public class NavMenuCaracterizacionTests
             "sin sesión no queda ningún enlace, igual que con la AuthorizeView anterior"));
     }
 
+    /// <summary>
+    /// Orden global guardado (decisión del 2026-09-23): recoloca grupos y enlaces, deja al final
+    /// lo que no nombra, ignora identificadores que ya no existen y nunca muestra lo que el rol
+    /// no permitía ver.
+    /// </summary>
+    [Fact]
+    public void El_orden_guardado_recoloca_grupos_y_enlaces_sin_ampliar_lo_visible()
+    {
+        var orden = new OrdenMenuLateralDto(
+            ["plataforma", "grupo-retirado", "control"],
+            ["conectores-cae", "enlace-retirado", "estado-comercial"],
+            Guid.NewGuid(), Guid.NewGuid(), DateTime.UtcNow);
+
+        var administrador = Pintar(
+            new Combinacion(Roles.Administrador, null, true, true, PerfilVocabularioTenant.Consultora, 1), orden);
+        administrador.FindAll("details[data-grupo]").Select(d => d.GetAttribute("data-grupo")).Should().Equal(
+            ["plataforma", "control", "dashboards", "negocio", "operacion", "administracion"],
+            "los guardados primero y en su orden; los que el orden no nombra, al final en el orden del catálogo; " +
+            "'grupo-retirado' no existe y se ignora");
+        administrador.FindAll("details[data-grupo='plataforma'] a").Select(a => a.GetAttribute("href")).Should().Equal(
+            ["plataforma/conectores-cae", "configuracion/comercial", "delegaciones"],
+            "dentro del grupo manda la posición relativa de la lista plana de enlaces");
+
+        var gestor = Pintar(
+            new Combinacion(Roles.GestorCae, null, true, false, PerfilVocabularioTenant.Consultora, 1), orden);
+        gestor.FindAll("details[data-grupo]").Select(d => d.GetAttribute("data-grupo")).Should()
+            .NotContain(["plataforma", "administracion"], "el orden no es autoridad: no enseña grupos que el rol no ve")
+            .And.StartWith("control");
+    }
+
+    /// <summary>
+    /// La fila solo se valida al escribir: un nulo o un repetido metidos por SQL no pueden tumbar
+    /// el menú de todos los Tenants.
+    /// </summary>
+    [Fact]
+    public void La_reconciliacion_tolera_nulos_y_repetidos_de_una_fila_tocada_a_mano()
+    {
+        string[] catalogo = ["a", "b", "c"];
+
+        CatalogoMenuLateral.Reconciliar(catalogo, x => x, ["c", null!, "c", "fantasma", "a"])
+            .Should().Equal("c", "a", "b");
+    }
+
+    private static IRenderedComponent<NavMenu> Pintar(Combinacion c, OrdenMenuLateralDto? orden)
+    {
+        var ctx = new BunitContext();
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        ctx.AddAuthorization().SetAuthorized("usuario@prueba").SetRoles(c.Rol);
+        ctx.Services.AddSingleton<IOptions<ComunicacionesOptions>>(
+            Options.Create(new ComunicacionesOptions { Activo = c.Comunicaciones }));
+        ctx.Services.AddSingleton<IMediator>(new MediatorDeMenu(c, orden));
+        return ctx.Render<NavMenu>();
+    }
+
     private static Dictionary<string, string> CatalogoDeIconos()
     {
         using var ctx = new BunitContext();
@@ -215,7 +270,7 @@ public class NavMenuCaracterizacionTests
         return $"\"{a.GetAttribute("href")}\"@{icono}'{texto}'<{clase}>";
     }
 
-    private sealed class MediatorDeMenu(Combinacion c) : IMediator
+    private sealed class MediatorDeMenu(Combinacion c, OrdenMenuLateralDto? orden = null) : IMediator
     {
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
             Task.FromResult((TResponse)(request switch
@@ -225,6 +280,7 @@ public class NavMenuCaracterizacionTests
                 ObtenerClientesAutorizadosQuery => Enumerable.Range(0, c.Tenants)
                     .Select(i => new ClienteAutorizadoDto(Guid.NewGuid(), $"Tenant {i}", i == 0))
                     .ToList() as IReadOnlyList<ClienteAutorizadoDto>,
+                ObtenerOrdenMenuLateralQuery => orden,
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             })!);
 
