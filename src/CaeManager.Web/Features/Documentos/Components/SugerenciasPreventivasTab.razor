@@ -67,7 +67,9 @@ else
                             <span role="columnheader">Propietario</span>
                             <span role="columnheader">Documento</span>
                             <span role="columnheader">Vencimiento</span>
-                            <span role="columnheader" class="columna-accion">Acción</span>
+                            @* Las celdas de Acción se conservan aunque vayan vacías: la rejilla coloca
+                               por posición (display: contents) y quitarlas descuadraría las filas. *@
+                            <span role="columnheader" class="columna-accion"><SoloConEscritura>Acción</SoloConEscritura></span>
                         </div>
                         @foreach (var documento in ventana.Documentos)
                         {
@@ -80,10 +82,15 @@ else
                                     </Badge>
                                 </span>
                                 <span class="columna-accion" role="cell">
-                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
-                                           OnClick="() => _drawerGestion.AbrirEditarAsync(documento.Id)">
-                                        Gestionar
-                                    </Boton>
+                                    @* «Gestionar» abre DrawerGestionDocumento en edición, que no tiene modo de
+                                       lectura y guarda con un ICommand que AutorizacionEscrituraBehavior deniega
+                                       a Consulta (el «Editar» de la lista de Documentos ya iba envuelto). *@
+                                    <SoloConEscritura>
+                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                                               OnClick="() => _drawerGestion.AbrirEditarAsync(documento.Id)">
+                                            Gestionar
+                                        </Boton>
+                                    </SoloConEscritura>
                                 </span>
                             </div>
                         }

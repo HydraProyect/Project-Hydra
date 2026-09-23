@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using AngleSharp.Dom;
 using Bunit;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Common;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
@@ -474,6 +475,49 @@ public class VisitasGen2Tests : BunitContext
         cut.WaitForAssertion(() => Interruptor(cut, "Centro Norte").HasAttribute("checked").Should().BeTrue(
             "tras el comando la lista se recarga y la fila ve el cambio"));
         cut.Find(".drawer-pie").TextContent.Should().Contain("Quitar la marca de notificada");
+    }
+
+    [Fact]
+    public async Task Consulta_ve_la_marca_de_notificada_sin_que_se_le_ofrezca_cambiarla_ni_editar()
+    {
+        // MarcarNotificadoClienteCommand y EditarVisitaCommand son ICommand que
+        // AutorizacionEscrituraBehavior deniega a Consulta. El interruptor de la fila
+        // es también el dato: se le pinta deshabilitado, no se le quita.
+        this.ConRolDeEscritura(Roles.Consulta);
+        var norte = Visita("Centro Norte", notificado: true);
+        var mediator = new MediatorVisitas();
+        mediator.Visitas.Add(norte);
+        var cut = Renderizar(mediator);
+
+        Interruptor(cut, "Centro Norte").HasAttribute("checked").Should().BeTrue("el dato sigue a la vista");
+        Interruptor(cut, "Centro Norte").HasAttribute("disabled").Should().BeTrue("pero no se ofrece cambiarlo");
+
+        await ItemDeMenu(cut, "Centro Norte", "Ver").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".drawer-pie button").Select(b => b.TextContent.Trim())
+            .Should().NotContain(["Quitar la marca de notificada", "Marcar como notificada", "Editar"])
+            .And.Equal(["Cerrar"], "el pie no queda vacío");
+        mediator.Comandos.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(Roles.GestorCae, true)]
+    [InlineData(Roles.Consulta, false)]
+    public async Task Eliminar_seleccionados_solo_se_ofrece_a_los_roles_con_escritura(string rol, bool seOfrece)
+    {
+        // EliminarVisitasCommand es ICommand: a Consulta no se le ofrece la barra del
+        // lote. El caso con escritura es el control de que la selección llegó a hacerse.
+        this.ConRolDeEscritura(rol);
+        var mediator = new MediatorVisitas();
+        mediator.Visitas.Add(Visita("Centro Norte"));
+        var cut = Renderizar(mediator);
+
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Selección múltiple").ClickAsync(new MouseEventArgs());
+        await Fila(cut, "Centro Norte").QuerySelector("input[type=checkbox]:not(.visitas-interruptor)")!
+            .ChangeAsync(new ChangeEventArgs { Value = true });
+
+        cut.FindAll(".barra-acciones-lote button").Any(b => b.TextContent.Trim() == "Eliminar seleccionados")
+            .Should().Be(seOfrece);
     }
 
     [Fact]
