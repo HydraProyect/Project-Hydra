@@ -23,7 +23,7 @@
 @inject ICurrentUserService CurrentUserService
 @inject ContextWorkspaceService WorkspaceService
 
-<PageTitle>@_tituloPagina — @Marca.Nombre</PageTitle>
+<PageTitle>@TituloPagina — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
     @* Cabecera Gen 2 (Lista Trabajadores TALVEG.dc.html): h1 sin kicker ni
@@ -31,10 +31,10 @@
        dependiendo del perfil de vocabulario del tenant («Mis trabajadores» en
        Cliente Directo), que es lo que el propio mockup pide con su selector de
        perfil. *@
-    <CabeceraPagina Titulo="@_tituloPagina">
+    <CabeceraPagina Titulo="@TituloPagina">
         <Acciones>
-            <a class="enlace-exportar" href="/trabajadores/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel</a>
-            <SoloConEscritura><Boton OnClick="AbrirCrearAsync">+ Nuevo trabajador</Boton></SoloConEscritura>
+            <a class="enlace-exportar" href="/trabajadores/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["EnlaceExportarExcel"]</a>
+            <SoloConEscritura><Boton OnClick="AbrirCrearAsync">@Textos["BotonNuevoTrabajador"]</Boton></SoloConEscritura>
         </Acciones>
     </CabeceraPagina>
 
@@ -49,18 +49,18 @@
        Subcontrata en un solo desplegable: son dos parámetros distintos de la
        consulta. Los filtros guardados no salen en el mockup y se conservan. *@
     <div class="barra-trabajo-centros barra-trabajo-trabajadores">
-        <CampoTexto Placeholder="Buscar por nombre, apellidos, alias o DNI…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
-        <FiltroEstado Etiqueta="Documentación" TextoTodos="Todas" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+        <CampoTexto Placeholder="@Textos["PlaceholderBusqueda"]" Valor="@_busqueda" ValorChanged="BuscarAsync" />
+        <FiltroEstado Etiqueta="@Textos["EtiquetaDocumentacion"]" TextoTodos="@Textos["OpcionTodas"]" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
                       Opciones="EstadoDocumentoUi.OpcionesDocumentales" />
-        <CampoSelect Etiqueta="Empresa" Valor="@_filtroEmpresaId" ValorChanged="FiltrarPorEmpresaAsync">
-            <option value="">Todas las empresas</option>
+        <CampoSelect Etiqueta="@Textos["EtiquetaEmpresa"]" Valor="@_filtroEmpresaId" ValorChanged="FiltrarPorEmpresaAsync">
+            <option value="">@Textos["OpcionTodasEmpresas"]</option>
             @foreach (var empresa in _empresasDisponibles)
             {
                 <option value="@empresa.Id">@empresa.RazonSocial</option>
             }
         </CampoSelect>
-        <CampoSelect Etiqueta="Subcontrata" Valor="@_filtroSubcontrataId" ValorChanged="FiltrarPorSubcontrataAsync">
-            <option value="">Todas las subcontratas</option>
+        <CampoSelect Etiqueta="@Textos["EtiquetaSubcontrata"]" Valor="@_filtroSubcontrataId" ValorChanged="FiltrarPorSubcontrataAsync">
+            <option value="">@Textos["OpcionTodasSubcontratas"]</option>
             @foreach (var subcontrata in _subcontratasDisponibles)
             {
                 <option value="@subcontrata.Id">@subcontrata.RazonSocial</option>
@@ -68,8 +68,8 @@
         </CampoSelect>
         @if (_filtrosGuardados.Count > 0)
         {
-            <CampoSelect Etiqueta="Filtros guardados" Valor="" ValorChanged="AplicarFiltroGuardadoAsync">
-                <option value="">Aplicar uno…</option>
+            <CampoSelect Etiqueta="@Textos["EtiquetaFiltrosGuardados"]" Valor="" ValorChanged="AplicarFiltroGuardadoAsync">
+                <option value="">@Textos["OpcionAplicarFiltro"]</option>
                 @foreach (var filtro in _filtrosGuardados)
                 {
                     <option value="@filtro.Id">@filtro.Nombre</option>
@@ -79,10 +79,10 @@
         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
                OnClick="() => AlternarSeleccionMultiple(!_seleccionMultiple)"
                aria-pressed="@(_seleccionMultiple ? "true" : "false")">
-            Selección múltiple
+            @Textos["BotonSeleccionMultiple"]
         </Boton>
         <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _mostrarGuardarFiltro = true">
-            Guardar filtro
+            @Textos["BotonGuardarFiltro"]
         </Boton>
     </div>
 
@@ -97,29 +97,29 @@
             @if (!string.IsNullOrWhiteSpace(_busqueda))
             {
                 <span class="chip-filtro">
-                    Búsqueda: "@_busqueda"
-                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroBusquedaAsync" aria-label="Quitar filtro de búsqueda"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
+                    @Textos["ChipBusqueda", _busqueda]
+                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroBusquedaAsync" aria-label="@Textos["AriaQuitarFiltroBusqueda"]"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
                 </span>
             }
             @if (!string.IsNullOrWhiteSpace(_estadoFiltro))
             {
                 <span class="chip-filtro">
                     @EtiquetaFiltroEstado
-                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroEstadoAsync" aria-label="Quitar filtro de documentación"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
+                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroEstadoAsync" aria-label="@Textos["AriaQuitarFiltroDocumentacion"]"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
                 </span>
             }
             @if (!string.IsNullOrWhiteSpace(_filtroEmpresaId))
             {
                 <span class="chip-filtro">
                     @EtiquetaFiltroEmpresa
-                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroEmpresaAsync" aria-label="Quitar filtro de empresa"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
+                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroEmpresaAsync" aria-label="@Textos["AriaQuitarFiltroEmpresa"]"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
                 </span>
             }
             @if (!string.IsNullOrWhiteSpace(_filtroSubcontrataId))
             {
                 <span class="chip-filtro">
                     @EtiquetaFiltroSubcontrata
-                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroSubcontrataAsync" aria-label="Quitar filtro de subcontrata"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
+                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroSubcontrataAsync" aria-label="@Textos["AriaQuitarFiltroSubcontrata"]"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
                 </span>
             }
         </div>
@@ -130,9 +130,9 @@
     @if (_errorCarga)
     {
         <EstadoVacio NombreIcono="error-circulo" AcentoIcono="var(--color-danger-700)" FondoIcono="var(--color-danger-50)"
-                     Titulo="No pudimos cargar los trabajadores" Descripcion="Intenta nuevamente en unos segundos.">
+                     Titulo="@Textos["ErrorCargaListaTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
             <Accion>
-                <Boton OnClick="RecargarAsync">Reintentar</Boton>
+                <Boton OnClick="RecargarAsync">@Comunes["Reintentar"]</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -155,51 +155,51 @@
                        visible, y su nombre accesible lo dice. *@
                     <TemplateColumn Title="" Align="Align.Center">
                         <HeaderTemplate Context="columna">
-                            <input type="checkbox" aria-label="Seleccionar los trabajadores de esta página" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
+                            <input type="checkbox" aria-label="@Textos["AriaSeleccionarPagina"]" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
                         </HeaderTemplate>
                         <ChildContent>
-                            <input type="checkbox" aria-label="@($"Seleccionar a {NombreCompleto(context)}")" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
+                            <input type="checkbox" aria-label="@(Textos["AriaSeleccionarTrabajador", NombreCompleto(context)])" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
                         </ChildContent>
                     </TemplateColumn>
                 }
-                <TemplateColumn Title="Apellidos" Sortable="true" SortBy="@(GridSort<TrabajadorListaDto>.ByAscending(t => t.Apellidos))">
+                <TemplateColumn Title="@Textos["EtiquetaApellidos"]" Sortable="true" SortBy="@(GridSort<TrabajadorListaDto>.ByAscending(t => t.Apellidos))">
                     <button type="button" class="enlace-nombre-fila" @onclick='() => AbrirPreview(context.Id)'>
                         @context.Apellidos
                     </button>
                 </TemplateColumn>
-                <TemplateColumn Title="Nombre" Sortable="true" SortBy="@(GridSort<TrabajadorListaDto>.ByAscending(t => t.Nombre))">
+                <TemplateColumn Title="@Textos["EtiquetaNombre"]" Sortable="true" SortBy="@(GridSort<TrabajadorListaDto>.ByAscending(t => t.Nombre))">
                     <button type="button" class="enlace-nombre-fila" @onclick='() => AbrirPreview(context.Id)'>
                         @context.Nombre
                     </button>
                 </TemplateColumn>
                 <PropertyColumn Property="@(t => t.Dni)" Title="DNI" Sortable="true" />
-                <PropertyColumn Property="@(t => t.EmpleadorNombre)" Title="Empresa / Subcontrata" Sortable="true" />
-                <TemplateColumn Title="Documentación" Sortable="true" SortBy="@(GridSort<TrabajadorListaDto>.ByAscending(t => t.EstadoDocumental))">
+                <PropertyColumn Property="@(t => t.EmpleadorNombre)" Title="@Textos["ColumnaEmpleador"]" Sortable="true" />
+                <TemplateColumn Title="@Textos["EtiquetaDocumentacion"]" Sortable="true" SortBy="@(GridSort<TrabajadorListaDto>.ByAscending(t => t.EstadoDocumental))">
                     <Badge Tono="EstadoDocumentoUi.TonoDocumental(context.EstadoDocumental)">
                         @EstadoDocumentoUi.TextoDocumental(context.EstadoDocumental)
                     </Badge>
                 </TemplateColumn>
-                <TemplateColumn Title="Acciones" Align="Align.End">
+                <TemplateColumn Title="@Textos["ColumnaAcciones"]" Align="Align.End">
                     <MenuAcciones>
                         <ItemMenuAccion OnClick='() => AbrirPreview(context.Id)'>
-                            Detalles
+                            @Textos["AccionDetalles"]
                         </ItemMenuAccion>
                         @* Hasta ahora Trabajador 360 solo se alcanzaba abriendo antes la
                            vista previa. Es la opción que el propio mockup marca como
                            recomendada de las tres que plantea, y no cuesta dato ni
                            componente nuevos: la ruta /trabajadores/{id} ya existe. *@
                         <ItemMenuAccion OnClick='() => AbrirTrabajador360(context.Id)'>
-                            Abrir Trabajador 360
+                            @Textos["AccionAbrirTrabajador360"]
                         </ItemMenuAccion>
                         <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, NombreCompleto(context))">
-                            Eliminar
+                            @Textos["AccionEliminar"]
                         </ItemMenuAccion></SoloConEscritura>
                     </MenuAcciones>
                 </TemplateColumn>
             </QuickGrid>
 
             <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
-                              Etiqueta="trabajador(es)" PaginaActualChanged="CambiarPaginaAsync"
+                              Etiqueta="@Textos["EtiquetaPaginador"]" PaginaActualChanged="CambiarPaginaAsync"
                               TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
         </div>
 
@@ -213,25 +213,25 @@
 
                La copia no afirma que HAYA trabajadores dados de alta: el
                filtrado es de servidor y solo devuelve el total ya filtrado. *@
-            <EstadoVacio NombreIcono="vacio" Titulo="Ningún trabajador con estos filtros"
-                         Descripcion="Ninguno coincide con la búsqueda ni con los filtros de documentación, empresa o subcontrata.">
+            <EstadoVacio NombreIcono="vacio" Titulo="@Textos["VacioFiltrosTitulo"]"
+                         Descripcion="@Textos["VacioFiltrosDescripcion"]">
                 <Accion>
-                    <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar los filtros</Boton>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">@Textos["BotonQuitarFiltros"]</Boton>
                 </Accion>
             </EstadoVacio>
         }
         else if (_totalElementos == 0 && !_cargando)
         {
-            <EstadoVacio NombreIcono="trabajadores" Titulo="Aún no hay trabajadores" Descripcion="Da de alta el primero para empezar a controlar su documentación.">
+            <EstadoVacio NombreIcono="trabajadores" Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos["VacioDescripcion"]">
                 <Accion>
-                    <SoloConEscritura><Boton OnClick="AbrirCrearAsync">+ Nuevo trabajador</Boton></SoloConEscritura>
+                    <SoloConEscritura><Boton OnClick="AbrirCrearAsync">@Textos["BotonNuevoTrabajador"]</Boton></SoloConEscritura>
                 </Accion>
             </EstadoVacio>
         }
     }
 </div>
 
-<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="Nuevo trabajador" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
+<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@Textos["DrawerNuevoTitulo"]" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
     <ChildContent>
         @if (_mensajeErrorFormulario is not null)
         {
@@ -239,15 +239,15 @@
         }
 
         <div class="campo">
-            <label>Empleador</label>
+            <label>@Textos["EtiquetaEmpleador"]</label>
             <div class="lista-seleccion-multiple">
                 <label class="campo-checkbox">
                     <input type="radio" name="tipo-empleador" checked="@(_tipoEmpleador == "empresa")" @onchange="SeleccionarTipoEmpresa" />
-                    Empresa
+                    @Textos["EtiquetaEmpresa"]
                 </label>
                 <label class="campo-checkbox">
                     <input type="radio" name="tipo-empleador" checked="@(_tipoEmpleador == "subcontrata")" @onchange="SeleccionarTipoSubcontrata" />
-                    Subcontrata
+                    @Textos["EtiquetaSubcontrata"]
                 </label>
             </div>
         </div>
@@ -257,12 +257,12 @@
             @* DDL-076: perfil Cliente Directo con una única Empresa — sin
                selector, pedirle que confirme que él es él en un desplegable
                de un solo elemento no aporta nada. *@
-            <CampoInfo Etiqueta="Empresa" Valor="@_empresasDisponibles[0].RazonSocial" />
+            <CampoInfo Etiqueta="@Textos["EtiquetaEmpresa"]" Valor="@_empresasDisponibles[0].RazonSocial" />
         }
         else if (_tipoEmpleador == "empresa")
         {
-            <CampoSelect Etiqueta="Empresa" Valor="@_empresaId" ValorChanged="v => _empresaId = v">
-                <option value="">Selecciona una empresa…</option>
+            <CampoSelect Etiqueta="@Textos["EtiquetaEmpresa"]" Valor="@_empresaId" ValorChanged="v => _empresaId = v">
+                <option value="">@Textos["OpcionSeleccionaEmpresa"]</option>
                 @foreach (var empresa in _empresasDisponibles)
                 {
                     <option value="@empresa.Id">@empresa.RazonSocial</option>
@@ -271,8 +271,8 @@
         }
         else
         {
-            <CampoSelect Etiqueta="Subcontrata" Valor="@_subcontrataId" ValorChanged="v => _subcontrataId = v">
-                <option value="">Selecciona una subcontrata…</option>
+            <CampoSelect Etiqueta="@Textos["EtiquetaSubcontrata"]" Valor="@_subcontrataId" ValorChanged="v => _subcontrataId = v">
+                <option value="">@Textos["OpcionSeleccionaSubcontrata"]</option>
                 @foreach (var subcontrata in _subcontratasDisponibles)
                 {
                     <option value="@subcontrata.Id">@subcontrata.RazonSocial</option>
@@ -280,27 +280,27 @@
             </CampoSelect>
         }
 
-        <CampoTexto Etiqueta="Documento de identidad (DNI, NIE, TIE o pasaporte)" Valor="@_dni" ValorChanged="v => _dni = v" OnBlur="ValidarDniAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Dni))" />
+        <CampoTexto Etiqueta="@Textos["EtiquetaDocumentoIdentidad"]" Valor="@_dni" ValorChanged="v => _dni = v" OnBlur="ValidarDniAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Dni))" />
         @if (PistaDni is not null)
         {
             <p class="pista-documento pista-documento-@ToneDni">@PistaDni</p>
         }
 
-        <CampoTexto Etiqueta="Nombre" Valor="@_nombre" ValorChanged="v => _nombre = v" OnBlur="ValidarNombreAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Nombre))" />
-        <CampoTexto Etiqueta="Apellidos" Valor="@_apellidos" ValorChanged="v => _apellidos = v" OnBlur="ValidarApellidosAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Apellidos))" />
-        <CampoTexto Etiqueta="Alias / nombre con el que firma (opcional)" Placeholder="p. ej. Pancho Villa" Valor="@_alias" ValorChanged="v => _alias = v" OnBlur="ValidarAliasAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Alias))" />
-        <CampoTexto Etiqueta="Puesto / oficio (opcional)" Placeholder="p. ej. Soldador" Valor="@_puesto" ValorChanged="v => _puesto = v" OnBlur="ValidarPuestoAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Puesto))" />
-        <CampoTexto Etiqueta="Fecha de nacimiento" Type="date" Valor="@_fechaNacimiento" ValorChanged="v => _fechaNacimiento = v" />
-        <CampoTexto Etiqueta="Email" Type="email" Valor="@_email" ValorChanged="v => _email = v" OnBlur="ValidarEmailAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Email))" />
-        <CampoTexto Etiqueta="Teléfono (WhatsApp)" Type="tel" Placeholder="+34 600 00 00 00" Valor="@_telefono" ValorChanged="v => _telefono = v" OnBlur="ValidarTelefonoAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Telefono))" />
-        <CampoTextarea Etiqueta="Observaciones" Valor="@_observaciones" ValorChanged="v => _observaciones = v" Filas="3" />
+        <CampoTexto Etiqueta="@Textos["EtiquetaNombre"]" Valor="@_nombre" ValorChanged="v => _nombre = v" OnBlur="ValidarNombreAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Nombre))" />
+        <CampoTexto Etiqueta="@Textos["EtiquetaApellidos"]" Valor="@_apellidos" ValorChanged="v => _apellidos = v" OnBlur="ValidarApellidosAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Apellidos))" />
+        <CampoTexto Etiqueta="@Textos["EtiquetaAliasOpcional"]" Placeholder="@Textos["PlaceholderAlias"]" Valor="@_alias" ValorChanged="v => _alias = v" OnBlur="ValidarAliasAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Alias))" />
+        <CampoTexto Etiqueta="@Textos["EtiquetaPuestoOpcional"]" Placeholder="@Textos["PlaceholderPuesto"]" Valor="@_puesto" ValorChanged="v => _puesto = v" OnBlur="ValidarPuestoAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Puesto))" />
+        <CampoTexto Etiqueta="@Textos["EtiquetaFechaNacimiento"]" Type="date" Valor="@_fechaNacimiento" ValorChanged="v => _fechaNacimiento = v" />
+        <CampoTexto Etiqueta="@Textos["EtiquetaEmail"]" Type="email" Valor="@_email" ValorChanged="v => _email = v" OnBlur="ValidarEmailAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Email))" />
+        <CampoTexto Etiqueta="@Textos["EtiquetaTelefonoWhatsapp"]" Type="tel" Placeholder="+34 600 00 00 00" Valor="@_telefono" ValorChanged="v => _telefono = v" OnBlur="ValidarTelefonoAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Telefono))" />
+        <CampoTextarea Etiqueta="@Textos["EtiquetaObservaciones"]" Valor="@_observaciones" ValorChanged="v => _observaciones = v" Filas="3" />
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
-            Cancelar
+            @Textos["BotonCancelar"]
         </Boton>
         <Boton Cargando="_guardando" OnClick="GuardarAsync">
-            Guardar
+            @Textos["BotonGuardar"]
         </Boton>
     </Pie>
 </Drawer>
@@ -308,8 +308,8 @@
 <DialogoConfirmacion
     Visible="_confirmarEliminarVisible"
     VisibleChanged="v => _confirmarEliminarVisible = v"
-    Titulo="@($"¿Eliminar a {_nombreAEliminar}?")"
-    Mensaje="Se ocultará de las listas activas. Podrás deshacerlo desde el aviso que aparecerá."
+    Titulo="@(Textos["DialogoEliminarTitulo", _nombreAEliminar])"
+    Mensaje="@Textos["DialogoEliminarMensaje"]"
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
 
@@ -317,7 +317,7 @@
                     OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true">
     <AccionesExtra>
         <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirAsignarCentroAsync">
-            Asignar a centro…
+            @Textos["BotonAsignarACentro"]
         </Boton>
     </AccionesExtra>
 </BarraAccionesLote>
@@ -325,23 +325,23 @@
 <DialogoConfirmacion
     Visible="_confirmarEliminarLoteVisible"
     VisibleChanged="v => _confirmarEliminarLoteVisible = v"
-    Titulo="@($"¿Eliminar {_seleccionados.Count} trabajador(es)?")"
-    Mensaje="Se ocultarán de las listas activas. Podrás recuperarlos desde Auditoría."
+    Titulo="@(Textos["DialogoEliminarLoteTitulo", _seleccionados.Count])"
+    Mensaje="@Textos["DialogoEliminarLoteMensaje"]"
     EnProgreso="_eliminandoLote"
     OnConfirmar="ConfirmarEliminarLoteAsync" />
 
 <TrabajadorPreviewDrawer TrabajadorId="_previewTrabajadorId" Visible="_previewVisible" VisibleChanged="v => _previewVisible = v" />
 
-<Modal Visible="_asignarCentroVisible" VisibleChanged="v => { if (!v) CerrarAsignarCentro(); }" Titulo="@($"Asignar {_seleccionados.Count} trabajador(es) a un centro")" CerrarAlHacerClicFuera="!_asignandoLote">
+<Modal Visible="_asignarCentroVisible" VisibleChanged="v => { if (!v) CerrarAsignarCentro(); }" Titulo="@(Textos["ModalAsignarCentroTitulo", _seleccionados.Count])" CerrarAlHacerClicFuera="!_asignandoLote">
     <ChildContent>
         <CampoBuscarSelect
-            Etiqueta="Centro"
-            Marcador="Escribe el nombre del centro…"
+            Etiqueta="@Textos["EtiquetaCentro"]"
+            Marcador="@Textos["PlaceholderCentro"]"
             Valor="@_centroIdParaAsignar"
             ValorChanged="CambiarCentroParaAsignarAsync"
             Opciones="@OpcionesCentrosParaAsignar" />
 
-        <CampoTexto Etiqueta="Fecha de alta" Type="date" Valor="@_fechaAltaParaAsignar" ValorChanged="v => _fechaAltaParaAsignar = v" />
+        <CampoTexto Etiqueta="@Textos["EtiquetaFechaAlta"]" Type="date" Valor="@_fechaAltaParaAsignar" ValorChanged="v => _fechaAltaParaAsignar = v" />
 
         @* La comprobación es una lectura aparte, hecha al elegir el centro:
            CrearAsignacionesCommand ni la repite ni se detiene por documentos.
@@ -351,7 +351,7 @@
         {
             <div class="alerta-preflight-asignacion" role="status">
                 <p>
-                    Al comprobarlo faltaban <strong>@_documentosFaltantesParaAsignar.Count documento(s) que se piden</strong>:
+                    @Textos["PreflightFaltaban"] <strong>@Textos["PreflightDocumentosQueSePiden", _documentosFaltantesParaAsignar.Count]</strong>:
                 </p>
                 <ul>
                     @foreach (var faltante in _documentosFaltantesParaAsignar.Take(5))
@@ -361,28 +361,28 @@
                 </ul>
                 @if (_documentosFaltantesParaAsignar.Count > 5)
                 {
-                    <p>y @(_documentosFaltantesParaAsignar.Count - 5) más…</p>
+                    <p>@Textos["PreflightYMas", _documentosFaltantesParaAsignar.Count - 5]</p>
                 }
-                <p>Asignar no crea esos documentos, y que falten no impide la asignación.</p>
+                <p>@Textos["PreflightNota"]</p>
             </div>
         }
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_asignandoLote" OnClick="CerrarAsignarCentro">
-            Cancelar
+            @Textos["BotonCancelar"]
         </Boton>
         <Boton Cargando="_asignandoLote" OnClick="ConfirmarAsignarCentroAsync">
-            @(_documentosFaltantesParaAsignar.Count > 0 ? "Asignar igualmente" : "Asignar")
+            @(_documentosFaltantesParaAsignar.Count > 0 ? Textos["BotonAsignarIgualmente"] : Textos["BotonAsignar"])
         </Boton>
     </Pie>
 </Modal>
 
-<Modal Visible="_mostrarGuardarFiltro" VisibleChanged="v => _mostrarGuardarFiltro = v" Titulo="Guardar filtro actual" CerrarAlHacerClicFuera="!_guardandoFiltro">
+<Modal Visible="_mostrarGuardarFiltro" VisibleChanged="v => _mostrarGuardarFiltro = v" Titulo="@Textos["ModalGuardarFiltroTitulo"]" CerrarAlHacerClicFuera="!_guardandoFiltro">
     <ChildContent>
-        <CampoTexto Etiqueta="Nombre" Valor="@_nombreFiltroNuevo" ValorChanged="v => _nombreFiltroNuevo = v" Placeholder="Trabajadores de Subcontrata X" />
+        <CampoTexto Etiqueta="@Textos["EtiquetaNombre"]" Valor="@_nombreFiltroNuevo" ValorChanged="v => _nombreFiltroNuevo = v" Placeholder="@Textos["PlaceholderNombreFiltro"]" />
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoFiltro" OnClick="() => _mostrarGuardarFiltro = false">Cancelar</Boton>
-        <Boton Cargando="_guardandoFiltro" OnClick="GuardarFiltroActualAsync">Guardar</Boton>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoFiltro" OnClick="() => _mostrarGuardarFiltro = false">@Textos["BotonCancelar"]</Boton>
+        <Boton Cargando="_guardandoFiltro" OnClick="GuardarFiltroActualAsync">@Textos["BotonGuardar"]</Boton>
     </Pie>
 </Modal>
