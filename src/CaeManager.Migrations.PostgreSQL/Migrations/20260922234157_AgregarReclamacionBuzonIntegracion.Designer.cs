@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    partial class CaeManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260922234157_AgregarReclamacionBuzonIntegracion")]
+    partial class AgregarReclamacionBuzonIntegracion
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -5801,38 +5804,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("EstadoBootstrapPlataforma", null, t =>
                         {
                             t.HasCheckConstraint("CK_EstadoBootstrapPlataforma_FilaUnica", "\"Id\" = 'b0075742-0000-4000-8000-000000000001'");
-                        });
-                });
-
-            modelBuilder.Entity("CaeManager.Domain.Plataforma.OrdenMenuLateral", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("ActualizadoEnUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("ActualizadoPorUsuarioId")
-                        .HasColumnType("uuid");
-
-                    b.PrimitiveCollection<List<string>>("OrdenEnlaces")
-                        .IsRequired()
-                        .HasColumnType("text[]");
-
-                    b.PrimitiveCollection<List<string>>("OrdenGrupos")
-                        .IsRequired()
-                        .HasColumnType("text[]");
-
-                    b.Property<Guid>("Version")
-                        .IsConcurrencyToken()
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("OrdenMenuLateral", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_OrdenMenuLateral_FilaUnica", "\"Id\" = '0dde0000-0000-4000-8000-00000000e4a1'");
                         });
                 });
 

@@ -12,20 +12,23 @@ public class DesconectarBuzonCommandHandlerTests
 {
     private static DesconectarBuzonCommandHandler CrearHandler(
         ConexionIntegracionRepositorioFalso conexionRepositorio, SuscripcionWebhookRepositorioFalso suscripcionRepositorio,
+        ReclamacionBuzonIntegracionRepositorioFalso reclamacionRepositorio,
         AlcanceDatosServiceFalso alcanceDatos, Microsoft365GraphClientFalso graphClient, CredencialIntegracionRepositorioFalso credencialRepositorio,
         UnitOfWorkFalso unitOfWork) =>
-        new(conexionRepositorio, suscripcionRepositorio, alcanceDatos, graphClient,
+        new(conexionRepositorio, suscripcionRepositorio, reclamacionRepositorio, alcanceDatos, graphClient,
             new AccesoGraphService(credencialRepositorio, graphClient), unitOfWork, NullLogger<DesconectarBuzonCommandHandler>.Instance);
 
     [Fact]
-    public async Task Deshabilita_una_conexion_habilitada()
+    public async Task Deshabilita_una_conexion_habilitada_y_libera_la_reclamacion_del_buzon()
     {
         var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
         conexionRepositorio.Agregar(conexion);
+        var reclamacionRepositorio = new ReclamacionBuzonIntegracionRepositorioFalso();
+        reclamacionRepositorio.Reclamar(new ReclamacionBuzonIntegracion("cae@cliente.com", Guid.NewGuid(), conexion.Id, DateTime.UtcNow));
         var unitOfWork = new UnitOfWorkFalso();
         var handler = CrearHandler(
-            conexionRepositorio, new SuscripcionWebhookRepositorioFalso(), new AlcanceDatosServiceFalso(),
+            conexionRepositorio, new SuscripcionWebhookRepositorioFalso(), reclamacionRepositorio, new AlcanceDatosServiceFalso(),
             new Microsoft365GraphClientFalso(), new CredencialIntegracionRepositorioFalso(), unitOfWork);
 
         var resultado = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
@@ -33,6 +36,7 @@ public class DesconectarBuzonCommandHandlerTests
         resultado.EsExitoso.Should().BeTrue();
         conexion.Estado.Should().Be(EstadoConexionIntegracion.Deshabilitada);
         unitOfWork.VecesGuardado.Should().Be(1);
+        reclamacionRepositorio.Reclamaciones.Should().BeEmpty("desconectar debe dejar el buzón disponible para cualquier tenant");
     }
 
     [Fact]
@@ -49,7 +53,8 @@ public class DesconectarBuzonCommandHandlerTests
         conexionRepositorio.Agregar(conexionPersonal);
         var unitOfWork = new UnitOfWorkFalso();
         var handler = CrearHandler(
-            conexionRepositorio, new SuscripcionWebhookRepositorioFalso(), new AlcanceDatosServiceFalso(conexionIntegracionVisible: false),
+            conexionRepositorio, new SuscripcionWebhookRepositorioFalso(), new ReclamacionBuzonIntegracionRepositorioFalso(),
+            new AlcanceDatosServiceFalso(conexionIntegracionVisible: false),
             new Microsoft365GraphClientFalso(), new CredencialIntegracionRepositorioFalso(), unitOfWork);
 
         var resultado = await handler.Handle(new DesconectarBuzonCommand(conexionPersonal.Id), CancellationToken.None);
