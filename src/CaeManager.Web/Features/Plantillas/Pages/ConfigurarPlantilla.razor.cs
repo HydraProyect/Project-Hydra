@@ -451,7 +451,7 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
         switch (_ambitoAplicacion)
         {
             case AmbitoAplicacion.Trabajador:
-                var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(), _ciclo.Token);
+                var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera), _ciclo.Token);
                 if (!EsVigente(carga)) return;
                 _trabajadoresDisponibles = trabajadores;
                 break;

@@ -339,7 +339,7 @@ public partial class Visitas : ComponentBase
     {
         var carga = ++_cargaFormulario;
         var centros = await Mediator.Send(new ObtenerCentrosParaSelectorQuery());
-        var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
+        var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.BaseGeneralDelTenant));
         if (carga != _cargaFormulario)
             return false;
 
@@ -408,7 +408,7 @@ public partial class Visitas : ComponentBase
     private async Task AbrirEditarAsync(Guid id)
     {
         var carga = ++_cargaFormulario;
-        var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
+        var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.BaseGeneralDelTenant));
         var visita = await Mediator.Send(new ObtenerVisitaPorIdQuery(id));
 
         // Si mientras tanto se abrió otro formulario, esta respuesta ya no es

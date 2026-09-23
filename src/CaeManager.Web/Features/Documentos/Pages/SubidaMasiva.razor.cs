@@ -186,7 +186,7 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
             () => CurrentUserService.ObtenerRolActualAsync()) == Roles.Consulta;
         var carga = ++_cargaVigente;
         var token = _ciclo.Token;
-        var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(), token);
+        var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera), token);
         if (!EsVigente(carga)) return;
         var tipos = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: AmbitoAplicacion.Trabajador), token);
         if (!EsVigente(carga)) return;

@@ -329,7 +329,7 @@ public partial class Incidencias : ComponentBase
         var generacion = ++_generacionFormulario;
 
         var centros = await Mediator.Send(new ObtenerCentrosParaSelectorQuery());
-        var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
+        var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.BaseGeneralDelTenant));
         if (generacion != _generacionFormulario) return;
 
         _centrosDisponibles = centros;
@@ -352,7 +352,7 @@ public partial class Incidencias : ComponentBase
     {
         var generacion = ++_generacionFormulario;
 
-        var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
+        var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.BaseGeneralDelTenant));
         var incidencia = await Mediator.Send(new ObtenerIncidenciaPorIdQuery(id));
         if (generacion != _generacionFormulario) return;
 
