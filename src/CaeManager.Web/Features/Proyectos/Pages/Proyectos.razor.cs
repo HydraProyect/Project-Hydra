@@ -743,7 +743,7 @@ public partial class Proyectos : ComponentBase
     private async Task AbrirFormularioTecnicoAsync()
     {
         if (_trabajadoresDisponibles.Count == 0)
-            _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
+            _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera));
 
         _nuevoTecnicoTrabajadorId = string.Empty;
         _nuevoTecnicoFechaAlta = Hoy.ToString("yyyy-MM-dd");
