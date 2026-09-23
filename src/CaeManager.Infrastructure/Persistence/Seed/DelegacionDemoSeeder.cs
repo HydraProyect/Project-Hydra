@@ -98,7 +98,8 @@ public static class DelegacionDemoSeeder
         var credenciales = CredencialesDemo.Resolver(configuration, entorno);
 
         var tenantConsultoraId = await AprovisionarTenantAsync(
-            dbContext, NombreTenantConsultora, PerfilVocabularioTenant.Consultora, logger, cancellationToken);
+            dbContext, NombreTenantConsultora, PerfilVocabularioTenant.Consultora, logger, cancellationToken,
+            esOperadorCaeExterno: true);
         var administradorConsultora = await CrearAdministradorConsultoraAsync(
             dbContext, userManager, userStore, credenciales, logger, tenantConsultoraId, cancellationToken);
 
@@ -739,7 +740,8 @@ public static class DelegacionDemoSeeder
     }
 
     internal static async Task<Guid> AprovisionarTenantAsync(
-        CaeManagerDbContext dbContext, string nombreTenant, PerfilVocabularioTenant perfil, ILogger logger, CancellationToken cancellationToken)
+        CaeManagerDbContext dbContext, string nombreTenant, PerfilVocabularioTenant perfil, ILogger logger, CancellationToken cancellationToken,
+        bool esOperadorCaeExterno = false)
     {
         var tenantExistente = await dbContext.Tenants
             .FirstOrDefaultAsync(t => t.Nombre == nombreTenant, cancellationToken);
@@ -750,6 +752,12 @@ public static class DelegacionDemoSeeder
         // mismo, no de quién lo administra — un Cliente Delegante se ve como
         // Cliente Directo aunque ArcoSPA (Consultora) lo opere en plural.
         var tenant = new Tenant(nombreTenant, perfil);
+
+        // Capacidad declarada aparte del perfil, igual que en
+        // CrearOperadorCaeExternoCommand: no se infiere de perfil ==
+        // Consultora, cada llamada la declara explícitamente.
+        if (esOperadorCaeExterno)
+            tenant.HabilitarComoOperadorCaeExterno();
 
         // Mismo motivo que SegundoTenantSeeder: hace falta un tenant
         // resuelto ya para este primer guardado (el interceptor de

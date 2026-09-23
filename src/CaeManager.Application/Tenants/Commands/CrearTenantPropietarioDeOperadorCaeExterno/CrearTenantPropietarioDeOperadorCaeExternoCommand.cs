@@ -42,8 +42,9 @@ namespace CaeManager.Application.Tenants.Commands.CrearTenantPropietarioDeOperad
 /// Gestor CAE</b> — a diferencia de <c>CrearClienteDeleganteCommand</c>, el ejecutor
 /// es un Actor de Plataforma y nunca es Gestor CAE ni Operador CAE (ADR-011 §
 /// 1). Quién gestiona lo decide después una Asignación de Cartera del Operador.</item>
-/// <item><b>Operador válido</b>: existe, tiene perfil <c>Consultora</c> y no es el
-/// Tenant de plataforma — TALVEG no es Operador CAE por defecto.</item>
+/// <item><b>Operador válido</b>: existe, tiene concedida
+/// <see cref="Tenant.PuedeActuarComoOperadorCaeExterno"/> y no es el Tenant de
+/// plataforma — TALVEG no es Operador CAE por defecto.</item>
 /// </list>
 ///
 /// <b>Auditoría</b>: <c>AuditoriaInterceptor</c> registra el alta de
@@ -98,10 +99,10 @@ public class CrearTenantPropietarioDeOperadorCaeExternoCommandHandler(
         // Tenant es catálogo global (sin filtro de tenant): un Id de Tenant es válido cross-tenant por diseño.
         var operador = await tenantsContext.Tenants
             .Where(t => t.Id == request.TenantOperadorId)
-            .Select(t => new { t.PerfilVocabulario, t.EsPlataforma })
+            .Select(t => new { t.PuedeActuarComoOperadorCaeExterno, t.EsPlataforma })
             .SingleOrDefaultAsync(cancellationToken);
 
-        if (operador is null || operador.EsPlataforma || operador.PerfilVocabulario != PerfilVocabularioTenant.Consultora)
+        if (operador is null || operador.EsPlataforma || !operador.PuedeActuarComoOperadorCaeExterno)
             return Result.Fallo<Guid>(Error.Crear(
                 "TenantPropietarioDeOperador.OperadorNoValido", "No encontramos ese Operador CAE externo."));
 

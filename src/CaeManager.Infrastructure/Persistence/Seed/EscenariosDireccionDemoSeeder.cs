@@ -97,7 +97,8 @@ public static class EscenariosDireccionDemoSeeder
         var credenciales = CredencialesDemo.Resolver(configuration, entorno);
 
         var tenantOperadorId = await DelegacionDemoSeeder.AprovisionarTenantAsync(
-            dbContext, DelegacionDemoSeeder.NombreTenantConsultora, PerfilVocabularioTenant.Consultora, logger, cancellationToken);
+            dbContext, DelegacionDemoSeeder.NombreTenantConsultora, PerfilVocabularioTenant.Consultora, logger, cancellationToken,
+            esOperadorCaeExterno: true);
 
         var administrador = await userManager.FindByEmailAsync(DelegacionDemoSeeder.EmailAdministradorConsultora)
             ?? throw new InvalidOperationException(
