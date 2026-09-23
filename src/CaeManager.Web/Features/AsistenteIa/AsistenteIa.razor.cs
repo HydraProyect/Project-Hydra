@@ -1,8 +1,10 @@
 using CaeManager.Application.AsistenteIa.Queries.PreguntarAlAsistente;
 using CaeManager.Application.Common;
+using CaeManager.Web.Features.AsistenteIa.Recursos;
 using Markdig;
 using MediatR;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Features.AsistenteIa;
 
@@ -18,6 +20,7 @@ public partial class AsistenteIa : ComponentBase, IDisposable
 
     [Inject] private AsistenteIaService AsistenteIaService { get; set; } = default!;
     [Inject] private IMediator Mediator { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosAsistenteIa> Textos { get; set; } = default!;
 
     private bool _visible;
     private string _pregunta = string.Empty;

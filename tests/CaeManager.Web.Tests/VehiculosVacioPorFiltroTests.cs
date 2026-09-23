@@ -32,6 +32,8 @@ public class VehiculosVacioPorFiltroTests : BunitContext
     public VehiculosVacioPorFiltroTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        // Los textos de Vehículos salen de IStringLocalizer<TextosVehiculos>.
+        Services.AddLocalization();
         this.ConRolDeEscritura();
     }
 

@@ -27,8 +27,8 @@ namespace CaeManager.Infrastructure.FileStorage;
 ///
 /// El fichero se lee entero en memoria para cifrar/descifrar — no hay API de
 /// streaming en <see cref="IDataProtector"/> y los documentos de este
-/// sistema están acotados a 10 MB (ver <c>TamanoMaximoArchivoBytes</c> en
-/// las páginas de subida), así que el coste es aceptable y coherente con
+/// sistema están acotados a 10 MB (ver <c>LimitesArchivoSubido.TamanoMaximoBytes</c>
+/// en Application), así que el coste es aceptable y coherente con
 /// cómo el resto del código ya maneja archivos subidos.
 ///
 /// <b>Formato versionado (v2)</b>: todo archivo nuevo se escribe con la marca

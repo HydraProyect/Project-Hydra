@@ -1,0 +1,309 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="HubKicker" xml:space="preserve">
+    <value>Sistema</value>
+  </data>
+  <data name="HubTitulo" xml:space="preserve">
+    <value>Configuración</value>
+  </data>
+  <data name="AriaSeccionesHub" xml:space="preserve">
+    <value>Secciones de configuración</value>
+  </data>
+  <data name="TituloDocumentoConEntrada" xml:space="preserve">
+    <value>{0} — Configuración</value>
+  </data>
+  <data name="SalidaPropiaDescripcion" xml:space="preserve">
+    <value>Esta sección tiene pantalla propia, fuera del hub de Configuración.</value>
+  </data>
+  <data name="EnlaceIrAEntrada" xml:space="preserve">
+    <value>Ir a {0}</value>
+  </data>
+  <data name="GrupoAccesoIdentidad" xml:space="preserve">
+    <value>Acceso e identidad</value>
+  </data>
+  <data name="GrupoPlataformaConexiones" xml:space="preserve">
+    <value>Plataforma y conexiones</value>
+  </data>
+  <data name="GrupoCatalogosDatos" xml:space="preserve">
+    <value>Catálogos y datos</value>
+  </data>
+  <data name="GrupoAuditoria" xml:space="preserve">
+    <value>Auditoría</value>
+  </data>
+  <data name="EntradaUsuariosNombre" xml:space="preserve">
+    <value>Usuarios</value>
+  </data>
+  <data name="EntradaUsuariosResumen" xml:space="preserve">
+    <value>Cuentas y carteras asignadas</value>
+  </data>
+  <data name="EntradaRolesNombre" xml:space="preserve">
+    <value>Roles</value>
+  </data>
+  <data name="EntradaRolesResumen" xml:space="preserve">
+    <value>Permisos por perfil</value>
+  </data>
+  <data name="EntradaApiNombre" xml:space="preserve">
+    <value>Claves API</value>
+  </data>
+  <data name="EntradaApiResumen" xml:space="preserve">
+    <value>Acceso programático</value>
+  </data>
+  <data name="EntradaIntegracionesNombre" xml:space="preserve">
+    <value>Conexiones de integración</value>
+  </data>
+  <data name="EntradaIntegracionesResumen" xml:space="preserve">
+    <value>M365, portales, webhooks</value>
+  </data>
+  <data name="EntradaImportarNombre" xml:space="preserve">
+    <value>Importar datos</value>
+  </data>
+  <data name="EntradaImportarResumen" xml:space="preserve">
+    <value>Cuadro de Control CAE (Excel)</value>
+  </data>
+  <data name="EntradaPlataformaNombre" xml:space="preserve">
+    <value>Administración de plataforma</value>
+  </data>
+  <data name="EntradaPlataformaResumen" xml:space="preserve">
+    <value>Inicialización e identidad raíz</value>
+  </data>
+  <data name="EntradaTiposNombre" xml:space="preserve">
+    <value>Tipos de documento</value>
+  </data>
+  <data name="EntradaTiposResumen" xml:space="preserve">
+    <value>Catálogo y vigencias</value>
+  </data>
+  <data name="EntradaIaNombre" xml:space="preserve">
+    <value>Lectura IA por Cliente empresarial</value>
+  </data>
+  <data name="EntradaIaResumen" xml:space="preserve">
+    <value>Restricción por tipo de documento</value>
+  </data>
+  <data name="EntradaMacrosNombre" xml:space="preserve">
+    <value>Macros de respuesta</value>
+  </data>
+  <data name="EntradaMacrosResumen" xml:space="preserve">
+    <value>Plantillas de comunicación</value>
+  </data>
+  <data name="EntradaParamsNombre" xml:space="preserve">
+    <value>Parámetros del sistema</value>
+  </data>
+  <data name="EntradaParamsResumen" xml:space="preserve">
+    <value>Umbrales del semáforo</value>
+  </data>
+  <data name="EntradaParamsEntradilla" xml:space="preserve">
+    <value>Umbrales del semáforo documental, franja de jornada y medición de tiempo, y aviso de gasto en IA.</value>
+  </data>
+  <data name="EntradaRetencionNombre" xml:space="preserve">
+    <value>Retención de datos</value>
+  </data>
+  <data name="EntradaRetencionResumen" xml:space="preserve">
+    <value>Plazos de borrado</value>
+  </data>
+  <data name="EntradaAuditoriaNombre" xml:space="preserve">
+    <value>Auditoría</value>
+  </data>
+  <data name="EntradaAuditoriaResumen" xml:space="preserve">
+    <value>Quién hizo qué y cuándo</value>
+  </data>
+  <data name="EntradaAuditoriaIaNombre" xml:space="preserve">
+    <value>Auditoría IA</value>
+  </data>
+  <data name="EntradaAuditoriaIaResumen" xml:space="preserve">
+    <value>Lecturas y decisiones automáticas</value>
+  </data>
+  <data name="EntradaAutomatizacionesNombre" xml:space="preserve">
+    <value>Automatizaciones</value>
+  </data>
+  <data name="EntradaAutomatizacionesResumen" xml:space="preserve">
+    <value>Trabajos del sistema</value>
+  </data>
+  <data name="ErrorCargaDetalle" xml:space="preserve">
+    <value>Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="BotonReintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="LecturaIaTituloPagina" xml:space="preserve">
+    <value>Lectura IA por Cliente empresarial</value>
+  </data>
+  <data name="LecturaIaVolver" xml:space="preserve">
+    <value>← Configuración</value>
+  </data>
+  <data name="LecturaIaDescripcionAntesEnlace" xml:space="preserve">
+    <value>La lectura IA de cada tipo de documento se activa para todos en</value>
+  </data>
+  <data name="LecturaIaDescripcionEnlace" xml:space="preserve">
+    <value>Tipos de documento</value>
+  </data>
+  <data name="LecturaIaDescripcionDespuesEnlace" xml:space="preserve">
+    <value>. Aquí eliges un Cliente empresarial para restringirla solo para él: puedes desactivar un tipo que está activo para todos, nunca activar uno que está desactivado.</value>
+  </data>
+  <data name="LecturaIaNotaAlcance" xml:space="preserve">
+    <value>Hoy esa restricción solo la aplica la detección de trabajadores en los documentos de empresa, y la omite para una empresa únicamente cuando todos los Clientes empresariales a los que presta servicio tienen ese tipo desactivado.</value>
+  </data>
+  <data name="LecturaIaErrorCargaTitulo" xml:space="preserve">
+    <value>No pudimos cargar los Clientes empresariales</value>
+  </data>
+  <data name="LecturaIaVacioTitulo" xml:space="preserve">
+    <value>Todavía no hay ningún Cliente empresarial</value>
+  </data>
+  <data name="LecturaIaVacioDescripcion" xml:space="preserve">
+    <value>Da de alta un Cliente empresarial para poder restringir su lectura IA.</value>
+  </data>
+  <data name="LecturaIaBuscarEtiqueta" xml:space="preserve">
+    <value>Buscar Cliente empresarial</value>
+  </data>
+  <data name="LecturaIaBuscarPlaceholder" xml:space="preserve">
+    <value>Razón social…</value>
+  </data>
+  <data name="LecturaIaSinCoincidencias" xml:space="preserve">
+    <value>Ningún Cliente empresarial coincide con «{0}».</value>
+  </data>
+  <data name="AutomatizacionesErrorCargaTitulo" xml:space="preserve">
+    <value>No pudimos cargar las automatizaciones</value>
+  </data>
+  <data name="AutomatizacionesEncabezado" xml:space="preserve">
+    <value>Automatizaciones</value>
+  </data>
+  <data name="AutomatizacionesEntradilla" xml:space="preserve">
+    <value>Trabajos del sistema que corren sin intervención. Apagar uno detiene su efecto en toda la cartera.</value>
+  </data>
+  <data name="ColumnaNombre" xml:space="preserve">
+    <value>Nombre</value>
+  </data>
+  <data name="ColumnaUltimaEjecucion" xml:space="preserve">
+    <value>Última ejecución</value>
+  </data>
+  <data name="ColumnaProximoCiclo" xml:space="preserve">
+    <value>Próximo ciclo</value>
+  </data>
+  <data name="ColumnaResultado" xml:space="preserve">
+    <value>Resultado</value>
+  </data>
+  <data name="ColumnaEstado" xml:space="preserve">
+    <value>Estado</value>
+  </data>
+  <data name="ResultadoNoConfigurado" xml:space="preserve">
+    <value>No configurado</value>
+  </data>
+  <data name="ResultadoSinDatos" xml:space="preserve">
+    <value>Sin datos</value>
+  </data>
+  <data name="ResultadoCorrecta" xml:space="preserve">
+    <value>Correcta</value>
+  </data>
+  <data name="ResultadoFallida" xml:space="preserve">
+    <value>Fallida</value>
+  </data>
+  <data name="EstadoSinConfigurar" xml:space="preserve">
+    <value>Sin configurar</value>
+  </data>
+  <data name="EstadoSiempreActivo" xml:space="preserve">
+    <value>Siempre activo</value>
+  </data>
+  <data name="AriaConmutarTrabajo" xml:space="preserve">
+    <value>Activar o desactivar {0}</value>
+  </data>
+  <data name="AutomatizacionesNotaPie" xml:space="preserve">
+    <value>Los trabajos conmutables dejan su última ejecución registrada arriba.</value>
+  </data>
+  <data name="AutomatizacionesErrorConmutar" xml:space="preserve">
+    <value>No pudimos actualizar el estado. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="ProximoCicloContinuo" xml:space="preserve">
+    <value>Continuo</value>
+  </data>
+  <data name="DetalleEvaluadosYAfectados" xml:space="preserve">
+    <value>{0} evaluados, {1} afectados</value>
+  </data>
+  <data name="DetalleSoloEvaluados" xml:space="preserve">
+    <value>{0} evaluados</value>
+  </data>
+  <data name="DetalleSoloAfectados" xml:space="preserve">
+    <value>{0} afectados</value>
+  </data>
+  <data name="ParametrosErrorCargaTitulo" xml:space="preserve">
+    <value>No pudimos cargar la configuración</value>
+  </data>
+  <data name="UmbralesTitulo" xml:space="preserve">
+    <value>Umbrales de alerta</value>
+  </data>
+  <data name="UmbralesDescripcion" xml:space="preserve">
+    <value>Días restantes hasta el vencimiento a partir de los cuales un documento pasa a "Próximo" o "Urgente". Corresponde a la sección "Umbrales de alerta" de la hoja Parametros del Excel original.</value>
+  </data>
+  <data name="UmbralProximoEtiqueta" xml:space="preserve">
+    <value>Umbral próximo (días)</value>
+  </data>
+  <data name="UmbralUrgenteEtiqueta" xml:space="preserve">
+    <value>Umbral urgente (días)</value>
+  </data>
+  <data name="BotonGuardarCambios" xml:space="preserve">
+    <value>Guardar cambios</value>
+  </data>
+  <data name="JornadaTitulo" xml:space="preserve">
+    <value>Jornada y medición de tiempo</value>
+  </data>
+  <data name="JornadaDescripcion" xml:space="preserve">
+    <value>La franja de jornada se usa para dos cosas: es la hora de entrada que se asume cuando una visita no indica hora, y marca fuera de qué horas una entrada se considera exprés.</value>
+  </data>
+  <data name="InicioJornadaEtiqueta" xml:space="preserve">
+    <value>Inicio de jornada</value>
+  </data>
+  <data name="FinJornadaEtiqueta" xml:space="preserve">
+    <value>Fin de jornada</value>
+  </data>
+  <data name="HorasMesEtiqueta" xml:space="preserve">
+    <value>Horas de jornada al mes por gestor</value>
+  </data>
+  <data name="MedicionDescripcion" xml:space="preserve">
+    <value>La medición de tiempo registra cuánto tiempo permanece abierta y con el foco puesto cada gestión. No se recogen pulsaciones de teclado, movimientos de ratón ni actividad fuera de esta aplicación. Antes de activarla hay que informar a la plantilla y a su representación legal (art. 87 LOPDGDD y art. 20.3 del Estatuto de los Trabajadores).</value>
+  </data>
+  <data name="MedicionActivarEtiqueta" xml:space="preserve">
+    <value>Activar la medición de tiempo de enfoque</value>
+  </data>
+  <data name="SegundosSinFocoEtiqueta" xml:space="preserve">
+    <value>Segundos sin foco antes de pausar</value>
+  </data>
+  <data name="ExcluirFueraJornadaEtiqueta" xml:space="preserve">
+    <value>Excluir de las métricas el tiempo registrado fuera de la jornada</value>
+  </data>
+  <data name="PresupuestoTitulo" xml:space="preserve">
+    <value>Presupuesto de IA</value>
+  </data>
+  <data name="PresupuestoDescripcion" xml:space="preserve">
+    <value>Límite blando (no bloqueante) de gasto estimado en IA documental por mes natural. Superarlo no detiene ni degrada nada: solo enciende un aviso en el Dashboard Ejecutivo para que el operador lo vea antes de que aparezca en la factura. Déjalo en blanco para desactivar el aviso.</value>
+  </data>
+  <data name="PresupuestoMensualEtiqueta" xml:space="preserve">
+    <value>Presupuesto mensual (USD)</value>
+  </data>
+  <data name="ToastUmbralesActualizados" xml:space="preserve">
+    <value>Umbrales de alerta actualizados correctamente.</value>
+  </data>
+  <data name="ToastOperativaActualizada" xml:space="preserve">
+    <value>Configuración operativa actualizada correctamente.</value>
+  </data>
+  <data name="ToastPresupuestoActualizado" xml:space="preserve">
+    <value>Presupuesto de IA actualizado correctamente.</value>
+  </data>
+  <data name="ErrorGuardarCambios" xml:space="preserve">
+    <value>No pudimos guardar los cambios. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="ErrorFormatoHoras" xml:space="preserve">
+    <value>Las horas de jornada deben tener formato HH:mm.</value>
+  </data>
+  <data name="ErrorPresupuestoNoNumerico" xml:space="preserve">
+    <value>El presupuesto debe ser un número.</value>
+  </data>
+</root>

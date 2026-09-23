@@ -46,10 +46,7 @@ public class TextosSinLocalizarCongeladosTests
     /// </summary>
     private static readonly Dictionary<string, int> Congelado = new(StringComparer.Ordinal)
     {
-        ["Alertas"] = 66,
         ["ApiKeys"] = 45,
-        ["AsistenteIa"] = 8,
-        ["AtajosGlobales"] = 23,
         ["Auditoria"] = 73,
         ["AuditoriaIa"] = 50,
         ["Bandeja"] = 107,
@@ -60,37 +57,68 @@ public class TextosSinLocalizarCongeladosTests
         ["Comercial"] = 61,
         ["Components/Account"] = 95,
         ["Components/DesignSystem"] = 52,
-        ["Components/Layout"] = 92,
+        // 92 → 77 el 2026-09-23 SIN migrar nada: los rótulos del menú lateral pasaron del marcado
+        // de NavMenu.razor a literales de CatalogoMenuLateral.cs, y la heurística no ve un literal
+        // de una sola palabra («Dashboard», «Empresas»…). Siguen sin localizar; su migración a
+        // .resx es un incremento pendiente, no algo que esta cifra certifique.
+        ["Components/Layout"] = 77,
         ["Components/Legal"] = 163,
         ["Components/Pages"] = 18,
         ["Components/Workspace"] = 58,
         ["Comunicaciones"] = 316,
-        ["Configuracion"] = 104,
+        // Migrada a TextosConfiguracion: el 1 restante es un falso positivo del
+        // detector, la cabecera «@for (var indice = 0; indice < Grupos.Count; …)»
+        // de Configuracion.razor, que el '<' de la comparación hace pasar por texto.
+        ["Configuracion"] = 1,
         ["Cumplimiento"] = 11,
         ["Dashboard"] = 57,
-        ["DashboardEjecutivo"] = 89,
+        // 89 → 1 el 2026-09-23 al migrar la Feature a TextosDashboardEjecutivo.resx. El 1 que
+        // queda NO es texto: es un falso positivo del detector de markup, que toma por texto lo
+        // que hay entre el «>» de <CampoSelect …> y el «<» del genérico de
+        // «@foreach (var preset in Enum.GetValues<PresetPeriodoKpi>())». No se reescribe el
+        // bucle para esquivar la heurística; si el detector aprende a ignorar código Razor,
+        // esta entrada se retira.
+        ["DashboardEjecutivo"] = 1,
         ["Delegaciones"] = 97,
         ["Documentos"] = 459,
         ["Empresas"] = 204,
         ["Extension"] = 29,
         ["Facturacion"] = 96,
         ["GestionRoles"] = 52,
-        ["Gestiones"] = 48,
-        ["Importacion"] = 166,
-        ["Incidencias"] = 81,
+        // 166 → 15 el 2026-09-23 al migrar la Feature a TextosImportacion.resx. Ninguno de los 15
+        // es interfaz pendiente:
+        // - 9 son CONTRATO del archivo, no interfaz: rótulos de columna que escribe GenerarPlantilla
+        //   y lee el parser («Razón social», «Crítico (C/N)», «Dirección», «Código», «Contrato
+        //   vigente hasta», «Fecha de nacimiento», «Crítico») y la fila de ejemplo de la plantilla
+        //   de Clientes («Calle Ejemplo 1, Ciudad», «Nombre Apellidos — email@ejemplo.com»).
+        //   Localizarlos rompería la importación en ca-ES; los Web.Tests los comparan con la
+        //   plantilla generada.
+        // - 1 se persiste: «Excepción no controlada durante la importación.» va a
+        //   HistorialImportacion.MensajeError; es dato, no se localiza.
+        // - 5 son falsos positivos del detector de markup: código Razor entre «>» y «<»
+        //   («(var i = 0; i», «(numero», «.ToString("dd/MM/yy HH:mm")») y los corchetes anidados de
+        //   @Textos[ClavesPasos[i]] y @Textos["BotonContinuarConPlantilla", Textos[…].Value].
+        ["Importacion"] = 15,
         ["Integraciones"] = 92,
         ["Plantillas"] = 158,
         ["Plataforma"] = 74,
-        ["Proyectos"] = 103,
-        ["Reportes"] = 65,
         ["Retencion"] = 85,
         ["Subcontratas"] = 225,
-        ["TiposDocumento"] = 149,
+        // 149 → 6 el 2026-09-23 al migrar la Feature a TextosTiposDocumento.resx. Quedan:
+        // «ITA», «RNT» y «RLC», las siglas oficiales de las opciones de PerfilDocumentoOficial
+        // (nombre propio del documento de la Administración, igual en cualquier idioma: no se
+        // localizan), y 3 falsos positivos del detector de markup, que toma por texto lo que hay
+        // entre el «>» de <CampoSelect …> y el «<» del genérico de
+        // «ValorChanged="v => _ambito = Enum.Parse<AmbitoAplicacion>(v)"» (y los de _requerido
+        // y _naturaleza). No se reescriben las lambdas para esquivar la heurística.
+        ["TiposDocumento"] = 6,
         ["Trabajadores"] = 193,
         ["Usuarios"] = 157,
-        ["Vehiculos"] = 65,
-        ["VisionCartera"] = 77,
-        ["Visitas"] = 112,
+        // 112 → 10 el 2026-09-23: Visitas.razor(.cs) migrados a TextosVisitas.resx. Los 10
+        // que quedan son las etiquetas estáticas de NivelUrgenciaVisitaUi y AntelacionVisitaUi,
+        // que también pintan Dashboard (Inicio) y DashboardEjecutivo: migrarlas cambia la firma
+        // de helpers compartidos entre Features y es un incremento propio.
+        ["Visitas"] = 10,
         ["Web(raiz)"] = 4,
         ["Web/Api"] = 2,
         ["Web/Reportes"] = 5,

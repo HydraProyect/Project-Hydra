@@ -61,15 +61,6 @@ namespace CaeManager.Web.Features.Documentos.Pages;
 /// </summary>
 public partial class SubidaMasiva : ComponentBase, IDisposable
 {
-    /// <summary>
-    /// Único límite por archivo de esta pantalla: lo usan la comprobación del
-    /// tamaño declarado por el navegador, <c>OpenReadStream</c>, cada entrada
-    /// de un .zip, el presupuesto del lote y los textos que lo nombran. Ni
-    /// Kestrel ni SignalR ponen otro: <see cref="InputFile"/> trae el archivo
-    /// por interop JS en trozos, así que su techo es el <c>maxAllowedSize</c>
-    /// que se le pasa aquí.
-    /// </summary>
-    private const long TamanoMaximoArchivoBytes = 10 * 1024 * 1024;
     private const int MaximoArchivosPorLote = 60;
 
     /// <summary>
@@ -89,7 +80,7 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
     /// proceso web en vez de en <c>byte[]</c> — pendiente de decisión, ver el
     /// informe del Módulo 2.
     /// </summary>
-    private const long PresupuestoLoteBytes = MaximoArchivosPorLote * TamanoMaximoArchivoBytes;
+    private const long PresupuestoLoteBytes = (long)MaximoArchivosPorLote * LimitesArchivoSubido.TamanoMaximoBytes;
 
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
@@ -240,13 +231,13 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
                 // y los válidos del mismo lote ya leídos se perdían con él
                 // (defecto del 2026-09-22). Ahora es un error de ese archivo y
                 // el lote sigue.
-                if (archivo.Size > TamanoMaximoArchivoBytes)
+                if (archivo.Size > LimitesArchivoSubido.TamanoMaximoBytes)
                 {
                     AgregarItem(NuevoItemError(archivo.Name, TextoArchivoSuperaLimite(archivo.Name)));
                     continue;
                 }
 
-                await using var flujo = archivo.OpenReadStream(TamanoMaximoArchivoBytes);
+                await using var flujo = archivo.OpenReadStream(LimitesArchivoSubido.TamanoMaximoBytes);
                 using var memoria = new MemoryStream();
                 await flujo.CopyToAsync(memoria, token);
                 if (!EsVigente(carga)) return;
@@ -270,7 +261,7 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
                             // tope, y ese recuento ya no se hace después de
                             // haberlos expandido en memoria.
                             MaximoArchivosPorLote - entradas.Count,
-                            TamanoMaximoArchivoBytes,
+                            LimitesArchivoSubido.TamanoMaximoBytes,
                             presupuestoRestante);
                     }
                     catch (InvalidDataException ex)
@@ -340,7 +331,7 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
             return;
         }
 
-        if (contenido.Length > TamanoMaximoArchivoBytes)
+        if (contenido.Length > LimitesArchivoSubido.TamanoMaximoBytes)
         {
             AgregarItem(NuevoItemError(nombreArchivo, TextoArchivoSuperaLimite(nombreArchivo)));
             StateHasChanged();
@@ -403,9 +394,7 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
     }
 
     private string TextoArchivoSuperaLimite(string nombreArchivo) =>
-        Textos["ArchivoSuperaLimite", nombreArchivo, LimiteArchivoEnMb];
-
-    private static long LimiteArchivoEnMb => TamanoMaximoArchivoBytes / (1024 * 1024);
+        Textos["ArchivoSuperaLimite", nombreArchivo, LimitesArchivoSubido.TamanoMaximoMb];
 
     private static ItemLote NuevoItemError(string nombreArchivo, string mensaje) => new()
     {

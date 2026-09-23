@@ -48,8 +48,10 @@ public class ObtenerTrabajadoresQueryHandler(
             select new { trabajador, EmpleadorNombre = empresa != null ? empresa.RazonSocial : subcontrata!.RazonSocial };
 
         // Este es el listado (tabla /trabajadores), no el selector de "elige
-        // un trabajador ya existente" — se acota a los que tienen una
-        // Asignación activa en un Centro visible (ver IAlcanceDatosService).
+        // un trabajador ya existente" — se acota al alcance de Trabajadores:
+        // Asignación activa en un Centro visible, más la plantilla de la
+        // Empresa propia para un Gestor/Coordinador CAE con cartera (ver
+        // IAlcanceDatosService).
         var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
         if (trabajadorIdsVisibles is not null)
             consulta = consulta.Where(x => trabajadorIdsVisibles.Contains(x.trabajador.Id));

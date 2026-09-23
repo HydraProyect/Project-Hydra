@@ -41,8 +41,8 @@ public partial class Configuracion : ComponentBase
     }
 
     private string TituloDocumento => Buscar(EntradaEfectiva) is { } entrada
-        ? $"{entrada.Nombre} — Configuración"
-        : "Configuración";
+        ? Textos["TituloDocumentoConEntrada", entrada.Nombre].Value
+        : Textos["HubTitulo"].Value;
 
     /// <param name="Entradilla">
     /// Solo para paneles propios del hub que no pintan cabecera: el hub les
@@ -72,15 +72,25 @@ public partial class Configuracion : ComponentBase
     /// sensible. Se repone cuando exista esa política — no antes. El enlace
     /// del menú lateral a /cuenta/configurar-2fa es otra cosa (alta personal
     /// del propio usuario) y no se ve afectado por esta retirada.
+    /// <para>
+    /// Los rótulos salen de <c>TextosConfiguracion</c>, así que el catálogo es
+    /// de instancia (necesita el localizador inyectado) y se construye una vez
+    /// por componente; los Id, las abreviaturas decorativas y las rutas no se
+    /// localizan.
+    /// </para>
     /// </summary>
-    private static readonly IReadOnlyList<GrupoConfiguracion> Grupos =
+    private IReadOnlyList<GrupoConfiguracion> Grupos => _grupos ??= ConstruirGrupos();
+
+    private IReadOnlyList<GrupoConfiguracion>? _grupos;
+
+    private IReadOnlyList<GrupoConfiguracion> ConstruirGrupos() =>
     [
-        new("Acceso e identidad",
+        new(Textos["GrupoAccesoIdentidad"],
         [
-            new("usuarios", "US", "Usuarios", "Cuentas y carteras asignadas", typeof(Features.Usuarios.Pages.Usuarios)),
-            new("roles", "RL", "Roles", "Permisos por perfil", typeof(Features.GestionRoles.Pages.Roles))
+            new("usuarios", "US", Textos["EntradaUsuariosNombre"], Textos["EntradaUsuariosResumen"], typeof(Features.Usuarios.Pages.Usuarios)),
+            new("roles", "RL", Textos["EntradaRolesNombre"], Textos["EntradaRolesResumen"], typeof(Features.GestionRoles.Pages.Roles))
         ]),
-        // Delegaciones y Estado comercial NO viven aquí (ver NavMenu.razor,
+        // Delegaciones y Estado comercial NO viven aquí (ver CatalogoMenuLateral,
         // grupo "Plataforma"): su autoridad real es de CAPACIDAD
         // (AdminPlataforma, F2b-6), no del rol Administrador que gatea todo
         // este hub (Configuracion.razor, [Authorize(Roles=Administrador)]) —
@@ -89,11 +99,11 @@ public partial class Configuracion : ComponentBase
         // diseño (Program.cs: "sesión privilegiada de plataforma no lleva
         // rol de negocio"). Sus rutas propias (/delegaciones,
         // /configuracion/comercial) siguen funcionando en modo standalone.
-        new("Plataforma y conexiones",
+        new(Textos["GrupoPlataformaConexiones"],
         [
-            new("api", "AP", "Claves API", "Acceso programático", typeof(Features.ApiKeys.Pages.ClavesApi)),
-            new("integraciones", "IN", "Conexiones de integración", "M365, portales, webhooks", typeof(Features.Integraciones.Pages.Conexiones)),
-            new("importar", "IM", "Importar datos", "Cuadro de Control CAE (Excel)", typeof(Features.Importacion.Pages.Importacion)),
+            new("api", "AP", Textos["EntradaApiNombre"], Textos["EntradaApiResumen"], typeof(Features.ApiKeys.Pages.ClavesApi)),
+            new("integraciones", "IN", Textos["EntradaIntegracionesNombre"], Textos["EntradaIntegracionesResumen"], typeof(Features.Integraciones.Pages.Conexiones)),
+            new("importar", "IM", Textos["EntradaImportarNombre"], Textos["EntradaImportarResumen"], typeof(Features.Importacion.Pages.Importacion)),
             // "plataforma" es deliberadamente distinta a sus vecinas: TipoPanel
             // queda null a propósito — es lo único que evita el embedding (el
             // <DynamicComponent> de Configuracion.razor solo se renderiza si
@@ -116,35 +126,35 @@ public partial class Configuracion : ComponentBase
             // redirige igualmente a la ruta literal; ese acceso exige además el
             // rol Administrador del propio hub, así que no es fuga de
             // autorización.
-            new("plataforma", "PL", "Administración de plataforma", "Inicialización e identidad raíz", null, false)
+            new("plataforma", "PL", Textos["EntradaPlataformaNombre"], Textos["EntradaPlataformaResumen"], null, false)
         ]),
-        new("Catálogos y datos",
+        new(Textos["GrupoCatalogosDatos"],
         [
-            new("tipos", "TD", "Tipos de documento", "Catálogo y vigencias", typeof(Features.TiposDocumento.Pages.TiposDocumento)),
+            new("tipos", "TD", Textos["EntradaTiposNombre"], Textos["EntradaTiposResumen"], typeof(Features.TiposDocumento.Pages.TiposDocumento)),
             // El mockup decía «Qué se extrae y con qué umbral»: no hay umbral
             // configurable, y el propio mockup pide corregir la promesa aquí y
             // en la entradilla de la pantalla a la vez (su nota «OJO»).
-            new("ia", "IA", "Lectura IA por Cliente empresarial", "Restricción por tipo de documento", typeof(SeleccionarClienteLecturaIa)),
-            new("macros", "MA", "Macros de respuesta", "Plantillas de comunicación", typeof(Features.Comunicaciones.Pages.Macros)),
+            new("ia", "IA", Textos["EntradaIaNombre"], Textos["EntradaIaResumen"], typeof(SeleccionarClienteLecturaIa)),
+            new("macros", "MA", Textos["EntradaMacrosNombre"], Textos["EntradaMacrosResumen"], typeof(Features.Comunicaciones.Pages.Macros)),
             // El mockup pone de entradilla «Umbrales que gobiernan el semáforo
             // documental de toda la cartera» y promete que el cambio «recalcula
             // los estados en la próxima pasada nocturna». No hay pasada
             // nocturna (el estado se calcula en vivo, ver AutomatizacionesPanel)
             // y el panel tiene además jornada, medición de tiempo y
             // presupuesto de IA: la entradilla dice lo que el panel contiene.
-            new("params", "PS", "Parámetros del sistema", "Umbrales del semáforo", typeof(Components.ParametrosSistemaPanel), false,
-                "Umbrales del semáforo documental, franja de jornada y medición de tiempo, y aviso de gasto en IA."),
-            new("retencion", "RT", "Retención de datos", "Plazos de borrado", typeof(Features.Retencion.Pages.Retencion))
+            new("params", "PS", Textos["EntradaParamsNombre"], Textos["EntradaParamsResumen"], typeof(Components.ParametrosSistemaPanel), false,
+                Textos["EntradaParamsEntradilla"]),
+            new("retencion", "RT", Textos["EntradaRetencionNombre"], Textos["EntradaRetencionResumen"], typeof(Features.Retencion.Pages.Retencion))
         ]),
-        new("Auditoría",
+        new(Textos["GrupoAuditoria"],
         [
-            new("auditoria", "AU", "Auditoría", "Quién hizo qué y cuándo", typeof(Features.Auditoria.Pages.Auditoria)),
-            new("auditoria-ia", "AI", "Auditoría IA", "Lecturas y decisiones automáticas", typeof(Features.AuditoriaIa.Pages.AuditoriaIa)),
-            new("automatizaciones", "AT", "Automatizaciones", "Trabajos del sistema", typeof(Components.AutomatizacionesPanel), false)
+            new("auditoria", "AU", Textos["EntradaAuditoriaNombre"], Textos["EntradaAuditoriaResumen"], typeof(Features.Auditoria.Pages.Auditoria)),
+            new("auditoria-ia", "AI", Textos["EntradaAuditoriaIaNombre"], Textos["EntradaAuditoriaIaResumen"], typeof(Features.AuditoriaIa.Pages.AuditoriaIa)),
+            new("automatizaciones", "AT", Textos["EntradaAutomatizacionesNombre"], Textos["EntradaAutomatizacionesResumen"], typeof(Components.AutomatizacionesPanel), false)
         ])
     ];
 
-    private static EntradaConfiguracion? Buscar(string id) =>
+    private EntradaConfiguracion? Buscar(string id) =>
         Grupos.SelectMany(g => g.Entradas).FirstOrDefault(e => e.Id == id);
 
     private static string RutaDe(string id) => $"/configuracion/{id}";

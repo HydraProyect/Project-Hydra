@@ -69,9 +69,9 @@ public class AutorizacionDePaginasTests
     /// gestión CAE —nunca el rol <c>Cliente</c> externo— pueden leer
     /// <c>/clientes</c> y <c>/clientes/alta-guiada</c>. Es el mismo conjunto
     /// que <see cref="RolesComunicaciones.Gestion"/> y que
-    /// <c>RolesConMenuCompleto</c> de <c>NavMenu.razor</c>.
+    /// <c>RolesConMenuCompleto</c> de <c>CatalogoMenuLateral</c>.
     ///
-    /// <b>No es <c>RolesDeCartera</c> de <c>NavMenu.razor</c></b> —Administrador,
+    /// <b>No es <c>RolesDeCartera</c> de <c>CatalogoMenuLateral</c></b> —Administrador,
     /// DireccionCae, CoordinadorCae, sin GestorCae ni Consulta— aunque el
     /// nombre invite a confundirlos: esa constante gatea la entrada de menú
     /// "Visión de cartera" (un dashboard agregado), no el acceso a la lista de

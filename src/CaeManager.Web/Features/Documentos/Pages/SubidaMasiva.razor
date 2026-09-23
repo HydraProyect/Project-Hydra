@@ -26,7 +26,7 @@
         <section class="zona-subida-masiva" aria-label="Seleccionar archivos">
             <Icono Nombre="adjunto" Tamano="TamanoIcono.Grande" />
             <h2>Arrastra aquí los documentos de trabajador</h2>
-            <p>@Textos["IndicacionLimites", MaximoArchivosPorLote, LimiteArchivoEnMb]</p>
+            <p>@Textos["IndicacionLimites", MaximoArchivosPorLote, LimitesArchivoSubido.TamanoMaximoMb]</p>
             <ZonaSoltarArchivo Titulo="Seleccionar archivos" OnChange="ManejarArchivosSeleccionadosAsync" Multiple="true" Accept=".pdf,.jpg,.jpeg,.png,.docx,.zip" FormatosTexto="PDF · JPG · PNG · DOCX · ZIP" Cargando="_procesandoLote" />
             <span class="aviso-memoria-subida">Nada se guarda hasta que confirmas cada archivo.</span>
         </section>

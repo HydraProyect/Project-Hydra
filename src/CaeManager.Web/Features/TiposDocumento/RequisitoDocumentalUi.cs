@@ -1,5 +1,7 @@
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Features.TiposDocumento.Recursos;
+using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Features.TiposDocumento;
 
@@ -24,22 +26,22 @@ namespace CaeManager.Web.Features.TiposDocumento;
 /// </summary>
 public static class RequisitoDocumentalUi
 {
-    public static string Texto(RequisitoDocumental requerido, NaturalezaJuridica naturaleza) => requerido switch
+    public static string Texto(IStringLocalizer<TextosTiposDocumento> textos, RequisitoDocumental requerido, NaturalezaJuridica naturaleza) => requerido switch
     {
-        RequisitoDocumental.No => "No se pide",
-        RequisitoDocumental.Condicional => "Si aplica",
-        RequisitoDocumental.Si => TextoNaturaleza(naturaleza),
-        _ => "Requisito desconocido"
+        RequisitoDocumental.No => textos["RequeridoNo"].Value,
+        RequisitoDocumental.Condicional => textos["ExigenciaCondicional"].Value,
+        RequisitoDocumental.Si => TextoNaturaleza(textos, naturaleza),
+        _ => textos["RequisitoDesconocido"].Value
     };
 
-    public static string TextoNaturaleza(NaturalezaJuridica naturaleza) => naturaleza switch
+    public static string TextoNaturaleza(IStringLocalizer<TextosTiposDocumento> textos, NaturalezaJuridica naturaleza) => naturaleza switch
     {
-        NaturalezaJuridica.ObligacionLegal => "Obligación legal",
-        NaturalezaJuridica.ObligacionCondicionada => "Obligación condicionada",
-        NaturalezaJuridica.PracticaSector => "Práctica del sector",
-        NaturalezaJuridica.RequisitoCliente => "Requisito de cliente",
-        NaturalezaJuridica.Recomendacion => "Recomendado por TALVEG",
-        _ => "Naturaleza desconocida"
+        NaturalezaJuridica.ObligacionLegal => textos["NaturalezaObligacionLegal"].Value,
+        NaturalezaJuridica.ObligacionCondicionada => textos["NaturalezaObligacionCondicionada"].Value,
+        NaturalezaJuridica.PracticaSector => textos["NaturalezaPracticaSector"].Value,
+        NaturalezaJuridica.RequisitoCliente => textos["NaturalezaRequisitoCliente"].Value,
+        NaturalezaJuridica.Recomendacion => textos["NaturalezaRecomendacion"].Value,
+        _ => textos["NaturalezaDesconocida"].Value
     };
 
     /// <summary>

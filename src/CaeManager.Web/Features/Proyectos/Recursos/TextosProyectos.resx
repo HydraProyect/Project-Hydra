@@ -1,0 +1,318 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="TituloPagina" xml:space="preserve">
+    <value>Proyectos</value>
+  </data>
+  <data name="Kicker" xml:space="preserve">
+    <value>Operación</value>
+  </data>
+  <data name="DescripcionPagina" xml:space="preserve">
+    <value>Documentación de requerimiento para instalaciones y obras nuevas — distinta de la documentación de acceso de mantenimiento tradicional.</value>
+  </data>
+  <data name="BotonNuevoProyecto" xml:space="preserve">
+    <value>+ Nuevo proyecto</value>
+  </data>
+  <data name="ErrorCargaTitulo" xml:space="preserve">
+    <value>No pudimos cargar los datos</value>
+  </data>
+  <data name="ErrorCargaDetalle" xml:space="preserve">
+    <value>Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="BotonReintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="EtiquetaCliente" xml:space="preserve">
+    <value>Cliente</value>
+  </data>
+  <data name="OpcionElegirCliente" xml:space="preserve">
+    <value>— Selecciona un cliente —</value>
+  </data>
+  <data name="EtiquetaEstado" xml:space="preserve">
+    <value>Estado</value>
+  </data>
+  <data name="FiltroAbiertos" xml:space="preserve">
+    <value>Abiertos</value>
+  </data>
+  <data name="FiltroCerrados" xml:space="preserve">
+    <value>Cerrados</value>
+  </data>
+  <data name="PlaceholderBusqueda" xml:space="preserve">
+    <value>Buscar por nombre de proyecto o centro…</value>
+  </data>
+  <data name="AriaBusqueda" xml:space="preserve">
+    <value>Buscar proyecto</value>
+  </data>
+  <data name="ChipBusqueda" xml:space="preserve">
+    <value>Búsqueda: &quot;{0}&quot;</value>
+  </data>
+  <data name="ChipEstado" xml:space="preserve">
+    <value>Estado: {0}</value>
+  </data>
+  <data name="AriaQuitarBusqueda" xml:space="preserve">
+    <value>Quitar el filtro de búsqueda</value>
+  </data>
+  <data name="AriaQuitarEstado" xml:space="preserve">
+    <value>Quitar el filtro de estado</value>
+  </data>
+  <data name="BotonLimpiarTodo" xml:space="preserve">
+    <value>Limpiar todo</value>
+  </data>
+  <data name="SinClienteTitulo" xml:space="preserve">
+    <value>Elige un cliente para ver sus proyectos</value>
+  </data>
+  <data name="SinClienteDescripcion" xml:space="preserve">
+    <value>Cada proyecto de obra o instalación pertenece a un centro de un cliente concreto.</value>
+  </data>
+  <data name="ErrorProyectosTitulo" xml:space="preserve">
+    <value>No pudimos cargar los proyectos</value>
+  </data>
+  <data name="VacioTitulo" xml:space="preserve">
+    <value>Sin proyectos</value>
+  </data>
+  <data name="VacioDescripcion" xml:space="preserve">
+    <value>Este cliente todavía no tiene ningún proyecto de obra o instalación.</value>
+  </data>
+  <data name="VacioFiltroTitulo" xml:space="preserve">
+    <value>Ningún proyecto con este filtro</value>
+  </data>
+  <data name="VacioFiltroDescripcion" xml:space="preserve">
+    <value>Este cliente sí tiene proyectos, pero ninguno coincide con la búsqueda ni con el estado seleccionado.</value>
+  </data>
+  <data name="BotonQuitarFiltros" xml:space="preserve">
+    <value>Quitar los filtros</value>
+  </data>
+  <data name="ConteoConFiltro" xml:space="preserve">
+    <value>{0} de {1} proyecto(s) de este cliente</value>
+  </data>
+  <data name="ConteoSinFiltro" xml:space="preserve">
+    <value>{0} proyecto(s) de este cliente</value>
+  </data>
+  <data name="EtiquetaNombre" xml:space="preserve">
+    <value>Nombre</value>
+  </data>
+  <data name="EtiquetaCentro" xml:space="preserve">
+    <value>Centro</value>
+  </data>
+  <data name="EtiquetaInicio" xml:space="preserve">
+    <value>Inicio</value>
+  </data>
+  <data name="EtiquetaFinPrevisto" xml:space="preserve">
+    <value>Fin previsto</value>
+  </data>
+  <data name="ColumnaAcciones" xml:space="preserve">
+    <value>Acciones</value>
+  </data>
+  <data name="FinIndefinido" xml:space="preserve">
+    <value>Indefinido</value>
+  </data>
+  <data name="BadgeAbierto" xml:space="preserve">
+    <value>Abierto</value>
+  </data>
+  <data name="BadgeCerrado" xml:space="preserve">
+    <value>Cerrado</value>
+  </data>
+  <data name="MenuDetalles" xml:space="preserve">
+    <value>Detalles</value>
+  </data>
+  <data name="AccionCerrarProyecto" xml:space="preserve">
+    <value>Cerrar proyecto</value>
+  </data>
+  <data name="MenuEliminar" xml:space="preserve">
+    <value>Eliminar</value>
+  </data>
+  <data name="AriaPanelDetalle" xml:space="preserve">
+    <value>Detalle del proyecto</value>
+  </data>
+  <data name="EtiquetaCabeceraPanel" xml:space="preserve">
+    <value>Consulta · Proyecto</value>
+  </data>
+  <data name="Cargando" xml:space="preserve">
+    <value>Cargando…</value>
+  </data>
+  <data name="DetalleNoDisponible" xml:space="preserve">
+    <value>Proyecto no disponible</value>
+  </data>
+  <data name="TecnicosActivosUno" xml:space="preserve">
+    <value>{0} técnico activo</value>
+  </data>
+  <data name="TecnicosActivosVarios" xml:space="preserve">
+    <value>{0} técnicos activos</value>
+  </data>
+  <data name="AriaCerrarPanel" xml:space="preserve">
+    <value>Cerrar el detalle del proyecto</value>
+  </data>
+  <data name="ErrorCargaDetalleProyecto" xml:space="preserve">
+    <value>No pudimos cargar este proyecto.</value>
+  </data>
+  <data name="EtiquetaSecciones" xml:space="preserve">
+    <value>Secciones del proyecto</value>
+  </data>
+  <data name="PestanaInformacion" xml:space="preserve">
+    <value>Información</value>
+  </data>
+  <data name="PestanaTecnicos" xml:space="preserve">
+    <value>Técnicos</value>
+  </data>
+  <data name="PestanaDocumentos" xml:space="preserve">
+    <value>Documentos</value>
+  </data>
+  <data name="EstadoCerradoConFecha" xml:space="preserve">
+    <value>Cerrado ({0:dd/MM/yyyy})</value>
+  </data>
+  <data name="EtiquetaTecnicosActivos" xml:space="preserve">
+    <value>Técnicos activos</value>
+  </data>
+  <data name="EtiquetaDocumentosGestionados" xml:space="preserve">
+    <value>Documentos gestionados</value>
+  </data>
+  <data name="EtiquetaDiasAbiertos" xml:space="preserve">
+    <value>Días abiertos</value>
+  </data>
+  <data name="EtiquetaNotas" xml:space="preserve">
+    <value>Notas</value>
+  </data>
+  <data name="SinNotas" xml:space="preserve">
+    <value>Sin notas.</value>
+  </data>
+  <data name="EtiquetaFinPrevistoOpcional" xml:space="preserve">
+    <value>Fin previsto (opcional)</value>
+  </data>
+  <data name="BotonGuardar" xml:space="preserve">
+    <value>Guardar</value>
+  </data>
+  <data name="BotonCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="BotonEditar" xml:space="preserve">
+    <value>Editar</value>
+  </data>
+  <data name="VacioTecnicosTitulo" xml:space="preserve">
+    <value>Sin técnicos asignados</value>
+  </data>
+  <data name="VacioTecnicosDescripcion" xml:space="preserve">
+    <value>Asigna los técnicos que trabajan en esta obra para poder facturarlos por proyecto.</value>
+  </data>
+  <data name="BadgeActivo" xml:space="preserve">
+    <value>Activo</value>
+  </data>
+  <data name="BotonDarDeBaja" xml:space="preserve">
+    <value>Dar de baja</value>
+  </data>
+  <data name="BadgeDeBaja" xml:space="preserve">
+    <value>De baja</value>
+  </data>
+  <data name="MetaAltaFecha" xml:space="preserve">
+    <value>alta {0:dd/MM/yyyy}</value>
+  </data>
+  <data name="MetaBajaFecha" xml:space="preserve">
+    <value>baja {0:dd/MM/yyyy}</value>
+  </data>
+  <data name="EtiquetaTecnico" xml:space="preserve">
+    <value>Técnico</value>
+  </data>
+  <data name="OpcionElegirTecnico" xml:space="preserve">
+    <value>Selecciona un técnico…</value>
+  </data>
+  <data name="EtiquetaFechaAlta" xml:space="preserve">
+    <value>Fecha de alta</value>
+  </data>
+  <data name="BotonAsignar" xml:space="preserve">
+    <value>Asignar</value>
+  </data>
+  <data name="BotonAsignarTecnico" xml:space="preserve">
+    <value>+ Asignar técnico</value>
+  </data>
+  <data name="AyudaAdjuntarDocumento" xml:space="preserve">
+    <value>Para adjuntar un documento nuevo, ve a Documentos y selecciona ámbito «Proyecto».</value>
+  </data>
+  <data name="EnlaceIrADocumentos" xml:space="preserve">
+    <value>Ir a Documentos →</value>
+  </data>
+  <data name="DrawerNuevoTitulo" xml:space="preserve">
+    <value>Nuevo proyecto</value>
+  </data>
+  <data name="OpcionElegirCentro" xml:space="preserve">
+    <value>Selecciona un centro…</value>
+  </data>
+  <data name="EtiquetaNombreProyecto" xml:space="preserve">
+    <value>Nombre del proyecto</value>
+  </data>
+  <data name="EtiquetaFechaInicio" xml:space="preserve">
+    <value>Fecha de inicio</value>
+  </data>
+  <data name="EtiquetaFinPrevistoOpcionalAlta" xml:space="preserve">
+    <value>Fin previsto (opcional — indefinido si se deja vacío)</value>
+  </data>
+  <data name="BotonCrearProyecto" xml:space="preserve">
+    <value>Crear proyecto</value>
+  </data>
+  <data name="ModalCerrarExplicacion" xml:space="preserve">
+    <value>Tras cerrarlo, este proyecto dejará de contar como abierto para la facturación por días. Puedes seguir consultando sus técnicos y documentos.</value>
+  </data>
+  <data name="EtiquetaFechaCierre" xml:space="preserve">
+    <value>Fecha de cierre</value>
+  </data>
+  <data name="ConfirmarEliminarTitulo" xml:space="preserve">
+    <value>¿Eliminar este proyecto?</value>
+  </data>
+  <data name="ConfirmarEliminarMensaje" xml:space="preserve">
+    <value>El proyecto {0} se ocultará de las listas activas. Podrás recuperarlo desde Auditoría.</value>
+  </data>
+  <data name="ErrorFaltaCentro" xml:space="preserve">
+    <value>Selecciona un centro.</value>
+  </data>
+  <data name="ErrorFechaInicio" xml:space="preserve">
+    <value>Introduce una fecha de inicio válida.</value>
+  </data>
+  <data name="ToastCreado" xml:space="preserve">
+    <value>Proyecto creado correctamente.</value>
+  </data>
+  <data name="ErrorCrear" xml:space="preserve">
+    <value>No pudimos crear el proyecto. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="ToastActualizado" xml:space="preserve">
+    <value>Proyecto actualizado correctamente.</value>
+  </data>
+  <data name="ErrorGuardar" xml:space="preserve">
+    <value>No pudimos guardar los cambios. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="ErrorFechaCierre" xml:space="preserve">
+    <value>Introduce una fecha de cierre válida.</value>
+  </data>
+  <data name="ToastCerrado" xml:space="preserve">
+    <value>Proyecto cerrado correctamente.</value>
+  </data>
+  <data name="ToastEliminado" xml:space="preserve">
+    <value>Proyecto eliminado.</value>
+  </data>
+  <data name="ErrorEliminar" xml:space="preserve">
+    <value>No pudimos eliminar el proyecto. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="ErrorFaltaTecnico" xml:space="preserve">
+    <value>Selecciona un técnico.</value>
+  </data>
+  <data name="ErrorFechaAlta" xml:space="preserve">
+    <value>Introduce una fecha de alta válida.</value>
+  </data>
+  <data name="ToastTecnicoAsignado" xml:space="preserve">
+    <value>Técnico asignado correctamente.</value>
+  </data>
+  <data name="ToastTecnicoDeBaja" xml:space="preserve">
+    <value>Técnico dado de baja del proyecto.</value>
+  </data>
+  <data name="ErrorDarDeBaja" xml:space="preserve">
+    <value>No pudimos dar de baja al técnico. Intenta nuevamente en unos segundos.</value>
+  </data>
+</root>

@@ -73,7 +73,7 @@ public class AlcanceMemoizadoPorTenantEnFanOutTests : IAsyncLifetime
     private Guid _clienteB1;
     private Guid _clienteB2;
 
-    /// <summary>Tenant Alfa: cartera ACOTADA a un solo Cliente (ClienteA1) de los dos que tiene → 1 Centro, 2 Trabajadores.</summary>
+    /// <summary>Tenant Alfa: cartera ACOTADA a un solo Cliente (ClienteA1) de los dos que tiene → 1 Centro, 2 Trabajadores (los de Centro A1, de la Empresa propia; los 3 de Centro A2 son de una Empresa contraparte no propia y solo se ven por Asignación en cartera).</summary>
     private const string NombreAlfa = "Tenant Alfa (cartera acotada)";
 
     /// <summary>Tenant Beta: cartera UNIVERSAL (ve sus dos Clientes) → 2 Centros, 9 Trabajadores.</summary>
@@ -116,7 +116,12 @@ public class AlcanceMemoizadoPorTenantEnFanOutTests : IAsyncLifetime
             var clienteA1 = Empresa.CrearComoCliente("Cliente A1 (en cartera)", GenerarCifValido(1), false, null, null);
             var clienteA2 = Empresa.CrearComoCliente("Cliente A2 (fuera de cartera)", GenerarCifValido(2), false, null, null);
             var contrataA = new Empresa("Contrata Alfa S.L.", GenerarCifValido(3));
-            _dbContext.Empresas.AddRange(clienteA1, clienteA2, contrataA);
+            // Empresa contraparte NO propia: su plantilla solo es visible por Asignación a un Centro
+            // en cartera. Si los trabajadores de Centro A2 fueran de la Empresa propia, la plantilla
+            // propia (visible entera con cartera) los contaría con cualquier cartera no vacía y el
+            // conteo de Trabajadores dejaría de detectar que un Tenant resolvió la cartera del otro.
+            var colaboradoraA = Empresa.CrearComoSubcontrata("Colaboradora Alfa S.L.", GenerarCifValido(7), "Estandar");
+            _dbContext.Empresas.AddRange(clienteA1, clienteA2, contrataA, colaboradoraA);
             _dbContext.ParametrosSistema.Add(new ParametroSistema(umbralAmbarDias: 30, umbralRojoDias: 15));
             await _dbContext.SaveChangesAsync();
             _clienteA1 = clienteA1.Id;
@@ -136,7 +141,7 @@ public class AlcanceMemoizadoPorTenantEnFanOutTests : IAsyncLifetime
 
             for (var i = 0; i < 3; i++)
             {
-                var trabajador = Trabajador.DeEmpresa(contrataA.Id, $"TrabA2_{i}", "Apellido", GenerarDni(200 + i));
+                var trabajador = Trabajador.DeEmpresa(colaboradoraA.Id, $"TrabA2_{i}", "Apellido", GenerarDni(200 + i));
                 _dbContext.Trabajadores.Add(trabajador);
                 await _dbContext.SaveChangesAsync();
                 _dbContext.Asignaciones.Add(new Asignacion(trabajador.Id, centroA2.Id, DateOnly.FromDateTime(desde)));
@@ -151,7 +156,10 @@ public class AlcanceMemoizadoPorTenantEnFanOutTests : IAsyncLifetime
             var clienteB1 = Empresa.CrearComoCliente("Cliente B1", GenerarCifValido(4), false, null, null);
             var clienteB2 = Empresa.CrearComoCliente("Cliente B2", GenerarCifValido(5), false, null, null);
             var contrataB = new Empresa("Contrata Beta S.L.", GenerarCifValido(6));
-            _dbContext.Empresas.AddRange(clienteB1, clienteB2, contrataB);
+            // Misma razón que colaboradoraA: con la cartera de Alfa envenenando a Beta, los 5 de
+            // Centro B2 tienen que desaparecer del conteo, y solo lo hacen si no son plantilla propia.
+            var colaboradoraB = Empresa.CrearComoSubcontrata("Colaboradora Beta S.L.", GenerarCifValido(8), "Estandar");
+            _dbContext.Empresas.AddRange(clienteB1, clienteB2, contrataB, colaboradoraB);
             _dbContext.ParametrosSistema.Add(new ParametroSistema(umbralAmbarDias: 30, umbralRojoDias: 15));
             await _dbContext.SaveChangesAsync();
             _clienteB1 = clienteB1.Id;
@@ -172,7 +180,7 @@ public class AlcanceMemoizadoPorTenantEnFanOutTests : IAsyncLifetime
 
             for (var i = 0; i < 5; i++)
             {
-                var trabajador = Trabajador.DeEmpresa(contrataB.Id, $"TrabB2_{i}", "Apellido", GenerarDni(400 + i));
+                var trabajador = Trabajador.DeEmpresa(colaboradoraB.Id, $"TrabB2_{i}", "Apellido", GenerarDni(400 + i));
                 _dbContext.Trabajadores.Add(trabajador);
                 await _dbContext.SaveChangesAsync();
                 _dbContext.Asignaciones.Add(new Asignacion(trabajador.Id, centroB2.Id, DateOnly.FromDateTime(desde)));

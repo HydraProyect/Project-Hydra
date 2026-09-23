@@ -5772,6 +5772,38 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         });
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Plataforma.OrdenMenuLateral", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ActualizadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ActualizadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.PrimitiveCollection<List<string>>("OrdenEnlaces")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.PrimitiveCollection<List<string>>("OrdenGrupos")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("OrdenMenuLateral", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_OrdenMenuLateral_FilaUnica", "\"Id\" = '0dde0000-0000-4000-8000-00000000e4a1'");
+                        });
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Plataforma.SesionPrivilegiada", b =>
                 {
                     b.Property<Guid>("Id")

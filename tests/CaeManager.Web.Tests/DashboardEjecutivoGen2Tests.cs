@@ -48,7 +48,12 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class DashboardEjecutivoGen2Tests : BunitContext
 {
-    public DashboardEjecutivoGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public DashboardEjecutivoGen2Tests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        // Los textos del Dashboard Ejecutivo salen de IStringLocalizer<TextosDashboardEjecutivo>.
+        Services.AddLocalization();
+    }
 
     private static readonly Guid TenantA = Guid.Parse("a1a1a1a1-0000-0000-0000-000000000001");
     private static readonly Guid TenantB = Guid.Parse("b2b2b2b2-0000-0000-0000-000000000002");

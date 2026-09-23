@@ -130,7 +130,7 @@ public partial class Empresas : ComponentBase, IDisposable
     private bool _confirmarEliminarLoteVisible;
 
     // DDL-072: "Mi empresa" en perfil Cliente Directo, "Empresas" en perfil
-    // Consultora — mismo mecanismo que NavMenu.razor.
+    // Consultora — mismo mecanismo que el enlace «empresas» de CatalogoMenuLateral.
     private string _tituloPagina = "Empresas";
 
     [SupplyParameterFromQuery(Name = "q")]

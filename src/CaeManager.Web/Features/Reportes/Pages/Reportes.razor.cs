@@ -17,7 +17,10 @@ namespace CaeManager.Web.Features.Reportes.Pages;
 
 public partial class Reportes : ComponentBase
 {
-    private sealed record DefinicionInforme(string Id, string Titulo, string Descripcion);
+    // El título y la descripción visibles salen de TextosReportes
+    // (TituloInforme/DescripcionInforme): aquí solo queda el orden de la
+    // biblioteca, que las flechas y las referencias de foco necesitan fijo.
+    private sealed record DefinicionInforme(string Id);
 
     /// <summary>
     /// Lo que pedía «Generar vista previa» en el momento de pulsarlo. La vista
@@ -44,13 +47,33 @@ public partial class Reportes : ComponentBase
     /// </summary>
     private static readonly IReadOnlyList<DefinicionInforme> Informes =
     [
-        new(TipoVigencia, "Vigencia documental", "Estado de los documentos de los trabajadores, con sus vencimientos."),
-        new(TipoIncidencias, "Incidencias", "Solo los documentos vencidos o urgentes."),
-        new(TipoAsignaciones, "Asignaciones activas", "Quién está autorizado en cada centro y desde cuándo.")
+        new(TipoVigencia),
+        new(TipoIncidencias),
+        new(TipoAsignaciones)
     ];
 
-    private static readonly string[] MensajesGenerando =
-        ["Reuniendo los documentos…", "Calculando estados a fecha de hoy…", "Componiendo el informe…"];
+    private string TituloInforme(string tipo) => tipo switch
+    {
+        TipoVigencia => Textos["InformeVigenciaTitulo"].Value,
+        TipoIncidencias => Textos["InformeIncidenciasTitulo"].Value,
+        TipoAsignaciones => Textos["InformeAsignacionesTitulo"].Value,
+        _ => throw new ArgumentOutOfRangeException(nameof(tipo), tipo, null)
+    };
+
+    private string DescripcionInforme(string tipo) => tipo switch
+    {
+        TipoVigencia => Textos["InformeVigenciaDescripcion"].Value,
+        TipoIncidencias => Textos["InformeIncidenciasDescripcion"].Value,
+        TipoAsignaciones => Textos["InformeAsignacionesDescripcion"].Value,
+        _ => throw new ArgumentOutOfRangeException(nameof(tipo), tipo, null)
+    };
+
+    // Se construye una sola vez: ProgresoConMensajes reinicia la rotación
+    // cuando recibe otra lista.
+    private IReadOnlyList<string>? _mensajesGenerando;
+
+    private IReadOnlyList<string> MensajesGenerando => _mensajesGenerando ??=
+        [Textos["ProgresoReuniendo"].Value, Textos["ProgresoCalculando"].Value, Textos["ProgresoComponiendo"].Value];
 
     /// <summary>
     /// Espera mínima deliberada (mismo orden que el mockup): la consulta es
@@ -148,7 +171,7 @@ public partial class Reportes : ComponentBase
                 foreach (var id in idsFaltantes)
                 {
                     var usuario = await UserManager.FindByIdAsync(id.ToString());
-                    _usuariosPorId[id] = usuario?.NombreCompleto ?? usuario?.Email ?? "(usuario eliminado)";
+                    _usuariosPorId[id] = usuario?.NombreCompleto ?? usuario?.Email ?? Textos["UsuarioEliminado"].Value;
                 }
             });
             if (solicitud != _solicitudHistorial) return;
@@ -401,7 +424,10 @@ public partial class Reportes : ComponentBase
 
         try
         {
-            await Mediator.Send(new RegistrarHistorialInformeCommand(Informes.First(i => i.Id == tipo).Titulo, clienteId, nombreCliente));
+            // El historial persiste el título tal como se ve, en la cultura
+            // del usuario que genera: hoy es-ES y ca-ES dicen lo mismo, pero
+            // cuando el catalán se traduzca el historial mezclará idiomas.
+            await Mediator.Send(new RegistrarHistorialInformeCommand(TituloInforme(tipo), clienteId, nombreCliente));
         }
         catch (Exception)
         {
@@ -414,17 +440,22 @@ public partial class Reportes : ComponentBase
 
     private string TituloGenerado => _generado switch
     {
-        { Tipo: TipoAsignaciones } => "Informe de asignaciones activas",
-        { IncluirVigentes: true } => "Informe de vigencia documental",
-        _ => "Informe de incidencias"
+        { Tipo: TipoAsignaciones } => Textos["HojaTituloAsignaciones"].Value,
+        { IncluirVigentes: true } => Textos["HojaTituloVigencia"].Value,
+        _ => Textos["HojaTituloIncidencias"].Value
     };
 
     private string? NombreClienteGenerado => _generado?.ClienteId is { } id
         ? _clientesDisponibles.FirstOrDefault(c => c.Id == id)?.RazonSocial
         : null;
 
-    private static string ContarFilas(int cantidad, string singular, string plural) =>
-        cantidad == 1 ? $"1 {singular}" : $"{cantidad:N0} {plural}";
+    // El singular solo se usa con exactamente 1; el plural lleva separador de
+    // miles (N0) en la cultura actual, igual que antes de migrar.
+    private string ContarDocumentos(int cantidad) =>
+        cantidad == 1 ? Textos["ConteoDocumentosUno", 1].Value : Textos["ConteoDocumentosVarios", cantidad.ToString("N0")].Value;
+
+    private string ContarAsignacionesActivas(int cantidad) =>
+        cantidad == 1 ? Textos["ConteoAsignacionesActivasUno", 1].Value : Textos["ConteoAsignacionesActivasVarios", cantidad.ToString("N0")].Value;
 
     // --- Enviar por Comunicaciones — adjunta a un mensaje nuevo un PDF
     // construido con las filas de la vista previa (no vuelve a consultar, a

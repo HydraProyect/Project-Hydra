@@ -111,8 +111,9 @@ public class ActualizarDocumentoDesdeAdjuntoCommandTests : IAsyncLifetime
 
         var fallo = Result.Fallo<Guid>(Error.Crear("Documento.AmbitoIncorrecto", "No cuadra el ámbito."));
         var mediatorFalso = new MediatorDocumentoFalso(resultadoCrear: fallo);
+        var almacenamiento = AlmacenamientoConAdjuntoSembrado();
         var handler = new ActualizarDocumentoDesdeAdjuntoCommandHandler(
-            contexto, new AlcanceDatosServiceFalso(), contexto, mediatorFalso, mediatorFalso, AlmacenamientoConAdjuntoSembrado(),
+            contexto, new AlcanceDatosServiceFalso(), contexto, mediatorFalso, mediatorFalso, almacenamiento,
             NullLogger<ActualizarDocumentoDesdeAdjuntoCommandHandler>.Instance);
 
         var comando = new ActualizarDocumentoDesdeAdjuntoCommand(
@@ -123,6 +124,39 @@ public class ActualizarDocumentoDesdeAdjuntoCommandTests : IAsyncLifetime
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Documento.AmbitoIncorrecto");
         mediatorFalso.Publicados.Should().BeEmpty();
+        // La copia ya se había guardado antes de delegar: si Crear la
+        // rechaza (p. ej. propietario fuera de cartera), no puede quedar
+        // huérfana. Solo sobrevive el adjunto original de la conversación.
+        mediatorFalso.ComandoCrearRecibido.Should().NotBeNull();
+        almacenamiento.Identificadores.Should().BeEquivalentTo(["adjuntos/certificado.pdf"]);
+    }
+
+    [Fact]
+    public async Task Si_la_renovacion_interna_falla_borra_la_copia_y_conserva_el_adjunto_original()
+    {
+        var (contexto, adjuntoId, _, trabajadorId, tipoDocumentoId) = await SembrarEscenarioAsync();
+
+        var documentoExistente = Documento.DeTrabajador(trabajadorId, tipoDocumentoId, new DateOnly(2026, 7, 1), new DateOnly(2027, 7, 1));
+        contexto.Documentos.Add(documentoExistente);
+        await contexto.SaveChangesAsync();
+
+        var mediatorFalso = new MediatorDocumentoFalso(
+            resultadoRenovar: Result.Fallo(Error.Crear("Documento.NoEncontrado", "No encontramos este documento.")));
+        var almacenamiento = AlmacenamientoConAdjuntoSembrado();
+        var handler = new ActualizarDocumentoDesdeAdjuntoCommandHandler(
+            contexto, new AlcanceDatosServiceFalso(), contexto, mediatorFalso, mediatorFalso, almacenamiento,
+            NullLogger<ActualizarDocumentoDesdeAdjuntoCommandHandler>.Instance);
+
+        var comando = new ActualizarDocumentoDesdeAdjuntoCommand(
+            adjuntoId, tipoDocumentoId, trabajadorId, null, new DateOnly(2026, 8, 1), null, null);
+
+        var resultado = await handler.Handle(comando, CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Documento.NoEncontrado");
+        mediatorFalso.ComandoRenovarRecibido.Should().NotBeNull();
+        mediatorFalso.Publicados.Should().BeEmpty();
+        almacenamiento.Identificadores.Should().BeEquivalentTo(["adjuntos/certificado.pdf"]);
     }
 
     /// <summary>Auditoría módulo 6: un adjunto de un buzón personal ajeno no debe poder convertirse en Documento por otro gestor.</summary>
@@ -267,6 +301,8 @@ public class ActualizarDocumentoDesdeAdjuntoCommandTests : IAsyncLifetime
         public void Sembrar(string identificador, byte[] contenido) => _archivos[identificador] = contenido;
 
         public byte[] Leer(string identificador) => _archivos[identificador];
+
+        public IReadOnlyCollection<string> Identificadores => _archivos.Keys;
 
         public async Task<string> GuardarAsync(Stream contenido, string nombreArchivoOriginal, CancellationToken cancellationToken = default)
         {

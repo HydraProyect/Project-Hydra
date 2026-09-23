@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="TituloPagina" xml:space="preserve">
+    <value>Gestiones</value>
+  </data>
+  <data name="Kicker" xml:space="preserve">
+    <value>Operación</value>
+  </data>
+  <data name="PlaceholderBusqueda" xml:space="preserve">
+    <value>Buscar por trabajador, centro o documento…</value>
+  </data>
+  <data name="FiltroTodas" xml:space="preserve">
+    <value>Todas</value>
+  </data>
+  <data name="FiltroPendientes" xml:space="preserve">
+    <value>Pendientes</value>
+  </data>
+  <data name="FiltroCompletadas" xml:space="preserve">
+    <value>Completadas</value>
+  </data>
+  <data name="ChipBusqueda" xml:space="preserve">
+    <value>Búsqueda: &quot;{0}&quot;</value>
+  </data>
+  <data name="ChipEstadoPendientes" xml:space="preserve">
+    <value>Estado: pendientes</value>
+  </data>
+  <data name="ChipEstadoCompletadas" xml:space="preserve">
+    <value>Estado: completadas</value>
+  </data>
+  <data name="AriaQuitarBusqueda" xml:space="preserve">
+    <value>Quitar la búsqueda</value>
+  </data>
+  <data name="AriaQuitarFiltroEstado" xml:space="preserve">
+    <value>Quitar el filtro de estado</value>
+  </data>
+  <data name="ErrorCargaTitulo" xml:space="preserve">
+    <value>No pudimos cargar las gestiones</value>
+  </data>
+  <data name="ErrorCargaDescripcion" xml:space="preserve">
+    <value>Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="BotonReintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="ConteoUno" xml:space="preserve">
+    <value>{0} gestión</value>
+  </data>
+  <data name="ConteoVarios" xml:space="preserve">
+    <value>{0} gestiones</value>
+  </data>
+  <data name="ConteoFiltradoUno" xml:space="preserve">
+    <value>{0} gestión con estos filtros</value>
+  </data>
+  <data name="ConteoFiltradoVarios" xml:space="preserve">
+    <value>{0} gestiones con estos filtros</value>
+  </data>
+  <data name="ColumnaTrabajador" xml:space="preserve">
+    <value>Trabajador</value>
+  </data>
+  <data name="ColumnaCentro" xml:space="preserve">
+    <value>Centro</value>
+  </data>
+  <data name="ColumnaDocumento" xml:space="preserve">
+    <value>Documento</value>
+  </data>
+  <data name="ColumnaEstado" xml:space="preserve">
+    <value>Estado</value>
+  </data>
+  <data name="ColumnaCreada" xml:space="preserve">
+    <value>Creada</value>
+  </data>
+  <data name="ColumnaAcciones" xml:space="preserve">
+    <value>Acciones</value>
+  </data>
+  <data name="EstadoPendiente" xml:space="preserve">
+    <value>Pendiente</value>
+  </data>
+  <data name="EstadoCompletada" xml:space="preserve">
+    <value>Completada</value>
+  </data>
+  <data name="AccionReabrir" xml:space="preserve">
+    <value>Reabrir</value>
+  </data>
+  <data name="AccionMarcarCompletada" xml:space="preserve">
+    <value>Marcar completada</value>
+  </data>
+  <data name="AccionVistaRapida" xml:space="preserve">
+    <value>Vista rápida</value>
+  </data>
+  <data name="AccionEliminar" xml:space="preserve">
+    <value>Eliminar</value>
+  </data>
+  <data name="EtiquetaPaginador" xml:space="preserve">
+    <value>gestión(es)</value>
+  </data>
+  <data name="VacioFiltrosTitulo" xml:space="preserve">
+    <value>Ninguna gestión con estos filtros</value>
+  </data>
+  <data name="VacioFiltrosDescripcion" xml:space="preserve">
+    <value>Ninguna coincide con la búsqueda ni con el estado seleccionado.</value>
+  </data>
+  <data name="BotonQuitarFiltros" xml:space="preserve">
+    <value>Quitar los filtros</value>
+  </data>
+  <data name="VacioTitulo" xml:space="preserve">
+    <value>Sin gestiones</value>
+  </data>
+  <data name="VacioDescripcion" xml:space="preserve">
+    <value>Las gestiones se generan desde la Bandeja cuando se detecta la actualización de un documento de un trabajador, o desde el propio Trabajador/Centro.</value>
+  </data>
+  <data name="BotonIrAMiTrabajo" xml:space="preserve">
+    <value>Ir a Mi trabajo →</value>
+  </data>
+  <data name="AriaVistaRapida" xml:space="preserve">
+    <value>Vista rápida de la gestión</value>
+  </data>
+  <data name="EtiquetaVistaRapida" xml:space="preserve">
+    <value>Vista rápida · Gestión</value>
+  </data>
+  <data name="VistaRapidaCreadaEl" xml:space="preserve">
+    <value>creada el {0}</value>
+  </data>
+  <data name="AriaCerrarVistaRapida" xml:space="preserve">
+    <value>Cerrar la vista rápida</value>
+  </data>
+  <data name="EnlaceTrabajador360" xml:space="preserve">
+    <value>Abrir Trabajador 360 →</value>
+  </data>
+  <data name="EnlaceCentro360" xml:space="preserve">
+    <value>Abrir Centro 360 →</value>
+  </data>
+  <data name="EnlaceDocumentacionTrabajador" xml:space="preserve">
+    <value>Ver la documentación del trabajador →</value>
+  </data>
+  <data name="BotonReabrirGestion" xml:space="preserve">
+    <value>Reabrir gestión</value>
+  </data>
+  <data name="DialogoEliminarTitulo" xml:space="preserve">
+    <value>¿Eliminar esta gestión?</value>
+  </data>
+  <data name="DialogoEliminarMensaje" xml:space="preserve">
+    <value>Se ocultará de las listas activas. Podrás recuperarla desde Auditoría.</value>
+  </data>
+  <data name="ToastErrorEstado" xml:space="preserve">
+    <value>No pudimos actualizar el estado. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="ToastEliminada" xml:space="preserve">
+    <value>Gestión eliminada correctamente.</value>
+  </data>
+  <data name="ToastErrorEliminar" xml:space="preserve">
+    <value>No pudimos eliminar la gestión. Intenta nuevamente en unos segundos.</value>
+  </data>
+</root>
