@@ -254,7 +254,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
                 new DelegacionTenantRepository(contexto),
                 new AutorizacionAdministradorDe(_propietario),
                 new CurrentUserServiceFalso(Guid.NewGuid()),
-                CrearWriter(contexto), contexto);
+                CrearWriter(contexto), contexto, contexto);
 
             var resultado = await handler.Handle(
                 new ReactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None);

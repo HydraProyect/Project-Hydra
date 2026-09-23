@@ -1,6 +1,7 @@
 using CaeManager.Application.Tenants.Commands.CrearAsignacionOperadorDelegado;
 using CaeManager.Application.Tenants.Commands.ReactivarDelegacionTenant;
 using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Tests.Comercial;
 using CaeManager.Application.Tests.Operaciones;
 using CaeManager.Domain.Tenants;
 using FluentAssertions;
@@ -274,13 +275,50 @@ public class AutorizacionDeDelegacionTests
 
         var handler = new ReactivarDelegacionTenantCommandHandler(
             delegaciones, AutorizacionDelegacionFalsa.AdministradorDe(ClienteDelegante),
-            new CurrentUserServiceFalso(Usuario), new AsignacionesOperativasWriterFalso(), unitOfWork);
+            new CurrentUserServiceFalso(Usuario), new AsignacionesOperativasWriterFalso(), unitOfWork,
+            new TenantsQueryContextFalso());
 
         var resultado = await handler.Handle(
             new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         delegacion.Activa.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Segundo hallazgo de Codex (Alto), ronda 2 sobre el incremento 1b: la exclusión
+    /// del Tenant de plataforma solo vivía en la CREACIÓN (<c>CrearDelegacionTenantCommand</c>)
+    /// y en la consulta de candidato. Una <c>DelegacionTenant</c> heredada con
+    /// <c>TenantClienteId</c> = Tenant de plataforma (por ejemplo, creada antes de ese fix)
+    /// podía reactivarse por esta vía sin pasar por ninguna de las dos, reabriendo
+    /// operación externa sobre TALVEG (ADR-011 § 1). <c>AutorizacionDelegacionFalsa</c>
+    /// dice que sí a propósito: lo que corta aquí es la comprobación de <c>EsPlataforma</c>,
+    /// no la autoridad.
+    /// </summary>
+    [Fact]
+    public async Task No_se_puede_reactivar_una_delegacion_heredada_con_el_tenant_de_plataforma_como_cliente()
+    {
+        var plataforma = new Tenant("TALVEG");
+        plataforma.MarcarComoPlataforma();
+        var delegacion = new DelegacionTenant(Consultora, plataforma.Id);
+        delegacion.Desactivar();
+        var delegaciones = new DelegacionTenantRepositorioFalso();
+        delegaciones.Agregar(delegacion);
+        var tenants = new TenantsQueryContextFalso();
+        tenants.ListaTenants.Add(plataforma);
+        var unitOfWork = new UnitOfWorkFalso();
+
+        var handler = new ReactivarDelegacionTenantCommandHandler(
+            delegaciones, AutorizacionDelegacionFalsa.AdministradorDe(plataforma.Id),
+            new CurrentUserServiceFalso(Usuario), new AsignacionesOperativasWriterFalso(), unitOfWork, tenants);
+
+        var resultado = await handler.Handle(
+            new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue("TALVEG nunca es Tenant propietario de un Operador CAE externo (ADR-011 § 1)");
+        resultado.Error.Codigo.Should().Be("DelegacionTenant.NoEncontrada");
+        delegacion.Activa.Should().BeFalse();
+        unitOfWork.VecesGuardado.Should().Be(0);
     }
 
     /// <summary>
@@ -296,7 +334,8 @@ public class AutorizacionDeDelegacionTests
 
         var handler = new ReactivarDelegacionTenantCommandHandler(
             delegaciones, AutorizacionDelegacionFalsa.AdministradorDe(Consultora),
-            new CurrentUserServiceFalso(Usuario), new AsignacionesOperativasWriterFalso(), unitOfWork);
+            new CurrentUserServiceFalso(Usuario), new AsignacionesOperativasWriterFalso(), unitOfWork,
+            new TenantsQueryContextFalso());
 
         var resultado = await handler.Handle(
             new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
@@ -314,7 +353,8 @@ public class AutorizacionDeDelegacionTests
 
         var handler = new ReactivarDelegacionTenantCommandHandler(
             delegaciones, AutorizacionDelegacionFalsa.AdministradorDe(Guid.NewGuid()),
-            new CurrentUserServiceFalso(Usuario), new AsignacionesOperativasWriterFalso(), unitOfWork);
+            new CurrentUserServiceFalso(Usuario), new AsignacionesOperativasWriterFalso(), unitOfWork,
+            new TenantsQueryContextFalso());
 
         var resultado = await handler.Handle(
             new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
@@ -331,7 +371,8 @@ public class AutorizacionDeDelegacionTests
 
         var handler = new ReactivarDelegacionTenantCommandHandler(
             delegaciones, new AutorizacionDelegacionFalsa(autoriza: true),
-            new CurrentUserServiceFalso(usuarioId: null), new AsignacionesOperativasWriterFalso(), unitOfWork);
+            new CurrentUserServiceFalso(usuarioId: null), new AsignacionesOperativasWriterFalso(), unitOfWork,
+            new TenantsQueryContextFalso());
 
         var resultado = await handler.Handle(
             new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
@@ -362,7 +403,7 @@ public class AutorizacionDeDelegacionTests
                 delegaciones,
                 AutorizacionDelegacionFalsa.AdministradorDe(autorizado ? ClienteDelegante : Consultora),
                 new CurrentUserServiceFalso(Usuario, tenantOrigenId: origen),
-                new AsignacionesOperativasWriterFalso(), unitOfWork);
+                new AsignacionesOperativasWriterFalso(), unitOfWork, new TenantsQueryContextFalso());
 
             var resultado = await handler.Handle(
                 new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
@@ -387,14 +428,16 @@ public class AutorizacionDeDelegacionTests
 
         var ajeno = new ReactivarDelegacionTenantCommandHandler(
             delegaciones, AutorizacionDelegacionFalsa.AdministradorDe(Guid.NewGuid()),
-            new CurrentUserServiceFalso(Usuario), new AsignacionesOperativasWriterFalso(), unitOfWork);
+            new CurrentUserServiceFalso(Usuario), new AsignacionesOperativasWriterFalso(), unitOfWork,
+            new TenantsQueryContextFalso());
 
         var sinAutoridad = await ajeno.Handle(
             new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
 
         var conAutoridad = await new ReactivarDelegacionTenantCommandHandler(
                 delegaciones, AutorizacionDelegacionFalsa.AdministradorDe(ClienteDelegante),
-                new CurrentUserServiceFalso(Usuario), new AsignacionesOperativasWriterFalso(), unitOfWork)
+                new CurrentUserServiceFalso(Usuario), new AsignacionesOperativasWriterFalso(), unitOfWork,
+                new TenantsQueryContextFalso())
             .Handle(new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
 
         // Misma delegación, mismo estado, dos respuestas — y la diferencia la

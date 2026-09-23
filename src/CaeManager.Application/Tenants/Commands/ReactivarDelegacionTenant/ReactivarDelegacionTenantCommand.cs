@@ -1,9 +1,11 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
+using CaeManager.Application.Tenants;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Tenants;
 using FluentValidation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Tenants.Commands.ReactivarDelegacionTenant;
 
@@ -46,13 +48,40 @@ public record PuedeReactivarQuery(Guid TenantClienteId) : IRequest<bool>;
 public class ReactivarDelegacionTenantCommandHandler(
     IDelegacionTenantRepository repositorio,
     IAutorizacionDelegacionTenant autorizacion, ICurrentUserService currentUserService,
-    IAsignacionesOperativasWriter asignacionesWriter, IUnitOfWork unitOfWork)
+    IAsignacionesOperativasWriter asignacionesWriter, IUnitOfWork unitOfWork,
+    ITenantsQueryContext tenantsContext)
     : IRequestHandler<ReactivarDelegacionTenantCommand, Result>,
       IRequestHandler<PuedeReactivarQuery, bool>
 {
-    /// <summary>Único punto de verdad — ver el doc-comment de <see cref="PuedeReactivarQuery"/>.</summary>
-    private Task<bool> PuedeGestionarAsync(Guid tenantClienteId, Guid usuarioId, CancellationToken cancellationToken) =>
-        autorizacion.PuedeGestionarDelegacionesAsync(usuarioId, tenantClienteId, cancellationToken);
+    /// <summary>
+    /// Único punto de verdad — ver el doc-comment de <see cref="PuedeReactivarQuery"/>.
+    ///
+    /// <para>
+    /// Mismo hallazgo de Codex (Alto, segunda pasada sobre el incremento 1b) que
+    /// <c>AutorizarOperadorCaeExternoQueries.TenantPropietarioAutorizanteAsync</c>:
+    /// <see cref="IAutorizacionDelegacionTenant.PuedeGestionarDelegacionesAsync"/> no
+    /// consulta <c>EsPlataforma</c> a propósito, confiando en que ningún llamador pase
+    /// como Cliente Delegante el propio Tenant de origen de quien pregunta. Sin esta
+    /// comprobación, una <c>DelegacionTenant</c> heredada con <c>TenantClienteId</c> =
+    /// Tenant de plataforma (creada antes de que <c>CrearDelegacionTenantCommand</c>
+    /// excluyera ese caso, o por cualquier otra vía) podría reactivarse y reabrir
+    /// operación externa sobre TALVEG — exactamente lo que ADR-011 § 1 prohíbe. Se
+    /// corta aquí, DESPUÉS de confirmar la autoridad (mismo orden que el resto de la
+    /// cadena: autoridad antes que catálogo).
+    /// </para>
+    /// </summary>
+    private async Task<bool> PuedeGestionarAsync(Guid tenantClienteId, Guid usuarioId, CancellationToken cancellationToken)
+    {
+        if (!await autorizacion.PuedeGestionarDelegacionesAsync(usuarioId, tenantClienteId, cancellationToken))
+            return false;
+
+        var esPlataforma = await tenantsContext.Tenants
+            .Where(t => t.Id == tenantClienteId)
+            .Select(t => t.EsPlataforma)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        return !esPlataforma;
+    }
 
     public async Task<bool> Handle(PuedeReactivarQuery request, CancellationToken cancellationToken)
     {

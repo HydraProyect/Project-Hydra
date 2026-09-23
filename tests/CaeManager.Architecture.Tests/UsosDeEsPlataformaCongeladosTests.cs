@@ -165,6 +165,16 @@ public class UsosDeEsPlataformaCongeladosTests
     /// comando, que es quien escribe de verdad — defensa en profundidad, no depender solo
     /// de que la consulta se comporte). Neto: +2 ficheros, +4 apariciones, de 28/42 a
     /// 30/46.
+    /// Actualizado 2026-09-23 (tercera vez — ronda 2 de Codex sobre el delta del commit
+    /// 2830297e, esfuerzo alto): <b>31 ficheros, 48 apariciones</b>. Mismo hallazgo, un
+    /// tercer sitio: <c>ReactivarDelegacionTenantCommand.cs</c> compartía predicado con
+    /// <c>PuedeGestionarDelegacionesAsync</c> pero no comprobaba <c>EsPlataforma</c>, así
+    /// que una <c>DelegacionTenant</c> heredada con el Tenant de plataforma como Cliente
+    /// Delegante podía reactivarse y reabrir operación externa sobre TALVEG. Nueva
+    /// entrada: <c>ReactivarDelegacionTenantCommand.cs</c> (+2: un comentario y el
+    /// <c>.Select(t =&gt; t.EsPlataforma)</c> real, mismo patrón que
+    /// <c>AutorizarOperadorCaeExternoQueries.cs</c>). Neto: +1 fichero, +2 apariciones, de
+    /// 30/46 a 31/48.
     /// </para>
     ///
     /// <para>
@@ -264,6 +274,16 @@ public class UsosDeEsPlataformaCongeladosTests
                 "escribe de verdad y no debe depender solo de que la consulta se comporte bien. TALVEG nunca " +
                 "es Tenant propietario de un Operador CAE externo (ADR-011 § 1) — mitad negativa de un fallo " +
                 "cerrado"),
+        ["src/CaeManager.Application/Tenants/Commands/ReactivarDelegacionTenant/ReactivarDelegacionTenantCommand.cs"] =
+            new(2, CategoriaUso.Guarda,
+                "un comentario y :EsPlataforma real, proyectado sobre el TenantClienteId antes de autorizar la " +
+                "reactivación. Ronda 2 de Codex sobre el delta del incremento 1b (commit 2830297e), mismo " +
+                "patrón que AutorizarOperadorCaeExternoQueries.cs: PuedeGestionarDelegacionesAsync no excluye " +
+                "por sí sola el Tenant de plataforma, así que una DelegacionTenant heredada con el Tenant de " +
+                "plataforma como Cliente Delegante podía reactivarse. Se corta DESPUÉS de la autoridad (mismo " +
+                "orden que el resto de la cadena). TALVEG nunca es Tenant propietario de un Operador CAE " +
+                "externo (ADR-011 § 1) — mitad negativa de un fallo cerrado, defensa en profundidad junto a " +
+                "CrearDelegacionTenantCommand.cs y AutorizarOperadorCaeExternoQueries.cs"),
         ["src/CaeManager.Application/Tenants/Commands/CrearTenantPropietarioDeOperadorCaeExterno/CrearTenantPropietarioDeOperadorCaeExternoCommand.cs"] =
             new(2, CategoriaUso.Guarda,
                 "la proyección del Operador y el rechazo de un Operador que sea el Tenant de plataforma: " +
