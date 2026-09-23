@@ -249,6 +249,12 @@
   <data name="AccionVerEnPlataforma" xml:space="preserve">
     <value>Ver en {0}</value>
   </data>
+  <data name="TipoVencidaEnPlataforma" xml:space="preserve">
+    <value>Vencida en plataforma</value>
+  </data>
+  <data name="AccionRenovarEnPlataforma" xml:space="preserve">
+    <value>Renovar en {0}</value>
+  </data>
   <data name="SujetoEmpresaPropia" xml:space="preserve">
     <value>Documentación de empresa</value>
   </data>

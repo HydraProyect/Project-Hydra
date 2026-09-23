@@ -42,7 +42,9 @@ namespace CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 /// comentarios) — se extraen de los MISMOS resultados que ya trae
 /// <see cref="ObtenerAlertasQuery"/> y
 /// <see cref="ObtenerAcreditacionesPorProveedorQuery"/> (esta última con
-/// <c>IncluirSubidas: true</c>), sin ningún <see cref="IMediator.Send"/>
+/// <c>IncluirSubidas: true</c> e <c>IncluirVencidasEnPlataforma: true</c>, que
+/// alimenta el bloqueo <see cref="TipoItemBandeja.PlataformaVencida"/> de la
+/// decisión P12), sin ningún <see cref="IMediator.Send"/>
 /// adicional: por Tenant es el mismo número de Send que ya hace
 /// <see cref="ObtenerBandejaGestorQueryHandler"/> hoy.
 /// </para>
@@ -163,16 +165,21 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
         // Gen2 SÍ necesita las acreditaciones ya subidas para el bucket
         // "Seguimiento" (contrato § 5/§ 7). PendienteDeSubir/Rechazada se
         // comportan exactamente igual que hoy.
+        // IncluirVencidasEnPlataforma: true — las aceptadas cuya vigencia en la
+        // plataforma ya venció (P12), que Fusionar tampoco toca.
         var pendientesPlataforma = await mediator.Send(
-            new ObtenerAcreditacionesPorProveedorQuery(IncluirSubidas: true), cancellationToken);
+            new ObtenerAcreditacionesPorProveedorQuery(IncluirSubidas: true, IncluirVencidasEnPlataforma: true), cancellationToken);
 
         // Sin cambios respecto a /bandeja: Fusionar ya ignora por sí mismo
-        // EstadoDocumento.Proximo y EstadoAcreditacion.Subida (ver su
+        // EstadoDocumento.Proximo y EstadoAcreditacion.Subida/Aceptada (ver su
         // propio comentario) — pasarle alertas/pendientesPlataforma con esas
-        // filas incluidas es seguro, no las cuela en Bloqueo/Actuación.
-        var fusionados = ObtenerBandejaGestorQueryHandler.Fusionar(
-            alertas, revisiones, requisitos, visitasUrgentes.Elementos, sugerenciasVisita, detecciones, pendientesPlataforma,
-            hoy, parametros.HorasAvisoVisita, parametros.HorasCriticasVisita);
+        // filas incluidas es seguro, no las cuela en Bloqueo/Actuación. Las
+        // vencidas en plataforma entran después, con la misma regla de orden.
+        var fusionados = ObtenerBandejaGestorQueryHandler.Ordenar(
+            ObtenerBandejaGestorQueryHandler.Fusionar(
+                    alertas, revisiones, requisitos, visitasUrgentes.Elementos, sugerenciasVisita, detecciones, pendientesPlataforma,
+                    hoy, parametros.HorasAvisoVisita, parametros.HorasCriticasVisita)
+                .Concat(MapearVencidasEnPlataforma(pendientesPlataforma, alertas, hoy)));
         var proximosSinEmpresa = MapearProximos(alertas);
         var seguimientoSinEmpresa = MapearSeguimiento(pendientesPlataforma);
 
@@ -236,8 +243,10 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
         .ToList();
 
     /// <summary>
-    /// Severidad «Bloqueo» de Mi trabajo (contrato § 5, D-4/D-6/D-7). Faltante,
-    /// Vencido y la sugerencia de visita urgente son siempre bloqueo. Para
+    /// Severidad «Bloqueo» de Mi trabajo (contrato § 5, D-4/D-6/D-7, P12). Faltante,
+    /// Vencido, la acreditación vencida en la plataforma
+    /// (<see cref="TipoItemBandeja.PlataformaVencida"/>) y la sugerencia de
+    /// visita urgente son siempre bloqueo. Para
     /// RequisitoPendiente y PlataformaRechazada decide
     /// <see cref="ObtenerBandejaAgrupadaQueryHandler.BloqueaAccesoAlCentro"/>
     /// —el mismo criterio que marca «bloquea acceso» en la cola agrupada—, así
@@ -258,8 +267,66 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
         TipoItemBandeja.SugerenciaVisitaUrgente => true,
         TipoItemBandeja.Faltante => true,
         TipoItemBandeja.Vencido => true,
+        TipoItemBandeja.PlataformaVencida => true,
         _ => ObtenerBandejaAgrupadaQueryHandler.BloqueaAccesoAlCentro(item)
     };
+
+    /// <summary>
+    /// Decisión P12 (2026-09-23): una acreditación de Plataforma CAE aceptada
+    /// cuya vigencia en la plataforma ya venció entra en Mi trabajo como
+    /// bloqueo de prioridad alta (<see cref="TipoItemBandeja.PlataformaVencida"/>),
+    /// una por acreditación, en el Tenant propietario de la cola.
+    ///
+    /// <para>
+    /// Solo <see cref="EstadoAcreditacion.Aceptada"/> con
+    /// <see cref="EstadoVigenciaEnPlataforma.VenceEnFecha"/> y la fecha
+    /// estrictamente anterior a <paramref name="hoy"/>: la vigencia vale hasta
+    /// esa fecha inclusive (<see cref="VigenciaEnPlataforma.EstaVencidaEl"/>), y
+    /// «sin confirmar» no es estar vencida. Una Rechazada o pendiente de subir
+    /// ya tiene su propio ítem, y rechazar o renovar reinician la vigencia, así
+    /// que no hay dos ítems para la misma acreditación. Una Subida ya reenviada
+    /// sigue en Seguimiento.
+    /// </para>
+    ///
+    /// <para>
+    /// Se deduplica con el vencimiento documental: si el mismo Documento ya
+    /// está <see cref="EstadoDocumento.Vencido"/> en TALVEG, la cola ya trae ese
+    /// bloqueo, y la acción es renovar el documento, lo que además devuelve sus
+    /// acreditaciones a pendiente de subir.
+    /// </para>
+    /// </summary>
+    public static List<ItemBandejaDto> MapearVencidasEnPlataforma(
+        IReadOnlyList<ProveedorAcreditacionesDto> acreditaciones, IReadOnlyList<AlertaDto> alertas, DateOnly hoy)
+    {
+        var documentosVencidos = alertas
+            .Where(a => a.Estado == EstadoDocumento.Vencido && a.DocumentoId is not null)
+            .Select(a => a.DocumentoId!.Value)
+            .ToHashSet();
+
+        return acreditaciones
+            .SelectMany(proveedor => proveedor.Clientes.SelectMany(cliente => cliente.Documentos
+                .Where(d => d.Estado == EstadoAcreditacion.Aceptada
+                            && d.EstadoVigencia == EstadoVigenciaEnPlataforma.VenceEnFecha
+                            && d.FechaVencimientoEnPlataforma is { } fecha && fecha.DayNumber < hoy.DayNumber
+                            && !documentosVencidos.Contains(d.DocumentoId))
+                .Select(d => new ItemBandejaDto(
+                    Id: $"plataforma-vencida-{d.AcreditacionId}",
+                    Tipo: TipoItemBandeja.PlataformaVencida,
+                    Titulo: d.TipoDocumentoNombre,
+                    Subtitulo: d.PropietarioNombre,
+                    Fecha: d.FechaVencimientoEnPlataforma,
+                    TrabajadorId: d.TrabajadorId,
+                    CentroId: d.CentroId,
+                    DocumentoId: d.DocumentoId,
+                    TipoDocumentoId: d.TipoDocumentoId,
+                    RequisitoId: null,
+                    ClienteId: cliente.ClienteId,
+                    ClienteNombre: cliente.ClienteNombre,
+                    EmpresaId: d.EmpresaId,
+                    TrabajadorNombre: d.TrabajadorId is not null ? d.PropietarioNombre : null,
+                    ProveedorNombre: proveedor.ProveedorNombre))))
+            .ToList();
+    }
 
     /// <summary>Mismo mapeo de campos que la rama "alertas" de <see cref="ObtenerBandejaGestorQueryHandler.Fusionar"/>, solo que aquí SÍ se queda con Proximo en vez de descartarlo.</summary>
     public static List<ItemBandejaDto> MapearProximos(IReadOnlyList<AlertaDto> alertas) => alertas

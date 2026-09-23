@@ -63,7 +63,16 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesPorProv
 /// registra esa respuesta (Aceptada o Rechazada): sin ellas, marcar «subido»
 /// hacía desaparecer la fila y dejaba el estado sin salida.
 /// </param>
-public record ObtenerAcreditacionesPorProveedorQuery(bool IncluirAceptadas = false, bool IncluirSubidas = false)
+/// <param name="IncluirVencidasEnPlataforma">
+/// Solo las aceptadas cuya vigencia <b>en la plataforma</b> ya venció
+/// (<see cref="EstadoVigenciaEnPlataforma.VenceEnFecha"/> con la fecha pasada):
+/// la plataforma dejó de darlas por buenas y hay que renovarlas allí. Las pide
+/// Mi trabajo agregada, que las presenta como bloqueo (decisión P12,
+/// 2026-09-23). No trae el resto de aceptadas, que <paramref name="IncluirAceptadas"/>
+/// sí trae: la cola solo quiere las que ya no valen.
+/// </param>
+public record ObtenerAcreditacionesPorProveedorQuery(
+    bool IncluirAceptadas = false, bool IncluirSubidas = false, bool IncluirVencidasEnPlataforma = false)
     : IRequest<IReadOnlyList<ProveedorAcreditacionesDto>>;
 
 public record ProveedorAcreditacionesDto(
@@ -99,6 +108,8 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsParaGestionAsync(cancellationToken);
         var incluirAceptadas = request.IncluirAceptadas;
         var incluirSubidas = request.IncluirSubidas;
+        var incluirVencidas = request.IncluirVencidasEnPlataforma;
+        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
 
         var canalesQuery = centrosContext.CanalesGestionDocumental
             .Where(c => c.Tipo == TipoCanalGestion.Plataforma);
@@ -111,6 +122,9 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
                   || acreditacion.Estado == EstadoAcreditacion.Rechazada
                   || (incluirAceptadas && acreditacion.Estado == EstadoAcreditacion.Aceptada)
                   || (incluirSubidas && acreditacion.Estado == EstadoAcreditacion.Subida)
+                  || (incluirVencidas && acreditacion.Estado == EstadoAcreditacion.Aceptada
+                      && acreditacion.EstadoVigencia == EstadoVigenciaEnPlataforma.VenceEnFecha
+                      && acreditacion.FechaVencimientoEnPlataforma < hoy)
             join canal in canalesQuery on acreditacion.CanalGestionDocumentalId equals canal.Id
             join centro in centrosContext.Centros on canal.CentroId equals centro.Id
             join documento in documentosContext.Documentos on acreditacion.DocumentoId equals documento.Id

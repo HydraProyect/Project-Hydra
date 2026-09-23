@@ -101,6 +101,7 @@ public class ObtenerMiTrabajoAgregadoQueryHandlerTests
     [Theory]
     [InlineData(TipoItemBandeja.Faltante, true)]
     [InlineData(TipoItemBandeja.Vencido, true)]
+    [InlineData(TipoItemBandeja.PlataformaVencida, true)]
     [InlineData(TipoItemBandeja.SugerenciaVisitaUrgente, true)]
     [InlineData(TipoItemBandeja.Urgente, false)]
     [InlineData(TipoItemBandeja.VisitaUrgente, false)]
@@ -160,6 +161,127 @@ public class ObtenerMiTrabajoAgregadoQueryHandlerTests
 
         ObtenerMiTrabajoAgregadoQueryHandler.EsBloqueo(item)
             .Should().Be(ObtenerBandejaAgrupadaQueryHandler.BloqueaAccesoAlCentro(item));
+    }
+
+    private static readonly DateOnly Hoy = new(2026, 9, 23);
+
+    private static ProveedorAcreditacionesDto Acreditacion(
+        EstadoAcreditacion estado, EstadoVigenciaEnPlataforma vigencia, DateOnly? vence, Guid? documentoId = null) => new(
+        ProveedorPlataformaCaeId: Guid.NewGuid(), ProveedorNombre: "Dokify", ProveedorCodigo: "dokify",
+        Clientes: [new ClienteAcreditacionesDto(
+            ClienteId: Guid.NewGuid(), ClienteNombre: "Cliente Norte S.A.",
+            Documentos: [new AcreditacionDrillDownDto(
+                AcreditacionId: Guid.NewGuid(), DocumentoId: documentoId ?? Guid.NewGuid(), PropietarioNombre: "Iker Etxeberria",
+                TipoDocumentoNombre: "Formación 60h", Estado: estado, UltimoMotivoRechazo: null,
+                TrabajadorId: Guid.NewGuid(), CentroId: Guid.NewGuid(),
+                EstadoVigencia: vigencia, FechaVencimientoEnPlataforma: vence)])]);
+
+    private static ProveedorAcreditacionesDto AceptadaQueVence(DateOnly vence, Guid? documentoId = null) =>
+        Acreditacion(EstadoAcreditacion.Aceptada, EstadoVigenciaEnPlataforma.VenceEnFecha, vence, documentoId);
+
+    /// <summary>
+    /// P12 (2026-09-23): la acreditación aceptada cuya vigencia en la plataforma
+    /// ya venció entra en Mi trabajo como bloqueo, con su plataforma, su fecha y
+    /// el documento afectado, y la acción va a la acreditación.
+    /// </summary>
+    [Fact]
+    public void MapearVencidasEnPlataforma_incluye_la_aceptada_con_la_vigencia_vencida()
+    {
+        var vencida = AceptadaQueVence(Hoy.AddDays(-1));
+        var acreditacion = vencida.Clientes.Single().Documentos.Single();
+
+        var item = ObtenerMiTrabajoAgregadoQueryHandler.MapearVencidasEnPlataforma([vencida], [], Hoy)
+            .Should().ContainSingle().Subject;
+
+        item.Tipo.Should().Be(TipoItemBandeja.PlataformaVencida);
+        item.Id.Should().Be($"plataforma-vencida-{acreditacion.AcreditacionId}");
+        item.DocumentoId.Should().Be(acreditacion.DocumentoId);
+        item.CentroId.Should().Be(acreditacion.CentroId);
+        item.Fecha.Should().Be(Hoy.AddDays(-1));
+        item.ProveedorNombre.Should().Be("Dokify");
+        item.ClienteNombre.Should().Be("Cliente Norte S.A.");
+        ObtenerMiTrabajoAgregadoQueryHandler.EsBloqueo(item).Should().BeTrue();
+    }
+
+    /// <summary>La vigencia vale hasta su fecha inclusive: el mismo día aún vale.</summary>
+    [Fact]
+    public void MapearVencidasEnPlataforma_excluye_la_vigente_y_la_que_vence_hoy()
+    {
+        ObtenerMiTrabajoAgregadoQueryHandler.MapearVencidasEnPlataforma(
+            [AceptadaQueVence(Hoy.AddDays(30)), AceptadaQueVence(Hoy)], [], Hoy).Should().BeEmpty();
+    }
+
+    /// <summary>«Sin confirmar» es no saberlo, no estar vencida; «no vence aquí» no vence.</summary>
+    [Fact]
+    public void MapearVencidasEnPlataforma_excluye_la_vigencia_sin_confirmar_y_la_que_no_vence()
+    {
+        ObtenerMiTrabajoAgregadoQueryHandler.MapearVencidasEnPlataforma(
+            [
+                Acreditacion(EstadoAcreditacion.Aceptada, EstadoVigenciaEnPlataforma.SinConfirmar, null),
+                Acreditacion(EstadoAcreditacion.Aceptada, EstadoVigenciaEnPlataforma.NoVenceAqui, null),
+            ],
+            [], Hoy).Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Una Rechazada o pendiente de subir ya tiene su propio ítem, y una Subida
+    /// sigue en Seguimiento: una acreditación no puede dar dos ítems.
+    /// </summary>
+    [Theory]
+    [InlineData(EstadoAcreditacion.Rechazada)]
+    [InlineData(EstadoAcreditacion.PendienteDeSubir)]
+    [InlineData(EstadoAcreditacion.Subida)]
+    [InlineData(EstadoAcreditacion.NoRequerida)]
+    public void MapearVencidasEnPlataforma_solo_toma_aceptadas(EstadoAcreditacion estado)
+    {
+        ObtenerMiTrabajoAgregadoQueryHandler.MapearVencidasEnPlataforma(
+            [Acreditacion(estado, EstadoVigenciaEnPlataforma.VenceEnFecha, Hoy.AddDays(-5))], [], Hoy).Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Si el Documento ya está vencido en TALVEG, la cola ya trae ese bloqueo y
+    /// la acción es renovarlo: la acreditación vencida no se duplica. Un aviso
+    /// que no es Vencido (Urgente) no la oculta.
+    /// </summary>
+    [Fact]
+    public void MapearVencidasEnPlataforma_deduplica_con_el_vencimiento_documental()
+    {
+        var documentoVencido = Guid.NewGuid();
+        var documentoUrgente = Guid.NewGuid();
+        var alertas = new[]
+        {
+            Alerta(EstadoDocumento.Vencido) with { DocumentoId = documentoVencido },
+            Alerta(EstadoDocumento.Urgente) with { DocumentoId = documentoUrgente },
+        };
+
+        var resultado = ObtenerMiTrabajoAgregadoQueryHandler.MapearVencidasEnPlataforma(
+            [AceptadaQueVence(Hoy.AddDays(-1), documentoVencido), AceptadaQueVence(Hoy.AddDays(-1), documentoUrgente)],
+            alertas, Hoy);
+
+        resultado.Should().ContainSingle().Which.DocumentoId.Should().Be(documentoUrgente);
+    }
+
+    /// <summary>
+    /// Prioridad alta, la de Vencido (D-6): por delante de una Rechazada y de
+    /// un Requisito pendiente, por detrás de un Faltante.
+    /// </summary>
+    [Fact]
+    public void Ordenar_pone_la_vencida_en_plataforma_con_la_prioridad_de_Vencido()
+    {
+        ItemBandejaDto De(TipoItemBandeja tipo, string id, DateOnly? fecha = null) => new(
+            Id: id, Tipo: tipo, Titulo: "T", Subtitulo: "S", Fecha: fecha,
+            TrabajadorId: null, CentroId: null, DocumentoId: null, TipoDocumentoId: null, RequisitoId: null);
+
+        var ordenados = ObtenerBandejaGestorQueryHandler.Ordenar(
+        [
+            De(TipoItemBandeja.RequisitoPendiente, "requisito"),
+            De(TipoItemBandeja.PlataformaRechazada, "rechazada"),
+            De(TipoItemBandeja.Vencido, "vencido", Hoy.AddDays(-1)),
+            De(TipoItemBandeja.PlataformaVencida, "plataforma-vencida", Hoy.AddDays(-3)),
+            De(TipoItemBandeja.Faltante, "faltante"),
+        ]);
+
+        ordenados.Select(i => i.Id).Should().Equal("faltante", "plataforma-vencida", "vencido", "rechazada", "requisito");
     }
 
     private static readonly Guid EmpresaPropia = Guid.NewGuid();
