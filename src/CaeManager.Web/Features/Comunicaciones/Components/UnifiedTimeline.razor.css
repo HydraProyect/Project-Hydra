@@ -291,3 +291,32 @@ a.timeline-adjunto-chip:hover {
 .timeline-evento-enlace:hover {
     text-decoration: underline;
 }
+
+/* Nota interna (docs/COMUNICACIONES.md § 12.3): inconfundible con un mensaje
+   saliente — ni se alinea a un lado ni usa el fondo de marca del saliente, y
+   el borde discontinuo marca que no salió del equipo. Mismo avatar neutro que
+   el resto de remitentes. */
+.timeline-nota-interna-fila {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    align-self: center;
+    width: 78%;
+}
+
+.timeline-nota-interna {
+    flex: 1;
+    min-width: 0;
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-card-sm);
+    border: var(--border-default);
+    border-style: dashed;
+    background-color: var(--color-surface);
+}
+
+.timeline-nota-interna-cuerpo {
+    font: var(--font-body-md);
+    color: var(--color-text);
+    word-break: break-word;
+    white-space: pre-wrap;
+}

@@ -10,6 +10,7 @@ using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerMacros;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerMensajesBuzonPersonal;
+using CaeManager.Application.Comunicaciones.Queries.ObtenerNotasInternasConversacion;
 using CaeManager.Application.Telemetria.Queries.ObtenerTiempoGestionConversacion;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
@@ -70,6 +71,8 @@ public class ComunicacionesGen2Tests : BunitContext
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         this.ConRolDeEscritura();
+        // El Unified Timeline y el composer de notas internas leen sus textos del localizador.
+        Services.AddLocalization();
     }
 
     private static readonly Guid ClienteRefrielectricId = Guid.Parse("a1a1a1a1-0000-0000-0000-000000000001");
@@ -198,6 +201,8 @@ public class ComunicacionesGen2Tests : BunitContext
 
         public Func<Guid, ConversacionDetalleDto?> Detalle { get; set; } = _ => null;
 
+        public List<NotaInternaDetalleDto> NotasInternas { get; } = [];
+
         public Func<ResponderConversacionCommand, Result> AlResponder { get; set; } = _ => Result.Exito();
 
         /// <summary>Si devuelve una tarea, esa petición se resuelve cuando el test lo diga.</summary>
@@ -217,6 +222,7 @@ public class ComunicacionesGen2Tests : BunitContext
                 ObtenerTiposDocumentoQuery => new List<TipoDocumentoListaDto>(),
                 ObtenerTrabajadoresParaSelectorQuery => new List<TrabajadorSelectorDto>(),
                 ObtenerTiempoGestionConversacionQuery => new TiempoGestionConversacionDto(false, 0, 0),
+                ObtenerNotasInternasConversacionQuery => NotasInternas.ToList(),
                 ResponderConversacionCommand c => AlResponder(c),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {peticion.GetType().Name}.")
             });
@@ -413,6 +419,25 @@ public class ComunicacionesGen2Tests : BunitContext
         navegacion.Uri.Should().Contain("estado=Resuelta", "la URL manda: es lo que se comparte y lo que se recarga");
         mediador.Enviados.OfType<ObtenerConversacionesQuery>().Last().Estado.Should().Be(EstadoConversacion.Resuelta);
         AsuntosVisibles(cut).Should().BeEmpty();
+    }
+
+    // ---------------------------------------------------------------- notas internas
+
+    [Fact]
+    public async Task Abrir_un_hilo_pide_sus_notas_internas_y_las_pinta_con_el_composer_de_notas()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion) };
+        escenario.Conversaciones.Add(conversacion);
+        escenario.NotasInternas.Add(new NotaInternaDetalleDto(Guid.NewGuid(), Guid.NewGuid(), "Llamar antes de las 10.", DateTime.UtcNow));
+
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+
+        mediador.Enviados.OfType<ObtenerNotasInternasConversacionQuery>().Should().ContainSingle()
+            .Which.ConversacionId.Should().Be(conversacion.Id);
+        cut.Find(".timeline-nota-interna-cuerpo").TextContent.Should().Be("Llamar antes de las 10.");
+        cut.FindAll(".composer-nota-interna").Should().ContainSingle();
     }
 
     // ---------------------------------------------------------------- envío

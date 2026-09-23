@@ -27,6 +27,7 @@ public class FkCompuestaTenantComunicacionesTests : IAsyncLifetime
     private Guid _mensajeId;
     private Guid _participanteId;
     private Guid _adjuntoId;
+    private Guid _notaId;
 
     public async Task InitializeAsync()
     {
@@ -44,6 +45,11 @@ public class FkCompuestaTenantComunicacionesTests : IAsyncLifetime
         _mensajeId = mensaje.Id;
         _adjuntoId = adjunto.Id;
         _participanteId = participante.Id;
+
+        var nota = new NotaInternaConversacion(conversacion.Id, Guid.NewGuid(), "Nota del equipo", DateTime.UtcNow);
+        contexto.NotasInternasConversacion.Add(nota);
+        await contexto.SaveChangesAsync();
+        _notaId = nota.Id;
 
         // La conversación de otro tenant existe para que el UPDATE no falle
         // por un simple NOT NULL/tenant inexistente, sino específicamente
@@ -87,6 +93,25 @@ public class FkCompuestaTenantComunicacionesTests : IAsyncLifetime
             $"UPDATE \"AdjuntosMensaje\" SET \"TenantId\" = {_tenantB} WHERE \"Id\" = {_adjuntoId}"));
 
         excepcion.Should().NotBeNull("la FK compuesta (MensajeId, TenantId) debe rechazar un TenantId que no case con el del Mensaje");
+    }
+
+    /// <summary>
+    /// La nota interna no tiene navegación desde Conversacion: su FK compuesta
+    /// la crea AgregarNotasInternasConversacion en SQL. Se exige el código de
+    /// violación de FK (23503) y no una excepción cualquiera, para que un
+    /// fallo por otra causa no pase por la prueba de la FK.
+    /// </summary>
+    [Fact]
+    public async Task No_se_puede_reasignar_una_nota_interna_al_tenant_de_otra_conversacion()
+    {
+        await using var contexto = CrearContexto(_tenantA);
+
+        var excepcion = await Record.ExceptionAsync(() => contexto.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE \"NotasInternasConversacion\" SET \"TenantId\" = {_tenantB} WHERE \"Id\" = {_notaId}"));
+
+        excepcion.Should().BeOfType<Npgsql.PostgresException>()
+            .Which.SqlState.Should().Be("23503",
+                "la FK compuesta (ConversacionId, TenantId) debe rechazar un TenantId que no case con el de la Conversacion");
     }
 
     private CaeManagerDbContext CrearContexto(Guid tenant)
