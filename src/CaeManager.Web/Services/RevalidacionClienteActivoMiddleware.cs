@@ -4,6 +4,7 @@ using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Web.Services;
@@ -103,12 +104,7 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
                 // ExceptionHandlerMiddleware de framework, que si loguea a Debug es
                 // porque corre bajo su propia configuración, no la de Serilog de esta
                 // app (hallazgo de la revisión puente, 2026-09-23).
-                logger.LogInformation(
-                    "Revalidación de Workspace operativo derivado abortada en {Ruta}: el cliente canceló la petición.",
-                    contexto.Request.Path);
-
-                if (!contexto.Response.HasStarted)
-                    contexto.Response.StatusCode = StatusCodes.Status499ClientClosedRequest;
+                RegistrarPeticionAbortada(contexto, logger);
 
                 // Ni cookie ni `siguiente`: no hay nadie al otro lado a quien
                 // escribirle una respuesta, y la selección seguía siendo válida —
@@ -155,12 +151,7 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
                 }
                 catch (OperationCanceledException) when (contexto.RequestAborted.IsCancellationRequested)
                 {
-                    logger.LogInformation(
-                        "Revalidación de Workspace operativo derivado abortada en {Ruta}: el cliente canceló la petición.",
-                        contexto.Request.Path);
-
-                    if (!contexto.Response.HasStarted)
-                        contexto.Response.StatusCode = StatusCodes.Status499ClientClosedRequest;
+                    RegistrarPeticionAbortada(contexto, logger);
 
                     // A diferencia del catch de arriba: aquí !sigueAutorizado ya está
                     // decidido —EsVentanaDeSoporteAsync solo elige el texto del aviso,
@@ -219,6 +210,37 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
         }
 
         await siguiente(contexto);
+    }
+
+    /// <summary>
+    /// Único punto de registro para las dos ramas de aborto de arriba —misma línea
+    /// de log, mismo código de estado, misma guarda contra la reejecución— para que
+    /// no puedan divergir.
+    ///
+    /// Deshabilita <see cref="IStatusCodePagesFeature"/> a propósito (hallazgo de
+    /// Codex, 2026-09-23): <c>UseStatusCodePagesWithReExecute("/not-found", ...)</c>
+    /// está registrado en <c>Program.cs</c> antes que este middleware, y trata
+    /// cualquier respuesta sin cuerpo entre 400 y 599 —499 incluido, no hay excepción
+    /// para él— como "gestionable", reejecutando el pipeline entero hacia
+    /// <c>/not-found</c>. Esa reejecución vuelve a entrar aquí con el mismo
+    /// <see cref="HttpContext.RequestAborted"/>, ya cancelado, así que sin esta guarda
+    /// se repetiría la consulta cancelada y este mismo log una segunda vez por la
+    /// misma petición abortada.
+    /// </summary>
+    private static void RegistrarPeticionAbortada(HttpContext contexto, ILogger logger)
+    {
+        logger.LogInformation(
+            "Revalidación de Workspace operativo derivado abortada en {Ruta}: el cliente canceló la petición.",
+            contexto.Request.Path);
+
+        if (!contexto.Response.HasStarted)
+        {
+            contexto.Response.StatusCode = StatusCodes.Status499ClientClosedRequest;
+
+            var statusCodePagesFeature = contexto.Features.Get<IStatusCodePagesFeature>();
+            if (statusCodePagesFeature is not null)
+                statusCodePagesFeature.Enabled = false;
+        }
     }
 
     /// <summary>
