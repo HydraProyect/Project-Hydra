@@ -215,8 +215,11 @@ public class AsignacionesOperativasWriter(
     {
         ArgumentNullException.ThrowIfNull(operacion);
 
+        // Una fila heredada con Administrador o Dirección CAE (anterior a la
+        // decisión del 2026-09-23) no se reabre, pero tampoco impide reactivar
+        // la delegación para los operadores válidos: se omite, sin lanzar.
         var operadores = await dbContext.AsignacionesOperadorDelegado
-            .Where(a => a.DelegacionTenantId == delegacionTenantId)
+            .Where(a => a.DelegacionTenantId == delegacionTenantId && RolesDelegadosPermitidos.Contains(a.Rol))
             .Select(a => new { a.UsuarioId, a.Rol })
             .ToListAsync(cancellationToken);
 

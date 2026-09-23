@@ -111,7 +111,8 @@ public interface IAsignacionesOperativasWriter
     /// Hace falta porque desactivar una delegación cierra la operación <b>y sus
     /// carteras en cascada</b>, pero no borra las filas de operador delegado:
     /// sin esto, reactivar dejaría una operación vigente con cero carteras y el
-    /// operador entraría al workspace sin ver ningún dato.
+    /// operador entraría al workspace sin ver ningún dato. Las filas heredadas
+    /// con un rol no delegable (Administrador, Dirección CAE) se omiten.
     /// </summary>
     Task ReabrirCarterasDeOperadoresAsync(
         AsignacionOperacion operacion, Guid delegacionTenantId, CancellationToken cancellationToken = default);

@@ -148,6 +148,38 @@ public class RolesDelegadosSoloDeOperacionTests : IAsyncLifetime
         carteras.Should().ContainSingle(c => c.AmbitoRelacionClienteId == _clienteId).Which.Rol.Should().Be(rol);
     }
 
+    /// <summary>
+    /// Revisión Codex, ronda 2: una fila heredada con rol de Propiedad no
+    /// impide reactivar la delegación. Se omite (no se reabre su cartera) y el
+    /// operador válido de la misma delegación sí recupera la suya.
+    /// </summary>
+    [Theory]
+    [InlineData(Roles.Administrador)]
+    [InlineData(Roles.DireccionCae)]
+    public async Task Reabrir_omite_la_fila_heredada_con_rol_de_Propiedad_sin_bloquear_a_las_validas(string rol)
+    {
+        var personaConsulta = Guid.NewGuid();
+        await SembrarAsignacionDelegadaAsync(rol);
+        await using (var siembra = CrearContexto(_propietario))
+        {
+            siembra.AsignacionesOperadorDelegado.Add(new AsignacionOperadorDelegado(_delegacionId, personaConsulta, Roles.Consulta));
+            await siembra.SaveChangesAsync();
+        }
+
+        await using (var contexto = CrearContexto(_propietario))
+        {
+            var operacion = await contexto.AsignacionesOperacion.FirstAsync(o => !o.EsRaiz);
+            await CrearWriter(contexto).ReabrirCarterasDeOperadoresAsync(operacion, _delegacionId);
+            await contexto.SaveChangesAsync();
+        }
+
+        (await CarterasDeLaPersonaAsync()).Should().BeEmpty("la fila con rol de Propiedad no se reabre");
+
+        await using var lectura = CrearContexto(_propietario);
+        (await lectura.AsignacionesCartera.Where(c => c.UsuarioId == personaConsulta).ToListAsync())
+            .Should().ContainSingle().Which.Rol.Should().Be(Roles.Consulta);
+    }
+
     private async Task SembrarAsignacionDelegadaAsync(string rol)
     {
         await using var contexto = CrearContexto(_propietario);
