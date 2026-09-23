@@ -29,6 +29,8 @@ public class IncidenciasGen2Tests : BunitContext
     public IncidenciasGen2Tests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        // Los textos de Incidencias salen de IStringLocalizer<TextosIncidencias>.
+        Services.AddLocalization();
         this.ConRolDeEscritura();
     }
 
