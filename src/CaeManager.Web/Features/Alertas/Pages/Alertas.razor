@@ -7,20 +7,23 @@
 @using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion
 @using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPorFiltro
 @using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Alertas.Recursos
 @using CaeManager.Web.Features.Bandeja.Components
 @using CaeManager.Web.Features.Documentos
+@using CaeManager.Web.Recursos
 @using MediatR
+@using Microsoft.Extensions.Localization
 @inject IMediator Mediator
+@inject IStringLocalizer<TextosAlertas> Textos
+@inject IStringLocalizer<TextosComunes> Comunes
 @inject ToastService ToastService
 
-<PageTitle>Alertas — @Marca.Nombre</PageTitle>
+<PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <CabeceraPagina Titulo="Alertas" Kicker="Reclamación">
+    <CabeceraPagina Titulo="@Textos["TituloPagina"]" Kicker="@Textos["Kicker"]">
         <Descripcion>
-            La documentación de tus trabajadores que hay que reclamar o subir — incluida la que
-            todavía no es urgente — para que puedas anticiparte antes del vencimiento en vez de
-            esperar a que se vuelva crítica.
+            @Textos["DescripcionPagina"]
         </Descripcion>
     </CabeceraPagina>
 
@@ -38,7 +41,7 @@
        vivo, no lee de una tabla sincronizada. *@
     <p class="alertas-procedencia">
         <span class="alertas-procedencia-punto" aria-hidden="true"></span>
-        Lista calculada en cada carga a partir del vencimiento de cada documento y de los documentos que se piden en cada centro: los que ese centro tiene configurados o, si el centro no dice nada de un tipo, los tipos de documento que se piden siempre. Nadie la escribe a mano.
+        @Textos["ProcedenciaLista"]
     </p>
 
     @* DEC-4: /alertas no es una segunda cola de "qué hacer ahora" (A-02) —
@@ -48,7 +51,7 @@
        distinta — no enseñaba nada que /bandeja no enseñara, y enseñaba
        menos. Retirada; el enlace de abajo es el único camino que hacía
        falta conservar. *@
-    <a href="/bandeja" class="enlace-nombre-fila">Ver tu cola de trabajo en Mi trabajo →</a>
+    <a href="/bandeja" class="enlace-nombre-fila">@Textos["EnlaceColaTrabajo"]</a>
 
     @* Reclamación agregada (DEC-4 + DEC-7, PLAN-SESIONES-NOCTURNAS-2026-09-02.md):
        SelectorLoteDocumental (PR #408) es el mismo componente que usa el
@@ -60,14 +63,14 @@
        de la sección — no hay una pantalla previa a la que "cancelar" vuelva.
        Colapsada por defecto: el mockup la pinta abierta para enseñar su
        contenido, pero la tarea primaria de la pantalla es la lista. *@
-    <SeccionColapsable Titulo="Reclamar por tipo de documento y ámbito" ExpandidaPorDefecto="false">
+    <SeccionColapsable Titulo="@Textos["SeccionReclamarTitulo"]" ExpandidaPorDefecto="false">
         @if (_filtroLote is null)
         {
             <SelectorLoteDocumental AmbitosDisponibles="Alertas.AmbitosSoportados" OnConfirmar="ConfirmarFiltroLoteAsync" />
         }
         else
         {
-            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="CambiarFiltroLote">← Elegir otro filtro</Boton>
+            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="CambiarFiltroLote">@Textos["BotonElegirOtroFiltro"]</Boton>
 
             @if (_cargandoLote)
             {
@@ -75,15 +78,15 @@
             }
             else if (_errorLote)
             {
-                <EstadoVacio Titulo="No pudimos cargar el lote" Descripcion="Intenta nuevamente en unos segundos.">
+                <EstadoVacio Titulo="@Textos["ErrorLoteTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
                     <Accion>
-                        <Boton OnClick="CargarLoteAsync">Reintentar</Boton>
+                        <Boton OnClick="CargarLoteAsync">@Comunes["Reintentar"]</Boton>
                     </Accion>
                 </EstadoVacio>
             }
             else if (_lotes.Count == 0)
             {
-                <EstadoVacio Titulo="Nada que reclamar con ese filtro" Descripcion="Prueba con otro tipo de documento o alcance." />
+                <EstadoVacio Titulo="@Textos["LoteVacioTitulo"]" Descripcion="@Textos["LoteVacioDetalle"]" />
             }
             else
             {
@@ -95,9 +98,7 @@
                     <Tarjeta @key="lote.TitularId" Titulo="@lote.TitularNombre" Class="tarjeta-reclamacion">
                         <AccionesHeader>
                             <span class="alertas-lote-ultima">
-                                @(lote.UltimaReclamacionFechaUtc is null
-                                    ? "Nunca reclamado."
-                                    : $"Última reclamación: {FormatearHaceTiempo(lote.UltimaReclamacionFechaUtc.Value)}.")
+                                @TextoUltimaReclamacion(lote.UltimaReclamacionFechaUtc)
                             </span>
                             @* El filtro de /comunicaciones es por Cliente
                                (ObtenerConversacionesQuery.ClienteId), así que solo
@@ -109,14 +110,14 @@
                                vacía, que se leería como "no hay hilo". *@
                             @if (lote.UltimaReclamacionConversacionId is not null && lote.Ambito != AmbitoAplicacion.Empresa)
                             {
-                                <a href="@($"/comunicaciones?cliente={lote.TitularId}")">Ver en Comunicaciones</a>
+                                <a href="@($"/comunicaciones?cliente={lote.TitularId}")">@Textos["EnlaceVerEnComunicaciones"]</a>
                             }
                             @* Reclamar envía un mensaje a terceros: nunca de un
                                solo clic. El botón solo abre la confirmación, que
                                dice cuántos documentos y a quién. *@
                             <SoloConEscritura><Boton Tamano="TamanoBoton.Pequeno" Deshabilitado="@(seleccionados.Count == 0 || ContactosMarcados(lote.TitularId).Count == 0)"
                                    Cargando="enviando" OnClick="() => PedirConfirmacionEnvio(lote)">
-                                Enviar reclamación (@seleccionados.Count)
+                                @Textos["BotonEnviarReclamacionConCuenta", seleccionados.Count]
                             </Boton></SoloConEscritura>
                         </AccionesHeader>
 
@@ -124,17 +125,17 @@
                             @if (lote.Destinatarios is not { Count: > 0 })
                             {
                                 <div class="alerta-formulario" role="alert">
-                                    No hay ningún contacto en la agenda al que reclamar esta documentación.
+                                    @Textos["LoteSinContactos"]
                                     <SoloConEscritura><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
                                            OnClick="() => AbrirAltaContacto(lote)">
-                                        Añadir contacto
+                                        @Textos["BotonAnadirContacto"]
                                     </Boton></SoloConEscritura>
                                 </div>
                             }
                             else
                             {
                                 <fieldset class="reclamacion-destinatarios">
-                                    <legend>Se solicita a</legend>
+                                    <legend>@Textos["DestinatariosLeyenda"]</legend>
                                     @foreach (var destinatario in lote.Destinatarios)
                                     {
                                         <label class="campo-checkbox" @key="destinatario.ContactoId">
@@ -147,7 +148,7 @@
                                     }
                                     <SoloConEscritura><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
                                            OnClick="() => AbrirAltaContacto(lote)">
-                                        Añadir contacto
+                                        @Textos["BotonAnadirContacto"]
                                     </Boton></SoloConEscritura>
                                 </fieldset>
                             }
@@ -163,11 +164,11 @@
                                             <th></th>
                                             @if (muestraTrabajador)
                                             {
-                                                <th>Trabajador</th>
+                                                <th>@Textos["ColumnaTrabajador"]</th>
                                             }
-                                            <th>Documento</th>
-                                            <th>Vencimiento</th>
-                                            <th>Estado</th>
+                                            <th>@Textos["ColumnaDocumento"]</th>
+                                            <th>@Textos["ColumnaVencimiento"]</th>
+                                            <th>@Textos["ColumnaEstado"]</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -176,7 +177,7 @@
                                             <tr @key="documento.DocumentoId">
                                                 <td>
                                                     <input type="checkbox" checked="@seleccionados.Contains(documento.DocumentoId)"
-                                                           aria-label="@($"Incluir {documento.TipoDocumentoNombre} en la reclamación")"
+                                                           aria-label="@Textos["CasillaIncluirDocumento", documento.TipoDocumentoNombre]"
                                                            @onchange="e => AlternarSeleccion(lote.TitularId, documento.DocumentoId, (bool)e.Value!)" />
                                                 </td>
                                                 @if (muestraTrabajador)
@@ -209,9 +210,9 @@
 
     <DialogoConfirmacion Visible="_envioPendiente is not null"
                          VisibleChanged="CerrarConfirmacionEnvio"
-                         Titulo="@($"¿Enviar la reclamación a {_envioPendiente?.TitularNombre}?")"
+                         Titulo="@Textos["ConfirmacionEnvioTitulo", _envioPendiente?.TitularNombre ?? string.Empty]"
                          Mensaje="@MensajeConfirmacionEnvio"
-                         TextoBotonConfirmar="Enviar reclamación"
+                         TextoBotonConfirmar="@Textos["BotonEnviarReclamacion"]"
                          EnProgreso="_enviandoTitularId is not null"
                          OnConfirmar="ConfirmarEnvioAsync" />
 
@@ -220,34 +221,34 @@
        así que no es un filtro: ni cuenta para el vacío por filtro ni lo
        borra "Quitar el filtro". *@
     <div class="barra-filtros alertas-barra-filtros">
-        <CampoSelect Etiqueta="Estado" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoFiltroAsync">
-            <option value="">Todos</option>
-            <option value="@nameof(EstadoDocumento.Faltante)">Falta</option>
-            <option value="@nameof(EstadoDocumento.Vencido)">Vencido</option>
-            <option value="@nameof(EstadoDocumento.Urgente)">Urgente</option>
-            <option value="@nameof(EstadoDocumento.Proximo)">Próximo</option>
+        <CampoSelect Etiqueta="@Textos["FiltroEstadoEtiqueta"]" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoFiltroAsync">
+            <option value="">@Textos["FiltroEstadoTodos"]</option>
+            <option value="@nameof(EstadoDocumento.Faltante)">@Textos["FiltroEstadoFaltante"]</option>
+            <option value="@nameof(EstadoDocumento.Vencido)">@Textos["FiltroEstadoVencido"]</option>
+            <option value="@nameof(EstadoDocumento.Urgente)">@Textos["FiltroEstadoUrgente"]</option>
+            <option value="@nameof(EstadoDocumento.Proximo)">@Textos["FiltroEstadoProximo"]</option>
         </CampoSelect>
 
-        <div class="alertas-agrupar" role="group" aria-label="Agrupar por">
-            <span class="alertas-agrupar-etiqueta" aria-hidden="true">Agrupar por</span>
+        <div class="alertas-agrupar" role="group" aria-label="@Textos["AgruparPorEtiqueta"]">
+            <span class="alertas-agrupar-etiqueta" aria-hidden="true">@Textos["AgruparPorEtiqueta"]</span>
             <Boton Variante="@(_agrupacion == ModoAgrupacion.Severidad ? VarianteBoton.Secundario : VarianteBoton.Fantasma)"
                    Tamano="TamanoBoton.Pequeno" OnClick="() => CambiarAgrupacion(ModoAgrupacion.Severidad)"
                    aria-pressed="@(_agrupacion == ModoAgrupacion.Severidad ? "true" : "false")">
-                Severidad
+                @Textos["AgruparSeveridad"]
             </Boton>
             <Boton Variante="@(_agrupacion == ModoAgrupacion.Motivo ? VarianteBoton.Secundario : VarianteBoton.Fantasma)"
                    Tamano="TamanoBoton.Pequeno" OnClick="() => CambiarAgrupacion(ModoAgrupacion.Motivo)"
                    aria-pressed="@(_agrupacion == ModoAgrupacion.Motivo ? "true" : "false")">
-                Motivo
+                @Textos["AgruparMotivo"]
             </Boton>
         </div>
     </div>
 
     @if (_errorCarga)
     {
-        <EstadoVacio Titulo="No pudimos cargar las alertas" Descripcion="Intenta nuevamente en unos segundos.">
+        <EstadoVacio Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
             <Accion>
-                <Boton OnClick="CargarAsync">Reintentar</Boton>
+                <Boton OnClick="CargarAsync">@Comunes["Reintentar"]</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -266,17 +267,17 @@
            Sin esta rama, filtrar por "Próximo" y no encontrar nada decía
            "todos los documentos están vigentes", que es justo lo contrario de
            lo que puede estar pasando: puede haber una docena vencidos. *@
-        <EstadoVacio NombreIcono="filtro" Titulo="Ninguna alerta con este estado"
-                     Descripcion="@($"Hay {_alertas.Count} documento(s) que reclamar en otros estados.")">
+        <EstadoVacio NombreIcono="filtro" Titulo="@Textos["VacioFiltroTitulo"]"
+                     Descripcion="@Textos["VacioFiltroDetalle", _alertas.Count]">
             <Accion>
-                <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar el filtro</Boton>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">@Textos["BotonQuitarFiltro"]</Boton>
             </Accion>
         </EstadoVacio>
     }
     else if (AlertasFiltradas.Count == 0)
     {
         <EstadoVacio NombreIcono="exito-circulo" AcentoIcono="var(--color-success-700)" FondoIcono="var(--color-success-50)"
-                     Titulo="Nada que reclamar" Descripcion="Todos los documentos están vigentes o fuera del umbral de aviso." />
+                     Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos["VacioDetalle"]" />
     }
     else
     {
@@ -302,11 +303,11 @@
                             <table class="tabla-datos">
                                 <thead>
                                     <tr>
-                                        <th>Trabajador</th>
-                                        <th>@(_agrupacion == ModoAgrupacion.Severidad ? "Tipo de documento" : "Severidad")</th>
-                                        <th>Centro</th>
-                                        <th>Vencimiento</th>
-                                        <th>Archivo</th>
+                                        <th>@Textos["ColumnaTrabajador"]</th>
+                                        <th>@(_agrupacion == ModoAgrupacion.Severidad ? Textos["ColumnaTipoDocumento"] : Textos["ColumnaSeveridad"])</th>
+                                        <th>@Textos["ColumnaCentro"]</th>
+                                        <th>@Textos["ColumnaVencimiento"]</th>
+                                        <th>@Textos["ColumnaArchivo"]</th>
                                         <th></th>
                                     </tr>
                                 </thead>
@@ -332,16 +333,16 @@
                                             <td>
                                                 @if (alerta.DocumentoId is not null && alerta.ArchivoUrl is not null)
                                                 {
-                                                    <a href="/documentos/@alerta.DocumentoId/archivo" target="_blank">Ver PDF</a>
+                                                    <a href="/documentos/@alerta.DocumentoId/archivo" target="_blank">@Textos["EnlaceVerPdf"]</a>
                                                 }
                                                 else
                                                 {
-                                                    <span class="detalle-tecnico">Sin adjunto</span>
+                                                    <span class="detalle-tecnico">@Textos["SinAdjunto"]</span>
                                                 }
                                             </td>
                                             <td>
                                                 <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => GestionarAlerta(alerta)">
-                                                    @(alerta.DocumentoId is not null ? "Gestionar" : "Subir documento")
+                                                    @(alerta.DocumentoId is not null ? Textos["BotonGestionar"] : Textos["BotonSubirDocumento"])
                                                 </Boton>
                                             </td>
                                         </tr>
@@ -355,7 +356,7 @@
         </div>
 
         <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="AlertasFiltradas.Count"
-                          Etiqueta="alerta(s)" PaginaActualChanged="IrAPaginaAsync"
+                          Etiqueta="@Textos["EtiquetaPaginador"]" PaginaActualChanged="IrAPaginaAsync"
                           TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
     }
 </div>
