@@ -19,8 +19,7 @@
 #    compila: el job `imagen` de .github/workflows/deploy.yml la construye en
 #    el runner, la firma y la envía por SSH, y deploy/ci-deploy.sh la verifica,
 #    la carga y arranca con `--no-build` (incidente del 2026-09-22: el build en
-#    el VPS lo dejaba sin memoria). `build: ../..` solo sirve para el uso local
-#    de abajo.
+#    el VPS lo dejaba sin memoria). Sin `build:`: ver `app` más abajo.
 #
 # Requisito previo: producción ya desplegada con la red "caemanager-edge"
 # (este mismo cambio, en docker-compose.produccion.yml) — sin ese requisito
@@ -28,7 +27,8 @@
 #
 # Uso:  cp .env.staging.example .env.staging   (rellenar, incluida una
 #       POSTGRES_PASSWORD PROPIA — no reutilizar la de producción)
-#       docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --build
+#       IMAGEN_TAG=<sha> docker compose -f docker-compose.staging.yml --env-file .env.staging up -d
+#       (con caemanager:<sha> ya cargada, igual que producción)
 #
 # --env-file es obligatorio en cada comando: sin él, Compose busca un ".env"
 # por defecto (el de producción, si se ejecuta desde el mismo directorio
@@ -41,13 +41,14 @@ services:
     # Job de migración de vida corta (REC-017/P39) — mismo mecanismo que
     # docker-compose.produccion.yml, ver el comentario largo de ese fichero
     # junto a este mismo servicio.
-    # En el VPS la imagen llega construida y firmada desde CI y ci-deploy.sh
-    # arranca con IMAGEN_TAG=<sha> y `--no-build`; `build:` queda para el uso
-    # local de la cabecera, donde la etiqueta es `caemanager:local`.
-    image: caemanager:${IMAGEN_TAG:-local}
-    build:
-      context: ../..
-      dockerfile: Dockerfile
+    # Imagen construida y firmada en CI, cargada por ci-deploy.sh, que arranca
+    # con IMAGEN_TAG=<sha>. Sin `build:` y con `pull_policy: never` a propósito:
+    # un `up` manual sin IMAGEN_TAG falla («No such image: caemanager:sin-
+    # etiqueta») en vez de compilar en el VPS (incidente del 2026-09-22) o de
+    # arrancar una imagen sin firma. Para un `up` manual con la desplegada:
+    #   IMAGEN_TAG="$(docker inspect caemanager-staging-app --format '{{.Config.Image}}' | cut -d: -f2)"
+    image: caemanager:${IMAGEN_TAG:-sin-etiqueta}
+    pull_policy: never
     container_name: caemanager-staging-migrador
     restart: "no"
     command: ["--migrate-only"]
@@ -63,13 +64,14 @@ services:
         condition: service_healthy
 
   app:
-    # En el VPS la imagen llega construida y firmada desde CI y ci-deploy.sh
-    # arranca con IMAGEN_TAG=<sha> y `--no-build`; `build:` queda para el uso
-    # local de la cabecera, donde la etiqueta es `caemanager:local`.
-    image: caemanager:${IMAGEN_TAG:-local}
-    build:
-      context: ../..
-      dockerfile: Dockerfile
+    # Imagen construida y firmada en CI, cargada por ci-deploy.sh, que arranca
+    # con IMAGEN_TAG=<sha>. Sin `build:` y con `pull_policy: never` a propósito:
+    # un `up` manual sin IMAGEN_TAG falla («No such image: caemanager:sin-
+    # etiqueta») en vez de compilar en el VPS (incidente del 2026-09-22) o de
+    # arrancar una imagen sin firma. Para un `up` manual con la desplegada:
+    #   IMAGEN_TAG="$(docker inspect caemanager-staging-app --format '{{.Config.Image}}' | cut -d: -f2)"
+    image: caemanager:${IMAGEN_TAG:-sin-etiqueta}
+    pull_policy: never
     container_name: caemanager-staging-app
     # Techo de memoria del contenedor. Sin el, un desbordamiento dentro de la
     # app no se queda en la app: el contenedor comparte maquina con Postgres,

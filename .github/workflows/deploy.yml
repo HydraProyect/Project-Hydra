@@ -60,7 +60,10 @@ name: Desplegar
 # incidente del 2026-08-26 (un job aprobado para el commit X terminando por
 # desplegar el commit Y). Por la vía manual (`workflow_dispatch`) no hay run
 # de CI del que leer nada, así que ahí sí se usa `github.sha`: el SHA de la
-# referencia que se eligió al lanzarlo.
+# referencia que se eligió al lanzarlo. Desde el 2026-09-23 esa referencia
+# tiene que ser `main` (ver "La imagen se construye en el runner"): la firma
+# de la imagen exige `deploy.yml@refs/heads/main`, así que la vía manual
+# despliega la punta de main y nada más.
 #
 # El idiom `condición && valor || alternativa` devuelve `valor` solo si
 # `valor` es truthy; una cadena vacía no lo es. Un `head_sha` vacío daría
@@ -235,7 +238,7 @@ name: Desplegar
 #     distinto a propósito: la cancelación automática de arriba nunca debe
 #     alcanzar a un despliegue que YA fue aprobado y está corriendo el `ssh`
 #     contra el VPS — interrumpirlo a medias sigue siendo tan peligroso como
-#     siempre (build o `docker compose up` a medio terminar), así que ese job
+#     siempre (`docker load` o `docker compose up` a medio terminar), así que ese job
 #     sigue serializándose, nunca cancelándose solo.
 #
 # En resumen: solo se cancela sola una aprobación que TODAVÍA no se dio. Una
@@ -326,6 +329,14 @@ name: Desplegar
 # mediante la vía manual explícita... no como efecto secundario de pulsar
 # rerun"). Por eso el paso solo corre `if: github.event_name == 'workflow_run'`
 # y nunca se aplica a `workflow_dispatch`.
+#
+# CAMBIO 2026-09-23, pendiente de ratificar contra DEC-41: con la imagen
+# firmada en CI, la vía manual ya NO sirve para volver a un commit anterior.
+# Lanzarla sobre una rama o etiqueta que apunte a ese commit produce una firma
+# de `deploy.yml@refs/<otra>`, que el VPS rechaza; lanzada sobre main despliega
+# la punta. El rollback pasa a ser un revert en main (con su CI). La
+# alternativa que conservaría el rollback manual —un input `sha` firmado por
+# un run de main— queda como decisión abierta, no implementada aquí.
 on:
   workflow_run:
     workflows: [CI]
@@ -420,8 +431,8 @@ jobs:
 
       - name: Comprobar que el SHA sigue siendo la punta de main
         # Ver "Rechazo de runs obsoletos" en la cabecera. Solo aplica a la vía
-        # automática: el break-glass manual puede desplegar deliberadamente un
-        # SHA que ya no sea la punta (rollback intencional, DEC-41).
+        # automática; la manual solo despliega la punta de main desde el
+        # 2026-09-23 (ver el "CAMBIO 2026-09-23" de esa sección).
         if: github.event_name == 'workflow_run'
         run: |
           set -euo pipefail
@@ -435,8 +446,10 @@ jobs:
               echo "(\`$PUNTA_ACTUAL\`). Esto ocurre al reejecutar (rerun) un CI antiguo:"
               echo "main avanzó mientras tanto. No se despliega."
               echo ""
-              echo "Para desplegar este commit de todas formas, usa la vía manual"
-              echo "(workflow_dispatch) — break-glass explícito, con motivo."
+              echo "Para desplegar la punta actual, relanza el CI de main o usa la vía"
+              echo "manual (workflow_dispatch) sobre main. Para volver a un commit"
+              echo "anterior, haz un revert en main: la vía manual ya no despliega"
+              echo "commits que no sean la punta (imagen firmada en CI, 2026-09-23)."
             } >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
@@ -509,6 +522,8 @@ jobs:
           retention-days: 30
           compression-level: 0
           if-no-files-found: error
+          # "Re-run all jobs" vuelve a subir el mismo nombre en el mismo run.
+          overwrite: true
 
   staging:
     # EL GATE. Solo despliega si el CI que acaba de terminar terminó en verde
@@ -555,8 +570,8 @@ jobs:
     steps:
       - name: Comprobar que el SHA sigue siendo la punta de main
         # Ver "Rechazo de runs obsoletos" en la cabecera. Solo aplica a la vía
-        # automática: el break-glass manual puede desplegar deliberadamente un
-        # SHA que ya no sea la punta (rollback intencional, DEC-41).
+        # automática; la manual solo despliega la punta de main desde el
+        # 2026-09-23 (ver el "CAMBIO 2026-09-23" de esa sección).
         if: github.event_name == 'workflow_run'
         run: |
           set -euo pipefail
@@ -570,8 +585,10 @@ jobs:
               echo "(\`$PUNTA_ACTUAL\`). Esto ocurre al reejecutar (rerun) un CI antiguo:"
               echo "main avanzó mientras tanto. No se despliega."
               echo ""
-              echo "Para desplegar este commit de todas formas, usa la vía manual"
-              echo "(workflow_dispatch) — break-glass explícito, con motivo."
+              echo "Para desplegar la punta actual, relanza el CI de main o usa la vía"
+              echo "manual (workflow_dispatch) sobre main. Para volver a un commit"
+              echo "anterior, haz un revert en main: la vía manual ya no despliega"
+              echo "commits que no sean la punta (imagen firmada en CI, 2026-09-23)."
             } >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi

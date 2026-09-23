@@ -114,6 +114,17 @@ D4="$(nuevo_dir)"; cp "$D1"/* "$D4"/
 printf 'revision=%s\nsha256=%s\nextra=1\n' "$SHA_OK" "$(sha256sum "$TMP/tarball" | cut -d' ' -f1)" > "$D4/imagen.manifiesto"
 COSIGN="$COSIGN_FALSO" espera_rechazo_verificacion "manifiesto con una línea de más" "$D4" "$SHA_OK" "no tiene la forma esperada"
 
+D5="$(nuevo_dir)"; cp "$D1"/* "$D5"/
+printf 'x\nrevision=%s\nsha256=%s\n' "$SHA_OK" "$(sha256sum "$TMP/tarball" | cut -d' ' -f1)" > "$D5/imagen.manifiesto"
+COSIGN="$COSIGN_FALSO" espera_rechazo_verificacion "manifiesto con una línea previa" "$D5" "$SHA_OK" "no tiene la forma esperada"
+
+echo "=== Caso 4b: espacio en disco antes de recibir ==="
+if ESPACIO_LIBRE_FORZADO=$(( MAX_BYTES_IMAGEN + RESERVA_BYTES_DISCO - 1 )) exigir_espacio_para_recibir "$TMP" 2>/dev/null; then
+    fallo "aceptó recibir sin espacio para la imagen más la reserva"
+fi
+ESPACIO_LIBRE_FORZADO=$(( MAX_BYTES_IMAGEN + RESERVA_BYTES_DISCO )) exigir_espacio_para_recibir "$TMP" || fallo "rechazó con espacio suficiente"
+echo "OK: exige MAX_BYTES_IMAGEN + reserva libres antes de recibir"
+
 echo "=== Caso 5: cargar_imagen_verificada comprueba etiqueta y revisión ==="
 docker() {
     case "$1" in
@@ -132,32 +143,62 @@ if DOCKER_LOAD_SALIDA=1 cargar_imagen_verificada "$D1" "$SHA_OK" 2>/dev/null; th
 unset -f docker
 echo "OK: etiqueta caemanager:<sha> y revisión OCI exigidas"
 
-echo "=== Caso 6: orden en main() — recibir, resolver, verificar, liberar disco, cargar, up sin build ==="
-linea() { grep -n -- "$1" "$FICHERO_FUENTE" | head -1 | cut -d: -f1; }
-L_RECIBIR="$(linea '^recibir_imagen_firmada "\$DIR_IMAGEN" || exit 1$')"
-L_RESOLVER="$(linea '^bash /opt/talveg/deploy/resolve-deploy-sha.sh')"
-L_VERIFICAR="$(linea '^verificar_firma_imagen "\$DIR_IMAGEN" "\$SHA" || exit 1$')"
-L_LIBERAR="$(linea '^bash /opt/talveg/deploy/liberar-disco.sh$')"
-L_CARGAR="$(linea 'if ! cargar_imagen_verificada "\$DIR_IMAGEN" "\$SHA"')"
-L_UP="$(linea 'docker compose "\${args\[@\]}" up -d --wait --wait-timeout 180 --no-build')"
-for v in L_RECIBIR L_RESOLVER L_VERIFICAR L_LIBERAR L_CARGAR L_UP; do
-    [ -n "${!v}" ] || fallo "no se localizó $v en ci-deploy.sh"
+echo "=== Caso 6: orden en main() — SHA, disco, recibir, verificar, y solo entonces checkout, cargar y up sin build ==="
+# Anclas de línea completa: un comentario que mencione la misma orden no cuenta.
+linea() { grep -n -x -- "$1" "$FICHERO_FUENTE" | head -1 | cut -d: -f1; }
+L_SHA="$(linea 'if ! \[\[ "\${SHA:-}" =~ ^\[0-9a-f\]{40}\$ \]\]; then')"
+L_LIBERAR="$(linea 'bash /opt/talveg/deploy/liberar-disco.sh < /dev/null')"
+L_ESPACIO="$(linea 'exigir_espacio_para_recibir /var/tmp || exit 1')"
+L_MKTEMP="$(linea 'DIR_IMAGEN="\$(mktemp -d /var/tmp/ci-deploy-imagen.XXXXXX)"')"
+L_TRAP="$(linea "trap 'rm -rf \"\\\$DIR_IMAGEN\"' EXIT")"
+L_RECIBIR="$(linea 'recibir_imagen_firmada "\$DIR_IMAGEN" || exit 1')"
+L_VERIFICAR="$(linea 'verificar_firma_imagen "\$DIR_IMAGEN" "\$SHA" || exit 1')"
+L_RESOLVER="$(linea 'bash /opt/talveg/deploy/resolve-deploy-sha.sh /opt/talveg "\$SHA" < /dev/null')"
+L_CARGAR="$(linea '    if ! cargar_imagen_verificada "\$DIR_IMAGEN" "\$SHA"; then')"
+L_EXPORT="$(linea '    export IMAGEN_TAG="\$SHA"')"
+L_UP="$(linea '    if ! docker compose "\${args\[@\]}" up -d --wait --wait-timeout 180 --no-build; then')"
+for v in L_SHA L_LIBERAR L_ESPACIO L_MKTEMP L_TRAP L_RECIBIR L_VERIFICAR L_RESOLVER L_CARGAR L_EXPORT L_UP; do
+    [ -n "${!v}" ] || fallo "no se localizó $v (línea exacta) en ci-deploy.sh"
 done
-[ "$L_RECIBIR" -lt "$L_RESOLVER" ] || fallo "stdin se lee después de resolve-deploy-sha.sh ($L_RECIBIR >= $L_RESOLVER)"
-[ "$L_RESOLVER" -lt "$L_VERIFICAR" ] || fallo "se verifica antes de validar el SHA ($L_VERIFICAR <= $L_RESOLVER)"
-[ "$L_VERIFICAR" -lt "$L_LIBERAR" ] || fallo "se libera disco antes de verificar la firma"
-[ "$L_LIBERAR" -lt "$L_CARGAR" ] || fallo "liberar-disco.sh (docker image prune -af) corre después de cargar: borraría la imagen"
-[ "$L_CARGAR" -lt "$L_UP" ] || fallo "el up va antes de cargar la imagen"
+ordenadas=(L_SHA L_LIBERAR L_ESPACIO L_MKTEMP L_TRAP L_RECIBIR L_VERIFICAR L_RESOLVER L_CARGAR L_EXPORT L_UP)
+for (( k=1; k<${#ordenadas[@]}; k++ )); do
+    a="${ordenadas[k-1]}"; b="${ordenadas[k]}"
+    [ "${!a}" -lt "${!b}" ] || fallo "$a (${!a}) no va antes que $b (${!b})"
+done
+[ "$L_TRAP" -eq $(( L_MKTEMP + 1 )) ] || fallo "el trap de limpieza no va justo tras el mktemp"
 if grep -nE 'docker compose .*[[:space:]]build([[:space:]]|$)' "$FICHERO_FUENTE" | grep -v '^[0-9]*:[[:space:]]*#'; then
     fallo "ci-deploy.sh vuelve a compilar en el VPS"
 fi
-echo "OK: recibir ($L_RECIBIR) < resolver ($L_RESOLVER) < verificar ($L_VERIFICAR) < liberar ($L_LIBERAR) < cargar ($L_CARGAR) < up --no-build ($L_UP); sin build en el VPS"
+echo "OK: SHA < liberar disco < espacio < mktemp+trap < recibir < verificar < checkout < cargar < export < up --no-build; sin build en el VPS"
 
-echo "=== Caso 7: los dos compose arrancan caemanager:\${IMAGEN_TAG} en app y migrador ==="
-for f in docker-compose.produccion.yml docker-compose.staging.yml; do
-    n="$(grep -c '^    image: caemanager:\${IMAGEN_TAG:-local}$' "$DIR_GUION/local/$f")"
-    [ "$n" -eq 2 ] || fallo "$f tiene $n servicios con image: caemanager:\${IMAGEN_TAG:-local} (se esperan 2: app y migrador)"
+echo "=== Caso 6b: el productor REAL de deploy.yml es compatible con recibir_imagen_firmada ==="
+# Se extrae de deploy.yml el bloque `{ ... } | ssh` de cada job y se ejecuta
+# tal cual, con `ssh` sustituido por recibir_imagen_firmada.
+WORKFLOW="$DIR_GUION/../.github/workflows/deploy.yml"
+mapfile -t BLOQUES < <(awk '/^          \{$/{b="";on=1;next} on&&/^          \} \| ssh /{print b;on=0;next} on{sub(/^            /,"");b=b $0 ";"}' "$WORKFLOW")
+[ "${#BLOQUES[@]}" -eq 2 ] || fallo "se esperaban 2 productores (staging y producción) en deploy.yml; hay ${#BLOQUES[@]}"
+mkdir -p "$TMP/runner/imagen-despliegue"
+cp "$TMP/bundle" "$TMP/runner/imagen-despliegue/imagen.sigstore.json"
+cp "$TMP/manifiesto" "$TMP/runner/imagen-despliegue/imagen.manifiesto"
+cp "$TMP/tarball" "$TMP/runner/imagen-despliegue/imagen.tar.gz"
+for bloque in "${BLOQUES[@]}"; do
+    D6="$(nuevo_dir)"
+    ( cd "$TMP/runner" && eval "{ $bloque }" ) | recibir_imagen_firmada "$D6" > /dev/null
+    cmp -s "$D6/imagen.sigstore.json" "$TMP/bundle" && cmp -s "$D6/imagen.manifiesto" "$TMP/manifiesto" && cmp -s "$D6/imagen.tar.gz" "$TMP/tarball" \
+        || fallo "el productor de deploy.yml no produce lo que recibir_imagen_firmada espera: $bloque"
 done
-echo "OK: app y migrador de ambos stacks usan la imagen cargada"
+echo "OK: los dos productores de deploy.yml llegan idénticos al VPS"
+
+echo "=== Caso 7: los compose del VPS arrancan caemanager:\${IMAGEN_TAG} sin poder compilar ==="
+for f in docker-compose.produccion.yml docker-compose.staging.yml; do
+    n="$(grep -c '^    image: caemanager:\${IMAGEN_TAG:-sin-etiqueta}$' "$DIR_GUION/local/$f")"
+    [ "$n" -eq 2 ] || fallo "$f tiene $n servicios con image: caemanager:\${IMAGEN_TAG:-sin-etiqueta} (se esperan 2: app y migrador)"
+    n="$(grep -c '^    pull_policy: never$' "$DIR_GUION/local/$f")"
+    [ "$n" -eq 2 ] || fallo "$f tiene $n pull_policy: never (se esperan 2)"
+    if grep -n '^    build:' "$DIR_GUION/local/$f"; then
+        fallo "$f vuelve a tener build: — un up manual compilaría en el VPS"
+    fi
+done
+echo "OK: app y migrador de ambos stacks usan la imagen cargada y no pueden compilar"
 
 echo "TODAS LAS PRUEBAS PASARON"

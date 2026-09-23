@@ -778,6 +778,19 @@ recibir_imagen_firmada() {
     echo "Imagen recibida: ${bytes} bytes."
 }
 
+# Antes de escribir hasta MAX_BYTES_IMAGEN en $1: exige ese espacio libre más
+# una reserva, para que recibir la imagen nunca sea lo que llene el disco en el
+# que escribe PostgreSQL. ESPACIO_LIBRE_FORZADO solo existe para el test.
+RESERVA_BYTES_DISCO=$(( 2 * 1024 * 1024 * 1024 ))
+exigir_espacio_para_recibir() {
+    local dir="$1" libre
+    libre="${ESPACIO_LIBRE_FORZADO:-$(df --output=avail -B1 "$dir" | tail -1 | tr -dc '0-9')}"
+    if [ -z "$libre" ] || [ "$libre" -lt $(( MAX_BYTES_IMAGEN + RESERVA_BYTES_DISCO )) ]; then
+        echo "::error::no hay espacio en $dir para recibir la imagen (libres: ${libre:-?} bytes; hacen falta $(( MAX_BYTES_IMAGEN + RESERVA_BYTES_DISCO ))) — no se despliega." >&2
+        return 1
+    fi
+}
+
 # Verifica, en este orden y sin atajos: la firma del manifiesto contra la
 # identidad fijada arriba y el SHA pedido; que el manifiesto sea exactamente
 # las dos líneas esperadas y nombre ese SHA; y que el tarball recibido tenga el
@@ -964,29 +977,43 @@ if [ "$ENTORNO" = "secretos" ]; then
     exit 0
 fi
 
-# Lo primero, antes de que ningún otro comando pueda leer de stdin: vaciarlo en
-# un directorio temporal (ver recibir_imagen_firmada). La firma se verifica más
-# abajo, cuando resolve-deploy-sha.sh ya validó el SHA.
-DIR_IMAGEN="$(mktemp -d /var/tmp/ci-deploy-imagen.XXXXXX)"
-trap 'rm -rf "$DIR_IMAGEN"' EXIT
-recibir_imagen_firmada "$DIR_IMAGEN" || exit 1
+# Orden deliberado (revisión adversarial del 2026-09-23): NADA toca el
+# checkout de /opt/talveg hasta que la firma de la imagen está verificada.
+# resolve-deploy-sha.sh hace `git checkout --detach`, y ese checkout incluye
+# ESTE fichero, que es el comando forzado: si el checkout fuera antes que la
+# firma, quien tuviera solo la clave SSH podría pedir un commit antiguo de main
+# con una firma basura, fallar la verificación y dejar en disco el
+# ci-deploy.sh anterior a este cambio — que en la siguiente llamada volvería
+# a compilar en el VPS. Un commit anterior a este cambio no tiene firma del
+# workflow (el job `imagen` no existía), así que verificar primero lo cierra.
+if ! [[ "${SHA:-}" =~ ^[0-9a-f]{40}$ ]]; then
+    echo "SHA inválido: '${SHA:-}' — se esperaba un hash completo de 40 caracteres hexadecimales" >&2
+    exit 1
+fi
 
-bash /opt/talveg/deploy/resolve-deploy-sha.sh /opt/talveg "${SHA:-}"
-
-verificar_firma_imagen "$DIR_IMAGEN" "$SHA" || exit 1
-
-# Antes de cargar la imagen: mantener el disco por debajo del umbral. Un
-# disco lleno deja a PostgreSQL sin poder escribir, lo que tumba produccion
-# aunque nadie haya desplegado nada. Paso el 2026-08-26 y otra vez el
-# 2026-08-29, con 23 GB de cache de build sin usar acumulada porque este
-# guion no la retiraba nunca. Va ANTES de `docker load` a propósito:
-# liberar-disco.sh hace `docker image prune -af`, que borraría la imagen
-# recién cargada mientras ningún contenedor la use todavía.
+# Mantener el disco por debajo del umbral ANTES de recibir la imagen (hasta
+# MAX_BYTES_IMAGEN en /var/tmp) y antes de `docker load`. Un disco lleno deja
+# a PostgreSQL sin poder escribir, lo que tumba produccion aunque nadie haya
+# desplegado nada. Paso el 2026-08-26 y otra vez el 2026-08-29, con 23 GB de
+# cache de build sin usar acumulada porque este guion no la retiraba nunca.
+# Tiene que ir antes de `docker load`: liberar-disco.sh hace `docker image
+# prune -af`, que borraría la imagen recién cargada mientras ningún contenedor
+# la use todavía. `< /dev/null`: stdin es la imagen y nadie más debe leerlo.
 #
 # Si tras liberar el disco sigue critico, liberar-disco.sh corta aqui: mejor
 # un despliegue que no arranca con un mensaje claro que uno que se rompe a
 # medias y se lleva la base de datos por delante.
-bash /opt/talveg/deploy/liberar-disco.sh
+bash /opt/talveg/deploy/liberar-disco.sh < /dev/null
+exigir_espacio_para_recibir /var/tmp || exit 1
+
+# Recibir (vaciar stdin en un directorio temporal) y verificar la firma, en
+# este orden y antes del checkout (ver arriba).
+DIR_IMAGEN="$(mktemp -d /var/tmp/ci-deploy-imagen.XXXXXX)"
+trap 'rm -rf "$DIR_IMAGEN"' EXIT
+recibir_imagen_firmada "$DIR_IMAGEN" || exit 1
+verificar_firma_imagen "$DIR_IMAGEN" "$SHA" || exit 1
+
+bash /opt/talveg/deploy/resolve-deploy-sha.sh /opt/talveg "$SHA" < /dev/null
 
 cd /opt/talveg/deploy/local
 

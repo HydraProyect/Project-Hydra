@@ -24,10 +24,10 @@ COPY src/CaeManager.Web/CaeManager.Web.csproj src/CaeManager.Web/
 # -p:UseSharedCompilation=false (REC-199, apagón de producción 2026-09-04):
 # sin esto, `dotnet restore`/`publish` levantan VBCSCompiler como servidor
 # de compilación persistente entre los cinco proyectos — es exactamente el
-# proceso que el kernel mató por OOM esa noche (anon-rss 2,1 GB). La
-# contención real del incidente es el techo de memoria del paso de build en
-# ci-deploy.sh; esto es una segunda línea, gratuita, que apaga el propio
-# mecanismo que acumuló ese estado.
+# proceso que el kernel mató por OOM esa noche (anon-rss 2,1 GB). Desde el
+# 2026-09-23 esta imagen ya no se construye en el VPS sino en el runner de
+# GitHub Actions (job `imagen` de deploy.yml); el flag se conserva porque no
+# cambia los binarios y sigue acotando el pico de memoria del build.
 RUN dotnet restore src/CaeManager.Web/CaeManager.Web.csproj -r linux-x64 -p:UseSharedCompilation=false
 
 COPY src/ src/
@@ -46,8 +46,9 @@ COPY src/ src/
 #
 # -p:RunAnalyzers=false (despliegue a staging roto desde 2026-09-21): el csc
 # de CaeManager.Migrations.PostgreSQL (157 Designer.cs, ~42 MB de C#) muere
-# con exit 137 dentro del techo de memoria del build (LIMITE_MEMORIA_BUILD en
-# deploy/ci-deploy.sh) cuando además ejecuta los analizadores; el último build
+# con exit 137 dentro del techo de memoria del build que entonces corría en el
+# VPS (LIMITE_MEMORIA_BUILD, retirado el 2026-09-23 al pasar el build al runner)
+# cuando además ejecuta los analizadores; el último build
 # que pasó tenía dos migraciones menos. Medido en local: pico de csc ~2,7 GB
 # con analizadores y ~2,1 GB sin ellos, y bajo un heap limitado como en el VPS
 # compila siempre sin ellos y falla por OutOfMemory en 4 de 6 con ellos. El
