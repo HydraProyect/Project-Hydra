@@ -7,13 +7,17 @@
     consume Bandeja, pero está pensado para Historial/Auditoría más adelante.
 *@
 @using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId
+@using CaeManager.Application.Comunicaciones.Queries.ObtenerNotasInternasConversacion
 @using CaeManager.Domain.Comunicaciones
+@using CaeManager.Web.Features.Comunicaciones.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosNotasInternas> TextosNotas
 
 <div class="timeline-mensajes">
     @{ DateTime? fechaSeparadorAnterior = null; }
     @foreach (var item in ItemsOrdenados())
     {
-        var fechaUtcItem = item switch { MensajeDetalleDto m => m.FechaUtc, EventoDetalleDto e => e.FechaUtc, _ => DateTime.UtcNow };
+        var fechaUtcItem = FechaDe(item) ?? DateTime.UtcNow;
         var fechaLocal = fechaUtcItem.ToLocalTime().Date;
         if (fechaSeparadorAnterior != fechaLocal)
         {
@@ -23,7 +27,23 @@
             </div>
         }
 
-        @if (item is EventoDetalleDto evento)
+        @if (item is NotaInternaDetalleDto nota)
+        {
+            var autor = AutoresNotas.TryGetValue(nota.AutorUsuarioId, out var nombreAutor) ? nombreAutor : TextosNotas["AutorDesconocido"].Value;
+            @* Texto plano, nunca MarkupString: la nota no pasa por el saneador de HTML. *@
+            <div class="timeline-nota-interna-fila">
+                <span class="timeline-avatar" title="@autor" aria-hidden="true">@ObtenerIniciales(autor)</span>
+                <div class="timeline-nota-interna">
+                    <div class="timeline-mensaje-cabecera">
+                        <span class="timeline-mensaje-remitente">@autor</span>
+                        <Badge Tono="TonoBadge.Info" Tamano="TamanoBadge.Pequeno">@TextosNotas["EtiquetaNotaInterna"]</Badge>
+                        <span class="timeline-mensaje-fecha">@FormatearFechaRelativa(nota.FechaUtc)</span>
+                    </div>
+                    <div class="timeline-nota-interna-cuerpo">@nota.Texto</div>
+                </div>
+            </div>
+        }
+        else if (item is EventoDetalleDto evento)
         {
             <div class="timeline-evento-fila">
                 <span class="timeline-evento-icono" aria-hidden="true">
@@ -146,6 +166,12 @@
     [Parameter, EditorRequired] public IReadOnlyList<MensajeDetalleDto> Mensajes { get; set; } = [];
     [Parameter, EditorRequired] public IReadOnlyList<ParticipanteDetalleDto> Participantes { get; set; } = [];
     [Parameter] public IReadOnlyList<EventoDetalleDto> Eventos { get; set; } = [];
+
+    /// <summary>Solo llega con contenido a los roles operativos (ver ObtenerNotasInternasConversacionQuery); para el resto es lista vacía.</summary>
+    [Parameter] public IReadOnlyList<NotaInternaDetalleDto> NotasInternas { get; set; } = [];
+
+    /// <summary>Nombre visible de cada autor de nota; un autor que ya no esté en el directorio del tenant se pinta con un rótulo genérico.</summary>
+    [Parameter] public IReadOnlyDictionary<Guid, string> AutoresNotas { get; set; } = new Dictionary<Guid, string>();
     [Parameter] public EventCallback<Guid> OnActualizarDocumentoDesdeAdjunto { get; set; }
     [Parameter] public EventCallback<Guid> OnConfirmarRuido { get; set; }
 
@@ -162,10 +188,18 @@
         _ => "Ruido"
     };
 
-    /// <summary>Mezcla Mensajes y Eventos en una sola cronología — ambos DTOs son inmutables y llegan ya ordenados por su fuente, pero mezclados hace falta un único OrderBy.</summary>
+    /// <summary>Mezcla Mensajes, Eventos y notas internas en una sola cronología — los tres DTOs son inmutables y llegan ya ordenados por su fuente, pero mezclados hace falta un único OrderBy.</summary>
     private IEnumerable<object> ItemsOrdenados() =>
-        Mensajes.Cast<object>().Concat(Eventos.Cast<object>())
-            .OrderBy(item => item switch { MensajeDetalleDto m => m.FechaUtc, EventoDetalleDto e => e.FechaUtc, _ => DateTime.MinValue });
+        Mensajes.Cast<object>().Concat(Eventos.Cast<object>()).Concat(NotasInternas.Cast<object>())
+            .OrderBy(item => FechaDe(item) ?? DateTime.MinValue);
+
+    private static DateTime? FechaDe(object item) => item switch
+    {
+        MensajeDetalleDto m => m.FechaUtc,
+        EventoDetalleDto e => e.FechaUtc,
+        NotaInternaDetalleDto n => n.FechaUtc,
+        _ => null
+    };
 
     /// <summary>Dos letras del correo (local-part) o del teléfono para el avatar — sin depender de un nombre completo, que este DTO no siempre trae.</summary>
     private static string ObtenerIniciales(string remitente)
