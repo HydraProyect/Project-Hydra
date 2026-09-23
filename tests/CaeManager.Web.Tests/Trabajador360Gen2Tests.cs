@@ -1,3 +1,4 @@
+using CaeManager.Infrastructure.Identity;
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignaciones;
@@ -344,6 +345,33 @@ public class Trabajador360Gen2Tests : BunitContext
         gestiones.TextContent.Should().Contain("Reconocimiento médico").And.Contain("Completar");
         mediador.Enviadas.OfType<ObtenerGestionesQuery>().Should().ContainSingle()
             .Which.Should().BeEquivalentTo(new { TrabajadorId = id, Estado = EstadoGestion.Pendiente });
+    }
+
+    [Fact]
+    public async Task Consulta_ve_documentos_asignaciones_y_gestiones_sin_que_se_le_ofrezca_subir_dar_de_baja_ni_completar()
+    {
+        // Subir/Renovar/Ver abre DrawerGestionDocumento (solo crea o renueva); dar de baja y
+        // completar son DarDeBajaAsignacionesCommand y CompletarGestionCommand. Los tres acaban
+        // en ICommand que AutorizacionEscrituraBehavior deniega a Consulta.
+        this.ConRolDeEscritura(Roles.Consulta);
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        var (norte, berriz) = Escena();
+        mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
+        mediador.Centros[id] = [norte, berriz];
+        mediador.Gestiones[id] = [Gestion(id, "Reconocimiento médico", "Centro Norte")];
+
+        var cut = Renderizar(id);
+        await cut.FindAll(".trabajador360-centro-disparador")[0].ClickAsync(new MouseEventArgs());
+
+        cut.Find(".trabajador360-centro-detalle").TextContent.Should().Contain("Formación PRL — 20 h",
+            "los documentos exigidos y su estado son lectura: se ven");
+        cut.Find("[aria-label='Asignaciones activas']").TextContent.Should().Contain("Centro Norte");
+        cut.Find("[aria-label='Gestiones pendientes']").TextContent.Should().Contain("Reconocimiento médico");
+        cut.FindAll(".columna-accion button").Should().BeEmpty(
+            "Subir, Renovar, Ver, Dar de baja y Completar son las únicas acciones de fila y todas escriben");
+        cut.FindAll(".trabajador360-centro-detalle button.enlace-nombre-fila").Should().BeEmpty(
+            "el nombre del documento abre el mismo drawer de gestión: a Consulta se le pinta como texto");
     }
 
     /// <summary>

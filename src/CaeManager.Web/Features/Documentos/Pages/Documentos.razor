@@ -124,9 +124,12 @@
                         }
                     </CampoSelect>
                 }
-                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _mostrarGuardarFiltro = true">
-                    Guardar filtro
-                </Boton>
+                @* GuardarFiltroCommand es ICommand: AutorizacionEscrituraBehavior lo deniega a Consulta. *@
+                <SoloConEscritura>
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _mostrarGuardarFiltro = true">
+                        Guardar filtro
+                    </Boton>
+                </SoloConEscritura>
             </div>
 
             <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
@@ -250,8 +253,13 @@
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
 
-<BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
-                    OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />
+@* La única acción del lote es eliminar (ICommand que AutorizacionEscrituraBehavior deniega a
+   Consulta): la barra no se le ofrece. La palanca de selección múltiple sigue visible porque
+   vive en BarraHerramientasLista, compartida, y seleccionar no escribe. *@
+<SoloConEscritura>
+    <BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
+                        OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />
+</SoloConEscritura>
 
 <DialogoConfirmacion
     Visible="_confirmarEliminarLoteVisible"

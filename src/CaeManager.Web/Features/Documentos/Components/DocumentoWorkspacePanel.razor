@@ -83,9 +83,12 @@ else
                             }
                         </div>
                     </div>
-                    <div class="acciones-documento-360">
-                        <Boton Variante="VarianteBoton.Secundario" OnClick="IniciarEdicionInformacion">Renovar</Boton>
-                    </div>
+                    @* RenovarDocumentoCommand es ICommand: AutorizacionEscrituraBehavior lo deniega a Consulta. *@
+                    <SoloConEscritura>
+                        <div class="acciones-documento-360">
+                            <Boton Variante="VarianteBoton.Secundario" OnClick="IniciarEdicionInformacion">Renovar</Boton>
+                        </div>
+                    </SoloConEscritura>
                 }
                 break;
 

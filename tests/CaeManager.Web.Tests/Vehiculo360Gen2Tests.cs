@@ -1,3 +1,4 @@
+using CaeManager.Infrastructure.Identity;
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Vehiculos.Commands.EditarVehiculo;
@@ -26,6 +27,9 @@ public class Vehiculo360Gen2Tests : BunitContext
         JSInterop.Mode = JSRuntimeMode.Loose;
         // Los textos de Vehículos salen de IStringLocalizer<TextosVehiculos>.
         Services.AddLocalization();
+        // Los disparadores de escritura van en SoloConEscritura (AuthorizeView): por
+        // defecto un rol que escribe; los tests de Consulta lo sustituyen.
+        this.ConRolDeEscritura();
     }
 
     private sealed class MediadorFalso : IMediator
@@ -91,6 +95,23 @@ public class Vehiculo360Gen2Tests : BunitContext
     private IReadOnlyList<ToastMensaje> Toasts => Services.GetRequiredService<ToastService>().Mensajes;
 
     // --- VehiculoWorkspacePanel -----------------------------------------------------------------
+
+    [Fact]
+    public void Consulta_ve_la_ficha_del_vehiculo_sin_que_se_le_ofrezca_editarla()
+    {
+        // Editar acaba en EditarVehiculoCommand, ICommand que AutorizacionEscrituraBehavior
+        // deniega a Consulta: ofrecerlo era enseñar un botón que siempre falla.
+        this.ConRolDeEscritura(Roles.Consulta);
+        var id = Guid.NewGuid();
+        var m = Registrar(new MediadorFalso());
+        m.Detalles[id] = Detalle(id, "Furgoneta de obra");
+
+        var cut = RenderizarPanel(id);
+
+        cut.Find(".workspace-titulo-entidad").TextContent.Trim().Should().Be("Furgoneta de obra",
+            "la ficha es lectura: se ve");
+        cut.FindAll("button").Where(x => x.GetAttribute("aria-label") == "Editar información del vehículo").Should().BeEmpty();
+    }
 
     [Fact]
     public async Task Retirar_el_panel_cancela_todas_sus_consultas()

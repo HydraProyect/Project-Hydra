@@ -1,5 +1,6 @@
 #!/bin/bash
-# Mantiene el disco del VPS por debajo de un umbral antes de construir.
+# Mantiene el disco del VPS por debajo de un umbral antes de recibir y cargar
+# la imagen de un despliegue (hasta el 2026-09-23, antes de construirla).
 #
 # Nace de un incidente real y repetido: el 2026-08-26 y otra vez el 2026-08-29
 # el disco llego al 100% y tumbo el servicio. La segunda vez habia 23 GB de
@@ -54,32 +55,23 @@ liberar() {
   #
   # `-a` sin filtro de edad ya implica "sin usar": Docker nunca deja que
   # `image prune` borre una imagen referenciada por un contenedor (parado o
-  # corriendo), y este guion corre SIEMPRE antes de `docker compose build`
-  # (ver ci-deploy.sh) — el contenedor que sigue sirviendo trafico ahora
+  # corriendo), y este guion corre SIEMPRE antes de `docker load` de la
+  # imagen nueva (ver ci-deploy.sh) — el contenedor que sigue sirviendo trafico ahora
   # mismo sigue apuntando a la imagen actual, que por tanto esta en uso y
   # queda protegida sin que este guion tenga que llevar la cuenta de cual es.
   #
   # No hay ninguna imagen vieja que el rollback necesite conservar: F3
   # (tecnico/f3-analisis-pipeline-y-rollback-2026-08-25.md, repositorio de
   # negocio) deja escrito que no existe rollback automatico de aplicacion —
-  # "volver a una version anterior" es volver a desplegar un SHA anterior,
-  # que reconstruye la imagen desde el Dockerfile de ese commit, no reutiliza
-  # una imagen local ya construida. Ademas Compose no genera un tag por
-  # version (build sin `image:` propio): cada build sustituye el mismo tag,
-  # asi que no hay forma de identificar "las N anteriores" por nombre — solo
-  # existirian como IDs sueltos, sin ninguna referencia que las use.
+  # "volver a una version anterior" es volver a desplegar un SHA anterior.
+  # Desde el 2026-09-23 cada despliegue carga `caemanager:<sha>`, firmada en
+  # CI, y un rollback llega igual: con su propia imagen firmada, nunca
+  # reutilizando una local. Las etiquetas `caemanager:<sha>` que ya no usa
+  # ningun contenedor son justo lo que esta poda debe llevarse.
   #
-  # Tradeoff aceptado, revisado por Codex: el Dockerfile es multi-stage
-  # (`AS build` / `AS final`) y el build corre con DOCKER_BUILDKIT=0 (ver
-  # ci-deploy.sh) — con el builder clasico, la imagen intermedia de la etapa
-  # `build` queda sin tag (dangling) igual que las imagenes viejas de verdad,
-  # asi que esta poda tambien se la lleva por delante cuando corre. Es
-  # exactamente la misma cache que `docker builder prune` no toca (esa orden
-  # gestiona la cache de BuildKit, vacia aqui porque el build no lo usa). El
-  # siguiente build pierde ese calentamiento y tarda mas — no es un problema
-  # de correccion ni de rollback, y solo ocurre cuando el disco ya cruzo el
-  # umbral: en ese momento, un build mas lento es preferible a repetir el
-  # incidente de disco.
+  # Hasta el 2026-09-23 esta poda tambien se llevaba la imagen intermedia
+  # del build multi-stage que corria en el VPS; ya no se compila aqui, asi
+  # que no queda cache de build que perder.
   docker image prune -af || true
 }
 
@@ -95,14 +87,13 @@ if [ "$uso" -ge "$UMBRAL" ]; then
 fi
 
 # Si despues de liberar sigue critico, se para AQUI y con un mensaje que se
-# entiende, en vez de dejar que el build falle mas adelante con errores de
-# NuGet que no mencionan el disco por ninguna parte.
+# entiende, antes de escribir la imagen recibida en un disco casi lleno.
 if [ "$uso" -ge "$CRITICO" ]; then
   echo "El disco sigue al ${uso}%, por encima del critico (${CRITICO}%)." >&2
-  echo "No se continua con el despliegue: un build en un disco lleno corrompe" >&2
-  echo "descargas de NuGet y puede dejar a PostgreSQL sin poder escribir." >&2
+  echo "No se continua con el despliegue: recibir y cargar la imagen en un disco" >&2
+  echo "lleno puede dejar a PostgreSQL sin poder escribir." >&2
   echo "Hace falta intervencion manual — mira 'docker system df' y que ocupa /." >&2
   exit 1
 fi
 
-echo "Disco en condiciones para construir."
+echo "Disco en condiciones para desplegar."

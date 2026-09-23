@@ -1,4 +1,5 @@
 using Bunit;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Common;
 using CaeManager.Application.Incidencias.Commands.EditarIncidencia;
@@ -455,6 +456,27 @@ public class IncidenciasGen2Tests : BunitContext
         cut.Find("input[aria-label^='Seleccionar la incidencia de Centro Alfa']").HasAttribute("checked").Should().BeTrue(
             "la fila marcada con x tiene que verse marcada, no quedar en una selección que la tabla no enseña");
         cut.Find(".barra-acciones-lote-cantidad").TextContent.Should().Contain("1 seleccionado");
+    }
+
+    [Theory]
+    [InlineData(Roles.GestorCae, true)]
+    [InlineData(Roles.Consulta, false)]
+    public async Task Eliminar_seleccionados_solo_se_ofrece_a_los_roles_con_escritura(string rol, bool seOfrece)
+    {
+        // EliminarIncidenciasCommand es ICommand que AutorizacionEscrituraBehavior deniega a
+        // Consulta. El caso con escritura es el control de que la selección llegó a hacerse.
+        this.ConRolDeEscritura(rol);
+        var mediador = new MediadorControlado { Filas = [Fila(IdAlfa, "Centro Alfa")] };
+        var cut = Renderizar(mediador);
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro Alfa"));
+
+        var atajos = cut.FindComponent<AtajosListaTeclado>();
+        await cut.InvokeAsync(() => atajos.Instance.RecibirAtajo("j"));
+        await cut.InvokeAsync(() => atajos.Instance.RecibirAtajo("x"));
+
+        cut.Find("input[aria-label^='Seleccionar la incidencia de Centro Alfa']").HasAttribute("checked").Should().BeTrue();
+        cut.FindAll(".barra-acciones-lote button").Any(b => b.TextContent.Trim() == "Eliminar seleccionados")
+            .Should().Be(seOfrece);
     }
 
     [Fact]

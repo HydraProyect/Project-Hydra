@@ -5167,6 +5167,80 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("AsignacionesOperacion", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Operaciones.SolicitudIncorporacionCartera", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AsignacionCarteraId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AsignacionOperacionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AsignacionOperadorDelegadoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Mensaje")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("MotivoAnulacion")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("OperadorTenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PropietarioTenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ResueltaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ResueltaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("RevocadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("RevocadaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SolicitanteUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AsignacionCarteraId");
+
+                    b.HasIndex("SolicitanteUsuarioId");
+
+                    b.HasIndex("AsignacionOperacionId", "PropietarioTenantId");
+
+                    b.HasIndex("OperadorTenantId", "Estado");
+
+                    b.HasIndex(new[] { "AsignacionOperacionId", "SolicitanteUsuarioId" }, "IX_SolicitudesIncorporacionCartera_PendienteUnica")
+                        .IsUnique()
+                        .HasFilter("\"Estado\" = 'Pendiente'");
+
+                    b.ToTable("SolicitudesIncorporacionCartera", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Plantillas.ConocimientoDeteccionCampo", b =>
                 {
                     b.Property<Guid>("Id")
@@ -7705,6 +7779,21 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasForeignKey("PropietarioTenantId", "AmbitoTrabajadorId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Operaciones.SolicitudIncorporacionCartera", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Operaciones.AsignacionCartera", null)
+                        .WithMany()
+                        .HasForeignKey("AsignacionCarteraId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("CaeManager.Domain.Operaciones.AsignacionOperacion", null)
+                        .WithMany()
+                        .HasForeignKey("AsignacionOperacionId", "PropietarioTenantId")
+                        .HasPrincipalKey("Id", "PropietarioTenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Plantillas.DocumentoGenerado", b =>
