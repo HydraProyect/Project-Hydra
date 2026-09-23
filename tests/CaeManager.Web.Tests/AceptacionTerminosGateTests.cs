@@ -1,4 +1,6 @@
+using AngleSharp.Dom;
 using Bunit;
+using System.Globalization;
 using CaeManager.Application.Common;
 using CaeManager.Application.Cumplimiento.Commands.AceptarTerminos;
 using CaeManager.Application.Cumplimiento.Queries.ObtenerEstadoAceptacionTerminos;
@@ -76,9 +78,40 @@ public class AceptacionTerminosGateTests : BunitContext
         Services.AddScoped<IMediator, MediatorConGatePendiente>();
 
         var gate = Render<AceptacionTerminosGate>();
+        IElement BotonAceptar() => gate.FindAll("button").Single(b => b.TextContent.Trim() == "Aceptar y continuar");
+        BotonAceptar().HasAttribute("disabled").Should().BeTrue("sin marcar la casilla no se puede aceptar");
+
         gate.Find("label.campo-checkbox input[type=checkbox]").Change(true);
-        gate.FindAll("button").Single(b => b.TextContent.Trim() == "Aceptar y continuar").Click();
+        BotonAceptar().HasAttribute("disabled").Should().BeFalse();
+        BotonAceptar().Click();
 
         gate.Find(".alerta-formulario").TextContent.Should().Be("No pudimos registrar tu aceptación. Intenta nuevamente.");
+    }
+
+    [Fact]
+    public void En_ca_ES_la_formula_de_consentimiento_esta_fijada()
+    {
+        // Fija el texto legal que ve un usuario en catalán, leído de
+        // TextosCumplimiento.ca-ES.resx: editar solo ese recurso pone este
+        // test en rojo. Hoy coincide con el español por decisión (ca-ES
+        // idéntico al empezar). Cuando se traduzca, cambiar este texto es la
+        // decisión legal a revisar, no un ajuste del test.
+        var (previa, previaUi) = (CultureInfo.CurrentCulture, CultureInfo.CurrentUICulture);
+        CultureInfo.CurrentCulture = CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("ca-ES");
+        try
+        {
+            Services.AddScoped<IMediator, MediatorConGatePendiente>();
+
+            var gate = Render<AceptacionTerminosGate>();
+
+            gate.Find(".texto-consentimiento").TextContent.Should().Be(
+                $"Antes de continuar, confirma que has leído y aceptas los Términos y Condiciones de uso y la Política de Privacidad de {Marca.Nombre} — incluida la responsabilidad de tu organización sobre la gestión y el tratamiento de los datos de sus clientes y trabajadores que introduzcas en la plataforma.");
+            gate.Find("label.campo-checkbox").TextContent.Trim().Should().Be(
+                "He leído y acepto los Términos y Condiciones y la Política de Privacidad.");
+        }
+        finally
+        {
+            (CultureInfo.CurrentCulture, CultureInfo.CurrentUICulture) = (previa, previaUi);
+        }
     }
 }
