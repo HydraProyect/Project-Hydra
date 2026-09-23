@@ -7,13 +7,16 @@
 @using CaeManager.Application.Common
 @using CaeManager.Domain.Gestiones
 @using CaeManager.Web.Components.Workspace
+@using CaeManager.Web.Features.Gestiones.Recursos
+@using Microsoft.Extensions.Localization
 @using MediatR
 @using Microsoft.AspNetCore.Components.QuickGrid
 @inject IMediator Mediator
 @inject ToastService ToastService
 @inject ContextWorkspaceService WorkspaceService
+@inject IStringLocalizer<TextosGestiones> Textos
 
-<PageTitle>Gestiones — @Marca.Nombre</PageTitle>
+<PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
     @* Cabecera Gen 2 (Gestiones TALVEG.dc.html). Sin «+ Nueva gestión»: esta
@@ -26,11 +29,11 @@
        propio Bandeja.razor.cs dice que «el clic en el botón ya es la
        confirmación explícita exigida». Nada las crea solas, así que la frase
        no se copia. *@
-    <CabeceraPagina Titulo="Gestiones" Kicker="Operación" />
+    <CabeceraPagina Titulo="@Textos["TituloPagina"]" Kicker="@Textos["Kicker"]" />
 
     <div class="barra-filtros">
-        <CampoTexto Placeholder="Buscar por trabajador, centro o documento…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
-        <FiltroEstado Valor="@_filtroEstado" ValorChanged="FiltrarPorEstadoAsync" Opciones="OpcionesEstado" TextoTodos="Todas" />
+        <CampoTexto Placeholder="@Textos["PlaceholderBusqueda"]" Valor="@_busqueda" ValorChanged="BuscarAsync" />
+        <FiltroEstado Valor="@_filtroEstado" ValorChanged="FiltrarPorEstadoAsync" Opciones="OpcionesEstado" TextoTodos="@Textos["FiltroTodas"]" />
     </div>
 
     @* Lo que está filtrando se ve y se quita (mismo bloque que Empresas y
@@ -43,15 +46,15 @@
             @if (!string.IsNullOrWhiteSpace(_busqueda))
             {
                 <span class="chip-filtro">
-                    Búsqueda: "@_busqueda"
-                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarBusquedaAsync" aria-label="Quitar la búsqueda"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
+                    @Textos["ChipBusqueda", _busqueda]
+                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarBusquedaAsync" aria-label="@Textos["AriaQuitarBusqueda"]"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
                 </span>
             }
             @if (!string.IsNullOrWhiteSpace(_filtroEstado))
             {
                 <span class="chip-filtro">
                     @TextoChipEstado
-                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroEstadoAsync" aria-label="Quitar el filtro de estado"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
+                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroEstadoAsync" aria-label="@Textos["AriaQuitarFiltroEstado"]"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
                 </span>
             }
         </div>
@@ -60,9 +63,9 @@
     @if (_errorCarga)
     {
         <EstadoVacio NombreIcono="error-circulo" AcentoIcono="var(--color-danger-700)" FondoIcono="var(--color-danger-50)"
-                     Titulo="No pudimos cargar las gestiones" Descripcion="Intenta nuevamente en unos segundos.">
+                     Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDescripcion"]">
             <Accion>
-                <Boton OnClick="RecargarAsync">Reintentar</Boton>
+                <Boton OnClick="RecargarAsync">@Textos["BotonReintentar"]</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -85,38 +88,38 @@
            o el estado vacío que toque. *@
         <div style="display:@(_totalElementos == 0 ? "none" : "block")">
             <QuickGrid @ref="_grid" TGridItem="GestionListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
-                <TemplateColumn Title="Trabajador" Sortable="true" SortBy="@(GridSort<GestionListaDto>.ByAscending(g => g.TrabajadorNombre))">
+                <TemplateColumn Title="@Textos["ColumnaTrabajador"]" Sortable="true" SortBy="@(GridSort<GestionListaDto>.ByAscending(g => g.TrabajadorNombre))">
                     <button type="button" class="enlace-nombre-fila" @onclick="() => AbrirVistaRapida(context)">
                         @context.TrabajadorNombre
                     </button>
                 </TemplateColumn>
-                <TemplateColumn Title="Centro" Sortable="true" SortBy="@(GridSort<GestionListaDto>.ByAscending(g => g.CentroNombre))">
+                <TemplateColumn Title="@Textos["ColumnaCentro"]" Sortable="true" SortBy="@(GridSort<GestionListaDto>.ByAscending(g => g.CentroNombre))">
                     <button type="button" class="enlace-nombre-fila" @onclick="() => AbrirVistaRapida(context)">
                         @context.CentroNombre
                     </button>
                 </TemplateColumn>
-                <PropertyColumn Property="@(g => g.TipoDocumentoNombre)" Title="Documento" Sortable="true" />
-                <TemplateColumn Title="Estado" Align="Align.Center" Sortable="true" SortBy="@(GridSort<GestionListaDto>.ByAscending(g => g.Estado))">
+                <PropertyColumn Property="@(g => g.TipoDocumentoNombre)" Title="@Textos["ColumnaDocumento"]" Sortable="true" />
+                <TemplateColumn Title="@Textos["ColumnaEstado"]" Align="Align.Center" Sortable="true" SortBy="@(GridSort<GestionListaDto>.ByAscending(g => g.Estado))">
                     <Badge Tono="@TonoEstado(context.Estado)">@TextoEstado(context.Estado)</Badge>
                 </TemplateColumn>
-                <PropertyColumn Property="@(g => g.CreadoEnUtc)" Format="dd/MM/yyyy" Title="Creada" Sortable="true" />
-                <TemplateColumn Title="Acciones" Align="Align.End">
+                <PropertyColumn Property="@(g => g.CreadoEnUtc)" Format="dd/MM/yyyy" Title="@Textos["ColumnaCreada"]" Sortable="true" />
+                <TemplateColumn Title="@Textos["ColumnaAcciones"]" Align="Align.End">
                     <MenuAcciones>
                         <SoloConEscritura><ItemMenuAccion OnClick="() => CambiarEstadoAsync(context.Id, context.Estado != EstadoGestion.Completada)">
-                            @(context.Estado == EstadoGestion.Completada ? "Reabrir" : "Marcar completada")
+                            @(context.Estado == EstadoGestion.Completada ? Textos["AccionReabrir"] : Textos["AccionMarcarCompletada"])
                         </ItemMenuAccion></SoloConEscritura>
                         <ItemMenuAccion OnClick="() => AbrirVistaRapida(context)">
-                            Vista rápida
+                            @Textos["AccionVistaRapida"]
                         </ItemMenuAccion>
                         <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id)">
-                            Eliminar
+                            @Textos["AccionEliminar"]
                         </ItemMenuAccion></SoloConEscritura>
                     </MenuAcciones>
                 </TemplateColumn>
             </QuickGrid>
 
             <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
-                              Etiqueta="gestión(es)" PaginaActualChanged="CambiarPaginaAsync"
+                              Etiqueta="@Textos["EtiquetaPaginador"]" PaginaActualChanged="CambiarPaginaAsync"
                               TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
         </div>
 
@@ -131,19 +134,19 @@
                coincide»: no se copia, porque el filtrado es de servidor y la
                consulta solo devuelve el total ya filtrado — esta pantalla no
                sabe si hay gestiones sin filtro. *@
-            <EstadoVacio NombreIcono="filtro" Titulo="Ninguna gestión con estos filtros"
-                         Descripcion="Ninguna coincide con la búsqueda ni con el estado seleccionado.">
+            <EstadoVacio NombreIcono="filtro" Titulo="@Textos["VacioFiltrosTitulo"]"
+                         Descripcion="@Textos["VacioFiltrosDescripcion"]">
                 <Accion>
-                    <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar los filtros</Boton>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">@Textos["BotonQuitarFiltros"]</Boton>
                 </Accion>
             </EstadoVacio>
         }
         else if (_totalElementos == 0 && !_cargando)
         {
-            <EstadoVacio Titulo="Sin gestiones" Descripcion="Las gestiones se generan desde la Bandeja cuando se detecta la actualización de un documento de un trabajador, o desde el propio Trabajador/Centro.">
+            <EstadoVacio Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos["VacioDescripcion"]">
                 <Accion>
                     @* /bandeja es «Mi trabajo» en el menú (NavMenu.razor). *@
-                    <Boton Variante="VarianteBoton.Secundario" Href="bandeja">Ir a Mi trabajo →</Boton>
+                    <Boton Variante="VarianteBoton.Secundario" Href="bandeja">@Textos["BotonIrAMiTrabajo"]</Boton>
                 </Accion>
             </EstadoVacio>
         }
@@ -168,44 +171,44 @@
    del Trabajador, y a eso lleva el enlace. *@
 @if (_vistaRapida is { } vista)
 {
-    <aside class="vista-rapida-gestion" role="complementary" aria-label="Vista rápida de la gestión">
+    <aside class="vista-rapida-gestion" role="complementary" aria-label="@Textos["AriaVistaRapida"]">
         <div class="cabecera-vista-rapida-gestion">
             <div class="texto-cabecera-vista-rapida-gestion">
-                <span class="etiqueta-vista-rapida-gestion">Vista rápida · Gestión</span>
+                <span class="etiqueta-vista-rapida-gestion">@Textos["EtiquetaVistaRapida"]</span>
                 <span class="nombre-vista-rapida-gestion">@vista.TrabajadorNombre</span>
                 <span class="meta-vista-rapida-gestion">
                     <Badge Tono="@TonoEstado(vista.Estado)" Tamano="TamanoBadge.Pequeno">@TextoEstado(vista.Estado)</Badge>
-                    <span>creada el @vista.CreadoEnUtc.ToString("dd/MM/yyyy")</span>
+                    <span>@Textos["VistaRapidaCreadaEl", vista.CreadoEnUtc.ToString("dd/MM/yyyy")]</span>
                 </span>
             </div>
-            <button type="button" class="boton-cerrar-vista-rapida-gestion" aria-label="Cerrar la vista rápida" @onclick="CerrarVistaRapida"><Icono Nombre="cerrar" /></button>
+            <button type="button" class="boton-cerrar-vista-rapida-gestion" aria-label="@Textos["AriaCerrarVistaRapida"]" @onclick="CerrarVistaRapida"><Icono Nombre="cerrar" /></button>
         </div>
 
         <div class="cuerpo-vista-rapida-gestion">
             <div class="rejilla-vista-rapida-gestion">
-                <div class="celda-vista-rapida-gestion"><span>Centro</span><strong>@vista.CentroNombre</strong></div>
-                <div class="celda-vista-rapida-gestion"><span>Documento</span><strong>@vista.TipoDocumentoNombre</strong></div>
-                <div class="celda-vista-rapida-gestion"><span>Creada</span><strong>@vista.CreadoEnUtc.ToString("dd/MM/yyyy")</strong></div>
+                <div class="celda-vista-rapida-gestion"><span>@Textos["ColumnaCentro"]</span><strong>@vista.CentroNombre</strong></div>
+                <div class="celda-vista-rapida-gestion"><span>@Textos["ColumnaDocumento"]</span><strong>@vista.TipoDocumentoNombre</strong></div>
+                <div class="celda-vista-rapida-gestion"><span>@Textos["ColumnaCreada"]</span><strong>@vista.CreadoEnUtc.ToString("dd/MM/yyyy")</strong></div>
             </div>
 
             <div class="enlaces-vista-rapida-gestion">
                 <button type="button" class="enlace-vista-rapida-gestion" @onclick='() => AbrirWorkspaceAsync(EntidadWorkspace.Trabajador, vista.TrabajadorId, vista.TrabajadorNombre, "informacion")'>
-                    Abrir Trabajador 360 →
+                    @Textos["EnlaceTrabajador360"]
                 </button>
                 <button type="button" class="enlace-vista-rapida-gestion" @onclick='() => AbrirWorkspaceAsync(EntidadWorkspace.Centro, vista.CentroId, vista.CentroNombre, "informacion")'>
-                    Abrir Centro 360 →
+                    @Textos["EnlaceCentro360"]
                 </button>
                 <button type="button" class="enlace-vista-rapida-gestion" @onclick='() => AbrirWorkspaceAsync(EntidadWorkspace.Trabajador, vista.TrabajadorId, vista.TrabajadorNombre, "documentacion")'>
-                    Ver la documentación del trabajador →
+                    @Textos["EnlaceDocumentacionTrabajador"]
                 </button>
             </div>
         </div>
 
         <div class="pie-vista-rapida-gestion">
             <Boton Cargando="_cambiandoEstado.Contains(vista.Id)" OnClick="() => CambiarEstadoAsync(vista.Id, vista.Estado != EstadoGestion.Completada)">
-                @(vista.Estado == EstadoGestion.Completada ? "Reabrir gestión" : "Marcar completada")
+                @(vista.Estado == EstadoGestion.Completada ? Textos["BotonReabrirGestion"] : Textos["AccionMarcarCompletada"])
             </Boton>
-            <Boton Variante="VarianteBoton.Destructivo" Deshabilitado="_cambiandoEstado.Contains(vista.Id)" OnClick="() => AbrirEliminar(vista.Id)">Eliminar</Boton>
+            <Boton Variante="VarianteBoton.Destructivo" Deshabilitado="_cambiandoEstado.Contains(vista.Id)" OnClick="() => AbrirEliminar(vista.Id)">@Textos["AccionEliminar"]</Boton>
         </div>
     </aside>
 }
@@ -213,7 +216,7 @@
 <DialogoConfirmacion
     Visible="_confirmarEliminarVisible"
     VisibleChanged="v => _confirmarEliminarVisible = v"
-    Titulo="¿Eliminar esta gestión?"
-    Mensaje="Se ocultará de las listas activas. Podrás recuperarla desde Auditoría."
+    Titulo="@Textos["DialogoEliminarTitulo"]"
+    Mensaje="@Textos["DialogoEliminarMensaje"]"
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />

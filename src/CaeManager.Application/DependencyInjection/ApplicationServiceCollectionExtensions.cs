@@ -40,6 +40,8 @@ public static class ApplicationServiceCollectionExtensions
         // el proceso, no reiniciarse en cada petición como el resto de
         // dependencias Scoped de este método.
         services.AddSingleton<VentanaSaludOperativa>();
+        // Orden global del menú lateral: una caché por proceso, invalidada al guardar.
+        services.AddSingleton<CaeManager.Application.Plataforma.OrdenMenu.CacheOrdenMenuLateral>();
         // TryAdd, no Add: Program.cs registra la implementación real
         // (SentryAlertaOperativa, Infrastructure) después de AddApplication()
         // y la sustituye — ver AlertaOperativaInerte para el porqué de este
@@ -80,8 +82,10 @@ public static class ApplicationServiceCollectionExtensions
         // vez del rol del usuario.
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(SerializacionAccesoDatosBehavior<,>));
-        // InvalidacionAlcanceBehavior, dentro de la serialización: tras cada Command descarta el
-        // alcance memoizado del scope (D-8 del piloto Outbound), antes de soltar la puerta.
+        // InvalidacionAlcanceBehavior, dentro de la serialización: antes y después de cada Command
+        // descarta el alcance memoizado del scope (D-8 del piloto Outbound), sin soltar la puerta.
+        // Va por fuera de AutorizacionEscrituraBehavior y del handler: ambos autorizan con el
+        // alcance recién resuelto, no con el que memoizó el circuito.
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(InvalidacionAlcanceBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(ConcurrenciaBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(AutorizacionEscrituraBehavior<,>));

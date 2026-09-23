@@ -1,40 +1,36 @@
 @*
-    Solo se listan los módulos que ya existen y funcionan (ver ROADMAP.md).
-    Un enlace a una pantalla que todavía no existe es peor que no tener el
-    enlace — se añade módulo a módulo conforme se construye. Un único set de
-    iconos outline (ver DESIGN_SYSTEM.md, "Iconografía") — nunca mezclar
-    estilos de icono entre pantallas.
+    El menú de los usuarios internos sale de CatalogoMenuLateral: cada grupo y
+    cada enlace con su identificador estable, su regla de visibilidad y su
+    orden por defecto — ahí están también los porqués de cada entrada. Este
+    fichero solo lo pinta.
 
     El rol Cliente tiene un menú deliberadamente distinto y mínimo (ver
     Fase 31): solo lo que el propio cliente puede consultar de sí mismo, sin
-    Dashboard/Asignaciones/Visitas/Vehículos/Alertas/Calendario/Reportes.
-    Los datos que ve cada enlace ya quedan acotados por IAlcanceDatosService
-    en las Queries — este menú solo decide qué pestañas existen, no qué
-    filas aparecen dentro. Comunicaciones es la excepción explícita a "solo
-    lo que ya funciona": el enlace se oculta con Comunicaciones:Activo
-    (apagado por defecto, P2 #26 de docs/business/MATURITY_REVIEW.md) porque
-    no hay ingesta real detrás — ver ComunicacionesOptions.
+    Dashboard/Asignaciones/Visitas/Vehículos/Alertas/Calendario/Reportes. Es
+    fijo, no forma parte del catálogo, y se pinta antes que los grupos (un
+    usuario con rol Cliente no tiene ningún otro rol: Usuarios sustituye el
+    rol y Roles solo asigna a cuentas pendientes sin rol).
 
-    Cada grupo (Dashboards/Negocio/Operación/Control/Administración) es un
-    <details>/<summary> nativo, no un componente interactivo: NavMenu no
-    tiene @rendermode propio (ver el comentario de MainLayout.razor sobre
-    "todo lo que vive fuera de @Body necesita su propio @rendermode
-    explícito o nunca recibe eventos interactivos") y no hace falta pagar el
-    coste de un circuito solo para colapsar un grupo — el navegador ya lo
-    resuelve gratis. wwwroot/js/menu-lateral.js solo persiste, por grupo que
-    el usuario haya tocado alguna vez, si quedó abierto o cerrado
+    Cada grupo es un <details>/<summary> nativo, no un componente
+    interactivo: NavMenu no tiene @rendermode propio (ver el comentario de
+    MainLayout.razor sobre "todo lo que vive fuera de @Body necesita su propio
+    @rendermode explícito o nunca recibe eventos interactivos") y no hace falta
+    pagar el coste de un circuito solo para colapsar un grupo — el navegador
+    ya lo resuelve gratis. wwwroot/js/menu-lateral.js solo persiste, por grupo
+    que el usuario haya tocado alguna vez, si quedó abierto o cerrado
     (localStorage, por navegador — no viaja con la cuenta como el tema, es
     puramente cosmético) y lo reaplica tras cada navegación "enhanced" de
     Blazor, mismo mecanismo que tema.js. Un grupo que el usuario nunca tocó
-    conserva el "open" (o su ausencia) que trae este marcado — así el
-    colapso por defecto de Control (informe de consolidación de menú,
-    2026-09-01 § 6) no se pisa con un "abierto" forzado en el primer render.
+    conserva el "open" (o su ausencia) que trae su AbiertoPorDefecto — así el
+    colapso por defecto de Control no se pisa con un "abierto" forzado en el
+    primer render.
 *@
+@using System.Security.Claims
 @using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma
 @using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados
 @using CaeManager.Application.VistaDemo
 @using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual
-@using CaeManager.Domain.Tenants
+@using CaeManager.Application.Plataforma.OrdenMenu
 @using CaeManager.Infrastructure.Comunicaciones
 @using MediatR
 @using Microsoft.Extensions.Options
@@ -42,185 +38,6 @@
 @inject IMediator Mediator
 @inject IServiceProvider Servicios
 <nav class="nav-principal">
-    <AuthorizeView Roles="@RolesConMenuCompleto">
-        @* Dashboard / Visión de cartera / Dashboard Ejecutivo son tres
-           Operational Home distintos (DDL-004 § 1.1), con conjuntos de roles
-           no anidados (Consulta ve Dashboard+Ejecutivo pero no Cartera;
-           CoordinadorCae ve Dashboard+Cartera pero no Ejecutivo) — no se
-           pliegan en pestañas de una sola pantalla porque Pestanas no
-           autoriza por pestaña hoy y sus layouts son incompatibles (cola vs.
-           tabla vs. gráficos configurables). Agruparlos aquí solo bajo un
-           mismo encabezado visual "Dashboards" (informe de consolidación de
-           menú, 2026-09-01 § 6) deja esa pregunta de producto abierta sin
-           tocarla. *@
-        <details class="nav-grupo-detalle" data-grupo="dashboards" open>
-            <summary class="nav-grupo-titulo">
-                <span>Dashboards</span>
-                <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
-            </summary>
-            <div class="nav-grupo-items">
-                <NavLink class="nav-item" href="" Match="NavLinkMatch.All">
-                    <Icono Nombre="dashboard" /> Dashboard
-                </NavLink>
-                <AuthorizeView Roles="@RolesDeCartera" Context="authCartera">
-                    <NavLink class="nav-item" href="vision-cartera">
-                        <Icono Nombre="cartera" /> Visión de cartera
-                    </NavLink>
-                </AuthorizeView>
-                <AuthorizeView Roles="@RolesDeDashboardEjecutivo" Context="authDashboardEjecutivo">
-                    <NavLink class="nav-item" href="dashboard-ejecutivo">
-                        <Icono Nombre="dashboard" /> Dashboard Ejecutivo
-                    </NavLink>
-                </AuthorizeView>
-            </div>
-        </details>
-
-        @* Orden por DDL-073 (03_INFORMATION_ARCHITECTURE.md § 3.2): Negocio
-           sigue la cadena de titularidad, de lo mío a lo ajeno — Empresas
-           ("Mi empresa" bajo el perfil de vocabulario de DDL-072, tramo 3.2,
-           todavía no implementado aquí) → Subcontratas → Trabajadores →
-           Clientes → Centros → Documentos, al final por ser la vista
-           transversal (cada Entity Workspace ya lleva los suyos). Plantillas
-           cierra el grupo detrás de Documentos, no dentro de la cadena de
-           titularidad: es configuración de qué documentos se generan, no una
-           entidad propia (A-01/A-18, auditoria-producto-2026-08-29) — sigue
-           aquí como entrada propia porque plegarla como pestaña de Documentos
-           exige tocar `Documentos.razor`, fuera de la propiedad de esta
-           sesión esta noche (colisiona con la reconstrucción del selector de
-           lote de N3, PLAN-SESIONES-NOCTURNAS-2026-09-02.md). *@
-        <details class="nav-grupo-detalle" data-grupo="negocio" open>
-            <summary class="nav-grupo-titulo">
-                <span>Negocio</span>
-                <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
-            </summary>
-            <div class="nav-grupo-items">
-                <NavLink class="nav-item" href="empresas">
-                    <Icono Nombre="empresas" /> @EtiquetaEmpresas
-                </NavLink>
-                <NavLink class="nav-item" href="subcontratas">
-                    <Icono Nombre="subcontratas" /> Subcontratas
-                </NavLink>
-                <NavLink class="nav-item" href="trabajadores">
-                    <Icono Nombre="trabajadores" /> @EtiquetaTrabajadores
-                </NavLink>
-                <NavLink class="nav-item" href="clientes">
-                    <Icono Nombre="clientes" /> Clientes
-                </NavLink>
-                <NavLink class="nav-item" href="centros">
-                    <Icono Nombre="centros" /> Centros
-                </NavLink>
-                @* Revisión IA, Documentos generados y ahora Plantillas entera
-                   ya no tienen botón propio: viven como pestaña de Documentos
-                   —Revisión IA y Plantillas directamente, Documentos generados
-                   anidada dos niveles como sub-pestaña de Plantillas (REC-062,
-                   DEC-28, DDL-080)— mismo mecanismo de Pestanas que DDL-078
-                   para Configuración. Sus rutas standalone siguen funcionando
-                   para enlaces guardados y las notificaciones que las usan
-                   (AccionesBandeja, ProcesadorAnalisisDocumentoHostedService),
-                   pero un botón que lleva al mismo sitio que ya ofrece la
-                   pestaña es ruido. *@
-                <NavLink class="nav-item" href="documentos">
-                    <Icono Nombre="documentos" /> Documentos
-                </NavLink>
-                <NavLink class="nav-item" href="cuenta/extension">
-                    <Icono Nombre="plataforma" /> Conectar extensión
-                </NavLink>
-            </div>
-        </details>
-
-        @* Orden por DDL-073: Operación sigue la frecuencia de uso diario.
-           "Vehículos y Maquinaria" de 03 § 3.2 se deja como "Vehículos" —
-           Maquinaria es un tramo bloqueado (2.4, pendiente de ADR-006), y
-           una entrada de menú no se adelanta a una entidad que no existe. *@
-        <details class="nav-grupo-detalle" data-grupo="operacion" open>
-            <summary class="nav-grupo-titulo">
-                <span>Operación</span>
-                <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
-            </summary>
-            <div class="nav-grupo-items">
-                @if (OpcionesComunicaciones.Value.Activo)
-                {
-                    <NavLink class="nav-item" href="comunicaciones">
-                        <Icono Nombre="chat" /> Comunicaciones
-                    </NavLink>
-                }
-                @* Icono distinto de Incidencias (mismo grupo, antes compartían
-                   "incidencias") — "evaluaciones" (checklist) encaja mejor con
-                   "gestión" que un triángulo de advertencia; informe de
-                   consolidación de menú, 2026-09-01 § 6. *@
-                <NavLink class="nav-item" href="gestiones">
-                    <Icono Nombre="evaluaciones" /> Gestiones
-                </NavLink>
-                <NavLink class="nav-item" href="incidencias">
-                    <Icono Nombre="incidencias" /> Incidencias
-                </NavLink>
-                <NavLink class="nav-item" href="visitas">
-                    <Icono Nombre="visitas" /> Visitas
-                </NavLink>
-                <NavLink class="nav-item" href="vehiculos">
-                    <Icono Nombre="vehiculos" /> Vehículos
-                </NavLink>
-                <NavLink class="nav-item" href="proyectos">
-                    <Icono Nombre="proyectos" /> Proyectos
-                </NavLink>
-            </div>
-        </details>
-
-        @* Colapsado por defecto (informe de consolidación de menú,
-           2026-09-01 § 6): Control es, por el propio orden de DDL-073, el
-           grupo de uso más esporádico frente a Negocio/Operación — colapsarlo
-           en el primer render deja expandidos solo los dos grupos de trabajo
-           diario sin tocar ninguna ruta ni ninguna DDL. Un usuario que lo
-           abre queda con esa preferencia guardada (menu-lateral.js). *@
-        <details class="nav-grupo-detalle" data-grupo="control">
-            <summary class="nav-grupo-titulo">
-                <span>Control</span>
-                <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
-            </summary>
-            <div class="nav-grupo-items">
-                @* "Mi trabajo" y no "Bandeja" (H3 de docs/COMUNICACIONES.md § 9,
-                   decisión provisional del usuario 2026-08-13): "bandeja" en
-                   español significa inbox de correo, y la bandeja de correo real
-                   es /comunicaciones — quien buscaba su correo aterrizaba aquí,
-                   en la cola de trabajo documental. La ruta /bandeja no cambia:
-                   solo la etiqueta, hasta que se decida el nombre definitivo. *@
-                @* Con más de un Tenant autorizado (mismo criterio que el
-                   selector de Tenant de la cabecera), «Mi trabajo» es la cola agregada de
-                   toda la cartera (/mi-trabajo, Nivel 1); con una sola, la de
-                   siempre. *@
-                <NavLink class="nav-item" href="@_rutaMiTrabajo">
-                    <Icono Nombre="alertas" /> Mi trabajo
-                </NavLink>
-                @* Alertas NO es una segunda cola de "qué hacer ahora" — esa es
-                   Mi trabajo. Desde DEC-4 (PLAN-SESIONES-NOCTURNAS-2026-09-02.md)
-                   es la vista agregada de documentación a reclamar, por
-                   entidad (trabajador o empresa gestora): conserva a
-                   propósito EstadoDocumento.Proximo, que
-                   ObtenerBandejaGestorQuery excluye de la cola porque aún no
-                   es urgente — para reclamar por adelantado hace falta verlo.
-                   Mi trabajo es más ancha que solo vigencia documental (suma
-                   revisiones IA, visitas y requisitos que bloquean un Centro,
-                   ver ObtenerBandejaGestorQuery) — el icono compartido es
-                   herencia visual, no una afirmación de que sean la misma
-                   superficie. *@
-                <NavLink class="nav-item" href="alertas">
-                    <Icono Nombre="alertas" /> Alertas
-                </NavLink>
-                <AuthorizeView Roles="@RolesDeAdministracionAmpliada" Context="authAdminControl">
-                    <NavLink class="nav-item" href="facturacion">
-                        <Icono Nombre="reportes" /> Facturación
-                    </NavLink>
-                </AuthorizeView>
-                <NavLink class="nav-item" href="calendario">
-                    <Icono Nombre="calendario" /> Calendario
-                </NavLink>
-                <NavLink class="nav-item" href="reportes">
-                    <Icono Nombre="reportes" /> Reportes
-                </NavLink>
-            </div>
-        </details>
-    </AuthorizeView>
-
     <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Cliente">
         <NavLink class="nav-item" href="" Match="NavLinkMatch.All">
             <Icono Nombre="dashboard" /> Dashboard
@@ -242,156 +59,71 @@
         </NavLink>
     </AuthorizeView>
 
-    @* Repartido en dos AuthorizeView (DireccionCae solo ve Usuarios; solo
-       Administrador ve el resto) pero es un único grupo visual con un único
-       header — por eso el <details> envuelve a ambos en vez de duplicar
-       "Administración" dos veces para quien tiene el rol más amplio.
-
-       Roles, Claves API, Conexiones de integración, Retención, Tipos de
-       documento, Auditoría e Importación ya no tienen botón propio aquí:
-       viven como paneles de Configuración (DDL-078) y un botón fuera que
-       lleva al mismo sitio que ya ofrece la subnavegación del hub es puro
-       ruido — Configuración es ahora su único punto de entrada desde este
-       menú. Usuarios se queda porque Dirección CAE lo ve y Configuración es
-       Administrador-only (Usuarios.razor autoriza a los dos roles);
-       Verificación en dos pasos también, porque apunta al alta personal de
-       2FA del propio usuario (/cuenta/configurar-2fa), no a la política
-       administrativa que representa el placeholder "2fa" del hub — no son
-       la misma pantalla. Delegaciones y Estado comercial NUNCA vivieron
-       aquí como botón propio de Administración (ver grupo "Plataforma" más
-       abajo, fuera de este AuthorizeView): su autoridad es de capacidad
-       (AdminPlataforma), no del rol Administrador que gatea este bloque. *@
-    <AuthorizeView Roles="@RolesDeAdministracionAmpliada">
-        <details class="nav-grupo-detalle" data-grupo="administracion" open>
+    @foreach (var (grupo, enlaces) in _grupos)
+    {
+        <details class="nav-grupo-detalle" data-grupo="@grupo.Id" open="@grupo.AbiertoPorDefecto">
             <summary class="nav-grupo-titulo">
-                <span>Administración</span>
+                <span>@grupo.Titulo</span>
                 <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
             </summary>
             <div class="nav-grupo-items">
-                <NavLink class="nav-item" href="usuarios">
-                    <Icono Nombre="usuarios" /> Usuarios
-                </NavLink>
-                <AuthorizeView Roles="@RolSoloAdministrador" Context="authAdminSolo">
-                    <NavLink class="nav-item" href="configuracion">
-                        <Icono Nombre="configuracion" /> Configuración
+                @foreach (var enlace in enlaces)
+                {
+                    <NavLink class="nav-item" href="@enlace.RutaPara(_contexto!)"
+                             Match="@(enlace.CoincidenciaExacta ? NavLinkMatch.All : NavLinkMatch.Prefix)">
+                        <Icono Nombre="@enlace.Icono" /> @enlace.RotuloPara(_contexto!)
                     </NavLink>
-                    <NavLink class="nav-item" href="cuenta/configurar-2fa">
-                        <Icono Nombre="seguridad" /> Verificación en dos pasos
-                    </NavLink>
-                </AuthorizeView>
+                }
             </div>
         </details>
-    </AuthorizeView>
-
-    @* Delegaciones y Estado comercial: FUERA de "administracion" y de su
-       AuthorizeView por Roles a propósito (resuelve la tensión detectada en
-       #401/#403 — Codex, adversarial review — y confirmada tras auditar
-       Delegaciones.razor/EstadoComercial.razor: ambas páginas ya se
-       autorizan por CAPACIDAD, `@attribute [Authorize]` sin Roles, con un
-       comentario propio explícito de por qué — "el claim de rol se retira
-       bajo sesión privilegiada... la UI dependería de una autoridad que el
-       plano 3 deliberadamente no conserva". Antes de #401 estaban dentro de
-       Administración con el resto (ver ede2ce19), así que una sesión
-       AdminPlataforma sin el rol Administrador NUNCA las vio en el menú, ni
-       antes ni después del hub — no es una regresión de esta sesión, es un
-       defecto preexistente que se corrige aquí de raíz. Delegaciones es
-       doble audiencia (el propio Administrador del tenant gestiona sus
-       delegaciones — revocar, cerrar soporte — y solo "Nueva delegación"
-       exige la capacidad, ver el propio Delegaciones.razor.cs) y Estado
-       comercial es exclusivamente de plataforma (`ObtenerEstadoComercialTenantsQuery`
-       falla cerrado a lista vacía para quien no tenga la capacidad) — ambas
-       comparten aquí el mismo gate para no duplicar lógica, aceptando que un
-       Administrador normal vea "Estado comercial" vacío, igual que ya
-       ocurría cuando vivía dentro del hub. *@
-    <AuthorizeView Context="authPlataforma">
-        <Authorized>
-            @if ((authPlataforma.User.IsInRole(CaeManager.Infrastructure.Identity.Roles.Administrador) && RolSoloAdministrador != MenuPorVista.RolInexistente) || _esAdministradorPlataforma)
-            {
-                <details class="nav-grupo-detalle" data-grupo="plataforma" open>
-                    <summary class="nav-grupo-titulo">
-                        <span>Plataforma</span>
-                        <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
-                    </summary>
-                    <div class="nav-grupo-items">
-                        <NavLink class="nav-item" href="delegaciones">
-                            <Icono Nombre="cartera" /> Delegaciones
-                        </NavLink>
-                        <NavLink class="nav-item" href="configuracion/comercial">
-                            <Icono Nombre="cartera" /> Estado comercial
-                        </NavLink>
-                        <NavLink class="nav-item" href="plataforma/conectores-cae">
-                            <Icono Nombre="plataforma" /> Conectores CAE
-                        </NavLink>
-                    </div>
-                </details>
-            }
-        </Authorized>
-    </AuthorizeView>
+    }
 </nav>
 
 @code {
-    private const string RolesConMenuCompletoBase =
-        $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae}," +
-        $"{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}," +
-        $"{CaeManager.Infrastructure.Identity.Roles.Consulta}";
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
 
-    private const string RolesDeAdministracionAmpliadaBase =
-        $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae}";
-
-    /// <summary>
-    /// Distinto de <see cref="RolesDeAdministracionAmpliada"/> a propósito: Consulta ve todo el
-    /// negocio en solo lectura (Roles.cs) y el Dashboard actual ya le mostraba "Empresas en
-    /// riesgo" — al migrar esa pieza a Dashboard Ejecutivo (docs/blueprints/OPERATIONAL-HOME.md
-    /// § 7) no debía perder esa visibilidad. No se añade Consulta al rol de administración
-    /// ampliada porque ese también gatea Facturación y Administración, que Consulta no debe ver.
-    /// </summary>
-    private const string RolesDeDashboardEjecutivoBase =
-        $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae}," +
-        $"{CaeManager.Infrastructure.Identity.Roles.Consulta}";
-
-    private const string RolesDeCarteraBase =
-        $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae}," +
-        $"{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae}";
-
-    // DDL-072: "Mi empresa" (registro único) en perfil Cliente Directo,
-    // "Empresas" (lista) en perfil Consultora — capa de presentación pura,
-    // 03_INFORMATION_ARCHITECTURE.md § 3.2 confirma que es la misma entrada
-    // de menú bajo los dos perfiles, solo cambia la etiqueta.
-    private string EtiquetaEmpresas = "Empresas";
-
-    // DDL-072 (misma tabla de vocabulario): "Mis trabajadores" en perfil
-    // Cliente Directo, "Trabajadores" en perfil Consultora.
-    private string EtiquetaTrabajadores = "Trabajadores";
-
-    // Mismo criterio de autorización que CrearClienteDeleganteCommand y que
-    // el botón "Nueva delegación" de Delegaciones.razor — ver el comentario
-    // de EsAdministradorPlataformaQueryHandler: "si divergieran, el botón
-    // diría una cosa y el comando otra". Aquí decide si el grupo "Plataforma"
-    // aparece para alguien sin el rol Administrador.
-    private bool _esAdministradorPlataforma;
-
-    private string _rutaMiTrabajo = "bandeja";
-
-    // Lente de demo (ver MenuPorVista): solo puede ocultar entradas, nunca mostrar una que la
-    // autorización real de la cuenta no mostraría.
-    private VistaDemo? _vistaDemo;
-
-    private string RolesConMenuCompleto => MenuPorVista.Acotar(_vistaDemo, RolesConMenuCompletoBase);
-    private string RolesDeAdministracionAmpliada => MenuPorVista.Acotar(_vistaDemo, RolesDeAdministracionAmpliadaBase);
-    private string RolesDeDashboardEjecutivo => MenuPorVista.Acotar(_vistaDemo, RolesDeDashboardEjecutivoBase);
-    private string RolesDeCartera => MenuPorVista.Acotar(_vistaDemo, RolesDeCarteraBase);
-    private string RolSoloAdministrador => MenuPorVista.Acotar(_vistaDemo, CaeManager.Infrastructure.Identity.Roles.Administrador);
+    private ContextoMenuLateral? _contexto;
+    private Task<AuthenticationState>? _estadoEvaluado;
+    private OrdenMenuLateralDto? _orden;
+    private IReadOnlyList<CatalogoMenuLateral.GrupoVisible> _grupos = [];
 
     protected override async Task OnInitializedAsync()
     {
         var perfil = await Mediator.Send(new ObtenerPerfilVocabularioActualQuery());
-        EtiquetaEmpresas = perfil == PerfilVocabularioTenant.ClienteDirecto ? "Mi empresa" : "Empresas";
-        EtiquetaTrabajadores = perfil == PerfilVocabularioTenant.ClienteDirecto ? "Mis trabajadores" : "Trabajadores";
-        // Opcional a propósito: sin la lente registrada (otro host, tests) el menú es el real.
+        // Lente de demo (ver MenuPorVista): solo puede ocultar entradas, nunca mostrar una que la
+        // autorización real de la cuenta no mostraría. Opcional a propósito: sin la lente
+        // registrada (otro host, tests) el menú es el real.
+        VistaDemo? vista = null;
         if (Servicios.GetService<IVistaDemoActual>() is { } vistaDemoActual)
-            _vistaDemo = (await vistaDemoActual.ObtenerEfectivaAsync())?.Vista;
-        _esAdministradorPlataforma = await Mediator.Send(new EsAdministradorPlataformaQuery());
+            vista = (await vistaDemoActual.ObtenerEfectivaAsync())?.Vista;
+        // Mismo criterio de autorización que CrearClienteDeleganteCommand y que el botón "Nueva
+        // delegación" de Delegaciones.razor: decide si el grupo "Plataforma" aparece para alguien
+        // sin el rol Administrador.
+        var esAdministradorPlataforma = await Mediator.Send(new EsAdministradorPlataformaQuery());
         var organizaciones = await Mediator.Send(new ObtenerClientesAutorizadosQuery());
-        _rutaMiTrabajo = organizaciones.Count > 1 ? "mi-trabajo" : "bandeja";
+        // Orden global del Actor de Plataforma TALVEG (decisión del 2026-09-23): el mismo para
+        // todos los Tenants, de una caché de proceso. Solo recoloca: la visibilidad sigue siendo la
+        // de cada enlace.
+        _orden = await Mediator.Send(new ObtenerOrdenMenuLateralQuery());
+
+        _contexto = new ContextoMenuLateral(
+            new ClaimsPrincipal(new ClaimsIdentity()), vista, OpcionesComunicaciones.Value.Activo,
+            esAdministradorPlataforma, perfil, VariosTenants: organizaciones.Count > 1);
+    }
+
+    // El usuario se relee en cada estado de autenticación en cascada, no solo al inicializar: en el
+    // cajón móvil (NavegacionMovil, InteractiveServer) el menú vive en un circuito y la sesión puede
+    // pasar a anónima a mitad, y el menú tiene que ocultarse al momento como lo hacía AuthorizeView.
+    // Las consultas de arriba no se repiten: sin sesión ya no hay ningún grupo que las necesite.
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_contexto is null || (_estadoEvaluado is not null && ReferenceEquals(_estadoEvaluado, EstadoAutenticacion)))
+            return;
+        _estadoEvaluado = EstadoAutenticacion;
+        var usuario = EstadoAutenticacion is null
+            ? new ClaimsPrincipal(new ClaimsIdentity())
+            : (await EstadoAutenticacion).User;
+        _contexto = _contexto with { Usuario = usuario };
+        _grupos = CatalogoMenuLateral.Visibles(_contexto, _orden?.Grupos, _orden?.Enlaces);
     }
 }

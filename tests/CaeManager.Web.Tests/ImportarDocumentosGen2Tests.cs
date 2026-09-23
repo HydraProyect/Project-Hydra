@@ -73,6 +73,7 @@ public class ImportarDocumentosGen2Tests : BunitContext
         Services.AddScoped<ToastService>();
         Services.AddScoped<PuertaAccesoDatos>();
         Services.AddLogging();
+        Services.AddLocalization();
         Services.AddScoped(_ => new UserManager<ApplicationUser>(
             _usuarios, null!, null!, null!, null!, null!, null!, null!, null!));
         Services.GetRequiredService<NavigationManager>().NavigateTo(
@@ -127,6 +128,7 @@ public class ImportarDocumentosGen2Tests : BunitContext
         Services.AddScoped<ToastService>();
         Services.AddScoped<PuertaAccesoDatos>();
         Services.AddLogging();
+        Services.AddLocalization();
         Services.AddScoped(_ => new UserManager<ApplicationUser>(
             _usuarios, null!, null!, null!, null!, null!, null!, null!, null!));
         Services.GetRequiredService<NavigationManager>().NavigateTo("importacion?plantilla=documentos&flujo=documentos");

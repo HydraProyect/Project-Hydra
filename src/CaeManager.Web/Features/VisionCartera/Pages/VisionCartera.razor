@@ -3,7 +3,7 @@
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae}")]
 @using CaeManager.Application.Dashboard.Queries
 
-<PageTitle>Visión de cartera — @Marca.Nombre</PageTitle>
+<PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
 @*
     Visión de cartera contra su mockup Gen 2 («Vision Cartera TALVEG.dc.html»).
@@ -30,14 +30,14 @@
     activa, y el número de aquí suma varias.
 *@
 <div class="contenedor-pagina">
-    <CabeceraPagina Titulo="Todas las organizaciones que operas, de un vistazo" Kicker="Visión de cartera">
+    <CabeceraPagina Titulo="@Textos["TituloCabecera"]" Kicker="@Textos["Kicker"]">
         <Acciones>
             @if (_kpis is { TotalClientes: > 1 })
             {
                 <div class="ambito-cartera">
                     <span class="ambito-cartera-linea">@LineaAmbito</span>
                     <span class="ambito-cartera-linea">@LineaAlcance</span>
-                    <span class="ambito-cartera-sistema"><span class="punto-sistema" aria-hidden="true"></span>Recalculado en cada carga</span>
+                    <span class="ambito-cartera-sistema"><span class="punto-sistema" aria-hidden="true"></span>@Textos["AmbitoRecalculado"]</span>
                 </div>
             }
         </Acciones>
@@ -45,10 +45,10 @@
 
     @if (_error)
     {
-        <EstadoVacio Titulo="No pudimos cargar la visión de cartera" Descripcion="Intenta nuevamente en unos segundos."
+        <EstadoVacio Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDescripcion"]"
                      NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">
             <Accion>
-                <Boton OnClick="CargarAsync">Reintentar</Boton>
+                <Boton OnClick="CargarAsync">@Textos["BotonReintentar"]</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -61,11 +61,11 @@
         @* Con una sola organización —la propia— esta vista coincidiría con el
            Dashboard, así que se declara vacía aunque haya datos (mockup,
            estado «Vacía»). *@
-        <EstadoVacio Titulo="Todavía no operas ninguna otra organización"
-                     Descripcion="Esta vista suma varias organizaciones: la tuya y las que os han delegado su gestión CAE. Cuando alguna os la delegue, aparecerá aquí."
+        <EstadoVacio Titulo="@Textos["VacioTitulo"]"
+                     Descripcion="@Textos["VacioDescripcion"]"
                      NombreIcono="cartera">
             <Accion>
-                <a class="enlace-accion-cartera" href="/delegaciones">Ver delegaciones →</a>
+                <a class="enlace-accion-cartera" href="/delegaciones">@Textos["EnlaceAccionVacio"]</a>
             </Accion>
         </EstadoVacio>
     }
@@ -73,18 +73,18 @@
     {
         <div class="vision-cartera-contenido">
             <section class="seccion-cartera" aria-labelledby="titulo-riesgo-documental">
-                <h2 id="titulo-riesgo-documental" class="titulo-seccion-cartera">Documentación en riesgo</h2>
+                <h2 id="titulo-riesgo-documental" class="titulo-seccion-cartera">@Textos["SeccionRiesgoDocumental"]</h2>
                 @* Iconografía obligatoria en superficies de resumen (02 § 7, DDL-036),
                    mismos iconos que Inicio. El desglose por organización de
                    vencidos y urgentes es la tabla de abajo. *@
                 <div class="rejilla-kpis-criticos">
-                    <TarjetaMetrica Etiqueta="Documentos vencidos" Valor="@_kpis.DocumentosVencidos.ToString()" NombreIcono="advertencia" Tono="TonoBadge.Peligro"
+                    <TarjetaMetrica Etiqueta="@Textos["MetricaVencidos"]" Valor="@_kpis.DocumentosVencidos.ToString()" NombreIcono="advertencia" Tono="TonoBadge.Peligro"
                                     Pista="@PistaVencidos" />
-                    <TarjetaMetrica Etiqueta="Urgentes" Valor="@_kpis.DocumentosUrgentes.ToString()" NombreIcono="reloj" Tono="TonoBadge.Peligro"
-                                    Pista="Según el umbral urgente de cada organización" />
-                    <TarjetaMetrica Etiqueta="Próximos a vencer" Valor="@_kpis.DocumentosProximos.ToString()" NombreIcono="calendario" Tono="TonoBadge.Advertencia"
-                                    Pista="Según el umbral próximo de cada organización" />
-                    <TarjetaMetrica Etiqueta="Cumplimiento documental promedio" Valor="@ValorMedia" NombreIcono="check"
+                    <TarjetaMetrica Etiqueta="@Textos["MetricaUrgentes"]" Valor="@_kpis.DocumentosUrgentes.ToString()" NombreIcono="reloj" Tono="TonoBadge.Peligro"
+                                    Pista="@Textos["PistaUrgentes"]" />
+                    <TarjetaMetrica Etiqueta="@Textos["MetricaProximos"]" Valor="@_kpis.DocumentosProximos.ToString()" NombreIcono="calendario" Tono="TonoBadge.Advertencia"
+                                    Pista="@Textos["PistaProximos"]" />
+                    <TarjetaMetrica Etiqueta="@Textos["MetricaCumplimientoPromedio"]" Valor="@ValorMedia" NombreIcono="check"
                                     Tono="@TonoMedia" Pista="@PistaMedia" />
                 </div>
             </section>
@@ -93,13 +93,13 @@
                 <div class="dashboard-resumen-tarjeta-anillo">
                     @if (HayMediaQueMostrar)
                     {
-                        <AnilloCumplimiento Porcentaje="_kpis.TasaCumplimientoDocumentalPromedio" Tamano="TamanoAnillo.Grande" Leyenda="Cumplimiento"
-                                            Etiqueta="@($"{_kpis.TasaCumplimientoDocumentalPromedio}% de cumplimiento documental promedio")" />
+                        <AnilloCumplimiento Porcentaje="_kpis.TasaCumplimientoDocumentalPromedio" Tamano="TamanoAnillo.Grande" Leyenda="@Textos["LeyendaAnillo"]"
+                                            Etiqueta="@Textos["CumplimientoPromedioFrase", _kpis.TasaCumplimientoDocumentalPromedio]" />
                         <div>
-                            <p class="dashboard-resumen-anillo-titulo">@_kpis.TasaCumplimientoDocumentalPromedio% de cumplimiento documental promedio</p>
+                            <p class="dashboard-resumen-anillo-titulo">@Textos["CumplimientoPromedioFrase", _kpis.TasaCumplimientoDocumentalPromedio]</p>
                             <p class="dashboard-resumen-anillo-detalle detalle-media-cartera">@DetalleMedia</p>
                             <p class="dashboard-resumen-anillo-detalle detalle-tasa-cartera">
-                                Tasa de cada organización: documentos que aún no han entrado en su umbral próximo, sobre todos los que tienen fecha de vencimiento. Sin ninguno con fecha, cuenta como 100%.
+                                @Textos["DetalleTasaOrganizacion"]
                             </p>
                         </div>
                     }
@@ -109,18 +109,18 @@
                            100% que devuelve la consulta es «nada que evaluar»: pintarlo
                            en un anillo verde afirmaría lo contrario. *@
                         <div>
-                            <p class="dashboard-resumen-anillo-titulo">Sin cumplimiento que medir</p>
-                            <p class="dashboard-resumen-anillo-detalle detalle-media-cartera">No tienes ninguna Asignación de Cartera en estas organizaciones: no hay documentos tuyos que evaluar.</p>
+                            <p class="dashboard-resumen-anillo-titulo">@Textos["SinCumplimientoTitulo"]</p>
+                            <p class="dashboard-resumen-anillo-detalle detalle-media-cartera">@Textos["SinCumplimientoDetalle"]</p>
                         </div>
                     }
                 </div>
 
                 <div class="actividad-cartera">
-                    <h2 class="titulo-seccion-cartera">Actividad general</h2>
+                    <h2 class="titulo-seccion-cartera">@Textos["SeccionActividad"]</h2>
                     <div class="rejilla-actividad-cartera">
-                        <TarjetaMetrica Discreta="true" Etiqueta="Organizaciones" Valor="@_kpis.TotalClientes.ToString()" NombreIcono="clientes" />
-                        <TarjetaMetrica Discreta="true" Etiqueta="Trabajadores activos" Valor="@_kpis.TrabajadoresActivos.ToString()" NombreIcono="trabajadores" />
-                        <TarjetaMetrica Discreta="true" Etiqueta="Centros / plataformas" Valor="@_kpis.Centros.ToString()" NombreIcono="centros" />
+                        <TarjetaMetrica Discreta="true" Etiqueta="@Textos["MetricaOrganizaciones"]" Valor="@_kpis.TotalClientes.ToString()" NombreIcono="clientes" />
+                        <TarjetaMetrica Discreta="true" Etiqueta="@Textos["MetricaTrabajadoresActivos"]" Valor="@_kpis.TrabajadoresActivos.ToString()" NombreIcono="trabajadores" />
+                        <TarjetaMetrica Discreta="true" Etiqueta="@Textos["MetricaCentros"]" Valor="@_kpis.Centros.ToString()" NombreIcono="centros" />
                     </div>
 
                     @* Accesibilidad: el SVG es solo la imagen (aria-hidden, sin foco:
@@ -130,21 +130,21 @@
                        mismo orden—, que el lector de pantalla recorre como tabla y a
                        la que el <figcaption> da nombre. *@
                     <figure class="reparto-riesgo" aria-labelledby="titulo-reparto-riesgo">
-                        <figcaption id="titulo-reparto-riesgo" class="reparto-riesgo-titulo">Reparto del riesgo entre las @Organizaciones.Count organizaciones</figcaption>
+                        <figcaption id="titulo-reparto-riesgo" class="reparto-riesgo-titulo">@Textos["RepartoTitulo", Organizaciones.Count]</figcaption>
                         <table class="reparto-riesgo-datos">
-                            <caption>Documentos vencidos y urgentes por organización</caption>
+                            <caption>@Textos["RepartoCaption"]</caption>
                             <thead>
                                 <tr>
-                                    <th scope="col">Organización</th>
-                                    <th scope="col">Vencidos</th>
-                                    <th scope="col">Urgentes</th>
+                                    <th scope="col">@Textos["ColumnaOrganizacion"]</th>
+                                    <th scope="col">@Textos["ColumnaVencidos"]</th>
+                                    <th scope="col">@Textos["ColumnaUrgentes"]</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @foreach (var organizacion in Organizaciones)
                                 {
                                     <tr>
-                                        <th scope="row">@organizacion.Nombre@(organizacion.SinCarteraAsignada ? ", sin Asignación de Cartera tuya" : string.Empty)</th>
+                                        <th scope="row">@(organizacion.SinCarteraAsignada ? Textos["RepartoFilaSinCartera", organizacion.Nombre].Value : organizacion.Nombre)</th>
                                         <td>@organizacion.DocumentosVencidos</td>
                                         <td>@organizacion.DocumentosUrgentes</td>
                                     </tr>
@@ -184,8 +184,8 @@
                             }
                         </svg>
                         <div class="reparto-riesgo-leyenda">
-                            <span><span class="muestra-leyenda muestra-vencidos" aria-hidden="true"></span>Vencidos</span>
-                            <span><span class="muestra-leyenda muestra-urgentes" aria-hidden="true"></span>Urgentes (umbral de cada organización)</span>
+                            <span><span class="muestra-leyenda muestra-vencidos" aria-hidden="true"></span>@Textos["LeyendaVencidos"]</span>
+                            <span><span class="muestra-leyenda muestra-urgentes" aria-hidden="true"></span>@Textos["LeyendaUrgentes"]</span>
                         </div>
                     </figure>
                 </div>
@@ -193,8 +193,8 @@
 
             <section class="seccion-cartera" aria-labelledby="titulo-organizaciones-riesgo">
                 <div class="cabecera-seccion-cartera">
-                    <h2 id="titulo-organizaciones-riesgo" class="titulo-seccion-cartera">Organizaciones con más riesgo</h2>
-                    <span class="nota-seccion-cartera">Todas, ordenadas por vencidos y, a igualdad, por urgentes</span>
+                    <h2 id="titulo-organizaciones-riesgo" class="titulo-seccion-cartera">@Textos["SeccionMasRiesgo"]</h2>
+                    <span class="nota-seccion-cartera">@Textos["NotaOrdenMasRiesgo"]</span>
                 </div>
 
                 @if (AvisoSinCartera is { } aviso)
@@ -212,11 +212,11 @@
                         <table class="tabla-datos">
                             <thead>
                                 <tr>
-                                    <th>Organización</th>
-                                    <th>Vencidos</th>
-                                    <th>Urgentes</th>
-                                    <th>Cumplimiento documental</th>
-                                    <th aria-label="Acciones"></th>
+                                    <th>@Textos["ColumnaOrganizacion"]</th>
+                                    <th>@Textos["ColumnaVencidos"]</th>
+                                    <th>@Textos["ColumnaUrgentes"]</th>
+                                    <th>@Textos["ColumnaCumplimiento"]</th>
+                                    <th aria-label="@Textos["ColumnaAcciones"]"></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -239,7 +239,7 @@
                                         <td>
                                             @if (organizacion.SinCarteraAsignada)
                                             {
-                                                <span class="sin-cartera-organizacion" title="@TituloCumplimiento(organizacion)">Sin Asignación de Cartera tuya</span>
+                                                <span class="sin-cartera-organizacion" title="@TituloCumplimiento(organizacion)">@Textos["CeldaSinCartera"]</span>
                                             }
                                             else
                                             {
@@ -265,7 +265,7 @@
                                                 <input type="hidden" name="returnUrl" value="/" />
                                                 <input type="hidden" name="tenantId" value="@organizacion.TenantId" />
                                                 <Boton Type="submit" Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
-                                                       title="@($"Hace de {organizacion.Nombre} la organización activa y abre su Dashboard")">Cambiar a esta organización →</Boton>
+                                                       title="@Textos["BotonCambiarOrganizacionTitulo", organizacion.Nombre]">@Textos["BotonCambiarOrganizacion"]</Boton>
                                             </form>
                                         </td>
                                     </tr>
@@ -276,22 +276,22 @@
                 </Tarjeta>
             </section>
 
-            <section class="pulso-cartera" aria-label="Pulso de las organizaciones">
+            <section class="pulso-cartera" aria-label="@Textos["PulsoTitulo"]">
                 <div class="pulso-cartera-titular">
-                    <span class="pulso-cartera-kicker">Pulso de las organizaciones</span>
+                    <span class="pulso-cartera-kicker">@Textos["PulsoTitulo"]</span>
                     <span class="pulso-cartera-frase">@FrasePulso</span>
                 </div>
                 <div class="pulso-cartera-cifras">
                     <div class="pulso-cartera-cifra">
-                        <span class="pulso-cartera-etiqueta">Organizaciones en verde (90% o más)</span>
-                        <VentanaContexto class="pulso-cartera-valor pulso-en-verde" Etiqueta="@DetalleEnVerde" Titulo="En verde">
+                        <span class="pulso-cartera-etiqueta">@Textos["PulsoEtiquetaEnVerde"]</span>
+                        <VentanaContexto class="pulso-cartera-valor pulso-en-verde" Etiqueta="@DetalleEnVerde" Titulo="@Textos["PulsoTituloEnVerde"]">
                             <Disparador>@EnVerde</Disparador>
                             <Detalle>@DetalleEnVerde</Detalle>
                         </VentanaContexto>
                     </div>
                     <div class="pulso-cartera-cifra">
-                        <span class="pulso-cartera-etiqueta">Documentos en riesgo</span>
-                        <VentanaContexto class="pulso-cartera-valor pulso-en-riesgo" Etiqueta="@DetalleEnRiesgo" Titulo="En riesgo">
+                        <span class="pulso-cartera-etiqueta">@Textos["PulsoEtiquetaEnRiesgo"]</span>
+                        <VentanaContexto class="pulso-cartera-valor pulso-en-riesgo" Etiqueta="@DetalleEnRiesgo" Titulo="@Textos["PulsoTituloEnRiesgo"]">
                             <Disparador>@DocumentosEnRiesgo</Disparador>
                             <Detalle>@DetalleEnRiesgo</Detalle>
                         </VentanaContexto>

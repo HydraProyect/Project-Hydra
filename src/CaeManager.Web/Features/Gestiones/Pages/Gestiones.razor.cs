@@ -69,10 +69,10 @@ public partial class Gestiones : ComponentBase
 
     private GridItemsProvider<GestionListaDto>? _proveedorElementos;
 
-    private static readonly IReadOnlyList<OpcionEstado> OpcionesEstado =
+    private IReadOnlyList<OpcionEstado> OpcionesEstado =>
     [
-        new(nameof(EstadoGestion.Pendiente), "Pendientes"),
-        new(nameof(EstadoGestion.Completada), "Completadas")
+        new(nameof(EstadoGestion.Pendiente), Textos["FiltroPendientes"]),
+        new(nameof(EstadoGestion.Completada), Textos["FiltroCompletadas"])
     ];
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
@@ -162,8 +162,8 @@ public partial class Gestiones : ComponentBase
         !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_filtroEstado);
 
     private string TextoChipEstado => _filtroEstado == nameof(EstadoGestion.Completada)
-        ? "Estado: completadas"
-        : "Estado: pendientes";
+        ? Textos["ChipEstadoCompletadas"]
+        : Textos["ChipEstadoPendientes"];
 
     /// <summary>
     /// Cuántas coinciden. Sin filtros no habla de ninguno; con filtros dice que
@@ -173,10 +173,14 @@ public partial class Gestiones : ComponentBase
     {
         get
         {
-            var sustantivo = _totalElementos == 1 ? "gestión" : "gestiones";
-            return HayFiltrosActivos
-                ? $"{_totalElementos} {sustantivo} con estos filtros"
-                : $"{_totalElementos} {sustantivo}";
+            var clave = (HayFiltrosActivos, _totalElementos == 1) switch
+            {
+                (true, true) => "ConteoFiltradoUno",
+                (true, false) => "ConteoFiltradoVarios",
+                (false, true) => "ConteoUno",
+                (false, false) => "ConteoVarios",
+            };
+            return Textos[clave, _totalElementos];
         }
     }
 
@@ -239,8 +243,8 @@ public partial class Gestiones : ComponentBase
     private static TonoBadge TonoEstado(EstadoGestion estado) =>
         estado == EstadoGestion.Completada ? TonoBadge.Exito : TonoBadge.Advertencia;
 
-    private static string TextoEstado(EstadoGestion estado) =>
-        estado == EstadoGestion.Completada ? "Completada" : "Pendiente";
+    private string TextoEstado(EstadoGestion estado) =>
+        estado == EstadoGestion.Completada ? Textos["EstadoCompletada"] : Textos["EstadoPendiente"];
 
     private string ObtenerClaseFila(GestionListaDto fila) =>
         fila.Id == _vistaRapida?.Id ? "fila-enfocada" : string.Empty;
@@ -282,7 +286,7 @@ public partial class Gestiones : ComponentBase
         }
         catch (Exception)
         {
-            ToastService.Mostrar("No pudimos actualizar el estado. Intenta nuevamente en unos segundos.", TonoToast.Error);
+            ToastService.Mostrar(Textos["ToastErrorEstado"], TonoToast.Error);
         }
         finally
         {
@@ -311,7 +315,7 @@ public partial class Gestiones : ComponentBase
             }
             else
             {
-                ToastService.Mostrar("Gestión eliminada correctamente.", TonoToast.Exito);
+                ToastService.Mostrar(Textos["ToastEliminada"], TonoToast.Exito);
                 _confirmarEliminarVisible = false;
 
                 // Una vista rápida abierta sobre la gestión borrada enseñaría,
@@ -324,7 +328,7 @@ public partial class Gestiones : ComponentBase
         }
         catch (Exception)
         {
-            ToastService.Mostrar("No pudimos eliminar la gestión. Intenta nuevamente en unos segundos.", TonoToast.Error);
+            ToastService.Mostrar(Textos["ToastErrorEliminar"], TonoToast.Error);
         }
         finally
         {

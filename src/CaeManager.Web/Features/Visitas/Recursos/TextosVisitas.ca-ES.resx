@@ -1,0 +1,309 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="TituloPagina" xml:space="preserve">
+    <value>Visitas</value>
+  </data>
+  <data name="Kicker" xml:space="preserve">
+    <value>Operación</value>
+  </data>
+  <data name="BotonNuevaVisita" xml:space="preserve">
+    <value>+ Nueva visita</value>
+  </data>
+  <data name="PlaceholderBusqueda" xml:space="preserve">
+    <value>Buscar por centro, titular o empresa…</value>
+  </data>
+  <data name="FiltroSoloActivas" xml:space="preserve">
+    <value>Solo activas</value>
+  </data>
+  <data name="FiltroSoloUrgentes" xml:space="preserve">
+    <value>Solo urgentes</value>
+  </data>
+  <data name="EtiquetaNotificadaTitular" xml:space="preserve">
+    <value>Notificada a la empresa titular</value>
+  </data>
+  <data name="OpcionTodas" xml:space="preserve">
+    <value>Todas</value>
+  </data>
+  <data name="OpcionSi" xml:space="preserve">
+    <value>Sí</value>
+  </data>
+  <data name="OpcionNo" xml:space="preserve">
+    <value>No</value>
+  </data>
+  <data name="ErrorCargaTitulo" xml:space="preserve">
+    <value>No pudimos cargar las visitas</value>
+  </data>
+  <data name="ErrorCargaDescripcion" xml:space="preserve">
+    <value>Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="NotaUrgenciaCalculada" xml:space="preserve">
+    <value>Urgencia calculada al cargar la lista, sobre las fechas de cada visita</value>
+  </data>
+  <data name="AriaSeleccionarPagina" xml:space="preserve">
+    <value>Seleccionar las visitas de esta página</value>
+  </data>
+  <data name="AriaSeleccionarVisita" xml:space="preserve">
+    <value>Seleccionar la visita de {0} a {1}, {2}</value>
+  </data>
+  <data name="EtiquetaCentro" xml:space="preserve">
+    <value>Centro</value>
+  </data>
+  <data name="ColumnaTitularEmpresa" xml:space="preserve">
+    <value>Titular del centro / Empresa</value>
+  </data>
+  <data name="ColumnaFechas" xml:space="preserve">
+    <value>Fechas</value>
+  </data>
+  <data name="EtiquetaTrabajadores" xml:space="preserve">
+    <value>Trabajadores</value>
+  </data>
+  <data name="ColumnaUrgencia" xml:space="preserve">
+    <value>Urgencia</value>
+  </data>
+  <data name="EtiquetaOrigen" xml:space="preserve">
+    <value>Origen</value>
+  </data>
+  <data name="ColumnaDocumentacion" xml:space="preserve">
+    <value>Documentación</value>
+  </data>
+  <data name="BadgeDocumentacionCompleta" xml:space="preserve">
+    <value>Completa</value>
+  </data>
+  <data name="BadgeDocumentacionPorGestionar" xml:space="preserve">
+    <value>Por gestionar</value>
+  </data>
+  <data name="AriaNotificadaTitular" xml:space="preserve">
+    <value>Notificada a la empresa titular: {0}, {1}</value>
+  </data>
+  <data name="ColumnaAcciones" xml:space="preserve">
+    <value>Acciones</value>
+  </data>
+  <data name="AccionVer" xml:space="preserve">
+    <value>Ver</value>
+  </data>
+  <data name="AccionEditar" xml:space="preserve">
+    <value>Editar</value>
+  </data>
+  <data name="AccionEliminar" xml:space="preserve">
+    <value>Eliminar</value>
+  </data>
+  <data name="EtiquetaPaginador" xml:space="preserve">
+    <value>visita(s)</value>
+  </data>
+  <data name="VacioFiltroTitulo" xml:space="preserve">
+    <value>Ninguna visita con estos filtros</value>
+  </data>
+  <data name="VacioFiltroDescripcion" xml:space="preserve">
+    <value>Ninguna coincide con la búsqueda ni con los filtros de urgencia o notificación.</value>
+  </data>
+  <data name="BotonQuitarFiltros" xml:space="preserve">
+    <value>Quitar los filtros</value>
+  </data>
+  <data name="VacioActivasTitulo" xml:space="preserve">
+    <value>No hay visitas activas</value>
+  </data>
+  <data name="VacioActivasDescripcion" xml:space="preserve">
+    <value>Puede haber visitas ya finalizadas: la lista llega filtrada por «Solo activas».</value>
+  </data>
+  <data name="BotonVerFinalizadas" xml:space="preserve">
+    <value>Ver también las finalizadas</value>
+  </data>
+  <data name="VacioInicialTitulo" xml:space="preserve">
+    <value>Todavía no hay visitas programadas</value>
+  </data>
+  <data name="VacioInicialDescripcion" xml:space="preserve">
+    <value>Crea la primera visita para empezar a llevar el control de accesos programados.</value>
+  </data>
+  <data name="DrawerTituloNueva" xml:space="preserve">
+    <value>Nueva visita</value>
+  </data>
+  <data name="DrawerTituloEditar" xml:space="preserve">
+    <value>Editar visita</value>
+  </data>
+  <data name="AvisoPrellenado" xml:space="preserve">
+    <value>Prellenado desde un correo: {0} — revisa los datos y elige los trabajadores antes de guardar.</value>
+  </data>
+  <data name="OpcionSeleccionaCentro" xml:space="preserve">
+    <value>Selecciona un centro…</value>
+  </data>
+  <data name="EtiquetaFechaInicio" xml:space="preserve">
+    <value>Fecha de inicio</value>
+  </data>
+  <data name="EtiquetaFechaFin" xml:space="preserve">
+    <value>Fecha de fin</value>
+  </data>
+  <data name="EtiquetaHoraEntrada" xml:space="preserve">
+    <value>Hora de entrada (opcional — si se deja vacía se asume la apertura de la jornada)</value>
+  </data>
+  <data name="EtiquetaTrabajadoresQueEntran" xml:space="preserve">
+    <value>Trabajadores que entran</value>
+  </data>
+  <data name="SelectorTrabajadoresVacio" xml:space="preserve">
+    <value>Todavía no hay trabajadores creados.</value>
+  </data>
+  <data name="CasillaNotificadaTitularCentro" xml:space="preserve">
+    <value>Notificada a la empresa titular del centro</value>
+  </data>
+  <data name="EtiquetaNotas" xml:space="preserve">
+    <value>Notas</value>
+  </data>
+  <data name="BotonCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="BotonGuardar" xml:space="preserve">
+    <value>Guardar</value>
+  </data>
+  <data name="DetalleTitulo" xml:space="preserve">
+    <value>Detalle de la visita</value>
+  </data>
+  <data name="DetalleTitularCentro" xml:space="preserve">
+    <value>Titular del centro</value>
+  </data>
+  <data name="DetalleEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="DetalleEntrada" xml:space="preserve">
+    <value>Entrada</value>
+  </data>
+  <data name="DetalleSinHora" xml:space="preserve">
+    <value>Sin hora fijada</value>
+  </data>
+  <data name="DetalleAntelacion" xml:space="preserve">
+    <value>Antelación</value>
+  </data>
+  <data name="DetalleAntelacionHoras" xml:space="preserve">
+    <value>Aviso recibido con {0} de antelación; el expediente quedó completo {1} antes de la entrada.</value>
+  </data>
+  <data name="SubtituloComprobacionPrevia" xml:space="preserve">
+    <value>Comprobación previa</value>
+  </data>
+  <data name="ErrorDocumentacionTitulo" xml:space="preserve">
+    <value>No pudimos cargar la documentación</value>
+  </data>
+  <data name="SeccionDocumentacionEmpresa" xml:space="preserve">
+    <value>Documentación de la empresa</value>
+  </data>
+  <data name="VacioDocumentosTitulo" xml:space="preserve">
+    <value>Todo en orden</value>
+  </data>
+  <data name="VacioDocumentosEmpresaDescripcion" xml:space="preserve">
+    <value>No hay documentación de empresa pendiente para este centro.</value>
+  </data>
+  <data name="SubtituloVence" xml:space="preserve">
+    <value>Vence: {0:dd/MM/yyyy}</value>
+  </data>
+  <data name="SubtituloTrabajadoresQueEntran" xml:space="preserve">
+    <value>Trabajadores que entran ({0})</value>
+  </data>
+  <data name="VacioTrabajadoresTitulo" xml:space="preserve">
+    <value>Sin trabajadores</value>
+  </data>
+  <data name="VacioTrabajadoresDescripcion" xml:space="preserve">
+    <value>Esta visita todavía no tiene trabajadores asignados.</value>
+  </data>
+  <data name="VacioDocumentosTrabajadorDescripcion" xml:space="preserve">
+    <value>No hay documentación pendiente para este centro.</value>
+  </data>
+  <data name="BotonQuitarMarcaNotificada" xml:space="preserve">
+    <value>Quitar la marca de notificada</value>
+  </data>
+  <data name="BotonMarcarNotificada" xml:space="preserve">
+    <value>Marcar como notificada</value>
+  </data>
+  <data name="BotonCerrar" xml:space="preserve">
+    <value>Cerrar</value>
+  </data>
+  <data name="ConfirmarEliminarTitulo" xml:space="preserve">
+    <value>¿Eliminar la visita a {0}?</value>
+  </data>
+  <data name="ConfirmarEliminarMensaje" xml:space="preserve">
+    <value>Se ocultará de las listas activas.</value>
+  </data>
+  <data name="ConfirmarEliminarLoteTitulo" xml:space="preserve">
+    <value>¿Eliminar {0} visita(s)?</value>
+  </data>
+  <data name="ConfirmarEliminarLoteMensaje" xml:space="preserve">
+    <value>Se ocultarán de las listas activas.</value>
+  </data>
+  <data name="ToastSugerenciaNoEncontrada" xml:space="preserve">
+    <value>No encontramos esta sugerencia. Puede que ya se haya resuelto.</value>
+  </data>
+  <data name="ToastVisitaNoEncontrada" xml:space="preserve">
+    <value>No encontramos esta visita. Puede que ya se haya eliminado.</value>
+  </data>
+  <data name="ToastErrorDetalle" xml:space="preserve">
+    <value>No pudimos cargar el detalle de la visita. Intenta nuevamente.</value>
+  </data>
+  <data name="ResumenSinPendientesUno" xml:space="preserve">
+    <value>El trabajador que entra no tiene documentación pendiente para este centro.</value>
+  </data>
+  <data name="ResumenSinPendientesVarios" xml:space="preserve">
+    <value>Ninguno de los {0} trabajadores que entran tiene documentación pendiente para este centro.</value>
+  </data>
+  <data name="ResumenPendientesUno" xml:space="preserve">
+    <value>1 de {0} trabajadores tiene documentación pendiente para este centro.</value>
+  </data>
+  <data name="ResumenPendientesVarios" xml:space="preserve">
+    <value>{0} de {1} trabajadores tienen documentación pendiente para este centro.</value>
+  </data>
+  <data name="ToastErrorNotificacion" xml:space="preserve">
+    <value>No pudimos actualizar el estado de notificación. Intenta nuevamente.</value>
+  </data>
+  <data name="OrigenCorreo" xml:space="preserve">
+    <value>Correo</value>
+  </data>
+  <data name="OrigenWhatsApp" xml:space="preserve">
+    <value>WhatsApp</value>
+  </data>
+  <data name="OrigenPlataforma" xml:space="preserve">
+    <value>Plataforma</value>
+  </data>
+  <data name="RecuentoUno" xml:space="preserve">
+    <value>{0} visita</value>
+  </data>
+  <data name="RecuentoVarios" xml:space="preserve">
+    <value>{0} visitas</value>
+  </data>
+  <data name="ErrorFechasNoValidas" xml:space="preserve">
+    <value>Las fechas no son válidas.</value>
+  </data>
+  <data name="ErrorSeleccionaCentro" xml:space="preserve">
+    <value>Selecciona un centro.</value>
+  </data>
+  <data name="ToastCreada" xml:space="preserve">
+    <value>Visita creada correctamente.</value>
+  </data>
+  <data name="ToastActualizada" xml:space="preserve">
+    <value>Visita actualizada correctamente.</value>
+  </data>
+  <data name="ErrorGuardar" xml:space="preserve">
+    <value>No pudimos guardar los cambios. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="ToastEliminada" xml:space="preserve">
+    <value>Visita eliminada correctamente.</value>
+  </data>
+  <data name="ToastErrorEliminar" xml:space="preserve">
+    <value>No pudimos eliminar la visita. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="ToastLoteEliminadas" xml:space="preserve">
+    <value>{0} visita(s) eliminada(s).</value>
+  </data>
+  <data name="ToastLoteParcial" xml:space="preserve">
+    <value>{0} eliminada(s). {1} no se pudieron borrar: {2}</value>
+  </data>
+  <data name="ToastErrorEliminarLote" xml:space="preserve">
+    <value>No pudimos eliminar las visitas seleccionadas. Intenta nuevamente.</value>
+  </data>
+</root>

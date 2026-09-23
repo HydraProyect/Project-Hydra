@@ -1,13 +1,16 @@
 @using CaeManager.Application.Importacion
 @using CaeManager.Web.Components.DesignSystem
+@using CaeManager.Web.Features.Importacion.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosImportacion> Textos
 
 <table class="tabla-datos">
     <thead>
         <tr>
-            <th>Hoja</th>
-            <th>Fila</th>
-            <th>Elemento</th>
-            <th>Motivo</th>
+            <th>@Textos["ColumnaHoja"]</th>
+            <th>@Textos["ColumnaFila"]</th>
+            <th>@Textos["ColumnaElemento"]</th>
+            <th>@Textos["ColumnaMotivo"]</th>
         </tr>
     </thead>
     <tbody>

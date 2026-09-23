@@ -38,7 +38,11 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class ConfiguracionHubGen2Tests : BunitContext
 {
-    public ConfiguracionHubGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public ConfiguracionHubGen2Tests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
+    }
 
     private static readonly IReadOnlyList<ClienteSelectorDto> ClientesEmpresariales =
     [

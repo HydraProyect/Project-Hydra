@@ -21,6 +21,8 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class AutomatizacionesPanelTests : BunitContext
 {
+    public AutomatizacionesPanelTests() => Services.AddLocalization();
+
     private static IReadOnlyList<AutomatizacionDto> TrabajosDeEjemplo() =>
     [
         new(CatalogoAutomatizaciones.IngestaCorreoM365, "Ingesta de correo M365", "desc", Conmutable: true, Activo: true, null, null),

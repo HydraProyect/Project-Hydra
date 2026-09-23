@@ -317,17 +317,19 @@ public partial class Inicio : ComponentBase, IDisposable
             || (_bandejaAgrupada.Grupos.Count == 0 && _bandejaAgrupada.SinGrupo.Count == 0));
 
     /// <summary>
-    /// Centros distintos con al menos un requisito de acceso que de verdad los
-    /// bloquea, en la cola ya cargada — sin query nueva, es el mismo dato que ya
-    /// pinta "Requiere atención". Un RequisitoPendiente de ALTA NUEVA queda
-    /// fuera: es un alta sin completar, no un Centro cerrado (mismo criterio que
-    /// <see cref="TipoItemBandejaUi.BloqueaAccesoDeVerdad"/>, que decide el badge
-    /// «Bloquea acceso» de cada grupo). Contarlo aquí decía «2 centros
-    /// bloqueados» bajo un dashboard donde ningún grupo se declaraba bloqueante.
+    /// Centros distintos con al menos un item que de verdad les cierra el
+    /// acceso, en la cola ya cargada — sin query nueva, es el mismo dato que ya
+    /// pinta "Requiere atención". El criterio es
+    /// <see cref="ObtenerBandejaAgrupadaQueryHandler.BloqueaAccesoAlCentro"/>, el
+    /// mismo que usa <see cref="TipoItemBandejaUi.BloqueaAccesoDeVerdad"/> para
+    /// el badge «Bloquea acceso» de cada grupo: requisito que no es alta nueva
+    /// (un alta sin completar no cierra nada; contarla decía «2 centros
+    /// bloqueados» bajo un dashboard donde ningún grupo se declaraba
+    /// bloqueante) o acreditación Rechazada que bloquea su Centro (D-7).
     /// </summary>
     private int CentrosBloqueados => _bandejaAgrupada is null ? 0
         : _bandejaAgrupada.Grupos.SelectMany(g => g.Items).Concat(_bandejaAgrupada.SinGrupo)
-            .Where(i => i.Tipo == TipoItemBandeja.RequisitoPendiente && !i.EsAltaNueva && i.CentroId is not null)
+            .Where(i => ObtenerBandejaAgrupadaQueryHandler.BloqueaAccesoAlCentro(i) && i.CentroId is not null)
             .Select(i => i.CentroId!.Value)
             .Distinct()
             .Count();

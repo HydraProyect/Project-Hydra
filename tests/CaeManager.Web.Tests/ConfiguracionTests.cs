@@ -10,6 +10,8 @@ namespace CaeManager.Web.Tests;
 
 public class ConfiguracionTests : BunitContext
 {
+    public ConfiguracionTests() => Services.AddLocalization();
+
     [Fact]
     public void Subnavegacion_solo_apunta_a_rutas_internas_del_hub()
     {
@@ -22,7 +24,7 @@ public class ConfiguracionTests : BunitContext
         var enlaces = cut.FindAll(".entrada-subnav");
 
         // Delegaciones y Estado comercial ya no son panel del hub (ver
-        // NavMenu.razor, grupo "Plataforma"): su autoridad es de capacidad
+        // CatalogoMenuLateral, grupo "Plataforma"): su autoridad es de capacidad
         // AdminPlataforma, no del rol Administrador que gatea este hub —
         // 16 bajó a 14. H-4 retira "2fa" (sin política de obligatoriedad) y
         // H-2/DEC-2 añade "plataforma" (enlace de salida puro): 14 se mantiene.

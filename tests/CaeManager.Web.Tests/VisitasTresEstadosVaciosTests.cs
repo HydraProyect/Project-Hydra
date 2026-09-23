@@ -34,6 +34,8 @@ public class VisitasTresEstadosVaciosTests : BunitContext
     public VisitasTresEstadosVaciosTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        // Los textos de Visitas salen de IStringLocalizer<TextosVisitas>.
+        Services.AddLocalization();
         this.ConRolDeEscritura();
     }
 

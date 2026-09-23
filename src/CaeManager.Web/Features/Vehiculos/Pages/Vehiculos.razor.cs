@@ -395,7 +395,7 @@ public partial class Vehiculos : ComponentBase, IDisposable
             {
                 if (!Guid.TryParse(_empresaId, out var empresaIdValor))
                 {
-                    _mensajeErrorFormulario = "Selecciona una empresa.";
+                    _mensajeErrorFormulario = Textos["ErrorSeleccionaEmpresa"];
                     return;
                 }
                 empresaId = empresaIdValor;
@@ -404,7 +404,7 @@ public partial class Vehiculos : ComponentBase, IDisposable
             {
                 if (!Guid.TryParse(_subcontrataId, out var subcontrataIdValor))
                 {
-                    _mensajeErrorFormulario = "Selecciona una subcontrata.";
+                    _mensajeErrorFormulario = Textos["ErrorSeleccionaSubcontrata"];
                     return;
                 }
                 subcontrataId = subcontrataIdValor;
@@ -419,7 +419,7 @@ public partial class Vehiculos : ComponentBase, IDisposable
                 return;
             }
 
-            ToastService.Mostrar("Vehículo creado correctamente.", TonoToast.Exito);
+            ToastService.Mostrar(Textos["ToastCreado"], TonoToast.Exito);
             _drawerVisible = false;
             await RecargarAsync();
         }
@@ -431,7 +431,7 @@ public partial class Vehiculos : ComponentBase, IDisposable
         }
         catch (Exception)
         {
-            _mensajeErrorFormulario = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
+            _mensajeErrorFormulario = Textos["ErrorGuardar"];
         }
         finally
         {
@@ -488,7 +488,7 @@ public partial class Vehiculos : ComponentBase, IDisposable
             }
             else
             {
-                ToastService.Mostrar("Vehículo eliminado correctamente.", TonoToast.Exito);
+                ToastService.Mostrar(Textos["ToastEliminado"], TonoToast.Exito);
                 WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Vehiculo, [idEliminado]);
                 _confirmarEliminarVisible = false;
                 await RecargarAsync();
@@ -496,7 +496,7 @@ public partial class Vehiculos : ComponentBase, IDisposable
         }
         catch (Exception)
         {
-            ToastService.Mostrar("No pudimos eliminar el vehículo. Intenta nuevamente en unos segundos.", TonoToast.Error);
+            ToastService.Mostrar(Textos["ErrorEliminar"], TonoToast.Error);
         }
         finally
         {
@@ -534,8 +534,8 @@ public partial class Vehiculos : ComponentBase, IDisposable
 
             ToastService.Mostrar(
                 dto.Errores.Count == 0
-                    ? $"{dto.Eliminados} vehículo(s) eliminado(s)."
-                    : $"{dto.Eliminados} eliminado(s). {dto.Errores.Count} no se pudieron borrar: {string.Join(" ", dto.Errores)}",
+                    ? Textos["ToastLoteEliminados", dto.Eliminados]
+                    : Textos["ToastLoteEliminadosConErrores", dto.Eliminados, dto.Errores.Count, string.Join(" ", dto.Errores)],
                 dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
 
             // El DTO del lote solo trae el recuento (limitación del DTO: el handler sí sabe qué ids cayeron):
@@ -550,7 +550,7 @@ public partial class Vehiculos : ComponentBase, IDisposable
         }
         catch (Exception)
         {
-            ToastService.Mostrar("No pudimos eliminar los vehículos seleccionados. Intenta nuevamente.", TonoToast.Error);
+            ToastService.Mostrar(Textos["ErrorEliminarLote"], TonoToast.Error);
         }
         finally
         {

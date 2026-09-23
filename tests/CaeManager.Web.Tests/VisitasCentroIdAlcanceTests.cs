@@ -29,6 +29,8 @@ public class VisitasCentroIdAlcanceTests : BunitContext
     public VisitasCentroIdAlcanceTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        // Los textos de Visitas salen de IStringLocalizer<TextosVisitas>.
+        Services.AddLocalization();
         this.ConRolDeEscritura();
     }
 

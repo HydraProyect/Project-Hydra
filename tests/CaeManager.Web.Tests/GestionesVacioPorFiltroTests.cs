@@ -27,7 +27,11 @@ public class GestionesVacioPorFiltroTests : BunitContext
     /// tiene <c>AtajosListaTeclado</c>, así que sin esto el módulo de QuickGrid
     /// es el que tumba los cinco casos — no un fallo del estado vacío.
     /// </summary>
-    public GestionesVacioPorFiltroTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public GestionesVacioPorFiltroTests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
+    }
 
     private sealed class MediatorPorTipo : IMediator
     {

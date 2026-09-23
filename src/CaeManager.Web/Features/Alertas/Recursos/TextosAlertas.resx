@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="TituloPagina" xml:space="preserve">
+    <value>Alertas</value>
+  </data>
+  <data name="Kicker" xml:space="preserve">
+    <value>Reclamación</value>
+  </data>
+  <data name="DescripcionPagina" xml:space="preserve">
+    <value>La documentación de tus trabajadores que hay que reclamar o subir — incluida la que todavía no es urgente — para que puedas anticiparte antes del vencimiento en vez de esperar a que se vuelva crítica.</value>
+  </data>
+  <data name="ProcedenciaLista" xml:space="preserve">
+    <value>Lista calculada en cada carga a partir del vencimiento de cada documento y de los documentos que se piden en cada centro: los que ese centro tiene configurados o, si el centro no dice nada de un tipo, los tipos de documento que se piden siempre. Nadie la escribe a mano.</value>
+  </data>
+  <data name="EnlaceColaTrabajo" xml:space="preserve">
+    <value>Ver tu cola de trabajo en Mi trabajo →</value>
+  </data>
+  <data name="SeccionReclamarTitulo" xml:space="preserve">
+    <value>Reclamar por tipo de documento y ámbito</value>
+  </data>
+  <data name="BotonElegirOtroFiltro" xml:space="preserve">
+    <value>← Elegir otro filtro</value>
+  </data>
+  <data name="ErrorLoteTitulo" xml:space="preserve">
+    <value>No pudimos cargar el lote</value>
+  </data>
+  <data name="ErrorCargaDetalle" xml:space="preserve">
+    <value>Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="LoteVacioTitulo" xml:space="preserve">
+    <value>Nada que reclamar con ese filtro</value>
+  </data>
+  <data name="LoteVacioDetalle" xml:space="preserve">
+    <value>Prueba con otro tipo de documento o alcance.</value>
+  </data>
+  <data name="LoteNuncaReclamado" xml:space="preserve">
+    <value>Nunca reclamado.</value>
+  </data>
+  <data name="LoteUltimaReclamacion" xml:space="preserve">
+    <value>Última reclamación: {0}.</value>
+  </data>
+  <data name="HaceTiempoHoy" xml:space="preserve">
+    <value>hoy</value>
+  </data>
+  <data name="HaceTiempoDiasUno" xml:space="preserve">
+    <value>hace {0} día</value>
+  </data>
+  <data name="HaceTiempoDiasVarios" xml:space="preserve">
+    <value>hace {0} días</value>
+  </data>
+  <data name="EnlaceVerEnComunicaciones" xml:space="preserve">
+    <value>Ver en Comunicaciones</value>
+  </data>
+  <data name="BotonEnviarReclamacionConCuenta" xml:space="preserve">
+    <value>Enviar reclamación ({0})</value>
+  </data>
+  <data name="LoteSinContactos" xml:space="preserve">
+    <value>No hay ningún contacto en la agenda al que reclamar esta documentación.</value>
+  </data>
+  <data name="BotonAnadirContacto" xml:space="preserve">
+    <value>Añadir contacto</value>
+  </data>
+  <data name="DestinatariosLeyenda" xml:space="preserve">
+    <value>Se solicita a</value>
+  </data>
+  <data name="ColumnaTrabajador" xml:space="preserve">
+    <value>Trabajador</value>
+  </data>
+  <data name="ColumnaDocumento" xml:space="preserve">
+    <value>Documento</value>
+  </data>
+  <data name="ColumnaVencimiento" xml:space="preserve">
+    <value>Vencimiento</value>
+  </data>
+  <data name="ColumnaEstado" xml:space="preserve">
+    <value>Estado</value>
+  </data>
+  <data name="ColumnaTipoDocumento" xml:space="preserve">
+    <value>Tipo de documento</value>
+  </data>
+  <data name="ColumnaSeveridad" xml:space="preserve">
+    <value>Severidad</value>
+  </data>
+  <data name="ColumnaCentro" xml:space="preserve">
+    <value>Centro</value>
+  </data>
+  <data name="ColumnaArchivo" xml:space="preserve">
+    <value>Archivo</value>
+  </data>
+  <data name="CasillaIncluirDocumento" xml:space="preserve">
+    <value>Incluir {0} en la reclamación</value>
+  </data>
+  <data name="ConfirmacionEnvioTitulo" xml:space="preserve">
+    <value>¿Enviar la reclamación a {0}?</value>
+  </data>
+  <data name="ConfirmacionEnvioMensaje" xml:space="preserve">
+    <value>Se reclamarán {0} documento(s) a {1} contacto(s) de la agenda: {2}.</value>
+  </data>
+  <data name="BotonEnviarReclamacion" xml:space="preserve">
+    <value>Enviar reclamación</value>
+  </data>
+  <data name="FiltroEstadoEtiqueta" xml:space="preserve">
+    <value>Estado</value>
+  </data>
+  <data name="FiltroEstadoTodos" xml:space="preserve">
+    <value>Todos</value>
+  </data>
+  <data name="FiltroEstadoFaltante" xml:space="preserve">
+    <value>Falta</value>
+  </data>
+  <data name="FiltroEstadoVencido" xml:space="preserve">
+    <value>Vencido</value>
+  </data>
+  <data name="FiltroEstadoUrgente" xml:space="preserve">
+    <value>Urgente</value>
+  </data>
+  <data name="FiltroEstadoProximo" xml:space="preserve">
+    <value>Próximo</value>
+  </data>
+  <data name="AgruparPorEtiqueta" xml:space="preserve">
+    <value>Agrupar por</value>
+  </data>
+  <data name="AgruparSeveridad" xml:space="preserve">
+    <value>Severidad</value>
+  </data>
+  <data name="AgruparMotivo" xml:space="preserve">
+    <value>Motivo</value>
+  </data>
+  <data name="ErrorCargaTitulo" xml:space="preserve">
+    <value>No pudimos cargar las alertas</value>
+  </data>
+  <data name="VacioFiltroTitulo" xml:space="preserve">
+    <value>Ninguna alerta con este estado</value>
+  </data>
+  <data name="VacioFiltroDetalle" xml:space="preserve">
+    <value>Hay {0} documento(s) que reclamar en otros estados.</value>
+  </data>
+  <data name="BotonQuitarFiltro" xml:space="preserve">
+    <value>Quitar el filtro</value>
+  </data>
+  <data name="VacioTitulo" xml:space="preserve">
+    <value>Nada que reclamar</value>
+  </data>
+  <data name="VacioDetalle" xml:space="preserve">
+    <value>Todos los documentos están vigentes o fuera del umbral de aviso.</value>
+  </data>
+  <data name="EnlaceVerPdf" xml:space="preserve">
+    <value>Ver PDF</value>
+  </data>
+  <data name="SinAdjunto" xml:space="preserve">
+    <value>Sin adjunto</value>
+  </data>
+  <data name="BotonGestionar" xml:space="preserve">
+    <value>Gestionar</value>
+  </data>
+  <data name="BotonSubirDocumento" xml:space="preserve">
+    <value>Subir documento</value>
+  </data>
+  <data name="EtiquetaPaginador" xml:space="preserve">
+    <value>alerta(s)</value>
+  </data>
+  <data name="SeveridadVencidoDescripcion" xml:space="preserve">
+    <value>El documento existe, pero su vigencia ya terminó.</value>
+  </data>
+  <data name="SeveridadFaltanteDescripcion" xml:space="preserve">
+    <value>Se pide en un centro al que está asignado —porque ese centro lo tiene configurado o, si el centro no dice nada, porque el tipo de documento se pide siempre— y no hay ningún documento de ese tipo.</value>
+  </data>
+  <data name="SeveridadUrgenteDescripcion" xml:space="preserve">
+    <value>Vence dentro del umbral corto de aviso.</value>
+  </data>
+  <data name="SeveridadProximoDescripcion" xml:space="preserve">
+    <value>Vence dentro del umbral largo de aviso: hay margen para anticiparse.</value>
+  </data>
+  <data name="InsigniaSeveridadTitulo" xml:space="preserve">
+    <value>{0} alerta(s) en severidad {1}</value>
+  </data>
+  <data name="InsigniaMotivoTitulo" xml:space="preserve">
+    <value>Peor severidad del bloque: {0}</value>
+  </data>
+  <data name="MetaGrupoTotal" xml:space="preserve">
+    <value>{0} alerta(s)</value>
+  </data>
+  <data name="MetaGrupoEnPagina" xml:space="preserve">
+    <value>{0} · {1} en esta página</value>
+  </data>
+  <data name="ToastReclamacionEnviada" xml:space="preserve">
+    <value>Reclamación enviada a {0}: {1} documento(s) a {2} contacto(s).</value>
+  </data>
+  <data name="ToastErrorEnvio" xml:space="preserve">
+    <value>No pudimos enviar la reclamación. Inténtalo de nuevo.</value>
+  </data>
+</root>

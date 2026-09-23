@@ -1,0 +1,252 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="TituloPagina" xml:space="preserve">
+    <value>Incidencias</value>
+  </data>
+  <data name="KickerOperacion" xml:space="preserve">
+    <value>Operación</value>
+  </data>
+  <data name="EnlaceExportarExcel" xml:space="preserve">
+    <value>Exportar a Excel</value>
+  </data>
+  <data name="BotonNuevaIncidencia" xml:space="preserve">
+    <value>+ Nueva incidencia</value>
+  </data>
+  <data name="PlaceholderBusqueda" xml:space="preserve">
+    <value>Buscar por centro, trabajador o descripción…</value>
+  </data>
+  <data name="OpcionTodas" xml:space="preserve">
+    <value>Todas</value>
+  </data>
+  <data name="AriaQuitarFiltroEstado" xml:space="preserve">
+    <value>Quitar el filtro de estado</value>
+  </data>
+  <data name="ChipEstadoResueltas" xml:space="preserve">
+    <value>Estado: resueltas</value>
+  </data>
+  <data name="ChipEstadoSinResolver" xml:space="preserve">
+    <value>Estado: sin resolver</value>
+  </data>
+  <data name="ErrorCargaListaTitulo" xml:space="preserve">
+    <value>No pudimos cargar las incidencias</value>
+  </data>
+  <data name="ErrorCargaDetalle" xml:space="preserve">
+    <value>Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="BotonReintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="RecuentoUno" xml:space="preserve">
+    <value>{0} incidencia</value>
+  </data>
+  <data name="RecuentoVarios" xml:space="preserve">
+    <value>{0} incidencias</value>
+  </data>
+  <data name="RecuentoUnoConFiltro" xml:space="preserve">
+    <value>{0} incidencia con el filtro actual</value>
+  </data>
+  <data name="RecuentoVariosConFiltro" xml:space="preserve">
+    <value>{0} incidencias con el filtro actual</value>
+  </data>
+  <data name="AtajosEtiqueta" xml:space="preserve">
+    <value>Atajos:</value>
+  </data>
+  <data name="AtajoMover" xml:space="preserve">
+    <value>mover</value>
+  </data>
+  <data name="AtajoMarcar" xml:space="preserve">
+    <value>marcar</value>
+  </data>
+  <data name="AtajoAbrirCentro" xml:space="preserve">
+    <value>abrir el centro</value>
+  </data>
+  <data name="TeclaEnter" xml:space="preserve">
+    <value>Enter</value>
+  </data>
+  <data name="AriaSeleccionarPagina" xml:space="preserve">
+    <value>Seleccionar la página</value>
+  </data>
+  <data name="AriaSeleccionarIncidencia" xml:space="preserve">
+    <value>Seleccionar la incidencia de {0} del {1}</value>
+  </data>
+  <data name="EtiquetaCentro" xml:space="preserve">
+    <value>Centro</value>
+  </data>
+  <data name="EtiquetaTrabajador" xml:space="preserve">
+    <value>Trabajador</value>
+  </data>
+  <data name="EtiquetaTipo" xml:space="preserve">
+    <value>Tipo</value>
+  </data>
+  <data name="EtiquetaGravedad" xml:space="preserve">
+    <value>Gravedad</value>
+  </data>
+  <data name="ColumnaFecha" xml:space="preserve">
+    <value>Fecha</value>
+  </data>
+  <data name="EtiquetaEstado" xml:space="preserve">
+    <value>Estado</value>
+  </data>
+  <data name="ColumnaAcciones" xml:space="preserve">
+    <value>Acciones</value>
+  </data>
+  <data name="EstadoResuelta" xml:space="preserve">
+    <value>Resuelta</value>
+  </data>
+  <data name="EstadoSinResolver" xml:space="preserve">
+    <value>Sin resolver</value>
+  </data>
+  <data name="AccionReabrir" xml:space="preserve">
+    <value>Reabrir</value>
+  </data>
+  <data name="AccionMarcarResuelta" xml:space="preserve">
+    <value>Marcar resuelta</value>
+  </data>
+  <data name="AccionEditar" xml:space="preserve">
+    <value>Editar</value>
+  </data>
+  <data name="AccionEliminar" xml:space="preserve">
+    <value>Eliminar</value>
+  </data>
+  <data name="EtiquetaPaginador" xml:space="preserve">
+    <value>incidencia(s)</value>
+  </data>
+  <data name="VacioFiltrosTitulo" xml:space="preserve">
+    <value>Ninguna incidencia con estos filtros</value>
+  </data>
+  <data name="VacioFiltrosDescripcion" xml:space="preserve">
+    <value>Ninguna coincide con la búsqueda ni con el estado seleccionado.</value>
+  </data>
+  <data name="BotonQuitarFiltros" xml:space="preserve">
+    <value>Quitar los filtros</value>
+  </data>
+  <data name="VacioTitulo" xml:space="preserve">
+    <value>Todavía no hay incidencias</value>
+  </data>
+  <data name="VacioDescripcion" xml:space="preserve">
+    <value>Registra la primera incidencia operativa de un centro.</value>
+  </data>
+  <data name="DrawerTituloNueva" xml:space="preserve">
+    <value>Nueva incidencia</value>
+  </data>
+  <data name="DrawerTituloEditar" xml:space="preserve">
+    <value>Editar incidencia</value>
+  </data>
+  <data name="OpcionSeleccionaCentro" xml:space="preserve">
+    <value>Selecciona un centro…</value>
+  </data>
+  <data name="EtiquetaTrabajadorOpcional" xml:space="preserve">
+    <value>Trabajador (opcional)</value>
+  </data>
+  <data name="OpcionNingunTrabajador" xml:space="preserve">
+    <value>Ninguno — incidencia general del centro</value>
+  </data>
+  <data name="TipoAccidente" xml:space="preserve">
+    <value>Accidente</value>
+  </data>
+  <data name="TipoIncumplimiento" xml:space="preserve">
+    <value>Incumplimiento</value>
+  </data>
+  <data name="GravedadLeve" xml:space="preserve">
+    <value>Leve</value>
+  </data>
+  <data name="GravedadGrave" xml:space="preserve">
+    <value>Grave</value>
+  </data>
+  <data name="GravedadMuyGrave" xml:space="preserve">
+    <value>Muy grave</value>
+  </data>
+  <data name="EtiquetaFechaOcurrencia" xml:space="preserve">
+    <value>Fecha de ocurrencia</value>
+  </data>
+  <data name="EtiquetaDescripcion" xml:space="preserve">
+    <value>Descripción</value>
+  </data>
+  <data name="PlaceholderDescripcion" xml:space="preserve">
+    <value>Qué pasó, dónde y quién lo detectó</value>
+  </data>
+  <data name="BotonCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="BotonGuardar" xml:space="preserve">
+    <value>Guardar</value>
+  </data>
+  <data name="ConfirmarEliminarTitulo" xml:space="preserve">
+    <value>¿Eliminar la incidencia de {0}?</value>
+  </data>
+  <data name="ConfirmarEliminarMensaje" xml:space="preserve">
+    <value>Se ocultará de las listas activas.</value>
+  </data>
+  <data name="ConfirmarEliminarLoteTitulo" xml:space="preserve">
+    <value>¿Eliminar {0} incidencia(s)?</value>
+  </data>
+  <data name="ConfirmarEliminarLoteMensaje" xml:space="preserve">
+    <value>Se ocultarán de las listas activas.</value>
+  </data>
+  <data name="ErrorConflictoVersion" xml:space="preserve">
+    <value>Otra persona guardó esta incidencia mientras la tenías abierta. Vuelve a abrirla para no pisar sus cambios.</value>
+  </data>
+  <data name="ToastNoEncontrada" xml:space="preserve">
+    <value>No encontramos esta incidencia. Puede que ya se haya eliminado.</value>
+  </data>
+  <data name="ErrorFechaInvalida" xml:space="preserve">
+    <value>La fecha no es válida.</value>
+  </data>
+  <data name="ErrorTipoInvalido" xml:space="preserve">
+    <value>Selecciona un tipo válido.</value>
+  </data>
+  <data name="ErrorGravedadInvalida" xml:space="preserve">
+    <value>Selecciona una gravedad válida.</value>
+  </data>
+  <data name="ErrorSeleccionaCentro" xml:space="preserve">
+    <value>Selecciona un centro.</value>
+  </data>
+  <data name="ToastCreada" xml:space="preserve">
+    <value>Incidencia creada correctamente.</value>
+  </data>
+  <data name="ToastActualizada" xml:space="preserve">
+    <value>Incidencia actualizada correctamente.</value>
+  </data>
+  <data name="ErrorGuardar" xml:space="preserve">
+    <value>No pudimos guardar los cambios. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="ToastMarcadaResuelta" xml:space="preserve">
+    <value>Incidencia marcada como resuelta.</value>
+  </data>
+  <data name="ToastReabierta" xml:space="preserve">
+    <value>Incidencia reabierta.</value>
+  </data>
+  <data name="ErrorActualizarEstado" xml:space="preserve">
+    <value>No pudimos actualizar el estado. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="ToastEliminada" xml:space="preserve">
+    <value>Incidencia eliminada correctamente.</value>
+  </data>
+  <data name="ErrorEliminar" xml:space="preserve">
+    <value>No pudimos eliminar la incidencia. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="ToastLoteEliminadas" xml:space="preserve">
+    <value>{0} incidencia(s) eliminada(s).</value>
+  </data>
+  <data name="ToastLoteEliminadasConErrores" xml:space="preserve">
+    <value>{0} eliminada(s). {1} no se pudieron borrar: {2}</value>
+  </data>
+  <data name="ErrorEliminarLote" xml:space="preserve">
+    <value>No pudimos eliminar las incidencias seleccionadas. Intenta nuevamente.</value>
+  </data>
+  <data name="NombreHojaExportacion" xml:space="preserve">
+    <value>Incidencias</value>
+  </data>
+</root>

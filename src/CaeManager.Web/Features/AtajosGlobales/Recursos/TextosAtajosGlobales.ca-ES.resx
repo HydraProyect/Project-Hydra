@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="TituloAyuda" xml:space="preserve">
+    <value>Atajos de teclado</value>
+  </data>
+  <data name="SeccionNavegacion" xml:space="preserve">
+    <value>Navegación</value>
+  </data>
+  <data name="SeccionAcciones" xml:space="preserve">
+    <value>Acciones</value>
+  </data>
+  <data name="SeccionLista" xml:space="preserve">
+    <value>Dentro de una lista</value>
+  </data>
+  <data name="SeccionFecha" xml:space="preserve">
+    <value>Sobre una fecha</value>
+  </data>
+  <data name="TeclaClic" xml:space="preserve">
+    <value>Clic</value>
+  </data>
+  <data name="TeclaAltClic" xml:space="preserve">
+    <value>Alt/Option + clic</value>
+  </data>
+  <data name="FechaCopiarVencimiento" xml:space="preserve">
+    <value>Copiar vencimiento</value>
+  </data>
+  <data name="FechaCopiarEmision" xml:space="preserve">
+    <value>Copiar emisión, cuando esté disponible</value>
+  </data>
+  <data name="IrAClientes" xml:space="preserve">
+    <value>Ir a Clientes</value>
+  </data>
+  <data name="IrAEmpresas" xml:space="preserve">
+    <value>Ir a Empresas</value>
+  </data>
+  <data name="IrATrabajadores" xml:space="preserve">
+    <value>Ir a Trabajadores</value>
+  </data>
+  <data name="IrADocumentos" xml:space="preserve">
+    <value>Ir a Documentos</value>
+  </data>
+  <data name="IrACentros" xml:space="preserve">
+    <value>Ir a Centros</value>
+  </data>
+  <data name="IrABandeja" xml:space="preserve">
+    <value>Ir a la Bandeja del gestor</value>
+  </data>
+  <data name="IrAProyectos" xml:space="preserve">
+    <value>Ir a Proyectos</value>
+  </data>
+  <data name="IrAIncidencias" xml:space="preserve">
+    <value>Ir a Incidencias</value>
+  </data>
+  <data name="AccionNuevoAqui" xml:space="preserve">
+    <value>Nuevo aquí (en Clientes, Empresas, Centros, Trabajadores o Documentos)</value>
+  </data>
+  <data name="AccionBuscadorGlobal" xml:space="preserve">
+    <value>Buscador global</value>
+  </data>
+  <data name="AccionMostrarAyuda" xml:space="preserve">
+    <value>Mostrar esta ayuda (Esc para cerrar)</value>
+  </data>
+  <data name="ListaFilaSiguienteAnterior" xml:space="preserve">
+    <value>Fila siguiente / anterior</value>
+  </data>
+  <data name="ListaMarcarFila" xml:space="preserve">
+    <value>Marcar/desmarcar la fila enfocada</value>
+  </data>
+  <data name="ListaAbrirFila" xml:space="preserve">
+    <value>Abrir la fila enfocada</value>
+  </data>
+</root>
