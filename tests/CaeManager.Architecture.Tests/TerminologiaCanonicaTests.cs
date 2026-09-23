@@ -322,13 +322,23 @@ public class TerminologiaCanonicaTests
     /// <c>AutorizarOperadorCaeExternoQueriesHandler</c>). Baja con la migración de
     /// <c>DelegacionTenant</c> (D-2/D-3/D-7), no antes.
     /// </para>
+    ///
+    /// <para>
+    /// <b><c>ClienteActivo</c> 71 → 73 (petición abortada en
+    /// <c>RevalidacionClienteActivoMiddleware</c>, 2026-09-23): +2, mismo identificador ya
+    /// congelado, ningún tipo nuevo.</b> La revisión puente del incremento (#822) exigió
+    /// ejecutar también en el segundo catch la invalidación de
+    /// <c>ClienteActivoSeleccionado</c> que ya existía en el camino feliz, para no diferirla a
+    /// la siguiente petición cuando el cliente aborta durante <c>EsVentanaDeSoporteAsync</c>:
+    /// dos apariciones más del mismo patrón, no deuda de un tipo distinto.
+    /// </para>
     /// </summary>
     private static readonly Dictionary<string, int> Congelado = new()
     {
         ["Hydra"] = 48,
         ["EjecutivoUsuarioId"] = 48,
         ["Delegacion"] = 329,
-        ["ClienteActivo"] = 71,
+        ["ClienteActivo"] = 73,
     };
 
     [Theory]
