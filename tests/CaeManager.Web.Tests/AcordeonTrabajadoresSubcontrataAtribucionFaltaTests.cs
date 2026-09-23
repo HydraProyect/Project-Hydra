@@ -141,5 +141,7 @@ public class AcordeonTrabajadoresSubcontrataAtribucionFaltaTests : BunitContext
             "el documento requerido y su estado son lectura: se ven");
         cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().NotContain("Gestionar")
             .And.Contain("Detalles", "abrir el Trabajador 360 es navegación de lectura");
+        cut.FindAll(".tabla-documentos-requeridos button.enlace-nombre-fila").Should().BeEmpty(
+            "el nombre del documento abre el mismo drawer de gestión: a Consulta se le pinta como texto");
     }
 }

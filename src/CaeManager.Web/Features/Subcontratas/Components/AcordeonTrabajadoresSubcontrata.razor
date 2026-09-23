@@ -151,9 +151,16 @@ else
                                 {
                                     <div class="fila-documento-requerido" role="row" @key="documento.TipoDocumentoId">
                                         <span class="celda-documento-nombre" role="cell">
-                                            <button type="button" class="enlace-nombre-fila" @onclick="() => GestionarAsync(trabajador.TrabajadorId, documento)">
-                                                @documento.TipoDocumentoNombre
-                                            </button>
+                                            @* El nombre abre el mismo drawer de gestión que la columna de acción, que Consulta no puede usar:
+                                               a Consulta se le pinta como texto. *@
+                                            <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv" Context="autorizacionNombre">
+                                                <Authorized>
+                                                    <button type="button" class="enlace-nombre-fila" @onclick="() => GestionarAsync(trabajador.TrabajadorId, documento)">
+                                                        @documento.TipoDocumentoNombre
+                                                    </button>
+                                                </Authorized>
+                                                <NotAuthorized>@documento.TipoDocumentoNombre</NotAuthorized>
+                                            </AuthorizeView>
                                         </span>
                                         <span role="cell">
                                             @if (documento.DocumentoId is null)

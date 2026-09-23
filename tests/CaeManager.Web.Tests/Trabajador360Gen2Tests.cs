@@ -370,6 +370,8 @@ public class Trabajador360Gen2Tests : BunitContext
         cut.Find("[aria-label='Gestiones pendientes']").TextContent.Should().Contain("Reconocimiento médico");
         cut.FindAll(".columna-accion button").Should().BeEmpty(
             "Subir, Renovar, Ver, Dar de baja y Completar son las únicas acciones de fila y todas escriben");
+        cut.FindAll(".trabajador360-centro-detalle button.enlace-nombre-fila").Should().BeEmpty(
+            "el nombre del documento abre el mismo drawer de gestión: a Consulta se le pinta como texto");
     }
 
     /// <summary>
