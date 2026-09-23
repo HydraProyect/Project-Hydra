@@ -114,8 +114,14 @@ public class AtajosGlobalesTests : BunitContext
 
         await cut.InvokeAsync(cut.Instance.AlternarAyuda);
 
-        cut.Markup.Should().Contain("Dentro de una lista")
-            .And.Contain("Alt/Option + clic")
+        // Las claves que el .razor pide a mano no pasan por el catálogo: cada
+        // una se comprueba aquí por su texto, o una clave mal escrita se
+        // pintaría tal cual sin poner nada en rojo.
+        cut.Find("h2").TextContent.Should().Be("Atajos de teclado");
+        cut.FindAll("h3").Select(h => h.TextContent).Should().Equal(
+            "Navegación", "Acciones", "Dentro de una lista", "Sobre una fecha");
+        cut.FindAll("kbd").Select(k => k.TextContent).Should().Contain(["Clic", "Alt/Option + clic"]);
+        cut.Markup.Should().Contain("Copiar vencimiento")
             .And.Contain("Copiar emisión, cuando esté disponible")
             .And.Contain("Marcar/desmarcar la fila enfocada");
         cut.Markup.Should().NotContain("SeccionLista").And.NotContain("ListaMarcarFila");

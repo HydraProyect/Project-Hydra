@@ -11,8 +11,8 @@ namespace CaeManager.Web.Features.AtajosGlobales.Recursos;
 /// Las descripciones de <see cref="CatalogoAtajos"/> se guardan aquí por
 /// clave (<see cref="DefinicionAtajo.ClaveDescripcion"/>): el catálogo sigue
 /// siendo la fuente única que empareja cada tecla con su texto. Las teclas
-/// («g c», «Ctrl/Cmd + K», «Enter») no se traducen, salvo «Clic», que es una
-/// palabra y no un nombre de tecla.
+/// («g c», «Ctrl/Cmd + K», «Enter») no se traducen, salvo «Clic» y
+/// «Alt/Option + clic», que llevan una palabra y no solo nombres de tecla.
 /// </para>
 /// </summary>
 public sealed class TextosAtajosGlobales;
