@@ -48,6 +48,9 @@ public class ReportesGen2Tests : BunitContext
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddLocalization();
+        // Los disparadores de escritura van en SoloConEscritura (AuthorizeView): por
+        // defecto un rol que escribe; los tests de Consulta lo sustituyen.
+        this.ConRolDeEscritura();
     }
 
     private static readonly Guid ClienteA = Guid.Parse("a1a1a1a1-0000-0000-0000-000000000001");
@@ -518,6 +521,20 @@ public class ReportesGen2Tests : BunitContext
             $"/reportes/vigencia.pdf?clienteId={ClienteA}&incluirVigentes=true",
             $"/reportes/vigencia.xlsx?clienteId={ClienteA}&incluirVigentes=true");
         EnviarPorComunicaciones(cut).HasAttribute("disabled").Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Consulta_genera_y_descarga_el_informe_sin_que_se_le_ofrezca_enviarlo_por_comunicaciones()
+    {
+        // Enviar abre el redactor, que manda EnviarMensajeNuevoCommand: ICommand que
+        // AutorizacionEscrituraBehavior deniega a Consulta. Generar y descargar son lectura.
+        this.ConRolDeEscritura(Roles.Consulta);
+        var (cut, _) = Renderizar(new Escenario(), $"reportes?clienteId={ClienteA}");
+
+        await Generar(cut);
+
+        Descargas(cut).Should().HaveCount(2, "las descargas son lectura: se ofrecen");
+        cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().NotContain("Enviar por Comunicaciones…");
     }
 
     [Fact]

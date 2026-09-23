@@ -308,8 +308,13 @@
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
 
-<BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
-                    OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />
+@* EliminarSubcontratasCommand es ICommand, denegado a Consulta. «Selección múltiple» sigue
+   visible: vive en BarraHerramientasLista junto a «Expandir todos» y el conteo, que sí son
+   lectura, y ocultarlo solo a él exigiría tocar el componente compartido. *@
+<SoloConEscritura>
+    <BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
+                        OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />
+</SoloConEscritura>
 
 <DialogoConfirmacion
     Visible="_confirmarEliminarLoteVisible"

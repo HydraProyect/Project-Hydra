@@ -20,6 +20,7 @@ using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Subcontratas;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Subcontratas.Components;
@@ -55,6 +56,9 @@ public class Subcontrata360Gen2Tests : BunitContext
         JSInterop.Mode = JSRuntimeMode.Loose;
         // Los textos de Subcontratas salen de IStringLocalizer<TextosSubcontratas>.
         Services.AddLocalization();
+        // Los disparadores de escritura van en SoloConEscritura (AuthorizeView): por
+        // defecto un rol que escribe; los tests de Consulta lo sustituyen.
+        this.ConRolDeEscritura();
     }
 
     /// <summary>
@@ -687,6 +691,33 @@ public class Subcontrata360Gen2Tests : BunitContext
                 "Eliminar la verificación de Certificado TGSS en Planta Zaragoza",
             ],
             "tres botones con el mismo texto visible: el nombre accesible es lo único que los distingue, y el tipo se repite entre centros");
+    }
+
+    [Fact]
+    public void Consulta_ve_la_ficha_y_la_supervision_sin_que_se_le_ofrezca_editar_cambiar_de_nivel_ni_registrar_o_eliminar_verificaciones()
+    {
+        // Editar, cambiar de nivel, registrar y eliminar verificaciones son ICommand que
+        // AutorizacionEscrituraBehavior deniega a Consulta: ofrecerlos era enseñar botones que siempre fallan.
+        this.ConRolDeEscritura(Roles.Consulta);
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Pinturas Lauburu S.A.");
+        mediador.Supervisiones[id] = new SupervisionSubcontrataDto(
+            [CentroSupervisado("Centro Norte", TipoVerificado("Certificado TGSS", Guid.NewGuid(), new DateOnly(2026, 7, 13)))],
+            []);
+
+        var cut = Renderizar(id);
+
+        var enInformacion = cut.FindAll("button").Select(b => b.TextContent.Trim()).ToList();
+        enInformacion.Should().NotContain("Editar identidad")
+            .And.NotContain(t => t.StartsWith("Cambiar a", StringComparison.Ordinal))
+            .And.Contain("Ver credenciales", "consultar las credenciales es lectura");
+
+        cut.Render(p => p.Add(x => x.EntidadId, id).Add(x => x.PestanaActiva, "supervision"));
+
+        cut.Markup.Should().Contain("Certificado TGSS", "la supervisión es lectura: se ve");
+        cut.FindAll("button").Select(b => b.TextContent.Trim())
+            .Should().NotContain(["+ Registrar verificación", "Eliminar"]);
     }
 
     [Fact]

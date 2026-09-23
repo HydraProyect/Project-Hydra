@@ -276,12 +276,16 @@ else
                         </div>
                     </section>
 
-                    <div class="acciones-subcontrata-360">
-                        <Boton Variante="VarianteBoton.Secundario" Cargando="_abriendoEdicion" OnClick="IniciarEdicionInformacionAsync">@Textos["BotonEditarIdentidad"]</Boton>
-                        <Boton Variante="VarianteBoton.Secundario" Cargando="_cambiandoNivel" OnClick="ConfirmarCambioNivelAsync">
-                            @Textos["BotonCambiarNivel", EstadoSupervisionUi.TextoNivel(Textos, NivelOpuesto)]
-                        </Boton>
-                    </div>
+                    @* Editar identidad (y credenciales) y cambiar de nivel acaban en ICommand:
+                       AutorizacionEscrituraBehavior los deniega a Consulta, así que no se le ofrecen. *@
+                    <SoloConEscritura>
+                        <div class="acciones-subcontrata-360">
+                            <Boton Variante="VarianteBoton.Secundario" Cargando="_abriendoEdicion" OnClick="IniciarEdicionInformacionAsync">@Textos["BotonEditarIdentidad"]</Boton>
+                            <Boton Variante="VarianteBoton.Secundario" Cargando="_cambiandoNivel" OnClick="ConfirmarCambioNivelAsync">
+                                @Textos["BotonCambiarNivel", EstadoSupervisionUi.TextoNivel(Textos, NivelOpuesto)]
+                            </Boton>
+                        </div>
+                    </SoloConEscritura>
                 }
                 break;
 
@@ -347,9 +351,12 @@ else
                         @Textos["ExplicacionSupervision"]
                     </p>
                     <div class="acciones-subcontrata-360">
-                        <Boton Tamano="TamanoBoton.Pequeno" OnClick="AbrirRegistrarVerificacionAsync" Deshabilitado="@(_supervision.CentrosSeleccionables.Count == 0)">
-                            @Textos["BotonRegistrarVerificacion"]
-                        </Boton>
+                        @* Registrar y eliminar verificaciones son ICommand denegados a Consulta; el resumen sí es lectura. *@
+                        <SoloConEscritura>
+                            <Boton Tamano="TamanoBoton.Pequeno" OnClick="AbrirRegistrarVerificacionAsync" Deshabilitado="@(_supervision.CentrosSeleccionables.Count == 0)">
+                                @Textos["BotonRegistrarVerificacion"]
+                            </Boton>
+                        </SoloConEscritura>
                         <span class="resumen-subcontrata-360">@TextoUltimaVerificacion</span>
                     </div>
 
@@ -387,7 +394,7 @@ else
                                                         <a href="@($"/subcontratas/verificaciones/{ultima.Id}/evidencia")" target="_blank" rel="noopener">@Textos["EnlaceVerEvidencia"]</a>
                                                     }
                                                     @* Nombre contextual: hay un «Eliminar» por verificación, y a secas un lector de pantalla no distingue cuál borra. *@
-                                                    <button type="button" class="enlace-nombre-fila" aria-label="@Textos["AriaEliminarVerificacion", tipo.TipoDocumentoNombre, centro.CentroNombre]" @onclick="() => AbrirEliminarVerificacion(ultima.Id)">@Textos["BotonEliminarVerificacion"]</button>
+                                                    <SoloConEscritura><button type="button" class="enlace-nombre-fila" aria-label="@Textos["AriaEliminarVerificacion", tipo.TipoDocumentoNombre, centro.CentroNombre]" @onclick="() => AbrirEliminarVerificacion(ultima.Id)">@Textos["BotonEliminarVerificacion"]</button></SoloConEscritura>
                                                 </div>
                                                 @if (!string.IsNullOrWhiteSpace(ultima.Observaciones))
                                                 {
