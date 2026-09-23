@@ -14,15 +14,21 @@
 @using CaeManager.Web.Components.Workspace
 @using CaeManager.Web.Features.Documentos
 @using CaeManager.Web.Features.Documentos.Components
+@using CaeManager.Web.Features.Subcontratas.Recursos
+@using CaeManager.Web.Recursos
 @using MediatR
+@using Microsoft.Extensions.Localization
+@using System.Globalization
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
+@inject IStringLocalizer<TextosSubcontratas> Textos
+@inject IStringLocalizer<TextosComunes> Comunes
 
 @if (_errorCarga)
 {
-    <EstadoVacio Titulo="No pudimos cargar los trabajadores" Descripcion="Intenta nuevamente en unos segundos.">
+    <EstadoVacio Titulo="@Textos["ErrorCargaTrabajadoresTitulo"]" Descripcion="@Textos["ErrorIntentaNuevamente"]">
         <Accion>
-            <Boton OnClick="CargarAsync">Reintentar</Boton>
+            <Boton OnClick="CargarAsync">@Comunes["Reintentar"]</Boton>
         </Accion>
     </EstadoVacio>
 }
@@ -32,7 +38,7 @@ else if (_cargando)
 }
 else if (_trabajadores.Count == 0)
 {
-    <EstadoVacio Titulo="Sin trabajadores" Descripcion="Esta subcontrata todavía no tiene ningún trabajador dado de alta." />
+    <EstadoVacio Titulo="@Textos["AcordeonVacioTitulo"]" Descripcion="@Textos["AcordeonVacioDescripcion"]" />
 }
 else
 {
@@ -48,7 +54,7 @@ else
                     <div class="fila-trabajador-rejilla">
                         <button type="button" class="@("boton-expandir-fila" + (expandido ? " boton-expandir-fila-abierta" : ""))"
                                 aria-expanded="@(expandido ? "true" : "false")"
-                                aria-label="@($"Documentos exigidos a {trabajador.TrabajadorNombre}")"
+                                aria-label="@Textos["AriaDocumentosExigidosA", trabajador.TrabajadorNombre]"
                                 @onclick="() => AlternarExpansionTrabajador(trabajador.TrabajadorId)">
                             <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
                         </button>
@@ -62,8 +68,8 @@ else
                             <span class="ranura-recuento">
                                 @if (vencidos.Count > 0)
                                 {
-                                    <VentanaContexto Etiqueta="@DescribirRecuento(vencidos, "vencido")"
-                                                     Titulo="@($"{vencidos.Count} {(vencidos.Count == 1 ? "documento vencido" : "documentos vencidos")}")">
+                                    <VentanaContexto Etiqueta="@DescribirRecuento(vencidos.Count, "RecuentoDocumentosVencidosUno", "RecuentoDocumentosVencidosVarios")"
+                                                     Titulo="@DescribirRecuento(vencidos.Count, "RecuentoDocumentosVencidosUno", "RecuentoDocumentosVencidosVarios")">
                                         <Disparador>
                                             <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno" class="badge-solo-recuento">
                                                 @vencidos.Count
@@ -81,8 +87,8 @@ else
                             <span class="ranura-recuento">
                                 @if (proximos.Count > 0)
                                 {
-                                    <VentanaContexto Etiqueta="@DescribirRecuento(proximos, "próximo a vencer")"
-                                                     Titulo="@($"{proximos.Count} {(proximos.Count == 1 ? "documento próximo a vencer" : "documentos próximos a vencer")}")">
+                                    <VentanaContexto Etiqueta="@DescribirRecuento(proximos.Count, "RecuentoDocumentosProximosUno", "AriaRecuentoDocumentosProximosVarios")"
+                                                     Titulo="@DescribirRecuento(proximos.Count, "RecuentoDocumentosProximosUno", "RecuentoDocumentosProximosVarios")">
                                         <Disparador>
                                             <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno" class="badge-solo-recuento">
                                                 @proximos.Count
@@ -100,8 +106,8 @@ else
                             <span class="ranura-recuento ranura-recuento-final">
                                 @if (urgentes.Count > 0)
                                 {
-                                    <VentanaContexto Etiqueta="@DescribirRecuento(urgentes, "urgente")"
-                                                     Titulo="@($"{urgentes.Count} {(urgentes.Count == 1 ? "documento urgente" : "documentos urgentes")}")">
+                                    <VentanaContexto Etiqueta="@DescribirRecuento(urgentes.Count, "RecuentoDocumentosUrgentesUno", "AriaRecuentoDocumentosUrgentesVarios")"
+                                                     Titulo="@DescribirRecuento(urgentes.Count, "RecuentoDocumentosUrgentesUno", "RecuentoDocumentosUrgentesVarios")">
                                         <Disparador>
                                             <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno" class="badge-solo-recuento">
                                                 @urgentes.Count
@@ -121,7 +127,7 @@ else
                             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
                                    class="@("accion-fila-enlace" + (trabajador.PeorEstado == EstadoDocumento.Vigente ? " accion-atenuada" : null))"
                                    OnClick="() => AbrirDetalleTrabajador(trabajador)">
-                                Detalles
+                                @Textos["BotonDetalles"]
                             </Boton>
                         </span>
                     </div>
@@ -129,17 +135,17 @@ else
                     {
                         @if (trabajador.Documentos.Count == 0)
                         {
-                            <p class="texto-vacio-seccion">Este trabajador no está asignado a ningún centro con documentación exigida.</p>
+                            <p class="texto-vacio-seccion">@Textos["TrabajadorSinDocumentacionExigida"]</p>
                         }
                         else
                         {
                             <div class="tabla-documentos-requeridos" role="table"
-                                 aria-label="@($"Documentación exigida a {trabajador.TrabajadorNombre}")">
+                                 aria-label="@Textos["AriaDocumentacionExigidaA", trabajador.TrabajadorNombre]">
                                 <div class="documentos-requeridos-cabecera" role="row">
-                                    <span role="columnheader">Documento</span>
-                                    <span role="columnheader">Estado</span>
-                                    <span role="columnheader">Vigencia</span>
-                                    <span role="columnheader" class="columna-accion">Acción</span>
+                                    <span role="columnheader">@Textos["ColumnaDocumento"]</span>
+                                    <span role="columnheader">@Textos["ColumnaEstado"]</span>
+                                    <span role="columnheader">@Textos["ColumnaVigencia"]</span>
+                                    <span role="columnheader" class="columna-accion">@Textos["ColumnaAccion"]</span>
                                 </div>
                                 @foreach (var documento in trabajador.Documentos)
                                 {
@@ -157,13 +163,13 @@ else
                                                    Alertas.razor): la fila de ese centro, o si el centro no dice
                                                    nada, el valor general del tipo. Atribuirlo solo al centro
                                                    mentía en los centros que no han configurado nada. *@
-                                                <VentanaContexto Etiqueta="Falta: la subcontrata no ha aportado este documento todavía"
-                                                                 Titulo="Falta">
+                                                <VentanaContexto Etiqueta="@Textos["AriaFaltaDocumento"]"
+                                                                 Titulo="@Textos["BadgeFalta"]">
                                                     <Disparador>
-                                                        <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">Falta</Badge>
+                                                        <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">@Textos["BadgeFalta"]</Badge>
                                                     </Disparador>
                                                     <Detalle>
-                                                        Al menos uno de los centros donde trabaja se lo pide —porque ese centro lo tiene configurado o, si no dice nada, porque el tipo de documento se pide siempre— y todavía no hay ninguno subido.
+                                                        @Textos["ExplicacionFaltaDocumento"]
                                                     </Detalle>
                                                 </VentanaContexto>
                                             }
@@ -183,7 +189,7 @@ else
                                             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
                                                    class="@("accion-fila-enlace" + (RequiereIntervencion(documento) ? null : " accion-atenuada"))"
                                                    OnClick="() => GestionarAsync(trabajador.TrabajadorId, documento)">
-                                                Gestionar
+                                                @Textos["BotonGestionar"]
                                             </Boton>
                                         </span>
                                     </div>
@@ -266,16 +272,15 @@ else
     private static bool RequiereIntervencion(DocumentoRequeridoDto documento) =>
         documento.Estado is not EstadoDocumento.Vigente;
 
-    private static string DescribirDocumentoIncidencia(DocumentoRequeridoDto documento) =>
+    private string DescribirDocumentoIncidencia(DocumentoRequeridoDto documento) =>
         documento.DocumentoId is null
-            ? $"{documento.TipoDocumentoNombre} — falta"
+            ? Textos["IncidenciaFalta", documento.TipoDocumentoNombre]
             : $"{documento.TipoDocumentoNombre} — {EstadoDocumentoUi.Texto(documento.Estado)}";
 
-    private static string DescribirRecuento(IReadOnlyList<DocumentoRequeridoDto> documentos, string calificativo) =>
-        documentos.Count == 1
-            ? $"1 documento {calificativo}"
-            : $"{documentos.Count} documentos {(calificativo.EndsWith('o') ? calificativo + "s" : calificativo)}";
+    /// <summary>Recuento con su plural: <paramref name="claveUno"/> para 1, <paramref name="claveVarios"/> (número en {0}) para el resto.</summary>
+    private string DescribirRecuento(int total, string claveUno, string claveVarios) =>
+        total == 1 ? Textos[claveUno] : Textos[claveVarios, total];
 
     private static string TextoVigencia(DocumentoRequeridoDto documento) =>
-        documento.FechaVencimiento is { } fecha ? fecha.ToString("dd/MM/yyyy") : "—";
+        documento.FechaVencimiento is { } fecha ? fecha.ToString("dd/MM/yyyy", CultureInfo.CurrentCulture) : "—";
 }
