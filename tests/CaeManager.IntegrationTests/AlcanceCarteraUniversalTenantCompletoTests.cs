@@ -91,10 +91,11 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
         await contexto.SaveChangesAsync();
     }
 
-    private async Task AltaUsuarioAsync(Guid tenant, Guid usuarioId, Guid? clienteId = null, Guid? coordinadorUsuarioId = null)
+    private async Task AltaUsuarioAsync(Guid tenant, Guid usuarioId, Guid? clienteId = null, Guid? coordinadorUsuarioId = null,
+        bool desactivado = false)
     {
         await using var contexto = CrearContexto(tenant);
-        contexto.Users.Add(new ApplicationUser
+        var usuario = new ApplicationUser
         {
             Id = usuarioId,
             UserName = $"u-{usuarioId:N}@ejemplo.test",
@@ -102,7 +103,9 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
             ClienteId = clienteId,
             CoordinadorUsuarioId = coordinadorUsuarioId,
             TenantId = tenant
-        });
+        };
+        if (desactivado) usuario.Desactivar();
+        contexto.Users.Add(usuario);
         await contexto.SaveChangesAsync();
     }
 
@@ -213,6 +216,21 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
         var gestor = Guid.NewGuid();
         await AltaUsuarioAsync(_tenant, coordinador);
         await AltaUsuarioAsync(_tenant, gestor, coordinadorUsuarioId: coordinador);
+        await OtorgarCarteraAsync(_tenant, gestor, AmbitoAsignacion.Universal);
+
+        DebeAlcanzarTodoElTenant(await MedirAsync(coordinador, "CoordinadorCae", _tenant), e);
+    }
+
+    [Fact]
+    public async Task Coordinador_sigue_heredando_la_cartera_universal_de_un_Gestor_desactivado()
+    {
+        // Decisión del propietario, opción C (2026-09-24): desactivar a un Gestor CAE no cierra sus
+        // Asignaciones de Cartera y su Coordinador CAE las sigue heredando, por continuidad del servicio.
+        var e = await SembrarAsync(_tenant, "A");
+        var coordinador = Guid.NewGuid();
+        var gestor = Guid.NewGuid();
+        await AltaUsuarioAsync(_tenant, coordinador);
+        await AltaUsuarioAsync(_tenant, gestor, coordinadorUsuarioId: coordinador, desactivado: true);
         await OtorgarCarteraAsync(_tenant, gestor, AmbitoAsignacion.Universal);
 
         DebeAlcanzarTodoElTenant(await MedirAsync(coordinador, "CoordinadorCae", _tenant), e);
