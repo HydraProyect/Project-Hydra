@@ -1,8 +1,10 @@
 using Bunit;
 using CaeManager.Web.Features.AtajosGlobales;
+using CaeManager.Web.Features.AtajosGlobales.Recursos;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Tests;
 
@@ -15,7 +17,11 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class AtajosGlobalesTests : BunitContext
 {
-    public AtajosGlobalesTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public AtajosGlobalesTests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
+    }
 
     [Fact]
     public void IrA_navega_al_destino_de_la_letra()
@@ -79,6 +85,46 @@ public class AtajosGlobalesTests : BunitContext
 
         cut.Markup.Should().Contain("g p").And.Contain("Ir a Proyectos");
         cut.Markup.Should().Contain("g i").And.Contain("Ir a Incidencias");
+    }
+
+    /// <summary>
+    /// El catálogo guarda la clave de cada descripción, no el texto: una clave
+    /// sin entrada en <c>TextosAtajosGlobales</c> se pintaría tal cual
+    /// («IrAProyectos») sin que nada fallara. Por eso se recorre el catálogo
+    /// entero contra el localizador, y no solo los atajos que el test pinta.
+    /// </summary>
+    [Fact]
+    public void Cada_atajo_del_catalogo_tiene_su_texto_en_los_recursos()
+    {
+        var textos = Services.GetRequiredService<IStringLocalizer<TextosAtajosGlobales>>();
+
+        var sinTexto = CatalogoAtajos.Navegacion
+            .Concat(CatalogoAtajos.Acciones)
+            .Concat(CatalogoAtajos.Lista)
+            .Where(a => textos[a.ClaveDescripcion].ResourceNotFound)
+            .Select(a => a.ClaveDescripcion);
+
+        sinTexto.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task AlternarAyuda_pinta_los_textos_y_no_las_claves()
+    {
+        var cut = Render<AtajosGlobales>();
+
+        await cut.InvokeAsync(cut.Instance.AlternarAyuda);
+
+        // Las claves que el .razor pide a mano no pasan por el catálogo: cada
+        // una se comprueba aquí por su texto, o una clave mal escrita se
+        // pintaría tal cual sin poner nada en rojo.
+        cut.Find("h2").TextContent.Should().Be("Atajos de teclado");
+        cut.FindAll("h3").Select(h => h.TextContent).Should().Equal(
+            "Navegación", "Acciones", "Dentro de una lista", "Sobre una fecha");
+        cut.FindAll("kbd").Select(k => k.TextContent).Should().Contain(["Clic", "Alt/Option + clic"]);
+        cut.Markup.Should().Contain("Copiar vencimiento")
+            .And.Contain("Copiar emisión, cuando esté disponible")
+            .And.Contain("Marcar/desmarcar la fila enfocada");
+        cut.Markup.Should().NotContain("SeccionLista").And.NotContain("ListaMarcarFila");
     }
 
     [Fact]
