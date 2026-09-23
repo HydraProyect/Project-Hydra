@@ -361,8 +361,9 @@ public class AlcanceDatosService(
     /// D-8 (piloto Outbound): además, un Gestor/Coordinador CAE con cartera no vacía ve las Empresas
     /// propias del Tenant actual aunque no exista Centro ni Relación Empresarial que las una a un
     /// Cliente de su cartera (la Empresa propia es parte estructural del contexto, no algo que
-    /// haya que fabricar con un Centro o una Relación). Sus Trabajadores NO: siguen entrando solo
-    /// por <c>Asignacion</c> sobre un Centro visible.
+    /// haya que fabricar con un Centro o una Relación). Con el mismo criterio
+    /// (<see cref="IncluyeEstructuraPropiaAsync"/>) ve también a todos sus Trabajadores, tengan o no
+    /// Asignación: ver <see cref="ObtenerTrabajadorIdsVisiblesAsync"/>.
     ///
     /// El filtro <c>Proveedora.EsPropia</c> repone una garantía que antes
     /// daba gratis la separación física de tablas — en la tabla unificada
@@ -389,19 +390,10 @@ public class AlcanceDatosService(
             .Join(dbContext.Empresas.Where(e => e.EsPropia), r => r.ProveedoraId, e => e.Id, (r, e) => e.Id);
 
         // D-8 (piloto Outbound): la Empresa propia es parte estructural del Tenant del que el Gestor
-        // tiene cartera, con o sin Centro ni Relación Empresarial. Solo los roles de cartera de
-        // Operador (Gestor/Coordinador CAE): el rol Cliente (portal) no gana estructura del Tenant,
-        // y cualquier otro rol que llegue aquí con cartera no vacía sigue sin ella (falla cerrado).
+        // tiene cartera, con o sin Centro ni Relación Empresarial.
         // dbContext ya está acotado al Tenant actual (RLS + filtro), así que no cruza Tenants.
-        var rolActual = await currentUserService.ObtenerRolActualAsync();
         var visibles = porCentro.Concat(porVinculoDirecto);
-        // La lente de demo Gestor muestra lo mismo que vería ese Gestor con su propia cuenta, así que
-        // también la incluye (sin ella, la lente y la cuenta real mostrarían Empresas distintas). La
-        // lente solo cuenta si quien mira ya tiene alcance total real (Administrador, Consulta): la
-        // Empresa propia ya estaba a su alcance, así que la lente no amplía nada.
-        if (rolActual is Roles.GestorCae or Roles.CoordinadorCae
-            || (await ObtenerGestorDeLenteAsync(cancellationToken) is not null
-                && await TieneAccesoTotalRealAsync(cancellationToken)))
+        if (await IncluyeEstructuraPropiaAsync(cancellationToken))
             visibles = visibles.Concat(dbContext.Empresas.Where(e => e.EsPropia).Select(e => e.Id));
 
         var resultado = await visibles.Distinct().ToListAsync(cancellationToken);
@@ -409,6 +401,29 @@ public class AlcanceDatosService(
 
         return resultado;
     }
+
+    /// <summary>
+    /// D-8 (piloto Outbound): si quien mira, con cartera no vacía en el Tenant actual, alcanza la
+    /// estructura propia del Tenant —la Empresa propia y toda su plantilla— sin que haga falta un
+    /// Centro, una Relación Empresarial ni una Asignación que la una a un Cliente de su cartera.
+    /// Criterio único para <see cref="ObtenerEmpresaIdsVisiblesAsync"/> y
+    /// <see cref="ObtenerTrabajadorIdsVisiblesAsync"/>: si divergieran, un Gestor CAE vería la
+    /// Empresa propia sin su plantilla, o al revés.
+    ///
+    /// Solo los roles de cartera de Operador (Gestor/Coordinador CAE): el rol Cliente (portal) no
+    /// gana estructura del Tenant, y cualquier otro rol que llegue aquí con cartera no vacía sigue
+    /// sin ella (falla cerrado). Consulta no pasa por aquí porque ya tiene alcance total dentro del
+    /// Tenant. La lente de demo Gestor muestra lo mismo que vería ese Gestor con su propia cuenta,
+    /// así que también la incluye (sin ella, la lente y la cuenta real mostrarían datos distintos);
+    /// solo cuenta si quien mira ya tiene alcance total real (Administrador, Consulta), para quien
+    /// la estructura propia ya estaba a su alcance: la lente no amplía nada.
+    ///
+    /// Solo decide el rol: quien llama ya ha comprobado que la cartera no está vacía.
+    /// </summary>
+    private async Task<bool> IncluyeEstructuraPropiaAsync(CancellationToken cancellationToken) =>
+        await currentUserService.ObtenerRolActualAsync() is Roles.GestorCae or Roles.CoordinadorCae
+        || (await ObtenerGestorDeLenteAsync(cancellationToken) is not null
+            && await TieneAccesoTotalRealAsync(cancellationToken));
 
     /// <summary>
     /// F4 — reescrito sobre <c>RelacionEmpresarial</c> en vez de
@@ -464,23 +479,48 @@ public class AlcanceDatosService(
         return await ObtenerSubcontrataIdsVisiblesAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Dos vías, unidas:
+    /// <list type="bullet">
+    /// <item>por Asignación: los Trabajadores —de cualquier empleador— con una <c>Asignacion</c>
+    /// activa en un Centro visible;</item>
+    /// <item>por estructura propia (decisión del propietario 2026-09-22, opción A): toda la
+    /// plantilla de la Empresa propia del Tenant, desde su alta y sin Asignación, para que el Gestor
+    /// CAE prepare el expediente antes de la primera. Mismo criterio que la Empresa propia en
+    /// <see cref="ObtenerEmpresaIdsVisiblesAsync"/> (<see cref="IncluyeEstructuraPropiaAsync"/>).
+    /// Solo Trabajadores de la Empresa propia: los de una Subcontrata o de otra Empresa contraparte
+    /// siguen entrando únicamente por Asignación.</item>
+    /// </list>
+    /// La condición de entrada es la cartera (Clientes visibles), no los Centros: un Gestor CAE con
+    /// cartera pero sin ningún Centro todavía ve la plantilla propia. Sin cartera, [].
+    /// </summary>
     public async Task<IReadOnlyList<Guid>?> ObtenerTrabajadorIdsVisiblesAsync(CancellationToken cancellationToken = default)
     {
         var tenant = ClaveTenant(tenantActual.TenantId);
         if (_trabajadorIds.TryGetValue(tenant, out var cacheado)) return cacheado;
 
-        var centroIds = await ObtenerCentroIdsVisiblesAsync(cancellationToken);
+        var clienteIds = await ObtenerClienteIdsVisiblesAsync(cancellationToken);
 
-        IReadOnlyList<Guid>? resultado = centroIds switch
+        if (clienteIds is null || clienteIds.Count == 0)
         {
-            null => null,
-            { Count: 0 } => [],
-            _ => await dbContext.Asignaciones
-                .Where(a => centroIds.Contains(a.CentroId) && a.FechaBaja == null)
-                .Select(a => a.TrabajadorId)
-                .Distinct()
-                .ToListAsync(cancellationToken)
-        };
+            var vacioOSinRestriccion = clienteIds is null ? null : (IReadOnlyList<Guid>)[];
+            _trabajadorIds[tenant] = vacioOSinRestriccion;
+            return vacioOSinRestriccion;
+        }
+
+        var centroIds = await ObtenerCentroIdsVisiblesAsync(cancellationToken) ?? [];
+        var visibles = dbContext.Asignaciones
+            .Where(a => centroIds.Contains(a.CentroId) && a.FechaBaja == null)
+            .Select(a => a.TrabajadorId);
+
+        // dbContext ya está acotado al Tenant actual (RLS + filtro), así que no cruza Tenants. Un
+        // Trabajador de Subcontrata tiene EmpresaId null (CK_Trabajadores_EmpresaXorSubcontrata), así
+        // que el join con la Empresa propia ya lo deja fuera.
+        if (await IncluyeEstructuraPropiaAsync(cancellationToken))
+            visibles = visibles.Concat(dbContext.Trabajadores
+                .Join(dbContext.Empresas.Where(e => e.EsPropia), t => t.EmpresaId, e => (Guid?)e.Id, (t, e) => t.Id));
+
+        var resultado = await visibles.Distinct().ToListAsync(cancellationToken);
         _trabajadorIds[tenant] = resultado;
 
         return resultado;
