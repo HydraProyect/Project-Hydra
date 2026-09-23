@@ -10,6 +10,8 @@ namespace CaeManager.Web.Tests;
 
 public class ConfiguracionTests : BunitContext
 {
+    public ConfiguracionTests() => Services.AddLocalization();
+
     [Fact]
     public void Subnavegacion_solo_apunta_a_rutas_internas_del_hub()
     {

@@ -2,16 +2,19 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
 @inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
+@using CaeManager.Web.Features.Configuracion.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosConfiguracion> Textos
 
 @if (!IntegradaEnConfiguracion)
 {
-    <PageTitle>Lectura IA por Cliente empresarial — @Marca.Nombre</PageTitle>
+    <PageTitle>@Textos["LecturaIaTituloPagina"] — @Marca.Nombre</PageTitle>
 }
 
 <div class="@ClaseContenedorPagina">
     @if (!IntegradaEnConfiguracion)
     {
-        <a href="/configuracion/ia" class="enlace-volver-configuracion">← Configuración</a>
+        <a href="/configuracion/ia" class="enlace-volver-configuracion">@Textos["LecturaIaVolver"]</a>
     }
 
     @* Mockup «Lectura IA TALVEG.dc.html», pantalla A. Su copy decía «qué se
@@ -19,27 +22,23 @@
        propio mockup lo anota y recomienda dejar de prometerlo), y tampoco es
        cierto que el Nivel 2 decida «qué se lee» — ver el comentario de la
        clase. El texto dice lo que el código hace. *@
-    <CabeceraPagina Titulo="Lectura IA por Cliente empresarial" Integrada="@IntegradaEnConfiguracion">
+    <CabeceraPagina Titulo="@Textos["LecturaIaTituloPagina"]" Integrada="@IntegradaEnConfiguracion">
         <Descripcion>
-            La lectura IA de cada tipo de documento se activa para todos en
-            <a href="/configuracion/tipos">Tipos de documento</a>. Aquí eliges un Cliente empresarial para
-            restringirla solo para él: puedes desactivar un tipo que está activo para todos, nunca activar uno
-            que está desactivado.
+            @Textos["LecturaIaDescripcionAntesEnlace"]
+            <a href="/configuracion/tipos">@Textos["LecturaIaDescripcionEnlace"]</a>@Textos["LecturaIaDescripcionDespuesEnlace"]
         </Descripcion>
     </CabeceraPagina>
 
     <p class="texto-descriptivo nota-alcance-lectura-ia">
-        Hoy esa restricción solo la aplica la detección de trabajadores en los documentos de empresa, y la omite
-        para una empresa únicamente cuando todos los Clientes empresariales a los que presta servicio tienen ese
-        tipo desactivado.
+        @Textos["LecturaIaNotaAlcance"]
     </p>
 
     @if (_error)
     {
         <div role="alert">
-            <EstadoVacio Titulo="No pudimos cargar los Clientes empresariales" Descripcion="Intenta nuevamente en unos segundos.">
+            <EstadoVacio Titulo="@Textos["LecturaIaErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
                 <Accion>
-                    <Boton OnClick="ReintentarAsync" Cargando="_cargando">Reintentar</Boton>
+                    <Boton OnClick="ReintentarAsync" Cargando="_cargando">@Textos["BotonReintentar"]</Boton>
                 </Accion>
             </EstadoVacio>
         </div>
@@ -52,17 +51,17 @@
     {
         @* Sin buscador: filtrar una lista vacía no lleva a ninguna parte (nota del mockup). *@
         <EstadoVacio NombreIcono="clientes"
-                     Titulo="Todavía no hay ningún Cliente empresarial"
-                     Descripcion="Da de alta un Cliente empresarial para poder restringir su lectura IA." />
+                     Titulo="@Textos["LecturaIaVacioTitulo"]"
+                     Descripcion="@Textos["LecturaIaVacioDescripcion"]" />
     }
     else
     {
         <div class="seleccion-cliente-lectura-ia">
-            <CampoTexto Etiqueta="Buscar Cliente empresarial" Valor="@_filtro" ValorChanged="v => _filtro = v" Placeholder="Razón social…" />
+            <CampoTexto Etiqueta="@Textos["LecturaIaBuscarEtiqueta"]" Valor="@_filtro" ValorChanged="v => _filtro = v" Placeholder="@Textos["LecturaIaBuscarPlaceholder"]" />
 
             @if (SinCoincidencias)
             {
-                <p class="sin-coincidencias-lectura-ia" role="status">Ningún Cliente empresarial coincide con «@_filtro.Trim()».</p>
+                <p class="sin-coincidencias-lectura-ia" role="status">@Textos["LecturaIaSinCoincidencias", _filtro.Trim()]</p>
             }
             else
             {

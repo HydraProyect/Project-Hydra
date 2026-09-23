@@ -84,7 +84,7 @@ public partial class ParametrosSistemaPanel : ComponentBase
                 return;
             }
 
-            ToastService.Mostrar("Umbrales de alerta actualizados correctamente.", TonoToast.Exito);
+            ToastService.Mostrar(Textos["ToastUmbralesActualizados"], TonoToast.Exito);
         }
         catch (ValidationException ex)
         {
@@ -94,7 +94,7 @@ public partial class ParametrosSistemaPanel : ComponentBase
         }
         catch (Exception)
         {
-            _mensajeErrorFormulario = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
+            _mensajeErrorFormulario = Textos["ErrorGuardarCambios"];
         }
         finally
         {
@@ -113,7 +113,7 @@ public partial class ParametrosSistemaPanel : ComponentBase
         {
             if (!TimeOnly.TryParse(_horaInicioJornada, out var horaInicio) || !TimeOnly.TryParse(_horaFinJornada, out var horaFin))
             {
-                _mensajeErrorOperativa = "Las horas de jornada deben tener formato HH:mm.";
+                _mensajeErrorOperativa = Textos["ErrorFormatoHoras"];
                 return;
             }
 
@@ -131,7 +131,7 @@ public partial class ParametrosSistemaPanel : ComponentBase
                 return;
             }
 
-            ToastService.Mostrar("Configuración operativa actualizada correctamente.", TonoToast.Exito);
+            ToastService.Mostrar(Textos["ToastOperativaActualizada"], TonoToast.Exito);
         }
         catch (ValidationException ex)
         {
@@ -141,7 +141,7 @@ public partial class ParametrosSistemaPanel : ComponentBase
         }
         catch (Exception)
         {
-            _mensajeErrorOperativa = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
+            _mensajeErrorOperativa = Textos["ErrorGuardarCambios"];
         }
         finally
         {
@@ -163,7 +163,7 @@ public partial class ParametrosSistemaPanel : ComponentBase
             {
                 if (!decimal.TryParse(_presupuestoMensualIaUsd, out var valor))
                 {
-                    _mensajeErrorPresupuestoIa = "El presupuesto debe ser un número.";
+                    _mensajeErrorPresupuestoIa = Textos["ErrorPresupuestoNoNumerico"];
                     return;
                 }
 
@@ -178,11 +178,11 @@ public partial class ParametrosSistemaPanel : ComponentBase
                 return;
             }
 
-            ToastService.Mostrar("Presupuesto de IA actualizado correctamente.", TonoToast.Exito);
+            ToastService.Mostrar(Textos["ToastPresupuestoActualizado"], TonoToast.Exito);
         }
         catch (Exception)
         {
-            _mensajeErrorPresupuestoIa = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
+            _mensajeErrorPresupuestoIa = Textos["ErrorGuardarCambios"];
         }
         finally
         {

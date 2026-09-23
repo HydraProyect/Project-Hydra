@@ -36,7 +36,11 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class LecturaIaGen2Tests : BunitContext
 {
-    public LecturaIaGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public LecturaIaGen2Tests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
+    }
 
     private static readonly ClienteSelectorDto Refrielectric = new(Guid.Parse("a1a1a1a1-0000-0000-0000-000000000001"), "Refrielectric S.L.");
     private static readonly ClienteSelectorDto MontajesEbro = new(Guid.Parse("b2b2b2b2-0000-0000-0000-000000000002"), "Montajes Ebro S.A.");
