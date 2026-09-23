@@ -261,4 +261,7 @@
   <data name="SujetoSubcontrata" xml:space="preserve">
     <value>Subcontrata · {0}</value>
   </data>
+  <data name="AnadirAMiCartera" xml:space="preserve">
+    <value>Añadir a mi cartera</value>
+  </data>
 </root>

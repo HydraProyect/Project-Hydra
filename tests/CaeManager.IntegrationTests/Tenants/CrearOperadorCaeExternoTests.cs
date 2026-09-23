@@ -87,6 +87,8 @@ public class CrearOperadorCaeExternoTests : IAsyncLifetime
         var tenantOperador = await contexto.Tenants.SingleAsync(t => t.Id == tenantOperadorId);
         tenantOperador.PerfilVocabulario.Should().Be(PerfilVocabularioTenant.Consultora);
         tenantOperador.EsPlataforma.Should().BeFalse();
+        tenantOperador.PuedeActuarComoOperadorCaeExterno.Should().BeTrue(
+            "el comando concede la capacidad explícita, ya no basta el perfil Consultora");
 
         // IgnoreQueryFilters: mismo motivo que en CrearClienteDeleganteTests —
         // ya salimos del AmbitoTenantExplicito que el propio Command abrió.

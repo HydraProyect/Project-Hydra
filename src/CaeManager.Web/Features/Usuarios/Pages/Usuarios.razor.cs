@@ -3,6 +3,8 @@ using System.Security.Claims;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Empresas.Queries.BuscarEmpresaPorCif;
 using CaeManager.Application.Common;
+using CaeManager.Application.Usuarios.Queries.ObtenerRolesNoAsignables;
+using CaeManager.Application.Usuarios.Queries.VerificarRolAsignable;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
@@ -339,6 +341,25 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     private string _rol = Roles.Consulta;
 
     /// <summary>
+    /// El rol que la cuenta ya tenía al abrir su ficha; <c>null</c> en un alta.
+    /// Solo sirve para que el selector siga mostrando ese rol aunque ya no se
+    /// pueda conceder en este Context Workspace: conservarlo no es concederlo.
+    /// </summary>
+    private string? _rolCargado;
+
+    /// <summary>
+    /// Roles que el selector no ofrece en el Context Workspace activo
+    /// (<see cref="ObtenerRolesNoAsignablesQuery"/>): Administrador y Dirección
+    /// CAE cuando el Context Workspace no es el Tenant de origen de quien
+    /// actúa. Comodidad, no autoridad: la autoridad es
+    /// <see cref="VerificarRolAsignableQuery"/>, que se consulta al guardar.
+    /// </summary>
+    private IReadOnlyList<string> _rolesNoAsignables = [];
+
+    private IEnumerable<string> RolesOfrecidos =>
+        Roles.Todos.Where(rol => !_rolesNoAsignables.Contains(rol) || rol == _rolCargado);
+
+    /// <summary>
     /// DEC-36 (REC-099): «permiso específico», no el rol Administrador a
     /// secas — solo se conserva al guardar si <see cref="_rol"/> sigue siendo
     /// Administrador (ver EditarUsuarioAsync/CrearUsuarioAsync), así que
@@ -380,6 +401,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             var idClaim = estadoAutenticacion.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             _usuarioActualId = Guid.TryParse(idClaim, out var id) ? id : null;
             _usuarioActualEsAdministrador = estadoAutenticacion.User.IsInRole(Roles.Administrador);
+            _rolesNoAsignables = await Mediator.Send(new ObtenerRolesNoAsignablesQuery(), token) ?? [];
 
             var usuarios = new List<UsuarioListaDto>();
             // Acotado al tenant activo: UserManager.Users no filtra nada
@@ -732,6 +754,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         _nombreCompleto = string.Empty;
         _enlaceActivacion = null;
         _rol = Roles.Consulta;
+        _rolCargado = null;
         _coordinadorUsuarioId = string.Empty;
         _clienteCif = string.Empty;
         _clienteEncontrado = null;
@@ -802,6 +825,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         _nombreCompleto = usuario.NombreCompleto;
         _enlaceActivacion = null;
         _rol = roles.FirstOrDefault() ?? Roles.Consulta;
+        _rolCargado = _rol;
         _coordinadorUsuarioId = usuario.CoordinadorUsuarioId?.ToString() ?? string.Empty;
         _clienteCif = string.Empty;
         _clienteEncontrado = null;
@@ -946,6 +970,18 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         if (TenantActual.TenantId is not { } tenantId)
         {
             _mensajeErrorFormulario = "No pudimos determinar tu organización. Vuelve a iniciar sesión.";
+            return;
+        }
+
+        // Autoridad en Application, no en el selector (decisión del
+        // propietario, 2026-09-23): la cuenta nace en el Context Workspace
+        // activo, así que Administrador o Dirección CAE solo se conceden si ese
+        // Context Workspace es el Tenant de origen de quien da el alta. Ver
+        // RolesReservadosAlTenantDeOrigen.
+        var rolAsignable = await Mediator.Send(new VerificarRolAsignableQuery(_rol));
+        if (rolAsignable.EsFallido)
+        {
+            _mensajeErrorFormulario = rolAsignable.Error.Mensaje;
             return;
         }
 
@@ -1247,6 +1283,13 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             return;
         }
 
+        // Misma autoridad que en el alta (RolesReservadosAlTenantDeOrigen):
+        // se pregunta a Application aquí, fuera de la puerta, y se aplica
+        // dentro solo si el guardado CONCEDE el rol — conservar el rol que la
+        // cuenta ya tenía no es concederlo, y editar el nombre de un
+        // Administrador existente no debe bloquearse.
+        var verificacionRol = await Mediator.Send(new VerificarRolAsignableQuery(_rol));
+
         var resultado = await PuertaAccesoDatos.EjecutarAsync(async () =>
         {
             var usuario = await UserManager.FindByIdAsync(id.ToString());
@@ -1270,6 +1313,10 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             // así que leerlo aquí o después de él da el mismo resultado.
             var rolesActuales = await UserManager.GetRolesAsync(usuario);
             var eraAdministrador = rolesActuales.Contains(Roles.Administrador);
+
+            // Antes de tocar nada: un rechazo aquí no deja datos a medias.
+            if (!rolesActuales.Contains(_rol) && verificacionRol.EsFallido)
+                return ResultadoEdicionUsuario.RolNoAsignable;
 
             // Solo un Administrador puede tocar este permiso (Codex,
             // HO-099-01): un DireccionCae editando otros campos de la misma
@@ -1366,6 +1413,8 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                 _mensajeErrorFormulario = "No encontramos este usuario.";
             else if (resultado == ResultadoEdicionUsuario.AutogestionPermisoSensibleRechazada)
                 _mensajeErrorFormulario = "No puedes conceder ni revocar tu propio permiso de rastro de acceso a documentos sensibles. Da de alta a otro Administrador y pídele que lo gestione.";
+            else if (resultado == ResultadoEdicionUsuario.RolNoAsignable)
+                _mensajeErrorFormulario = verificacionRol.Error.Mensaje;
             // Los fallos de escritura en Identity (datos o rol) ya dejaron su
             // propio mensaje en _mensajeErrorFormulario, con el motivo que dio
             // Identity — no se sobrescribe aquí con uno genérico.
@@ -1383,6 +1432,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         Actualizado,
         NoEncontrado,
         AutogestionPermisoSensibleRechazada,
+        RolNoAsignable,
         FalloAlActualizarDatos,
         FalloAlCambiarRolConservado,
         FalloAlCambiarRolSinNinguno

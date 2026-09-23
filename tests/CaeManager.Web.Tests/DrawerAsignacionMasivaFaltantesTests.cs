@@ -36,7 +36,7 @@ public class DrawerAsignacionMasivaFaltantesTests : BunitContext
         private object Registrar(ObtenerTrabajadoresParaSelectorQuery consulta)
         {
             AlcancesPedidos.Add(consulta.Alcance);
-            return new[] { new TrabajadorSelectorDto(TrabajadorId, "Bea Alonso Ruiz", "12345678A", null) };
+            return new[] { TrabajadorSelectorFalso.Crear(TrabajadorId, "Bea Alonso Ruiz") };
         }
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
@@ -123,6 +123,21 @@ public class DrawerAsignacionMasivaFaltantesTests : BunitContext
         await cut.InvokeAsync(() => componente.AbrirAsync());
 
         mediador.AlcancesPedidos.Should().Equal(AlcanceSelectorTrabajadores.BaseGeneralDelTenant);
+    }
+
+    /// <summary>
+    /// P4 (2026-09-23): la base general del Tenant se ofrece sin DNI. El fake siembra un DNI conocido
+    /// en el origen (<see cref="TrabajadorSelectorFalso"/>), así que volver a pintarlo da rojo aquí.
+    /// </summary>
+    [Fact]
+    public async Task El_selector_de_Trabajadores_de_la_base_general_no_muestra_el_DNI()
+    {
+        var (cut, componente) = Renderizar(new MediatorFalso());
+        await cut.InvokeAsync(() => componente.AbrirAsync());
+
+        var selector = cut.FindComponents<SelectorMultiple>().Single(c => c.Instance.Etiqueta == "Trabajadores");
+        selector.Instance.Elementos.Select(e => e.Nombre).Should().Equal("Bea Alonso Ruiz");
+        cut.Markup.Should().Contain("Bea Alonso Ruiz").And.NotContain(TrabajadorSelectorFalso.DniSembrado);
     }
 
     [Fact]

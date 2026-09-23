@@ -15,7 +15,10 @@
 # para emitir el certificado — y no se considera subencargado en este DPA.
 #
 # Uso:  cp .env.example .env   (rellenar, incluida DOMINIO)
-#       docker compose -f docker-compose.produccion.yml up -d --build
+#       IMAGEN_TAG=<sha> docker compose -f docker-compose.produccion.yml up -d
+# con la imagen caemanager:<sha> ya cargada: la despliega deploy/ci-deploy.sh
+# desde el job `imagen` de .github/workflows/deploy.yml (firmada en CI; en el
+# VPS no se compila, ver `app` más abajo).
 #
 # Red "edge" (staging, ver docker-compose.staging.yml): dos procesos Caddy no
 # pueden compartir el 80/443 del host, así que el segundo dominio
@@ -76,9 +79,14 @@ services:
     # día a multi-réplica, hace falta un mecanismo aparte (p. ej. un paso de
     # pre-deploy fuera de Compose) para que N réplicas de "app" no esperen cada
     # una a su propio "migrador" compitiendo por el mismo DDL.
-    build:
-      context: ../..
-      dockerfile: Dockerfile
+    # Imagen construida y firmada en CI, cargada por ci-deploy.sh, que arranca
+    # con IMAGEN_TAG=<sha>. Sin `build:` y con `pull_policy: never` a propósito:
+    # un `up` manual sin IMAGEN_TAG falla («No such image: caemanager:sin-
+    # etiqueta») en vez de compilar en el VPS (incidente del 2026-09-22) o de
+    # arrancar una imagen sin firma. Para un `up` manual con la desplegada:
+    #   IMAGEN_TAG="$(docker inspect caemanager-app --format '{{.Config.Image}}' | cut -d: -f2)"
+    image: caemanager:${IMAGEN_TAG:-sin-etiqueta}
+    pull_policy: never
     container_name: caemanager-migrador
     restart: "no"
     command: ["--migrate-only"]
@@ -94,9 +102,14 @@ services:
         condition: service_healthy
 
   app:
-    build:
-      context: ../..
-      dockerfile: Dockerfile
+    # Imagen construida y firmada en CI, cargada por ci-deploy.sh, que arranca
+    # con IMAGEN_TAG=<sha>. Sin `build:` y con `pull_policy: never` a propósito:
+    # un `up` manual sin IMAGEN_TAG falla («No such image: caemanager:sin-
+    # etiqueta») en vez de compilar en el VPS (incidente del 2026-09-22) o de
+    # arrancar una imagen sin firma. Para un `up` manual con la desplegada:
+    #   IMAGEN_TAG="$(docker inspect caemanager-app --format '{{.Config.Image}}' | cut -d: -f2)"
+    image: caemanager:${IMAGEN_TAG:-sin-etiqueta}
+    pull_policy: never
     container_name: caemanager-app
     # Techo de memoria del contenedor. Sin el, un desbordamiento dentro de la
     # app no se queda en la app: el contenedor comparte maquina con Postgres,

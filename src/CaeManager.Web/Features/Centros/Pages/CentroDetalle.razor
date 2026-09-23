@@ -188,14 +188,18 @@
                                         servidor solo al pulsar (DEC-53/DEC-62) y no se
                                         pintan. Decisión del propietario (2026-09-21):
                                         clic explícito, como en Empresa, sin auditoría de
-                                        la lectura.
+                                        la lectura. Y solo para roles con escritura
+                                        (decisión 2026-09-23): a Consulta el servidor le
+                                        devuelve null, así que ni se le ofrece.
                                     *@
                                     @if (canal.Tipo == TipoCanalGestion.Plataforma && canal.TieneCredenciales)
                                     {
-                                        <span class="centro360-canal-detalle centro360-canal-credenciales">
-                                            <BotonCopiar ValorAsync="CopiarCredencial(canal.Id, false)" Etiqueta="el usuario" Texto="Copiar usuario" />
-                                            <BotonCopiar ValorAsync="CopiarCredencial(canal.Id, true)" Etiqueta="la contraseña" Texto="Copiar contraseña" />
-                                        </span>
+                                        <SoloConEscritura>
+                                            <span class="centro360-canal-detalle centro360-canal-credenciales">
+                                                <BotonCopiar ValorAsync="CopiarCredencial(canal.Id, false)" Etiqueta="el usuario" Texto="Copiar usuario" />
+                                                <BotonCopiar ValorAsync="CopiarCredencial(canal.Id, true)" Etiqueta="la contraseña" Texto="Copiar contraseña" />
+                                            </span>
+                                        </SoloConEscritura>
                                     }
                                     @if (!string.IsNullOrWhiteSpace(canal.EmailsDestinatarios))
                                     {

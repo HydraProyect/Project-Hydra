@@ -19,6 +19,10 @@ namespace CaeManager.Application.Common;
 /// "operación permitida": el privilegio de plataforma autoriza a <i>abrir</i>
 /// el contexto del cliente, no a consultar cualquier cosa que haya dentro.
 ///
+/// Por la misma razón, dentro del Tenant solo la leen los roles con escritura
+/// (decisión del propietario, 2026-09-23): el rol Consulta —propio o delegado
+/// por un Operador CAE externo— ve el Tenant entero, pero no se lleva sus llaves.
+///
 /// Quien la aplica es <see cref="AutorizacionSecretosDeTenantBehavior{TRequest,TResponse}"/>,
 /// y quien vigila que ninguna Query nueva de credenciales se quede sin marcar
 /// es un test de arquitectura.

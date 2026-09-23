@@ -24,9 +24,15 @@ namespace CaeManager.Application.Centros.Queries.ObtenerCredencialCanalGestion;
 /// clic explícito, siguiendo el precedente de
 /// <c>ObtenerCredencialAccesoEmpresaQuery</c>, <b>sin registro de auditoría de
 /// la lectura</b>. Ese mecanismo no existe todavía; cuando exista, esta consulta
-/// entra en él. Consecuencia conocida: quien tenga alcance de gestión sobre el
-/// Centro —incluidos los roles de organización completa, que el precedente
-/// también admite— puede leer la contraseña sin que quede rastro.
+/// entra en él. Consecuencia conocida: quien pueda leerla, la lee sin que quede
+/// rastro.
+/// </para>
+///
+/// <para>
+/// Quién puede leerla (decisión del propietario, 2026-09-23): solo los roles con
+/// escritura con alcance de gestión sobre el Centro. El rol lo filtra
+/// <see cref="AutorizacionSecretosDeTenantBehavior{TRequest,TResponse}"/> —Consulta,
+/// también la delegada, recibe <c>null</c>—; el Centro, este handler.
 /// </para>
 /// </summary>
 public record ObtenerCredencialCanalGestionQuery(Guid CentroId, Guid CanalId)

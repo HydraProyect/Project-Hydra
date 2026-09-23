@@ -65,7 +65,7 @@ LINEA_LLAMADA="$(grep -n '^    volcar_diagnostico_memoria$' "$FICHERO_FUENTE" | 
 echo "OK: la llamada (línea $LINEA_LLAMADA) vive después del exit 1 del bloque de 'up' no sano (línea $LINEA_EXIT)"
 
 # ---------------------------------------------------------------------------
-# volcar_pico_memoria_previo (REC-196/P33): corre ANTES del build y del `up`.
+# volcar_pico_memoria_previo (REC-196/P33): corre ANTES de cargar la imagen y del `up`.
 # El guion interno de `docker exec` se ejecuta DE VERDAD contra un cgroup
 # falso en un directorio temporal (el mock de `docker exec` sustituye
 # /sys/fs/cgroup por ese directorio), no se compara con una copia de su texto.
@@ -136,15 +136,17 @@ echo "$SALIDA5" | grep -q "sin lectura de cgroup en caemanager-app" \
 MOCK_EXEC_FALLA=0
 echo "OK: docker exec roto se tolera y se avisa"
 
-echo "=== Caso 6: volcar_pico_memoria_previo se llama dentro de volcar_diagnostico_si_falla, ANTES del build ==="
+echo "=== Caso 6: volcar_pico_memoria_previo se llama dentro de volcar_diagnostico_si_falla, ANTES de cargar la imagen ==="
+# Desde el 2026-09-23 el VPS no compila: el paso que reemplaza la imagen es
+# cargar_imagen_verificada (docker load de la imagen firmada en CI).
 LINEA_FUNC="$(grep -n '^volcar_diagnostico_si_falla() {' "$FICHERO_FUENTE" | head -1 | cut -d: -f1)"
-LINEA_BUILD="$(grep -n 'docker compose "\${args\[@\]}" build' "$FICHERO_FUENTE" | head -1 | cut -d: -f1)"
+LINEA_BUILD="$(grep -n 'if ! cargar_imagen_verificada "\$DIR_IMAGEN" "\$SHA"' "$FICHERO_FUENTE" | head -1 | cut -d: -f1)"
 LINEA_PREVIO="$(grep -n '^    volcar_pico_memoria_previo$' "$FICHERO_FUENTE" | head -1 | cut -d: -f1)"
 [ -n "$LINEA_FUNC" ] && [ -n "$LINEA_BUILD" ] && [ -n "$LINEA_PREVIO" ] \
-    || { echo "FALLO: no se localizó función/build/llamada (func=$LINEA_FUNC build=$LINEA_BUILD previo=$LINEA_PREVIO)" >&2; exit 1; }
+    || { echo "FALLO: no se localizó función/carga/llamada (func=$LINEA_FUNC carga=$LINEA_BUILD previo=$LINEA_PREVIO)" >&2; exit 1; }
 [ "$LINEA_PREVIO" -gt "$LINEA_FUNC" ] && [ "$LINEA_PREVIO" -lt "$LINEA_BUILD" ] \
-    || { echo "FALLO: la llamada (línea $LINEA_PREVIO) no está entre el inicio de volcar_diagnostico_si_falla ($LINEA_FUNC) y el build ($LINEA_BUILD) — mediría contenedores ya reemplazados" >&2; exit 1; }
-echo "OK: la llamada (línea $LINEA_PREVIO) va antes del build (línea $LINEA_BUILD)"
+    || { echo "FALLO: la llamada (línea $LINEA_PREVIO) no está entre el inicio de volcar_diagnostico_si_falla ($LINEA_FUNC) y la carga de la imagen ($LINEA_BUILD) — mediría contenedores ya reemplazados" >&2; exit 1; }
+echo "OK: la llamada (línea $LINEA_PREVIO) va antes de cargar la imagen (línea $LINEA_BUILD)"
 
 echo "=== Caso 7: contadores del host (PSI, oom_kill) de un /proc falso ==="
 PROC_FALSO="$(mktemp -d)"
@@ -178,15 +180,15 @@ printf '%s\n' "solo_otra_cosa 1" > "$PROC_FALSO/vmstat"
 SALIDA8B="$(RAIZ_PROC="$PROC_FALSO" volcar_contadores_memoria_host "sin coincidencias" 2>&1)"
 echo "OK: ausencia de PSI y grep sin coincidencias se toleran"
 
-echo "=== Caso 9: los contadores se vuelcan antes del despliegue, tras el build (antes del up) y tras el up ==="
-LINEA_TRAS_BUILD="$(grep -n 'volcar_contadores_memoria_host "tras el build"' "$FICHERO_FUENTE" | head -1 | cut -d: -f1)"
-[ -n "$LINEA_TRAS_BUILD" ] || { echo "FALLO: falta el volcado 'tras el build'" >&2; exit 1; }
+echo "=== Caso 9: los contadores se vuelcan antes del despliegue, tras cargar la imagen (antes del up) y tras el up ==="
+LINEA_TRAS_BUILD="$(grep -n 'volcar_contadores_memoria_host "tras cargar la imagen"' "$FICHERO_FUENTE" | head -1 | cut -d: -f1)"
+[ -n "$LINEA_TRAS_BUILD" ] || { echo "FALLO: falta el volcado 'tras cargar la imagen'" >&2; exit 1; }
 [ "$LINEA_TRAS_BUILD" -gt "$LINEA_BUILD" ] && [ "$LINEA_TRAS_BUILD" -lt "$LINEA_UP" ] \
-    || { echo "FALLO: 'tras el build' (línea $LINEA_TRAS_BUILD) no está entre el build ($LINEA_BUILD) y el up ($LINEA_UP)" >&2; exit 1; }
+    || { echo "FALLO: 'tras cargar la imagen' (línea $LINEA_TRAS_BUILD) no está entre la carga ($LINEA_BUILD) y el up ($LINEA_UP)" >&2; exit 1; }
 grep -q 'volcar_contadores_memoria_host "antes del despliegue"' "$FICHERO_FUENTE" \
     || { echo "FALLO: falta el volcado 'antes del despliegue'" >&2; exit 1; }
 grep -q 'volcar_contadores_memoria_host "tras el despliegue"' "$FICHERO_FUENTE" \
     || { echo "FALLO: falta el volcado 'tras el despliegue'" >&2; exit 1; }
-echo "OK: tres puntos de lectura, el del build entre build y up"
+echo "OK: tres puntos de lectura, el de la carga entre carga y up"
 
 echo "TODAS LAS PRUEBAS PASARON"

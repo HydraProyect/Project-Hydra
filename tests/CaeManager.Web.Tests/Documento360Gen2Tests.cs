@@ -54,6 +54,8 @@ public class Documento360Gen2Tests : BunitContext
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
+        // «Renovar» va dentro de SoloConEscritura: sin rol, AuthorizeView no tendría con qué decidir.
+        this.ConRolDeEscritura();
         return mediador;
     }
 

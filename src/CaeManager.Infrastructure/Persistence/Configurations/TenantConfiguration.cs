@@ -65,6 +65,8 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
             // docs/MULTITENANCY.md § 2) — DDL-072 lo declara ClienteDirecto
             // explícitamente, nunca se infiere.
             PerfilVocabulario = PerfilVocabularioTenant.ClienteDirecto,
+            // TALVEG no es Operador CAE externo por defecto (ver Tenant.PuedeActuarComoOperadorCaeExterno).
+            PuedeActuarComoOperadorCaeExterno = false,
             // El tenant de plataforma nunca es él mismo un suscriptor de
             // pago (es quien opera Hydra, no un cliente) — se queda en
             // SinSuscripcion para siempre, y GateComercialTenantBehavior lo

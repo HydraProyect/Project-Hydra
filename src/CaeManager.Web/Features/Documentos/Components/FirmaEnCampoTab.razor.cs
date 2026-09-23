@@ -20,6 +20,7 @@ public partial class FirmaEnCampoTab : ComponentBase, IAsyncDisposable
     private DotNetObjectReference<FirmaEnCampoTab>? _referencia;
     private IJSObjectReference? _modulo;
     private bool _moduloIniciado;
+    private bool _iniciandoModulo;
 
     private DocumentoDetalleDto? _documento;
     private IReadOnlyList<FirmaEnCampoDocumentoDto> _firmas = [];
@@ -105,12 +106,23 @@ public partial class FirmaEnCampoTab : ComponentBase, IAsyncDisposable
     /// </summary>
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_moduloIniciado || !PuedeFirmar()) return;
+        // _iniciandoModulo: un render que llegue mientras el enganche está en vuelo no lanza otro
+        // (duplicaría los listeners del lienzo).
+        if (_moduloIniciado || _iniciandoModulo || !PuedeFirmar()) return;
 
-        _moduloIniciado = true;
-        _referencia = DotNetObjectReference.Create(this);
-        _modulo = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./js/firmaEnCampo.js");
-        await _modulo.InvokeVoidAsync("iniciar", _referencia, _idCanvas);
+        // El lienzo vive dentro de <SoloConEscritura>: si la autorización aún no lo ha pintado,
+        // iniciar() no lo encuentra y devuelve false, y se reintenta en el render siguiente.
+        _iniciandoModulo = true;
+        try
+        {
+            _referencia ??= DotNetObjectReference.Create(this);
+            _modulo ??= await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./js/firmaEnCampo.js");
+            _moduloIniciado = await _modulo.InvokeAsync<bool>("iniciar", _referencia, _idCanvas);
+        }
+        finally
+        {
+            _iniciandoModulo = false;
+        }
     }
 
     private bool PuedeFirmar() =>

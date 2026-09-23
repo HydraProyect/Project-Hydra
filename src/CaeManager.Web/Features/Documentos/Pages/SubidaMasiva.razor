@@ -67,7 +67,7 @@
                                 <div class="item-subida-masiva-confirmacion">
                                     @if (item.ContenidoPdf is not null) { <iframe class="previsualizacion-documento" src="@ConstruirDataUriPdf(item.ContenidoPdf)" title="Vista previa de @item.NombreArchivo"></iframe> }
                                     <div class="item-subida-masiva-formulario">
-                                        <CampoBuscarSelect Etiqueta="Trabajador" Marcador="Escribe un nombre o DNI para buscar…" Valor="@item.TrabajadorId" ValorChanged="v => item.TrabajadorId = v" Opciones="@OpcionesTrabajadores" />
+                                        <CampoBuscarSelect Etiqueta="Trabajador" Marcador="Escribe un nombre o alias para buscar…" Valor="@item.TrabajadorId" ValorChanged="v => item.TrabajadorId = v" Opciones="@OpcionesTrabajadores" />
                                         <CampoSelect Etiqueta="Tipo de documento" Valor="@item.TipoDocumentoId" ValorChanged="v => item.TipoDocumentoId = v"><option value="">Selecciona un tipo de documento…</option>@foreach (var tipo in _tiposDisponibles) { <option value="@tipo.Id">@tipo.Nombre</option> }</CampoSelect>
                                         <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@item.FechaEmision" ValorChanged="v => item.FechaEmision = v" />
                                         <span class="ayuda-fecha-subida">@(item.Propuesta.FechaEmision is not null ? "Leída del archivo por la IA: compárala con el PDF antes de confirmar." : "La IA no leyó una fecha de emisión en el archivo: indícala tú.")</span>

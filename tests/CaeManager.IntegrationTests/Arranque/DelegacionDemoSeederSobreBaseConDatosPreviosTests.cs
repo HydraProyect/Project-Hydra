@@ -159,6 +159,43 @@ public class DelegacionDemoSeederSobreBaseConDatosPreviosTests
     }
 
     /// <summary>
+    /// Falsación de P11 (2026-09-23): <c>AprovisionarTenantAsync</c> retorna
+    /// temprano cuando el tenant ya existe. Si ese retorno no aplicara la
+    /// capacidad pedida a un tenant preexistente que no la tuviera, un
+    /// Tenant Consultora creado antes de este incremento — o restaurado
+    /// desde un estado previo al backfill de la migración — se quedaría sin
+    /// <see cref="Tenant.PuedeActuarComoOperadorCaeExterno"/> para siempre,
+    /// aunque el seeder de hoy la pida explícitamente en cada arranque.
+    /// </summary>
+    [Fact]
+    public async Task Un_tenant_consultora_preexistente_sin_la_capacidad_la_recibe_al_reaprovisionar()
+    {
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: true);
+
+        var tenantConsultoraPrevioId = await SembrarTenantConsultoraSinCapacidadAsync(arnes);
+
+        using (var ambitoSiembraHoy = arnes.Servicios.CreateScope())
+        {
+            var sp = ambitoSiembraHoy.ServiceProvider;
+            await DelegacionDemoSeeder.SeedAsync(
+                sp.GetRequiredService<CaeManagerDbContext>(),
+                sp.GetRequiredService<UserManager<ApplicationUser>>(),
+                sp.GetRequiredService<IUserStore<ApplicationUser>>(),
+                sp.GetRequiredService<IConfiguration>(),
+                EntornoDePrueba.Desarrollo,
+                NullLogger.Instance);
+        }
+
+        using var ambitoLectura = arnes.Servicios.CreateScope();
+        var contexto = ambitoLectura.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+
+        var tenantConsultoraTrasSiembra = await contexto.Tenants.SingleAsync(t => t.Id == tenantConsultoraPrevioId);
+        tenantConsultoraTrasSiembra.PuedeActuarComoOperadorCaeExterno.Should().BeTrue(
+            "MEDIDO: un tenant ya existente que no tenía la capacidad debe recibirla igual que uno " +
+            "creado de cero — el early-return de AprovisionarTenantAsync no puede dejarlo sin ella");
+    }
+
+    /// <summary>
     /// Inserta el tenant Dexter exactamente con el nombre que
     /// <see cref="DelegacionDemoSeeder.AprovisionarTenantAsync"/> busca, más UN
     /// Cliente (<c>EsCritico != null</c>) — la señal mínima que el guard de
@@ -188,5 +225,30 @@ public class DelegacionDemoSeederSobreBaseConDatosPreviosTests
         }
 
         return tenantDexter.Id;
+    }
+
+    /// <summary>
+    /// Inserta el tenant Consultora exactamente con el nombre que
+    /// <see cref="DelegacionDemoSeeder.AprovisionarTenantAsync"/> busca, con perfil
+    /// Consultora pero SIN <see cref="Tenant.PuedeActuarComoOperadorCaeExterno"/> —
+    /// simula un tenant sembrado antes del incremento P11 o restaurado desde un
+    /// estado previo al backfill de la migración.
+    /// </summary>
+    private static async Task<Guid> SembrarTenantConsultoraSinCapacidadAsync(ArnesDeArranqueRuntime arnes)
+    {
+        using var ambito = arnes.Servicios.CreateScope();
+        var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+
+        var tenantConsultora = new Tenant(DelegacionDemoSeeder.NombreTenantConsultora, PerfilVocabularioTenant.Consultora);
+
+        using (AmbitoTenantExplicito.Establecer(tenantConsultora.Id))
+        {
+            contexto.Tenants.Add(tenantConsultora);
+            contexto.ParametrosSistema.Add(new ParametroSistema(
+                ParametroSistemaSeedData.UmbralAmbarDias, ParametroSistemaSeedData.UmbralRojoDias));
+            await contexto.SaveChangesAsync();
+        }
+
+        return tenantConsultora.Id;
     }
 }

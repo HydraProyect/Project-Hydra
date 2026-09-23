@@ -171,9 +171,16 @@
                                                     {
                                                         <div class="fila-documento-requerido" role="row" @key="documento.TipoDocumentoId">
                                                             <span class="celda-documento-nombre" role="cell">
-                                                                <button type="button" class="enlace-nombre-fila" @onclick="() => GestionarDocumentoAsync(documento)">
-                                                                    @documento.TipoDocumentoNombre
-                                                                </button>
+                                                                @* El nombre abre el mismo drawer de gestión que la columna de acción, que Consulta no puede usar:
+                                                                   a Consulta se le pinta como texto. *@
+                                                                <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv" Context="autorizacionNombre">
+                                                                    <Authorized>
+                                                                        <button type="button" class="enlace-nombre-fila" @onclick="() => GestionarDocumentoAsync(documento)">
+                                                                            @documento.TipoDocumentoNombre
+                                                                        </button>
+                                                                    </Authorized>
+                                                                    <NotAuthorized>@documento.TipoDocumentoNombre</NotAuthorized>
+                                                                </AuthorizeView>
                                                             </span>
                                                             <span role="cell">
                                                                 <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">
@@ -186,10 +193,14 @@
                                                                 </TextoFechaCopiable>
                                                             </span>
                                                             <span class="columna-accion" role="cell">
-                                                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
-                                                                       OnClick="() => GestionarDocumentoAsync(documento)">
-                                                                    @(documento.DocumentoId is null ? Textos["AccionSubir"] : documento.Estado == EstadoDocumento.Vigente ? Textos["AccionVer"] : Textos["AccionRenovar"])
-                                                                </Boton>
+                                                                @* Abre DrawerGestionDocumento, que solo crea o renueva (ICommand denegados a
+                                                                   Consulta) — también cuando el rótulo dice «Ver». Igual que «Subir documento». *@
+                                                                <SoloConEscritura>
+                                                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                                                                           OnClick="() => GestionarDocumentoAsync(documento)">
+                                                                        @(documento.DocumentoId is null ? Textos["AccionSubir"] : documento.Estado == EstadoDocumento.Vigente ? Textos["AccionVer"] : Textos["AccionRenovar"])
+                                                                    </Boton>
+                                                                </SoloConEscritura>
                                                             </span>
                                                         </div>
                                                     }
@@ -222,10 +233,14 @@
                                     <span role="cell">@centro.ClienteRazonSocial</span>
                                     <span role="cell">@centro.FechaAlta.ToString("dd/MM/yyyy")</span>
                                     <span class="columna-accion" role="cell">
-                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
-                                               OnClick="() => DarDeBajaAsignacionAsync(centro.AsignacionId)">
-                                            @Textos["AccionDarDeBaja"]
-                                        </Boton>
+                                        @* DarDeBajaAsignacionesCommand es ICommand, denegado a Consulta. La celda se
+                                           queda (vacía) para no desalinear la rejilla con la cabecera. *@
+                                        <SoloConEscritura>
+                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                                                   OnClick="() => DarDeBajaAsignacionAsync(centro.AsignacionId)">
+                                                @Textos["AccionDarDeBaja"]
+                                            </Boton>
+                                        </SoloConEscritura>
                                     </span>
                                 </div>
                             }
@@ -260,11 +275,14 @@
                                     <span role="cell">@gestion.CentroNombre</span>
                                     <span role="cell">@gestion.CreadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy")</span>
                                     <span class="columna-accion" role="cell">
-                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
-                                               Cargando="_completandoGestion.Contains(gestion.Id)"
-                                               OnClick="() => CompletarGestionAsync(gestion.Id)">
-                                            @Textos["AccionCompletar"]
-                                        </Boton>
+                                        @* CompletarGestionCommand es ICommand, denegado a Consulta. *@
+                                        <SoloConEscritura>
+                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                                                   Cargando="_completandoGestion.Contains(gestion.Id)"
+                                                   OnClick="() => CompletarGestionAsync(gestion.Id)">
+                                                @Textos["AccionCompletar"]
+                                            </Boton>
+                                        </SoloConEscritura>
                                     </span>
                                 </div>
                             }

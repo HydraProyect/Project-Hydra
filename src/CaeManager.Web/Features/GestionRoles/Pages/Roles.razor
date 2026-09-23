@@ -149,7 +149,7 @@
                                                encabezado de columna no nombra el control— y se
                                                oculta a la vista desde Roles.razor.css. *@
                                             <CampoSelect Etiqueta="@($"Rol a asignar a {pendiente.NombreCompleto}")" Valor="@RolElegido(pendiente.Id)" ValorChanged="v => CambiarRolElegido(pendiente.Id, v)">
-                                                @foreach (var rol in CaeManager.Infrastructure.Identity.Roles.Todos)
+                                                @foreach (var rol in _rolesOfrecidos)
                                                 {
                                                     <option value="@rol">@CaeManager.Infrastructure.Identity.Roles.NombreVisible(rol)</option>
                                                 }

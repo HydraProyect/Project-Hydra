@@ -7,8 +7,8 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Tenants.Queries.ObtenerOperadoresCaeExternos;
 
 /// <summary>
-/// Los Operadores CAE externos (Tenants de perfil <c>Consultora</c>, nunca el
-/// Tenant de plataforma) con los Tenants propietarios que operan hoy. Alimenta
+/// Los Operadores CAE externos (Tenants con <see cref="Tenant.PuedeActuarComoOperadorCaeExterno"/>
+/// concedida, nunca el Tenant de plataforma) con los Tenants propietarios que operan hoy. Alimenta
 /// el panel de alta del Actor de Plataforma en <c>/delegaciones</c>.
 ///
 /// Es una lectura transversal a todos los Tenants: la autoridad es la misma
@@ -39,7 +39,7 @@ public class ObtenerOperadoresCaeExternosQueryHandler(
             return [];
 
         var operadores = await dbContext.Tenants
-            .Where(t => t.PerfilVocabulario == PerfilVocabularioTenant.Consultora && !t.EsPlataforma)
+            .Where(t => t.PuedeActuarComoOperadorCaeExterno && !t.EsPlataforma)
             .OrderBy(t => t.Nombre)
             .Select(t => new { t.Id, t.Nombre, t.CreadoEnUtc })
             .ToListAsync(cancellationToken);

@@ -563,6 +563,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Trabajadores.ObtenerTrabajadoresQueryHandler", "IEmpresasQueryContext"),
         ("Trabajadores.ObtenerTrabajadoresQueryHandler", "ISubcontratasQueryContext"),
         ("Trabajadores.ObtenerTrabajadorPorIdQueryHandler", "IEmpresasQueryContext"),
+        // P4 (2026-09-23): sin DNI, la etiqueta del selector desempata homónimos por el empleador
+        // (razón social de su Empresa o Subcontrata), proyectado con LEFT JOIN en la misma consulta.
+        ("Trabajadores.ObtenerTrabajadoresParaSelectorQueryHandler", "IEmpresasQueryContext"),
         ("Trabajadores.ObtenerTrabajadorPorIdQueryHandler", "ISubcontratasQueryContext"),
         ("Vehiculos.CrearVehiculoCommandHandler", "IEmpresasQueryContext"),
         ("Vehiculos.CrearVehiculoCommandHandler", "ISubcontratasQueryContext"),
